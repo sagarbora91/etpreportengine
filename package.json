@@ -73,5 +73,9 @@
     "@babel/preset-env": "^7.29.7",
     "@capacitor/cli": "^6.1.2",
     "read-excel-file": "9.3.7"
+  },
+  "overrides": {
+    "tar": "7.5.22",
+    "brace-expansion": "2.1.4"
   }
 }

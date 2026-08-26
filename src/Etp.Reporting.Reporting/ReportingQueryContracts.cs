@@ -1,12 +1,20 @@
 namespace Etp.Reporting.Reporting;
 
-public sealed record ReportingQueryScope(DateOnly DateFrom, DateOnly DateTo, IReadOnlyList<string>? StoreCodes = null)
+public sealed record ReportingQueryScope(
+    DateOnly DateFrom,
+    DateOnly DateTo,
+    IReadOnlyList<string>? StoreCodes = null,
+    IReadOnlyList<string>? BrandSegments = null,
+    IReadOnlyList<string>? TransactionTypes = null,
+    IReadOnlyList<string>? ItemCodes = null)
 {
     public void Validate()
     {
         if (DateTo < DateFrom) throw new ArgumentException("The end date cannot precede the start date.");
         if (StoreCodes?.Any(string.IsNullOrWhiteSpace) == true)
             throw new ArgumentException("Store filters cannot contain blank values.");
+        if (BrandSegments?.Any(string.IsNullOrWhiteSpace) == true || TransactionTypes?.Any(string.IsNullOrWhiteSpace) == true || ItemCodes?.Any(string.IsNullOrWhiteSpace) == true)
+            throw new ArgumentException("Report filters cannot contain blank values.");
     }
 }
 

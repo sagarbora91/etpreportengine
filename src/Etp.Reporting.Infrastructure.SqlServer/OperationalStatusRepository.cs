@@ -27,7 +27,7 @@ public sealed class OperationalStatusRepository(string connectionString)
 
     private const string HistorySql = """
         SELECT TOP (50) f.original_file_name,COALESCE(p.report_code,'UNKNOWN'),b.status,
-               COALESCE(f.source_row_count,0),b.started_utc,b.completed_utc
+               CONVERT(int,(SELECT COUNT_BIG(*) FROM dbo.source_lineage l WHERE l.import_file_id=f.import_file_id)),b.started_utc,b.completed_utc
         FROM dbo.import_files f
         JOIN dbo.import_batches b ON b.import_batch_id=f.import_batch_id
         LEFT JOIN dbo.import_profiles p ON p.import_profile_id=f.import_profile_id

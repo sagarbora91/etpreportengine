@@ -40,6 +40,16 @@ public sealed class ReportingQueryRepositoryTests
         Assert.Contains("document_date>=@dateFrom", SqlReportingQueries.StockMovements, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Sales_and_stock_queries_apply_parameterized_optional_filters()
+    {
+        Assert.Contains("OPENJSON(@segmentsJson)", SqlReportingQueries.Sales, StringComparison.Ordinal);
+        Assert.Contains("OPENJSON(@typesJson)", SqlReportingQueries.Sales, StringComparison.Ordinal);
+        Assert.Contains("OPENJSON(@itemsJson)", SqlReportingQueries.Sales, StringComparison.Ordinal);
+        Assert.Contains("OPENJSON(@itemsJson)", SqlReportingQueries.StockPositions, StringComparison.Ordinal);
+        Assert.Contains("OPENJSON(@itemsJson)", SqlReportingQueries.StockMovements, StringComparison.Ordinal);
+    }
+
     public static TheoryData<string> Queries() => new()
     {
         SqlReportingQueries.Sales,

@@ -23,6 +23,8 @@ Run from an elevated PowerShell prompt:
 
 This runs `DBCC CHECKDB`, verifies the migration count, and returns aggregate import counts.
 
+The in-app health service also evaluates three privacy-safe operational warnings: a full backup older than 36 hours (or missing), database files at 80% of their configured maximum, and any failed import during the previous 24 hours. Unlimited SQL data files do not generate a misleading percentage warning.
+
 ## Backup
 
 Create and checksum-verify a backup immediately:
@@ -31,7 +33,7 @@ Create and checksum-verify a backup immediately:
 .\scripts\backup-etp-database.ps1
 ```
 
-Backups default to `%ProgramData%\EtpReporting\Backups`, use SQL Server `CHECKSUM`, run `RESTORE VERIFYONLY`, and retain 30 days.
+Backups default to `%ProgramData%\EtpReporting\Backups`, use SQL Server `CHECKSUM`, run `RESTORE VERIFYONLY`, and retain 30 days. They do not request backup compression because SQL Server Express does not support it.
 
 Install the daily 10 PM backup task from an elevated PowerShell prompt:
 
@@ -41,7 +43,23 @@ Install the daily 10 PM backup task from an elevated PowerShell prompt:
 
 ## Restore drill
 
-Restore into a separate validation database first. Never overwrite the live database during a drill. Use SQL Server Management Studio or `RESTORE DATABASE` with new `MOVE` targets, run `DBCC CHECKDB`, compare import-file and lineage counts, then remove the validation database after approval.
+Run the automated recovery drill:
+
+```powershell
+.\scripts\invoke-etp-recovery-drill.ps1
+```
+
+The drill restores the latest verified backup into a uniquely named validation database, runs `DBCC CHECKDB`, compares imported-file and lineage aggregates with production, and drops the validation database and files in a `finally` block. It never overwrites the live database.
+
+## Offline support package
+
+Create a package suitable for offline support transfer:
+
+```powershell
+.\scripts\new-etp-support-package.ps1
+```
+
+The ZIP contains database aggregate counts, health metadata, operating-system and SQL service status, and scheduled-task state. It deliberately excludes source rows, customer information, invoices, workbook names, workbook paths, connection strings, and application logs that could contain user-entered text.
 
 ## Deferred business controls
 

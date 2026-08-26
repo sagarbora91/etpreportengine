@@ -12,4 +12,7 @@ $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument $arguments
 $trigger = New-ScheduledTaskTrigger -Daily -At $time
 $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew
 Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Settings $settings -Description "Checksum-verified backup of the ETP Reporting SQL Server database." -Force | Out-Null
-Write-Host "Scheduled task '$TaskName' installed for $BackupTime daily."
+$task = Get-ScheduledTask -TaskName $TaskName -ErrorAction Stop
+if ($task.State -eq 'Disabled') { throw "Scheduled backup task was installed but is disabled." }
+$taskInfo = Get-ScheduledTaskInfo -TaskName $TaskName -ErrorAction Stop
+Write-Host "Scheduled task '$TaskName' installed and enabled for $BackupTime daily. Next run: $($taskInfo.NextRunTime)."

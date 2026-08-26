@@ -14,10 +14,9 @@ New-Item -ItemType Directory -Path $resolvedDirectory -Force | Out-Null
 $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $backupPath = Join-Path $resolvedDirectory "$Database-$stamp.bak"
 $escapedPath = $backupPath.Replace("'", "''")
-& $sqlcmd -S $ServerInstance -E -b -Q "BACKUP DATABASE [$Database] TO DISK=N'$escapedPath' WITH COPY_ONLY, CHECKSUM, COMPRESSION, INIT; RESTORE VERIFYONLY FROM DISK=N'$escapedPath' WITH CHECKSUM;"
+& $sqlcmd -S $ServerInstance -E -b -Q "BACKUP DATABASE [$Database] TO DISK=N'$escapedPath' WITH COPY_ONLY, CHECKSUM, INIT; RESTORE VERIFYONLY FROM DISK=N'$escapedPath' WITH CHECKSUM;"
 if ($LASTEXITCODE -ne 0) { throw "Database backup or verification failed." }
 Get-ChildItem -LiteralPath $resolvedDirectory -Filter "$Database-*.bak" -File |
     Where-Object LastWriteTimeUtc -lt (Get-Date).ToUniversalTime().AddDays(-$RetentionDays) |
     Remove-Item -Force
 Get-FileHash -LiteralPath $backupPath -Algorithm SHA256 | Format-List
-

@@ -172,10 +172,13 @@ static async Task VerifyExistingAsync(string connectionString, string migrationD
     var brand = await executor.ExecuteSalesSummaryAsync(scope, SalesSummaryDimension.BrandSegment);
     var tender = await executor.ExecuteTenderReconciliationAsync(scope);
     var stock = await executor.ExecuteStockReconciliationAsync(scope);
+    var storeFiltered = await executor.ExecuteSalesSummaryAsync(scope with { StoreCodes = ["WLMHW"] }, SalesSummaryDimension.Daily);
+    var diagnostic = new TenderVarianceDiagnosticService().Diagnose(tender, RetailReportingPolicy.Tender.AbsoluteTolerance);
+    var operationalHealth = await new DatabaseOperationalHealthRepository(connectionString).LoadAsync();
     await using var connection = new SqlConnection(connectionString); await connection.OpenAsync();
     await using var command = new SqlCommand("SELECT (SELECT COUNT_BIG(*) FROM dbo.import_files),(SELECT COUNT_BIG(*) FROM dbo.source_lineage)", connection);
     await using var reader = await command.ExecuteReaderAsync(); await reader.ReadAsync();
-    if (reader.GetInt64(0) != 8 || daily.Status != ReconciliationStatus.Passed || brand.Status != ReconciliationStatus.Passed || stock.Status != ReconciliationStatus.Passed)
+    if (reader.GetInt64(0) != 8 || daily.Status != ReconciliationStatus.Passed || brand.Status != ReconciliationStatus.Passed || stock.Status != ReconciliationStatus.Passed || storeFiltered.Rows.Count == 0 || diagnostic.Status != tender.Status)
         throw new InvalidOperationException("Existing application database failed final acceptance checks.");
-    Console.WriteLine($"Existing database verified: files={reader.GetInt64(0)}; lineage={reader.GetInt64(1)}; daily={daily.Status}; brand-segment={brand.Status}; tender-control={tender.Status}; stock={stock.Status}.");
+    Console.WriteLine($"Existing database verified: files={reader.GetInt64(0)}; lineage={reader.GetInt64(1)}; daily={daily.Status}; filtered-sales={storeFiltered.Status}; brand-segment={brand.Status}; tender-control={tender.Status}; tender-diagnostic={diagnostic.Status}; stock={stock.Status}; database-health={operationalHealth.Severity}.");
 }

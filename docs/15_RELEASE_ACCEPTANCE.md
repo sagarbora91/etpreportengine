@@ -1,5 +1,23 @@
 # Release Acceptance — 26 August 2026
 
+## Consolidated operational sprint - version 1.1.0
+
+- Daily SQL backup task: installed, enabled, manually executed and scheduled for 22:00 daily.
+- Backup/recovery: `CHECKSUM`, `RESTORE VERIFYONLY`, isolated full restore, `DBCC CHECKDB`, 8-file/3,957-lineage comparison and validation-database cleanup passed.
+- Database health: Healthy; size, backup age, growth threshold and failed-import indicators verified in the live application.
+- Batch import: folder/XLSX/ZIP discovery, safe extraction, progress, cancellation, retry and privacy-safe summaries implemented; archive traversal/link/bomb limits tested.
+- Report UX: parameterized store, Brand Segment, transaction-type and item filters; search, sort, variance-only view and row drill-down implemented.
+- Dashboard: aggregate charts, import history, management-summary PDF and automatic health warnings implemented.
+- Tender diagnostics: evidence-led likely-cause classifications implemented without changing the authoritative control values or failed status.
+- PDF output: available for every supported sales, tender, diagnostic and stock result plus management summary.
+- Branding/accessibility: application/installer icon, access keys, UI Automation names, live regions and keyboard-focused UI smoke passed.
+- Installer lifecycle: clean install, true 1.0.0-to-1.1.0 upgrade and uninstall passed in an isolated directory.
+- Versioning: centralized semantic version, changelog, versioned installer name and release metadata implemented.
+- Security: zero npm vulnerabilities; zero vulnerable or deprecated .NET packages. A fail-closed web bridge mismatch found by regression testing was corrected.
+- Tests: 95 .NET tests and 229 ETP JavaScript tests passed; live filtered SQL reporting and tender diagnostics passed their expected controls.
+- Support package: aggregate-only offline ZIP generated; privacy manifest confirms exclusion of source rows, workbook names/paths, customer data and invoice identifiers.
+- Documentation: administrator handbook, user manual, accessibility checklist and recovery guide completed.
+
 ## Autonomous completion phase
 
 - Startup SQL connection persistence and automatic health check: Passed.

@@ -21,6 +21,9 @@ public static class SqlReportingQueries
         ) p
         WHERE i.transaction_date>=@dateFrom AND i.transaction_date<=@dateTo
           AND (@storesJson IS NULL OR i.store_code IN (SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@storesJson)))
+          AND (@segmentsJson IS NULL OR COALESCE(l.brand_segment,p.cluster) IN (SELECT CONVERT(nvarchar(100),[value]) FROM OPENJSON(@segmentsJson)))
+          AND (@typesJson IS NULL OR l.source_transaction_type IN (SELECT CONVERT(nvarchar(80),[value]) FROM OPENJSON(@typesJson)))
+          AND (@itemsJson IS NULL OR l.product_code IN (SELECT CONVERT(nvarchar(80),[value]) FROM OPENJSON(@itemsJson)))
         ORDER BY i.transaction_date,i.store_code,i.document_number,l.line_identifier;
         """;
 
@@ -48,6 +51,7 @@ public static class SqlReportingQueries
           SELECT DISTINCT m.store_code,m.product_code FROM dbo.stock_movements m
           WHERE m.document_date>=@dateFrom AND m.document_date<=@dateTo
             AND (@storesJson IS NULL OR store_code IN (SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@storesJson)))
+            AND (@itemsJson IS NULL OR m.product_code IN (SELECT CONVERT(nvarchar(80),[value]) FROM OPENJSON(@itemsJson)))
             AND EXISTS(SELECT 1 FROM dbo.stock_snapshots s WHERE s.store_code=m.store_code
               AND s.product_code=m.product_code AND s.snapshot_date=@dateTo)
         )
@@ -68,6 +72,7 @@ public static class SqlReportingQueries
         FROM dbo.stock_movements m
         WHERE m.document_date>=@dateFrom AND m.document_date<=@dateTo
           AND (@storesJson IS NULL OR m.store_code IN (SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@storesJson)))
+          AND (@itemsJson IS NULL OR m.product_code IN (SELECT CONVERT(nvarchar(80),[value]) FROM OPENJSON(@itemsJson)))
           AND EXISTS(SELECT 1 FROM dbo.stock_snapshots s WHERE s.store_code=m.store_code
             AND s.product_code=m.product_code AND s.snapshot_date=@dateTo)
         GROUP BY m.store_code,m.product_code,m.source_transaction_type
@@ -147,8 +152,14 @@ public sealed class SqlServerReportingQueryRepository(string connectionString) :
         command.Parameters.AddWithValue("@dateTo", scope.DateTo);
         command.Parameters.AddWithValue("@storesJson", scope.StoreCodes is { Count: > 0 }
             ? JsonSerializer.Serialize(scope.StoreCodes.Distinct(StringComparer.OrdinalIgnoreCase)) : DBNull.Value);
+        command.Parameters.AddWithValue("@segmentsJson", Json(scope.BrandSegments));
+        command.Parameters.AddWithValue("@typesJson", Json(scope.TransactionTypes));
+        command.Parameters.AddWithValue("@itemsJson", Json(scope.ItemCodes));
         return command;
     }
+
+    private static object Json(IReadOnlyList<string>? values) => values is { Count: > 0 }
+        ? JsonSerializer.Serialize(values.Distinct(StringComparer.OrdinalIgnoreCase)) : DBNull.Value;
 
     private static string? NullableString(SqlDataReader reader, int ordinal) => reader.IsDBNull(ordinal) ? null : reader.GetString(ordinal);
     private static decimal? NullableDecimal(SqlDataReader reader, int ordinal) => reader.IsDBNull(ordinal) ? null : reader.GetDecimal(ordinal);
