@@ -22,6 +22,12 @@ dotnet test $solution -c $Configuration --no-build
 dotnet publish $desktopProject -c $Configuration -r $Runtime --self-contained true `
     -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:Version=$Version -o $output
 
+$packagedScripts = Join-Path $output "scripts"
+New-Item -ItemType Directory -Path $packagedScripts -Force | Out-Null
+foreach ($scriptName in @('bootstrap-etp-prerequisites.ps1','backup-etp-database.ps1','install-daily-backup-task.ps1','install-monthly-recovery-drill-task.ps1','invoke-etp-recovery-drill.ps1')) {
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot $scriptName) -Destination $packagedScripts -Force
+}
+
 $executable = Join-Path $output "Etp.Reporting.Desktop.exe"
 if (-not (Test-Path -LiteralPath $executable)) { throw "Published executable was not produced." }
 $hash = Get-FileHash -LiteralPath $executable -Algorithm SHA256

@@ -16,13 +16,13 @@ $testRoot = Join-Path ([IO.Path]::GetTempPath()) ("EtpInstallerLifecycle-" + [gu
 try {
     $installDir = Join-Path $testRoot "Application"
     $installLog = Join-Path $testRoot "install.log"
-    $process = Start-Process -FilePath $initialInstaller -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$installDir","/LOG=$installLog") -Wait -PassThru
+    $process = Start-Process -FilePath $initialInstaller -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/MERGETASKS=!sqlbootstrap',"/DIR=$installDir","/LOG=$installLog") -Wait -PassThru
     if ($process.ExitCode -ne 0) { throw "Installer returned $($process.ExitCode). See $installLog" }
     $exe = Join-Path $installDir "Etp.Reporting.Desktop.exe"
     if (-not (Test-Path -LiteralPath $exe)) { throw "Installed executable is missing." }
     # Installing the current package over the stable AppId exercises upgrade (or same-version repair).
     $upgradeLog = Join-Path $testRoot "upgrade.log"
-    $process = Start-Process -FilePath $installer -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$installDir","/LOG=$upgradeLog") -Wait -PassThru
+    $process = Start-Process -FilePath $installer -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/MERGETASKS=!sqlbootstrap',"/DIR=$installDir","/LOG=$upgradeLog") -Wait -PassThru
     if ($process.ExitCode -ne 0) { throw "Upgrade returned $($process.ExitCode)." }
     $actual = [Diagnostics.FileVersionInfo]::GetVersionInfo($exe).ProductVersion
     if ($actual -and -not $actual.StartsWith($ExpectedVersion, [StringComparison]::Ordinal)) { throw "Expected $ExpectedVersion after upgrade; installed $actual." }

@@ -3,6 +3,7 @@ using System.Data;
 using System.IO;
 using System.Windows;
 using System.Windows.Threading;
+using Etp.Reporting.Infrastructure.SqlServer;
 
 namespace Etp.Reporting.Desktop;
 
@@ -11,12 +12,32 @@ namespace Etp.Reporting.Desktop;
 /// </summary>
 public partial class App : Application
 {
-    protected override void OnStartup(StartupEventArgs e)
+    protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
         DispatcherUnhandledException += OnDispatcherUnhandledException;
         AppDomain.CurrentDomain.UnhandledException += (_, args) => WriteDiagnostic(args.ExceptionObject as Exception, "AppDomain");
         TaskScheduler.UnobservedTaskException += (_, args) => { WriteDiagnostic(args.Exception, "UnobservedTask"); args.SetObserved(); };
+
+        if (e.Args.Length == 1 && string.Equals(e.Args[0], "--initialize-database", StringComparison.Ordinal))
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            try
+            {
+                var migrations = Path.Combine(AppContext.BaseDirectory, "database", "migrations");
+                var connection = @"Server=.\SQLEXPRESS;Database=EtpReporting;Integrated Security=True;TrustServerCertificate=True";
+                await new SqlServerDatabaseBootstrapper(connection, new DirectoryMigrationSource(migrations)).BootstrapAsync();
+                Shutdown(0);
+            }
+            catch (Exception ex)
+            {
+                WriteDiagnostic(ex, "DatabaseInitialization");
+                Shutdown(1);
+            }
+            return;
+        }
+
+        new MainWindow().Show();
     }
 
     private static void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)

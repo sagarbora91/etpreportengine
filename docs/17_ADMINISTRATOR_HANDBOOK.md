@@ -10,9 +10,12 @@
 ## Installation and upgrade
 
 1. Back up `EtpReporting` and verify the backup before any upgrade.
-2. Run the versioned setup executable as administrator. The stable installer AppId upgrades the existing installation in place.
-3. Launch the application, test the database connection, and confirm that the database reports no pending migration.
-4. Retain the prior installer and verified database backup until acceptance is complete.
+2. Run the versioned setup executable as administrator and keep the SQL bootstrap task selected. When `SQLEXPRESS` is missing, the bootstrap uses Windows Package Manager to install Microsoft's official SQL Server 2022 Express and Sqlcmd packages; internet access and acceptance of Microsoft's license terms are required.
+3. The bootstrap preserves an existing `SQLEXPRESS` instance, configures automatic startup, applies only checksum-controlled application migrations, prepares backup access, and registers the daily backup and monthly recovery tasks.
+4. Launch the application, test the database connection, and confirm that the database reports no pending migration.
+5. Retain the prior installer and verified database backup until acceptance is complete.
+
+The bootstrap fails closed and records privacy-safe progress under `%ProgramData%\EtpReporting\SetupLogs`. It never uninstalls, replaces, downgrades, or deletes an existing SQL instance or database. A pending Windows restart or unavailable internet/package source can prevent a new SQL Server installation; restart or restore connectivity and rerun setup.
 
 Uninstall from Windows **Installed apps**. Uninstalling the program does not delete SQL Server databases, source workbooks, exported reports, or administrator-created backups.
 

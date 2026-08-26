@@ -1,6 +1,6 @@
 # Windows Quick Start
 
-For the packaged release, run the versioned `EtpReportingEngine-Setup-<version>-x64.exe`, accept the default installation directory, and launch **ETP Reporting Engine** from the Start Menu or desktop shortcut. The installer supports upgrades and uninstall through Windows Installed Apps.
+For the packaged release, run the versioned `EtpReportingEngine-Setup-<version>-x64.exe` as administrator and keep **Install and configure Microsoft SQL Server 2022 Express** selected. The online bootstrapper detects an existing `SQLEXPRESS` instance or obtains the official Microsoft package through Windows Package Manager, configures automatic startup, initializes `EtpReporting`, prepares backup access, and registers daily backup/monthly recovery tasks. Internet access is required only when SQL Server Express is missing. The installer supports upgrades and uninstall through Windows Installed Apps; uninstall never removes SQL Server, databases, or backups.
 
 The SQL connection is saved for the current Windows user after a successful connection test and is checked automatically at startup. The Dashboard shows aggregate import status and recent import history. No database password is stored by the default Windows-integrated connection.
 
