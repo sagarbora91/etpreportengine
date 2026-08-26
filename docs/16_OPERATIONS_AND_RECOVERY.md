@@ -33,7 +33,7 @@ Create and checksum-verify a backup immediately:
 .\scripts\backup-etp-database.ps1
 ```
 
-Backups default to `%ProgramData%\EtpReporting\Backups`, use SQL Server `CHECKSUM`, run `RESTORE VERIFYONLY`, and retain 30 days. They do not request backup compression because SQL Server Express does not support it.
+Backups default to `%ProgramData%\EtpReporting\Backups`, use SQL Server `CHECKSUM`, and run `RESTORE VERIFYONLY`. The approved policy retains every backup indefinitely: the backup automation never deletes a backup or any business/import data. Monitor free disk space and expand or move the approved backup storage before it fills. They do not request backup compression because SQL Server Express does not support it.
 
 Install the daily 10 PM backup task from an elevated PowerShell prompt:
 
@@ -50,6 +50,14 @@ Run the automated recovery drill:
 ```
 
 The drill restores the latest verified backup into a uniquely named validation database, runs `DBCC CHECKDB`, compares imported-file and lineage aggregates with production, and drops the validation database and files in a `finally` block. It never overwrites the live database.
+
+Install the approved monthly drill (first day of each month at 8 AM by default) from an elevated PowerShell prompt:
+
+```powershell
+.\scripts\install-monthly-recovery-drill-task.ps1
+```
+
+Operational audit events are retained for 730 days. Database maintenance deletes only audit events older than that period; it never deletes business facts, source lineage, imports, reports, or backups.
 
 ## Offline support package
 

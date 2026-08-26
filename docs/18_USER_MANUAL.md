@@ -6,6 +6,8 @@ Open **ETP Reporting Engine** from the Start Menu or desktop shortcut. The dashb
 
 ## Import reports
 
+Import is authorized for the Owner/Admin and Store Manager. The Owner/Admin always retains full rights. Mapping, sign, tolerance, control-rule, SQL connection, and database-configuration changes require Owner/Admin approval.
+
 1. Open **Import** and select individual Excel workbooks, a folder, or an approved ZIP package.
 2. Review the discovered files before starting. Unsupported files are reported and are not imported.
 3. Start the batch. Progress shows the active file and completed/failed counts. You can cancel between files; the currently committed file remains safely imported.

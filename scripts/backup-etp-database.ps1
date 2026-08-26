@@ -1,8 +1,7 @@
 param(
     [string]$ServerInstance = ".\SQLEXPRESS",
     [string]$Database = "EtpReporting",
-    [string]$BackupDirectory = "$env:ProgramData\EtpReporting\Backups",
-    [ValidateRange(1,3650)][int]$RetentionDays = 30
+    [string]$BackupDirectory = "$env:ProgramData\EtpReporting\Backups"
 )
 
 $ErrorActionPreference = "Stop"
@@ -16,7 +15,4 @@ $backupPath = Join-Path $resolvedDirectory "$Database-$stamp.bak"
 $escapedPath = $backupPath.Replace("'", "''")
 & $sqlcmd -S $ServerInstance -E -b -Q "BACKUP DATABASE [$Database] TO DISK=N'$escapedPath' WITH COPY_ONLY, CHECKSUM, INIT; RESTORE VERIFYONLY FROM DISK=N'$escapedPath' WITH CHECKSUM;"
 if ($LASTEXITCODE -ne 0) { throw "Database backup or verification failed." }
-Get-ChildItem -LiteralPath $resolvedDirectory -Filter "$Database-*.bak" -File |
-    Where-Object LastWriteTimeUtc -lt (Get-Date).ToUniversalTime().AddDays(-$RetentionDays) |
-    Remove-Item -Force
 Get-FileHash -LiteralPath $backupPath -Algorithm SHA256 | Format-List

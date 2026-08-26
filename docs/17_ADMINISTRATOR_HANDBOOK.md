@@ -23,9 +23,18 @@ Uninstall from Windows **Installed apps**. Uninstalling the program does not del
 - Reconcile sales, tender, and stock controls. Tender differences are diagnostic findings and must not be silently adjusted.
 - Export only to approved local folders. Treat every export as confidential business data.
 
+## Approved access policy
+
+- **Owner/Admin:** has all application and administrative rights, including imports, SQL Server connection administration, database maintenance, and approval of mapping or control-rule changes.
+- **Store Manager:** may import approved ETP reports and use reports/exports, but may not approve or alter mappings, signs, tolerances, control rules, SQL connections, or database configuration.
+- **Other users:** have no import or administration authority unless the Owner explicitly revises this policy.
+- Codex may assist the Owner with technical administration only during an Owner-authorized session. Codex is not an independent account, administrator, or approval authority.
+
+The current desktop release is intended for an Owner-controlled Windows computer and does not provide independent user authentication. Until authenticated application roles are implemented, Windows sign-in and physical access are the enforcement boundary: Store Managers should use the application only under the Owner's approved operating procedure, and Settings/mapping changes remain Owner-only.
+
 ## Backup and recovery
 
-Use the scripts described in [Operations and Recovery](16_OPERATIONS_AND_RECOVERY.md). A successful job run is not sufficient: monitor backup age and periodically run a restore drill into a separately named database. Never restore over production during a drill.
+Use the scripts described in [Operations and Recovery](16_OPERATIONS_AND_RECOVERY.md). Retain every database backup indefinitely and never delete business/import data. A successful job run is not sufficient: monitor backup age and run the isolated restore drill monthly. Never restore over production during a drill. Operational audit history is retained for two years.
 
 Recovery sequence:
 
