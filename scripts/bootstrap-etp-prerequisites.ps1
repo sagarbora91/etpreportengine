@@ -19,6 +19,11 @@ function Write-SetupLog([string]$message) {
     Write-Host $message
 }
 
+trap {
+    Write-SetupLog "FAILED: $($_.Exception.GetType().Name): $($_.Exception.Message)"
+    exit 1
+}
+
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 $principal = [Security.Principal.WindowsPrincipal]::new($identity)
 if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {

@@ -4,6 +4,12 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-08-26
+
+### Fixed
+
+- Made monthly recovery-task registration reliable for installed paths containing spaces and made bootstrap failures return a nonzero installer result with a local diagnostic entry.
+
 ## [1.3.0] - 2026-08-26
 
 ### Added

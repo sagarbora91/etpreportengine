@@ -40,6 +40,9 @@ Name: "sqlbootstrap"; Description: "Install and configure Microsoft SQL Server 2
 Filename: "{app}\{#AppExeName}"; Description: "Launch {#AppName}"; Flags: nowait postinstall skipifsilent
 
 [Code]
+procedure ExitProcess(ExitCode: Integer);
+  external 'ExitProcess@kernel32.dll stdcall';
+
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   ResultCode: Integer;
@@ -49,6 +52,9 @@ begin
   begin
     Parameters := '-NoProfile -ExecutionPolicy Bypass -File "' + ExpandConstant('{app}\scripts\bootstrap-etp-prerequisites.ps1') + '" -ApplicationDirectory "' + ExpandConstant('{app}') + '"';
     if (not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'), Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode)) or (ResultCode <> 0) then
-      RaiseException('SQL Server and database configuration failed. Review %ProgramData%\EtpReporting\SetupLogs before retrying.');
+    begin
+      MsgBox('SQL Server and database configuration failed. Review %ProgramData%\EtpReporting\SetupLogs before retrying.', mbError, MB_OK);
+      ExitProcess(1);
+    end;
   end;
 end;
