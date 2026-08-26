@@ -33,9 +33,11 @@ FTD, MTD, YTD and equivalent LY periods come from the selected ETP business date
 
 The dashboard summarizes imports, sales, returns, stock controls, tender differences, and database warnings. Warnings require review but do not change source values.
 
+Open **Reports** to see the category catalogue for Sales, Stock, Staff/CRO, Tender/Cash, Service, Exceptions and Management. Choose the period and optional filters, then click the named report. Every report uses the same searchable, sortable preview and the same **Export selected report to Excel/PDF** actions.
+
 Use the report filters for date, store, brand segment, transaction type, item, search text, and variance-only views where available. `INV` is an invoice. `SR` is a sales return whose source values are already negative. `NETVALUE` is the GST-inclusive primary sales value. `CLUSTER` is displayed as Brand Segment.
 
-The report screen also provides customer-safe invoice summaries, DSR, staff/CRO performance, service sales and cash reconciliation. Customer names and contact details are not stored or exported. Staff reconciliation shows the exact attributed-versus-canonical difference; it does not round away a small variance.
+The report screen also provides customer-safe invoice summaries, DSR, closing/physical/movement/brand/slow stock, staff/CRO performance, service sales, cash reconciliation, focused exceptions and management trends. Stock reports use the selected end date as the snapshot date. Focused exception reports require one store and one business date. Customer names and contact details are not stored or exported. Staff reconciliation shows the exact attributed-versus-canonical difference; it does not round away a small variance.
 
 Select a summary row to open its supporting detail. Sorting and search affect the visible view; they do not modify the database.
 

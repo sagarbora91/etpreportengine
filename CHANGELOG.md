@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## 1.7.0 - 2026-08-26
+
+### Added
+
+- Added a visible category-based Reports Centre with 29 named operational report entries.
+- Added closing-stock, stock-movement, brand-stock, slow/exception-stock and printable management-trend reports.
+- Added focused missing-source, unmapped-data, tender, stock and staff exception reports.
+
+### Changed
+
+- Exposed staff targets, achievement, ranking, LY comparison and contribution through clearly named report actions while retaining the existing reconciliation control.
+- Preserved canonical `NETVALUE`, source-signed sales returns and revenue-report tender controls across every new view.
+
 ## 1.6.0 - 2026-08-26
 
 ### Added

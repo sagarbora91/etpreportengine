@@ -91,6 +91,19 @@ public sealed record PhysicalStockReportRow(
     string? Remarks,
     string Status);
 
+public sealed record StockInventoryReportRow(
+    DateOnly SnapshotDate,
+    string StoreCode,
+    string ProductCode,
+    string? Brand,
+    string? InventoryGroup,
+    decimal Quantity,
+    decimal? UnitCost,
+    decimal? TotalCost,
+    DateOnly? LastSaleDate,
+    int? DaysSinceLastSale,
+    string MovementStatus);
+
 public sealed record DailyExceptionRow(
     string Severity,
     string Area,
@@ -138,6 +151,31 @@ public sealed class OperationalReportRepository(string connectionString)
 {
     public const string DsrMetricPolicy = "DSR_INVOICE_DENOMINATOR_SOURCE_EVIDENCE_V1";
     public const string StaffMetricPolicy = "R013_ATTRIBUTED_TRANSACTION_DENOMINATOR_V1";
+    public const string StockInventorySql = """
+        SELECT s.snapshot_date,s.store_code,s.product_code,
+               COALESCE(NULLIF(LTRIM(RTRIM(s.brand_name)),''),NULLIF(LTRIM(RTRIM(s.brand_code)),'')),
+               NULLIF(LTRIM(RTRIM(s.cluster)),''),SUM(s.quantity),
+               CASE WHEN COUNT(s.unit_cost)=0 THEN NULL ELSE MAX(s.unit_cost) END,
+               CASE WHEN COUNT(s.total_cost)=0 THEN NULL ELSE SUM(s.total_cost) END,
+               sale.last_sale_date,
+               CASE WHEN sale.last_sale_date IS NULL THEN NULL ELSE DATEDIFF(day,sale.last_sale_date,s.snapshot_date) END
+        FROM dbo.stock_snapshots s
+        OUTER APPLY
+        (
+          SELECT MAX(i.transaction_date) last_sale_date
+          FROM dbo.sales_lines l JOIN dbo.sales_invoices i ON i.sales_invoice_id=l.sales_invoice_id
+          WHERE i.store_code=s.store_code AND l.product_code=s.product_code AND i.transaction_date<=s.snapshot_date
+                AND COALESCE(l.source_quantity,0)>0
+        ) sale
+        WHERE s.snapshot_date=@date
+          AND (@stores IS NULL OR s.store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores)))
+          AND (@segments IS NULL OR s.cluster IN(SELECT CONVERT(nvarchar(100),[value]) FROM OPENJSON(@segments)))
+          AND (@items IS NULL OR s.product_code IN(SELECT CONVERT(nvarchar(80),[value]) FROM OPENJSON(@items)))
+        GROUP BY s.snapshot_date,s.store_code,s.product_code,
+                 COALESCE(NULLIF(LTRIM(RTRIM(s.brand_name)),''),NULLIF(LTRIM(RTRIM(s.brand_code)),'')),
+                 NULLIF(LTRIM(RTRIM(s.cluster)),''),sale.last_sale_date
+        ORDER BY 2,5,4,3;
+        """;
 
     public async Task<IReadOnlyList<InvoiceSalesSummaryRow>> LoadInvoiceSummaryAsync(
         ReportingQueryScope scope,
@@ -431,6 +469,23 @@ public sealed class OperationalReportRepository(string connectionString)
             rows.Add(new(reader.GetString(0), reader.GetFieldValue<DateOnly>(1), reader.GetString(2), NullableDecimal(reader, 3), NullableDecimal(reader, 4),
                 NullableDecimal(reader, 5), NullableDecimal(reader, 6), NullableDecimal(reader, 7), NullableDecimal(reader, 8), compositionVariance,
                 reader.GetDecimal(10), systemVariance, reader.IsDBNull(12) ? null : reader.GetString(12), status));
+        }
+        return rows;
+    }
+
+    public async Task<IReadOnlyList<StockInventoryReportRow>> LoadStockInventoryAsync(
+        ReportingQueryScope scope,
+        CancellationToken cancellationToken = default)
+    {
+        scope.Validate();
+        await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(StockInventorySql,connection);
+        command.Parameters.AddWithValue("@date",scope.DateTo);command.Parameters.AddWithValue("@stores",Json(scope.StoreCodes));command.Parameters.AddWithValue("@segments",Json(scope.BrandSegments));command.Parameters.AddWithValue("@items",Json(scope.ItemCodes));
+        await using var reader=await command.ExecuteReaderAsync(cancellationToken);var rows=new List<StockInventoryReportRow>();
+        while(await reader.ReadAsync(cancellationToken))
+        {
+            var quantity=reader.GetDecimal(5);DateOnly? last=reader.IsDBNull(8)?null:reader.GetFieldValue<DateOnly>(8);int? days=reader.IsDBNull(9)?null:reader.GetInt32(9);
+            var status=quantity==0?"ZERO STOCK":last is null?"NEVER SOLD":days>=90?"SLOW - 90+ DAYS":days>=60?"WATCH - 60+ DAYS":"ACTIVE";
+            rows.Add(new(reader.GetFieldValue<DateOnly>(0),reader.GetString(1),reader.GetString(2),reader.IsDBNull(3)?null:reader.GetString(3),reader.IsDBNull(4)?null:reader.GetString(4),quantity,NullableDecimal(reader,6),NullableDecimal(reader,7),last,days,status));
         }
         return rows;
     }

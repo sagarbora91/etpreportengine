@@ -18,13 +18,13 @@ All implementation work that can be completed deterministically from the reposit
 | 29–31 dashboard, report view and daily pack | Built and UI-smoke verified | Daily workflow screen, filters/search/sort/variance views, drill-down, selected-store pack and combined Titan + Helios full Excel/PDF pack. |
 | 32–35 finalisation, audit, periods and restatement | Built and SQL-verified | Locked-day database guards, audited reopen, immutable SHA-256 report generations, Indian FY periods and atomic restatement archive/replacement workflow. |
 | 36–38 profile evolution, optional AI and configuration | Built as deterministic boundary | Versioned exact profiles and unknown-layout diagnostics; no AI dependency in accounting; report/source registry, policies and SQL-controlled definitions. |
-| 39–40 automated and golden testing | Built and passing | 133 unit/integration tests cover imports, calculations, periods, controls, locks/migrations, archive/package serialization, accounting, document safety, automation paths and golden examples; real ETP corpus is also exercised. |
+| 39–40 automated and golden testing | Built and passing | 135 unit/integration tests cover imports, calculations, periods, controls, locks/migrations, report catalogue/stock queries, archive/package serialization, accounting, document safety, automation paths and golden examples; real ETP corpus is also exercised. |
 | 41–44 performance, migrations, legacy separation and privacy | Built and verified | Bulk SQL path/indexes, checksum-controlled forward migrations through `0014`, legacy code only as evidence, and no customer PII in canonical report output. |
 | 45–51 maps, implementation sequence, UX, definition of done and layer separation | Built and documented | Current-state map, report-to-source matrix, daily workflow, complete reports/exceptions/exports/finalisation, and separated domain/import/SQL/report/UI layers. |
 
 ## Verification evidence
 
-- `dotnet test Etp.Reporting.slnx -c Release`: 133 passed, 0 failed.
+- `dotnet test Etp.Reporting.slnx -c Release`: 135 passed, 0 failed.
 - Release solution build: 0 warnings and 0 errors.
 - Fresh SQL Server Express validation: 14 migrations, 12 supplied workbooks, 5,044 evidence rows, 490 invoice summaries, full selected/combined report-pack generation, overlap/conflict routing and SHA-256 verified archived generations.
 - Backup recovery drill: backup with checksum, `RESTORE VERIFYONLY`, isolated full restore and lineage comparison passed.

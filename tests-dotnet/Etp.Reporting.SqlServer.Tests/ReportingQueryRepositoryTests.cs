@@ -50,6 +50,18 @@ public sealed class ReportingQueryRepositoryTests
         Assert.Contains("OPENJSON(@itemsJson)", SqlReportingQueries.StockMovements, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Stock_inventory_report_is_snapshot_bound_parameterized_and_uses_positive_sales_only_for_age()
+    {
+        var sql=OperationalReportRepository.StockInventorySql;
+        Assert.Contains("snapshot_date=@date",sql,StringComparison.Ordinal);
+        Assert.Contains("OPENJSON(@stores)",sql,StringComparison.Ordinal);
+        Assert.Contains("OPENJSON(@segments)",sql,StringComparison.Ordinal);
+        Assert.Contains("OPENJSON(@items)",sql,StringComparison.Ordinal);
+        Assert.Contains("source_quantity,0)>0",sql,StringComparison.Ordinal);
+        Assert.DoesNotContain("GETDATE",sql,StringComparison.OrdinalIgnoreCase);
+    }
+
     public static TheoryData<string> Queries() => new()
     {
         SqlReportingQueries.Sales,

@@ -603,6 +603,100 @@ public partial class MainWindow : Window
             Csv(StoreFilterInput.Text), Csv(BrandSegmentFilterInput.Text), Csv(TransactionTypeFilterInput.Text), Csv(ItemFilterInput.Text));
     }
 
+    private async void RunCatalogueReport_Click(object sender,RoutedEventArgs e)
+    {
+        if(sender is not Button { Tag:string report })return;
+        switch(report)
+        {
+            case "dsr": RunDsr_Click(sender,e); break;
+            case "sales-titan": StoreFilterInput.Text="WLMHW";SelectSalesDimension("Daily");RunSalesReport_Click(sender,e);break;
+            case "sales-helios": StoreFilterInput.Text="HEMW";SelectSalesDimension("Daily");RunSalesReport_Click(sender,e);break;
+            case "sales-combined": StoreFilterInput.Clear();SelectSalesDimension("Store");RunSalesReport_Click(sender,e);break;
+            case "sales-returns": SelectSalesDimension("Returns");RunSalesReport_Click(sender,e);break;
+            case "sales-brand": SelectSalesDimension("Brand");RunSalesReport_Click(sender,e);break;
+            case "sales-segment": SelectSalesDimension("BrandSegment");RunSalesReport_Click(sender,e);break;
+            case "sales-item": SelectSalesDimension("Item");RunSalesReport_Click(sender,e);break;
+            case "invoice": RunInvoiceSummary_Click(sender,e);break;
+            case "invoice-lineage": RunInvoiceLineage_Click(sender,e);break;
+            case "staff": RunStaffPerformance_Click(sender,e);break;
+            case "service": RunServiceSales_Click(sender,e);break;
+            case "cash": RunCashReconciliation_Click(sender,e);break;
+            case "tender": RunTenderReport_Click(sender,e);break;
+            case "tender-diagnostic": RunTenderDiagnostic_Click(sender,e);break;
+            case "stock-variance": RunStockReport_Click(sender,e);break;
+            case "stock-physical" or "stock-group": RunPhysicalStock_Click(sender,e);break;
+            case "stock-closing": await RunStockInventoryAsync("CLOSING");break;
+            case "stock-brand": await RunStockInventoryAsync("BRAND");break;
+            case "stock-slow": await RunStockInventoryAsync("SLOW");break;
+            case "stock-movement": await RunStockMovementAsync();break;
+            case "exceptions": RunDailyExceptions_Click(sender,e);break;
+            case "exception-source": await RunFocusedExceptionAsync("Source");break;
+            case "exception-unmapped": await RunFocusedExceptionAsync("Unmapped");break;
+            case "exception-stock": await RunFocusedExceptionAsync("Stock");break;
+            case "exception-staff": await RunFocusedExceptionAsync("Staff");break;
+            case "exception-tender": await RunFocusedExceptionAsync("Tender");break;
+            case "management-trend": await RunManagementTrendReportAsync();break;
+        }
+    }
+
+    private void SelectSalesDimension(string name)
+    {
+        SalesDimensionInput.SelectedItem=SalesDimensionInput.Items.OfType<ComboBoxItem>().First(x=>string.Equals(x.Content?.ToString(),name,StringComparison.Ordinal));
+    }
+
+    private async Task RunStockInventoryAsync(string mode)
+    {
+        try
+        {
+            var rows=await new OperationalReportRepository(ConnectionStringInput.Text).LoadStockInventoryAsync(ReportScope());
+            if(mode=="SLOW")rows=rows.Where(x=>x.Quantity!=0&&x.MovementStatus!="ACTIVE").ToArray();
+            if(mode=="BRAND")
+            {
+                var grouped=rows.GroupBy(x=>new{x.StoreCode,Brand=x.Brand??"Unmapped",Group=x.InventoryGroup??"Unmapped"}).Select(x=>new{x.Key.StoreCode,x.Key.Brand,InventoryGroup=x.Key.Group,Quantity=x.Sum(y=>y.Quantity),TotalCost=x.Any(y=>y.TotalCost is not null)?(decimal?)x.Sum(y=>y.TotalCost??0):null,Items=x.Select(y=>y.ProductCode).Distinct().Count(),SlowItems=x.Count(y=>y.Quantity!=0&&y.MovementStatus!="ACTIVE")}).OrderBy(x=>x.StoreCode).ThenBy(x=>x.InventoryGroup).ThenBy(x=>x.Brand).ToArray();
+                var status=grouped.Length==0?ReconciliationStatus.Blocked:ReconciliationStatus.Passed;ReportGrid.ItemsSource=grouped;ReportResult.Text=$"{status}: {grouped.Length:N0} store/brand/inventory-group row(s).";
+                SetExport("Brand Stock",status,RetailReportingPolicy.Version,"Closing stock grouped from the immutable ETP snapshot; quantity and cost are never inferred.",[new("Store"),new("Brand"),new("Inventory Group"),new("Quantity","#,##0.00"),new("Total Cost","#,##0.00"),new("Items","#,##0"),new("Slow Items","#,##0")],grouped.Select(x=>(IReadOnlyList<object?>)[x.StoreCode,x.Brand,x.InventoryGroup,x.Quantity,x.TotalCost,x.Items,x.SlowItems]).ToArray(),["Total","","",grouped.Sum(x=>x.Quantity),grouped.Sum(x=>x.TotalCost),grouped.Sum(x=>x.Items),grouped.Sum(x=>x.SlowItems)]);
+            }
+            else
+            {
+                var status=rows.Count==0?ReconciliationStatus.Blocked:ReconciliationStatus.Passed;var name=mode=="SLOW"?"Slow / Exception Stock":"Closing Stock";ReportGrid.ItemsSource=rows;ReportResult.Text=$"{status}: {rows.Count:N0} item(s). Slow stock uses 60-day watch and 90-day exception bands.";
+                SetExport(name,status,RetailReportingPolicy.Version,"Closing quantities and costs come from the selected-date ETP stock snapshot. Last sale is the latest positive source-signed sale on or before that date.",[new("Date"),new("Store"),new("Item"),new("Brand"),new("Inventory Group"),new("Quantity","#,##0.00"),new("Unit Cost","#,##0.00"),new("Total Cost","#,##0.00"),new("Last Sale"),new("Days Since Sale","#,##0"),new("Movement Status")],rows.Select(x=>(IReadOnlyList<object?>)[x.SnapshotDate,x.StoreCode,x.ProductCode,x.Brand,x.InventoryGroup,x.Quantity,x.UnitCost,x.TotalCost,x.LastSaleDate,x.DaysSinceLastSale,x.MovementStatus]).ToArray(),["Total","","","","",rows.Sum(x=>x.Quantity),"",rows.Sum(x=>x.TotalCost),"","",""]);
+            }
+            ApplyReportFilter();await RecordAuditAsync("ReportRun",rows.Count==0?"Blocked":"Succeeded",mode=="BRAND"?"Brand stock":mode=="SLOW"?"Slow stock":"Closing stock");
+        }
+        catch(Exception ex){ReportResult.Text=$"Stock report failed: {ex.Message}";}
+    }
+
+    private async Task RunStockMovementAsync()
+    {
+        try
+        {
+            var scope=ReportScope();var data=await new SqlServerReportingQueryRepository(ConnectionStringInput.Text).LoadStockAsync(scope);var rows=data.Movements;var status=rows.Count==0?ReconciliationStatus.Blocked:ReconciliationStatus.Passed;
+            ReportGrid.ItemsSource=rows;ReportResult.Text=$"{status}: {rows.Count:N0} source movement group(s).";SetExport("Stock Movement",status,RetailReportingPolicy.Version,"Movement quantities retain the ETP source transaction type and source-signed quantity.",[new("Store"),new("Item"),new("Movement Type"),new("Signed Quantity","#,##0.00")],rows.Select(x=>(IReadOnlyList<object?>)[x.StoreCode,x.ItemCode,x.SourceMovementType,x.SourceSignedQuantity]).ToArray(),["Total","","",rows.Sum(x=>x.SourceSignedQuantity)]);ApplyReportFilter();await RecordAuditAsync("ReportRun",status==ReconciliationStatus.Passed?"Succeeded":"Blocked","Stock movement");
+        }
+        catch(Exception ex){ReportResult.Text=$"Stock movement report failed: {ex.Message}";}
+    }
+
+    private async Task RunFocusedExceptionAsync(string focus)
+    {
+        try
+        {
+            var scope=ReportScope();if(scope.StoreCodes is not {Count:1}||scope.DateFrom!=scope.DateTo)throw new InvalidOperationException("Select one store and one business date for an exception report.");var all=await new OperationalReportRepository(ConnectionStringInput.Text).LoadDailyExceptionsAsync(scope.StoreCodes[0],scope.DateTo);
+            var rows=focus switch{"Source"=>all.Where(x=>x.Area=="Source"),"Unmapped"=>all.Where(x=>x.Area.Contains("Staff",StringComparison.OrdinalIgnoreCase)||x.Code.Contains("MISSING",StringComparison.OrdinalIgnoreCase)||x.Code.Contains("AMBIGUOUS",StringComparison.OrdinalIgnoreCase)),"Stock"=>all.Where(x=>x.Area.Contains("stock",StringComparison.OrdinalIgnoreCase)),"Staff"=>all.Where(x=>x.Area.Contains("Staff",StringComparison.OrdinalIgnoreCase)),"Tender"=>all.Where(x=>x.Area=="Tender"),_=>all};var result=rows.ToArray();var status=result.Any(x=>x.Severity is "BLOCKER" or "FAIL")?ReconciliationStatus.Failed:ReconciliationStatus.Passed;
+            ReportGrid.ItemsSource=result;ReportResult.Text=$"{status}: {result.Length:N0} {focus.ToLowerInvariant()} exception(s).";SetExport($"{focus} Exceptions",status,RetailReportingPolicy.Version,"Focused view of the same immutable daily exception evidence; filtering never changes technical control status.",[new("Severity"),new("Area"),new("Code"),new("Store"),new("Date"),new("Document"),new("Item"),new("Variance","#,##0.00"),new("Workbook"),new("Sheet"),new("Source Row","#,##0"),new("Message"),new("Recommended Action")],result.Select(x=>(IReadOnlyList<object?>)[x.Severity,x.Area,x.Code,x.StoreCode,x.BusinessDate,x.DocumentNumber,x.ItemCode,x.Variance,x.SourceWorkbook,x.SourceSheet,x.SourceRow,x.Message,x.RecommendedAction]).ToArray(),["Total",result.Length,"","","","","",result.Where(x=>x.Variance is not null).Sum(x=>x.Variance),"","","","",""]);ApplyReportFilter();await RecordAuditAsync("ReportRun",status==ReconciliationStatus.Passed?"Succeeded":"Failed",$"{focus} exceptions");
+        }
+        catch(Exception ex){ReportResult.Text=$"Exception report failed: {ex.Message}";}
+    }
+
+    private async Task RunManagementTrendReportAsync()
+    {
+        try
+        {
+            var scope=ReportScope();var rows=await new Phase2OperationsRepository(ConnectionStringInput.Text).LoadManagementTrendAsync(scope.DateFrom,scope.DateTo);if(scope.StoreCodes is {Count:>0})rows=rows.Where(x=>scope.StoreCodes.Contains(x.StoreCode,StringComparer.OrdinalIgnoreCase)).ToArray();var status=rows.Count==0?ReconciliationStatus.Blocked:ReconciliationStatus.Passed;
+            ReportGrid.ItemsSource=rows;ReportResult.Text=$"{status}: {rows.Count:N0} daily management trend row(s).";SetExport("Management Trend",status,RetailReportingPolicy.Version,"Daily canonical sales, units, invoices and unchanged control variances.",[new("Date"),new("Store"),new("Net Sales","#,##0.00"),new("Units","#,##0.00"),new("Invoices","#,##0"),new("Tender Variance","#,##0.00"),new("Unmatched Staff Rows","#,##0")],rows.Select(x=>(IReadOnlyList<object?>)[x.BusinessDate,x.StoreCode,x.NetSales,x.Units,x.Invoices,x.TenderVariance,x.UnmatchedEnrichmentRows]).ToArray(),["Total","",rows.Sum(x=>x.NetSales),rows.Sum(x=>x.Units),rows.Sum(x=>x.Invoices),rows.Sum(x=>x.TenderVariance),rows.Sum(x=>x.UnmatchedEnrichmentRows)]);ApplyReportFilter();await RecordAuditAsync("ReportRun",status==ReconciliationStatus.Passed?"Succeeded":"Blocked","Management trend");
+        }
+        catch(Exception ex){ReportResult.Text=$"Management trend failed: {ex.Message}";}
+    }
+
     private async void RunSalesReport_Click(object sender, RoutedEventArgs e)
     {
         try

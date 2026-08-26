@@ -30,10 +30,20 @@ All reports query canonical SQL data. Excel and PDF are renderers of the same re
 | RPT-STOCK-005 | SKU Stock | product, location, store, as-of date | quantity/value and approved attributes | detail total equals higher-level stock report |
 | RPT-STOCK-006 | Stock Reconciliation | store, product/location, period | calculated closing, ETP closing, variance | `ETP closing - calculated closing`, subject to approved sign rules |
 
+The desktop Reports Centre also exposes physical stock, inventory-group stock and a **Slow / Exception Stock** operational view. Slow-stock status is deterministic: the selected ETP snapshot is compared with the most recent positive source-signed sale on or before that snapshot; 60 days is a watch and 90 days is an exception. It is not presented as a statutory ageing valuation.
+
+## Tender, cash, service and exceptions
+
+The visible catalogue includes tender reconciliation, tender diagnostics, daily cash reconciliation, service sales, daily exceptions, missing sources, unmapped data, and focused tender/stock/staff exception reports. Focused reports filter the same underlying exception evidence and never change technical control status.
+
+## Management
+
+Management Trend exports daily canonical `NETVALUE`, source-signed units, invoice counts, tender variance and unmatched staff-enrichment counts for up to 366 days.
+
 ## Parameter and output standard
 
 Every report exposes only supported filters, stable sorting, subtotals and grand totals. Result metadata includes report/version, generated timestamp, active business-rule versions, filter values and source-through date. Exports carry the same metadata and control total.
 
 ## Deferred reports
 
-Category-Wise Sales remains deferred until an authoritative category field or product-category master is supplied; ETP `CLUSTER` is a brand segment and must not be relabelled as Category. Ageing, sell-through, stock turn, days of cover, movers and productivity reports are deferred until the core stock movement model and source coverage are proven.
+Category-Wise Sales remains deferred until an authoritative category field or product-category master is supplied; ETP `CLUSTER` is a brand segment and must not be relabelled as Category. Sell-through, stock turn and days-of-cover remain deferred because purchasing/receipt coverage and an approved denominator policy have not been supplied.
