@@ -12,15 +12,18 @@ public sealed record DatabaseOperationalHealth(
     decimal? DatabaseMaxSizeMb,
     DateTime? LastSuccessfulBackupUtc,
     int FailedImportsLast24Hours,
+    decimal? BackupFreeSpaceGb,
     IReadOnlyList<OperationalHealthWarning> Warnings);
 
 public sealed record DatabaseOperationalHealthThresholds(
     TimeSpan MaximumBackupAge,
     decimal DatabaseSizeWarningPercent,
-    int FailedImportWarningCount)
+    int FailedImportWarningCount,
+    decimal BackupFreeSpaceWarningGb,
+    decimal BackupFreeSpaceCriticalGb)
 {
     public static DatabaseOperationalHealthThresholds Default { get; } =
-        new(TimeSpan.FromHours(36), 80m, 1);
+        new(TimeSpan.FromHours(36), 80m, 1, 20m, 5m);
 }
 
 public static class DatabaseOperationalHealthEvaluator
@@ -31,7 +34,8 @@ public static class DatabaseOperationalHealthEvaluator
         DateTime? lastBackupUtc,
         int failedImports,
         DateTime nowUtc,
-        DatabaseOperationalHealthThresholds? thresholds = null)
+        DatabaseOperationalHealthThresholds? thresholds = null,
+        decimal? backupFreeSpaceGb = null)
     {
         thresholds ??= DatabaseOperationalHealthThresholds.Default;
         var warnings = new List<OperationalHealthWarning>();
@@ -47,10 +51,15 @@ public static class DatabaseOperationalHealthEvaluator
         if (failedImports >= thresholds.FailedImportWarningCount)
             warnings.Add(new("FAILED_IMPORTS", OperationalHealthSeverity.Warning, "One or more imports failed in the last 24 hours."));
 
+        if (backupFreeSpaceGb < thresholds.BackupFreeSpaceCriticalGb)
+            warnings.Add(new("BACKUP_SPACE_CRITICAL", OperationalHealthSeverity.Critical, "Backup storage has less than 5 GB free. Add storage before the next backup."));
+        else if (backupFreeSpaceGb < thresholds.BackupFreeSpaceWarningGb)
+            warnings.Add(new("BACKUP_SPACE_LOW", OperationalHealthSeverity.Warning, "Backup storage has less than 20 GB free. Plan additional storage."));
+
         var severity = warnings.Any(x => x.Severity == OperationalHealthSeverity.Critical)
             ? OperationalHealthSeverity.Critical
             : warnings.Count > 0 ? OperationalHealthSeverity.Warning : OperationalHealthSeverity.Healthy;
-        return new(severity, sizeMb, maxSizeMb, lastBackupUtc, failedImports, warnings);
+        return new(severity, sizeMb, maxSizeMb, lastBackupUtc, failedImports, backupFreeSpaceGb, warnings);
     }
 }
 
@@ -82,6 +91,14 @@ public sealed class DatabaseOperationalHealthRepository(string connectionString)
         decimal? max = reader.IsDBNull(1) ? null : reader.GetDecimal(1);
         DateTime? backup = reader.IsDBNull(2) ? null : DateTime.SpecifyKind(reader.GetDateTime(2), DateTimeKind.Local).ToUniversalTime();
         var failures = reader.GetInt32(3);
-        return DatabaseOperationalHealthEvaluator.Evaluate(size, max, backup, failures, DateTime.UtcNow);
+        decimal? backupFreeSpaceGb = null;
+        var backupDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "EtpReporting", "Backups");
+        try
+        {
+            var root = Path.GetPathRoot(Path.GetFullPath(backupDirectory));
+            if (!string.IsNullOrWhiteSpace(root)) backupFreeSpaceGb = Math.Round((decimal)new DriveInfo(root).AvailableFreeSpace / 1024m / 1024m / 1024m, 2);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException) { }
+        return DatabaseOperationalHealthEvaluator.Evaluate(size, max, backup, failures, DateTime.UtcNow, backupFreeSpaceGb: backupFreeSpaceGb);
     }
 }

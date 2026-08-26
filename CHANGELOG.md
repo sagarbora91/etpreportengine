@@ -4,9 +4,12 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-08-26
+
 ### Changed
 
 - Adopted indefinite backup retention with no automated business-data deletion, two-year operational-audit retention, monthly restore drills, and the approved Owner/Store Manager authority policy.
+- Added live backup-destination free-space monitoring with 20 GB warning and 5 GB critical thresholds.
 
 ## [1.2.0] - 2026-08-26
 
@@ -29,3 +32,4 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 ### Added
 
 - First verified Windows release with SQL Server imports, sales, tender and stock reports, Excel/PDF export, backup tooling, and installer.
+

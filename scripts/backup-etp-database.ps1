@@ -10,6 +10,10 @@ if (-not (Test-Path -LiteralPath $sqlcmd)) { throw "SQLCMD is not installed at t
 if ($Database -notmatch '^[A-Za-z0-9_]+$') { throw "Database must contain only letters, numbers, or underscore." }
 $resolvedDirectory = [System.IO.Path]::GetFullPath($BackupDirectory)
 New-Item -ItemType Directory -Path $resolvedDirectory -Force | Out-Null
+$drive = [System.IO.DriveInfo]::new([System.IO.Path]::GetPathRoot($resolvedDirectory))
+$freeGb = [math]::Round($drive.AvailableFreeSpace / 1GB, 2)
+if ($freeGb -lt 5) { Write-Warning "BACKUP_SPACE_CRITICAL: Backup storage has only $freeGb GB free. Add storage immediately." }
+elseif ($freeGb -lt 20) { Write-Warning "BACKUP_SPACE_LOW: Backup storage has only $freeGb GB free. Plan additional storage." }
 $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $backupPath = Join-Path $resolvedDirectory "$Database-$stamp.bak"
 $escapedPath = $backupPath.Replace("'", "''")

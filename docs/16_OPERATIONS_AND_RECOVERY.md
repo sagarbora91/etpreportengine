@@ -23,7 +23,7 @@ Run from an elevated PowerShell prompt:
 
 This runs `DBCC CHECKDB`, verifies the migration count, and returns aggregate import counts.
 
-The in-app health service also evaluates three privacy-safe operational warnings: a full backup older than 36 hours (or missing), database files at 80% of their configured maximum, and any failed import during the previous 24 hours. Unlimited SQL data files do not generate a misleading percentage warning.
+The in-app health service evaluates privacy-safe operational warnings: a full backup older than 36 hours (or missing), database files at 80% of their configured maximum, any failed import during the previous 24 hours, backup storage below 20 GB, and critical backup storage below 5 GB. Unlimited SQL data files do not generate a misleading percentage warning.
 
 ## Backup
 

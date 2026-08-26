@@ -4,7 +4,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <Deterministic>true</Deterministic>
-    <VersionPrefix Condition="'$(VersionPrefix)' == ''">1.2.0</VersionPrefix>
+    <VersionPrefix Condition="'$(VersionPrefix)' == ''">1.2.1</VersionPrefix>
     <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
   </PropertyGroup>
 </Project>

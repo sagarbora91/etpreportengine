@@ -29,4 +29,14 @@ public sealed class DatabaseOperationalHealthTests
         Assert.Equal(OperationalHealthSeverity.Warning, result.Severity);
         Assert.Equal(["BACKUP_STALE", "DATABASE_GROWTH", "FAILED_IMPORTS"], result.Warnings.Select(x => x.Code));
     }
+
+    [Theory]
+    [InlineData(19, "BACKUP_SPACE_LOW", OperationalHealthSeverity.Warning)]
+    [InlineData(4, "BACKUP_SPACE_CRITICAL", OperationalHealthSeverity.Critical)]
+    public void Evaluate_ReportsLowBackupStorage(decimal freeGb, string code, OperationalHealthSeverity severity)
+    {
+        var result = DatabaseOperationalHealthEvaluator.Evaluate(100, 1000, Now.AddHours(-2), 0, Now, backupFreeSpaceGb: freeGb);
+        Assert.Equal(severity, result.Severity);
+        Assert.Contains(result.Warnings, x => x.Code == code);
+    }
 }

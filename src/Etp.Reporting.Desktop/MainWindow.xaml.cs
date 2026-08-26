@@ -387,6 +387,7 @@ public partial class MainWindow : Window
             DatabaseHealthMetric.Foreground = health.Severity == OperationalHealthSeverity.Healthy ? Brushes.SeaGreen : health.Severity == OperationalHealthSeverity.Warning ? Brushes.DarkOrange : Brushes.Firebrick;
             DatabaseSizeMetric.Text = $"{health.DatabaseSizeMb:N2} MB";
             BackupAgeMetric.Text = health.LastSuccessfulBackupUtc?.ToString("dd MMM yyyy HH:mm") ?? "Missing";
+            BackupSpaceMetric.Text = health.BackupFreeSpaceGb is { } freeGb ? $"{freeGb:N2} GB" : "Unavailable";
             FailedImportsMetric.Text = health.FailedImportsLast24Hours.ToString("N0");
             HealthWarningsList.ItemsSource = health.Warnings.Select(x => $"{x.Code}: {x.Message}").ToArray();
             OperationalAuditGrid.ItemsSource = audit;
@@ -395,7 +396,7 @@ public partial class MainWindow : Window
         {
             ImportedFilesMetric.Text = CompletedBatchesMetric.Text = SourceRowsMetric.Text = "-";
             LatestImportMetric.Text = "Unavailable";
-            DatabaseHealthMetric.Text = DatabaseSizeMetric.Text = BackupAgeMetric.Text = FailedImportsMetric.Text = "Unavailable";
+            DatabaseHealthMetric.Text = DatabaseSizeMetric.Text = BackupAgeMetric.Text = BackupSpaceMetric.Text = FailedImportsMetric.Text = "Unavailable";
             HealthWarningsList.ItemsSource = null;
             OperationalAuditGrid.ItemsSource = null;
             ApplicationStatus.Text = $"Dashboard refresh failed: {ex.Message}";
