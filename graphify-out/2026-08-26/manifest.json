@@ -156,15 +156,15 @@
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/App.xaml": {
-    "mtime": 1787668518.498145,
-    "seen": 1787668830.6426125,
-    "ast_hash": "6c9682b356a9a12cdf5c6570f32531ff",
+    "mtime": 1787738931.5884671,
+    "seen": 1787739177.6211126,
+    "ast_hash": "dd7bb676261d8a952c9035e3ce77d102",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/App.xaml.cs": {
-    "mtime": 1787732606.0100672,
-    "seen": 1787733075.6723864,
-    "ast_hash": "d148157a810748edc6cbb1bb3276e0c5",
+    "mtime": 1787738931.589448,
+    "seen": 1787739177.621114,
+    "ast_hash": "e84a513225de47107b5b37290a6248a0",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/AssemblyInfo.cs": {
@@ -1896,9 +1896,9 @@
     "semantic_hash": ""
   },
   "scripts/build-windows-release.ps1": {
-    "mtime": 1787733982.358771,
-    "seen": 1787734272.1778133,
-    "ast_hash": "85d135ff2041d02d3812b5362353e7cf",
+    "mtime": 1787738931.5914428,
+    "seen": 1787739177.6210644,
+    "ast_hash": "da4a5d7a2b26208cb75f07e4e6707b8c",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Import/Profiles/StockImportProfiles.cs": {
@@ -2082,9 +2082,9 @@
     "semantic_hash": ""
   },
   "docs/14_WINDOWS_QUICK_START.md": {
-    "mtime": 1787734948.4501057,
-    "seen": 1787735110.5916028,
-    "ast_hash": "f5a32c6ee7819bf56d509841407e987d",
+    "mtime": 1787738931.5944965,
+    "seen": 1787739177.6216135,
+    "ast_hash": "1cd3ffd7068c925b2f32253454fa2708",
     "semantic_hash": ""
   },
   "database/migrations/0001_foundation.sql": {
@@ -2130,9 +2130,9 @@
     "semantic_hash": ""
   },
   "scripts/backup-etp-database.ps1": {
-    "mtime": 1787736956.9178934,
-    "seen": 1787737075.4299967,
-    "ast_hash": "31a973133fc185fe18e2e0cece5b8d2b",
+    "mtime": 1787739066.7035928,
+    "seen": 1787739177.6210513,
+    "ast_hash": "6ada30923b94afa0efac06b5e5e03024",
     "semantic_hash": ""
   },
   "scripts/build-windows-installer.ps1": {
@@ -2148,9 +2148,9 @@
     "semantic_hash": ""
   },
   "scripts/test-etp-database-health.ps1": {
-    "mtime": 1787732668.0550163,
-    "seen": 1787733075.6723754,
-    "ast_hash": "41c30b9428d75be9dcea313779adb384",
+    "mtime": 1787739066.7065823,
+    "seen": 1787739177.6211004,
+    "ast_hash": "a7b0f28716b4df339ad110fa128afd54",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Infrastructure.SqlServer/OperationalStatusRepository.cs": {
@@ -2196,9 +2196,9 @@
     "semantic_hash": ""
   },
   "scripts/invoke-etp-recovery-drill.ps1": {
-    "mtime": 1787733385.1642776,
-    "seen": 1787733545.2822757,
-    "ast_hash": "c24aac8f012aba915a1dcfd412ce6611",
+    "mtime": 1787739066.704609,
+    "seen": 1787739177.6210806,
+    "ast_hash": "f9d4c5bac987e92652deb559154ccdff",
     "semantic_hash": ""
   },
   "scripts/invoke-security-scan.ps1": {
@@ -2208,9 +2208,9 @@
     "semantic_hash": ""
   },
   "scripts/new-etp-support-package.ps1": {
-    "mtime": 1787733385.165276,
-    "seen": 1787733545.282281,
-    "ast_hash": "3f1c673b9bcc65880df76fcf582022a1",
+    "mtime": 1787739066.7076058,
+    "seen": 1787739177.621087,
+    "ast_hash": "1613224460d4dcc870842fdb080abdf3",
     "semantic_hash": ""
   },
   "scripts/set-release-version.ps1": {
@@ -2220,9 +2220,9 @@
     "semantic_hash": ""
   },
   "scripts/test-installer-lifecycle.ps1": {
-    "mtime": 1787734179.422687,
-    "seen": 1787734272.177845,
-    "ast_hash": "9bb9d9eed88468e11b29be4da6b45453",
+    "mtime": 1787738931.5935016,
+    "seen": 1787739177.6211023,
+    "ast_hash": "238235e73d12557e19e25c67e5b71fda",
     "semantic_hash": ""
   },
   "scripts/test-windows-ui.ps1": {
@@ -2280,9 +2280,9 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1787737002.2696488,
-    "seen": 1787737075.4328163,
-    "ast_hash": "f8aedf2b0ecac2217379247da1736860",
+    "mtime": 1787739117.3616197,
+    "seen": 1787739177.6215885,
+    "ast_hash": "94819b6e4f7ce6c009f1226a08714215",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Assets/EtpReporting.png": {
@@ -2292,9 +2292,9 @@
     "semantic_hash": ""
   },
   "docs/17_ADMINISTRATOR_HANDBOOK.md": {
-    "mtime": 1787736721.7065835,
-    "seen": 1787736859.80162,
-    "ast_hash": "efcf4ec8f8c06b070667d4af3cdd313e",
+    "mtime": 1787739084.7434192,
+    "seen": 1787739177.621618,
+    "ast_hash": "0182dff8d77b7f31dd6a209e88dd73b7",
     "semantic_hash": ""
   },
   "docs/18_USER_MANUAL.md": {
@@ -2316,9 +2316,9 @@
     "semantic_hash": ""
   },
   "scripts/invoke-database-maintenance.ps1": {
-    "mtime": 1787736721.6996043,
-    "seen": 1787736859.7988951,
-    "ast_hash": "d6c101085e1f5eaeba54cf806912eee9",
+    "mtime": 1787739066.705587,
+    "seen": 1787739177.621079,
+    "ast_hash": "d042ef6a483fdbfe11c1dfa402a26285",
     "semantic_hash": ""
   },
   "scripts/invoke-release-rollback.ps1": {
@@ -2367,6 +2367,12 @@
     "mtime": 1787736738.020805,
     "seen": 1787736859.7988896,
     "ast_hash": "9cdf751ad27006494674a730633ea98a",
+    "semantic_hash": ""
+  },
+  "scripts/bootstrap-etp-prerequisites.ps1": {
+    "mtime": 1787739066.702594,
+    "seen": 1787739177.6210542,
+    "ast_hash": "0372d3dab8ee36911e1eb8e4def93e9b",
     "semantic_hash": ""
   }
 }
