@@ -1,5 +1,17 @@
 # Release Acceptance — 26 August 2026
 
+## Phase 2 operations sprint - version 1.5.0
+
+- Windows-integrated roles and Owner-only user/master administration: Passed, including last-Owner database protection and audited before/after history.
+- Automatic watch-folder XLSX/ZIP processing: Passed with stable-file gating, content-hash duplicate skip, processed/failed isolation and SQL single-run lease.
+- Automatic report scheduling: Passed; the live test produced a due combined Titan + Helios pack and recorded its outcome.
+- Historical archive: Passed; seven generated documents were stored with SHA-256, reopened, compared and found re-exportable.
+- Management trend and data-quality control-centre queries: Passed against the full production corpus.
+- Fresh SQL validation: 13 migrations, 12 supplied workbooks, 5,044 persisted evidence rows and 490 invoice summaries.
+- Recovery: checksum backup, `RESTORE VERIFYONLY`, isolated full restore and source/restore lineage comparison passed.
+- Automated tests: 126 passed, zero failed; Release build has zero warnings and zero errors.
+- Environment-dependent acceptance still required: elevated installation/task registration on the target install and signing with the Owner's future code-signing certificate.
+
 ## Consolidated operational sprint - version 1.1.0
 
 - Daily SQL backup task: installed, enabled, manually executed and scheduled for 22:00 daily.
@@ -66,7 +78,7 @@ Deferred business inputs remain fail-closed: tender variance resolution, complet
 - Category reports require an authoritative product-category master. `CLUSTER` is a brand segment and is never relabelled as category.
 - LY–TY values require approval of the comparison-period rule. The centralized period abstraction exists; no calendar/weekday/financial-period assumption is silently activated.
 - ABV/ASP, gross-sales and detailed stock movement classifications require the outstanding approved formulas/type register.
-- PDF output remains deferred because no specific PDF report/layout has been approved. On-screen and Excel are operational.
-- Code signing and MSI packaging require signing identity/certificate and release-owner approval. The delivered single-file executable is self-contained but unsigned.
+- PDF output is implemented for every supported report and complete management pack.
+- Code signing still requires the Owner's signing identity/certificate. The versioned bootstrap installer is self-contained but remains unsigned until that certificate is supplied.
 
 These deferred items do not alter confirmed sales, tender-control or stock-source values. They remain blocked until the business inputs recorded in `11_DECISION_LOG.md` are supplied.

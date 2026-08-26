@@ -112,6 +112,7 @@ var dailyExceptions = await operationalReports.LoadDailyExceptionsAsync("WLMHW",
 var workflow = await dailyRepository.LoadAsync("WLMHW", testDate);
 var pack = await new DailyReportingPackService(connectionString).GenerateAsync("WLMHW", new(2026, 8, 25), "live-smoke");
 var combinedPack = await new DailyReportingPackService(connectionString).GenerateCombinedAsync(new(2026, 8, 25), "live-smoke");
+await VerifyPhase2OperationsAsync(connectionString, files[0]);
 if (daily.Status != ReconciliationStatus.Passed || daily.Rows.Count == 0) throw new InvalidOperationException("Daily sales report did not pass live SQL execution.");
 if (tenders.Status == ReconciliationStatus.Blocked) throw new InvalidOperationException("Tender reconciliation was blocked in live SQL execution.");
 if (stock.Status == ReconciliationStatus.Blocked || stock.Items.Count == 0) throw new InvalidOperationException("Stock reconciliation was blocked or empty in live SQL execution.");
@@ -143,6 +144,54 @@ finally
 await VerifyBackupRestoreAsync(connectionString);
 Console.WriteLine($"Live SQL passed: files={files.Length}; persisted evidence rows={importedRows}; daily groups={daily.Rows.Count}; invoices={invoiceSummary.Count}; dsr={dsr.Count}; staff={staff.Rows.Count}/{staff.Status}; workflow={workflow.Status}; pack={pack.Status}; brand-segment={brandSegment.Status}; tender={tenders.Status}; stock={stock.Status} ({stock.Items.Count} matched items).");
 return files.Length == 12 ? 0 : 1;
+
+static async Task VerifyPhase2OperationsAsync(string connectionString, string duplicateWorkbook)
+{
+    var repository = new Phase2OperationsRepository(connectionString);
+    var access = await repository.LoadCurrentAccessAsync();
+    if (!access.CanAdminister) throw new InvalidOperationException("The bootstrap Windows identity was not assigned the Owner role.");
+    await repository.UpsertUserAsync(@"NT AUTHORITY\SYSTEM", "ETP Automated Operations", "Store Manager", true, "Live validation of role and SQL access administration");
+    await repository.UpsertMasterValueAsync("Brand Segment", "PHASE2_TEST", "Phase 2 validation", "Observed", true, "Live validation of master administration");
+    var users = await repository.LoadUsersAsync();
+    var masters = await repository.LoadMasterValuesAsync("Brand Segment");
+    if (!users.Any(x => x.WindowsIdentity == @"NT AUTHORITY\SYSTEM" && x.RoleCode == "STORE_MANAGER") ||
+        !masters.Any(x => x.Code == "GAUTO" && x.ApprovalStatus == "APPROVED") || !masters.Any(x => x.Code == "PHASE2_TEST"))
+        throw new InvalidOperationException("Owner-controlled user or master-data administration failed.");
+
+    var archive = await repository.LoadReportGenerationsAsync(businessDate: new(2026, 8, 25));
+    var combined = archive.FirstOrDefault(x => x.StoreCode == "COMBINED" && x.CanReExport)
+        ?? throw new InvalidOperationException("The combined report archive was not persisted.");
+    var archivedDocument = await repository.LoadArchivedReportAsync(combined.Id);
+    var wlGenerations = archive.Where(x => x.StoreCode == "WLMHW" && x.CanReExport).Take(2).ToArray();
+    if (archivedDocument.Tables.All(x => x.Name != "Titan Helios Combined DSR") || wlGenerations.Length != 2 ||
+        (await repository.CompareReportGenerationsAsync(wlGenerations[0].Id, wlGenerations[1].Id)).Count == 0)
+        throw new InvalidOperationException("Archived report integrity or comparison failed.");
+    if ((await repository.LoadManagementTrendAsync(new(2026, 7, 1), new(2026, 8, 25))).Count == 0)
+        throw new InvalidOperationException("Management trend reporting returned no results.");
+    _ = await repository.LoadDataQualitySummaryAsync();
+
+    var root = Path.Combine(Path.GetTempPath(), $"EtpLiveAutomation-{Guid.NewGuid():N}");
+    var inbound = Path.Combine(root, "Inbound"); var processed = Path.Combine(root, "Processed");
+    var failed = Path.Combine(root, "Failed"); var reports = Path.Combine(root, "Reports");
+    try
+    {
+        await repository.SaveWatchFolderSettingsAsync(new(inbound, processed, failed, reports, 5, true, DateTime.MinValue, access.WindowsIdentity),
+            "Live validation of unattended duplicate protection");
+        Directory.CreateDirectory(inbound);
+        var queued = Path.Combine(inbound, Path.GetFileName(duplicateWorkbook));
+        File.Copy(duplicateWorkbook, queued);
+        File.SetLastWriteTimeUtc(queued, DateTime.UtcNow.AddMinutes(-1));
+        var result = await new AutomatedOperationsService(connectionString).RunOnceAsync();
+        if (result.SourcesProcessed != 1 || result.DuplicateWorkbooks != 1 || Directory.EnumerateFiles(processed).Count() != 1 || Directory.EnumerateFiles(inbound).Any())
+            throw new InvalidOperationException("Unattended watch-folder duplicate handling failed.");
+        if (!(await repository.LoadAutomationRunsAsync()).Any(x => x.RunType == "WATCH_IMPORT" && x.Outcome == "Skipped"))
+            throw new InvalidOperationException("Unattended automation history was not recorded.");
+    }
+    finally
+    {
+        if (Directory.Exists(root)) Directory.Delete(root, true);
+    }
+}
 
 static async Task VerifyBackupRestoreAsync(string connectionString)
 {

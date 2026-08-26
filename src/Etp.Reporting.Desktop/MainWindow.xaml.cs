@@ -28,11 +28,13 @@ public partial class MainWindow : Window
     private ExcelReportMetadata? currentExportMetadata;
     private ExcelReportData? currentExportData;
     private ReportPackDocument? currentDailyPackDocument;
+    private ReportPackDocument? currentArchivedDocument;
     private OperationalSummary? latestOperationalSummary;
     private DailyWorkflowSnapshot? currentDailySnapshot;
     private BatchImportSource? activeBatchSource;
     private CancellationTokenSource? batchCancellation;
     private IReadOnlyList<string> failedBatchPaths = [];
+    private ApplicationAccess currentAccess = new("unknown", "Unknown user", ApplicationRole.None, false);
     private static readonly string SettingsPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "EtpReporting", "settings.json");
     private static readonly IReadOnlyDictionary<string, PageDetails> Pages = new Dictionary<string, PageDetails>(StringComparer.Ordinal)
@@ -42,6 +44,8 @@ public partial class MainWindow : Window
         ["Import ETP"] = new("Select, validate and review ETP workbooks before import.", "Import workspace", "Import one approved workbook, a folder batch, or a safe ZIP package with progress, cancellation and retry.", "Import ready", "Import ETP"),
         ["Sales Reports"] = new("View approved sales reports from canonical data.", "Sales reporting", "Run daily, store, brand, brand-segment, item and return reports after importing sales and closing-stock data.", "Run reports below", "Sales Reports"),
         ["Stock Reports"] = new("View approved stock movement and balance reports.", "Stock reporting", "Reconcile the stock ledger to the closing-stock snapshot using source-signed quantities.", "Run reports below", "Stock Reports"),
+        ["Operations Center"] = new("Monitor trends, data quality, unattended imports, report schedules, backup and recovery.", "Operations center", "Use controlled local folders and review every automated outcome without exposing confidential source rows.", "Operations ready", "Operations Center"),
+        ["Report Archive"] = new("Open, compare and re-export immutable report generations.", "Report archive", "Every current-generation document is integrity checked before display or export.", "Archive ready", "Report Archive"),
         ["Masters"] = new("Maintain reporting reference data.", "Master data", "Review confirmed Brand Segment descriptions while unresolved mappings remain fail-closed.", "Review dictionary", "Masters"),
         ["Settings"] = new("Configure the application and database connection.", "Connection settings", "Test the saved Windows-integrated SQL Server connection or safely create/update the database.", "Configuration ready", "Settings")
     };
@@ -53,9 +57,11 @@ public partial class MainWindow : Window
         ReportTo.SelectedDate = DateTime.Today.AddDays(-1);
         DailyBusinessDateInput.SelectedDate = DateTime.Today.AddDays(-1);
         ImportBusinessDateInput.SelectedDate = DateTime.Today.AddDays(-1);
+        OperationsFromInput.SelectedDate = DateTime.Today.AddDays(-30);
+        OperationsToInput.SelectedDate = DateTime.Today;
+        ArchiveDateInput.SelectedDate = DateTime.Today.AddDays(-1);
         StaffTargetFromInput.SelectedDate = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
         StaffTargetToInput.SelectedDate = DateTime.Today.AddDays(-1);
-        BrandDictionaryGrid.ItemsSource = new[] { new BrandSegmentEntry("GAUTO", "Titan Automatic", "Confirmed") };
         Loaded += MainWindow_Loaded;
     }
 
@@ -63,6 +69,7 @@ public partial class MainWindow : Window
     {
         var saved = LoadSettings();
         if (!string.IsNullOrWhiteSpace(saved?.ConnectionString)) ConnectionStringInput.Text = saved.ConnectionString;
+        await RefreshAccessAsync();
         await CheckConnectionAndRefreshAsync(false);
         await RecordAuditAsync("ApplicationStart", "Succeeded", "Desktop application started");
         await RecordAuditAsync("SessionStart", "Succeeded", "Windows integrated user session started");
@@ -71,6 +78,21 @@ public partial class MainWindow : Window
     private void Navigate_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button { Tag: string destination } || !Pages.TryGetValue(destination, out var page)) return;
+        if ((destination == "Masters" || destination == "Settings" && currentAccess.Role != ApplicationRole.None) && !currentAccess.CanAdminister)
+        {
+            ApplicationStatus.Text = "Owner permission is required to open administration and database settings.";
+            return;
+        }
+        if (destination == "Import ETP" && !currentAccess.CanImport)
+        {
+            ApplicationStatus.Text = "Owner or Store Manager permission is required to import ETP reports.";
+            return;
+        }
+        if (destination is not "Settings" && !currentAccess.CanView)
+        {
+            ApplicationStatus.Text = "This Windows account has not been granted application access by an Owner.";
+            return;
+        }
         PageTitle.Text = destination;
         PageDescription.Text = page.Description;
         WorkspaceHeading.Text = page.Heading;
@@ -83,10 +105,48 @@ public partial class MainWindow : Window
         ImportPanel.Visibility = destination == "Import ETP" ? Visibility.Visible : Visibility.Collapsed;
         ReportsPanel.Visibility = destination is "Sales Reports" or "Stock Reports" ? Visibility.Visible : Visibility.Collapsed;
         DashboardPanel.Visibility = destination == "Dashboard" ? Visibility.Visible : Visibility.Collapsed;
+        OperationsPanel.Visibility = destination == "Operations Center" ? Visibility.Visible : Visibility.Collapsed;
+        ReportArchivePanel.Visibility = destination == "Report Archive" ? Visibility.Visible : Visibility.Collapsed;
         MastersPanel.Visibility = destination == "Masters" ? Visibility.Visible : Visibility.Collapsed;
         ApplicationStatus.Text = $"{destination} selected. {page.Message}";
         if (destination == "Dashboard") _ = RefreshDashboardAsync();
         if (destination == "Daily Workflow") _ = RefreshDailyWorkflowAsync();
+        if (destination == "Operations Center") _ = RefreshOperationsAsync();
+        if (destination == "Report Archive") _ = RefreshReportArchiveAsync();
+        if (destination == "Masters") _ = RefreshMasterAdministrationAsync();
+    }
+
+    private async Task RefreshAccessAsync()
+    {
+        try
+        {
+            currentAccess = await new Phase2OperationsRepository(ConnectionStringInput.Text).LoadCurrentAccessAsync();
+            AccessStatus.Text = $"{currentAccess.DisplayName} — {RoleLabel(currentAccess.Role)}";
+            AccessStatus.Foreground = currentAccess.CanView ? Brushes.SeaGreen : Brushes.Firebrick;
+            if (PageTitle.Text == "Dashboard") DashboardPanel.Visibility = currentAccess.CanView ? Visibility.Visible : Visibility.Collapsed;
+        }
+        catch (Exception ex) when (ex is SqlException or InvalidOperationException)
+        {
+            currentAccess = new("unknown", "Access not initialized", ApplicationRole.None, false);
+            AccessStatus.Text = "Access: initialize database";
+            AccessStatus.Foreground = Brushes.DarkOrange;
+            if (PageTitle.Text == "Dashboard") DashboardPanel.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private void RequireViewAccess()
+    {
+        if (!currentAccess.CanView) throw new UnauthorizedAccessException("This Windows account does not have application access.");
+    }
+
+    private void RequireImportAccess()
+    {
+        if (!currentAccess.CanImport) throw new UnauthorizedAccessException("Owner or Store Manager permission is required.");
+    }
+
+    private void RequireOwnerAccess()
+    {
+        if (!currentAccess.CanAdminister) throw new UnauthorizedAccessException("Owner permission is required.");
     }
 
     private async void RefreshDailyWorkflow_Click(object sender, RoutedEventArgs e) => await RefreshDailyWorkflowAsync();
@@ -128,6 +188,7 @@ public partial class MainWindow : Window
     {
         try
         {
+            RequireImportAccess();
             var (store, date) = DailyScope();
             var field = ((ComboBoxItem)ManualFieldInput.SelectedItem).Content!.ToString()!;
             var reason = ManualReasonInput.Text.Trim();
@@ -148,6 +209,7 @@ public partial class MainWindow : Window
     {
         try
         {
+            RequireImportAccess();
             var (store, date) = DailyScope();
             await new OperationalCompletionRepository(ConnectionStringInput.Text).SaveManualStockCountAsync(
                 store, date, StockGroupInput.Text, OptionalDecimal(StockDisplayInput.Text), OptionalDecimal(StockBackstockInput.Text),
@@ -165,6 +227,7 @@ public partial class MainWindow : Window
     {
         try
         {
+            RequireImportAccess();
             var (store, _) = DailyScope();
             if (StaffTargetFromInput.SelectedDate is null || StaffTargetToInput.SelectedDate is null)
                 throw new InvalidOperationException("Select the target start and end dates.");
@@ -184,6 +247,7 @@ public partial class MainWindow : Window
     {
         try
         {
+            RequireImportAccess();
             var (store, date) = DailyScope();
             var pack = await new DailyReportingPackService(ConnectionStringInput.Text).GenerateAsync(store, date, Environment.UserName);
             DailyPackGrid.ItemsSource = pack.Sections;
@@ -200,6 +264,7 @@ public partial class MainWindow : Window
     {
         try
         {
+            RequireOwnerAccess();
             var (store, date) = DailyScope();
             using var identity = WindowsIdentity.GetCurrent();
             var isAdministrator = new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator);
@@ -216,6 +281,7 @@ public partial class MainWindow : Window
     {
         try
         {
+            RequireViewAccess();
             var (store, date) = DailyScope();
             var pack = await new DailyReportingPackService(ConnectionStringInput.Text).GenerateAsync(store, date, Environment.UserName);
             DailyPackGrid.ItemsSource = pack.Sections;
@@ -236,6 +302,7 @@ public partial class MainWindow : Window
     {
         try
         {
+            RequireViewAccess();
             if (DailyBusinessDateInput.SelectedDate is null) throw new InvalidOperationException("Select the ETP business date.");
             var date = DateOnly.FromDateTime(DailyBusinessDateInput.SelectedDate.Value);
             currentDailyPackDocument = await new DailyReportingPackService(ConnectionStringInput.Text)
@@ -272,12 +339,14 @@ public partial class MainWindow : Window
         ConnectionResult.Text = "Creating/updating database…";
         try
         {
+            if (currentAccess.Role != ApplicationRole.None) RequireOwnerAccess();
             var path = Path.Combine(AppContext.BaseDirectory, "database", "migrations");
             var result = await new SqlServerDatabaseBootstrapper(ConnectionStringInput.Text, new DirectoryMigrationSource(path)).BootstrapAsync();
             ConnectionResult.Text = $"Database ready. Applied migrations: {(result.AppliedMigrations.Count == 0 ? "none" : string.Join(", ", result.AppliedMigrations))}.";
             SetConnectionState(true, "Ready to import");
             TrySaveSettings();
             await RefreshDashboardAsync();
+            await RefreshAccessAsync();
             await RecordAuditAsync("ConfigurationChange", "Succeeded", "Windows integrated database configuration saved");
             await RecordAuditAsync("DatabaseSetup", "Succeeded", "Database migrations verified");
         }
@@ -344,6 +413,7 @@ public partial class MainWindow : Window
         PersistButton.IsEnabled = false;
         try
         {
+            RequireImportAccess();
             var persistenceStore = new SqlServerTransactionalImportStore(ConnectionStringInput.Text);
             var (selectedStore, selectedDate) = ImportScope();
             var restatement = await ResolveRestatementAsync(validatedPreflight.Profile!.ReportCode, selectedStore, selectedDate, CancellationToken.None);
@@ -393,6 +463,8 @@ public partial class MainWindow : Window
 
     private async void StartBatchImport_Click(object sender, RoutedEventArgs e)
     {
+        try { RequireImportAccess(); }
+        catch (UnauthorizedAccessException ex) { ValidationResult.Text = ex.Message; return; }
         if (string.IsNullOrWhiteSpace(WorkbookPathInput.Text)) { ValidationResult.Text = "Select a folder, XLSX workbook, or ZIP archive first."; return; }
         await DisposeBatchSourceAsync();
         try
@@ -471,6 +543,7 @@ public partial class MainWindow : Window
         CancellationToken cancellationToken)
     {
         if (RestatementModeInput.IsChecked != true) return null;
+        RequireOwnerAccess();
         var reason = RestatementReasonInput.Text.Trim();
         if (string.IsNullOrWhiteSpace(reason)) throw new ImportSourceException("RESTATEMENT_REASON_REQUIRED", "Enter the reason for the controlled restatement.");
         var previous = await new OperationalCompletionRepository(ConnectionStringInput.Text).FindCurrentImportAsync(
@@ -765,7 +838,12 @@ public partial class MainWindow : Window
         ConnectionResult.Text = health.Message;
         SetConnectionState(connected, connected ? "Ready to validate or report" : "Waiting for connection");
         ApplicationStatus.Text = connected ? $"Connected to SQL Server {health.ServerVersion}." : health.Message;
-        if (connected) { TrySaveSettings(); await RecordAuditAsync("ConfigurationChange", "Succeeded", "Windows integrated database configuration saved"); await RefreshDashboardAsync(); }
+        if (connected)
+        {
+            TrySaveSettings();
+            await RecordAuditAsync("ConfigurationChange", "Succeeded", "Windows integrated database configuration saved");
+            if (currentAccess.CanView) await RefreshDashboardAsync();
+        }
         await RecordAuditAsync("ConnectionTest", connected ? "Succeeded" : "Failed", "Database connection tested");
     }
 
@@ -816,6 +894,239 @@ public partial class MainWindow : Window
         }
     }
 
+    private async void RefreshOperations_Click(object sender, RoutedEventArgs e) => await RefreshOperationsAsync();
+
+    private async Task RefreshOperationsAsync()
+    {
+        try
+        {
+            RequireViewAccess();
+            if (OperationsFromInput.SelectedDate is null || OperationsToInput.SelectedDate is null) throw new InvalidOperationException("Select the management trend dates.");
+            var from = DateOnly.FromDateTime(OperationsFromInput.SelectedDate.Value);
+            var to = DateOnly.FromDateTime(OperationsToInput.SelectedDate.Value);
+            var repository = new Phase2OperationsRepository(ConnectionStringInput.Text);
+            var settingsTask = repository.LoadWatchFolderSettingsAsync();
+            var trendTask = repository.LoadManagementTrendAsync(from, to);
+            var qualityTask = repository.LoadDataQualitySummaryAsync();
+            var schedulesTask = repository.LoadSchedulesAsync();
+            var runsTask = repository.LoadAutomationRunsAsync(100);
+            await Task.WhenAll(settingsTask, trendTask, qualityTask, schedulesTask, runsTask);
+            var settings = await settingsTask; var trend = await trendTask; var quality = await qualityTask;
+            WatchInboundInput.Text = settings.InboundPath; WatchProcessedInput.Text = settings.ProcessedPath;
+            WatchFailedInput.Text = settings.FailedPath; WatchReportOutputInput.Text = settings.ReportOutputPath; WatchEnabledInput.IsChecked = settings.IsEnabled;
+            ManagementTrendGrid.ItemsSource = trend; DataQualityGrid.ItemsSource = quality; ReportSchedulesGrid.ItemsSource = await schedulesTask; AutomationRunsGrid.ItemsSource = await runsTask;
+            RenderManagementTrendChart(trend);
+            OperationsStatus.Text = $"Loaded {trend.Count:N0} daily store result(s), {quality.Count:N0} active quality finding(s), and {(await runsTask).Count:N0} recent unattended run(s).";
+        }
+        catch (Exception ex) { OperationsStatus.Text = $"Operations center could not be refreshed: {ex.Message}"; }
+    }
+
+    private async void SaveAutomationSettings_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            RequireOwnerAccess();
+            var repository = new Phase2OperationsRepository(ConnectionStringInput.Text);
+            await repository.SaveWatchFolderSettingsAsync(new(WatchInboundInput.Text, WatchProcessedInput.Text, WatchFailedInput.Text,
+                WatchReportOutputInput.Text, 5, WatchEnabledInput.IsChecked == true, DateTime.MinValue, currentAccess.WindowsIdentity), WatchChangeReasonInput.Text);
+            WatchChangeReasonInput.Clear(); OperationsStatus.Text = "Automatic import and report-output folders were saved and audited.";
+            await RefreshOperationsAsync();
+        }
+        catch (Exception ex) { OperationsStatus.Text = $"Automation settings were not saved: {ex.Message}"; }
+    }
+
+    private async void RunAutomationNow_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            RequireImportAccess();
+            OperationsStatus.Text = "Running controlled watch-folder import and due report schedules…";
+            var result = await new AutomatedOperationsService(ConnectionStringInput.Text).RunOnceAsync();
+            OperationsStatus.Text = result.Message;
+            await RefreshOperationsAsync(); await RefreshDashboardAsync();
+        }
+        catch (Exception ex) { OperationsStatus.Text = $"Unattended processing failed: {ex.Message}"; }
+    }
+
+    private void ReportSchedule_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (ReportSchedulesGrid.SelectedItem is not ReportPackSchedule schedule) return;
+        ScheduleTimeInput.Text = schedule.LocalRunTime.ToString("HH:mm", CultureInfo.InvariantCulture);
+        ScheduleEnabledInput.IsChecked = schedule.IsEnabled; ScheduleExcelInput.IsChecked = schedule.ExportExcel; SchedulePdfInput.IsChecked = schedule.ExportPdf;
+    }
+
+    private async void SaveSchedule_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            RequireOwnerAccess();
+            if (ReportSchedulesGrid.SelectedItem is not ReportPackSchedule schedule) throw new InvalidOperationException("Select the morning or evening schedule first.");
+            if (!TimeOnly.TryParseExact(ScheduleTimeInput.Text.Trim(), "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var time)) throw new InvalidOperationException("Enter schedule time in 24-hour HH:mm format.");
+            await new Phase2OperationsRepository(ConnectionStringInput.Text).SaveScheduleAsync(schedule.Id, time, ScheduleEnabledInput.IsChecked == true,
+                ScheduleExcelInput.IsChecked == true, SchedulePdfInput.IsChecked == true, ScheduleReasonInput.Text);
+            ScheduleReasonInput.Clear(); OperationsStatus.Text = "The selected report schedule was updated and audited."; await RefreshOperationsAsync();
+        }
+        catch (Exception ex) { OperationsStatus.Text = $"Schedule was not saved: {ex.Message}"; }
+    }
+
+    private async void RunBackupNow_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            RequireOwnerAccess(); MaintenanceStatus.Text = "Creating and verifying a checksum database backup…";
+            var result = await PowerShellOperationsService.RunAsync("backup-etp-database.ps1");
+            MaintenanceStatus.Text = result.Succeeded ? $"Backup passed. {result.Message}" : $"Backup failed. {result.Message}";
+            await RefreshDashboardAsync();
+        }
+        catch (Exception ex) { MaintenanceStatus.Text = $"Backup could not run: {ex.Message}"; }
+    }
+
+    private async void RunRecoveryDrillNow_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            RequireOwnerAccess(); MaintenanceStatus.Text = "Running an isolated restore, integrity check and lineage comparison…";
+            var result = await PowerShellOperationsService.RunAsync("invoke-etp-recovery-drill.ps1");
+            MaintenanceStatus.Text = result.Succeeded ? "Recovery drill passed and the temporary database was removed." : $"Recovery drill failed. {result.Message}";
+            await RefreshDashboardAsync();
+        }
+        catch (Exception ex) { MaintenanceStatus.Text = $"Recovery drill could not run: {ex.Message}"; }
+    }
+
+    private async void CreateSupportPackage_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            RequireOwnerAccess(); MaintenanceStatus.Text = "Creating an aggregate-only support package without source rows or confidential identifiers…";
+            var result = await PowerShellOperationsService.RunAsync("new-etp-support-package.ps1");
+            MaintenanceStatus.Text = result.Succeeded ? $"Support package created. {result.Message}" : $"Support package failed. {result.Message}";
+            await RecordAuditAsync("SupportPackage", result.Succeeded ? "Succeeded" : "Failed", "Privacy-safe support package operation completed");
+        }
+        catch (Exception ex) { MaintenanceStatus.Text = $"Support package could not be created: {ex.Message}"; }
+    }
+
+    private async void RefreshReportArchive_Click(object sender, RoutedEventArgs e) => await RefreshReportArchiveAsync();
+
+    private async Task RefreshReportArchiveAsync()
+    {
+        try
+        {
+            RequireViewAccess();
+            var store = ArchiveStoreInput.SelectedItem is ComboBoxItem item && !string.Equals(item.Content?.ToString(), "All", StringComparison.OrdinalIgnoreCase) ? item.Content?.ToString() : null;
+            var date = ArchiveAllDatesInput.IsChecked == true || ArchiveDateInput.SelectedDate is null ? (DateOnly?)null : DateOnly.FromDateTime(ArchiveDateInput.SelectedDate.Value);
+            var rows = await new Phase2OperationsRepository(ConnectionStringInput.Text).LoadReportGenerationsAsync(store, date);
+            ReportGenerationGrid.ItemsSource = rows; ReportArchiveDetailGrid.ItemsSource = null; currentArchivedDocument = null;
+            ReportArchiveStatus.Text = $"{rows.Count:N0} immutable generation(s) found. Select one to open or exactly two to compare.";
+        }
+        catch (Exception ex) { ReportArchiveStatus.Text = $"Report archive could not be loaded: {ex.Message}"; }
+    }
+
+    private async void OpenArchivedGeneration_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (ReportGenerationGrid.SelectedItem is not ArchivedReportGeneration generation) throw new InvalidOperationException("Select one report generation.");
+            currentArchivedDocument = await new Phase2OperationsRepository(ConnectionStringInput.Text).LoadArchivedReportAsync(generation.Id);
+            ReportArchiveDetailGrid.ItemsSource = currentArchivedDocument.Tables.Select(table => new { table.Name, table.Status, Rows = table.Data.Rows.Count, table.Message });
+            ReportArchiveStatus.Text = $"Generation {generation.GenerationNumber} passed its document SHA-256 check and is ready to re-export.";
+            await RecordAuditAsync("ReportArchive", "Succeeded", "Archived report opened");
+        }
+        catch (Exception ex) { ReportArchiveStatus.Text = $"Archived generation could not be opened: {ex.Message}"; }
+    }
+
+    private async void CompareArchivedGenerations_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var selected = ReportGenerationGrid.SelectedItems.OfType<ArchivedReportGeneration>().ToArray();
+            if (selected.Length != 2) throw new InvalidOperationException("Select exactly two report generations.");
+            var rows = await new Phase2OperationsRepository(ConnectionStringInput.Text).CompareReportGenerationsAsync(selected[0].Id, selected[1].Id);
+            ReportArchiveDetailGrid.ItemsSource = rows; currentArchivedDocument = null;
+            ReportArchiveStatus.Text = $"Compared generations {selected[0].GenerationNumber} and {selected[1].GenerationNumber}: {rows.Count(x => x.Changed):N0} report section(s) changed.";
+            await RecordAuditAsync("ReportArchive", "Succeeded", "Archived generations compared");
+        }
+        catch (Exception ex) { ReportArchiveStatus.Text = $"Generation comparison failed: {ex.Message}"; }
+    }
+
+    private void ExportArchivedExcel_Click(object sender, RoutedEventArgs e)
+    {
+        if (currentArchivedDocument is null) { ReportArchiveStatus.Text = "Open one archived generation before exporting."; return; }
+        var dialog = new SaveFileDialog { Filter = "Excel workbook (*.xlsx)|*.xlsx", FileName = $"ETP_Archived_Pack_{currentArchivedDocument.DateTo:yyyyMMdd}.xlsx", AddExtension = true };
+        if (dialog.ShowDialog(this) != true) return;
+        try { new OpenXmlReportPackExporter().Export(dialog.FileName, currentArchivedDocument); ReportArchiveStatus.Text = $"Archived Excel pack saved to {dialog.FileName}"; _ = RecordAuditAsync("ExportExcel", "Succeeded", "Archived report pack exported"); }
+        catch (Exception ex) { ReportArchiveStatus.Text = $"Archived Excel export failed: {ex.Message}"; }
+    }
+
+    private void ExportArchivedPdf_Click(object sender, RoutedEventArgs e)
+    {
+        if (currentArchivedDocument is null) { ReportArchiveStatus.Text = "Open one archived generation before exporting."; return; }
+        var dialog = new SaveFileDialog { Filter = "PDF report (*.pdf)|*.pdf", FileName = $"ETP_Archived_Pack_{currentArchivedDocument.DateTo:yyyyMMdd}.pdf", AddExtension = true };
+        if (dialog.ShowDialog(this) != true) return;
+        try { new SimplePdfReportPackExporter().Export(dialog.FileName, currentArchivedDocument); ReportArchiveStatus.Text = $"Archived PDF pack saved to {dialog.FileName}"; _ = RecordAuditAsync("ExportPdf", "Succeeded", "Archived report pack exported"); }
+        catch (Exception ex) { ReportArchiveStatus.Text = $"Archived PDF export failed: {ex.Message}"; }
+    }
+
+    private async void MasterType_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!IsLoaded || !currentAccess.CanAdminister) return;
+        await RefreshMasterAdministrationAsync();
+    }
+
+    private async Task RefreshMasterAdministrationAsync()
+    {
+        try
+        {
+            RequireOwnerAccess();
+            var repository = new Phase2OperationsRepository(ConnectionStringInput.Text);
+            var mastersTask = repository.LoadMasterValuesAsync(SelectedContent(MasterTypeInput));
+            var usersTask = repository.LoadUsersAsync();
+            await Task.WhenAll(mastersTask, usersTask);
+            ControlledMastersGrid.ItemsSource = await mastersTask; ApplicationUsersGrid.ItemsSource = await usersTask;
+            ApplicationStatus.Text = "Controlled masters and Windows-integrated access are ready for Owner administration.";
+        }
+        catch (Exception ex) { ApplicationStatus.Text = $"Master administration could not be loaded: {ex.Message}"; }
+    }
+
+    private async void SaveMaster_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            RequireOwnerAccess();
+            await new Phase2OperationsRepository(ConnectionStringInput.Text).UpsertMasterValueAsync(SelectedContent(MasterTypeInput), MasterCodeInput.Text,
+                MasterNameInput.Text, SelectedContent(MasterApprovalInput), MasterActiveInput.IsChecked == true, MasterReasonInput.Text);
+            MasterCodeInput.Clear(); MasterNameInput.Clear(); MasterReasonInput.Clear(); await RefreshMasterAdministrationAsync();
+        }
+        catch (Exception ex) { ApplicationStatus.Text = $"Master value was not saved: {ex.Message}"; }
+    }
+
+    private async void SaveUserAccess_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            RequireOwnerAccess();
+            await new Phase2OperationsRepository(ConnectionStringInput.Text).UpsertUserAsync(UserIdentityInput.Text, UserDisplayNameInput.Text,
+                SelectedContent(UserRoleInput), UserActiveInput.IsChecked == true, UserReasonInput.Text);
+            UserIdentityInput.Clear(); UserDisplayNameInput.Clear(); UserReasonInput.Clear(); await RefreshMasterAdministrationAsync(); await RefreshAccessAsync();
+        }
+        catch (Exception ex) { ApplicationStatus.Text = $"User access was not saved: {ex.Message}"; }
+    }
+
+    private void RenderManagementTrendChart(IReadOnlyList<ManagementTrendRow> rows)
+    {
+        ManagementTrendChartPanel.Children.Clear();
+        var points = rows.GroupBy(x => x.BusinessDate).Select(group => new { Date = group.Key, Sales = group.Sum(x => x.NetSales) }).OrderBy(x => x.Date).TakeLast(31).ToArray();
+        var maximum = Math.Max(1m, points.Select(x => Math.Abs(x.Sales)).DefaultIfEmpty(1m).Max());
+        foreach (var point in points)
+        {
+            var row = new Grid { Margin = new Thickness(0, 2, 0, 2) };
+            row.ColumnDefinitions.Add(new() { Width = new GridLength(95) }); row.ColumnDefinitions.Add(new() { Width = new GridLength(1, GridUnitType.Star) }); row.ColumnDefinitions.Add(new() { Width = new GridLength(120) });
+            var label = new TextBlock { Text = point.Date.ToString("dd MMM"), VerticalAlignment = VerticalAlignment.Center };
+            var bar = new Border { Background = point.Sales < 0 ? Brushes.Firebrick : new SolidColorBrush(Color.FromRgb(23, 107, 135)), Height = 14, HorizontalAlignment = HorizontalAlignment.Left, Width = 480d * (double)(Math.Abs(point.Sales) / maximum) };
+            var value = new TextBlock { Text = point.Sales.ToString("N2"), HorizontalAlignment = HorizontalAlignment.Right };
+            Grid.SetColumn(label, 0); Grid.SetColumn(bar, 1); Grid.SetColumn(value, 2); row.Children.Add(label); row.Children.Add(bar); row.Children.Add(value); ManagementTrendChartPanel.Children.Add(row);
+        }
+    }
+
     private void SaveSettings()
     {
         var builder = new SqlConnectionStringBuilder(ConnectionStringInput.Text);
@@ -850,6 +1161,19 @@ public partial class MainWindow : Window
     }
 
     private static string SafeFileName(string value) => string.Concat(value.Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c)).Replace(' ', '_');
+
+    private static string SelectedContent(ComboBox comboBox) =>
+        comboBox.SelectedItem is ComboBoxItem item && !string.IsNullOrWhiteSpace(item.Content?.ToString())
+            ? item.Content!.ToString()!
+            : throw new InvalidOperationException("Select a value from the list.");
+
+    private static string RoleLabel(ApplicationRole role) => role switch
+    {
+        ApplicationRole.Owner => "Owner",
+        ApplicationRole.StoreManager => "Store Manager",
+        ApplicationRole.Viewer => "Viewer",
+        _ => "No access"
+    };
 
     private static decimal? OptionalDecimal(string value)
     {

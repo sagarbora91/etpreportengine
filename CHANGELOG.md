@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## 1.5.0 - 2026-08-26
+
+### Added
+
+- Added Windows-integrated Owner, Store Manager and Viewer roles with audited user administration and protection against removing the last active Owner.
+- Added an automatic local watch-folder pipeline for XLSX/ZIP imports, duplicate skipping, processed/failed quarantine, five-minute task execution and automatic combined Excel/PDF packs.
+- Added morning and evening report schedules, execution history, and installer-managed task registration/removal.
+- Added a SHA-256 verified historical report archive with combined/store generation browsing, comparison and Excel/PDF re-export.
+- Added management sales/control trends, a data-quality control centre, controlled Store/Brand Segment/Inventory Group/Tender masters, and in-app backup, recovery-drill and privacy-safe support actions.
+- Added full SQL Server and production-corpus acceptance coverage for the Phase 2 migration, roles, masters, archive, analytics, unattended duplicate handling, backup and isolated restore.
+
+### Changed
+
+- The bootstrap now installs daily backup, monthly recovery-drill and five-minute automated-operations tasks; uninstall removes only those tasks and deliberately retains all databases, backups, sources and reports.
+
 ## 1.4.1 - 2026-08-26
 
 ### Added

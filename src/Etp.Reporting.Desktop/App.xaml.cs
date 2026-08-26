@@ -37,6 +37,23 @@ public partial class App : Application
             return;
         }
 
+        if (e.Args.Length == 1 && string.Equals(e.Args[0], "--automation-once", StringComparison.Ordinal))
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            try
+            {
+                var connection = @"Server=.\SQLEXPRESS;Database=EtpReporting;Integrated Security=True;TrustServerCertificate=True";
+                var result = await new AutomatedOperationsService(connection).RunOnceAsync();
+                Shutdown(result.SourcesFailed == 0 ? 0 : 1);
+            }
+            catch (Exception ex)
+            {
+                WriteDiagnostic(ex, "UnattendedAutomation");
+                Shutdown(1);
+            }
+            return;
+        }
+
         new MainWindow().Show();
     }
 

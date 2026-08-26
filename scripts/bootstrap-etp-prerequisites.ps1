@@ -69,5 +69,6 @@ Write-SetupLog 'EtpReporting database exists and all bundled migrations are appl
 
 & (Join-Path $scripts 'install-daily-backup-task.ps1')
 & (Join-Path $scripts 'install-monthly-recovery-drill-task.ps1')
-Write-SetupLog 'Daily backup and monthly recovery-drill tasks are installed.'
+& (Join-Path $scripts 'install-etp-automation-task.ps1')
+Write-SetupLog 'Daily backup, monthly recovery-drill and five-minute ETP automation tasks are installed.'
 Write-SetupLog 'ETP prerequisite bootstrap completed successfully.'

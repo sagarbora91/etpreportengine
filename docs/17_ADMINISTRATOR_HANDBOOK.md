@@ -11,13 +11,13 @@
 
 1. Back up `EtpReporting` and verify the backup before any upgrade.
 2. Run the versioned setup executable as administrator and keep the SQL bootstrap task selected. When `SQLEXPRESS` is missing, the bootstrap uses Windows Package Manager to install Microsoft's official SQL Server 2022 Express and Sqlcmd packages; internet access and acceptance of Microsoft's license terms are required.
-3. The bootstrap preserves an existing `SQLEXPRESS` instance, configures automatic startup, applies only checksum-controlled application migrations, prepares backup access, and registers the daily backup and monthly recovery tasks.
+3. The bootstrap preserves an existing `SQLEXPRESS` instance, configures automatic startup, applies only checksum-controlled application migrations, prepares backup access, and registers the daily backup, monthly recovery-drill and five-minute automated-operations tasks.
 4. Launch the application, test the database connection, and confirm that the database reports no pending migration.
 5. Retain the prior installer and verified database backup until acceptance is complete.
 
 The bootstrap fails closed and records privacy-safe progress under `%ProgramData%\EtpReporting\SetupLogs`. It never uninstalls, replaces, downgrades, or deletes an existing SQL instance or database. A pending Windows restart or unavailable internet/package source can prevent a new SQL Server installation; restart or restore connectivity and rerun setup.
 
-Uninstall from Windows **Installed apps**. Uninstalling the program does not delete SQL Server databases, source workbooks, exported reports, or administrator-created backups.
+Uninstall from Windows **Installed apps**. Uninstall removes the three ETP scheduled tasks so they cannot point to missing program files. It does not delete SQL Server databases, source workbooks, exported reports, or administrator-created backups.
 
 ## Daily operation
 
@@ -31,15 +31,18 @@ Uninstall from Windows **Installed apps**. Uninstalling the program does not del
 - Service cash/card/UPI are controlled manual operational facts until a deterministic populated ETP Service profile is approved. They must never be merged into R025 retail sales.
 - Use **Controlled restatement** only for a genuinely corrected export of the same report/store/business date. Reopen a locked date first, select the corrected workbook, and record a meaningful reason. The engine archives the replaced facts and applies the replacement atomically; it never silently overwrites them.
 - Generate a complete reporting pack before finalisation. The generation number, SHA-256 control snapshot and predecessor link are immutable; the finalisation transaction marks the latest generation final.
+- Review **Operations Center** for unattended runs, data-quality findings and scheduled-report status. Files placed in the configured local inbound folder are processed only after stable, then moved to Processed or Failed; duplicates are never re-imported.
+- Use **Report Archive** to open, compare and re-export stored generations. The application verifies each archived document hash before use.
 
 ## Approved access policy
 
 - **Owner/Admin:** has all application and administrative rights, including imports, SQL Server connection administration, database maintenance, and approval of mapping or control-rule changes.
 - **Store Manager:** may import approved ETP reports and use reports/exports, but may not approve or alter mappings, signs, tolerances, control rules, SQL connections, or database configuration.
-- **Other users:** have no import or administration authority unless the Owner explicitly revises this policy.
+- **Viewer:** may view dashboards, reports and the archive, but cannot import, enter operations or administer configuration.
+- **Other users:** have no access unless an Owner explicitly creates and activates their Windows identity.
 - Codex may assist the Owner with technical administration only during an Owner-authorized session. Codex is not an independent account, administrator, or approval authority.
 
-The current desktop release is intended for an Owner-controlled Windows computer and does not provide independent user authentication. Until authenticated application roles are implemented, Windows sign-in and physical access are the enforcement boundary: Store Managers should use the application only under the Owner's approved operating procedure, and Settings/mapping changes remain Owner-only.
+Authentication is Windows-integrated: the signed-in `DOMAIN\User` or `COMPUTER\User` is matched to the audited application user register. The account that applies migration 0011 becomes the initial active Owner. Owners manage additional users under **Masters**. There is no application password to store, share or reset.
 
 ## Backup and recovery
 
@@ -55,7 +58,7 @@ Recovery sequence:
 
 ## Diagnostics and support
 
-Create the offline support package from the application or approved support script. It must contain health results, versions, sanitized logs, and import status counts only—never workbook rows, invoice identifiers, customer details, tender references, connection passwords, or database backups.
+Create the offline support package from **Operations Center** or the approved support script. It contains aggregate health, service and scheduled-task status only—never workbook rows, invoice identifiers, customer details, tender references, connection passwords, database backups or source filenames.
 
 Run `scripts/invoke-security-scan.ps1` before each release. Address dependency findings or document a time-bound exception. Use `scripts/test-windows-ui.ps1 -AccessibilityAudit` and the installer lifecycle test for release acceptance.
 

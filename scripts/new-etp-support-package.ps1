@@ -32,8 +32,8 @@ SELECT MAX(backup_finish_date) LatestFullBackupLocalTime FROM msdb.dbo.backupset
         Format-List | Out-File -LiteralPath (Join-Path $staging "system.txt") -Encoding utf8
     Get-Service -Name 'MSSQL$SQLEXPRESS' -ErrorAction SilentlyContinue | Select-Object Name,Status,StartType |
         Format-List | Out-File -LiteralPath (Join-Path $staging "sql-service.txt") -Encoding utf8
-    Get-ScheduledTask -TaskName "ETP Reporting Daily Backup" -ErrorAction SilentlyContinue |
-        Select-Object TaskName,State | Format-List | Out-File -LiteralPath (Join-Path $staging "backup-task.txt") -Encoding utf8
+    Get-ScheduledTask -TaskName "ETP Reporting Daily Backup","ETP Reporting Monthly Recovery Drill","ETP Reporting Automated Operations" -ErrorAction SilentlyContinue |
+        Select-Object TaskName,State | Format-List | Out-File -LiteralPath (Join-Path $staging "scheduled-tasks.txt") -Encoding utf8
     Set-Content -LiteralPath (Join-Path $staging "privacy.txt") -Value "This package contains aggregate health and environment metadata only. Source rows, customer data, invoice identifiers, workbook names and workbook paths are intentionally excluded."
     Compress-Archive -Path (Join-Path $staging "*") -DestinationPath $archive -CompressionLevel Optimal
     Get-FileHash -LiteralPath $archive -Algorithm SHA256 | Format-List

@@ -43,7 +43,8 @@ public sealed record DailyReportGeneration(
     DateTime GeneratedUtc,
     string GeneratedBy,
     bool IsFinal,
-    long? SupersedesGenerationId);
+    long? SupersedesGenerationId,
+    string DocumentSha256);
 
 public sealed class OperationalCompletionRepository(string connectionString)
 {
@@ -199,12 +200,15 @@ public sealed class OperationalCompletionRepository(string connectionString)
         DateOnly businessDate,
         string generatedBy,
         string controlJson,
+        string reportDocumentJson,
         CancellationToken cancellationToken = default)
     {
         storeCode = Required(storeCode, nameof(storeCode));
         generatedBy = Required(generatedBy, nameof(generatedBy));
         if (string.IsNullOrWhiteSpace(controlJson)) throw new ArgumentException("A report-generation control snapshot is required.", nameof(controlJson));
+        if (string.IsNullOrWhiteSpace(reportDocumentJson)) throw new ArgumentException("An archived report document is required.", nameof(reportDocumentJson));
         var hash = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(controlJson)));
+        var documentHash = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(reportDocumentJson)));
         await using var connection = await OpenAsync(cancellationToken);
         await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
         try
@@ -212,17 +216,18 @@ public sealed class OperationalCompletionRepository(string connectionString)
             const string sql = """
                 DECLARE @number int=ISNULL((SELECT MAX(generation_number) FROM dbo.daily_report_generations WITH(UPDLOCK,HOLDLOCK) WHERE store_code=@store AND business_date=@date),0)+1;
                 DECLARE @previous bigint=(SELECT TOP(1) daily_report_generation_id FROM dbo.daily_report_generations WHERE store_code=@store AND business_date=@date ORDER BY generation_number DESC);
-                INSERT dbo.daily_report_generations(store_code,business_date,generation_number,content_sha256,control_json,generated_by,supersedes_generation_id)
+                INSERT dbo.daily_report_generations(store_code,business_date,generation_number,content_sha256,control_json,generated_by,supersedes_generation_id,report_document_json,document_sha256)
                 OUTPUT INSERTED.daily_report_generation_id,INSERTED.generation_number,INSERTED.generated_utc,INSERTED.is_final,INSERTED.supersedes_generation_id
-                VALUES(@store,@date,@number,@hash,@json,@user,@previous);
+                VALUES(@store,@date,@number,@hash,@json,@user,@previous,@document,@documentHash);
                 """;
             await using var command = new SqlCommand(sql, connection, transaction);
             command.Parameters.AddWithValue("@store", storeCode); command.Parameters.AddWithValue("@date", businessDate);
             command.Parameters.AddWithValue("@hash", hash); command.Parameters.AddWithValue("@json", controlJson); command.Parameters.AddWithValue("@user", generatedBy);
+            command.Parameters.AddWithValue("@document", reportDocumentJson); command.Parameters.AddWithValue("@documentHash", documentHash);
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
             if (!await reader.ReadAsync(cancellationToken)) throw new InvalidOperationException("The report generation was not recorded.");
             var result = new DailyReportGeneration(reader.GetInt64(0), storeCode, businessDate, reader.GetInt32(1), hash,
-                reader.GetDateTime(2), generatedBy, reader.GetBoolean(3), reader.IsDBNull(4) ? null : reader.GetInt64(4));
+                reader.GetDateTime(2), generatedBy, reader.GetBoolean(3), reader.IsDBNull(4) ? null : reader.GetInt64(4), documentHash);
             await reader.DisposeAsync();
             await using (var audit = new SqlCommand("INSERT dbo.daily_reporting_events(store_code,business_date,event_type,performed_by,reason) VALUES(@store,@date,'ReportPackGenerated',@user,@reason)", connection, transaction))
             {

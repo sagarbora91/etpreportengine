@@ -66,7 +66,7 @@ public sealed class MigrationTests
     {
         var root = FindRepositoryRoot();
         var migrations = await new DirectoryMigrationSource(Path.Combine(root, "database", "migrations")).DiscoverAsync();
-        Assert.Equal(["0001_foundation", "0002_reporting_facts", "0003_sales_dimensions", "0004_operational_audit", "0005_daily_reporting_workflow", "0006_backfill_import_business_scope", "0007_sales_enrichment_facts", "0008_service_cash_inputs", "0009_locked_day_fact_guards", "0010_operational_completion"], migrations.Select(x => x.Id));
+        Assert.Equal(["0001_foundation", "0002_reporting_facts", "0003_sales_dimensions", "0004_operational_audit", "0005_daily_reporting_workflow", "0006_backfill_import_business_scope", "0007_sales_enrichment_facts", "0008_service_cash_inputs", "0009_locked_day_fact_guards", "0010_operational_completion", "0011_phase2_operations", "0012_windows_database_access", "0013_store_manager_permission_guards"], migrations.Select(x => x.Id));
         var facts = Assert.Single(migrations, x => x.Id == "0002_reporting_facts").Sql;
         Assert.Contains("UX_import_files_source_sha256", facts, StringComparison.Ordinal);
         Assert.Contains("UQ_source_lineage", facts, StringComparison.Ordinal);
@@ -120,6 +120,37 @@ public sealed class MigrationTests
         Assert.Contains("trg_restatement_archive_immutable", completion, StringComparison.Ordinal);
         Assert.Contains("RestoreDrill", completion, StringComparison.Ordinal);
         Assert.DoesNotContain("customername", completion, StringComparison.OrdinalIgnoreCase);
+        var operations = Assert.Single(migrations, x => x.Id == "0011_phase2_operations").Sql;
+        Assert.Contains("application_users", operations, StringComparison.Ordinal);
+        Assert.Contains("controlled_master_values", operations, StringComparison.Ordinal);
+        Assert.Contains("watch_folder_settings", operations, StringComparison.Ordinal);
+        Assert.Contains("report_pack_schedules", operations, StringComparison.Ordinal);
+        Assert.Contains("automation_runs", operations, StringComparison.Ordinal);
+        Assert.Contains("report_document_json", operations, StringComparison.Ordinal);
+        Assert.Contains("trg_application_users_history", operations, StringComparison.Ordinal);
+        Assert.Contains("trg_daily_report_generations_immutable", operations, StringComparison.Ordinal);
+        Assert.DoesNotContain("customername", operations, StringComparison.OrdinalIgnoreCase);
+        var access = Assert.Single(migrations, x => x.Id == "0012_windows_database_access").Sql;
+        Assert.Contains("NT AUTHORITY\\SYSTEM", access, StringComparison.Ordinal);
+        Assert.Contains("db_datareader", access, StringComparison.Ordinal);
+        Assert.Contains("db_datawriter", access, StringComparison.Ordinal);
+        Assert.Contains("STORE_MANAGER", access, StringComparison.Ordinal);
+        var permissionGuards = Assert.Single(migrations, x => x.Id == "0013_store_manager_permission_guards").Sql;
+        Assert.Contains("DENY DELETE ON SCHEMA::dbo", permissionGuards, StringComparison.Ordinal);
+        Assert.Contains("DENY INSERT,UPDATE,DELETE ON dbo.application_users", permissionGuards, StringComparison.Ordinal);
+        Assert.Contains("DENY INSERT,UPDATE,DELETE ON dbo.schema_migrations", permissionGuards, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Automation_paths_require_distinct_local_non_root_folders()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "EtpAutomationPolicy");
+        var settings = AutomationPathPolicy.Validate(Path.Combine(root, "Inbound"), Path.Combine(root, "Processed"),
+            Path.Combine(root, "Failed"), Path.Combine(root, "Reports"));
+        Assert.EndsWith(Path.Combine("EtpAutomationPolicy", "Inbound"), settings.InboundPath, StringComparison.OrdinalIgnoreCase);
+        Assert.Throws<ArgumentException>(() => AutomationPathPolicy.Validate(root, Path.Combine(root, "Processed"), Path.Combine(root, "Failed"), Path.Combine(root, "Processed")));
+        Assert.Throws<ArgumentException>(() => AutomationPathPolicy.Validate(root, Path.Combine(root, "inside"), Path.Combine(Path.GetTempPath(), "failed"), Path.Combine(Path.GetTempPath(), "reports")));
+        Assert.Throws<ArgumentException>(() => AutomationPathPolicy.Validate(Path.GetPathRoot(root)!, Path.Combine(root, "Processed"), Path.Combine(root, "Failed"), Path.Combine(root, "Reports")));
     }
 
     [Fact]

@@ -4,6 +4,8 @@
 
 Open **ETP Reporting Engine** from the Start Menu or desktop shortcut. The dashboard shows whether SQL Server and the reporting database are ready. If the database is unavailable, use **Test Connection** and share the displayed non-confidential error with your administrator.
 
+The application uses your Windows sign-in. The header shows your display name and role. An Owner can add a Windows identity as Owner, Store Manager or Viewer; accounts not in the register cannot open business data.
+
 ## Import reports
 
 Import is authorized for the Owner/Admin and Store Manager. The Owner/Admin always retains full rights. Mapping, sign, tolerance, control-rule, SQL connection, and database-configuration changes require Owner/Admin approval.
@@ -36,6 +38,14 @@ Use the report filters for date, store, brand segment, transaction type, item, s
 The report screen also provides customer-safe invoice summaries, DSR, staff/CRO performance, service sales and cash reconciliation. Customer names and contact details are not stored or exported. Staff reconciliation shows the exact attributed-versus-canonical difference; it does not round away a small variance.
 
 Select a summary row to open its supporting detail. Sorting and search affect the visible view; they do not modify the database.
+
+## Operations and archive
+
+- **Operations Center** shows sales/control trends, active data-quality findings, automatic-import settings, morning/evening report schedules and recent unattended outcomes.
+- Owners can change the four controlled local folders and schedules with a reason. Owners and Store Managers can run automation immediately.
+- Place stable approved `.xlsx` files or ETP `.zip` packages in Inbound. Completed sources move to Processed; invalid sources move to Failed. Duplicate content is skipped and recorded.
+- **Report Archive** stores every generated store and combined management pack with a document SHA-256. Open a generation to verify and re-export it, or select exactly two generations to compare their sections.
+- Owners can run a checksum backup, isolated recovery drill or privacy-safe support-package creation from Operations Center.
 
 ## Export and print
 

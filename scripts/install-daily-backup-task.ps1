@@ -10,7 +10,7 @@ $arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$backupScript`""
 $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument $arguments
 $trigger = New-ScheduledTaskTrigger -Daily -At $time
 $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew
-Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Settings $settings -Description "Checksum-verified backup of the ETP Reporting SQL Server database. Backups are retained indefinitely by policy." -Force | Out-Null
+Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Settings $settings -User "SYSTEM" -RunLevel Highest -Description "Checksum-verified backup of the ETP Reporting SQL Server database. Backups are retained indefinitely by policy." -Force | Out-Null
 $task = Get-ScheduledTask -TaskName $TaskName -ErrorAction Stop
 if ($task.State -eq 'Disabled') { throw "Scheduled backup task was installed but is disabled." }
 $taskInfo = Get-ScheduledTaskInfo -TaskName $TaskName -ErrorAction Stop

@@ -39,6 +39,9 @@ Name: "sqlbootstrap"; Description: "Install and configure Microsoft SQL Server 2
 [Run]
 Filename: "{app}\{#AppExeName}"; Description: "Launch {#AppName}"; Flags: nowait postinstall skipifsilent
 
+[UninstallRun]
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\scripts\remove-etp-scheduled-tasks.ps1"" -ApplicationDirectory ""{app}"""; RunOnceId: "RemoveEtpScheduledTasks"; Flags: runhidden waituntilterminated skipifdoesntexist
+
 [Code]
 procedure ExitProcess(ExitCode: Integer);
   external 'ExitProcess@kernel32.dll stdcall';

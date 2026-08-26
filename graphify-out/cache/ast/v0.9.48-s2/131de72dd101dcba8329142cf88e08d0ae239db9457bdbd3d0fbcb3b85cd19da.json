@@ -1,0 +1,1 @@
+{"nodes": [{"id": "$graphify-root$_database_migrations_0013_store_manager_permission_guards_sql", "label": "0013_store_manager_permission_guards.sql", "file_type": "code", "source_file": "database/migrations/0013_store_manager_permission_guards.sql", "source_location": null}], "edges": []}

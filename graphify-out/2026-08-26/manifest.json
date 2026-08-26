@@ -162,9 +162,9 @@
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/App.xaml.cs": {
-    "mtime": 1787738931.589448,
-    "seen": 1787739177.621114,
-    "ast_hash": "e84a513225de47107b5b37290a6248a0",
+    "mtime": 1787750136.3435142,
+    "seen": 1787751370.2535431,
+    "ast_hash": "76c1f2cb47c24050de8048dc5992a084",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/AssemblyInfo.cs": {
@@ -180,15 +180,15 @@
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/MainWindow.xaml": {
-    "mtime": 1787743109.3707821,
-    "seen": 1787743652.6949272,
-    "ast_hash": "e2df1b7421f8605d35152363477e180d",
+    "mtime": 1787750169.2593358,
+    "seen": 1787751370.2535474,
+    "ast_hash": "9d0022a981e617f2c54f78fddddf398d",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/MainWindow.xaml.cs": {
-    "mtime": 1787743373.291557,
-    "seen": 1787743652.6949284,
-    "ast_hash": "6ab8bf84b5a1e8ba8d3eaeaa8716a940",
+    "mtime": 1787750169.2593358,
+    "seen": 1787751370.2535493,
+    "ast_hash": "c35ab69723bd105229b3e1ea113f7a44",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Domain/Etp.Reporting.Domain.csproj": {
@@ -198,9 +198,9 @@
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Domain/Imports/ImportProfile.cs": {
-    "mtime": 1787668640.251604,
-    "seen": 1787668830.6427646,
-    "ast_hash": "b4b9657b710b56b80262b37c2794c0ef",
+    "mtime": 1787747054.8577297,
+    "seen": 1787747506.1831818,
+    "ast_hash": "3b0140ca88e6d48a3bc516f59b1d3a42",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Import/Etp.Reporting.Import.csproj": {
@@ -1458,9 +1458,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1787743428.565626,
-    "seen": 1787743652.6955822,
-    "ast_hash": "b437bf78267964df4276f6c9a5e8946d",
+    "mtime": 1787750221.0654345,
+    "seen": 1787751370.2540445,
+    "ast_hash": "4557d9e3d827d9349c4671f664b8946c",
     "semantic_hash": ""
   },
   "docs/01_CURRENT_STATE_ARCHITECTURE.md": {
@@ -1758,9 +1758,9 @@
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Import/Preflight/ImportPreflight.cs": {
-    "mtime": 1787726581.2011807,
-    "seen": 1787726830.1115282,
-    "ast_hash": "f9ca648a9bec39095abe27aa8e64a220",
+    "mtime": 1787747054.8673608,
+    "seen": 1787747506.1832101,
+    "ast_hash": "974a97f793e98420d586ac64c2c014f2",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Import/Workbooks/WorkbookContracts.cs": {
@@ -1782,9 +1782,9 @@
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Infrastructure.SqlServer/PersistenceContracts.cs": {
-    "mtime": 1787741462.4470205,
-    "seen": 1787743652.694996,
-    "ast_hash": "c19c2968eaf5b258250a9b4bb0333ed2",
+    "mtime": 1787745332.304673,
+    "seen": 1787747506.1832461,
+    "ast_hash": "655740f1aee8f99634b1dc4c2d0123d9",
     "semantic_hash": ""
   },
   "tests-dotnet/Etp.Reporting.Domain.Tests/CanonicalContractsTests.cs": {
@@ -1794,9 +1794,9 @@
     "semantic_hash": ""
   },
   "tests-dotnet/Etp.Reporting.Import.Tests/ImportPreflightTests.cs": {
-    "mtime": 1787726581.2011807,
-    "seen": 1787726830.1139834,
-    "ast_hash": "4dff7e1c6b3ac5c6acf58fb3d8b25737",
+    "mtime": 1787747054.869357,
+    "seen": 1787747506.1832964,
+    "ast_hash": "68add3aa3f96715f0dcacdcbd650fab0",
     "semantic_hash": ""
   },
   "tests-dotnet/Etp.Reporting.Import.Tests/TypedCellConverterTests.cs": {
@@ -1812,9 +1812,9 @@
     "semantic_hash": ""
   },
   "tests-dotnet/Etp.Reporting.SqlServer.Tests/MigrationTests.cs": {
-    "mtime": 1787743481.9488332,
-    "seen": 1787743652.695081,
-    "ast_hash": "708152c8d2a1c1271e60ab01fbd4c3d1",
+    "mtime": 1787750779.0403464,
+    "seen": 1787751370.2536962,
+    "ast_hash": "88a3119381152a1f5f6d7877880756c7",
     "semantic_hash": ""
   },
   ".github/workflows/ci.yml": {
@@ -1866,9 +1866,9 @@
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Import/Profiles/RetailSalesProfiles.cs": {
-    "mtime": 1787743394.3683918,
-    "seen": 1787743652.6949646,
-    "ast_hash": "8bf1f9d40b21e4d186c10850fe60867b",
+    "mtime": 1787747054.8577297,
+    "seen": 1787747506.1832156,
+    "ast_hash": "46ecd31f057c288ebec84342a03832df",
     "semantic_hash": ""
   },
   "tests-dotnet/Etp.Reporting.Import.Tests/RetailSalesProfilesTests.cs": {
@@ -1896,15 +1896,15 @@
     "semantic_hash": ""
   },
   "scripts/build-windows-release.ps1": {
-    "mtime": 1787739381.3947463,
-    "seen": 1787739529.5653257,
-    "ast_hash": "3ae391f40827ad340f5825bf0115ae7d",
+    "mtime": 1787750169.2593358,
+    "seen": 1787751370.2534883,
+    "ast_hash": "3a90e46a42e23c60b0b3deda610ffba8",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Import/Profiles/StockImportProfiles.cs": {
-    "mtime": 1787729031.0947535,
-    "seen": 1787730787.5584936,
-    "ast_hash": "6a1c1752ac47774c79357d9756b2e44e",
+    "mtime": 1787747054.8663616,
+    "seen": 1787747506.1832168,
+    "ast_hash": "5ef59f34780ae4d402bb22b6d2cd5259",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Import/Staging/ImportRowStager.cs": {
@@ -1938,15 +1938,15 @@
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Infrastructure.SqlServer/R022SqlImportOrchestrator.cs": {
-    "mtime": 1787742071.2865658,
-    "seen": 1787743652.6949978,
-    "ast_hash": "6a7d6a41c37e584d3bca5a1c75d783da",
+    "mtime": 1787745365.448264,
+    "seen": 1787747506.1832473,
+    "ast_hash": "1c0f3cd53880d9b22ced0659c859fa76",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Infrastructure.SqlServer/R025SqlImportOrchestrator.cs": {
-    "mtime": 1787742071.2846756,
-    "seen": 1787743652.6949992,
-    "ast_hash": "aa14bfdf37de0788adb8b18c78130065",
+    "mtime": 1787745365.448264,
+    "seen": 1787747506.183249,
+    "ast_hash": "bcda29755c385dfee05651de0659fe4a",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Infrastructure.SqlServer/SqlServerReportingQueryRepository.cs": {
@@ -1956,15 +1956,15 @@
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Infrastructure.SqlServer/SqlServerRepositories.cs": {
-    "mtime": 1787742833.8277512,
-    "seen": 1787743652.6950042,
-    "ast_hash": "0626b57639ea04b2367670b033db7f44",
+    "mtime": 1787745346.5412364,
+    "seen": 1787747506.1832535,
+    "ast_hash": "e1a4b5cd8cb1c7b033bfdc591da6a72e",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Infrastructure.SqlServer/StockImportOrchestrator.cs": {
-    "mtime": 1787742071.2865658,
-    "seen": 1787743652.6950054,
-    "ast_hash": "d50716c4fbd381b6620f035fd3f25588",
+    "mtime": 1787745365.448264,
+    "seen": 1787747506.1832552,
+    "ast_hash": "0ebd6355de06c117687bde9d26db55c8",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Reporting/ControlReconciliationService.cs": {
@@ -2064,9 +2064,9 @@
     "semantic_hash": ""
   },
   "tools/Etp.Reporting.LiveSmoke/Program.cs": {
-    "mtime": 1787743237.6522977,
-    "seen": 1787743652.695338,
-    "ast_hash": "fd98ebfe43b8a51bc3cc4d88f673ec0b",
+    "mtime": 1787750779.0413425,
+    "seen": 1787751370.2538733,
+    "ast_hash": "75ed74a6972fe2326d88e84ebe26bd72",
     "semantic_hash": ""
   },
   "tools/Etp.Reporting.Smoke/Etp.Reporting.Smoke.csproj": {
@@ -2082,9 +2082,9 @@
     "semantic_hash": ""
   },
   "docs/14_WINDOWS_QUICK_START.md": {
-    "mtime": 1787738931.5944965,
-    "seen": 1787739177.6216135,
-    "ast_hash": "1cd3ffd7068c925b2f32253454fa2708",
+    "mtime": 1787750939.5402527,
+    "seen": 1787751370.2540655,
+    "ast_hash": "491998e0612e5474d249a18a3402a178",
     "semantic_hash": ""
   },
   "database/migrations/0001_foundation.sql": {
@@ -2130,9 +2130,9 @@
     "semantic_hash": ""
   },
   "scripts/backup-etp-database.ps1": {
-    "mtime": 1787739066.7035928,
-    "seen": 1787739177.6210513,
-    "ast_hash": "6ada30923b94afa0efac06b5e5e03024",
+    "mtime": 1787745984.0647047,
+    "seen": 1787747506.1831033,
+    "ast_hash": "6cb2df6edd4a59f22e9d768f29b68083",
     "semantic_hash": ""
   },
   "scripts/build-windows-installer.ps1": {
@@ -2142,9 +2142,9 @@
     "semantic_hash": ""
   },
   "scripts/install-daily-backup-task.ps1": {
-    "mtime": 1787736721.6966293,
-    "seen": 1787736859.7988834,
-    "ast_hash": "afeef81f759492ead9466f8021466d43",
+    "mtime": 1787750893.1573145,
+    "seen": 1787751370.2534997,
+    "ast_hash": "06ca121b622393d2920166ead28c5d24",
     "semantic_hash": ""
   },
   "scripts/test-etp-database-health.ps1": {
@@ -2172,9 +2172,9 @@
     "semantic_hash": ""
   },
   "docs/15_RELEASE_ACCEPTANCE.md": {
-    "mtime": 1787734207.2779672,
-    "seen": 1787734272.1783736,
-    "ast_hash": "bcd4dee13172867313ce20774b3f800d",
+    "mtime": 1787750939.5382578,
+    "seen": 1787751370.2540667,
+    "ast_hash": "72206a076302b1dcefaa22776b5b546d",
     "semantic_hash": ""
   },
   "docs/16_OPERATIONS_AND_RECOVERY.md": {
@@ -2196,9 +2196,9 @@
     "semantic_hash": ""
   },
   "scripts/invoke-etp-recovery-drill.ps1": {
-    "mtime": 1787739066.704609,
-    "seen": 1787739177.6210806,
-    "ast_hash": "f9d4c5bac987e92652deb559154ccdff",
+    "mtime": 1787745984.0647047,
+    "seen": 1787747506.183132,
+    "ast_hash": "c81408e4320b0c0450767968e797fbff",
     "semantic_hash": ""
   },
   "scripts/invoke-security-scan.ps1": {
@@ -2208,9 +2208,9 @@
     "semantic_hash": ""
   },
   "scripts/new-etp-support-package.ps1": {
-    "mtime": 1787739066.7076058,
-    "seen": 1787739177.621087,
-    "ast_hash": "1613224460d4dcc870842fdb080abdf3",
+    "mtime": 1787750136.3465052,
+    "seen": 1787751370.2535145,
+    "ast_hash": "3658c8d3a3e2e383eb05891d1a0d3234",
     "semantic_hash": ""
   },
   "scripts/set-release-version.ps1": {
@@ -2280,9 +2280,9 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1787743579.498816,
-    "seen": 1787743652.695576,
-    "ast_hash": "69aa081f028dd052a21f2cc13a2d93e6",
+    "mtime": 1787750221.0654345,
+    "seen": 1787751370.2540398,
+    "ast_hash": "09d22d8251e1e1bbde14f70e5a66e517",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Assets/EtpReporting.png": {
@@ -2292,15 +2292,15 @@
     "semantic_hash": ""
   },
   "docs/17_ADMINISTRATOR_HANDBOOK.md": {
-    "mtime": 1787743428.565626,
-    "seen": 1787743652.695617,
-    "ast_hash": "b88e3b57146c269ba6e2139f190575fc",
+    "mtime": 1787750221.0694394,
+    "seen": 1787751370.2540698,
+    "ast_hash": "b9d6de35ff241b8b6367d3a1aa106ab2",
     "semantic_hash": ""
   },
   "docs/18_USER_MANUAL.md": {
-    "mtime": 1787743428.5500438,
-    "seen": 1787743652.6956189,
-    "ast_hash": "7735e055c843032935374c4cb7db60a1",
+    "mtime": 1787750221.0694394,
+    "seen": 1787751370.254071,
+    "ast_hash": "7e9c997b0b4d09a790bbc4a20dcb473b",
     "semantic_hash": ""
   },
   "docs/19_ACCESSIBILITY_AUDIT.md": {
@@ -2334,9 +2334,9 @@
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Infrastructure.SqlServer/OperationalAuditRepository.cs": {
-    "mtime": 1787741544.2231874,
-    "seen": 1787743652.694991,
-    "ast_hash": "89bd4384f1d320d99e53c5e4ff65346a",
+    "mtime": 1787749059.6702354,
+    "seen": 1787751370.2536082,
+    "ast_hash": "aa2f0c534db644f31b7e47a082d85da2",
     "semantic_hash": ""
   },
   "tests-dotnet/Etp.Reporting.SqlServer.Tests/OperationalAuditRepositoryTests.cs": {
@@ -2370,9 +2370,9 @@
     "semantic_hash": ""
   },
   "scripts/bootstrap-etp-prerequisites.ps1": {
-    "mtime": 1787739381.3927522,
-    "seen": 1787739529.5653028,
-    "ast_hash": "bfc0d0923b1fe337e6b12bf9eef7469c",
+    "mtime": 1787749138.5320308,
+    "seen": 1787751370.2534797,
+    "ast_hash": "07ecae76ea53b70283cb655e5b13a2a8",
     "semantic_hash": ""
   },
   "scripts/invoke-monthly-recovery-drill-runner.ps1": {
@@ -2418,27 +2418,27 @@
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Infrastructure.SqlServer/DailyReportingPackService.cs": {
-    "mtime": 1787743093.4332669,
-    "seen": 1787743652.6949804,
-    "ast_hash": "ad97dd9d6a31749ef6963f6877b82496",
+    "mtime": 1787749735.9979486,
+    "seen": 1787751370.2535977,
+    "ast_hash": "e6645c7817a6dc30f7bd34e6c166492f",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Infrastructure.SqlServer/DailyReportingWorkflowRepository.cs": {
-    "mtime": 1787742951.142221,
-    "seen": 1787743652.6949818,
-    "ast_hash": "249c32f617d866292568e9914d718114",
+    "mtime": 1787745920.6182346,
+    "seen": 1787747506.1832304,
+    "ast_hash": "db9137001244231d7a382c9451b79d23",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Infrastructure.SqlServer/OperationalReportRepository.cs": {
-    "mtime": 1787743218.0358303,
-    "seen": 1787743652.6949925,
-    "ast_hash": "a4c7cc1050fff2389eb240addcd0233f",
+    "mtime": 1787746596.1647055,
+    "seen": 1787747506.1832428,
+    "ast_hash": "1e751912373438d9a09bfb2514c17608",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Infrastructure.SqlServer/RetailEnrichmentSqlImportOrchestrator.cs": {
-    "mtime": 1787742531.0552104,
-    "seen": 1787743652.6950006,
-    "ast_hash": "e72cb2763c244492a076a08beb1baa9a",
+    "mtime": 1787745379.2961123,
+    "seen": 1787747506.1832502,
+    "ast_hash": "a379f7419a1891e70c9d79a8471a8bf5",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Reporting/CashBalanceReconciliationService.cs": {
@@ -2454,9 +2454,9 @@
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Reporting/ReportSourceRegistry.cs": {
-    "mtime": 1787743351.4204102,
-    "seen": 1787743652.6950202,
-    "ast_hash": "fa46a91399fcd06bf56882e28e5bf427",
+    "mtime": 1787747329.1406145,
+    "seen": 1787747506.1832714,
+    "ast_hash": "3f9d1a38a8fea94f9e5e5f2e5715224a",
     "semantic_hash": ""
   },
   "tests-dotnet/Etp.Reporting.Domain.Tests/BusinessReportingPeriodTests.cs": {
@@ -2478,15 +2478,99 @@
     "semantic_hash": ""
   },
   "docs/21_DAILY_REPORTING_IMPLEMENTATION_MAP.md": {
-    "mtime": 1787743351.4204102,
-    "seen": 1787743652.6956244,
-    "ast_hash": "ad3eb2d2a243bcc703ffddb799666c8e",
+    "mtime": 1787750939.5402527,
+    "seen": 1787751370.2540758,
+    "ast_hash": "f833ba3e376d8bc0391379cfc26ffd50",
     "semantic_hash": ""
   },
   "docs/22_REPORT_TO_SOURCE_MATRIX.md": {
-    "mtime": 1787743351.4204102,
-    "seen": 1787743652.695626,
-    "ast_hash": "620ad745fcd8f9e6dbb035aedb3f0de7",
+    "mtime": 1787747419.1236517,
+    "seen": 1787747506.1837256,
+    "ast_hash": "20663c79f3464771e8e514925f2e33df",
+    "semantic_hash": ""
+  },
+  "database/migrations/0010_operational_completion.sql": {
+    "mtime": 1787746849.828904,
+    "seen": 1787747506.1830971,
+    "ast_hash": "a556be0593f083f25f355e561d5ba96b",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Infrastructure.SqlServer/OperationalCompletionRepository.cs": {
+    "mtime": 1787748795.9748945,
+    "seen": 1787751370.2536094,
+    "ast_hash": "546cc93655228e8ebefb511d95081189",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Reporting/ReportPackExporters.cs": {
+    "mtime": 1787748764.0624664,
+    "seen": 1787751370.2536402,
+    "ast_hash": "4cc016f98818cd35b3220228d247c9e4",
+    "semantic_hash": ""
+  },
+  "tests-dotnet/Etp.Reporting.Reporting.Tests/ReportPackExporterTests.cs": {
+    "mtime": 1787749761.8243895,
+    "seen": 1787751370.253685,
+    "ast_hash": "865d3c22014ccf8f3dfcd4f27e725db7",
+    "semantic_hash": ""
+  },
+  "tests-dotnet/Etp.Reporting.SqlServer.Tests/OperationalCompletionContractsTests.cs": {
+    "mtime": 1787746401.8015585,
+    "seen": 1787747506.183331,
+    "ast_hash": "815a7c9c5788f16f54e855a18bf4e408",
+    "semantic_hash": ""
+  },
+  "docs/23_MASTER_PROMPT_COMPLETION_AUDIT.md": {
+    "mtime": 1787750939.5392551,
+    "seen": 1787751370.2540786,
+    "ast_hash": "e933b7840394d05a41dd81908858a1e7",
+    "semantic_hash": ""
+  },
+  "database/migrations/0011_phase2_operations.sql": {
+    "mtime": 1787749884.4743545,
+    "seen": 1787751370.2534697,
+    "ast_hash": "8ccabfb7ab9d9d42caf917b31733847a",
+    "semantic_hash": ""
+  },
+  "database/migrations/0012_windows_database_access.sql": {
+    "mtime": 1787750893.1573145,
+    "seen": 1787751370.253472,
+    "ast_hash": "46ddeba5c4e61f2de254ca60ef7282b0",
+    "semantic_hash": ""
+  },
+  "scripts/install-etp-automation-task.ps1": {
+    "mtime": 1787750893.1573145,
+    "seen": 1787751370.2535012,
+    "ast_hash": "5ed12e24389ed5e40cb8389840174f62",
+    "semantic_hash": ""
+  },
+  "scripts/remove-etp-scheduled-tasks.ps1": {
+    "mtime": 1787751139.907915,
+    "seen": 1787751370.2535226,
+    "ast_hash": "3cd1bce30e9e932f434638f7f5078336",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Desktop/PowerShellOperationsService.cs": {
+    "mtime": 1787750169.255327,
+    "seen": 1787751370.2535505,
+    "ast_hash": "d74fb9a9332c47f45654f417edc25e13",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Infrastructure.SqlServer/AutomatedOperationsService.cs": {
+    "mtime": 1787750399.5855389,
+    "seen": 1787751370.2535944,
+    "ast_hash": "3976a595c507c3840b15115d9ba2f3cf",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Infrastructure.SqlServer/Phase2OperationsRepository.cs": {
+    "mtime": 1787750908.7031152,
+    "seen": 1787751370.2536163,
+    "ast_hash": "bd5a603b4c7083a7d1be030ec4d9d06b",
+    "semantic_hash": ""
+  },
+  "docs/24_PHASE2_OPERATIONS.md": {
+    "mtime": 1787750893.1573145,
+    "seen": 1787751370.2540798,
+    "ast_hash": "030abd0da92f84929e9c71cebdbb3033",
     "semantic_hash": ""
   }
 }

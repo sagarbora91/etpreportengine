@@ -50,8 +50,19 @@ public sealed class DailyReportingPackService(string connectionString)
         };
         foreach (var pack in packs)
             tables.AddRange(pack.Document.Tables.Skip(1).Select(table => table with { Name = $"{pack.StoreCode} {table.Name}" }));
-        return new("ETP Complete Daily Management Pack — Titan World + Helios", businessDate, businessDate, overall.ToString(),
+        var document = new ReportPackDocument("ETP Complete Daily Management Pack — Titan World + Helios", businessDate, businessDate, overall.ToString(),
             RetailReportingPolicy.Version, message, DateTimeOffset.UtcNow, tables);
+        var controlJson = JsonSerializer.Serialize(new
+        {
+            storeCode = "COMBINED",
+            businessDate,
+            status = overall,
+            stores = packs.Select(x => new { x.StoreCode, x.GenerationNumber, x.ContentSha256 }),
+            tableControls = document.Tables.Select(x => new { x.Name, x.Status, rowCount = x.Data.Rows.Count, x.Data.Totals })
+        });
+        await new OperationalCompletionRepository(connectionString).SaveReportGenerationAsync(
+            "COMBINED", businessDate, generatedBy, controlJson, ReportPackArchiveCodec.Serialize(document), cancellationToken);
+        return document;
     }
 
     public async Task<DailyReportPackResult> GenerateAsync(
@@ -142,7 +153,7 @@ public sealed class DailyReportingPackService(string connectionString)
             tableControls = document.Tables.Select(x => new { x.Name, x.Status, rowCount = x.Data.Rows.Count, x.Data.Totals })
         });
         var generation = await new OperationalCompletionRepository(connectionString).SaveReportGenerationAsync(
-            storeCode, businessDate, generatedBy, controlJson, cancellationToken);
+            storeCode, businessDate, generatedBy, controlJson, ReportPackArchiveCodec.Serialize(document), cancellationToken);
         return new(storeCode, businessDate, status, sections, message, generatedAt, document, generation.GenerationNumber, generation.ContentSha256);
     }
 

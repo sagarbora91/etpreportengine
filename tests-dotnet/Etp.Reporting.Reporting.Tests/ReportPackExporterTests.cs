@@ -56,4 +56,19 @@ public sealed class ReportPackExporterTests
         }
         finally { if (File.Exists(path)) File.Delete(path); }
     }
+
+    [Fact]
+    public void Archived_pack_round_trip_preserves_controls_and_exportable_values()
+    {
+        var original = Pack();
+        var json = ReportPackArchiveCodec.Serialize(original);
+        var restored = ReportPackArchiveCodec.Deserialize(json);
+
+        Assert.Equal(original.Title, restored.Title);
+        Assert.Equal(original.DateFrom, restored.DateFrom);
+        Assert.Equal(original.Tables.Select(x => x.Name), restored.Tables.Select(x => x.Name));
+        Assert.Equal(69_880L, restored.Tables[0].Data.Rows[0][1]);
+        Assert.Equal(2L, restored.Tables[1].Data.Rows[0][1]);
+        Assert.Throws<ArgumentException>(() => ReportPackArchiveCodec.Deserialize(" "));
+    }
 }
