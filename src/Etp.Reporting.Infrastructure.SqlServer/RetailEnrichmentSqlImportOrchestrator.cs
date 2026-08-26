@@ -23,7 +23,8 @@ public sealed class RetailEnrichmentSqlImportOrchestrator(string connectionStrin
         DateOnly? expectedBusinessDate = null,
         string? expectedStoreCode = null,
         string? importedBy = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        ImportRestatementRequest? restatement = null)
     {
         ArgumentNullException.ThrowIfNull(workbook);
         var profile = reportCode switch
@@ -72,6 +73,19 @@ public sealed class RetailEnrichmentSqlImportOrchestrator(string connectionStrin
                 command.Parameters.AddWithValue("@date", scope.BusinessDate);
                 command.Parameters.AddWithValue("@user", importedBy ?? Environment.UserName);
                 fileId = Convert.ToInt64(await command.ExecuteScalarAsync(cancellationToken));
+            }
+
+            if (restatement is not null)
+            {
+                if (restatement.PreviousImportFileId <= 0 || string.IsNullOrWhiteSpace(restatement.RequestedBy) || string.IsNullOrWhiteSpace(restatement.Reason))
+                    throw new ArgumentException("A restatement requires the previous file, requesting user and reason.", nameof(restatement));
+                await using var command = Command(connection, transaction,
+                    "EXEC dbo.prepare_import_restatement @previous,@replacement,@user,@reason");
+                command.Parameters.AddWithValue("@previous", restatement.PreviousImportFileId);
+                command.Parameters.AddWithValue("@replacement", fileId);
+                command.Parameters.AddWithValue("@user", restatement.RequestedBy.Trim());
+                command.Parameters.AddWithValue("@reason", restatement.Reason.Trim());
+                await command.ExecuteNonQueryAsync(cancellationToken);
             }
 
             var matched = 0;

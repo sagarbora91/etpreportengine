@@ -20,7 +20,8 @@ public sealed class R025SqlImportOrchestrator(ITransactionalImportStore store)
     public async Task<SalesImportPersistenceOutcome> PersistAsync(
         WorkbookSnapshot workbook, int? storeId = null, string currencyCode = "INR",
         CancellationToken cancellationToken = default, DateOnly? expectedBusinessDate = null,
-        string? expectedStoreCode = null, string? importedBy = null)
+        string? expectedStoreCode = null, string? importedBy = null,
+        ImportRestatementRequest? restatement = null)
     {
         ArgumentNullException.ThrowIfNull(workbook);
         var preflight = new ImportPreflight().Inspect(workbook, [RetailSalesProfiles.R025]);
@@ -49,7 +50,7 @@ public sealed class R025SqlImportOrchestrator(ITransactionalImportStore store)
             new(batchId, storeId, dates.Length == 0 ? null : dates.Min(), dates.Length == 0 ? null : dates.Max(), DateTimeOffset.UtcNow),
             new(batchId, null, workbook.FileName, workbook.Sha256, workbook.FileSizeBytes,
                 "R025", storeCode, businessDate, businessDate, importedBy ?? Environment.UserName),
-            lines, [], [], []);
+            lines, [], [], []) { Restatement = restatement };
         var fileId = await store.PersistAsync(package, cancellationToken);
         return new(batchId, fileId, lines.Length);
     }

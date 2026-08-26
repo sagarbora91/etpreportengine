@@ -27,6 +27,7 @@ public partial class MainWindow : Window
     private ImportStagingResult? validatedStaging;
     private ExcelReportMetadata? currentExportMetadata;
     private ExcelReportData? currentExportData;
+    private ReportPackDocument? currentDailyPackDocument;
     private OperationalSummary? latestOperationalSummary;
     private DailyWorkflowSnapshot? currentDailySnapshot;
     private BatchImportSource? activeBatchSource;
@@ -52,6 +53,8 @@ public partial class MainWindow : Window
         ReportTo.SelectedDate = DateTime.Today.AddDays(-1);
         DailyBusinessDateInput.SelectedDate = DateTime.Today.AddDays(-1);
         ImportBusinessDateInput.SelectedDate = DateTime.Today.AddDays(-1);
+        StaffTargetFromInput.SelectedDate = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+        StaffTargetToInput.SelectedDate = DateTime.Today.AddDays(-1);
         BrandDictionaryGrid.ItemsSource = new[] { new BrandSegmentEntry("GAUTO", "Titan Automatic", "Confirmed") };
         Loaded += MainWindow_Loaded;
     }
@@ -62,6 +65,7 @@ public partial class MainWindow : Window
         if (!string.IsNullOrWhiteSpace(saved?.ConnectionString)) ConnectionStringInput.Text = saved.ConnectionString;
         await CheckConnectionAndRefreshAsync(false);
         await RecordAuditAsync("ApplicationStart", "Succeeded", "Desktop application started");
+        await RecordAuditAsync("SessionStart", "Succeeded", "Windows integrated user session started");
     }
 
     private void Navigate_Click(object sender, RoutedEventArgs e)
@@ -108,6 +112,7 @@ public partial class MainWindow : Window
                 ? "Required manual inputs: complete (zero values remain distinct from missing values)."
                 : $"Missing manual inputs: {string.Join(", ", currentDailySnapshot.MissingRequiredInputs)}";
             DailyManualInputsGrid.ItemsSource = currentDailySnapshot.ManualInputs;
+            DailyStockCountsGrid.ItemsSource = await new OperationalCompletionRepository(ConnectionStringInput.Text).LoadManualStockCountsAsync(store, date);
             FinaliseDayButton.IsEnabled = currentDailySnapshot.CanFinalise;
         }
         catch (Exception ex)
@@ -139,12 +144,48 @@ public partial class MainWindow : Window
         catch (Exception ex) { DailyWorkflowMessage.Text = $"Manual input was not saved: {ex.Message}"; }
     }
 
+    private async void SaveStockCount_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var (store, date) = DailyScope();
+            await new OperationalCompletionRepository(ConnectionStringInput.Text).SaveManualStockCountAsync(
+                store, date, StockGroupInput.Text, OptionalDecimal(StockDisplayInput.Text), OptionalDecimal(StockBackstockInput.Text),
+                OptionalDecimal(StockDefectiveInput.Text), OptionalDecimal(StockYLocationInput.Text), OptionalDecimal(StockPhysicalInput.Text),
+                string.IsNullOrWhiteSpace(StockRemarksInput.Text) ? null : StockRemarksInput.Text.Trim(), Environment.UserName, StockReasonInput.Text);
+            StockGroupInput.Clear(); StockDisplayInput.Clear(); StockBackstockInput.Clear(); StockDefectiveInput.Clear();
+            StockYLocationInput.Clear(); StockPhysicalInput.Clear(); StockRemarksInput.Clear(); StockReasonInput.Clear();
+            await RecordAuditAsync("StockCount", "Succeeded", "Physical stock count saved");
+            await RefreshDailyWorkflowAsync();
+        }
+        catch (Exception ex) { DailyWorkflowMessage.Text = $"Physical stock count was not saved: {ex.Message}"; }
+    }
+
+    private async void SaveStaffTarget_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var (store, _) = DailyScope();
+            if (StaffTargetFromInput.SelectedDate is null || StaffTargetToInput.SelectedDate is null)
+                throw new InvalidOperationException("Select the target start and end dates.");
+            if (!decimal.TryParse(StaffTargetValueInput.Text, NumberStyles.Number, CultureInfo.CurrentCulture, out var target))
+                throw new InvalidOperationException("Enter a valid target sales value.");
+            await new OperationalCompletionRepository(ConnectionStringInput.Text).SaveStaffTargetAsync(
+                store, StaffTargetCroInput.Text, DateOnly.FromDateTime(StaffTargetFromInput.SelectedDate.Value),
+                DateOnly.FromDateTime(StaffTargetToInput.SelectedDate.Value), target, Environment.UserName, StaffTargetReasonInput.Text);
+            StaffTargetCroInput.Clear(); StaffTargetValueInput.Clear(); StaffTargetReasonInput.Clear();
+            await RecordAuditAsync("StaffTarget", "Succeeded", "Staff target saved");
+            DailyWorkflowMessage.Text = "Staff/CRO target saved. Target achievement and ranking are available in the staff report.";
+        }
+        catch (Exception ex) { DailyWorkflowMessage.Text = $"Staff target was not saved: {ex.Message}"; }
+    }
+
     private async void FinaliseDay_Click(object sender, RoutedEventArgs e)
     {
         try
         {
             var (store, date) = DailyScope();
-            var pack = await new DailyReportingPackService(ConnectionStringInput.Text).GenerateAsync(store, date);
+            var pack = await new DailyReportingPackService(ConnectionStringInput.Text).GenerateAsync(store, date, Environment.UserName);
             DailyPackGrid.ItemsSource = pack.Sections;
             var hasBlockers = pack.Sections.Any(x => x.Status is ReconciliationStatus.Blocked or ReconciliationStatus.Failed);
             await new DailyReportingWorkflowRepository(ConnectionStringInput.Text).FinaliseAsync(
@@ -176,9 +217,10 @@ public partial class MainWindow : Window
         try
         {
             var (store, date) = DailyScope();
-            var pack = await new DailyReportingPackService(ConnectionStringInput.Text).GenerateAsync(store, date);
+            var pack = await new DailyReportingPackService(ConnectionStringInput.Text).GenerateAsync(store, date, Environment.UserName);
             DailyPackGrid.ItemsSource = pack.Sections;
-            DailyWorkflowMessage.Text = $"{pack.Status}: {pack.Message}";
+            DailyWorkflowMessage.Text = $"{pack.Status}: {pack.Message} Generation {pack.GenerationNumber}, control hash {pack.ContentSha256[..12]}.";
+            currentDailyPackDocument = pack.Document;
             currentExportMetadata = new("Daily Reporting Pack", date, date, pack.Status.ToString(), RetailReportingPolicy.Version,
                 pack.Message, pack.GeneratedAtUtc);
             currentExportData = new(
@@ -188,6 +230,22 @@ public partial class MainWindow : Window
             await RecordAuditAsync("ReportPack", pack.Status == ReconciliationStatus.Passed ? "Succeeded" : "Failed", "Daily report pack");
         }
         catch (Exception ex) { DailyWorkflowMessage.Text = $"Daily report pack failed: {ex.Message}"; }
+    }
+
+    private async void GenerateCombinedDailyPack_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (DailyBusinessDateInput.SelectedDate is null) throw new InvalidOperationException("Select the ETP business date.");
+            var date = DateOnly.FromDateTime(DailyBusinessDateInput.SelectedDate.Value);
+            currentDailyPackDocument = await new DailyReportingPackService(ConnectionStringInput.Text)
+                .GenerateCombinedAsync(date, Environment.UserName);
+            DailyPackGrid.ItemsSource = currentDailyPackDocument.Tables.Select(x => new
+                { Report = x.Name, Status = x.Status, Rows = x.Data.Rows.Count, x.Message });
+            DailyWorkflowMessage.Text = $"{currentDailyPackDocument.OverallStatus}: {currentDailyPackDocument.Message} The export contains {currentDailyPackDocument.Tables.Count:N0} report sections.";
+            await RecordAuditAsync("ReportPack", currentDailyPackDocument.OverallStatus == ReconciliationStatus.Passed.ToString() ? "Succeeded" : "Failed", "Combined daily report pack");
+        }
+        catch (Exception ex) { DailyWorkflowMessage.Text = $"Combined daily report pack failed: {ex.Message}"; }
     }
 
     private (string Store, DateOnly Date) DailyScope()
@@ -220,6 +278,7 @@ public partial class MainWindow : Window
             SetConnectionState(true, "Ready to import");
             TrySaveSettings();
             await RefreshDashboardAsync();
+            await RecordAuditAsync("ConfigurationChange", "Succeeded", "Windows integrated database configuration saved");
             await RecordAuditAsync("DatabaseSetup", "Succeeded", "Database migrations verified");
         }
         catch (Exception ex) { ConnectionResult.Text = $"Database setup failed: {ex.Message}"; }
@@ -287,22 +346,25 @@ public partial class MainWindow : Window
         {
             var persistenceStore = new SqlServerTransactionalImportStore(ConnectionStringInput.Text);
             var (selectedStore, selectedDate) = ImportScope();
+            var restatement = await ResolveRestatementAsync(validatedPreflight.Profile!.ReportCode, selectedStore, selectedDate, CancellationToken.None);
             if (validatedPreflight.Profile!.ReportCode == "R022")
             {
                 var projection = new R022PersistenceProjector().Project(validatedStaging.Rows);
                 await new R022SqlImportOrchestrator(persistenceStore).PersistAsync(validatedWorkbook, validatedPreflight.Sheet, projection,
-                    expectedBusinessDate: selectedDate, expectedStoreCode: selectedStore, importedBy: Environment.UserName);
+                    expectedBusinessDate: selectedDate, expectedStoreCode: selectedStore, importedBy: Environment.UserName, restatement: restatement);
                 ValidationResult.Text = $"Imported {projection.InvoiceControls.Count:N0} invoice controls and {projection.ClassifiedTenders.Count:N0} reportable tender rows. {projection.QuarantinedTenders.Count:N0} unresolved tender rows were quarantined.";
                 ImportStatus.Text = "Import completed";
+                if (restatement is not null) await RecordAuditAsync("Restatement", "Succeeded", "Controlled source restatement applied");
                 await RefreshDashboardAsync();
                 return;
             }
             if (validatedPreflight.Profile.ReportCode is "STOCK_LEDGER" or "CLOSING_STOCK")
             {
                 var outcome = await new StockSqlImportOrchestrator(persistenceStore).PersistAsync(validatedWorkbook,
-                    expectedBusinessDate: selectedDate, expectedStoreCode: selectedStore, importedBy: Environment.UserName);
+                    expectedBusinessDate: selectedDate, expectedStoreCode: selectedStore, importedBy: Environment.UserName, restatement: restatement);
                 ValidationResult.Text = $"Imported {outcome.PersistedRows:N0} {outcome.ReportCode} rows successfully.";
                 ImportStatus.Text = "Import completed";
+                if (restatement is not null) await RecordAuditAsync("Restatement", "Succeeded", "Controlled source restatement applied");
                 await RefreshDashboardAsync();
                 return;
             }
@@ -310,17 +372,19 @@ public partial class MainWindow : Window
             if (validatedPreflight.Profile.ReportCode is "R003" or "R013")
             {
                 var outcome = await new RetailEnrichmentSqlImportOrchestrator(ConnectionStringInput.Text).PersistAsync(
-                    validatedWorkbook, validatedPreflight.Profile.ReportCode, selectedDate, selectedStore, Environment.UserName);
+                    validatedWorkbook, validatedPreflight.Profile.ReportCode, selectedDate, selectedStore, Environment.UserName, restatement: restatement);
                 ValidationResult.Text = $"Imported {outcome.PersistedRows:N0} {outcome.ReportCode} enrichment rows: {outcome.MatchedRows:N0} matched, {outcome.MissingMatches:N0} missing, {outcome.AmbiguousMatches:N0} ambiguous. Revenue totals were not changed.";
                 ImportStatus.Text = "Import completed";
+                if (restatement is not null) await RecordAuditAsync("Restatement", "Succeeded", "Controlled source restatement applied");
                 await RefreshDashboardAsync();
                 return;
             }
 
             var salesOutcome = await new R025SqlImportOrchestrator(persistenceStore).PersistAsync(validatedWorkbook,
-                expectedBusinessDate: selectedDate, expectedStoreCode: selectedStore, importedBy: Environment.UserName);
+                expectedBusinessDate: selectedDate, expectedStoreCode: selectedStore, importedBy: Environment.UserName, restatement: restatement);
             ValidationResult.Text = $"Imported {salesOutcome.PersistedRows:N0} sales rows successfully.";
             ImportStatus.Text = "Import completed";
+            if (restatement is not null) await RecordAuditAsync("Restatement", "Succeeded", "Controlled source restatement applied");
             await RefreshDashboardAsync();
         }
         catch (Exception ex) { ValidationResult.Text = $"Import failed: {ex.Message}"; }
@@ -370,27 +434,49 @@ public partial class MainWindow : Window
     private async Task ProcessWorkbookAsync(string workbookPath, CancellationToken cancellationToken)
     {
         var snapshot = await new OpenXmlWorkbookReader().ReadAsync(workbookPath, cancellationToken);
-        if (await new SqlServerImportFileRepository(ConnectionStringInput.Text).ExistsByHashAsync(snapshot.Sha256, cancellationToken)) return;
+        var restatementMode = RestatementModeInput.IsChecked == true;
+        if (await new SqlServerImportFileRepository(ConnectionStringInput.Text).ExistsByHashAsync(snapshot.Sha256, cancellationToken))
+        {
+            if (restatementMode) throw new ImportSourceException("RESTATEMENT_DUPLICATE_FILE", "A restatement must use a corrected source file with a new hash.");
+            return;
+        }
         var preflight = new ImportPreflight().Inspect(snapshot, RetailSalesProfiles.FirstSalesSlice.Concat(StockImportProfiles.All));
         if (!preflight.CanImport) throw new ImportSourceException("IMPORT_LAYOUT_BLOCKED", "The workbook layout is not an approved ETP layout.");
         var persistenceStore = new SqlServerTransactionalImportStore(ConnectionStringInput.Text);
         var (selectedStore, selectedDate) = ImportScope();
+        var restatement = await ResolveRestatementAsync(preflight.Profile!.ReportCode, selectedStore, selectedDate, cancellationToken);
         if (preflight.Profile!.ReportCode == "R022")
         {
             var staged = new ImportRowStager().Stage(preflight.Sheet!, preflight.Profile);
             if (!staged.CanPersist) throw new ImportSourceException("IMPORT_STAGING_BLOCKED", "Workbook rows failed validation.");
             await new R022SqlImportOrchestrator(persistenceStore).PersistAsync(snapshot, preflight.Sheet!, new R022PersistenceProjector().Project(staged.Rows), cancellationToken: cancellationToken,
-                expectedBusinessDate: selectedDate, expectedStoreCode: selectedStore, importedBy: Environment.UserName);
+                expectedBusinessDate: selectedDate, expectedStoreCode: selectedStore, importedBy: Environment.UserName, restatement: restatement);
         }
         else if (preflight.Profile.ReportCode is "STOCK_LEDGER" or "CLOSING_STOCK")
             await new StockSqlImportOrchestrator(persistenceStore).PersistAsync(snapshot, cancellationToken: cancellationToken,
-                expectedBusinessDate: selectedDate, expectedStoreCode: selectedStore, importedBy: Environment.UserName);
+                expectedBusinessDate: selectedDate, expectedStoreCode: selectedStore, importedBy: Environment.UserName, restatement: restatement);
         else if (preflight.Profile.ReportCode is "R003" or "R013")
             await new RetailEnrichmentSqlImportOrchestrator(ConnectionStringInput.Text).PersistAsync(snapshot, preflight.Profile.ReportCode,
-                selectedDate, selectedStore, Environment.UserName, cancellationToken);
+                selectedDate, selectedStore, Environment.UserName, cancellationToken, restatement);
         else
             await new R025SqlImportOrchestrator(persistenceStore).PersistAsync(snapshot, cancellationToken: cancellationToken,
-                expectedBusinessDate: selectedDate, expectedStoreCode: selectedStore, importedBy: Environment.UserName);
+                expectedBusinessDate: selectedDate, expectedStoreCode: selectedStore, importedBy: Environment.UserName, restatement: restatement);
+        if (restatement is not null) await RecordAuditAsync("Restatement", "Succeeded", "Controlled source restatement applied");
+    }
+
+    private async Task<ImportRestatementRequest?> ResolveRestatementAsync(
+        string reportCode,
+        string storeCode,
+        DateOnly businessDate,
+        CancellationToken cancellationToken)
+    {
+        if (RestatementModeInput.IsChecked != true) return null;
+        var reason = RestatementReasonInput.Text.Trim();
+        if (string.IsNullOrWhiteSpace(reason)) throw new ImportSourceException("RESTATEMENT_REASON_REQUIRED", "Enter the reason for the controlled restatement.");
+        var previous = await new OperationalCompletionRepository(ConnectionStringInput.Text).FindCurrentImportAsync(
+            reportCode, storeCode, businessDate, cancellationToken);
+        if (previous is null) throw new ImportSourceException("RESTATEMENT_SOURCE_NOT_FOUND", "No current import exists for this report, store and business date. Use a normal import instead.");
+        return new(previous.ImportFileId, Environment.UserName, reason);
     }
 
     private async Task DisposeBatchSourceAsync()
@@ -452,6 +538,24 @@ public partial class MainWindow : Window
         catch (Exception ex) { ReportResult.Text = $"Invoice summary failed: {ex.Message}"; }
     }
 
+    private async void RunInvoiceLineage_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var rows = await new OperationalReportRepository(ConnectionStringInput.Text).LoadInvoiceLineageAsync(ReportScope());
+            var status = rows.Count == 0 ? ReconciliationStatus.Blocked : ReconciliationStatus.Passed;
+            var message = "Invoice and item drill-down is traceable to its source workbook, sheet and row. Customer PII remains excluded pending owner approval.";
+            ReportGrid.ItemsSource = rows; ReportResult.Text = $"{status}: {rows.Count:N0} canonical line(s).";
+            SetExport("Invoice Sales Lineage", status, RetailReportingPolicy.Version, message,
+                [new("Business Date"),new("Store"),new("Document"),new("Line"),new("Item"),new("Brand"),new("Segment"),new("Transaction Type"),new("Quantity","#,##0.00"),new("Net Value","#,##0.00"),new("CRO"),new("Workbook"),new("Sheet"),new("Source Row","#,##0")],
+                rows.Select(x => (IReadOnlyList<object?>)[x.BusinessDate,x.StoreCode,x.DocumentNumber,x.LineIdentifier,x.ProductCode,x.Brand,x.BrandSegment,x.TransactionType,x.Quantity,x.NetValue,x.CroNumber,x.SourceWorkbook,x.SourceSheet,x.SourceRow]).ToArray(),
+                ["Total","","","","","","","",rows.Sum(x=>x.Quantity),rows.Sum(x=>x.NetValue),"","","",rows.Count]);
+            ApplyReportFilter();
+            await RecordAuditAsync("ReportRun", status == ReconciliationStatus.Passed ? "Succeeded" : "Blocked", "Invoice lineage report");
+        }
+        catch (Exception ex) { ReportResult.Text = $"Invoice drill-down failed: {ex.Message}"; }
+    }
+
     private async void RunDsr_Click(object sender, RoutedEventArgs e)
     {
         try
@@ -481,9 +585,9 @@ public partial class MainWindow : Window
             ReportGrid.ItemsSource = result.Rows;
             ReportResult.Text = $"{result.Status}: canonical {result.CanonicalSales:N2}, attributed {result.AttributedSales:N2}, variance {result.Variance:N2}. {result.Message}";
             SetExport("Staff CRO Performance", result.Status, result.MetricPolicy, result.Message,
-                [new("Store"),new("CRO"),new("Net Sales","#,##0.00"),new("Net Quantity","#,##0.00"),new("Discount","#,##0.00"),new("Transactions","#,##0"),new("UPT","#,##0.00"),new("ATV","#,##0.00"),new("Contribution %","#,##0.00")],
-                result.Rows.Select(x => (IReadOnlyList<object?>)[x.StoreCode,x.CroNumber,x.NetSales,x.NetQuantity,x.Discount,x.Transactions,x.Upt,x.Atv,x.ContributionPercent]).ToArray(),
-                ["Control","",result.AttributedSales,"","",result.Rows.Sum(x=>x.Transactions),"","",result.Variance]);
+                [new("Store"),new("CRO"),new("Net Sales","#,##0.00"),new("LY Sales","#,##0.00"),new("Growth %","#,##0.00"),new("Growth Status"),new("Net Quantity","#,##0.00"),new("Discount","#,##0.00"),new("Transactions","#,##0"),new("UPT","#,##0.00"),new("ATV","#,##0.00"),new("Contribution %","#,##0.00"),new("Target","#,##0.00"),new("Achievement %","#,##0.00"),new("Rank","#,##0")],
+                result.Rows.Select(x => (IReadOnlyList<object?>)[x.StoreCode,x.CroNumber,x.NetSales,x.LastYearSales,x.GrowthPercent,x.GrowthStatus,x.NetQuantity,x.Discount,x.Transactions,x.Upt,x.Atv,x.ContributionPercent,x.TargetSales,x.TargetAchievementPercent,x.Rank]).ToArray(),
+                ["Control","",result.AttributedSales,"","","","","",result.Rows.Sum(x=>x.Transactions),"","",result.Variance,"","",""]);
             ApplyReportFilter();
             await RecordAuditAsync("ReportRun", result.Status == ReconciliationStatus.Passed ? "Succeeded" : "Failed", "Staff performance");
         }
@@ -558,12 +662,79 @@ public partial class MainWindow : Window
         catch (Exception ex) { ReportResult.Text = $"Reconciliation failed: {ex.Message}"; }
     }
 
+    private async void RunPhysicalStock_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var scope = ReportScope();
+            if (scope.StoreCodes is not { Count: 1 }) throw new InvalidOperationException("Enter exactly one store code for physical stock reporting.");
+            var rows = await new OperationalReportRepository(ConnectionStringInput.Text).LoadPhysicalStockAsync(scope.StoreCodes[0], scope.DateTo);
+            var status = rows.Any(x => x.Status == "FAIL") ? ReconciliationStatus.Failed : rows.Count == 0 ? ReconciliationStatus.Blocked : ReconciliationStatus.Passed;
+            var message = "Physical count, component total and ETP system quantity remain separate; neither count overwrites the other.";
+            ReportGrid.ItemsSource = rows; ReportResult.Text = $"{status}: {rows.Count:N0} inventory group(s).";
+            SetExport("Physical Closing Stock", status, RetailReportingPolicy.Version, message,
+                [new("Store"),new("Date"),new("Inventory Group"),new("Display","#,##0.00"),new("Backstock","#,##0.00"),new("Defective","#,##0.00"),new("Y Location","#,##0.00"),new("Component Total","#,##0.00"),new("Counted Physical","#,##0.00"),new("Composition Variance","#,##0.00"),new("System","#,##0.00"),new("System Variance","#,##0.00"),new("Remarks"),new("Status")],
+                rows.Select(x => (IReadOnlyList<object?>)[x.StoreCode,x.BusinessDate,x.InventoryGroupCode,x.DisplayQuantity,x.BackstockQuantity,x.DefectiveQuantity,x.YLocationQuantity,x.ComponentTotal,x.CountedPhysicalQuantity,x.CompositionVariance,x.SystemQuantity,x.SystemVariance,x.Remarks,x.Status]).ToArray(),
+                ["Total","","","","","","",rows.Sum(x=>x.ComponentTotal),rows.Sum(x=>x.CountedPhysicalQuantity),rows.Sum(x=>x.CompositionVariance),rows.Sum(x=>x.SystemQuantity),rows.Sum(x=>x.SystemVariance),"",status.ToString()]);
+            ApplyReportFilter(); await RecordAuditAsync("ReportRun", status == ReconciliationStatus.Passed ? "Succeeded" : status.ToString(), "Physical stock report");
+        }
+        catch (Exception ex) { ReportResult.Text = $"Physical stock report failed: {ex.Message}"; }
+    }
+
+    private async void RunDailyExceptions_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var scope = ReportScope();
+            if (scope.StoreCodes is not { Count: 1 }) throw new InvalidOperationException("Enter exactly one store code for the daily exception report.");
+            if (scope.DateFrom != scope.DateTo) throw new InvalidOperationException("Select one business date for the daily exception report.");
+            var rows = await new OperationalReportRepository(ConnectionStringInput.Text).LoadDailyExceptionsAsync(scope.StoreCodes[0], scope.DateTo);
+            var status = rows.Any(x => x.Severity is "BLOCKER" or "FAIL") ? ReconciliationStatus.Failed : ReconciliationStatus.Passed;
+            var message = rows.Count == 0 ? "No daily exceptions were found." : "Every exception retains its exact variance and available source workbook/sheet/row pointer.";
+            ReportGrid.ItemsSource = rows; ReportResult.Text = $"{status}: {rows.Count:N0} exception(s).";
+            SetExport("Daily Exceptions", status, RetailReportingPolicy.Version, message,
+                [new("Severity"),new("Area"),new("Code"),new("Store"),new("Date"),new("Document"),new("Item"),new("Variance","#,##0.00"),new("Workbook"),new("Sheet"),new("Source Row","#,##0"),new("Message"),new("Recommended Action")],
+                rows.Select(x => (IReadOnlyList<object?>)[x.Severity,x.Area,x.Code,x.StoreCode,x.BusinessDate,x.DocumentNumber,x.ItemCode,x.Variance,x.SourceWorkbook,x.SourceSheet,x.SourceRow,x.Message,x.RecommendedAction]).ToArray(),
+                ["Total",rows.Count,"","","","","",rows.Where(x=>x.Variance is not null).Sum(x=>x.Variance),"","","","",""]);
+            ApplyReportFilter(); await RecordAuditAsync("ReportRun", status == ReconciliationStatus.Passed ? "Succeeded" : "Failed", "Daily exception report");
+        }
+        catch (Exception ex) { ReportResult.Text = $"Daily exceptions failed: {ex.Message}"; }
+    }
+
     private void SetExport(string name, ReconciliationStatus status, string ruleVersion, string message,
         IReadOnlyList<ExcelReportColumn> columns, IReadOnlyList<IReadOnlyList<object?>> rows, IReadOnlyList<object?> totals)
     {
         var scope = ReportScope();
         currentExportMetadata = new(name, scope.DateFrom, scope.DateTo, status.ToString(), ruleVersion, message, DateTimeOffset.UtcNow);
         currentExportData = new(columns, rows, totals); ExportExcelButton.IsEnabled = true; ExportPdfButton.IsEnabled = true;
+    }
+
+    private void ExportDailyPackExcel_Click(object sender, RoutedEventArgs e)
+    {
+        if (currentDailyPackDocument is null) { DailyWorkflowMessage.Text = "Generate the complete daily report pack before exporting."; return; }
+        var dialog = new SaveFileDialog { Filter = "Excel workbook (*.xlsx)|*.xlsx", FileName = $"ETP_Daily_Report_Pack_{currentDailyPackDocument.DateTo:yyyyMMdd}.xlsx", AddExtension = true };
+        if (dialog.ShowDialog(this) != true) return;
+        try
+        {
+            new OpenXmlReportPackExporter().Export(dialog.FileName, currentDailyPackDocument);
+            DailyWorkflowMessage.Text = $"Complete multi-sheet report pack saved to {dialog.FileName}";
+            _ = RecordAuditAsync("ExportExcel", "Succeeded", "Complete report pack exported");
+        }
+        catch (Exception ex) { DailyWorkflowMessage.Text = $"Report-pack Excel export failed: {ex.Message}"; }
+    }
+
+    private void ExportDailyPackPdf_Click(object sender, RoutedEventArgs e)
+    {
+        if (currentDailyPackDocument is null) { DailyWorkflowMessage.Text = "Generate the complete daily report pack before exporting."; return; }
+        var dialog = new SaveFileDialog { Filter = "PDF report (*.pdf)|*.pdf", FileName = $"ETP_Daily_Report_Pack_{currentDailyPackDocument.DateTo:yyyyMMdd}.pdf", AddExtension = true };
+        if (dialog.ShowDialog(this) != true) return;
+        try
+        {
+            new SimplePdfReportPackExporter().Export(dialog.FileName, currentDailyPackDocument);
+            DailyWorkflowMessage.Text = $"Complete paginated report pack saved to {dialog.FileName}";
+            _ = RecordAuditAsync("ExportPdf", "Succeeded", "Complete report pack exported");
+        }
+        catch (Exception ex) { DailyWorkflowMessage.Text = $"Report-pack PDF export failed: {ex.Message}"; }
     }
 
     private void ExportExcel_Click(object sender, RoutedEventArgs e)
@@ -594,7 +765,7 @@ public partial class MainWindow : Window
         ConnectionResult.Text = health.Message;
         SetConnectionState(connected, connected ? "Ready to validate or report" : "Waiting for connection");
         ApplicationStatus.Text = connected ? $"Connected to SQL Server {health.ServerVersion}." : health.Message;
-        if (connected) { TrySaveSettings(); await RefreshDashboardAsync(); }
+        if (connected) { TrySaveSettings(); await RecordAuditAsync("ConfigurationChange", "Succeeded", "Windows integrated database configuration saved"); await RefreshDashboardAsync(); }
         await RecordAuditAsync("ConnectionTest", connected ? "Succeeded" : "Failed", "Database connection tested");
     }
 
@@ -679,6 +850,13 @@ public partial class MainWindow : Window
     }
 
     private static string SafeFileName(string value) => string.Concat(value.Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c)).Replace(' ', '_');
+
+    private static decimal? OptionalDecimal(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        return decimal.TryParse(value, NumberStyles.Number, CultureInfo.CurrentCulture, out var parsed)
+            ? parsed : throw new InvalidOperationException($"'{value}' is not a valid number.");
+    }
 
     private async Task RecordAuditAsync(string eventType, string outcome, string detail)
     {

@@ -14,7 +14,7 @@ public sealed record StockImportPersistenceOutcome(Guid BatchId,long ImportFileI
 
 public sealed class StockSqlImportOrchestrator(ITransactionalImportStore store)
 {
-    public async Task<StockImportPersistenceOutcome> PersistAsync(WorkbookSnapshot workbook,int? storeId=null,CancellationToken cancellationToken=default,DateOnly? expectedBusinessDate=null,string? expectedStoreCode=null,string? importedBy=null)
+    public async Task<StockImportPersistenceOutcome> PersistAsync(WorkbookSnapshot workbook,int? storeId=null,CancellationToken cancellationToken=default,DateOnly? expectedBusinessDate=null,string? expectedStoreCode=null,string? importedBy=null,ImportRestatementRequest? restatement=null)
     {
         var parsed=new StockWorkbookParser().Parse(workbook);
         if(parsed.HasBlockers) throw new StockImportBlockedException(parsed.Diagnostics);
@@ -28,7 +28,7 @@ public sealed class StockSqlImportOrchestrator(ITransactionalImportStore store)
         var file=new ImportFileRegistration(batchId,null,workbook.FileName,workbook.Sha256,workbook.FileSizeBytes,parsed.ReportCode,scope.StoreCode,scope.BusinessDate,scope.BusinessDate,importedBy??Environment.UserName);
         var movements=parsed.Movements.Select(x=>new StockMovementPersistence(x.StoreCode,x.DocumentNumber,x.DocumentDate.Year,x.DocumentDate,x.ProductCode,x.SourceTransactionType,x.FromLocation,x.ToLocation,x.OpeningQuantity,x.TransactionQuantity,x.ClosingQuantity,new(x.Lineage.SheetName,x.Lineage.SourceRowNumber,parsed.ReportCode))).ToArray();
         var snapshots=parsed.Snapshots.Select(x=>new StockSnapshotPersistence(x.StoreCode,x.SnapshotDate,x.ProductCode,x.Ean,x.BrandCode,null,x.Cluster,x.Gender,x.BatchNumber,x.SourceUid,x.Quantity,x.UnitCost,x.TotalCost,new(x.Lineage.SheetName,x.Lineage.SourceRowNumber,parsed.ReportCode))).ToArray();
-        var id=await store.PersistAsync(new(batch,file,[],[],movements,snapshots),cancellationToken);
+        var id=await store.PersistAsync(new ImportPersistencePackage(batch,file,[],[],movements,snapshots){Restatement=restatement},cancellationToken);
         return new(batchId,id,parsed.ReportCode,movements.Length+snapshots.Length,parsed.Diagnostics);
     }
 }

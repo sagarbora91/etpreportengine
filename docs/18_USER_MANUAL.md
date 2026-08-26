@@ -20,9 +20,10 @@ Do not place ETP source files inside the program folder or source-code repositor
 1. Open **Daily Workflow**, select the ETP business date and store, and refresh.
 2. Import R025, R022, R013, R003, Variant Stock ledger and Closing Stock for that same ETP report date. A store/date mismatch is blocked, including during batch import.
 3. Enter only operational values that ETP does not supply. Required daily values are walk-ins, opening cash, cash deposit and expenses. Service cash/card/UPI, cash adjustment and counted closing cash drive the separate service and cash reports. Enter `0` when the confirmed value is zero; leave a value empty only when it is genuinely missing.
-4. Generate the daily pack. Review invoice/DSR, tender, service, cash, stock, staff and missing-input sections. Failed controls remain visible and cannot be turned into passes by changing a tolerance on this screen.
-5. Choose **Finalise day** only after every blocking pack section is resolved. The database then protects the business date from new imports and manual edits.
-6. Reopening requires a Windows administrator and a reason. Re-import corrected ETP evidence only after the day is explicitly reopened.
+4. Enter inventory-group physical details (display, backstock, defective, Y-location, independent counted physical and remarks) and dated CRO targets when applicable. The component total and its variance from the independent count remain separate from the physical-versus-system variance.
+5. Generate either the selected-store pack or the one-click Titan + Helios pack. Review invoice/DSR, source lineage, tender, service, cash, system/physical stock, staff, manual-input and exception sections. Failed controls remain visible and cannot be turned into passes by changing a tolerance on this screen.
+6. Choose **Finalise day** only after every blocking pack section is resolved. The database then protects the business date, facts, source lineage, manual inputs and final report generation.
+7. Reopening requires a Windows administrator and a reason. To replace a corrected ETP export after reopening, enable **Controlled restatement**, enter the reason and import the corrected file. Ordinary duplicate protection remains active.
 
 FTD, MTD, YTD and equivalent LY periods come from the selected ETP business date—not from the time the workbook was imported. Growth is blank with a visible state when LY is zero or missing. DSR and staff UPT/ATV retain separate, labelled transaction-denominator policies.
 
@@ -38,7 +39,7 @@ Select a summary row to open its supporting detail. Sorting and search affect th
 
 ## Export and print
 
-Choose Excel or PDF from a supported report. The export records report title, filters, generation time, totals, and pagination. Verify filters and control totals before sharing. Save only to an approved access-controlled folder and close exported workbooks when finished.
+Choose Excel or PDF from a supported report, or export the complete pack. The complete Excel file has separate report sheets; the PDF has paginated report sections. Both retain title, business date, rule version, warning state and controls and contain no spreadsheet formulas. Verify filters and control totals before sharing. Save only to an approved access-controlled folder and close exported workbooks when finished.
 
 ## Common messages
 

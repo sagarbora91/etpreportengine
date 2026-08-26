@@ -66,7 +66,7 @@ public sealed class MigrationTests
     {
         var root = FindRepositoryRoot();
         var migrations = await new DirectoryMigrationSource(Path.Combine(root, "database", "migrations")).DiscoverAsync();
-        Assert.Equal(["0001_foundation", "0002_reporting_facts", "0003_sales_dimensions", "0004_operational_audit", "0005_daily_reporting_workflow", "0006_backfill_import_business_scope", "0007_sales_enrichment_facts", "0008_service_cash_inputs", "0009_locked_day_fact_guards"], migrations.Select(x => x.Id));
+        Assert.Equal(["0001_foundation", "0002_reporting_facts", "0003_sales_dimensions", "0004_operational_audit", "0005_daily_reporting_workflow", "0006_backfill_import_business_scope", "0007_sales_enrichment_facts", "0008_service_cash_inputs", "0009_locked_day_fact_guards", "0010_operational_completion"], migrations.Select(x => x.Id));
         var facts = Assert.Single(migrations, x => x.Id == "0002_reporting_facts").Sql;
         Assert.Contains("UX_import_files_source_sha256", facts, StringComparison.Ordinal);
         Assert.Contains("UQ_source_lineage", facts, StringComparison.Ordinal);
@@ -108,6 +108,18 @@ public sealed class MigrationTests
         Assert.Contains("trg_sales_tenders_protect_locked", guards, StringComparison.Ordinal);
         Assert.Contains("trg_stock_snapshots_protect_locked", guards, StringComparison.Ordinal);
         Assert.Contains("trg_sales_enrichments_protect_locked", guards, StringComparison.Ordinal);
+        var completion = Assert.Single(migrations, x => x.Id == "0010_operational_completion").Sql;
+        Assert.Contains("prepare_import_restatement", completion, StringComparison.Ordinal);
+        Assert.Contains("restatement_fact_archive", completion, StringComparison.Ordinal);
+        Assert.Contains("manual_stock_counts", completion, StringComparison.Ordinal);
+        Assert.Contains("staff_sales_targets", completion, StringComparison.Ordinal);
+        Assert.Contains("daily_report_generations", completion, StringComparison.Ordinal);
+        Assert.Contains("trg_sales_invoices_protect_locked", completion, StringComparison.Ordinal);
+        Assert.Contains("trg_source_lineage_protect_locked", completion, StringComparison.Ordinal);
+        Assert.Contains("trg_daily_report_generations_immutable", completion, StringComparison.Ordinal);
+        Assert.Contains("trg_restatement_archive_immutable", completion, StringComparison.Ordinal);
+        Assert.Contains("RestoreDrill", completion, StringComparison.Ordinal);
+        Assert.DoesNotContain("customername", completion, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -128,6 +140,21 @@ public sealed class MigrationTests
         var file = new ImportFileRegistration(Guid.NewGuid(), null, "sample.xlsx", new string('a', 64), 1);
         var package = new ImportPersistencePackage(batch, file, [], [], [], []);
         Assert.Throws<ArgumentException>(() => PersistenceValidation.Validate(package));
+    }
+
+    [Fact]
+    public void Persistence_validation_requires_complete_restatement_authority()
+    {
+        var batch = new ImportBatchRegistration(Guid.NewGuid(), null, null, null, DateTimeOffset.UtcNow);
+        var file = new ImportFileRegistration(batch.BatchId, null, "replacement.xlsx", new string('a', 64), 1);
+        var invalid = new ImportPersistencePackage(batch, file, [], [], [], [])
+        {
+            Restatement = new(0, "", "")
+        };
+        Assert.Throws<ArgumentException>(() => PersistenceValidation.Validate(invalid));
+
+        var valid = invalid with { Restatement = new ImportRestatementRequest(12, "admin", "Corrected ETP export") };
+        PersistenceValidation.Validate(valid);
     }
 
     private static string FindRepositoryRoot()

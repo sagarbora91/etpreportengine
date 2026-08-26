@@ -126,6 +126,10 @@ public sealed class DailyReportingWorkflowRepository(string connectionString)
               SET status='LOCKED',finalised_by=@user,finalised_utc=SYSUTCDATETIME()
               WHERE store_code=@store AND business_date=@date AND status<>'LOCKED';
             IF @@ROWCOUNT<>1 THROW 51023,'The day is already locked or unavailable.',1;
+            DECLARE @generation bigint=(SELECT TOP(1) daily_report_generation_id FROM dbo.daily_report_generations
+              WHERE store_code=@store AND business_date=@date ORDER BY generation_number DESC);
+            IF @generation IS NULL THROW 51025,'Generate the daily reporting pack before finalising the day.',1;
+            UPDATE dbo.daily_report_generations SET is_final=1 WHERE daily_report_generation_id=@generation;
             INSERT dbo.daily_reporting_events(store_code,business_date,event_type,performed_by)
               VALUES(@store,@date,'DayFinalised',@user);
             COMMIT TRANSACTION;

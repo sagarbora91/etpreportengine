@@ -50,6 +50,9 @@ SELECT '$validationDatabase' ValidationDatabase,@drillFiles ImportedFiles,@drill
 "@
     & $sqlcmd -S $ServerInstance -E -b -d master -Q $query
     if ($LASTEXITCODE -ne 0) { throw "Recovery drill failed." }
+    $auditActor = ([Environment]::UserName).Replace("'", "''")
+    & $sqlcmd -S $ServerInstance -E -b -d $Database -Q "IF COL_LENGTH('dbo.operational_audit','actor_name') IS NOT NULL INSERT dbo.operational_audit(event_type,outcome,safe_detail,application_version,actor_name) VALUES('RestoreDrill','Succeeded','Isolated restore and aggregate comparison passed','operations',N'$auditActor');"
+    if ($LASTEXITCODE -ne 0) { throw "Recovery drill passed but its audit event could not be recorded." }
 }
 finally {
     & $sqlcmd -S $ServerInstance -E -b -d master -Q "IF DB_ID(N'$validationDatabase') IS NOT NULL BEGIN ALTER DATABASE [$validationDatabase] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [$validationDatabase]; END;"

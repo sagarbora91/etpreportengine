@@ -141,5 +141,5 @@ public static class RetailSalesProfiles
     public static IReadOnlyList<ImportProfile> FirstSalesSlice { get; } = [R025, R022, R013, R003];
 
     private static ImportProfile Create(string reportCode, IReadOnlyList<string> headers, params ImportFieldMapping[] fields) =>
-        new(reportCode, "ETP_2026_08", "1", ImportProfileMatcher.CreateHeaderSignature(headers), fields);
+        new(reportCode, "ETP_2026_08", "1", ImportProfileMatcher.CreateHeaderSignature(headers), fields, headers);
 }

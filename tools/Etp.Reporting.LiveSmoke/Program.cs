@@ -102,17 +102,44 @@ var preliminaryCash = await operationalReports.LoadCashReconciliationAsync("WLMH
 await dailyRepository.SaveManualInputAsync("WLMHW", testDate, "CLOSING_CASH_COUNTED", 1_000m + preliminaryCash.RetailCash, null, "live-smoke", "validation");
 var serviceSales = await operationalReports.LoadServiceSalesAsync(testDate, ["WLMHW"]);
 var cashControl = await operationalReports.LoadCashReconciliationAsync("WLMHW", testDate);
+var completion = new OperationalCompletionRepository(connectionString);
+await completion.SaveManualStockCountAsync("WLMHW", testDate, "GAUTO", 0m, 0m, 0m, 0m, 0m, "Validation count", "live-smoke", "validation");
+var physicalStock = await operationalReports.LoadPhysicalStockAsync("WLMHW", testDate);
+var targetCro = staff.Rows.First(x => x.StoreCode == "WLMHW").CroNumber;
+await completion.SaveStaffTargetAsync("WLMHW", targetCro, scope.DateFrom, scope.DateTo, 100_000m, "live-smoke", "validation");
+var staffWithTarget = await operationalReports.LoadStaffPerformanceAsync(scope);
+var dailyExceptions = await operationalReports.LoadDailyExceptionsAsync("WLMHW", testDate);
 var workflow = await dailyRepository.LoadAsync("WLMHW", testDate);
-var pack = await new DailyReportingPackService(connectionString).GenerateAsync("WLMHW", new(2026, 8, 25));
+var pack = await new DailyReportingPackService(connectionString).GenerateAsync("WLMHW", new(2026, 8, 25), "live-smoke");
+var combinedPack = await new DailyReportingPackService(connectionString).GenerateCombinedAsync(new(2026, 8, 25), "live-smoke");
 if (daily.Status != ReconciliationStatus.Passed || daily.Rows.Count == 0) throw new InvalidOperationException("Daily sales report did not pass live SQL execution.");
 if (tenders.Status == ReconciliationStatus.Blocked) throw new InvalidOperationException("Tender reconciliation was blocked in live SQL execution.");
 if (stock.Status == ReconciliationStatus.Blocked || stock.Items.Count == 0) throw new InvalidOperationException("Stock reconciliation was blocked or empty in live SQL execution.");
 if (invoiceSummary.Count == 0 || dsr.Count != 9 || staff.Rows.Count == 0)
     throw new InvalidOperationException("Operational invoice, DSR or staff reporting did not return the expected live result shape.");
-if (workflow.MissingReports.Count != 0 || pack.Sections.Count != 9)
+if (workflow.MissingReports.Count != 0 || pack.Sections.Count != 11 || pack.Document.Tables.Count < 10 || pack.GenerationNumber < 1 ||
+    !combinedPack.Tables.Any(x => x.Name == "Titan Helios Combined DSR"))
     throw new InvalidOperationException("Daily completeness or reporting-pack generation failed live verification.");
 if (workflow.MissingRequiredInputs.Count != 0 || serviceSales.Single(x => x.Period == "FTD").Total != 0 || cashControl.Status != ReconciliationStatus.Passed)
     throw new InvalidOperationException("Zero-safe manual input, service sales or cash reconciliation failed live verification.");
+if (!physicalStock.Any(x => x.InventoryGroupCode == "GAUTO" && x.CountedPhysicalQuantity == 0m) ||
+    !staffWithTarget.Rows.Any(x => x.StoreCode == "WLMHW" && x.CroNumber == targetCro && x.TargetSales == 100_000m) ||
+    dailyExceptions.Count == 0)
+    throw new InvalidOperationException("Physical stock, staff target or traceable exception reporting failed live verification.");
+var packExcel = Path.Combine(Path.GetTempPath(), $"etp-live-pack-{Guid.NewGuid():N}.xlsx");
+var packPdf = Path.Combine(Path.GetTempPath(), $"etp-live-pack-{Guid.NewGuid():N}.pdf");
+try
+{
+    new OpenXmlReportPackExporter().Export(packExcel, combinedPack);
+    new SimplePdfReportPackExporter().Export(packPdf, combinedPack);
+    if (new FileInfo(packExcel).Length == 0 || new FileInfo(packPdf).Length == 0)
+        throw new InvalidOperationException("Complete report-pack exports were empty.");
+}
+finally
+{
+    if (File.Exists(packExcel)) File.Delete(packExcel);
+    if (File.Exists(packPdf)) File.Delete(packPdf);
+}
 await VerifyBackupRestoreAsync(connectionString);
 Console.WriteLine($"Live SQL passed: files={files.Length}; persisted evidence rows={importedRows}; daily groups={daily.Rows.Count}; invoices={invoiceSummary.Count}; dsr={dsr.Count}; staff={staff.Rows.Count}/{staff.Status}; workflow={workflow.Status}; pack={pack.Status}; brand-segment={brandSegment.Status}; tender={tenders.Status}; stock={stock.Status} ({stock.Items.Count} matched items).");
 return files.Length == 12 ? 0 : 1;

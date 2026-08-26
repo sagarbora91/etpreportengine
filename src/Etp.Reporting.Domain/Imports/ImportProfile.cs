@@ -24,7 +24,8 @@ public sealed class ImportProfile
         string layoutVersion,
         string profileVersion,
         string headerSignatureSha256,
-        IEnumerable<ImportFieldMapping> fields)
+        IEnumerable<ImportFieldMapping> fields,
+        IEnumerable<string>? expectedSourceHeaders = null)
     {
         ReportCode = RequiredToken(reportCode, nameof(reportCode));
         LayoutVersion = RequiredToken(layoutVersion, nameof(layoutVersion));
@@ -38,6 +39,14 @@ public sealed class ImportProfile
         EnsureUnique(materialized.Select(x => NormalizeHeader(x.SourceHeader)), "source header");
         EnsureUnique(materialized.Select(x => x.CanonicalField), "canonical field");
         Fields = Array.AsReadOnly(materialized);
+
+        var expected = (expectedSourceHeaders ?? materialized.Select(x => x.SourceHeader))
+            .Select(RequiredExpectedHeader)
+            .ToArray();
+        if (expected.Length == 0)
+            throw new ArgumentException("An import profile requires at least one expected source header.", nameof(expectedSourceHeaders));
+        EnsureUnique(expected.Select(NormalizeHeader), "expected source header");
+        ExpectedSourceHeaders = Array.AsReadOnly(expected);
     }
 
     public string ReportCode { get; }
@@ -45,6 +54,7 @@ public sealed class ImportProfile
     public string ProfileVersion { get; }
     public string HeaderSignatureSha256 { get; }
     public IReadOnlyList<ImportFieldMapping> Fields { get; }
+    public IReadOnlyList<string> ExpectedSourceHeaders { get; }
 
     public static string NormalizeHeader(string value) =>
         string.Join(' ', RequiredToken(value, nameof(value)).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
@@ -57,6 +67,8 @@ public sealed class ImportProfile
             throw new ArgumentException("Value is required.", parameterName);
         return value.Trim();
     }
+
+    private static string RequiredExpectedHeader(string value) => RequiredToken(value, nameof(ExpectedSourceHeaders));
 
     private static string ValidateSha256(string value)
     {

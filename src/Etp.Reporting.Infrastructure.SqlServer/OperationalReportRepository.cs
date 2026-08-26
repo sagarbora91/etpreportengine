@@ -14,6 +14,22 @@ public sealed record InvoiceSalesSummaryRow(
     decimal NetValue,
     int SourceRows);
 
+public sealed record InvoiceSalesLineageRow(
+    DateOnly BusinessDate,
+    string StoreCode,
+    string DocumentNumber,
+    string LineIdentifier,
+    string ProductCode,
+    string? Brand,
+    string? BrandSegment,
+    string? TransactionType,
+    decimal Quantity,
+    decimal? NetValue,
+    string? CroNumber,
+    string SourceWorkbook,
+    string SourceSheet,
+    int SourceRow);
+
 public sealed record DsrManagementRow(
     string Period,
     string Store,
@@ -37,12 +53,18 @@ public sealed record StaffPerformanceRow(
     string StoreCode,
     string CroNumber,
     decimal NetSales,
+    decimal? LastYearSales,
+    decimal? GrowthPercent,
+    string GrowthStatus,
     decimal NetQuantity,
     decimal Discount,
     int Transactions,
     decimal? Upt,
     decimal? Atv,
-    decimal ContributionPercent);
+    decimal ContributionPercent,
+    decimal? TargetSales,
+    decimal? TargetAchievementPercent,
+    int Rank);
 
 public sealed record StaffPerformanceResult(
     IReadOnlyList<StaffPerformanceRow> Rows,
@@ -52,6 +74,37 @@ public sealed record StaffPerformanceResult(
     ReconciliationStatus Status,
     string Message,
     string MetricPolicy);
+
+public sealed record PhysicalStockReportRow(
+    string StoreCode,
+    DateOnly BusinessDate,
+    string InventoryGroupCode,
+    decimal? DisplayQuantity,
+    decimal? BackstockQuantity,
+    decimal? DefectiveQuantity,
+    decimal? YLocationQuantity,
+    decimal? ComponentTotal,
+    decimal? CountedPhysicalQuantity,
+    decimal? CompositionVariance,
+    decimal SystemQuantity,
+    decimal? SystemVariance,
+    string? Remarks,
+    string Status);
+
+public sealed record DailyExceptionRow(
+    string Severity,
+    string Area,
+    string Code,
+    string StoreCode,
+    DateOnly BusinessDate,
+    string? DocumentNumber,
+    string? ItemCode,
+    decimal? Variance,
+    string? SourceWorkbook,
+    string? SourceSheet,
+    int? SourceRow,
+    string Message,
+    string RecommendedAction);
 
 public sealed record ServiceSalesRow(
     string Period,
@@ -115,6 +168,47 @@ public sealed class OperationalReportRepository(string connectionString)
         return rows;
     }
 
+    public async Task<IReadOnlyList<InvoiceSalesLineageRow>> LoadInvoiceLineageAsync(
+        ReportingQueryScope scope,
+        CancellationToken cancellationToken = default)
+    {
+        scope.Validate();
+        const string sql = """
+            SELECT i.transaction_date,i.store_code,i.document_number,l.line_identifier,l.product_code,
+                   COALESCE(l.source_brand_name,l.source_brand_code),l.brand_segment,l.source_transaction_type,
+                   l.source_quantity,l.source_net_amount,cro.source_cro_number,f.original_file_name,s.sheet_name,s.source_row_number
+            FROM dbo.sales_lines l
+            JOIN dbo.sales_invoices i ON i.sales_invoice_id=l.sales_invoice_id
+            JOIN dbo.source_lineage s ON s.source_lineage_id=l.source_lineage_id
+            JOIN dbo.import_files f ON f.import_file_id=s.import_file_id
+            OUTER APPLY
+            (
+              SELECT TOP(1) e.source_cro_number
+              FROM dbo.sales_line_enrichments e
+              WHERE e.matched_sales_line_id=l.sales_line_id AND e.enrichment_type='R013' AND e.match_status='Matched'
+              ORDER BY e.sales_line_enrichment_id
+            ) cro
+            WHERE i.transaction_date BETWEEN @from AND @to
+              AND (@stores IS NULL OR i.store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores)))
+              AND (@segments IS NULL OR l.brand_segment IN(SELECT CONVERT(nvarchar(100),[value]) FROM OPENJSON(@segments)))
+              AND (@types IS NULL OR l.source_transaction_type IN(SELECT CONVERT(nvarchar(80),[value]) FROM OPENJSON(@types)))
+              AND (@items IS NULL OR l.product_code IN(SELECT CONVERT(nvarchar(80),[value]) FROM OPENJSON(@items)))
+            ORDER BY i.transaction_date,i.store_code,i.document_number,l.line_identifier;
+            """;
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var command = ScopeCommand(connection, sql, scope);
+        command.Parameters.AddWithValue("@segments", Json(scope.BrandSegments));
+        command.Parameters.AddWithValue("@types", Json(scope.TransactionTypes));
+        command.Parameters.AddWithValue("@items", Json(scope.ItemCodes));
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        var rows = new List<InvoiceSalesLineageRow>();
+        while (await reader.ReadAsync(cancellationToken))
+            rows.Add(new(reader.GetFieldValue<DateOnly>(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetString(4),
+                reader.IsDBNull(5) ? null : reader.GetString(5), reader.IsDBNull(6) ? null : reader.GetString(6), reader.IsDBNull(7) ? null : reader.GetString(7),
+                reader.GetDecimal(8), NullableDecimal(reader, 9), reader.IsDBNull(10) ? null : reader.GetString(10), reader.GetString(11), reader.GetString(12), reader.GetInt32(13)));
+        return rows;
+    }
+
     public async Task<IReadOnlyList<DsrManagementRow>> LoadDsrAsync(
         DateOnly businessDate,
         IReadOnlyList<string>? storeCodes = null,
@@ -161,11 +255,20 @@ public sealed class OperationalReportRepository(string connectionString)
               AND e.source_cro_number IS NOT NULL
             GROUP BY e.store_code,e.source_cro_number ORDER BY e.store_code,SUM(e.source_net_value) DESC;
             """;
+        const string lastYearSql = """
+            SELECT e.store_code,e.source_cro_number,SUM(e.source_net_value)
+            FROM dbo.sales_line_enrichments e
+            WHERE e.enrichment_type='R013' AND e.match_status='Matched' AND e.transaction_date BETWEEN @from AND @to
+              AND (@stores IS NULL OR e.store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores)))
+              AND e.source_cro_number IS NOT NULL
+            GROUP BY e.store_code,e.source_cro_number;
+            """;
         const string totalSql = """
-            SELECT COALESCE(SUM(l.source_net_amount),0)
+            SELECT i.store_code,COALESCE(SUM(l.source_net_amount),0)
             FROM dbo.sales_lines l JOIN dbo.sales_invoices i ON i.sales_invoice_id=l.sales_invoice_id
             WHERE i.transaction_date BETWEEN @from AND @to
-              AND (@stores IS NULL OR i.store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores)));
+              AND (@stores IS NULL OR i.store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores)))
+            GROUP BY i.store_code;
             """;
         await using var connection = await OpenAsync(cancellationToken);
         var raw = new List<(string Store, string Cro, decimal Sales, decimal Quantity, decimal Discount, int Transactions)>();
@@ -173,20 +276,53 @@ public sealed class OperationalReportRepository(string connectionString)
         await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
             while (await reader.ReadAsync(cancellationToken))
                 raw.Add((reader.GetString(0), reader.GetString(1), reader.GetDecimal(2), reader.GetDecimal(3), reader.GetDecimal(4), reader.GetInt32(5)));
-        decimal canonical;
+        var lastYearScope = scope with { DateFrom = scope.DateFrom.AddYears(-1), DateTo = scope.DateTo.AddYears(-1) };
+        var lastYear = new Dictionary<(string Store, string Cro), decimal>();
+        await using (var command = ScopeCommand(connection, lastYearSql, lastYearScope))
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+            while (await reader.ReadAsync(cancellationToken))
+                lastYear[(reader.GetString(0).ToUpperInvariant(), reader.GetString(1).ToUpperInvariant())] = reader.GetDecimal(2);
+        var canonicalByStore = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
         await using (var command = ScopeCommand(connection, totalSql, scope))
-            canonical = Convert.ToDecimal(await command.ExecuteScalarAsync(cancellationToken));
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+            while (await reader.ReadAsync(cancellationToken)) canonicalByStore[reader.GetString(0)] = reader.GetDecimal(1);
+        var targets = await new OperationalCompletionRepository(connectionString).LoadStaffTargetsAsync(scope, cancellationToken);
+        var targetByStaff = targets.ToDictionary(x => (x.StoreCode.ToUpperInvariant(), x.CroNumber.ToUpperInvariant()), x => x.TargetSales);
+        foreach (var target in targets.Where(target => raw.All(x =>
+                     !string.Equals(x.Store, target.StoreCode, StringComparison.OrdinalIgnoreCase) ||
+                     !string.Equals(x.Cro, target.CroNumber, StringComparison.OrdinalIgnoreCase))))
+            raw.Add((target.StoreCode, target.CroNumber, 0m, 0m, 0m, 0));
+
+        var metricEngine = new ManagementMetricEngine();
+        var rows = new List<StaffPerformanceRow>();
+        foreach (var storeGroup in raw.GroupBy(x => x.Store, StringComparer.OrdinalIgnoreCase))
+        {
+            var rank = 0;
+            decimal? priorSales = null;
+            foreach (var x in storeGroup.OrderByDescending(x => x.Sales).ThenBy(x => x.Cro, StringComparer.OrdinalIgnoreCase))
+            {
+                if (priorSales != x.Sales) { rank++; priorSales = x.Sales; }
+                var key = (x.Store.ToUpperInvariant(), x.Cro.ToUpperInvariant());
+                decimal? ly = lastYear.TryGetValue(key, out var lastYearSales) ? lastYearSales : null;
+                var growth = metricEngine.Growth(x.Sales, ly);
+                decimal? target = targetByStaff.TryGetValue(key, out var staffTarget) ? staffTarget : null;
+                var achievement = target is null or 0m ? null : x.Sales / target * 100m;
+                var storeCanonical = canonicalByStore.GetValueOrDefault(x.Store);
+                rows.Add(new(x.Store, x.Cro, x.Sales, ly, growth.Value, growth.Availability.ToString(), x.Quantity, x.Discount, x.Transactions,
+                    x.Transactions == 0 ? null : x.Quantity / x.Transactions,
+                    x.Transactions == 0 ? null : x.Sales / x.Transactions,
+                    storeCanonical == 0 ? 0 : x.Sales / storeCanonical * 100m,
+                    target, achievement, rank));
+            }
+        }
+        var canonical = canonicalByStore.Values.Sum();
         var attributed = raw.Sum(x => x.Sales);
-        var rows = raw.Select(x => new StaffPerformanceRow(x.Store, x.Cro, x.Sales, x.Quantity, x.Discount, x.Transactions,
-            x.Transactions == 0 ? null : x.Quantity / x.Transactions,
-            x.Transactions == 0 ? null : x.Sales / x.Transactions,
-            attributed == 0 ? 0 : x.Sales / attributed * 100m)).ToArray();
         var variance = canonical - attributed;
         var status = variance == 0 ? ReconciliationStatus.Passed : ReconciliationStatus.Failed;
-        return new(rows, canonical, attributed, variance, status,
+        return new(rows.OrderBy(x => x.StoreCode).ThenBy(x => x.Rank).ThenBy(x => x.CroNumber).ToArray(), canonical, attributed, variance, status,
             status == ReconciliationStatus.Passed
                 ? "R013 attributed sales reconcile to canonical R025 sales."
-                : "Attributed and canonical sales differ; review unmatched/unassigned source rows without rounding away the variance.",
+                : "Attributed and canonical sales differ; review unmatched/unassigned source rows without rounding away the variance. LY, target achievement and rank remain independently visible.",
             StaffMetricPolicy);
     }
 
@@ -249,6 +385,144 @@ public sealed class OperationalReportRepository(string connectionString)
         return new(storeCode, businessDate, values["OPENING_CASH"], retailCash, values["SERVICE_CASH"], values["EXPENSES"],
             values["CASH_DEPOSIT"], values["CASH_ADJUSTMENT"], evaluation.CalculatedClosingCash, values["CLOSING_CASH_COUNTED"],
             evaluation.Variance, evaluation.Status, $"{evaluation.Formula}; counted closing remains independent evidence.");
+    }
+
+    public async Task<IReadOnlyList<PhysicalStockReportRow>> LoadPhysicalStockAsync(
+        string storeCode,
+        DateOnly businessDate,
+        CancellationToken cancellationToken = default)
+    {
+        storeCode = string.IsNullOrWhiteSpace(storeCode) ? throw new ArgumentException("A store code is required.", nameof(storeCode)) : storeCode.Trim();
+        const string sql = """
+            WITH system_stock AS
+            (
+              SELECT store_code,snapshot_date,
+                     COALESCE(NULLIF(LTRIM(RTRIM(cluster)),''),NULLIF(LTRIM(RTRIM(brand_name)),''),NULLIF(LTRIM(RTRIM(brand_code)),''),product_code) inventory_group_code,
+                     SUM(quantity) system_quantity
+              FROM dbo.stock_snapshots
+              WHERE store_code=@store AND snapshot_date=@date
+              GROUP BY store_code,snapshot_date,COALESCE(NULLIF(LTRIM(RTRIM(cluster)),''),NULLIF(LTRIM(RTRIM(brand_name)),''),NULLIF(LTRIM(RTRIM(brand_code)),''),product_code)
+            )
+            SELECT COALESCE(m.store_code,s.store_code),COALESCE(m.business_date,s.snapshot_date),COALESCE(m.inventory_group_code,s.inventory_group_code),
+                   m.display_quantity,m.backstock_quantity,m.defective_quantity,m.y_location_quantity,
+                   CASE WHEN m.manual_stock_count_id IS NULL OR (m.display_quantity IS NULL AND m.backstock_quantity IS NULL AND m.defective_quantity IS NULL AND m.y_location_quantity IS NULL)
+                        THEN NULL ELSE COALESCE(m.display_quantity,0)+COALESCE(m.backstock_quantity,0)+COALESCE(m.defective_quantity,0)+COALESCE(m.y_location_quantity,0) END,
+                   m.counted_physical_quantity,
+                   CASE WHEN m.counted_physical_quantity IS NULL OR (m.display_quantity IS NULL AND m.backstock_quantity IS NULL AND m.defective_quantity IS NULL AND m.y_location_quantity IS NULL)
+                        THEN NULL ELSE m.counted_physical_quantity-(COALESCE(m.display_quantity,0)+COALESCE(m.backstock_quantity,0)+COALESCE(m.defective_quantity,0)+COALESCE(m.y_location_quantity,0)) END,
+                   COALESCE(s.system_quantity,0),
+                   CASE WHEN m.counted_physical_quantity IS NULL THEN NULL ELSE m.counted_physical_quantity-COALESCE(s.system_quantity,0) END,
+                   m.remarks
+            FROM dbo.manual_stock_counts m FULL OUTER JOIN system_stock s
+              ON s.store_code=m.store_code AND s.snapshot_date=m.business_date AND s.inventory_group_code=m.inventory_group_code
+            WHERE COALESCE(m.store_code,s.store_code)=@store AND COALESCE(m.business_date,s.snapshot_date)=@date
+            ORDER BY COALESCE(m.inventory_group_code,s.inventory_group_code);
+            """;
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var command = new SqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@store", storeCode); command.Parameters.AddWithValue("@date", businessDate);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        var rows = new List<PhysicalStockReportRow>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var compositionVariance = NullableDecimal(reader, 9);
+            var systemVariance = NullableDecimal(reader, 11);
+            var status = systemVariance is null ? "MANUAL INPUT MISSING" : systemVariance != 0 ? "FAIL" : compositionVariance is not null && compositionVariance != 0 ? "WARNING" : "PASS";
+            rows.Add(new(reader.GetString(0), reader.GetFieldValue<DateOnly>(1), reader.GetString(2), NullableDecimal(reader, 3), NullableDecimal(reader, 4),
+                NullableDecimal(reader, 5), NullableDecimal(reader, 6), NullableDecimal(reader, 7), NullableDecimal(reader, 8), compositionVariance,
+                reader.GetDecimal(10), systemVariance, reader.IsDBNull(12) ? null : reader.GetString(12), status));
+        }
+        return rows;
+    }
+
+    public async Task<IReadOnlyList<DailyExceptionRow>> LoadDailyExceptionsAsync(
+        string storeCode,
+        DateOnly businessDate,
+        CancellationToken cancellationToken = default)
+    {
+        var rows = new List<DailyExceptionRow>();
+        var workflow = await new DailyReportingWorkflowRepository(connectionString).LoadAsync(storeCode, businessDate, cancellationToken);
+        rows.AddRange(workflow.MissingReports.Select(code => new DailyExceptionRow("BLOCKER", "Source", "SOURCE_MISSING", storeCode, businessDate,
+            null, null, null, null, null, null, $"Required ETP report {code} has not been imported.", "Import the approved report for this store and business date.")));
+        rows.AddRange(workflow.MissingRequiredInputs.Select(code => new DailyExceptionRow("BLOCKER", "Manual input", "MANUAL_INPUT_MISSING", storeCode, businessDate,
+            null, null, null, null, null, null, $"Required operational input {code} is missing.", "Enter a value; enter zero explicitly when zero is the true value.")));
+
+        var scope = new ReportingQueryScope(businessDate, businessDate, [storeCode]);
+        var executor = new SqlBackedReportingExecutor(new SqlServerReportingQueryRepository(connectionString),
+            RetailReportingPolicy.Mapping, RetailReportingPolicy.Sales, RetailReportingPolicy.Tender, RetailReportingPolicy.Stock);
+        var tender = await executor.ExecuteTenderReconciliationAsync(scope, cancellationToken);
+        var pointers = await LoadInvoicePointersAsync(scope, cancellationToken);
+        foreach (var document in tender.Documents.Where(x => x.Status != ReconciliationStatus.Passed))
+        {
+            pointers.TryGetValue((document.StoreCode.ToUpperInvariant(), document.DocumentNumber.ToUpperInvariant()), out var pointer);
+            rows.Add(new("FAIL", "Tender", "TENDER_VARIANCE", document.StoreCode, businessDate, document.DocumentNumber, null, document.Variance,
+                pointer?.FileName, pointer?.SheetName, pointer?.SourceRow,
+                $"Revenue control and reporting-eligible tenders differ by {document.Variance:N2}.", "Review missing, excess or quarantined tender rows; do not change the control total."));
+        }
+
+        const string enrichmentSql = """
+            SELECT e.store_code,e.transaction_date,e.document_number,e.product_code,e.match_status,f.original_file_name,s.sheet_name,s.source_row_number
+            FROM dbo.sales_line_enrichments e JOIN dbo.source_lineage s ON s.source_lineage_id=e.source_lineage_id
+            JOIN dbo.import_files f ON f.import_file_id=s.import_file_id
+            WHERE e.store_code=@store AND e.transaction_date=@date AND e.match_status<>'Matched'
+            ORDER BY e.document_number,e.product_code,s.source_row_number;
+            """;
+        await using (var connection = await OpenAsync(cancellationToken))
+        await using (var command = new SqlCommand(enrichmentSql, connection))
+        {
+            command.Parameters.AddWithValue("@store", storeCode); command.Parameters.AddWithValue("@date", businessDate);
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+                rows.Add(new(reader.GetString(4) == "Ambiguous" ? "FAIL" : "WARNING", "Staff enrichment", $"R013_{reader.GetString(4).ToUpperInvariant()}",
+                    reader.GetString(0), reader.GetFieldValue<DateOnly>(1), reader.GetString(2), reader.GetString(3), null,
+                    reader.GetString(5), reader.GetString(6), reader.GetInt32(7),
+                    "The staff/CRO enrichment could not be linked to exactly one canonical R025 sales line.", "Review the invoice, item and source row; preserve the exact variance."));
+        }
+
+        var physical = await LoadPhysicalStockAsync(storeCode, businessDate, cancellationToken);
+        foreach (var item in physical.Where(x => x.Status is "FAIL" or "WARNING" or "MANUAL INPUT MISSING"))
+            rows.Add(new(item.Status == "MANUAL INPUT MISSING" ? "WARNING" : item.Status, "Physical stock", item.Status switch
+                {
+                    "FAIL" => "PHYSICAL_SYSTEM_VARIANCE",
+                    "WARNING" => "PHYSICAL_COMPOSITION_VARIANCE",
+                    _ => "PHYSICAL_COUNT_MISSING"
+                },
+                storeCode, businessDate, null, item.InventoryGroupCode, item.Status == "FAIL" ? item.SystemVariance : item.CompositionVariance,
+                null, null, null, item.Status == "MANUAL INPUT MISSING" ? "No counted physical quantity has been entered for this system-stock group." : "Physical stock evidence does not match its comparison control.",
+                item.Status == "MANUAL INPUT MISSING" ? "Enter the physical count when the operational count is performed; enter zero explicitly when correct." : "Recount or record an approved correction reason; system stock is never overwritten."));
+
+        var cash = await LoadCashReconciliationAsync(storeCode, businessDate, cancellationToken);
+        if (cash.Status is ReconciliationStatus.Blocked or ReconciliationStatus.Failed)
+            rows.Add(new(cash.Status == ReconciliationStatus.Blocked ? "BLOCKER" : "FAIL", "Cash", "CASH_RECONCILIATION", storeCode, businessDate,
+                null, null, cash.Variance, null, null, null, cash.Message, "Complete the missing cash evidence or investigate the exact variance."));
+
+        var staff = await LoadStaffPerformanceAsync(scope, cancellationToken);
+        if (staff.Status == ReconciliationStatus.Failed)
+            rows.Add(new("FAIL", "Staff", "STAFF_CANONICAL_VARIANCE", storeCode, businessDate, null, null, staff.Variance,
+                null, null, null, staff.Message, "Review unmatched and unassigned R013 rows; do not round the variance away."));
+        return rows.OrderBy(x => x.Severity).ThenBy(x => x.Area).ThenBy(x => x.DocumentNumber).ThenBy(x => x.SourceRow).ToArray();
+    }
+
+    private async Task<Dictionary<(string Store, string Document), SourcePointer>> LoadInvoicePointersAsync(
+        ReportingQueryScope scope,
+        CancellationToken token)
+    {
+        const string sql = """
+            SELECT i.store_code,i.document_number,MIN(f.original_file_name),MIN(s.sheet_name),MIN(s.source_row_number)
+            FROM dbo.sales_invoice_controls c JOIN dbo.sales_invoices i ON i.sales_invoice_id=c.sales_invoice_id
+            JOIN dbo.source_lineage s ON s.source_lineage_id=c.source_lineage_id JOIN dbo.import_files f ON f.import_file_id=s.import_file_id
+            WHERE i.transaction_date BETWEEN @from AND @to
+              AND (@stores IS NULL OR i.store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores)))
+            GROUP BY i.store_code,i.document_number;
+            """;
+        await using var connection = await OpenAsync(token);
+        await using var command = ScopeCommand(connection, sql, scope);
+        await using var reader = await command.ExecuteReaderAsync(token);
+        var result = new Dictionary<(string Store, string Document), SourcePointer>();
+        while (await reader.ReadAsync(token))
+            result[(reader.GetString(0).ToUpperInvariant(), reader.GetString(1).ToUpperInvariant())] =
+                new(reader.GetString(2), reader.GetString(3), reader.GetInt32(4));
+        return result;
     }
 
     private static async Task<Dictionary<string, DsrFacts>> LoadDsrFactsAsync(
@@ -403,4 +677,5 @@ public sealed class OperationalReportRepository(string connectionString)
     private sealed record DsrFacts(decimal? TySales = null, decimal? LySales = null, decimal? TyUnits = null, decimal? LyUnits = null, int? TyInvoices = null, int? LyInvoices = null);
     private sealed record WalkInFacts(decimal? Value = null, bool IsComplete = false);
     private sealed record ServiceFacts(decimal Cash = 0, decimal Card = 0, decimal Upi = 0, decimal LastYearTotal = 0, int CurrentCount = 0, int LastYearCount = 0);
+    private sealed record SourcePointer(string FileName, string SheetName, int SourceRow);
 }

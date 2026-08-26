@@ -15,6 +15,8 @@ public sealed record ImportFileRegistration(
 
 public sealed record SourceRowRegistration(string SheetName, int SourceRowNumber, string? SourceRecordType = null);
 
+public sealed record ImportRestatementRequest(long PreviousImportFileId, string RequestedBy, string Reason);
+
 public sealed record SalesLinePersistence(
     string StoreCode, string DocumentNumber, int InvoiceYear, DateOnly TransactionDate,
     string LineIdentifier, string ProductCode, string? SourceTransactionType,
@@ -53,6 +55,7 @@ public sealed record ImportPersistencePackage(
     IReadOnlyList<StockSnapshotPersistence> StockSnapshots)
 {
     public IReadOnlyList<SalesInvoiceControlPersistence> InvoiceControls { get; init; } = [];
+    public ImportRestatementRequest? Restatement { get; init; }
 }
 
 public interface IImportBatchRepository
@@ -91,6 +94,9 @@ public static class PersistenceValidation
             throw new ArgumentException("PAYMENTTYPE25 must be quarantined from reporting.", nameof(package));
         if (package.Tenders.Any(x => !x.IsReportingEligible && string.IsNullOrWhiteSpace(x.ExclusionReason)))
             throw new ArgumentException("A quarantined tender requires an exclusion reason.", nameof(package));
+        if (package.Restatement is { } restatement &&
+            (restatement.PreviousImportFileId <= 0 || string.IsNullOrWhiteSpace(restatement.RequestedBy) || string.IsNullOrWhiteSpace(restatement.Reason)))
+            throw new ArgumentException("A restatement requires the previous file, requesting user and reason.", nameof(package));
         foreach (var lineage in package.SalesLines.Select(x => x.Lineage)
                      .Concat(package.InvoiceControls.Select(x => x.Lineage))
                      .Concat(package.Tenders.Select(x => x.Lineage))

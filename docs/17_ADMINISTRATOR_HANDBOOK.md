@@ -29,6 +29,8 @@ Uninstall from Windows **Installed apps**. Uninstalling the program does not del
 - Finalisation is database-enforced. New source files and manual-input changes are rejected for a locked store/date. Reopen requires Windows administrator membership and a recorded reason.
 - Treat R003/R013 as enrichment evidence only. Their order in a ZIP is irrelevant: R025 persistence rematches previously staged enrichment rows atomically without changing revenue totals.
 - Service cash/card/UPI are controlled manual operational facts until a deterministic populated ETP Service profile is approved. They must never be merged into R025 retail sales.
+- Use **Controlled restatement** only for a genuinely corrected export of the same report/store/business date. Reopen a locked date first, select the corrected workbook, and record a meaningful reason. The engine archives the replaced facts and applies the replacement atomically; it never silently overwrites them.
+- Generate a complete reporting pack before finalisation. The generation number, SHA-256 control snapshot and predecessor link are immutable; the finalisation transaction marks the latest generation final.
 
 ## Approved access policy
 
@@ -65,3 +67,7 @@ Run `scripts/invoke-security-scan.ps1` before each release. Address dependency f
 4. Build the installer with `scripts/build-installer.ps1`.
 5. Run Windows UI and isolated install/upgrade/uninstall tests.
 6. Record SHA-256 checksums and acceptance evidence; refresh Graphify; commit only reviewed source and documentation.
+
+## Remaining Owner decisions
+
+The application deliberately does not invent the meaning of TC or unapproved tender types; exchange/cancel/credit-note/zero-value transaction treatment; DSR versus staff transaction denominators; physical-stock composition; stock movement signs; or customer-identifying output. Approve these in writing before changing the controlled registry or profiles. A populated ETP Service report also needs an approved sample/profile before replacing controlled manual service entry.

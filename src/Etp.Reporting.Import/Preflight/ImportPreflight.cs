@@ -25,6 +25,7 @@ public sealed class ImportPreflight
         ArgumentNullException.ThrowIfNull(workbook);
         ArgumentNullException.ThrowIfNull(profiles);
         var diagnostics = new List<ImportDiagnostic>();
+        var materializedProfiles = profiles.ToArray();
 
         if (workbook.FileSizeBytes <= 0)
             diagnostics.Add(Blocker("FILE_EMPTY", "The source file is empty."));
@@ -59,8 +60,9 @@ public sealed class ImportPreflight
                 continue;
             }
 
-            var match = matcher.Match(normalizedSheet.Headers, profiles);
+            var match = matcher.Match(normalizedSheet.Headers, materializedProfiles);
             if (match is not null) candidates.Add((normalizedSheet, match));
+            else AddSchemaDifferenceDiagnostics(normalizedSheet, materializedProfiles, diagnostics);
         }
 
         if (candidates.Count == 0)
@@ -76,4 +78,43 @@ public sealed class ImportPreflight
 
     private static ImportDiagnostic Blocker(string code, string message, string? sheet = null) =>
         new(code, ImportDiagnosticSeverity.Blocker, message, sheet);
+
+    private static void AddSchemaDifferenceDiagnostics(
+        WorkbookSheet sheet,
+        IReadOnlyList<ImportProfile> profiles,
+        ICollection<ImportDiagnostic> diagnostics)
+    {
+        if (profiles.Count == 0) return;
+
+        var actual = sheet.Headers.Select(ImportProfile.NormalizeHeader).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var closest = profiles
+            .Select(profile => new
+            {
+                Profile = profile,
+                Expected = profile.ExpectedSourceHeaders
+                    .Select(ImportProfile.NormalizeHeader)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase)
+            })
+            .OrderByDescending(candidate => candidate.Expected.Intersect(actual, StringComparer.OrdinalIgnoreCase).Count())
+            .ThenBy(candidate => candidate.Expected.Except(actual, StringComparer.OrdinalIgnoreCase).Count()
+                + actual.Except(candidate.Expected, StringComparer.OrdinalIgnoreCase).Count())
+            .ThenBy(candidate => candidate.Profile.ReportCode, StringComparer.OrdinalIgnoreCase)
+            .First();
+
+        foreach (var missing in closest.Expected.Except(actual, StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase))
+            diagnostics.Add(new ImportDiagnostic(
+                "REQUIRED_COLUMN_MISSING",
+                ImportDiagnosticSeverity.Blocker,
+                $"Column '{missing}' is required by the closest profile {closest.Profile.ReportCode} ({closest.Profile.LayoutVersion}).",
+                sheet.Name,
+                ColumnName: missing));
+
+        foreach (var unexpected in actual.Except(closest.Expected, StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase))
+            diagnostics.Add(new ImportDiagnostic(
+                "UNEXPECTED_COLUMN",
+                ImportDiagnosticSeverity.Warning,
+                $"Column '{unexpected}' is not present in the closest profile {closest.Profile.ReportCode} ({closest.Profile.LayoutVersion}).",
+                sheet.Name,
+                ColumnName: unexpected));
+    }
 }

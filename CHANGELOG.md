@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## 1.4.1 - 2026-08-26
+
+### Added
+
+- Added explicit atomic source restatement with prior-fact archival, replacement lineage, reason/user metadata and rollback safety.
+- Added detailed inventory-group physical counts, independent composition/system variances, and dated staff/CRO targets with LY growth, achievement, ranking and contribution.
+- Added workbook/sheet/row invoice drill-down and a traceable daily exception report covering source, tender, staff, cash and physical-stock findings.
+- Added complete selected-store and combined Titan + Helios report packs as multi-sheet Excel and paginated PDF.
+- Added immutable numbered report generations with SHA-256 control snapshots, plus finalisation linkage and stronger locked-day guards.
+- Added missing/unexpected-column diagnostics and expanded privacy-safe audit coverage for sessions, configuration, mappings, restatements, backup and restore drills.
+
 ## 1.4.0 - 2026-08-26
 
 - Added an operational business-date workflow with source completeness, controlled manual inputs, daily finalisation and administrator reopen auditing.

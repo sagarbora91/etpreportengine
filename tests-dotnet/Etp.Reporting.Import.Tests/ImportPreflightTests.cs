@@ -29,6 +29,8 @@ public sealed class ImportPreflightTests
 
         Assert.False(result.CanImport);
         Assert.Contains(result.Diagnostics, x => x.Code == "LAYOUT_UNKNOWN");
+        Assert.Contains(result.Diagnostics, x => x.Code == "REQUIRED_COLUMN_MISSING" && x.ColumnName == "EXPECTED");
+        Assert.Contains(result.Diagnostics, x => x.Code == "UNEXPECTED_COLUMN" && x.ColumnName == "UNEXPECTED");
     }
 
     [Fact]

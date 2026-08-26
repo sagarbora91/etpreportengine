@@ -48,5 +48,5 @@ public static class StockImportProfiles
     public static IReadOnlyList<ImportProfile> All { get; } = [VariantStockLedger, ClosingStock];
 
     private static ImportProfile Create(string code, IReadOnlyList<string> headers, params ImportFieldMapping[] fields) =>
-        new(code, "ETP_2026_08", "1", ImportProfileMatcher.CreateHeaderSignature(headers), fields);
+        new(code, "ETP_2026_08", "1", ImportProfileMatcher.CreateHeaderSignature(headers), fields, headers);
 }
