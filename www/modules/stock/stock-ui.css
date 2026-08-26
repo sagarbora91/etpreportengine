@@ -1,0 +1,474 @@
+:root{
+  --navy:#0d2340; --navy-mid:#1a3a5c; --navy-light:#264d7a;
+  --gold:#b8922a; --gold-light:#d4a843; --gold-pale:#fdf6e3;
+  --cream:#faf8f3; --paper:#ffffff;
+  --red:#b91c1c; --red-pale:#fef2f2; --amber:#b45309; --amber-pale:#fffbeb;
+  --green:#166534; --green-pale:#f0fdf4; --blue:#1d4ed8; --blue-pale:#eff6ff;
+  --gray-50:#fafafa; --gray-100:#f4f4f5; --gray-200:#e4e4e7; --gray-300:#d4d4d8;
+  --gray-400:#a1a1aa; --gray-500:#71717a; --gray-600:#52525b; --gray-700:#3f3f46; --gray-800:#27272a;
+  --radius:10px; --radius-lg:16px;
+  --font-sans:'DM Sans',system-ui,'Segoe UI',Roboto,Arial,sans-serif;
+  --font-serif:'DM Serif Display',Georgia,'Times New Roman',serif;
+  /* additive module aliases (kept so existing rules keep resolving) */
+  --white:#fff; --green-mid:#bbf7d0;
+  --shadow:0 2px 12px rgba(13,35,64,.08);
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font-sans); background: var(--cream); color: var(--gray-800); min-height: 100vh; }
+#brand-inp,[onclick="addBrand()"] { display: none !important; }
+
+/* ── HEADER ── */
+.hdr { background: var(--navy); padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 200; box-shadow: 0 2px 8px rgba(0,0,0,.25); }
+.hdr-left { display: flex; align-items: center; gap: 12px; }
+.brand { font-family: var(--font-serif); color: var(--paper); font-size: 21px; }
+.store-badge { background: var(--gold); color: var(--navy); font-size: 11px; font-weight: 600; padding: 3px 11px; border-radius: 20px; letter-spacing: .7px; text-transform: uppercase; }
+.hdr-right { display: flex; align-items: center; gap: 12px; }
+.date-lbl { color: var(--gold-light); font-size: 13px; font-weight: 500; }
+.mode-tog { display: flex; background: rgba(255,255,255,.12); border-radius: 6px; overflow: hidden; }
+.mbtn { padding: 5px 13px; font-size: 12px; font-weight: 600; color: rgba(255,255,255,.55); cursor: pointer; border: none; background: transparent; font-family: var(--font-sans); transition: all .2s; }
+.mbtn.active { background: var(--gold); color: var(--navy); }
+
+/* ── NAV ── */
+.store-nav, .tab-nav { background: var(--navy-mid); display: flex; padding: 0 16px; overflow-x: auto; }
+.store-nav { border-bottom: 1px solid rgba(255,255,255,.06); }
+.snav-btn, .tab-btn { padding: 10px 18px; font-size: 13px; font-weight: 500; color: rgba(255,255,255,.65); cursor: pointer; border: none; background: transparent; font-family: var(--font-sans); border-bottom: 3px solid transparent; white-space: nowrap; transition: all .18s; min-height: 44px; }
+.snav-btn.active, .tab-btn.active { color: var(--gold-light); border-bottom-color: var(--gold-light); }
+.snav-btn:hover:not(.active), .tab-btn:hover:not(.active) { color: rgba(255,255,255,.75); }
+/* Locked / disabled tab */
+.tab-btn.tab-locked { color: rgba(255,255,255,.65) !important; cursor: not-allowed !important; }
+.tab-btn.tab-locked::after { content: ' 🔒'; font-size: 11px; }
+
+/* ── MAIN ── */
+.main { max-width: 1320px; margin: 0 auto; padding: 20px; }
+.sec { display: none; }
+.sec.active { display: block; }
+
+/* ── COMMON ── */
+.sec-hdr { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 14px; gap: 12px; flex-wrap: wrap; }
+.sec-title { font-family: var(--font-serif); font-size: 20px; color: var(--navy); }
+.sec-sub { font-size: 12px; color: var(--gray-400); margin-top: 3px; }
+.btn-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+/* One token button: shared shape/motion/focus; the -navy/-gold/-outline/-red
+   variants are thin colour skins over this single base. Class names are
+   preserved (JS toggles them at runtime). */
+.btn { padding: 9px 16px; min-height: 44px; border-radius: var(--radius); font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid transparent; background: var(--navy); color: var(--paper); font-family: var(--font-sans); transition: background .18s, box-shadow .18s, transform .06s; display: inline-flex; align-items: center; justify-content: center; gap: 6px; line-height: 1.1; }
+.btn:hover { background: var(--navy-light); }
+.btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--gold-pale), 0 0 0 4px var(--gold); }
+.btn:active { transform: translateY(1px); }
+.btn-navy { background: var(--navy); color: var(--paper); border-color: transparent; } .btn-navy:hover { background: var(--navy-light); }
+.btn-gold { background: var(--gold); color: var(--paper); border-color: transparent; } .btn-gold:hover { background: var(--gold-light); }
+.btn-outline { background: var(--paper); color: var(--navy); border: 1px solid var(--gray-300); } .btn-outline:hover { background: var(--gray-100); }
+.btn-red { background: var(--red); color: var(--paper); border-color: transparent; } .btn-red:hover { background: var(--red); filter: brightness(.92); }
+.btn-sm { padding: 6px 12px; min-height: 44px; font-size: 12px; }
+.lk-badge { display: inline-flex; align-items: center; gap: 4px; background: var(--green-pale); color: var(--green); border: 1px solid var(--green-mid); padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+.info-bar { background: var(--gold-pale); border: 1px solid var(--gold-light); border-radius: 8px; padding: 9px 13px; font-size: 12px; color: var(--amber); margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+.sub-heading { font-family: var(--font-serif); font-size: 16px; color: var(--navy); margin-bottom: 10px; padding-bottom: 6px; border-bottom: 2px solid var(--gold-pale); }
+
+/* ── COUNT COMPLETION METER ──
+   Slim horizontal progress bar + "count · %" label shown above each register.
+   Mirrors the Service form's completion meter: thin track, navy→gold fill,
+   small % label. Additive/defensive — never blocks rendering if absent. */
+.cmeter { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.cmeter-track { position: relative; flex: 1 1 auto; height: 7px; border-radius: 999px; background: var(--gray-200); overflow: hidden; }
+.cmeter-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0%; border-radius: 999px; background: linear-gradient(90deg, var(--navy), var(--gold)); transition: width .25s ease; }
+.cmeter-lbl { flex: 0 0 auto; font-size: 11px; font-weight: 600; color: var(--navy); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.cmeter-lbl .cmeter-pct { color: var(--gold-text); }
+.cmeter.is-complete .cmeter-fill { background: var(--green); }
+.cmeter.is-complete .cmeter-lbl, .cmeter.is-complete .cmeter-lbl .cmeter-pct { color: var(--green); }
+
+/* ── TABLES ── */
+.tbl-wrap { background: var(--paper); border: 1px solid var(--gray-200); border-radius: var(--radius); box-shadow: var(--shadow); overflow-x: auto; margin-bottom: 20px; }
+[data-stock-table-region="opening-counts"],
+[data-stock-table-region="closing-counts"],
+[data-stock-table-region="daily-summary"],
+[data-stock-table-region="monthly-summary"],
+[data-stock-table-region="theft-log"] { overflow-x: hidden; }
+[data-stock-table-region="movement-reconciliation"] { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.rtbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+.rtbl thead tr.hdr-row { background: var(--navy); }
+.rtbl thead tr.grp-row { background: var(--navy-mid); }
+.rtbl thead th { color: var(--paper); padding: 8px 6px; text-align: center; font-weight: 500; font-size: 11px; letter-spacing: .4px; white-space: nowrap; }
+.rtbl thead th.tl { text-align: left; padding-left: 14px; }
+.rtbl tbody tr { border-bottom: 1px solid var(--gray-200); }
+.rtbl tbody tr:last-child { border-bottom: none; }
+/* Alternating zebra stripe applied to td (not tr) so inputs remain fully interactive */
+.rtbl tbody tr:nth-child(odd)  > td { background: var(--paper); transition: background .12s; }
+.rtbl tbody tr:nth-child(even) > td { background: var(--gray-100); transition: background .12s; }
+/* Hover — recolour cells, skip status rows */
+.rtbl tbody tr:hover:not(.row-ok):not(.row-mismatch):not(.row-partial) > td { background: var(--blue-pale); }
+/* Status overrides — applied to td so specificity stays consistent */
+.rtbl tbody tr.row-ok       > td { background: var(--green-pale); }
+.rtbl tbody tr.row-mismatch > td { background: var(--red-pale); }
+.rtbl tbody tr.row-partial  > td { background: var(--amber-pale); }
+/* Inputs always white so they're clearly editable on any row colour */
+.rtbl tbody td .ni,
+.rtbl tbody td .si,
+.rtbl tbody td .cro-sel { background: var(--paper) !important; }
+.rtbl td { padding: 5px 5px; text-align: center; vertical-align: middle; }
+/* numeric columns line up + share a stable figure width */
+.rtbl tbody td, .rtbl tfoot td, .rtbl thead th { font-variant-numeric: tabular-nums; }
+.rtbl td.brand-td { font-weight: 600; color: var(--navy); text-align: left; padding-left: 14px; font-size: 11px; white-space: nowrap; }
+.rtbl tfoot tr { background: var(--navy); }
+.rtbl tfoot td { color: var(--paper); padding: 7px 6px; font-size: 11px; font-weight: 600; text-align: center; }
+.rtbl tfoot td.tl { text-align: left; padding-left: 14px; color: var(--paper); }
+
+/* ── STICKY IDENTITY COLUMN ──
+   The wide opening/closing registers (13 cols) keep the Brand column pinned so
+   the row identity stays visible while the rest scrolls under it. Pure CSS:
+   position:sticky;left:0 inside the existing .tbl-wrap (overflow-x:auto).
+   Each pinned cell paints its own row background so scrolled content is
+   occluded; a hairline separates the frozen column from the scroll area. */
+.rtbl thead th.tl,
+.rtbl tfoot td.tl { position: sticky; left: 0; z-index: 3; background: var(--navy); box-shadow: 1px 0 0 rgba(255,255,255,.12); }
+.rtbl tbody td.brand-td { position: sticky; left: 0; z-index: 2; box-shadow: 1px 0 0 var(--gray-200); }
+/* Pinned brand cell must repaint the row colour so cells can't show through it */
+.rtbl tbody tr:nth-child(odd)  > td.brand-td { background: var(--paper); }
+.rtbl tbody tr:nth-child(even) > td.brand-td { background: var(--gray-100); }
+.rtbl tbody tr:hover:not(.row-ok):not(.row-mismatch):not(.row-partial) > td.brand-td { background: var(--blue-pale); }
+.rtbl tbody tr.row-ok       > td.brand-td { background: var(--green-pale); }
+.rtbl tbody tr.row-mismatch > td.brand-td { background: var(--red-pale); }
+.rtbl tbody tr.row-partial  > td.brand-td { background: var(--amber-pale); }
+
+/* Empty state — a store whose brand list was fully cleared */
+.rtbl tbody tr.empty-row > td,
+.rtbl tbody tr.empty-row:hover > td { background: var(--paper); }
+.tbl-empty { padding: 30px 16px; text-align: center; color: var(--gray-500); }
+.tbl-empty .ico { font-size: 26px; display: block; margin-bottom: 8px; opacity: .7; }
+.tbl-empty .ttl { font-family: var(--font-serif); font-size: 16px; color: var(--navy); margin-bottom: 4px; }
+.tbl-empty .msg { font-size: 12px; line-height: 1.5; }
+
+/* ── P1-5 DAY AUDIT TRAIL STRIP (Summary tab) ── */
+.aud-strip { background:#fff; border:1px solid var(--gray-200,#e5e7eb); border-radius:10px; padding:10px 14px; margin:0 0 14px; font-size:12px; }
+.aud-strip .aud-hd  { font-weight:700; color:var(--navy); text-transform:uppercase; font-size:11px; letter-spacing:.4px; margin-bottom:6px; }
+.aud-strip .aud-row { padding:2px 0; color:var(--gray-600); }
+.aud-strip .aud-row.aud-warn { color:var(--red); font-weight:600; }
+.aud-strip .aud-log { padding:2px 0 2px 16px; color:var(--gray-600); }
+.d5-panel { background:var(--paper); border:1px solid var(--gray-200); border-radius:var(--radius); padding:12px 14px; margin:0 0 14px; font-size:12px; }
+.d5-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px; margin-top:8px; }
+.d5-metric { border:1px solid var(--gray-200); border-radius:8px; padding:9px; }
+.d5-rank { display:flex; align-items:center; gap:10px; padding:8px 4px; border-bottom:1px solid var(--gray-100); }
+.d5-rank:last-child { border-bottom:0; } .d5-rank button { margin-left:auto; }
+.clk-triage { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:6px; }
+.clk-triage .wide { grid-column:1/-1; }
+
+/* inputs */
+.ni { width: 58px; min-height: 44px; padding: 6px 4px; border: 1px solid var(--gray-300); border-radius: 8px; font-size: 11px; font-variant-numeric: tabular-nums; font-family: var(--font-sans); text-align: center; background: var(--paper); transition: border-color .15s, box-shadow .15s; color: var(--gray-800); }
+.ni:focus { outline: none; border-color: var(--navy); background: var(--gold-pale); }
+.ni:focus-visible { box-shadow: 0 0 0 3px rgba(13,35,64,.12); }
+.ni:disabled { background: var(--gray-100); color: var(--gray-400); border-color: transparent; cursor: not-allowed; }
+.si { width: 96px; min-height: 44px; padding: 6px 8px; border: 1px solid var(--gray-300); border-radius: 8px; font-size: 11px; font-family: var(--font-sans); background: var(--paper); color: var(--gray-800); transition: border-color .15s, box-shadow .15s; }
+.si:focus { outline: none; border-color: var(--navy); }
+.si:focus-visible { box-shadow: 0 0 0 3px rgba(13,35,64,.12); }
+.si:disabled { background: var(--gray-100); color: var(--gray-400); border-color: transparent; }
+.cro-sel { width: 92px; min-height: 44px; padding: 6px 4px; border: 1px solid var(--gray-300); border-radius: 8px; font-size: 11px; font-family: var(--font-sans); background: var(--paper); color: var(--gray-800); transition: border-color .15s, box-shadow .15s; }
+.cro-sel:focus { outline: none; border-color: var(--navy); }
+.cro-sel:focus-visible { box-shadow: 0 0 0 3px rgba(13,35,64,.12); }
+.cro-sel:disabled { background: var(--gray-100); color: var(--gray-400); border-color: transparent; }
+.cro-sel.cro-req  { border-color: var(--red) !important; box-shadow: 0 0 0 2px rgba(185,28,28,.15); }
+
+/* count-done checkbox — enlarged box, and the surrounding cell becomes a
+   ≥44px tap target via padding so the whole cell is comfortably clickable. */
+.done-cb { width: 22px; height: 22px; cursor: pointer; accent-color: var(--green); }
+.done-cb:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
+.done-cb:disabled { cursor: not-allowed; opacity: .5; }
+/* Pad the Done cell so the effective hit area clears the 44px floor */
+.rtbl td:has(> .done-cb) { padding: 11px 5px; min-width: 44px; }
+
+/* computed values */
+.cv { font-weight: 600; font-size: 12px; font-variant-numeric: tabular-nums; }
+.cv-ok   { color: var(--green); }
+.cv-warn { color: var(--amber); }
+.cv-bad  { color: var(--red); }
+.cv-zero { color: var(--gray-400); }
+.cv-neutral { color: var(--navy); }
+.ts { font-size: 11px; color: var(--gray-400); white-space: nowrap; }
+.pend-lbl { font-size: 11px; color: var(--gray-400); font-style: italic; }
+
+/* verify button — token-aligned pill, ≥44px tap target */
+.vbtn { padding: 6px 12px; min-height: 44px; font-size: 11px; border-radius: 20px; cursor: pointer; border: 1px solid var(--gray-300); background: var(--paper); color: var(--gray-600); font-family: var(--font-sans); white-space: nowrap; transition: background .15s, box-shadow .15s, transform .06s; }
+.vbtn:hover { background: var(--gray-100); }
+.vbtn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--gold-pale), 0 0 0 4px var(--gold); }
+.vbtn:active { transform: translateY(1px); }
+.vbtn.done { background: var(--green-pale); color: var(--green); border-color: var(--green-mid); }
+
+/* ── SUMMARY CARDS ── */
+.scards { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 20px; }
+.scard { background: var(--paper); border: 1px solid var(--gray-200); border-radius: var(--radius); box-shadow: var(--shadow); padding: 13px; text-align: center; }
+.scard-lbl { font-size: 11px; color: var(--gray-600); font-weight: 500; text-transform: uppercase; letter-spacing: .4px; margin-bottom: 4px; }
+.scard-val { font-family: var(--font-serif); font-size: 26px; color: var(--navy); line-height: 1.1; font-variant-numeric: tabular-nums; }
+.scard-sub { font-size: 11px; color: var(--gray-400); margin-top: 3px; }
+
+/* ── SETTINGS ── */
+.set-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.set-card { background: var(--paper); border: 1px solid var(--gray-200); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px; }
+.set-card h3 { font-family: var(--font-serif); font-size: 16px; color: var(--navy); margin-bottom: 14px; }
+.frow { margin-bottom: 12px; }
+.flbl { display: block; font-size: 11px; font-weight: 500; color: var(--gray-600); margin-bottom: 5px; text-transform: uppercase; letter-spacing: .3px; }
+.finp { width: 100%; padding: 10px 12px; min-height: 44px; border: 1px solid var(--gray-300); border-radius: 8px; font-size: 13px; font-family: var(--font-sans); color: var(--gray-800); transition: border-color .15s, box-shadow .15s; }
+.finp:focus { outline: none; border-color: var(--navy); }
+.finp:focus-visible { box-shadow: 0 0 0 3px rgba(13,35,64,.12); }
+.cro-list { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; min-height: 30px; }
+.cro-chip { display: inline-flex; align-items: center; gap: 5px; background: var(--navy); color: var(--paper); padding: 6px 12px; border-radius: 20px; font-size: 12px; }
+.cro-chip .rm { cursor: pointer; color: rgba(255,255,255,.55); font-size: 18px; line-height: 1; padding: 0 2px; }
+.cro-chip .rm:hover { color: var(--paper); }
+.add-row { display: flex; gap: 8px; }
+.add-row .finp { flex: 1; }
+.brand-chip { display: flex; align-items: center; gap: 8px; background: var(--gray-100); border: 1px solid var(--gray-200); border-radius: 6px; padding: 6px 10px; cursor: default; }
+.brand-chip[draggable="true"] { cursor: grab; }
+.brand-chip[draggable="true"]:active { cursor: grabbing; }
+.drag-handle { color: var(--gray-400); font-size: 14px; user-select: none; }
+.brand-chip .rm { cursor: pointer; color: var(--gray-400); font-size: 18px; line-height: 1; margin-left: auto; padding: 0 4px; }
+.brand-chip .rm:hover { color: var(--red); }
+.danger-zone { border-color: var(--red) !important; }
+.danger-zone h3 { color: var(--red) !important; }
+
+/* Chrome 44 / API-23 generated assets add this root class. These explicit
+   fallbacks ensure CSS Grid is an enhancement, never the only layout path. */
+html.saagar-legacy-webview .scards,
+html.saagar-legacy-webview .set-grid,
+html.saagar-legacy-webview .d5-grid,
+html.saagar-legacy-webview .clk-triage { display:-webkit-flex;display:flex;-webkit-flex-wrap:wrap;flex-wrap:wrap; }
+html.saagar-legacy-webview .scards > *,
+html.saagar-legacy-webview .d5-grid > *,
+html.saagar-legacy-webview .clk-triage > * { -webkit-flex: 1 1 150px; flex: 1 1 150px; }
+html.saagar-legacy-webview .set-grid > * { -webkit-flex: 1 1 280px; flex: 1 1 280px; }
+html.saagar-legacy-webview .clk-triage .wide { -webkit-flex-basis: 100%; flex-basis: 100%; }
+
+/* ── TOAST ── */
+.toast-wrap { position: fixed; bottom: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
+.toast { background: var(--navy); color: var(--paper); padding: 10px 15px; border-radius: 8px; font-size: 12px; box-shadow: 0 4px 20px rgba(0,0,0,.2); display: flex; align-items: center; gap: 8px; animation: tin .25s ease, tout .3s ease 2.7s forwards; border-left: 3px solid var(--gold); }
+.toast.ok  { border-left-color: var(--green-mid); }
+.toast.err { border-left-color: var(--red); background: var(--red-pale); color: var(--red); }
+.toast.warn { border-left-color: var(--amber); background: var(--amber-pale); color: var(--amber); }
+@keyframes tin  { from { transform: translateX(18px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes tout { to { opacity: 0; transform: translateY(6px); } }
+
+/* ── PRINT HEADER (hidden on screen) ── */
+.print-hdr { display: none; }
+
+/* ══════════════════════════════════════
+   PRINT — A4 Landscape, Fit to 1 Page
+══════════════════════════════════════ */
+@media print {
+  @page { size: A4 landscape; margin: 8mm; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  .hdr, .store-nav, .tab-nav, .btn-row, .no-print,
+  .toast-wrap, .info-bar, .mode-tog, .lk-badge { display: none !important; }
+
+  html, body { background: white; margin: 0; padding: 0; width: 100%; }
+  .main { padding: 0; max-width: 100%; margin: 0; }
+  .sec.active { display: block !important; }
+
+  /* Force single-page fit via scaling */
+  .sec.active {
+    -webkit-transform: scale(0.82);
+    transform: scale(0.82);
+    transform-origin: top left;
+    width: calc(100% / 0.82);
+  }
+
+  .print-hdr { display: block !important; text-align: center; padding: 2mm 0 4mm; }
+  .print-hdr h2 { font-family: var(--font-serif); font-size: 12pt; color: #0d2340; }
+  .print-hdr p  { font-size: 8pt; color: #666; margin-top: 2px; }
+
+  .tbl-wrap { box-shadow: none; border: 1px solid #aaa; overflow: visible; margin-bottom: 6mm; page-break-inside: avoid; }
+  .rtbl { font-size: 7pt; width: 100%; border-collapse: collapse; }
+  .rtbl thead tr.hdr-row { background: #0d2340 !important; }
+  .rtbl thead tr.grp-row { background: #1a3a5c !important; }
+  .rtbl tfoot tr         { background: #0d2340 !important; }
+  /* Alternating rows in print — td-level so inputs are unaffected */
+  .rtbl tbody tr:nth-child(odd)  > td { background: #ffffff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .rtbl tbody tr:nth-child(even) > td { background: #f0f0f0 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .rtbl tbody tr.row-ok       > td { background: #d1fae5 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .rtbl tbody tr.row-mismatch > td { background: #fee2e2 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .rtbl tbody tr.row-partial  > td { background: #fef3c7 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .rtbl thead th { padding: 4px 4px; font-size: 6.5pt; }
+  .rtbl tbody td { padding: 3px 4px; }
+  .rtbl tfoot td { padding: 4px 4px; font-size: 7pt; }
+
+  .ni, .si { border: none !important; background: transparent !important; padding: 0 !important; font-size: 7pt !important; width: auto !important; max-width: none !important; -moz-appearance: textfield !important; appearance: textfield !important; }
+  /* Remove number-input spin buttons (the ↑↓ arrows) in all browsers */
+  .ni::-webkit-outer-spin-button,
+  .ni::-webkit-inner-spin-button { -webkit-appearance: none !important; margin: 0 !important; display: none !important; }
+
+  /* Hide dropdown arrow completely in print — select is swapped to span via JS beforeprint */
+  .cro-sel { display: none !important; }
+  .cro-print-span {
+    display: inline !important;
+    font-family: var(--font-sans);
+    font-size: 7pt;
+    color: #1a1a1a;
+    background: transparent;
+    border: none;
+    padding: 0;
+  }
+  .done-cb  { display: inline-block; }
+  .vbtn     { display: none; }
+  .brand-td { font-size: 7.5pt; }
+  .ts       { font-size: 7pt; }
+  .sub-heading { font-size: 9pt; margin: 4mm 0 2mm; }
+  .scards { display: none; }
+  .divider { display: none; }
+  /* The sticky identity column is a screen-only affordance. In print the table
+     is unscrolled and inside a scaled container, so un-pin it to keep the
+     Brand column in normal flow (no shifted/duplicated paint). */
+  .rtbl thead th.tl, .rtbl tfoot td.tl, .rtbl tbody td.brand-td {
+    position: static !important; box-shadow: none !important; z-index: auto !important;
+  }
+}
+
+/* ── MODALS ── */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 2000; display: flex; align-items: center; justify-content: center; animation: fadein .18s ease; }
+@keyframes fadein { from { opacity:0 } to { opacity:1 } }
+.modal-box { background: var(--paper); border-radius: var(--radius-lg); padding: 28px 28px 24px; min-width: 300px; max-width: 400px; box-shadow: 0 24px 64px rgba(0,0,0,.28); animation: slidein .2s cubic-bezier(.34,1.56,.64,1); }
+@keyframes slidein { from { transform: translateY(-20px); opacity:0 } to { transform: translateY(0); opacity:1 } }
+.modal-icon { font-size: 28px; margin-bottom: 8px; }
+.modal-box h3 { margin: 0 0 6px; font-family: var(--font-serif); font-size: 18px; color: var(--navy); }
+.modal-box p  { font-size: 12px; color: var(--gray-500); margin: 0 0 14px; line-height: 1.5; }
+.modal-box .finp { margin-bottom: 4px; }
+.modal-err { font-size: 11px; color: var(--red); min-height: 16px; margin: 4px 0 0; }
+.modal-btns { display: flex; gap: 8px; margin-top: 16px; }
+.modal-danger h3 { color: var(--red); }
+.modal-danger .finp:focus { border-color: var(--red); }
+#clk-gaps { max-height: 240px; overflow-y: auto; margin: 4px 0; }
+.clk-gap-row { margin-bottom: 10px; }
+.clk-gap-head { display: flex; align-items: center; justify-content: space-between; font-size: 12px; margin-bottom: 4px; }
+.clk-gap-name { font-weight: 600; color: var(--navy); }
+.clk-remark { width: 100%; }
+
+/* ── RESPONSIVE ── */
+@media (max-width: 768px) {
+  .hdr { padding: 10px 12px; }
+  .brand { font-size: 17px; }
+  .date-lbl { display: none; }
+  .main { padding: 12px; }
+  .scards { grid-template-columns: repeat(2, 1fr); }
+  .set-grid { grid-template-columns: 1fr; }
+  .tab-btn { padding: 9px 11px; font-size: 11px; }
+}
+
+/* ══════════════════════════════════════
+   MOBILE / COMPACT — widths ≤899px
+   Additive layer only. Desktop screens (≥900px) stay byte-unchanged.
+   Wide .rtbl tables keep their existing .tbl-wrap (overflow-x:auto)
+   wrapper and SCROLL horizontally instead of squashing.
+══════════════════════════════════════ */
+@media (max-width: 899px) {
+  /* Layout shell */
+  .main { padding: 10px; }
+  .hdr { padding: 9px 11px; gap: 8px; }
+  .hdr-left { gap: 8px; min-width: 0; }
+  .brand { font-size: 16px; }
+  .store-badge { font-size: 11px; padding: 3px 9px; }
+  .hdr-right { gap: 8px; }
+
+  /* Section header / titles stack cleanly, never overflow */
+  .sec-hdr { gap: 10px; }
+  .sec-title { font-size: 18px; }
+  .btn-row { width: 100%; }
+
+  /* Nav strips already scroll (overflow-x:auto). Keep tap targets tall. */
+  .store-nav, .tab-nav { -webkit-overflow-scrolling: touch; }
+  .snav-btn { padding: 11px 14px; }
+  .tab-btn  { padding: 11px 13px; font-size: 12px; min-height: 44px; }
+
+  /* Buttons: ≥44px tall, comfortable tap targets */
+  .btn { min-height: 44px; padding: 10px 14px; font-size: 13px; }
+  .btn-sm { min-height: 44px; padding: 10px 12px; font-size: 12px; }
+  .vbtn { min-height: 44px; padding: 8px 12px; font-size: 12px; }
+
+  /* ── WIDE TABLES: scroll, don't squash ──
+     The wrapper already has overflow-x:auto; reinforce momentum scrolling.
+     Bump in-table inputs/selects to 16px so iOS doesn't focus-zoom, and give
+     them a ≥44px touch height. Tables grow wider but the wrapper scrolls. */
+  /* Make the wrapper the real scroll boundary: keep overflow-x:auto, cap at
+     viewport, momentum-scroll. Drop the .rtbl width:100% squash so the table
+     keeps its natural (wider-than-wrapper) width and the wrapper scrolls. */
+  .tbl-wrap { overflow-x: auto; max-width: 100%; -webkit-overflow-scrolling: touch; }
+  .rtbl { width: auto; min-width: max-content; font-size: 13px; }
+  .rtbl thead th { font-size: 11px; padding: 9px 7px; }
+  .rtbl td { padding: 7px 6px; }
+  .rtbl tbody td .ni,
+  .rtbl tbody td .si,
+  .rtbl tbody td .cro-sel { font-size: 16px; min-height: 44px; }
+  .ni  { width: 60px; padding: 8px 6px; font-size: 16px; }
+  .si  { width: 120px; padding: 8px 7px; font-size: 16px; }
+  .cro-sel { width: 110px; padding: 8px 6px; font-size: 16px; }
+  .done-cb { width: 24px; height: 24px; }
+
+  /* KPI tiles: 2-up is fine on a phone */
+  .scards { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .scard { padding: 11px; min-width: 0; }
+  .scard-val { font-size: 22px; }
+
+  /* Settings cards: single column, full-width controls */
+  .set-grid { grid-template-columns: 1fr; gap: 12px; }
+  .set-card { padding: 14px; min-width: 0; }
+  .add-row { flex-wrap: wrap; }
+  .add-row .finp { flex: 1 1 100%; }
+
+  /* Form inputs ≥16px to stop focus-zoom; taller for touch */
+  .finp { font-size: 16px; padding: 10px 11px; min-height: 44px; }
+
+  /* Info bar wraps instead of clipping */
+  .info-bar { align-items: flex-start; }
+
+  /* Modals fit a narrow screen */
+  .modal-overlay { padding: 14px; }
+  .modal-box { min-width: 0; width: 100%; max-width: 420px; padding: 22px 18px 18px; }
+  .modal-btns { flex-wrap: wrap; }
+  .modal-btns .btn { flex: 1 1 auto; }
+
+  /* Toasts: span the width, sit clear of the bottom edge */
+  .toast-wrap { left: 12px; right: 12px; bottom: 12px; }
+  .toast { width: 100%; }
+
+  /* ── REGISTER CARDS: reflow .rtbl rows into stacked cards ──
+     Overrides the wide-scroll rule above. Keeps every real <td>, input,
+     select and checkbox in place — pure CSS, no DOM rebuild. Each <td>
+     becomes a labelled row; the Brand cell becomes the card header. */
+  .rtbl.saagar-table--cards { min-width: 0 !important; width: 100%; display: block; }
+  .rtbl.saagar-table--cards thead, .rtbl.saagar-table--cards tfoot { display: none; }
+  .rtbl.saagar-table--cards tbody { display: block; }
+  .rtbl.saagar-table--cards tbody tr { display: block; margin: 0 0 12px; border: 1px solid var(--gray-200, #e5e7eb); border-radius: 12px; background: #fff; box-shadow: 0 1px 3px rgba(13,35,64,.08); overflow: hidden; position: relative; }
+  .rtbl.saagar-table--cards td.name-cell { position: static !important; left: auto !important; display: block; background: var(--navy, #0d2340) !important; box-shadow: none !important; padding: 10px 44px 10px 12px !important; text-align: left !important; width: auto !important; max-width: none !important; }
+  .rtbl.saagar-table--cards td.name-cell, .rtbl.saagar-table--cards td.name-cell * { color: #fff !important; }
+  .rtbl.saagar-table--cards td.gm-del-cell { position: absolute; top: 8px; right: 8px; border: 0 !important; padding: 0 !important; background: transparent !important; display: block; width: auto; }
+  .rtbl.saagar-table--cards tbody td { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: auto !important; text-align: right !important; border: 0; border-bottom: 1px solid var(--gray-100, #f3f4f6); padding: 9px 12px !important; min-height: 40px; }
+  .rtbl.saagar-table--cards tbody tr td:last-child { border-bottom: 0; }
+  .rtbl.saagar-table--cards tbody td::before { content: attr(data-label); flex: 0 0 auto; text-align: left; font-size: 11px; font-weight: 700; color: var(--gray-500, #6b7280); text-transform: uppercase; }
+  .rtbl.saagar-table--cards tbody td:empty { display: none; }
+  .rtbl.saagar-table--cards tbody td input, .rtbl.saagar-table--cards tbody td select, .rtbl.saagar-table--cards tbody td textarea { flex: 1 1 auto; min-width: 0; width: auto !important; min-height: 40px; text-align: right; }
+
+  /* Summaries reduce to their reviewed priority columns instead of becoming a
+     second sideways-scrolling data-entry surface. */
+  .rtbl.saagar-table--priority { width: 100%; min-width: 0; }
+}
+
+/* ══════════════════════════════════════
+   READ-ONLY (VIEW-ONLY past) — additive layer.
+   Active only when body.st-readonly is set (viewing a day before today).
+   Hides create/edit/save/submit/lock/delete affordances; keeps Print/Export.
+   Today (no class) is byte-unchanged.
+══════════════════════════════════════ */
+/* Lock / Submit / Re-open are also force-hidden via JS; hide here too. */
+body.st-readonly #btn-lock-open,
+body.st-readonly #btn-lock-close,
+body.st-readonly #btn-submit-mov,
+body.st-readonly #btn-reopen-mov,
+/* Verify buttons (in-table) */
+body.st-readonly .vbtn,
+/* Settings: CRO add-row, brand add-row + reset, import field, danger zone */
+body.st-readonly #cro-list + .add-row,
+body.st-readonly #brand-add-row,
+body.st-readonly #brand-card .btn-outline,
+body.st-readonly #import-file,
+body.st-readonly .danger-zone .btn-red { display: none !important; }
+/* Make disabled controls read clearly as non-editable, not just greyed inputs. */
+body.st-readonly .ni:disabled,
+body.st-readonly .si:disabled,
+body.st-readonly .cro-sel:disabled,
+body.st-readonly .done-cb:disabled { cursor: not-allowed; }
+/* A thin amber rail under the header signals history/read-only at a glance. */
+body.st-readonly .tab-nav { box-shadow: inset 0 -3px 0 var(--gold); }

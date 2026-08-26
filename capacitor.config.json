@@ -1,0 +1,17 @@
+{
+  "appId": "com.saagartraders.bcc",
+  "appName": "Saagar Control Centre",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": false
+  },
+  "server": {
+    "androidScheme": "https",
+    "hostname": "localhost"
+  },
+  "plugins": {
+    "CapacitorHttp": { "enabled": false }
+  }
+}

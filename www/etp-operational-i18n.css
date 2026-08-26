@@ -1,0 +1,7 @@
+[data-etp-i18n-surface]{box-sizing:border-box;min-width:0;max-width:100%;overflow-wrap:anywhere;word-break:normal}
+[data-etp-i18n-surface] *{box-sizing:border-box;min-width:0;max-width:100%}
+[data-etp-i18n-surface] button,[data-etp-i18n-surface] label,[data-etp-i18n-surface] p,[data-etp-i18n-surface] li,[data-etp-i18n-surface] h1,[data-etp-i18n-surface] h2,[data-etp-i18n-surface] h3{white-space:normal;overflow-wrap:anywhere}
+[data-etp-i18n-surface] button{min-height:44px}
+@media(max-width:480px){[data-etp-i18n-surface] form,[data-etp-i18n-surface] [class$="-actions"],[data-etp-i18n-surface] [class$="-summary"]{grid-template-columns:minmax(0,1fr)}}
+@media(min-width:900px){[data-etp-i18n-surface]{overflow-wrap:break-word}}
+.saagar-legacy-webview [data-etp-i18n-surface] form,.saagar-legacy-webview [data-etp-i18n-surface] [class$="-actions"],.saagar-legacy-webview [data-etp-i18n-surface] [class$="-summary"]{display:block}.saagar-legacy-webview [data-etp-i18n-surface] button{display:block;width:100%;margin-bottom:8px}

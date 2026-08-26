@@ -1,0 +1,19 @@
+
+#st-v5-home-fab{position:fixed;bottom:84px;right:22px;z-index:2147483647;width:46px;height:46px;border-radius:50%;
+  background:linear-gradient(135deg,#0d2340,#18385f);border:2px solid rgba(184,146,42,.7);color:#fff;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;box-shadow:0 6px 20px rgba(13,35,64,.35);
+  transition:transform .15s,box-shadow .15s,border-color .15s;padding:0;outline:none}
+#st-v5-home-fab:hover{transform:scale(1.12);box-shadow:0 8px 26px rgba(13,35,64,.45);border-color:#b8922a}
+#st-v5-home-fab:active{transform:scale(.96)}
+#st-v5-home-fab svg{width:20px;height:20px;stroke:#fff;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+@media print{#st-v5-home-fab{display:none!important}}
+@media(max-width:600px){#st-v5-home-fab{bottom:76px;right:14px;width:42px;height:42px}#st-v5-next-chips{bottom:124px;right:14px}}
+#st-v5-next-chips{position:fixed;bottom:140px;right:22px;z-index:2147483647;display:flex;flex-direction:column;gap:8px;align-items:flex-end}
+#st-v5-next-chips button{background:linear-gradient(135deg,#0d2340,#18385f);color:#fff;border:1px solid rgba(184,146,42,.7);border-radius:999px;padding:8px 14px;font:700 12px 'DM Sans',Arial,sans-serif;box-shadow:0 6px 18px rgba(13,35,64,.35);cursor:pointer}
+@media print{#st-v5-next-chips{display:none!important}}
+/* Auto-hide both FABs while a module modal/overlay is open (boot script toggles st-v5-modalopen),
+   so they never sit over a dialog's Cancel/inputs. On mobile the boot script also reserves bottom
+   safe-area so the FABs never cover the last row / per-row action buttons. */
+html.st-v5-modalopen #st-v5-home-fab,html.st-v5-modalopen #st-v5-next-chips{display:none!important}
+/* Mobile nav aids only — on Desktop the persistent left nav + back button cover this, and the FABs overlapped module content. */
+html:not(.bcc-mobile) #st-v5-home-fab,html:not(.bcc-mobile) #st-v5-next-chips{display:none!important}

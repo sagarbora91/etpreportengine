@@ -1,0 +1,47 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import foundation from '../www/etp-operational-foundation.js';
+import storeApi from '../www/etp-operational-store.js';
+import adapters from '../www/etp-operational-adapters.js';
+import runtimeApi from '../www/etp-operational-runtime.js';
+import planning from '../www/etp-target-planning.js';
+import e4Orchestrator from '../www/etp-e4-orchestrator.js';
+import gateway from '../www/etp-operational-gateway.js';
+import bootstrap from '../www/etp-operational-bootstrap.js';
+
+// These authorities are synthetic test-only candidates. They are not production approvals.
+const scopeKey='WLMHW|2026-27|2026-09-01..2026-09-04';
+const days=['2026-09-01','2026-09-02','2026-09-03','2026-09-04'];
+const binding={source:'ETP_VERIFIED',scopeKey,generationId:'etp_'+'b'.repeat(32),receiptId:'test-only-receipt-1'};
+const sourceTypes=['TITAN_TARGET','FESTIVE_CALENDAR','CRO_IDENTITY_MAP','E4_POLICY_AUTHORITY'];
+const approval=n=>({status:'APPROVED',approvedBy:'test-owner',approvedAt:`2026-08-${n}T10:00:00Z`,authorityRef:`TEST-ONLY-E4-${n}`});
+const authority=(domain,seed)=>({domain,status:'ACTIVE',sourceSha256:seed.repeat(64),approvalId:`${domain}-TEST-ONLY-001`,approvedAt:'2026-08-25T08:00:00Z',approvedByRole:'Owner',stores:['WLMHW']});
+
+function memoryStorage(seed){const map=new Map(seed?seed.map.entries():[]);return {map,getItem:k=>map.has(k)?map.get(k):null,setItem:(k,v)=>map.set(k,String(v)),removeItem:k=>map.delete(k)};}
+function candidateSources(){const out={};sourceTypes.forEach((type,index)=>{out[type]={sourceType:type,status:'APPROVED',sourceSha256:String(index+1).repeat(64),approvalId:`E4-TEST-SOURCE-00${index+1}`,approvedAt:'2026-08-25T08:00:00Z',approvedByRole:'Owner',storeCode:'WLMHW',scopeKey};});return out;}
+function plan(version,previousVersionId,allocations){return {storeCode:'WLMHW',periodStart:days[0],periodEnd:days[3],version,previousVersionId,storeTargetPaise:4000000,allocationLockDate:days[0],source:{documentRef:`TEST-ONLY-TITAN-TARGET-V${version}`,receivedDate:'2026-08-20',issuer:'Titan Company Limited — synthetic fixture'},approval:approval(`2${version}`),allocations:allocations||[{croId:'CRO-1',baseTargetPaise:2000000,stretchTargetPaise:2200000},{croId:'CRO-2',baseTargetPaise:2000000,stretchTargetPaise:2000000}],lyEvidence:{source:'ETP_VERIFIED',coverageComplete:true,periodStart:'2025-09-01',periodEnd:'2025-09-04'},lyDailyActuals:days.map((planDate,index)=>({planDate,lyDate:planDate.replace('2026-','2025-'),actualPaise:(index+1)*100000})),festiveOverrides:[{date:days[2],version,multiplierBps:20000,reason:'Synthetic approved festive trading day',approval:approval(`1${version}`)}]};}
+function options({storage=memoryStorage(),bindingValue=binding,includeE4=true,session={actorId:'test-owner',role:'Owner',storeCode:'WLMHW'},reauth='2026-08-25T09:59:00Z'}={}){return {foundation,store:storeApi,runtime:runtimeApi,adapters,e3Engine:{},e4Engine:planning,e3Orchestrator:{create(){throw new Error('E3 not used by E4 acceptance');}},e4Orchestrator,gateway,verifiedJoin:{readE3(){throw new Error('E3 not used');},getBinding:()=>bindingValue},storage,ownerSession:()=>session,reauth:()=>reauth,clock:()=> '2026-08-25T10:00:00Z',authorities:Object.assign({E3:authority('E3','a')},includeE4?{E4:authority('E4','e')}:{})};}
+function paceInput(versionId,approvedLeave=[]){return {versionId,asOfDate:days[1],approvedLeave,actuals:{source:'ETP_VERIFIED',coverageComplete:true,verifiedThrough:days[1],generationId:binding.generationId,receiptId:binding.receiptId,byCro:{'CRO-1':500000,'CRO-2':400000}}};}
+
+test('E4 remains blocked without independently injected authority or all four approved test-only sources',async()=>{const unavailable=bootstrap.create(options({includeE4:false})).operational;assert.equal((await unavailable.E4.load({scope:{scopeKey}})).status,'BLOCKED');const api=bootstrap.create(options()).operational;assert.equal((await api.E4.load({scope:{scopeKey}})).status,'BLOCKED');assert.equal((await api.E4.publish({scope:{scopeKey},input:{operationId:'publish-before-intake',planInput:plan(1)}})).code,'E4_APPROVED_SOURCES_REQUIRED');});
+
+test('full durable chain intakes, publishes v1, revises v2, reallocates v3 and computes verified Leave pace',async()=>{const storage=memoryStorage(),api=bootstrap.create(options({storage})).operational;
+  const intake=await api.E4.intake({scope:{scopeKey},input:{operationId:'sources-test-only-1',sources:candidateSources()}});assert.equal(intake.ok,true);assert.equal(intake.intake.binding.receiptId,binding.receiptId);
+  const v1=(await api.E4.publish({scope:{scopeKey},input:{operationId:'publish-v1',planInput:plan(1)}})).published.version;assert.equal(v1.version,1);
+  const v2=(await api.E4.revise({scope:{scopeKey},input:{operationId:'revise-v2',planInput:plan(2,v1.versionId)}})).published.version;assert.equal(v2.previousVersionId,v1.versionId);
+  const shifted=[{croId:'CRO-1',baseTargetPaise:1500000,stretchTargetPaise:1650000},{croId:'CRO-2',baseTargetPaise:2500000,stretchTargetPaise:2550000}];
+  const v3=(await api.E4.reallocate({scope:{scopeKey},input:{operationId:'leave-reallocation-v3',planInput:plan(3,v2.versionId,shifted)}})).published.version;assert.equal(v3.previousVersionId,v2.versionId);
+  const leave=[{leaveId:'TEST-LEAVE-1',croId:'CRO-1',date:days[2],fractionBps:10000,approval:approval('25')}],paced=await api.E4.pace({scope:{scopeKey},input:paceInput(v3.versionId,leave)});assert.equal(paced.ok,true);assert.equal(paced.pace.plan.verifiedActualSource,'ETP_VERIFIED');assert.ok(paced.pace.plan.coverageShortfall.amountPaise>0);assert.equal(paced.pace.plan.identities.declarationsUsedAsAchievement,false);
+  const loaded=await api.E4.load({scope:{scopeKey},input:paceInput(v3.versionId,leave)});assert.equal(loaded.status,'READY');assert.deepEqual(loaded.versions.map(x=>x.version),[1,2,3]);assert.equal(loaded.activeVersion.versionId,v3.versionId);assert.equal(loaded.leave.approvedCount,1);assert.equal(loaded.coverageShortfall.amountPaise,paced.pace.plan.coverageShortfall.amountPaise);assert.equal(loaded.actions.publish,false);
+  const restarted=bootstrap.create(options({storage})).operational,reloaded=await restarted.E4.load({scope:{scopeKey}});assert.deepEqual(reloaded.versions.map(x=>x.version),[1,2,3]);assert.equal(reloaded.activeVersion.operationalBinding.receiptId,binding.receiptId);
+});
+
+test('portable backup restores immutable E4 history fenced until exact verified rebind',async()=>{const sourceStorage=memoryStorage(),api=bootstrap.create(options({storage:sourceStorage})).operational;await api.E4.intake({scope:{scopeKey},input:{operationId:'sources-backup',sources:candidateSources()}});const v1=(await api.E4.publish({scope:{scopeKey},input:{operationId:'publish-backup-v1',planInput:plan(1)}})).published.version;
+  const sourceRuntime=runtimeApi.create({storage:sourceStorage,storeApi,foundation}).runtime,backup=sourceRuntime.exportPortable('2026-08-25T11:00:00Z').backup;assert.doesNotMatch(JSON.stringify(backup),/rawRows|sourceFacts|verifiedActualPaise|customerMobile/);
+  const targetStorage=memoryStorage(),targetRuntime=runtimeApi.create({storage:targetStorage,storeApi,foundation}).runtime;assert.equal(targetRuntime.importPortable(backup,'2026-08-25T12:00:00Z').ok,true);const fenced=bootstrap.create(options({storage:targetStorage})).operational;assert.equal((await fenced.E4.pace({scope:{scopeKey},input:paceInput(v1.versionId)})).code,'E4_RESTORE_REIMPORT_REQUIRED');assert.equal(targetRuntime.rebindVerifiedScope(binding).ok,true);const rebound=bootstrap.create(options({storage:targetStorage})).operational,loaded=await rebound.E4.load({scope:{scopeKey}});assert.equal(loaded.status,'READY');assert.equal(loaded.activeVersion.versionId,v1.versionId);
+});
+
+test('caller spoofing, stale reauth, cross-store scope and verified binding drift fail closed',async()=>{const staff={actorId:'test-staff',role:'Staff',storeCode:'WLMHW'},staffApi=bootstrap.create(options({session:staff})).operational;const spoofed=await staffApi.E4.intake({scope:{scopeKey},input:{operationId:'spoofed-owner',sources:candidateSources(),actorId:'test-owner',actorRole:'Owner',reauthenticatedAt:'2026-08-25T09:59:00Z'}});assert.equal(spoofed.code,'ETP_OPERATION_DENIED');
+  const stale=bootstrap.create(options({reauth:'2026-08-25T09:00:00Z'})).operational;assert.equal((await stale.E4.intake({scope:{scopeKey},input:{operationId:'stale',sources:candidateSources()}})).code,'ETP_FRESH_REAUTH_REQUIRED');assert.equal((await bootstrap.create(options()).operational.E4.intake({scope:{scopeKey:scopeKey.replace('WLMHW','HEMW')},input:{operationId:'cross-store',sources:candidateSources()}})).code,'ETP_OPERATIONAL_SCOPE_DENIED');
+  const storage=memoryStorage(),original=bootstrap.create(options({storage})).operational;await original.E4.intake({scope:{scopeKey},input:{operationId:'binding-source',sources:candidateSources()}});const v1=(await original.E4.publish({scope:{scopeKey},input:{operationId:'binding-v1',planInput:plan(1)}})).published.version,drift={...binding,receiptId:'test-only-receipt-2'},drifted=bootstrap.create(options({storage,bindingValue:drift})).operational;assert.equal((await drifted.E4.load({scope:{scopeKey}})).status,'BLOCKED');assert.equal((await drifted.E4.pace({scope:{scopeKey},input:{...paceInput(v1.versionId),actuals:{...paceInput(v1.versionId).actuals,receiptId:drift.receiptId}}})).code,'E4_SOURCE_BINDING_MISMATCH');
+});

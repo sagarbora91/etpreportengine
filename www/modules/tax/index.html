@@ -1,0 +1,2849 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="../../shared/module-bridge.js"></script>
+<script src="../../shared/module-runtime.js"></script>
+<script src="../../shared/mah4-runtime.js"></script>
+<script id="mah4-stage-b-runtime">SaagarMah4Runtime.bootModule({moduleId:'tax'});</script>
+<script id="st-v5-iframe-shim">SaagarModuleRuntime.run('storage',{schemaVersion:1,moduleId:'tax',nextSteps:[],customerSelectors:[],accessContext:false});</script>
+<script id="st-v5-safety-net">SaagarModuleRuntime.run('safety',{schemaVersion:1,moduleId:'tax',nextSteps:[],customerSelectors:[],accessContext:false});</script>
+<link rel="stylesheet" href="../../shared/module-mobile-common.css">
+<script id="st-v5-mobile-boot">SaagarModuleRuntime.run('mobile',{schemaVersion:1,moduleId:'tax',nextSteps:[],customerSelectors:[],accessContext:false});</script>
+<link rel="stylesheet" href="../../shared/module-brand-tokens.css">
+<link rel="stylesheet" href="../../shared/module-responsive.css">
+<link rel="stylesheet" href="../../shared/module-components.css">
+<link rel="stylesheet" href="../../shared/module-table.css">
+<script src="../../shared/module-ui-runtime.js"></script>
+<script src="../../shared/module-table-runtime.js"></script>
+<script src="../../shared/module-rendered-components.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Compliance Operating System — Indian Firms v2</title>
+<link id="phase6g-tax-ui-css" rel="stylesheet" href="tax-ui.css">
+
+<link id="st-v5-uniform-css" rel="stylesheet" href="../../shared/module-uniform.css">
+<link rel="stylesheet" href="../../c1-control-desk.css">
+<script src="../../c1-operations-policy.js"></script>
+<script src="../../c1-control-desk.js" defer></script>
+<link rel="stylesheet" href="../../mobile-layout.css">
+<script src="../../app-i18n.js"></script>
+</head>
+<body data-saagar-ui data-saagar-width="auto" data-saagar-width-resolved="mobile">
+<script id="phase6g-tax-ui-boot">SaagarUiFoundation.configure(document.body,{mode:'auto'});</script>
+
+<!-- HEADER -->
+<div class="hd">
+  <div>
+    <div class="hd-brand">Compliance Operating System</div>
+    <div class="hd-sub">India · <span id="fy-label-head">FY 2026–27</span> · Ownership · Internal Deadlines · Risk · Evidence · Escalation</div>
+  </div>
+  <div class="hd-right">
+    <div class="firm-sel-wrap">
+      <select data-action="tax-financial-year-select" class="firm-sel" id="fy-select" onchange="switchFY(this.value)"></select>
+    </div>
+    <div class="firm-sel-wrap">
+      <select data-action="tax-firm-select" class="firm-sel" id="firm-select" onchange="switchFirm(this.value)">
+        <option value="">— Select Firm —</option>
+      </select>
+      <span class="firm-type-badge none" id="firm-type-badge"></span>
+    </div>
+    <button data-action="tax-action-center-open" class="btn-hd" onclick="openActionCenter()">🔔 Action Center<span id="ac-badge" class="ac-badge" style="display:none"></span></button>
+    <button data-action="tax-firms-open" class="btn-hd" onclick="openFirmModal()">⚙ Firms</button>
+    <button data-action="tax-compliance-master-open" class="btn-hd" onclick="openMasterModal()">⚙ Manage Compliance</button>
+    <button data-action="tax-compliance-csv-export" class="btn-hd" onclick="exportComplianceCSV()">⤓ CSV</button>
+    <button data-action="tax-evidence-zip-export" class="btn-hd" onclick="exportEvidenceZip()" title="Download all attached evidence files for this firm and FY as a ZIP">⤓ Evidence ZIP</button>
+    <button data-action="tax-compliance-print" class="btn-hd gold" onclick="printCompliance()">🖨 Print</button>
+  </div>
+</div>
+
+<!-- VIEW TABS -->
+<div class="view-tabs">
+  <div class="vt active" id="vt-calendar" onclick="showView('calendar')">📅 Control Calendar</div>
+  <div class="vt" id="vt-dashboard" onclick="showView('dashboard')">📊 COS Dashboard</div>
+</div>
+
+<!-- MONTH NAV (calendar only) -->
+<div class="mnav" id="mnav" style="display:none"></div>
+
+<!-- CALENDAR VIEW -->
+<div id="cal-view" style="display:none">
+  <div class="wp" id="content"></div>
+</div>
+
+<!-- DASHBOARD VIEW -->
+<div id="dash-view" style="display:none">
+  <div class="dash-wrap" id="dash-content"></div>
+</div>
+
+<!-- FIRM MANAGEMENT MODAL -->
+<div class="modal-bg" id="firm-modal" style="display:none" onclick="closeFirmModalBg(event)">
+  <div class="modal">
+    <div class="modal-hd">
+      <div class="modal-title">Manage Firms</div>
+      <button data-action="firm-modal-close" class="modal-close" onclick="closeFirmModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="firm-list" id="firm-list"></div>
+      <div class="firm-form" id="firm-form">
+        <div class="ff-title" id="ff-title">+ Add New Firm</div>
+        <div class="ff-grid">
+          <div class="ff-field full">
+            <div class="ff-label">Firm / Client Name *</div>
+            <input class="ff-input" id="ff-name" type="text" placeholder="e.g. Sharma Traders">
+          </div>
+          <div class="ff-field">
+            <div class="ff-label">PAN</div>
+            <input class="ff-input" id="ff-pan" type="text" placeholder="ABCDE1234F" maxlength="10">
+          </div>
+          <div class="ff-field">
+            <div class="ff-label">GSTIN</div>
+            <input class="ff-input" id="ff-gstin" type="text" placeholder="27ABCDE1234F1Z5">
+          </div>
+          <div class="ff-field">
+            <div class="ff-label">Entity Type</div>
+            <select class="ff-select" id="ff-entity">
+              <option value="proprietorship">Proprietorship</option>
+              <option value="partnership">Partnership Firm</option>
+              <option value="llp">LLP</option>
+              <option value="company">Company</option>
+            </select>
+          </div>
+          <div class="ff-field">
+            <div class="ff-label">GST Registration Type *</div>
+            <select data-action="tax-firm-type-select" class="ff-select" id="ff-type" onchange="syncQrmpField()">
+              <option value="regular">Regular Dealer</option>
+              <option value="composition">Composition Dealer</option>
+              <option value="both">Both / Show All</option>
+              <option value="unregistered">Unregistered</option>
+            </select>
+          </div>
+          <!-- P1-35: QRMP filing-frequency (only meaningful for regular/both; auto-hidden otherwise) -->
+          <div class="ff-field full" id="ff-qrmp-field">
+            <div class="ff-label">GST Filing Frequency</div>
+            <label style="display:flex;align-items:flex-start;gap:8px;font-size:11.5px;color:var(--g700);cursor:pointer;font-weight:600;line-height:1.45;">
+              <input type="checkbox" id="ff-qrmp" style="margin-top:2px;flex:none;">
+              <span>QRMP &mdash; file GSTR-1 / GSTR-3B quarterly (monthly PMT-06 challans)<br><span style="font-weight:500;color:var(--g600)">Tick if this firm opted into the Quarterly Return Monthly Payment scheme (turnover ≤ &#8377;5 crore).</span></span>
+            </label>
+          </div>
+          <div class="ff-field">
+            <div class="ff-label">Has Employees (payroll)</div>
+            <select class="ff-select" id="ff-emp">
+              <option value="yes">Yes — show PF / ESIC / PT</option>
+              <option value="no">No — hide payroll filings</option>
+            </select>
+          </div>
+          <div class="ff-field full">
+            <div class="ff-label">Notes / State / Branch</div>
+            <input class="ff-input" id="ff-notes" type="text" placeholder="e.g. Maharashtra, Retail">
+          </div>
+        </div>
+        <div class="ff-actions">
+          <button data-action="tax-firm-save" class="btn-save-firm" onclick="saveFirm()">💾 Save Firm</button>
+          <button data-action="firm-form-reset" class="btn-cancel-firm" onclick="resetFirmForm()">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- COMPLIANCE MASTER MODAL -->
+<div class="modal-bg" id="master-modal" style="display:none" onclick="closeMasterModalBg(event)">
+  <div class="modal">
+    <div class="modal-hd">
+      <div class="modal-title">Manage Compliance</div>
+      <button data-action="master-modal-close" class="modal-close" onclick="closeMasterModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="firm-form" id="master-form">
+        <div class="ff-title" id="mf-title">+ Add Compliance Obligation</div>
+        <div class="ff-grid">
+          <div class="ff-field full">
+            <div class="ff-label">Obligation Name *</div>
+            <input class="ff-input" id="mf-name" type="text" placeholder="e.g. Professional Tax – Monthly Return">
+          </div>
+          <div class="ff-field">
+            <div class="ff-label">Category *</div>
+            <select class="ff-select" id="mf-cat">
+              <option value="gst">GST</option>
+              <option value="comp">Composition GST</option>
+              <option value="it">Income Tax</option>
+              <option value="lab">Labour Law</option>
+            </select>
+          </div>
+          <div class="ff-field">
+            <div class="ff-label">Applies To (Firm)</div>
+            <select class="ff-select" id="mf-firm"><option value="">All firms</option></select>
+          </div>
+          <div class="ff-field">
+            <div class="ff-label">Frequency *</div>
+            <select class="ff-select" id="mf-freq">
+              <option value="Monthly">Monthly</option>
+              <option value="Quarterly">Quarterly</option>
+              <option value="Annual">Annual</option>
+              <option value="One-time">One-time</option>
+            </select>
+          </div>
+          <div class="ff-field">
+            <div class="ff-label">Due Day</div>
+            <select class="ff-select" id="mf-dueday"></select>
+          </div>
+          <div class="ff-field">
+            <div class="ff-label">Form / Portal</div>
+            <input class="ff-input" id="mf-form" type="text" placeholder="e.g. PT Return on State Portal">
+          </div>
+          <div class="ff-field full">
+            <div class="ff-label">Applicable Months</div>
+            <div id="mf-months" class="mf-months"></div>
+            <label class="mf-everymonth"><input data-action="tax-obligation-every-month-toggle" type="checkbox" id="mf-every" onchange="toggleEveryMonth()"> Every month (Apr–Mar)</label>
+          </div>
+          <div class="ff-field full">
+            <button data-action="tax-obligation-details-toggle" type="button" class="exp-btn" onclick="toggleMasterDetails()" id="mf-details-btn">▼ Who / What / Why / Penalty (optional)</button>
+            <div id="mf-details" class="mf-details" style="display:none">
+              <div class="ff-label" style="margin-top:8px">Applicable To (Who)</div>
+              <textarea class="ff-input" id="mf-who" rows="2" placeholder="Who this applies to"></textarea>
+              <div class="ff-label" style="margin-top:8px">What This Is</div>
+              <textarea class="ff-input" id="mf-what" rows="2" placeholder="What the obligation is"></textarea>
+              <div class="ff-label" style="margin-top:8px">Why It Must Be Done</div>
+              <textarea class="ff-input" id="mf-why" rows="2" placeholder="Legal basis / reason"></textarea>
+              <div class="ff-label" style="margin-top:8px">Penalty for Non-Compliance</div>
+              <textarea class="ff-input" id="mf-penalty" rows="2" placeholder="Penalty / interest"></textarea>
+            </div>
+          </div>
+          <div class="ff-field full">
+            <button data-action="tax-obligation-controls-toggle" type="button" class="exp-btn" onclick="toggleMasterControls()" id="mf-controls-btn">▼ Ownership / Risk / Checklist / Workflow / Evidence (optional)</button>
+            <div id="mf-controls" class="mf-details" style="display:none">
+              <div class="ff-grid">
+                <div class="ff-field"><div class="ff-label">Responsible</div><input class="ff-input" id="mf-responsible" type="text" placeholder="e.g. Tax Executive"></div>
+                <div class="ff-field"><div class="ff-label">Reviewer</div><input class="ff-input" id="mf-reviewer" type="text" placeholder="e.g. Compliance Manager"></div>
+                <div class="ff-field"><div class="ff-label">Risk Level</div><select class="ff-select" id="mf-risk"><option value="">(auto)</option><option value="High">High</option><option value="Medium">Medium</option><option value="Low">Low</option></select></div>
+                <div class="ff-field"><div class="ff-label">Internal Buffer (days before due)</div><input class="ff-input" id="mf-buffer" type="number" min="0" max="30" placeholder="auto (3 / 5)"></div>
+              </div>
+              <div class="ff-label" style="margin-top:8px">Input Checklist (one item per line)</div>
+              <textarea class="ff-input" id="mf-checklist" rows="3" placeholder="Books closed for the period&#10;Working papers reviewed&#10;Final computation approved"></textarea>
+              <div class="ff-label" style="margin-top:8px">Workflow Mapping (one step per line)</div>
+              <textarea class="ff-input" id="mf-workflow" rows="3" placeholder="Prepare data pack&#10;Reviewer check and approval&#10;File and store evidence"></textarea>
+              <div class="ff-label" style="margin-top:8px">Evidence Pack (one artifact per line)</div>
+              <textarea class="ff-input" id="mf-evidence" rows="3" placeholder="Challan&#10;Filed return PDF&#10;Working reconciliation"></textarea>
+            </div>
+          </div>
+        </div>
+        <div class="ff-actions">
+          <button data-action="tax-obligation-save" class="btn-save-firm" onclick="saveCustomObligation()">💾 Save Obligation</button>
+          <button data-action="master-form-reset" class="btn-cancel-firm" onclick="resetMasterForm()">Cancel</button>
+        </div>
+      </div>
+      <div class="master-list" id="master-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Action Center: cross-firm, cross-month view of what's overdue / due soon -->
+<div class="modal-bg" id="ac-modal" style="display:none" onclick="closeActionCenterBg(event)">
+  <div class="modal">
+    <div class="modal-hd">
+      <div class="modal-title">🔔 Action Center — across all firms</div>
+      <button data-action="action-center-close" class="modal-close" onclick="closeActionCenter()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="ac-body"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ══════════════════════════════════════════════════════
+   STATE & STORAGE
+══════════════════════════════════════════════════════ */
+let STATE = {
+  firms: [],
+  activeFirmId: null,
+  fyStartYear: 2026,
+  compliance: {}, // { firmId: { fyStartYear: { itemId: { done, filedOn, notes, evidenceRef, reviewerNote } } } }
+  custom: [],     // user-added obligations (rule objects) — see expandCustom()
+  archived: []    // list of archived obligation KEYS (strings) — built-in or custom
+};
+
+function loadState(){
+  try {
+    const s = localStorage.getItem('taxcal_v2');
+    if(s) STATE = JSON.parse(s);
+  } catch(e){}
+  if(!STATE || typeof STATE !== 'object') STATE = {};
+  if(!Array.isArray(STATE.firms)) STATE.firms = [];
+  if(!STATE.compliance || typeof STATE.compliance !== 'object') STATE.compliance = {};
+  if(!Array.isArray(STATE.custom)) STATE.custom = [];     // old data without this field is fine
+  if(!Array.isArray(STATE.archived)) STATE.archived = []; // old data without this field is fine
+  if(!Array.isArray(STATE.archivedCats)) STATE.archivedCats = []; // archived whole categories
+  if(!STATE.fyStartYear || STATE.fyStartYear < 2026) STATE.fyStartYear = 2026;
+  // Defensive: a corrupt compliance bucket must not throw at INIT and brick the
+  // whole module (loadState runs at top-level; an uncaught throw kills every fn).
+  try {
+    Object.keys(STATE.compliance || {}).forEach(firmId=>{
+      const bucket = STATE.compliance[firmId];
+      if(!bucket || typeof bucket !== 'object' || Array.isArray(bucket)) return;
+      const values = Object.values(bucket);
+      if(values.length && values[0] && typeof values[0] === 'object' && 'done' in values[0]){
+        STATE.compliance[firmId] = { [String(STATE.fyStartYear)]: bucket };
+      }
+    });
+  } catch(e){}
+}
+function saveState(){
+  try { localStorage.setItem('taxcal_v2', JSON.stringify(STATE)); } catch(e){}
+}
+
+function getActiveFirm(){
+  return STATE.firms.find(f=>f.id===STATE.activeFirmId) || null;
+}
+
+/* ── PRINT BRIDGE (on-screen preview via shell) ──────────────────────
+   Raw window.print() from inside the srcdoc iframe is BLANK on the Android
+   WebView. The shell exposes an on-screen PRINT PREVIEW: the module posts an
+   ST_PRINT message with a self-contained body (built with the shell-injected
+   .stp-* theme classes) and the shell renders it with Print / Save-PDF / Share.
+   stPrintDoc falls back to window.open()/window.print() outside the shell. */
+function stEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function stPrintDoc(o){return SaagarModuleRuntime.printDocument(o,function(){alert('Controlled print is available only inside Saagar Control Centre.');});}
+
+/* Build + post the compliance calendar print for the CURRENTLY VIEWED month +
+   active firm (A4 landscape). Self-contained body using only .stp-* classes —
+   the module's own CSS is NOT present in the shell preview. */
+function printCompliance(){
+  const month = curMonth;
+  const f = getActiveFirm();
+  const fyLabel = getFinancialYearLabel();
+  const firmName = f ? f.name : 'All Firms';
+  const firmType = f ? typeLabel(f.type) : '';
+  const calYear = getCalendarYearForMonth(month);
+
+  // Same data the on-screen calendar shows for this month (firm-type + archive filtered).
+  const items = getVisibleItems(getMonthItems(month));
+  const doneCount = items.filter(i=>!isItemNA(i.id) && isItemDone(i.id)).length;
+  const naCount = items.filter(i=>isItemNA(i.id)).length;
+  const obCount = items.length;
+
+  const headSub = stEsc(month + ' ' + calYear + ' · ' + firmName);
+  const head =
+    '<div class="stp-head">'
+    + '<div class="stp-brand">Saagar Traders<small>Compliance Calendar</small></div>'
+    + '<div class="stp-title">Compliance<small>' + headSub + '</small></div>'
+    + '</div>';
+
+  const meta =
+    '<div class="stp-meta">'
+    + '<span><b>Firm:</b> ' + stEsc(firmName) + (firmType ? ' (' + stEsc(firmType) + ')' : '') + '</span>'
+    + '<span><b>FY:</b> ' + stEsc(fyLabel) + '</span>'
+    + '<span><b>Month:</b> ' + stEsc(month + ' ' + calYear) + '</span>'
+    + '<span><b>Obligations:</b> ' + stEsc(obCount) + '</span>'
+    + '<span><b>Done:</b> ' + stEsc(doneCount) + ' / ' + stEsc(obCount - naCount) + '</span>'
+    + (naCount ? '<span><b>NA:</b> ' + stEsc(naCount) + '</span>' : '')
+    + '</div>';
+
+  let body = head + meta + '<div class="stp-sec"><div class="stp-sec-t">Compliance Obligations — ' + stEsc(month + ' ' + calYear) + '</div>';
+
+  if(!items.length){
+    body += '<div class="stp-empty">No compliance obligations for this month.</div></div>';
+  } else {
+    let rows = '';
+    items.forEach(item=>{
+      const isNA = isItemNA(item.id);
+      const isDone = !isNA && isItemDone(item.id);
+      const status = isNA ? 'N/A' : (isDone ? '✓ Done' : 'Pending');
+      const profile = getControlProfile(item, month);
+      rows +=
+        '<tr class="stp-r">'
+        + '<td>' + stEsc(item.due) + '</td>'
+        + '<td>' + stEsc(renderFYText(item.name)) + '</td>'
+        + '<td>' + stEsc(renderFYText(item.form)) + '</td>'
+        + '<td>' + stEsc(item.freq) + '</td>'
+        + '<td>' + stEsc(profile.responsible) + '</td>'
+        + '<td class="stp-c">' + stEsc(status) + '</td>'
+        + '</tr>';
+    });
+    body +=
+      '<table class="stp-table saagar-table saagar-table--grid" data-saagar-table-strategy="grid" data-saagar-table-workflow="compliance-print" data-saagar-grid-reason="six compliance fields require cross-column comparison">'
+      + '<thead><tr>'
+      + '<th>Due Date</th><th>Obligation</th><th>Form / Portal</th><th>Frequency</th><th>Responsible</th><th class="stp-c">Status</th>'
+      + '</tr></thead>'
+      + '<tbody>' + rows + '</tbody>'
+      + '<tfoot><tr><td colspan="6" class="stp-mut">'
+      + stEsc(obCount) + ' obligation' + (obCount===1?'':'s') + ' · '
+      + stEsc(doneCount) + ' done · '
+      + stEsc((obCount - naCount) - doneCount) + ' pending'
+      + (naCount ? ' · ' + stEsc(naCount) + ' N/A' : '')
+      + '</td></tr></tfoot>'
+      + '</table>';
+    body += '</div>';
+  }
+
+  body += '<div class="stp-foot">Saagar Traders · Compliance Operating System · ' + stEsc(fyLabel) + '</div>';
+
+  const titleFirm = firmName.replace(/[\\/:*?"<>|]/g,'-');
+  stPrintDoc({
+    title: 'Compliance — ' + month + ' — ' + firmName,
+    fileBase: 'Compliance-' + month + '-' + titleFirm,
+    body: body,
+    orientation: 'landscape'
+  });
+}
+
+function getFinancialYearLabel(startYear = STATE.fyStartYear || 2026){
+  return `FY ${startYear}\u2013${String(startYear + 1).slice(-2)}`;
+}
+function getFinancialYearShortLabel(startYear = STATE.fyStartYear || 2026){
+  return `${startYear}\u2013${String(startYear + 1).slice(-2)}`;
+}
+function getCalendarYearForMonth(monthName){
+  return ['January','February','March'].includes(monthName) ? (STATE.fyStartYear + 1) : STATE.fyStartYear;
+}
+/* The static compliance data is authored against a baseline year set: the
+   "current" FY in the source text is FY 2024–25 (start 2024). Every other
+   baked FY/AY string (2023–24 previous, 2022–23 / 2021–22 historic, etc.) and
+   every standalone calendar-year mention (e.g. "April 2023 to March 2024",
+   the quarter period "January – March 2025") is some fixed offset from that
+   baseline. renderFYText() rebases ALL of them onto the currently selected
+   STATE.fyStartYear structurally, so the rollover is correct for ANY selected
+   FY and for ANY baked year — not just the two that were hand-coded before. */
+const FY_BASELINE_START = 2024;
+/* New Income-tax Act, 2025 (in force 01-Apr-2026; the Income-tax Act, 1961 stands repealed).
+   Applied AT RENDER (via renderFYText) so the static catalogue stays the single source of
+   truth and the whole switch is a one-flag rollback (NEW_ACT_FORMS=false). Covers: the Act name,
+   TDS forms/statements, the section renumbering, the folded TDS-machinery/penalty provisions, and
+   the "Tax Year" terminology. Section numbers verified against the Income-tax Act, 2025; the TDS
+   deposit/return/certificate rules (old 200/200(3)/203) are consolidated into the s.392–394 block
+   and their interest/penalty (old 201(1A)/271H) sit in the §415+ range with no clean 1:1 number,
+   so those are cited to the Act itself rather than a (mis)guessed section. Anchored to
+   "u/s"/"Sec"/"Section" so rupee amounts and dates are never matched. */
+const NEW_ACT_FORMS = true;
+function renderNewActForms(text){
+  if(!NEW_ACT_FORMS) return text;
+  return String(text)
+    // Current statute (1961 Act repealed w.e.f. 01-Apr-2026)
+    .replace(/Income[‑\- ]?tax Act,?\s*1961/gi, 'Income-tax Act, 2025')
+    // TDS forms / certificates / annual tax statement — 2025 Act numbering (16A before 16)
+    .replace(/\bForm 16A\b/g, 'Form 131')     // non-salary TDS certificate 16A → 131
+    .replace(/\bForm 16\b/g, 'Form 130')      // salary TDS certificate 16 → 130
+    .replace(/\bForm 24Q\b/g, 'Form 138')     // salary TDS return
+    .replace(/\bForm 26Q\b/g, 'Form 140')     // non-salary TDS return
+    .replace(/\bForm 26AS\b/g, 'Form 168')    // annual tax statement
+    // Section renumbering (Income-tax Act, 2025)
+    .replace(/\bSection 200\b/g, 'Section 392')                          // TDS deposit machinery → s.392–394 block
+    .replace(/(\bu\/s |\bSec\.? |\bSection )192\b/g, '$1392')            // salary TDS
+    .replace(/\b194I\b/g, '393').replace(/\b194J\b/g, '393')            // non-salary TDS → s.393 (payment-code based)
+    .replace(/(\bu\/s )234B\b/g, '$1424').replace(/(\bu\/s )234C\b/g, '$1425').replace(/(\bu\/s )234E\b/g, '$1427')
+    .replace(/\b80C\b/g, '123').replace(/\b80D\b/g, '126')              // deductions
+    // Folded into the TDS block / §415+ interest-&-penalty range (no clean 1:1 number) → cite the Act
+    .replace(/\bu\/s 201\(1A\)/g, 'under the Income-tax Act, 2025')
+    .replace(/\bu\/s 271H/g, 'under the Income-tax Act, 2025')
+    .replace(/\bu\/s 40\(a\)\(ia\)/g, 'under the Income-tax Act, 2025')
+    // 2025 Act terminology
+    .replace(/\bAssessment Year\b/g, 'Tax Year').replace(/\bPrevious Year\b/g, 'Tax Year');
+}
+function renderFYText(text){
+  if(!text) return '';
+  const fyStart = STATE.fyStartYear || 2026;
+  const shift = fyStart - FY_BASELINE_START;
+  const monthIdx = { january:0,february:1,march:2,april:3,may:4,june:5,july:6,august:7,september:8,october:9,november:10,december:11 };
+  const rolled = String(text)
+    // 1) FY/AY short ranges: "FY 2024–25", "AY 2022–23", or a bare "2023–24".
+    //    Only rebase genuine consecutive ranges (YY === (YYYY+1) mod 100); the
+    //    dash glyph (en-dash or hyphen) and any FY/AY prefix are preserved.
+    .replace(/\b(FY |AY )?(\d{4})([–-])(\d{2})\b/g, (m, prefix, y4, dash, y2) => {
+      const start = parseInt(y4, 10);
+      if(((start + 1) % 100) !== parseInt(y2, 10)) return m; // not a real FY/AY range
+      const ns = start + shift;
+      return `${prefix || ''}${ns}${dash}${String(ns + 1).slice(-2)}`;
+    })
+    // 2) Standalone "<Month> <YYYY>" calendar-year mentions inside date windows
+    //    (e.g. the GSTR-9 period "April 2023 to March 2024", the quarter
+    //    "January – March 2025"). Infer the FY the date belongs to from the
+    //    month (Jan–Mar = FY-end year, so its FY starts the prior year; Apr–Dec
+    //    = FY-start year) and shift that FY by the same offset. Bounded to the
+    //    data's authored window (FYs whose start is BASELINE-1 .. BASELINE) so
+    //    a statute year like "...Act, 2013" is never touched.
+    .replace(/\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})\b/g, (m, mon, y4) => {
+      const cal = parseInt(y4, 10);
+      const fyOfDate = (monthIdx[mon.toLowerCase()] <= 2) ? (cal - 1) : cal; // FY-start year this date sits in
+      if(fyOfDate < FY_BASELINE_START - 1 || fyOfDate > FY_BASELINE_START) return m; // outside authored window
+      return `${mon} ${cal + shift}`;
+    });
+  return renderNewActForms(rolled);
+}
+function populateFYSelector(){
+  const sel = document.getElementById('fy-select');
+  if(!sel) return;
+  sel.innerHTML = '';
+  for(let year = 2026; year <= 2032; year++){
+    const opt = document.createElement('option');
+    opt.value = String(year);
+    opt.textContent = getFinancialYearLabel(year);
+    if(year === STATE.fyStartYear) opt.selected = true;
+    sel.appendChild(opt);
+  }
+  const head = document.getElementById('fy-label-head');
+  if(head) head.textContent = getFinancialYearLabel();
+}
+function switchFY(year){
+  STATE.fyStartYear = Math.max(2026, parseInt(year, 10) || 2026);
+  saveState();
+  populateFYSelector();
+  rerender();
+}
+
+function getFirmCompliance(firmId){
+  if(!STATE.compliance[firmId]) STATE.compliance[firmId]={};
+  const fyKey = String(STATE.fyStartYear || 2026);
+  if(!STATE.compliance[firmId][fyKey]) STATE.compliance[firmId][fyKey] = {};
+  return STATE.compliance[firmId][fyKey];
+}
+
+function isItemDone(itemId){
+  const f = getActiveFirm();
+  if(!f) return false;
+  const c = getFirmCompliance(f.id);
+  return c[itemId]?.done || false;
+}
+
+function getItemRecord(itemId){
+  const f = getActiveFirm();
+  if(!f) return null;
+  return getFirmCompliance(f.id)[itemId] || null;
+}
+
+function isItemNA(itemId){
+  const f = getActiveFirm();
+  if(!f) return false;
+  const c = getFirmCompliance(f.id);
+  return c[itemId]?.na === true; // additive flag; missing => false (old records load fine)
+}
+
+/* Find which month's template owns a given item id (item ids are month-scoped). */
+function findItemMonth(itemId){
+  for(const m of MONTHS){
+    if(getMonthItems(m).some(it=>it.id===itemId)) return m;
+  }
+  return null;
+}
+
+/* Resolve an item's ISO due date (YYYY-MM-DD) from its template `due` + month. */
+function dueDateIso(due, month){
+  const d = parseDueDate(due, month);
+  if(!d) return null;
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');   /* audit: local date — toISOString gave the previous day in IST */
+}
+
+/* SHELL seeds window.__stAsOf = 'YYYY-MM-DD' = the day the user is VIEWING.
+   When that day is in the PAST, this module must behave as a pure READ: it must
+   never auto-create compliance records (write-on-read) and must not let the
+   user mark items done/undone, because those writes would land in the CURRENT
+   FY bucket and silently mutate state while browsing history. Read live each
+   call so a SHELL date change is respected without a reload. When __stAsOf is
+   missing/invalid or is today/future, this returns false and behaviour is
+   byte-for-byte unchanged. Compares ISO date strings (lexicographic == chrono
+   for YYYY-MM-DD) against the module's own local-IST todayStr(). */
+function isPastAsOf(){
+  const a = (typeof window !== 'undefined') ? window.__stAsOf : null;
+  if(typeof a !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(a)) return false;
+  return a < todayStr();
+}
+
+/* BUG 1 fix: the SHELL Reports (computeTaxStatus / buildTodayBrief) read
+   compliance[fid][fy][itemId].dueDate to bucket items into overdue / dueWeek /
+   dueMonth. The module previously stored NO dueDate and left untouched items
+   with no record at all, so Reports always showed 0. Here we materialize a
+   {dueDate, done:false} record for every VISIBLE-but-untouched item of the
+   active firm/FY (across all months), and backfill dueDate onto any existing
+   record that lacks it — so real in-app usage feeds Reports. Idempotent: never
+   overwrites an existing record's done/notes; only writes a missing dueDate or
+   a missing record. Returns true if STATE changed. */
+function materializeDueDates(){
+  if(isPastAsOf()) return false; // read-only past view: never auto-create on a read
+  const f = getActiveFirm();
+  if(!f) return false;
+  const bucket = getFirmCompliance(f.id);
+  let changed = false;
+  MONTHS.forEach(month=>{
+    if(!D[month]) return;
+    getVisibleItems(getMonthItems(month)).forEach(item=>{
+      const iso = dueDateIso(item.due, month);
+      if(!iso) return; // no parseable due date — nothing to bucket on
+      const rec = bucket[item.id];
+      // W2-5 (additive): stamp the record with the obligation's plain-text name and its
+      // control-profile T-buffer so the SHELL can label Reports rows (index.html already
+      // prefers v.name) and schedule deadline notifications WITHOUT re-deriving the
+      // catalogue. Both fields are additive; existing fields are never overwritten.
+      const prof = getControlProfile(item, month);
+      const plainName = stripHtml(renderFYText(item.name || ''));
+      if(!rec){
+        bucket[item.id] = { dueDate: iso, done:false, name: plainName, buffer: prof.buffer };
+        changed = true;
+      } else {
+        if(!rec.dueDate){ rec.dueDate = iso; changed = true; } // backfill without touching done/notes
+        if(!rec.name && plainName){ rec.name = plainName; changed = true; }
+        if(typeof rec.buffer !== 'number'){ rec.buffer = prof.buffer; changed = true; }
+      }
+    });
+  });
+  if(changed) saveState();
+  return changed;
+}
+
+/* ══════════════════════════════════════════════════════
+   MONTHS & DATE UTILITIES
+══════════════════════════════════════════════════════ */
+const MONTHS=['April','May','June','July','August','September','October','November','December','January','February','March'];
+const MONTH_IDX={April:0,May:1,June:2,July:3,August:4,September:5,October:6,November:7,December:8,January:9,February:10,March:11};
+
+function parseDueDate(due, month){
+  if(!due) return null;
+  const monthNames=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const shortMonths={Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+  // "Last day of <Mon>" / "By end of <Mon>" — the month is ABBREVIATED in the data
+  // ("Apr","Feb", and every custom "Last day" item), so look it up via shortMonths
+  // (the old full-name indexOf returned -1 for all but "May", breaking these dates).
+  const lastEnd = /^(?:last day of|by end of)\s+(.+)$/i.exec(due);
+  if(lastEnd){
+    const mi = shortMonths[lastEnd[1].trim().substring(0,3)];
+    if(mi===undefined) return null;
+    const y = getCalendarYearForMonth(monthNames[mi]);   // full name → correct FY rollover
+    return new Date(y, mi+1, 0);                          // day 0 of next month = last day of this month
+  }
+  const m = due.match(/^(\d{1,2})\s+([A-Za-z]+)$/);
+  if(m){
+    const day = parseInt(m[1]);
+    const mon = m[2].substring(0,3);
+    const mi = shortMonths[mon];
+    if(mi===undefined) return null;
+    const y = mi <= 2 ? (STATE.fyStartYear + 1) : STATE.fyStartYear;
+    return new Date(y, mi, day);
+  }
+  return null;
+}
+
+function getDaysLeft(due, month){
+  const d = parseDueDate(due, month);
+  if(!d) return null;
+  const today = new Date(); today.setHours(0,0,0,0);
+  return Math.round((d-today)/(1000*60*60*24));
+}
+
+function daysLeftTag(days, isDone){
+  if(isDone) return `<span class="days-left done-days">✓ Filed</span>`;
+  if(days===null) return '';
+  if(days<0) return `<span class="days-left overdue">⚠ ${Math.abs(days)}d overdue</span>`;
+  if(days===0) return `<span class="days-left urgent-days">🔴 Due today</span>`;
+  if(days<=7) return `<span class="days-left urgent-days">⚡ ${days}d left</span>`;
+  if(days<=15) return `<span class="days-left soon">⏰ ${days}d left</span>`;
+  return `<span class="days-left ok">${days}d left</span>`;
+}
+
+/* ══════════════════════════════════════════════════════
+   COMPLIANCE DATA
+══════════════════════════════════════════════════════ */
+const D={
+
+'April':{
+  note:'<strong>FY begins.</strong> Ensure all new registrations (GST, PT, ESIC) are in order. March TDS has a special extended due date of 30th April. Composition dealers: CMP-08 for Q4 (Jan–Mar) due 18th April + GSTR-4 Annual Return due 30th June. <strong>📜 New law:</strong> the Income-tax Act, 2025 is now in force — income from 1 April falls under the new <em>Tax Year</em> (replacing Previous Year / Assessment Year), and the TDS forms are renumbered: salary certificate is now Form 130 (earlier 16), the annual tax-credit statement is Form 168 (earlier 26AS), and the no-deduction declaration is Form 121 (earlier 15G/15H). Returns filed during this year for the prior year continue on the earlier forms.',
+  items:[
+    {id:'ap1',cat:'it',name:'TDS Deposit – March Deductions',due:'30 Apr',urgent:true,freq:'Monthly (Special Date)',form:'Challan 281 via Income Tax Portal / TIN-NSDL',
+     who:'Any proprietorship or partnership that deducted TDS from salary, rent, professional/technical fees, contractor payments, brokerage, commission or interest during March.',
+     what:'Tax Deducted at Source from all payments made in the month of March must be deposited with the government by 30th April. Normally TDS is due by 7th of the following month, but March gets an extended deadline of 30th April to ease year-end pressures.',
+     why:'Under Section 200 of the Income Tax Act 1961, the person responsible for deducting TDS must deposit it within the prescribed time. Late deposit attracts both interest and disallowance of the related expense.',
+     penalty:'Interest @ 1.5% per month (or part of month) u/s 201(1A) from date of deduction to date of deposit. 30% of the payment on which TDS was not deducted is disallowed as a business expense u/s 40(a)(ia).'},
+
+    {id:'ap_comp1',cat:'comp',name:'CMP-08 – Q4 Tax Payment (Jan–Mar) | Composition Dealers',due:'18 Apr',urgent:true,freq:'Quarterly (Q4)',form:'CMP-08 on GST Portal (gst.gov.in)',
+     who:'All taxpayers registered under the GST Composition Scheme (manufacturers/traders up to ₹1.5 crore turnover, service providers up to ₹50 lakh).',
+     what:'Pay quarterly composition tax for January–March period (Q4 of FY). Apply the applicable flat rate on Q4 turnover: 1% for traders (0.5% CGST + 0.5% SGST), 5% for restaurants (2.5% each), 6% for service providers (3% each). Ensure Q4 turnover is correctly captured including all retail sales.',
+     why:'Composition dealers replace monthly GSTR-3B with quarterly CMP-08 payments. This is the last CMP-08 for the FY. After paying CMP-08, file GSTR-4 (annual return) by 30th June.',
+     penalty:'Interest 18% p.a. on late payment + ₹50/day late fee (₹20/day if NIL return). Maximum late fee ₹10,000.'},
+
+    {id:'ap2',cat:'gst',name:'GSTR-1 – March Outward Supplies (Monthly Filers)',due:'11 Apr',freq:'Monthly',form:'GSTR-1 on GST Portal (gst.gov.in)',
+     who:'Regular GST taxpayers with annual aggregate turnover above ₹5 crore.',
+     what:'Upload details of all outward supplies (sales) made during March. Includes B2B invoices, B2C large invoices, exports, credit/debit notes, advances received, and exempt/nil-rated supplies.',
+     why:'GSTR-1 is the foundation of the GST ecosystem. Your buyers can avail Input Tax Credit (ITC) only on invoices that appear in GSTR-2B (auto-populated from your GSTR-1).',
+     penalty:'Late fee: ₹50/day (₹20/day for Nil returns). Maximum late fee: ₹10,000 per return period.'},
+
+    {id:'ap3',cat:'gst',name:'GSTR-3B – March Summary Return & GST Payment (Monthly Filers)',due:'20 Apr',freq:'Monthly',form:'GSTR-3B on GST Portal',
+     who:'All regular GST-registered taxpayers with monthly return obligation.',
+     what:'File summary return declaring: (1) Total outward taxable supplies & output GST; (2) Eligible Input Tax Credit; (3) Net tax payable; (4) Exempt, nil-rated and non-GST supplies. Pay the net GST through the Electronic Cash Ledger.',
+     why:'GSTR-3B is the primary mechanism for GST payment. The GST liability computed here must be discharged on or before the due date.',
+     penalty:'Interest @ 18% p.a. on outstanding GST from due date. Late fee: ₹50/day (₹20/day for Nil returns). Maximum: ₹10,000.'},
+
+    {id:'ap4',cat:'comp',name:'GSTR-4 – Annual Return for Composition Dealers (FY 2023–24)',due:'30 Jun',urgent:true,freq:'Annual',form:'GSTR-4 on GST Portal',
+     who:'All taxpayers registered under the GST Composition Scheme for FY 2023–24.',
+     what:'Annual consolidated statement of all outward supplies and inward supplies liable to reverse charge, and tax paid at flat composition rate during the entire FY April–March. Must reconcile with quarterly CMP-08 tax payments already made during the year.',
+     why:'Composition dealers pay GST at a fixed percentage on turnover (1% for traders, 5% for restaurants, 6% for service providers) and make quarterly tax payments via CMP-08. GSTR-4 is the annual audit trail confirming all sales and taxes for the year.',
+     penalty:'Late fee: ₹200/day (₹100 CGST + ₹100 SGST), maximum ₹5,000. Late filing blocks future amendments and may trigger departmental notices.'},
+
+    {id:'ap5',cat:'lab',name:'EPF Contribution Deposit – March Wages',due:'15 Apr',freq:'Monthly',form:'ECR (Electronic Challan cum Return) via EPFO Unified Portal',
+     who:'All establishments employing 20 or more persons. Once covered, obligation continues even if headcount later falls below 20.',
+     what:'Deposit Provident Fund contributions for March: Employee share 12% of basic wages + DA. Employer share 12% (3.67% EPF + 8.33% EPS). Admin charges 0.50% + EDLI 0.50%.',
+     why:'The Employees\' Provident Funds Act 1952 mandates PF contribution to build a retirement corpus for workers. PF also provides insurance (EDLI) and pension (EPS) benefits.',
+     penalty:'Damages for delay: 5% p.a. up to 2 months; 10% for 2–4 months; 15% for 4–6 months; 25% beyond 6 months. Interest @ 12% p.a. Criminal prosecution u/s 14 for persistent defaults.'},
+
+    {id:'ap6',cat:'lab',name:'ESIC Contribution Deposit – March Wages',due:'15 Apr',freq:'Monthly',form:'ESIC Portal (esic.in) – Online Challan',
+     who:'Establishments with 10 or more employees. Covers employees earning gross wages up to ₹21,000/month.',
+     what:'Deposit ESI contributions for March wages: Employer contribution 3.25% + Employee contribution 0.75% of gross wages. Total 4%.',
+     why:'The ESI Act 1948 provides insured workers and their families access to free medical care, cash compensation during sick leave, maternity benefit, disability allowance, and dependents\' pension.',
+     penalty:'Simple interest @ 12% p.a. + damages up to 25%. Criminal prosecution for persistent non-compliance.'},
+
+    {id:'ap7',cat:'lab',name:'Professional Tax – March Deduction & Deposit',due:'Last day of Apr',freq:'Monthly',form:'State PT Portal / Treasury Challan (Form III-B in Maharashtra)',
+     who:'All employers in PT-applicable states: Maharashtra, Karnataka, Gujarat, AP, Tamil Nadu, West Bengal etc.',
+     what:'Deduct PT from March employee salaries per state slab and deposit. Maharashtra: ≤₹7,500 → NIL; ₹7,501–₹10,000 → ₹175/month; >₹10,000 → ₹200/month (₹300 in February).',
+     why:'PT is levied by state governments under Article 276 of the Constitution. Employer\'s statutory duty to deduct and deposit.',
+     penalty:'Maharashtra: Penalty up to 3× unpaid tax + interest @ 1.25% per month. Failure to register: up to ₹5,000.'},
+  ]
+},
+
+'May':{
+  note:'<strong>Q4 TDS Return deadline is 31st May.</strong> File Form 24Q (salary TDS) and 26Q (other TDS) for January–March quarter. Also ESIC half-yearly return (Oct–Mar) due 11th May.',
+  items:[
+    {id:'my1',cat:'it',name:'TDS Deposit – April Deductions',due:'7 May',freq:'Monthly',form:'Challan 281 – Income Tax Portal',
+     who:'All entities that deducted TDS on April payments.',
+     what:'Deposit TDS deducted from all payments made in April. Use separate challans for different TDS sections (Sec 192 salary, 194I rent, 194J professional fees, etc.).',
+     why:'Section 200 requires TDS to be deposited by the 7th of the following month (except March due 30th April).',
+     penalty:'Interest @ 1.5%/month from date of deduction to date of deposit. Expense disallowed 30% if TDS not deducted.'},
+
+    {id:'my2',cat:'it',name:'TDS Return – Q4 (January–March) | Form 24Q & 26Q',due:'31 May',urgent:true,freq:'Quarterly',form:'Form 24Q (Salary) / Form 26Q (Other Payments) – via TRACES/ITD Portal',
+     who:'All deductors who deducted TDS during January to March quarter.',
+     what:'File quarterly TDS return with PAN-wise details of deductees, amounts paid/credited, TDS deducted and challans. Form 24Q: TDS on salary including full salary computation for the year in Q4. Form 26Q: All other TDS payments.',
+     why:'Q4 return enables deductees to see full year TDS credit in Form 26AS. Q4 return requires the complete annual salary statement, making it the most critical quarter.',
+     penalty:'Late fee u/s 234E: ₹200/day from due date until filing (capped at TDS amount). u/s 271H: Additional penalty ₹10,000 to ₹1,00,000.'},
+
+    {id:'my3',cat:'gst',name:'GSTR-1 – April (Monthly Filers)',due:'11 May',freq:'Monthly',form:'GSTR-1 on GST Portal',
+     who:'Regular GST taxpayers with monthly filing obligation (turnover > ₹5 crore).',
+     what:'Upload all April sales invoices, debit/credit notes, and advance receipts. HSN summary mandatory.',
+     why:'Enables buyer ITC claims for April purchases. Late GSTR-1 blocks buyers\' ITC for the month.',
+     penalty:'₹50/day (₹20/day Nil returns), maximum ₹10,000.'},
+
+    {id:'my4',cat:'gst',name:'GSTR-3B – April (Monthly Filers)',due:'20 May',freq:'Monthly',form:'GSTR-3B on GST Portal',
+     who:'All regular GST taxpayers.',
+     what:'File summary return and pay net GST liability for April. Match ITC with GSTR-2B before filing.',
+     why:'Primary return for GST payment. Excess ITC claimed beyond GSTR-2B attracts Rule 36(4) restrictions.',
+     penalty:'Interest 18% p.a. on outstanding liability + late fee ₹50/day.'},
+
+    {id:'my5',cat:'lab',name:'EPF Contribution – April Wages',due:'15 May',freq:'Monthly',form:'ECR via EPFO Portal',
+     who:'All EPFO-covered establishments.',
+     what:'Deposit April wage month PF contributions: Employee 12% + Employer 12% + Admin 0.50% + EDLI 0.50%.',
+     why:'Monthly statutory obligation. Delay affects employees\' UAN passbook and pension calculations.',
+     penalty:'Damages 5–25% of dues + interest 12% p.a.'},
+
+    {id:'my6',cat:'lab',name:'ESIC Contribution – April Wages',due:'15 May',freq:'Monthly',form:'ESIC Portal (esic.in)',
+     who:'Establishments with 10+ employees (eligible employees earning ≤₹21,000/month).',
+     what:'Deposit ESIC contributions for April: Employer 3.25% + Employee 0.75% of gross wages.',
+     why:'Monthly statutory obligation. Delays disqualify employees from ESIC medical and cash benefits.',
+     penalty:'Interest 12% p.a. + damages up to 25%.'},
+
+    {id:'my7',cat:'lab',name:'ESIC Half-Yearly Return – October to March',due:'11 May',urgent:true,freq:'Half-Yearly',form:'Form 7-A / Return via ESIC Online Portal',
+     who:'All ESIC registered employers.',
+     what:'File the ESIC contribution return for the second half of FY (October–March) declaring wages paid per employee, contribution amounts, and contribution periods.',
+     why:'Mandatory reconciliation return under ESI Act. This data determines workers\' benefit eligibility. Delays can affect employees\' ESIC cards and medical access.',
+     penalty:'Fine up to ₹5,000 under Section 85 of the ESI Act.'},
+
+    {id:'my8',cat:'lab',name:'Professional Tax – April Deduction & Deposit',due:'Last day of May',freq:'Monthly',form:'State PT Portal / Treasury',
+     who:'PT-applicable employers.',
+     what:'Deduct PT from April salaries and deposit with state government.',
+     why:'Monthly PT deduction and deposit obligation.',
+     penalty:'State-specific penalties; interest ~1.25%/month in Maharashtra.'},
+  ]
+},
+
+'June':{
+  note:'<strong>Three critical deadlines:</strong> Advance Tax 1st installment (15th), Form 16 for salary TDS (15th), and Form 16A for Q4 non-salary TDS (15th). Don\'t club them — each requires separate action.',
+  items:[
+    {id:'jn1',cat:'it',name:'TDS Deposit – May Deductions',due:'7 Jun',freq:'Monthly',form:'Challan 281',
+     who:'All TDS deductors.',
+     what:'Deposit TDS deducted from May payments with the IT department.',
+     why:'Monthly statutory obligation u/s 200.',
+     penalty:'Interest 1.5%/month on late deposit.'},
+
+    {id:'jn2',cat:'it',name:'Advance Tax – 1st Installment (≥15% of Annual Tax)',due:'15 Jun',urgent:true,freq:'Quarterly',form:'Challan 280 – Income Tax Portal',
+     who:'All proprietors and partnership firms where estimated annual Income Tax liability exceeds ₹10,000.',
+     what:'Pay at least 15% of the estimated total tax liability for FY 2024–25. Steps: (1) Estimate annual business income, (2) Deduct 80-series deductions, (3) Compute tax, (4) Pay 15% now. Schedule: 15% by 15 Jun · 45% by 15 Sep · 75% by 15 Dec · 100% by 15 Mar.',
+     why:'Advance tax ensures income earners pay tax proportionally as they earn. Accurate estimation avoids penal interest.',
+     penalty:'Interest u/s 234C: 1%/month for 3 months on shortfall in 1st installment. u/s 234B: 1%/month if total advance tax < 90% of assessed tax by 31st March.'},
+
+    {id:'jn3',cat:'it',name:'Form 16 – Salary TDS Certificate (FY 2023–24)',due:'15 Jun',urgent:true,freq:'Annual',form:'Form 16 (Part A from TRACES + Part B prepared by employer)',
+     who:'All employers who deducted TDS u/s 192 on any employee\'s salary during FY 2023–24.',
+     what:'Issue Form 16 to each employee: Part A (from TRACES) with quarter-wise TDS and challan details; Part B with detailed salary breakup, all allowances, deductions u/s 80C/80D, and final tax computation.',
+     why:'Form 16 is the salary TDS certificate employees use to file their ITR, claim refunds, and as income proof for loans and visas.',
+     penalty:'Penalty u/s 272A: ₹100 per day for each certificate delayed, for each employee affected.'},
+
+    {id:'jn4',cat:'it',name:'Form 16A – Non-Salary TDS Certificate (Q4: Jan–Mar)',due:'15 Jun',freq:'Quarterly',form:'Form 16A generated from TRACES Portal',
+     who:'All entities that deducted TDS from non-salary payments during January–March.',
+     what:'Issue TDS certificates to each deductee (vendor, landlord, consultant) for TDS deducted during Q4. Download from TRACES after Q4 TDS return has been processed.',
+     why:'Deductees use Form 16A to reconcile TDS in Form 26AS and claim TDS credit in their ITR.',
+     penalty:'₹100/day u/s 272A for delay in issuance to each deductee.'},
+
+    {id:'jn5',cat:'gst',name:'GSTR-1 – May (Monthly Filers)',due:'11 Jun',freq:'Monthly',form:'GSTR-1 on GST Portal',
+     who:'Regular taxpayers (monthly filers).',
+     what:'Report all May sales invoices and outward supply details.',
+     why:'Enables buyer ITC claims for May purchases.',
+     penalty:'₹50/day max ₹10,000.'},
+
+    {id:'jn6',cat:'gst',name:'GSTR-3B – May (Monthly Filers)',due:'20 Jun',freq:'Monthly',form:'GSTR-3B on GST Portal',
+     who:'All regular GST taxpayers.',
+     what:'File summary return and pay net GST for May.',
+     why:'Primary GST payment return for May.',
+     penalty:'Interest 18% p.a. + ₹50/day late fee.'},
+
+    {id:'jn8',cat:'lab',name:'EPF Contribution – May Wages',due:'15 Jun',freq:'Monthly',form:'ECR via EPFO Portal',
+     who:'EPFO-covered establishments.',
+     what:'Deposit May PF contributions (Employee 12% + Employer 12% + charges).',
+     why:'Monthly statutory obligation under EPF Act.',
+     penalty:'Damages 5–25% + interest 12% p.a.'},
+
+    {id:'jn9',cat:'lab',name:'ESIC Contribution – May Wages',due:'15 Jun',freq:'Monthly',form:'ESIC Portal',
+     who:'ESIC-covered establishments.',
+     what:'Deposit ESIC contributions for May (Employer 3.25% + Employee 0.75%).',
+     why:'Monthly statutory obligation under ESI Act.',
+     penalty:'Interest 12% p.a. + damages up to 25%.'},
+
+    {id:'jn10',cat:'lab',name:'Professional Tax – May Deduction & Deposit',due:'Last day of Jun',freq:'Monthly',form:'State PT Portal',
+     who:'PT-applicable employers.',
+     what:'Deduct PT from May salaries and deposit with state government.',
+     why:'Monthly PT obligation under state law.',
+     penalty:'State-specific interest and penalty.'},
+  ]
+},
+
+'July':{
+  note:'<strong>Major month:</strong> Q1 TDS Return (31 Jul), ITR for non-audit cases (31 Jul), GSTR-1/3B for QRMP quarterly filers (Q1), and <strong>CMP-08 Q1 for composition dealers (18 Jul)</strong>. Start gathering ITR documents.',
+  items:[
+    {id:'jl1',cat:'it',name:'TDS Deposit – June Deductions',due:'7 Jul',freq:'Monthly',form:'Challan 281',
+     who:'All TDS deductors.',
+     what:'Deposit TDS deducted from June payments.',
+     why:'Monthly statutory obligation.',
+     penalty:'Interest 1.5%/month on late deposit.'},
+
+    {id:'jl2',cat:'it',name:'TDS Return – Q1 (April–June) | Form 24Q & 26Q',due:'31 Jul',urgent:true,freq:'Quarterly',form:'Form 24Q / Form 26Q via ITD Portal or TIN-FC',
+     who:'All deductors who deducted TDS during April–June.',
+     what:'File Q1 quarterly TDS return with PAN-wise details of deductees, amounts paid, TDS deducted and deposited. Form 24Q for salary TDS. Form 26Q for all other TDS.',
+     why:'Enables deductees to see TDS credit in Form 26AS for the quarter. Required before Form 16A for Q1 can be issued.',
+     penalty:'₹200/day u/s 234E (max = TDS amount) + penalty u/s 271H.'},
+
+    {id:'jl3',cat:'it',name:'Income Tax Return – Proprietorship / Firms (Non-Audit Cases)',due:'31 Jul',urgent:true,freq:'Annual',form:'ITR-3 (Proprietor) / ITR-5 (Partnership Firm)',
+     who:'Proprietorships and partnership firms not required to get accounts audited u/s 44AB.',
+     what:'File annual ITR reporting total business/professional income, partner\'s remuneration and interest, deductions u/s 80C/80D etc., brought forward losses, self-assessment tax payments.',
+     why:'Filing ITR is mandatory for all business entities with income above basic exemption. ITR is the basis for tax refunds, carrying forward losses, loan applications, and visa processing.',
+     penalty:'Late fee u/s 234F: ₹5,000 if filed after 31 Jul (₹1,000 if income ≤₹5 lakh). Loss carry-forward denied. Interest u/s 234A on outstanding tax.'},
+
+    {id:'jl4',cat:'gst',name:'GSTR-1 – June (Monthly Filers)',due:'11 Jul',freq:'Monthly',form:'GSTR-1 on GST Portal',
+     who:'Monthly filers (turnover > ₹5 crore).',
+     what:'Report all June sales invoices and outward supply details.',
+     why:'Enables buyer ITC for June purchases.',
+     penalty:'₹50/day max ₹10,000.'},
+
+    {id:'jl5',cat:'gst',name:'GSTR-1 – Q1 (Apr–Jun) | QRMP Quarterly Filers',due:'13 Jul',freq:'Quarterly (Q1)',form:'GSTR-1 on GST Portal',
+     who:'Taxpayers under QRMP scheme (turnover ≤ ₹5 crore).',
+     what:'Upload Q1 invoices (April–June) in GSTR-1. Monthly IFF uploads during the quarter are optional but help buyers get timely ITC.',
+     why:'QRMP scheme allows smaller taxpayers to file GSTR-1 quarterly. Monthly GST payments are made via PMT-06.',
+     penalty:'₹50/day (₹20 Nil), max ₹10,000.'},
+
+    {id:'jl6',cat:'gst',name:'GSTR-3B – June (Monthly Filers)',due:'20 Jul',freq:'Monthly',form:'GSTR-3B on GST Portal',
+     who:'All regular GST taxpayers.',
+     what:'File summary return and pay net GST for June.',
+     why:'Primary GST payment return for June.',
+     penalty:'Interest 18% p.a. + ₹50/day.'},
+
+    {id:'jl7',cat:'gst',name:'GSTR-3B – Q1 (Apr–Jun) | QRMP Quarterly Filers',due:'22 Jul',freq:'Quarterly (Q1)',form:'GSTR-3B on GST Portal',
+     who:'QRMP scheme taxpayers.',
+     what:'File Q1 GSTR-3B declaring consolidated ITC and GST liability for April–June. Adjust for monthly PMT-06 payments already made.',
+     why:'Quarterly settlement of GST for QRMP filers.',
+     penalty:'Interest 18% p.a. on shortfall + late fee ₹50/day.'},
+
+    {id:'jl8',cat:'comp',name:'CMP-08 – Q1 Tax Payment (Apr–Jun) | Composition Dealers',due:'18 Jul',urgent:true,freq:'Quarterly (Q1)',form:'CMP-08 on GST Portal',
+     who:'GST Composition scheme taxpayers.',
+     what:'Pay quarterly composition tax for April–June period on the quarter\'s turnover at the applicable flat rate (1% traders, 5% restaurants, 6% service providers). CMP-08 is a statement-cum-challan — it is both the payment and the return.',
+     why:'Composition dealers pay tax quarterly rather than monthly. This replaces GSTR-3B for composition taxpayers. Ensure accurate Q1 turnover is computed before filing.',
+     penalty:'Interest 18% p.a. + ₹50/day late fee. Maximum late fee ₹10,000.'},
+
+    {id:'jl9',cat:'lab',name:'EPF Contribution – June Wages',due:'15 Jul',freq:'Monthly',form:'ECR via EPFO Portal',
+     who:'EPFO-covered establishments.',
+     what:'Deposit June PF contributions.',
+     why:'Monthly statutory obligation.',
+     penalty:'Damages 5–25% + interest 12% p.a.'},
+
+    {id:'jl10',cat:'lab',name:'ESIC Contribution – June Wages',due:'15 Jul',freq:'Monthly',form:'ESIC Portal',
+     who:'ESIC-covered establishments.',
+     what:'Deposit ESIC contributions for June.',
+     why:'Monthly statutory obligation.',
+     penalty:'Interest 12% p.a. + damages up to 25%.'},
+
+    {id:'jl11',cat:'lab',name:'Labour Welfare Fund (LWF) – Jan–Jun Contribution',due:'15 Jul',freq:'Half-Yearly',form:'State LWF Authority (Online/Treasury)',
+     who:'All establishments in states where LWF is applicable: Maharashtra, Karnataka, AP, MP, Gujarat, Kerala etc.',
+     what:'Deposit LWF contributions for January–June period. Maharashtra rates: Employee ₹6/month + Employer ₹12/month. Other states have different rates.',
+     why:'LWF provides welfare services to industrial workers including housing, education, and medical aid. Administered by the State Labour Welfare Board.',
+     penalty:'Interest and penalty under respective State LWF Act. Maharashtra: interest 1%/month + fine up to ₹500.'},
+
+    {id:'jl12',cat:'lab',name:'Professional Tax – June Deduction & Deposit',due:'Last day of Jul',freq:'Monthly',form:'State PT Portal',
+     who:'PT-applicable employers.',
+     what:'Deduct PT from June salaries and deposit with state government.',
+     why:'Monthly PT obligation.',
+     penalty:'State-specific penalties.'},
+  ]
+},
+
+'August':{
+  note:'<strong>Form 16A for Q1 due on 15th August.</strong> This is 15 days after the Q1 TDS return due date (31 Jul). Ensure Q1 TDS return was filed first and TRACES has processed it.',
+  items:[
+    {id:'ag1',cat:'it',name:'TDS Deposit – July Deductions',due:'7 Aug',freq:'Monthly',form:'Challan 281',
+     who:'All TDS deductors.',
+     what:'Deposit TDS deducted from July payments.',
+     why:'Monthly statutory obligation.',
+     penalty:'Interest 1.5%/month on late deposit.'},
+
+    {id:'ag2',cat:'it',name:'Form 16A – Non-Salary TDS Certificate (Q1: Apr–Jun)',due:'15 Aug',urgent:true,freq:'Quarterly',form:'Form 16A from TRACES Portal',
+     who:'All entities that deducted TDS on non-salary payments during April–June.',
+     what:'Issue Form 16A TDS certificates to deductees (vendors, landlords, consultants) for Q1. Download from TRACES after Q1 return (filed 31 Jul) has been processed.',
+     why:'Deductees need Form 16A to reconcile TDS in their accounts and claim credit in their ITR.',
+     penalty:'₹100/day u/s 272A for each delayed certificate.'},
+
+    {id:'ag3',cat:'gst',name:'GSTR-1 – July (Monthly Filers)',due:'11 Aug',freq:'Monthly',form:'GSTR-1 on GST Portal',
+     who:'Monthly filers.',
+     what:'Report all July sales invoices and outward supply details.',
+     why:'Buyer ITC depends on timely GSTR-1.',
+     penalty:'₹50/day max ₹10,000.'},
+
+    {id:'ag4',cat:'gst',name:'GSTR-3B – July (Monthly Filers)',due:'20 Aug',freq:'Monthly',form:'GSTR-3B on GST Portal',
+     who:'All regular GST taxpayers.',
+     what:'File summary return and pay net GST for July.',
+     why:'Primary GST payment return.',
+     penalty:'Interest 18% p.a. + ₹50/day.'},
+
+    {id:'ag5',cat:'lab',name:'EPF Contribution – July Wages',due:'15 Aug',freq:'Monthly',form:'ECR via EPFO Portal',
+     who:'EPFO-covered establishments.',
+     what:'Deposit July PF contributions.',
+     why:'Monthly statutory obligation.',
+     penalty:'Damages 5–25% + interest 12% p.a.'},
+
+    {id:'ag6',cat:'lab',name:'ESIC Contribution – July Wages',due:'15 Aug',freq:'Monthly',form:'ESIC Portal',
+     who:'ESIC-covered establishments.',
+     what:'Deposit ESIC contributions for July.',
+     why:'Monthly statutory obligation.',
+     penalty:'Interest 12% p.a. + damages up to 25%.'},
+
+    {id:'ag7',cat:'lab',name:'Professional Tax – July Deduction & Deposit',due:'Last day of Aug',freq:'Monthly',form:'State PT Portal',
+     who:'PT-applicable employers.',
+     what:'Deduct PT from July salaries and deposit.',
+     why:'Monthly PT obligation.',
+     penalty:'State-specific penalties.'},
+  ]
+},
+
+'September':{
+  note:'<strong>Critical month:</strong> Tax Audit Report (30 Sep) and Advance Tax 2nd installment (15 Sep). If accounts need audit, the Tax Audit Report must be filed before the ITR due date (31 Oct).',
+  items:[
+    {id:'sp1',cat:'it',name:'TDS Deposit – August Deductions',due:'7 Sep',freq:'Monthly',form:'Challan 281',
+     who:'All TDS deductors.',
+     what:'Deposit TDS deducted from August payments.',
+     why:'Monthly statutory obligation.',
+     penalty:'Interest 1.5%/month on late deposit.'},
+
+    {id:'sp2',cat:'it',name:'Advance Tax – 2nd Installment (Cumulative ≥45%)',due:'15 Sep',urgent:true,freq:'Quarterly',form:'Challan 280 – Income Tax Portal',
+     who:'All advance tax payers (proprietors and firms with tax liability > ₹10,000).',
+     what:'Pay enough advance tax to bring total paid to at least 45% of estimated annual tax liability. Reassess income and profit for the year (April–September actuals + October–March estimate).',
+     why:'The September installment is the midyear check-in. Revise estimates if business performance has changed significantly.',
+     penalty:'Interest u/s 234C: 1% per month for 3 months on shortfall below 45%. Also u/s 234B if overall advance tax < 90%.'},
+
+    {id:'sp3',cat:'it',name:'Tax Audit Report – Form 3CA / 3CB / 3CD',due:'30 Sep',urgent:true,freq:'Annual',form:'Form 3CA or 3CB + Form 3CD via IT Portal',
+     who:'Proprietorships/firms with: Business turnover > ₹1 crore (₹10 crore if cash receipts & payments ≤5%), Professional receipts > ₹50 lakh.',
+     what:'Get accounts audited by a CA who submits the audit report online. Form 3CA (if books already audited under other law) or Form 3CB (other cases) + Form 3CD with 44 clauses covering all aspects of the business.',
+     why:'Tax audit verifies that accounts are maintained properly, income is computed correctly, and all required disclosures are made.',
+     penalty:'Penalty u/s 271B: ½% of turnover/gross receipts or ₹1.5 lakh, whichever is lower.'},
+
+    {id:'sp4',cat:'gst',name:'GSTR-1 – August (Monthly Filers)',due:'11 Sep',freq:'Monthly',form:'GSTR-1 on GST Portal',
+     who:'Monthly filers.',
+     what:'Report all August sales invoices.',
+     why:'Buyer ITC depends on timely filing.',
+     penalty:'₹50/day max ₹10,000.'},
+
+    {id:'sp5',cat:'gst',name:'GSTR-3B – August (Monthly Filers)',due:'20 Sep',freq:'Monthly',form:'GSTR-3B on GST Portal',
+     who:'All regular GST taxpayers.',
+     what:'File summary return and pay net GST for August.',
+     why:'Primary GST payment return.',
+     penalty:'Interest 18% p.a. + ₹50/day.'},
+
+    {id:'sp6',cat:'lab',name:'EPF Contribution – August Wages',due:'15 Sep',freq:'Monthly',form:'ECR via EPFO Portal',
+     who:'EPFO-covered establishments.',
+     what:'Deposit August PF contributions.',
+     why:'Monthly statutory obligation.',
+     penalty:'Damages 5–25% + interest 12% p.a.'},
+
+    {id:'sp7',cat:'lab',name:'ESIC Contribution – August Wages',due:'15 Sep',freq:'Monthly',form:'ESIC Portal',
+     who:'ESIC-covered establishments.',
+     what:'Deposit ESIC contributions for August.',
+     why:'Monthly statutory obligation.',
+     penalty:'Interest 12% p.a. + damages up to 25%.'},
+
+    {id:'sp8',cat:'lab',name:'Professional Tax – August Deduction & Deposit',due:'Last day of Sep',freq:'Monthly',form:'State PT Portal',
+     who:'PT-applicable employers.',
+     what:'Deduct PT from August salaries and deposit with state government.',
+     why:'Monthly PT obligation.',
+     penalty:'State-specific penalties.'},
+  ]
+},
+
+'October':{
+  note:'<strong>Final ITR deadline for audit cases (31 Oct)</strong> and Q2 TDS Return (31 Oct). <strong>CMP-08 Q2 for composition dealers (18 Oct).</strong> Ensure Tax Audit Report was filed in September before submitting the ITR.',
+  items:[
+    {id:'oc1',cat:'it',name:'TDS Deposit – September Deductions',due:'7 Oct',freq:'Monthly',form:'Challan 281',
+     who:'All TDS deductors.',
+     what:'Deposit TDS deducted from September payments.',
+     why:'Monthly statutory obligation.',
+     penalty:'Interest 1.5%/month on late deposit.'},
+
+    {id:'oc2',cat:'it',name:'TDS Return – Q2 (July–September) | Form 24Q & 26Q',due:'31 Oct',urgent:true,freq:'Quarterly',form:'Form 24Q / Form 26Q – via ITD Portal',
+     who:'All deductors who deducted TDS during July–September.',
+     what:'File Q2 quarterly TDS return with PAN-wise details of deductees, payments made, TDS deducted and deposited during July–September.',
+     why:'Enables deductees to see Q2 TDS credit in Form 26AS. Required before Form 16A for Q2 can be issued.',
+     penalty:'₹200/day u/s 234E + penalty u/s 271H.'},
+
+    {id:'oc3',cat:'it',name:'ITR Filing – Audit Cases (Firms & Proprietorships)',due:'31 Oct',urgent:true,freq:'Annual',form:'ITR-3 (Proprietor) / ITR-5 (Firm) – via IT Portal',
+     who:'All proprietorships and partnership firms whose accounts are required to be audited u/s 44AB.',
+     what:'File Income Tax Return after the Tax Audit Report (Form 3CA/3CB/3CD) has been submitted by the CA. ITR-5 for firms must include partners\' details, firm\'s income computation, disallowances, brought forward losses.',
+     why:'Extended deadline for audit cases. Missing this deadline results in late fees, denial of loss carry-forwards, and can trigger scrutiny.',
+     penalty:'Late fee u/s 234F: ₹5,000 (₹1,000 if income ≤₹5 lakh). Loss carry-forward disallowed for returns filed after due date.'},
+
+    {id:'oc4',cat:'gst',name:'GSTR-1 – September (Monthly Filers)',due:'11 Oct',freq:'Monthly',form:'GSTR-1 on GST Portal',
+     who:'Monthly filers.',
+     what:'Report all September sales invoices. September is also the last chance to amend invoices/claim ITC for FY 2023–24.',
+     why:'September GSTR-3B is the last return in which ITC for the previous FY (2023–24) can be availed.',
+     penalty:'₹50/day max ₹10,000.'},
+
+    {id:'oc5',cat:'gst',name:'GSTR-3B – September (Monthly Filers)',due:'20 Oct',freq:'Monthly',form:'GSTR-3B on GST Portal',
+     who:'All regular GST taxpayers.',
+     what:'File summary return and pay net GST for September. Last return in which prior FY ITC (2023–24) can be availed.',
+     why:'Critical deadline for ITC reconciliation of previous financial year. Unclaimed ITC of FY 2023–24 lapses after this return.',
+     penalty:'Interest 18% p.a. + ₹50/day.'},
+
+    {id:'oc6',cat:'gst',name:'GSTR-1 – Q2 (Jul–Sep) | QRMP Quarterly Filers',due:'13 Oct',freq:'Quarterly (Q2)',form:'GSTR-1 on GST Portal',
+     who:'QRMP scheme taxpayers.',
+     what:'Upload Q2 (July–September) invoices in GSTR-1.',
+     why:'Required for buyers\' ITC claims for the quarter.',
+     penalty:'₹50/day max ₹10,000.'},
+
+    {id:'oc7',cat:'gst',name:'GSTR-3B – Q2 (Jul–Sep) | QRMP Quarterly Filers',due:'22 Oct',freq:'Quarterly (Q2)',form:'GSTR-3B on GST Portal',
+     who:'QRMP scheme taxpayers.',
+     what:'File Q2 GSTR-3B and settle net GST liability after adjusting PMT-06 monthly payments.',
+     why:'Quarterly GST settlement for QRMP filers.',
+     penalty:'Interest 18% p.a. + ₹50/day.'},
+
+    {id:'oc8',cat:'comp',name:'CMP-08 – Q2 Tax Payment (Jul–Sep) | Composition Dealers',due:'18 Oct',urgent:true,freq:'Quarterly (Q2)',form:'CMP-08 on GST Portal',
+     who:'GST Composition scheme taxpayers.',
+     what:'Pay quarterly composition tax for July–September on the quarter\'s turnover at applicable flat rate. CMP-08 is a statement-cum-challan covering both payment and declaration of turnover.',
+     why:'Quarterly payment obligation for composition dealers — replaces GSTR-3B. Ensure Q2 turnover computation is accurate before filing.',
+     penalty:'Interest 18% p.a. + ₹50/day late fee. Maximum late fee ₹10,000.'},
+
+    {id:'oc9',cat:'lab',name:'EPF Contribution – September Wages',due:'15 Oct',freq:'Monthly',form:'ECR via EPFO Portal',
+     who:'EPFO-covered establishments.',
+     what:'Deposit September PF contributions.',
+     why:'Monthly statutory obligation.',
+     penalty:'Damages 5–25% + interest 12% p.a.'},
+
+    {id:'oc10',cat:'lab',name:'ESIC Contribution – September Wages',due:'15 Oct',freq:'Monthly',form:'ESIC Portal',
+     who:'ESIC-covered establishments.',
+     what:'Deposit ESIC contributions for September.',
+     why:'Monthly statutory obligation.',
+     penalty:'Interest 12% p.a. + damages up to 25%.'},
+
+    {id:'oc11',cat:'lab',name:'Professional Tax – September Deduction & Deposit',due:'Last day of Oct',freq:'Monthly',form:'State PT Portal',
+     who:'PT-applicable employers.',
+     what:'Deduct PT from September salaries and deposit.',
+     why:'Monthly PT obligation.',
+     penalty:'State-specific penalties.'},
+  ]
+},
+
+'November':{
+  note:'<strong>Form 16A for Q2 (Jul–Sep) due 15th November</strong> — 15 days after Q2 TDS return. ESIC half-yearly return for April–September is also due 11th November.',
+  items:[
+    {id:'nv1',cat:'it',name:'TDS Deposit – October Deductions',due:'7 Nov',freq:'Monthly',form:'Challan 281',
+     who:'All TDS deductors.',
+     what:'Deposit TDS deducted from October payments.',
+     why:'Monthly statutory obligation.',
+     penalty:'Interest 1.5%/month on late deposit.'},
+
+    {id:'nv2',cat:'it',name:'Form 16A – Non-Salary TDS Certificate (Q2: Jul–Sep)',due:'15 Nov',urgent:true,freq:'Quarterly',form:'Form 16A from TRACES Portal',
+     who:'All entities that deducted TDS on non-salary payments during July–September.',
+     what:'Issue Form 16A certificates to deductees for Q2 TDS. Download from TRACES after Q2 return (filed 31 Oct) is processed. Distribute to each vendor, landlord, and consultant.',
+     why:'Deductees need Q2 Form 16A to reconcile TDS in their books and claim credit in advance tax calculations.',
+     penalty:'₹100/day u/s 272A for each delayed certificate.'},
+
+    {id:'nv3',cat:'gst',name:'GSTR-1 – October (Monthly Filers)',due:'11 Nov',freq:'Monthly',form:'GSTR-1 on GST Portal',
+     who:'Monthly filers.',
+     what:'Report all October sales invoices and outward supply details.',
+     why:'Buyer ITC depends on timely GSTR-1.',
+     penalty:'₹50/day max ₹10,000.'},
+
+    {id:'nv4',cat:'gst',name:'GSTR-3B – October (Monthly Filers)',due:'20 Nov',freq:'Monthly',form:'GSTR-3B on GST Portal',
+     who:'All regular GST taxpayers.',
+     what:'File summary return and pay net GST for October.',
+     why:'Primary GST payment return.',
+     penalty:'Interest 18% p.a. + ₹50/day.'},
+
+    {id:'nv5',cat:'lab',name:'EPF Contribution – October Wages',due:'15 Nov',freq:'Monthly',form:'ECR via EPFO Portal',
+     who:'EPFO-covered establishments.',
+     what:'Deposit October PF contributions.',
+     why:'Monthly statutory obligation.',
+     penalty:'Damages 5–25% + interest 12% p.a.'},
+
+    {id:'nv6',cat:'lab',name:'ESIC Contribution – October Wages',due:'15 Nov',freq:'Monthly',form:'ESIC Portal',
+     who:'ESIC-covered establishments.',
+     what:'Deposit ESIC contributions for October.',
+     why:'Monthly statutory obligation.',
+     penalty:'Interest 12% p.a. + damages up to 25%.'},
+
+    {id:'nv7',cat:'lab',name:'ESIC Half-Yearly Return – April to September',due:'11 Nov',urgent:true,freq:'Half-Yearly',form:'Form 7-A / Return via ESIC Online Portal',
+     who:'All ESIC registered employers.',
+     what:'File the ESIC contribution return for the first half of FY (April–September) declaring wages paid per employee, contribution amounts, and contribution periods.',
+     why:'Mandatory reconciliation return under ESI Act. Determines employees\' benefit eligibility for the next benefit period.',
+     penalty:'Fine up to ₹5,000 under Section 85 of the ESI Act.'},
+
+    {id:'nv8',cat:'lab',name:'Professional Tax – October Deduction & Deposit',due:'Last day of Nov',freq:'Monthly',form:'State PT Portal',
+     who:'PT-applicable employers.',
+     what:'Deduct PT from October salaries and deposit.',
+     why:'Monthly PT obligation.',
+     penalty:'State-specific penalties.'},
+  ]
+},
+
+'December':{
+  note:'<strong>GSTR-9 Annual Return & Advance Tax 3rd installment</strong> are both due this month. December is a good time to review books, pending TDS, and advance tax adequacy.',
+  items:[
+    {id:'dc1',cat:'it',name:'TDS Deposit – November Deductions',due:'7 Dec',freq:'Monthly',form:'Challan 281',
+     who:'All TDS deductors.',
+     what:'Deposit TDS deducted from November payments.',
+     why:'Monthly statutory obligation.',
+     penalty:'Interest 1.5%/month on late deposit.'},
+
+    {id:'dc2',cat:'it',name:'Advance Tax – 3rd Installment (Cumulative ≥75%)',due:'15 Dec',urgent:true,freq:'Quarterly',form:'Challan 280 – Income Tax Portal',
+     who:'All advance tax payers.',
+     what:'Pay enough to bring total cumulative advance tax paid to at least 75% of estimated annual tax. Review 9 months of actual P&L and revise annual estimate.',
+     why:'By December, 9 months of actual data is available for reliable estimation. Accurate payment now reduces the March 15th pressure.',
+     penalty:'Interest u/s 234C: 1% per month for 3 months on shortfall below 75%.'},
+
+    {id:'dc3',cat:'gst',name:'GSTR-1 – November (Monthly Filers)',due:'11 Dec',freq:'Monthly',form:'GSTR-1 on GST Portal',
+     who:'Monthly filers.',
+     what:'Report all November sales invoices.',
+     why:'Buyer ITC for November purchases.',
+     penalty:'₹50/day max ₹10,000.'},
+
+    {id:'dc4',cat:'gst',name:'GSTR-3B – November (Monthly Filers)',due:'20 Dec',freq:'Monthly',form:'GSTR-3B on GST Portal',
+     who:'All regular GST taxpayers.',
+     what:'File summary return and pay net GST for November.',
+     why:'Primary GST payment return.',
+     penalty:'Interest 18% p.a. + ₹50/day.'},
+
+    {id:'dc5',cat:'gst',name:'GSTR-9 – Annual GST Return (FY 2023–24)',due:'31 Dec',urgent:true,freq:'Annual',form:'GSTR-9 on GST Portal',
+     who:'All regular GST taxpayers with aggregate annual turnover above ₹2 crore. (Turnover ≤₹2 crore: optional but advisable.)',
+     what:'File annual GST return consolidating all monthly/quarterly GSTR-1 and GSTR-3B data for FY 2023–24 (April 2023 to March 2024). Includes total outward/inward supplies, ITC availed vs reversed, HSN-wise summary, and reconciliation of tax paid vs payable.',
+     why:'GSTR-9 is the annual audit of all GST transactions. Differences (excess ITC, under-reported turnover) can be rectified here by paying additional tax and interest.',
+     penalty:'Late fee: ₹200/day (₹100 CGST + ₹100 SGST), maximum ₹0.25% of state turnover.'},
+
+    {id:'dc6',cat:'gst',name:'GSTR-9C – Reconciliation Statement (FY 2023–24)',due:'31 Dec',freq:'Annual',form:'GSTR-9C on GST Portal (self-certification)',
+     who:'All taxpayers with aggregate annual turnover exceeding ₹5 crore during FY 2023–24.',
+     what:'File a reconciliation statement between audited financial statements and annual GST return (GSTR-9). Reconcile turnover, taxes paid, ITC, and certify reasons for differences.',
+     why:'GSTR-9C ensures GST returns match audited accounts. Unexplained differences trigger departmental scrutiny.',
+     penalty:'Same as GSTR-9: ₹200/day, max 0.25% of turnover.'},
+
+    {id:'dc7',cat:'lab',name:'EPF Contribution – November Wages',due:'15 Dec',freq:'Monthly',form:'ECR via EPFO Portal',
+     who:'EPFO-covered establishments.',
+     what:'Deposit November PF contributions.',
+     why:'Monthly statutory obligation.',
+     penalty:'Damages 5–25% + interest 12% p.a.'},
+
+    {id:'dc8',cat:'lab',name:'ESIC Contribution – November Wages',due:'15 Dec',freq:'Monthly',form:'ESIC Portal',
+     who:'ESIC-covered establishments.',
+     what:'Deposit ESIC contributions for November.',
+     why:'Monthly statutory obligation.',
+     penalty:'Interest 12% p.a. + damages up to 25%.'},
+
+    {id:'dc9',cat:'lab',name:'Professional Tax – November Deduction & Deposit',due:'Last day of Dec',freq:'Monthly',form:'State PT Portal',
+     who:'PT-applicable employers.',
+     what:'Deduct PT from November salaries and deposit.',
+     why:'Monthly PT obligation.',
+     penalty:'State-specific penalties.'},
+
+    {id:'dc_shops',cat:'lab',name:'Shops & Establishment Registration – Renewal',due:'31 Dec',freq:'Annual',form:'Maharashtra Shops & Establishment registration (Aaple Sarkar / mahaonline portal)',
+     who:'Every shop or commercial establishment registered under the Maharashtra Shops and Establishments (Regulation of Employment and Conditions of Service) Act, 2017. Establishments with up to 9 workers file a one-time intimation only; those with 10 or more workers require registration and periodic renewal.',
+     what:'Renew the Shops & Establishment registration certificate before it lapses. The date is firm-specific, not a fixed statewide date — align it with when your registration certificate expires. Use the ⚙ Manage Compliance tool to move the month or day if your certificate renews at a different time.',
+     why:'A valid Shops & Establishment registration is the basic licence to run the store and employ staff. It is verified during labour inspections and is a prerequisite for several other registrations and renewals.',
+     penalty:'Operating with a lapsed or unregistered establishment attracts a fine under the Act (commonly up to ₹1,00,000, with a further daily fine for continuing default) and risk of sealing or closure.'},
+  ]
+},
+
+'January':{
+  note:'<strong>Q3 TDS Return due 31st January.</strong> <strong>CMP-08 Q3 for composition dealers (18 Jan).</strong> Also check annual returns under various Labour Laws. Labour Welfare Fund contribution for Jul–Dec period may be due.',
+  items:[
+    {id:'jn_1',cat:'it',name:'TDS Deposit – December Deductions',due:'7 Jan',freq:'Monthly',form:'Challan 281',
+     who:'All TDS deductors.',
+     what:'Deposit TDS deducted from December payments.',
+     why:'Monthly statutory obligation.',
+     penalty:'Interest 1.5%/month on late deposit.'},
+
+    {id:'jn_2',cat:'it',name:'TDS Return – Q3 (October–December) | Form 24Q & 26Q',due:'31 Jan',urgent:true,freq:'Quarterly',form:'Form 24Q / Form 26Q – via ITD Portal',
+     who:'All deductors who deducted TDS during October–December.',
+     what:'File Q3 quarterly TDS return with PAN-wise details of deductees, payments, TDS deducted and deposited during October–December.',
+     why:'Enables deductees to see Q3 TDS credit in Form 26AS. Form 16A for Q3 (due 15 Feb) cannot be issued before this return.',
+     penalty:'₹200/day u/s 234E + penalty u/s 271H.'},
+
+    {id:'jn_3',cat:'gst',name:'GSTR-1 – December (Monthly Filers)',due:'11 Jan',freq:'Monthly',form:'GSTR-1 on GST Portal',
+     who:'Monthly filers.',
+     what:'Report all December sales invoices.',
+     why:'Buyer ITC for December purchases.',
+     penalty:'₹50/day max ₹10,000.'},
+
+    {id:'jn_4',cat:'gst',name:'GSTR-3B – December (Monthly Filers)',due:'20 Jan',freq:'Monthly',form:'GSTR-3B on GST Portal',
+     who:'All regular GST taxpayers.',
+     what:'File summary return and pay net GST for December.',
+     why:'Primary GST payment return.',
+     penalty:'Interest 18% p.a. + ₹50/day.'},
+
+    {id:'jn_5',cat:'gst',name:'GSTR-1 – Q3 (Oct–Dec) | QRMP Quarterly Filers',due:'13 Jan',freq:'Quarterly (Q3)',form:'GSTR-1 on GST Portal',
+     who:'QRMP scheme taxpayers.',
+     what:'Upload Q3 (October–December) invoices in GSTR-1.',
+     why:'Required for buyers\' ITC claims for the quarter.',
+     penalty:'₹50/day max ₹10,000.'},
+
+    {id:'jn_6',cat:'gst',name:'GSTR-3B – Q3 (Oct–Dec) | QRMP Quarterly Filers',due:'22 Jan',freq:'Quarterly (Q3)',form:'GSTR-3B on GST Portal',
+     who:'QRMP scheme taxpayers.',
+     what:'File Q3 GSTR-3B and settle GST liability for October–December.',
+     why:'Quarterly GST settlement for QRMP filers.',
+     penalty:'Interest 18% p.a. + ₹50/day.'},
+
+    {id:'jn_7',cat:'comp',name:'CMP-08 – Q3 Tax Payment (Oct–Dec) | Composition Dealers',due:'18 Jan',urgent:true,freq:'Quarterly (Q3)',form:'CMP-08 on GST Portal',
+     who:'GST Composition scheme taxpayers.',
+     what:'Pay quarterly composition tax for October–December on the quarter\'s turnover. CMP-08 is a statement-cum-challan — file on portal and pay via GST Electronic Cash Ledger.',
+     why:'Quarterly payment obligation for composition dealers. Ensure Q3 (Oct-Dec) turnover is correctly computed. Next due date: CMP-08 Q4 on 18 April.',
+     penalty:'Interest 18% p.a. + ₹50/day late fee. Maximum late fee ₹10,000.'},
+
+    {id:'jn_8',cat:'lab',name:'EPF Contribution – December Wages',due:'15 Jan',freq:'Monthly',form:'ECR via EPFO Portal',
+     who:'EPFO-covered establishments.',
+     what:'Deposit December PF contributions.',
+     why:'Monthly statutory obligation.',
+     penalty:'Damages 5–25% + interest 12% p.a.'},
+
+    {id:'jn_9',cat:'lab',name:'ESIC Contribution – December Wages',due:'15 Jan',freq:'Monthly',form:'ESIC Portal',
+     who:'ESIC-covered establishments.',
+     what:'Deposit ESIC contributions for December.',
+     why:'Monthly statutory obligation.',
+     penalty:'Interest 12% p.a. + damages up to 25%.'},
+
+    {id:'jn_10',cat:'lab',name:'Labour Welfare Fund – Jul–Dec Contribution',due:'15 Jan',freq:'Half-Yearly',form:'State LWF Authority / Online Portal',
+     who:'All establishments in LWF-applicable states.',
+     what:'Deposit LWF contributions for July–December period. Maharashtra rates: Employee ₹6/month + Employer ₹12/month per eligible employee.',
+     why:'LWF contributes to worker welfare. Failure to deposit on time attracts penalties under the state LWF Act.',
+     penalty:'State-specific interest and penalty. Maharashtra: interest 1%/month + fine up to ₹500.'},
+
+    {id:'jn_11',cat:'lab',name:'Annual Returns – Factories Act / Shops & Establishments',due:'15 Jan',freq:'Annual',form:'Form 21 (Factories Act) / State Shops & Establishments Portal',
+     who:'Factories registered under the Factories Act 1948. Shops and commercial establishments under the Shops & Establishments Act.',
+     what:'File annual returns covering total workers employed, wages paid, leave records, overtime, accidents, and hazardous material usage (for factories).',
+     why:'Annual returns provide the government with data on employment, wages, and working conditions. These feed into national labour statistics.',
+     penalty:'Fine up to ₹2,000 for first offence and up to ₹5,000 for subsequent offences.'},
+
+    {id:'jn_12',cat:'lab',name:'Professional Tax – December Deduction & Deposit',due:'Last day of Jan',freq:'Monthly',form:'State PT Portal',
+     who:'PT-applicable employers.',
+     what:'Deduct PT from December salaries and deposit.',
+     why:'Monthly PT obligation.',
+     penalty:'State-specific penalties.'},
+  ]
+},
+
+'February':{
+  note:'<strong>Form 16A for Q3 due 15th February.</strong> In Maharashtra, February PT is ₹300 (higher than other months for salaries >₹10,000). Start collecting investment proofs for year-end salary TDS computation.',
+  items:[
+    {id:'fb1',cat:'it',name:'TDS Deposit – January Deductions',due:'7 Feb',freq:'Monthly',form:'Challan 281',
+     who:'All TDS deductors.',
+     what:'Deposit TDS deducted from January payments.',
+     why:'Monthly statutory obligation.',
+     penalty:'Interest 1.5%/month on late deposit.'},
+
+    {id:'fb2',cat:'it',name:'Form 16A – Non-Salary TDS Certificate (Q3: Oct–Dec)',due:'15 Feb',urgent:true,freq:'Quarterly',form:'Form 16A from TRACES Portal',
+     who:'All entities that deducted TDS on non-salary payments during October–December.',
+     what:'Issue Form 16A for Q3 to all deductees. Download from TRACES after Q3 return (31 Jan) is processed. The Q3 Form 16A is particularly important for deductees who need to compute their advance tax.',
+     why:'With only one month left in Q4, vendors and consultants need Q3 Form 16A urgently to finalize their own tax computations and advance tax.',
+     penalty:'₹100/day u/s 272A for each delayed certificate.'},
+
+    {id:'fb3',cat:'it',name:'Employee Investment Proofs Collection (for Salary TDS)',due:'By end of Feb',freq:'Annual',form:'Internal process – collect original/scanned investment proofs',
+     who:'All employers who deduct salary TDS u/s 192.',
+     what:'Collect actual investment proofs from employees for deductions claimed: Section 80C (PPF, LIC, ELSS, home loan principal), 80D (health insurance), 80G (donations), HRA (rent receipts), home loan interest certificate.',
+     why:'TDS deducted through the year was based on estimated investments. February is the month to reconcile declarations with actual proofs. If investments are less than declared, additional TDS must be deducted in Feb–Mar.',
+     penalty:'If TDS is short due to incorrect computation, employer is treated as defaulter under Section 201.'},
+
+    {id:'fb4',cat:'gst',name:'GSTR-1 – January (Monthly Filers)',due:'11 Feb',freq:'Monthly',form:'GSTR-1 on GST Portal',
+     who:'Monthly filers.',
+     what:'Report all January sales invoices and outward supply details.',
+     why:'Buyer ITC for January purchases.',
+     penalty:'₹50/day max ₹10,000.'},
+
+    {id:'fb5',cat:'gst',name:'GSTR-3B – January (Monthly Filers)',due:'20 Feb',freq:'Monthly',form:'GSTR-3B on GST Portal',
+     who:'All regular GST taxpayers.',
+     what:'File summary return and pay net GST for January.',
+     why:'Primary GST payment return.',
+     penalty:'Interest 18% p.a. + ₹50/day.'},
+
+    {id:'fb6',cat:'lab',name:'EPF Contribution – January Wages',due:'15 Feb',freq:'Monthly',form:'ECR via EPFO Portal',
+     who:'EPFO-covered establishments.',
+     what:'Deposit January PF contributions.',
+     why:'Monthly statutory obligation.',
+     penalty:'Damages 5–25% + interest 12% p.a.'},
+
+    {id:'fb7',cat:'lab',name:'ESIC Contribution – January Wages',due:'15 Feb',freq:'Monthly',form:'ESIC Portal',
+     who:'ESIC-covered establishments.',
+     what:'Deposit ESIC contributions for January.',
+     why:'Monthly statutory obligation.',
+     penalty:'Interest 12% p.a. + damages up to 25%.'},
+
+    {id:'fb8',cat:'lab',name:'Professional Tax – January Deduction & Deposit',due:'Last day of Feb',freq:'Monthly',form:'State PT Portal',
+     who:'PT-applicable employers.',
+     what:'Deduct PT from January salaries and deposit. <strong>Note Maharashtra:</strong> February salaries attract ₹300 PT (instead of ₹200) for employees earning >₹10,000/month.',
+     why:'Monthly PT obligation. February is special in Maharashtra with a higher PT rate.',
+     penalty:'State-specific interest and penalty.'},
+
+    {id:'fb9',cat:'lab',name:'Annual Return – Shops & Commercial Establishments',due:'1 Feb',freq:'Annual',form:'State Shops & Establishments Portal or Physical Submission',
+     who:'All shops, commercial establishments, offices, and service businesses registered under the respective State Shops & Establishments Act.',
+     what:'File annual return providing: number of employees (men/women/contract), total wages paid, leave granted and availed, working hours, holidays provided. Also renew establishment registration if annual renewal is due.',
+     why:'The Shops & Establishments Act regulates working conditions in commercial establishments. Annual returns keep the labour department informed.',
+     penalty:'Maharashtra: ₹2,000–₹10,000 for non-filing or false returns.'},
+  ]
+},
+
+'March':{
+  note:'<strong>Final advance tax (15 Mar) and year-end compliance.</strong> Finalize salary TDS computation, ensure all year-end deductions are properly computed, and review P&L for any adjustments before 31st March.',
+  items:[
+    {id:'mr1',cat:'it',name:'TDS Deposit – February Deductions',due:'7 Mar',freq:'Monthly',form:'Challan 281',
+     who:'All TDS deductors.',
+     what:'Deposit TDS deducted from February payments.',
+     why:'Monthly statutory obligation.',
+     penalty:'Interest 1.5%/month on late deposit.'},
+
+    {id:'mr2',cat:'it',name:'Advance Tax – Final Installment (100% by 15 Mar)',due:'15 Mar',urgent:true,freq:'Annual Final',form:'Challan 280 – Income Tax Portal',
+     who:'All advance tax payers. Total advance tax must equal or exceed 90% of the total assessed tax for the year.',
+     what:'Pay the final advance tax installment to cover 100% of the estimated annual tax liability. Review March income/expenses including: outstanding receivables, March salary cost, closing stock valuation, depreciation computation, and year-end provisions.',
+     why:'If total advance tax < 90% of assessed tax by 15th March, interest u/s 234B @ 1% per month applies from April 1 until payment date.',
+     penalty:'Interest u/s 234B: 1%/month if total advance tax < 90% of assessed tax. Interest u/s 234C on shortfall.'},
+
+    {id:'mr3',cat:'it',name:'Finalize Salary TDS & Compute Form 16 Data',due:'31 Mar',freq:'Annual',form:'Internal calculation before Q4 TDS Return (due 31 May)',
+     who:'All employers deducting salary TDS.',
+     what:'Compute final TDS for each employee for the full year: (1) Finalize annual salary total, (2) Verify all investment proofs, (3) Compute taxable income net of exemptions and deductions, (4) Compute final tax, (5) Adjust for TDS already deducted Apr–Feb, (6) Deduct balance TDS in March salary.',
+     why:'March is the final chance to rectify over/under TDS deduction on salary for the year.',
+     penalty:'Employer treated as "assessee in default" u/s 201 if TDS is short. Interest 1.5%/month on shortfall.'},
+
+    {id:'mr4',cat:'it',name:'Updated Income Tax Return (ITR-U) – 2 Years Prior',due:'31 Mar',freq:'Annual (if applicable)',form:'ITR-U on Income Tax Portal',
+     who:'Taxpayers who need to correct errors or omissions in their ITR for AY 2022–23 (FY 2021–22).',
+     what:'File an Updated Return (ITR-U) to declare any income that was omitted or incorrectly reported. Pay additional tax (25% of aggregate tax + interest if within 1 year; 50% if within 2 years).',
+     why:'ITR-U provides a voluntary compliance window to correct past errors. Filing voluntarily is always better than being caught in scrutiny.',
+     penalty:'If not filed voluntarily and discovered in scrutiny: penalty u/s 270A (50–200% of under-reported income tax) + possible prosecution.'},
+
+    {id:'mr5',cat:'gst',name:'GSTR-1 – February (Monthly Filers)',due:'11 Mar',freq:'Monthly',form:'GSTR-1 on GST Portal',
+     who:'Monthly filers.',
+     what:'Report all February sales invoices. Start preparing for year-end GST reconciliation.',
+     why:'Buyer ITC for February purchases.',
+     penalty:'₹50/day max ₹10,000.'},
+
+    {id:'mr6',cat:'gst',name:'GSTR-3B – February (Monthly Filers)',due:'20 Mar',freq:'Monthly',form:'GSTR-3B on GST Portal',
+     who:'All regular GST taxpayers.',
+     what:'File summary return and pay net GST for February.',
+     why:'Primary GST payment return.',
+     penalty:'Interest 18% p.a. + ₹50/day.'},
+
+    {id:'mr7',cat:'gst',name:'Year-End GST Reconciliation (Books vs Returns)',due:'31 Mar',freq:'Annual',form:'Internal – GSTR-2B reconciliation in accounting software',
+     who:'All GST-registered taxpayers.',
+     what:'Reconcile GST ledgers in books against: (1) GSTR-3B data for the year, (2) GSTR-2B auto-populated ITC, (3) E-way bill data, (4) Outstanding receivables and payables. Identify any ITC not yet availed — it lapses after September return.',
+     why:'March 31st is the last date for the GST year. After this, financial statements are finalized and annual returns (GSTR-9) are prepared.',
+     penalty:'ITC not reconciled and later found ineligible: full reversal + 24% interest from date of availing.'},
+
+    {id:'mr8',cat:'lab',name:'EPF Contribution – February Wages',due:'15 Mar',freq:'Monthly',form:'ECR via EPFO Portal',
+     who:'EPFO-covered establishments.',
+     what:'Deposit February PF contributions.',
+     why:'Monthly statutory obligation.',
+     penalty:'Damages 5–25% + interest 12% p.a.'},
+
+    {id:'mr9',cat:'lab',name:'ESIC Contribution – February Wages',due:'15 Mar',freq:'Monthly',form:'ESIC Portal',
+     who:'ESIC-covered establishments.',
+     what:'Deposit ESIC contributions for February.',
+     why:'Monthly statutory obligation.',
+     penalty:'Interest 12% p.a. + damages up to 25%.'},
+
+    {id:'mr10',cat:'lab',name:'Professional Tax – February Deduction & Deposit',due:'Last day of Mar',freq:'Monthly',form:'State PT Portal',
+     who:'PT-applicable employers.',
+     what:'Deduct PT from February salaries and deposit. In Maharashtra, February salary earners >₹10,000/month attract ₹300 PT. Plan March salary accordingly.',
+     why:'Monthly PT obligation. Year-end: renew Enrollment Certificate if due for renewal.',
+     penalty:'State-specific penalties.'},
+
+    {id:'mr11',cat:'lab',name:'Annual PT Return & Employer Enrollment Renewal',due:'31 Mar',freq:'Annual',form:'State PT Authority / Online Portal',
+     who:'All employers and self-employed professionals/proprietors in PT-applicable states.',
+     what:'File annual Professional Tax return for the full year. Renew Employer\'s Enrollment Certificate if it is up for annual renewal. Pay any outstanding PT including the employer\'s own PT (₹2,500/year in Maharashtra).',
+     why:'Year-end obligation to reconcile all PT deductions and deposits. Employer\'s own PT must be paid annually.',
+     penalty:'Late renewal: penalty up to ₹5,000 in Maharashtra + interest.'},
+  ]
+}
+
+}; // end DATA
+
+/* ══════════════════════════════════════════════════════
+   QUARTERS
+══════════════════════════════════════════════════════ */
+const QUARTERS = [
+  { key:'Q1', label:'Q1 – Apr to Jun', months:['April','May','June'], period:'April – June 2024' },
+  { key:'Q2', label:'Q2 – Jul to Sep', months:['July','August','September'], period:'July – September 2024' },
+  { key:'Q3', label:'Q3 – Oct to Dec', months:['October','November','December'], period:'October – December 2024' },
+  { key:'Q4', label:'Q4 – Jan to Mar', months:['January','February','March'], period:'January – March 2025' },
+];
+
+/* ══════════════════════════════════════════════════════
+   FIRM MANAGEMENT
+══════════════════════════════════════════════════════ */
+let editingFirmId = null;
+
+function openFirmModal(){
+  renderFirmList();
+  document.getElementById('firm-modal').style.display='flex';
+}
+function closeFirmModal(){
+  document.getElementById('firm-modal').style.display='none';
+  resetFirmForm();
+}
+function closeFirmModalBg(e){
+  if(e.target===document.getElementById('firm-modal')) closeFirmModal();
+}
+
+function renderFirmList(){
+  const el = document.getElementById('firm-list');
+  if(!STATE.firms.length){
+    el.innerHTML='<div class="firm-no-firms">No firms added yet. Add your first firm below.</div>';
+    return;
+  }
+  el.innerHTML = STATE.firms.map(f=>`
+    <div class="firm-row">
+      <div class="firm-info">
+        <div class="firm-name">${escapeHtml(f.name)/* Audit fix xss-tax-firm-list: escape stored firm strings */}</div>
+        <div class="firm-detail">${escapeHtml(f.entity||'')} · ${typeLabel(f.type)}${f.hasEmployees===false?' · No employees':''} ${f.pan?'· PAN: '+escapeHtml(f.pan):''} ${f.gstin?'· GSTIN: '+escapeHtml(f.gstin):''}</div>
+      </div>
+      <span class="firm-type-badge ${f.type}">${typeLabel(f.type)}</span>${qrmpBadge(f)}
+      <button data-action="editfirm" data-saagar-args="${taxArgs([f.id])}" data-action-key="definition-01" class="btn-firm-edit">Edit</button>
+      <button data-action="deletefirm" data-saagar-args="${taxArgs([f.id])}" data-action-key="definition-01" class="btn-firm-del">Delete</button>
+    </div>
+  `).join('');
+}
+
+function typeLabel(t){
+  if(t==='regular') return 'Regular Dealer';
+  if(t==='composition') return 'Composition Dealer';
+  if(t==='both') return 'Both / All';
+  if(t==='unregistered') return 'Unregistered';
+  return t||'';
+}
+
+function saveFirm(){
+  const name = document.getElementById('ff-name').value.trim();
+  if(!name){ alert('Please enter a firm name.'); return; }
+  const firm = {
+    id: editingFirmId || ('firm_'+Date.now()),
+    name,
+    pan: document.getElementById('ff-pan').value.trim().toUpperCase(),
+    gstin: document.getElementById('ff-gstin').value.trim().toUpperCase(),
+    entity: document.getElementById('ff-entity').value,
+    type: document.getElementById('ff-type').value,
+    hasEmployees: document.getElementById('ff-emp').value !== 'no',  // additive; default/missing = true
+    // P1-35: nested optional boolean; legacy firms read falsy = monthly. Gate by GST reg type so a stale ticked
+    // checkbox can't persist qrmp=true on a Composition/Unregistered firm (QRMP only exists for regular filers).
+    qrmp: (document.getElementById('ff-type').value==='regular' || document.getElementById('ff-type').value==='both') && document.getElementById('ff-qrmp').checked,
+    notes: document.getElementById('ff-notes').value.trim()
+  };
+  if(editingFirmId){
+    const idx = STATE.firms.findIndex(f=>f.id===editingFirmId);
+    if(idx>=0) STATE.firms[idx]=firm;
+  } else {
+    STATE.firms.push(firm);
+  }
+  saveState();
+  populateFirmSelector();
+  if(!STATE.activeFirmId && STATE.firms.length===1){
+    switchFirm(firm.id);
+  }
+  renderFirmList();
+  resetFirmForm();
+}
+
+function editFirm(id){
+  const f = STATE.firms.find(x=>x.id===id);
+  if(!f) return;
+  editingFirmId = id;
+  document.getElementById('ff-title').textContent = '✏ Edit Firm';
+  document.getElementById('ff-name').value = f.name;
+  document.getElementById('ff-pan').value = f.pan||'';
+  document.getElementById('ff-gstin').value = f.gstin||'';
+  document.getElementById('ff-entity').value = f.entity||'proprietorship';
+  document.getElementById('ff-type').value = f.type||'regular';
+  document.getElementById('ff-emp').value = f.hasEmployees===false ? 'no' : 'yes';  // missing = yes (backward-compat)
+  document.getElementById('ff-qrmp').checked = (f.qrmp === true);  // P1-35: missing/legacy => unchecked
+  syncQrmpField();                                                 // apply visibility for this firm's GST type
+  document.getElementById('ff-notes').value = f.notes||'';
+  document.getElementById('firm-form').scrollIntoView({behavior:'smooth'});
+}
+
+function deleteFirm(id){
+  if(!confirm('Delete this firm and all its compliance records?')) return;
+  STATE.firms = STATE.firms.filter(f=>f.id!==id);
+  delete STATE.compliance[id];
+  try{ const api=evApi(); if(api && api.delByMatch) api.delByMatch(id+'|'); }catch(e){}   // purge this firm's evidence files
+  if(STATE.activeFirmId===id){
+    STATE.activeFirmId = STATE.firms[0]?.id || null;
+  }
+  saveState();
+  populateFirmSelector();
+  renderFirmList();
+  rerender();
+}
+
+function resetFirmForm(){
+  editingFirmId = null;
+  document.getElementById('ff-title').textContent = '+ Add New Firm';
+  ['ff-name','ff-pan','ff-gstin','ff-notes'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('ff-entity').value='proprietorship';
+  document.getElementById('ff-type').value='regular';
+  document.getElementById('ff-emp').value='yes';
+  document.getElementById('ff-qrmp').checked=false;  // P1-35: reset QRMP (ff-type reset to 'regular' above → field visible+unchecked)
+  syncQrmpField();
+}
+
+/* P1-35: show the QRMP checkbox only for GST types where it is meaningful
+   (regular / both); hide for composition / unregistered. Does NOT clear the
+   checkbox value so an edit round-trip preserves it. */
+function syncQrmpField(){
+  const t = document.getElementById('ff-type');
+  const box = document.getElementById('ff-qrmp-field');
+  if(!t || !box) return;
+  box.style.display = (t.value==='regular' || t.value==='both') ? '' : 'none';
+}
+
+/* ══════════════════════════════════════════════════════
+   COMPLIANCE MASTER — modal (add / edit / archive)
+══════════════════════════════════════════════════════ */
+let editingCustomId = null;
+
+/* One-time build of the due-day dropdown (0 = "Last day") and month checkboxes. */
+function buildMasterControls(){
+  const dd = document.getElementById('mf-dueday');
+  if(dd && !dd.options.length){
+    const last = document.createElement('option');
+    last.value = '0'; last.textContent = 'Last day';
+    dd.appendChild(last);
+    for(let d=1; d<=31; d++){
+      const o = document.createElement('option');
+      o.value = String(d); o.textContent = String(d);
+      dd.appendChild(o);
+    }
+    dd.value = '1';
+  }
+  const mc = document.getElementById('mf-months');
+  if(mc && !mc.children.length){
+    mc.innerHTML = MONTHS.map(m=>`<label><input data-action="synceverymonthbox" data-action-key="definition-01" type="checkbox" class="mf-month-cb" value="${m}" onchange="syncEveryMonthBox()"> ${monthAbbr(m)}</label>`).join('');
+  }
+  populateMasterFirmSelect();   // rebuilt each open so the firm list stays current
+}
+
+/* Populate the "Applies To (Firm)" picker. value '' = All firms (backward-compat for
+   pre-existing customs that carry no firmId). Preserves a still-valid selection, else
+   defaults to the active firm so new obligations are firm-scoped for multi-client use. */
+function populateMasterFirmSelect(){
+  const sel = document.getElementById('mf-firm');
+  if(!sel) return;
+  const prev = sel.value;
+  const firms = Array.isArray(STATE.firms) ? STATE.firms : [];
+  sel.innerHTML = '<option value="">All firms</option>' + firms.map(f=>`<option value="${escapeHtml(String(f.id))}">${escapeHtml(f.name||String(f.id))}</option>`).join('');
+  sel.value = (prev && firms.some(f=>String(f.id)===prev)) ? prev : (STATE.activeFirmId || '');
+}
+
+function getCheckedMonths(){
+  return Array.from(document.querySelectorAll('.mf-month-cb')).filter(cb=>cb.checked).map(cb=>cb.value);
+}
+function setCheckedMonths(months){
+  const set = new Set(Array.isArray(months) ? months : []);
+  document.querySelectorAll('.mf-month-cb').forEach(cb=>{ cb.checked = set.has(cb.value); });
+  syncEveryMonthBox();
+}
+function toggleEveryMonth(){
+  const every = document.getElementById('mf-every');
+  document.querySelectorAll('.mf-month-cb').forEach(cb=>{ cb.checked = !!(every && every.checked); });
+}
+function syncEveryMonthBox(){
+  const every = document.getElementById('mf-every');
+  if(every) every.checked = getCheckedMonths().length === MONTHS.length;
+}
+function toggleMasterDetails(){
+  const box = document.getElementById('mf-details');
+  const btn = document.getElementById('mf-details-btn');
+  if(!box) return;
+  const open = box.style.display === 'none';
+  box.style.display = open ? 'block' : 'none';
+  if(btn) btn.textContent = (open ? '▲' : '▼') + ' Who / What / Why / Penalty (optional)';
+}
+function toggleMasterControls(){
+  const box = document.getElementById('mf-controls');
+  const btn = document.getElementById('mf-controls-btn');
+  if(!box) return;
+  const open = box.style.display === 'none';
+  box.style.display = open ? 'block' : 'none';
+  if(btn) btn.textContent = (open ? '▲' : '▼') + ' Ownership / Risk / Checklist / Workflow / Evidence (optional)';
+}
+/* Split a textarea (one item per line) into a clean array; '' → []. */
+function linesToArr(v){ return String(v||'').split('\n').map(s=>s.trim()).filter(Boolean); }
+
+function openMasterModal(){
+  buildMasterControls();
+  resetMasterForm();
+  renderMasterList();
+  const m = document.getElementById('master-modal');
+  if(m) m.style.display = 'flex';
+}
+function closeMasterModal(){
+  const m = document.getElementById('master-modal');
+  if(m) m.style.display = 'none';
+  resetMasterForm();
+}
+function closeMasterModalBg(e){
+  if(e.target === document.getElementById('master-modal')) closeMasterModal();
+}
+
+function resetMasterForm(){
+  editingCustomId = null;
+  const t = document.getElementById('mf-title');
+  if(t) t.textContent = '+ Add Compliance Obligation';
+  ['mf-name','mf-form','mf-who','mf-what','mf-why','mf-penalty','mf-responsible','mf-reviewer','mf-buffer','mf-checklist','mf-workflow','mf-evidence'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  const cat=document.getElementById('mf-cat'); if(cat) cat.value='gst';
+  const fm=document.getElementById('mf-firm'); if(fm) fm.value = STATE.activeFirmId || '';   // new obligations default to the active firm
+  const freq=document.getElementById('mf-freq'); if(freq) freq.value='Monthly';
+  const dd=document.getElementById('mf-dueday'); if(dd) dd.value='1';
+  const rk=document.getElementById('mf-risk'); if(rk) rk.value='';
+  setCheckedMonths([]);
+  const box=document.getElementById('mf-details'); if(box) box.style.display='none';
+  const btn=document.getElementById('mf-details-btn'); if(btn) btn.textContent='▼ Who / What / Why / Penalty (optional)';
+  const cbox=document.getElementById('mf-controls'); if(cbox) cbox.style.display='none';
+  const cbtn=document.getElementById('mf-controls-btn'); if(cbtn) cbtn.textContent='▼ Ownership / Risk / Checklist / Workflow / Evidence (optional)';
+}
+
+function saveCustomObligation(){
+  const name = (document.getElementById('mf-name')?.value || '').trim();
+  if(!name){ alert('Please enter an obligation name.'); return; }
+  const months = getCheckedMonths();
+  if(!months.length){ alert('Please select at least one applicable month.'); return; }
+  const dueDay = parseInt(document.getElementById('mf-dueday')?.value, 10);
+  const obligation = {
+    id: editingCustomId || ('cust-' + Date.now()),
+    cat: document.getElementById('mf-cat')?.value || 'gst',
+    firmId: (document.getElementById('mf-firm')?.value || '') || null,   // null = applies to ALL firms (backward-compat); a firm id = that firm only
+    name,
+    freq: document.getElementById('mf-freq')?.value || 'Monthly',
+    dueDay: isNaN(dueDay) ? 0 : dueDay,
+    months,
+    form: (document.getElementById('mf-form')?.value || '').trim(),
+    who: (document.getElementById('mf-who')?.value || '').trim(),
+    what: (document.getElementById('mf-what')?.value || '').trim(),
+    why: (document.getElementById('mf-why')?.value || '').trim(),
+    penalty: (document.getElementById('mf-penalty')?.value || '').trim(),
+    // Control-profile overrides (blank → getControlProfile keeps its smart default).
+    responsible: (document.getElementById('mf-responsible')?.value || '').trim(),
+    reviewer: (document.getElementById('mf-reviewer')?.value || '').trim(),
+    risk: document.getElementById('mf-risk')?.value || '',
+    buffer: (function(){ const n = parseInt(document.getElementById('mf-buffer')?.value, 10); return isNaN(n) ? null : Math.min(30, Math.max(0, n)); })(),
+    checklist: linesToArr(document.getElementById('mf-checklist')?.value),
+    workflow: linesToArr(document.getElementById('mf-workflow')?.value),
+    evidence: linesToArr(document.getElementById('mf-evidence')?.value),
+    urgent: false
+  };
+  if(!Array.isArray(STATE.custom)) STATE.custom = [];
+  if(editingCustomId){
+    const idx = STATE.custom.findIndex(c=>c && c.id===editingCustomId);
+    if(idx>=0) STATE.custom[idx] = obligation; else STATE.custom.push(obligation);
+  } else {
+    STATE.custom.push(obligation);
+  }
+  saveState();
+  resetMasterForm();
+  renderMasterList();
+  rerender(); // refresh whichever view is current (calendar / dashboard)
+}
+
+function editCustomObligation(id){
+  const c = (STATE.custom || []).find(x=>x && x.id===id);
+  if(!c) return;
+  buildMasterControls();
+  editingCustomId = id;
+  const t = document.getElementById('mf-title'); if(t) t.textContent = '✏ Edit Obligation';
+  const set=(elId,val)=>{ const el=document.getElementById(elId); if(el) el.value=val; };
+  set('mf-name', c.name||'');
+  set('mf-cat', c.cat||'gst');
+  set('mf-firm', c.firmId||'');
+  set('mf-freq', c.freq||'Monthly');
+  set('mf-dueday', String(c.dueDay||0));
+  set('mf-form', c.form||'');
+  set('mf-who', c.who||'');
+  set('mf-what', c.what||'');
+  set('mf-why', c.why||'');
+  set('mf-penalty', c.penalty||'');
+  set('mf-responsible', c.responsible||'');
+  set('mf-reviewer', c.reviewer||'');
+  set('mf-risk', c.risk||'');
+  set('mf-buffer', (typeof c.buffer==='number') ? String(c.buffer) : '');
+  set('mf-checklist', (Array.isArray(c.checklist)?c.checklist:[]).join('\n'));
+  set('mf-workflow', (Array.isArray(c.workflow)?c.workflow:[]).join('\n'));
+  set('mf-evidence', (Array.isArray(c.evidence)?c.evidence:[]).join('\n'));
+  setCheckedMonths(c.months||[]);
+  if((c.who||c.what||c.why||c.penalty)){
+    const box=document.getElementById('mf-details'); if(box) box.style.display='block';
+    const btn=document.getElementById('mf-details-btn'); if(btn) btn.textContent='▲ Who / What / Why / Penalty (optional)';
+  }
+  if(c.responsible||c.reviewer||c.risk||(typeof c.buffer==='number')||(c.checklist&&c.checklist.length)||(c.workflow&&c.workflow.length)||(c.evidence&&c.evidence.length)){
+    const cbox=document.getElementById('mf-controls'); if(cbox) cbox.style.display='block';
+    const cbtn=document.getElementById('mf-controls-btn'); if(cbtn) cbtn.textContent='▲ Ownership / Risk / Checklist / Workflow / Evidence (optional)';
+  }
+  document.getElementById('master-form')?.scrollIntoView({behavior:'smooth'});
+}
+
+function deleteCustomObligation(id){
+  if(!confirm('Delete this custom obligation? It will be removed from the calendar.')) return;
+  STATE.custom = (STATE.custom || []).filter(c=>c && c.id!==id);
+  try{ const api=evApi(); if(api && api.delByMatch) api.delByMatch('|'+id+'-'); }catch(e){}   // purge this obligation's evidence files (all firms/FYs/months)
+  saveState();
+  resetMasterForm();
+  renderMasterList();
+  rerender();
+}
+
+/* Toggle an obligation KEY in STATE.archived (works for built-in + custom). */
+function toggleArchive(key){
+  if(!key) return;
+  if(!Array.isArray(STATE.archived)) STATE.archived = [];
+  const i = STATE.archived.indexOf(key);
+  if(i>=0) STATE.archived.splice(i,1); else STATE.archived.push(key);
+  saveState();
+  renderMasterList();
+  rerender();
+}
+
+/* Archive / restore a WHOLE category (it/gst/comp/lab): every obligation under it
+   (built-in + custom) hides from the calendar & dashboard via getVisibleItems. */
+function toggleCatArchive(cat){
+  if(!cat) return;
+  if(!Array.isArray(STATE.archivedCats)) STATE.archivedCats = [];
+  const i = STATE.archivedCats.indexOf(cat);
+  if(i>=0){ STATE.archivedCats.splice(i,1); }
+  else { STATE.archivedCats.push(cat); if(catFilter===cat) catFilter='all'; }  // an archived cat can't stay the active filter
+  saveState();
+  renderMasterList();
+  rerender();
+}
+
+/* Unique built-in obligation keys derived from the whole catalogue D. */
+function builtInObligations(){
+  const map = new Map(); // key -> {key, cat, name}
+  MONTHS.forEach(m=>{
+    (D[m]?.items || []).forEach(it=>{
+      const key = obligationKey(it);
+      if(key && !map.has(key)) map.set(key, { key, cat: it.cat, name: it.name });
+    });
+  });
+  return Array.from(map.values());
+}
+
+/* Produce a JS single-quoted string literal that is also safe inside a
+   double-quoted HTML attribute (escape backslash, single quote, and HTML
+   special chars). Used so an inline onclick can carry an arbitrary key. */
+function attrJsStr(s){
+  const js = "'" + String(s ?? '').replace(/\\/g,'\\\\').replace(/'/g,"\\'") + "'";
+  return js.replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+}
+
+function renderMasterList(){
+  const el = document.getElementById('master-list');
+  if(!el) return;
+  const archived = Array.isArray(STATE.archived) ? STATE.archived : [];
+  const archCats = Array.isArray(STATE.archivedCats) ? STATE.archivedCats : [];
+  const catOrder = ['gst','comp','it','lab'];
+  const catName = c => (typeof catLabel==='function' ? catLabel(c) : c);
+
+  // ----- Categories (archive a whole category) -----
+  let catHtml = '<div class="master-grp-title">Categories</div><div class="master-empty" style="margin-bottom:8px">Archive a whole category to hide all of its obligations (built-in + custom) at once.</div>';
+  catOrder.forEach(cat=>{
+    const isArch = archCats.includes(cat);
+    catHtml += `<div class="master-row${isArch?' is-archived':''}">
+      <div class="master-row-name">${escapeHtml(catName(cat))}${isArch?' <span class="master-chip archived">ARCHIVED</span>':''}</div>
+      <button data-action="togglecatarchive" data-action-key="definition-01" class="btn-master arch" onclick="toggleCatArchive('${cat}')">${isArch?'Restore':'Archive'}</button>
+    </div>`;
+  });
+
+  // ----- Custom obligations -----
+  const custom = Array.isArray(STATE.custom) ? STATE.custom : [];
+  let customHtml = '<div class="master-grp-title">Your Custom Obligations</div>';
+  if(!custom.length){
+    customHtml += '<div class="master-empty">No custom obligations yet. Add one above.</div>';
+  } else {
+    catOrder.forEach(cat=>{
+      const rows = custom.filter(c=>c && (c.cat||'gst')===cat);
+      if(!rows.length) return;
+      customHtml += `<div class="master-cat-title">${escapeHtml(catName(cat))}</div>`;
+      rows.forEach(c=>{
+        const isArch = archived.includes(c.id);
+        const monthsTxt = (Array.isArray(c.months)?c.months:[]).map(monthAbbr).join(', ') || '—';
+        const dueTxt = (parseInt(c.dueDay,10)===0||isNaN(parseInt(c.dueDay,10))) ? 'Last day' : ('Day '+c.dueDay);
+        const firmTxt = c.firmId ? (((STATE.firms||[]).find(f=>String(f.id)===String(c.firmId))||{}).name || 'Unknown firm') : 'All firms';
+        customHtml += `<div class="master-row${isArch?' is-archived':''}">
+          <div class="master-row-name">${escapeHtml(c.name||'')} <span class="master-chip custom">CUSTOM</span><span class="master-chip" style="background:var(--navy);color:#fff">${escapeHtml(firmTxt)}</span>${isArch?'<span class="master-chip archived">ARCHIVED</span>':''}<div class="master-row-meta">${escapeHtml(c.freq||'')} · ${escapeHtml(dueTxt)} · ${escapeHtml(monthsTxt)}</div></div>
+          <button data-action="editcustomobligation" data-saagar-args="${taxArgs([c.id])}" data-action-key="definition-01" class="btn-master edit">Edit</button>
+          <button data-action="deletecustomobligation" data-saagar-args="${taxArgs([c.id])}" data-action-key="definition-01" class="btn-master del">Delete</button>
+          <button data-action="togglearchive" data-saagar-args="${taxArgs([c.id])}" data-action-key="definition-01" class="btn-master arch">${isArch?'Restore':'Archive'}</button>
+        </div>`;
+      });
+    });
+  }
+
+  // ----- Built-in obligations -----
+  const builtIn = builtInObligations();
+  let builtHtml = '<div class="master-grp-title">Built-in Obligations</div>';
+  catOrder.forEach(cat=>{
+    const rows = builtIn.filter(o=>o.cat===cat);
+    if(!rows.length) return;
+    builtHtml += `<div class="master-cat-title">${escapeHtml(catName(cat))}</div>`;
+    rows.forEach(o=>{
+      const isArch = archived.includes(o.key);
+      builtHtml += `<div class="master-row${isArch?' is-archived':''}">
+        <div class="master-row-name">${escapeHtml(o.key)}${isArch?' <span class="master-chip archived">ARCHIVED</span>':''}</div>
+        <button data-action="togglearchive" data-saagar-args="${taxArgs([o.key])}" data-action-key="definition-02" class="btn-master arch">${isArch?'Restore':'Archive'}</button>
+      </div>`;
+    });
+  });
+
+  el.innerHTML = catHtml + customHtml + builtHtml;
+}
+
+function populateFirmSelector(){
+  const sel = document.getElementById('firm-select');
+  sel.innerHTML = '<option value="">— Select Firm —</option>';
+  STATE.firms.forEach(f=>{
+    const opt = document.createElement('option');
+    opt.value = f.id;
+    opt.textContent = f.name;
+    if(f.id===STATE.activeFirmId) opt.selected=true;
+    sel.appendChild(opt);
+  });
+  updateFirmBadge();
+}
+
+function updateFirmBadge(){
+  const f = getActiveFirm();
+  const badge = document.getElementById('firm-type-badge');
+  if(f){
+    badge.textContent = typeLabel(f.type);
+    badge.className = 'firm-type-badge '+f.type;
+  } else {
+    badge.className = 'firm-type-badge none';
+  }
+}
+
+function switchFirm(id){
+  STATE.activeFirmId = id || null;
+  saveState();
+  updateFirmBadge();
+  rerender();
+}
+
+/* ══════════════════════════════════════════════════════
+   ITEM VISIBILITY FILTER
+══════════════════════════════════════════════════════ */
+/* Built-in labour obligations that apply at the BUSINESS level — they remain due
+   even with zero employees (Shops & Establishment registration/returns and the PT
+   employer-enrollment/annual return). Everything else under cat:'lab' (EPF, ESIC,
+   PT employee-deduction, LWF) is payroll-linked. Custom items are never gated. */
+const BUSINESS_LAB_IDS = ['dc_shops','jn_11','fb9','mr11'];
+function isPayrollItem(item){
+  return item && item.cat==='lab' && !item._custom && !BUSINESS_LAB_IDS.includes(item.id);
+}
+
+function getVisibleItems(items){
+  const f = getActiveFirm();
+  const type = f?.type || 'both'; // default: show all
+  const noEmployees = !!f && f.hasEmployees === false; // explicit false only → missing/undefined shows all (backward-compat)
+  const archCats = Array.isArray(STATE.archivedCats) ? STATE.archivedCats : [];
+  return (items || []).filter(item=>{
+    if(!item) return false;
+    if(archCats.includes(item.cat)) return false; // whole category archived → all its obligations hidden
+    if(isArchived(item)) return false; // archived obligations vanish everywhere (calendar + dashboard)
+    if(noEmployees && isPayrollItem(item)) return false; // firm has no staff → hide payroll filings (PF/ESIC/PT-deduction/LWF)
+    if(item.cat==='it' || item.cat==='lab') return true;
+    if(item.cat==='gst') return type==='regular' || type==='both' || type==='unregistered' && false;
+    if(item.cat==='comp') return type==='composition' || type==='both';
+    return true;
+  });
+}
+
+/* ══════════════════════════════════════════════════════
+   COMPLIANCE MASTER — custom obligations + archive
+   (additive: built-in `D` is never mutated)
+══════════════════════════════════════════════════════ */
+/* 3-letter abbreviation for a full month name, e.g. "April" -> "Apr". */
+function monthAbbr(month){
+  return String(month || '').slice(0,3);
+}
+
+/* Obligation-level key: groups every monthly instance under one stable key.
+   Custom items key off their generator id (_gid); built-in items key off the
+   leading obligation-name token, so "GSTR-3B – March…" and "GSTR-3B – April…"
+   share the key "GSTR-3B". */
+function obligationKey(item){
+  if(!item) return '';
+  if(item._custom && item._gid) return item._gid;
+  return String(item.name || '').split(/[–|]/)[0].trim();   // split on en-dash / pipe ONLY — names contain real hyphens (GSTR-3B, CMP-08)
+}
+
+/* Is this obligation archived (hidden) by the user? */
+function isArchived(item){
+  try { return Array.isArray(STATE.archived) && STATE.archived.includes(obligationKey(item)); }
+  catch(e){ return false; }
+}
+
+/* Expand the user's custom rule objects into item objects (built-in shape) for
+   a given month. Status/done/NA already key off item.id, so a stable per-month
+   id (gid + month abbr) is correct. */
+function expandCustom(month){
+  if(!Array.isArray(STATE.custom)) return [];
+  const abbr = monthAbbr(month);
+  const out = [];
+  const activeId = STATE.activeFirmId;
+  STATE.custom.forEach(c=>{
+    if(!c || !c.id) return;
+    if(c.firmId && c.firmId !== activeId) return;   // firm-scoped obligation for a DIFFERENT firm → skip (no firmId = all firms)
+    const months = Array.isArray(c.months) ? c.months : [];
+    if(!months.includes(month)) return;
+    const dueDay = parseInt(c.dueDay, 10);
+    const due = (dueDay === 0 || isNaN(dueDay))
+      ? ('Last day of ' + abbr)
+      : (dueDay + ' ' + abbr);
+    // SECURITY: custom items reuse the BUILT-IN render path, which emits item text
+    // as raw HTML (built-ins intentionally carry <strong> etc.). So escape every
+    // user-supplied custom string HERE, where it enters the rendered item, so a
+    // custom Name/Reviewer/Checklist value can't inject script. STATE.custom keeps
+    // the raw text (the master list + edit form escape/handle it themselves).
+    const E = escapeHtml;
+    const EA = a => (Array.isArray(a) ? a.map(s => E(s)) : []);
+    out.push({
+      id: c.id + '-' + abbr,
+      _gid: c.id,
+      _custom: true,
+      cat: c.cat || 'it',
+      name: E(c.name || 'Custom Obligation'),
+      due,
+      freq: E(c.freq || 'Monthly'),
+      form: E(c.form || ''),
+      who: E(c.who || ''),
+      what: E(c.what || ''),
+      why: E(c.why || ''),
+      penalty: E(c.penalty || ''),
+      // Control-profile overrides flow through so getControlProfile honours them.
+      responsible: E(c.responsible || ''),
+      reviewer: E(c.reviewer || ''),
+      risk: c.risk || '',
+      buffer: (typeof c.buffer === 'number') ? c.buffer : null,
+      checklist: EA(c.checklist),
+      workflow: EA(c.workflow),
+      evidence: EA(c.evidence),
+      urgent: false
+    });
+  });
+  return out;
+}
+
+/* Month items for rendering = built-in items for the month + expanded custom
+   items. Custom items share the built-in item shape, so they flow through
+   getVisibleItems (firm-type + archive filter), getControlProfile, getDaysLeft,
+   and NA/done automatically. `D` itself is never changed. */
+function getMonthItems(month){
+  return (D[month]?.items || []).concat(expandCustom(month));
+}
+
+/* ══════════════════════════════════════════════════════
+   VIEW SWITCHING
+══════════════════════════════════════════════════════ */
+let curView = 'calendar';
+let curMonth = (function(){
+  /* Open on the month the user is viewing (shell as-of date when seeded, else today) — not always April. */
+  const N=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const a=(typeof window!=='undefined')?window.__stAsOf:null;
+  const d=(typeof a==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(a))?new Date(a+'T00:00:00'):new Date();
+  return N[d.getMonth()] || MONTHS[0];
+})();
+let curQ = 'Q1';
+let catFilter = 'all';
+
+function showView(v){
+  curView = v;
+  document.getElementById('vt-calendar').classList.toggle('active', v==='calendar');
+  document.getElementById('vt-dashboard').classList.toggle('active', v==='dashboard');
+  document.getElementById('mnav').style.display = v==='calendar'?'flex':'none';
+  document.getElementById('cal-view').style.display = v==='calendar'?'block':'none';
+  document.getElementById('dash-view').style.display = v==='dashboard'?'block':'none';
+  if(v==='calendar') renderMonth(curMonth);
+  if(v==='dashboard') renderDashboard();
+}
+
+function rerender(){
+  if(curView==='calendar') renderMonth(curMonth);
+  else renderDashboard();
+  try{ updateActionBadge(); }catch(e){}
+}
+
+/* ══════════════════════════════════════════════════════
+   ACTION CENTER — cross-firm, cross-month outstanding obligations.
+   READ-ONLY: evaluates each firm by briefly pointing activeFirmId at it in
+   memory (the existing getVisibleItems/isItemDone read the active firm); the
+   original firm is ALWAYS restored in finally{} and nothing is ever saved.
+══════════════════════════════════════════════════════ */
+/* ── W2-5(b): "≈₹ payable" from the bridge feed (saagar_tax_payable) ──────────
+   READ-ONLY: the integration bridge computes this month's PF/ESIC/PT from locked
+   payroll rows + a GST estimate from the Expense manager's gm_tax_feed, keyed by
+   the WAGES/SUPPLIES month ("YYYY-MM"). The deposit obligations for month M sit
+   on the M+1 calendar page, so a card in month-page P reads the feed entry for
+   the calendar month before P. Missing/zero feed → render nothing (no ₹0 noise).
+   Labelled "estimate — verify with CA" exactly as the bridge _note demands. */
+let __taxPayFeed = null, __taxPayFeedAt = 0;
+function getTaxPayableFeed(){
+  const now = Date.now();
+  if(__taxPayFeed !== null && (now - __taxPayFeedAt) < 5000) return __taxPayFeed; // tiny TTL cache: renderMonth calls this per card
+  __taxPayFeedAt = now;
+  try{ const v = localStorage.getItem('saagar_tax_payable'); __taxPayFeed = v ? (JSON.parse(v) || {}) : {}; }
+  catch(e){ __taxPayFeed = {}; }
+  return __taxPayFeed;
+}
+/* Which feed field does this obligation draw on? Payment-type cards only. */
+function taxPayableField(name){
+  const n = String(name || '').toLowerCase();
+  if(n.includes('gstr-3b') && n.includes('monthly filers')) return 'gstEstimate'; // QRMP quarterly card excluded — the feed is monthly
+  if(n.includes('epf') && n.includes('contribution')) return 'pf';
+  if(n.includes('esic') && n.includes('contribution')) return 'esic';             // excludes "ESIC Half-Yearly Return"
+  if(n.includes('professional tax') && n.includes('deduction')) return 'pt';      // excludes PT annual-return / enrolment items
+  return null;
+}
+function taxPayableAmount(name, month){
+  const field = taxPayableField(name); if(!field) return null;
+  const mi = MONTH_IDX_CAL[month]; if(mi === undefined) return null;
+  const y = getCalendarYearForMonth(month);
+  const prev = new Date(y, mi - 1, 1); // month before this calendar page = the wages/supplies month the bridge keys on
+  const ym = prev.getFullYear() + '-' + String(prev.getMonth() + 1).padStart(2, '0');
+  const rec = getTaxPayableFeed()[ym];
+  if(!rec || typeof rec !== 'object') return null;
+  const amt = Math.round(Number(rec[field]) || 0);
+  return amt > 0 ? amt : null;
+}
+const MONTH_IDX_CAL = { January:0, February:1, March:2, April:3, May:4, June:5, July:6, August:7, September:8, October:9, November:10, December:11 };
+/* Card chip (HTML). '' when no feed → the card is byte-identical to today. */
+function taxPayableBadge(item, month){
+  const amt = taxPayableAmount(item && item.name, month);
+  if(amt == null) return '';
+  return `<div class="cc-payable" style="margin-top:4px;font-size:11.5px;font-weight:700;color:#92400e">≈₹${amt.toLocaleString('en-IN')} payable <span style="font-weight:500;color:#6b7280">· estimate — verify with CA</span></div>`;
+}
+/* Action-Center meta suffix (plain text; passed through escapeHtml by the caller). */
+function taxPayableLine(name, month){
+  const amt = taxPayableAmount(name, month);
+  return amt == null ? '' : (' · ≈₹' + amt.toLocaleString('en-IN') + ' payable (estimate — verify with CA)');
+}
+
+/* ── P1-35: QRMP (Quarterly Return Monthly Payment) filing-frequency advisory ──
+   Option A (advisory ONLY): NO catalogue item is hidden or rewritten, so every
+   score / count / Reports byte stays identical. f.qrmp is a nested optional
+   boolean on taxcal_v2.firms[]; legacy firms read falsy = monthly filer. */
+function gstFilingMode(item){
+  if(!item || item.cat!=='gst') return null;
+  const n = String(item.name||'').toLowerCase();
+  if(n.includes('qrmp')) return 'qrmp';            // "| QRMP Quarterly Filers" cards
+  if(n.includes('monthly filers')) return 'monthly'; // "(Monthly Filers)" cards
+  return null;                                      // annual GSTR-9/9C, custom gst items => no advisory (fails safe)
+}
+function qrmpBadge(f){
+  return (f && f.qrmp)
+    ? '<span style="display:inline-block;font-size:9px;font-weight:700;color:#92400e;background:#fffbeb;border:1px solid #fcd34d;border-radius:4px;padding:1px 6px;margin-left:6px;letter-spacing:.04em;vertical-align:middle;">QRMP</span>'
+    : '';
+}
+function qrmpAdvisory(item, month){
+  const f = getActiveFirm();
+  if(!f || !item || item.cat!=='gst') return '';
+  const mode = gstFilingMode(item);
+  if(!mode) return '';
+  const box = (bg,bd,col,txt)=>`<div style="margin-top:4px;font-size:11px;font-weight:600;color:${col};background:${bg};border:1px solid ${bd};border-radius:5px;padding:4px 8px;line-height:1.4;">${txt}</div>`;
+  if(f.qrmp){
+    if(mode==='monthly'){
+      if(f.type==='both') return '';   // 'Both / Show All' intentionally shows every item — an amber "doesn't apply" note would mislead
+      return box('#fffbeb','#fcd34d','#92400e','QRMP firm: you file this quarterly, not monthly. File the quarterly GSTR-1 / GSTR-3B and pay monthly via PMT-06 challan (GSTR-1 IFF upload is optional).');
+    }
+    if(mode==='qrmp') return box('#f0fdf4','#86efac','#166534','Applies to your firm (QRMP quarterly filer).');
+    return '';
+  }
+  // non-QRMP (monthly) firm
+  if(mode==='qrmp') return box('#f3f4f6','#d1d5db','#6b7280','Only for QRMP-scheme firms — your firm files monthly (see the GSTR-1 / GSTR-3B Monthly card).');
+  return '';
+}
+
+/* ── P1-41: Statutory-payable summary (READ-ONLY over saagar_tax_payable) ──
+   Surfaces the CURRENT / as-of month's PF / ESIC / PT / GST-estimate as a
+   dashboard panel + an optional current-month calendar strip. Keys by the
+   CURRENT month (mirrors the curMonth IIFE), NOT taxPayableAmount()'s P-1
+   deposit-period shift. Reuses getTaxPayableFeed() (no __taxPayFeed shadowing).*/
+function fmtINR(n){ return '₹' + Math.round(Number(n)||0).toLocaleString('en-IN'); }
+function fmtYMLabel(ym){
+  const M=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const m=/^(\d{4})-(\d{2})$/.exec(String(ym||''));
+  if(!m) return String(ym||'');
+  return (M[parseInt(m[2],10)-1]||m[2]) + ' ' + m[1];
+}
+function currentPayableYM(){
+  const a=(typeof window!=='undefined')?window.__stAsOf:null;
+  const d=(typeof a==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(a))?new Date(a+'T00:00:00'):new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+}
+function getStatutoryPayable(){
+  const feed=getTaxPayableFeed();
+  const keys=Object.keys(feed||{}).filter(k=>/^\d{4}-\d{2}$/.test(k));   // EXCLUDES _note and any non-YYYY-MM key
+  if(!keys.length) return null;
+  const cy=currentPayableYM();
+  const ym=feed[cy]?cy:keys.slice().sort().pop();   // current month, else newest available
+  const rec=feed[ym];
+  if(!rec||typeof rec!=='object') return null;
+  return { ym, rec, note: feed._note, isCurrent: ym===cy };
+}
+function renderStatutoryPayablePanel(){
+  const sp=getStatutoryPayable();
+  const pf=sp?Math.round(Number(sp.rec.pf)||0):0;
+  const esic=sp?Math.round(Number(sp.rec.esic)||0):0;
+  const pt=sp?Math.round(Number(sp.rec.pt)||0):0;
+  const gst=sp?Math.round(Number(sp.rec.gstEstimate)||0):0;
+  const total=pf+esic+pt+gst;
+  if(!sp || total<=0){
+    return `<div class="cos-panel"><div class="cos-panel-title">Statutory Payable</div><div class="ops-meta" style="padding:6px 0;line-height:1.5;color:var(--g600)">No statutory payable computed yet. Lock this month's Payroll and enter Expense GST, then run cross-module sync from the Home screen.</div></div>`;
+  }
+  const chip = escapeHtml(fmtYMLabel(sp.ym) + (sp.isCurrent ? '' : ' (latest available)'));
+  const dim = v => v>0 ? '' : 'color:var(--g600)';
+  const row = (name, val) => `<div class="ops-row"><div><div class="ops-name" style="${dim(val)}">${name}</div></div><div class="ops-val" style="${dim(val)}">${fmtINR(val)}</div></div>`;
+  const sources = escapeHtml(((sp.rec.sources||[]).join(' · ')) || '—');
+  const synced = sp.rec.at ? `<div class="ops-meta" style="margin-top:6px;color:var(--g600)">Synced ${escapeHtml(formatDate(String(sp.rec.at).slice(0,10)))}</div>` : '';
+  const note = escapeHtml(sp.note || 'Estimate — verify with CA before filing.');
+  return `<div class="cos-panel"><div class="cos-panel-title" style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span>Statutory Payable</span><span style="font-size:10px;font-weight:600;color:var(--g600)">${chip}</span></div>`
+    + `<div class="ops-list">${row('EPF', pf)}${row('ESIC', esic)}${row('Professional Tax', pt)}${row('GST (estimate)', gst)}`
+    + `<div class="ops-row" style="border-bottom:none"><div><div class="ops-name" style="font-weight:700;color:#92400e">Total statutory payable</div></div><div class="ops-val" style="font-weight:700;color:#92400e">${fmtINR(total)}</div></div></div>`
+    + `<div class="ops-meta" style="margin-top:6px;color:var(--g600)">Sources: ${sources}</div>${synced}`
+    + `<div class="ops-meta" style="margin-top:4px;color:var(--g600)">PF / ESIC / PT are business-wide (across payroll); GST is an estimate. ${note}</div></div>`;
+}
+function renderStatutoryPayableCard(context, month){
+  const sp=getStatutoryPayable();
+  if(!sp || !sp.isCurrent) return '';   // only a genuine current-month entry lands a calendar strip
+  const m=/^(\d{4})-(\d{2})$/.exec(sp.ym);
+  const N=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const ymMonthName = m ? N[parseInt(m[2],10)-1] : null;
+  if(month !== ymMonthName) return '';  // current/as-of month page only → every other page byte-identical
+  const pf=Math.round(Number(sp.rec.pf)||0), esic=Math.round(Number(sp.rec.esic)||0), pt=Math.round(Number(sp.rec.pt)||0), gst=Math.round(Number(sp.rec.gstEstimate)||0);
+  const total=pf+esic+pt+gst;
+  if(total<=0) return '';
+  return `<div style="margin-bottom:14px;padding:8px 13px;border-radius:8px;background:#fffbeb;border:1px solid #fcd34d;font-size:11.5px;font-weight:600;color:#92400e;line-height:1.5">${fmtINR(total)} statutory payable this month · PF ${fmtINR(pf)} · ESIC ${fmtINR(esic)} · PT ${fmtINR(pt)} · GST ${fmtINR(gst)} <span style="font-weight:500;color:#6b7280">· estimate — verify with CA</span></div>`;
+}
+
+const AC_SOON_DAYS = 30;
+function collectOutstanding(){
+  const prev = STATE.activeFirmId;
+  const firms = (STATE.firms||[]).filter(f=>f && f.id);
+  const out = [];
+  try {
+    firms.forEach(f=>{
+      STATE.activeFirmId = f.id;
+      MONTHS.forEach(m=>{
+        getVisibleItems(getMonthItems(m)).forEach(it=>{
+          if(isItemNA(it.id) || isItemDone(it.id)) return;
+          const days = getDaysLeft(it.due, m);
+          if(days===null || days > AC_SOON_DAYS) return;   // keep overdue (days<0) + due within the window
+          out.push({ firm:f.name||f.id, firmId:f.id, itemId:it.id, month:m, name:it.name, form:it.form, due:it.due, cat:it.cat, days });
+        });
+      });
+    });
+  } finally { STATE.activeFirmId = prev; }
+  out.sort((a,b)=> a.days - b.days);   // most overdue first
+  return out;
+}
+function updateActionBadge(){
+  const b = document.getElementById('ac-badge'); if(!b) return;
+  let n = 0; try { n = collectOutstanding().length; } catch(e){ n = 0; }
+  if(n>0){ b.textContent = n>99 ? '99+' : String(n); b.style.display=''; }
+  else { b.style.display='none'; b.textContent=''; }
+}
+function openActionCenter(){ renderActionCenter(); const m=document.getElementById('ac-modal'); if(m) m.style.display='flex'; }
+function closeActionCenter(){ const m=document.getElementById('ac-modal'); if(m) m.style.display='none'; }
+function closeActionCenterBg(e){ if(e.target===document.getElementById('ac-modal')) closeActionCenter(); }
+/* Tap an Action Center row → jump to that firm + month and scroll to the item's card. */
+function acOpen(firmId, month, itemId){
+  closeActionCenter();
+  if(firmId && STATE.activeFirmId !== firmId){
+    switchFirm(firmId);        // saves + updates badge + rerenders
+    populateFirmSelector();    // keep the firm dropdown in sync with the new active firm
+  }
+  showView('calendar');
+  setMonth(month);
+  if(itemId) setTimeout(()=>{ const el=document.getElementById('card-'+itemId); if(el) el.scrollIntoView({behavior:'smooth',block:'center'}); }, 350);
+}
+function renderActionCenter(){
+  const host = document.getElementById('ac-body'); if(!host) return;
+  const firms = (STATE.firms||[]).filter(f=>f && f.id);
+  if(!firms.length){ host.innerHTML = '<div class="ac-empty">Add a firm first (⚙ Firms) to see its compliance actions.</div>'; return; }
+  const rows = collectOutstanding();
+  const overdue = rows.filter(r=>r.days<0), soon = rows.filter(r=>r.days>=0);
+  const fyLabel = (typeof getFinancialYearLabel==='function') ? getFinancialYearLabel() : '';
+  let html = '<div class="ac-sum">'
+    + `<div class="ac-stat overdue"><div class="v">${overdue.length}</div><div class="l">Overdue</div></div>`
+    + `<div class="ac-stat soon"><div class="v">${soon.length}</div><div class="l">Due ≤ ${AC_SOON_DAYS}d</div></div>`
+    + `<div class="ac-stat"><div class="v">${firms.length}</div><div class="l">Firm${firms.length>1?'s':''}</div></div>`
+    + '</div>'
+    + `<div style="font-size:11px;color:#6b7280;margin-bottom:8px">FY ${escapeHtml(fyLabel)} · outstanding obligations across every firm, soonest first. Open a firm's calendar to mark items filed.</div>`;
+  if(!rows.length){ host.innerHTML = html + '<div class="ac-empty">✓ Nothing overdue or due within '+AC_SOON_DAYS+' days — all firms are on track.</div>'; return; }
+  const rowHtml = r => {
+    const isOver = r.days<0;
+    const when = isOver ? (Math.abs(r.days)+'d overdue') : (r.days===0?'Due today':(r.days+'d left'));
+    return `<div class="ac-row ${isOver?'is-overdue':'is-soon'}"><button data-action="action-center-open-item" data-saagar-args="${taxArgs([r.firmId+'|'+r.month+'|'+(r.itemId||'')])}" class="ac-row-action" type="button">
+      <div class="ac-when">${isOver?'⚠ ':''}${escapeHtml(when)}</div>
+      <div class="ac-main"><div class="ac-nm">${escapeHtml(renderFYText(r.name))}</div><div class="ac-meta">${escapeHtml(r.month)} · Due ${escapeHtml(r.due)}${r.form?' · '+escapeHtml(renderFYText(r.form)):''}${escapeHtml(taxPayableLine(r.name, r.month))}</div></div>
+      <div class="ac-firm">${escapeHtml(r.firm)}</div>
+    </button></div>`;
+  };
+  if(overdue.length) html += '<div class="ac-grp">Overdue ('+overdue.length+')</div>' + overdue.map(rowHtml).join('');
+  if(soon.length)    html += '<div class="ac-grp">Due soon ('+soon.length+')</div>' + soon.map(rowHtml).join('');
+  host.innerHTML = html;
+}
+
+/* ══════════════════════════════════════════════════════
+   CSV REGISTER EXPORT — the active firm's full-FY compliance register.
+   Routed through the shell's share helper (Android-safe); desktop downloads.
+══════════════════════════════════════════════════════ */
+function stripHtml(s){ return String(s==null?'':s).replace(/<[^>]*>/g,'').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&#39;/g,"'").replace(/&quot;/g,'"'); }
+function exportComplianceCSV(){
+  const f = getActiveFirm();
+  if(!f){ alert('Select a firm first to export its compliance register.'); return; }
+  const fyLabel = (typeof getFinancialYearLabel==='function') ? getFinancialYearLabel() : '';
+  const cell = s => { s = String(s==null?'':s); if(/^[\t\r\n ]*[=+\-@]/.test(s))s="'"+s; s=s.replace(/"/g,'""'); return /[",\r\n]/.test(s) ? '"'+s+'"' : s; };
+  const rows = [['Firm','FY','Month','Due','Obligation','Form/Portal','Category','Frequency','Responsible','Risk','Status','Filed On','Days Left']];
+  MONTHS.forEach(m=>{
+    getVisibleItems(getMonthItems(m)).forEach(it=>{
+      const na = isItemNA(it.id), done = !na && isItemDone(it.id);
+      const rec = (typeof getItemRecord==='function') ? getItemRecord(it.id) : null;
+      const prof = (typeof getControlProfile==='function') ? getControlProfile(it, m) : {};
+      const days = getDaysLeft(it.due, m);
+      rows.push([ f.name||'', fyLabel, m, it.due, stripHtml(renderFYText(it.name)), stripHtml(renderFYText(it.form||'')),
+        (typeof catLabel==='function'?catLabel(it.cat):it.cat), it.freq||'', (prof.responsible||''), (prof.risk||''),
+        na?'N/A':(done?'Done':'Pending'), (rec&&(rec.filedOn||rec.filedRef))||'', (days===null?'':String(days)) ]);
+    });
+  });
+  const csv = '﻿' + rows.map(r=>r.map(cell).join(',')).join('\r\n');   // BOM so Excel reads UTF-8
+  const fileBase = ('Compliance_'+(f.name||'firm')+'_'+(fyLabel||'')).replace(/[^\w.-]+/g,'_').replace(/^_+|_+$/g,'');
+  const fileName = (fileBase||'Compliance')+'.csv';
+  try {
+    if(window.parent && window.parent!==window){
+      let blob=null; try{ blob=new Blob([csv],{type:'text/csv;charset=utf-8'}); }catch(e){}
+      window.parent.postMessage({ type:'ST_SHARE', file:blob, text:csv, fileName:fileName, title:'Compliance register', exportId:'tax-compliance-csv', scopeId:'tax-compliance-register', scopeLabel:'firm compliance register', rowCount:Math.max(0,rows.length-1), purposeId:'statutory-compliance' },SaagarModuleRuntime.targetOrigin);
+      return;
+    }
+  } catch(e){}
+  alert('Controlled export is available only inside Saagar Control Centre.');
+}
+
+/* ══════════════════════════════════════════════════════
+   P1-34 — Audit-ready EVIDENCE ZIP export (active firm + FY).
+   READ-ONLY over SaagarEvidence; reuses the shell JSZip via window.ensureJSZip.
+   Delivered through the same Android-safe ST_SHARE bridge as the CSV export.
+══════════════════════════════════════════════════════ */
+/* Resolve the JSZip constructor: SaagarModuleBridge.ensureJsZip → self.ensureJSZip →
+   SaagarModuleBridge.jsZip → self.JSZip (mirrors evApi()'s parent-then-self fallback so the
+   same path runs in the real shell and in the headless harness). */
+function ensureJSZipRef(){
+  try{ if(window.parent && window.parent!==window && typeof SaagarModuleBridge.ensureJsZip==='function') return SaagarModuleBridge.ensureJsZip(); }catch(e){}
+  if(typeof window.ensureJSZip==='function') return window.ensureJSZip();
+  try{ if(window.parent && window.parent!==window && SaagarModuleBridge.jsZip) return Promise.resolve(SaagarModuleBridge.jsZip); }catch(e){}
+  if(window.JSZip) return Promise.resolve(window.JSZip);
+  return Promise.resolve(null);
+}
+/* One-shot { itemId: {name, cat, month} } map for readable folder names. */
+function itemMetaById(){
+  const map = {};
+  MONTHS.forEach(m=>{
+    getMonthItems(m).forEach(it=>{
+      if(it && it.id && !map[it.id]) map[it.id] = { name: stripHtml(renderFYText(it.name||'')), cat: catLabel(it.cat), month: m };
+    });
+  });
+  return map;
+}
+/* dataURL → Uint8Array (reuse of the shell dataURLToBlob decode logic). */
+function dataURLToBytes(u){
+  const i = String(u||'').indexOf(',');
+  if(i < 0) throw new Error('bad dataURL');
+  const bin = atob(u.slice(i+1));
+  const arr = new Uint8Array(bin.length);
+  for(let j=0;j<bin.length;j++) arr[j] = bin.charCodeAt(j);
+  return arr;
+}
+/* Deliver the zip Blob: ST_SHARE to the shell (Android-safe) / desktop anchor. */
+function downloadZipBlob(blob, fileName, rowCount){
+  try{
+    if(window.parent && window.parent!==window){
+      window.parent.postMessage({ type:'ST_SHARE', file:blob, fileName:fileName, title:'Compliance evidence ZIP', exportId:'tax-evidence-zip', scopeId:'tax-evidence-package', scopeLabel:'firm and financial-year evidence package', rowCount:Number(rowCount)||0, purposeId:'statutory-compliance' },SaagarModuleRuntime.targetOrigin);
+      return;
+    }
+  }catch(e){}
+  alert('Controlled export is available only inside Saagar Control Centre.');
+}
+async function exportEvidenceZip(){
+  try{
+    const f = getActiveFirm();
+    if(!f){ alert('Select a firm first to export its evidence pack.'); return; }
+    const api = evApi();
+    if(!api || typeof api.snapshotAll!=='function'){ alert('Evidence store unavailable on this device.'); return; }
+    const prefix = f.id + '|' + (STATE.fyStartYear||2026) + '|';   // EXACTLY evKey()'s firm|fy| construction
+    // Prefer the prefix-scoped snapshot (decodes ONLY this firm/FY's blobs — avoids OOM on stores full of watch photos);
+    // fall back to snapshotAll on older shells. Either way filter to the exact prefix + a usable dataURL.
+    const snap = (typeof api.snapshotByPrefix==='function')
+      ? await api.snapshotByPrefix(prefix).catch(()=>[])
+      : await api.snapshotAll().catch(()=>[]);
+    const files = (snap||[]).filter(e=>e && e.itemKey && e.itemKey.indexOf(prefix)===0 && e.dataURL);
+    if(!files.length){ alert('No evidence files are attached for '+(f.name||'this firm')+' ('+getFinancialYearLabel()+').'); return; }
+    const JSZipCtor = await ensureJSZipRef();
+    if(!JSZipCtor){ alert('ZIP support could not be loaded on this device.'); return; }
+    const zip = new JSZipCtor();
+    const meta = itemMetaById();
+    const sanitize = s => String(s==null?'':s).replace(/[^\w.-]+/g,'_').replace(/^_+|_+$/g,'');
+    const folderSeen = {};   // folder -> { fileName: true } for in-folder de-dupe
+    const fmtAdded = t => { if(!t) return ''; try{ const d=new Date(t); return isNaN(+d)?'':d.toISOString().slice(0,10); }catch(_){ return ''; } };   // addedAt is epoch-ms (Date.now), not an ISO string
+    const manifest = [['Obligation','Original filename','Stored path','Added-on']];
+    let added = 0, skipped = 0;
+    files.forEach(e=>{
+      const itemId = e.itemKey.slice(prefix.length);
+      const m = meta[itemId];
+      let folder = sanitize(m ? (m.month+'_'+m.cat+'_'+m.name) : itemId).slice(0,60);
+      if(!folder) folder = 'evidence';
+      folder = folder + '__' + (sanitize(itemId).slice(0,24) || 'x');   // always-suffix itemId tail → guaranteed-unique folders
+      let bytes;
+      try{ bytes = dataURLToBytes(e.dataURL); }catch(err){ skipped++; return; }
+      if(!folderSeen[folder]) folderSeen[folder] = {};
+      let fname = sanitize(e.name||'evidence') || 'evidence';
+      if(folderSeen[folder][fname]){
+        const dot = fname.lastIndexOf('.');
+        const base = dot>0 ? fname.slice(0,dot) : fname;
+        const ext = dot>0 ? fname.slice(dot) : '';
+        let n = 2;
+        while(folderSeen[folder][base+' ('+n+')'+ext]) n++;
+        fname = base+' ('+n+')'+ext;
+      }
+      folderSeen[folder][fname] = true;
+      zip.folder(folder).file(fname, bytes);
+      manifest.push([ (m?m.name:itemId), (e.name||''), folder+'/'+fname, fmtAdded(e.addedAt) ]);
+      added++;
+    });
+    if(!added){ alert('The evidence files for '+(f.name||'this firm')+' could not be read.'); return; }
+    const cell = s => { s=String(s==null?'':s).replace(/"/g,'""'); return /[",\r\n]/.test(s)?'"'+s+'"':s; };
+    zip.file('index.csv', '﻿' + manifest.map(r=>r.map(cell).join(',')).join('\r\n'));   // audit manifest
+    const blob = await zip.generateAsync({ type:'blob', compression:'DEFLATE', compressionOptions:{ level:5 } });
+    const fileBase = ('Evidence_'+(f.name||'firm')+'_'+getFinancialYearShortLabel()).replace(/[^\w.-]+/g,'_').replace(/^_+|_+$/g,'');
+    downloadZipBlob(blob, (fileBase||'Evidence')+'.zip', added);
+  }catch(e){ alert('Could not build the evidence ZIP.'); }
+}
+
+/* P1-33 (in-module button): open the shell WhatsApp composer LOCKED to the
+   active firm with the CA-pack template preselected. The shell routes ST_WA →
+   openWAComposer('tax', activeFirmId, 'ca_pack'). Active-firm only → its
+   compliance records were just materialized by renderDashboard (guaranteed
+   fresh). No-op with a friendly note outside the shell. */
+function sendCaPack(){
+  const f = getActiveFirm();
+  if(!f){ alert('Select a firm first to send its CA compliance pack.'); return; }
+  try{
+    if(window.parent && window.parent!==window){
+      window.parent.postMessage({ type:'ST_WA', module:'tax', recordId:STATE.activeFirmId, templateId:'ca_pack' },SaagarModuleRuntime.targetOrigin);
+      return;
+    }
+  }catch(e){}
+  alert('WhatsApp sharing is available inside the Saagar app.');
+}
+
+/* ══════════════════════════════════════════════════════
+   MONTH NAV DOT (overdue indicator)
+══════════════════════════════════════════════════════ */
+function hasOverdueInMonth(month){
+  const items = getVisibleItems(getMonthItems(month));
+  return items.some(item=>{
+    if(isItemNA(item.id)) return false;
+    if(isItemDone(item.id)) return false;
+    const days = getDaysLeft(item.due, month);
+    return days!==null && days<0;
+  });
+}
+
+function updateNavDots(){
+  MONTHS.forEach(m=>{
+    const dot = document.getElementById('dot-'+m);
+    if(dot) dot.classList.toggle('show', hasOverdueInMonth(m));
+  });
+}
+
+/* ══════════════════════════════════════════════════════
+   CALENDAR RENDER
+══════════════════════════════════════════════════════ */
+function catLabel(c){
+  if(c==='it') return 'Income Tax';
+  if(c==='gst') return 'GST';
+  if(c==='comp') return 'Composition GST';
+  return 'Labour Law';
+}
+
+function setCatFilter(cat){
+  catFilter=cat;
+  renderMonth(curMonth);
+}
+
+function toggleNote(id){
+  const el=document.getElementById('note-'+id);
+  const btn=document.getElementById('ebtn-'+id);
+  const open=el.classList.toggle('open');
+  btn.textContent=open?'▲ Hide':'▼ Details';
+}
+
+function clickDone(id){
+  if(isPastAsOf()){ alert('🔒 Viewing a past date ('+window.__stAsOf+') — read-only. Completion can only be changed for today.'); return; }
+  if(isItemNA(id)){ alert('This item is marked Not Applicable (NA) and is read-only. Remove NA first to change its status.'); return; }
+  if(isItemDone(id)){
+    const f=getActiveFirm(); if(!f) return alert('Please select a firm first.');
+    const fyCompliance = getFirmCompliance(f.id);
+    delete fyCompliance[id];
+    saveState();
+    renderMonth(curMonth);
+  } else {
+    const cap=document.getElementById('dcap-'+id);
+    if(cap) cap.classList.toggle('open');
+  }
+}
+
+function cancelDone(id){
+  const cap=document.getElementById('dcap-'+id);
+  if(cap) cap.classList.remove('open');
+}
+
+function toggleNA(id){
+  if(isPastAsOf()){ alert('🔒 Viewing a past date ('+window.__stAsOf+') — read-only. NA status can only be changed for today.'); return; }
+  const f=getActiveFirm(); if(!f) return alert('Please select a firm first.');
+  const fyCompliance = getFirmCompliance(f.id);
+  if(isItemNA(id)){
+    // Un-mark NA: clear only the additive na flag, leave everything else intact.
+    const rec = fyCompliance[id];
+    if(rec){ delete rec.na; if(Object.keys(rec).length===0) delete fyCompliance[id]; }
+  } else {
+    // Mark NA additively without disturbing any existing field (done/filedOn/etc).
+    const rec = fyCompliance[id] || {};
+    rec.na = true;
+    fyCompliance[id] = rec;
+  }
+  saveState();
+  renderMonth(curMonth);
+}
+
+function todayStr(){
+  var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');   /* audit: local date (IST) */
+}
+function formatDate(s){
+  if(!s) return '';
+  const d=new Date(s+'T00:00:00');
+  return d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+}
+
+/* ══════════════════════════════════════════════════════
+   QUARTERLY DASHBOARD
+══════════════════════════════════════════════════════ */
+function switchQ(key){
+  curQ=key;
+  renderDashboard();
+}
+
+function setMonth(m){
+  curMonth=m;
+  renderMonth(m);
+}
+
+/* ══════════════════════════════════════════════════════
+   (AI SUGGESTIONS REMOVED)
+   The previous getAISuggestions()/formatAIText() pair POSTed to
+   https://api.anthropic.com/v1/messages with no API key and no
+   anthropic-version header — it could never authenticate, and the packaged
+   APK ships without INTERNET permission so no outbound request can be made
+   at all. Embedding a key client-side would also be a security anti-pattern.
+   The panel/button were never rendered, so removing them leaves no dangling
+   handlers. Remediation guidance now lives with the user's Chartered Accountant.
+══════════════════════════════════════════════════════ */
+
+function escapeHtml(value){
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+
+function subtractDays(date, days){
+  const out = new Date(date);
+  out.setDate(out.getDate() - days);
+  return out;
+}
+
+function formatShortDate(date){
+  return date ? date.toLocaleDateString('en-IN',{day:'2-digit',month:'short'}) : 'NA';
+}
+
+function getControlProfile(item, month){
+  const name = String(item.name||'').toLowerCase();
+  const isGstPayment = name.includes('gstr-3b') || name.includes('cmp-08');
+  const isTds = name.includes('tds');
+  const isPayroll = name.includes('epf') || name.includes('esic') || name.includes('professional tax');
+  const isAdvanceTax = name.includes('advance tax');
+  let risk = (isGstPayment || isTds || isPayroll || isAdvanceTax) ? 'High' : (item.cat === 'lab' || item.cat === 'gst' ? 'Medium' : 'Low');
+  if(item.risk === 'High' || item.risk === 'Medium' || item.risk === 'Low') risk = item.risk;   // custom override
+  const cashFlow = (isGstPayment || isAdvanceTax || isTds) ? 'High' : (isPayroll || item.cat === 'gst' ? 'Medium' : 'Low');
+  const responsible = item.responsible ? item.responsible : (isPayroll ? 'Payroll / HR Executive' : (item.cat === 'gst' || item.cat === 'comp' ? 'GST Executive' : 'Tax Executive'));
+  const reviewer = item.reviewer ? item.reviewer : (isAdvanceTax ? 'Partner / CFO' : (isPayroll ? 'HR & Finance Manager' : 'Compliance Manager'));
+  const buffer = (typeof item.buffer === 'number' && item.buffer >= 0) ? item.buffer : (risk === 'High' ? 5 : 3);
+  const dueDate = parseDueDate(item.due, month);
+  const internalDate = dueDate ? subtractDays(dueDate, buffer) : null;
+  const internalDaysLeft = internalDate ? Math.round((internalDate - new Date(new Date().setHours(0,0,0,0))) / (1000*60*60*24)) : null;
+  let escalation = { label:'Monitor', cls:'status-watch', note:'Track preparation and keep the working papers current.' };
+  if(internalDaysLeft !== null && internalDaysLeft <= 1) escalation = { label:'Critical', cls:'status-critical', note:'Escalate immediately to leadership and secure filing evidence today.' };
+  else if(internalDaysLeft !== null && internalDaysLeft <= 3) escalation = { label:'Escalate', cls:'status-escalate', note:'Reviewer intervention required. Resolve blockers before portal risk increases.' };
+  else if(internalDaysLeft !== null && internalDaysLeft <= 7) escalation = { label:'Reminder', cls:'status-reminder', note:'Executor reminder due. Validate data pack and challan readiness.' };
+  let checklist = isGstPayment
+    ? ['Sales register and purchase register closed', 'ITC matched with GSTR-2B', 'Net GST payable and challan amount approved']
+    : isTds
+    ? ['Deduction working with section-wise mapping', 'PAN and deductee details validated', 'Challan or return control total checked']
+    : isPayroll
+    ? ['Payroll register frozen', 'Employee contribution workings validated', 'Portal upload file and payment reference prepared']
+    : ['Books closed for the period', 'Working papers reviewed', 'Final computation approved for filing'];
+  if(Array.isArray(item.checklist) && item.checklist.length) checklist = item.checklist;     // custom override
+  let workflow = ['Prepare data pack', 'Reviewer check and approval', 'File and store evidence'];
+  if(Array.isArray(item.workflow) && item.workflow.length) workflow = item.workflow;         // custom override
+  let evidence = isGstPayment ? ['GST challan', 'Filed return PDF', 'Working reconciliation'] : isTds ? ['OLTAS challan', 'Filing acknowledgement', 'Deduction working'] : ['Portal challan', 'Return / ECR copy', 'Payroll or support working'];
+  if(Array.isArray(item.evidence) && item.evidence.length) evidence = item.evidence;         // custom override
+  return { risk, cashFlow, responsible, reviewer, buffer, internalDate, escalation, checklist, workflow, evidence };
+}
+
+function riskClass(risk){ return risk.toLowerCase(); }
+function cashClass(level){ return `cash-${level.toLowerCase()}`; }
+
+/* ── Evidence files: stored in the shell's IndexedDB (SaagarEvidence) because the
+   srcdoc iframe's opaque origin can't hold IndexedDB on the Android WebView.
+   Keyed firmId|FY|itemId so files follow the firm + financial year + obligation. ── */
+function evKey(itemId){ return (STATE.activeFirmId||'_') + '|' + (STATE.fyStartYear||2026) + '|' + itemId; }
+function evApi(){ try{ if(window.parent && window.parent!==window && SaagarModuleBridge.evidence) return SaagarModuleBridge.evidence; }catch(e){} return SaagarModuleBridge.evidence || null; }
+function evAdd(itemId, files){ const api=evApi(); if(!api||!files||!files.length) return Promise.resolve(0); return api.add(evKey(itemId), files); }
+function evView(fid){ const api=evApi(); if(api){ try{ api.open(+fid); }catch(e){} } }
+function evDelete(fid, itemId){
+  if(isPastAsOf()){ alert('🔒 Viewing a past date — read-only.'); return; }
+  const api=evApi(); if(!api) return;
+  if(!confirm('Remove this evidence file?')) return;
+  api.del(+fid).then(()=>hydrateEvidence(itemId)).catch(()=>{});
+}
+function evAttachHere(itemId, input){
+  if(!input||!input.files||!input.files.length) return;
+  if(isPastAsOf()){ alert('🔒 Viewing a past date ('+window.__stAsOf+') — read-only.'); input.value=''; return; }
+  if(!getActiveFirm()){ alert('Please select a firm before attaching evidence (files are stored per firm).'); input.value=''; return; }
+  evAdd(itemId, input.files).then(()=>{ input.value=''; hydrateEvidence(itemId); }).catch(()=>{});
+}
+function evBytes(n){ n=+n||0; return n<1024?n+' B':n<1048576?Math.round(n/1024)+' KB':(n/1048576).toFixed(1)+' MB'; }
+/* Fill the .ev-files[data-itemid] placeholders (async) + the 📎 count badges. */
+function hydrateEvidence(itemId){
+  const api=evApi(); if(!api) return;
+  const sel = itemId ? '.ev-files[data-itemid="'+itemId+'"]' : '.ev-files[data-itemid]';
+  document.querySelectorAll(sel).forEach(box=>{
+    const id = box.getAttribute('data-itemid');
+    api.list(evKey(id)).then(files=>{
+      files = files || [];
+      box.innerHTML = files.length
+        ? files.map(f=>`<div class="ev-file"><span class="ev-fn" title="${escapeHtml(f.name)}">📄 ${escapeHtml(f.name)}</span><span class="ev-fsz">${evBytes(f.size)}</span><button data-action="evview" data-saagar-args="${taxArgs([f.id])}" data-action-key="definition-01" class="ev-view">View</button><button data-action="evdelete" data-saagar-args="${taxArgs([f.id,id])}" data-action-key="definition-01" class="ev-del">✕</button></div>`).join('')
+        : '<div class="ev-empty">No files attached yet.</div>';
+      const badge=document.getElementById('evcount-'+id);
+      if(badge) badge.textContent = files.length ? ('📎 '+files.length) : '';
+    }).catch(()=>{ box.innerHTML='<div class="ev-empty">Files unavailable.</div>'; });
+  });
+}
+
+/* ── P1-32: Evidence-pack completeness (DERIVED, async, race-guarded) ──
+   Counts DONE non-NA obligations whose evidence is satisfied (non-empty
+   evidenceRef OR SaagarEvidence file count > 0) vs the done-non-NA total, for
+   the active firm + FY. Pure READ: never writes state or evidence. Keys are
+   built from firmId/fy captured ONCE (NOT via live evKey()) so a mid-flight
+   firm/FY switch can't read the wrong bucket; a monotonic token drops stale
+   writes. Mirrors hydrateEvidence's render-placeholder-then-fill lifecycle. */
+const __evCompTok = { fy:0, month:0 };   // P1-32: per-scope tokens so an fy-meter and a month-chip hydrate never cancel each other
+function computeEvidenceCompleteness(scope){
+  if(!getActiveFirm()){
+    return Promise.resolve({ applicableTotal:0, doneTotal:0, doneSatisfied:0, pct:0, missing:[], hasApi:!!evApi(), noFirm:true });
+  }
+  const firmId = STATE.activeFirmId;
+  const fy = STATE.fyStartYear || 2026;
+  const api = evApi();
+  const months = (scope==='fy') ? MONTHS : [scope];
+  const rows = [];
+  months.forEach(m=>{
+    getVisibleItems(getMonthItems(m)).forEach(i=>{
+      if(isItemNA(i.id)) return;
+      const rec = getItemRecord(i.id);
+      rows.push({ id:i.id, name:i.name, month:m, cat:i.cat, done:isItemDone(i.id), ref:String((rec&&rec.evidenceRef)||'').trim() });
+    });
+  });
+  const applicableTotal = rows.length;
+  const doneRows = rows.filter(r=>r.done);
+  const doneTotal = doneRows.length;
+  const needCount = doneRows.filter(r=>!r.ref);   // rows with a non-empty ref are already satisfied — skip async
+  const proms = needCount.map(r=>{
+    if(!api || typeof api.count!=='function') return Promise.resolve({ r, n:0 });
+    return api.count(firmId+'|'+fy+'|'+r.id).then(n=>({ r, n:(+n||0) })).catch(()=>({ r, n:0 }));
+  });
+  return Promise.all(proms).then(results=>{
+    const cnt = {};
+    results.forEach(o=>{ cnt[o.r.id]=o.n; });
+    const missing = [];
+    let doneSatisfied = 0;
+    doneRows.forEach(r=>{
+      const ok = (!!r.ref) || ((cnt[r.id]||0) > 0);
+      if(ok) doneSatisfied++;
+      else missing.push({ id:r.id, name:r.name, month:r.month, cat:r.cat });
+    });
+    const pct = doneTotal ? Math.round(doneSatisfied/doneTotal*100) : 0;
+    return { applicableTotal, doneTotal, doneSatisfied, pct, missing, hasApi:!!api };
+  });
+}
+function hydrateEvidenceCompleteness(scope){
+  const tokKey = (scope==='fy') ? 'fy' : 'month';
+  const tok = ++__evCompTok[tokKey];
+  computeEvidenceCompleteness(scope).then(r=>{
+    if(tok !== __evCompTok[tokKey]) return;   // a newer render / firm-switch of the SAME scope superseded this compute — drop the stale write
+    if(scope==='fy'){
+      const node = document.getElementById('ev-completeness');
+      if(!node) return;
+      if(r.noFirm){
+        node.innerHTML = `<div class="prog-top"><div class="prog-lbl">Evidence Pack Completeness</div></div><div class="prog-bar-bg"><div class="prog-bar-fill" style="width:0%"></div></div><div class="prog-seg" style="margin-top:8px">Select a firm to track evidence completeness.</div>`;
+        return;
+      }
+      const pctTxt = r.doneTotal ? (r.pct+'%') : '—';
+      const cap = r.doneTotal
+        ? (r.doneSatisfied + ' of ' + r.doneTotal + ' completed filing' + (r.doneTotal===1?'':'s') + ' have evidence attached')
+        : 'No completed filings yet — evidence appears here once filings are marked done';
+      const secondary = 'FY ' + escapeHtml(getFinancialYearShortLabel()) + ': ' + r.applicableTotal + ' applicable obligation' + (r.applicableTotal===1?'':'s') + ' this FY' + (r.hasApi?'':' · file counts unavailable');
+      let miss = '';
+      if(r.missing.length){
+        miss = '<div class="prog-seg" style="margin-top:8px;display:block"><b>Missing evidence (' + r.missing.length + '):</b> '
+          + r.missing.map(x=>{ const nm=escapeHtml(stripHtml(renderFYText(x.name))); return `<button data-action="show-compliance-month" data-saagar-args="${taxArgs([x.month])}" data-action-key="definition-01" class="exp-btn" style="margin:2px 4px 0 0" title="${nm} · ${escapeHtml(x.month)}">${escapeHtml(x.month)}: ${nm} Open →</button>`; }).join('')
+          + '</div>';
+      } else if(r.doneTotal){
+        miss = '<div class="prog-seg" style="margin-top:8px">All completed filings have evidence attached.</div>';
+      }
+      node.innerHTML = `<div class="prog-top"><div class="prog-lbl">Evidence Pack Completeness</div><div class="prog-pct">${pctTxt}</div></div>`
+        + `<div class="prog-bar-bg"><div class="prog-bar-fill" style="width:${r.pct}%"></div></div>`
+        + `<div class="prog-seg" style="margin-top:8px">${escapeHtml(cap)}</div>`
+        + `<div class="prog-seg" style="margin-top:4px">${secondary}</div>`
+        + miss;
+    } else {
+      const cell = document.getElementById('ev-comp-month');
+      if(!cell) return;
+      cell.textContent = r.doneTotal ? (r.doneSatisfied + '/' + r.doneTotal) : '0/0';
+    }
+  }).catch(()=>{});
+}
+
+function confirmDone(id){
+  if(isPastAsOf()){ alert('🔒 Viewing a past date ('+window.__stAsOf+') — read-only. Cannot record a filing while browsing history.'); return; }
+  const f=getActiveFirm();
+  if(!f){ alert('Please select a firm first.'); return; }
+  if(isItemNA(id)){ alert('This item is marked Not Applicable (NA) and is read-only. Remove NA first to record a filing.'); return; }
+  const fyCompliance = getFirmCompliance(f.id);
+  const filedOn = document.getElementById('ddate-'+id)?.value || todayStr();
+  const notes = document.getElementById('dnotes-'+id)?.value || '';
+  const evidenceRef = document.getElementById('devidence-'+id)?.value || '';
+  const reviewerNote = document.getElementById('dreview-'+id)?.value || '';
+  // Stamp dueDate (ISO) so SHELL Reports can still bucket this record after it
+  // is marked done (computeTaxStatus reads v.dueDate). Fall back to any
+  // previously-materialized dueDate on the record.
+  const month = findItemMonth(id);
+  const item = month ? getMonthItems(month).find(it=>it.id===id) : null;
+  const dueDate = (item && dueDateIso(item.due, month)) || fyCompliance[id]?.dueDate || null;
+  // Grab any attached evidence files BEFORE renderMonth wipes the capture row.
+  const evInp = document.getElementById('evfiles-'+id);
+  const evFiles = (evInp && evInp.files) ? Array.prototype.slice.call(evInp.files) : [];
+  fyCompliance[id]={ done:true, filedOn, notes, evidenceRef, reviewerNote, dueDate };
+  saveState();
+  renderMonth(curMonth);
+  if(evFiles.length) evAdd(id, evFiles).then(()=>hydrateEvidence(id)).catch(()=>{});
+}
+
+function renderMonth(month){
+  curMonth = month;
+  materializeDueDates(); // BUG 1: persist {dueDate,done:false} for visible items so SHELL Reports bucket them
+  document.querySelectorAll('.mt').forEach(t=>{
+    t.classList.toggle('active',t.dataset.m===month);
+    if(t.dataset.m===month) t.scrollIntoView({inline:'center',behavior:'smooth'});
+  });
+  const md = D[month];
+  const allItems = getVisibleItems(getMonthItems(month));
+  // NA is its own bucket: every count/score below is over NON-NA items only.
+  const naItems = allItems.filter(i=>isItemNA(i.id));
+  const activeItems = allItems.filter(i=>!isItemNA(i.id));
+  const filtered = catFilter==='all' ? allItems
+    : catFilter==='na' ? naItems
+    : allItems.filter(i=>i.cat===catFilter);
+  const f = getActiveFirm();
+  const overdueCount = activeItems.filter(i=>!isItemDone(i.id) && (getDaysLeft(i.due, month) ?? 999) < 0).length;
+  const highRiskCount = activeItems.filter(i=>getControlProfile(i, month).risk === 'High').length;
+  const htmlParts = [];
+  htmlParts.push(`<div class="cos-banner"><div class="cos-banner-title">Compliance Operating System</div><div class="cos-banner-sub">The calendar now acts as a control layer: every compliance carries ownership, internal due dates, escalation, workflow, and evidence expectations so deadlines are manageable, not just visible.</div><div class="cos-banner-points"><span class="cos-badge">Ownership</span><span class="cos-badge">Internal T-${f ? '5 / 3' : '5 / 3'}</span><span class="cos-badge">Risk Classification</span><span class="cos-badge">Audit Evidence</span><span class="cos-badge">Multi-Firm Tracking</span></div></div>`);
+  htmlParts.push(`${!f?`<div class="no-firm-banner">ℹ️ <b>No firm selected.</b> Showing the control model across all compliances. <a href="#" onclick="openFirmModal();return false;">Select a firm</a> to track ownership and evidence by entity.</div>`:''}`);
+  htmlParts.push(`<div class="mhd"><div class="mhd-l"><div class="mhd-title">${month}</div><div class="mhd-fy">${getFinancialYearLabel()} · ${f?`${escapeHtml(f.name)} (${typeLabel(f.type)})${qrmpBadge(f)}`:'All Firms View'}</div></div></div><div class="mhd-note">⚡ <strong>Control Note:</strong> ${renderFYText(md.note)}</div>`);
+  htmlParts.push(renderStatutoryPayableCard('month', month)); // P1-41: current/as-of-month statutory strip (self-gates; other months byte-identical)
+  htmlParts.push(`<div class="stats"><div class="sc"><div class="sc-l">Total</div><div class="sc-v" style="color:var(--navy)">${activeItems.length}</div></div><div class="sc done-s"><div class="sc-l">Completed</div><div class="sc-v">${activeItems.filter(i=>isItemDone(i.id)).length}</div></div><div class="sc pend-s"><div class="sc-l">Pending</div><div class="sc-v">${activeItems.filter(i=>!isItemDone(i.id)).length}</div></div><div class="sc"><div class="sc-l">High Risk</div><div class="sc-v" style="color:var(--red)">${highRiskCount}</div></div><div class="sc"><div class="sc-l">Not Applicable</div><div class="sc-v" style="color:var(--g600)">${naItems.length}</div></div><div class="sc"><div class="sc-l">Overdue</div><div class="sc-v" style="color:var(--red)">${overdueCount}</div></div><div class="sc"><div class="sc-l">Evidence</div><div class="sc-v" id="ev-comp-month">—</div></div></div>`);
+  htmlParts.push(`<div class="cat-filter"><button data-action="setcatfilter" data-action-key="definition-01" class="cf-btn ${catFilter==='all'?'active-all':''}" onclick="setCatFilter('all')">All</button><button data-action="setcatfilter" data-action-key="definition-02" class="cf-btn ${catFilter==='it'?'active-it':''}" onclick="setCatFilter('it')">Income Tax</button><button data-action="setcatfilter" data-action-key="definition-03" class="cf-btn ${catFilter==='gst'?'active-gst':''}" onclick="setCatFilter('gst')">GST</button><button data-action="setcatfilter" data-action-key="definition-04" class="cf-btn ${catFilter==='comp'?'active-comp':''}" onclick="setCatFilter('comp')">Composition</button><button data-action="setcatfilter" data-action-key="definition-05" class="cf-btn ${catFilter==='lab'?'active-lab':''}" onclick="setCatFilter('lab')">Labour</button><button data-action="setcatfilter" data-action-key="definition-06" class="cf-btn ${catFilter==='na'?'active-na':''}" onclick="setCatFilter('na')"><span>NA</span>${naItems.length?` <span>(${naItems.length})</span>`:''}</button></div>`);
+  filtered.forEach(item=>{
+    const rec = getItemRecord(item.id) || {};
+    const isNA = rec.na === true;
+    const isDone = !isNA && !!rec.done;
+    const days = getDaysLeft(item.due, month);
+    const isOverdue = !isNA && !isDone && days !== null && days < 0;
+    const profile = getControlProfile(item, month);
+    const doneButtonClass=`done-btn${isDone?' done':''}`;
+    const doneButton=isNA
+      ? `<button class="${doneButtonClass}" title="Not Applicable — read-only" disabled style="opacity:.4;cursor:not-allowed"></button>`
+      : isDone
+        ? `<button data-action="completion-toggle" data-saagar-args="${taxArgs([item.id])}" data-action-key="definition-01" class="${doneButtonClass}" title="Undo completion">✓</button>`
+        : `<button data-action="donebuttonclass" data-saagar-args="${taxArgs([item.id])}" data-action-key="definition-02" class="${doneButtonClass}" title="Mark as completed"></button>`;
+    const naToggleButton=isNA
+      ? `<button data-action="togglena" data-saagar-args="${taxArgs([item.id])}" data-action-key="definition-01" class="na-toggle on">✓ Not Applicable (NA)</button>`
+      : `<button data-action="togglena" data-saagar-args="${taxArgs([item.id])}" data-action-key="definition-02" class="na-toggle">Mark Not Applicable (NA)</button>`;
+    htmlParts.push(`<div class="cc ${item.cat}${isDone?' done-card':''}${isOverdue?' overdue-card':''}${isNA?' na-card':''}" id="card-${item.id}"><div class="cc-stripe"></div><div class="cc-top"><div class="cc-left"><div class="cc-meta"><span class="cat-badge">${catLabel(item.cat)}</span>${isNA?`<span class="na-chip">NA</span>`:''}<span class="due-tag${item.urgent?' urgent':''}${isOverdue?' overdue':''}">📅 ${item.due}</span>${daysLeftTag(days,isDone)}<span class="freq-tag">${item.freq}</span></div><div class="cc-name">${renderFYText(item.name)}</div><div class="cc-form"><span>Form / Portal:</span> ${renderFYText(item.form)}</div>${taxPayableBadge(item, month)}${qrmpAdvisory(item, month)}${isDone&&rec.filedOn?`<div class="cc-filed">✓ Filed: ${formatDate(rec.filedOn)}${rec.evidenceRef?` · Evidence: ${escapeHtml(rec.evidenceRef)}`:''}${rec.reviewerNote?` · Reviewed by: ${escapeHtml(rec.reviewerNote)}`:''}</div>`:''}<div class="control-strip"><span class="control-pill ${riskClass(profile.risk)}">${profile.risk} Risk</span><span class="control-pill ${cashClass(profile.cashFlow)}">${profile.cashFlow} Cash Flow</span><span class="control-pill ${profile.escalation.cls}">${profile.escalation.label}</span><span class="control-pill">Internal due ${formatShortDate(profile.internalDate)}</span></div></div><div class="cc-right"><button data-action="togglenote" data-saagar-args="${taxArgs([item.id])}" data-action-key="definition-01" class="exp-btn" id="ebtn-${item.id}">▼ Controls</button>${doneButton}</div></div><div class="done-capture" id="dcap-${item.id}"><div class="done-capture-row"><label>📅 Filed on:</label><input type="date" id="ddate-${item.id}" value="${rec.filedOn || todayStr()}"><label>📝 Notes:</label><input type="text" id="dnotes-${item.id}" value="${escapeHtml(rec.notes || '')}" placeholder="Ack no. or filing note"><label>📁 Evidence:</label><input type="text" id="devidence-${item.id}" value="${escapeHtml(rec.evidenceRef || '')}" placeholder="Challan / return / working file ref"><label>👀 Reviewer:</label><input type="text" id="dreview-${item.id}" value="${escapeHtml(rec.reviewerNote || '')}" placeholder="Reviewer or sign-off"><label>📎 Files:</label><input type="file" id="evfiles-${item.id}" class="ev-file-inp" multiple><button data-action="confirmdone" data-saagar-args="${taxArgs([item.id])}" data-action-key="definition-01" class="btn-confirm">✓ Confirm</button><button data-action="canceldone" data-saagar-args="${taxArgs([item.id])}" data-action-key="definition-01" class="btn-cancel-done">Cancel</button></div></div><div class="cc-notes" id="note-${item.id}"><div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;flex-wrap:wrap"><div style="font-size:11px;color:var(--g600)">${isNA?'Marked <b>Not Applicable</b> — this item is excluded from the score and is read-only.':'Mark this item Not Applicable if it does not apply to this firm.'}</div>${naToggleButton}</div><div class="accordion-header tax-acc-h" aria-expanded="true">Ownership</div><div class="accordion-panel tax-acc-p"><div class="owner-grid"><div class="owner-box"><div class="owner-role">Responsible</div><div class="owner-name">${profile.responsible}</div></div><div class="owner-box"><div class="owner-role">Reviewer</div><div class="owner-name">${profile.reviewer}</div></div></div></div><div class="accordion-header tax-acc-h" aria-expanded="false">Deadline · Escalation · Evidence</div><div class="accordion-panel tax-acc-p" hidden><div class="cos-grid"><div class="cos-mini"><div class="cos-mini-label">Internal Deadline</div><div class="cos-mini-value">T-${profile.buffer} · ${formatShortDate(profile.internalDate)}</div><div class="cos-mini-sub">Prevents last-day filing and portal dependency.</div></div><div class="cos-mini"><div class="cos-mini-label">Escalation Rule</div><div class="cos-mini-value">${profile.escalation.label}</div><div class="cos-mini-sub">7 days reminder, 3 days escalation, 1 day critical.</div></div><div class="cos-mini"><div class="cos-mini-label">Evidence Pack</div><div class="cos-mini-value">${profile.evidence.length} required artifacts</div><div class="cos-mini-sub">${profile.evidence.join(' · ')}</div></div></div></div><div class="ev-attach"><div class="ev-attach-hd">📎 Attached Evidence <span class="ev-count" id="evcount-${item.id}"></span></div><div class="ev-files" data-itemid="${item.id}"><div class="ev-empty">No files attached yet.</div></div><label class="ev-add-btn">+ Attach file<input data-action="evattachhere" data-action-key="definition-01" type="file" multiple style="display:none" onchange="evAttachHere('${item.id}', this)"></label></div><div class="accordion-header tax-acc-h" aria-expanded="false">Input Checklist</div><div class="accordion-panel tax-acc-p" hidden><div class="cos-panel"><div class="control-list">${profile.checklist.map((step, idx)=>`<div class="control-item"><div class="control-step">${idx+1}</div><div>${step}</div></div>`).join('')}</div></div></div><div class="accordion-header tax-acc-h" aria-expanded="false">Workflow Mapping</div><div class="accordion-panel tax-acc-p" hidden><div class="cos-panel"><div class="control-list">${profile.workflow.map((step, idx)=>`<div class="control-item"><div class="control-step">${idx+1}</div><div>${step}</div></div>`).join('')}</div><div class="control-note">${profile.escalation.note}</div></div></div><div class="accordion-header tax-acc-h" aria-expanded="false">Reference &amp; Penalty</div><div class="accordion-panel tax-acc-p" hidden><div class="ng"><div class="nf full"><div class="nl">📌 What This Is</div><div class="nv">${renderFYText(item.what)}</div></div><div class="nf full"><div class="nl">💡 Why It Must Be Done</div><div class="nv">${renderFYText(item.why)}</div></div><div class="nf"><div class="nl">👥 Applicable To</div><div class="nv">${renderFYText(item.who)}</div></div><div class="nf pen-box"><b>⚠ Penalty for Non-Compliance:</b> ${renderFYText(item.penalty)}</div></div></div></div></div>`);
+  });
+  document.getElementById('content').innerHTML = htmlParts.join('');
+  updateNavDots();
+  hydrateEvidence();   // async-fill the attached-evidence lists + 📎 counts
+  hydrateEvidenceCompleteness(month); // P1-32: async-fill this month's #ev-comp-month done-non-NA coverage chip
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function renderDashboard(){
+  const f = getActiveFirm();
+  materializeDueDates(); // BUG 1: ensure dueDate records exist even if dashboard is the first view rendered
+  const quarterData = QUARTERS.map(q=>{
+    const allItems=[];
+    q.months.forEach(m=>allItems.push(...getVisibleItems(getMonthItems(m)).filter(i=>!isItemNA(i.id)).map(i=>({...i, month:m, profile:getControlProfile(i, m)}))));
+    const done = allItems.filter(i=>isItemDone(i.id)).length;
+    const overdue = allItems.filter(i=>!isItemDone(i.id) && (getDaysLeft(i.due, i.month) ?? 999) < 0).length;
+    const highRisk = allItems.filter(i=>i.profile.risk==='High').length;
+    const score = allItems.length ? Math.round((done / allItems.length) * 100) : 0;
+    return {...q, allItems, total:allItems.length, done, pending:allItems.length-done, overdue, highRisk, score};
+  });
+  const cq = quarterData.find(q=>q.key===curQ) || quarterData[0];
+  const ownerLoad = {};
+  const cashExposure = { High:0, Medium:0, Low:0 };
+  cq.allItems.forEach(item=>{
+    ownerLoad[item.profile.responsible] = (ownerLoad[item.profile.responsible] || 0) + 1;
+    cashExposure[item.profile.cashFlow] += 1;
+  });
+  const monthlyRows = cq.months.map(m=>{
+    const items = getVisibleItems(getMonthItems(m)).filter(i=>!isItemNA(i.id)).map(i=>({...i, profile:getControlProfile(i, m)}));
+    const total = items.length;
+    const done = items.filter(i=>isItemDone(i.id)).length;
+    const overdue = items.filter(i=>!isItemDone(i.id) && (getDaysLeft(i.due, m) ?? 999) < 0).length;
+    return { month:m, total, done, overdue, score: total ? Math.round((done / total) * 100) : 0 };
+  });
+  const focusItems = cq.allItems.filter(i=>!isItemDone(i.id)).sort((a,b)=>{
+    const riskRank = { High:0, Medium:1, Low:2 };
+    return riskRank[a.profile.risk] - riskRank[b.profile.risk] || (getDaysLeft(a.due, a.month) ?? 999) - (getDaysLeft(b.due, b.month) ?? 999);
+  }).slice(0,8);
+  const html = `<div class="dash-hd"><div class="dash-title">Compliance Operating System Dashboard</div><div class="dash-sub">${getFinancialYearLabel()} · ${f?`${escapeHtml(f.name)} · ${typeLabel(f.type)}`:'All Firms'} · Focused on control, accountability, and audit readiness</div>${f?`<button data-action="sendcapack" onclick="sendCaPack()" style="margin-top:10px;background:#166534;color:#fff;border:none;padding:7px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font-sans)">💬 Send CA pack (WhatsApp)</button>`:''}</div>${!f?`<div class="no-firm-banner">ℹ️ <b>No firm selected.</b> Dashboard is summarised for the full rule set. Select a firm to use entity-wise evidence and completion history.</div>`:''}<div class="dash-stats"><div class="ds-card total"><div class="ds-val">${cq.total}</div><div class="ds-lbl">Total Compliances</div></div><div class="ds-card done"><div class="ds-val">${cq.total ? cq.score+'%' : '—'}</div><div class="ds-lbl">Compliance Score</div></div><div class="ds-card pending"><div class="ds-val">${cq.pending}</div><div class="ds-lbl">Open Items</div></div><div class="ds-card overdue"><div class="ds-val">${cq.overdue}</div><div class="ds-lbl">Overdue Alerts</div></div></div>${renderStatutoryPayablePanel()}<div class="prog-wrap" id="ev-completeness"><div class="prog-top"><div class="prog-lbl">Evidence Pack Completeness</div><div class="prog-pct">…</div></div><div class="prog-bar-bg"><div class="prog-bar-fill" style="width:0%"></div></div><div class="prog-seg" style="margin-top:8px">Calculating…</div></div><div class="dash-grid-2"><div class="cos-panel"><div class="cos-panel-title">Monthly Performance</div><div class="focus-table"><div class="focus-row header"><div>Month</div><div>Score</div><div>Done</div><div>Overdue</div></div>${monthlyRows.map(row=>`<div class="focus-row"><div class="focus-name">${row.month}</div><div data-label="Score">${row.score}%</div><div data-label="Done">${row.done}/${row.total}</div><div data-label="Overdue">${row.overdue || '0'}</div></div>`).join('')}</div></div><div class="cos-panel"><div class="cos-panel-title">Control Summary</div><div class="ops-list"><div class="ops-row"><div><div class="ops-name">High-risk obligations</div><div class="ops-meta">GSTR-3B, TDS, EPF, advance tax and similar critical items</div></div><div class="ops-val">${cq.highRisk}</div></div><div class="ops-row"><div><div class="ops-name">Cash flow exposure</div><div class="ops-meta">High / Medium / Low tax outflow planning buckets</div></div><div class="ops-val">${cashExposure.High} / ${cashExposure.Medium} / ${cashExposure.Low}</div></div><div class="ops-row"><div><div class="ops-name">Evidence readiness</div><div class="ops-meta">Proofs captured at completion for audit trail</div></div><div class="ops-val">${cq.done}</div></div></div></div></div><div class="dash-grid-2"><div class="cos-panel"><div class="cos-panel-title">Top Control Focus Items</div><div class="focus-table"><div class="focus-row header"><div>Compliance</div><div>Risk</div><div>Owner</div><div>Status</div></div>${focusItems.map(item=>`<div class="focus-row"><div><div class="focus-name">${renderFYText(item.name)}</div><div class="ops-meta">${item.month} · Due ${item.due}</div></div><div data-label="Risk"><span class="control-pill ${riskClass(item.profile.risk)}">${item.profile.risk}</span></div><div data-label="Owner">${item.profile.responsible}</div><div data-label="Status"><span class="control-pill ${item.profile.escalation.cls}">${item.profile.escalation.label}</span></div></div>`).join('') || `<div class="nc-empty">All items in ${renderFYText(cq.period)} are completed.</div>`}</div></div><div class="cos-panel"><div class="cos-panel-title">Ownership Load</div><div class="ops-list">${Object.entries(ownerLoad).map(([owner,count])=>`<div class="ops-row"><div><div class="ops-name">${owner}</div><div class="ops-meta">Assigned compliances in ${renderFYText(cq.period)}</div></div><div class="ops-val">${count}</div></div>`).join('')}</div></div></div><div class="nc-section"><div class="nc-hd"><div class="nc-hd-title">Pending and Escalated Items</div><div class="nc-hd-count">${focusItems.length} items shown</div></div>${focusItems.length ? focusItems.map(item=>`<div class="nc-item"><div class="nc-cat-dot" style="background:${item.cat==='it'?'var(--it)':item.cat==='gst'?'var(--gst)':item.cat==='comp'?'var(--comp)':'var(--lab)'}"></div><div class="nc-body"><div class="nc-name">${renderFYText(item.name)}</div><div class="nc-month">${item.month} · Due ${item.due} · Internal ${formatShortDate(item.profile.internalDate)}</div><div class="nc-pen">${item.profile.responsible} → ${item.profile.reviewer} · ${item.profile.evidence.join(' · ')}</div></div><button data-action="show-compliance-month" data-saagar-args="${taxArgs([item.month])}" data-action-key="definition-02" class="exp-btn">Open →</button></div>`).join('') : `<div class="nc-empty">No pending items in this quarter.</div>`}</div>`;
+  document.getElementById('dash-content').innerHTML = html;
+  hydrateEvidenceCompleteness('fy'); // P1-32: async-fill the FY evidence-completeness meter (parallels renderMonth's hydrateEvidence)
+}
+
+/* ══════════════════════════════════════════════════════
+   INIT
+══════════════════════════════════════════════════════ */
+loadState();
+
+// Build month nav
+const nav=document.getElementById('mnav');
+/* Phase 6G rendered-DOM contract. The compliance print table is generated for
+   stPrintDoc outside document.body, so its reviewed grid metadata is consumed
+   by the print workflow and is intentionally outside this body observer. */
+function taxArgs(values){ return SaagarRenderedComponents.encodeArgs(values); }
+function openPackedActionCenter(value){
+  const fields=String(value).split('|');
+  acOpen(fields[0]||'',fields[1]||'',fields.slice(2).join('|'));
+}
+function showComplianceMonth(month){ showView('calendar'); setMonth(month); }
+const TaxRenderedPolicy = SaagarRenderedComponents.createPolicy(Object.freeze({
+  'tax-action-center-open':{handler:'openActionCenter',args:0},
+  'tax-firms-open':{handler:'openFirmModal',args:0},
+  'tax-compliance-master-open':{handler:'openMasterModal',args:0},
+  'tax-compliance-csv-export':{handler:'exportComplianceCSV',args:0},
+  'tax-evidence-zip-export':{handler:'exportEvidenceZip',args:0},
+  'tax-compliance-print':{handler:'printCompliance',args:0},
+  'firm-modal-close':{handler:'closeFirmModal',args:0},
+  'tax-firm-save':{handler:'saveFirm',args:0},
+  'firm-form-reset':{handler:'resetFirmForm',args:0},
+  'master-modal-close':{handler:'closeMasterModal',args:0},
+  'tax-obligation-details-toggle':{handler:'toggleMasterDetails',args:0},
+  'tax-obligation-controls-toggle':{handler:'toggleMasterControls',args:0},
+  'tax-obligation-save':{handler:'saveCustomObligation',args:0},
+  'master-form-reset':{handler:'resetMasterForm',args:0},
+  'action-center-close':{handler:'closeActionCenter',args:0},
+  'togglecatarchive':{handler:'toggleCatArchive',args:1},
+  'setcatfilter':{handler:'setCatFilter',args:1},
+  'sendcapack':{handler:'sendCaPack',args:0},
+  'editfirm':{handler:'editFirm',args:1,delegated:true},
+  'deletefirm':{handler:'deleteFirm',args:1,delegated:true},
+  'editcustomobligation':{handler:'editCustomObligation',args:1,delegated:true},
+  'deletecustomobligation':{handler:'deleteCustomObligation',args:1,delegated:true},
+  'togglearchive':{handler:'toggleArchive',args:1,delegated:true},
+  'action-center-open-item':{handler:'openPackedActionCenter',args:1,delegated:true},
+  'evview':{handler:'evView',args:1,delegated:true},
+  'evdelete':{handler:'evDelete',args:2,delegated:true},
+  'show-compliance-month':{handler:'showComplianceMonth',args:1,delegated:true},
+  'completion-toggle':{handler:'clickDone',args:1,delegated:true},
+  'donebuttonclass':{handler:'clickDone',args:1,delegated:true},
+  'togglena':{handler:'toggleNA',args:1,delegated:true},
+  'togglenote':{handler:'toggleNote',args:1,delegated:true},
+  'confirmdone':{handler:'confirmDone',args:1,delegated:true},
+  'canceldone':{handler:'cancelDone',args:1,delegated:true}
+}),Object.freeze({
+  'compliance-print':{strategy:'grid',reason:'six compliance fields require cross-column comparison'}
+}));
+const TaxDelegatedHandlers = Object.freeze({
+  editFirm,deleteFirm,editCustomObligation,deleteCustomObligation,toggleArchive,
+  openPackedActionCenter,evView,evDelete,showComplianceMonth,clickDone,toggleNA,
+  toggleNote,confirmDone,cancelDone
+});
+SaagarRenderedComponents.observe(document.body,TaxRenderedPolicy);
+SaagarRenderedComponents.connect(document.body,TaxRenderedPolicy,TaxDelegatedHandlers);
+
+MONTHS.forEach(m=>{
+  const t=document.createElement('div');
+  t.className='mt'+(m===curMonth?' active':'');
+  t.dataset.m=m;
+  t.innerHTML=`${m}<div class="mt-dot" id="dot-${m}"></div>`;
+  t.onclick=()=>{ showView('calendar'); setMonth(m); };
+  nav.appendChild(t);
+});
+
+populateFirmSelector();
+populateFYSelector();
+showView('calendar');
+try{ updateActionBadge(); }catch(e){}
+</script>
+
+<link id="st-v5-back-style" rel="stylesheet" href="../../shared/module-back.css">
+<button id="st-v5-home-fab" type="button" title="Back to Home (Esc)"><svg viewBox="0 0 24 24"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg></button>
+<div id="st-v5-next-chips"></div>
+<script id="st-v5-back-script">SaagarModuleRuntime.run('back',{schemaVersion:1,moduleId:'tax',nextSteps:[],customerSelectors:[],accessContext:false});</script>
+
+<link id="st-v5-emp-assist-style" rel="stylesheet" href="../../shared/module-employee.css"><script id="st-v5-emp-assist-script">SaagarModuleRuntime.run('employees',{schemaVersion:1,moduleId:'tax',nextSteps:[],customerSelectors:[],accessContext:false});</script>
+
+<script id="st-v5-module-audit-bridge">SaagarModuleRuntime.run('audit',{schemaVersion:1,moduleId:'tax',nextSteps:[],customerSelectors:[],accessContext:false});</script>
+</body>
+</html>

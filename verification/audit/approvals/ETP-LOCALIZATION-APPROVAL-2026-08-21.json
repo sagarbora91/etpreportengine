@@ -1,0 +1,84 @@
+{
+  "format": "SAAGAR_EXTERNAL_GATE_APPROVAL",
+  "schemaVersion": 1,
+  "gateId": "ETP-L10N-IMPORT",
+  "decision": "approve",
+  "state": "approved-for-import",
+  "reviewer": {
+    "displayName": "Sagar",
+    "githubIdentity": "sagarbora91",
+    "role": "fluent-marathi-hindi-reviewer"
+  },
+  "receivedAt": "2026-08-21T15:44:38+05:30",
+  "productCodeFreezeCommit": "4b5c9c5c883f621cc31ea22d18203425ebcdc88d",
+  "package": {
+    "path": "verification/audit/ETP-LOCALIZATION-FINAL-REVIEW-DRAFT-2026-08-21.csv",
+    "sha256": "f073bf322427996c6bbb44828dc46693ade97333b83f52b47fa588a55c1b7bb1",
+    "rows": 119,
+    "moduleHtmlRows": 97,
+    "controllerRows": 22,
+    "machineDraftProvider": "google-translate-connected-draft",
+    "unmodified": true
+  },
+  "reviewedSources": [
+    {
+      "path": "www/modules/etp/index.html",
+      "sha256": "4124fbb4c97b03cbc958b23252c8ae8e1d1a4d11443178ad9c0f1f7cdde71851"
+    },
+    {
+      "path": "www/etp-verified-presentation.js",
+      "sha256": "031fe0d969062cab8319d23111a4e83c92111b1bf1e90f53238c80666acb2cc6"
+    }
+  ],
+  "preImportVerification": {
+    "performedBy": "assistant, read-only, 2026-08-21",
+    "method": "Parsed the committed CSV and recomputed checks; no file was modified.",
+    "englishSha256Verified": "119/119",
+    "preservedLiteralFailures": 0,
+    "placeholderFailures": 0,
+    "emptyDraftFailures": 0,
+    "rowsNeedingAttention": 3,
+    "attentionRows": [
+      {
+        "rowId": "ETP-L10N-076",
+        "note": "Marathi and Hindi drafts identical: Unavailable -> anupalabdh"
+      },
+      {
+        "rowId": "ETP-L10N-077",
+        "note": "Marathi and Hindi drafts identical: Published -> prakashit"
+      },
+      {
+        "rowId": "ETP-L10N-107",
+        "note": "Marathi and Hindi drafts identical: rule unavailable -> niyam anupalabdh"
+      }
+    ],
+    "attentionDisposition": "Surfaced to the reviewer before approval. These words are shared between Marathi and Hindi; the reviewer approved them as correct.",
+    "notVerified": "row_sha256 could not be independently recomputed: no generator for that field exists in the repository, so its scheme is unknown. The CSV was therefore left byte-unmodified and this approval is recorded separately, matching the Phase 4A pattern."
+  },
+  "approvalText": "I, Sagar (sagarbora91), reviewed all 119 Marathi and Hindi rows in verification/audit/ETP-LOCALIZATION-FINAL-REVIEW-DRAFT-2026-08-21.csv, SHA-256 f073bf322427996c6bbb44828dc46693ade97333b83f52b47fa588a55c1b7bb1, covering 97 module HTML units and 22 verified-presentation controller units at product-code freeze commit 4b5c9c5c883f621cc31ea22d18203425ebcdc88d, against source files www/modules/etp/index.html SHA-256 4124fbb4c97b03cbc958b23252c8ae8e1d1a4d11443178ad9c0f1f7cdde71851 and www/etp-verified-presentation.js SHA-256 031fe0d969062cab8319d23111a4e83c92111b1bf1e90f53238c80666acb2cc6. I confirm the wording is accurate and intelligible in both languages, that preserved literals and placeholders are intact, and that rows which remain verbatim are code-only strings that must not be translated. I approve import of this exact package. Decision: APPROVE.",
+  "scope": {
+    "authorizes": [
+      "Import of the exact 119-row wording package into the two named source files",
+      "Marking the review rows with the approved decision and reviewer by the workstream that owns the import"
+    ],
+    "doesNotClose": [
+      "GATE-NATIVE-LANGUAGE for the post-import ETP product identity, which requires a fresh rendered-language matrix and a separate identity-bound visual approval",
+      "physical-device-acceptance",
+      "ETP production publication acceptance",
+      "staff-uat",
+      "legal-approval",
+      "production-signing",
+      "release-approval"
+    ]
+  },
+  "nextActions": [
+    "Import the approved wording and mark the review rows with the approved decision and reviewer.",
+    "Run the focused ETP and language test suites.",
+    "Regenerate module, MAH and capability identities exactly once.",
+    "Capture one final rendered-language matrix and obtain identity-bound visual approval.",
+    "Build one final seeded APK and run the physical ETP fixture acceptance.",
+    "Run the final controlled audit or comparison and update the handoff."
+  ],
+  "executionNote": "Steps 1 to 6 are the exactly-once sequence defined in verification/audit/ETP-MODULE-CRASH-CHECKPOINT-2026-08-21.md. They are owned by the ETP implementation workstream and were deliberately not started by the agent recording this approval, to avoid a partial execution or a collision with concurrent work on the same artifacts.",
+  "registryNote": "The reviewed CSV is retained byte-unmodified so its SHA-256 remains the reviewable identity. This record is the approval evidence, following the Phase 4A pattern where the draft CSV stayed unchanged and approval was recorded separately."
+}

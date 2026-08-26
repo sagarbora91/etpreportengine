@@ -1,0 +1,3053 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="../../shared/module-bridge.js"></script>
+<script src="../../shared/module-runtime.js"></script>
+<script src="../../shared/mah4-runtime.js"></script>
+<script id="mah4-stage-b-runtime">SaagarMah4Runtime.bootModule({moduleId:'stock'});</script>
+<script id="st-v5-iframe-shim">SaagarModuleRuntime.run('storage',{schemaVersion:1,moduleId:'stock',nextSteps:[],customerSelectors:[],accessContext:true});</script>
+<script id="st-v5-safety-net">SaagarModuleRuntime.run('safety',{schemaVersion:1,moduleId:'stock',nextSteps:[],customerSelectors:[],accessContext:true});</script>
+<link rel="stylesheet" href="../../shared/module-mobile-common.css">
+<script id="st-v5-mobile-boot">SaagarModuleRuntime.run('mobile',{schemaVersion:1,moduleId:'stock',nextSteps:[],customerSelectors:[],accessContext:true});</script>
+<link rel="stylesheet" href="../../shared/module-brand-tokens.css">
+<link rel="stylesheet" href="../../shared/module-responsive.css">
+<link rel="stylesheet" href="../../shared/module-components.css">
+<link rel="stylesheet" href="../../shared/module-table.css">
+<script src="../../shared/module-ui-runtime.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Saagar Traders — Daily Stock Register v3</title>
+<link id="st-v5-hide-css" rel="stylesheet" href="stock-ui.css">
+<link id="st-v5-uniform-css" rel="stylesheet" href="../../shared/module-uniform.css">
+<script src="../../stock-variance-policy.js"></script>
+<link rel="stylesheet" href="../../mobile-layout.css">
+<script src="../../app-i18n.js"></script>
+</head>
+<body data-saagar-ui data-saagar-width="auto" data-saagar-width-resolved="mobile">
+<script id="stock-phase6e-ui-boot">SaagarUiFoundation.configure(document.body,{mode:'auto'});</script>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<!-- HEADER -->
+<div class="hdr">
+  <div class="hdr-left">
+    <div class="brand">Saagar Traders</div>
+    <div class="store-badge" id="hdr-badge">Titan World</div>
+  </div>
+  <div class="hdr-right">
+    <div class="date-lbl" id="hdr-date"></div>
+    <div class="mode-tog">
+      <button data-action="mbtn-sm" class="mbtn"        id="mbtn-sm"  onclick="setMode('sm')">SM</button>
+      <button data-action="mbtn-cro" class="mbtn active" id="mbtn-cro" onclick="setMode('cro')">CRO</button>
+    </div>
+  </div>
+</div>
+
+<!-- STORE NAV -->
+<div class="store-nav">
+  <button data-action="snav-tw" class="snav-btn active" id="snav-tw" onclick="setStore('titanworld')">Titan World (WLMHW)</button>
+  <button data-action="snav-he" class="snav-btn"        id="snav-he" onclick="setStore('helios')">Helios (HEMW)</button>
+</div>
+
+<!-- TAB NAV -->
+<div class="tab-nav">
+  <button data-action="tbtn-opening" class="tab-btn active" id="tbtn-opening"   onclick="goTab('opening')">Opening Stock</button>
+  <button data-action="tbtn-movements" class="tab-btn"        id="tbtn-movements" onclick="goTab('movements')">Day Movements</button>
+  <button data-action="tbtn-closing" class="tab-btn tab-locked" id="tbtn-closing" onclick="goTab('closing')" title="Submit Day Movements first">Closing Stock</button>
+  <button data-action="tbtn-summary" class="tab-btn"        id="tbtn-summary"   onclick="goTab('summary')">Summary Report</button>
+  <button data-action="tbtn-monthly" class="tab-btn"        id="tbtn-monthly"   onclick="goTab('monthly')">Monthly</button>
+  <button data-action="tbtn-settings" class="tab-btn tab-locked" id="tbtn-settings" onclick="goTab('settings')" title="SM login required">⚙ Settings</button>
+</div>
+
+<div class="main">
+
+  <!-- ══════════════════ OPENING ══════════════════ -->
+  <div class="sec active" id="sec-opening">
+    <div class="print-hdr">
+      <h2 id="ph-open-title">Opening Stock — Daily Head Count Register</h2>
+      <p  id="ph-open-sub"></p>
+    </div>
+    <div class="sec-hdr">
+      <div>
+        <div class="sec-title">Opening Stock</div>
+        <div class="sec-sub" id="opening-sub">Daily Head Count Register</div>
+      </div>
+      <div class="btn-row">
+        <span id="open-lock-badge" style="display:none" class="lk-badge">🔒 Locked</span>
+        <button data-action="print-opening-register" class="btn btn-outline btn-sm no-print" onclick="printOpeningReg()">🖨 Print</button>
+        <button data-action="btn-lock-open" class="btn btn-navy btn-sm no-print" id="btn-lock-open" onclick="toggleLock('opening')">Lock Opening</button>
+      </div>
+    </div>
+    <div class="info-bar">
+      <span>💡</span><span id="open-info-txt">SM Mode: Enter System Stock per brand. Switch to CRO mode for physical count entry.</span>
+    </div>
+    <div class="cmeter" id="cmeter-opening" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+      <div class="cmeter-track"><div class="cmeter-fill" id="cmeter-fill-opening"></div></div>
+      <span class="cmeter-lbl" id="cmeter-lbl-opening">0 / 0 brands counted · <span class="cmeter-pct">0%</span></span>
+    </div>
+    <div class="tbl-wrap" data-stock-table-region="opening-counts">
+      <table class="rtbl saagar-table saagar-table--cards" data-stock-table-strategy="cards" data-stock-table-workflow="opening-counts">
+        <thead>
+          <tr class="hdr-row">
+            <th class="tl" rowspan="2" style="min-width:110px">Brand</th>
+            <th rowspan="2">System<br>Stock</th>
+            <th rowspan="2">CRO Name</th>
+            <th colspan="5">Physical Count (CRO)</th>
+            <th rowspan="2">Variance</th>
+            <th rowspan="2" title="Mark when physical count is complete">Done</th>
+            <th rowspan="2" style="min-width:88px">Remarks</th>
+            <th rowspan="2" class="no-print">Verify</th>
+          </tr>
+          <tr class="grp-row">
+            <th>Display</th>
+            <th>Storage</th>
+            <th>Defective</th>
+            <th>"Y" Loc</th>
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-open"></tbody>
+        <tfoot id="tfoot-open"></tfoot>
+      </table>
+    </div>
+  </div>
+
+  <!-- ══════════════════ DAY MOVEMENTS ══════════════════ -->
+  <div class="sec" id="sec-movements">
+    <div class="print-hdr">
+      <h2 id="ph-mov-title">Day Movements Register</h2>
+      <p  id="ph-mov-sub"></p>
+    </div>
+    <div class="sec-hdr">
+      <div>
+        <div class="sec-title">Day Movements</div>
+        <div class="sec-sub" id="mov-sub">Enter all stock movements for the day before closing</div>
+      </div>
+      <div class="btn-row">
+        <span id="mov-submitted-badge" style="display:none" class="lk-badge">✓ Submitted</span>
+        <button data-action="print-movements-register" class="btn btn-outline btn-sm no-print" onclick="printMovementsReg()">🖨 Print</button>
+        <button data-action="btn-reopen-mov" class="btn btn-outline btn-sm no-print" id="btn-reopen-mov" style="display:none" onclick="reopenMovements()">🔓 Re-open</button>
+        <button data-action="btn-submit-mov" class="btn btn-gold no-print" id="btn-submit-mov" onclick="submitMovements()">Submit &amp; Proceed to Closing →</button>
+      </div>
+    </div>
+    <div class="info-bar" id="mov-info">
+      <span>📋</span>
+      <span id="mov-info-txt">Enter inward transfers, outward transfers, sales (POS), and GRN (goods received) per brand. Click <strong>Submit</strong> when done to unlock Closing Stock.</span>
+    </div>
+    <div class="tbl-wrap saagar-table-region--grid" data-stock-table-region="movement-reconciliation">
+      <table class="rtbl saagar-table saagar-table--grid" data-stock-table-strategy="grid" data-stock-table-workflow="movement-reconciliation" data-saagar-grid-reason="movement reconciliation requires cross-column comparison">
+        <thead>
+          <tr class="hdr-row">
+            <th class="tl" style="min-width:110px">Brand</th>
+            <th>Inward</th>
+            <th>Outward</th>
+            <th>Sales</th>
+            <th>GRN</th>
+            <th title="Theft / Loss / Shrinkage — reduces closing stock like a sale">Theft</th>
+            <th>Net Movement</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-mov"></tbody>
+        <tfoot id="tfoot-mov"></tfoot>
+      </table>
+    </div>
+  </div>
+
+  <!-- ══════════════════ CLOSING ══════════════════ -->
+  <div class="sec" id="sec-closing">
+    <div class="print-hdr">
+      <h2 id="ph-close-title">Closing Stock — Daily Head Count Register</h2>
+      <p  id="ph-close-sub"></p>
+    </div>
+    <div class="sec-hdr">
+      <div>
+        <div class="sec-title">Closing Stock</div>
+        <div class="sec-sub">Record physical closing count per brand</div>
+      </div>
+      <div class="btn-row">
+        <span id="close-lock-badge" style="display:none" class="lk-badge">🔒 Locked</span>
+        <button data-action="print-closing-register" class="btn btn-outline btn-sm no-print" onclick="printClosingReg()">🖨 Print</button>
+        <button data-action="btn-lock-close" class="btn btn-navy btn-sm no-print" id="btn-lock-close" onclick="toggleLock('closing')">Lock Closing</button>
+      </div>
+    </div>
+    <div class="cmeter" id="cmeter-closing" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+      <div class="cmeter-track"><div class="cmeter-fill" id="cmeter-fill-closing"></div></div>
+      <span class="cmeter-lbl" id="cmeter-lbl-closing">0 / 0 brands counted · <span class="cmeter-pct">0%</span></span>
+    </div>
+    <div class="tbl-wrap" data-stock-table-region="closing-counts">
+      <table class="rtbl saagar-table saagar-table--cards" data-stock-table-strategy="cards" data-stock-table-workflow="closing-counts">
+        <thead>
+          <tr class="hdr-row">
+            <th class="tl" rowspan="2" style="min-width:110px">Brand</th>
+            <th rowspan="2">Closing<br>System</th>
+            <th rowspan="2">CRO Name</th>
+            <th colspan="5">Physical Closing Count (CRO)</th>
+            <th rowspan="2">Variance</th>
+            <th rowspan="2" title="Mark when closing count is complete">Done</th>
+            <th rowspan="2" style="min-width:88px">Remarks</th>
+            <th rowspan="2" class="no-print">Verify</th>
+          </tr>
+          <tr class="grp-row">
+            <th>Display</th>
+            <th>Storage</th>
+            <th>Defective</th>
+            <th>"Y" Loc</th>
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-close"></tbody>
+        <tfoot id="tfoot-close"></tfoot>
+      </table>
+    </div>
+  </div>
+
+  <!-- ══════════════════ SUMMARY ══════════════════ -->
+  <div class="sec" id="sec-summary">
+    <div class="print-hdr">
+      <h2 id="ph-sum-title">Daily Stock Summary Report</h2>
+      <p  id="ph-sum-sub"></p>
+    </div>
+    <div class="sec-hdr">
+      <div>
+        <div class="sec-title">Summary Report</div>
+        <div class="sec-sub">End of Day — Brand-wise Stock Movement</div>
+      </div>
+      <div class="btn-row no-print">
+        <button data-action="export-csv" class="btn btn-outline btn-sm" onclick="exportCSV()">↓ Export CSV</button>
+        <button data-action="print-summary-register" class="btn btn-gold btn-sm"    onclick="printSummaryReg()">🖨 Print A4</button>
+      </div>
+    </div>
+    <div class="scards" id="sum-cards"></div>
+    <div id="sum-variance-drill" class="d5-panel" style="display:none"></div>
+    <div id="sum-dsr-recon" style="display:none"></div>
+    <div class="aud-strip" id="sum-audit"></div>
+    <div class="tbl-wrap" data-stock-table-region="daily-summary">
+      <table class="rtbl saagar-table saagar-table--priority" data-stock-table-strategy="priority" data-stock-table-workflow="daily-summary">
+        <thead>
+          <tr class="hdr-row">
+            <th class="tl" style="min-width:110px" data-saagar-priority="1">Brand</th>
+            <th data-saagar-priority="3">Opening<br>System</th>
+            <th data-saagar-priority="4">Inward</th>
+            <th data-saagar-priority="4">GRN</th>
+            <th data-saagar-priority="4">Outward</th>
+            <th data-saagar-priority="3">Sales</th>
+            <th title="Theft / Loss / Shrinkage" data-saagar-priority="2">Theft</th>
+            <th data-saagar-priority="3">Closing<br>System</th>
+            <th data-saagar-priority="2">Closing<br>Physical</th>
+            <th data-saagar-priority="1">Variance</th>
+            <th data-saagar-priority="1">Status</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-sum"></tbody>
+        <tfoot id="tfoot-sum"></tfoot>
+      </table>
+    </div>
+  </div>
+
+  <!-- ══════════════════ MONTHLY (P1-6) ══════════════════ -->
+  <div class="sec" id="sec-monthly">
+    <div class="print-hdr">
+      <h2 id="ph-mon-title">Monthly Variance &amp; Shrinkage Report</h2>
+      <p  id="ph-mon-sub"></p>
+    </div>
+    <div class="sec-hdr">
+      <div>
+        <div class="sec-title">Monthly Report</div>
+        <div class="sec-sub">Variance &amp; shrinkage — brand-wise month view</div>
+      </div>
+      <div class="btn-row no-print">
+        <input data-action="mon-month" type="month" class="finp" id="mon-month" style="max-width:170px" onchange="monSetMonth(this.value)">
+        <select data-action="mon-n" class="finp" id="mon-n" style="max-width:180px" onchange="monSetN(this.value)"
+                title="A brand is a repeat offender when it has a counted variance or theft on at least this many days of the month">
+          <option value="2">Offender ≥ 2 days</option>
+          <option value="3" selected>Offender ≥ 3 days</option>
+          <option value="4">Offender ≥ 4 days</option>
+          <option value="5">Offender ≥ 5 days</option>
+        </select>
+        <button data-action="print-monthly-register" class="btn btn-gold btn-sm" onclick="printMonthlyReg()">🖨 Print A4</button>
+      </div>
+    </div>
+    <div class="info-bar">
+      <span>📅</span>
+      <span>Reads the saved daily registers for the chosen month — view only, nothing is written. A brand is flagged <strong>repeat offender</strong> when it has a counted variance or theft on the set number of days.</span>
+    </div>
+    <div class="scards" id="mon-cards"></div>
+    <div class="tbl-wrap" data-stock-table-region="monthly-summary">
+      <table class="rtbl saagar-table saagar-table--priority" data-stock-table-strategy="priority" data-stock-table-workflow="monthly-summary">
+        <thead>
+          <tr class="hdr-row">
+            <th class="tl" style="min-width:110px" data-saagar-priority="1">Brand</th>
+            <th data-saagar-priority="3">Days<br>Counted</th>
+            <th title="Days where counted physical ≠ closing system" data-saagar-priority="2">Variance<br>Days</th>
+            <th data-saagar-priority="1">Net<br>Variance</th>
+            <th title="Total theft / loss units in the month" data-saagar-priority="2">Theft<br>Units</th>
+            <th data-saagar-priority="3">Theft<br>Days</th>
+            <th data-saagar-priority="4">Worst Gap</th>
+            <th data-saagar-priority="1">Status</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-mon"></tbody>
+        <tfoot id="tfoot-mon"></tfoot>
+      </table>
+    </div>
+    <div id="mon-theft-wrap" style="display:none;margin-top:16px">
+      <div class="sec-sub" style="margin-bottom:8px">Theft / Loss log — <span id="mon-theft-count"></span></div>
+      <div class="tbl-wrap" data-stock-table-region="theft-log">
+        <table class="rtbl saagar-table saagar-table--cards" data-stock-table-strategy="cards" data-stock-table-workflow="theft-log">
+          <thead><tr class="hdr-row"><th class="tl">Date</th><th class="tl">Brand</th><th>Units</th><th class="tl" style="min-width:120px">Remark</th><th>Verified</th></tr></thead>
+          <tbody id="mon-theft-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════ SETTINGS ══════════════════ -->
+  <div class="sec" id="sec-settings">
+    <div class="sec-hdr">
+      <div><div class="sec-title">Settings</div><div class="sec-sub">Manage date, CRO names, and data</div></div>
+    </div>
+    <div class="set-grid">
+
+      <div class="set-card">
+        <h3>Date &amp; Session</h3>
+        <div class="frow">
+          <label class="flbl">Working Date</label>
+          <input data-action="set-date" type="date" class="finp" id="set-date" onchange="setDate(this.value)">
+        </div>
+        <div class="frow">
+          <label class="flbl">Store</label>
+          <div style="display:flex;gap:8px;margin-top:4px;">
+            <button data-action="set-btn-tw" class="btn btn-navy btn-sm" id="set-btn-tw" onclick="setStore('titanworld')">Titan World</button>
+            <button data-action="set-btn-he" class="btn btn-outline btn-sm" id="set-btn-he" onclick="setStore('helios')">Helios</button>
+          </div>
+        </div>
+        <div class="frow">
+          <label class="flbl">Opening Status</label>
+          <div id="set-open-status" style="font-size:12px;color:var(--gray-600);line-height:1.6;"></div>
+        </div>
+        <div class="frow">
+          <label class="flbl">Closing Status</label>
+          <div id="set-close-status" style="font-size:12px;color:var(--gray-600);line-height:1.6;"></div>
+        </div>
+      </div>
+
+      <div class="set-card">
+        <h3>CRO Names <span style="color:#dc2626">*</span></h3>
+        <p style="font-size:11px;color:var(--gray-400);margin-bottom:10px;">Names appear in the CRO dropdown in both registers.</p>
+        <div class="cro-list" id="cro-list"></div>
+        <div class="add-row">
+          <input type="text" class="finp" id="cro-inp" placeholder="Enter CRO name" onkeydown="if(event.key==='Enter')addCRO()">
+          <button data-action="add-cro" class="btn btn-navy btn-sm" onclick="addCRO()">+ Add</button>
+        </div>
+      </div>
+
+      <div class="set-card">
+        <h3>Export / Import</h3>
+        <div class="frow">
+          <label class="flbl">Export today's data</label>
+          <div style="display:flex;gap:8px;">
+            <button data-action="json" class="btn btn-outline btn-sm" onclick="exportJSON()">↓ JSON</button>
+            <button data-action="csv" class="btn btn-outline btn-sm" onclick="exportCSV()">↓ CSV</button>
+          </div>
+        </div>
+        <div class="frow">
+          <label class="flbl">Import data (SM only)</label>
+          <input data-action="import-file" type="file" accept=".json" id="import-file" class="finp" onchange="importJSON(this)" style="font-size:11px;padding:5px;">
+        </div>
+        <div class="frow">
+          <label class="flbl">Full backup (all dates)</label>
+          <button data-action="full-backup-json" class="btn btn-outline btn-sm" onclick="exportAllJSON()">↓ Full Backup JSON</button>
+        </div>
+        <p style="font-size:11px;color:var(--gray-400);margin-top:8px;">⚠ Always use the same browser on the same device.</p>
+      </div>
+
+      <div class="set-card" id="brand-card">
+        <h3>Brand List <span style="color:#dc2626">*</span> <span style="font-size:11px;font-weight:400;color:var(--gray-400);">(SM only)</span></h3>
+        <p style="font-size:11px;color:var(--gray-400);margin-bottom:10px;">Add or remove watch brands for the current store. Drag ≡ to reorder.</p>
+        <div id="brand-list" style="display:flex;flex-direction:column;gap:4px;margin-bottom:10px;max-height:260px;overflow-y:auto;"></div>
+        <div class="add-row" id="brand-add-row">
+          <input type="text" class="finp" id="brand-inp" placeholder="New brand name (e.g. NEBULA)" onkeydown="if(event.key==='Enter')addBrand()">
+          <button data-action="add-brand" class="btn btn-navy btn-sm" onclick="addBrand()">+ Add</button>
+        </div>
+        <button data-action="reset-to-defaults" class="btn btn-outline btn-sm" style="margin-top:8px;font-size:11px;" onclick="resetBrandsToDefault()">↺ Reset to defaults</button>
+      </div>
+
+      <div class="set-card danger-zone">
+        <h3>⚠ Danger Zone</h3>
+        <div class="frow">
+          <label class="flbl">Clear today's data (current store)</label>
+          <button data-action="clear-day" class="btn btn-red btn-sm" onclick="clearDay()">Clear Day</button>
+        </div>
+        <div class="frow">
+          <label class="flbl">Clear ALL data (all stores, all dates)</label>
+          <button data-action="clear-everything" class="btn btn-red btn-sm" onclick="clearAll()">⚠ Clear Everything</button>
+        </div>
+        <p style="font-size:11px;color:var(--gray-400);margin-top:8px;">Export a backup before clearing. This cannot be undone.</p>
+      </div>
+
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<!-- ══ SM AUTH MODAL ══ -->
+<div id="sm-auth-modal" class="modal-overlay" style="display:none" onclick="if(event.target===this)smAuthCancel()">
+  <div class="modal-box">
+    <div class="modal-icon">🔐</div>
+    <h3>SM Login</h3>
+    <p>Enter the Store Manager password to continue.</p>
+    <input type="password" id="sm-pw-inp" class="finp" placeholder="Password"
+           onkeydown="if(event.key==='Enter')smAuthSubmit();if(event.key==='Escape')smAuthCancel()">
+    <div class="modal-err" id="sm-pw-err"></div>
+    <div class="modal-btns">
+      <button data-action="login" class="btn btn-navy btn-sm" onclick="smAuthSubmit()">Login</button>
+      <button data-action="sm-auth-cancel" class="btn btn-outline btn-sm" onclick="smAuthCancel()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ DELETE CONFIRM MODAL ══ -->
+<div id="del-confirm-modal" class="modal-overlay" style="display:none" onclick="if(event.target===this)delCancel()">
+  <div class="modal-box modal-danger">
+    <div class="modal-icon">⚠️</div>
+    <h3>Delete All Data</h3>
+    <p>This will <strong>permanently erase</strong> all stock data for all stores and all dates. This cannot be undone.</p>
+    <p style="margin-top:8px;">Type <strong>DELETE</strong> in capitals to confirm:</p>
+    <input data-action="del-inp" type="text" id="del-inp" class="finp" placeholder="Type DELETE here"
+           onkeydown="if(event.key==='Enter')delConfirmSubmit();if(event.key==='Escape')delCancel()"
+           oninput="document.getElementById('del-submit-btn').disabled=this.value!=='DELETE'">
+    <div class="modal-err" id="del-err"></div>
+    <div class="modal-btns">
+      <button data-action="del-submit-btn" class="btn btn-red btn-sm" id="del-submit-btn" disabled onclick="delConfirmSubmit()">⚠ Delete Everything</button>
+      <button data-action="delete-cancel" class="btn btn-outline btn-sm" onclick="delCancel()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ CLOSING LOCK CONFIRM (END-OF-DAY SIGN-OFF) ══ -->
+<div id="stock-lock-confirm" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeLockCancel()">
+  <div class="modal-box">
+    <div class="modal-icon">🔒</div>
+    <h3>Confirm End-of-Day Lock</h3>
+    <p id="clk-summary" style="margin-bottom:10px;"></p>
+    <div id="clk-theft"></div>
+    <div id="clk-gaps"></div>
+    <div class="modal-err" id="clk-err"></div>
+    <div class="modal-btns">
+      <button data-action="clk-confirm-btn" class="btn btn-navy btn-sm" id="clk-confirm-btn" onclick="doLockClosing()">🔒 Lock &amp; Sign Off</button>
+      <button data-action="lock-cancel" class="btn btn-outline btn-sm" onclick="closeLockCancel()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ P1-5 RE-OPEN / UNLOCK — AUDITED REASON SHEET ══ -->
+<div id="stock-reopen-confirm" class="modal-overlay" style="display:none" onclick="if(event.target===this)reopenCancel()">
+  <div class="modal-box">
+    <div class="modal-icon">🔓</div>
+    <h3 id="rop-title">Re-open</h3>
+    <p style="margin-bottom:10px;">This day was signed off. Enter a reason — it is recorded in the audit trail with your name and time.</p>
+    <input data-action="rop-reason" type="text" class="si" id="rop-reason" placeholder="Reason for re-opening" oninput="ropValidate()">
+    <div class="modal-err" id="rop-err"></div>
+    <div class="modal-btns">
+      <button data-action="rop-confirm-btn" class="btn btn-navy btn-sm" id="rop-confirm-btn" disabled onclick="doReopenConfirm()">🔓 Unlock &amp; Record</button>
+      <button data-action="reopen-cancel" class="btn btn-outline btn-sm" onclick="reopenCancel()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ THEFT REMARK SHEET (P1-7 — movements submit gate) ══ -->
+<div id="stock-theft-confirm" class="modal-overlay" style="display:none" onclick="if(event.target===this)theftSheetCancel()">
+  <div class="modal-box">
+    <div class="modal-icon">🚨</div>
+    <h3>Theft / Loss — Remark Required</h3>
+    <p style="margin-bottom:10px;">Theft reduces closing stock. Enter a reason for each brand before submitting Day Movements.</p>
+    <div id="thf-rows"></div>
+    <div class="modal-err" id="thf-err"></div>
+    <div class="modal-btns">
+      <button data-action="thf-confirm-btn" class="btn btn-navy btn-sm" id="thf-confirm-btn" onclick="doSubmitTheftRemarks()">Submit with Remarks</button>
+      <button data-action="back" class="btn btn-outline btn-sm" onclick="theftSheetCancel()">Back</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ══════════════════════════════════════════════════
+   CONSTANTS
+══════════════════════════════════════════════════ */
+const DEFAULT_BRANDS = {
+  titanworld: [
+    'CLASSIC','XYLYS','REGALIA','AUTOMATIC','EDGE','RAGA',
+    'PURPLE GENTS','PURPLE LADIES','WORKWEAR','OCTANE','ZOOP','SKINN',
+    'KARISHMA GENTS','KARISHMA LADIES','BANDHAN','FASTTRACK','SONATA',
+    'VYB','SUPER FIBER','TEES','WALL CLOCK','TITAN SMART','FASTTRACK SMART'
+  ],
+  helios: [
+    'SEIKO','CITIZEN','CERRUTI','FOSSIL','GUESS','POLICE',
+    'G-SHOCK','KENNETH COLE','TOMMY HILFIGER','ANNE KLEIN','AMAZFIT','FITBIT'
+  ]
+};
+
+const SCHEMA_VERSION = 2;
+const SK_PREFIX  = 'saagar_stock_';
+const SK_CROS    = 'saagar_cros';
+const SK_STATE   = 'saagar_appstate';
+const SK_BRANDS  = 'saagar_brands';
+
+/* Brand list — persisted in localStorage, falls back to defaults */
+function getBrands(store) {
+  store = store || st.store;
+  var base = [];
+  try {
+    var raw = JSON.parse(localStorage.getItem(SK_BRANDS) || '{}');
+    if (Array.isArray(raw[store]) && raw[store].length) base = raw[store].slice();
+  } catch(e) {}
+  if (!base.length) base = [...(DEFAULT_BRANDS[store] || [])];
+  /* Union the central Brand Master (saagar_master_brands [{name,store}]) added in Settings -> Masters,
+     shown alongside Stock's own brands WITHOUT persisting (mirrors getCROs unioning the employee master).
+     Master store is '' (all) / 'titanworld' / 'helios' (and legacy codes WLMHW/HEMW are mapped). */
+  try {
+    var mb = JSON.parse(localStorage.getItem('saagar_master_brands') || '[]');
+    if (Array.isArray(mb)) {
+      var code = store === 'titanworld' ? 'wlmhw' : store === 'helios' ? 'hemw' : '';
+      var seen = {}; base.forEach(function(n){ seen[String(n).trim().toLowerCase()] = 1; });
+      mb.forEach(function(b){
+        if (!b || !b.name) return;
+        var bs = String(b.store || '').trim().toLowerCase();
+        if (bs && bs !== store && bs !== code) return;
+        var k = String(b.name).trim().toLowerCase();
+        if (!seen[k]) { base.push(b.name); seen[k] = 1; }
+      });
+    }
+  } catch(e) {}
+  return base;
+}
+function saveBrands(store, arr) {
+  try {
+    const raw = JSON.parse(localStorage.getItem(SK_BRANDS) || '{}');
+    raw[store] = arr;
+    localStorage.setItem(SK_BRANDS, JSON.stringify(raw));
+  } catch(e) {}
+}
+
+/* ══════════════════════════════════════════════════
+   STATE
+══════════════════════════════════════════════════ */
+let st = { store: 'titanworld', date: todayStr(), tab: 'opening', mode: 'cro' };
+/* Store Manager access is owned by the shell session. This compatibility function uses the shell PIN verifier only when one is explicitly available and otherwise denies; no embedded default credential exists. */
+function smPassOk(pw){
+  /* R0-W1 SEC-03: route SM-login PIN verify through the shell (correct v2/legacy hashing + brute-force
+     lockout + audit). Fail-open to the original raw check on an older shell / standalone preview. */
+  try{
+    var fn=null;
+    try{ if(window.parent && window.parent!==window && typeof SaagarModuleBridge.adminPinCheck==='function') fn=SaagarModuleBridge.adminPinCheck; }catch(e){}
+    if(!fn && typeof SaagarModuleBridge.adminPinCheck==='function') fn=SaagarModuleBridge.adminPinCheck;
+    if(typeof fn==='function'){
+      var r=fn(String(pw));
+      if(r && typeof r==='object' && !r.noPin){
+        if(r.locked){ try{ toast('Too many wrong PINs — try again in '+r.locked+'s'); }catch(e){} return false; }
+        return !!r.ok;
+      }
+    }
+  }catch(e){}
+  return false;
+}
+
+function todayStr() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }   /* audit: local date — toISOString gave the previous day in IST */
+function fmtDate(s) {
+  if (!s) return '';
+  const [y, m, d] = s.split('-');
+  return `${d} ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+m-1]} ${y}`;
+}
+function nowTime() { return new Date().toTimeString().slice(0, 5); }
+
+/* P1-5: actor for audit stamps — the shell's signed-in named staffer (Wave6 #28,
+   key saagar_active_staff_v1) when present, else the module role. Read-only peek
+   at a shell-owned key; same precedent as getCROs() reading saagar_employee_master_v1. */
+function stActor() {
+  try {
+    const a = JSON.parse(localStorage.getItem('saagar_active_staff_v1') || 'null');
+    if (a && a.name) return String(a.name).slice(0, 60);
+  } catch (e) {}
+  return st.mode === 'sm' ? 'SM' : 'CRO';
+}
+/* P1-5: ISO → "06 Jul, 07:42 pm" (local, en-IN). Defensive: bad input echoes back. */
+function fmtStamp(iso) {
+  if (!iso) return '';
+  try { return new Date(iso).toLocaleString('en-IN', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }); }
+  catch (e) { return String(iso); }
+}
+
+/* ══════════════════════════════════════════════════
+   VIEW-DATE RAIL (shell-driven, VIEW-ONLY history)
+   window.__stAsOf = "YYYY-MM-DD" date the user wants to VIEW.
+   When it is EARLIER than the real today, the screen is PAST/READ-ONLY:
+   render that day's already-saved data, but disable every
+   create/edit/save/submit/delete/lock action and NEVER write on a read.
+   When empty/invalid or == today, behave exactly as before.
+══════════════════════════════════════════════════ */
+function validDateStr(s) { return typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s); }
+
+/* The date the shell wants us to view. Falls back to the module's own today. */
+function asOfDate() {
+  var v = (typeof window !== 'undefined') ? window.__stAsOf : '';
+  return validDateStr(v) ? v : todayStr();
+}
+
+/* TRUE only when the currently-viewed day is strictly before the real today.
+   This is the single source of truth for the read-only past guard. */
+function isPastView() {
+  return validDateStr(st.date) && st.date < todayStr();
+}
+
+/* Guard for every mutating handler. Returns true (and toasts once) when a write
+   must be blocked because we are viewing a past day. Callers MUST early-return. */
+function roBlock() {
+  if (isPastView()) {
+    toast('Viewing ' + fmtDate(st.date) + ' (past) — read-only. No changes saved.', 'warn');
+    return true;
+  }
+  return false;
+}
+
+/* Apply st.date from the shell's view-date. Used at startup and on 'st-date'. */
+function applyAsOf() {
+  var d = asOfDate();
+  if (validDateStr(d)) st.date = d;
+}
+
+/* ══════════════════════════════════════════════════
+   FIX 5 & 6 — STRICT INTEGER PARSING
+   Returns null for blank, clamps negatives to 0,
+   floors decimals, rejects non-numeric values.
+══════════════════════════════════════════════════ */
+function parseStockInt(value) {
+  if (value === null || value === undefined) return null;
+  const s = String(value).trim();
+  if (s === '') return null;
+  if (!/^\d+$/.test(s)) return null;
+  return Number(s);
+}
+
+/* ══════════════════════════════════════════════════
+   STORAGE
+══════════════════════════════════════════════════ */
+function dataKey() { return SK_PREFIX + st.store + '_' + st.date; }
+
+/* R0-W1 SEC-04 (Slice B): resolve the shell's step-up re-auth across the srcdoc boundary.
+   FAIL-OPEN ON SKEW: an older shell without the helper => TRUE => the action proceeds as today. */
+const stReauth=SaagarModuleRuntime.reauth;
+
+function loadData() {
+  const raw = localStorage.getItem(dataKey());
+  if (raw) {
+    try {
+      const d = JSON.parse(raw);
+      /* FIX: bridge-first-write guard. The integration bridge can persist a bare day
+         blob holding ONLY _dsrRollup (DSR submitted before the SM opens Stock, the
+         normal order) with no opening/movements/closing sections. Without this guard
+         d.opening[b] throws, the catch returns a fresh initData() with no _dsrRollup,
+         and the SM's first save permanently drops the bridge salesCount so the P1-8
+         recon line never renders. Rebuild a full blob but carry the bridge rollup. */
+      if (!d.opening || !d.movements || !d.closing) {
+        const init = initData();
+        if (d._dsrRollup !== undefined) init._dsrRollup = d._dsrRollup;
+        return prefillOpeningFromPrev(init);
+      }
+      // Migrate older entries that may lack countDone
+      getBrands(st.store).forEach(b => {
+        if (d.opening[b] && d.opening[b].countDone === undefined) d.opening[b].countDone = false;
+        if (d.closing[b] && d.closing[b].countDone === undefined) d.closing[b].countDone = false;
+        // Migrate old 0-values that should be null (entries that were never explicitly set)
+        // Conservative: only migrate if the entire row looks like defaults
+      });
+      if (!d.d5Triage || typeof d.d5Triage !== 'object') d.d5Triage = {};
+      return prefillOpeningFromPrev(d);
+    } catch(e) {}
+  }
+  return prefillOpeningFromPrev(initData());
+}
+
+function initData() {
+  const d = { _v: SCHEMA_VERSION, openingLocked: false, closingLocked: false, movementsSubmitted: false,
+              /* Wave 9 P1-5 audit stamps + P1-7 theft verification (additive, optional) */
+              openingLockedBy:'', openingLockedAt:'', closingLockedBy:'', closingLockedAt:'',
+              movementsSubmittedBy:'', movementsSubmittedAt:'', reopenedCount:0, reopenLog:[],
+              theftVerified:null, d5Triage:{},
+              opening: {}, movements: {}, closing: {} };
+  getBrands(st.store).forEach(b => {
+    // FIX 6: Store null for unset fields, not 0
+    d.opening[b]   = { display:null, storage:null, defective:null, yLoc:null, systemStock:null, remarks:'', croName:'', time:'', verified:false, countDone:false };
+    d.movements[b] = { inward:null, outward:null, sales:null, grn:null, theft:null, theftRemark:'' };
+    d.closing[b]   = { display:null, storage:null, defective:null, yLoc:null, remarks:'', croName:'', time:'', verified:false, countDone:false };
+  });
+  return d;
+}
+
+/* V6 CARRYFORWARD: when the viewed day's Opening section is still completely
+   empty, seed each brand's Opening System from the most recent prior day's
+   LOCKED closing physical counts (looks back up to 7 days). In-memory only —
+   it is persisted by the normal save on the user's first edit, every field
+   stays editable, and it never runs while viewing a past day. */
+function prevDateStr(s, back) {
+  const t = new Date(s + 'T00:00:00Z');
+  t.setUTCDate(t.getUTCDate() - back);
+  return t.toISOString().slice(0, 10);
+}
+function prefillOpeningFromPrev(d) {
+  try {
+    if (isPastView() || d.openingLocked) return d;
+    const brands = getBrands(st.store);
+    const untouched = brands.every(b => {
+      const o = d.opening[b];
+      return !o || (o.systemStock === null && !isCounted(o) && !o.croName);
+    });
+    if (!untouched) return d;
+    for (let back = 1; back <= 7; back++) {
+      const raw = localStorage.getItem(SK_PREFIX + st.store + '_' + prevDateStr(st.date, back));
+      if (!raw) continue;
+      const prev = JSON.parse(raw);
+      /* Audit fix stock-carryforward-early-return: skip only this non-locked/empty
+         prior day and KEEP scanning older days for a usable LOCKED closing
+         (was `return d`, which abandoned the whole 7-day lookback). */
+      if (!prev || prev.closingLocked !== true || !prev.closing) continue;
+      brands.forEach(b => {
+        const t = totalPhys(prev.closing[b]);
+        if (t !== null && d.opening[b]) d.opening[b].systemStock = t;
+      });
+      return d;
+    }
+  } catch(e) {}
+  return d;
+}
+function saveData(d) { localStorage.setItem(dataKey(), JSON.stringify(d)); }
+
+function getCROs() { try { var a=JSON.parse(localStorage.getItem(SK_CROS)||'[]'); if(!Array.isArray(a))a=[]; var m=[]; try{ var em=JSON.parse(localStorage.getItem('saagar_employee_master_v1')||'[]'); if(Array.isArray(em)) m=em.filter(function(x){return x&&x.name&&x.active!==false;}).map(function(x){return x.name;}); }catch(e){} var seen={},out=[]; a.concat(m).forEach(function(n){ var k=String(n||'').trim().toLowerCase(); if(n&&!seen[k]){seen[k]=1;out.push(n);} }); return out; } catch(e) { return []; } }
+function saveCROs(l) { localStorage.setItem(SK_CROS, JSON.stringify(l)); }
+function saveAppState() { localStorage.setItem(SK_STATE, JSON.stringify({ store:st.store, date:st.date })); }
+
+/* ══════════════════════════════════════════════════
+   FIX 4 — COUNTED / TOTAL PHYSICAL LOGIC
+   countDone flag distinguishes "genuine zero" from "not counted"
+══════════════════════════════════════════════════ */
+function isCounted(entry) {
+  if (!entry) return false;
+  return entry.countDone === true
+      || entry.display   !== null
+      || entry.storage   !== null
+      || entry.defective !== null
+      || entry.yLoc      !== null;
+}
+
+// Returns null if not counted at all, otherwise returns the integer sum
+function totalPhys(entry) {
+  if (!entry) return null;
+  if (!isCounted(entry)) return null;
+  return (entry.display   ?? 0)
+       + (entry.storage   ?? 0)
+       + (entry.defective ?? 0)
+       + (entry.yLoc      ?? 0);
+}
+
+/* ══════════════════════════════════════════════════
+   COUNT COMPLETION METER
+   "Done" = a brand row whose physical count is entered and/or its Done box
+   is set — exactly the isCounted() predicate that already drives row state.
+   % = (brands done / total brands) * 100, rounded. Fully defensive: missing
+   DOM nodes are skipped, never throws, so it can't break a render path.
+══════════════════════════════════════════════════ */
+function updateCountMeter(section) {
+  try {
+    if (section !== 'opening' && section !== 'closing') return;
+    const fill = document.getElementById('cmeter-fill-' + section);
+    const lbl  = document.getElementById('cmeter-lbl-'  + section);
+    const wrap = document.getElementById('cmeter-' + section);
+    if (!fill && !lbl) return;  // meter markup absent — nothing to do
+
+    const data   = (typeof loadData === 'function') ? loadData() : null;
+    const brands = (typeof getBrands === 'function') ? (getBrands(st.store) || []) : [];
+    const total  = brands.length;
+    let done = 0;
+    if (data && data[section]) {
+      brands.forEach(b => { if (isCounted(data[section][b])) done++; });
+    }
+    const pct = total ? Math.round((done / total) * 100) : 0;
+
+    if (fill) fill.style.width = pct + '%';
+    if (lbl)  lbl.innerHTML =
+      done + ' / ' + total + ' brand' + (total === 1 ? '' : 's') +
+      ' counted · <span class="cmeter-pct">' + pct + '%</span>';
+    if (wrap) {
+      wrap.setAttribute('aria-valuenow', String(pct));
+      wrap.classList.toggle('is-complete', total > 0 && done === total);
+    }
+  } catch (e) { /* defensive: never let the meter break the register */ }
+}
+
+/* ══════════════════════════════════════════════════
+   CALCULATIONS
+══════════════════════════════════════════════════ */
+function closingSys(brand, data) {
+  const sys = data.opening[brand]?.systemStock ?? 0;
+  const m   = data.movements[brand] || {};
+  return sys
+       + (m.inward  ?? 0)
+       + (m.grn     ?? 0)
+       - (m.outward ?? 0)
+       - (m.sales   ?? 0)
+       - (m.theft   ?? 0);
+}
+
+function netMov(m) {
+  return (m.inward  ?? 0) + (m.grn    ?? 0)
+       - (m.outward ?? 0) - (m.sales  ?? 0)
+       - (m.theft   ?? 0);
+}
+
+/* On-hand available for the day = opening system + inflows (inward + grn).
+   Outflows (outward + sales + theft) cannot exceed this without driving the
+   computed closing system negative. Used by the no-negative guard in updMov. */
+function onHand(brand, data) {
+  const sys = data.opening[brand]?.systemStock ?? 0;
+  const m   = data.movements[brand] || {};
+  return sys + (m.inward ?? 0) + (m.grn ?? 0);
+}
+function totalOutflow(m) {
+  return (m.outward ?? 0) + (m.sales ?? 0) + (m.theft ?? 0);
+}
+
+function varClass(vr) {
+  return vr === 0 ? 'cv cv-zero' : vr > 0 ? 'cv cv-warn' : 'cv cv-bad';
+}
+function varText(vr) {
+  return vr === 0 ? '—' : vr > 0 ? '+'+vr : String(vr);
+}
+
+/* D5: pure policy-backed variance triage. This is additive on the existing day blob. */
+function d5Policy(){ return window.SaagarStockVariancePolicy || null; }
+function d5TriageFor(data, brand){
+  const p=d5Policy(), raw=(data.d5Triage&&data.d5Triage[brand])||null;
+  return p ? p.normaliseTriage(raw, (data.closing[brand]||{}).remarks||'')
+           : {state:'open',cause:'',note:(data.closing[brand]||{}).remarks||'',owner:'Store Manager'};
+}
+function d5StateLabel(s){ return s==='closed'?'Closed':s==='investigating'?'Investigating':'Open'; }
+function d5QmsClosedSales(date){
+  try{
+    const q=JSON.parse(localStorage.getItem('retail_queue_management_v1')||'null');
+    if(!q||!Array.isArray(q.customers)) return null;
+    return q.customers.filter(c=>{
+      if(!c) return false;
+      const dt=String(c.closedAt||c.exitTime||c.entryTime||c.walkInTime||'').slice(0,10);
+      return dt===date && /closed/i.test(String(c.status||'')) && String(c.outcome||'').toLowerCase()==='purchase';
+    }).length;
+  }catch(e){ return null; }
+}
+function d5OpenTriage(brandId){
+  if(roBlock()) return;
+  if(st.mode!=='sm'){ toast('Only SM can update variance triage.','err'); return; }
+  const brand=getBrandByBid(brandId);
+  goTab('closing');
+  setTimeout(()=>{ const row=document.getElementById('row-close-'+bid(brand)); if(row) row.scrollIntoView({block:'center'}); openPreLockSheet(); },0);
+}
+
+/* ══════════════════════════════════════════════════
+   FIX 2 — ROW STATE: opening
+   Show mismatch when counted AND variance != 0.
+   Show partial when system is set but not yet counted.
+══════════════════════════════════════════════════ */
+function openRowClass(o) {
+  if (o.verified) return 'row-ok';
+  const counted  = isCounted(o);
+  const sysSet   = o.systemStock !== null;
+  const phys     = totalPhys(o) ?? 0;
+  const sys      = o.systemStock ?? 0;
+  const vr       = phys - sys;
+  if (counted && vr !== 0)   return 'row-mismatch';
+  if (sysSet && !counted)    return 'row-partial';  // SM entered system but CRO hasn't counted
+  return '';
+}
+
+/* FIX 2 — ROW STATE: closing
+   Show mismatch when counted AND variance != 0,
+   OR when closing system > 0 but physical is zero (countDone=true means genuine zero).
+*/
+function closeRowClass(c, vr, counted, cSys) {
+  if (c.verified) return 'row-ok';
+  // Genuine zero confirmed by CRO but system expects stock → mismatch
+  if (c.countDone && cSys > 0 && (totalPhys(c) ?? 0) === 0) return 'row-mismatch';
+  if (counted && vr !== 0) return 'row-mismatch';
+  if (!counted && cSys !== 0) return 'row-partial';
+  return '';
+}
+
+/* ══════════════════════════════════════════════════
+   HEADER
+══════════════════════════════════════════════════ */
+function updateHeader() {
+  const name = st.store === 'titanworld' ? 'Titan World' : 'Helios';
+  document.getElementById('hdr-badge').textContent = name;
+  // Surface the viewed date; flag read-only when viewing a past day.
+  document.getElementById('hdr-date').textContent  = fmtDate(st.date) + (isPastView() ? ' · 👁 View-only' : '');
+  document.getElementById('snav-tw').classList.toggle('active', st.store === 'titanworld');
+  document.getElementById('snav-he').classList.toggle('active', st.store === 'helios');
+  document.getElementById('set-btn-tw').className = st.store === 'titanworld' ? 'btn btn-navy btn-sm' : 'btn btn-outline btn-sm';
+  document.getElementById('set-btn-he').className = st.store === 'helios'     ? 'btn btn-navy btn-sm' : 'btn btn-outline btn-sm';
+  document.getElementById('set-date').value = st.date;
+  document.getElementById('mbtn-sm' ).classList.toggle('active', st.mode === 'sm');
+  document.getElementById('mbtn-cro').classList.toggle('active', st.mode === 'cro');
+  const full = st.store === 'titanworld' ? 'Titan World (WLMHW)' : 'Helios (HEMW)';
+  const df   = fmtDate(st.date);
+  ['ph-open-sub','ph-mov-sub','ph-close-sub','ph-sum-sub'].forEach(id => { _el(id, el => el.textContent = `${full} · ${df}`); });
+  document.getElementById('opening-sub').textContent = `${full} · ${df}`;
+  document.getElementById('mov-sub').textContent = `${full} · ${df}`;
+}
+
+/* ══════════════════════════════════════════════════
+   READ-ONLY CHROME (VIEW-ONLY past)
+   Toggles a single body class. CSS (see <style>) then hides every
+   create/edit/save/submit/lock/delete action button and the import
+   field, and visually marks disabled inputs. Handlers are ALSO guarded
+   by roBlock() — this is purely the visible affordance layer.
+   Also explicitly hides action buttons that are otherwise shown by
+   their own render logic (Lock / Submit / Re-open), so they can't be
+   clicked while viewing history. Idempotent; safe to call every render.
+══════════════════════════════════════════════════ */
+function applyReadOnlyChrome() {
+  const ro = isPastView();
+  document.body.classList.toggle('st-readonly', ro);
+  // Buttons whose visibility is driven by other render paths — force-hide in RO,
+  // and let the normal render restore them when back on today (handled below).
+  const forceHide = ['btn-lock-open','btn-lock-close','btn-submit-mov','btn-reopen-mov'];
+  forceHide.forEach(id => { const el = document.getElementById(id); if (el && ro) el.style.display = 'none'; });
+  // When NOT read-only, clear any inline hide we applied so the owning render
+  // logic (renderMovementsHeader / refreshLockUI) regains full control.
+  if (!ro) {
+    ['btn-lock-open','btn-lock-close'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = ''; });
+    // btn-submit-mov / btn-reopen-mov visibility is set by renderMovementsHeader; nothing to clear.
+  }
+}
+
+/* ══════════════════════════════════════════════════
+   RENDER — OPENING STOCK
+══════════════════════════════════════════════════ */
+function renderOpening() {
+  const data   = loadData();
+  const brands = getBrands(st.store);
+  const cros   = getCROs();
+  const ro     = isPastView();                 // VIEW-ONLY past → read-only
+  const locked = data.openingLocked || ro;     // ro forces inputs disabled
+  const isSM   = st.mode === 'sm';
+
+  if (!brands.length) {
+    document.getElementById('tbody-open').innerHTML = emptyStateRow(12);
+    refreshOpenFooter(data);
+    refreshLockUI('opening', data);
+    updateSettingsStatus(data);
+    updateCountMeter('opening');
+    applyReadOnlyChrome();
+    return;
+  }
+
+  document.getElementById('tbody-open').innerHTML = brands.map(brand => {
+    const o     = data.opening[brand] || {};
+    const phys  = totalPhys(o);  // null or integer
+    const sys   = o.systemStock; // null or integer
+    const physN = phys ?? 0;
+    const sysN  = sys  ?? 0;
+    const vr    = physN - sysN;
+    const rowC  = openRowClass(o);
+
+    const croOpts = croOptions(cros, o.croName);
+    const canEdit = !locked;
+
+    // FIX 6: Show blank (null) as empty string in inputs
+    const dV = o.display   !== null ? o.display   : '';
+    const sV = o.storage   !== null ? o.storage   : '';
+    const dE = o.defective !== null ? o.defective : '';
+    const yV = o.yLoc      !== null ? o.yLoc      : '';
+    const syV = sys         !== null ? sys          : '';
+
+    const physDisp  = phys !== null ? phys : '<span class="pend-lbl">—</span>';
+    const vrDisp    = phys !== null || sys !== null
+                    ? `<span class="${varClass(vr)}">${varText(vr)}</span>`
+                    : '<span class="pend-lbl">—</span>';
+
+    return `<tr class="${rowC}" id="row-open-${bid(brand)}">
+      <td class="brand-td name-cell">${esc(brand)}</td>
+      <td data-label="System Stock"><input type="number" min="0" step="1" class="ni" value="${syV}" ${canEdit?'':'disabled'}
+          oninput="validateNI(this)" onchange="updOpen('${bid(brand)}','systemStock',this.value,this)"></td>
+      <td data-label="CRO Name"><select class="${'cro-sel'+(isCounted(o)&&!o.croName?' cro-req':'')}" ${canEdit?'':'disabled'}
+          onchange="updOpen('${bid(brand)}','croName',this.value)">${croOpts}</select></td>
+      <td data-label="Display"><input type="number" min="0" step="1" class="ni" value="${dV}" ${canEdit?'':'disabled'}
+          oninput="validateNI(this)" onchange="updOpen('${bid(brand)}','display',this.value,this)"></td>
+      <td data-label="Storage"><input type="number" min="0" step="1" class="ni" value="${sV}" ${canEdit?'':'disabled'}
+          oninput="validateNI(this)" onchange="updOpen('${bid(brand)}','storage',this.value,this)"></td>
+      <td data-label="Defective"><input type="number" min="0" step="1" class="ni" value="${dE}" ${canEdit?'':'disabled'}
+          oninput="validateNI(this)" onchange="updOpen('${bid(brand)}','defective',this.value,this)"></td>
+      <td data-label="&quot;Y&quot; Loc"><input type="number" min="0" step="1" class="ni" value="${yV}" ${canEdit?'':'disabled'}
+          oninput="validateNI(this)" onchange="updOpen('${bid(brand)}','yLoc',this.value,this)"></td>
+      <td data-label="Total" id="op-phys-${bid(brand)}">${physDisp}</td>
+      <td data-label="Variance" id="op-var-${bid(brand)}">${vrDisp}</td>
+      <td data-label="Done" title="Check when physical count is complete">
+        <input type="checkbox" class="done-cb" ${o.countDone?'checked':''} ${canEdit?'':'disabled'}
+            onchange="updCountDone('opening','${bid(brand)}',this.checked,this)">
+      </td>
+      <td data-label="Remarks"><input type="text" class="si" value="${esc(o.remarks||'')}" ${canEdit?'':'disabled'}
+          onchange="updOpen('${bid(brand)}','remarks',this.value)"></td>
+      <td data-label="Verify" class="no-print">
+        ${isSM&&!locked
+          ? `<button class="vbtn${o.verified?' done':''}" onclick="toggleVerify('opening','${bid(brand)}')">${o.verified?'✓ Done':'Verify'}</button>`
+          : o.verified ? '<span style="color:var(--green);font-size:11px;font-weight:600;">✓</span>' : ''}
+        <div class="ts" id="op-ts2-${bid(brand)}">${esc(o.time||'')}</div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  refreshOpenFooter(data);
+  refreshLockUI('opening', data);
+  updateCountMeter('opening');
+  _el('open-info-txt', el => el.textContent = ro
+    ? '👁 Viewing ' + fmtDate(st.date) + ' (past) — read-only. Editing is disabled for historical days.'
+    : locked
+    ? '🔒 Opening stock is locked. Only SM can unlock.'
+    : isSM
+    ? 'SM Mode: Enter System Stock per brand. Green = verified, Amber = system set but not counted, Red = counted but mismatch.'
+    : 'CRO Mode: Enter physical counts and check the "Done" box when finished counting a brand.');
+  updateSettingsStatus(data);
+  applyReadOnlyChrome();
+}
+
+/* ══════════════════════════════════════════════════
+   FIX 1 — FOOTER REFRESH: OPENING
+   Called after every opening field change.
+══════════════════════════════════════════════════ */
+function refreshOpenFooter(data) {
+  data = data || loadData();
+  const brands = getBrands(st.store);
+  let tSys = 0, tPhys = 0;
+  brands.forEach(b => {
+    const o = data.opening[b] || {};
+    tSys  += o.systemStock ?? 0;
+    tPhys += totalPhys(o)  ?? 0;
+  });
+  const tVr = tPhys - tSys;
+  document.getElementById('tfoot-open').innerHTML = `<tr>
+    <td class="tl">TOTAL</td>
+    <td>${tSys}</td>
+    <td></td>
+    <td colspan="4"></td>
+    <td>${tPhys}</td>
+    <td class="${varClass(tVr).replace('cv ','')}">${varText(tVr)}</td>
+    <td colspan="3"></td>
+  </tr>`;
+}
+
+/* ══════════════════════════════════════════════════
+   RENDER — MOVEMENTS
+══════════════════════════════════════════════════ */
+function renderMovements() {
+  const data   = loadData();
+  const brands = getBrands(st.store);
+  const locked = data.movementsSubmitted || isPastView(); // lock once submitted, or read-only past
+
+  // Sync header UI (submitted badge, buttons, info text)
+  renderMovementsHeader(data);
+  updateClosingTabState(data);
+
+  if (!brands.length) {
+    document.getElementById('tbody-mov').innerHTML = emptyStateRow(7);
+    refreshMovFooter(data);
+    applyReadOnlyChrome();
+    return;
+  }
+
+  document.getElementById('tbody-mov').innerHTML = brands.map(brand => {
+    const m   = data.movements[brand] || {};
+    const net = netMov(m);
+    const inV  = m.inward  !== null ? m.inward  : '';
+    const ouV  = m.outward !== null ? m.outward : '';
+    const saV  = m.sales   !== null ? m.sales   : '';
+    const grV  = m.grn     !== null ? m.grn     : '';
+    const thV  = (m.theft ?? null) !== null ? m.theft : '';  // old blobs: undefined ⇒ blank
+
+    return `<tr data-brand="${bid(brand)}">
+      <td class="brand-td name-cell">${esc(brand)}</td>
+      <td data-label="Inward"><input type="number" min="0" step="1" class="ni" value="${inV}" ${locked?'disabled':''}
+          oninput="validateNI(this)" onchange="updMov('${bid(brand)}','inward',this.value,this)"></td>
+      <td data-label="Outward"><input type="number" min="0" step="1" class="ni" value="${ouV}" ${locked?'disabled':''}
+          oninput="validateNI(this)" onchange="updMov('${bid(brand)}','outward',this.value,this)"></td>
+      <td data-label="Sales"><input type="number" min="0" step="1" class="ni" value="${saV}" ${locked?'disabled':''}
+          oninput="validateNI(this)" onchange="updMov('${bid(brand)}','sales',this.value,this)"></td>
+      <td data-label="GRN"><input type="number" min="0" step="1" class="ni" value="${grV}" ${locked?'disabled':''}
+          oninput="validateNI(this)" onchange="updMov('${bid(brand)}','grn',this.value,this)"></td>
+      <td data-label="Theft"><input type="number" min="0" step="1" class="ni" value="${thV}" ${locked?'disabled':''}
+          oninput="validateNI(this)" onchange="updMov('${bid(brand)}','theft',this.value,this)"></td>
+      <td data-label="Net Movement"><span class="${varClass(net)}" id="mov-net-${bid(brand)}">${varText(net)}</span></td>
+    </tr>`;
+  }).join('');
+
+  refreshMovFooter(data);
+  applyReadOnlyChrome();
+}
+
+/* FIX 1 — FOOTER REFRESH: MOVEMENTS */
+function refreshMovFooter(data) {
+  data = data || loadData();
+  const brands = getBrands(st.store);
+  let tIn=0, tOut=0, tSales=0, tGrn=0, tTheft=0;
+  brands.forEach(b => {
+    const m = data.movements[b] || {};
+    tIn    += m.inward  ?? 0;
+    tOut   += m.outward ?? 0;
+    tSales += m.sales   ?? 0;
+    tGrn   += m.grn     ?? 0;
+    tTheft += m.theft   ?? 0;
+  });
+  const tNet = tIn + tGrn - tOut - tSales - tTheft;
+  document.getElementById('tfoot-mov').innerHTML = `<tr>
+    <td class="tl">TOTAL</td>
+    <td>${tIn}</td><td>${tOut}</td><td>${tSales}</td><td>${tGrn}</td><td>${tTheft}</td>
+    <td class="${varClass(tNet).replace('cv ','')}">${varText(tNet)}</td>
+  </tr>`;
+}
+
+/* ══════════════════════════════════════════════════
+   RENDER — CLOSING STOCK
+══════════════════════════════════════════════════ */
+function renderClosing() {
+  const data   = loadData();
+  const brands = getBrands(st.store);
+  const cros   = getCROs();
+  const locked = data.closingLocked || isPastView(); // read-only past forces disabled
+  const isSM   = st.mode === 'sm';
+
+  if (!brands.length) {
+    document.getElementById('tbody-close').innerHTML = emptyStateRow(12);
+    refreshCloseFooter(data);
+    refreshLockUI('closing', data);
+    updateCountMeter('closing');
+    applyReadOnlyChrome();
+    return;
+  }
+
+  document.getElementById('tbody-close').innerHTML = brands.map(brand => {
+    const c     = data.closing[brand] || {};
+    const phys  = totalPhys(c);
+    const cSys  = closingSys(brand, data);
+    const physN = phys ?? 0;
+    const vr    = physN - cSys;
+    const counted = isCounted(c);
+    const rowC  = closeRowClass(c, vr, counted, cSys);
+
+    const croOpts = croOptions(cros, c.croName);
+
+    const dV = c.display   !== null ? c.display   : '';
+    const sV = c.storage   !== null ? c.storage   : '';
+    const dE = c.defective !== null ? c.defective : '';
+    const yV = c.yLoc      !== null ? c.yLoc      : '';
+
+    const physDisp = phys !== null ? phys : '<span class="pend-lbl">—</span>';
+    const sysC  = cSys < 0 ? 'cv cv-bad' : 'cv cv-neutral';
+    const vrDisp = counted || cSys !== 0
+                 ? `<span class="${varClass(vr)}">${varText(vr)}</span>`
+                 : '<span class="pend-lbl">—</span>';
+
+    return `<tr class="${rowC}" id="row-close-${bid(brand)}">
+      <td class="brand-td name-cell">${esc(brand)}</td>
+      <td data-label="Closing System"><span class="${sysC}" id="cl-sys-${bid(brand)}">${cSys}</span></td>
+      <td data-label="CRO Name"><select class="${'cro-sel'+(isCounted(c)&&!c.croName?' cro-req':'')}" ${locked?'disabled':''}
+          onchange="updClose('${bid(brand)}','croName',this.value)">${croOpts}</select></td>
+      <td data-label="Display"><input type="number" min="0" step="1" class="ni" value="${dV}" ${locked?'disabled':''}
+          oninput="validateNI(this)" onchange="updClose('${bid(brand)}','display',this.value,this)"></td>
+      <td data-label="Storage"><input type="number" min="0" step="1" class="ni" value="${sV}" ${locked?'disabled':''}
+          oninput="validateNI(this)" onchange="updClose('${bid(brand)}','storage',this.value,this)"></td>
+      <td data-label="Defective"><input type="number" min="0" step="1" class="ni" value="${dE}" ${locked?'disabled':''}
+          oninput="validateNI(this)" onchange="updClose('${bid(brand)}','defective',this.value,this)"></td>
+      <td data-label="&quot;Y&quot; Loc"><input type="number" min="0" step="1" class="ni" value="${yV}" ${locked?'disabled':''}
+          oninput="validateNI(this)" onchange="updClose('${bid(brand)}','yLoc',this.value,this)"></td>
+      <td data-label="Total" id="cl-phys-${bid(brand)}">${physDisp}</td>
+      <td data-label="Variance" id="cl-var-${bid(brand)}">${vrDisp}</td>
+      <td data-label="Done" title="Check when closing count is complete">
+        <input type="checkbox" class="done-cb" ${c.countDone?'checked':''} ${locked?'disabled':''}
+            onchange="updCountDone('closing','${bid(brand)}',this.checked,this)">
+      </td>
+      <td data-label="Remarks"><input type="text" class="si" value="${esc(c.remarks||'')}" ${locked?'disabled':''}
+          onchange="updClose('${bid(brand)}','remarks',this.value)"></td>
+      <td data-label="Verify" class="no-print">
+        ${isSM&&!locked
+          ? `<button class="vbtn${c.verified?' done':''}" onclick="toggleVerify('closing','${bid(brand)}')">${c.verified?'✓ Done':'Verify'}</button>`
+          : c.verified ? '<span style="color:var(--green);font-size:11px;font-weight:600;">✓</span>' : ''}
+        <div class="ts" id="cl-ts2-${bid(brand)}">${esc(c.time||'')}</div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  refreshCloseFooter(data);
+  refreshLockUI('closing', data);
+  updateCountMeter('closing');
+  applyReadOnlyChrome();
+}
+
+/* FIX 1 — FOOTER REFRESH: CLOSING */
+function refreshCloseFooter(data) {
+  data = data || loadData();
+  const brands = getBrands(st.store);
+  let tPhys = 0, tSys = 0;
+  brands.forEach(b => {
+    tPhys += totalPhys(data.closing[b]) ?? 0;
+    tSys  += closingSys(b, data);
+  });
+  const tVr = tPhys - tSys;
+  document.getElementById('tfoot-close').innerHTML = `<tr>
+    <td class="tl">TOTAL</td>
+    <td>${tSys}</td>
+    <td></td>
+    <td colspan="4"></td>
+    <td>${tPhys}</td>
+    <td class="${varClass(tVr).replace('cv ','')}">${varText(tVr)}</td>
+    <td colspan="3"></td>
+  </tr>`;
+}
+
+/* ══════════════════════════════════════════════════
+   RENDER — SUMMARY
+══════════════════════════════════════════════════ */
+function renderSummary() {
+  const data   = loadData();
+  const brands = getBrands(st.store);
+  let tOpS=0, tIn=0, tGrn=0, tOut=0, tSales=0, tTheft=0, tClS=0, tClP=0;
+  let matched=0, gapped=0, pending=0;
+
+  if (!brands.length) {
+    document.getElementById('tbody-sum').innerHTML = emptyStateRow(11);
+    document.getElementById('tfoot-sum').innerHTML = '';
+    document.getElementById('sum-cards').innerHTML = '';
+    _el('sum-variance-drill', el => { el.innerHTML=''; el.style.display='none'; });
+    _el('sum-dsr-recon', el => { el.innerHTML = ''; el.style.display = 'none'; });   // P1-8
+    _el('sum-audit', el => { el.innerHTML = ''; el.style.display = 'none'; });                                  // P1-5
+    applyReadOnlyChrome();
+    return;
+  }
+
+  document.getElementById('tbody-sum').innerHTML = brands.map(brand => {
+    const o  = data.opening[brand]   || {};
+    const m  = data.movements[brand] || {};
+    const c  = data.closing[brand]   || {};
+    const opS  = o.systemStock ?? 0;
+    const inw  = m.inward  ?? 0, grn  = m.grn    ?? 0;
+    const outw = m.outward ?? 0, sales = m.sales  ?? 0;
+    const theft = m.theft  ?? 0;
+    const clS  = closingSys(brand, data);
+    const clP  = totalPhys(c) ?? 0;
+    const vr   = clP - clS;
+
+    tOpS   += opS;  tIn  += inw; tGrn  += grn;
+    tOut   += outw; tSales += sales; tTheft += theft;
+    tClS   += clS;  tClP += clP;
+
+    /* FIX 3 — SUMMARY STATUS: include movements and closingSys in activity detection */
+    const hasActivity = o.systemStock !== null
+                     || inw > 0 || grn > 0 || outw > 0 || sales > 0 || theft > 0
+                     || clS !== 0;
+    const counted = isCounted(c);
+
+    let statusH = '<span style="color:var(--gray-400);font-size:11px;">—</span>';
+    if (hasActivity) {
+      if (!counted) {
+        statusH = '<span style="color:var(--amber);font-size:11px;font-weight:600;">⏳ Pending</span>';
+        pending++;
+      } else if (vr === 0) {
+        statusH = '<span style="color:var(--green);font-size:11px;font-weight:600;">✓ Match</span>';
+        matched++;
+      } else {
+        statusH = `<span style="color:var(--red);font-size:11px;font-weight:600;">✗ Gap (${varText(vr)})</span>`;
+        gapped++;
+      }
+    }
+
+    const vrC = (hasActivity && counted) ? varClass(vr) : 'cv cv-zero';
+    return `<tr>
+      <td class="brand-td name-cell" data-saagar-priority="1">${esc(brand)}</td>
+      <td data-label="Opening System" data-saagar-priority="3">${opS||'—'}</td>
+      <td data-label="Inward" data-saagar-priority="4">${inw||'—'}</td>
+      <td data-label="GRN" data-saagar-priority="4">${grn||'—'}</td>
+      <td data-label="Outward" data-saagar-priority="4">${outw||'—'}</td>
+      <td data-label="Sales" data-saagar-priority="3">${sales||'—'}</td>
+      <td data-label="Theft" data-saagar-priority="2"${theft?' style="color:var(--red)"':''}>${theft||'—'}</td>
+      <td data-label="Closing System" data-saagar-priority="3">${clS}</td>
+      <td data-label="Closing Physical" data-saagar-priority="2">${counted?clP:'—'}</td>
+      <td data-label="Variance" data-saagar-priority="1" class="${vrC}">${(hasActivity&&counted)?varText(vr):'—'}</td>
+      <td data-label="Status" data-saagar-priority="1">${statusH}</td>
+    </tr>`;
+  }).join('');
+
+  const tVr = tClP - tClS;
+  document.getElementById('tfoot-sum').innerHTML = `<tr>
+    <td class="tl">TOTAL</td>
+    <td>${tOpS}</td><td>${tIn}</td><td>${tGrn}</td><td>${tOut}</td><td>${tSales}</td><td>${tTheft}</td>
+    <td>${tClS}</td><td>${tClP}</td>
+    <td class="${varClass(tVr).replace('cv ','')}">${varText(tVr)}</td>
+    <td></td>
+  </tr>`;
+
+  const varColor = tVr===0?'var(--green)':tVr>0?'var(--amber)':'var(--red)';
+  document.getElementById('sum-cards').innerHTML = `
+    <div class="scard"><div class="scard-lbl">Opening System</div><div class="scard-val">${tOpS}</div><div class="scard-sub">Total Stock</div></div>
+    <div class="scard"><div class="scard-lbl">Sales</div><div class="scard-val" style="color:var(--red)">${tSales}</div><div class="scard-sub">Units Sold</div></div>
+    <div class="scard"><div class="scard-lbl">Inward + GRN</div><div class="scard-val" style="color:var(--green)">${tIn+tGrn}</div><div class="scard-sub">Stock In</div></div>
+    <div class="scard"><div class="scard-lbl">Outward</div><div class="scard-val" style="color:var(--amber)">${tOut}</div><div class="scard-sub">Transfers Out</div></div>
+    <div class="scard"><div class="scard-lbl">Theft / Loss</div><div class="scard-val" style="color:var(--red)">${tTheft}</div><div class="scard-sub">${tTheft>0 ? (data.theftVerified&&data.theftVerified.by ? '✓ SM verified' : '⚠ Awaiting SM verify') : 'Shrinkage'}</div></div>
+    <div class="scard"><div class="scard-lbl">Closing System</div><div class="scard-val">${tClS}</div><div class="scard-sub">Expected</div></div>
+    <div class="scard"><div class="scard-lbl">Closing Physical</div><div class="scard-val">${tClP}</div><div class="scard-sub">Counted</div></div>
+    <div class="scard"><div class="scard-lbl">Net Variance</div><div class="scard-val" style="color:${varColor}">${tVr===0?'0':tVr}</div><div class="scard-sub">${tVr===0?'Balanced':'Imbalance'}</div></div>
+    <div class="scard"><div class="scard-lbl">Brands Matched</div><div class="scard-val" style="color:var(--green)">${matched}</div><div class="scard-sub">of ${brands.length} brands</div></div>
+  `;
+  renderSummaryAudit(data);                                  // P1-5: Day Audit Trail strip
+  renderVarianceDrilldown(data);                              // D5-S3: ranked day-total drill-down
+  renderDsrRecon(data, tSales);                              // P1-8: DSR cross-check line (last before chrome)
+  applyReadOnlyChrome();
+}
+
+/* ── P1-5: Day Audit Trail strip (Summary tab) ── */
+function renderSummaryAudit(data) {
+  const el = document.getElementById('sum-audit'); if (!el) return;
+  el.style.display = '';   // FIX: re-show strip (zero-brand summary hides it via style.display='none')
+  const rows = [];
+  rows.push(data.openingLocked
+    ? '🔒 Opening locked by <strong>' + esc(data.openingLockedBy || '—') + '</strong>' + (data.openingLockedAt ? ' · ' + esc(fmtStamp(data.openingLockedAt)) : '')
+    : '🔓 Opening not locked');
+  rows.push(data.movementsSubmitted
+    ? '✓ Movements submitted by <strong>' + esc(data.movementsSubmittedBy || '—') + '</strong>' + (data.movementsSubmittedAt ? ' · ' + esc(fmtStamp(data.movementsSubmittedAt)) : '')
+    : '⏳ Movements not submitted');
+  rows.push(data.closingLocked
+    ? '🔒 Closing locked by <strong>' + esc(data.closingLockedBy || '—') + '</strong>' + (data.closingLockedAt ? ' · ' + esc(fmtStamp(data.closingLockedAt)) : '')
+    : '🔓 Closing not locked');
+  const n = Number.isInteger(data.reopenedCount) ? data.reopenedCount : 0;
+  const log = (Array.isArray(data.reopenLog) ? data.reopenLog : []).filter(u => u && typeof u === 'object');
+  const logRows = log.map(u => {
+    const lbl = u.section === 'opening' ? 'Opening' : u.section === 'closing' ? 'Closing' : 'Movements';
+    return '<div class="aud-log">' + esc(lbl) + ' re-opened by <strong>' + esc(u.by || '—') + '</strong> · ' + esc(fmtStamp(u.at)) + (u.reason ? ' — “' + esc(u.reason) + '”' : '') + '</div>';
+  }).join('');
+  el.innerHTML = '<div class="aud-hd">Day Audit Trail</div>'
+    + rows.map(r => '<div class="aud-row">' + r + '</div>').join('')
+    + '<div class="aud-row' + (n ? ' aud-warn' : '') + '">' + (n ? '⚠ Re-opened <strong>' + n + '×</strong> after sign-off' : '✓ Never re-opened after sign-off') + '</div>'
+    + logRows;
+}
+
+/* P1-8: one DSR cross-check line under the summary cards. Renders ONLY when the bridge
+   has written _dsrRollup.salesCount for this day; legacy rollups (pre-Wave-9), days with
+   no submitted DSR, or bridge-off installs have no salesCount → line absent. Numbers are
+   Number()-coerced, so junk injected via import can never reach the DOM as markup. */
+function renderVarianceDrilldown(data){
+  const box=document.getElementById('sum-variance-drill'), p=d5Policy(); if(!box||!p)return;
+  const rows=getBrands(st.store).map(b=>{ const c=data.closing[b]||{}; return {brand:b,variance:(totalPhys(c)??0)-closingSys(b,data),state:d5TriageFor(data,b).state}; });
+  const ranked=p.rankVariances(rows);
+  if(!ranked.length){ box.innerHTML=''; box.style.display='none'; return; }
+  box.style.display='';
+  box.innerHTML='<strong>Variance drill-down</strong> · '+esc(fmtDate(st.date))+' · '+esc(st.store==='titanworld'?'Titan World (WLMHW)':'Helios (HEMW)')+
+    ranked.map((r,i)=>'<div class="d5-rank"><strong>#'+(i+1)+'</strong><span>'+esc(r.brand)+'</span><span class="'+varClass(r.variance)+'">'+varText(r.variance)+'</span><span>'+d5StateLabel(r.state)+'</span>'+(isPastView()?'':'<button class="btn btn-outline btn-sm no-print" onclick="d5OpenTriage(\''+bid(r.brand)+'\')">Triage</button>')+'</div>').join('');
+}
+
+function renderDsrRecon(data, tSales) {
+  const box = document.getElementById('sum-dsr-recon');
+  if (!box) return;
+  const p=d5Policy(); if(!p){box.innerHTML='';box.style.display='none';return;}
+  const ru=data&&data._dsrRollup, dsrRaw=ru?Number(ru.salesCount):NaN;
+  const dsrN=Number.isFinite(dsrRaw)&&dsrRaw>=0?dsrRaw:null, qmsN=d5QmsClosedSales(st.date);
+  const stockN=Number(tSales)||0;
+  const anyEntered = getBrands(st.store).some(b => {
+    const m = data.movements[b] || {}; return m.sales !== null && m.sales !== undefined;
+  });
+  const stockValue=anyEntered?stockN:null;
+  const pairs=[p.reconcile('Stock',stockValue,'DSR',dsrN),p.reconcile('Stock',stockValue,'QMS',qmsN),p.reconcile('DSR',dsrN,'QMS',qmsN)];
+  const verdict=v=>v.status==='match'?'<span style="color:var(--green)">✓ Match</span>':v.status==='mismatch'?'<span style="color:var(--amber)">⚠ Mismatch ('+(v.delta>0?'+':'')+v.delta+')</span>':'<span style="color:var(--gray-400)">Unavailable</span>';
+  box.style.display = '';
+  box.innerHTML='<div class="d5-panel"><strong>Advisory sales reconciliation</strong><div style="color:var(--gray-500);margin-top:3px">Never blocks Stock count or lock. QMS has no store field, so its figure is labelled whole-business.</div><div class="d5-grid">'+
+    '<div class="d5-metric"><strong>Stock sales units</strong><div>'+(stockValue===null?'Unavailable':stockValue)+'</div><small>Stock day blob · selected store/date</small></div>'+
+    '<div class="d5-metric"><strong>DSR billed-sale count</strong><div>'+(dsrN===null?'Unavailable':dsrN)+'</div><small>Submitted DSRs · selected store/date</small></div>'+
+    '<div class="d5-metric"><strong>QMS closed purchases</strong><div>'+(qmsN===null?'Unavailable':qmsN)+'</div><small>QMS live blob · whole business/date</small></div></div><div class="d5-grid">'+pairs.map(v=>'<div class="d5-metric"><strong>'+esc(v.label)+'</strong><div>'+verdict(v)+'</div></div>').join('')+'</div></div>';
+}
+
+/* ══════════ P1-6 MONTHLY VARIANCE & SHRINKAGE — read-only over saved day blobs ══════════ */
+let _monMonth = null;   // 'YYYY-MM' — in-memory only, NOT persisted (no carry impact)
+let _monN     = 3;      // repeat-offender threshold (days) — in-memory only
+
+function monDaysIn(ym){ const p = ym.split('-'); return new Date(+p[0], +p[1], 0).getDate(); }
+function monLabel(ym){ const p = ym.split('-');
+  const mi = Math.min(12, Math.max(1, (+p[1]) || 1)) - 1;   // FIX: clamp 1-12 so a corrupt month can't render "undefined"
+  return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][mi] + ' ' + p[0]; }
+
+/* RAW day read — deliberately NOT loadData(): loadData() is bound to st.date and
+   runs prefillOpeningFromPrev/initData. This never writes and never fabricates rows. */
+function monRawDay(store, dateStr){
+  try{
+    const raw = localStorage.getItem(SK_PREFIX + store + '_' + dateStr);
+    if(!raw) return null;
+    const d = JSON.parse(raw);
+    if(!d || typeof d !== 'object') return null;
+    /* integration-bridge.js may create a day blob holding ONLY _dsrRollup
+       (sb={} when absent) — no opening/movements/closing sections = no stock data. */
+    const okSec = s => s && typeof s === 'object';
+    if(!okSec(d.opening) && !okSec(d.movements) && !okSec(d.closing)) return null;
+    return d;
+  }catch(e){ return null; }
+}
+
+/* Per-brand/per-day cell math — EXACT reuse of the Daily Summary formula
+   (renderSummary / printSummaryReg):
+   clS = closingSys(brand, data); clP = totalPhys(closing) ?? 0; vr = clP − clS;
+   counted = isCounted(closing); hasActivity per FIX 3.
+   `?? null` on systemStock makes a RAW blob's missing brand entry ({} →
+   systemStock undefined) behave exactly like loadData()'s normalised
+   {systemStock:null} — otherwise `undefined !== null` fakes activity.
+   theftVerified is DAY-LEVEL {by,at}|null (P1-7 owns it) — every theft row
+   of a verified day reads verified; theftRemark stays per-row. */
+function monCellCalc(brand, day){
+  const dd = { opening: day.opening || {}, movements: day.movements || {} }; // closingSys derefs both
+  const o = dd.opening[brand]   || {};
+  const m = dd.movements[brand] || {};
+  const c = (day.closing || {})[brand] || {};
+  const inw = m.inward ?? 0, grn = m.grn ?? 0, outw = m.outward ?? 0,
+        sales = m.sales ?? 0, theft = Number(m.theft) || 0;   // FIX: coerce theft so string values sum, not concatenate
+  const clS = closingSys(brand, dd);
+  const clP = totalPhys(c) ?? 0;
+  const vr  = clP - clS;
+  const counted = isCounted(c);
+  const hasActivity = (o.systemStock ?? null) !== null
+                   || inw > 0 || grn > 0 || outw > 0 || sales > 0 || theft > 0
+                   || clS !== 0;
+  return { vr, counted, hasActivity, theft,
+           theftRemark:   (typeof m.theftRemark === 'string' ? m.theftRemark : ''),  // P1-7 optional
+           theftVerified: !!(day.theftVerified && day.theftVerified.by) };            // P1-7 day-level
+}
+
+function monAggregate(store, ym){
+  const n = monDaysIn(ym), days = [], brandSet = {};
+  getBrands(store).forEach(b => { brandSet[b] = 1; });
+  for(let i = 1; i <= n; i++){
+    const ds = ym + '-' + String(i).padStart(2,'0');
+    const d  = monRawDay(store, ds);
+    if(!d) continue;
+    /* Union brand keys from the blobs so brands REMOVED from the list mid-month
+       (removeBrand preserves their data) still report. */
+    ['opening','movements','closing'].forEach(sec => {
+      const s = d[sec]; if(s && typeof s === 'object') Object.keys(s).forEach(b => { brandSet[b] = 1; });
+    });
+    days.push({ dayNum: i, date: ds, data: d });
+  }
+  const rows = Object.keys(brandSet).map(brand => {
+    const r = { brand, daysActive:0, daysCounted:0, varDays:0, netVar:0, theftUnits:0,
+                theftDays:0, offendDays:0, worstGap:0, worstGapDate:'', cells:{}, thefts:[] };
+    days.forEach(dy => {
+      const cell = monCellCalc(brand, dy.data);
+      r.cells[dy.dayNum] = cell;
+      if(cell.hasActivity) r.daysActive++;
+      if(cell.hasActivity && cell.counted){          // netVar sums ONLY counted-day cells —
+        r.daysCounted++; r.netVar += cell.vr;        // mirrors the daily grid's '—' rule
+        if(cell.vr !== 0){
+          r.varDays++;
+          if(Math.abs(cell.vr) > Math.abs(r.worstGap)){ r.worstGap = cell.vr; r.worstGapDate = dy.date; }
+        }
+      }
+      if(cell.theft > 0){
+        r.theftUnits += cell.theft; r.theftDays++;
+        r.thefts.push({ date: dy.date, brand, units: cell.theft,
+                        remark: cell.theftRemark, verified: cell.theftVerified });
+      }
+      if((cell.hasActivity && cell.counted && cell.vr !== 0) || cell.theft > 0) r.offendDays++;
+    });
+    return r;
+  }).filter(r => r.daysActive > 0 || r.theftUnits > 0);   // hide brands with zero month activity
+  rows.sort((a,b) => (b.offendDays - a.offendDays) || (Math.abs(b.netVar) - Math.abs(a.netVar))
+                  || (b.theftUnits - a.theftUnits) || a.brand.localeCompare(b.brand));
+  return { ym, nDays: n, days, rows };
+}
+
+function monSetMonth(v){ if(/^\d{4}-\d{2}$/.test(v || '')){ _monMonth = v; renderMonthly(); } }
+function monSetN(v){ const n = parseInt(v, 10); if(n >= 2 && n <= 10){ _monN = n; renderMonthly(); } }
+
+function renderMonthly(){
+  const ym  = _monMonth || (_monMonth = st.date.slice(0,7));   // default: viewed date's month
+  const agg = monAggregate(st.store, ym);
+  const full = st.store === 'titanworld' ? 'Titan World (WLMHW)' : 'Helios (HEMW)';
+  _el('mon-month',  el => { el.value = ym; });
+  _el('mon-n',      el => { el.value = String(_monN); });
+  _el('ph-mon-sub', el => { el.textContent = full + ' · ' + monLabel(ym); });
+
+  let tCounted=0, tVarDays=0, tNet=0, tTheft=0, offCount=0;
+  const theftDaySet = {};
+  agg.rows.forEach(r => { tCounted += r.daysCounted; tVarDays += r.varDays; tNet += r.netVar;
+    tTheft += r.theftUnits; if(r.offendDays >= _monN) offCount++;
+    r.thefts.forEach(t => { theftDaySet[t.date] = 1; }); });
+  const tTheftDays = Object.keys(theftDaySet).length;
+  const clean = agg.rows.filter(r => r.varDays === 0 && r.theftUnits === 0).length;
+
+  document.getElementById('mon-cards').innerHTML = `
+    <div class="scard"><div class="scard-lbl">Days With Data</div><div class="scard-val">${agg.days.length}</div><div class="scard-sub">of ${agg.nDays} in ${esc(monLabel(ym))}</div></div>
+    <div class="scard"><div class="scard-lbl">Net Month Variance</div><div class="scard-val" style="color:${tNet===0?'var(--green)':tNet>0?'var(--amber)':'var(--red)'}">${tNet===0?'0':varText(tNet)}</div><div class="scard-sub">Counted days only</div></div>
+    <div class="scard"><div class="scard-lbl">Theft / Loss</div><div class="scard-val" style="color:var(--red)">${tTheft}</div><div class="scard-sub">Units this month</div></div>
+    <div class="scard"><div class="scard-lbl">Theft Days</div><div class="scard-val" style="color:var(--red)">${tTheftDays}</div><div class="scard-sub">Days with theft</div></div>
+    <div class="scard"><div class="scard-lbl">Repeat Offenders</div><div class="scard-val" style="color:${offCount?'var(--red)':'var(--green)'}">${offCount}</div><div class="scard-sub">Variance/theft ≥ ${_monN} days</div></div>
+    <div class="scard"><div class="scard-lbl">Clean Brands</div><div class="scard-val" style="color:var(--green)">${clean}</div><div class="scard-sub">of ${agg.rows.length} active</div></div>`;
+
+  document.getElementById('tbody-mon').innerHTML = agg.rows.length ? agg.rows.map(r => {
+    const off = r.offendDays >= _monN;
+    const badge = off
+      ? `<span style="color:var(--red);font-size:11px;font-weight:600;">⚠ Repeat offender (${r.offendDays}d)</span>`
+      : (r.varDays === 0 && r.theftUnits === 0)
+        ? '<span style="color:var(--green);font-size:11px;font-weight:600;">✓ Clean</span>'
+        : `<span style="color:var(--amber);font-size:11px;font-weight:600;">Watch (${r.offendDays}d)</span>`;
+    return `<tr${off ? ' style="background:#fff7f7"' : ''}>
+      <td class="brand-td name-cell" data-saagar-priority="1">${esc(r.brand)}</td>
+      <td data-label="Days Counted" data-saagar-priority="3">${r.daysCounted || '—'}${r.daysActive > r.daysCounted ? ` <span style="color:var(--amber);font-size:10px;">of ${r.daysActive}</span>` : ''}</td>
+      <td data-label="Variance Days" data-saagar-priority="2">${r.varDays || '—'}</td>
+      <td data-label="Net Variance" data-saagar-priority="1" class="${varClass(r.netVar)}">${varText(r.netVar)}</td>
+      <td data-label="Theft Units" data-saagar-priority="2"${r.theftUnits ? ' style="color:var(--red)"' : ''}>${r.theftUnits || '—'}</td>
+      <td data-label="Theft Days" data-saagar-priority="3">${r.theftDays || '—'}</td>
+      <td data-label="Worst Gap" data-saagar-priority="4">${r.worstGap ? `${varText(r.worstGap)} <span style="color:var(--gray-400);font-size:10px;">${fmtDate(r.worstGapDate)}</span>` : '—'}</td>
+      <td data-label="Status" data-saagar-priority="1">${badge}</td>
+    </tr>`; }).join('')
+    : `<tr class="empty-row"><td colspan="8"><div class="tbl-empty"><span class="ico">📅</span><div class="ttl">No stock records for ${esc(monLabel(ym))}</div><div class="msg">Pick another month, or save daily registers first.</div></div></td></tr>`;
+
+  document.getElementById('tfoot-mon').innerHTML = agg.rows.length ? `<tr>
+    <td class="tl">TOTAL — ${agg.rows.length} brands</td>
+    <td>${tCounted}</td><td>${tVarDays}</td>
+    <td class="${varClass(tNet).replace('cv ','')}">${varText(tNet)}</td>
+    <td>${tTheft}</td><td>${tTheftDays}</td><td></td>
+    <td>${offCount ? offCount + ' offender' + (offCount > 1 ? 's' : '') : ''}</td></tr>` : '';
+
+  /* Theft / Loss log — consumes P1-7 theftRemark/theftVerified when present */
+  const thefts = [];
+  agg.rows.forEach(r => { r.thefts.forEach(t => thefts.push(t)); });
+  thefts.sort((a,b) => a.date < b.date ? -1 : a.date > b.date ? 1 : a.brand.localeCompare(b.brand));
+  const tw = document.getElementById('mon-theft-wrap');
+  if(thefts.length){
+    tw.style.display = '';
+    document.getElementById('mon-theft-count').textContent = thefts.length + ' entr' + (thefts.length === 1 ? 'y' : 'ies');
+    document.getElementById('mon-theft-body').innerHTML = thefts.map(t => `<tr>
+      <td class="brand-td name-cell">${fmtDate(t.date)}</td>
+      <td data-label="Brand">${esc(t.brand)}</td>
+      <td data-label="Units" style="color:var(--red);font-weight:600;">${t.units}</td>
+      <td data-label="Remark" class="tl">${t.remark ? esc(t.remark) : '<span style="color:var(--gray-400)">—</span>'}</td>
+      <td data-label="Verified">${t.verified ? '<span style="color:var(--green);font-size:11px;font-weight:600;">✓ SM verified</span>' : '<span style="color:var(--gray-400);font-size:11px;">—</span>'}</td>
+    </tr>`).join('');
+  } else { tw.style.display = 'none'; }
+
+  applyReadOnlyChrome();   // consistency with every other renderer
+}
+
+/* ══════════════════════════════════════════════════
+   RENDER — SETTINGS
+══════════════════════════════════════════════════ */
+function renderSettings() {
+  const cros = getCROs();
+  document.getElementById('cro-list').innerHTML = cros.length
+    ? cros.map((c, i) => `<div class="cro-chip">${esc(c)}<span class="rm" onclick="removeCRO(${i})">×</span></div>`).join('')
+    : '<span style="font-size:11px;color:var(--gray-400);">No CROs added yet</span>';
+
+  // Brand list (SM-only controls)
+  const isSM    = st.mode === 'sm';
+  const brands  = getBrands(st.store);
+  const bList   = document.getElementById('brand-list');
+  const addRow  = document.getElementById('brand-add-row');
+  if (bList) {
+    bList.innerHTML = brands.map((b, i) => `
+      <div class="brand-chip" draggable="${isSM}" data-idx="${i}"
+           ondragstart="brandDragStart(event,${i})" ondragover="brandDragOver(event)" ondrop="brandDrop(event,${i})">
+        <span class="drag-handle" style="${isSM?'':'display:none'}">≡</span>
+        <span style="flex:1;font-size:12px;font-weight:600;">${esc(b)}</span>
+        ${isSM ? `<span class="rm" onclick="removeBrand(${i})" title="Remove brand">×</span>` : ''}
+      </div>`).join('');
+  }
+  // Read-only past hides edit affordances even for SM (history must not change).
+  const ro = isPastView();
+  if (addRow) addRow.style.display = (isSM && !ro) ? '' : 'none';
+  const resetBtn = document.querySelector('#brand-card .btn-outline');
+  if (resetBtn) resetBtn.style.display = (isSM && !ro) ? '' : 'none';
+
+  updateSettingsStatus(loadData());
+  applyReadOnlyChrome();
+}
+
+function updateSettingsStatus(data) {
+  const brands = getBrands(st.store);
+  const oFill  = brands.filter(b => data.opening[b]?.systemStock !== null).length;
+  const oVer   = brands.filter(b => data.opening[b]?.verified).length;
+  const oDone  = brands.filter(b => isCounted(data.opening[b])).length;
+  const cDone  = brands.filter(b => isCounted(data.closing[b])).length;
+  const cVer   = brands.filter(b => data.closing[b]?.verified).length;
+  _el('set-open-status', el => el.innerHTML =
+    `${oFill}/${brands.length} system entries &nbsp;·&nbsp; ${oDone}/${brands.length} CRO counted &nbsp;·&nbsp; ${oVer}/${brands.length} verified${data.openingLocked?' &nbsp;·&nbsp; 🔒':''}`);
+  _el('set-close-status', el => el.innerHTML =
+    `${cDone}/${brands.length} CRO counted &nbsp;·&nbsp; ${cVer}/${brands.length} verified${data.closingLocked?' &nbsp;·&nbsp; 🔒':''}`);
+}
+
+/* ══════════════════════════════════════════════════
+   UPDATE HANDLERS
+══════════════════════════════════════════════════ */
+function updOpen(brandId, field, rawValue, inputEl) {
+  if (roBlock()) return;  // VIEW-ONLY past: never write on a read
+  // brandId is the bid() form; resolve to original brand name for data lookup
+  const brand = getBrandByBid(brandId);
+  const domId = bid(brand); // always use bid() form for DOM element IDs
+  const data  = loadData();
+  if (!data.opening[brand]) return;
+
+  // CRO name is mandatory before entering any physical stock field
+  const PHYS = ['display','storage','defective','yLoc'];
+  if (PHYS.includes(field) && parseStockInt(rawValue) !== null) {
+    if (!data.opening[brand].croName) {
+      if (inputEl) inputEl.value = '';
+      flashCROReq('opening', domId);
+      toast(`Select CRO name for "${brand}" before entering stock.`, 'err');
+      return;
+    }
+  }
+
+  const isNum = !['remarks','croName'].includes(field);
+  data.opening[brand][field] = isNum ? parseStockInt(rawValue) : rawValue;
+  data.opening[brand].time   = nowTime();
+  if (['display','storage','defective','yLoc','systemStock'].includes(field)) {
+    data.opening[brand].verified = false;
+  }
+  if (field === 'croName' && rawValue) clearCROReq('opening', domId);
+  saveData(data);
+
+  // Live-update computed cells (DOM IDs use bid() form)
+  const o     = data.opening[brand];
+  const phys  = totalPhys(o);
+  const sys   = o.systemStock;
+  const physN = phys ?? 0;
+  const sysN  = sys  ?? 0;
+  const vr    = physN - sysN;
+
+  _el('op-phys-'+domId, el => el.innerHTML = phys !== null ? String(phys) : '<span class="pend-lbl">—</span>');
+  _el('op-var-'+domId,  el => {
+    const show = phys !== null || sys !== null;
+    el.innerHTML = show ? `<span class="${varClass(vr)}">${varText(vr)}</span>` : '<span class="pend-lbl">—</span>';
+  });
+  _el('op-ts2-'+domId, el => el.textContent = o.time || '');
+  _el('row-open-'+domId, el => el.className = openRowClass(o));
+
+  // FIX 1: Refresh footer after every change
+  refreshOpenFooter(data);
+  updateCountMeter('opening');
+
+  // Auto-refresh summary if visible
+  if (st.tab === 'summary') renderSummary();
+}
+
+function updMov(brandId, field, rawValue, inputEl) {
+  if (roBlock()) return;  // VIEW-ONLY past: never write on a read
+  const brand = getBrandByBid(brandId);
+  const domId = bid(brand);
+  const data  = loadData();
+  const m     = data.movements[brand];
+  if (!m) return;
+
+  const prev    = m[field] ?? null;        // value before this edit (null-safe)
+  const newVal  = parseStockInt(rawValue); // null for blank
+
+  /* ── NO-NEGATIVE GUARD ──────────────────────────────────────────────
+     On-hand available = opening system + inward + grn (inflows).
+     Outflows = outward + sales + theft. Any state where outflows exceed
+     on-hand would make the computed closing system negative → block it.
+     Build a candidate movements object with the new value applied so the
+     check also fires when LOWERING an inflow (inward/grn) below what the
+     current outflows already need. */
+  const candidate = Object.assign({}, m, { [field]: newVal });
+  const candData  = { opening: data.opening, movements: { [brand]: candidate } };
+  const avail     = onHand(brand, candData);
+  const outflow   = totalOutflow(candidate);
+  if (outflow > avail) {
+    // Reject: restore previous value into the input, flash red, toast, do NOT save.
+    if (inputEl) inputEl.value = (prev !== null ? prev : '');
+    flashInput(inputEl);
+    const over = outflow - avail;
+    toast(`"${brand}": outflow (${outflow}) exceeds on-hand (${avail}) — closing would go negative by ${over}. Not saved.`, 'err');
+    return;
+  }
+
+  m[field] = newVal;
+  // P1-7: changing a theft figure invalidates the SM verification stamp
+  if (field === 'theft' && prev !== newVal && data.theftVerified) {
+    data.theftVerified = null;
+    toast('Theft changed — SM verification reset. Verify again at closing lock.', 'warn');
+  }
+  saveData(data);
+
+  const net = netMov(m);
+  _el('mov-net-'+domId, el => { el.textContent = varText(net); el.className = varClass(net); });
+
+  // FIX 1: Refresh both movement and closing footers (closing system changes)
+  refreshMovFooter(data);
+  refreshCloseFooter(data);
+  // Also update all closing system cells since movements changed
+  getBrands(st.store).forEach(b => updCloseSysCell(b, data));
+
+  if (st.tab === 'summary') renderSummary();
+}
+
+function updClose(brandId, field, rawValue, inputEl) {
+  if (roBlock()) return;  // VIEW-ONLY past: never write on a read
+  const brand = getBrandByBid(brandId);
+  const domId = bid(brand);
+  const data  = loadData();
+  if (!data.closing[brand]) return;
+
+  // CRO name is mandatory before entering any physical closing stock
+  const PHYS = ['display','storage','defective','yLoc'];
+  if (PHYS.includes(field) && parseStockInt(rawValue) !== null) {
+    if (!data.closing[brand].croName) {
+      if (inputEl) inputEl.value = '';
+      flashCROReq('closing', domId);
+      toast(`Select CRO name for "${brand}" before entering closing stock.`, 'err');
+      return;
+    }
+  }
+
+  const isNum = !['remarks','croName'].includes(field);
+  data.closing[brand][field] = isNum ? parseStockInt(rawValue) : rawValue;
+  data.closing[brand].time   = nowTime();
+  if (['display','storage','defective','yLoc'].includes(field)) {
+    data.closing[brand].verified = false;
+  }
+  if (field === 'croName' && rawValue) clearCROReq('closing', domId);
+  saveData(data);
+  updCloseSysCell(brand, data);  // pass original name
+
+  // FIX 1: Refresh footer
+  refreshCloseFooter(data);
+  updateCountMeter('closing');
+
+  if (st.tab === 'summary') renderSummary();
+}
+
+function updCountDone(section, brandId, checked, cbEl) {
+  if (roBlock()) { if (cbEl) cbEl.checked = !checked; return; }  // VIEW-ONLY past: revert + no write
+  const brand = getBrandByBid(brandId);
+  const domId = bid(brand);
+  const data  = loadData();
+  const entry = data[section][brand];
+  if (!entry) return;
+
+  // CRO name is mandatory before marking count as done
+  if (checked && !entry.croName) {
+    if (cbEl) cbEl.checked = false;
+    flashCROReq(section, domId);
+    toast(`Select CRO name for "${brand}" before marking count as done.`, 'err');
+    return;
+  }
+
+  entry.countDone = checked;
+  entry.time      = nowTime();
+  saveData(data);
+
+  if (section === 'opening') {
+    _el('row-open-'+domId, el => el.className = openRowClass(entry));
+    const phys = totalPhys(entry), sys = entry.systemStock;
+    const vr   = (phys??0) - (sys??0);
+    _el('op-phys-'+domId, el => el.innerHTML = phys !== null ? String(phys) : '<span class="pend-lbl">—</span>');
+    _el('op-var-'+domId,  el => {
+      const show = phys !== null || sys !== null;
+      el.innerHTML = show ? `<span class="${varClass(vr)}">${varText(vr)}</span>` : '<span class="pend-lbl">—</span>';
+    });
+    refreshOpenFooter(data);
+    updateCountMeter('opening');
+  } else {
+    updCloseSysCell(brand, data);  // pass original name
+    refreshCloseFooter(data);
+    updateCountMeter('closing');
+  }
+  if (st.tab === 'summary') renderSummary();
+}
+
+function updCloseSysCell(brand, data) {
+  const domId = bid(brand);
+  const c     = data.closing[brand] || {};
+  const phys  = totalPhys(c);
+  const cSys  = closingSys(brand, data);
+  const vr    = (phys ?? 0) - cSys;
+  const counted = isCounted(c);
+  const rowC  = closeRowClass(c, vr, counted, cSys);
+
+  _el('cl-sys-'+domId,  el => { el.textContent = cSys; el.className = cSys<0?'cv cv-bad':'cv cv-neutral'; });
+  _el('cl-phys-'+domId, el => el.innerHTML = phys !== null ? String(phys) : '<span class="pend-lbl">—</span>');
+  _el('cl-var-'+domId,  el => {
+    el.innerHTML = (counted || cSys !== 0)
+      ? `<span class="${varClass(vr)}">${varText(vr)}</span>`
+      : '<span class="pend-lbl">—</span>';
+  });
+  _el('cl-ts2-'+domId,   el => el.textContent = c.time || '');
+  _el('row-close-'+domId, el => el.className = rowC);
+}
+
+/* ══════════════════════════════════════════════════
+   FIX 5 — LIVE INPUT VALIDATION
+   Prevents negative/decimal/non-numeric input in real time.
+══════════════════════════════════════════════════ */
+function validateNI(input) {
+  const raw = input.value;
+  if (raw === '') return; // blank is allowed (null)
+  const n = parseStockInt(raw);
+  if (n === null) {
+    input.value = '';
+    input.style.borderColor = 'var(--red)';
+    setTimeout(() => { input.style.borderColor = ''; }, 1200);
+    return;
+  }
+}
+
+/* Flash an input's border red for ~1.4s (used by the no-negative guard in updMov). */
+function flashInput(input) {
+  if (!input) return;
+  input.style.borderColor = 'var(--red)';
+  input.style.boxShadow   = '0 0 0 2px rgba(185,28,28,.15)';
+  setTimeout(() => { input.style.borderColor = ''; input.style.boxShadow = ''; }, 1400);
+}
+
+/* ══════════════════════════════════════════════════
+   VERIFY / LOCK
+══════════════════════════════════════════════════ */
+function toggleVerify(section, brandId) {
+  if (roBlock()) return;  // VIEW-ONLY past: never write on a read
+  if (st.mode !== 'sm') { toast('Only SM can verify entries.', 'err'); return; }
+  const brand  = getBrandByBid(brandId);
+  const domId  = bid(brand);
+  const data   = loadData();
+  const entry  = data[section][brand];
+  if (!entry)  return;
+  entry.verified = !entry.verified;
+  saveData(data);
+
+  const rowId = section === 'opening' ? 'row-open-'+domId : 'row-close-'+domId;
+  _el(rowId, el => {
+    if (section === 'opening') { el.className = openRowClass(entry); }
+    else {
+      const vr = (totalPhys(entry)??0) - closingSys(brand, data);
+      el.className = closeRowClass(entry, vr, isCounted(entry), closingSys(brand, data));
+    }
+  });
+  const row = document.getElementById(rowId);
+  const btn = row?.querySelector('.vbtn');
+  if (btn) { btn.textContent = entry.verified?'✓ Done':'Verify'; btn.className='vbtn'+(entry.verified?' done':''); }
+  toast(entry.verified?`${brand} verified ✓`:`${brand} unverified`, entry.verified?'ok':'');
+}
+
+async function toggleLock(section) {
+  if (roBlock()) return;  // VIEW-ONLY past: never write on a read
+  if (st.mode !== 'sm') { toast('Only SM can lock/unlock.', 'err'); return; }
+  const data  = loadData();
+  const key   = section + 'Locked';
+  // Closing LOCK routes through the end-of-day sign-off gate (variance reasons).
+  if (section === 'closing' && !data.closingLocked) { openPreLockSheet(); return; }
+  if (data[key]) { openReopenSheet(section); return; }       // P1-5: unlock = audited re-open, no silent flip
+  if(!await stReauth('Lock the Opening Stock count'))return;
+  data[key] = true;
+  data[section + 'LockedBy'] = stActor();                    // P1-5 stamp
+  data[section + 'LockedAt'] = new Date().toISOString();     // P1-5 stamp
+  saveData(data);
+  toast(`${section==='opening'?'Opening':'Closing'} stock locked 🔒`, 'ok');
+  if (section === 'opening') renderOpening();
+  else { renderMovements(); renderClosing(); }
+}
+
+/* ══════════════════════════════════════════════════
+   CLOSING PRE-LOCK SIGN-OFF (variance reasons)
+   Before locking Closing Stock, compute counted/gapped/unverified over the
+   brand list, require a non-empty remark on every non-zero-variance brand,
+   and stamp an additive closingSignoff on the day blob. Reuses the existing
+   data.closing[b].remarks slot so reasons flow into the register/print as-is.
+══════════════════════════════════════════════════ */
+/* P1-7: brands with theft units on the loaded day blob */
+function theftRows(data) {
+  /* FIX: union getBrands with the blob's own movement keys so a brand REMOVED from the
+     list mid-day but still holding theft units in the saved blob is still gated. */
+  const brands = getBrands(st.store).slice();
+  Object.keys(data.movements||{}).forEach(b => { if (brands.indexOf(b) < 0) brands.push(b); });
+  return brands.map(b => {
+    const m = (data.movements && data.movements[b]) || {};
+    return { brand: b, units: m.theft ?? 0, remark: (m.theftRemark || '').trim() };
+  }).filter(r => r.units > 0);
+}
+
+function preLockClosing(data) {
+  const brands = getBrands(st.store);
+  let total = brands.length, counted = 0, gapped = 0, unverified = 0;
+  const gapRows = [];  // { brand, vr }
+  brands.forEach(b => {
+    const c  = data.closing[b] || {};
+    const cd = isCounted(c);
+    if (cd) counted++;
+    const vr = (totalPhys(c) ?? 0) - closingSys(b, data);
+    if (cd && vr !== 0) { gapped++; gapRows.push({ brand: b, vr: vr }); }
+    if (!c.verified) unverified++;
+  });
+  return { total: total, counted: counted, gapped: gapped, unverified: unverified, gapRows: gapRows };
+}
+
+function openPreLockSheet() {
+  if (roBlock()) return;  // never open the sheet on a past (read-only) day
+  if (st.mode !== 'sm') { toast('Only SM can lock/unlock.', 'err'); return; }
+  const data  = loadData();
+  const stats = preLockClosing(data);
+  document.getElementById('clk-summary').innerHTML =
+    `<strong>${stats.counted} / ${stats.total}</strong> brands counted · ` +
+    `<strong>${stats.gapped}</strong> gapped · <strong>${stats.unverified}</strong> unverified`;
+
+  const gapsEl = document.getElementById('clk-gaps');
+  if (stats.gapRows.length) {
+    gapsEl.innerHTML =
+      '<p style="margin:0 0 8px;color:var(--navy);font-weight:600;">Reason required for each variance:</p>' +
+      stats.gapRows.map(g => {
+        const c = data.closing[g.brand] || {};
+        const tr = d5TriageFor(data, g.brand), p=d5Policy();
+        const causeOpts='<option value="">Cause not selected</option>'+(p?p.CAUSES:[]).map(x=>'<option value="'+x.id+'" '+(tr.cause===x.id?'selected':'')+'>'+esc(x.label)+'</option>').join('');
+        return `<div class="clk-gap-row">
+          <div class="clk-gap-head"><span class="clk-gap-name">${esc(g.brand)}</span>
+            <span class="${varClass(g.vr)}">${varText(g.vr)}</span></div>
+          <div class="clk-triage">
+            <select class="si clk-state" data-brand-id="${esc(bid(g.brand))}" onchange="clkValidate()">
+              <option value="open" ${tr.state==='open'?'selected':''}>Open</option><option value="investigating" ${tr.state==='investigating'?'selected':''}>Investigating</option><option value="closed" ${tr.state==='closed'?'selected':''}>Closed</option>
+            </select>
+            <select class="si clk-cause" onchange="clkValidate()">${causeOpts}</select>
+            <input type="text" class="si clk-remark wide" placeholder="Evidence note / variance explanation" value="${esc(tr.note||c.remarks||'')}" oninput="clkValidate()">
+            <input type="text" class="si clk-owner wide" value="${esc(tr.owner||'Store Manager')}" placeholder="Owner" oninput="clkValidate()">
+          </div>
+        </div>`;
+      }).join('');
+  } else {
+    gapsEl.innerHTML = '<p style="margin:0;color:var(--green);font-weight:600;">✓ No variances — ready to sign off.</p>';
+  }
+  // P1-7: theft verification section (SM-only sheet — mode already guarded above)
+  const tEl = document.getElementById('clk-theft');
+  const tr  = theftRows(data);
+  if (!tr.length) { tEl.innerHTML = ''; }
+  else if (data.theftVerified && data.theftVerified.by) {
+    tEl.innerHTML = `<p style="margin:0 0 8px;color:var(--green);font-weight:600;">✓ Theft verified by ${esc(data.theftVerified.by)} · ${esc(String(data.theftVerified.at).slice(11,16))}</p>`;
+  } else {
+    tEl.innerHTML =
+      '<p style="margin:0 0 8px;color:var(--red);font-weight:600;">Theft recorded today — SM verification required:</p>' +
+      tr.map(r => `<div class="clk-gap-row"><div class="clk-gap-head">
+          <span class="clk-gap-name">${esc(r.brand)}</span>
+          <span style="color:var(--red);font-weight:700">${r.units} unit${r.units===1?'':'s'}</span></div>
+        <div style="font-size:12px;color:var(--gray-600);">${r.remark ? esc(r.remark) : '<em>No remark (recorded before this update)</em>'}</div>
+      </div>`).join('') +
+      `<label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-weight:600;color:var(--navy);">
+         <input type="checkbox" id="clk-theft-cb" onchange="clkValidate()"> I have verified these theft entries (SM)
+       </label>`;
+  }
+  document.getElementById('clk-err').textContent = '';
+  document.getElementById('stock-lock-confirm').style.display = 'flex';
+  clkValidate();
+}
+
+/* Live-enable Confirm only when every gap-brand remark is non-empty AND
+   (P1-7) the theft verification box, when present, is ticked. Checkbox
+   absent ⇒ no theft pending ⇒ behaviour identical to before. */
+function clkValidate() {
+  const inputs  = Array.from(document.querySelectorAll('#stock-lock-confirm .clk-state'));
+  const missing = inputs.filter(inp => !inp.value.trim())
+                        .map(inp => getBrandByBid(inp.getAttribute('data-brand-id')));
+  const p=d5Policy(), invalid=[];
+  inputs.forEach(inp=>{ const wrap=inp.closest('.clk-triage'), brand=getBrandByBid(inp.getAttribute('data-brand-id'));
+    const note=wrap.querySelector('.clk-remark').value.trim(); if(!note)invalid.push(brand+': add an evidence note.');
+    const check=p&&p.validateTriage({state:inp.value,cause:wrap.querySelector('.clk-cause').value,note:note,owner:wrap.querySelector('.clk-owner').value});
+    if(check&&!check.ok) invalid.push(brand+': '+check.errors.join(' ')); });
+  const cb = document.getElementById('clk-theft-cb');   // P1-7: null when no theft / already verified
+  const theftPending = !!cb && !cb.checked;
+  const btn = document.getElementById('clk-confirm-btn');
+  const err = document.getElementById('clk-err');
+  if (btn) btn.disabled = missing.length > 0 || invalid.length > 0 || theftPending;
+  if (err) err.textContent = missing.length ? 'Enter a reason for: ' + missing.join(', ')
+                  : invalid.length ? invalid.join(' · ') : theftPending ? 'Tick the theft verification box to proceed.' : '';
+}
+
+function closeLockCancel() {
+  document.getElementById('stock-lock-confirm').style.display = 'none';
+}
+
+/* Confirm: re-load fresh, persist each edited remark, stamp closingSignoff,
+   set closingLocked, then re-render. Additive only. */
+async function doLockClosing() {
+  if (roBlock()) { closeLockCancel(); return; }  // never write on a past day
+  if (st.mode !== 'sm') { toast('Only SM can lock/unlock.', 'err'); closeLockCancel(); return; }
+  const data   = loadData();  // fresh — do not close over the pre-sheet snapshot
+  const stats  = preLockClosing(data);
+  const inputs = Array.from(document.querySelectorAll('#stock-lock-confirm .clk-state'));
+  // Guard: block if any gap remark still empty (belt-and-braces vs the live-enable).
+  const p=d5Policy(), invalid=[];
+  inputs.forEach(inp=>{const wrap=inp.closest('.clk-triage'), brand=getBrandByBid(inp.getAttribute('data-brand-id'));
+    const note=wrap.querySelector('.clk-remark').value.trim(); if(!note)invalid.push(brand+': add an evidence note.');
+    const check=p&&p.validateTriage({state:inp.value,cause:wrap.querySelector('.clk-cause').value,note:note,owner:wrap.querySelector('.clk-owner').value}); if(check&&!check.ok)invalid.push(brand+': '+check.errors.join(' '));});
+  const missing=invalid;
+  if (missing.length) {
+    document.getElementById('clk-err').textContent = missing.join(' · ');
+    return;
+  }
+  // P1-7 PRE-CHECK: day cannot lock while theft is unverified (legacy remark-less rows verify here too)
+  const _tr = theftRows(data);
+  if (_tr.length && !(data.theftVerified && data.theftVerified.by)) {
+    const cb = document.getElementById('clk-theft-cb');
+    if (!cb || !cb.checked) {
+      document.getElementById('clk-err').textContent = 'Tick the theft verification box to proceed.';
+      return;
+    }
+    data.theftVerified = { by: stActor(), at: new Date().toISOString() };   // SM guaranteed by guard above
+  }
+  if(!await stReauth('Lock and sign off the Closing Stock count'))return;
+  const gapRemarks = {};
+  inputs.forEach(inp => {
+    const brand = getBrandByBid(inp.getAttribute('data-brand-id'));
+    const wrap=inp.closest('.clk-triage'), val=wrap.querySelector('.clk-remark').value.trim(), now=new Date().toISOString();
+    if (!data.closing[brand]) data.closing[brand] = {};
+    data.closing[brand].remarks = val;  // same field the register row already uses
+    if(!data.d5Triage||typeof data.d5Triage!=='object')data.d5Triage={};
+    const prior=d5TriageFor(data,brand), state=inp.value;
+    data.d5Triage[brand]={state:state,cause:wrap.querySelector('.clk-cause').value,note:val,owner:wrap.querySelector('.clk-owner').value.trim()||'Store Manager',openedAt:prior.openedAt||now,openedBy:prior.openedBy||stActor(),updatedAt:now,updatedBy:stActor()};
+    if(state==='closed'){data.d5Triage[brand].closedAt=now;data.d5Triage[brand].closedBy=stActor();}
+    gapRemarks[brand] = val;
+  });
+  data.closingSignoff = {
+    at: new Date().toISOString(),
+    counted: stats.counted,
+    total: stats.total,
+    gapped: stats.gapped,
+    unverified: stats.unverified,
+    gapRemarks: gapRemarks
+  };
+  data.closingLockedBy = stActor();                          // P1-5 stamp
+  data.closingLockedAt = new Date().toISOString();           // P1-5 stamp
+  data.closingLocked = true;
+  saveData(data);
+  closeLockCancel();
+  renderMovements();
+  renderClosing();
+  toast('Closing locked — sign-off recorded', 'ok');
+}
+
+function refreshLockUI(section, data) {
+  const locked = section === 'opening' ? data.openingLocked : data.closingLocked;
+  const badge  = document.getElementById(`${section==='opening'?'open':'close'}-lock-badge`);
+  const btn    = document.getElementById(`btn-lock-${section==='opening'?'open':'close'}`);
+  if (badge) badge.style.display = locked ? 'inline-flex' : 'none';
+  if (badge) badge.title = (locked && data[section+'LockedBy']) ? ('Locked by ' + data[section+'LockedBy'] + ' · ' + fmtStamp(data[section+'LockedAt'])) : '';   // P1-5
+  if (btn)   { btn.textContent = locked?`🔓 Unlock ${section==='opening'?'Opening':'Closing'}`:`Lock ${section==='opening'?'Opening':'Closing'}`; btn.className = locked?'btn btn-outline btn-sm no-print':'btn btn-navy btn-sm no-print'; }
+}
+
+/* ══════════════════════════════════════════════════
+   DAY MOVEMENTS — SUBMIT / RE-OPEN
+══════════════════════════════════════════════════ */
+function submitMovements() {
+  if (roBlock()) return;  // VIEW-ONLY past: never write on a read
+  const data = loadData();
+  // P1-7 PRE-CHECK: theft units without a remark must be explained before submit
+  const missing = theftRows(data).filter(r => !r.remark);
+  if (missing.length) { openTheftSheet(theftRows(data)); return; }  // no submit yet
+  data.movementsSubmitted = true;
+  data.movementsSubmittedBy = stActor();                     // P1-5 (CRO submit is by design — no SM gate here)
+  data.movementsSubmittedAt = new Date().toISOString();
+  saveData(data);
+  updateClosingTabState(data);
+  renderMovementsHeader(data);
+  toast('Day Movements submitted ✓ Closing Stock is now unlocked.', 'ok');
+  // Auto-navigate to closing after a short pause
+  setTimeout(() => goTab('closing'), 700);
+}
+
+/* ── P1-7: THEFT REMARK SHEET (movements submit gate) ── */
+function openTheftSheet(rows) {
+  document.getElementById('thf-rows').innerHTML = rows.map(r => `
+    <div class="clk-gap-row">
+      <div class="clk-gap-head"><span class="clk-gap-name">${esc(r.brand)}</span>
+        <span style="color:var(--red);font-weight:700">${r.units} unit${r.units===1?'':'s'}</span></div>
+      <input type="text" class="si thf-remark" data-brand-id="${esc(bid(r.brand))}"
+        placeholder="Reason / incident detail (required)" value="${esc(r.remark)}" oninput="thfValidate()">
+    </div>`).join('');
+  document.getElementById('thf-err').textContent = '';
+  document.getElementById('stock-theft-confirm').style.display = 'flex';
+  thfValidate();
+}
+function thfValidate() {
+  const inputs  = Array.from(document.querySelectorAll('#stock-theft-confirm .thf-remark'));
+  const missing = inputs.filter(i => !i.value.trim()).map(i => getBrandByBid(i.getAttribute('data-brand-id')));
+  const btn = document.getElementById('thf-confirm-btn'), err = document.getElementById('thf-err');
+  if (btn) btn.disabled = missing.length > 0;
+  if (err) err.textContent = missing.length ? 'Enter a remark for: ' + missing.join(', ') : '';
+}
+function theftSheetCancel() { document.getElementById('stock-theft-confirm').style.display = 'none'; }
+function doSubmitTheftRemarks() {
+  if (roBlock()) { theftSheetCancel(); return; }
+  const data   = loadData();                    // fresh — mirrors doLockClosing
+  const inputs = Array.from(document.querySelectorAll('#stock-theft-confirm .thf-remark'));
+  if (inputs.some(i => !i.value.trim())) { thfValidate(); return; }   // belt-and-braces
+  inputs.forEach(i => {
+    const brand = getBrandByBid(i.getAttribute('data-brand-id'));
+    if (data.movements[brand]) data.movements[brand].theftRemark = i.value.trim();
+  });
+  saveData(data);
+  theftSheetCancel();
+  submitMovements();   // re-runs the gate; now clean → single submit path preserved
+}
+
+function reopenMovements() { openReopenSheet('movements'); }
+
+/* ── P1-5: AUDITED RE-OPEN / UNLOCK SHEET (mandatory reason, logged) ── */
+let _ropSection = null;
+function openReopenSheet(section) {
+  if (roBlock()) return;
+  if (st.mode !== 'sm') { toast('Only SM can re-open.', 'err'); return; }
+  _ropSection = section;
+  const label = section === 'opening' ? 'Unlock Opening Stock'
+              : section === 'closing' ? 'Unlock Closing Stock' : 'Re-open Day Movements';
+  document.getElementById('rop-title').textContent = label;
+  document.getElementById('rop-reason').value = '';
+  document.getElementById('rop-err').textContent = '';
+  document.getElementById('rop-confirm-btn').disabled = true;
+  document.getElementById('stock-reopen-confirm').style.display = 'flex';
+  setTimeout(() => document.getElementById('rop-reason').focus(), 80);
+}
+function ropValidate() {                                     // mirrors clkValidate() live-enable
+  const v = document.getElementById('rop-reason').value.trim();
+  document.getElementById('rop-confirm-btn').disabled = !v;
+  if (v) document.getElementById('rop-err').textContent = '';
+}
+function reopenCancel() { _ropSection = null; document.getElementById('stock-reopen-confirm').style.display = 'none'; }
+async function doReopenConfirm() {
+  if (roBlock()) { reopenCancel(); return; }                 // never write on a past day
+  if (st.mode !== 'sm') { toast('Only SM can re-open.', 'err'); reopenCancel(); return; }
+  const section = _ropSection;
+  if (!section) { reopenCancel(); return; }
+  const reason = document.getElementById('rop-reason').value.trim();
+  if (!reason) { document.getElementById('rop-err').textContent = 'Enter a reason to continue.'; return; }
+  if(!await stReauth('Re-open a locked section — this is permanently logged'))return;
+  const data = loadData();                                   // fresh — mirror doLockClosing, no stale closure
+  if (section === 'movements') data.movementsSubmitted = false;
+  else data[section + 'Locked'] = false;                     // lockedBy/At intentionally NOT cleared
+  data.reopenedCount = (Number.isInteger(data.reopenedCount) && data.reopenedCount >= 0 ? data.reopenedCount : 0) + 1;
+  if (!Array.isArray(data.reopenLog)) data.reopenLog = [];
+  data.reopenLog.push({ section: section, by: stActor(), role: st.mode, at: new Date().toISOString(), reason: reason });
+  if (data.reopenLog.length > 50) data.reopenLog = data.reopenLog.slice(-50);   // size guard, keep newest
+  saveData(data);
+  reopenCancel();
+  if (section === 'opening') renderOpening();
+  else if (section === 'closing') { renderMovements(); renderClosing(); }
+  else { updateClosingTabState(data); renderMovementsHeader(data); }
+  toast((section === 'movements' ? 'Day Movements re-opened'
+        : (section === 'opening' ? 'Opening' : 'Closing') + ' stock unlocked 🔓') + ' — recorded in audit trail', 'warn');
+}
+
+// Sync the Closing tab button lock state and the movements section UI
+function updateClosingTabState(data) {
+  data = data || loadData();
+  const submitted = !!data.movementsSubmitted;
+  const btn = document.getElementById('tbtn-closing');
+  if (btn) {
+    btn.classList.toggle('tab-locked', !submitted);
+    btn.title = submitted ? '' : 'Submit Day Movements first';
+  }
+}
+
+// Refresh just the header UI of the movements section (badges + buttons)
+function renderMovementsHeader(data) {
+  data = data || loadData();
+  const submitted = !!data.movementsSubmitted;
+  const badge     = document.getElementById('mov-submitted-badge');
+  const submitBtn = document.getElementById('btn-submit-mov');
+  const reopenBtn = document.getElementById('btn-reopen-mov');
+  const infoTxt   = document.getElementById('mov-info-txt');
+  if (badge)     badge.style.display     = submitted ? 'inline-flex' : 'none';
+  if (badge)     badge.title = (submitted && data.movementsSubmittedBy) ? ('Submitted by ' + data.movementsSubmittedBy + ' · ' + fmtStamp(data.movementsSubmittedAt)) : '';   // P1-5
+  if (submitBtn) submitBtn.style.display = submitted ? 'none'        : '';
+  if (reopenBtn) reopenBtn.style.display = submitted ? ''            : 'none';
+  const tUnits = getBrands(st.store).reduce((s,b)=>s+((data.movements[b]||{}).theft??0),0);   // P1-7
+  if (infoTxt)   infoTxt.innerHTML = submitted
+    ? 'Movements are <strong>submitted</strong>. Use <em>Re-open</em> (SM only) to make changes.' + (tUnits>0 ? ' <strong>Theft recorded</strong> — SM verifies at closing lock.' : '')
+    : 'Enter inward transfers, outward transfers, sales (POS), and GRN per brand. Click <strong>Submit</strong> when done to unlock Closing Stock.';
+}
+
+/* ══════════════════════════════════════════════════
+   NAVIGATION
+══════════════════════════════════════════════════ */
+function goTab(tab) {
+  // Gate: Settings requires SM mode
+  if (tab === 'settings' && st.mode !== 'sm') {
+    toast('Settings is SM-only. Please log in as SM.', 'err');
+    // Show the SM password modal as a shortcut
+    document.getElementById('sm-pw-inp').value = '';
+    document.getElementById('sm-pw-err').textContent = '';
+    document.getElementById('sm-auth-modal').style.display = 'flex';
+    setTimeout(() => document.getElementById('sm-pw-inp').focus(), 80);
+    return; // don't switch tabs
+  }
+  // Gate: Closing Stock requires Day Movements to be submitted first
+  if (tab === 'closing') {
+    const data = loadData();
+    if (!data.movementsSubmitted) {
+      toast('Submit Day Movements first before entering Closing Stock.', 'err');
+      tab = 'movements'; // redirect
+    }
+  }
+
+  st.tab = tab;
+  document.querySelectorAll('.sec').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(t => { t.classList.remove('active'); });
+  document.getElementById('sec-'+tab).classList.add('active');
+  // Don't add active to the closing tab if it is locked
+  const tBtn = document.getElementById('tbtn-'+tab);
+  if (tBtn && !tBtn.classList.contains('tab-locked')) tBtn.classList.add('active');
+  else if (tBtn) tBtn.classList.add('active'); // still show active when actually on it
+
+  if      (tab === 'opening')   renderOpening();
+  else if (tab === 'movements') renderMovements();
+  else if (tab === 'closing')   renderClosing();
+  else if (tab === 'summary')   renderSummary();
+  else if (tab === 'monthly')   renderMonthly();
+  else if (tab === 'settings')  renderSettings();
+}
+function setStore(s)   { st.store = s; saveAppState(); updateHeader(); goTab(st.tab); }
+function setDate(d)    { if (!d) return; st.date = d; saveAppState(); updateHeader(); goTab(st.tab); }
+
+/* ── SM AUTH ── */
+function setMode(m) {
+  if (m === 'sm') {
+    // Require password before granting SM access
+    document.getElementById('sm-pw-inp').value = '';
+    document.getElementById('sm-pw-err').textContent = '';
+    document.getElementById('sm-auth-modal').style.display = 'flex';
+    setTimeout(() => document.getElementById('sm-pw-inp').focus(), 80);
+  } else {
+    commitMode('cro');
+  }
+}
+function smAuthSubmit() {
+  const pw = document.getElementById('sm-pw-inp').value;
+  if (smPassOk(pw)) {
+    document.getElementById('sm-auth-modal').style.display = 'none';
+    commitMode('sm');
+    toast('SM mode activated.', 'ok');
+  } else {
+    const errEl = document.getElementById('sm-pw-err');
+    errEl.textContent = 'Incorrect password. Try again.';
+    const inp = document.getElementById('sm-pw-inp');
+    inp.value = ''; inp.focus();
+    inp.classList.add('cro-req');
+    setTimeout(() => inp.classList.remove('cro-req'), 1200);
+  }
+}
+function smAuthCancel() {
+  document.getElementById('sm-auth-modal').style.display = 'none';
+  // Snap button back to whichever mode is actually active
+  document.getElementById('mbtn-sm').classList.toggle('active', st.mode === 'sm');
+  document.getElementById('mbtn-cro').classList.toggle('active', st.mode === 'cro');
+}
+function commitMode(m) {
+  st.mode = m;
+  document.getElementById('mbtn-sm').classList.toggle('active', m === 'sm');
+  document.getElementById('mbtn-cro').classList.toggle('active', m === 'cro');
+  // Settings tab locked for CRO
+  const settingsBtn = document.getElementById('tbtn-settings');
+  if (settingsBtn) {
+    settingsBtn.classList.toggle('tab-locked', m !== 'sm');
+    settingsBtn.title = m === 'sm' ? '' : 'SM login required';
+  }
+  // If switching to CRO while on Settings, redirect to Opening
+  if (m === 'cro' && st.tab === 'settings') { goTab('opening'); return; }
+  goTab(st.tab);
+}
+
+/* ══════════════════════════════════════════════════
+   CRO MANAGEMENT
+══════════════════════════════════════════════════ */
+function addCRO() {
+  if (roBlock()) return;  // VIEW-ONLY past: no edits while viewing history
+  const inp = document.getElementById('cro-inp');
+  const n   = inp.value.trim();
+  if (!n) return;
+  const cros = getCROs();
+  if (cros.some(c => c.toLowerCase() === n.toLowerCase())) { toast('CRO name already exists.', 'err'); return; }
+  saveCROs([...cros, n]);
+  inp.value = '';
+  renderSettings();
+  toast(`CRO added: ${n}`, 'ok');
+}
+function removeCRO(i) {
+  if (roBlock()) return;  // VIEW-ONLY past: no edits while viewing history
+  const cros = getCROs();
+  const n = cros[i];
+  cros.splice(i, 1);
+  saveCROs(cros);
+  renderSettings();
+  toast(`Removed: ${n}`);
+}
+
+/* ══════════════════════════════════════════════════
+   BRAND MANAGEMENT (Settings → SM only)
+══════════════════════════════════════════════════ */
+function addBrand() {
+  if (roBlock()) return;  // VIEW-ONLY past: never create/auto-init rows on a read
+  if (st.mode !== 'sm') { toast('Only SM can add brands.', 'err'); return; }
+  const inp = document.getElementById('brand-inp');
+  const n   = inp.value.trim().toUpperCase();
+  if (!n) return;
+  const brands = getBrands(st.store);
+  if (brands.some(b => b === n)) { toast('Brand already exists.', 'err'); return; }
+  brands.push(n);
+  saveBrands(st.store, brands);
+  // Initialise this brand in today's data so it appears immediately in all tabs
+  const data = loadData();
+  if (!data.opening[n])   data.opening[n]   = { display:null, storage:null, defective:null, yLoc:null, systemStock:null, remarks:'', croName:'', time:'', verified:false, countDone:false };
+  if (!data.movements[n]) data.movements[n] = { inward:null, outward:null, sales:null, grn:null, theft:null, theftRemark:'' };
+  if (!data.closing[n])   data.closing[n]   = { display:null, storage:null, defective:null, yLoc:null, remarks:'', croName:'', time:'', verified:false, countDone:false };
+  saveData(data);
+  inp.value = '';
+  renderSettings();
+  toast(`Brand added: ${n}`, 'ok');
+}
+
+function removeBrand(i) {
+  if (roBlock()) return;  // VIEW-ONLY past: no edits while viewing history
+  if (st.mode !== 'sm') { toast('Only SM can remove brands.', 'err'); return; }
+  const brands = getBrands(st.store);
+  const name   = brands[i];
+  if (!confirm(`Remove "${name}" from the brand list?\n\nNote: Existing stock data for this brand is preserved — re-add the brand to access it again.`)) return;
+  brands.splice(i, 1);
+  saveBrands(st.store, brands);
+  renderSettings();
+  toast(`Removed: ${name}`);
+}
+
+function resetBrandsToDefault() {
+  if (roBlock()) return;  // VIEW-ONLY past: no edits while viewing history
+  if (st.mode !== 'sm') { toast('Only SM can reset brands.', 'err'); return; }
+  if (!confirm('Reset brand list to factory defaults? Your entered stock data is NOT deleted.')) return;
+  saveBrands(st.store, [...DEFAULT_BRANDS[st.store]]);
+  renderSettings();
+  toast('Brand list reset to defaults.', 'ok');
+}
+
+// Drag-to-reorder support
+let _dragIdx = null;
+function brandDragStart(e, i) { _dragIdx = i; e.dataTransfer.effectAllowed = 'move'; }
+function brandDragOver(e)     { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }
+function brandDrop(e, toIdx) {
+  e.preventDefault();
+  if (roBlock()) { _dragIdx = null; return; }  // VIEW-ONLY past: no reorder writes
+  if (_dragIdx === null || _dragIdx === toIdx) return;
+  const brands = getBrands(st.store);
+  const [moved] = brands.splice(_dragIdx, 1);
+  brands.splice(toIdx, 0, moved);
+  _dragIdx = null;
+  saveBrands(st.store, brands);
+  renderSettings();
+}
+
+/* ══════════════════════════════════════════════════
+   FIX 7 — IMPORT WITH SCHEMA VALIDATION
+══════════════════════════════════════════════════ */
+function validateImportSchema(parsed) {
+  const errs = [];
+  if (!parsed || typeof parsed !== 'object') return ['Not a valid JSON object'];
+  if (!parsed.store || !DEFAULT_BRANDS[parsed.store])          errs.push('Unknown store: "' + parsed.store + '"');
+  if (!parsed.date  || !/^\d{4}-\d{2}-\d{2}$/.test(parsed.date)) errs.push('Invalid date format (expected YYYY-MM-DD)');
+  if (!parsed.data  || typeof parsed.data !== 'object') errs.push('Missing or invalid data object');
+  if (parsed.data) {
+    if (typeof parsed.data.opening   !== 'object' || !parsed.data.opening)   errs.push('Missing opening section');
+    if (typeof parsed.data.movements !== 'object' || !parsed.data.movements) errs.push('Missing movements section');
+    if (typeof parsed.data.closing   !== 'object' || !parsed.data.closing)   errs.push('Missing closing section');
+    if ('openingLocked' in parsed.data && typeof parsed.data.openingLocked !== 'boolean') errs.push('openingLocked must be boolean');
+    if ('closingLocked' in parsed.data && typeof parsed.data.closingLocked !== 'boolean') errs.push('closingLocked must be boolean');
+  }
+  return errs;
+}
+
+function normaliseImportData(parsed) {
+  // Safely normalise each brand entry, filling missing fields with defaults
+  const store  = parsed.store;
+  const brands = getBrands(store);
+  const d      = parsed.data;
+  brands.forEach(b => {
+    if (!d.opening[b])   d.opening[b]   = {};
+    if (!d.movements[b]) d.movements[b] = {};
+    if (!d.closing[b])   d.closing[b]   = {};
+
+    const o = d.opening[b];
+    d.opening[b] = {
+      display:     parseStockInt(o.display)     ?? null,
+      storage:     parseStockInt(o.storage)     ?? null,
+      defective:   parseStockInt(o.defective)   ?? null,
+      yLoc:        parseStockInt(o.yLoc)        ?? null,
+      systemStock: parseStockInt(o.systemStock) ?? null,
+      remarks:     typeof o.remarks  === 'string' ? o.remarks  : '',
+      croName:     typeof o.croName  === 'string' ? o.croName  : '',
+      time:        typeof o.time     === 'string' ? o.time     : '',
+      verified:    o.verified   === true,
+      countDone:   o.countDone  === true,
+    };
+    const m = d.movements[b];
+    d.movements[b] = {
+      inward:  parseStockInt(m.inward)  ?? null,
+      outward: parseStockInt(m.outward) ?? null,
+      sales:   parseStockInt(m.sales)   ?? null,
+      grn:     parseStockInt(m.grn)     ?? null,
+      theft:   parseStockInt(m.theft)   ?? null,
+      theftRemark: typeof m.theftRemark === 'string' ? m.theftRemark : '',   // P1-7 CARRY
+    };
+    const c = d.closing[b];
+    d.closing[b] = {
+      display:   parseStockInt(c.display)   ?? null,
+      storage:   parseStockInt(c.storage)   ?? null,
+      defective: parseStockInt(c.defective) ?? null,
+      yLoc:      parseStockInt(c.yLoc)      ?? null,
+      remarks:   typeof c.remarks === 'string' ? c.remarks : '',
+      croName:   typeof c.croName === 'string' ? c.croName : '',
+      time:      typeof c.time    === 'string' ? c.time    : '',
+      verified:  c.verified  === true,
+      countDone: c.countDone === true,
+    };
+  });
+  d._v = SCHEMA_VERSION;
+  if (typeof d.openingLocked      !== 'boolean') d.openingLocked      = false;
+  if (typeof d.closingLocked      !== 'boolean') d.closingLocked      = false;
+  if (typeof d.movementsSubmitted !== 'boolean') d.movementsSubmitted = false;
+  /* ── Wave 9 P1-5: audit stamps (additive; top-level so old builds carry them through import) ── */
+  if (typeof d.openingLockedBy      !== 'string') d.openingLockedBy      = '';
+  if (typeof d.openingLockedAt      !== 'string') d.openingLockedAt      = '';
+  if (typeof d.closingLockedBy      !== 'string') d.closingLockedBy      = '';
+  if (typeof d.closingLockedAt      !== 'string') d.closingLockedAt      = '';
+  if (typeof d.movementsSubmittedBy !== 'string') d.movementsSubmittedBy = '';
+  if (typeof d.movementsSubmittedAt !== 'string') d.movementsSubmittedAt = '';
+  d.reopenedCount = (Number.isInteger(d.reopenedCount) && d.reopenedCount >= 0) ? d.reopenedCount : 0;
+  d.reopenLog = Array.isArray(d.reopenLog)
+    ? d.reopenLog.filter(function(e){ return e && typeof e === 'object'; }).map(function(e){ return {
+        section: (e.section==='opening'||e.section==='closing'||e.section==='movements') ? e.section : 'movements',
+        by:      typeof e.by     === 'string' ? e.by     : '',
+        role:    (e.role==='sm'||e.role==='cro') ? e.role : 'sm',
+        at:      typeof e.at     === 'string' ? e.at     : '',
+        reason:  typeof e.reason === 'string' ? e.reason : ''
+      }; }).slice(-50)
+    : [];
+  /* ── Wave 9 P1-7: theft verification stamp (shape-validate, else null) ── */
+  d.theftVerified = (d.theftVerified && typeof d.theftVerified === 'object'
+    && typeof d.theftVerified.by === 'string' && typeof d.theftVerified.at === 'string')
+    ? { by: d.theftVerified.by, at: d.theftVerified.at } : null;
+  d.d5Triage = (d.d5Triage && typeof d.d5Triage === 'object') ? d.d5Triage : {};
+  Object.keys(d.d5Triage).forEach(function(b){ d.d5Triage[b] = d5TriageFor(d,b); });
+  return parsed;
+}
+
+function importJSON(input) {
+  if (roBlock()) { input.value=''; return; }  // VIEW-ONLY past: no imports while viewing history
+  if (st.mode !== 'sm') { toast('Only SM can import data.', 'err'); input.value=''; return; }
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      let parsed;
+      try { parsed = JSON.parse(e.target.result); } catch(pe) { toast('Invalid JSON — cannot parse file.', 'err'); input.value=''; return; }
+
+      // Single-record format
+      if (parsed.store && parsed.data) {
+        const errs = validateImportSchema(parsed);
+        if (errs.length) { toast('Import rejected: ' + errs.join('; '), 'err'); input.value=''; return; }
+        const norm = normaliseImportData(parsed);
+        localStorage.setItem(SK_PREFIX + norm.store + '_' + norm.date, JSON.stringify(norm.data));
+        toast('Data imported ✓', 'ok');
+        goTab(st.tab);
+      }
+      // Full-backup format: object of keyed records
+      else if (typeof parsed === 'object' && !Array.isArray(parsed)) {
+        let count = 0, failed = 0;
+        Object.entries(parsed).forEach(([k, v]) => {
+          if (k === SK_CROS || k === SK_BRANDS || k === SK_STATE) {
+            localStorage.setItem(k, JSON.stringify(v));
+            count++;
+            return;
+          }
+          if (!k.startsWith(SK_PREFIX)) return;
+          // Reconstruct as single-record format to validate
+          const parts = k.replace(SK_PREFIX,'').split('_');
+          if (parts.length < 2) { failed++; return; }
+          const fakeRec = { store: parts[0], date: parts[1], data: v };
+          const errs    = validateImportSchema(fakeRec);
+          if (errs.length) { failed++; return; }
+          const norm = normaliseImportData(fakeRec);
+          localStorage.setItem(k, JSON.stringify(norm.data));
+          count++;
+        });
+        toast(`Full backup imported: ${count} records${failed?' ('+failed+' skipped)':''}`, count?'ok':'warn');
+        goTab(st.tab);
+      } else {
+        toast('Unrecognised file format.', 'err');
+      }
+    } catch(err) { toast('Import error: ' + err.message, 'err'); }
+    input.value = '';
+  };
+  reader.readAsText(file);
+}
+
+/* ══════════════════════════════════════════════════
+   EXPORT
+══════════════════════════════════════════════════ */
+function exportJSON() {
+  const label = st.store === 'titanworld' ? 'TitanWorld' : 'Helios';
+  const blob  = new Blob([JSON.stringify({ _v:SCHEMA_VERSION, store:st.store, date:st.date, data:loadData() }, null, 2)], { type:'application/json' });
+  dlBlob(blob, `StockRegister_${label}_${st.date}.json`, getBrands(st.store).length, 'stock-day-register');
+}
+function exportAllJSON() {
+  const all = {};
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && (k.startsWith(SK_PREFIX) || k === SK_CROS || k === SK_BRANDS || k === SK_STATE)) {
+      try { all[k] = JSON.parse(localStorage.getItem(k)); } catch(e) {}
+    }
+  }
+  const blob = new Blob([JSON.stringify(all, null, 2)], { type:'application/json' });
+  dlBlob(blob, `StockBackup_${todayStr()}.json`, Object.keys(all).length, 'stock-full-backup');
+}
+function exportCSV() {
+  const data   = loadData();
+  const brands = getBrands(st.store);
+  const store  = st.store === 'titanworld' ? 'Titan World' : 'Helios';
+  const rows   = [
+    [`Daily Stock Summary — ${store} — ${fmtDate(st.date)}`], [],
+    ['Brand','Opening System','Inward','GRN','Outward','Sales','Theft','Closing System','Closing Physical','Variance','Status']
+  ];
+  brands.forEach(b => {
+    const o = data.opening[b]||{}, m = data.movements[b]||{}, c = data.closing[b]||{};
+    const opS = o.systemStock??0, inw=m.inward??0, grn=m.grn??0;
+    const outw=m.outward??0, sales=m.sales??0, theft=m.theft??0;
+    const cls = closingSys(b, data), clp = totalPhys(c)??0, vr = clp - cls;
+    const counted = isCounted(c);
+    const status  = !counted ? 'Pending' : vr===0 ? 'Match' : 'Gap';
+    rows.push([b, opS, inw, grn, outw, sales, theft, cls, counted?clp:'', counted?vr:'', status]);
+  });
+  const csv  = rows.map(r => r.map(v => `"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\r\n');
+  const blob = new Blob(['﻿'+csv], { type:'text/csv;charset=utf-8' }); // BOM for Excel
+  dlBlob(blob, `StockSummary_${st.store}_${st.date}.csv`, brands.length, 'stock-day-summary');
+}
+
+/* ══════════════════════════════════════════════════
+   CLEAR
+══════════════════════════════════════════════════ */
+function clearDay() {
+  if (roBlock()) return;  // VIEW-ONLY past: never delete a read-only day
+  const s = st.store==='titanworld'?'Titan World':'Helios';
+  if (!confirm(`Clear ALL data for ${s} on ${fmtDate(st.date)}?\n\nThis cannot be undone.`)) return;
+  localStorage.removeItem(dataKey());
+  toast('Day data cleared.'); goTab(st.tab);
+}
+function clearAll() {
+  if (roBlock()) return;  // VIEW-ONLY past: no destructive actions while viewing history
+  // Show the typed-DELETE confirmation modal
+  document.getElementById('del-inp').value = '';
+  document.getElementById('del-err').textContent = '';
+  document.getElementById('del-submit-btn').disabled = true;
+  document.getElementById('del-confirm-modal').style.display = 'flex';
+  setTimeout(() => document.getElementById('del-inp').focus(), 80);
+}
+function delConfirmSubmit() {
+  if (roBlock()) { delCancel(); return; }  // VIEW-ONLY past: never delete while viewing history
+  if (document.getElementById('del-inp').value !== 'DELETE') {
+    document.getElementById('del-err').textContent = 'You must type DELETE exactly (in capitals).';
+    return;
+  }
+  document.getElementById('del-confirm-modal').style.display = 'none';
+  const keys = [];
+  for (let i=0; i<localStorage.length; i++) { const k=localStorage.key(i); if (k&&k.startsWith(SK_PREFIX)) keys.push(k); }
+  keys.forEach(k => localStorage.removeItem(k));
+  toast('All data permanently deleted.', 'err');
+  goTab('opening');
+}
+function delCancel() {
+  document.getElementById('del-confirm-modal').style.display = 'none';
+}
+
+/* ══════════════════════════════════════════════════
+   UTILITIES
+══════════════════════════════════════════════════ */
+// Collision-free, deterministic DOM key. Hex code points keep every distinct
+// stored brand distinct without changing the storage key or displayed name.
+function bid(brand) {
+  return 'b_' + Array.from(String(brand), ch => ch.codePointAt(0).toString(16)).join('_');
+}
+
+// Reverse-lookup: given a bid-form string, find the original brand name from current store list.
+// Needed because inline event handlers pass bid(brand) but data is keyed by original name.
+function getBrandByBid(b) {
+  return getBrands(st.store).find(br => bid(br) === b) || b;
+}
+
+function esc(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function _el(id, fn) { const el = document.getElementById(id); if (el) fn(el); }
+
+/* ══════════════════════════════════════════════════
+   PRINT PREVIEW BRIDGE (shell on-screen preview)
+   Raw window.print() is blank inside the Android WebView iframe.
+   stPrintDoc posts the built document to the shell's preview bridge
+   (ST_PRINT). Falls back to a popup / window.print() outside the shell.
+══════════════════════════════════════════════════ */
+function stEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function stPrintDoc(o){
+  o=o||{};
+  const html='<div id="sp-doc">'+(o.body||'')+'</div>';
+  try{
+    if(window.parent&&window.parent!==window){
+      window.parent.postMessage({type:'ST_PRINT',title:o.title||'Print',css:o.css||'',html:html,orientation:o.orientation||'portrait',fileBase:o.fileBase||o.title},SaagarModuleRuntime.targetOrigin);
+      return;
+    }
+  }catch(e){}
+  try{ toast('Controlled print is available only inside Saagar Control Centre.','err'); }catch(e){}
+}
+
+/* ── Shared bits for the four register print builders ──────────────────
+   Each builder reads the live in-memory data model (loadData / getBrands)
+   and renders a self-contained .stp-* document; the module's own table CSS
+   is NOT available in the preview, so only the shared theme classes are used.
+   Numbers render as text (never <input> boxes). */
+function stStoreFull(){ return st.store === 'titanworld' ? 'Titan World (WLMHW)' : 'Helios (HEMW)'; }
+function stHead(docType, context){
+  return '<div class="stp-head">'
+       +   '<div class="stp-brand">Saagar Traders<small>Stock · ' + stEsc(stStoreFull()) + '</small></div>'
+       +   '<div class="stp-title">' + stEsc(docType) + '<small>' + stEsc(context || fmtDate(st.date)) + '</small></div>'
+       + '</div>';
+}
+function stMeta(){
+  return '<div class="stp-meta">'
+       +   '<span><b>Date:</b> ' + stEsc(fmtDate(st.date)) + '</span>'
+       +   '<span><b>Store:</b> ' + stEsc(stStoreFull()) + '</span>'
+       +   '<span><b>Mode:</b> ' + stEsc(st.mode === 'sm' ? 'SM' : 'CRO') + '</span>'
+       + '</div>';
+}
+/* Variance as plain text for print (mirrors on-screen varText) */
+function stVar(vr){ return vr === 0 ? '0' : (vr > 0 ? '+' + vr : String(vr)); }
+
+/* ── 1. OPENING STOCK REGISTER ── */
+function printOpeningReg(){
+  const data   = loadData();
+  const brands = getBrands(st.store);
+  let body = stHead('Opening Stock Register', fmtDate(st.date)) + stMeta();
+  if (!brands.length) {
+    body += '<div class="stp-empty">No entries.</div>';
+  } else {
+    let tSys = 0, tPhys = 0;
+    const rows = brands.map(brand => {
+      const o    = data.opening[brand] || {};
+      const sys  = o.systemStock;
+      const phys = totalPhys(o);
+      const sysN = sys ?? 0, physN = phys ?? 0;
+      const vr   = physN - sysN;
+      tSys += sysN; tPhys += physN;
+      const counted = isCounted(o);
+      const status  = o.verified ? 'Verified'
+                    : (counted && vr !== 0) ? 'Mismatch'
+                    : (sys !== null && !counted) ? 'Pending'
+                    : counted ? 'Counted' : '—';
+      return '<tr>'
+        + '<td>' + stEsc(brand) + '</td>'
+        + '<td class="stp-r">' + (sys  !== null ? stEsc(sys)  : '—') + '</td>'
+        + '<td>' + (o.croName ? stEsc(o.croName) : '<span class="stp-mut">—</span>') + '</td>'
+        + '<td class="stp-r">' + (phys !== null ? stEsc(phys) : '—') + '</td>'
+        + '<td class="stp-r">' + ((phys !== null || sys !== null) ? stEsc(stVar(vr)) : '—') + '</td>'
+        + '<td>' + stEsc(status) + '</td>'
+        + '<td>' + stEsc(o.remarks || '') + '</td>'
+        + '</tr>';
+    }).join('');
+    body += '<div class="stp-sec"><div class="stp-sec-t">Brand-wise Opening Count</div>'
+      + '<table class="stp-table">'
+      + '<thead><tr><th>Brand</th><th class="stp-r">System</th><th>CRO</th><th class="stp-r">Physical</th><th class="stp-r">Variance</th><th>Status</th><th>Remarks</th></tr></thead>'
+      + '<tbody>' + rows + '</tbody>'
+      + '<tfoot><tr><td>TOTAL</td><td class="stp-r">' + tSys + '</td><td></td><td class="stp-r">' + tPhys + '</td><td class="stp-r">' + stVar(tPhys - tSys) + '</td><td></td><td></td></tr></tfoot>'
+      + '</table></div>';
+  }
+  stPrintDoc({ title:'Stock — Opening Stock Register', fileBase:'Stock-Opening-' + st.date, body, orientation:'portrait' });
+}
+
+/* ── 2. DAY MOVEMENTS REGISTER ── */
+function printMovementsReg(){
+  const data   = loadData();
+  const brands = getBrands(st.store);
+  let body = stHead('Day Movements Register', fmtDate(st.date)) + stMeta();
+  if (!brands.length) {
+    body += '<div class="stp-empty">No entries.</div>';
+  } else {
+    let tIn=0, tOut=0, tSales=0, tGrn=0, tTheft=0;
+    const rows = brands.map(brand => {
+      const m = data.movements[brand] || {};
+      const inw = m.inward ?? 0, outw = m.outward ?? 0, sales = m.sales ?? 0, grn = m.grn ?? 0, theft = m.theft ?? 0;
+      const net = netMov(m);
+      tIn += inw; tOut += outw; tSales += sales; tGrn += grn; tTheft += theft;
+      return '<tr>'
+        + '<td>' + stEsc(brand) + '</td>'
+        + '<td class="stp-r">' + stEsc(inw)   + '</td>'
+        + '<td class="stp-r">' + stEsc(outw)  + '</td>'
+        + '<td class="stp-r">' + stEsc(sales) + '</td>'
+        + '<td class="stp-r">' + stEsc(grn)   + '</td>'
+        + '<td class="stp-r">' + stEsc(theft) + '</td>'
+        + '<td class="stp-r">' + stEsc(stVar(net)) + '</td>'
+        + '</tr>';
+    }).join('');
+    const tNet = tIn + tGrn - tOut - tSales - tTheft;
+    body += '<div class="stp-sec"><div class="stp-sec-t">Brand-wise Stock Movements</div>'
+      + '<table class="stp-table">'
+      + '<thead><tr><th>Brand</th><th class="stp-r">Inward</th><th class="stp-r">Outward</th><th class="stp-r">Sales</th><th class="stp-r">GRN</th><th class="stp-r">Theft</th><th class="stp-r">Net</th></tr></thead>'
+      + '<tbody>' + rows + '</tbody>'
+      + '<tfoot><tr><td>TOTAL</td><td class="stp-r">' + tIn + '</td><td class="stp-r">' + tOut + '</td><td class="stp-r">' + tSales + '</td><td class="stp-r">' + tGrn + '</td><td class="stp-r">' + tTheft + '</td><td class="stp-r">' + stVar(tNet) + '</td></tr></tfoot>'
+      + '</table></div>';
+  }
+  stPrintDoc({ title:'Stock — Day Movements Register', fileBase:'Stock-Movements-' + st.date, body, orientation:'portrait' });
+}
+
+/* ── 3. CLOSING STOCK REGISTER ── */
+function printClosingReg(){
+  const data   = loadData();
+  const brands = getBrands(st.store);
+  let body = stHead('Closing Stock Register', fmtDate(st.date)) + stMeta();
+  if (!brands.length) {
+    body += '<div class="stp-empty">No entries.</div>';
+  } else {
+    let tSys = 0, tPhys = 0;
+    const rows = brands.map(brand => {
+      const c    = data.closing[brand] || {};
+      const cSys = closingSys(brand, data);
+      const phys = totalPhys(c);
+      const physN = phys ?? 0;
+      const vr   = physN - cSys;
+      tSys += cSys; tPhys += physN;
+      const counted = isCounted(c);
+      const status  = c.verified ? 'Verified'
+                    : (counted && vr !== 0) ? 'Mismatch'
+                    : (!counted && cSys !== 0) ? 'Pending'
+                    : counted ? 'Counted' : '—';
+      return '<tr>'
+        + '<td>' + stEsc(brand) + '</td>'
+        + '<td class="stp-r">' + stEsc(cSys) + '</td>'
+        + '<td>' + (c.croName ? stEsc(c.croName) : '<span class="stp-mut">—</span>') + '</td>'
+        + '<td class="stp-r">' + (phys !== null ? stEsc(phys) : '—') + '</td>'
+        + '<td class="stp-r">' + ((counted || cSys !== 0) ? stEsc(stVar(vr)) : '—') + '</td>'
+        + '<td>' + stEsc(status) + '</td>'
+        + '<td>' + stEsc(c.remarks || '') + '</td>'
+        + '</tr>';
+    }).join('');
+    body += '<div class="stp-sec"><div class="stp-sec-t">Brand-wise Closing Count</div>'
+      + '<table class="stp-table">'
+      + '<thead><tr><th>Brand</th><th class="stp-r">Closing System</th><th>CRO</th><th class="stp-r">Physical</th><th class="stp-r">Variance</th><th>Status</th><th>Remarks</th></tr></thead>'
+      + '<tbody>' + rows + '</tbody>'
+      + '<tfoot><tr><td>TOTAL</td><td class="stp-r">' + tSys + '</td><td></td><td class="stp-r">' + tPhys + '</td><td class="stp-r">' + stVar(tPhys - tSys) + '</td><td></td><td></td></tr></tfoot>'
+      + '</table></div>';
+  }
+  stPrintDoc({ title:'Stock — Closing Stock Register', fileBase:'Stock-Closing-' + st.date, body, orientation:'portrait' });
+}
+
+/* ── 4. DAILY STOCK SUMMARY REPORT ── */
+function printSummaryReg(){
+  const data   = loadData();
+  const brands = getBrands(st.store);
+  let body = stHead('Daily Stock Summary Report', fmtDate(st.date)) + stMeta();
+  if (!brands.length) {
+    body += '<div class="stp-empty">No entries.</div>';
+  } else {
+    let tOpS=0, tIn=0, tGrn=0, tOut=0, tSales=0, tTheft=0, tClS=0, tClP=0;
+    let matched=0, gapped=0, pending=0;
+    const rows = brands.map(brand => {
+      const o = data.opening[brand]   || {};
+      const m = data.movements[brand] || {};
+      const c = data.closing[brand]   || {};
+      const opS  = o.systemStock ?? 0;
+      const inw  = m.inward  ?? 0, grn  = m.grn   ?? 0;
+      const outw = m.outward ?? 0, sales = m.sales ?? 0;
+      const theft = m.theft  ?? 0;
+      const clS  = closingSys(brand, data);
+      const clP  = totalPhys(c) ?? 0;
+      const vr   = clP - clS;
+      tOpS += opS; tIn += inw; tGrn += grn; tOut += outw; tSales += sales; tTheft += theft; tClS += clS; tClP += clP;
+      const hasActivity = o.systemStock !== null || inw > 0 || grn > 0 || outw > 0 || sales > 0 || theft > 0 || clS !== 0;
+      const counted = isCounted(c);
+      let status = '—';
+      if (hasActivity) {
+        if (!counted)       { status = 'Pending'; pending++; }
+        else if (vr === 0)  { status = 'Match';   matched++; }
+        else                { status = 'Gap (' + stVar(vr) + ')'; gapped++; }
+      }
+      return '<tr>'
+        + '<td>' + stEsc(brand) + '</td>'
+        + '<td class="stp-r">' + stEsc(opS   || '—') + '</td>'
+        + '<td class="stp-r">' + stEsc(inw   || '—') + '</td>'
+        + '<td class="stp-r">' + stEsc(grn   || '—') + '</td>'
+        + '<td class="stp-r">' + stEsc(outw  || '—') + '</td>'
+        + '<td class="stp-r">' + stEsc(sales || '—') + '</td>'
+        + '<td class="stp-r">' + stEsc(theft || '—') + '</td>'
+        + '<td class="stp-r">' + stEsc(clS) + '</td>'
+        + '<td class="stp-r">' + (counted ? stEsc(clP) : '—') + '</td>'
+        + '<td class="stp-r">' + ((hasActivity && counted) ? stEsc(stVar(vr)) : '—') + '</td>'
+        + '<td>' + stEsc(status) + '</td>'
+        + '</tr>';
+    }).join('');
+    const tVr = tClP - tClS;
+    body += '<div class="stp-cards">'
+      + '<div class="stp-card"><h4>Opening System</h4><div class="v">' + tOpS + '</div></div>'
+      + '<div class="stp-card"><h4>Inward + GRN</h4><div class="v">' + (tIn + tGrn) + '</div></div>'
+      + '<div class="stp-card"><h4>Sales</h4><div class="v">' + tSales + '</div></div>'
+      + '<div class="stp-card"><h4>Closing System</h4><div class="v">' + tClS + '</div></div>'
+      + '<div class="stp-card"><h4>Closing Physical</h4><div class="v">' + tClP + '</div></div>'
+      + '<div class="stp-card"><h4>Net Variance</h4><div class="v">' + (tVr === 0 ? '0' : stVar(tVr)) + '</div></div>'
+      + '<div class="stp-card"><h4>Brands Matched</h4><div class="v">' + matched + ' / ' + brands.length + '</div></div>'
+      + '</div>';
+    /* P1-8: same cross-check on the printed register. FIX: mirror renderDsrRecon's exact
+       THREE-way logic (not-entered / OK / MISMATCH) so the print no longer shows a false
+       MISMATCH when the Stock "Sales" column is simply blank but a DSR salesCount exists. */
+    const _ru = data._dsrRollup, _dsrN = _ru ? Number(_ru.salesCount) : NaN;
+    if (Number.isFinite(_dsrN) && _dsrN >= 0) {
+      const _stockN = Number(tSales) || 0;
+      const _anyEntered = brands.some(b => {
+        const m = data.movements[b] || {}; return m.sales !== null && m.sales !== undefined;
+      });
+      let _cc;
+      if (!_anyEntered && _dsrN > 0) {
+        _cc = 'DSR sales ' + _dsrN + ' — Stock “Sales” column not entered yet';
+      } else if (_stockN === _dsrN) {
+        _cc = 'Stock sales ' + _stockN + ' vs DSR sales ' + _dsrN + ' — OK';
+      } else {
+        _cc = 'Stock sales ' + _stockN + ' vs DSR sales ' + _dsrN + ' — MISMATCH (' + stVar(_stockN - _dsrN) + ')';
+      }
+      body += '<div style="margin:6px 0 10px;font:600 11px Arial,sans-serif">Cross-check: ' + _cc + '</div>';
+    }
+    body += '<div class="stp-sec"><div class="stp-sec-t">Brand-wise Stock Movement</div>'
+      + '<table class="stp-table">'
+      + '<thead><tr><th>Brand</th><th class="stp-r">Opening Sys</th><th class="stp-r">Inward</th><th class="stp-r">GRN</th><th class="stp-r">Outward</th><th class="stp-r">Sales</th><th class="stp-r">Theft</th><th class="stp-r">Closing Sys</th><th class="stp-r">Closing Phys</th><th class="stp-r">Variance</th><th>Status</th></tr></thead>'
+      + '<tbody>' + rows + '</tbody>'
+      + '<tfoot><tr><td>TOTAL</td><td class="stp-r">' + tOpS + '</td><td class="stp-r">' + tIn + '</td><td class="stp-r">' + tGrn + '</td><td class="stp-r">' + tOut + '</td><td class="stp-r">' + tSales + '</td><td class="stp-r">' + tTheft + '</td><td class="stp-r">' + tClS + '</td><td class="stp-r">' + tClP + '</td><td class="stp-r">' + stVar(tVr) + '</td><td></td></tr></tfoot>'
+      + '</table></div>';
+  }
+  /* P1-5: Audit Trail — printed even for an empty brand list */
+  const audRows = [
+    ['Opening lock',      data.openingLocked      ? (data.openingLockedBy || '—')      + (data.openingLockedAt      ? ' · ' + fmtStamp(data.openingLockedAt)      : '') : 'Not locked'],
+    ['Movements submit',  data.movementsSubmitted ? (data.movementsSubmittedBy || '—') + (data.movementsSubmittedAt ? ' · ' + fmtStamp(data.movementsSubmittedAt) : '') : 'Not submitted'],
+    ['Closing lock',      data.closingLocked      ? (data.closingLockedBy || '—')      + (data.closingLockedAt      ? ' · ' + fmtStamp(data.closingLockedAt)      : '') : 'Not locked'],
+    ['Re-opened',         (Number.isInteger(data.reopenedCount) && data.reopenedCount) ? data.reopenedCount + '× — see log' : 'Never']
+  ];
+  /* FIX: drop non-object elements from a corrupt reopenLog (e.g. [null]) before mapping */
+  const rlog = (Array.isArray(data.reopenLog) ? data.reopenLog : []).filter(u => u && typeof u === 'object');
+  body += '<div class="stp-sec"><div class="stp-sec-t">Audit Trail — Who Signed Off</div>'
+    + '<table class="stp-table"><thead><tr><th>Step</th><th>By / When</th></tr></thead><tbody>'
+    + audRows.map(r => '<tr><td>' + stEsc(r[0]) + '</td><td>' + stEsc(r[1]) + '</td></tr>').join('')
+    + '</tbody></table>'
+    + (rlog.length
+        ? '<table class="stp-table"><thead><tr><th>Re-opened</th><th>By</th><th>When</th><th>Reason</th></tr></thead><tbody>'
+          + rlog.map(u => '<tr><td>' + stEsc(u.section === 'opening' ? 'Opening' : u.section === 'closing' ? 'Closing' : 'Movements') + '</td><td>' + stEsc(u.by || '—') + '</td><td>' + stEsc(fmtStamp(u.at)) + '</td><td>' + stEsc(u.reason || '') + '</td></tr>').join('')
+          + '</tbody></table>' : '')
+    + '</div>';
+  stPrintDoc({ title:'Stock — Daily Summary Report', fileBase:'Stock-Summary-' + st.date, body, orientation:'landscape' });
+}
+
+/* ── 5. MONTHLY VARIANCE & SHRINKAGE (P1-6) ── */
+function printMonthlyReg(){
+  const ym  = _monMonth || st.date.slice(0,7);
+  const agg = monAggregate(st.store, ym);
+  let body = stHead('Monthly Variance & Shrinkage', monLabel(ym))
+    + '<div class="stp-meta">'
+    +   '<span><b>Month:</b> ' + stEsc(monLabel(ym)) + '</span>'
+    +   '<span><b>Store:</b> ' + stEsc(stStoreFull()) + '</span>'
+    +   '<span><b>Days with data:</b> ' + agg.days.length + ' / ' + agg.nDays + '</span>'
+    +   '<span><b>Repeat offender rule:</b> variance/theft on ≥ ' + _monN + ' days</span>'
+    + '</div>';
+  if(!agg.rows.length){
+    body += '<div class="stp-empty">No stock records for ' + stEsc(monLabel(ym)) + '.</div>';
+  } else {
+    let tNet = 0, tTheft = 0, offRows = [];
+    agg.rows.forEach(r => { tNet += r.netVar; tTheft += r.theftUnits; if(r.offendDays >= _monN) offRows.push(r); });
+    body += '<div class="stp-cards">'
+      + '<div class="stp-card"><h4>Net Month Variance</h4><div class="v">' + (tNet === 0 ? '0' : stVar(tNet)) + '</div></div>'
+      + '<div class="stp-card"><h4>Theft / Loss Units</h4><div class="v">' + tTheft + '</div></div>'
+      + '<div class="stp-card"><h4>Repeat Offenders</h4><div class="v">' + offRows.length + ' / ' + agg.rows.length + '</div></div>'
+      + '</div>';
+    /* Brand × day grid */
+    let head = '<tr><th>Brand</th>';
+    for(let i = 1; i <= agg.nDays; i++) head += '<th class="stp-c">' + i + '</th>';
+    head += '<th class="stp-r">Net</th><th class="stp-r">Theft</th></tr>';
+    const grid = agg.rows.map(r => {
+      const off = r.offendDays >= _monN;
+      let tr = '<tr' + (off ? ' class="stp-off"' : '') + '><td>' + stEsc(r.brand) + (off ? ' ⚠' : '') + '</td>';
+      for(let i = 1; i <= agg.nDays; i++){
+        const c = r.cells[i]; let txt = '';
+        if(c && c.hasActivity){ txt = !c.counted ? '—' : (c.vr === 0 ? '0' : stVar(c.vr)); if(c.theft > 0) txt += '*'; }
+        else if(c && c.theft > 0){ txt = '*'; }
+        tr += '<td class="stp-c' + (c && c.hasActivity && c.counted && c.vr !== 0 ? ' stp-gap' : '') + '">' + txt + '</td>';
+      }
+      return tr + '<td class="stp-r">' + (r.netVar === 0 ? '0' : stVar(r.netVar)) + '</td><td class="stp-r">' + (r.theftUnits || '') + '</td></tr>';
+    }).join('');
+    body += '<div class="stp-sec mon-grid-sec"><div class="stp-sec-t">Brand × Day Variance Grid</div>'
+      + '<table class="stp-table mon-grid"><thead>' + head + '</thead><tbody>' + grid + '</tbody></table>'
+      + '<div class="stp-foot" style="text-align:left">Cell = closing physical − closing system (Daily Summary formula) · “—” = activity but not counted · “*” = theft recorded that day · blank = no data · ⚠ = repeat offender (≥ ' + _monN + ' days with variance/theft).</div></div>';
+    /* Repeat offenders */
+    body += '<div class="stp-sec"><div class="stp-sec-t">Repeat Offender Brands (variance/theft on ≥ ' + _monN + ' days)</div>';
+    body += offRows.length
+      ? '<table class="stp-table"><thead><tr><th>Brand</th><th class="stp-r">Offending Days</th><th class="stp-r">Variance Days</th><th class="stp-r">Theft Days</th><th class="stp-r">Net Variance</th><th class="stp-r">Theft Units</th></tr></thead><tbody>'
+        + offRows.map(r => '<tr><td>' + stEsc(r.brand) + '</td><td class="stp-r">' + r.offendDays + '</td><td class="stp-r">' + r.varDays + '</td><td class="stp-r">' + r.theftDays + '</td><td class="stp-r">' + stVar(r.netVar) + '</td><td class="stp-r">' + r.theftUnits + '</td></tr>').join('')
+        + '</tbody></table>'
+      : '<div class="stp-empty">None — no brand crossed the threshold this month.</div>';
+    body += '</div>';
+    /* Theft / Loss log — P1-7 remarks when present */
+    const thefts = []; agg.rows.forEach(r => r.thefts.forEach(t => thefts.push(t)));
+    thefts.sort((a,b) => a.date < b.date ? -1 : a.date > b.date ? 1 : a.brand.localeCompare(b.brand));
+    if(thefts.length){
+      body += '<div class="stp-sec"><div class="stp-sec-t">Theft / Loss Log</div>'
+        + '<table class="stp-table"><thead><tr><th>Date</th><th>Brand</th><th class="stp-r">Units</th><th>Remark</th><th>Verified</th></tr></thead><tbody>'
+        + thefts.map(t => '<tr><td>' + stEsc(fmtDate(t.date)) + '</td><td>' + stEsc(t.brand) + '</td><td class="stp-r">' + t.units + '</td><td>' + (t.remark ? stEsc(t.remark) : '<span class="stp-mut">—</span>') + '</td><td>' + (t.verified ? '✓ SM' : '<span class="stp-mut">—</span>') + '</td></tr>').join('')
+        + '</tbody></table></div>';
+    }
+  }
+  stPrintDoc({
+    title: 'Stock — Monthly Variance & Shrinkage',
+    fileBase: 'Stock-Monthly-' + st.store + '-' + ym,
+    orientation: 'landscape',
+    css: '.mon-grid th,.mon-grid td{padding:2px 3px !important;font-size:6.5pt !important}'
+       + '.mon-grid td.stp-gap{color:#b00020;font-weight:700}'
+       + 'tr.stp-off td:first-child{color:#b00020;font-weight:700}'
+       + '.mon-grid-sec{page-break-inside:auto}',   // grid may exceed one page — don't force-keep
+    body
+  });
+}
+
+function dlBlob(blob, name, rowCount, scopeId) {
+  if(window.parent&&window.parent!==window){
+    window.parent.postMessage({type:'ST_SHARE',file:blob,fileName:name,title:'Stock export',exportId:'stock-file-export',scopeId:scopeId||'stock-register',scopeLabel:'stock register export',rowCount:Number(rowCount)||0,purposeId:'inventory-control'},SaagarModuleRuntime.targetOrigin);
+    return;
+  }
+  toast('Controlled export is available only inside Saagar Control Centre.','err');
+}
+
+/* Highlight the CRO select in the given row red, clear when name is chosen */
+function flashCROReq(section, brandId) {
+  const rowId = section === 'opening' ? 'row-open-' + brandId : 'row-close-' + brandId;
+  const sel   = document.getElementById(rowId)?.querySelector('.cro-sel');
+  if (!sel) return;
+  sel.classList.add('cro-req');
+  sel.focus();
+}
+function clearCROReq(section, brandId) {
+  const rowId = section === 'opening' ? 'row-open-' + brandId : 'row-close-' + brandId;
+  const sel   = document.getElementById(rowId)?.querySelector('.cro-sel');
+  if (sel) sel.classList.remove('cro-req');
+}
+
+function toast(msg, type = '') {
+  const wrap = document.getElementById('toasts');
+  const el   = document.createElement('div');
+  el.className = 'toast ' + type;
+  el.textContent = msg;
+  wrap.appendChild(el);
+  setTimeout(() => el.remove(), 3200);
+}
+
+function croOptions(cros, selected) {
+  return ['<option value="">—</option>',
+    ...cros.map(c => `<option value="${esc(c)}"${selected===c?' selected':''}>${esc(c)}</option>`)
+  ].join('');
+}
+
+/* Empty-state row for a store whose brand list has been fully cleared.
+   Purely presentational — spans all columns so the register reads as
+   "no brands yet" instead of a blank body. SM is pointed at Settings. */
+function emptyStateRow(cols) {
+  const isSM = st.mode === 'sm';
+  const hint = isSM
+    ? 'Add watch brands in <strong>Settings → Brand List</strong> to begin.'
+    : 'Ask the Store Manager to add brands in Settings.';
+  return `<tr class="empty-row"><td colspan="${cols}">
+      <div class="tbl-empty">
+        <span class="ico">📦</span>
+        <div class="ttl">No brands for this store</div>
+        <div class="msg">${hint}</div>
+      </div></td></tr>`;
+}
+
+/* ══════════════════════════════════════════════════
+   INIT
+══════════════════════════════════════════════════ */
+(function init() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SK_STATE)||'{}');
+    if (saved.store && DEFAULT_BRANDS[saved.store]) st.store = saved.store;
+    if (saved.date  && /^\d{4}-\d{2}-\d{2}$/.test(saved.date)) st.date = saved.date;
+  } catch(e) {}
+  // VIEW-DATE RAIL: the shell's view-date wins over the persisted appstate date.
+  // Seeded BEFORE our scripts run, so it is safe to read here. Defaults to today
+  // when empty/invalid, leaving original behaviour unchanged.
+  applyAsOf();
+  updateHeader();
+  updateClosingTabState(); // set lock on Closing tab before first render
+  // Settings tab always locked on startup (mode starts as CRO)
+  const settingsBtn = document.getElementById('tbtn-settings');
+  if (settingsBtn) { settingsBtn.classList.add('tab-locked'); settingsBtn.title = 'SM login required'; }
+  goTab('opening');
+})();
+
+/* ══════════════════════════════════════════════════
+   VIEW-DATE RAIL — live updates from the shell.
+   When the user picks a different day, re-seed st.date and re-render the
+   current tab via the existing render path (goTab). Past days land read-only.
+══════════════════════════════════════════════════ */
+window.addEventListener('st-date', function (e) {
+  var d = (e && e.detail) ? e.detail : '';
+  if (!validDateStr(d)) d = asOfDate();      // fall back to current rail value / today
+  if (!validDateStr(d)) return;
+  if (d === st.date) return;                 // no-op if unchanged
+  st.date = d;
+  saveAppState();                            // persist {store,date}; safe — not stock data
+  updateHeader();                            // surface new date in hdr-date
+  goTab(st.tab);                             // re-render current view (read path only)
+});
+
+/* ══════════════════════════════════════════════════
+   PRINT — swap <select> → <span> so no dropdown
+   arrow appears regardless of browser print engine
+══════════════════════════════════════════════════ */
+(function () {
+  function hideSels() {
+    document.querySelectorAll('select.cro-sel').forEach(sel => {
+      if (sel.dataset.printSwapped) return; // already swapped
+      const text = sel.options[sel.selectedIndex]?.text || '—';
+      const span = document.createElement('span');
+      span.className = 'cro-print-span';
+      span.textContent = text;
+      span.dataset.printFor = sel.id || '';
+      sel.parentNode.insertBefore(span, sel.nextSibling);
+      sel.dataset.printSwapped = '1';
+    });
+  }
+
+  function showSels() {
+    document.querySelectorAll('select.cro-sel[data-print-swapped]').forEach(sel => {
+      delete sel.dataset.printSwapped;
+    });
+    document.querySelectorAll('span.cro-print-span').forEach(span => span.remove());
+  }
+
+  window.addEventListener('beforeprint', hideSels);
+  window.addEventListener('afterprint',  showSels);
+  // Chrome sometimes fires matchMedia instead of the event
+  if (window.matchMedia) {
+    const mq = window.matchMedia('print');
+    mq.addEventListener('change', e => { if (e.matches) hideSels(); else showSels(); });
+  }
+})();
+</script>
+
+<link id="st-v5-back-style" rel="stylesheet" href="../../shared/module-back.css">
+<button id="st-v5-home-fab" data-action="st-v5-home-fab" type="button" title="Back to Home (Esc)"><svg viewBox="0 0 24 24"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg></button>
+<div id="st-v5-next-chips"></div>
+<script id="st-v5-back-script">SaagarModuleRuntime.run('back',{schemaVersion:1,moduleId:'stock',nextSteps:[],customerSelectors:[],accessContext:true});</script>
+
+<link id="st-v5-emp-assist-style" rel="stylesheet" href="../../shared/module-employee.css"><script id="st-v5-emp-assist-script">SaagarModuleRuntime.run('employees',{schemaVersion:1,moduleId:'stock',nextSteps:[],customerSelectors:[],accessContext:true});</script>
+
+<script id="st-v5-module-audit-bridge">SaagarModuleRuntime.run('audit',{schemaVersion:1,moduleId:'stock',nextSteps:[],customerSelectors:[],accessContext:true});</script>
+
+<script id="st-v5-module-access-bridge">SaagarModuleRuntime.run('access',{schemaVersion:1,moduleId:'stock',nextSteps:[],customerSelectors:[],accessContext:true});</script>
+</body>
+</html>

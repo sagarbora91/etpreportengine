@@ -1,0 +1,12 @@
+node_modules/
+**/bin/
+**/obj/
+.vs/
+.codex/
+TestResults/
+artifacts/
+*.user
+*.suo
+graphify-out/cost.json
+.graphify_*.json
+.graphify_*.txt

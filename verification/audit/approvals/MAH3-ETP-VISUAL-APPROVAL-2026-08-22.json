@@ -1,0 +1,61 @@
+{
+  "format": "SAAGAR_EXTERNAL_GATE_APPROVAL",
+  "schemaVersion": 1,
+  "decision": "approve",
+  "receivedAt": "2026-08-22T20:06:30+05:30",
+  "gateId": "MAH3-ETP-VISUAL-BASELINE",
+  "state": "approved",
+  "reviewer": {
+    "displayName": "Sagar",
+    "githubIdentity": "sagarbora91",
+    "role": "visual-baseline-reviewer"
+  },
+  "package": {
+    "path": "verification/audit/MAH3-ETP-VISUAL-OWNER-REVIEW-2026-08-22.md",
+    "sha256": "ab502fe3e13c8f5bcd324e18d2e91b707f57c984744681af5a37754e42e86dc9"
+  },
+  "identity": {
+    "productCommit": "c809d04e4b67c6239218d5707908ac64f25fc94a",
+    "wwwTreeSha256": "1cb83a7f8a19d177e9be028285130080c79f219798f77e88843d332b16fcda41",
+    "mah3ProfileSha256": "f39b6478f37f3eee72a08538c5fe4b22b7f2313a421f7cc2c93be78619fcae5d",
+    "externalCaptureManifestSha256": "d1a47b0b920d239c4b36d7a82fd9307525db41076ba0a0d05d7f971a5c026d94"
+  },
+  "cases": {
+    "from": 169,
+    "to": 180,
+    "count": 12,
+    "languages": [
+      "en",
+      "mr",
+      "hi"
+    ],
+    "viewports": [
+      "phone-360",
+      "phone-412",
+      "compact-800",
+      "desktop-1365"
+    ]
+  },
+  "independentVerification": {
+    "performedBy": "assistant, read-only, 2026-08-22",
+    "screenshotHashesVerified": "12/12 match the review package",
+    "manifestHashVerified": true,
+    "profileHashVerified": true,
+    "treeShaVerified": true
+  },
+  "approvalText": "I, Sagar (sagarbora91), reviewed MAH-3 Retail ETP cases 169 through 180 for product-code identity c809d04e4b67c6239218d5707908ac64f25fc94a, WWW tree SHA-256 1cb83a7f8a19d177e9be028285130080c79f219798f77e88843d332b16fcda41, MAH-3 profile SHA-256 f39b6478f37f3eee72a08538c5fe4b22b7f2313a421f7cc2c93be78619fcae5d, and external capture manifest SHA-256 d1a47b0b920d239c4b36d7a82fd9307525db41076ba0a0d05d7f971a5c026d94. I confirm all twelve English, Marathi and Hindi phone, compact and desktop cases are acceptable with no unresolved clipping, overlap, truncation, unreadable text or unusable control, and I approve these twelve cases as the missing MAH-3 ETP visual baseline evidence. This approval does not close the rendered-language attestation, physical-device, production-publication, UAT, signing or release gates.",
+  "transcriptionNote": "The review package states the visible harness is the authority for marking each case. These twelve results are transcribed from this identity-bound owner approval rather than marked case-by-case in the harness. Each case therefore carries an evidenceRef naming the external capture manifest and its own screenshot hash, so the provenance stays traceable.",
+  "scope": {
+    "closes": [
+      "the 12 missing MAH-3 ETP visual baseline cases"
+    ],
+    "doesNotClose": [
+      "GATE-NATIVE-LANGUAGE",
+      "physical-device acceptance",
+      "ETP production publication",
+      "staff UAT",
+      "production signing",
+      "release approval"
+    ]
+  }
+}

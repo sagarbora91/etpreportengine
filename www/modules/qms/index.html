@@ -1,0 +1,1315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="../../shared/module-bridge.js"></script>
+<script src="../../shared/module-runtime.js"></script>
+<link rel="stylesheet" href="../../shared/module-delete-cell.css">
+<link rel="stylesheet" href="../../shared/module-brand-tokens.css">
+<script src="../../shared/mah4-runtime.js"></script>
+<script id="mah4-stage-b-runtime">SaagarMah4Runtime.bootModule({moduleId:'qms'});</script>
+<script id="st-v5-iframe-shim">SaagarModuleRuntime.run('storage',{schemaVersion:1,moduleId:'qms',nextSteps:[{id:'dsr',label:'Record in DSR →'}],customerSelectors:['#custName'],accessContext:false});</script>
+<script id="st-v5-safety-net">SaagarModuleRuntime.run('safety',{schemaVersion:1,moduleId:'qms',nextSteps:[{id:'dsr',label:'Record in DSR →'}],customerSelectors:['#custName'],accessContext:false});</script>
+<link rel="stylesheet" href="../../shared/module-mobile-common.css">
+<style id="st-v5-mobile-css-delta">
+html.bcc-mobile[data-mod="qms"] .sidebar{visibility:hidden}
+html.bcc-mobile[data-mod="qms"] .sidebar.open,html.bcc-mobile[data-mod="qms"] .qms-menu-toggle:checked~.sidebar{transform:translateX(0);visibility:visible}
+</style><script id="st-v5-mobile-boot">SaagarModuleRuntime.run('mobile',{schemaVersion:1,moduleId:'qms',nextSteps:[{id:'dsr',label:'Record in DSR →'}],customerSelectors:['#custName'],accessContext:false});</script>
+<link rel="stylesheet" href="../../shared/module-responsive.css">
+<link rel="stylesheet" href="../../shared/module-components.css">
+<link rel="stylesheet" href="../../shared/module-table.css">
+<script src="../../shared/module-ui-runtime.js"></script>
+<script src="../../shared/module-table-runtime.js"></script>
+<script src="../../shared/module-rendered-components.js"></script>
+<script src="qms-view.js"></script>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>QMS — Queue Management System</title>
+<link id="phase6g-qms-ui-css" rel="stylesheet" href="qms-ui.css">
+
+<style id="st-v5-hide-css">[onclick="addCroToMaster()"],[onclick^="editCro"],[onclick^="toggleCro"]{display:none !important}</style>
+
+<link id="st-v5-uniform-css" rel="stylesheet" href="../../shared/module-uniform.css">
+<link rel="stylesheet" href="../../mobile-layout.css">
+<script src="../../app-i18n.js"></script>
+</head>
+<body data-saagar-ui data-saagar-width="auto" data-saagar-width-resolved="mobile">
+<script id="phase6g-qms-ui-boot">SaagarUiFoundation.configure(document.body,{mode:'auto'});</script>
+<input type="checkbox" id="qmsNavToggle" class="qms-menu-toggle" aria-hidden="true"/>
+<label for="qmsNavToggle" class="qms-menu-btn" aria-label="Toggle navigation"><svg viewBox="0 0 24 24" fill="none"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></label>
+<label for="qmsNavToggle" class="qms-nav-overlay" aria-hidden="true"></label>
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-brand">
+    <div class="brand-mark">Q</div>
+    <div class="brand-name"><strong>QMS</strong><span>Queue Management</span></div>
+  </div>
+  <nav class="nav-section">
+    <div class="nav-label">Operations</div>
+    <button data-action="qms-view-dashboard" class="nav-item active" id="nav-dashboard" onclick="switchView('dashboard')"><span class="nav-icon"><svg width="16" height="16" fill="none" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5" fill="currentColor" opacity=".9"/><rect x="14" y="3" width="7" height="7" rx="1.5" fill="currentColor" opacity=".6"/><rect x="3" y="14" width="7" height="7" rx="1.5" fill="currentColor" opacity=".6"/><rect x="14" y="14" width="7" height="7" rx="1.5" fill="currentColor" opacity=".4"/></svg></span>Dashboard</button>
+    <button data-action="qms-view-rotation" class="nav-item" id="nav-rotation" onclick="switchView('rotation')"><span class="nav-icon"><svg width="16" height="16" fill="none" viewBox="0 0 24 24"><path d="M4 4v6h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M20 20v-6h-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M20 10A8 8 0 0 0 5.5 5.5L4 4m16 16-1.5-1.5A8 8 0 0 1 4 14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>CRO Rotation</button>
+    <button data-action="qms-view-entry" class="nav-item" id="nav-entry" onclick="switchView('entry')"><span class="nav-icon"><svg width="16" height="16" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="2"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>Customer Entry</button>
+    <button data-action="qms-view-preclaim" class="nav-item" id="nav-preclaim" onclick="switchView('preclaim')"><span class="nav-icon"><svg width="16" height="16" fill="none" viewBox="0 0 24 24"><path d="M6 3h12a1 1 0 0 1 1 1v16l-7-4-7 4V4a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></span>Pre-Claims<span class="nav-badge" id="navBadgePc" style="display:none"></span></button>
+    <button data-action="qms-view-live" class="nav-item" id="nav-live" onclick="switchView('live')"><span class="nav-icon"><svg width="16" height="16" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" fill="currentColor"/><circle cx="12" cy="12" r="7" stroke="currentColor" stroke-width="2" opacity=".5"/></svg></span>Live Queue<span class="nav-badge" id="navBadgeLive">0</span></button>
+    <button data-action="qms-view-followups" class="nav-item" id="nav-followups" onclick="switchView('followups')"><span class="nav-icon"><svg width="16" height="16" fill="none" viewBox="0 0 24 24"><path d="M3 5h18M3 10h18M3 15h12M3 20h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>Follow-ups<span class="nav-badge" id="navBadgeFu" style="display:none"></span></button>
+    <div class="nav-label" style="margin-top:10px">Analytics</div>
+    <button data-action="qms-view-reports" class="nav-item" id="nav-reports" onclick="switchView('reports')"><span class="nav-icon"><svg width="16" height="16" fill="none" viewBox="0 0 24 24"><rect x="3" y="12" width="4" height="9" rx="1" fill="currentColor" opacity=".5"/><rect x="10" y="7" width="4" height="14" rx="1" fill="currentColor" opacity=".7"/><rect x="17" y="3" width="4" height="18" rx="1" fill="currentColor"/></svg></span>Reports</button>
+    <div class="nav-label" style="margin-top:10px">System</div>
+    <button data-action="qms-view-settings" class="nav-item" id="nav-settings" onclick="switchView('settings')"><span class="nav-icon"><svg width="16" height="16" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/><path d="M12 2v2m0 16v2M4.22 4.22l1.42 1.42m12.72 12.72 1.42 1.42M2 12h2m16 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>Settings</button>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="clock-display"><div class="time" id="clockTime">--:--:--</div><div class="date" id="clockDate">---</div></div>
+    <div class="spacer" style="height:10px"></div>
+    <div class="role-pill"><div><span>Current Role</span><strong id="roleName">SM</strong></div><button data-action="qms-role-switch-sidebar" class="role-btn" onclick="switchRole()">Switch</button></div>
+    <button data-action="qms-backup-sidebar" class="btn ghost" style="width:100%;margin-top:6px;color:rgba(255,255,255,.5);justify-content:flex-start;padding:6px 10px;font-size:12px;" onclick="backupData()"><svg width="13" height="13" fill="none" viewBox="0 0 24 24"><path d="M12 3v13m0 0-4-4m4 4 4-4" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 17v2a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>Backup Data</button>
+  </div>
+</aside>
+<div class="main-area">
+  <header class="topbar"><span class="page-title" id="topbarTitle">Dashboard</span><div class="topbar-actions"><button data-action="qms-role-switch-topbar" class="btn sm" id="roleBtn" onclick="switchRole()">Role: SM</button></div></header>
+  <div class="content">
+    <section class="view active" id="view-dashboard"></section>
+    <section class="view" id="view-rotation"></section>
+    <section class="view" id="view-entry"></section>
+    <section class="view" id="view-preclaim"></section>
+    <section class="view" id="view-live"></section>
+    <section class="view" id="view-followups"></section>
+    <section class="view" id="view-reports"></section>
+    <section class="view" id="view-settings"></section>
+  </div>
+</div>
+<div class="modal-backdrop hidden" id="modalBackdrop" onclick="if(event.target===this)closeModal()">
+  <div class="modal" id="modalBox">
+    <div class="modal-head"><h3 id="modalTitle">Modal</h3><button data-action="qms-modal-close" class="close-btn" onclick="closeModal()">✕</button></div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-foot" id="modalFoot"></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<input data-action="qms-restore-file-select" type="file" accept="application/json" id="restoreInput" class="hidden" onchange="restoreData(this.files&&this.files[0]);this.value=''"/>
+<script>
+'use strict';
+const STORE_KEY='retail_queue_management_v1';
+const todayISO=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};   /* audit: local date — toISOString gave the previous day in IST */
+const uid=(p='id')=>p+'_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,8);
+const $=id=>document.getElementById(id);
+const fmtTime=iso=>iso?new Date(iso).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}):'—';
+const fmtDT=iso=>iso?new Date(iso).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}):'—';
+const minsBetween=(a,b)=>a&&b?Math.max(0,Math.round((new Date(b)-new Date(a))/60000)):0;
+const esc=s=>String(s??'').replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+function stEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+/* P1-42: repeat-customer recognition — READ-ONLY cross-frame lookup of the bridge-derived customer master. */
+function _qmsNorm10(m){var d=String(m==null?'':m).replace(/\D/g,'');return d.length>=10?d.slice(-10):'';}
+function _qmsMaster(){try{var ls=(window.parent&&window.parent!==window)?SaagarModuleBridge.sharedStorage:localStorage;var raw=ls.getItem('saagar_customer_master_v1');if(!raw)return null;var o=JSON.parse(raw);return (o&&o.byMobile)?o:null;}catch(e){return null;}}
+function stPrintDoc(o){return SaagarModuleRuntime.printDocument(o,function(){toast('Controlled print is available only inside Saagar Control Centre.','error');});}
+let state,role='SM',activeView='dashboard',toastTimer;
+/* ===== View-date rail (shell-provided): window.__stAsOf = 'YYYY-MM-DD' the user wants to VIEW.
+   A PAST date (asOf < real today) is VIEW-ONLY: render that day read-only, never write/auto-create. ===== */
+let viewAsOf=todayISO();
+function readAsOf(){const d=window.__stAsOf;return(typeof d==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(d))?d:todayISO();}
+function isPast(){return viewAsOf<todayISO();}
+function eodLockActive(){return !!state&&!!state.settings&&state.settings.lockEditsAfterEOD&&!currentRotation()&&state.rotations.some(r=>r.date===todayISO()&&r.status==='Closed');}
+/* Central write guard for ALL customer/rotation mutators: blocks writes on a past read and after EOD lock. */
+function guardWrite(){if(!guardPast())return false;if(eodLockActive()){toast('Edits locked after EOD close.','error');return false;}return true;}
+/* Past-only guard: blocks writes on a past read but NOT the EOD lock (used by the fresh-rotation recovery path). */
+function guardPast(){if(isPast()){toast('Viewing a past date — read-only.','warn');return false;}return true;}
+const PAGE_TITLES={dashboard:'Dashboard',rotation:'CRO Rotation',entry:'Customer Entry',preclaim:'Pre-Claims',live:'Live Queue',followups:'Follow-ups',reports:'Reports',settings:'Settings'};
+const DEFAULT_CROS=[];
+const DEFAULT_SETTINGS={storeName:'Saagar Traders',ownerWhatsApp:'',queuePrefix:'Q',waitAlertMins:10,autoAllocate:true,requireBillForPurchase:true,requireJobForService:true,allowGreeterClose:false,smCanGiveNextOpportunity:true,lockEditsAfterEOD:true};
+function initialState(){return{settings:{...DEFAULT_SETTINGS},role:'SM',cros:DEFAULT_CROS,rotations:[],customers:[],followups:[],audit:[],lastBackup:null,queueSeq:{}}}
+function load(){try{var __p=JSON.parse(localStorage.getItem(STORE_KEY)||'null');state=(__p&&typeof __p==='object'&&!Array.isArray(__p))?__p:initialState()}catch(e){state=initialState()}state.settings={...DEFAULT_SETTINGS,...(state.settings||{})};state.cros=Array.isArray(state.cros)?state.cros:[];state.cros=state.cros.filter(function(c){return !(c&&/^(Rahul|Priya|Neha|Amit|Suresh)$/i.test(String(c.name||'').trim())&&/^CRO-0[0-9]$/.test(String(c.code||'')));});try{var __m=JSON.parse(localStorage.getItem('saagar_employee_master_v1')||'[]');if(Array.isArray(__m)){var __seen={};state.cros.forEach(function(c){if(c&&c.name)__seen[String(c.name).trim().toLowerCase()]=1;});__m.filter(function(x){return x&&x.name&&x.active!==false;}).forEach(function(x){var __k=String(x.name).trim().toLowerCase();if(!__seen[__k]){__seen[__k]=1;state.cros.push({id:'emp_'+String(x.name).toLowerCase().replace(/[^a-z0-9]/g,''),name:x.name,code:'CRO-'+('0'+(state.cros.length+1)).slice(-2),active:true});}});}}catch(e){}state.rotations=state.rotations||[];state.customers=state.customers||[];state.followups=state.followups||[];state.preclaims=Array.isArray(state.preclaims)?state.preclaims:[];state.preclaims.forEach(function(p){if(p&&p.status==='Active'&&(p.date||'').slice(0,10)!==todayISO())p.status='Expired';});state.audit=state.audit||[];if(!state.queueSeq||typeof state.queueSeq!=='object'){state.queueSeq={};}state.customers.forEach(function(c){if(!c)return;var d=customerBusinessDate(c);if(!d)return;var m=/(\d+)\s*$/.exec(String(c.queueNo||''));var n=m?parseInt(m[1],10):0;var cur=state.queueSeq[d]||0;state.queueSeq[d]=Math.max(cur,n);});/* ensure each day's counter is at least the count of its customers (covers legacy non-numeric queue ids) */var __byDay={};state.customers.forEach(function(c){if(!c)return;var d=customerBusinessDate(c);if(!d)return;__byDay[d]=(__byDay[d]||0)+1;});Object.keys(__byDay).forEach(function(d){state.queueSeq[d]=Math.max(state.queueSeq[d]||0,__byDay[d]);});role=state.role||'SM'}
+function qmsPolicyApi() {
+  /* D2-QMS-2026-07-30 */
+  try {
+    return (window.parent && window.parent !== window && SaagarModuleBridge.qmsPolicy) ||
+      SaagarModuleBridge.qmsPolicy || null;
+  } catch (error) {
+    return null;
+  }
+}
+function qmsPersistenceApi() {
+  try {
+    return (window.parent && window.parent !== window && SaagarModuleBridge.qmsPersistence) ||
+      SaagarModuleBridge.qmsPersistence || null;
+  } catch (error) {
+    return null;
+  }
+}
+function qmsRestorePersistedState() {
+  /* D2-QMS-RESILIENCE-2026-07-30 */
+  load();
+  renderAll();
+}
+function qmsPrepareFastOutcome(customer) {
+  if (!customer || !customer.assignedCroId) return false;
+  customer.attendStart = customer.attendStart || new Date().toISOString();
+  customer.status = 'In Discussion';
+  addAudit('customer.attend.start', {
+    queueNo: customer.queueNo,
+    source: 'fast-outcome'
+  }, true);
+  return true;
+}
+function save(action, details) {
+  const persistence = qmsPersistenceApi();
+  if (!persistence || typeof persistence.commit !== 'function') {
+    qmsRestorePersistedState();
+    toast('Save control unavailable. Nothing was changed.', 'error');
+    return false;
+  }
+  const auditEntry = action ? {
+    id: uid('aud'),
+    at: new Date().toISOString(),
+    role,
+    action,
+    details: details || {}
+  } : null;
+  if (!persistence.commit(localStorage, STORE_KEY, state, auditEntry, 600)) {
+    qmsRestorePersistedState();
+    toast('Save failed. Your previous saved data is unchanged; retry when storage is available.', 'error');
+    return false;
+  }
+  renderAll();
+  return true;
+}
+function addAudit(action, details = {}, skipSave = false) {
+  if (!skipSave) return save(action, details);
+  state.audit.unshift({ id: uid('aud'), at: new Date().toISOString(), role, action, details });
+  state.audit = state.audit.slice(0, 600);
+  return true;
+}
+function toast(msg,type=''){const t=$('toast');t.textContent=msg;t.className='toast show '+type;clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),2800)}
+function requireSM(){if(role!=='SM'&&role!=='Admin'){toast('SM / Admin access required.','error');return false}return true}
+function closeModal(){$('modalBackdrop').classList.add('hidden');$('modalBody').innerHTML='';$('modalFoot').innerHTML=''}
+function openModal(title,body,foot='',small=false){$('modalTitle').textContent=title;$('modalBody').innerHTML=body;$('modalFoot').innerHTML=foot;$('modalBox').className='modal'+(small?' small':'');$('modalBackdrop').classList.remove('hidden')}
+function switchView(name){activeView=name;document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));$('view-'+name).classList.add('active');document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));$('nav-'+name).classList.add('active');$('topbarTitle').textContent=PAGE_TITLES[name]||name;renderAll();/* Audit fix qms-L03: auto-close the shell mobile nav drawer after a nav item is chosen (it used to stay open over the content) */try{var __sb=document.querySelector('.sidebar');if(__sb)__sb.classList.remove('open');var __sc=document.getElementById('st-v5-qms-scrim');if(__sc)__sc.classList.remove('show');}catch(e){}}
+function switchRole(){if(!guardPast())return;const roles=['SM','Greeter','CRO','Admin'];role=roles[(roles.indexOf(role)+1)%roles.length];state.role=role;if(!save('role.switch',{role}))return;toast('Role: '+role)}
+function tick(){const d=new Date();$('clockTime').textContent=d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'});$('clockDate').textContent=d.toLocaleDateString('en-IN',{weekday:'short',day:'2-digit',month:'short'})}
+setInterval(tick,1000);
+/* Idle refresh: wait badges + attention alerts are computed inside renderAll(), which otherwise runs only on user action — so the waitAlertMins alert never trips on an untouched screen. Re-render every 45s, but ONLY on Live Queue / Dashboard, and never while the tab is hidden, a modal is open, or a form control has focus (re-render would wipe typed input). */
+setInterval(function(){if(document.hidden)return;if(activeView!=='live'&&activeView!=='dashboard')return;if(!$('modalBackdrop').classList.contains('hidden'))return;const ae=document.activeElement;if(ae&&(ae.tagName==='INPUT'||ae.tagName==='SELECT'||ae.tagName==='TEXTAREA'))return;renderAll()},45000);
+function currentRotation(){if(isPast())return state.rotations.find(r=>r.date===viewAsOf)||null;return state.rotations.find(r=>r.date===todayISO()&&r.status==='Active')||null}
+function indiaBusinessDateFromIso(value) {
+  const time = Date.parse(value || '');
+  if (!Number.isFinite(time)) return '';
+  return new Date(time + 330 * 60000).toISOString().slice(0, 10);
+}
+function customerBusinessDate(customer) {
+  /* D2-QMS-HARDENING-2026-07-30 */
+  /* D2-QMS-CLEANUP-2026-07-30 */
+  const explicit = String((customer && customer.businessDate) || '');
+  return /^\d{4}-\d{2}-\d{2}$/.test(explicit)
+    ? explicit
+    : indiaBusinessDateFromIso(customer && customer.entryTime);
+}
+function todaysCustomers() {
+  return state.customers.filter(customer => customerBusinessDate(customer) === viewAsOf);
+}
+function activeCustomers(){return todaysCustomers().filter(c=>c.status!=='Closed')}
+function customerById(id){return state.customers.find(c=>c.id===id)}
+/* ===== W2-3: DSR→QMS write-back (close-the-loop). A CRO marking a queue walk-in "Purchase" in the DSR
+   Visitors tab (and saving bill+amount) makes the integration bridge emit a DSR_PURCHASE event on the
+   shared bus (saagar_bus). QMS READS that bus here — it never writes it — and flags the matching OPEN
+   lead "Purchased in DSR — confirm & close" with the close modal pre-filled. The SM still confirms
+   through the NORMAL close path (confirmCloseLead), so conversion %, sales ₹, follow-ups, the audit
+   trail and the bridge's QMS→DSR push-suppression all stay consistent. A Closed lead never flags; a
+   DSR purchase with no matching lead renders nothing. The map is refreshed at the top of renderAll(),
+   so the existing 45s Live/Dashboard idle tick surfaces a new flag without reopening the module. ===== */
+function dsrPurchaseMap(){try{const b=JSON.parse(localStorage.getItem('saagar_bus')||'[]');const m={};if(Array.isArray(b))b.forEach(e=>{if(e&&e.type==='DSR_PURCHASE'&&e.payload&&e.payload.cid)m[String(e.payload.cid)]=e.payload});return m}catch(e){return{}}}
+let _dsrPurch={};
+function dsrPurchaseFor(c){if(!c||c.status==='Closed')return null;return _dsrPurch[String(c.id)]||null}
+function croName(id){return state.cros.find(c=>c.id===id)?.name||'—'}
+const kk=n=>String(n??'').trim().toLowerCase();
+function leaveUnavailableMap(){try{const g=JSON.parse(localStorage.getItem('saagar_gate_status')||'null');const u=g&&g.unavailable;return(u&&typeof u==='object')?u:{}}catch(e){return{}}}
+function isLeaveUnavailableToday(name){const e=leaveUnavailableMap()[kk(name)];return !!(e&&e.leave===true)}
+function availableCros(){const u=leaveUnavailableMap();return state.cros.filter(c=>c.active&&!(u[kk(c.name)]&&u[kk(c.name)].leave===true))}
+function rotationItem(rot,croId){return rot?.items?.find(i=>i.croId===croId)}
+function activeRotationItems(rot=currentRotation()){return(rot?.items||[]).filter(i=>i.active&&i.status!=='Inactive'&&i.status!=='Half Day'&&state.cros.find(c=>c.id===i.croId)?.active)}
+/* Persisted MONOTONIC per-day counter so removals / two greeters can't collide on a queue number. */
+function fmtQueueNo(n){return`${state.settings.queuePrefix}-${String(n).padStart(3,'0')}`}
+function getQueueNo(){state.queueSeq=state.queueSeq||{};return fmtQueueNo((state.queueSeq[todayISO()]||0)+1)}
+function nextQueueNo(){const d=todayISO();state.queueSeq=state.queueSeq||{};state.queueSeq[d]=(state.queueSeq[d]||0)+1;return fmtQueueNo(state.queueSeq[d])}
+function calcStats(list=todaysCustomers()){const total=list.length,pur=list.filter(c=>c.outcome==='Purchase').length,svc=list.filter(c=>c.outcome==='Service').length,non=list.filter(c=>c.outcome==='Non Purchase').length,closed=list.filter(c=>c.status==='Closed').length,sales=list.reduce((s,c)=>s+(+c.purchaseAmount||0),0),waits=list.filter(c=>c.attendStart).map(c=>minsBetween(c.entryTime,c.attendStart)),avgWait=waits.length?Math.round(waits.reduce((a,b)=>a+b,0)/waits.length):0,conv=total?Math.round(pur/total*100):0,lost=list.filter(c=>c.outcome==='Non Purchase').reduce((s,c)=>s+(+c.lostValue||0),0);return{total,pur,svc,non,closed,sales,avgWait,conv,lost,open:total-closed}}
+function qmsRenderPresentation(){return SaagarQmsView.decorate(document.body)}
+function renderAll(){_dsrPurch=dsrPurchaseMap();$('roleBtn').textContent='Role: '+role;$('roleName').textContent=role;const openCount=activeCustomers().length;$('navBadgeLive').textContent=openCount;$('navBadgeLive').style.display=openCount?'':'none';const fuDue=state.followups.filter(f=>f.status==='Pending'&&f.dueDate<=todayISO()).length;const fuBadge=$('navBadgeFu');fuBadge.textContent=fuDue;fuBadge.style.display=fuDue?'':'none';const pcActive=preclaimsForView().filter(p=>p.status==='Active').length;const pcBadge=$('navBadgePc');if(pcBadge){pcBadge.textContent=pcActive;pcBadge.style.display=pcActive?'':'none';}if(activeView==='dashboard')renderDashboard();else if(activeView==='rotation')renderRotation();else if(activeView==='entry')renderEntry();else if(activeView==='preclaim')renderPreclaim();else if(activeView==='live')renderLive();else if(activeView==='followups')renderFollowups();else if(activeView==='reports')renderReports();else if(activeView==='settings')renderSettings();applyReadOnly();qmsRenderPresentation()}
+/* ===== Read-only enforcement for a PAST view-date: banner + disable every mutation control on screen.
+   Pure post-render pass; only ever ADDS disabled (templates already render their own enabled/disabled
+   state fresh each render, so we never re-enable). Authoritative write-blocking lives in the guards. ===== */
+const RO_MUTATORS=/\b(addCustomer|allocateCustomer|manualAllocate|savePreclaim|cancelPreclaim|openSkipTurn|confirmSkip|startAttend|markExit|openCloseLead|confirmCloseLead|manualReassign|confirmReassign|updateFollowup|markFollowupContacted|confirmLostFollowup|confirmConvertFollowup|createRotation|confirmCreateRotation|openAddCroToRotation|confirmAddCroToday|setCroStatus|confirmCroStatus|moveCro|removeCroToday|closeEOD|addCroToMaster|saveNewCro|editCro|confirmEditCro|toggleCro|updateSetting|switchRole|backupData|restoreData|resetDemo)\b/;
+function applyReadOnly(){const ro=isPast();let banner=$('roBanner');if(ro){if(!banner){banner=document.createElement('div');banner.id='roBanner';banner.style.cssText='background:var(--goldtint);color:var(--amber);border:1.5px solid #fed7aa;border-radius:var(--r2);padding:10px 14px;margin-bottom:16px;font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px';const content=document.querySelector('.content');if(content)content.insertBefore(banner,content.firstChild);}banner.innerHTML='🔒 Viewing '+esc(viewAsOf)+' — read-only. Switch to today to make changes.';banner.style.display='';const content=document.querySelector('.content');if(content)content.querySelectorAll('button').forEach(function(b){const oc=b.getAttribute('onclick')||'';if(RO_MUTATORS.test(oc))b.disabled=true;});document.querySelectorAll('.sidebar button,.topbar button').forEach(function(b){const oc=b.getAttribute('onclick')||'';if(RO_MUTATORS.test(oc))b.disabled=true;});}else if(banner){banner.style.display='none';}}
+function renderDashboard(){const s=calcStats(),rot=currentRotation();$('view-dashboard').innerHTML=`<div class="page-header"><div class="page-header-left"><h1>${esc(state.settings.storeName)}</h1><p>${new Date().toLocaleDateString('en-IN',{weekday:'long',day:'2-digit',month:'long',year:'numeric'})}</p></div><div class="page-header-actions"><button data-action="switchview" data-action-key="definition-01" class="btn primary" onclick="switchView('entry')">+ Add Walk-in</button><button data-action="switchview" data-action-key="definition-02" class="btn" onclick="switchView('rotation')">CRO Rotation</button></div></div><div class="kpi-grid"><div class="kpi-card"><div class="kpi-label">Walk-ins</div><div class="kpi-value">${s.total}</div><div class="kpi-note">Today</div></div><div class="kpi-card highlight"><div class="kpi-label">Purchases</div><div class="kpi-value">${s.pur}</div><div class="kpi-note">Converted</div></div><div class="kpi-card"><div class="kpi-label">Service</div><div class="kpi-value">${s.svc}</div><div class="kpi-note">Jobs</div></div><div class="kpi-card"><div class="kpi-label">Non Purchase</div><div class="kpi-value">${s.non}</div><div class="kpi-note">Lost / Pending</div></div><div class="kpi-card"><div class="kpi-label">Conversion</div><div class="kpi-value">${s.conv}%</div><div class="kpi-note">Purchase rate</div></div><div class="kpi-card gold"><div class="kpi-label">Sales</div><div class="kpi-value">₹${s.sales>=1000?(s.sales/1000).toFixed(1)+'k':s.sales.toLocaleString('en-IN')}</div><div class="kpi-note">Closed value</div></div></div><div class="grid-2" style="margin-bottom:16px"><div class="card"><div class="card-head"><div><div class="card-title">Today's Rotation</div><div class="card-sub">Chronological CRO order</div></div><div style="display:flex;gap:6px;align-items:center">${rot?'<span class="badge green"><span class="dot"></span> Active</span>':'<span class="badge red">Not Created</span>'}<button data-action="switchview" data-action-key="definition-03" class="btn sm ghost" onclick="switchView('rotation')">Manage →</button></div></div><div class="card-body">${rotationStrip()}</div></div><div class="card"><div class="card-head"><div><div class="card-title">Attention Required</div><div class="card-sub">Operational exceptions</div></div></div><div class="card-body">${attentionList()}</div></div></div><div class="card"><div class="card-head"><div><div class="card-title">Active Queue</div><div class="card-sub">${activeCustomers().length} customer(s) not yet closed</div></div><button data-action="switchview" data-action-key="definition-04" class="btn sm ghost" onclick="switchView('live')">Full Queue →</button></div><div class="card-body">${activeCustomers().length===0?`<div class="empty-state"><p>No active customers right now</p></div>`:`<div class="grid-3">${activeCustomers().slice().sort((a,b)=>(waitingPriorityKey(a)-waitingPriorityKey(b))).slice(0,6).map(queueCard).join('')}</div>`}</div></div>`}
+function attentionList(){const items=[];if(!currentRotation())items.push(['red','⚠','Rotation not created','SM must create CRO order before walk-ins can be allocated.','rotation']);activeCustomers().forEach(c=>{const wait=minsBetween(c.entryTime,new Date().toISOString());if(!c.assignedCroId&&wait>=state.settings.waitAlertMins)items.push(['orange','⏱',`${c.queueNo} waiting ${wait} min`,'Customer has crossed the waiting alert limit.','live']);if(c.exitTime&&!c.outcome)items.push(['red','!',`${c.queueNo} exited but not closed`,'CRO/SM must record outcome.','live'])});const rotNow=currentRotation(),waiting=activeCustomers().filter(c=>c.status==='Waiting');if(waiting.length&&rotNow&&!anyFreeCro(rotNow))items.push(['orange','⏳',`${waiting.length} customer(s) waiting — all CROs busy`,'No CRO is free; next freed CRO is auto-assigned.','live']);const overdue=state.followups.filter(f=>f.status==='Pending'&&f.dueDate<=todayISO());if(overdue.length)items.push(['blue','📋',`${overdue.length} follow-up(s) due today`,'Pending customer follow-up tasks.','followups']);const _dpSeen={};state.customers.forEach(c=>{if(!c||!c.id||c.status==='Closed'||_dpSeen[c.id])return;const dp=dsrPurchaseFor(c);if(!dp)return;_dpSeen[c.id]=1;items.push(['blue','₹',`${c.queueNo||''} purchased in DSR (${dp.cro||'CRO'})`,`Bill ${dp.bill||'—'} · ₹${(+dp.amount||0).toLocaleString('en-IN')} recorded by the CRO — confirm & close the lead.`,'live',c.id])});if(!items.length)return`<div class="success-note">✓ No exceptions — all clear</div>`;return`<div class="alert-list">${items.map(i=>`<div class="alert-item ${i[0]}"><div class="alert-icon">${i[1]}</div><div class="alert-text"><strong>${esc(i[2])}</strong><span>${esc(i[3])}</span></div><button data-action="opencloselead" data-action-key="definition-01" class="btn xs ghost alert-action" onclick="${i[5]?`openCloseLead('${i[5]}')`:`switchView('${i[4]}')`}">${i[5]?'Confirm':'Open'}</button></div>`).join('')}</div>`}
+function rotationStrip(){const rot=currentRotation();if(!rot)return`<div class="warn-note">No rotation created for today. SM should create a fresh morning list.</div>`;const pending=rot.priorityCroId;return`<div class="rot-strip">${(rot.items||[]).sort((a,b)=>a.order-b.order).map(i=>{const isCurrent=i.croId===rot.currentCroId,isPriority=i.croId===pending,isInactive=!i.active||i.status==='Half Day'||i.status==='Inactive',busy=croBusy(rot,i.croId),lead=openLeadOf(i.croId);const statusTxt=isInactive?esc(i.status||'Off'):busy?('Busy'+(lead?' · '+esc(lead.queueNo):'')):isCurrent?'← Current turn':isPriority?'Next opportunity':OFF_FLOOR_STATUSES.includes(i.status||'')?esc(i.status):'Free';const rightBadge=isInactive?'<span class="badge gray" style="margin-left:auto">Off</span>':busy?'<span class="badge blue" style="margin-left:auto">Busy</span>':isCurrent?'<span class="badge green" style="margin-left:auto">Now</span>':isPriority?'<span class="badge orange" style="margin-left:auto">Next</span>':'<span class="badge green" style="margin-left:auto">Free</span>';return`<div class="rot-pill ${isCurrent?'current':''} ${isPriority?'priority':''} ${isInactive||busy?'inactive':''}"><div class="rot-order">${i.order}</div><div class="rot-name">${esc(croName(i.croId))}</div><div class="rot-status">${statusTxt}</div>${rightBadge}</div>`}).join('')}</div>`}
+function renderRotation(){const rot=currentRotation();$('view-rotation').innerHTML=`<div class="page-header"><div class="page-header-left"><h1>CRO Rotation</h1><p>Daily turn management — skips, reorders and EOD control</p></div><div class="page-header-actions"><button data-action="addcrotomaster" data-action-key="definition-01" class="btn" onclick="addCroToMaster()">Add CRO Master</button><button data-action="openaddcrotorotation" data-action-key="definition-01" class="btn" onclick="openAddCroToRotation()" ${!rot?'disabled':''}>Add to Today</button><button data-action="createrotation" class="btn primary" onclick="createRotation()">Create Fresh List</button><button data-action="closeeod" data-action-key="definition-01" class="btn" style="border-color:var(--orange);color:var(--orange)" onclick="closeEOD()" ${!rot?'disabled':''}>Close EOD</button></div></div><div class="grid-2" style="margin-bottom:16px"><div class="card"><div class="card-head"><div><div class="card-title">Today's Order</div><div class="card-sub">Fresh list required every morning</div></div>${rot?'<span class="badge green"><span class="dot"></span> Active</span>':'<span class="badge red">Not Created</span>'}</div><div class="card-body">${rotationStrip()}</div></div><div class="card"><div class="card-head"><div><div class="card-title">Rotation Rules</div></div></div><div class="card-body"><div class="info-note">If the current CRO is unavailable, Greeter records the reason. SM may give the skipped CRO the next customer. If missed again, priority is cancelled and the CRO waits for the full rotation to return naturally.</div></div></div></div><div class="card" style="margin-bottom:16px"><div class="card-head"><div><div class="card-title">CRO Order & Availability</div></div></div><div class="card-body" style="padding:0">${rotationTable(rot)}</div></div><div class="card"><div class="card-head"><div><div class="card-title">Skipped Turn Audit</div><div class="card-sub">Every skip recorded with reason and CRO info</div></div></div><div class="card-body" style="padding:0">${turnAuditTable()}</div></div>`}
+function rotationTable(rot){if(!rot)return'<div style="padding:20px"><div class="warn-note">Create today\'s rotation first.</div></div>';return`<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Order</th><th>CRO</th><th>Status</th><th>Now</th><th>Served</th><th>Skips</th><th>Actions</th></tr></thead><tbody>${rot.items.sort((a,b)=>a.order-b.order).map(i=>{const assigned=todaysCustomers().filter(c=>c.assignedCroId===i.croId).length,skipped=(rot.turnEvents||[]).filter(e=>e.expectedCroId===i.croId&&e.skipped).length,st=i.status||'Available',badgeCls=['Available','Busy'].includes(st)?'green':(st==='Half Day'||st==='Inactive')?'red':'orange',busy=croBusy(rot,i.croId),lead=openLeadOf(i.croId),off=isOffFloor(i);const nowCell=off?'<span class="badge gray">Off floor</span>':busy?`<span class="badge blue">Busy${lead?' · '+esc(lead.queueNo):''}</span>`:'<span class="badge green">Free</span>';return`<tr><td>${i.order}</td><td><b>${esc(croName(i.croId))}</b><div class="sub mono">${esc(state.cros.find(c=>c.id===i.croId)?.code||'')}</div></td><td><span class="badge ${badgeCls}">${esc(st)}</span></td><td>${nowCell}</td><td>${assigned}</td><td>${skipped}</td><td><div style="display:flex;gap:5px;flex-wrap:wrap"><button data-action="setcrostatus" data-action-key="definition-01" class="btn sm" onclick="setCroStatus('${i.croId}')">Status</button><button data-action="movecro" data-action-key="definition-01" class="btn sm ghost" onclick="moveCro('${i.croId}',-1)">↑</button><button data-action="movecro" data-action-key="definition-02" class="btn sm ghost" onclick="moveCro('${i.croId}',1)">↓</button><button data-action="removecrotoday" data-action-key="definition-01" class="btn sm" style="color:var(--red);border-color:#fca5a5" onclick="removeCroToday('${i.croId}')">Remove</button></div></td></tr>`}).join('')}</tbody></table></div>`}
+function turnAuditTable(){const rot=currentRotation(),ev=(rot?.turnEvents||[]).slice().reverse();if(!ev.length)return'<div style="padding:20px"><div class="empty-state"><p>No skipped turn events today</p></div></div>';return`<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Time</th><th>Queue</th><th>Expected CRO</th><th>Actual CRO</th><th>Reason</th><th>Next Opp.</th><th>By</th></tr></thead><tbody>${ev.map(e=>`<tr><td class="mono" style="font-size:12px">${fmtTime(e.at)}</td><td>${esc(e.queueNo||'—')}</td><td>${esc(croName(e.expectedCroId))}</td><td>${esc(croName(e.actualCroId))}</td><td>${esc(e.reason||'—')}<div class="sub">${esc(e.note||'')}</div></td><td><span class="badge ${e.nextOpportunity?'orange':'gray'}">${e.nextOpportunity?'Yes':'No'}${e.priorityCancelled?' · Cancelled':''}</span></td><td>${esc(e.by||'—')}</td></tr>`).join('')}</tbody></table></div>`}
+function createRotation(){if(!guardPast())return;if(!requireSM())return;const active=availableCros();openModal('Create Daily CRO Order',`<div class="info-note" style="margin-bottom:14px">Creates today's rotation. An existing active rotation will be closed.</div><div id="orderEditor">${active.map((c,i)=>`<div class="toggle-row"><div class="toggle-info"><strong>${i+1}. ${esc(c.name)}</strong><span>${esc(c.code||'')}</span></div><label class="switch"><input type="checkbox" checked data-cro="${c.id}"><div class="switch-track"></div><div class="switch-thumb"></div></label></div>`).join('')}</div>`,`<button data-action="closemodal" data-action-key="definition-01" class="btn ghost" onclick="closeModal()">Cancel</button><button data-action="confirmcreaterotation" class="btn primary" onclick="confirmCreateRotation()">Create Rotation</button>`)}
+function confirmCreateRotation(){if(!guardPast())return;if(!requireSM())return;const included=[...document.querySelectorAll('#orderEditor input:checked')].map(x=>x.dataset.cro);if(!included.length){toast('Select at least one CRO.','error');return}state.rotations.filter(r=>r.date===todayISO()&&r.status==='Active').forEach(r=>r.status='Closed');const rot={id:uid('rot'),date:todayISO(),createdAt:new Date().toISOString(),createdBy:role,status:'Active',currentCroId:included[0],priorityCroId:null,closedAt:null,items:included.map((id,idx)=>({croId:id,order:idx+1,status:'Available',active:true,addedAt:new Date().toISOString()})),turnEvents:[]};state.rotations.push(rot);if(!save('rotation.create',{rotationId:rot.id,count:included.length}))return;closeModal();toast('Rotation created.','success')}
+function addCroToMaster(){if(!guardPast())return;if(!requireSM())return;openModal('Add CRO',`<div class="form-grid"><div class="field full"><label class="label">Name *</label><input class="input" id="newCroName" placeholder="CRO name"></div><div class="field full"><label class="label">Code</label><input class="input" id="newCroCode" placeholder="CRO-06"></div></div>`,`<button data-action="closemodal" data-action-key="definition-02" class="btn ghost" onclick="closeModal()">Cancel</button><button data-action="savenewcro" class="btn primary" onclick="saveNewCro()">Add CRO</button>`,true)}
+function saveNewCro(){if(!guardPast())return;const name=$('newCroName').value.trim();if(!name){toast('Name required.','error');return}state.cros.push({id:uid('cro'),name,code:$('newCroCode').value.trim(),active:true});if(!save('cro.master.add',{name}))return;closeModal();toast('CRO added.','success')}
+function openAddCroToRotation(){if(!guardWrite())return;if(!requireSM())return;if(!currentRotation()){toast("Create today's rotation first.","warn");return;}const rot=currentRotation(),available=availableCros().filter(c=>!rot.items.some(i=>i.croId===c.id));if(!available.length){toast('No CRO left to add.','warn');return}openModal('Add CRO to Today',`<div class="field full"><label class="label">Select CRO</label><select class="select" id="addTodayCro">${available.map(c=>`<option value="${c.id}">${esc(c.name)} ${esc(c.code||'')}</option>`).join('')}</select></div>`,`<button data-action="closemodal" data-action-key="definition-03" class="btn ghost" onclick="closeModal()">Cancel</button><button data-action="confirmaddcrotoday" class="btn primary" onclick="confirmAddCroToday()">Add</button>`,true)}
+function confirmAddCroToday(){if(!guardWrite())return;const rot=currentRotation();if(!rot){toast("Today's rotation is no longer active.",'error');closeModal();return;}const id=$('addTodayCro').value;rot.items.push({croId:id,order:rot.items.length+1,status:'Available',active:true,addedAt:new Date().toISOString(),addedBy:role});if(!save('rotation.cro.add',{croId:id}))return;closeModal();toast('CRO added to today.','success')}
+function setCroStatus(croId){if(!guardWrite())return;if(!requireSM())return;const item=rotationItem(currentRotation(),croId);openModal(`${esc(croName(croId))} — Status`,`<div class="field full" style="margin-bottom:14px"><label class="label">Status</label><select class="select" id="croStatus"><option>Available</option><option>Busy</option><option>Washroom</option><option>Tea / Lunch Break</option><option>Not Near Entrance</option><option>Manager Work</option><option>Half Day</option><option>Inactive</option></select></div><div class="field full"><label class="label">Note (optional)</label><input class="input" id="croStatusNote" placeholder="Reason..."></div>`,`<button data-action="closemodal" data-action-key="definition-04" class="btn ghost" onclick="closeModal()">Cancel</button><button data-action="confirmcrostatus" data-action-key="definition-01" class="btn primary" onclick="confirmCroStatus('${croId}')">Update</button>`,true);$('croStatus').value=item?.status||'Available'}
+function confirmCroStatus(croId){if(!guardWrite())return;const rot=currentRotation(),item=rotationItem(rot,croId);if(!item){toast("Today's rotation is no longer active.",'error');closeModal();return;}item.status=$('croStatus').value;item.note=$('croStatusNote').value.trim();item.active=!['Half Day','Inactive'].includes(item.status);if(!item.active&&rot&&rot.currentCroId===croId)rot.currentCroId=nextCroAfter(rot,croId);if(!item.active&&rot&&rot.priorityCroId===croId)rot.priorityCroId=null;if(item.status==='Available')tryFillFromWaiting();const goingOffFloor=OFF_FLOOR_STATUSES.includes(item.status),lead=openLeadOf(croId);if(!save('cro.status.update',{croId,status:item.status}))return;closeModal();if(goingOffFloor&&lead)toast(lead.queueNo+' open with '+croName(croId)+' — reassign it.','warn');else toast('Status updated.','success')}
+function moveCro(croId,dir){if(!guardWrite())return;if(!requireSM())return;const rot=currentRotation();if(!rot)return;const arr=rot.items.sort((a,b)=>a.order-b.order),idx=arr.findIndex(i=>i.croId===croId),ni=idx+dir;if(ni<0||ni>=arr.length)return;[arr[idx],arr[ni]]=[arr[ni],arr[idx]];arr.forEach((i,n)=>i.order=n+1);save('rotation.reorder',{croId,dir})}
+function removeCroToday(croId){if(!guardWrite())return;if(!requireSM())return;const rot=currentRotation();if(!rot)return;if(!confirm('Remove this CRO from today\'s rotation?'))return;rot.items=rot.items.filter(i=>i.croId!==croId).map((i,n)=>({...i,order:n+1}));if(rot.currentCroId===croId)rot.currentCroId=activeRotationItems(rot)[0]?.croId||null;if(rot.priorityCroId===croId)rot.priorityCroId=null;save('rotation.cro.remove',{croId})}
+function nextCroAfter(rot,croId){const active=activeRotationItems(rot).sort((a,b)=>a.order-b.order);if(!active.length)return null;const idx=active.findIndex(i=>i.croId===croId);if(idx===-1)return active[0].croId;return active[(idx+1)%active.length].croId}
+function firstAvailableCro(rot,skipIds=[]){const active=activeRotationItems(rot).sort((a,b)=>a.order-b.order);return active.find(i=>!skipIds.includes(i.croId)&&['Available','Busy'].includes(i.status))?.croId||active.find(i=>!skipIds.includes(i.croId))?.croId||null}
+function advancePointer(rot,fromCroId){rot.currentCroId=nextCroAfter(rot,fromCroId)||rot.currentCroId}
+/* ===== Phase 1: CRO occupancy ("one active lead in hand") =====
+   OFF_FLOOR = statuses that pull a CRO off the floor (skip-with-reason path).
+   A CRO is FREE only when on-floor, active, manual-status not Busy, AND holding no open lead. */
+const OFF_FLOOR_STATUSES=['Washroom','Tea / Lunch Break','Not Near Entrance','Manager Work','Half Day','Inactive'];
+const NOT_FREE_STATUSES=OFF_FLOOR_STATUSES.concat(['Busy']);
+/* ===== Phase 6: canonical state vocabulary (documentation + reporting aids; NOT enforced/migrated).
+   CUSTOMER_STATES is the ordered customer lifecycle. CRO_AVAIL_STATES are the MANUAL availability
+   strings; the full CRO status vocabulary = CRO_AVAIL_STATES ∪ OFF_FLOOR_STATUSES. NOTE: 'Busy' here
+   is the MANUAL status string, distinct from the DERIVED occupancy computed by croBusy()/isFreeOnFloor().
+   'Billing / Service Desk' is a tolerated legacy alias (see statusConfig) — NOT part of CUSTOMER_STATES. */
+const CUSTOMER_STATES=['New Entry','Waiting','Allocated','In Discussion','Awaiting Closure','Closed'];
+const CRO_AVAIL_STATES=['Available','Busy'];
+/* Non-destructive validator/centralization point for reporting. NEVER rewrites a valid value, NEVER
+   throws; returns input unchanged when recognized, 'New Entry' only for empty/nullish. NOT wired into
+   any setter in p6 (behavior-preserving). */
+function normalizeCustomerStatus(s){const v=String(s||'').trim();if(CUSTOMER_STATES.includes(v))return v;if(v==='Billing / Service Desk')return v;/* tolerated legacy alias */return v||'New Entry';}
+/* ===== Phase 6: pre-claim READERS (reporting-only; defensive). There is no pre-claim feature in this
+   baseline, so these guard for a missing state.preclaims array and return empty/zero gracefully. ===== */
+function isPreclaimActive(p){if(!p)return false;const d=(p.date||p.createdAt||'').slice(0,10);return p.status==='Active'&&d===viewAsOf;}
+function preclaimsForView(){return(Array.isArray(state.preclaims)?state.preclaims:[]).filter(p=>((p&&(p.date||p.createdAt||''))||'').slice(0,10)===viewAsOf);}
+function preclaimStatsByCro(){const map={};preclaimsForView().forEach(p=>{const id=p&&p.croId;if(!id)return;map[id]=map[id]||{honored:0,missed:0};const st=String(p.status||'');if(st==='Honored')map[id].honored++;else if(st==='Missed'||st==='Missed-but-held'||st==='Expired')map[id].missed++;});return map;}
+/* ===== Phase 4: Pre-claim engine ("CRO gives name+number → reader enters number → auto-allocate") ===== */
+function findActivePreclaim(mobile){return(Array.isArray(state.preclaims)?state.preclaims:[]).find(p=>p&&p.status==='Active'&&p.mobile===mobile&&(p.date||'')===todayISO())||null;}
+function routeWithPreclaim(c){const rot=currentRotation();const pc=findActivePreclaim(c.mobile);if(!pc){allocateCustomer(c.id);return;}const croId=pc.croId;const item=rot?rotationItem(rot,croId):null;if(!rot||!item||isOffFloor(item)){/* claimed CRO not on the floor → claim missed (unavailable); normal rotation */pc.status='Missed';pc.honoredCustomerId=null;addAudit('preclaim.missed',{queueNo:c.queueNo,croId,croName:croName(croId),reason:'unavailable'},true);allocateCustomer(c.id);return;}if(isFreeOnFloor(rot,croId)){/* HONOR — bonus: assign directly, no pointer advance, no rotation turn consumed */c.expectedCroId=rot.currentCroId;c.assignedCroId=croId;c.allocatedTime=new Date().toISOString();c.status='Allocated';pc.status='Honored';pc.honoredCustomerId=c.id;addAudit('preclaim.honored',{queueNo:c.queueNo,croId,croName:croName(croId)},true);return;}/* claimed CRO on-floor but BUSY → this customer goes to rotation now; hold the CRO as next-opportunity */pc.status='Missed-but-held';pc.honoredCustomerId=null;rot.priorityCroId=croId;addAudit('preclaim.missed',{queueNo:c.queueNo,croId,croName:croName(croId),reason:'busy-held'},true);allocateCustomer(c.id);}
+function savePreclaim() {
+  if (!guardWrite()) return;
+  const croId = $('pcCro') ? $('pcCro').value : '';
+  const name = $('pcName').value.trim();
+  const mobile = $('pcMobile').value.trim();
+  const note = $('pcNote') ? $('pcNote').value.trim() : '';
+  if (!croId) {
+    toast('Select a CRO.', 'error');
+    return;
+  }
+  if (!name) {
+    toast('Customer name required.', 'error');
+    return;
+  }
+  if (!/^\d{10}$/.test(mobile)) {
+    toast('Mobile must be 10 digits.', 'error');
+    return;
+  }
+  const existing = findActivePreclaim(mobile);
+  if (existing) {
+    toast('Already pre-claimed by ' + croName(existing.croId) + '.', 'error');
+    return;
+  }
+  state.preclaims.push({
+    id: uid('pc'),
+    croId,
+    customerName: name,
+    mobile,
+    note,
+    createdAt: new Date().toISOString(),
+    createdBy: role,
+    date: todayISO(),
+    status: 'Active',
+    honoredCustomerId: null
+  });
+  if (!save('preclaim.create', { croId, croName: croName(croId) })) {
+    if ($('pcCro')) $('pcCro').value = croId;
+    if ($('pcName')) $('pcName').value = name;
+    if ($('pcMobile')) $('pcMobile').value = mobile;
+    if ($('pcNote')) $('pcNote').value = note;
+    return;
+  }
+  ['pcName', 'pcMobile'].forEach(id => {
+    if ($(id)) $(id).value = '';
+  });
+  if ($('pcNote')) $('pcNote').value = '';
+  toast('Pre-claim added for ' + croName(croId) + '.', 'success');
+}
+function cancelPreclaim(id){if(!guardWrite())return;const p=(state.preclaims||[]).find(x=>x.id===id);if(!p)return;if(p.status!=='Active'){toast('Only active pre-claims can be cancelled.','warn');return;}p.status='Cancelled';if(!save('preclaim.cancel',{id,croId:p.croId}))return;toast('Pre-claim cancelled.','warn');}
+function renderPreclaim(){const rot=currentRotation();const all=preclaimsForView();const active=all.filter(p=>p.status==='Active').sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));const past=all.filter(p=>p.status!=='Active').sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));const cros=availableCros();const isCro=role==='CRO';const stBadge=s=>s==='Honored'?'green':s==='Active'?'blue':s==='Cancelled'?'gray':'orange';const placeholderOption=isCro?'<option value="">— select your name —</option>':'<option value="">— select CRO —</option>';$('view-preclaim').innerHTML=`<div class="page-header"><div class="page-header-left"><h1>Pre-Claims</h1><p>A CRO reserves an expected customer by name &amp; number — when the greeter enters that mobile, the customer auto-routes to them if they're free.</p></div></div><div class="grid-2"><div class="card"><div class="card-head"><div><div class="card-title">New Pre-Claim</div><div class="card-sub">Valid for today only</div></div></div><div class="card-body">${!rot?'<div class="warn-note" style="margin-bottom:14px">No rotation active today — a pre-claim still records but can only be honored once a rotation is created.</div>':''}<div class="form-grid"><div class="field full"><label class="label">CRO *</label><select class="select" id="pcCro">${placeholderOption}${cros.map(c=>`<option value="${c.id}">${esc(c.name)} ${esc(c.code||'')}</option>`).join('')}</select></div><div class="field"><label class="label">Customer Name *</label><input class="input" id="pcName" placeholder="Full name"></div><div class="field"><label class="label">Mobile No. *</label><input class="input" id="pcMobile" maxlength="10" placeholder="10 digit mobile"></div><div class="field full"><label class="label">Note (optional)</label><input class="input" id="pcNote" placeholder="e.g. coming this evening for the gold watch"></div></div></div><div class="card-foot"><button data-action="savepreclaim" class="btn primary" onclick="savePreclaim()" style="margin-left:auto">Add Pre-Claim</button></div></div><div class="card"><div class="card-head"><div><div class="card-title">Active Pre-Claims</div><div class="card-sub">${active.length} waiting to walk in</div></div></div><div class="card-body" style="padding:0">${active.length?`<div class="tbl-wrap"><table class="tbl"><thead><tr><th>CRO</th><th>Customer</th><th>Mobile</th><th>By</th><th></th></tr></thead><tbody>${active.map(p=>`<tr><td><b>${esc(croName(p.croId))}</b></td><td>${esc(p.customerName)}${p.note?`<div class="sub">${esc(p.note)}</div>`:''}</td><td class="mono">${esc(p.mobile)}</td><td><span class="badge gray">${esc(p.createdBy||'')}</span></td><td><button data-action="cancelpreclaim" data-action-key="definition-01" class="btn sm" style="color:var(--red);border-color:#fca5a5" onclick="cancelPreclaim('${p.id}')">Cancel</button></td></tr>`).join('')}</tbody></table></div>`:'<div class="empty-state" style="padding:24px 0"><p>No active pre-claims</p></div>'}</div></div></div>${past.length?`<div class="card" style="margin-top:16px"><div class="card-head"><div><div class="card-title">Today's Pre-Claim History</div></div></div><div class="card-body" style="padding:0"><div class="tbl-wrap"><table class="tbl"><thead><tr><th>CRO</th><th>Customer</th><th>Mobile</th><th>Outcome</th></tr></thead><tbody>${past.map(p=>`<tr><td>${esc(croName(p.croId))}</td><td>${esc(p.customerName)}</td><td class="mono">${esc(p.mobile)}</td><td><span class="badge ${stBadge(p.status)}">${esc(p.status)}</span></td></tr>`).join('')}</tbody></table></div></div></div>`:''}`;}
+/* ===== Phase 5: Priority queue-jump. High-priority WAITERS jump the waiting line
+   (no senior-CRO routing). Render ordering surfaces them at the top of Active. ===== */
+const PRIORITY_RANK={'Complaint':0,'Urgent Service':0,'VIP':0,'Senior Citizen':0,'Normal':1};
+function priorityRank(c){return PRIORITY_RANK[c&&c.priority]??1;}
+function waitingPriorityKey(c){return (c.status==='Waiting'&&!c.assignedCroId&&priorityRank(c)===0)?0:1;}
+function croHasOpenLead(croId){return todaysCustomers().some(c=>c.assignedCroId===croId&&c.status!=='Closed')}
+function openLeadOf(croId){return todaysCustomers().find(c=>c.assignedCroId===croId&&c.status!=='Closed')||null}
+function isOffFloor(item){return !item||!item.active||OFF_FLOOR_STATUSES.includes(item.status||'')}
+function isFreeOnFloor(rot,croId){const it=rotationItem(rot,croId);if(!it||!it.active)return false;if(NOT_FREE_STATUSES.includes(it.status||''))return false;if(!(state.cros.find(c=>c.id===croId)||{}).active)return false;return !croHasOpenLead(croId)}
+function croBusy(rot,croId){const it=rotationItem(rot,croId);if(isOffFloor(it))return false;return !isFreeOnFloor(rot,croId)}
+/* first free on-floor CRO AFTER fromCroId in rotation order (wraps; excludes fromCroId) — used for busy-overflow */
+function nextFreeCro(rot,fromCroId){const arr=activeRotationItems(rot).sort((a,b)=>a.order-b.order);if(!arr.length)return null;let start=arr.findIndex(i=>i.croId===fromCroId);for(let k=1;k<=arr.length;k++){const it=arr[((start<0?-1:start)+k+arr.length)%arr.length];if(isFreeOnFloor(rot,it.croId))return it.croId}return null}
+/* first free on-floor CRO in rotation order (includes everyone) — used to fill the Waiting queue */
+function anyFreeCro(rot){const arr=activeRotationItems(rot).sort((a,b)=>a.order-b.order);for(const it of arr){if(isFreeOnFloor(rot,it.croId))return it.croId}return null}
+/* Decide who gets the next walk-in. Returns {type:'assign',croId,advance}|{type:'skip',target}|{type:'wait'} */
+function pickAllocation(rot){if(!rot)return{type:'wait'};
+  /* 1) Held next-opportunity (a skipped CRO's make-up OR a busy pre-claim CRO): if that CRO is now free on-floor, honor it as a BONUS — no pointer advance, no rotation turn consumed. If the holder is off-floor or still busy, do NOT skip-modal them: fall through to normal rotation (the held claim persists until they are free). */
+  const pri=rot.priorityCroId;
+  if(pri){const pit=rotationItem(rot,pri);if(!isOffFloor(pit)&&isFreeOnFloor(rot,pri))return{type:'assign',croId:pri,advance:false};}
+  /* 2) Normal rotation by the current pointer. */
+  const cur=rot.currentCroId;
+  if(cur){const item=rotationItem(rot,cur);if(isOffFloor(item))return{type:'skip',target:cur};if(isFreeOnFloor(rot,cur))return{type:'assign',croId:cur,advance:true};const nf=nextFreeCro(rot,cur);if(nf)return{type:'assign',croId:nf,advance:false};return{type:'wait'};}
+  const nf=anyFreeCro(rot);return nf?{type:'assign',croId:nf,advance:true}:{type:'wait'}}
+/* When a CRO frees up (lead closed / back from break), pull the oldest Waiting customer to any free CRO. No modals. */
+function tryFillFromWaiting(){if(isPast())return;const rot=currentRotation();if(!rot)return;const waiting=todaysCustomers().filter(c=>c.status==='Waiting'&&!c.assignedCroId).sort((a,b)=>(priorityRank(a)-priorityRank(b))||(new Date(a.entryTime)-new Date(b.entryTime)));for(const c of waiting){const croId=anyFreeCro(rot);if(!croId)break;c.expectedCroId=rot.currentCroId;c.assignedCroId=croId;c.allocatedTime=new Date().toISOString();c.status='Allocated'}}
+function renderEntry(){const rot=currentRotation();const isSM=role==='SM'||role==='Admin';$('view-entry').innerHTML=`<div class="page-header"><div class="page-header-left"><h1>Customer Entry</h1><p>Greeter records customer details and CRO is allocated</p></div><span class="badge navy" style="font-size:14px;padding:6px 14px">Next: ${getQueueNo()}</span></div><div class="grid-2"><div class="card"><div class="card-head"><div><div class="card-title">New Walk-in</div></div></div><div class="card-body">${!rot?'<div class="warn-note" style="margin-bottom:14px">No rotation active — CRO auto-allocation will be skipped.</div>':''}<div class="info-note" id="qmsLegalNotice" style="margin-bottom:14px;line-height:1.5"><strong>Privacy notice</strong><div style="margin-top:4px">We use the details below to manage this visit, allocate staff, provide the requested retail/service interaction, and keep the related transaction or service record. Promotional WhatsApp is optional and separate.</div><button data-action="qmsopenprivacynotice" class="btn sm" type="button" onclick="qmsOpenPrivacyNotice()" style="margin-top:7px">Read full notice & rights</button><div class="form-grid" style="margin-top:10px"><div class="field"><label class="label">Customer age status *</label><select class="select" id="qmsLegalAge"><option value="">Select</option><option value="adult">Adult (18+)</option><option value="minor">Under 18 — guardian present</option></select></div><div class="field"><label class="label">Guardian name (if under 18)</label><input class="input" id="qmsGuardianName" placeholder="Parent / lawful guardian"></div><div class="field"><label class="label">Guardian relationship</label><input class="input" id="qmsGuardianRelation" placeholder="Parent / lawful guardian"></div><div class="field"><label class="label">Guardian verification</label><select class="select" id="qmsGuardianMethod"><option value="">Select if under 18</option><option value="document-seen">Adult identity/age document seen</option><option value="existing-verified-record">Existing verified business record</option><option value="digital-token">Authorised digital token</option><option value="other-lawful-method">Other lawful method</option></select></div></div><label style="display:flex;gap:7px;align-items:flex-start;margin-top:8px;font-size:12px"><input type="checkbox" id="qmsGuardianConsent"> Guardian confirms authority and consents to the necessary processing (required only for under 18).</label><label style="display:flex;gap:7px;align-items:flex-start;margin-top:8px;font-size:12px"><input type="checkbox" id="qmsPromoConsent"> Optional: customer actively agrees to promotional WhatsApp offers, greetings and review requests. Service and visit updates do not depend on this.</label></div><div class="form-grid"><div class="field"><label class="label">Mobile No.</label><input data-action="showcustomerhistory" class="input" id="custMobile" maxlength="10" placeholder="10 digit mobile" oninput="showCustomerHistory()"><label style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;color:var(--muted)"><input data-action="onnomobiletoggle" type="checkbox" id="noMobileChk" onchange="onNoMobileToggle()"> No number given (walk-in)</label></div><div class="field"><label class="label">Customer Name *</label><input class="input" id="custName" placeholder="Full name"></div><div class="field"><label class="label">Visit Type *</label><select class="select" id="visitType"><option>Purchase</option><option>Service</option><option>Complaint</option><option>Enquiry</option><option>Delivery</option><option>Exchange</option></select></div><div class="field"><label class="label">Customer Type</label><select class="select" id="customerType"><option>New</option><option>Repeat</option><option>VIP</option></select></div><div class="field"><label class="label">Birthday (optional)</label><input class="input" id="custDob" type="date"></div><div class="field"><label class="label">Anniversary (optional)</label><input class="input" id="custAnniv" type="date"></div><div class="field"><label class="label">Product Interest</label><input class="input" id="productInterest" placeholder="Watch / strap / battery"></div><div class="field"><label class="label">Source</label><select class="select" id="source"><option>Walk-in</option><option>Referral</option><option>Phone enquiry</option><option>Repeat customer</option><option>WhatsApp</option></select></div><div class="field"><label class="label">No. of People</label><input class="input" id="peopleCount" type="number" min="1" value="1"></div><div class="field"><label class="label">Priority</label><select class="select" id="priority"><option>Normal</option><option>VIP</option><option>Senior Citizen</option><option>Complaint</option><option>Urgent Service</option></select></div>${isSM?`<div class="field"><label class="label">Allocate to</label><select class="select" id="allocCro"><option value="">Auto (by rotation)</option>${rot?activeRotationItems(rot).sort((a,b)=>a.order-b.order).map(i=>{const st=isOffFloor(rotationItem(rot,i.croId))?'Off-floor':croBusy(rot,i.croId)?'Busy':'Free';return `<option value="${i.croId}">${esc(croName(i.croId))} — ${st}</option>`}).join(''):''}</select></div>`:''}<div class="field full"><label class="label">Purpose / Notes</label><textarea class="textarea" id="purpose" placeholder="What does the customer need?"></textarea></div></div></div><div class="card-foot"><button data-action="clearentryform" class="btn ghost" onclick="clearEntryForm()">Clear</button><button data-action="addcustomer" data-action-key="definition-01" class="btn" onclick="addCustomer('outcome')" style="margin-left:auto" ${role==='Greeter'&&!state.settings.allowGreeterClose?'disabled title="Greeter closure disabled"':''}>Save, start &amp; open outcome</button><button data-action="addcustomer" data-action-key="definition-02" class="btn primary" onclick="addCustomer()">Save & Allocate CRO →</button></div></div><div class="card"><div class="card-head"><div><div class="card-title">Visit History</div><div class="card-sub">Previous visits for this mobile number</div></div></div><div class="card-body" id="historyBox"><div class="empty-state"><p>Enter mobile number to see history</p></div></div></div></div>`}
+function qmsDuplicateSuggestions(mobile) {
+  const policy = qmsPolicyApi();
+  if (!policy || typeof policy.duplicateSuggestions !== 'function') return null;
+  return policy.duplicateSuggestions(
+    { mobile },
+    state.customers,
+    { asOf: todayISO() }
+  );
+}
+function qmsOpenExistingDuplicate(id) {
+  const customer = customerById(id);
+  if (!customer) {
+    toast('The selected visit is no longer available.', 'warn');
+    return;
+  }
+  switchView('live');
+  openCustomer(id);
+}
+function qmsOpenExistingDuplicateByIndex(index) {
+  const suggestions = Array.isArray(window.__qmsDuplicateSuggestions)
+    ? window.__qmsDuplicateSuggestions : [];
+  const suggestion = suggestions[Number(index)];
+  if (!suggestion) {
+    toast('The duplicate suggestion is no longer available.', 'warn');
+    return;
+  }
+  qmsOpenExistingDuplicate(suggestion.candidateId);
+}
+function showCustomerHistory() {
+  const mobile = $('custMobile')?.value.trim() || '';
+  const box = $('historyBox');
+  if (!box) return;
+  const m10 = _qmsNorm10(mobile);
+  if (m10.length !== 10) {
+    window.__qmsDuplicateSuggestions = [];
+    box.innerHTML = '<div class="empty-state"><p>Enter the full 10-digit mobile number to see history</p></div>';
+    return;
+  }
+
+  const hist = state.customers.filter(c => _qmsNorm10(c.mobile) === m10).slice(-6).reverse();
+  const histHtml = hist.map(c => `<div class="hist-item"><strong>${esc(c.queueNo)} &middot; ${fmtDT(c.entryTime)}</strong><div class="mini">Outcome: ${esc(c.outcome || c.status)} &middot; CRO: ${esc(croName(c.assignedCroId))} &middot; ₹${(+c.purchaseAmount || 0).toLocaleString('en-IN')}</div><div class="mini">${esc(c.notes || c.purpose || '')}</div></div>`).join('') ||
+    '<div class="empty-state"><p>No previous visits found</p></div>';
+
+  let duplicateUi = '';
+  const suggestions = m10.length === 10 ? qmsDuplicateSuggestions(m10) : [];
+  window.__qmsDuplicateSuggestions = Array.isArray(suggestions) ? suggestions : [];
+  if (Array.isArray(suggestions) && suggestions.length) {
+    duplicateUi = `<div class="warn-note" style="margin-bottom:12px"><strong>Possible same-day visit — operator review required</strong><div class="mini" style="margin:5px 0 8px">These are suggestions only. Records are never merged or deleted automatically.</div>${suggestions.map((s, index) => `<div class="hist-item"><strong>${esc(s.label)}</strong><div style="margin-top:6px"><button data-action="qmsopenexistingduplicatebyindex" data-action-key="definition-01" class="btn xs ghost" type="button" onclick="qmsOpenExistingDuplicateByIndex(${index})">Open existing visit</button></div></div>`).join('')}</div>`;
+  } else if (suggestions === null && m10.length === 10) {
+    duplicateUi = '<div class="danger-note" style="margin-bottom:12px">Duplicate review is unavailable. Saving a mobile-number visit is blocked until the control is restored.</div>';
+  }
+
+  let banner = '';
+  if (m10.length === 10) {
+    const cm = _qmsMaster();
+    const me = cm && cm.byMobile && cm.byMobile[m10];
+    const localVisits = state.customers.filter(c => _qmsNorm10(c.mobile) === m10);
+    const pastVisits = localVisits.length;
+    if (me || pastVisits > 0) {
+      const purchases = localVisits.filter(c => c.outcome === 'Purchase')
+        .sort((a, b) => String(b.closedAt || b.exitTime || b.entryTime || '')
+          .localeCompare(String(a.closedAt || a.exitTime || a.entryTime || '')));
+      const lastBuy = purchases[0];
+      const vTxt = pastVisits + ' past visit' + (pastVisits === 1 ? '' : 's');
+      let boughtTxt = '';
+      if (lastBuy) {
+        const cat = lastBuy.purchaseCategory || 'Purchase';
+        const amt = +lastBuy.purchaseAmount || 0;
+        boughtTxt = ' &middot; last bought ' + esc(cat) + ' ₹' + amt.toLocaleString('en-IN');
+      }
+      banner = `<div class="info-note" style="margin-bottom:12px">Repeat customer — ${vTxt}${boughtTxt}</div>`;
+      const select = $('customerType');
+      if (select && select.value === 'New' && window.__qmsTypeFlipFor !== m10) {
+        select.value = 'Repeat';
+        window.__qmsTypeFlipFor = m10;
+      }
+    }
+  }
+
+  let archiveUi = '';
+  if (m10.length === 10) {
+    archiveUi = `<div style="margin-top:12px"><button data-action="qmssearcharchive" data-action-key="definition-01" class="btn sm" type="button" onclick="qmsSearchArchive('${esc(m10)}')">Search older visits</button><div id="qmsArchiveResults"></div></div>`;
+  }
+  box.innerHTML = duplicateUi + banner + histHtml + archiveUi;
+}
+function qmsSearchArchive(m10){const box=$('qmsArchiveResults');if(!box)return;box.innerHTML='<div class="mini" style="color:var(--muted);margin-top:8px">Searching…</div>';let fn=null;try{fn=(window.parent&&window.parent!==window)?SaagarModuleBridge.qmsArchiveLookup:(window.qmsArchiveLookup||null);}catch(e){fn=null;}if(typeof fn!=='function'){box.innerHTML='<div class="mini" style="color:var(--muted);margin-top:8px">Archive search runs in the app (not in browser preview).</div>';return;}Promise.resolve().then(function(){return fn(m10);}).then(function(rows){if(rows===null){box.innerHTML='<div class="mini" style="color:var(--muted);margin-top:8px">Archive not available here — search runs in the app.</div>';return;}/* verify-fix: null = engine-off/no-FS (unavailable), [] = genuinely no older visits — never a false 'no visits' */if(!Array.isArray(rows)||!rows.length){box.innerHTML='<div class="mini" style="color:var(--muted);margin-top:8px">No older visits in archive.</div>';return;}rows.sort(function(a,b){return String(b.closedAt||b.entryTime||'').localeCompare(String(a.closedAt||a.entryTime||''));});box.innerHTML='<div class="mini" style="font-weight:700;color:var(--ink2);margin:10px 0 4px">Older visits (archive)</div>'+rows.slice(0,10).map(function(c){return `<div class="hist-item"><strong>${esc(c.queueNo)} &middot; ${fmtDT(c.entryTime)}</strong><div class="mini">Outcome: ${esc(c.outcome||c.status)} &middot; ₹${(+c.purchaseAmount||0).toLocaleString('en-IN')}</div><div class="mini">${esc(c.notes||c.purpose||'')}</div></div>`;}).join('');}).catch(function(){box.innerHTML='<div class="mini" style="color:var(--muted);margin-top:8px">Archive search unavailable.</div>';});}
+function clearEntryForm(){['custMobile','custName','productInterest','purpose','custDob','custAnniv','qmsLegalAge','qmsGuardianName','qmsGuardianRelation','qmsGuardianMethod'].forEach(id=>{if($(id))$(id).value='';});['qmsGuardianConsent','qmsPromoConsent'].forEach(id=>{if($(id))$(id).checked=false;});$('peopleCount').value=1;if($('noMobileChk'))$('noMobileChk').checked=false;if($('custMobile')){$('custMobile').disabled=false;$('custMobile').placeholder='10 digit mobile';}/* verify-fix: Clear must also reset the no-number toggle or the next walk-in inherits a disabled mobile field */showCustomerHistory()}
+/* P1-4: 'No number given' walk-in toggle — relaxes the mobile requirement for a walk-in who won't share a number. */
+function onNoMobileToggle(){const chk=$('noMobileChk'),mob=$('custMobile');if(!mob)return;if(chk&&chk.checked){mob.value='';mob.disabled=true;mob.placeholder='Not provided';}else{mob.disabled=false;mob.placeholder='10 digit mobile';}showCustomerHistory();}
+function qmsLegalApi(){try{return (window.parent&&window.parent!==window&&SaagarModuleBridge.legal)||SaagarModuleBridge.legal||null}catch(e){return null}}
+function qmsOpenPrivacyNotice(){const L=qmsLegalApi();if(!L){toast('Privacy notice is unavailable — do not collect customer data.','error');return}alert(L.noticeText('qms-intake'))}
+function qmsPendingIntakeKey() {
+  return 'retail_queue_management_pending_intake_v1';
+}
+function qmsReadPendingIntake() {
+  /* D2-QMS-LEGAL-RETRY-2026-07-30 */
+  const raw = localStorage.getItem(qmsPendingIntakeKey());
+  if (!raw) return null;
+  let token;
+  try {
+    token = JSON.parse(raw);
+  } catch (error) {
+    throw new Error('Pending intake recovery data is unreadable.');
+  }
+  const customerId = String(token && token.customerId || '');
+  const businessDate = String(token && token.businessDate || '');
+  if (!token || token.version !== 1 ||
+      !/^cust_[a-z0-9_]{6,80}$/.test(customerId) ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(businessDate)) {
+    throw new Error('Pending intake recovery data is invalid.');
+  }
+  return {
+    version: 1,
+    customerId,
+    businessDate,
+    previewQueueNo: String(token.previewQueueNo || '').slice(0, 40),
+    createdAt: String(token.createdAt || '')
+  };
+}
+function qmsAcquirePendingIntake(previewQueueNo) {
+  const businessDate = todayISO();
+  let existing;
+  try {
+    existing = qmsReadPendingIntake();
+  } catch (error) {
+    return { ok: false, message: error.message };
+  }
+  if (existing && existing.businessDate === businessDate &&
+      !state.customers.some(customer => customer && customer.id === existing.customerId)) {
+    return { ok: true, customerId: existing.customerId, reused: true };
+  }
+  const token = {
+    version: 1,
+    customerId: uid('cust'),
+    businessDate,
+    previewQueueNo: String(previewQueueNo || '').slice(0, 40),
+    createdAt: new Date().toISOString()
+  };
+  try {
+    localStorage.setItem(qmsPendingIntakeKey(), JSON.stringify(token));
+    const verified = qmsReadPendingIntake();
+    if (!verified || verified.customerId !== token.customerId ||
+        verified.businessDate !== token.businessDate) {
+      throw new Error('Pending intake token verification failed.');
+    }
+    return { ok: true, customerId: token.customerId, reused: false };
+  } catch (error) {
+    return {
+      ok: false,
+      message: 'The retry-safe intake token could not be saved. No privacy evidence or queue visit was created.'
+    };
+  }
+}
+function qmsClearPendingIntake(customerId) {
+  try {
+    const token = qmsReadPendingIntake();
+    if (!token || token.customerId !== String(customerId || '')) return true;
+    localStorage.removeItem(qmsPendingIntakeKey());
+    return localStorage.getItem(qmsPendingIntakeKey()) == null;
+  } catch (error) {
+    return false;
+  }
+}
+function qmsLegalCapture(c, noMobile) {
+  const legal = qmsLegalApi();
+  if (!legal) return { ok: false, message: 'Privacy control unavailable' };
+  return legal.captureIntake({
+    operationId: 'qms-intake:' + String(c.id || ''),
+    scope: 'qms-intake',
+    source: 'qms-new-walk-in',
+    actor: role,
+    mobile: noMobile ? '' : c.mobile,
+    dateOfBirth: c.dob,
+    ageBand: ($('qmsLegalAge') && $('qmsLegalAge').value) || '',
+    guardian: {
+      name: ($('qmsGuardianName') && $('qmsGuardianName').value) || '',
+      relationship: ($('qmsGuardianRelation') && $('qmsGuardianRelation').value) || '',
+      verificationMethod: ($('qmsGuardianMethod') && $('qmsGuardianMethod').value) || '',
+      consent: !!($('qmsGuardianConsent') && $('qmsGuardianConsent').checked)
+    },
+    promotionalConsent: !noMobile && !!($('qmsPromoConsent') && $('qmsPromoConsent').checked),
+    payload: c
+  });
+}
+function qmsCaptureEntryDraft() {
+  /* D2-QMS-ENTRY-RECOVERY-2026-07-30 */
+  const valueIds = [
+    'custMobile', 'custName', 'visitType', 'customerType', 'custDob', 'custAnniv',
+    'productInterest', 'source', 'peopleCount', 'priority', 'purpose', 'allocCro',
+    'qmsLegalAge', 'qmsGuardianName', 'qmsGuardianRelation', 'qmsGuardianMethod'
+  ];
+  const checkIds = ['noMobileChk', 'qmsGuardianConsent', 'qmsPromoConsent'];
+  const values = {};
+  const checks = {};
+  valueIds.forEach(id => {
+    if ($(id)) values[id] = $(id).value;
+  });
+  checkIds.forEach(id => {
+    if ($(id)) checks[id] = !!$(id).checked;
+  });
+  return { values, checks };
+}
+function qmsRestoreEntryDraft(draft) {
+  if (!draft || !draft.values || !draft.checks) return;
+  Object.keys(draft.values).forEach(id => {
+    if ($(id)) $(id).value = draft.values[id];
+  });
+  Object.keys(draft.checks).forEach(id => {
+    if ($(id)) $(id).checked = !!draft.checks[id];
+  });
+  onNoMobileToggle();
+  showCustomerHistory();
+}
+function addCustomer() {
+  const nextAction = arguments[0] || 'live';
+  if (isPast()) {
+    toast('Viewing a past date — read-only.', 'warn');
+    return;
+  }
+  if (eodLockActive()) {
+    toast('EOD is closed — no new walk-ins. Create a fresh rotation to resume.', 'error');
+    return;
+  }
+  const noMobile = !!($('noMobileChk') && $('noMobileChk').checked);
+  const mobile = noMobile ? '' : $('custMobile').value.trim();
+  const name = $('custName').value.trim();
+  if (!noMobile && !/^\d{10}$/.test(mobile)) {
+    toast('Mobile must be 10 digits.', 'error');
+    return;
+  }
+  if (!name) {
+    toast('Customer name required.', 'error');
+    return;
+  }
+
+  let duplicateReview = { decisionCode: 'NO_MATCH', candidateIds: [], candidateCount: 0 };
+  if (!noMobile) {
+    const policy = qmsPolicyApi();
+    const suggestions = qmsDuplicateSuggestions(mobile);
+    if (!policy || !Array.isArray(suggestions) || typeof policy.duplicateGate !== 'function') {
+      toast('Duplicate review unavailable. Nothing was saved.', 'error');
+      return;
+    }
+    if (suggestions.length) {
+      const hasOpen = suggestions.some(s => s.kind === 'SAME_DAY_OPEN');
+      const prompt = hasOpen
+        ? 'This mobile already has an open visit today. Review the suggested visit first. Press OK only to create a separate queue entry; Cancel keeps this form unchanged.'
+        : 'This mobile already has a completed visit today. Press OK only to record a genuinely separate visit; Cancel keeps this form unchanged.';
+      if (!confirm(prompt)) return;
+      const gate = policy.duplicateGate(suggestions, {
+        action: 'CREATE_SEPARATE',
+        candidateIds: suggestions.map(s => s.candidateId)
+      });
+      if (!gate.canCreate) {
+        toast('Explicit duplicate review is required before creating a separate visit.', 'error');
+        return;
+      }
+      duplicateReview = gate.audit;
+    }
+  }
+
+  const entryDraft = qmsCaptureEntryDraft();
+  const c = {
+    id: null,
+    queueNo: getQueueNo(),
+    entryTime: new Date().toISOString(),
+    name,
+    mobile,
+    noMobile,
+    visitType: $('visitType').value,
+    customerType: $('customerType').value,
+    dob: (($('custDob') && $('custDob').value) || ''),
+    anniv: (($('custAnniv') && $('custAnniv').value) || ''),
+    productInterest: $('productInterest').value.trim(),
+    source: $('source').value,
+    peopleCount: +$('peopleCount').value || 1,
+    priority: $('priority').value,
+    purpose: $('purpose').value.trim(),
+    status: 'New Entry',
+    assignedCroId: null,
+    expectedCroId: null,
+    attendStart: null,
+    exitTime: null,
+    outcome: null,
+    notes: ''
+  };
+  const pendingIntake = qmsAcquirePendingIntake(c.queueNo);
+  if (!pendingIntake.ok) {
+    toast(pendingIntake.message, 'error');
+    return;
+  }
+  c.id = pendingIntake.customerId;
+  let legalResult;
+  try {
+    legalResult = qmsLegalCapture(c, noMobile);
+  } catch (error) {
+    if (error && error.code === 'IDEMPOTENCY_CONFLICT') {
+      const reset = qmsClearPendingIntake(c.id);
+      toast(reset
+        ? 'Intake details changed after a partial attempt. Press Save again to start a new retry-safe attempt.'
+        : 'Intake details changed, but the pending token could not be reset. Nothing was saved; free storage and retry.', 'error');
+      return;
+    }
+    toast('Privacy evidence could not be saved. The queue visit was not created; retry or review the legal log if this repeats.', 'error');
+    return;
+  }
+  if (!legalResult.ok) {
+    if (legalResult.code === 'IDEMPOTENCY_CONFLICT') {
+      const reset = qmsClearPendingIntake(c.id);
+      toast(reset
+        ? 'Intake details changed after a partial attempt. Press Save again to start a new retry-safe attempt.'
+        : 'Intake details changed, but the pending token could not be reset. Nothing was saved; free storage and retry.', 'error');
+      return;
+    }
+    toast(legalResult.message || ('Privacy control blocked save: ' + (legalResult.code || 'check required')), 'error');
+    return;
+  }
+
+  c.queueNo = nextQueueNo();
+  state.customers.push(c);
+  window.__qmsFastOutcomeId = nextAction === 'outcome' ? c.id : null;
+  const selectedCro = (role === 'SM' || role === 'Admin') && $('allocCro') ? $('allocCro').value : '';
+  if (selectedCro) {
+    manualAllocate(c.id, selectedCro);
+  } else if (noMobile) {
+    allocateCustomer(c.id);
+  } else {
+    routeWithPreclaim(c);
+  }
+
+  const fastReady = nextAction === 'outcome' && qmsPrepareFastOutcome(c);
+  const skipPending = nextAction === 'outcome' && !fastReady &&
+    $('modalBackdrop') && !$('modalBackdrop').classList.contains('hidden');
+  if (!skipPending && !fastReady) window.__qmsFastOutcomeId = null;
+
+  if (!save('customer.create', {
+    queueNo: c.queueNo,
+    noMobile: c.noMobile,
+    fastOutcome: nextAction === 'outcome',
+    intakeOperationId: 'qms-intake:' + c.id,
+    duplicateReview
+  })) {
+    if (skipPending) closeModal();
+    window.__qmsFastOutcomeId = null;
+    qmsRestoreEntryDraft(entryDraft);
+    return;
+  }
+
+  qmsClearPendingIntake(c.id);
+  clearEntryForm();
+  if (fastReady) {
+    window.__qmsFastOutcomeId = null;
+    toast(`${c.queueNo} added — complete the outcome.`, 'success');
+    switchView('live');
+    openCloseLead(c.id);
+    return;
+  }
+  if (skipPending) {
+    toast(`${c.queueNo} saved. Complete the skip decision to open outcome.`, 'warn');
+    return;
+  }
+  toast(`${c.queueNo} added${nextAction === 'outcome' ? '; assign a CRO before outcome.' : '.'}`, nextAction === 'outcome' ? 'warn' : 'success');
+  switchView('live');
+}
+function manualAllocate(customerId,croId){if(isPast())return;const c=customerById(customerId),rot=currentRotation();if(!c)return;if(!rot||!rotationItem(rot,croId)){allocateCustomer(customerId);return}const item=rotationItem(rot,croId);const off=isOffFloor(item);const busy=croBusy(rot,croId);const override=off||busy;if(override){if(!confirm(croName(croId)+' is currently '+(off?'off-floor':'busy')+'. Allocate anyway?')){c.status='Waiting';return}}c.expectedCroId=rot.currentCroId;c.assignedCroId=croId;c.allocatedTime=new Date().toISOString();c.status='Allocated';addAudit('customer.allocate.manual',{queueNo:c.queueNo,croId,croName:croName(croId),override,busy,offFloor:off},true)}
+function allocateCustomer(customerId){if(isPast())return;const c=customerById(customerId),rot=currentRotation();if(!c||!rot){if(c)c.status='Waiting';return}const plan=pickAllocation(rot);if(plan.type==='skip'){openSkipTurn(customerId,plan.target);return}if(plan.type==='wait'){c.status='Waiting';return}c.expectedCroId=rot.currentCroId;c.assignedCroId=plan.croId;c.allocatedTime=new Date().toISOString();c.status='Allocated';if(rot.priorityCroId===plan.croId)rot.priorityCroId=null;if(plan.advance)advancePointer(rot,plan.croId)}
+function openSkipTurn(customerId, expectedCroId) {
+  const rot = currentRotation();
+  const c = customerById(customerId);
+  if (!rot || !c) {
+    toast('The queue visit or rotation is no longer available.', 'error');
+    return;
+  }
+  const actual = nextFreeCro(rot, expectedCroId) || firstAvailableCro(rot, [expectedCroId]) || expectedCroId;
+  const items = activeRotationItems(rot);
+  const croIds = items.map(item => String(item.croId || ''));
+  window.__qmsSkipContext = {
+    customerId: String(customerId || ''),
+    expectedCroId: String(expectedCroId || ''),
+    croIds
+  };
+  const options = items.map((item, index) =>
+    `<option value="${index}" ${item.croId === actual ? 'selected' : ''}>${esc(croName(item.croId))}</option>`
+  ).join('');
+  openModal(
+    'Record Skip Reason',
+    `<div class="danger-note" style="margin-bottom:14px">Expected CRO <b>${esc(croName(expectedCroId))}</b> is unavailable for ${esc(c.queueNo)}.</div><div class="form-grid"><div class="field full"><label class="label">Skip Reason *</label><select class="select" id="skipReason"><option>Washroom</option><option>Tea / Lunch Break</option><option>Half Day</option><option>Busy With Existing Customer</option><option>Not Near Entrance</option><option>On Phone Call</option><option>Service Desk Work</option><option>Stock / Billing Work</option><option>Customer Follow-up</option><option>Manager Assigned Work</option><option>Refused Turn</option><option>Other</option></select></div><div class="field full"><label class="label">Allocate Customer To</label><select class="select" id="actualCro">${options}</select></div><div class="field full"><label class="label">Note (optional)</label><input class="input" id="skipNote" placeholder="Additional detail..."></div><div class="field full"><label class="switch"><input type="checkbox" id="nextOpp" ${role === 'Greeter' ? 'disabled' : ''}><div class="switch-track"></div><div class="switch-thumb"></div></label>&nbsp; Give skipped CRO next opportunity ${role === 'Greeter' ? '<span class="badge gray">SM right required</span>' : ''}</div></div>`,
+    '<button data-action="closemodal" data-action-key="definition-05" class="btn ghost" onclick="window.__qmsSkipContext=null;closeModal()">Cancel</button><button data-action="confirmskip" class="btn primary" onclick="confirmSkip()">Confirm &amp; Allocate</button>'
+  );
+}
+function confirmSkip() {
+  if (!guardWrite()) return;
+  const context = window.__qmsSkipContext;
+  if (!context || !Array.isArray(context.croIds)) {
+    toast('The skip decision expired. Open it again.', 'error');
+    closeModal();
+    return;
+  }
+  const customerId = String(context.customerId || '');
+  const expectedCroId = String(context.expectedCroId || '');
+  const selectedIndex = Number($('actualCro') && $('actualCro').value);
+  if (!Number.isInteger(selectedIndex) || selectedIndex < 0 || selectedIndex >= context.croIds.length) {
+    toast('Select a valid CRO.', 'error');
+    return;
+  }
+  const actualCroId = String(context.croIds[selectedIndex] || '');
+  const rot = currentRotation();
+  if (!rot) {
+    toast("Today's rotation is no longer active.", 'error');
+    closeModal();
+    return;
+  }
+  const c = customerById(customerId);
+  const actualItem = rotationItem(rot, actualCroId);
+  if (!c || !actualItem) {
+    toast('The queue visit or selected CRO is no longer available.', 'error');
+    closeModal();
+    return;
+  }
+  const reason = $('skipReason').value;
+  if (!reason) {
+    toast('Select a skip reason.', 'error');
+    return;
+  }
+  const note = $('skipNote').value.trim();
+  if (reason === 'Other' && !note) {
+    toast('Add a note for "Other" reason.', 'error');
+    return;
+  }
+  if (isOffFloor(actualItem) && !confirm(croName(actualCroId) + ' is off-floor. Allocate to them anyway?')) return;
+  const nextOpportunity = $('nextOpp').checked && role !== 'Greeter';
+  const wasPriority = rot.priorityCroId === expectedCroId;
+  let priorityCancelled = false;
+  c.expectedCroId = expectedCroId;
+  c.assignedCroId = actualCroId;
+  c.allocatedTime = new Date().toISOString();
+  c.status = 'Allocated';
+  if (nextOpportunity) {
+    if (wasPriority) {
+      rot.priorityCroId = null;
+      priorityCancelled = true;
+    } else {
+      rot.priorityCroId = expectedCroId;
+    }
+  } else {
+    if (rot.priorityCroId === expectedCroId) rot.priorityCroId = null;
+    if (wasPriority) priorityCancelled = true;
+    advancePointer(rot, actualCroId);
+  }
+  rot.turnEvents.push({
+    id: uid('turn'),
+    at: new Date().toISOString(),
+    queueNo: c.queueNo,
+    expectedCroId,
+    actualCroId,
+    skipped: true,
+    reason,
+    note,
+    nextOpportunity,
+    priorityCancelled,
+    by: role
+  });
+  if (reason === 'Half Day') {
+    const item = rotationItem(rot, expectedCroId);
+    if (item) {
+      item.status = 'Half Day';
+      item.active = false;
+    }
+  }
+  const continueFast = window.__qmsFastOutcomeId === c.id && qmsPrepareFastOutcome(c);
+  if (!save('turn.skip', {
+    queueNo: c.queueNo,
+    expectedCroId,
+    actualCroId,
+    reason,
+    nextOpportunity,
+    fastOutcome: continueFast
+  })) return;
+  window.__qmsSkipContext = null;
+  closeModal();
+  toast('Skip recorded.', 'success');
+  if (continueFast) {
+    window.__qmsFastOutcomeId = null;
+    switchView('live');
+    openCloseLead(c.id);
+  }
+}
+function renderLive(){const list=todaysCustomers().sort((a,b)=>new Date(b.entryTime)-new Date(a.entryTime)),open=list.filter(c=>c.status!=='Closed'),closed=list.filter(c=>c.status==='Closed');open.sort((a,b)=>(waitingPriorityKey(a)-waitingPriorityKey(b)));$('view-live').innerHTML=`<div class="page-header"><div class="page-header-left"><h1>Live Queue</h1><p>${open.length} active &middot; ${closed.length} closed today</p></div><button data-action="switchview" data-action-key="definition-05" class="btn primary" onclick="switchView('entry')">+ Add Walk-in</button></div>${open.length?`<div class="section-title">Active</div><div class="grid-auto" style="margin-bottom:24px">${open.map(queueCard).join('')}</div>`:'<div class="empty-state" style="padding:30px 0"><p>No active customers</p></div>'}${closed.length?`<div class="section-title">Closed Today</div><div class="grid-auto">${closed.map(queueCard).join('')}</div>`:''}`}
+function statusConfig(c){if(c.status==='Closed')return{cls:'gray',dot:'#9aaab8'};if(c.status==='In Discussion'||c.status==='Billing / Service Desk')return{cls:'green',dot:'#0ea371'};if(c.status==='Allocated')return{cls:'blue',dot:'#2563eb'};return{cls:'orange',dot:'#d97706'}}
+function queueCard(c){const wait=minsBetween(c.entryTime,c.attendStart||new Date().toISOString()),sc=statusConfig(c),isOverdue=wait>=state.settings.waitAlertMins&&!c.attendStart;return`<article class="q-card ${c.status==='Closed'?'is-closed':''}"><div class="q-card-top"><div><div class="q-num">${esc(c.queueNo)}</div><div class="q-name">${esc(c.name)}</div><div class="q-meta">${esc(c.mobile)}${contactBtns(c.mobile,'qmsWaCust',c.id)} &middot; ${esc(c.visitType)}</div></div><span class="badge ${sc.cls}">${esc(c.status)}</span></div><div class="q-tags"><span class="badge gray">Entry ${fmtTime(c.entryTime)}</span><span class="badge ${isOverdue?'orange':'gray'}">Wait ${wait}m</span>${c.assignedCroId?`<span class="badge navy">${esc(croName(c.assignedCroId))}</span>`:''} ${c.priority&&c.priority!=='Normal'?`<span class="badge gold">${esc(c.priority)}</span>`:''}${dsrPurchaseFor(c)?`<span class="badge green">₹ Purchased in DSR</span>`:''}</div>${c.productInterest||c.purpose?`<div class="q-purpose">${esc(c.productInterest||c.purpose)}</div>`:''}<div class="q-actions"><button data-action="opencustomer" data-action-key="definition-01" class="btn xs ghost" onclick="openCustomer('${c.id}')">Details</button><button data-action="startattend" data-action-key="definition-01" class="btn xs" onclick="startAttend('${c.id}')" ${c.attendStart?'disabled':''}>Start</button><button data-action="markexit" data-action-key="definition-01" class="btn xs" onclick="markExit('${c.id}')" ${c.exitTime?'disabled':''}>Exit</button><button data-action="opencloselead" data-action-key="definition-02" class="btn xs ${dsrPurchaseFor(c)?'green':'primary'}" onclick="openCloseLead('${c.id}')" ${c.status==='Closed'?'disabled':''}>${dsrPurchaseFor(c)?'Confirm &amp; Close':'Close'}</button>${c.status!=='Closed'?`<button data-action="manualreassign" data-action-key="definition-01" class="btn xs ghost" onclick="manualReassign('${c.id}')">Reassign</button>`:''}</div></article>`}
+function startAttend(id){if(!guardWrite())return;const c=customerById(id);if(!c)return;if(!c.assignedCroId){toast('Assign CRO first.','error');return}c.attendStart=new Date().toISOString();c.status='In Discussion';if(!save('customer.attend.start',{queueNo:c.queueNo}))return;toast('Attendance started.','success')}
+function markExit(id){if(!guardWrite())return;const c=customerById(id);if(!c)return;c.exitTime=new Date().toISOString();if(c.status!=='Closed')c.status='Awaiting Closure';if(!save('customer.exit',{queueNo:c.queueNo}))return;toast('Exit recorded.','warn')}
+function openCustomer(id) {
+  const c = customerById(id);
+  if (!c) return;
+  const reason = c.outcome === 'Non Purchase' ? c.lostReason : c.outcome === 'Purchase' ? c.conversionReason : '';
+  const reasonCode = c.outcome === 'Non Purchase' ? c.lostReasonCode : c.outcome === 'Purchase' ? c.conversionReasonCode : '';
+  const reasonDetail = c.outcome === 'Non Purchase' ? c.lostReasonDetail : c.outcome === 'Purchase' ? c.conversionReasonDetail : '';
+  openModal(`${esc(c.queueNo)} — ${esc(c.name)}`, `<div class="grid-2" style="gap:12px"><div class="report-card"><h4>Customer</h4><div class="report-row"><span class="rk">Mobile</span><span class="rv mono">${esc(c.mobile)}</span></div><div class="report-row"><span class="rk">Visit Type</span><span class="rv">${esc(c.visitType)}</span></div><div class="report-row"><span class="rk">Purpose</span><span class="rv">${esc(c.purpose || '—')}</span></div><div class="report-row"><span class="rk">Product</span><span class="rv">${esc(c.productInterest || '—')}</span></div><div class="report-row"><span class="rk">Source</span><span class="rv">${esc(c.source)}</span></div></div><div class="report-card"><h4>Timeline</h4><div class="report-row"><span class="rk">Entry</span><span class="rv">${fmtDT(c.entryTime)}</span></div><div class="report-row"><span class="rk">Allocated</span><span class="rv">${fmtDT(c.allocatedTime)}</span></div><div class="report-row"><span class="rk">Attend</span><span class="rv">${fmtDT(c.attendStart)}</span></div><div class="report-row"><span class="rk">Exit</span><span class="rv">${fmtDT(c.exitTime)}</span></div><div class="report-row"><span class="rk">Closed</span><span class="rv">${fmtDT(c.closedAt)}</span></div></div></div><div class="report-card" style="margin-top:12px"><h4>Outcome</h4><div class="report-row"><span class="rk">Status</span><span class="rv">${esc(c.status)}</span></div><div class="report-row"><span class="rk">Outcome</span><span class="rv">${esc(c.outcome || '—')}</span></div>${reason ? `<div class="report-row"><span class="rk">Reason</span><span class="rv">${esc(reason)}${reasonCode ? ` <span class="badge gray mono">${esc(reasonCode)}</span>` : ''}</span></div>` : ''}${reasonDetail ? `<div class="report-row"><span class="rk">Reason detail</span><span class="rv">${esc(reasonDetail)}</span></div>` : ''}<div class="report-row"><span class="rk">CRO</span><span class="rv">${esc(croName(c.assignedCroId))}</span></div><div class="report-row"><span class="rk">Notes</span><span class="rv">${esc(c.notes || '—')}</span></div></div>`, `<button data-action="closemodal" data-action-key="definition-06" class="btn ghost" onclick="closeModal()">Close</button>`);
+}
+function manualReassign(id){if(!guardWrite())return;if(role==='CRO'){toast('CRO cannot reassign.','error');return}const c=customerById(id);if(!c)return;const rot=currentRotation();openModal('Reassign CRO',`<div class="field full" style="margin-bottom:12px"><label class="label">Select CRO</label><select class="select" id="reassignCro">${(rot?activeRotationItems(rot):availableCros().map(c=>({croId:c.id}))).map(i=>`<option value="${i.croId}" ${c.assignedCroId===i.croId?'selected':''}>${esc(croName(i.croId))}</option>`).join('')}</select></div><div class="field full"><label class="label">Reason *</label><input class="input" id="reassignReason" placeholder="Mandatory for audit"></div>`,`<button data-action="closemodal" data-action-key="definition-07" class="btn ghost" onclick="closeModal()">Cancel</button><button data-action="confirmreassign" data-action-key="definition-01" class="btn primary" onclick="confirmReassign('${id}')">Reassign</button>`,true)}
+function confirmReassign(id){if(!guardWrite())return;const c=customerById(id);if(!c)return;const reason=$('reassignReason').value.trim();if(!reason){toast('Reason required.','error');return}const target=$('reassignCro').value;const rot=currentRotation();if(rot){const tItem=rotationItem(rot,target);if(isOffFloor(tItem)&&!confirm(croName(target)+' is off-floor. Reassign to them anyway?'))return}const old=c.assignedCroId;c.assignedCroId=target;c.status='Allocated';if(!save('customer.reassign',{queueNo:c.queueNo,old,new:c.assignedCroId,reason}))return;closeModal();toast('CRO reassigned.','success')}
+function openCloseLead(id){if(!guardWrite())return;const c=customerById(id);if(!c)return;if(role==='Greeter'&&!state.settings.allowGreeterClose){toast('Greeter cannot close leads (setting disabled).','error');return}openModal('Close Lead — '+esc(c.queueNo),`<div class="form-grid"><div class="field"><label class="label">Outcome *</label><select data-action="renderoutcomefields" data-action-key="definition-01" class="select" id="closeOutcome" onchange="renderOutcomeFields()"><option>Purchase</option><option>Service</option><option>Non Purchase</option></select></div><div class="field"><label class="label">Follow-up Required?</label><select data-action="renderoutcomefields" data-action-key="definition-02" class="select" id="fuReq" onchange="renderOutcomeFields()"><option>No</option><option>Yes</option></select></div><div class="field full" id="outcomeFields"></div><div class="field full"><label class="label">Closure Notes</label><textarea class="textarea" id="closeNotes"></textarea></div></div>`,`<button data-action="closemodal" data-action-key="definition-08" class="btn ghost" onclick="closeModal()">Cancel</button><button data-action="confirmcloselead" data-action-key="definition-01" class="btn primary" onclick="confirmCloseLead('${id}')">Close Lead</button>`);if(c.outcome)$('closeOutcome').value=c.outcome;const _dp=dsrPurchaseFor(c);if(_dp)$('closeOutcome').value='Purchase';renderOutcomeFields();if(_dp){const _b=$('billNo'),_a=$('purchaseAmount'),_g=$('purchaseCategory');if(_b&&!_b.value)_b.value=_dp.bill||'';if(_a&&!_a.value)_a.value=String(_dp.amount||'');if(_g&&!_g.value&&_dp.product)_g.value=_dp.product;const _f=$('outcomeFields');if(_f)_f.insertAdjacentHTML('afterbegin','<div class="info-note" style="margin-bottom:10px">Marked <b>purchased in DSR</b> by '+esc(_dp.cro||'CRO')+' — Bill <b>'+esc(_dp.bill||'—')+'</b> · ₹'+(+_dp.amount||0).toLocaleString('en-IN')+'. Verify and Close Lead to confirm.</div>')}}
+function qmsReasonOptionsHtml(kind) {
+  const policy = qmsPolicyApi();
+  if (!policy || typeof policy.reasonOptions !== 'function') {
+    return '<option value="">Reason control unavailable</option>';
+  }
+  return '<option value="">Select reason</option>' + policy.reasonOptions(kind)
+    .map(reason => `<option value="${esc(reason.code)}">${esc(reason.label)}</option>`).join('');
+}
+function qmsValidateOutcome(outcome, data) {
+  const policy = qmsPolicyApi();
+  if (!policy || typeof policy.validateOutcome !== 'function') {
+    return { ok: false, message: 'Outcome reason control unavailable.' };
+  }
+  return policy.validateOutcome(outcome, data);
+}
+function renderOutcomeFields() {
+  const out = $('closeOutcome').value;
+  const followup = $('fuReq').value;
+  let html = '';
+  if (out === 'Purchase') {
+    html = `<div class="form-grid"><div class="field"><label class="label">Bill No. ${state.settings.requireBillForPurchase ? '*' : ''}</label><input class="input" id="billNo"></div><div class="field"><label class="label">Amount *</label><input class="input" id="purchaseAmount" type="number" min="0"></div><div class="field"><label class="label">Category</label><input class="input" id="purchaseCategory" placeholder="Watch"></div><div class="field"><label class="label">Payment Mode</label><select class="select" id="paymentMode"><option>Cash</option><option>Card</option><option>UPI</option><option>Mixed</option></select></div><div class="field"><label class="label">Conversion reason *</label><select class="select" id="conversionReasonCode">${qmsReasonOptionsHtml('conversion')}</select></div><div class="field"><label class="label">Reason detail (required for Other)</label><input class="input" id="conversionReasonDetail" maxlength="240"></div></div>`;
+  }
+  if (out === 'Service') {
+    html = `<div class="form-grid"><div class="field"><label class="label">Job Card No. ${state.settings.requireJobForService ? '*' : ''}</label><input class="input" id="jobCardNo"></div><div class="field"><label class="label">Service Type</label><select class="select" id="serviceType"><option>Battery</option><option>Repair</option><option>Strap</option><option>Polishing</option><option>Warranty</option><option>Other</option></select></div><div class="field"><label class="label">Expected Delivery</label><input class="input" id="deliveryDate" type="date"></div><div class="field"><label class="label">Advance</label><input class="input" id="advance" type="number" min="0"></div></div>`;
+  }
+  if (out === 'Non Purchase') {
+    html = `<div class="form-grid"><div class="field"><label class="label">Lost-opportunity reason *</label><select class="select" id="lostReasonCode">${qmsReasonOptionsHtml('lost')}</select></div><div class="field"><label class="label">Reason detail (required for Other)</label><input class="input" id="lostReasonDetail" maxlength="240"></div><div class="field"><label class="label">Estimated Lost Value</label><input class="input" id="lostValue" type="number" min="0"></div></div>`;
+  }
+  if (followup === 'Yes') {
+    html += `<div class="form-grid" style="margin-top:4px"><div class="field"><label class="label">Follow-up Date *</label><input class="input" id="followDate" type="date"></div><div class="field"><label class="label">Expected Value</label><input class="input" id="followExpectedValue" type="number" min="0" placeholder="₹"></div><div class="field"><label class="label">Mode</label><select class="select" id="followMode"><option>Phone Call</option><option>WhatsApp</option><option>In Store</option><option>SMS</option></select></div><div class="field full"><label class="label">Follow-up Notes</label><input class="input" id="followNotes" placeholder="What to follow up about..."></div></div>`;
+  }
+  $('outcomeFields').innerHTML = html;
+}
+function confirmCloseLead(id) {
+  if (!guardWrite()) return;
+  const c = customerById(id);
+  if (!c) return;
+  const out = $('closeOutcome').value;
+  const followupRequired = $('fuReq').value === 'Yes';
+  if (followupRequired && !c.mobile) {
+    toast('Cannot set a follow-up without a mobile number.', 'error');
+    return;
+  }
+
+  const staged = {};
+  if (out === 'Purchase') {
+    const bill = $('billNo').value.trim();
+    const amount = Number($('purchaseAmount').value);
+    if (state.settings.requireBillForPurchase && !bill) {
+      toast('Bill number required.', 'error');
+      return;
+    }
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast('Purchase amount must be greater than zero.', 'error');
+      return;
+    }
+    const reason = qmsValidateOutcome('Purchase', {
+      conversionReasonCode: $('conversionReasonCode').value,
+      reasonDetail: $('conversionReasonDetail').value
+    });
+    if (!reason.ok) {
+      toast(reason.message, 'error');
+      return;
+    }
+    Object.assign(staged, {
+      billNo: bill,
+      purchaseAmount: amount,
+      purchaseCategory: $('purchaseCategory').value.trim(),
+      paymentMode: $('paymentMode').value,
+      conversionReasonCode: reason.reasonCode,
+      conversionReason: reason.reasonLabel,
+      conversionReasonDetail: reason.reasonDetail
+    });
+  }
+  if (out === 'Service') {
+    const job = $('jobCardNo').value.trim();
+    if (state.settings.requireJobForService && !job) {
+      toast('Job card required.', 'error');
+      return;
+    }
+    Object.assign(staged, {
+      jobCardNo: job,
+      serviceType: $('serviceType').value,
+      deliveryDate: $('deliveryDate').value,
+      advance: +$('advance').value || 0
+    });
+  }
+  if (out === 'Non Purchase') {
+    const reason = qmsValidateOutcome('Non Purchase', {
+      lostReasonCode: $('lostReasonCode').value,
+      reasonDetail: $('lostReasonDetail').value
+    });
+    if (!reason.ok) {
+      toast(reason.message, 'error');
+      return;
+    }
+    const lostValue = Number($('lostValue').value || 0);
+    if (!Number.isFinite(lostValue) || lostValue < 0) {
+      toast('Estimated lost value must be zero or more.', 'error');
+      return;
+    }
+    Object.assign(staged, {
+      lostReasonCode: reason.reasonCode,
+      lostReason: reason.reasonLabel,
+      lostReasonDetail: reason.reasonDetail,
+      lostValue
+    });
+  }
+
+  let followupDraft = null;
+  if (followupRequired) {
+    const dueDate = $('followDate').value;
+    if (!dueDate) {
+      toast('Follow-up date required.', 'error');
+      return;
+    }
+    let expectedValue = Number($('followExpectedValue').value || 0);
+    if (!Number.isFinite(expectedValue) || expectedValue < 0) {
+      toast('Expected value must be zero or more.', 'error');
+      return;
+    }
+    if (!expectedValue && out === 'Non Purchase') expectedValue = staged.lostValue || 0;
+    followupDraft = {
+      id: uid('fu'),
+      customerId: c.id,
+      queueNo: c.queueNo,
+      customerName: c.name,
+      mobile: c.mobile,
+      croId: c.assignedCroId,
+      dueDate,
+      expectedValue,
+      lastContactAt: null,
+      contactCount: 0,
+      mode: $('followMode').value,
+      notes: $('followNotes').value.trim(),
+      status: 'Pending',
+      createdAt: new Date().toISOString()
+    };
+  }
+
+  Object.assign(c, staged);
+  if (followupDraft) state.followups.push(followupDraft);
+  c.outcome = out;
+  c.notes = $('closeNotes').value.trim();
+  c.closedAt = new Date().toISOString();
+  c.closedBy = role;
+  c.status = 'Closed';
+  if (!c.exitTime) c.exitTime = new Date().toISOString();
+  tryFillFromWaiting();
+  if (!save('lead.close', { queueNo: c.queueNo, outcome: out, followup: followupRequired, reasonCode: staged.lostReasonCode || staged.conversionReasonCode || null })) return;
+  closeModal();
+  toast('Lead closed.', 'success');
+}
+function qmsPendingFollowupId(index) {
+  const ids = Array.isArray(window.__qmsPendingFollowupIds) ? window.__qmsPendingFollowupIds : [];
+  return ids[Number(index)] || '';
+}
+function qmsFollowupAction(index, action) {
+  const id = qmsPendingFollowupId(index);
+  if (!id) {
+    toast('The selected follow-up is no longer available.', 'warn');
+    return;
+  }
+  if (action === 'Contacted') return markFollowupContacted(id);
+  return updateFollowup(id, action);
+}
+function qmsWaFuByIndex(index) {
+  const id = qmsPendingFollowupId(index);
+  if (!id) {
+    toast('The selected follow-up is no longer available.', 'warn');
+    return;
+  }
+  qmsWaFu(id);
+}
+function qmsFollowupContactBtns(index, mobile) {
+  const digits = qmsTel10(mobile);
+  if (!digits) return '';
+  return `<span style="display:inline-flex;gap:4px;vertical-align:middle;margin-left:6px"><a class="btn xs ghost" style="text-decoration:none;padding:2px 7px" href="tel:+91${digits}" title="Call">📞</a><button data-action="qmswafubyindex" data-action-key="definition-01" class="btn xs ghost" style="padding:2px 7px" onclick="qmsWaFuByIndex(${Number(index)})" title="WhatsApp">📲</button></span>`;
+}
+function confirmLostFollowupModal() {
+  const id = String(window.__qmsFollowupModalId || '');
+  if (!id) return toast('The selected follow-up is no longer available.', 'warn');
+  return confirmLostFollowup(id);
+}
+function confirmConvertFollowupModal() {
+  const id = String(window.__qmsFollowupModalId || '');
+  if (!id) return toast('The selected follow-up is no longer available.', 'warn');
+  return confirmConvertFollowup(id);
+}
+function renderFollowups() {
+  const rawPending = state.followups.filter(f => f.status === 'Pending');
+  const done = state.followups.filter(f => f.status !== 'Pending')
+    .slice().sort((a, b) => String(a.dueDate || '').localeCompare(String(b.dueDate || '')) ||
+      String(a.id || '').localeCompare(String(b.id || '')));
+  const policy = qmsPolicyApi();
+  const ranked = policy && typeof policy.prioritizeFollowups === 'function'
+    ? policy.prioritizeFollowups(rawPending, { asOf: todayISO() })
+    : rawPending.map((f, sourceIndex) => ({
+      id: f.id,
+      sourceIndex,
+      priority: {
+        dueCode: 'CONTROL_UNAVAILABLE',
+        dueLabel: 'Priority control unavailable',
+        expectedValue: +f.expectedValue || 0,
+        reasonLabels: ['Priority control unavailable']
+      }
+    }));
+  const pending = ranked.map(item => ({
+    followup: rawPending[item.sourceIndex],
+    priority: item.priority
+  })).filter(item => item.followup);
+  window.__qmsPendingFollowupIds = pending.map(item => item.followup.id);
+  const controlWarning = policy ? '' :
+    '<div class="danger-note" style="margin:0 16px 14px">Follow-up priority control is unavailable. No automatic ranking claim is shown.</div>';
+
+  $('view-followups').innerHTML = `<div class="page-header"><div class="page-header-left"><h1>Follow-ups</h1><p>${pending.length} pending &middot; ${done.length} closed</p></div></div><div class="card"><div class="card-head"><div><div class="card-title">Pending Follow-ups</div><div class="card-sub">Ordered by due status, expected value, last contact, owner and stable task id</div></div></div>${controlWarning}<div class="card-body" style="padding:0">${pending.length ? `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Priority</th><th>Customer</th><th>Owner</th><th>Expected</th><th>Last contact</th><th>Mode</th><th>Actions</th></tr></thead><tbody>${pending.map((item, index) => {
+    const f = item.followup;
+    const p = item.priority;
+    const priorityClass = p.dueCode === 'OVERDUE' || p.dueCode === 'DUE_DATE_MISSING' ? 'red' :
+      p.dueCode === 'DUE_TODAY' ? 'orange' : 'navy';
+    const expected = Number.isFinite(+p.expectedValue) && +p.expectedValue >= 0 ? +p.expectedValue : 0;
+    return `<tr><td><span class="badge ${priorityClass}">${esc(p.dueLabel || f.dueDate || 'Review')}</span><div class="mini" style="max-width:210px;margin-top:5px">${(p.reasonLabels || []).map(esc).join(' &middot; ')}</div></td><td><b>${esc(f.customerName)}</b><div class="sub mono">${esc(f.queueNo)} &middot; ${esc(f.mobile)}</div>${qmsFollowupContactBtns(index, f.mobile)}</td><td>${f.croId ? esc(croName(f.croId)) : '<span class="badge red">Unassigned</span>'}</td><td>${expected ? '₹' + expected.toLocaleString('en-IN') : '—'}</td><td>${f.lastContactAt ? fmtDT(f.lastContactAt) : 'Never'}<div class="mini">${+f.contactCount || 0} logged</div></td><td><span class="badge gray">${esc(f.mode)}</span><div class="mini">${esc(f.notes || '—')}</div></td><td><div style="display:flex;gap:5px;flex-wrap:wrap"><button data-action="qmsfollowupaction" data-action-key="definition-01" class="btn xs" onclick="qmsFollowupAction(${index},'Contacted')">Contacted</button><button data-action="qmsfollowupaction" data-action-key="definition-02" class="btn xs" style="color:var(--green);border-color:#a7f3d0" onclick="qmsFollowupAction(${index},'Done')">Done</button><button data-action="qmsfollowupaction" data-action-key="definition-03" class="btn xs" style="color:var(--blue);border-color:#bfdbfe" onclick="qmsFollowupAction(${index},'Converted')">Converted</button><button data-action="qmsfollowupaction" data-action-key="definition-04" class="btn xs" style="color:var(--red);border-color:#fca5a5" onclick="qmsFollowupAction(${index},'Lost')">Lost</button></div></td></tr>`;
+  }).join('')}</tbody></table></div>` : '<div class="empty-state"><p>No pending follow-ups</p></div>'}</div></div>${done.length ? `<div class="card" style="margin-top:16px"><div class="card-head"><div><div class="card-title">Completed Follow-ups</div></div></div><div class="card-body" style="padding:0"><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Due</th><th>Customer</th><th>CRO</th><th>Mode</th><th>Status</th></tr></thead><tbody>${done.map(f => {
+    const reason = f.status === 'Converted' ? f.conversionReason : f.status === 'Lost' ? f.lostReason : '';
+    return `<tr><td>${esc(f.dueDate)}</td><td><b>${esc(f.customerName)}</b><div class="sub mono">${esc(f.queueNo)}</div></td><td>${f.croId ? esc(croName(f.croId)) : 'Unassigned'}</td><td>${esc(f.mode)}</td><td><span class="badge ${f.status === 'Converted' ? 'green' : f.status === 'Lost' ? 'red' : 'gray'}">${esc(f.status)}</span>${reason ? `<div class="mini">${esc(reason)}</div>` : ''}</td></tr>`;
+  }).join('')}</tbody></table></div></div></div>` : ''}`;
+}
+function markFollowupContacted(id) {
+  if (!guardWrite()) return;
+  const f = state.followups.find(item => item.id === id);
+  if (!f || f.status !== 'Pending') return;
+  f.lastContactAt = new Date().toISOString();
+  f.lastContactBy = role;
+  f.contactCount = (+f.contactCount || 0) + 1;
+  if (!save('followup.contact', { queueNo: f.queueNo, contactCount: f.contactCount })) return;
+  toast('Contact logged.', 'success');
+}
+function openLostFollowupModal(f) {
+  window.__qmsFollowupModalId = f.id;
+  openModal('Mark Lost — ' + esc(f.queueNo), `<div class="form-grid"><div class="field"><label class="label">Lost reason *</label><select class="select" id="fuLostReasonCode">${qmsReasonOptionsHtml('lost')}</select></div><div class="field"><label class="label">Estimated lost value</label><input class="input" id="fuLostValue" type="number" min="0" value="${+f.expectedValue || 0}"></div><div class="field full"><label class="label">Reason detail (required for Other)</label><input class="input" id="fuLostReasonDetail" maxlength="240"></div></div>`, `<button data-action="closemodal" data-action-key="definition-09" class="btn ghost" onclick="closeModal()">Cancel</button><button data-action="confirmlostfollowupmodal" class="btn primary" onclick="confirmLostFollowupModal()">Mark Lost</button>`, true);
+}
+function confirmLostFollowup(id) {
+  if (!guardWrite()) return;
+  const f = state.followups.find(item => item.id === id);
+  if (!f || f.status !== 'Pending') return;
+  const reason = qmsValidateOutcome('Non Purchase', {
+    lostReasonCode: $('fuLostReasonCode').value,
+    reasonDetail: $('fuLostReasonDetail').value
+  });
+  if (!reason.ok) {
+    toast(reason.message, 'error');
+    return;
+  }
+  const lostValue = Number($('fuLostValue').value || 0);
+  if (!Number.isFinite(lostValue) || lostValue < 0) {
+    toast('Estimated lost value must be zero or more.', 'error');
+    return;
+  }
+  f.status = 'Lost';
+  f.lostReasonCode = reason.reasonCode;
+  f.lostReason = reason.reasonLabel;
+  f.lostReasonDetail = reason.reasonDetail;
+  f.lostValue = lostValue;
+  f.closedAt = new Date().toISOString();
+  f.closedBy = role;
+  if (!save('followup.lost', { queueNo: f.queueNo, reasonCode: reason.reasonCode })) return;
+  window.__qmsFollowupModalId = null;
+  closeModal();
+  toast('Follow-up marked lost.', 'success');
+}
+function updateFollowup(id, status) {
+  if (!guardWrite()) return;
+  const f = state.followups.find(item => item.id === id);
+  if (!f || f.status !== 'Pending') return;
+  if (status === 'Converted') return openConvertModal(f);
+  if (status === 'Lost') return openLostFollowupModal(f);
+  if (status !== 'Done') {
+    toast('Unsupported follow-up action.', 'error');
+    return;
+  }
+  f.status = 'Done';
+  f.closedAt = new Date().toISOString();
+  f.closedBy = role;
+  if (!save('followup.update', { queueNo: f.queueNo, status: 'Done' })) return;
+  toast('Follow-up updated.', 'success');
+}
+function openConvertModal(f) {
+  window.__qmsFollowupModalId = f.id;
+  openModal('Mark Converted — ' + esc(f.queueNo), `<div class="form-grid"><div class="field"><label class="label">Recovered Amount (₹) *</label><input class="input" id="fuRecoveredValue" type="number" min="0" inputmode="numeric" placeholder="e.g. 12500"></div><div class="field"><label class="label">Bill No. (optional)</label><input class="input" id="fuRecoveredBill" placeholder="Bill / invoice no."></div><div class="field"><label class="label">Conversion reason *</label><select class="select" id="fuConversionReasonCode">${qmsReasonOptionsHtml('conversion')}</select></div><div class="field"><label class="label">Reason detail (required for Other)</label><input class="input" id="fuConversionReasonDetail" maxlength="240"></div></div>`, `<button data-action="closemodal" data-action-key="definition-10" class="btn ghost" onclick="closeModal()">Cancel</button><button data-action="confirmconvertfollowupmodal" class="btn primary" onclick="confirmConvertFollowupModal()">Mark Converted</button>`, true);
+}
+function confirmConvertFollowup(id) {
+  if (!guardWrite()) return;
+  const f = state.followups.find(item => item.id === id);
+  if (!f || f.status !== 'Pending') return;
+  const raw = Number($('fuRecoveredValue').value);
+  const amount = Number.isFinite(raw) ? Math.max(0, Math.round(raw)) : 0;
+  if (!amount) {
+    toast('Recovered amount required.', 'error');
+    return;
+  }
+  const reason = qmsValidateOutcome('Converted', {
+    conversionReasonCode: $('fuConversionReasonCode').value,
+    reasonDetail: $('fuConversionReasonDetail').value
+  });
+  if (!reason.ok) {
+    toast(reason.message, 'error');
+    return;
+  }
+  f.status = 'Converted';
+  f.recoveredValue = amount;
+  f.recoveredBill = $('fuRecoveredBill').value.trim();
+  f.conversionReasonCode = reason.reasonCode;
+  f.conversionReason = reason.reasonLabel;
+  f.conversionReasonDetail = reason.reasonDetail;
+  f.convertedAt = new Date().toISOString();
+  f.closedAt = f.convertedAt;
+  f.closedBy = role;
+  if (!save('followup.convert', {
+    queueNo: f.queueNo,
+    recovered: amount,
+    reasonCode: reason.reasonCode
+  })) return;
+  window.__qmsFollowupModalId = null;
+  closeModal();
+  toast('Follow-up converted · ₹' + amount.toLocaleString('en-IN'), 'success');
+}
+function recoveredInWindow(days){const since=new Date();since.setDate(since.getDate()-days+1);since.setHours(0,0,0,0);return state.followups.filter(f=>f.status==='Converted'&&(+f.recoveredValue||0)>0&&new Date(f.convertedAt||f.closedAt||0)>=since).reduce((s,f)=>s+(+f.recoveredValue||0),0);}
+function recoveredToday(){return recoveredInWindow(1);}
+function recoveredValueReport(d,w,m){const since=new Date();since.setDate(since.getDate()-30);since.setHours(0,0,0,0);const top=state.followups.filter(f=>f.status==='Converted'&&(+f.recoveredValue||0)>0&&new Date(f.convertedAt||f.closedAt||0)>=since).sort((a,b)=>(+b.recoveredValue||0)-(+a.recoveredValue||0)).slice(0,5);return`<div class="report-row"><span class="rk">Today</span><span class="rv">₹${recoveredInWindow(1).toLocaleString('en-IN')}</span></div><div class="report-row"><span class="rk">Last 7 Days</span><span class="rv">₹${recoveredInWindow(7).toLocaleString('en-IN')}</span></div><div class="report-row"><span class="rk">Last 31 Days</span><span class="rv">₹${recoveredInWindow(31).toLocaleString('en-IN')}</span></div>${top.length?`<div style="margin-top:12px"><div style="font-size:12px;font-weight:700;color:var(--ink2);margin-bottom:6px">Top Recovered · last 31 days</div><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Customer</th><th>Mobile</th><th>Recovered ₹</th><th>Bill</th></tr></thead><tbody>${top.map(f=>`<tr><td><b>${esc(f.customerName)}</b></td><td class="mono">${esc(f.mobile||'—')}</td><td>₹${(+f.recoveredValue||0).toLocaleString('en-IN')}</td><td>${esc(f.recoveredBill||'—')}</td></tr>`).join('')}</tbody></table></div></div>`:'<div class="empty-state" style="margin-top:8px"><p>No recovered value recorded yet</p></div>'}`}
+/* ===== Contact actions: tap-to-call + WhatsApp. Message text comes from the shell's WA_CFG.qms
+   template registry (thank-you / post-purchase / service / winback), matched to the customer's
+   outcome via each template's ok() predicate. Offline-safe: only tel: and wa.me links. ===== */
+function qmsTel10(m){const d=String(m||'').replace(/\D/g,'');return d.length>=10?d.slice(-10):''}
+function qmsWaMsgFor(c){try{const cfg=window.parent&&SaagarModuleBridge.waConfig&&SaagarModuleBridge.waConfig.qms;const tpls=((cfg&&cfg.templates)||[]).filter(t=>{try{return !t.ok||t.ok(c)}catch(e){return false}});const t=tpls.find(x=>x.id!=='thanks')||tpls[0];if(t)return t.build(c)}catch(e){}return 'Namaste '+((c&&c.name)||'')+',\nThank you for visiting Saagar Traders, Latur.'}
+function qmsWaLink(url,scopeId,purposeId){if(window.parent&&window.parent!==window){window.parent.postMessage({type:'ST_WA_LINK',url:url,scopeId:scopeId,purposeId:purposeId},SaagarModuleRuntime.targetOrigin);return}toast('Controlled WhatsApp is available only inside Saagar Control Centre.','error')}
+function qmsWaCust(id){const c=customerById(id);if(!c)return;const d=qmsTel10(c.mobile);if(!d){toast('No valid mobile number.','error');return}qmsWaLink('https://wa.me/91'+d+'?text='+encodeURIComponent(qmsWaMsgFor(c)),'qms-customer-message','customer-relationship-message')}
+function qmsWaFu(id){const f=state.followups.find(x=>x.id===id);if(!f)return;const d=qmsTel10(f.mobile);if(!d){toast('No valid mobile number.','error');return}const c=customerById(f.customerId)||{name:f.customerName};qmsWaLink('https://wa.me/91'+d+'?text='+encodeURIComponent(qmsWaMsgFor(c)),'qms-followup-message','promotional-customer-message')}
+function contactBtns(mobile,fn,id){const d=qmsTel10(mobile);if(!d)return '';return `<span style="display:inline-flex;gap:4px;vertical-align:middle;margin-left:6px"><a class="btn xs ghost" style="text-decoration:none;padding:2px 7px" href="tel:+91${d}" title="Call">📞</a><button data-action="btn-xs-ghost" data-action-key="definition-01" class="btn xs ghost" style="padding:2px 7px" onclick="${fn}('${id}')" title="WhatsApp">📲</button></span>`}
+function renderReports(){const daily=calcStats(),weekly=rangeStats(7),monthly=rangeStats(31);$('view-reports').innerHTML=`<div class="page-header"><div class="page-header-left"><h1>Reports</h1><p>Daily, weekly and monthly performance</p></div><div class="page-header-actions"><button data-action="shareeodsummary" class="btn gold" onclick="shareEodSummary()">Share Day Summary</button><button data-action="printreports" class="btn" onclick="printReports()">Print</button><button data-action="exportcsv" class="btn primary" onclick="exportCSV()">Export CSV</button></div></div><div class="grid-3" style="margin-bottom:16px">${reportCard('Today',daily)}${reportCard('Last 7 Days',weekly)}${reportCard('Last 31 Days',monthly)}</div><div class="grid-2" style="margin-bottom:16px"><div class="card"><div class="card-head"><div><div class="card-title">CRO Performance</div><div class="card-sub">Today</div></div></div><div class="card-body" style="padding:0">${croPerformanceTable()}</div></div><div class="card"><div class="card-head"><div><div class="card-title">Non-Purchase Reasons</div><div class="card-sub">Lost sale analysis · active records</div></div></div><div class="card-body">${lostReasonReport()}</div></div></div><div class="card" style="margin-bottom:16px"><div class="card-head"><div><div class="card-title">Lost ₹</div><div class="card-sub">Estimated lost value · non-purchase closures</div></div></div><div class="card-body">${lostValueReport(daily,weekly,monthly)}</div></div><div class="card" style="margin-bottom:16px"><div class="card-head"><div><div class="card-title">Follow-up Recovered ₹</div><div class="card-sub">Recovered value · converted follow-ups</div></div></div><div class="card-body">${recoveredValueReport(daily,weekly,monthly)}</div></div><div class="grid-2" style="margin-bottom:16px"><div class="card"><div class="card-head"><div><div class="card-title">Skip Reasons</div><div class="card-sub">Turn skips today · by reason</div></div></div><div class="card-body">${skipReasonReport()}</div></div><div class="card"><div class="card-head"><div><div class="card-title">Waiting &amp; Service Summary</div><div class="card-sub">Queue pressure today</div></div></div><div class="card-body">${waitingSummaryCard()}</div></div></div><div class="card"><div class="card-head"><div><div class="card-title">Audit Trail</div><div class="card-sub">Recent operations</div></div></div><div class="card-body" style="max-height:400px;overflow-y:auto">${state.audit.slice(0,80).map(a=>`<div class="audit-item"><span class="audit-time">${fmtDT(a.at)}</span><div><div class="audit-action">${esc(a.action)}</div><div class="audit-detail">${esc(JSON.stringify(a.details||{}))}</div></div><span class="badge gray">${esc(a.role)}</span></div>`).join('')||'<div class="empty-state"><p>No audit records yet</p></div>'}</div></div>`}
+function rangeStats(days){const since=new Date();since.setDate(since.getDate()-days+1);/* Audit fix qms-bug-01: zero time-of-day so the oldest day's early entries aren't dropped (compare by local date start, not raw ms) */since.setHours(0,0,0,0);return calcStats(state.customers.filter(c=>new Date(c.entryTime)>=since))}
+function reportCard(title,s){return`<div class="report-card"><h4>${title}</h4><div class="report-row"><span class="rk">Walk-ins</span><span class="rv">${s.total}</span></div><div class="report-row"><span class="rk">Purchase / Service / Non</span><span class="rv">${s.pur} / ${s.svc} / ${s.non}</span></div><div class="report-row"><span class="rk">Sales</span><span class="rv">₹${s.sales.toLocaleString('en-IN')}</span></div><div class="report-row"><span class="rk">Conversion</span><span class="rv">${s.conv}%</span></div><div class="bar-track"><div class="bar-fill" style="width:${Math.min(100,s.conv)}%"></div></div></div>`}
+function croPerfRows(rot){const pcMap=preclaimStatsByCro();return state.cros.filter(c=>c.active).map(c=>{const list=todaysCustomers().filter(x=>x.assignedCroId===c.id),pur=list.filter(x=>x.outcome==='Purchase'),skips=(rot?.turnEvents||[]).filter(e=>e.expectedCroId===c.id).length;const turns=todaysCustomers().filter(x=>x.assignedCroId===c.id&&x.expectedCroId===c.id).length;const pc=pcMap[c.id]||{honored:0,missed:0};const off=rot?isOffFloor(rotationItem(rot,c.id)):false;const free=rot?isFreeOnFloor(rot,c.id):false;const now=off?{cls:'gray',txt:'Off floor'}:(!free?{cls:'blue',txt:'Busy'}:{cls:'green',txt:'Free'});return{name:c.name,turns,total:list.length,pur:pur.length,sales:pur.reduce((s,x)=>s+(+x.purchaseAmount||0),0),conv:list.length?Math.round(pur.length/list.length*100):0,skips,pcHonored:+pc.honored||0,pcMissed:+pc.missed||0,now}})}
+function croPerformanceTable(){const rot=currentRotation();const rows=croPerfRows(rot);return`<div class="tbl-wrap"><table class="tbl"><thead><tr><th>CRO</th><th>Turns</th><th>Assigned</th><th>Purchases</th><th>Conversion</th><th>Sales</th><th>Skipped</th><th>Pre-claims ✓</th><th>Pre-claims ✗</th><th>Now</th></tr></thead><tbody>${rows.map(r=>`<tr><td><b>${esc(r.name)}</b></td><td>${r.turns}</td><td>${r.total}</td><td>${r.pur}</td><td>${r.conv}%</td><td>₹${r.sales.toLocaleString('en-IN')}</td><td>${r.skips>0?`<span class="badge orange">${r.skips}</span>`:r.skips}</td><td>${r.pcHonored>0?`<span class="badge green">${r.pcHonored}</span>`:'—'}</td><td>${r.pcMissed>0?`<span class="badge orange">${r.pcMissed}</span>`:'—'}</td><td><span class="badge ${r.now.cls}">${r.now.txt}</span></td></tr>`).join('')}</tbody></table></div>`}
+function lostReasonReport(){const rows={};state.customers.filter(c=>c.outcome==='Non Purchase').forEach(c=>rows[c.lostReason||'Not specified']=(rows[c.lostReason||'Not specified']||0)+1);const max=Math.max(1,...Object.values(rows)),items=Object.entries(rows).sort((a,b)=>b[1]-a[1]);if(!items.length)return'<div class="empty-state"><p>No non-purchase cases yet</p></div>';return items.map(([k,v])=>`<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-size:12.5px;font-weight:500;color:var(--ink2)">${esc(k)}</span><span style="font-size:12px;font-weight:700;color:var(--ink)">${v}</span></div><div class="bar-track"><div class="bar-fill" style="width:${v/max*100}%;background:var(--gold)"></div></div></div>`).join('')}
+/* ===== V6 Wave 1: Lost ₹ KPI — renders lostValue/lostReason already captured on Non Purchase
+   closures (confirmCloseLead). Totals come from calcStats' additive lost field (same Today/7d/31d
+   windows as the report cards); top lost leads = highest lostValue in the last 31 days. Render-only. ===== */
+function lostValueReport(d,w,m){const since=new Date();since.setDate(since.getDate()-30);const top=state.customers.filter(c=>c.outcome==='Non Purchase'&&(+c.lostValue||0)>0&&new Date(c.entryTime)>=since).sort((a,b)=>(+b.lostValue||0)-(+a.lostValue||0)).slice(0,5);return`<div class="report-row"><span class="rk">Today</span><span class="rv">₹${d.lost.toLocaleString('en-IN')}</span></div><div class="report-row"><span class="rk">Last 7 Days</span><span class="rv">₹${w.lost.toLocaleString('en-IN')}</span></div><div class="report-row"><span class="rk">Last 31 Days</span><span class="rv">₹${m.lost.toLocaleString('en-IN')}</span></div>${top.length?`<div style="margin-top:12px"><div style="font-size:12px;font-weight:700;color:var(--ink2);margin-bottom:6px">Top Lost Leads · last 31 days</div><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Customer</th><th>Mobile</th><th>Lost ₹</th><th>Reason</th></tr></thead><tbody>${top.map(c=>`<tr><td><b>${esc(c.name)}</b></td><td class="mono">${esc(c.mobile||'—')}</td><td>₹${(+c.lostValue||0).toLocaleString('en-IN')}</td><td>${esc(c.lostReason||'Not specified')}</td></tr>`).join('')}</tbody></table></div></div>`:'<div class="empty-state" style="margin-top:8px"><p>No lost value recorded yet</p></div>'}`}
+/* ===== Phase 6: Skip-reason analytics — buckets today's turnEvents (skipped:true) by reason.
+   View-date correct: currentRotation() resolves to the viewAsOf day's rotation. Render-only. ===== */
+function skipReasonReport(){const rot=currentRotation();const ev=(rot&&Array.isArray(rot.turnEvents))?rot.turnEvents:[];const rows={};ev.filter(e=>e&&e.skipped).forEach(e=>{const k=e.reason||'Not specified';rows[k]=(rows[k]||0)+1;});const items=Object.entries(rows).sort((a,b)=>b[1]-a[1]);if(!items.length)return'<div class="empty-state"><p>No skips recorded today</p></div>';const max=Math.max(1,...items.map(x=>x[1]));return items.map(([k,v])=>`<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-size:12.5px;font-weight:500;color:var(--ink2)">${esc(k)}</span><span style="font-size:12px;font-weight:700;color:var(--ink)">${v}</span></div><div class="bar-track"><div class="bar-fill" style="width:${v/max*100}%;background:var(--gold)"></div></div></div>`).join('')}
+/* ===== Phase 6: Waiting / service summary — queue pressure today. Wait-time math counts only
+   customers with attendStart (consistent with calcStats); currentlyWaiting counts status==='Waiting'
+   even without attendStart, so the two reconcile separately. avgWait reuses calcStats(). ===== */
+function waitingSummary(){const list=todaysCustomers();const waits=list.filter(c=>c.attendStart).map(c=>minsBetween(c.entryTime,c.attendStart));const maxWait=waits.length?Math.max(...waits):0;const currentlyWaiting=list.filter(c=>c.status==='Waiting').length;return{total:list.length,currentlyWaiting,maxWait,avgWait:calcStats(list).avgWait};}
+function waitingSummaryCard(){const s=waitingSummary();return`<div class="report-row"><span class="rk">Walk-ins today</span><span class="rv">${+s.total||0}</span></div><div class="report-row"><span class="rk">Currently waiting</span><span class="rv">${+s.currentlyWaiting||0}</span></div><div class="report-row"><span class="rk">Max wait (min)</span><span class="rv">${+s.maxWait||0}</span></div><div class="report-row"><span class="rk">Avg wait (min)</span><span class="rv">${+s.avgWait||0}</span></div>`;}
+/* ===== Print bridge: rebuilds the Reports view as a self-contained .stp-* print document.
+   Reuses module data (calcStats / rangeStats / croPerformanceTable's source / lostReasonReport's
+   source / skipReasonReport's source / waitingSummary). Markup is rebuilt with shared theme classes. ===== */
+function printReports(){
+  const daily=calcStats(),weekly=rangeStats(7),monthly=rangeStats(31);
+  const inr=n=>'₹'+(+n||0).toLocaleString('en-IN');
+  // ---- summary cards (mirror reportCard figures) ----
+  const card=(title,s)=>`<div class="stp-card"><h4>${stEsc(title)}</h4>`+
+    `<div class="v">${stEsc(s.total)}</div>`+
+    `<div class="stp-mut">Walk-ins</div>`+
+    `<div class="stp-mut">P/S/N: ${stEsc(s.pur)} / ${stEsc(s.svc)} / ${stEsc(s.non)}</div>`+
+    `<div class="stp-mut">Sales: ${stEsc(inr(s.sales))}</div>`+
+    `<div class="stp-mut">Conversion: ${stEsc(s.conv)}%</div></div>`;
+  const cards=`<div class="stp-cards">${card('Today',daily)}${card('Last 7 Days',weekly)}${card('Last 31 Days',monthly)}</div>`;
+  // ---- CRO performance (today) — rebuild rows from same source as croPerformanceTable() ----
+  const pcMap=preclaimStatsByCro();const rot=currentRotation();
+  const croRows=state.cros.filter(c=>c.active).map(c=>{
+    const list=todaysCustomers().filter(x=>x.assignedCroId===c.id);
+    const pur=list.filter(x=>x.outcome==='Purchase');
+    const skips=(rot&&rot.turnEvents?rot.turnEvents:[]).filter(e=>e.expectedCroId===c.id).length;
+    const turns=todaysCustomers().filter(x=>x.assignedCroId===c.id&&x.expectedCroId===c.id).length;
+    const pc=pcMap[c.id]||{honored:0,missed:0};
+    const off=rot?isOffFloor(rotationItem(rot,c.id)):false;
+    const free=rot?isFreeOnFloor(rot,c.id):false;
+    const now=off?'Off floor':(!free?'Busy':'Free');
+    return{name:c.name,turns,total:list.length,pur:pur.length,sales:pur.reduce((s,x)=>s+(+x.purchaseAmount||0),0),conv:list.length?Math.round(pur.length/list.length*100):0,skips,pcHonored:+pc.honored||0,pcMissed:+pc.missed||0,now};
+  });
+  const croBody=croRows.length?croRows.map(r=>`<tr><td class="stp-c">${stEsc(r.name)}</td><td class="stp-r">${stEsc(r.turns)}</td><td class="stp-r">${stEsc(r.total)}</td><td class="stp-r">${stEsc(r.pur)}</td><td class="stp-r">${stEsc(r.conv)}%</td><td class="stp-r">${stEsc(inr(r.sales))}</td><td class="stp-r">${stEsc(r.skips)}</td><td class="stp-r">${stEsc(r.pcHonored)}</td><td class="stp-r">${stEsc(r.pcMissed)}</td><td class="stp-c">${stEsc(r.now)}</td></tr>`).join(''):`<tr><td class="stp-c" colspan="10"><span class="stp-mut">No active CROs</span></td></tr>`;
+  const croSec=`<div class="stp-sec"><div class="stp-sec-t">CRO Performance (Today)</div><table class="stp-table"><thead><tr><th>CRO</th><th class="stp-r">Turns</th><th class="stp-r">Assigned</th><th class="stp-r">Purchases</th><th class="stp-r">Conversion</th><th class="stp-r">Sales</th><th class="stp-r">Skipped</th><th class="stp-r">Pre-claims ✓</th><th class="stp-r">Pre-claims ✗</th><th>Now</th></tr></thead><tbody>${croBody}</tbody></table></div>`;
+  // ---- Non-purchase reasons — same source as lostReasonReport() ----
+  const lostMap={};state.customers.filter(c=>c.outcome==='Non Purchase').forEach(c=>{const k=c.lostReason||'Not specified';lostMap[k]=(lostMap[k]||0)+1;});
+  const lostItems=Object.entries(lostMap).sort((a,b)=>b[1]-a[1]);
+  const lostBody=lostItems.length?lostItems.map(([k,v])=>`<tr><td class="stp-c">${stEsc(k)}</td><td class="stp-r">${stEsc(v)}</td></tr>`).join(''):`<tr><td class="stp-c" colspan="2"><span class="stp-mut">No non-purchase cases yet</span></td></tr>`;
+  const lostSec=`<div class="stp-sec"><div class="stp-sec-t">Non-Purchase Reasons</div><table class="stp-table"><thead><tr><th>Reason</th><th class="stp-r">Count</th></tr></thead><tbody>${lostBody}</tbody></table></div>`;
+  // ---- Skip reasons — same source as skipReasonReport() ----
+  const skEv=(rot&&Array.isArray(rot.turnEvents))?rot.turnEvents:[];const skMap={};
+  skEv.filter(e=>e&&e.skipped).forEach(e=>{const k=e.reason||'Not specified';skMap[k]=(skMap[k]||0)+1;});
+  const skItems=Object.entries(skMap).sort((a,b)=>b[1]-a[1]);
+  const skBody=skItems.length?skItems.map(([k,v])=>`<tr><td class="stp-c">${stEsc(k)}</td><td class="stp-r">${stEsc(v)}</td></tr>`).join(''):`<tr><td class="stp-c" colspan="2"><span class="stp-mut">No skips recorded today</span></td></tr>`;
+  const skSec=`<div class="stp-sec"><div class="stp-sec-t">Skip Reasons (Today)</div><table class="stp-table"><thead><tr><th>Reason</th><th class="stp-r">Count</th></tr></thead><tbody>${skBody}</tbody></table></div>`;
+  // ---- Waiting summary — same source as waitingSummaryCard() ----
+  const ws=waitingSummary();
+  const wsSec=`<div class="stp-sec"><div class="stp-sec-t">Waiting & Service Summary (Today)</div><table class="stp-table"><tbody>`+
+    `<tr><td class="stp-c">Walk-ins today</td><td class="stp-r">${stEsc(+ws.total||0)}</td></tr>`+
+    `<tr><td class="stp-c">Currently waiting</td><td class="stp-r">${stEsc(+ws.currentlyWaiting||0)}</td></tr>`+
+    `<tr><td class="stp-c">Max wait (min)</td><td class="stp-r">${stEsc(+ws.maxWait||0)}</td></tr>`+
+    `<tr><td class="stp-c">Avg wait (min)</td><td class="stp-r">${stEsc(+ws.avgWait||0)}</td></tr>`+
+    `</tbody></table></div>`;
+  const store=(state.settings&&state.settings.storeName)||'Saagar Traders';
+  const head=`<div class="stp-head"><div class="stp-brand">Saagar Traders<small>Queue Management</small></div><div class="stp-title">QMS Report<small>Daily / Weekly / Monthly Report</small></div></div>`+
+    `<div class="stp-meta"><span>Store: ${stEsc(store)}</span> · <span>As of: ${stEsc(viewAsOf)}</span> · <span>Generated: ${stEsc(new Date().toLocaleString('en-IN'))}</span></div>`;
+  const body=head+cards+croSec+lostSec+skSec+wsSec+`<div class="stp-foot">Generated by QMS · Saagar Traders</div>`;
+  stPrintDoc({title:'QMS Reports',fileBase:'QMS-Reports',body,orientation:'portrait'});
+}
+function renderSettings(){$('view-settings').innerHTML=`<div class="page-header"><div class="page-header-left"><h1>Settings</h1><p>System configuration, data management and CRO master list</p></div></div><div class="grid-2" style="margin-bottom:16px"><div class="card"><div class="card-head"><div><div class="card-title">Store & Queue Settings</div></div></div><div class="card-body">${settingRows()}</div></div><div class="card"><div class="card-head"><div><div class="card-title">Data & Backup</div></div></div><div class="card-body"><div class="toggle-row"><div class="toggle-info"><strong>Records</strong><span>${state.customers.length} customers, ${state.followups.length} follow-ups, ${state.audit.length} audit logs</span></div></div><div class="toggle-row"><div class="toggle-info"><strong>Last Backup</strong><span>${state.lastBackup?fmtDT(state.lastBackup):'Never'}</span></div></div></div><div class="card-foot"><button data-action="backupdata" class="btn green" onclick="backupData()">Download Backup</button><button data-action="template-action" data-action-key="definition-01" class="btn gold" onclick="$('restoreInput').click()">Restore</button><button data-action="resetdemo" class="btn" style="color:var(--red);border-color:#fca5a5;margin-left:auto" onclick="resetDemo()">Reset All</button></div></div></div><div class="card"><div class="card-head"><div><div class="card-title">CRO Master</div><div class="card-sub">Active CROs available for daily rotation</div></div><button data-action="addcrotomaster" data-action-key="definition-02" class="btn primary" onclick="addCroToMaster()">Add CRO</button></div><div class="card-body" style="padding:0">${croMasterTable()}</div></div>`}
+function settingRows(){const s=state.settings,rows=[['storeName','Store Name','text'],['ownerWhatsApp','Owner WhatsApp (10-digit)','text'],['queuePrefix','Queue Number Prefix','text'],['waitAlertMins','Waiting Alert (minutes)','number'],['autoAllocate','Auto-allocate CRO by rotation','bool'],['requireBillForPurchase','Bill No. required for Purchase','bool'],['requireJobForService','Job Card required for Service','bool'],['allowGreeterClose','Allow Greeter to close leads','bool'],['smCanGiveNextOpportunity','SM can give next opportunity','bool'],['lockEditsAfterEOD','Lock edits after EOD','bool']];return rows.map(([key,label,type])=>`<div class="toggle-row"><div class="toggle-info"><strong>${label}</strong>${type!=='bool'?`<span>${esc(String(s[key]))}</span>`:''}</div>${type==='bool'?`<label class="switch"><input data-action="updatesetting" data-action-key="definition-01" type="checkbox" ${s[key]?'checked':''} onchange="updateSetting('${key}',this.checked)"><div class="switch-track"></div><div class="switch-thumb"></div></label>`:`<input data-action="updatesetting" data-action-key="definition-02" class="input setting-input" type="${type}" value="${esc(s[key])}" onchange="updateSetting('${key}',this.value)">`}</div>`).join('')}
+function updateSetting(key, value) {
+  if (!guardPast()) return false;
+  if (!requireSM()) return false;
+  if (key === 'waitAlertMins') value = +value || 10;
+  state.settings[key] = value;
+  return save('settings.update', { key, value });
+}
+function croMasterTable(){return`<div class="tbl-wrap"><table class="tbl" id="croMasterTbl"><thead><tr><th>Name</th><th>Code</th><th>Status</th><th>Actions</th></tr></thead><tbody>${state.cros.map(c=>`<tr><td class="name-cell" data-label="Name"><b>${esc(c.name)}</b></td><td class="mono" data-label="Code" style="font-size:12px">${esc(c.code||'—')}</td><td data-label="Status"><span class="badge ${c.active?'green':'red'}">${c.active?'Active':'Inactive'}</span></td><td class="gm-del-cell" data-label="Actions"><div style="display:flex;gap:5px"><button data-action="editcro" data-action-key="definition-01" class="btn sm" onclick="editCro('${c.id}')">Edit</button><button data-action="togglecro" data-action-key="definition-01" class="btn sm" style="color:${c.active?'var(--red)':'var(--green)'};border-color:${c.active?'#fca5a5':'#a7f3d0'}" onclick="toggleCro('${c.id}')">${c.active?'Deactivate':'Activate'}</button></div></td></tr>`).join('')}</tbody></table></div>`}
+function editCro(id){if(!guardPast())return;const c=state.cros.find(x=>x.id===id);if(!c)return;openModal('Edit CRO',`<div class="field full" style="margin-bottom:12px"><label class="label">Name</label><input class="input" id="editCroName" value="${esc(c.name)}"></div><div class="field full"><label class="label">Code</label><input class="input" id="editCroCode" value="${esc(c.code||'')}"></div>`,`<button data-action="closemodal" data-action-key="definition-11" class="btn ghost" onclick="closeModal()">Cancel</button><button data-action="confirmeditcro" data-action-key="definition-01" class="btn primary" onclick="confirmEditCro('${id}')">Save</button>`,true)}
+function confirmEditCro(id){if(!guardPast())return;const c=state.cros.find(x=>x.id===id);if(!c)return;c.name=$('editCroName').value.trim()||c.name;c.code=$('editCroCode').value.trim();if(!save('cro.edit',{id}))return;closeModal();toast('CRO updated.','success')}
+function toggleCro(id){if(!guardPast())return;if(!requireSM())return;const c=state.cros.find(x=>x.id===id);if(!c)return;c.active=!c.active;if(!save('cro.toggle',{id,active:c.active}))return;toast(`${c.name} ${c.active?'activated':'deactivated'}.`)}
+function backupData(){if(!guardPast())return;state.lastBackup=new Date().toISOString();localStorage.setItem(STORE_KEY,JSON.stringify(state));const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});if(window.parent&&window.parent!==window){window.parent.postMessage({type:'ST_SHARE',file:blob,fileName:`qms-backup-${todayISO()}.json`,title:'QMS backup',exportId:'qms-backup-export',scopeId:'qms-full-state',scopeLabel:'QMS full-state backup',rowCount:state.customers.length,purposeId:'business-continuity'},SaagarModuleRuntime.targetOrigin);renderAll();return}toast('Controlled export is available only inside Saagar Control Centre.','error')}
+function restoreData(file){if(!guardPast())return;if(!file)return;const r=new FileReader();r.onload=()=>{try{const data=JSON.parse(r.result);if(!data.settings||!Array.isArray(data.customers))throw new Error('Invalid');state=data;localStorage.setItem(STORE_KEY,JSON.stringify(state));load();renderAll();toast('Backup restored.','success')}catch(e){toast('Invalid backup file.','error')}};r.readAsText(file)}
+function resetDemo(){if(!guardPast())return;if(!requireSM())return;if(!confirm('Delete all QMS data in this browser? This cannot be undone.'))return;state=initialState();localStorage.setItem(STORE_KEY,JSON.stringify(state));load();renderAll();toast('System reset.','warn')}
+function closeEOD(){if(!guardPast())return;if(!requireSM())return;if(!currentRotation()){toast("No active rotation to close.","warn");return;}const rot=currentRotation(),open=todaysCustomers().filter(c=>c.status!=='Closed');if(open.length&&!confirm(`${open.length} lead(s) still open. Close EOD anyway?`))return;rot.status='Closed';rot.closedAt=new Date().toISOString();rot.closedBy=role;state.preclaims.forEach(p=>{if(p&&p.status==='Active'&&(p.date||'')===todayISO())p.status='Expired';});if(!save('eod.close',{date:todayISO(),open:open.length}))return;toast('EOD closed.','success');offerEodShare()}
+/* ===== W2-7: EOD owner summary — one-tap share of the day's pulse (PDF via the shell SaagarReport
+   engine, payroll ST_REPORT pattern; plus a wa.me plain-text quick send). READ-ONLY: every number
+   comes from the SAME functions the Dashboard/Reports render — calcStats() for the KPI row and
+   croPerfRows() (extracted from the Reports CRO Performance table) for the per-CRO table; lost
+   reasons group the exact list calcStats' lost field sums (todaysCustomers, outcome Non Purchase).
+   Not in RO_MUTATORS by design: re-sharing a past or already-closed day is allowed. ===== */
+function rotationForSummary(){const rots=state.rotations.filter(r=>r.date===viewAsOf);return rots.find(r=>r.status==='Active')||rots[rots.length-1]||null}
+function eodLostReasons(){const m={};todaysCustomers().filter(c=>c.outcome==='Non Purchase').forEach(c=>{const k=c.lostReason||'Not specified';if(!m[k])m[k]={reason:k,count:0,value:0};m[k].count++;m[k].value+=(+c.lostValue||0)});return Object.values(m).sort((a,b)=>b.count-a.count)}
+function eodSummaryData(){const s=calcStats();const rot=rotationForSummary();const rows=croPerfRows(rot);return{date:viewAsOf,store:(state.settings&&state.settings.storeName)||'Saagar Traders',closedAt:(rot&&rot.closedAt)||null,closedBy:(rot&&rot.closedBy)||null,kpi:{walkins:s.total,purchases:s.pur,service:s.svc,non:s.non,conv:s.conv,sales:s.sales,lost:s.lost,avgWait:s.avgWait},lostReasons:eodLostReasons(),cros:rows.map(r=>({name:r.name,turns:r.turns,assigned:r.total,purchases:r.pur,conv:r.conv,sales:r.sales,skips:r.skips}))}}
+function shareEodSummary(){try{const opts=eodSummaryData();if(window.parent&&window.parent!==window){window.parent.postMessage({type:'ST_REPORT',reportType:'qmsEodSummary',opts:opts},SaagarModuleRuntime.targetOrigin);return;}if(SaagarModuleBridge.report&&SaagarModuleBridge.report.preview){SaagarModuleBridge.report.preview('qmsEodSummary',opts);return;}toast('Report engine unavailable on this build.','error');}catch(e){toast('Could not open summary: '+((e&&e.message)||e),'error');}}
+function waEodSummary(){try{const d=eodSummaryData();const L=['*'+d.store+' — Day Summary ('+d.date+')*','Walk-ins: '+d.kpi.walkins+' | Purchases: '+d.kpi.purchases+' ('+d.kpi.conv+'%)','Sales: ₹'+d.kpi.sales.toLocaleString('en-IN'),'Lost: ₹'+d.kpi.lost.toLocaleString('en-IN')+(d.lostReasons[0]?' | Top: '+d.lostReasons[0].reason+' ('+d.lostReasons[0].count+')':'')];if(d.cros.length){L.push('');L.push('*CRO performance*');d.cros.forEach(r=>L.push(r.name+': '+r.turns+' turns, '+r.purchases+' buy ('+(r.assigned?r.conv+'%':'—')+'), ₹'+r.sales.toLocaleString('en-IN')+(r.skips?', '+r.skips+' skip(s)':'')));}const digits=qmsTel10((state.settings&&state.settings.ownerWhatsApp)||'');const url=digits?('https://wa.me/91'+digits+'?text='):('https://wa.me/?text=');qmsWaLink(url+encodeURIComponent(L.join('\n')),'qms-eod-summary','owner-operational-summary');}catch(e){toast('Could not build summary text.','error');}}
+function offerEodShare(){openModal('Day closed — share summary?',`<div class="info-note" style="margin-bottom:14px">Send today's pulse to the owner: walk-ins, conversion %, sales ₹, lost ₹ + top reason, and the per-CRO table.</div>`,`<button data-action="closemodal" data-action-key="definition-12" class="btn ghost" onclick="closeModal()">Later</button><button data-action="closemodal" data-action-key="definition-13" class="btn" onclick="closeModal();waEodSummary()">📲 WhatsApp text</button><button data-action="closemodal" data-action-key="definition-14" class="btn primary" onclick="closeModal();shareEodSummary()">Share PDF</button>`,true)}
+function exportCSV(){const headers=['Date','Queue No','Name','Mobile','Visit Type','Entry','Allocated CRO','Attend Start','Exit','Outcome','Amount','Lost Reason','Status'],rows=state.customers.map(c=>[customerBusinessDate(c),c.queueNo,c.name,c.mobile,c.visitType,fmtDT(c.entryTime),croName(c.assignedCroId),fmtDT(c.attendStart),fmtDT(c.exitTime),c.outcome||'',c.purchaseAmount||'',c.lostReason||'',c.status]),csv=[headers,...rows].map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n'),blob=new Blob([csv],{type:'text/csv'});if(window.parent&&window.parent!==window){window.parent.postMessage({type:'ST_SHARE',file:blob,fileName:`qms-active-customers-${todayISO()}.csv`,title:'QMS active customers',exportId:'qms-active-csv',scopeId:'qms-active-customers',scopeLabel:'QMS active customer register',rowCount:rows.length,purposeId:'register-reporting'},SaagarModuleRuntime.targetOrigin);return}toast('Controlled export is available only inside Saagar Control Centre.','error')}
+/* ===== View-date rail wiring ===== */
+function normAsOf(v){return(typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v))?v:null;}
+function setViewAsOf(d){const nd=normAsOf(d)||todayISO();if(nd===viewAsOf)return;viewAsOf=nd;if(typeof renderAll==='function')renderAll();}
+window.addEventListener('st-date',function(e){const d=e&&e.detail;const cand=(d&&typeof d==='object')?(d.date||d.asOf||d.value):d;setViewAsOf(normAsOf(cand)||readAsOf());});
+load();viewAsOf=readAsOf();tick();renderAll();
+</script>
+
+<link id="st-v5-back-style" rel="stylesheet" href="../../shared/module-back.css">
+<button id="st-v5-home-fab" type="button" title="Back to Home (Esc)"><svg viewBox="0 0 24 24"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg></button>
+<div id="st-v5-next-chips"></div>
+<script id="st-v5-back-script">SaagarModuleRuntime.run('back',{schemaVersion:1,moduleId:'qms',nextSteps:[{id:'dsr',label:'Record in DSR →'}],customerSelectors:['#custName'],accessContext:false});</script>
+
+<link id="st-v5-emp-assist-style" rel="stylesheet" href="../../shared/module-employee.css"><script id="st-v5-emp-assist-script">SaagarModuleRuntime.run('employees',{schemaVersion:1,moduleId:'qms',nextSteps:[{id:'dsr',label:'Record in DSR →'}],customerSelectors:['#custName'],accessContext:false});</script>
+
+<script id="st-v5-module-audit-bridge">SaagarModuleRuntime.run('audit',{schemaVersion:1,moduleId:'qms',nextSteps:[{id:'dsr',label:'Record in DSR →'}],customerSelectors:['#custName'],accessContext:false});</script>
+</body>
+</html>

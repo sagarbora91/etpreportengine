@@ -1,0 +1,8 @@
+/* Phase 6H: sanitized Home exception summary adapter; text sinks only. */
+(function(root,factory){'use strict';var api=factory();if(typeof module==='object'&&module.exports)module.exports=api;if(root)root.SaagarEtpOperationsConsumer=api;})(typeof globalThis!=='undefined'?globalThis:this,function(){
+  'use strict';function freeze(v){if(v&&typeof v==='object'&&!Object.isFrozen(v)){Object.keys(v).forEach(function(k){freeze(v[k]);});Object.freeze(v);}return v;}
+  function load(engine,items,access){if(!engine||typeof engine.homeSummary!=='function'||!Array.isArray(items))return freeze({ok:false,code:'E6_CONTROLLED_STATE_UNAVAILABLE'});var out=engine.homeSummary(items,access);return out&&out.ok===true?freeze({ok:true,summary:out}):freeze({ok:false,code:out&&out.code||'E6_SUMMARY_FAILED'});}
+  function clear(host){while(host.firstChild)host.removeChild(host.firstChild);}
+  function render(host,result){if(!host||!host.ownerDocument||typeof host.appendChild!=='function')return false;var doc=host.ownerDocument,title=doc.createElement('strong'),body=doc.createElement('span');title.textContent='ETP exception monitoring';body.textContent=!result||result.ok!==true?'Controlled exception state is not loaded. No clear status is inferred.':result.summary.items.length?String(result.summary.items.length)+' active role-filtered exception(s).':'No open items in the loaded controlled exception state.';clear(host);host.appendChild(title);host.appendChild(body);host.setAttribute('data-state',result&&result.ok?'ready':'unavailable');return true;}
+  return freeze({VERSION:'ETP_OPERATIONS_CONSUMER_V1',load:load,render:render});
+});

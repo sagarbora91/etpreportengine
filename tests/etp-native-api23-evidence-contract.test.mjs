@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import test from 'node:test';
+import { fileURLToPath } from 'node:url';
+const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+const source=fs.readFileSync(path.join(root,'verification/etp-native/EtpNativeApi23EvidenceTest.java'),'utf8');
+const stage=fs.readFileSync(path.join(root,'verification/etp-native/stage-api23-evidence.mjs'),'utf8');
+test('ETP native evidence uses the production plugin without unsafe test hooks',()=>{assert.match(source,/Capacitor\.Plugins\.SaagarEtpStore/);assert.doesNotMatch(source,/debugTamper|testHook|exportKey|getEncoded\(/);assert.match(source,/emulator\/runtime evidence only/i);});
+test('ETP native evidence covers bounded roundtrip IV tamper reset canary and stage recovery',()=>{for(const pattern of [/readFacts/,/AES-GCM IVs must be unique/,/chunk_index=1/,/INTEGRITY_FAILED/,/plaintext canary leaked/,/containsAlias\(ALIAS\)/,/STAGING/,/activeGenerationId/])assert.match(source,pattern);assert.match(source,/limit:2/);});
+test('canonical API23 evidence has a deterministic Android staging script',()=>{assert.match(stage,/EtpNativeApi23EvidenceTest\.java/);assert.match(stage,/copyFileSync/);});

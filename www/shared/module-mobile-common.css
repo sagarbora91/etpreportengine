@@ -1,0 +1,255 @@
+html.bcc-mobile[data-mod="qms"] #st-v5-qms-menu{display:flex;align-items:center;justify-content:center;position:fixed;top:8px;left:10px;z-index:70;width:42px;height:42px;border-radius:10px;background:#0d2340;color:#fff;border:0;font-size:20px;box-shadow:0 4px 12px rgba(0,0,0,.25)}
+html.bcc-mobile .accordion-header{display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;user-select:none}
+html.bcc-mobile .sticky-actionbar{position:sticky;bottom:0;background:#fff;border-top:1px solid var(--gray-200,#e5e7eb);padding:8px 12px calc(8px + var(--safe-bottom,0px));display:flex;gap:8px;z-index:40}
+html.bcc-mobile .bcc-card-row{display:flex;justify-content:space-between;gap:12px;padding:4px 0;font-size:13px;line-height:1.35}
+html.bcc-mobile .tab-chips{display:flex;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;gap:8px;scrollbar-width:none}
+html.bcc-mobile .bcc-card{display:block;border:1px solid var(--gray-200,#e5e7eb);border-radius:12px;padding:12px 14px;margin:0 0 10px;background:#fff;box-shadow:0 1px 3px rgba(13,35,64,.06)}
+
+/* Phase 6I: consolidated responsive migration authority (from Phase 6C) */
+
+/* base layer (all modules) */
+html.bcc-mobile table{display:block;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+html.bcc-mobile thead,html.bcc-mobile tbody,html.bcc-mobile tr{width:max-content;min-width:100%}
+html.bcc-mobile .table-wrap,html.bcc-mobile .twrap,html.bcc-mobile .table-scroll,html.bcc-mobile .tbl-wrap{overflow-x:auto !important;-webkit-overflow-scrolling:touch}
+html.bcc-mobile input,html.bcc-mobile select,html.bcc-mobile textarea{font-size:16px;max-width:100%}
+html.bcc-mobile td input,html.bcc-mobile td select,html.bcc-mobile td textarea,html.bcc-mobile th input,html.bcc-mobile th select{font-size:13px}
+html.bcc-mobile button,html.bcc-mobile .btn,html.bcc-mobile a.btn,html.bcc-mobile [role=button]{min-height:42px}
+html.bcc-mobile img,html.bcc-mobile svg,html.bcc-mobile video,html.bcc-mobile canvas{max-width:100%;height:auto}
+html.bcc-mobile .fg{min-width:0}
+html.bcc-mobile body{padding-bottom:80px}
+/* qms off-canvas menu button (injected for qms only) */
+#st-v5-qms-menu{display:none}
+
+/* stock */
+html.bcc-mobile[data-mod="stock"] .main{max-width:none !important;width:auto !important;margin:0 !important;padding:10px !important}
+html.bcc-mobile[data-mod="stock"] .scards{grid-template-columns:repeat(2,1fr) !important;gap:8px !important}
+html.bcc-mobile[data-mod="stock"] .scard{padding:10px !important}
+html.bcc-mobile[data-mod="stock"] .scard-val{font-size:21px !important}
+html.bcc-mobile[data-mod="stock"] .set-grid{grid-template-columns:1fr !important;gap:12px !important}
+html.bcc-mobile[data-mod="stock"] .sec-hdr{flex-direction:column !important;align-items:stretch !important;justify-content:flex-start !important}
+html.bcc-mobile[data-mod="stock"] .btn-row{width:100% !important}
+html.bcc-mobile[data-mod="stock"] .hdr{flex-wrap:wrap !important;gap:8px !important}
+html.bcc-mobile[data-mod="stock"] .add-row{flex-direction:column !important}
+html.bcc-mobile[data-mod="stock"] .rtbl{font-size:11px !important}
+html.bcc-mobile[data-mod="stock"] .rtbl thead th{padding:5px 3px !important;font-size:9px !important;letter-spacing:0 !important}
+html.bcc-mobile[data-mod="stock"] .rtbl td{padding:3px 3px !important}
+html.bcc-mobile[data-mod="stock"] .rtbl td.brand-td{padding-left:8px !important;font-size:10px !important}
+html.bcc-mobile[data-mod="stock"] .rtbl thead th.tl{padding-left:8px !important}
+/* stock-L02: register-cell inputs were min-height:0 — below the 44px tap floor, in the core daily-count
+   flow. Give them a reasonable tap height. stock-L01: the fixed input widths are for the WIDE scroll table
+   (1280xMobile); at phone widths (<=640) the module reflows .rtbl into stacked cards whose inputs should
+   fill the row, so only cap the width above 640 and let the module's card layout own the narrow case. */
+html.bcc-mobile[data-mod="stock"] .rtbl td .ni{min-height:40px !important;font-size:11px !important}
+html.bcc-mobile[data-mod="stock"] .rtbl td .si,html.bcc-mobile[data-mod="stock"] .rtbl td .cro-sel{min-height:40px !important;font-size:11px !important}
+@media(min-width:641px){
+html.bcc-mobile[data-mod="stock"] .rtbl td .ni{width:48px !important}
+html.bcc-mobile[data-mod="stock"] .rtbl td .si,html.bcc-mobile[data-mod="stock"] .rtbl td .cro-sel{width:80px !important}
+}
+html.bcc-mobile[data-mod="stock"] .modal-box{min-width:0 !important;max-width:92vw !important;padding:20px !important}
+/* service */
+html.bcc-mobile[data-mod="service"] .dash-wrap,html.bcc-mobile[data-mod="service"] .form-content{max-width:none !important;padding-left:14px !important;padding-right:14px !important}
+html.bcc-mobile[data-mod="service"] .form-layout{display:block !important;min-height:0 !important}
+/* Phase-0 fix: do NOT hide .form-sidebar on mobile — the module's own @media(max-width:720px) reflows it
+   into a sticky progress bar + horizontal step-chip rail (nav-0..nav-11). Hiding it left the 12-step New
+   Order form with no jump-nav (one ~10,000px scroll). The module hides .sidebar-actions itself, so only the rail shows. */
+html.bcc-mobile[data-mod="service"] .grid-2,html.bcc-mobile[data-mod="service"] .grid-3,html.bcc-mobile[data-mod="service"] .grid-4,html.bcc-mobile[data-mod="service"] .check-columns{grid-template-columns:1fr !important}
+html.bcc-mobile[data-mod="service"] .stats-grid{grid-template-columns:1fr 1fr !important;gap:10px !important}
+html.bcc-mobile[data-mod="service"] .col-span-2,html.bcc-mobile[data-mod="service"] .col-span-full{grid-column:auto !important}
+html.bcc-mobile[data-mod="service"] .dash-hero,html.bcc-mobile[data-mod="service"] .form-topbar,html.bcc-mobile[data-mod="service"] .section-header{flex-wrap:wrap !important}
+html.bcc-mobile[data-mod="service"] .form-topbar-left,html.bcc-mobile[data-mod="service"] .form-topbar-right{flex-wrap:wrap !important;width:100% !important}
+html.bcc-mobile[data-mod="service"] .tweaks-panel{position:static !important;width:auto !important;margin:12px 14px !important;box-shadow:none !important}
+html.bcc-mobile[data-mod="service"] .est-totals{align-items:stretch !important}
+html.bcc-mobile[data-mod="service"] .tot-row{justify-content:space-between !important;gap:8px !important}
+html.bcc-mobile[data-mod="service"] .tot-row .tot-label{width:auto !important}
+html.bcc-mobile[data-mod="service"] .tot-input{width:120px !important}
+html.bcc-mobile[data-mod="service"] .cond-table,html.bcc-mobile[data-mod="service"] .est-table{font-size:11.5px !important}
+html.bcc-mobile[data-mod="service"] .cond-table th,html.bcc-mobile[data-mod="service"] .est-table th{padding:6px 6px !important}
+html.bcc-mobile[data-mod="service"] .cond-table td,html.bcc-mobile[data-mod="service"] .est-table td{padding:4px 5px !important}
+html.bcc-mobile[data-mod="service"] .cond-table td input,html.bcc-mobile[data-mod="service"] .cond-table td select,html.bcc-mobile[data-mod="service"] .est-table td input{min-height:36px !important;font-size:13px !important}
+html.bcc-mobile[data-mod="service"] .stat-value{overflow-wrap:anywhere !important}  /* svc-l2: a long ₹ Est. Revenue was clipped by the overflow:hidden stat card — wrap instead of truncate */
+/* qms */
+html.bcc-mobile[data-mod="qms"] body{display:block !important;overflow:auto !important}
+html.bcc-mobile[data-mod="qms"]{--sidebar:0px}
+html.bcc-mobile[data-mod="qms"] .main-area{margin-left:0 !important}
+html.bcc-mobile[data-mod="qms"] .role-banner{left:0 !important}
+html.bcc-mobile[data-mod="qms"] .sidebar{transform:translateX(-240px);transition:transform .25s;z-index:60;width:240px}
+html.bcc-mobile[data-mod="qms"] .sidebar.open{transform:translateX(0)}
+/* QMS mobile drawer needs a backdrop: the shell opens it via .open (the module's own
+   checkbox scrim is never wired up here), so without this the drawer floats over
+   un-dimmed, left-clipped content. Scrim sits below the sidebar (60) + button (70). */
+#st-v5-qms-scrim{display:none}
+html.bcc-mobile[data-mod="qms"] #st-v5-qms-scrim{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:55;display:none}
+html.bcc-mobile[data-mod="qms"] #st-v5-qms-scrim.show{display:block}
+/* one hamburger only: the module's own checkbox button is redundant under the shell drawer */
+html.bcc-mobile[data-mod="qms"] .qms-menu-btn{display:none !important}
+html.bcc-mobile[data-mod="qms"] .topbar{padding-left:60px;position:relative}
+html.bcc-mobile[data-mod="qms"] .topbar .page-title{font-size:14px}
+html.bcc-mobile[data-mod="qms"] .kpi-grid,html.bcc-mobile[data-mod="qms"] .grid-2,html.bcc-mobile[data-mod="qms"] .grid-3,html.bcc-mobile[data-mod="qms"] .grid-auto,html.bcc-mobile[data-mod="qms"] .form-grid{grid-template-columns:1fr !important}
+html.bcc-mobile[data-mod="qms"] .field.col3{grid-column:auto !important}
+html.bcc-mobile[data-mod="qms"] .audit-item{grid-template-columns:1fr auto !important;gap:6px}
+html.bcc-mobile[data-mod="qms"] .audit-time{grid-column:1/-1}
+html.bcc-mobile[data-mod="qms"] .content{padding:16px 14px 32px}
+html.bcc-mobile[data-mod="qms"] .modal{max-width:100% !important}
+html.bcc-mobile[data-mod="qms"] .tbl{font-size:12px}
+html.bcc-mobile[data-mod="qms"] .tbl th{padding:7px 9px;font-size:10px}
+html.bcc-mobile[data-mod="qms"] .tbl td{padding:8px 9px}
+html.bcc-mobile[data-mod="qms"] .tbl td.actions{flex-wrap:wrap}
+/* dsr */
+html.bcc-mobile[data-mod="dsr"] .sgrid,html.bcc-mobile[data-mod="dsr"] .mkt-grid,html.bcc-mobile[data-mod="dsr"] .score-grid,html.bcc-mobile[data-mod="dsr"] .audit-ar-grid,html.bcc-mobile[data-mod="dsr"] .fgrid2,html.bcc-mobile[data-mod="dsr"] .role-sw{grid-template-columns:1fr !important}
+html.bcc-mobile[data-mod="dsr"] .dash-kpi-grid{grid-template-columns:1fr 1fr !important;gap:8px !important}
+html.bcc-mobile[data-mod="dsr"] .dkpi{padding:12px 8px !important}
+html.bcc-mobile[data-mod="dsr"] .dkpi-val{font-size:22px !important}
+html.bcc-mobile[data-mod="dsr"] .content-area{padding:12px !important}
+html.bcc-mobile[data-mod="dsr"] .audit-done-view{max-width:100% !important}
+html.bcc-mobile[data-mod="dsr"] .entry-item{width:100% !important;padding:14px 12px !important}
+html.bcc-mobile[data-mod="dsr"] .entry-hdr{flex-wrap:wrap !important;gap:4px 8px !important}
+html.bcc-mobile[data-mod="dsr"] .entry-detail{font-size:13px !important;word-break:break-word !important}
+html.bcc-mobile[data-mod="dsr"] .ptbl,html.bcc-mobile[data-mod="dsr"] .var-tbl{font-size:12px !important}
+html.bcc-mobile[data-mod="dsr"] .ptbl th,html.bcc-mobile[data-mod="dsr"] .ptbl td,html.bcc-mobile[data-mod="dsr"] .var-tbl th,html.bcc-mobile[data-mod="dsr"] .var-tbl td{padding:7px 8px !important;white-space:nowrap}
+/* expense */
+html.bcc-mobile[data-mod="expense"] .wrap{max-width:none !important}
+html.bcc-mobile[data-mod="expense"] .modal{max-width:none !important}
+html.bcc-mobile[data-mod="expense"] .fgrid,html.bcc-mobile[data-mod="expense"] .st-grid,html.bcc-mobile[data-mod="expense"] .deno{grid-template-columns:1fr !important}
+html.bcc-mobile[data-mod="expense"] .kgrid{grid-template-columns:repeat(2,1fr) !important}
+html.bcc-mobile[data-mod="expense"] .deno-row{grid-template-columns:48px 1fr auto !important;gap:8px}
+html.bcc-mobile[data-mod="expense"] .tabs{-webkit-overflow-scrolling:touch}
+html.bcc-mobile[data-mod="expense"] .card-h{flex-wrap:wrap}
+html.bcc-mobile[data-mod="expense"] .card-h .actions{width:100%;overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch}
+html.bcc-mobile[data-mod="expense"] .card-h .actions>*{flex:0 0 auto}
+html.bcc-mobile[data-mod="expense"] th{padding:7px 7px !important;font-size:11px !important;white-space:nowrap}
+html.bcc-mobile[data-mod="expense"] td{padding:6px 7px !important;font-size:11.5px !important}
+html.bcc-mobile[data-mod="expense"] table{font-size:11.5px !important}
+html.bcc-mobile[data-mod="expense"] .st-row{font-size:12px;gap:8px}
+html.bcc-mobile[data-mod="expense"] .fitem{grid-template-columns:auto 1fr;row-gap:4px}
+/* grooming */
+html.bcc-mobile[data-mod="grooming"] .wrap{max-width:100%}
+html.bcc-mobile[data-mod="grooming"] .frow{flex-direction:column;gap:11px}
+html.bcc-mobile[data-mod="grooming"] .fg{min-width:0}
+html.bcc-mobile[data-mod="grooming"] .statgrid{grid-template-columns:repeat(2,1fr);gap:9px}
+html.bcc-mobile[data-mod="grooming"] .filter-bar{flex-direction:column;align-items:stretch;gap:11px}
+html.bcc-mobile[data-mod="grooming"] .filter-bar .fg{flex:1 1 auto}
+html.bcc-mobile[data-mod="grooming"] .filter-bar .finput{width:100% !important}
+html.bcc-mobile[data-mod="grooming"] .filter-bar .btn2{width:100%;margin-bottom:0 !important}
+html.bcc-mobile[data-mod="grooming"] .mt{font-size:11px}
+html.bcc-mobile[data-mod="grooming"] .mt th,html.bcc-mobile[data-mod="grooming"] .mt td{padding:6px 7px}
+html.bcc-mobile[data-mod="grooming"] .mt th{white-space:normal}
+html.bcc-mobile[data-mod="grooming"] .cro-right{flex-wrap:wrap;justify-content:flex-end}
+/* cro_audit */
+html.bcc-mobile[data-mod="cro_audit"] .sc-grid{grid-template-columns:repeat(2,1fr) !important}
+html.bcc-mobile[data-mod="cro_audit"] .rgroup{grid-template-columns:repeat(2,1fr) !important}
+html.bcc-mobile[data-mod="cro_audit"] .kpi-strip,html.bcc-mobile[data-mod="cro_audit"] .stat-grid{grid-template-columns:1fr !important}
+html.bcc-mobile[data-mod="cro_audit"] .wrap{max-width:none !important;padding:12px 10px 60px !important}
+html.bcc-mobile[data-mod="cro_audit"] .modal{max-width:none !important}
+html.bcc-mobile[data-mod="cro_audit"] .frow,html.bcc-mobile[data-mod="cro_audit"] .hi-filters{flex-direction:column;gap:9px}
+html.bcc-mobile[data-mod="cro_audit"] .fg{min-width:0 !important;width:100%;flex:1 1 auto}
+html.bcc-mobile[data-mod="cro_audit"] .mrow{flex-wrap:wrap}
+html.bcc-mobile[data-mod="cro_audit"] .mbar-wrap,html.bcc-mobile[data-mod="cro_audit"] .sb-bar,html.bcc-mobile[data-mod="cro_audit"] .thr-bwrap,html.bcc-mobile[data-mod="cro_audit"] .wm-bar-wrap{display:none !important}
+html.bcc-mobile[data-mod="cro_audit"] .minp{width:90px !important;min-height:40px}
+html.bcc-mobile[data-mod="cro_audit"] .ph,html.bcc-mobile[data-mod="cro_audit"] .tabs,html.bcc-mobile[data-mod="cro_audit"] .score-banner{padding-left:12px !important;padding-right:12px !important}
+/* payroll */
+/* Header: the module only compacts it at <=640px, so on wider phones/foldables the
+   5 action buttons wrap inside the fixed 50px sticky bar and spill over the title.
+   Make the bar height auto so a wrapped button row sits cleanly below the brand,
+   drop the sub-line, and let the brand ellipsize. Width-independent (bcc-mobile). */
+html.bcc-mobile[data-mod="payroll"] .hd{height:auto !important;min-height:50px;flex-wrap:wrap;padding:8px 10px;gap:6px 8px}
+html.bcc-mobile[data-mod="payroll"] .hd-brand{flex:1 1 auto;min-width:0}
+html.bcc-mobile[data-mod="payroll"] .hd-text{min-width:0}
+html.bcc-mobile[data-mod="payroll"] .hd-name{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+html.bcc-mobile[data-mod="payroll"] .hd-sub{display:none}
+html.bcc-mobile[data-mod="payroll"] .hd-right{flex-wrap:wrap;justify-content:flex-end;gap:5px;flex-shrink:0}
+html.bcc-mobile[data-mod="payroll"] .btn-hd{padding:5px 9px;font-size:11px}
+html.bcc-mobile[data-mod="payroll"] .wp{max-width:100% !important;margin:0 !important;padding:12px 10px 84px !important}
+html.bcc-mobile[data-mod="payroll"] .grid{grid-template-columns:1fr !important;gap:10px !important}
+html.bcc-mobile[data-mod="payroll"] .controls{grid-template-columns:1fr 1fr !important;gap:8px !important}
+html.bcc-mobile[data-mod="payroll"] .summary{grid-template-columns:repeat(2,1fr) !important;gap:8px !important}
+html.bcc-mobile[data-mod="payroll"] #pane-slips .stiles{grid-template-columns:repeat(2,1fr) !important}
+html.bcc-mobile[data-mod="payroll"] section[style*="minmax(240px"],html.bcc-mobile[data-mod="payroll"] div[style*="minmax(220px"],html.bcc-mobile[data-mod="payroll"] div[style*="minmax(180px"],html.bcc-mobile[data-mod="payroll"] div[style*="minmax(170px"]{grid-template-columns:1fr !important}
+html.bcc-mobile[data-mod="payroll"] .hero{flex-direction:column;align-items:flex-start;padding:14px 16px}
+html.bcc-mobile[data-mod="payroll"] .sc-v,html.bcc-mobile[data-mod="payroll"] .hero-stat-v{overflow-wrap:anywhere !important}  /* payroll-L05/L06: long ₹ Net Payable / Total CTC were clipped by the overflow:hidden summary/hero tiles — wrap instead of truncate */
+html.bcc-mobile[data-mod="payroll"] .hero-r{width:100%}
+html.bcc-mobile[data-mod="payroll"] .tab-nav{position:static !important;overflow-x:auto;-webkit-overflow-scrolling:touch}
+html.bcc-mobile[data-mod="payroll"] .tab-btn{padding:0 13px;font-size:11px}
+html.bcc-mobile[data-mod="payroll"] .table-wrap{overflow-x:auto !important;-webkit-overflow-scrolling:touch;border-radius:10px}
+html.bcc-mobile[data-mod="payroll"] .table-scroll{overflow:auto !important;max-height:none !important}
+html.bcc-mobile[data-mod="payroll"] thead th{padding:6px 4px;font-size:9px}
+html.bcc-mobile[data-mod="payroll"] tbody td,html.bcc-mobile[data-mod="payroll"] tfoot td{padding:4px 3px}
+html.bcc-mobile[data-mod="payroll"] td input,html.bcc-mobile[data-mod="payroll"] td select,html.bcc-mobile[data-mod="payroll"] td textarea{font-size:13px;padding:5px 4px}
+html.bcc-mobile[data-mod="payroll"] td.calc-cell,html.bcc-mobile[data-mod="payroll"] td.final-cell,html.bcc-mobile[data-mod="payroll"] td.total-cell,html.bcc-mobile[data-mod="payroll"] td.locked,html.bcc-mobile[data-mod="payroll"] td.earn-cell,html.bcc-mobile[data-mod="payroll"] td.ded-cell,html.bcc-mobile[data-mod="payroll"] td.net-cell,html.bcc-mobile[data-mod="payroll"] td.ctc-cell,html.bcc-mobile[data-mod="payroll"] td.final-pay-cell,html.bcc-mobile[data-mod="payroll"] td.advance-cell{font-size:10px;padding:4px 3px}
+html.bcc-mobile[data-mod="payroll"] #pane-slips .stbl-wrap{max-height:none}
+html.bcc-mobile[data-mod="payroll"] .sheet-actions{flex-direction:column;align-items:stretch}
+html.bcc-mobile[data-mod="payroll"] .left-actions,html.bcc-mobile[data-mod="payroll"] .right-actions{justify-content:flex-start}
+/* leave */
+html.bcc-mobile[data-mod="leave"] .cal-wrapper{overflow-x:auto;-webkit-overflow-scrolling:touch}
+html.bcc-mobile[data-mod="leave"] .day-headers,html.bcc-mobile[data-mod="leave"] .cal-grid{min-width:336px}
+html.bcc-mobile[data-mod="leave"] .cal-cell{min-height:92px;padding:6px 5px}
+html.bcc-mobile[data-mod="leave"] .leave-chip{font-size:9.5px}
+html.bcc-mobile[data-mod="leave"] .stats-strip{flex-direction:column !important}
+html.bcc-mobile[data-mod="leave"] .stats-strip .stat-card{flex:1 1 100% !important;min-width:0 !important}
+html.bcc-mobile[data-mod="leave"] .capacity-grid,html.bcc-mobile[data-mod="leave"] .form-grid,html.bcc-mobile[data-mod="leave"] .detail-grid{grid-template-columns:1fr !important}
+html.bcc-mobile[data-mod="leave"] main{max-width:100% !important;padding:13px !important}
+html.bcc-mobile[data-mod="leave"] .modal,html.bcc-mobile[data-mod="leave"] .modal-wide,html.bcc-mobile[data-mod="leave"] .modal-xl{max-width:100% !important}
+html.bcc-mobile[data-mod="leave"] .cal-nav{flex-wrap:wrap}
+html.bcc-mobile[data-mod="leave"] .month-label{min-width:0;font-size:22px}
+html.bcc-mobile[data-mod="leave"] .leave-chip,html.bcc-mobile[data-mod="leave"] .agenda-mini{white-space:normal}
+/* tax */
+html.bcc-mobile[data-mod="tax"] .wp,html.bcc-mobile[data-mod="tax"] .dash-wrap{max-width:none !important;margin:0 !important;padding:14px 10px 60px !important}
+html.bcc-mobile[data-mod="tax"] .mhd-note,html.bcc-mobile[data-mod="tax"] .cos-banner-sub,html.bcc-mobile[data-mod="tax"] .modal{max-width:100% !important}
+html.bcc-mobile[data-mod="tax"] .cos-grid,html.bcc-mobile[data-mod="tax"] .dash-grid-2,html.bcc-mobile[data-mod="tax"] .owner-grid,html.bcc-mobile[data-mod="tax"] .ng,html.bcc-mobile[data-mod="tax"] .ff-grid{grid-template-columns:1fr !important}
+html.bcc-mobile[data-mod="tax"] .focus-row{grid-template-columns:1fr !important;gap:4px !important;padding:10px 0 !important}
+html.bcc-mobile[data-mod="tax"] .dash-stats{grid-template-columns:1fr 1fr !important;gap:8px !important}
+html.bcc-mobile[data-mod="tax"] .mb-row{grid-template-columns:1fr 1fr !important;gap:2px 10px !important;padding:10px 12px !important}
+html.bcc-mobile[data-mod="tax"] .mb-row.header{display:none !important}
+html.bcc-mobile[data-mod="tax"] .mb-row .mb-num:last-child{display:block !important}
+html.bcc-mobile[data-mod="tax"] .view-tabs,html.bcc-mobile[data-mod="tax"] .q-tabs{flex-wrap:nowrap !important;overflow-x:auto !important;-webkit-overflow-scrolling:touch}
+html.bcc-mobile[data-mod="tax"] .firm-sel{min-width:0 !important}
+/* ─────────────────────────────────────────────────────────────────────────
+   SHARED MOBILE UTILITIES (additive, html.bcc-mobile-scoped, opt-in via class
+   except where noted). Provide reusable hooks modules can adopt incrementally.
+   ───────────────────────────────────────────────────────────────────────── */
+/* 1.3 Containment — keep wide children from forcing horizontal overflow.
+   Limited to these explicit hooks so it never collapses real flex/grid tracks. */
+html.bcc-mobile .contain,html.bcc-mobile [class*=grid],html.bcc-mobile .wrap,html.bcc-mobile .content > *{min-width:0;box-sizing:border-box;max-width:100%}
+/* 1.1 Tab chip strip utility — opt-in horizontally-scrollable chip row. */
+
+html.bcc-mobile .tab-chips::-webkit-scrollbar{display:none}
+html.bcc-mobile .tab-chips>*{flex:0 0 auto;white-space:nowrap}
+/* 1.1 App-wide: turn EXISTING tab strips from squeeze-to-fit-and-overprint into
+   clean horizontal scrollers (class names confirmed present across modules/shell). */
+html.bcc-mobile .tab-nav,html.bcc-mobile .tabs,html.bcc-mobile .subtabs,html.bcc-mobile .cat-tabs{display:flex;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+html.bcc-mobile .tab-nav::-webkit-scrollbar,html.bcc-mobile .tabs::-webkit-scrollbar,html.bcc-mobile .subtabs::-webkit-scrollbar,html.bcc-mobile .cat-tabs::-webkit-scrollbar{display:none}
+html.bcc-mobile .tab-nav>*,html.bcc-mobile .tabs>*,html.bcc-mobile .subtabs>*,html.bcc-mobile .cat-tabs>*{flex:0 0 auto;white-space:nowrap}
+/* 1.2 Table scroll boundary — opt-in wrapper to keep a wide table inside the column. */
+html.bcc-mobile .tbl-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%}
+html.bcc-mobile .tbl-scroll td.sticky-col,html.bcc-mobile .tbl-scroll th.sticky-col{position:sticky;left:0;background:inherit;z-index:1}
+/* 1.2 Table-as-card base styles (rendered into a .card-list container by the boot helper). */
+html.bcc-mobile .card-list{display:block}
+
+
+html.bcc-mobile .bcc-card-row+.bcc-card-row{border-top:1px solid var(--gray-100,#f3f4f6)}
+html.bcc-mobile .bcc-card-label{color:var(--gray-500,#6b7280);font-weight:600;flex:0 0 auto;max-width:50%}
+html.bcc-mobile .bcc-card-val{text-align:right;min-width:0;word-break:break-word}
+/* 1.5 Sticky action bar base — modules add the markup later; class provides the chrome. */
+
+/* 1.6 Accordion base — minimal collapse; modules add markup later. */
+html.bcc-mobile .accordion-panel[hidden]{display:none}
+
+html.bcc-mobile .accordion-header::after{content:"⌄";font-size:14px;line-height:1;opacity:.6;transition:transform .2s}
+html.bcc-mobile .accordion-header[aria-expanded="true"]::after{transform:rotate(180deg)}
+/* ── Deferred cosmetic polish (P2/P3 content-clip / overflow / bottom-chrome guards) — additive, mobile-scoped ── */
+/* wrap long unbroken names/tokens/free-text inside their card instead of clipping/overflowing */
+html.bcc-mobile[data-mod="qms"] .q-name{overflow-wrap:anywhere !important;word-break:break-word !important}          /* qms-L05 */
+html.bcc-mobile[data-mod="qms"] .audit-detail{overflow-wrap:anywhere !important;word-break:break-word !important}    /* qms-L08: JSON audit payload */
+html.bcc-mobile[data-mod="expense"] .kpi .v{overflow-wrap:anywhere !important;word-break:break-word !important}      /* expense-L1: arbitrary Top-head / Status text */
+html.bcc-mobile[data-mod="expense"] .name-cell{overflow-wrap:anywhere !important;word-break:break-word !important}   /* expense-L4: long vendor/customer name in card header */
+html.bcc-mobile[data-mod="cro_audit"] .mtitle{flex:1 !important;min-width:0 !important;overflow:hidden !important;text-overflow:ellipsis !important;white-space:nowrap !important}  /* cro_audit-06: long CRO name crowds ✕ */
+/* stage-filter chips: scroll on one line instead of ballooning to ~3 rows of 44px pills */
+html.bcc-mobile[data-mod="service"] .stage-chips{flex-wrap:nowrap !important;overflow-x:auto !important;-webkit-overflow-scrolling:touch !important}  /* svc-l3 */
+/* payroll Send-Slip card cell: let the two action buttons wrap instead of overflowing the narrow card */
+html.bcc-mobile[data-mod="payroll"] #ms-table tbody td[data-label="Send Slip"]{flex-wrap:wrap !important}            /* payroll-L09 */
+/* grooming Save FAB: keep it bottom-LEFT at all mobile widths (module only did so <=640) so it never sits over the shell's next-chip */
+html.bcc-mobile[data-mod="grooming"] #grm-float-save{left:14px !important;right:auto !important}                     /* grm-01 */
+/* transient toasts: lift clear of the shell bottom-nav / back-home FAB, and let long messages wrap */
+html.bcc-mobile[data-mod="payroll"] #app-toast{bottom:88px !important}                                               /* payroll toast over bottom-nav */
+html.bcc-mobile[data-mod="qms"] .toast{bottom:92px !important}                                                      /* qms-L11 */
+html.bcc-mobile[data-mod="planning"] .toast{bottom:98px !important}                                                 /* planning toast over FAB */
+html.bcc-mobile[data-mod="service"] .toast{max-width:calc(100vw - 32px) !important;white-space:normal !important}   /* svc-l7: long toast wrap at mid-mobile width */

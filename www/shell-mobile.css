@@ -1,0 +1,15 @@
+/* Display-mode segmented control (Settings Hub) — always styled (not gated) */
+.seg{display:flex;gap:8px;margin-top:8px}
+.seg-btn{flex:1;padding:11px 12px;border:1.5px solid var(--gray-300);background:var(--paper);border-radius:10px;font:700 13px var(--font-sans);color:var(--gray-600);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px}
+.seg-btn.active{border-color:var(--navy);background:var(--navy);color:var(--paper)}
+#uiModeBtn span{font-size:18px;line-height:1}
+.role-select{min-height:44px;background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:8px;font:600 12px 'DM Sans',sans-serif;padding:5px 8px;max-width:140px}
+.role-select option{color:#111}
+/* Shell chrome in Mobile mode: keep content a comfortable centered column even on a wide screen */
+html.bcc-mobile .main{max-width:560px;margin-left:auto;margin-right:auto}
+/* B: keep the Business-Modules grid single-column in Mobile mode so the 560px clamp is never
+   over-columnised by the min-width:600/900 desktop rules (which pushed the right card column past
+   .main and got clipped by overflow-x:hidden → the "3 cards cut off"). */
+html.bcc-mobile .module-grid{grid-template-columns:1fr !important}
+/* Phase 0 (mobile overhaul) — kill residual horizontal overflow at the shell level */
+html.bcc-mobile,html.bcc-mobile body{overflow-x:hidden}

@@ -1,0 +1,1992 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="../../shared/module-bridge.js"></script>
+<script src="../../shared/module-runtime.js"></script>
+<link rel="stylesheet" href="../../shared/module-brand-tokens.css">
+<link rel="stylesheet" href="../../shared/module-responsive.css">
+<link rel="stylesheet" href="../../shared/module-components.css">
+<link rel="stylesheet" href="../../shared/module-table.css">
+<script src="../../shared/module-ui-runtime.js"></script>
+<script src="../../shared/module-table-runtime.js"></script>
+<script src="../../shared/module-rendered-components.js"></script>
+<script id="phase6g-cro-audit-render-policy">
+var CroAuditRenderedPolicy=SaagarRenderedComponents.createPolicy({
+  'edit-existing-audit':null,'submit-audit':{handler:'submitAudit',args:0},
+  'dashboard-all-stores':{handler:'setDashStore',args:1},'dashboard-first-store':{handler:'setDashStore',args:1},'dashboard-second-store':{handler:'setDashStore',args:1},
+  'period-week':{handler:'setPeriod',args:1},'period-month':{handler:'setPeriod',args:1},
+  'previous-period':{handler:'shiftPeriod',args:1,delegated:true},'next-period':{handler:'shiftPeriod',args:1,delegated:true},
+  'clear-history-filters':{handler:'clearHF',args:0},'save-targets':{handler:'saveSettings',args:0},'close-modal':{handler:'hideMO',args:0},
+  'ask-for-review':{handler:'croReviewSend',args:1,delegated:true},
+  'edit-audit-record':{handler:'loadAuditForEdit',args:1,delegated:true},
+  'print-audit-record':{handler:'printAudit',args:1,delegated:true},
+  'delete-audit-record':{handler:'croDeleteAudit',args:1,delegated:true},
+  'st-v5-home-fab':null
+},{
+  'print-comparison':{strategy:'grid',reason:'printed audit review requires task detail and score comparison'}
+});
+</script>
+<script src="../../shared/mah4-runtime.js"></script>
+<script id="mah4-stage-b-runtime">SaagarMah4Runtime.bootModule({moduleId:'cro_audit'});</script>
+<script id="st-v5-iframe-shim">SaagarModuleRuntime.run('storage',{schemaVersion:1,moduleId:'cro_audit',nextSteps:[],customerSelectors:[],accessContext:false});</script>
+<script id="st-v5-safety-net">SaagarModuleRuntime.run('safety',{schemaVersion:1,moduleId:'cro_audit',nextSteps:[],customerSelectors:[],accessContext:false});</script>
+<link rel="stylesheet" href="../../shared/module-mobile-common.css">
+<script id="st-v5-mobile-boot">SaagarModuleRuntime.run('mobile',{schemaVersion:1,moduleId:'cro_audit',nextSteps:[],customerSelectors:[],accessContext:false});</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Store Manager v3 — Saagar Traders</title>
+<link id="phase6g-cro-audit-ui-css" rel="stylesheet" href="cro-audit-ui.css">
+
+<link id="st-v5-uniform-css" rel="stylesheet" href="../../shared/module-uniform.css">
+<link rel="stylesheet" href="../../c1-control-desk.css">
+<script src="../../c1-operations-policy.js"></script>
+<script src="../../c1-control-desk.js" defer></script>
+<link rel="stylesheet" href="../../mobile-layout.css">
+<script src="../../app-i18n.js"></script>
+</head>
+<body data-saagar-ui data-saagar-width="auto" data-saagar-width-resolved="mobile">
+<script id="phase6g-cro-audit-ui-boot">SaagarUiFoundation.configure(document.body,{mode:'auto'});SaagarRenderedComponents.observe(document.body,CroAuditRenderedPolicy);</script>
+
+<div class="ph">
+  <div>
+    <div class="brand">Saagar Traders</div>
+    <div class="brand-sub">Titan World &amp; Helios · Latur</div>
+  </div>
+  <div style="text-align:right">
+    <div style="font-size:10px;color:rgba(255,255,255,.38);margin-bottom:3px" id="hdate"></div>
+    <div class="hbadge">STORE MANAGER</div>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="go('audit')" id="tab-audit">New Audit</div>
+  <div class="tab" onclick="go('dash')"    id="tab-dash">Dashboard</div>
+  <div class="tab" onclick="go('history')" id="tab-history">History</div>
+  <div class="tab" onclick="go('settings')" id="tab-settings">Settings</div>
+</div>
+
+<div class="score-banner" id="score-banner">
+  <div class="sb-left">
+    <div>
+      <div><span class="sb-num" id="sb-num">0</span><span class="sb-denom">/100</span></div>
+      <div class="sb-lbl">Live Score</div>
+    </div>
+    <div class="gpill g-poor" id="sb-grade">—</div>
+  </div>
+  <div class="sb-tasks" id="sb-tasks">0 / 10 rated</div>
+  <div class="sb-bar">
+    <div style="font-size:9px;color:rgba(255,255,255,.28);margin-bottom:2px" id="sb-pct">0%</div>
+    <div class="sb-track"><div class="sb-fill" id="sb-fill" style="width:0%"></div></div>
+  </div>
+</div>
+
+<!-- ════ AUDIT ════ -->
+<div class="sec active" id="sec-audit">
+  <div class="wrap">
+    <div class="card">
+      <div class="card-title">Audit Session</div>
+      <div class="card-sub">Fill session details, then rate all 10 tasks</div>
+      <div class="frow">
+        <div class="fg">
+          <label class="flabel">Date <span style="color:#dc2626">*</span></label>
+          <input data-action="change-audit-date" class="finput" type="date" id="f-date" onchange="onCroDateChange()">
+        </div>
+        <div class="fg">
+          <label class="flabel">Store <span style="color:#dc2626">*</span></label>
+          <select data-action="change-audit-store" class="fsel" id="f-store" onchange="onCroDateChange()">
+            <option value="">Select…</option>
+            <option>Titan World, Latur</option>
+            <option>Helios, Latur</option>
+          </select>
+        </div>
+      </div>
+      <div class="frow">
+        <div class="fg" style="flex:2">
+          <label class="flabel">Chief Retail Officer Name <span style="color:#dc2626">*</span></label>
+          <input data-action="change-cro" class="finput" type="text" id="f-cro" placeholder="Chief Retail Officer full name" list="cro-dl" autocomplete="off" oninput="onCroDateChange()" onchange="onCroDateChange()">
+          <datalist id="cro-dl"></datalist>
+        </div>
+        <div class="fg">
+          <label class="flabel">SM (Auditor) <span style="color:#dc2626">*</span></label>
+          <input class="finput" type="text" id="f-sm" placeholder="SM name" list="sm-dl" autocomplete="off">
+          <datalist id="sm-dl"></datalist>
+        </div>
+      </div>
+      <!-- O2: DSR→audit operational context (read-only) -->
+      <div class="ctx-banner" id="cro-ctx">
+        <div class="ctx-hd">Operational context (from DSR / QMS)</div>
+        <div class="ctx-line" id="cro-ctx-line"></div>
+      </div>
+      <!-- cro-dup-guard: proactive "already audited — edit instead?" prompt -->
+      <div class="ctx-banner" id="cro-dup" style="background:var(--amber-pale);border-color:rgba(180,83,9,.25)">
+        <div class="ctx-hd" style="color:var(--amber)">Duplicate check</div>
+        <div class="ctx-line" id="cro-dup-line"></div>
+        <button data-action="edit-existing-audit" class="print-btn" id="cro-dup-btn" style="margin-top:8px;background:var(--navy);color:var(--white);border-color:var(--navy)">Edit existing audit</button>
+      </div>
+    </div>
+
+    <div id="tasks-area"></div>
+
+    <div class="card" style="margin-bottom:12px">
+      <div style="font-size:11px;font-weight:700;color:var(--g600);text-transform:uppercase;letter-spacing:.07em;margin-bottom:9px">Score Summary (all 10 tasks)</div>
+      <div class="sc-grid" id="sc-grid"></div>
+    </div>
+
+    <div class="submit-dk" id="submit-dk">
+      <div class="card-title">Submit Audit</div>
+      <div class="card-sub" id="sub-sub">Rate all qualitative tasks before submitting</div>
+      <div class="unrated-list" id="unrated-list"></div>
+      <div class="cmpl-meter">
+        <div class="cmpl-lbl"><span id="cmpl-text">0 tasks rated · 0 / 100 pts</span><span class="cmpl-pct" id="cmpl-pct">0%</span></div>
+        <div class="cmpl-track"><div class="cmpl-fill" id="cmpl-fill" style="width:0%"></div></div>
+      </div>
+      <div class="sub-meta"><span id="sub-done">0 rated</span><span id="sub-pts">0 / 100 pts</span></div>
+      <div class="sub-bar"><div class="sub-fill" id="sub-fill" style="width:0%"></div></div>
+      <button data-action="submit-audit" class="sbtn green" onclick="submitAudit()">Save &amp; Submit Audit</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════ DASHBOARD ════ -->
+<div class="sec" id="sec-dash">
+  <div class="wrap">
+    <!-- P1-24 — store filter (reuses period-toggle styles) -->
+    <div class="period-toggle" id="store-toggle" style="margin-bottom:8px">
+      <button data-action="dashboard-all-stores" class="pt-btn active" id="ps-all" onclick="setDashStore('')">All Stores</button>
+      <button data-action="dashboard-first-store" class="pt-btn" id="ps-WLMHW" onclick="setDashStore('WLMHW')">Titan World</button>
+      <button data-action="dashboard-second-store" class="pt-btn" id="ps-HEMW" onclick="setDashStore('HEMW')">Helios</button>
+    </div>
+    <div class="period-toggle">
+      <button data-action="period-week" class="pt-btn active" id="pt-week" onclick="setPeriod('week')">Weekly</button>
+      <button data-action="period-month" class="pt-btn" id="pt-month" onclick="setPeriod('month')">Monthly</button>
+    </div>
+    <div class="period-nav">
+      <button data-action="previous-period" data-saagar-args="%5B-1%5D" class="pn-btn">← Prev</button>
+      <div style="text-align:center">
+        <div class="pn-lbl" id="pn-lbl">—</div>
+        <div class="pn-sub" id="pn-sub"></div>
+      </div>
+      <button data-action="next-period" data-saagar-args="%5B1%5D" class="pn-btn">Next →</button>
+    </div>
+    <div id="dash-content"></div>
+  </div>
+</div>
+
+<!-- ════ HISTORY ════ -->
+<div class="sec" id="sec-history">
+  <div class="wrap">
+    <div class="card">
+      <div class="card-title">Audit History</div>
+      <div class="card-sub">Click any record to view full breakdown</div>
+      <div class="hi-filters">
+        <div class="fg"><label class="flabel">Chief Retail Officer</label>
+          <input data-action="filter-history-cro" class="finput" type="text" id="h-cro" placeholder="All" oninput="renderHistory()"></div>
+        <div class="fg"><label class="flabel">From</label>
+          <input data-action="filter-history-from" class="finput" type="date" id="h-from" onchange="renderHistory()"></div>
+        <div class="fg"><label class="flabel">To</label>
+          <input data-action="filter-history-to" class="finput" type="date" id="h-to" onchange="renderHistory()"></div>
+        <div class="fg" style="display:flex;align-items:flex-end">
+          <button data-action="clear-history-filters" class="sbtn" style="margin-top:0" onclick="clearHF()">Clear</button></div>
+      </div>
+      <div class="stat-grid" id="hist-stats"></div>
+      <div id="hist-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ SETTINGS ════ -->
+<div class="sec" id="sec-settings">
+  <div class="wrap">
+    <div class="card">
+      <div class="card-title">Monthly KPI Targets</div>
+      <div class="card-sub">Enter monthly targets — weekly and daily breakdowns are calculated automatically</div>
+      <div class="set-hint">These targets drive scoring for Tasks 5, 6, 7 and appear as progress benchmarks in the audit form and dashboard.</div>
+      <div class="frow">
+        <div class="fg">
+          <label class="flabel">NPS Surveys / Month</label>
+          <input data-action="change-survey-target" class="finput" type="number" id="s-surveys" min="1" placeholder="80" oninput="updDerived()">
+          <div class="set-derived" id="d-surveys">Weekly: ~18 · Daily: ~3</div>
+        </div>
+        <div class="fg">
+          <label class="flabel">NPS Score Target (0–100)</label>
+          <input data-action="change-nps-target" class="finput" type="number" id="s-nps-score" min="1" max="100" placeholder="85" oninput="updDerived()">
+          <div class="set-derived" id="d-nps">Score ≥ 85 = full 5 pts</div>
+        </div>
+      </div>
+      <div class="frow">
+        <div class="fg">
+          <label class="flabel">Response Rate Target (%)</label>
+          <input data-action="change-collection-rate-target" class="finput" type="number" id="s-rate" min="1" max="100" placeholder="40" oninput="updDerived()">
+          <div class="set-derived" id="d-rate">Surveys ÷ Bills × 100 — target 40%</div>
+        </div>
+        <div class="fg">
+          <label class="flabel">Google Reviews / Month</label>
+          <input data-action="change-review-target" class="finput" type="number" id="s-reviews" min="1" placeholder="30" oninput="updDerived()">
+          <div class="set-derived" id="d-reviews">Weekly: ~7 · Daily: ~1</div>
+        </div>
+      </div>
+      <div class="frow">
+        <div class="fg">
+          <label class="flabel">Marketing Activities / Month</label>
+          <input data-action="change-marketing-target" class="finput" type="number" id="s-mktg" min="1" placeholder="120" oninput="updDerived()">
+          <div class="set-derived" id="d-mktg">Calls + visits. Weekly: ~28 · Daily: ~5</div>
+        </div>
+        <div class="fg"></div>
+      </div>
+      <button data-action="save-targets" class="sbtn" onclick="saveSettings()">Save Targets</button>
+    </div>
+    <!-- P1-24 — optional per-store target overrides (saved by the same Save Targets button) -->
+    <div class="card">
+      <div class="card-title">Per-Store Targets (optional)</div>
+      <div class="card-sub">Leave blank to use the global monthly targets above for that store</div>
+      <div class="set-hint">Titan World, Latur</div>
+      <div class="frow">
+        <div class="fg">
+          <label class="flabel">NPS Surveys / Month</label>
+          <input class="finput" type="number" id="s-WLMHW-surveys" min="1" placeholder="Global (80)">
+        </div>
+        <div class="fg">
+          <label class="flabel">Google Reviews / Month</label>
+          <input class="finput" type="number" id="s-WLMHW-reviews" min="1" placeholder="Global (30)">
+        </div>
+        <div class="fg">
+          <label class="flabel">Marketing Activities / Month</label>
+          <input class="finput" type="number" id="s-WLMHW-mktg" min="1" placeholder="Global (120)">
+        </div>
+      </div>
+      <div class="set-hint">Helios, Latur</div>
+      <div class="frow">
+        <div class="fg">
+          <label class="flabel">NPS Surveys / Month</label>
+          <input class="finput" type="number" id="s-HEMW-surveys" min="1" placeholder="Global (80)">
+        </div>
+        <div class="fg">
+          <label class="flabel">Google Reviews / Month</label>
+          <input class="finput" type="number" id="s-HEMW-reviews" min="1" placeholder="Global (30)">
+        </div>
+        <div class="fg">
+          <label class="flabel">Marketing Activities / Month</label>
+          <input class="finput" type="number" id="s-HEMW-mktg" min="1" placeholder="Global (120)">
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Scoring Reference</div>
+      <div class="card-sub">How each task is scored out of 10</div>
+      <div id="scoring-ref"></div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="mo" id="mo" onclick="closeMO(event)">
+  <div class="modal" id="modal-box">
+    <div class="mhead">
+      <div class="mtitle" id="m-title">Audit Result</div>
+      <button data-action="close-modal" class="mclose" onclick="hideMO()">✕</button>
+    </div>
+    <div class="mbody" id="m-body"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="footer">Saagar Traders · Store Manager · Data stored in browser localStorage</div>
+
+<script>
+/* ──────────────────────────────────────────
+   VIEW-DATE RAIL  (shell-driven, view-only history)
+   window.__stAsOf = "YYYY-MM-DD" = the day the user wants to VIEW.
+   Seeded before this script runs; updated live via the 'st-date' event.
+   When the viewed day is EARLIER than the real today → READ-ONLY past.
+────────────────────────────────────────── */
+function stRealToday(){ const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }   /* audit: local date — toISOString gave the previous day in IST */
+function stIsValidYMD(v){ return typeof v==='string' && /^\d{4}-\d{2}-\d{2}$/.test(v); }
+/* the day the module currently treats as "today" (defaults to __stAsOf, else real today) */
+function stViewDate(){
+  var v = window.__stAsOf;
+  return stIsValidYMD(v) ? v : stRealToday();
+}
+/* true only when viewing a PAST day (strictly earlier than the real today) */
+function stIsPast(){ return stViewDate() < stRealToday(); }
+/* a Date object anchored at noon on the viewed day (avoids TZ slippage) */
+function stAnchorDate(){ return new Date(stViewDate()+'T12:00:00'); }
+
+/* ──────────────────────────────────────────
+   TASK DEFINITIONS
+────────────────────────────────────────── */
+const TASKS = [
+  { id:'t1', n:1,  title:'Open Stock',               type:'qual',
+    desc:'Count & verify stock at store opening',
+    criteria:['Physical stock count completed before first customer','Matches previous day closing stock record','Discrepancies reported to SM immediately'] },
+  { id:'t2', n:2,  title:'Display Management',        type:'qual',
+    desc:'All displays organised, correct product placement',
+    criteria:['All display stands / counters neatly arranged','Correct price tags visible on every product','Glass, trays & boards dusted and clean'] },
+  { id:'t3', n:3,  title:'Sale Recording',            type:'qual',
+    desc:'Every transaction accurately recorded',
+    criteria:['All sales entered in system / register same day','Customer name & contact captured per bill','Bills generated, serial-numbered & filed'] },
+  { id:'t4', n:4,  title:'Non-Purchase Recording',    type:'qual',
+    desc:'Track walk-ins who left without buying',
+    criteria:['Total footfall count recorded throughout the day','Reason for non-purchase noted per visitor','Follow-up / callback action planned where applicable'] },
+  { id:'t5', n:5,  title:'Thank You Calling — NPS',   type:'nps',
+    desc:'Collect NPS surveys; response rate = surveys ÷ bills × 100',
+    criteria:['TY calls made to recent customers for NPS collection','NPS score recorded per survey (0–100 scale)','Complaints escalated to SM same day'] },
+  { id:'t6', n:6,  title:'Google Review Collection',  type:'reviews',
+    desc:'Request & collect Google reviews vs monthly target',
+    criteria:['Review QR / link shared proactively at billing','Verbal request to every satisfied customer','Daily count recorded & monthly target tracked'] },
+  { id:'t7', n:7,  title:'Marketing Activity',        type:'activity',
+    desc:'Outbound calls + door-to-door visits for leads',
+    criteria:['Outbound calls to prospects / wedding lists / referrals','Door-to-door visits in catchment area','Lead details & follow-up noted in register'] },
+  { id:'t8', n:8,  title:'Closing Stock',             type:'qual',
+    desc:'Full closing count + EOD report submitted to SM',
+    criteria:['Physical closing count completed before shutdown','Matches opening stock minus today\'s sales','EOD stock report submitted to SM before leaving'] },
+  { id:'t9', n:9,  title:'Grooming Score',            type:'grooming',
+    desc:'Enter % from the daily grooming checklist',
+    criteria:['Uniform — clean, ironed, well-fitted all day','Name badge clearly visible during store hours','Personal hygiene & presentation maintained'] },
+  { id:'t10',n:10, title:'Store Discipline',          type:'qual',
+    desc:'Punctuality, conduct & store environment',
+    criteria:['On time — no unauthorised absences or late arrivals','Personal phone use minimised on floor','Store kept clean, organised & welcoming all day'] }
+];
+
+const QUAL_R = [
+  { val:0,  label:'Not Done',   cls:'ar0'  },
+  { val:4,  label:'Below Exp.', cls:'ar4'  },
+  { val:7,  label:'Met Exp.',   cls:'ar7'  },
+  { val:10, label:'Exceeded',   cls:'ar10' }
+];
+
+/* ──────────────────────────────────────────
+   SETTINGS
+────────────────────────────────────────── */
+const DEF = { surveys:80, npsScore:85, rate:40, reviews:30, mktg:120 };
+
+function getS(){ try{ return Object.assign({},DEF,JSON.parse(localStorage.getItem('cro_s_v3')||'{}')); }catch(e){ return {...DEF}; } }
+
+/* P1-24 — per-store targets: internal store codes + effective-target resolvers */
+const CRO_STORES=[
+  {code:'WLMHW', label:'Titan World, Latur', short:'Titan World'},
+  {code:'HEMW',  label:'Helios, Latur',      short:'Helios'}
+];
+/* dsrStoreCode-style tolerant text match on a record's store label; unmatched → null
+   (excluded from a store-filtered dashboard but always counted under All) */
+function croStoreCode(label){
+  const t=String(label||'').toLowerCase();
+  if(t.includes('titan'))  return 'WLMHW';
+  if(t.includes('helios')) return 'HEMW';
+  return null;
+}
+/* Effective targets for one store; null/unknown code or no override → globals.
+   npsScore/rate stay GLOBAL (quality thresholds, not volume). */
+function getTargets(storeCode){
+  const s=getS();
+  const bs=(s.byStore&&typeof s.byStore==='object')?s.byStore:{};
+  const o=(storeCode&&bs[storeCode]&&typeof bs[storeCode]==='object')?bs[storeCode]:{};
+  const n=k=>{ const v=+o[k]; return v>0?v:s[k]; }; // >0 gate: NaN/0/negatives inherit global
+  return { surveys:n('surveys'), reviews:n('reviews'), mktg:n('mktg'),
+           npsScore:s.npsScore, rate:s.rate };
+}
+/* Dashboard targets for the current store filter. Configured "All" = sum of the two
+   per-store effective volume targets; zero-config All = globals (today's behaviour). */
+function getDashTargets(){
+  const s=getS();
+  if(dashStore) return getTargets(dashStore);
+  /* Mirror getTargets' shape guard: a truthy-but-non-object/empty byStore (corrupt/bad restore)
+     must inherit plain globals for "All", NOT enter the per-store SUM branch (which would double them). */
+  const bs=(s.byStore&&typeof s.byStore==='object'&&!Array.isArray(s.byStore)&&Object.keys(s.byStore).length)?s.byStore:null;
+  if(!bs) return getTargets(null);
+  const t={surveys:0,reviews:0,mktg:0,npsScore:s.npsScore,rate:s.rate};
+  CRO_STORES.forEach(st=>{ const e=getTargets(st.code); t.surveys+=e.surveys; t.reviews+=e.reviews; t.mktg+=e.mktg; });
+  return t;
+}
+
+function saveSettings(){
+  // READ-ONLY past: no save actions while viewing a past day
+  if(stIsPast()){ showToast('Viewing a past day — settings are read-only'); return; }
+  const prev=getS(); // P1-24 CARRY: never rebuild from scratch — unknown/sibling fields must survive
+  const s={ ...prev,
+    surveys: +document.getElementById('s-surveys').value||DEF.surveys,
+    npsScore:+document.getElementById('s-nps-score').value||DEF.npsScore,
+    rate:    +document.getElementById('s-rate').value||DEF.rate,
+    reviews: +document.getElementById('s-reviews').value||DEF.reviews,
+    mktg:    +document.getElementById('s-mktg').value||DEF.mktg
+  };
+  // P1-24 — rebuild byStore from the six per-store inputs (blank/0 = inherit global)
+  const byStore={};
+  CRO_STORES.forEach(st=>{
+    const o={};
+    ['surveys','reviews','mktg'].forEach(k=>{
+      const el=document.getElementById('s-'+st.code+'-'+k);
+      const v=el?+el.value:0; if(v>0) o[k]=v;
+    });
+    if(Object.keys(o).length) byStore[st.code]=o;
+  });
+  if(Object.keys(byStore).length) s.byStore=byStore; else delete s.byStore;
+  localStorage.setItem('cro_s_v3', JSON.stringify(s));
+  showToast('Targets saved!');
+  buildTasks(); // rebuild to reflect new targets in cards
+}
+
+function loadSettingsForm(){
+  const s=getS();
+  document.getElementById('s-surveys').value  = s.surveys;
+  document.getElementById('s-nps-score').value= s.npsScore;
+  document.getElementById('s-rate').value     = s.rate;
+  document.getElementById('s-reviews').value  = s.reviews;
+  document.getElementById('s-mktg').value     = s.mktg;
+  // P1-24 — per-store overrides (blank = inherit global) + live "Global (n)" placeholders
+  const bs=(s.byStore&&typeof s.byStore==='object')?s.byStore:{};
+  CRO_STORES.forEach(st=>{
+    const o=(bs[st.code]&&typeof bs[st.code]==='object')?bs[st.code]:{};
+    [['surveys',s.surveys],['reviews',s.reviews],['mktg',s.mktg]].forEach(([k,g])=>{
+      const el=document.getElementById('s-'+st.code+'-'+k); if(!el) return;
+      el.value=(+o[k]>0)?+o[k]:'';
+      el.placeholder='Global ('+g+')';
+    });
+  });
+  updDerived();
+}
+
+function wkly(m){ return Math.ceil(m/4.33); }
+function daily(m){ return Math.max(1,Math.ceil(m/26)); }
+
+function updDerived(){
+  const sur  = +document.getElementById('s-surveys').value||DEF.surveys;
+  const rev  = +document.getElementById('s-reviews').value||DEF.reviews;
+  const mktg = +document.getElementById('s-mktg').value||DEF.mktg;
+  const nps  = +document.getElementById('s-nps-score').value||DEF.npsScore;
+  const rate = +document.getElementById('s-rate').value||DEF.rate;
+  document.getElementById('d-surveys').textContent = `Weekly: ~${wkly(sur)} surveys · Daily: ~${daily(sur)}`;
+  document.getElementById('d-reviews').textContent = `Weekly: ~${wkly(rev)} reviews · Daily: ~${daily(rev)}`;
+  document.getElementById('d-mktg').textContent    = `Weekly: ~${wkly(mktg)} activities · Daily: ~${daily(mktg)}`;
+  document.getElementById('d-nps').textContent     = `Score ≥ ${nps} = full 5 pts (out of 10 for Task 5)`;
+  document.getElementById('d-rate').textContent    = `Target ${rate}% response rate = full 5 pts`;
+}
+
+/* ──────────────────────────────────────────
+   STATE
+────────────────────────────────────────── */
+let tData   = {};
+let weekPre = {};
+let monthPre= {};
+let dashMode= 'week';
+let dashOff = 0;
+let dashStore=''; // P1-24 — dashboard store filter: ''=All · 'WLMHW' · 'HEMW' (in-memory only)
+let editingId=null; // cro-dup-guard: id of the record being edited in-place; null = fresh audit
+
+function initTData(){
+  // quantitative tasks are pre-initialised with zeros so submission is never blocked by them
+  tData['t5'] = { billsCount:0, npsCollected:0, npsScore:0, remarks:'' };
+  tData['t6'] = { reviewsCount:0, remarks:'' };
+  tData['t7'] = { activityCount:0, remarks:'' };
+  tData['t9'] = { groomingPct:0, remarks:'' };
+  // qual tasks (t1-t4, t8, t10) start undefined — must be explicitly rated
+}
+
+function loadPreData(){
+  const all = getAudits();
+  const today = todayStr();
+  const wRange = getWeekRange(0);
+  const mPfx   = today.substring(0,7);
+  const wStart = dStr(wRange.start);
+  const wEnd   = dStr(wRange.end);
+  // exclude today's audits (in case of re-submit)
+  let wAudits = all.filter(a=>a.date>=wStart&&a.date<=wEnd&&a.date!==today);
+  let mAudits = all.filter(a=>a.date.startsWith(mPfx)&&a.date!==today);
+  // P1-24 — store-scope the pre-counts ONLY when per-store targets are configured
+  // AND a store is selected (preserves today's both-store pre-counts otherwise)
+  const stSel=(document.getElementById('f-store')||{}).value||'';
+  if(getS().byStore && stSel){
+    const c=croStoreCode(stSel);
+    const sf=a=>croStoreCode(a.store)===c;
+    wAudits=wAudits.filter(sf); mAudits=mAudits.filter(sf);
+  }
+
+  weekPre = {
+    surveys:  wAudits.reduce((s,a)=>s+(a.tasks?.t5?.npsCollected||0),0),
+    reviews:  wAudits.reduce((s,a)=>s+(a.tasks?.t6?.reviewsCount||0),0),
+    mktg:     wAudits.reduce((s,a)=>s+(a.tasks?.t7?.activityCount||0),0)
+  };
+  monthPre = {
+    surveys:  mAudits.reduce((s,a)=>s+(a.tasks?.t5?.npsCollected||0),0),
+    reviews:  mAudits.reduce((s,a)=>s+(a.tasks?.t6?.reviewsCount||0),0),
+    mktg:     mAudits.reduce((s,a)=>s+(a.tasks?.t7?.activityCount||0),0)
+  };
+}
+
+/* ──────────────────────────────────────────
+   SCORING
+────────────────────────────────────────── */
+function calcNps(d, s){
+  const responseRate = d.billsCount>0 ? Math.round((d.npsCollected/d.billsCount)*100) : 0;
+  const ratePts  = Math.min(Math.round((responseRate/s.rate)*5), 5);
+  const scorePts = Math.min(Math.round(((d.npsScore||0)/s.npsScore)*5), 5);
+  return { total:ratePts+scorePts, ratePts, scorePts, responseRate };
+}
+function calcRev(d, s){ const dt=daily(s.reviews); return Math.min(Math.round(((d.reviewsCount||0)/dt)*10),10); }
+function calcMktg(d, s){ const dt=daily(s.mktg); return Math.min(Math.round(((d.activityCount||0)/dt)*10),10); }
+function calcGroom(d){ return Math.min(Math.round((d.groomingPct||0)/10),10); }
+
+/* ──────────────────────────────────────────
+   T6 GOOGLE-REVIEW COLLECTION — per-buyer review-request list.
+   Reads today's closed Purchase buyers from the QMS store (READ-ONLY),
+   binds every button/tick by QMS customer id (cid), and auto-derives
+   t6.reviewsCount from the number of "received" ticks. Fully additive,
+   offline (wa.me / tel: only). Old t6 records without reviewList still work.
+────────────────────────────────────────── */
+function croTel10(m){ const d=String(m||'').replace(/\D/g,''); return d.length>=10?d.slice(-10):''; }
+function croReviewBuyers(dateStr){
+  try{
+    const st=JSON.parse(localStorage.getItem('retail_queue_management_v1')||'{}');
+    const arr=(st&&Array.isArray(st.customers))?st.customers:[];
+    return arr.filter(c=>c&&c.status==='Closed'&&c.outcome==='Purchase'
+              && String(c.closedAt||c.entryTime||'').slice(0,10)===dateStr
+              && croTel10(c.mobile))
+              .map(c=>({cid:String(c.id), name:c.name||'', mobile:c.mobile||'',
+                        billNo:c.billNo||'', cat:c.purchaseCategory||''}));
+  }catch(e){ return []; }
+}
+/* merge live QMS buyers into the persisted tick-list, keyed by cid so a
+   re-render never loses a tick and never mis-binds to a shifted row. */
+function croSyncReviewList(){
+  const date=(document.getElementById('f-date')||{}).value||todayStr();
+  const prev=(tData.t6&&Array.isArray(tData.t6.reviewList))?tData.t6.reviewList:[];
+  const byId={}; prev.forEach(r=>{ if(r&&r.cid) byId[r.cid]=r; });
+  const list=croReviewBuyers(date).map(b=>{
+    const p=byId[b.cid]||{};
+    return {cid:b.cid, name:b.name, mobile:b.mobile,
+            requested:!!p.requested, received:!!p.received};
+  });
+  tData.t6={ ...(tData.t6||{}), reviewList:list };
+  return list;
+}
+/* WhatsApp copy — optional shell template via SaagarModuleBridge.waConfig.cro_reviews,
+   else an inline offline fallback (no shell dependency needed). */
+function croReviewMsg(r){
+  try{ const cfg=window.parent&&SaagarModuleBridge.waConfig&&SaagarModuleBridge.waConfig.cro_reviews;
+       if(cfg&&Array.isArray(cfg.templates)&&cfg.templates[0]&&typeof cfg.templates[0].build==='function')
+         return cfg.templates[0].build(r); }catch(e){}
+  return 'Namaste '+(r&&r.name||'')+',\nThank you for your purchase at Saagar Traders, Latur 🙏\nA quick Google review would mean a lot to us: <REVIEW_LINK>';
+}
+function croReviewSend(cid){
+  const list=(tData.t6&&tData.t6.reviewList)||[];
+  const r=list.find(x=>x.cid===cid); if(!r) return;
+  const d=croTel10(r.mobile); if(!d){ showToast('No valid mobile'); return; }
+  if(window.parent&&window.parent!==window){window.parent.postMessage({type:'ST_WA_LINK',url:'https://wa.me/91'+d+'?text='+encodeURIComponent(croReviewMsg(r)),scopeId:'cro-review-request',purposeId:'promotional-review-solicitation'},SaagarModuleRuntime.targetOrigin);}
+  else{showToast('Controlled WhatsApp is available only inside Saagar Control Centre.');return;}
+  croReviewTick(cid,'requested',true); // sending auto-marks Requested
+  croRenderReviewRows(); // reflect the auto-check without a full rebuild
+}
+function croReviewTick(cid,field,val){
+  const list=(tData.t6&&tData.t6.reviewList)||[];
+  const r=list.find(x=>x.cid===cid); if(!r) return;
+  r[field]=!!val;
+  if(field==='received'&&val) r.requested=true; // received implies requested
+  croReviewDerive();
+  croRenderReviewRows();
+}
+/* auto-derive reviewsCount from the received ticks, keep the stored field in
+   sync (so every existing reviewsCount aggregator stays correct), and refresh
+   the /10 strip + week/month bars live. */
+function croReviewDerive(){
+  const list=(tData.t6&&tData.t6.reviewList)||[];
+  const rec=list.filter(r=>r.received).length;
+  // Preserve a legacy manual count (old record, no ticks yet) until the SM
+  // ticks at least one Received — then the derived tick-count takes over.
+  const legacy=(tData.t6&&+tData.t6._legacyCount)||0;
+  let cnt=rec;
+  if(rec>0 && tData.t6){ delete tData.t6._legacyCount; }
+  else if(rec===0 && legacy>0){ cnt=legacy; }
+  const s=getS(); const dt=daily(s.reviews);
+  tData.t6={ ...(tData.t6||{}), reviewsCount:cnt };
+  const inp=document.getElementById('rev-cnt'); if(inp) inp.value=cnt;
+  setFill('rev-fill', cnt/dt, 'rev-pct', cnt+'');
+  updAutoStrip('rev-auto', calcRev(tData.t6,s), `${cnt} reviews · daily target ${dt}`);
+  updTaskDisp('t6');
+  const wNew=weekPre.reviews+cnt, mNew=monthPre.reviews+cnt;
+  updWM('w-rev',wNew,wkly(s.reviews)); updWM('m-rev',mNew,s.reviews);
+}
+/* build the buyer-row HTML from the synced reviewList (cid-keyed bindings). */
+function croReviewRowsHtml(){
+  const list=croSyncReviewList();
+  if(!list.length) return '<div class="rev-empty">No purchase closures found in QMS for this date. Type a count above.</div>';
+  return list.map(r=>`<div class="rev-row" data-cid="${stEsc(r.cid)}">
+    <div class="rev-id"><span class="rev-nm">${stEsc(r.name||'—')}</span><span class="rev-mo mono">${stEsc(r.mobile||'')}</span></div>
+    <div class="rev-act">
+      <button data-action="ask-for-review" data-saagar-args="${croArgs(r.cid)}" type="button" class="btn xs rev-ask">📲 Ask</button>
+      <label class="rev-ck"><input type="checkbox" ${r.requested?'checked':''} onchange="croReviewTick('${stEsc(r.cid)}','requested',this.checked)">Requested</label>
+      <label class="rev-ck"><input type="checkbox" ${r.received?'checked':''} onchange="croReviewTick('${stEsc(r.cid)}','received',this.checked)">Received</label>
+    </div>
+  </div>`).join('');
+}
+/* re-render just the buyer list + the rev-cnt read-only state (no full rebuild). */
+function croRenderReviewRows(){
+  const box=document.getElementById('rev-buyers'); if(!box) return;
+  box.innerHTML=croReviewRowsHtml();
+  const hasList=!!(tData.t6&&Array.isArray(tData.t6.reviewList)&&tData.t6.reviewList.length);
+  const inp=document.getElementById('rev-cnt');
+  if(inp){
+    if(hasList){ inp.readOnly=true; inp.classList.add('ro'); }
+    else { inp.readOnly=false; inp.classList.remove('ro'); }
+  }
+}
+
+function getTaskPts(tid){
+  const t=TASKS.find(x=>x.id===tid);
+  const d=tData[tid]||{};
+  const s=getS();
+  if(t.type==='qual')     return (d.pts!=null)?d.pts:null;
+  if(t.type==='nps')      return calcNps(d,s).total;
+  if(t.type==='reviews')  return calcRev(d,s);
+  if(t.type==='activity') return calcMktg(d,s);
+  if(t.type==='grooming') return calcGroom(d);
+  return null;
+}
+function getTotal(){ return TASKS.reduce((sum,t)=>{ const p=getTaskPts(t.id); return sum+(p!=null?p:0); },0); }
+function getGrade(sc){
+  if(sc>=90) return {label:'Outstanding',cls:'g-out', color:'#16a34a',barCls:'g-out-c'};
+  if(sc>=75) return {label:'Good',       cls:'g-good',color:'#0891b2',barCls:'g-good-c'};
+  if(sc>=60) return {label:'Satisfactory',cls:'g-sat',color:'#ca8a04',barCls:'g-sat-c'};
+  if(sc>=45) return {label:'Below Exp.',cls:'g-below',color:'#ea580c',barCls:'g-below-c'};
+  return            {label:'Poor',      cls:'g-poor', color:'#dc2626',barCls:'g-poor-c'};
+}
+
+/* ──────────────────────────────────────────
+   BUILD TASK CARDS
+────────────────────────────────────────── */
+function buildTasks(){
+  const area=document.getElementById('tasks-area');
+  area.innerHTML='';
+  const s=getS();
+  loadPreData();
+
+  TASKS.forEach(t=>{
+    const div=document.createElement('div');
+    div.className='task-card';
+    div.id='tc-'+t.id;
+    const critHtml=t.criteria.map(c=>`<div class="crit-item">${c}</div>`).join('');
+    let body=`
+      <div class="crit-tog" onclick="togCrit('${t.id}');event.stopPropagation()">
+        &#9432; <span id="ct-${t.id}">Show criteria</span>
+      </div>
+      <div class="crit-box" id="cb-${t.id}" style="display:none">${critHtml}</div>`;
+
+    if(t.type==='qual')     body+=buildQualBody(t);
+    else if(t.type==='nps')      body+=buildNpsBody(t,s);
+    else if(t.type==='reviews')  body+=buildRevBody(t,s);
+    else if(t.type==='activity') body+=buildMktgBody(t,s);
+    else if(t.type==='grooming') body+=buildGroomBody(t);
+
+    body+=`<div class="rem-lbl">SM Remarks <span style="font-weight:400;color:var(--g400)">(optional)</span></div>
+      <textarea class="rem-inp" id="rem-${t.id}" placeholder="Observation or note…" oninput="setRem('${t.id}',this.value)">${stEsc(tData[t.id]?.remarks||'')}</textarea>`;
+
+    div.innerHTML=`
+      <div class="task-hdr" onclick="togCrit('${t.id}')">
+        <div class="task-left">
+          <div class="tnum" id="tn-${t.id}">${t.n}</div>
+          <div><div class="task-ttl">${t.title}</div><div class="task-dsc">${t.desc}</div></div>
+        </div>
+        <div class="tpts" id="tp-${t.id}">—/10</div>
+      </div>
+      <div class="task-body">${body}</div>`;
+    area.appendChild(div);
+  });
+  buildScChips();
+  // re-apply cross-module auto-grooming (K) + context hints (O2) to freshly built cards
+  if(typeof onCroDateChange==='function') onCroDateChange();
+}
+
+function setRem(tid,val){ if(tData[tid]) tData[tid].remarks=val; }
+
+function buildQualBody(t){
+  const existing=tData[t.id]?.pts;
+  return `<div class="rgroup" id="rg-${t.id}">
+    ${QUAL_R.map(r=>`<div class="rbtn${existing===r.val?' '+r.cls:''}" id="rb-${t.id}-${r.val}" onclick="setQual('${t.id}',${r.val})">
+      <span class="rpts">${r.val}</span>${r.label}</div>`).join('')}
+  </div>`;
+}
+
+function buildNpsBody(t,s){
+  const wT=wkly(s.surveys); const mT=s.surveys;
+  const wCur=weekPre.surveys; const mCur=monthPre.surveys;
+  return `<div class="metric-grp">
+    <div class="mrow">
+      <div class="ml"><div class="ml-name">Bills / Invoices Today</div><div class="ml-hint">Total bills raised at store today</div></div>
+      <div class="mr">
+        <input class="minp" type="number" min="0" id="nps-bills" placeholder="0" oninput="npsBillsTouched();onNpsInput()">
+      </div>
+    </div>
+    <div class="mrow">
+      <div class="ml"><div class="ml-name">NPS Surveys Collected</div><div class="ml-hint">Customers who gave NPS rating today</div></div>
+      <div class="mr">
+        <input class="minp" type="number" min="0" id="nps-coll" placeholder="0" oninput="onNpsInput()">
+        <div class="mbar-wrap"><div class="mbar"><div class="mbar-fill" id="nf-coll" style="width:0%;background:var(--navy)"></div></div></div>
+      </div>
+    </div>
+    <div class="mrow">
+      <div class="ml"><div class="ml-name">Response Rate</div><div class="ml-hint">Auto: Surveys ÷ Bills × 100 — Target ${s.rate}%</div></div>
+      <div class="mr">
+        <input class="minp ro" type="text" id="nps-rate-disp" value="—" readonly>
+        <div class="mbar-wrap"><div class="mbar"><div class="mbar-fill" id="nf-rate" style="width:0%;background:var(--teal)"></div></div></div>
+        <span class="mpct" id="np-rate-pct"></span>
+      </div>
+    </div>
+    <div class="mrow">
+      <div class="ml"><div class="ml-name">NPS Score Today (0–100)</div><div class="ml-hint">Average satisfaction score — Target ≥ ${s.npsScore}</div></div>
+      <div class="mr">
+        <input class="minp" type="number" min="0" max="100" id="nps-score-inp" placeholder="0" oninput="onNpsInput()">
+        <div class="mbar-wrap"><div class="mbar"><div class="mbar-fill" id="nf-score" style="width:0%;background:var(--green)"></div></div></div>
+        <span class="mpct" id="np-score-pct"></span>
+      </div>
+    </div>
+  </div>
+  <div class="auto-strip" id="nps-auto">
+    <div><div class="as-score">—<sub>/10</sub></div></div>
+    <div class="as-break">Enter bills and surveys above</div>
+  </div>
+  <div class="wm-prog">
+    <div class="wm-row">
+      <span class="wm-lbl">This week — NPS surveys</span>
+      <div class="wm-bar-wrap"><div class="wm-bar"><div class="wm-fill" id="w-nps-fill" style="width:0%;background:var(--navy)"></div></div></div>
+      <span class="wm-val" id="w-nps-val">${wCur} / ${wT}</span>
+      <span class="wm-tag ${wCur>=wT?'on':'off'}">${wCur>=wT?'✓ Met':'Target: '+wT}</span>
+    </div>
+    <div class="wm-row">
+      <span class="wm-lbl">This month — NPS surveys</span>
+      <div class="wm-bar-wrap"><div class="wm-bar"><div class="wm-fill" id="m-nps-fill" style="width:0%;background:var(--amber)"></div></div></div>
+      <span class="wm-val" id="m-nps-val">${mCur} / ${mT}</span>
+      <span class="wm-tag ${mCur>=mT?'on':'off'}">${mCur>=mT?'✓ Met':'Target: '+mT}</span>
+    </div>
+  </div>`;
+}
+
+function buildRevBody(t,s){
+  const wT=wkly(s.reviews); const mT=s.reviews; const dt=daily(s.reviews);
+  const wCur=weekPre.reviews; const mCur=monthPre.reviews;
+  // sync the per-buyer review list from QMS for the selected date (cid-keyed);
+  // when a list exists, rev-cnt becomes derived + read-only, else manual fallback.
+  const revRows=croReviewRowsHtml();
+  const hasRevList=!!(tData.t6&&Array.isArray(tData.t6.reviewList)&&tData.t6.reviewList.length);
+  return `<div class="metric-grp">
+    <div class="mrow">
+      <div class="ml"><div class="ml-name">Google Reviews Collected Today</div><div class="ml-hint">Daily target: ${dt} · Weekly: ~${wT} · Monthly: ${mT}</div></div>
+      <div class="mr">
+        <input class="minp${hasRevList?' ro':''}" type="number" min="0" id="rev-cnt" placeholder="0" oninput="onRevInput()"${hasRevList?' readonly':''}>
+        <div class="mbar-wrap"><div class="mbar"><div class="mbar-fill" id="rev-fill" style="width:0%;background:var(--gold)"></div></div></div>
+        <span class="mpct" id="rev-pct"></span>
+      </div>
+    </div>
+  </div>
+  <div class="rev-collect">
+    <div class="rev-hd">Today's buyers — request a Google review <span class="rev-hd-sub">(ticks auto-fill the count · matched by date)</span></div>
+    <div id="rev-buyers">${revRows}</div>
+  </div>
+  <div class="auto-strip" id="rev-auto">
+    <div><div class="as-score">—<sub>/10</sub></div></div>
+    <div class="as-break">Daily target: ${dt}</div>
+  </div>
+  <div class="wm-prog">
+    <div class="wm-row">
+      <span class="wm-lbl">This week — reviews</span>
+      <div class="wm-bar-wrap"><div class="wm-bar"><div class="wm-fill" id="w-rev-fill" style="width:0%;background:var(--gold)"></div></div></div>
+      <span class="wm-val" id="w-rev-val">${wCur} / ${wT}</span>
+      <span class="wm-tag ${wCur>=wT?'on':'off'}">${wCur>=wT?'✓ Met':'Target: '+wT}</span>
+    </div>
+    <div class="wm-row">
+      <span class="wm-lbl">This month — reviews</span>
+      <div class="wm-bar-wrap"><div class="wm-bar"><div class="wm-fill" id="m-rev-fill" style="width:0%;background:var(--amber)"></div></div></div>
+      <span class="wm-val" id="m-rev-val">${mCur} / ${mT}</span>
+      <span class="wm-tag ${mCur>=mT?'on':'off'}">${mCur>=mT?'✓ Met':'Target: '+mT}</span>
+    </div>
+  </div>`;
+}
+
+function buildMktgBody(t,s){
+  const wT=wkly(s.mktg); const mT=s.mktg; const dt=daily(s.mktg);
+  const wCur=weekPre.mktg; const mCur=monthPre.mktg;
+  return `<div class="metric-grp">
+    <div class="mrow">
+      <div class="ml"><div class="ml-name">Total Activities Today (calls + visits)</div><div class="ml-hint">Daily target: ${dt} · Weekly: ~${wT} · Monthly: ${mT}</div></div>
+      <div class="mr">
+        <input class="minp" type="number" min="0" id="mktg-cnt" placeholder="0" oninput="onMktgInput()">
+        <div class="mbar-wrap"><div class="mbar"><div class="mbar-fill" id="mktg-fill" style="width:0%;background:var(--navy)"></div></div></div>
+        <span class="mpct" id="mktg-pct"></span>
+      </div>
+    </div>
+  </div>
+  <div class="auto-strip" id="mktg-auto">
+    <div><div class="as-score">—<sub>/10</sub></div></div>
+    <div class="as-break">Daily target: ${dt}</div>
+  </div>
+  <div class="wm-prog">
+    <div class="wm-row">
+      <span class="wm-lbl">This week — activities</span>
+      <div class="wm-bar-wrap"><div class="wm-bar"><div class="wm-fill" id="w-mktg-fill" style="width:0%;background:var(--navy)"></div></div></div>
+      <span class="wm-val" id="w-mktg-val">${wCur} / ${wT}</span>
+      <span class="wm-tag ${wCur>=wT?'on':'off'}">${wCur>=wT?'✓ Met':'Target: '+wT}</span>
+    </div>
+    <div class="wm-row">
+      <span class="wm-lbl">This month — activities</span>
+      <div class="wm-bar-wrap"><div class="wm-bar"><div class="wm-fill" id="m-mktg-fill" style="width:0%;background:var(--amber)"></div></div></div>
+      <span class="wm-val" id="m-mktg-val">${mCur} / ${mT}</span>
+      <span class="wm-tag ${mCur>=mT?'on':'off'}">${mCur>=mT?'✓ Met':'Target: '+mT}</span>
+    </div>
+  </div>`;
+}
+
+function buildGroomBody(t){
+  return `<div class="metric-grp">
+    <div class="mrow">
+      <div class="ml"><div class="ml-name">Grooming Checklist Score (%)</div><div class="ml-hint">From the daily grooming checklist tool · 100% = 10 pts</div></div>
+      <div class="mr">
+        <input class="minp" type="number" min="0" max="100" id="groom-pct" placeholder="0" oninput="onGroomInput()">
+        <div class="mbar-wrap"><div class="mbar"><div class="mbar-fill" id="groom-fill" style="width:0%;background:var(--teal)"></div></div></div>
+        <span class="mpct" id="groom-pct-lbl"></span>
+      </div>
+    </div>
+  </div>
+  <div class="auto-strip" id="groom-auto">
+    <div><div class="as-score">—<sub>/10</sub></div></div>
+    <div class="as-break">Enter % from grooming checklist</div>
+  </div>`;
+}
+
+/* ──────────────────────────────────────────
+   INPUT HANDLERS
+────────────────────────────────────────── */
+function setQual(tid,val){
+  tData[tid]=tData[tid]||{};
+  tData[tid].pts=val;
+  QUAL_R.forEach(r=>{ document.getElementById(`rb-${tid}-${r.val}`).className='rbtn'+(val===r.val?' '+r.cls:''); });
+  updTaskDisp(tid);
+}
+
+/* P1-23 — user typed into #nps-bills: drop the auto flag + note so manual wins */
+function npsBillsTouched(){
+  const inp=document.getElementById('nps-bills'); if(!inp) return;
+  inp.dataset.autoFilled='';
+  if(typeof setBillsNote==='function') setBillsNote('','');
+}
+
+function onNpsInput(){
+  const bills = +document.getElementById('nps-bills').value||0;
+  const coll  = +document.getElementById('nps-coll').value||0;
+  const score = +document.getElementById('nps-score-inp').value||0;
+  const s=getTargets(croStoreCode((document.getElementById('f-store')||{}).value)); // P1-24 — targets follow the form's store
+  const rr = bills>0 ? Math.round((coll/bills)*100) : 0;
+
+  document.getElementById('nps-rate-disp').value = bills>0 ? rr+'%' : '—';
+  setFill('nf-coll', coll/Math.max(daily(s.surveys),1));
+  setFill('nf-rate', rr/s.rate, 'np-rate-pct', rr+'%');
+  setFill('nf-score', score/s.npsScore, 'np-score-pct', score+'');
+
+  tData['t5']={ billsCount:bills, npsCollected:coll, responseRate:rr, npsScore:score, remarks:tData['t5']?.remarks||'' };
+  const {total,ratePts,scorePts}=calcNps(tData['t5'],s);
+  updAutoStrip('nps-auto', total, `Rate ${ratePts}/5 · NPS ${scorePts}/5 · Response ${rr}%`);
+  updTaskDisp('t5');
+
+  // update week/month progress bars
+  const wNew=weekPre.surveys+coll; const wT=wkly(s.surveys);
+  const mNew=monthPre.surveys+coll; const mT=s.surveys;
+  updWM('w-nps',wNew,wT); updWM('m-nps',mNew,mT);
+}
+
+function onRevInput(){
+  // if a QMS buyer list exists, the count is DERIVED from received-ticks (read-only) —
+  // don't let a manual edit override it; just re-sync from the ticks.
+  if(tData.t6&&Array.isArray(tData.t6.reviewList)&&tData.t6.reviewList.length){ croReviewDerive(); return; }
+  const cnt=+document.getElementById('rev-cnt').value||0;
+  const s=getTargets(croStoreCode((document.getElementById('f-store')||{}).value)); const dt=daily(s.reviews); // P1-24
+  setFill('rev-fill', cnt/dt, 'rev-pct', cnt+'');
+  // spread to PRESERVE reviewList (old code dropped everything but count+remarks).
+  tData['t6']={ ...(tData['t6']||{}), reviewsCount:cnt };
+  const pts=calcRev(tData['t6'],s);
+  updAutoStrip('rev-auto', pts, `${cnt} reviews · daily target ${dt}`);
+  updTaskDisp('t6');
+  const wNew=weekPre.reviews+cnt; const mNew=monthPre.reviews+cnt;
+  updWM('w-rev',wNew,wkly(s.reviews)); updWM('m-rev',mNew,s.reviews);
+}
+
+function onMktgInput(){
+  const cnt=+document.getElementById('mktg-cnt').value||0;
+  const s=getTargets(croStoreCode((document.getElementById('f-store')||{}).value)); const dt=daily(s.mktg); // P1-24
+  setFill('mktg-fill', cnt/dt, 'mktg-pct', cnt+'');
+  tData['t7']={ activityCount:cnt, remarks:tData['t7']?.remarks||'' };
+  const pts=calcMktg(tData['t7'],s);
+  updAutoStrip('mktg-auto', pts, `${cnt} activities · daily target ${dt}`);
+  updTaskDisp('t7');
+  const wNew=weekPre.mktg+cnt; const mNew=monthPre.mktg+cnt;
+  updWM('w-mktg',wNew,wkly(s.mktg)); updWM('m-mktg',mNew,s.mktg);
+}
+
+function onGroomInput(){
+  const pct=+document.getElementById('groom-pct').value||0;
+  setFill('groom-fill', pct/100, 'groom-pct-lbl', pct+'%');
+  tData['t9']={ groomingPct:pct, remarks:tData['t9']?.remarks||'' };
+  const pts=calcGroom(tData['t9']);
+  updAutoStrip('groom-auto', pts, `${pct}% checklist compliance = ${pts}/10 pts`);
+  updTaskDisp('t9');
+}
+
+/* helpers */
+function setFill(barId, ratio, pctId, pctTxt){
+  const r=Math.min(ratio,1); const el=document.getElementById(barId);
+  if(el) el.style.width=(r*100)+'%';
+  if(pctId){ const pe=document.getElementById(pctId); if(pe) pe.textContent=pctTxt||Math.round(ratio*100)+'%'; }
+}
+function updAutoStrip(id,pts,breakdown){
+  const el=document.getElementById(id); if(!el) return;
+  const c=pts>=8?'var(--green)':pts>=6?'var(--teal)':pts>=4?'var(--amber)':'var(--red)';
+  el.innerHTML=`<div><div class="as-score" style="color:${c}">${pts}<sub style="color:${c}">/10</sub></div></div><div class="as-break">${breakdown}</div>`;
+}
+function updWM(prefix, cur, target){
+  const f=document.getElementById(prefix+'-fill');
+  const v=document.getElementById(prefix+'-val');
+  const t=document.getElementById(prefix.replace('w-','w-').replace('m-','m-')+'-val')?.closest('.wm-row')?.querySelector('.wm-tag');
+  if(f) f.style.width=Math.min(cur/target*100,100)+'%';
+  if(v) v.textContent=cur+' / '+target;
+  const tag=document.querySelector('#'+prefix+'-val')?.closest('.wm-row')?.querySelector('.wm-tag');
+  if(tag){ tag.textContent=cur>=target?'✓ Met':'Target: '+target; tag.className='wm-tag '+(cur>=target?'on':'off'); }
+}
+function togCrit(tid){
+  const el=document.getElementById('cb-'+tid); const tog=document.getElementById('ct-'+tid);
+  const open=el.style.display==='block';
+  el.style.display=open?'none':'block';
+  tog.textContent=open?'Show criteria':'Hide criteria';
+}
+
+/* ──────────────────────────────────────────
+   TASK DISPLAY UPDATE
+────────────────────────────────────────── */
+function updTaskDisp(tid){
+  const pts=getTaskPts(tid); if(pts===null) return;
+  const card=document.getElementById('tc-'+tid);
+  const rc=pts===0?'r0':pts<=4?'r4':pts<=7?'r7':'r10';
+  const isAuto=TASKS.find(x=>x.id===tid)?.type!=='qual';
+  card.className='task-card '+(isAuto?'rauto':rc);
+  const lbl=document.getElementById('tp-'+tid);
+  lbl.textContent=pts+'/10'; lbl.className='tpts scored';
+  updBanner(); updScChips();
+}
+function updBanner(){
+  const rated=TASKS.filter(t=>getTaskPts(t.id)!==null).length;
+  const total=getTotal();
+  // Live score is only meaningful once every task is rated: until then unrated
+  // qual tasks count as 0 over a fixed /100, which understates the standing.
+  // Show a provisional placeholder for the headline figures (display only — the
+  // SAVED value is unaffected; submitAudit still gates on all qual tasks rated).
+  const allRated = rated===TASKS.length;
+  document.getElementById('sb-num').textContent  = allRated ? total : '—';
+  document.getElementById('sb-tasks').textContent=rated+' / 10 rated';
+  document.getElementById('sb-pct').textContent  = allRated ? total+'%' : 'provisional';
+  document.getElementById('sb-fill').style.width=total+'%';
+  const g=getGrade(total);
+  const gb=document.getElementById('sb-grade');
+  gb.textContent = allRated ? g.label : '—';
+  gb.className   = 'gpill '+(allRated ? g.cls : 'g-poor');
+  document.getElementById('sub-done').textContent=rated+' tasks rated';
+  document.getElementById('sub-pts').textContent=total+' / 100 pts';
+  document.getElementById('sub-fill').style.width=total+'%';
+  // Completion meter: progress = rated / total-tasks (10). Defensive (no-throw):
+  // skip silently if any node is absent so a partial DOM never breaks recompute.
+  try{
+    const totalTasks=TASKS.length||10;
+    const pct=Math.max(0,Math.min(100,Math.round((rated/totalTasks)*100)));
+    const cf=document.getElementById('cmpl-fill');
+    const cp=document.getElementById('cmpl-pct');
+    const ct=document.getElementById('cmpl-text');
+    if(cf) cf.style.width=pct+'%';
+    if(cp) cp.textContent=pct+'%';
+    if(ct) ct.textContent=`${rated} task${rated===1?'':'s'} rated · ${total} / 100 pts`;
+  }catch(e){}
+  const qualUnrated=TASKS.filter(t=>t.type==='qual'&&getTaskPts(t.id)===null).length;
+  document.getElementById('sub-sub').textContent=qualUnrated>0
+    ?`Rate ${qualUnrated} more qualitative task${qualUnrated>1?'s':''} to submit`
+    :'All tasks rated — ready to submit';
+}
+function buildScChips(){
+  document.getElementById('sc-grid').innerHTML=TASKS.map(t=>`
+    <div class="sc-chip" id="scc-${t.id}"><div class="sc-n">T${t.n}</div><div class="sc-v" id="scv-${t.id}">—</div></div>`).join('');
+}
+function updScChips(){
+  TASKS.forEach(t=>{
+    const pts=getTaskPts(t.id);
+    const c=document.getElementById('scc-'+t.id);
+    const v=document.getElementById('scv-'+t.id);
+    if(pts===null){ c.className='sc-chip'; v.textContent='—'; return; }
+    c.className='sc-chip p'+pts; v.textContent=pts;
+  });
+}
+
+/* ──────────────────────────────────────────
+   SUBMIT
+────────────────────────────────────────── */
+function submitAudit(){
+  // READ-ONLY past: the model APPENDS, so a back-dated submit would duplicate. Block it.
+  if(stIsPast()){ showToast('Viewing a past day — submission is disabled'); return; }
+  const qualUnrated=TASKS.filter(t=>t.type==='qual'&&getTaskPts(t.id)===null);
+  if(qualUnrated.length){
+    const ul=document.getElementById('unrated-list');
+    ul.style.display='block';
+    ul.textContent='Please rate: '+qualUnrated.map(t=>t.title).join(', ');
+    qualUnrated[0]&&document.getElementById('tc-'+qualUnrated[0].id)?.scrollIntoView({behavior:'smooth',block:'center'});
+    showToast('Rate all qualitative tasks first');
+    return;
+  }
+  document.getElementById('unrated-list').style.display='none';
+
+  const cro  =document.getElementById('f-cro').value.trim();
+  const sm   =document.getElementById('f-sm').value.trim();
+  const date =document.getElementById('f-date').value;
+  const store=document.getElementById('f-store').value;
+  if(!cro)  { showToast('Enter Chief Retail Officer name');  return; }
+  if(!sm)   { showToast('Enter SM name');   return; }
+  if(!date) { showToast('Select a date');   return; }
+  if(!store){ showToast('Select store');    return; }
+
+  // build tasks snapshot
+  const tasks={};
+  TASKS.forEach(t=>{
+    tasks[t.id]={ ...( tData[t.id]||{} ), pts: getTaskPts(t.id)||0 };
+  });
+  const total=getTotal();
+  const all=getAudits();
+  /* cro-dup-guard: locate a target record to REPLACE.
+     - explicit edit (editingId set) → that record; no confirm (user chose to edit).
+     - late-detected accidental dup (same date+store+cro, no Edit used) → keep the
+       existing confirm() so behaviour is unchanged for that path.
+     Match is case/space-insensitive on CRO. */
+  const dupKey=cro.trim().toLowerCase();
+  let tgtIdx=-1;
+  if(editingId){
+    tgtIdx=all.findIndex(a=>a && a.id===editingId);
+  }else{
+    tgtIdx=all.findIndex(a=>a && a.date===date && a.store===store && String(a.cro||'').trim().toLowerCase()===dupKey);
+    if(tgtIdx!==-1){
+      if(!confirm('An audit already exists for this Chief Retail Officer at this store on this date. Replace the existing one?')){
+        showToast('Duplicate audit — not saved');
+        return;
+      }
+    }
+  }
+  let audit;
+  if(tgtIdx!==-1){
+    /* replace: preserve the ORIGINAL id + submittedAt (audit trail); stamp editedAt */
+    const prev=all[tgtIdx];
+    audit={
+      id:prev.id, date, store, cro, sm, total,
+      grade:getGrade(total).label,
+      tasks,
+      submittedAt:prev.submittedAt||new Date().toISOString(),
+      editedAt:new Date().toISOString()
+    };
+    all.splice(tgtIdx,1); // remove the old record so the rebuilt one replaces it (no double-count)
+  }else{
+    audit={
+      id:'a'+Date.now(), date, store, cro, sm, total,
+      grade:getGrade(total).label,
+      tasks,
+      submittedAt:new Date().toISOString()
+    };
+  }
+  all.unshift(audit);
+  localStorage.setItem('cro_audits_v3',JSON.stringify(all));
+  showToast(editingId?'Audit updated':'Audit saved successfully!');
+  editingId=null; // clear edit state before resetForm re-renders
+  showModal(audit);
+  resetForm();
+  renderHistory();
+}
+
+function resetForm(){
+  editingId=null; // cro-dup-guard: leaving edit mode
+  tData={};
+  initTData();
+  buildTasks();
+  updBanner();
+  document.getElementById('f-cro').value='';
+  document.getElementById('f-sm').value='';
+  document.getElementById('unrated-list').style.display='none';
+  updEditNote(); // restore "Save & Submit Audit" label + remove edit note
+  setToday();
+  // re-derive leave filter + clear auto-grooming/context now that fields are blank
+  applyCroLeaveFilter();
+  onCroDateChange();
+}
+
+/* ──────────────────────────────────────────
+   DATA
+────────────────────────────────────────── */
+function getAudits(){ try{ return JSON.parse(localStorage.getItem('cro_audits_v3'))||[]; }catch(e){ return []; } }
+
+/* cro-dup-guard: find an existing audit matching the same date+store+cro
+   (case/space-insensitive on CRO — mirrors submitAudit's dup match). */
+function findDupAudit(date,store,cro){
+  if(!date||!store||!cro) return null;
+  const key=kk(cro);
+  return getAudits().find(a=>a && a.date===date && a.store===store && kk(a.cro)===key)||null;
+}
+
+/* ──────────────────────────────────────────
+   MODAL
+────────────────────────────────────────── */
+function showModal(a){
+  const g=getGrade(a.total);
+  let rows=TASKS.map((t,i)=>{
+    const td=a.tasks?.[t.id]||{}; const pts=td.pts!=null?td.pts:0;
+    let detail='';
+    if(t.type==='nps'){
+      const rr=td.billsCount>0?Math.round((td.npsCollected/td.billsCount)*100):0;
+      detail=`Bills: ${td.billsCount||0} · Surveys: ${td.npsCollected||0} · Response: ${rr}% · NPS Score: ${td.npsScore||0}`;
+    }
+    if(t.type==='reviews')  detail=`Reviews collected: ${td.reviewsCount||0}`;
+    if(t.type==='activity') detail=`Activities done: ${td.activityCount||0}`;
+    if(t.type==='grooming') detail=`Grooming: ${td.groomingPct||0}%`;
+    if(td.remarks) detail+=(detail?' · ':'')+`"${stEsc(td.remarks)}"`;
+    return `<div class="trr"><div class="trr-i">${i+1}</div>
+      <div class="trr-n">${t.title}${detail?`<div class="trr-d">${detail}</div>`:''}</div>
+      <div class="trr-s s${pts}">${pts}/10</div></div>`;
+  }).join('');
+
+  document.getElementById('m-title').textContent=`Audit — ${a.cro}`;
+  document.getElementById('m-body').innerHTML=`
+    <div class="res-score">
+      <div class="res-big">${a.total}<span style="font-size:16px;color:var(--g400)">/100</span></div>
+      <div class="res-bar"><div class="res-fill" style="width:${a.total}%;background:${g.color}"></div></div>
+      <div class="gpill ${g.cls}">${g.label}</div>
+    </div>
+    <div class="mpills">
+      <span class="mpill">📅 ${fmtDate(a.date,true)}</span>
+      <span class="mpill">🏪 ${stEsc(a.store)}</span>
+      <span class="mpill">👤 ${stEsc(a.cro)}</span>
+      <span class="mpill">🔍 SM: ${stEsc(a.sm)}</span>
+    </div>
+    <div style="font-size:11px;font-weight:700;color:var(--g500);text-transform:uppercase;letter-spacing:.07em;margin-bottom:7px">Task Breakdown</div>
+    ${rows}
+    <button data-action="edit-audit-record" data-saagar-args="${croArgs(a.id)}" class="print-btn">✎ Edit this audit</button>
+    <button data-action="print-audit-record" data-saagar-args="${croArgs(a.id)}" class="print-btn">🖨 Print / Save as PDF</button>`;
+  document.getElementById('mo').classList.add('show');
+}
+function hideMO(){ document.getElementById('mo').classList.remove('show'); }
+function closeMO(e){ if(e.target===document.getElementById('mo')) hideMO(); }
+
+/* ──────────────────────────────────────────
+   HISTORY
+────────────────────────────────────────── */
+function renderHistory(){
+  const all=getAudits();
+  const cro=(document.getElementById('h-cro')?.value||'').trim().toLowerCase();
+  const from=document.getElementById('h-from')?.value||'';
+  const to=document.getElementById('h-to')?.value||'';
+  const fil=all.filter(a=>{
+    if(cro&&!a.cro.toLowerCase().includes(cro)) return false;
+    if(from&&a.date<from) return false;
+    if(to&&a.date>to) return false;
+    return true;
+  });
+  const se=document.getElementById('hist-stats');
+  const le=document.getElementById('hist-list');
+  if(!se||!le) return;
+
+  if(fil.length){
+    const avg=Math.round(fil.reduce((s,a)=>s+a.total,0)/fil.length);
+    se.innerHTML=`
+      <div class="stat-c"><div class="st-lbl">Audits</div><div class="st-val">${fil.length}</div><div class="st-sub">shown</div></div>
+      <div class="stat-c"><div class="st-lbl">Avg Score</div><div class="st-val">${avg}</div><div class="st-sub">/ 100</div></div>
+      <div class="stat-c"><div class="st-lbl">Best</div><div class="st-val">${Math.max(...fil.map(a=>a.total))}</div><div class="st-sub">score</div></div>
+      <div class="stat-c"><div class="st-lbl">Chief Retail Officers</div><div class="st-val">${new Set(fil.map(a=>a.cro)).size}</div><div class="st-sub">unique</div></div>`;
+  } else se.innerHTML='';
+
+  if(!fil.length){
+    le.innerHTML=`<div class="empty"><div class="empty-ico">📋</div><div class="empty-t">No audits found</div><div class="empty-s">${all.length?'Adjust filters':'Submit your first audit'}</div></div>`;
+    return;
+  }
+  fil.sort((a,b)=>(b.date||'').localeCompare(a.date||'')); var __CAP=150, __more=fil.length>__CAP, __shown=__more?fil.slice(0,__CAP):fil;
+  le.innerHTML=(__more?'<div class="empty-s" style="padding:6px 2px">Showing the '+__CAP+' most recent of '+fil.length+' audits. Use the filters above to narrow.</div>':'')+__shown.map(a=>{
+    const g=getGrade(a.total);
+    return `<div class="hi-item" onclick="if(event.target.closest('button'))return;showModal(${JSON.stringify(a).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/'/g,"&#39;")})">
+      <div class="hi-bar" style="background:${g.color}"></div>
+      <div class="hi-body">
+        <div class="hi-date">${fmtDate(a.date)}</div>
+        <div><div class="hi-cro">${stEsc(a.cro)}</div><div class="hi-store">${stEsc(a.store)} · SM: ${stEsc(a.sm)}</div></div>
+        <div class="hi-spill ${g.cls}">${a.total}/100</div>
+        <button data-action="delete-audit-record" data-saagar-args="${croArgs(a.id)}" class="hi-del" title="Delete">✕</button>
+      </div></div>`;
+  }).join('');
+  stApplyReadOnly(); // disable delete buttons when viewing a past day
+}
+function delAudit(id,e){
+  e.stopPropagation();
+  // READ-ONLY past: never mutate stored records while viewing history
+  if(stIsPast()){ showToast('Viewing a past day — delete is disabled'); return; }
+  if(!confirm('Delete this audit record?')) return;
+  localStorage.setItem('cro_audits_v3',JSON.stringify(getAudits().filter(a=>a.id!==id)));
+  renderHistory(); showToast('Deleted');
+}
+function croDeleteAudit(id){
+  delAudit(id,{stopPropagation:function(){}});
+}
+function clearHF(){
+  document.getElementById('h-cro').value='';
+  document.getElementById('h-from').value='';
+  document.getElementById('h-to').value='';
+  renderHistory();
+}
+
+/* ──────────────────────────────────────────
+   DASHBOARD
+────────────────────────────────────────── */
+function setPeriod(m){
+  dashMode=m; dashOff=0;
+  document.getElementById('pt-week').className ='pt-btn'+(m==='week'?' active':'');
+  document.getElementById('pt-month').className='pt-btn'+(m==='month'?' active':'');
+  renderDash();
+}
+function shiftPeriod(d){ dashOff+=d; renderDash(); }
+/* P1-24 — dashboard store filter toggle */
+function setDashStore(c){
+  dashStore=c;
+  [['ps-all',''],['ps-WLMHW','WLMHW'],['ps-HEMW','HEMW']].forEach(([id,v])=>{
+    const b=document.getElementById(id); if(b) b.classList.toggle('active',v===c);
+  });
+  renderDash();
+}
+
+function getWeekRange(off){
+  // anchored to the SELECTED view date (not the wall-clock today)
+  const n=stAnchorDate(); const day=n.getDay(); const md=day===0?-6:1-day;
+  const mon=new Date(n); mon.setDate(mon.getDate()+md+off*7);
+  const sun=new Date(mon); sun.setDate(sun.getDate()+6);
+  return {start:mon,end:sun};
+}
+function getMonthInfo(off){
+  // anchored to the SELECTED view date (not the wall-clock today)
+  const n=stAnchorDate();
+  const d=new Date(n.getFullYear(),n.getMonth()+off,1);
+  return {year:d.getFullYear(),month:d.getMonth()};
+}
+function dStr(d){ return d.toISOString().split('T')[0]; }
+/* "today" as the module sees it = the selected view date (defaults to real today) */
+function todayStr(){ return stViewDate(); }
+function wkNum(d){ const j=new Date(d.getFullYear(),0,1); return Math.ceil(((d-j)/864e5+j.getDay()+1)/7); }
+
+function renderDash(){ if(dashMode==='week') renderWeekDash(); else renderMonthDash(); }
+
+function renderWeekDash(){
+  const wr=getWeekRange(dashOff); const pr=getWeekRange(dashOff-1);
+  const all=getAudits();
+  let cur=all.filter(a=>a.date>=dStr(wr.start)&&a.date<=dStr(wr.end));
+  let prv=all.filter(a=>a.date>=dStr(pr.start)&&a.date<=dStr(pr.end));
+  // P1-24 — store filter (prv filtered too, so ▲/▼ trends compare like-for-like)
+  if(dashStore){ const f=a=>croStoreCode(a.store)===dashStore; cur=cur.filter(f); prv=prv.filter(f); }
+  const s=getS();
+  const T=getDashTargets(); // P1-24 — effective targets for the active store filter
+  const wT_sur=wkly(T.surveys); const wT_rev=wkly(T.reviews); const wT_mktg=wkly(T.mktg);
+  const fmt=d=>d.toLocaleDateString('en-IN',{day:'numeric',month:'short'});
+  document.getElementById('pn-lbl').textContent=`Week ${wkNum(wr.start)}, ${wr.start.getFullYear()}`;
+  document.getElementById('pn-sub').textContent=`${fmt(wr.start)} – ${fmt(wr.end)} · ${cur.length} audit${cur.length!==1?'s':''} · ${dashStore?CRO_STORES.find(x=>x.code===dashStore).short:'All stores'}`;
+
+  const el=document.getElementById('dash-content');
+  if(!cur.length){
+    const sn=dashStore?' — '+CRO_STORES.find(x=>x.code===dashStore).short:'';
+    el.innerHTML=`<div class="empty"><div class="empty-ico">📊</div><div class="empty-t">No audits this week${sn}</div><div class="empty-s">Submit audits to see weekly performance</div></div>`;
+    return;
+  }
+
+  // week-level KPIs
+  const totSur  = cur.reduce((s,a)=>s+(a.tasks?.t5?.npsCollected||0),0);
+  const totBills= cur.reduce((s,a)=>s+(a.tasks?.t5?.billsCount||0),0);
+  const totRev  = cur.reduce((s,a)=>s+(a.tasks?.t6?.reviewsCount||0),0);
+  const totMktg = cur.reduce((s,a)=>s+(a.tasks?.t7?.activityCount||0),0);
+  const npsVals = cur.map(a=>a.tasks?.t5?.npsScore||0).filter(v=>v>0);
+  const avgNPS  = npsVals.length?(npsVals.reduce((a,b)=>a+b,0)/npsVals.length).toFixed(1):'—';
+  const wkRR    = totBills>0?Math.round(totSur/totBills*100):0;
+  const kpiBand = (v,t)=>v>=t?'var(--green)':'var(--amber)';
+
+  const kpiHtml=`<div class="kpi-strip">
+    <div class="kpi-card"><div class="kpi-lbl">NPS Surveys</div><div class="kpi-val">${totSur}</div>
+      <div class="kpi-sub">Target: ${wT_sur}/week</div>
+      <div class="kpi-bar"><div class="kpi-fill" style="width:${Math.min(totSur/wT_sur*100,100)}%;background:${kpiBand(totSur,wT_sur)}"></div></div>
+      ${totSur>=wT_sur?'<div class="kpi-met">✓ Weekly target met!</div>':''}
+    </div>
+    <div class="kpi-card"><div class="kpi-lbl">Response Rate</div><div class="kpi-val">${wkRR}%</div>
+      <div class="kpi-sub">Target: ${s.rate}% (${totSur}/${totBills} bills)</div>
+      <div class="kpi-bar"><div class="kpi-fill" style="width:${Math.min(wkRR/s.rate*100,100)}%;background:${kpiBand(wkRR,s.rate)}"></div></div>
+      ${wkRR>=s.rate?'<div class="kpi-met">✓ Target met!</div>':''}
+    </div>
+    <div class="kpi-card"><div class="kpi-lbl">Avg NPS Score</div><div class="kpi-val">${avgNPS}</div>
+      <div class="kpi-sub">Target: ≥${s.npsScore}</div>
+      ${avgNPS!=='—'?`<div class="kpi-bar"><div class="kpi-fill" style="width:${Math.min(+avgNPS/s.npsScore*100,100)}%;background:${kpiBand(+avgNPS,s.npsScore)}"></div></div>`:''}
+      ${avgNPS!=='—'&&+avgNPS>=s.npsScore?'<div class="kpi-met">✓ Target met!</div>':''}
+    </div>
+    <div class="kpi-card"><div class="kpi-lbl">Google Reviews</div><div class="kpi-val">${totRev}</div>
+      <div class="kpi-sub">Target: ${wT_rev}/week</div>
+      <div class="kpi-bar"><div class="kpi-fill" style="width:${Math.min(totRev/wT_rev*100,100)}%;background:${kpiBand(totRev,wT_rev)}"></div></div>
+      ${totRev>=wT_rev?'<div class="kpi-met">✓ Weekly target met!</div>':''}
+    </div>
+    <div class="kpi-card"><div class="kpi-lbl">Marketing Activities</div><div class="kpi-val">${totMktg}</div>
+      <div class="kpi-sub">Target: ${wT_mktg}/week</div>
+      <div class="kpi-bar"><div class="kpi-fill" style="width:${Math.min(totMktg/wT_mktg*100,100)}%;background:${kpiBand(totMktg,wT_mktg)}"></div></div>
+      ${totMktg>=wT_mktg?'<div class="kpi-met">✓ Weekly target met!</div>':''}
+    </div>
+  </div>`;
+
+  const croMap=groupByCRO(cur,true); const prvMap=groupByCRO(prv);
+  const croHtml=Object.entries(croMap).sort((a,b)=>b[1].avg-a[1].avg).map(([nm,cd])=>{
+    const g=getGrade(cd.avg); const pa=prvMap[nm]?.avg||null;
+    const d=pa!==null?Math.round(cd.avg-pa):null;
+    const tr=d===null?'':`<span class="trend ${d>0?'up':d<0?'dn':'eq'}">${d>0?'▲':'▼'} ${Math.abs(d)}</span>`;
+    const avgN=cd.npsVals.length?(cd.npsVals.reduce((a,b)=>a+b,0)/cd.npsVals.length).toFixed(1):'—';
+    const rr=cd.bills>0?Math.round(cd.surveys/cd.bills*100):0;
+    return `<div class="cpc"><div class="cpc-top" style="background:${g.color}"></div>
+      <div class="cpc-body">
+        <div class="cpc-r1">
+          <div><div class="cpc-name">${stEsc(nm)}</div><div class="cpc-meta">${cd.count} audit${cd.count>1?'s':''}</div></div>
+          <div class="cpc-right">${tr}<div class="cpc-score">${cd.avg}/100</div><div class="gpill ${g.cls}">${g.label}</div></div>
+        </div>
+        <div class="cpc-kpis">
+          <div class="cpc-kpi">Surveys <span class="cpc-kv">${cd.surveys}</span></div>
+          <div class="cpc-kpi">Bills <span class="cpc-kv">${cd.bills}</span></div>
+          <div class="cpc-kpi">Rate <span class="cpc-kv">${rr}%</span></div>
+          <div class="cpc-kpi">NPS <span class="cpc-kv">${avgN}</span></div>
+          <div class="cpc-kpi">Reviews <span class="cpc-kv">${cd.reviews}</span></div>
+        </div>
+      </div></div>`;
+  }).join('');
+
+  const taskRows=taskAvgRows(cur);
+  el.innerHTML=`
+    <div style="margin-bottom:14px">${kpiHtml}</div>
+    <div class="dash-sec-lbl" style="margin-bottom:9px">Chief Retail Officer Performance</div>
+    ${croHtml}
+    <div class="card" style="margin-top:14px"><div class="dash-sec-lbl">Task Averages (weakest first)</div>${taskRows}</div>`;
+}
+
+function renderMonthDash(){
+  const mi=getMonthInfo(dashOff); const pmi=getMonthInfo(dashOff-1);
+  const pfx=`${mi.year}-${String(mi.month+1).padStart(2,'0')}`;
+  const ppfx=`${pmi.year}-${String(pmi.month+1).padStart(2,'0')}`;
+  const all=getAudits();
+  let cur=all.filter(a=>a.date.startsWith(pfx));
+  let prv=all.filter(a=>a.date.startsWith(ppfx));
+  // P1-24 — store filter (prv filtered too, so ▲/▼ trends compare like-for-like)
+  if(dashStore){ const f=a=>croStoreCode(a.store)===dashStore; cur=cur.filter(f); prv=prv.filter(f); }
+  const s=getS();
+  const T=getDashTargets(); // P1-24 — effective targets for the active store filter
+  const mLabel=new Date(mi.year,mi.month,1).toLocaleDateString('en-IN',{month:'long',year:'numeric'});
+  document.getElementById('pn-lbl').textContent=mLabel;
+  document.getElementById('pn-sub').textContent=`${cur.length} audit${cur.length!==1?'s':''} · ${new Set(cur.map(a=>a.cro)).size} Chief Retail Officer${new Set(cur.map(a=>a.cro)).size!==1?'s':''} · ${dashStore?CRO_STORES.find(x=>x.code===dashStore).short:'All stores'}`;
+
+  const el=document.getElementById('dash-content');
+  if(!cur.length){
+    const sn=dashStore?' — '+CRO_STORES.find(x=>x.code===dashStore).short:'';
+    el.innerHTML=`<div class="empty"><div class="empty-ico">📈</div><div class="empty-t">No audits for ${mLabel}${sn}</div><div class="empty-s">Submit audits to see monthly KPIs</div></div>`;
+    return;
+  }
+
+  const totSur  =cur.reduce((s,a)=>s+(a.tasks?.t5?.npsCollected||0),0);
+  const totBills=cur.reduce((s,a)=>s+(a.tasks?.t5?.billsCount||0),0);
+  const totRev  =cur.reduce((s,a)=>s+(a.tasks?.t6?.reviewsCount||0),0);
+  const totMktg =cur.reduce((s,a)=>s+(a.tasks?.t7?.activityCount||0),0);
+  const npsVals =cur.map(a=>a.tasks?.t5?.npsScore||0).filter(v=>v>0);
+  const avgNPS  =npsVals.length?(npsVals.reduce((a,b)=>a+b,0)/npsVals.length).toFixed(1):'—';
+  const mRR     =totBills>0?Math.round(totSur/totBills*100):0;
+  const avgSc   =Math.round(cur.reduce((s,a)=>s+a.total,0)/cur.length);
+  const kpiBand =(v,t)=>v>=t?'var(--green)':'var(--amber)';
+
+  // week-by-week breakdown for current month (P1-24: effective targets override globals)
+  const weekBreak = buildWeekBreakdown(cur, mi.year, mi.month, {...s,...T});
+
+  const kpiHtml=`<div class="kpi-strip">
+    <div class="kpi-card"><div class="kpi-lbl">NPS Surveys</div><div class="kpi-val">${totSur}</div>
+      <div class="kpi-sub">Target: ${T.surveys}/month</div>
+      <div class="kpi-bar"><div class="kpi-fill" style="width:${Math.min(totSur/T.surveys*100,100)}%;background:${kpiBand(totSur,T.surveys)}"></div></div>
+      ${totSur>=T.surveys?'<div class="kpi-met">✓ Monthly target met!</div>':''}
+    </div>
+    <div class="kpi-card"><div class="kpi-lbl">Response Rate</div><div class="kpi-val">${mRR}%</div>
+      <div class="kpi-sub">Target: ${s.rate}% (${totSur}/${totBills} bills)</div>
+      <div class="kpi-bar"><div class="kpi-fill" style="width:${Math.min(mRR/s.rate*100,100)}%;background:${kpiBand(mRR,s.rate)}"></div></div>
+      ${mRR>=s.rate?'<div class="kpi-met">✓ Target met!</div>':''}
+    </div>
+    <div class="kpi-card"><div class="kpi-lbl">Avg NPS Score</div><div class="kpi-val">${avgNPS}</div>
+      <div class="kpi-sub">Target: ≥${s.npsScore}</div>
+      ${avgNPS!=='—'?`<div class="kpi-bar"><div class="kpi-fill" style="width:${Math.min(+avgNPS/s.npsScore*100,100)}%;background:${kpiBand(+avgNPS,s.npsScore)}"></div></div>`:''}
+      ${avgNPS!=='—'&&+avgNPS>=s.npsScore?'<div class="kpi-met">✓ Target met!</div>':''}
+    </div>
+    <div class="kpi-card"><div class="kpi-lbl">Google Reviews</div><div class="kpi-val">${totRev}</div>
+      <div class="kpi-sub">Target: ${T.reviews}/month</div>
+      <div class="kpi-bar"><div class="kpi-fill" style="width:${Math.min(totRev/T.reviews*100,100)}%;background:${kpiBand(totRev,T.reviews)}"></div></div>
+      ${totRev>=T.reviews?'<div class="kpi-met">✓ Monthly target met!</div>':''}
+    </div>
+    <div class="kpi-card"><div class="kpi-lbl">Marketing Activities</div><div class="kpi-val">${totMktg}</div>
+      <div class="kpi-sub">Target: ${T.mktg}/month</div>
+      <div class="kpi-bar"><div class="kpi-fill" style="width:${Math.min(totMktg/T.mktg*100,100)}%;background:${kpiBand(totMktg,T.mktg)}"></div></div>
+      ${totMktg>=T.mktg?'<div class="kpi-met">✓ Monthly target met!</div>':''}
+    </div>
+    <div class="kpi-card"><div class="kpi-lbl">Avg Audit Score</div><div class="kpi-val">${avgSc}</div>
+      <div class="kpi-sub">/ 100 · ${cur.length} audits</div>
+      <div class="kpi-bar"><div class="kpi-fill" style="width:${avgSc}%;background:${getGrade(avgSc).color}"></div></div>
+    </div>
+  </div>`;
+
+  const croMap=groupByCRO(cur,true); const prvMap=groupByCRO(prv);
+  const croHtml=Object.entries(croMap).sort((a,b)=>b[1].avg-a[1].avg).map(([nm,cd])=>{
+    const g=getGrade(cd.avg); const pa=prvMap[nm]?.avg||null;
+    const d=pa!==null?Math.round(cd.avg-pa):null;
+    const tr=d===null?'':`<span class="trend ${d>0?'up':d<0?'dn':'eq'}">${d>0?'▲':'▼'} ${Math.abs(d)}</span>`;
+    const avgN=cd.npsVals.length?(cd.npsVals.reduce((a,b)=>a+b,0)/cd.npsVals.length).toFixed(1):'—';
+    const rr=cd.bills>0?Math.round(cd.surveys/cd.bills*100):0;
+    return `<div class="cpc"><div class="cpc-top" style="background:${g.color}"></div>
+      <div class="cpc-body">
+        <div class="cpc-r1">
+          <div><div class="cpc-name">${stEsc(nm)}</div><div class="cpc-meta">${cd.count} audit${cd.count>1?'s':''} · ${mLabel}</div></div>
+          <div class="cpc-right">${tr}<div class="cpc-score">${cd.avg}/100</div><div class="gpill ${g.cls}">${g.label}</div></div>
+        </div>
+        <div class="cpc-kpis">
+          <div class="cpc-kpi">📞 Surveys <span class="cpc-kv">${cd.surveys}/${T.surveys}</span></div>
+          <div class="cpc-kpi">📄 Bills <span class="cpc-kv">${cd.bills}</span></div>
+          <div class="cpc-kpi">📊 Rate <span class="cpc-kv">${rr}%</span></div>
+          <div class="cpc-kpi">⭐ NPS <span class="cpc-kv">${avgN}/${s.npsScore}</span></div>
+          <div class="cpc-kpi">🌟 Reviews <span class="cpc-kv">${cd.reviews}/${T.reviews}</span></div>
+        </div>
+      </div></div>`;
+  }).join('');
+
+  el.innerHTML=`
+    <div style="margin-bottom:14px">${kpiHtml}</div>
+    ${weekBreak}
+    <div class="dash-sec-lbl" style="margin-bottom:9px">Chief Retail Officer Monthly Performance</div>
+    ${croHtml}
+    <div class="card" style="margin-top:14px"><div class="dash-sec-lbl">Task Averages — ${mLabel} (weakest first)</div>${taskAvgRows(cur)}</div>`;
+}
+
+function buildWeekBreakdown(audits, year, month, s){
+  // group audits into their ISO weeks within this month
+  const weeks={};
+  audits.forEach(a=>{
+    const d=new Date(a.date+'T12:00:00');
+    const wn=wkNum(d);
+    if(!weeks[wn]) weeks[wn]={label:'',audits:[],surveys:0,reviews:0,mktg:0,bills:0,npsVals:[]};
+    weeks[wn].audits.push(a);
+    weeks[wn].surveys +=a.tasks?.t5?.npsCollected||0;
+    weeks[wn].bills   +=a.tasks?.t5?.billsCount||0;
+    weeks[wn].reviews +=a.tasks?.t6?.reviewsCount||0;
+    weeks[wn].mktg    +=a.tasks?.t7?.activityCount||0;
+    const ns=a.tasks?.t5?.npsScore||0;
+    if(ns>0) weeks[wn].npsVals.push(ns);
+  });
+  if(!Object.keys(weeks).length) return '';
+  const wT_sur=wkly(s.surveys); const wT_rev=wkly(s.reviews); const wT_mktg=wkly(s.mktg);
+
+  const rows=Object.entries(weeks).sort((a,b)=>+a[0]-+b[0]).map(([wn,wd])=>{
+    const avgSc=Math.round(wd.audits.reduce((s,a)=>s+a.total,0)/wd.audits.length);
+    const rr=wd.bills>0?Math.round(wd.surveys/wd.bills*100):0;
+    const avgN=wd.npsVals.length?(wd.npsVals.reduce((a,b)=>a+b,0)/wd.npsVals.length).toFixed(1):'—';
+    const g=getGrade(avgSc);
+    const surOk=wd.surveys>=wT_sur; const revOk=wd.reviews>=wT_rev; const mktgOk=wd.mktg>=wT_mktg;
+    return `<div style="display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:1px solid var(--g100);flex-wrap:wrap">
+      <div style="min-width:70px;font-size:11px;font-weight:700;color:var(--g600)">Week ${wn}</div>
+      <div style="font-size:11px;color:var(--g800);flex:1">${wd.audits.length} audits · Avg <b>${avgSc}/100</b></div>
+      <span class="wm-tag ${surOk?'on':'off'}">Sur ${wd.surveys}/${wT_sur}</span>
+      <span class="wm-tag ${rr>=s.rate?'on':'off'}">Rate ${rr}%</span>
+      <span class="wm-tag ${avgN!=='—'&&+avgN>=s.npsScore?'on':'off'}">NPS ${avgN}</span>
+      <span class="wm-tag ${revOk?'on':'off'}">Rev ${wd.reviews}/${wT_rev}</span>
+      <span class="wm-tag ${mktgOk?'on':'off'}">Mktg ${wd.mktg}/${wT_mktg}</span>
+    </div>`;
+  }).join('');
+
+  return `<div class="card" style="margin-bottom:14px">
+    <div class="dash-sec-lbl">Week-by-Week Breakdown</div>
+    <div style="font-size:11px;color:var(--g400);margin-bottom:8px">Weekly targets — Surveys: ${wT_sur} · Reviews: ${wT_rev} · Marketing: ${wT_mktg}</div>
+    ${rows}
+  </div>`;
+}
+
+function groupByCRO(audits, kpi=false){
+  const m={};
+  audits.forEach(a=>{
+    if(!m[a.cro]) m[a.cro]={scores:[],count:0,surveys:0,bills:0,reviews:0,mktg:0,npsVals:[]};
+    m[a.cro].scores.push(a.total); m[a.cro].count++;
+    if(kpi){
+      m[a.cro].surveys +=a.tasks?.t5?.npsCollected||0;
+      m[a.cro].bills   +=a.tasks?.t5?.billsCount||0;
+      m[a.cro].reviews +=a.tasks?.t6?.reviewsCount||0;
+      m[a.cro].mktg    +=a.tasks?.t7?.activityCount||0;
+      const ns=a.tasks?.t5?.npsScore||0; if(ns>0) m[a.cro].npsVals.push(ns);
+    }
+  });
+  Object.values(m).forEach(cd=>{ cd.avg=Math.round(cd.scores.reduce((a,b)=>a+b,0)/cd.scores.length); });
+  return m;
+}
+function taskAvgRows(audits){
+  return TASKS.map(t=>{
+    const vals=audits.map(a=>a.tasks?.[t.id]?.pts||0);
+    const avg=vals.reduce((s,v)=>s+v,0)/vals.length;
+    const color=avg>=7.5?'#16a34a':avg>=5?'#0891b2':avg>=3?'#ca8a04':'#dc2626';
+    return {t,avg,color};
+  }).sort((a,b)=>a.avg-b.avg)
+    .map(({t,avg,color})=>`<div class="thr">
+      <div class="thr-name">${t.title}</div>
+      <div class="thr-bwrap"><div class="thr-bar"><div class="thr-fill" style="width:${(avg/10)*100}%;background:${color}"></div></div></div>
+      <div class="thr-sc" style="color:${color}">${avg.toFixed(1)}/10</div>
+    </div>`).join('');
+}
+
+/* ──────────────────────────────────────────
+   SETTINGS UI
+────────────────────────────────────────── */
+function renderScoringRef(){
+  const s=getS();
+  const el=document.getElementById('scoring-ref'); if(!el) return;
+  el.innerHTML=`<div style="font-size:12px;color:var(--g600);line-height:2">
+    <div><b>Tasks 1–4, 8, 10</b> (qualitative): Not Done <b>0</b> · Below Exp. <b>4</b> · Met Exp. <b>7</b> · Exceeded <b>10</b></div>
+    <div><b>Task 5 — NPS Calling (10 pts)</b><br>
+      &nbsp;&nbsp;Response Rate (5 pts): (Surveys ÷ Bills × 100) ÷ ${s.rate}% × 5<br>
+      &nbsp;&nbsp;NPS Score (5 pts): NPS Score ÷ ${s.npsScore} × 5</div>
+    <div><b>Task 6 — Google Reviews (10 pts)</b>: Reviews ÷ ${daily(s.reviews)} daily target × 10</div>
+    <div><b>Task 7 — Marketing Activity (10 pts)</b>: Activities ÷ ${daily(s.mktg)} daily target × 10</div>
+    <div><b>Task 9 — Grooming (10 pts)</b>: Checklist % ÷ 10</div>
+    <hr style="border:none;border-top:1px solid var(--g200);margin:8px 0">
+    <div><b>Grades:</b> Outstanding ≥90 · Good ≥75 · Satisfactory ≥60 · Below Exp. ≥45 · Poor &lt;45</div>
+  </div>`;
+}
+
+/* ──────────────────────────────────────────
+   PRINT
+────────────────────────────────────────── */
+// Escape + post a built print document to the shell's on-screen Preview (Android-safe,
+// adds Print / Save-PDF / Share); desktop standalone falls back to a print window.
+function stEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function croArgs(value){ return SaagarRenderedComponents.encodeArgs([value]); }
+function stPrintDoc(o){
+  o=o||{};
+  const html='<div id="sp-doc">'+(o.body||'')+'</div>';
+  try{
+    if(window.parent&&window.parent!==window){
+      window.parent.postMessage({type:'ST_PRINT',title:o.title||'Print',css:o.css||'',html:html,orientation:o.orientation||'portrait',fileBase:o.fileBase||o.title},SaagarModuleRuntime.targetOrigin);
+      return;
+    }
+  }catch(e){}
+  showToast('Controlled print is available only inside Saagar Control Centre.');
+}
+function printAudit(id){
+  const a=getAudits().find(x=>x.id===id); if(!a) return;
+  const g=getGrade(a.total);
+  const rows=TASKS.map((t,i)=>{
+    const td=a.tasks?.[t.id]||{}; const pts=td.pts!=null?td.pts:0;
+    let detail='';
+    if(t.type==='nps'){ const rr=td.billsCount>0?Math.round(td.npsCollected/td.billsCount*100):0; detail=`Bills: ${td.billsCount||0} | Surveys: ${td.npsCollected||0} | Response: ${rr}% | NPS: ${td.npsScore||0}`; }
+    if(t.type==='reviews') detail=`Reviews: ${td.reviewsCount||0}`;
+    if(t.type==='activity') detail=`Activities: ${td.activityCount||0}`;
+    if(t.type==='grooming') detail=`Grooming: ${td.groomingPct||0}%`;
+    if(td.remarks) detail+=(detail?' | ':'')+`"${td.remarks}"`;
+    return `<tr><td class="stp-c">${i+1}</td><td><b>${stEsc(t.title)}</b></td><td class="stp-mut" style="font-size:8pt">${stEsc(detail)||'—'}</td><td class="stp-c stp-tot">${pts}/10</td></tr>`;
+  }).join('');
+  const body=`<div class="stp-head"><div class="stp-brand">Saagar Traders<small>Store Manager · CRO Audit</small></div><div class="stp-title">SM Audit<small>${stEsc(fmtDate(a.date,true))}</small></div></div>`
+    +`<div class="stp-meta"><span><b>Store:</b> ${stEsc(a.store)}</span><span><b>SM:</b> ${stEsc(a.sm)}</span><span><b>CRO:</b> ${stEsc(a.cro)}</span></div>`
+    +`<div class="stp-cards" style="grid-template-columns:1fr"><div class="stp-card" style="text-align:center"><h4>Total Score</h4><div class="v" style="font-size:26pt">${a.total}<span style="font-size:12pt;color:#888">/100</span></div><div class="stp-mut" style="font-size:9pt">${stEsc(g.label)}</div></div></div>`
+    +`<table class="stp-table" data-saagar-table-strategy="grid" data-saagar-table-workflow="print-comparison" data-saagar-grid-reason="printed audit review requires task detail and score comparison"><thead><tr><th style="width:8%">#</th><th style="width:34%">Task</th><th>Details</th><th class="stp-c" style="width:14%">Score</th></tr></thead><tbody>${rows}</tbody></table>`
+    +`<div class="stp-foot">Chief Retail Officer: ${stEsc(a.cro)} · Submitted: ${stEsc(new Date(a.submittedAt).toLocaleString('en-IN'))}</div>`;
+  stPrintDoc({title:`SM Audit — ${a.cro} — ${a.date}`, fileBase:`SM-Audit-${a.cro}-${a.date}`, body});
+}
+
+/* ──────────────────────────────────────────
+   TABS
+────────────────────────────────────────── */
+function go(tab){
+  ['audit','dash','history','settings'].forEach(t=>{
+    document.getElementById('sec-'+t).classList.toggle('active',t===tab);
+    document.getElementById('tab-'+t).classList.toggle('active',t===tab);
+  });
+  document.getElementById('score-banner').style.display=tab==='audit'?'':'none';
+  if(tab==='history')  renderHistory();
+  if(tab==='dash')     renderDash();
+  if(tab==='settings'){ loadSettingsForm(); renderScoringRef(); }
+}
+
+/* ──────────────────────────────────────────
+   UTILS & INIT
+────────────────────────────────────────── */
+function fmtDate(str,long=false){
+  try{
+    const d=new Date(str+'T12:00:00');
+    return long
+      ?d.toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'})
+      :d.toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'});
+  }catch(e){ return str; }
+}
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2600);
+}
+function setToday(){
+  // seed the entry-form date + header from the SELECTED view date (defaults to real today)
+  document.getElementById('f-date').value=stViewDate();
+  document.getElementById('hdate').textContent=stAnchorDate().toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+}
+
+/* ──────────────────────────────────────────
+   READ-ONLY GUARD (view-only past)
+   When viewing a PAST day: lock the New-Audit screen (no submit) and any
+   delete/save actions; History + Dashboard stay fully viewable.
+   When viewing today (default): restore the live, editable behavior.
+────────────────────────────────────────── */
+function stApplyReadOnly(){
+  const past=stIsPast();
+  // --- New-Audit submit deck ---
+  const submitDk=document.getElementById('submit-dk');
+  const submitBtn=submitDk?submitDk.querySelector('.sbtn'):null;
+  if(submitBtn){
+    submitBtn.disabled=past;
+    submitBtn.style.opacity=past?'.45':'';
+    submitBtn.style.cursor=past?'not-allowed':'';
+  }
+  // lock the entry-form date input on a past view (it already reflects the viewed day)
+  const fDate=document.getElementById('f-date');
+  if(fDate){ fDate.disabled=past; }
+  // read-only notice inside the submit deck (created once, toggled thereafter)
+  if(submitDk){
+    let note=document.getElementById('st-ro-note');
+    if(past){
+      if(!note){
+        note=document.createElement('div');
+        note.id='st-ro-note';
+        note.className='unrated-list';
+        note.style.display='block';
+        note.style.background='rgba(180,83,9,.18)';
+        note.style.color='var(--gold-pale)';
+        submitDk.insertBefore(note, submitDk.querySelector('.sub-meta'));
+      }
+      note.style.display='block';
+      note.textContent='Viewing '+fmtDate(stViewDate(),true)+' (past) — read-only. Switch to today to record a new audit.';
+    } else if(note){ note.remove(); }
+  }
+  // --- Settings save ---
+  const setSave=document.querySelector('#sec-settings .sbtn[onclick*="saveSettings"]');
+  if(setSave){
+    setSave.disabled=past;
+    setSave.style.opacity=past?'.45':'';
+    setSave.style.cursor=past?'not-allowed':'';
+  }
+  // --- History delete buttons (re-rendered each renderHistory; disable in place) ---
+  document.querySelectorAll('#hist-list .hi-del').forEach(b=>{
+    b.disabled=past;
+    b.style.opacity=past?'.3':'';
+    b.style.cursor=past?'not-allowed':'';
+  });
+}
+
+/* ──────────────────────────────────────────
+   CROSS-MODULE INTEGRATION  (J · K · O2)
+   Reads (read-only) shared contract blobs written by the integration bridge:
+     saagar_gate_status.unavailable  — per-name leave/block map
+     saagar_cro_audit_feed[date][kk] — auto-derived operational inputs
+────────────────────────────────────────── */
+function kk(n){ return String(n||'').trim().toLowerCase(); }
+function readGate(){ try{ return JSON.parse(localStorage.getItem('saagar_gate_status')||'null')||{}; }catch(e){ return {}; } }
+function readCroFeed(){ try{ const f=JSON.parse(localStorage.getItem('saagar_cro_audit_feed')||'null'); return (f&&typeof f==='object')?f:{}; }catch(e){ return {}; } }
+function croFeedEntry(date,cro){
+  if(!date||!cro) return null;
+  const day=readCroFeed()[date];
+  if(!day||typeof day!=='object') return null;
+  return day[kk(cro)]||null;
+}
+/* unavailable today iff entry exists AND .leave===true */
+function leaveBlockedSet(){
+  const un=(readGate()||{}).unavailable||{};
+  const set={};
+  Object.keys(un).forEach(k=>{ const e=un[k]; if(e&&e.leave===true) set[k]=true; });
+  return set;
+}
+
+/* J — filter the CRO datalist to exclude leave-unavailable names today.
+   Idempotent: re-derives from the employee master each call (the trailing
+   populate script and this filter both run on boot / re-fills). SM list is
+   left untouched (an auditor isn't gated). */
+function croMasterOptions(){
+  try{
+    const m=JSON.parse(localStorage.getItem('saagar_employee_master_v1')||'[]');
+    if(!Array.isArray(m)) return [];
+    return m.filter(e=>e&&e.name&&e.active!==false).map(e=>String(e.name));
+  }catch(e){ return []; }
+}
+function applyCroLeaveFilter(){
+  const dl=document.getElementById('cro-dl'); if(!dl) return;
+  const blocked=leaveBlockedSet();
+  const names=croMasterOptions();
+  // if the master is empty (nothing populated yet) leave whatever is there as-is
+  if(!names.length) return;
+  dl.innerHTML=names.filter(n=>!blocked[kk(n)])
+    .map(n=>'<option value="'+n.replace(/"/g,'&quot;')+'"></option>').join('');
+}
+
+/* K — auto-fill grooming % from the feed for the selected cro+date.
+   Feed hit  → set #groom-pct, make it read-only, show "auto" note, run onGroomInput().
+   Feed miss → leave editable, show "manual" note. groomingPct may be null (no checklist). */
+function setGroomNote(kind,text){
+  const inp=document.getElementById('groom-pct'); if(!inp) return;
+  let note=document.getElementById('groom-note');
+  if(!note){
+    note=document.createElement('div');
+    note.id='groom-note';
+    const grp=inp.closest('.metric-grp')||inp.parentNode;
+    (grp.parentNode||grp).insertBefore(note, grp.nextSibling);
+  }
+  note.className='groom-note '+kind;
+  note.textContent=text;
+}
+/* P1-23 — note under #nps-bills (T5 bills prefill); reuses the .groom-note styles */
+function setBillsNote(kind,text){
+  const inp=document.getElementById('nps-bills'); if(!inp) return;
+  let note=document.getElementById('bills-note');
+  if(!text){ if(note) note.remove(); return; }
+  if(!note){
+    note=document.createElement('div');
+    note.id='bills-note';
+    inp.parentNode.appendChild(note); // inside the .mr cell, under the input
+  }
+  note.className='groom-note '+kind;
+  note.textContent=text;
+}
+function autoFillGrooming(){
+  const inp=document.getElementById('groom-pct'); if(!inp) return;
+  const cro=(document.getElementById('f-cro')||{}).value;
+  const date=(document.getElementById('f-date')||{}).value;
+  const fe=croFeedEntry(date,cro);
+  const hasPct = fe && fe.groomingPct!=null && fe.groomingPct!=='';
+  if(hasPct){
+    inp.value=Math.round(Number(fe.groomingPct)||0);
+    inp.readOnly=true; inp.classList.add('ro');
+    inp.dataset.autoFilled='1'; // Audit fix cro-groom-stale: mark this value as auto-filled
+    setGroomNote('auto','✓ auto from grooming checklist');
+    onGroomInput(); // score t9
+  }else{
+    inp.readOnly=false; inp.classList.remove('ro');
+    /* Audit fix cro-groom-stale: if the box was auto-filled for a previous CRO and the
+       newly-selected CRO has no checklist, clear the stale % (and t9 score) so one
+       employee's grooming score isn't saved under another. Manually-typed values are kept. */
+    if(inp.dataset.autoFilled==='1'){
+      inp.value='';
+      inp.dataset.autoFilled='';
+      onGroomInput(); // recompute → clears #groom-pct display and tData.t9.groomingPct
+    }
+    setGroomNote('manual','no checklist — enter manually');
+  }
+}
+
+/* P1-23 — prefill "Bills / Invoices Today" from the QMS feed (qmsSales).
+   Deliberately EDITABLE (never readOnly — divergence from grooming): the store
+   register is the source of truth and the SM can overtype. Manual value wins. */
+function autoFillBills(){
+  const inp=document.getElementById('nps-bills'); if(!inp) return;
+  const cro=(document.getElementById('f-cro')||{}).value;
+  const date=(document.getElementById('f-date')||{}).value;
+  const fe=croFeedEntry(date,cro);
+  const has = fe && fe.qmsSales!=null && fe.qmsSales!=='';
+  const untouched = inp.value==='' || inp.dataset.autoFilled==='1';
+  if(has && untouched){
+    inp.value=Math.round(Number(fe.qmsSales)||0);
+    inp.dataset.autoFilled='1';
+    setBillsNote('auto','✓ auto from QMS — edit if register differs');
+    onNpsInput(); // score t5 via the existing path
+  }else if(!has && inp.dataset.autoFilled==='1'){
+    // stale-clear (mirror cro-groom-stale): don't carry one CRO's count to another
+    inp.value=''; inp.dataset.autoFilled='';
+    setBillsNote('',''); onNpsInput();
+  } // manual value present (untouched===false) → hands off, no note change
+}
+
+/* O2 — read-only operational context banner + advisory hints on t3/t4.
+   Advisory only: does NOT auto-score t3/t4. */
+function fmtINR(n){ n=Number(n)||0; try{ return '₹'+n.toLocaleString('en-IN'); }catch(e){ return '₹'+n; } }
+function setTaskHint(tid,text){
+  const card=document.getElementById('tc-'+tid); if(!card) return;
+  const body=card.querySelector('.task-body'); if(!body) return;
+  let h=document.getElementById('hint-'+tid);
+  if(text){
+    if(!h){ h=document.createElement('div'); h.id='hint-'+tid; h.className='task-hint'; body.insertBefore(h, body.firstChild); }
+    h.innerHTML=text;
+  }else if(h){ h.remove(); }
+}
+function renderCroContext(){
+  const cro=(document.getElementById('f-cro')||{}).value;
+  const date=(document.getElementById('f-date')||{}).value;
+  const fe=croFeedEntry(date,cro);
+  const banner=document.getElementById('cro-ctx');
+  const line=document.getElementById('cro-ctx-line');
+  if(!banner||!line) return;
+  if(!fe){ banner.classList.remove('show'); line.textContent=''; setTaskHint('t3',''); setTaskHint('t4',''); return; }
+  const dsrTxt = fe.dsrSubmitted
+    ? ('DSR submitted'+(fe.dsrScore!=null?' (score '+fe.dsrScore+')':''))
+    : 'DSR not yet submitted';
+  const dsrSales = (fe.dsrSalesCount!=null?fe.dsrSalesCount:0);
+  const dsrAmt   = (fe.dsrSalesAmt!=null?fe.dsrSalesAmt:0);
+  const qmsClosed= (fe.qmsSales!=null?fe.qmsSales:0);
+  const qmsNP    = (fe.qmsNonPurch!=null?fe.qmsNonPurch:0);
+  line.innerHTML=
+    '<b>'+dsrTxt+'</b><span class="ctx-dot">·</span>'
+    +'DSR sales <b>'+dsrSales+'</b> ('+fmtINR(dsrAmt)+')<span class="ctx-dot">·</span>'
+    +'QMS closed <b>'+qmsClosed+'</b> / non-purchase <b>'+qmsNP+'</b>';
+  banner.classList.add('show');
+  // advisory hints (do NOT auto-score)
+  setTaskHint('t3','For reference — recorded today: <b>'+dsrSales+'</b> sale'+(dsrSales===1?'':'s')+' in DSR · <b>'+qmsClosed+'</b> closed in QMS. Verify against register.');
+  setTaskHint('t4','For reference — <b>'+qmsNP+'</b> non-purchase visit'+(qmsNP===1?'':'s')+' logged in QMS'+(fe.dsrNonPurch!=null?' · <b>'+fe.dsrNonPurch+'</b> in DSR':'')+'. Verify footfall tracking.');
+}
+
+/* Orchestrator — run on #f-cro / #f-date / #f-store change, and after buildTasks/reset */
+function onCroDateChange(){
+  loadPreData();   // P1-24: refresh (store-scoped) week/month pre-counts first
+  autoFillGrooming();
+  autoFillBills(); // P1-23: prefill bills from the QMS feed (editable; manual wins)
+  renderCroContext();
+  updDupBanner();
+  // T6: re-sync the per-buyer Google-review list to the selected date, then
+  // re-derive the count from the (cid-keyed) received-ticks. Guarded so it is a
+  // no-op until the T6 card exists in the DOM.
+  if(document.getElementById('rev-buyers')){ croRenderReviewRows(); croReviewDerive(); }
+  // P1-24: re-score with the selected store's targets (refreshes the wm-progress bars)
+  if(document.getElementById('nps-bills')) onNpsInput();
+  if(document.getElementById('rev-cnt')) onRevInput();
+  if(document.getElementById('mktg-cnt')) onMktgInput();
+}
+
+/* cro-dup-guard: proactive "already audited — edit instead?" prompt on the entry
+   form. Shows once Date+Store+CRO identify an existing record AND we are not
+   already editing that same record. Hidden otherwise. Non-blocking. */
+function updDupBanner(){
+  const banner=document.getElementById('cro-dup');
+  const line=document.getElementById('cro-dup-line');
+  const btn=document.getElementById('cro-dup-btn');
+  if(!banner||!line||!btn) return;
+  const cro=(document.getElementById('f-cro')||{}).value;
+  const date=(document.getElementById('f-date')||{}).value;
+  const store=(document.getElementById('f-store')||{}).value;
+  const dup=findDupAudit(date,store,cro);
+  // don't nag while editing the very record that matches
+  if(dup && dup.id!==editingId){
+    line.innerHTML='<b>'+stEsc(dup.cro)+'</b> already audited on '+stEsc(fmtDate(dup.date))+'. Edit the existing audit?';
+    btn.onclick=function(){ loadAuditForEdit(dup.id); };
+    banner.classList.add('show');
+  }else{
+    banner.classList.remove('show');
+    btn.onclick=null;
+  }
+}
+
+/* cro-dup-guard: EDIT-IN-PLACE loader — rehydrate an existing audit back into
+   the entry form + tData, then flag editingId so submitAudit replaces it. */
+function loadAuditForEdit(id){
+  const a=getAudits().find(x=>x.id===id); if(!a) return;
+  hideMO();
+  go('audit');
+  // session fields
+  document.getElementById('f-date').value  = a.date||'';
+  document.getElementById('f-store').value = a.store||'';
+  document.getElementById('f-cro').value   = a.cro||'';
+  document.getElementById('f-sm').value    = a.sm||'';
+  // hydrate tData from the stored task snapshot
+  tData={}; initTData();
+  const src=a.tasks||{};
+  TASKS.forEach(t=>{
+    const td=src[t.id]; if(!td) return;
+    if(t.type==='qual'){ tData[t.id]={ pts:(td.pts!=null?td.pts:null), remarks:td.remarks||'' }; }
+    else if(t.type==='nps'){ tData['t5']={ billsCount:td.billsCount||0, npsCollected:td.npsCollected||0, responseRate:td.responseRate||0, npsScore:td.npsScore||0, remarks:td.remarks||'' }; }
+    else if(t.type==='reviews'){ tData['t6']={ reviewsCount:td.reviewsCount||0, remarks:td.remarks||'', ...(Array.isArray(td.reviewList)?{reviewList:td.reviewList}:{_legacyCount:(td.reviewsCount||0)}) }; }
+    else if(t.type==='activity'){ tData['t7']={ activityCount:td.activityCount||0, remarks:td.remarks||'' }; }
+    else if(t.type==='grooming'){ tData['t9']={ groomingPct:td.groomingPct||0, remarks:td.remarks||'' }; }
+  });
+  editingId=id; // set BEFORE buildTasks so onCroDateChange/updDupBanner sees the edit
+  buildTasks(); // rebuilds cards; reads tData[].pts for qual highlight + remarks; calls onCroDateChange()
+  // buildTasks leaves the quantitative <input>s blank — set their .value from tData then recompute
+  const setV=(elId,val)=>{ const el=document.getElementById(elId); if(el) el.value=val; };
+  setV('nps-bills',   tData['t5']?.billsCount||0);
+  // P1-23 — the buildTasks→onCroDateChange pass may have auto-filled bills; the SAVED
+  // value (just set) must win, and a stale flag must not let a later CRO/date change clobber it
+  const nb=document.getElementById('nps-bills'); if(nb) nb.dataset.autoFilled='';
+  if(typeof setBillsNote==='function') setBillsNote('','');
+  setV('nps-coll',    tData['t5']?.npsCollected||0);
+  setV('nps-score-inp',tData['t5']?.npsScore||0);
+  setV('rev-cnt',     tData['t6']?.reviewsCount||0);
+  setV('mktg-cnt',    tData['t7']?.activityCount||0);
+  // grooming LAST so a since-changed feed auto-fill doesn't clobber the SAVED value
+  const gp=document.getElementById('groom-pct');
+  if(gp){ gp.readOnly=false; gp.classList.remove('ro'); gp.dataset.autoFilled=''; gp.value=tData['t9']?.groomingPct||0; }
+  if(typeof onNpsInput==='function') onNpsInput();
+  if(typeof onRevInput==='function') onRevInput();
+  if(typeof onMktgInput==='function') onMktgInput();
+  if(typeof onGroomInput==='function') onGroomInput();
+  updBanner();
+  updEditNote();
+  updDupBanner();
+  showToast('Loaded audit for editing');
+}
+
+/* cro-dup-guard: persistent "editing existing audit" note in the submit deck +
+   submit-button relabel. Toggled by editingId; reset in resetForm(). */
+function updEditNote(){
+  const submitDk=document.getElementById('submit-dk');
+  const btn=submitDk?submitDk.querySelector('.sbtn'):null;
+  if(btn) btn.innerHTML = editingId ? 'Save Changes' : 'Save &amp; Submit Audit';
+  if(!submitDk) return;
+  let note=document.getElementById('edit-note');
+  if(editingId){
+    if(!note){
+      note=document.createElement('div');
+      note.id='edit-note';
+      note.className='unrated-list';
+      note.style.display='block';
+      note.style.background='rgba(184,146,42,.2)';
+      note.style.color='var(--gold-pale)';
+      submitDk.insertBefore(note, submitDk.querySelector('.cmpl-meter'));
+    }
+    note.style.display='block';
+    note.textContent='Editing existing audit — saving replaces it.';
+  }else if(note){ note.remove(); }
+}
+
+/* Re-render every view that depends on the viewed day. Called on the
+   'st-date' event. Pure READ + re-render — never writes/auto-creates. */
+function stReRender(){
+  setToday();              // re-seed #f-date + #hdate from the new view date
+  buildTasks();            // re-anchors week/month pre-totals (loadPreData) + live entry
+  updBanner();
+  renderDash();            // dashboard now anchors to the selected date's week/month
+  if(document.getElementById('sec-history')?.classList.contains('active')) renderHistory();
+  stApplyReadOnly();       // lock/unlock submit + save + delete for the new view date
+}
+
+document.addEventListener('DOMContentLoaded',()=>{
+  setToday();
+  initTData();
+  buildTasks();
+  updBanner();
+  renderDash();
+  applyCroLeaveFilter();
+  onCroDateChange();
+  stApplyReadOnly();       // apply read-only state if the shell seeded a past __stAsOf
+});
+
+var CroAuditDelegatedHandlers=Object.freeze({
+  shiftPeriod:shiftPeriod,croReviewSend:croReviewSend,loadAuditForEdit:loadAuditForEdit,
+  printAudit:printAudit,croDeleteAudit:croDeleteAudit
+});
+SaagarRenderedComponents.connect(document.body,CroAuditRenderedPolicy,CroAuditDelegatedHandlers);
+
+/* shell view-date rail: the user picked a different day to VIEW */
+window.addEventListener('st-date', function(e){
+  var v = e && e.detail;
+  if(stIsValidYMD(v)) window.__stAsOf = v;   // adopt the new viewed day (ignore junk)
+  stReRender();
+});
+</script>
+<script>(function(){function ld(){try{var m=JSON.parse(localStorage.getItem("saagar_employee_master_v1")||"[]");if(!Array.isArray(m))return;var o=m.filter(function(e){return e&&e.name&&e.active!==false;}).map(function(e){return '<option value="'+String(e.name).replace(/"/g,"&quot;")+'"></option>';}).join("");["cro-dl","sm-dl"].forEach(function(id){var dl=document.getElementById(id);if(dl)dl.innerHTML=o;});/* J: re-apply leave filter to the CRO list after every (re)populate; SM list stays unfiltered */if(typeof window.applyCroLeaveFilter==="function")window.applyCroLeaveFilter();}catch(e){}}document.addEventListener("DOMContentLoaded",ld);ld();setTimeout(ld,800);})();</script>
+
+<link id="st-v5-back-style" rel="stylesheet" href="../../shared/module-back.css">
+<button data-action="st-v5-home-fab" id="st-v5-home-fab" type="button" title="Back to Home (Esc)"><svg viewBox="0 0 24 24"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg></button>
+<div id="st-v5-next-chips"></div>
+<script id="st-v5-back-script">SaagarModuleRuntime.run('back',{schemaVersion:1,moduleId:'cro_audit',nextSteps:[],customerSelectors:[],accessContext:false});</script>
+
+<link id="st-v5-emp-assist-style" rel="stylesheet" href="../../shared/module-employee.css"><script id="st-v5-emp-assist-script">SaagarModuleRuntime.run('employees',{schemaVersion:1,moduleId:'cro_audit',nextSteps:[],customerSelectors:[],accessContext:false});</script>
+
+<script id="st-v5-module-audit-bridge">SaagarModuleRuntime.run('audit',{schemaVersion:1,moduleId:'cro_audit',nextSteps:[],customerSelectors:[],accessContext:false});</script>
+</body>
+</html>

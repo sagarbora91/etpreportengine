@@ -1,0 +1,1018 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="../../shared/module-bridge.js"></script>
+<script src="../../shared/module-runtime.js"></script>
+<script src="../../shared/mah4-runtime.js"></script>
+<script id="mah4-stage-b-runtime">SaagarMah4Runtime.bootModule({moduleId:'grooming'});</script>
+<script id="st-v5-iframe-shim">SaagarModuleRuntime.run('storage',{schemaVersion:1,moduleId:'grooming',nextSteps:[{id:'qms',label:'Open Queue →'}],customerSelectors:[],accessContext:false});</script>
+<script id="st-v5-safety-net">SaagarModuleRuntime.run('safety',{schemaVersion:1,moduleId:'grooming',nextSteps:[{id:'qms',label:'Open Queue →'}],customerSelectors:[],accessContext:false});</script>
+<link rel="stylesheet" href="../../shared/module-mobile-common.css">
+<script id="st-v5-mobile-boot">SaagarModuleRuntime.run('mobile',{schemaVersion:1,moduleId:'grooming',nextSteps:[{id:'qms',label:'Open Queue →'}],customerSelectors:[],accessContext:false});</script>
+<link rel="stylesheet" href="../../shared/module-brand-tokens.css">
+<link rel="stylesheet" href="../../shared/module-responsive.css">
+<link rel="stylesheet" href="../../shared/module-components.css">
+<link rel="stylesheet" href="../../shared/module-table.css">
+<script src="../../shared/module-ui-runtime.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Saagar Traders — Grooming Checklist</title>
+<link id="grooming-phase6f-css" rel="stylesheet" href="grooming-ui.css">
+
+<link id="st-v5-uniform-css" rel="stylesheet" href="../../shared/module-uniform.css">
+<link rel="stylesheet" href="../../c1-control-desk.css">
+<script src="../../c1-operations-policy.js"></script>
+<script src="../../c1-control-desk.js" defer></script>
+<link rel="stylesheet" href="../../mobile-layout.css">
+<script src="../../app-i18n.js"></script>
+</head>
+<body data-saagar-ui data-saagar-width="auto" data-saagar-width-resolved="mobile">
+<script id="grooming-phase6f-ui-boot">SaagarUiFoundation.configure(document.body,{mode:'auto'});</script>
+
+<div class="ph">
+  <div>
+    <div class="brand">Saagar Traders</div>
+    <div class="brand-sub">Titan World &amp; Helios · Latur</div>
+  </div>
+  <div style="text-align:right">
+    <div style="font-size:11px;color:rgba(255,255,255,.5);margin-bottom:4px" id="hdate"></div>
+    <div class="hbadge">GROOMING CHECKLIST</div>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="go('cl')">CRO Checklist</div>
+  <div class="tab" onclick="go('daily')">Daily Summary</div>
+  <div class="tab" onclick="go('monthly')">Month-End Report</div>
+</div>
+
+<div class="wrap">
+
+  <!-- ══════════════ TAB 1 — CRO CHECKLIST ══════════════ -->
+  <div class="sec active" id="cl">
+
+    <!-- Entry form -->
+    <div class="card" id="form-card">
+      <div class="sec-title">CRO Daily Grooming Check</div>
+      <div class="sec-sub">Enter CRO name and gender, then complete the checklist and save</div>
+      <div class="frow">
+        <div class="fg">
+          <label class="flabel">CRO Name <span style="color:#dc2626">*</span></label>
+          <input data-action="cro-inp" class="finput" id="cro-inp" type="text" placeholder="e.g. Rahul Sharma"
+            oninput="onNamePick()" onkeydown="if(event.key==='Enter')tryStart()" autocomplete="off" list="grm-emp-list"><datalist id="grm-emp-list"></datalist>
+        </div>
+        <div class="fg">
+          <label class="flabel">Gender <span style="color:#dc2626">*</span></label>
+          <div class="gbrow">
+            <div class="gbtn" id="bm" onclick="sg('m')">Male</div>
+            <div class="gbtn" id="bf" onclick="sg('f')">Female</div>
+          </div>
+        </div>
+      </div>
+      <button data-action="startbtn" class="sbtn" id="startbtn" onclick="startCL()" disabled>Start Grooming Checklist →</button>
+    </div>
+
+    <!-- Checklist -->
+    <div id="cl-area" style="display:none">
+      <div class="clbar">
+        <div class="clwho">
+          <div class="avatar" id="cl-av"></div>
+          <div>
+            <div class="clname" id="cl-nm"></div>
+            <div class="clsub" id="cl-gd"></div>
+          </div>
+        </div>
+        <div class="actrow">
+          <button data-action="change-cro" class="btn2" onclick="changeCRO()">Change CRO</button>
+          <button data-action="save" class="btnsave" onclick="saveCRO()">Save →</button>
+        </div>
+      </div>
+
+      <!-- Completion meter: slim track + navy→gold fill + "X/total · Y%" label.
+           Filled live by updateProg() as items are ticked. -->
+      <div class="grm-meter" id="grm-meter" aria-label="Checklist completion">
+        <div class="grm-meter-track"><div class="grm-meter-fill" id="grm-meter-fill"></div></div>
+        <div class="grm-meter-lbl" id="grm-meter-lbl"><b>0</b>/0 · 0%</div>
+      </div>
+
+      <div class="donebanner" id="done-banner">
+        <div class="doneico"><svg viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        All standards met! Tap Save to record.
+      </div>
+
+      <!-- GENTS -->
+      <div id="cl-m" style="display:none">
+        <div class="clgrp">
+          <div class="clgh m"><span class="cldot m"></span>Hairstyle</div>
+          <div class="clitem" onclick="tick(this)"><div class="clcb"><svg viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="cltxt">Short / well-trimmed hair</span></div>
+          <div class="clitem" onclick="tick(this)"><div class="clcb"><svg viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="cltxt">Natural hair colour only</span></div>
+          <div class="clitem" onclick="tick(this)"><div class="clcb"><svg viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="cltxt">Hair gel applied — no oil</span></div>
+          <div class="clitem" onclick="tick(this)"><div class="clcb"><svg viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="cltxt">Sideburns do not cross the middle of the ear</span></div>
+        </div>
+        <div class="clgrp">
+          <div class="clgh m"><span class="cldot m"></span>Uniform</div>
+          <div class="clitem" onclick="tick(this)"><div class="clcb"><svg viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="cltxt">Well-fitted — not too tight or too loose</span></div>
+          <div class="clitem" onclick="tick(this)"><div class="clcb"><svg viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="cltxt">Clean and properly ironed</span></div>
+          <div class="clitem" onclick="tick(this)"><div class="clcb"><svg viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="cltxt">No loose threads, missing buttons, or faded colour</span></div>
+          <div class="clitem" onclick="tick(this)"><div class="clcb"><svg viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="cltxt">Shirt sleeves as per standard — not rolled up</span></div>
+        </div>
+        <div class="clgrp">
+          <div class="clgh m"><span class="cldot m"></span>Name Badge &amp; Gloves</div>
+          <div class="clitem" onclick="tick(this)"><div class="clcb"><svg viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="cltxt">Name badge worn and clearly visible</span></div>
+          <div class="clitem" onclick="tick(this)"><div class="clcb"><svg viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="cltxt">Hand gloves worn during store hours</span></div>
+        </div>
+        <div class="clgrp">
+          <div class="clgh m"><span class="cldot m"></span>Shoes, Belt &amp; Accessories</div>
+          <div class="clitem" onclick="tick(this)"><div class="clcb"><svg viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="cltxt">Shoes are black and polished — no tan or brown</span></div>
+          <div class="clitem" onclick="tick(this)"><div class="clcb"><svg viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="cltxt">Belt is black and clearly visible — no tan or brown</span></div>
+          <div class="clitem" onclick="tick(this)"><div class="clcb"><svg viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="cltxt">Watch: gold/silver or black/brown strap, simple dial</span></div>
+          <div class="clitem" onclick="tick(this)"><div class="clcb"><svg viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="cltxt">Max one ring per hand — gold or silver only</span></div>
+          <div class="clitem" onclick="tick(this)"><div class="clcb"><svg viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="cltxt">Nails clean, dry, and trimmed</span></div>
+        </div>
+      </div>
+
+      <!-- LADIES -->
+      <div id="cl-f" style="display:none">
+        <div class="clgrp">
+          <div class="clgh f"><span class="cldot f"></span>Hairstyle</div>
+          <div class="clitem" onclick="tick(this)"><div class="clcb"><svg viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="cltxt">Hair styled in a neat bun</span></div>
+          <div class="clitem" onclick="tick(this)"><div class="clcb"><svg viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="cltxt">Black rubber band and pins used to secure hair</span></div>
+          <div class="clitem" onclick="tick(this)"><div class="clcb"><svg viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="cltxt">Hair kept off the face — pins if needed</span></div>
+          <div class="clitem" onclick="tick(this)"><div class="clcb"><svg viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="cltxt">Natural hair colour only — no styling oil</span></div>
+        </div>
+        <div class="clgrp">
+          <div class="clgh f"><span class="cldot f"></span>Uniform</div>
+          <div class="clitem" onclick="tick(this)"><div class="clcb"><svg viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="cltxt">Well-fitted — not too tight or too loose</span></div>
+          <div class="clitem" onclick="tick(this)"><div class="clcb"><svg viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="cltxt">Clean and properly ironed at all times</span></div>
+          <div class="clitem" onclick="tick(this)"><div class="clcb"><svg viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="cltxt">No loose threads, missing buttons, or faded colour</span></div>
+        </div>
+        <div class="clgrp">
+          <div class="clgh f"><span class="cldot f"></span>Name Badge</div>
+          <div class="clitem" onclick="tick(this)"><div class="clcb"><svg viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="cltxt">Name badge worn and clearly visible at all times</span></div>
+        </div>
+        <div class="clgrp">
+          <div class="clgh f"><span class="cldot f"></span>Shoes &amp; Belt</div>
+          <div class="clitem" onclick="tick(this)"><div class="clcb"><svg viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="cltxt">Shoes are black and polished — no tan or brown</span></div>
+          <div class="clitem" onclick="tick(this)"><div class="clcb"><svg viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="cltxt">Belt is black and clearly visible — no tan or brown</span></div>
+        </div>
+        <div class="clgrp">
+          <div class="clgh f"><span class="cldot f"></span>Earrings &amp; Watch</div>
+          <div class="clitem" onclick="tick(this)"><div class="clcb"><svg viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="cltxt">Only one pair of studs or small hoops</span></div>
+          <div class="clitem" onclick="tick(this)"><div class="clcb"><svg viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="cltxt">Watch: gold/silver or black/brown strap, simple dial</span></div>
+        </div>
+        <div class="clgrp">
+          <div class="clgh f"><span class="cldot f"></span>Nails, Lipstick &amp; Nail Polish</div>
+          <div class="clitem" onclick="tick(this)"><div class="clcb"><svg viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="cltxt">Nails clean, dry, and trimmed</span></div>
+          <div class="clitem" onclick="tick(this)"><div class="clcb"><svg viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="cltxt">Lipstick shade — nude only</span></div>
+          <div class="clitem" onclick="tick(this)"><div class="clcb"><svg viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="cltxt">Nail polish — nude shades only, no bright colours</span></div>
+        </div>
+      </div>
+
+    </div><!-- /cl-area -->
+  </div><!-- /cl -->
+
+  <!-- ══════════════ TAB 2 — DAILY SUMMARY ══════════════ -->
+  <div class="sec" id="daily">
+    <div class="filter-bar">
+      <div class="fg">
+        <label class="flabel">Select Date</label>
+        <input data-action="day-picker" class="finput" type="date" id="day-picker" style="width:190px" onchange="renderDaily()">
+      </div>
+      <!-- P1-21: in-memory store filter (kept in sync with the Month-End copy) -->
+      <div class="fg">
+        <label class="flabel">Store</label>
+        <select data-action="grm-store-daily" class="finput" id="grm-store-daily" style="width:190px" onchange="grmSetStore(this.value)">
+          <option value="ALL">All stores</option>
+          <option value="WLMHW">Titan World</option>
+          <option value="HEMW">Helios</option>
+          <option value="UNASSIGNED">Unassigned</option>
+        </select>
+      </div>
+      <button data-action="clear-day-s-data" class="btn2" onclick="clearDay()" style="margin-bottom:1px">Clear Day's Data</button>
+    </div>
+
+    <div class="statgrid">
+      <div class="statcard"><div class="stlbl">CROs Checked</div><div class="stval" id="ds-total">0</div><div class="stsub">this date</div></div>
+      <div class="statcard"><div class="stlbl">Fully Compliant</div><div class="stval" id="ds-full" style="color:var(--green)">0</div><div class="stsub">100% score</div></div>
+      <div class="statcard"><div class="stlbl">Needs Attention</div><div class="stval" id="ds-warn" style="color:var(--red)">0</div><div class="stsub">below 80%</div></div>
+      <div class="statcard"><div class="stlbl">Day Average</div><div class="stval" id="ds-avg" style="color:var(--navy)">—</div><div class="stsub" id="ds-avg-sub">compliance</div></div>
+    </div>
+
+    <div id="daily-empty" class="empty">
+      <div class="empty-ico">📅</div>
+      <div class="empty-t">No records for this date</div>
+      <div class="empty-s">Fill checklists in the CRO Checklist tab and save them</div>
+    </div>
+    <div id="daily-pending"></div>
+    <div id="daily-cards"></div>
+  </div>
+
+  <!-- ══════════════ TAB 3 — MONTH-END REPORT ══════════════ -->
+  <div class="sec" id="monthly">
+    <div class="filter-bar">
+      <div class="fg">
+        <label class="flabel">Select Month</label>
+        <input data-action="month-picker" class="finput" type="month" id="month-picker" style="width:190px" onchange="renderMonthly()">
+      </div>
+      <!-- P1-21: in-memory store filter (kept in sync with the Daily copy) -->
+      <div class="fg">
+        <label class="flabel">Store</label>
+        <select data-action="grm-store-monthly" class="finput" id="grm-store-monthly" style="width:190px" onchange="grmSetStore(this.value)">
+          <option value="ALL">All stores</option>
+          <option value="WLMHW">Titan World</option>
+          <option value="HEMW">Helios</option>
+          <option value="UNASSIGNED">Unassigned</option>
+        </select>
+      </div>
+      <button data-action="export-csv" class="btn2" onclick="exportCSV()" style="margin-bottom:1px">Export CSV</button>
+    </div>
+
+    <div class="statgrid">
+      <div class="statcard"><div class="stlbl">Unique CROs</div><div class="stval" id="ms-cros">0</div><div class="stsub">this month</div></div>
+      <div class="statcard"><div class="stlbl">Total Check-ins</div><div class="stval" id="ms-total">0</div><div class="stsub">records saved</div></div>
+      <div class="statcard"><div class="stlbl">Best Score</div><div class="stval" id="ms-best" style="color:var(--green)">—</div><div class="stsub">highest avg</div></div>
+      <div class="statcard"><div class="stlbl">Month Average</div><div class="stval" id="ms-avg" style="color:var(--navy)">—</div><div class="stsub" id="ms-avg-sub">all CROs</div></div>
+    </div>
+
+    <!-- P1-20: Top Failed Checks (read-only aggregation over the month's items[]) -->
+    <div class="card" id="grm-topfail" style="display:none;margin-bottom:18px">
+      <div class="sec-title">Top Failed Checks</div>
+      <div class="sec-sub" id="grm-topfail-sub">Most-missed grooming standards this month</div>
+      <div id="grm-topfail-body"></div>
+    </div>
+
+    <div id="monthly-empty" class="empty">
+      <div class="empty-ico">📊</div>
+      <div class="empty-t">No data for this month</div>
+      <div class="empty-s">Data will appear here once CRO records are saved</div>
+    </div>
+    <div class="month-table-wrap saagar-table-region--grid" id="monthly-table-wrap" data-grooming-table-region="month-end-comparison" style="display:none">
+      <table class="mt saagar-table saagar-table--grid" id="monthly-table" data-grooming-table-strategy="grid" data-grooming-table-workflow="month-end-comparison" data-saagar-grid-reason="nine-column month-end CRO comparison requires cross-column review">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>CRO Name</th>
+            <th>Gender</th>
+            <th>Store</th>
+            <th>Check-ins</th>
+            <th>Avg Score</th>
+            <th>Best Day</th>
+            <th>Lowest Day</th>
+            <th>Dates Present</th>
+          </tr>
+        </thead>
+        <tbody id="monthly-tbody"></tbody>
+      </table>
+      <div class="mtw-hint" aria-hidden="true"></div>
+    </div>
+  </div>
+
+</div><!-- /wrap -->
+
+<div class="footer">SAAGAR TRADERS · TITAN WORLD &amp; HELIOS · LATUR · GROOMING AUDIT SYSTEM</div>
+<button data-action="grm-float-save" id="grm-float-save" type="button" onclick="saveCRO()" title="Save checklist">
+  <svg viewBox="0 0 16 16" width="14" height="14" fill="none"><polyline points="3,8 6.5,11.5 13,4" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  Save
+</button>
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+//  STORAGE  (localStorage, key: grooming_YYYY-MM-DD)
+//  Each key → array of records: {name, gender, pct, checked, total, items[], time}
+// ═══════════════════════════════════════════════════════
+const STORE = 'saagar_grooming_';
+
+function todayKey() {
+  const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');   /* audit: local date — toISOString gave the previous day in IST */
+}
+
+function saveRecord(record) {
+  const key = STORE + record.date;
+  const existing = JSON.parse(localStorage.getItem(key) || '[]');
+  existing.push(record);
+  localStorage.setItem(key, JSON.stringify(existing));
+}
+
+function getDay(dateStr) {
+  return JSON.parse(localStorage.getItem(STORE + dateStr) || '[]');
+}
+
+function deleteRecord(dateStr, idx) {
+  const records = getDay(dateStr);
+  records.splice(idx, 1);
+  localStorage.setItem(STORE + dateStr, JSON.stringify(records));
+}
+
+function clearDayData(dateStr) {
+  localStorage.removeItem(STORE + dateStr);
+}
+
+function getAllKeys() {
+  const keys = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k.startsWith(STORE)) keys.push(k.replace(STORE, ''));
+  }
+  return keys.sort();
+}
+
+// ═══════════════════════════════════════════════════════
+//  VIEW-DATE RAIL  (window.__stAsOf = "YYYY-MM-DD" the user wants to VIEW)
+//  Seeded by the shell before this script runs; updated live via 'st-date'.
+//  Past date  → VIEW-ONLY read-only history.  Today/empty → normal behaviour.
+// ═══════════════════════════════════════════════════════
+function stValidDate(s){ return typeof s==='string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && !isNaN(new Date(s+'T00:00:00').getTime()); }
+// The date currently being VIEWED. Defaults to __stAsOf, falls back to real today.
+function viewedDate(){
+  try{ var a=window.__stAsOf; if(stValidDate(a)) return a; }catch(e){}
+  return todayKey();
+}
+// TRUE when viewing a PAST day (read-only history). today/future/empty → false.
+function isPastView(){ var v=viewedDate(); return stValidDate(v) && v < todayKey(); }
+
+// ═══════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════
+const today = todayKey();
+document.getElementById('hdate').textContent = new Date().toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+document.getElementById('day-picker').value = viewedDate();
+document.getElementById('month-picker').value = viewedDate().slice(0,7);
+
+// ═══════════════════════════════════════════════════════
+//  NAV
+// ═══════════════════════════════════════════════════════
+function go(id) {
+  document.querySelectorAll('.sec').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  const idx = ['cl','daily','monthly'].indexOf(id);
+  document.querySelectorAll('.tab')[idx].classList.add('active');
+  if (id === 'daily') renderDaily();
+  if (id === 'monthly') renderMonthly();
+}
+
+// ═══════════════════════════════════════════════════════
+//  FORM / CHECKLIST
+// ═══════════════════════════════════════════════════════
+let curGender = null;
+
+// P1-21: in-memory store filter shared by Daily Summary + Month-End Report.
+// 'ALL' | 'WLMHW' | 'HEMW' | 'UNASSIGNED'. No persistence: module reload resets
+// to All (spec'd). grmSetStore keeps both tab selects in sync.
+let grmStoreFilter = 'ALL';
+function grmSetStore(v){ grmStoreFilter=v; var a=document.getElementById('grm-store-daily'), b=document.getElementById('grm-store-monthly'); if(a) a.value=v; if(b) b.value=v; renderDaily(); renderMonthly(); }
+// P1-21: does a record match the active store filter? ''-vs-absent store both
+// normalize to Unassigned — never test ('store' in r).
+function grmRecMatches(r){ var s=(r&&(r.store==='WLMHW'||r.store==='HEMW'))?r.store:''; if(grmStoreFilter==='ALL') return true; if(grmStoreFilter==='UNASSIGNED') return s===''; return s===grmStoreFilter; }
+
+function sg(g) {
+  curGender = g;
+  document.getElementById('bm').className = 'gbtn' + (g==='m'?' sm':'');
+  document.getElementById('bf').className = 'gbtn' + (g==='f'?' sf':'');
+  vf();
+}
+
+// Clear any gender selection (used when a matched employee's master gender is
+// 'O'/Other or unknown — we must NOT auto-pick M or F for them, and we must not
+// leave a STALE M/F from a previously-matched person. Deselecting both buttons
+// lets the SM consciously choose Male/Female and then proceed.
+function sgClear() {
+  curGender = null;
+  document.getElementById('bm').className = 'gbtn';
+  document.getElementById('bf').className = 'gbtn';
+  vf();
+}
+
+// J (leave auto-disable): names on leave/half-day today, from the shared bridge gate.
+//   saagar_gate_status.unavailable = { "<kk(name)>": {name,reason,leave:bool,type} };
+//   a staffer is leave-unavailable today iff that entry exists AND .leave===true.
+function grmLeaveKey(n){ return String(n||'').trim().toLowerCase(); }
+function grmLeaveUnavailableSet(){ var set={}; try{ var g=JSON.parse(localStorage.getItem('saagar_gate_status')||'null'); var u=g&&g.unavailable; if(u&&typeof u==='object'){ Object.keys(u).forEach(function(k){ var e=u[k]; if(e&&e.leave===true) set[grmLeaveKey(e.name!=null?e.name:k)]=true; }); } }catch(e){} return set; }
+function grmEmployees(){ try{ var m=JSON.parse(localStorage.getItem('saagar_employee_master_v1')||'[]'); if(!Array.isArray(m)) return []; var off=grmLeaveUnavailableSet(); return m.filter(function(e){return e&&e.name&&e.active!==false&&!off[grmLeaveKey(e.name)];}); }catch(e){ return []; } }
+function grmTodayCounts(){ var map={}; try{ var a=JSON.parse(localStorage.getItem('saagar_grooming_'+todayKey())||'[]'); if(Array.isArray(a)){ a.forEach(function(r){ if(r&&r.name){ var k=String(r.name).trim().toLowerCase(); map[k]=(map[k]||0)+1; } }); } }catch(e){} return map; }
+function grmNameAvailable(name,counts,allowRecheck){ counts=counts||grmTodayCounts(); var c=counts[String(name||'').trim().toLowerCase()]||0; if(c>=2) return false; if(c>=1 && !allowRecheck && new Date().getHours()<17) return false; return true; }
+// Wave-4 re-check: same-day fail % threshold the bridge blocks the floor gate on.
+// Read from saagar_bridge_config.failPct so the "Re-check" button appears for the
+// exact threshold the gate enforces (fallback 60). Additive, read-only.
+function grmFailPct(){ try{ var c=JSON.parse(localStorage.getItem('saagar_bridge_config')||'null'); return (c&&typeof c.failPct==='number')?c.failPct:60; }catch(e){ return 60; } }
+// P1-21: raw master row lookup for store/empId stamping — first case/trim-insensitive
+// name match in saagar_employee_master_v1. Deliberately NOT grmEmployees(): that
+// filters active+leave, and a store lookup must still resolve for someone on leave
+// or just-retired (a re-check mid-leave still stamps correctly). Null when no match.
+function grmEmpRow(name){ var who=String(name||'').trim().toLowerCase(); if(!who) return null; try{ var em=JSON.parse(localStorage.getItem('saagar_employee_master_v1')||'[]'); if(Array.isArray(em)) for(var i=0;i<em.length;i++){ var e=em[i]; if(e&&String(e.name||'').trim().toLowerCase()===who) return e; } }catch(e){} return null; }
+// P1-21: resolve an employee's store CODE from the master row. Same text pattern as
+// the bridge's dsrStoreCode ('helios'→HEMW, 'titan'→WLMHW) but deliberately with
+// NO WLMHW fallback — grooming must never mislabel unknown staff as Titan World;
+// unresolved stays '' (Unassigned) so the store-wise ranking cannot lie.
+function grmStoreCode(name){ var e=grmEmpRow(name); if(!e) return ''; var st=String(e.store||'').toLowerCase(); if(st.indexOf('helios')>=0) return 'HEMW'; if(st.indexOf('titan')>=0) return 'WLMHW'; return ''; }
+// Wave-4 'Not checked yet' panel: active, non-leave staff with ZERO records for
+// dateStr. Only meaningful for TODAY (roster/leave state is 'as of now'); any past
+// date returns [] so the morning-nudge strip never misleads on history.
+function grmPendingForDate(dateStr){ if(dateStr!==todayKey()) return []; var recs=getDay(dateStr); var done={}; recs.forEach(function(r){ if(r&&r.name) done[grmLeaveKey(r.name)]=1; }); return grmEmployees().filter(function(e){ return !done[grmLeaveKey(e.name)]; }).filter(function(e){ return grmStoreFilter==='ALL' || grmStoreCode(e.name)===(grmStoreFilter==='UNASSIGNED'?'':grmStoreFilter); }); }   /* P1-21: roster honours the store filter */
+function fillEmpList(){ var dl=document.getElementById('grm-emp-list'); if(!dl) return; var counts=grmTodayCounts(); dl.innerHTML=grmEmployees().filter(function(e){ return grmNameAvailable(e.name,counts); }).map(function(e){ return '<option value="'+String(e.name).replace(/"/g,'&quot;')+'"></option>'; }).join(''); }
+function onNamePick(){ try{ fillEmpList(); var inp=document.getElementById('cro-inp'); var v=String(inp.value||'').trim().toLowerCase(); var emp=grmEmployees().find(function(e){ return String(e.name||'').trim().toLowerCase()===v; }); if(emp){ var gx=String(emp.gender||'').toUpperCase().charAt(0); if(gx==='M') sg('m'); else if(gx==='F') sg('f'); else sgClear(); } }catch(e){} vf(); }
+document.addEventListener('DOMContentLoaded',function(){ try{ fillEmpList(); }catch(e){} });
+try{ fillEmpList(); }catch(e){}
+function vf() {
+  const name = document.getElementById('cro-inp').value.trim();
+  document.getElementById('startbtn').disabled = !(name.length > 0 && curGender);
+}
+
+function tryStart() { if (!document.getElementById('startbtn').disabled) startCL(); }
+
+function startCL() {
+  if (isPastView()) { applyReadOnly(); return; }   // VIEW-ONLY: no back-dated check-ins
+  const name = document.getElementById('cro-inp').value.trim();
+  const g = curGender;
+
+  // Reset boxes
+  document.querySelectorAll('.clcb').forEach(cb => cb.classList.remove('cm','cf'));
+  document.querySelectorAll('.cltxt').forEach(t => t.classList.remove('done'));
+
+  document.getElementById('cl-m').style.display = g==='m'?'block':'none';
+  document.getElementById('cl-f').style.display = g==='f'?'block':'none';
+
+  const ini = name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+  const av = document.getElementById('cl-av');
+  av.className = 'avatar ' + g;
+  av.textContent = ini;
+  document.getElementById('cl-nm').textContent = name;
+  document.getElementById('cl-gd').textContent = g==='m'?'Male CRO':'Female CRO';
+
+  document.getElementById('form-card').style.display = 'none';
+  document.getElementById('cl-area').style.display = 'block';
+  var __fs=document.getElementById('grm-float-save'); if(__fs) __fs.classList.add('show');
+  document.getElementById('done-banner').classList.remove('show');
+  updateProg();
+}
+
+// Wave-4 same-day re-check: pre-fill a failed CRO's name+gender and jump straight
+// into the checklist, bypassing the 17:00 rule (the 2/day hard cap in saveCRO still
+// protects against a 3rd). startCL()/saveCRO() do NOT consult grmNameAvailable, so
+// pre-filling name+gender and starting the checklist is all that's needed.
+function startRecheck(name,gender){
+  if (isPastView()) { applyReadOnly(); return; }
+  var inp=document.getElementById('cro-inp'); if(inp) inp.value=name;
+  var gx=String(gender||'').toLowerCase().charAt(0);
+  if(gx==='m') sg('m'); else if(gx==='f') sg('f'); else sgClear();
+  go('cl');
+  startCL();
+}
+
+// Wave-4 'Not checked yet' panel: jump to the CRO Checklist tab with the name
+// pre-filled; onNamePick() auto-sets gender from the master and enables Start.
+function startCheckFor(name){
+  if (isPastView()) return;
+  go('cl');
+  var inp=document.getElementById('cro-inp'); if(!inp) return;
+  inp.value=name;
+  onNamePick();
+  inp.focus();
+}
+
+function changeCRO() {
+  document.getElementById('form-card').style.display = 'block';
+  document.getElementById('cl-area').style.display = 'none';
+  var __fs=document.getElementById('grm-float-save'); if(__fs) __fs.classList.remove('show');
+}
+
+function tick(el) {
+  const g = curGender;
+  const cb = el.querySelector('.clcb');
+  const txt = el.querySelector('.cltxt');
+  const cls = g==='m'?'cm':'cf';
+  const checked = cb.classList.toggle(cls);
+  txt.classList.toggle('done', checked);
+  updateProg();
+}
+
+function updateProg() {
+  const g = curGender;
+  const panel = document.getElementById('cl-'+g);
+  if(!panel) return;
+  const items = panel.querySelectorAll('.clitem');
+  const cls = g==='m'?'cm':'cf';
+  const checked = panel.querySelectorAll('.clcb.'+cls).length;
+  const total = items.length;
+  const pct = total ? Math.round(checked/total*100) : 0;
+  const db = document.getElementById('done-banner');
+  if(db) db.classList.toggle('show', checked===total && total>0);
+
+  // Completion meter (slim navy→gold bar + "X/total · Y%" label). Defensive, no-throw.
+  try {
+    var mFill = document.getElementById('grm-meter-fill');
+    var mLbl  = document.getElementById('grm-meter-lbl');
+    if (mFill) {
+      mFill.style.width = pct+'%';
+      mFill.classList.toggle('full', total>0 && checked===total);
+    }
+    if (mLbl) mLbl.innerHTML = '<b>'+checked+'</b>/'+total+' · '+pct+'%';
+  } catch(e){}
+}
+
+function saveCRO() {
+  if (isPastView()) { applyReadOnly(); return; }   // VIEW-ONLY: block back-dated save
+  const g = curGender;
+  const name = document.getElementById('cl-nm').textContent;
+  const panel = document.getElementById('cl-'+g);
+  if(!panel){ showToast('Please select Male / Female and tick the checklist before saving.'); return; }
+  var __attempt=1;
+  try{ var __k='saagar_grooming_'+todayKey(); var __a=JSON.parse(localStorage.getItem(__k)||'[]'); if(!Array.isArray(__a))__a=[]; var __nm=String(name||'').trim().toLowerCase(); var __cnt=__a.filter(function(r){return r&&String(r.name||'').trim().toLowerCase()===__nm;}).length; if(__cnt>=2){ showToast(name+' already has 2 grooming records today. Maximum is 2 per employee per day.'); return; } __attempt=__cnt+1; }catch(e){}
+  const allItems = panel.querySelectorAll('.clitem');
+  const cls = g==='m'?'cm':'cf';
+
+  const items = [];
+  allItems.forEach(item => {
+    const label = item.querySelector('.cltxt').textContent;
+    const passed = item.querySelector('.clcb').classList.contains(cls);
+    items.push({label, passed});
+  });
+
+  const total = items.length;
+  const checked = items.filter(i=>i.passed).length;
+  const pct = total ? Math.round(checked/total*100) : 0;
+  const now = new Date();
+
+  const __emp = grmEmpRow(name);     // P1-21: one raw master lookup (store + optional empId)
+  const __actor = grmActor();        // P1-22: accountability stamp (shell staff/role peek)
+  const record = {
+    name, gender: g, pct, checked, total, items,
+    date: todayKey(),
+    time: now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}),
+    attempt: __attempt,  // Wave-4: 1 = first check of the day, 2 = re-check (existing records with no attempt → treated as 1)
+    store: grmStoreCode(name),       // P1-21: 'WLMHW' | 'HEMW' | '' (unresolved → Unassigned)
+    checkedBy: __actor.name,         // P1-22: who performed the check
+    checkedByRole: __actor.role,     // P1-22
+    checkedAt: now.toISOString()     // P1-22
+  };
+  // P1-21: optional human employee code (uid fallback) — conditional assign, never null.
+  if (__emp && (__emp.employeeId || __emp.id) != null) record.empId = __emp.employeeId || __emp.id;
+
+  saveRecord(record);
+  // Wave-4 re-check feedback: a re-check (attempt>=2) that now clears the fail
+  // threshold confirms the floor gate will clear; otherwise the normal save toast.
+  if (__attempt>=2 && pct>=grmFailPct()) {
+    showToast('✓ Re-check saved — ' + name + ' (' + pct + '%) — floor gate will clear');
+  } else {
+    showToast('✓ Saved — ' + name + ' (' + pct + '%)');
+  }
+
+  // Reset for next CRO
+  document.getElementById('cro-inp').value = '';
+  curGender = null;
+  document.getElementById('bm').className = 'gbtn';
+  document.getElementById('bf').className = 'gbtn';
+  document.getElementById('startbtn').disabled = true;
+  document.getElementById('form-card').style.display = 'block';
+  document.getElementById('cl-area').style.display = 'none';
+  var __fs=document.getElementById('grm-float-save'); if(__fs) __fs.classList.remove('show');
+  try{ fillEmpList(); }catch(e){}
+}
+
+// ═══════════════════════════════════════════════════════
+//  TOAST
+// ═══════════════════════════════════════════════════════
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// ═══════════════════════════════════════════════════════
+//  DAILY SUMMARY
+// ═══════════════════════════════════════════════════════
+/* Audit fix xss-grooming-names: HTML-escape user-entered CRO names before they
+   reach innerHTML (module had no escaper; names travel between devices via migration). */
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+/* P1-22: actor for the checkedBy stamp — the shell's signed-in named staffer
+   (Wave6 #28, key saagar_active_staff_v1, shape {id,name,employeeId,at} — NO role
+   field) with the role from the shell's device-role key as fallback. Read-only
+   peeks, both try/caught so a corrupt shell key can never throw inside saveCRO(). */
+function grmActor(){
+  var name='', role='';
+  try{ var a=JSON.parse(localStorage.getItem('saagar_active_staff_v1')||'null'); if(a&&a.name) name=String(a.name).slice(0,60); }catch(e){}
+  try{ var r=localStorage.getItem('saagar_current_role_v1'); if(r) role=String(r).slice(0,40); }catch(e){}
+  return { name: name || (role||'Staff'), role: role||'' };
+}
+// P1-22: self-check marker (render-time, computed — never stored): checker name
+// equals the checked employee's name, case/trim-insensitive.
+function grmIsSelfCheck(rec){ return !!(rec && rec.checkedBy && rec.name && String(rec.checkedBy).trim().toLowerCase()===String(rec.name).trim().toLowerCase()); }
+function renderDaily() {
+  const dateStr = document.getElementById('day-picker').value;
+  const dayAll = getDay(dateStr);                      // raw, index-true array (delete indexes)
+  const records = dayAll.filter(grmRecMatches);        // P1-21: stats + cards use the filtered set
+  const total = records.length;
+  const full = records.filter(r=>r.pct===100).length;
+  const warn = records.filter(r=>r.pct<80).length;
+  const avg = total ? Math.round(records.reduce((s,r)=>s+r.pct,0)/total) : null;
+
+  // Aggregate checked/total for the day (count basis behind Day Average %).
+  // Render-only; does not change how avg is computed.
+  const dSumChk = records.reduce((s,r)=>s+(r.checked||0),0);
+  const dSumTot = records.reduce((s,r)=>s+(r.total||0),0);
+
+  document.getElementById('ds-total').textContent = total;
+  document.getElementById('ds-full').textContent = full;
+  document.getElementById('ds-warn').textContent = warn;
+  document.getElementById('ds-avg').textContent = avg!==null ? avg+'%' : '—';
+  const dsAvgSub = document.getElementById('ds-avg-sub');
+  if (dsAvgSub) dsAvgSub.textContent = avg!==null ? dSumChk+'/'+dSumTot : 'compliance';
+
+  document.getElementById('daily-empty').style.display = total===0?'block':'none';
+  // P1-21: distinguish "day has data but the store filter hides it all" from a
+  // truly empty day (copy restored when the default state applies again).
+  try {
+    var dEmp = document.getElementById('daily-empty');
+    var dEt = dEmp.querySelector('.empty-t'), dEs = dEmp.querySelector('.empty-s');
+    if (dEt && dEs) {
+      if (total===0 && dayAll.length>0) {
+        dEt.textContent = 'No records for this filter';
+        dEs.textContent = 'Change the Store filter or pick another date';
+      } else {
+        dEt.textContent = 'No records for this date';
+        dEs.textContent = 'Fill checklists in the CRO Checklist tab and save them';
+      }
+    }
+  } catch(e){}
+  renderPending(dateStr);   // Wave-4 'Not checked yet' morning-nudge strip (today only)
+  const container = document.getElementById('daily-cards');
+  container.innerHTML = '';
+
+  // P1-21: filter AFTER the _i map so delDay(dateStr, origIdx) still splices the
+  // correct index in the raw UNFILTERED array even when the visible list is a subset.
+  const sorted = [...dayAll].map((r,i)=>({...r,_i:i})).filter(grmRecMatches).sort((a,b)=>a.pct-b.pct);
+  const roView = isPastView();   // VIEW-ONLY past date → hide per-record delete
+
+  sorted.forEach(rec => {
+    const ini = rec.name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+    const barC = rec.pct===100?'#166534':rec.pct>=80?'#15803d':rec.pct>=60?'#b45309':'#b91c1c';
+    const pillC = rec.pct===100?'sp100':rec.pct>=80?'sphigh':rec.pct>=60?'spmid':'splow';
+    const failed = rec.items.filter(i=>!i.passed);
+    const passed = rec.items.filter(i=>i.passed);
+
+    let chips = '';
+    if (failed.length===0) {
+      chips = `<div class="chip cok"><span class="cdot"></span>All ${rec.total} parameters passed</div>`;
+    } else {
+      failed.forEach(i => { chips += `<div class="chip cvio"><span class="cdot"></span>${i.label}</div>`; });
+      if (passed.length>0) chips += `<div class="chip cok" style="opacity:.65"><span class="cdot"></span>${passed.length} passed</div>`;
+    }
+
+    const origIdx = rec._i;
+    // Wave-4 same-day re-check: show a red "Re-check" button on a FAILED card
+    // (pct < failPct) only for today (!roView) and only while the day still has
+    // room (count < 2). Name/gender go through escaped data-attributes; a single
+    // delegated handler (below) reads them — no raw name inlined into onclick.
+    const _reKey = String(rec.name||'').trim().toLowerCase();
+    const _reCnt = (grmTodayCounts()[_reKey]||0);
+    const reBtn = (!roView && rec.pct < grmFailPct() && _reCnt < 2)
+      ? `<button data-action="recheck-record" class="del-btn grm-recheck" style="background:#b91c1c;color:#fff;width:auto;padding:0 10px;font-size:12px;font-weight:600" data-nm="${esc(rec.name)}" data-gd="${esc(rec.gender)}" title="Re-check now">Re-check</button>`
+      : '';
+    // P1-22: checker attribution — legacy records without checkedBy show nothing
+    // extra; esc() on checkedBy is MANDATORY (names travel via migration export).
+    const chkLine = rec.checkedBy
+      ? ` &nbsp;·&nbsp; checked by ${esc(rec.checkedBy)}${grmIsSelfCheck(rec)
+          ? ' <span style="color:#b45309;font-weight:600" title="Checker name matches the employee being checked">⚠ self-checked</span>'
+          : ''}`
+      : '';
+    const card = document.createElement('div');
+    card.className = 'cro-card';
+    card.innerHTML = `
+      <div class="cro-topbar" style="background:${barC}"></div>
+      <div class="cro-header">
+        <div class="cro-left">
+          <div class="avatar ${rec.gender}">${esc(ini)}</div>
+          <div>
+            <div class="cro-info-name">${esc(rec.name)}</div>
+            <div class="cro-info-sub">${rec.gender==='m'?'Male':'Female'} CRO &nbsp;·&nbsp; ${rec.time}${rec.store==='HEMW'?' · Helios':rec.store==='WLMHW'?' · Titan World':''}${chkLine}</div>
+          </div>
+        </div>
+        <div class="cro-right">
+          <span class="score-pill ${pillC}">${rec.pct}%</span>
+          <span style="font-size:11px;color:var(--gray-400)">${rec.checked}/${rec.total}</span>
+          ${reBtn}
+          ${roView ? '' : `<button data-action="delete-day-record" class="del-btn" onclick="delDay('${dateStr}',${origIdx})" title="Delete">✕</button>`}
+        </div>
+      </div>
+      <div class="chips">${chips}</div>`;
+    container.appendChild(card);
+  });
+}
+
+function delDay(dateStr, idx) {
+  if (isPastView()) return;                          // VIEW-ONLY: no edits to past data
+  if (!confirm('Remove this CRO record?')) return;
+  deleteRecord(dateStr, idx);
+  renderDaily();
+}
+
+function clearDay() {
+  if (isPastView()) return;                          // VIEW-ONLY: no edits to past data
+  const dateStr = document.getElementById('day-picker').value;
+  if (!confirm('Clear ALL records for ' + dateStr + '?')) return;
+  clearDayData(dateStr);
+  renderDaily();
+}
+
+// Wave-4 'Not checked yet' panel: a muted strip above the per-CRO cards listing
+// active, on-duty staff with no grooming record today. Each name is a "Start check"
+// chip that pre-fills the CRO Checklist. Shown for TODAY only (grmPendingForDate
+// returns [] for any other date) and hidden when nobody is pending.
+function renderPending(dateStr){
+  var el=document.getElementById('daily-pending'); if(!el) return;
+  var pend=grmPendingForDate(dateStr);
+  if(dateStr!==todayKey() || !pend.length){ el.innerHTML=''; return; }
+  var chips=pend.map(function(e){
+    return '<button data-action="start-pending-check" class="grm-pending-chip" type="button" data-nm="'+esc(e.name)+'">'+esc(e.name)+' · Start check</button>';
+  }).join('');
+  el.innerHTML='<div class="grm-pending"><div class="grm-pending-hd">Pending this morning — '+pend.length+'</div><div class="grm-pending-row">'+chips+'</div></div>';
+}
+
+// Wave-4 delegated handler for the Daily-Summary strip/cards: a single listener on
+// #daily reads the escaped data-attributes (never a raw name inlined into onclick),
+// dispatching Re-check and Start-check without a new XSS surface.
+(function(){
+  var host=document.getElementById('daily');
+  if(!host) return;
+  host.addEventListener('click',function(ev){
+    var re=ev.target.closest ? ev.target.closest('.grm-recheck') : null;
+    if(re){ startRecheck(re.getAttribute('data-nm')||'', re.getAttribute('data-gd')||''); return; }
+    var pc=ev.target.closest ? ev.target.closest('.grm-pending-chip') : null;
+    if(pc){ startCheckFor(pc.getAttribute('data-nm')||''); return; }
+  });
+})();
+
+// ═══════════════════════════════════════════════════════
+//  MONTH-END REPORT
+// ═══════════════════════════════════════════════════════
+function renderMonthly() {
+  const monthStr = document.getElementById('month-picker').value; // YYYY-MM
+  const allKeys = getAllKeys().filter(d => d.startsWith(monthStr));
+
+  // Aggregate by CRO name
+  const croMap = {}; // name → {name, gender, records:[{date, pct}]}
+
+  allKeys.forEach(dateStr => {
+    const recs = getDay(dateStr);
+    recs.forEach(r => {
+      if (!grmRecMatches(r)) return;   // P1-21: honour the active store filter
+      const key = r.name.trim().toLowerCase();
+      if (!croMap[key]) croMap[key] = {name: r.name, gender: r.gender, store: (r.store==='WLMHW'||r.store==='HEMW')?r.store:'', records: []};
+      else if (!croMap[key].store && (r.store==='WLMHW'||r.store==='HEMW')) croMap[key].store = r.store;   // P1-21: ''→code upgrade only, never overwrite a resolved code
+      croMap[key].records.push({date: dateStr, pct: r.pct, checked: r.checked, total: r.total, store: r.store});   // P1-21: named-field copy MUST carry store (the drop site)
+    });
+  });
+
+  const cros = Object.values(croMap);
+  const totalCheckins = cros.reduce((s,c)=>s+c.records.length, 0);
+  const monthAvg = totalCheckins ? Math.round(cros.reduce((s,c)=>s+c.records.reduce((ss,r)=>ss+r.pct,0),0)/totalCheckins) : null;
+  const bestCRO = cros.length ? cros.reduce((best,c) => {
+    const avg = c.records.reduce((s,r)=>s+r.pct,0)/c.records.length;
+    const bestAvg = best ? best.records.reduce((s,r)=>s+r.pct,0)/best.records.length : -1;
+    return avg > bestAvg ? c : best;
+  }, null) : null;
+
+  // Aggregate checked/total across every record this month (the count basis
+  // behind the Month Average %). Render-only; does not change monthAvg.
+  const sumChkAll = cros.reduce((s,c)=>s+c.records.reduce((ss,r)=>ss+(r.checked||0),0),0);
+  const sumTotAll = cros.reduce((s,c)=>s+c.records.reduce((ss,r)=>ss+(r.total||0),0),0);
+
+  document.getElementById('ms-cros').textContent = cros.length;
+  document.getElementById('ms-total').textContent = totalCheckins;
+  document.getElementById('ms-best').textContent = bestCRO ? bestCRO.name.split(' ')[0] : '—';
+  document.getElementById('ms-avg').textContent = monthAvg!==null ? monthAvg+'%' : '—';
+  const msAvgSub = document.getElementById('ms-avg-sub');
+  if (msAvgSub) msAvgSub.textContent = monthAvg!==null ? sumChkAll+'/'+sumTotAll : 'all CROs';
+
+  const empty = cros.length===0;
+  document.getElementById('monthly-empty').style.display = empty?'block':'none';
+  // When shown, clear the inline display so the stylesheet decides: block on
+  // desktop, flex on mobile (the mobile flex layout powers the .mtw-hint scroll
+  // affordance). Inline 'block' would otherwise override the mobile flex rule.
+  document.getElementById('monthly-table-wrap').style.display = empty?'none':'';
+
+  // Sort by avg descending
+  const sorted = cros.map(c => {
+    const avg = Math.round(c.records.reduce((s,r)=>s+r.pct,0)/c.records.length);
+    const best = Math.max(...c.records.map(r=>r.pct));
+    const low = Math.min(...c.records.map(r=>r.pct));
+    const dates = [...new Set(c.records.map(r=>r.date))].sort();
+    // Underlying checked/total counts (same records that produced the % above):
+    //  - avg cell: aggregate Σchecked / Σtotal across this CRO's check-ins
+    //  - best/low cell: the exact single record whose pct is the max/min
+    const sumChk = c.records.reduce((s,r)=>s+(r.checked||0),0);
+    const sumTot = c.records.reduce((s,r)=>s+(r.total||0),0);
+    const bestRec = c.records.find(r=>r.pct===best) || {};
+    const lowRec  = c.records.find(r=>r.pct===low)  || {};
+    const bestFrac = (bestRec.total!=null) ? (bestRec.checked+'/'+bestRec.total) : '';
+    const lowFrac  = (lowRec.total!=null)  ? (lowRec.checked+'/'+lowRec.total)   : '';
+    return {...c, avg, best, low, dates, sumChk, sumTot, bestFrac, lowFrac};
+  }).sort((a,b)=>b.avg-a.avg);
+
+  const tbody = document.getElementById('monthly-tbody');
+  tbody.innerHTML = '';
+
+  sorted.forEach((c, i) => {
+    const rank = i+1;
+    const rankCls = rank===1?'rank-1':rank===2?'rank-2':rank===3?'rank-3':'';
+    const barC = c.avg>=80?'#166534':c.avg>=60?'#b45309':'#b91c1c';
+    const avgCls = c.avg>=80?'color:var(--green)':c.avg>=60?'color:var(--amber)':'color:var(--red)';
+    const datesBadges = c.dates.map(d=>`<span class="date-badge">${d.slice(5)}</span>`).join('');
+    const ini = c.name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><span class="rank-num ${rankCls}">${rank}</span></td>
+      <td>
+        <div class="namecell">
+          <div class="avatar ${c.gender}" style="width:28px;height:28px;font-size:11px;">${esc(ini)}</div>
+          <div>
+            <div style="font-weight:600;font-size:13px;color:var(--navy)">${esc(c.name)}</div>
+          </div>
+        </div>
+      </td>
+      <td style="font-size:12px;color:var(--gray-600)">${c.gender==='m'?'Male':'Female'}</td>
+      <td style="font-size:12px;color:var(--gray-600)">${c.store==='HEMW'?'Helios':c.store==='WLMHW'?'Titan World':'—'}</td>
+      <td style="font-weight:600">${c.records.length}</td>
+      <td class="avcell">
+        <span style="${avgCls};font-size:14px">${c.avg}%</span>
+        <span style="font-size:11px;color:var(--gray-400)">${c.sumChk}/${c.sumTot}</span>
+        <span class="mini-avg"><span class="mini-avg-fill" style="width:${c.avg}%;background:${barC}"></span></span>
+      </td>
+      <td style="color:var(--green);font-weight:600">${c.best}% <span style="font-size:11px;color:var(--gray-400);font-weight:400">${c.bestFrac}</span></td>
+      <td style="color:${c.low<80?'var(--red)':'var(--amber)'};font-weight:600">${c.low}% <span style="font-size:11px;color:var(--gray-400);font-weight:400">${c.lowFrac}</span></td>
+      <td>${datesBadges}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  // ── P1-20: Top Failed Checks (read-only; keyed by gender+label because the
+  //    male/female checklists share some labels but are different lists).
+  //    Applies the P1-21 store filter (grmRecMatches) so the panel agrees with
+  //    the store-filtered stat cards and ranking table (synthesis mandate). ──
+  try {
+    var failMap = {}; // 'm|<label>' → {label, gender, fails, seen}
+    allKeys.forEach(function(dateStr){
+      getDay(dateStr).forEach(function(r){
+        if (!grmRecMatches(r)) return;                      // P1-21 store filter
+        if (!r || !Array.isArray(r.items)) return;          // legacy/malformed guard
+        var g = (r.gender==='f') ? 'f' : 'm';
+        r.items.forEach(function(it){
+          if (!it || typeof it.label !== 'string') return;
+          var k = g + '|' + it.label;
+          if (!failMap[k]) failMap[k] = {label: it.label, gender: g, fails: 0, seen: 0};
+          failMap[k].seen++;
+          if (it.passed !== true) failMap[k].fails++;
+        });
+      });
+    });
+    var failed = Object.values(failMap).filter(function(x){ return x.fails > 0; });
+    failed.sort(function(a,b){
+      return (b.fails - a.fails)
+          || ((b.fails/b.seen) - (a.fails/a.seen))
+          || a.label.localeCompare(b.label);
+    });
+    var TOPN = 8;
+    var top = failed.slice(0, TOPN);
+    var panel = document.getElementById('grm-topfail');
+    var body  = document.getElementById('grm-topfail-body');
+    var sub   = document.getElementById('grm-topfail-sub');
+    if (panel && body) {
+      if (empty || top.length === 0) {
+        panel.style.display = 'none';
+        body.innerHTML = '';
+      } else {
+        panel.style.display = '';
+        if (sub) sub.textContent = 'Most-missed grooming standards this month — top ' + top.length + ' of ' + failed.length + ' checks with failures';
+        body.innerHTML = top.map(function(x){
+          var rate = Math.round(x.fails / x.seen * 100);
+          return '<div class="tf-row">'
+            + '<span class="tf-g ' + x.gender + '">' + (x.gender==='m'?'GENTS':'LADIES') + '</span>'
+            + '<span class="tf-lbl">' + esc(x.label) + '</span>'
+            + '<span class="tf-n">failed ' + x.fails + (x.fails===1?' time':' times') + '</span>'
+            + '<span class="tf-bar"><span class="tf-bar-fill" style="width:' + rate + '%"></span></span>'
+            + '<span class="tf-rate">' + rate + '% fail rate (' + x.fails + '/' + x.seen + ')</span>'
+            + '</div>';
+        }).join('');
+      }
+    }
+  } catch(e) { /* never let the report tab break on aggregation */ }
+}
+
+// ═══════════════════════════════════════════════════════
+//  CSV EXPORT
+// ═══════════════════════════════════════════════════════
+function exportCSV() {
+  const monthStr = document.getElementById('month-picker').value;
+  const allKeys = getAllKeys().filter(d=>d.startsWith(monthStr));
+  // P1-22: tiny local CSV-quoter for the NEW Checked By cell ONLY — the legacy
+  // 7 columns keep the module's historical no-quoting join (byte-identical);
+  // a fuller CSV-quoting fix is deferred to a later hardening pass.
+  const q = v => { v = String(v==null?'':v); return /[",\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; };
+  let rows = [['Date','CRO Name','Gender','Score %','Checked','Total','Time','Store','Checked By','Self-Check']];
+  allKeys.forEach(dateStr => {
+    getDay(dateStr).forEach(r => {
+      if (!grmRecMatches(r)) return;   // P1-21: export honours the active store filter
+      rows.push([dateStr, r.name, r.gender==='m'?'Male':'Female', r.pct, r.checked, r.total, r.time, (r.store||''), q(r.checkedBy||''), grmIsSelfCheck(r)?'YES':'']);
+    });
+  });
+  const csvCell = v => { let s=String(v==null?'':v); if(/^[\t\r\n ]*[=+\-@]/.test(s))s="'"+s; return '"'+s.replace(/"/g,'""')+'"'; };
+  const csv = rows.map(r=>r.map(csvCell).join(',')).join('\r\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  if(window.parent&&window.parent!==window){
+    window.parent.postMessage({type:'ST_SHARE',file:blob,fileName:'grooming_report_'+monthStr+'.csv',title:'Grooming register',exportId:'grooming-report-csv',scopeId:'grooming-register',scopeLabel:'monthly grooming register',rowCount:Math.max(0,rows.length-1),purposeId:'employee-grooming-administration'},SaagarModuleRuntime.targetOrigin);
+    return;
+  }
+  try{showToast('Controlled export is available only inside Saagar Control Centre.','error');}catch(e){}
+}
+
+// ═══════════════════════════════════════════════════════
+//  READ-ONLY GUARD (past-date VIEW-ONLY)
+//  When viewing a PAST day: block back-dated CRO check-ins (disable/hide the
+//  entry form + checklist save). Daily Summary & Month report stay viewable,
+//  but per-record delete / Clear-Day are suppressed so nothing is mutated.
+// ═══════════════════════════════════════════════════════
+function applyReadOnly() {
+  var ro = isPastView();
+
+  // --- CRO Checklist tab: the ENTRY save path ---
+  var formCard = document.getElementById('form-card');
+  var clArea   = document.getElementById('cl-area');
+  var startBtn = document.getElementById('startbtn');
+
+  // Past-date banner (created once) shown in place of the entry form.
+  var note = document.getElementById('grm-ro-note');
+  if (ro && !note) {
+    note = document.createElement('div');
+    note.id = 'grm-ro-note';
+    note.className = 'card';
+    note.style.cssText = 'border-color:var(--gray-300);background:var(--gray-50);';
+    note.innerHTML = '<div class="sec-title">Viewing a past date</div>'
+      + '<div class="sec-sub" style="margin-bottom:0">New grooming check-ins can only be recorded for today. '
+      + 'Switch the date to today to add a checklist. The Daily Summary and Month-End Report below remain available for this date.</div>';
+    if (formCard && formCard.parentNode) formCard.parentNode.insertBefore(note, formCard);
+  }
+  if (note) note.style.display = ro ? 'block' : 'none';
+
+  if (ro) {
+    // Hide the live entry form + any in-progress checklist; nothing can be saved.
+    if (formCard) formCard.style.display = 'none';
+    if (clArea)   clArea.style.display   = 'none';
+    if (startBtn) startBtn.disabled = true;
+    var fs = document.getElementById('grm-float-save'); if (fs) fs.classList.remove('show');
+  } else {
+    // Restore normal entry view (only the form card; checklist opens on demand).
+    if (formCard && formCard.style.display === 'none' &&
+        clArea && clArea.style.display === 'none') {
+      formCard.style.display = 'block';
+    }
+    if (startBtn) startBtn.disabled = !(document.getElementById('cro-inp').value.trim().length > 0 && curGender);
+  }
+
+  // --- Daily Summary tab: suppress mutating controls on a past read ---
+  var clearBtn = document.querySelector('#daily .filter-bar .btn2');
+  if (clearBtn) clearBtn.style.display = ro ? 'none' : '';
+}
+
+// ═══════════════════════════════════════════════════════
+//  RE-RENDER ON VIEW-DATE CHANGE ('st-date' from shell)
+// ═══════════════════════════════════════════════════════
+function applyViewedDate() {
+  var v = viewedDate();
+  var dp = document.getElementById('day-picker');
+  var mp = document.getElementById('month-picker');
+  if (dp) dp.value = v;
+  if (mp) mp.value = v.slice(0,7);
+  applyReadOnly();
+  renderDaily();
+  renderMonthly();
+}
+window.addEventListener('st-date', function (e) {
+  try {
+    var d = e && e.detail;
+    if (stValidDate(d)) window.__stAsOf = d;   // adopt the shell's new view-date
+  } catch (err) {}
+  applyViewedDate();
+});
+
+// ═══════════════════════════════════════════════════════
+//  INIT RENDERS
+// ═══════════════════════════════════════════════════════
+applyReadOnly();
+renderDaily();
+renderMonthly();
+</script>
+
+<link id="st-v5-back-style" rel="stylesheet" href="../../shared/module-back.css">
+<button data-action="st-v5-home-fab" id="st-v5-home-fab" type="button" title="Back to Home (Esc)"><svg viewBox="0 0 24 24"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg></button>
+<div id="st-v5-next-chips"></div>
+<script id="st-v5-back-script">SaagarModuleRuntime.run('back',{schemaVersion:1,moduleId:'grooming',nextSteps:[{id:'qms',label:'Open Queue →'}],customerSelectors:[],accessContext:false});</script>
+
+<link id="st-v5-emp-assist-style" rel="stylesheet" href="../../shared/module-employee.css"><script id="st-v5-emp-assist-script">SaagarModuleRuntime.run('employees',{schemaVersion:1,moduleId:'grooming',nextSteps:[{id:'qms',label:'Open Queue →'}],customerSelectors:[],accessContext:false});</script>
+
+<script id="st-v5-module-audit-bridge">SaagarModuleRuntime.run('audit',{schemaVersion:1,moduleId:'grooming',nextSteps:[{id:'qms',label:'Open Queue →'}],customerSelectors:[],accessContext:false});</script>
+</body>
+</html>

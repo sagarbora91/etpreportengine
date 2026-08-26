@@ -1,0 +1,2126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="../../shared/module-bridge.js"></script>
+<script src="../../shared/module-runtime.js"></script>
+<link rel="stylesheet" href="../../shared/module-delete-cell.css">
+<script src="../../shared/mah4-runtime.js"></script>
+<script id="mah4-stage-b-runtime">SaagarMah4Runtime.bootModule({moduleId:'expense'});</script>
+<script id="st-v5-iframe-shim">SaagarModuleRuntime.run('storage',{schemaVersion:1,moduleId:'expense',nextSteps:[{id:'tax',label:'Check Tax →'}],customerSelectors:[],accessContext:true});</script>
+<script id="st-v5-safety-net">SaagarModuleRuntime.run('safety',{schemaVersion:1,moduleId:'expense',nextSteps:[{id:'tax',label:'Check Tax →'}],customerSelectors:[],accessContext:true});</script>
+<link rel="stylesheet" href="../../shared/module-mobile-common.css">
+<script id="st-v5-mobile-boot">SaagarModuleRuntime.run('mobile',{schemaVersion:1,moduleId:'expense',nextSteps:[{id:'tax',label:'Check Tax →'}],customerSelectors:[],accessContext:true});</script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Expense Manager — Central Financial Ledger · Saagar Traders</title>
+<link rel="stylesheet" href="../../shared/module-brand-tokens.css">
+<link rel="stylesheet" href="../../shared/module-responsive.css">
+<link rel="stylesheet" href="../../shared/module-components.css">
+<link rel="stylesheet" href="../../shared/module-table.css">
+<script src="../../shared/module-ui-runtime.js"></script>
+<script src="../../shared/module-table-runtime.js"></script>
+<script src="../../shared/module-rendered-components.js"></script>
+<script id="phase6g-expense-render-policy">
+var ExpenseRenderedPolicy=SaagarRenderedComponents.createPolicy({
+  'open-dashboard':{handler:'go',args:1},'open-ledger':{handler:'go',args:1},'open-udhaar':{handler:'go',args:1},'open-cash-statement':{handler:'go',args:1},'open-petty-cash':{handler:'go',args:1},'open-vendors':{handler:'go',args:1},'open-budgets':{handler:'go',args:1},'open-cross-module':{handler:'go',args:1},'open-month-tax':{handler:'go',args:1},'open-audit':{handler:'go',args:1},'st-v5-home-fab':null,
+  'dashboard-open-cash-statement':{handler:'go',args:1},'dashboard-review-cross-module':{handler:'go',args:1},'dashboard-open-month-close':{handler:'go',args:1},'dashboard-open-all-ledger-entries':{handler:'go',args:1},
+  'select-income-entry':{handler:'setET',args:1},'select-expense-entry':{handler:'setET',args:1},'save-ledger-entry':{handler:'addEntry',args:0},'export-ledger-csv':{handler:'exportLedgerCSV',args:0},'view-ledger-photo':{handler:'viewPhoto',args:1,delegated:true},'share-ledger-entry':{handler:'shareEntry',args:1,delegated:true},'approve-ledger-entry':{handler:'approveEntry',args:1,delegated:true},'edit-ledger-entry':{handler:'editEntry',args:1,delegated:true},'void-ledger-entry':{handler:'voidEntry',args:1,delegated:true},
+  'open-ledger-to-post':{handler:'go',args:1},'post-recurring-entry':{handler:'postRecurring',args:1,delegated:true},'edit-recurring-template':{handler:'editRecTpl',args:1,delegated:true},'toggle-recurring-template':{handler:'toggleRecTpl',args:1,delegated:true},'delete-recurring-template':{handler:'delRecTpl',args:1,delegated:true},'add-recurring-template':{handler:'addRecTpl',args:0},
+  'filter-statement-all-stores':{handler:'setSST',args:1,delegated:true},'filter-statement-store':{handler:'setSST',args:1,delegated:true},'print-cash-statement':{handler:'printStmt',args:0},'approve-business-day':{handler:'approveDay',args:0},'reopen-business-day':{handler:'reopenDay',args:0},'close-business-day':{handler:'closeDay',args:0},'print-store-statement':{handler:'printStmt',args:0},'approve-store-day':{handler:'approveStoreDay',args:1,delegated:true},'reopen-store-day':{handler:'reopenStoreDay',args:1,delegated:true},'close-store-day':{handler:'closeStoreDay',args:1,delegated:true},
+  'set-petty-cash-float':{handler:'setFloat',args:0},'record-petty-cash-disbursement':{handler:'pettyOut',args:0},'add-vendor':{handler:'addVendor',args:0},'remove-vendor':{handler:'delVendor',args:1},'copy-previous-month-budgets':{handler:'copyBudgets',args:0},'post-source-items':{handler:'postSrc',args:1,delegated:true},'post-all-source-items':{handler:'postSrc',args:1,delegated:true},'generate-lock-tax-feed':{handler:'genTaxFeed',args:0},'export-month-csv':{handler:'exportMonthCSV',args:0},'export-audit-csv':{handler:'exportAuditCSV',args:0},
+  'add-receivable':{handler:'addReceivable',args:0},'pay-receivable':{handler:'payReceivable',args:1,delegated:true},'remind-receivable':{handler:'remindReceivable',args:1,delegated:true},'void-receivable':{handler:'voidReceivable',args:1,delegated:true},'close-generated-modal':{handler:'closeModal',args:0},'cancel-generated-modal':{handler:'closeModal',args:0},'confirm-generated-modal':null
+},{
+  ledger:{strategy:'grid',reason:'ledger review requires cross-column financial comparison'},
+  'statement-inflows':{strategy:'priority'},'statement-outflows':{strategy:'priority'},'statement-reconciliation':{strategy:'priority'},
+  vendors:{strategy:'cards'},budgets:{strategy:'cards'},
+  'cross-module':{strategy:'grid',reason:'source posting review requires cross-column comparison'},
+  'month-summary':{strategy:'cards'},'firm-profit-loss':{strategy:'cards'},
+  audit:{strategy:'grid',reason:'audit review requires chronological cross-column comparison'},receivables:{strategy:'cards'}
+});
+</script>
+<style>
+:root{
+  --navy:#0d2340; --navy-mid:#1a3a5c; --navy-light:#264d7a;
+  --gold:#b8922a; --gold-light:#d4a843; --gold-pale:#fdf6e3;
+  --cream:#faf8f3; --paper:#ffffff;
+  --red:#b91c1c; --red-pale:#fef2f2; --amber:#b45309; --amber-pale:#fffbeb;
+  --green:#166534; --green-pale:#f0fdf4; --blue:#1d4ed8; --blue-pale:#eff6ff;
+  --gray-50:#fafafa; --gray-100:#f4f4f5; --gray-200:#e4e4e7; --gray-300:#d4d4d8;
+  --gray-400:#a1a1aa; --gray-500:#71717a; --gray-600:#52525b; --gray-700:#3f3f46; --gray-800:#27272a;
+  --radius:10px; --radius-lg:16px;
+  --font-sans:'DM Sans',system-ui,'Segoe UI',Roboto,Arial,sans-serif;
+  --font-serif:'DM Serif Display',Georgia,'Times New Roman',serif;
+  /* derived tokens — semantic tints/elevation kept on top of the shared scale */
+  --green-mid:#bbf7d0; --purple:#7c3aed; --purple-pale:#f5f3ff;
+  --red-border:#fecaca; --blue-border:#bfdbfe; --amber-border:#fed7aa; --purple-border:#ddd6fe;
+  --shadow:0 2px 12px rgba(13,35,64,.08); --shadow-lg:0 12px 30px rgba(13,35,64,.14);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font-sans);background:var(--cream);color:var(--gray-800);font-size:14px;line-height:1.5;-webkit-text-size-adjust:100%}
+h1,h2,h3,h4{font-family:var(--font-serif);color:var(--navy);font-weight:400;line-height:1.15}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:none;background:none}
+button:disabled{opacity:.5;cursor:not-allowed}
+.hide{display:none!important}
+.mono{font-variant-numeric:tabular-nums}
+
+/* HEADER */
+.hdr{background:var(--navy);color:var(--paper);padding:14px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.hdr .logo{width:38px;height:38px;border-radius:9px;background:linear-gradient(135deg,var(--gold),var(--gold-light));background-color:var(--gold);display:grid;place-items:center;font-family:var(--font-serif);color:var(--navy);font-size:18px}
+.hdr h1{color:var(--paper);font-size:18px}
+.hdr .sub{color:var(--gold-light);font-size:11px;font-weight:600;letter-spacing:.6px;text-transform:uppercase}
+.hdr-badge{background:var(--gold);color:var(--navy);font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;letter-spacing:.5px;text-transform:uppercase}
+.hdr-right{margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.role-sel{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.16);border-radius:8px;padding:5px 9px;font-size:12px}
+.role-sel label{color:rgba(255,255,255,.6);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+.role-sel select{background:transparent;color:var(--paper);border:none;outline:none;font-weight:600}
+.role-sel select option{color:var(--navy)}
+
+/* TABS */
+.tabs{background:var(--navy-mid);display:flex;overflow-x:auto;padding:0 8px}
+.tab{color:rgba(255,255,255,.72);padding:12px 16px;font-size:13px;font-weight:600;white-space:nowrap;border-bottom:3px solid transparent;transition:all .12s}
+.tab:hover{color:var(--paper)}
+.tab.active{color:var(--gold-light);border-bottom-color:var(--gold-light)}
+.tab .pill{background:var(--gold);color:var(--navy);font-size:11px;font-weight:700;border-radius:999px;padding:1px 6px;margin-left:5px}
+.tab .pill.red{background:var(--red);color:var(--paper)}
+
+/* WRAP */
+.wrap{max-width:1100px;margin:0 auto;padding:18px 16px 60px}
+.sec{display:none}
+.sec.active{display:block;animation:fade .2s ease}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+/* CARDS */
+.card{background:var(--paper);border:1px solid var(--gray-200);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px;margin-bottom:16px}
+.card-h{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+.card-h h3{font-size:18px}
+.card-h p{color:var(--gray-600);font-size:12px;margin-top:3px}
+.card-h .actions{display:flex;gap:6px;flex-wrap:wrap}
+
+/* KPI */
+.kgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+.kpi{background:var(--paper);border:1px solid var(--gray-200);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+.kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--gold)}
+.kpi.g::before{background:var(--green-mid)}.kpi.r::before{background:var(--red)}.kpi.a::before{background:var(--amber)}.kpi.b::before{background:var(--blue)}
+.kpi .l{font-size:11px;font-weight:700;letter-spacing:.7px;color:var(--gray-600);text-transform:uppercase}
+.kpi .v{font-size:22px;font-weight:700;color:var(--navy);margin:6px 0 2px;font-variant-numeric:tabular-nums;font-family:var(--font-serif)}
+.kpi .s{font-size:11px;color:var(--gray-600)}
+
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:8px;border:1px solid var(--gray-300);background:var(--paper);color:var(--navy);font-weight:600;font-size:12.5px;transition:all .12s}
+.btn:hover{border-color:var(--navy-light);transform:translateY(-1px)}
+.btn.p{background:var(--navy);color:var(--paper);border-color:var(--navy)}
+.btn.gold{background:var(--gold);color:var(--paper);border-color:var(--gold)}
+.btn.green{background:var(--green);color:var(--paper);border-color:var(--green)}
+.btn.red{background:var(--paper);color:var(--red);border-color:var(--red-border)}
+.btn.sm{padding:5px 10px;font-size:11.5px}
+.btn.xs{padding:3px 8px;font-size:11px}
+.btn.block{width:100%;justify-content:center}
+
+/* FORM */
+.fgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.fgrid .full{grid-column:1/-1}
+.fld label{display:block;font-size:11px;font-weight:700;letter-spacing:.5px;color:var(--gray-600);text-transform:uppercase;margin-bottom:5px}
+.fld input,.fld select,.fld textarea{width:100%;padding:9px 11px;border:1px solid var(--gray-300);border-radius:8px;font-size:13px;background:var(--paper)}
+.fld input:focus,.fld select:focus,.fld textarea:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2px rgba(184,146,42,.16)}
+.seg{display:flex;gap:0;border:1px solid var(--gray-300);border-radius:8px;overflow:hidden}
+.seg button{flex:1;padding:9px;font-size:12.5px;font-weight:700;background:var(--paper);color:var(--gray-600)}
+.seg button.on.inc{background:var(--green-pale);color:var(--green);box-shadow:inset 0 -3px 0 var(--green)}
+.seg button.on.exp{background:var(--red-pale);color:var(--red);box-shadow:inset 0 -3px 0 var(--red)}
+
+/* TABLE */
+.twrap{overflow:auto;border:1px solid var(--gray-200);border-radius:8px}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{background:var(--navy);color:var(--paper);text-align:left;padding:9px 10px;font-weight:600;font-size:11.5px;white-space:nowrap}
+td{padding:8px 10px;border-bottom:1px solid var(--gray-200);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+tbody tr:hover td{background:var(--cream)}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+/* STICKY IDENTITY COLUMN — keep the first (identity) column pinned while wide
+   ledgers scroll horizontally inside .twrap. Pure CSS, no JS/markup rewiring. */
+.twrap th:first-child,.twrap td:first-child{position:sticky;left:0;z-index:1}
+.twrap td:first-child{background:var(--paper)}
+.twrap tbody tr:hover td:first-child{background:var(--cream)}
+.twrap th:first-child{z-index:3;background:var(--navy)}
+
+/* BADGES */
+.bdg{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;border:1px solid transparent}
+.bdg.inc{color:var(--green);background:var(--green-pale);border-color:var(--green-mid)}
+.bdg.exp{color:var(--red);background:var(--red-pale);border-color:var(--red-border)}
+.bdg.cash{color:var(--gold);background:var(--gold-pale);border-color:var(--gold-light)}
+.bdg.bank{color:var(--blue);background:var(--blue-pale);border-color:var(--blue-border)}
+.bdg.upi{color:var(--purple);background:var(--purple-pale);border-color:var(--purple-border)}
+.bdg.card{color:var(--gray-600);background:var(--gray-100);border-color:var(--gray-300)}
+.bdg.auto{color:var(--blue);background:var(--blue-pale);border-color:var(--blue-border)}
+.bdg.locked{color:var(--paper);background:var(--navy)}
+.bdg.void{color:var(--gray-600);background:var(--gray-100);border-color:var(--gray-300);text-decoration:line-through}
+.bdg.ok{color:var(--green);background:var(--green-pale);border-color:var(--green-mid)}
+.bdg.warn{color:var(--amber);background:var(--amber-pale);border-color:var(--amber-border)}
+.bdg.src{color:var(--purple);background:var(--purple-pale);border-color:var(--purple-border)}
+
+/* STATEMENT */
+.st-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.st-box{border:1px solid var(--gray-200);border-radius:8px;overflow:hidden}
+.st-box .st-th{background:var(--navy-mid);color:var(--paper);padding:8px 12px;font-size:12px;font-weight:700;letter-spacing:.4px}
+.st-row{display:flex;justify-content:space-between;padding:7px 12px;border-bottom:1px solid var(--gray-200);font-size:12.5px}
+.st-row:last-child{border-bottom:0}
+.st-row.tot{background:var(--cream);font-weight:700;color:var(--navy)}
+.st-row .d{color:var(--gray-600)}
+.deno{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.deno-row{display:grid;grid-template-columns:60px 1fr 90px;gap:6px;align-items:center;font-size:12px}
+.deno-row input{min-height:44px;padding:8px 11px;border:1px solid var(--gray-300);border-radius:8px;text-align:right;font-size:16px;font-weight:600;font-variant-numeric:tabular-nums;background:var(--paper)}
+.deno-row input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2px rgba(184,146,42,.16)}
+.recon{padding:14px;border-radius:8px;text-align:center;font-weight:700;margin-top:12px}
+.recon.ok{background:var(--green-pale);color:var(--green);border:1px solid var(--green-mid)}
+.recon.bad{background:var(--red-pale);color:var(--red);border:1px solid var(--red-border)}
+.recon .big{font-size:24px;font-family:var(--font-serif);display:block;margin-top:4px;font-variant-numeric:tabular-nums}
+
+/* BANNER */
+.banner{padding:11px 14px;border-radius:8px;font-size:12.5px;font-weight:600;margin-bottom:14px;display:flex;gap:8px;align-items:flex-start}
+.banner.warn{background:var(--amber-pale);color:var(--amber);border:1px solid var(--amber-border)}
+.banner.info{background:var(--blue-pale);color:var(--blue);border:1px solid var(--blue-border)}
+.banner.lock{background:var(--gray-100);color:var(--gray-800);border:1px solid var(--gray-300)}
+.banner.ok{background:var(--green-pale);color:var(--green);border:1px solid var(--green-mid)}
+
+/* EMPTY */
+.empty{padding:26px;text-align:center;color:var(--gray-600);font-size:12.5px;border:1px dashed var(--gray-300);border-radius:8px;background:var(--cream)}
+
+/* MODAL */
+.mbk{position:fixed;inset:0;background:rgba(13,35,64,.5);display:flex;align-items:center;justify-content:center;z-index:90;padding:16px}
+.modal{background:var(--paper);border-radius:12px;max-width:440px;width:100%;max-height:90vh;overflow:auto;box-shadow:var(--shadow-lg)}
+.modal-h{padding:16px 18px;border-bottom:1px solid var(--gray-200);display:flex;justify-content:space-between;align-items:center}
+.modal-h h3{font-size:17px}
+.modal-b{padding:18px}
+
+/* TOAST */
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--navy);color:var(--paper);padding:11px 18px;border-radius:9px;font-size:13px;font-weight:600;z-index:120;box-shadow:var(--shadow-lg);border-left:4px solid var(--gold);max-width:90vw}
+.toast.ok{border-left-color:var(--green-mid)}.toast.err{border-left-color:var(--red)}.toast.warn{border-left-color:var(--amber)}
+
+/* MISC */
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.sp{flex:1}
+.muted{color:var(--gray-600)}
+.small{font-size:11px}
+#todayBadge{color:rgba(255,255,255,.75)}
+.gauge{height:7px;border-radius:999px;background:var(--gray-200);overflow:hidden;margin-top:6px}
+.gauge .f{height:100%;background:linear-gradient(90deg,var(--green-mid),var(--gold))}
+.gauge .f.over{background:linear-gradient(90deg,var(--amber),var(--red))}
+.flist{display:flex;flex-direction:column;gap:7px}
+.fitem{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:9px 11px;border:1px solid var(--gray-200);border-radius:8px}
+.fitem .ic{width:30px;height:30px;border-radius:7px;background:var(--gold-pale);color:var(--gold);display:grid;place-items:center;font-size:14px}
+@media(max-width:760px){
+  .kgrid{grid-template-columns:repeat(2,1fr)}
+  .fgrid{grid-template-columns:1fr}
+  .st-grid{grid-template-columns:1fr}
+  .deno{grid-template-columns:1fr}
+  .wrap{padding:14px 10px 50px}
+}
+/* ────── MOBILE / COMPACT RESPONSIVE LAYER (≤899px) ──────
+   Additive only. Wide-screen layout above is unchanged.
+   Goals: no horizontal overflow, wide tables scroll inside their
+   .twrap wrapper, grids collapse to 1 column (KPI tiles stay 2),
+   form controls ≥16px (no iOS focus-zoom), tap targets ≥44px. */
+@media(max-width:899px){
+  html,body{max-width:100%;overflow-x:hidden}
+
+  /* Keep every destination visible without a sideways tab gesture. */
+  .tabs{flex-wrap:wrap;overflow-x:hidden;padding:4px 8px}
+  .tab{flex:1 1 auto;text-align:center;padding:10px 12px}
+
+  /* keep multi-column form/statement grids single-column */
+  .fgrid,.st-grid,.deno{grid-template-columns:1fr}
+  /* small KPI tiles stay 2-up; allow shrink so they never overflow */
+  .kgrid{grid-template-columns:repeat(2,1fr);gap:10px}
+  .kpi,.card,.st-box,.fld,.kgrid>*{min-width:0}
+  .kpi .v{font-size:19px}
+
+  /* let long content in flex/grid children shrink instead of pushing width */
+  .card-h,.row,.fitem{min-width:0}
+  .card-h h3,.card-h p,.row>*{min-width:0}
+  .wrap{padding:12px 10px 48px}
+  .card{padding:14px}
+
+  /* HEADER — wrap cleanly, let the role selector drop to its own line */
+  .hdr{padding:12px 14px;gap:10px}
+  .hdr-right{margin-left:0;width:100%}
+  .role-sel{flex:1}
+  .role-sel select{flex:1;min-width:0}
+
+  /* tables: scroll horizontally inside the existing .twrap wrapper
+     (do NOT squash). momentum scroll on iOS. The identity (first) column
+     stays pinned via the sticky rule above, so give the 9-col ledger room. */
+  .twrap{-webkit-overflow-scrolling:touch}
+  .twrap table{min-width:760px}
+
+  /* FORM CONTROLS — ≥16px stops focus-zoom; ≥44px tall is tap-friendly.
+     Covers both .fld controls and the inline-styled inputs used in
+     statement/close/vendor/budget headers. */
+  /* ≥16px stops focus-zoom and ≥44px is tap-friendly — applied to ALL controls
+     (including the inline-styled date/month/vendor/budget inputs, not just .fld). */
+  input,select,textarea{font-size:16px;min-height:44px}
+  .fld input,.fld select,.fld textarea{font-size:16px;min-height:44px}
+  .seg button{min-height:44px}
+  /* denomination inputs are cash-counting fields: keep them tall, right-aligned
+     with large numerals so notes are easy to tally on a phone. */
+  .deno-row input{min-height:44px;font-size:16px;text-align:right}
+
+  /* BUTTONS — every actionable control meets the 44px tap floor, including the
+     in-row table buttons (their rows scroll horizontally). */
+  .btn{min-height:44px}
+  .btn.sm{min-height:44px}
+  .btn.xs{min-height:44px}
+  /* a button used as a tab-like full-width action should stretch */
+  .btn.block{min-height:46px}
+
+  /* dashboard "cash position" inline 3-up row → wrap & breathe */
+  .row[style*="gap:20px"]{gap:14px!important}
+
+  /* modal/toast already fluid; just make sure they fit small widths */
+  .modal{max-width:100%}
+  .toast{left:10px;right:10px;transform:none;max-width:none;text-align:center}
+
+  /* ─────── LIST/RECORD TABLES → CARDS (compact ≤899px) ───────
+     Only the small list tables are reflowed into stacked cards. The dense
+     multi-column LOGS (Ledger/Recent ledgerTable, Sync feed, Audit trail)
+     are intentionally LEFT as horizontal-scroll inside .twrap (sticky first
+     column above). Each block below is scoped to a single per-table class so
+     it can never reach the log tables. Override .twrap table{min-width:760px}
+     and the sticky first-column rule from the layers above. */
+
+  /* Vendors — name + spend + entries + Remove action */
+  .gm-tbl-vendors{min-width:0!important;width:100%;display:block}
+  .gm-tbl-vendors thead,.gm-tbl-vendors tfoot{display:none}
+  .gm-tbl-vendors tbody{display:block}
+  .gm-tbl-vendors tbody tr{display:block;margin:0 0 12px;border:1px solid var(--gray-200,#e5e7eb);border-radius:12px;background:#fff;box-shadow:0 1px 3px rgba(13,35,64,.08);overflow:hidden;position:relative}
+  .gm-tbl-vendors td.name-cell{position:static!important;display:block;background:var(--navy,#0d2340)!important;box-shadow:none;padding:10px 44px 10px 12px!important;text-align:left!important;width:auto!important}
+  .gm-tbl-vendors td.name-cell,.gm-tbl-vendors td.name-cell *{color:#fff!important}
+
+  .gm-tbl-vendors tbody td{display:flex;align-items:center;justify-content:space-between;gap:10px;width:auto!important;text-align:right!important;border:0;border-bottom:1px solid var(--gray-100,#f3f4f6);padding:9px 12px!important;min-height:40px}
+  .gm-tbl-vendors tbody tr td:last-child{border-bottom:0}
+  .gm-tbl-vendors tbody td::before{content:attr(data-label);flex:0 0 auto;text-align:left;font-size:11px;font-weight:700;color:var(--gray-500,#6b7280);text-transform:uppercase}
+  .gm-tbl-vendors tbody td:empty{display:none}
+  .gm-tbl-vendors tbody td input,.gm-tbl-vendors tbody td select{flex:1 1 auto;min-width:0;width:auto!important;min-height:40px}
+
+  /* Budgets — category + budget input + actual + used + status */
+  .gm-tbl-budget{min-width:0!important;width:100%;display:block}
+  .gm-tbl-budget thead,.gm-tbl-budget tfoot{display:none}
+  .gm-tbl-budget tbody{display:block}
+  .gm-tbl-budget tbody tr{display:block;margin:0 0 12px;border:1px solid var(--gray-200,#e5e7eb);border-radius:12px;background:#fff;box-shadow:0 1px 3px rgba(13,35,64,.08);overflow:hidden;position:relative}
+  .gm-tbl-budget td.name-cell{position:static!important;display:block;background:var(--navy,#0d2340)!important;box-shadow:none;padding:10px 44px 10px 12px!important;text-align:left!important;width:auto!important}
+  .gm-tbl-budget td.name-cell,.gm-tbl-budget td.name-cell *{color:#fff!important}
+
+  .gm-tbl-budget tbody td{display:flex;align-items:center;justify-content:space-between;gap:10px;width:auto!important;text-align:right!important;border:0;border-bottom:1px solid var(--gray-100,#f3f4f6);padding:9px 12px!important;min-height:40px}
+  .gm-tbl-budget tbody tr td:last-child{border-bottom:0}
+  .gm-tbl-budget tbody td::before{content:attr(data-label);flex:0 0 auto;text-align:left;font-size:11px;font-weight:700;color:var(--gray-500,#6b7280);text-transform:uppercase}
+  .gm-tbl-budget tbody td:empty{display:none}
+  .gm-tbl-budget tbody td input,.gm-tbl-budget tbody td select{flex:1 1 auto;min-width:0;width:auto!important;min-height:40px}
+
+  /* Month-summary — per-head amount breakdown (Head + Amount) */
+  .gm-tbl-monthsum{min-width:0!important;width:100%;display:block}
+  .gm-tbl-monthsum thead,.gm-tbl-monthsum tfoot{display:none}
+  .gm-tbl-monthsum tbody{display:block}
+  .gm-tbl-monthsum tbody tr{display:block;margin:0 0 12px;border:1px solid var(--gray-200,#e5e7eb);border-radius:12px;background:#fff;box-shadow:0 1px 3px rgba(13,35,64,.08);overflow:hidden;position:relative}
+  .gm-tbl-monthsum td.name-cell{position:static!important;display:block;background:var(--navy,#0d2340)!important;box-shadow:none;padding:10px 44px 10px 12px!important;text-align:left!important;width:auto!important}
+  .gm-tbl-monthsum td.name-cell,.gm-tbl-monthsum td.name-cell *{color:#fff!important}
+
+  .gm-tbl-monthsum tbody td{display:flex;align-items:center;justify-content:space-between;gap:10px;width:auto!important;text-align:right!important;border:0;border-bottom:1px solid var(--gray-100,#f3f4f6);padding:9px 12px!important;min-height:40px}
+  .gm-tbl-monthsum tbody tr td:last-child{border-bottom:0}
+  .gm-tbl-monthsum tbody td::before{content:attr(data-label);flex:0 0 auto;text-align:left;font-size:11px;font-weight:700;color:var(--gray-500,#6b7280);text-transform:uppercase}
+  .gm-tbl-monthsum tbody td:empty{display:none}
+  .gm-tbl-monthsum tbody td input,.gm-tbl-monthsum tbody td select{flex:1 1 auto;min-width:0;width:auto!important;min-height:40px}
+
+  /* Per-firm P&L — firm + income + expense + net */
+  .gm-tbl-firmpl{min-width:0!important;width:100%;display:block}
+  .gm-tbl-firmpl thead,.gm-tbl-firmpl tfoot{display:none}
+  .gm-tbl-firmpl tbody{display:block}
+  .gm-tbl-firmpl tbody tr{display:block;margin:0 0 12px;border:1px solid var(--gray-200,#e5e7eb);border-radius:12px;background:#fff;box-shadow:0 1px 3px rgba(13,35,64,.08);overflow:hidden;position:relative}
+  .gm-tbl-firmpl td.name-cell{position:static!important;display:block;background:var(--navy,#0d2340)!important;box-shadow:none;padding:10px 44px 10px 12px!important;text-align:left!important;width:auto!important}
+  .gm-tbl-firmpl td.name-cell,.gm-tbl-firmpl td.name-cell *{color:#fff!important}
+
+  .gm-tbl-firmpl tbody td{display:flex;align-items:center;justify-content:space-between;gap:10px;width:auto!important;text-align:right!important;border:0;border-bottom:1px solid var(--gray-100,#f3f4f6);padding:9px 12px!important;min-height:40px}
+  .gm-tbl-firmpl tbody tr td:last-child{border-bottom:0}
+  .gm-tbl-firmpl tbody td::before{content:attr(data-label);flex:0 0 auto;text-align:left;font-size:11px;font-weight:700;color:var(--gray-500,#6b7280);text-transform:uppercase}
+  .gm-tbl-firmpl tbody td:empty{display:none}
+  .gm-tbl-firmpl tbody td input,.gm-tbl-firmpl tbody td select{flex:1 1 auto;min-width:0;width:auto!important;min-height:40px}
+}
+@media print{
+  .hdr,.tabs,.card-h .actions,.btn,.role-sel{display:none!important}
+  body{background:var(--paper)}
+  .sec{display:none!important}
+  .sec.active{display:block!important}
+  .card{box-shadow:none;border-color:var(--gray-300);break-inside:avoid}
+}
+html.saagar-legacy-webview .kgrid,
+html.saagar-legacy-webview .fgrid,
+html.saagar-legacy-webview .st-grid,
+html.saagar-legacy-webview .deno{display:-webkit-flex;display:flex;-webkit-flex-wrap:wrap;flex-wrap:wrap}
+html.saagar-legacy-webview .kgrid>*{width:24%}
+html.saagar-legacy-webview .fgrid>*,
+html.saagar-legacy-webview .st-grid>*,
+html.saagar-legacy-webview .deno>*{width:48%;-webkit-flex:1 1 280px;flex:1 1 280px}
+</style>
+<style id="st-v5-hide-css">#vn,[onclick="addVendor()"]{display:none !important}</style>
+
+<link id="st-v5-uniform-css" rel="stylesheet" href="../../shared/module-uniform.css">
+<link rel="stylesheet" href="../../c1-control-desk.css">
+<script src="../../c1-operations-policy.js"></script>
+<script src="../../c1-control-desk.js" defer></script>
+<link rel="stylesheet" href="../../mobile-layout.css">
+<script src="../../app-i18n.js"></script>
+</head>
+<body data-saagar-ui data-saagar-width="auto">
+<script id="phase6g-expense-ui-boot">SaagarUiFoundation.configure(document.body,{mode:'auto'});SaagarRenderedComponents.observe(document.body,ExpenseRenderedPolicy);</script>
+
+<header class="hdr">
+  <div class="logo">₹</div>
+  <div>
+    <h1>Expense Manager</h1>
+    <div class="sub">Central Financial Ledger</div>
+  </div>
+  <span class="hdr-badge" id="firmBadge">Saagar Traders</span>
+  <div class="hdr-right">
+    <div class="role-sel">
+      <label>Role</label>
+      <select data-action="select-role" id="roleSel" onchange="setRole(this.value)">
+        <option value="cashier">Cashier (maker)</option>
+        <option value="accounts">Accounts (checker)</option>
+        <option value="owner">Owner (approver)</option>
+      </select>
+    </div>
+    <span class="small muted" id="todayBadge"></span>
+  </div>
+</header>
+
+<nav class="tabs" id="tabBar">
+  <button data-action="open-dashboard" class="tab active" data-sec="dash" onclick="go('dash')">Dashboard</button>
+  <button data-action="open-ledger" class="tab" data-sec="ledger" onclick="go('ledger')">Ledger</button>
+  <button data-action="open-udhaar" class="tab" data-sec="udhaar" onclick="go('udhaar')">Udhaar <span class="pill" id="udhaarPill">0</span></button>
+  <button data-action="open-cash-statement" class="tab" data-sec="stmt" onclick="go('stmt')">Cash Statement</button>
+  <button data-action="open-petty-cash" class="tab" data-sec="petty" onclick="go('petty')">Petty Cash</button>
+  <button data-action="open-vendors" class="tab" data-sec="vendors" onclick="go('vendors')">Vendors</button>
+  <button data-action="open-budgets" class="tab" data-sec="budget" onclick="go('budget')">Budgets</button>
+  <button data-action="open-cross-module" class="tab" data-sec="sync" onclick="go('sync')">Cross-module <span class="pill" id="syncPill">0</span></button>
+  <button data-action="open-month-tax" class="tab" data-sec="close" onclick="go('close')">Month &amp; Tax</button>
+  <button data-action="open-audit" class="tab" id="auditTabBtn" data-sec="audit" onclick="go('audit')">Audit</button>
+</nav>
+
+<div class="wrap">
+  <section class="sec active" id="sec-dash"><div id="dashC"></div></section>
+  <section class="sec" id="sec-ledger"><div id="ledgerC"></div></section>
+  <section class="sec" id="sec-udhaar"><div id="udhaarC"></div></section>
+  <section class="sec" id="sec-stmt"><div id="stmtC"></div></section>
+  <section class="sec" id="sec-petty"><div id="pettyC"></div></section>
+  <section class="sec" id="sec-vendors"><div id="vendorsC"></div></section>
+  <section class="sec" id="sec-budget"><div id="budgetC"></div></section>
+  <section class="sec" id="sec-sync"><div id="syncC"></div></section>
+  <section class="sec" id="sec-close"><div id="closeC"></div></section>
+  <section class="sec" id="sec-audit"><div id="auditC"></div></section>
+</div>
+
+<div id="modalRoot"></div>
+<div class="toast hide" id="toast"></div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════
+   EXPENSE MANAGER v2 — CENTRAL FINANCIAL LEDGER
+   Saagar Traders / Gold Mart Group
+   - gm_expenses is the single master ledger (income + expense)
+   - tanishq_statements holds per-day reconciliation + lock state
+   - Daily Cash Statement is AUTO-GENERATED from the ledger (locked rows)
+   - Cross-module feeds: WSC / Payroll / Stock / QMS  →  Tax monthly feed
+   Backward compatible: migrates existing gm_expenses & tanishq_statements.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ---------- storage ---------- */
+var K = {
+  exp:'gm_expenses', stmt:'tanishq_statements', role:'gm_role',
+  vend:'gm_vendors', budg:'gm_budgets', audit:'gm_audit',
+  set:'gm_settings', tax:'gm_tax_feed', petty:'gm_petty',
+  udhaar:'saagar_udhaar_ledger_v1',   /* Wave 3: standalone receivables register (isolated from cash/income) */
+  rec:'gm_recurring',                 /* P1-16: recurring expense templates (config, not money) */
+  gstRates:'gm_gst_rates'             /* P1-17: per-category income GST rates {category:pct}; gm_ prefix = shell-backup covered */
+};
+function L(k,fb){ try{ var v=localStorage.getItem(k); return v?JSON.parse(v):fb; }catch(e){ return fb; } }
+function S(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){ toast('Storage error: '+e.message,'err'); } }
+
+/* R0-W1 SEC-04 (Slice B): resolve the shell's step-up re-auth across the srcdoc boundary.
+   FAIL-OPEN ON SKEW: an older shell without the helper => TRUE => the action proceeds as today. */
+const stReauth=SaagarModuleRuntime.reauth;
+
+/* ---------- constants ---------- */
+var EXP_CATS=['Inventory','Rent','Salary','Utilities','Marketing','Bank Charges','Transport','Repairs','Statutory','Miscellaneous'];
+var INC_CATS=['Retail Sale','Service Income','Other Income'];
+var MODES=['Cash','Bank','UPI','Card'];
+var DENOMS=[2000,500,200,100,50,20,10,5,2,1];
+var REASONS=['Cash shortage correction','Duplicate entry','Missed receipt','Wrong payment mode','Voucher correction','Other'];
+
+/* ---------- util ---------- */
+function todayStr(){ var d=new Date(); return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate()); }
+function p2(n){ return (n<10?'0':'')+n; }
+function ym(s){ return (s||todayStr()).slice(0,7); }
+function uid(pfx){ return (pfx||'e')+'_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,7); }
+function nINR(n){ if(n==null||isNaN(n))return '₹0'; return '₹'+Math.round(n).toLocaleString('en-IN'); }
+function num(v){ var n=parseFloat(v); return isNaN(n)?0:n; }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+function badgeToken(s){ var v=String(s==null?'':s).toLowerCase(); return /^(cash|bank|upi|card|auto)$/.test(v)?v:'auto'; }
+/* JavaScript-source encoder for a value placed inside a single-quoted inline
+   handler argument. This is deliberately separate from HTML text escaping. */
+function jsq(s){ if(s!=null&&typeof s!=='string'&&typeof s!=='number'&&typeof s!=='boolean')throw new TypeError('inline argument must be primitive'); var v=String(s==null?'':s); if(v.length>512)throw new RangeError('inline argument too long'); return v.replace(/[\\'"&<>\u0000-\u001f\u007f\u2028\u2029]/g,function(c){var n=c.charCodeAt(0),h=n.toString(16);while(h.length<(n<=255?2:4))h='0'+h;return n<=255?'\\x'+h:'\\u'+h;}); }
+function jargs(v){ if(v!=null&&typeof v!=='string'&&typeof v!=='number'&&typeof v!=='boolean')throw new TypeError('delegated argument must be primitive'); if(typeof v==='string'&&v.length>512)throw new RangeError('delegated argument too long'); return encodeURIComponent(JSON.stringify([v])); }
+/* P1-17: soft format check — Indian GSTIN is 15 chars (2-digit state + 13 alnum). NEVER blocks. */
+function gstinLooksOk(g){ return !g || /^[0-9]{2}[A-Z0-9]{13}$/.test(g); }
+function prevDay(s){ var d=new Date(s+'T00:00:00'); d.setDate(d.getDate()-1); return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate()); }
+/* ---------- on-screen PRINT-PREVIEW bridge (shell shows the doc with Print / Save-PDF / Share) ---------- */
+function stEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function stPrintDoc(o){return SaagarModuleRuntime.printDocument(o,function(){toast('Controlled print is available only inside Saagar Control Centre.','err');});}
+/* ---------- view-date rail (shell-provided window.__stAsOf) ----------
+   asOf() = the day the user wants to VIEW. Defaults to __stAsOf (a valid
+   "YYYY-MM-DD"), else falls back to the module's own today. isPast() is true
+   only when the viewed day is strictly EARLIER than the real today → VIEW-ONLY
+   history mode (no create / edit / save / submit / delete / lock). When asOf
+   equals today (or __stAsOf is empty/invalid) the module behaves exactly as before. */
+function validDate(s){ return typeof s==='string' && /^\d{4}-\d{2}-\d{2}$/.test(s); }
+function asOf(){ try{ var v=window.__stAsOf; return validDate(v)?v:todayStr(); }catch(e){ return todayStr(); } }
+function isPast(){ return asOf()<todayStr(); }
+function toast(m,k){ var t=document.getElementById('toast'); t.textContent=m; t.className='toast '+(k||''); clearTimeout(t._t); t._t=setTimeout(function(){t.classList.add('hide');},2600); }
+/* Per-row WhatsApp/share: read-only summary of ONE entry, sent via the shell's
+   existing share infra (SaagarModuleBridge.shareText / SaagarModuleBridge.share) with offline-safe
+   fallbacks. Never mutates data; every cross-frame call is typeof-guarded. */
+function shareEntry(id){
+  var e=getLedger().find(function(x){return x.id===id;}); if(!e) return;
+  var lines=[
+    (e.type==='income'?'Income':'Expense')+' · '+e.date,
+    'Category: '+(e.category||'—'),
+    'Amount: '+nINR(e.amount),
+    'Mode: '+(e.mode||'—')
+  ];
+  if(e.vendor) lines.push('Vendor: '+e.vendor);
+  if(e.description) lines.push('Note: '+e.description);
+  if(e.void) lines.push('(VOID'+(e.voidReason?' — '+e.voidReason:'')+')');
+  var summary=lines.join('\n');
+  try{
+    if(typeof parent!=='undefined' && parent && parent!==window && typeof SaagarModuleBridge.shareText==='function'){ SaagarModuleBridge.shareText(summary,'expense'); return; }
+  }catch(err){}
+  toast('Controlled sharing is available only inside Saagar Control Centre.','warn');
+}
+function role(){ return localStorage.getItem(K.role)||'cashier'; }
+function setRole(r){ localStorage.setItem(K.role,r); render(); toast('Role: '+r,'ok'); }
+/* Shared Super-Admin flag set by the shell (same key/pattern as the service module). */
+var adminModeKey='st_v2_admin_mode';
+function isSuperAdmin(){ try{ return !!(SaagarModuleBridge.ownerSession&&SaagarModuleBridge.ownerSession.isOwnerActive()); }catch(e){ return false; } }
+function can(act){
+  var r=role();
+  if(act==='entry') return true;
+  if(act==='void') return r==='cashier'||r==='accounts'||r==='owner';
+  if(act==='close') return r==='cashier'||r==='owner';
+  if(act==='approve') return r==='accounts'||r==='owner';
+  if(act==='reopen') return r==='owner';
+  if(act==='monthlock') return r==='owner';
+  if(act==='recurring') return r==='accounts'||r==='owner';   // P1-16: template CRUD; posting is open to all roles
+  if(act==='monthoverride') return r==='owner';               // P1-18/P1-17: locked-month override + GST-rate editing (single verb per Wave-10 decision #1)
+  return false;
+}
+
+/* ---------- audit ---------- */
+function audit(action,detail){
+  var a=L(K.audit,[]); if(!Array.isArray(a)) a=[];   // a corrupted (non-array) store must never brick the calling money action
+  a.unshift({id:uid('a'),at:new Date().toISOString(),by:role(),action:action,detail:detail||''});
+  if(a.length>800) a=a.slice(0,800);
+  S(K.audit,a);
+}
+
+/* ---------- migration / normalization ---------- */
+function normEntry(e){
+  e=e||{};
+  var mode=e.mode||e.paymentMode||'Cash';
+  if(MODES.indexOf(mode)<0) mode=(/cash/i.test(mode)?'Cash':/upi/i.test(mode)?'UPI':/card/i.test(mode)?'Card':'Bank');
+  var type=(e.type||'expense').toLowerCase()==='income'?'income':'expense';
+  var src=e.source||(e.sourceStatementId?'statement':null);
+  var gstA=num(e.gstAmount), gstR=num(e.gstRatePct);   /* P1-17: optional GST breakup — >0 carries, else undefined so legacy rows serialize byte-identical (store/status precedent) */
+  return {
+    id:e.id||uid('e'),
+    type:type,
+    date:(e.date||todayStr()).slice(0,10),
+    amount:num(e.amount),
+    category:e.category||(type==='income'?'Other Income':'Miscellaneous'),
+    mode:mode,
+    vendor:e.vendor||'',
+    firm:e.firm||'',
+    // Wave-5: OPTIONAL per-store cash-drawer tag. Whitelisted to the two canonical
+    // branch codes; anything else (incl. legacy/undefined) → undefined = Unassigned.
+    store:(e.store==='WLMHW'||e.store==='HEMW')?e.store:undefined,
+    gstAmount:gstA>0?gstA:undefined,
+    gstRatePct:gstR>0?gstR:undefined,
+    description:e.description||e.desc||e.d||'',
+    notes:e.notes||'',
+    billPhoto:e.billPhoto||null,
+    source:src,                                  // null|wsc|payroll|stock|qms|statement|petty
+    sourceRef:e.sourceRef||e.sourceStatementId||null,
+    void:!!e.void, voidReason:e.voidReason||null,
+    // #19: ADDITIVE approval status. Only "pending"/"approved" are carried; a missing
+    // status (legacy entry) stays undefined → editable, never coerced to "approved".
+    status:(e.status==='pending'||e.status==='approved')?e.status:undefined,
+    approvedBy:e.approvedBy||null, approvedAt:e.approvedAt||null,
+    createdAt:e.createdAt||new Date().toISOString(),
+    createdBy:e.createdBy||'legacy',
+    editLog:Array.isArray(e.editLog)?e.editLog:[]
+  };
+}
+function getLedger(){ return L(K.exp,[]).map(normEntry); }
+function saveLedger(a){ S(K.exp,a.map(normEntry)); }
+
+function migrateOnce(){
+  if(L(K.set,{}).migratedV2) return;
+  var raw=L(K.exp,[]);
+  if(raw.length) saveLedger(raw.map(normEntry));
+  var st=L(K.stmt,{}), changed=false;
+  Object.keys(st).forEach(function(key){
+    var s=st[key];
+    if(s && s.date && key!==s.date){ st[s.date]=migrateStmt(s); changed=true; }
+    else if(s && s.date){ st[key]=migrateStmt(s); }
+  });
+  if(changed||Object.keys(st).length) S(K.stmt,st);
+  var set=L(K.set,{}); set.migratedV2=true; set.gstRate=set.gstRate||0; S(K.set,set);
+  audit('system.migrate','Migrated to v2 central ledger model');
+}
+function migrateStmt(s){
+  return {
+    date:s.date,
+    openingBalance:num(s.openingBalance),
+    physDeno:s.physDeno||{}, bankDeno:s.bankDeno||{},
+    closed:!!s.closed, closedAt:s.closedAt||null, closedBy:s.closedBy||null,
+    approved:!!s.approved, approvedBy:s.approvedBy||null, approvedAt:s.approvedAt||null,
+    reopenReason:s.reopenReason||null, mismatchReason:s.mismatchReason||null,
+    // Wave-5: OPTIONAL per-store reconciliation overlay { WLMHW:{…}, HEMW:{…} }.
+    // Carried as-is if a plain object; old records have none → undefined.
+    byStore:(s.byStore&&typeof s.byStore==='object')?s.byStore:undefined,
+    monthLocked:!!s.monthLocked
+  };
+}
+function getStmt(date){
+  var st=L(K.stmt,{});
+  return st[date]||{date:date,openingBalance:null,physDeno:{},bankDeno:{},closed:false,closedAt:null,closedBy:null,approved:false,approvedBy:null,approvedAt:null,reopenReason:null,mismatchReason:null,byStore:undefined,monthLocked:false};
+}
+function saveStmt(s){ var st=L(K.stmt,{}); st[s.date]=s; S(K.stmt,st); }
+
+/* ── P1-18: month lock (tax feed) ─────────────────────────────────────────
+   genTaxFeed() stamps monthLocked=true only on statement DAYS that EXIST when
+   the feed is generated; statement days are created lazily (saveStmt only runs
+   on deno/close/approve/reopen activity), so days of a fed month with no
+   statement record — and days created later — carry NO stamp. The lock is
+   therefore derived at MONTH level: a month is locked when its tax feed exists
+   (gm_tax_feed[m] is ALWAYS written by genTaxFeed) OR any of its statement
+   days carries the stamp (covers a gm_tax_feed blob lost to corruption —
+   L() parse failure returns the fallback {}). */
+function isMonthLocked(dateStr){
+  try{
+    var m=ym(dateStr);
+    if(L(K.tax,{})[m]) return true;
+    var st=L(K.stmt,{});
+    var ks=Object.keys(st);
+    for(var i=0;i<ks.length;i++){ if(ks[i].slice(0,7)===m && st[ks[i]] && st[ks[i]].monthLocked===true) return true; }
+    return false;
+  }catch(e){ return false; }   // fail OPEN: a storage hiccup must never brick daily entry; day-close + audit remain as controls
+}
+/* ONLY writer of gm_tax_feed[m].stale/.staleAt. genTaxFeed's wholesale month-object
+   replace (which omits both keys) is the auto-clear — no clearing code anywhere. */
+function markFeedStale(m){
+  var feed=L(K.tax,{});
+  if(!feed||typeof feed!=='object'||Array.isArray(feed)) return;   // corrupt feed blob: bail, never throw
+  if(!feed[m]||typeof feed[m]!=='object') return;   // nothing was handed to the CA for this month → nothing can be stale
+  feed[m].stale=true; feed[m].staleAt=new Date().toISOString();
+  S(K.tax,feed);
+}
+function lockedMonthOverrideModal(m,opLabel,onOk){
+  var fd=L(K.tax,{})[m]||{};
+  modal('Tax-locked month — Owner override',
+    '<p class="small" style="margin-bottom:10px">The tax feed for <b>'+m+'</b> was generated'+(fd.generatedAt?' on '+esc(String(fd.generatedAt).slice(0,16).replace('T',' ')):'')+' and may already be with your CA. Recording this '+opLabel+' will mark that feed <b>stale</b> so it must be regenerated.</p>'+
+    fld('Override reason','<input id="lm_rsn" placeholder="required — why this late change?">','full'),
+    async function(){
+      var r=val('lm_rsn').trim();
+      if(!r){ toast('Override reason is required','err'); return false; }   // modal stays open on false
+      if(!await stReauth('Override the tax-locked month '+m))return false;
+      onOk(r); return true;
+    });
+}
+
+/* ---------- cash statement computation (the core fix) ---------- */
+function denoTotal(d){ return DENOMS.reduce(function(t,v){ return t+(num(d&&d[v])*v); },0); }
+
+function computeDay(date){
+  // All non-void ledger entries for the date
+  var rows=getLedger().filter(function(e){ return e.date===date && !e.void; });
+  var cashIn=0,cashOut=0, bankIn=0,bankOut=0, incTot=0,expTot=0;
+  rows.forEach(function(e){
+    var isCash=e.mode==='Cash';
+    if(e.type==='income'){ incTot+=e.amount; if(isCash) cashIn+=e.amount; else bankIn+=e.amount; }
+    else { expTot+=e.amount; if(isCash) cashOut+=e.amount; else bankOut+=e.amount; }
+  });
+  // Opening = carry-forward from previous day's counted closing
+  // audit fix: walk back to the most recent CLOSED day so cash-in-hand carries across gaps
+  // (Sundays/holidays with no closed statement) instead of resetting to 0.
+  var prev=prevDay(date), opening, prevClosed=false, __wd=prev;
+  for(var __i=0; __i<90 && !prevClosed; __i++){ var __s=getStmt(__wd); if(__s && __s.closed){ opening=Math.max(denoTotal(__s.physDeno)-denoTotal(__s.bankDeno),0); prevClosed=true; } else { __wd=prevDay(__wd); } }
+  if(!prevClosed){ var sNow=getStmt(date); opening=(sNow.openingBalance!=null)?sNow.openingBalance:0; }
+  var expectedClosing = opening + cashIn - cashOut;
+  return {date:date,rows:rows,opening:opening,cashIn:cashIn,cashOut:cashOut,
+          bankIn:bankIn,bankOut:bankOut,incTot:incTot,expTot:expTot,
+          net:incTot-expTot,expectedClosing:expectedClosing,prevClosed:prevClosed};
+}
+
+/* ---------- Wave-5: per-store cash drawer ---------- */
+/* Canonical stores = saagar_org_master_v1.branches[].code (firm SAT), fallback the
+   hardcoded pair. ORTHOGONAL to firm (legal entity). */
+function orgStores(){
+  try{ var o=JSON.parse(localStorage.getItem('saagar_org_master_v1')||'null');
+    if(o&&Array.isArray(o.branches)){
+      var a=o.branches.filter(function(b){return b&&b.active!==false&&b.code&&b.name;}).map(function(b){return {code:b.code,name:b.name};});
+      if(a.length) return a;
+    }
+  }catch(e){}
+  return [{code:'WLMHW',name:'Titan World'},{code:'HEMW',name:'Helios'}];
+}
+function storeName(code){ var s=orgStores().find(function(x){return x.code===code;}); return s?s.name:(code||'Unassigned'); }
+function storeOpts(sel){ return '<option value="">— Unassigned —</option>'+orgStores().map(function(s){return '<option value="'+esc(s.code)+'"'+(s.code===sel?' selected':'')+'>'+esc(s.name)+'</option>';}).join(''); }
+/* per-day per-store compute (additive sibling; computeDay is untouched).
+   store==null → whole business (same set as computeDay). store!=null → only rows
+   tagged that store; untagged/legacy rows never appear in a store view. */
+function computeDayStore(date,store){
+  var rows=getLedger().filter(function(e){ return e.date===date && !e.void && (store==null || e.store===store); });
+  var cashIn=0,cashOut=0,bankIn=0,bankOut=0,incTot=0,expTot=0;
+  rows.forEach(function(e){
+    var isCash=e.mode==='Cash';
+    if(e.type==='income'){ incTot+=e.amount; if(isCash) cashIn+=e.amount; else bankIn+=e.amount; }
+    else { expTot+=e.amount; if(isCash) cashOut+=e.amount; else bankOut+=e.amount; }
+  });
+  // per-store carry-forward: walk back to previous day whose byStore[store] is closed
+  var opening, prevClosed=false, __wd=prevDay(date);
+  for(var __i=0; __i<90 && !prevClosed; __i++){
+    var __s=getStmt(__wd), __sub=(__s.byStore&&__s.byStore[store]);
+    if(__sub&&__sub.closed){ opening=Math.max(denoTotal(__sub.physDeno)-denoTotal(__sub.bankDeno),0); prevClosed=true; }
+    else { __wd=prevDay(__wd); }
+  }
+  if(!prevClosed){ var __sub0=(getStmt(date).byStore||{})[store]; opening=(__sub0&&__sub0.openingBalance!=null)?__sub0.openingBalance:0; }
+  var expectedClosing=opening+cashIn-cashOut;
+  return {date:date,store:store,rows:rows,opening:opening,cashIn:cashIn,cashOut:cashOut,
+          bankIn:bankIn,bankOut:bankOut,incTot:incTot,expTot:expTot,
+          net:incTot-expTot,expectedClosing:expectedClosing,prevClosed:prevClosed};
+}
+
+/* ═══════════════ RENDER ROUTER ═══════════════ */
+var CUR='dash';
+function go(s){
+  CUR=s;
+  document.querySelectorAll('.sec').forEach(function(x){x.classList.remove('active');});
+  document.getElementById('sec-'+s).classList.add('active');
+  document.querySelectorAll('.tab').forEach(function(t){ t.classList.toggle('active', t.dataset.sec===s); });
+  render();
+}
+function render(){
+  document.getElementById('roleSel').value=role();
+  document.getElementById('todayBadge').textContent='Today · '+todayStr();
+  var pend=pendingSyncCount();
+  var sp=document.getElementById('syncPill'); sp.textContent=pend; sp.className='pill'+(pend?' red':'');
+  // #18: Audit tab visible to Super-Admin only. Hide the tab button for non-admins
+  // (renderAudit also early-returns, so the log is never shown).
+  var atb=document.getElementById('auditTabBtn'); if(atb) atb.classList.toggle('hide',!isSuperAdmin());
+  try{ var uc=getUdhaar().receivables.filter(function(r){return !r.void && udOut(r)>0;}).length; var up=document.getElementById('udhaarPill'); if(up){ up.textContent=uc; up.className='pill'+(uc?' red':''); } }catch(e){}
+  if(CUR==='dash') renderDash();
+  if(CUR==='udhaar') renderUdhaar();
+  if(CUR==='ledger') renderLedger();
+  if(CUR==='stmt') renderStmt();
+  if(CUR==='petty') renderPetty();
+  if(CUR==='vendors') renderVendors();
+  if(CUR==='budget') renderBudget();
+  if(CUR==='sync') renderSync();
+  if(CUR==='close') renderClose();
+  if(CUR==='audit') renderAudit();
+}
+
+/* ═══════════════ DASHBOARD ═══════════════ */
+function renderDash(){
+  // VIEW-DATE: derive the dashboard for the day the user is viewing (asOf),
+  // not the wall-clock today. On today this is identical to before.
+  var t=asOf(), m=ym(t), past=isPast(), dayLbl=past?'Day':'Today', led=getLedger().filter(function(e){return !e.void;});
+  var tToday=led.filter(function(e){return e.date===t;});
+  var tMonth=led.filter(function(e){return e.date.slice(0,7)===m;});
+  function sum(a,ty){ return a.filter(function(e){return e.type===ty;}).reduce(function(s,e){return s+e.amount;},0); }
+  var d=computeDay(t), st=getStmt(t);
+  var counted=denoTotal(st.physDeno), delta=counted-d.expectedClosing;
+  var reconHtml = st.closed
+    ? '<span class="bdg locked">Day locked</span>'
+    : (counted===0 ? '<span class="bdg warn">cash not counted</span>'
+      : (Math.abs(delta)<1 ? '<span class="bdg ok">balanced</span>' : '<span class="bdg exp">mismatch '+nINR(delta)+'</span>'));
+  var byCat={}; tMonth.filter(function(e){return e.type==='expense';}).forEach(function(e){ byCat[e.category]=(byCat[e.category]||0)+e.amount; });
+  var topCat=Object.keys(byCat).sort(function(a,b){return byCat[b]-byCat[a];})[0];
+  var pend=pendingSyncCount();
+  var unappr=daysAwaitingApproval();
+
+  document.getElementById('dashC').innerHTML =
+  (past?'<div class="banner lock">🔒 <div>Viewing <b>'+t+'</b> (past). This is a read-only historical view — entry, petty, close and edit actions are disabled.</div></div>':'')+
+  '<div class="kgrid">'+
+    kpi(dayLbl+' income',nINR(sum(tToday,'income')),tToday.filter(function(e){return e.type==='income';}).length+' entries','g')+
+    kpi(dayLbl+' expense',nINR(sum(tToday,'expense')),tToday.filter(function(e){return e.type==='expense';}).length+' entries','r')+
+    kpi(dayLbl+' net',nINR(sum(tToday,'income')-sum(tToday,'expense')),'income − expense',sum(tToday,'income')-sum(tToday,'expense')<0?'r':'g')+
+    kpi('Cash in hand (exp.)',nINR(d.expectedClosing),'opening '+nINR(d.opening),'b')+
+  '</div>'+
+  '<div class="kgrid">'+
+    kpi('Month income',nINR(sum(tMonth,'income')),m,'g')+
+    kpi('Month expense',nINR(sum(tMonth,'expense')),m,'r')+
+    kpi('Month P&L',nINR(sum(tMonth,'income')-sum(tMonth,'expense')),(sum(tMonth,'income')-sum(tMonth,'expense'))<0?'loss':'profit',(sum(tMonth,'income')-sum(tMonth,'expense'))<0?'r':'g')+
+    kpi('Top expense head',topCat||'—',topCat?nINR(byCat[topCat]):'no expenses','a')+
+  '</div>'+
+  '<div class="card"><div class="card-h"><div><h3>'+dayLbl+'’s cash position</h3><p>'+t+' · auto-computed from the ledger</p></div><div class="actions"><button data-action="dashboard-open-cash-statement" class="btn sm p" onclick="go(\'stmt\')">Open cash statement →</button></div></div>'+
+    '<div class="row" style="gap:20px"><div><div class="small muted">Expected closing cash</div><div style="font-size:22px;font-family:var(--font-serif)">'+nINR(d.expectedClosing)+'</div></div>'+
+    '<div><div class="small muted">Counted</div><div style="font-size:22px;font-family:var(--font-serif)">'+nINR(counted)+'</div></div>'+
+    '<div><div class="small muted">Status</div><div style="margin-top:6px">'+reconHtml+'</div></div></div></div>'+
+  (pend?'<div class="banner info">⤢ <div><b>'+pend+'</b> cross-module item(s) waiting to be posted to the ledger (WSC / Payroll / Stock / QMS). <button data-action="dashboard-review-cross-module" class="btn xs" onclick="go(\'sync\')">Review</button></div></div>':'')+
+  (unappr.length?'<div class="banner warn">✔ <div><b>'+unappr.length+'</b> closed day(s) awaiting checker approval: '+unappr.slice(0,5).join(', ')+'. <button data-action="dashboard-open-month-close" class="btn xs" onclick="go(\'close\')">Open</button></div></div>':'')+
+  recurringNudge()+
+  '<div class="card"><div class="card-h"><div><h3>Recent ledger entries</h3><p>Newest first</p></div><div class="actions"><button data-action="dashboard-open-all-ledger-entries" class="btn sm" onclick="go(\'ledger\')">All entries →</button></div></div>'+
+    ledgerTable(led.slice().sort(function(a,b){return (b.date+b.createdAt).localeCompare(a.date+a.createdAt);}).slice(0,8),true)+'</div>';
+}
+function kpi(l,v,s,c){ return '<div class="kpi '+(c||'')+'"><div class="l">'+l+'</div><div class="v">'+v+'</div><div class="s">'+esc(s)+'</div></div>'; }
+
+/* ═══════════════ LEDGER ═══════════════ */
+var LF={type:'',mode:'',cat:'',from:'',to:'',q:''};
+function renderLedger(){
+  var vend=L(K.vend,[]);
+  var entryType=window.__et||'expense';
+  var past=isPast();
+  // VIEW-DATE: the Add form defaults its Date to the viewed day (asOf). When
+  // viewing the past this whole card is read-only — we render a notice instead
+  // of the form so there are NO inputs / Save button to write with.
+  var addCard = past
+    ? '<div class="card"><div class="card-h"><div><h3>Add to ledger</h3><p>Read-only historical view.</p></div></div>'+
+      '<div class="banner lock">🔒 <div>Viewing <b>'+asOf()+'</b> (past). Adding ledger entries is disabled in historical view. Switch the view date to today to record new entries.</div></div></div>'
+    : '<div class="card"><div class="card-h"><div><h3>Add to ledger</h3><p>The master record. Cash entries auto-flow into that day’s locked Cash Statement.</p></div></div>'+
+      '<div class="seg" style="margin-bottom:14px"><button data-action="select-income-entry" class="'+(entryType==='income'?'on inc':'')+'" onclick="setET(\'income\')">＋ Income</button><button data-action="select-expense-entry" class="'+(entryType==='expense'?'on exp':'')+'" onclick="setET(\'expense\')">－ Expense</button></div>'+
+      '<div class="fgrid">'+
+       fld('Date <span style="color:#dc2626">*</span>','<input type="date" id="f_date" value="'+asOf()+'">')+
+       fld('Amount (₹) <span style="color:#dc2626">*</span>','<input type="number" id="f_amt" min="0" step="0.01" placeholder="0.00">')+
+       fld('Payment mode','<select id="f_mode">'+MODES.map(function(x){return '<option>'+x+'</option>';}).join('')+'</select>')+
+       fld('Category','<select id="f_cat">'+(entryType==='income'?INC_CATS:EXP_CATS).map(function(x){return '<option>'+x+'</option>';}).join('')+'</select>')+
+       fld('Firm','<select id="f_firm">'+orgFirms().map(function(x){return '<option>'+esc(x)+'</option>';}).join('')+'</select>')+
+       fld('Store (cash drawer)','<select id="f_store">'+storeOpts('')+'</select>')+
+       fld('Vendor / payee','<input list="vlist" id="f_vendor" placeholder="optional" oninput="updVendGst()"><datalist id="vlist">'+vend.map(function(v){return '<option value="'+esc(v.name)+'"></option>';}).join('')+'</datalist><div id="f_vgst" class="small muted" style="margin-top:3px"></div>')+
+       fld('Bill photo','<input type="file" id="f_photo" accept="image/*" capture="environment">')+
+       (entryType==='expense'?
+         fld('GST rate (%)','<input type="number" id="f_gstr" min="0" step="0.01" placeholder="optional" onchange="prefillGst()">')+
+         fld('GST on bill (₹)','<input type="number" id="f_gstamt" min="0" step="0.01" placeholder="optional — copy from the bill">')
+       :'')+
+       fld('Description <span style="color:#dc2626">*</span>','<input id="f_desc" placeholder="what is this for?">','full')+
+       fld('Notes','<input id="f_notes" placeholder="optional">','full')+
+      '</div>'+
+      '<div class="row" style="margin-top:14px"><button data-action="save-ledger-entry" class="btn p" onclick="addEntry()">Save to ledger</button><span class="small muted">Duplicate (same date+amount+desc) will warn before saving.</span></div>'+
+     '</div>';
+  document.getElementById('ledgerC').innerHTML =
+  addCard+
+  recurringCard()+
+  '<div class="card"><div class="card-h"><div><h3>Ledger</h3><p>All income &amp; expense. Locked-day entries cannot be edited until the day is reopened.</p></div>'+
+   '<div class="actions"><button data-action="export-ledger-csv" class="btn sm" onclick="exportLedgerCSV()">⇩ CSV</button></div></div>'+
+   '<div class="fgrid" style="margin-bottom:12px">'+
+    fld('Type','<select id="lf_type" onchange="applyLF()"><option value="">All</option><option>income</option><option>expense</option></select>')+
+    fld('Mode','<select id="lf_mode" onchange="applyLF()"><option value="">All</option>'+MODES.map(function(x){return '<option>'+x+'</option>';}).join('')+'</select>')+
+    fld('Month','<input type="month" id="lf_m" value="'+ym(asOf())+'" onchange="applyLF()">')+
+    fld('Search','<input id="lf_q" placeholder="desc / vendor / category" oninput="applyLF()">','full')+
+   '</div>'+
+   '<div id="ledList"></div></div>';
+  applyLF();
+}
+function setET(t){ window.__et=t; renderLedger(); }
+function orgFirms(){ try{ var o=JSON.parse(localStorage.getItem('saagar_org_master_v1')||'null'); if(o&&Array.isArray(o.firms)){ var a=o.firms.filter(function(f){return f&&f.active!==false&&f.name;}).map(function(f){return f.name;}); if(a.length) return a; } }catch(e){} return ['Gold Mart','Saagar Traders','S.T. Bora & Co.','Arihant Steel']; }
+function fld(l,inner,cls){ return '<div class="fld '+(cls||'')+'"><label>'+l+'</label>'+inner+'</div>'; }
+function applyLF(){
+  var ty=val('lf_type'),mo=val('lf_mode'),mm=val('lf_m'),q=(val('lf_q')||'').toLowerCase();
+  var rows=getLedger().filter(function(e){
+    if(ty&&e.type!==ty) return false;
+    if(mo&&e.mode!==mo) return false;
+    if(mm&&e.date.slice(0,7)!==mm) return false;
+    if(q&&!((e.description+' '+e.vendor+' '+e.category).toLowerCase().indexOf(q)>=0)) return false;
+    return true;
+  }).sort(function(a,b){return (b.date+b.createdAt).localeCompare(a.date+a.createdAt);});
+  var __CAP=200; var __shown=rows.length>__CAP?rows.slice(0,__CAP):rows; document.getElementById('ledList').innerHTML = rows.length?((rows.length>__CAP?'<div class="muted small" style="padding:6px 4px">Showing the '+__CAP+' most recent of '+rows.length+' entries. Use the filters above (type / mode / month / search) to narrow.</div>':'')+ledgerTable(__shown,false)):'<div class="empty">No entries match.</div>';
+}
+function val(id){ var e=document.getElementById(id); return e?e.value:''; }
+function ledgerTable(rows,compact){
+  return '<div class="twrap"><table data-saagar-table-strategy="grid" data-saagar-table-workflow="ledger" data-saagar-grid-reason="ledger review requires cross-column financial comparison"><thead><tr><th>Date</th><th>Type</th><th>Category</th><th>Mode</th><th>Vendor</th><th>Description</th><th class="num">Amount</th><th>Src</th>'+(compact?'':'<th></th>')+'</tr></thead><tbody>'+
+   rows.map(function(e){
+     var dayLocked=getStmt(e.date).closed;
+     // #19: status badge — Pending / Approved. Missing status = legacy entry → no badge.
+     var statusBdg=e.status==='approved'?' <span class="bdg ok" title="Approved — locked">Approved</span>'
+                  :e.status==='pending'?' <span class="bdg warn" title="Awaiting Super-Admin approval">Pending</span>':'';
+     // #19: approval lock applies ONLY when status==="approved" (not day-lock, not legacy).
+     var apprLocked=e.status==='approved';
+     return '<tr>'+
+      '<td>'+e.date+'</td>'+
+      '<td><span class="bdg '+(e.type==='income'?'inc':'exp')+'">'+e.type+'</span></td>'+
+      '<td>'+esc(e.category)+'</td>'+
+      '<td><span class="bdg '+e.mode.toLowerCase()+'">'+e.mode+'</span></td>'+
+      '<td>'+esc(e.vendor||'—')+'</td>'+
+      '<td>'+esc(e.description||'—')+statusBdg+(e.void?' <span class="bdg void">void</span>':'')+(e.billPhoto?' <button data-action="view-ledger-photo" data-saagar-args="'+jargs(e.id)+'" class="btn xs" title="View bill photo">📎</button>':'')+'</td>'+
+      '<td class="num">'+nINR(e.amount)+'</td>'+
+      '<td>'+(e.source?'<span class="bdg src">'+esc(e.source)+'</span>':'<span class="muted small">manual</span>')+'</td>'+
+      (compact?'':'<td class="num"><button data-action="share-ledger-entry" data-saagar-args="'+jargs(e.id)+'" class="btn xs" title="Send on WhatsApp">↗ Send</button> '+
+        (isSuperAdmin()&&!e.void&&e.status==='pending'&&!isPast()?'<button data-action="approve-ledger-entry" data-saagar-args="'+jargs(e.id)+'" class="btn xs green">Approve</button> ':'')+
+        (e.void?'':apprLocked?'<span class="bdg locked" title="approved — locked">🔒</span>':((isPast()||dayLocked)?'<span class="bdg locked" title="'+(isPast()?'historical view':'day locked')+'">🔒</span>':'<button data-action="edit-ledger-entry" data-saagar-args="'+jargs(e.id)+'" class="btn xs">Edit</button> <button data-action="void-ledger-entry" data-saagar-args="'+jargs(e.id)+'" class="btn xs red">Void</button>'))+'</td>')+
+     '</tr>';
+   }).join('')+'</tbody></table></div>';
+}
+/* P1-17: convenience only — if the bill total is entered and the GST-amount box is still
+   empty, derive the GST component of a GST-INCLUSIVE total: amt*r/(100+r). Editable after. */
+function prefillGst(){
+  var a=num(val('f_amt')), r=num(val('f_gstr')), el=document.getElementById('f_gstamt');
+  if(el && a>0 && r>0 && !num(el.value)) el.value=Math.round(a*r/(100+r)*100)/100;
+}
+/* P1-17: show the picked vendor's GSTIN under the payee box (read-only hint). */
+function updVendGst(){
+  var el=document.getElementById('f_vgst'); if(!el) return;
+  var n=(val('f_vendor')||'').trim().toLowerCase();
+  var v=n?L(K.vend,[]).find(function(x){return x&&x.name&&String(x.name).toLowerCase()===n;}):null;
+  el.innerHTML=(v&&v.gstin)?('GSTIN: <b>'+esc(v.gstin)+'</b>'):'';
+}
+function readPhoto(cb){
+  var f=document.getElementById('f_photo'); if(!f||!f.files||!f.files[0]){ cb(null); return; }
+  var img=f.files[0]; if(img.size>4*1024*1024){ toast('Photo too large (max 4MB)','warn'); cb(null); return; }
+  var r=new FileReader();
+  r.onload=function(){
+    var i=new Image();
+    i.onload=function(){
+      var sc=Math.min(1,1000/i.width), c=document.createElement('canvas');
+      c.width=i.width*sc; c.height=i.height*sc;
+      c.getContext('2d').drawImage(i,0,0,c.width,c.height);
+      cb(c.toDataURL('image/jpeg',0.7));
+    };
+    i.onerror=function(){ cb(null); };
+    i.src=r.result;
+  };
+  r.onerror=function(){ cb(null); };
+  r.readAsDataURL(img);
+}
+// Wave-4: parameterised clone of readPhoto for the edit modal (its input is #m_photo, not #f_photo).
+function readEditPhoto(inputId,cb){
+  var f=document.getElementById(inputId); if(!f||!f.files||!f.files[0]){ cb(null); return; }
+  var img=f.files[0]; if(img.size>4*1024*1024){ toast('Photo too large (max 4MB)','warn'); cb(null); return; }
+  var r=new FileReader();
+  r.onload=function(){
+    var i=new Image();
+    i.onload=function(){
+      var sc=Math.min(1,1000/i.width), c=document.createElement('canvas');
+      c.width=i.width*sc; c.height=i.height*sc;
+      c.getContext('2d').drawImage(i,0,0,c.width,c.height);
+      cb(c.toDataURL('image/jpeg',0.7));
+    };
+    i.onerror=function(){ cb(null); };
+    i.src=r.result;
+  };
+  r.onerror=function(){ cb(null); };
+  r.readAsDataURL(img);
+}
+// Wave-4: view a row's bill photo. Resolves '@photo:<pid>' refs via SaagarPhoto (device-only),
+// or passes a legacy inline base64 data URL straight through. Injects via img.src (no HTML concat).
+function viewPhoto(id){
+  var e=getLedger().find(function(x){return x.id===id;}); if(!e) return;
+  var bp=e.billPhoto; if(!bp) return;
+  var __resolve=function(b,cb){
+    if(!b){ cb(null); return; }
+    if(b.indexOf('@photo:')===0){
+      var pid=b.slice(7);
+      if(SaagarModuleBridge.photo&&SaagarModuleBridge.photo.get){ SaagarModuleBridge.photo.get(pid).then(function(u){cb(u||null);},function(){cb(null);}); }
+      else { cb(null); }
+    } else { cb(b); }
+  };
+  modal('Bill photo','<div id="bpImg" class="muted small" style="text-align:center;padding:12px">Loading…</div>',function(){return true;});
+  __resolve(bp,function(u){
+    var c=document.getElementById('bpImg'); if(!c) return;   // modal may have been closed
+    if(u){ c.innerHTML=''; c.style.padding='0'; var im=new Image(); im.src=u; im.style.maxWidth='100%'; im.style.borderRadius='8px'; c.appendChild(im); }
+    else { c.innerHTML='Photo unavailable (not synced to this device)'; }
+  });
+}
+function addEntry(){
+  var type=window.__et||'expense';
+  var date=val('f_date'), amt=num(val('f_amt')), cat=val('f_cat'), mode=val('f_mode'),
+      vendor=val('f_vendor').trim(), firm=val('f_firm'), store=val('f_store'), desc=val('f_desc').trim(), notes=val('f_notes').trim();
+  var gstAmt=(type==='expense')?num(val('f_gstamt')):0, gstRPct=(type==='expense')?num(val('f_gstr')):0;   /* P1-17: expense-only GST reads (val() returns '' for absent ids) */
+  if(amt<=0){ toast('Enter an amount greater than 0','err'); return; }
+  if(!desc){ toast('Description is required','err'); return; }
+  if(isPast()){ toast('Historical view is read-only. Switch to today to add entries.','err'); return; }
+  if(getStmt(date).closed){ toast('That day’s cash statement is locked. Owner must reopen it first.','err'); return; }
+  /* P1-18: month-lock gate — the month's tax feed was already generated */
+  var __m=ym(date), __mLock=isMonthLocked(date);
+  if(__mLock && !can('monthoverride')){ toast('Month '+__m+' is tax-locked — its tax feed was already generated. Owner override required.','err'); return; }
+  var led=getLedger();
+  var dup=led.find(function(e){ return !e.void && e.date===date && Math.abs(e.amount-amt)<0.01 && e.description.toLowerCase()===desc.toLowerCase(); });
+  if(dup && !confirm('A similar entry already exists for '+date+' ('+nINR(amt)+' — '+desc+'). Save anyway?')) return;
+  if(gstAmt>amt && !confirm('GST amount ('+nINR(gstAmt)+') is more than the entry amount ('+nINR(amt)+'). Save anyway?')) return;   /* P1-17: warn, don't block */
+  var __doSave=function(__ovRsn){                                    // P1-18 continuation: __ovRsn=null on the normal path, owner's reason on override
+  readPhoto(function(photo){
+    var __eid=uid('e'); var __save=function(__bp){ var e=normEntry({id:__eid,type:type,date:date,amount:amt,category:cat,mode:mode,vendor:vendor,firm:firm,store:store,description:desc,notes:notes,gstAmount:gstAmt,gstRatePct:gstRPct,billPhoto:__bp,source:null,status:'pending',createdBy:role()});
+    var __fresh=getLedger(); __fresh.push(e); saveLedger(__fresh);   // P1-18: fresh re-read — the override modal adds a human-scale wait (exp-bug-01 pattern); `led` above stays dup-check-only
+    if(vendor){ var vs=L(K.vend,[]); if(!vs.find(function(v){return v.name.toLowerCase()===vendor.toLowerCase();})){ vs.push({name:vendor}); S(K.vend,vs); } }
+    audit('ledger.create',type+' '+nINR(amt)+' · '+cat+' · '+date+' · '+desc);
+    if(__ovRsn){ audit('locked-month-override','add '+__eid+' · '+date+' · '+nINR(amt)+' · '+__ovRsn); markFeedStale(__m); }   // P1-18
+    toast('Saved — also reflected in '+date+' cash statement','ok');
+    if(type==='expense') budgetAlertToast(cat,date);   /* P1-19: chained budget alert */
+    renderLedger(); }; if(photo && SaagarModuleBridge.photo && SaagarModuleBridge.photo.enabled){ var __pid=SaagarModuleBridge.photo.refId('expense',__eid,'billPhoto'); SaagarModuleBridge.photo.put(__pid,photo).then(function(ok){ __save(ok?('@photo:'+__pid):photo); }, function(){ __save(photo); }); } else { __save(photo); }
+  });
+  };
+  if(!__mLock){ __doSave(null); return; }
+  lockedMonthOverrideModal(__m,'entry',__doSave);
+}
+function editEntry(id){
+  if(isPast()){ toast('Historical view is read-only','err'); return; }
+  var led=getLedger(), e=led.find(function(x){return x.id===id;}); if(!e) return;
+  if(e.status==='approved'){ toast('Approved entry is locked','err'); return; }   // #19 lock
+  if(getStmt(e.date).closed){ toast('Day locked — reopen first','err'); return; }
+  /* P1-18: month-lock gate. The edit modal has no date field, so __m is stable through
+     the async photo path; if a future wave adds date editing, the gate must check BOTH
+     old and new months. m_rsn doubles as the override reason — no second field. */
+  var __m=ym(e.date), __mLock=isMonthLocked(e.date);
+  if(__mLock && !can('monthoverride')){ toast('Month '+__m+' is tax-locked — its tax feed was already generated. Only Owner can edit this entry.','err'); return; }
+  modal('Edit entry',
+    (__mLock?'<div class="banner warn" style="margin-bottom:10px">⚠ <div>Month '+__m+' is tax-locked. Saving records an Owner override and marks the '+__m+' tax feed stale.</div></div>':'')+
+    fld('Amount','<input id="m_amt" type="number" value="'+e.amount+'">')+
+    fld('Category','<select id="m_cat">'+(e.type==='income'?INC_CATS:EXP_CATS).map(function(c){return '<option'+(c===e.category?' selected':'')+'>'+c+'</option>';}).join('')+'</select>')+
+    fld('Mode','<select id="m_mode">'+MODES.map(function(c){return '<option'+(c===e.mode?' selected':'')+'>'+c+'</option>';}).join('')+'</select>')+
+    fld('Store (cash drawer)','<select id="m_store">'+storeOpts(e.store||'')+'</select>')+
+    (e.type==='expense'?
+      fld('GST rate (%)','<input id="m_gstr" type="number" min="0" step="0.01" value="'+(e.gstRatePct||'')+'">')+
+      fld('GST on bill (₹)','<input id="m_gstamt" type="number" min="0" step="0.01" value="'+(e.gstAmount||'')+'">')
+    :'')+
+    fld('Description','<input id="m_desc" value="'+esc(e.description)+'">')+
+    fld('Bill photo',(e.billPhoto?'<div class="small muted" style="margin-bottom:6px">A photo is already attached — choosing a new file replaces it.</div>':'')+'<input type="file" id="m_photo" accept="image/*" capture="environment">')+
+    fld('Reason for change','<input id="m_rsn" placeholder="required">','full'),
+    async function(){
+      var rsn=val('m_rsn').trim(); if(!rsn){ toast('Reason required','err'); return false; }
+      /* Audit fix exp-bug-02: reject negative/zero/non-finite amount on edit (mirrors addEntry). */
+      var na=num(val('m_amt')); if(!(na>0)||!isFinite(na)){ toast('Enter an amount greater than 0','err'); return false; }
+      /* P1-17: expense-only GST reads + warn-don't-block over-amount check. */
+      var ngA=(e.type==='expense')?num(val('m_gstamt')):0, ngR=(e.type==='expense')?num(val('m_gstr')):0;
+      if(ngA>na && !confirm('GST amount ('+nINR(ngA)+') is more than the entry amount ('+nINR(na)+'). Save anyway?')) return false;
+      /* R0-W1 SEC-04: locked-month override only — do not remove the __mLock guard. */
+      if((__mLock||isMonthLocked(e.date)) && !await stReauth('Edit an entry in the tax-locked month'))return false;
+      /* Audit fix exp-bug-01: re-read the ledger FRESH inside the confirm callback and mutate the
+         entry by id in that fresh array, so a bridge tick that appended income while the modal was
+         open is preserved (avoids whole-blob last-write-wins clobber). Fall back to the captured
+         entry only if the row is gone from the fresh array. */
+      var fresh=getLedger(), fe=fresh.find(function(x){return x.id===id;});
+      if(!fe){ fresh=led; fe=e; }
+      // Wave-4: a bill photo may be (re)attached on edit. Record only a '(changed)' marker in the
+      // editLog (never dump base64), and persist the bytes via SaagarPhoto async AFTER the modal closes.
+      var __hasFile=(function(){var f=document.getElementById('m_photo');return !!(f&&f.files&&f.files[0]);})();
+      // Wave-5: whitelisted store tag (anything else → undefined = Unassigned).
+      var __store=(function(){var s=val('m_store');return (s==='WLMHW'||s==='HEMW')?s:undefined;})();
+      var old={amount:fe.amount,category:fe.category,mode:fe.mode,store:fe.store||'Unassigned',description:fe.description};
+      var __new={amount:na,category:val('m_cat'),mode:val('m_mode'),store:__store||'Unassigned',description:val('m_desc').trim()};
+      if(__hasFile){ old.billPhoto=fe.billPhoto?'(present)':'(none)'; __new.billPhoto='(changed)'; }
+      /* P1-17: expense rows only, so income-row editLogs are unchanged. */
+      if(e.type==='expense'){ old.gstAmount=fe.gstAmount||0; old.gstRatePct=fe.gstRatePct||0;
+                              __new.gstAmount=ngA||0; __new.gstRatePct=ngR||0; }
+      fe.amount=na; fe.category=val('m_cat'); fe.mode=val('m_mode'); fe.store=__store; fe.description=val('m_desc').trim(); fe.gstAmount=ngA>0?ngA:undefined; fe.gstRatePct=ngR>0?ngR:undefined;
+      fe.editLog.push({at:new Date().toISOString(),by:role(),old:old,new:__new,reason:rsn});
+      /* P1-18 TOCTOU: re-check the lock at COMMIT time — a feed generated while this modal was
+         open must still get the override audit + stale flag (m_rsn already carries the reason). */
+      var __lockNow=__mLock||isMonthLocked(fe.date);
+      var __commit=function(){ saveLedger(fresh); audit('ledger.edit',fe.id+' · '+rsn); if(__lockNow){ audit('locked-month-override','edit '+fe.id+' · '+fe.date+' · '+rsn); markFeedStale(ym(fe.date)); } toast('Updated','ok'); if(fe.type==='expense') budgetAlertToast(fe.category,fe.date); renderLedger(); };
+      if(!__hasFile){ __commit(); return true; }
+      // Async photo path (mirrors addEntry): non-photo edits are ALWAYS committed, photo never lost —
+      // only downgraded to inline base64 if SaagarPhoto is absent/fails.
+      readEditPhoto('m_photo',function(photo){
+        if(!photo){ __commit(); return; }   // oversize/decode fail already toasted by helper
+        if(SaagarModuleBridge.photo && SaagarModuleBridge.photo.enabled){
+          var pid=SaagarModuleBridge.photo.refId('expense',fe.id,'billPhoto');
+          SaagarModuleBridge.photo.put(pid,photo).then(function(ok){ fe.billPhoto=ok?('@photo:'+pid):photo; __commit(); }, function(){ fe.billPhoto=photo; __commit(); });
+        } else { fe.billPhoto=photo; __commit(); }
+      });
+      return true;   // let modal close now; persistence completes async and re-renders
+    });
+}
+function voidEntry(id){
+  if(isPast()){ toast('Historical view is read-only','err'); return; }
+  if(!can('void')){ toast('Your role cannot void entries','err'); return; }
+  var led=getLedger(), e=led.find(function(x){return x.id===id;}); if(!e) return;
+  if(e.status==='approved'){ toast('Approved entry is locked','err'); return; }   // #19 lock
+  if(getStmt(e.date).closed){ toast('Day locked — reopen first','err'); return; }
+  /* P1-18: month-lock gate — voids in a fed month need the Owner override too (the stored
+     stale flag is the only mechanism that can see voids; they stamp no row timestamp). */
+  var __m=ym(e.date), __mLock=isMonthLocked(e.date);
+  if(__mLock && !can('monthoverride')){ toast('Month '+__m+' is tax-locked — its tax feed was already generated. Only Owner can void this entry.','err'); return; }
+  modal('Void entry',
+    (__mLock?'<div class="banner warn" style="margin-bottom:10px">⚠ <div>Month '+__m+' is tax-locked. Confirming records an Owner override and marks the '+__m+' tax feed stale.</div></div>':'')+
+    '<p class="small muted" style="margin-bottom:10px">'+esc(e.description)+' · '+nINR(e.amount)+'</p>'+
+    fld('Reason','<select id="v_r">'+REASONS.map(function(r){return '<option>'+r+'</option>';}).join('')+'</select>')+
+    fld('Note','<input id="v_n" placeholder="optional detail">','full'),
+    async function(){
+      /* P1-18: the canned select (v_r) is always non-empty — a locked-month override also
+         demands the free-text note so the audit trail carries a specific reason.
+         TOCTOU: re-check at commit time — a feed generated while the modal was open counts. */
+      var __lockNow=__mLock||isMonthLocked(e.date);
+      if(__lockNow){ var __vn=val('v_n').trim(); if(!__vn){ toast('Month is tax-locked — add a specific note for the override','err'); return false; } }
+      /* R0-W1 SEC-04: locked-month override only — do not remove the __lockNow/__mLock guard. */
+      if(__lockNow && !await stReauth('Void an entry in the tax-locked month'))return false;
+      /* Audit fix exp-bug-01: re-read the ledger FRESH inside the confirm callback and void the
+         entry by id in that fresh array, so a bridge tick that appended income while the modal was
+         open is preserved (avoids whole-blob last-write-wins clobber). Fall back to the captured
+         entry only if the row is gone from the fresh array. */
+      var fresh=getLedger(), fe=fresh.find(function(x){return x.id===id;});
+      if(!fe){ fresh=led; fe=e; }
+      fe.void=true; fe.voidReason=val('v_r')+(val('v_n')?(' — '+val('v_n')):'');
+      saveLedger(fresh); audit('ledger.void',fe.id+' · '+fe.voidReason);
+      if(__lockNow){ audit('locked-month-override','void '+fe.id+' · '+fe.date+' · '+fe.voidReason); markFeedStale(ym(fe.date)); }   // P1-18 (lock re-checked at commit)
+      toast('Entry voided (kept for audit)','ok'); renderLedger(); return true;
+    });
+}
+/* #19: Super-Admin approves a PENDING entry → status "approved", which LOCKS it
+   (edit/void denied above). Admin-only; only acts on pending entries. */
+function approveEntry(id){
+  if(!isSuperAdmin()){ toast('Super Admin only','err'); return; }
+  var led=getLedger(), e=led.find(function(x){return x.id===id;}); if(!e) return;
+  if(e.status!=='pending'){ toast('Only pending entries can be approved','warn'); return; }
+  e.status='approved'; e.approvedBy=role(); e.approvedAt=new Date().toISOString();
+  saveLedger(led); audit('ledger.approve',e.id+' · '+nINR(e.amount)+' · '+e.description);
+  toast('Entry approved & locked','ok'); renderLedger();
+}
+function exportLedgerCSV(){
+  var rows=[['Date','Firm','Type','Category','Mode','Vendor','Description','Amount','Source','Void','VoidReason','CreatedBy','Store','GSTAmt','GSTRate%']];
+  getLedger().sort(function(a,b){return a.date.localeCompare(b.date);}).forEach(function(e){
+    rows.push([e.date,e.firm||'Unassigned',e.type,e.category,e.mode,e.vendor,e.description,e.amount,e.source||'manual',e.void?'Y':'',e.voidReason||'',e.createdBy,e.store?storeName(e.store):'Unassigned',e.gstAmount||'',e.gstRatePct||'']);
+  });
+  dlCSV('ledger_'+todayStr()+'.csv',rows);
+}
+function dlCSV(fn,rows){
+  var c=rows.map(function(r){return r.map(function(v){var s=String(v==null?'':v);return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}).join(',');}).join('\n');
+  var b=new Blob([c],{type:'text/csv'});
+  if(window.parent&&window.parent!==window){
+    window.parent.postMessage({type:'ST_SHARE',file:b,fileName:fn,title:'Expense CSV',exportId:'expense-csv-export',scopeId:'expense-register',scopeLabel:'expense or audit register',rowCount:Math.max(0,rows.length-1),purposeId:'accounting-register'},SaagarModuleRuntime.targetOrigin);
+    return;
+  }
+  toast('Controlled export is available only inside Saagar Control Centre.','err');
+}
+
+/* ═══════════════ P1-16: RECURRING EXPENSE TEMPLATES ═══════════════
+   gm_recurring = [template]. Templates are CONFIG, not money: posting writes an
+   ORDINARY ledger row (source:'recurring', sourceRef:'rec:<tplId>:<YYYY-MM>')
+   through the SAME normEntry+saveLedger+audit path addEntry uses, so every
+   existing reader (bridge P1-43, voucher check, PDFs, budgets, CSV) sees it
+   with zero changes. Post = any role; template CRUD = can('recurring'). */
+function normRecTpl(t){
+  t=t||{};
+  var d=Math.floor(num(t.dueDay)); if(!(d>=1&&d<=31)) d=1;
+  var o={
+    id:t.id||uid('rt'),
+    name:String(t.name==null?'':t.name),
+    amount:num(t.amount),
+    category:EXP_CATS.indexOf(t.category)>=0?t.category:'Miscellaneous',
+    mode:MODES.indexOf(t.mode)>=0?t.mode:'Cash',
+    vendor:t.vendor||'',
+    firm:t.firm||'',
+    store:(t.store==='WLMHW'||t.store==='HEMW')?t.store:undefined,   // same whitelist as normEntry
+    dueDay:d,
+    active:t.active!==false,
+    createdAt:t.createdAt||new Date().toISOString(),
+    createdBy:t.createdBy||role()
+  };
+  /* CARRY-SAFE BY CONSTRUCTION: unknown future fields pass through, so this
+     normaliser can never silently drop a later wave's additions (unlike
+     normEntry, which must be edited for every new ledger field). */
+  Object.keys(t).forEach(function(k){ if(!(k in o)) o[k]=t[k]; });
+  return o;
+}
+function getRecTpls(){ var a=L(K.rec,[]); return (Array.isArray(a)?a:[]).map(normRecTpl); }   /* non-array corrupt store must not brick renderLedger */
+function saveRecTpls(a){ S(K.rec,a.map(normRecTpl)); }
+function recDaysInMonth(mm){ return new Date(+mm.slice(0,4), +mm.slice(5,7), 0).getDate(); }
+/* one-pass posted map for month mm: { 'rec:<id>:<mm>': count } — non-void rows only,
+   so a VOIDED post correctly re-flags the template as unposted. */
+function recPostedMap(mm){
+  var map={};
+  getLedger().forEach(function(e){
+    if(!e.void && typeof e.sourceRef==='string' && e.sourceRef.indexOf('rec:')===0 &&
+       e.sourceRef.slice(-8)===(':'+mm)) map[e.sourceRef]=(map[e.sourceRef]||0)+1;
+  });
+  return map;
+}
+/* due = active, unposted this REAL month, and today >= effective due day
+   (dueDay clamped to the month's length so day-31 rent is due in February). */
+function recurringDue(){
+  try{
+    var mm=ym(todayStr()), dNow=+todayStr().slice(8,10), dim=recDaysInMonth(mm), posted=recPostedMap(mm);
+    return getRecTpls().filter(function(t){
+      return t.active && !posted['rec:'+t.id+':'+mm] && dNow>=Math.min(t.dueDay,dim);
+    });
+  }catch(e){ return []; }
+}
+function recurringNudge(){
+  if(isPast()) return '';                      // posting is disabled in historical view
+  var due=recurringDue(); if(!due.length) return '';
+  var names=due.slice(0,4).map(function(t){return t.name;}).join(', ');
+  return '<div class="banner warn">🔁 <div><b>'+due.length+'</b> recurring expense'+(due.length===1?'':'s')+
+    ' not yet posted this month: '+esc(names)+(due.length>4?'…':'')+
+    ' <button data-action="open-ledger-to-post" class="btn xs" onclick="go(\'ledger\')">Post now</button></div></div>';
+}
+function recurringCard(){
+  var past=isPast(), tpls=getRecTpls(), manage=can('recurring');
+  var mm=ym(todayStr()), dNow=+todayStr().slice(8,10), dim=recDaysInMonth(mm), posted=recPostedMap(mm);
+  var list=tpls.length?('<div class="flist">'+tpls.map(function(t){
+    var got=posted['rec:'+t.id+':'+mm]||0, eff=Math.min(t.dueDay,dim);
+    var st=!t.active?'<span class="bdg void">inactive</span>'
+      :got?'<span class="bdg ok">posted'+(got>1?' ×'+got:'')+'</span>'
+      :(dNow>=eff?'<span class="bdg warn">due — not posted</span>'
+                 :'<span class="muted small">upcoming · day '+eff+'</span>');
+    var btns=past?'':((t.active?'<button data-action="post-recurring-entry" data-saagar-args="'+jargs(t.id)+'" class="btn xs green">'+(got?'Post again':'Post now')+'</button>':'')+
+      (manage?' <button data-action="edit-recurring-template" data-saagar-args="'+jargs(t.id)+'" class="btn xs">Edit</button>'+
+              ' <button data-action="toggle-recurring-template" data-saagar-args="'+jargs(t.id)+'" class="btn xs">'+(t.active?'Deactivate':'Activate')+'</button>'+
+              ' <button data-action="delete-recurring-template" data-saagar-args="'+jargs(t.id)+'" class="btn xs red">✕</button>':''));
+    return '<div class="fitem"><div class="ic">🔁</div>'+
+      '<div><b>'+esc(t.name)+'</b> <span class="muted small">'+esc(t.category)+' · '+esc(t.mode)+
+        (t.vendor?' · '+esc(t.vendor):'')+(t.firm?' · '+esc(t.firm):'')+(t.store?' · '+esc(storeName(t.store)):'')+
+        ' · typical '+nINR(t.amount)+' · due day '+t.dueDay+'</span></div>'+
+      '<div class="row" style="justify-content:flex-end">'+st+' '+btns+'</div></div>';
+  }).join('')+'</div>')
+  :'<div class="empty">No recurring templates yet. Add rent, salary, electricity, insurance once — then post each month with one tap.</div>';
+  var form=(manage&&!past)
+    ? '<div class="fgrid" style="margin-top:14px">'+
+        fld('Name','<input id="rt_name" placeholder="e.g. Shop rent">')+
+        fld('Typical amount (₹)','<input id="rt_amt" type="number" min="0" step="0.01" placeholder="0.00">')+
+        fld('Due day of month','<input id="rt_day" type="number" min="1" max="31" value="1">')+
+        fld('Category','<select id="rt_cat">'+EXP_CATS.map(function(c){return '<option'+(c==='Rent'?' selected':'')+'>'+c+'</option>';}).join('')+'</select>')+
+        fld('Payment mode','<select id="rt_mode">'+MODES.map(function(m){return '<option>'+m+'</option>';}).join('')+'</select>')+
+        fld('Vendor / payee','<input id="rt_vendor" placeholder="optional">')+
+        fld('Firm','<select id="rt_firm">'+orgFirms().map(function(f){return '<option>'+esc(f)+'</option>';}).join('')+'</select>')+
+        fld('Store (cash drawer)','<select id="rt_store">'+storeOpts('')+'</select>')+
+      '</div><div class="row" style="margin-top:12px"><button data-action="add-recurring-template" class="btn p" onclick="addRecTpl()">Add template</button></div>'
+    : (past?'':'<div class="small muted" style="margin-top:10px">Accounts / Owner can add or edit templates. Any role can post.</div>');
+  return '<div class="card"><div class="card-h"><div><h3>Recurring expenses</h3>'+
+    '<p>Rent, salary, utilities, insurance — one tap posts this month’s entry into the ledger (amount editable at post time).</p></div></div>'+
+    list+form+'</div>';
+}
+function addRecTpl(){
+  if(isPast()){ toast('Historical view is read-only','err'); return; }
+  if(!can('recurring')){ toast('Accounts / Owner only','err'); return; }
+  var name=val('rt_name').trim(), amt=num(val('rt_amt')), day=Math.floor(num(val('rt_day')));
+  if(!name){ toast('Template name is required','err'); return; }
+  if(!(amt>0)){ toast('Enter a typical amount greater than 0','err'); return; }
+  if(!(day>=1&&day<=31)){ toast('Due day must be between 1 and 31','err'); return; }
+  var tpls=getRecTpls();
+  if(tpls.find(function(x){return x.name.toLowerCase()===name.toLowerCase();}) &&
+     !confirm('A template named "'+name+'" already exists. Add another?')) return;
+  tpls.push(normRecTpl({name:name,amount:amt,category:val('rt_cat'),mode:val('rt_mode'),
+    vendor:val('rt_vendor').trim(),firm:val('rt_firm'),store:val('rt_store'),dueDay:day,active:true,createdBy:role()}));
+  saveRecTpls(tpls); audit('recurring.add',name+' · '+nINR(amt)+' · day '+day);
+  toast('Recurring template added','ok'); renderLedger();
+}
+function editRecTpl(id){
+  if(isPast()){ toast('Historical view is read-only','err'); return; }
+  if(!can('recurring')){ toast('Accounts / Owner only','err'); return; }
+  var tpls=getRecTpls(), t=tpls.find(function(x){return x.id===id;}); if(!t) return;
+  /* ID discipline: modal uses re_* ids — the inline add-form (rt_*) stays in the
+     Ledger DOM while the modal is open and getElementById returns the first match.
+     t.id never changes on edit (sourceRef continuity). */
+  modal('Edit template — '+esc(t.name),
+    fld('Name','<input id="re_name" value="'+esc(t.name)+'">')+
+    fld('Typical amount (₹)','<input id="re_amt" type="number" min="0" step="0.01" value="'+t.amount+'">')+
+    fld('Category','<select id="re_cat">'+EXP_CATS.map(function(c){return '<option'+(c===t.category?' selected':'')+'>'+c+'</option>';}).join('')+'</select>')+
+    fld('Mode','<select id="re_mode">'+MODES.map(function(m){return '<option'+(m===t.mode?' selected':'')+'>'+m+'</option>';}).join('')+'</select>')+
+    fld('Due day of month (1–31)','<input id="re_day" type="number" min="1" max="31" value="'+t.dueDay+'">')+
+    fld('Vendor / payee','<input id="re_vendor" value="'+esc(t.vendor)+'">')+
+    fld('Firm','<select id="re_firm">'+orgFirms().map(function(f){return '<option'+(f===t.firm?' selected':'')+'>'+esc(f)+'</option>';}).join('')+'</select>')+
+    fld('Store (cash drawer)','<select id="re_store">'+storeOpts(t.store||'')+'</select>'),
+    async function(){
+      var name=val('re_name').trim(), amt=num(val('re_amt')), day=Math.floor(num(val('re_day')));
+      if(!name){ toast('Template name is required','err'); return false; }
+      if(!(amt>0)){ toast('Enter a typical amount greater than 0','err'); return false; }
+      if(!(day>=1&&day<=31)){ toast('Due day must be between 1 and 31','err'); return false; }
+      t.name=name; t.amount=amt; t.category=val('re_cat'); t.mode=val('re_mode'); t.dueDay=day;
+      t.vendor=val('re_vendor').trim(); t.firm=val('re_firm');
+      t.store=(function(){var s=val('re_store');return (s==='WLMHW'||s==='HEMW')?s:undefined;})();
+      saveRecTpls(tpls); audit('recurring.edit',t.id+' · '+name+' · '+nINR(amt)+' · day '+day);
+      toast('Template updated','ok'); renderLedger(); return true;
+    });
+}
+function toggleRecTpl(id){
+  if(isPast()){ toast('Historical view is read-only','err'); return; }
+  if(!can('recurring')){ toast('Accounts / Owner only','err'); return; }
+  var tpls=getRecTpls(), t=tpls.find(function(x){return x.id===id;}); if(!t) return;
+  t.active=!t.active; saveRecTpls(tpls);
+  audit('recurring.toggle',t.name+' → '+(t.active?'active':'inactive'));
+  toast(t.name+(t.active?' activated':' deactivated'),'ok'); renderLedger();
+}
+function delRecTpl(id){
+  if(isPast()){ toast('Historical view is read-only','err'); return; }
+  if(!can('recurring')){ toast('Accounts / Owner only','err'); return; }
+  var tpls=getRecTpls(), t=tpls.find(function(x){return x.id===id;}); if(!t) return;
+  if(!confirm('Delete template "'+t.name+'"? Ledger entries already posted from it are kept.')) return;
+  saveRecTpls(tpls.filter(function(x){return x.id!==id;}));
+  audit('recurring.remove',t.name); toast('Template deleted','ok'); renderLedger();
+}
+function postRecurring(id){
+  if(isPast()){ toast('Historical view is read-only. Switch to today to post.','err'); return; }
+  var t=getRecTpls().find(function(x){return x.id===id;}); if(!t) return;
+  if(!t.active){ toast('Template is inactive — activate it to post','warn'); return; }
+  var date=todayStr();
+  if(getStmt(date).closed){ toast('Today’s cash statement is locked. Owner must reopen it first.','err'); return; }
+  var mm=ym(date), ref='rec:'+t.id+':'+mm;
+  /* P1-18: month-lock gate. The Owner override is ABSORBED into this post modal (warn
+     banner + required rp_rsn) instead of chaining lockedMonthOverrideModal — modal()
+     rewrites #modalRoot wholesale, so chaining is unimplementable (Wave-10 decision #3).
+     Same owner-only gate, same mandatory reason, same 'locked-month-override' audit
+     action, same markFeedStale call as the addEntry/pettyOut two-step pattern. */
+  var __mLock=isMonthLocked(date);
+  if(__mLock && !can('monthoverride')){ toast('Month '+mm+' is tax-locked — its tax feed was already generated. Owner override required.','err'); return; }
+  var already=getLedger().filter(function(e){return !e.void && e.sourceRef===ref;});
+  modal('Post recurring — '+esc(t.name),
+    (__mLock?'<div class="banner warn" style="margin-bottom:10px">⚠ <div>Month '+mm+' is tax-locked. Posting records an Owner override and marks the '+mm+' tax feed stale.</div></div>':'')+
+    (already.length?'<div class="banner warn">⚠ <div>Already posted for '+mm+' ('+already.length+
+      ' entr'+(already.length===1?'y':'ies')+' · '+nINR(already.reduce(function(s,e){return s+e.amount;},0))+
+      '). Confirming will post ANOTHER entry for this month.</div></div>':'')+
+    '<p class="small muted" style="margin-bottom:10px">'+esc(t.category)+' · '+esc(t.mode)+
+      (t.vendor?' · '+esc(t.vendor):'')+(t.firm?' · '+esc(t.firm):'')+' · posts to today ('+date+') as an expense.</p>'+
+    fld('Amount for this month (₹)','<input id="rp_amt" type="number" min="0" step="0.01" value="'+t.amount+'">')+
+    (__mLock?fld('Override reason','<input id="rp_rsn" placeholder="required — why this late change?">','full'):''),
+    async function(){
+      var amt=num(val('rp_amt'));
+      if(!(amt>0)||!isFinite(amt)){ toast('Enter an amount greater than 0','err'); return false; }
+      var rsn=null;
+      if(__mLock){ rsn=val('rp_rsn').trim(); if(!rsn){ toast('Override reason is required','err'); return false; } }
+      /* R0-W1 SEC-04: locked-month override only — do not remove the __mLock guard. */
+      if(__mLock && !await stReauth('Post a recurring entry into the tax-locked month'))return false;
+      commitRecurringPost(t,amt,rsn);
+      return true;
+    });
+}
+/* pure commit (modal-driven via postRecurring; 3-arg since Wave-10 Phase A so the
+   P1-18 override lands without reopening this signature — ovRsn is the locked-month
+   override reason, null on the normal path). */
+function commitRecurringPost(t,amt,ovRsn){
+  var date=todayStr(), mm=ym(date), ref='rec:'+t.id+':'+mm;
+  if(isPast()){ toast('Historical view is read-only','err'); return; }                       // defence in depth
+  if(getStmt(date).closed){ toast('Day locked — reopen first','err'); return; }              // re-check: modal may sit open across a close
+  /* P1-18: defensive month-lock gate — the modal may sit open across a feed generate. */
+  if(isMonthLocked(date) && !ovRsn){ if(!can('monthoverride')){ toast('Month '+mm+' is tax-locked — its tax feed was already generated. Owner override required.','err'); } else { toast('Override reason is required','err'); } return; }
+  var led=getLedger();                                                                        // FRESH read inside the commit (exp-bug-01 pattern)
+  led.push(normEntry({id:uid('e'),type:'expense',date:date,amount:amt,category:t.category,
+    mode:t.mode,vendor:t.vendor,firm:t.firm,store:t.store,description:t.name+' — '+mm,
+    source:'recurring',sourceRef:ref,status:'pending',createdBy:role()}));
+  saveLedger(led);
+  if(t.vendor){ var vs=L(K.vend,[]); if(!vs.find(function(v){return v.name.toLowerCase()===t.vendor.toLowerCase();})){ vs.push({name:t.vendor}); S(K.vend,vs); } }   // mirrors addEntry vendor auto-add
+  audit('recurring.post',t.name+' · '+nINR(amt)+' · '+mm);
+  if(ovRsn){ audit('locked-month-override','recurring '+t.id+' · '+date+' · '+nINR(amt)+' · '+ovRsn); markFeedStale(mm); }   // P1-18
+  toast('Posted '+t.name+' '+nINR(amt)+' — also in today’s cash statement','ok');
+  budgetAlertToast(t.category,date);   // P1-19: rent/salary are the biggest budget heads — the live alert applies here too
+  render();
+}
+
+/* ═══════════════ CASH STATEMENT (auto, locked rows) ═══════════════ */
+var SD=asOf();
+/* Wave-5: per-store scope. '' = All (business) = today's exact behaviour. */
+var SST='';
+function setSST(s){ SST=s; renderStmt(); }
+/* Wave-5: segmented scope control [ All (business) | store… ] shown atop the tab. */
+function stScopeBar(){
+  var btns='<button data-action="filter-statement-all-stores" data-saagar-args="'+jargs('')+'" class="'+(SST===''?'on inc':'')+'">All (business)</button>'+
+    orgStores().map(function(s){ return '<button data-action="filter-statement-store" data-saagar-args="'+jargs(s.code)+'" class="'+(SST===s.code?'on inc':'')+'">'+esc(s.name)+'</button>'; }).join('');
+  return '<div class="seg" style="margin-bottom:14px">'+btns+'</div>';
+}
+/* Wave-5: compact both-drawer status strip for the All (business) view. */
+function stDrawerStrip(){
+  var rows=orgStores().map(function(s){
+    var d=computeDayStore(SD,s.code), sub=((getStmt(SD).byStore)||{})[s.code]||{};
+    var counted=denoTotal(sub.physDeno), delta=counted-d.expectedClosing;
+    var status=sub.closed?'<span class="bdg locked">closed</span>'
+      :(counted===0?'<span class="bdg warn">not counted</span>'
+        :(Math.abs(delta)<1?'<span class="bdg ok">balanced</span>':'<span class="bdg exp">mismatch '+(delta>0?'+':'')+nINR(delta)+'</span>'));
+    return '<div class="st-row"><span class="d">'+esc(s.name)+' · '+nINR(counted)+' counted vs '+nINR(d.expectedClosing)+' expected</span><span>'+status+'</span></div>';
+  }).join('');
+  return '<div class="st-box" style="margin-bottom:14px"><div class="st-th">PER-STORE DRAWERS (soft reconciliation)</div>'+rows+
+    '<div class="st-row"><span class="d muted small">Untagged legacy/bridge entries are not attributed to a store — they appear only here in the business day.</span><span></span></div></div>';
+}
+function renderStmt(){
+  if(SST!==''){ renderStmtStore(SST); return; }
+  var d=computeDay(SD), st=getStmt(SD);
+  var counted=denoTotal(st.physDeno), bankDep=denoTotal(st.bankDeno);
+  var delta=counted-d.expectedClosing, bal=Math.abs(delta)<1;
+  var locked=st.closed;
+  // VIEW-ONLY history: when the SELECTED statement day is before today, the
+  // whole tab is read-only — deno inputs disabled, no close/approve/reopen.
+  var pastDay=SD<todayStr(), ro=locked||pastDay;
+  document.getElementById('stmtC').innerHTML =
+  '<div class="card"><div class="card-h"><div><h3>Daily Cash Statement</h3><p>Auto-built from the ledger. Rows are read-only — add money in the Ledger tab.</p></div>'+
+   '<div class="actions"><input type="date" value="'+SD+'" onchange="SD=this.value;renderStmt()" style="padding:7px 9px;border:1px solid var(--gray-300);border-radius:7px"><button data-action="print-cash-statement" class="btn sm" onclick="printStmt()">⎙ Print / WhatsApp</button></div></div>'+
+   stScopeBar()+
+   stDrawerStrip()+
+   (locked?'<div class="banner lock">🔒 <div>This day is <b>locked</b> ('+ (st.closedBy||'?') +' · '+(st.closedAt||'').slice(0,16).replace('T',' ')+'). '+(st.approved?'Approved by '+st.approvedBy+'.':'Awaiting checker approval.')+'</div></div>':'')+
+   (pastDay&&!locked?'<div class="banner lock">🔒 <div>Viewing <b>'+SD+'</b> (past). Read-only historical statement — counting and close are disabled.</div></div>':'')+
+   (!d.prevClosed && d.opening===0 ? '<div class="banner warn">⚠ <div>Previous day (' +prevDay(SD)+ ') is not closed, so opening balance is ₹0. Close prior days for accurate carry-forward.</div></div>':'')+
+   '<div class="st-grid">'+
+     '<div class="st-box"><div class="st-th">RECEIPTS (cash in)</div>'+
+       strow('Opening balance (carry-forward)',d.opening)+
+       cashRows(d.rows,'income')+
+       '<div class="st-row tot"><span>Total cash available</span><span>'+nINR(d.opening+d.cashIn)+'</span></div></div>'+
+     '<div class="st-box"><div class="st-th">PAYMENTS (cash out)</div>'+
+       cashRows(d.rows,'expense')+
+       '<div class="st-row tot"><span>Total cash paid</span><span>'+nINR(d.cashOut)+'</span></div>'+
+       '<div class="st-row tot"><span>Expected closing cash</span><span>'+nINR(d.expectedClosing)+'</span></div></div>'+
+   '</div>'+
+   '<div class="banner info" style="margin-top:14px">ℹ <div>Non-cash today — Bank in '+nINR(d.bankIn)+' · Bank/UPI/Card out '+nINR(d.bankOut)+'. These are tracked in the ledger but excluded from the physical cash count below.</div></div>'+
+   '<div class="st-grid" style="margin-top:8px">'+
+     denoBox('Physical cash counted','phys',st.physDeno,ro)+
+     denoBox('Of which deposited to bank','bank',st.bankDeno,ro)+
+   '</div>'+
+   '<div class="recon '+(bal?'ok':'bad')+'">'+(bal?'Cash reconciled':'Cash mismatch')+
+     '<span class="big">'+nINR(counted)+' counted vs '+nINR(d.expectedClosing)+' expected'+(bal?'':' · '+ (delta>0?'+':'') +nINR(delta))+'</span>'+
+     (st.mismatchReason?'<div class="small" style="margin-top:6px">Reason on record: '+esc(st.mismatchReason)+'</div>':'')+
+   '</div>'+
+   '<div class="row" style="margin-top:14px;justify-content:flex-end">'+
+     (pastDay
+       ? '<span class="small muted">Historical view — close, approve and reopen are available only for today.</span>'
+       : (locked
+         ? (can('approve') && !st.approved ? '<button data-action="approve-business-day" class="btn green" onclick="approveDay()">✔ Approve day (checker)</button> ' : '')+
+           (can('reopen') ? '<button data-action="reopen-business-day" class="btn red" onclick="reopenDay()">↺ Reopen (owner)</button>' : '')
+         : (can('close') ? '<button data-action="close-business-day" class="btn p" onclick="closeDay()">🔒 Close &amp; lock day</button>' : '<span class="small muted">Your role cannot close the day</span>')))+
+   '</div>'+
+   '<div class="small muted" style="margin-top:8px">Carry-forward to next day = counted cash − bank deposit = <b>'+nINR(Math.max(counted-bankDep,0))+'</b></div>'+
+  '</div>';
+}
+/* Wave-5: per-store cash-drawer statement (SST is a store code). Mirrors the
+   business view but scoped to that drawer via computeDayStore + st.byStore[store].
+   A per-store close is a SOFT drawer reconciliation; the business-wide hard
+   day-lock (top-level st.closed) still governs ledger entry. */
+function renderStmtStore(store){
+  var d=computeDayStore(SD,store), st=getStmt(SD), sub=((st.byStore)||{})[store]||{physDeno:{},bankDeno:{},closed:false,approved:false};
+  var counted=denoTotal(sub.physDeno), bankDep=denoTotal(sub.bankDeno);
+  var delta=counted-d.expectedClosing, bal=Math.abs(delta)<1;
+  var locked=!!sub.closed;
+  var pastDay=SD<todayStr(), ro=locked||pastDay;
+  document.getElementById('stmtC').innerHTML =
+  '<div class="card"><div class="card-h"><div><h3>Cash Statement — '+esc(storeName(store))+'</h3><p>Per-store cash drawer. Only entries tagged to this store are shown.</p></div>'+
+   '<div class="actions"><input type="date" value="'+SD+'" onchange="SD=this.value;renderStmt()" style="padding:7px 9px;border:1px solid var(--gray-300);border-radius:7px"><button data-action="print-store-statement" class="btn sm" onclick="printStmt()">⎙ Print / WhatsApp</button></div></div>'+
+   stScopeBar()+
+   '<div class="banner info">ℹ <div>Untagged legacy entries are not shown here; see <b>All (business)</b> for the full day. Closing this drawer does not lock the other store or the business day.</div></div>'+
+   (locked?'<div class="banner lock">🔒 <div>This drawer is <b>closed</b> ('+ (sub.closedBy||'?') +' · '+((sub.closedAt||'')+'').slice(0,16).replace('T',' ')+'). '+(sub.approved?'Approved by '+esc(sub.approvedBy||'')+'.':'Awaiting checker approval.')+'</div></div>':'')+
+   (pastDay&&!locked?'<div class="banner lock">🔒 <div>Viewing <b>'+SD+'</b> (past). Read-only historical statement — counting and close are disabled.</div></div>':'')+
+   (!d.prevClosed && d.opening===0 ? '<div class="banner warn">⚠ <div>Previous day for this drawer is not closed, so opening balance is ₹0. Close prior days for accurate carry-forward.</div></div>':'')+
+   '<div class="st-grid">'+
+     '<div class="st-box"><div class="st-th">RECEIPTS (cash in)</div>'+
+       strow('Opening balance (carry-forward)',d.opening)+
+       cashRows(d.rows,'income')+
+       '<div class="st-row tot"><span>Total cash available</span><span>'+nINR(d.opening+d.cashIn)+'</span></div></div>'+
+     '<div class="st-box"><div class="st-th">PAYMENTS (cash out)</div>'+
+       cashRows(d.rows,'expense')+
+       '<div class="st-row tot"><span>Total cash paid</span><span>'+nINR(d.cashOut)+'</span></div>'+
+       '<div class="st-row tot"><span>Expected closing cash</span><span>'+nINR(d.expectedClosing)+'</span></div></div>'+
+   '</div>'+
+   '<div class="banner info" style="margin-top:14px">ℹ <div>Non-cash (this drawer) — Bank in '+nINR(d.bankIn)+' · Bank/UPI/Card out '+nINR(d.bankOut)+'. Excluded from the physical cash count below.</div></div>'+
+   '<div class="st-grid" style="margin-top:8px">'+
+     denoBoxStore(store,'Physical cash counted','phys',sub.physDeno,ro)+
+     denoBoxStore(store,'Of which deposited to bank','bank',sub.bankDeno,ro)+
+   '</div>'+
+   '<div class="recon '+(bal?'ok':'bad')+'">'+(bal?'Cash reconciled':'Cash mismatch')+
+     '<span class="big">'+nINR(counted)+' counted vs '+nINR(d.expectedClosing)+' expected'+(bal?'':' · '+ (delta>0?'+':'') +nINR(delta))+'</span>'+
+     (sub.mismatchReason?'<div class="small" style="margin-top:6px">Reason on record: '+esc(sub.mismatchReason)+'</div>':'')+
+   '</div>'+
+   '<div class="row" style="margin-top:14px;justify-content:flex-end">'+
+     (pastDay
+       ? '<span class="small muted">Historical view — close, approve and reopen are available only for today.</span>'
+       : (locked
+         ? (can('approve') && !sub.approved ? '<button data-action="approve-store-day" data-saagar-args="'+jargs(store)+'" class="btn green">✔ Approve drawer (checker)</button> ' : '')+
+           (can('reopen') ? '<button data-action="reopen-store-day" data-saagar-args="'+jargs(store)+'" class="btn red">↺ Reopen (owner)</button>' : '')
+         : (can('close') ? '<button data-action="close-store-day" data-saagar-args="'+jargs(store)+'" class="btn p">🔒 Close &amp; lock drawer</button>' : '<span class="small muted">Your role cannot close the day</span>')))+
+   '</div>'+
+   '<div class="small muted" style="margin-top:8px">Carry-forward to next day = counted cash − bank deposit = <b>'+nINR(Math.max(counted-bankDep,0))+'</b></div>'+
+  '</div>';
+}
+/* PRINT: rebuild the Cash Statement for SD as a self-contained doc for the on-screen
+   preview bridge. Uses ONLY the shared .stp-* theme injected by the shell. */
+function printStmt(){
+  // Wave-5: when a store scope is active, print that drawer (computeDayStore +
+  // st.byStore[store] deno). When SST==='' this is byte-identical to before.
+  var __store=SST||null;
+  var st=getStmt(SD);
+  var d=__store?computeDayStore(SD,__store):computeDay(SD);
+  var __deno=__store?(((st.byStore)||{})[__store]||{physDeno:{},bankDeno:{}}):st;
+  var counted=denoTotal(__deno.physDeno), bankDep=denoTotal(__deno.bankDeno);
+  var carry=Math.max(counted-bankDep,0);
+  var __scopeLbl=__store?(' · '+storeName(__store)):'';
+  var inflows=d.rows.filter(function(e){return e.type==='income' && e.mode==='Cash';});
+  var outflows=d.rows.filter(function(e){return e.type==='expense' && e.mode==='Cash';});
+  var hasAny = d.opening>0 || inflows.length || outflows.length || counted>0;
+
+  function rowsHtml(list,empty){
+    if(!list.length) return '<tr><td class="stp-mut">'+stEsc(empty)+'</td><td class="stp-c stp-r stp-mut">'+stEsc(nINR(0))+'</td></tr>';
+    return list.map(function(e){
+      var lbl=e.description||e.category||'—';
+      if(e.source) lbl+=' ('+e.source+')';
+      return '<tr><td>'+stEsc(lbl)+'</td><td class="stp-c stp-r">'+stEsc(nINR(e.amount))+'</td></tr>';
+    }).join('');
+  }
+
+  var body=''+
+    '<div class="stp-head">'+
+      '<div class="stp-brand">Saagar Traders<small>Expense · Cash</small></div>'+
+      '<div class="stp-title">Cash Statement<small>'+stEsc(SD+__scopeLbl)+'</small></div>'+
+    '</div>'+
+    '<div class="stp-meta">Saagar Traders'+stEsc(__scopeLbl)+' · Statement date '+stEsc(SD)+' · Prepared by '+stEsc(role())+
+      (__store
+        ? ((((st.byStore)||{})[__store]||{}).closed?(' · Drawer closed ('+stEsc(((((st.byStore)||{})[__store]||{}).closedBy)||'?')+')'):'')
+        : (st.closed?(' · Closed ('+stEsc((st.closedBy||'?'))+')'):''))+'</div>';
+
+  if(!hasAny){
+    body+='<div class="stp-empty">No cash statement for this date.</div>';
+  } else {
+    body+=''+
+    '<div class="stp-sec"><div class="stp-sec-t">Receipts (cash in)</div>'+
+      '<table class="stp-table" data-saagar-print-table-strategy="priority" data-saagar-table-workflow="statement-inflows"><thead><tr><th>Particulars</th><th class="stp-c stp-r">Amount</th></tr></thead>'+
+      '<tbody>'+
+        '<tr><td>Opening balance (carry-forward)</td><td class="stp-c stp-r">'+stEsc(nINR(d.opening))+'</td></tr>'+
+        rowsHtml(inflows,'— none —')+
+      '</tbody>'+
+      '<tfoot><tr class="stp-tot"><td>Total cash available</td><td class="stp-c stp-r">'+stEsc(nINR(d.opening+d.cashIn))+'</td></tr></tfoot>'+
+      '</table></div>'+
+    '<div class="stp-sec"><div class="stp-sec-t">Payments (cash out)</div>'+
+      '<table class="stp-table" data-saagar-print-table-strategy="priority" data-saagar-table-workflow="statement-outflows"><thead><tr><th>Particulars</th><th class="stp-c stp-r">Amount</th></tr></thead>'+
+      '<tbody>'+rowsHtml(outflows,'— none —')+'</tbody>'+
+      '<tfoot>'+
+        '<tr class="stp-tot"><td>Total cash paid</td><td class="stp-c stp-r">'+stEsc(nINR(d.cashOut))+'</td></tr>'+
+        '<tr class="stp-tot"><td>Expected closing cash</td><td class="stp-c stp-r">'+stEsc(nINR(d.expectedClosing))+'</td></tr>'+
+      '</tfoot>'+
+      '</table></div>'+
+    '<div class="stp-sec"><div class="stp-sec-t">Reconciliation</div>'+
+      '<table class="stp-table" data-saagar-print-table-strategy="priority" data-saagar-table-workflow="statement-reconciliation"><tbody>'+
+        '<tr><td>Physical cash counted</td><td class="stp-c stp-r">'+stEsc(nINR(counted))+'</td></tr>'+
+        '<tr><td>Of which deposited to bank</td><td class="stp-c stp-r">'+stEsc(nINR(bankDep))+'</td></tr>'+
+        '<tr><td>Non-cash today (Bank in / out)</td><td class="stp-c stp-r stp-mut">'+stEsc(nINR(d.bankIn))+' / '+stEsc(nINR(d.bankOut))+'</td></tr>'+
+      '</tbody>'+
+      '<tfoot><tr class="stp-tot"><td>Carry-forward to next day (counted − deposit)</td><td class="stp-c stp-r">'+stEsc(nINR(carry))+'</td></tr></tfoot>'+
+      '</table></div>'+
+    '<div class="stp-foot">Auto-built from the ledger. Cash rows only; non-cash entries excluded from the physical count.</div>';
+  }
+
+  stPrintDoc({title:'Cash Statement — '+SD+__scopeLbl, fileBase:'Cash-Statement-'+SD+(__store?('-'+__store):''), body:body, orientation:'portrait'});
+}
+function strow(label,amt,cls){ return '<div class="st-row '+(cls||'')+'"><span class="d">'+esc(label)+'</span><span>'+nINR(amt)+'</span></div>'; }
+function cashRows(rows,type){
+  var r=rows.filter(function(e){return e.type===type && e.mode==='Cash';});
+  if(!r.length) return '<div class="st-row"><span class="d muted">— none —</span><span>₹0</span></div>';
+  return r.map(function(e){ return '<div class="st-row"><span class="d">'+esc(e.description||e.category)+(e.source?' <span class="bdg auto">'+esc(e.source)+'</span>':'')+'</span><span>'+nINR(e.amount)+'</span></div>'; }).join('');
+}
+function denoBox(title,kind,data,locked){
+  return '<div class="st-box"><div class="st-th">'+title+'</div><div style="padding:12px"><div class="deno">'+
+   DENOMS.map(function(v){
+     return '<div class="deno-row"><span>₹'+v+'</span><input type="number" min="0" '+(locked?'disabled':'')+' value="'+(data&&data[v]||'')+'" oninput="setDeno(\''+kind+'\','+v+',this.value)"><span class="num">'+nINR(num(data&&data[v])*v)+'</span></div>';
+   }).join('')+
+   '</div><div class="st-row tot" style="margin-top:8px"><span>Total</span><span>'+nINR(denoTotal(data))+'</span></div></div></div>';
+}
+/* Wave-5: store-aware deno box (writes via setDenoStore into st.byStore[store]). */
+function denoBoxStore(store,title,kind,data,locked){
+  return '<div class="st-box"><div class="st-th">'+esc(title)+'</div><div style="padding:12px"><div class="deno">'+
+   DENOMS.map(function(v){
+     return '<div class="deno-row"><span>₹'+v+'</span><input type="number" min="0" '+(locked?'disabled':'')+' value="'+(data&&data[v]||'')+'" oninput="setDenoStore(\''+esc(store)+'\',\''+kind+'\','+v+',this.value)"><span class="num">'+nINR(num(data&&data[v])*v)+'</span></div>';
+   }).join('')+
+   '</div><div class="st-row tot" style="margin-top:8px"><span>Total</span><span>'+nINR(denoTotal(data))+'</span></div></div></div>';
+}
+function setDeno(kind,v,val){
+  if(SD<todayStr()){ toast('Historical view is read-only','err'); return; }   // no writes on a past-date read
+  var st=getStmt(SD); var key=kind==='phys'?'physDeno':'bankDeno';
+  st[key]=st[key]||{}; st[key][v]=num(val); saveStmt(st);
+  // light refresh of totals only
+  renderStmt();
+}
+function closeDay(){
+  if(SD<todayStr()){ toast('Historical view is read-only — close is available only for today','err'); return; }
+  var d=computeDay(SD), st=getStmt(SD);
+  var counted=denoTotal(st.physDeno), delta=counted-d.expectedClosing;
+  if(counted===0){ if(!confirm('No physical cash counted. Close anyway?')) return; }
+  if(Math.abs(delta)>=1){
+    modal('Cash mismatch — reason required',
+      '<p class="small" style="margin-bottom:10px">Counted '+nINR(counted)+' vs expected '+nINR(d.expectedClosing)+' ('+(delta>0?'+':'')+nINR(delta)+'). Per SOP a reason must be recorded.</p>'+
+      fld('Reason','<select id="mm_r">'+REASONS.map(function(r){return '<option>'+r+'</option>';}).join('')+'</select>')+
+      fld('Detail','<input id="mm_n" placeholder="explain the difference">','full'),
+      function(){
+        var rsn=val('mm_r')+(val('mm_n')?(' — '+val('mm_n')):'');
+        st.mismatchReason=rsn; finishClose(st,d); return true;
+      });
+    return;
+  }
+  finishClose(st,d);
+}
+function finishClose(st,d){
+  st.openingBalance=d.opening; st.closed=true; st.closedAt=new Date().toISOString(); st.closedBy=role(); st.approved=false;
+  saveStmt(st);
+  audit('stmt.close',SD+' · expected '+nINR(d.expectedClosing)+' · counted '+nINR(denoTotal(st.physDeno))+(st.mismatchReason?(' · '+st.mismatchReason):''));
+  toast('Day '+SD+' closed & locked','ok'); renderStmt();
+}
+function approveDay(){
+  if(SD<todayStr()){ toast('Historical view is read-only','err'); return; }
+  var st=getStmt(SD); if(!st.closed){ toast('Close the day first','err'); return; }
+  if(role()==='cashier'){ toast('Cashier cannot approve own day','err'); return; }
+  st.approved=true; st.approvedBy=role(); st.approvedAt=new Date().toISOString(); saveStmt(st);
+  audit('stmt.approve',SD+' approved'); toast('Day approved','ok'); renderStmt();
+}
+function reopenDay(){
+  if(SD<todayStr()){ toast('Historical view is read-only','err'); return; }
+  if(!can('reopen')){ toast('Only Owner can reopen','err'); return; }
+  var st=getStmt(SD);
+  modal('Reopen locked day',
+    fld('Reason','<select id="ro_r">'+REASONS.map(function(r){return '<option>'+r+'</option>';}).join('')+'</select>')+
+    fld('Detail','<input id="ro_n" placeholder="audit note">','full'),
+    function(){
+      st.closed=false; st.approved=false; st.reopenReason=val('ro_r')+(val('ro_n')?(' — '+val('ro_n')):'');
+      saveStmt(st); audit('stmt.reopen',SD+' · '+st.reopenReason); toast('Day reopened','warn'); renderStmt(); return true;
+    });
+}
+
+/* ---------- Wave-5: per-store (byStore) reconciliation writers ----------
+   These are a SOFT per-drawer overlay. They write ONLY into st.byStore[store];
+   the top-level closeDay/finishClose/setDeno/approveDay/reopenDay (business-wide
+   hard day-lock) are untouched. Closing one store never locks the other. */
+function stSub(st,store){
+  st.byStore=st.byStore||{};
+  st.byStore[store]=st.byStore[store]||{physDeno:{},bankDeno:{},closed:false,closedAt:null,closedBy:null,approved:false,approvedBy:null,approvedAt:null,reopenReason:null,mismatchReason:null,openingBalance:null};
+  return st.byStore[store];
+}
+function setDenoStore(store,kind,v,valv){
+  if(SD<todayStr()){ toast('Historical view is read-only','err'); return; }
+  var st=getStmt(SD); var sub=stSub(st,store); var key=kind==='phys'?'physDeno':'bankDeno';
+  sub[key]=sub[key]||{}; sub[key][v]=num(valv); saveStmt(st); renderStmt();
+}
+function closeStoreDay(store){
+  if(SD<todayStr()){ toast('Historical view is read-only — close is available only for today','err'); return; }
+  if(!can('close')){ toast('Your role cannot close the day','err'); return; }
+  var st=getStmt(SD); var sub=stSub(st,store); var d=computeDayStore(SD,store);
+  var counted=denoTotal(sub.physDeno), delta=counted-d.expectedClosing;
+  var fin=function(){
+    sub.openingBalance=d.opening; sub.closed=true; sub.closedAt=new Date().toISOString(); sub.closedBy=role(); sub.approved=false;
+    saveStmt(st);
+    audit('stmt.close.store',SD+' · '+store+' · exp '+nINR(d.expectedClosing)+' · counted '+nINR(counted)+(sub.mismatchReason?(' · '+sub.mismatchReason):''));
+    toast(storeName(store)+' drawer closed for '+SD,'ok'); renderStmt();
+  };
+  if(counted===0){ if(!confirm('No cash counted for '+storeName(store)+'. Close anyway?')) return; }
+  if(Math.abs(delta)>=1){
+    modal('Cash mismatch ('+storeName(store)+') — reason required',
+      '<p class="small" style="margin-bottom:10px">Counted '+nINR(counted)+' vs expected '+nINR(d.expectedClosing)+' ('+(delta>0?'+':'')+nINR(delta)+'). Per SOP a reason must be recorded.</p>'+
+      fld('Reason','<select id="mm_r">'+REASONS.map(function(r){return '<option>'+r+'</option>';}).join('')+'</select>')+
+      fld('Detail','<input id="mm_n" placeholder="explain the difference">','full'),
+      function(){ sub.mismatchReason=val('mm_r')+(val('mm_n')?(' — '+val('mm_n')):''); fin(); return true; });
+    return;
+  }
+  fin();
+}
+function approveStoreDay(store){
+  if(SD<todayStr()){ toast('Historical view is read-only','err'); return; }
+  var st=getStmt(SD); var sub=stSub(st,store);
+  if(!sub.closed){ toast('Close the drawer first','err'); return; }
+  if(role()==='cashier'){ toast('Cashier cannot approve own day','err'); return; }
+  sub.approved=true; sub.approvedBy=role(); sub.approvedAt=new Date().toISOString(); saveStmt(st);
+  audit('stmt.approve.store',SD+' · '+store+' approved'); toast(storeName(store)+' drawer approved','ok'); renderStmt();
+}
+function reopenStoreDay(store){
+  if(SD<todayStr()){ toast('Historical view is read-only','err'); return; }
+  if(!can('reopen')){ toast('Only Owner can reopen','err'); return; }
+  var st=getStmt(SD); var sub=stSub(st,store);
+  modal('Reopen '+storeName(store)+' drawer',
+    fld('Reason','<select id="ro_r">'+REASONS.map(function(r){return '<option>'+r+'</option>';}).join('')+'</select>')+
+    fld('Detail','<input id="ro_n" placeholder="audit note">','full'),
+    function(){
+      sub.closed=false; sub.approved=false; sub.reopenReason=val('ro_r')+(val('ro_n')?(' — '+val('ro_n')):'');
+      saveStmt(st); audit('stmt.reopen.store',SD+' · '+store+' · '+sub.reopenReason); toast(storeName(store)+' drawer reopened','warn'); renderStmt(); return true;
+    });
+}
+
+/* ═══════════════ PETTY CASH ═══════════════ */
+function renderPetty(){
+  var pt=L(K.petty,{float:0,history:[]});
+  var past=isPast(), dis=past?' disabled':'';
+  var spent=getLedger().filter(function(e){return e.source==='petty'&&!e.void;}).reduce(function(s,e){return s+e.amount;},0);
+  document.getElementById('pettyC').innerHTML=
+  (past?'<div class="banner lock">🔒 <div>Viewing <b>'+asOf()+'</b> (past). Petty float top-up and disbursement are disabled in historical view.</div></div>':'')+
+  '<div class="card"><div class="card-h"><div><h3>Petty cash float</h3><p>Small-cash bucket. Disbursements post to the ledger as Cash expenses.</p></div></div>'+
+   '<div class="kgrid"><div class="kpi b"><div class="l">Float set</div><div class="v">'+nINR(pt.float)+'</div></div>'+
+   '<div class="kpi r"><div class="l">Disbursed</div><div class="v">'+nINR(spent)+'</div></div>'+
+   '<div class="kpi g"><div class="l">Balance</div><div class="v">'+nINR(pt.float-spent)+'</div></div>'+
+   '<div class="kpi a"><div class="l">Status</div><div class="v" style="font-size:15px">'+((pt.float-spent)<0.15*pt.float&&pt.float?'Replenish soon':'Healthy')+'</div></div></div>'+
+   '<div class="fgrid" style="margin-top:6px">'+
+    fld('Set / top-up float (₹)','<input id="pt_f" type="number" min="0" placeholder="e.g. 5000"'+dis+'>')+
+    fld('','<button data-action="set-petty-cash-float" class="btn p block" style="margin-top:22px" onclick="setFloat()"'+dis+'>Set / add float</button>')+
+   '</div></div>'+
+  '<div class="card"><div class="card-h"><div><h3>Quick petty disbursement</h3></div></div>'+
+   '<div class="fgrid">'+
+    fld('Amount (₹)','<input id="pt_a" type="number" min="0"'+dis+'>')+
+    fld('Category','<select id="pt_c"'+dis+'>'+EXP_CATS.map(function(c){return '<option>'+c+'</option>';}).join('')+'</select>')+
+    fld('For','<input id="pt_d" placeholder="tea / auto / sundry"'+dis+'>','full')+
+   '</div><button data-action="record-petty-cash-disbursement" class="btn p" style="margin-top:12px" onclick="pettyOut()"'+dis+'>Record disbursement</button></div>';
+}
+function setFloat(){ if(isPast()){ toast('Historical view is read-only','err'); return; } var pt=L(K.petty,{float:0,history:[]}); var add=num(val('pt_f')); if(add<=0){toast('Enter amount','err');return;} pt.float+=add; pt.history.push({at:new Date().toISOString(),by:role(),add:add}); S(K.petty,pt); audit('petty.float','+'+nINR(add)); toast('Float updated','ok'); renderPetty(); }
+function pettyOut(){
+  if(isPast()){ toast('Historical view is read-only','err'); return; }
+  var a=num(val('pt_a')); if(a<=0){toast('Enter amount','err');return;}
+  /* P1-18: month-lock gate — petty writes a real Cash expense row; a lock hit only occurs
+     when the CURRENT month's feed was generated mid-month, exactly when the books need
+     protecting (Wave-10 decision #2). */
+  var __m=ym(todayStr()), __mLock=isMonthLocked(todayStr());
+  if(__mLock && !can('monthoverride')){ toast('Month '+__m+' is tax-locked — its tax feed was already generated. Owner override required.','err'); return; }
+  var __doPetty=function(__ovRsn){
+    var led=getLedger();                                  // fresh read INSIDE the continuation (the override modal adds a human-scale wait)
+    led.push(normEntry({id:uid('e'),type:'expense',date:todayStr(),amount:a,category:val('pt_c'),mode:'Cash',description:'Petty: '+(val('pt_d')||'sundry'),source:'petty',sourceRef:uid('pty'),createdBy:role()}));
+    saveLedger(led); audit('petty.out',nINR(a)+' · '+val('pt_d'));
+    if(__ovRsn){ audit('locked-month-override','petty '+todayStr()+' · '+nINR(a)+' · '+__ovRsn); markFeedStale(__m); }   // P1-18
+    toast('Posted to ledger (Cash expense)','ok'); renderPetty();
+  };
+  if(!__mLock){ __doPetty(null); return; }
+  lockedMonthOverrideModal(__m,'petty disbursement',__doPetty);
+}
+
+/* ═══════════════ VENDORS ═══════════════ */
+function renderVendors(){
+  var vs=L(K.vend,[]), past=isPast(), led=getLedger().filter(function(e){return !e.void;});
+  var spend={}; led.forEach(function(e){ if(e.vendor) spend[e.vendor]=(spend[e.vendor]||0)+(e.type==='expense'?e.amount:0); });
+  document.getElementById('vendorsC').innerHTML=
+  (past?'<div class="banner lock">🔒 <div>Viewing <b>'+asOf()+'</b> (past). Vendor list is read-only in historical view.</div></div>':'')+
+  '<div class="card"><div class="card-h"><div><h3>Vendors / payees</h3><p>Used for entry auto-complete and spend reports.</p></div></div>'+
+   '<div class="row"><input id="vn" placeholder="vendor name"'+(past?' disabled':'')+' style="padding:9px 11px;border:1px solid var(--gray-300);border-radius:8px;flex:1"><input id="vgst" placeholder="GSTIN (optional)"'+(past?' disabled':'')+' style="padding:9px 11px;border:1px solid var(--gray-300);border-radius:8px;width:170px;text-transform:uppercase"><button data-action="add-vendor" class="btn p" onclick="addVendor()"'+(past?' disabled':'')+'>Add</button></div>'+
+   '<div class="twrap" style="margin-top:14px"><table class="gm-tbl-vendors" data-saagar-table-strategy="cards" data-saagar-table-workflow="vendors"><thead><tr><th>Vendor</th><th>GSTIN</th><th class="num">Total spend</th><th class="num">Entries</th><th></th></tr></thead><tbody>'+
+    (vs.length?vs.map(function(v,vi){
+      var cnt=led.filter(function(e){return e.vendor===v.name;}).length;
+      return '<tr><td class="name-cell" data-label="Vendor">'+esc(v.name)+'</td><td data-label="GSTIN"><input value="'+esc(v.gstin||'')+'" placeholder="—"'+(past?' disabled':'')+' style="width:150px;max-width:100%;padding:5px;border:1px solid var(--gray-300);border-radius:6px;font-size:12px;text-transform:uppercase" onchange="setVendGstin('+vi+',this.value)"></td><td class="num" data-label="Total spend">'+nINR(spend[v.name]||0)+'</td><td class="num" data-label="Entries">'+cnt+'</td><td class="num gm-del-cell" data-label="">'+(past?'':'<button data-action="remove-vendor" class="btn xs red" onclick="delVendor('+vi+')">Remove</button>')+'</td></tr>';
+    }).join(''):'<tr><td colspan="5"><div class="empty">No vendors yet. They are also auto-added when you type a payee on an entry.</div></td></tr>')+
+   '</tbody></table></div></div>';
+}
+function addVendor(){ if(isPast()){ toast('Historical view is read-only','err'); return; } var n=val('vn').trim(); if(!n)return; var vs=L(K.vend,[]); if(vs.find(function(v){return v.name.toLowerCase()===n.toLowerCase();})){toast('Already exists','warn');return;} var g=(val('vgst')||'').trim().toUpperCase(); if(g&&!gstinLooksOk(g)) toast('GSTIN looks unusual (expected 15 characters) — saved anyway','warn'); vs.push({name:n,gstin:g}); S(K.vend,vs); audit('vendor.add',n); renderVendors(); }
+/* P1-17: inline per-row GSTIN edit (index-addressed like delVendor — the table renders vs in storage order). */
+function setVendGstin(i,v){
+  if(isPast()){ toast('Historical view is read-only','err'); renderVendors(); return; }
+  var vs=L(K.vend,[]); if(!(i>=0&&i<vs.length)) return;
+  var g=String(v||'').trim().toUpperCase();
+  if(g&&!gstinLooksOk(g)) toast('GSTIN looks unusual (expected 15 characters) — saved anyway','warn');
+  vs[i].gstin=g; S(K.vend,vs); audit('vendor.gstin',(vs[i].name||'')+' → '+(g||'(cleared)')); renderVendors();
+}
+function delVendor(i){ if(isPast()){ toast('Historical view is read-only','err'); return; } var vs=L(K.vend,[]); var nm; if(typeof i==='number'&&i>=0&&i<vs.length){ nm=vs[i].name; vs.splice(i,1); } else { nm=i; vs=vs.filter(function(v){return v.name!==i;}); } S(K.vend,vs); audit('vendor.remove',nm); renderVendors(); }
+
+/* ═══════════════ BUDGETS ═══════════════ */
+function renderBudget(){
+  var m=ym(asOf()), past=isPast(), b=L(K.budg,{}), bm=b[m]||{};
+  var led=getLedger().filter(function(e){return !e.void&&e.type==='expense'&&e.date.slice(0,7)===m;});
+  var act={}; led.forEach(function(e){ act[e.category]=(act[e.category]||0)+e.amount; });
+  document.getElementById('budgetC').innerHTML=
+  (past?'<div class="banner lock">🔒 <div>Viewing <b>'+asOf()+'</b> (past). Budgets for '+m+' are read-only in historical view.</div></div>':'')+
+  '<div class="card"><div class="card-h"><div><h3>Monthly budgets — '+m+'</h3><p>Set a cap per expense head; actuals tracked live from the ledger.</p></div>'+
+   '<div class="actions">'+(past?'':'<button data-action="copy-previous-month-budgets" class="btn sm" onclick="copyBudgets()">⇩ Copy last month’s budgets</button>')+'</div></div>'+
+   '<div class="twrap"><table class="gm-tbl-budget" data-saagar-table-strategy="cards" data-saagar-table-workflow="budgets"><thead><tr><th>Category</th><th class="num">Budget</th><th class="num">Actual</th><th class="num">Used</th><th>Status</th></tr></thead><tbody>'+
+    EXP_CATS.map(function(c){
+      var bg=num(bm[c]), ac=act[c]||0, pct=bg?Math.round(ac/bg*100):0;
+      return '<tr><td class="name-cell" data-label="Category">'+c+'</td>'+
+       '<td class="num" data-label="Budget"><input type="number" min="0" value="'+(bm[c]||'')+'"'+(past?' disabled':'')+' style="width:100px;padding:5px;border:1px solid var(--gray-300);border-radius:6px;text-align:right" onchange="setBudget(\''+jsq(c)+'\',this.value)"></td>'+
+       '<td class="num" data-label="Actual">'+nINR(ac)+'</td>'+
+       '<td class="num" data-label="Used">'+(bg?pct+'%':'—')+'<div class="gauge"><div class="f '+(pct>100?'over':'')+'" style="width:'+Math.min(pct,100)+'%"></div></div></td>'+
+       '<td data-label="Status">'+(!bg?'<span class="muted small">no budget</span>':pct>100?'<span class="bdg exp">over '+nINR(ac-bg)+'</span>':pct>=85?'<span class="bdg warn">near limit</span>':'<span class="bdg ok">ok</span>')+'</td></tr>';
+    }).join('')+
+   '</tbody></table></div></div>';
+}
+function setBudget(c,v){ if(isPast()){ toast('Historical view is read-only','err'); renderBudget(); return; } var m=ym(todayStr()),b=L(K.budg,{}); b[m]=b[m]||{}; b[m][c]=num(v); S(K.budg,b); audit('budget.set',m+' · '+c+' = '+nINR(num(v))); renderBudget(); }
+/* ── P1-19: entry-time budget alert + copy-last-month budgets ─────────────── */
+/* Reuses renderBudget's math EXACTLY: bucket = date.slice(0,7), spend = Σ non-void
+   EXPENSE rows of the category in that month, pct = Math.round(ac/bg*100).
+   Toast thresholds per register: >=90 warn, >=100 err. (The Budgets-tab 85%
+   "near limit" pill is deliberately UNCHANGED.) */
+function budgetAlertFor(cat,date){
+  var m=(date||'').slice(0,7);
+  if(m!==ym(todayStr())) return null;              // current REAL month only
+  var bg=num((L(K.budg,{})[m]||{})[cat]);
+  if(!(bg>0)) return null;                          // no budget set → silent
+  var ac=0; getLedger().forEach(function(e){
+    if(!e.void && e.type==='expense' && e.category===cat && e.date.slice(0,7)===m) ac+=e.amount;
+  });
+  var pct=Math.round(ac/bg*100);
+  if(pct<90) return null;
+  var mon=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+m.slice(5,7)-1]||m;
+  return {msg:cat+' now '+pct+'% of '+mon+' budget',style:pct>=100?'err':'warn'};
+}
+var __budgAlertT=null;
+/* Chain AFTER the save toast: toast() is ONE #toast element with a 2600ms hide
+   timer — an immediate second call would REPLACE the save confirmation. Compute
+   NOW (post-saveLedger, correct data), display at +1600ms so the user sees BOTH:
+   save toast ~1.6s, then the alert for its full 2600ms. clearTimeout dedupes
+   rapid consecutive saves (only the latest alert shows). */
+function budgetAlertToast(cat,date){
+  clearTimeout(__budgAlertT);   // always cancel a pending alert — a corrective save must not let a stale one fire
+  var a=budgetAlertFor(cat,date); if(!a) return;
+  __budgAlertT=setTimeout(function(){ toast(a.msg,a.style); },1600);
+}
+function prevYM(m){ var y=+m.slice(0,4), mo=+m.slice(5,7)-1; if(mo<1){ y--; mo=12; } return y+'-'+p2(mo); }
+/* Non-destructive merge: fills ONLY heads with no value (>0) this month. A 0 value is
+   "no value": setBudget stores num('')→0 when an input is cleared, and renderBudget
+   renders bg=0 as "no budget", so 0 is not a deliberate cap in this model.
+   Write month = ym(todayStr()) mirroring setBudget; no role gate — same openness
+   as per-cell setBudget (can() has no budget action); isPast() guard mirrors it too. */
+function copyBudgets(){
+  if(isPast()){ toast('Historical view is read-only','err'); return; }
+  var m=ym(todayStr()), pm=prevYM(m), b=L(K.budg,{}), src=b[pm]||{}, bm=b[m]||{};
+  if(!src||typeof src!=='object'||Array.isArray(src)) src={};
+  if(!bm ||typeof bm !=='object'||Array.isArray(bm))  bm={};   // corrupt month value must not silently no-op the merge
+  if(!EXP_CATS.some(function(c){ return num(src[c])>0; })){ toast('No budgets found for '+pm,'warn'); return; }
+  var heads=EXP_CATS.filter(function(c){ return num(src[c])>0 && !(num(bm[c])>0); });
+  if(!heads.length){ toast('Every head already has a budget for '+m,'ok'); return; }
+  if(!confirm('Copy '+heads.length+' budget head'+(heads.length>1?'s':'')+' from '+pm+' into '+m+'? Heads that already have a value are left unchanged.')) return;
+  b[m]=bm; heads.forEach(function(c){ bm[c]=num(src[c]); });
+  S(K.budg,b); audit('budget.copy',pm+' → '+m+' · '+heads.length+' head(s)');
+  toast('Copied '+heads.length+' budget head'+(heads.length>1?'s':'')+' from '+pm,'ok');
+  renderBudget();
+}
+
+/* ═══════════════ CROSS-MODULE FEED ═══════════════ */
+function feedItems(){
+  var items=[]; var posted={}; getLedger().forEach(function(e){ if(e.sourceRef) posted[e.sourceRef]=true; });
+  // WSC — saagar_wsf_v2 closed cases → income
+  try{ var w=L('saagar_wsf_v2',[]); if(Array.isArray(w)) w.forEach(function(c){
+    if((c.status||'')==='closed'){ var ref='wsc_'+c.id, amt=num((c.delivery&&c.delivery.finalAmt)||c.estTotal);
+      if(amt>0) items.push({src:'wsc',ref:ref,type:'income',date:(c.closedAt||todayStr()).slice(0,10),amount:amt,category:'Service Income',mode:((c.delivery&&c.delivery.payMode)||'Cash'),desc:'WSC '+(c.custName||'service')+' '+(c.brand||''),posted:!!posted[ref]});
+    }});}catch(e){}
+  // Payroll — payroll_suite_v1_2026 → monthly expense per firm
+  try{ var pb=L('payroll_suite_v1_2026',null);
+    if(pb&&pb.meta&&Array.isArray(pb.rows)){ var byFirm={}; pb.rows.forEach(function(r){ var f=(r.firm||'GM'); byFirm[f]=(byFirm[f]||0)+num(r.gross||r.salaryAmount); });
+      Object.keys(byFirm).forEach(function(f){ var ref='pay_'+pb.meta.year+'_'+pb.meta.month+'_'+f, dt=pb.meta.year+'-'+p2(pb.meta.month||1)+'-28';
+        items.push({src:'payroll',ref:ref,type:'expense',date:dt,amount:byFirm[f],category:'Salary',mode:'Bank',desc:'Payroll '+f+' M'+pb.meta.month+'/'+pb.meta.year,posted:!!posted[ref]});
+      });}}catch(e){}
+  // Stock — saagar_stock_<store>_<date> GRN → expense
+  try{ for(var i=0;i<localStorage.length;i++){ var key=localStorage.key(i);
+      var mm=key&&key.match(/^saagar_stock_(titanworld|helios|WLMHW|HEMW)_(\d{4}-\d{2}-\d{2})$/);
+      if(mm){ var blob=L(key,{}),grn=0,mv=(blob&&blob.movements)||{}; Object.keys(mv).forEach(function(bk){ var row=mv[bk]; if(row&&row.grn) grn+=num(row.grn); });
+        if(grn>0){ var ref='grn_'+mm[1]+'_'+mm[2]; items.push({src:'stock',ref:ref,type:'expense',date:mm[2],amount:grn,category:'Inventory',mode:'Bank',desc:'GRN cost '+mm[1]+' '+mm[2],posted:!!posted[ref]}); } } } }catch(e){}
+  // QMS — retail_queue_management_v1 purchases → income (usually absent in this APK)
+  try{ var q=L('retail_queue_management_v1',null);
+    if(q&&Array.isArray(q.customers)) q.customers.forEach(function(c){
+      if((c.outcome||'').toLowerCase()==='purchase'&&num(c.purchaseAmount||c.amount)>0){ var ref='qms_'+(c.id||c.mobile);
+        items.push({src:'qms',ref:ref,type:'income',date:((c.exitTime||c.entryTime||c.walkInTime||todayStr())+'').slice(0,10),amount:num(c.purchaseAmount||c.amount),category:'Retail Sale',mode:(c.paymentMode||'Cash'),desc:'QMS sale '+(c.name||c.billNo||''),posted:!!posted[ref]});
+      }});}catch(e){}
+  return items;
+}
+function pendingSyncCount(){ try{ return feedItems().filter(function(i){return !i.posted;}).length; }catch(e){ return 0; } }
+function renderSync(){
+  var items=feedItems(), pending=items.filter(function(i){return !i.posted;}), past=isPast();
+  var bySrc={wsc:[],payroll:[],stock:[],qms:[]}; items.forEach(function(i){ bySrc[i.src].push(i); });
+  function block(src,title,note){
+    var arr=bySrc[src], pend=arr.filter(function(i){return !i.posted;});
+    return '<div class="card"><div class="card-h"><div><h3>'+title+'</h3><p>'+note+'</p></div>'+
+      '<div class="actions">'+(pend.length&&!past?'<button data-action="post-source-items" data-saagar-args="'+jargs(src)+'" class="btn sm green">Post '+pend.length+' to ledger</button>':'')+'</div></div>'+
+      (arr.length?'<div class="twrap"><table data-saagar-table-strategy="grid" data-saagar-table-workflow="cross-module" data-saagar-grid-reason="source posting review requires cross-column comparison"><thead><tr><th>Date</th><th>Type</th><th>Description</th><th class="num">Amount</th><th>Mode</th><th>State</th></tr></thead><tbody>'+
+        arr.slice(0,40).map(function(i){return '<tr><td>'+i.date+'</td><td><span class="bdg '+(i.type==='income'?'inc':'exp')+'">'+i.type+'</span></td><td>'+esc(i.desc)+'</td><td class="num">'+nINR(i.amount)+'</td><td><span class="bdg '+badgeToken(i.mode)+'">'+esc(i.mode)+'</span></td><td>'+(i.posted?'<span class="bdg ok">posted</span>':'<span class="bdg warn">pending</span>')+'</td></tr>';}).join('')+
+        '</tbody></table></div>':'<div class="empty">No '+src.toUpperCase()+' data found in this device. '+(src==='qms'?'QMS is not part of this 7-module build — this feed activates automatically if QMS data ever exists here.':'Use the '+src.toUpperCase()+' module first.')+'</div>')+
+    '</div>';
+  }
+  document.getElementById('syncC').innerHTML=
+   (past?'<div class="banner lock">🔒 <div>Viewing <b>'+asOf()+'</b> (past). Posting cross-module items to the ledger is disabled in historical view.</div></div>':'')+
+   '<div class="banner info">⤢ <div>Expense Manager is the central ledger. It reads other modules in this app and posts their money movements here once — de-duplicated by source reference. <b>'+pending.length+'</b> item(s) pending.</div></div>'+
+   (pending.length&&!past?'<div class="card"><button data-action="post-all-source-items" data-saagar-args="'+jargs('all')+'" class="btn p">Post all '+pending.length+' pending items to ledger</button></div>':'')+
+   block('wsc','Watch Service Centre → Income','Closed/delivered service cases become service income.')+
+   block('payroll','Payroll Suite → Expense','Monthly gross per firm becomes a salary expense.')+
+   block('stock','Daily Stock Register → Expense','GRN (goods received) value becomes an inventory cost.')+
+   block('qms','Queue Management → Income','Confirmed walk-in sales become retail income.');
+}
+function postSrc(src){
+  if(isPast()){ toast('Historical view is read-only — switch to today to post','err'); return; }
+  var items=feedItems().filter(function(i){return !i.posted&&(src==='all'||i.src===src);});
+  if(!items.length){ toast('Nothing to post','warn'); return; }
+  var led=getLedger(); var n=0;
+  items.forEach(function(i){
+    led.push(normEntry({id:uid('e'),type:i.type,date:i.date,amount:i.amount,category:i.category,mode:i.mode,description:i.desc,source:i.src,sourceRef:i.ref,createdBy:'sync:'+role()}));
+    n++;
+  });
+  saveLedger(led); audit('sync.post',n+' item(s) from '+src);
+  /* P1-18: sync stays ungated (system-of-record facts; the bridge's own append can't be
+     gated this wave anyway), but posting into a tax-fed month makes the CA feed stale.
+     ONE combined toast — the module has a single #toast element. */
+  var __ms={}; items.forEach(function(i){ var m=ym(i.date); if(!(m in __ms)) __ms[m]=isMonthLocked(i.date); });
+  var __stale=Object.keys(__ms).filter(function(m){ return __ms[m]; }).sort();
+  __stale.forEach(function(m){ markFeedStale(m); });
+  if(__stale.length){ audit('feed.stale','sync posted into tax-locked month(s): '+__stale.join(', ')); toast(n+' posted · tax feed for '+__stale.join(', ')+' is now stale — regenerate from Month & Tax','warn'); }
+  else{ toast(n+' entr'+(n>1?'ies':'y')+' posted to ledger','ok'); }
+  render();
+}
+
+/* ═══════════════ MONTH CLOSE & TAX FEED ═══════════════ */
+var CM=ym(asOf());
+function renderClose(){
+  var led=getLedger().filter(function(e){return !e.void&&e.date.slice(0,7)===CM;});
+  var inc=led.filter(function(e){return e.type==='income';}).reduce(function(s,e){return s+e.amount;},0);
+  var exp=led.filter(function(e){return e.type==='expense';}).reduce(function(s,e){return s+e.amount;},0);
+  var byCat={}; led.forEach(function(e){ var k=(e.type==='income'?'＋ ':'－ ')+e.category; byCat[k]=(byCat[k]||0)+e.amount; });
+  var set=L(K.set,{}), gst=num(set.gstRate);
+  /* P1-17: per-category GST rates (gm_gst_rates {cat:pct}); unset category → flat default
+     gm_settings.gstRate, so zero-config output is numerically identical to before. */
+  var rates=L(K.gstRates,{}); if(!rates||typeof rates!=='object'||Array.isArray(rates)) rates={};
+  /* Object.create(null): a hostile category named 'constructor'/'toString' (console/restore only —
+     the UI uses fixed selects) must hit undefined, not an inherited Object member. */
+  var incByCat=Object.create(null); led.forEach(function(e){ if(e.type==='income') incByCat[e.category]=(incByCat[e.category]||0)+e.amount; });
+  window.__gstCats=INC_CATS.slice(); Object.keys(incByCat).forEach(function(c){ if(window.__gstCats.indexOf(c)<0) window.__gstCats.push(c); });
+  /* own-key + finite-number check: junk rate values ('abc') fall back to the DEFAULT rate, never 0%. */
+  var rateFor=function(c){ if(!Object.prototype.hasOwnProperty.call(rates,c)) return gst; var v=rates[c]; var n=(typeof v==='number')?v:((typeof v==='string'&&String(v).trim()!=='')?+v:NaN); return isFinite(n)?n:gst; };
+  var gstEst=0; Object.keys(incByCat).forEach(function(c){ gstEst+=incByCat[c]*rateFor(c)/100; });
+  var gstPaid=led.filter(function(e){return e.type==='expense';}).reduce(function(s,e){return s+num(e.gstAmount);},0);
+  var canRates=!isPast()&&can('monthoverride');
+  var feed=L(K.tax,{}); var saved=feed[CM];
+  var unappr=daysAwaitingApproval();
+  document.getElementById('closeC').innerHTML=
+  '<div class="card"><div class="card-h"><div><h3>Month close &amp; Tax feed</h3><p>Lock the month and generate a summary for Tax Compliance / your CA.</p></div>'+
+   '<div class="actions"><input type="month" value="'+CM+'" onchange="CM=this.value;renderClose()" style="padding:7px;border:1px solid var(--gray-300);border-radius:7px"></div></div>'+
+   '<div class="kgrid"><div class="kpi g"><div class="l">Income</div><div class="v">'+nINR(inc)+'</div></div>'+
+    '<div class="kpi r"><div class="l">Expense</div><div class="v">'+nINR(exp)+'</div></div>'+
+    '<div class="kpi '+(inc-exp<0?'r':'g')+'"><div class="l">Net P&L</div><div class="v">'+nINR(inc-exp)+'</div></div>'+
+    '<div class="kpi b"><div class="l">Entries</div><div class="v">'+led.length+'</div></div></div>'+
+   (unappr.length?'<div class="banner warn">⚠ <div>'+unappr.length+' day(s) in this period are closed but not approved by a checker: '+unappr.join(', ')+'</div></div>':'')+
+   (isPast()?'<div class="banner lock">🔒 <div>Viewing <b>'+asOf()+'</b> (past). This is a read-only historical view — month-lock / tax-feed generation and edits are disabled. CSV export remains available.</div></div>':'')+
+   '<div class="fgrid"><div class="fld"><label>Default GST rate (%) — used when a category has no rate below</label><input type="number" id="gstr" min="0" step="0.01" value="'+gst+'"'+(canRates?'':' disabled')+' onchange="saveGst(this.value)"></div>'+
+    window.__gstCats.map(function(c,i){ return '<div class="fld"><label>Rate — '+esc(c)+' (%)</label><input type="number" min="0" step="0.01" data-i="'+i+'" value="'+(Object.prototype.hasOwnProperty.call(rates,c)?num(rates[c]):'')+'" placeholder="default '+gst+'"'+(canRates?'':' disabled')+' onchange="saveGstCat(this)"></div>'; }).join('')+
+   '</div>'+
+   (canRates?'':(isPast()?'':'<div class="small muted" style="margin:-6px 0 8px">Only Owner can change GST rates.</div>'))+
+   '<div class="twrap" style="margin-top:6px"><table class="gm-tbl-monthsum" data-saagar-table-strategy="cards" data-saagar-table-workflow="month-summary"><thead><tr><th>Head</th><th class="num">Amount</th></tr></thead><tbody>'+
+     Object.keys(byCat).sort().map(function(k){return '<tr><td class="name-cell" data-label="Head">'+esc(k)+'</td><td class="num" data-label="Amount">'+nINR(byCat[k])+'</td></tr>';}).join('')+
+     Object.keys(incByCat).sort().map(function(c){ var r=rateFor(c); return '<tr><td class="name-cell" data-label="Head">Est. GST — '+esc(c)+' ('+r+'%)</td><td class="num" data-label="Amount">'+nINR(incByCat[c]*r/100)+'</td></tr>'; }).join('')+
+     '<tr><td class="name-cell" data-label="Head"><b>Estimated GST on income (per-category rates)</b></td><td class="num" data-label="Amount"><b>'+nINR(gstEst)+'</b></td></tr>'+
+     '<tr><td class="name-cell" data-label="Head"><b>GST paid on purchases (from entries — input-credit hint)</b></td><td class="num" data-label="Amount"><b>'+nINR(gstPaid)+'</b></td></tr>'+
+   '</tbody></table></div>'+
+   '<div class="small muted" style="margin-top:6px">Estimates from your own configured rates — not tax advice. Verify with your CA before filing.</div>'+
+   (function(){ var bf={}; led.forEach(function(e){ var f=e.firm||'Unassigned'; bf[f]=bf[f]||{i:0,x:0}; if(e.type==='income')bf[f].i+=e.amount; else bf[f].x+=e.amount; }); var ks=Object.keys(bf).sort(); if(!ks.length) return ''; return '<h3 style="margin:16px 0 6px">Per-firm P&L — '+CM+'</h3><div class="twrap"><table class="gm-tbl-firmpl" data-saagar-table-strategy="cards" data-saagar-table-workflow="firm-profit-loss"><thead><tr><th>Firm</th><th class="num">Income</th><th class="num">Expense</th><th class="num">Net</th></tr></thead><tbody>'+ks.map(function(k){ var n=bf[k].i-bf[k].x; return '<tr><td class="name-cell" data-label="Firm">'+esc(k)+'</td><td class="num" data-label="Income">'+nINR(bf[k].i)+'</td><td class="num" data-label="Expense">'+nINR(bf[k].x)+'</td><td class="num" data-label="Net" style="color:'+(n<0?'var(--red)':'var(--green)')+'">'+nINR(n)+'</td></tr>'; }).join('')+'</tbody></table></div>'; })()+
+   '<div class="row" style="margin-top:14px">'+
+     (isPast()?'<span class="small muted">Historical view — month-lock / tax-feed generation is available only when viewing today.</span>':(can('monthlock')?'<button data-action="generate-lock-tax-feed" class="btn p" onclick="genTaxFeed()">Generate &amp; lock Tax feed for '+CM+'</button>':'<span class="small muted">Only Owner can lock the month / generate the tax feed.</span>'))+
+     '<button data-action="export-month-csv" class="btn sm" onclick="exportMonthCSV()">⇩ Month CSV</button></div>'+
+   (saved?'<div class="banner ok" style="margin-top:14px">✔ <div>Tax feed generated '+ (saved.generatedAt||'').slice(0,16).replace('T',' ') +' by '+saved.by+' — Income '+nINR(saved.income)+', Expense '+nINR(saved.expense)+', GST est. '+nINR(saved.gstEstimate)+'. Stored for Tax Compliance under <code>gm_tax_feed['+CM+']</code>.</div></div>':'')+
+   /* P1-18: stale warning — stored flag (module writes) OR derived createdAt>generatedAt
+      (catches the bridge's ungated appends; both are toISOString() UTC strings, so the
+      lexicographic compare is safe). Renders in past view too (read-only info). */
+   (function(){ if(!saved) return '';
+      var gAt=saved.generatedAt||'';
+      /* Derived check reads RAW rows: getLedger()'s normEntry stamps a FRESH createdAt onto any
+         legacy row missing one, which would make this banner permanent and unclearable. A raw row
+         without a stored createdAt is pre-feed by definition — skip it. */
+      var changed=(saved.stale===true) || (gAt && (function(){ var raw=L(K.exp,[]); if(!Array.isArray(raw)) return false;
+        return raw.some(function(e){ return e && !e.void && String(e.date||'').slice(0,7)===CM && typeof e.createdAt==='string' && e.createdAt>gAt; }); })());
+      if(!changed) return '';
+      return '<div class="banner warn" style="margin-top:8px">⚠ <div><b>Ledger changed after the tax feed was generated</b> — regenerate the feed for '+CM+' before sharing with your CA.'+(saved.stale===true&&saved.staleAt?' <span class="small muted">(last change '+esc(String(saved.staleAt).slice(0,16).replace('T',' '))+')</span>':'')+'</div></div>'; })()+
+  '</div>';
+}
+function saveGst(v){ if(isPast()){ toast('Historical view is read-only','err'); renderClose(); return; } if(!can('monthoverride')){ toast('Owner only','err'); renderClose(); return; } var s=L(K.set,{}); s.gstRate=num(v); S(K.set,s); }
+/* P1-17: per-category rate save. Index-addressed via data-i into window.__gstCats so
+   quote-bearing category strings never enter inline-handler source. Empty input = clear
+   (fall back to default); explicit 0 = a real 0% rate. */
+function saveGstCat(el){
+  if(isPast()){ toast('Historical view is read-only','err'); renderClose(); return; }
+  if(!can('monthoverride')){ toast('Owner only','err'); renderClose(); return; }
+  var cats=window.__gstCats||[], c=cats[parseInt(el.getAttribute('data-i'),10)]; if(c==null) return;
+  var rates=L(K.gstRates,{}); if(!rates||typeof rates!=='object'||Array.isArray(rates)) rates={};
+  var raw=String(el.value).trim();
+  if(raw===''){ delete rates[c]; } else { var r=num(raw); if(r<0) r=0; rates[c]=r; }
+  S(K.gstRates,rates); audit('gst.rate',c+' = '+(raw===''?'(default)':rates[c]+'%')); renderClose();
+}
+function genTaxFeed(){
+  if(isPast()){ toast('Historical view is read-only — month-lock is available only for today','err'); return; }
+  if(!can('monthlock')){ toast('Owner only','err'); return; }
+  /* A feed locks the month (P1-18): a FUTURE month must never be lockable — there is no in-app unlock.
+     Also rejects an empty/cleared month picker (would write a junk feed[''] key). */
+  if(!CM || !/^\d{4}-\d{2}$/.test(CM) || CM>ym(todayStr())){ toast('Pick the current or a past month — a future month cannot be locked','err'); return; }
+  var led=getLedger().filter(function(e){return !e.void&&e.date.slice(0,7)===CM;});
+  var inc=led.filter(function(e){return e.type==='income';}).reduce(function(s,e){return s+e.amount;},0);
+  var exp=led.filter(function(e){return e.type==='expense';}).reduce(function(s,e){return s+e.amount;},0);
+  var gst=num(L(K.set,{}).gstRate);
+  /* P1-17: same per-category computation as renderClose (unset category → flat default). */
+  var rates=L(K.gstRates,{}); if(!rates||typeof rates!=='object'||Array.isArray(rates)) rates={};
+  /* Same collision-proof lookups + junk-tolerant rateFor as renderClose (keep the two in lockstep). */
+  var incByCat=Object.create(null); led.forEach(function(e){ if(e.type==='income') incByCat[e.category]=(incByCat[e.category]||0)+e.amount; });
+  var rateFor=function(c){ if(!Object.prototype.hasOwnProperty.call(rates,c)) return gst; var v=rates[c]; var n=(typeof v==='number')?v:((typeof v==='string'&&String(v).trim()!=='')?+v:NaN); return isFinite(n)?n:gst; };
+  var gstEst=0, gstByCat=Object.create(null);
+  Object.keys(incByCat).forEach(function(c){ var r=rateFor(c); var v=incByCat[c]*r/100; gstByCat[c]={income:incByCat[c],ratePct:r,estimate:v}; gstEst+=v; });
+  var gstPaid=led.filter(function(e){return e.type==='expense';}).reduce(function(s,e){return s+num(e.gstAmount);},0);
+  var byCat={}; led.forEach(function(e){ byCat[e.type+':'+e.category]=(byCat[e.type+':'+e.category]||0)+e.amount; });
+  var feed=L(K.tax,{});
+  /* Wholesale month-object replace. MUST NOT re-add the P1-18 freshness keys — this
+     replace IS the auto-clear-on-regenerate (markFeedStale is their only writer). */
+  feed[CM]={month:CM,income:inc,expense:exp,net:inc-exp,gstRate:gst,gstEstimate:gstEst,byCategory:byCat,
+            gstRates:rates,gstEstimateByCat:gstByCat,gstPaidOnPurchases:gstPaid,   /* P1-17 additive */
+            generatedAt:new Date().toISOString(),by:role()};
+  S(K.tax,feed);
+  // mark days of month locked
+  var st=L(K.stmt,{}); Object.keys(st).forEach(function(dk){ if(dk.slice(0,7)===CM){ st[dk].monthLocked=true; } }); S(K.stmt,st);
+  audit('month.lock',CM+' tax feed generated; income '+nINR(inc)+' expense '+nINR(exp));
+  toast('Tax feed generated & month locked','ok'); renderClose();
+}
+function exportMonthCSV(){
+  var rows=[['Date','Firm','Type','Category','Mode','Vendor','Description','Amount','Source','GSTAmt','GSTRate%']];
+  getLedger().filter(function(e){return !e.void&&e.date.slice(0,7)===CM;}).sort(function(a,b){return a.date.localeCompare(b.date);})
+    .forEach(function(e){ rows.push([e.date,e.firm||'Unassigned',e.type,e.category,e.mode,e.vendor,e.description,e.amount,e.source||'manual',e.gstAmount||'',e.gstRatePct||'']); });
+  dlCSV('expense_month_'+CM+'.csv',rows);
+}
+function daysAwaitingApproval(){
+  var st=L(K.stmt,{}); return Object.keys(st).filter(function(d){ return st[d].closed && !st[d].approved; }).sort();
+}
+
+/* ═══════════════ AUDIT ═══════════════ */
+function renderAudit(){
+  // #18: the audit log is Super-Admin only. A non-admin sees a brief notice, never the log.
+  if(!isSuperAdmin()){
+    document.getElementById('auditC').innerHTML=
+      '<div class="card"><div class="banner lock">🔒 <div><b>Super Admin only.</b> The audit trail is visible to Super Admins. Enable Super-Admin mode in the app shell to view it.</div></div></div>';
+    return;
+  }
+  var a=L(K.audit,[]);
+  document.getElementById('auditC').innerHTML=
+  '<div class="card"><div class="card-h"><div><h3>Audit trail</h3><p>'+a.length+' event(s). Every create / edit / void / close / reopen / sync / month-lock.</p></div>'+
+   '<div class="actions"><button data-action="export-audit-csv" class="btn sm" onclick="exportAuditCSV()">⇩ CSV</button></div></div>'+
+   (a.length?'<div class="twrap"><table data-saagar-table-strategy="grid" data-saagar-table-workflow="audit" data-saagar-grid-reason="audit review requires chronological cross-column comparison"><thead><tr><th>When</th><th>Role</th><th>Action</th><th>Detail</th></tr></thead><tbody>'+
+     a.slice(0,300).map(function(x){return '<tr><td class="small">'+(x.at||'').slice(0,16).replace('T',' ')+'</td><td><span class="bdg src">'+esc(x.by)+'</span></td><td>'+esc(x.action)+'</td><td class="small">'+esc(x.detail)+'</td></tr>';}).join('')+
+     '</tbody></table></div>':'<div class="empty">No audit events yet.</div>')+
+  '</div>';
+}
+function exportAuditCSV(){ var rows=[['When','Role','Action','Detail']]; L(K.audit,[]).forEach(function(x){rows.push([x.at,x.by,x.action,x.detail]);}); dlCSV('expense_audit_'+todayStr()+'.csv',rows); }
+
+/* ═══════════════ MODAL ═══════════════ */
+/* ═══════════════ UDHAAR / CREDIT LEDGER (Wave 3) ═══════════════
+   A standalone receivables register for customers who buy on trust. INTENTIONALLY
+   isolated from gm_expenses: creating or settling a receivable NEVER posts to the
+   cash ledger, so outstanding credit can never inflate income. When the money is
+   actually received, the owner records it in the Ledger tab as normal income.
+   Dedicated key saagar_udhaar_ledger_v1 (registered in the shell's Expense
+   STORAGE_RULES so it is backed up / factory-reset with this module). */
+function getUdhaar(){ var u=L(K.udhaar,null); if(!u||typeof u!=='object'||!Array.isArray(u.receivables)) u={version:1,receivables:[]}; return u; }
+function saveUdhaar(u){ u.version=1; S(K.udhaar,u); }
+function udPaid(r){ return (r.settlements||[]).reduce(function(s,x){return s+num(x.amount);},0); }
+function udOut(r){ var o=num(r.amount)-udPaid(r); return o>0?o:0; }
+function udDaysSince(d){ try{ var a=new Date(d+'T00:00:00'), b=new Date(todayStr()+'T00:00:00'); return Math.round((b-a)/86400000); }catch(e){ return 0; } }
+function udOverdue(r){ return r.dueDate && todayStr()>r.dueDate; }
+function udBucket(r){ var d=udDaysSince(r.date); return d<=30?'0–30':(d<=60?'31–60':'60+'); }
+function udKnownCustomers(){ var cm=L('saagar_customer_master_v1',null), out=[];
+  if(cm&&cm.byMobile) Object.keys(cm.byMobile).forEach(function(m){ var e=cm.byMobile[m]; out.push({mobile:m,name:(e.names&&e.names[0])||''}); });
+  return out; }
+function addReceivable(){
+  if(isPast()){ toast('Switch the view date to today to add','warn'); return; }
+  var name=(val('ud_name')||'').trim(), mob=(val('ud_mob')||'').replace(/\D/g,''), amt=num(val('ud_amt')), due=val('ud_due')||'', note=(val('ud_note')||'').trim();
+  if(!name){ toast('Customer name is required','warn'); return; }
+  if(amt<=0){ toast('Enter a valid amount','warn'); return; }
+  var m10=mob.length>=10?mob.slice(-10):'';
+  var u=getUdhaar();
+  u.receivables.push({ id:uid('ud'), custId:m10?('c_'+m10):'', name:name, mobile:m10, amount:amt, date:todayStr(), dueDate:due, note:note, settlements:[], createdBy:role() });
+  saveUdhaar(u); audit('udhaar.add', name+' '+nINR(amt)); toast('Credit recorded','ok');
+  ['ud_name','ud_mob','ud_amt','ud_note'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
+  renderUdhaar();
+}
+function payReceivable(id){
+  if(isPast()){ toast('Switch to today to record a payment','warn'); return; }
+  var u=getUdhaar(), r=u.receivables.find(function(x){return x.id===id;}); if(!r) return;
+  var out=udOut(r);
+  modal('Record payment — '+esc(r.name),
+    '<div class="fgrid">'+
+      fld('Outstanding','<input value="'+nINR(out)+'" disabled>')+
+      fld('Amount received (₹)','<input id="ud_pay_amt" type="number" min="0" step="0.01" value="'+out+'">')+
+      fld('Mode','<select id="ud_pay_mode">'+MODES.map(function(m){return '<option>'+m+'</option>';}).join('')+'</select>')+
+    '</div><p class="small muted">Recorded against this credit only. If you want the cash to appear in the day’s cash statement, also add it as Income in the Ledger tab.</p>',
+    function(){ var a=num((document.getElementById('ud_pay_amt')||{}).value); if(a<=0){ toast('Enter an amount','warn'); return false; }
+      if(a>out+0.5){ toast('More than outstanding — capped','warn'); a=out; }
+      r.settlements=r.settlements||[];
+      r.settlements.push({amount:a,date:todayStr(),mode:(document.getElementById('ud_pay_mode')||{}).value||'Cash',by:role()});
+      saveUdhaar(u); audit('udhaar.pay', r.name+' '+nINR(a)); toast('Payment recorded','ok'); renderUdhaar(); });
+}
+function voidReceivable(id){
+  if(isPast()){ toast('Switch to today','warn'); return; }
+  var u=getUdhaar(), r=u.receivables.find(function(x){return x.id===id;}); if(!r) return;
+  modal('Remove / write off — '+esc(r.name),
+    '<p>Outstanding <b>'+nINR(udOut(r))+'</b>. This hides the entry from the outstanding list (kept for audit).</p>'+
+    '<div class="fgrid">'+fld('Reason','<input id="ud_void_rsn" placeholder="e.g. written off, entered in error">')+'</div>',
+    function(){ r.void=true; r.voidReason=(document.getElementById('ud_void_rsn')||{}).value||''; r.voidAt=todayStr();
+      saveUdhaar(u); audit('udhaar.void', r.name+' — '+(r.voidReason||'')); toast('Removed from outstanding','ok'); renderUdhaar(); });
+}
+function remindReceivable(id){
+  var u=getUdhaar(), r=u.receivables.find(function(x){return x.id===id;}); if(!r) return;
+  var out=udOut(r);
+  var msg='Namaste '+r.name+',\nA gentle reminder from Saagar Traders, Latur regarding your pending balance of '+nINR(out)+(r.dueDate?(' (due '+r.dueDate+')'):'')+'.\nKindly clear it at your convenience. Thank you.';
+  // Prefer the shell's proven offline share rail (OS share sheet → WhatsApp), matching how this
+  // module already sends messages (shareEntry). wa.me is a best-effort fallback if it isn't present.
+  try{ if(typeof parent!=='undefined' && parent && parent!==window && typeof SaagarModuleBridge.shareText==='function'){ SaagarModuleBridge.shareText(msg,'udhaar'); return; } }catch(e){}
+  toast('Controlled sharing is available only inside Saagar Control Centre.','warn');
+}
+function renderUdhaar(){
+  var u=getUdhaar();
+  var open=u.receivables.filter(function(r){return !r.void && udOut(r)>0;});
+  var totalOut=open.reduce(function(s,r){return s+udOut(r);},0);
+  var buckets={'0–30':0,'31–60':0,'60+':0}; open.forEach(function(r){ buckets[udBucket(r)]+=udOut(r); });
+  open.sort(function(a,b){ return String(a.date).localeCompare(String(b.date)); });   // oldest first
+  var custs=udKnownCustomers();
+  var dlist='<datalist id="ud_names">'+custs.map(function(c){return '<option value="'+esc(c.name)+'">'+esc(c.mobile)+'</option>';}).join('')+'</datalist>';
+  var defDue=(function(){ var d=new Date(); d.setDate(d.getDate()+30); return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate()); })();
+  var form = isPast()
+    ? '<div class="card"><div class="card-h"><div><h3>Udhaar / Credit</h3><p>Read-only historical view.</p></div></div>'+
+      '<div class="banner lock">🔒 <div>Viewing <b>'+asOf()+'</b> (past). Switch the view date to today to record credit or payments.</div></div></div>'
+    : '<div class="card"><div class="card-h"><div><h3>Record a credit sale</h3><p>Goods given on trust. Tracked here only — never added to cash or income until you receive it.</p></div></div>'+
+      '<div class="fgrid">'+
+        fld('Customer name <span style="color:#dc2626">*</span>','<input id="ud_name" list="ud_names" placeholder="name">'+dlist)+
+        fld('Mobile','<input id="ud_mob" type="tel" inputmode="numeric" maxlength="10" placeholder="10-digit">')+
+        fld('Amount (₹) <span style="color:#dc2626">*</span>','<input id="ud_amt" type="number" min="0" step="0.01" placeholder="0.00">')+
+        fld('Due date','<input id="ud_due" type="date" value="'+defDue+'">')+
+        fld('Note','<input id="ud_note" placeholder="e.g. Titan Raga, promised in 30 days">','full')+
+      '</div>'+
+      '<div class="row" style="margin-top:14px"><button data-action="add-receivable" class="btn p" onclick="addReceivable()">Add credit</button><span class="small muted">Isolated from the cash ledger — this is your receivables diary.</span></div></div>';
+  var summary='<div class="card"><div class="card-h"><div><h3>Outstanding</h3><p>Total money owed to you</p></div><div class="actions"><b style="font-size:20px">'+nINR(totalOut)+'</b></div></div>'+
+    '<div class="row" style="gap:8px;flex-wrap:wrap;margin-top:4px">'+
+      '<span class="bdg">0–30 days · '+nINR(buckets['0–30'])+'</span>'+
+      '<span class="bdg warn">31–60 · '+nINR(buckets['31–60'])+'</span>'+
+      '<span class="bdg'+(buckets['60+']>0?' void':'')+'">60+ · '+nINR(buckets['60+'])+'</span>'+
+    '</div></div>';
+  var list = open.length
+    ? '<div class="card"><div class="card-h"><div><h3>Who owes you</h3><p>Oldest first · '+open.length+' open</p></div></div>'+
+      '<div class="twrap"><table data-saagar-table-strategy="cards" data-saagar-table-workflow="receivables"><thead><tr><th>Customer</th><th>Since</th><th>Due</th><th class="num">Amount</th><th class="num">Paid</th><th class="num">Outstanding</th><th></th></tr></thead><tbody>'+
+      open.map(function(r){ return '<tr>'+
+        '<td><b>'+esc(r.name)+'</b>'+(r.mobile?'<br><span class="muted small">'+esc(r.mobile)+'</span>':'')+(r.note?'<br><span class="muted small">'+esc(r.note)+'</span>':'')+'</td>'+
+        '<td>'+esc(r.date)+'</td>'+
+        '<td>'+(r.dueDate?(esc(r.dueDate)+(udOverdue(r)?' <span class="bdg void">overdue</span>':'')):'—')+'</td>'+
+        '<td class="num">'+nINR(r.amount)+'</td>'+
+        '<td class="num">'+nINR(udPaid(r))+'</td>'+
+        '<td class="num"><b>'+nINR(udOut(r))+'</b></td>'+
+        '<td class="num">'+(isPast()?'<span class="bdg locked">🔒</span>':'<button data-action="pay-receivable" data-saagar-args="'+jargs(r.id)+'" class="btn xs p">Pay</button> <button data-action="remind-receivable" data-saagar-args="'+jargs(r.id)+'" class="btn xs">Remind</button> <button data-action="void-receivable" data-saagar-args="'+jargs(r.id)+'" class="btn xs red">✕</button>')+'</td>'+
+        '</tr>'; }).join('')+'</tbody></table></div></div>'
+    : '<div class="card"><div class="empty">No outstanding credit. Everyone has paid up. 🎉</div></div>';
+  document.getElementById('udhaarC').innerHTML = form+summary+list;
+}
+
+function modal(title,bodyHtml,onOk){
+  var r=document.getElementById('modalRoot');
+  r.innerHTML='<div class="mbk" id="mbk"><div class="modal"><div class="modal-h"><h3>'+esc(title)+'</h3><button data-action="close-generated-modal" class="btn xs" onclick="closeModal()">✕</button></div><div class="modal-b">'+bodyHtml+'<div class="row" style="margin-top:16px;justify-content:flex-end"><button data-action="cancel-generated-modal" class="btn" onclick="closeModal()">Cancel</button><button data-action="confirm-generated-modal" class="btn p" id="mok">Confirm</button></div></div></div></div>';
+  document.getElementById('mok').onclick=async function(){ if((await Promise.resolve(onOk()))!==false) closeModal(); };
+  document.getElementById('mbk').addEventListener('click',function(e){ if(e.target.id==='mbk') closeModal(); });
+}
+function closeModal(){ document.getElementById('modalRoot').innerHTML=''; }
+
+/* ═══════════════ INIT ═══════════════ */
+migrateOnce();
+// Seed the date-bound pickers from the shell view-date (asOf) at startup.
+// asOf() already reflects window.__stAsOf (seeded before this script runs);
+// SD/CM were initialised from it above — re-assert here for clarity/safety.
+SD=asOf(); CM=ym(asOf());
+var ExpenseDelegatedHandlers=Object.freeze({
+  viewPhoto:viewPhoto,shareEntry:shareEntry,approveEntry:approveEntry,editEntry:editEntry,voidEntry:voidEntry,
+  postRecurring:postRecurring,editRecTpl:editRecTpl,toggleRecTpl:toggleRecTpl,delRecTpl:delRecTpl,
+  setSST:setSST,approveStoreDay:approveStoreDay,reopenStoreDay:reopenStoreDay,closeStoreDay:closeStoreDay,
+  postSrc:postSrc,payReceivable:payReceivable,remindReceivable:remindReceivable,voidReceivable:voidReceivable
+});
+if(typeof SaagarRenderedComponents!=='undefined')SaagarRenderedComponents.connect(document.body,ExpenseRenderedPolicy,ExpenseDelegatedHandlers);
+render();
+window.addEventListener('storage',function(){ render(); });
+// VIEW-DATE RAIL: the shell broadcasts the day the user wants to view.
+// Re-point the date-bound pickers (SD = cash statement, CM = month close) to
+// the new date and re-render the active view. Dashboard / Ledger / Budget read
+// asOf() live, so render() refreshes them too. On 'today' this is a no-op change.
+window.addEventListener('st-date',function(e){
+  var nd=(e&&e.detail);
+  if(validDate(nd)){ window.__stAsOf=nd; }      // mirror into the rail var the module reads
+  SD=asOf(); CM=ym(asOf());
+  render();
+});
+</script>
+
+<link id="st-v5-back-style" rel="stylesheet" href="../../shared/module-back.css">
+<button data-action="st-v5-home-fab" id="st-v5-home-fab" type="button" title="Back to Home (Esc)"><svg viewBox="0 0 24 24"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg></button>
+<div id="st-v5-next-chips"></div>
+<script id="st-v5-back-script">SaagarModuleRuntime.run('back',{schemaVersion:1,moduleId:'expense',nextSteps:[{id:'tax',label:'Check Tax →'}],customerSelectors:[],accessContext:true});</script>
+
+<link id="st-v5-emp-assist-style" rel="stylesheet" href="../../shared/module-employee.css"><script id="st-v5-emp-assist-script">SaagarModuleRuntime.run('employees',{schemaVersion:1,moduleId:'expense',nextSteps:[{id:'tax',label:'Check Tax →'}],customerSelectors:[],accessContext:true});</script>
+
+<script id="st-v5-module-audit-bridge">SaagarModuleRuntime.run('audit',{schemaVersion:1,moduleId:'expense',nextSteps:[{id:'tax',label:'Check Tax →'}],customerSelectors:[],accessContext:true});</script>
+
+<script id="st-v5-module-access-bridge">SaagarModuleRuntime.run('access',{schemaVersion:1,moduleId:'expense',nextSteps:[{id:'tax',label:'Check Tax →'}],customerSelectors:[],accessContext:true});</script>
+</body>
+</html>

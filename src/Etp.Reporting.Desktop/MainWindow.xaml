@@ -1,0 +1,75 @@
+<Window x:Class="Etp.Reporting.Desktop.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:automation="clr-namespace:System.Windows.Automation;assembly=PresentationCore"
+        Title="ETP Reporting Engine" Height="720" Width="1180" MinHeight="600" MinWidth="960"
+        WindowStartupLocation="CenterScreen" Background="#F3F5F7">
+    <Window.Resources>
+        <Style x:Key="NavigationButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/><Setter Property="Foreground" Value="#E8EEF5"/>
+            <Setter Property="BorderThickness" Value="0"/><Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="Padding" Value="20,13"/><Setter Property="Margin" Value="8,2"/><Setter Property="FontSize" Value="14"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Style.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="#263C52"/></Trigger><Trigger Property="IsKeyboardFocused" Value="True"><Setter Property="Background" Value="#31506C"/></Trigger></Style.Triggers>
+        </Style>
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="Background" Value="White"/><Setter Property="BorderBrush" Value="#DCE2E8"/><Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="6"/><Setter Property="Padding" Value="20"/>
+        </Style>
+    </Window.Resources>
+    <Grid>
+        <Grid.ColumnDefinitions><ColumnDefinition Width="240"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+        <DockPanel Grid.Column="0" Background="#172B3E">
+            <StackPanel DockPanel.Dock="Top" Margin="20,24,20,18"><TextBlock Text="ETP" Foreground="White" FontSize="28" FontWeight="SemiBold"/><TextBlock Text="Reporting Engine" Foreground="#AFC0D0" FontSize="14"/></StackPanel>
+            <StackPanel>
+                <Button Content="Dashboard" Tag="Dashboard" Click="Navigate_Click" Style="{StaticResource NavigationButton}" automation:AutomationProperties.Name="Open Dashboard"/>
+                <Button Content="Import ETP" Tag="Import ETP" Click="Navigate_Click" Style="{StaticResource NavigationButton}" automation:AutomationProperties.Name="Open Import ETP"/>
+                <Button Content="Sales Reports" Tag="Sales Reports" Click="Navigate_Click" Style="{StaticResource NavigationButton}" automation:AutomationProperties.Name="Open Sales Reports"/>
+                <Button Content="Stock Reports" Tag="Stock Reports" Click="Navigate_Click" Style="{StaticResource NavigationButton}" automation:AutomationProperties.Name="Open Stock Reports"/>
+                <Button Content="Masters" Tag="Masters" Click="Navigate_Click" Style="{StaticResource NavigationButton}" automation:AutomationProperties.Name="Open Masters"/>
+                <Button Content="Settings" Tag="Settings" Click="Navigate_Click" Style="{StaticResource NavigationButton}" automation:AutomationProperties.Name="Open Settings"/>
+            </StackPanel>
+        </DockPanel>
+        <Grid Grid.Column="1">
+            <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+            <Border Grid.Row="0" Background="White" BorderBrush="#DCE2E8" BorderThickness="0,0,0,1" Padding="30,20">
+                <StackPanel><TextBlock x:Name="PageTitle" Text="Dashboard" FontSize="25" FontWeight="SemiBold" Foreground="#172B3E"/><TextBlock x:Name="PageDescription" Text="Application and import readiness at a glance." Margin="0,5,0,0" Foreground="#5D6873"/></StackPanel>
+            </Border>
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="30">
+                    <UniformGrid Columns="2" Margin="0,0,0,20">
+                        <Border Style="{StaticResource Card}" Margin="0,0,10,0"><StackPanel><TextBlock Text="Database connection" FontWeight="SemiBold" Foreground="#344454"/><TextBlock x:Name="ConnectionStatus" Text="Not configured" FontSize="20" FontWeight="SemiBold" Foreground="#9B5C00" Margin="0,10,0,4" automation:AutomationProperties.Name="Database connection status: Not configured"/><TextBlock Text="Configure SQL Server in Settings before importing data." TextWrapping="Wrap" Foreground="#5D6873"/></StackPanel></Border>
+                        <Border Style="{StaticResource Card}" Margin="10,0,0,0"><StackPanel><TextBlock Text="Import readiness" FontWeight="SemiBold" Foreground="#344454"/><TextBlock x:Name="ImportStatus" Text="Waiting for configuration" FontSize="20" FontWeight="SemiBold" Foreground="#9B5C00" Margin="0,10,0,4" automation:AutomationProperties.Name="Import readiness status: Waiting for configuration"/><TextBlock Text="No workbook has been selected. Unknown layouts will never be guessed." TextWrapping="Wrap" Foreground="#5D6873"/></StackPanel></Border>
+                    </UniformGrid>
+                    <Border Style="{StaticResource Card}"><StackPanel><TextBlock x:Name="WorkspaceHeading" Text="Getting started" FontSize="18" FontWeight="SemiBold" Foreground="#172B3E"/><TextBlock x:Name="WorkspaceMessage" Text="Open Settings to configure the database, then use Import ETP to select and validate a workbook." TextWrapping="Wrap" Margin="0,10,0,18" Foreground="#44515E"/><Button x:Name="PrimaryAction" Content="Open Settings" Tag="Settings" Click="Navigate_Click" HorizontalAlignment="Left" Padding="18,9" Background="#176B87" Foreground="White" BorderThickness="0" Cursor="Hand" automation:AutomationProperties.Name="Open Settings"/></StackPanel></Border>
+                    <Border x:Name="DashboardPanel" Style="{StaticResource Card}" Margin="0,20,0,0">
+                        <StackPanel>
+                            <DockPanel><TextBlock Text="Operational summary" FontSize="18" FontWeight="SemiBold" Foreground="#172B3E"/><Button DockPanel.Dock="Right" Content="Refresh" Click="RefreshDashboard_Click" Padding="14,6" automation:AutomationProperties.Name="Refresh dashboard"/></DockPanel>
+                            <UniformGrid Columns="4" Margin="0,16,0,16">
+                                <StackPanel><TextBlock Text="Imported files" Foreground="#5D6873"/><TextBlock x:Name="ImportedFilesMetric" Text="-" FontSize="24" FontWeight="SemiBold"/></StackPanel>
+                                <StackPanel><TextBlock Text="Completed batches" Foreground="#5D6873"/><TextBlock x:Name="CompletedBatchesMetric" Text="-" FontSize="24" FontWeight="SemiBold"/></StackPanel>
+                                <StackPanel><TextBlock Text="Source rows" Foreground="#5D6873"/><TextBlock x:Name="SourceRowsMetric" Text="-" FontSize="24" FontWeight="SemiBold"/></StackPanel>
+                                <StackPanel><TextBlock Text="Latest import (UTC)" Foreground="#5D6873"/><TextBlock x:Name="LatestImportMetric" Text="-" FontSize="16" FontWeight="SemiBold"/></StackPanel>
+                            </UniformGrid>
+                            <TextBlock Text="Recent import history" FontWeight="SemiBold"/>
+                            <DataGrid x:Name="ImportHistoryGrid" Margin="0,8,0,0" AutoGenerateColumns="True" IsReadOnly="True" MaxHeight="240"/>
+                        </StackPanel>
+                    </Border>
+                    <Border x:Name="SettingsPanel" Style="{StaticResource Card}" Margin="0,20,0,0" Visibility="Collapsed">
+                        <StackPanel><TextBlock Text="SQL Server connection string" FontWeight="SemiBold"/><TextBox x:Name="ConnectionStringInput" Margin="0,8,0,12" Padding="8" Text="Server=.\SQLEXPRESS;Database=EtpReporting;Integrated Security=True;TrustServerCertificate=True"/><StackPanel Orientation="Horizontal"><Button Content="Test connection" Click="TestConnection_Click" Padding="18,9"/><Button Content="Create/update database" Click="BootstrapDatabase_Click" Padding="18,9" Margin="10,0,0,0"/></StackPanel><TextBlock x:Name="ConnectionResult" Margin="0,12,0,0" TextWrapping="Wrap"/></StackPanel>
+                    </Border>
+                    <Border x:Name="ImportPanel" Style="{StaticResource Card}" Margin="0,20,0,0" Visibility="Collapsed">
+                        <StackPanel><TextBlock Text="ETP workbook" FontWeight="SemiBold"/><DockPanel Margin="0,8,0,12"><Button DockPanel.Dock="Right" Content="Browse…" Click="BrowseWorkbook_Click" Padding="18,7"/><TextBox x:Name="WorkbookPathInput" IsReadOnly="True" Padding="8" Margin="0,0,10,0"/></DockPanel><StackPanel Orientation="Horizontal"><Button x:Name="ValidateButton" Content="Validate workbook" Click="ValidateWorkbook_Click" Padding="18,9"/><Button x:Name="PersistButton" Content="Import validated rows" Click="PersistWorkbook_Click" Padding="18,9" Margin="10,0,0,0" IsEnabled="False"/></StackPanel><TextBlock x:Name="ValidationResult" Margin="0,12,0,0" TextWrapping="Wrap"/><DataGrid x:Name="DiagnosticsGrid" Margin="0,12,0,0" AutoGenerateColumns="True" IsReadOnly="True" MaxHeight="260"/></StackPanel>
+                    </Border>
+                    <Border x:Name="ReportsPanel" Style="{StaticResource Card}" Margin="0,20,0,0" Visibility="Collapsed">
+                        <StackPanel><TextBlock Text="Report period" FontWeight="SemiBold"/><StackPanel Orientation="Horizontal" Margin="0,8,0,12"><DatePicker x:Name="ReportFrom" Width="150"/><TextBlock Text="to" Margin="10,5"/><DatePicker x:Name="ReportTo" Width="150"/><ComboBox x:Name="SalesDimensionInput" Width="170" Margin="12,0,0,0" SelectedIndex="0"><ComboBoxItem Content="Daily"/><ComboBoxItem Content="Store"/><ComboBoxItem Content="Brand"/><ComboBoxItem Content="BrandSegment"/><ComboBoxItem Content="Item"/><ComboBoxItem Content="Returns"/></ComboBox></StackPanel><WrapPanel><Button Content="Run sales report" Click="RunSalesReport_Click" Padding="16,8"/><Button Content="Reconcile tenders" Click="RunTenderReport_Click" Padding="16,8" Margin="10,0,0,0"/><Button Content="Reconcile stock" Click="RunStockReport_Click" Padding="16,8" Margin="10,0,0,0"/><Button x:Name="ExportExcelButton" Content="Export Excel…" Click="ExportExcel_Click" Padding="16,8" Margin="10,0,0,0" IsEnabled="False"/><Button x:Name="ExportPdfButton" Content="Export PDF…" Click="ExportPdf_Click" Padding="16,8" Margin="10,0,0,0" IsEnabled="False"/></WrapPanel><TextBlock x:Name="ReportResult" Margin="0,12,0,0" TextWrapping="Wrap"/><DataGrid x:Name="ReportGrid" Margin="0,12,0,0" AutoGenerateColumns="True" IsReadOnly="True" MaxHeight="360"/></StackPanel>
+                    </Border>
+                    <Border x:Name="MastersPanel" Style="{StaticResource Card}" Margin="0,20,0,0" Visibility="Collapsed">
+                        <StackPanel><TextBlock Text="Brand segment dictionary" FontSize="18" FontWeight="SemiBold"/><TextBlock Margin="0,8,0,12" Text="ETP CLUSTER is presented as Brand Segment. Source codes are retained; descriptions can be extended after business approval." TextWrapping="Wrap" Foreground="#5D6873"/><DataGrid x:Name="BrandDictionaryGrid" AutoGenerateColumns="True" IsReadOnly="True" MaxHeight="300"/></StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+            <Border Grid.Row="2" Background="White" BorderBrush="#DCE2E8" BorderThickness="0,1,0,0" Padding="30,10"><TextBlock x:Name="ApplicationStatus" Text="Ready. Database connection is not configured." Foreground="#465563" automation:AutomationProperties.LiveSetting="Polite" automation:AutomationProperties.Name="Application status"/></Border>
+        </Grid>
+    </Grid>
+</Window>

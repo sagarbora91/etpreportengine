@@ -1,0 +1,41 @@
+{
+  "format": "SAAGAR_EXTERNAL_GATE_APPROVAL",
+  "schemaVersion": 1,
+  "decision": "approve",
+  "receivedAt": "2026-08-22T20:06:30+05:30",
+  "gateId": "GATE-ETP-EXCEPTIONS",
+  "state": "closed",
+  "reviewer": {
+    "displayName": "Sagar",
+    "githubIdentity": "sagarbora91",
+    "role": "business-owner"
+  },
+  "package": {
+    "path": "verification/audit/ETP-R003-R013-EXCEPTION-OWNER-REVIEW-2026-08-22.md",
+    "sha256": "880da292ec91364a0aa0feda2ecaaf123b0aeb00fdbb9efd3351c77aac80da20"
+  },
+  "identity": {
+    "productCommit": "519c3e1de8e0843f2fff13909084e00b1e2712ad",
+    "etpVerifiedPresentationSha256": "031fe0d969062cab8319d23111a4e83c92111b1bf1e90f53238c80666acb2cc6",
+    "etpModuleGatewaySha256": "50105e28e3fc64ed13f36ac5c83cab15c39010f6cef544c4ec0f62a4e7ad62af",
+    "etpModuleIndexSha256": "c3e0669a108a4575dc79d167626327fc2e55ac7bae1267d7ef9839e255c0b717"
+  },
+  "independentVerification": {
+    "performedBy": "assistant, read-only, 2026-08-22",
+    "note": "All three cited file hashes were recomputed and match the CURRENT working tree, so although the package names product commit 519c3e1 those files are unchanged since and the approval binds validly."
+  },
+  "approvalText": "I, Sagar (sagarbora91), reviewed the current Retail ETP R003 and R013 exception presentation bound to product-code identity 519c3e1de8e0843f2fff13909084e00b1e2712ad, etp-verified-presentation.js SHA-256 031fe0d969062cab8319d23111a4e83c92111b1bf1e90f53238c80666acb2cc6, etp-module-gateway.js SHA-256 50105e28e3fc64ed13f36ac5c83cab15c39010f6cef544c4ec0f62a4e7ad62af, and ETP module index SHA-256 c3e0669a108a4575dc79d167626327fc2e55ac7bae1267d7ef9839e255c0b717. I confirm that the R003 discount-enrichment and R013 CRO-attribution exception cards are intelligible, that their bounded status and difference counts are suitable for operational review, and that I understand these enrichment exceptions do not change verified revenue or sales totals. I approve closure of GATE-ETP-EXCEPTIONS for this exact identity. This approval does not approve source workbooks, PAYMENTTYPE25 classification, production publication, UAT, production signing or release.",
+  "scope": {
+    "closes": [
+      "GATE-ETP-EXCEPTIONS"
+    ],
+    "doesNotClose": [
+      "source workbooks",
+      "PAYMENTTYPE25 classification",
+      "GATE-ETP-PRODUCTION",
+      "staff UAT",
+      "production signing",
+      "release approval"
+    ]
+  }
+}

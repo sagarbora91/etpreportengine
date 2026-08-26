@@ -1,0 +1,2138 @@
+{
+  ".codex/hooks.json": {
+    "mtime": 1787668185.9668443,
+    "seen": 1787668830.6422498,
+    "ast_hash": "2e81072cfe614c0e2c8010208b7bce68",
+    "semantic_hash": ""
+  },
+  "Etp.Reporting.slnx": {
+    "mtime": 1787670197.7798464,
+    "seen": 1787670275.472814,
+    "ast_hash": "1046813ccc182c823ab1e24ccda6d68c",
+    "semantic_hash": ""
+  },
+  "build-overrides/apply-overrides.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.642295,
+    "ast_hash": "c2241f17637d86b9993db9e2affea574",
+    "semantic_hash": ""
+  },
+  "build-overrides/native/SaagarEtpStorePlugin.java": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6423025,
+    "ast_hash": "f9cd09327c5c33f5928d7272dc484d1a",
+    "semantic_hash": ""
+  },
+  "build-overrides/native/SaagarKeystorePlugin.java": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6423087,
+    "ast_hash": "33d98d0bfec1747f02051fcd81a27da3",
+    "semantic_hash": ""
+  },
+  "build-overrides/native/SaagarNativeStorePlugin.java": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.642318,
+    "ast_hash": "a77af0a0f0867d053918b94e3522bc7e",
+    "semantic_hash": ""
+  },
+  "build-overrides/native/SaagarOffDevicePlugin.java": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.642324,
+    "ast_hash": "656181cf2fa6d4ffdb5ff934005c9b5b",
+    "semantic_hash": ""
+  },
+  "build-overrides/native/SaagarSecurityPlugin.java": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.642333,
+    "ast_hash": "4964a3f3e6d7a936f8245c98535574aa",
+    "semantic_hash": ""
+  },
+  "capacitor.config.json": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6423407,
+    "ast_hash": "3ca1c5fd91b2ff1c838ae8bc5a0306ce",
+    "semantic_hash": ""
+  },
+  "package.json": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6423478,
+    "ast_hash": "e1336a430783020f3174a87ab92dfd90",
+    "semantic_hash": ""
+  },
+  "scripts/android-emulator.ps1": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6423593,
+    "ast_hash": "8ad75101399f4313ccc6d2121d84d813",
+    "semantic_hash": ""
+  },
+  "scripts/build-production-release.ps1": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6423638,
+    "ast_hash": "e06f09d0a2533dcb3f9ff948cf93ddbb",
+    "semantic_hash": ""
+  },
+  "scripts/build-seeded-apk.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6423717,
+    "ast_hash": "577c70675d72c8f867b9758266094abc",
+    "semantic_hash": ""
+  },
+  "scripts/capture-api23-compatibility.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6423788,
+    "ast_hash": "a5447e809daed2b98b84eb531b39886b",
+    "semantic_hash": ""
+  },
+  "scripts/create-v6-etp-gate0-freeze.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6423855,
+    "ast_hash": "649a57bb258a36cb885a53150369ef4a",
+    "semantic_hash": ""
+  },
+  "scripts/evaluate-etp-parser.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6424587,
+    "ast_hash": "9af9458209323bb16711b654f64bf57a",
+    "semantic_hash": ""
+  },
+  "scripts/generate-etp-synthetic-fixtures.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.642474,
+    "ast_hash": "29296de880ed8d08c6d2c58a43652dda",
+    "semantic_hash": ""
+  },
+  "scripts/lib/module-manifest-source.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.642488,
+    "ast_hash": "8715a70b129020e6d9c0864c69d5380e",
+    "semantic_hash": ""
+  },
+  "scripts/node-userinfo-shim.cjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6424975,
+    "ast_hash": "ab76b70b7e2ce29cf297371f28eea7bf",
+    "semantic_hash": ""
+  },
+  "scripts/prepare-api23-assets.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.642506,
+    "ast_hash": "a4c5e25aa99e123e72cf8df451cbb937",
+    "semantic_hash": ""
+  },
+  "scripts/refresh-module-manifest-identities.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6425142,
+    "ast_hash": "bae1d20287bd08eebe690dc9b3651238",
+    "semantic_hash": ""
+  },
+  "scripts/stage-etp-api23-evaluation.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6425292,
+    "ast_hash": "c9bb517f668f3e1beb9d3c6c16a551b2",
+    "semantic_hash": ""
+  },
+  "scripts/stage-etp-browser-deps.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.642538,
+    "ast_hash": "cd8db2380f37092da85f246cdb81aa89",
+    "semantic_hash": ""
+  },
+  "scripts/verify-etp-core-real-files.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6425452,
+    "ast_hash": "68a80bf554a38cf746692c24eef9b4bc",
+    "semantic_hash": ""
+  },
+  "scripts/verify-etp-device.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.642552,
+    "ast_hash": "ffa137f0cac5d4cd8a983cc0ce475500",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Application/Etp.Reporting.Application.csproj": {
+    "mtime": 1787668528.032997,
+    "seen": 1787668830.6425595,
+    "ast_hash": "46b0780bd56312ea2d1bab391f179e89",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Application/Imports/ImportContracts.cs": {
+    "mtime": 1787668640.2605805,
+    "seen": 1787668830.6425662,
+    "ast_hash": "9ba7ca2988f392b8e16a3db7f55de863",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Desktop/App.xaml": {
+    "mtime": 1787668518.498145,
+    "seen": 1787668830.6426125,
+    "ast_hash": "6c9682b356a9a12cdf5c6570f32531ff",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Desktop/App.xaml.cs": {
+    "mtime": 1787668518.498145,
+    "seen": 1787668830.6426203,
+    "ast_hash": "76756cd0af86e5a4ac6e52e655373282",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Desktop/AssemblyInfo.cs": {
+    "mtime": 1787668518.5137746,
+    "seen": 1787668830.642627,
+    "ast_hash": "8a158a8a488c0dd7d226a06783fc2860",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Desktop/Etp.Reporting.Desktop.csproj": {
+    "mtime": 1787728891.1424198,
+    "seen": 1787730787.5561259,
+    "ast_hash": "2eb4fbc50a696a4f5c2e1365ff85c9ce",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Desktop/MainWindow.xaml": {
+    "mtime": 1787731096.8739195,
+    "seen": 1787731440.6138306,
+    "ast_hash": "a4ca1f14229b92c525250a2b4ec460ed",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Desktop/MainWindow.xaml.cs": {
+    "mtime": 1787731096.8739195,
+    "seen": 1787731440.613833,
+    "ast_hash": "66837afbfd34a589fb9482634ff020da",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Domain/Etp.Reporting.Domain.csproj": {
+    "mtime": 1787668523.545716,
+    "seen": 1787668830.6427565,
+    "ast_hash": "46b0780bd56312ea2d1bab391f179e89",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Domain/Imports/ImportProfile.cs": {
+    "mtime": 1787668640.251604,
+    "seen": 1787668830.6427646,
+    "ast_hash": "b4b9657b710b56b80262b37c2794c0ef",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Import/Etp.Reporting.Import.csproj": {
+    "mtime": 1787728459.182264,
+    "seen": 1787730787.557909,
+    "ast_hash": "d98d1eb9c05cccbbaf8ad044f835854b",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Import/Profiles/ImportProfileMatcher.cs": {
+    "mtime": 1787668640.255592,
+    "seen": 1787668830.6428666,
+    "ast_hash": "08f7547e5a8f5ea2f09e0d63cec9da13",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Infrastructure.SqlServer/Etp.Reporting.Infrastructure.SqlServer.csproj": {
+    "mtime": 1787729136.3580623,
+    "seen": 1787730787.558891,
+    "ast_hash": "289a931ec761f26b3a499dfe772806db",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Reporting/Etp.Reporting.Reporting.csproj": {
+    "mtime": 1787731046.9932644,
+    "seen": 1787731440.6138928,
+    "ast_hash": "8a6fcc63d6ced1d1251b928340a14bf6",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Reporting/ReportDefinition.cs": {
+    "mtime": 1787727666.6273992,
+    "seen": 1787730787.559289,
+    "ast_hash": "de779384e60dec0b9355ab9d3732f95d",
+    "semantic_hash": ""
+  },
+  "tests-dotnet/Etp.Reporting.Domain.Tests/Etp.Reporting.Domain.Tests.csproj": {
+    "mtime": 1787668640.2327323,
+    "seen": 1787668830.643154,
+    "ast_hash": "4d7737b4465076874e3de0b498fbfdaa",
+    "semantic_hash": ""
+  },
+  "tests-dotnet/Etp.Reporting.Domain.Tests/ImportProfileTests.cs": {
+    "mtime": 1787668640.282336,
+    "seen": 1787668830.6431653,
+    "ast_hash": "6a357f963c228b2aef673a6cab51d47e",
+    "semantic_hash": ""
+  },
+  "tests-dotnet/Etp.Reporting.Import.Tests/Etp.Reporting.Import.Tests.csproj": {
+    "mtime": 1787668640.2416353,
+    "seen": 1787668830.6433039,
+    "ast_hash": "56f7563189e15ea5b0f8d68d4b0433b4",
+    "semantic_hash": ""
+  },
+  "tests-dotnet/Etp.Reporting.Import.Tests/ImportProfileMatcherTests.cs": {
+    "mtime": 1787668640.2833288,
+    "seen": 1787668830.6433098,
+    "ast_hash": "c89b8acfde746de2dd0c7621fb9e8d94",
+    "semantic_hash": ""
+  },
+  "tests/api23-compatibility-build.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6433835,
+    "ast_hash": "17204b9df74f9836a5847f909ba8a49c",
+    "semantic_hash": ""
+  },
+  "tests/e1-etp-import-foundation.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6433902,
+    "ast_hash": "5136bfcb58f7ac3f8c485e155ef65855",
+    "semantic_hash": ""
+  },
+  "tests/etp-controlled-evidence-verifier.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6433988,
+    "ast_hash": "98fe0848f875199db0996f89e0b64a69",
+    "semantic_hash": ""
+  },
+  "tests/etp-core-contract.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6434104,
+    "ast_hash": "16545da02a62d8e9f2dfb448af2cb583",
+    "semantic_hash": ""
+  },
+  "tests/etp-foundation-status.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6434202,
+    "ast_hash": "f30f3d103a571877e307e63d7d0c30bf",
+    "semantic_hash": ""
+  },
+  "tests/etp-import-coordinator.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6434271,
+    "ast_hash": "b60f48a4121e44211ea191cd3d76210b",
+    "semantic_hash": ""
+  },
+  "tests/etp-import-history.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6434343,
+    "ast_hash": "d4911796f1b28b1782f4e33f42e53d62",
+    "semantic_hash": ""
+  },
+  "tests/etp-import-runtime.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6434429,
+    "ast_hash": "7c64fdd0deb84f1449218a513c8d925a",
+    "semantic_hash": ""
+  },
+  "tests/etp-import-ui.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6434534,
+    "ast_hash": "4daa8fcbce1cdcb333208295ead6464d",
+    "semantic_hash": ""
+  },
+  "tests/etp-module-gateway-adversarial.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6434596,
+    "ast_hash": "71aeeb47075b16dc00b647e5afc6d71f",
+    "semantic_hash": ""
+  },
+  "tests/etp-module-gateway.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6434662,
+    "ast_hash": "537d258de274ce8273be291c9c1e8e63",
+    "semantic_hash": ""
+  },
+  "tests/etp-module-import-ui.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6434736,
+    "ast_hash": "eeb199e5cc00024490f22a2cf49b306f",
+    "semantic_hash": ""
+  },
+  "tests/etp-module-shell.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.643483,
+    "ast_hash": "9f3c9c07eaa2aa4f4ccafede676dfcfe",
+    "semantic_hash": ""
+  },
+  "tests/etp-native-api23-evidence-contract.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6434913,
+    "ast_hash": "8cac43f9c821bbb13ee63ea0b544528b",
+    "semantic_hash": ""
+  },
+  "tests/etp-native-store-contract.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6435003,
+    "ast_hash": "074c7b3e4df228392abd4a5be4f1ccb7",
+    "semantic_hash": ""
+  },
+  "tests/etp-native-store.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.643509,
+    "ast_hash": "3f0268c2fa70db1c671098fadf55d8fa",
+    "semantic_hash": ""
+  },
+  "tests/etp-profile-authority.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6435177,
+    "ast_hash": "b7c751462d964e4cac878aff044e7d0a",
+    "semantic_hash": ""
+  },
+  "tests/etp-query-contract.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.643525,
+    "ast_hash": "bfdbfe25b7ed58b73f0d2405eaac7bea",
+    "semantic_hash": ""
+  },
+  "tests/etp-read-facade-boundary.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6435332,
+    "ast_hash": "5e7443640a3b25cae15bf1193460950b",
+    "semantic_hash": ""
+  },
+  "tests/etp-reconciliation-policy.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.643541,
+    "ast_hash": "5d5c5d174e408593ddc14e0df7c75689",
+    "semantic_hash": ""
+  },
+  "tests/etp-recovery-integration.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6435492,
+    "ast_hash": "1f446f6d394df808ea441c618e31e0ff",
+    "semantic_hash": ""
+  },
+  "tests/etp-recovery-shell-integration.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6435597,
+    "ast_hash": "c494afbae193efd54254d0a243d36419",
+    "semantic_hash": ""
+  },
+  "tests/etp-retail-profile-parser.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6435683,
+    "ast_hash": "fea1a1f2d2cef34cac84e85a25ad260a",
+    "semantic_hash": ""
+  },
+  "tests/etp-retail-xlsx-loader.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.643575,
+    "ast_hash": "ded91c6af623c1cf044d3c148a46f9b3",
+    "semantic_hash": ""
+  },
+  "tests/etp-store-lifecycle-policy.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6435826,
+    "ast_hash": "2109d6dac296aa64bd00564e6beceade",
+    "semantic_hash": ""
+  },
+  "tests/etp-synthetic-fixtures.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.643589,
+    "ast_hash": "d781247d526e5af5bbdf20f320f7a16d",
+    "semantic_hash": ""
+  },
+  "tests/etp-tender-dictionary.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.643597,
+    "ast_hash": "9ce07e1cd5f940fe135d884c730dae21",
+    "semantic_hash": ""
+  },
+  "tests/etp-verified-presentation.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6436055,
+    "ast_hash": "3a73c3e976fd787ab0b4b9c1e0fd633b",
+    "semantic_hash": ""
+  },
+  "tests/etp-worker-client.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6436129,
+    "ast_hash": "248ee10a34cf29ee9e88cc7617ca61f0",
+    "semantic_hash": ""
+  },
+  "tests/etp-xlsx-parser-policy.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6436212,
+    "ast_hash": "d00ec8c0f89db98b9d4ef152158a0aad",
+    "semantic_hash": ""
+  },
+  "tests/etp-xlsx-preflight.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.643628,
+    "ast_hash": "907e11316a22a089d6785ef8d9dc3808",
+    "semantic_hash": ""
+  },
+  "tests/financial-golden.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.643634,
+    "ast_hash": "80a84ced47d3f63b5c6b582d46e4fe3d",
+    "semantic_hash": ""
+  },
+  "tests/language-localization.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6436398,
+    "ast_hash": "0a48b0c0afa34c0c5e44dca3ff559c78",
+    "semantic_hash": ""
+  },
+  "tests/lib/export-control-harness.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6436465,
+    "ast_hash": "f54612e4046233d1d054af0a864cb856",
+    "semantic_hash": ""
+  },
+  "tests/lib/module-bundle.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6436527,
+    "ast_hash": "bb32660cfd6578af0a1e6fced553340c",
+    "semantic_hash": ""
+  },
+  "tests/lib/phase6c-historical-root.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6436584,
+    "ast_hash": "e1c7bbf073f6149e582cff63a694527c",
+    "semantic_hash": ""
+  },
+  "tests/lib/phase6c-legacy-source.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6436641,
+    "ast_hash": "3011a56ad1e5679d865586db4d36bd80",
+    "semantic_hash": ""
+  },
+  "tests/lib/phase6e-stock-source.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6436808,
+    "ast_hash": "0bdc3be196743b9a769c0f40304d5b89",
+    "semantic_hash": ""
+  },
+  "tests/lib/phase6f-family-a-source.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6436903,
+    "ast_hash": "64b55da7b344eeb1f4eeaae56d2b3289",
+    "semantic_hash": ""
+  },
+  "tests/lib/phase6g-family-b-source.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6436958,
+    "ast_hash": "e02f39be10eecac7f095d7369364a418",
+    "semantic_hash": ""
+  },
+  "tests/lib/phase6g-shell-source.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6437027,
+    "ast_hash": "579cfef5188a1797fa31c4cec664ef4e",
+    "semantic_hash": ""
+  },
+  "tests/lib/phase6h1-etp-source.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6437092,
+    "ast_hash": "ea1c569078dbbdf39751d03297d71a31",
+    "semantic_hash": ""
+  },
+  "tests/lib/v6-etp-e7-fixtures.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.643718,
+    "ast_hash": "109db54e7ef3c846601dae6ce4905f01",
+    "semantic_hash": ""
+  },
+  "tests/mah2-module-manifest.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6437259,
+    "ast_hash": "c5b7a05e1ce7b2120d879dfd229a1740",
+    "semantic_hash": ""
+  },
+  "tests/mobile-layout-remediation.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.643733,
+    "ast_hash": "b77f9c41288394130f21aa8244a33c87",
+    "semantic_hash": ""
+  },
+  "tests/phase6b-etp-control-identities.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6437407,
+    "ast_hash": "f0898654fdf6f2fa4b69dda17809842f",
+    "semantic_hash": ""
+  },
+  "tests/phase6f-etp-bounded-report-gateway.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6437476,
+    "ast_hash": "d73a6cea19de208ed150fb1c0e7f3834",
+    "semantic_hash": ""
+  },
+  "tests/phase6f-etp-report-presentation.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6437545,
+    "ast_hash": "853873030f9eef5b399aff812a7e983d",
+    "semantic_hash": ""
+  },
+  "tests/phase6h1-etp-analytics-presentation.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.643761,
+    "ast_hash": "a24afbb9dc6227a976fee2899e579103",
+    "semantic_hash": ""
+  },
+  "tests/phase6h1-etp-analytics.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6437683,
+    "ast_hash": "d3e06000148dea5760c162393ef20d7f",
+    "semantic_hash": ""
+  },
+  "tests/phase6h2-etp-cro-reconciliation.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.643775,
+    "ast_hash": "cd2af053b1490c4f8fb683ad7c63bd20",
+    "semantic_hash": ""
+  },
+  "tests/phase6h3-etp-target-planning.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.643782,
+    "ast_hash": "0cf641929779779b8c6e91cacbf1ec4d",
+    "semantic_hash": ""
+  },
+  "tests/phase6h4-etp-exception-monitor.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6437902,
+    "ast_hash": "34282bd187012510f45f5d436fb0472f",
+    "semantic_hash": ""
+  },
+  "tests/phase6h5-etp-incentive-control.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6437979,
+    "ast_hash": "5da3c7b0c438d0d61f734208dcb39c1c",
+    "semantic_hash": ""
+  },
+  "tests/report-csv.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.643806,
+    "ast_hash": "37d72d911b76316a6337ad1f3a78d09c",
+    "semantic_hash": ""
+  },
+  "tests/seeded-apk-profile.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6438134,
+    "ast_hash": "97bca80a0e92c8aac04b379b013b5d8d",
+    "semantic_hash": ""
+  },
+  "tests/seeded-apk-runtime.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6438217,
+    "ast_hash": "1112a82027620f1815b838b05954c932",
+    "semantic_hash": ""
+  },
+  "tests/source-integrity.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6438327,
+    "ast_hash": "b9b54d5c039aae2b6a012c5185757e0e",
+    "semantic_hash": ""
+  },
+  "tests/v6-etp-demo-operational.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6438425,
+    "ast_hash": "dd2f8c717814bcd90c99359e7434cb31",
+    "semantic_hash": ""
+  },
+  "tests/v6-etp-e3-lifecycle-acceptance.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.643851,
+    "ast_hash": "a195a6af325e36c2cb1bebb480d0419e",
+    "semantic_hash": ""
+  },
+  "tests/v6-etp-e3-orchestrator.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6438594,
+    "ast_hash": "78c03ac57f0a1f0de9b470e2b09bd95c",
+    "semantic_hash": ""
+  },
+  "tests/v6-etp-e3-presentation.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6438684,
+    "ast_hash": "9f22b400bbff4c18bc2c4552ac67ffc6",
+    "semantic_hash": ""
+  },
+  "tests/v6-etp-e3-verified-join.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.643878,
+    "ast_hash": "6e6a2d99833ab183e0d0d7f0f35528ae",
+    "semantic_hash": ""
+  },
+  "tests/v6-etp-e4-authority-intake.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6438859,
+    "ast_hash": "a12a1cadd494dab107a188522907e710",
+    "semantic_hash": ""
+  },
+  "tests/v6-etp-e4-orchestrator.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6438959,
+    "ast_hash": "1d563f9897bbc6beb68f6a7d5944d381",
+    "semantic_hash": ""
+  },
+  "tests/v6-etp-e4-presentation.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6439044,
+    "ast_hash": "a68b1e60b4c0c41e02e83896a6667747",
+    "semantic_hash": ""
+  },
+  "tests/v6-etp-e5-authority-and-money-goldens.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6439118,
+    "ast_hash": "0ec756a14f34f22eac406ab4a1889465",
+    "semantic_hash": ""
+  },
+  "tests/v6-etp-e5-payroll-bridge.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6439219,
+    "ast_hash": "99b95fa2bfff5327fa5bcd700d57a479",
+    "semantic_hash": ""
+  },
+  "tests/v6-etp-e5-presentation.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6439316,
+    "ast_hash": "0c0d881baa2cb2bc61a4bfbf9e240543",
+    "semantic_hash": ""
+  },
+  "tests/v6-etp-e6-authority-lifecycle.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.643943,
+    "ast_hash": "5649cd77472111b89e0c1d0da9abee46",
+    "semantic_hash": ""
+  },
+  "tests/v6-etp-e6-presentation.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6439557,
+    "ast_hash": "9f65c08e76b30795d8e3410c5b74f9eb",
+    "semantic_hash": ""
+  },
+  "tests/v6-etp-e7-authority-intake.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6439905,
+    "ast_hash": "2aeed3f4b10aa745d2e3ce0ebc25b991",
+    "semantic_hash": ""
+  },
+  "tests/v6-etp-e7-module-host.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6440005,
+    "ast_hash": "15ae5ccc62d7f1b7ead496e55f3ffacc",
+    "semantic_hash": ""
+  },
+  "tests/v6-etp-e7-presentation.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6440089,
+    "ast_hash": "6c41fcdaac8aba81f37795daf4dc9787",
+    "semantic_hash": ""
+  },
+  "tests/v6-etp-e7-privacy-isolation-adversarial.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.644019,
+    "ast_hash": "1cf683335038ee860f6bb395afcd7cb4",
+    "semantic_hash": ""
+  },
+  "tests/v6-etp-e7-service-operational.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6440284,
+    "ast_hash": "18fba31da46ac7c96e10a76e9e32ba3f",
+    "semantic_hash": ""
+  },
+  "tests/v6-etp-e7-service-verifier.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6440384,
+    "ast_hash": "5f79f5762da63d146817b39df3b2a027",
+    "semantic_hash": ""
+  },
+  "tests/v6-etp-final-responsive-regression.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.64405,
+    "ast_hash": "17981558749cddcd007306795144e3d1",
+    "semantic_hash": ""
+  },
+  "tests/v6-etp-gate0-authority-freeze.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6440594,
+    "ast_hash": "fb62d41a1cf59f7e81188d2915a0dd66",
+    "semantic_hash": ""
+  },
+  "tests/v6-etp-operational-adapters.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6440709,
+    "ast_hash": "d4429965bed57fc964f83536f0687ee6",
+    "semantic_hash": ""
+  },
+  "tests/v6-etp-operational-bootstrap.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6440818,
+    "ast_hash": "aeef21c790485997a1264aefb1f54106",
+    "semantic_hash": ""
+  },
+  "tests/v6-etp-operational-foundation.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6440918,
+    "ast_hash": "771eeb695ef3f5b6b9be581b357c2d56",
+    "semantic_hash": ""
+  },
+  "tests/v6-etp-operational-frame-bridge.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6441026,
+    "ast_hash": "24ccb9665ee04a07b2e4b53ab47a8c5e",
+    "semantic_hash": ""
+  },
+  "tests/v6-etp-operational-gateway.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6441119,
+    "ast_hash": "a8de69c58c172dc2b20954154ad3c008",
+    "semantic_hash": ""
+  },
+  "tests/v6-etp-operational-i18n.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6441221,
+    "ast_hash": "bbc7c052c81c5fb3d4fbb4c27377626d",
+    "semantic_hash": ""
+  },
+  "tests/v6-etp-operational-module-host.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6441321,
+    "ast_hash": "5bef81656ec107c14445c904cc48c3c1",
+    "semantic_hash": ""
+  },
+  "tests/v6-etp-operational-mount.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6441422,
+    "ast_hash": "6478f1dee78e66fc64d20be751ea1d66",
+    "semantic_hash": ""
+  },
+  "tests/v6-etp-operational-runtime.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6441524,
+    "ast_hash": "cf0a31eb4cc27873ac2f3071a3bab737",
+    "semantic_hash": ""
+  },
+  "tests/v6-etp-operational-shell-composer.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.644164,
+    "ast_hash": "07b76df526142bd0ff4066c4607976f5",
+    "semantic_hash": ""
+  },
+  "tests/v6-etp-operational-store.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6441734,
+    "ast_hash": "c347f125638d468d299391e864121ebf",
+    "semantic_hash": ""
+  },
+  "tests/v6-etp-synthetic-staff-uat.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6441822,
+    "ast_hash": "1f79b713d7199a90b9e60fd296202854",
+    "semantic_hash": ""
+  },
+  "tests/v6-etp-wave5-host-boundary-adversarial.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6441905,
+    "ast_hash": "c8b2b97df95cd64ed75d61f7cbaf26e1",
+    "semantic_hash": ""
+  },
+  "tests/v6-etp-wave6-durability-restatement.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6441975,
+    "ast_hash": "556de8d4055147124a0ceb75ce231847",
+    "semantic_hash": ""
+  },
+  "tests/v6-etp-wave6-mounted-security-adversarial.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6442058,
+    "ast_hash": "1e97fd80e62c0fb94d7e81a7f2a1abef",
+    "semantic_hash": ""
+  },
+  "tests/v6-etp-wave6-mounted-ui-acceptance.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6442134,
+    "ast_hash": "917c67c8541449143fa24d715b2a5426",
+    "semantic_hash": ""
+  },
+  "tests/v6-etp-wave6-portable-privacy.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.64422,
+    "ast_hash": "f72d96359ee180756ce01e686183142d",
+    "semantic_hash": ""
+  },
+  "tests/v6-etp-wave7-e4-full-chain-acceptance.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6442275,
+    "ast_hash": "a4142f75c1f8d9c133ce3d85e5dd69c4",
+    "semantic_hash": ""
+  },
+  "tests/v6-etp-wave8-e6-full-chain-acceptance.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6442368,
+    "ast_hash": "964b5e52e6ff1220843330e3a3f350fe",
+    "semantic_hash": ""
+  },
+  "tests/v6-etp-wave9-e5-full-chain-acceptance.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6442468,
+    "ast_hash": "8ad992c5e70100cfe6dda252210028c3",
+    "semantic_hash": ""
+  },
+  "tests/v6-etp-wave9-e5-mounted-ui-acceptance.test.mjs": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6442552,
+    "ast_hash": "777099a1be4e3fe96c055dd156ea6028",
+    "semantic_hash": ""
+  },
+  "www/app-i18n.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6443634,
+    "ast_hash": "87414ce0985aefd635c549e657616035",
+    "semantic_hash": ""
+  },
+  "www/build-identity.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6443746,
+    "ast_hash": "f382bdaf7e6ffcbd1bc7997153b68af1",
+    "semantic_hash": ""
+  },
+  "www/etp-analytics-consumer.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.644383,
+    "ast_hash": "a3799fb50e4f66f3a4f2800b7f5a5a20",
+    "semantic_hash": ""
+  },
+  "www/etp-control-registry.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6443927,
+    "ast_hash": "3ba681a92b3490014ad97b2d9ef15fa2",
+    "semantic_hash": ""
+  },
+  "www/etp-core-contract.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6444077,
+    "ast_hash": "275c54152ea8ca74674b3babbd86c821",
+    "semantic_hash": ""
+  },
+  "www/etp-cro-reconciliation.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6444182,
+    "ast_hash": "f0cf28579d13e03d47f4ea9d5163808f",
+    "semantic_hash": ""
+  },
+  "www/etp-demo-operational.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6444283,
+    "ast_hash": "745214ffeb8570a812b5aef6421c71d7",
+    "semantic_hash": ""
+  },
+  "www/etp-e3-orchestrator.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6444368,
+    "ast_hash": "a4a38a94281b85d2a0e1bc642d6a484d",
+    "semantic_hash": ""
+  },
+  "www/etp-e3-presentation.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6444485,
+    "ast_hash": "c8e944b44f2cc35e043a01dcd5adeb4b",
+    "semantic_hash": ""
+  },
+  "www/etp-e3-verified-join.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6444604,
+    "ast_hash": "26d349937bde1b302849d9dbbc408ae2",
+    "semantic_hash": ""
+  },
+  "www/etp-e4-authority-intake.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6444716,
+    "ast_hash": "d12c08ab07b3c961561672a9a4d48599",
+    "semantic_hash": ""
+  },
+  "www/etp-e4-orchestrator.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6444802,
+    "ast_hash": "163b81ab66f30b96ce8e5999eb63b752",
+    "semantic_hash": ""
+  },
+  "www/etp-e4-presentation.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6445456,
+    "ast_hash": "12403ca534c35c49ad0f5b27bb24ef56",
+    "semantic_hash": ""
+  },
+  "www/etp-e5-authority-intake.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6445837,
+    "ast_hash": "1fedf4356ab54a5245609f58fd1390dd",
+    "semantic_hash": ""
+  },
+  "www/etp-e5-payroll-bridge.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.644597,
+    "ast_hash": "b894cd32534726b6cc737e44620e772a",
+    "semantic_hash": ""
+  },
+  "www/etp-e5-presentation.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6446085,
+    "ast_hash": "d801598a4e4a265f60f9955b27fb8dad",
+    "semantic_hash": ""
+  },
+  "www/etp-e6-authority-intake.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6446233,
+    "ast_hash": "4262bafd6704bc4d19e56b780f11c938",
+    "semantic_hash": ""
+  },
+  "www/etp-e6-presentation.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.644636,
+    "ast_hash": "a381a17dc7d149b2f38736f3a2cd6a1a",
+    "semantic_hash": ""
+  },
+  "www/etp-e7-authority-intake.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.644648,
+    "ast_hash": "fb978c8698e9e6c2f9cb780299b03999",
+    "semantic_hash": ""
+  },
+  "www/etp-e7-module-host.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6446602,
+    "ast_hash": "33ee094cc53634d7dc9fb6707f79aa02",
+    "semantic_hash": ""
+  },
+  "www/etp-e7-presentation.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6446693,
+    "ast_hash": "af05974f4eb8f314299459f9f6a9fc14",
+    "semantic_hash": ""
+  },
+  "www/etp-e7-service-operational.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6446774,
+    "ast_hash": "e0e8761c23a9cc215cdf9dc548a94c05",
+    "semantic_hash": ""
+  },
+  "www/etp-e7-service-verifier.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6446908,
+    "ast_hash": "d1b074b4ffb62ad84dbf52c5af340764",
+    "semantic_hash": ""
+  },
+  "www/etp-exception-monitor.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6446996,
+    "ast_hash": "f2cb9ae5b7e550d0bdad6e1c25b412ae",
+    "semantic_hash": ""
+  },
+  "www/etp-foundation-status.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6447062,
+    "ast_hash": "24b4496c4f6bd5057a75a62dcaf8e47d",
+    "semantic_hash": ""
+  },
+  "www/etp-import-coordinator.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6447155,
+    "ast_hash": "2cd5cc341abc7ea587adaae6b863bc50",
+    "semantic_hash": ""
+  },
+  "www/etp-import-foundation.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6447244,
+    "ast_hash": "7f6fd3d3849e1052856c8b9243a131ee",
+    "semantic_hash": ""
+  },
+  "www/etp-import-history.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6447332,
+    "ast_hash": "cd3f520ddbba8267c20165cb56688a88",
+    "semantic_hash": ""
+  },
+  "www/etp-import-runtime.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6447423,
+    "ast_hash": "e3e9ff4db140e681e554196fdfeb9f60",
+    "semantic_hash": ""
+  },
+  "www/etp-import-ui.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.644751,
+    "ast_hash": "bc2941c862dda25cf8dd6996dfa1235c",
+    "semantic_hash": ""
+  },
+  "www/etp-import-worker.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6447582,
+    "ast_hash": "be532e9a5f68b234b3866fc96cc6d912",
+    "semantic_hash": ""
+  },
+  "www/etp-incentive-control.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.644767,
+    "ast_hash": "c421ad79f9856f16bb417e6d01abee7e",
+    "semantic_hash": ""
+  },
+  "www/etp-module-gateway.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6447754,
+    "ast_hash": "341d86fd5935ea54e31e79c228b785ce",
+    "semantic_hash": ""
+  },
+  "www/etp-native-store.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.644785,
+    "ast_hash": "145b4e0cee0258d8551264eb30551a1e",
+    "semantic_hash": ""
+  },
+  "www/etp-operational-adapters.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6447952,
+    "ast_hash": "9135db81a2f4f73d9f3c86693397c15c",
+    "semantic_hash": ""
+  },
+  "www/etp-operational-bootstrap.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.644806,
+    "ast_hash": "074a0f0d1a9761eeb6f2caadf7bb3c30",
+    "semantic_hash": ""
+  },
+  "www/etp-operational-foundation.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6448152,
+    "ast_hash": "e16eecaafd7bc6f4885b372982429847",
+    "semantic_hash": ""
+  },
+  "www/etp-operational-frame-bridge.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6448267,
+    "ast_hash": "a582c50b144776b5c226d361e9d0b4c9",
+    "semantic_hash": ""
+  },
+  "www/etp-operational-gateway.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6448398,
+    "ast_hash": "5948a654bb5a544a3a2dfe93f5d85343",
+    "semantic_hash": ""
+  },
+  "www/etp-operational-i18n.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.644851,
+    "ast_hash": "fd34afc7c63f25dab6ab9f1fd0b14f97",
+    "semantic_hash": ""
+  },
+  "www/etp-operational-module-host.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6448588,
+    "ast_hash": "ed7621f07f9ab32d99d9a7ff1387e279",
+    "semantic_hash": ""
+  },
+  "www/etp-operational-mount.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6448684,
+    "ast_hash": "a030f6427ebc991ede21b5024101ede8",
+    "semantic_hash": ""
+  },
+  "www/etp-operational-runtime.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6448803,
+    "ast_hash": "c0fb3ca21c05f7f5db9648d673302a61",
+    "semantic_hash": ""
+  },
+  "www/etp-operational-shell-composer.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6448927,
+    "ast_hash": "32f7791723a1b7d126d77d4de30152d0",
+    "semantic_hash": ""
+  },
+  "www/etp-operational-store.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.644903,
+    "ast_hash": "6f5c2f47cf4af436bfc9174650828ca1",
+    "semantic_hash": ""
+  },
+  "www/etp-operations-consumer.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.644913,
+    "ast_hash": "08e0f33be8196b763ff2402db5cf9462",
+    "semantic_hash": ""
+  },
+  "www/etp-profile-authority.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6449237,
+    "ast_hash": "9d95ebb8600f971d336bdc8f49b02654",
+    "semantic_hash": ""
+  },
+  "www/etp-query-contract.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6449347,
+    "ast_hash": "45e9fe6d1b6b4def87a81f4a90c08ec0",
+    "semantic_hash": ""
+  },
+  "www/etp-reconciliation-policy.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6449668,
+    "ast_hash": "b2a13eb6287c8de1629bb960bc3de2ad",
+    "semantic_hash": ""
+  },
+  "www/etp-recovery-integration.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6449776,
+    "ast_hash": "0cb026bb66a4d1ba5510bfe0b9dc8a72",
+    "semantic_hash": ""
+  },
+  "www/etp-retail-profile.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6449883,
+    "ast_hash": "d15936732d6b4433123138f8b7a416d5",
+    "semantic_hash": ""
+  },
+  "www/etp-retail-table-parser.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6449997,
+    "ast_hash": "b98f6d3b516f579b20d1cdf1dd41e831",
+    "semantic_hash": ""
+  },
+  "www/etp-retail-xlsx-loader.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6450107,
+    "ast_hash": "707f4cb9169ac14e963329b442bd9f59",
+    "semantic_hash": ""
+  },
+  "www/etp-store-lifecycle-policy.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.645024,
+    "ast_hash": "6775b2107ffb52148a10f0f63da254f0",
+    "semantic_hash": ""
+  },
+  "www/etp-target-planning.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6450324,
+    "ast_hash": "93ecbbfdb5decf69100214922039597d",
+    "semantic_hash": ""
+  },
+  "www/etp-tender-dictionary.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6450422,
+    "ast_hash": "b8df1b74999632a9db5b938974b15bfd",
+    "semantic_hash": ""
+  },
+  "www/etp-verified-analytics.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6450546,
+    "ast_hash": "45b2b71a20ad233428a0d3124b9c8c0f",
+    "semantic_hash": ""
+  },
+  "www/etp-verified-presentation.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6450622,
+    "ast_hash": "55034e9656d8917fdd01fec1b8d810f6",
+    "semantic_hash": ""
+  },
+  "www/etp-verified-reader.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6450713,
+    "ast_hash": "636e9c4fe73ac70d2475a3982d0bc884",
+    "semantic_hash": ""
+  },
+  "www/etp-worker-client.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6450815,
+    "ast_hash": "89d8d622cb6e8a5e1769054a912a6907",
+    "semantic_hash": ""
+  },
+  "www/etp-xlsx-parser-policy.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6450899,
+    "ast_hash": "7821dbcc731426eb724bdbb066c977a7",
+    "semantic_hash": ""
+  },
+  "www/etp-xlsx-preflight.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6450984,
+    "ast_hash": "d3c36b9714f64cf9aa4f37c6eb4a859f",
+    "semantic_hash": ""
+  },
+  "www/export-control.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6451106,
+    "ast_hash": "f7a823617b3e85054484135f0f0f336b",
+    "semantic_hash": ""
+  },
+  "www/fonts/DMSans-bold.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.645118,
+    "ast_hash": "3d74313b08e283822b557e44ad858f4c",
+    "semantic_hash": ""
+  },
+  "www/fonts/DMSans-normal.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6451278,
+    "ast_hash": "70cc988620d3c36908159c4276daa656",
+    "semantic_hash": ""
+  },
+  "www/html2pdf.bundle.min.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6451383,
+    "ast_hash": "0697962474a9f814d7413f95d0b25bc1",
+    "semantic_hash": ""
+  },
+  "www/jspdf.plugin.autotable.min.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6451468,
+    "ast_hash": "a416d9f96ef15ccb060a667e3234ff57",
+    "semantic_hash": ""
+  },
+  "www/jspdf.umd.min.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6451557,
+    "ast_hash": "62773ad03def8be2d1e86e55fa2c16eb",
+    "semantic_hash": ""
+  },
+  "www/jszip.min.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6451676,
+    "ast_hash": "6b3eea9b8d97dc4cb33aa404ca01d604",
+    "semantic_hash": ""
+  },
+  "www/module-manifest.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6451762,
+    "ast_hash": "3b358f0d60813f68e4b01c21c83a0f90",
+    "semantic_hash": ""
+  },
+  "www/module-pin-policy.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.645186,
+    "ast_hash": "4f8444053d33f16d9162e44816a831ed",
+    "semantic_hash": ""
+  },
+  "www/modules/qms/qms-view.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.645194,
+    "ast_hash": "3674fc47da2c4e917ffe473a94e0ac9e",
+    "semantic_hash": ""
+  },
+  "www/pdf.min.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.645202,
+    "ast_hash": "96de323330f8b8336f637a0051835e00",
+    "semantic_hash": ""
+  },
+  "www/pdf.worker.min.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6452107,
+    "ast_hash": "a53a71a2a5d618ed0f86ebf099db032a",
+    "semantic_hash": ""
+  },
+  "www/persistence-acceptance.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6452186,
+    "ast_hash": "b3e1bb5c81dfab5074713bdbe7349cd8",
+    "semantic_hash": ""
+  },
+  "www/portable-backup.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6452274,
+    "ast_hash": "1c13b1fb8accc58693cf3b5178abd820",
+    "semantic_hash": ""
+  },
+  "www/reauth-policy.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6452394,
+    "ast_hash": "51a460c2547c887f56ec9860bd9590d6",
+    "semantic_hash": ""
+  },
+  "www/restore-engine.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6452482,
+    "ast_hash": "ad13f60935e80657cad1f49e3f962cfe",
+    "semantic_hash": ""
+  },
+  "www/saagar-report.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6452572,
+    "ast_hash": "8a582abda35d735abf202c4bed046c14",
+    "semantic_hash": ""
+  },
+  "www/shared/mah4-runtime.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.645267,
+    "ast_hash": "c12ccf77c5f01ac4a7de0e28215b5078",
+    "semantic_hash": ""
+  },
+  "www/shared/module-bridge.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6452746,
+    "ast_hash": "2df8aebccd6a0842a28b12e62b958da0",
+    "semantic_hash": ""
+  },
+  "www/shared/module-rendered-components.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6452816,
+    "ast_hash": "d2f6700fa2af58b917f45bc009e0651c",
+    "semantic_hash": ""
+  },
+  "www/shared/module-runtime.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6452928,
+    "ast_hash": "a5a4113df458867ec5b9af0b3a6ea5c5",
+    "semantic_hash": ""
+  },
+  "www/shared/module-table-runtime.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6453032,
+    "ast_hash": "d479a3cceadc3818ea76923071c3d194",
+    "semantic_hash": ""
+  },
+  "www/shared/module-ui-runtime.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.645315,
+    "ast_hash": "49dcc6872c93e790c9e66809862686bc",
+    "semantic_hash": ""
+  },
+  "www/shared/shell-module-frame-controller.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6453283,
+    "ast_hash": "c89a4308ef428faf7cc2c4752f7262df",
+    "semantic_hash": ""
+  },
+  "www/shared/shell-responsive-runtime.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6453438,
+    "ast_hash": "193fdaaf33c8cb96fc423ef18e083d13",
+    "semantic_hash": ""
+  },
+  "www/sql-wasm.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6453595,
+    "ast_hash": "bb5308ce4d65bf572e24c96aeb3d8e54",
+    "semantic_hash": ""
+  },
+  "www/sqlite-store.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6453748,
+    "ast_hash": "640fa949c032e8c7a5427c07ee156e61",
+    "semantic_hash": ""
+  },
+  "www/storage-capacity-policy.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6453896,
+    "ast_hash": "ea4b7a90be63123f08a949c16bb378c8",
+    "semantic_hash": ""
+  },
+  "www/storage-core.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6454027,
+    "ast_hash": "e4f08db1faf6cb56191c88f252ca7098",
+    "semantic_hash": ""
+  },
+  "www/storage-recovery-policy.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6454153,
+    "ast_hash": "bd62ca75a3ba53520770527c2b4f21a1",
+    "semantic_hash": ""
+  },
+  "www/store-context.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6454303,
+    "ast_hash": "af51cee36753d642f4eaf09ce70635d6",
+    "semantic_hash": ""
+  },
+  "www/vendor/fflate-0.8.3.min.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6454442,
+    "ast_hash": "d85498a48ec7fe5bb95d8e61b1dc44af",
+    "semantic_hash": ""
+  },
+  "www/vendor/read-excel-file-9.3.7.min.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.645462,
+    "ast_hash": "bc9676bd32316e8ff746b8abdee69f1d",
+    "semantic_hash": ""
+  },
+  "www/whatsapp-share.js": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6454787,
+    "ast_hash": "02ec927291c35cb0f35095d27d4b775a",
+    "semantic_hash": ""
+  },
+  "AGENTS.md": {
+    "mtime": 1787668185.9387143,
+    "seen": 1787668830.6454885,
+    "ast_hash": "21ceb6533048be51308e69e7b74a35cf",
+    "semantic_hash": ""
+  },
+  "ARCHITECTURE.md": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6454976,
+    "ast_hash": "04c807d1ce46566eb8539e25b508b280",
+    "semantic_hash": ""
+  },
+  "EXPORT-FILE-MANIFEST.txt": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.645511,
+    "ast_hash": "e3d72f52ae2878475b3033ccc106a01a",
+    "semantic_hash": ""
+  },
+  "EXPORT-README.txt": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.645522,
+    "ast_hash": "e1bd52feab61a766bfd969e4ef1d7183",
+    "semantic_hash": ""
+  },
+  "README.md": {
+    "mtime": 1787729727.670744,
+    "seen": 1787730787.599846,
+    "ast_hash": "7c340734e832b54f9ab39590e53b46d0",
+    "semantic_hash": ""
+  },
+  "docs/01_CURRENT_STATE_ARCHITECTURE.md": {
+    "mtime": 1787668487.3968074,
+    "seen": 1787668830.6455505,
+    "ast_hash": "b1c8a9d717002ef3eebbef6a39841316",
+    "semantic_hash": ""
+  },
+  "docs/02_TARGET_ARCHITECTURE.md": {
+    "mtime": 1787668640.2301712,
+    "seen": 1787668830.6455603,
+    "ast_hash": "0fb67b755cf7e2e8d998489392d39b1b",
+    "semantic_hash": ""
+  },
+  "docs/03_DATABASE_SCHEMA.md": {
+    "mtime": 1787668487.412437,
+    "seen": 1787668830.645569,
+    "ast_hash": "62fb5ac35ffd5b2fd0cdbc70c04dba01",
+    "semantic_hash": ""
+  },
+  "docs/07_REPORT_CATALOGUE.md": {
+    "mtime": 1787727666.6273992,
+    "seen": 1787730787.6004422,
+    "ast_hash": "d931438ace8cf274e45a6ef316117cce",
+    "semantic_hash": ""
+  },
+  "docs/11_DECISION_LOG.md": {
+    "mtime": 1787728291.854016,
+    "seen": 1787730787.6008215,
+    "ast_hash": "cfc2e799eed808146bbf7d547aa37a83",
+    "semantic_hash": ""
+  },
+  "docs/12_IMPLEMENTATION_ROADMAP.md": {
+    "mtime": 1787668487.4151676,
+    "seen": 1787668830.645614,
+    "ast_hash": "2a90da04de3d779338062dc874e4f19e",
+    "semantic_hash": ""
+  },
+  "docs/ETP-A0-IMPORT-POLICY-CHANGE-CONTRACT-2026-08-08.md": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6456265,
+    "ast_hash": "537aea0eefef593cc88c2dc1157b2880",
+    "semantic_hash": ""
+  },
+  "docs/ETP-A1-PARSER-EVALUATION-CONTRACT-2026-08-08.md": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.645635,
+    "ast_hash": "78b39e8befea91239821821c7b1dbad2",
+    "semantic_hash": ""
+  },
+  "docs/ETP-RETAIL-VERIFIED-DATA-PATH-DECISION-REGISTER-2026-08-08.md": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6456466,
+    "ast_hash": "43a0aa0e5a1f53f201e92cb8dcf87904",
+    "semantic_hash": ""
+  },
+  "docs/audit/ETP-COMPLETION-PHASES-2026-08-21.md": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6456604,
+    "ast_hash": "050b7ec44634e467cdf23c58c1f53c4d",
+    "semantic_hash": ""
+  },
+  "docs/audit/PHASE-6-CONSOLIDATED-BUILD-PLAN-2026-08-24.md": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6456704,
+    "ast_hash": "83eaff15c91e110fec724c254ca68b3a",
+    "semantic_hash": ""
+  },
+  "docs/audit/POST-PHASE-4-ETP-COMPLETION-2026-08-21.md": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6456802,
+    "ast_hash": "f067fc9dfd6d510736cbba477679a790",
+    "semantic_hash": ""
+  },
+  "docs/audit/V6-ETP-COMPLETION-PHASE-WAVE-1-2026-08-25.md": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6456957,
+    "ast_hash": "b9187b8bf2cdc78319d5deb2057d7688",
+    "semantic_hash": ""
+  },
+  "docs/audit/V6-ETP-COMPLETION-PHASE-WAVE-10-2026-08-25.md": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6457076,
+    "ast_hash": "a748deea35fe1d5639bd1fb016e9ce5d",
+    "semantic_hash": ""
+  },
+  "docs/audit/V6-ETP-COMPLETION-PHASE-WAVE-2-2026-08-25.md": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6457167,
+    "ast_hash": "4c9b564d20503a71dc6802fccd500ccf",
+    "semantic_hash": ""
+  },
+  "docs/audit/V6-ETP-COMPLETION-PHASE-WAVE-3-2026-08-25.md": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6457276,
+    "ast_hash": "e6463fed3d919150204c502c7e31b76c",
+    "semantic_hash": ""
+  },
+  "docs/audit/V6-ETP-COMPLETION-PHASE-WAVE-4-2026-08-25.md": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6457372,
+    "ast_hash": "da503d124b6f85e0530ed66ede1ae778",
+    "semantic_hash": ""
+  },
+  "docs/audit/V6-ETP-COMPLETION-PHASE-WAVE-5-2026-08-25.md": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6457531,
+    "ast_hash": "ec9cd4af5df0d4ff312a9c1e7d181a06",
+    "semantic_hash": ""
+  },
+  "docs/audit/V6-ETP-COMPLETION-PHASE-WAVE-6-2026-08-25.md": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6457636,
+    "ast_hash": "62c3c87dbb99b5d12c806e2e0e379adc",
+    "semantic_hash": ""
+  },
+  "docs/audit/V6-ETP-COMPLETION-PHASE-WAVE-7-2026-08-25.md": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6457791,
+    "ast_hash": "d5aea142e79dc4515ae37dde1a645e28",
+    "semantic_hash": ""
+  },
+  "docs/audit/V6-ETP-COMPLETION-PHASE-WAVE-8-2026-08-25.md": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.64579,
+    "ast_hash": "f46db4472bf3061abc557a26643c4ee4",
+    "semantic_hash": ""
+  },
+  "docs/audit/V6-ETP-COMPLETION-PHASE-WAVE-9-2026-08-25.md": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6457984,
+    "ast_hash": "2b3c0b55dba6a626a3b4a29ffacd0238",
+    "semantic_hash": ""
+  },
+  "docs/audit/V6-ETP-CONTINUOUS-SPRINT-ENGINEERING-RELEASE-EVIDENCE-2026-08-25.md": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.645809,
+    "ast_hash": "759cd3f87e04221f62e4ca92f7411df9",
+    "semantic_hash": ""
+  },
+  "docs/audit/V6-ETP-E3-OWNER-AUTHORITY-2026-08-25.md": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.645816,
+    "ast_hash": "ea40db2df0c26dfebdcdf285d38f6b83",
+    "semantic_hash": ""
+  },
+  "docs/audit/V6-ETP-E7-PRIVACY-ISOLATION-HANDOFF-2026-08-25.md": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6458273,
+    "ast_hash": "09d9043cb7a343467253fca3d63d9454",
+    "semantic_hash": ""
+  },
+  "docs/audit/V6-ETP-GATE-0-AUTHORITY-AND-DICTIONARY-FREEZE-2026-08-25.md": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6458378,
+    "ast_hash": "dc4bd100c682b7a3ec211fbb4dee99e7",
+    "semantic_hash": ""
+  },
+  "docs/audit/V6-ETP-MULTILINGUAL-MOBILE-SYNTHETIC-UAT-2026-08-25.md": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6458514,
+    "ast_hash": "f77c40e368b63fcbdfb32f8aa46a696f",
+    "semantic_hash": ""
+  },
+  "docs/audit/V6-ETP-OPERATIONAL-FOUNDATION-2026-08-25.md": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6458607,
+    "ast_hash": "7ca78ccaffa674ee253721561574f3ec",
+    "semantic_hash": ""
+  },
+  "www/index.html": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6462648,
+    "ast_hash": "331f65a4fde026c6bc7b2d0a1bf55ad6",
+    "semantic_hash": ""
+  },
+  "www/modules/cro_audit/index.html": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6462781,
+    "ast_hash": "bec60a79a4753ee2bfbfd1e7ec562b38",
+    "semantic_hash": ""
+  },
+  "www/modules/dsr/index.html": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6462877,
+    "ast_hash": "a2aac3dea79888fcf76dc0efe6aa9609",
+    "semantic_hash": ""
+  },
+  "www/modules/etp/index.html": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6462977,
+    "ast_hash": "6fb7e1d40d2243a25d96821001ef388c",
+    "semantic_hash": ""
+  },
+  "www/modules/expense/index.html": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6463053,
+    "ast_hash": "bd4f7d6eec4cd28a5acc3427611ed3de",
+    "semantic_hash": ""
+  },
+  "www/modules/grooming/index.html": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6463165,
+    "ast_hash": "e20face2bf0179a8c1d1cce57a4d3924",
+    "semantic_hash": ""
+  },
+  "www/modules/leave/index.html": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6463292,
+    "ast_hash": "d950f22e44e98eaf1adadd30c654140c",
+    "semantic_hash": ""
+  },
+  "www/modules/payroll/index.html": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.64634,
+    "ast_hash": "6d81db487039547f33f9fb400c20a6e2",
+    "semantic_hash": ""
+  },
+  "www/modules/planning/index.html": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6463516,
+    "ast_hash": "f1bfb06c27508eb69da9c981508d7a8c",
+    "semantic_hash": ""
+  },
+  "www/modules/qms/index.html": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6463623,
+    "ast_hash": "1a223e14396bd2ae9ae78c8820ec0bac",
+    "semantic_hash": ""
+  },
+  "www/modules/service/index.html": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6463706,
+    "ast_hash": "5ce9bbce6c20ca6b14a57b17f964c5ac",
+    "semantic_hash": ""
+  },
+  "www/modules/stock/index.html": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6463776,
+    "ast_hash": "640ec03be9598255508ba42dd611d024",
+    "semantic_hash": ""
+  },
+  "www/modules/tax/index.html": {
+    "mtime": 1787658860.0,
+    "seen": 1787668830.6463854,
+    "ast_hash": "98afe549542cf113aba9dadf01857c98",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Domain/Imports/SourceLineage.cs": {
+    "mtime": 1787669840.1383655,
+    "seen": 1787670006.7336733,
+    "ast_hash": "46ff9e5cc54c3a23a389553d4d64fbe5",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Domain/Periods/ComparisonPeriods.cs": {
+    "mtime": 1787669840.1383655,
+    "seen": 1787670006.7336774,
+    "ast_hash": "3137e8e3285ef8086b5cbf21c85b730c",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Domain/Primitives/Money.cs": {
+    "mtime": 1787669840.1383655,
+    "seen": 1787670006.7336812,
+    "ast_hash": "9ad58727d0d471e0f4c4c713a39fd07b",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Domain/Primitives/Quantity.cs": {
+    "mtime": 1787669840.1383655,
+    "seen": 1787670006.7336843,
+    "ast_hash": "abcc53a6dfe942ff87c717c5a566b4b8",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Domain/Sales/SalesContracts.cs": {
+    "mtime": 1787669840.1383655,
+    "seen": 1787670006.7336874,
+    "ast_hash": "78d5584f848b774c95fc482e79c5f4d5",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Domain/Stock/StockBalanceContracts.cs": {
+    "mtime": 1787669840.1383655,
+    "seen": 1787670006.73369,
+    "ast_hash": "853a6c3638d101a24653fc8a1c3fa8af",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Import/Conversion/TypedCellConverter.cs": {
+    "mtime": 1787730376.8884966,
+    "seen": 1787730787.55771,
+    "ast_hash": "cf3772dd74526da25f8683305e2ad0d1",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Import/Diagnostics/ImportDiagnostic.cs": {
+    "mtime": 1787669829.5721445,
+    "seen": 1787670006.7336972,
+    "ast_hash": "ecf46d28bdb188c42fcf9d0efa62d8ae",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Import/Preflight/ImportPreflight.cs": {
+    "mtime": 1787726581.2011807,
+    "seen": 1787726830.1115282,
+    "ast_hash": "f9ca648a9bec39095abe27aa8e64a220",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Import/Workbooks/WorkbookContracts.cs": {
+    "mtime": 1787669829.5721445,
+    "seen": 1787670006.7341797,
+    "ast_hash": "4f2ca5a7e3bce88dafef3c171c6a2b5d",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Infrastructure.SqlServer/ConnectionHealth.cs": {
+    "mtime": 1787669842.151655,
+    "seen": 1787670006.7341833,
+    "ast_hash": "15f7727d42749e4c1f24d2e778e46010",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Infrastructure.SqlServer/Migrations.cs": {
+    "mtime": 1787669842.1531563,
+    "seen": 1787670006.73419,
+    "ast_hash": "088f63eb702f4b393ed089f829a2f4ef",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Infrastructure.SqlServer/PersistenceContracts.cs": {
+    "mtime": 1787730501.403349,
+    "seen": 1787730787.5590818,
+    "ast_hash": "22a16805a3c7d314cafeb9697c6668f3",
+    "semantic_hash": ""
+  },
+  "tests-dotnet/Etp.Reporting.Domain.Tests/CanonicalContractsTests.cs": {
+    "mtime": 1787669840.1383655,
+    "seen": 1787670006.7346742,
+    "ast_hash": "b9c773c726f7d029788983822b9753eb",
+    "semantic_hash": ""
+  },
+  "tests-dotnet/Etp.Reporting.Import.Tests/ImportPreflightTests.cs": {
+    "mtime": 1787726581.2011807,
+    "seen": 1787726830.1139834,
+    "ast_hash": "4dff7e1c6b3ac5c6acf58fb3d8b25737",
+    "semantic_hash": ""
+  },
+  "tests-dotnet/Etp.Reporting.Import.Tests/TypedCellConverterTests.cs": {
+    "mtime": 1787730376.8884966,
+    "seen": 1787730787.56095,
+    "ast_hash": "d070948d57fa2967a2dd05b93dd26cb6",
+    "semantic_hash": ""
+  },
+  "tests-dotnet/Etp.Reporting.SqlServer.Tests/Etp.Reporting.SqlServer.Tests.csproj": {
+    "mtime": 1787729201.2846842,
+    "seen": 1787730787.5611546,
+    "ast_hash": "f68e2f60d75c10a6ab7785a7d7bdd518",
+    "semantic_hash": ""
+  },
+  "tests-dotnet/Etp.Reporting.SqlServer.Tests/MigrationTests.cs": {
+    "mtime": 1787730520.9982285,
+    "seen": 1787730787.561156,
+    "ast_hash": "972976d2bd8f69ddfb9d564deaa71b9b",
+    "semantic_hash": ""
+  },
+  ".github/workflows/ci.yml": {
+    "mtime": 1787669831.5754025,
+    "seen": 1787670006.7827024,
+    "ast_hash": "2d59fd3954c7805bb814471b33228ac5",
+    "semantic_hash": ""
+  },
+  "docs/13_DEVELOPMENT_CONVENTIONS.md": {
+    "mtime": 1787669790.6915102,
+    "seen": 1787670006.7852268,
+    "ast_hash": "1f2a405b999d9a516cb1d30558965180",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Reporting/ReportExecutionContracts.cs": {
+    "mtime": 1787670109.1787636,
+    "seen": 1787670275.4838772,
+    "ast_hash": "72b75696ec87f90821c589508e51f5e1",
+    "semantic_hash": ""
+  },
+  "tests-dotnet/Etp.Reporting.Reporting.Tests/Etp.Reporting.Reporting.Tests.csproj": {
+    "mtime": 1787670109.1787636,
+    "seen": 1787670275.4854736,
+    "ast_hash": "26c81351e0c7c1b4539dad9413862f43",
+    "semantic_hash": ""
+  },
+  "tests-dotnet/Etp.Reporting.Reporting.Tests/ReportCatalogueTests.cs": {
+    "mtime": 1787727690.9923656,
+    "seen": 1787730787.5611486,
+    "ast_hash": "d7221490c901ef629c0df94b1d74b209",
+    "semantic_hash": ""
+  },
+  "docs/09_TEST_STRATEGY.md": {
+    "mtime": 1787670174.1329255,
+    "seen": 1787670275.534603,
+    "ast_hash": "bdd76da777f2f3094642113ff792539b",
+    "semantic_hash": ""
+  },
+  "docs/10_DEPLOYMENT.md": {
+    "mtime": 1787731374.6644201,
+    "seen": 1787731440.6142986,
+    "ast_hash": "83852aadd1c2e36e1a380071a868fc1b",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Import/Preflight/WorkbookLayoutNormalizer.cs": {
+    "mtime": 1787726613.2748249,
+    "seen": 1787726830.1115334,
+    "ast_hash": "e3793d886c22cb5e8172b38f8f21bdd2",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Import/Profiles/RetailSalesProfiles.cs": {
+    "mtime": 1787728986.9815903,
+    "seen": 1787730787.5584905,
+    "ast_hash": "3395db038dc74222652066539c0d9099",
+    "semantic_hash": ""
+  },
+  "tests-dotnet/Etp.Reporting.Import.Tests/RetailSalesProfilesTests.cs": {
+    "mtime": 1787726742.0375128,
+    "seen": 1787726830.1141684,
+    "ast_hash": "ee7a1c0f4069094f6673276dc62d86d1",
+    "semantic_hash": ""
+  },
+  "docs/04_ETP_IMPORT_PROFILES.md": {
+    "mtime": 1787728291.854016,
+    "seen": 1787730787.6004374,
+    "ast_hash": "dcae08cea360c8b6279b925ea84ffb2b",
+    "semantic_hash": ""
+  },
+  "docs/05_MAPPING_REGISTER.md": {
+    "mtime": 1787728291.854016,
+    "seen": 1787730787.6004398,
+    "ast_hash": "e7b284c522ec0abc64362b55502e01eb",
+    "semantic_hash": ""
+  },
+  "docs/08_VALIDATION_RULES.md": {
+    "mtime": 1787726692.374338,
+    "seen": 1787726830.153425,
+    "ast_hash": "df5e5cd360861c67f685e4ac5e15fc06",
+    "semantic_hash": ""
+  },
+  "scripts/build-windows-release.ps1": {
+    "mtime": 1787729127.778023,
+    "seen": 1787730787.5530493,
+    "ast_hash": "cfb20ee5f991d7f5126b29c79d9b628c",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Import/Profiles/StockImportProfiles.cs": {
+    "mtime": 1787729031.0947535,
+    "seen": 1787730787.5584936,
+    "ast_hash": "6a1c1752ac47774c79357d9756b2e44e",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Import/Staging/ImportRowStager.cs": {
+    "mtime": 1787728502.642843,
+    "seen": 1787730787.558496,
+    "ast_hash": "8feedab029618ef6fc4b67927a6f5572",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Import/Staging/R022PersistenceProjection.cs": {
+    "mtime": 1787728986.9815903,
+    "seen": 1787730787.5584984,
+    "ast_hash": "ba128ae4d6f20ddc6d41e0d34cbaa2cf",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Import/Stock/StockWorkbookParser.cs": {
+    "mtime": 1787729239.683234,
+    "seen": 1787730787.5585015,
+    "ast_hash": "46a54465a312e3ae5424babf70c38d99",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Import/Workbooks/OpenXmlWorkbookReader.cs": {
+    "mtime": 1787729374.6946762,
+    "seen": 1787730787.5585039,
+    "ast_hash": "279dcf7b4854f7abf196b525af2e830d",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Infrastructure.SqlServer/DatabaseBootstrapper.cs": {
+    "mtime": 1787728579.8862205,
+    "seen": 1787730787.5588877,
+    "ast_hash": "1a315e9c413468c67828c21c4e73cd80",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Infrastructure.SqlServer/R022SqlImportOrchestrator.cs": {
+    "mtime": 1787729192.7846754,
+    "seen": 1787730787.5590842,
+    "ast_hash": "2f176f4ce34122d4463ffbbf97f229ab",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Infrastructure.SqlServer/R025SqlImportOrchestrator.cs": {
+    "mtime": 1787730501.4043455,
+    "seen": 1787730787.5590868,
+    "ast_hash": "d889452474f43d86252f6e317b0f60a1",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Infrastructure.SqlServer/SqlServerReportingQueryRepository.cs": {
+    "mtime": 1787730501.4063406,
+    "seen": 1787730787.5590894,
+    "ast_hash": "7807d126db09a323304360cd6c39d793",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Infrastructure.SqlServer/SqlServerRepositories.cs": {
+    "mtime": 1787730501.405344,
+    "seen": 1787730787.559092,
+    "ast_hash": "a4e788f17e5c98e5fa1618e5c4f445ec",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Infrastructure.SqlServer/StockImportOrchestrator.cs": {
+    "mtime": 1787729077.4427295,
+    "seen": 1787730787.5590947,
+    "ast_hash": "1184b7f7c80dc107bb812e51e1bb35ad",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Reporting/ControlReconciliationService.cs": {
+    "mtime": 1787728502.1380725,
+    "seen": 1787730787.559097,
+    "ast_hash": "15138965cbb5e186f41b625e34ec10c7",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Reporting/ReportingQueryContracts.cs": {
+    "mtime": 1787729544.215109,
+    "seen": 1787730787.55948,
+    "ast_hash": "99d196ab6edd7c8764b70afeb0b903c1",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Reporting/RetailReportingPolicy.cs": {
+    "mtime": 1787729263.0753534,
+    "seen": 1787730787.5594826,
+    "ast_hash": "4ed83e98b9909b98ed35f819838cda04",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Reporting/SalesReportingService.cs": {
+    "mtime": 1787728694.9508116,
+    "seen": 1787730787.5594852,
+    "ast_hash": "2e491cc6aa9d0e0e90478fec19b05958",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Reporting/SqlBackedReportingExecutor.cs": {
+    "mtime": 1787729544.2161086,
+    "seen": 1787730787.5594876,
+    "ast_hash": "660e3e9312c814bfad83a08c4a26e023",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Reporting/StockReconciliationService.cs": {
+    "mtime": 1787729602.9666028,
+    "seen": 1787730787.5594902,
+    "ast_hash": "925eb719e08fc68b7de936eeb2213e3c",
+    "semantic_hash": ""
+  },
+  "tests-dotnet/Etp.Reporting.Import.Tests/ProductionWorkbookIngestionTests.cs": {
+    "mtime": 1787728586.6119356,
+    "seen": 1787730787.5607255,
+    "ast_hash": "1c8904404bcb1ec96e1d317752b79eec",
+    "semantic_hash": ""
+  },
+  "tests-dotnet/Etp.Reporting.Import.Tests/R022PersistenceProjectionTests.cs": {
+    "mtime": 1787729007.359033,
+    "seen": 1787730787.5607283,
+    "ast_hash": "c6e9581c0b6f4d6f80f0fb0e27182059",
+    "semantic_hash": ""
+  },
+  "tests-dotnet/Etp.Reporting.Import.Tests/StockWorkbookParserTests.cs": {
+    "mtime": 1787729077.4427295,
+    "seen": 1787730787.5609472,
+    "ast_hash": "44079ee33475075ff3922c3c258adda5",
+    "semantic_hash": ""
+  },
+  "tests-dotnet/Etp.Reporting.Reporting.Tests/ReportingServicesTests.cs": {
+    "mtime": 1787728694.9647708,
+    "seen": 1787730787.5611508,
+    "ast_hash": "6398e71f983433c5408278037a3ac4a9",
+    "semantic_hash": ""
+  },
+  "tests-dotnet/Etp.Reporting.Reporting.Tests/SqlBackedReportingExecutorTests.cs": {
+    "mtime": 1787729544.2171304,
+    "seen": 1787730787.5611525,
+    "ast_hash": "09ed4d986237ff9c1e834364744ff613",
+    "semantic_hash": ""
+  },
+  "tests-dotnet/Etp.Reporting.SqlServer.Tests/R022SqlImportOrchestratorTests.cs": {
+    "mtime": 1787729239.6852279,
+    "seen": 1787730787.561158,
+    "ast_hash": "71f23f3bcc40c4e92b99229bd8f21a92",
+    "semantic_hash": ""
+  },
+  "tests-dotnet/Etp.Reporting.SqlServer.Tests/R025SqlImportOrchestratorTests.cs": {
+    "mtime": 1787730713.0913196,
+    "seen": 1787730787.5611594,
+    "ast_hash": "bfb2fe2802fbbbfa395a0b1d28765af9",
+    "semantic_hash": ""
+  },
+  "tests-dotnet/Etp.Reporting.SqlServer.Tests/ReportingQueryRepositoryTests.cs": {
+    "mtime": 1787730543.356362,
+    "seen": 1787730787.5611806,
+    "ast_hash": "d4c95e9ddb95a8b3a1f4d5ec8da49b5c",
+    "semantic_hash": ""
+  },
+  "tests-dotnet/Etp.Reporting.SqlServer.Tests/StockImportOrchestratorTests.cs": {
+    "mtime": 1787729077.4427295,
+    "seen": 1787730787.5611823,
+    "ast_hash": "ad0454e8a6244f0d2a5df6cc9ae6da26",
+    "semantic_hash": ""
+  },
+  "tools/Etp.Reporting.LiveSmoke/Etp.Reporting.LiveSmoke.csproj": {
+    "mtime": 1787730233.445059,
+    "seen": 1787730787.5793905,
+    "ast_hash": "c7c86df5d081f72dc4cc59f22864dd76",
+    "semantic_hash": ""
+  },
+  "tools/Etp.Reporting.LiveSmoke/Program.cs": {
+    "mtime": 1787730896.0944457,
+    "seen": 1787731440.6141136,
+    "ast_hash": "43e617256072d5ee5d22404c72d73982",
+    "semantic_hash": ""
+  },
+  "tools/Etp.Reporting.Smoke/Etp.Reporting.Smoke.csproj": {
+    "mtime": 1787729327.8646426,
+    "seen": 1787730787.579395,
+    "ast_hash": "ebdda04ed60e1ec8ffae88cbea7c5cd1",
+    "semantic_hash": ""
+  },
+  "tools/Etp.Reporting.Smoke/Program.cs": {
+    "mtime": 1787730376.8884966,
+    "seen": 1787730787.5793967,
+    "ast_hash": "e186e3aae123f1e525cd15efa5c9291f",
+    "semantic_hash": ""
+  },
+  "docs/14_WINDOWS_QUICK_START.md": {
+    "mtime": 1787731374.6644201,
+    "seen": 1787731440.6143053,
+    "ast_hash": "2afbd0f2c9f7db8ea4abf02341e87fe0",
+    "semantic_hash": ""
+  },
+  "database/migrations/0001_foundation.sql": {
+    "mtime": 1787668640.280345,
+    "seen": 1787730862.9005442,
+    "ast_hash": "e506606ffcc7771ac5c245d8495a62b2",
+    "semantic_hash": ""
+  },
+  "database/migrations/0002_reporting_facts.sql": {
+    "mtime": 1787730265.0327597,
+    "seen": 1787730862.9005473,
+    "ast_hash": "efc7b6f7206e1362a458034cd1433a9d",
+    "semantic_hash": ""
+  },
+  "database/migrations/0003_sales_dimensions.sql": {
+    "mtime": 1787730501.4073405,
+    "seen": 1787730862.9005501,
+    "ast_hash": "cdc6bb68203c18828403e311df4b5459",
+    "semantic_hash": ""
+  },
+  "src/Etp.Reporting.Reporting/OpenXmlReportExporter.cs": {
+    "mtime": 1787731313.4053965,
+    "seen": 1787731440.613895,
+    "ast_hash": "574c9da6552d1e3edfe90b274c2e8cd2",
+    "semantic_hash": ""
+  },
+  "tests-dotnet/Etp.Reporting.Reporting.Tests/OpenXmlReportExporterTests.cs": {
+    "mtime": 1787731321.648057,
+    "seen": 1787731440.6139293,
+    "ast_hash": "8dfe6e6723c30b18b1dfe223af16ca70",
+    "semantic_hash": ""
+  },
+  "tools/Etp.Reporting.ExportSmoke/Etp.Reporting.ExportSmoke.csproj": {
+    "mtime": 1787731178.339223,
+    "seen": 1787731440.6141086,
+    "ast_hash": "30b1cae1184bcd3a81eb949a0fce0bfe",
+    "semantic_hash": ""
+  },
+  "tools/Etp.Reporting.ExportSmoke/Program.cs": {
+    "mtime": 1787731178.3402188,
+    "seen": 1787731440.6141102,
+    "ast_hash": "8fe822a3504f936d51cf87e0d13dfc9b",
+    "semantic_hash": ""
+  }
+}

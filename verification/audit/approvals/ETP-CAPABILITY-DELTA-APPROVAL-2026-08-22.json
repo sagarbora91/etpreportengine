@@ -1,0 +1,66 @@
+{
+  "format": "SAAGAR_EXTERNAL_GATE_APPROVAL",
+  "schemaVersion": 1,
+  "gateId": "ETP-CAPABILITY-DELTA",
+  "decision": "approve",
+  "state": "approved",
+  "reviewer": {
+    "displayName": "Sagar",
+    "githubIdentity": "sagarbora91",
+    "role": "business-owner-capability-authority"
+  },
+  "receivedAt": "2026-08-22T14:13:26+05:30",
+  "package": {
+    "path": "verification/audit/ETP-CAPABILITY-DELTA-FOR-APPROVAL-2026-08-21.md",
+    "sha256": "cf0b908575f8dc70dd8ccfc1b525756f9c0e22aeb39f2bfe55ce00b1763b4a0d",
+    "headCommitAtApproval": "0c9b19fb76207c734f8edf9050b48bfc3051e73e"
+  },
+  "inventory": {
+    "baselineCapabilities": 660,
+    "currentCapabilities": 680,
+    "netNew": 20,
+    "unclassifiedDeltasApproved": 17
+  },
+  "approvedDeltas": {
+    "newEtpCapabilities": [
+      "etp:action:etpimportform:1953c5a58d",
+      "etp:action:etpvalidate:b07d709f31",
+      "etp:action:etpconfirm:4d548862d9",
+      "etp:action:etpcoverageconfirmed:696a80d1fc",
+      "etp:action:etphistoryrefresh:04874c0f68",
+      "etp:action:tab-import:072653f2e1",
+      "etp:action:tab-coverage:3ecf856d2c",
+      "etp:action:tab-reconciliation:2b8b192693",
+      "etp:action:tab-verified:0711690845",
+      "etp:action:refresh-verified-views:df04d92f87",
+      "etp:action:refresh-exceptions:47fdf2b89f",
+      "etp:action:loading-published-scopes:10e05bdcbf",
+      "etp:action:loading-published-scopes:f833acd821",
+      "etp:route:entry"
+    ],
+    "shellRouteRelocation": [
+      "shell:action:open-etp-import:8cb1d3b022",
+      "shell:action:open-retail-etp:60a39c8e5d"
+    ],
+    "structural": [
+      "etp:action:st-v5-home-fab:c05eb3ddb3"
+    ]
+  },
+  "approvalText": "I, Sagar (sagarbora91), reviewed the 17 capability deltas enumerated in verification/audit/ETP-CAPABILITY-DELTA-FOR-APPROVAL-2026-08-21.md, SHA-256 cf0b908575f8dc70dd8ccfc1b525756f9c0e22aeb39f2bfe55ce00b1763b4a0d, covering the capability inventory moving from 660 to 680 when Retail ETP became the twelfth modular module. I confirm the 14 new ETP capabilities are intended and belong in the shipped product, including etp:action:etpconfirm which publishes a financial generation; that the shell route swap is the intended relocation of ETP from a shell button to a Reports-owned route; and that the home-FAB binding is structural. Decision: APPROVE.",
+  "correctionToPackage": "The package stated the home-FAB delta belongs in EXPECTED_STRUCTURAL_ACTION_IDS. That list covers 'changed' visible-actions; this delta is 'added', so it is classified by an added-rule instead. The classification is equivalent and the approval is unaffected.",
+  "scope": {
+    "authorizes": [
+      "Classification of these exact 17 deltas in scripts/analyze-modular-capability-delta.mjs",
+      "Regeneration of MODULAR-CAPABILITY-DELTA-LEDGER with these deltas recorded as approved",
+      "Raising the analyser's expected capability inventory from 660 to 680"
+    ],
+    "doesNotClose": [
+      "MAH-3 visual baseline capture and fluent review",
+      "rendered-language matrix recapture and identity-bound visual approval",
+      "physical-device acceptance",
+      "ETP production publication",
+      "staff UAT, legal approval, production signing, release approval"
+    ]
+  },
+  "registryNote": "Approval evidence for Phase 5 item 5B-2, recorded separately from the analyser exactly as the 107-row capability approval was. Any delta not listed above remains unclassified and the gate stays fail-closed for it."
+}

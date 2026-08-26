@@ -1,0 +1,3287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="../../shared/module-bridge.js"></script>
+<script src="../../shared/module-runtime.js"></script>
+<script src="../../shared/mah4-runtime.js"></script>
+<script id="mah4-stage-b-runtime">SaagarMah4Runtime.bootModule({moduleId:'service'});</script>
+<script id="st-v5-iframe-shim">SaagarModuleRuntime.run('storage',{schemaVersion:1,moduleId:'service',nextSteps:[{id:'qms',label:'Back to Queue →'}],customerSelectors:['#f-cn','#f-an','#f-dcs'],accessContext:true});</script>
+<script id="st-v5-safety-net">SaagarModuleRuntime.run('safety',{schemaVersion:1,moduleId:'service',nextSteps:[{id:'qms',label:'Back to Queue →'}],customerSelectors:['#f-cn','#f-an','#f-dcs'],accessContext:true});</script>
+<link rel="stylesheet" href="../../shared/module-mobile-common.css">
+<script id="st-v5-mobile-boot">SaagarModuleRuntime.run('mobile',{schemaVersion:1,moduleId:'service',nextSteps:[{id:'qms',label:'Back to Queue →'}],customerSelectors:['#f-cn','#f-an','#f-dcs'],accessContext:true});</script>
+<link rel="stylesheet" href="../../shared/module-brand-tokens.css">
+<link rel="stylesheet" href="../../shared/module-responsive.css">
+<link rel="stylesheet" href="../../shared/module-components.css">
+<link rel="stylesheet" href="../../shared/module-table.css">
+<script src="../../shared/module-ui-runtime.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Watch Service Centre — Saagar Traders</title>
+<link id="phase6f-service-ui-css" rel="stylesheet" href="service-ui.css">
+
+<link id="st-v5-uniform-css" rel="stylesheet" href="../../shared/module-uniform.css">
+<link rel="stylesheet" href="../../mobile-layout.css">
+<script src="../../app-i18n.js"></script>
+</head>
+<body data-saagar-ui data-saagar-width="auto" data-saagar-width-resolved="mobile">
+<script id="service-phase6f-ui-boot">SaagarUiFoundation.configure(document.body,{mode:'auto'});</script>
+
+<!-- HEADER -->
+<header class="header">
+  <div class="header-brand">
+    <div class="header-logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#d4a843" stroke-width="1.5">
+        <circle cx="12" cy="12" r="9"/>
+        <path d="M12 7v5l3 3"/>
+        <path d="M9 3h6M9 21h6"/>
+      </svg>
+    </div>
+    <div>
+      <div class="brand-name">Saagar Traders</div>
+      <div class="brand-sub">Watch Service Centre · Latur</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="badge-pill">Service Centre</div>
+    <button data-action="btn-back-dash" class="btn btn-ghost btn-sm" id="btn-back-dash" onclick="showView('dash')" style="display:none">← Cases</button>
+  </div>
+</header>
+
+<!-- ═══════════════ DASHBOARD ═══════════════ -->
+<div class="view active" id="view-dash">
+  <div class="dash-wrap">
+    <div class="ro-banner" id="ro-banner-dash" style="display:none"></div>
+    <div class="dash-hero">
+      <div>
+        <div class="dash-title">Service Cases</div>
+        <div class="dash-date" id="dash-date"></div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <label class="btn btn-ghost btn-sm" id="wp-mand-toggle" title="Require a watch photo before a case can be saved" style="display:none;cursor:pointer;gap:6px;align-items:center">
+          <input data-action="wp-mand-cb" type="checkbox" id="wp-mand-cb" onchange="setWatchPhotoMandatory(this.checked)" style="margin:0">
+          📸 Watch photo required
+        </label>
+        <button data-action="btn-export-csv" class="btn btn-ghost btn-sm" id="btn-export-csv" onclick="exportCSV()" style="display:none">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>
+          Export CSV
+        </button>
+        <button data-action="new-service-order" class="btn btn-primary" onclick="openNew()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+          New Service Order
+        </button>
+      </div>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card c-navy clickable" id="tile-all" role="button" tabindex="0" onclick="setDashFilter('all')">
+        <div class="stat-label">Total Cases</div>
+        <div class="stat-value" id="st-tot">0</div>
+      </div>
+      <div class="stat-card c-amber clickable" id="tile-open" role="button" tabindex="0" onclick="setDashFilter('open')">
+        <div class="stat-label">Open</div>
+        <div class="stat-value amber" id="st-op">0</div>
+      </div>
+      <div class="stat-card c-green clickable" id="tile-closed" role="button" tabindex="0" onclick="setDashFilter('closed')">
+        <div class="stat-label">Closed</div>
+        <div class="stat-value green" id="st-cl">0</div>
+      </div>
+      <div class="stat-card c-gold">
+        <div class="stat-label">Est. Revenue</div>
+        <div class="stat-value gold" id="st-rv">₹0</div>
+      </div>
+      <div class="stat-card c-blue">
+        <div class="stat-label">Collected (this month)</div>
+        <div class="stat-value blue" id="st-cm">₹0</div>
+      </div>
+      <div class="stat-card c-navy">
+        <div class="stat-label">Avg TAT (delivered)</div>
+        <div class="stat-value blue" id="st-tat">—</div>
+      </div>
+    </div>
+
+<!-- D3-SERVICE-HTML-2026-07-30 -->
+    <div class="d3-workboard-host" id="svc-d3-workboard" role="region" aria-label="Service workboard"></div>
+
+    <div class="d3-modal-overlay" id="svc-d3-transition-modal" aria-hidden="true">
+      <div class="d3-modal" role="dialog" aria-modal="true" aria-labelledby="svc-d3-transition-title">
+        <div class="d3-modal-head">
+          <div><h3 id="svc-d3-transition-title">Change Service stage</h3><p id="svc-d3-transition-path"></p></div>
+          <button data-action="close-3e40663b41" type="button" class="d3-modal-close" onclick="svcD3CloseTransition()" aria-label="Close">×</button>
+        </div>
+        <div class="d3-modal-body">
+          <div class="field-group"><label class="field-label" for="svc-d3-actor">Staff / actor *</label><input class="field-input" id="svc-d3-actor" maxlength="80"></div>
+          <div class="field-group" id="svc-d3-reason-wrap"><label class="field-label" for="svc-d3-reason">Reason *</label><textarea class="field-input" id="svc-d3-reason" maxlength="240" rows="2"></textarea></div>
+          <div class="d3-override-note" id="svc-d3-override-note">This is outside the normal forward workflow and requires owner reauthentication.</div>
+          <div class="d3-readiness" id="svc-d3-readiness">
+            <div class="d3-readiness-title">Pickup readiness</div>
+            <label class="d3-check"><input type="checkbox" id="svc-d3-condition"> Item condition and after-service state checked</label>
+            <div class="field-group"><label class="field-label" for="svc-d3-payment">Payment expectation *</label><select class="field-input" id="svc-d3-payment"><option value="">Select</option><option value="estimate_approved">Estimate approved</option><option value="advance_recorded">Advance recorded</option><option value="pay_at_pickup">Pay at pickup</option><option value="no_charge_warranty">No-charge warranty</option></select></div>
+            <div class="field-group"><label class="field-label" for="svc-d3-promised">Promised pickup date *</label><input type="date" class="field-input" id="svc-d3-promised"></div>
+            <div class="field-group"><label class="field-label" for="svc-d3-notification">Customer notification status *</label><select class="field-input" id="svc-d3-notification"><option value="pending">Pending — notify now</option><option value="notified">Notified</option><option value="declined">Customer declined updates</option><option value="unreachable">Unreachable</option></select></div>
+          </div>
+        </div>
+        <div class="d3-modal-actions"><button data-action="cancel-c9f1a87e38" type="button" class="btn btn-ghost" onclick="svcD3CloseTransition()">Cancel</button><button data-action="confirm-change" type="button" class="btn btn-primary" onclick="svcD3ConfirmTransition()">Confirm change</button></div>
+      </div>
+    </div>
+
+    <div class="svc-search-bar">
+      <svg class="svc-search-ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <input data-action="svc-search" id="svc-search" class="svc-search-input" type="text" placeholder="Search cases by ID, name, mobile, brand or model…" oninput="onSearch(this.value)" autocomplete="off">
+      <button data-action="svc-search-clear" id="svc-search-clear" class="svc-search-clear" type="button" onclick="clearSearch()" style="display:none" aria-label="Clear search">✕</button>
+    </div>
+
+    <!-- Repair-stage + overdue quick filters (apply to open cases; hidden in the Closed view) -->
+    <div class="stage-chips" id="stage-chips"></div>
+
+    <div class="section-header">
+      <div class="section-label" id="list-title">All Cases</div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <button data-action="btn-exp-open" class="btn btn-ghost btn-sm" id="btn-exp-open" type="button" onclick="exportOpenCSV()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>
+          Export Open (ageing)
+        </button>
+        <button data-action="btn-exp-closed" class="btn btn-ghost btn-sm" id="btn-exp-closed" type="button" onclick="exportClosedCSV()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>
+          Export Closed
+        </button>
+        <div class="count-badge" id="cnt-list">0</div>
+      </div>
+    </div>
+    <div id="list-main"></div>
+    <div id="pager-main" class="svc-pager"></div>
+  </div>
+</div>
+
+<!-- ═══════════════ FORM ═══════════════ -->
+<div class="view" id="view-form">
+  <div class="form-layout">
+
+    <!-- SIDEBAR -->
+    <aside class="form-sidebar">
+      <div class="sidebar-order-info">
+        <div class="sidebar-order-id" id="sb-id">WS-2026-001</div>
+        <div class="sidebar-order-name" id="sb-name">New Order</div>
+        <div class="sidebar-prog-wrap">
+          <div class="sidebar-prog-label">
+            <span>Completion</span>
+            <span id="sb-pct">0%</span>
+          </div>
+          <div class="sidebar-prog-bar">
+            <div class="sidebar-prog-fill" id="sb-fill" style="width:0%"></div>
+          </div>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-item" id="nav-0" onclick="scrollToSec('sec-0')">
+          <div class="nav-num">↑</div>
+          <span class="nav-text">Order Details</span>
+        </div>
+        <div class="nav-item" id="nav-1" onclick="scrollToSec('sec-1')">
+          <div class="nav-num">1</div>
+          <span class="nav-text">Customer</span>
+        </div>
+        <div class="nav-item" id="nav-2" onclick="scrollToSec('sec-2')">
+          <div class="nav-num">2</div>
+          <span class="nav-text">Watch Details</span>
+        </div>
+        <div class="nav-item" id="nav-3" onclick="scrollToSec('sec-3')">
+          <div class="nav-num">3</div>
+          <span class="nav-text">Condition</span>
+        </div>
+        <div class="nav-item" id="nav-4" onclick="scrollToSec('sec-4')">
+          <div class="nav-num">4</div>
+          <span class="nav-text">Accessories</span>
+        </div>
+        <div class="nav-item" id="nav-5" onclick="scrollToSec('sec-5')">
+          <div class="nav-num">5</div>
+          <span class="nav-text">Issues</span>
+        </div>
+        <div class="nav-item" id="nav-6" onclick="scrollToSec('sec-6')">
+          <div class="nav-num">6</div>
+          <span class="nav-text">Tech Notes</span>
+        </div>
+        <div class="nav-item" id="nav-7" onclick="scrollToSec('sec-7')">
+          <div class="nav-num">7</div>
+          <span class="nav-text">Estimate</span>
+        </div>
+        <div class="nav-item" id="nav-8" onclick="scrollToSec('sec-8')">
+          <div class="nav-num">8</div>
+          <span class="nav-text">Terms</span>
+        </div>
+        <div class="nav-item" id="nav-9" onclick="scrollToSec('sec-9')">
+          <div class="nav-num">9</div>
+          <span class="nav-text">Authorization</span>
+        </div>
+        <div class="nav-item" id="nav-10" onclick="scrollToSec('sec-10')">
+          <div class="nav-num">10</div>
+          <span class="nav-text">Acknowledgement</span>
+        </div>
+        <div class="nav-item" id="nav-11" onclick="scrollToSec('sec-11')">
+          <div class="nav-num">11</div>
+          <span class="nav-text">Delivery</span>
+        </div>
+      </nav>
+
+      <div class="sidebar-actions">
+        <button data-action="save-order-179d14e8b0" class="btn btn-gold" onclick="doSave()" style="justify-content:center">Save Order</button>
+        <button data-action="print-177e54a8c5" class="btn btn-ghost" onclick="doPrint()" style="justify-content:center;font-size:12px">🖨 Print</button>
+        <button data-action="back" class="btn btn-ghost" onclick="showView('dash')" style="justify-content:center;font-size:12px;color:var(--g500)">← Back</button>
+      </div>
+    </aside>
+
+    <!-- CONTENT -->
+    <main class="form-content">
+
+      <div class="ro-banner" id="ro-banner-form" style="display:none"></div>
+
+      <!-- TOP BAR -->
+      <div class="form-topbar" id="sec-header">
+        <div class="form-topbar-left">
+          <div class="form-order-badge" id="form-order-badge">WS-2026-001</div>
+          <div class="form-title-block">
+            <div class="form-title" id="form-title">New Service Order</div>
+            <div class="form-subtitle" id="form-subtitle">Fill all required fields and save</div>
+          </div>
+        </div>
+        <div class="form-topbar-right">
+          <button data-action="cancel-a9e64f4c9d" class="btn btn-ghost btn-sm" onclick="showView('dash')">Cancel</button>
+          <button data-action="print-8132c138b0" class="btn btn-ghost btn-sm" onclick="doPrint()">🖨 Print</button>
+          <button data-action="save-order-235acec870" class="btn btn-gold btn-sm" onclick="doSave()">Save Order</button>
+        </div>
+      </div>
+
+      <!-- ORDER DETAILS -->
+      <div class="form-section" id="sec-0" style="margin-bottom:16px">
+        <div class="sec-header">
+          <span class="sec-title">Service Order Details</span>
+        </div>
+        <div class="sec-body">
+          <div class="grid-4">
+            <div class="field-group">
+              <label class="field-label">Order No</label>
+              <input class="field-input" id="f-ono" readonly>
+            </div>
+            <div class="field-group">
+              <label class="field-label">Date Received <span class="req">*</span></label>
+              <input data-action="f-dr" type="date" class="field-input" id="f-dr" oninput="cpDebounced()">
+            </div>
+            <div class="field-group">
+              <label class="field-label">Service Advisor</label>
+              <select data-action="f-adv" class="field-input" id="f-adv" onchange="cpDebounced()"><option value="">-----------</option></select>
+            </div>
+            <div class="field-group">
+              <label class="field-label">Expected Delivery</label>
+              <input type="date" class="field-input" id="f-ed">
+            </div>
+            <div class="field-group">
+              <label class="field-label">Repair Stage</label>
+              <select class="field-input" id="f-stage" disabled aria-describedby="svc-d3-stage-help">
+                <option value="received">Received</option>
+                <option value="estimate_waiting">Estimate Waiting</option>
+                <option value="repair">Repair</option>
+                <option value="ready">Ready for Pickup</option>
+                <option value="on_hold">On Hold</option>
+              </select>
+              <div class="field-hint" id="svc-d3-stage-help">Use the controlled Service Workboard to change stage.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- S1 CUSTOMER -->
+      <div class="form-section" id="sec-1">
+        <div class="sec-header">
+          <div class="sec-num">1</div>
+          <span class="sec-title">Customer Details</span>
+        </div>
+        <div class="sec-body">
+          <div class="grid-2">
+            <div class="field-group">
+              <label class="field-label">Full Name <span class="req">*</span></label>
+              <input data-action="f-cn" class="field-input" id="f-cn" placeholder="Full name" oninput="cpDebounced()">
+            </div>
+            <div class="field-group">
+              <label class="field-label">Mobile No <span class="req">*</span></label>
+              <input data-action="f-cm" class="field-input" id="f-cm" placeholder="+91" oninput="cpDebounced()" onblur="svcAutofillFromMaster()">
+            </div>
+            <div class="field-group">
+              <label class="field-label">Email</label>
+              <input class="field-input" id="f-ce" placeholder="email@example.com">
+            </div>
+            <div class="field-group">
+              <label class="field-label">WhatsApp</label>
+              <input class="field-input" id="f-cw" placeholder="If different from mobile">
+            </div>
+            <div class="field-group col-span-2">
+              <label class="field-label">Address</label>
+              <input class="field-input" id="f-ca" placeholder="Full address">
+            </div>
+            <div class="field-group">
+              <label class="field-label">ID Type &amp; Number</label>
+              <input class="field-input" id="f-ci" placeholder="e.g. Aadhar 1234-5678">
+            </div>
+            <div class="field-group">
+              <label class="field-label">Alt. Contact</label>
+              <input class="field-input" id="f-cal" placeholder="Alternate number">
+            </div>
+            <div class="field-group col-span-2" id="svcLegalNotice" style="border:1px solid #cbd6e4;border-radius:10px;padding:12px;background:#f7fafc">
+              <label class="field-label">Privacy notice & customer age status</label>
+              <div style="font-size:12px;line-height:1.5;color:#52627a">We use these details to create and perform the watch-service order, document item custody and condition, communicate progress, collect payment, and maintain invoice, warranty or claim records. Promotional WhatsApp is optional and separate.</div>
+              <button data-action="read-full-privacy-notice-rights" class="btn btn-ghost" type="button" onclick="svcOpenPrivacyNotice()" style="margin-top:8px">Read full privacy notice & rights</button>
+              <div class="grid-2" style="margin-top:10px">
+                <div class="field-group"><label class="field-label">Customer age status <span class="req">*</span></label><select class="field-input" id="svc-legal-age"><option value="">Select</option><option value="adult">Adult (18+)</option><option value="minor">Under 18 — guardian present</option></select></div>
+                <div class="field-group"><label class="field-label">Guardian name (if under 18)</label><input class="field-input" id="svc-guardian-name" placeholder="Parent / lawful guardian"></div>
+                <div class="field-group"><label class="field-label">Guardian relationship</label><input class="field-input" id="svc-guardian-relation" placeholder="Parent / lawful guardian"></div>
+                <div class="field-group"><label class="field-label">Guardian verification</label><select class="field-input" id="svc-guardian-method"><option value="">Select if under 18</option><option value="document-seen">Adult identity/age document seen</option><option value="existing-verified-record">Existing verified business record</option><option value="digital-token">Authorised digital token</option><option value="other-lawful-method">Other lawful method</option></select></div>
+              </div>
+              <label style="display:flex;gap:7px;align-items:flex-start;margin-top:8px;font-size:12px"><input type="checkbox" id="svc-guardian-consent"> Guardian confirms authority and consents to necessary processing (under 18 only).</label>
+              <label style="display:flex;gap:7px;align-items:flex-start;margin-top:8px;font-size:12px"><input type="checkbox" id="svc-promo-consent"> Optional: customer actively agrees to promotional WhatsApp offers, greetings and review requests. Service updates do not depend on this.</label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- S2 WATCH -->
+      <div class="form-section" id="sec-2">
+        <div class="sec-header">
+          <div class="sec-num">2</div>
+          <span class="sec-title">Watch Details</span>
+        </div>
+        <div class="sec-body">
+          <div class="grid-2">
+            <div class="field-group">
+              <label class="field-label">Brand <span class="req">*</span></label>
+              <input data-action="f-wb" class="field-input" id="f-wb" placeholder="e.g. Titan, Rolex, Omega" oninput="cpDebounced()">
+            </div>
+            <div class="field-group">
+              <label class="field-label">Model Name <span class="req">*</span></label>
+              <input data-action="f-wm" class="field-input" id="f-wm" placeholder="Model / collection" oninput="cpDebounced()">
+            </div>
+            <div class="field-group">
+              <label class="field-label">Reference No</label>
+              <input class="field-input" id="f-wr" placeholder="Ref no.">
+            </div>
+            <div class="field-group">
+              <label class="field-label">Serial No</label>
+              <input class="field-input" id="f-ws" placeholder="Serial number">
+            </div>
+            <div class="field-group">
+              <label class="field-label">Case Material</label>
+              <input class="field-input" id="f-wc" placeholder="e.g. Stainless Steel, Gold PVD">
+            </div>
+            <div class="field-group">
+              <label class="field-label">Case Size (mm)</label>
+              <input class="field-input" id="f-wz" placeholder="e.g. 40">
+            </div>
+            <div class="field-group">
+              <label class="field-label">Dial Colour</label>
+              <input class="field-input" id="f-wd" placeholder="e.g. Black sunburst">
+            </div>
+            <div class="field-group">
+              <label class="field-label">Bracelet / Strap</label>
+              <input class="field-input" id="f-wst" placeholder="e.g. Leather, SS bracelet">
+            </div>
+            <div class="field-group col-span-2">
+              <label class="field-label">Movement Type</label>
+              <div class="radio-group">
+                <label class="radio-opt"><input data-action="mv-a6e178bc43" type="radio" name="mv" value="Quartz" onchange="cp()"><span>Quartz</span></label>
+                <label class="radio-opt"><input data-action="mv-66406844cd" type="radio" name="mv" value="Automatic" onchange="cp()"><span>Automatic</span></label>
+                <label class="radio-opt"><input data-action="mv-53a842e403" type="radio" name="mv" value="Manual Wind" onchange="cp()"><span>Manual Wind</span></label>
+                <label class="radio-opt"><input data-action="mv-9b177db3af" type="radio" name="mv" value="Smartwatch" onchange="cp()"><span>Smartwatch</span></label>
+                <label class="radio-opt"><input data-action="mv-7cdae40d2d" type="radio" name="mv" value="Unknown" onchange="cp()"><span>Unknown</span></label>
+              </div>
+            </div>
+            <div class="field-group">
+              <label class="field-label">Water Resistance</label>
+              <input class="field-input" id="f-wwr" placeholder="e.g. 50m / 5ATM">
+            </div>
+            <div class="field-group">
+              <label class="field-label">Year (Approx.)</label>
+              <input class="field-input" id="f-wy" placeholder="e.g. 2019">
+            </div>
+            <div class="field-group">
+              <label class="field-label">Est. Value (₹)</label>
+              <input class="field-input" id="f-wv" placeholder="Customer estimate">
+            </div>
+            <div class="field-group">
+              <label class="field-label">Last Serviced</label>
+              <input class="field-input" id="f-wls" placeholder="Year or approximate date">
+            </div>
+          </div>
+          <!-- Watch Photo: visual proof of condition at receipt (optional). Stored
+               offline in IndexedDB (ref only on the record) so it never bloats storage. -->
+          <div class="watch-photo" id="wp-box">
+            <div class="wp-label">📷 Watch Photo — Received Condition <span class="wp-hint">proof of condition at receipt</span></div>
+            <div class="wp-actions">
+              <label class="wp-btn">📷 Camera<input data-action="watch-photo-camera" type="file" accept="image/*" capture="environment" style="display:none" onchange="onWatchPhoto(this)"></label>
+              <label class="wp-btn">🖼 Upload<input data-action="watch-photo-upload" type="file" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="onWatchPhoto(this)"></label>
+              <button data-action="wp-remove" type="button" class="wp-btn wp-remove" id="wp-remove" style="display:none" onclick="removeWatchPhoto()">✕ Remove</button>
+            </div>
+            <div class="wp-preview" id="wp-preview" style="display:none"><img id="wp-preview-img" alt="Watch photo — received"></div>
+            <div class="wp-empty" id="wp-empty">No photo attached yet. JPG / PNG / WEBP — auto-compressed.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- S3 CONDITION -->
+      <div class="form-section" id="sec-3">
+        <div class="sec-header">
+          <div class="sec-num">3</div>
+          <span class="sec-title">Pre-Service Condition Report</span>
+        </div>
+        <div class="sec-body">
+          <div style="font-size:11px;color:var(--g400);margin-bottom:12px;padding:8px 12px;background:var(--g50);border-radius:6px;border:1px solid var(--g200)">
+            <strong>Key:</strong> S = Scratch &nbsp;·&nbsp; D = Dent &nbsp;·&nbsp; P = Polish Required &nbsp;·&nbsp; C = Crack &nbsp;·&nbsp; W = Water Damage
+          </div>
+          <div class="tbl-scroll saagar-table-region--cards" data-service-table-region="condition-report">
+          <table class="cond-table saagar-table saagar-table--cards" data-service-table-strategy="cards" data-service-table-workflow="condition-report">
+            <thead>
+              <tr>
+                <th style="width:26%">Part</th>
+                <th style="width:14%">Code</th>
+                <th style="width:18%">Severity</th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody id="cond-tbody">
+              <tr><td>Crystal / Glass</td><td><input id="p0c" placeholder="S,C..."></td><td><select id="p0s"><option value="">—</option><option>Minor</option><option>Moderate</option><option>Severe</option></select></td><td><input id="p0n"></td></tr>
+              <tr><td>Dial</td><td><input id="p1c"></td><td><select id="p1s"><option value="">—</option><option>Minor</option><option>Moderate</option><option>Severe</option></select></td><td><input id="p1n"></td></tr>
+              <tr><td>Hands</td><td><input id="p2c"></td><td><select id="p2s"><option value="">—</option><option>Minor</option><option>Moderate</option><option>Severe</option></select></td><td><input id="p2n"></td></tr>
+              <tr><td>Case (Top)</td><td><input id="p3c"></td><td><select id="p3s"><option value="">—</option><option>Minor</option><option>Moderate</option><option>Severe</option></select></td><td><input id="p3n"></td></tr>
+              <tr><td>Case (Side)</td><td><input id="p4c"></td><td><select id="p4s"><option value="">—</option><option>Minor</option><option>Moderate</option><option>Severe</option></select></td><td><input id="p4n"></td></tr>
+              <tr><td>Caseback</td><td><input id="p5c"></td><td><select id="p5s"><option value="">—</option><option>Minor</option><option>Moderate</option><option>Severe</option></select></td><td><input id="p5n"></td></tr>
+              <tr><td>Crown</td><td><input id="p6c"></td><td><select id="p6s"><option value="">—</option><option>Minor</option><option>Moderate</option><option>Severe</option></select></td><td><input id="p6n"></td></tr>
+              <tr><td>Bracelet / Strap</td><td><input id="p7c"></td><td><select id="p7s"><option value="">—</option><option>Minor</option><option>Moderate</option><option>Severe</option></select></td><td><input id="p7n"></td></tr>
+              <tr><td>Clasp / Buckle</td><td><input id="p8c"></td><td><select id="p8s"><option value="">—</option><option>Minor</option><option>Moderate</option><option>Severe</option></select></td><td><input id="p8n"></td></tr>
+              <tr><td>Bezel</td><td><input id="p9c"></td><td><select id="p9s"><option value="">—</option><option>Minor</option><option>Moderate</option><option>Severe</option></select></td><td><input id="p9n"></td></tr>
+            </tbody>
+          </table>
+          </div>
+          <div class="divider"></div>
+          <div class="field-group" style="margin-bottom:14px">
+            <label class="field-label">Overall Cosmetic Grade</label>
+            <div class="radio-group">
+              <label class="radio-opt"><input data-action="grd-f88467462a" type="radio" name="grd" value="Mint" onchange="cp()"><span>Mint</span></label>
+              <label class="radio-opt"><input data-action="grd-51545d0b9c" type="radio" name="grd" value="Excellent" onchange="cp()"><span>Excellent</span></label>
+              <label class="radio-opt"><input data-action="grd-66e051f54c" type="radio" name="grd" value="Good" onchange="cp()"><span>Good</span></label>
+              <label class="radio-opt"><input data-action="grd-e7b7abb167" type="radio" name="grd" value="Fair" onchange="cp()"><span>Fair</span></label>
+              <label class="radio-opt"><input data-action="grd-cb4b3bd3e9" type="radio" name="grd" value="Poor" onchange="cp()"><span>Poor</span></label>
+            </div>
+          </div>
+          <div class="field-group">
+            <label class="field-label">Additional Notes</label>
+            <textarea class="field-textarea" id="f-cno" placeholder="Any other cosmetic observations..."></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- S4 ACCESSORIES -->
+      <div class="form-section" id="sec-4">
+        <div class="sec-header">
+          <div class="sec-num">4</div>
+          <span class="sec-title">Accessories &amp; Documentation Received</span>
+        </div>
+        <div class="sec-body">
+          <div class="check-columns">
+            <div>
+              <div class="check-col-title">Watch Accessories</div>
+              <div class="check-grid">
+                <label class="check-opt"><input type="checkbox" class="aw" value="Original Box"><span>Original Box</span></label>
+                <label class="check-opt"><input type="checkbox" class="aw" value="Extra Links"><span>Extra Links</span></label>
+                <label class="check-opt"><input type="checkbox" class="aw" value="Extra Strap"><span>Extra Strap/Bracelet</span></label>
+                <label class="check-opt"><input type="checkbox" class="aw" value="Spring Bars"><span>Spring Bars</span></label>
+                <label class="check-opt"><input type="checkbox" class="aw" value="Buckle/Clasp"><span>Buckle/Clasp</span></label>
+                <label class="check-opt"><input type="checkbox" class="aw" value="Sizing Tools"><span>Sizing Tools</span></label>
+                <label class="check-opt"><input type="checkbox" class="aw" value="Crown/Tube Kit"><span>Crown/Tube Kit</span></label>
+              </div>
+            </div>
+            <div>
+              <div class="check-col-title">Documentation</div>
+              <div class="check-grid">
+                <label class="check-opt"><input type="checkbox" class="ad" value="Warranty Card"><span>Warranty Card</span></label>
+                <label class="check-opt"><input type="checkbox" class="ad" value="Service Papers"><span>Service Papers</span></label>
+                <label class="check-opt"><input type="checkbox" class="ad" value="Purchase Receipt"><span>Purchase Receipt</span></label>
+                <label class="check-opt"><input type="checkbox" class="ad" value="Authentication Cert"><span>Authentication Cert.</span></label>
+                <label class="check-opt"><input type="checkbox" class="ad" value="Instruction Manual"><span>Instruction Manual</span></label>
+                <label class="check-opt"><input type="checkbox" class="ad" value="Appraisal Document"><span>Appraisal Document</span></label>
+              </div>
+            </div>
+            <div>
+              <div class="check-col-title">ID Documents</div>
+              <div class="check-grid">
+                <label class="check-opt"><input type="checkbox" class="ai" value="Aadhar Card"><span>Aadhar Card</span></label>
+                <label class="check-opt"><input type="checkbox" class="ai" value="PAN Card"><span>PAN Card</span></label>
+                <label class="check-opt"><input type="checkbox" class="ai" value="Passport"><span>Passport</span></label>
+                <label class="check-opt"><input type="checkbox" class="ai" value="Driving Licence"><span>Driving Licence</span></label>
+                <label class="check-opt"><input type="checkbox" class="ai" value="Purchase Invoice"><span>Purchase Invoice</span></label>
+                <label class="check-opt"><input type="checkbox" class="ai" value="Warranty Document"><span>Warranty Document</span></label>
+              </div>
+            </div>
+            <div>
+              <div class="check-col-title">Service Authorization <span style="color:var(--red)">*</span></div>
+              <div class="check-grid">
+                <label class="check-opt"><input data-action="input-1809abffd8322b" type="checkbox" class="aa" value="Complete Service" onchange="cp()"><span>Complete Service</span></label>
+                <label class="check-opt"><input data-action="input-abf0257db60e00" type="checkbox" class="aa" value="Partial Service" onchange="cp()"><span>Partial Service</span></label>
+                <label class="check-opt"><input data-action="input-d0e03c6a4cba2f" type="checkbox" class="aa" value="Battery Replacement" onchange="cp()"><span>Battery Replacement</span></label>
+                <label class="check-opt"><input data-action="input-766563d07f1b41" type="checkbox" class="aa" value="Water Resistance Test" onchange="cp()"><span>Water Resistance Test</span></label>
+                <label class="check-opt"><input data-action="input-9c978046be8be9" type="checkbox" class="aa" value="Polishing Only" onchange="cp()"><span>Polishing Only</span></label>
+                <label class="check-opt"><input data-action="input-f1115dcc6346a9" type="checkbox" class="aa" value="Glass Replacement" onchange="cp()"><span>Glass Replacement</span></label>
+                <label class="check-opt"><input data-action="input-30f40f7ee5a0dc" type="checkbox" class="aa" value="Strap Replacement" onchange="cp()"><span>Strap Replacement</span></label>
+                <label class="check-opt"><input data-action="input-32822de32cc548" type="checkbox" class="aa" value="Bracelet Repair" onchange="cp()"><span>Bracelet Repair</span></label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- S5 ISSUES -->
+      <div class="form-section" id="sec-5">
+        <div class="sec-header">
+          <div class="sec-num">5</div>
+          <span class="sec-title">Reported Issue Checklist</span>
+        </div>
+        <div class="sec-body">
+          <div class="check-columns">
+            <div>
+              <div class="check-col-title">Mechanical</div>
+              <div class="check-grid">
+                <label class="check-opt"><input data-action="input-adc7f33a4568ef" type="checkbox" class="im" value="Not Running/Stopped" onchange="cp()"><span>Not Running/Stopped</span></label>
+                <label class="check-opt"><input type="checkbox" class="im" value="Running Fast"><span>Running Fast</span></label>
+                <label class="check-opt"><input type="checkbox" class="im" value="Running Slow"><span>Running Slow</span></label>
+                <label class="check-opt"><input type="checkbox" class="im" value="Losing Time"><span>Losing Time</span></label>
+                <label class="check-opt"><input type="checkbox" class="im" value="Crown Issue"><span>Crown Issue</span></label>
+                <label class="check-opt"><input type="checkbox" class="im" value="Winding Issue"><span>Winding Issue</span></label>
+                <label class="check-opt"><input type="checkbox" class="im" value="Date Not Changing"><span>Date Not Changing</span></label>
+                <label class="check-opt"><input type="checkbox" class="im" value="Alarm/Chrono Fault"><span>Alarm/Chrono Fault</span></label>
+              </div>
+            </div>
+            <div>
+              <div class="check-col-title">Cosmetic</div>
+              <div class="check-grid">
+                <label class="check-opt"><input data-action="input-36b8fedf362878" type="checkbox" class="ic" value="Glass Scratched" onchange="cp()"><span>Glass Scratched</span></label>
+                <label class="check-opt"><input type="checkbox" class="ic" value="Glass Cracked"><span>Glass Cracked/Broken</span></label>
+                <label class="check-opt"><input type="checkbox" class="ic" value="Dial Damaged"><span>Dial Damaged</span></label>
+                <label class="check-opt"><input type="checkbox" class="ic" value="Hands Damaged"><span>Hands Damaged</span></label>
+                <label class="check-opt"><input type="checkbox" class="ic" value="Case Scratched"><span>Case Scratched</span></label>
+                <label class="check-opt"><input type="checkbox" class="ic" value="Case Dented"><span>Case Dented</span></label>
+                <label class="check-opt"><input type="checkbox" class="ic" value="Bezel Damaged"><span>Bezel Damaged</span></label>
+                <label class="check-opt"><input type="checkbox" class="ic" value="Water Ingress"><span>Water Ingress</span></label>
+              </div>
+            </div>
+            <div>
+              <div class="check-col-title">Bracelet / Strap</div>
+              <div class="check-grid">
+                <label class="check-opt"><input type="checkbox" class="ib" value="Link Missing"><span>Link Missing</span></label>
+                <label class="check-opt"><input type="checkbox" class="ib" value="Clasp Broken"><span>Clasp Broken</span></label>
+                <label class="check-opt"><input type="checkbox" class="ib" value="Clasp Loose"><span>Clasp Loose</span></label>
+                <label class="check-opt"><input type="checkbox" class="ib" value="Pin Missing"><span>Pin Missing</span></label>
+                <label class="check-opt"><input type="checkbox" class="ib" value="Strap Worn"><span>Strap Worn</span></label>
+                <label class="check-opt"><input type="checkbox" class="ib" value="Strap Cracked"><span>Strap Cracked</span></label>
+                <label class="check-opt"><input type="checkbox" class="ib" value="Bracelet Stretched"><span>Bracelet Stretched</span></label>
+                <label class="check-opt"><input type="checkbox" class="ib" value="Spring Bar Missing"><span>Spring Bar Missing</span></label>
+              </div>
+            </div>
+            <div>
+              <div class="check-col-title">Other</div>
+              <div class="check-grid">
+                <label class="check-opt"><input type="checkbox" class="io" value="Low Battery"><span>Low Battery</span></label>
+                <label class="check-opt"><input type="checkbox" class="io" value="Battery Dead"><span>Battery Dead</span></label>
+                <label class="check-opt"><input type="checkbox" class="io" value="Magnetised"><span>Magnetised</span></label>
+                <label class="check-opt"><input type="checkbox" class="io" value="Luminous Missing"><span>Luminous Missing</span></label>
+                <label class="check-opt"><input type="checkbox" class="io" value="Rubber Gasket Worn"><span>Rubber Gasket Worn</span></label>
+                <label class="check-opt"><input type="checkbox" class="io" value="Caseback Loose"><span>Caseback Loose</span></label>
+                <label class="check-opt"><input type="checkbox" class="io" value="Crown Threads Worn"><span>Crown Threads Worn</span></label>
+              </div>
+              <input class="field-input" id="f-iot" placeholder="Other (specify)..." style="margin-top:10px;font-size:12px">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- S6 TECH NOTES -->
+      <div class="form-section" id="sec-6">
+        <div class="sec-header">
+          <div class="sec-num">6</div>
+          <span class="sec-title">Technician Inspection Notes</span>
+        </div>
+        <div class="sec-body">
+          <div class="field-group" style="margin-bottom:14px">
+            <label class="field-label">Initial Diagnosis / Observations</label>
+            <textarea class="field-textarea" id="f-diag" placeholder="Technician's initial observations and diagnosis..." style="min-height:100px" oninput="cpDebounced()"></textarea>
+          </div>
+          <div class="grid-3">
+            <div class="field-group">
+              <label class="field-label">Technician Name</label>
+              <select data-action="f-tn" class="field-input" id="f-tn" onchange="onTechSelect()"><option value="">-----------</option></select>
+            </div>
+            <div class="field-group">
+              <label class="field-label">Tech. ID / Initials</label>
+              <input class="field-input" id="f-ti" placeholder="ID or initials">
+            </div>
+            <div class="field-group">
+              <label class="field-label">Inspection Date</label>
+              <input type="date" class="field-input" id="f-tid">
+            </div>
+          </div>
+          <div class="grid-2" style="margin-top:14px">
+            <div class="field-group">
+              <label class="field-label">Point Remarks — Company / Brand</label>
+              <select data-action="f-pr-brand" class="field-input" id="f-pr-brand" onchange="onPointRemarkBrand()"><option value="">-----------</option></select>
+            </div>
+            <div class="field-group">
+              <label class="field-label">Point Remarks (type to override)</label>
+              <input data-action="f-pr-txt" class="field-input" id="f-pr-txt" placeholder="Type or pick a company/brand" oninput="cpDebounced()">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- S7 ESTIMATE -->
+      <div class="form-section" id="sec-7">
+        <div class="sec-header">
+          <div class="sec-num">7</div>
+          <span class="sec-title">Service Estimate &amp; Authorization</span>
+        </div>
+        <div class="sec-body">
+          <div class="tbl-scroll saagar-table-region--grid" data-service-table-region="service-estimate">
+          <table class="est-table saagar-table saagar-table--grid" data-service-table-strategy="grid" data-service-table-workflow="service-estimate" data-saagar-grid-reason="quantity unit price and authorized total require cross-column comparison">
+            <thead>
+              <tr>
+                <th style="width:52%">Service / Part Description</th>
+                <th style="width:10%">Qty</th>
+                <th style="width:16%">Unit (₹)</th>
+                <th style="width:16%">Total (₹)</th>
+                <th style="width:6%"></th>
+              </tr>
+            </thead>
+            <tbody id="est-tbody"></tbody>
+          </table>
+          </div>
+          <button data-action="add-line" class="add-line-btn" onclick="addRow()">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+            Add Line
+          </button>
+          <div class="est-totals">
+            <div class="tot-row">
+              <span class="tot-label">Sub-Total</span>
+              <span>₹ <input data-action="f-st" class="tot-input" id="f-st" placeholder="0.00" oninput="subTotalDirty=true;cpDebounced()"></span>
+            </div>
+            <div class="tot-row">
+              <span class="tot-label">GST %</span>
+              <span><input data-action="f-gst" class="tot-input" id="f-gst" placeholder="0" oninput="calcTotalDebounced()"> %</span>
+            </div>
+            <div class="tot-row">
+              <span class="tot-label">GST Amount</span>
+              <span>₹ <span id="f-gstamt">0.00</span></span>
+            </div>
+            <div class="tot-row grand">
+              <span>TOTAL ESTIMATE</span>
+              <span>₹ <span id="f-tot">0.00</span></span>
+            </div>
+            <div class="tot-row">
+              <span class="tot-label">Advance Paid</span>
+              <span>₹ <input data-action="f-advpaid" class="tot-input" id="f-advpaid" placeholder="0.00" inputmode="decimal" oninput="cpDebounced();updateBalance()"></span>
+            </div>
+          </div>
+          <div style="font-size:11px;color:var(--g400);margin-top:8px;font-style:italic">
+            Note: This is an estimate only. Final charges may vary. Additional work requires separate approval.
+          </div>
+        </div>
+      </div>
+
+      <!-- S8 TERMS -->
+      <div class="form-section" id="sec-8">
+        <div class="sec-header">
+          <div class="sec-num">8</div>
+          <span class="sec-title">Terms &amp; Conditions</span>
+        </div>
+        <div class="sec-body">
+          <div class="terms-box">
+            <ol>
+              <li>The service centre is not responsible for any pre-existing damage not noted on this form at intake.</li>
+              <li>Uncollected watches after 90 days of notification will be subject to storage charges thereafter.</li>
+              <li>The service centre shall not be held liable for loss or damage due to circumstances beyond its control (fire, theft, flood, etc.).</li>
+              <li>Any watch left for over 6 months without collection may be disposed of.</li>
+              <li>Warranty on service is provided only on the work carried out. Damage due to misuse, water exposure, or external impact is not covered.</li>
+              <li>The customer confirms the watch is their own property or they are duly authorized by the owner to commission this service.</li>
+              <li>Defective parts replaced during service may not be returned unless specifically requested at submission.</li>
+              <li>Water resistance, where tested, is performed under controlled conditions and does not guarantee real-world performance.</li>
+              <li>The service centre reserves the right to decline service on watches suspected to be stolen or posing a risk.</li>
+              <li>This form constitutes a binding service agreement between the customer and the service centre.</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+
+      <!-- S9 CUSTOMER AUTH -->
+      <div class="form-section" id="sec-9">
+        <div class="sec-header">
+          <div class="sec-num">9</div>
+          <span class="sec-title">Customer Authorization (Intake)</span>
+        </div>
+        <div class="sec-body">
+          <div class="check-grid" style="margin-bottom:16px;gap:10px">
+            <label class="check-opt"><input data-action="a1" type="checkbox" id="a1" onchange="cp()"><span>I have read, understood, and agree to the Terms &amp; Conditions above.</span></label>
+            <label class="check-opt"><input data-action="a2" type="checkbox" id="a2" onchange="cp()"><span>I authorize the service centre to perform the work as described herein.</span></label>
+            <label class="check-opt"><input data-action="a3" type="checkbox" id="a3" onchange="cp()"><span>I agree to pay the estimate (or revised amount, if I approve any changes).</span></label>
+            <label class="check-opt"><input data-action="a4" type="checkbox" id="a4" onchange="cp()"><span>I confirm the condition report accurately reflects the watch at the time of handover.</span></label>
+          </div>
+          <div class="grid-3">
+            <div class="field-group">
+              <label class="field-label">Customer Name</label>
+              <input data-action="f-an" class="field-input" id="f-an" placeholder="Full name" oninput="cpDebounced()">
+            </div>
+            <div class="field-group">
+              <label class="field-label">Date</label>
+              <input type="date" class="field-input" id="f-ad">
+            </div>
+            <div class="field-group">
+              <label class="field-label">Signature (type name)</label>
+              <input class="field-input" id="f-as" placeholder="Type full name">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- S10 ACK -->
+      <div class="form-section" id="sec-10">
+        <div class="sec-header">
+          <div class="sec-num">10</div>
+          <span class="sec-title">Service Centre Acknowledgement</span>
+        </div>
+        <div class="sec-body">
+          <div class="grid-3" style="margin-bottom:16px">
+            <div class="field-group">
+              <label class="field-label">Received By</label>
+              <select data-action="f-rb" class="field-input" id="f-rb" onchange="cpDebounced()"><option value="">-----------</option></select>
+            </div>
+            <div class="field-group">
+              <label class="field-label">Designation</label>
+              <input class="field-input" id="f-rdg" placeholder="Role / designation">
+            </div>
+            <div class="field-group">
+              <label class="field-label">Date &amp; Time</label>
+              <input type="datetime-local" class="field-input" id="f-rdt">
+            </div>
+          </div>
+          <label class="check-opt" style="align-items:center">
+            <input data-action="f-oc" type="checkbox" id="f-oc" onchange="cp()">
+            <span style="font-weight:600;color:var(--navy);font-size:13px">Yes — service order is confirmed.</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- S11 DELIVERY -->
+      <div class="form-section" id="sec-11">
+        <div class="sec-header">
+          <div class="sec-num">11</div>
+          <span class="sec-title">Delivery &amp; Completion Certification</span>
+        </div>
+        <div class="sec-body">
+          <div class="lock-box" id="s11-lock">
+            <div class="lock-icon">🔒</div>
+            <div class="lock-title">Available after first save</div>
+            <div class="lock-sub">Save this service order to unlock the delivery and completion section.</div>
+          </div>
+          <div id="s11-open" style="display:none">
+            <div class="check-grid" style="margin-bottom:16px;gap:10px">
+              <label class="check-opt"><input type="checkbox" id="d1"><span>All work has been completed to my satisfaction.</span></label>
+              <label class="check-opt"><input type="checkbox" id="d2"><span>The service details and charges have been fully explained to me.</span></label>
+              <label class="check-opt"><input type="checkbox" id="d3"><span>The watch is in good working condition at the time of collection.</span></label>
+              <label class="check-opt"><input type="checkbox" id="d4"><span>All accessories and documents submitted have been returned.</span></label>
+              <label class="check-opt"><input type="checkbox" id="d5"><span>I have no further claims against the service centre for this service order.</span></label>
+            </div>
+            <!-- After-service photo: visual proof of the serviced watch at delivery (optional). Stored in
+                 IndexedDB under wsf|caseId|after; the case record carries only a watchPhotoAfter boolean. -->
+            <div class="watch-photo" id="wp-after-box" style="margin-bottom:16px">
+              <div class="wp-label">📷 Watch Photo — After Service <span class="wp-hint">optional — condition at delivery</span></div>
+              <div class="wp-actions">
+                <label class="wp-btn">📷 Camera<input data-action="watch-photo-after-camera" type="file" accept="image/*" capture="environment" style="display:none" onchange="onWatchPhotoAfter(this)"></label>
+                <label class="wp-btn">🖼 Upload<input data-action="watch-photo-after-upload" type="file" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="onWatchPhotoAfter(this)"></label>
+                <button data-action="wp-after-remove" type="button" class="wp-btn wp-remove" id="wp-after-remove" style="display:none" onclick="removeWatchPhotoAfter()">✕ Remove</button>
+              </div>
+              <div class="wp-preview" id="wp-after-preview" style="display:none"><img id="wp-after-img" alt="Watch photo — after service"></div>
+              <div class="wp-empty" id="wp-after-empty">No after-service photo yet. JPG / PNG / WEBP — auto-compressed.</div>
+            </div>
+            <div class="grid-2" style="margin-bottom:16px">
+              <div class="field-group">
+                <label class="field-label">Final Amount Charged (₹)</label>
+                <input data-action="f-fa" class="field-input" id="f-fa" placeholder="₹ 0.00" inputmode="decimal" oninput="calcDeno();updateBalance()">
+                <div id="f-balance-hint" style="font-size:11.5px;font-weight:600;margin-top:5px;display:none"></div>
+              </div>
+              <div class="field-group">
+                <label class="field-label">Payment Mode</label>
+                <div class="radio-group">
+                  <label class="radio-opt"><input data-action="pm-60116ece91" type="radio" name="pm" value="Cash" onchange="togglePayRef()"><span>Cash</span></label>
+                  <label class="radio-opt"><input data-action="pm-c9d1dd5a73" type="radio" name="pm" value="Card" onchange="togglePayRef()"><span>Card</span></label>
+                  <label class="radio-opt"><input data-action="pm-9cb4b6f988" type="radio" name="pm" value="UPI" onchange="togglePayRef()"><span>UPI</span></label>
+                  <label class="radio-opt"><input data-action="pm-ec372dbb96" type="radio" name="pm" value="Bank Transfer" onchange="togglePayRef()"><span>Bank Transfer</span></label>
+                </div>
+              </div>
+              <div class="field-group" id="f-pr-grp">
+                <label class="field-label">Payment Reference No.</label>
+                <input class="field-input" id="f-pr" placeholder="UPI / txn reference">
+              </div>
+              <div class="field-group">
+                <label class="field-label">Date of Collection</label>
+                <input type="date" class="field-input" id="f-dc">
+              </div>
+              <div class="field-group">
+                <label class="field-label">Service Warranty (months)</label>
+                <input class="field-input" id="f-warr" type="number" min="0" max="60" inputmode="numeric" placeholder="e.g. 6" title="Prints on the invoice and auto-creates a warranty-expiry reminder when the case is closed">
+              </div>
+            </div>
+            <div id="f-deno-wrap" style="display:none;margin-bottom:16px">
+              <div class="deno-hdr">Physical cash counted</div>
+              <div class="deno-body">
+                <div class="deno-row"><span class="deno-lbl">₹2000</span><input data-action="dn2000" class="deno-inp" id="dn2000" type="number" min="0" inputmode="numeric" placeholder="0" oninput="calcDeno()"><span class="deno-val" id="dv2000">₹0</span></div>
+                <div class="deno-row"><span class="deno-lbl">₹500</span><input data-action="dn500" class="deno-inp" id="dn500" type="number" min="0" inputmode="numeric" placeholder="0" oninput="calcDeno()"><span class="deno-val" id="dv500">₹0</span></div>
+                <div class="deno-row"><span class="deno-lbl">₹200</span><input data-action="dn200" class="deno-inp" id="dn200" type="number" min="0" inputmode="numeric" placeholder="0" oninput="calcDeno()"><span class="deno-val" id="dv200">₹0</span></div>
+                <div class="deno-row"><span class="deno-lbl">₹100</span><input data-action="dn100" class="deno-inp" id="dn100" type="number" min="0" inputmode="numeric" placeholder="0" oninput="calcDeno()"><span class="deno-val" id="dv100">₹0</span></div>
+                <div class="deno-row"><span class="deno-lbl">₹50</span><input data-action="dn50" class="deno-inp" id="dn50" type="number" min="0" inputmode="numeric" placeholder="0" oninput="calcDeno()"><span class="deno-val" id="dv50">₹0</span></div>
+                <div class="deno-row"><span class="deno-lbl">₹20</span><input data-action="dn20" class="deno-inp" id="dn20" type="number" min="0" inputmode="numeric" placeholder="0" oninput="calcDeno()"><span class="deno-val" id="dv20">₹0</span></div>
+                <div class="deno-row"><span class="deno-lbl">₹10</span><input data-action="dn10" class="deno-inp" id="dn10" type="number" min="0" inputmode="numeric" placeholder="0" oninput="calcDeno()"><span class="deno-val" id="dv10">₹0</span></div>
+                <div class="deno-row"><span class="deno-lbl">₹5</span><input data-action="dn5" class="deno-inp" id="dn5" type="number" min="0" inputmode="numeric" placeholder="0" oninput="calcDeno()"><span class="deno-val" id="dv5">₹0</span></div>
+                <div class="deno-row"><span class="deno-lbl">₹2</span><input data-action="dn2" class="deno-inp" id="dn2" type="number" min="0" inputmode="numeric" placeholder="0" oninput="calcDeno()"><span class="deno-val" id="dv2">₹0</span></div>
+                <div class="deno-row"><span class="deno-lbl">₹1</span><input data-action="dn1" class="deno-inp" id="dn1" type="number" min="0" inputmode="numeric" placeholder="0" oninput="calcDeno()"><span class="deno-val" id="dv1">₹0</span></div>
+              </div>
+              <div class="deno-total-row"><span>Total</span><span id="f-deno-total">₹0</span></div>
+              <div class="deno-hint" id="f-deno-hint"></div>
+            </div>
+            <div class="grid-3" style="margin-bottom:14px">
+              <div class="field-group">
+                <label class="field-label">Customer Name</label>
+                <input class="field-input" id="f-dcn">
+              </div>
+              <div class="field-group">
+                <label class="field-label">Date</label>
+                <input type="date" class="field-input" id="f-ddt">
+              </div>
+              <div class="field-group">
+                <label class="field-label">Customer Signature</label>
+                <input class="field-input" id="f-dcs" placeholder="Type name">
+              </div>
+            </div>
+            <div class="grid-3" style="margin-bottom:18px">
+              <div class="field-group">
+                <label class="field-label">Technician Name</label>
+                <input class="field-input" id="f-dtn">
+              </div>
+              <div class="field-group">
+                <label class="field-label">Technician Signature</label>
+                <input class="field-input" id="f-dts" placeholder="Type name">
+              </div>
+              <div class="field-group">
+                <label class="field-label">Service Advisor Signature</label>
+                <input class="field-input" id="f-das" placeholder="Type name">
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+              <button data-action="mark-as-delivered-amp-close-case" class="btn btn-green" onclick="closeCase()" style="flex:1;min-width:200px;justify-content:center">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                Mark as Delivered &amp; Close Case
+              </button>
+              <button data-action="proforma-invoice" class="btn btn-ghost" onclick="doProforma()" style="justify-content:center">🧾 Proforma Invoice</button>
+              <button data-action="gst-tax-invoice-service-non-franchise-only" class="btn btn-ghost" onclick="doTaxInvoice()" style="justify-content:center" title="GST tax invoice (service / non-franchise only)">🧾 GST Tax Invoice</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- BOTTOM ACTIONS -->
+      <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:6px;padding-top:6px">
+        <button data-action="cancel-aadf0c90d2" class="btn btn-ghost" onclick="showView('dash')">Cancel</button>
+        <button data-action="print-55e02303ef" class="btn btn-ghost" onclick="doPrint()">🖨 Print</button>
+        <button data-action="save-order-df9e5c6aa8" class="btn btn-gold" onclick="doSave()">Save Order</button>
+      </div>
+
+      <!-- MOBILE STEP-WIZARD NAV (mobile only via html.bcc-mobile) -->
+      <div id="form-wiznav">
+        <button data-action="wiz-back" type="button" class="wiz-btn" id="wiz-back" onclick="showFormStep(curStep-1)">‹ Back</button>
+        <span id="wiz-step-label">Order Details</span>
+        <button data-action="wiz-next" type="button" class="wiz-btn wiz-next" id="wiz-next" onclick="showFormStep(curStep+1)">Next ›</button>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- PRINT TARGET -->
+<div class="view" id="view-print"></div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- TWEAKS PANEL — dev artifact removed (overlapped Save on mobile).
+     Inert hidden stub kept so the host-message JS (getElementById('tweaks-panel')) still resolves. -->
+<div id="tweaks-panel" hidden style="display:none"></div>
+
+<script>
+// ─── STORAGE ───────────────────────────────────────────────────
+const STORE_KEY = 'saagar_wsf_v2';
+// Guarded load: a corrupt/non-array value must NOT throw at script-parse time
+// (that would leave every onclick handler undefined and brick the module). Match
+// the try/catch+Array.isArray pattern used by getEmployees()/getPointRemarkBrands().
+// NOTE: on a bad parse we keep an empty in-memory DB but do NOT overwrite the
+// stored key, so a recoverable value isn't silently destroyed.
+let DB = (function () {
+  try { const p = JSON.parse(localStorage.getItem(STORE_KEY) || '[]'); return Array.isArray(p) ? p : []; }
+  catch (e) { return []; }
+})();
+let editId = null;
+let rowN = 0;
+let subTotalDirty = false;   // true once the user manually edits the Sub-Total → it overrides the line-item sum
+
+// ── Watch photo: compressed, stored in the shell's IndexedDB (SaagarEvidence)
+//    keyed wsf|<caseId>; the case record only carries a `watchPhoto` boolean so
+//    it never bloats localStorage. Old cases without a photo just stay false. ──
+let pendingWatchPhoto = null;   // {dataUrl, blob} when a NEW received-condition photo awaits save
+let watchPhotoDirty = false;    // received photo added / replaced / removed this session
+let pendingWatchPhotoAfter = null;  // {dataUrl, blob} when a NEW after-service photo awaits save
+let watchPhotoAfterDirty = false;   // after-service photo changed this session
+
+// ── Service settings (tiny, additive — its own key, never touches the case array) ──
+const SVC_SETTINGS_KEY = 'saagar_wsf_settings_v1';
+let SVC_SETTINGS = (function(){ try{ const s = JSON.parse(localStorage.getItem(SVC_SETTINGS_KEY) || '{}'); return (s && typeof s === 'object' && !Array.isArray(s)) ? s : {}; }catch(e){ return {}; } })();
+function saveSvcSettings(){ try{ localStorage.setItem(SVC_SETTINGS_KEY, JSON.stringify(SVC_SETTINGS)); }catch(e){} }
+function setWatchPhotoMandatory(on){
+  if(!isSuperAdmin()){ try{ toast('Owner access is required to change this setting'); }catch(e){} try{ renderDash(); }catch(e){} return false; }
+  SVC_SETTINGS.watchPhotoMandatory = !!on;
+  saveSvcSettings();
+  try{ toast(on ? '📸 Watch photo is now required to save a case' : 'Watch photo no longer required'); }catch(e){}
+  return true;
+}
+/* Robust "is a watch photo attached right now?" — if the photo was changed this session,
+   the preview is the truth (covers a removal); otherwise trust the preview OR the saved
+   flag on the case being edited (the stored image loads into the preview asynchronously). */
+function hasWatchPhotoNow(){
+  if(watchPhotoDirty) return !!currentWatchPhotoUrl();
+  if(currentWatchPhotoUrl()) return true;
+  return !!(editId && byId(editId) && byId(editId).watchPhoto === true);
+}
+const WP_MAX = 1280, WP_QUALITY = 0.82, WP_TYPES = ['image/jpeg','image/png','image/webp'];
+function svcEv(){ try{ if(window.parent && window.parent !== window && SaagarModuleBridge.evidence) return SaagarModuleBridge.evidence; }catch(e){} return SaagarModuleBridge.evidence || null; }
+function watchKey(id){ return 'wsf|' + (id || g('f-ono') || 'DRAFT'); }
+function currentWatchPhotoUrl(){ const im = document.getElementById('wp-preview-img'); return (im && im.src && im.src.slice(0,5) === 'data:') ? im.src : ''; }
+
+// Compress/resize a chosen image to a JPEG (shared by the received + after-service photo slots).
+function compressWatchImage(file, onDone){
+  if(WP_TYPES.indexOf(file.type) === -1 && !/\.(jpe?g|png|webp)$/i.test(file.name || '')){ toast('⚠ Use a JPG, PNG or WEBP image'); return; }
+  const reader = new FileReader();
+  reader.onerror = () => toast('⚠ Could not read the image');
+  reader.onload = () => {
+    const img = new Image();
+    img.onerror = () => toast('⚠ Could not load the image');
+    img.onload = () => {
+      try{
+        let w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+        const scale = Math.min(1, WP_MAX / Math.max(w, h));
+        w = Math.max(1, Math.round(w * scale)); h = Math.max(1, Math.round(h * scale));
+        const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+        cv.getContext('2d').drawImage(img, 0, 0, w, h);
+        const url = cv.toDataURL('image/jpeg', WP_QUALITY);
+        cv.toBlob(blob => { if(!blob){ toast('⚠ Image processing failed'); return; } onDone({ blob, dataUrl: url }); }, 'image/jpeg', WP_QUALITY);
+      }catch(e){ toast('⚠ Image processing failed'); }
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+}
+// ── RECEIVED-condition photo (the original slot; key wsf|caseId — UNCHANGED for backward-compat) ──
+function onWatchPhoto(input){
+  const file = input && input.files && input.files[0]; if(input) input.value = '';
+  if(!file || readOnlyGuard()) return;
+  compressWatchImage(file, p => { pendingWatchPhoto = p; watchPhotoDirty = true; showWatchPreview(p.dataUrl); toast('✓ Received-condition photo attached'); });
+}
+function showWatchPreview(url){
+  const box = document.getElementById('wp-preview'), img = document.getElementById('wp-preview-img');
+  const empty = document.getElementById('wp-empty'), rm = document.getElementById('wp-remove');
+  if(url){ if(img) img.src = url; if(box) box.style.display=''; if(empty) empty.style.display='none'; if(rm) rm.style.display=''; }
+  else { if(img) img.removeAttribute('src'); if(box) box.style.display='none'; if(empty) empty.style.display=''; if(rm) rm.style.display='none'; }
+}
+function removeWatchPhoto(){ if(readOnlyGuard()) return; pendingWatchPhoto = null; watchPhotoDirty = true; showWatchPreview(null); }
+function resetWatchPhoto(){ pendingWatchPhoto = null; watchPhotoDirty = false; showWatchPreview(null); }
+function loadWatchPhoto(id){
+  resetWatchPhoto(); resetWatchPhotoAfter();
+  const api = svcEv(); if(!api || !api.getDataURL) return;
+  api.getDataURL(watchKey(id)).then(url => { if(url && !watchPhotoDirty) showWatchPreview(url); }).catch(()=>{});
+  api.getDataURL(watchKeyAfter(id)).then(url => { if(url && !watchPhotoAfterDirty) showWatchPreviewAfter(url); }).catch(()=>{});
+}
+// ── AFTER-service photo (new slot; key wsf|caseId|after) — captured at delivery ──
+function watchKeyAfter(id){ return 'wsf|' + (id || g('f-ono') || 'DRAFT') + '|after'; }
+function currentWatchPhotoUrlAfter(){ const im = document.getElementById('wp-after-img'); return (im && im.src && im.src.slice(0,5) === 'data:') ? im.src : ''; }
+function onWatchPhotoAfter(input){
+  const file = input && input.files && input.files[0]; if(input) input.value = '';
+  if(!file || readOnlyGuard()) return;
+  compressWatchImage(file, p => { pendingWatchPhotoAfter = p; watchPhotoAfterDirty = true; showWatchPreviewAfter(p.dataUrl); toast('✓ After-service photo attached'); });
+}
+function showWatchPreviewAfter(url){
+  const box = document.getElementById('wp-after-preview'), img = document.getElementById('wp-after-img');
+  const empty = document.getElementById('wp-after-empty'), rm = document.getElementById('wp-after-remove');
+  if(url){ if(img) img.src = url; if(box) box.style.display=''; if(empty) empty.style.display='none'; if(rm) rm.style.display=''; }
+  else { if(img) img.removeAttribute('src'); if(box) box.style.display='none'; if(empty) empty.style.display=''; if(rm) rm.style.display='none'; }
+}
+function removeWatchPhotoAfter(){ if(readOnlyGuard()) return; pendingWatchPhotoAfter = null; watchPhotoAfterDirty = true; showWatchPreviewAfter(null); }
+function resetWatchPhotoAfter(){ pendingWatchPhotoAfter = null; watchPhotoAfterDirty = false; showWatchPreviewAfter(null); }
+// Persist BOTH slots against the saved case id (put new / delete removed; EXACT key so a case whose id is a
+// prefix of another can't clobber it; fall back to the substring variants on an older shell).
+function persistWatchPhoto(id){
+  const api = svcEv();
+  if(api){
+    if(watchPhotoDirty){
+      if(pendingWatchPhoto && pendingWatchPhoto.blob){ (api.putExact||api.put).call(api, watchKey(id), pendingWatchPhoto.blob, 'watch.jpg').catch(()=>{}); }
+      else if(!pendingWatchPhoto){ (api.delByKey||api.delByMatch).call(api, watchKey(id)).catch(()=>{}); }
+    }
+    if(watchPhotoAfterDirty){
+      if(pendingWatchPhotoAfter && pendingWatchPhotoAfter.blob){ (api.putExact||api.put).call(api, watchKeyAfter(id), pendingWatchPhotoAfter.blob, 'watch-after.jpg').catch(()=>{}); }
+      else if(!pendingWatchPhotoAfter){ (api.delByKey||api.delByMatch).call(api, watchKeyAfter(id)).catch(()=>{}); }
+    }
+  }
+  watchPhotoDirty = false; watchPhotoAfterDirty = false;
+}
+
+// ─── HTML ESCAPE (H4 stored-XSS fix) ───────────────────────────
+// User-supplied text (name/brand/model/mobile/…) is rendered into innerHTML
+// in renderList(). readForm() only .trim()s it, so without escaping a value
+// like `<img src=x onerror=…>` would execute/persist. Neutralise the five
+// HTML-significant characters before interpolation.
+function escapeHtml(v) {
+  return (v == null ? '' : String(v))
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// ─── VIEW-DATE RAIL (shell-provided) ───────────────────────────
+// window.__stAsOf is the 'YYYY-MM-DD' the user wants to VIEW (seeded before
+// our scripts run; updated via the 'st-date' window event; defaults to today).
+// This module's DB is a single, non-date-partitioned key — it always shows the
+// full case database. So a PAST view can't be date-filtered honestly; instead
+// we render it READ-ONLY: create/edit/close/delete are disabled and we NEVER
+// write or auto-create on a read. Today / no-date behaves exactly as before.
+function todayStr() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }   /* audit: local date — toISOString gave the previous day in IST */
+function setOrderDateMins() {
+  const min = todayStr();
+  ['f-dr', 'f-ed', 'f-dc', 'f-tid', 'f-ad'].forEach(idd => {
+    const el = document.getElementById(idd);
+    if (el && el.type === 'date') el.setAttribute('min', min);
+  });
+}
+function togglePayRef() {
+  const checked = document.querySelector('input[name="pm"]:checked');
+  const mode = checked ? checked.value : 'Cash';   // f-pr-grp keeps its existing no-selection default
+  const grp = document.getElementById('f-pr-grp');
+  // Denomination grid: STRICT — show ONLY when Cash is actually selected (not the no-selection default),
+  // and hide it for Card/UPI/Bank Transfer or when nothing is chosen.
+  const dw = document.getElementById('f-deno-wrap');
+  if (dw) dw.style.display = (checked && checked.value === 'Cash') ? '' : 'none';
+  if (!grp) return;
+  if (mode === 'Cash') {
+    grp.style.display = 'none';
+    const pr = document.getElementById('f-pr'); if (pr) pr.value = '';
+  } else {
+    grp.style.display = '';
+  }
+}
+
+// ─── CASH DENOMINATION GRID (step 11) ──────────────────────────
+const DENOMS = [2000, 500, 200, 100, 50, 20, 10, 5, 2, 1];
+// Balance Due = Final Amount − Advance Paid. Shown at delivery when an advance
+// was taken at intake (partial-payment workflow).
+function updateBalance() {
+  const hint = document.getElementById('f-balance-hint');
+  if (!hint) return;
+  const fa = parseFloat(g('f-fa')) || 0;
+  const adv = parseFloat(g('f-advpaid')) || 0;
+  if (adv > 0) {
+    const bal = fa - adv;
+    hint.style.display = '';
+    hint.style.color = bal < 0 ? 'var(--red)' : 'var(--green)';
+    hint.textContent = 'Advance ₹' + adv.toLocaleString('en-IN') + ' · Balance due ₹' + bal.toLocaleString('en-IN');
+  } else {
+    hint.style.display = 'none';
+  }
+}
+
+function calcDeno() {
+  let total = 0;
+  DENOMS.forEach(D => {
+    const inp = document.getElementById('dn' + D);
+    const out = document.getElementById('dv' + D);
+    const value = (parseInt(inp && inp.value, 10) || 0) * D;
+    total += value;
+    if (out) out.textContent = '₹' + value.toLocaleString('en-IN');
+  });
+  const tot = document.getElementById('f-deno-total');
+  if (tot) tot.textContent = '₹' + total.toLocaleString('en-IN');
+  const faEl = document.getElementById('f-fa');
+  const fa = parseFloat(faEl && faEl.value) || 0;
+  const hint = document.getElementById('f-deno-hint');
+  if (hint) {
+    if (!fa && !total) {
+      hint.textContent = '';
+      hint.className = 'deno-hint';
+    } else if (Math.round(fa) === total) {
+      hint.textContent = '✓ Matches the Final Amount.';
+      hint.className = 'deno-hint deno-ok';
+    } else {
+      hint.textContent = 'Counted ₹' + total.toLocaleString('en-IN') +
+        ' vs Final Amount ₹' + Math.round(fa).toLocaleString('en-IN') +
+        ' — difference ₹' + Math.abs(total - Math.round(fa)).toLocaleString('en-IN');
+      hint.className = 'deno-hint deno-warn';
+    }
+  }
+  return total;
+}
+function readDeno() {
+  const o = {};
+  DENOMS.forEach(D => {
+    const inp = document.getElementById('dn' + D);
+    const n = parseInt(inp && inp.value, 10) || 0;
+    if (n > 0) o[D] = n;
+  });
+  return o;
+}
+function setDeno(obj) {
+  const o = obj || {};
+  DENOMS.forEach(D => {
+    const inp = document.getElementById('dn' + D);
+    if (!inp) return;
+    const n = parseInt(o[D], 10) || 0;
+    inp.value = n > 0 ? n : '';
+  });
+}
+let viewDate = (typeof window.__stAsOf === 'string' && window.__stAsOf) ? window.__stAsOf : todayStr();
+function isPastView() { return viewDate < todayStr(); }
+function readOnlyGuard() {
+  // Returns true (and warns) when a write must be blocked for a past view.
+  if (isPastView()) {
+    toast('🔒 Viewing ' + viewDate + ' — read-only');
+    return true;
+  }
+  return false;
+}
+
+// ─── SEARCH + PAGINATION STATE ─────────────────────────────────
+const PAGE_SIZE = 5;
+let searchQuery = '';
+let pageState = { main: 1 };
+let dashFilter = 'all';   // 'all' | 'open' | 'closed' — driven by the stat tiles
+let stageFilter = '';     // '' (all stages) | a STAGES key | 'overdue' — secondary filter on open cases
+
+// Repair pipeline stages (open cases). Closed cases are "Delivered".
+const STAGES = {
+  received:          { label: 'Received',          color: '#0d2340' },
+  estimate_waiting:  { label: 'Estimate Waiting',  color: '#b8922a' },
+  repair:            { label: 'Repair',            color: '#b45309' },
+  ready:             { label: 'Ready for Pickup',  color: '#166534' },
+  on_hold:           { label: 'On Hold',           color: '#dc2626' },
+  delivered:         { label: 'Delivered',         color: '#166534' }
+};
+const STAGE_KEYS = Object.keys(STAGES).filter(key => key !== 'delivered');
+function stageOf(c) {
+  const policy = svcD3PolicyApi();
+  if (policy && typeof policy.canonicalStage === 'function') return policy.canonicalStage(c);
+  if (c && c.status === 'closed') return 'delivered';
+  const raw = c && c.stage === 'awaiting_approval' ? 'estimate_waiting' :
+    (c && c.stage === 'in_progress' ? 'repair' : c && c.stage);
+  return STAGES[raw] ? raw : 'received';
+}
+function stageLabel(s) { return (STAGES[s] || STAGES.received).label; }
+function stageColor(s) { return (STAGES[s] || STAGES.received).color; }
+
+// P1-10 helpers: stage-transition log + turnaround-time (TAT) computation.
+// stageLog is an additive per-case array of {stage, at, by}; old cases read as absent.
+// stageLogAt returns the ISO timestamp of the FIRST time a case reached `stageKey`.
+function stageLogAt(c, stageKey) {
+  if (!c || !Array.isArray(c.stageLog)) return null;
+  for (let i = 0; i < c.stageLog.length; i++) {
+    const e = c.stageLog[i];
+    if (e && e.stage === stageKey && e.at) return e.at;
+  }
+  return null;
+}
+// Whole-day difference between two date/ISO strings (>=0), or null if unusable.
+function tatDays(fromStr, toStr) {
+  if (!fromStr || !toStr) return null;
+  const a = new Date(fromStr), b = new Date(toStr);
+  if (isNaN(a) || isNaN(b)) return null;
+  const d = (b - a) / 86400000;
+  return d < 0 ? null : d;
+}
+// Average received->delivered TAT (in days) over closed cases with usable timestamps.
+// Received time = stageLog 'received' entry, else the case createdAt/dateRec.
+// Delivered time = closedAt (stamped on close), else stageLog 'ready' as a last resort.
+function avgDeliveredTatDays() {
+  let sum = 0, n = 0;
+  DB.forEach(c => {
+    if (c.status !== 'closed') return;
+    const recv = stageLogAt(c, 'received') || c.createdAt || c.dateRec || null;
+    const deliv = c.closedAt || stageLogAt(c, 'ready') || null;
+    const d = tatDays(recv, deliv);
+    if (d != null) { sum += d; n++; }
+  });
+  return n ? (sum / n) : null;
+}
+// Format a day count for the TAT tile: '—' when no data, else e.g. '3.2 d'.
+function fmtTat(days) {
+  if (days == null) return '—';
+  return (Math.round(days * 10) / 10).toLocaleString('en-IN') + ' d';
+}
+// Append a stage-transition entry to c.stageLog (additive, old-case-safe). Only records a
+// real change of stage. `by` sourced from the advisor field/case advisor, blank-safe.
+function logStageChange(c, newStage, by) {
+  if (!c) return;
+  if (!Array.isArray(c.stageLog)) c.stageLog = [];   // additive init for old cases
+  const last = c.stageLog.length ? c.stageLog[c.stageLog.length - 1] : null;
+  if (last && last.stage === newStage) return;       // no-op on unchanged stage (no dup rows)
+  c.stageLog.push({ stage: newStage, at: new Date().toISOString(), by: (by || '').trim() });
+}
+
+// A case is overdue if it's still open AND either past its Expected Delivery date
+// or has been sitting longer than OVERDUE_DAYS since it was received.
+const OVERDUE_DAYS = 30;
+function isOverdue(c) {
+  if (!c || c.status === 'closed') return false;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  if (/^\d{4}-\d{2}-\d{2}/.test(c.expDel || '')) {
+    const ed = new Date(c.expDel.slice(0, 10) + 'T00:00:00');
+    if (!isNaN(ed) && ed < today) return true;
+  }
+  const age = caseAgeingDays(c);
+  return typeof age === 'number' && age > OVERDUE_DAYS;
+}
+
+// Case-insensitive substring match across id / custName / custMobile / brand / model
+function matchesQuery(c, q) {
+  if (!q) return true;
+  const hay = [c.id, c.custName, c.custMobile, c.brand, c.model]
+    .map(v => (v == null ? '' : String(v)).toLowerCase()).join('  ');
+  return hay.indexOf(q) !== -1;
+}
+
+function svcD3PolicyApi() {
+  /* D3-SERVICE-RUNTIME-2026-07-30 */
+  try {
+    return (window.parent && window.parent !== window &&
+      SaagarModuleBridge.serviceWorkboardPolicy) ||
+      SaagarModuleBridge.serviceWorkboardPolicy || null;
+  } catch (error) {
+    return null;
+  }
+}
+function svcD3PersistenceApi() {
+  try {
+    return (window.parent && window.parent !== window &&
+      SaagarModuleBridge.servicePersistence) ||
+      SaagarModuleBridge.servicePersistence || null;
+  } catch (error) {
+    return null;
+  }
+}
+function svcD3RestorePersistedDb() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(STORE_KEY) || '[]');
+    if (Array.isArray(parsed)) DB = parsed;
+  } catch (error) {}
+  try { renderDash(); } catch (error) {}
+}
+function svcD3CommitCases(nextDb) {
+  const persistence = svcD3PersistenceApi();
+  if (!persistence || typeof persistence.commit !== 'function' ||
+      !persistence.commit(localStorage, STORE_KEY, nextDb)) {
+    svcD3RestorePersistedDb();
+    toast('⚠ Service change could not be saved. The last saved workboard was restored.');
+    return false;
+  }
+  DB = nextDb;
+  return true;
+}
+async function svcD3Reauth(reason) {
+  try {
+    const gate = (window.parent && window.parent !== window && SaagarModuleBridge.reauth) ||
+      SaagarModuleBridge.reauth;
+    return typeof gate === 'function' ? (await gate(reason)) === true : false;
+  } catch (error) {
+    return false;
+  }
+}
+function svcD3BoardCaseId(index) {
+  const ids = Array.isArray(window.__svcD3BoardCaseIds) ? window.__svcD3BoardCaseIds : [];
+  return ids[Number(index)] || '';
+}
+function svcD3ListTransition(index, targetStage) {
+  const ids = Array.isArray(window.__svcD3ListCaseIds) ? window.__svcD3ListCaseIds : [];
+  const id = ids[Number(index)] || '';
+  if (!id || !targetStage) {
+    renderDash();
+    return;
+  }
+  svcD3OpenTransitionById(id, targetStage);
+}
+function svcD3OpenCase(index) {
+  const id = svcD3BoardCaseId(index);
+  if (!id || !byId(id)) return;
+  openEdit(id);
+}
+function svcD3CopyStatus(index) {
+  const id = svcD3BoardCaseId(index);
+  const c = id && byId(id);
+  const policy = svcD3PolicyApi();
+  if (!c || !policy) return;
+  const status = policy.customerSafeStatus(c);
+  const text = status && status.text ? status.text : '';
+  if (!text) return;
+  const fallback = () => {
+    try { prompt('Copy this customer-safe status:', text); } catch (error) {}
+  };
+  try {
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+      Promise.resolve(navigator.clipboard.writeText(text))
+        .then(() => toast('Customer-safe status copied'))
+        .catch(fallback);
+      return;
+    }
+  } catch (error) {}
+  fallback();
+}
+function svcD3TransitionOptions() {
+  return [
+    '<option value="">Change stage…</option>',
+    '<option value="received">Received</option>',
+    '<option value="estimate_waiting">Estimate Waiting</option>',
+    '<option value="repair">Repair</option>',
+    '<option value="ready">Ready for Pickup</option>',
+    '<option value="on_hold">On Hold</option>'
+  ].join('');
+}
+function svcD3RenderWorkboard() {
+  const host = document.getElementById('svc-d3-workboard');
+  if (!host) return;
+  const policy = svcD3PolicyApi();
+  if (!policy || typeof policy.buildWorkboard !== 'function') {
+    host.innerHTML = '<div class="d3-unavailable">Service workboard control unavailable. Existing cases remain unchanged.</div>';
+    return;
+  }
+  const board = policy.buildWorkboard(DB, { asOf: todayStr() });
+  const ids = [];
+  const indexById = Object.create(null);
+  const indexFor = id => {
+    const key = '$' + String(id || '');
+    if (indexById[key] != null) return indexById[key];
+    indexById[key] = ids.length;
+    ids.push(String(id || ''));
+    return ids.length - 1;
+  };
+  const labels = {
+    received: 'Received',
+    estimate_waiting: 'Estimate Waiting',
+    repair: 'Repair',
+    ready: 'Ready',
+    pickup_overdue: 'Pickup Overdue',
+    on_hold: 'On Hold'
+  };
+  const laneHtml = board.laneOrder.map(lane => {
+    const cards = board.lanes[lane] || [];
+    const visible = cards.slice(0, 8);
+    const cardHtml = visible.map(card => {
+      const index = indexFor(card.caseId);
+      const due = card.promisedDate ? 'Promised ' + card.promisedDate : 'Promised date missing';
+      const owner = card.ownerLabel ? 'Owner ' + card.ownerLabel : 'Owner unassigned';
+      const item = card.itemLabel || 'Item details pending';
+      return `<div class="d3-card">
+        <div class="d3-card-top"><strong>${escapeHtml(card.caseId)}</strong>${card.exceptionCount ? `<span class="d3-ex-count">${card.exceptionCount}</span>` : ''}</div>
+        <div class="d3-card-item">${escapeHtml(item)}</div>
+        <div class="d3-card-meta">${escapeHtml(due)} · ${escapeHtml(owner)}</div>
+        <div class="d3-card-safe" title="${escapeHtml(card.safeStatusText)}">${escapeHtml(card.safeStatusLabel)}</div>
+        <div class="d3-card-actions">
+          <button data-action="workboard-open-case" type="button" onclick="svcD3OpenCase(${index})">Open</button>
+          <button data-action="workboard-copy-status" type="button" onclick="svcD3CopyStatus(${index})">Copy status</button>
+          ${card.stage === 'ready' ? `<button data-action="workboard-open-readiness" type="button" onclick="svcD3OpenTransition(${index},'ready')">Readiness</button>` : ''}
+        </div>
+        <select data-action="workboard-transition" class="d3-stage-select" aria-label="Change service stage" onchange="svcD3BoardTransition(${index},this.value);this.value=''">${svcD3TransitionOptions()}</select>
+      </div>`;
+    }).join('');
+    return `<section class="d3-lane d3-lane-${lane}">
+      <div class="d3-lane-head"><span>${escapeHtml(labels[lane] || lane)}</span><b>${cards.length}</b></div>
+      <div class="d3-lane-body">${cardHtml || '<div class="d3-empty">No cases</div>'}${cards.length > visible.length ? `<div class="d3-more">+${cards.length - visible.length} more — use the filters below</div>` : ''}</div>
+    </section>`;
+  }).join('');
+  const exceptionHtml = board.exceptions.slice(0, 16).map(item => {
+    const index = indexFor(item.caseId);
+    const due = item.dueDate ? ' · due ' + item.dueDate : '';
+    const owner = item.ownerLabel ? ' · ' + item.ownerLabel : ' · unassigned';
+    return `<button data-action="exception-open-case" class="d3-exception d3-exception-${escapeHtml(item.severity)}" type="button" onclick="svcD3OpenCase(${index})">
+      <span><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.caseId + due + owner)}</small></span>
+      <span class="d3-ex-code">${escapeHtml(item.code)}</span>
+    </button>`;
+  }).join('');
+  window.__svcD3BoardCaseIds = ids;
+  host.innerHTML = `<div class="d3-head">
+      <div><div class="d3-title">Service Workboard</div><div class="d3-sub">Controlled stages, readiness and exceptions · ${escapeHtml(board.asOf || todayStr())}</div></div>
+      <span class="d3-context">Combined / untagged Service data</span>
+    </div>
+    <div class="d3-board">${laneHtml}</div>
+    <div class="d3-ex-wrap"><div class="d3-ex-head"><strong>Exceptions requiring review</strong><span>${board.exceptions.length}</span></div>
+      <div class="d3-ex-list">${exceptionHtml || '<div class="d3-empty">No current exceptions</div>'}${board.exceptions.length > 16 ? `<div class="d3-more">+${board.exceptions.length - 16} more</div>` : ''}</div>
+    </div>`;
+}
+function svcD3BoardTransition(index, targetStage) {
+  const id = svcD3BoardCaseId(index);
+  if (!id || !targetStage) return;
+  svcD3OpenTransitionById(id, targetStage);
+}
+function svcD3OpenTransition(index, targetStage) {
+  const id = svcD3BoardCaseId(index);
+  if (!id) return;
+  svcD3OpenTransitionById(id, targetStage);
+}
+function svcD3OpenTransitionById(id, targetStage) {
+  if (readOnlyGuard()) return;
+  const policy = svcD3PolicyApi();
+  const c = byId(id);
+  if (!policy || !c) {
+    toast('⚠ Service transition control unavailable');
+    renderDash();
+    return;
+  }
+  const requirement = policy.transitionRequirement(c, targetStage);
+  if (!requirement.ok) {
+    if (requirement.code !== 'NO_CHANGE') toast('⚠ This stage change is not available');
+    renderDash();
+    return;
+  }
+  window.__svcD3TransitionContext = { caseId: id, targetStage: requirement.to };
+  const modal = document.getElementById('svc-d3-transition-modal');
+  const readiness = c.d3Readiness || {};
+  document.getElementById('svc-d3-transition-title').textContent =
+    requirement.code === 'READINESS_REFRESH' ? 'Refresh pickup readiness' : 'Change Service stage';
+  document.getElementById('svc-d3-transition-path').textContent =
+    policy.stageLabel(requirement.from) + ' → ' + policy.stageLabel(requirement.to);
+  document.getElementById('svc-d3-actor').value =
+    String(c.advisor || c.techName || readiness.checkedBy || '').slice(0, 80);
+  document.getElementById('svc-d3-reason').value = '';
+  document.getElementById('svc-d3-reason-wrap').style.display =
+    requirement.overrideRequired || requirement.to === 'on_hold' ? '' : 'none';
+  document.getElementById('svc-d3-override-note').style.display =
+    requirement.overrideRequired ? '' : 'none';
+  document.getElementById('svc-d3-readiness').style.display =
+    requirement.readinessRequired ? '' : 'none';
+  document.getElementById('svc-d3-condition').checked =
+    readiness.conditionConfirmed === true;
+  document.getElementById('svc-d3-payment').value = readiness.paymentStatus ||
+    (c.estimateApproval && c.estimateApproval.at ? 'estimate_approved' :
+      (parseRupee(c.advancePaid) > 0 ? 'advance_recorded' : 'pay_at_pickup'));
+  document.getElementById('svc-d3-promised').value =
+    readiness.promisedDate || c.expDel || '';
+  document.getElementById('svc-d3-notification').value =
+    readiness.notificationStatus || 'pending';
+  modal.classList.add('show');
+  modal.setAttribute('aria-hidden', 'false');
+}
+function svcD3CloseTransition() {
+  window.__svcD3TransitionContext = null;
+  const modal = document.getElementById('svc-d3-transition-modal');
+  if (modal) {
+    modal.classList.remove('show');
+    modal.setAttribute('aria-hidden', 'true');
+  }
+  renderDash();
+}
+async function svcD3ConfirmTransition() {
+  if (readOnlyGuard()) return;
+  const context = window.__svcD3TransitionContext;
+  const policy = svcD3PolicyApi();
+  const c = context && byId(context.caseId);
+  if (!context || !policy || !c) {
+    toast('⚠ Service transition context expired');
+    svcD3CloseTransition();
+    return;
+  }
+  const requirement = policy.transitionRequirement(c, context.targetStage);
+  if (!requirement.ok) {
+    toast('⚠ This Service stage changed elsewhere. Review the workboard again.');
+    svcD3CloseTransition();
+    return;
+  }
+  const actor = document.getElementById('svc-d3-actor').value.trim();
+  const reason = document.getElementById('svc-d3-reason').value.trim();
+  if (!actor) {
+    toast('⚠ Record the staff member making this change');
+    return;
+  }
+  if ((requirement.overrideRequired || requirement.to === 'on_hold') && !reason) {
+    toast('⚠ Record why this stage change is necessary');
+    return;
+  }
+  let overrideApproved = false;
+  if (requirement.overrideRequired) {
+    overrideApproved = await svcD3Reauth(
+      'Override Service stage for ' + String(c.id || '') + ': ' +
+      policy.stageLabel(requirement.from) + ' to ' + policy.stageLabel(requirement.to)
+    );
+    if (!overrideApproved) {
+      toast('Owner approval denied. No Service stage was changed.');
+      return;
+    }
+  }
+  const at = new Date().toISOString();
+  const plan = policy.planTransition(c, requirement.to, {
+    actor,
+    reason,
+    at,
+    overrideApproved,
+    readiness: {
+      conditionConfirmed: document.getElementById('svc-d3-condition').checked,
+      paymentStatus: document.getElementById('svc-d3-payment').value,
+      promisedDate: document.getElementById('svc-d3-promised').value,
+      notificationStatus: document.getElementById('svc-d3-notification').value
+    }
+  });
+  if (!plan.ok) {
+    toast('⚠ ' + (plan.message || 'Complete the Service transition details.'));
+    return;
+  }
+  let nextDb;
+  try { nextDb = JSON.parse(JSON.stringify(DB)); }
+  catch (error) {
+    toast('⚠ Service cases could not be prepared for saving');
+    return;
+  }
+  const index = nextDb.findIndex(item => item && item.id === context.caseId);
+  if (index < 0) {
+    toast('⚠ Service case no longer exists');
+    svcD3CloseTransition();
+    return;
+  }
+  const nextCase = nextDb[index];
+  nextCase.stage = plan.to;
+  if (plan.readiness) {
+    nextCase.d3Readiness = plan.readiness;
+    nextCase.expDel = plan.readiness.promisedDate;
+  } else if (plan.from === 'ready' && plan.to !== 'ready') {
+    nextCase.d3ReadinessSupersededAt = at;
+  }
+  if (!Array.isArray(nextCase.d3Transitions)) nextCase.d3Transitions = [];
+  nextCase.d3Transitions.push(Object.assign({
+    operationId: 'svc-stage:' + String(nextCase.id || '') + ':' + at
+  }, plan.audit));
+  nextCase.d3Transitions = nextCase.d3Transitions.slice(-200);
+  if (!Array.isArray(nextCase.stageLog)) nextCase.stageLog = [];
+  const lastStage = nextCase.stageLog.length ?
+    nextCase.stageLog[nextCase.stageLog.length - 1] : null;
+  if (!lastStage || lastStage.stage !== plan.to) {
+    nextCase.stageLog.push({ stage: plan.to, at, by: actor });
+  }
+  if (!svcD3CommitCases(nextDb)) return;
+  const notificationPending = plan.readiness &&
+    plan.readiness.notificationStatus === 'pending';
+  const caseId = context.caseId;
+  window.__svcD3TransitionContext = null;
+  const modal = document.getElementById('svc-d3-transition-modal');
+  modal.classList.remove('show');
+  modal.setAttribute('aria-hidden', 'true');
+  renderDash();
+  toast('Stage → ' + policy.stageLabel(plan.to));
+  if (plan.to === 'ready' && notificationPending) offerReadyNotify(caseId);
+}
+function saveDB() { localStorage.setItem(STORE_KEY, JSON.stringify(DB)); }
+function byId(id) { return DB.find(c => c.id === id); }
+function genId() {
+  const y = new Date().getFullYear();
+  // Collision-safe: derive the next sequence from the MAX existing numeric
+  // suffix + 1 (not DB.length+1, which re-collides after a non-last delete).
+  let maxSeq = 0;
+  for (const c of DB) {
+    const m = /(\d+)\s*$/.exec(c && c.id != null ? String(c.id) : '');
+    if (m) { const seq = parseInt(m[1], 10); if (seq > maxSeq) maxSeq = seq; }
+  }
+  const n = String(maxSeq + 1).padStart(3, '0');
+  return 'WS-' + y + '-' + n;
+}
+
+// ─── TOAST ─────────────────────────────────────────────────────
+let _tt;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(_tt);
+  _tt = setTimeout(() => el.classList.remove('show'), 2800);
+}
+
+// ─── VIEWS ─────────────────────────────────────────────────────
+function showView(id) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-' + id).classList.add('active');
+  document.getElementById('btn-back-dash').style.display = (id === 'form') ? '' : 'none';
+  if (id === 'dash') renderDash();
+  // MOBILE WIZARD: entering the form must never show a blank screen — make sure
+  // exactly one step is active. Safety: if none is active, start at step 0.
+  if (id === 'form' && isMobileWiz() &&
+      !document.querySelector('.form-content > .form-section.step-active')) {
+    showFormStep(0);
+  }
+  window.scrollTo(0, 0);
+}
+
+// ─── SIDEBAR NAV ───────────────────────────────────────────────
+// MOBILE STEP-WIZARD: one section at a time (gated on html.bcc-mobile).
+// Desktop never calls showFormStep for navigation — scrollToSec keeps scrolling.
+const FORM_STEPS = ['sec-0','sec-1','sec-2','sec-3','sec-4','sec-5','sec-6','sec-7','sec-8','sec-9','sec-10','sec-11'];
+let curStep = 0;
+
+function isMobileWiz() {
+  return document.documentElement.classList.contains('bcc-mobile');
+}
+
+function navTextOf(idx) {
+  const nav = document.getElementById('nav-' + idx);
+  const t = nav && nav.querySelector('.nav-text');
+  return t ? t.textContent.trim() : '';
+}
+
+// Re-assert the active chip highlight (cp() strips .active off chips on every run).
+function syncWizActiveChip() {
+  document.querySelectorAll('.sidebar-nav .nav-item').forEach(n => n.classList.remove('active'));
+  const chip = document.getElementById('nav-' + curStep);
+  if (chip) chip.classList.add('active');
+}
+
+function showFormStep(idx) {
+  idx = Math.max(0, Math.min(11, idx | 0));
+  curStep = idx;
+
+  // Toggle visible section (direct .form-content > .form-section children only).
+  document.querySelectorAll('.form-content > .form-section').forEach(s => s.classList.remove('step-active'));
+  const active = document.getElementById(FORM_STEPS[idx]);
+  if (active) active.classList.add('step-active');
+
+  // Active step-chip
+  syncWizActiveChip();
+  document.getElementById('nav-' + idx)?.scrollIntoView({ inline: 'center', block: 'nearest' });
+
+  // Bottom wizard bar state
+  const back = document.getElementById('wiz-back');
+  const next = document.getElementById('wiz-next');
+  if (back) back.disabled = (idx === 0);
+  if (next) next.disabled = (idx === 11);
+  const lbl = document.getElementById('wiz-step-label');
+  if (lbl) {
+    const nav2 = document.getElementById('nav-' + idx);
+    const numEl = nav2 && nav2.querySelector('.nav-num');
+    const txtEl = nav2 && nav2.querySelector('.nav-text');
+    const numS = numEl ? numEl.textContent.trim() : '';
+    const txtS = txtEl ? txtEl.textContent.trim() : '';
+    // Match the chip's OWN numbering (↑ / 1..11) so the bar never disagrees with the rail.
+    lbl.textContent = (numS && numS !== '↑' ? numS + ' · ' : '') + txtS;
+  }
+
+  window.scrollTo(0, 0);
+}
+
+function scrollToSec(id) {
+  // Mobile: chip taps switch wizard steps instead of scrolling.
+  if (isMobileWiz() && FORM_STEPS.indexOf(id) >= 0) {
+    showFormStep(FORM_STEPS.indexOf(id));
+    return;
+  }
+  // Desktop (unchanged): smooth-scroll to the section.
+  const el = document.getElementById(id);
+  if (el) {
+    const top = el.getBoundingClientRect().top + window.scrollY - 80;
+    window.scrollTo({ top, behavior: 'smooth' });
+  }
+}
+
+// ─── DASHBOARD ─────────────────────────────────────────────────
+// A stat tile was tapped → switch the focused list (All / Open / Closed) and
+// reset to page 1. The search bar above the list keeps its functionality.
+function setDashFilter(f) {
+  dashFilter = (f === 'open' || f === 'closed') ? f : 'all';
+  if (dashFilter === 'closed') stageFilter = '';   // stages/overdue apply to open cases only
+  pageState.main = 1;
+  renderDash();
+}
+function setStageFilter(s) {
+  stageFilter = (STAGES[s] || s === 'overdue' || s === 'followup_due') ? s : '';
+  pageState.main = 1;
+  renderDash();
+}
+// Inline stage change from a case card (no need to open the form).
+function quickStage(id, stage) {
+  svcD3OpenTransitionById(id, stage);
+}
+function offerReadyNotify(id) {
+  const c = byId(id);
+  if (!c || c.status === 'closed') return;                 // only open cases have a "Ready" moment
+  const who = (c.custName || 'the customer').trim() || 'the customer';
+  if (!confirm('Notify ' + who + ' on WhatsApp — "Ready for pickup"?')) return;
+  try {
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: 'ST_WA', module: 'service', recordId: id, templateId: 'ready' },SaagarModuleRuntime.targetOrigin);
+      return;
+    }
+  } catch (e) {}
+  toast('WhatsApp share opens from the app shell.');
+}
+// Record estimate approval on the case — additive c.estimateApproval={at,via,by,amount}.
+// Single entry point (a future "Mark approved from Ready/WhatsApp tap" can call this too).
+function markEstimateApproved(id) {
+  if (readOnlyGuard()) return;                 // past-view = read-only, consistent w/ quickStage/addFollowUp
+  const c = byId(id); if (!c) return;
+  if (c.estimateApproval && c.estimateApproval.at) {                  // idempotent — already approved
+    if (!confirm('Estimate already marked approved on ' + (c.estimateApproval.at || '').slice(0, 10) + '. Re-record?')) return;
+  }
+  // channel via a minimal offline prompt (no new libs); default other
+  let via = (prompt('Approved via? (whatsapp / call / in_person / other)', 'whatsapp') || '').trim().toLowerCase();
+  if (['whatsapp', 'call', 'in_person', 'other'].indexOf(via) < 0) via = 'other';
+  const by = (g('f-adv') || (byId(id) && byId(id).advisor) || prompt('Approved by (staff name)?', '') || '').trim();
+  c.estimateApproval = { at: new Date().toISOString(), via, by, amount: parseRupee(c.estTotal) };  // amount as Number, string estTotal untouched
+  // additive audit crumb in the existing follow-up log (old-case-safe init pattern, mirrors logWhatsAppFollowUp)
+  if (!Array.isArray(c.followUps)) c.followUps = [];
+  c.followUps.push({ type: 'Approval', datetime: nowLocalDT(), remarks: 'Estimate approved (₹' + (c.estimateApproval.amount || 0).toLocaleString('en-IN') + ') via ' + via, outcome: 'Estimate approved', dueDate: '', by, createdAt: new Date().toISOString() });
+  saveDB();                                    // existing persist — same key/shape
+  renderDash();
+  toast('✅ Estimate marked approved — ' + id);
+}
+// Stage + overdue quick-filter chips (open cases only). Counts reflect ALL open
+// cases (not the search-filtered list) so the chips are a stable pipeline view.
+function renderStageChips(openCases) {
+  const host = document.getElementById('stage-chips');
+  if (!host) return;
+  if (dashFilter === 'closed') { host.innerHTML = ''; host.style.display = 'none'; return; }
+  host.style.display = 'flex';
+  const chip = (key, label, n, extra) =>
+    `<button data-action="filter-stage" class="stage-chip ${stageFilter === key ? 'on' : ''} ${extra || ''}" type="button" onclick="setStageFilter('${key}')">${label}<span class="chip-n">${n}</span></button>`;
+  let html = chip('', 'All stages', openCases.length, '');
+  STAGE_KEYS.forEach(k => { html += chip(k, stageLabel(k), openCases.filter(c => stageOf(c) === k).length, ''); });
+  html += chip('overdue', '⚠ Overdue', openCases.filter(isOverdue).length, 'over');
+  html += chip('followup_due', '📞 Follow-up due', openCases.filter(followUpDue).length, '');
+  host.innerHTML = html;
+}
+
+function renderDash() {
+  document.getElementById('dash-date').textContent =
+    new Date().toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  const open = DB.filter(c => c.status === 'open');
+  const closed = DB.filter(c => c.status === 'closed');
+  const rev = DB.reduce((s, c) => s + parseFloat(c.estTotal || 0), 0);
+
+  // Stat cards always reflect FULL counts (search/paging do not touch these)
+  document.getElementById('st-tot').textContent = DB.length;
+  document.getElementById('st-op').textContent = open.length;
+  document.getElementById('st-cl').textContent = closed.length;
+  document.getElementById('st-rv').textContent = '₹' + rev.toLocaleString('en-IN', { maximumFractionDigits: 0 });
+
+  // P1-9: money actually COLLECTED this calendar month = sum of delivery.finalAmt on CLOSED
+  // cases whose close/collect month is the current YYYY-MM. Bucket by the YYYY-MM prefix of
+  // closedAt (present on every case closed by closeCase), falling back to delivery.collectDate.
+  // Slicing the raw date string (not new Date()) avoids any timezone month drift.
+  const nowYM = (function () { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); })();
+  const collectedMonth = closed.reduce((s, c) => {
+    const d = c.delivery || {};
+    const bucket = (c.closedAt || d.collectDate || '');   // 'YYYY-MM-DD...' either way
+    // verify-fix: closedAt is a UTC ISO timestamp — bucket by the LOCAL month (a 00:30 IST close on the 1st
+    // is still the previous month in UTC). Date-only strings (collectDate) keep the plain slice.
+    let ym = String(bucket).slice(0, 7);
+    if (/T/.test(String(bucket))) { const dt = new Date(bucket); if (!isNaN(dt)) ym = dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0'); }
+    if (ym !== nowYM) return s;
+    return s + parseRupee(d.finalAmt);                     // parseRupee handles blank/comma/'0.00' -> 0
+  }, 0);
+  const cmEl = document.getElementById('st-cm');
+  if (cmEl) cmEl.textContent = '₹' + collectedMonth.toLocaleString('en-IN', { maximumFractionDigits: 0 });
+
+  // P1-10: average turnaround time (received -> delivered) over closed cases that carry a
+  // usable pair of timestamps. Prefer the additive stageLog[] (received/ready/delivered
+  // transitions) when present; fall back to createdAt -> closedAt for legacy closed cases.
+  // Read-only aggregation; old cases with no usable dates are simply skipped.
+  const tatEl = document.getElementById('st-tat');
+  if (tatEl) tatEl.textContent = fmtTat(avgDeliveredTatDays());
+
+  // The old Super-Admin "Export CSV (all)" button stays admin-gated if present.
+  const csvBtn = document.getElementById('btn-export-csv');
+  if (csvBtn) csvBtn.style.display = isSuperAdmin() ? '' : 'none';
+
+  // "Watch photo required" policy toggle — admin-gated; reflects the saved setting.
+  const wpT = document.getElementById('wp-mand-toggle');
+  if (wpT) { wpT.style.display = isSuperAdmin() ? '' : 'none'; const cb = document.getElementById('wp-mand-cb'); if (cb) cb.checked = !!SVC_SETTINGS.watchPhotoMandatory; }
+
+  // Highlight the active tile.
+  [['tile-all','all'],['tile-open','open'],['tile-closed','closed']].forEach(([elId, f]) => {
+    const el = document.getElementById(elId);
+    if (el) el.classList.toggle('tile-on', dashFilter === f);
+  });
+
+  // Stage / overdue quick-filter chips (open-case pipeline).
+  renderStageChips(open);
+  svcD3RenderWorkboard();
+
+  // Focused list per the active tile; cases are ordered newest-first in renderList.
+  const base = dashFilter === 'open' ? open : dashFilter === 'closed' ? closed : DB.slice();
+  const q = searchQuery;
+  let list = q ? base.filter(c => matchesQuery(c, q)) : base.slice();
+  // Secondary stage/overdue filter (open cases only; closed cases drop out).
+  if (dashFilter !== 'closed' && stageFilter) {
+    list = (stageFilter === 'overdue') ? list.filter(isOverdue)
+         : (stageFilter === 'followup_due') ? list.filter(followUpDue)
+         : list.filter(c => c.status === 'open' && stageOf(c) === stageFilter);
+  }
+
+  const stageTitle = stageFilter === 'overdue' ? ' · Overdue'
+                   : stageFilter === 'followup_due' ? ' · Follow-up due'
+                   : stageFilter ? ' · ' + stageLabel(stageFilter) : '';
+  document.getElementById('list-title').textContent =
+    (dashFilter === 'open' ? 'Open Cases' : dashFilter === 'closed' ? 'Closed Cases' : 'All Cases') + stageTitle;
+  document.getElementById('cnt-list').textContent = list.length;
+
+  // Export buttons: Open-export shows in All & Open views, Closed-export in All & Closed.
+  // Export buttons are available to everyone: Open-export shows in All & Open
+  // views, Closed-export in All & Closed.
+  const expOpen = document.getElementById('btn-exp-open');
+  const expClosed = document.getElementById('btn-exp-closed');
+  if (expOpen) expOpen.style.display = (dashFilter === 'all' || dashFilter === 'open') ? '' : 'none';
+  if (expClosed) expClosed.style.display = (dashFilter === 'all' || dashFilter === 'closed') ? '' : 'none';
+
+  renderList('list-main', list, 'main');
+
+  // Freshly-rendered case cards contain Delete buttons; re-apply the
+  // read-only state so a past view keeps them disabled.
+  applyReadOnlyUI();
+}
+
+// Clamp the stored page for `type` to the valid range for `total` items, return it.
+function clampPage(type, total) {
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  if (pageState[type] > pages) pageState[type] = pages;
+  if (pageState[type] < 1) pageState[type] = 1;
+  return pageState[type];
+}
+
+// Jump to a page for a list, re-render. type = 'open' | 'closed'.
+function gotoPage(type, n) {
+  pageState[type] = n;
+  renderDash();
+}
+
+// Build the pager control for `elId` pager container.
+function renderPager(elId, type, total) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const pages = Math.ceil(total / PAGE_SIZE);
+  if (pages <= 1) { el.innerHTML = ''; return; }          // single page → no pager
+  const cur = clampPage(type, total);
+
+  // Windowed page numbers: always 1 and last; neighbours of current; ellipses between.
+  const nums = [];
+  for (let p = 1; p <= pages; p++) {
+    if (p === 1 || p === pages || (p >= cur - 1 && p <= cur + 1)) nums.push(p);
+    else if (nums[nums.length - 1] !== '…') nums.push('…');
+  }
+
+  let html = `<button data-action="page-previous" class="pg-btn" type="button" ${cur <= 1 ? 'disabled' : ''} onclick="gotoPage('${type}',${cur - 1})">‹ Prev</button>`;
+  html += nums.map(p => p === '…'
+    ? `<span class="pg-ellipsis">…</span>`
+    : `<button data-action="page-select" class="pg-btn ${p === cur ? 'active' : ''}" type="button" onclick="gotoPage('${type}',${p})">${p}</button>`
+  ).join('');
+  html += `<button data-action="page-next" class="pg-btn" type="button" ${cur >= pages ? 'disabled' : ''} onclick="gotoPage('${type}',${cur + 1})">Next ›</button>`;
+  el.innerHTML = html;
+}
+
+// Renders the paginated focused list (newest-first, then the current page slice).
+// `type` is the pager key ('main'); each card's open/closed comes from c.status.
+function renderList(elId, list, type) {
+  const el = document.getElementById(elId);
+  const pagerId = 'pager-main';
+  if (!list.length) {
+    el.innerHTML = `<div class="empty-state">
+      <div class="empty-icon">${dashFilter === 'closed' ? '✅' : '🕐'}</div>
+      ${searchQuery ? 'No matching cases'
+        : (dashFilter === 'open' ? 'No open cases' : dashFilter === 'closed' ? 'No closed cases yet' : 'No cases yet')}
+    </div>`;
+    const pgr = document.getElementById(pagerId);
+    if (pgr) pgr.innerHTML = '';
+    return;
+  }
+  // Newest-first, then take just the current page's slice.
+  const ordered = list.slice().reverse();
+  const page = clampPage(type, ordered.length);
+  const start = (page - 1) * PAGE_SIZE;
+  const pageItems = ordered.slice(start, start + PAGE_SIZE);
+  window.__svcD3ListCaseIds = pageItems.map(item => String(item && item.id || ''));
+
+  el.innerHTML = pageItems.map((c, cardIndex) => {
+    // H4: every user-supplied field below is escaped before going into innerHTML.
+    const ini = escapeHtml((c.custName || '?').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2));
+    const isOpen = c.status !== 'closed';   // per-card (the list can mix open + closed in the All view)
+    const over = isOpen && isOverdue(c);
+    const stg = stageOf(c);
+    // Inline stage dropdown lets staff update "where is the watch" straight from the list.
+    const stageSel = `<select data-action="list-transition" class="stage-sel" style="border-color:${stageColor(stg)};color:${stageColor(stg)}" onchange="svcD3ListTransition(${cardIndex},this.value)" onclick="event.stopPropagation()">`
+      + STAGE_KEYS.map(k => `<option value="${k}"${stg === k ? ' selected' : ''}>${stageLabel(k)}</option>`).join('') + `</select>`;
+    return `<div class="case-card">
+      <div class="case-stripe" style="background:${over ? 'var(--red)' : isOpen ? stageColor(stg) : 'var(--green)'}"></div>
+      <div class="case-body">
+        <div class="case-avatar">${ini}</div>
+        <div class="case-info">
+          <div class="case-id">${escapeHtml(c.id)}${over ? ' <span class="case-over-badge">⚠ Overdue</span>' : ''}</div>
+          <div class="case-name">${escapeHtml(c.custName || 'Unknown')}</div>
+          <div class="case-meta">
+            <span>${escapeHtml(c.brand || '—')} ${escapeHtml(c.model || '')}</span>
+            <div class="dot-sep"></div>
+            <span>${escapeHtml(c.dateRec || '—')}</span>
+            ${c.custMobile ? `<div class="dot-sep"></div><span>${escapeHtml(c.custMobile)}</span>` : ''}
+            ${c.estTotal ? `<div class="dot-sep"></div><span style="color:var(--navy);font-weight:600">₹${parseFloat(c.estTotal).toLocaleString('en-IN')}</span>` : ''}
+            ${c.estimateApproval && c.estimateApproval.at ? `<div class="dot-sep"></div><span style="color:var(--green);font-weight:600">✔ Est. approved</span>` : ''}
+          </div>
+        </div>
+        <div class="case-right">
+          ${isOpen ? stageSel : `<span class="status-pill status-closed">Delivered</span>`}
+          <button data-action="edit-case" class="btn btn-ghost btn-sm" onclick="openEdit('${c.id}')">Edit</button>
+          <button data-action="open-follow-ups" class="btn btn-ghost btn-sm" onclick="openFollowUps('${c.id}')">Follow-up${(c.followUps || []).length ? ' (' + (c.followUps || []).length + ')' : ''}</button>
+          ${isOpen ? `<button data-action="approve-estimate" class="btn btn-ghost btn-sm" onclick="event.stopPropagation();markEstimateApproved('${c.id}')" style="color:var(--green);border-color:var(--green)">${c.estimateApproval && c.estimateApproval.at ? '✔ Approved' : 'Mark approved'}</button>` : ''}
+          <button data-action="print-case" class="btn btn-ghost btn-sm" onclick="printById('${c.id}')">Print</button>
+          ${!isOpen ? `<button data-action="print-proforma" class="btn btn-ghost btn-sm" onclick="printProformaById('${c.id}')">🧾 Proforma Invoice</button>` : ''}
+          <button data-action="delete-case" class="btn btn-danger btn-sm" onclick="delCase('${c.id}')">Delete</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  renderPager(pagerId, type, ordered.length);
+}
+
+// ─── SEARCH HANDLERS ───────────────────────────────────────────
+// The query filters the focused list. Any search resets it to page 1.
+function onSearch(val) {
+  searchQuery = (val || '').trim().toLowerCase();
+  pageState.main = 1;
+  const clr = document.getElementById('svc-search-clear');
+  if (clr) clr.style.display = searchQuery ? '' : 'none';
+  renderDash();
+}
+function clearSearch() {
+  const inp = document.getElementById('svc-search');
+  if (inp) inp.value = '';
+  onSearch('');
+}
+
+// ─── EMPLOYEE / BRAND MASTERS (shell-owned, read-only) ─────────
+// Shell stores the employee master at 'saagar_employee_master_v1' (array of
+// { employeeId, name, active, role, ... }). Read it the same plain way the
+// admin-mode flag is read (localStorage.getItem in try/catch; the iframe shim
+// delegates to the parent store). Returns [] on any failure.
+function getEmployees() {
+  try {
+    const raw = JSON.parse(localStorage.getItem('saagar_employee_master_v1') || '[]');
+    return Array.isArray(raw) ? raw : [];
+  } catch (e) { return []; }
+}
+// Point-remarks company/brand list — sourced from the shared central Brand
+// Master 'saagar_master_brands' ([{name,store}], same key Stock unions in). Flat
+// de-duped name list; falls back to a small default when the key is empty/absent.
+let __prBrandFallback = false;
+function getPointRemarkBrands() {
+  let names = [];
+  try {
+    const mb = JSON.parse(localStorage.getItem('saagar_master_brands') || '[]');
+    if (Array.isArray(mb)) {
+      const seen = {};
+      mb.forEach(b => {
+        const n = b && b.name ? String(b.name).trim() : '';
+        if (n && !seen[n.toLowerCase()]) { seen[n.toLowerCase()] = 1; names.push(n); }
+      });
+    }
+  } catch (e) {}
+  if (!names.length) {
+    __prBrandFallback = true;
+    names = ['Titan','Helios','Seiko','Citizen','Fossil','Casio','Other'];
+  }
+  return names;
+}
+// Initials from a full name, e.g. "Ravi Kumar" -> "R.K."
+function nameInitials(name) {
+  return String(name || '').trim().split(/\s+/).filter(Boolean)
+    .map(w => w[0].toUpperCase()).join('.') + (name ? '.' : '');
+}
+// (Re)build the employee-backed selects. Called from resetForm() so options exist
+// before populateForm() runs. Each select keeps a "-----------" placeholder first.
+function fillEmployeeSelects() {
+  const emps = getEmployees().filter(e => e && e.active !== false);
+  const opt = (v, t) => { const o = document.createElement('option'); o.value = v; o.textContent = t; return o; };
+  const build = (sel, list) => {
+    if (!sel) return;
+    sel.innerHTML = '';
+    sel.appendChild(opt('', '-----------'));
+    list.forEach(e => sel.appendChild(opt(e.name, e.name)));
+  };
+  // #10 Received By — all active employees
+  build(document.getElementById('f-rb'), emps);
+  // #7 Service Advisor — Store Manager OR Technician / Assistant Technician
+  build(document.getElementById('f-adv'),
+    emps.filter(e => /manager/i.test(e.role || '') || /technician/i.test(e.role || '')));
+  // #8 Technician Name — any technician role
+  build(document.getElementById('f-tn'),
+    emps.filter(e => /technician/i.test(e.role || '')));
+  // Point-remarks company/brand
+  const pb = document.getElementById('f-pr-brand');
+  if (pb) {
+    pb.innerHTML = '';
+    pb.appendChild(opt('', '-----------'));
+    getPointRemarkBrands().forEach(n => pb.appendChild(opt(n, n)));
+  }
+}
+// Backward-compat: if a saved free-text value is not already an <option>, add it
+// as an extra selected option so old data still displays and round-trips.
+function ensureOption(id, val) {
+  const sel = document.getElementById(id);
+  if (!sel || !val) return;
+  const has = [...sel.options].some(o => o.value === val);
+  if (!has) {
+    const o = document.createElement('option');
+    o.value = val; o.textContent = val; o.selected = true;
+    sel.appendChild(o);
+  }
+}
+// #8 On technician select — auto-fill Tech ID/Initials (#f-ti) from the chosen
+// employee's employeeId, else from initials derived from the name.
+function onTechSelect() {
+  const sel = document.getElementById('f-tn');
+  const ti = document.getElementById('f-ti');
+  if (sel && ti && sel.value) {
+    const emp = getEmployees().find(e => e && e.name === sel.value);
+    ti.value = (emp && emp.employeeId) ? emp.employeeId : nameInitials(sel.value);
+  }
+  cpDebounced();
+}
+// Point-remarks brand pick mirrors into the free-text box (still editable).
+function onPointRemarkBrand() {
+  const pb = document.getElementById('f-pr-brand');
+  const tx = document.getElementById('f-pr-txt');
+  if (pb && tx && pb.value) tx.value = pb.value;
+  cpDebounced();
+}
+
+// ─── PROGRESS ──────────────────────────────────────────────────
+function g(id) { const el = document.getElementById(id); return el ? el.value.trim() : ''; }
+function chks(cls) { return [...document.querySelectorAll('.' + cls + ':checked')].map(e => e.value); }
+/* Audit fix svc-money-comma-finalamt / svc-manual-subtotal-comma: parse a
+   user-entered rupee amount by stripping thousands separators (commas), spaces
+   and any currency symbols before parseFloat, so '1,200' -> 1200 (not 1). Keeps
+   the leading minus and decimal point. Empty/invalid -> 0. Additive helper. */
+function parseRupee(v) { const n = parseFloat(String(v == null ? '' : v).replace(/[^0-9.\-]/g, '')); return isNaN(n) ? 0 : n; }
+
+// PERF: keystroke handlers fire on every character; cp() re-walks the form AND
+// the estimate table (calcTotal) each time, which lags typing once the estimate
+// has rows. Debounce the recompute OFF the keystroke path (~280ms) so the field
+// itself updates instantly while progress/totals recompute after typing settles.
+// The synchronous cp()/calcTotal() are UNCHANGED and still used by all
+// programmatic callers (resetForm/openEdit/doSave — doSave needs cp()'s return
+// value), so saved/loaded/printed totals stay byte-for-byte identical.
+let _cpT = null, _calcT = null;
+function cpDebounced() {
+  clearTimeout(_cpT);
+  // cp() runs calcTotal() internally; sharing one timer avoids a double recompute.
+  clearTimeout(_calcT); _calcT = null;
+  _cpT = setTimeout(() => { _cpT = null; cp(); }, 280);
+}
+function calcTotalDebounced() {
+  if (_cpT) return;            // a pending cp() will already recompute totals
+  clearTimeout(_calcT);
+  _calcT = setTimeout(() => { _calcT = null; calcTotal(); }, 280);
+}
+// Cancel any pending debounced recompute and run it NOW. Called before reading
+// the form (readForm) so f-st/f-tot are guaranteed current even if the user
+// saves within the debounce window — keeps saved totals identical to the old
+// synchronous behaviour.
+function flushCalc() {
+  clearTimeout(_cpT); _cpT = null;
+  clearTimeout(_calcT); _calcT = null;
+  calcTotal();
+}
+
+function cp() {
+  // One entry per form section 1..10 (index i ⇒ section i+1 ⇒ nav-(i+1)).
+  // H5: index 7 = section 8 "Terms & Conditions" is a static, read-only <ol>
+  // with no inputs to fill — verified it is NOT a user-gateable step (terms
+  // acceptance is actually captured by the §9 checkbox `a1`). It was hardcoded
+  // `true`, so a blank form already showed progress and the bar over-counted.
+  // Mark it `null` (non-gateable) so it is excluded from BOTH the percentage
+  // denominator and the nav done-state.
+  const checks = [
+    !!(g('f-cn') && g('f-cm')),
+    !!(g('f-wb') && g('f-wm')),
+    !!document.querySelector('input[name="grd"]:checked'),
+    chks('aa').length > 0,
+    chks('im').length + chks('ic').length + chks('ib').length + chks('io').length > 0,
+    !!g('f-diag'),
+    !!g('f-st'),
+    null,
+    !!(g('f-an') && document.getElementById('a1').checked),
+    !!(g('f-rb') && document.getElementById('f-oc').checked)
+  ];
+  // Percentage is over genuinely-gateable steps only (null excluded).
+  const gateable = checks.filter(v => v !== null);
+  const doneCount = gateable.reduce((s, v) => s + (v ? 1 : 0), 0);
+  const pct = Math.round(doneCount / gateable.length * 100);
+
+  document.getElementById('sb-fill').style.width = pct + '%';
+  document.getElementById('sb-pct').textContent = pct + '%';
+
+  const navItems = [null,'nav-1','nav-2','nav-3','nav-4','nav-5','nav-6','nav-7','nav-8','nav-9','nav-10'];
+  checks.forEach((d, i) => {
+    if (!navItems[i + 1]) return;
+    const nav = document.getElementById(navItems[i + 1]);
+    if (!nav) return;
+    // Non-gateable (Terms) step: never flag as done — nothing to complete.
+    if (d !== null) nav.classList.toggle('done', !!d);
+    nav.classList.remove('active');
+  });
+
+  // Sync name on sidebar
+  const name = g('f-cn');
+  if (name) document.getElementById('sb-name').textContent = name;
+  const ordId = g('f-ono');
+  if (ordId) document.getElementById('sb-id').textContent = ordId;
+
+  calcTotal();
+  // cp() above clears .active off the chips; in mobile wizard mode keep the
+  // current step's chip highlighted.
+  if (isMobileWiz()) syncWizActiveChip();
+  return pct;
+}
+
+// ─── ESTIMATE ──────────────────────────────────────────────────
+function addRow() {
+  rowN++;
+  const r = rowN;
+  const tr = document.createElement('tr');
+  tr.id = 'er' + r;
+  tr.innerHTML = `
+    <td><input data-action="estimate-description" id="ed${r}" placeholder="Description" oninput="autoCalcRow(${r})"></td>
+    <td><input data-action="estimate-quantity" type="number" id="eq${r}" placeholder="1" style="width:55px" oninput="autoCalcRow(${r})"></td>
+    <td><input data-action="estimate-unit-price" type="number" id="eu${r}" placeholder="0.00" oninput="autoCalcRow(${r})"></td>
+    <td><input type="number" id="et${r}" placeholder="0.00" readonly></td>
+    <td><button data-action="delete-estimate-row" class="del-row-btn" onclick="delRow(${r})">✕</button></td>`;
+  document.getElementById('est-tbody').appendChild(tr);
+}
+
+function autoCalcRow(r) {
+  const qEl = document.getElementById('eq' + r);
+  const uEl = document.getElementById('eu' + r);
+  const uRaw = (uEl?.value || '').trim();
+  // A line with a unit price but no qty means qty 1 — fill it so the line + totals stay consistent
+  // (the qty placeholder showed "1" but the empty value was read as 0, so the total stayed 0).
+  if (qEl && (qEl.value || '').trim() === '' && uRaw !== '') qEl.value = '1';
+  const q = parseFloat(qEl?.value || 0) || 0;
+  const u = parseFloat(uRaw || 0) || 0;
+  const t = q * u;
+  const el = document.getElementById('et' + r);
+  if (el) el.value = t > 0 ? t.toFixed(2) : '';   // this row updates instantly
+  calcTotalDebounced();                            // grand-total walk is debounced
+}
+
+function delRow(r) {
+  const el = document.getElementById('er' + r);
+  if (el) el.remove();
+  calcTotal();
+}
+
+function calcTotal() {
+  let sub = 0;
+  document.querySelectorAll('#est-tbody tr').forEach(tr => {
+    const id = tr.id.replace('er', '');
+    if (!id) return;
+    const u = parseFloat(document.getElementById('eu' + id)?.value || 0) || 0;
+    let q = parseFloat(document.getElementById('eq' + id)?.value || 0) || 0;
+    if (!q && u) q = 1;
+    sub += q * u;
+  });
+  const stEl = document.getElementById('f-st');
+  if (!subTotalDirty) stEl.value = sub > 0 ? sub.toFixed(2) : '';
+  const base = parseRupee(stEl.value);
+  const gstPct = parseRupee(document.getElementById('f-gst').value);
+  const gstAmt = base * (gstPct / 100);
+  const ga = document.getElementById('f-gstamt'); if (ga) ga.textContent = gstAmt.toFixed(2);
+  document.getElementById('f-tot').textContent = (base + gstAmt).toFixed(2);
+}
+function readForm() {
+  flushCalc();   // ensure debounced f-st/f-tot are current before capture
+  const condParts = [];
+  for (let i = 0; i < 10; i++) {
+    condParts.push({
+      code: g('p' + i + 'c'),
+      sev: g('p' + i + 's'),
+      notes: g('p' + i + 'n')
+    });
+  }
+  const lineItems = [];
+  document.querySelectorAll('#est-tbody tr').forEach(tr => {
+    const id = tr.id.replace('er', '');
+    if (!id) return;
+    lineItems.push({
+      desc: g('ed' + id),
+      qty: g('eq' + id),
+      unit: g('eu' + id),
+      total: g('et' + id)
+    });
+  });
+  const mv = document.querySelector('input[name="mv"]:checked');
+  const grd = document.querySelector('input[name="grd"]:checked');
+  return {
+    dateRec: g('f-dr'), advisor: g('f-adv'), expDel: g('f-ed'), stage: g('f-stage') || 'received',
+    watchPhoto: !!currentWatchPhotoUrl(),   // ref-only flag (received-condition); image lives in IndexedDB
+    watchPhotoAfter: !!currentWatchPhotoUrlAfter(),   // ref-only flag (after-service); image lives in IndexedDB
+    custName: g('f-cn'), custMobile: g('f-cm'), custEmail: g('f-ce'), custWA: g('f-cw'),
+    custAddr: g('f-ca'), custId: g('f-ci'), custAlt: g('f-cal'),
+    brand: g('f-wb'), model: g('f-wm'), refNo: g('f-wr'), serialNo: g('f-ws'),
+    caseMat: g('f-wc'), caseSize: g('f-wz'), dialColour: g('f-wd'), strap: g('f-wst'),
+    movement: mv ? mv.value : '', waterRes: g('f-wwr'), year: g('f-wy'),
+    estValue: g('f-wv'), lastService: g('f-wls'),
+    condParts, grade: grd ? grd.value : '', condNotes: g('f-cno'),
+    accWatch: chks('aw'), accDoc: chks('ad'), accId: chks('ai'), accAuth: chks('aa'),
+    issMech: chks('im'), issCosmetic: chks('ic'), issBrac: chks('ib'), issOther: chks('io'),
+    issOtherText: g('f-iot'),
+    diagnosis: g('f-diag'), techName: g('f-tn'), techId: g('f-ti'), techDate: g('f-tid'),
+    pointRemarks: g('f-pr-txt'),
+    lineItems, subTotal: g('f-st'), gst: g('f-gst'), subTotalManual: subTotalDirty,
+    estTotal: document.getElementById('f-tot').textContent,
+    advancePaid: g('f-advpaid'),
+    authTC: document.getElementById('a1').checked,
+    authWork: document.getElementById('a2').checked,
+    authPay: document.getElementById('a3').checked,
+    authCond: document.getElementById('a4').checked,
+    authName: g('f-an'), authDate: g('f-ad'), authSig: g('f-as'),
+    ackBy: g('f-rb'), ackDesig: g('f-rdg'), ackDT: g('f-rdt'),
+    ackConfirmed: document.getElementById('f-oc').checked
+  };
+}
+
+function readDelivery() {
+  const pm = document.querySelector('input[name="pm"]:checked');
+  return {
+    d1: document.getElementById('d1').checked, d2: document.getElementById('d2').checked,
+    d3: document.getElementById('d3').checked, d4: document.getElementById('d4').checked,
+    d5: document.getElementById('d5').checked,
+    finalAmt: g('f-fa'), payMode: pm ? pm.value : '', payRef: g('f-pr'), collectDate: g('f-dc'),
+    warrantyMonths: g('f-warr'),
+    deno: readDeno(),
+    delCustName: g('f-dcn'), delCustDate: g('f-ddt'), delCustSig: g('f-dcs'),
+    delTechName: g('f-dtn'), delTechSig: g('f-dts'), delAdvisorSig: g('f-das')
+  };
+}
+
+// ─── EXPORT CSV (Super-Admin only) ─────────────────────────────
+// The control-centre shell stores its admin/super-admin flag in a shared
+// localStorage key (ADMIN_MODE_KEY = 'st_v2_admin_mode', value 'true'). We read
+// it directly — read-only, no write, no cross-module bridge.
+function isSuperAdmin(){ try{ return !!(SaagarModuleBridge.ownerSession&&SaagarModuleBridge.ownerSession.isOwnerActive()); }catch(e){ return false; } }
+
+// RFC-4180 style escaping: wrap in quotes when the value contains comma, quote,
+// CR or LF; double any embedded quotes.
+function csvCell(v) {
+  let s = (v == null ? '' : String(v));
+  // Formula-injection guard: a cell starting with = + - @ (tab/CR) can execute as a
+  // formula in Excel/Sheets. Prefix a quote so it's treated as text.
+  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+  if (/[",\r\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+  return s;
+}
+
+// Days since the watch was received (open-case ageing). Falls back to createdAt.
+function caseAgeingDays(c) {
+  const ref = c.dateRec || (c.createdAt ? String(c.createdAt).slice(0, 10) : '');
+  if (!/^\d{4}-\d{2}-\d{2}/.test(ref)) return '';
+  // Parse as LOCAL midnight (not UTC) and compare against local midnight today so
+  // "received today" deterministically = 0 in IST instead of an off-by-fraction.
+  const d = new Date(ref.slice(0, 10) + 'T00:00:00');
+  if (isNaN(d)) return '';
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const days = Math.round((today.getTime() - d.getTime()) / 86400000);
+  return days >= 0 ? days : '';
+}
+
+// Flatten a set of cases to CSV. `label` names the file/toast; `withAgeing`
+// adds an ageingDays column (used for the Open-cases export).
+function exportCases(list, label, withAgeing) {
+  const word = label === 'all' ? '' : label + ' ';
+  if (!list.length) { toast('No ' + word + 'cases to export'); return; }
+  // Flatten EVERY case: all readForm fields + delivery + joined arrays.
+  const cols = [
+    'id','status', ...(withAgeing ? ['ageingDays'] : []), 'prog','createdAt','closedAt',
+    'dateRec','advisor','expDel','stage',
+    'custName','custMobile','custEmail','custWA','custAddr','custId','custAlt',
+    'brand','model','refNo','serialNo','caseMat','caseSize','dialColour','strap',
+    'movement','waterRes','year','estValue','lastService',
+    'grade','condNotes','condParts',
+    'accWatch','accDoc','accId','accAuth',
+    'issMech','issCosmetic','issBrac','issOther','issOtherText',
+    'diagnosis','techName','techId','techDate',
+    'lineItems','subTotal','gst','estTotal','advancePaid',
+    'authTC','authWork','authPay','authCond','authName','authDate','authSig',
+    'ackBy','ackDesig','ackDT','ackConfirmed',
+    'del_d1','del_d2','del_d3','del_d4','del_d5',
+    'del_finalAmt','del_payMode','del_payRef','del_collectDate',
+    'del_custName','del_custDate','del_custSig',
+    'del_techName','del_techSig','del_advisorSig'
+  ];
+  const condStr = (arr) => (arr || [])
+    .map((p, i) => (p && (p.code || p.sev || p.notes))
+      ? `${PARTS_LABELS[i] || ('Part ' + (i + 1))}: ${p.code || ''}/${p.sev || ''}/${(p.notes || '').replace(/[|;]/g, ' ')}`
+      : '')
+    .filter(Boolean).join(' | ');
+  const liStr = (arr) => (arr || [])
+    .filter(li => li && (li.desc || li.qty || li.unit || li.total))
+    .map(li => `${li.desc || ''} x${li.qty || ''} @${li.unit || ''} = ${li.total || ''}`)
+    .join(' | ');
+  const joinArr = (a) => (a || []).join('; ');
+
+  const rows = list.map(c => {
+    const d = c.delivery || {};
+    const rec = {
+      id: c.id, status: c.status, ...(withAgeing ? { ageingDays: caseAgeingDays(c) } : {}), prog: c.prog, createdAt: c.createdAt, closedAt: c.closedAt,
+      dateRec: c.dateRec, advisor: c.advisor, expDel: c.expDel, stage: stageLabel(stageOf(c)),
+      custName: c.custName, custMobile: c.custMobile, custEmail: c.custEmail, custWA: c.custWA,
+      custAddr: c.custAddr, custId: c.custId, custAlt: c.custAlt,
+      brand: c.brand, model: c.model, refNo: c.refNo, serialNo: c.serialNo,
+      caseMat: c.caseMat, caseSize: c.caseSize, dialColour: c.dialColour, strap: c.strap,
+      movement: c.movement, waterRes: c.waterRes, year: c.year, estValue: c.estValue, lastService: c.lastService,
+      grade: c.grade, condNotes: c.condNotes, condParts: condStr(c.condParts),
+      accWatch: joinArr(c.accWatch), accDoc: joinArr(c.accDoc), accId: joinArr(c.accId), accAuth: joinArr(c.accAuth),
+      issMech: joinArr(c.issMech), issCosmetic: joinArr(c.issCosmetic), issBrac: joinArr(c.issBrac),
+      issOther: joinArr(c.issOther), issOtherText: c.issOtherText,
+      diagnosis: c.diagnosis, techName: c.techName, techId: c.techId, techDate: c.techDate,
+      lineItems: liStr(c.lineItems), subTotal: c.subTotal, gst: c.gst, estTotal: c.estTotal, advancePaid: c.advancePaid,
+      authTC: c.authTC, authWork: c.authWork, authPay: c.authPay, authCond: c.authCond,
+      authName: c.authName, authDate: c.authDate, authSig: c.authSig,
+      ackBy: c.ackBy, ackDesig: c.ackDesig, ackDT: c.ackDT, ackConfirmed: c.ackConfirmed,
+      del_d1: d.d1, del_d2: d.d2, del_d3: d.d3, del_d4: d.d4, del_d5: d.d5,
+      del_finalAmt: d.finalAmt, del_payMode: d.payMode, del_payRef: d.payRef, del_collectDate: d.collectDate,
+      del_custName: d.delCustName, del_custDate: d.delCustDate, del_custSig: d.delCustSig,
+      del_techName: d.delTechName, del_techSig: d.delTechSig, del_advisorSig: d.delAdvisorSig
+    };
+    return cols.map(k => csvCell(rec[k])).join(',');
+  });
+  const csv = cols.join(',') + '\r\n' + rows.join('\r\n') + '\r\n';
+
+  // BOM so Excel reads UTF-8 correctly.
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+  const fileName = 'service-cases-' + label + '-' + todayStr() + '.csv';
+  const n = list.length + ' ' + word + 'case' + (list.length === 1 ? '' : 's');
+  // Route through the shell's unified share helper so it actually saves/shares on
+  // the Android WebView (Capacitor file-share → Web Share → download). A raw
+  // a.download from inside the srcdoc iframe silently no-ops on the device.
+  try {
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({type:'ST_SHARE',file:blob,fileName,title:'Saagar Traders — Service Cases',text:n,exportId:'service-cases-csv',scopeId:'service-cases-'+label,scopeLabel:word+'service cases',rowCount:list.length,purposeId:'service-register'},SaagarModuleRuntime.targetOrigin);
+      return;
+    }
+  } catch (e) {}
+  toast('Controlled export is available only inside Saagar Control Centre.');
+}
+
+// Public entry points: the dashboard list-header buttons + the legacy all-cases export.
+function exportCSV() { exportCases(DB.slice(), 'all', false); }
+function exportOpenCSV() { exportCases(DB.filter(c => c.status === 'open'), 'open', true); }
+function exportClosedCSV() { exportCases(DB.filter(c => c.status === 'closed'), 'closed', false); }
+
+// ─── POPULATE FORM ─────────────────────────────────────────────
+function set(id, val) { const el = document.getElementById(id); if (el) el.value = val || ''; }
+function setChk(id, val) { const el = document.getElementById(id); if (el) el.checked = !!val; }
+function setChks(cls, arr) {
+  document.querySelectorAll('.' + cls).forEach(el => {
+    el.checked = arr && arr.includes(el.value);
+  });
+}
+function setRadio(name, val) {
+  document.querySelectorAll(`input[name="${name}"]`).forEach(el => {
+    el.checked = el.value === val;
+  });
+}
+
+function populateForm(c) {
+  // Backward-compat: old cases store free-text NAMES in these now-<select> fields.
+  // Add the saved value as an extra selected <option> when it is not already in
+  // the list, so legacy data still displays and round-trips via .value.
+  ensureOption('f-adv', c.advisor); ensureOption('f-tn', c.techName); ensureOption('f-rb', c.ackBy);
+  set('f-ono', c.id); set('f-dr', c.dateRec); set('f-adv', c.advisor); set('f-ed', c.expDel);
+  set('f-stage', stageOf(c));
+  set('f-cn', c.custName); set('f-cm', c.custMobile); set('f-ce', c.custEmail); set('f-cw', c.custWA);
+  set('f-ca', c.custAddr); set('f-ci', c.custId); set('f-cal', c.custAlt);
+  set('f-wb', c.brand); set('f-wm', c.model); set('f-wr', c.refNo); set('f-ws', c.serialNo);
+  set('f-wc', c.caseMat); set('f-wz', c.caseSize); set('f-wd', c.dialColour); set('f-wst', c.strap);
+  setRadio('mv', c.movement); set('f-wwr', c.waterRes); set('f-wy', c.year);
+  set('f-wv', c.estValue); set('f-wls', c.lastService);
+  (c.condParts || []).forEach((p, i) => {
+    set('p' + i + 'c', p.code); set('p' + i + 's', p.sev); set('p' + i + 'n', p.notes);
+  });
+  setRadio('grd', c.grade); set('f-cno', c.condNotes);
+  setChks('aw', c.accWatch); setChks('ad', c.accDoc); setChks('ai', c.accId); setChks('aa', c.accAuth);
+  setChks('im', c.issMech); setChks('ic', c.issCosmetic); setChks('ib', c.issBrac); setChks('io', c.issOther);
+  set('f-iot', c.issOtherText);
+  set('f-diag', c.diagnosis); set('f-tn', c.techName); set('f-ti', c.techId); set('f-tid', c.techDate);
+  set('f-pr-txt', c.pointRemarks);
+  // Line items
+  document.getElementById('est-tbody').innerHTML = '';
+  rowN = 0;
+  (c.lineItems || []).forEach(li => {
+    addRow();
+    set('ed' + rowN, li.desc); set('eq' + rowN, li.qty);
+    set('eu' + rowN, li.unit); set('et' + rowN, li.total);
+  });
+  if (!c.lineItems || !c.lineItems.length) addRow();
+  set('f-st', c.subTotal); set('f-gst', c.gst); set('f-advpaid', c.advancePaid);
+  document.getElementById('f-tot').textContent = c.estTotal || '0.00';
+  setChk('a1', c.authTC); setChk('a2', c.authWork); setChk('a3', c.authPay); setChk('a4', c.authCond);
+  set('f-an', c.authName); set('f-ad', c.authDate); set('f-as', c.authSig);
+  set('f-rb', c.ackBy); set('f-rdg', c.ackDesig); set('f-rdt', c.ackDT);
+  setChk('f-oc', c.ackConfirmed);
+  // Delivery
+  if (c.delivery) {
+    const d = c.delivery;
+    setChk('d1', d.d1); setChk('d2', d.d2); setChk('d3', d.d3); setChk('d4', d.d4); setChk('d5', d.d5);
+    set('f-fa', d.finalAmt); setRadio('pm', d.payMode); set('f-pr', d.payRef);
+    togglePayRef();
+    setDeno(d.deno); calcDeno();
+    set('f-dc', d.collectDate); set('f-warr', d.warrantyMonths); set('f-dcn', d.delCustName); set('f-ddt', d.delCustDate);
+    set('f-dcs', d.delCustSig); set('f-dtn', d.delTechName);
+    set('f-dts', d.delTechSig); set('f-das', d.delAdvisorSig);
+  }
+}
+
+function resetForm() {
+  document.querySelectorAll('#view-form input:not([readonly]):not([type=radio]):not([type=checkbox]), #view-form select, #view-form textarea')
+    .forEach(el => el.value = '');
+  document.querySelectorAll('#view-form input[type=radio], #view-form input[type=checkbox]')
+    .forEach(el => el.checked = false);
+  document.getElementById('est-tbody').innerHTML = '';
+  rowN = 0; addRow();
+  document.getElementById('f-tot').textContent = '0.00';
+  fillEmployeeSelects();
+  togglePayRef();
+  document.getElementById('s11-lock').style.display = 'block';
+  document.getElementById('s11-open').style.display = 'none';
+  document.getElementById('sb-name').textContent = 'New Order';
+  set('f-stage', 'received');   // selects were cleared above; default the stage
+  subTotalDirty = false;        // fresh form → line items drive the sub-total
+  resetWatchPhoto(); resetWatchPhotoAfter();   // clear both watch-photo previews
+  cp();
+}
+
+// ─── CASE ACTIONS ──────────────────────────────────────────────
+function openNew() {
+  if (readOnlyGuard()) return;   // past view → no create
+  editId = null;
+  resetForm();
+  setOrderDateMins();
+  const id = genId();
+  set('f-ono', id);
+  set('f-dr', todayStr());
+  document.getElementById('form-order-badge').textContent = id;
+  document.getElementById('form-title').textContent = 'New Service Order';
+  document.getElementById('form-subtitle').textContent = 'Fill all required fields and save';
+  document.getElementById('sb-id').textContent = id;
+  showView('form');
+  if (isMobileWiz()) showFormStep(0);   // mobile wizard: always open on step 1; desktop untouched
+}
+
+function openEdit(id) {
+  editId = id;
+  const c = byId(id);
+  if (!c) return;
+  resetForm();
+  populateForm(c);
+  loadWatchPhoto(id);   // pull the saved watch photo (if any) into the preview
+  subTotalDirty = !!c.subTotalManual;   // preserve a saved manual sub-total override across reopen
+  setOrderDateMins();
+  document.getElementById('form-order-badge').textContent = id;
+  document.getElementById('form-title').textContent = 'Edit — ' + id;
+  document.getElementById('form-subtitle').textContent = c.custName || '';
+  if (c.status === 'open' || c.delivery) {
+    document.getElementById('s11-lock').style.display = 'none';
+    document.getElementById('s11-open').style.display = 'block';
+  }
+  cp();
+  updateBalance();   // reflect any advance/balance on the loaded case
+  // Re-apply read-only after the form is (re)built so a past case opened for
+  // viewing has its inputs/buttons locked (populateForm rebuilds estimate rows).
+  applyReadOnlyUI();
+  showView('form');
+  if (isMobileWiz()) showFormStep(0);   // mobile wizard: always open on step 1; desktop untouched
+}
+
+// Normalised phone digits (last 10) for format-check + duplicate matching.
+function mobileDigits(v) { return String(v || '').replace(/\D/g, '').slice(-10); }
+
+// P1-42: repeat-customer recognition at intake. On blur of the mobile field, read the
+// bridge-derived customer master (saagar_customer_master_v1) cross-frame and pre-fill the
+// Full Name ONLY when it is empty — never overwrite a typed name. Read-only, no master write.
+function svcAutofillFromMaster() {
+  try {
+    const dm = mobileDigits(g('f-cm')); if (dm.length !== 10) return;
+    const cn = document.getElementById('f-cn'); if (cn && cn.value.trim()) return;   // never overwrite a typed name
+    const ls = (window.parent && window.parent !== window) ? SaagarModuleBridge.sharedStorage : localStorage;
+    const raw = ls.getItem('saagar_customer_master_v1'); if (!raw) return;
+    const o = JSON.parse(raw); const e = o && o.byMobile && o.byMobile[dm];
+    const nm = e && e.names && e.names[0]; if (nm) { set('f-cn', nm); toast('Autofilled name from customer records'); }
+  } catch (err) {}
+}
+function validMobile(v) { const d = String(v || '').replace(/\D/g, ''); return d.length >= 10 && d.length <= 13; }
+
+function svcLegalApi(){try{return (window.parent&&window.parent!==window&&SaagarModuleBridge.legal)||SaagarModuleBridge.legal||null}catch(e){return null}}
+function svcOpenPrivacyNotice(){const L=svcLegalApi();if(!L){toast('Privacy notice is unavailable — do not collect customer data.');return}alert(L.noticeText('service-intake'))}
+function svcLegalCapture(data){const L=svcLegalApi();if(!L)return{ok:false,message:'Privacy control unavailable'};return L.captureIntake({scope:'service-intake',source:'watch-service-intake',actor:g('f-adv')||'Service adviser',mobile:data.custMobile,ageBand:g('svc-legal-age'),guardian:{name:g('svc-guardian-name'),relationship:g('svc-guardian-relation'),verificationMethod:g('svc-guardian-method'),consent:!!document.getElementById('svc-guardian-consent').checked},promotionalConsent:!!document.getElementById('svc-promo-consent').checked,payload:data})}
+function doSave() {
+  if (readOnlyGuard()) return;   // past view → no edit/save (never write on a read)
+  const name = g('f-cn'), mobile = g('f-cm');
+  if (!g('f-dr')) { toast('⚠ Date Received is required'); scrollToSec('sec-0'); return; }
+  if (!name || !mobile) { toast('⚠ Customer name and mobile are required'); scrollToSec('sec-1'); return; }
+  if (!validMobile(mobile)) { toast('⚠ Enter a valid mobile number (10 digits)'); scrollToSec('sec-1'); return; }
+  if (!g('f-wb') || !g('f-wm')) { toast('⚠ Brand and model name are required'); scrollToSec('sec-2'); return; }
+  if (SVC_SETTINGS.watchPhotoMandatory && !hasWatchPhotoNow()) { toast('⚠ A watch photo is required before saving (see Watch Details)'); scrollToSec('sec-2'); return; }
+  const data = readForm();
+  const computed = cp();   // recompute form-completion % (also updates the sidebar UI)
+  const id = g('f-ono');
+  const isNew = !editId;
+  if (isNew) {
+    const legalResult = svcLegalCapture(data);
+    if (!legalResult.ok) { toast('⚠ ' + (legalResult.message || ('Privacy control blocked save: ' + (legalResult.code || 'check required')))); scrollToSec('sec-1'); return; }
+  }
+  const _prevStage = (!isNew && byId(editId)) ? stageOf(byId(editId)) : null;   // P1-10/P1-11: capture before overwrite
+  // A closed/delivered case stays 100% on a plain edit-save — don't regress its
+  // progress to the form-completion % (it's already delivered).
+  const prog = (!isNew && byId(editId) && byId(editId).status === 'closed') ? 100 : computed;
+  if (editId) {
+    const idx = DB.findIndex(c => c.id === editId);
+    if (idx > -1) DB[idx] = Object.assign(DB[idx], data, { id: editId, prog });
+  } else {
+    DB.push(Object.assign({}, data, { id, status: 'open', prog, createdAt: new Date().toISOString() }));
+    editId = id;
+    document.getElementById('s11-lock').style.display = 'none';
+    document.getElementById('s11-open').style.display = 'block';
+    document.getElementById('form-title').textContent = 'Edit — ' + id;
+    document.getElementById('form-subtitle').textContent = data.custName || '';
+  }
+  // P1-10: record the stage on the saved case's transition log (only on a real change;
+  // new cases log their starting stage). data.stage is the chosen Repair Stage.
+  // verify-fix: never append on a CLOSED case — a post-close 'received' entry would poison
+  // the TAT pair (recv > deliv) and drop the case from the average.
+  {
+    const _sc = byId(editId || id);
+    if (_sc && _sc.status !== 'closed' && (isNew || data.stage !== _prevStage)) logStageChange(_sc, stageOf(_sc), data.advisor);
+  }
+  saveDB();
+  persistWatchPhoto(editId || id);   // store/replace/remove the watch photo for this case
+  toast('✓ Saved — ' + (editId || id));
+  // P1-11: offer notify only on a real transition INTO "ready" (not on re-saving an
+  // already-ready case). readForm() put the chosen stage on `data`.
+  if (data.stage === 'ready' && _prevStage !== 'ready') offerReadyNotify(editId || id);
+  // Non-blocking duplicate-customer notice (new case only): same mobile elsewhere.
+  if (isNew) {
+    const dm = mobileDigits(mobile);
+    const prior = DB.filter(c => c.id !== id && mobileDigits(c.custMobile) === dm && dm.length === 10);
+    if (prior.length) setTimeout(() => toast('ℹ Existing customer — ' + prior.length + ' prior case' + (prior.length === 1 ? '' : 's') + ' on this mobile'), 900);
+  }
+}
+
+function closeCase() {
+  if (readOnlyGuard()) return;   // past view → no close
+  if (!editId) { toast('Save the order first'); return; }
+  /* D3 readiness gate before delivery close */
+  const d3Policy = svcD3PolicyApi();
+  const d3Case = byId(editId);
+  if (!d3Policy || !d3Case || !d3Policy.readinessValid(d3Case)) {
+    toast('⚠ Complete pickup readiness from the Service Workboard before closing');
+    return;
+  }
+  const del = readDelivery();
+  /* Audit fix svc-money-comma-finalamt: #f-fa is free text, so a natural Indian
+     entry '1,200' was stored verbatim. parseFloat('1,200') === 1, so the case
+     closed and the shell ledger (integration-bridge.js reads parseFloat(finalAmt))
+     recorded ₹1 while the invoice showed ₹1,200. Normalise the STORED value to a
+     clean numeric string here (fixes the guard, the stored record, the bridge
+     read and the printed Proforma in one place). Only when a valid amount was
+     entered — leave an empty/invalid entry untouched so the guard below still
+     rejects it with the right message. */
+  const _faParsed = parseRupee(del.finalAmt);
+  if (_faParsed > 0) del.finalAmt = String(_faParsed);
+  // Guard: don't allow closing until delivery is meaningfully completed.
+  // Minimal rule = all 5 delivery acknowledgement checkboxes ticked AND a
+  // Final Amount AND a Collection date recorded.
+  if (!(del.d1 && del.d2 && del.d3 && del.d4 && del.d5) || !del.collectDate) {
+    toast('⚠ Complete delivery details before closing');
+    return;
+  }
+  // Final Amount must be a real positive number (was: any non-empty string, so
+  // "0" or "abc" closed the case with a nonsense charged amount).
+  if (!(parseRupee(del.finalAmt) > 0)) {
+    toast('⚠ Enter a valid Final Amount before closing');
+    return;
+  }
+  const idx = DB.findIndex(c => c.id === editId);
+  if (idx > -1) {
+    // Wave 3 — warranty capture: stamp warrantyTill onto the delivery from the entered months.
+    const months = Math.max(0, parseInt(del.warrantyMonths, 10) || 0);
+    const baseDate = del.collectDate || todayStr();
+    if (months > 0) del.warrantyTill = addMonthsIso(baseDate, months);
+    const _preCloseStage = stageOf(DB[idx]);   // P1-10 verify-fix: capture before readForm() overwrites
+    DB[idx] = Object.assign(DB[idx], readForm(), {
+      id: editId, status: 'closed', prog: 100, delivery: del, closedAt: new Date().toISOString()
+    });
+    // P1-10 verify-fix: a stage changed on the close form was applied silently — log it so the
+    // transition trail stays complete (closedAt itself is the delivered timestamp for TAT).
+    if (stageOf(DB[idx]) !== _preCloseStage) logStageChange(DB[idx], stageOf(DB[idx]), DB[idx].advisor);
+    // Wave 3 — auto-create a warranty / battery-due follow-up (guaranteed repeat footfall).
+    scheduleWarrantyFollowUp(DB[idx], del, baseDate, months);
+  }
+  saveDB();
+  persistWatchPhoto(editId);   // a photo added/changed at delivery is saved on close
+  toast('✅ Case closed — ' + editId);
+  setTimeout(() => showView('dash'), 1200);
+}
+
+function delCase(id) {
+  if (readOnlyGuard()) return;   // past view → no delete
+  if (!confirm('Delete case ' + id + '? This cannot be undone.')) return;
+  DB = DB.filter(c => c.id !== id);
+  saveDB();
+  try { const api = svcEv(); if (api && (api.delByKey||api.delByMatch)) { const d = (api.delByKey||api.delByMatch).bind(api); d(watchKey(id)); d(watchKeyAfter(id)); } } catch (e) {}   // purge ONLY this case's photos (received + after, exact key)
+  renderDash();
+  toast('Deleted — ' + id);
+}
+
+// ─── PRINT ─────────────────────────────────────────────────────
+// The print HTML is rendered in the SHELL's top-level document (via the print
+// bridge), so user-supplied values MUST be escaped (mirrors renderList). Labels
+// are static literals (some already contain &amp;) so they are left as-is.
+function pf(lbl, val) {
+  if (val == null || String(val).trim() === '') return '';
+  return `<div class="pf"><div class="pfl">${lbl}</div><div class="pfv">${escapeHtml(val)}</div></div>`;
+}
+function pfKeep(lbl, val) {
+  return `<div class="pf"><div class="pfl">${lbl}</div><div class="pfv">${val ? escapeHtml(val) : '—'}</div></div>`;
+}
+function pbox(checked) {
+  return `<div class="pbox${checked ? ' y' : ''}"></div>`;
+}
+function pchk(label, checked) {
+  return `<div class="pchk">${pbox(checked)}<span>${label}</span></div>`;
+}
+
+function denoPrint(deno) {
+  const o = deno || {};
+  const rows = DENOMS.filter(D => (parseInt(o[D], 10) || 0) > 0);
+  if (!rows.length) return '';
+  let total = 0;
+  const body = rows.map(D => {
+    const n = parseInt(o[D], 10) || 0;
+    const v = n * D;
+    total += v;
+    return `<tr><td>₹${D.toLocaleString('en-IN')}</td><td style="text-align:center">${n}</td><td style="text-align:right">₹${v.toLocaleString('en-IN')}</td></tr>`;
+  }).join('');
+  return `<table class="ptbl" style="margin-top:3px"><thead><tr><th>Denomination</th><th style="text-align:center">Count</th><th style="text-align:right">Value</th></tr></thead><tbody>${body}<tr><td><strong>Total Counted</strong></td><td></td><td style="text-align:right"><strong>₹${total.toLocaleString('en-IN')}</strong></td></tr></tbody></table>`;
+}
+
+/* ─── PRINT BRIDGE ──────────────────────────────────────────────
+   window.print() from inside the srcdoc iframe is blank on the Android
+   WebView (it prints the TOP shell document, which the shell hides in
+   @media print). So we post the fully-built print HTML up to the shell,
+   which renders it in a top-level print host (#st-print-host) and prints.
+   Desktop standalone falls back to the in-iframe #view-print path. */
+const SERVICE_PRINT_CSS = `
+#sp-doc{font-family:'DM Sans',Arial,sans-serif;color:#1a1a1a;font-size:8pt;line-height:1.35;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+#sp-doc *{box-sizing:border-box}
+.pr-hdr{border-bottom:2.5px solid #0d2340;margin-bottom:9px;padding-bottom:7px;display:flex;justify-content:space-between;align-items:flex-end}
+.pr-brand{font-family:Georgia,'Times New Roman',serif;font-size:14pt;color:#0d2340;font-weight:700;letter-spacing:.01em}
+.pr-title{font-family:Georgia,'Times New Roman',serif;font-size:11pt;color:#b8922a;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.pr-meta{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:3px 10px;border:1px solid #c7c7c7;padding:5px 8px;border-radius:3px;margin-bottom:7px}
+.psec{margin-bottom:7px;page-break-inside:avoid}
+.psec-t{background:#0d2340;color:#fff;font-size:7.5pt;font-weight:700;padding:3px 7px;border-radius:2px;margin-bottom:3px;text-transform:uppercase;letter-spacing:.06em;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.pnone{font-size:7pt;color:#b0b0b0;font-style:italic;padding:3px 7px;border:0.5px dashed #ddd;border-radius:3px}
+.pgrid{display:grid;gap:3px 9px;padding:5px 7px;border:0.5px solid #e0e0e0;border-radius:3px}
+.pg2{grid-template-columns:1fr 1fr}.pg3{grid-template-columns:1fr 1fr 1fr}.pg4{grid-template-columns:1fr 1fr 1fr 1fr}
+.pf{display:flex;flex-direction:column}
+.pfl{font-size:6pt;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:.03em}
+.pfv{font-size:7.5pt;border-bottom:0.5px solid #ccc;min-height:11px;padding-bottom:1px;color:#111}
+.ptbl{width:100%;border-collapse:collapse;font-size:7.5pt}
+.ptbl th{background:#0d2340;color:#fff;padding:3px 6px;font-size:6pt;font-weight:700;text-transform:uppercase;letter-spacing:.03em;text-align:left;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.ptbl td{padding:3px 6px;border-bottom:0.5px solid #e0e0e0}
+.ptbl tr:last-child td{border-bottom:none}
+.pchks{display:flex;flex-wrap:wrap;gap:3px 12px;font-size:7.5pt;padding:4px 7px;border:0.5px solid #e0e0e0;border-radius:3px}
+.pchk{display:flex;align-items:center;gap:4px}
+.pbox{width:8px;height:8px;border:0.8px solid #555;border-radius:1px;flex-shrink:0}
+.pbox.y{background:#0d2340;border-color:#0d2340;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.psigs{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-top:8px}
+.psig-line{border-bottom:0.8px solid #333;min-height:24px;font-size:7.5pt;padding-bottom:1px}
+.psig-lbl{font-size:5.5pt;color:#666;text-transform:uppercase;font-weight:700;letter-spacing:.04em;margin-top:2px}
+.pterms{font-size:6pt;line-height:1.55;color:#444;border:0.5px solid #e0e0e0;padding:5px 8px;border-radius:3px;columns:2;column-gap:14px}
+.pterms ol{padding-left:12px;margin:0}.pterms li{margin-bottom:1px;break-inside:avoid}
+.ptots{display:flex;flex-direction:column;align-items:flex-end;gap:2px;font-size:8pt;padding:4px 7px}
+.ptot-grand{font-weight:700;font-size:9.5pt;color:#0d2340;border-top:1px solid #0d2340;margin-top:2px;padding-top:2px}
+.pftr{border-top:0.5px solid #ccc;margin-top:9px;padding-top:5px;font-size:6pt;color:#888;text-align:center;letter-spacing:.02em}
+.piss{padding:4px 7px;border:0.5px solid #e0e0e0;border-radius:3px;font-size:7.5pt}
+.ppb{page-break-before:always}
+.pwphoto{display:inline-block;padding:4px;border:0.5px solid #ccc;border-radius:4px;background:#fff;page-break-inside:avoid}
+.pwphoto img{display:block;max-width:55mm;max-height:45mm;width:auto;height:auto;object-fit:contain}
+`;
+
+// Always render the section heading; show a faint "Not recorded" when the
+// section holds no entered data (keeps all 10 headings for print structure).
+function psecBlock(title, hasData, inner) {
+  return `<div class="psec"><div class="psec-t">${title}</div>${hasData ? inner : '<div class="pnone">Not recorded</div>'}</div>`;
+}
+
+// Route a built print document to the shell's top-level print host (Android-safe);
+// fall back to the in-iframe #view-print path on desktop standalone.
+function sendPrint(title, bodyHtml, backView) {
+  if (window.SaagarModuleRuntime && typeof window.SaagarModuleRuntime.printDocument === 'function') {
+    return window.SaagarModuleRuntime.printDocument({
+      title: title || 'Print',
+      body: bodyHtml,
+      css: SERVICE_PRINT_CSS
+    }, function () {
+      document.getElementById('view-print').innerHTML = '<style>' + SERVICE_PRINT_CSS + '\n</style><div id="sp-doc">' + bodyHtml + '</div>';
+      showView('print');
+    });
+  }
+  document.getElementById('view-print').innerHTML = '<style>' + SERVICE_PRINT_CSS + '\n</style><div id="sp-doc">' + bodyHtml + '</div>';
+  showView('print');
+  return false;
+}
+
+// ─── INTAKE JOB CARD (sections 1–10) ───────────────────────────
+// All 10 headings always print; empty fields are omitted (pf), and a section
+// with no data shows a faint "Not recorded". Section 11 is NOT in the job card
+// (it prints on the separate Proforma Invoice at delivery).
+function buildIntakeHtml(d, id, status, photoUrl) {
+  const del = d.delivery;
+  const E = escapeHtml;   // every user value below is escaped (print renders in the shell doc)
+  let condRows = (d.condParts || []).map((p, i) =>
+    `<tr><td>${PARTS_LABELS[i]||''}</td><td>${E(p.code||'')}</td><td>${E(p.sev||'')}</td><td>${E(p.notes||'')}</td></tr>`
+  ).join('');
+  let estRows = (d.lineItems || []).filter(li => li.desc).map(li =>
+    `<tr><td>${E(li.desc)}</td><td style="text-align:center">${E(li.qty)}</td><td style="text-align:right">₹${E(li.unit)}</td><td style="text-align:right">₹${E(li.total)}</td></tr>`
+  ).join('');
+  const allIss = [...(d.issMech||[]), ...(d.issCosmetic||[]), ...(d.issBrac||[]), ...(d.issOther||[])];
+  if (d.issOtherText) allIss.push('Other: ' + d.issOtherText);
+  // ── All 10 headings always print; pf() omits empty fields, and an empty
+  //    section shows a faint "Not recorded" via psecBlock(). Section 11 lives
+  //    on the separate Proforma Invoice, not the job card.
+  const hasCust  = d.custName||d.custMobile||d.custEmail||d.custWA||d.custId||d.custAlt||d.custAddr;
+  const hasWatch = d.brand||d.model||d.refNo||d.serialNo||d.caseMat||d.caseSize||d.dialColour||d.strap||d.movement||d.waterRes||d.year||d.lastService;
+  const hasCond  = (d.condParts||[]).some(p=>p&&(p.code||p.sev||p.notes)) || d.grade || d.condNotes;
+  const hasAcc   = (d.accWatch||[]).length||(d.accDoc||[]).length||(d.accId||[]).length||(d.accAuth||[]).length;
+  const hasIss   = allIss.length>0;
+  const hasTech  = d.diagnosis||d.techName||d.techId||d.techDate;
+  const hasEst   = (d.lineItems||[]).some(li=>li&&li.desc) || (parseFloat(d.subTotal)||0)>0 || (parseFloat(d.estTotal)||0)>0;
+  const hasAck   = d.ackBy||d.ackDesig||d.ackDT||d.ackConfirmed;
+
+  return `
+    <div class="pr-hdr">
+      <div><div class="pr-brand">Saagar Traders — Watch Service Centre</div><div style="font-size:6.5pt;color:#666">Latur, Maharashtra &nbsp;|&nbsp; Watch Service Job Card &amp; Condition Report</div></div>
+      <div style="text-align:right"><div class="pr-title">Job Card / Intake Receipt</div><div style="font-size:6.5pt;color:#888">Status: <strong>${status.toUpperCase()}</strong></div></div>
+    </div>
+    <div class="pr-meta">
+      ${pfKeep('Service Order No', id)}${pfKeep('Date Received', d.dateRec)}${pf('Service Advisor', d.advisor)}${pf('Expected Delivery', d.expDel)}${pfKeep('Repair Stage', status === 'closed' ? 'Delivered' : stageLabel(stageOf(d)))}
+    </div>
+    ${psecBlock('1. Customer Details', hasCust, `
+      <div class="pgrid pg3">${pfKeep('Full Name',d.custName)}${pf('Mobile No',d.custMobile)}${pf('Email',d.custEmail)}${pf('WhatsApp',d.custWA)}${pf('ID Type &amp; No',d.custId)}${pf('Alt. Contact',d.custAlt)}</div>
+      <div class="pgrid" style="grid-template-columns:1fr;margin-top:2px">${pf('Address',d.custAddr)}</div>`)}
+    ${psecBlock('2. Watch Details', hasWatch, `
+      <div class="pgrid pg4">${pf('Brand',d.brand)}${pf('Model',d.model)}${pf('Reference No',d.refNo)}${pf('Serial No',d.serialNo)}${pf('Case Material',d.caseMat)}${pf('Case Size',d.caseSize)}${pf('Dial Colour',d.dialColour)}${pf('Bracelet/Strap',d.strap)}${pf('Movement',d.movement)}${pf('Water Resistance',d.waterRes)}${pf('Year',d.year)}${pf('Last Serviced',d.lastService)}</div>`)}
+    ${photoUrl ? `<div class="psec"><div class="psec-t">Watch Photo at Time of Receipt</div><div class="pwphoto"><img src="${photoUrl}" alt="Watch photo"></div></div>` : ''}
+    ${psecBlock('3. Pre-Service Condition Report', hasCond, `
+      <table class="ptbl"><thead><tr><th>Part</th><th>Code</th><th>Severity</th><th>Notes</th></tr></thead><tbody>${condRows}</tbody></table>
+      <div style="font-size:7pt;padding:2px 5px;margin-top:2px">Overall Grade: <strong>${E(d.grade||'—')}</strong> &nbsp;|&nbsp; Notes: ${E(d.condNotes||'—')}</div>`)}
+    ${psecBlock('4. Accessories &amp; Documentation', hasAcc, `
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px;padding:3px 5px;border:0.5px solid #ddd;border-radius:3px;font-size:6.5pt">
+        <div><strong>Watch Accessories</strong><br>${E((d.accWatch||[]).join(', '))||'None'}</div>
+        <div><strong>Documentation</strong><br>${E((d.accDoc||[]).join(', '))||'None'}</div>
+        <div><strong>ID Documents</strong><br>${E((d.accId||[]).join(', '))||'None'}</div>
+        <div><strong>Service Auth.</strong><br>${E((d.accAuth||[]).join(', '))||'None'}</div>
+      </div>`)}
+    ${psecBlock('5. Reported Issues', hasIss, `
+      <div class="piss">${allIss.length ? allIss.map(E).join(' &nbsp;·&nbsp; ') : 'No specific issues reported'}</div>`)}
+    ${psecBlock('6. Technician Inspection Notes', hasTech, `
+      <div style="padding:3px 5px;border:0.5px solid #ddd;border-radius:3px;min-height:20px;font-size:7.5pt;margin-bottom:3px">${E(d.diagnosis||'')}</div>
+      <div class="pgrid pg3">${pf('Technician Name',d.techName)}${pf('Tech. ID',d.techId)}${pf('Inspection Date',d.techDate)}</div>`)}
+    ${psecBlock('7. Service Estimate', hasEst, `
+      <table class="ptbl"><thead><tr><th style="width:54%">Description</th><th style="width:10%;text-align:center">Qty</th><th style="width:18%;text-align:right">Unit (₹)</th><th style="width:18%;text-align:right">Total (₹)</th></tr></thead><tbody>${estRows||'<tr><td colspan="4" style="text-align:center;color:#999">No items</td></tr>'}</tbody></table>
+      <div class="ptots"><div>Sub-Total: ₹${d.subTotal||'0'}</div><div>GST (${d.gst||'0'}%): ₹${((parseFloat(d.subTotal)||0)*(parseFloat(d.gst)||0)/100).toFixed(2)}</div><div class="ptot-grand">TOTAL ESTIMATE: ₹${d.estTotal||'0'}</div>${(parseFloat(d.advancePaid)||0)>0 ? `<div>Advance Paid: ₹${E(d.advancePaid)}</div><div>Balance: ₹${((parseFloat(d.estTotal)||0)-(parseFloat(d.advancePaid)||0)).toFixed(2)}</div>` : ''}</div>`)}
+    <div class="psec"><div class="psec-t">8. Terms &amp; Conditions</div>
+      <div class="pterms"><ol>
+        <li>Service centre not responsible for pre-existing damage not noted at intake.</li>
+        <li>Uncollected watches after 90 days subject to storage charges.</li>
+        <li>Not liable for loss/damage due to circumstances beyond control.</li>
+        <li>Watches left over 6 months without collection may be disposed of.</li>
+        <li>Warranty on service covers only work carried out.</li>
+        <li>Customer confirms watch is their own property or they are duly authorized.</li>
+        <li>Defective parts may not be returned unless requested at submission.</li>
+        <li>Water resistance testing does not guarantee real-world performance.</li>
+        <li>Service centre may decline service on suspicious items.</li>
+        <li>This form constitutes a binding service agreement.</li>
+      </ol></div>
+    </div>
+    <div class="psec"><div class="psec-t">9. Customer Authorization (Intake)</div>
+      <div class="pchks" style="flex-direction:column;gap:2px;margin-bottom:4px">
+        ${pchk('I have read and agree to the Terms &amp; Conditions.',d.authTC)}
+        ${pchk('I authorize the service centre to perform the described work.',d.authWork)}
+        ${pchk('I agree to pay the estimate or revised amount.',d.authPay)}
+        ${pchk('The condition report accurately reflects the watch at handover.',d.authCond)}
+      </div>
+      <div class="psigs">
+        <div><div class="psig-line">${E(d.authName||'')}</div><div class="psig-lbl">Customer Name</div></div>
+        <div><div class="psig-line">${E(d.authDate||'')}</div><div class="psig-lbl">Date</div></div>
+        <div><div class="psig-line">${E(d.authSig||'')}</div><div class="psig-lbl">Customer Signature</div></div>
+      </div>
+    </div>
+    ${psecBlock('10. Service Centre Acknowledgement', hasAck, `
+      <div class="pgrid pg3" style="margin-bottom:4px">${pf('Received By',d.ackBy)}${pf('Designation',d.ackDesig)}${pf('Date &amp; Time',d.ackDT)}</div>
+      ${pchk('Yes — service order is confirmed.',d.ackConfirmed)}`)}
+    <div class="pftr">Thank you for entrusting your timepiece with us. &nbsp;·&nbsp; This document is a legally binding service agreement. Retain for your records. &nbsp;·&nbsp; ${id}</div>`;
+}
+
+// ─── PROFORMA INVOICE (delivery) ───────────────────────────────
+// Header titled "Proforma Invoice" + itemized charges + the Section-11
+// delivery & completion certification. Printed at collection/delivery.
+function buildProformaHtml(c, photoUrl, photoUrlAfter) {
+  const del = c.delivery || {};
+  const E = escapeHtml;   // print renders in the shell doc → escape every user value
+  const estRows = (c.lineItems || []).filter(li => li.desc).map(li =>
+    `<tr><td>${E(li.desc)}</td><td style="text-align:center">${E(li.qty)}</td><td style="text-align:right">₹${E(li.unit)}</td><td style="text-align:right">₹${E(li.total)}</td></tr>`
+  ).join('');
+  const gstAmt = ((parseFloat(c.subTotal)||0)*(parseFloat(c.gst)||0)/100).toFixed(2);
+  const adv = parseFloat(c.advancePaid) || 0;
+  const advLine = adv > 0 ? `<div>Advance Paid: ₹${E(c.advancePaid)}</div>` : '';
+  const finalLine = del.finalAmt ? `<div class="ptot-grand">FINAL AMOUNT CHARGED: ₹${E(del.finalAmt)}</div>` : '';
+  const balLine = (adv > 0 && del.finalAmt) ? `<div class="ptot-grand">BALANCE DUE: ₹${((parseFloat(del.finalAmt)||0) - adv).toFixed(2)}</div>` : '';
+  const ap = c.estimateApproval;
+  const apLine = (ap && ap.at) ? `<div>Estimate approved: ${E((ap.at||'').slice(0,10))}${ap.via?(' · '+E(ap.via)):''}${ap.by?(' · by '+E(ap.by)):''}</div>` : '';
+  return `
+    <div class="pr-hdr">
+      <div><div class="pr-brand">Saagar Traders — Watch Service Centre</div><div style="font-size:6.5pt;color:#666">Latur, Maharashtra &nbsp;|&nbsp; Watch Service Centre</div></div>
+      <div style="text-align:right"><div class="pr-title">Proforma Invoice</div><div style="font-size:6.5pt;color:#888">Status: <strong>${(c.status||'').toUpperCase()}</strong></div></div>
+    </div>
+    <div class="pr-meta">
+      ${pfKeep('Service Order No', c.id)}${pfKeep('Customer', c.custName)}${pf('Mobile', c.custMobile)}${pf('Date of Collection', del.collectDate)}
+    </div>
+    <div class="psec"><div class="psec-t">Watch</div>
+      <div class="pgrid pg4">${pf('Brand', c.brand)}${pf('Model', c.model)}${pf('Reference No', c.refNo)}${pf('Serial No', c.serialNo)}</div>
+    </div>
+    <div class="psec"><div class="psec-t">Watch Photos — Before &amp; After</div><div style="display:flex;gap:10px;align-items:flex-start">
+      <div style="flex:1;min-width:0"><div style="font-size:6pt;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:.03em;margin-bottom:2px">Received condition</div>${photoUrl ? `<div class="pwphoto"><img src="${photoUrl}" alt="Received condition"></div>` : '<div class="pnone">Not attached</div>'}</div>
+      <div style="flex:1;min-width:0"><div style="font-size:6pt;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:.03em;margin-bottom:2px">After service</div>${photoUrlAfter ? `<div class="pwphoto"><img src="${photoUrlAfter}" alt="After service"></div>` : '<div class="pnone">Not attached</div>'}</div>
+    </div></div>
+    <div class="psec"><div class="psec-t">Itemized Charges</div>
+      <table class="ptbl"><thead><tr><th style="width:54%">Description</th><th style="width:10%;text-align:center">Qty</th><th style="width:18%;text-align:right">Unit (₹)</th><th style="width:18%;text-align:right">Amount (₹)</th></tr></thead><tbody>${estRows||'<tr><td colspan="4" style="text-align:center;color:#999">No line items recorded</td></tr>'}</tbody></table>
+      <div class="ptots"><div>Sub-Total: ₹${c.subTotal||'0'}</div><div>GST (${c.gst||'0'}%): ₹${gstAmt}</div><div class="ptot-grand">ESTIMATE TOTAL: ₹${c.estTotal||'0'}</div>${apLine}${advLine}${finalLine}${balLine}</div>
+    </div>
+    <div class="psec"><div class="psec-t">11. Delivery &amp; Completion Certification</div>
+      <div class="pchks" style="flex-direction:column;gap:2px;margin-bottom:4px">
+        ${pchk('All work completed to my satisfaction.', del.d1)}
+        ${pchk('Service details and charges fully explained.', del.d2)}
+        ${pchk('Watch in good working condition at collection.', del.d3)}
+        ${pchk('All accessories and documents returned.', del.d4)}
+        ${pchk('No further claims against service centre.', del.d5)}
+      </div>
+      ${(del.payMode||del.payRef||del.collectDate) ? `<div class="pgrid pg3" style="margin-bottom:4px">${pf('Payment Mode', del.payMode)}${pf('Payment Reference', del.payRef)}${pf('Date of Collection', del.collectDate)}</div>` : ''}
+      ${(del.payMode==='Cash') ? denoPrint(del.deno) : ''}
+      <div class="psigs">
+        <div><div class="psig-line">${E(del.delCustSig||'')}</div><div class="psig-lbl">Customer Signature</div></div>
+        <div><div class="psig-line">${E(del.delTechSig||'')}</div><div class="psig-lbl">Technician Signature</div></div>
+        <div><div class="psig-line">${E(del.delAdvisorSig||'')}</div><div class="psig-lbl">Service Advisor Signature</div></div>
+      </div>
+    </div>
+    <div class="pftr">Proforma invoice — for service confirmation; not a tax invoice. Retain for your records. &nbsp;·&nbsp; ${c.id}</div>`;
+}
+
+// Resolve the watch photo as a data URL for the print: from the live form preview
+// when printing the open form, else from IndexedDB for a stored case.
+function resolveWatchPhoto(id, fromForm) {
+  if (fromForm) { const u = currentWatchPhotoUrl(); if (u) return Promise.resolve(u); }
+  const api = svcEv();
+  if (api && api.getDataURL) return api.getDataURL(watchKey(id)).catch(() => null);
+  return Promise.resolve(null);
+}
+function resolveWatchPhotoAfter(id, fromForm) {
+  if (fromForm) { const u = currentWatchPhotoUrlAfter(); if (u) return Promise.resolve(u); }
+  const api = svcEv();
+  if (api && api.getDataURL) return api.getDataURL(watchKeyAfter(id)).catch(() => null);
+  return Promise.resolve(null);
+}
+
+// ─── PRINT ENTRY POINTS (route through the shell print bridge) ──
+function doPrint() {                       // form → Job Card (intake)
+  const data = readForm();
+  const id = g('f-ono') || editId || 'DRAFT';
+  const status = editId ? (byId(editId)?.status || 'open') : 'open';
+  resolveWatchPhoto(id, true).then(url => sendPrint('Job Card — ' + id, buildIntakeHtml(data, id, status, url), 'form'));
+}
+function printById(id) {                   // case list → Job Card (intake)
+  const c = byId(id); if (!c) return;
+  resolveWatchPhoto(id, false).then(url => sendPrint('Job Card — ' + id, buildIntakeHtml(c, id, c.status, url), 'dash'));
+}
+function doProforma() {                     // form (delivery) → Proforma Invoice
+  if (!editId) { alert('Save the service order first, then print the Proforma Invoice.'); return; }
+  const c = byId(editId); if (!c) return;
+  Promise.all([resolveWatchPhoto(editId, true), resolveWatchPhotoAfter(editId, true)]).then(([u1, u2]) => sendPrint('Proforma Invoice — ' + editId, buildProformaHtml(c, u1, u2), 'form'));
+}
+function printProformaById(id) {            // case list → Proforma Invoice
+  const c = byId(id); if (!c) return;
+  Promise.all([resolveWatchPhoto(id, false), resolveWatchPhotoAfter(id, false)]).then(([u1, u2]) => sendPrint('Proforma Invoice — ' + id, buildProformaHtml(c, u1, u2), 'dash'));
+}
+
+// ─── GST TAX INVOICE (Wave 3) ──────────────────────────────────
+// Native-vector PDF via the shell's SaagarReport engine. Service-centre /
+// non-franchise sales only (never the Titan World POS bill). A stable sequential
+// invoice number (WS-YYYY-NNN) is stamped ONCE per case so re-printing is idempotent.
+function assignInvoiceNo(c) {
+  if (c.invoiceNo) return c.invoiceNo;
+  let seq = parseInt(localStorage.getItem('saagar_invoice_seq_v1') || '0', 10); if (isNaN(seq)) seq = 0;
+  seq += 1; localStorage.setItem('saagar_invoice_seq_v1', String(seq));
+  c.invoiceNo = 'WS-' + new Date().getFullYear() + '-' + String(seq).padStart(3, '0');
+  saveDB();
+  return c.invoiceNo;
+}
+function doTaxInvoice() { if (!editId) { alert('Save and close the service order first.'); return; } taxInvoiceById(editId); }
+function taxInvoiceById(id) {
+  const c = byId(id); if (!c) return;
+  const fa = parseFloat(c.delivery && c.delivery.finalAmt) || 0;
+  if (!(fa > 0)) { toast('⚠ Record the Final Amount (close the case) before invoicing'); return; }
+  const no = assignInvoiceNo(c);
+  try {
+    const R = (window.parent && window.parent !== window && SaagarModuleBridge.report) || SaagarModuleBridge.report;
+    if (R && typeof R.preview === 'function') { R.preview('serviceTaxInvoice', { id: id, invoiceNo: no }); return; }
+    if (R && typeof R.generate === 'function') { R.generate('serviceTaxInvoice', { id: id, invoiceNo: no }); return; }
+  } catch (e) {}
+  toast('Report engine unavailable');
+}
+
+// ─── TWEAKS ────────────────────────────────────────────────────
+const accents = {
+  gold: { gold: '#b8922a', goldl: '#d4a843' },
+  teal: { gold: '#0d9488', goldl: '#14b8a6' },
+  rose: { gold: '#be185d', goldl: '#db2777' },
+  slate: { gold: '#475569', goldl: '#64748b' }
+};
+function applyAccent(val, el) {
+  document.querySelectorAll('#tweak-accent .tweak-opt').forEach(o => o.classList.remove('on'));
+  el.classList.add('on');
+  const a = accents[val];
+  document.documentElement.style.setProperty('--gold', a.gold);
+  document.documentElement.style.setProperty('--gold-l', a.goldl);
+  document.documentElement.style.setProperty('--gold-t', hexToRgba(a.gold, 0.12));
+  document.documentElement.style.setProperty('--gold-p', hexToRgba(a.goldl, 0.06));
+}
+function hexToRgba(hex, alpha) {
+  const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+function applyLayout(val, el) {
+  document.querySelectorAll('#tweak-layout .tweak-opt').forEach(o => o.classList.remove('on'));
+  el.classList.add('on');
+  document.querySelectorAll('.case-card').forEach(c => {
+    c.style.padding = val === 'compact' ? '0' : '';
+  });
+  document.querySelectorAll('.case-body').forEach(b => {
+    b.style.padding = val === 'compact' ? '10px 16px' : '';
+  });
+}
+function applyDensity(val, el) {
+  document.querySelectorAll('#tweak-density .tweak-opt').forEach(o => o.classList.remove('on'));
+  el.classList.add('on');
+  const sec = document.querySelectorAll('.sec-body');
+  sec.forEach(s => s.style.padding = val === 'compact' ? '12px 16px' : '');
+  document.querySelectorAll('.field-input, .field-select, .field-textarea')
+    .forEach(i => i.style.padding = val === 'compact' ? '6px 10px' : '');
+}
+
+// Tweaks host protocol
+window.addEventListener('message', e => {
+  if (!SaagarModuleRuntime.accepts(e, window.parent)) return;
+  if (e.data?.type === '__activate_edit_mode') document.getElementById('tweaks-panel').style.display = 'block';
+  if (e.data?.type === '__deactivate_edit_mode') document.getElementById('tweaks-panel').style.display = 'none';
+});
+window.parent.postMessage({ type: '__edit_mode_available' },SaagarModuleRuntime.targetOrigin);
+
+// ─── READ-ONLY UI (past-date view) ─────────────────────────────
+// Reflects the current viewDate into the UI: banners on, write buttons
+// disabled, and form inputs locked. Today / future → fully interactive.
+// This only paints state — it never writes to the DB.
+function applyReadOnlyUI() {
+  const ro = isPastView();
+
+  // Banners
+  ['ro-banner-dash', 'ro-banner-form'].forEach(id => {
+    const b = document.getElementById(id);
+    if (!b) return;
+    b.textContent = ro ? ('Viewing ' + viewDate + ' — read-only') : '';
+    b.style.display = ro ? '' : 'none';
+  });
+
+  // Disable the write entry points (create / save / close / delete).
+  // Cancel / Back / Print remain usable (viewing & printing are read-safe).
+  const writeButtons = document.querySelectorAll(
+    'button[onclick*="openNew("], button[onclick*="doSave("], ' +
+    'button[onclick*="closeCase("], button[onclick*="delCase("]'
+  );
+  writeButtons.forEach(btn => {
+    btn.disabled = ro;
+    btn.style.opacity = ro ? '0.45' : '';
+    btn.style.cursor = ro ? 'not-allowed' : '';
+    btn.style.pointerEvents = ro ? 'none' : '';
+  });
+
+  // Lock the form fields themselves so a past case can be read but not altered.
+  document.querySelectorAll('#view-form input, #view-form select, #view-form textarea')
+    .forEach(el => { el.disabled = ro; });
+}
+
+// ─── VIEW-DATE EVENTS ──────────────────────────────────────────
+// Shell pushes date changes via the 'st-date' window event.
+window.addEventListener('st-date', e => {
+  const d = e && e.detail;
+  const next = (typeof d === 'string') ? d
+             : (d && typeof d.date === 'string') ? d.date
+             : (typeof window.__stAsOf === 'string' ? window.__stAsOf : null);
+  if (next) viewDate = next;
+  applyReadOnlyUI();
+  renderDash();
+});
+
+// ─── FOLLOW-UP LOG (additive; #6) ──────────────────────────────
+// Per-case call/visit history. Stored as c.followUps = [] on the case
+// object and persisted via the EXISTING saveDB() — no new key/shape.
+// READ everywhere as (c.followUps || []) so old cases load unchanged.
+let _fuCaseId = null;
+
+function pad2(n) { return String(n).padStart(2, '0'); }
+function nowLocalDT() {
+  const d = new Date();
+  return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) +
+         'T' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+}
+function fmtFollowDT(v) {
+  if (!v) return '—';
+  const d = new Date(v);
+  if (isNaN(d)) return escapeHtml(v);
+  return d.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', hour12: true });
+}
+
+function renderFollowUps() {
+  const c = byId(_fuCaseId);
+  const listEl = document.getElementById('fu-list');
+  if (!listEl) return;
+  const items = (c && c.followUps || []).slice();   // additive read; old cases → []
+  if (!items.length) {
+    listEl.innerHTML = '<div class="fu-empty">No follow-ups logged yet.</div>';
+    return;
+  }
+  const todayIso = todayStr();
+  // NEWEST FIRST: entries are appended chronologically, so reverse for display.
+  listEl.innerHTML = items.slice().reverse().map(f => {
+    const duePast = f.dueDate && f.dueDate <= todayIso;
+    return `<div class="fu-item">
+      <div class="fu-item-top">
+        <span class="fu-type">${escapeHtml(f.type || '—')}${f.outcome ? ' · ' + escapeHtml(f.outcome) : ''}</span>
+        <span class="fu-when">${fmtFollowDT(f.datetime)}</span>
+      </div>
+      ${f.remarks ? `<div class="fu-remarks">${escapeHtml(f.remarks)}</div>` : ''}
+      ${(f.dueDate || f.by) ? `<div class="fu-remarks" style="color:${duePast ? 'var(--red)' : 'var(--g500,#6b7280)'};font-size:11.5px">${f.dueDate ? '📅 Next: ' + escapeHtml(f.dueDate) + (duePast ? ' (due)' : '') : ''}${f.dueDate && f.by ? ' · ' : ''}${f.by ? 'by ' + escapeHtml(f.by) : ''}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+// Wave 3 — add N months to an ISO yyyy-mm-dd date (clamps to a valid calendar date).
+function addMonthsIso(iso, m) {
+  try { const d = new Date(iso + 'T00:00:00'); if (isNaN(d)) return ''; d.setMonth(d.getMonth() + m);
+    return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+  catch (e) { return ''; }
+}
+// Wave 3 — on close, schedule ONE warranty / battery-due follow-up so warranty expiry
+// (and battery/strap replacement) becomes a proactive "call them" reason. Idempotent:
+// re-closing a case never stacks duplicates (guarded on f.auto==='warranty').
+function scheduleWarrantyFollowUp(c, del, baseDate, months) {
+  try {
+    const blob = ((c.diagnosis || '') + ' ' + (c.issOtherText || '') + ' ' +
+      ((c.lineItems || []).map(li => (li && li.desc) || '').join(' '))).toLowerCase();
+    const isBattery = /batter|cell/.test(blob);
+    const isStrap = /strap|bracelet|\bband\b/.test(blob) || !!c.issBrac;
+    const till = months > 0 ? addMonthsIso(baseDate, months)
+               : (isBattery || isStrap) ? addMonthsIso(baseDate, 18) : '';
+    if (!till) return;
+    c.followUps = c.followUps || [];
+    const label = months > 0 ? 'Warranty expiring — call to renew / service'
+                : isBattery ? 'Next battery likely due — call customer'
+                : 'Service reminder — call customer';
+    const existing = c.followUps.find(f => f && f.auto === 'warranty');
+    if (existing) {
+      existing.dueDate = till;
+      existing.remarks = label;
+      existing.updatedAt = new Date().toISOString();
+      return;
+    }
+    c.followUps.push({ type: 'Warranty', datetime: nowLocalDT(), remarks: label, outcome: '',
+      dueDate: till, by: 'auto', auto: 'warranty', createdAt: new Date().toISOString() });
+  } catch (e) {}
+}
+function followUpDue(c) {
+  if (!c || c.status === 'closed') return false;
+  const dues = (c.followUps || []).map(f => f && f.dueDate).filter(Boolean).sort();
+  if (!dues.length) return false;
+  return dues[dues.length - 1] <= todayStr();
+}
+
+function openFollowUps(id) {
+  const c = byId(id);
+  if (!c) return;
+  _fuCaseId = id;
+  document.getElementById('fu-title').textContent = 'Follow-Up Log — ' + id;
+  document.getElementById('fu-subtitle').textContent = c.custName || '';
+  // Reset the add-form to a clean state (call type cleared, time = now).
+  const t = document.getElementById('fu-type'); if (t) t.value = '';
+  const dt = document.getElementById('fu-dt'); if (dt) dt.value = nowLocalDT();
+  ['fu-remarks', 'fu-due', 'fu-outcome', 'fu-by'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  renderFollowUps();
+  document.getElementById('fu-overlay').classList.add('show');
+}
+
+function closeFollowUps() {
+  document.getElementById('fu-overlay').classList.remove('show');
+  _fuCaseId = null;
+}
+
+// Open the shell's "Send on WhatsApp" composer pre-scoped to THIS case, so the
+// user never has to hunt for the customer in the global recipient list.
+function waForCase() {
+  if (!_fuCaseId) return;
+  try {
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: 'ST_WA', module: 'service', recordId: _fuCaseId },SaagarModuleRuntime.targetOrigin);
+      return;
+    }
+  } catch (e) {}
+  toast('WhatsApp share opens from the app shell.');
+}
+
+// When a WhatsApp is sent from the shell composer for one of our cases, the shell
+// posts ST_WA_SENT back so we close the loop: auto-log a Follow-up with the message.
+window.addEventListener('message', function (e) {
+  if (!SaagarModuleRuntime.accepts(e, window.parent) || !e.data || e.data.type !== 'ST_WA_SENT') return;
+  logWhatsAppFollowUp(e.data.recordId, e.data.text);
+});
+function logWhatsAppFollowUp(id, text) {
+  const c = byId(id);
+  if (!c) return;
+  if (!Array.isArray(c.followUps)) c.followUps = [];   // additive init for old cases
+  c.followUps.push({ type: 'WhatsApp', datetime: nowLocalDT(), remarks: (text || '').trim(), outcome: 'Message sent', dueDate: '', by: '', createdAt: new Date().toISOString() });
+  saveDB();
+  if (_fuCaseId === id) renderFollowUps();   // refresh the open follow-up modal
+  renderDash();                              // update the follow-up count badge
+  toast('✓ WhatsApp logged to follow-up');
+}
+
+function addFollowUp() {
+  if (readOnlyGuard()) return;          // past view → no write (consistent w/ other paths)
+  // Load the STORED case by id and mutate it directly — never via readForm(),
+  // so the rest of the saved record is untouched and follow-ups can't be wiped.
+  const c = byId(_fuCaseId);
+  if (!c) { toast('Case not found'); return; }
+  const type = document.getElementById('fu-type').value;
+  const datetime = document.getElementById('fu-dt').value;
+  const remarks = (document.getElementById('fu-remarks').value || '').trim();
+  const outcome = document.getElementById('fu-outcome').value;
+  const dueDate = document.getElementById('fu-due').value;
+  const by = (document.getElementById('fu-by').value || '').trim();
+  if (!type) { toast('⚠ Select a call type'); return; }
+  if (!datetime) { toast('⚠ Pick a date & time'); return; }
+  if (!Array.isArray(c.followUps)) c.followUps = [];   // additive init for old cases
+  c.followUps.push({ type, datetime, remarks, outcome, dueDate, by, createdAt: new Date().toISOString() });
+  saveDB();                              // EXISTING persist fn — same key/shape + array
+  // Refresh the history and the card count, clear the per-entry fields for the next one.
+  renderFollowUps();
+  ['fu-remarks', 'fu-due', 'fu-outcome'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  document.getElementById('fu-dt').value = nowLocalDT();
+  renderDash();
+  toast('✓ Follow-up added');
+}
+
+// ─── INIT ──────────────────────────────────────────────────────
+renderDash();
+applyReadOnlyUI();
+</script>
+<!-- ─── FOLLOW-UP LOG MODAL (additive; #6) ─── -->
+<div class="fu-overlay" id="fu-overlay" onclick="if(event.target===this)closeFollowUps()">
+  <div class="fu-modal" role="dialog" aria-modal="true" aria-labelledby="fu-title">
+    <div class="fu-head">
+      <div>
+        <h3 id="fu-title">Follow-Up Log</h3>
+        <div class="fu-sub" id="fu-subtitle"></div>
+      </div>
+      <button data-action="close-7dc14e8101" class="fu-close" type="button" onclick="closeFollowUps()" aria-label="Close">×</button>
+    </div>
+    <div class="fu-body">
+      <div class="fu-addform">
+        <div class="field-group">
+          <label class="field-label" for="fu-type">Call Type</label>
+          <select class="field-select" id="fu-type">
+            <option value="">— Select —</option>
+            <option>Incoming</option>
+            <option>Outgoing</option>
+            <option>WhatsApp</option>
+            <option>Email</option>
+            <option>Visit</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="fu-dt">Date &amp; Time</label>
+          <input class="field-input" type="datetime-local" id="fu-dt">
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="fu-outcome">Outcome</label>
+          <select class="field-select" id="fu-outcome">
+            <option value="">— Select —</option>
+            <option>Pending</option>
+            <option>Will collect</option>
+            <option>Estimate approved</option>
+            <option>Estimate declined</option>
+            <option>No response</option>
+            <option>Resolved</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="fu-due">Next Follow-up (due)</label>
+          <input class="field-input" type="date" id="fu-due">
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="fu-by">Logged by</label>
+          <input class="field-input" id="fu-by" placeholder="Staff name">
+        </div>
+        <div class="field-group fu-full">
+          <label class="field-label" for="fu-remarks">Remarks</label>
+          <textarea class="field-textarea" id="fu-remarks" placeholder="What was discussed / next step…"></textarea>
+        </div>
+        <div class="fu-full" style="display:flex;gap:8px;flex-wrap:wrap">
+          <button data-action="add-follow-up" class="btn btn-primary btn-sm" type="button" onclick="addFollowUp()">+ Add Follow-up</button>
+          <button data-action="send-whatsapp" class="btn btn-ghost btn-sm" type="button" onclick="waForCase()" style="color:#1f9d4f;border-color:#1f9d4f">💬 Send WhatsApp</button>
+        </div>
+      </div>
+      <div class="fu-list" id="fu-list"></div>
+    </div>
+  </div>
+</div>
+
+<link id="st-v5-back-style" rel="stylesheet" href="../../shared/module-back.css">
+<button data-action="st-v5-home-fab" id="st-v5-home-fab" type="button" title="Back to Home (Esc)"><svg viewBox="0 0 24 24"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg></button>
+<div id="st-v5-next-chips"></div>
+<script id="st-v5-back-script">SaagarModuleRuntime.run('back',{schemaVersion:1,moduleId:'service',nextSteps:[{id:'qms',label:'Back to Queue →'}],customerSelectors:['#f-cn','#f-an','#f-dcs'],accessContext:true});</script>
+
+<link id="st-v5-emp-assist-style" rel="stylesheet" href="../../shared/module-employee.css"><script id="st-v5-emp-assist-script">SaagarModuleRuntime.run('employees',{schemaVersion:1,moduleId:'service',nextSteps:[{id:'qms',label:'Back to Queue →'}],customerSelectors:['#f-cn','#f-an','#f-dcs'],accessContext:true});</script>
+
+<script id="st-v5-module-audit-bridge">SaagarModuleRuntime.run('audit',{schemaVersion:1,moduleId:'service',nextSteps:[{id:'qms',label:'Back to Queue →'}],customerSelectors:['#f-cn','#f-an','#f-dcs'],accessContext:true});</script>
+
+<script id="st-v5-module-access-bridge">SaagarModuleRuntime.run('access',{schemaVersion:1,moduleId:'service',nextSteps:[{id:'qms',label:'Back to Queue →'}],customerSelectors:['#f-cn','#f-an','#f-dcs'],accessContext:true});</script>
+</body>
+</html>

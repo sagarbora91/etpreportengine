@@ -1,0 +1,36 @@
+{
+  "format": "SAAGAR_ETP_CORE_REAL_CONFORMANCE",
+  "contractVersion": "retail-etp-core-v1",
+  "evaluatedAt": "2026-08-09T02:39:23.128Z",
+  "privacy": "aggregate metadata only; source workbooks remain external",
+  "results": [
+    {
+      "ok": true,
+      "storeCode": "WLMHW",
+      "reports": [
+        { "reportId": "R003", "rows": 5440, "columns": 34, "sourceSha256": "97675d231b4180e4bde85cb96667a79df98fa3e90e21155d664f1d0804253f2c", "signatureSha256": "e8950cc6db7ee7e3fc2ca29c5eb28d60915ecdf15bb047a840a6b210c7880f1d", "piiCanaryPresent": false, "unresolvedPaymentType25Rows": 0 },
+        { "reportId": "R013", "rows": 5351, "columns": 28, "sourceSha256": "e3919688c6b4ac24399c8a34ac792d40c942c9df67e30bc7dbe306bb2a7cacd9", "signatureSha256": "d4e25e342cc8074b3d4dff99e1084d46def91ac9cc25f1f3eec91f882219ada9", "piiCanaryPresent": false, "unresolvedPaymentType25Rows": 0 },
+        { "reportId": "R022", "rows": 4658, "columns": 46, "sourceSha256": "dc5825ef36426f9ec3b1d343b077777a08458c47c7eacd3cab94ff1d352457bf", "signatureSha256": "7cc3abe5a55b7d92c09d6e18b9ceb2e85c19efa2c54246c524d974152766a550", "piiCanaryPresent": false, "unresolvedPaymentType25Rows": 2802, "paymentType25ExcludedFromFacts": true },
+        { "reportId": "R025", "rows": 5351, "columns": 41, "sourceSha256": "90d94caca07adf13c9e53501205f5ce1c6e325a82f53e54ef9f09a47c876d15a", "signatureSha256": "0ab3e50996dd3e87f87f8d9dacf51b45c51cfa5aad3e69f45ea2e81cade7297d", "piiCanaryPresent": false, "unresolvedPaymentType25Rows": 0 }
+      ],
+      "reconciliation": { "status": "PASS", "code": "RECON_MATCH", "differenceCount": 0, "leftGroups": 4658, "rightGroups": 4658, "sharedGroups": 4658, "differencesByMeasure": { "quantity": 0, "netAmount": 0 } },
+      "attribution": { "status": "FAIL", "code": "RECON_MISMATCH", "differenceCount": 136 },
+      "discountEnrichment": { "status": "FAIL", "code": "RECON_MISMATCH", "differenceCount": 162 }
+    },
+    {
+      "ok": true,
+      "storeCode": "HEMW",
+      "reports": [
+        { "reportId": "R003", "rows": 739, "columns": 34, "sourceSha256": "a84010372e6a54af58668c8a89f95b6db271cbfd6274acfd80535cd8a7609f9f", "signatureSha256": "e8950cc6db7ee7e3fc2ca29c5eb28d60915ecdf15bb047a840a6b210c7880f1d", "piiCanaryPresent": false, "unresolvedPaymentType25Rows": 0 },
+        { "reportId": "R013", "rows": 736, "columns": 28, "sourceSha256": "ea4c61982f449b4414025acb5deb99350289489b0f2dc221217026062efcf350", "signatureSha256": "d4e25e342cc8074b3d4dff99e1084d46def91ac9cc25f1f3eec91f882219ada9", "piiCanaryPresent": false, "unresolvedPaymentType25Rows": 0 },
+        { "reportId": "R022", "rows": 708, "columns": 46, "sourceSha256": "b3af5b3e4ff835f9afbcdb3c6b9b29e49dcb5a4e15e04698eba68b44c3a864b6", "signatureSha256": "7cc3abe5a55b7d92c09d6e18b9ceb2e85c19efa2c54246c524d974152766a550", "piiCanaryPresent": false, "unresolvedPaymentType25Rows": 18, "paymentType25ExcludedFromFacts": true },
+        { "reportId": "R025", "rows": 736, "columns": 41, "sourceSha256": "1d14b89b6d621f5f79a2f1756aa799861d70c5ab42c51d6c514552d0a8898c1e", "signatureSha256": "0ab3e50996dd3e87f87f8d9dacf51b45c51cfa5aad3e69f45ea2e81cade7297d", "piiCanaryPresent": false, "unresolvedPaymentType25Rows": 0 }
+      ],
+      "reconciliation": { "status": "PASS", "code": "RECON_MATCH", "differenceCount": 0, "leftGroups": 708, "rightGroups": 708, "sharedGroups": 708, "differencesByMeasure": { "quantity": 0, "netAmount": 0 } },
+      "attribution": { "status": "FAIL", "code": "RECON_MISMATCH", "differenceCount": 33 },
+      "discountEnrichment": { "status": "FAIL", "code": "RECON_MISMATCH", "differenceCount": 6 }
+    }
+  ],
+  "passed": true,
+  "formalDeviceAcceptance": false
+}

@@ -1,0 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+import { createRequire } from 'node:module';
+const require=createRequire(import.meta.url), presentation=require('../www/etp-verified-presentation.js');
+const html=fs.readFileSync(new URL('../www/modules/etp/index.html',import.meta.url),'utf8');
+const gateway=fs.readFileSync(new URL('../www/etp-module-gateway.js',import.meta.url),'utf8');
+test('ETP module offers DAY/MTD/YTD/LY controls and honest analytics copy',()=>{for(const view of ['DAY','MTD','YTD','LY'])assert.match(html,new RegExp(`data-etp-analytics-view="${view}"`));for(const text of ['Verified analytics period','LY same period','PAYMENTTYPE25'])assert.match(html,new RegExp(text));assert.doesNotThrow(()=>new vm.Script(fs.readFileSync(new URL('../www/etp-verified-presentation.js',import.meta.url),'utf8')));});
+test('presentation accepts only exact same-store sanitized analytics and renders missing as em dash',()=>{const scope={storeCode:'WLMHW',financialYear:'2026-27',periodStart:'2026-04-01',periodEnd:'2026-08-24'};const model={contractVersion:'ETP_E2_ANALYTICS_V1',scope:{...scope,scopeKey:'WLMHW|2026-27|2026-04-01..2026-08-24'},view:'DAY',period:{},verified:{},coverage:{},metrics:{netSale:null},mixes:{brand:[],cro:[],tender:[]},exceptions:{},identity:{}};assert.equal(presentation.safeAnalytics({analytics:model},scope),model);assert.equal(presentation.safeAnalytics({analytics:{...model,scope:{...model.scope,storeCode:'HEMW'}}},scope),null);assert.match(fs.readFileSync(new URL('../www/etp-verified-presentation.js',import.meta.url),'utf8'),/return'—'/);});
+test('analytics remains behind the governed read facade with no iframe native/raw access',()=>{assert.match(gateway,/Object\.defineProperty\(readFacade, 'loadAnalytics'/);assert.match(gateway,/analyticsApi\.build/);assert.doesNotMatch(html,/SaagarEtp(?:NativeStore|VerifiedReader)|readFacts\s*\(|Capacitor\.Plugins|window\.parent|parent\.postMessage/);});

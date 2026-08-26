@@ -1,0 +1,523 @@
+{
+  "schemaVersion": 1,
+  "gateId": "v6-etp-gate0-authority-freeze-2026-08-25-v1",
+  "freezeStatus": "FROZEN_FAIL_CLOSED",
+  "formalBusinessApproval": false,
+  "productActivationAllowed": false,
+  "programmeOrder": [
+    "E3",
+    "E4",
+    "E6",
+    "E5",
+    "E7"
+  ],
+  "invariantAuthority": {
+    "sourceFacts": "IMMUTABLE_VERIFIED_ETP_ONLY",
+    "declarationsAsPaymentBasis": "FORBIDDEN",
+    "crossStoreBorrowing": "FORBIDDEN",
+    "unknownDictionaryValue": "QUARANTINE_OR_UNMAPPED_NEVER_GUESSED",
+    "operationalState": "DURABLE_NON_FACT_STATE",
+    "portableBackup": "OPERATIONAL_STATE_INCLUDED_SEALED_FACTS_EXCLUDED",
+    "restoreBehavior": "PRESERVE_HUMAN_ACTIONS_FENCE_VERIFIED_READS_UNTIL_REIMPORT",
+    "privilegeBoundary": "OWNER_SESSION_AND_FRESH_REAUTH_NOT_ROLE_SELECTOR",
+    "moneySequence": "E5_AFTER_E3_E4_E6_ACCEPTANCE",
+    "serviceIsolation": "E7_SEPARATE_SERVICE_ETP_V1_BOUNDARY"
+  },
+  "currentRetailAuthority": {
+    "WLMHW": {
+      "profileStatus": "PRODUCTION_AUTHORIZED",
+      "operationalActivation": "PENDING_GATE0_OWNER_APPROVAL"
+    },
+    "HEMW": {
+      "profileStatus": "EVIDENCE_PENDING",
+      "operationalActivation": "BLOCKED_PROFILE_EVIDENCE_REQUIRED"
+    }
+  },
+  "contractBaselines": {
+    "OPERATIONAL_FOUNDATION": {
+      "path": "www/etp-operational-foundation.js",
+      "bytes": 8927,
+      "sha256": "cc03dbfc31454b5dfa3b8ccef554c14909bdb20db0b668552d752e07ba775c68"
+    },
+    "OPERATIONAL_STORE": {
+      "path": "www/etp-operational-store.js",
+      "bytes": 12228,
+      "sha256": "1628d9ce9a21318b497c9ece638775c3d6a8b565698e9aabd94883e60997edc4"
+    },
+    "OPERATIONAL_ADAPTERS": {
+      "path": "www/etp-operational-adapters.js",
+      "bytes": 13396,
+      "sha256": "b04d7ea269f4ae8e49d8e61bfcf57cc658a4995717bf3314c4c9979225435d02"
+    },
+    "OPERATIONAL_RUNTIME": {
+      "path": "www/etp-operational-runtime.js",
+      "bytes": 6449,
+      "sha256": "75352426907335e7aba9da89267f2cb28e106b2efbc2eab76042d6a8c4f0e8e1"
+    },
+    "E4_AUTHORITY_INTAKE": {
+      "path": "www/etp-e4-authority-intake.js",
+      "bytes": 11007,
+      "sha256": "b63238a928804ee967251161548317dc7445c51f6d8970983080a5544331fbd9"
+    },
+    "E6_AUTHORITY_INTAKE": {
+      "path": "www/etp-e6-authority-intake.js",
+      "bytes": 8054,
+      "sha256": "2d233055212ff5772ee05f436a63d656f5c708035aba59baf757c4ec99048a9d"
+    },
+    "E5_AUTHORITY_INTAKE": {
+      "path": "www/etp-e5-authority-intake.js",
+      "bytes": 11051,
+      "sha256": "ebef537bcd465c702950170074603e143e48442689bd2dbf555b6e3826f556b3"
+    },
+    "E7_AUTHORITY_INTAKE": {
+      "path": "www/etp-e7-authority-intake.js",
+      "bytes": 10955,
+      "sha256": "dbd0c845c6b5ca90e108e6ffdd061847fe6720a81a7940747028dd5bbdcf1977"
+    },
+    "E3_OWNER_AUTHORITY": {
+      "path": "docs/audit/V6-ETP-E3-OWNER-AUTHORITY-2026-08-25.md",
+      "bytes": 1210,
+      "sha256": "e111e348b2d9795ca818707185187f7bd7fbc10ace85e3c229d8e38ee2c2d241"
+    },
+    "E3": {
+      "path": "www/etp-cro-reconciliation.js",
+      "bytes": 13492,
+      "sha256": "da659932f4674b0c5392ed0b55bf1523e406c46ca307261b7f6ee491d17eb33c"
+    },
+    "E3_ORCHESTRATOR": {
+      "path": "www/etp-e3-orchestrator.js",
+      "bytes": 9899,
+      "sha256": "415ac766b9bbc85dea12f37fd1ec9e200415dbf0c9b3b4fd281fb5779a3173c5"
+    },
+    "E3_PRESENTATION": {
+      "path": "www/etp-e3-presentation.js",
+      "bytes": 12671,
+      "sha256": "a72eaf8a85719814d3965e9901099f26aea7f19ef8d1ce8a955bf5b2de4974bd"
+    },
+    "E4": {
+      "path": "www/etp-target-planning.js",
+      "bytes": 15940,
+      "sha256": "fceb678978631812a096469750b371516de0364795777b963b6ffb3166ae667d"
+    },
+    "E4_ORCHESTRATOR": {
+      "path": "www/etp-e4-orchestrator.js",
+      "bytes": 9942,
+      "sha256": "fc8e69eaf9f7c9b6a131d777786e67dc5ecc234040b383229c5ac615653a900a"
+    },
+    "E4_PRESENTATION": {
+      "path": "www/etp-e4-presentation.js",
+      "bytes": 14689,
+      "sha256": "d90c6157cea71eb19e3414c2c656a429a10c7bc0d2f07f957fd03b55e431e413"
+    },
+    "OPERATIONAL_GATEWAY": {
+      "path": "www/etp-operational-gateway.js",
+      "bytes": 22320,
+      "sha256": "fdf683be38447db30b54d1fa84ce5e05e735ada0e559c24d7f97ceb33fda3e8d"
+    },
+    "OPERATIONAL_MOUNT": {
+      "path": "www/etp-operational-mount.js",
+      "bytes": 7704,
+      "sha256": "4009fd78a5964d09d4fb21db79c4cb4d9319de3e95df99f9ea802251d91e5763"
+    },
+    "E3_VERIFIED_JOIN": {
+      "path": "www/etp-e3-verified-join.js",
+      "bytes": 5396,
+      "sha256": "e81e9669e8ad74978531fe861c1259c1174217f67ad231692c33899fd4747c5a"
+    },
+    "OPERATIONAL_BOOTSTRAP": {
+      "path": "www/etp-operational-bootstrap.js",
+      "bytes": 18717,
+      "sha256": "896bcd4279ba0a9d4127f051924c018548aff28a4ce9f41f10b767bf757b1389"
+    },
+    "OPERATIONAL_SHELL_COMPOSER": {
+      "path": "www/etp-operational-shell-composer.js",
+      "bytes": 7734,
+      "sha256": "37a85a92e1758cb7d7d320752200839e837984f3cc079b80d02592835992e871"
+    },
+    "OPERATIONAL_MODULE_HOST": {
+      "path": "www/etp-operational-module-host.js",
+      "bytes": 6515,
+      "sha256": "2ea4123c3e593e3625cfc3edb4878cd3f812cb979eccda3cfb80796e90741f98"
+    },
+    "OPERATIONAL_FRAME_BRIDGE": {
+      "path": "www/etp-operational-frame-bridge.js",
+      "bytes": 869,
+      "sha256": "9d873fac0f72818eb5104cad07ffbd00258cd61ebce3bf02f75421c96734c05d"
+    },
+    "E6": {
+      "path": "www/etp-exception-monitor.js",
+      "bytes": 24312,
+      "sha256": "2e32a0a3a1491c95ddd2e474118e27b3adeb35d952f89dc70b3dbcfaeadf76a0"
+    },
+    "E6_PRESENTATION": {
+      "path": "www/etp-e6-presentation.js",
+      "bytes": 16561,
+      "sha256": "b4f833974dd260a3c3290323125044e44e1cee105e6047c1074515715c068e85"
+    },
+    "E5": {
+      "path": "www/etp-incentive-control.js",
+      "bytes": 15264,
+      "sha256": "fefb9bc2537ca9f7cddb48692e0bfb80b055ea0d2dcbf9a1cd688f479b3c9898"
+    },
+    "E5_PRESENTATION": {
+      "path": "www/etp-e5-presentation.js",
+      "bytes": 16492,
+      "sha256": "6af578d5d4b69073988f1088ce208595e989b04801076ec2495b172b8c3368aa"
+    },
+    "E5_PAYROLL_BRIDGE": {
+      "path": "www/etp-e5-payroll-bridge.js",
+      "bytes": 2846,
+      "sha256": "c1bf788f9cc41a11bffd9fe07637cc726856e72d93f3bc2de12fe90d4e4d1e83"
+    },
+    "E7_OPERATIONAL_SERVICE_ONLY": {
+      "path": "www/service-workboard-policy.js",
+      "bytes": 16205,
+      "sha256": "72b0769cd8dadbb3371bafd5f1159b61219e28e3d0b5a4d00c606462662c747d"
+    },
+    "E7_SERVICE_VERIFIER": {
+      "path": "www/etp-e7-service-verifier.js",
+      "bytes": 9009,
+      "sha256": "1a5d2e94b0a0e36fac4a8b856fcc44122a44f8481d6f49742a529d0cd807f13f"
+    },
+    "E7_SERVICE_OPERATIONAL": {
+      "path": "www/etp-e7-service-operational.js",
+      "bytes": 22922,
+      "sha256": "4de2f124d25286187e07ec661cfd972bd975f1a1684c23c8326a354bc181d1bc"
+    },
+    "E7_PRESENTATION": {
+      "path": "www/etp-e7-presentation.js",
+      "bytes": 16782,
+      "sha256": "a40d1f3ffa7ce63bc69ba2f88d2bc441e8fd0fd407087c469de3e55a00720f69"
+    },
+    "E7_MODULE_HOST": {
+      "path": "www/etp-e7-module-host.js",
+      "bytes": 2672,
+      "sha256": "e9ab91e040377c7bdff5b08293c0ddaddf372dc64c7e733898a01b92094ec247"
+    }
+  },
+  "capabilities": {
+    "E3": {
+      "activationStatus": "OWNER_POLICY_APPROVED_ENGINEERING_ACTIVE",
+      "authority": {
+        "approvalId": "E3-OWNER-2026-08-25-V1",
+        "approvedBy": "Sagar",
+        "approvedByRole": "Owner",
+        "approvedAt": "2026-08-25",
+        "policyVersion": "ETP_E3_OWNER_POLICY_2026_08_25_V1",
+        "source": {
+          "path": "docs/audit/V6-ETP-E3-OWNER-AUTHORITY-2026-08-25.md",
+          "bytes": 1210,
+          "sha256": "e111e348b2d9795ca818707185187f7bd7fbc10ace85e3c229d8e38ee2c2d241"
+        }
+      },
+      "rolePolicy": {
+        "declarationRoles": [
+          "STAFF",
+          "STORE_MANAGER",
+          "OWNER"
+        ],
+        "checkerCloseImportRoles": [
+          "STORE_MANAGER",
+          "OWNER"
+        ],
+        "reconciliationRoles": [
+          "STORE_MANAGER",
+          "OWNER"
+        ],
+        "correctionWindowHours": 24,
+        "correctionWindowRoles": [
+          "STORE_MANAGER",
+          "OWNER"
+        ],
+        "postWindowCorrectionRoles": [
+          "OWNER"
+        ],
+        "varianceDispositionRoles": [
+          "STORE_MANAGER",
+          "OWNER"
+        ],
+        "lockRoles": [
+          "STORE_MANAGER",
+          "OWNER"
+        ],
+        "ownerCorrectionBoundary": "ANY_TIME_BEFORE_LOCK",
+        "lockedChangePath": "VERIFIED_SOURCE_RESTATEMENT_NEW_RECONCILIATION"
+      },
+      "stateMachine": [
+        "OPEN",
+        "CLOSED",
+        "IMPORTED",
+        "RECONCILED",
+        "VARIANCE",
+        "LOCKED"
+      ],
+      "outcomes": [
+        "MATCHED",
+        "MISATTRIBUTED",
+        "UNCLAIMED",
+        "PHANTOM"
+      ],
+      "correctionReasonCodes": [
+        "MISATTRIBUTED_CRO",
+        "UNCLAIMED_INVOICE",
+        "PHANTOM_DECLARATION",
+        "SOURCE_RESTATEMENT",
+        "OTHER_REVIEWED"
+      ],
+      "dispositionReasonCodes": [
+        "CORRECTED_ATTRIBUTION",
+        "ACCEPTED_UNASSIGNED",
+        "DECLARATION_WITHDRAWN",
+        "SOURCE_REIMPORT_REQUIRED",
+        "ESCALATED_OWNER"
+      ],
+      "pendingDecisions": []
+    },
+    "E4": {
+      "activationStatus": "BLOCKED_TARGET_AUTHORITY_REQUIRED",
+      "versionRules": [
+        "VERSION_1_IMMUTABLE",
+        "REVISION_REQUIRES_N_PLUS_1",
+        "DAY_0_ALLOCATION_LOCK",
+        "LEAVE_CREATES_NEW_VERSION",
+        "ACHIEVEMENT_ETP_ONLY"
+      ],
+      "adjustmentReasonCodes": [
+        "TARGET_SOURCE_REVISION",
+        "FESTIVE_CALENDAR_OVERRIDE",
+        "APPROVED_LEAVE_PRORATION",
+        "COVERAGE_SHORTFALL",
+        "OTHER_OWNER_APPROVED"
+      ],
+      "requiredSources": {
+        "targetAuthority": {
+          "sourceType": "TITAN_STORE_TARGET",
+          "status": "SOURCE_REQUIRED",
+          "requiredFields": [
+            "storeCode",
+            "period",
+            "targetAmount",
+            "receivedAt",
+            "sourceReference"
+          ],
+          "sourceSha256": null,
+          "approval": null
+        },
+        "festiveCalendar": {
+          "sourceType": "FESTIVE_DAY_WEIGHT_OVERRIDE",
+          "status": "SOURCE_REQUIRED",
+          "requiredFields": [
+            "storeCode",
+            "date",
+            "weight",
+            "reason"
+          ],
+          "sourceSha256": null,
+          "approval": null
+        },
+        "croIdentityMap": {
+          "sourceType": "CRO_IDENTITY_MAP",
+          "status": "SOURCE_REQUIRED",
+          "requiredFields": [
+            "storeCode",
+            "croId",
+            "employeeId",
+            "effectiveFrom"
+          ],
+          "sourceSha256": null,
+          "approval": null
+        }
+      },
+      "pendingDecisions": [
+        "STRETCH_POLICY",
+        "LY_WEIGHT_POLICY",
+        "LEAVE_PRORATION_FORMULA",
+        "COVERAGE_SHORTFALL_TREATMENT"
+      ]
+    },
+    "E6": {
+      "activationStatus": "PENDING_OWNER_APPROVAL",
+      "statuses": [
+        "OPEN",
+        "ACKNOWLEDGED",
+        "CLOSED"
+      ],
+      "exceptionTypes": [
+        "LATE_ATTRIBUTION",
+        "UNASSIGNED_TREND",
+        "NEAR_TARGET_FINAL_WEEK",
+        "FINAL_48H_CONCENTRATION",
+        "EARLY_NEXT_MONTH_MOVEMENT",
+        "DECLARED_ACTUAL_VARIANCE",
+        "RESTATED_PERIOD"
+      ],
+      "closureReasonCodes": [
+        "CORRECTED_AND_VERIFIED",
+        "ACCEPTED_WITH_EVIDENCE",
+        "SOURCE_REIMPORT_COMPLETED",
+        "FALSE_POSITIVE_CONFIRMED",
+        "SUPERSEDED_BY_RESTATEMENT",
+        "OTHER_OWNER_APPROVED"
+      ],
+      "thresholdAuthority": {
+        "status": "CANDIDATE_REQUIRES_OWNER_APPROVAL",
+        "baselineVersion": "e6-thresholds-2026-08-24-v1"
+      },
+      "pendingDecisions": [
+        "SLA_BY_TYPE",
+        "DEFAULT_OWNER_BY_TYPE",
+        "ACKNOWLEDGE_AUTHORITY",
+        "REASSIGN_AUTHORITY",
+        "CLOSE_AUTHORITY"
+      ]
+    },
+    "E5": {
+      "activationStatus": "BLOCKED_SCHEME_AND_MAPPING_REQUIRED",
+      "schemeLifecycle": [
+        "DRAFT",
+        "APPROVED_ACTIVE",
+        "SUPERSEDED"
+      ],
+      "runLifecycle": [
+        "BLOCKED",
+        "ELIGIBLE",
+        "PROVISIONAL",
+        "FINALIZATION_READY",
+        "FINALIZED",
+        "PAYROLL_PENDING",
+        "PAYROLL_ATTACHED",
+        "PAYROLL_LOCKED"
+      ],
+      "clawbackLifecycle": [
+        "PENDING_PAYROLL",
+        "ATTACHED",
+        "APPLIED",
+        "LOCKED"
+      ],
+      "requiredSources": {
+        "incentiveScheme": {
+          "sourceType": "INCENTIVE_SCHEME",
+          "status": "SOURCE_REQUIRED",
+          "requiredFields": [
+            "effectiveFrom",
+            "effectiveTo",
+            "basis",
+            "bands",
+            "rounding",
+            "eligibility",
+            "restatementPolicy"
+          ],
+          "sourceSha256": null,
+          "approval": null
+        },
+        "croPayrollMap": {
+          "sourceType": "CRO_PAYROLL_EMPLOYEE_MAP",
+          "status": "SOURCE_REQUIRED",
+          "requiredFields": [
+            "storeCode",
+            "croId",
+            "employeeId",
+            "effectiveFrom"
+          ],
+          "sourceSha256": null,
+          "approval": null
+        }
+      },
+      "pendingDecisions": [
+        "UNASSIGNED_TREATMENT",
+        "CLOSE_PLUS_15_POLICY",
+        "CLAWBACK_PERIOD_POLICY",
+        "PAYROLL_PRELOCK_POLICY"
+      ]
+    },
+    "E7": {
+      "activationStatus": "DEFERRED_SOURCE_AND_PRIVACY_AUTHORITY_REQUIRED",
+      "boundary": "SERVICE_ETP_V1_SEPARATE_FROM_RETAIL_ETP_V1",
+      "mandatoryReports": [
+        "S003_REVENUE",
+        "S004_TENDER_DETAILED"
+      ],
+      "optionalReports": [
+        "REPAIR_SNAPSHOT",
+        "TAT_SNAPSHOT",
+        "PENDING_SNAPSHOT",
+        "PURCHASE_CREATED_RECEIVED"
+      ],
+      "requiredSources": {
+        "representativeExports": {
+          "sourceType": "SERVICE_ETP_EXPORT_SET",
+          "status": "SOURCE_REQUIRED",
+          "requiredFields": [
+            "reportType",
+            "storeCode",
+            "period",
+            "headerSignature"
+          ],
+          "sourceSha256": null,
+          "approval": null
+        },
+        "jobStatusDictionary": {
+          "sourceType": "SERVICE_JOB_STATUS_DICTIONARY",
+          "status": "SOURCE_REQUIRED",
+          "requiredFields": [
+            "sourceValue",
+            "canonicalStatus"
+          ],
+          "sourceSha256": null,
+          "approval": null
+        },
+        "transactionDictionary": {
+          "sourceType": "SERVICE_TRANSACTION_DICTIONARY",
+          "status": "SOURCE_REQUIRED",
+          "requiredFields": [
+            "sourceValue",
+            "canonicalType"
+          ],
+          "sourceSha256": null,
+          "approval": null
+        },
+        "paymentDictionary": {
+          "sourceType": "SERVICE_PAYMENT_DICTIONARY",
+          "status": "SOURCE_REQUIRED",
+          "requiredFields": [
+            "sourceValue",
+            "canonicalTender"
+          ],
+          "sourceSha256": null,
+          "approval": null
+        },
+        "skuDictionary": {
+          "sourceType": "SERVICE_SKU_TOKEN_DICTIONARY",
+          "status": "SOURCE_REQUIRED",
+          "requiredFields": [
+            "sourceValue",
+            "classification"
+          ],
+          "sourceSha256": null,
+          "approval": null
+        },
+        "privacyAuthority": {
+          "sourceType": "SERVICE_CUSTODY_CONSENT_RETENTION_AUTHORITY",
+          "status": "SOURCE_REQUIRED",
+          "requiredFields": [
+            "custodyRule",
+            "consentRule",
+            "retentionRule",
+            "approvedBy"
+          ],
+          "sourceSha256": null,
+          "approval": null
+        }
+      },
+      "matchingAuthority": "EXACT_APPROVED_JOB_KEY_ONLY_NO_PII_FUZZY_MATCH",
+      "pendingDecisions": [
+        "DELIVERED_STAGE_MEANING",
+        "SPARSE_PERIOD_POLICY",
+        "PURCHASE_SCOPE",
+        "CUSTODY_COMPLETENESS_SCOPE"
+      ]
+    }
+  },
+  "catalogueStatus": "FROZEN_CANDIDATE_NOT_ACTIVE",
+  "activationRule": "EVERY_CAPABILITY_REQUIRES_EXPLICIT_OWNER_APPROVAL_AND_ALL_REQUIRED_SOURCE_HASHES"
+}

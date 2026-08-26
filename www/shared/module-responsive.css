@@ -1,0 +1,32 @@
+/* Phase 6D opt-in responsive contract. No selector is active until a consumer
+   deliberately sets data-saagar-ui and chooses an explicit tier or auto mode. */
+[data-saagar-ui]{
+  --saagar-width-tier:mobile;
+  --saagar-columns:1;
+  --saagar-inline-gutter:12px;
+  --saagar-density:comfortable;
+}
+[data-saagar-ui][data-saagar-width-resolved="mobile"]{
+  --saagar-width-tier:mobile;--saagar-columns:1;--saagar-inline-gutter:12px;--saagar-density:comfortable;
+}
+[data-saagar-ui][data-saagar-width-resolved="compact"]{
+  --saagar-width-tier:compact;--saagar-columns:2;--saagar-inline-gutter:16px;--saagar-density:comfortable;
+}
+[data-saagar-ui][data-saagar-width-resolved="tablet"]{
+  --saagar-width-tier:tablet;--saagar-columns:3;--saagar-inline-gutter:20px;--saagar-density:compact;
+}
+[data-saagar-ui][data-saagar-width-resolved="desktop"]{
+  --saagar-width-tier:desktop;--saagar-columns:4;--saagar-inline-gutter:24px;--saagar-density:compact;
+}
+@media (max-width:639px){
+  [data-saagar-ui][data-saagar-width="auto"]{--saagar-width-tier:mobile;--saagar-columns:1;--saagar-inline-gutter:12px;--saagar-density:comfortable}
+}
+@media (min-width:640px) and (max-width:899px){
+  [data-saagar-ui][data-saagar-width="auto"]{--saagar-width-tier:compact;--saagar-columns:2;--saagar-inline-gutter:16px;--saagar-density:comfortable}
+}
+@media (min-width:900px) and (max-width:1199px){
+  [data-saagar-ui][data-saagar-width="auto"]{--saagar-width-tier:tablet;--saagar-columns:3;--saagar-inline-gutter:20px;--saagar-density:compact}
+}
+@media (min-width:1200px){
+  [data-saagar-ui][data-saagar-width="auto"]{--saagar-width-tier:desktop;--saagar-columns:4;--saagar-inline-gutter:24px;--saagar-density:compact}
+}

@@ -1,0 +1,308 @@
+:root{
+  /* module-local aliases kept so legacy rules resolve to the shared tokens */
+  --white:#fff;
+  --red-mid:#fca5a5; --green-mid:#bbf7d0;
+  --rose:#be185d; --rose-deep:#7e1d5f; --rose-pale:#fdf2f8;
+  --navy-pale:#eef4fb;
+  --green-deep:#14532d; --green-bright:#15803d;     /* hover / mid state shades */
+  --podium-1-bg:#fef9c3; --podium-3-bg:#fef3c7; --podium-text:#92400e;  /* rank medals */
+  --shadow:0 2px 12px rgba(13,35,64,0.08);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:var(--font-sans);background:var(--cream);color:var(--gray-800);min-height:100vh;}
+
+/* HEADER */
+.ph{background:var(--navy);padding:20px 32px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;}
+.brand{font-family:var(--font-serif);font-size:21px;color:var(--gold-light);}
+.brand-sub{font-size:11px;color:rgba(255,255,255,0.55);letter-spacing:.08em;text-transform:uppercase;margin-top:2px;}
+.hbadge{background:var(--gold);color:var(--navy);font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;letter-spacing:.05em;}
+
+/* TABS */
+.tabs{background:var(--navy-mid);display:flex;padding:0 32px;overflow-x:auto;}
+.tab{padding:12px 20px;min-height:44px;display:flex;align-items:center;font-size:13px;font-weight:500;color:rgba(255,255,255,.55);cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap;transition:all .2s;user-select:none;}
+.tab:hover{color:rgba(255,255,255,.75);}
+.tab.active{color:var(--gold-light);border-bottom-color:var(--gold-light);}
+
+/* CONTAINER */
+.wrap{max-width:840px;margin:0 auto;padding:28px 18px 60px;}
+.sec{display:none;}
+.sec.active{display:block;}
+
+/* CARDS */
+.card{background:var(--paper);border:1px solid var(--gray-200);border-radius:var(--radius);box-shadow:var(--shadow);padding:24px 28px;margin-bottom:20px;}
+
+/* FORM */
+.sec-title{font-family:var(--font-serif);font-size:19px;color:var(--navy);margin-bottom:5px;}
+.sec-sub{font-size:13px;color:var(--gray-600);margin-bottom:22px;}
+.frow{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:18px;}
+.fg{flex:1;min-width:190px;}
+.flabel{display:block;font-size:11px;font-weight:600;color:var(--gray-600);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;}
+.finput{width:100%;padding:10px 13px;min-height:44px;border:1.5px solid var(--gray-200);border-radius:8px;font-size:14px;font-family:var(--font-sans);color:var(--gray-800);outline:none;transition:border .15s;}
+.finput:focus{border-color:var(--navy);}
+.gbrow{display:flex;gap:10px;}
+.gbtn{flex:1;padding:9px 13px;border:1.5px solid var(--gray-200);border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;text-align:center;transition:all .15s;background:var(--paper);color:var(--gray-600);user-select:none;min-height:44px;display:flex;align-items:center;justify-content:center;}
+.gbtn.sm{background:var(--navy-pale);border-color:var(--navy);color:var(--navy);font-weight:600;}
+.gbtn.sf{background:var(--rose-pale);border-color:var(--rose);color:var(--rose);font-weight:600;}
+.sbtn{width:100%;padding:12px;background:var(--navy);color:var(--paper);border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--font-sans);transition:background .15s;min-height:44px;}
+.sbtn:hover{background:var(--navy-mid);}
+.sbtn:disabled{background:var(--gray-600);color:var(--paper);cursor:not-allowed;}
+
+/* CL HEADER */
+.clbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;}
+.clwho{display:flex;align-items:center;gap:10px;}
+.avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0;}
+.avatar.m{background:var(--blue-pale);color:var(--navy);}
+.avatar.f{background:var(--rose-pale);color:var(--rose);}
+.clname{font-size:14px;font-weight:600;color:var(--navy);}
+.clsub{font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.04em;}
+.actrow{display:flex;gap:8px;}
+.btn2{font-size:12px;color:var(--gray-600);background:var(--paper);border:1px solid var(--gray-200);padding:6px 13px;border-radius:6px;cursor:pointer;font-family:var(--font-sans);transition:all .15s;min-height:44px;display:inline-flex;align-items:center;justify-content:center;}
+.btn2:hover{background:var(--gray-100);}
+.btnsave{font-size:12px;font-weight:600;color:var(--paper);background:var(--green);border:none;padding:7px 15px;border-radius:6px;cursor:pointer;font-family:var(--font-sans);transition:background .15s;min-height:44px;display:inline-flex;align-items:center;justify-content:center;}
+.btnsave:hover{background:var(--green-deep);}
+
+
+/* COMPLETION METER (open-checklist header) — slim track + navy→gold fill + small % label.
+   Mirrors the Service form's completion meter. Additive; sits above the existing
+   Compliance progress block. Updated live from updateProg(). */
+.grm-meter{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+.grm-meter-track{flex:1;height:5px;background:var(--gray-200);border-radius:4px;overflow:hidden;min-width:0;}
+.grm-meter-fill{height:5px;width:0%;border-radius:4px;transition:width .3s ease;
+  background:linear-gradient(90deg,var(--navy),var(--gold-light));}
+.grm-meter-fill.full{background:var(--gold);}
+.grm-meter-lbl{font-size:11px;font-weight:600;color:var(--gray-500);white-space:nowrap;
+  font-variant-numeric:tabular-nums;letter-spacing:.02em;flex-shrink:0;}
+.grm-meter-lbl b{color:var(--navy);font-weight:700;}
+
+.donebanner{align-items:center;gap:10px;background:var(--green-pale);border:1px solid var(--green-mid);border-radius:var(--radius);padding:10px 15px;margin-bottom:14px;font-size:13px;font-weight:500;color:var(--green);}
+/* consolidated save signals → keep only the toast. Banner element + its .show
+   toggle stay in the DOM (behavior intact) but never display. */
+.donebanner,.donebanner.show{display:none !important;}
+.doneico{width:19px;height:19px;background:var(--green);border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.doneico svg{width:10px;height:10px;}
+
+/* CHECKLIST */
+.clgrp{background:var(--paper);border:1px solid var(--gray-200);border-radius:var(--radius);overflow:hidden;margin-bottom:11px;box-shadow:var(--shadow);}
+.clgh{padding:8px 15px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;display:flex;align-items:center;gap:7px;}
+.clgh.m{background:var(--navy-pale);color:var(--navy);}
+.clgh.f{background:var(--rose-pale);color:var(--rose-deep);}
+.cldot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+.cldot.m{background:var(--navy);}
+.cldot.f{background:var(--rose);}
+.clitem{display:flex;align-items:flex-start;gap:11px;padding:11px 15px;border-top:1px solid var(--gray-100);cursor:pointer;transition:background .1s;user-select:none;min-height:44px;}
+.clitem:hover{background:var(--gray-50);}
+.clcb{width:17px;height:17px;border:1.5px solid var(--gray-300);border-radius:5px;flex-shrink:0;margin-top:2px;display:flex;align-items:center;justify-content:center;transition:all .15s;background:var(--paper);}
+.clcb.cm{background:var(--navy);border-color:var(--navy);}
+.clcb.cf{background:var(--rose);border-color:var(--rose);}
+.clcb svg{display:none;}
+.clcb.cm svg,.clcb.cf svg{display:block;}
+.cltxt{font-size:13px;color:var(--gray-800);line-height:1.5;flex:1;}
+.cltxt.done{text-decoration:line-through;color:var(--gray-400);}
+
+/* SAVED TOAST */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--navy);color:var(--paper);padding:10px 22px;border-radius:8px;font-size:13px;font-weight:500;opacity:0;transition:opacity .3s;pointer-events:none;z-index:999;white-space:nowrap;}
+.toast.show{opacity:1;}
+
+/* SUMMARY / REPORT COMMON */
+.filter-bar{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:22px;}
+.filter-bar .fg{flex:0 0 auto;}
+.statgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:11px;margin-bottom:22px;}
+.statcard{background:var(--paper);border:1px solid var(--gray-200);border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow);}
+.stlbl{font-size:11px;color:var(--gray-500);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;}
+.stval{font-family:var(--font-serif);font-size:24px;color:var(--navy);font-variant-numeric:tabular-nums;}
+.stsub{font-size:11px;color:var(--gray-400);margin-top:2px;}
+
+.empty{text-align:center;padding:50px 20px;color:var(--gray-400);}
+.empty-ico{font-size:36px;margin-bottom:10px;}
+.empty-t{font-size:14px;font-weight:600;color:var(--gray-600);margin-bottom:5px;}
+.empty-s{font-size:12px;}
+
+/* DAILY SUMMARY CARDS */
+.cro-card{background:var(--paper);border:1px solid var(--gray-200);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:11px;overflow:hidden;}
+.cro-topbar{height:4px;}
+.cro-header{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;flex-wrap:wrap;gap:8px;}
+.cro-left{display:flex;align-items:center;gap:11px;}
+.cro-info-name{font-size:14px;font-weight:600;color:var(--navy);}
+.cro-info-sub{font-size:11px;color:var(--gray-500);}
+.cro-right{display:flex;align-items:center;gap:10px;}
+.score-pill{font-size:13px;font-weight:700;padding:3px 12px;border-radius:20px;}
+.sp100{background:var(--green-pale);color:var(--green);}
+.sphigh{background:var(--green-mid);color:var(--green-bright);}
+.spmid{background:var(--amber-pale);color:var(--amber);}
+.splow{background:var(--red-pale);color:var(--red);}
+.del-btn{background:none;border:none;cursor:pointer;color:var(--gray-400);font-size:16px;width:44px;height:44px;padding:0;display:inline-flex;align-items:center;justify-content:center;transition:color .15s;line-height:1;}
+.del-btn:hover{color:var(--red);}
+.chips{display:flex;flex-wrap:wrap;gap:5px;padding:0 16px 12px;}
+.chip{display:flex;align-items:center;gap:4px;font-size:11px;padding:3px 9px;border-radius:20px;font-weight:500;}
+.cok{background:var(--green-pale);color:var(--green);}
+.cvio{background:var(--red-pale);color:var(--red);}
+.cdot{width:5px;height:5px;border-radius:50%;flex-shrink:0;}
+.cok .cdot{background:var(--green);}
+.cvio .cdot{background:var(--red);}
+
+/* WAVE-4 'NOT CHECKED YET' STRIP — a muted morning-nudge panel above the per-CRO
+   cards listing active on-duty staff with no check today. Each chip is a tappable
+   "Start check" shortcut (≥44px touch target per the module's touch rules). */
+.grm-pending{background:var(--gray-50);border:1px solid var(--gray-200);border-radius:var(--radius);padding:12px 14px;margin-bottom:14px;}
+.grm-pending-hd{font-size:11px;font-weight:700;color:var(--gray-600);text-transform:uppercase;letter-spacing:.06em;margin-bottom:9px;}
+.grm-pending-row{display:flex;flex-wrap:wrap;gap:8px;}
+.grm-pending-chip{min-height:44px;display:inline-flex;align-items:center;gap:6px;font-family:var(--font-sans);font-size:12px;font-weight:600;color:var(--navy);background:var(--paper);border:1.5px solid var(--gray-200);border-radius:20px;padding:0 14px;cursor:pointer;transition:all .15s;}
+.grm-pending-chip:hover{background:var(--navy-pale);border-color:var(--navy);}
+
+/* MONTH REPORT */
+/* overflow-x:auto = the horizontal scroller the sticky columns pin against.
+   The .mtw-hint scroll affordance (a right-edge fade) is mobile-only — see the
+   ≤640px block — so desktop, where the table usually fits, is untouched. */
+.month-table-wrap{overflow-x:auto;margin-top:4px;}
+.mtw-hint{display:none;}
+/* border-collapse:separate (not collapse) — position:sticky on table cells is
+   unreliable/broken under the collapsed-border model; separate + border-spacing:0
+   keeps the same flush look while letting the sticky identity columns pin. */
+.mt{width:100%;border-collapse:separate;border-spacing:0;font-size:12px;font-variant-numeric:tabular-nums;}
+/* Border on the cells, not the <tr>: in border-collapse:separate, <tr> borders
+   are not painted, so the header underline must live on the <th> to survive. */
+.mt thead th{border-bottom:2px solid var(--gray-200);}
+.mt th{padding:9px 10px;text-align:left;font-size:11px;font-weight:700;color:var(--gray-600);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap;background:var(--paper);}
+.mt td{padding:9px 10px;border-bottom:1px solid var(--gray-100);vertical-align:middle;background:var(--paper);}
+.mt tr:last-child td{border-bottom:none;}
+.mt tr:hover td{background:var(--gray-50);}
+
+/* STICKY IDENTITY COLUMNS — keep rank (#) + CRO Name pinned while the wide
+   8-column report scrolls horizontally. Pure CSS; markup/columns unchanged.
+   col-1 is fixed at 52px so col-2's left offset (52px) lands flush against it.
+   Backgrounds MUST be opaque (var(--paper) #fff) so the scrolling columns
+   underneath don't bleed through the pinned cells. */
+.mt th:nth-child(1),.mt td:nth-child(1){position:sticky;left:0;z-index:2;width:52px;min-width:52px;max-width:52px;background:var(--paper);}
+.mt th:nth-child(2),.mt td:nth-child(2){position:sticky;left:52px;z-index:2;background:var(--paper);box-shadow:1px 0 0 var(--gray-200);}
+.mt thead th:nth-child(1),.mt thead th:nth-child(2){z-index:3;background:var(--paper);}
+.mt tr:hover td:nth-child(1),.mt tr:hover td:nth-child(2){background:var(--gray-50);}
+.mt .avcell{font-weight:700;}
+.mt .namecell{display:flex;align-items:center;gap:8px;}
+.mini-avg{display:inline-block;width:50px;height:5px;background:var(--gray-200);border-radius:3px;overflow:hidden;vertical-align:middle;margin-left:6px;}
+.mini-avg-fill{height:5px;border-radius:3px;}
+.rank-num{width:22px;height:22px;border-radius:50%;background:var(--navy);color:var(--gold-light);font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;font-variant-numeric:tabular-nums;}
+.rank-1{background:var(--podium-1-bg);color:var(--podium-text);}
+.rank-2{background:var(--gray-100);color:var(--gray-700);}
+.rank-3{background:var(--podium-3-bg);color:var(--podium-text);}
+.date-badge{display:inline-block;background:var(--gray-100);color:var(--gray-600);font-size:11px;padding:2px 7px;border-radius:10px;margin:1px 2px;font-variant-numeric:tabular-nums;}
+
+/* P1-20 TOP FAILED CHECKS — rows inside the #grm-topfail card (Month-End tab). */
+.tf-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--gray-100);}
+.tf-row:first-child{border-top:none;}
+.tf-lbl{flex:1;min-width:0;font-size:13px;color:var(--navy);font-weight:500;}
+.tf-g{font-size:10px;font-weight:700;letter-spacing:.05em;padding:2px 8px;border-radius:10px;flex-shrink:0;}
+.tf-g.m{background:#e0f2fe;color:#0369a1;}
+.tf-g.f{background:#fce7f3;color:#be185d;}
+.tf-n{font-size:13px;font-weight:700;color:var(--red);flex-shrink:0;white-space:nowrap;}
+.tf-rate{font-size:11px;color:var(--gray-400);flex-shrink:0;white-space:nowrap;min-width:86px;text-align:right;}
+.tf-bar{width:90px;height:6px;background:var(--gray-100);border-radius:3px;overflow:hidden;flex-shrink:0;}
+.tf-bar-fill{height:100%;background:var(--red);border-radius:3px;}
+@media (max-width:640px){ .tf-bar{display:none;} .tf-rate{min-width:0;} }
+
+/* FOOTER */
+.footer{background:var(--navy);padding:14px 32px;text-align:center;font-size:11px;color:rgba(255,255,255,.65);letter-spacing:.06em;}
+
+@media(max-width:580px){
+  .ph,.tabs{padding-left:14px;padding-right:14px;}
+  .wrap{padding:18px 12px 50px;}
+  .card{padding:18px 16px;}
+  .frow{flex-direction:column;gap:11px;}
+}
+/* SAVE-SIGNAL CONSOLIDATION
+   Three overlapping save affordances used to fire at once: the post-save toast,
+   the green ".donebanner" prompt, and this floating FAB. We keep ONE — the toast
+   (it confirms the actual save + score on every save) — and the header "Save →"
+   (.btnsave) remains the single in-context save control. The FAB element and its
+   JS .classList('show') toggles are LEFT INTACT (no handler/id changes) but the
+   FAB is permanently hidden so it can never reveal as a redundant signal. */
+#grm-float-save{position:fixed;bottom:140px;right:22px;z-index:2147483640;display:none;align-items:center;gap:7px;
+  padding:11px 18px;background:var(--green);color:var(--paper);border:none;border-radius:26px;font-family:var(--font-sans);
+  font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 6px 20px rgba(13,35,64,.30);transition:transform .12s,background .15s;}
+#grm-float-save{display:none;}                       /* hidden by default — no checklist open */
+#grm-float-save.show{display:inline-flex !important;} /* reachable Save FAB while the checklist is open */
+
+/* ═══════════════ MOBILE RESPONSIVE LAYER (≤640px) ═══════════════ */
+/* Added for ~360px phones. Desktop layout unchanged above this point. */
+@media(max-width:640px){
+  html,body{max-width:100%;overflow-x:hidden;}
+
+  /* Header / tabs / footer breathing room */
+  .ph{padding:16px 14px;}
+  .tabs{padding:0 8px;-webkit-overflow-scrolling:touch;}
+  .tab{padding:12px 14px;}
+  .footer{padding:14px 14px;}
+
+  /* Container */
+  .wrap{padding:18px 12px 70px;max-width:100%;}
+  .card{padding:18px 15px;}
+
+  /* Forms: stack rows, full-width fields, prevent overflow */
+  .frow{flex-direction:column;gap:12px;}
+  .fg{flex:1 1 100%;min-width:0;width:100%;}
+  .finput{font-size:16px;min-height:46px;}            /* ≥16px stops iOS focus-zoom */
+  /* Override inline width:190px on date/month pickers so they fill the row */
+  #day-picker,#month-picker{width:100% !important;}
+
+  /* Gender buttons / generic buttons → tap-friendly height */
+  .gbrow{gap:8px;}
+  .gbtn{min-height:46px;display:flex;align-items:center;justify-content:center;font-size:14px;}
+  .sbtn{min-height:48px;font-size:15px;}
+  .btn2,.btnsave{min-height:44px;display:inline-flex;align-items:center;justify-content:center;}
+
+  /* Filter bars stack; the action button goes full width */
+  .filter-bar{flex-direction:column;align-items:stretch;gap:12px;}
+  .filter-bar .fg{flex:1 1 100%;width:100%;}
+  .filter-bar .btn2{width:100%;margin-bottom:0 !important;}
+
+  /* KPI tiles: 2 columns (small tiles may stay 2-up) */
+  .statgrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;}
+  .statcard{padding:12px 13px;min-width:0;}
+  .stval{font-size:21px;}
+
+  /* Checklist rows: comfortable tap targets, no squashing */
+  .clbar{align-items:flex-start;}
+  .clwho{min-width:0;}
+  .clname,.clsub{word-break:break-word;}
+  .actrow{gap:8px;flex-wrap:wrap;}
+  .clitem{padding:11px 14px;min-height:44px;align-items:center;}
+  .cltxt{font-size:13.5px;min-width:0;word-break:break-word;}
+  .clgh{flex-wrap:wrap;}
+
+  /* Daily summary cards: keep header/right side from overflowing */
+  .cro-header{align-items:flex-start;}
+  .cro-left{min-width:0;}
+  .cro-info-name{word-break:break-word;}
+  .cro-right{flex-wrap:wrap;justify-content:flex-end;}
+  .chips{padding:0 14px 12px;}
+  .chip{max-width:100%;}
+  .chip .cltxt,.chip{word-break:break-word;}
+
+  /* Month report table: scroll horizontally inside its wrapper instead of squashing.
+     Wrapper already has overflow-x:auto; ensure the table can exceed viewport width. */
+  .month-table-wrap{-webkit-overflow-scrolling:touch;display:flex;}
+  .month-table-wrap > .mt{flex:0 0 auto;}
+  .mt{min-width:700px;}  /* P1-21: 9th (Store) column — keep the report readable */
+  /* Right-edge fade discoverability hint (mobile only). A zero-width sticky flex
+     sibling pinned to the visible right edge of the scroller; its ::after paints a
+     full-height faint gradient. pointer-events:none keeps taps passing through. */
+  .mtw-hint{display:block;flex:0 0 0;align-self:stretch;position:sticky;right:0;
+    width:0;pointer-events:none;z-index:4;}
+  .mtw-hint::after{content:"";position:absolute;top:0;bottom:0;right:0;width:22px;
+    background:linear-gradient(to right,rgba(13,35,64,0),rgba(13,35,64,.12));}
+
+  /* Floating Save FAB: move to bottom-LEFT so it can't be occluded by the shell's
+     bottom-right FAB cluster (home FAB + 'Open Queue →' chip render above the iframe).
+     Horizontal anchor only — bottom offset, size, colors, and .show toggle unchanged. */
+  #grm-float-save{left:14px;right:auto;}
+}
+
+/* API-23 / Chrome-44 does not support CSS Grid. Keep every responsive group
+   usable as wrapping flex or block while preserving DOM and action semantics. */
+html.saagar-legacy-webview .statgrid{display:-webkit-flex;display:flex;-webkit-flex-wrap:wrap;flex-wrap:wrap;}
+html.saagar-legacy-webview .statcard{-webkit-flex:1 1 120px;flex:1 1 120px;}
+html.saagar-legacy-webview .frow,
+html.saagar-legacy-webview .filter-bar,
+html.saagar-legacy-webview .clbar,
+html.saagar-legacy-webview .cro-header{display:-webkit-flex;display:flex;-webkit-flex-wrap:wrap;flex-wrap:wrap;}
+html.saagar-legacy-webview .fg{-webkit-flex:1 1 190px;flex:1 1 190px;}
+html.saagar-legacy-webview .month-table-wrap{display:block;}

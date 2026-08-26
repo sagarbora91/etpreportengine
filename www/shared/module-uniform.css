@@ -1,0 +1,113 @@
+
+/* No remote @import — app is fully offline (INTERNET permission removed); a render-blocking
+   font fetch that can never resolve was a likely cause of module-open stalls. System fonts below. */
+/* ── VISIBILITY FIX ── force light rendering so Android WebView dark-mode
+   (algorithmic darkening / force-dark) cannot invert text to invisible.
+   This is the root cause of "some text not visible" on phones/tablets. */
+:root{color-scheme:light only}
+:root{
+  /* Rendered-audit contrast tokens. The former gray-400 (#a1a1aa) and
+     gray-500 (#71717a) fell below 4.5:1 on the white/tinted surfaces used by
+     module captions and empty states. Keep the hierarchy muted, but readable. */
+  --gray-400:#62626d;
+  --gray-500:#686873;
+  --gold-text:#765b0b;
+}
+html{color-scheme:light only;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+html,body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif !important;forced-color-adjust:none}
+h1,h2,h3,h4,h5,.title,.headline,.brand,.heading{font-family:'DM Serif Display',Georgia,serif !important;letter-spacing:.2px}
+/* Don't fight module's own colors — only normalize font + base focus ring */
+*:focus-visible{outline:2px solid #b8922a;outline-offset:1px}
+button,input,select,textarea{font-family:inherit}
+/* keep date/number/select text from going invisible on some Android WebViews */
+input,select,textarea{-webkit-text-fill-color:currentColor;opacity:1}
+input::placeholder,textarea::placeholder{-webkit-text-fill-color:#7a8699;opacity:1}
+/* ── RESPONSIVE SAFETY (tablet + mobile), conservative so module layouts stay intact ── */
+img,svg,video,canvas{max-width:100%;height:auto}
+*{ -webkit-tap-highlight-color:rgba(184,146,42,.18) }
+@media(max-width:920px){
+  body{ padding-bottom:72px !important }                 /* clear the back-home FAB + injected gate banner */
+  table{ display:block; max-width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch }
+  thead,tbody,tr{ width:max-content; min-width:100% }
+}
+@media(max-width:640px){
+  html{ font-size:15px }
+  button,.btn,a.btn,[role=button]{ min-height:40px }
+  input,select,textarea{ min-height:38px; font-size:16px }   /* 16px stops iOS/Android zoom-on-focus */
+}
+@media print{ body{background:#fff !important;color:#000 !important} }
+
+/* ════════════════════════════════════════════════════════════════════════
+   GLOBAL FLOORS — accessibility minimums applied to EVERY module iframe
+   (this block is injected unconditionally, mobile AND desktop). Two rules:
+     1. No on-screen text smaller than 11px.
+     2. Every interactive control is at least 44x44 with a real tap target.
+   These are FLOORS: they only raise values that fall below the minimum, so
+   module typography/spacing above the floor is untouched. !important is
+   required because module + MOBILE_CSS rules set their own sizes with
+   !important (some shrink table/label text to 9px and inputs below 44px).
+   ════════════════════════════════════════════════════════════════════════ */
+/* 1a — baseline text floor (NOT !important): max(11px,1em) keeps each element's
+   inherited/declared size when it is already >=11px, and lifts anything smaller
+   to 11px. Because it is low-priority, any module rule that sets a size >=11px
+   still wins; this only catches unset or sub-11px text. svg/script/style are
+   excluded so we never touch vector or non-rendered nodes. */
+html body *:not(svg):not(svg *):not(script):not(style){
+  font-size:max(11px, 1em);
+}
+/* 1b — hard floor (!important) for the small-text leaves that modules + MOBILE_CSS
+   deliberately shrink to 9–10px (table cells, chips, captions, *-sub/-meta/-hint
+   labels). Flooring these to 11px is the intent of the accessibility minimum.
+   These are genuine small-text leaves, so 11px will not distort hierarchy. */
+html body small,
+html body .h-name,html body th,html body td,
+html body .leave-chip,html body .mt,html body .badge,html body .chip,html body .pill,html body .tag,
+html body figcaption,html body caption,html body legend,
+html body [class*="-sub"],html body [class*="-meta"],html body [class*="-hint"],
+html body [class*="-note"],html body [class*="-cap"],html body [class*="-label"],
+html body [class*="-time"],html body [class*="-date"]{
+  font-size:max(11px, 1em) !important;
+}
+/* 2 — interactive control floor: 44px min hit area + readable size. Covers
+   normal controls AND tiny icon/delete/close/remove buttons that often ship at
+   ~24–32px. The [class*=…] matches are scoped to button/a/[role=button] so a
+   wrapper div like .delete-modal is never affected. min-width keeps icon-only
+   buttons square-ish. */
+html body button,
+html body input:not([type=hidden]):not([type=checkbox]):not([type=radio]),
+html body select,html body textarea,
+html body a.btn,html body [role=button],html body label.btn,
+html body .btn,html body .icon-btn,html body .iconbtn,
+html body button[class*="close"],html body button[class*="delete"],html body button[class*="remove"],
+html body button[class*="-del"],html body button[class*="icon"],
+html body a[class*="close"],html body a[class*="delete"],html body a[class*="remove"]{
+  min-height:44px !important;
+  min-width:44px;
+}
+/* keep checkbox/radio compact but tappable (don't stretch the box itself) */
+html body input[type=checkbox],html body input[type=radio]{
+  min-width:18px !important;min-height:18px !important;
+}
+/* These two governed controls are the hit target themselves (their table/form
+   containers do not provide an equivalent 44px interactive target). */
+html[data-mod="stock"] body input.done-cb,
+html[data-mod="planning"] body input#f_black{
+  width:44px !important;height:44px !important;
+  min-width:44px !important;min-height:44px !important;
+}
+
+/* The shared mobile next-step control used a gradient without an opaque CSS
+   background color. The rendered evaluator therefore had no measurable color
+   behind its white label. A solid navy surface preserves the visual hierarchy
+   and gives the label a deterministic 15:1+ contrast background. */
+html.bcc-mobile body #st-v5-next-chips button{
+  background:#0d2340 !important;
+  color:#fff !important;
+}
+/* inputs/selects inside dense table cells: keep the 44px hit area but allow
+   the cell width to drive horizontal size so tables don't blow out. */
+html body td button,html body th button,
+html body td input,html body th input,
+html body td select,html body th select{
+  min-width:0;
+}

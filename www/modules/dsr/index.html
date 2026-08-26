@@ -1,0 +1,2384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="../../shared/module-bridge.js"></script>
+<script src="../../shared/module-runtime.js"></script>
+<link rel="stylesheet" href="../../shared/module-brand-tokens.css">
+<link rel="stylesheet" href="../../shared/module-responsive.css">
+<link rel="stylesheet" href="../../shared/module-components.css">
+<link rel="stylesheet" href="../../shared/module-table.css">
+<script src="../../shared/module-ui-runtime.js"></script>
+<script src="../../shared/module-table-runtime.js"></script>
+<script src="../../shared/module-rendered-components.js"></script>
+<script src="../../etp-analytics-consumer.js"></script>
+<script id="phase6g-dsr-render-policy">
+var DsrRenderedPolicy=SaagarRenderedComponents.createPolicy({
+  'dsr-login-role-staff':{handler:'setLoginRole',args:1},'dsr-login-role-manager':{handler:'setLoginRole',args:1},
+  'dsr-staff-login':{handler:'loginStaff',args:0},'dsr-manager-login':{handler:'loginSM',args:0},
+  'dsr-staff-logout':{handler:'logout',args:0},'dsr-manager-logout':{handler:'logout',args:0},
+  'dsr-staff-tab-daystart':{handler:'goStaffTab',args:1},'dsr-staff-tab-opening':{handler:'goStaffTab',args:1},'dsr-staff-tab-inout':{handler:'goStaffTab',args:1},'dsr-staff-tab-sales':{handler:'goStaffTab',args:1},'dsr-staff-tab-nonpurchase':{handler:'goStaffTab',args:1},'dsr-staff-tab-visitors':{handler:'goStaffTab',args:1},'dsr-staff-tab-tasks':{handler:'goStaffTab',args:1},'dsr-staff-tab-marketing':{handler:'goStaffTab',args:1},'dsr-staff-tab-cleaning':{handler:'goStaffTab',args:1},'dsr-staff-tab-closing':{handler:'goStaffTab',args:1},
+  'dsr-manager-tab-submissions':{handler:'goSMTab',args:1},'dsr-manager-tab-audit':{handler:'goSMTab',args:1},'dsr-manager-tab-dashboard':{handler:'goSMTab',args:1},'dsr-manager-tab-settings':{handler:'goSMTab',args:1},
+  'login':{handler:'logIn',args:0},'logout':{handler:'logOut',args:0},'showiomodal':{handler:'showIOModal',args:0},
+  'closemodal':{handler:'closeModal',args:0},'showsalemodal':{handler:'showSaleModal',args:1},'show-new-sale':{handler:'showNewSale',args:0},
+  'deletesale':{handler:'deleteSale',args:1},'savesale':{handler:'saveSale',args:1,delegated:true},'shownpmodal':{handler:'showNewNonPurchase',args:0},'deletenp':{handler:'deleteNP',args:1},'savenp':{handler:'saveNP',args:1,delegated:true},
+  'dsrd4togglenosales':{handler:'dsrD4ToggleNoSales',args:0},'showsubmitconfirm':{handler:'showSubmitConfirm',args:0},'submitday':{handler:'submitDay',args:0},
+  'rendersmsubmissions':{handler:'renderSMSubmissions',args:0},'unlockforcorrection':{handler:'unlockForCorrection',args:0},'exportsinglecsv':{handler:'exportSingleCSV',args:0},'resetaudit':{handler:'resetAudit',args:0},
+  'submit-audit-reject':{handler:'rejectDsrAudit',args:0},'submit-audit-approve':{handler:'approveDsrAudit',args:0},
+  'senddsrdaysummary':{handler:'sendDsrDaySummary',args:0},'exportallcsv':{handler:'exportAllCSV',args:0},'export-today-csv':{handler:'exportTodayCSV',args:0},
+  'addstaff':{handler:'addStaff',args:0},'confirmdeleteall':{handler:'confirmDeleteAll',args:0},'dodeleteall':{handler:'doDeleteAll',args:0},
+  'stwalink':{handler:'openDsrFollowUp',args:1,delegated:true},'markfollowedup':{handler:'markFollowedUp',args:2,delegated:true},
+  'visitorpurchase':{handler:'visitorPurchase',args:1,delegated:true},'visitornonpurch':{handler:'visitorNonPurch',args:1,delegated:true},'adjmkt':{handler:'adjMkt',args:2,delegated:true},
+  'st-v5-home-fab':null
+},{
+  'stock-variance':{strategy:'grid',reason:'opening closing and variance values require cross-column comparison'},
+  'staff-rollup':{strategy:'cards'}
+});
+</script>
+<script src="../../shared/mah4-runtime.js"></script>
+<script id="mah4-stage-b-runtime">SaagarMah4Runtime.bootModule({moduleId:'dsr'});</script>
+<script id="st-v5-iframe-shim">SaagarModuleRuntime.run('storage',{schemaVersion:1,moduleId:'dsr',nextSteps:[{id:'stock',label:'Update Stock →'}],customerSelectors:[],accessContext:true});</script>
+<script id="st-v5-safety-net">SaagarModuleRuntime.run('safety',{schemaVersion:1,moduleId:'dsr',nextSteps:[{id:'stock',label:'Update Stock →'}],customerSelectors:[],accessContext:true});</script>
+<link rel="stylesheet" href="../../shared/module-mobile-common.css">
+<script id="st-v5-mobile-boot">SaagarModuleRuntime.run('mobile',{schemaVersion:1,moduleId:'dsr',nextSteps:[{id:'stock',label:'Update Stock →'}],customerSelectors:[],accessContext:true});</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Saagar Traders — CRO Login</title>
+<link id="phase6g-dsr-ui-css" rel="stylesheet" href="dsr-ui.css">
+<style id="st-v5-hide-css">#new-staff-inp,[onclick="addStaff()"],#lform-sm .lf-group{display:none !important}</style>
+
+<link id="st-v5-uniform-css" rel="stylesheet" href="../../shared/module-uniform.css">
+<link rel="stylesheet" href="../../mobile-layout.css">
+<script src="../../app-i18n.js"></script>
+</head>
+<body data-saagar-ui data-saagar-width="auto" data-saagar-width-resolved="mobile">
+<script id="dsr-phase6g-ui-boot">SaagarUiFoundation.configure(document.body,{mode:'auto'});SaagarRenderedComponents.observe(document.body,DsrRenderedPolicy);</script>
+
+<!-- ══════════════════════════════════════
+     LOGIN SCREEN
+══════════════════════════════════════ -->
+<div id="scr-login" class="screen active">
+  <div class="login-wrap">
+    <div class="login-brand">
+      <div class="login-mark">
+        <!-- Watch icon -->
+        <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="16" cy="16" r="10" stroke="currentColor" stroke-width="2.2"/>
+          <path d="M16 10v6l4 2.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <rect x="12" y="4" width="8" height="4" rx="1.5" fill="currentColor"/>
+          <rect x="12" y="24" width="8" height="4" rx="1.5" fill="currentColor"/>
+        </svg>
+      </div>
+      <h1>Saagar Traders</h1>
+      <div class="brand-sub">CRO Login</div>
+    </div>
+
+    <div class="login-card">
+      <div class="login-date-pill">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="13" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M1 6h14" stroke="currentColor" stroke-width="1.5"/><path d="M5 1v2M11 1v2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <span id="login-date-pill-text">—</span>
+      </div>
+
+      <div class="role-sw">
+        <button data-action="dsr-login-role-staff" class="role-sw-btn active" id="rtab-staff" onclick="setLoginRole('staff')">
+          <svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M2 14c0-3.314 2.686-6 6-6s6 2.686 6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          Staff
+        </button>
+        <button data-action="dsr-login-role-manager" class="role-sw-btn" id="rtab-sm" onclick="setLoginRole('sm')">
+          <svg viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="5" height="5" rx="1.2" stroke="currentColor" stroke-width="1.5"/><rect x="9" y="2" width="5" height="5" rx="1.2" stroke="currentColor" stroke-width="1.5"/><rect x="2" y="9" width="5" height="5" rx="1.2" stroke="currentColor" stroke-width="1.5"/><path d="M9 11.5h5M11.5 9v5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          Manager
+        </button>
+      </div>
+
+      <!-- Staff form -->
+      <div class="lform active" id="lform-staff">
+        <div class="lf-group">
+          <label class="lf-lbl">Your Name <span class="req">*</span></label>
+          <input class="lf-inp" id="staff-name-inp" list="staff-datalist" placeholder="Type or select your name" autocomplete="off" />
+          <datalist id="staff-datalist"></datalist>
+        </div>
+        <div class="lf-group">
+          <label class="lf-lbl">Your Role <span class="req">*</span></label>
+          <select class="lf-inp" id="staff-role-sel">
+            <option value="cro">CRO — Customer Relationship Officer</option>
+            <option value="rso">RSO — Retail Sales Officer</option>
+          </select>
+        </div>
+        <button data-action="dsr-staff-login" class="btn-login" onclick="loginStaff()">
+          Start Today's Register
+          <svg viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+
+      <!-- SM form -->
+      <div class="lform" id="lform-sm">
+        <div class="lf-group">
+          <label class="lf-lbl">Manager Password <span class="req">*</span></label>
+          <input class="lf-inp" id="sm-pw-inp" type="password" placeholder="Enter password" onkeydown="if(event.key==='Enter')loginSM()" />
+        </div>
+        <button data-action="dsr-manager-login" class="btn-login" onclick="loginSM()">
+          Login as Manager
+          <svg viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+
+      <div class="login-err" id="login-err"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     STAFF PANEL
+══════════════════════════════════════ -->
+<div id="scr-staff" class="screen">
+  <header class="app-header staff-header">
+    <div class="hdr-brand">
+      <div class="hdr-dot">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5" stroke="currentColor" stroke-width="1.8"/><path d="M8 5v3l2 1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </div>
+      <div>
+        <div class="hdr-name" id="staff-hdr-name">—</div>
+        <div class="hdr-sub" id="staff-hdr-date">—</div>
+      </div>
+    </div>
+    <div class="hdr-actions">
+      <div class="hdr-meter" id="staff-meter" title="Sections completed">
+        <div class="hdr-meter-track"><div class="hdr-meter-fill" id="staff-meter-fill" style="width:0%"></div></div>
+        <span class="hdr-meter-lbl" id="staff-meter-lbl">0/9 sections · 0%</span>
+      </div>
+      <span class="hdr-chip" id="staff-role-badge">CRO</span>
+      <span class="hdr-clock" id="live-clock">00:00</span>
+      <button data-action="dsr-staff-logout" class="hdr-btn-exit" onclick="logout()">Exit</button>
+    </div>
+  </header>
+
+  <div class="tabbar">
+    <div class="tabbar-inner" id="staff-tnav">
+      <button data-action="dsr-staff-tab-daystart" class="tab-btn active" id="stbtn-daystart" onclick="goStaffTab('daystart')">
+        <svg viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="13" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M1 6h14" stroke="currentColor" stroke-width="1.5"/></svg>
+        Day Start<span class="tab-dot"></span>
+      </button>
+      <button data-action="dsr-staff-tab-opening" class="tab-btn" id="stbtn-opening" onclick="goStaffTab('opening')">
+        <svg viewBox="0 0 16 16" fill="none"><path d="M3 13V6l5-4 5 4v7H3z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><rect x="6" y="9" width="4" height="4" rx=".5" stroke="currentColor" stroke-width="1.3"/></svg>
+        Opening<span class="tab-dot"></span>
+      </button>
+      <button data-action="dsr-staff-tab-inout" class="tab-btn" id="stbtn-inout" onclick="goStaffTab('inout')">
+        <svg viewBox="0 0 16 16" fill="none"><path d="M10 8H2M6 4l-4 4 4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M13 2v12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        In/Out<span class="tab-dot"></span>
+      </button>
+      <button data-action="dsr-staff-tab-sales" class="tab-btn" id="stbtn-sales" onclick="goStaffTab('sales')">
+        <svg viewBox="0 0 16 16" fill="none"><circle cx="6" cy="13" r="1.2" stroke="currentColor" stroke-width="1.3"/><circle cx="12" cy="13" r="1.2" stroke="currentColor" stroke-width="1.3"/><path d="M1 1h2l2.5 8h6l1.5-5H5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Sales<span class="tab-dot"></span>
+      </button>
+      <button data-action="dsr-staff-tab-nonpurchase" class="tab-btn" id="stbtn-nonpurch" onclick="goStaffTab('nonpurch')">
+        <svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M2 14c0-3.314 2.686-6 6-6s6 2.686 6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        Visitors<span class="tab-dot"></span>
+      </button>
+      <button data-action="dsr-staff-tab-visitors" class="tab-btn" id="stbtn-visitors" onclick="goStaffTab('visitors')">
+        <svg viewBox="0 0 16 16" fill="none"><path d="M2 13c0-2.5 2-4 4-4s4 1.5 4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="6" cy="5" r="2.4" stroke="currentColor" stroke-width="1.5"/><path d="M11 9c1.6 0 3 1.2 3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        Walk-ins<span class="tab-dot"></span>
+      </button>
+      <button data-action="dsr-staff-tab-tasks" class="tab-btn" id="stbtn-tasks" onclick="goStaffTab('tasks')">
+        <svg viewBox="0 0 16 16" fill="none"><path d="M2 4h12M2 8h8M2 12h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        Tasks<span class="tab-dot"></span>
+      </button>
+      <button data-action="dsr-staff-tab-marketing" class="tab-btn" id="stbtn-marketing" onclick="goStaffTab('marketing')">
+        <svg viewBox="0 0 16 16" fill="none"><path d="M1 9V7l10-5v12L1 9z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M11 6.5c1.657 0 3 .672 3 1.5s-1.343 1.5-3 1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M4 14l1-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        Marketing<span class="tab-dot"></span>
+      </button>
+      <button data-action="dsr-staff-tab-cleaning" class="tab-btn" id="stbtn-cleaning" onclick="goStaffTab('cleaning')">
+        <svg viewBox="0 0 16 16" fill="none"><path d="M4 14c0-4 2-7 5-8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="11" cy="4" r="2.5" stroke="currentColor" stroke-width="1.5"/><path d="M6 14h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        Cleaning<span class="tab-dot"></span>
+      </button>
+      <button data-action="dsr-staff-tab-closing" class="tab-btn" id="stbtn-closing" onclick="goStaffTab('closing')">
+        <svg viewBox="0 0 16 16" fill="none"><rect x="3" y="7" width="10" height="8" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M5 7V5a3 3 0 016 0v2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        Closing<span class="tab-dot"></span>
+      </button>
+    </div>
+  </div>
+
+  <div class="progress-wrap">
+    <div class="progress-track">
+      <div class="progress-fill" id="pbar-fill" style="width:0%"></div>
+    </div>
+    <span class="progress-label" id="pbar-lbl">0 / 9</span>
+  </div>
+
+  <div class="content-area" id="staff-content">
+    <div class="tsec active" id="tsec-daystart"></div>
+    <div class="tsec" id="tsec-opening"></div>
+    <div class="tsec" id="tsec-inout"></div>
+    <div class="tsec" id="tsec-sales"></div>
+    <div class="tsec" id="tsec-nonpurch"></div>
+    <div class="tsec" id="tsec-visitors"></div>
+    <div class="tsec" id="tsec-tasks"></div>
+    <div class="tsec" id="tsec-marketing"></div>
+    <div class="tsec" id="tsec-cleaning"></div>
+    <div class="tsec" id="tsec-closing"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     STORE MANAGER PANEL
+══════════════════════════════════════ -->
+<div id="scr-sm" class="screen">
+  <header class="app-header sm-header">
+    <div class="hdr-brand">
+      <div class="hdr-dot">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="9" y="1" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="1" y="9" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="9" y="9" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.5"/></svg>
+      </div>
+      <div>
+        <div class="hdr-name">Manager Dashboard</div>
+        <div class="hdr-sub">Saagar Traders</div>
+      </div>
+    </div>
+    <div class="hdr-actions">
+      <span class="hdr-chip">SM</span>
+      <button data-action="dsr-manager-logout" class="hdr-btn-exit" onclick="logout()">Exit</button>
+    </div>
+  </header>
+
+  <div class="tabbar">
+    <div class="tabbar-inner" id="sm-tnav">
+      <button data-action="dsr-manager-tab-submissions" class="tab-btn active" id="smtbtn-submissions" onclick="goSMTab('submissions')">
+        <svg viewBox="0 0 16 16" fill="none"><path d="M4 2h8a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" stroke-width="1.5"/><path d="M5 6h6M5 9h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        Submissions
+      </button>
+      <button data-action="dsr-manager-tab-audit" class="tab-btn" id="smtbtn-audit" onclick="goSMTab('audit')">
+        <svg viewBox="0 0 16 16" fill="none"><path d="M2 12l4-4 3 3 5-7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Audit
+      </button>
+      <button data-action="dsr-manager-tab-dashboard" class="tab-btn" id="smtbtn-dashboard" onclick="goSMTab('dashboard')">
+        <svg viewBox="0 0 16 16" fill="none"><rect x="1" y="8" width="4" height="7" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="6" y="4" width="4" height="11" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="11" y="1" width="4" height="14" rx="1" stroke="currentColor" stroke-width="1.5"/></svg>
+        Dashboard
+      </button>
+      <button data-action="dsr-manager-tab-settings" class="tab-btn" id="smtbtn-settings" onclick="goSMTab('settings')">
+        <svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2.5" stroke="currentColor" stroke-width="1.5"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        Settings
+      </button>
+    </div>
+  </div>
+
+  <div class="content-area" id="sm-content">
+    <div class="tsec active" id="stsec-submissions"></div>
+    <div class="tsec" id="stsec-audit"></div>
+    <div class="tsec" id="stsec-dashboard"></div>
+    <div class="tsec" id="stsec-settings"></div>
+  </div>
+</div>
+
+<!-- ── MODAL ── -->
+<div id="modal" class="modal-ov" onclick="modalBgClick(event)">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<!-- ── TOASTS ── -->
+<div class="toast-wrap" id="toast-wrap"></div>
+
+<script>
+/* ══════════════════════════════════════════════════
+   CONSTANTS & STATE
+══════════════════════════════════════════════════ */
+/* Store Manager access is owned by the shell session. This compatibility function uses the shell PIN verifier only when one is explicitly available and otherwise denies; no embedded default credential exists. */
+function smPassOk(pw){
+  /* R0-W1 SEC-03: route SM-login PIN verify through the shell (correct v2/legacy hashing + brute-force
+     lockout + audit). Fail-open to the original raw check on an older shell / standalone preview. */
+  try{
+    var fn=null;
+    try{ if(window.parent && window.parent!==window && typeof SaagarModuleBridge.adminPinCheck==='function') fn=SaagarModuleBridge.adminPinCheck; }catch(e){}
+    if(!fn && typeof SaagarModuleBridge.adminPinCheck==='function') fn=SaagarModuleBridge.adminPinCheck;
+    if(typeof fn==='function'){
+      var r=fn(String(pw));
+      if(r && typeof r==='object' && !r.noPin){
+        if(r.locked){ try{ toast('Too many wrong PINs — try again in '+r.locked+'s'); }catch(e){} return false; }
+        return !!r.ok;
+      }
+    }
+  }catch(e){}
+  return false;
+}
+/* R0-W1 SEC-04 (Slice B): resolve the shell's step-up re-auth across the srcdoc boundary.
+   FAIL-OPEN ON SKEW: an older shell without the helper => TRUE => the action proceeds as today. */
+const stReauth=SaagarModuleRuntime.reauth;
+const SK_DSR   = 'saagar_dsr_';
+const SK_STAFF = 'saagar_dsr_staff';
+
+const DEFAULT_STAFF = [];
+
+const IO_REASONS = ['Break','Work Related','Personal','Training','Site Visit','Other'];
+const NP_REASONS = ['No Budget','Just Browsing','Will Decide Later','Price Issue','Wrong Design','Wrong Size','Other'];
+
+const PROD_GROUPS = [
+  { label: 'Titan World (WLMHW)', short: 'Titan World', items: [
+    'CLASSIC','XYLYS','REGALIA','AUTOMATIC','EDGE','RAGA',
+    'PURPLE GENTS','PURPLE LADIES','WORKWEAR','OCTANE','ZOOP','SKINN',
+    'KARISHMA GENTS','KARISHMA LADIES','BANDHAN','FASTTRACK','SONATA',
+    'VYB','SUPER FIBER','TEES','WALL CLOCK','TITAN SMART','FASTTRACK SMART'
+  ]},
+  { label: 'Helios (HEMW)', short: 'Helios', items: [
+    'SEIKO','CITIZEN','CERRUTI','FOSSIL','GUESS','POLICE',
+    'G-SHOCK','KENNETH COLE','TOMMY HILFIGER','ANNE KLEIN','AMAZFIT','FITBIT'
+  ]},
+];
+const PROD_TYPES = PROD_GROUPS.flatMap(g => g.items);
+const STOCK_CATS = PROD_GROUPS.flatMap(g =>
+  g.items.map(name => ({ id: slugId(g.short + '_' + name), label: name, group: g.short }))
+);
+/* PERF: build a label+group → category lookup ONCE so per-row renders use an
+   O(1) map read instead of STOCK_CATS.find() inside a 36-row .map(). */
+const STOCK_CAT_BY = (() => {
+  const m = {};
+  STOCK_CATS.forEach(c => { m[c.group + ' ' + c.label] = c; });
+  return m;
+})();
+function stockCatOf(label, group) { return STOCK_CAT_BY[group + ' ' + label]; }
+/* Wave4 (store-aware brands): each CRO works at ONE store, so Opening/Closing should count + validate only
+   that store's brands. staffStore() resolves the store NAME from the employee master (field 'store', already
+   'Titan World'|'Helios' = PROD_GROUPS[].short). Unknown / free-typed / renamed staff → no match → fall back
+   to ALL groups (legacy behaviour; never locks anyone out). Pure derive-at-read — no storage change. */
+function staffStore(name){
+  var who = String(name != null ? name : (typeof st!=='undefined' && st.staffName) || '').trim().toLowerCase();
+  if(!who) return '';
+  try { var em = JSON.parse(localStorage.getItem('saagar_employee_master_v1') || '[]');
+    if(Array.isArray(em)){ for(var i=0;i<em.length;i++){ var e=em[i];
+      if(e && e.active!==false && String(e.name||'').trim().toLowerCase()===who) return String(e.store||'').trim(); } }
+  } catch(e){}
+  return '';
+}
+function activeGroups(name){ var s=staffStore(name); var g=PROD_GROUPS.filter(function(x){return x.short===s;}); return g.length?g:PROD_GROUPS; }
+function activeStockCats(name){ var shorts={}; activeGroups(name).forEach(function(g){shorts[g.short]=1;}); return STOCK_CATS.filter(function(c){return shorts[c.group];}); }
+
+const TASK_LIST = [
+  { id: 'cust',        label: 'Customer Handling Done' },
+  { id: 'follow',      label: 'Follow-ups Completed' },
+  { id: 'disp',        label: 'Display Maintained' },
+  { id: 'clean_floor', label: 'Store Floor Cleaned' },
+];
+
+const MKT_ITEMS = [
+  { id: 'calls',    label: 'Customer Calls',      svgPath: 'M3 3h2.5l1 3-1.5 1.5c.9 1.85 2.5 3.35 4.5 4.5L11 10.5l3 1V14a1 1 0 01-1 1C5.5 15 1 9.5 1 4a1 1 0 011-1z' },
+  { id: 'whatsapp', label: 'WhatsApp Catalogue',  svgPath: 'M8 1a7 7 0 100 14c1.5 0 2.9-.47 4.05-1.27L14 14l-.73-1.95A7 7 0 008 1z' },
+  { id: 'door',     label: 'Door-to-Door Visits', svgPath: 'M3 13V6l5-4 5 4v7H3zM6 13V9h4v4' },
+  { id: 'instore',  label: 'In-Store Promotion',  svgPath: 'M1 9V7l10-5v12L1 9zM11 6.5c1.657 0 3 .672 3 1.5s-1.343 1.5-3 1.5' },
+];
+
+const SCORE_MAX = { opening: 10, sales: 20, marketing: 20, tasks: 10, cleaning: 20, closing: 20 };
+
+let st = {
+  screen: 'login',
+  staffName: '', role: 'cro',
+  date: todayStr(), tab: 'daystart',
+  smTab: 'submissions', smDate: todayStr(),
+  auditRec: null,
+};
+
+/* ── UTILITIES ── */
+function todayStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function nowTime() {
+  const d = new Date();
+  return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0') + ':' + String(d.getSeconds()).padStart(2,'0');
+}
+/* ── VIEW-DATE RAIL (shell-driven) ──
+   window.__stAsOf = "YYYY-MM-DD" = the day the user wants to VIEW.
+   Default the staff panel to it; when it is EARLIER than the real today
+   the panel is strictly READ-ONLY (history view) and must NEVER write or
+   auto-create a record. Empty/invalid/today → behave exactly as before. */
+function isValidDateStr(s) { return typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s); }
+function stAsOfDate() {
+  try { var a = window.__stAsOf; if (isValidDateStr(a)) return a; } catch(e){}
+  return todayStr();
+}
+/* Read-only when the given date is strictly in the past (history). Today,
+   future, empty or invalid all return false → normal editable behaviour. */
+function isReadOnlyDate(date) { return isValidDateStr(date) && date < todayStr(); }
+/* Read-only when the STAFF panel is currently viewing a past day. */
+function isPastView() { return isReadOnlyDate(st.date); }
+function fmtDate(s) {
+  if (!s) return '—';
+  const [y,m,d] = s.split('-');
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${d} ${months[+m-1]} ${y}`;
+}
+function fmtAmt(n) { return '₹' + (Number(n)||0).toLocaleString('en-IN'); }
+function el(id) { return document.getElementById(id); }
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function slugId(s) { return String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,''); }
+function emptyStockValues() { return Object.fromEntries(STOCK_CATS.map(c => [c.id, ''])); }
+function emptyTaskValues() { const o = { additional: '' }; TASK_LIST.forEach(t => o[t.id] = ''); return o; }
+function taskNumber(v) {
+  if (v === true) return 1;
+  if (!v && v !== 0) return 0;
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
+}
+function taskEntered(v) { return v !== null && v !== undefined && v !== '' && v !== false; }
+function taskTotal(tasks) { return TASK_LIST.reduce((sum, t) => sum + taskNumber(tasks?.[t.id]), 0); }
+function stockTotal(obj) { return STOCK_CATS.reduce((s, c) => s + (Number(obj[c.id])||0), 0); }
+function normalizeRecord(rec) {
+  rec.opening = rec.opening || {};
+  rec.closing  = rec.closing  || {};
+  STOCK_CATS.forEach(c => {
+    if (rec.opening[c.id] === undefined) rec.opening[c.id] = '';
+    if (rec.closing[c.id]  === undefined) rec.closing[c.id]  = '';
+  });
+  rec.tasks = rec.tasks || {};
+  TASK_LIST.forEach(t => {
+    if (rec.tasks[t.id] === true)  rec.tasks[t.id] = 1;
+    else if (!taskEntered(rec.tasks[t.id])) rec.tasks[t.id] = '';
+  });
+  if (rec.tasks.additional === undefined) rec.tasks.additional = '';
+  if (!Array.isArray(rec.nonpurch)) rec.nonpurch = [];
+  rec.nonpurch.forEach(n => {
+    if (n.mobile === undefined) n.mobile = '';
+    if (n.followedUp === undefined) n.followedUp = false;                 // P1-14 follow-up pipeline
+    if (n.followUpDate === undefined) n.followUpDate = '';                // P1-14 (set at create-time)
+    if (n._fuRef === undefined || n._fuRef === null) n._fuRef = 'np_' + (rec.date||'') + '_' + Math.random().toString(36).slice(2,9); // P1-14 stable per-row id for write-back matching
+  });
+  /* P1-13 sale mobile + payment mode: default new optional fields so old sale rows round-trip. */
+  if (!Array.isArray(rec.sales)) rec.sales = [];
+  rec.sales.forEach(s => { if (s.mobile === undefined) s.mobile = ''; if (s.paymentMode === undefined) s.paymentMode = ''; });
+  if (!Array.isArray(rec.visitors)) rec.visitors = [];
+  /* Audit fix dsr-bug-01: the bridge (ensureDsr) can create a record with cleaning:{}/marketing:{}
+     when a CRO gets QMS walk-ins before opening DSR. renderers assume cleaning.cp1/cp2 exist
+     (rec.cleaning.cp1.done) and crash on the bare object. Additively restore the canonical shape. */
+  rec.cleaning = rec.cleaning || {};
+  if (!rec.cleaning.cp1) rec.cleaning.cp1 = { done:false, photo:null, time:null };
+  if (!rec.cleaning.cp2) rec.cleaning.cp2 = { done:false, photo:null, time:null };
+  rec.marketing = rec.marketing || { calls:0, whatsapp:0, door:0, instore:0 };
+  /* P1-12 SM unlock-for-correction: additive optional fields; without these defaults an old
+     record round-tripped through getRecord()->normalizeRecord would drop any unlockLog/submitRev
+     written by a newer build (the classic drop-on-normalize trap). */
+  if (!Array.isArray(rec.unlockLog)) rec.unlockLog = [];
+  if (typeof rec.submitRev !== 'number' || rec.submitRev < 0) rec.submitRev = 0;
+  return rec;
+}
+function renderProductOptions(selected) {
+  const sel = selected || PROD_TYPES[0];
+  const legacy = sel && !PROD_TYPES.includes(sel) ? `<option selected>${esc(sel)}</option>` : '';
+  return legacy + PROD_GROUPS.map(g =>
+    `<optgroup label="${esc(g.label)}">${g.items.map(p => `<option value="${esc(p)}"${p===sel?' selected':''}>${esc(p)}</option>`).join('')}</optgroup>`
+  ).join('');
+}
+
+/* ── TOAST ── */
+function toast(msg, type='', dur=3000) {
+  const icons = {
+    ok: '<svg viewBox="0 0 16 16" fill="none"><path d="M3 8l4 4 6-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    err: '<svg viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+    warn: '<svg viewBox="0 0 16 16" fill="none"><path d="M8 2l6 12H2L8 2z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 7v3M8 11.5v.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+    '': '<svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5"/><path d="M8 7v4M8 5v.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+  };
+  const w = el('toast-wrap');
+  const d = document.createElement('div');
+  d.className = 'toast' + (type ? ' ' + type : '');
+  d.innerHTML = `<span class="toast-icon">${icons[type]||icons['']}</span><span>${msg}</span>`;
+  w.appendChild(d);
+  setTimeout(() => d.remove(), dur + 300);
+}
+
+/* ── STORAGE ── */
+function recKey(date, name) { return SK_DSR + date + '_' + name.replace(/\s+/g,'_'); }
+function blankRecord(date, name, role) {
+  return {
+    date, staffName: name, role, loginTime: nowTime(),
+    opening: emptyStockValues(), inout: [], sales: [],
+    nonpurch: [], visitors: [], tasks: emptyTaskValues(),
+    marketing: { calls:0, whatsapp:0, door:0, instore:0 },
+    cleaning: {
+      cp1: { done:false, photo:null, time:null },
+      cp2: { done:false, photo:null, time:null },
+    },
+    closing: emptyStockValues(),
+    submitted: false, submitTime: null, audit: null,
+    unlockLog: [], submitRev: 0,
+  };
+}
+/* A non-persisting, never-saved placeholder used ONLY when viewing a PAST day
+   that has no stored record. Mirrors blankRecord's shape so renderers can read
+   it safely, but is flagged _noRecord and stamps NO loginTime (no fabrication
+   of a historical login). It is frozen-ish: saveRec() refuses to persist it. */
+function readonlyNoRecord(date, name) {
+  const r = blankRecord(date, name, st.role);
+  r.loginTime = '—';
+  r._noRecord = true;
+  return r;
+}
+/* PERF: keep the live editable record in memory so per-keystroke handlers and
+   updateProgress() don't re-parse localStorage every call. The cache holds a
+   SINGLE editable record keyed by its storage key; switching date/staff (which
+   changes the key) transparently reloads. Read-only "no submission"
+   placeholders are NEVER cached (they are per-call throwaways). */
+/* V6 CARRYFORWARD: when a staff member's day record has a completely empty
+   Opening section, seed it from that same person's most recent prior day's
+   Closing counts (looks back up to 7 days). Values stay fully editable;
+   nothing is written until the record is saved through the normal paths. */
+function prevDayStr(s, back) {
+  const t = new Date(s + 'T00:00:00Z');
+  t.setUTCDate(t.getUTCDate() - back);
+  return t.toISOString().slice(0, 10);
+}
+function prefillOpeningFromPrev(r) {
+  try {
+    if (!r || r._noRecord || r.submitted || isReadOnlyDate(r.date)) return r;
+    if (!STOCK_CATS.every(c => r.opening[c.id] === '')) return r;
+    for (let back = 1; back <= 7; back++) {
+      const raw = localStorage.getItem(recKey(prevDayStr(r.date, back), r.staffName));
+      if (!raw) continue;
+      const prev = JSON.parse(raw);
+      if (!prev || !prev.closing) return r;
+      STOCK_CATS.forEach(c => {
+        const v = prev.closing[c.id];
+        if (v !== '' && v !== undefined && v !== null) r.opening[c.id] = String(v);
+      });
+      return r;
+    }
+  } catch(e) {}
+  return r;
+}
+/* ══════════════════════════════════════
+   P1-14: NON-PURCHASE FOLLOW-UP PIPELINE
+   Sibling prior-day scanners of prefillOpeningFromPrev. Strict flag-only
+   write-back: the mark-contacted path flips ONLY followedUp=true on the matched
+   prior-day nonpurch row, re-reading storage so it never clobbers concurrent
+   bridge appends and never touches submitted / any other field. Fully offline
+   (tel:/wa.me deep-links only). Matches rows by a stable _fuRef, not array index
+   (bridge appends + row deletions shift indices).
+══════════════════════════════════════ */
+function _fuMobile10(m){ var d=String(m||'').replace(/\D/g,''); return d.length>=10 ? d.slice(-10) : ''; }
+/* verify-fix (P1): a stable content signature for ref-less legacy / QMS-bridge non-purchase rows (no _fuRef in
+   storage). scanFollowUps and _writeFollowUpFlag derive it identically so 'Mark contacted' can match + stamp them. */
+function _fuSig(n){ return 'sig:'+_fuMobile10(n&&n.mobile)+'|'+String((n&&n.customer)||'').trim().toLowerCase(); }
+function scanFollowUps(date, staffName, backDays){
+  var out=[]; var N=backDays||3;
+  for(var back=1; back<=N; back++){
+    var d=prevDayStr(date, back);
+    var raw; try{ raw=localStorage.getItem(recKey(d, staffName)); }catch(e){ raw=null; }
+    if(!raw) continue;
+    var prev; try{ prev=JSON.parse(raw); }catch(e){ continue; }
+    if(!prev || !Array.isArray(prev.nonpurch)) continue;
+    prev.nonpurch.forEach(function(n){
+      if(!n || n.followedUp===true) return;
+      var m10=_fuMobile10(n.mobile);
+      if(!m10) return;                                  // no usable mobile → nowhere to follow up
+      out.push({ date:d, ref:(n._fuRef|| _fuSig(n)), customer:(n.customer||'').trim(), m10:m10,
+                 reason:(n.reason||''), remarks:(n.remarks||''), followUpDate:(n.followUpDate||'') });
+    });
+  }
+  out.sort(function(a,b){ return (a.followUpDate||a.date).localeCompare(b.followUpDate||b.date); });
+  return out;
+}
+/* STRICT FLAG-ONLY WRITER: re-reads storage, flips ONLY followedUp=true on the
+   matched row. Never CREATES a record; never touches submitted or any other
+   field; does NOT use _recCache (that holds the live TODAY record). */
+function _writeFollowUpFlag(date, refKey){
+  try{
+    var k=recKey(date, st.staffName);
+    var raw=localStorage.getItem(k);
+    if(!raw) return false;                              // never CREATE a record
+    var rec=JSON.parse(raw);
+    if(!rec || !Array.isArray(rec.nonpurch)) return false;
+    var hit=null, sawFollowed=false;
+    /* verify-fix (P1): match by _fuRef, OR (for ref-less legacy/QMS rows) by the same content sig scanFollowUps used.
+       Prefer an UNFOLLOWED match; if every match is already followed, report idempotent success. */
+    for(var i=0;i<rec.nonpurch.length;i++){ var n=rec.nonpurch[i]; if(!n) continue;
+      var match = (n._fuRef===refKey) || (refKey && refKey.indexOf('sig:')===0 && _fuSig(n)===refKey);
+      if(!match) continue;
+      if(n.followedUp===true){ sawFollowed=true; continue; }
+      hit=n; break;
+    }
+    if(!hit) return sawFollowed;                        // all matches already followed → true; none at all → false
+    if(!hit._fuRef) hit._fuRef=refKey;                  // stamp ref-less rows so subsequent ops are stable by id
+    hit.followedUp=true;                                // THE ONLY meaningful MUTATION (+ the stable-ref stamp)
+    // rec.submitted is left EXACTLY as-is; if it was true it stays true.
+    localStorage.setItem(k, JSON.stringify(rec));
+    return true;
+  }catch(e){ return false; }
+}
+function markFollowedUp(date, refKey){
+  var ok=_writeFollowUpFlag(date, refKey);
+  if(ok){ toast('Marked as contacted','ok'); }
+  else { toast('Could not update — entry no longer found','err'); }
+  renderDayStart();
+}
+function openDsrFollowUp(url){
+  stWaLink(url,'dsr-nonbuyer-followup','promotional-customer-message');
+}
+/* Renders the "Yesterday's non-buyers to follow up" card, or '' when none. */
+function renderFollowUpCard(rec){
+  if(typeof isPastView==='function' && isPastView()) return '';   // verify-fix: no mutating follow-up actions from a read-only history view
+  var list = scanFollowUps(rec.date, rec.staffName, 3);
+  if(!list.length) return '';
+  var rows = list.map(function(f){
+    var enc = encodeURIComponent('Namaste'+(f.customer?(' '+f.customer):'')+', greetings from Saagar Traders, Latur. You visited us recently — we would love to help you find the right product. Please let us know a convenient time.');
+    var nm = esc(f.customer||'Anonymous');
+    var rs = esc(f.reason||'');
+    return '<div class="entry-item"><div class="entry-detail">'
+      +'<b>'+nm+'</b> &middot; <span style="font-family:\'DM Mono\',monospace">'+esc(f.m10)+'</span>'
+      +(rs?('<br><span class="sub">'+rs+'</span>'):'')
+      +'<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">'
+      +'<a class="btn btn-outline btn-sm" href="tel:'+esc(f.m10)+'">Call</a>'
+      +'<button data-action="stwalink" data-saagar-args="'+SaagarRenderedComponents.encodeArgs(['https://wa.me/91'+f.m10+'?text='+enc])+'" data-action-key="definition-01" class="btn btn-green btn-sm">WhatsApp</button>'
+      +'<button data-action="markfollowedup" data-saagar-args="'+SaagarRenderedComponents.encodeArgs([f.date,f.ref])+'" data-action-key="definition-01" class="btn btn-primary btn-sm">Mark contacted</button>'
+      +'</div></div></div>';
+  }).join('');
+  return '<div class="card"><div class="card-hdr"><div class="card-title">'
+    +'<div class="card-icon ci-gold"><svg viewBox="0 0 16 16" fill="none"><path d="M2 4l6 5 6-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.5"/></svg></div>'
+    +'Yesterday\'s non-buyers to follow up</div>'
+    +'<span class="badge badge-amber">'+list.length+'</span></div>'
+    + rows + '</div>';
+}
+let _recCache = { key: null, rec: null };
+let _recSaveTimer = null;
+/* Audit fix dsr-bug-02: DSR overwrites the WHOLE record on every save. The bridge (~60s tick)
+   independently reads the same key, appends QMS-linked sales/nonpurch/visitors rows (source:'qms',
+   keyed by sourceRef) and writes it back. A blind whole-record overwrite here silently drops any
+   bridge row that landed in storage after this record was cached. Before writing, re-read storage
+   and merge back any 'qms'-source row (by sourceRef) the in-memory record doesn't already have.
+   In-memory wins for rows the staff already has (their edits/outcomes are never clobbered); we only
+   RECOVER bridge rows that would otherwise be lost. Additive, no shape change. */
+function _mergeBridgeRows(rec) {
+  let merged = 0;
+  try {
+    const raw = localStorage.getItem(recKey(rec.date, rec.staffName));
+    if (!raw) return merged;
+    const stored = JSON.parse(raw);
+    if (!stored || typeof stored !== 'object') return merged;
+    ['sales','nonpurch','visitors'].forEach(arrKey => {
+      const sArr = stored[arrKey];
+      if (!Array.isArray(sArr)) return;
+      if (!Array.isArray(rec[arrKey])) rec[arrKey] = [];
+      const have = {};
+      rec[arrKey].forEach(x => { if (x && x.sourceRef != null) have[String(x.sourceRef)] = 1; });
+      sArr.forEach(x => {
+        if (x && x.source === 'qms' && x.sourceRef != null && !have[String(x.sourceRef)]) { rec[arrKey].push(x); merged++; }
+      });
+    });
+  } catch(e) {}
+  return merged;   /* Audit fix dsr-bug-03: return how many bridge rows were recovered so the live re-hydrate can re-render only when something new appeared. */
+}
+function _writeRecNow(rec) {
+  // Hard guard: never write while viewing the past, and never persist the
+  // read-only placeholder. This is the single most important correctness rule.
+  if (isReadOnlyDate(rec && rec.date) || (rec && rec._noRecord)) return;
+  _mergeBridgeRows(rec);
+  try { localStorage.setItem(recKey(rec.date, rec.staffName), JSON.stringify(rec)); } catch(e) {
+    toast('Storage error — data may not be saved!','err');
+  }
+}
+/* Flush any pending debounced write immediately. Safe to call anytime; uses the
+   cached record's OWN date/name so it always targets the correct storage key
+   even if st.date has since changed. */
+function flushRec() {
+  if (_recSaveTimer !== null) { clearTimeout(_recSaveTimer); _recSaveTimer = null; }
+  if (_recCache.rec) _writeRecNow(_recCache.rec);
+}
+function getRecord() {
+  const k = recKey(st.date, st.staffName);
+  if (_recCache.key === k && _recCache.rec) return _recCache.rec;
+  try {
+    const s = localStorage.getItem(k);
+    if (s) { const r = prefillOpeningFromPrev(normalizeRecord(JSON.parse(s))); _recCache = { key: k, rec: r }; return r; }
+  } catch(e){}
+  // PAST day with no saved record: NEVER fabricate via blankRecord (which would
+  // stamp loginTime=nowTime()). Return a read-only "no submission" placeholder
+  // and create nothing. Not cached.
+  if (isPastView()) return readonlyNoRecord(st.date, st.staffName);
+  const r = prefillOpeningFromPrev(blankRecord(st.date, st.staffName, st.role));
+  _recCache = { key: k, rec: r };
+  return r;
+}
+/* Audit fix dsr-bug-03: getRecord() caches the editable record and only re-reads on
+   date/staff change or logout — there is no storage-event listener or re-hydrate. When the
+   bridge (~60s tick) injects a QMS walk-in visitor / SALE_CLOSED sale into the currently-open
+   day's stored record, the Visitors/Sales tabs keep showing the stale cached arrays until the
+   CRO switches date or reloads, so allocated customers never surface live. Here we merge (not
+   replace) any bridge-injected qms* rows into the LIVE cache via the existing _mergeBridgeRows
+   (in-flight staff edits are preserved) and, when something new landed AND we're on the tab
+   that shows those rows, re-render it. Only acts on the currently-viewed TODAY record; past /
+   no-record / mismatched-key caches are left untouched. Additive. */
+function rehydrateBridgeRows() {
+  try {
+    const c = _recCache;
+    if (!c || !c.rec || !c.key) return;
+    if (c.rec._noRecord || isReadOnlyDate(c.rec.date)) return;
+    if (c.key !== recKey(st.date, st.staffName)) return;   // cache is for a different day/staff than the one on screen
+    const merged = _mergeBridgeRows(c.rec);
+    if (merged > 0 && st.screen === 'staff') {
+      if (st.tab === 'visitors') renderVisitors();
+      else if (st.tab === 'sales') renderSales();
+      else if (st.tab === 'nonpurch') renderNonPurch();
+      updateProgress();
+    }
+  } catch(e) {}
+}
+let _rehydrateTimer = null;
+function startBridgeRehydrate() {
+  if (_rehydrateTimer !== null) return;
+  _rehydrateTimer = setInterval(rehydrateBridgeRows, 20000);   // ~20s: catches the bridge's ~60s tick without busy-polling
+}
+function stopBridgeRehydrate() {
+  if (_rehydrateTimer !== null) { clearInterval(_rehydrateTimer); _rehydrateTimer = null; }
+}
+/* Cross-document nudge: srcdoc storage writes from the shell/bridge fire 'storage' here. */
+window.addEventListener('storage', function(e){
+  if (!e || !e.key || (e.key.indexOf(SK_DSR) !== 0)) return;
+  rehydrateBridgeRows();
+});
+/* Synchronous save — unchanged semantics for all existing callers. Points the
+   cache at this record, cancels any pending debounce for it, and persists now. */
+function saveRec(rec) {
+  if (rec && !rec._noRecord) _recCache = { key: recKey(rec.date, rec.staffName), rec };
+  if (_recSaveTimer !== null) { clearTimeout(_recSaveTimer); _recSaveTimer = null; }
+  _writeRecNow(rec);
+}
+/* PERF: debounced whole-record save for high-frequency typing handlers. The
+   record stays live in the cache; the (stringify + setItem) is coalesced to one
+   write ~300ms after typing stops. Pending writes are flushed on submit, logout,
+   SM entry, date change and page hide so nothing is ever lost. */
+function scheduleRecSave(rec) {
+  if (isReadOnlyDate(rec && rec.date) || (rec && rec._noRecord)) return;
+  _recCache = { key: recKey(rec.date, rec.staffName), rec };
+  if (_recSaveTimer !== null) clearTimeout(_recSaveTimer);
+  _recSaveTimer = setTimeout(() => { _recSaveTimer = null; _writeRecNow(rec); }, 300);
+}
+/* Audit fix dsr-bug-05: aggregation queries (Submissions list, Dashboard, CSV export) parse
+   EVERY in-range DSR record, and each cleaning checkpoint stores a full base64 data-URL photo
+   (~1.33MB each, ~2.7MB/record). Parsing tens of records with both photo blobs synchronously on
+   the srcdoc main thread is the whole-blob ANR class this app has hit. None of these aggregation
+   consumers read cleaning.cp*.photo (they read cp*.done, sales, tasks, marketing, audit only) —
+   the single-record audit report reads photos via selectAudit's own fresh parse, NOT via these.
+   So drop the two photo blobs right after parse, per record, before they accumulate in `recs`.
+   Additive; the .done flags and all other fields are preserved. */
+function _parseLiteRec(k) {
+  const r = JSON.parse(localStorage.getItem(k));
+  if (r && r.cleaning) {
+    if (r.cleaning.cp1) r.cleaning.cp1.photo = null;
+    if (r.cleaning.cp2) r.cleaning.cp2.photo = null;
+  }
+  return r;
+}
+function getAllForDate(date) {
+  const recs = [];
+  for (let i=0; i<localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (!k || !k.startsWith(SK_DSR+date+'_')) continue;
+    try { recs.push(_parseLiteRec(k)); } catch(e){}
+  }
+  return recs;
+}
+/* P1-15: EOD day summary grouped by store. Pure read (no writes). Store is
+   derived per-CRO via staffStore() from the employee master; CROs with no store
+   match bucket under 'Other'. If NO staff resolve to a known store the caller
+   collapses to a single global block (byStore:false). */
+function computeDsrDayByStore(date){
+  const recs = getAllForDate(date);
+  const groups = {};
+  let anyStore = false;
+  recs.forEach(r => {
+    if(!r || !r.staffName) return;
+    /* verify-fix: skip phantom bridge stubs (a CRO with QMS walk-ins who never opened the register) — they were
+       never staffed in DSR, so they must not inflate Present/Pending. Mirrors the real-record test used elsewhere. */
+    if(r._bridgeCreated && !r.submitted && (!r.loginTime || r.loginTime==='—')) return;
+    let store = '';
+    try { store = staffStore(r.staffName) || ''; } catch(e){ store = ''; }
+    if(store) anyStore = true;
+    const key = store || 'Other';
+    const g = groups[key] || (groups[key] = { store:key, present:0, submitted:0, pending:0, salesAmt:0, salesCnt:0, top:null, topAmt:-1 });
+    let amt=0, cnt=0;
+    if(Array.isArray(r.sales)) r.sales.forEach(s=>{ const a=Number(s&&s.amount)||0; if(a>0){ amt+=a; cnt++; } });
+    g.present++;
+    if(r.submitted) g.submitted++; else g.pending++;
+    g.salesAmt+=amt; g.salesCnt+=cnt;
+    if(amt>g.topAmt){ g.topAmt=amt; g.top=r.staffName; }
+  });
+  const list = Object.keys(groups).map(k=>groups[k]).sort((a,b)=>b.salesAmt-a.salesAmt);
+  const tot = list.reduce((t,g)=>({present:t.present+g.present,submitted:t.submitted+g.submitted,pending:t.pending+g.pending,salesAmt:t.salesAmt+g.salesAmt,salesCnt:t.salesCnt+g.salesCnt}),{present:0,submitted:0,pending:0,salesAmt:0,salesCnt:0});
+  return { date, groups:list, total:tot, byStore:anyStore };
+}
+function getAllInRange(from, to) {
+  const recs = [];
+  for (let i=0; i<localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (!k || !k.startsWith(SK_DSR)) continue;
+    const m = k.match(/^saagar_dsr_(\d{4}-\d{2}-\d{2})_/);
+    if (!m) continue;
+    if (m[1] >= from && m[1] <= to) {
+      try { recs.push(_parseLiteRec(k)); } catch(e){}
+    }
+  }
+  return recs;
+}
+function getStaffList() {
+  var out=[], seen={};
+  function add(n){ var k=String(n||'').trim().toLowerCase(); if(n&&!seen[k]){seen[k]=1;out.push(n);} }
+  try { var s=localStorage.getItem(SK_STAFF); if(s){var a=JSON.parse(s); if(Array.isArray(a)) a.forEach(add);} } catch(e){}
+  try { var em=JSON.parse(localStorage.getItem('saagar_employee_master_v1')||'[]'); if(Array.isArray(em)) em.filter(function(x){return x&&x.name&&x.active!==false;}).forEach(function(x){add(x.name);}); } catch(e){}
+  // J: drop anyone flagged leave-unavailable today by the integration bridge.
+  try {
+    var gs=JSON.parse(localStorage.getItem('saagar_gate_status')||'null');
+    var un=(gs&&gs.unavailable)||{};
+    out=out.filter(function(n){ var e=un[String(n||'').trim().toLowerCase()]; return !(e&&e.leave===true); });
+  } catch(e){}
+  return out;
+}
+function saveStaffList(arr) { localStorage.setItem(SK_STAFF, JSON.stringify(arr)); }
+
+/* ── ROUTING ── */
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  el('scr-'+id)?.classList.add('active');
+  st.screen = id;
+}
+function goStaffTab(tab) {
+  st.tab = tab;
+  document.querySelectorAll('#staff-tnav .tab-btn').forEach(b => b.classList.remove('active'));
+  el('stbtn-'+tab)?.classList.add('active');
+  el('stbtn-'+tab)?.scrollIntoView({inline:'center',block:'nearest'});  /* keep the active tab visible on the scrollable 10-tab strip */
+  document.querySelectorAll('#staff-content .tsec').forEach(s => s.classList.remove('active'));
+  el('tsec-'+tab)?.classList.add('active');
+  renderCurrentTab();
+}
+function goSMTab(tab) {
+  st.smTab = tab;
+  document.querySelectorAll('#sm-tnav .tab-btn').forEach(b => b.classList.remove('active'));
+  el('smtbtn-'+tab)?.classList.add('active');
+  el('smtbtn-'+tab)?.scrollIntoView({inline:'center',block:'nearest'});  /* keep the active tab visible on the scrollable strip */
+  document.querySelectorAll('#sm-content .tsec').forEach(s => s.classList.remove('active'));
+  el('stsec-'+tab)?.classList.add('active');
+  renderSMTab(tab);
+}
+
+/* ── LOGIN ── */
+function setLoginRole(role) {
+  el('rtab-staff').classList.toggle('active', role==='staff');
+  el('rtab-sm').classList.toggle('active', role==='sm');
+  el('lform-staff').classList.toggle('active', role==='staff');
+  el('lform-sm').classList.toggle('active', role==='sm');
+  el('login-err').textContent = '';
+  if (role==='sm') setTimeout(() => el('sm-pw-inp').focus(), 80);
+}
+function loginStaff() {
+  const name = el('staff-name-inp').value.trim();
+  const role = el('staff-role-sel').value;
+  if (!name) { el('staff-name-inp').classList.add('err'); el('login-err').textContent='Please enter your name.'; return; }
+  el('staff-name-inp').classList.remove('err');
+  const list = getStaffList();
+  if (!list.includes(name)) { list.push(name); saveStaffList(list); }
+  // View the date the shell asked for (defaults to today). Past dates render
+  // strictly read-only; today behaves exactly as before.
+  st.staffName = name; st.role = role; st.date = stAsOfDate(); st.tab = 'daystart';
+  enterStaffPanel();
+}
+function loginSM() {
+  flushRec(); // ensure any pending staff edit is persisted before SM reads records
+  if (!smPassOk(el('sm-pw-inp').value)) {
+    el('login-err').textContent = 'Incorrect password.';
+    el('sm-pw-inp').value = ''; el('sm-pw-inp').focus(); return;
+  }
+  el('login-err').textContent = '';
+  showScreen('sm'); goSMTab('submissions');
+}
+function logout() {
+  flushRec(); // persist any pending debounced edit before leaving the panel
+  stopBridgeRehydrate();   /* Audit fix dsr-bug-03: stop the live re-hydrate poll when leaving the panel */
+  _recCache = { key: null, rec: null }; // drop the in-memory record on logout
+  showScreen('login');
+  el('staff-name-inp').value=''; el('sm-pw-inp').value='';
+  el('login-err').textContent='';
+  st.staffName = ''; st.auditRec = null;
+}
+
+/* ── STAFF ENTRY ── */
+function updateStaffHeaderDate() {
+  const sub = el('staff-hdr-date');
+  if (!sub) return;
+  sub.textContent = fmtDate(st.date) + (isPastView() ? '  ·  Read-only (history)' : '');
+}
+function enterStaffPanel() {
+  el('staff-hdr-name').textContent = st.staffName;
+  updateStaffHeaderDate();
+  el('staff-role-badge').textContent = st.role.toUpperCase();
+  showScreen('staff');
+  goStaffTab('daystart');
+  updateProgress();   /* initialise the header completion meter on panel entry */
+  startClock();
+  startBridgeRehydrate();   /* Audit fix dsr-bug-03: begin polling the live record for bridge-injected QMS rows */
+}
+function startClock() {
+  const tick = () => {
+    if (st.screen !== 'staff') return;
+    const n = new Date();
+    el('live-clock').textContent = String(n.getHours()).padStart(2,'0') + ':' + String(n.getMinutes()).padStart(2,'0');
+    setTimeout(tick, 1000);
+  };
+  tick();
+}
+function noRecordHTML() {
+  return `<div class="empty-state">
+      <div class="empty-icon-wrap"><svg viewBox="0 0 16 16" fill="none"><path d="M4 2h8a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" stroke-width="1.5"/><path d="M6 6h4M6 9h4M6 12h2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+      <div class="empty-title">No submission recorded for this day</div>
+      <div class="empty-sub">${esc(st.staffName)} has no saved register for ${fmtDate(st.date)}. This is a read-only history view — nothing can be entered or created here.</div>
+    </div>`;
+}
+function renderCurrentTab() {
+  const renders = {
+    daystart: renderDayStart, opening: renderOpening,
+    inout: renderInOut, sales: renderSales,
+    nonpurch: renderNonPurch, visitors: renderVisitors, tasks: renderTasks,
+    marketing: renderMarketing, cleaning: renderCleaning,
+    closing: renderClosing,
+  };
+  // Past day with no saved record: show the read-only "no submission" state and
+  // run NO renderer (renderers would otherwise paint empty editable widgets).
+  if (isPastView() && getRecord()._noRecord) {
+    const sec = el('tsec-' + st.tab);
+    if (sec) sec.innerHTML = noRecordHTML();
+    updateProgress();
+    return;
+  }
+  renders[st.tab]?.();
+  updateProgress();
+}
+
+function dsrD4PolicyApi() {
+  /* D4-DSR-RUNTIME-2026-08-04 */
+  try {
+    return (window.parent && window.parent !== window &&
+      SaagarModuleBridge.dsrCompletionPolicy) ||
+      SaagarModuleBridge.dsrCompletionPolicy || null;
+  } catch (error) {
+    return null;
+  }
+}
+function dsrD4Context() {
+  try {
+    return { stockCategories: activeStockCats(), taskList: TASK_LIST };
+  } catch (error) {
+    return { stockCategories: [], taskList: [] };
+  }
+}
+function dsrD4PrevClosingRecord(rec) {
+  try {
+    if (!rec || rec._noRecord) return null;
+    for (let back = 1; back <= 7; back++) {
+      const raw = localStorage.getItem(recKey(prevDayStr(rec.date, back), rec.staffName));
+      if (!raw) continue;
+      const prev = JSON.parse(raw);
+      if (!prev || !prev.closing) return null;
+      return { date: prevDayStr(rec.date, back), closing: prev.closing };
+    }
+  } catch (error) {}
+  return null;
+}
+function dsrD4CarriedOpening(rec) {
+  try {
+    const api = dsrD4PolicyApi();
+    if (!api) return {};
+    return api.carriedOpeningFields(rec, dsrD4PrevClosingRecord(rec), dsrD4Context().stockCategories);
+  } catch (error) {
+    return {};
+  }
+}
+function dsrD4NoSalesAck(rec) {
+  const ack = rec && rec.d4NoSales;
+  if (!ack || typeof ack !== 'object' || Array.isArray(ack)) return null;
+  return (typeof ack.at === 'string' && ack.at.length > 0) ? ack : null;
+}
+function dsrD4ToggleNoSales() {
+  const rec = getRecord();
+  if (rec.submitted || isPastView()) return;
+  if (Array.isArray(rec.sales) && rec.sales.length) {
+    toast('Sales are recorded for today — nothing to confirm', 'err');
+    return;
+  }
+  rec.d4NoSales = dsrD4NoSalesAck(rec)
+    ? null
+    : { at: nowTime(), by: rec.staffName || '' };
+  saveRec(rec);
+  renderSales();
+  updateProgress();
+}
+function dsrD4Summary(rec) {
+  const api = dsrD4PolicyApi();
+  if (api) {
+    try { return api.completionSummary(rec, dsrD4Context()); } catch (error) {}
+  }
+  const ctx = dsrD4Context();
+  const cats = ctx.stockCategories || [];
+  const tasks = ctx.taskList || [];
+  const cleaning = (rec && rec.cleaning) || {};
+  const cp1 = cleaning.cp1 || {};
+  const cp2 = cleaning.cp2 || {};
+  const status = {
+    daystart: 'not_applicable', opening: 'incomplete', inout: 'not_applicable',
+    sales: 'incomplete', nonpurch: 'not_applicable', tasks: 'incomplete',
+    marketing: 'not_applicable', cleaning: 'incomplete', closing: 'incomplete'
+  };
+  if ((Array.isArray(rec && rec.sales) && rec.sales.length > 0) ||
+      dsrD4NoSalesAck(rec) || (rec && rec.submitted)) status.sales = 'complete';
+  if (cats.length && cats.every(c => rec && rec.opening && rec.opening[c.id] !== '' &&
+    rec.opening[c.id] !== undefined && rec.opening[c.id] !== null)) status.opening = 'complete';
+  if (cats.length && cats.every(c => rec && rec.closing && rec.closing[c.id] !== '' &&
+    rec.closing[c.id] !== undefined && rec.closing[c.id] !== null)) status.closing = 'complete';
+  if (tasks.length && tasks.every(t => taskEntered(rec && rec.tasks && rec.tasks[t.id]))) status.tasks = 'complete';
+  if (cp1.done && cp1.photo && cp2.done && cp2.photo) status.cleaning = 'complete';
+  const applicable = ['opening', 'sales', 'tasks', 'cleaning', 'closing'];
+  const done = applicable.filter(id => status[id] === 'complete').length;
+  return { status, done, total: applicable.length,
+    percent: applicable.length ? Math.round(done / applicable.length * 100) : 0 };
+}
+
+/* ── PROGRESS ── */
+function updateProgress() {
+  const rec = getRecord();
+  const summary = dsrD4Summary(rec);
+  const status = summary.status || {};
+  const tabs = ['daystart','opening','inout','sales','nonpurch','tasks','marketing','cleaning','closing'];
+  tabs.forEach(id => {
+    const btn = el('stbtn-' + id);
+    if (!btn) return;
+    btn.classList.toggle('done', status[id] === 'complete');
+    btn.classList.toggle('optional', status[id] === 'not_applicable');
+  });
+  const fill = el('pbar-fill');
+  if (fill) fill.style.width = summary.percent + '%';
+  const lbl = el('pbar-lbl');
+  if (lbl) lbl.textContent = summary.done + ' / ' + summary.total;
+  updateStaffMeter(summary.done, summary.total);
+}
+function updateStaffMeter(done, total) {
+  try {
+    total = total || 9;
+    const pct = total ? Math.round(done / total * 100) : 0;
+    const fill = el('staff-meter-fill');
+    if (fill) fill.style.width = pct + '%';
+    const lbl = el('staff-meter-lbl');
+    if (lbl) lbl.textContent = done + '/' + total + ' sections · ' + pct + '%';
+  } catch (e) {}
+}
+
+/* ══════════════════════════════════════
+   TAB: DAY START
+══════════════════════════════════════ */
+function renderDayStart() {
+  const rec = getRecord();
+  const isOut = rec.inout.length > 0 && rec.inout[rec.inout.length-1].type === 'out';
+  const totalSales = rec.sales.reduce((s,x) => s+(+x.amount||0), 0);
+  el('tsec-daystart').innerHTML = `
+    <div class="card">
+      <div class="card-hdr">
+        <div class="card-title">
+          <div class="card-icon ci-navy"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5" stroke="currentColor" stroke-width="1.5"/><path d="M8 5v3l2 1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+          Staff Info
+        </div>
+        ${rec.submitted ? '<span class="badge badge-green"><svg viewBox="0 0 16 16" fill="none"><path d="M3 8l4 4 6-7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Submitted</span>' : ''}
+      </div>
+      <div class="info-row"><span class="info-key">Name</span><span class="info-val">${esc(rec.staffName)}</span></div>
+      <div class="info-row"><span class="info-key">Role</span><span class="info-val">${rec.role.toUpperCase()}</span></div>
+      <div class="info-row"><span class="info-key">Date</span><span class="info-val">${fmtDate(rec.date)}</span></div>
+      <div class="info-row"><span class="info-key">Login Time</span><span class="info-val" style="font-family:'DM Mono',monospace">${rec.loginTime}</span></div>
+      ${rec.submitted ? `<div class="info-row"><span class="info-key">Submitted At</span><span class="info-val" style="font-family:'DM Mono',monospace">${rec.submitTime}</span></div>` : ''}
+    </div>
+    <div class="card">
+      <div class="card-hdr">
+        <div class="card-title">
+          <div class="card-icon ci-gold"><svg viewBox="0 0 16 16" fill="none"><rect x="1" y="8" width="4" height="7" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="6" y="4" width="4" height="11" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="11" y="1" width="4" height="14" rx="1" stroke="currentColor" stroke-width="1.5"/></svg></div>
+          Today's Progress
+        </div>
+      </div>
+      <div class="info-row"><span class="info-key">Sales</span><span class="info-val">${rec.sales.length} bill${rec.sales.length!==1?'s':''} · ${fmtAmt(totalSales)}</span></div>
+      <div class="info-row"><span class="info-key">Visitors</span><span class="info-val">${rec.nonpurch.length} logged</span></div>
+      <div class="info-row"><span class="info-key">Status</span><span class="info-val">${isOut ? '<span class="badge badge-amber">Out of Store</span>' : '<span class="badge badge-green">In Store</span>'}</span></div>
+      <div class="info-row"><span class="info-key">Cleaning</span><span class="info-val">${rec.cleaning.cp1.done && rec.cleaning.cp2.done ? '<span class="badge badge-green">Both Done</span>' : rec.cleaning.cp1.done ? '<span class="badge badge-amber">1 of 2</span>' : '<span class="badge badge-red">Pending</span>'}</span></div>
+      <div class="info-row"><span class="info-key">Marketing</span><span class="info-val">${Object.values(rec.marketing).reduce((s,v)=>s+(+v||0),0)} activities</span></div>
+    </div>
+    ${renderFollowUpCard(rec)}`;
+}
+
+/* ══════════════════════════════════════
+   TAB: OPENING STOCK
+══════════════════════════════════════ */
+function renderOpening() {
+  const rec = getRecord();
+  const locked = rec.submitted || isPastView();
+  const d4Carried = dsrD4CarriedOpening(rec);
+  el('tsec-opening').innerHTML = `
+    <div class="card">
+      <div class="card-hdr">
+        <div class="card-title">
+          <div class="card-icon ci-navy"><svg viewBox="0 0 16 16" fill="none"><path d="M3 13V6l5-4 5 4v7H3z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><rect x="6" y="9" width="4" height="4" rx=".5" stroke="currentColor" stroke-width="1.3"/></svg></div>
+          Opening Stock
+        </div>
+        ${locked ? '<span class="badge badge-green">Locked</span>' : ''}
+      </div>
+      ${activeGroups().map((g, gi) =>`
+        <div class="accordion-header">${g.short}</div>
+        <div class="accordion-panel dsr-acc-panel"${gi === 0 ? '' : ' hidden'}>
+        <div class="sgrid">
+          ${g.items.map(name => {
+            const c = stockCatOf(name, g.short);
+            return `<div class="fgrp">
+              <label class="flbl">${esc(name)} <span class="req">*</span>${d4Carried[c.id] ? `<span class="dsr-d4-carried" title="Carried from the closing count on ${esc(d4Carried[c.id])}">carried ${esc(d4Carried[c.id])}</span>` : ''}</label>
+              <input data-action="updopening" data-action-key="definition-01" class="finp" type="number" min="0" placeholder="0"
+                value="${esc(rec.opening[c.id])}"
+                ${locked?'disabled':''}
+                oninput="updOpening('${c.id}',this.value)" />
+            </div>`;
+          }).join('')}
+        </div>
+        </div>`).join('')}
+      <div class="stotal">
+        <span class="stotal-lbl">Total Pieces</span>
+        <span class="stotal-val" id="op-total">${stockTotal(rec.opening)}</span>
+      </div>
+    </div>`;
+}
+function updOpening(cat, val) {
+  const rec = getRecord();
+  if (rec.submitted || isPastView()) return;
+  rec.opening[cat] = val;
+  // PERF: rec stays live in memory; coalesce the whole-record write (debounced)
+  // instead of stringifying the full record on every keystroke.
+  scheduleRecSave(rec);
+  el('op-total').textContent = stockTotal(rec.opening);
+  updateProgress();
+}
+
+/* ══════════════════════════════════════
+   TAB: IN/OUT
+══════════════════════════════════════ */
+function renderInOut() {
+  const rec = getRecord();
+  const locked = rec.submitted || isPastView();
+  const log = rec.inout;
+  const isOut = log.length > 0 && log[log.length-1].type === 'out';
+  const dur = calcTimeOut(log);
+  el('tsec-inout').innerHTML = `
+    <div class="io-status ${isOut?'io-out':'io-in'}">
+      <div class="io-pulse"></div>
+      <div class="io-status-body">
+        <div class="io-status-label">${isOut ? 'Currently Out of Store' : 'Currently In Store'}</div>
+        <div class="io-status-sub">${dur > 0 ? 'Time out today: ' + fmtDur(dur) : 'Track your in/out movements below'}</div>
+      </div>
+    </div>
+    ${!locked ? (isOut
+      ? `<button data-action="login" class="btn btn-green btn-lg" style="margin-bottom:14px" onclick="logIn()"><svg viewBox="0 0 16 16" fill="none"><path d="M3 8l4 4 6-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Mark Back In</button>`
+      : `<button data-action="showiomodal" class="btn btn-amber btn-lg" style="margin-bottom:14px" onclick="showIOModal()"><svg viewBox="0 0 16 16" fill="none"><path d="M10 8H2M6 4l-4 4 4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M13 2v12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg> Mark Out of Store</button>`) : ''}
+    <div class="card">
+      <div class="card-hdr">
+        <div class="card-title"><div class="card-icon ci-sky"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5"/><path d="M8 5v3l2 1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div>Movement Log</div>
+      </div>
+      ${log.length === 0
+        ? `<div class="empty-state">
+            <div class="empty-icon-wrap"><svg viewBox="0 0 16 16" fill="none"><path d="M8 1v14M1 8h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+            <div class="empty-title">No movements logged</div>
+            <div class="empty-sub">Use the button above to track when you leave or return.</div>
+           </div>`
+        : log.map(e => `
+          <div class="log-item">
+            <span class="log-badge ${e.type}">${e.type.toUpperCase()}</span>
+            <span class="log-reason">${esc(e.reason||'—')}</span>
+            <span class="log-time">${e.time}</span>
+          </div>`).join('')}
+    </div>`;
+}
+function calcTimeOut(log) {
+  let total = 0, outTime = null;
+  log.forEach(e => {
+    if (e.type==='out') outTime = parseHMS(e.time);
+    else if (e.type==='in' && outTime) { total += parseHMS(e.time) - outTime; outTime = null; }
+  });
+  /* Audit fix dsr-bug-04: parseHMS returns seconds-since-midnight (0..86400), but the
+     still-out branch was adding Date.now()/1000 (Unix epoch seconds, ~1.75e9), yielding
+     a ~1.75-billion-second duration ("486000h 0m"). Use current seconds-since-midnight to
+     match parseHMS's unit. Pure arithmetic. */
+  if (outTime) {
+    const n = new Date();
+    const nowSec = n.getHours()*3600 + n.getMinutes()*60 + n.getSeconds();
+    total += nowSec - outTime;
+  }
+  return total;
+}
+function parseHMS(hms) {
+  const [h,m,s] = (hms||'00:00:00').split(':').map(Number);
+  return h*3600 + m*60 + (s||0);
+}
+function fmtDur(secs) {
+  const h = Math.floor(secs/3600), m = Math.floor((secs%3600)/60);
+  return (h > 0 ? h+'h ' : '') + m + 'm';
+}
+function showIOModal() {
+  el('modal-body').innerHTML = `
+    <div class="modal-title">Going Out of Store?</div>
+    <div class="fgrp">
+      <label class="flbl">Reason <span class="req">*</span></label>
+      <select class="finp" id="io-reason-sel">
+        ${IO_REASONS.map(r => `<option>${esc(r)}</option>`).join('')}
+      </select>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:12px">
+      <button data-action="closemodal" data-action-key="definition-01" class="btn btn-outline" style="flex:1" onclick="closeModal()">Cancel</button>
+      <button data-action="logout" class="btn btn-amber" style="flex:1" onclick="logOut()">Confirm Out</button>
+    </div>`;
+  openModal();
+}
+function logOut() {
+  const reason = el('io-reason-sel')?.value || '';
+  const rec = getRecord();
+  if (rec.submitted || isPastView()) return;
+  rec.inout.push({ type: 'out', time: nowTime(), reason });
+  saveRec(rec); closeModal(); renderInOut(); updateProgress();
+  toast('Marked out of store','warn');
+}
+function logIn() {
+  const rec = getRecord();
+  if (rec.submitted || isPastView()) return;
+  rec.inout.push({ type: 'in', time: nowTime(), reason: '' });
+  saveRec(rec); renderInOut(); updateProgress();
+  toast('Marked back in store','ok');
+}
+
+/* ══════════════════════════════════════
+   TAB: VISITORS (QMS-allocated walk-ins)
+══════════════════════════════════════ */
+function visitorOutcomeLabel(o){
+  return o==='purchase' ? 'Purchased' : o==='service' ? 'Service' : o==='nonpurchase' ? 'Non-purchase' : '';
+}
+function renderVisitors() {
+  const rec = getRecord();
+  const vis = Array.isArray(rec.visitors) ? rec.visitors : [];
+  const pending = vis.filter(v => !v.outcome).length;
+  el('tsec-visitors').innerHTML = `
+    <div class="summary-bar">
+      <div><div class="summary-bar-lbl">Walk-ins From Queue</div><div class="summary-bar-val">${vis.length}<span class="sub">${pending} to mark</span></div></div>
+    </div>
+    ${vis.length===0
+      ? `<div class="empty-state">
+          <div class="empty-icon-wrap"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M2 14c0-3.314 2.686-6 6-6s6 2.686 6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+          <div class="empty-title">No walk-ins allocated</div>
+          <div class="empty-sub">Customers allocated to you in Queue Management appear here. Mark each as Purchase or Non-purchase.</div>
+         </div>`
+      : vis.map(v => {
+          const sref = esc(String(v.sourceRef==null?'':v.sourceRef));
+          const name = esc(v.customer||'Walk-in');
+          const meta = [v.queueNo?('Q'+esc(v.queueNo)):'', v.mobile?esc(v.mobile):'', v.product?esc(v.product):''].filter(Boolean).join(' \u00b7 ');
+          if (v.outcome) {
+            const cls = v.outcome==='purchase' ? 'badge-green' : v.outcome==='service' ? 'badge-navy' : 'badge-amber';
+            return `<div class="entry-item">
+              <div class="entry-hdr">
+                <span class="entry-num">${name}</span>
+                <span class="badge ${cls}">${esc(visitorOutcomeLabel(v.outcome))}${v.resolvedBy==='qms'?' \u00b7 QMS':''}</span>
+              </div>
+              ${meta?`<div class="entry-detail">${meta}</div>`:''}
+            </div>`;
+          }
+          return `<div class="entry-item" data-vref="${sref}">
+            <div class="entry-hdr"><span class="entry-num">${name}</span>${isPastView()?'<span class="badge badge-amber">Not marked</span>':''}</div>
+            ${meta?`<div class="entry-detail" style="margin-bottom:10px">${meta}</div>`:''}
+            ${isPastView() ? '' : `<div style="display:flex;gap:10px">
+              <button data-action="visitorpurchase" data-saagar-args="${SaagarRenderedComponents.encodeArgs([sref])}" data-action-key="definition-01" class="btn btn-green btn-sm" style="flex:1">Purchase</button>
+              <button data-action="visitornonpurch" data-saagar-args="${SaagarRenderedComponents.encodeArgs([sref])}" data-action-key="definition-01" class="btn btn-outline btn-sm" style="flex:1">Non-purchase</button>
+            </div>`}
+          </div>`;
+        }).join('')}`;
+}
+function findVisitor(rec, sourceRef){
+  const arr = Array.isArray(rec.visitors) ? rec.visitors : [];
+  const k = String(sourceRef);
+  return arr.filter(v => v && String(v.sourceRef)===k)[0] || null;
+}
+function visitorPurchase(sourceRef){
+  if (isPastView()) return;
+  const rec = getRecord();
+  const v = findVisitor(rec, sourceRef);
+  if (!v) { toast('Visitor not found','err'); return; }
+  v.outcome = 'purchase'; v._staffMarked = true;
+  // Dedup: only push a sale row if one for this sourceRef does not already exist.
+  if (!Array.isArray(rec.sales)) rec.sales = [];
+  const dup = rec.sales.some(s => s && String(s.sourceRef)===String(sourceRef) && (s.source==='qms-visitor'||s.source==='qms'));
+  if (!dup) {
+    rec.sales.push({
+      billNo:'', product:PROD_TYPES[0], amount:'',
+      customer:v.customer||'', mobile:v.mobile||'',
+      type:'sale', source:'qms-visitor', sourceRef:v.sourceRef, _confirmed:false
+    });
+  }
+  saveRec(rec);
+  toast('Marked as purchase — fill the bill & amount','ok');
+  goStaffTab('sales');
+}
+function visitorNonPurch(sourceRef){
+  if (isPastView()) return;
+  const rec = getRecord();
+  const v = findVisitor(rec, sourceRef);
+  if (!v) { toast('Visitor not found','err'); return; }
+  v.outcome = 'nonpurchase'; v._staffMarked = true;
+  if (!Array.isArray(rec.nonpurch)) rec.nonpurch = [];
+  const dup = rec.nonpurch.some(n => n && String(n.sourceRef)===String(sourceRef) && (n.source==='qms-visitor'||n.source==='qms'));
+  if (!dup) {
+    rec.nonpurch.push({
+      customer:v.customer||'', mobile:v.mobile||'',
+      reason:'non-purchase', source:'qms-visitor', sourceRef:v.sourceRef, _confirmed:false
+    });
+  }
+  saveRec(rec);
+  toast('Marked as non-purchase','ok');
+  renderVisitors(); updateProgress();
+}
+
+/* ══════════════════════════════════════
+   TAB: SALES
+══════════════════════════════════════ */
+function renderSales() {
+  const rec = getRecord();
+  const locked = rec.submitted || isPastView();
+  const total = rec.sales.reduce((s,x) => s+(Number(x.amount)||0), 0);
+  el('tsec-sales').innerHTML = `
+    <div class="summary-bar">
+      <div><div class="summary-bar-lbl">Total Sales Today</div><div class="summary-bar-val">${fmtAmt(total)}<span class="sub">${rec.sales.length} bill${rec.sales.length!==1?'s':''}</span></div></div>
+    </div>
+    ${!locked ? `<button data-action="show-new-sale" data-action-key="definition-01" class="btn btn-green btn-lg" style="margin-bottom:14px" onclick="showNewSale()"><svg viewBox="0 0 16 16" fill="none"><path d="M8 2v12M2 8h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Add Sale</button>` : ''}
+    ${rec.sales.length===0
+      ? `<div class="empty-state">
+          <div class="empty-icon-wrap"><svg viewBox="0 0 16 16" fill="none"><circle cx="6" cy="13" r="1.2" stroke="currentColor" stroke-width="1.3"/><circle cx="12" cy="13" r="1.2" stroke="currentColor" stroke-width="1.3"/><path d="M1 1h2l2.5 8h6l1.5-5H5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div class="empty-title">No sales recorded</div>
+          <div class="empty-sub">${dsrD4NoSalesAck(rec)
+            ? `Confirmed: no sales today (${esc(dsrD4NoSalesAck(rec).at)}${dsrD4NoSalesAck(rec).by ? ' · ' + esc(dsrD4NoSalesAck(rec).by) : ''})`
+            : 'A day with no sales must be confirmed before you can submit.'}</div>
+          ${locked ? '' : `<button data-action="dsrd4togglenosales" data-action-key="definition-01" class="btn ${dsrD4NoSalesAck(rec) ? 'btn-outline' : 'btn-green'} btn-sm" style="margin-top:10px" onclick="dsrD4ToggleNoSales()">${dsrD4NoSalesAck(rec) ? 'Undo confirmation' : 'Confirm no sales today'}</button>`}
+         </div>`
+      : rec.sales.map((s,i) => { const fromQMS = s.source==='qms'; return `
+        <div class="entry-item"${fromQMS?' style="border-left:3px solid var(--navy)"':''}>
+          <div class="entry-hdr">
+            <span class="entry-num">Bill #${i+1}${fromQMS?' <span style="font-size:11px;font-weight:700;color:var(--navy);background:var(--blue-pale);border:1px solid var(--gray-300);border-radius:999px;padding:2px 8px;margin-left:6px">from QMS \u2014 locked</span>':''}</span>
+            ${(!locked && !fromQMS) ? `<span style="display:inline-flex;gap:6px"><button data-action="showsalemodal" data-action-key="definition-02" class="btn btn-outline btn-sm" onclick="showSaleModal(${i})">Edit</button><button data-action="deletesale" data-action-key="definition-01" class="btn btn-ghost btn-sm" onclick="deleteSale(${i})"><svg viewBox="0 0 16 16" fill="none"><path d="M3 4h10M6 4V2h4v2M5 4v9a1 1 0 001 1h4a1 1 0 001-1V4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Remove</button></span>` : (fromQMS ? '<span class="sub" style="font-size:11px" title="Auto-filled from a closed Queue Management sale">\uD83D\uDD12 auto</span>' : '')}
+          </div>
+          <div class="entry-detail"><b>Bill No:</b> ${esc(s.billNo)} &nbsp;·&nbsp; <b>Product:</b> ${esc(s.product)}${s.customer ? `<br><b>Customer:</b> ${esc(s.customer)}` : ''}${s.mobile ? `<br><b>Mobile:</b> ${esc(s.mobile)}` : ''}${s.paymentMode ? ` &nbsp;·&nbsp; <b>Mode:</b> ${esc(s.paymentMode)}` : ''}</div>
+          <div class="entry-amount">${fmtAmt(s.amount)}</div>
+        </div>`; }).join('')}`;
+}
+function showSaleModal(idx) {
+  const rec = getRecord();
+  const s = idx !== null ? rec.sales[idx] : { billNo:'', product:PROD_TYPES[0], amount:'', customer:'', mobile:'', paymentMode:'' };
+  el('modal-body').innerHTML = `
+    <div class="modal-title">${idx!==null?'Edit Sale':'Add Sale Entry'}</div>
+    <div class="fgrid2">
+      <div class="fgrp">
+        <label class="flbl">Bill No <span class="req">*</span></label>
+        <input class="finp" id="s-bill" placeholder="e.g. 1234" value="${esc(s.billNo)}" />
+      </div>
+      <div class="fgrp">
+        <label class="flbl">Amount (₹) <span class="req">*</span></label>
+        <input class="finp" id="s-amt" type="number" min="0" placeholder="0" value="${esc(s.amount)}" />
+      </div>
+    </div>
+    <div class="fgrp">
+      <label class="flbl">Product / Brand <span class="req">*</span></label>
+      <select class="finp" id="s-prod">${renderProductOptions(s.product)}</select>
+    </div>
+    <div class="fgrp">
+      <label class="flbl">Customer Name</label>
+      <input class="finp" id="s-cust" placeholder="Optional" value="${esc(s.customer)}" />
+    </div>
+    <div class="fgrid2">
+      <div class="fgrp">
+        <label class="flbl">Customer Mobile</label>
+        <input class="finp" id="s-mobile" type="tel" inputmode="numeric" maxlength="15" placeholder="Optional" value="${esc(s.mobile||'')}" />
+      </div>
+      <div class="fgrp">
+        <label class="flbl">Payment Mode</label>
+        <select class="finp" id="s-paymode">
+          ${['','Cash','UPI','Card'].map(m=>`<option value="${m}"${(s.paymentMode||'')===m?' selected':''}>${m||'—'}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:12px">
+      <button data-action="closemodal" data-action-key="definition-02" class="btn btn-outline" style="flex:1" onclick="closeModal()">Cancel</button>
+      <button data-action="savesale" data-saagar-args="${SaagarRenderedComponents.encodeArgs([idx])}" data-action-key="definition-01" class="btn btn-green" style="flex:1">Save</button>
+    </div>`;
+  openModal();
+}
+function saveSale(idx) {
+  if (isPastView()) { closeModal(); return; }
+  const billNo = el('s-bill').value.trim();
+  const amount = el('s-amt').value;
+  if (!billNo || !amount) {
+    if (!billNo) el('s-bill').classList.add('err');
+    if (!amount) el('s-amt').classList.add('err');
+    toast('Bill number and amount required','err'); return;
+  }
+  // P1-13: optional customer mobile — validate only when non-blank (mirrors saveNP).
+  const mobile = el('s-mobile').value.trim();
+  if (mobile && (mobile.replace(/\D/g,'').length < 6 || !/^[0-9+\-\s]{6,15}$/.test(mobile))) { el('s-mobile').classList.add('err'); toast('Enter a valid mobile number','err'); return; }   /* verify-fix: require >=6 real DIGITS so symbol-only junk ('++++++') is rejected */
+  const rec = getRecord();
+  const prev = (idx !== null && rec.sales && rec.sales[idx]) ? rec.sales[idx] : {};
+  const entry = Object.assign({}, prev, { billNo, product: el('s-prod').value, amount: +amount, customer: el('s-cust').value.trim(), mobile, paymentMode: el('s-paymode').value });
+  if (entry.source === 'qms-visitor') entry._confirmed = true;
+  // Non-blocking double-count guard: a manual sale has no sourceRef, so it can't match the QMS
+  // bridge dedup. If an auto-filled QMS sale of the SAME amount already exists today, warn the CRO
+  // (never block or merge — same-amount sales can be legitimate).
+  var dupQms = (idx === null) && Array.isArray(rec.sales) && rec.sales.some(function(s){ return s && s.source === 'qms' && (+s.amount) === (+amount); });
+  if (idx !== null) rec.sales[idx] = entry; else rec.sales.push(entry);
+  saveRec(rec); closeModal(); renderSales();
+  if (dupQms) toast('Saved. Note: a QMS auto-sale of \u20b9' + (+amount).toLocaleString('en-IN') + ' is already logged today \u2014 if this is the same sale, delete one.','warn');
+  else if (entry.source === 'qms-visitor') toast('Sale saved — Queue Management will flag this lead for the SM to confirm & close','ok');
+  else toast('Sale saved','ok');
+}
+function deleteSale(i) {
+  if (isPastView()) return;
+  const rec = getRecord();
+  if (rec.sales[i] && rec.sales[i].source==='qms') { toast('This sale came from Queue Management and is locked — edit it there.','warn'); return; }
+  if (!confirm('Remove this sale entry?')) return;
+  rec.sales.splice(i,1); saveRec(rec); renderSales();
+}
+
+/* ══════════════════════════════════════
+   TAB: NON-PURCHASE
+══════════════════════════════════════ */
+function renderNonPurch() {
+  const rec = getRecord();
+  const locked = rec.submitted || isPastView();
+  const withMobile = rec.nonpurch.filter(n => (n.mobile||'').trim()).length;
+  el('tsec-nonpurch').innerHTML = `
+    <div class="summary-bar">
+      <div><div class="summary-bar-lbl">Non-Purchase Visitors</div><div class="summary-bar-val">${rec.nonpurch.length}<span class="sub">${withMobile} with mobile</span></div></div>
+    </div>
+    ${!locked ? `<button data-action="shownpmodal" class="btn btn-primary btn-lg" style="margin-bottom:14px" onclick="showNewNonPurchase()"><svg viewBox="0 0 16 16" fill="none"><path d="M8 2v12M2 8h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Add Visitor</button>` : ''}
+    ${rec.nonpurch.length===0
+      ? `<div class="empty-state">
+          <div class="empty-icon-wrap"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M2 14c0-3.314 2.686-6 6-6s6 2.686 6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+          <div class="empty-title">No visitors logged</div>
+          <div class="empty-sub">Log customers who browsed but did not buy.</div>
+         </div>`
+      : rec.nonpurch.map((n,i) => `
+        <div class="entry-item">
+          <div class="entry-hdr">
+            <span class="entry-num">Visitor #${i+1}</span>
+            ${!locked ? `<button data-action="deletenp" data-action-key="definition-01" class="btn btn-ghost btn-sm" onclick="deleteNP(${i})"><svg viewBox="0 0 16 16" fill="none"><path d="M3 4h10M6 4V2h4v2M5 4v9a1 1 0 001 1h4a1 1 0 001-1V4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Remove</button>` : ''}
+          </div>
+          <div class="entry-detail">
+            <b>Name:</b> ${esc(n.customer||'Anonymous')} &nbsp;·&nbsp; <b>Mobile:</b> ${esc(n.mobile||'—')}<br>
+            <b>Reason:</b> ${esc(n.reason)}${n.remarks?`<br><b>Note:</b> ${esc(n.remarks)}`:''}
+          </div>
+        </div>`).join('')}`;
+}
+function showNPModal(idx) {
+  const rec = getRecord();
+  const n = idx!==null ? rec.nonpurch[idx] : { customer:'', mobile:'', reason:NP_REASONS[0], remarks:'' };
+  el('modal-body').innerHTML = `
+    <div class="modal-title">Log Visitor</div>
+    <div class="fgrp"><label class="flbl">Customer Name</label>
+      <input class="finp" id="np-cust" placeholder="Anonymous" value="${esc(n.customer)}" /></div>
+    <div class="fgrp"><label class="flbl">Mobile Number</label>
+      <input class="finp" id="np-mobile" type="tel" inputmode="numeric" maxlength="15" placeholder="Customer phone number" value="${esc(n.mobile||'')}" /></div>
+    <div class="fgrp"><label class="flbl">Reason for Not Purchasing <span class="req">*</span></label>
+      <select class="finp" id="np-reason">${NP_REASONS.map(r=>`<option${r===n.reason?' selected':''}>${esc(r)}</option>`).join('')}</select></div>
+    <div class="fgrp"><label class="flbl">Follow-up date</label>
+      <input class="finp" id="np-fudate" type="date" value="${esc(n.followUpDate||'')}" /></div>
+    <div class="fgrp"><label class="flbl">Additional Remarks</label>
+      <textarea class="finp" id="np-rem" placeholder="Any notes…">${esc(n.remarks)}</textarea></div>
+    <div style="display:flex;gap:10px;margin-top:12px">
+      <button data-action="closemodal" data-action-key="definition-03" class="btn btn-outline" style="flex:1" onclick="closeModal()">Cancel</button>
+      <button data-action="savenp" data-saagar-args="${SaagarRenderedComponents.encodeArgs([idx])}" data-action-key="definition-01" class="btn btn-primary" style="flex:1">Save</button>
+    </div>`;
+  openModal();
+}
+function saveNP(idx) {
+  if (isPastView()) { closeModal(); return; }
+  const mobile = el('np-mobile').value.trim();
+  if (mobile && !/^[0-9+\-\s]{6,15}$/.test(mobile)) { el('np-mobile').classList.add('err'); toast('Enter a valid mobile number','err'); return; }
+  const rec = getRecord();
+  // P1-14: carry follow-up fields; preserve a pre-existing row's ref+flag when editing.
+  const fu = el('np-fudate') ? el('np-fudate').value : '';
+  const prevRow = (idx!==null && rec.nonpurch && rec.nonpurch[idx]) ? rec.nonpurch[idx] : null;
+  const entry = { customer:el('np-cust').value.trim(), mobile, reason:el('np-reason').value, remarks:el('np-rem').value.trim(),
+    followUpDate: fu || prevDayStr(rec.date, -1),                        // -1 back = NEXT day
+    followedUp: prevRow ? (prevRow.followedUp===true) : false,
+    _fuRef: (prevRow && prevRow._fuRef) ? prevRow._fuRef : ('np_'+rec.date+'_'+Math.random().toString(36).slice(2,9)) };
+  if (idx!==null) rec.nonpurch[idx]=entry; else rec.nonpurch.push(entry);
+  saveRec(rec); closeModal(); renderNonPurch();
+  toast('Visitor logged','ok');
+}
+function deleteNP(i) {
+  if (isPastView()) return;
+  if (!confirm('Remove this visitor entry?')) return;
+  const rec = getRecord(); rec.nonpurch.splice(i,1); saveRec(rec); renderNonPurch();
+}
+
+/* ══════════════════════════════════════
+   TAB: TASKS
+══════════════════════════════════════ */
+function renderTasks() {
+  const rec = getRecord();
+  const locked = rec.submitted || isPastView();
+  const total = taskTotal(rec.tasks);
+  el('tsec-tasks').innerHTML = `
+    <div class="card">
+      <div class="card-hdr">
+        <div class="card-title"><div class="card-icon ci-green"><svg viewBox="0 0 16 16" fill="none"><path d="M2 4h12M2 8h8M2 12h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div>Daily Task Count</div>
+      </div>
+      ${TASK_LIST.map(t => `
+        <div class="task-row">
+          <span class="task-lbl">${esc(t.label)}</span>
+          <div class="task-num-wrap">
+            <input data-action="settaskcount" data-action-key="definition-01" class="finp task-num-inp" type="number" min="0" step="1" placeholder="0"
+              value="${rec.tasks[t.id] === undefined ? '' : esc(rec.tasks[t.id])}"
+              ${locked?'disabled':''}
+              oninput="setTaskCount('${t.id}',this.value,this)" />
+            <span class="task-unit">nos.</span>
+          </div>
+        </div>`).join('')}
+      <div class="task-total"><span class="task-total-lbl">Total Count</span><span class="task-total-val">${total}</span></div>
+    </div>
+    <div class="card">
+      <div class="card-hdr">
+        <div class="card-title"><div class="card-icon ci-sky"><svg viewBox="0 0 16 16" fill="none"><path d="M4 2h8a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" stroke-width="1.5"/><path d="M5 6h6M5 9h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div>Additional Note</div>
+      </div>
+      <textarea class="finp" id="task-additional" placeholder="Any additional tasks completed today…"
+        ${locked?'disabled':''} oninput="saveAdditionalTask(this.value)">${esc(rec.tasks.additional)}</textarea>
+    </div>`;
+}
+function setTaskCount(id, val, input) {
+  const rec = getRecord();
+  if (rec.submitted || isPastView()) return;
+  const clean = String(val||'').trim();
+  if (clean==='') { rec.tasks[id]=''; }
+  else if (/^\d+$/.test(clean)) { rec.tasks[id]=Math.floor(Number(clean)); }
+  else { if (input) input.value = rec.tasks[id]||''; toast('Whole numbers only','err'); return; }
+  saveRec(rec); renderTasks(); updateProgress();
+}
+function saveAdditionalTask(val) {
+  const rec = getRecord();
+  if (rec.submitted || isPastView()) return;
+  rec.tasks.additional = val; saveRec(rec);
+}
+
+/* ══════════════════════════════════════
+   TAB: MARKETING
+══════════════════════════════════════ */
+function renderMarketing() {
+  const rec = getRecord();
+  const locked = rec.submitted || isPastView();
+  const total = MKT_ITEMS.reduce((s,m) => s+(+rec.marketing[m.id]||0), 0);
+  el('tsec-marketing').innerHTML = `
+    <div class="summary-bar">
+      <div><div class="summary-bar-lbl">Total Marketing Activities</div><div class="summary-bar-val">${total}</div></div>
+    </div>
+    <div class="mkt-grid">
+      ${MKT_ITEMS.map(m => `
+        <div class="mkt-card">
+          <div class="mkt-icon"><svg viewBox="0 0 16 16" fill="none"><path d="${m.svgPath}" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div class="mkt-lbl">${esc(m.label)}</div>
+          <div class="mkt-counter">
+            ${!locked ? `<button data-action="adjmkt" data-saagar-args="${SaagarRenderedComponents.encodeArgs([m.id,-1])}" data-action-key="definition-01" class="mkt-btn">−</button>` : ''}
+            <span class="mkt-val">${+rec.marketing[m.id]||0}</span>
+            ${!locked ? `<button data-action="adjmkt" data-saagar-args="${SaagarRenderedComponents.encodeArgs([m.id,1])}" data-action-key="definition-02" class="mkt-btn">+</button>` : ''}
+          </div>
+        </div>`).join('')}
+    </div>`;
+}
+function adjMkt(id, delta) {
+  const rec = getRecord();
+  if (rec.submitted || isPastView()) return;
+  rec.marketing[id] = Math.max(0, (+rec.marketing[id]||0)+delta);
+  saveRec(rec); renderMarketing();
+}
+
+/* ══════════════════════════════════════
+   TAB: CLEANING
+══════════════════════════════════════ */
+function renderCleaning() {
+  const rec = getRecord();
+  const locked = rec.submitted || isPastView();
+  el('tsec-cleaning').innerHTML = `
+    <div class="card">
+      <div class="card-hdr">
+        <div class="card-title"><div class="card-icon ci-amber"><svg viewBox="0 0 16 16" fill="none"><path d="M4 14c0-4 2-7 5-8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="11" cy="4" r="2.5" stroke="currentColor" stroke-width="1.5"/><path d="M6 14h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div>Cleaning Checkpoints</div>
+        <span style="font-size:11px;color:var(--muted);font-weight:500">Photo required</span>
+      </div>
+      ${[1,2].map(n => {
+        const cp = rec.cleaning[`cp${n}`];
+        return `
+        <div class="cp-card${cp.done?' cp-done':''}">
+          <div class="cp-hdr">
+            <div class="cp-circle">${cp.done ? '<svg viewBox="0 0 16 16" fill="none"><path d="M3 8l4 4 6-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>' : n}</div>
+            <span class="cp-lbl">Checkpoint ${n}${cp.done?' — Done':''}</span>
+          </div>
+          ${!locked ? `
+          <label class="cp-check-row">
+            <input data-action="setcpdone" data-action-key="definition-01" type="checkbox" ${cp.done?'checked':''} onchange="setCPDone(${n},this.checked)" />
+            <span class="cp-check-lbl">Mark checkpoint as complete</span>
+          </label>` : ''}
+          <div class="photo-zone${cp.photo?' has-photo':''}">
+            ${!locked ? `<input data-action="handlephoto" data-action-key="definition-01" type="file" accept="image/*" capture="environment" onchange="handlePhoto(${n},this)" />` : ''}
+            <img class="photo-prev${cp.photo?' show':''}" id="photo-prev-${n}" src="${cp.photo||''}" alt="Photo ${n}" />
+            ${!cp.photo ? `<div><div class="photo-icon"><svg viewBox="0 0 16 16" fill="none"><path d="M14 12a1 1 0 01-1 1H3a1 1 0 01-1-1V6a1 1 0 011-1h2.5l1-1.5h3L10.5 5H13a1 1 0 011 1v6z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><circle cx="8" cy="8.5" r="2" stroke="currentColor" stroke-width="1.5"/></svg></div><div class="photo-lbl-text">Tap to capture or upload photo</div></div>` : ''}
+          </div>
+          ${cp.time ? `<div class="cp-time">Logged at ${cp.time}</div>` : ''}
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+function setCPDone(n, done) {
+  const rec = getRecord();
+  if (rec.submitted || isPastView()) return;
+  rec.cleaning[`cp${n}`].done = done;
+  if (done && !rec.cleaning[`cp${n}`].time) rec.cleaning[`cp${n}`].time = nowTime();
+  saveRec(rec); renderCleaning(); updateProgress();
+}
+function handlePhoto(n, input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (file.size > 1024*1024) { toast('Photo too large (max 1 MB)','warn'); return; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    const rec = getRecord();
+    if (rec.submitted || isPastView()) return;
+    rec.cleaning[`cp${n}`].photo = e.target.result;
+    rec.cleaning[`cp${n}`].time = nowTime();
+    rec.cleaning[`cp${n}`].done = true;
+    saveRec(rec); renderCleaning(); updateProgress();
+    toast(`Checkpoint ${n} photo saved`,'ok');
+  };
+  reader.readAsDataURL(file);
+}
+
+/* ══════════════════════════════════════
+   TAB: CLOSING
+══════════════════════════════════════ */
+function renderClosing() {
+  const rec = getRecord();
+  const locked = rec.submitted || isPastView();
+  const missing = getMissingForSubmit(rec);
+  el('tsec-closing').innerHTML = `
+    <div class="card">
+      <div class="card-hdr">
+        <div class="card-title"><div class="card-icon ci-red"><svg viewBox="0 0 16 16" fill="none"><rect x="3" y="7" width="10" height="8" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M5 7V5a3 3 0 016 0v2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div>Closing Stock</div>
+        ${locked ? '<span class="badge badge-green">Locked</span>' : ''}
+      </div>
+      ${activeGroups().map((g, gi) =>`
+        <div class="accordion-header">${g.short}</div>
+        <div class="accordion-panel dsr-acc-panel"${gi === 0 ? '' : ' hidden'}>
+        <div class="sgrid">
+          ${g.items.map(name => {
+            const c = stockCatOf(name, g.short);
+            return `<div class="fgrp">
+              <label class="flbl">${esc(name)} <span class="req">*</span></label>
+              <input data-action="updclosing" data-action-key="definition-01" class="finp" type="number" min="0" placeholder="0"
+                value="${esc(rec.closing[c.id])}"
+                ${locked?'disabled':''}
+                oninput="updClosing('${c.id}',this.value)" />
+            </div>`;
+          }).join('')}
+        </div>
+        </div>`).join('')}
+      <div class="stotal">
+        <span class="stotal-lbl">Total Closing Pieces</span>
+        <span class="stotal-val" id="cl-total">${stockTotal(rec.closing)}</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hdr">
+        <div class="card-title"><div class="card-icon ci-navy"><svg viewBox="0 0 16 16" fill="none"><rect x="1" y="8" width="4" height="7" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="6" y="4" width="4" height="11" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="11" y="1" width="4" height="14" rx="1" stroke="currentColor" stroke-width="1.5"/></svg></div>Stock Variance</div>
+      </div>
+      <div class="saagar-table-region--grid" aria-label="Stock variance comparison">
+      <table class="var-tbl saagar-table saagar-table--grid" aria-label="Stock variance" data-saagar-table-strategy="grid" data-saagar-table-workflow="stock-variance" data-saagar-grid-reason="opening closing and variance values require cross-column comparison">
+        <thead><tr><th>Brand</th><th>Opening</th><th>Closing</th><th>Change</th></tr></thead>
+        <tbody>
+          ${STOCK_CATS.map(c => {
+            const op = Number(rec.opening[c.id])||0;
+            const cl = Number(rec.closing[c.id])||0;
+            const diff = cl - op;
+            return `<tr>
+              <td>${esc(c.label)}</td>
+              <td>${op}</td><td>${cl}</td>
+              <td class="${diff<0?'var-neg':diff>0?'var-pos':'var-zero'}">${diff>0?'+':''}${diff}</td>
+            </tr>`;
+          }).join('')}
+          <tr>
+            <td><strong>TOTAL</strong></td>
+            <td>${stockTotal(rec.opening)}</td>
+            <td>${stockTotal(rec.closing)}</td>
+            <td class="${stockTotal(rec.closing)-stockTotal(rec.opening)<0?'var-neg':stockTotal(rec.closing)-stockTotal(rec.opening)>0?'var-pos':'var-zero'}">
+              ${stockTotal(rec.closing)-stockTotal(rec.opening)>0?'+':''}${stockTotal(rec.closing)-stockTotal(rec.opening)}
+            </td>
+          </tr>
+        </tbody>
+      </table></div>
+      <div style="margin-top:12px;font-size:12px;color:var(--muted);text-align:center">
+        Total Sales: ${rec.sales.length} bills · ${fmtAmt(rec.sales.reduce((s,x)=>s+(+x.amount||0),0))}
+      </div>
+    </div>
+
+    ${locked
+      ? `<div class="locked-view">
+          <div class="locked-icon"><svg viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="11" rx="2" stroke="currentColor" stroke-width="2"/><path d="M8 11V7a4 4 0 018 0v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="16" r="1.5" fill="currentColor"/></svg></div>
+          <div class="locked-title">Day Report Submitted</div>
+          <div class="locked-sub">Submitted at ${rec.submitTime}</div>
+         </div>`
+      : `${missing.length > 0 ? `<div class="missing-list"><strong>Complete these before submitting:</strong><ul>${missing.map(m=>`<li>${m}</li>`).join('')}</ul></div>` : ''}
+         <button data-action="showsubmitconfirm" data-action-key="definition-01" class="submit-btn" onclick="showSubmitConfirm()" ${missing.length>0?'disabled':''}>
+           <svg viewBox="0 0 16 16" fill="none"><rect x="3" y="7" width="10" height="8" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M5 7V5a3 3 0 016 0v2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+           ${missing.length===0?'Submit & Lock Day Report':'Complete All Sections First'}
+         </button>`}`;
+}
+function updClosing(cat, val) {
+  const rec = getRecord();
+  if (rec.submitted || isPastView()) return;
+  rec.closing[cat] = val;
+  // PERF: rec stays live in memory; coalesce the whole-record write (debounced).
+  scheduleRecSave(rec);
+  el('cl-total').textContent = stockTotal(rec.closing);
+  updateProgress();
+}
+function getMissingForSubmit(rec) {
+  const api = dsrD4PolicyApi();
+  if (api) {
+    try { return api.missingForSubmit(rec, dsrD4Context()); } catch (error) {}
+  }
+  const m = [];
+  if (!activeStockCats().every(c => rec.opening[c.id] !== '')) m.push('Opening stock — enter counts for all brands');
+  if (!(Array.isArray(rec.sales) && rec.sales.length) && !dsrD4NoSalesAck(rec)) m.push('Sales — add the day’s bills, or confirm there were no sales today');
+  if (!TASK_LIST.every(t => taskEntered(rec.tasks[t.id]))) m.push('Daily task counts — fill all items');
+  if (!rec.cleaning.cp1.done || !rec.cleaning.cp1.photo) m.push('Cleaning Checkpoint 1 — mark done & attach photo');
+  if (!rec.cleaning.cp2.done || !rec.cleaning.cp2.photo) m.push('Cleaning Checkpoint 2 — mark done & attach photo');
+  if (!activeStockCats().every(c => rec.closing[c.id] !== '')) m.push('Closing stock — enter counts for all brands');
+  return m;
+}
+function showSubmitConfirm() {
+  el('modal-body').innerHTML = `
+    <div class="modal-title">Submit Day Report?</div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:18px;line-height:1.7">
+      Once submitted, <strong>all data will be locked</strong> and cannot be edited. The manager will review and audit your report.
+    </p>
+    <div style="display:flex;gap:10px">
+      <button data-action="closemodal" data-action-key="definition-04" class="btn btn-outline" style="flex:1" onclick="closeModal()">Cancel</button>
+      <button data-action="submitday" class="btn btn-green" style="flex:1" onclick="submitDay()">Submit Now</button>
+    </div>`;
+  openModal();
+}
+function submitDay() {
+  const rec = getRecord();
+  if (rec.submitted || isPastView()) { closeModal(); return; }
+  const miss = getMissingForSubmit(rec);
+  if (miss.length > 0) {
+    el('modal-body').innerHTML = `
+    <div class="modal-title">Not ready to submit</div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:12px;line-height:1.7">
+      ${miss.length} item${miss.length === 1 ? '' : 's'} still need attention:
+    </p>
+    <ul class="dsr-d4-missing">${miss.map(item => '<li>' + esc(item) + '</li>').join('')}</ul>
+    <div style="display:flex;gap:10px;margin-top:18px">
+      <button data-action="closemodal" data-action-key="definition-05" class="btn btn-outline" style="flex:1" onclick="closeModal()">Close</button>
+    </div>`;
+    openModal();
+    return;
+  }
+  rec.submitted = true; rec.submitTime = nowTime();
+  saveRec(rec); closeModal();
+  toast('Day report submitted successfully','ok');
+  renderClosing(); updateProgress();
+}
+function renderSMTab(tab) {
+  if (tab==='submissions') renderSMSubmissions();
+  else if (tab==='audit')  renderSMAudit();
+  else if (tab==='dashboard') renderDashboard();
+  else if (tab==='settings')  renderSMSettings();
+}
+
+/* ── SUBMISSIONS ── */
+function renderSMSubmissions() {
+  const date = st.smDate;
+  const recs  = getAllForDate(date);
+  el('stsec-submissions').innerHTML = `
+    <div class="sm-date-row">
+      <input data-action="rendersmsubmissions" data-action-key="definition-01" class="sm-date-inp" type="date" value="${date}" onchange="st.smDate=this.value;renderSMSubmissions()" />
+      <button data-action="rendersmsubmissions" data-action-key="definition-02" class="btn btn-primary btn-sm" onclick="renderSMSubmissions()">Load</button>
+    </div>
+    <div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:12px">${fmtDate(date)} — ${recs.length} record${recs.length!==1?'s':''}</div>
+    ${recs.length===0
+      ? `<div class="empty-state">
+          <div class="empty-icon-wrap"><svg viewBox="0 0 16 16" fill="none"><path d="M4 2h8a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" stroke-width="1.5"/><path d="M5 6h6M5 9h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+          <div class="empty-title">No records for this date</div>
+         </div>`
+      : recs.map(r => `
+        <div class="sub-item" data-audit-date="${esc(r.date)}" data-audit-name="${esc(r.staffName)}" onclick="selectAuditFromEl(this)">
+          <div class="sub-avatar">${(r.staffName||'?').charAt(0)}</div>
+          <div class="sub-info">
+            <div class="sub-name">${esc(r.staffName)}</div>
+            <div class="sub-meta">${r.role.toUpperCase()} · Login ${r.loginTime} · ${fmtAmt(r.sales.reduce((s,x)=>s+(+x.amount||0),0))}</div>
+          </div>
+          ${r.audit?.approved===true
+            ? '<span class="badge badge-green">Approved</span>'
+            : r.audit?.approved===false
+              ? '<span class="badge badge-red">Rejected</span>'
+              : r.submitted
+                ? '<span class="badge badge-navy">Submitted</span>'
+                : '<span class="badge badge-amber">Pending</span>'}
+        </div>`).join('')}`;
+}
+function selectAuditFromEl(elm) {
+  // Read the exact staff name from a data-attribute instead of interpolating it
+  // into a JS-string onclick. Names containing apostrophes/quotes (e.g. D'Souza)
+  // are HTML-escaped into the attribute and decoded back to the literal value by
+  // the DOM, so selectAudit always receives the precise name.
+  if (!elm) return;
+  selectAudit(elm.getAttribute('data-audit-date'), elm.getAttribute('data-audit-name'));
+}
+function selectAudit(date, name) {
+  st.auditRec = null;
+  for (let i=0; i<localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k===recKey(date,name) || k===recKey(date,name.replace(/_/g,' '))) {
+      try { st.auditRec=JSON.parse(localStorage.getItem(k)); break; } catch(e){}
+    }
+  }
+  if (!st.auditRec) {
+    for (let i=0; i<localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k.startsWith(SK_DSR+date+'_')) {
+        try {
+          const r = JSON.parse(localStorage.getItem(k));
+          if (r.staffName===name || r.staffName===name.replace(/_/g,' ')) { st.auditRec=r; break; }
+        } catch(e){}
+      }
+    }
+  }
+  if (!st.auditRec) { toast('Record not found','err'); return; }
+  goSMTab('audit');
+}
+
+/* ── AUDIT REPORT ── */
+function renderSMAudit() {
+  const r = st.auditRec;
+  if (!r) {
+    el('stsec-audit').innerHTML = `<div class="empty-state"><div class="empty-icon-wrap"><svg viewBox="0 0 16 16" fill="none"><path d="M2 12l4-4 3 3 5-7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="empty-title">No record selected</div><div class="empty-sub">Go to Submissions and select a staff record.</div></div>`;
+    return;
+  }
+  const a = r.audit || {};
+  const autoScores = calcAutoScores(r);
+  const totalSales = r.sales.reduce((s,x) => s+(+x.amount||0), 0);
+  const approved = r.audit?.approved;
+  el('stsec-audit').innerHTML = `
+    <div class="card">
+      <div class="card-hdr">
+        <div class="card-title"><div class="card-icon ci-navy"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M2 14c0-3.314 2.686-6 6-6s6 2.686 6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div>${esc(r.staffName)}</div>
+        <span class="badge ${r.submitted?'badge-green':'badge-amber'}">${r.submitted?'Submitted':'Pending'}</span>
+      </div>
+      <div class="info-row"><span class="info-key">Date</span><span class="info-val">${fmtDate(r.date)}</span></div>
+      <div class="info-row"><span class="info-key">Role</span><span class="info-val">${r.role.toUpperCase()}</span></div>
+      <div class="info-row"><span class="info-key">Login</span><span class="info-val" style="font-family:'DM Mono',monospace">${r.loginTime}</span></div>
+      ${r.submitted ? `<div class="info-row"><span class="info-key">Submitted</span><span class="info-val" style="font-family:'DM Mono',monospace">${r.submitTime}</span></div>` : ''}
+      ${r.submitted && !isReadOnlyDate(r.date) ? `
+        <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line)">
+          <button data-action="unlockforcorrection" class="btn btn-outline btn-sm" style="color:var(--amber);border-color:var(--amber)" onclick="unlockForCorrection()">
+            <svg viewBox="0 0 16 16" fill="none" style="width:14px;height:14px"><path d="M5 7V5a3 3 0 016 0M4 7h8a1 1 0 011 1v5a1 1 0 01-1 1H4a1 1 0 01-1-1V8a1 1 0 011-1z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            Unlock for correction
+          </button>
+          <div style="font-size:11px;color:var(--muted);margin-top:6px">Reopens this report so the CRO can fix an error and re-submit. Logged.</div>
+        </div>` : ''}
+      ${(Array.isArray(r.unlockLog) && r.unlockLog.length) ? `
+        <div class="report-sec" style="margin-top:10px">
+          <div class="rsec-hdr">Unlock History (${r.unlockLog.length})</div>
+          ${r.unlockLog.map(u => `<div class="rrow"><span class="rkey">${esc(u.date||'')} ${esc(u.time||'')} · ${esc(u.by||'—')}</span><span class="rval">${esc(u.reason||'')}${u.prevScore!=null?` <small style="color:var(--muted)">(was ${u.prevScore}/100)</small>`:''}</span></div>`).join('')}
+        </div>` : ''}
+    </div>
+
+    <div class="card">
+      <div class="card-hdr">
+        <div class="card-title"><div class="card-icon ci-gold"><svg viewBox="0 0 16 16" fill="none"><path d="M4 2h8a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" stroke-width="1.5"/><path d="M5 6h6M5 9h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div>Full Report</div>
+        <button data-action="exportsinglecsv" class="btn btn-outline btn-sm" onclick="exportSingleCSV()">Export CSV</button>
+      </div>
+
+      <div class="report-sec">
+        <div class="rsec-hdr">Opening Stock</div>
+        ${STOCK_CATS.map(c => `<div class="rrow"><span class="rkey">${c.label}</span><span class="rval">${r.opening[c.id]||0} pcs</span></div>`).join('')}
+        <div class="rrow"><span class="rkey"><strong>Total</strong></span><span class="rval"><strong>${stockTotal(r.opening)} pcs</strong></span></div>
+      </div>
+
+      <div class="report-sec">
+        <div class="rsec-hdr">Sales (${r.sales.length} bills · ${fmtAmt(totalSales)})</div>
+        ${r.sales.length===0 ? '<div class="rrow"><span class="rkey">No sales</span></div>'
+          : r.sales.map(s => `<div class="rrow"><span class="rkey">Bill ${esc(s.billNo)} · ${esc(s.product)}${s.mobile?' · 📱 '+esc(s.mobile):''}${s.paymentMode?' · '+esc(s.paymentMode):''}</span><span class="rval">${fmtAmt(s.amount)}</span></div>`).join('')}
+      </div>
+
+      <div class="report-sec">
+        <div class="rsec-hdr">Non-Purchase Visitors (${r.nonpurch.length})</div>
+        ${r.nonpurch.length===0 ? '<div class="rrow"><span class="rkey">None</span></div>'
+          : r.nonpurch.map((n,i) => `<div class="rrow"><span class="rkey">#${i+1} ${esc(n.customer||'Anon')} · ${esc(n.mobile||'—')} — ${esc(n.reason)}</span><span class="rval">${esc(n.remarks||'')}</span></div>`).join('')}
+      </div>
+
+      <div class="report-sec">
+        <div class="rsec-hdr">Tasks</div>
+        ${TASK_LIST.map(t => `<div class="rrow"><span class="rkey">${esc(t.label)}</span><span class="rval">${taskNumber(r.tasks[t.id])}</span></div>`).join('')}
+        <div class="rrow"><span class="rkey"><strong>Total</strong></span><span class="rval"><strong>${taskTotal(r.tasks)}</strong></span></div>
+        ${r.tasks.additional ? `<div class="rrow"><span class="rkey">Note</span><span class="rval">${esc(r.tasks.additional)}</span></div>` : ''}
+      </div>
+
+      <div class="report-sec">
+        <div class="rsec-hdr">Marketing</div>
+        ${MKT_ITEMS.map(m => `<div class="rrow"><span class="rkey">${esc(m.label)}</span><span class="rval">${+r.marketing[m.id]||0}</span></div>`).join('')}
+        <div class="rrow"><span class="rkey"><strong>Total</strong></span><span class="rval"><strong>${MKT_ITEMS.reduce((s,m)=>s+(+r.marketing[m.id]||0),0)}</strong></span></div>
+      </div>
+
+      <div class="report-sec">
+        <div class="rsec-hdr">Cleaning</div>
+        ${[1,2].map(n => {
+          const cp = r.cleaning[`cp${n}`];
+          return `<div class="rrow"><span class="rkey">Checkpoint ${n}</span><span class="rval" style="color:${cp.done?'var(--green)':'var(--red)'}">${cp.done?'Done':'Not Done'}${cp.time?' · '+cp.time:''}</span></div>
+          ${cp.photo ? `<div style="margin:8px 0"><img src="${cp.photo}" style="width:100%;max-height:130px;object-fit:cover;border-radius:8px" /></div>` : ''}`;
+        }).join('')}
+      </div>
+
+      <div class="report-sec">
+        <div class="rsec-hdr">Closing Stock</div>
+        ${STOCK_CATS.map(c => {
+          const diff = (Number(r.closing[c.id])||0)-(Number(r.opening[c.id])||0);
+          return `<div class="rrow"><span class="rkey">${c.label}</span><span class="rval">${r.closing[c.id]||0} pcs <small style="color:${diff<0?'var(--green)':'var(--muted)'}">(${diff>0?'+':''}${diff})</small></span></div>`;
+        }).join('')}
+        <div class="rrow"><span class="rkey"><strong>Total</strong></span><span class="rval"><strong>${stockTotal(r.closing)} pcs</strong></span></div>
+      </div>
+
+      <div class="report-sec">
+        <div class="rsec-hdr">In/Out Log</div>
+        ${r.inout.length===0 ? '<div class="rrow"><span class="rkey">No movements</span></div>'
+          : r.inout.map(e => `<div class="rrow">
+              <span class="rkey" style="color:${e.type==='out'?'var(--amber)':'var(--green)'};font-weight:600">${e.type.toUpperCase()}</span>
+              <span class="rval" style="font-family:'DM Mono',monospace">${e.time}${e.reason?' · '+esc(e.reason):''}</span>
+            </div>`).join('')}
+      </div>
+    </div>
+
+    ${approved !== undefined
+      ? `<div class="audit-done-view${approved?'':' rejected'}">
+          <div class="ado-icon${approved?'':" rejected"}"><svg viewBox="0 0 24 24" fill="none" width="40" height="40">${approved
+            ? '<path d="M5 12l5 5L20 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>'
+            : '<path d="M6 6l12 12M18 6l-12 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>'}
+          </svg></div>
+          <div class="ado-title">${approved?'Report Approved':'Report Rejected'}</div>
+          <div style="font-size:14px;font-weight:700;color:var(--accent);margin-top:6px">Score: ${r.audit.total}/100</div>
+          ${r.audit.remarks?`<div style="font-size:13px;color:var(--muted);margin-top:6px">${esc(r.audit.remarks)}</div>`:''}
+          <div style="font-size:11px;color:var(--subtle);margin-top:4px;font-family:'DM Mono',monospace">Audited at ${r.audit.auditTime}</div>
+          <button data-action="resetaudit" class="btn btn-outline btn-sm" style="margin-top:14px" onclick="resetAudit()">Re-Audit</button>
+         </div>`
+      : `<div class="card">
+          <div class="card-hdr">
+            <div class="card-title"><div class="card-icon ci-gold"><svg viewBox="0 0 16 16" fill="none"><path d="M8 1l1.8 5.5H16l-5 3.6 1.9 5.8L8 12.4 3.1 15.9 5 10.1 0 6.5h6.2z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></div>SM Scoring</div>
+          </div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Auto-calculated scores shown. Adjust as needed.</div>
+          <div class="score-grid">
+            ${Object.entries(SCORE_MAX).map(([sec,max]) => `
+              <div class="score-item">
+                <div class="score-lbl">${sec}</div>
+                <div class="score-max">Max: ${max}</div>
+                <input data-action="calctotalscore" data-action-key="definition-01" class="score-inp" id="sc-${sec}" type="number" min="0" max="${max}"
+                  value="${a[sec]!==undefined?a[sec]:autoScores[sec]}"
+                  oninput="calcTotalScore()" />
+              </div>`).join('')}
+          </div>
+          <div class="total-score-card">
+            <div><span class="tsc-num" id="tsc-num">0</span><span class="tsc-denom">/100</span></div>
+            <div class="tsc-lbl">Total Score</div>
+            <div class="tsc-grade" id="tsc-grade">—</div>
+          </div>
+          <div class="fgrp">
+            <label class="flbl">SM Remarks</label>
+            <textarea class="finp" id="audit-remarks" placeholder="Comments or observations…">${esc(a.remarks||'')}</textarea>
+          </div>
+          <div class="audit-ar-grid">
+            <button data-action="submit-audit-reject" data-action-key="definition-01" class="btn-reject" onclick="rejectDsrAudit()"><svg viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Reject</button>
+            <button data-action="submit-audit-approve" data-action-key="definition-02" class="btn-approve" onclick="approveDsrAudit()"><svg viewBox="0 0 16 16" fill="none"><path d="M3 8l4 4 6-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Approve</button>
+          </div>
+         </div>`}`;
+
+  calcTotalScore();
+}
+function calcAutoScores(r) {
+  return {
+    opening: activeStockCats(r.staffName).every(c => r.opening[c.id]!=='') ? 10 : 0,
+    sales: Math.min(20, r.sales.filter(x=>(+x.amount)>0).length * 4),   /* audit: only confirmed (amount>0) bills score */
+    marketing: Math.min(20, MKT_ITEMS.reduce((s,m) => s+(+r.marketing[m.id]||0),0) * 2),
+    tasks: Math.round(TASK_LIST.filter(t => taskNumber(r.tasks[t.id])>0).length / TASK_LIST.length * 10),
+    cleaning: (r.cleaning.cp1.done&&r.cleaning.cp1.photo?10:0)+(r.cleaning.cp2.done&&r.cleaning.cp2.photo?10:0),
+    closing: activeStockCats(r.staffName).every(c => r.closing[c.id]!=='') ? 20 : 0,
+  };
+}
+function calcTotalScore() {
+  let total = 0;
+  Object.keys(SCORE_MAX).forEach(s => {
+    const inp = el('sc-'+s);
+    if (inp) total += Math.min(SCORE_MAX[s], Math.max(0, +inp.value||0));
+  });
+  const numEl = el('tsc-num'); if (numEl) numEl.textContent = total;
+  const grEl = el('tsc-grade');
+  if (grEl) grEl.textContent = total>=90?'Excellent':total>=75?'Good':total>=60?'Average':'Needs Improvement';
+}
+async function submitAudit(approved) {
+  const scores = {}; let total = 0;
+  Object.keys(SCORE_MAX).forEach(s => {
+    const v = Math.min(SCORE_MAX[s], Math.max(0, +el('sc-'+s)?.value||0));
+    scores[s]=v; total+=v;
+  });
+  if (!st.auditRec) return;
+  /* Audit fix dsr-bug-06: the bridge's DSR_SUBMITTED emitter reads r.audit.score, but the
+     audit only ever stored r.audit.total, so the emitted payload score was always null
+     (payroll avg-score bucket + cross-module dashboards read blank/zero). Additively mirror
+     the numeric result under `score` too; `total` is kept for the existing in-module readers. */
+  if(!await stReauth('Sign off the DSR audit for '+st.auditRec.date))return;
+  st.auditRec.audit = { approved, total, score: total, ...scores, remarks:el('audit-remarks')?.value||'', auditTime:nowTime() };
+  saveRec(st.auditRec);
+  toast(approved?'Report approved':'Report rejected', approved?'ok':'warn');
+  renderSMAudit(); renderSMSubmissions();
+}
+function resetAudit() {
+  if (!st.auditRec) return;
+  if (!confirm('Reset this audit and re-score?')) return;
+  st.auditRec.audit=null; saveRec(st.auditRec); renderSMAudit();
+}
+/* P1-12: SM "Unlock for correction". Reopens a SUBMITTED report so the CRO can
+   fix an error and re-submit. Mandatory reason, append-only unlockLog audit trail,
+   and a submitRev bump so the bridge re-fires DSR_SUBMITTED with a fresh id on the
+   corrected re-submit. Writes st.auditRec (the SM's own detached parse) by explicit
+   key — NOT saveRec, which would repoint _recCache to this detached copy and corrupt
+   the CRO's live editable cache. Guards mirror _writeRecNow (never write a read-only
+   past day, never persist a placeholder). */
+async function unlockForCorrection(){
+  const r = st.auditRec;
+  if (!r || !r.submitted) return;                    // only a submitted record can be unlocked
+  if (isReadOnlyDate(r.date)) { toast('Past-day reports cannot be unlocked','err'); return; }
+  if(!await stReauth('Unlock a submitted DSR and DISCARD its audit'))return;
+  const reason = (prompt('Reason for unlocking this submitted report (required):')||'').trim();
+  if (!reason) { toast('A reason is required to unlock','err'); return; }   // MANDATORY
+  // Actor: reuse Wave-6 #28 signed-in-staff attribution; fall back to 'Manager'.
+  let by = 'Manager';
+  try { const a = JSON.parse(localStorage.getItem('saagar_active_staff_v1')||'null'); if (a && a.name) by = String(a.name); } catch(e){}
+  r.unlockLog = Array.isArray(r.unlockLog) ? r.unlockLog : [];
+  r.unlockLog.push({ by, time: nowTime(), date: todayStr(), reason, prevScore: (r.audit && r.audit.total!=null) ? r.audit.total : null, prevAudit: (r.audit||null) });   /* verify-fix: snapshot the FULL prior audit (approved/remarks/breakdown), not just the score, so the trail isn't lost on unlock */
+  r.submitted = false;
+  r.submitTime = null;
+  r.audit = null;                                    // null so it re-audits cleanly (scoring grid reappears)
+  r.submitRev = (typeof r.submitRev==='number'?r.submitRev:0) + 1;   // bump → next submit re-fires DSR_SUBMITTED with a fresh id
+  try {
+    if (!isReadOnlyDate(r.date) && !r._noRecord) {
+      _mergeBridgeRows(r);                           // don't clobber a QMS row that landed after selectAudit's parse
+      localStorage.setItem(recKey(r.date, r.staffName), JSON.stringify(r));
+      // If the CRO's live cache is this same record, invalidate it so getRecord re-reads the unlocked state.
+      if (_recCache.key === recKey(r.date, r.staffName)) _recCache = { key:null, rec:null };
+    }
+  } catch(e){ toast('Storage error — unlock may not be saved!','err'); return; }
+  toast('Report unlocked for correction — CRO can now edit & re-submit','ok');
+  renderSMAudit(); renderSMSubmissions();
+}
+
+/* ── DASHBOARD ── */
+function renderDashboard() {
+  const to = todayStr();
+  const fromD = new Date(); fromD.setDate(fromD.getDate()-29);
+  const from = fromD.getFullYear()+'-'+String(fromD.getMonth()+1).padStart(2,'0')+'-'+String(fromD.getDate()).padStart(2,'0');
+  const recs = getAllInRange(from, to).filter(r => r.submitted);
+
+  const totalSales = recs.reduce((s,r)=>s+r.sales.reduce((ss,x)=>ss+(+x.amount||0),0),0);
+  const approvedCount = recs.filter(r=>r.audit?.approved===true).length;
+  const withScores = recs.filter(r=>r.audit?.total!=null);
+  const avgScore = withScores.length>0 ? Math.round(withScores.reduce((s,r)=>s+r.audit.total,0)/withScores.length) : null;
+
+  const byStaff = {};
+  recs.forEach(r => {
+    if (!byStaff[r.staffName]) byStaff[r.staffName]={days:0,sales:0,bills:0,scores:[],mkt:0};
+    const s=byStaff[r.staffName];
+    s.days++; s.bills+=r.sales.filter(x=>(+x.amount)>0).length;
+    s.sales+=r.sales.reduce((ss,x)=>ss+(+x.amount||0),0);
+    if (r.audit?.total!=null) s.scores.push(r.audit.total);
+    s.mkt+=MKT_ITEMS.reduce((ss,m)=>ss+(+r.marketing[m.id]||0),0);
+  });
+
+  el('stsec-dashboard').innerHTML = `
+    <section class="dsr-etp-e2" aria-label="ETP verified analytics">
+      <label>Verified store <select data-action="dsr-etp-store" id="dsr-etp-store" onchange="renderDsrEtpAnalytics()"><option value="WLMHW">WLMHW</option><option value="HEMW">HEMW</option></select></label>
+      <div id="dsr-etp-analytics" aria-live="polite"></div>
+    </section>
+    <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">Last 30 Days</div>
+    <div class="dash-kpi-grid">
+      <div class="dkpi"><div class="dkpi-val">${recs.length}</div><div class="dkpi-lbl">Submitted</div></div>
+      <div class="dkpi"><div class="dkpi-val">${approvedCount}</div><div class="dkpi-lbl">Approved</div></div>
+      <div class="dkpi"><div class="dkpi-val">${fmtAmt(totalSales)}</div><div class="dkpi-lbl">Total Sales</div></div>
+      <div class="dkpi"><div class="dkpi-val">${avgScore!=null?avgScore+'%':'—'}</div><div class="dkpi-lbl">Avg Score</div></div>
+    </div>
+    <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Staff Performance</div>
+    ${Object.keys(byStaff).length===0
+      ? `<div class="empty-state"><div class="empty-icon-wrap"><svg viewBox="0 0 16 16" fill="none"><rect x="1" y="8" width="4" height="7" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="6" y="4" width="4" height="11" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="11" y="1" width="4" height="14" rx="1" stroke="currentColor" stroke-width="1.5"/></svg></div><div class="empty-title">No data yet</div><div class="empty-sub">Submitted records from the last 30 days will appear here.</div></div>`
+      : `<div class="saagar-table-region--cards" aria-label="Staff performance rollup"><table class="ptbl saagar-table saagar-table--cards" aria-label="Staff performance" data-saagar-table-strategy="cards" data-saagar-table-workflow="staff-rollup">
+           <thead><tr><th>Staff</th><th>Days</th><th>Sales</th><th>Mkt</th><th>Score</th></tr></thead>
+           <tbody>
+             ${Object.entries(byStaff).map(([name,d]) => {
+               const avg = d.scores.length ? Math.round(d.scores.reduce((a,b)=>a+b,0)/d.scores.length) : null;
+               return `<tr>
+                 <td><strong>${esc(name)}</strong></td>
+                 <td style="text-align:center">${d.days}</td>
+                 <td>${fmtAmt(d.sales)}</td>
+                 <td style="text-align:center">${d.mkt}</td>
+                 <td>${avg!=null?`${avg}<div class="sbar-wrap"><div class="sbar" style="width:${avg}%"></div></div>`:'—'}</td>
+               </tr>`;}).join('')}
+           </tbody>
+         </table></div>`}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+      <button data-action="senddsrdaysummary" class="btn btn-primary btn-sm" onclick="sendDsrDaySummary()">📲 Send Day Summary</button>
+      <button data-action="exportallcsv" data-action-key="definition-01" class="btn btn-outline btn-sm" onclick="exportAllCSV()">Export 30-Day CSV</button>
+      <button data-action="export-today-csv" data-action-key="definition-02" class="btn btn-outline btn-sm" onclick="exportTodayCSV()">Export Today</button>
+    </div>`;
+  renderDsrEtpAnalytics();
+}
+var dsrEtpAnalyticsSeq=0;
+async function renderDsrEtpAnalytics(){
+  var host=el('dsr-etp-analytics'),select=el('dsr-etp-store'),consumer=window.SaagarEtpAnalyticsConsumer,bridge=window.SaagarModuleBridge,seq=++dsrEtpAnalyticsSeq;
+  if(!host||!select||!consumer)return;
+  var result=await consumer.load(bridge&&bridge.etpReadGateway,select.value,todayStr(),'MTD');
+  if(seq!==dsrEtpAnalyticsSeq)return;
+  consumer.render(host,result);
+}
+/* P1-15: one-tap end-of-day DSR summary → WhatsApp (offline wa.me; no phone =
+   contact picker). Self-contained: no shell dependency. Mirrors downloadCSV's
+   transient-anchor idiom. */
+function sendDsrDaySummary(){
+  const date = todayStr();   /* verify-fix: the day summary is always TODAY's close — the Dashboard is a 30-day rollup with no single selected date, so don't couple to the Submissions-tab st.smDate */
+  const d = computeDsrDayByStore(date);
+  if(d.total.present===0){ toast('No staff records for '+date,'warn'); return; }
+  const INR = n => '₹'+(Math.round(Number(n)||0)).toLocaleString('en-IN');
+  let longDate = date;
+  try { longDate = new Date(date+'T00:00:00').toLocaleDateString('en-IN',{weekday:'long',day:'2-digit',month:'long',year:'numeric'}); } catch(e){}
+  const lines = ['*Saagar Traders — Daily Staff Register*', longDate, ''];
+  lines.push('Present: '+d.total.present+' · Submitted: '+d.total.submitted+' · Pending: '+d.total.pending);
+  lines.push('Bills: '+d.total.salesCnt+' · Sales: '+INR(d.total.salesAmt));
+  if(d.byStore && d.groups.length>1){
+    d.groups.forEach(g=>{
+      lines.push('');
+      lines.push('*'+g.store+'*');
+      lines.push('Present '+g.present+' · Submitted '+g.submitted+' · Pending '+g.pending);
+      lines.push('Bills '+g.salesCnt+' · '+INR(g.salesAmt));
+      if(g.top && g.salesAmt>0) lines.push('Top: '+g.top+' ('+INR(g.topAmt)+')');
+    });
+  } else {
+    const g0 = d.groups[0];
+    if(g0 && g0.top && g0.salesAmt>0) lines.push('Top performer: '+g0.top+' ('+INR(g0.topAmt)+')');
+  }
+  lines.push('');
+  lines.push('— Saagar Traders, Latur');
+  const text = lines.join('\n');
+  stWaLink('https://wa.me/?text=' + encodeURIComponent(text),'dsr-day-summary','owner-operational-summary');
+}
+function stWaLink(url,scopeId,purposeId){
+  if(window.parent&&window.parent!==window){
+    window.parent.postMessage({type:'ST_WA_LINK',url:url,scopeId:scopeId,purposeId:purposeId},SaagarModuleRuntime.targetOrigin);
+    return;
+  }
+  toast('Controlled sharing is available only inside Saagar Control Centre.','err');
+}
+
+/* ── SETTINGS ── */
+function renderSMSettings() {
+  const list = getStaffList();
+  el('stsec-settings').innerHTML = `
+    <div class="card">
+      <div class="card-hdr">
+        <div class="card-title"><div class="card-icon ci-navy"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M2 14c0-3.314 2.686-6 6-6s6 2.686 6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div>Staff Members</div>
+      </div>
+      <div id="staff-chip-list" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px">
+        ${list.map((s,i) => `
+          <span class="staff-chip">
+            ${esc(s)}
+            <span class="staff-chip-remove" onclick="removeStaff(${i})">×</span>
+          </span>`).join('')}
+      </div>
+      <div style="display:flex;gap:8px">
+        <input class="finp" id="new-staff-inp" placeholder="Add new staff name" style="flex:1" onkeydown="if(event.key==='Enter')addStaff()" />
+        <button data-action="addstaff" class="btn btn-primary" onclick="addStaff()">Add</button>
+      </div>
+    </div>
+    <div class="danger-zone">
+      <div class="danger-zone-hdr">
+        <svg viewBox="0 0 16 16" fill="none"><path d="M8 2l6 12H2L8 2z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 7v3M8 11.5v.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        Danger Zone
+      </div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px;line-height:1.6">Permanently delete all staff records. This cannot be undone.</p>
+      <button data-action="confirmdeleteall" class="btn btn-red btn-sm" onclick="confirmDeleteAll()">Delete All Records</button>
+    </div>`;
+}
+function addStaff() {
+  const name = el('new-staff-inp').value.trim();
+  if (!name) return;
+  const list = getStaffList();
+  if (list.includes(name)) { toast('Name already exists','warn'); return; }
+  list.push(name); saveStaffList(list);
+  el('new-staff-inp').value='';
+  renderSMSettings();
+  toast('Staff added: '+name,'ok');
+}
+function removeStaff(i) {
+  const list = getStaffList();
+  if (!confirm(`Remove "${list[i]}" from staff list?`)) return;
+  list.splice(i,1); saveStaffList(list);
+  renderSMSettings(); toast('Staff removed','warn');
+}
+function confirmDeleteAll() {
+  el('modal-body').innerHTML = `
+    <div class="modal-title" style="color:var(--red)">Delete All Records?</div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.7">
+      This will permanently delete <strong>all staff daily records</strong>. This action <strong>cannot be undone</strong>.
+    </p>
+    <div class="fgrp">
+      <label class="flbl">Type DELETE to confirm</label>
+      <input class="finp" id="del-confirm-inp" placeholder="DELETE" />
+    </div>
+    <div style="display:flex;gap:10px;margin-top:12px">
+      <button data-action="closemodal" data-action-key="definition-06" class="btn btn-outline" style="flex:1" onclick="closeModal()">Cancel</button>
+      <button data-action="dodeleteall" class="btn btn-red" style="flex:1" onclick="doDeleteAll()">Delete All</button>
+    </div>`;
+  openModal();
+}
+function doDeleteAll() {
+  if (el('del-confirm-inp')?.value !== 'DELETE') { toast('Type DELETE exactly','err'); return; }
+  const toDelete = [];
+  for (let i=0; i<localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith(SK_DSR)) toDelete.push(k);
+  }
+  toDelete.forEach(k => localStorage.removeItem(k));
+  closeModal(); toast(`${toDelete.length} records deleted`,'warn'); renderSMSubmissions();
+}
+
+/* ── CSV EXPORT ── */
+function csvCell(v) { return '"' + String(v===null||v===undefined?'':v).replace(/"/g,'""') + '"'; }
+function downloadCSV(filename, rows) {
+  const csv = '\ufeff' + rows.map(r => r.map(csvCell).join(',')).join('\r\n');
+  const blob = new Blob([csv], { type:'text/csv;charset=utf-8;' });
+  if(window.parent&&window.parent!==window){
+    window.parent.postMessage({type:'ST_SHARE',file:blob,fileName:filename.replace(/[\\/:*?"<>|]/g,'_').slice(0,160),title:'DSR CSV',exportId:'dsr-csv-export',scopeId:'dsr-register',scopeLabel:'daily staff register',rowCount:Math.max(0,rows.length-1),purposeId:'register-reporting'},SaagarModuleRuntime.targetOrigin);
+    return;
+  }
+  toast('Controlled export is available only inside Saagar Control Centre.','err');
+}
+function exportSingleCSV() {
+  const r = st.auditRec; if (!r) { toast('No record selected','err'); return; }
+  const rows = [
+    ['Field','Value'],
+    ['Staff Name',r.staffName],['Date',r.date],['Role',r.role.toUpperCase()],
+    ['Login Time',r.loginTime],['Submit Time',r.submitTime||'—'],
+    ...STOCK_CATS.map(c=>['Opening '+c.label,r.opening[c.id]||0]),
+    ['Total Sales Bills',r.sales.length],
+    ['Total Sales Amount',r.sales.reduce((s,x)=>s+(+x.amount||0),0)],
+    ...r.sales.map((s,i)=>['Sale #'+(i+1),`Bill:${s.billNo}|${s.product}|${s.amount}|${s.customer||'—'}|${s.mobile||'—'}|${s.paymentMode||'—'}`]),
+    ['Non-Purchase Visitors',r.nonpurch.length],
+    ...r.nonpurch.map((n,i)=>['Visitor #'+(i+1),`${n.customer||'Anon'}|${n.mobile||'—'}|${n.reason}|${n.remarks||'—'}`]),
+    ...TASK_LIST.map(t=>['Task: '+t.label,taskNumber(r.tasks[t.id])]),
+    ['Total Tasks',taskTotal(r.tasks)],
+    ...MKT_ITEMS.map(m=>['Marketing: '+m.label,r.marketing[m.id]||0]),
+    ['CP1',r.cleaning.cp1.done?'Done':'No'],['CP2',r.cleaning.cp2.done?'Done':'No'],
+    ...STOCK_CATS.map(c=>['Closing '+c.label,r.closing[c.id]||0]),
+    ['Score',r.audit?.total??'—'],
+    ['Status',r.audit?.approved===true?'Approved':r.audit?.approved===false?'Rejected':'Pending'],
+    ['SM Remarks',r.audit?.remarks||'—'],
+  ];
+  downloadCSV(`report_${r.date}_${r.staffName.replace(/\s/g,'_')}.csv`, rows);
+}
+function exportAllCSV(mode) {
+  const to = todayStr();
+  const fromD = new Date(); fromD.setDate(fromD.getDate()-29);
+  const from = mode==='today' ? to : fromD.getFullYear()+'-'+String(fromD.getMonth()+1).padStart(2,'0')+'-'+String(fromD.getDate()).padStart(2,'0');
+  const recs = getAllInRange(from, to).filter(r=>r.submitted);
+  if (!recs.length) { toast('No records to export','warn'); return; }
+  const rows = [['Date','Staff','Role','Login','Bills','Sales','Visitors','Mkt Total','Tasks Total','CP1','CP2','Score','Status']];
+  recs.forEach(r => {
+    rows.push([
+      r.date, r.staffName, r.role.toUpperCase(), r.loginTime,
+      r.sales.length, r.sales.reduce((s,x)=>s+(+x.amount||0),0),
+      r.nonpurch.length, MKT_ITEMS.reduce((s,m)=>s+(+r.marketing[m.id]||0),0),
+      taskTotal(r.tasks),
+      r.cleaning.cp1.done?'Done':'No', r.cleaning.cp2.done?'Done':'No',
+      r.audit?.total??'—',
+      r.audit?.approved===true?'Approved':r.audit?.approved===false?'Rejected':'Pending',
+    ]);
+  });
+  downloadCSV(`saagar_${mode==='today'?'today':from+'_to_'+to}.csv`, rows);
+}
+
+/* ── MODAL ── */
+function openModal() { el('modal').classList.add('open'); }
+function closeModal() { el('modal').classList.remove('open'); }
+function modalBgClick(e) { if (e.target===el('modal')) closeModal(); }
+
+/* ── VIEW-DATE RAIL: react to live date changes from the shell ──
+   Update the staff panel's viewed day to the new as-of date and re-render.
+   Today (default) keeps the existing editable behaviour; a past date flips the
+   panel into strictly read-only history mode (no writes, no record creation). */
+function applyViewDate(date) {
+  flushRec(); // persist any pending edit for the current day before switching dates
+  const next = isValidDateStr(date) ? date : todayStr();
+  st.date = next;
+  if (st.screen === 'staff' && st.staffName) {
+    updateStaffHeaderDate();
+    renderCurrentTab();
+  }
+}
+window.addEventListener('st-date', function(e){
+  const d = e && e.detail;
+  applyViewDate(typeof d === 'string' ? d : (d && d.date));
+});
+
+/* PERF safety net: the per-keystroke save is debounced (~300ms), so if the app
+   is backgrounded or closed within that window, flush the pending write
+   synchronously. 'pagehide' + 'visibilitychange'(hidden) are the reliable
+   mobile lifecycle hooks ('beforeunload' is unreliable on mobile). */
+window.addEventListener('pagehide', flushRec);
+document.addEventListener('visibilitychange', function(){
+  if (document.visibilityState === 'hidden') flushRec();
+});
+
+function showNewSale(){ showSaleModal(null); }
+function showNewNonPurchase(){ showNPModal(null); }
+function rejectDsrAudit(){ submitAudit(false); }
+function approveDsrAudit(){ submitAudit(true); }
+function exportTodayCSV(){ exportAllCSV('today'); }
+const DsrDelegatedHandlers = Object.freeze({
+  openDsrFollowUp, markFollowedUp, visitorPurchase, visitorNonPurch, adjMkt, saveSale, saveNP
+});
+if (typeof SaagarRenderedComponents !== 'undefined') {
+  SaagarRenderedComponents.connect(document.body, DsrRenderedPolicy, DsrDelegatedHandlers);
+}
+
+/* ── INIT ── */
+function init() {
+  const today = todayStr();
+  const [y,m,d] = today.split('-');
+  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  el('login-date-pill-text').textContent = `${d} ${months[+m-1]} ${y}`;
+
+  const list = getStaffList();
+  const dl = el('staff-datalist');
+  dl.innerHTML = list.map(n => `<option value="${esc(n)}">`).join('');
+
+  // Seed the staff panel's default viewed day from the shell's as-of date
+  // (defaults to today). Login re-reads it, and 'st-date' keeps it live.
+  st.date = stAsOfDate();
+}
+
+init();
+</script>
+
+<link id="st-v5-back-style" rel="stylesheet" href="../../shared/module-back.css">
+<button id="st-v5-home-fab" type="button" title="Back to Home (Esc)"><svg viewBox="0 0 24 24"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg></button>
+<div id="st-v5-next-chips"></div>
+<script id="st-v5-back-script">SaagarModuleRuntime.run('back',{schemaVersion:1,moduleId:'dsr',nextSteps:[{id:'stock',label:'Update Stock →'}],customerSelectors:[],accessContext:true});</script>
+
+<link id="st-v5-emp-assist-style" rel="stylesheet" href="../../shared/module-employee.css"><script id="st-v5-emp-assist-script">SaagarModuleRuntime.run('employees',{schemaVersion:1,moduleId:'dsr',nextSteps:[{id:'stock',label:'Update Stock →'}],customerSelectors:[],accessContext:true});</script>
+
+<script id="st-v5-module-audit-bridge">SaagarModuleRuntime.run('audit',{schemaVersion:1,moduleId:'dsr',nextSteps:[{id:'stock',label:'Update Stock →'}],customerSelectors:[],accessContext:true});</script>
+
+<script id="st-v5-module-access-bridge">SaagarModuleRuntime.run('access',{schemaVersion:1,moduleId:'dsr',nextSteps:[{id:'stock',label:'Update Stock →'}],customerSelectors:[],accessContext:true});</script>
+</body>
+</html>

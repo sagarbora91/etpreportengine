@@ -1,0 +1,30 @@
+/* Phase 6D opt-in general components. Every selector requires the shared UI root. */
+[data-saagar-ui] .saagar-field{display:block;margin:0 0 16px;margin:0 0 var(--space-4,16px);font-family:Arial,sans-serif;font-family:var(--font-sans,Arial,sans-serif)}
+[data-saagar-ui] .saagar-label{display:block;margin-bottom:8px;margin-bottom:var(--space-2,8px);color:#27272a;color:var(--gray-800,#27272a);font-size:16px;font-size:var(--type-floor,16px);line-height:1.45;line-height:var(--line-normal,1.45)}
+[data-saagar-ui] .saagar-input,[data-saagar-ui] .saagar-select,[data-saagar-ui] .saagar-textarea{box-sizing:border-box;display:block;width:100%;min-height:44px;min-height:var(--control-height,44px);padding:10px 12px;border:1px solid #a1a1aa;border:1px solid var(--gray-400,#a1a1aa);border-radius:8px;background:#fff;background:var(--paper,#fff);color:#27272a;color:var(--gray-800,#27272a);font:16px/1.45 Arial,sans-serif;font:var(--type-floor,16px)/var(--line-normal,1.45) var(--font-sans,Arial,sans-serif)}
+[data-saagar-ui] .saagar-textarea{min-height:96px;resize:vertical}
+[data-saagar-ui] .saagar-input:focus,[data-saagar-ui] .saagar-select:focus,[data-saagar-ui] .saagar-textarea:focus,[data-saagar-ui] .saagar-button:focus,[data-saagar-ui] .saagar-nav-link:focus{outline:3px solid #93c5fd;outline:3px solid var(--blue-pale,#93c5fd);box-shadow:0 0 0 3px rgba(29,78,216,.28);box-shadow:var(--focus-ring)}
+
+[data-saagar-ui] .saagar-button{box-sizing:border-box;display:inline-block;min-width:44px;min-width:var(--touch-target,44px);min-height:44px;min-height:var(--touch-target,44px);padding:10px 16px;border:1px solid #0d2340;border:1px solid var(--navy,#0d2340);border-radius:8px;background:#0d2340;background:var(--navy,#0d2340);color:#fff;font:700 16px/1.2 Arial,sans-serif;font:700 var(--type-floor,16px)/var(--line-tight,1.2) var(--font-sans,Arial,sans-serif);text-align:center;cursor:pointer}
+[data-saagar-ui] .saagar-button--secondary{background:#fff;background:var(--paper,#fff);color:#0d2340;color:var(--navy,#0d2340)}
+[data-saagar-ui] .saagar-button--danger{border-color:#b91c1c;border-color:var(--red,#b91c1c);background:#b91c1c;background:var(--red,#b91c1c)}
+
+[data-saagar-ui] .saagar-card,[data-saagar-ui] .saagar-tile{box-sizing:border-box;padding:16px;padding:var(--card-padding,16px);border:1px solid #e4e4e7;border:1px solid var(--gray-200,#e4e4e7);border-radius:12px;border-radius:var(--radius,12px);background:#fff;background:var(--paper,#fff);color:#27272a;color:var(--gray-800,#27272a);box-shadow:0 1px 3px rgba(13,35,64,.12);box-shadow:var(--shadow-1)}
+[data-saagar-ui] .saagar-tile{display:inline-block;vertical-align:top;min-width:200px}
+
+[data-saagar-ui] .saagar-modal-backdrop,[data-saagar-ui] .saagar-sheet-backdrop{position:fixed;z-index:100;z-index:var(--z-modal,100);top:0;right:0;bottom:0;left:0;overflow:auto;padding:16px;padding:var(--space-4,16px);background:rgba(13,35,64,.55);text-align:center}
+[data-saagar-ui] .saagar-modal{display:inline-block;width:100%;max-width:720px;max-width:var(--modal-max-width,720px);margin:5vh auto;padding:16px;padding:var(--card-padding,16px);border-radius:12px;border-radius:var(--radius,12px);background:#fff;background:var(--paper,#fff);text-align:left;vertical-align:middle}
+[data-saagar-ui] .saagar-sheet{position:absolute;right:0;bottom:0;left:0;width:auto;max-width:640px;max-width:var(--sheet-max-width,640px);max-height:90%;margin:0 0 0 auto;overflow:auto;padding:16px;padding:var(--card-padding,16px);background:#fff;background:var(--paper,#fff);text-align:left}
+
+[data-saagar-ui] .saagar-toolbar{box-sizing:border-box;display:flex;display:-webkit-flex;min-height:56px;min-height:var(--toolbar-height,56px);padding:8px 16px;padding:var(--space-2,8px) var(--space-4,16px);align-items:center;-webkit-align-items:center;border-bottom:1px solid #e4e4e7;border-bottom:1px solid var(--gray-200,#e4e4e7);background:#fff;background:var(--paper,#fff)}
+[data-saagar-ui] .saagar-toolbar__actions{margin-left:auto}
+[data-saagar-ui] .saagar-nav{box-sizing:border-box;display:flex;display:-webkit-flex;min-height:64px;min-height:var(--nav-height,64px);overflow-x:auto;background:#0d2340;background:var(--navy,#0d2340)}
+[data-saagar-ui] .saagar-nav-link{box-sizing:border-box;display:inline-flex;display:-webkit-inline-flex;min-width:44px;min-width:var(--touch-target,44px);min-height:44px;min-height:var(--touch-target,44px);padding:10px 16px;align-items:center;-webkit-align-items:center;color:#fff;font-size:16px;font-size:var(--type-floor,16px);text-decoration:none}
+[data-saagar-ui] .saagar-nav-link[aria-current="page"]{border-bottom:3px solid #b8922a;border-bottom-color:#b8922a;border-bottom-color:var(--gold,#b8922a)}
+
+[data-saagar-ui] .saagar-state{box-sizing:border-box;padding:16px;padding:var(--space-4,16px);border:1px solid #d4d4d8;border:1px solid var(--gray-300,#d4d4d8);border-radius:12px;border-radius:var(--radius,12px);background:#fafafa;background:var(--gray-50,#fafafa);color:#3f3f46;color:var(--gray-700,#3f3f46);font-size:16px;font-size:var(--type-floor,16px);line-height:1.45;line-height:var(--line-normal,1.45)}
+[data-saagar-ui] .saagar-state[data-state="loading"]{color:#1d4ed8;color:var(--blue,#1d4ed8);background:#eff6ff;background:var(--blue-pale,#eff6ff)}
+[data-saagar-ui] .saagar-state[data-state="empty"]{color:#52525b;color:var(--gray-600,#52525b)}
+[data-saagar-ui] .saagar-state[data-state="error"]{border-color:#b91c1c;border-color:var(--red,#b91c1c);color:#b91c1c;color:var(--red,#b91c1c);background:#fef2f2;background:var(--red-pale,#fef2f2)}
+[data-saagar-ui] .saagar-state[data-state="success"]{border-color:#166534;border-color:var(--green,#166534);color:#166534;color:var(--green,#166534);background:#f0fdf4;background:var(--green-pale,#f0fdf4)}
+[data-saagar-ui] .saagar-state[data-state="disabled"],[data-saagar-ui] [aria-disabled="true"],[data-saagar-ui] :disabled{opacity:.58;cursor:not-allowed;pointer-events:none}

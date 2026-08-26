@@ -1,0 +1,16 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="6.1.1" />
+    <ProjectReference Include="..\Etp.Reporting.Import\Etp.Reporting.Import.csproj" />
+    <ProjectReference Include="..\Etp.Reporting.Domain\Etp.Reporting.Domain.csproj" />
+    <ProjectReference Include="..\Etp.Reporting.Reporting\Etp.Reporting.Reporting.csproj" />
+  </ItemGroup>
+
+</Project>
