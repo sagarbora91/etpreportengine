@@ -92,6 +92,19 @@ public sealed class BatchImportTests : IDisposable
     }
 
     [Fact]
+    public async Task CoordinatorAggregatesOverlapAwareOutcomes()
+    {
+        var coordinator = new BatchImportCoordinator(new OutcomeProcessor());
+        var result = await coordinator.RunAsync(["historical.xlsx", "renamed-copy.xlsx"]);
+
+        Assert.Equal(120, result.RowsProcessed);
+        Assert.Equal(70, result.NewRows);
+        Assert.Equal(45, result.AlreadyPresentRows);
+        Assert.Equal(5, result.Conflicts);
+        Assert.Equal(1, result.ExactDuplicates);
+    }
+
+    [Fact]
     public void SourceValidationRejectsUnsupportedExtension()
     {
         var path = Path.Combine(_root, "legacy.xls");
@@ -127,5 +140,14 @@ public sealed class BatchImportTests : IDisposable
             if (outcomes.Count > 0 && outcomes.Dequeue() is { } error) throw error;
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class OutcomeProcessor : IWorkbookImportOutcomeProcessor
+    {
+        public Task ProcessAsync(string workbookPath, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task<WorkbookImportOutcome> ProcessWithOutcomeAsync(string workbookPath, CancellationToken cancellationToken) =>
+            Task.FromResult(workbookPath.Contains("renamed", StringComparison.Ordinal)
+                ? new WorkbookImportOutcome(0, 0, 0, 0, true)
+                : new WorkbookImportOutcome(120, 70, 45, 5));
     }
 }

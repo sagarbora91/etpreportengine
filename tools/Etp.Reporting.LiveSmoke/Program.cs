@@ -112,6 +112,7 @@ var dailyExceptions = await operationalReports.LoadDailyExceptionsAsync("WLMHW",
 var workflow = await dailyRepository.LoadAsync("WLMHW", testDate);
 var pack = await new DailyReportingPackService(connectionString).GenerateAsync("WLMHW", new(2026, 8, 25), "live-smoke");
 var combinedPack = await new DailyReportingPackService(connectionString).GenerateCombinedAsync(new(2026, 8, 25), "live-smoke");
+await VerifyOverlapAwareImportAsync(connectionString);
 await VerifyPhase2OperationsAsync(connectionString, files[0]);
 if (daily.Status != ReconciliationStatus.Passed || daily.Rows.Count == 0) throw new InvalidOperationException("Daily sales report did not pass live SQL execution.");
 if (tenders.Status == ReconciliationStatus.Blocked) throw new InvalidOperationException("Tender reconciliation was blocked in live SQL execution.");
@@ -182,7 +183,7 @@ static async Task VerifyPhase2OperationsAsync(string connectionString, string du
         File.Copy(duplicateWorkbook, queued);
         File.SetLastWriteTimeUtc(queued, DateTime.UtcNow.AddMinutes(-1));
         var result = await new AutomatedOperationsService(connectionString).RunOnceAsync();
-        if (result.SourcesProcessed != 1 || result.DuplicateWorkbooks != 1 || Directory.EnumerateFiles(processed).Count() != 1 || Directory.EnumerateFiles(inbound).Any())
+        if (result.SourcesProcessed != 1 || result.DuplicateWorkbooks != 1 || Directory.EnumerateFiles(processed,"*",SearchOption.AllDirectories).Count() != 1 || Directory.EnumerateFiles(inbound).Any())
             throw new InvalidOperationException("Unattended watch-folder duplicate handling failed.");
         if (!(await repository.LoadAutomationRunsAsync()).Any(x => x.RunType == "WATCH_IMPORT" && x.Outcome == "Skipped"))
             throw new InvalidOperationException("Unattended automation history was not recorded.");
@@ -191,6 +192,33 @@ static async Task VerifyPhase2OperationsAsync(string connectionString, string du
     {
         if (Directory.Exists(root)) Directory.Delete(root, true);
     }
+}
+
+static async Task VerifyOverlapAwareImportAsync(string connectionString)
+{
+    const string sql = """
+        SET XACT_ABORT ON; BEGIN TRANSACTION;
+        DECLARE @invoice bigint,@store varchar(30),@doc nvarchar(80),@year int,@date date,@line nvarchar(80),@product nvarchar(80),@type nvarchar(80),
+                @qty decimal(19,4),@gross decimal(19,4),@net decimal(19,4),@brand nvarchar(80),@brandName nvarchar(200),@segment nvarchar(100),@currency char(3);
+        SELECT TOP(1) @invoice=i.sales_invoice_id,@store=i.store_code,@doc=i.document_number,@year=i.invoice_year,@date=i.transaction_date,@line=l.line_identifier,
+          @product=l.product_code,@type=l.source_transaction_type,@qty=l.source_quantity,@gross=l.source_gross_amount,@net=l.source_net_amount,
+          @brand=l.source_brand_code,@brandName=l.source_brand_name,@segment=l.brand_segment,@currency=l.currency_code
+        FROM dbo.sales_lines l JOIN dbo.sales_invoices i ON i.sales_invoice_id=l.sales_invoice_id ORDER BY l.sales_line_id;
+        DECLARE @batch uniqueidentifier=NEWID(); INSERT dbo.import_batches(import_batch_id,status,period_start,period_end,started_utc) VALUES(@batch,'Processing',@date,@date,SYSUTCDATETIME());
+        INSERT dbo.import_files(import_batch_id,original_file_name,source_sha256,size_bytes,report_code,store_code,business_date,source_report_date,imported_by)
+        VALUES(@batch,N'overlap-validation.xlsx,',REPLICATE('a',64),1,'R025',@store,@date,@date,N'live-smoke'); DECLARE @file bigint=SCOPE_IDENTITY();
+        INSERT dbo.source_lineage(import_file_id,sheet_name,source_row_number,source_record_type) VALUES(@file,N'Overlap',2,'R025_LINE'); DECLARE @same bigint=SCOPE_IDENTITY();
+        EXEC dbo.persist_sales_line @store,@doc,@year,@date,@line,@product,@type,@qty,@gross,@net,@brand,@brandName,@segment,@currency,@same;
+        INSERT dbo.source_lineage(import_file_id,sheet_name,source_row_number,source_record_type) VALUES(@file,N'Overlap',3,'R025_LINE'); DECLARE @different bigint=SCOPE_IDENTITY();
+        DECLARE @changedNet decimal(19,4)=@net+1; EXEC dbo.persist_sales_line @store,@doc,@year,@date,@line,@product,@type,@qty,@gross,@changedNet,@brand,@brandName,@segment,@currency,@different;
+        IF (SELECT COUNT(*) FROM dbo.import_row_outcomes WHERE import_file_id=@file AND outcome='ALREADY_PRESENT')<>1 THROW 51290,'Identical overlap was not classified.',1;
+        IF (SELECT COUNT(*) FROM dbo.import_row_outcomes WHERE import_file_id=@file AND outcome='CONFLICT')<>1 THROW 51291,'Changed overlap was not classified as conflict.',1;
+        IF (SELECT COUNT(*) FROM dbo.import_conflicts WHERE import_file_id=@file AND status='OPEN')<>1 THROW 51292,'Conflict review item was not created.',1;
+        ROLLBACK TRANSACTION;
+        """;
+    await using var connection = new SqlConnection(connectionString); await connection.OpenAsync();
+    await using var command = new SqlCommand(sql, connection) { CommandTimeout = 0 }; await command.ExecuteNonQueryAsync();
+    Console.WriteLine("Overlap-aware row duplicate and conflict routing passed.");
 }
 
 static async Task VerifyBackupRestoreAsync(string connectionString)

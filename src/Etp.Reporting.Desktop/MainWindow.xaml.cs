@@ -39,15 +39,18 @@ public partial class MainWindow : Window
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "EtpReporting", "settings.json");
     private static readonly IReadOnlyDictionary<string, PageDetails> Pages = new Dictionary<string, PageDetails>(StringComparer.Ordinal)
     {
-        ["Dashboard"] = new("Application and import readiness at a glance.", "Operational overview", "Review database health, backup status and recent imports before running reports.", "Open Settings", "Settings"),
+        ["Dashboard"] = new("Today’s reporting status, required actions and application health.", "Business day cockpit", "Follow Import → Check → Complete inputs → Generate → Finalise → Share.", "Open daily workflow", "Daily Workflow"),
         ["Daily Workflow"] = new("Complete, reconcile and finalise one ETP business date.", "Daily reporting", "Review source completeness, enter only non-ETP operational values, then finalise the protected day.", "Daily workflow ready", "Daily Workflow"),
-        ["Import ETP"] = new("Select, validate and review ETP workbooks before import.", "Import workspace", "Import one approved workbook, a folder batch, or a safe ZIP package with progress, cancellation and retry.", "Import ready", "Import ETP"),
-        ["Sales Reports"] = new("View approved sales reports from canonical data.", "Sales reporting", "Run daily, store, brand, brand-segment, item and return reports after importing sales and closing-stock data.", "Run reports below", "Sales Reports"),
+        ["Import ETP"] = new("Import ETP workbooks and manage every received source document.", "Import and Source Inbox", "Import one workbook, a large historical folder, safe ZIP package, PDF or image with progress and review queues.", "Import ready", "Import ETP"),
+        ["Sales Reports"] = new("Preview and export every approved report through one consistent workspace.", "Reports Centre", "Use the same period, store, brand, transaction and item filters across Sales, Stock, Staff, Tender, Service and Exceptions.", "Run reports below", "Sales Reports"),
         ["Stock Reports"] = new("View approved stock movement and balance reports.", "Stock reporting", "Reconcile the stock ledger to the closing-stock snapshot using source-signed quantities.", "Run reports below", "Stock Reports"),
-        ["Operations Center"] = new("Monitor trends, data quality, unattended imports, report schedules, backup and recovery.", "Operations center", "Use controlled local folders and review every automated outcome without exposing confidential source rows.", "Operations ready", "Operations Center"),
-        ["Report Archive"] = new("Open, compare and re-export immutable report generations.", "Report archive", "Every current-generation document is integrity checked before display or export.", "Archive ready", "Report Archive"),
+        ["Registers"] = new("Create and search audited registers linked to immutable documents.", "Digital registers", "Start with the Inward Register and reuse the same governed structure for future register types.", "Registers ready", "Registers"),
+        ["Accounting"] = new("Prepare balanced accounting batches from final report generations.", "Accounting preparation", "Owner-approved ledger mappings remain mandatory before review, approval and Tally XML export.", "Accounting ready", "Accounting"),
+        ["Operations Center"] = new("Investigate issues, approvals, trends, automation, backup and product health.", "Control Centre", "Business resolution never changes the underlying technical control result.", "Control Centre ready", "Operations Center"),
+        ["Report Archive"] = new("Open, compare, package and share immutable report generations.", "Archive and sharing", "Every archived document and ZIP package is integrity checked and remains tied to its generation.", "Archive ready", "Report Archive"),
         ["Masters"] = new("Maintain reporting reference data.", "Master data", "Review confirmed Brand Segment descriptions while unresolved mappings remain fail-closed.", "Review dictionary", "Masters"),
-        ["Settings"] = new("Configure the application and database connection.", "Connection settings", "Test the saved Windows-integrated SQL Server connection or safely create/update the database.", "Configuration ready", "Settings")
+        ["Settings"] = new("Configure the application and database connection.", "Connection settings", "Test the saved Windows-integrated SQL Server connection or safely create/update the database.", "Configuration ready", "Settings"),
+        ["Admin / Settings"] = new("Administer users, masters, KPI definitions, integrations and database settings.", "Admin and Settings", "Owner-only changes remain versioned or audited and cannot rewrite locked history.", "Administration ready", "Admin / Settings")
     };
 
     public MainWindow()
@@ -60,6 +63,10 @@ public partial class MainWindow : Window
         OperationsFromInput.SelectedDate = DateTime.Today.AddDays(-30);
         OperationsToInput.SelectedDate = DateTime.Today;
         ArchiveDateInput.SelectedDate = DateTime.Today.AddDays(-1);
+        SourceDocumentDateInput.SelectedDate = DateTime.Today;
+        RegisterBusinessDateInput.SelectedDate = DateTime.Today;
+        AccountingDateInput.SelectedDate = DateTime.Today.AddDays(-1);
+        AdjustmentDateInput.SelectedDate = DateTime.Today.AddDays(-1);
         StaffTargetFromInput.SelectedDate = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
         StaffTargetToInput.SelectedDate = DateTime.Today.AddDays(-1);
         Loaded += MainWindow_Loaded;
@@ -78,7 +85,7 @@ public partial class MainWindow : Window
     private void Navigate_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button { Tag: string destination } || !Pages.TryGetValue(destination, out var page)) return;
-        if ((destination == "Masters" || destination == "Settings" && currentAccess.Role != ApplicationRole.None) && !currentAccess.CanAdminister)
+        if ((destination is "Masters" or "Admin / Settings" || destination == "Settings" && currentAccess.Role != ApplicationRole.None) && !currentAccess.CanAdminister)
         {
             ApplicationStatus.Text = "Owner permission is required to open administration and database settings.";
             return;
@@ -93,27 +100,34 @@ public partial class MainWindow : Window
             ApplicationStatus.Text = "This Windows account has not been granted application access by an Owner.";
             return;
         }
-        PageTitle.Text = destination;
+        PageTitle.Text = destination switch { "Dashboard" => "Home", "Sales Reports" or "Stock Reports" => "Reports", "Operations Center" => "Control Centre", "Report Archive" => "Archive", _ => destination };
         PageDescription.Text = page.Description;
         WorkspaceHeading.Text = page.Heading;
         WorkspaceMessage.Text = page.Message;
         PrimaryAction.Content = page.ActionLabel;
         PrimaryAction.Tag = page.ActionDestination;
         PrimaryAction.IsEnabled = destination == "Dashboard";
-        SettingsPanel.Visibility = destination == "Settings" ? Visibility.Visible : Visibility.Collapsed;
-        DailyWorkflowPanel.Visibility = destination == "Daily Workflow" ? Visibility.Visible : Visibility.Collapsed;
+        SettingsPanel.Visibility = destination is "Settings" or "Admin / Settings" ? Visibility.Visible : Visibility.Collapsed;
+        DailyWorkflowPanel.Visibility = destination is "Daily Workflow" or "Dashboard" ? Visibility.Visible : Visibility.Collapsed;
         ImportPanel.Visibility = destination == "Import ETP" ? Visibility.Visible : Visibility.Collapsed;
+        SourceInboxPanel.Visibility = destination == "Import ETP" ? Visibility.Visible : Visibility.Collapsed;
         ReportsPanel.Visibility = destination is "Sales Reports" or "Stock Reports" ? Visibility.Visible : Visibility.Collapsed;
         DashboardPanel.Visibility = destination == "Dashboard" ? Visibility.Visible : Visibility.Collapsed;
         OperationsPanel.Visibility = destination == "Operations Center" ? Visibility.Visible : Visibility.Collapsed;
+        InvestigationPanel.Visibility = destination == "Operations Center" ? Visibility.Visible : Visibility.Collapsed;
         ReportArchivePanel.Visibility = destination == "Report Archive" ? Visibility.Visible : Visibility.Collapsed;
-        MastersPanel.Visibility = destination == "Masters" ? Visibility.Visible : Visibility.Collapsed;
+        RegistersPanel.Visibility = destination == "Registers" ? Visibility.Visible : Visibility.Collapsed;
+        AccountingPanel.Visibility = destination == "Accounting" ? Visibility.Visible : Visibility.Collapsed;
+        MastersPanel.Visibility = destination is "Masters" or "Admin / Settings" ? Visibility.Visible : Visibility.Collapsed;
         ApplicationStatus.Text = $"{destination} selected. {page.Message}";
-        if (destination == "Dashboard") _ = RefreshDashboardAsync();
+        if (destination == "Dashboard") { _ = RefreshDashboardAsync(); _ = RefreshDailyWorkflowAsync(); }
         if (destination == "Daily Workflow") _ = RefreshDailyWorkflowAsync();
-        if (destination == "Operations Center") _ = RefreshOperationsAsync();
-        if (destination == "Report Archive") _ = RefreshReportArchiveAsync();
-        if (destination == "Masters") _ = RefreshMasterAdministrationAsync();
+        if (destination == "Import ETP") _ = RefreshSourceInboxAsync();
+        if (destination == "Registers") _ = RefreshRegistersAsync();
+        if (destination == "Accounting") _ = RefreshAccountingAsync();
+        if (destination == "Operations Center") { _ = RefreshOperationsAsync(); _ = RefreshApprovalsAsync(); }
+        if (destination == "Report Archive") { _ = RefreshReportArchiveAsync(); _ = RefreshSharingContactsAsync(); }
+        if (destination is "Masters" or "Admin / Settings") _ = RefreshMasterAdministrationAsync();
     }
 
     private async Task RefreshAccessAsync()
@@ -123,14 +137,14 @@ public partial class MainWindow : Window
             currentAccess = await new Phase2OperationsRepository(ConnectionStringInput.Text).LoadCurrentAccessAsync();
             AccessStatus.Text = $"{currentAccess.DisplayName} — {RoleLabel(currentAccess.Role)}";
             AccessStatus.Foreground = currentAccess.CanView ? Brushes.SeaGreen : Brushes.Firebrick;
-            if (PageTitle.Text == "Dashboard") DashboardPanel.Visibility = currentAccess.CanView ? Visibility.Visible : Visibility.Collapsed;
+            if (PageTitle.Text is "Dashboard" or "Home") { DashboardPanel.Visibility = currentAccess.CanView ? Visibility.Visible : Visibility.Collapsed; DailyWorkflowPanel.Visibility = currentAccess.CanView ? Visibility.Visible : Visibility.Collapsed; }
         }
         catch (Exception ex) when (ex is SqlException or InvalidOperationException)
         {
             currentAccess = new("unknown", "Access not initialized", ApplicationRole.None, false);
             AccessStatus.Text = "Access: initialize database";
             AccessStatus.Foreground = Brushes.DarkOrange;
-            if (PageTitle.Text == "Dashboard") DashboardPanel.Visibility = Visibility.Collapsed;
+            if (PageTitle.Text is "Dashboard" or "Home") { DashboardPanel.Visibility = Visibility.Collapsed; DailyWorkflowPanel.Visibility = Visibility.Collapsed; }
         }
     }
 
@@ -425,6 +439,7 @@ public partial class MainWindow : Window
                 ValidationResult.Text = $"Imported {projection.InvoiceControls.Count:N0} invoice controls and {projection.ClassifiedTenders.Count:N0} reportable tender rows. {projection.QuarantinedTenders.Count:N0} unresolved tender rows were quarantined.";
                 ImportStatus.Text = "Import completed";
                 if (restatement is not null) await RecordAuditAsync("Restatement", "Succeeded", "Controlled source restatement applied");
+                await RetainValidatedEtpEvidenceAsync(selectedStore,selectedDate);
                 await RefreshDashboardAsync();
                 return;
             }
@@ -435,6 +450,7 @@ public partial class MainWindow : Window
                 ValidationResult.Text = $"Imported {outcome.PersistedRows:N0} {outcome.ReportCode} rows successfully.";
                 ImportStatus.Text = "Import completed";
                 if (restatement is not null) await RecordAuditAsync("Restatement", "Succeeded", "Controlled source restatement applied");
+                await RetainValidatedEtpEvidenceAsync(selectedStore,selectedDate);
                 await RefreshDashboardAsync();
                 return;
             }
@@ -446,6 +462,7 @@ public partial class MainWindow : Window
                 ValidationResult.Text = $"Imported {outcome.PersistedRows:N0} {outcome.ReportCode} enrichment rows: {outcome.MatchedRows:N0} matched, {outcome.MissingMatches:N0} missing, {outcome.AmbiguousMatches:N0} ambiguous. Revenue totals were not changed.";
                 ImportStatus.Text = "Import completed";
                 if (restatement is not null) await RecordAuditAsync("Restatement", "Succeeded", "Controlled source restatement applied");
+                await RetainValidatedEtpEvidenceAsync(selectedStore,selectedDate);
                 await RefreshDashboardAsync();
                 return;
             }
@@ -455,11 +472,17 @@ public partial class MainWindow : Window
             ValidationResult.Text = $"Imported {salesOutcome.PersistedRows:N0} sales rows successfully.";
             ImportStatus.Text = "Import completed";
             if (restatement is not null) await RecordAuditAsync("Restatement", "Succeeded", "Controlled source restatement applied");
+            await RetainValidatedEtpEvidenceAsync(selectedStore,selectedDate);
             await RefreshDashboardAsync();
         }
         catch (Exception ex) { ValidationResult.Text = $"Import failed: {ex.Message}"; }
         finally { PersistButton.IsEnabled = true; }
     }
+
+    private Task RetainValidatedEtpEvidenceAsync(string store,DateOnly date) =>
+        validatedWorkbook is null || validatedPreflight?.Profile is null
+            ? Task.CompletedTask
+            : new ProductisationOperationsService(ConnectionStringInput.Text).IntakeEtpEvidenceAsync(WorkbookPathInput.Text,validatedWorkbook.Sha256,validatedPreflight.Profile.ReportCode,store,date);
 
     private async void StartBatchImport_Click(object sender, RoutedEventArgs e)
     {
@@ -491,11 +514,13 @@ public partial class MainWindow : Window
         var progress = new Progress<BatchImportProgress>(x => { ImportProgressBar.Maximum = Math.Max(1, x.Total); ImportProgressBar.Value = x.Completed; ValidationResult.Text = $"{x.Stage}: {x.SafeFileName}"; });
         try
         {
-            var coordinator = new BatchImportCoordinator(new DelegateWorkbookImportProcessor(ProcessWorkbookAsync));
+            var coordinator = new BatchImportCoordinator(new DelegateWorkbookImportOutcomeProcessor(ProcessWorkbookAsync));
             var summary = await coordinator.RunAsync(paths, progress, batchCancellation.Token);
             BatchResultsGrid.ItemsSource = summary.Files;
             failedBatchPaths = paths.Zip(summary.Files).Where(x => x.Second.Status == BatchImportFileStatus.Failed).Select(x => x.First).ToArray();
-            ValidationResult.Text = $"Batch completed: {summary.Succeeded:N0} succeeded, {summary.Failed:N0} failed, {summary.Cancelled:N0} cancelled.";
+            ValidationResult.Text = $"Batch completed: {summary.Succeeded:N0} processed, {summary.ExactDuplicates:N0} exact duplicate files, " +
+                $"{summary.NewRows:N0} new rows, {summary.AlreadyPresentRows:N0} rows already present, {summary.Conflicts:N0} conflicts, " +
+                $"{summary.Failed:N0} failed, {summary.Cancelled:N0} cancelled.";
             RetryBatchButton.IsEnabled = failedBatchPaths.Count > 0;
             await RefreshDashboardAsync();
             await RecordAuditAsync("ImportBatch", summary.Failed > 0 ? "Failed" : summary.Cancelled > 0 ? "Cancelled" : "Succeeded", "Batch import completed");
@@ -503,14 +528,14 @@ public partial class MainWindow : Window
         finally { StartBatchButton.IsEnabled = true; CancelBatchButton.IsEnabled = false; }
     }
 
-    private async Task ProcessWorkbookAsync(string workbookPath, CancellationToken cancellationToken)
+    private async Task<WorkbookImportOutcome> ProcessWorkbookAsync(string workbookPath, CancellationToken cancellationToken)
     {
         var snapshot = await new OpenXmlWorkbookReader().ReadAsync(workbookPath, cancellationToken);
         var restatementMode = RestatementModeInput.IsChecked == true;
         if (await new SqlServerImportFileRepository(ConnectionStringInput.Text).ExistsByHashAsync(snapshot.Sha256, cancellationToken))
         {
             if (restatementMode) throw new ImportSourceException("RESTATEMENT_DUPLICATE_FILE", "A restatement must use a corrected source file with a new hash.");
-            return;
+            return new(0, 0, 0, 0, true);
         }
         var preflight = new ImportPreflight().Inspect(snapshot, RetailSalesProfiles.FirstSalesSlice.Concat(StockImportProfiles.All));
         if (!preflight.CanImport) throw new ImportSourceException("IMPORT_LAYOUT_BLOCKED", "The workbook layout is not an approved ETP layout.");
@@ -534,6 +559,8 @@ public partial class MainWindow : Window
             await new R025SqlImportOrchestrator(persistenceStore).PersistAsync(snapshot, cancellationToken: cancellationToken,
                 expectedBusinessDate: selectedDate, expectedStoreCode: selectedStore, importedBy: Environment.UserName, restatement: restatement);
         if (restatement is not null) await RecordAuditAsync("Restatement", "Succeeded", "Controlled source restatement applied");
+        await new ProductisationOperationsService(ConnectionStringInput.Text).IntakeEtpEvidenceAsync(workbookPath,snapshot.Sha256,preflight.Profile.ReportCode,selectedStore,selectedDate,cancellationToken);
+        return await new SqlServerImportFileRepository(ConnectionStringInput.Text).LoadOutcomeByHashAsync(snapshot.Sha256, cancellationToken);
     }
 
     private async Task<ImportRestatementRequest?> ResolveRestatementAsync(
@@ -912,11 +939,14 @@ public partial class MainWindow : Window
             var runsTask = repository.LoadAutomationRunsAsync(100);
             await Task.WhenAll(settingsTask, trendTask, qualityTask, schedulesTask, runsTask);
             var settings = await settingsTask; var trend = await trendTask; var quality = await qualityTask;
+            var productRepository = new ProductisationRepository(ConnectionStringInput.Text);
+            await productRepository.SyncDataQualityIssuesAsync(quality);
+            var issueRows = await productRepository.LoadDataQualityIssuesAsync();
             WatchInboundInput.Text = settings.InboundPath; WatchProcessedInput.Text = settings.ProcessedPath;
             WatchFailedInput.Text = settings.FailedPath; WatchReportOutputInput.Text = settings.ReportOutputPath; WatchEnabledInput.IsChecked = settings.IsEnabled;
-            ManagementTrendGrid.ItemsSource = trend; DataQualityGrid.ItemsSource = quality; ReportSchedulesGrid.ItemsSource = await schedulesTask; AutomationRunsGrid.ItemsSource = await runsTask;
+            ManagementTrendGrid.ItemsSource = trend; DataQualityGrid.ItemsSource = issueRows; ReportSchedulesGrid.ItemsSource = await schedulesTask; AutomationRunsGrid.ItemsSource = await runsTask;
             RenderManagementTrendChart(trend);
-            OperationsStatus.Text = $"Loaded {trend.Count:N0} daily store result(s), {quality.Count:N0} active quality finding(s), and {(await runsTask).Count:N0} recent unattended run(s).";
+            OperationsStatus.Text = $"Loaded {trend.Count:N0} daily store result(s), {issueRows.Count:N0} governed quality issue(s), and {(await runsTask).Count:N0} recent unattended run(s).";
         }
         catch (Exception ex) { OperationsStatus.Text = $"Operations center could not be refreshed: {ex.Message}"; }
     }
@@ -1015,7 +1045,7 @@ public partial class MainWindow : Window
             var store = ArchiveStoreInput.SelectedItem is ComboBoxItem item && !string.Equals(item.Content?.ToString(), "All", StringComparison.OrdinalIgnoreCase) ? item.Content?.ToString() : null;
             var date = ArchiveAllDatesInput.IsChecked == true || ArchiveDateInput.SelectedDate is null ? (DateOnly?)null : DateOnly.FromDateTime(ArchiveDateInput.SelectedDate.Value);
             var rows = await new Phase2OperationsRepository(ConnectionStringInput.Text).LoadReportGenerationsAsync(store, date);
-            ReportGenerationGrid.ItemsSource = rows; ReportArchiveDetailGrid.ItemsSource = null; currentArchivedDocument = null;
+            ReportGenerationGrid.ItemsSource = rows; ReportArchiveDetailGrid.ItemsSource = null; currentArchivedDocument = null; currentShareFile = null;
             ReportArchiveStatus.Text = $"{rows.Count:N0} immutable generation(s) found. Select one to open or exactly two to compare.";
         }
         catch (Exception ex) { ReportArchiveStatus.Text = $"Report archive could not be loaded: {ex.Message}"; }
@@ -1027,6 +1057,7 @@ public partial class MainWindow : Window
         {
             if (ReportGenerationGrid.SelectedItem is not ArchivedReportGeneration generation) throw new InvalidOperationException("Select one report generation.");
             currentArchivedDocument = await new Phase2OperationsRepository(ConnectionStringInput.Text).LoadArchivedReportAsync(generation.Id);
+            currentShareFile = null;
             ReportArchiveDetailGrid.ItemsSource = currentArchivedDocument.Tables.Select(table => new { table.Name, table.Status, Rows = table.Data.Rows.Count, table.Message });
             ReportArchiveStatus.Text = $"Generation {generation.GenerationNumber} passed its document SHA-256 check and is ready to re-export.";
             await RecordAuditAsync("ReportArchive", "Succeeded", "Archived report opened");
@@ -1080,8 +1111,18 @@ public partial class MainWindow : Window
             var repository = new Phase2OperationsRepository(ConnectionStringInput.Text);
             var mastersTask = repository.LoadMasterValuesAsync(SelectedContent(MasterTypeInput));
             var usersTask = repository.LoadUsersAsync();
-            await Task.WhenAll(mastersTask, usersTask);
+            var productRepository = new ProductisationRepository(ConnectionStringInput.Text);
+            var kpiTask = productRepository.LoadKpiCatalogueAsync();
+            var healthTask = productRepository.LoadProductHealthAsync();
+            var productSettingsTask = productRepository.LoadSettingsAsync();
+            await Task.WhenAll(mastersTask, usersTask, kpiTask, healthTask, productSettingsTask);
             ControlledMastersGrid.ItemsSource = await mastersTask; ApplicationUsersGrid.ItemsSource = await usersTask;
+            KpiCatalogueGrid.ItemsSource = await kpiTask; ProductHealthGrid.ItemsSource = await healthTask;
+            var productSettings = await productSettingsTask;
+            DocumentRepositoryInput.Text=productSettings.DocumentRepositoryPath;ShareFolderInput.Text=productSettings.ShareFolderPath;
+            OcrHelperInput.Text=productSettings.OcrHelperPath??string.Empty;OcrModelInput.Text=productSettings.OcrModelPath??string.Empty;
+            SmtpHostInput.Text=productSettings.SmtpHost??string.Empty;SmtpPortInput.Text=productSettings.SmtpPort?.ToString(CultureInfo.InvariantCulture)??string.Empty;
+            SmtpFromInput.Text=productSettings.SmtpFromAddress??string.Empty;MaximumAttachmentInput.Text=productSettings.MaximumAttachmentMb.ToString(CultureInfo.InvariantCulture);
             ApplicationStatus.Text = "Controlled masters and Windows-integrated access are ready for Owner administration.";
         }
         catch (Exception ex) { ApplicationStatus.Text = $"Master administration could not be loaded: {ex.Message}"; }
@@ -1250,8 +1291,11 @@ public partial class MainWindow : Window
     private sealed record PageDetails(string Description, string Heading, string Message, string ActionLabel, string ActionDestination);
     private sealed record DesktopSettings(string ConnectionString);
     private sealed record BrandSegmentEntry(string Code, string Description, string Status);
-    private sealed class DelegateWorkbookImportProcessor(Func<string, CancellationToken, Task> process) : IWorkbookImportProcessor
+    private sealed class DelegateWorkbookImportOutcomeProcessor(Func<string, CancellationToken, Task<WorkbookImportOutcome>> process) : IWorkbookImportOutcomeProcessor
     {
-        public Task ProcessAsync(string workbookPath, CancellationToken cancellationToken) => process(workbookPath, cancellationToken);
+        public async Task ProcessAsync(string workbookPath, CancellationToken cancellationToken) =>
+            _ = await process(workbookPath, cancellationToken);
+        public Task<WorkbookImportOutcome> ProcessWithOutcomeAsync(string workbookPath, CancellationToken cancellationToken) =>
+            process(workbookPath, cancellationToken);
     }
 }

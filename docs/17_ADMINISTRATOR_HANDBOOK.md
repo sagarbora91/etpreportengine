@@ -31,8 +31,10 @@ Uninstall from Windows **Installed apps**. Uninstall removes the three ETP sched
 - Service cash/card/UPI are controlled manual operational facts until a deterministic populated ETP Service profile is approved. They must never be merged into R025 retail sales.
 - Use **Controlled restatement** only for a genuinely corrected export of the same report/store/business date. Reopen a locked date first, select the corrected workbook, and record a meaningful reason. The engine archives the replaced facts and applies the replacement atomically; it never silently overwrites them.
 - Generate a complete reporting pack before finalisation. The generation number, SHA-256 control snapshot and predecessor link are immutable; the finalisation transaction marks the latest generation final.
-- Review **Operations Center** for unattended runs, data-quality findings and scheduled-report status. Files placed in the configured local inbound folder are processed only after stable, then moved to Processed or Failed; duplicates are never re-imported.
-- Use **Report Archive** to open, compare and re-export stored generations. The application verifies each archived document hash before use.
+- Review **Control Centre** for unattended runs, import conflicts, approvals, data-quality findings and scheduled-report status. Stable workbooks/ZIPs are imported; PDFs/images enter Source Inbox; duplicates move below Processed\Duplicate; failures move to quarantine.
+- Use **Archive** to open, compare, package and share stored generations. The application verifies each archived document hash before use and records only share initiation unless delivery is verifiable.
+- Configure the optional signed PaddleOCR helper/model paths under product settings only after verifying their hashes. Reporting must remain available when OCR is disabled or unhealthy.
+- Approve accounting mappings only after the Tally ledger/tax treatment is confirmed. Back up the Tally company before importing the generated balanced XML and review its import exceptions.
 
 ## Approved access policy
 

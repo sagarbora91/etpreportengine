@@ -19,7 +19,7 @@ Do not place ETP source files inside the program folder or source-code repositor
 
 ## Complete one business date
 
-1. Open **Daily Workflow**, select the ETP business date and store, and refresh.
+1. Open **Home**, select the ETP business date and store in the business-day cockpit, and refresh.
 2. Import R025, R022, R013, R003, Variant Stock ledger and Closing Stock for that same ETP report date. A store/date mismatch is blocked, including during batch import.
 3. Enter only operational values that ETP does not supply. Required daily values are walk-ins, opening cash, cash deposit and expenses. Service cash/card/UPI, cash adjustment and counted closing cash drive the separate service and cash reports. Enter `0` when the confirmed value is zero; leave a value empty only when it is genuinely missing.
 4. Enter inventory-group physical details (display, backstock, defective, Y-location, independent counted physical and remarks) and dated CRO targets when applicable. The component total and its variance from the independent count remain separate from the physical-versus-system variance.
@@ -39,12 +39,15 @@ The report screen also provides customer-safe invoice summaries, DSR, staff/CRO 
 
 Select a summary row to open its supporting detail. Sorting and search affect the visible view; they do not modify the database.
 
-## Operations and archive
+## Source Inbox, registers, accounting and archive
 
-- **Operations Center** shows sales/control trends, active data-quality findings, automatic-import settings, morning/evening report schedules and recent unattended outcomes.
+- **Import > Source Inbox** shows retained ETP workbooks, PDFs and images by received/validated/imported/review/conflict lifecycle. Native PDF text is attempted before optional OCR; extracted financial fields always require verification.
+- **Registers** creates audited Inward and other register entries linked to retained documents. A locked date must be reopened before correction.
+- **Accounting** prepares balanced entries only from a final immutable report and Owner-approved ledger mappings. Store Managers may save review batches; only Owners approve and export Tally XML.
+- **Control Centre** shows sales/control trends, conflicts, pending approvals, global investigation, active data-quality findings, automatic-import settings, morning/evening report schedules and recent unattended outcomes.
 - Owners can change the four controlled local folders and schedules with a reason. Owners and Store Managers can run automation immediately.
 - Place stable approved `.xlsx` files or ETP `.zip` packages in Inbound. Completed sources move to Processed; invalid sources move to Failed. Duplicate content is skipped and recorded.
-- **Report Archive** stores every generated store and combined management pack with a document SHA-256. Open a generation to verify and re-export it, or select exactly two generations to compare their sections.
+- **Archive** stores every generated store and combined management pack with a document SHA-256. Open a generation to verify/re-export it, compare two generations, create a hashed ZIP manifest, or initiate an email/WhatsApp share.
 - Owners can run a checksum backup, isolated recovery drill or privacy-safe support-package creation from Operations Center.
 
 ## Export and print

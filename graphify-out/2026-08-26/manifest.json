@@ -1812,9 +1812,9 @@
     "semantic_hash": ""
   },
   "tests-dotnet/Etp.Reporting.SqlServer.Tests/MigrationTests.cs": {
-    "mtime": 1787750779.0403464,
-    "seen": 1787751370.2536962,
-    "ast_hash": "88a3119381152a1f5f6d7877880756c7",
+    "mtime": 1787751564.2359843,
+    "seen": 1787751685.9645236,
+    "ast_hash": "a2651fa876577747601377e9150be24c",
     "semantic_hash": ""
   },
   ".github/workflows/ci.yml": {
@@ -2172,9 +2172,9 @@
     "semantic_hash": ""
   },
   "docs/15_RELEASE_ACCEPTANCE.md": {
-    "mtime": 1787750939.5382578,
-    "seen": 1787751370.2540667,
-    "ast_hash": "72206a076302b1dcefaa22776b5b546d",
+    "mtime": 1787751564.2369795,
+    "seen": 1787751685.9649243,
+    "ast_hash": "2dd10b32b194176d0e92f7ddcae3ca6f",
     "semantic_hash": ""
   },
   "docs/16_OPERATIONS_AND_RECOVERY.md": {
@@ -2478,9 +2478,9 @@
     "semantic_hash": ""
   },
   "docs/21_DAILY_REPORTING_IMPLEMENTATION_MAP.md": {
-    "mtime": 1787750939.5402527,
-    "seen": 1787751370.2540758,
-    "ast_hash": "f833ba3e376d8bc0391379cfc26ffd50",
+    "mtime": 1787751564.2399716,
+    "seen": 1787751685.9649348,
+    "ast_hash": "6789306318471e13b96f25899042e72a",
     "semantic_hash": ""
   },
   "docs/22_REPORT_TO_SOURCE_MATRIX.md": {
@@ -2520,9 +2520,9 @@
     "semantic_hash": ""
   },
   "docs/23_MASTER_PROMPT_COMPLETION_AUDIT.md": {
-    "mtime": 1787750939.5392551,
-    "seen": 1787751370.2540786,
-    "ast_hash": "e933b7840394d05a41dd81908858a1e7",
+    "mtime": 1787751564.238973,
+    "seen": 1787751685.9649384,
+    "ast_hash": "cea00fa26822a86054d4a9be17a87ba8",
     "semantic_hash": ""
   },
   "database/migrations/0011_phase2_operations.sql": {
@@ -2562,15 +2562,21 @@
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Infrastructure.SqlServer/Phase2OperationsRepository.cs": {
-    "mtime": 1787750908.7031152,
-    "seen": 1787751370.2536163,
-    "ast_hash": "bd5a603b4c7083a7d1be030ec4d9d06b",
+    "mtime": 1787751564.2350013,
+    "seen": 1787751685.9644387,
+    "ast_hash": "46790787a2e32a18d44498a3b143ef65",
     "semantic_hash": ""
   },
   "docs/24_PHASE2_OPERATIONS.md": {
     "mtime": 1787750893.1573145,
     "seen": 1787751370.2540798,
     "ast_hash": "030abd0da92f84929e9c71cebdbb3033",
+    "semantic_hash": ""
+  },
+  "database/migrations/0013_store_manager_permission_guards.sql": {
+    "mtime": 1787751564.234473,
+    "seen": 1787751685.9642782,
+    "ast_hash": "c5ad9144e0a74e937130878952ac0b69",
     "semantic_hash": ""
   }
 }

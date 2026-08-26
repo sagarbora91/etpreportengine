@@ -66,7 +66,7 @@ public sealed class MigrationTests
     {
         var root = FindRepositoryRoot();
         var migrations = await new DirectoryMigrationSource(Path.Combine(root, "database", "migrations")).DiscoverAsync();
-        Assert.Equal(["0001_foundation", "0002_reporting_facts", "0003_sales_dimensions", "0004_operational_audit", "0005_daily_reporting_workflow", "0006_backfill_import_business_scope", "0007_sales_enrichment_facts", "0008_service_cash_inputs", "0009_locked_day_fact_guards", "0010_operational_completion", "0011_phase2_operations", "0012_windows_database_access", "0013_store_manager_permission_guards"], migrations.Select(x => x.Id));
+        Assert.Equal(["0001_foundation", "0002_reporting_facts", "0003_sales_dimensions", "0004_operational_audit", "0005_daily_reporting_workflow", "0006_backfill_import_business_scope", "0007_sales_enrichment_facts", "0008_service_cash_inputs", "0009_locked_day_fact_guards", "0010_operational_completion", "0011_phase2_operations", "0012_windows_database_access", "0013_store_manager_permission_guards", "0014_productisation"], migrations.Select(x => x.Id));
         var facts = Assert.Single(migrations, x => x.Id == "0002_reporting_facts").Sql;
         Assert.Contains("UX_import_files_source_sha256", facts, StringComparison.Ordinal);
         Assert.Contains("UQ_source_lineage", facts, StringComparison.Ordinal);
@@ -139,6 +139,19 @@ public sealed class MigrationTests
         Assert.Contains("DENY DELETE ON SCHEMA::dbo", permissionGuards, StringComparison.Ordinal);
         Assert.Contains("DENY INSERT,UPDATE,DELETE ON dbo.application_users", permissionGuards, StringComparison.Ordinal);
         Assert.Contains("DENY INSERT,UPDATE,DELETE ON dbo.schema_migrations", permissionGuards, StringComparison.Ordinal);
+        var productisation = Assert.Single(migrations, x => x.Id == "0014_productisation").Sql;
+        Assert.Contains("source_documents", productisation, StringComparison.Ordinal);
+        Assert.Contains("document_extractions", productisation, StringComparison.Ordinal);
+        Assert.Contains("register_entries", productisation, StringComparison.Ordinal);
+        Assert.Contains("import_row_outcomes", productisation, StringComparison.Ordinal);
+        Assert.Contains("import_conflicts", productisation, StringComparison.Ordinal);
+        Assert.Contains("approval_requests", productisation, StringComparison.Ordinal);
+        Assert.Contains("accounting_batches", productisation, StringComparison.Ordinal);
+        Assert.Contains("report_packages", productisation, StringComparison.Ordinal);
+        Assert.Contains("persist_stock_movement", productisation, StringComparison.Ordinal);
+        Assert.Contains("ALREADY_PRESENT", productisation, StringComparison.Ordinal);
+        Assert.Contains("CONFLICT", productisation, StringComparison.Ordinal);
+        Assert.DoesNotContain("smtp_password", productisation, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

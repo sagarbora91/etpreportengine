@@ -10,7 +10,7 @@ using Microsoft.Data.SqlClient;
 namespace Etp.Reporting.Infrastructure.SqlServer;
 
 public sealed record AutomatedOperationsSummary(int SourcesProcessed, int SourcesFailed, int DuplicateWorkbooks, int PacksGenerated, string Message);
-public sealed record AutomatedWorkbookOutcome(string ReportCode, string? StoreCode, DateOnly? BusinessDate, bool Duplicate);
+public sealed record AutomatedWorkbookOutcome(string ReportCode, string? StoreCode, DateOnly? BusinessDate, bool Duplicate, int ConflictRows = 0);
 
 public sealed class AutomatedOperationsService(string connectionString)
 {
@@ -23,14 +23,15 @@ public sealed class AutomatedOperationsService(string connectionString)
         if (!configured.IsEnabled) return new(0, 0, 0, 0, "Watch-folder automation is disabled.");
         var paths = AutomationPathPolicy.Validate(configured.InboundPath, configured.ProcessedPath, configured.FailedPath, configured.ReportOutputPath,
             configured.PollMinutes, configured.IsEnabled);
-        foreach (var directory in new[] { paths.InboundPath, paths.ProcessedPath, paths.FailedPath, paths.ReportOutputPath })
+        var duplicatePath = Path.Combine(paths.ProcessedPath, "Duplicate");
+        foreach (var directory in new[] { paths.InboundPath, paths.ProcessedPath, paths.FailedPath, paths.ReportOutputPath, duplicatePath })
         {
             Directory.CreateDirectory(directory);
             if ((File.GetAttributes(directory) & FileAttributes.ReparsePoint) != 0) throw new InvalidOperationException("Automation cannot use a linked folder.");
         }
 
         var sources = Directory.EnumerateFiles(paths.InboundPath, "*", SearchOption.TopDirectoryOnly)
-            .Where(path => Path.GetExtension(path).Equals(".xlsx", StringComparison.OrdinalIgnoreCase) || Path.GetExtension(path).Equals(".zip", StringComparison.OrdinalIgnoreCase))
+            .Where(path => new[] { ".xlsx", ".zip", ".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp" }.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase))
             .Where(path => !Path.GetFileName(path).StartsWith("~$", StringComparison.Ordinal))
             .Where(IsStableAndReadable)
             .Order(StringComparer.OrdinalIgnoreCase).Take(200).ToArray();
@@ -42,6 +43,18 @@ public sealed class AutomatedOperationsService(string connectionString)
             var started = DateTime.UtcNow;
             try
             {
+                var extension = Path.GetExtension(source);
+                if (extension is not null && new[] { ".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp" }.Contains(extension, StringComparer.OrdinalIgnoreCase))
+                {
+                    var documentOutcome = await new ProductisationOperationsService(connectionString).IntakeDocumentAsync(source, null, null, null, cancellationToken);
+                    MoveCompletedSource(source, documentOutcome.Duplicate ? duplicatePath : paths.ProcessedPath);
+                    if (documentOutcome.Duplicate) duplicates++;
+                    processed++;
+                    await repository.RecordAutomationRunAsync("WATCH_IMPORT", Path.GetFileName(source), null, null,
+                        documentOutcome.Duplicate ? "Skipped" : "Succeeded",
+                        documentOutcome.Duplicate ? "Document duplicate skipped by SHA-256." : "Document stored in Source Inbox for classification and review.", started, cancellationToken);
+                    continue;
+                }
                 await using var batchSource = await BatchImportSource.OpenAsync(source, cancellationToken: cancellationToken);
                 var outcomes = new List<AutomatedWorkbookOutcome>();
                 foreach (var workbook in batchSource.WorkbookPaths)
@@ -49,16 +62,16 @@ public sealed class AutomatedOperationsService(string connectionString)
                     var outcome = await ProcessWorkbookAsync(workbook, cancellationToken);
                     outcomes.Add(outcome);
                     if (outcome.Duplicate) duplicates++;
-                    if (!outcome.Duplicate && outcome.BusinessDate is { } date) importedDates.Add(date);
+                    if (!outcome.Duplicate && outcome.ConflictRows == 0 && outcome.BusinessDate is { } date) importedDates.Add(date);
                 }
-                MoveCompletedSource(source, paths.ProcessedPath);
+                MoveCompletedSource(source, outcomes.All(x => x.Duplicate) ? duplicatePath : paths.ProcessedPath);
                 processed++;
                 var imported = outcomes.Count(x => !x.Duplicate);
                 var stores = outcomes.Select(x => x.StoreCode).Where(x => x is not null).Select(x => x!).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
                 var dates = outcomes.Select(x => x.BusinessDate).Where(x => x is not null).Select(x => x!.Value).Distinct().ToArray();
                 await repository.RecordAutomationRunAsync("WATCH_IMPORT", Path.GetFileName(source), stores.Length == 1 ? stores[0] : stores.Length > 1 ? "MULTIPLE" : null,
                     dates.Length == 1 ? dates[0] : null,
-                    imported == 0 ? "Skipped" : "Succeeded", imported == 0 ? "All workbooks were already imported." : $"{imported} workbook(s) imported; duplicates were skipped.", started, cancellationToken);
+                    imported == 0 ? "Skipped" : "Succeeded", imported == 0 ? "All workbooks were already imported." : $"{imported} workbook(s) processed; {outcomes.Sum(x => x.ConflictRows)} conflict row(s) require review.", started, cancellationToken);
             }
             catch (Exception ex)
             {
@@ -124,7 +137,9 @@ public sealed class AutomatedOperationsService(string connectionString)
         else
             await new R025SqlImportOrchestrator(store).PersistAsync(workbook, cancellationToken: cancellationToken, importedBy: AutomationIdentity());
         var scope = await LoadScopeByHashAsync(workbook.Sha256, cancellationToken);
-        return new(scope.ReportCode, scope.StoreCode, scope.BusinessDate, false);
+        await new ProductisationOperationsService(connectionString).IntakeEtpEvidenceAsync(workbookPath,workbook.Sha256,report,scope.StoreCode,scope.BusinessDate,cancellationToken);
+        var details = await new SqlServerImportFileRepository(connectionString).LoadOutcomeByHashAsync(workbook.Sha256, cancellationToken);
+        return new(scope.ReportCode, scope.StoreCode, scope.BusinessDate, false, details.ConflictRows);
     }
 
     private async Task<bool> GenerateAndExportAsync(DateOnly date, string label, bool excel, bool pdf, string outputPath,

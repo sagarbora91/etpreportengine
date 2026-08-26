@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+## 1.6.0 - 2026-08-26
+
+### Added
+
+- Added product navigation, a Home business-day cockpit, Source Inbox, digital Registers, Accounting, global investigation and Approval Centre surfaces.
+- Added immutable document storage, native PDF text detection, an optional isolated PaddleOCR helper boundary and a human verify/reject queue.
+- Added row-level overlapping-period handling that distinguishes new, already-present and conflicting business facts without overwriting canonical history.
+- Added generation-bound ZIP packages with hashed manifests, safe WhatsApp initiation, attached email drafts and an audited sharing address book.
+- Added a controlled KPI catalogue, accounting mappings, balanced batches and one-way Tally XML export.
+
+### Changed
+
+- Expanded unattended intake to supported PDFs/images and prevented automatic report-pack generation for dates containing unresolved import conflicts.
+
 ## 1.5.0 - 2026-08-26
 
 ### Added

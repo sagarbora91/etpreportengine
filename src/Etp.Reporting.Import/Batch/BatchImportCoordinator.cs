@@ -9,19 +9,39 @@ public sealed record BatchImportFileResult(
     BatchImportFileStatus Status,
     int Attempts,
     string? ErrorCode = null,
-    string? SafeErrorMessage = null);
+    string? SafeErrorMessage = null,
+    int RowsProcessed = 0,
+    int NewRows = 0,
+    int AlreadyPresentRows = 0,
+    int ConflictRows = 0,
+    bool ExactDuplicate = false);
 
 public sealed record BatchImportSummary(IReadOnlyList<BatchImportFileResult> Files)
 {
     public int Succeeded => Files.Count(x => x.Status == BatchImportFileStatus.Succeeded);
     public int Failed => Files.Count(x => x.Status == BatchImportFileStatus.Failed);
     public int Cancelled => Files.Count(x => x.Status == BatchImportFileStatus.Cancelled);
+    public int RowsProcessed => Files.Sum(x => x.RowsProcessed);
+    public int NewRows => Files.Sum(x => x.NewRows);
+    public int AlreadyPresentRows => Files.Sum(x => x.AlreadyPresentRows);
+    public int Conflicts => Files.Sum(x => x.ConflictRows);
+    public int ExactDuplicates => Files.Count(x => x.ExactDuplicate);
     public bool CanRetry => Failed > 0;
+}
+
+public sealed record WorkbookImportOutcome(int RowsProcessed, int NewRows, int AlreadyPresentRows, int ConflictRows, bool ExactDuplicate = false)
+{
+    public static WorkbookImportOutcome Imported { get; } = new(0, 0, 0, 0);
 }
 
 public interface IWorkbookImportProcessor
 {
     Task ProcessAsync(string workbookPath, CancellationToken cancellationToken);
+}
+
+public interface IWorkbookImportOutcomeProcessor : IWorkbookImportProcessor
+{
+    Task<WorkbookImportOutcome> ProcessWithOutcomeAsync(string workbookPath, CancellationToken cancellationToken);
 }
 
 public interface IImportFailureClassifier
@@ -82,8 +102,12 @@ public sealed class BatchImportCoordinator
                 attempts++;
                 try
                 {
-                    await _processor.ProcessAsync(workbookPaths[index], cancellationToken).ConfigureAwait(false);
-                    results.Add(new(safeName, BatchImportFileStatus.Succeeded, attempts));
+                    var outcome = _processor is IWorkbookImportOutcomeProcessor detailed
+                        ? await detailed.ProcessWithOutcomeAsync(workbookPaths[index], cancellationToken).ConfigureAwait(false)
+                        : await ProcessWithoutOutcomeAsync(_processor, workbookPaths[index], cancellationToken).ConfigureAwait(false);
+                    results.Add(new(safeName, BatchImportFileStatus.Succeeded, attempts, RowsProcessed: outcome.RowsProcessed,
+                        NewRows: outcome.NewRows, AlreadyPresentRows: outcome.AlreadyPresentRows, ConflictRows: outcome.ConflictRows,
+                        ExactDuplicate: outcome.ExactDuplicate));
                     break;
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -109,5 +133,11 @@ public sealed class BatchImportCoordinator
         }
         progress?.Report(new(results.Count, workbookPaths.Count, "Completed", string.Empty));
         return new BatchImportSummary(results);
+    }
+
+    private static async Task<WorkbookImportOutcome> ProcessWithoutOutcomeAsync(IWorkbookImportProcessor processor, string path, CancellationToken token)
+    {
+        await processor.ProcessAsync(path, token).ConfigureAwait(false);
+        return WorkbookImportOutcome.Imported;
     }
 }

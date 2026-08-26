@@ -95,6 +95,14 @@ public sealed class Phase2OperationsRepository(string connectionString)
               SET @membership+=N'REVOKE INSERT,UPDATE,DELETE ON dbo.report_pack_schedules FROM '+QUOTENAME(@principal)+N';';
               SET @membership+=N'REVOKE UPDATE,DELETE ON dbo.operational_audit FROM '+QUOTENAME(@principal)+N';';
               SET @membership+=N'REVOKE UPDATE,DELETE ON dbo.automation_runs FROM '+QUOTENAME(@principal)+N';';
+              IF OBJECT_ID(N'dbo.product_settings',N'U') IS NOT NULL SET @membership+=N'REVOKE INSERT,UPDATE,DELETE ON dbo.product_settings FROM '+QUOTENAME(@principal)+N';';
+              IF OBJECT_ID(N'dbo.sharing_contacts',N'U') IS NOT NULL SET @membership+=N'REVOKE INSERT,UPDATE,DELETE ON dbo.sharing_contacts FROM '+QUOTENAME(@principal)+N';';
+              IF OBJECT_ID(N'dbo.kpi_catalogue',N'U') IS NOT NULL SET @membership+=N'REVOKE INSERT,UPDATE,DELETE ON dbo.kpi_catalogue FROM '+QUOTENAME(@principal)+N';';
+              IF OBJECT_ID(N'dbo.approval_requests',N'U') IS NOT NULL SET @membership+=N'REVOKE UPDATE,DELETE ON dbo.approval_requests FROM '+QUOTENAME(@principal)+N';';
+              IF OBJECT_ID(N'dbo.controlled_adjustments',N'U') IS NOT NULL SET @membership+=N'REVOKE UPDATE,DELETE ON dbo.controlled_adjustments FROM '+QUOTENAME(@principal)+N';';
+              IF OBJECT_ID(N'dbo.accounting_mappings',N'U') IS NOT NULL SET @membership+=N'REVOKE INSERT,UPDATE,DELETE ON dbo.accounting_mappings FROM '+QUOTENAME(@principal)+N';';
+              IF OBJECT_ID(N'dbo.accounting_batches',N'U') IS NOT NULL SET @membership+=N'REVOKE UPDATE,DELETE ON dbo.accounting_batches FROM '+QUOTENAME(@principal)+N';';
+              IF OBJECT_ID(N'dbo.accounting_entries',N'U') IS NOT NULL SET @membership+=N'REVOKE UPDATE,DELETE ON dbo.accounting_entries FROM '+QUOTENAME(@principal)+N';';
               IF @role='OWNER' AND @active=1 SET @membership+=N'ALTER ROLE db_owner ADD MEMBER '+QUOTENAME(@principal)+N';';
               IF @role='STORE_MANAGER' AND @active=1
               BEGIN
@@ -110,6 +118,14 @@ public sealed class Phase2OperationsRepository(string connectionString)
                 IF @identity<>N'NT AUTHORITY\SYSTEM' SET @membership+=N'DENY INSERT,UPDATE,DELETE ON dbo.report_pack_schedules TO '+QUOTENAME(@principal)+N';';
                 SET @membership+=N'DENY UPDATE,DELETE ON dbo.operational_audit TO '+QUOTENAME(@principal)+N';';
                 SET @membership+=N'DENY UPDATE,DELETE ON dbo.automation_runs TO '+QUOTENAME(@principal)+N';';
+                IF OBJECT_ID(N'dbo.product_settings',N'U') IS NOT NULL SET @membership+=N'DENY INSERT,UPDATE,DELETE ON dbo.product_settings TO '+QUOTENAME(@principal)+N';';
+                IF OBJECT_ID(N'dbo.sharing_contacts',N'U') IS NOT NULL SET @membership+=N'DENY INSERT,UPDATE,DELETE ON dbo.sharing_contacts TO '+QUOTENAME(@principal)+N';';
+                IF OBJECT_ID(N'dbo.kpi_catalogue',N'U') IS NOT NULL SET @membership+=N'DENY INSERT,UPDATE,DELETE ON dbo.kpi_catalogue TO '+QUOTENAME(@principal)+N';';
+                IF OBJECT_ID(N'dbo.approval_requests',N'U') IS NOT NULL SET @membership+=N'DENY UPDATE,DELETE ON dbo.approval_requests TO '+QUOTENAME(@principal)+N';';
+                IF OBJECT_ID(N'dbo.controlled_adjustments',N'U') IS NOT NULL SET @membership+=N'DENY UPDATE,DELETE ON dbo.controlled_adjustments TO '+QUOTENAME(@principal)+N';';
+                IF OBJECT_ID(N'dbo.accounting_mappings',N'U') IS NOT NULL SET @membership+=N'DENY INSERT,UPDATE,DELETE ON dbo.accounting_mappings TO '+QUOTENAME(@principal)+N';';
+                IF OBJECT_ID(N'dbo.accounting_batches',N'U') IS NOT NULL SET @membership+=N'DENY UPDATE,DELETE ON dbo.accounting_batches TO '+QUOTENAME(@principal)+N';';
+                IF OBJECT_ID(N'dbo.accounting_entries',N'U') IS NOT NULL SET @membership+=N'DENY UPDATE,DELETE ON dbo.accounting_entries TO '+QUOTENAME(@principal)+N';';
               END;
               IF @role='VIEWER' AND @active=1 SET @membership+=N'ALTER ROLE db_datareader ADD MEMBER '+QUOTENAME(@principal)+N';';
               IF @identity=N'NT AUTHORITY\SYSTEM' AND @active=1 SET @membership+=N'ALTER ROLE db_backupoperator ADD MEMBER '+QUOTENAME(@principal)+N';';
