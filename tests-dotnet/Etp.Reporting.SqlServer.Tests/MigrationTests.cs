@@ -66,7 +66,7 @@ public sealed class MigrationTests
     {
         var root = FindRepositoryRoot();
         var migrations = await new DirectoryMigrationSource(Path.Combine(root, "database", "migrations")).DiscoverAsync();
-        Assert.Equal(["0001_foundation", "0002_reporting_facts", "0003_sales_dimensions"], migrations.Select(x => x.Id));
+        Assert.Equal(["0001_foundation", "0002_reporting_facts", "0003_sales_dimensions", "0004_operational_audit"], migrations.Select(x => x.Id));
         var facts = Assert.Single(migrations, x => x.Id == "0002_reporting_facts").Sql;
         Assert.Contains("UX_import_files_source_sha256", facts, StringComparison.Ordinal);
         Assert.Contains("UQ_source_lineage", facts, StringComparison.Ordinal);
@@ -78,6 +78,9 @@ public sealed class MigrationTests
         Assert.Contains("reporting_sales_tenders", facts, StringComparison.Ordinal);
         Assert.Contains("UNRESOLVED_PAYMENTTYPE25", facts, StringComparison.Ordinal);
         Assert.Contains("stock_movements", facts, StringComparison.Ordinal);
+        var audit = Assert.Single(migrations, x => x.Id == "0004_operational_audit").Sql;
+        Assert.Contains("operational_audit", audit, StringComparison.Ordinal);
+        Assert.DoesNotContain("document_number", audit, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("stock_snapshots", facts, StringComparison.Ordinal);
         var dimensions = Assert.Single(migrations, x => x.Id == "0003_sales_dimensions").Sql;
         Assert.Contains("brand_segment", dimensions, StringComparison.Ordinal);

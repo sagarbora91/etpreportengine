@@ -1,6 +1,6 @@
 # Windows Quick Start
 
-For the packaged release, run `EtpReportingEngine-Setup-1.0.0-x64.exe`, accept the default installation directory, and launch **ETP Reporting Engine** from the Start Menu or desktop shortcut. The installer supports upgrades and uninstall through Windows Installed Apps.
+For the packaged release, run the versioned `EtpReportingEngine-Setup-<version>-x64.exe`, accept the default installation directory, and launch **ETP Reporting Engine** from the Start Menu or desktop shortcut. The installer supports upgrades and uninstall through Windows Installed Apps.
 
 The SQL connection is saved for the current Windows user after a successful connection test and is checked automatically at startup. The Dashboard shows aggregate import status and recent import history. No database password is stored by the default Windows-integrated connection.
 

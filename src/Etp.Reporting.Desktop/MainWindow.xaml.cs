@@ -55,6 +55,7 @@ public partial class MainWindow : Window
         var saved = LoadSettings();
         if (!string.IsNullOrWhiteSpace(saved?.ConnectionString)) ConnectionStringInput.Text = saved.ConnectionString;
         await CheckConnectionAndRefreshAsync(false);
+        await RecordAuditAsync("ApplicationStart", "Succeeded", "Desktop application started");
     }
 
     private void Navigate_Click(object sender, RoutedEventArgs e)
@@ -92,6 +93,7 @@ public partial class MainWindow : Window
             SetConnectionState(true, "Ready to import");
             TrySaveSettings();
             await RefreshDashboardAsync();
+            await RecordAuditAsync("DatabaseSetup", "Succeeded", "Database migrations verified");
         }
         catch (Exception ex) { ConnectionResult.Text = $"Database setup failed: {ex.Message}"; }
     }
@@ -219,6 +221,7 @@ public partial class MainWindow : Window
             ValidationResult.Text = $"Batch completed: {summary.Succeeded:N0} succeeded, {summary.Failed:N0} failed, {summary.Cancelled:N0} cancelled.";
             RetryBatchButton.IsEnabled = failedBatchPaths.Count > 0;
             await RefreshDashboardAsync();
+            await RecordAuditAsync("ImportBatch", summary.Failed > 0 ? "Failed" : summary.Cancelled > 0 ? "Cancelled" : "Succeeded", "Batch import completed");
         }
         finally { StartBatchButton.IsEnabled = true; CancelBatchButton.IsEnabled = false; }
     }
@@ -278,13 +281,14 @@ public partial class MainWindow : Window
                 result.Rows.Select(x => (IReadOnlyList<object?>)[x.Key, x.SourceSignedQuantity, x.SourceSignedNetAmount, x.DistinctInvoices]).ToArray(),
                 ["Total", result.Rows.Sum(x => x.SourceSignedQuantity), result.Rows.Sum(x => x.SourceSignedNetAmount), result.Rows.Sum(x => x.DistinctInvoices)]);
             ApplyReportFilter();
+            await RecordAuditAsync("ReportRun", result.Status == ReconciliationStatus.Passed ? "Succeeded" : result.Status.ToString(), "Sales report");
         }
         catch (Exception ex) { ReportResult.Text = $"Report failed: {ex.Message}"; }
     }
 
     private async void RunTenderReport_Click(object sender, RoutedEventArgs e)
     {
-        try { var r = await CreateReportExecutor().ExecuteTenderReconciliationAsync(ReportScope()); ReportGrid.ItemsSource = r.Documents; ReportResult.Text = $"{r.Status}: invoice {r.InvoiceTotal:N2}, tender {r.TenderTotal:N2}, variance {r.Variance:N2}."; SetExport("Invoice Tender Reconciliation", r.Status, r.RuleVersion, r.Message, [new("Store"),new("Document"),new("Invoice", "#,##0.00"),new("Tender", "#,##0.00"),new("Variance", "#,##0.00"),new("Status")], r.Documents.Select(x=>(IReadOnlyList<object?>)[x.StoreCode,x.DocumentNumber,x.InvoiceAmount,x.TenderAmount,x.Variance,x.Status.ToString()]).ToArray(), ["Total","",r.InvoiceTotal,r.TenderTotal,r.Variance,r.Status.ToString()]); ApplyReportFilter(); }
+        try { var r = await CreateReportExecutor().ExecuteTenderReconciliationAsync(ReportScope()); ReportGrid.ItemsSource = r.Documents; ReportResult.Text = $"{r.Status}: invoice {r.InvoiceTotal:N2}, tender {r.TenderTotal:N2}, variance {r.Variance:N2}."; SetExport("Invoice Tender Reconciliation", r.Status, r.RuleVersion, r.Message, [new("Store"),new("Document"),new("Invoice", "#,##0.00"),new("Tender", "#,##0.00"),new("Variance", "#,##0.00"),new("Status")], r.Documents.Select(x=>(IReadOnlyList<object?>)[x.StoreCode,x.DocumentNumber,x.InvoiceAmount,x.TenderAmount,x.Variance,x.Status.ToString()]).ToArray(), ["Total","",r.InvoiceTotal,r.TenderTotal,r.Variance,r.Status.ToString()]); ApplyReportFilter(); await RecordAuditAsync("ReportRun", r.Status == ReconciliationStatus.Passed ? "Succeeded" : r.Status.ToString(), "Tender control"); }
         catch (Exception ex) { ReportResult.Text = $"Reconciliation failed: {ex.Message}"; }
     }
 
@@ -301,13 +305,14 @@ public partial class MainWindow : Window
                 diagnostic.Rows.Select(x => (IReadOnlyList<object?>)[x.StoreCode, x.DocumentNumber, x.InvoiceAmount, x.TenderAmount, x.Variance, x.LikelyCause.ToString(), x.RecommendedCheck]).ToArray(),
                 ["Total", "", reconciliation.InvoiceTotal, reconciliation.TenderTotal, reconciliation.Variance, diagnostic.Status.ToString(), $"{diagnostic.FailedDocuments:N0} documents"]);
             ApplyReportFilter();
+            await RecordAuditAsync("ReportRun", diagnostic.Status == ReconciliationStatus.Passed ? "Succeeded" : diagnostic.Status.ToString(), "Tender diagnostic");
         }
         catch (Exception ex) { ReportResult.Text = $"Tender diagnostics failed: {ex.Message}"; }
     }
 
     private async void RunStockReport_Click(object sender, RoutedEventArgs e)
     {
-        try { var r = await CreateReportExecutor().ExecuteStockReconciliationAsync(ReportScope()); ReportGrid.ItemsSource = r.Items; ReportResult.Text = $"{r.Status}: {r.Message}"; SetExport("Stock Reconciliation", r.Status, r.RuleVersion, r.Message, [new("Store"),new("Item"),new("Opening", "#,##0.00"),new("Movements", "#,##0.00"),new("Expected Closing", "#,##0.00"),new("Reported Closing", "#,##0.00"),new("Variance", "#,##0.00"),new("Status")], r.Items.Select(x=>(IReadOnlyList<object?>)[x.StoreCode,x.ItemCode,x.Opening,x.SourceSignedMovements,x.ExpectedClosing,x.ReportedClosing,x.Variance,x.Status.ToString()]).ToArray(), ["Total","",r.Items.Sum(x=>x.Opening),r.Items.Sum(x=>x.SourceSignedMovements),r.Items.Sum(x=>x.ExpectedClosing),r.Items.Sum(x=>x.ReportedClosing),r.Items.Sum(x=>x.Variance),r.Status.ToString()]); ApplyReportFilter(); }
+        try { var r = await CreateReportExecutor().ExecuteStockReconciliationAsync(ReportScope()); ReportGrid.ItemsSource = r.Items; ReportResult.Text = $"{r.Status}: {r.Message}"; SetExport("Stock Reconciliation", r.Status, r.RuleVersion, r.Message, [new("Store"),new("Item"),new("Opening", "#,##0.00"),new("Movements", "#,##0.00"),new("Expected Closing", "#,##0.00"),new("Reported Closing", "#,##0.00"),new("Variance", "#,##0.00"),new("Status")], r.Items.Select(x=>(IReadOnlyList<object?>)[x.StoreCode,x.ItemCode,x.Opening,x.SourceSignedMovements,x.ExpectedClosing,x.ReportedClosing,x.Variance,x.Status.ToString()]).ToArray(), ["Total","",r.Items.Sum(x=>x.Opening),r.Items.Sum(x=>x.SourceSignedMovements),r.Items.Sum(x=>x.ExpectedClosing),r.Items.Sum(x=>x.ReportedClosing),r.Items.Sum(x=>x.Variance),r.Status.ToString()]); ApplyReportFilter(); await RecordAuditAsync("ReportRun", r.Status == ReconciliationStatus.Passed ? "Succeeded" : r.Status.ToString(), "Stock control"); }
         catch (Exception ex) { ReportResult.Text = $"Reconciliation failed: {ex.Message}"; }
     }
 
@@ -324,7 +329,7 @@ public partial class MainWindow : Window
         if (currentExportMetadata is null || currentExportData is null) return;
         var dialog = new SaveFileDialog { Filter = "Excel workbook (*.xlsx)|*.xlsx", FileName = $"{currentExportMetadata.ReportName.Replace(' ', '_')}_{currentExportMetadata.DateFrom:yyyyMMdd}_{currentExportMetadata.DateTo:yyyyMMdd}.xlsx", AddExtension = true };
         if (dialog.ShowDialog(this) != true) return;
-        try { new OpenXmlReportExporter().Export(dialog.FileName, currentExportMetadata, currentExportData); ReportResult.Text = $"Excel report saved to {dialog.FileName}"; }
+        try { new OpenXmlReportExporter().Export(dialog.FileName, currentExportMetadata, currentExportData); ReportResult.Text = $"Excel report saved to {dialog.FileName}"; _ = RecordAuditAsync("ExportExcel", "Succeeded", "Report exported"); }
         catch (Exception ex) { ReportResult.Text = $"Excel export failed: {ex.Message}"; }
     }
 
@@ -333,7 +338,7 @@ public partial class MainWindow : Window
         if (currentExportMetadata is null || currentExportData is null) return;
         var dialog = new SaveFileDialog { Filter = "PDF report (*.pdf)|*.pdf", FileName = $"{SafeFileName(currentExportMetadata.ReportName)}_{currentExportMetadata.DateFrom:yyyyMMdd}_{currentExportMetadata.DateTo:yyyyMMdd}.pdf", AddExtension = true };
         if (dialog.ShowDialog(this) != true) return;
-        try { new SimplePdfReportExporter().Export(dialog.FileName, currentExportMetadata, currentExportData); ReportResult.Text = $"PDF report saved to {dialog.FileName}"; }
+        try { new SimplePdfReportExporter().Export(dialog.FileName, currentExportMetadata, currentExportData); ReportResult.Text = $"PDF report saved to {dialog.FileName}"; _ = RecordAuditAsync("ExportPdf", "Succeeded", "Report exported"); }
         catch (Exception ex) { ReportResult.Text = $"PDF export failed: {ex.Message}"; }
     }
 
@@ -348,6 +353,7 @@ public partial class MainWindow : Window
         SetConnectionState(connected, connected ? "Ready to validate or report" : "Waiting for connection");
         ApplicationStatus.Text = connected ? $"Connected to SQL Server {health.ServerVersion}." : health.Message;
         if (connected) { TrySaveSettings(); await RefreshDashboardAsync(); }
+        await RecordAuditAsync("ConnectionTest", connected ? "Succeeded" : "Failed", "Database connection tested");
     }
 
     private void SetConnectionState(bool connected, string importState)
@@ -365,9 +371,11 @@ public partial class MainWindow : Window
         {
             var summaryTask = new OperationalStatusRepository(ConnectionStringInput.Text).LoadAsync();
             var healthTask = new DatabaseOperationalHealthRepository(ConnectionStringInput.Text).LoadAsync();
-            await Task.WhenAll(summaryTask, healthTask);
+            var auditTask = new OperationalAuditRepository(ConnectionStringInput.Text).LoadRecentAsync(25);
+            await Task.WhenAll(summaryTask, healthTask, auditTask);
             var summary = await summaryTask;
             var health = await healthTask;
+            var audit = await auditTask;
             latestOperationalSummary = summary;
             ImportedFilesMetric.Text = summary.ImportedFiles.ToString("N0");
             CompletedBatchesMetric.Text = summary.CompletedBatches.ToString("N0");
@@ -381,6 +389,7 @@ public partial class MainWindow : Window
             BackupAgeMetric.Text = health.LastSuccessfulBackupUtc?.ToString("dd MMM yyyy HH:mm") ?? "Missing";
             FailedImportsMetric.Text = health.FailedImportsLast24Hours.ToString("N0");
             HealthWarningsList.ItemsSource = health.Warnings.Select(x => $"{x.Code}: {x.Message}").ToArray();
+            OperationalAuditGrid.ItemsSource = audit;
         }
         catch (Exception ex)
         {
@@ -388,6 +397,7 @@ public partial class MainWindow : Window
             LatestImportMetric.Text = "Unavailable";
             DatabaseHealthMetric.Text = DatabaseSizeMetric.Text = BackupAgeMetric.Text = FailedImportsMetric.Text = "Unavailable";
             HealthWarningsList.ItemsSource = null;
+            OperationalAuditGrid.ItemsSource = null;
             ApplicationStatus.Text = $"Dashboard refresh failed: {ex.Message}";
         }
     }
@@ -426,6 +436,12 @@ public partial class MainWindow : Window
     }
 
     private static string SafeFileName(string value) => string.Concat(value.Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c)).Replace(' ', '_');
+
+    private async Task RecordAuditAsync(string eventType, string outcome, string detail)
+    {
+        try { await new OperationalAuditRepository(ConnectionStringInput.Text).RecordAsync(eventType, outcome, detail); }
+        catch (Exception ex) when (ex is SqlException or InvalidOperationException or ArgumentException) { }
+    }
 
     private static IReadOnlyList<string>? Csv(string value)
     {

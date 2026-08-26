@@ -17,6 +17,12 @@ if (args.Length == 3 && args[0] == "--verify-existing")
     await VerifyExistingAsync(args[1], args[2]);
     return 0;
 }
+if (args.Length == 3 && args[0] == "--migrate-existing")
+{
+    var result = await new SqlServerDatabaseBootstrapper(args[1], new DirectoryMigrationSource(args[2])).BootstrapAsync();
+    Console.WriteLine($"Existing database migrated; applied={string.Join(',', result.AppliedMigrations)}.");
+    return 0;
+}
 
 if (args.Length != 3 || !Directory.Exists(args[0]) || !Directory.Exists(args[2]))
 {
