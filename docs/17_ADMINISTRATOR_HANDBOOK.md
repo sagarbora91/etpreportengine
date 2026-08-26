@@ -25,6 +25,10 @@ Uninstall from Windows **Installed apps**. Uninstalling the program does not del
 - Import only approved ETP workbooks or ZIP packages. Review the batch summary; retry only failed files after correcting the reported cause.
 - Reconcile sales, tender, and stock controls. Tender differences are diagnostic findings and must not be silently adjusted.
 - Export only to approved local folders. Treat every export as confidential business data.
+- Confirm that the selected business date/store matches the ETP source scope. The importer records source report date, business date, importing Windows user and import timestamp separately.
+- Finalisation is database-enforced. New source files and manual-input changes are rejected for a locked store/date. Reopen requires Windows administrator membership and a recorded reason.
+- Treat R003/R013 as enrichment evidence only. Their order in a ZIP is irrelevant: R025 persistence rematches previously staged enrichment rows atomically without changing revenue totals.
+- Service cash/card/UPI are controlled manual operational facts until a deterministic populated ETP Service profile is approved. They must never be merged into R025 retail sales.
 
 ## Approved access policy
 

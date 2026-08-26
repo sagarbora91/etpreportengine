@@ -10,7 +10,7 @@ if (args.Length != 1 || !Directory.Exists(args[0]))
     return 2;
 }
 
-var expected = new[] { "SDB-VariantwiseSales", "Revenue Report", "Variant Stock ledger", "Closing Stock" };
+var expected = new[] { "SDB-VariantwiseSales", "Revenue Report", "CRO Wise Sales", "All Discount Type", "Variant Stock ledger", "Closing Stock" };
 var files = Directory.EnumerateFiles(args[0], "*.xlsx", SearchOption.AllDirectories)
     .Where(path => !Path.GetFileName(path).StartsWith("~$", StringComparison.Ordinal))
     .Where(path => expected.Any(name => Path.GetFileName(path).Contains(name, StringComparison.OrdinalIgnoreCase)))
@@ -32,4 +32,4 @@ foreach (var file in files)
     catch (Exception ex) { failures++; Console.WriteLine($"ERROR | {Path.GetFileName(file)} | {ex.GetType().Name}"); }
 }
 Console.WriteLine($"Checked {files.Length} workbooks; failures: {failures}.");
-return failures == 0 && files.Length >= 8 ? 0 : 1;
+return failures == 0 && files.Length >= 12 ? 0 : 1;

@@ -66,7 +66,7 @@ public sealed class MigrationTests
     {
         var root = FindRepositoryRoot();
         var migrations = await new DirectoryMigrationSource(Path.Combine(root, "database", "migrations")).DiscoverAsync();
-        Assert.Equal(["0001_foundation", "0002_reporting_facts", "0003_sales_dimensions", "0004_operational_audit"], migrations.Select(x => x.Id));
+        Assert.Equal(["0001_foundation", "0002_reporting_facts", "0003_sales_dimensions", "0004_operational_audit", "0005_daily_reporting_workflow", "0006_backfill_import_business_scope", "0007_sales_enrichment_facts", "0008_service_cash_inputs", "0009_locked_day_fact_guards"], migrations.Select(x => x.Id));
         var facts = Assert.Single(migrations, x => x.Id == "0002_reporting_facts").Sql;
         Assert.Contains("UX_import_files_source_sha256", facts, StringComparison.Ordinal);
         Assert.Contains("UQ_source_lineage", facts, StringComparison.Ordinal);
@@ -84,6 +84,30 @@ public sealed class MigrationTests
         Assert.Contains("stock_snapshots", facts, StringComparison.Ordinal);
         var dimensions = Assert.Single(migrations, x => x.Id == "0003_sales_dimensions").Sql;
         Assert.Contains("brand_segment", dimensions, StringComparison.Ordinal);
+        var daily = Assert.Single(migrations, x => x.Id == "0005_daily_reporting_workflow").Sql;
+        Assert.Contains("business_date", daily, StringComparison.Ordinal);
+        Assert.Contains("source_report_date", daily, StringComparison.Ordinal);
+        Assert.Contains("imported_by", daily, StringComparison.Ordinal);
+        Assert.Contains("manual_operational_inputs", daily, StringComparison.Ordinal);
+        Assert.Contains("daily_reporting_days", daily, StringComparison.Ordinal);
+        Assert.Contains("trg_import_files_protect_locked", daily, StringComparison.Ordinal);
+        Assert.Contains("trg_manual_operational_inputs_protect_locked", daily, StringComparison.Ordinal);
+        Assert.DoesNotContain("CUSTOMERNAME", daily, StringComparison.OrdinalIgnoreCase);
+        var backfill = Assert.Single(migrations, x => x.Id == "0006_backfill_import_business_scope").Sql;
+        Assert.Contains("LEGACY_IMPORT", backfill, StringComparison.Ordinal);
+        Assert.Contains("source_report_date", backfill, StringComparison.Ordinal);
+        var enrichment = Assert.Single(migrations, x => x.Id == "0007_sales_enrichment_facts").Sql;
+        Assert.Contains("sales_line_enrichments", enrichment, StringComparison.Ordinal);
+        Assert.Contains("source_cro_number", enrichment, StringComparison.Ordinal);
+        Assert.DoesNotContain("customer", enrichment, StringComparison.OrdinalIgnoreCase);
+        var service = Assert.Single(migrations, x => x.Id == "0008_service_cash_inputs").Sql;
+        Assert.Contains("SERVICE_CASH", service, StringComparison.Ordinal);
+        Assert.Contains("CLOSING_CASH_COUNTED", service, StringComparison.Ordinal);
+        var guards = Assert.Single(migrations, x => x.Id == "0009_locked_day_fact_guards").Sql;
+        Assert.Contains("trg_sales_lines_protect_locked", guards, StringComparison.Ordinal);
+        Assert.Contains("trg_sales_tenders_protect_locked", guards, StringComparison.Ordinal);
+        Assert.Contains("trg_stock_snapshots_protect_locked", guards, StringComparison.Ordinal);
+        Assert.Contains("trg_sales_enrichments_protect_locked", guards, StringComparison.Ordinal);
     }
 
     [Fact]

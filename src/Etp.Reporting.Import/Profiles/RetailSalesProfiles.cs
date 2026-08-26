@@ -4,6 +4,23 @@ namespace Etp.Reporting.Import.Profiles;
 
 public static class RetailSalesProfiles
 {
+    public static readonly IReadOnlyList<string> R003Headers =
+    [
+        "TRANS_TYPE", "STORE CODE", "STORE NAME", "STORE TYPE", "CHANNEL", "REGION", "CITY",
+        "INVOICE NUMBER", "INVOICE DATE", "ITEMNUMBER", "BRAND", "BRAND NAME", "CLUSTER", "GENDER",
+        "QTY", "UCP", "GROSSUCP", "SCH_DISCOUNTS", "NETGROSS", "ACTIVATION DETAILS", "USER DISCOUNTS",
+        "OTHERCHARG", "NETAMOUNT", "USER DISCOUNT DETAILS", "TAX", "NETVALUE", "INVOICE REF NO",
+        "INVOICE REF DATE", "CUSTOMERNUMBER", "CUSTOMERNAME", "CONTACTNO", "ULP NO", "EASTIMESTAMP", "STORETIMESTAMP"
+    ];
+
+    public static readonly IReadOnlyList<string> R013Headers =
+    [
+        "TRANS_TYPE", "STORE CODE", "STORE NAME", "STORE TYPE", "CHANNEL", "REGION", "CITY",
+        "ITEMNUMBER", "BRAND", "BRANDNAME", "CLUSTER", "GENDER", "CRO NUMBER", "CRO NAME", "CUSTOMERNAME", "CONTACTNO",
+        "INVNUMBER", "INVDATE", "QTY", "UCP", "GROSSUCP", "SCH_DISCOUNTS", "NETGROSS", "PRE_DISCOUNTS", "NETAMOUNT", "NETVALUE",
+        "INVREFNO", "INVREFDATE"
+    ];
+
     public static readonly IReadOnlyList<string> R025Headers =
     [
         "TRANS_TYPE", "STORE CODE", "STORENAME", "STORETYPE", "CHANNEL", "REGION", "CITY",
@@ -52,6 +69,36 @@ public static class RetailSalesProfiles
         new("INVREFDATE", "reference_invoice_date", CanonicalDataType.Date, false),
         new("STORETIMESTAMP", "source_store_timestamp", CanonicalDataType.Text, false));
 
+    public static ImportProfile R003 { get; } = Create(
+        "R003",
+        R003Headers,
+        new("TRANS_TYPE", "source_transaction_type", CanonicalDataType.Text, true),
+        new("STORE CODE", "store_code", CanonicalDataType.Identifier, true),
+        new("INVOICE NUMBER", "invoice_number", CanonicalDataType.Identifier, true),
+        new("INVOICE DATE", "transaction_date", CanonicalDataType.Date, true),
+        new("ITEMNUMBER", "product_code", CanonicalDataType.Identifier, true),
+        new("QTY", "source_quantity", CanonicalDataType.Decimal, true),
+        new("SCH_DISCOUNTS", "scheme_discount", CanonicalDataType.Decimal, false),
+        new("USER DISCOUNTS", "user_discount", CanonicalDataType.Decimal, false),
+        new("OTHERCHARG", "other_charges", CanonicalDataType.Decimal, false),
+        new("NETAMOUNT", "source_net_amount", CanonicalDataType.Decimal, true),
+        new("NETVALUE", "source_net_value", CanonicalDataType.Decimal, true));
+
+    public static ImportProfile R013 { get; } = Create(
+        "R013",
+        R013Headers,
+        new("TRANS_TYPE", "source_transaction_type", CanonicalDataType.Text, true),
+        new("STORE CODE", "store_code", CanonicalDataType.Identifier, true),
+        new("ITEMNUMBER", "product_code", CanonicalDataType.Identifier, true),
+        new("CRO NUMBER", "cro_number", CanonicalDataType.Identifier, true),
+        new("INVNUMBER", "invoice_number", CanonicalDataType.Identifier, true),
+        new("INVDATE", "transaction_date", CanonicalDataType.Date, true),
+        new("QTY", "source_quantity", CanonicalDataType.Decimal, true),
+        new("SCH_DISCOUNTS", "scheme_discount", CanonicalDataType.Decimal, false),
+        new("PRE_DISCOUNTS", "pre_discount", CanonicalDataType.Decimal, false),
+        new("NETAMOUNT", "source_net_amount", CanonicalDataType.Decimal, true),
+        new("NETVALUE", "source_net_value", CanonicalDataType.Decimal, true));
+
     public static ImportProfile R022 { get; } = Create(
         "R022",
         R022Headers,
@@ -91,7 +138,7 @@ public static class RetailSalesProfiles
         new("STORETIMESTAMP", "source_store_timestamp", CanonicalDataType.Text, false),
         new("REFERENCENUMBER", "reference_invoice_number", CanonicalDataType.Identifier, false));
 
-    public static IReadOnlyList<ImportProfile> FirstSalesSlice { get; } = [R025, R022];
+    public static IReadOnlyList<ImportProfile> FirstSalesSlice { get; } = [R025, R022, R013, R003];
 
     private static ImportProfile Create(string reportCode, IReadOnlyList<string> headers, params ImportFieldMapping[] fields) =>
         new(reportCode, "ETP_2026_08", "1", ImportProfileMatcher.CreateHeaderSignature(headers), fields);

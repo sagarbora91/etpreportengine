@@ -6,6 +6,8 @@ The new SQL Server-backed Windows reporting application is documented in
 The legacy Android Business Control Centre retained below is source/reference material and
 is not the Windows reporting database.
 
+The Windows application now supports a complete business-date workflow: deterministic batch import for R003/R013/R022/R025 and stock profiles, controlled manual operational inputs, FTD/MTD/YTD/LY DSR, customer-safe invoice summaries, service and cash controls, staff/CRO reconciliation, stock/tender controls, Excel/PDF output, a one-action daily reporting pack, and audited finalise/reopen protection. See [`docs/21_DAILY_REPORTING_IMPLEMENTATION_MAP.md`](docs/21_DAILY_REPORTING_IMPLEMENTATION_MAP.md) and [`docs/22_REPORT_TO_SOURCE_MATRIX.md`](docs/22_REPORT_TO_SOURCE_MATRIX.md).
+
 # Saagar Traders — Business Control Centre → Offline Android APK
 
 This project packages the **Business Control Centre shell** (`www/index.html`, with all

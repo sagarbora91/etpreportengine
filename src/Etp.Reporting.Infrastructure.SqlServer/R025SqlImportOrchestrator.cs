@@ -19,7 +19,8 @@ public sealed class R025SqlImportOrchestrator(ITransactionalImportStore store)
 {
     public async Task<SalesImportPersistenceOutcome> PersistAsync(
         WorkbookSnapshot workbook, int? storeId = null, string currencyCode = "INR",
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default, DateOnly? expectedBusinessDate = null,
+        string? expectedStoreCode = null, string? importedBy = null)
     {
         ArgumentNullException.ThrowIfNull(workbook);
         var preflight = new ImportPreflight().Inspect(workbook, [RetailSalesProfiles.R025]);
@@ -40,10 +41,14 @@ public sealed class R025SqlImportOrchestrator(ITransactionalImportStore store)
                 currencyCode, new(preflight.Sheet!.Name, row.SourceRowNumber, "R025_SALES_LINE"));
         }).ToArray();
         var dates = lines.Select(x => x.TransactionDate).ToArray();
+        var storeCode = SingleStore(lines.Select(x => x.StoreCode));
+        var businessDate = dates.Length == 0 ? (DateOnly?)null : dates.Max();
+        (storeCode, businessDate) = ValidateScope(storeCode, businessDate, expectedStoreCode, expectedBusinessDate);
         var batchId = Guid.NewGuid();
         var package = new ImportPersistencePackage(
             new(batchId, storeId, dates.Length == 0 ? null : dates.Min(), dates.Length == 0 ? null : dates.Max(), DateTimeOffset.UtcNow),
-            new(batchId, null, workbook.FileName, workbook.Sha256, workbook.FileSizeBytes),
+            new(batchId, null, workbook.FileName, workbook.Sha256, workbook.FileSizeBytes,
+                "R025", storeCode, businessDate, businessDate, importedBy ?? Environment.UserName),
             lines, [], [], []);
         var fileId = await store.PersistAsync(package, cancellationToken);
         return new(batchId, fileId, lines.Length);
@@ -53,4 +58,27 @@ public sealed class R025SqlImportOrchestrator(ITransactionalImportStore store)
         values.TryGetValue(key, out var value) && value is T typed ? typed : throw new InvalidOperationException($"Required staged field '{key}' is missing.");
     private static T? Optional<T>(IReadOnlyDictionary<string, object?> values, string key) where T : class =>
         values.TryGetValue(key, out var value) ? value as T : null;
+
+    private static string? SingleStore(IEnumerable<string> values)
+    {
+        var stores = values.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        return stores.Length switch
+        {
+            0 => null,
+            1 => stores[0],
+            _ => throw new InvalidOperationException("A source workbook cannot contain more than one store.")
+        };
+    }
+
+    internal static (string? StoreCode, DateOnly? BusinessDate) ValidateScope(
+        string? sourceStore, DateOnly? sourceDate, string? expectedStore, DateOnly? expectedDate)
+    {
+        expectedStore = string.IsNullOrWhiteSpace(expectedStore) ? null : expectedStore.Trim();
+        if (sourceStore is not null && expectedStore is not null &&
+            !string.Equals(sourceStore, expectedStore, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("The workbook store does not match the selected store.");
+        if (sourceDate is not null && expectedDate is not null && sourceDate != expectedDate)
+            throw new InvalidOperationException("The ETP source report date does not match the selected business date.");
+        return (sourceStore ?? expectedStore, sourceDate ?? expectedDate);
+    }
 }

@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+## 1.4.0 - 2026-08-26
+
+- Added an operational business-date workflow with source completeness, controlled manual inputs, daily finalisation and administrator reopen auditing.
+- Added import metadata for report code, store, ETP business date, source report date and importing user while retaining a separate import timestamp.
+- Added centrally tested Indian financial-year FTD/MTD/YTD/LY period resolution and safe growth/productivity/conversion calculations.
+- Added an executable report-to-source registry covering sales summaries, DSR, service, tender/cash, closing stock and staff reporting without guessing unresolved definitions.
+- Added database guards that block new imports and manual-input changes against finalised business dates.
+- Added a Store Manager Daily Workflow screen and golden business-rule tests.
+- Ported and real-corpus verified R003 discount and R013 CRO profiles with atomic, import-order-independent enrichment matching that cannot change canonical revenue.
+- Added customer-safe invoice summaries, FTD/MTD/YTD/LY DSR, staff/CRO performance with exact variance diagnostics, controlled service tender reporting, cash-drawer reconciliation and a one-action daily reporting pack.
+
 All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and semantic versioning.
 
 ## [Unreleased]

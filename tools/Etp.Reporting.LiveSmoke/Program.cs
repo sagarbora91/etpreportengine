@@ -36,7 +36,7 @@ var migrationDirectory = args[2];
 var bootstrap = await new SqlServerDatabaseBootstrapper(connectionString, new DirectoryMigrationSource(migrationDirectory)).BootstrapAsync();
 Console.WriteLine($"Database ready; created={bootstrap.DatabaseCreated}; migrations={bootstrap.AppliedMigrations.Count}.");
 
-var expected = new[] { "SDB-VariantwiseSales", "Revenue Report", "Variant Stock ledger", "Closing Stock" };
+var expected = new[] { "SDB-VariantwiseSales", "Revenue Report", "CRO Wise Sales", "All Discount Type", "Variant Stock ledger", "Closing Stock" };
 var files = Directory.EnumerateFiles(sourceRoot, "*.xlsx", SearchOption.AllDirectories)
     .Where(path => !Path.GetFileName(path).StartsWith("~$", StringComparison.Ordinal))
     .Where(path => expected.Any(name => Path.GetFileName(path).Contains(name, StringComparison.OrdinalIgnoreCase)))
@@ -64,6 +64,10 @@ foreach (var file in files)
         case "STOCK_LEDGER" or "CLOSING_STOCK":
             importedRows += (await new StockSqlImportOrchestrator(store).PersistAsync(workbook)).PersistedRows;
             break;
+        case "R003" or "R013":
+            importedRows += (await new RetailEnrichmentSqlImportOrchestrator(connectionString)
+                .PersistAsync(workbook, preflight.Profile.ReportCode)).PersistedRows;
+            break;
         default: throw new InvalidOperationException("Unexpected approved profile.");
     }
     Console.WriteLine($"Imported {preflight.Profile.ReportCode}: {Path.GetFileName(file)}");
@@ -82,12 +86,36 @@ var daily = await executor.ExecuteSalesSummaryAsync(scope, SalesSummaryDimension
 var brandSegment = await executor.ExecuteSalesSummaryAsync(scope, SalesSummaryDimension.BrandSegment);
 var tenders = await executor.ExecuteTenderReconciliationAsync(scope);
 var stock = await executor.ExecuteStockReconciliationAsync(scope);
+var operationalReports = new OperationalReportRepository(connectionString);
+var invoiceSummary = await operationalReports.LoadInvoiceSummaryAsync(scope);
+var dsr = await operationalReports.LoadDsrAsync(new(2026, 8, 25));
+var staff = await operationalReports.LoadStaffPerformanceAsync(scope);
+var dailyRepository = new DailyReportingWorkflowRepository(connectionString);
+var testDate = new DateOnly(2026, 8, 25);
+foreach (var input in new Dictionary<string, decimal>
+{
+    ["WALK_INS"] = 0m, ["OPENING_CASH"] = 1_000m, ["CASH_DEPOSIT"] = 0m, ["EXPENSES"] = 0m,
+    ["SERVICE_CASH"] = 0m, ["SERVICE_CARD"] = 0m, ["SERVICE_UPI"] = 0m, ["CASH_ADJUSTMENT"] = 0m
+})
+    await dailyRepository.SaveManualInputAsync("WLMHW", testDate, input.Key, input.Value, null, "live-smoke", "validation");
+var preliminaryCash = await operationalReports.LoadCashReconciliationAsync("WLMHW", testDate);
+await dailyRepository.SaveManualInputAsync("WLMHW", testDate, "CLOSING_CASH_COUNTED", 1_000m + preliminaryCash.RetailCash, null, "live-smoke", "validation");
+var serviceSales = await operationalReports.LoadServiceSalesAsync(testDate, ["WLMHW"]);
+var cashControl = await operationalReports.LoadCashReconciliationAsync("WLMHW", testDate);
+var workflow = await dailyRepository.LoadAsync("WLMHW", testDate);
+var pack = await new DailyReportingPackService(connectionString).GenerateAsync("WLMHW", new(2026, 8, 25));
 if (daily.Status != ReconciliationStatus.Passed || daily.Rows.Count == 0) throw new InvalidOperationException("Daily sales report did not pass live SQL execution.");
 if (tenders.Status == ReconciliationStatus.Blocked) throw new InvalidOperationException("Tender reconciliation was blocked in live SQL execution.");
 if (stock.Status == ReconciliationStatus.Blocked || stock.Items.Count == 0) throw new InvalidOperationException("Stock reconciliation was blocked or empty in live SQL execution.");
+if (invoiceSummary.Count == 0 || dsr.Count != 9 || staff.Rows.Count == 0)
+    throw new InvalidOperationException("Operational invoice, DSR or staff reporting did not return the expected live result shape.");
+if (workflow.MissingReports.Count != 0 || pack.Sections.Count != 9)
+    throw new InvalidOperationException("Daily completeness or reporting-pack generation failed live verification.");
+if (workflow.MissingRequiredInputs.Count != 0 || serviceSales.Single(x => x.Period == "FTD").Total != 0 || cashControl.Status != ReconciliationStatus.Passed)
+    throw new InvalidOperationException("Zero-safe manual input, service sales or cash reconciliation failed live verification.");
 await VerifyBackupRestoreAsync(connectionString);
-Console.WriteLine($"Live SQL passed: files={files.Length}; persisted evidence rows={importedRows}; daily groups={daily.Rows.Count}; brand-segment={brandSegment.Status}; tender={tenders.Status}; stock={stock.Status} ({stock.Items.Count} matched items).");
-return files.Length == 8 ? 0 : 1;
+Console.WriteLine($"Live SQL passed: files={files.Length}; persisted evidence rows={importedRows}; daily groups={daily.Rows.Count}; invoices={invoiceSummary.Count}; dsr={dsr.Count}; staff={staff.Rows.Count}/{staff.Status}; workflow={workflow.Status}; pack={pack.Status}; brand-segment={brandSegment.Status}; tender={tenders.Status}; stock={stock.Status} ({stock.Items.Count} matched items).");
+return files.Length == 12 ? 0 : 1;
 
 static async Task VerifyBackupRestoreAsync(string connectionString)
 {

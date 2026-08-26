@@ -1896,9 +1896,9 @@
     "semantic_hash": ""
   },
   "scripts/build-windows-release.ps1": {
-    "mtime": 1787738931.5914428,
-    "seen": 1787739177.6210644,
-    "ast_hash": "da4a5d7a2b26208cb75f07e4e6707b8c",
+    "mtime": 1787739381.3947463,
+    "seen": 1787739529.5653257,
+    "ast_hash": "3ae391f40827ad340f5825bf0115ae7d",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Import/Profiles/StockImportProfiles.cs": {
@@ -2280,9 +2280,9 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1787739117.3616197,
-    "seen": 1787739177.6215885,
-    "ast_hash": "94819b6e4f7ce6c009f1226a08714215",
+    "mtime": 1787739423.6745267,
+    "seen": 1787739529.5667744,
+    "ast_hash": "dabe910b80944fae57eb705a6b61f702",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Assets/EtpReporting.png": {
@@ -2364,15 +2364,21 @@
     "semantic_hash": ""
   },
   "scripts/install-monthly-recovery-drill-task.ps1": {
-    "mtime": 1787736738.020805,
-    "seen": 1787736859.7988896,
-    "ast_hash": "9cdf751ad27006494674a730633ea98a",
+    "mtime": 1787739381.3937478,
+    "seen": 1787739529.5653617,
+    "ast_hash": "21dcf749a75cc2269c6b6ebcf97a49ec",
     "semantic_hash": ""
   },
   "scripts/bootstrap-etp-prerequisites.ps1": {
-    "mtime": 1787739066.702594,
-    "seen": 1787739177.6210542,
-    "ast_hash": "0372d3dab8ee36911e1eb8e4def93e9b",
+    "mtime": 1787739381.3927522,
+    "seen": 1787739529.5653028,
+    "ast_hash": "bfc0d0923b1fe337e6b12bf9eef7469c",
+    "semantic_hash": ""
+  },
+  "scripts/invoke-monthly-recovery-drill-runner.ps1": {
+    "mtime": 1787739381.3927522,
+    "seen": 1787739529.5653782,
+    "ast_hash": "8639bbff676b81d51801e02cf690a6bf",
     "semantic_hash": ""
   }
 }

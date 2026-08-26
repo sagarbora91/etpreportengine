@@ -1,7 +1,17 @@
 namespace Etp.Reporting.Infrastructure.SqlServer;
 
 public sealed record ImportBatchRegistration(Guid BatchId, int? StoreId, DateOnly? PeriodStart, DateOnly? PeriodEnd, DateTimeOffset StartedUtc);
-public sealed record ImportFileRegistration(Guid BatchId, int? ImportProfileId, string OriginalFileName, string SourceSha256, long SizeBytes);
+public sealed record ImportFileRegistration(
+    Guid BatchId,
+    int? ImportProfileId,
+    string OriginalFileName,
+    string SourceSha256,
+    long SizeBytes,
+    string? ReportCode = null,
+    string? StoreCode = null,
+    DateOnly? BusinessDate = null,
+    DateOnly? SourceReportDate = null,
+    string? ImportedBy = null);
 
 public sealed record SourceRowRegistration(string SheetName, int SourceRowNumber, string? SourceRecordType = null);
 

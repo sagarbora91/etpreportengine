@@ -1,0 +1,1 @@
+{"nodes": [{"id": "$graphify-root$_database_migrations_0007_sales_enrichment_facts_sql", "label": "0007_sales_enrichment_facts.sql", "file_type": "code", "source_file": "database/migrations/0007_sales_enrichment_facts.sql", "source_location": null}], "edges": []}

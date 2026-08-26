@@ -7,7 +7,8 @@ public sealed record OperationalAuditEvent(DateTime EventUtc, string EventType, 
 public sealed class OperationalAuditRepository(string connectionString)
 {
     private static readonly HashSet<string> EventTypes = new(StringComparer.Ordinal)
-        { "ApplicationStart", "ConnectionTest", "ImportBatch", "ReportRun", "ExportExcel", "ExportPdf", "DatabaseSetup", "SupportPackage" };
+        { "ApplicationStart", "ConnectionTest", "ImportBatch", "ReportRun", "ExportExcel", "ExportPdf", "DatabaseSetup", "SupportPackage",
+          "ManualInput", "DayFinalised", "DayReopened", "ReportPack" };
     private static readonly HashSet<string> Outcomes = new(StringComparer.Ordinal)
         { "Succeeded", "Failed", "Blocked", "Cancelled" };
 

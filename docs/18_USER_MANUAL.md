@@ -15,11 +15,24 @@ Import is authorized for the Owner/Admin and Store Manager. The Owner/Admin alwa
 
 Do not place ETP source files inside the program folder or source-code repository.
 
+## Complete one business date
+
+1. Open **Daily Workflow**, select the ETP business date and store, and refresh.
+2. Import R025, R022, R013, R003, Variant Stock ledger and Closing Stock for that same ETP report date. A store/date mismatch is blocked, including during batch import.
+3. Enter only operational values that ETP does not supply. Required daily values are walk-ins, opening cash, cash deposit and expenses. Service cash/card/UPI, cash adjustment and counted closing cash drive the separate service and cash reports. Enter `0` when the confirmed value is zero; leave a value empty only when it is genuinely missing.
+4. Generate the daily pack. Review invoice/DSR, tender, service, cash, stock, staff and missing-input sections. Failed controls remain visible and cannot be turned into passes by changing a tolerance on this screen.
+5. Choose **Finalise day** only after every blocking pack section is resolved. The database then protects the business date from new imports and manual edits.
+6. Reopening requires a Windows administrator and a reason. Re-import corrected ETP evidence only after the day is explicitly reopened.
+
+FTD, MTD, YTD and equivalent LY periods come from the selected ETP business date—not from the time the workbook was imported. Growth is blank with a visible state when LY is zero or missing. DSR and staff UPT/ATV retain separate, labelled transaction-denominator policies.
+
 ## Dashboard and reports
 
 The dashboard summarizes imports, sales, returns, stock controls, tender differences, and database warnings. Warnings require review but do not change source values.
 
 Use the report filters for date, store, brand segment, transaction type, item, search text, and variance-only views where available. `INV` is an invoice. `SR` is a sales return whose source values are already negative. `NETVALUE` is the GST-inclusive primary sales value. `CLUSTER` is displayed as Brand Segment.
+
+The report screen also provides customer-safe invoice summaries, DSR, staff/CRO performance, service sales and cash reconciliation. Customer names and contact details are not stored or exported. Staff reconciliation shows the exact attributed-versus-canonical difference; it does not round away a small variance.
 
 Select a summary row to open its supporting detail. Sorting and search affect the visible view; they do not modify the database.
 

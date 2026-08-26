@@ -50,6 +50,20 @@ public sealed class ProductionWorkbookIngestionTests
         finally { File.Delete(path); }
     }
 
+    [Theory]
+    [InlineData("R003")]
+    [InlineData("R013")]
+    public void Legacy_enrichment_profiles_are_exact_and_never_stage_customer_pii(string reportCode)
+    {
+        var profile = reportCode == "R003" ? RetailSalesProfiles.R003 : RetailSalesProfiles.R013;
+
+        Assert.Equal(reportCode, profile.ReportCode);
+        Assert.Contains(profile.Fields, x => x.CanonicalField == "source_net_value" && x.IsRequired);
+        Assert.DoesNotContain(profile.Fields, x => x.SourceHeader.Contains("CUSTOMER", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(profile.Fields, x => x.CanonicalField is "activation_details" or "user_discount_details");
+        if (reportCode == "R013") Assert.Contains(profile.Fields, x => x.CanonicalField == "cro_number");
+    }
+
     [Fact]
     public async Task Preflight_blocks_repeated_layout_when_halves_differ()
     {

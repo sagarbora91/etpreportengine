@@ -1,0 +1,1 @@
+{"nodes": [{"id": "$graphify-root$_database_migrations_0006_backfill_import_business_scope_sql", "label": "0006_backfill_import_business_scope.sql", "file_type": "code", "source_file": "database/migrations/0006_backfill_import_business_scope.sql", "source_location": null}], "edges": []}
