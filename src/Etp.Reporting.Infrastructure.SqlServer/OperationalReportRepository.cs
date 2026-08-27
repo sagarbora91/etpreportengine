@@ -278,6 +278,29 @@ public sealed class OperationalReportRepository(string connectionString)
         return rows;
     }
 
+    public async Task<DailySalesReportDocument> LoadDailySalesReportDocumentAsync(
+        DateOnly businessDate,
+        CancellationToken cancellationToken = default)
+    {
+        var dsr = await LoadDsrAsync(businessDate, ["WLMHW", "HEMW"], cancellationToken);
+        return await ComposeDailySalesReportDocumentAsync(businessDate, dsr, cancellationToken);
+    }
+
+    public async Task<DailySalesReportDocument> ComposeDailySalesReportDocumentAsync(
+        DateOnly businessDate,
+        IReadOnlyList<DsrManagementRow> dsr,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(dsr);
+        var service = await LoadServiceSalesAsync(businessDate, ["WLMHW", "HEMW"], cancellationToken);
+        var supplementary = await LoadDsrSupplementaryAsync(businessDate, cancellationToken);
+        return DailySalesReportBuilder.Build(businessDate,
+            dsr.Select(x => new DsrPeriodFact(x.Period, x.Store, x.TySales, x.LySales, x.TyUnits, x.LyUnits,
+                x.TyInvoices, x.LyInvoices, x.Upt, x.Atv, x.WalkIns, x.ConversionPercent)).ToArray(),
+            service.Select(x => new DsrServiceFact(x.Period, x.StoreCode, x.Cash, x.Card, x.Upi, x.Total, x.LastYearTotal)).ToArray(),
+            supplementary.Targets, supplementary.ServiceWdc, DsrMetricPolicy);
+    }
+
     public async Task<StaffPerformanceResult> LoadStaffPerformanceAsync(
         ReportingQueryScope scope,
         CancellationToken cancellationToken = default)
@@ -642,6 +665,29 @@ public sealed class OperationalReportRepository(string connectionString)
         return result;
     }
 
+    private async Task<DsrSupplementaryFacts> LoadDsrSupplementaryAsync(DateOnly businessDate, CancellationToken token)
+    {
+        const string sql = """
+            SELECT store_code,field_code,numeric_value
+            FROM dbo.manual_operational_inputs
+            WHERE business_date=@date AND field_code IN('SALES_TARGET','SERVICE_WDC')
+              AND store_code IN('WLMHW','HEMW');
+            """;
+        await using var connection = await OpenAsync(token);
+        await using var command = new SqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@date", businessDate);
+        await using var reader = await command.ExecuteReaderAsync(token);
+        var targets = new Dictionary<string, decimal?>(StringComparer.OrdinalIgnoreCase);
+        var wdc = new List<decimal>();
+        while (await reader.ReadAsync(token))
+        {
+            if (reader.IsDBNull(2)) continue;
+            if (reader.GetString(1).Equals("SALES_TARGET", StringComparison.OrdinalIgnoreCase)) targets[reader.GetString(0)] = reader.GetDecimal(2);
+            else wdc.Add(reader.GetDecimal(2));
+        }
+        return new(targets, wdc.Count == 0 ? null : wdc.Sum());
+    }
+
     private static async Task<Dictionary<string, ServiceFacts>> LoadServiceFactsAsync(
         SqlConnection connection,
         BusinessReportingPeriod period,
@@ -731,6 +777,7 @@ public sealed class OperationalReportRepository(string connectionString)
     private static decimal? Value(IReadOnlyDictionary<string, decimal?> values, string key) => values.GetValueOrDefault(key);
     private sealed record DsrFacts(decimal? TySales = null, decimal? LySales = null, decimal? TyUnits = null, decimal? LyUnits = null, int? TyInvoices = null, int? LyInvoices = null);
     private sealed record WalkInFacts(decimal? Value = null, bool IsComplete = false);
+    private sealed record DsrSupplementaryFacts(IReadOnlyDictionary<string, decimal?> Targets, decimal? ServiceWdc);
     private sealed record ServiceFacts(decimal Cash = 0, decimal Card = 0, decimal Upi = 0, decimal LastYearTotal = 0, int CurrentCount = 0, int LastYearCount = 0);
     private sealed record SourcePointer(string FileName, string SheetName, int SourceRow);
 }

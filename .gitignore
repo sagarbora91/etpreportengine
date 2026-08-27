@@ -5,6 +5,8 @@ node_modules/
 .codex/
 TestResults/
 artifacts/
+output/
+tmp/
 *.user
 *.suo
 graphify-out/cost.json

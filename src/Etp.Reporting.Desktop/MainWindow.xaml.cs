@@ -27,6 +27,9 @@ public partial class MainWindow : Window
     private ImportStagingResult? validatedStaging;
     private ExcelReportMetadata? currentExportMetadata;
     private ExcelReportData? currentExportData;
+    private VisualReportModel? currentVisualReport;
+    private DailySalesReportDocument? currentDsrReport;
+    private string? currentReportCode;
     private ReportPackDocument? currentDailyPackDocument;
     private ReportPackDocument? currentArchivedDocument;
     private OperationalSummary? latestOperationalSummary;
@@ -41,6 +44,7 @@ public partial class MainWindow : Window
     {
         ["Dashboard"] = new("Today’s reporting status, required actions and application health.", "Business day cockpit", "Follow Import → Check → Complete inputs → Generate → Finalise → Share.", "Open daily workflow", "Daily Workflow"),
         ["Daily Workflow"] = new("Complete, reconcile and finalise one ETP business date.", "Daily reporting", "Review source completeness, enter only non-ETP operational values, then finalise the protected day.", "Daily workflow ready", "Daily Workflow"),
+        ["Manual Entry"] = new("Enter governed business-day values that are not supplied by ETP reports.", "Manual Entry", "Start with walk-ins. Additional approved fields will appear here automatically when they are registered in the database.", "Manual Entry ready", "Manual Entry"),
         ["Import ETP"] = new("Import ETP workbooks and manage every received source document.", "Import and Source Inbox", "Import one workbook, a large historical folder, safe ZIP package, PDF or image with progress and review queues.", "Import ready", "Import ETP"),
         ["Sales Reports"] = new("Preview and export every approved report through one consistent workspace.", "Reports Centre", "Use the same period, store, brand, transaction and item filters across Sales, Stock, Staff, Tender, Service and Exceptions.", "Run reports below", "Sales Reports"),
         ["Stock Reports"] = new("View approved stock movement and balance reports.", "Stock reporting", "Reconcile the stock ledger to the closing-stock snapshot using source-signed quantities.", "Run reports below", "Stock Reports"),
@@ -56,6 +60,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        InitializeShell();
         ReportFrom.SelectedDate = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1).AddMonths(-1);
         ReportTo.SelectedDate = DateTime.Today.AddDays(-1);
         DailyBusinessDateInput.SelectedDate = DateTime.Today.AddDays(-1);
@@ -77,6 +82,7 @@ public partial class MainWindow : Window
         var saved = LoadSettings();
         if (!string.IsNullOrWhiteSpace(saved?.ConnectionString)) ConnectionStringInput.Text = saved.ConnectionString;
         await RefreshAccessAsync();
+        CompleteWelcomeState();
         await CheckConnectionAndRefreshAsync(false);
         await RecordAuditAsync("ApplicationStart", "Succeeded", "Desktop application started");
         await RecordAuditAsync("SessionStart", "Succeeded", "Windows integrated user session started");
@@ -100,6 +106,7 @@ public partial class MainWindow : Window
             ApplicationStatus.Text = "This Windows account has not been granted application access by an Owner.";
             return;
         }
+        HideFocusedWorkspace();
         PageTitle.Text = destination switch { "Dashboard" => "Home", "Sales Reports" or "Stock Reports" => "Reports", "Operations Center" => "Control Centre", "Report Archive" => "Archive", _ => destination };
         PageDescription.Text = page.Description;
         WorkspaceHeading.Text = page.Heading;
@@ -108,7 +115,7 @@ public partial class MainWindow : Window
         PrimaryAction.Tag = page.ActionDestination;
         PrimaryAction.IsEnabled = destination == "Dashboard";
         SettingsPanel.Visibility = destination is "Settings" or "Admin / Settings" ? Visibility.Visible : Visibility.Collapsed;
-        DailyWorkflowPanel.Visibility = destination is "Daily Workflow" or "Dashboard" ? Visibility.Visible : Visibility.Collapsed;
+        DailyWorkflowPanel.Visibility = destination is "Daily Workflow" or "Manual Entry" or "Dashboard" ? Visibility.Visible : Visibility.Collapsed;
         ImportPanel.Visibility = destination == "Import ETP" ? Visibility.Visible : Visibility.Collapsed;
         SourceInboxPanel.Visibility = destination == "Import ETP" ? Visibility.Visible : Visibility.Collapsed;
         ReportsPanel.Visibility = destination is "Sales Reports" or "Stock Reports" ? Visibility.Visible : Visibility.Collapsed;
@@ -119,15 +126,17 @@ public partial class MainWindow : Window
         RegistersPanel.Visibility = destination == "Registers" ? Visibility.Visible : Visibility.Collapsed;
         AccountingPanel.Visibility = destination == "Accounting" ? Visibility.Visible : Visibility.Collapsed;
         MastersPanel.Visibility = destination is "Masters" or "Admin / Settings" ? Visibility.Visible : Visibility.Collapsed;
+        UpdateShellForDestination(destination);
         ApplicationStatus.Text = $"{destination} selected. {page.Message}";
         if (destination == "Dashboard") { _ = RefreshDashboardAsync(); _ = RefreshDailyWorkflowAsync(); }
-        if (destination == "Daily Workflow") _ = RefreshDailyWorkflowAsync();
+        if (destination is "Daily Workflow" or "Manual Entry") _ = RefreshDailyWorkflowAsync();
         if (destination == "Import ETP") _ = RefreshSourceInboxAsync();
         if (destination == "Registers") _ = RefreshRegistersAsync();
         if (destination == "Accounting") _ = RefreshAccountingAsync();
         if (destination == "Operations Center") { _ = RefreshOperationsAsync(); _ = RefreshApprovalsAsync(); }
         if (destination == "Report Archive") { _ = RefreshReportArchiveAsync(); _ = RefreshSharingContactsAsync(); }
         if (destination is "Masters" or "Admin / Settings") _ = RefreshMasterAdministrationAsync();
+        if (destination == "Manual Entry") Dispatcher.BeginInvoke(() => { ManualEntrySection.BringIntoView(); ManualFieldInput.Focus(); });
     }
 
     private async Task RefreshAccessAsync()
@@ -186,6 +195,8 @@ public partial class MainWindow : Window
                 ? "Required manual inputs: complete (zero values remain distinct from missing values)."
                 : $"Missing manual inputs: {string.Join(", ", currentDailySnapshot.MissingRequiredInputs)}";
             DailyManualInputsGrid.ItemsSource = currentDailySnapshot.ManualInputs;
+            ManualFieldInput.ItemsSource = currentDailySnapshot.ManualInputs;
+            if (ManualFieldInput.SelectedIndex < 0 && currentDailySnapshot.ManualInputs.Count > 0) ManualFieldInput.SelectedIndex = 0;
             DailyStockCountsGrid.ItemsSource = await new OperationalCompletionRepository(ConnectionStringInput.Text).LoadManualStockCountsAsync(store, date);
             FinaliseDayButton.IsEnabled = currentDailySnapshot.CanFinalise;
         }
@@ -204,12 +215,19 @@ public partial class MainWindow : Window
         {
             RequireImportAccess();
             var (store, date) = DailyScope();
-            var field = ((ComboBoxItem)ManualFieldInput.SelectedItem).Content!.ToString()!;
+            var field = ManualFieldInput.SelectedValue as string ?? throw new InvalidOperationException("Select a manual-entry field.");
             var reason = ManualReasonInput.Text.Trim();
             decimal? numeric = null;
             string? text = null;
             if (field == "OPERATIONAL_REMARK") text = string.IsNullOrWhiteSpace(ManualValueInput.Text) ? null : ManualValueInput.Text.Trim();
-            else if (decimal.TryParse(ManualValueInput.Text, NumberStyles.Number, CultureInfo.CurrentCulture, out var parsed)) numeric = parsed;
+            else
+            {
+                if (!decimal.TryParse(ManualValueInput.Text, NumberStyles.Number, CultureInfo.CurrentCulture, out var parsed))
+                    throw new InvalidOperationException("Enter a valid numeric value.");
+                if (field == "WALK_INS" && (parsed < 0 || decimal.Truncate(parsed) != parsed))
+                    throw new InvalidOperationException("Walk-ins must be a whole number of zero or more.");
+                numeric = parsed;
+            }
             await new DailyReportingWorkflowRepository(ConnectionStringInput.Text).SaveManualInputAsync(
                 store, date, field, numeric, text, Environment.UserName, reason);
             ManualValueInput.Clear(); ManualReasonInput.Clear();
@@ -606,6 +624,7 @@ public partial class MainWindow : Window
     private async void RunCatalogueReport_Click(object sender,RoutedEventArgs e)
     {
         if(sender is not Button { Tag:string report })return;
+        BeginReportLoad(report);
         switch(report)
         {
             case "dsr": RunDsr_Click(sender,e); break;
@@ -637,6 +656,20 @@ public partial class MainWindow : Window
             case "exception-tender": await RunFocusedExceptionAsync("Tender");break;
             case "management-trend": await RunManagementTrendReportAsync();break;
         }
+    }
+
+    private void BeginReportLoad(string reportCode)
+    {
+        ShowFocusedReportWorkspace(reportCode);
+        currentReportCode = reportCode;
+        currentExportMetadata = null;
+        currentExportData = null;
+        currentVisualReport = null;
+        currentDsrReport = null;
+        ExportExcelButton.IsEnabled = false;
+        ExportPdfButton.IsEnabled = false;
+        VisualReportPanel.Children.Clear();
+        ReportResult.Text = reportCode == "dsr" ? "Loading the governed Daily Sales Report…" : "Loading report…";
     }
 
     private void SelectSalesDimension(string name)
@@ -755,7 +788,9 @@ public partial class MainWindow : Window
         try
         {
             var scope = ReportScope();
-            var rows = await new OperationalReportRepository(ConnectionStringInput.Text).LoadDsrAsync(scope.DateTo, scope.StoreCodes);
+            var repository = new OperationalReportRepository(ConnectionStringInput.Text);
+            var rows = await repository.LoadDsrAsync(scope.DateTo, ["WLMHW", "HEMW"]);
+            var dsrDocument = await repository.ComposeDailySalesReportDocumentAsync(scope.DateTo, rows);
             var hasSales = rows.Any(x => x.TySales is not null);
             var status = hasSales ? ReconciliationStatus.Passed : ReconciliationStatus.Blocked;
             var unavailable = rows.Count(x => x.GrowthStatus != MetricAvailability.Available.ToString());
@@ -764,11 +799,15 @@ public partial class MainWindow : Window
             SetExport("Daily Sales Report", status, OperationalReportRepository.DsrMetricPolicy, message,
                 [new("Period"),new("Store"),new("From"),new("To"),new("TY Sales","#,##0.00"),new("LY Sales","#,##0.00"),new("Growth %","#,##0.00"),new("Growth Status"),new("TY Units","#,##0.00"),new("LY Units","#,##0.00"),new("TY Invoices","#,##0"),new("LY Invoices","#,##0"),new("UPT","#,##0.00"),new("ATV","#,##0.00"),new("Walk-ins","#,##0.00"),new("Conversion %","#,##0.00")],
                 rows.Select(x => (IReadOnlyList<object?>)[x.Period,x.Store,x.PeriodStart,x.PeriodEnd,x.TySales,x.LySales,x.GrowthPercent,x.GrowthStatus,x.TyUnits,x.LyUnits,x.TyInvoices,x.LyInvoices,x.Upt,x.Atv,x.WalkIns,x.ConversionPercent]).ToArray(),
-                ["Independent periods","","","","","","","","","","","","","","",""]);
+                ["Independent periods","","","","","","","","","","","","","","",""], dsrDocument, scope.DateTo);
             ApplyReportFilter();
             await RecordAuditAsync("ReportRun", status == ReconciliationStatus.Passed ? "Succeeded" : "Blocked", "Daily sales report");
         }
-        catch (Exception ex) { ReportResult.Text = $"DSR failed: {ex.Message}"; }
+        catch (Exception ex)
+        {
+            ReportResult.Text = $"DSR failed: {ex.Message}";
+            if (focusedWorkspaceKind == "report") dsrWorkspace?.ShowFailure(ex.Message);
+        }
     }
 
     private async void RunStaffPerformance_Click(object sender, RoutedEventArgs e)
@@ -896,11 +935,18 @@ public partial class MainWindow : Window
     }
 
     private void SetExport(string name, ReconciliationStatus status, string ruleVersion, string message,
-        IReadOnlyList<ExcelReportColumn> columns, IReadOnlyList<IReadOnlyList<object?>> rows, IReadOnlyList<object?> totals)
+        IReadOnlyList<ExcelReportColumn> columns, IReadOnlyList<IReadOnlyList<object?>> rows, IReadOnlyList<object?> totals,
+        DailySalesReportDocument? dsrReport = null, DateOnly? businessDate = null)
     {
         var scope = ReportScope();
-        currentExportMetadata = new(name, scope.DateFrom, scope.DateTo, status.ToString(), ruleVersion, message, DateTimeOffset.UtcNow);
-        currentExportData = new(columns, rows, totals); ExportExcelButton.IsEnabled = true; ExportPdfButton.IsEnabled = true;
+        currentExportMetadata = new(name, businessDate ?? scope.DateFrom, businessDate ?? scope.DateTo, status.ToString(), ruleVersion, message, DateTimeOffset.UtcNow);
+        currentExportData = new(columns, rows, totals);
+        currentDsrReport = dsrReport;
+        currentReportCode = dsrReport is null && currentReportCode == "dsr" ? null : currentReportCode;
+        currentVisualReport = VisualReportComposer.Compose(currentExportMetadata, currentExportData);
+        if (currentDsrReport is not null) RenderDsrReport(currentDsrReport); else RenderVisualReport(currentVisualReport);
+        UpdateFocusedReportPreview();
+        ExportExcelButton.IsEnabled = true; ExportPdfButton.IsEnabled = true;
     }
 
     private void ExportDailyPackExcel_Click(object sender, RoutedEventArgs e)
@@ -936,16 +982,21 @@ public partial class MainWindow : Window
         if (currentExportMetadata is null || currentExportData is null) return;
         var dialog = new SaveFileDialog { Filter = "Excel workbook (*.xlsx)|*.xlsx", FileName = $"{currentExportMetadata.ReportName.Replace(' ', '_')}_{currentExportMetadata.DateFrom:yyyyMMdd}_{currentExportMetadata.DateTo:yyyyMMdd}.xlsx", AddExtension = true };
         if (dialog.ShowDialog(this) != true) return;
-        try { new OpenXmlReportExporter().Export(dialog.FileName, currentExportMetadata, currentExportData); ReportResult.Text = $"Excel report saved to {dialog.FileName}"; _ = RecordAuditAsync("ExportExcel", "Succeeded", "Report exported"); }
+        try { if (currentVisualReport is not null) new OpenXmlVisualReportExporter().Export(dialog.FileName, currentVisualReport); else new OpenXmlReportExporter().Export(dialog.FileName, currentExportMetadata, currentExportData); ReportResult.Text = $"Excel report saved to {dialog.FileName}"; _ = RecordAuditAsync("ExportExcel", "Succeeded", "Visual report exported"); }
         catch (Exception ex) { ReportResult.Text = $"Excel export failed: {ex.Message}"; }
     }
 
     private void ExportPdf_Click(object sender, RoutedEventArgs e)
     {
         if (currentExportMetadata is null || currentExportData is null) return;
+        if (string.Equals(currentExportMetadata.ReportName, "Daily Sales Report", StringComparison.Ordinal) && currentDsrReport is null)
+        {
+            ReportResult.Text = "The DSR document is not ready. Run Daily Sales / DSR again before exporting.";
+            return;
+        }
         var dialog = new SaveFileDialog { Filter = "PDF report (*.pdf)|*.pdf", FileName = $"{SafeFileName(currentExportMetadata.ReportName)}_{currentExportMetadata.DateFrom:yyyyMMdd}_{currentExportMetadata.DateTo:yyyyMMdd}.pdf", AddExtension = true };
         if (dialog.ShowDialog(this) != true) return;
-        try { new SimplePdfReportExporter().Export(dialog.FileName, currentExportMetadata, currentExportData); ReportResult.Text = $"PDF report saved to {dialog.FileName}"; _ = RecordAuditAsync("ExportPdf", "Succeeded", "Report exported"); }
+        try { if (currentDsrReport is not null) new DailySalesReportPdfExporter().Export(dialog.FileName, currentDsrReport); else if (currentVisualReport is not null) new SimplePdfVisualReportExporter().Export(dialog.FileName, currentVisualReport); else new SimplePdfReportExporter().Export(dialog.FileName, currentExportMetadata, currentExportData); ReportResult.Text = $"PDF report saved to {dialog.FileName}"; _ = RecordAuditAsync("ExportPdf", "Succeeded", currentDsrReport is null ? "Visual report exported" : "One-page DSR exported"); }
         catch (Exception ex) { ReportResult.Text = $"PDF export failed: {ex.Message}"; }
     }
 
@@ -1351,7 +1402,7 @@ public partial class MainWindow : Window
     private void ReportGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
         if (ReportGrid.SelectedItem is null) return;
-        MessageBox.Show(ReportGrid.SelectedItem.ToString() ?? "No details available.", "Report row details", MessageBoxButton.OK, MessageBoxImage.Information);
+        OpenDrawer("Report row details", "Source evidence and technical lineage remain available without leaving the report workspace.", ReportGrid.SelectedItem);
     }
 
     private void RenderDashboardChart(OperationalSummary summary)

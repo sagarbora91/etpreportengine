@@ -1,0 +1,90 @@
+using System.Reflection;
+using System.IO;
+using System.Windows;
+using System.Windows.Automation;
+using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using Etp.Reporting.Desktop;
+using Etp.Reporting.Infrastructure.SqlServer;
+using Etp.Reporting.Reporting;
+
+internal static class Program
+{
+    [STAThread]
+    private static void Main(string[] args)
+    {
+        var output = Path.GetFullPath(args.Length > 0 ? args[0] : "output/uiux-v4");
+        Directory.CreateDirectory(output);
+        var app = new App();
+        app.InitializeComponent();
+        var window = new MainWindow { Width = 1366, Height = 768 };
+        Render(window, Path.Combine(output, "01-welcome-1366x768.png"), 1366, 768);
+        SetAccess(window, ApplicationRole.StoreManager, "Store Manager");
+        ((TextBlock)window.FindName("AccessStatus")).Text = "Store Manager — Store Manager";
+        Invoke(window, "CompleteWelcomeState");
+        ((FrameworkElement)window.FindName("WelcomeOverlay")).Visibility = Visibility.Collapsed;
+        Invoke(window, "ShowModuleHome");
+        Render(window, Path.Combine(output, "02-module-home-1366x768.png"), 1366, 768);
+        Invoke(window, "NavigateToDestination", "Sales Reports");
+        Render(window, Path.Combine(output, "03-reports-1366x768.png"), 1366, 768);
+        Render(window, Path.Combine(output, "04-reports-960x600.png"), 960, 600);
+        Invoke(window, "ShowModuleHome");
+        Render(window, Path.Combine(output, "05-module-home-1920x1080.png"), 1920, 1080);
+        Invoke(window, "ApplyDensity", UiDensity.Compact, false);
+        Render(window, Path.Combine(output, "06-module-home-compact-1366x768.png"), 1366, 768);
+        Invoke(window, "NavigateToDestination", "Manual Entry");
+        Render(window, Path.Combine(output, "07-manual-entry-1366x768.png"), 1366, 768);
+        Invoke(window, "NavigateToDestination", "Sales Reports");
+        var dsr = DailySalesReportBuilder.Build(new DateOnly(2026, 8, 25), [], [], new Dictionary<string, decimal?>());
+        Invoke(window, "ShowFocusedReportWorkspace", "dsr");
+        var dsrWorkspace = (DailySalesReportWorkspace)(typeof(MainWindow).GetField("dsrWorkspace", BindingFlags.Instance | BindingFlags.NonPublic)?.GetValue(window)
+            ?? throw new MissingFieldException("dsrWorkspace"));
+        dsrWorkspace.SetReport(dsr);
+        Render(window, Path.Combine(output, "08-dsr-screen-1366x768.png"), 1366, 768);
+        Invoke(window, "ShowHelpWorkspace", HelpCentreRegistry.HomeTopicId, false);
+        Render(window, Path.Combine(output, "09-help-centre-1366x768.png"), 1366, 768);
+        Invoke(window, "ShowHelpWorkspace", HelpCentreRegistry.KeyboardShortcutsTopicId, false);
+        Render(window, Path.Combine(output, "10-keyboard-shortcuts-1366x768.png"), 1366, 768);
+        Invoke(window, "ShowFocusedReportWorkspace", "stock-closing");
+        Render(window, Path.Combine(output, "11-stock-workspace-1366x768.png"), 1366, 768);
+        var named = Descendants((DependencyObject)window.Content).OfType<FrameworkElement>().Count(x => !string.IsNullOrWhiteSpace(AutomationProperties.GetName(x)));
+        Console.WriteLine($"Rendered 11 production-shell views. Accessible named elements: {named:N0}. Output: {output}");
+    }
+
+    static void SetAccess(MainWindow window, ApplicationRole role, string displayName)
+    {
+        var field = typeof(MainWindow).GetField("currentAccess", BindingFlags.Instance | BindingFlags.NonPublic) ?? throw new MissingFieldException("currentAccess");
+        field.SetValue(window, new ApplicationAccess("UI-SMOKE\\user", displayName, role, true));
+    }
+
+    static object? Invoke(MainWindow window, string method, params object[] parameters) =>
+        (typeof(MainWindow).GetMethod(method, BindingFlags.Instance | BindingFlags.NonPublic) ?? throw new MissingMethodException(method)).Invoke(window, parameters);
+
+    static void Render(Window window, string path, int width, int height)
+    {
+        window.Width = width;
+        window.Height = height;
+        var root = (FrameworkElement)window.Content;
+        root.Measure(new Size(width, height));
+        root.Arrange(new Rect(0, 0, width, height));
+        root.UpdateLayout();
+        var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+        bitmap.Render(root);
+        var encoder = new PngBitmapEncoder();
+        encoder.Frames.Add(BitmapFrame.Create(bitmap));
+        using var stream = File.Create(path);
+        encoder.Save(stream);
+    }
+
+    static IEnumerable<DependencyObject> Descendants(DependencyObject root)
+    {
+        for (var index = 0; index < VisualTreeHelper.GetChildrenCount(root); index++)
+        {
+            var child = VisualTreeHelper.GetChild(root, index);
+            yield return child;
+            foreach (var descendant in Descendants(child))
+                yield return descendant;
+        }
+    }
+}

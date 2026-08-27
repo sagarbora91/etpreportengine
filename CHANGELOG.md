@@ -2,6 +2,39 @@
 
 ## Unreleased
 
+## [1.8.2] - 2026-08-27
+
+### Added
+
+- Added a dedicated Daily Sales Report workspace with a fixed business-date/action toolbar, internally scrolling preview, availability indicators and direct PDF, Excel, report-pack, export-folder and Manual Entry actions.
+- Added grouped focused workspaces covering all 29 production reports across Sales, Stock, Tender/Cash/Service, Staff, Exceptions, Management and Investigation.
+- Added a searchable, tile-based Help Centre with 19 application-area topics, context-sensitive `F1` help and a complete searchable Keyboard Shortcuts guide.
+- Added Windows-style back/forward/home navigation and governed report, export, search, save, import and focus shortcuts.
+
+### Changed
+
+- Moved Comfortable/Compact display density from the bottom status bar into the contextual sidebar and retained the persisted preference.
+- Kept workspace filters and primary actions fixed while report previews and result grids scroll internally.
+
+### Fixed
+
+- Prevented Help Centre controls from being assigned to multiple WPF logical parents when the Help home is reopened.
+
+## [1.8.1] - 2026-08-27
+
+### Added
+
+- Added the native WPF UI/UX v4 shell with a touch-first global rail, contextual module navigation, responsive detail drawer and persisted comfortable/compact density.
+- Added role-aware module and route registries, including the six-card daily workspace, optional Owner modules, and direct navigation to every production report.
+- Added reusable visual resources and controls for colours, typography, spacing, icons, cards, status badges and empty/loading states.
+- Added UI navigation contract, design-system and implementation-map documentation plus automated navigation and rendered-shell smoke coverage.
+- Added a database-driven Manual Entry workspace for walk-ins and future approved non-ETP fields, with role checks, validation, reasons and audit history.
+
+### Fixed
+
+- Prevented a previously selected generic report from being exported while the governed DSR is still loading, and made missing DSR inputs explicit in the one-page PDF.
+- Fixed DSR screen construction so each operational-metric control has exactly one WPF logical parent.
+
 ## 1.7.0 - 2026-08-26
 
 ### Added
@@ -69,6 +102,22 @@
 All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and semantic versioning.
 
 ## [Unreleased]
+
+## [1.8.0] - 2026-08-27
+
+### Added
+
+- Added a renderer-independent visual report model, report registry, reusable KPI/visual definitions and central Indian-number formatting.
+- Added accessible KPI cards and purpose-selected ranking, comparison and trend visuals to the native Reports Centre.
+- Added five-sheet analytical Excel workbooks with deterministic support ranges and native Excel charts.
+- Added vector PDF management summaries, SVG chart rendering, paginated detail and prominent control status.
+- Added golden reconciliation tests for Daily Sales, combined sales and stock, plus large-data performance validation.
+- Added the finalized connected Daily Sales Report with reusable WPF cards and an exact one-page A4 landscape Unicode PDF export.
+- Added safe DSR formula, missing-source, weekday, Indian-formatting and approved-sample verification coverage.
+
+### Changed
+
+- Selected-report Excel and PDF actions now consume the same visual report model as the on-screen preview while retaining the complete detail table and lineage workflow.
 
 ## [1.3.1] - 2026-08-26
 
