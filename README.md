@@ -8,6 +8,8 @@ is not the Windows reporting database.
 
 The Windows application now supports a complete business-date workflow: deterministic batch import for R003/R013/R022/R025 and stock profiles, controlled restatement, detailed physical counts, staff targets, FTD/MTD/YTD/LY reporting, traceable invoice detail, service/cash/stock/staff controls, exception diagnostics, full multi-sheet Excel and paginated PDF report packs, immutable report generations, audited finalise/reopen protection, Windows-integrated roles, unattended watch-folder import, scheduled combined packs, archive comparison/re-export, controlled masters and a management/data-quality operations center. See [`docs/21_DAILY_REPORTING_IMPLEMENTATION_MAP.md`](docs/21_DAILY_REPORTING_IMPLEMENTATION_MAP.md), [`docs/22_REPORT_TO_SOURCE_MATRIX.md`](docs/22_REPORT_TO_SOURCE_MATRIX.md), [`docs/23_MASTER_PROMPT_COMPLETION_AUDIT.md`](docs/23_MASTER_PROMPT_COMPLETION_AUDIT.md), and [`docs/24_PHASE2_OPERATIONS.md`](docs/24_PHASE2_OPERATIONS.md).
 
+Project business knowledge, report rules, mappings and architecture decisions are indexed in the Obsidian-compatible [`knowledge/00-Home/ETP Knowledge Home.md`](knowledge/00-Home/ETP%20Knowledge%20Home.md) vault. AI agents should begin with [`knowledge/AI-CONTEXT.md`](knowledge/AI-CONTEXT.md) and retrieve only the task-specific notes selected by [`knowledge/AI-ROUTER.md`](knowledge/AI-ROUTER.md) before using Graphify for code relationships.
+
 # Saagar Traders — Business Control Centre → Offline Android APK
 
 This project packages the **Business Control Centre shell** (`www/index.html`, with all
