@@ -10,6 +10,8 @@ The Windows application now supports a complete business-date workflow: determin
 
 Project business knowledge, report rules, mappings and architecture decisions are indexed in the Obsidian-compatible [`knowledge/00-Home/ETP Knowledge Home.md`](knowledge/00-Home/ETP%20Knowledge%20Home.md) vault. AI agents should begin with [`knowledge/AI-CONTEXT.md`](knowledge/AI-CONTEXT.md) and retrieve only the task-specific notes selected by [`knowledge/AI-ROUTER.md`](knowledge/AI-ROUTER.md) before using Graphify for code relationships.
 
+The accepted dual-layer offline licensing design is engineering-complete but intentionally not enforced until the functional product is complete. See [`docs/security/ETP_LICENSING_ENGINEERING_SPEC.md`](docs/security/ETP_LICENSING_ENGINEERING_SPEC.md) and the deferred implementation backlog beside it. No production key or activation secret belongs in this repository.
+
 # Saagar Traders — Business Control Centre → Offline Android APK
 
 This project packages the **Business Control Centre shell** (`www/index.html`, with all

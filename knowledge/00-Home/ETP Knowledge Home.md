@@ -11,7 +11,7 @@ This vault stores the business meaning, decisions, mappings and architectural co
 ## Start here
 
 - AI agents: [[AI-CONTEXT]] → [[AI-ROUTER]]
-- Architecture: [[System Architecture]], [[Data Architecture]] and [[Desktop Architecture]]
+- Architecture: [[System Architecture]], [[Data Architecture]], [[Desktop Architecture]] and [[ETP Licensing Architecture]]
 - Business meaning: [[Data Dictionary]] and [[Business Rules Register]]
 - Data intake: [[Import Architecture]] and [[Mapping Knowledge]]
 - Outputs: [[Report Catalog]]

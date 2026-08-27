@@ -13,5 +13,6 @@ last_verified: 2026-08-27
 | [[ADR-003 - Graphify for Code Intelligence]] | accepted | Graphify is preferred for scoped code-relationship discovery. |
 | [[ADR-004 - Obsidian for Project Knowledge]] | accepted | Repository Markdown/Obsidian stores durable semantic knowledge. |
 | [[ADR-005 - Modular Desktop Shell]] | accepted | The WPF executable uses a thin shell and independently owned workspaces. |
+| [[ADR-006 - Offline Device Licensing]] | accepted-deferred | Owner-authenticated offline issuance plus signed, machine-bound store activation; implementation waits until product completion. |
 
 Business decisions still awaiting approval are tracked in `docs/11_DECISION_LOG.md`, not converted into architectural decisions.

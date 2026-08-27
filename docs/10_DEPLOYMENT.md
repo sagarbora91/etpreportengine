@@ -51,6 +51,8 @@ CI/release secrets belong in the protected CI secret store with least privilege,
 
 The packaged application should install under the standard protected Program Files location; mutable settings, logs, caches, and temporary files belong under appropriate Windows application-data locations. Installation and database mutation must be independently recoverable.
 
+The accepted device-licensing architecture is documented in `security/ETP_LICENSING_ENGINEERING_SPEC.md` but is intentionally not implemented yet. When the final licensing phase is authorized, the installer must create the protected ProgramData licensing location and the application must route unactivated interactive starts to ActivationWindow. Installer database initialization remains separate from normal licensed operation, and unattended automation must be gated.
+
 First-start flow:
 
 1. Load and validate external configuration without logging secrets.

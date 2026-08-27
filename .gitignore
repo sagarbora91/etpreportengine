@@ -14,6 +14,18 @@ graphify-out/cost.json
 .graphify_*.txt
 .code-review-graph/
 
+# Licensing secrets and machine/owner-specific activation artifacts.
+secrets/
+private-keys/
+license-admin-data/
+*.private.pem
+*.private.jwk
+*.pfx
+*.p12
+*.etplicence
+*.etpactivation
+activation.dat
+
 # Obsidian machine-local state; the Markdown vault itself is versioned.
 knowledge/.obsidian/workspace.json
 knowledge/.obsidian/workspace-mobile.json

@@ -34,6 +34,8 @@ ETP XLSX / folder / ZIP
 
 The accepted Desktop direction is a thin shell with independently owned workspaces; see [[Desktop Architecture]] and [[ADR-005 - Modular Desktop Shell]].
 
+The accepted but deferred security direction uses owner-authenticated offline licence issuance and Windows-installation binding; see [[ETP Licensing Architecture]] and [[ADR-006 - Offline Device Licensing]]. Runtime licensing is not yet implemented.
+
 ## Boundaries
 
 - SQL Server Express is authoritative only after a complete transactional import.
