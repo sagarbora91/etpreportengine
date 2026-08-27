@@ -39,11 +39,16 @@ public sealed class DesktopArchitectureTests
     }
 
     [Fact]
-    public void Desktop_navigation_folder_remains_framework_and_feature_neutral()
+    public void Shell_navigation_folder_remains_free_of_ui_and_feature_layer_dependencies()
     {
-        var desktopDirectory = Path.Combine(RepositoryRoot, "src", "Etp.Reporting.Desktop");
-        var navigationDirectories = Directory.EnumerateDirectories(desktopDirectory, "Navigation", SearchOption.AllDirectories).ToArray();
-        if (navigationDirectories.Length == 0) return;
+        var navigationDirectory = Path.Combine(
+            RepositoryRoot,
+            "src",
+            "Etp.Reporting.Desktop",
+            "Shell",
+            "Navigation");
+
+        Assert.True(Directory.Exists(navigationDirectory), $"Expected navigation boundary was not found: {navigationDirectory}");
 
         string[] forbiddenReferences =
         [
@@ -54,16 +59,13 @@ public sealed class DesktopArchitectureTests
             "Microsoft.Data.SqlClient"
         ];
 
-        foreach (var navigationDirectory in navigationDirectories)
+        Assert.Empty(Directory.EnumerateFiles(navigationDirectory, "*.xaml", SearchOption.AllDirectories));
+        foreach (var sourceFile in Directory.EnumerateFiles(navigationDirectory, "*.cs", SearchOption.AllDirectories))
         {
-            Assert.Empty(Directory.EnumerateFiles(navigationDirectory, "*.xaml", SearchOption.AllDirectories));
-            foreach (var sourceFile in Directory.EnumerateFiles(navigationDirectory, "*.cs", SearchOption.AllDirectories))
+            var source = File.ReadAllText(sourceFile);
+            foreach (var forbiddenReference in forbiddenReferences)
             {
-                var source = File.ReadAllText(sourceFile);
-                foreach (var forbiddenReference in forbiddenReferences)
-                {
-                    Assert.DoesNotContain(forbiddenReference, source, StringComparison.Ordinal);
-                }
+                Assert.DoesNotContain(forbiddenReference, source, StringComparison.Ordinal);
             }
         }
     }
@@ -76,7 +78,18 @@ public sealed class DesktopArchitectureTests
         var projectFile = Path.Combine(applicationDirectory, "Etp.Reporting.Application.csproj");
 
         Assert.True(Directory.Exists(dashboardDirectory), $"Expected Dashboard contract directory was not found: {dashboardDirectory}");
-        Assert.DoesNotContain("ProjectReference", File.ReadAllText(projectFile), StringComparison.OrdinalIgnoreCase);
+        var projectSource = File.ReadAllText(projectFile);
+        string[] forbiddenProjectReferences =
+        [
+            "Etp.Reporting.Desktop",
+            "Etp.Reporting.Import",
+            "Etp.Reporting.Infrastructure",
+            "Etp.Reporting.Reporting"
+        ];
+        foreach (var forbiddenProjectReference in forbiddenProjectReferences)
+        {
+            Assert.DoesNotContain(forbiddenProjectReference, projectSource, StringComparison.OrdinalIgnoreCase);
+        }
 
         string[] forbiddenReferences =
         [

@@ -9,7 +9,7 @@ last_verified: 2026-08-27
 
 ## Decision
 
-ETP remains one WPF executable, but its Desktop layer is organized as a thin shell plus independently owned workspaces. `MainWindow` hosts navigation, global status and the active workspace; it does not own import, reporting, SQL, archive, accounting or administration workflows.
+ETP will remain one WPF executable. The accepted target organizes its Desktop layer as a thin shell plus independently owned workspaces: `MainWindow` will host navigation, global status and the active workspace without owning import, reporting, SQL, archive, accounting or administration workflows. The current implementation has begun this migration but has not reached that target.
 
 The migration is incremental and preserves user-facing behaviour, formulas, mappings, database structures and exports. See [[ADR-005 - Modular Desktop Shell]].
 
@@ -27,16 +27,16 @@ The first controlled extraction slice was completed on 2026-08-27:
 - Help open/close/return state now belongs to `HelpWorkspaceSession`;
 - Dashboard presentation and chart rendering now belong to `DashboardView` and `DashboardViewState`;
 - the Dashboard read operation is exposed by the dependency-free Application contract `IDashboardQuery` and implemented by `SqlServerDashboardQuery`;
-- architecture tests enforce lower-layer independence from Desktop and keep the navigation area free of WPF, import, reporting and SQL dependencies.
+- architecture tests enforce lower-layer independence from Desktop and keep `Shell/Navigation` free of WPF, import, reporting and SQL assembly dependencies.
 
-After this slice, the five `MainWindow` C# partials contain 2,521 physical lines, approximately 176 methods and 32 fields; `MainWindow.xaml` contains 222 lines. This is a measurable reduction, not completion of the full migration. Import, Reports, Daily Workflow, Archive, Settings, Accounting, Operations and Administration still require incremental extraction with workflow-specific verification.
+After this slice, the five `MainWindow` C# partials contain 2,521 physical lines and `MainWindow.xaml` contains 222 lines. This is a measurable but modest reduction, not completion of the full migration. Import, Reports, Daily Workflow, Archive, Settings, Accounting, Operations and Administration still require incremental extraction with workflow-specific verification. Dashboard dependency construction also remains in `MainWindow` as a temporary seam until composition moves to `App`.
 
 ## Target ownership
 
 ```text
 ETP executable
   → App composition root
-  → Desktop shell and framework-neutral navigation
+  → Desktop shell and dependency-neutral route/navigation state
   → independently owned Desktop workspaces
   → application use-case contracts
   → Import / Reporting / Domain
@@ -50,7 +50,7 @@ Workspaces include Dashboard, Daily Workflow, Imports, Reports, Archive, Account
 - `MainWindow` is a shell/workspace host only.
 - Views contain presentation concerns only.
 - View models do not calculate reports, parse imports or access SQL.
-- Navigation has no WPF, Import, SQL Server or Reporting dependency.
+- `Shell/Navigation` has no WPF, Import, SQL Server or Reporting assembly dependency; UI navigation adapters may translate its decisions into Desktop behavior.
 - Lower-layer projects never reference Desktop.
 - Desktop-specific dialogs and notifications remain Desktop services.
 - One composition root constructs dependencies; do not introduce mutable global service location.

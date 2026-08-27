@@ -126,8 +126,8 @@ Etp.Reporting.Desktop/
 ├── Shell/
 │   ├── MainWindow.xaml / .cs          # window host only
 │   └── ShellViewModel.cs               # global presentation state only
-├── Navigation/                         # no WPF, Import, SQL or Reporting references
-│   ├── NavigationService.cs
+│   ├── Navigation/                     # route state; no WPF, Import, SQL or Reporting references
+│   │   ├── NavigationService.cs
 │   ├── WorkspaceLocation.cs
 │   └── NavigationRegistry.cs
 ├── Modules/
@@ -183,7 +183,7 @@ Likely creations include shell/navigation classes, module views/view models, Des
 - **DESK-006:** Workbook parsing, profile recognition, staging and normalization remain outside Desktop.
 - **DESK-007:** Every major workspace has an explicit owner and may be decomposed by cohesive sub-feature.
 - **DESK-008:** New features are assigned to an owning module before code is added.
-- **DESK-009:** Navigation state is framework- and feature-neutral; it has no WPF, Import, SQL Server or Reporting dependency.
+- **DESK-009:** Shell route/navigation state has no WPF, Import, SQL Server or Reporting assembly dependency. Route metadata and access policy may use stable feature identifiers without calling feature implementations.
 - **DESK-010:** Domain, Application, Import, Reporting and SQL infrastructure never reference Desktop.
 - **DESK-011:** One composition root constructs application dependencies; mutable global service location is prohibited.
 - **DESK-012:** Every extraction preserves import/database/report behaviour and is independently reversible.
@@ -200,6 +200,6 @@ The first low-risk slice and one representative data-backed workspace are now im
 4. `IDashboardQuery` defines the Application-layer read contract; `SqlServerDashboardQuery` adapts the existing SQL repositories without changing their queries or mappings.
 5. Focused navigation, Help, Dashboard presentation, Dashboard contract, SQL adapter and architecture tests protect these boundaries.
 
-Measured after the slice, the five `MainWindow` C# partials reduced from 2,584 to 2,521 physical lines, from approximately 188 to 176 methods and from 40 to 32 fields. `MainWindow.xaml` reduced from 236 to 222 lines. The application remains a single WPF executable and retains the existing panel visibility, permissions, refresh, audit and PDF behavior.
+Measured after the slice, the five `MainWindow` C# partials reduced from 2,584 to 2,521 physical lines and `MainWindow.xaml` reduced from 236 to 222 lines. The application remains a single WPF executable. The implementation intentionally preserves panel visibility, permissions, refresh, audit and PDF behavior; the automated suite, UI shell smoke run and representative DSR PDF comparison passed. Live connected-SQL workflow validation remains a separate operator acceptance step. Dashboard dependency construction also remains temporarily in `MainWindow`, so DESK-011 is not yet complete.
 
 This checkpoint does not declare the wider modular migration complete. Reports, Daily Workflow, Import, Archive, Settings, Accounting, Operations and Administration remain in `MainWindow` and must continue as separate reversible slices. Report formulas, mappings, schemas and import behavior were deliberately not changed in this checkpoint.
