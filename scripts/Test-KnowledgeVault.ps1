@@ -1,10 +1,14 @@
 [CmdletBinding()]
 param(
-    [string]$VaultPath = (Join-Path (Split-Path $PSScriptRoot -Parent) 'knowledge'),
+    [string]$VaultPath,
     [int]$StaleAfterDays = 180
 )
 
 $ErrorActionPreference = 'Stop'
+
+if ([string]::IsNullOrWhiteSpace($VaultPath)) {
+    $VaultPath = Join-Path (Split-Path $PSScriptRoot -Parent) 'knowledge'
+}
 
 if (-not (Test-Path -LiteralPath $VaultPath -PathType Container)) {
     throw "Knowledge vault not found: $VaultPath"

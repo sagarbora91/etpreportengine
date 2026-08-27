@@ -29,7 +29,7 @@ The first controlled extraction slice was completed on 2026-08-27:
 - the Dashboard read operation is exposed by the dependency-free Application contract `IDashboardQuery` and implemented by `SqlServerDashboardQuery`;
 - architecture tests enforce lower-layer independence from Desktop and keep the navigation area free of WPF, import, reporting and SQL dependencies.
 
-After this slice, the five `MainWindow` C# partials contain 2,319 physical lines, approximately 176 methods and 32 fields; `MainWindow.xaml` contains 222 lines. This is a measurable reduction, not completion of the full migration. Import, Reports, Daily Workflow, Archive, Settings, Accounting, Operations and Administration still require incremental extraction with workflow-specific verification.
+After this slice, the five `MainWindow` C# partials contain 2,521 physical lines, approximately 176 methods and 32 fields; `MainWindow.xaml` contains 222 lines. This is a measurable reduction, not completion of the full migration. Import, Reports, Daily Workflow, Archive, Settings, Accounting, Operations and Administration still require incremental extraction with workflow-specific verification.
 
 ## Target ownership
 

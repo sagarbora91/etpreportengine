@@ -200,6 +200,6 @@ The first low-risk slice and one representative data-backed workspace are now im
 4. `IDashboardQuery` defines the Application-layer read contract; `SqlServerDashboardQuery` adapts the existing SQL repositories without changing their queries or mappings.
 5. Focused navigation, Help, Dashboard presentation, Dashboard contract, SQL adapter and architecture tests protect these boundaries.
 
-Measured after the slice, the five `MainWindow` C# partials reduced from 2,584 to 2,319 physical lines, from approximately 188 to 176 methods and from 40 to 32 fields. `MainWindow.xaml` reduced from 236 to 222 lines. The application remains a single WPF executable and retains the existing panel visibility, permissions, refresh, audit and PDF behavior.
+Measured after the slice, the five `MainWindow` C# partials reduced from 2,584 to 2,521 physical lines, from approximately 188 to 176 methods and from 40 to 32 fields. `MainWindow.xaml` reduced from 236 to 222 lines. The application remains a single WPF executable and retains the existing panel visibility, permissions, refresh, audit and PDF behavior.
 
 This checkpoint does not declare the wider modular migration complete. Reports, Daily Workflow, Import, Archive, Settings, Accounting, Operations and Administration remain in `MainWindow` and must continue as separate reversible slices. Report formulas, mappings, schemas and import behavior were deliberately not changed in this checkpoint.
