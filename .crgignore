@@ -1,0 +1,87 @@
+# CRG compatibility policy. CRG 2.3.8 reads the mirrored
+# .code-review-graphignore file; keep both files synchronized.
+
+# Dependency trees and package caches
+node_modules/**
+**/node_modules/**
+vendor/**
+**/vendor/**
+.venv/**
+venv/**
+env/**
+**/.venv/**
+**/venv/**
+**/env/**
+
+# .NET, Android, Java and general build products
+**/bin/**
+**/obj/**
+.vs/**
+artifacts/**
+output/**
+tmp/**
+TestResults/**
+coverage/**
+dist/**
+build/**
+android/.gradle/**
+android/**/build/**
+android/local.properties
+
+# Generated indexes, caches and machine-local tooling
+.git/**
+.codex/**
+.code-review-graph/**
+graphify-out/**
+knowledge/.obsidian/**
+verification/**
+
+# Generated/minified third-party runtime files
+www/sql-wasm.js
+www/**/*.min.js
+www/**/*.min.css
+www/**/*.map
+
+# Binary, archive, database, document and media payloads
+*.dll
+*.exe
+*.pdb
+*.so
+*.dylib
+*.class
+*.jar
+*.apk
+*.aab
+*.wasm
+*.zip
+*.7z
+*.rar
+*.tar
+*.gz
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.bak
+*.pdf
+*.doc
+*.docx
+*.xls
+*.xlsx
+*.xlsm
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.ico
+*.svg
+*.webp
+*.woff
+*.woff2
+*.ttf
+*.otf
+*.mp3
+*.wav
+*.mp4

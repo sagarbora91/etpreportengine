@@ -12,6 +12,7 @@ tmp/
 graphify-out/cost.json
 .graphify_*.json
 .graphify_*.txt
+.code-review-graph/
 
 # Obsidian machine-local state; the Markdown vault itself is versioned.
 knowledge/.obsidian/workspace.json
