@@ -16,13 +16,20 @@ public partial class MainWindow
 {
     private UiPreferences uiPreferences = UiPreferences.Default;
     private Border? moduleHomePanel;
-    private string currentModuleId = "home";
+    private readonly IShellNavigationService navigation = new ShellNavigationService();
     private bool sidebarOverlay;
     private bool sidebarExplicitlyCollapsed;
-    private readonly WorkspaceNavigationHistory navigationHistory = new();
-    private bool replayingNavigation;
-    private string? pendingFeatureCode;
     private DensitySelector? sidebarDensitySelector;
+
+    private string CurrentModuleId => navigation.Current == WorkspaceRoute.Home
+        ? "home"
+        : ShellRouteRegistry.Find(navigation.Current.Destination)?.ModuleId ?? "home";
+
+    private ShellAccess CurrentShellAccess => new(
+        currentAccess.Role != ApplicationRole.None,
+        currentAccess.CanView,
+        currentAccess.CanImport,
+        currentAccess.CanAdminister);
 
     private void InitializeShell()
     {
@@ -61,9 +68,12 @@ public partial class MainWindow
 
     private void ShowModuleHome()
     {
+        ApplyNavigationDecision(navigation.Navigate(WorkspaceRoute.Home, CurrentShellAccess));
+    }
+
+    private void DisplayModuleHome()
+    {
         HideFocusedWorkspace();
-        if (!replayingNavigation) navigationHistory.Visit(WorkspaceLocation.Home);
-        currentModuleId = "home";
         HideAllFeaturePanels();
         EnsureModuleHome();
         if (moduleHomePanel is not null) moduleHomePanel.Visibility = Visibility.Visible;
@@ -131,36 +141,23 @@ public partial class MainWindow
         NavigateToDestination(tile.Definition.Destination);
     }
 
-    private void NavigateToDestination(string destination) => NavigateToDestinationWithFeature(destination, null);
+    private bool NavigateToDestination(string destination) => NavigateToDestinationWithFeature(destination, null);
 
-    private void NavigateToDestinationWithFeature(string destination, string? featureCode)
+    private bool NavigateToDestinationWithFeature(string destination, string? featureCode)
     {
-        pendingFeatureCode = featureCode;
-        var button = new Button { Tag = destination };
-        try { Navigate_Click(button, new RoutedEventArgs()); }
-        finally { pendingFeatureCode = null; }
+        var decision = navigation.Navigate(new WorkspaceRoute(destination, featureCode), CurrentShellAccess);
+        ApplyNavigationDecision(decision);
+        return decision.IsAllowed;
     }
 
-    private void UpdateShellForDestination(string destination)
+    private void UpdateShellForDestination(ShellRouteDescriptor route)
     {
-        if (!replayingNavigation) navigationHistory.Visit(new WorkspaceLocation(destination, pendingFeatureCode));
-        currentModuleId = destination switch
-        {
-            "Dashboard" or "Daily Workflow" or "Manual Entry" => "dashboard",
-            "Sales Reports" or "Stock Reports" => "reports",
-            "Import ETP" => "imports",
-            "Registers" => "registers",
-            "Accounting" => "accounting",
-            "Report Archive" => "archive",
-            "Operations Center" => "exceptions",
-            "Settings" or "Admin / Settings" or "Masters" => "settings",
-            _ => "home"
-        };
+        var destination = route.Destination;
         if (moduleHomePanel is not null) moduleHomePanel.Visibility = Visibility.Collapsed;
         ReadinessSummaryPanel.Visibility = destination == "Dashboard" ? Visibility.Visible : Visibility.Collapsed;
         GettingStartedPanel.Visibility = Visibility.Collapsed;
-        ConfigureSidebar(currentModuleId);
-        BreadcrumbText.Text = currentModuleId == "settings" ? "Administration" : $"Modules / {SidebarModuleTitle.Text}";
+        ConfigureSidebar(route.ModuleId);
+        BreadcrumbText.Text = route.ModuleId == "settings" ? "Administration" : $"Modules / {SidebarModuleTitle.Text}";
         LegacyWorkspaceScroll.ScrollToTop();
     }
 
@@ -201,19 +198,16 @@ public partial class MainWindow
     {
         if (sender is not Button { Tag: NavigationItemDefinition item }) return;
         if (!item.IsAvailable) { ApplicationStatus.Text = item.UnavailableReason ?? "This capability is not available."; return; }
-        NavigateToDestinationWithFeature(item.Destination, item.FeatureCode);
-        if (!string.IsNullOrWhiteSpace(item.FeatureCode))
-        {
-            var featureButton = new Button { Tag = item.FeatureCode };
-            RunCatalogueReport_Click(featureButton, new RoutedEventArgs());
-        }
+        var navigated = NavigateToDestinationWithFeature(item.Destination, item.FeatureCode);
+        if (navigated && !string.IsNullOrWhiteSpace(item.FeatureCode))
+            _ = RunCatalogueReportAsync(item.FeatureCode);
         if (sidebarOverlay) HideSidebar();
     }
 
     private void SidebarSearch_TextChanged(object sender, TextChangedEventArgs e)
     {
         if (!IsLoaded && SidebarItemsPanel is null) return;
-        PopulateSidebar(UiNavigationRegistry.ForModule(currentModuleId), SidebarSearchInput.Text.Trim());
+        PopulateSidebar(UiNavigationRegistry.ForModule(CurrentModuleId), SidebarSearchInput.Text.Trim());
     }
 
     private void ShowSidebar()
@@ -242,7 +236,7 @@ public partial class MainWindow
 
     private void MainWindow_SizeChanged(object sender, SizeChangedEventArgs e)
     {
-        if (currentModuleId != "home" && !sidebarExplicitlyCollapsed) ShowSidebar();
+        if (CurrentModuleId != "home" && !sidebarExplicitlyCollapsed) ShowSidebar();
         BuildModuleHome();
     }
 
@@ -330,25 +324,25 @@ public partial class MainWindow
             case ShellCommand.CloseOrCancel when DrawerOverlay.Visibility == Visibility.Visible: CloseDrawer(); return true;
             case ShellCommand.CloseOrCancel when CloseFocusedHelp(): return true;
             case ShellCommand.Search:
-                if (currentModuleId is "reports" or "imports") { SidebarSearchInput.Focus(); SidebarSearchInput.SelectAll(); }
+                if (CurrentModuleId is "reports" or "imports") { SidebarSearchInput.Focus(); SidebarSearchInput.SelectAll(); }
                 else OpenGlobalSearch_Click(this, new RoutedEventArgs());
                 return true;
             case ShellCommand.Refresh: RefreshCurrentWorkspace(); return true;
-            case ShellCommand.Run when navigationHistory.Current?.FeatureCode is { } feature:
-                RunCatalogueReport_Click(new Button { Tag = feature }, new RoutedEventArgs()); return true;
-            case ShellCommand.ExportPdf when currentModuleId == "reports": ExportPdf_Click(this, new RoutedEventArgs()); return true;
-            case ShellCommand.ExportExcel when currentModuleId == "reports": ExportExcel_Click(this, new RoutedEventArgs()); return true;
-            case ShellCommand.GenerateReportPack when currentModuleId is "dashboard" or "reports": GenerateDailyPack_Click(this, new RoutedEventArgs()); return true;
-            case ShellCommand.OpenExportFolder when currentModuleId == "reports": OpenExportFolder(); return true;
+            case ShellCommand.Run when navigation.Current.FeatureCode is { } feature:
+                _ = RunCatalogueReportAsync(feature); return true;
+            case ShellCommand.ExportPdf when CurrentModuleId == "reports": ExportPdf_Click(this, new RoutedEventArgs()); return true;
+            case ShellCommand.ExportExcel when CurrentModuleId == "reports": ExportExcel_Click(this, new RoutedEventArgs()); return true;
+            case ShellCommand.GenerateReportPack when CurrentModuleId is "dashboard" or "reports": GenerateDailyPack_Click(this, new RoutedEventArgs()); return true;
+            case ShellCommand.OpenExportFolder when CurrentModuleId == "reports": OpenExportFolder(); return true;
             case ShellCommand.FocusPeriod: FocusPrimaryPeriod(); return true;
             case ShellCommand.GoToReport:
                 NavigateToDestination("Sales Reports");
                 SidebarSearchInput.Focus();
                 SidebarSearchInput.SelectAll();
                 return true;
-            case ShellCommand.Save when navigationHistory.Current?.Destination == "Manual Entry": SaveManualInput_Click(this, new RoutedEventArgs()); return true;
-            case ShellCommand.ImportFiles when currentModuleId == "imports": BrowseWorkbook_Click(this, new RoutedEventArgs()); return true;
-            case ShellCommand.ImportFolder when currentModuleId == "imports": BrowseImportFolder_Click(this, new RoutedEventArgs()); return true;
+            case ShellCommand.Save when navigation.Current.Destination == "Manual Entry": SaveManualInput_Click(this, new RoutedEventArgs()); return true;
+            case ShellCommand.ImportFiles when CurrentModuleId == "imports": BrowseWorkbook_Click(this, new RoutedEventArgs()); return true;
+            case ShellCommand.ImportFolder when CurrentModuleId == "imports": BrowseImportFolder_Click(this, new RoutedEventArgs()); return true;
             case ShellCommand.CycleRegion: CycleShellRegion(); return true;
             default: return false;
         }
@@ -356,19 +350,10 @@ public partial class MainWindow
 
     private bool NavigateHistory(bool back)
     {
-        var location = back ? navigationHistory.GoBack() : navigationHistory.GoForward();
-        if (location is null) return false;
-        replayingNavigation = true;
-        try
-        {
-            if (location == WorkspaceLocation.Home) ShowModuleHome();
-            else
-            {
-                NavigateToDestinationWithFeature(location.Destination, location.FeatureCode);
-                if (location.FeatureCode is { } feature) RunCatalogueReport_Click(new Button { Tag = feature }, new RoutedEventArgs());
-            }
-        }
-        finally { replayingNavigation = false; }
+        var decision = back ? navigation.GoBack(CurrentShellAccess) : navigation.GoForward(CurrentShellAccess);
+        ApplyNavigationDecision(decision);
+        if (!decision.IsAllowed) return false;
+        if (decision.RequestedRoute.FeatureCode is { } feature) _ = RunCatalogueReportAsync(feature);
         return true;
     }
 
@@ -379,7 +364,7 @@ public partial class MainWindow
 
     private void RefreshCurrentWorkspace()
     {
-        switch (currentModuleId)
+        switch (CurrentModuleId)
         {
             case "dashboard": _ = RefreshDashboardAsync(); _ = RefreshDailyWorkflowAsync(); break;
             case "imports": _ = RefreshSourceInboxAsync(); break;
@@ -388,7 +373,7 @@ public partial class MainWindow
             case "archive": _ = RefreshReportArchiveAsync(); break;
             case "exceptions": _ = RefreshOperationsAsync(); break;
             case "settings": _ = RefreshMasterAdministrationAsync(); break;
-            case "reports" when navigationHistory.Current?.FeatureCode is { } feature: RunCatalogueReport_Click(new Button { Tag = feature }, new RoutedEventArgs()); break;
+            case "reports" when navigation.Current.FeatureCode is { } feature: _ = RunCatalogueReportAsync(feature); break;
         }
     }
 

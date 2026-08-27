@@ -15,6 +15,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Etp.Reporting.Application\Etp.Reporting.Application.csproj" Aliases="EtpApplication" />
     <ProjectReference Include="..\Etp.Reporting.Import\Etp.Reporting.Import.csproj" />
     <ProjectReference Include="..\Etp.Reporting.Infrastructure.SqlServer\Etp.Reporting.Infrastructure.SqlServer.csproj" />
     <ProjectReference Include="..\Etp.Reporting.Reporting\Etp.Reporting.Reporting.csproj" />

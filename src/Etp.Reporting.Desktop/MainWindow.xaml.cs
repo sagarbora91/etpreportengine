@@ -1,3 +1,5 @@
+extern alias EtpApplication;
+
 using System.IO;
 using System.Globalization;
 using System.Security.Principal;
@@ -20,6 +22,8 @@ using Microsoft.Data.SqlClient;
 
 namespace Etp.Reporting.Desktop;
 
+using DashboardSnapshot = EtpApplication::Etp.Reporting.Application.Dashboard.DashboardSnapshot;
+
 public partial class MainWindow : Window
 {
     private WorkbookSnapshot? validatedWorkbook;
@@ -32,7 +36,8 @@ public partial class MainWindow : Window
     private string? currentReportCode;
     private ReportPackDocument? currentDailyPackDocument;
     private ReportPackDocument? currentArchivedDocument;
-    private OperationalSummary? latestOperationalSummary;
+    private DashboardSnapshot? latestDashboardSnapshot;
+    private readonly DashboardView dashboardView = new();
     private DailyWorkflowSnapshot? currentDailySnapshot;
     private BatchImportSource? activeBatchSource;
     private CancellationTokenSource? batchCancellation;
@@ -40,26 +45,13 @@ public partial class MainWindow : Window
     private ApplicationAccess currentAccess = new("unknown", "Unknown user", ApplicationRole.None, false);
     private static readonly string SettingsPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "EtpReporting", "settings.json");
-    private static readonly IReadOnlyDictionary<string, PageDetails> Pages = new Dictionary<string, PageDetails>(StringComparer.Ordinal)
-    {
-        ["Dashboard"] = new("Today’s reporting status, required actions and application health.", "Business day cockpit", "Follow Import → Check → Complete inputs → Generate → Finalise → Share.", "Open daily workflow", "Daily Workflow"),
-        ["Daily Workflow"] = new("Complete, reconcile and finalise one ETP business date.", "Daily reporting", "Review source completeness, enter only non-ETP operational values, then finalise the protected day.", "Daily workflow ready", "Daily Workflow"),
-        ["Manual Entry"] = new("Enter governed business-day values that are not supplied by ETP reports.", "Manual Entry", "Start with walk-ins. Additional approved fields will appear here automatically when they are registered in the database.", "Manual Entry ready", "Manual Entry"),
-        ["Import ETP"] = new("Import ETP workbooks and manage every received source document.", "Import and Source Inbox", "Import one workbook, a large historical folder, safe ZIP package, PDF or image with progress and review queues.", "Import ready", "Import ETP"),
-        ["Sales Reports"] = new("Preview and export every approved report through one consistent workspace.", "Reports Centre", "Use the same period, store, brand, transaction and item filters across Sales, Stock, Staff, Tender, Service and Exceptions.", "Run reports below", "Sales Reports"),
-        ["Stock Reports"] = new("View approved stock movement and balance reports.", "Stock reporting", "Reconcile the stock ledger to the closing-stock snapshot using source-signed quantities.", "Run reports below", "Stock Reports"),
-        ["Registers"] = new("Create and search audited registers linked to immutable documents.", "Digital registers", "Start with the Inward Register and reuse the same governed structure for future register types.", "Registers ready", "Registers"),
-        ["Accounting"] = new("Prepare balanced accounting batches from final report generations.", "Accounting preparation", "Owner-approved ledger mappings remain mandatory before review, approval and Tally XML export.", "Accounting ready", "Accounting"),
-        ["Operations Center"] = new("Investigate issues, approvals, trends, automation, backup and product health.", "Control Centre", "Business resolution never changes the underlying technical control result.", "Control Centre ready", "Operations Center"),
-        ["Report Archive"] = new("Open, compare, package and share immutable report generations.", "Archive and sharing", "Every archived document and ZIP package is integrity checked and remains tied to its generation.", "Archive ready", "Report Archive"),
-        ["Masters"] = new("Maintain reporting reference data.", "Master data", "Review confirmed Brand Segment descriptions while unresolved mappings remain fail-closed.", "Review dictionary", "Masters"),
-        ["Settings"] = new("Configure the application and database connection.", "Connection settings", "Test the saved Windows-integrated SQL Server connection or safely create/update the database.", "Configuration ready", "Settings"),
-        ["Admin / Settings"] = new("Administer users, masters, KPI definitions, integrations and database settings.", "Admin and Settings", "Owner-only changes remain versioned or audited and cannot rewrite locked history.", "Administration ready", "Admin / Settings")
-    };
 
     public MainWindow()
     {
         InitializeComponent();
+        DashboardHost.Content = dashboardView;
+        dashboardView.RefreshRequested += async (_, _) => await RefreshDashboardAsync();
+        dashboardView.ExportPdfRequested += (_, _) => ExportDashboardPdf_Click(dashboardView, new RoutedEventArgs());
         InitializeShell();
         ReportFrom.SelectedDate = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1).AddMonths(-1);
         ReportTo.SelectedDate = DateTime.Today.AddDays(-1);
@@ -90,22 +82,24 @@ public partial class MainWindow : Window
 
     private void Navigate_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is not Button { Tag: string destination } || !Pages.TryGetValue(destination, out var page)) return;
-        if ((destination is "Masters" or "Admin / Settings" || destination == "Settings" && currentAccess.Role != ApplicationRole.None) && !currentAccess.CanAdminister)
+        if (sender is not Button { Tag: string destination }) return;
+        NavigateToDestination(destination);
+    }
+
+    private void ApplyNavigationDecision(NavigationDecision decision)
+    {
+        if (!decision.IsAllowed)
         {
-            ApplicationStatus.Text = "Owner permission is required to open administration and database settings.";
+            if (!string.IsNullOrWhiteSpace(decision.DenialReason)) ApplicationStatus.Text = decision.DenialReason;
             return;
         }
-        if (destination == "Import ETP" && !currentAccess.CanImport)
+        if (decision.RequestedRoute == WorkspaceRoute.Home)
         {
-            ApplicationStatus.Text = "Owner or Store Manager permission is required to import ETP reports.";
+            DisplayModuleHome();
             return;
         }
-        if (destination is not "Settings" && !currentAccess.CanView)
-        {
-            ApplicationStatus.Text = "This Windows account has not been granted application access by an Owner.";
-            return;
-        }
+        if (decision.Descriptor is not { } page) return;
+        var destination = page.Destination;
         HideFocusedWorkspace();
         PageTitle.Text = destination switch { "Dashboard" => "Home", "Sales Reports" or "Stock Reports" => "Reports", "Operations Center" => "Control Centre", "Report Archive" => "Archive", _ => destination };
         PageDescription.Text = page.Description;
@@ -126,7 +120,7 @@ public partial class MainWindow : Window
         RegistersPanel.Visibility = destination == "Registers" ? Visibility.Visible : Visibility.Collapsed;
         AccountingPanel.Visibility = destination == "Accounting" ? Visibility.Visible : Visibility.Collapsed;
         MastersPanel.Visibility = destination is "Masters" or "Admin / Settings" ? Visibility.Visible : Visibility.Collapsed;
-        UpdateShellForDestination(destination);
+        UpdateShellForDestination(page);
         ApplicationStatus.Text = $"{destination} selected. {page.Message}";
         if (destination == "Dashboard") { _ = RefreshDashboardAsync(); _ = RefreshDailyWorkflowAsync(); }
         if (destination is "Daily Workflow" or "Manual Entry") _ = RefreshDailyWorkflowAsync();
@@ -624,31 +618,37 @@ public partial class MainWindow : Window
     private async void RunCatalogueReport_Click(object sender,RoutedEventArgs e)
     {
         if(sender is not Button { Tag:string report })return;
-        BeginReportLoad(report);
+        await RunCatalogueReportAsync(report);
+    }
+
+    private async Task RunCatalogueReportAsync(string report)
+    {
+        if (!BeginReportLoad(report)) return;
+        var e = new RoutedEventArgs();
         switch(report)
         {
-            case "dsr": RunDsr_Click(sender,e); break;
-            case "sales-titan": StoreFilterInput.Text="WLMHW";SelectSalesDimension("Daily");RunSalesReport_Click(sender,e);break;
-            case "sales-helios": StoreFilterInput.Text="HEMW";SelectSalesDimension("Daily");RunSalesReport_Click(sender,e);break;
-            case "sales-combined": StoreFilterInput.Clear();SelectSalesDimension("Store");RunSalesReport_Click(sender,e);break;
-            case "sales-returns": SelectSalesDimension("Returns");RunSalesReport_Click(sender,e);break;
-            case "sales-brand": SelectSalesDimension("Brand");RunSalesReport_Click(sender,e);break;
-            case "sales-segment": SelectSalesDimension("BrandSegment");RunSalesReport_Click(sender,e);break;
-            case "sales-item": SelectSalesDimension("Item");RunSalesReport_Click(sender,e);break;
-            case "invoice": RunInvoiceSummary_Click(sender,e);break;
-            case "invoice-lineage": RunInvoiceLineage_Click(sender,e);break;
-            case "staff": RunStaffPerformance_Click(sender,e);break;
-            case "service": RunServiceSales_Click(sender,e);break;
-            case "cash": RunCashReconciliation_Click(sender,e);break;
-            case "tender": RunTenderReport_Click(sender,e);break;
-            case "tender-diagnostic": RunTenderDiagnostic_Click(sender,e);break;
-            case "stock-variance": RunStockReport_Click(sender,e);break;
-            case "stock-physical" or "stock-group": RunPhysicalStock_Click(sender,e);break;
+            case "dsr": RunDsr_Click(this,e); break;
+            case "sales-titan": StoreFilterInput.Text="WLMHW";SelectSalesDimension("Daily");RunSalesReport_Click(this,e);break;
+            case "sales-helios": StoreFilterInput.Text="HEMW";SelectSalesDimension("Daily");RunSalesReport_Click(this,e);break;
+            case "sales-combined": StoreFilterInput.Clear();SelectSalesDimension("Store");RunSalesReport_Click(this,e);break;
+            case "sales-returns": SelectSalesDimension("Returns");RunSalesReport_Click(this,e);break;
+            case "sales-brand": SelectSalesDimension("Brand");RunSalesReport_Click(this,e);break;
+            case "sales-segment": SelectSalesDimension("BrandSegment");RunSalesReport_Click(this,e);break;
+            case "sales-item": SelectSalesDimension("Item");RunSalesReport_Click(this,e);break;
+            case "invoice": RunInvoiceSummary_Click(this,e);break;
+            case "invoice-lineage": RunInvoiceLineage_Click(this,e);break;
+            case "staff": RunStaffPerformance_Click(this,e);break;
+            case "service": RunServiceSales_Click(this,e);break;
+            case "cash": RunCashReconciliation_Click(this,e);break;
+            case "tender": RunTenderReport_Click(this,e);break;
+            case "tender-diagnostic": RunTenderDiagnostic_Click(this,e);break;
+            case "stock-variance": RunStockReport_Click(this,e);break;
+            case "stock-physical" or "stock-group": RunPhysicalStock_Click(this,e);break;
             case "stock-closing": await RunStockInventoryAsync("CLOSING");break;
             case "stock-brand": await RunStockInventoryAsync("BRAND");break;
             case "stock-slow": await RunStockInventoryAsync("SLOW");break;
             case "stock-movement": await RunStockMovementAsync();break;
-            case "exceptions": RunDailyExceptions_Click(sender,e);break;
+            case "exceptions": RunDailyExceptions_Click(this,e);break;
             case "exception-source": await RunFocusedExceptionAsync("Source");break;
             case "exception-unmapped": await RunFocusedExceptionAsync("Unmapped");break;
             case "exception-stock": await RunFocusedExceptionAsync("Stock");break;
@@ -658,9 +658,9 @@ public partial class MainWindow : Window
         }
     }
 
-    private void BeginReportLoad(string reportCode)
+    private bool BeginReportLoad(string reportCode)
     {
-        ShowFocusedReportWorkspace(reportCode);
+        if (!ShowFocusedReportWorkspace(reportCode)) return false;
         currentReportCode = reportCode;
         currentExportMetadata = null;
         currentExportData = null;
@@ -670,6 +670,7 @@ public partial class MainWindow : Window
         ExportPdfButton.IsEnabled = false;
         VisualReportPanel.Children.Clear();
         ReportResult.Text = reportCode == "dsr" ? "Loading the governed Daily Sales Report…" : "Loading report…";
+        return true;
     }
 
     private void SelectSalesDimension(string name)
@@ -1000,8 +1001,6 @@ public partial class MainWindow : Window
         catch (Exception ex) { ReportResult.Text = $"PDF export failed: {ex.Message}"; }
     }
 
-    private async void RefreshDashboard_Click(object sender, RoutedEventArgs e) => await RefreshDashboardAsync();
-
     private async Task CheckConnectionAndRefreshAsync(bool showProgress)
     {
         if (showProgress) ConnectionResult.Text = "Testing…";
@@ -1032,36 +1031,12 @@ public partial class MainWindow : Window
     {
         try
         {
-            var summaryTask = new OperationalStatusRepository(ConnectionStringInput.Text).LoadAsync();
-            var healthTask = new DatabaseOperationalHealthRepository(ConnectionStringInput.Text).LoadAsync();
-            var auditTask = new OperationalAuditRepository(ConnectionStringInput.Text).LoadRecentAsync(25);
-            await Task.WhenAll(summaryTask, healthTask, auditTask);
-            var summary = await summaryTask;
-            var health = await healthTask;
-            var audit = await auditTask;
-            latestOperationalSummary = summary;
-            ImportedFilesMetric.Text = summary.ImportedFiles.ToString("N0");
-            CompletedBatchesMetric.Text = summary.CompletedBatches.ToString("N0");
-            SourceRowsMetric.Text = summary.SourceRows.ToString("N0");
-            LatestImportMetric.Text = summary.LatestImportUtc?.ToString("dd MMM yyyy HH:mm") ?? "None";
-            ImportHistoryGrid.ItemsSource = summary.RecentImports;
-            RenderDashboardChart(summary);
-            DatabaseHealthMetric.Text = health.Severity.ToString();
-            DatabaseHealthMetric.Foreground = health.Severity == OperationalHealthSeverity.Healthy ? Brushes.SeaGreen : health.Severity == OperationalHealthSeverity.Warning ? Brushes.DarkOrange : Brushes.Firebrick;
-            DatabaseSizeMetric.Text = $"{health.DatabaseSizeMb:N2} MB";
-            BackupAgeMetric.Text = health.LastSuccessfulBackupUtc?.ToString("dd MMM yyyy HH:mm") ?? "Missing";
-            BackupSpaceMetric.Text = health.BackupFreeSpaceGb is { } freeGb ? $"{freeGb:N2} GB" : "Unavailable";
-            FailedImportsMetric.Text = health.FailedImportsLast24Hours.ToString("N0");
-            HealthWarningsList.ItemsSource = health.Warnings.Select(x => $"{x.Code}: {x.Message}").ToArray();
-            OperationalAuditGrid.ItemsSource = audit;
+            latestDashboardSnapshot = await new SqlServerDashboardQuery(ConnectionStringInput.Text).LoadAsync();
+            dashboardView.Show(DashboardViewState.FromSnapshot(latestDashboardSnapshot));
         }
         catch (Exception ex)
         {
-            ImportedFilesMetric.Text = CompletedBatchesMetric.Text = SourceRowsMetric.Text = "-";
-            LatestImportMetric.Text = "Unavailable";
-            DatabaseHealthMetric.Text = DatabaseSizeMetric.Text = BackupAgeMetric.Text = BackupSpaceMetric.Text = FailedImportsMetric.Text = "Unavailable";
-            HealthWarningsList.ItemsSource = null;
-            OperationalAuditGrid.ItemsSource = null;
+            dashboardView.ShowError(ex.Message);
             ApplicationStatus.Text = $"Dashboard refresh failed: {ex.Message}";
         }
     }
@@ -1405,35 +1380,18 @@ public partial class MainWindow : Window
         OpenDrawer("Report row details", "Source evidence and technical lineage remain available without leaving the report workspace.", ReportGrid.SelectedItem);
     }
 
-    private void RenderDashboardChart(OperationalSummary summary)
-    {
-        DashboardChartPanel.Children.Clear();
-        var groups = summary.RecentImports.GroupBy(x => x.ReportCode).Select(x => new { Code = x.Key, Rows = x.Sum(v => v.SourceRows) }).OrderByDescending(x => x.Rows).ToArray();
-        var maximum = Math.Max(1, groups.Select(x => x.Rows).DefaultIfEmpty(1).Max());
-        foreach (var group in groups)
-        {
-            var row = new Grid { Margin = new Thickness(0, 3, 0, 3) };
-            row.ColumnDefinitions.Add(new() { Width = new GridLength(120) }); row.ColumnDefinitions.Add(new() { Width = new GridLength(1, GridUnitType.Star) }); row.ColumnDefinitions.Add(new() { Width = new GridLength(80) });
-            var label = new TextBlock { Text = group.Code, VerticalAlignment = VerticalAlignment.Center };
-            var bar = new Border { Background = new SolidColorBrush(Color.FromRgb(23, 107, 135)), Height = 16, HorizontalAlignment = HorizontalAlignment.Left, Width = 420d * group.Rows / maximum };
-            var value = new TextBlock { Text = group.Rows.ToString("N0"), HorizontalAlignment = HorizontalAlignment.Right };
-            Grid.SetColumn(label, 0); Grid.SetColumn(bar, 1); Grid.SetColumn(value, 2); row.Children.Add(label); row.Children.Add(bar); row.Children.Add(value); DashboardChartPanel.Children.Add(row);
-        }
-    }
-
     private void ExportDashboardPdf_Click(object sender, RoutedEventArgs e)
     {
-        if (latestOperationalSummary is null) { ApplicationStatus.Text = "Refresh the dashboard before exporting a management summary."; return; }
+        if (latestDashboardSnapshot is null) { ApplicationStatus.Text = "Refresh the dashboard before exporting a management summary."; return; }
         var dialog = new SaveFileDialog { Filter = "PDF report (*.pdf)|*.pdf", FileName = $"ETP_Management_Summary_{DateTime.Today:yyyyMMdd}.pdf", AddExtension = true };
         if (dialog.ShowDialog(this) != true) return;
-        var groups = latestOperationalSummary.RecentImports.GroupBy(x => x.ReportCode).OrderBy(x => x.Key).ToArray();
+        var groups = latestDashboardSnapshot.RecentImports.GroupBy(x => x.ReportCode).OrderBy(x => x.Key).ToArray();
         var metadata = new ExcelReportMetadata("ETP Management Summary", ReportFrom.SelectedDate is { } from ? DateOnly.FromDateTime(from) : DateOnly.FromDateTime(DateTime.Today), ReportTo.SelectedDate is { } to ? DateOnly.FromDateTime(to) : DateOnly.FromDateTime(DateTime.Today), "Operational", "v1", "Aggregate operational evidence only; confidential source rows are excluded.", DateTimeOffset.UtcNow);
-        var data = new ExcelReportData([new("Report"), new("Files", "#,##0"), new("Rows", "#,##0")], groups.Select(x => (IReadOnlyList<object?>)[x.Key, x.Count(), x.Sum(v => v.SourceRows)]).ToArray(), ["Total", latestOperationalSummary.ImportedFiles, latestOperationalSummary.SourceRows]);
+        var data = new ExcelReportData([new("Report"), new("Files", "#,##0"), new("Rows", "#,##0")], groups.Select(x => (IReadOnlyList<object?>)[x.Key, x.Count(), x.Sum(v => v.SourceRows)]).ToArray(), ["Total", latestDashboardSnapshot.ImportedFiles, latestDashboardSnapshot.SourceRows]);
         try { new SimplePdfReportExporter().Export(dialog.FileName, metadata, data); ApplicationStatus.Text = $"Management summary saved to {dialog.FileName}"; }
         catch (Exception ex) { ApplicationStatus.Text = $"Management summary export failed: {ex.Message}"; }
     }
 
-    private sealed record PageDetails(string Description, string Heading, string Message, string ActionLabel, string ActionDestination);
     private sealed record DesktopSettings(string ConnectionString);
     private sealed record BrandSegmentEntry(string Code, string Description, string Status);
     private sealed class DelegateWorkbookImportOutcomeProcessor(Func<string, CancellationToken, Task<WorkbookImportOutcome>> process) : IWorkbookImportOutcomeProcessor

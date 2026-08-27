@@ -12,6 +12,7 @@
   </ItemGroup>
   <ItemGroup><Using Include="Xunit" /></ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Etp.Reporting.Application\Etp.Reporting.Application.csproj" />
     <ProjectReference Include="..\..\src\Etp.Reporting.Infrastructure.SqlServer\Etp.Reporting.Infrastructure.SqlServer.csproj" />
     <ProjectReference Include="..\..\src\Etp.Reporting.Import\Etp.Reporting.Import.csproj" />
   </ItemGroup>

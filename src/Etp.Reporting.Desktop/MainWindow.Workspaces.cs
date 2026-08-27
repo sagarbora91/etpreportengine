@@ -15,12 +15,7 @@ public partial class MainWindow
     private DailySalesReportWorkspace? dsrWorkspace;
     private HelpCentreView? helpCentre;
     private string? focusedWorkspaceKind;
-    private object? helpReturnContent;
-    private string? helpReturnKind;
-    private string? helpReturnTitle;
-    private string? helpReturnDescription;
-    private string? helpReturnBreadcrumb;
-    private bool helpReturnSidebarVisible;
+    private readonly HelpWorkspaceSession helpWorkspaceSession = new();
 
     private void InitializeFocusedWorkspaces()
     {
@@ -28,11 +23,16 @@ public partial class MainWindow
         FocusedWorkspaceHost.Content = null;
     }
 
-    private void ShowFocusedReportWorkspace(string reportCode)
+    private bool ShowFocusedReportWorkspace(string reportCode)
     {
         var report = ProductReportCatalogue.All.Single(x => x.Code.Equals(reportCode, StringComparison.OrdinalIgnoreCase));
         var destination = report.Category.Equals("Stock", StringComparison.OrdinalIgnoreCase) ? "Stock Reports" : "Sales Reports";
-        if (!replayingNavigation) navigationHistory.Visit(new WorkspaceLocation(destination, reportCode));
+        var decision = navigation.Navigate(new WorkspaceRoute(destination, reportCode), CurrentShellAccess);
+        if (!decision.IsAllowed)
+        {
+            ApplyNavigationDecision(decision);
+            return false;
+        }
 
         PageTitle.Text = report.Name;
         PageDescription.Text = report.Description;
@@ -49,7 +49,7 @@ public partial class MainWindow
             dsrWorkspace.ShowLoading();
             FocusedWorkspaceHost.Content = dsrWorkspace;
             dsrWorkspace.Focus();
-            return;
+            return true;
         }
 
         var definition = ReportWorkspaceRegistry.ForReport(reportCode);
@@ -66,6 +66,7 @@ public partial class MainWindow
         workspace.ShowLoading($"Loading {report.Name}…");
         FocusedWorkspaceHost.Content = workspace;
         workspace.Focus();
+        return true;
     }
 
     private DailySalesReportWorkspace CreateDsrWorkspace()
@@ -78,7 +79,7 @@ public partial class MainWindow
     private void RunFocusedReport(string reportCode, ReportWorkspaceControl workspace)
     {
         ApplyWorkspaceScope(workspace.DateFromPicker.SelectedDate, workspace.DateToPicker.SelectedDate, workspace.ScopeSelector.SelectedItem?.ToString());
-        RunCatalogueReport_Click(new Button { Tag = reportCode }, new RoutedEventArgs());
+        _ = RunCatalogueReportAsync(reportCode);
     }
 
     private void FocusedReportActionRequested(object? sender, ReportWorkspaceActionRequest request)
@@ -87,7 +88,7 @@ public partial class MainWindow
         {
             case ReportWorkspaceAction.Refresh when request.ReportCode is not null:
                 ApplyWorkspaceScope(request.DateFrom.ToDateTime(TimeOnly.MinValue), request.DateTo.ToDateTime(TimeOnly.MinValue), request.Scope);
-                RunCatalogueReport_Click(new Button { Tag = request.ReportCode }, new RoutedEventArgs());
+                _ = RunCatalogueReportAsync(request.ReportCode);
                 break;
             case ReportWorkspaceAction.ExportPdf:
                 ExportPdf_Click(this, new RoutedEventArgs());
@@ -174,20 +175,17 @@ public partial class MainWindow
 
     private void ShowHelpWorkspace(string? topicId = null, bool contextual = false)
     {
-        if (focusedWorkspaceKind != "help")
-        {
-            helpReturnContent = focusedWorkspaceKind == "report" ? FocusedWorkspaceHost.Content : null;
-            helpReturnKind = focusedWorkspaceKind;
-            helpReturnTitle = PageTitle.Text;
-            helpReturnDescription = PageDescription.Text;
-            helpReturnBreadcrumb = BreadcrumbText.Text;
-            helpReturnSidebarVisible = ContextSidebar.Visibility == Visibility.Visible;
-        }
+        helpWorkspaceSession.Open(new HelpWorkspaceSnapshot(
+            focusedWorkspaceKind == "report" ? FocusedWorkspaceHost.Content : null,
+            focusedWorkspaceKind,
+            PageTitle.Text,
+            PageDescription.Text,
+            BreadcrumbText.Text,
+            ContextSidebar.Visibility == Visibility.Visible));
         helpCentre ??= CreateHelpCentre();
         if (contextual)
         {
-            var location = navigationHistory.Current;
-            helpCentre.ShowContextHelp(location?.Destination, location?.FeatureCode);
+            helpCentre.ShowContextHelp(navigation.Current.Destination, navigation.Current.FeatureCode);
         }
         else helpCentre.OpenTopic(topicId ?? HelpCentreRegistry.HomeTopicId);
         focusedWorkspaceKind = "help";
@@ -207,43 +205,39 @@ public partial class MainWindow
         view.CloseRequested += (_, _) => CloseHelpWorkspace();
         view.NavigationRequested += (_, request) =>
         {
+            helpWorkspaceSession.Abandon();
             HideFocusedWorkspace();
             if (string.IsNullOrWhiteSpace(request.Destination)) return;
             var destination = request.Destination == "Investigation" ? "Operations Center" : request.Destination;
-            NavigateToDestinationWithFeature(destination, request.FeatureCode);
-            if (!string.IsNullOrWhiteSpace(request.FeatureCode))
-                RunCatalogueReport_Click(new Button { Tag = request.FeatureCode }, new RoutedEventArgs());
+            var navigated = NavigateToDestinationWithFeature(destination, request.FeatureCode);
+            if (navigated && !string.IsNullOrWhiteSpace(request.FeatureCode))
+                _ = RunCatalogueReportAsync(request.FeatureCode);
         };
         return view;
     }
 
     private bool CloseFocusedHelp()
     {
-        if (focusedWorkspaceKind != "help") return false;
+        if (!helpWorkspaceSession.IsOpen) return false;
         CloseHelpWorkspace();
         return true;
     }
 
     private void CloseHelpWorkspace()
     {
-        if (helpReturnKind == "report" && helpReturnContent is not null)
+        var returnState = helpWorkspaceSession.Close();
+        if (returnState?.CanRestoreFocusedWorkspace == true)
         {
-            FocusedWorkspaceHost.Content = helpReturnContent;
+            FocusedWorkspaceHost.Content = returnState.FocusedContent;
             FocusedWorkspaceLayer.Visibility = Visibility.Visible;
             LegacyWorkspaceScroll.Visibility = Visibility.Collapsed;
-            focusedWorkspaceKind = "report";
+            focusedWorkspaceKind = returnState.FocusedWorkspaceKind;
         }
         else HideFocusedWorkspace();
-        if (helpReturnTitle is not null) PageTitle.Text = helpReturnTitle;
-        if (helpReturnDescription is not null) PageDescription.Text = helpReturnDescription;
-        if (helpReturnBreadcrumb is not null) BreadcrumbText.Text = helpReturnBreadcrumb;
-        if (helpReturnSidebarVisible && currentModuleId != "home") ShowSidebar();
-        helpReturnContent = null;
-        helpReturnKind = null;
-        helpReturnTitle = null;
-        helpReturnDescription = null;
-        helpReturnBreadcrumb = null;
-        helpReturnSidebarVisible = false;
+        if (returnState?.PageTitle is not null) PageTitle.Text = returnState.PageTitle;
+        if (returnState?.PageDescription is not null) PageDescription.Text = returnState.PageDescription;
+        if (returnState?.Breadcrumb is not null) BreadcrumbText.Text = returnState.Breadcrumb;
+        if (returnState?.WasSidebarVisible == true && CurrentModuleId != "home") ShowSidebar();
     }
 
     private void HideFocusedWorkspace()

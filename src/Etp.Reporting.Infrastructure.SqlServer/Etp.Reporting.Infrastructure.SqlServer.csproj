@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.SqlClient" Version="6.1.1" />
+    <ProjectReference Include="..\Etp.Reporting.Application\Etp.Reporting.Application.csproj" />
     <ProjectReference Include="..\Etp.Reporting.Import\Etp.Reporting.Import.csproj" />
     <ProjectReference Include="..\Etp.Reporting.Domain\Etp.Reporting.Domain.csproj" />
     <ProjectReference Include="..\Etp.Reporting.Reporting\Etp.Reporting.Reporting.csproj" />
