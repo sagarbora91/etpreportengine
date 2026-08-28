@@ -6,6 +6,15 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
+function Assert-NativeSuccess {
+    param([Parameter(Mandatory)][string]$Step)
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "$Step failed with exit code $LASTEXITCODE."
+    }
+}
+
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $solution = Join-Path $repoRoot "Etp.Reporting.slnx"
 $desktopProject = Join-Path $repoRoot "src/Etp.Reporting.Desktop/Etp.Reporting.Desktop.csproj"
@@ -17,10 +26,17 @@ if ([string]::IsNullOrWhiteSpace($Version)) {
 if ($Version -notmatch '^\d+\.\d+\.\d+([-.][0-9A-Za-z.-]+)?$') { throw "Invalid semantic version: $Version" }
 
 dotnet restore $solution
+Assert-NativeSuccess "Solution restore"
 dotnet build $solution -c $Configuration --no-restore -p:Version=$Version
+Assert-NativeSuccess "Release build"
 dotnet test $solution -c $Configuration --no-build
+Assert-NativeSuccess "Release test suite"
+if (Test-Path -LiteralPath $output) {
+    Remove-Item -LiteralPath $output -Recurse -Force
+}
 dotnet publish $desktopProject -c $Configuration -r $Runtime --self-contained true `
     -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:Version=$Version -o $output
+Assert-NativeSuccess "Self-contained desktop publish"
 
 $packagedScripts = Join-Path $output "scripts"
 New-Item -ItemType Directory -Path $packagedScripts -Force | Out-Null

@@ -13,6 +13,7 @@
 
 - Hardened Windows database settings and lifecycle actions to accept only validated Windows Integrated Security connections, persist settings atomically and reject unsafe filesystem links.
 - Restored the automatic-backup runtime source used by the packaged app, including encrypted app-private backup scheduling, safe legacy cleanup and verified off-device delivery coverage.
+- Made release packaging fail closed on restore, build, test or publish errors, and added an isolated per-user installer lifecycle path with retained failure diagnostics.
 
 ## [1.8.2] - 2026-08-27
 

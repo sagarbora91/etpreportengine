@@ -17,6 +17,7 @@ SetupIconFile=..\src\Etp.Reporting.Desktop\Assets\EtpReporting.ico
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=admin
+PrivilegesRequiredOverridesAllowed=commandline
 OutputDir=..\artifacts\installer
 OutputBaseFilename=EtpReportingEngine-Setup-{#AppVersion}-x64
 Compression=lzma2
