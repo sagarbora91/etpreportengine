@@ -16,14 +16,13 @@ public partial class MainWindow
 {
     private UiPreferences uiPreferences = UiPreferences.Default;
     private Border? moduleHomePanel;
-    private readonly IShellNavigationService navigation = new ShellNavigationService();
     private bool sidebarOverlay;
     private bool sidebarExplicitlyCollapsed;
     private DensitySelector? sidebarDensitySelector;
 
-    private string CurrentModuleId => navigation.Current == WorkspaceRoute.Home
+    private string CurrentModuleId => shell.CurrentRoute == WorkspaceRoute.Home
         ? "home"
-        : ShellRouteRegistry.Find(navigation.Current.Destination)?.ModuleId ?? "home";
+        : ShellRouteRegistry.Find(shell.CurrentRoute.Destination)?.ModuleId ?? "home";
 
     private ShellAccess CurrentShellAccess => new(
         currentAccess.Role != ApplicationRole.None,
@@ -68,7 +67,7 @@ public partial class MainWindow
 
     private void ShowModuleHome()
     {
-        ApplyNavigationDecision(navigation.Navigate(WorkspaceRoute.Home, CurrentShellAccess));
+        ApplyNavigationDecision(shell.Navigate(WorkspaceRoute.Home, CurrentShellAccess));
     }
 
     private void DisplayModuleHome()
@@ -145,7 +144,7 @@ public partial class MainWindow
 
     private bool NavigateToDestinationWithFeature(string destination, string? featureCode)
     {
-        var decision = navigation.Navigate(new WorkspaceRoute(destination, featureCode), CurrentShellAccess);
+        var decision = shell.Navigate(new WorkspaceRoute(destination, featureCode), CurrentShellAccess);
         ApplyNavigationDecision(decision);
         return decision.IsAllowed;
     }
@@ -328,7 +327,7 @@ public partial class MainWindow
                 else OpenGlobalSearch_Click(this, new RoutedEventArgs());
                 return true;
             case ShellCommand.Refresh: RefreshCurrentWorkspace(); return true;
-            case ShellCommand.Run when navigation.Current.FeatureCode is { } feature:
+            case ShellCommand.Run when shell.CurrentRoute.FeatureCode is { } feature:
                 _ = RunCatalogueReportAsync(feature); return true;
             case ShellCommand.ExportPdf when CurrentModuleId == "reports": ExportPdf_Click(this, new RoutedEventArgs()); return true;
             case ShellCommand.ExportExcel when CurrentModuleId == "reports": ExportExcel_Click(this, new RoutedEventArgs()); return true;
@@ -340,7 +339,7 @@ public partial class MainWindow
                 SidebarSearchInput.Focus();
                 SidebarSearchInput.SelectAll();
                 return true;
-            case ShellCommand.Save when navigation.Current.Destination == "Manual Entry": SaveManualInput_Click(this, new RoutedEventArgs()); return true;
+            case ShellCommand.Save when shell.CurrentRoute.Destination == "Manual Entry": SaveManualInput_Click(this, new RoutedEventArgs()); return true;
             case ShellCommand.ImportFiles when CurrentModuleId == "imports": BrowseWorkbook_Click(this, new RoutedEventArgs()); return true;
             case ShellCommand.ImportFolder when CurrentModuleId == "imports": BrowseImportFolder_Click(this, new RoutedEventArgs()); return true;
             case ShellCommand.CycleRegion: CycleShellRegion(); return true;
@@ -350,7 +349,7 @@ public partial class MainWindow
 
     private bool NavigateHistory(bool back)
     {
-        var decision = back ? navigation.GoBack(CurrentShellAccess) : navigation.GoForward(CurrentShellAccess);
+        var decision = back ? shell.GoBack(CurrentShellAccess) : shell.GoForward(CurrentShellAccess);
         ApplyNavigationDecision(decision);
         if (!decision.IsAllowed) return false;
         if (decision.RequestedRoute.FeatureCode is { } feature) _ = RunCatalogueReportAsync(feature);
@@ -373,7 +372,7 @@ public partial class MainWindow
             case "archive": _ = RefreshReportArchiveAsync(); break;
             case "exceptions": _ = RefreshOperationsAsync(); break;
             case "settings": _ = RefreshMasterAdministrationAsync(); break;
-            case "reports" when navigation.Current.FeatureCode is { } feature: _ = RunCatalogueReportAsync(feature); break;
+            case "reports" when shell.CurrentRoute.FeatureCode is { } feature: _ = RunCatalogueReportAsync(feature); break;
         }
     }
 

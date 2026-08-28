@@ -1,9 +1,8 @@
 ﻿using System.Configuration;
-using System.Data;
 using System.IO;
 using System.Windows;
 using System.Windows.Threading;
-using Etp.Reporting.Infrastructure.SqlServer;
+using Etp.Reporting.Desktop.Composition;
 
 namespace Etp.Reporting.Desktop;
 
@@ -18,43 +17,23 @@ public partial class App : Application
         DispatcherUnhandledException += OnDispatcherUnhandledException;
         AppDomain.CurrentDomain.UnhandledException += (_, args) => WriteDiagnostic(args.ExceptionObject as Exception, "AppDomain");
         TaskScheduler.UnobservedTaskException += (_, args) => { WriteDiagnostic(args.Exception, "UnobservedTask"); args.SetObserved(); };
-
-        if (e.Args.Length == 1 && string.Equals(e.Args[0], "--initialize-database", StringComparison.Ordinal))
-        {
+        var compositionRoot = DesktopCompositionRoot.CreateDefault();
+        var startup = new DesktopStartupCoordinator(
+            compositionRoot.InitializeDatabaseAsync,
+            compositionRoot.RunAutomationOnceAsync,
+            () => compositionRoot.CreateMainWindow().Show());
+        var mode = DesktopStartupCoordinator.Route(e.Args);
+        if (mode != DesktopStartupMode.Interactive)
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
-            try
-            {
-                var migrations = Path.Combine(AppContext.BaseDirectory, "database", "migrations");
-                var connection = @"Server=.\SQLEXPRESS;Database=EtpReporting;Integrated Security=True;TrustServerCertificate=True";
-                await new SqlServerDatabaseBootstrapper(connection, new DirectoryMigrationSource(migrations)).BootstrapAsync();
-                Shutdown(0);
-            }
-            catch (Exception ex)
-            {
-                WriteDiagnostic(ex, "DatabaseInitialization");
-                Shutdown(1);
-            }
+
+        var outcome = await startup.RunAsync(e.Args);
+        if (outcome.Failure is not null && outcome.DiagnosticSource is not null)
+            WriteDiagnostic(outcome.Failure, outcome.DiagnosticSource);
+        if (outcome.ShouldShutdown)
+        {
+            Shutdown(outcome.ExitCode!.Value);
             return;
         }
-
-        if (e.Args.Length == 1 && string.Equals(e.Args[0], "--automation-once", StringComparison.Ordinal))
-        {
-            ShutdownMode = ShutdownMode.OnExplicitShutdown;
-            try
-            {
-                var connection = @"Server=.\SQLEXPRESS;Database=EtpReporting;Integrated Security=True;TrustServerCertificate=True";
-                var result = await new AutomatedOperationsService(connection).RunOnceAsync();
-                Shutdown(result.SourcesFailed == 0 ? 0 : 1);
-            }
-            catch (Exception ex)
-            {
-                WriteDiagnostic(ex, "UnattendedAutomation");
-                Shutdown(1);
-            }
-            return;
-        }
-
-        new MainWindow().Show();
     }
 
     private static void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)

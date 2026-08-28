@@ -23,6 +23,7 @@ using Microsoft.Data.SqlClient;
 namespace Etp.Reporting.Desktop;
 
 using DashboardSnapshot = EtpApplication::Etp.Reporting.Application.Dashboard.DashboardSnapshot;
+using DashboardQuery = EtpApplication::Etp.Reporting.Application.Dashboard.IDashboardQuery;
 
 public partial class MainWindow : Window
 {
@@ -37,7 +38,9 @@ public partial class MainWindow : Window
     private ReportPackDocument? currentDailyPackDocument;
     private ReportPackDocument? currentArchivedDocument;
     private DashboardSnapshot? latestDashboardSnapshot;
-    private readonly DashboardView dashboardView = new();
+    private readonly ShellViewModel shell;
+    private readonly DashboardView dashboardView;
+    private readonly Func<string, DashboardQuery> dashboardQueryFactory;
     private DailyWorkflowSnapshot? currentDailySnapshot;
     private BatchImportSource? activeBatchSource;
     private CancellationTokenSource? batchCancellation;
@@ -46,8 +49,14 @@ public partial class MainWindow : Window
     private static readonly string SettingsPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "EtpReporting", "settings.json");
 
-    public MainWindow()
+    public MainWindow(
+        ShellViewModel shell,
+        DashboardView dashboardView,
+        Func<string, DashboardQuery> dashboardQueryFactory)
     {
+        this.shell = shell ?? throw new ArgumentNullException(nameof(shell));
+        this.dashboardView = dashboardView ?? throw new ArgumentNullException(nameof(dashboardView));
+        this.dashboardQueryFactory = dashboardQueryFactory ?? throw new ArgumentNullException(nameof(dashboardQueryFactory));
         InitializeComponent();
         DashboardHost.Content = dashboardView;
         dashboardView.RefreshRequested += async (_, _) => await RefreshDashboardAsync();
@@ -1031,7 +1040,7 @@ public partial class MainWindow : Window
     {
         try
         {
-            latestDashboardSnapshot = await new SqlServerDashboardQuery(ConnectionStringInput.Text).LoadAsync();
+            latestDashboardSnapshot = await dashboardQueryFactory(ConnectionStringInput.Text).LoadAsync();
             dashboardView.Show(DashboardViewState.FromSnapshot(latestDashboardSnapshot));
         }
         catch (Exception ex)

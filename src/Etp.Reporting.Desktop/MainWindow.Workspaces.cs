@@ -27,7 +27,7 @@ public partial class MainWindow
     {
         var report = ProductReportCatalogue.All.Single(x => x.Code.Equals(reportCode, StringComparison.OrdinalIgnoreCase));
         var destination = report.Category.Equals("Stock", StringComparison.OrdinalIgnoreCase) ? "Stock Reports" : "Sales Reports";
-        var decision = navigation.Navigate(new WorkspaceRoute(destination, reportCode), CurrentShellAccess);
+        var decision = shell.Navigate(new WorkspaceRoute(destination, reportCode), CurrentShellAccess);
         if (!decision.IsAllowed)
         {
             ApplyNavigationDecision(decision);
@@ -185,7 +185,7 @@ public partial class MainWindow
         helpCentre ??= CreateHelpCentre();
         if (contextual)
         {
-            helpCentre.ShowContextHelp(navigation.Current.Destination, navigation.Current.FeatureCode);
+            helpCentre.ShowContextHelp(shell.CurrentRoute.Destination, shell.CurrentRoute.FeatureCode);
         }
         else helpCentre.OpenTopic(topicId ?? HelpCentreRegistry.HomeTopicId);
         focusedWorkspaceKind = "help";

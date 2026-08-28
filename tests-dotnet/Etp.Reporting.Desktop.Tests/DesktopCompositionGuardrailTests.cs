@@ -33,7 +33,6 @@ public sealed class DesktopCompositionGuardrailTests
             ["MainWindow.xaml.cs|R022SqlImportOrchestrator"] = 2,
             ["MainWindow.xaml.cs|R025SqlImportOrchestrator"] = 2,
             ["MainWindow.xaml.cs|RetailEnrichmentSqlImportOrchestrator"] = 2,
-            ["MainWindow.xaml.cs|SqlServerDashboardQuery"] = 1,
             ["MainWindow.xaml.cs|SqlServerDatabaseBootstrapper"] = 1,
             ["MainWindow.xaml.cs|SqlServerHealthCheck"] = 1,
             ["MainWindow.xaml.cs|SqlServerImportFileRepository"] = 2,

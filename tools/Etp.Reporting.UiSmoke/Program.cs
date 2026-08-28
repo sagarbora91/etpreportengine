@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Etp.Reporting.Desktop;
+using Etp.Reporting.Desktop.Composition;
 using Etp.Reporting.Infrastructure.SqlServer;
 using Etp.Reporting.Reporting;
 
@@ -18,7 +19,9 @@ internal static class Program
         Directory.CreateDirectory(output);
         var app = new App();
         app.InitializeComponent();
-        var window = new MainWindow { Width = 1366, Height = 768 };
+        var window = DesktopCompositionRoot.CreateDefault().CreateMainWindow();
+        window.Width = 1366;
+        window.Height = 768;
         Render(window, Path.Combine(output, "01-welcome-1366x768.png"), 1366, 768);
         SetAccess(window, ApplicationRole.StoreManager, "Store Manager");
         ((TextBlock)window.FindName("AccessStatus")).Text = "Store Manager — Store Manager";
