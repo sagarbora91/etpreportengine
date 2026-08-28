@@ -53,6 +53,7 @@ public sealed class DesktopArchitectureTests
         string[] forbiddenReferences =
         [
             "System.Windows",
+            "Etp.Reporting.Desktop.Modules",
             "Etp.Reporting.Import",
             "Etp.Reporting.Infrastructure.SqlServer",
             "Etp.Reporting.Reporting",

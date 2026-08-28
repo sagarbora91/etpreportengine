@@ -1,5 +1,7 @@
 # Master Prompt Completion Audit
 
+> **Superseded completion claim — do not use this document as current project-closure evidence.** This 26 August 2026 audit predates the source-backed Desktop modular architecture audit and later DSR, Help, visual-reporting and licensing requirements. Its statement that all deterministically buildable work was complete and its description of separated UI layers are contradicted by `docs/DESKTOP_MODULAR_ARCHITECTURE_AUDIT.md`, which confirms that most WPF workflows remain in `MainWindow`. Historical implementation evidence below remains useful, but every status must be re-evaluated through `docs/PROJECT_CLOSURE_TRACEABILITY.md` and `docs/PENDING_INPUT_AND_DEFERMENT_REGISTER.md` before any completion or release claim.
+
 Audit date: 26 August 2026. Scope: all 51 sections of the ETP Daily Reporting Engine master implementation prompt.
 
 ## Completion result
