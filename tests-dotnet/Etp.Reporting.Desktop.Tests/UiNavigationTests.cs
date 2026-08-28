@@ -129,6 +129,10 @@ public sealed class UiNavigationTests
     [InlineData(Key.F1, Key.None, ModifierKeys.None, ShellCommand.Help)]
     [InlineData(Key.Oem2, Key.None, ModifierKeys.Control, ShellCommand.ShortcutGuide)]
     [InlineData(Key.F5, Key.None, ModifierKeys.None, ShellCommand.Refresh)]
+    [InlineData(Key.F, Key.None, ModifierKeys.Control, ShellCommand.Search)]
+    [InlineData(Key.P, Key.None, ModifierKeys.Control, ShellCommand.ExportPdf)]
+    [InlineData(Key.R, Key.None, ModifierKeys.Control, ShellCommand.RetryImport)]
+    [InlineData(Key.Escape, Key.None, ModifierKeys.None, ShellCommand.CloseOrCancel)]
     public void Windows_shortcuts_resolve_to_shell_commands(Key key, Key systemKey, ModifierKeys modifiers, ShellCommand expected)
     {
         Assert.Equal(expected, ShellShortcutRegistry.Resolve(key, systemKey, modifiers));
@@ -139,5 +143,34 @@ public sealed class UiNavigationTests
     {
         var duplicates = ShellShortcutRegistry.All.GroupBy(x => (x.Key, x.Modifiers)).Where(x => x.Count() > 1);
         Assert.Empty(duplicates);
+    }
+
+    [Fact]
+    public void Retry_shortcut_reuses_only_the_enabled_import_retry_action()
+    {
+        var source = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "Etp.Reporting.Desktop",
+            "MainWindow.Shell.cs"));
+
+        Assert.Contains(
+            "case ShellCommand.RetryImport when CurrentModuleId == \"imports\" && focusedWorkspaceKind != \"help\" && RetryBatchButton.IsEnabled:",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "RetryBatchImport_Click(this, new RoutedEventArgs()); return true;",
+            source,
+            StringComparison.Ordinal);
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "Etp.Reporting.slnx"))) return directory.FullName;
+        }
+
+        throw new DirectoryNotFoundException("Could not locate the ETP repository root.");
     }
 }

@@ -1,0 +1,30 @@
+# Closure Sprint — Archive, Registers and Shortcut Parity
+
+Date: 28 August 2026
+Branch: `ui/uiux-v4-touch-first-redesign`
+
+## Implemented
+
+- Archive search, integrity-checked open and comparison now flow through an Application archive contract and a SQL Server adapter composed outside `MainWindow`.
+- Sharing contacts and Digital Registers now flow through Application services and Windows-integrated SQL adapters while retaining the existing Owner enforcement, locked-day protection and operational audit writes.
+- `Ctrl+R` executes the existing failed-import retry only in the Imports workspace and only while retry is enabled.
+- Executable Help shortcut rows derive their gesture text from the executable registry. Unsupported edit/new/save claims were removed, and native WPF shortcuts are explicitly classified by the parity tests.
+- Help topic navigation now moves keyboard focus into the topic actions when Help owns or is acquiring focus.
+- Daily Workflow and Manual Entry now cross separate read, command and report-pack Application ports. The SQL facade delegates to the existing controlled repositories and pack service, retaining missing-versus-zero semantics, locked-day enforcement, administrator-approved reopening and report hashes.
+
+No report formula, mapping, database schema, archive integrity rule or import persistence behavior changed.
+
+## Verification
+
+- Release build: passed with 0 warnings and 0 errors.
+- Full automated suite: 335 passed, 0 failed, 0 skipped.
+- WPF production-shell smoke: 11 views rendered; 190 accessible named elements.
+- Archive adapter: SHA-256 verification remains delegated to the existing verified archive load path.
+- Register/contact adapters: focused mapping, permission propagation, connection-policy and cancellation tests pass.
+- Direct MainWindow SQL-infrastructure construction inventory: 81 reduced to 64.
+
+## Remaining boundary
+
+The archive, register, contact and Daily Workflow presentation controls still reside in the MainWindow XAML/code-behind. This slice establishes and connects their application boundaries; it does not claim that the shell-only architecture gate is complete. Reports, Imports/Source Inbox, Accounting, Operations and Administration remain subsequent extraction waves.
+
+Live SQL role testing and installed WhatsApp/email client behavior remain target-PC acceptance activities.

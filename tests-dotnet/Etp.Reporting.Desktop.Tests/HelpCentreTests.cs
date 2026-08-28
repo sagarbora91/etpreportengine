@@ -1,4 +1,5 @@
 using Etp.Reporting.Desktop;
+using System.Windows.Input;
 
 namespace Etp.Reporting.Desktop.Tests;
 
@@ -65,5 +66,52 @@ public sealed class HelpCentreTests
     {
         Assert.Contains(HelpCommands.OpenHelpCentre.InputGestures.OfType<System.Windows.Input.KeyGesture>(), x => x.Key == System.Windows.Input.Key.F1);
         Assert.Contains(HelpCommands.OpenKeyboardShortcuts.InputGestures.OfType<System.Windows.Input.KeyGesture>(), x => x.Key == System.Windows.Input.Key.Oem2 && x.Modifiers == System.Windows.Input.ModifierKeys.Control);
+    }
+
+    [Fact]
+    public void Every_executable_shell_shortcut_has_exactly_one_help_entry()
+    {
+        foreach (var shortcut in ShellShortcutRegistry.All)
+        {
+            var help = Assert.Single(HelpCentreRegistry.Shortcuts, item => item.Command == shortcut.Command);
+            Assert.Equal(shortcut.Display, help.Keys);
+        }
+    }
+
+    [Fact]
+    public void Every_help_entry_marked_executable_resolves_through_the_shell_registry()
+    {
+        foreach (var help in HelpCentreRegistry.Shortcuts.Where(item => item.Command is not null))
+        {
+            var shortcut = Assert.Single(ShellShortcutRegistry.All, item => item.Command == help.Command);
+            Assert.Equal(help.Keys, shortcut.Display);
+            Assert.Equal(help.Command, ShellShortcutRegistry.Resolve(shortcut.Key, Key.None, shortcut.Modifiers));
+        }
+    }
+
+    [Fact]
+    public void Native_help_entries_are_limited_to_standard_wpf_gestures()
+    {
+        var nativeGestures = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "Ctrl + Tab", "Ctrl + Shift + Tab", "Enter", "Arrow keys", "Home / End",
+            "Ctrl + Home / Ctrl + End", "Page Up / Page Down", "Shift + F10", "Ctrl + C",
+            "Tab / Shift + Tab", "Space", "Alt + F4"
+        };
+
+        Assert.All(
+            HelpCentreRegistry.Shortcuts.Where(item => item.Command is null),
+            item => Assert.Contains(item.Keys, nativeGestures));
+    }
+
+    [Theory]
+    [InlineData("Ctrl + E")]
+    [InlineData("Ctrl + N")]
+    [InlineData("Ctrl + Shift + S")]
+    public void Help_does_not_advertise_unimplemented_application_shortcuts(string keys)
+    {
+        Assert.DoesNotContain(
+            HelpCentreRegistry.Shortcuts,
+            item => string.Equals(item.Keys, keys, StringComparison.OrdinalIgnoreCase));
     }
 }

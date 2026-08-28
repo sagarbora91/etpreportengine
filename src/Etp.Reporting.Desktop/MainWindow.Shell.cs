@@ -344,6 +344,8 @@ public partial class MainWindow
             case ShellCommand.Save when shell.CurrentRoute.Destination == "Manual Entry": SaveManualInput_Click(this, new RoutedEventArgs()); return true;
             case ShellCommand.ImportFiles when CurrentModuleId == "imports": BrowseWorkbook_Click(this, new RoutedEventArgs()); return true;
             case ShellCommand.ImportFolder when CurrentModuleId == "imports": BrowseImportFolder_Click(this, new RoutedEventArgs()); return true;
+            case ShellCommand.RetryImport when CurrentModuleId == "imports" && focusedWorkspaceKind != "help" && RetryBatchButton.IsEnabled:
+                RetryBatchImport_Click(this, new RoutedEventArgs()); return true;
             case ShellCommand.CycleRegion: CycleShellRegion(); return true;
             default: return false;
         }

@@ -1,3 +1,5 @@
+extern alias EtpApplication;
+
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
@@ -6,6 +8,10 @@ using System.Windows.Controls;
 using Etp.Reporting.Infrastructure.SqlServer;
 using Etp.Reporting.Reporting;
 using Microsoft.Win32;
+using ArchivedReportGenerationSummary = EtpApplication::Etp.Reporting.Application.Archive.ArchivedReportGenerationSummary;
+using DigitalRegisterEntryDraft = EtpApplication::Etp.Reporting.Application.Registers.DigitalRegisterEntryDraft;
+using SharingContact = EtpApplication::Etp.Reporting.Application.Sharing.SharingContact;
+using SharingContactDraft = EtpApplication::Etp.Reporting.Application.Sharing.SharingContactDraft;
 
 namespace Etp.Reporting.Desktop;
 
@@ -106,7 +112,7 @@ public partial class MainWindow
         try
         {
             RequireViewAccess();
-            var rows = await new ProductisationRepository(connectionState.ConnectionString).LoadRegisterEntriesAsync(RegisterSearchInput.Text);
+            var rows = await digitalRegisterServiceFactory(connectionState.ConnectionString).LoadAsync(RegisterSearchInput.Text);
             RegisterGrid.ItemsSource = rows; RegisterStatus.Text = $"{rows.Count:N0} audited register entry or entries found.";
         }
         catch (Exception ex) { RegisterStatus.Text = FriendlyError(ex); }
@@ -121,12 +127,11 @@ public partial class MainWindow
             if (string.IsNullOrWhiteSpace(RegisterStoreInput.Text) || string.IsNullOrWhiteSpace(RegisterDocumentNumberInput.Text))
                 throw new InvalidOperationException("Enter the store and document number.");
             var linkedDocument = SourceInboxGrid.SelectedItem as SourceDocumentRow;
-            var now = DateTime.UtcNow;
-            var entry = new RegisterEntryRow(0, SelectedContent(RegisterTypeInput).Replace(' ', '_').ToUpperInvariant(), linkedDocument?.Id,
+            var entry = new DigitalRegisterEntryDraft(SelectedContent(RegisterTypeInput).Replace(' ', '_').ToUpperInvariant(), linkedDocument?.Id,
                 RegisterStoreInput.Text, DateOnly.FromDateTime(RegisterBusinessDateInput.SelectedDate.Value), RegisterDocumentNumberInput.Text,
                 null, RegisterCounterpartyInput.Text, OptionalDecimal(RegisterQuantityInput.Text), OptionalDecimal(RegisterAmountInput.Text),
-                RegisterReferenceInput.Text, currentAccess.DisplayName, "DRAFT", RegisterRemarksInput.Text, currentAccess.WindowsIdentity, now);
-            var id = await new ProductisationRepository(connectionState.ConnectionString).SaveRegisterEntryAsync(entry, RegisterReasonInput.Text);
+                RegisterReferenceInput.Text, currentAccess.DisplayName, "DRAFT", RegisterRemarksInput.Text);
+            var id = await digitalRegisterServiceFactory(connectionState.ConnectionString).SaveAsync(entry, RegisterReasonInput.Text);
             RegisterStatus.Text = $"Register entry {id:N0} saved with audit history."; RegisterDocumentNumberInput.Clear(); RegisterReasonInput.Clear();
             await RefreshRegistersAsync();
         }
@@ -197,18 +202,18 @@ public partial class MainWindow
 
     private async Task RefreshSharingContactsAsync()
     {
-        try{RequireViewAccess();SharingContactsGrid.ItemsSource=await new ProductisationRepository(connectionState.ConnectionString).LoadSharingContactsAsync();}
+        try{RequireViewAccess();SharingContactsGrid.ItemsSource=await sharingContactsServiceFactory(connectionState.ConnectionString).LoadAsync();}
         catch(Exception ex){ReportArchiveStatus.Text=FriendlyError(ex);}
     }
 
     private void SharingContact_SelectionChanged(object sender,SelectionChangedEventArgs e)
     {
-        if(SharingContactsGrid.SelectedItem is not SharingContactRow row)return;ContactNameInput.Text=row.DisplayName;ContactRoleInput.Text=row.ContactRole;ContactEmailInput.Text=row.EmailAddress;ContactPhoneInput.Text=row.PhoneE164;ContactSubscriptionsInput.Text=row.DefaultSubscriptions;ContactActiveInput.IsChecked=row.IsActive;SharePhoneInput.Text=row.PhoneE164;ShareEmailToInput.Text=row.EmailAddress;
+        if(SharingContactsGrid.SelectedItem is not SharingContact row)return;ContactNameInput.Text=row.DisplayName;ContactRoleInput.Text=row.ContactRole;ContactEmailInput.Text=row.EmailAddress;ContactPhoneInput.Text=row.PhoneE164;ContactSubscriptionsInput.Text=row.DefaultSubscriptions;ContactActiveInput.IsChecked=row.IsActive;SharePhoneInput.Text=row.PhoneE164;ShareEmailToInput.Text=row.EmailAddress;
     }
 
     private async void SaveSharingContact_Click(object sender,RoutedEventArgs e)
     {
-        try{RequireOwnerAccess();var current=SharingContactsGrid.SelectedItem as SharingContactRow;var row=new SharingContactRow(current?.Id??0,ContactNameInput.Text,ContactRoleInput.Text,ContactEmailInput.Text,ContactPhoneInput.Text,ContactSubscriptionsInput.Text,ContactActiveInput.IsChecked==true,currentAccess.WindowsIdentity,DateTime.UtcNow);var id=await new ProductisationRepository(connectionState.ConnectionString).SaveSharingContactAsync(row,ContactReasonInput.Text);ContactReasonInput.Clear();ReportArchiveStatus.Text=$"Sharing contact {id:N0} saved with audit history.";await RefreshSharingContactsAsync();}
+        try{RequireOwnerAccess();var current=SharingContactsGrid.SelectedItem as SharingContact;var row=new SharingContactDraft(current?.Id??0,ContactNameInput.Text,ContactRoleInput.Text,ContactEmailInput.Text,ContactPhoneInput.Text,ContactSubscriptionsInput.Text,ContactActiveInput.IsChecked==true);var id=await sharingContactsServiceFactory(connectionState.ConnectionString).SaveAsync(row,ContactReasonInput.Text);ContactReasonInput.Clear();ReportArchiveStatus.Text=$"Sharing contact {id:N0} saved with audit history.";await RefreshSharingContactsAsync();}
         catch(Exception ex){ReportArchiveStatus.Text=FriendlyError(ex);}
     }
 
@@ -332,7 +337,7 @@ public partial class MainWindow
         catch (Exception ex) { ReportArchiveStatus.Text = FriendlyError(ex); }
     }
 
-    private ArchivedReportGeneration SelectedArchiveGeneration() => ReportGenerationGrid.SelectedItems.OfType<ArchivedReportGeneration>().SingleOrDefault()
+    private ArchivedReportGenerationSummary SelectedArchiveGeneration() => ReportGenerationGrid.SelectedItems.OfType<ArchivedReportGenerationSummary>().SingleOrDefault()
         ?? throw new InvalidOperationException("Select exactly one report generation.");
 
     private static string FriendlyError(Exception exception) => exception switch

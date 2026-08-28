@@ -4,7 +4,7 @@ Status date: 28 August 2026
 Authority: current .NET 10/WPF product only
 Owner: closure sprint Lead Integrator
 
-Latest verified sprint slice: `docs/audit/ETP-CLOSURE-SPRINT-SETTINGS-ACCESS-2026-08-28.md`. Continue with Archive, sharing and registers; this checkpoint does not declare product completion.
+Latest verified sprint slice: `docs/audit/ETP-CLOSURE-SPRINT-ARCHIVE-REGISTERS-SHORTCUTS-2026-08-28.md`. Continue with Reports, Imports/Source Inbox and the remaining workspaces; this checkpoint does not declare product completion.
 
 ## Purpose
 
@@ -158,12 +158,12 @@ Legacy evidence cannot prove a WPF requirement. In particular, Node test results
 | `UI-004` | Density selector is in sidebar, not bottom of content (`SRC-FOLLOWUP`) | Visual and keyboard smoke | `IMPLEMENTED_NOT_VERIFIED` | Reported implemented. |
 | `UI-005` | Comfortable and Compact modes persist and remain usable (`SRC-UI4`) | Restart, scaling and layout tests | `IMPLEMENTED_NOT_VERIFIED` | Preference feature exists; installed verification pending. |
 | `UI-006` | No nested scrolling or avoidable long-tab scrolling (`SRC-UI4`, follow-up) | 1280×720, 1366×768 and 200% scaling inspection | `IMPLEMENTED_NOT_VERIFIED` | Requires final screen matrix. |
-| `UI-007` | Windows keyboard shortcuts, including Alt+Left/Right navigation (`SRC-FOLLOWUP`) | Registry-to-handler reconciliation and UI automation | `IN_PROGRESS` | Executable registry has fewer shortcuts than Help advertises. |
+| `UI-007` | Windows keyboard shortcuts, including Alt+Left/Right navigation (`SRC-FOLLOWUP`) | Registry-to-handler reconciliation and UI automation | `VERIFIED` | Executable gestures, guarded handlers and Help parity are covered; unsupported application claims were removed. |
 | `UI-008` | Loading, empty, error and unavailable states use plain language (`SRC-UI4`, `SRC-P2`) | UI state tests and content audit | `IMPLEMENTED_NOT_VERIFIED` | Closure review pending. |
 | `UI-009` | Keyboard, Narrator, focus, high contrast and touch accessibility (`SRC-UI4`, follow-up item 17) | Installed accessibility matrix | `EXTERNAL_VALIDATION_BLOCKED` | Automated labels/tests are not sufficient for real Narrator/touch validation. |
 | `HELP-001` | Help is a sidebar module with tiled menu topics (`SRC-FOLLOWUP`) | Route and layout test | `VERIFIED` | Help workspace extraction and navigation tests are documented. |
 | `HELP-002` | Every live module has complete step-by-step help (`SRC-FOLLOWUP`) | Content-to-route audit; no placeholders | `IN_PROGRESS` | 18 of 19 topics are documented as overview placeholders. |
-| `HELP-003` | Shortcut help exactly matches implemented shortcuts (`SRC-FOLLOWUP`) | Automated registry/help parity test | `IN_PROGRESS` | Help advertises about 35 shortcuts; executable registry has 19. |
+| `HELP-003` | Shortcut help exactly matches implemented shortcuts (`SRC-FOLLOWUP`) | Automated registry/help parity test | `VERIFIED` | Executable Help rows derive from the registry; bidirectional parity and an explicit native-WPF allowlist are tested. |
 
 ## E. Productisation, operations and administration
 

@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
+using System.Windows.Threading;
 
 namespace Etp.Reporting.Desktop;
 
@@ -35,10 +36,16 @@ public sealed class HelpCentreView : UserControl
         if (string.IsNullOrWhiteSpace(topicId) || topicId == HelpCentreRegistry.HomeTopicId) { ShowHome(); return; }
         var topic = HelpCentreRegistry.Find(topicId);
         if (topic is null) { ShowHome(); return; }
+        var shouldMoveFocus = IsKeyboardFocusWithin || !IsVisible;
         currentTopicId = topic.Id;
         contentHost.Content = topic.Id == HelpCentreRegistry.KeyboardShortcutsTopicId
             ? BuildKeyboardShortcutsTopic()
             : BuildTopic(topic);
+        Dispatcher.BeginInvoke(DispatcherPriority.Input, () =>
+        {
+            if (shouldMoveFocus && IsVisible)
+                contentHost.MoveFocus(new TraversalRequest(FocusNavigationDirection.First));
+        });
     }
 
     public void ShowContextHelp(string? destination, string? featureCode = null) =>

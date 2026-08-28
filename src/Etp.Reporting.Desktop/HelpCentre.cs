@@ -26,7 +26,8 @@ public sealed record ShortcutDefinition(
     string Keys,
     string Action,
     string Scope = "Everywhere",
-    bool RequiresPermission = false);
+    bool RequiresPermission = false,
+    ShellCommand? Command = null);
 
 public static class HelpCommands
 {
@@ -112,32 +113,29 @@ public static class HelpCentreRegistry
 
     public static IReadOnlyList<ShortcutDefinition> Shortcuts { get; } =
     [
-        new("Navigation", "Alt + Left Arrow", "Go to the previous screen"),
-        new("Navigation", "Alt + Right Arrow", "Go forward after returning to a previous screen"),
-        new("Navigation", "Alt + Home", "Open Dashboard"),
+        Executable("Navigation", ShellCommand.Back, "Go to the previous screen"),
+        Executable("Navigation", ShellCommand.Forward, "Go forward after returning to a previous screen"),
+        Executable("Navigation", ShellCommand.Home, "Open Dashboard"),
         new("Navigation", "Ctrl + Tab", "Move to the next section in the current workspace", "Workspaces with sections"),
         new("Navigation", "Ctrl + Shift + Tab", "Move to the previous section in the current workspace", "Workspaces with sections"),
-        new("Navigation", "F6", "Move focus between the sidebar, filters, preview and details"),
-        new("Navigation", "Esc", "Close the current dialog, drawer or menu"),
-        new("Help", "F1", "Open help for the current screen"),
-        new("Help", "Ctrl + /", "Open Keyboard Shortcuts"),
-        new("Reports", "F5", "Refresh the current report or workspace"),
-        new("Reports", "Ctrl + Enter", "Run the selected report", "Report workspaces"),
-        new("Reports", "Ctrl + F", "Focus search in the current workspace"),
-        new("Reports", "Ctrl + P", "Open PDF and print options", "Report workspaces"),
-        new("Reports", "Ctrl + Shift + X", "Export the current report to Excel", "Report workspaces", true),
-        new("Reports", "Ctrl + Shift + P", "Open Report Pack generation", "Management and report workspaces", true),
-        new("Reports", "Ctrl + Shift + F", "Open the generated export folder", "Report workspaces", true),
-        new("Reports", "Ctrl + L", "Focus the business-date or period control", "Report workspaces"),
-        new("Reports", "Ctrl + G", "Open Go to Report search", "Report workspaces"),
-        new("Data entry", "Ctrl + N", "Start a new entry", "Manual Entry and registers", true),
-        new("Data entry", "Ctrl + S", "Save the current entry", "Manual Entry and registers", true),
-        new("Data entry", "Ctrl + Shift + S", "Save with reason or submit for approval", "Governed entry screens", true),
-        new("Data entry", "Ctrl + E", "Edit the selected record", "Editable registers", true),
+        Executable("Navigation", ShellCommand.CycleRegion, "Move focus between the sidebar, filters, preview and details"),
+        Executable("Navigation", ShellCommand.CloseOrCancel, "Close the current dialog, drawer or menu"),
+        Executable("Help", ShellCommand.Help, "Open help for the current screen"),
+        Executable("Help", ShellCommand.ShortcutGuide, "Open Keyboard Shortcuts"),
+        Executable("Reports", ShellCommand.Refresh, "Refresh the current report or workspace"),
+        Executable("Reports", ShellCommand.Run, "Run the selected report", "Report workspaces"),
+        Executable("Reports", ShellCommand.Search, "Focus search in the current workspace"),
+        Executable("Reports", ShellCommand.ExportPdf, "Open PDF and print options", "Report workspaces"),
+        Executable("Reports", ShellCommand.ExportExcel, "Export the current report to Excel", "Report workspaces", true),
+        Executable("Reports", ShellCommand.GenerateReportPack, "Open Report Pack generation", "Management and report workspaces", true),
+        Executable("Reports", ShellCommand.OpenExportFolder, "Open the generated export folder", "Report workspaces", true),
+        Executable("Reports", ShellCommand.FocusPeriod, "Focus the business-date or period control", "Report workspaces"),
+        Executable("Reports", ShellCommand.GoToReport, "Open Go to Report search", "Report workspaces"),
+        Executable("Data entry", ShellCommand.Save, "Save the current entry", "Manual Entry and registers", true),
         new("Data entry", "Enter", "Activate the primary action or open the selected record"),
-        new("Import", "Ctrl + O", "Select ETP files or a ZIP package", "Import ETP", true),
-        new("Import", "Ctrl + Shift + O", "Select an import folder", "Import ETP", true),
-        new("Import", "Ctrl + R", "Retry the selected failed import", "Import ETP", true),
+        Executable("Import", ShellCommand.ImportFiles, "Select ETP files or a ZIP package", "Import ETP", true),
+        Executable("Import", ShellCommand.ImportFolder, "Select an import folder", "Import ETP", true),
+        Executable("Import", ShellCommand.RetryImport, "Retry the selected failed import", "Import ETP", true),
         new("Tables", "Arrow keys", "Move between rows and cells", "Result tables"),
         new("Tables", "Home / End", "Move to the first or last column", "Result tables"),
         new("Tables", "Ctrl + Home / Ctrl + End", "Move to the first or last result", "Result tables"),
@@ -148,6 +146,17 @@ public static class HelpCentreRegistry
         new("Accessibility", "Space", "Toggle or activate the focused control"),
         new("Application", "Alt + F4", "Close the application using normal exit checks")
     ];
+
+    private static ShortcutDefinition Executable(
+        string category,
+        ShellCommand command,
+        string action,
+        string scope = "Everywhere",
+        bool requiresPermission = false)
+    {
+        var shortcut = ShellShortcutRegistry.All.Single(item => item.Command == command);
+        return new(category, shortcut.Display, action, scope, requiresPermission, command);
+    }
 
     public static HelpTopicDefinition? Find(string topicId) =>
         Topics.FirstOrDefault(x => string.Equals(x.Id, topicId, StringComparison.OrdinalIgnoreCase));

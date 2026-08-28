@@ -221,3 +221,15 @@ This reduces the ratcheted MainWindow SQL-infrastructure construction inventory 
 `DesktopCompositionRoot` now constructs an absolute-rooted atomic Desktop settings store, validated connection state and the SQL implementation of the Application access-session contract. `MainWindow` no longer loads or writes settings files and no feature service reads `ConnectionStringInput.Text`; the textbox is limited to accepting and presenting a candidate connection. Desktop role-aware navigation now consumes the Application access role and permission matrix.
 
 This slice reduces the ratcheted MainWindow SQL-infrastructure construction inventory from 82 to 81 by removing current-access repository construction from the shell. The Settings view and other feature workflows remain in `MainWindow`; therefore DESK-001, DESK-004 and DESK-011 remain open. Release build, 289 automated tests and the 11-view/190-name WPF smoke pass.
+
+## Archive, registers and shortcut-parity slice — 28 August 2026
+
+Archive search/open/comparison, Sharing Contacts and Digital Registers now depend on Application contracts whose SQL adapters are constructed by `DesktopCompositionRoot`. The archive adapter preserves the existing integrity-checked document load; the contact and register adapters preserve Owner enforcement, locked-day controls and database audit behavior. This reduces MainWindow SQL-infrastructure construction from 81 to 74.
+
+The Help catalogue now derives executable gesture labels from `ShellShortcutRegistry`, bidirectional tests prevent unsupported executable claims, and `Ctrl+R` is guarded to the enabled retry action in Imports. Release build, 316 automated tests and the 11-view/190-name WPF smoke pass. Archive/register/contact controls still live in MainWindow, so DESK-001 and the overall modular migration remain open.
+
+## Daily Workflow and Manual Entry application slice — 28 August 2026
+
+Daily readiness/manual-input queries, controlled writes/finalisation and report-pack generation now cross three cohesive Application ports implemented by `SqlServerDailyWorkflowService`. The adapter delegates to the existing workflow, completion and pack implementations, preserving missing-versus-zero state, stock composition, staff targets, blocker evaluation, locked-day enforcement, administrator-approved reopening, and immutable generation hashes.
+
+This reduces MainWindow SQL-infrastructure construction from 74 to 64. Release build, 335 automated tests and the 11-view/190-name WPF smoke pass. The Daily Workflow controls remain embedded in MainWindow pending presentation extraction, so the shell-only gate is still open.

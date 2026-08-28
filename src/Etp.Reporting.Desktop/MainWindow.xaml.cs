@@ -27,6 +27,23 @@ using DashboardQuery = EtpApplication::Etp.Reporting.Application.Dashboard.IDash
 using AccessSession = EtpApplication::Etp.Reporting.Application.Access.AccessSession;
 using AccessRole = EtpApplication::Etp.Reporting.Application.Access.AccessRole;
 using AccessSessionQuery = EtpApplication::Etp.Reporting.Application.Access.IAccessSessionQuery;
+using ArchivedReportGenerationSummary = EtpApplication::Etp.Reporting.Application.Archive.ArchivedReportGenerationSummary;
+using ReportArchiveQuery = EtpApplication::Etp.Reporting.Application.Archive.IReportArchiveQuery<Etp.Reporting.Reporting.ReportPackDocument>;
+using ReportArchiveSearch = EtpApplication::Etp.Reporting.Application.Archive.ReportArchiveSearch;
+using DigitalRegisterService = EtpApplication::Etp.Reporting.Application.Registers.IDigitalRegisterService;
+using SharingContactsService = EtpApplication::Etp.Reporting.Application.Sharing.ISharingContactsService;
+using DailyWorkflowQuery = EtpApplication::Etp.Reporting.Application.DailyWorkflow.IDailyWorkflowQuery;
+using DailyWorkflowCommands = EtpApplication::Etp.Reporting.Application.DailyWorkflow.IDailyWorkflowCommands;
+using DailyReportPackGenerator = EtpApplication::Etp.Reporting.Application.DailyWorkflow.IDailyReportPackGenerator<Etp.Reporting.Reporting.ReportPackDocument>;
+using DailyWorkflowState = EtpApplication::Etp.Reporting.Application.DailyWorkflow.DailyWorkflowState;
+using DailyWorkflowStateStatus = EtpApplication::Etp.Reporting.Application.DailyWorkflow.DailyWorkflowStatus;
+using DailyControlStatus = EtpApplication::Etp.Reporting.Application.DailyWorkflow.DailyControlStatus;
+using DailyWorkflowScope = EtpApplication::Etp.Reporting.Application.DailyWorkflow.DailyWorkflowScope;
+using SaveDailyManualInput = EtpApplication::Etp.Reporting.Application.DailyWorkflow.SaveDailyManualInput;
+using SaveDailyStockCount = EtpApplication::Etp.Reporting.Application.DailyWorkflow.SaveDailyStockCount;
+using SaveDailyStaffTarget = EtpApplication::Etp.Reporting.Application.DailyWorkflow.SaveDailyStaffTarget;
+using FinaliseDailyWorkflow = EtpApplication::Etp.Reporting.Application.DailyWorkflow.FinaliseDailyWorkflow;
+using ReopenDailyWorkflow = EtpApplication::Etp.Reporting.Application.DailyWorkflow.ReopenDailyWorkflow;
 
 public partial class MainWindow : Window
 {
@@ -47,7 +64,13 @@ public partial class MainWindow : Window
     private readonly DesktopSettingsStore settingsStore;
     private readonly DesktopConnectionState connectionState;
     private readonly Func<string, AccessSessionQuery> accessSessionQueryFactory;
-    private DailyWorkflowSnapshot? currentDailySnapshot;
+    private readonly Func<string, ReportArchiveQuery> reportArchiveQueryFactory;
+    private readonly Func<string, DigitalRegisterService> digitalRegisterServiceFactory;
+    private readonly Func<string, SharingContactsService> sharingContactsServiceFactory;
+    private readonly Func<string, DailyWorkflowQuery> dailyWorkflowQueryFactory;
+    private readonly Func<string, DailyWorkflowCommands> dailyWorkflowCommandsFactory;
+    private readonly Func<string, DailyReportPackGenerator> dailyReportPackGeneratorFactory;
+    private DailyWorkflowState? currentDailySnapshot;
     private BatchImportSource? activeBatchSource;
     private CancellationTokenSource? batchCancellation;
     private IReadOnlyList<string> failedBatchPaths = [];
@@ -59,7 +82,13 @@ public partial class MainWindow : Window
         Func<string, DashboardQuery> dashboardQueryFactory,
         DesktopSettingsStore settingsStore,
         DesktopConnectionState connectionState,
-        Func<string, AccessSessionQuery> accessSessionQueryFactory)
+        Func<string, AccessSessionQuery> accessSessionQueryFactory,
+        Func<string, ReportArchiveQuery> reportArchiveQueryFactory,
+        Func<string, DigitalRegisterService> digitalRegisterServiceFactory,
+        Func<string, SharingContactsService> sharingContactsServiceFactory,
+        Func<string, DailyWorkflowQuery> dailyWorkflowQueryFactory,
+        Func<string, DailyWorkflowCommands> dailyWorkflowCommandsFactory,
+        Func<string, DailyReportPackGenerator> dailyReportPackGeneratorFactory)
     {
         this.shell = shell ?? throw new ArgumentNullException(nameof(shell));
         this.dashboardView = dashboardView ?? throw new ArgumentNullException(nameof(dashboardView));
@@ -67,6 +96,12 @@ public partial class MainWindow : Window
         this.settingsStore = settingsStore ?? throw new ArgumentNullException(nameof(settingsStore));
         this.connectionState = connectionState ?? throw new ArgumentNullException(nameof(connectionState));
         this.accessSessionQueryFactory = accessSessionQueryFactory ?? throw new ArgumentNullException(nameof(accessSessionQueryFactory));
+        this.reportArchiveQueryFactory = reportArchiveQueryFactory ?? throw new ArgumentNullException(nameof(reportArchiveQueryFactory));
+        this.digitalRegisterServiceFactory = digitalRegisterServiceFactory ?? throw new ArgumentNullException(nameof(digitalRegisterServiceFactory));
+        this.sharingContactsServiceFactory = sharingContactsServiceFactory ?? throw new ArgumentNullException(nameof(sharingContactsServiceFactory));
+        this.dailyWorkflowQueryFactory = dailyWorkflowQueryFactory ?? throw new ArgumentNullException(nameof(dailyWorkflowQueryFactory));
+        this.dailyWorkflowCommandsFactory = dailyWorkflowCommandsFactory ?? throw new ArgumentNullException(nameof(dailyWorkflowCommandsFactory));
+        this.dailyReportPackGeneratorFactory = dailyReportPackGeneratorFactory ?? throw new ArgumentNullException(nameof(dailyReportPackGeneratorFactory));
         InitializeComponent();
         DashboardHost.Content = dashboardView;
         dashboardView.RefreshRequested += async (_, _) => await RefreshDashboardAsync();
@@ -193,12 +228,13 @@ public partial class MainWindow : Window
         try
         {
             var (store, date) = DailyScope();
-            currentDailySnapshot = await new DailyReportingWorkflowRepository(connectionState.ConnectionString).LoadAsync(store, date);
+            var scope = new DailyWorkflowScope(store, date);
+            currentDailySnapshot = await dailyWorkflowQueryFactory(connectionState.ConnectionString).LoadAsync(scope);
             DailyWorkflowStatus.Text = currentDailySnapshot.Status.ToString();
             DailyWorkflowStatus.Foreground = currentDailySnapshot.Status switch
             {
-                DailyReadinessStatus.Locked or DailyReadinessStatus.Reconciled => Brushes.SeaGreen,
-                DailyReadinessStatus.ReadyWithWarnings or DailyReadinessStatus.Partial => Brushes.DarkOrange,
+                DailyWorkflowStateStatus.Locked or DailyWorkflowStateStatus.Reconciled => Brushes.SeaGreen,
+                DailyWorkflowStateStatus.ReadyWithWarnings or DailyWorkflowStateStatus.Partial => Brushes.DarkOrange,
                 _ => Brushes.Firebrick
             };
             DailyWorkflowMessage.Text = currentDailySnapshot.StatusMessage;
@@ -211,7 +247,7 @@ public partial class MainWindow : Window
             DailyManualInputsGrid.ItemsSource = currentDailySnapshot.ManualInputs;
             ManualFieldInput.ItemsSource = currentDailySnapshot.ManualInputs;
             if (ManualFieldInput.SelectedIndex < 0 && currentDailySnapshot.ManualInputs.Count > 0) ManualFieldInput.SelectedIndex = 0;
-            DailyStockCountsGrid.ItemsSource = await new OperationalCompletionRepository(connectionState.ConnectionString).LoadManualStockCountsAsync(store, date);
+            DailyStockCountsGrid.ItemsSource = await dailyWorkflowQueryFactory(connectionState.ConnectionString).LoadStockCountsAsync(scope);
             FinaliseDayButton.IsEnabled = currentDailySnapshot.CanFinalise;
         }
         catch (Exception ex)
@@ -242,8 +278,8 @@ public partial class MainWindow : Window
                     throw new InvalidOperationException("Walk-ins must be a whole number of zero or more.");
                 numeric = parsed;
             }
-            await new DailyReportingWorkflowRepository(connectionState.ConnectionString).SaveManualInputAsync(
-                store, date, field, numeric, text, Environment.UserName, reason);
+            await dailyWorkflowCommandsFactory(connectionState.ConnectionString).SaveManualInputAsync(
+                new SaveDailyManualInput(new DailyWorkflowScope(store, date), field, numeric, text, Environment.UserName, reason));
             ManualValueInput.Clear(); ManualReasonInput.Clear();
             await RecordAuditAsync("ManualInput", "Succeeded", "Manual input saved");
             await RefreshDailyWorkflowAsync();
@@ -257,10 +293,10 @@ public partial class MainWindow : Window
         {
             RequireImportAccess();
             var (store, date) = DailyScope();
-            await new OperationalCompletionRepository(connectionState.ConnectionString).SaveManualStockCountAsync(
-                store, date, StockGroupInput.Text, OptionalDecimal(StockDisplayInput.Text), OptionalDecimal(StockBackstockInput.Text),
+            await dailyWorkflowCommandsFactory(connectionState.ConnectionString).SaveStockCountAsync(new SaveDailyStockCount(
+                new DailyWorkflowScope(store, date), StockGroupInput.Text, OptionalDecimal(StockDisplayInput.Text), OptionalDecimal(StockBackstockInput.Text),
                 OptionalDecimal(StockDefectiveInput.Text), OptionalDecimal(StockYLocationInput.Text), OptionalDecimal(StockPhysicalInput.Text),
-                string.IsNullOrWhiteSpace(StockRemarksInput.Text) ? null : StockRemarksInput.Text.Trim(), Environment.UserName, StockReasonInput.Text);
+                string.IsNullOrWhiteSpace(StockRemarksInput.Text) ? null : StockRemarksInput.Text.Trim(), Environment.UserName, StockReasonInput.Text));
             StockGroupInput.Clear(); StockDisplayInput.Clear(); StockBackstockInput.Clear(); StockDefectiveInput.Clear();
             StockYLocationInput.Clear(); StockPhysicalInput.Clear(); StockRemarksInput.Clear(); StockReasonInput.Clear();
             await RecordAuditAsync("StockCount", "Succeeded", "Physical stock count saved");
@@ -279,9 +315,9 @@ public partial class MainWindow : Window
                 throw new InvalidOperationException("Select the target start and end dates.");
             if (!decimal.TryParse(StaffTargetValueInput.Text, NumberStyles.Number, CultureInfo.CurrentCulture, out var target))
                 throw new InvalidOperationException("Enter a valid target sales value.");
-            await new OperationalCompletionRepository(connectionState.ConnectionString).SaveStaffTargetAsync(
+            await dailyWorkflowCommandsFactory(connectionState.ConnectionString).SaveStaffTargetAsync(new SaveDailyStaffTarget(
                 store, StaffTargetCroInput.Text, DateOnly.FromDateTime(StaffTargetFromInput.SelectedDate.Value),
-                DateOnly.FromDateTime(StaffTargetToInput.SelectedDate.Value), target, Environment.UserName, StaffTargetReasonInput.Text);
+                DateOnly.FromDateTime(StaffTargetToInput.SelectedDate.Value), target, Environment.UserName, StaffTargetReasonInput.Text));
             StaffTargetCroInput.Clear(); StaffTargetValueInput.Clear(); StaffTargetReasonInput.Clear();
             await RecordAuditAsync("StaffTarget", "Succeeded", "Staff target saved");
             DailyWorkflowMessage.Text = "Staff/CRO target saved. Target achievement and ranking are available in the staff report.";
@@ -295,11 +331,12 @@ public partial class MainWindow : Window
         {
             RequireImportAccess();
             var (store, date) = DailyScope();
-            var pack = await new DailyReportingPackService(connectionState.ConnectionString).GenerateAsync(store, date, Environment.UserName);
+            var scope = new DailyWorkflowScope(store, date);
+            var pack = await dailyReportPackGeneratorFactory(connectionState.ConnectionString).GenerateAsync(scope, Environment.UserName);
             DailyPackGrid.ItemsSource = pack.Sections;
-            var hasBlockers = pack.Sections.Any(x => x.Status is ReconciliationStatus.Blocked or ReconciliationStatus.Failed);
-            await new DailyReportingWorkflowRepository(connectionState.ConnectionString).FinaliseAsync(
-                store, date, Environment.UserName, hasBlockers);
+            var hasBlockers = pack.Sections.Any(x => x.Status is DailyControlStatus.Blocked or DailyControlStatus.Failed);
+            await dailyWorkflowCommandsFactory(connectionState.ConnectionString).FinaliseAsync(
+                new FinaliseDailyWorkflow(scope, Environment.UserName, hasBlockers));
             await RecordAuditAsync("DayFinalised", "Succeeded", "Business day finalised");
             await RefreshDailyWorkflowAsync();
         }
@@ -314,8 +351,8 @@ public partial class MainWindow : Window
             var (store, date) = DailyScope();
             using var identity = WindowsIdentity.GetCurrent();
             var isAdministrator = new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator);
-            await new DailyReportingWorkflowRepository(connectionState.ConnectionString).ReopenAsync(
-                store, date, Environment.UserName, ReopenReasonInput.Text.Trim(), isAdministrator);
+            await dailyWorkflowCommandsFactory(connectionState.ConnectionString).ReopenAsync(
+                new ReopenDailyWorkflow(new DailyWorkflowScope(store, date), Environment.UserName, ReopenReasonInput.Text.Trim(), isAdministrator));
             ReopenReasonInput.Clear();
             await RecordAuditAsync("DayReopened", "Succeeded", "Business day reopened");
             await RefreshDailyWorkflowAsync();
@@ -329,7 +366,8 @@ public partial class MainWindow : Window
         {
             RequireViewAccess();
             var (store, date) = DailyScope();
-            var pack = await new DailyReportingPackService(connectionState.ConnectionString).GenerateAsync(store, date, Environment.UserName);
+            var pack = await dailyReportPackGeneratorFactory(connectionState.ConnectionString)
+                .GenerateAsync(new DailyWorkflowScope(store, date), Environment.UserName);
             DailyPackGrid.ItemsSource = pack.Sections;
             DailyWorkflowMessage.Text = $"{pack.Status}: {pack.Message} Generation {pack.GenerationNumber}, control hash {pack.ContentSha256[..12]}.";
             currentDailyPackDocument = pack.Document;
@@ -339,7 +377,7 @@ public partial class MainWindow : Window
                 [new("Report"),new("Status"),new("Control Total","#,##0.00"),new("Variance","#,##0.00"),new("Message")],
                 pack.Sections.Select(x => (IReadOnlyList<object?>)[x.Report,x.Status.ToString(),x.ControlTotal,x.Variance,x.Message]).ToArray(),
                 ["Overall",pack.Status.ToString(),"","",pack.Message]);
-            await RecordAuditAsync("ReportPack", pack.Status == ReconciliationStatus.Passed ? "Succeeded" : "Failed", "Daily report pack");
+            await RecordAuditAsync("ReportPack", pack.Status == DailyControlStatus.Passed ? "Succeeded" : "Failed", "Daily report pack");
         }
         catch (Exception ex) { DailyWorkflowMessage.Text = $"Daily report pack failed: {ex.Message}"; }
     }
@@ -351,7 +389,7 @@ public partial class MainWindow : Window
             RequireViewAccess();
             if (DailyBusinessDateInput.SelectedDate is null) throw new InvalidOperationException("Select the ETP business date.");
             var date = DateOnly.FromDateTime(DailyBusinessDateInput.SelectedDate.Value);
-            currentDailyPackDocument = await new DailyReportingPackService(connectionState.ConnectionString)
+            currentDailyPackDocument = await dailyReportPackGeneratorFactory(connectionState.ConnectionString)
                 .GenerateCombinedAsync(date, Environment.UserName);
             DailyPackGrid.ItemsSource = currentDailyPackDocument.Tables.Select(x => new
                 { Report = x.Name, Status = x.Status, Rows = x.Data.Rows.Count, x.Message });
@@ -1198,7 +1236,7 @@ public partial class MainWindow : Window
             RequireViewAccess();
             var store = ArchiveStoreInput.SelectedItem is ComboBoxItem item && !string.Equals(item.Content?.ToString(), "All", StringComparison.OrdinalIgnoreCase) ? item.Content?.ToString() : null;
             var date = ArchiveAllDatesInput.IsChecked == true || ArchiveDateInput.SelectedDate is null ? (DateOnly?)null : DateOnly.FromDateTime(ArchiveDateInput.SelectedDate.Value);
-            var rows = await new Phase2OperationsRepository(connectionState.ConnectionString).LoadReportGenerationsAsync(store, date);
+            var rows = await reportArchiveQueryFactory(connectionState.ConnectionString).SearchAsync(new ReportArchiveSearch(store, date));
             ReportGenerationGrid.ItemsSource = rows; ReportArchiveDetailGrid.ItemsSource = null; currentArchivedDocument = null; currentShareFile = null;
             ReportArchiveStatus.Text = $"{rows.Count:N0} immutable generation(s) found. Select one to open or exactly two to compare.";
         }
@@ -1209,8 +1247,8 @@ public partial class MainWindow : Window
     {
         try
         {
-            if (ReportGenerationGrid.SelectedItem is not ArchivedReportGeneration generation) throw new InvalidOperationException("Select one report generation.");
-            currentArchivedDocument = await new Phase2OperationsRepository(connectionState.ConnectionString).LoadArchivedReportAsync(generation.Id);
+            if (ReportGenerationGrid.SelectedItem is not ArchivedReportGenerationSummary generation) throw new InvalidOperationException("Select one report generation.");
+            currentArchivedDocument = await reportArchiveQueryFactory(connectionState.ConnectionString).OpenAsync(generation.Id);
             currentShareFile = null;
             ReportArchiveDetailGrid.ItemsSource = currentArchivedDocument.Tables.Select(table => new { table.Name, table.Status, Rows = table.Data.Rows.Count, table.Message });
             ReportArchiveStatus.Text = $"Generation {generation.GenerationNumber} passed its document SHA-256 check and is ready to re-export.";
@@ -1223,9 +1261,9 @@ public partial class MainWindow : Window
     {
         try
         {
-            var selected = ReportGenerationGrid.SelectedItems.OfType<ArchivedReportGeneration>().ToArray();
+            var selected = ReportGenerationGrid.SelectedItems.OfType<ArchivedReportGenerationSummary>().ToArray();
             if (selected.Length != 2) throw new InvalidOperationException("Select exactly two report generations.");
-            var rows = await new Phase2OperationsRepository(connectionState.ConnectionString).CompareReportGenerationsAsync(selected[0].Id, selected[1].Id);
+            var rows = await reportArchiveQueryFactory(connectionState.ConnectionString).CompareAsync(selected[0].Id, selected[1].Id);
             ReportArchiveDetailGrid.ItemsSource = rows; currentArchivedDocument = null;
             ReportArchiveStatus.Text = $"Compared generations {selected[0].GenerationNumber} and {selected[1].GenerationNumber}: {rows.Count(x => x.Changed):N0} report section(s) changed.";
             await RecordAuditAsync("ReportArchive", "Succeeded", "Archived generations compared");

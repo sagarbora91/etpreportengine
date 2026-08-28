@@ -33,6 +33,8 @@ After this slice, the five `MainWindow` C# partials contain 2,521 physical lines
 
 The next bounded slice was completed on 2026-08-28: Desktop settings persistence and connection state are injected, atomic and path-safe; feature workflows no longer use the connection textbox as a dependency; and Windows access now crosses an Application contract implemented by a SQL adapter. The composition root owns these collaborators. This reduced the temporary MainWindow SQL-infrastructure construction inventory from 82 to 81. The Settings screen itself and the remaining workspaces still require extraction.
 
+Archive search/open/comparison, Sharing Contacts, Digital Registers and Daily Workflow/Manual Entry now cross cohesive Application contracts with SQL adapters composed at the Desktop composition root. The executable Help shortcut catalogue is reconciled to the shell registry, with native WPF gestures explicitly separated. The temporary MainWindow SQL-infrastructure construction inventory is 64; presentation extraction remains open.
+
 ## Target ownership
 
 ```text

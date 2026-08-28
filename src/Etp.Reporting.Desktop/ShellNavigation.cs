@@ -22,6 +22,7 @@ public enum ShellCommand
     Save,
     ImportFiles,
     ImportFolder,
+    RetryImport,
     CycleRegion,
     CloseOrCancel
 }
@@ -32,8 +33,8 @@ public static class ShellShortcutRegistry
 {
     public static IReadOnlyList<ShellShortcut> All { get; } =
     [
-        new(Key.Left, ModifierKeys.Alt, ShellCommand.Back, "Alt + Left", "Go to the previous screen"),
-        new(Key.Right, ModifierKeys.Alt, ShellCommand.Forward, "Alt + Right", "Go to the next screen"),
+        new(Key.Left, ModifierKeys.Alt, ShellCommand.Back, "Alt + Left Arrow", "Go to the previous screen"),
+        new(Key.Right, ModifierKeys.Alt, ShellCommand.Forward, "Alt + Right Arrow", "Go to the next screen"),
         new(Key.Home, ModifierKeys.Alt, ShellCommand.Home, "Alt + Home", "Open Dashboard"),
         new(Key.F1, ModifierKeys.None, ShellCommand.Help, "F1", "Open help for this screen"),
         new(Key.Oem2, ModifierKeys.Control, ShellCommand.ShortcutGuide, "Ctrl + /", "Open keyboard shortcuts"),
@@ -49,6 +50,7 @@ public static class ShellShortcutRegistry
         new(Key.S, ModifierKeys.Control, ShellCommand.Save, "Ctrl + S", "Save the current entry"),
         new(Key.O, ModifierKeys.Control, ShellCommand.ImportFiles, "Ctrl + O", "Select ETP files or a ZIP"),
         new(Key.O, ModifierKeys.Control | ModifierKeys.Shift, ShellCommand.ImportFolder, "Ctrl + Shift + O", "Select an ETP import folder"),
+        new(Key.R, ModifierKeys.Control, ShellCommand.RetryImport, "Ctrl + R", "Retry failed imports"),
         new(Key.F6, ModifierKeys.None, ShellCommand.CycleRegion, "F6", "Move to the next screen region"),
         new(Key.Escape, ModifierKeys.None, ShellCommand.CloseOrCancel, "Esc", "Close the active panel or cancel")
     ];

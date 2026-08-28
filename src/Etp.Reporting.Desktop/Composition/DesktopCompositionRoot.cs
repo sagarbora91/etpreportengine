@@ -5,6 +5,12 @@ using Etp.Reporting.Infrastructure.SqlServer;
 using Etp.Reporting.Desktop.Modules.Settings;
 using DashboardQuery = EtpApplication::Etp.Reporting.Application.Dashboard.IDashboardQuery;
 using AccessSessionQuery = EtpApplication::Etp.Reporting.Application.Access.IAccessSessionQuery;
+using ReportArchiveQuery = EtpApplication::Etp.Reporting.Application.Archive.IReportArchiveQuery<Etp.Reporting.Reporting.ReportPackDocument>;
+using DigitalRegisterService = EtpApplication::Etp.Reporting.Application.Registers.IDigitalRegisterService;
+using SharingContactsService = EtpApplication::Etp.Reporting.Application.Sharing.ISharingContactsService;
+using DailyWorkflowQuery = EtpApplication::Etp.Reporting.Application.DailyWorkflow.IDailyWorkflowQuery;
+using DailyWorkflowCommands = EtpApplication::Etp.Reporting.Application.DailyWorkflow.IDailyWorkflowCommands;
+using DailyReportPackGenerator = EtpApplication::Etp.Reporting.Application.DailyWorkflow.IDailyReportPackGenerator<Etp.Reporting.Reporting.ReportPackDocument>;
 
 namespace Etp.Reporting.Desktop.Composition;
 
@@ -54,13 +60,25 @@ public sealed class DesktopCompositionRoot
         var connectionState = new DesktopConnectionState(connectionString);
         Func<string, DashboardQuery> dashboardQueryFactory = value => new SqlServerDashboardQuery(value);
         Func<string, AccessSessionQuery> accessSessionQueryFactory = value => new SqlServerAccessSessionQuery(value);
+        Func<string, ReportArchiveQuery> reportArchiveQueryFactory = value => new SqlServerReportArchiveQuery(value);
+        Func<string, DigitalRegisterService> digitalRegisterServiceFactory = value => new SqlServerDigitalRegisterService(value);
+        Func<string, SharingContactsService> sharingContactsServiceFactory = value => new SqlServerSharingContactsService(value);
+        Func<string, DailyWorkflowQuery> dailyWorkflowQueryFactory = value => new SqlServerDailyWorkflowService(value);
+        Func<string, DailyWorkflowCommands> dailyWorkflowCommandsFactory = value => new SqlServerDailyWorkflowService(value);
+        Func<string, DailyReportPackGenerator> dailyReportPackGeneratorFactory = value => new SqlServerDailyWorkflowService(value);
         return new MainWindow(
             shell,
             dashboardView,
             dashboardQueryFactory,
             settingsStore,
             connectionState,
-            accessSessionQueryFactory);
+            accessSessionQueryFactory,
+            reportArchiveQueryFactory,
+            digitalRegisterServiceFactory,
+            sharingContactsServiceFactory,
+            dailyWorkflowQueryFactory,
+            dailyWorkflowCommandsFactory,
+            dailyReportPackGeneratorFactory);
     }
 
     public async Task InitializeDatabaseAsync(CancellationToken cancellationToken = default)
