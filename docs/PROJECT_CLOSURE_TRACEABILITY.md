@@ -4,6 +4,8 @@ Status date: 28 August 2026
 Authority: current .NET 10/WPF product only
 Owner: closure sprint Lead Integrator
 
+Latest pause checkpoint: `docs/audit/ETP-CLOSURE-SPRINT-CHECKPOINT-2026-08-28.md`. Resume at the Settings, connection-state and Windows-access slice; this checkpoint does not declare product completion.
+
 ## Purpose
 
 This ledger is the authoritative completion-control document for the current ETP Reporting Engine. It prevents a plan, design, partial implementation or old test run from being mistaken for a completed product requirement.
