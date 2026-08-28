@@ -1,0 +1,74 @@
+<UserControl x:Class="Etp.Reporting.Desktop.Modules.Archive.ArchiveWorkspaceView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:automation="clr-namespace:System.Windows.Automation;assembly=PresentationCore"
+             automation:AutomationProperties.Name="Report archive and sharing workspace">
+    <StackPanel>
+        <TextBlock Text="Immutable report-generation archive" FontSize="18" FontWeight="SemiBold"/>
+        <TextBlock Text="Open, compare and re-export prior generated packs. SHA-256 integrity is verified before an archived document is displayed."
+                   Margin="0,6,0,10" Foreground="#5D6873" TextWrapping="Wrap"/>
+        <WrapPanel>
+            <TextBlock Text="Store" VerticalAlignment="Center"/>
+            <ComboBox x:Name="ArchiveStoreInput" Width="130" SelectedIndex="0" Margin="6,0,10,0"
+                      automation:AutomationProperties.Name="Archive store">
+                <ComboBoxItem Content="All"/><ComboBoxItem Content="COMBINED"/>
+                <ComboBoxItem Content="WLMHW"/><ComboBoxItem Content="HEMW"/>
+            </ComboBox>
+            <TextBlock Text="Business date" VerticalAlignment="Center"/>
+            <DatePicker x:Name="ArchiveDateInput" Width="140" Margin="6,0,0,0"
+                        automation:AutomationProperties.Name="Archive business date"/>
+            <CheckBox x:Name="ArchiveAllDatesInput" Content="All dates" IsChecked="True" Margin="10,5,0,0"
+                      automation:AutomationProperties.Name="Search all archive dates"/>
+            <Button Content="Refresh archive" Click="RefreshReportArchive_Click" Padding="14,7" Margin="10,0,0,0"
+                    automation:AutomationProperties.Name="Refresh report archive"/>
+        </WrapPanel>
+        <DataGrid x:Name="ReportGenerationGrid" AutoGenerateColumns="True" IsReadOnly="True"
+                  SelectionMode="Extended" MaxHeight="250" Margin="0,10,0,0"
+                  automation:AutomationProperties.Name="Archived report generations"/>
+        <WrapPanel Margin="0,10,0,0">
+            <Button Content="Open selected generation" Click="OpenArchivedGeneration_Click" Padding="14,7"/>
+            <Button Content="Compare two selected" Click="CompareArchivedGenerations_Click" Padding="14,7" Margin="8,0,0,0"/>
+            <Button Content="Export archived Excel…" Click="ExportArchivedExcel_Click" Padding="14,7" Margin="8,0,0,0"/>
+            <Button Content="Export archived PDF…" Click="ExportArchivedPdf_Click" Padding="14,7" Margin="8,0,0,0"/>
+            <Button Content="Export ZIP…" Click="ExportArchivedZip_Click" Padding="14,7" Margin="8,0,0,0"/>
+            <Button Content="WhatsApp" Click="ShareArchivedWhatsApp_Click" Padding="14,7" Margin="8,0,0,0"/>
+            <Button Content="Email draft" Click="ShareArchivedEmail_Click" Padding="14,7" Margin="8,0,0,0"/>
+        </WrapPanel>
+        <WrapPanel Margin="0,8,0,0">
+            <TextBox x:Name="SharePhoneInput" Width="150" Padding="6" ToolTip="Optional WhatsApp phone including country code"
+                     automation:AutomationProperties.Name="WhatsApp phone"/>
+            <TextBox x:Name="ShareEmailToInput" Width="240" Padding="6" Margin="8,0,0,0" ToolTip="Email To"
+                     automation:AutomationProperties.Name="Email recipient"/>
+            <TextBox x:Name="ShareEmailCcInput" Width="220" Padding="6" Margin="8,0,0,0" ToolTip="Email CC"
+                     automation:AutomationProperties.Name="Email CC"/>
+        </WrapPanel>
+        <TextBlock Text="Owner-managed sharing contacts" FontWeight="SemiBold" Margin="0,14,0,6"/>
+        <DataGrid x:Name="SharingContactsGrid" AutoGenerateColumns="True" IsReadOnly="True" SelectionMode="Single"
+                  SelectionChanged="SharingContact_SelectionChanged" MaxHeight="170"
+                  automation:AutomationProperties.Name="Sharing contacts"/>
+        <WrapPanel Margin="0,8,0,0">
+            <TextBox x:Name="ContactNameInput" Width="170" Padding="6" ToolTip="Contact name"
+                     automation:AutomationProperties.Name="Sharing contact name"/>
+            <TextBox x:Name="ContactRoleInput" Width="130" Padding="6" Margin="8,0,0,0" ToolTip="Role"
+                     automation:AutomationProperties.Name="Sharing contact role"/>
+            <TextBox x:Name="ContactEmailInput" Width="220" Padding="6" Margin="8,0,0,0" ToolTip="Email"
+                     automation:AutomationProperties.Name="Sharing contact email"/>
+            <TextBox x:Name="ContactPhoneInput" Width="150" Padding="6" Margin="8,0,0,0" ToolTip="Phone including country code"
+                     automation:AutomationProperties.Name="Sharing contact phone"/>
+            <TextBox x:Name="ContactSubscriptionsInput" Width="180" Padding="6" Margin="8,0,0,0" ToolTip="Default report subscriptions"
+                     automation:AutomationProperties.Name="Default report subscriptions"/>
+            <CheckBox x:Name="ContactActiveInput" Content="Active" IsChecked="True" Margin="8,5,0,0"
+                      automation:AutomationProperties.Name="Sharing contact active"/>
+            <TextBox x:Name="ContactReasonInput" Width="190" Padding="6" Margin="8,0,0,0" ToolTip="Owner change reason"
+                     automation:AutomationProperties.Name="Sharing contact change reason"/>
+            <Button Content="Save contact" Click="SaveSharingContact_Click" Padding="14,7" Margin="8,0,0,0"
+                    automation:AutomationProperties.Name="Save sharing contact"/>
+        </WrapPanel>
+        <TextBlock x:Name="ReportArchiveStatus" Margin="0,10,0,0" TextWrapping="Wrap"
+                   automation:AutomationProperties.Name="Report archive status"
+                   automation:AutomationProperties.LiveSetting="Polite"/>
+        <DataGrid x:Name="ReportArchiveDetailGrid" AutoGenerateColumns="True" IsReadOnly="True"
+                  MaxHeight="300" Margin="0,8,0,0"
+                  automation:AutomationProperties.Name="Archive detail or comparison"/>
+    </StackPanel>
+</UserControl>

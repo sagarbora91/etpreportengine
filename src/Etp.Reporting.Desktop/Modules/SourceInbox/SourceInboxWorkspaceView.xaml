@@ -1,0 +1,56 @@
+<UserControl x:Class="Etp.Reporting.Desktop.Modules.SourceInbox.SourceInboxWorkspaceView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:automation="clr-namespace:System.Windows.Automation;assembly=PresentationCore"
+             automation:AutomationProperties.Name="Source Inbox and document extraction workspace">
+    <StackPanel>
+        <DockPanel>
+            <StackPanel>
+                <TextBlock Text="Source Inbox" FontSize="18" FontWeight="SemiBold"/>
+                <TextBlock Text="Every workbook, ZIP, PDF and image remains traceable from receipt through import, review or quarantine."
+                           Foreground="#5D6873" TextWrapping="Wrap" Margin="0,4,0,0"/>
+            </StackPanel>
+            <Button x:Name="RefreshButton" DockPanel.Dock="Right" Content="Refresh inbox" Click="Refresh_Click"
+                    Padding="14,7" automation:AutomationProperties.Name="Refresh Source Inbox"/>
+        </DockPanel>
+        <WrapPanel Margin="0,12,0,8">
+            <ComboBox x:Name="StatusInput" Width="170" SelectedIndex="0" automation:AutomationProperties.Name="Source Inbox status filter">
+                <ComboBoxItem Content="All"/><ComboBoxItem Content="Received"/><ComboBoxItem Content="Review Required"/>
+                <ComboBoxItem Content="Imported"/><ComboBoxItem Content="Duplicate"/><ComboBoxItem Content="Conflict"/>
+                <ComboBoxItem Content="Quarantined"/>
+            </ComboBox>
+            <Button x:Name="BrowseButton" Content="Add PDF or image…" Click="Browse_Click" Padding="14,7" Margin="8,0,0,0"
+                    automation:AutomationProperties.Name="Add PDF or image to Source Inbox"/>
+            <Button x:Name="OpenButton" Content="Verify/open selected" Click="Open_Click" Padding="14,7" Margin="8,0,0,0"
+                    automation:AutomationProperties.Name="Verify and open selected source document"/>
+            <TextBox x:Name="DocumentPathInput" Width="280" IsReadOnly="True" Padding="6" Margin="8,0,0,0"
+                     automation:AutomationProperties.Name="Selected source document"/>
+        </WrapPanel>
+        <WrapPanel Margin="0,0,0,8">
+            <TextBox x:Name="DocumentStoreInput" Width="110" Padding="6" ToolTip="Store code" automation:AutomationProperties.Name="Document store"/>
+            <DatePicker x:Name="DocumentDateInput" Width="145" Margin="8,0,0,0" automation:AutomationProperties.Name="Document business date"/>
+            <ComboBox x:Name="DocumentTypeInput" Width="180" SelectedIndex="0" Margin="8,0,0,0" automation:AutomationProperties.Name="Document type">
+                <ComboBoxItem Content="Inward Invoice"/><ComboBoxItem Content="Vendor Invoice"/><ComboBoxItem Content="Credit Note"/>
+                <ComboBoxItem Content="Stock Transfer"/><ComboBoxItem Content="Other"/>
+            </ComboBox>
+            <Button x:Name="IntakeButton" Content="Store and extract" Click="Intake_Click" Padding="14,7" Margin="8,0,0,0"
+                    automation:AutomationProperties.Name="Store document and extract text"/>
+        </WrapPanel>
+        <TextBlock x:Name="StatusText" Text="Refresh to view received sources." TextWrapping="Wrap"
+                   automation:AutomationProperties.LiveSetting="Polite"/>
+        <DataGrid x:Name="DocumentsGrid" AutoGenerateColumns="True" IsReadOnly="True" SelectionMode="Single"
+                  SelectionChanged="Documents_SelectionChanged" MaxHeight="260" Margin="0,8,0,0"
+                  automation:AutomationProperties.Name="Source Inbox documents"/>
+        <TextBlock Text="Extraction review" FontWeight="SemiBold" Margin="0,12,0,6"/>
+        <DataGrid x:Name="ExtractionsGrid" AutoGenerateColumns="True" IsReadOnly="True" SelectionMode="Single" MaxHeight="190"
+                  automation:AutomationProperties.Name="Document extraction review"/>
+        <WrapPanel Margin="0,8,0,0">
+            <TextBox x:Name="ReviewReasonInput" Width="360" Padding="6" ToolTip="Required human review note"
+                     automation:AutomationProperties.Name="Extraction review reason"/>
+            <Button x:Name="VerifyButton" Content="Verify extraction" Click="Verify_Click" Padding="14,7" Margin="8,0,0,0"
+                    automation:AutomationProperties.Name="Verify selected extraction"/>
+            <Button x:Name="RejectButton" Content="Reject and quarantine" Click="Reject_Click" Padding="14,7" Margin="8,0,0,0"
+                    automation:AutomationProperties.Name="Reject selected extraction and quarantine document"/>
+        </WrapPanel>
+    </StackPanel>
+</UserControl>

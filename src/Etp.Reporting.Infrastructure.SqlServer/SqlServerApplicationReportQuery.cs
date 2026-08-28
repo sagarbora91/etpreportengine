@@ -15,11 +15,10 @@ public sealed class SqlServerApplicationReportQuery :
 
     public SqlServerApplicationReportQuery(string connectionString)
     {
-        if (string.IsNullOrWhiteSpace(connectionString))
-            throw new ArgumentException("A SQL Server connection string is required.", nameof(connectionString));
-        raw = new(connectionString);
-        operational = new(connectionString);
-        management = new(connectionString);
+        var validated = SqlAdapterConnection.RequireWindowsIntegrated(connectionString, nameof(connectionString));
+        raw = new(validated);
+        operational = new(validated);
+        management = new(validated);
         executor = new(raw, RetailReportingPolicy.Mapping, RetailReportingPolicy.Sales, RetailReportingPolicy.Tender, RetailReportingPolicy.Stock);
     }
 

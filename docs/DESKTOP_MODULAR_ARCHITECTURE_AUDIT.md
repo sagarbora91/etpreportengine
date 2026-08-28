@@ -2,7 +2,7 @@
 
 ## Executive assessment
 
-**Risk: HIGH.** The application already has useful project boundaries and several focused Desktop controls, but `MainWindow` remains the composition root, navigation controller, workspace host, presentation-state store and application workflow coordinator. Splitting the class across partial files has improved browsing without establishing independent responsibility ownership.
+**Risk: MEDIUM.** The Desktop shell-only extraction is complete in source: `DesktopCompositionRoot` owns construction, every major destination has an owning module workspace, and `MainWindow` is limited to window chrome, navigation, global access/status/audit relays and compact workspace hosts. Remaining risk is behavioural acceptance of the extracted workflows against representative live SQL data and golden report/export artefacts, not a known shell-boundary violation.
 
 The required response is an incremental behaviour-preserving extraction, not a rewrite. Import rules, report calculations, database structures and user-facing behaviour remain unchanged.
 
@@ -38,9 +38,9 @@ Infrastructure.SqlServer       → Import, Domain, Reporting
 Desktop                        → Import, Infrastructure.SqlServer, Reporting
 ```
 
-`Desktop` does not consume `Application`; no production project currently consumes `Application`. Consequently the intended use-case layer exists in the solution but is bypassed by Desktop workflow code. `MainWindow` directly constructs concrete repositories, import readers/coordinators, reporting executors and exporters.
+The dependency list above is the Phase 0 baseline. Desktop now also consumes `Application`. SQL adapters remain referenced by the executable composition boundary, while `MainWindow` and the module presentation layer consume injected application/reporting abstractions and composed workspace views. Architecture tests prevent SQL infrastructure construction from returning to views or the shell.
 
-## Current Desktop structure
+## Phase 0 Desktop structure
 
 ```text
 Etp.Reporting.Desktop/
@@ -64,7 +64,7 @@ Etp.Reporting.Desktop/
 
 There are no established `Views/` or `ViewModels/` module folders and no shell view model. Useful extraction seams already exist in `WorkspaceNavigationHistory`, `ShellShortcutRegistry`, `UiNavigationRegistry`, report workspace controls, the DSR workspace and Help Centre.
 
-## MainWindow measurements
+## Phase 0 MainWindow measurements
 
 | File | Physical lines | Declared methods | Event-handler-shaped methods |
 |---|---:|---:|---:|
@@ -77,7 +77,7 @@ There are no established `Views/` or `ViewModels/` module folders and no shell v
 
 The partial class also holds 40 fields. Its public constructor takes no dependencies, yet its methods instantiate more than 20 concrete service/repository/export types. `MainWindow.xaml` has 236 physical lines, 223 named controls and 122 event bindings; compact XAML formatting makes physical line count particularly misleading.
 
-## Responsibility matrix
+## Phase 0 responsibility matrix
 
 | Responsibility | Current owner/evidence | Correct owner | Priority | Risk |
 |---|---|---|---|---|
@@ -239,3 +239,28 @@ This reduces MainWindow SQL-infrastructure construction from 74 to 64. Release b
 Source Inbox document/extraction reads, human review, document intake and managed-file integrity verification now cross `ISourceInboxService`, implemented by a SQL adapter composed outside the shell. This reduces MainWindow SQL-infrastructure construction from 64 to 60 while retaining immutable document, SHA-256, duplicate, quarantine and audit behavior.
 
 Dependency-free Reports and Accounting contracts plus tested SQL facades are also present, but their MainWindow call sites are not yet migrated and therefore do not reduce the ratchet in this checkpoint. Release build, 363 automated tests and the 11-view/190-name WPF smoke pass.
+
+## Final shell-only checkpoint — 28 August 2026
+
+This checkpoint supersedes the implementation-status statements in the historical slices above. All shell destinations are now compact hosts for composed module views: Dashboard, Settings, Daily Workflow, Import, Source Inbox, Reports, Operations, Investigation/Approvals, Archive/Sharing, Registers, Accounting and Administration. `WorkspaceModuleOwnershipRegistry` maps every `ShellRouteRegistry` destination and report route to an owning module, with bidirectional tests preventing unowned routes.
+
+`MainWindow.Productisation.cs` and `MainWindow.VisualReporting.cs` have been removed. Report scope, queries, projections, formulas, filtering, detail presentation and Excel/PDF actions are owned by `ReportsWorkspaceView`; Dashboard and Daily Workflow export presentation is also owned by those module views. Import parsing/orchestration, archive/sharing, registers, accounting, source inbox, settings and operations/administration handlers are likewise outside `MainWindow`. `DesktopFriendlyError` owns provider-specific error classification, leaving no SQL-provider or Infrastructure reference in the shell partials. `DesktopCompositionRoot` constructs the Daily Workflow and Reports views and all infrastructure adapters.
+
+Final source ratchets:
+
+| Measure | Phase 0 | Final shell |
+|---|---:|---:|
+| `MainWindow` C# partials | 5 | 3 |
+| `MainWindow` C# physical lines | 2,584 | 907 |
+| `MainWindow` declared methods | 188 | 62 |
+| `MainWindow` fields | 40 | 29 |
+| `MainWindow.xaml` physical lines | 236 | 93 |
+| `MainWindow.xaml` named controls | 223 | 58 |
+| `MainWindow.xaml` event bindings | 122 | 13 |
+| Direct SQL-infrastructure construction in `MainWindow` | 83 at first executable inventory | 0 |
+
+`MainWindowShellBoundaryTests` prevents feature partials, infrastructure construction, workbook parsing, report formula/export orchestration and feature control names or handlers from regrowing in the shell. Existing composition and module-boundary tests additionally enforce no SQL references in views/view models and no direct cross-module references.
+
+Verification for this checkpoint: the Release Desktop build passed with 0 warnings and 0 errors; the focused architecture, composition, Reports, navigation and WPF UI-smoke set passed 114/114; and the formerly stale Archive, Settings, Operations/Administration, Registers/Accounting and extracted-workspace UI checks passed 26/26. These sets overlap and are reported separately rather than summed.
+
+The structural Desktop objective is complete. Operator acceptance remains required for a live connected-SQL launch, representative import/restatement/cancellation paths, role-specific actions, and byte/semantic comparison of representative Excel, PDF, report-pack and Tally outputs. Those are runtime/data acceptance gates, not reasons to return feature ownership to the shell.

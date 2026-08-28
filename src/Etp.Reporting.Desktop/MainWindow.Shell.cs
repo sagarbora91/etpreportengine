@@ -201,7 +201,7 @@ public partial class MainWindow
         if (!item.IsAvailable) { ApplicationStatus.Text = item.UnavailableReason ?? "This capability is not available."; return; }
         var navigated = NavigateToDestinationWithFeature(item.Destination, item.FeatureCode);
         if (navigated && !string.IsNullOrWhiteSpace(item.FeatureCode))
-            _ = RunCatalogueReportAsync(item.FeatureCode);
+            _ = reportsWorkspaceView.RunReportAsync(item.FeatureCode);
         if (sidebarOverlay) HideSidebar();
     }
 
@@ -274,10 +274,10 @@ public partial class MainWindow
     private void ShellBusinessDate_Changed(object sender, SelectionChangedEventArgs e)
     {
         if (ShellBusinessDateSelector.SelectedDate is not { } selected) return;
-        ReportTo.SelectedDate = selected; DailyBusinessDateInput.SelectedDate = selected; ImportBusinessDateInput.SelectedDate = selected; ArchiveDateInput.SelectedDate = selected; AccountingDateInput.SelectedDate = selected;
+        reportsWorkspaceView.SetBusinessDate(selected); dailyWorkflowWorkspace.BusinessDate = selected; importWorkspaceView.BusinessDate = selected; sourceInboxWorkspaceView.BusinessDate = selected; archiveWorkspaceView.BusinessDate = selected; registersWorkspaceView.BusinessDate = selected; accountingWorkspaceView.BusinessDate = selected;
     }
 
-    private void OpenGlobalSearch_Click(object sender, RoutedEventArgs e) { NavigateToDestination("Operations Center"); GlobalSearchInput.Focus(); }
+    private void OpenGlobalSearch_Click(object sender, RoutedEventArgs e) { NavigateToDestination("Operations Center"); investigationWorkspaceView.FocusSearch(); }
     private void OpenHelp_Click(object sender, RoutedEventArgs e) => ShowHelpWorkspace(HelpCentreRegistry.HomeTopicId);
     private void OpenProfile_Click(object sender, RoutedEventArgs e) => OpenDrawer("Current profile", $"Windows identity: {currentAccess.WindowsIdentity}\nUser: {currentAccess.DisplayName}\nRole: {RoleLabel(currentAccess.Role)}\nPermissions continue to be enforced by the existing application services.");
 
@@ -330,10 +330,10 @@ public partial class MainWindow
                 return true;
             case ShellCommand.Refresh: RefreshCurrentWorkspace(); return true;
             case ShellCommand.Run when shell.CurrentRoute.FeatureCode is { } feature:
-                _ = RunCatalogueReportAsync(feature); return true;
-            case ShellCommand.ExportPdf when CurrentModuleId == "reports": ExportPdf_Click(this, new RoutedEventArgs()); return true;
-            case ShellCommand.ExportExcel when CurrentModuleId == "reports": ExportExcel_Click(this, new RoutedEventArgs()); return true;
-            case ShellCommand.GenerateReportPack when CurrentModuleId is "dashboard" or "reports": GenerateDailyPack_Click(this, new RoutedEventArgs()); return true;
+                _ = reportsWorkspaceView.RunReportAsync(feature); return true;
+            case ShellCommand.ExportPdf when CurrentModuleId == "reports": reportsWorkspaceView.ExportPdf(); return true;
+            case ShellCommand.ExportExcel when CurrentModuleId == "reports": reportsWorkspaceView.ExportExcel(); return true;
+            case ShellCommand.GenerateReportPack when CurrentModuleId is "dashboard" or "reports": _ = dailyWorkflowWorkspace.GenerateDailyPackAsync(); return true;
             case ShellCommand.OpenExportFolder when CurrentModuleId == "reports": OpenExportFolder(); return true;
             case ShellCommand.FocusPeriod: FocusPrimaryPeriod(); return true;
             case ShellCommand.GoToReport:
@@ -341,11 +341,11 @@ public partial class MainWindow
                 SidebarSearchInput.Focus();
                 SidebarSearchInput.SelectAll();
                 return true;
-            case ShellCommand.Save when shell.CurrentRoute.Destination == "Manual Entry": SaveManualInput_Click(this, new RoutedEventArgs()); return true;
-            case ShellCommand.ImportFiles when CurrentModuleId == "imports": BrowseWorkbook_Click(this, new RoutedEventArgs()); return true;
-            case ShellCommand.ImportFolder when CurrentModuleId == "imports": BrowseImportFolder_Click(this, new RoutedEventArgs()); return true;
-            case ShellCommand.RetryImport when CurrentModuleId == "imports" && focusedWorkspaceKind != "help" && RetryBatchButton.IsEnabled:
-                RetryBatchImport_Click(this, new RoutedEventArgs()); return true;
+            case ShellCommand.Save when shell.CurrentRoute.Destination == "Manual Entry": _ = dailyWorkflowWorkspace.SaveManualInputAsync(); return true;
+            case ShellCommand.ImportFiles when CurrentModuleId == "imports": importWorkspaceView.BrowseWorkbook(); return true;
+            case ShellCommand.ImportFolder when CurrentModuleId == "imports": importWorkspaceView.BrowseImportFolder(); return true;
+            case ShellCommand.RetryImport when CurrentModuleId == "imports" && focusedWorkspaceKind != "help" && importWorkspaceView.CanRetry:
+                _ = importWorkspaceView.RetryFailedBatchAsync(); return true;
             case ShellCommand.CycleRegion: CycleShellRegion(); return true;
             default: return false;
         }
@@ -356,7 +356,7 @@ public partial class MainWindow
         var decision = back ? shell.GoBack(CurrentShellAccess) : shell.GoForward(CurrentShellAccess);
         ApplyNavigationDecision(decision);
         if (!decision.IsAllowed) return false;
-        if (decision.RequestedRoute.FeatureCode is { } feature) _ = RunCatalogueReportAsync(feature);
+        if (decision.RequestedRoute.FeatureCode is { } feature) _ = reportsWorkspaceView.RunReportAsync(feature);
         return true;
     }
 
@@ -369,14 +369,15 @@ public partial class MainWindow
     {
         switch (CurrentModuleId)
         {
-            case "dashboard": _ = RefreshDashboardAsync(); _ = RefreshDailyWorkflowAsync(); break;
-            case "imports": _ = RefreshSourceInboxAsync(); break;
-            case "registers": _ = RefreshRegistersAsync(); break;
-            case "accounting": _ = RefreshAccountingAsync(); break;
-            case "archive": _ = RefreshReportArchiveAsync(); break;
-            case "exceptions": _ = RefreshOperationsAsync(); break;
-            case "settings": _ = RefreshMasterAdministrationAsync(); break;
-            case "reports" when shell.CurrentRoute.FeatureCode is { } feature: _ = RunCatalogueReportAsync(feature); break;
+            case "dashboard" when shell.CurrentRoute.Destination is "Daily Workflow" or "Manual Entry": _ = dailyWorkflowWorkspace.RefreshAsync(); break;
+            case "dashboard": _ = RefreshDashboardAsync(); break;
+            case "imports": _ = sourceInboxWorkspaceView.RefreshAsync(); break;
+            case "registers": _ = registersWorkspaceView.RefreshAsync(); break;
+            case "accounting": _ = accountingWorkspaceView.RefreshAsync(); break;
+            case "archive": _ = archiveWorkspaceView.RefreshAsync(); break;
+            case "exceptions": _ = operationsWorkspaceView.RefreshAsync(); break;
+            case "settings": _ = settingsWorkspace.PrepareForDisplayAsync(shell.CurrentRoute.Destination == "Admin / Settings"); _ = administrationWorkspaceView.RefreshAsync(); break;
+            case "reports" when shell.CurrentRoute.FeatureCode is { } feature: _ = reportsWorkspaceView.RunReportAsync(feature); break;
         }
     }
 
@@ -393,20 +394,7 @@ public partial class MainWindow
 
     private void FocusPrimaryPeriod()
     {
-        if (focusedWorkspaceKind == "report" && currentReportCode == "dsr" && dsrWorkspace is not null)
-        {
-            dsrWorkspace.BusinessDatePicker.Focus();
-            return;
-        }
-        if (focusedWorkspaceKind == "report" && currentReportCode is not null)
-        {
-            var definition = ReportWorkspaceRegistry.ForReport(currentReportCode);
-            if (reportWorkspaces.TryGetValue(definition.Id, out var workspace))
-            {
-                workspace.DateFromPicker.Focus();
-                return;
-            }
-        }
+        if (focusedWorkspaceKind == "report" && reportWorkspaceSession.FocusPrimaryPeriod(reportsWorkspaceView.CurrentReportCode)) return;
         ShellBusinessDateSelector.Focus();
     }
 

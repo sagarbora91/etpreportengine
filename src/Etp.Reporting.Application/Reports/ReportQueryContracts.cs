@@ -30,6 +30,9 @@ public sealed record DailyExceptionRecord(string Severity, string Area, string C
 public sealed record ServiceSalesRecord(string Period, string StoreCode, DateOnly PeriodStart, DateOnly PeriodEnd, decimal? Cash, decimal? Card, decimal? Upi, decimal? Total, decimal? LastYearTotal, decimal? GrowthPercent, string Availability);
 public sealed record CashReconciliationReport(string StoreCode, DateOnly BusinessDate, decimal? OpeningCash, decimal RetailCash, decimal? ServiceCash, decimal? Expenses, decimal? CashDeposit, decimal? Adjustment, decimal? CalculatedClosing, decimal? CountedClosing, decimal? Variance, ReportStatus Status, string Message);
 public sealed record ManagementTrendRecord(DateOnly BusinessDate, string StoreCode, decimal NetSales, decimal Units, int Invoices, decimal TenderVariance, int UnmatchedEnrichmentRows);
+public enum TenderVarianceCause { Matched, MissingTender, PartialTender, ExcessTender, TenderWithoutInvoice }
+public sealed record TenderVarianceDiagnosticRecord(string StoreCode, string DocumentNumber, decimal InvoiceAmount, decimal TenderAmount, decimal Variance, TenderVarianceCause LikelyCause, string RecommendedCheck);
+public sealed record TenderVarianceDiagnosticReport(ReportStatus Status, IReadOnlyList<TenderVarianceDiagnosticRecord> Rows, int FailedDocuments, decimal AbsoluteVariance, string RuleVersion, string Message);
 
 public interface IControlledReportQuery
 {
@@ -56,4 +59,9 @@ public interface IOperationalReportQuery<TDsrDocument> where TDsrDocument : notn
 public interface IManagementTrendQuery
 {
     Task<IReadOnlyList<ManagementTrendRecord>> LoadAsync(ReportScope scope, CancellationToken cancellationToken = default);
+}
+
+public interface ITenderVarianceDiagnostic
+{
+    TenderVarianceDiagnosticReport Diagnose(TenderReconciliationReport reconciliation, decimal tolerance);
 }

@@ -1,7 +1,7 @@
 ---
 type: ai-context
 status: active
-last_verified: 2026-08-27
+last_verified: 2026-08-28
 ---
 
 # ETP AI Context
@@ -21,6 +21,7 @@ ETP Reporting Engine is a rules-driven Windows retail reporting application. It 
 - `CLUSTER` is brand segment, not product category. Example: `GAUTO` means Titan Automatic.
 - Customer names/contact numbers are restricted PII and are excluded from canonical reporting facts.
 - Missing data is not zero. Show or propagate an unavailable/blocking state unless an approved rule says otherwise.
+- Desktop feature work starts at `WorkspaceModuleOwnershipRegistry` and the owning `Modules/` workspace; `MainWindow` is a shell host and `DesktopCompositionRoot` is the construction boundary.
 
 ## Source-of-truth order
 

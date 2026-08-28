@@ -2,7 +2,9 @@
 
 ## Status and scope
 
-The deployment is a self-contained .NET 10 WPF desktop application backed by Microsoft SQL Server Express. The application includes SQL connectivity checks, safe database creation, checksum-controlled migrations, canonical persistence, SQL-backed on-screen reports, fixed-format Excel output and a single-file `win-x64` publish path. `scripts/build-windows-release.ps1` restores, builds, tests, publishes and emits `SHA256SUMS.txt`. This is a portable application package, not yet a code-signed MSI installer.
+The deployment is a self-contained .NET 10 WPF desktop application backed by Microsoft SQL Server Express. The application includes SQL connectivity checks, safe database creation, checksum-controlled migrations, canonical persistence, SQL-backed on-screen reports, fixed-format Excel output and a single-file `win-x64` publish path. The [Windows release builder](../scripts/build-windows-release.ps1) restores, builds, tests, publishes and emits `SHA256SUMS.txt`. The [Windows installer builder](../scripts/build-windows-installer.ps1) packages that release as a versioned, administrator-elevated Inno Setup executable using the checked-in [installer definition](../installer/EtpReportingEngine.iss), and emits a separate installer checksum.
+
+These are source-implemented packaging paths, not evidence of a production deployment. The setup executable and application are not yet code-signed, and the repository does not establish that clean installation, upgrade, uninstall, SQL bootstrap, backup, or restore has passed on the intended target PC. The release remains blocked on the external validation and signing gates below.
 
 ## Supported topology
 
@@ -23,7 +25,9 @@ The release owner must publish a precise support matrix before the first product
 - A writable per-user application-data/log location that is not the installation directory.
 - Approved endpoint-protection/firewall rules where the SQL instance is remote; SQL Browser or TCP exposure must not be enabled unless required and approved.
 
-The final installer must stop with actionable diagnostics when prerequisites are missing. It must not silently install or reconfigure SQL Server, open firewall ports, or grant broad database permissions.
+The current installer presents a selected-once `sqlbootstrap` task that explicitly states that Microsoft SQL Server 2022 Express may be installed/configured and that Microsoft licence terms are accepted. When retained, the [bootstrap script](../scripts/bootstrap-etp-prerequisites.ps1) requires elevation, uses `winget` to install SQL Server Express and `sqlcmd` when missing, configures `MSSQL$SQLEXPRESS` for automatic start, prepares the controlled backup directory, initializes the database, and registers the backup, restore-drill, and automation tasks. An operator can clear that task when prerequisites are managed separately. Bootstrap failure terminates setup with an actionable pointer to `%ProgramData%\EtpReporting\SetupLogs`.
+
+The bootstrap does not open firewall ports. Remote SQL exposure and any broader permission changes remain separately governed. Its presence in source does not replace a clean-machine test or approval of the Microsoft packages, `winget` availability, network access, service identity, and resulting SQL permissions in the production environment.
 
 ## Identity and database permissions
 
@@ -49,7 +53,7 @@ CI/release secrets belong in the protected CI secret store with least privilege,
 
 ## Installation and first start
 
-The packaged application should install under the standard protected Program Files location; mutable settings, logs, caches, and temporary files belong under appropriate Windows application-data locations. Installation and database mutation must be independently recoverable.
+The Inno Setup package installs under the standard protected Program Files location and includes the self-contained application, database migrations, and operations scripts. Setup is elevated and offers Start-menu and optional desktop shortcuts. Application diagnostics are written under `%LocalAppData%\EtpReporting\Logs`; bootstrap logs and backup files are written beneath `%ProgramData%\EtpReporting`. Uninstall removes the ETP scheduled tasks through [the task-removal script](../scripts/remove-etp-scheduled-tasks.ps1); it does not claim to delete the SQL database or retained backups.
 
 The accepted device-licensing architecture is documented in `security/ETP_LICENSING_ENGINEERING_SPEC.md` but is intentionally not implemented yet. When the final licensing phase is authorized, the installer must create the protected ProgramData licensing location and the application must route unactivated interactive starts to ActivationWindow. Installer database initialization remains separate from normal licensed operation, and unattended automation must be gated.
 
@@ -64,7 +68,7 @@ First-start flow:
 7. Apply pending migrations transactionally where SQL Server permits and record their checksums.
 8. Run post-migration health checks before enabling imports or reports.
 
-The current migration components plan and verify scripts, and `0001_foundation.sql` uses `XACT_ABORT` and a transaction. Concurrency locking, installer orchestration, pre-upgrade backup, and complete post-migration validation still require implementation.
+The current installer invokes the application once with `--initialize-database`. That headless path creates the configured database if absent, discovers the packaged migrations, rejects missing or checksum-changed applied migrations, and applies each pending migration and journal entry in a SQL transaction. `0001_foundation.sql` also uses `XACT_ABORT` and a transaction. Installer/database orchestration is therefore implemented in source. A database-wide migration lock, an automatic pre-upgrade backup, and the complete post-migration acceptance checks listed above are not yet implemented as one enforced upgrade transaction and remain release gates.
 
 Applied migration files are immutable. Corrections require a new migration. A failed migration blocks application use until recovery; the application must not continue against an unknown or partially upgraded schema.
 
@@ -78,11 +82,13 @@ Before upgrade:
 - Stop imports and ensure no active batch/migration is running.
 - Record application version, schema migrations/checksums, database identity, and backup identity.
 
-After upgrade, run connectivity, migration, import-lineage, and representative report smoke checks. Application-binary rollback is allowed only when the older version is compatible with the upgraded schema. Database rollback means restoring the verified pre-upgrade backup and reconciling any work performed after it; down-migrations are not assumed. The release runbook must define the business outage/data-reentry decision.
+After upgrade, run connectivity, migration, import-lineage, and representative report smoke checks. The [installer lifecycle test](../scripts/test-installer-lifecycle.ps1) exercises silent installation, same-version repair or a supplied prior-version upgrade, and uninstall in a temporary directory with SQL bootstrap deliberately disabled; it is packaging evidence only, not database-upgrade or target-PC acceptance evidence. Application-binary rollback is allowed only when the older version is compatible with the upgraded schema. The [rollback helper](../scripts/invoke-release-rollback.ps1) takes a verified backup unless explicitly overridden and reinstalls a supplied prior installer while retaining SQL data; operators must still verify schema compatibility and controls. Database rollback means restoring the verified pre-upgrade backup and reconciling any work performed after it; down-migrations are not assumed. The release runbook must define the business outage/data-reentry decision.
 
 ## Backup policy
 
-Backups must be written by SQL Server to a business-controlled location, not merely copied from live database files. Operations must decide and record:
+Backups are written by SQL Server to a business-controlled location, not copied from live database files. The current [backup script](../scripts/backup-etp-database.ps1) uses Windows-integrated `sqlcmd`, creates a `COPY_ONLY` full backup with `CHECKSUM`, immediately runs `RESTORE VERIFYONLY WITH CHECKSUM`, records a privacy-safe audit event, and emits the file's SHA-256 hash. It warns below 20 GB free and emits a critical warning below 5 GB. The [daily task installer](../scripts/install-daily-backup-task.ps1) registers this operation as `SYSTEM` at 22:00 by default and describes backups as retained indefinitely. No repository script prunes these backup files, consistent with the current no-deletion policy.
+
+Operations must still decide, record, and validate:
 
 - Backup frequency and schedule.
 - Retention and off-device/off-site protection.
@@ -90,7 +96,7 @@ Backups must be written by SQL Server to a business-controlled location, not mer
 - Recovery point objective (RPO) and recovery time objective (RTO).
 - Monitoring, failure alerts, capacity ownership, and deletion policy.
 
-At minimum, take a verified pre-upgrade backup and maintain scheduled operational backups once production data exists. A job reporting success is insufficient: backup history, file existence/size, integrity verification, and periodic restore rehearsal are required.
+The application dashboard also evaluates latest full-backup age, backup-volume free space, database growth, and recent failed imports. These indicators are advisory: alert destinations, escalation ownership, off-device protection, and capacity response must still be established. At minimum, confirm the installed task actually runs under the target service identity, take a verified pre-upgrade backup, and maintain scheduled operational backups once production data exists. A job reporting success is insufficient: backup history, file existence/size, integrity verification, and periodic restore rehearsal are required.
 
 ## Restore procedure and validation
 
@@ -104,7 +110,9 @@ Restore is a controlled operator procedure:
 6. Point the application to the recovered database only after acceptance.
 7. Record elapsed recovery time, data-loss window, operator, evidence, and final disposition of temporary copies.
 
-Every release that changes schema, authentication, installer, or backup behavior requires the restore validation described in `09_TEST_STRATEGY.md`. A documented periodic production-like restore drill is mandatory before backup can be described as operationally proven.
+The implemented [recovery-drill script](../scripts/invoke-etp-recovery-drill.ps1) selects the latest ETP backup, verifies its checksum, restores it under a timestamped temporary database name, runs `DBCC CHECKDB`, compares `import_files` and `source_lineage` counts with the live database, records a privacy-safe audit event, and removes the temporary database/files. The [monthly task installer](../scripts/install-monthly-recovery-drill-task.ps1) creates a daily check at 08:00 that runs the drill on day 1 by default. This automated drill does not switch the application connection or constitute an incident recovery.
+
+Every release that changes schema, authentication, installer, or backup behavior requires the restore validation described in [the test strategy](09_TEST_STRATEGY.md). A successful production-like execution, retained evidence, reviewed RTO/RPO, and operator sign-off are mandatory before backup/recovery can be described as operationally proven.
 
 ## Data handling and privacy
 
@@ -121,11 +129,11 @@ ETP files, canonical facts, reports, backups, logs, and support bundles may cont
 
 Operational logs should include application/release version, correlation/import batch ID, profile and migration versions, event severity, and safe error classifications. They must exclude passwords, full connection strings, unnecessary source cells, and personal data. Define log location, rotation, maximum size, retention, and support collection before production.
 
-Monitor database connectivity, disk/capacity trends, failed/long imports, migration failures, backup age/failure, and restore-drill status. Alert destinations and ownership are operational decisions and must be tested rather than documented only.
+Monitor database connectivity, disk/capacity trends, failed/long imports, migration failures, backup age/failure, and restore-drill status. The application exposes database-size, latest-backup, backup-free-space, and failed-import indicators, and the [privacy-safe support-package script](../scripts/new-etp-support-package.ps1) collects aggregate health, SQL service, and scheduled-task state without source rows, customer data, invoice identifiers, or workbook paths. Alert destinations and ownership are operational decisions and must be tested rather than documented only.
 
 ## CI, packaging, and release
 
-The current GitHub Actions workflow restores, builds, and tests the solution in Release mode on Windows. A production release pipeline must additionally:
+The current [GitHub Actions workflow](../.github/workflows/ci.yml) restores, builds, and tests the solution in Release mode on Windows. Versioning and changelog preparation are supported by [the release-version script](../scripts/set-release-version.ps1); a versioned offline ZIP can be assembled from an already-built installer by [the offline-package script](../scripts/new-offline-deployment-package.ps1). A local [dependency security scan](../scripts/invoke-security-scan.ps1) checks vulnerable/deprecated .NET dependencies and npm audit results, but it is not currently an enforced step in the checked-in CI workflow. A production release pipeline must additionally:
 
 1. Build from a protected, reviewed commit/tag with pinned/reviewed dependencies.
 2. Run all gates in `09_TEST_STRATEGY.md`, including live SQL Server Express and recovery evidence where required.
@@ -135,7 +143,7 @@ The current GitHub Actions workflow restores, builds, and tests the solution in 
 6. Promote the exact tested artifacts without rebuilding them.
 7. Restrict artifact and signing-secret access and retain release provenance.
 
-No production release is permitted directly from a developer workstation or from an unreviewed ZIP snapshot.
+No production release is permitted directly from a developer workstation or from an unreviewed ZIP snapshot. SHA-256 checksums provide integrity evidence, not publisher identity; the Windows executable and installer must remain explicitly described as unsigned until an approved publisher identity and code-signing certificate are used and the signatures are verified.
 
 ## Deployment acceptance checklist
 

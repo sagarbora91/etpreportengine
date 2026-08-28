@@ -1,5 +1,4 @@
 using Etp.Reporting.Application.Access;
-using Microsoft.Data.SqlClient;
 
 namespace Etp.Reporting.Infrastructure.SqlServer;
 
@@ -12,16 +11,8 @@ public sealed class SqlServerAccessSessionQuery : IAccessSessionQuery
 
     public SqlServerAccessSessionQuery(string connectionString)
     {
-        if (string.IsNullOrWhiteSpace(connectionString))
-            throw new ArgumentException("A SQL Server connection string is required.", nameof(connectionString));
-
-        var settings = new SqlConnectionStringBuilder(connectionString);
-        if (!settings.IntegratedSecurity)
-            throw new ArgumentException(
-                "Access-session queries require Windows-integrated SQL Server security.",
-                nameof(connectionString));
-
-        repository = new Phase2OperationsRepository(connectionString);
+        var validated = SqlAdapterConnection.RequireWindowsIntegrated(connectionString, nameof(connectionString));
+        repository = new Phase2OperationsRepository(validated);
     }
 
     public async Task<AccessSession> LoadCurrentAsync(CancellationToken cancellationToken = default) =>

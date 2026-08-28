@@ -1,0 +1,110 @@
+<UserControl x:Class="Etp.Reporting.Desktop.Modules.DailyWorkflow.DailyWorkflowWorkspaceView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:automation="clr-namespace:System.Windows.Automation;assembly=PresentationCore"
+             automation:AutomationProperties.Name="Daily workflow and manual entry workspace">
+    <Border Background="White" BorderBrush="#DCE2E8" BorderThickness="1" CornerRadius="6" Padding="20">
+        <StackPanel>
+            <TextBlock Text="Business-date reporting workflow" FontSize="18" FontWeight="SemiBold"/>
+            <TextBlock Text="ETP transaction/report dates control FTD, MTD and YTD. Import timestamps never change the business date."
+                       Margin="0,6,0,12" Foreground="#5D6873" TextWrapping="Wrap"/>
+            <WrapPanel>
+                <TextBlock Text="Business date" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                <DatePicker x:Name="BusinessDateInput" Width="145" SelectedDateChanged="Scope_Changed"
+                            automation:AutomationProperties.Name="Daily workflow business date"/>
+                <TextBlock Text="Store" VerticalAlignment="Center" Margin="14,0,6,0"/>
+                <ComboBox x:Name="StoreInput" Width="160" SelectedIndex="0" SelectionChanged="Scope_Changed"
+                          automation:AutomationProperties.Name="Daily workflow store">
+                    <ComboBoxItem Content="WLMHW"/><ComboBoxItem Content="HEMW"/>
+                </ComboBox>
+                <Button x:Name="RefreshButton" Content="Refresh status" Click="Refresh_Click" Padding="14,7" Margin="12,0,0,0"
+                        automation:AutomationProperties.Name="Refresh daily workflow"/>
+            </WrapPanel>
+
+            <Border Background="#F3F5F7" CornerRadius="4" Padding="12" Margin="0,14,0,12">
+                <StackPanel>
+                    <TextBlock x:Name="WorkflowStatus" Text="Select a business date and refresh." FontSize="17" FontWeight="SemiBold"
+                               automation:AutomationProperties.Name="Daily workflow readiness status"
+                               automation:AutomationProperties.LiveSetting="Polite"/>
+                    <TextBlock x:Name="WorkflowMessage" Margin="0,5,0,0" TextWrapping="Wrap"
+                               automation:AutomationProperties.Name="Daily workflow operation status"
+                               automation:AutomationProperties.LiveSetting="Polite"/>
+                    <TextBlock x:Name="SourceStatus" Margin="0,8,0,0" TextWrapping="Wrap"
+                               automation:AutomationProperties.Name="Daily workflow source readiness"/>
+                    <TextBlock x:Name="InputStatus" Margin="0,4,0,0" TextWrapping="Wrap"
+                               automation:AutomationProperties.Name="Daily workflow manual-input readiness"/>
+                </StackPanel>
+            </Border>
+
+            <TextBlock x:Name="ManualEntryHeading" Text="Manual Entry" FontSize="18" FontWeight="SemiBold"/>
+            <TextBlock Text="Enter values that are not available in ETP reports. Walk-ins feed the combined conversion calculation; zero remains different from missing. Every change requires a reason and remains audited."
+                       Margin="0,4,0,0" Foreground="#5D6873" TextWrapping="Wrap"/>
+            <DataGrid x:Name="ManualInputsGrid" Margin="0,8,0,10" AutoGenerateColumns="True" IsReadOnly="True" MaxHeight="210"
+                      automation:AutomationProperties.Name="Daily manual operational inputs"/>
+            <WrapPanel>
+                <ComboBox x:Name="ManualFieldInput" Width="220" DisplayMemberPath="DisplayName" SelectedValuePath="FieldCode"
+                          automation:AutomationProperties.Name="Manual input field"/>
+                <TextBox x:Name="ManualValueInput" Width="150" Padding="6" Margin="8,0,0,0"
+                         ToolTip="Value; enter zero when the measured result is zero"
+                         automation:AutomationProperties.Name="Manual input value"/>
+                <TextBox x:Name="ManualReasonInput" Width="260" Padding="6" Margin="8,0,0,0"
+                         ToolTip="Required reason, for example Daily store count"
+                         automation:AutomationProperties.Name="Manual input change reason"/>
+                <Button x:Name="SaveManualInputButton" Content="Save input" Click="SaveManualInput_Click" Padding="14,7" Margin="8,0,0,0"
+                        automation:AutomationProperties.Name="Save manual input"/>
+            </WrapPanel>
+
+            <TextBlock Text="Physical stock by inventory group" FontWeight="SemiBold" Margin="0,14,0,0"/>
+            <TextBlock Text="Enter component counts and the independently counted physical total. The engine shows both composition variance and physical-versus-system variance."
+                       Margin="0,4,0,6" Foreground="#5D6873" TextWrapping="Wrap"/>
+            <DataGrid x:Name="StockCountsGrid" AutoGenerateColumns="True" IsReadOnly="True" MaxHeight="150"
+                      automation:AutomationProperties.Name="Physical stock counts by inventory group"/>
+            <WrapPanel Margin="0,8,0,0">
+                <TextBox x:Name="StockGroupInput" Width="130" Padding="6" ToolTip="Inventory group, CLUSTER, brand or controlled group code" automation:AutomationProperties.Name="Inventory group code"/>
+                <TextBox x:Name="StockDisplayInput" Width="78" Padding="6" Margin="6,0,0,0" ToolTip="Display quantity" automation:AutomationProperties.Name="Display quantity"/>
+                <TextBox x:Name="StockBackstockInput" Width="78" Padding="6" Margin="6,0,0,0" ToolTip="Backstock quantity" automation:AutomationProperties.Name="Backstock quantity"/>
+                <TextBox x:Name="StockDefectiveInput" Width="78" Padding="6" Margin="6,0,0,0" ToolTip="Defective quantity" automation:AutomationProperties.Name="Defective quantity"/>
+                <TextBox x:Name="StockYLocationInput" Width="78" Padding="6" Margin="6,0,0,0" ToolTip="Y-location quantity" automation:AutomationProperties.Name="Y location quantity"/>
+                <TextBox x:Name="StockPhysicalInput" Width="90" Padding="6" Margin="6,0,0,0" ToolTip="Independently counted physical quantity" automation:AutomationProperties.Name="Counted physical quantity"/>
+                <TextBox x:Name="StockRemarksInput" Width="150" Padding="6" Margin="6,0,0,0" ToolTip="Stock remarks" automation:AutomationProperties.Name="Stock remarks"/>
+                <TextBox x:Name="StockReasonInput" Width="160" Padding="6" Margin="6,0,0,0" ToolTip="Required change reason" automation:AutomationProperties.Name="Stock count change reason"/>
+                <Button x:Name="SaveStockCountButton" Content="Save stock count" Click="SaveStockCount_Click" Padding="12,7" Margin="6,0,0,0"
+                        automation:AutomationProperties.Name="Save physical stock count"/>
+            </WrapPanel>
+
+            <TextBlock Text="Staff/CRO target" FontWeight="SemiBold" Margin="0,14,0,0"/>
+            <WrapPanel Margin="0,6,0,0">
+                <TextBox x:Name="StaffTargetCroInput" Width="120" Padding="6" ToolTip="CRO number" automation:AutomationProperties.Name="Staff CRO number"/>
+                <DatePicker x:Name="StaffTargetFromInput" Width="140" Margin="6,0,0,0" automation:AutomationProperties.Name="Staff target start date"/>
+                <DatePicker x:Name="StaffTargetToInput" Width="140" Margin="6,0,0,0" automation:AutomationProperties.Name="Staff target end date"/>
+                <TextBox x:Name="StaffTargetValueInput" Width="110" Padding="6" Margin="6,0,0,0" ToolTip="Target sales" automation:AutomationProperties.Name="Staff target sales"/>
+                <TextBox x:Name="StaffTargetReasonInput" Width="210" Padding="6" Margin="6,0,0,0" ToolTip="Required change reason" automation:AutomationProperties.Name="Staff target change reason"/>
+                <Button x:Name="SaveStaffTargetButton" Content="Save target" Click="SaveStaffTarget_Click" Padding="12,7" Margin="6,0,0,0"
+                        automation:AutomationProperties.Name="Save staff target"/>
+            </WrapPanel>
+
+            <WrapPanel Margin="0,14,0,0">
+                <Button x:Name="FinaliseDayButton" Content="Finalise day" Click="FinaliseDay_Click" Padding="16,8" IsEnabled="False"
+                        automation:AutomationProperties.Name="Finalise business day"/>
+                <TextBox x:Name="ReopenReasonInput" Width="280" Padding="6" Margin="12,0,0,0"
+                         ToolTip="Administrator reason required to reopen"
+                         automation:AutomationProperties.Name="Reopen reason"/>
+                <Button x:Name="ReopenDayButton" Content="Reopen day" Click="ReopenDay_Click" Padding="16,8" Margin="8,0,0,0"
+                        automation:AutomationProperties.Name="Reopen finalised business day"/>
+            </WrapPanel>
+
+            <WrapPanel Margin="0,14,0,0">
+                <Button x:Name="GenerateStorePackButton" Content="Generate selected-store pack" Click="GenerateDailyPack_Click" Padding="16,8"
+                        automation:AutomationProperties.Name="Generate selected store daily reporting pack"/>
+                <Button x:Name="GenerateCombinedPackButton" Content="Generate Titan + Helios pack" Click="GenerateCombinedDailyPack_Click" Padding="16,8" Margin="8,0,0,0"
+                        automation:AutomationProperties.Name="Generate combined Titan and Helios daily reporting pack"/>
+                <Button x:Name="ExportPackExcelButton" Content="Export complete pack Excel…" Click="ExportDailyPackExcel_Click" Padding="16,8" Margin="8,0,0,0" IsEnabled="False"
+                        automation:AutomationProperties.Name="Export complete report pack Excel"/>
+                <Button x:Name="ExportPackPdfButton" Content="Export complete pack PDF…" Click="ExportDailyPackPdf_Click" Padding="16,8" Margin="8,0,0,0" IsEnabled="False"
+                        automation:AutomationProperties.Name="Export complete report pack PDF"/>
+            </WrapPanel>
+            <DataGrid x:Name="DailyPackGrid" Margin="0,10,0,0" AutoGenerateColumns="True" IsReadOnly="True" MaxHeight="260"
+                      automation:AutomationProperties.Name="Daily reporting pack status"/>
+        </StackPanel>
+    </Border>
+</UserControl>

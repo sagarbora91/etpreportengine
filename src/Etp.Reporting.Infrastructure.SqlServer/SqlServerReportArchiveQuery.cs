@@ -13,9 +13,8 @@ public sealed class SqlServerReportArchiveQuery : IReportArchiveQuery<ReportPack
 
     public SqlServerReportArchiveQuery(string connectionString)
     {
-        if (string.IsNullOrWhiteSpace(connectionString))
-            throw new ArgumentException("A SQL Server connection string is required.", nameof(connectionString));
-        repository = new Phase2OperationsRepository(connectionString);
+        var validated = SqlAdapterConnection.RequireWindowsIntegrated(connectionString, nameof(connectionString));
+        repository = new Phase2OperationsRepository(validated);
     }
 
     public async Task<IReadOnlyList<ArchivedReportGenerationSummary>> SearchAsync(

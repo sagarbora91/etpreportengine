@@ -2,7 +2,16 @@ extern alias EtpApplication;
 
 using System.IO;
 using Etp.Reporting.Infrastructure.SqlServer;
+using Etp.Reporting.Desktop.Modules.Imports;
+using Etp.Reporting.Desktop.Modules.Dashboard;
 using Etp.Reporting.Desktop.Modules.Settings;
+using Etp.Reporting.Desktop.Modules.Reports;
+using Etp.Reporting.Desktop.Modules.Accounting;
+using Etp.Reporting.Desktop.Modules.Archive;
+using Etp.Reporting.Desktop.Modules.Registers;
+using Etp.Reporting.Desktop.Modules.OperationsAdministration;
+using Etp.Reporting.Desktop.Modules.SourceInbox;
+using Etp.Reporting.Desktop.Modules.DailyWorkflow;
 using DashboardQuery = EtpApplication::Etp.Reporting.Application.Dashboard.IDashboardQuery;
 using AccessSessionQuery = EtpApplication::Etp.Reporting.Application.Access.IAccessSessionQuery;
 using ReportArchiveQuery = EtpApplication::Etp.Reporting.Application.Archive.IReportArchiveQuery<Etp.Reporting.Reporting.ReportPackDocument>;
@@ -12,6 +21,17 @@ using DailyWorkflowQuery = EtpApplication::Etp.Reporting.Application.DailyWorkfl
 using DailyWorkflowCommands = EtpApplication::Etp.Reporting.Application.DailyWorkflow.IDailyWorkflowCommands;
 using DailyReportPackGenerator = EtpApplication::Etp.Reporting.Application.DailyWorkflow.IDailyReportPackGenerator<Etp.Reporting.Reporting.ReportPackDocument>;
 using SourceInboxService = EtpApplication::Etp.Reporting.Application.SourceInbox.ISourceInboxService;
+using ControlledReportQuery = EtpApplication::Etp.Reporting.Application.Reports.IControlledReportQuery;
+using OperationalReportQuery = EtpApplication::Etp.Reporting.Application.Reports.IOperationalReportQuery<Etp.Reporting.Reporting.DailySalesReportDocument>;
+using ManagementTrendQuery = EtpApplication::Etp.Reporting.Application.Reports.IManagementTrendQuery;
+using AccountingService = EtpApplication::Etp.Reporting.Application.Accounting.IAccountingService;
+using OperationsAdministrationService = EtpApplication::Etp.Reporting.Application.OperationsAdministration.IOperationsAdministrationService;
+using AdministrationService = EtpApplication::Etp.Reporting.Application.OperationsAdministration.IAdministrationService;
+using ImportPersistenceUseCase = EtpApplication::Etp.Reporting.Application.Imports.IImportPersistenceUseCase<Etp.Reporting.Import.Workbooks.WorkbookSnapshot>;
+using DatabaseLifecycleService = EtpApplication::Etp.Reporting.Application.DatabaseLifecycle.IDatabaseLifecycleService;
+using TenderVarianceDiagnostic = EtpApplication::Etp.Reporting.Application.Reports.ITenderVarianceDiagnostic;
+using InvestigationQuery = EtpApplication::Etp.Reporting.Application.Distribution.IInvestigationQuery;
+using ReportDistributionService = EtpApplication::Etp.Reporting.Application.Distribution.IReportDistributionService<Etp.Reporting.Reporting.ReportPackDocument>;
 
 namespace Etp.Reporting.Desktop.Composition;
 
@@ -56,7 +76,10 @@ public sealed class DesktopCompositionRoot
     public MainWindow CreateMainWindow()
     {
         var shell = new ShellViewModel(new ShellNavigationService());
-        var dashboardView = new DashboardView();
+        IReportExportCoordinator reportExportCoordinator = new ReportExportCoordinator();
+        var dashboardView = new DashboardView(
+            new DashboardPresentationSession(),
+            reportExportCoordinator.ExportManagementSummaryPdf);
         var settingsStore = new DesktopSettingsStore(settingsDirectory);
         var connectionState = new DesktopConnectionState(connectionString);
         Func<string, DashboardQuery> dashboardQueryFactory = value => new SqlServerDashboardQuery(value);
@@ -68,20 +91,102 @@ public sealed class DesktopCompositionRoot
         Func<string, DailyWorkflowCommands> dailyWorkflowCommandsFactory = value => new SqlServerDailyWorkflowService(value);
         Func<string, DailyReportPackGenerator> dailyReportPackGeneratorFactory = value => new SqlServerDailyWorkflowService(value);
         Func<string, SourceInboxService> sourceInboxServiceFactory = value => new SqlServerSourceInboxService(value);
+        Func<string, ControlledReportQuery> controlledReportQueryFactory = value => new SqlServerApplicationReportQuery(value);
+        Func<string, OperationalReportQuery> operationalReportQueryFactory = value => new SqlServerApplicationReportQuery(value);
+        Func<string, ManagementTrendQuery> managementTrendQueryFactory = value => new SqlServerApplicationReportQuery(value);
+        Func<string, AccountingService> accountingServiceFactory = value => new SqlServerAccountingService(value);
+        Func<string, OperationsAdministrationService> operationsAdministrationServiceFactory = value => new SqlServerOperationsAdministrationService(value);
+        Func<string, AdministrationService> administrationServiceFactory = value => new SqlServerAdministrationService(value);
+        Func<string, ImportPersistenceUseCase> importPersistenceUseCaseFactory = value => new SqlServerImportPersistenceUseCase(value);
+        Func<string, DatabaseLifecycleService> databaseLifecycleServiceFactory = value => new SqlServerDatabaseLifecycleService(value);
+        var settingsWorkspaceView = new SettingsWorkspaceView(
+            new DesktopSettingsPresentationSession(settingsStore, connectionState),
+            databaseLifecycleServiceFactory,
+            administrationServiceFactory,
+            MigrationDirectory);
+        TenderVarianceDiagnostic tenderVarianceDiagnostic = new ReportingTenderVarianceDiagnostic();
+        var reportsWorkspaceView = new ReportsWorkspaceView(
+            () => connectionState.ConnectionString,
+            controlledReportQueryFactory,
+            operationalReportQueryFactory,
+            managementTrendQueryFactory,
+            reportExportCoordinator,
+            tenderVarianceDiagnostic);
+        var dailyWorkflowWorkspaceView = new DailyWorkflowWorkspaceView(
+            new DailyWorkflowPresentationSession(),
+            () => connectionState.ConnectionString,
+            dailyWorkflowQueryFactory,
+            dailyWorkflowCommandsFactory,
+            dailyReportPackGeneratorFactory,
+            static () => new(false, false, false),
+            administratorApproved: null,
+            static (_, _, _) => Task.CompletedTask,
+            reportExportCoordinator.ExportPackExcel,
+            reportExportCoordinator.ExportPackPdf);
+        Func<string, InvestigationQuery> investigationQueryFactory = value => new SqlServerInvestigationQuery(value);
+        Func<string, ReportDistributionService> reportDistributionServiceFactory = value => new SqlServerReportDistributionService(value);
+        var archiveSession = new ArchiveDistributionPresentationSession(
+            reportArchiveQueryFactory, sharingContactsServiceFactory, reportDistributionServiceFactory);
+        var archiveWorkspaceView = new ArchiveWorkspaceView(
+            archiveSession,
+            () => connectionState.ConnectionString,
+            reportExportCoordinator.ExportPackExcel,
+            reportExportCoordinator.ExportPackPdf,
+            new ArchiveShareLauncher());
+        var registersSession = new RegistersPresentationSession(digitalRegisterServiceFactory);
+        var registersWorkspaceView = new RegistersWorkspaceView(
+            registersSession, () => connectionState.ConnectionString);
+        var sourceInboxWorkspaceView = new SourceInboxWorkspaceView(
+            sourceInboxServiceFactory,
+            () => connectionState.ConnectionString,
+            new SourceDocumentLauncher());
+        var accountingSession = new AccountingPresentationSession(accountingServiceFactory);
+        var accountingWorkspaceView = new AccountingWorkspaceView(
+            accountingSession, () => connectionState.ConnectionString);
+        var operationsAdministrationSession = new OperationsAdministrationPresentationSession();
+        var operationsWorkspaceView = new OperationsWorkspaceView(
+            operationsAdministrationSession,
+            () => connectionState.ConnectionString,
+            operationsAdministrationServiceFactory,
+            async (script, cancellationToken) =>
+            {
+                var result = await PowerShellOperationsService.RunAsync(script, cancellationToken);
+                return new MaintenanceOperationResult(result.Succeeded, result.Message);
+            });
+        var investigationWorkspaceView = new InvestigationApprovalsWorkspaceView(
+            () => connectionState.ConnectionString,
+            operationsAdministrationServiceFactory,
+            investigationQueryFactory);
+        var administrationWorkspaceView = new AdministrationWorkspaceView(
+            operationsAdministrationSession,
+            () => connectionState.ConnectionString,
+            administrationServiceFactory);
+        var importCoordinator = new DesktopImportCoordinator(
+            importPersistenceUseCaseFactory,
+            async (value, path, sha256, reportCode, storeCode, businessDate, cancellationToken) =>
+                _ = await new ProductisationOperationsService(value).IntakeEtpEvidenceAsync(
+                    path, sha256, reportCode, storeCode, businessDate, cancellationToken).ConfigureAwait(false));
+        var importWorkspaceView = new ImportWorkspaceView(
+            importCoordinator,
+            () => connectionState.ConnectionString);
         return new MainWindow(
             shell,
             dashboardView,
             dashboardQueryFactory,
-            settingsStore,
+            settingsWorkspaceView,
             connectionState,
             accessSessionQueryFactory,
-            reportArchiveQueryFactory,
-            digitalRegisterServiceFactory,
-            sharingContactsServiceFactory,
-            dailyWorkflowQueryFactory,
-            dailyWorkflowCommandsFactory,
-            dailyReportPackGeneratorFactory,
-            sourceInboxServiceFactory);
+            archiveWorkspaceView,
+            registersWorkspaceView,
+            dailyWorkflowWorkspaceView,
+            sourceInboxWorkspaceView,
+            reportsWorkspaceView,
+            accountingWorkspaceView,
+            operationsWorkspaceView,
+            investigationWorkspaceView,
+            administrationWorkspaceView,
+            databaseLifecycleServiceFactory,
+            importWorkspaceView);
     }
 
     public async Task InitializeDatabaseAsync(CancellationToken cancellationToken = default)
@@ -93,8 +198,8 @@ public sealed class DesktopCompositionRoot
 
     public async Task<int> RunAutomationOnceAsync(CancellationToken cancellationToken = default)
     {
-        var result = await new AutomatedOperationsService(connectionString)
-            .RunOnceAsync(cancellationToken)
+        var result = await new SqlServerOperationsAdministrationService(connectionString)
+            .RunAutomationOnceAsync(cancellationToken)
             .ConfigureAwait(false);
         return result.SourcesFailed == 0 ? 0 : 1;
     }

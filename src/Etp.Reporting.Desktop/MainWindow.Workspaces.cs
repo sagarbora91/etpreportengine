@@ -1,18 +1,15 @@
 using System.Diagnostics;
 using System.IO;
 using System.Windows;
-using System.Windows.Automation;
 using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
-using System.Windows.Media;
+using Etp.Reporting.Desktop.Modules.Reports;
 using Etp.Reporting.Reporting;
 
 namespace Etp.Reporting.Desktop;
 
 public partial class MainWindow
 {
-    private readonly Dictionary<string, ReportWorkspaceControl> reportWorkspaces = new(StringComparer.OrdinalIgnoreCase);
-    private DailySalesReportWorkspace? dsrWorkspace;
+    private readonly ReportWorkspaceSession reportWorkspaceSession = new();
     private HelpCentreView? helpCentre;
     private string? focusedWorkspaceKind;
     private readonly HelpWorkspaceSession helpWorkspaceSession = new();
@@ -42,44 +39,22 @@ public partial class MainWindow
         FocusedWorkspaceLayer.Visibility = Visibility.Visible;
         HideSidebar();
 
-        if (reportCode.Equals("dsr", StringComparison.OrdinalIgnoreCase))
-        {
-            dsrWorkspace ??= CreateDsrWorkspace();
-            dsrWorkspace.BusinessDatePicker.SelectedDate = ReportTo.SelectedDate ?? ShellBusinessDateSelector.SelectedDate ?? DateTime.Today.AddDays(-1);
-            dsrWorkspace.ShowLoading();
-            FocusedWorkspaceHost.Content = dsrWorkspace;
-            dsrWorkspace.Focus();
-            return true;
-        }
-
-        var definition = ReportWorkspaceRegistry.ForReport(reportCode);
-        if (!reportWorkspaces.TryGetValue(definition.Id, out var workspace))
-        {
-            workspace = new ReportWorkspaceControl(definition);
-            workspace.ReportSelected += (_, selected) => RunFocusedReport(selected.Code, workspace);
-            workspace.ActionRequested += FocusedReportActionRequested;
-            reportWorkspaces.Add(definition.Id, workspace);
-        }
-        workspace.DateFromPicker.SelectedDate = ReportFrom.SelectedDate;
-        workspace.DateToPicker.SelectedDate = ReportTo.SelectedDate;
-        workspace.SelectReport(reportCode);
-        workspace.ShowLoading($"Loading {report.Name}…");
+        var workspace = reportWorkspaceSession.Activate(
+            reportCode,
+            reportsWorkspaceView.DateFrom,
+            reportsWorkspaceView.DateTo,
+            reportsWorkspaceView.DateTo ?? ShellBusinessDateSelector.SelectedDate ?? DateTime.Today.AddDays(-1),
+            FocusedReportActionRequested,
+            RunFocusedReport);
         FocusedWorkspaceHost.Content = workspace;
         workspace.Focus();
         return true;
     }
 
-    private DailySalesReportWorkspace CreateDsrWorkspace()
-    {
-        var workspace = new DailySalesReportWorkspace();
-        workspace.ActionRequested += FocusedReportActionRequested;
-        return workspace;
-    }
-
     private void RunFocusedReport(string reportCode, ReportWorkspaceControl workspace)
     {
         ApplyWorkspaceScope(workspace.DateFromPicker.SelectedDate, workspace.DateToPicker.SelectedDate, workspace.ScopeSelector.SelectedItem?.ToString());
-        _ = RunCatalogueReportAsync(reportCode);
+        _ = reportsWorkspaceView.RunReportAsync(reportCode);
     }
 
     private void FocusedReportActionRequested(object? sender, ReportWorkspaceActionRequest request)
@@ -88,17 +63,17 @@ public partial class MainWindow
         {
             case ReportWorkspaceAction.Refresh when request.ReportCode is not null:
                 ApplyWorkspaceScope(request.DateFrom.ToDateTime(TimeOnly.MinValue), request.DateTo.ToDateTime(TimeOnly.MinValue), request.Scope);
-                _ = RunCatalogueReportAsync(request.ReportCode);
+                _ = reportsWorkspaceView.RunReportAsync(request.ReportCode);
                 break;
             case ReportWorkspaceAction.ExportPdf:
-                ExportPdf_Click(this, new RoutedEventArgs());
+                reportsWorkspaceView.ExportPdf();
                 break;
             case ReportWorkspaceAction.ExportExcel:
-                ExportExcel_Click(this, new RoutedEventArgs());
+                reportsWorkspaceView.ExportExcel();
                 break;
             case ReportWorkspaceAction.GenerateReportPack:
-                DailyBusinessDateInput.SelectedDate = request.DateTo.ToDateTime(TimeOnly.MinValue);
-                GenerateDailyPack_Click(this, new RoutedEventArgs());
+                dailyWorkflowWorkspace.BusinessDate = request.DateTo.ToDateTime(TimeOnly.MinValue);
+                _ = dailyWorkflowWorkspace.GenerateDailyPackAsync();
                 break;
             case ReportWorkspaceAction.OpenExportFolder:
                 OpenExportFolder();
@@ -116,61 +91,8 @@ public partial class MainWindow
 
     private void ApplyWorkspaceScope(DateTime? from, DateTime? to, string? scope)
     {
-        ReportFrom.SelectedDate = from ?? DateTime.Today;
-        ReportTo.SelectedDate = to ?? from ?? DateTime.Today;
-        StoreFilterInput.Text = scope switch
-        {
-            "Titan" => "WLMHW",
-            "Helios" => "HEMW",
-            _ => string.Empty
-        };
-        ShellBusinessDateSelector.SelectedDate = ReportTo.SelectedDate;
-    }
-
-    private void UpdateFocusedReportPreview()
-    {
-        if (focusedWorkspaceKind != "report" || currentExportMetadata is null) return;
-        if (currentDsrReport is not null && dsrWorkspace is not null)
-        {
-            dsrWorkspace.SetReport(currentDsrReport);
-            return;
-        }
-        if (currentReportCode is null || currentVisualReport is null) return;
-        var definition = ReportWorkspaceRegistry.ForReport(currentReportCode);
-        if (!reportWorkspaces.TryGetValue(definition.Id, out var workspace)) return;
-        workspace.SetPreview(BuildFocusedReportPreview(currentVisualReport, ReportGrid.ItemsSource), ReportResult.Text);
-    }
-
-    private static UIElement BuildFocusedReportPreview(VisualReportModel model, System.Collections.IEnumerable? rows)
-    {
-        var root = new StackPanel();
-        var cards = new UniformGrid { Columns = Math.Clamp(model.Kpis.Count, 1, 4), Margin = new Thickness(0, 0, 0, 10) };
-        foreach (var kpi in model.Kpis.Take(4))
-        {
-            var value = IndianNumberFormatter.Format(kpi.Value, kpi.Format, kpi.State);
-            var content = new StackPanel();
-            content.Children.Add(new TextBlock { Text = kpi.Label, Foreground = DsrUi.Brush("#5D6873") });
-            content.Children.Add(new TextBlock { Text = value, FontSize = 20, FontWeight = FontWeights.SemiBold, Foreground = DsrUi.Brush(VisualReportTheme.Navy), Margin = new Thickness(0, 4, 0, 0) });
-            var card = new Border { Background = DsrUi.Brush("#FFFFFF"), BorderBrush = DsrUi.Brush("#DCE4EF"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(7), Padding = new Thickness(12), Margin = new Thickness(3), Child = content };
-            AutomationProperties.SetName(card, $"{kpi.Label}: {value}");
-            cards.Children.Add(card);
-        }
-        root.Children.Add(cards);
-        foreach (var visual in model.Visuals.Take(2)) root.Children.Add(Visual(visual));
-        var control = model.Controls.FirstOrDefault();
-        if (control is not null)
-            root.Children.Add(new TextBlock { Text = $"Control {control.Status}: {control.Message}", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 8), Foreground = DsrUi.Brush(control.Status.Equals("Passed", StringComparison.OrdinalIgnoreCase) ? VisualReportTheme.Teal : VisualReportTheme.Red) });
-        root.Children.Add(new DataGrid
-        {
-            ItemsSource = rows,
-            AutoGenerateColumns = true,
-            IsReadOnly = true,
-            MinHeight = 220,
-            MaxHeight = 520,
-            Margin = new Thickness(0, 8, 0, 0),
-            HeadersVisibility = DataGridHeadersVisibility.All
-        });
-        return root;
+        reportsWorkspaceView.ApplyScope(from, to, scope);
+        ShellBusinessDateSelector.SelectedDate = reportsWorkspaceView.DateTo;
     }
 
     private void ShowHelpWorkspace(string? topicId = null, bool contextual = false)
@@ -211,7 +133,7 @@ public partial class MainWindow
             var destination = request.Destination == "Investigation" ? "Operations Center" : request.Destination;
             var navigated = NavigateToDestinationWithFeature(destination, request.FeatureCode);
             if (navigated && !string.IsNullOrWhiteSpace(request.FeatureCode))
-                _ = RunCatalogueReportAsync(request.FeatureCode);
+                _ = reportsWorkspaceView.RunReportAsync(request.FeatureCode);
         };
         return view;
     }

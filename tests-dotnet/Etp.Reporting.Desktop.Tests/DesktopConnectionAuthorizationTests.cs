@@ -5,34 +5,18 @@ public sealed class DesktopConnectionAuthorizationTests
     [Fact]
     public void Successful_connection_switch_refreshes_access_before_using_the_new_database()
     {
-        var source = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(),
-            "src",
-            "Etp.Reporting.Desktop",
-            "MainWindow.xaml.cs"));
-        var methodStart = source.IndexOf(
-            "private async Task CheckConnectionAndRefreshAsync",
-            StringComparison.Ordinal);
-        var methodEnd = source.IndexOf(
-            "private void SetConnectionState",
-            methodStart,
-            StringComparison.Ordinal);
-        var method = source[methodStart..methodEnd];
-
-        var adoptConnection = method.IndexOf(
-            "connectionState.TryUpdate(validation.ConnectionString",
-            StringComparison.Ordinal);
-        var refreshAccess = method.IndexOf(
-            "await RefreshAccessAsync()",
-            adoptConnection,
-            StringComparison.Ordinal);
-        var useAccess = method.IndexOf(
-            "if (currentAccess.CanView)",
-            adoptConnection,
-            StringComparison.Ordinal);
+        var root = FindRepositoryRoot();
+        var view = File.ReadAllText(Path.Combine(root, "src", "Etp.Reporting.Desktop", "Modules", "Settings", "SettingsWorkspaceView.xaml.cs"));
+        var main = File.ReadAllText(Path.Combine(root, "src", "Etp.Reporting.Desktop", "MainWindow.xaml.cs"));
+        var adoptConnection = view.IndexOf("session.CompleteHealthCheck", StringComparison.Ordinal);
+        var publishCompletion = view.IndexOf("SettingsWorkspaceOperation.ConnectionTest", adoptConnection, StringComparison.Ordinal);
+        var relayStart = main.IndexOf("case SettingsWorkspaceOperation.ConnectionTest:", StringComparison.Ordinal);
+        var refreshAccess = main.IndexOf("await RefreshAccessAsync()", relayStart, StringComparison.Ordinal);
+        var useAccess = main.IndexOf("if (currentAccess.CanView)", refreshAccess, StringComparison.Ordinal);
 
         Assert.True(adoptConnection >= 0, "The validated connection must be explicitly adopted.");
-        Assert.True(refreshAccess > adoptConnection, "Access must be reloaded after the connection changes.");
+        Assert.True(publishCompletion > adoptConnection, "The connection must be adopted before MainWindow is notified.");
+        Assert.True(refreshAccess > relayStart, "Access must be reloaded after the connection changes.");
         Assert.True(useAccess > refreshAccess, "No prior-database access decision may be reused against the new database.");
     }
 

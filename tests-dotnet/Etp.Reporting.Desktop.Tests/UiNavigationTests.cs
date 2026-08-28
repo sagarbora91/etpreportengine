@@ -155,11 +155,11 @@ public sealed class UiNavigationTests
             "MainWindow.Shell.cs"));
 
         Assert.Contains(
-            "case ShellCommand.RetryImport when CurrentModuleId == \"imports\" && focusedWorkspaceKind != \"help\" && RetryBatchButton.IsEnabled:",
+            "case ShellCommand.RetryImport when CurrentModuleId == \"imports\" && focusedWorkspaceKind != \"help\" && importWorkspaceView.CanRetry:",
             source,
             StringComparison.Ordinal);
         Assert.Contains(
-            "RetryBatchImport_Click(this, new RoutedEventArgs()); return true;",
+            "_ = importWorkspaceView.RetryFailedBatchAsync(); return true;",
             source,
             StringComparison.Ordinal);
     }

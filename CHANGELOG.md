@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## [1.8.3] - 2026-08-28
+
+### Changed
+
+- Split the Windows experience into focused workspaces for Settings, Daily Workflow, Archive, Registers, Accounting, Operations, Investigations and Approvals, Administration, Imports, Source Inbox, Reports, Dashboard and Help, while retaining the existing access rules and workflows.
+- Production-verified the Daily Sales Report PDF as a single A4 landscape page with the correct business weekday, FTD/MTD/YTD and TY/LY comparisons, value and quantity measures, Service and targets, plus explicit wording when LY MTD data is unavailable.
+
+### Fixed
+
+- Hardened Windows database settings and lifecycle actions to accept only validated Windows Integrated Security connections, persist settings atomically and reject unsafe filesystem links.
+- Restored the automatic-backup runtime source used by the packaged app, including encrypted app-private backup scheduling, safe legacy cleanup and verified off-device delivery coverage.
+
 ## [1.8.2] - 2026-08-27
 
 ### Added

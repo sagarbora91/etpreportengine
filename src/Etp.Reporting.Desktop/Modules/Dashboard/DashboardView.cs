@@ -1,10 +1,19 @@
+extern alias EtpApplication;
+
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
+using Etp.Reporting.Desktop.Modules.Dashboard;
+using Etp.Reporting.Reporting;
+using Microsoft.Win32;
 
 namespace Etp.Reporting.Desktop;
+
+using DashboardSnapshot = EtpApplication::Etp.Reporting.Application.Dashboard.DashboardSnapshot;
+
+public delegate void ExportManagementSummaryPdf(string path, ExcelReportMetadata metadata, ExcelReportData data);
 
 public sealed class DashboardView : UserControl
 {
@@ -25,20 +34,32 @@ public sealed class DashboardView : UserControl
     private readonly TextBlock failedImportsMetric = MetricValue();
     private readonly ItemsControl healthWarningsList = new();
     private readonly DataGrid operationalAuditGrid = ReadOnlyGrid(220);
+    private readonly DashboardPresentationSession presentation;
+    private readonly ExportManagementSummaryPdf? exportManagementSummaryPdf;
 
     public event EventHandler? RefreshRequested;
-    public event EventHandler? ExportPdfRequested;
+    public event EventHandler<string>? NotificationRequested;
 
     public DashboardViewState? CurrentState { get; private set; }
 
-    public DashboardView()
+    public DashboardView(
+        DashboardPresentationSession? presentation = null,
+        ExportManagementSummaryPdf? exportManagementSummaryPdf = null)
     {
+        this.presentation = presentation ?? new DashboardPresentationSession();
+        this.exportManagementSummaryPdf = exportManagementSummaryPdf;
         Content = BuildContent();
         AutomationProperties.SetName(this, "Operational dashboard");
+        AutomationProperties.SetName(importHistoryGrid, "Recent import history");
         AutomationProperties.SetName(dashboardChartPanel, "Imported rows by report chart");
         AutomationProperties.SetName(healthWarningsList, "Database health warnings");
         AutomationProperties.SetName(operationalAuditGrid, "Recent operational activity");
     }
+
+    public Func<DateOnly>? ExportDateFrom { get; set; }
+    public Func<DateOnly>? ExportDateTo { get; set; }
+
+    public void Show(DashboardSnapshot snapshot) => Show(presentation.Show(snapshot));
 
     public void Show(DashboardViewState state)
     {
@@ -46,8 +67,7 @@ public sealed class DashboardView : UserControl
         Apply(state, preserveHealthColour: false);
     }
 
-    public void ShowError(string message) =>
-        Apply(DashboardViewState.Error(message, CurrentState), preserveHealthColour: true);
+    public void ShowError(string message) => Apply(presentation.ShowError(message), preserveHealthColour: true);
 
     private void Apply(DashboardViewState state, bool preserveHealthColour)
     {
@@ -97,7 +117,7 @@ public sealed class DashboardView : UserControl
 
         var chartHeading = new DockPanel { Margin = new Thickness(0, 16, 0, 8) };
         chartHeading.Children.Add(Label("Imported rows by report"));
-        var export = Button("Export management summary PDF…", "Export management summary PDF", () => ExportPdfRequested?.Invoke(this, EventArgs.Empty));
+        var export = Button("Export management summary PDF…", "Export management summary PDF", ExportPdf);
         DockPanel.SetDock(export, Dock.Right);
         chartHeading.Children.Insert(0, export);
         root.Children.Add(chartHeading);
@@ -122,6 +142,29 @@ public sealed class DashboardView : UserControl
         root.Children.Add(auditHeading);
         root.Children.Add(operationalAuditGrid);
         return root;
+    }
+
+    private void ExportPdf()
+    {
+        if (!presentation.HasSnapshot)
+        {
+            NotificationRequested?.Invoke(this, "Refresh the dashboard before exporting a management summary.");
+            return;
+        }
+        if (exportManagementSummaryPdf is null) return;
+        var dialog = new SaveFileDialog { Filter = "PDF report (*.pdf)|*.pdf", FileName = $"ETP_Management_Summary_{DateTime.Today:yyyyMMdd}.pdf", AddExtension = true };
+        if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var summary = presentation.BuildManagementSummary(ExportDateFrom?.Invoke() ?? today, ExportDateTo?.Invoke() ?? today, DateTimeOffset.UtcNow);
+        try
+        {
+            exportManagementSummaryPdf(dialog.FileName, summary.Metadata, summary.Data);
+            NotificationRequested?.Invoke(this, $"Management summary saved to {dialog.FileName}");
+        }
+        catch (Exception ex)
+        {
+            NotificationRequested?.Invoke(this, $"Management summary export failed: {ex.Message}");
+        }
     }
 
     private void RenderChart(IReadOnlyList<DashboardChartItem> items)
@@ -172,6 +215,10 @@ public sealed class DashboardView : UserControl
         return button;
     }
 
-    private static SolidColorBrush Brush(string colour) =>
-        (SolidColorBrush)new BrushConverter().ConvertFromString(colour)!;
+    private static SolidColorBrush Brush(string colour)
+    {
+        var brush = (SolidColorBrush)new BrushConverter().ConvertFromString(colour)!;
+        brush.Freeze();
+        return brush;
+    }
 }

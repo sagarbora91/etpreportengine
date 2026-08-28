@@ -172,4 +172,28 @@ public sealed class DailyWorkflowServiceTests
     {
         Assert.Throws<ArgumentException>(() => new SqlServerDailyWorkflowService(connectionString));
     }
+
+    [Fact]
+    public async Task Viewer_is_rejected_before_daily_workflow_write_reaches_SQL()
+    {
+        var service = new SqlServerDailyWorkflowService(
+            @"Server=.\SQLEXPRESS;Database=EtpReporting;Integrated Security=True;TrustServerCertificate=True",
+            _ => Task.FromResult(new ApplicationAccess("viewer", "Viewer", ApplicationRole.Viewer, true)));
+        var command = new SaveDailyManualInput(
+            new("WLMHW", new DateOnly(2026, 8, 25)), "WALK_INS", 10m, null, "viewer", "test");
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.SaveManualInputAsync(command));
+    }
+
+    [Fact]
+    public async Task Store_manager_is_rejected_before_reopen_reaches_SQL()
+    {
+        var service = new SqlServerDailyWorkflowService(
+            @"Server=.\SQLEXPRESS;Database=EtpReporting;Integrated Security=True;TrustServerCertificate=True",
+            _ => Task.FromResult(new ApplicationAccess("manager", "Manager", ApplicationRole.StoreManager, true)));
+        var command = new ReopenDailyWorkflow(
+            new("WLMHW", new DateOnly(2026, 8, 25)), "manager", "correction", true);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.ReopenAsync(command));
+    }
 }

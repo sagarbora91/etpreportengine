@@ -186,6 +186,46 @@ public sealed class SourceInboxServiceAdapterTests
         Assert.Equal("The managed document failed its integrity check.", exception.Message);
     }
 
+    [Fact]
+    public async Task Inactive_users_are_rejected_before_source_rows_are_loaded()
+    {
+        var repositoryCalled = false;
+        var service = CreateService(
+            loadDocuments: (_, _, _) =>
+            {
+                repositoryCalled = true;
+                return Task.FromResult<IReadOnlyList<SourceDocumentRow>>([]);
+            },
+            loadAccess: _ => Task.FromResult(new ApplicationAccess("user", "User", ApplicationRole.Viewer, false)));
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.LoadDocumentsAsync());
+
+        Assert.False(repositoryCalled);
+    }
+
+    [Fact]
+    public async Task Viewers_are_rejected_before_source_intake_or_review_writes()
+    {
+        var writeCalled = false;
+        var service = CreateService(
+            reviewExtraction: (_, _, _, _) =>
+            {
+                writeCalled = true;
+                return Task.CompletedTask;
+            },
+            intake: (_, _, _, _, _) =>
+            {
+                writeCalled = true;
+                return Task.FromException<DocumentIntakeOutcome>(new InvalidOperationException());
+            },
+            loadAccess: _ => Task.FromResult(new ApplicationAccess("viewer", "Viewer", ApplicationRole.Viewer, true)));
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.ReviewExtractionAsync(1, true, "review"));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.IntakeAsync(new("source.pdf", null, null, null)));
+
+        Assert.False(writeCalled);
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("Server=.;Database=EtpReporting;User ID=reporter;Password=not-used")]
@@ -206,11 +246,13 @@ public sealed class SourceInboxServiceAdapterTests
         Func<long, CancellationToken, Task<IReadOnlyList<DocumentExtractionRow>>>? loadExtractions = null,
         Func<long, bool, string, CancellationToken, Task>? reviewExtraction = null,
         Func<string, string?, DateOnly?, string?, CancellationToken, Task<DocumentIntakeOutcome>>? intake = null,
-        Func<string, string, CancellationToken, Task<bool>>? verifyIntegrity = null) =>
+        Func<string, string, CancellationToken, Task<bool>>? verifyIntegrity = null,
+        Func<CancellationToken, Task<ApplicationAccess>>? loadAccess = null) =>
         new(
             loadDocuments ?? ((_, _, _) => Task.FromResult<IReadOnlyList<SourceDocumentRow>>([])),
             loadExtractions ?? ((_, _) => Task.FromResult<IReadOnlyList<DocumentExtractionRow>>([])),
             reviewExtraction ?? ((_, _, _, _) => Task.CompletedTask),
             intake ?? ((_, _, _, _, _) => Task.FromException<DocumentIntakeOutcome>(new InvalidOperationException("Unexpected intake."))),
-            verifyIntegrity ?? ((_, _, _) => Task.FromResult(false)));
+            verifyIntegrity ?? ((_, _, _) => Task.FromResult(false)),
+            loadAccess ?? (_ => Task.FromResult(new ApplicationAccess("owner", "Owner", ApplicationRole.Owner, true))));
 }

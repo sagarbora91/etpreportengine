@@ -16,29 +16,31 @@ public sealed class DesktopCompositionGuardrailTests
     private static readonly IReadOnlyDictionary<string, int> MainWindowConstructionMaxima =
         new Dictionary<string, int>(StringComparer.Ordinal)
         {
-            ["MainWindow.Productisation.cs|AccountingBatchComposer"] = 1,
-            ["MainWindow.Productisation.cs|ProductisationOperationsService"] = 0,
-            ["MainWindow.Productisation.cs|ProductisationRepository"] = 17,
-            ["MainWindow.Productisation.cs|TallyXmlExportService"] = 1,
-            ["MainWindow.xaml.cs|AutomatedOperationsService"] = 1,
+            ["MainWindow.xaml.cs|BatchImportCoordinator"] = 0,
+            ["MainWindow.xaml.cs|DelegateWorkbookImportOutcomeProcessor"] = 0,
+            ["MainWindow.xaml.cs|AutomatedOperationsService"] = 0,
             ["MainWindow.xaml.cs|DailyReportingPackService"] = 0,
             ["MainWindow.xaml.cs|DailyReportingWorkflowRepository"] = 0,
-            ["MainWindow.xaml.cs|DirectoryMigrationSource"] = 1,
-            ["MainWindow.xaml.cs|OperationalAuditRepository"] = 1,
-            ["MainWindow.xaml.cs|OperationalCompletionRepository"] = 1,
-            ["MainWindow.xaml.cs|OperationalReportRepository"] = 10,
-            ["MainWindow.xaml.cs|Phase2OperationsRepository"] = 7,
-            ["MainWindow.xaml.cs|ProductisationOperationsService"] = 2,
-            ["MainWindow.xaml.cs|ProductisationRepository"] = 2,
-            ["MainWindow.xaml.cs|R022SqlImportOrchestrator"] = 2,
-            ["MainWindow.xaml.cs|R025SqlImportOrchestrator"] = 2,
-            ["MainWindow.xaml.cs|RetailEnrichmentSqlImportOrchestrator"] = 2,
-            ["MainWindow.xaml.cs|SqlServerDatabaseBootstrapper"] = 1,
-            ["MainWindow.xaml.cs|SqlServerHealthCheck"] = 1,
-            ["MainWindow.xaml.cs|SqlServerImportFileRepository"] = 2,
-            ["MainWindow.xaml.cs|SqlServerReportingQueryRepository"] = 2,
-            ["MainWindow.xaml.cs|SqlServerTransactionalImportStore"] = 2,
-            ["MainWindow.xaml.cs|StockSqlImportOrchestrator"] = 2
+            ["MainWindow.xaml.cs|DirectoryMigrationSource"] = 0,
+            ["MainWindow.xaml.cs|OperationalAuditRepository"] = 0,
+            ["MainWindow.xaml.cs|OperationalCompletionRepository"] = 0,
+            ["MainWindow.xaml.cs|OperationalReportRepository"] = 0,
+            ["MainWindow.xaml.cs|Phase2OperationsRepository"] = 0,
+            ["MainWindow.xaml.cs|ImportPreflight"] = 0,
+            ["MainWindow.xaml.cs|ImportRowStager"] = 0,
+            ["MainWindow.xaml.cs|OpenXmlWorkbookReader"] = 0,
+            ["MainWindow.xaml.cs|ProductisationOperationsService"] = 0,
+            ["MainWindow.xaml.cs|ProductisationRepository"] = 0,
+            ["MainWindow.xaml.cs|R022SqlImportOrchestrator"] = 0,
+            ["MainWindow.xaml.cs|R025SqlImportOrchestrator"] = 0,
+            ["MainWindow.xaml.cs|RetailEnrichmentSqlImportOrchestrator"] = 0,
+            ["MainWindow.xaml.cs|SafeImportFailureClassifier"] = 0,
+            ["MainWindow.xaml.cs|SqlServerDatabaseBootstrapper"] = 0,
+            ["MainWindow.xaml.cs|SqlServerHealthCheck"] = 0,
+            ["MainWindow.xaml.cs|SqlServerImportFileRepository"] = 0,
+            ["MainWindow.xaml.cs|SqlServerReportingQueryRepository"] = 0,
+            ["MainWindow.xaml.cs|SqlServerTransactionalImportStore"] = 0,
+            ["MainWindow.xaml.cs|StockSqlImportOrchestrator"] = 0
         };
 
     [Fact]
@@ -89,6 +91,94 @@ public sealed class DesktopCompositionGuardrailTests
     }
 
     [Fact]
+    public void Operations_and_administration_adapters_are_composed_outside_MainWindow()
+    {
+        var desktopDirectory = Path.Combine(RepositoryRoot, "src", "Etp.Reporting.Desktop");
+        var rootSource = File.ReadAllText(Path.Combine(desktopDirectory, "Composition", "DesktopCompositionRoot.cs"));
+        var mainSource = File.ReadAllText(Path.Combine(desktopDirectory, "MainWindow.xaml.cs"));
+        var productisationPath = Path.Combine(desktopDirectory, "MainWindow.Productisation.cs");
+        Assert.False(File.Exists(productisationPath));
+        const string productisationSource = "";
+        var settingsSource = File.ReadAllText(Path.Combine(desktopDirectory, "Modules", "Settings", "SettingsWorkspaceView.xaml.cs"));
+        var operationsSource = File.ReadAllText(Path.Combine(desktopDirectory, "Modules", "OperationsAdministration", "OperationsWorkspaceView.xaml.cs"));
+        var administrationSource = File.ReadAllText(Path.Combine(desktopDirectory, "Modules", "OperationsAdministration", "AdministrationWorkspaceView.xaml.cs"));
+
+        Assert.Contains("new SqlServerOperationsAdministrationService(value)", rootSource, StringComparison.Ordinal);
+        Assert.Contains("new SqlServerAdministrationService(value)", rootSource, StringComparison.Ordinal);
+        Assert.Contains("serviceFactory(connectionStringProvider())", operationsSource, StringComparison.Ordinal);
+        Assert.Contains("serviceFactory(connectionStringProvider())", administrationSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("operationsAdministrationServiceFactory", mainSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("administrationServiceFactory", mainSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("operationsAdministrationServiceFactory", productisationSource, StringComparison.Ordinal);
+        Assert.Contains("administrationServiceFactory(session.ConnectionString)", settingsSource, StringComparison.Ordinal);
+
+        Assert.DoesNotContain("new Phase2OperationsRepository", mainSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("new ProductisationRepository", mainSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("new AutomatedOperationsService", mainSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("new ProductisationRepository(connectionState.ConnectionString).CreateAdjustmentRequestAsync", productisationSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("new ProductisationRepository(connectionState.ConnectionString).UpdateIssueWorkflowAsync", productisationSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("new ProductisationRepository(connectionState.ConnectionString).LoadApprovalsAsync", productisationSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("new ProductisationRepository(connectionState.ConnectionString).DecideApprovalAsync", productisationSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("new ProductisationRepository(connectionState.ConnectionString).SaveSettingsAsync", productisationSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Investigation_and_distribution_adapters_are_composed_outside_MainWindow()
+    {
+        var desktopDirectory = Path.Combine(RepositoryRoot, "src", "Etp.Reporting.Desktop");
+        var rootSource = File.ReadAllText(Path.Combine(desktopDirectory, "Composition", "DesktopCompositionRoot.cs"));
+        var mainSource = File.ReadAllText(Path.Combine(desktopDirectory, "MainWindow.xaml.cs"));
+        var productisationPath = Path.Combine(desktopDirectory, "MainWindow.Productisation.cs");
+        Assert.False(File.Exists(productisationPath));
+        const string productisationSource = "";
+        var archiveWorkspaceSource = File.ReadAllText(Path.Combine(desktopDirectory, "Modules", "Archive", "ArchiveWorkspaceView.xaml.cs"));
+        var investigationWorkspaceSource = File.ReadAllText(Path.Combine(desktopDirectory, "Modules", "OperationsAdministration", "InvestigationApprovalsWorkspaceView.xaml.cs"));
+
+        Assert.Contains("new SqlServerInvestigationQuery(value)", rootSource, StringComparison.Ordinal);
+        Assert.Contains("new SqlServerReportDistributionService(value)", rootSource, StringComparison.Ordinal);
+        Assert.Contains("investigationQueryFactory(connectionStringProvider())", investigationWorkspaceSource, StringComparison.Ordinal);
+        Assert.Contains("session.RecordAttemptAsync(connectionStringProvider()", archiveWorkspaceSource, StringComparison.Ordinal);
+        Assert.Contains("InvestigationApprovalsWorkspaceView", mainSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("Func<string, InvestigationQuery>", mainSource, StringComparison.Ordinal);
+        Assert.Contains("ArchiveWorkspaceView", mainSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("Func<string, ReportDistributionService>", mainSource, StringComparison.Ordinal);
+
+        Assert.DoesNotContain("new ProductisationRepository", productisationSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("new ReportPackageService", productisationSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("RecordDistributionAttempt", productisationSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Productisation_presentation_sessions_are_framework_neutral_and_own_mutable_workflow_state()
+    {
+        var desktopDirectory = Path.Combine(RepositoryRoot, "src", "Etp.Reporting.Desktop");
+        var sessionFiles = new[]
+        {
+            Path.Combine(desktopDirectory, "Modules", "Archive", "ArchiveDistributionPresentationSession.cs"),
+            Path.Combine(desktopDirectory, "Modules", "Registers", "RegistersPresentationSession.cs"),
+            Path.Combine(desktopDirectory, "Modules", "Accounting", "AccountingPresentationSession.cs")
+        };
+
+        foreach (var sessionFile in sessionFiles)
+        {
+            var source = File.ReadAllText(sessionFile);
+            Assert.DoesNotContain("System.Windows", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("Microsoft.Win32", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("Etp.Reporting.Infrastructure.SqlServer", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("MainWindow", source, StringComparison.Ordinal);
+        }
+
+        var mainSource = File.ReadAllText(Path.Combine(desktopDirectory, "MainWindow.xaml.cs"));
+        var productisationPath = Path.Combine(desktopDirectory, "MainWindow.Productisation.cs");
+        Assert.False(File.Exists(productisationPath));
+        const string productisationSource = "";
+        Assert.DoesNotContain("currentArchivedDocument", mainSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("currentShareFile", productisationSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("currentAccountingDraft", productisationSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("currentAccountingReportGenerationId", productisationSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Desktop_modules_do_not_reference_each_other_directly()
     {
         var modulesDirectory = Path.Combine(RepositoryRoot, "src", "Etp.Reporting.Desktop", "Modules");
@@ -121,6 +211,7 @@ public sealed class DesktopCompositionGuardrailTests
             .SelectMany(path => ConcreteClassDeclaration.Matches(File.ReadAllText(path)).Select(match => match.Groups["type"].Value))
             .ToHashSet(StringComparer.Ordinal);
         types.Add("SqlConnection");
+        types.Add("ReportPackageService");
         return types;
     }
 

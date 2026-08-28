@@ -1,0 +1,58 @@
+<UserControl x:Class="Etp.Reporting.Desktop.Modules.Registers.RegistersWorkspaceView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:automation="clr-namespace:System.Windows.Automation;assembly=PresentationCore"
+             automation:AutomationProperties.Name="Digital registers workspace">
+    <StackPanel>
+        <DockPanel>
+            <StackPanel>
+                <TextBlock Text="Digital Registers" FontSize="18" FontWeight="SemiBold"/>
+                <TextBlock Text="Audited business registers permanently linked to immutable source documents."
+                           Foreground="#5D6873" Margin="0,4,0,0"/>
+            </StackPanel>
+            <Button DockPanel.Dock="Right" Content="Refresh" Click="RefreshRegisters_Click" Padding="14,7"/>
+        </DockPanel>
+        <WrapPanel Margin="0,12,0,8">
+            <TextBox x:Name="RegisterSearchInput" Width="280" Padding="6"
+                     ToolTip="Document, supplier, reference or store"
+                     automation:AutomationProperties.Name="Register search"/>
+            <Button Content="Search" Click="RefreshRegisters_Click" Padding="14,7" Margin="8,0,0,0"/>
+        </WrapPanel>
+        <DataGrid x:Name="RegisterGrid" AutoGenerateColumns="True" IsReadOnly="True" MaxHeight="280"
+                  automation:AutomationProperties.Name="Digital register entries"/>
+        <TextBlock Text="New or corrected register entry" FontWeight="SemiBold" Margin="0,14,0,6"/>
+        <WrapPanel>
+            <ComboBox x:Name="RegisterTypeInput" Width="150" SelectedIndex="0"
+                      automation:AutomationProperties.Name="Register type">
+                <ComboBoxItem Content="Inward"/><ComboBoxItem Content="Outward"/>
+                <ComboBoxItem Content="Credit Note"/><ComboBoxItem Content="Service Receipt"/>
+                <ComboBoxItem Content="Stock Transfer"/><ComboBoxItem Content="Expense"/>
+                <ComboBoxItem Content="Vendor Invoice"/>
+            </ComboBox>
+            <TextBox x:Name="RegisterStoreInput" Width="100" Padding="6" Margin="8,0,0,0" ToolTip="Store code"
+                     automation:AutomationProperties.Name="Register store code"/>
+            <DatePicker x:Name="RegisterBusinessDateInput" Width="140" Margin="8,0,0,0"
+                        automation:AutomationProperties.Name="Register business date"/>
+            <TextBox x:Name="RegisterDocumentNumberInput" Width="160" Padding="6" Margin="8,0,0,0"
+                     ToolTip="Invoice or challan number" automation:AutomationProperties.Name="Register document number"/>
+            <TextBox x:Name="RegisterCounterpartyInput" Width="190" Padding="6" Margin="8,0,0,0"
+                     ToolTip="Supplier or counterparty" automation:AutomationProperties.Name="Register counterparty"/>
+        </WrapPanel>
+        <WrapPanel Margin="0,8,0,0">
+            <TextBox x:Name="RegisterQuantityInput" Width="100" Padding="6" ToolTip="Quantity"
+                     automation:AutomationProperties.Name="Register quantity"/>
+            <TextBox x:Name="RegisterAmountInput" Width="120" Padding="6" Margin="8,0,0,0" ToolTip="Value"
+                     automation:AutomationProperties.Name="Register amount"/>
+            <TextBox x:Name="RegisterReferenceInput" Width="180" Padding="6" Margin="8,0,0,0" ToolTip="Reference"
+                     automation:AutomationProperties.Name="Register reference"/>
+            <TextBox x:Name="RegisterRemarksInput" Width="220" Padding="6" Margin="8,0,0,0" ToolTip="Remarks"
+                     automation:AutomationProperties.Name="Register remarks"/>
+            <TextBox x:Name="RegisterReasonInput" Width="220" Padding="6" Margin="8,0,0,0"
+                     ToolTip="Required change reason" automation:AutomationProperties.Name="Register change reason"/>
+            <Button Content="Save draft" Click="SaveRegisterEntry_Click" Padding="14,7" Margin="8,0,0,0"/>
+        </WrapPanel>
+        <TextBlock x:Name="RegisterStatus" Margin="0,8,0,0" TextWrapping="Wrap"
+                   automation:AutomationProperties.Name="Register status"
+                   automation:AutomationProperties.LiveSetting="Polite"/>
+    </StackPanel>
+</UserControl>

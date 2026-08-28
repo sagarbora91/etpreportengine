@@ -50,21 +50,18 @@ public sealed class DashboardViewTests
     }
 
     [Fact]
-    public void View_exposes_refresh_and_pdf_requests_with_existing_accessible_names()
+    public void View_exposes_refresh_and_accessible_actions()
     {
         RunSta(() =>
         {
             var view = new DashboardView();
             var refreshRaised = false;
-            var exportRaised = false;
             view.RefreshRequested += (_, _) => refreshRaised = true;
-            view.ExportPdfRequested += (_, _) => exportRaised = true;
 
             FindButton(view, "Refresh dashboard").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             FindButton(view, "Export management summary PDF").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
             Assert.True(refreshRaised);
-            Assert.True(exportRaised);
         });
     }
 

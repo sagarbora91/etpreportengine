@@ -9,6 +9,7 @@ public sealed class SqlServerSourceInboxService : ISourceInboxService
     private readonly Func<long, bool, string, CancellationToken, Task> reviewExtraction;
     private readonly Func<string, string?, DateOnly?, string?, CancellationToken, Task<DocumentIntakeOutcome>> intake;
     private readonly Func<string, string, CancellationToken, Task<bool>> verifyIntegrity;
+    private readonly Func<CancellationToken, Task<ApplicationAccess>> loadAccess;
 
     public SqlServerSourceInboxService(string connectionString)
     {
@@ -23,6 +24,7 @@ public sealed class SqlServerSourceInboxService : ISourceInboxService
         reviewExtraction = repository.ReviewDocumentExtractionAsync;
         intake = operations.IntakeDocumentAsync;
         verifyIntegrity = ManagedDocumentRepository.VerifyIntegrityAsync;
+        loadAccess = new Phase2OperationsRepository(validated).LoadCurrentAccessAsync;
     }
 
     internal SqlServerSourceInboxService(
@@ -30,42 +32,54 @@ public sealed class SqlServerSourceInboxService : ISourceInboxService
         Func<long, CancellationToken, Task<IReadOnlyList<DocumentExtractionRow>>> loadExtractions,
         Func<long, bool, string, CancellationToken, Task> reviewExtraction,
         Func<string, string?, DateOnly?, string?, CancellationToken, Task<DocumentIntakeOutcome>> intake,
-        Func<string, string, CancellationToken, Task<bool>> verifyIntegrity)
+        Func<string, string, CancellationToken, Task<bool>> verifyIntegrity,
+        Func<CancellationToken, Task<ApplicationAccess>> loadAccess)
     {
         this.loadDocuments = loadDocuments ?? throw new ArgumentNullException(nameof(loadDocuments));
         this.loadExtractions = loadExtractions ?? throw new ArgumentNullException(nameof(loadExtractions));
         this.reviewExtraction = reviewExtraction ?? throw new ArgumentNullException(nameof(reviewExtraction));
         this.intake = intake ?? throw new ArgumentNullException(nameof(intake));
         this.verifyIntegrity = verifyIntegrity ?? throw new ArgumentNullException(nameof(verifyIntegrity));
+        this.loadAccess = loadAccess ?? throw new ArgumentNullException(nameof(loadAccess));
     }
 
     public async Task<IReadOnlyList<SourceInboxDocument>> LoadDocumentsAsync(
         string? lifecycleStatus = null,
         int limit = 500,
-        CancellationToken cancellationToken = default) =>
-        (await loadDocuments(lifecycleStatus, limit, cancellationToken).ConfigureAwait(false))
-        .Select(Map)
-        .ToArray();
+        CancellationToken cancellationToken = default)
+    {
+        await RequireViewAsync(cancellationToken).ConfigureAwait(false);
+        return (await loadDocuments(lifecycleStatus, limit, cancellationToken).ConfigureAwait(false))
+            .Select(Map)
+            .ToArray();
+    }
 
     public async Task<IReadOnlyList<SourceDocumentExtraction>> LoadExtractionsAsync(
         long sourceDocumentId,
-        CancellationToken cancellationToken = default) =>
-        (await loadExtractions(sourceDocumentId, cancellationToken).ConfigureAwait(false))
-        .Select(Map)
-        .ToArray();
+        CancellationToken cancellationToken = default)
+    {
+        await RequireViewAsync(cancellationToken).ConfigureAwait(false);
+        return (await loadExtractions(sourceDocumentId, cancellationToken).ConfigureAwait(false))
+            .Select(Map)
+            .ToArray();
+    }
 
-    public Task ReviewExtractionAsync(
+    public async Task ReviewExtractionAsync(
         long extractionId,
         bool verified,
         string reason,
-        CancellationToken cancellationToken = default) =>
-        reviewExtraction(extractionId, verified, reason, cancellationToken);
+        CancellationToken cancellationToken = default)
+    {
+        await RequireImportAsync(cancellationToken).ConfigureAwait(false);
+        await reviewExtraction(extractionId, verified, reason, cancellationToken).ConfigureAwait(false);
+    }
 
     public async Task<SourceDocumentIntakeOutcome> IntakeAsync(
         SourceDocumentIntakeRequest request,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
+        await RequireImportAsync(cancellationToken).ConfigureAwait(false);
         var outcome = await intake(
             request.SourcePath,
             request.StoreCode,
@@ -78,12 +92,25 @@ public sealed class SqlServerSourceInboxService : ISourceInboxService
             outcome.Duplicate);
     }
 
-    public Task<bool> VerifyIntegrityAsync(
+    public async Task<bool> VerifyIntegrityAsync(
         SourceInboxDocument document,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(document);
-        return verifyIntegrity(document.ManagedFilePath, document.Sha256, cancellationToken);
+        await RequireViewAsync(cancellationToken).ConfigureAwait(false);
+        return await verifyIntegrity(document.ManagedFilePath, document.Sha256, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task RequireViewAsync(CancellationToken cancellationToken)
+    {
+        if (!(await loadAccess(cancellationToken).ConfigureAwait(false)).CanView)
+            throw new UnauthorizedAccessException("This Windows account does not have application access.");
+    }
+
+    private async Task RequireImportAsync(CancellationToken cancellationToken)
+    {
+        if (!(await loadAccess(cancellationToken).ConfigureAwait(false)).CanImport)
+            throw new UnauthorizedAccessException("Owner or Store Manager permission is required.");
     }
 
     internal static SourceInboxDocument Map(SourceDocumentRow row) =>

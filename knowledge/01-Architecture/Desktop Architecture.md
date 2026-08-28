@@ -2,38 +2,34 @@
 type: architecture
 status: accepted-target
 module: desktop
-last_verified: 2026-08-27
+last_verified: 2026-08-28
 ---
 
 # Desktop Architecture
 
 ## Decision
 
-ETP will remain one WPF executable. The accepted target organizes its Desktop layer as a thin shell plus independently owned workspaces: `MainWindow` will host navigation, global status and the active workspace without owning import, reporting, SQL, archive, accounting or administration workflows. The current implementation has begun this migration but has not reached that target.
+ETP remains one WPF executable. The Desktop layer is organized as a thin shell plus independently owned workspaces: `MainWindow` hosts navigation, global status and workspace controls without owning import, reporting, SQL, archive, accounting or administration implementations. The structural target is implemented in the current working tree; final combined-suite, Graphify refresh, artifact and commit-bound closure evidence remain separate release gates.
 
 The migration is incremental and preserves user-facing behaviour, formulas, mappings, database structures and exports. See [[ADR-005 - Modular Desktop Shell]].
 
 ## Current baseline
 
-At the 2026-08-27 audit, the five `MainWindow` C# partials contained 2,584 physical lines, approximately 188 methods, 94 event-handler-shaped methods and 40 fields. Desktop directly consumed Import, SQL infrastructure and Reporting, while the Application project was not on the production dependency path. The full evidence and migration risks are recorded in `docs/DESKTOP_MODULAR_ARCHITECTURE_AUDIT.md`.
+The 2026-08-27 baseline had five `MainWindow` C# partials, 2,584 physical lines, about 188 methods, 94 event-handler-shaped methods, 40 fields and direct SQL/import/report construction. That remains historical baseline evidence in `docs/DESKTOP_MODULAR_ARCHITECTURE_AUDIT.md`, not the current architecture.
 
-Existing useful seams include the navigation history/registry, report workspace controls, DSR workspace and Help Centre. Partial files alone are not module boundaries because their state and service construction still belong to one `MainWindow` object.
+The current shell has three `MainWindow` C# partials totaling 907 lines. Automated ratchets cap it at 29 fields and 62 methods, require compact XAML feature hosts, keep the old Productisation/VisualReporting partials deleted, and forbid report formulas, workbook parsing, export orchestration and SQL infrastructure in the shell.
 
-## Implemented migration slice
+## Implemented modular architecture
 
-The first controlled extraction slice was completed on 2026-08-27:
+- `DesktopCompositionRoot` owns normal interactive construction plus database-initialization and one-shot-automation infrastructure. It composes every extracted workspace and its Application/SQL adapters without a new DI framework.
+- `ShellNavigationService`, `ShellViewModel`, route metadata, history and `WorkspaceModuleOwnershipRegistry` own feature-neutral navigation. Bidirectional tests cover every shell destination and production report route.
+- Cohesive modules now own Dashboard, Help, Settings, Reports, Daily Workflow/Manual Entry, Imports, Source Inbox/OCR, Archive/Distribution, Registers, Accounting, Operations/Investigation and Administration presentation state and controls.
+- Application contracts are the normal boundary for access, dashboard, reports, archive, daily workflow, source inbox, import persistence, registers, accounting, distribution, operations, administration and database lifecycle work.
+- SQL adapters validate Windows-integrated connections. Write boundaries enforce Store Manager/Owner permissions, including Owner-only controlled restatement, mapping approval and daily reopen.
+- Report/export orchestration and visual rendering are owned by the Reports module; workbook parsing remains in Import and report formulas remain in Reporting/SQL query services.
+- Architecture guardrails enforce zero direct MainWindow infrastructure construction, lower-layer independence, module isolation, compact hosts, deleted legacy partials and shell size/responsibility ceilings.
 
-- framework-neutral route metadata, access decisions and back/forward history now belong to `ShellNavigationService`;
-- Help open/close/return state now belongs to `HelpWorkspaceSession`;
-- Dashboard presentation and chart rendering now belong to `DashboardView` and `DashboardViewState`;
-- the Dashboard read operation is exposed by the dependency-free Application contract `IDashboardQuery` and implemented by `SqlServerDashboardQuery`;
-- architecture tests enforce lower-layer independence from Desktop and keep `Shell/Navigation` free of WPF, import, reporting and SQL assembly dependencies.
-
-After this slice, the five `MainWindow` C# partials contain 2,521 physical lines and `MainWindow.xaml` contains 222 lines. This is a measurable but modest reduction, not completion of the full migration. Import, Reports, Daily Workflow, Archive, Settings, Accounting, Operations and Administration still require incremental extraction with workflow-specific verification. Dashboard dependency construction also remains in `MainWindow` as a temporary seam until composition moves to `App`.
-
-The next bounded slice was completed on 2026-08-28: Desktop settings persistence and connection state are injected, atomic and path-safe; feature workflows no longer use the connection textbox as a dependency; and Windows access now crosses an Application contract implemented by a SQL adapter. The composition root owns these collaborators. This reduced the temporary MainWindow SQL-infrastructure construction inventory from 82 to 81. The Settings screen itself and the remaining workspaces still require extraction.
-
-Archive search/open/comparison, Sharing Contacts, Digital Registers, Daily Workflow/Manual Entry and Source Inbox/OCR now cross cohesive Application contracts with SQL adapters composed at the Desktop composition root. Reports and Accounting ports are implemented and tested but still await UI integration. The executable Help shortcut catalogue is reconciled to the shell registry, with native WPF gestures explicitly separated. The temporary MainWindow SQL-infrastructure construction inventory is 60; presentation extraction remains open.
+Focused architecture/composition/ownership/UI-smoke tests pass in the current working tree. This is implementation evidence, not a release-completion claim: live SQL role/UAT, installed workflows, final combined tests, Graphify refresh and commit/artifact binding remain governed by the closure ledger.
 
 ## Target ownership
 
@@ -47,7 +43,7 @@ ETP executable
   → SQL Server infrastructure implementations
 ```
 
-Workspaces include Dashboard, Daily Workflow, Imports, Reports, Archive, Accounting, Operations and Administration. A workspace owns its view, presentation state and UI-facing orchestration. Business rules and persistence remain in the appropriate non-Desktop layer.
+Workspaces include Dashboard, Help, Settings, Reports, Daily Workflow, Imports, Source Inbox, Archive, Registers, Accounting, Operations/Investigation and Administration. A workspace owns its view, presentation state and UI-facing orchestration. Business rules and persistence remain in the appropriate non-Desktop layer.
 
 ## Guardrails
 
@@ -58,11 +54,11 @@ Workspaces include Dashboard, Daily Workflow, Imports, Reports, Archive, Account
 - Lower-layer projects never reference Desktop.
 - Desktop-specific dialogs and notifications remain Desktop services.
 - One composition root constructs dependencies; do not introduce mutable global service location.
-- Extract one cohesive module at a time and verify build, tests, launch and affected workflows.
+- Assign each new feature to one cohesive module and verify build, tests, launch and affected workflows.
 - Compare representative report exports and import/database effects before removing old paths.
 
-## Migration order
+## Closure routing
 
-Navigation and shell state come first, followed by Help/module home and Settings. Archive/register boundaries provide lower-risk module patterns before Reports, Daily Workflow and Import. Accounting, operations and administration follow once shared contracts are stable. Import and financial report extraction require the strongest characterization and golden-master evidence.
+For Desktop architecture work, start with this note and [[ADR-005 - Modular Desktop Shell]], then inspect `WorkspaceModuleOwnershipRegistry`, the owning `Modules/` folder, its Application contract, composed SQL adapter and focused tests. Treat `docs/DESKTOP_MODULAR_ARCHITECTURE_AUDIT.md` as the historical baseline/phase audit; use `docs/PROJECT_CLOSURE_TRACEABILITY.md` for current requirement status.
 
 Related: [[System Architecture]], [[Data Architecture]], [[Decision Register]].

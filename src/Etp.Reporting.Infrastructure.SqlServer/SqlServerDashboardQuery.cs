@@ -11,13 +11,13 @@ public sealed class SqlServerDashboardQuery : IDashboardQuery
     private readonly Func<int, CancellationToken, Task<IReadOnlyList<OperationalAuditEvent>>> loadAudit;
 
     public SqlServerDashboardQuery(string connectionString)
-        : this(
-            cancellationToken => new OperationalStatusRepository(connectionString).LoadAsync(cancellationToken),
-            cancellationToken => new DatabaseOperationalHealthRepository(connectionString).LoadAsync(cancellationToken),
-            (limit, cancellationToken) => new OperationalAuditRepository(connectionString).LoadRecentAsync(limit, cancellationToken))
+        : this(CreateProductionDependencies(connectionString))
     {
-        if (string.IsNullOrWhiteSpace(connectionString))
-            throw new ArgumentException("A SQL Server connection string is required.", nameof(connectionString));
+    }
+
+    private SqlServerDashboardQuery(ProductionDependencies dependencies)
+        : this(dependencies.LoadSummary, dependencies.LoadHealth, dependencies.LoadAudit)
+    {
     }
 
     internal SqlServerDashboardQuery(
@@ -56,6 +56,20 @@ public sealed class SqlServerDashboardQuery : IDashboardQuery
                 health.Warnings.Select(warning => new DashboardHealthWarning(warning.Code, warning.Message)).ToArray()),
             audit.Select(Map).ToArray());
     }
+
+    private static ProductionDependencies CreateProductionDependencies(string connectionString)
+    {
+        var validated = SqlAdapterConnection.RequireWindowsIntegrated(connectionString, nameof(connectionString));
+        return new(
+            cancellationToken => new OperationalStatusRepository(validated).LoadAsync(cancellationToken),
+            cancellationToken => new DatabaseOperationalHealthRepository(validated).LoadAsync(cancellationToken),
+            (limit, cancellationToken) => new OperationalAuditRepository(validated).LoadRecentAsync(limit, cancellationToken));
+    }
+
+    private sealed record ProductionDependencies(
+        Func<CancellationToken, Task<OperationalSummary>> LoadSummary,
+        Func<CancellationToken, Task<DatabaseOperationalHealth>> LoadHealth,
+        Func<int, CancellationToken, Task<IReadOnlyList<OperationalAuditEvent>>> LoadAudit);
 
     private static DashboardImportHistoryItem Map(ImportHistoryRow row) =>
         new(row.FileName, row.ReportCode, row.Status, row.SourceRows, row.StartedUtc, row.CompletedUtc);

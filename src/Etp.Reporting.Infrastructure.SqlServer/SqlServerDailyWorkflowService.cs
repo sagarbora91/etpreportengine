@@ -15,14 +15,21 @@ public sealed class SqlServerDailyWorkflowService :
     private readonly DailyReportingWorkflowRepository workflow;
     private readonly OperationalCompletionRepository completion;
     private readonly DailyReportingPackService packs;
+    private readonly Func<CancellationToken, Task<ApplicationAccess>> loadAccess;
 
-    public SqlServerDailyWorkflowService(string connectionString)
+    public SqlServerDailyWorkflowService(string connectionString) : this(connectionString, null)
     {
-        if (string.IsNullOrWhiteSpace(connectionString))
-            throw new ArgumentException("A SQL Server connection string is required.", nameof(connectionString));
-        workflow = new(connectionString);
-        completion = new(connectionString);
-        packs = new(connectionString);
+    }
+
+    internal SqlServerDailyWorkflowService(
+        string connectionString,
+        Func<CancellationToken, Task<ApplicationAccess>>? loadAccess)
+    {
+        var validated = SqlAdapterConnection.RequireWindowsIntegrated(connectionString, nameof(connectionString));
+        workflow = new(validated);
+        completion = new(validated);
+        packs = new(validated);
+        this.loadAccess = loadAccess ?? new Phase2OperationsRepository(validated).LoadCurrentAccessAsync;
     }
 
     public async Task<DailyWorkflowState> LoadAsync(
@@ -30,6 +37,7 @@ public sealed class SqlServerDailyWorkflowService :
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(scope);
+        await RequireViewAsync(cancellationToken).ConfigureAwait(false);
         return Map(await workflow.LoadAsync(
             scope.StoreCode,
             scope.BusinessDate,
@@ -41,6 +49,7 @@ public sealed class SqlServerDailyWorkflowService :
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(scope);
+        await RequireViewAsync(cancellationToken).ConfigureAwait(false);
         var rows = await completion.LoadManualStockCountsAsync(
             scope.StoreCode,
             scope.BusinessDate,
@@ -53,18 +62,20 @@ public sealed class SqlServerDailyWorkflowService :
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(search);
+        await RequireViewAsync(cancellationToken).ConfigureAwait(false);
         var scope = new ReportingQueryScope(search.PeriodStart, search.PeriodEnd, search.StoreCodes);
         var rows = await completion.LoadStaffTargetsAsync(scope, cancellationToken).ConfigureAwait(false);
         return rows.Select(Map).ToArray();
     }
 
-    public Task SaveManualInputAsync(
+    public async Task SaveManualInputAsync(
         SaveDailyManualInput command,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(command);
         ArgumentNullException.ThrowIfNull(command.Scope);
-        return workflow.SaveManualInputAsync(
+        await RequireImportAsync(cancellationToken).ConfigureAwait(false);
+        await workflow.SaveManualInputAsync(
             command.Scope.StoreCode,
             command.Scope.BusinessDate,
             command.FieldCode,
@@ -72,16 +83,17 @@ public sealed class SqlServerDailyWorkflowService :
             command.TextValue,
             command.User,
             command.Reason,
-            cancellationToken);
+            cancellationToken).ConfigureAwait(false);
     }
 
-    public Task SaveStockCountAsync(
+    public async Task SaveStockCountAsync(
         SaveDailyStockCount command,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(command);
         ArgumentNullException.ThrowIfNull(command.Scope);
-        return completion.SaveManualStockCountAsync(
+        await RequireImportAsync(cancellationToken).ConfigureAwait(false);
+        await completion.SaveManualStockCountAsync(
             command.Scope.StoreCode,
             command.Scope.BusinessDate,
             command.InventoryGroupCode,
@@ -93,15 +105,16 @@ public sealed class SqlServerDailyWorkflowService :
             command.Remarks,
             command.User,
             command.Reason,
-            cancellationToken);
+            cancellationToken).ConfigureAwait(false);
     }
 
-    public Task SaveStaffTargetAsync(
+    public async Task SaveStaffTargetAsync(
         SaveDailyStaffTarget command,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(command);
-        return completion.SaveStaffTargetAsync(
+        await RequireImportAsync(cancellationToken).ConfigureAwait(false);
+        await completion.SaveStaffTargetAsync(
             command.StoreCode,
             command.CroNumber,
             command.PeriodStart,
@@ -109,36 +122,38 @@ public sealed class SqlServerDailyWorkflowService :
             command.TargetSales,
             command.User,
             command.Reason,
-            cancellationToken);
+            cancellationToken).ConfigureAwait(false);
     }
 
-    public Task FinaliseAsync(
+    public async Task FinaliseAsync(
         FinaliseDailyWorkflow command,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(command);
         ArgumentNullException.ThrowIfNull(command.Scope);
-        return workflow.FinaliseAsync(
+        await RequireImportAsync(cancellationToken).ConfigureAwait(false);
+        await workflow.FinaliseAsync(
             command.Scope.StoreCode,
             command.Scope.BusinessDate,
             command.User,
             command.HasBlockingReconciliationExceptions,
-            cancellationToken);
+            cancellationToken).ConfigureAwait(false);
     }
 
-    public Task ReopenAsync(
+    public async Task ReopenAsync(
         ReopenDailyWorkflow command,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(command);
         ArgumentNullException.ThrowIfNull(command.Scope);
-        return workflow.ReopenAsync(
+        await RequireOwnerAsync(cancellationToken).ConfigureAwait(false);
+        await workflow.ReopenAsync(
             command.Scope.StoreCode,
             command.Scope.BusinessDate,
             command.User,
             command.Reason,
             command.AdministratorApproved,
-            cancellationToken);
+            cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<DailyPackGeneration<ReportPackDocument>> GenerateAsync(
@@ -147,6 +162,7 @@ public sealed class SqlServerDailyWorkflowService :
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(scope);
+        await RequireViewAsync(cancellationToken).ConfigureAwait(false);
         return Map(await packs.GenerateAsync(
             scope.StoreCode,
             scope.BusinessDate,
@@ -154,11 +170,32 @@ public sealed class SqlServerDailyWorkflowService :
             cancellationToken).ConfigureAwait(false));
     }
 
-    public Task<ReportPackDocument> GenerateCombinedAsync(
+    public async Task<ReportPackDocument> GenerateCombinedAsync(
         DateOnly businessDate,
         string? generatedBy = null,
-        CancellationToken cancellationToken = default) =>
-        packs.GenerateCombinedAsync(businessDate, generatedBy, cancellationToken);
+        CancellationToken cancellationToken = default)
+    {
+        await RequireViewAsync(cancellationToken).ConfigureAwait(false);
+        return await packs.GenerateCombinedAsync(businessDate, generatedBy, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task RequireViewAsync(CancellationToken cancellationToken)
+    {
+        if (!(await loadAccess(cancellationToken).ConfigureAwait(false)).CanView)
+            throw new UnauthorizedAccessException("This Windows account does not have application access.");
+    }
+
+    private async Task RequireImportAsync(CancellationToken cancellationToken)
+    {
+        if (!(await loadAccess(cancellationToken).ConfigureAwait(false)).CanImport)
+            throw new UnauthorizedAccessException("Owner or Store Manager permission is required.");
+    }
+
+    private async Task RequireOwnerAsync(CancellationToken cancellationToken)
+    {
+        if (!(await loadAccess(cancellationToken).ConfigureAwait(false)).CanAdminister)
+            throw new UnauthorizedAccessException("Owner permission is required.");
+    }
 
     public static DailyWorkflowState Map(DailyWorkflowSnapshot source)
     {
