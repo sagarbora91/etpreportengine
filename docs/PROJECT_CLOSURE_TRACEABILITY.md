@@ -4,7 +4,7 @@ Status date: 28 August 2026
 Authority: current .NET 10/WPF product only
 Owner: closure sprint Lead Integrator
 
-Latest verified sprint slice: `docs/audit/ETP-CLOSURE-SPRINT-ARCHIVE-REGISTERS-SHORTCUTS-2026-08-28.md`. Continue with Reports, Imports/Source Inbox and the remaining workspaces; this checkpoint does not declare product completion.
+Latest verified sprint slice: `docs/audit/ETP-CLOSURE-SPRINT-ARCHIVE-REGISTERS-SHORTCUTS-2026-08-28.md`. Continue by connecting the prepared Reports and Accounting ports, then Import persistence, Operations and Administration; this checkpoint does not declare product completion.
 
 ## Purpose
 

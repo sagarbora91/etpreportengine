@@ -233,3 +233,9 @@ The Help catalogue now derives executable gesture labels from `ShellShortcutRegi
 Daily readiness/manual-input queries, controlled writes/finalisation and report-pack generation now cross three cohesive Application ports implemented by `SqlServerDailyWorkflowService`. The adapter delegates to the existing workflow, completion and pack implementations, preserving missing-versus-zero state, stock composition, staff targets, blocker evaluation, locked-day enforcement, administrator-approved reopening, and immutable generation hashes.
 
 This reduces MainWindow SQL-infrastructure construction from 74 to 64. Release build, 335 automated tests and the 11-view/190-name WPF smoke pass. The Daily Workflow controls remain embedded in MainWindow pending presentation extraction, so the shell-only gate is still open.
+
+## Source Inbox boundary and prepared report/accounting ports — 28 August 2026
+
+Source Inbox document/extraction reads, human review, document intake and managed-file integrity verification now cross `ISourceInboxService`, implemented by a SQL adapter composed outside the shell. This reduces MainWindow SQL-infrastructure construction from 64 to 60 while retaining immutable document, SHA-256, duplicate, quarantine and audit behavior.
+
+Dependency-free Reports and Accounting contracts plus tested SQL facades are also present, but their MainWindow call sites are not yet migrated and therefore do not reduce the ratchet in this checkpoint. Release build, 363 automated tests and the 11-view/190-name WPF smoke pass.

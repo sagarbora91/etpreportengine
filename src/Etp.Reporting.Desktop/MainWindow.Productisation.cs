@@ -12,6 +12,9 @@ using ArchivedReportGenerationSummary = EtpApplication::Etp.Reporting.Applicatio
 using DigitalRegisterEntryDraft = EtpApplication::Etp.Reporting.Application.Registers.DigitalRegisterEntryDraft;
 using SharingContact = EtpApplication::Etp.Reporting.Application.Sharing.SharingContact;
 using SharingContactDraft = EtpApplication::Etp.Reporting.Application.Sharing.SharingContactDraft;
+using SourceInboxDocument = EtpApplication::Etp.Reporting.Application.SourceInbox.SourceInboxDocument;
+using SourceDocumentExtraction = EtpApplication::Etp.Reporting.Application.SourceInbox.SourceDocumentExtraction;
+using SourceDocumentIntakeRequest = EtpApplication::Etp.Reporting.Application.SourceInbox.SourceDocumentIntakeRequest;
 
 namespace Etp.Reporting.Desktop;
 
@@ -25,8 +28,8 @@ public partial class MainWindow
 
     private async void SourceInbox_SelectionChanged(object sender,SelectionChangedEventArgs e)
     {
-        if(SourceInboxGrid.SelectedItem is not SourceDocumentRow row){DocumentExtractionGrid.ItemsSource=null;return;}
-        try{DocumentExtractionGrid.ItemsSource=await new ProductisationRepository(connectionState.ConnectionString).LoadDocumentExtractionsAsync(row.Id);}
+        if(SourceInboxGrid.SelectedItem is not SourceInboxDocument row){DocumentExtractionGrid.ItemsSource=null;return;}
+        try{DocumentExtractionGrid.ItemsSource=await sourceInboxServiceFactory(connectionState.ConnectionString).LoadExtractionsAsync(row.Id);}
         catch(Exception ex){SourceInboxStatus.Text=FriendlyError(ex);}
     }
 
@@ -34,7 +37,7 @@ public partial class MainWindow
     private async void RejectExtraction_Click(object sender,RoutedEventArgs e)=>await ReviewExtractionAsync(false);
     private async Task ReviewExtractionAsync(bool verified)
     {
-        try{RequireImportAccess();if(DocumentExtractionGrid.SelectedItem is not DocumentExtractionRow row)throw new InvalidOperationException("Select one extraction awaiting review.");await new ProductisationRepository(connectionState.ConnectionString).ReviewDocumentExtractionAsync(row.Id,verified,ExtractionReviewReasonInput.Text);ExtractionReviewReasonInput.Clear();await RefreshSourceInboxAsync();SourceInboxStatus.Text=verified?"Extraction verified by a human reviewer.":"Extraction rejected and the document quarantined.";}
+        try{RequireImportAccess();if(DocumentExtractionGrid.SelectedItem is not SourceDocumentExtraction row)throw new InvalidOperationException("Select one extraction awaiting review.");await sourceInboxServiceFactory(connectionState.ConnectionString).ReviewExtractionAsync(row.Id,verified,ExtractionReviewReasonInput.Text);ExtractionReviewReasonInput.Clear();await RefreshSourceInboxAsync();SourceInboxStatus.Text=verified?"Extraction verified by a human reviewer.":"Extraction rejected and the document quarantined.";}
         catch(Exception ex){SourceInboxStatus.Text=FriendlyError(ex);}
     }
 
@@ -58,7 +61,7 @@ public partial class MainWindow
             RequireViewAccess();
             var selected = SelectedContent(SourceInboxStatusInput);
             var status = selected.Equals("All", StringComparison.OrdinalIgnoreCase) ? null : selected.Replace(' ', '_').ToUpperInvariant();
-            var rows = await new ProductisationRepository(connectionState.ConnectionString).LoadSourceInboxAsync(status);
+            var rows = await sourceInboxServiceFactory(connectionState.ConnectionString).LoadDocumentsAsync(status);
             SourceInboxGrid.ItemsSource = rows;
             SourceInboxStatus.Text = $"{rows.Count:N0} source document(s). Originals are retained and SHA-256 protected.";
         }
@@ -75,8 +78,8 @@ public partial class MainWindow
     {
         try
         {
-            RequireViewAccess();if(SourceInboxGrid.SelectedItem is not SourceDocumentRow row)throw new InvalidOperationException("Select one Source Inbox document.");
-            if(!await ManagedDocumentRepository.VerifyIntegrityAsync(row.ManagedFilePath,row.Sha256))throw new InvalidOperationException("The managed source is missing or failed its SHA-256 integrity check. Do not use this copy; create a support package.");
+            RequireViewAccess();if(SourceInboxGrid.SelectedItem is not SourceInboxDocument row)throw new InvalidOperationException("Select one Source Inbox document.");
+            if(!await sourceInboxServiceFactory(connectionState.ConnectionString).VerifyIntegrityAsync(row))throw new InvalidOperationException("The managed source is missing or failed its SHA-256 integrity check. Do not use this copy; create a support package.");
             Process.Start(new ProcessStartInfo(row.ManagedFilePath){UseShellExecute=true});SourceInboxStatus.Text="Source integrity passed and the retained original was opened.";
         }
         catch(Exception ex){SourceInboxStatus.Text=FriendlyError(ex);}
@@ -91,8 +94,8 @@ public partial class MainWindow
             var date = SourceDocumentDateInput.SelectedDate is { } value ? DateOnly.FromDateTime(value) : (DateOnly?)null;
             var type = SelectedContent(SourceDocumentTypeInput).Replace(' ', '_').ToUpperInvariant();
             SourceInboxStatus.Text = "Storing the original document and checking whether text extraction is needed…";
-            var outcome = await new ProductisationOperationsService(connectionState.ConnectionString).IntakeDocumentAsync(
-                SourceDocumentPathInput.Text, string.IsNullOrWhiteSpace(SourceDocumentStoreInput.Text) ? null : SourceDocumentStoreInput.Text.Trim(), date, type);
+            var outcome = await sourceInboxServiceFactory(connectionState.ConnectionString).IntakeAsync(new SourceDocumentIntakeRequest(
+                SourceDocumentPathInput.Text, string.IsNullOrWhiteSpace(SourceDocumentStoreInput.Text) ? null : SourceDocumentStoreInput.Text.Trim(), date, type));
             SourceInboxStatus.Text = outcome.Duplicate
                 ? "This document was already received. The existing immutable copy has been selected."
                 : outcome.Extraction?.Method == "PADDLE_OCR"
@@ -126,7 +129,7 @@ public partial class MainWindow
             if (RegisterBusinessDateInput.SelectedDate is null) throw new InvalidOperationException("Select the register business date.");
             if (string.IsNullOrWhiteSpace(RegisterStoreInput.Text) || string.IsNullOrWhiteSpace(RegisterDocumentNumberInput.Text))
                 throw new InvalidOperationException("Enter the store and document number.");
-            var linkedDocument = SourceInboxGrid.SelectedItem as SourceDocumentRow;
+            var linkedDocument = SourceInboxGrid.SelectedItem as SourceInboxDocument;
             var entry = new DigitalRegisterEntryDraft(SelectedContent(RegisterTypeInput).Replace(' ', '_').ToUpperInvariant(), linkedDocument?.Id,
                 RegisterStoreInput.Text, DateOnly.FromDateTime(RegisterBusinessDateInput.SelectedDate.Value), RegisterDocumentNumberInput.Text,
                 null, RegisterCounterpartyInput.Text, OptionalDecimal(RegisterQuantityInput.Text), OptionalDecimal(RegisterAmountInput.Text),
@@ -155,7 +158,7 @@ public partial class MainWindow
             RequireImportAccess();if(AdjustmentDateInput.SelectedDate is null)throw new InvalidOperationException("Select the adjustment business date.");
             if(string.IsNullOrWhiteSpace(AdjustmentStoreInput.Text)||string.IsNullOrWhiteSpace(AdjustmentTypeInput.Text))throw new InvalidOperationException("Enter the store and adjustment type.");
             if(!decimal.TryParse(AdjustmentAmountInput.Text,NumberStyles.Number,CultureInfo.CurrentCulture,out var amount)||amount==0)throw new InvalidOperationException("Enter a non-zero signed adjustment amount.");
-            var linkedDocument=SourceInboxGrid.SelectedItem as SourceDocumentRow;
+            var linkedDocument=SourceInboxGrid.SelectedItem as SourceInboxDocument;
             var id=await new ProductisationRepository(connectionState.ConnectionString).CreateAdjustmentRequestAsync(AdjustmentStoreInput.Text,DateOnly.FromDateTime(AdjustmentDateInput.SelectedDate.Value),AdjustmentTypeInput.Text,amount,AdjustmentReasonInput.Text,linkedDocument?.Id);
             AdjustmentAmountInput.Clear();AdjustmentReasonInput.Clear();InvestigationStatus.Text=$"Adjustment {id:N0} is pending Owner approval. Canonical ETP facts were not changed.";await RefreshApprovalsAsync();
         }

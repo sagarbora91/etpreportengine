@@ -44,6 +44,7 @@ using SaveDailyStockCount = EtpApplication::Etp.Reporting.Application.DailyWorkf
 using SaveDailyStaffTarget = EtpApplication::Etp.Reporting.Application.DailyWorkflow.SaveDailyStaffTarget;
 using FinaliseDailyWorkflow = EtpApplication::Etp.Reporting.Application.DailyWorkflow.FinaliseDailyWorkflow;
 using ReopenDailyWorkflow = EtpApplication::Etp.Reporting.Application.DailyWorkflow.ReopenDailyWorkflow;
+using SourceInboxService = EtpApplication::Etp.Reporting.Application.SourceInbox.ISourceInboxService;
 
 public partial class MainWindow : Window
 {
@@ -70,6 +71,7 @@ public partial class MainWindow : Window
     private readonly Func<string, DailyWorkflowQuery> dailyWorkflowQueryFactory;
     private readonly Func<string, DailyWorkflowCommands> dailyWorkflowCommandsFactory;
     private readonly Func<string, DailyReportPackGenerator> dailyReportPackGeneratorFactory;
+    private readonly Func<string, SourceInboxService> sourceInboxServiceFactory;
     private DailyWorkflowState? currentDailySnapshot;
     private BatchImportSource? activeBatchSource;
     private CancellationTokenSource? batchCancellation;
@@ -88,7 +90,8 @@ public partial class MainWindow : Window
         Func<string, SharingContactsService> sharingContactsServiceFactory,
         Func<string, DailyWorkflowQuery> dailyWorkflowQueryFactory,
         Func<string, DailyWorkflowCommands> dailyWorkflowCommandsFactory,
-        Func<string, DailyReportPackGenerator> dailyReportPackGeneratorFactory)
+        Func<string, DailyReportPackGenerator> dailyReportPackGeneratorFactory,
+        Func<string, SourceInboxService> sourceInboxServiceFactory)
     {
         this.shell = shell ?? throw new ArgumentNullException(nameof(shell));
         this.dashboardView = dashboardView ?? throw new ArgumentNullException(nameof(dashboardView));
@@ -102,6 +105,7 @@ public partial class MainWindow : Window
         this.dailyWorkflowQueryFactory = dailyWorkflowQueryFactory ?? throw new ArgumentNullException(nameof(dailyWorkflowQueryFactory));
         this.dailyWorkflowCommandsFactory = dailyWorkflowCommandsFactory ?? throw new ArgumentNullException(nameof(dailyWorkflowCommandsFactory));
         this.dailyReportPackGeneratorFactory = dailyReportPackGeneratorFactory ?? throw new ArgumentNullException(nameof(dailyReportPackGeneratorFactory));
+        this.sourceInboxServiceFactory = sourceInboxServiceFactory ?? throw new ArgumentNullException(nameof(sourceInboxServiceFactory));
         InitializeComponent();
         DashboardHost.Content = dashboardView;
         dashboardView.RefreshRequested += async (_, _) => await RefreshDashboardAsync();

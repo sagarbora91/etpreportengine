@@ -11,6 +11,7 @@ using SharingContactsService = EtpApplication::Etp.Reporting.Application.Sharing
 using DailyWorkflowQuery = EtpApplication::Etp.Reporting.Application.DailyWorkflow.IDailyWorkflowQuery;
 using DailyWorkflowCommands = EtpApplication::Etp.Reporting.Application.DailyWorkflow.IDailyWorkflowCommands;
 using DailyReportPackGenerator = EtpApplication::Etp.Reporting.Application.DailyWorkflow.IDailyReportPackGenerator<Etp.Reporting.Reporting.ReportPackDocument>;
+using SourceInboxService = EtpApplication::Etp.Reporting.Application.SourceInbox.ISourceInboxService;
 
 namespace Etp.Reporting.Desktop.Composition;
 
@@ -66,6 +67,7 @@ public sealed class DesktopCompositionRoot
         Func<string, DailyWorkflowQuery> dailyWorkflowQueryFactory = value => new SqlServerDailyWorkflowService(value);
         Func<string, DailyWorkflowCommands> dailyWorkflowCommandsFactory = value => new SqlServerDailyWorkflowService(value);
         Func<string, DailyReportPackGenerator> dailyReportPackGeneratorFactory = value => new SqlServerDailyWorkflowService(value);
+        Func<string, SourceInboxService> sourceInboxServiceFactory = value => new SqlServerSourceInboxService(value);
         return new MainWindow(
             shell,
             dashboardView,
@@ -78,7 +80,8 @@ public sealed class DesktopCompositionRoot
             sharingContactsServiceFactory,
             dailyWorkflowQueryFactory,
             dailyWorkflowCommandsFactory,
-            dailyReportPackGeneratorFactory);
+            dailyReportPackGeneratorFactory,
+            sourceInboxServiceFactory);
     }
 
     public async Task InitializeDatabaseAsync(CancellationToken cancellationToken = default)

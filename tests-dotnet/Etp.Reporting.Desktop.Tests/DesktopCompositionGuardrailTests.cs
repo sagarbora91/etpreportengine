@@ -17,8 +17,8 @@ public sealed class DesktopCompositionGuardrailTests
         new Dictionary<string, int>(StringComparer.Ordinal)
         {
             ["MainWindow.Productisation.cs|AccountingBatchComposer"] = 1,
-            ["MainWindow.Productisation.cs|ProductisationOperationsService"] = 1,
-            ["MainWindow.Productisation.cs|ProductisationRepository"] = 20,
+            ["MainWindow.Productisation.cs|ProductisationOperationsService"] = 0,
+            ["MainWindow.Productisation.cs|ProductisationRepository"] = 17,
             ["MainWindow.Productisation.cs|TallyXmlExportService"] = 1,
             ["MainWindow.xaml.cs|AutomatedOperationsService"] = 1,
             ["MainWindow.xaml.cs|DailyReportingPackService"] = 0,
