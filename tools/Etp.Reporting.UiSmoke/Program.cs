@@ -5,9 +5,9 @@ using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using Etp.Reporting.Application.Access;
 using Etp.Reporting.Desktop;
 using Etp.Reporting.Desktop.Composition;
-using Etp.Reporting.Infrastructure.SqlServer;
 using Etp.Reporting.Reporting;
 
 internal static class Program
@@ -23,7 +23,7 @@ internal static class Program
         window.Width = 1366;
         window.Height = 768;
         Render(window, Path.Combine(output, "01-welcome-1366x768.png"), 1366, 768);
-        SetAccess(window, ApplicationRole.StoreManager, "Store Manager");
+        SetAccess(window, AccessRole.StoreManager, "Store Manager");
         ((TextBlock)window.FindName("AccessStatus")).Text = "Store Manager — Store Manager";
         Invoke(window, "CompleteWelcomeState");
         ((FrameworkElement)window.FindName("WelcomeOverlay")).Visibility = Visibility.Collapsed;
@@ -55,10 +55,10 @@ internal static class Program
         Console.WriteLine($"Rendered 11 production-shell views. Accessible named elements: {named:N0}. Output: {output}");
     }
 
-    static void SetAccess(MainWindow window, ApplicationRole role, string displayName)
+    static void SetAccess(MainWindow window, AccessRole role, string displayName)
     {
         var field = typeof(MainWindow).GetField("currentAccess", BindingFlags.Instance | BindingFlags.NonPublic) ?? throw new MissingFieldException("currentAccess");
-        field.SetValue(window, new ApplicationAccess("UI-SMOKE\\user", displayName, role, true));
+        field.SetValue(window, new AccessSession("UI-SMOKE\\user", displayName, role, true));
     }
 
     static object? Invoke(MainWindow window, string method, params object[] parameters) =>

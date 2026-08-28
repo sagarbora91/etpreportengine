@@ -23,6 +23,18 @@ public sealed class DesktopCompositionRootTests
             root.MigrationDirectory);
     }
 
+    [Fact]
+    public void Settings_directory_can_be_injected_for_a_safe_desktop_host()
+    {
+        var settingsDirectory = Path.Combine(Path.GetTempPath(), "EtpCompositionSettings", Guid.NewGuid().ToString("N"));
+        var root = new DesktopCompositionRoot(
+            AppContext.BaseDirectory,
+            DesktopCompositionRoot.DefaultConnectionString,
+            settingsDirectory);
+
+        Assert.Equal(Path.GetFullPath(settingsDirectory), root.SettingsDirectory);
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
@@ -39,5 +51,16 @@ public sealed class DesktopCompositionRootTests
     {
         Assert.Throws<ArgumentException>(() =>
             new DesktopCompositionRoot(AppContext.BaseDirectory, connectionString));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Explicit_blank_settings_directory_is_rejected(string settingsDirectory)
+    {
+        Assert.Throws<ArgumentException>(() => new DesktopCompositionRoot(
+            AppContext.BaseDirectory,
+            DesktopCompositionRoot.DefaultConnectionString,
+            settingsDirectory));
     }
 }

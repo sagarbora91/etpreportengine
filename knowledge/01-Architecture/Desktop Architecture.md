@@ -31,6 +31,8 @@ The first controlled extraction slice was completed on 2026-08-27:
 
 After this slice, the five `MainWindow` C# partials contain 2,521 physical lines and `MainWindow.xaml` contains 222 lines. This is a measurable but modest reduction, not completion of the full migration. Import, Reports, Daily Workflow, Archive, Settings, Accounting, Operations and Administration still require incremental extraction with workflow-specific verification. Dashboard dependency construction also remains in `MainWindow` as a temporary seam until composition moves to `App`.
 
+The next bounded slice was completed on 2026-08-28: Desktop settings persistence and connection state are injected, atomic and path-safe; feature workflows no longer use the connection textbox as a dependency; and Windows access now crosses an Application contract implemented by a SQL adapter. The composition root owns these collaborators. This reduced the temporary MainWindow SQL-infrastructure construction inventory from 82 to 81. The Settings screen itself and the remaining workspaces still require extraction.
+
 ## Target ownership
 
 ```text

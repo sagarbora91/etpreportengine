@@ -1,3 +1,5 @@
+extern alias EtpApplication;
+
 using System.ComponentModel;
 using System.Reflection;
 using System.Security.Principal;
@@ -7,8 +9,8 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
-using Etp.Reporting.Infrastructure.SqlServer;
 using Etp.Reporting.Reporting;
+using AccessRole = EtpApplication::Etp.Reporting.Application.Access.AccessRole;
 
 namespace Etp.Reporting.Desktop;
 
@@ -25,7 +27,7 @@ public partial class MainWindow
         : ShellRouteRegistry.Find(shell.CurrentRoute.Destination)?.ModuleId ?? "home";
 
     private ShellAccess CurrentShellAccess => new(
-        currentAccess.Role != ApplicationRole.None,
+        currentAccess.Role != AccessRole.None,
         currentAccess.CanView,
         currentAccess.CanImport,
         currentAccess.CanAdminister);
@@ -45,10 +47,10 @@ public partial class MainWindow
         WelcomeIdentityText.Text = currentAccess.DisplayName == "Access not initialized"
             ? WindowsIdentity.GetCurrent().Name
             : currentAccess.DisplayName;
-        WelcomeRoleText.Text = currentAccess.Role == ApplicationRole.None ? "Database setup required" : RoleLabel(currentAccess.Role);
+        WelcomeRoleText.Text = currentAccess.Role == AccessRole.None ? "Database setup required" : RoleLabel(currentAccess.Role);
         WelcomeProgress.Visibility = Visibility.Collapsed;
         ContinueButton.IsEnabled = true;
-        WelcomeMessage.Text = currentAccess.Role == ApplicationRole.None
+        WelcomeMessage.Text = currentAccess.Role == AccessRole.None
             ? "Continue to database setup. Existing security rules remain authoritative."
             : "Your Windows identity and application role have been verified.";
         BuildModuleHome();
@@ -58,7 +60,7 @@ public partial class MainWindow
     {
         WelcomeOverlay.Visibility = Visibility.Collapsed;
         ShowModuleHome();
-        ApplicationStatus.Text = currentAccess.Role == ApplicationRole.None
+        ApplicationStatus.Text = currentAccess.Role == AccessRole.None
             ? "Database setup is required before operational modules can be used."
             : $"Signed in as {currentAccess.DisplayName} — {RoleLabel(currentAccess.Role)}.";
     }
@@ -80,10 +82,10 @@ public partial class MainWindow
         SidebarColumn.Width = new GridLength(0);
         SidebarToggleButton.Visibility = Visibility.Collapsed;
         BreadcrumbText.Text = "Modules";
-        PageTitle.Text = currentAccess.Role == ApplicationRole.Owner ? "Owner Workspace" : "Home";
+        PageTitle.Text = currentAccess.Role == AccessRole.Owner ? "Owner Workspace" : "Home";
         PageDescription.Text = "Choose a module. Daily work stays on the surface while governed controls remain underneath.";
         ReadinessSummaryPanel.Visibility = Visibility.Collapsed;
-        GettingStartedPanel.Visibility = currentAccess.Role == ApplicationRole.None ? Visibility.Visible : Visibility.Collapsed;
+        GettingStartedPanel.Visibility = currentAccess.Role == AccessRole.None ? Visibility.Visible : Visibility.Collapsed;
         LegacyWorkspaceScroll.ScrollToTop();
     }
 
@@ -100,18 +102,18 @@ public partial class MainWindow
         if (moduleHomePanel is null) return;
         var root = new StackPanel();
         var heading = new DockPanel { Margin = new Thickness(4, 0, 4, 16) };
-        if (currentAccess.Role == ApplicationRole.Owner)
+        if (currentAccess.Role == AccessRole.Owner)
         {
             var ownerBadge = new StatusBadge("Owner workspace", "Information"); DockPanel.SetDock(ownerBadge, Dock.Right); heading.Children.Add(ownerBadge);
         }
         var titleBlock = new StackPanel();
-        titleBlock.Children.Add(new TextBlock { Text = currentAccess.Role == ApplicationRole.Owner ? "Your operational workspace" : "Good morning", FontSize = 27, FontWeight = FontWeights.SemiBold, Foreground = (Brush)FindResource("PrimaryText") });
+        titleBlock.Children.Add(new TextBlock { Text = currentAccess.Role == AccessRole.Owner ? "Your operational workspace" : "Good morning", FontSize = 27, FontWeight = FontWeights.SemiBold, Foreground = (Brush)FindResource("PrimaryText") });
         titleBlock.Children.Add(new TextBlock { Text = "Open a module to work with live application data.", Foreground = (Brush)FindResource("SecondaryText"), Margin = new Thickness(0, 4, 0, 0) });
         heading.Children.Add(titleBlock); root.Children.Add(heading);
         var wrap = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Stretch };
         var role = currentAccess.Role;
         var selected = UiNavigationRegistry.Modules.Where(x => x.DefaultVisibility && x.IsVisibleTo(role)).ToList();
-        if (currentAccess.Role == ApplicationRole.Owner)
+        if (currentAccess.Role == AccessRole.Owner)
         {
             var pins = uiPreferences.PinnedModuleIds.Count > 0 ? uiPreferences.PinnedModuleIds : ["registers", "approvals", "health"];
             selected.AddRange(UiNavigationRegistry.Modules.Where(x => x.PinAllowed && pins.Contains(x.Id, StringComparer.OrdinalIgnoreCase) && x.IsVisibleTo(role)));
@@ -125,7 +127,7 @@ public partial class MainWindow
             tile.Click += ModuleTile_Click; wrap.Children.Add(tile);
         }
         root.Children.Add(wrap);
-        if (currentAccess.Role == ApplicationRole.None)
+        if (currentAccess.Role == AccessRole.None)
         {
             var notice = new EmptyState("Database setup required", "Operational module access is granted through the existing Windows-integrated role model.", "Open Settings to configure or initialise SQL Server.") { Margin = new Thickness(7, 16, 7, 0) };
             root.Children.Add(notice);
@@ -164,7 +166,7 @@ public partial class MainWindow
     {
         if (moduleId == "home") return;
         var module = UiNavigationRegistry.Modules.FirstOrDefault(x => x.Id == moduleId)
-            ?? (moduleId == "settings" ? new ModuleDefinition("settings", "Settings", "IconSettings", "Administration", "Admin / Settings", 0, ApplicationRole.Owner) : null);
+            ?? (moduleId == "settings" ? new ModuleDefinition("settings", "Settings", "IconSettings", "Administration", "Admin / Settings", 0, AccessRole.Owner) : null);
         SidebarModuleTitle.Text = module?.DisplayName ?? "Workspace";
         SidebarModuleSubtitle.Text = moduleId switch { "reports" => $"{ProductReportCatalogue.All.Count} live reports", "imports" => "Sources, documents & registers", "settings" => "Administration", _ => "Workspace navigation" };
         SidebarSearchInput.Clear();

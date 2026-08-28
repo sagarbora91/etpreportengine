@@ -27,7 +27,7 @@ public sealed class DesktopCompositionGuardrailTests
             ["MainWindow.xaml.cs|OperationalAuditRepository"] = 1,
             ["MainWindow.xaml.cs|OperationalCompletionRepository"] = 4,
             ["MainWindow.xaml.cs|OperationalReportRepository"] = 10,
-            ["MainWindow.xaml.cs|Phase2OperationsRepository"] = 11,
+            ["MainWindow.xaml.cs|Phase2OperationsRepository"] = 10,
             ["MainWindow.xaml.cs|ProductisationOperationsService"] = 2,
             ["MainWindow.xaml.cs|ProductisationRepository"] = 2,
             ["MainWindow.xaml.cs|R022SqlImportOrchestrator"] = 2,
@@ -71,6 +71,20 @@ public sealed class DesktopCompositionGuardrailTests
                 MainWindowConstructionMaxima.TryGetValue(key, out var maximum),
                 $"New MainWindow SQL-infrastructure construction is not allowed: {key} ({count}). Compose it outside the shell.");
             Assert.True(count <= maximum, $"MainWindow SQL-infrastructure construction increased: {key}, baseline {maximum}, actual {count}.");
+        }
+    }
+
+    [Fact]
+    public void MainWindow_does_not_use_the_connection_text_box_as_a_service_dependency()
+    {
+        var desktopDirectory = Path.Combine(RepositoryRoot, "src", "Etp.Reporting.Desktop");
+        var forbiddenDependency = new Regex(
+            @"\bnew\s+[A-Za-z_][A-Za-z0-9_]*\s*\(\s*ConnectionStringInput\.Text|\w+Factory\s*\(\s*ConnectionStringInput\.Text",
+            RegexOptions.CultureInvariant);
+
+        foreach (var sourceFile in Directory.EnumerateFiles(desktopDirectory, "MainWindow*.cs", SearchOption.TopDirectoryOnly))
+        {
+            Assert.DoesNotMatch(forbiddenDependency, File.ReadAllText(sourceFile));
         }
     }
 

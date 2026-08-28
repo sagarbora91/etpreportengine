@@ -3,7 +3,6 @@ extern alias EtpApplication;
 using System.IO;
 using System.Globalization;
 using System.Security.Principal;
-using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Automation;
@@ -17,6 +16,7 @@ using Etp.Reporting.Import.Staging;
 using Etp.Reporting.Import.Workbooks;
 using Etp.Reporting.Infrastructure.SqlServer;
 using Etp.Reporting.Reporting;
+using Etp.Reporting.Desktop.Modules.Settings;
 using Microsoft.Win32;
 using Microsoft.Data.SqlClient;
 
@@ -24,6 +24,9 @@ namespace Etp.Reporting.Desktop;
 
 using DashboardSnapshot = EtpApplication::Etp.Reporting.Application.Dashboard.DashboardSnapshot;
 using DashboardQuery = EtpApplication::Etp.Reporting.Application.Dashboard.IDashboardQuery;
+using AccessSession = EtpApplication::Etp.Reporting.Application.Access.AccessSession;
+using AccessRole = EtpApplication::Etp.Reporting.Application.Access.AccessRole;
+using AccessSessionQuery = EtpApplication::Etp.Reporting.Application.Access.IAccessSessionQuery;
 
 public partial class MainWindow : Window
 {
@@ -41,22 +44,29 @@ public partial class MainWindow : Window
     private readonly ShellViewModel shell;
     private readonly DashboardView dashboardView;
     private readonly Func<string, DashboardQuery> dashboardQueryFactory;
+    private readonly DesktopSettingsStore settingsStore;
+    private readonly DesktopConnectionState connectionState;
+    private readonly Func<string, AccessSessionQuery> accessSessionQueryFactory;
     private DailyWorkflowSnapshot? currentDailySnapshot;
     private BatchImportSource? activeBatchSource;
     private CancellationTokenSource? batchCancellation;
     private IReadOnlyList<string> failedBatchPaths = [];
-    private ApplicationAccess currentAccess = new("unknown", "Unknown user", ApplicationRole.None, false);
-    private static readonly string SettingsPath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "EtpReporting", "settings.json");
+    private AccessSession currentAccess = new("unknown", "Unknown user", AccessRole.None, false);
 
     public MainWindow(
         ShellViewModel shell,
         DashboardView dashboardView,
-        Func<string, DashboardQuery> dashboardQueryFactory)
+        Func<string, DashboardQuery> dashboardQueryFactory,
+        DesktopSettingsStore settingsStore,
+        DesktopConnectionState connectionState,
+        Func<string, AccessSessionQuery> accessSessionQueryFactory)
     {
         this.shell = shell ?? throw new ArgumentNullException(nameof(shell));
         this.dashboardView = dashboardView ?? throw new ArgumentNullException(nameof(dashboardView));
         this.dashboardQueryFactory = dashboardQueryFactory ?? throw new ArgumentNullException(nameof(dashboardQueryFactory));
+        this.settingsStore = settingsStore ?? throw new ArgumentNullException(nameof(settingsStore));
+        this.connectionState = connectionState ?? throw new ArgumentNullException(nameof(connectionState));
+        this.accessSessionQueryFactory = accessSessionQueryFactory ?? throw new ArgumentNullException(nameof(accessSessionQueryFactory));
         InitializeComponent();
         DashboardHost.Content = dashboardView;
         dashboardView.RefreshRequested += async (_, _) => await RefreshDashboardAsync();
@@ -80,8 +90,9 @@ public partial class MainWindow : Window
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
-        var saved = LoadSettings();
-        if (!string.IsNullOrWhiteSpace(saved?.ConnectionString)) ConnectionStringInput.Text = saved.ConnectionString;
+        var saved = settingsStore.Load();
+        if (saved is not null) connectionState.TryUpdate(saved.ConnectionString, out _);
+        ConnectionStringInput.Text = connectionState.ConnectionString;
         await RefreshAccessAsync();
         CompleteWelcomeState();
         await CheckConnectionAndRefreshAsync(false);
@@ -146,14 +157,14 @@ public partial class MainWindow : Window
     {
         try
         {
-            currentAccess = await new Phase2OperationsRepository(ConnectionStringInput.Text).LoadCurrentAccessAsync();
+            currentAccess = await accessSessionQueryFactory(connectionState.ConnectionString).LoadCurrentAsync();
             AccessStatus.Text = $"{currentAccess.DisplayName} — {RoleLabel(currentAccess.Role)}";
             AccessStatus.Foreground = currentAccess.CanView ? Brushes.SeaGreen : Brushes.Firebrick;
             if (PageTitle.Text is "Dashboard" or "Home") { DashboardPanel.Visibility = currentAccess.CanView ? Visibility.Visible : Visibility.Collapsed; DailyWorkflowPanel.Visibility = currentAccess.CanView ? Visibility.Visible : Visibility.Collapsed; }
         }
         catch (Exception ex) when (ex is SqlException or InvalidOperationException)
         {
-            currentAccess = new("unknown", "Access not initialized", ApplicationRole.None, false);
+            currentAccess = new("unknown", "Access not initialized", AccessRole.None, false);
             AccessStatus.Text = "Access: initialize database";
             AccessStatus.Foreground = Brushes.DarkOrange;
             if (PageTitle.Text is "Dashboard" or "Home") { DashboardPanel.Visibility = Visibility.Collapsed; DailyWorkflowPanel.Visibility = Visibility.Collapsed; }
@@ -182,7 +193,7 @@ public partial class MainWindow : Window
         try
         {
             var (store, date) = DailyScope();
-            currentDailySnapshot = await new DailyReportingWorkflowRepository(ConnectionStringInput.Text).LoadAsync(store, date);
+            currentDailySnapshot = await new DailyReportingWorkflowRepository(connectionState.ConnectionString).LoadAsync(store, date);
             DailyWorkflowStatus.Text = currentDailySnapshot.Status.ToString();
             DailyWorkflowStatus.Foreground = currentDailySnapshot.Status switch
             {
@@ -200,7 +211,7 @@ public partial class MainWindow : Window
             DailyManualInputsGrid.ItemsSource = currentDailySnapshot.ManualInputs;
             ManualFieldInput.ItemsSource = currentDailySnapshot.ManualInputs;
             if (ManualFieldInput.SelectedIndex < 0 && currentDailySnapshot.ManualInputs.Count > 0) ManualFieldInput.SelectedIndex = 0;
-            DailyStockCountsGrid.ItemsSource = await new OperationalCompletionRepository(ConnectionStringInput.Text).LoadManualStockCountsAsync(store, date);
+            DailyStockCountsGrid.ItemsSource = await new OperationalCompletionRepository(connectionState.ConnectionString).LoadManualStockCountsAsync(store, date);
             FinaliseDayButton.IsEnabled = currentDailySnapshot.CanFinalise;
         }
         catch (Exception ex)
@@ -231,7 +242,7 @@ public partial class MainWindow : Window
                     throw new InvalidOperationException("Walk-ins must be a whole number of zero or more.");
                 numeric = parsed;
             }
-            await new DailyReportingWorkflowRepository(ConnectionStringInput.Text).SaveManualInputAsync(
+            await new DailyReportingWorkflowRepository(connectionState.ConnectionString).SaveManualInputAsync(
                 store, date, field, numeric, text, Environment.UserName, reason);
             ManualValueInput.Clear(); ManualReasonInput.Clear();
             await RecordAuditAsync("ManualInput", "Succeeded", "Manual input saved");
@@ -246,7 +257,7 @@ public partial class MainWindow : Window
         {
             RequireImportAccess();
             var (store, date) = DailyScope();
-            await new OperationalCompletionRepository(ConnectionStringInput.Text).SaveManualStockCountAsync(
+            await new OperationalCompletionRepository(connectionState.ConnectionString).SaveManualStockCountAsync(
                 store, date, StockGroupInput.Text, OptionalDecimal(StockDisplayInput.Text), OptionalDecimal(StockBackstockInput.Text),
                 OptionalDecimal(StockDefectiveInput.Text), OptionalDecimal(StockYLocationInput.Text), OptionalDecimal(StockPhysicalInput.Text),
                 string.IsNullOrWhiteSpace(StockRemarksInput.Text) ? null : StockRemarksInput.Text.Trim(), Environment.UserName, StockReasonInput.Text);
@@ -268,7 +279,7 @@ public partial class MainWindow : Window
                 throw new InvalidOperationException("Select the target start and end dates.");
             if (!decimal.TryParse(StaffTargetValueInput.Text, NumberStyles.Number, CultureInfo.CurrentCulture, out var target))
                 throw new InvalidOperationException("Enter a valid target sales value.");
-            await new OperationalCompletionRepository(ConnectionStringInput.Text).SaveStaffTargetAsync(
+            await new OperationalCompletionRepository(connectionState.ConnectionString).SaveStaffTargetAsync(
                 store, StaffTargetCroInput.Text, DateOnly.FromDateTime(StaffTargetFromInput.SelectedDate.Value),
                 DateOnly.FromDateTime(StaffTargetToInput.SelectedDate.Value), target, Environment.UserName, StaffTargetReasonInput.Text);
             StaffTargetCroInput.Clear(); StaffTargetValueInput.Clear(); StaffTargetReasonInput.Clear();
@@ -284,10 +295,10 @@ public partial class MainWindow : Window
         {
             RequireImportAccess();
             var (store, date) = DailyScope();
-            var pack = await new DailyReportingPackService(ConnectionStringInput.Text).GenerateAsync(store, date, Environment.UserName);
+            var pack = await new DailyReportingPackService(connectionState.ConnectionString).GenerateAsync(store, date, Environment.UserName);
             DailyPackGrid.ItemsSource = pack.Sections;
             var hasBlockers = pack.Sections.Any(x => x.Status is ReconciliationStatus.Blocked or ReconciliationStatus.Failed);
-            await new DailyReportingWorkflowRepository(ConnectionStringInput.Text).FinaliseAsync(
+            await new DailyReportingWorkflowRepository(connectionState.ConnectionString).FinaliseAsync(
                 store, date, Environment.UserName, hasBlockers);
             await RecordAuditAsync("DayFinalised", "Succeeded", "Business day finalised");
             await RefreshDailyWorkflowAsync();
@@ -303,7 +314,7 @@ public partial class MainWindow : Window
             var (store, date) = DailyScope();
             using var identity = WindowsIdentity.GetCurrent();
             var isAdministrator = new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator);
-            await new DailyReportingWorkflowRepository(ConnectionStringInput.Text).ReopenAsync(
+            await new DailyReportingWorkflowRepository(connectionState.ConnectionString).ReopenAsync(
                 store, date, Environment.UserName, ReopenReasonInput.Text.Trim(), isAdministrator);
             ReopenReasonInput.Clear();
             await RecordAuditAsync("DayReopened", "Succeeded", "Business day reopened");
@@ -318,7 +329,7 @@ public partial class MainWindow : Window
         {
             RequireViewAccess();
             var (store, date) = DailyScope();
-            var pack = await new DailyReportingPackService(ConnectionStringInput.Text).GenerateAsync(store, date, Environment.UserName);
+            var pack = await new DailyReportingPackService(connectionState.ConnectionString).GenerateAsync(store, date, Environment.UserName);
             DailyPackGrid.ItemsSource = pack.Sections;
             DailyWorkflowMessage.Text = $"{pack.Status}: {pack.Message} Generation {pack.GenerationNumber}, control hash {pack.ContentSha256[..12]}.";
             currentDailyPackDocument = pack.Document;
@@ -340,7 +351,7 @@ public partial class MainWindow : Window
             RequireViewAccess();
             if (DailyBusinessDateInput.SelectedDate is null) throw new InvalidOperationException("Select the ETP business date.");
             var date = DateOnly.FromDateTime(DailyBusinessDateInput.SelectedDate.Value);
-            currentDailyPackDocument = await new DailyReportingPackService(ConnectionStringInput.Text)
+            currentDailyPackDocument = await new DailyReportingPackService(connectionState.ConnectionString)
                 .GenerateCombinedAsync(date, Environment.UserName);
             DailyPackGrid.ItemsSource = currentDailyPackDocument.Tables.Select(x => new
                 { Report = x.Name, Status = x.Status, Rows = x.Data.Rows.Count, x.Message });
@@ -374,9 +385,12 @@ public partial class MainWindow : Window
         ConnectionResult.Text = "Creating/updating database…";
         try
         {
-            if (currentAccess.Role != ApplicationRole.None) RequireOwnerAccess();
+            if (currentAccess.Role != AccessRole.None) RequireOwnerAccess();
+            var validation = ConnectionStringValidation.Validate(ConnectionStringInput.Text);
+            if (!validation.IsValid) throw new InvalidOperationException(validation.Error);
             var path = Path.Combine(AppContext.BaseDirectory, "database", "migrations");
-            var result = await new SqlServerDatabaseBootstrapper(ConnectionStringInput.Text, new DirectoryMigrationSource(path)).BootstrapAsync();
+            var result = await new SqlServerDatabaseBootstrapper(validation.ConnectionString!, new DirectoryMigrationSource(path)).BootstrapAsync();
+            connectionState.TryUpdate(validation.ConnectionString, out _);
             ConnectionResult.Text = $"Database ready. Applied migrations: {(result.AppliedMigrations.Count == 0 ? "none" : string.Join(", ", result.AppliedMigrations))}.";
             SetConnectionState(true, "Ready to import");
             TrySaveSettings();
@@ -449,7 +463,7 @@ public partial class MainWindow : Window
         try
         {
             RequireImportAccess();
-            var persistenceStore = new SqlServerTransactionalImportStore(ConnectionStringInput.Text);
+            var persistenceStore = new SqlServerTransactionalImportStore(connectionState.ConnectionString);
             var (selectedStore, selectedDate) = ImportScope();
             var restatement = await ResolveRestatementAsync(validatedPreflight.Profile!.ReportCode, selectedStore, selectedDate, CancellationToken.None);
             if (validatedPreflight.Profile!.ReportCode == "R022")
@@ -478,7 +492,7 @@ public partial class MainWindow : Window
 
             if (validatedPreflight.Profile.ReportCode is "R003" or "R013")
             {
-                var outcome = await new RetailEnrichmentSqlImportOrchestrator(ConnectionStringInput.Text).PersistAsync(
+                var outcome = await new RetailEnrichmentSqlImportOrchestrator(connectionState.ConnectionString).PersistAsync(
                     validatedWorkbook, validatedPreflight.Profile.ReportCode, selectedDate, selectedStore, Environment.UserName, restatement: restatement);
                 ValidationResult.Text = $"Imported {outcome.PersistedRows:N0} {outcome.ReportCode} enrichment rows: {outcome.MatchedRows:N0} matched, {outcome.MissingMatches:N0} missing, {outcome.AmbiguousMatches:N0} ambiguous. Revenue totals were not changed.";
                 ImportStatus.Text = "Import completed";
@@ -503,7 +517,7 @@ public partial class MainWindow : Window
     private Task RetainValidatedEtpEvidenceAsync(string store,DateOnly date) =>
         validatedWorkbook is null || validatedPreflight?.Profile is null
             ? Task.CompletedTask
-            : new ProductisationOperationsService(ConnectionStringInput.Text).IntakeEtpEvidenceAsync(WorkbookPathInput.Text,validatedWorkbook.Sha256,validatedPreflight.Profile.ReportCode,store,date);
+            : new ProductisationOperationsService(connectionState.ConnectionString).IntakeEtpEvidenceAsync(WorkbookPathInput.Text,validatedWorkbook.Sha256,validatedPreflight.Profile.ReportCode,store,date);
 
     private async void StartBatchImport_Click(object sender, RoutedEventArgs e)
     {
@@ -553,14 +567,14 @@ public partial class MainWindow : Window
     {
         var snapshot = await new OpenXmlWorkbookReader().ReadAsync(workbookPath, cancellationToken);
         var restatementMode = RestatementModeInput.IsChecked == true;
-        if (await new SqlServerImportFileRepository(ConnectionStringInput.Text).ExistsByHashAsync(snapshot.Sha256, cancellationToken))
+        if (await new SqlServerImportFileRepository(connectionState.ConnectionString).ExistsByHashAsync(snapshot.Sha256, cancellationToken))
         {
             if (restatementMode) throw new ImportSourceException("RESTATEMENT_DUPLICATE_FILE", "A restatement must use a corrected source file with a new hash.");
             return new(0, 0, 0, 0, true);
         }
         var preflight = new ImportPreflight().Inspect(snapshot, RetailSalesProfiles.FirstSalesSlice.Concat(StockImportProfiles.All));
         if (!preflight.CanImport) throw new ImportSourceException("IMPORT_LAYOUT_BLOCKED", "The workbook layout is not an approved ETP layout.");
-        var persistenceStore = new SqlServerTransactionalImportStore(ConnectionStringInput.Text);
+        var persistenceStore = new SqlServerTransactionalImportStore(connectionState.ConnectionString);
         var (selectedStore, selectedDate) = ImportScope();
         var restatement = await ResolveRestatementAsync(preflight.Profile!.ReportCode, selectedStore, selectedDate, cancellationToken);
         if (preflight.Profile!.ReportCode == "R022")
@@ -574,14 +588,14 @@ public partial class MainWindow : Window
             await new StockSqlImportOrchestrator(persistenceStore).PersistAsync(snapshot, cancellationToken: cancellationToken,
                 expectedBusinessDate: selectedDate, expectedStoreCode: selectedStore, importedBy: Environment.UserName, restatement: restatement);
         else if (preflight.Profile.ReportCode is "R003" or "R013")
-            await new RetailEnrichmentSqlImportOrchestrator(ConnectionStringInput.Text).PersistAsync(snapshot, preflight.Profile.ReportCode,
+            await new RetailEnrichmentSqlImportOrchestrator(connectionState.ConnectionString).PersistAsync(snapshot, preflight.Profile.ReportCode,
                 selectedDate, selectedStore, Environment.UserName, cancellationToken, restatement);
         else
             await new R025SqlImportOrchestrator(persistenceStore).PersistAsync(snapshot, cancellationToken: cancellationToken,
                 expectedBusinessDate: selectedDate, expectedStoreCode: selectedStore, importedBy: Environment.UserName, restatement: restatement);
         if (restatement is not null) await RecordAuditAsync("Restatement", "Succeeded", "Controlled source restatement applied");
-        await new ProductisationOperationsService(ConnectionStringInput.Text).IntakeEtpEvidenceAsync(workbookPath,snapshot.Sha256,preflight.Profile.ReportCode,selectedStore,selectedDate,cancellationToken);
-        return await new SqlServerImportFileRepository(ConnectionStringInput.Text).LoadOutcomeByHashAsync(snapshot.Sha256, cancellationToken);
+        await new ProductisationOperationsService(connectionState.ConnectionString).IntakeEtpEvidenceAsync(workbookPath,snapshot.Sha256,preflight.Profile.ReportCode,selectedStore,selectedDate,cancellationToken);
+        return await new SqlServerImportFileRepository(connectionState.ConnectionString).LoadOutcomeByHashAsync(snapshot.Sha256, cancellationToken);
     }
 
     private async Task<ImportRestatementRequest?> ResolveRestatementAsync(
@@ -594,7 +608,7 @@ public partial class MainWindow : Window
         RequireOwnerAccess();
         var reason = RestatementReasonInput.Text.Trim();
         if (string.IsNullOrWhiteSpace(reason)) throw new ImportSourceException("RESTATEMENT_REASON_REQUIRED", "Enter the reason for the controlled restatement.");
-        var previous = await new OperationalCompletionRepository(ConnectionStringInput.Text).FindCurrentImportAsync(
+        var previous = await new OperationalCompletionRepository(connectionState.ConnectionString).FindCurrentImportAsync(
             reportCode, storeCode, businessDate, cancellationToken);
         if (previous is null) throw new ImportSourceException("RESTATEMENT_SOURCE_NOT_FOUND", "No current import exists for this report, store and business date. Use a normal import instead.");
         return new(previous.ImportFileId, Environment.UserName, reason);
@@ -614,7 +628,7 @@ public partial class MainWindow : Window
     }
 
     private SqlBackedReportingExecutor CreateReportExecutor() => new(
-        new SqlServerReportingQueryRepository(ConnectionStringInput.Text), RetailReportingPolicy.Mapping,
+        new SqlServerReportingQueryRepository(connectionState.ConnectionString), RetailReportingPolicy.Mapping,
         RetailReportingPolicy.Sales, RetailReportingPolicy.Tender, RetailReportingPolicy.Stock);
 
     private ReportingQueryScope ReportScope()
@@ -691,7 +705,7 @@ public partial class MainWindow : Window
     {
         try
         {
-            var rows=await new OperationalReportRepository(ConnectionStringInput.Text).LoadStockInventoryAsync(ReportScope());
+            var rows=await new OperationalReportRepository(connectionState.ConnectionString).LoadStockInventoryAsync(ReportScope());
             if(mode=="SLOW")rows=rows.Where(x=>x.Quantity!=0&&x.MovementStatus!="ACTIVE").ToArray();
             if(mode=="BRAND")
             {
@@ -713,7 +727,7 @@ public partial class MainWindow : Window
     {
         try
         {
-            var scope=ReportScope();var data=await new SqlServerReportingQueryRepository(ConnectionStringInput.Text).LoadStockAsync(scope);var rows=data.Movements;var status=rows.Count==0?ReconciliationStatus.Blocked:ReconciliationStatus.Passed;
+            var scope=ReportScope();var data=await new SqlServerReportingQueryRepository(connectionState.ConnectionString).LoadStockAsync(scope);var rows=data.Movements;var status=rows.Count==0?ReconciliationStatus.Blocked:ReconciliationStatus.Passed;
             ReportGrid.ItemsSource=rows;ReportResult.Text=$"{status}: {rows.Count:N0} source movement group(s).";SetExport("Stock Movement",status,RetailReportingPolicy.Version,"Movement quantities retain the ETP source transaction type and source-signed quantity.",[new("Store"),new("Item"),new("Movement Type"),new("Signed Quantity","#,##0.00")],rows.Select(x=>(IReadOnlyList<object?>)[x.StoreCode,x.ItemCode,x.SourceMovementType,x.SourceSignedQuantity]).ToArray(),["Total","","",rows.Sum(x=>x.SourceSignedQuantity)]);ApplyReportFilter();await RecordAuditAsync("ReportRun",status==ReconciliationStatus.Passed?"Succeeded":"Blocked","Stock movement");
         }
         catch(Exception ex){ReportResult.Text=$"Stock movement report failed: {ex.Message}";}
@@ -723,7 +737,7 @@ public partial class MainWindow : Window
     {
         try
         {
-            var scope=ReportScope();if(scope.StoreCodes is not {Count:1}||scope.DateFrom!=scope.DateTo)throw new InvalidOperationException("Select one store and one business date for an exception report.");var all=await new OperationalReportRepository(ConnectionStringInput.Text).LoadDailyExceptionsAsync(scope.StoreCodes[0],scope.DateTo);
+            var scope=ReportScope();if(scope.StoreCodes is not {Count:1}||scope.DateFrom!=scope.DateTo)throw new InvalidOperationException("Select one store and one business date for an exception report.");var all=await new OperationalReportRepository(connectionState.ConnectionString).LoadDailyExceptionsAsync(scope.StoreCodes[0],scope.DateTo);
             var rows=focus switch{"Source"=>all.Where(x=>x.Area=="Source"),"Unmapped"=>all.Where(x=>x.Area.Contains("Staff",StringComparison.OrdinalIgnoreCase)||x.Code.Contains("MISSING",StringComparison.OrdinalIgnoreCase)||x.Code.Contains("AMBIGUOUS",StringComparison.OrdinalIgnoreCase)),"Stock"=>all.Where(x=>x.Area.Contains("stock",StringComparison.OrdinalIgnoreCase)),"Staff"=>all.Where(x=>x.Area.Contains("Staff",StringComparison.OrdinalIgnoreCase)),"Tender"=>all.Where(x=>x.Area=="Tender"),_=>all};var result=rows.ToArray();var status=result.Any(x=>x.Severity is "BLOCKER" or "FAIL")?ReconciliationStatus.Failed:ReconciliationStatus.Passed;
             ReportGrid.ItemsSource=result;ReportResult.Text=$"{status}: {result.Length:N0} {focus.ToLowerInvariant()} exception(s).";SetExport($"{focus} Exceptions",status,RetailReportingPolicy.Version,"Focused view of the same immutable daily exception evidence; filtering never changes technical control status.",[new("Severity"),new("Area"),new("Code"),new("Store"),new("Date"),new("Document"),new("Item"),new("Variance","#,##0.00"),new("Workbook"),new("Sheet"),new("Source Row","#,##0"),new("Message"),new("Recommended Action")],result.Select(x=>(IReadOnlyList<object?>)[x.Severity,x.Area,x.Code,x.StoreCode,x.BusinessDate,x.DocumentNumber,x.ItemCode,x.Variance,x.SourceWorkbook,x.SourceSheet,x.SourceRow,x.Message,x.RecommendedAction]).ToArray(),["Total",result.Length,"","","","","",result.Where(x=>x.Variance is not null).Sum(x=>x.Variance),"","","","",""]);ApplyReportFilter();await RecordAuditAsync("ReportRun",status==ReconciliationStatus.Passed?"Succeeded":"Failed",$"{focus} exceptions");
         }
@@ -734,7 +748,7 @@ public partial class MainWindow : Window
     {
         try
         {
-            var scope=ReportScope();var rows=await new Phase2OperationsRepository(ConnectionStringInput.Text).LoadManagementTrendAsync(scope.DateFrom,scope.DateTo);if(scope.StoreCodes is {Count:>0})rows=rows.Where(x=>scope.StoreCodes.Contains(x.StoreCode,StringComparer.OrdinalIgnoreCase)).ToArray();var status=rows.Count==0?ReconciliationStatus.Blocked:ReconciliationStatus.Passed;
+            var scope=ReportScope();var rows=await new Phase2OperationsRepository(connectionState.ConnectionString).LoadManagementTrendAsync(scope.DateFrom,scope.DateTo);if(scope.StoreCodes is {Count:>0})rows=rows.Where(x=>scope.StoreCodes.Contains(x.StoreCode,StringComparer.OrdinalIgnoreCase)).ToArray();var status=rows.Count==0?ReconciliationStatus.Blocked:ReconciliationStatus.Passed;
             ReportGrid.ItemsSource=rows;ReportResult.Text=$"{status}: {rows.Count:N0} daily management trend row(s).";SetExport("Management Trend",status,RetailReportingPolicy.Version,"Daily canonical sales, units, invoices and unchanged control variances.",[new("Date"),new("Store"),new("Net Sales","#,##0.00"),new("Units","#,##0.00"),new("Invoices","#,##0"),new("Tender Variance","#,##0.00"),new("Unmatched Staff Rows","#,##0")],rows.Select(x=>(IReadOnlyList<object?>)[x.BusinessDate,x.StoreCode,x.NetSales,x.Units,x.Invoices,x.TenderVariance,x.UnmatchedEnrichmentRows]).ToArray(),["Total","",rows.Sum(x=>x.NetSales),rows.Sum(x=>x.Units),rows.Sum(x=>x.Invoices),rows.Sum(x=>x.TenderVariance),rows.Sum(x=>x.UnmatchedEnrichmentRows)]);ApplyReportFilter();await RecordAuditAsync("ReportRun",status==ReconciliationStatus.Passed?"Succeeded":"Blocked","Management trend");
         }
         catch(Exception ex){ReportResult.Text=$"Management trend failed: {ex.Message}";}
@@ -761,7 +775,7 @@ public partial class MainWindow : Window
     {
         try
         {
-            var rows = await new OperationalReportRepository(ConnectionStringInput.Text).LoadInvoiceSummaryAsync(ReportScope());
+            var rows = await new OperationalReportRepository(connectionState.ConnectionString).LoadInvoiceSummaryAsync(ReportScope());
             var status = rows.Count == 0 ? ReconciliationStatus.Blocked : ReconciliationStatus.Passed;
             var message = rows.Count == 0 ? "No canonical invoice lines are available for the selected scope." : "Invoice totals are generated from canonical R025 lines; customer PII is intentionally excluded.";
             ReportGrid.ItemsSource = rows; ReportResult.Text = $"{status}: {rows.Count:N0} invoices.";
@@ -779,7 +793,7 @@ public partial class MainWindow : Window
     {
         try
         {
-            var rows = await new OperationalReportRepository(ConnectionStringInput.Text).LoadInvoiceLineageAsync(ReportScope());
+            var rows = await new OperationalReportRepository(connectionState.ConnectionString).LoadInvoiceLineageAsync(ReportScope());
             var status = rows.Count == 0 ? ReconciliationStatus.Blocked : ReconciliationStatus.Passed;
             var message = "Invoice and item drill-down is traceable to its source workbook, sheet and row. Customer PII remains excluded pending owner approval.";
             ReportGrid.ItemsSource = rows; ReportResult.Text = $"{status}: {rows.Count:N0} canonical line(s).";
@@ -798,7 +812,7 @@ public partial class MainWindow : Window
         try
         {
             var scope = ReportScope();
-            var repository = new OperationalReportRepository(ConnectionStringInput.Text);
+            var repository = new OperationalReportRepository(connectionState.ConnectionString);
             var rows = await repository.LoadDsrAsync(scope.DateTo, ["WLMHW", "HEMW"]);
             var dsrDocument = await repository.ComposeDailySalesReportDocumentAsync(scope.DateTo, rows);
             var hasSales = rows.Any(x => x.TySales is not null);
@@ -824,7 +838,7 @@ public partial class MainWindow : Window
     {
         try
         {
-            var result = await new OperationalReportRepository(ConnectionStringInput.Text).LoadStaffPerformanceAsync(ReportScope());
+            var result = await new OperationalReportRepository(connectionState.ConnectionString).LoadStaffPerformanceAsync(ReportScope());
             ReportGrid.ItemsSource = result.Rows;
             ReportResult.Text = $"{result.Status}: canonical {result.CanonicalSales:N2}, attributed {result.AttributedSales:N2}, variance {result.Variance:N2}. {result.Message}";
             SetExport("Staff CRO Performance", result.Status, result.MetricPolicy, result.Message,
@@ -842,7 +856,7 @@ public partial class MainWindow : Window
         try
         {
             var scope = ReportScope();
-            var rows = await new OperationalReportRepository(ConnectionStringInput.Text).LoadServiceSalesAsync(scope.DateTo, scope.StoreCodes);
+            var rows = await new OperationalReportRepository(connectionState.ConnectionString).LoadServiceSalesAsync(scope.DateTo, scope.StoreCodes);
             var status = rows.Any(x => x.Total is not null) ? ReconciliationStatus.Passed : ReconciliationStatus.Blocked;
             var message = "Service cash, card and UPI are controlled manual operational facts; missing values remain missing and retail sales are never mixed in.";
             ReportGrid.ItemsSource = rows; ReportResult.Text = $"{status}: {message}";
@@ -862,7 +876,7 @@ public partial class MainWindow : Window
         {
             var scope = ReportScope();
             if (scope.StoreCodes is not { Count: 1 }) throw new InvalidOperationException("Enter exactly one store code for cash reconciliation.");
-            var result = await new OperationalReportRepository(ConnectionStringInput.Text).LoadCashReconciliationAsync(scope.StoreCodes[0], scope.DateTo);
+            var result = await new OperationalReportRepository(connectionState.ConnectionString).LoadCashReconciliationAsync(scope.StoreCodes[0], scope.DateTo);
             var rows = new[] { result };
             ReportGrid.ItemsSource = rows; ReportResult.Text = $"{result.Status}: {result.Message}";
             SetExport("Daily Cash Reconciliation", result.Status, RetailReportingPolicy.Version, result.Message,
@@ -911,7 +925,7 @@ public partial class MainWindow : Window
         {
             var scope = ReportScope();
             if (scope.StoreCodes is not { Count: 1 }) throw new InvalidOperationException("Enter exactly one store code for physical stock reporting.");
-            var rows = await new OperationalReportRepository(ConnectionStringInput.Text).LoadPhysicalStockAsync(scope.StoreCodes[0], scope.DateTo);
+            var rows = await new OperationalReportRepository(connectionState.ConnectionString).LoadPhysicalStockAsync(scope.StoreCodes[0], scope.DateTo);
             var status = rows.Any(x => x.Status == "FAIL") ? ReconciliationStatus.Failed : rows.Count == 0 ? ReconciliationStatus.Blocked : ReconciliationStatus.Passed;
             var message = "Physical count, component total and ETP system quantity remain separate; neither count overwrites the other.";
             ReportGrid.ItemsSource = rows; ReportResult.Text = $"{status}: {rows.Count:N0} inventory group(s).";
@@ -931,7 +945,7 @@ public partial class MainWindow : Window
             var scope = ReportScope();
             if (scope.StoreCodes is not { Count: 1 }) throw new InvalidOperationException("Enter exactly one store code for the daily exception report.");
             if (scope.DateFrom != scope.DateTo) throw new InvalidOperationException("Select one business date for the daily exception report.");
-            var rows = await new OperationalReportRepository(ConnectionStringInput.Text).LoadDailyExceptionsAsync(scope.StoreCodes[0], scope.DateTo);
+            var rows = await new OperationalReportRepository(connectionState.ConnectionString).LoadDailyExceptionsAsync(scope.StoreCodes[0], scope.DateTo);
             var status = rows.Any(x => x.Severity is "BLOCKER" or "FAIL") ? ReconciliationStatus.Failed : ReconciliationStatus.Passed;
             var message = rows.Count == 0 ? "No daily exceptions were found." : "Every exception retains its exact variance and available source workbook/sheet/row pointer.";
             ReportGrid.ItemsSource = rows; ReportResult.Text = $"{status}: {rows.Count:N0} exception(s).";
@@ -1013,13 +1027,24 @@ public partial class MainWindow : Window
     private async Task CheckConnectionAndRefreshAsync(bool showProgress)
     {
         if (showProgress) ConnectionResult.Text = "Testing…";
-        var health = await new SqlServerHealthCheck(ConnectionStringInput.Text).CheckAsync();
+        var validation = ConnectionStringValidation.Validate(ConnectionStringInput.Text);
+        if (!validation.IsValid)
+        {
+            ConnectionResult.Text = validation.Error;
+            SetConnectionState(false, "Waiting for a valid Windows-integrated connection");
+            ApplicationStatus.Text = validation.Error;
+            return;
+        }
+        var health = await new SqlServerHealthCheck(validation.ConnectionString!).CheckAsync();
         var connected = health.Status == DatabaseHealthStatus.Healthy;
         ConnectionResult.Text = health.Message;
         SetConnectionState(connected, connected ? "Ready to validate or report" : "Waiting for connection");
         ApplicationStatus.Text = connected ? $"Connected to SQL Server {health.ServerVersion}." : health.Message;
         if (connected)
         {
+            connectionState.TryUpdate(validation.ConnectionString, out _);
+            ConnectionStringInput.Text = connectionState.ConnectionString;
+            await RefreshAccessAsync();
             TrySaveSettings();
             await RecordAuditAsync("ConfigurationChange", "Succeeded", "Windows integrated database configuration saved");
             if (currentAccess.CanView) await RefreshDashboardAsync();
@@ -1040,7 +1065,7 @@ public partial class MainWindow : Window
     {
         try
         {
-            latestDashboardSnapshot = await dashboardQueryFactory(ConnectionStringInput.Text).LoadAsync();
+            latestDashboardSnapshot = await dashboardQueryFactory(connectionState.ConnectionString).LoadAsync();
             dashboardView.Show(DashboardViewState.FromSnapshot(latestDashboardSnapshot));
         }
         catch (Exception ex)
@@ -1060,7 +1085,7 @@ public partial class MainWindow : Window
             if (OperationsFromInput.SelectedDate is null || OperationsToInput.SelectedDate is null) throw new InvalidOperationException("Select the management trend dates.");
             var from = DateOnly.FromDateTime(OperationsFromInput.SelectedDate.Value);
             var to = DateOnly.FromDateTime(OperationsToInput.SelectedDate.Value);
-            var repository = new Phase2OperationsRepository(ConnectionStringInput.Text);
+            var repository = new Phase2OperationsRepository(connectionState.ConnectionString);
             var settingsTask = repository.LoadWatchFolderSettingsAsync();
             var trendTask = repository.LoadManagementTrendAsync(from, to);
             var qualityTask = repository.LoadDataQualitySummaryAsync();
@@ -1068,7 +1093,7 @@ public partial class MainWindow : Window
             var runsTask = repository.LoadAutomationRunsAsync(100);
             await Task.WhenAll(settingsTask, trendTask, qualityTask, schedulesTask, runsTask);
             var settings = await settingsTask; var trend = await trendTask; var quality = await qualityTask;
-            var productRepository = new ProductisationRepository(ConnectionStringInput.Text);
+            var productRepository = new ProductisationRepository(connectionState.ConnectionString);
             await productRepository.SyncDataQualityIssuesAsync(quality);
             var issueRows = await productRepository.LoadDataQualityIssuesAsync();
             WatchInboundInput.Text = settings.InboundPath; WatchProcessedInput.Text = settings.ProcessedPath;
@@ -1085,7 +1110,7 @@ public partial class MainWindow : Window
         try
         {
             RequireOwnerAccess();
-            var repository = new Phase2OperationsRepository(ConnectionStringInput.Text);
+            var repository = new Phase2OperationsRepository(connectionState.ConnectionString);
             await repository.SaveWatchFolderSettingsAsync(new(WatchInboundInput.Text, WatchProcessedInput.Text, WatchFailedInput.Text,
                 WatchReportOutputInput.Text, 5, WatchEnabledInput.IsChecked == true, DateTime.MinValue, currentAccess.WindowsIdentity), WatchChangeReasonInput.Text);
             WatchChangeReasonInput.Clear(); OperationsStatus.Text = "Automatic import and report-output folders were saved and audited.";
@@ -1100,7 +1125,7 @@ public partial class MainWindow : Window
         {
             RequireImportAccess();
             OperationsStatus.Text = "Running controlled watch-folder import and due report schedules…";
-            var result = await new AutomatedOperationsService(ConnectionStringInput.Text).RunOnceAsync();
+            var result = await new AutomatedOperationsService(connectionState.ConnectionString).RunOnceAsync();
             OperationsStatus.Text = result.Message;
             await RefreshOperationsAsync(); await RefreshDashboardAsync();
         }
@@ -1121,7 +1146,7 @@ public partial class MainWindow : Window
             RequireOwnerAccess();
             if (ReportSchedulesGrid.SelectedItem is not ReportPackSchedule schedule) throw new InvalidOperationException("Select the morning or evening schedule first.");
             if (!TimeOnly.TryParseExact(ScheduleTimeInput.Text.Trim(), "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var time)) throw new InvalidOperationException("Enter schedule time in 24-hour HH:mm format.");
-            await new Phase2OperationsRepository(ConnectionStringInput.Text).SaveScheduleAsync(schedule.Id, time, ScheduleEnabledInput.IsChecked == true,
+            await new Phase2OperationsRepository(connectionState.ConnectionString).SaveScheduleAsync(schedule.Id, time, ScheduleEnabledInput.IsChecked == true,
                 ScheduleExcelInput.IsChecked == true, SchedulePdfInput.IsChecked == true, ScheduleReasonInput.Text);
             ScheduleReasonInput.Clear(); OperationsStatus.Text = "The selected report schedule was updated and audited."; await RefreshOperationsAsync();
         }
@@ -1173,7 +1198,7 @@ public partial class MainWindow : Window
             RequireViewAccess();
             var store = ArchiveStoreInput.SelectedItem is ComboBoxItem item && !string.Equals(item.Content?.ToString(), "All", StringComparison.OrdinalIgnoreCase) ? item.Content?.ToString() : null;
             var date = ArchiveAllDatesInput.IsChecked == true || ArchiveDateInput.SelectedDate is null ? (DateOnly?)null : DateOnly.FromDateTime(ArchiveDateInput.SelectedDate.Value);
-            var rows = await new Phase2OperationsRepository(ConnectionStringInput.Text).LoadReportGenerationsAsync(store, date);
+            var rows = await new Phase2OperationsRepository(connectionState.ConnectionString).LoadReportGenerationsAsync(store, date);
             ReportGenerationGrid.ItemsSource = rows; ReportArchiveDetailGrid.ItemsSource = null; currentArchivedDocument = null; currentShareFile = null;
             ReportArchiveStatus.Text = $"{rows.Count:N0} immutable generation(s) found. Select one to open or exactly two to compare.";
         }
@@ -1185,7 +1210,7 @@ public partial class MainWindow : Window
         try
         {
             if (ReportGenerationGrid.SelectedItem is not ArchivedReportGeneration generation) throw new InvalidOperationException("Select one report generation.");
-            currentArchivedDocument = await new Phase2OperationsRepository(ConnectionStringInput.Text).LoadArchivedReportAsync(generation.Id);
+            currentArchivedDocument = await new Phase2OperationsRepository(connectionState.ConnectionString).LoadArchivedReportAsync(generation.Id);
             currentShareFile = null;
             ReportArchiveDetailGrid.ItemsSource = currentArchivedDocument.Tables.Select(table => new { table.Name, table.Status, Rows = table.Data.Rows.Count, table.Message });
             ReportArchiveStatus.Text = $"Generation {generation.GenerationNumber} passed its document SHA-256 check and is ready to re-export.";
@@ -1200,7 +1225,7 @@ public partial class MainWindow : Window
         {
             var selected = ReportGenerationGrid.SelectedItems.OfType<ArchivedReportGeneration>().ToArray();
             if (selected.Length != 2) throw new InvalidOperationException("Select exactly two report generations.");
-            var rows = await new Phase2OperationsRepository(ConnectionStringInput.Text).CompareReportGenerationsAsync(selected[0].Id, selected[1].Id);
+            var rows = await new Phase2OperationsRepository(connectionState.ConnectionString).CompareReportGenerationsAsync(selected[0].Id, selected[1].Id);
             ReportArchiveDetailGrid.ItemsSource = rows; currentArchivedDocument = null;
             ReportArchiveStatus.Text = $"Compared generations {selected[0].GenerationNumber} and {selected[1].GenerationNumber}: {rows.Count(x => x.Changed):N0} report section(s) changed.";
             await RecordAuditAsync("ReportArchive", "Succeeded", "Archived generations compared");
@@ -1237,10 +1262,10 @@ public partial class MainWindow : Window
         try
         {
             RequireOwnerAccess();
-            var repository = new Phase2OperationsRepository(ConnectionStringInput.Text);
+            var repository = new Phase2OperationsRepository(connectionState.ConnectionString);
             var mastersTask = repository.LoadMasterValuesAsync(SelectedContent(MasterTypeInput));
             var usersTask = repository.LoadUsersAsync();
-            var productRepository = new ProductisationRepository(ConnectionStringInput.Text);
+            var productRepository = new ProductisationRepository(connectionState.ConnectionString);
             var kpiTask = productRepository.LoadKpiCatalogueAsync();
             var healthTask = productRepository.LoadProductHealthAsync();
             var productSettingsTask = productRepository.LoadSettingsAsync();
@@ -1262,7 +1287,7 @@ public partial class MainWindow : Window
         try
         {
             RequireOwnerAccess();
-            await new Phase2OperationsRepository(ConnectionStringInput.Text).UpsertMasterValueAsync(SelectedContent(MasterTypeInput), MasterCodeInput.Text,
+            await new Phase2OperationsRepository(connectionState.ConnectionString).UpsertMasterValueAsync(SelectedContent(MasterTypeInput), MasterCodeInput.Text,
                 MasterNameInput.Text, SelectedContent(MasterApprovalInput), MasterActiveInput.IsChecked == true, MasterReasonInput.Text);
             MasterCodeInput.Clear(); MasterNameInput.Clear(); MasterReasonInput.Clear(); await RefreshMasterAdministrationAsync();
         }
@@ -1274,7 +1299,7 @@ public partial class MainWindow : Window
         try
         {
             RequireOwnerAccess();
-            await new Phase2OperationsRepository(ConnectionStringInput.Text).UpsertUserAsync(UserIdentityInput.Text, UserDisplayNameInput.Text,
+            await new Phase2OperationsRepository(connectionState.ConnectionString).UpsertUserAsync(UserIdentityInput.Text, UserDisplayNameInput.Text,
                 SelectedContent(UserRoleInput), UserActiveInput.IsChecked == true, UserReasonInput.Text);
             UserIdentityInput.Clear(); UserDisplayNameInput.Clear(); UserReasonInput.Clear(); await RefreshMasterAdministrationAsync(); await RefreshAccessAsync();
         }
@@ -1299,35 +1324,14 @@ public partial class MainWindow : Window
 
     private void SaveSettings()
     {
-        var builder = new SqlConnectionStringBuilder(ConnectionStringInput.Text);
-        if (!builder.IntegratedSecurity || !string.IsNullOrWhiteSpace(builder.Password))
-        {
-            ApplicationStatus.Text = "Connection succeeded. For security, connections containing SQL credentials are not saved.";
-            return;
-        }
-        var directory = Path.GetDirectoryName(SettingsPath)!;
-        Directory.CreateDirectory(directory);
-        if ((File.GetAttributes(directory) & FileAttributes.ReparsePoint) != 0) throw new InvalidOperationException("The settings directory cannot be a linked path.");
-        var temporary = Path.Combine(directory, $"settings-{Guid.NewGuid():N}.tmp");
-        try { File.WriteAllText(temporary, JsonSerializer.Serialize(new DesktopSettings(builder.ConnectionString))); File.Move(temporary, SettingsPath, true); }
-        finally { if (File.Exists(temporary)) File.Delete(temporary); }
+        settingsStore.Save(connectionState.ConnectionString);
     }
 
     private void TrySaveSettings()
     {
         try { SaveSettings(); }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException or InvalidOperationException)
         { ApplicationStatus.Text = "Connection succeeded, but the local settings file could not be updated safely."; }
-    }
-
-    private static DesktopSettings? LoadSettings()
-    {
-        try
-        {
-            if (!File.Exists(SettingsPath) || (File.GetAttributes(SettingsPath) & FileAttributes.ReparsePoint) != 0) return null;
-            return JsonSerializer.Deserialize<DesktopSettings>(File.ReadAllText(SettingsPath));
-        }
-        catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException) { return null; }
     }
 
     private static string SafeFileName(string value) => string.Concat(value.Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c)).Replace(' ', '_');
@@ -1337,11 +1341,11 @@ public partial class MainWindow : Window
             ? item.Content!.ToString()!
             : throw new InvalidOperationException("Select a value from the list.");
 
-    private static string RoleLabel(ApplicationRole role) => role switch
+    private static string RoleLabel(AccessRole role) => role switch
     {
-        ApplicationRole.Owner => "Owner",
-        ApplicationRole.StoreManager => "Store Manager",
-        ApplicationRole.Viewer => "Viewer",
+        AccessRole.Owner => "Owner",
+        AccessRole.StoreManager => "Store Manager",
+        AccessRole.Viewer => "Viewer",
         _ => "No access"
     };
 
@@ -1354,7 +1358,7 @@ public partial class MainWindow : Window
 
     private async Task RecordAuditAsync(string eventType, string outcome, string detail)
     {
-        try { await new OperationalAuditRepository(ConnectionStringInput.Text).RecordAsync(eventType, outcome, detail); }
+        try { await new OperationalAuditRepository(connectionState.ConnectionString).RecordAsync(eventType, outcome, detail); }
         catch (Exception ex) when (ex is SqlException or InvalidOperationException or ArgumentException) { }
     }
 
@@ -1401,7 +1405,6 @@ public partial class MainWindow : Window
         catch (Exception ex) { ApplicationStatus.Text = $"Management summary export failed: {ex.Message}"; }
     }
 
-    private sealed record DesktopSettings(string ConnectionString);
     private sealed record BrandSegmentEntry(string Code, string Description, string Status);
     private sealed class DelegateWorkbookImportOutcomeProcessor(Func<string, CancellationToken, Task<WorkbookImportOutcome>> process) : IWorkbookImportOutcomeProcessor
     {

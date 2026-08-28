@@ -4,7 +4,7 @@ Status date: 28 August 2026
 Authority: current .NET 10/WPF product only
 Owner: closure sprint Lead Integrator
 
-Latest pause checkpoint: `docs/audit/ETP-CLOSURE-SPRINT-CHECKPOINT-2026-08-28.md`. Resume at the Settings, connection-state and Windows-access slice; this checkpoint does not declare product completion.
+Latest verified sprint slice: `docs/audit/ETP-CLOSURE-SPRINT-SETTINGS-ACCESS-2026-08-28.md`. Continue with Archive, sharing and registers; this checkpoint does not declare product completion.
 
 ## Purpose
 
@@ -75,9 +75,9 @@ Legacy evidence cannot prove a WPF requirement. In particular, Node test results
 | `GOV-004` | Preserve unrelated working-tree changes (`SRC-MOD`) | Scoped diffs and clean attribution | `IMPLEMENTED_NOT_VERIFIED` | Required for every phase; Graphify cache is explicitly excluded. |
 | `GOV-005` | Use Graphify, CRG, source and tests for architecture work (`SRC-KNOW`, `SRC-MOD`) | Query records and source-backed change review | `IMPLEMENTED_NOT_VERIFIED` | Tooling and repository instructions exist; enforce per phase. |
 | `ARCH-001` | One WPF executable with clear Domain, Application, Import, Reporting, SQL and Desktop responsibilities (`SRC-CORE`, `SRC-MOD`) | Dependency tests plus source inspection | `IN_PROGRESS` | Backend projects are separated, but Desktop still bypasses Application in major workflows. |
-| `ARCH-002` | `MainWindow` is only the window shell/workspace host (`SRC-MOD`, `SRC-UI4`) | No feature state, repositories, formulas, imports or export orchestration in shell | `IN_PROGRESS` | Dashboard and Help extracted; Reports, Import, Daily Workflow, Archive, Settings, Accounting, Operations and Administration remain. |
-| `ARCH-003` | One composition root constructs dependencies (`SRC-MOD`, `SRC-LIC`) | Construction limited to App/composition/adapters; no service locator | `IN_PROGRESS` | `DesktopCompositionRoot` now owns WPF startup, headless initialization/automation and Dashboard query construction; 82 temporary MainWindow infrastructure constructions remain to migrate. |
-| `ARCH-004` | Application use-case contracts are the normal Desktop boundary (`SRC-MOD`) | Desktop workspaces depend on contracts, not SQL/import implementations | `IN_PROGRESS` | Dashboard contract exists; wider production path still bypasses Application. |
+| `ARCH-002` | `MainWindow` is only the window shell/workspace host (`SRC-MOD`, `SRC-UI4`) | No feature state, repositories, formulas, imports or export orchestration in shell | `IN_PROGRESS` | Dashboard and Help are extracted; Settings persistence/access state is isolated, while the Settings view and the remaining feature workspaces still require extraction. |
+| `ARCH-003` | One composition root constructs dependencies (`SRC-MOD`, `SRC-LIC`) | Construction limited to App/composition/adapters; no service locator | `IN_PROGRESS` | `DesktopCompositionRoot` owns startup, Dashboard, the settings store, validated connection state and access-query construction; 81 temporary MainWindow infrastructure constructions remain. |
+| `ARCH-004` | Application use-case contracts are the normal Desktop boundary (`SRC-MOD`) | Desktop workspaces depend on contracts, not SQL/import implementations | `IN_PROGRESS` | Dashboard and Windows-access contracts are on the production path; wider workflows still bypass Application. |
 | `ARCH-005` | Independent cohesive workspace modules (`SRC-MOD`, `SRC-UI4`) | Each route resolves to one owner module; no God ViewModel | `IN_PROGRESS` | Dashboard and Help are representative slices only. |
 | `ARCH-006` | No SQL/repository construction in Views or ViewModels (`SRC-MOD`) | Architecture test and source scan | `IN_PROGRESS` | No raw SQL found in Desktop, but concrete SQL repositories are directly constructed. |
 | `ARCH-007` | No report formulas or workbook parsing in Desktop (`SRC-CORE`, `SRC-MOD`) | Architecture/source tests | `IMPLEMENTED_NOT_VERIFIED` | Design boundary exists; must be rechecked after each extraction. |
@@ -181,7 +181,7 @@ Legacy evidence cannot prove a WPF requirement. In particular, Node test results
 | `OPS-010` | Full backup/restore recovery drill; periodic drill schedule (follow-up item 2) | Checksum, verify-only, isolated restore and lineage compare | `EXTERNAL_VALIDATION_BLOCKED` | Engineering path exists; recurring real environment drill remains. Monthly is the current recommended cadence. |
 | `OPS-011` | Privacy-safe offline support package (follow-up item 16) | Package inspection proves no confidential rows/secrets | `IMPLEMENTED_NOT_VERIFIED` | Reported implementation requires adversarial closure scan. |
 | `OPS-012` | Audit history retained for two years; business data never automatically deleted (Owner decision) | Retention configuration/query tests and runbook | `IMPLEMENTED_NOT_VERIFIED` | Must verify no conflicting cleanup path exists. |
-| `OPS-013` | Harden settings storage and local-path validation (follow-up item 19) | ACL/path traversal/network/invalid path tests | `IMPLEMENTED_NOT_VERIFIED` | Final security scan pending. |
+| `OPS-013` | Harden settings storage and local-path validation (follow-up item 19) | ACL/path traversal/network/invalid path tests | `IN_PROGRESS` | Atomic rooted settings storage, integrated-security validation and reparse-point tests pass; ACL and network-path policy plus final security scan remain. |
 | `OPS-014` | Dependency, vulnerability, secrets and privacy scans (follow-up item 20) | Current clean reports tied to release commit | `IMPLEMENTED_NOT_VERIFIED` | Old scan evidence expires after dependency/code changes. |
 | `OPS-015` | Administrator handbook and user manual (follow-up item 18) | Content-to-current-UI review | `IMPLEMENTED_NOT_VERIFIED` | Documents exist; must be updated after modular/UI closure. |
 

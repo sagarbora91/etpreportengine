@@ -1,6 +1,6 @@
 using System.Text.Json;
+using Etp.Reporting.Application.Access;
 using Etp.Reporting.Desktop;
-using Etp.Reporting.Infrastructure.SqlServer;
 using Etp.Reporting.Reporting;
 using System.Windows.Input;
 
@@ -11,7 +11,7 @@ public sealed class UiNavigationTests
     [Fact]
     public void Store_manager_has_the_frozen_six_module_home()
     {
-        var modules = UiNavigationRegistry.Modules.Where(x => x.DefaultVisibility && x.IsVisibleTo(ApplicationRole.StoreManager)).ToArray();
+        var modules = UiNavigationRegistry.Modules.Where(x => x.DefaultVisibility && x.IsVisibleTo(AccessRole.StoreManager)).ToArray();
 
         Assert.Equal(6, modules.Length);
         Assert.Equal(["dashboard", "reports", "accounting", "imports", "archive", "exceptions"], modules.OrderBy(x => x.Order).Select(x => x.Id));
@@ -20,7 +20,7 @@ public sealed class UiNavigationTests
     [Fact]
     public void Owner_can_expand_the_same_registry_to_nine_cards()
     {
-        var modules = UiNavigationRegistry.Modules.Where(x => (x.DefaultVisibility || x.PinAllowed) && x.IsVisibleTo(ApplicationRole.Owner)).ToArray();
+        var modules = UiNavigationRegistry.Modules.Where(x => (x.DefaultVisibility || x.PinAllowed) && x.IsVisibleTo(AccessRole.Owner)).ToArray();
 
         Assert.Equal(9, modules.Length);
         Assert.Equal(3, modules.Count(x => x.PinAllowed));
@@ -29,7 +29,7 @@ public sealed class UiNavigationTests
     [Fact]
     public void Viewer_visibility_never_expands_import_or_administration_permission()
     {
-        var viewer = UiNavigationRegistry.Modules.Where(x => x.IsVisibleTo(ApplicationRole.Viewer)).Select(x => x.Id).ToArray();
+        var viewer = UiNavigationRegistry.Modules.Where(x => x.IsVisibleTo(AccessRole.Viewer)).Select(x => x.Id).ToArray();
 
         Assert.DoesNotContain("imports", viewer);
         Assert.DoesNotContain("registers", viewer);
@@ -61,8 +61,8 @@ public sealed class UiNavigationTests
         var item = Assert.Single(UiNavigationRegistry.AllItems, x => x.Id == "manual-entry");
 
         Assert.Equal("Manual Entry", item.Destination);
-        Assert.True(item.IsVisibleTo(ApplicationRole.StoreManager));
-        Assert.False(item.IsVisibleTo(ApplicationRole.Viewer));
+        Assert.True(item.IsVisibleTo(AccessRole.StoreManager));
+        Assert.False(item.IsVisibleTo(AccessRole.Viewer));
     }
 
     [Fact]

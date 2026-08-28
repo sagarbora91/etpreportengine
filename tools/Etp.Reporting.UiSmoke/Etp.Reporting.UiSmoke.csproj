@@ -6,5 +6,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
-  <ItemGroup><ProjectReference Include="..\..\src\Etp.Reporting.Desktop\Etp.Reporting.Desktop.csproj" /></ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Etp.Reporting.Application\Etp.Reporting.Application.csproj" />
+    <ProjectReference Include="..\..\src\Etp.Reporting.Desktop\Etp.Reporting.Desktop.csproj" />
+  </ItemGroup>
 </Project>
