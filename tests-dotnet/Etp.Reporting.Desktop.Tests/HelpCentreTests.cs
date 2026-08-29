@@ -14,7 +14,7 @@ public sealed class HelpCentreTests
         {
             "getting-started", "dashboard", "business-day", "import-etp", "daily-sales-report",
             "sales-reports", "stock-reports", "tender-cash-service", "staff-cro", "exception-centre",
-            "management", "investigation", "digital-registers", "accounting", "operations-support", "administration", "backup-recovery",
+            "management", "investigation", "digital-registers", "accounting", "operations-support", "administration", "report-archive", "backup-recovery",
             "troubleshooting", "keyboard-shortcuts"
         }) Assert.Contains(expected, ids);
     }
@@ -29,6 +29,47 @@ public sealed class HelpCentreTests
             Assert.False(string.IsNullOrWhiteSpace(topic.Overview));
             Assert.NotEmpty(topic.Keywords);
         });
+    }
+
+    [Fact]
+    public void Every_live_module_help_topic_has_substantive_step_by_step_guidance()
+    {
+        var guides = HelpCentreRegistry.Topics.Where(topic => topic.Id != HelpCentreRegistry.KeyboardShortcutsTopicId).ToArray();
+
+        Assert.NotEmpty(guides);
+        Assert.All(guides, topic =>
+        {
+            Assert.Equal(HelpTopicAvailability.Available, topic.Availability);
+            var steps = topic.Overview.Split([Environment.NewLine + Environment.NewLine], StringSplitOptions.RemoveEmptyEntries);
+            Assert.True(steps.Length >= 4, $"Help topic '{topic.Id}' must contain at least four steps.");
+            for (var index = 0; index < steps.Length; index++)
+                Assert.StartsWith($"{index + 1}. ", steps[index], StringComparison.Ordinal);
+            Assert.DoesNotContain("coming soon", topic.Overview, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("placeholder", topic.Overview, StringComparison.OrdinalIgnoreCase);
+        });
+    }
+
+    [Fact]
+    public void Every_owned_shell_destination_resolves_to_an_available_help_topic()
+    {
+        foreach (var ownership in WorkspaceModuleOwnershipRegistry.Destinations)
+        {
+            var topicId = ContextHelpRouter.ResolveTopicId(ownership.Destination);
+            var topic = Assert.Single(HelpCentreRegistry.Topics, candidate => candidate.Id == topicId);
+            Assert.Equal(HelpTopicAvailability.Available, topic.Availability);
+        }
+    }
+
+    [Fact]
+    public void Every_help_workspace_link_targets_an_owned_shell_destination()
+    {
+        var destinations = WorkspaceModuleOwnershipRegistry.Destinations
+            .Select(ownership => ownership.Destination)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        Assert.All(
+            HelpCentreRegistry.Topics.Where(topic => !string.IsNullOrWhiteSpace(topic.Destination)),
+            topic => Assert.Contains(topic.Destination!, destinations));
     }
 
     [Fact]

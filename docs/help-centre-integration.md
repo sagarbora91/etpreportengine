@@ -1,6 +1,6 @@
 # Help Centre integration
 
-The desktop project now contains a data-driven `HelpCentreView`. Its home screen presents one tile for every approved application area. Keyboard Shortcuts is fully populated; the remaining tiles provide a useful overview and explicitly identify that detailed step-by-step guidance will follow.
+The desktop project contains a data-driven `HelpCentreView`. Its home screen presents one tile for every approved application area. Every live module topic contains substantive numbered guidance, and Keyboard Shortcuts is generated from the executable shortcut registry. Automated tests enforce owned-destination coverage in both directions and reject empty, overview-only or placeholder guides.
 
 ## Main-window integration hooks
 
@@ -14,8 +14,8 @@ The shell owner should place one `HelpCentreView` in the shared workspace host a
 
 The command bindings belong at the main-window level. Bindings must check whether the requested action is enabled and must not override text editing behaviour. `F1` and `Ctrl + /` do not conflict with ordinary text input.
 
-## Extending help later
+## Extending help
 
-Add a `HelpTopicDefinition` to `HelpCentreRegistry.Topics`. Each topic requires a title, one-line description, overview and searchable keywords. A workspace may then route context help through `ContextHelpRouter`. Change availability to `Available` when its detailed guide is complete; no tile should ever open an empty page.
+Add a `HelpTopicDefinition` to `HelpCentreRegistry.Topics`. Each topic requires a title, one-line description, at least four accurate numbered steps and searchable keywords. A workspace may then route context help through `ContextHelpRouter`. Live topics must be `Available`, and a navigable topic must target a destination in `WorkspaceModuleOwnershipRegistry`; no tile may open an empty or placeholder page.
 
 The shortcut guide is generated from `HelpCentreRegistry.Shortcuts`, keeping visible help text and executable shortcut contracts in one place.
