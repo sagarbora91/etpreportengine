@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## [1.8.4] - 2026-08-29
+
+### Changed
+
+- Completed route-backed step-by-step Help guidance, reconciled closure and retention documentation, and prepared external-acceptance and release evidence for the integrated candidate.
+
+### Fixed
+
+- Prevented concurrent database-backup invocations from selecting the same filename and overwriting an existing backup.
+
 ## [1.8.3] - 2026-08-28
 
 ### Changed
@@ -172,4 +182,3 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 ### Added
 
 - First verified Windows release with SQL Server imports, sales, tender and stock reports, Excel/PDF export, backup tooling, and installer.
-

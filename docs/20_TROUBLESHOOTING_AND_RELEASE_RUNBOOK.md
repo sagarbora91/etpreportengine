@@ -15,7 +15,7 @@ Run `dotnet run --project tools/Etp.Reporting.PerformanceSmoke -c Release -- art
 
 ## Database maintenance
 
-Run `scripts/invoke-database-maintenance.ps1` monthly. It performs `DBCC CHECKDB`, updates statistics and removes aggregate operational-audit entries older than 365 days. It never deletes import lineage or reporting facts.
+Run `scripts/invoke-database-maintenance.ps1` monthly. It performs `DBCC CHECKDB`, updates statistics and, by default, removes aggregate operational-audit entries older than 730 days (two years). It never deletes import lineage or reporting facts. Keep `-AuditRetentionDays 730` unless a later written Owner decision changes the policy; this cleanup does not apply to business data, import lineage, reporting facts or database backups.
 
 ## Release and rollback
 
