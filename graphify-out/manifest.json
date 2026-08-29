@@ -4030,5 +4030,17 @@
     "seen": 1787994961.7848034,
     "ast_hash": "f3d90dbc7d9f3b009ae22e3ee2817016",
     "semantic_hash": ""
+  },
+  "scripts/New-EtpExternalAcceptanceWorkspace.ps1": {
+    "mtime": 1787995603.5697377,
+    "seen": 1787995683.4651766,
+    "ast_hash": "4c863f95206e7341abb29517126ce98d",
+    "semantic_hash": ""
+  },
+  "docs/audit/ETP-1.8.5-UAT-AND-RELEASE-READINESS-PACK.md": {
+    "mtime": 1787995562.2375247,
+    "seen": 1787995683.4661725,
+    "ast_hash": "9076e2a552a680555726b17cf8940c84",
+    "semantic_hash": ""
   }
 }

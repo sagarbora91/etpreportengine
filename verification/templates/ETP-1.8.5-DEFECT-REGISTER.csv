@@ -1,0 +1,2 @@
+"DefectId","Title","Area","Severity","Status","FunctionIds","Role","Environment","CandidateSha256","Steps","Expected","Actual","EvidenceReference","Owner","FixCommit","RerunResult","RerunEvidence","Disposition","OpenedUtc","ClosedUtc"
+"DEF-0001","","","","OPEN","","","","","","","","","","","NOT RUN","","","",""
