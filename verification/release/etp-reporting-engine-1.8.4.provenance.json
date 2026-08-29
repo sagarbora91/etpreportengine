@@ -1,0 +1,73 @@
+{
+  "schema": "etp-release-evidence/v1",
+  "product": "ETP Reporting Engine",
+  "version": "1.8.4",
+  "runtime": "win-x64",
+  "releaseManifest": "artifacts/windows-release/release.json",
+  "manifestBuiltUtc": "2026-08-29T06:31:05.2016040Z",
+  "source": {
+    "repository": "https://github.com/sagarbora91/etpreportengine.git",
+    "releaseSourceCommit": "8c8d57e37a26fcd8a9a145ac166b34ac952c8b4b",
+    "worktreeCleanAtBuild": true,
+    "exactCommittedSourceIdentityAvailable": true,
+    "note": "The release manifest and candidate were generated from the clean committed source identified above."
+  },
+  "build": {
+    "windowsPipeline": "scripts/build-windows-installer.ps1 -Configuration Release",
+    "applicationPipeline": "scripts/build-windows-release.ps1",
+    "installerCompiler": "Inno Setup 6.7.3",
+    "tests": {
+      "passed": 516,
+      "failed": 0,
+      "skipped": 0
+    },
+    "releaseBuildWarnings": 0,
+    "releaseBuildErrors": 0
+  },
+  "artifacts": [
+    {
+      "role": "self-contained-application",
+      "path": "artifacts/windows-release/Etp.Reporting.Desktop.exe",
+      "bytes": 160083442,
+      "sha256": "73C615C1EA9A943A74893CE8BE6C4CFDF28796B4BD806902A7EA3A5A014A2B37",
+      "authenticodeStatus": "NotSigned"
+    },
+    {
+      "role": "bootstrap-installer",
+      "path": "artifacts/installer/EtpReportingEngine-Setup-1.8.4-x64.exe",
+      "bytes": 48862473,
+      "sha256": "67916955FDE3CDD8BB92075023C4108509FF4102966E691DFB95786092B26AFC",
+      "authenticodeStatus": "NotSigned"
+    },
+    {
+      "role": "offline-deployment-package",
+      "path": "artifacts/offline-deployment/EtpReportingEngine-Offline-1.8.4.zip",
+      "bytes": 48385246,
+      "sha256": "0A1C21DFB9252D77D0DA23EBF5632633B83DE6BC2F7639DE609C42478C023495"
+    }
+  ],
+  "lifecycleVerification": {
+    "script": "scripts/test-installer-lifecycle.ps1",
+    "fromVersion": "1.8.3",
+    "toVersion": "1.8.4",
+    "sqlBootstrapDisabled": true,
+    "install": "passed",
+    "upgrade": "passed",
+    "uninstall": "passed"
+  },
+  "sbom": {
+    "path": "verification/release/etp-reporting-engine-1.8.4.cdx.json",
+    "format": "CycloneDX",
+    "specVersion": "1.6",
+    "generator": "CycloneDX module for .NET 6.2.0",
+    "components": 27,
+    "scope": "production NuGet dependency closure from the desktop project metadata",
+    "artifactEmbedded": false
+  },
+  "claims": {
+    "signedAttestation": false,
+    "productionSigningComplete": false,
+    "externalAcceptanceComplete": false,
+    "promotionAuthorized": false
+  }
+}

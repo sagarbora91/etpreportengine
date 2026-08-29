@@ -1,0 +1,51 @@
+{
+  "schema": "etp-release-evidence/v1",
+  "product": "ETP Reporting Engine",
+  "version": "1.8.3",
+  "runtime": "win-x64",
+  "releaseManifest": "artifacts/windows-release/release.json",
+  "manifestBuiltUtc": "2026-08-28T16:13:17.5784805Z",
+  "source": {
+    "repository": "https://github.com/sagarbora91/etpreportengine.git",
+    "implementationCommit": "51469bf5a6bb86d9790fc0ffe03573b08c46b319",
+    "verificationCheckpointCommit": "08e39c889fe2a13b09aa33ffa788df63f0b800fd",
+    "checkpointContainsImplementation": true
+  },
+  "artifacts": [
+    {
+      "role": "self-contained-application",
+      "path": "artifacts/windows-release/Etp.Reporting.Desktop.exe",
+      "bytes": 160071154,
+      "sha256": "F1F0D5E083D4ADE84DD8E9CC56DCE88123BBCD368C71585BA1A967721844C01F",
+      "authenticodeStatus": "NotSigned"
+    },
+    {
+      "role": "bootstrap-installer",
+      "path": "artifacts/installer/EtpReportingEngine-Setup-1.8.3-x64.exe",
+      "bytes": 48847973,
+      "sha256": "40F69FF33469944A61DBB5B443C37D443A4E51125DB1E777D184D87825CFF39F",
+      "authenticodeStatus": "NotSigned"
+    },
+    {
+      "role": "offline-deployment-package",
+      "path": "artifacts/offline-deployment/EtpReportingEngine-Offline-1.8.3.zip",
+      "bytes": 48360973,
+      "sha256": "8D227842794002AD4D6417CD51D19B274C7D9CA0F153D8F05DC7F9F346B7B69F"
+    }
+  ],
+  "sbom": {
+    "path": "verification/release/etp-reporting-engine-1.8.3.cdx.json",
+    "format": "CycloneDX",
+    "specVersion": "1.6",
+    "generator": "CycloneDX module for .NET 6.2.0",
+    "scope": "production NuGet dependency closure from the desktop project metadata",
+    "artifactEmbedded": false
+  },
+  "claims": {
+    "artifactsRebuiltForThisEvidence": false,
+    "artifactsModifiedForThisEvidence": false,
+    "signedAttestation": false,
+    "productionSigningComplete": false,
+    "externalAcceptanceComplete": false
+  }
+}

@@ -10,13 +10,13 @@ This pack records the external evidence still required after the verified 28 Aug
 |---|---|
 | Version | 1.8.4 engineering candidate |
 | Base checkpoint commit | `08e39c889fe2a13b09aa33ffa788df63f0b800fd` |
-| Exact committed source identity | Pending reviewed commit and clean rebuild |
-| Application SHA-256 | `AA2EE80191F79402C340A2F3C8BBE240AB45B4A2C2EA6934026D5733122D0ABE` |
-| Installer SHA-256 | `A325F5C54C82BF7DEDBADB532104738E7B9FAB16F218C6DB601A6FF7914452D8` |
-| Offline package SHA-256 | `1F8D99387DAE8E917F68F2FC2BBFC2BA8444AFB71EBCD09C1C5A23C9945B7085` |
+| Exact committed source identity | `8c8d57e37a26fcd8a9a145ac166b34ac952c8b4b` |
+| Application SHA-256 | `73C615C1EA9A943A74893CE8BE6C4CFDF28796B4BD806902A7EA3A5A014A2B37` |
+| Installer SHA-256 | `67916955FDE3CDD8BB92075023C4108509FF4102966E691DFB95786092B26AFC` |
+| Offline package SHA-256 | `0A1C21DFB9252D77D0DA23EBF5632633B83DE6BC2F7639DE609C42478C023495` |
 | Signature state | Unsigned |
 
-Before testing, independently calculate the artifact hash and record the exact matching candidate. This 1.8.4 package was built from the integrated working tree based on the checkpoint; after the changes are reviewed and committed, create a clean rebuild and replace these candidate hashes before formal external acceptance. Do not rebuild between formal acceptance and promotion.
+Before testing, independently calculate the artifact hash and record the exact matching candidate. This 1.8.4 package was built from the clean committed source recorded above. Do not rebuild between formal acceptance and promotion.
 
 ## Result vocabulary
 
