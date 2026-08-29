@@ -16,6 +16,11 @@
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/Etp.Reporting.DsrSmoke/Etp.Reporting.DsrSmoke.csproj" />
+    <Project Path="tools/Etp.Reporting.ExportSmoke/Etp.Reporting.ExportSmoke.csproj" />
+    <Project Path="tools/Etp.Reporting.FunctionAudit/Etp.Reporting.FunctionAudit.csproj" />
+    <Project Path="tools/Etp.Reporting.LiveSmoke/Etp.Reporting.LiveSmoke.csproj" />
+    <Project Path="tools/Etp.Reporting.PerformanceSmoke/Etp.Reporting.PerformanceSmoke.csproj" />
+    <Project Path="tools/Etp.Reporting.Smoke/Etp.Reporting.Smoke.csproj" />
     <Project Path="tools/Etp.Reporting.UiSmoke/Etp.Reporting.UiSmoke.csproj" />
   </Folder>
 </Solution>

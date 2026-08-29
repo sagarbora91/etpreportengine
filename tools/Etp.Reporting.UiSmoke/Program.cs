@@ -39,11 +39,7 @@ internal static class Program
         Invoke(window, "NavigateToDestination", "Manual Entry");
         Render(window, Path.Combine(output, "07-manual-entry-1366x768.png"), 1366, 768);
         Invoke(window, "NavigateToDestination", "Sales Reports");
-        var dsr = DailySalesReportBuilder.Build(new DateOnly(2026, 8, 25), [], [], new Dictionary<string, decimal?>());
         Invoke(window, "ShowFocusedReportWorkspace", "dsr");
-        var dsrWorkspace = (DailySalesReportWorkspace)(typeof(MainWindow).GetField("dsrWorkspace", BindingFlags.Instance | BindingFlags.NonPublic)?.GetValue(window)
-            ?? throw new MissingFieldException("dsrWorkspace"));
-        dsrWorkspace.SetReport(dsr);
         Render(window, Path.Combine(output, "08-dsr-screen-1366x768.png"), 1366, 768);
         Invoke(window, "ShowHelpWorkspace", HelpCentreRegistry.HomeTopicId, false);
         Render(window, Path.Combine(output, "09-help-centre-1366x768.png"), 1366, 768);
@@ -51,8 +47,31 @@ internal static class Program
         Render(window, Path.Combine(output, "10-keyboard-shortcuts-1366x768.png"), 1366, 768);
         Invoke(window, "ShowFocusedReportWorkspace", "stock-closing");
         Render(window, Path.Combine(output, "11-stock-workspace-1366x768.png"), 1366, 768);
+
+        SetAccess(window, AccessRole.Owner, "Owner");
+        var routeOutput = Path.Combine(output, "all-workspace-routes");
+        Directory.CreateDirectory(routeOutput);
+        var renderedDestinations = 0;
+        foreach (var destination in WorkspaceModuleOwnershipRegistry.Destinations.Select(x => x.Destination).Distinct(StringComparer.Ordinal))
+        {
+            if (Invoke(window, "NavigateToDestination", destination) is not true)
+                throw new InvalidOperationException($"Executable workspace route was denied during owner audit: {destination}.");
+            Render(window, Path.Combine(routeOutput, $"destination-{Slug(destination)}.png"), 1366, 768);
+            renderedDestinations++;
+        }
+
+        var renderedReports = 0;
+        foreach (var report in ProductReportCatalogue.All)
+        {
+            if (Invoke(window, "ShowFocusedReportWorkspace", report.Code) is not true)
+                throw new InvalidOperationException($"Executable report route was denied during owner audit: {report.Code}.");
+            Render(window, Path.Combine(routeOutput, $"report-{Slug(report.Code)}.png"), 1366, 768);
+            renderedReports++;
+        }
+        if (renderedReports != WorkspaceModuleOwnershipRegistry.ReportRoutes.Count)
+            throw new InvalidOperationException("Rendered report-route count does not match the executable registry.");
         var named = Descendants((DependencyObject)window.Content).OfType<FrameworkElement>().Count(x => !string.IsNullOrWhiteSpace(AutomationProperties.GetName(x)));
-        Console.WriteLine($"Rendered 11 production-shell views. Accessible named elements: {named:N0}. Output: {output}");
+        Console.WriteLine($"Rendered 11 baseline views, {renderedDestinations} workspace routes and {renderedReports} report routes. Accessible named elements: {named:N0}. Output: {output}");
     }
 
     static void SetAccess(MainWindow window, AccessRole role, string displayName)
@@ -90,4 +109,6 @@ internal static class Program
                 yield return descendant;
         }
     }
+
+    static string Slug(string value) => new string(value.ToLowerInvariant().Select(ch => char.IsLetterOrDigit(ch) ? ch : '-').ToArray()).Trim('-');
 }

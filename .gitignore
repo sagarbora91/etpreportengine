@@ -14,6 +14,9 @@ graphify-out/cost.json
 .graphify_*.txt
 .code-review-graph/
 
+# Reproducible function-audit output (workbooks, screenshots, logs and local SQL evidence).
+verification/function-audit/current/
+
 # Licensing secrets and machine/owner-specific activation artifacts.
 secrets/
 private-keys/

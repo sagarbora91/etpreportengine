@@ -43,7 +43,7 @@ var files = Directory.EnumerateFiles(sourceRoot, "*.xlsx", SearchOption.AllDirec
     .Order(StringComparer.OrdinalIgnoreCase).ToArray();
 var store = new SqlServerTransactionalImportStore(connectionString);
 var reader = new OpenXmlWorkbookReader();
-var importedRows = 0;
+long importedRows = 0;
 foreach (var file in files)
 {
     var workbook = await reader.ReadAsync(file);
@@ -58,7 +58,7 @@ foreach (var file in files)
             var staged = new ImportRowStager().Stage(preflight.Sheet!, preflight.Profile);
             if (!staged.CanPersist) throw new InvalidOperationException($"Staging blocked {Path.GetFileName(file)}.");
             var projection = new R022PersistenceProjector().Project(staged.Rows);
-            await new R022SqlImportOrchestrator(store).PersistAsync(workbook, preflight.Sheet!, projection);
+            await new R022SqlImportOrchestrator(store).PersistAsync(workbook);
             importedRows += projection.InvoiceControls.Count + projection.ClassifiedTenders.Count + projection.QuarantinedTenders.Count;
             break;
         case "STOCK_LEDGER" or "CLOSING_STOCK":
@@ -78,6 +78,7 @@ foreach (var file in files)
     var workbook = await reader.ReadAsync(file);
     if (!await fileRepository.ExistsByHashAsync(workbook.Sha256)) throw new InvalidOperationException("Live duplicate-file identity lookup failed.");
 }
+await VerifyOverlapAwareImportAsync(connectionString);
 
 var executor = new SqlBackedReportingExecutor(new SqlServerReportingQueryRepository(connectionString),
     RetailReportingPolicy.Mapping, RetailReportingPolicy.Sales, RetailReportingPolicy.Tender, RetailReportingPolicy.Stock);
@@ -92,39 +93,61 @@ var dsr = await operationalReports.LoadDsrAsync(new(2026, 8, 25));
 var staff = await operationalReports.LoadStaffPerformanceAsync(scope);
 var dailyRepository = new DailyReportingWorkflowRepository(connectionString);
 var testDate = new DateOnly(2026, 8, 25);
-foreach (var input in new Dictionary<string, decimal>
+var completion = new OperationalCompletionRepository(connectionString);
+foreach (var storeCode in new[] { "WLMHW", "HEMW" })
 {
-    ["WALK_INS"] = 0m, ["OPENING_CASH"] = 1_000m, ["CASH_DEPOSIT"] = 0m, ["EXPENSES"] = 0m,
-    ["SERVICE_CASH"] = 0m, ["SERVICE_CARD"] = 0m, ["SERVICE_UPI"] = 0m, ["CASH_ADJUSTMENT"] = 0m
-})
-    await dailyRepository.SaveManualInputAsync("WLMHW", testDate, input.Key, input.Value, null, "live-smoke", "validation");
-var preliminaryCash = await operationalReports.LoadCashReconciliationAsync("WLMHW", testDate);
-await dailyRepository.SaveManualInputAsync("WLMHW", testDate, "CLOSING_CASH_COUNTED", 1_000m + preliminaryCash.RetailCash, null, "live-smoke", "validation");
+    foreach (var input in new Dictionary<string, decimal>
+    {
+        ["WALK_INS"] = 0m, ["OPENING_CASH"] = 1_000m, ["CASH_DEPOSIT"] = 0m, ["EXPENSES"] = 0m,
+        ["SERVICE_CASH"] = 0m, ["SERVICE_CARD"] = 0m, ["SERVICE_UPI"] = 0m, ["CASH_ADJUSTMENT"] = 0m
+    })
+        await dailyRepository.SaveManualInputAsync(storeCode, testDate, input.Key, input.Value, null, "live-smoke", "validation");
+    var preliminary = await operationalReports.LoadCashReconciliationAsync(storeCode, testDate);
+    await dailyRepository.SaveManualInputAsync(storeCode, testDate, "CLOSING_CASH_COUNTED", 1_000m + preliminary.RetailCash, null, "live-smoke", "validation");
+    await completion.SaveManualStockCountAsync(storeCode, testDate, "GAUTO", 10m, 0m, 0m, 0m, 11m, "Intentional composition warning with reconciled system total", "live-smoke", "validation");
+    await completion.SaveManualStockCountAsync(storeCode, testDate, "WQ", 19m, 0m, 0m, 0m, 19m, "Synthetic reconciled count", "live-smoke", "validation");
+    await completion.SaveManualStockCountAsync(storeCode, testDate, "SYNTHETIC_ZERO", 0m, 0m, 0m, 0m, 0m, "Explicit zero control", "live-smoke", "validation");
+}
 var serviceSales = await operationalReports.LoadServiceSalesAsync(testDate, ["WLMHW"]);
 var cashControl = await operationalReports.LoadCashReconciliationAsync("WLMHW", testDate);
-var completion = new OperationalCompletionRepository(connectionString);
-await completion.SaveManualStockCountAsync("WLMHW", testDate, "GAUTO", 0m, 0m, 0m, 0m, 0m, "Validation count", "live-smoke", "validation");
 var physicalStock = await operationalReports.LoadPhysicalStockAsync("WLMHW", testDate);
 var targetCro = staff.Rows.First(x => x.StoreCode == "WLMHW").CroNumber;
 await completion.SaveStaffTargetAsync("WLMHW", targetCro, scope.DateFrom, scope.DateTo, 100_000m, "live-smoke", "validation");
 var staffWithTarget = await operationalReports.LoadStaffPerformanceAsync(scope);
 var dailyExceptions = await operationalReports.LoadDailyExceptionsAsync("WLMHW", testDate);
+var packService = new DailyReportingPackService(connectionString);
+foreach (var storeCode in new[] { "WLMHW", "HEMW" })
+{
+    var preliminaryPack = await packService.GenerateAsync(storeCode, testDate, "live-smoke");
+    if (preliminaryPack.Sections.Any(x => x.Status is ReconciliationStatus.Blocked or ReconciliationStatus.Failed))
+        throw new InvalidOperationException($"{storeCode} preliminary pack contains blocking or failed controls: {string.Join("; ", preliminaryPack.Sections.Where(x => x.Status is ReconciliationStatus.Blocked or ReconciliationStatus.Failed).Select(x => $"{x.Report}={x.Status}"))}.");
+    await dailyRepository.FinaliseAsync(storeCode, testDate, "live-smoke", false);
+    if ((await dailyRepository.LoadAsync(storeCode, testDate)).Status != DailyReadinessStatus.Locked)
+        throw new InvalidOperationException("Daily finalisation did not lock the business date.");
+    await dailyRepository.ReopenAsync(storeCode, testDate, "live-smoke", "Validate controlled reopen", true);
+    if ((await dailyRepository.LoadAsync(storeCode, testDate)).Status == DailyReadinessStatus.Locked)
+        throw new InvalidOperationException("Controlled daily reopen did not unlock the business date.");
+    var reopenedPack = await packService.GenerateAsync(storeCode, testDate, "live-smoke");
+    if (reopenedPack.Sections.Any(x => x.Status is ReconciliationStatus.Blocked or ReconciliationStatus.Failed))
+        throw new InvalidOperationException($"{storeCode} reopened pack contains blocking or failed controls.");
+    await dailyRepository.FinaliseAsync(storeCode, testDate, "live-smoke", false);
+}
 var workflow = await dailyRepository.LoadAsync("WLMHW", testDate);
-var pack = await new DailyReportingPackService(connectionString).GenerateAsync("WLMHW", new(2026, 8, 25), "live-smoke");
-var combinedPack = await new DailyReportingPackService(connectionString).GenerateCombinedAsync(new(2026, 8, 25), "live-smoke");
-await VerifyOverlapAwareImportAsync(connectionString);
+var pack = await packService.GenerateAsync("WLMHW", testDate, "live-smoke");
+var combinedPack = await packService.GenerateCombinedAsync(testDate, "live-smoke");
 await VerifyPhase2OperationsAsync(connectionString, files[0]);
 if (daily.Status != ReconciliationStatus.Passed || daily.Rows.Count == 0) throw new InvalidOperationException("Daily sales report did not pass live SQL execution.");
 if (tenders.Status == ReconciliationStatus.Blocked) throw new InvalidOperationException("Tender reconciliation was blocked in live SQL execution.");
 if (stock.Status == ReconciliationStatus.Blocked || stock.Items.Count == 0) throw new InvalidOperationException("Stock reconciliation was blocked or empty in live SQL execution.");
 if (invoiceSummary.Count == 0 || dsr.Count != 9 || staff.Rows.Count == 0)
     throw new InvalidOperationException("Operational invoice, DSR or staff reporting did not return the expected live result shape.");
-if (workflow.MissingReports.Count != 0 || pack.Sections.Count != 11 || pack.Document.Tables.Count < 10 || pack.GenerationNumber < 1 ||
-    !combinedPack.Tables.Any(x => x.Name == "Titan Helios Combined DSR"))
+if (workflow.MissingReports.Count != 0 || workflow.Status != DailyReadinessStatus.Locked || pack.Status != ReconciliationStatus.Passed ||
+    pack.Sections.Count != 11 || pack.Document.Tables.Count < 10 || pack.GenerationNumber < 1 ||
+    combinedPack.OverallStatus != ReconciliationStatus.Passed.ToString() || !combinedPack.Tables.Any(x => x.Name == "Titan Helios Combined DSR"))
     throw new InvalidOperationException("Daily completeness or reporting-pack generation failed live verification.");
 if (workflow.MissingRequiredInputs.Count != 0 || serviceSales.Single(x => x.Period == "FTD").Total != 0 || cashControl.Status != ReconciliationStatus.Passed)
     throw new InvalidOperationException("Zero-safe manual input, service sales or cash reconciliation failed live verification.");
-if (!physicalStock.Any(x => x.InventoryGroupCode == "GAUTO" && x.CountedPhysicalQuantity == 0m) ||
+if (!physicalStock.Any(x => x.InventoryGroupCode == "SYNTHETIC_ZERO" && x.CountedPhysicalQuantity == 0m) ||
     !staffWithTarget.Rows.Any(x => x.StoreCode == "WLMHW" && x.CroNumber == targetCro && x.TargetSales == 100_000m) ||
     dailyExceptions.Count == 0)
     throw new InvalidOperationException("Physical stock, staff target or traceable exception reporting failed live verification.");
