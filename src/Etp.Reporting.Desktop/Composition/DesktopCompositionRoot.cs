@@ -27,7 +27,7 @@ using ManagementTrendQuery = EtpApplication::Etp.Reporting.Application.Reports.I
 using AccountingService = EtpApplication::Etp.Reporting.Application.Accounting.IAccountingService;
 using OperationsAdministrationService = EtpApplication::Etp.Reporting.Application.OperationsAdministration.IOperationsAdministrationService;
 using AdministrationService = EtpApplication::Etp.Reporting.Application.OperationsAdministration.IAdministrationService;
-using ImportPersistenceUseCase = EtpApplication::Etp.Reporting.Application.Imports.IImportPersistenceUseCase<Etp.Reporting.Import.Workbooks.WorkbookSnapshot>;
+using ImportPersistenceUseCase = EtpApplication::Etp.Reporting.Application.Imports.IImportPersistenceUseCase<Etp.Reporting.Import.Preflight.MatchedImportEnvelope>;
 using DatabaseLifecycleService = EtpApplication::Etp.Reporting.Application.DatabaseLifecycle.IDatabaseLifecycleService;
 using TenderVarianceDiagnostic = EtpApplication::Etp.Reporting.Application.Reports.ITenderVarianceDiagnostic;
 using InvestigationQuery = EtpApplication::Etp.Reporting.Application.Distribution.IInvestigationQuery;
@@ -79,7 +79,7 @@ public sealed class DesktopCompositionRoot
         IReportExportCoordinator reportExportCoordinator = new ReportExportCoordinator();
         var dashboardView = new DashboardView(
             new DashboardPresentationSession(),
-            reportExportCoordinator.ExportManagementSummaryPdf);
+            (path, metadata, data) => reportExportCoordinator.ExportManagementSummaryPdfAsync(path, metadata, data));
         var settingsStore = new DesktopSettingsStore(settingsDirectory);
         var connectionState = new DesktopConnectionState(connectionString);
         Func<string, DashboardQuery> dashboardQueryFactory = value => new SqlServerDashboardQuery(value);
@@ -121,8 +121,8 @@ public sealed class DesktopCompositionRoot
             static () => new(false, false, false),
             administratorApproved: null,
             static (_, _, _) => Task.CompletedTask,
-            reportExportCoordinator.ExportPackExcel,
-            reportExportCoordinator.ExportPackPdf);
+            (path, document) => reportExportCoordinator.ExportPackExcelAsync(path, document),
+            (path, document) => reportExportCoordinator.ExportPackPdfAsync(path, document));
         Func<string, InvestigationQuery> investigationQueryFactory = value => new SqlServerInvestigationQuery(value);
         Func<string, ReportDistributionService> reportDistributionServiceFactory = value => new SqlServerReportDistributionService(value);
         var archiveSession = new ArchiveDistributionPresentationSession(
@@ -130,8 +130,8 @@ public sealed class DesktopCompositionRoot
         var archiveWorkspaceView = new ArchiveWorkspaceView(
             archiveSession,
             () => connectionState.ConnectionString,
-            reportExportCoordinator.ExportPackExcel,
-            reportExportCoordinator.ExportPackPdf,
+            (path, document) => reportExportCoordinator.ExportPackExcelAsync(path, document),
+            (path, document) => reportExportCoordinator.ExportPackPdfAsync(path, document),
             new ArchiveShareLauncher());
         var registersSession = new RegistersPresentationSession(digitalRegisterServiceFactory);
         var registersWorkspaceView = new RegistersWorkspaceView(

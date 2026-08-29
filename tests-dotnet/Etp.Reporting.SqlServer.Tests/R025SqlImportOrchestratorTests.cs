@@ -19,6 +19,7 @@ public sealed class R025SqlImportOrchestratorTests
         Assert.Equal(-1m, line.SourceQuantity);
         Assert.Equal("GAUTO", line.BrandSegment);
         Assert.Equal("Titan Automatic", line.SourceBrandName);
+        Assert.Equal(RetailSalesProfiles.R025.Identity, capture.Package.File.Profile);
         Assert.DoesNotContain(line.GetType().GetProperties(), x => x.Name.Contains("Customer", StringComparison.OrdinalIgnoreCase) || x.Name.Contains("Contact", StringComparison.OrdinalIgnoreCase));
         Assert.Equal(1, outcome.PersistedRows);
     }

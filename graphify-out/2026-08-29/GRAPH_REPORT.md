@@ -1,16 +1,16 @@
-# Graph Report - SaagarCC-V6-ETP-Source-and-Report-Engine-605002f  (2026-08-28)
+# Graph Report - SaagarCC-V6-ETP-Source-and-Report-Engine-605002f  (2026-08-29)
 
 ## Corpus Check
-- 633 files · ~562,409 words
+- 651 files · ~576,652 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 12741 nodes · 27040 edges · 617 communities (502 shown, 115 thin omitted)
-- Extraction: 96% EXTRACTED · 4% INFERRED · 0% AMBIGUOUS · INFERRED: 1180 edges (avg confidence: 0.83)
+- 13039 nodes · 27805 edges · 623 communities (500 shown, 123 thin omitted)
+- Extraction: 96% EXTRACTED · 4% INFERRED · 0% AMBIGUOUS · INFERRED: 1195 edges (avg confidence: 0.83)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `51469bf5`
+- Built from commit: `9b15dfb2`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -39,21 +39,21 @@
 - AnnotationEditor
 - create
 - .RunAsync
-- has
+- XFAObject
 - .resolve
 - scripts
 - 0014_productisation.sql
-- ImportPersistencePackage
+- .toString
 - He
 - CalRGBCS
 - SaagarEtpStorePlugin
 - ReportsWorkspaceView
-- .Brush
+- SalesImportCommand
 - etp-module-gateway.js
 - .get
 - etp-verified-presentation.test.mjs
 - etp-e7-presentation.js
-- WorkerTransport
+- PDFPageProxy
 - Phase 6 — Consolidated build, UI architecture and ETP completion plan
 - OpenXmlVisualReportExporter
 - etp-exception-monitor.js
@@ -66,10 +66,10 @@
 - xe
 - .i
 - etp-e6-presentation.js
-- CancellationToken
+- ImportPersistencePackage
 - saagar-report.js
 - InkEditor
-- VisualReportModel
+- ReportVisualPresenter
 - etp-operational-adapters.js
 - mount
 - SharingContactsAndDigitalRegistersAdapterTests
@@ -93,10 +93,10 @@
 - UserControl
 - CalculatedMetric
 - XMLParserBase
-- .getTextContent
+- Page
 - Foundation tables
 - etp-xlsx-preflight.js
-- AnnotationStorage
+- makeHexColor
 - DailySalesReportDocument
 - create
 - CancellationToken
@@ -110,17 +110,17 @@
 - module-pin-policy.js
 - jszip.min.js
 - LocaleSetNamespace
-- AccountingWorkspaceView
+- .Record
 - Window
 - build-seeded-apk.mjs
 - etp-import-foundation.js
-- ReleaseVersionConsistencyTests
+- .constructor
 - .Map
 - MainWindow
 - apply-overrides.js
 - CancellationToken
 - jspdf.umd.min.js
-- .Draw
+- v6-etp-e5-presentation.test.mjs
 - module-bundle.mjs
 - etp-operational-foundation.js
 - T
@@ -130,16 +130,16 @@
 - v6-etp-wave8-e6-full-chain-acceptance.test.mjs
 - PDFImage
 - c
+- NavigationDecision
 - Etp.Reporting.Desktop
-- DesktopCompositionRootStartupTests
 - etp-import-history.js
 - .createDocumentHandler
-- Saagar Traders — Business Control Centre — Architecture
+- ReleaseEvidenceConsistencyScriptTests
 - V6 ETP continuous-sprint engineering release evidence — 2026-08-25
 - etp-core-contract.test.mjs
 - etp-import-runtime.test.mjs
 - etp-tender-dictionary.js
-- .InsertRowAsync
+- .PersistAsync
 - .Convert
 - DailyWorkflowPresentationSession
 - Word64
@@ -154,15 +154,15 @@
 - etp-e7-module-host.js
 - etp-operational-runtime.js
 - etp-store-lifecycle-policy.js
-- .LoadAsync
+- WorkerTransport
 - whatsapp-share.js
 - OperationsAdministrationContracts.cs
 - etp-retail-xlsx-loader.test.mjs
 - etp-worker-client.test.mjs
-- Deployment and Operations
+- Test Strategy
 - UiNavigationRegistry
 - .Resolve
-- constructor
+- create
 - ChunkedStream
 - Etp.Reporting.Reporting.csproj
 - etp-retail-profile-parser.test.mjs
@@ -177,14 +177,14 @@
 - sqlite-store.js
 - devDependencies
 - Retail ETP completion phases
-- Task
+- AccountingContracts.cs
 - T
 - ExcelReportData
 - etp-native-store.js
 - ConnectionSetNamespace
 - e
 - dependencies
-- .StoreAsync
+- .IntakeDocumentAsync
 - Etp.Reporting.Infrastructure.SqlServer
 - etp-reconciliation-policy.js
 - AccessRole
@@ -203,39 +203,39 @@
 - v6-etp-wave7-e4-full-chain-acceptance.test.mjs
 - ETP Import Profiles
 - etp-core-contract.js
-- DailySalesReportTests
+- DesktopSettingsComponentTests
 - StockWorkbookParserTests
 - NullOptimizer
 - Etp.Reporting.Reporting
 - ProductisationModels.cs
 - Target Architecture
 - Inputs still required
-- .ReadRow
-- etp-e4-authority-intake.js
+- OpenXmlWorkbookReader
+- OperationalAuditContractTests
 - etp-incentive-control.js
 - properties
 - Initial ETP Mapping Register
 - Initial Validation Rules
-- ImportProfile
+- WorkbookSnapshot
 - InvestigationApprovalsWorkspaceView
-- InvoiceTenderReconciliation
+- .Reconcile
 - module-table-runtime.js
 - ETP-A1 Parser Evaluation Contract
 - etp-recovery-integration.js
 - CanvasExtraState
 - source-integrity.test.mjs
-- DashboardView
-- R022PersistenceProjectionResult
+- DashboardViewState
+- UserControl
 - SqlServerReportArchiveQuery
 - .onSymbolDictionary
-- convert
+- Task
 - El
 - HelpWorkspaceSessionTests
-- SqlServerApplicationReportQuery
+- Deployment and Operations
 - d
 - b
 - storage-recovery-policy.js
-- ImportPersistenceUseCaseTests
+- DashboardView
 - Current-State Architecture
 - capture-api23-compatibility.mjs
 - CancellationToken
@@ -244,7 +244,7 @@
 - BaseCanvasFactory
 - ETP closure sprint checkpoint — 28 August 2026
 - ImportWorkspaceView
-- WorkbookSnapshot
+- MatchedImportEnvelope
 - TextState
 - .PersistAsync
 - ETP Reporting Engine — User Manual
@@ -290,16 +290,16 @@
 - stage-etp-api23-evaluation.mjs
 - ReportPackDocument
 - .Reconcile
-- ReportWorkspaceControl
+- SqlServerApplicationReportQuery
 - language-localization.test.mjs
 - DsrPdfFontResolver
 - v6-etp-final-responsive-regression.test.mjs
 - ReportingQueryRepositoryTests
-- PDFWorker
+- .Activate
 - Etp.Reporting.Domain.Tests.csproj
 - etp-operations-consumer.js
-- popFont
-- ConnectionHealth.cs
+- WidgetAnnotation
+- DatabaseHealth
 - ETP Reporting Engine — Project Closure Traceability
 - app-i18n.js
 - DailyWorkflowWorkspaceView
@@ -326,15 +326,15 @@
 - .window
 - etp-import-worker.js
 - pe
-- DsrDisplay
+- .Draw
 - BatchImportTests
-- .constructor
+- XhtmlNamespace
 - CommandManager
 - ExData
 - OperationalStatusRepository.cs
 - UserControl
 - DesktopArchitectureTests
-- .Compose
+- VisualReportModel
 - HelpCentreTests
 - CancellationToken
 - BaseFilterFactory
@@ -347,12 +347,12 @@
 - V6 ETP Completion Phase — Wave 2
 - V6 ETP Completion Phase — Wave 3
 - ETP Retail Verified Data Path — Decision and Evidence Register
-- 19_ACCESSIBILITY_AUDIT.md
+- phase6f-etp-bounded-report-gateway.test.mjs
 - ArchiveDistributionPresentationSession
 - .push
 - UserControl
 - Product Operations Runbook
-- ReportDefinition.cs
+- HelpTopicDefinition
 - RenderTask
 - e1-etp-import-foundation.test.mjs
 - 0002_reporting_facts.sql
@@ -363,7 +363,7 @@
 - OperationalAuditRepository
 - SettingsWorkspaceView
 - Changelog
-- XFAObject
+- ETP Reporting Engine — external acceptance evidence pack
 - CashBalanceReconciliationService.cs
 - etp-native-store.test.mjs
 - Etp.Reporting.Import.Tests.csproj
@@ -374,14 +374,14 @@
 - Etp.Reporting.Reporting.Tests.csproj
 - v6-etp-operational-mount.test.mjs
 - etp-target-planning.js
-- ReportCatalogueTests
+- SqlServerSharingContactsService
 - Visual report catalogue
 - offdevice-backup.js
-- .BootstrapAsync
-- ITransactionalImportStore
+- DesktopCompositionRoot
+- .BuildManagementSummary
 - v6-etp-operational-gateway.test.mjs
 - etp-licence-envelope-v1.schema.json
-- ETP Reporting Engine — Pending Input and Deferment Register
+- ETP-EXTERNAL-ACCEPTANCE-EVIDENCE-PACK.md
 - .LoadAsync
 - v6-etp-wave6-mounted-security-adversarial.test.mjs
 - Etp.Reporting.SqlServer.Tests.csproj
@@ -406,12 +406,12 @@
 - Etp.Reporting.slnx
 - ArchiveWorkspaceView
 - VISUAL_REPORTING_ARCHITECTURE.md
-- 6. Microsoft owner authentication
-- UserControl
+- readBit
+- SourceInboxWorkspaceView
 - VISUAL_REPORTING_DEPENDENCIES.md
-- DesktopCompositionRoot
+- .RunAsync
 - ProductisationServiceTests
-- .OnStartup
+- Stream
 - ETP closure sprint — Settings, connection and access slice
 - DailyReportingWorkflowRepository
 - .log
@@ -419,20 +419,20 @@
 - FontSelector
 - ApplicationReportQueryTests
 - ETP closure sprint baseline — 28 August 2026
-- .PersistAsync
+- DesktopCompositionRootStartupTests
 - properties
-- makeHexColor
+- DOMFilterFactory
 - v6-etp-e4-orchestrator.test.mjs
 - ETP licensing key ceremony and operations
 - Bulk Import and Duplication
 - v6-etp-operational-i18n.test.mjs
 - v6-etp-e3-orchestrator.test.mjs
-- .Record_reaches_connection_only_after_privacy_validation
+- OperationalAuditRepositoryTests
 - Deferred licensing implementation backlog
 - refresh
 - Microsoft owner-authentication configuration guide
 - required
-- .Windows_shortcuts_resolve_to_shell_commands
+- ShellCommand
 - R022PersistenceProjectionTests
 - Report workspace integration contract
 - Help Centre integration
@@ -442,22 +442,22 @@
 - Development Conventions
 - .Main
 - ETP licensing security and regression test matrix
-- UserControl
+- v6-etp-operational-runtime.test.mjs
 - v6-etp-wave6-portable-privacy.test.mjs
 - UserControl
 - DashboardSnapshot
-- OperationsWorkspaceView
-- phase6f-etp-bounded-report-gateway.test.mjs
+- .Describe
+- v6-etp-operational-shell-composer.test.mjs
 - AccountingCompositionTests
-- ReportArchiveQueryTests
+- v6-etp-e4-authority-intake.test.mjs
 - UI/UX v4 design system
-- BasePdfManager
-- ReportWorkspaceControls.cs
+- DesktopDiagnostics
+- ReportWorkspaceControl
 - UI/UX v4 navigation contract
 - UserControl
 - ReportPresentationSnapshot
 - Windows Quick Start
-- Phase 2 Operations — Implemented Design
+- OpenXmlWorkbookReaderAsyncTests
 - features
 - EtpDb
 - DesktopSettingsPresentationSession
@@ -471,17 +471,17 @@
 - Security and Permissions
 - SHARING_ARCHITECTURE.md
 - DatabaseLifecycleCompositionTests
-- 12. Application contracts and ownership
+- HandledFailureDiagnosticsTests
 - 4. Threat model
 - UI/UX v4 implementation map
 - 7. Signed offline licence
 - Sa
 - dbo.import_batches
 - Task
-- 10. End-to-end sequences
+- ReportsCompositionTests
 - 3. Existing architecture audit
 - 8. Device and installation identity
-- UiControls.cs
+- BackupScriptContractTests
 - PageViewport
 - ETP licensing requirements traceability
 - deviceId
@@ -490,23 +490,23 @@
 - storeId
 - SqlServerDailyWorkflowService
 - DailyWorkflowServiceTests
-- readBit
-- Etp.Reporting.Desktop.Tests
+- DailyWorkflowCompositionTests
+- ReleaseVersionConsistencyTests
 - Closure Sprint — Archive, Registers and Shortcut Parity
 - ProductionDependencies
-- ContentObject
+- .Brush
 - Etp.Reporting.Desktop.Tests.csproj
-- transform
-- ExtractedWorkspaceUiSmokeTests.cs
+- test-release-evidence-consistency.ps1
+- Etp.Reporting.Desktop.Tests
 - v6-etp-e6-presentation.test.mjs
-- ExclGroup
+- ReportDefinition.cs
 - OperationsAdministrationWorkspaceViewTests
-- v6-etp-e4-presentation.test.mjs
+- DailySalesReportTests
 - etp-reconciliation-policy.test.mjs
 - etp-retail-table-parser.js
-- rec
+- MatchedImportEnvelopeTests
 - ProductReportVisualClassificationRegistry
-- SourceInboxWorkspaceView
+- BitModel
 - Colors.xaml
 - Controls.xaml
 - Icons.xaml
@@ -515,77 +515,77 @@
 - IntegerObject
 - Ui
 - etp-verified-presentation.js
-- AdministrationWorkspaceView
+- ModuleTile
 - Border
 - WorkspaceModuleOwnershipRegistry
-- CMap
-- NullCipher
-- OperationsAdministrationServiceBoundaryTests
-- FakeOperationsGateway
+- DsrDisplay
+- .Map
+- SignatureNamespace
+- Solid
 - ContentControl
 - RegistersAccountingWorkspaceExtractionTests
-- etp-demo-operational.js
+- StylesheetNamespace
 - SourceInboxCompositionTests
 - invoke-security-scan.ps1
 - DesktopImportCoordinatorTests
-- AccessSessionQueryTests
-- etp-e5-payroll-bridge.js
+- UnknownNamespace
+- El
 - .RunAsync
 - DailyWorkflowWorkspaceViewTests
-- RoutedEventArgs
-- Element
+- CiWorkflowContractTests
+- phase6h2-etp-cro-reconciliation.test.mjs
 - Task
 - ArchiveWorkspaceExtractionTests
 - CipherTransformFactory
 - IArchiveShareLauncher
 - ImportWorkspaceExtractionTests
-- ImportPreflightTests
+- ImportProfile
 - ImageResizer
 - MainWindowShellBoundaryTests
-- v6-etp-wave9-e5-full-chain-acceptance.test.mjs
+- AdapterIntegratedSecurityRegressionTests
 - phase6f-etp-report-presentation.test.mjs
-- El
-- .IntakeOutcome
+- App
+- Saagar Business Control Centre legacy Android architecture
 - ImportCoordinatorCompositionTests
 - todayIsoSafe
 - ETP modular sprint — audit receipt
 - ImportContracts.cs
 - SourceDocumentLauncher
-- Etp.Reporting.Infrastructure.SqlServer.Tests
-- DesktopFriendlyError
+- ReportArchiveQueryTests
+- .RefreshAccessAsync
 - AESBaseCipher
-- BitModel
-- .Map
-- Task
+- Ref
+- .DisposeAsync
+- ContentObject
 - offdevice-backup.test.mjs
 - v6-etp-demo-operational.test.mjs
 - DeviceGrayCS
-- PostScriptToken
-- DailyWorkflowWorkspaceView.xaml.cs
+- BaseShading
+- Body
 - .Navigate_Click
-- .AttachHost
+- BreakBefore
 - auto-backup-runtime.test.mjs
 - DatasetsNamespace
 - DecodingContext
 - ReportSourceDefinition
 - etp-foundation-status.test.mjs
-- Data
+- Edge
 - phase6h1-etp-analytics-presentation.test.mjs
 - Grid
-- OperationalCompletionContractsTests
+- LockDocument
 - PDFDocumentLoadingTask
-- Rename
-- PrintAnnotationStorage
+- Margin
+- Name
 - OptionObject
 - DailyPackBinding
 - Root
 - Traverse
 - RailColumn
 - SidebarItemsPanel
-- Cmd
-- Corner
+- Occur
+- Overflow
 - Empty
-- HuffmanTable
+- Radial
 - Linear
 - LegacyWorkspaceScroll
 - ReadinessSummaryPanel
@@ -593,6 +593,11 @@
 - ShellStoreSelector
 - SidebarSearchInput
 - WelcomeProgress
+- Record
+- Rename
+- SubjectDN
+- ValidateApprovalSignatures
+- Xdp
 
 ## God Nodes (most connected - your core abstractions)
 1. `ConfigNamespace` - 141 edges
@@ -607,45 +612,45 @@
 10. `Etp.Reporting.Reporting` - 76 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `EmptyState` --inherits--> `Border`  [EXTRACTED]
-  src/Etp.Reporting.Desktop/UiControls.cs → www/pdf.worker.min.js
-- `LoadingState` --inherits--> `Border`  [EXTRACTED]
-  src/Etp.Reporting.Desktop/UiControls.cs → www/pdf.worker.min.js
 - `receipt()` --indirect_call--> `generation()`  [INFERRED]
   tests/etp-foundation-status.test.mjs → www/etp-foundation-status.js
 - `input()` --indirect_call--> `generation()`  [INFERRED]
   tests/etp-foundation-status.test.mjs → www/etp-foundation-status.js
 - `receipt()` --indirect_call--> `scopeKey()`  [INFERRED]
   tests/etp-module-gateway-adversarial.test.mjs → www/etp-query-contract.js
+- `readVerified()` --indirect_call--> `scopeKey()`  [INFERRED]
+  tests/etp-module-gateway-adversarial.test.mjs → www/etp-query-contract.js
+- `receipt()` --indirect_call--> `scopeKey()`  [INFERRED]
+  tests/etp-module-gateway.test.mjs → www/etp-query-contract.js
 
 ## Import Cycles
 - None detected.
 
-## Communities (617 total, 115 thin omitted)
+## Communities (623 total, 123 thin omitted)
 
 ### Community 0 - "pdf.worker.min.js"
 Cohesion: 0.00
-Nodes (296): Acrobat, Acrobat7, ADBE_JSConsole, ADBE_JSDebugger, _addNamespacePrefix(), AddSilentPrint, AddViewerPreferences, AdjustData (+288 more)
+Nodes (294): Acrobat, Acrobat7, ADBE_JSConsole, ADBE_JSDebugger, _addNamespacePrefix(), AddSilentPrint, AddViewerPreferences, AdjustData (+286 more)
 
 ### Community 1 - "pdf.min.js"
 Cohesion: 0.02
-Nodes (112): addFontStyle(), addNativeFontFace(), BaseException(), BaseShadingPattern, beginText(), bind(), bytesToString(), closeEOFillStroke() (+104 more)
+Nodes (113): addFontStyle(), addNativeFontFace(), BaseException(), BaseShadingPattern, beginText(), bind(), bytesToString(), closeEOFillStroke() (+105 more)
 
 ### Community 3 - "CanvasGraphics"
 Cohesion: 0.03
-Nodes (32): applyBoundingBox(), applyTransform(), CachedCanvases, CanvasGraphics, clip(), closeFillStroke(), closePath(), closeStroke() (+24 more)
+Nodes (33): applyBoundingBox(), applyTransform(), CachedCanvases, CanvasGraphics, clip(), closeFillStroke(), closePath(), closeStroke() (+25 more)
 
 ### Community 4 - ".add"
 Cohesion: 0.03
-Nodes (36): AnnotationElement, appendText(), BaseSVGFactory, CaretAnnotationElement, CheckboxWidgetAnnotationElement, ChoiceWidgetAnnotationElement, CircleAnnotationElement, FileAttachmentAnnotationElement (+28 more)
+Nodes (27): AnnotationElement, appendText(), BaseSVGFactory, CaretAnnotationElement, CircleAnnotationElement, FileAttachmentAnnotationElement, FreeTextAnnotationElement, get() (+19 more)
 
 ### Community 6 - "_bindElement"
 Cohesion: 0.07
 Nodes (17): bind(), _bindElement(), _bindItems(), _bindOccurrences(), _bindValue(), _createOccurrences(), createText(), _findDataByNameToConsume() (+9 more)
 
 ### Community 7 - ".getOperatorList"
-Cohesion: 0.03
-Nodes (19): BaseLocalCache, ColorSpace, CompiledFont, fetch(), fetchUncompressed(), getEntry(), getSubroutineBias(), incrementCachedImageMaskCount() (+11 more)
+Cohesion: 0.04
+Nodes (28): applyTransform(), BaseLocalCache, _cache(), ColorSpace, getAxialAlignedBoundingBox(), getCached(), getTransformMatrix(), incrementCachedImageMaskCount() (+20 more)
 
 ### Community 8 - "read-excel-file-9.3.7.min.js"
 Cohesion: 0.06
@@ -656,24 +661,24 @@ Cohesion: 0.06
 Nodes (77): api, approval(), approvedPackage(), candidate(), h(), payloads, scopeKey, sha256() (+69 more)
 
 ### Community 10 - "ReconciliationStatus"
-Cohesion: 0.19
-Nodes (12): CancellationToken, DateOnly, DateTimeOffset, IReadOnlyList, Task, DailyReportingPackService, DailyReportPackResult, DailyReportPackSection (+4 more)
+Cohesion: 0.12
+Nodes (20): CancellationToken, DateOnly, DateTimeOffset, IReadOnlyList, Task, DailyReportingPackService, DailyReportPackResult, DailyReportPackSection (+12 more)
 
 ### Community 11 - "storage-core.js"
 Cohesion: 0.06
 Nodes (73): appendWAL(), applyNativeSnapshots(), nextBatch(), fill(), armBootTimer(), b64ToBytes(), blockNativeStore(), renderBlocked() (+65 more)
 
 ### Community 12 - "OperationalReportRepository"
-Cohesion: 0.12
-Nodes (30): DsrFacts, DsrSupplementaryFacts, ServiceFacts, SourcePointer, CancellationToken, DateOnly, Dictionary, IEnumerable (+22 more)
+Cohesion: 0.11
+Nodes (31): DsrFacts, DsrSupplementaryFacts, ServiceFacts, SourcePointer, CancellationToken, DateOnly, Dictionary, IEnumerable (+23 more)
 
 ### Community 13 - "PDFDataRangeTransport"
 Cohesion: 0.04
-Nodes (12): BaseFullReader, BaseRangeReader, createRequestOptions(), KeyboardManager, NetworkManager, on(), PDFDataRangeTransport, PDFNodeStreamFsFullReader (+4 more)
+Nodes (13): BaseFullReader, BaseRangeReader, createRequestOptions(), KeyboardManager, NetworkManager, on(), PDFDataRangeTransport, PDFNodeStreamFsFullReader (+5 more)
 
 ### Community 14 - "AnnotationEditorUIManager"
 Cohesion: 0.03
-Nodes (3): AnnotationEditorLayer, AnnotationEditorUIManager, getEditableAnnotation()
+Nodes (4): AnnotationEditorLayer, AnnotationEditorUIManager, getEditableAnnotation(), LoopbackPort
 
 ### Community 15 - "phase6c-historical-root.mjs"
 Cohesion: 0.06
@@ -681,22 +686,22 @@ Nodes (56): MANIFEST_END, MANIFEST_START, readModuleManifestSource(), renderModu
 
 ### Community 16 - "Phase2OperationsRepository"
 Cohesion: 0.17
-Nodes (14): CancellationToken, DateOnly, IReadOnlyList, SqlConnection, SqlDataReader, Task, TimeOnly, ApplicationAccess (+6 more)
+Nodes (15): CancellationToken, DateOnly, IReadOnlyList, SqlConnection, SqlDataReader, Task, TimeOnly, ApplicationAccess (+7 more)
 
 ### Community 17 - "h"
 Cohesion: 0.09
 Nodes (62): Cr(), Dr(), e(), Er(), gt(), h(), l(), r() (+54 more)
 
 ### Community 18 - "Glyph"
-Cohesion: 0.08
-Nodes (10): CompositeGlyph, getFloat214(), getInt16(), getInt8(), getSize(), Glyph, GlyphHeader, scale() (+2 more)
+Cohesion: 0.18
+Nodes (5): CompositeGlyph, getSize(), Glyph, scale(), write()
 
 ### Community 19 - "ProductisationRepository"
-Cohesion: 0.13
-Nodes (18): ProductHealthItem, SharingContactRow, SourceDocumentRow, CancellationToken, DateOnly, Task, ProductisationOperationsService, CancellationToken (+10 more)
+Cohesion: 0.15
+Nodes (13): ProductHealthItem, SourceDocumentRow, CancellationToken, DateOnly, Events, GenerationId, IReadOnlyList, SqlCommand (+5 more)
 
 ### Community 20 - ".Evaluate"
-Cohesion: 0.15
+Cohesion: 0.14
 Nodes (15): CancellationToken, IReadOnlyList, string, Task, TimeSpan, DatabaseOperationalHealth, DatabaseOperationalHealthEvaluator, DatabaseOperationalHealthRepository (+7 more)
 
 ### Community 22 - "create"
@@ -707,9 +712,9 @@ Nodes (24): authority(), code(), create(), authorityProvider(), blockedModel(), 
 Cohesion: 0.16
 Nodes (17): CancellationToken, Code, Exception, int, IProgress, IReadOnlyList, SafeMessage, Task (+9 more)
 
-### Community 24 - "has"
+### Community 24 - "XFAObject"
 Cohesion: 0.03
-Nodes (29): calculationOrderIds(), Catalog, addPageDict(), parseNestedOrder(), parseOnOff(), parseOrder(), _collectJS(), DateTime (+21 more)
+Nodes (4): clean(), forEach(), Text, XFAObject
 
 ### Community 25 - ".resolve"
 Cohesion: 0.04
@@ -723,9 +728,9 @@ Nodes (56): scripts, add:android, android:configure, android:preflight, apply-ov
 Cohesion: 0.11
 Nodes (17): dbo.accounting_batches, dbo.accounting_entries, dbo.accounting_mappings, dbo.approval_requests, dbo.controlled_adjustments, dbo.data_quality_issues, dbo.document_extractions, dbo.import_conflicts (+9 more)
 
-### Community 28 - "ImportPersistencePackage"
-Cohesion: 0.16
-Nodes (20): CancellationToken, DateOnly, DateTimeOffset, Func, Guid, IReadOnlyList, Task, IImportBatchRepository (+12 more)
+### Community 28 - ".toString"
+Cohesion: 0.03
+Nodes (18): addTopLevelNode(), BooleanElement, DateElement, DateTime, Decimal, fingerprints(), hexString(), Float (+10 more)
 
 ### Community 29 - "He"
 Cohesion: 0.10
@@ -741,19 +746,19 @@ Nodes (7): Failure, JSObject, PluginCall, PluginMethod, SQLiteDatabase, SaagarEt
 
 ### Community 32 - "ReportsWorkspaceView"
 Cohesion: 0.15
-Nodes (11): ApplicationReportScope, ApplicationReportStatus, Action, DateOnly, Func, IEnumerable, IReadOnlyList, RoutedEventArgs (+3 more)
+Nodes (12): ApplicationReportScope, ApplicationReportStatus, Action, bool, DateOnly, Exception, Func, IEnumerable (+4 more)
 
-### Community 33 - ".Brush"
-Cohesion: 0.24
-Nodes (7): FontWeight, SolidColorBrush, TextBlock, Thickness, DsrUi, UIElement, TextAlignment
+### Community 33 - "SalesImportCommand"
+Cohesion: 0.07
+Nodes (19): Etp.Reporting.Domain.Tests, Etp.Reporting.Domain.Primitives, Etp.Reporting.Domain.Sales, Etp.Reporting.Domain.Periods, Etp.Reporting.Domain.Stock, Money, Quantity, DateOnly (+11 more)
 
 ### Community 34 - "etp-module-gateway.js"
 Cohesion: 0.14
 Nodes (48): appendSummary(), bootstrap(), browserAuthorization(), browserStatusReader(), canonicalInvoiceDate(), cleanFailure(), compareValue(), create() (+40 more)
 
 ### Community 35 - ".get"
-Cohesion: 0.03
-Nodes (40): Annotation, ButtonWidgetAnnotation, _cache(), CircleAnnotation, create(), getInt(), createFromArray(), FakeUnicodeFont (+32 more)
+Cohesion: 0.02
+Nodes (52): #a(), addNode(), adjustMapping(), Annotation, ButtonWidgetAnnotation, calculationOrderIds(), Catalog, appendIfJavaScriptDict() (+44 more)
 
 ### Community 36 - "etp-verified-presentation.test.mjs"
 Cohesion: 0.11
@@ -763,16 +768,16 @@ Nodes (8): api, fullScope, model(), Node, receipt, require, scope, summary()
 Cohesion: 0.10
 Nodes (36): actor, authorityIdentity, binding, document, evidence, model(), Node, result() (+28 more)
 
-### Community 38 - "WorkerTransport"
-Cohesion: 0.03
-Nodes (9): AnnotationElementFactory, cancelAllRequests(), clear(), getArrayBuffer(), InternalRenderTask, _onProgress(), PDFPageProxy, WorkerTransport (+1 more)
+### Community 38 - "PDFPageProxy"
+Cohesion: 0.04
+Nodes (11): AnnotationElementFactory, cancelAllRequests(), clear(), getArrayBuffer(), has(), InternalRenderTask, LinkAnnotationElement, _onProgress() (+3 more)
 
 ### Community 39 - "Phase 6 — Consolidated build, UI architecture and ETP completion plan"
 Cohesion: 0.04
 Nodes (45): 10. Global stop rules, 11. Phase 6 definition of done, 12. Authoritative inputs, 1.1 Banked work that is not to be repeated without cause, 1.2 Product work already present, 1.3 Worktree entry condition, 1.4 Critical release-governance defect, 1. Current truth at Phase 6 entry (+37 more)
 
 ### Community 40 - "OpenXmlVisualReportExporter"
-Cohesion: 0.22
+Cohesion: 0.20
 Nodes (8): SheetData, Sheets, Cell, IEnumerable, Row, WorkbookPart, OpenXmlVisualReportExporter, WorksheetPart
 
 ### Community 41 - "etp-exception-monitor.js"
@@ -784,16 +789,16 @@ Cohesion: 0.19
 Nodes (42): binding(), canonical(), checkedEvent(), checkedIdentity(), checkedProjectionEvidence(), checkedResult(), checkedRun(), checkedState() (+34 more)
 
 ### Community 43 - "etp-e5-presentation.js"
-Cohesion: 0.11
-Nodes (29): actor, document, hash, Node, scope, adaptFacade(), cleanClawback(), cleanModel() (+21 more)
+Cohesion: 0.26
+Nodes (24): adaptFacade(), cleanClawback(), cleanModel(), cleanPayroll(), cleanRun(), clear(), copy(), el() (+16 more)
 
 ### Community 44 - ".CreateService"
 Cohesion: 0.09
 Nodes (25): CancellationToken, DateOnly, IReadOnlyList, Task, ISourceInboxService, SourceDocumentExtraction, SourceDocumentExtractionResult, SourceDocumentIntakeOutcome (+17 more)
 
 ### Community 45 - "etp-e4-presentation.js"
-Cohesion: 0.26
-Nodes (23): cleanAuthority(), cleanModel(), cleanPace(), cleanVersion(), clear(), el(), fail(), freeze() (+15 more)
+Cohesion: 0.11
+Nodes (28): actor, document, Node, scope, types, cleanAuthority(), cleanModel(), cleanPace() (+20 more)
 
 ### Community 46 - "etp-module-gateway-adversarial.test.mjs"
 Cohesion: 0.12
@@ -808,16 +813,16 @@ Cohesion: 0.12
 Nodes (39): B(), C(), L(), P(), gr(), B(), j(), mr() (+31 more)
 
 ### Community 49 - ".i"
-Cohesion: 0.03
-Nodes (42): _addPixels(), _addPixelsNeg(), ComponentPositionResolutionLayerIterator(), ConnectionSet, createPacket(), #E(), _eatBits(), EffectiveInputPolicy (+34 more)
+Cohesion: 0.06
+Nodes (30): _addPixels(), _addPixelsNeg(), ConnectionSet, #E(), _eatBits(), EffectiveInputPolicy, EffectiveOutputPolicy, _findTableCode() (+22 more)
 
 ### Community 50 - "etp-e6-presentation.js"
 Cohesion: 0.29
 Nodes (20): cleanHistory(), cleanItem(), cleanModel(), clear(), code(), contextEqual(), copy(), el() (+12 more)
 
-### Community 51 - "CancellationToken"
-Cohesion: 0.23
-Nodes (11): Action, CancellationToken, DateOnly, Guid, SqlCommand, SqlConnection, SqlTransaction, Task (+3 more)
+### Community 51 - "ImportPersistencePackage"
+Cohesion: 0.05
+Nodes (53): CancellationToken, DateOnly, DateTimeOffset, Func, Guid, IReadOnlyList, Task, IImportBatchRepository (+45 more)
 
 ### Community 52 - "saagar-report.js"
 Cohesion: 0.07
@@ -827,9 +832,9 @@ Nodes (22): beginExport(), chgNum(), deltaOf(), drawCarryAfter(), drawCarryLine(
 Cohesion: 0.03
 Nodes (5): ColorManager, FreeTextEditor, ImageManager, InkEditor, StampEditor
 
-### Community 54 - "VisualReportModel"
-Cohesion: 0.10
-Nodes (26): ContentControl, Panel, Exception, FrameworkElement, IEnumerable, SolidColorBrush, Thickness, UIElement (+18 more)
+### Community 54 - "ReportVisualPresenter"
+Cohesion: 0.15
+Nodes (13): ContentControl, Panel, Exception, FrameworkElement, IEnumerable, SolidColorBrush, Thickness, UIElement (+5 more)
 
 ### Community 55 - "etp-operational-adapters.js"
 Cohesion: 0.18
@@ -840,8 +845,8 @@ Cohesion: 0.30
 Nodes (15): clear(), copy(), fail(), freeze(), mount(), destroy(), e3Actor(), e4Actor() (+7 more)
 
 ### Community 57 - "SharingContactsAndDigitalRegistersAdapterTests"
-Cohesion: 0.07
-Nodes (30): CancellationToken, DateOnly, IReadOnlyList, Task, DigitalRegisterEntry, DigitalRegisterEntryDraft, IDigitalRegisterService, CancellationToken (+22 more)
+Cohesion: 0.11
+Nodes (19): CancellationToken, DateOnly, IReadOnlyList, Task, DigitalRegisterEntry, DigitalRegisterEntryDraft, IDigitalRegisterService, CancellationToken (+11 more)
 
 ### Community 59 - "OperationsAdministrationPresentationSession"
 Cohesion: 0.07
@@ -852,8 +857,8 @@ Cohesion: 0.13
 Nodes (28): Ab(), createNode(), la(), Lb(), lookup(), Mb(), Nb(), Ob() (+20 more)
 
 ### Community 61 - "etp-cro-reconciliation.js"
-Cohesion: 0.22
-Nodes (32): act(), api, ok(), require, scope, seeded(), verified(), audit() (+24 more)
+Cohesion: 0.34
+Nodes (25): audit(), canonicalRole(), clone(), correctAttribution(), createDay(), declaration(), declare(), disposeVariance() (+17 more)
 
 ### Community 62 - "SimplePdfReportExporter"
 Cohesion: 0.21
@@ -872,8 +877,8 @@ Cohesion: 0.09
 Nodes (28): ALIASES, buildFixtureSet(), cell(), columnName(), EXPECTED_COLUMNS, filename(), financialYear(), FIXED_ZIP_MTIME (+20 more)
 
 ### Community 66 - "MigrationTests"
-Cohesion: 0.10
-Nodes (22): CancellationToken, DateTimeOffset, IReadOnlyList, SqlConnection, Task, AppliedMigration, DirectoryMigrationSource, IMigrationSource (+14 more)
+Cohesion: 0.06
+Nodes (36): CancellationToken, DateTimeOffset, IAsyncDisposable, int, IReadOnlyList, SqlConnection, string, Task (+28 more)
 
 ### Community 67 - ".decryptBlock"
 Cohesion: 0.22
@@ -892,8 +897,8 @@ Cohesion: 0.08
 Nodes (7): AstArgument, AstBinaryOperation, AstLiteral, AstMin, AstVariable, AstVariableDefinition, ExpressionBuilderVisitor
 
 ### Community 71 - "Border"
-Cohesion: 0.18
-Nodes (10): Grid, IReadOnlyList, UIElement, DailySalesReportView, KpiCard, OperationalMetricTable, ServiceSummaryCard, StorePeriodCard (+2 more)
+Cohesion: 0.12
+Nodes (15): ContentPresenter, Grid, IReadOnlyList, UIElement, DailySalesReportView, KpiCard, OperationalMetricTable, ServiceSummaryCard (+7 more)
 
 ### Community 72 - "module-runtime.js"
 Cohesion: 0.10
@@ -912,16 +917,16 @@ Cohesion: 0.07
 Nodes (33): CancellationToken, DigitalRegisterEntry, DigitalRegisterEntryDraft, Func, IReadOnlyList, Task, RegistersPresentationSession, RegisterAmountInput (+25 more)
 
 ### Community 76 - "CalculatedMetric"
-Cohesion: 0.18
-Nodes (10): CalculatedMetric, ManagementMetricEngine, MetricAvailability, ProductivityRule, TransactionDenominator, Fact, InlineData, Theory (+2 more)
+Cohesion: 0.19
+Nodes (9): CalculatedMetric, ManagementMetricEngine, MetricAvailability, ProductivityRule, TransactionDenominator, Fact, InlineData, Theory (+1 more)
 
 ### Community 77 - "XMLParserBase"
 Cohesion: 0.10
 Nodes (7): DatasetXMLParser, isWhitespace(), onText(), parseFromString(), XFAParser, XMLParserBase, skipWs()
 
-### Community 78 - ".getTextContent"
-Cohesion: 0.14
-Nodes (13): GlobalImageCache, addFakeSpaces(), appendEOL(), applyInverseRotation(), buildTextContentItem(), compareWithLastPosition(), ensureTextContentItem(), flushTextContentItem() (+5 more)
+### Community 78 - "Page"
+Cohesion: 0.06
+Nodes (11): buildAddOperation(), buildMinOperation(), buildMulOperation(), buildSubOperation(), createFromArray(), GlobalImageCache, Page, parseCff() (+3 more)
 
 ### Community 79 - "Foundation tables"
 Cohesion: 0.07
@@ -931,9 +936,13 @@ Nodes (28): `brands`, `categories`, `subcategories`, `collections`, `business_ru
 Cohesion: 0.10
 Nodes (22): evidence, files, preflight, REPORTS, require, results, sourceDir, policy (+14 more)
 
+### Community 81 - "makeHexColor"
+Cohesion: 0.07
+Nodes (12): AnnotationStorage, CheckboxWidgetAnnotationElement, ChoiceWidgetAnnotationElement, makeHexColor(), PushButtonWidgetAnnotationElement, RadioButtonWidgetAnnotationElement, setAttributes(), setFillRGBColor() (+4 more)
+
 ### Community 82 - "DailySalesReportDocument"
 Cohesion: 0.17
-Nodes (15): Accent, DateOnly, IEnumerable, IReadOnlyDictionary, IReadOnlyList, DailySalesReportBuilder, DailySalesReportDocument, DsrOperationalMetric (+7 more)
+Nodes (16): Accent, DateOnly, IEnumerable, IReadOnlyDictionary, IReadOnlyList, DailySalesReportBuilder, DailySalesReportDocument, DsrOperationalMetric (+8 more)
 
 ### Community 83 - "create"
 Cohesion: 0.24
@@ -941,7 +950,7 @@ Nodes (27): append(), button(), clear(), create(), actionBar(), actor(), allowed
 
 ### Community 84 - "CancellationToken"
 Cohesion: 0.12
-Nodes (23): CancellationToken, DateOnly, IReadOnlyList, Task, CreateReportPackage, EmailAttachmentPolicy, IInvestigationQuery, InvestigationHit (+15 more)
+Nodes (22): CancellationToken, DateOnly, IReadOnlyList, Task, CreateReportPackage, EmailAttachmentPolicy, IInvestigationQuery, InvestigationHit (+14 more)
 
 ### Community 85 - "kt"
 Cohesion: 0.39
@@ -979,9 +988,9 @@ Nodes (23): etp, manifest, modulePath, require, root, shell, assertExactKeys(), 
 Cohesion: 0.23
 Nodes (23): A(), c(), d(), i(), n(), f(), G(), h() (+15 more)
 
-### Community 95 - "AccountingWorkspaceView"
-Cohesion: 0.10
-Nodes (24): AccountingBatchGrid, AccountingDateInput, AccountingEntryGrid, AccountingEventInput, AccountingMappingReasonInput, AccountingNarrationInput, AccountingStatus, AccountingStoreInput (+16 more)
+### Community 95 - ".Record"
+Cohesion: 0.08
+Nodes (27): Exception, AccountingBatchGrid, AccountingDateInput, AccountingEntryGrid, AccountingEventInput, AccountingMappingReasonInput, AccountingNarrationInput, AccountingStatus (+19 more)
 
 ### Community 96 - "Window"
 Cohesion: 0.21
@@ -995,17 +1004,17 @@ Nodes (22): androidDir, apk, builtApkPath, generatedClean, generatedIndexPath, g
 Cohesion: 0.23
 Nodes (23): batchIdentity(), compactHeader(), compileAdapter(), detectReport(), financialYearFromInvoiceDate(), isForbiddenPiiHeader(), isoDate(), issue() (+15 more)
 
-### Community 99 - "ReleaseVersionConsistencyTests"
-Cohesion: 0.36
-Nodes (3): Fact, string, ReleaseVersionConsistencyTests
+### Community 99 - ".constructor"
+Cohesion: 0.11
+Nodes (8): getB(), InclusionTree, MeshShading, MeshStreamReader, parseTilePackets(), readCodingpasses(), skipBytes(), skipMarkerIfEqual()
 
 ### Community 100 - ".Map"
 Cohesion: 0.13
 Nodes (32): CancellationToken, DateOnly, IReadOnlyList, Task, CashReconciliationReport, DailyExceptionRecord, DsrManagementRecord, IControlledReportQuery (+24 more)
 
 ### Community 101 - "MainWindow"
-Cohesion: 0.06
-Nodes (18): KeyEventArgs, SizeChangedEventArgs, bool, DependencyObject, IEnumerable, MouseButtonEventArgs, RoutedEventArgs, SelectionChangedEventArgs (+10 more)
+Cohesion: 0.07
+Nodes (13): KeyEventArgs, SizeChangedEventArgs, bool, DependencyObject, MouseButtonEventArgs, RoutedEventArgs, SelectionChangedEventArgs, MainWindow (+5 more)
 
 ### Community 102 - "apply-overrides.js"
 Cohesion: 0.09
@@ -1013,15 +1022,15 @@ Nodes (22): ANDROID_PKG_DIR, ANDROID_VARIABLES, applyNativePlugins(), applyRelea
 
 ### Community 103 - "CancellationToken"
 Cohesion: 0.12
-Nodes (17): ApprovedAccountingMapping, IReadOnlyList, IReadOnlyList, AccountingBatchDraft, AccountingBusinessEvent, AccountingEntryDraft, AccountingMapping, CancellationToken (+9 more)
+Nodes (19): AccountingScope, ApproveAccountingMapping, IReadOnlyList, IReadOnlyList, AccountingBatchDraft, AccountingBatchRow, AccountingBusinessEvent, AccountingEntryDraft (+11 more)
 
 ### Community 104 - "jspdf.umd.min.js"
 Cohesion: 0.13
 Nodes (10): Ct(), Et(), g(), h(), d(), jt(), Ie(), Mt() (+2 more)
 
-### Community 105 - ".Draw"
-Cohesion: 0.26
-Nodes (10): Label, Secondary, Accent, double, Func, IReadOnlyList, DailySalesReportPdfExporter, XColor (+2 more)
+### Community 105 - "v6-etp-e5-presentation.test.mjs"
+Cohesion: 0.11
+Nodes (5): actor, document, hash, Node, scope
 
 ### Community 106 - "module-bundle.mjs"
 Cohesion: 0.13
@@ -1052,28 +1061,28 @@ Cohesion: 0.10
 Nodes (18): adapters, binding, bootstrap, e3, e3Authority, e3o, e4, e4o (+10 more)
 
 ### Community 113 - "PDFImage"
-Cohesion: 0.18
+Cohesion: 0.23
 Nodes (3): decodeAndClamp(), PDFImage, resizeImageMask()
 
-### Community 115 - "Etp.Reporting.Desktop"
-Cohesion: 0.07
-Nodes (25): Etp.Reporting.Desktop, INotifyPropertyChanged, IReadOnlyCollection, IReadOnlyList, IShellNavigationService, NavigationDecision, ShellAccess, int (+17 more)
+### Community 115 - "NavigationDecision"
+Cohesion: 0.13
+Nodes (15): INotifyPropertyChanged, IReadOnlyList, IShellNavigationService, NavigationDecision, ShellAccess, int, IReadOnlyList, List (+7 more)
 
-### Community 116 - "DesktopCompositionRootStartupTests"
-Cohesion: 0.23
-Nodes (8): Calls, Exception, Fact, InlineData, Task, TheoryData, Calls, DesktopCompositionRootStartupTests
+### Community 116 - "Etp.Reporting.Desktop"
+Cohesion: 0.10
+Nodes (10): Etp.Reporting.Desktop, IReadOnlyCollection, IReadOnlyDictionary, ShellRouteDescriptor, ShellRouteRegistry, ShellPresentationMetadata, InlineData, Theory (+2 more)
 
 ### Community 117 - "etp-import-history.js"
 Cohesion: 0.18
 Nodes (21): api, require, compare(), create(), append(), bounded(), list(), listAll() (+13 more)
 
 ### Community 118 - ".createDocumentHandler"
-Cohesion: 0.03
-Nodes (43): annotationGlobals(), applyTransform(), cancelAllRequests(), checkFirstPage(), checkLastPage(), clean(), createGlobals(), ensure() (+35 more)
+Cohesion: 0.04
+Nodes (29): annotationGlobals(), BasePdfManager, cancelAllRequests(), checkFirstPage(), checkLastPage(), createGlobals(), ensure(), getFullReader() (+21 more)
 
-### Community 119 - "Saagar Traders — Business Control Centre — Architecture"
-Cohesion: 0.11
-Nodes (18): 1. The shell + twelve external iframe modules, 2. The postMessage rail (shell ↔ module iframe), 3. The storage stack, 4. `integration-bridge.js` — the cross-module event bus (previously undocumented), 5. `auto-backup.js` — daily offline JSON safety net, 6. End-to-end summary, Bus model, ETP sealed facts and parent gateway — LIVE, bounded hybrid (+10 more)
+### Community 119 - "ReleaseEvidenceConsistencyScriptTests"
+Cohesion: 0.15
+Nodes (10): ProcessStartInfo, SyntheticEvidenceFixture, Fact, InlineData, string, Theory, ReleaseEvidenceConsistencyScriptTests, SyntheticEvidenceFixture (+2 more)
 
 ### Community 120 - "V6 ETP continuous-sprint engineering release evidence — 2026-08-25"
 Cohesion: 0.18
@@ -1091,17 +1100,17 @@ Nodes (18): coordinator, core, harness(), importHistoryApi, lifecycle, loaded(),
 Cohesion: 0.24
 Nodes (15): api, require, createRegistry(), get(), list(), load(), register(), exact() (+7 more)
 
-### Community 124 - ".InsertRowAsync"
-Cohesion: 0.21
-Nodes (10): CancellationToken, DateOnly, Guid, IReadOnlyDictionary, SqlCommand, SqlConnection, SqlTransaction, Task (+2 more)
+### Community 124 - ".PersistAsync"
+Cohesion: 0.11
+Nodes (20): IReadOnlyDictionary, StagedImportRow, DateOnly, IEnumerable, IReadOnlyDictionary, IReadOnlyList, R022InvoiceControl, R022PersistenceProjectionResult (+12 more)
 
 ### Community 125 - ".Convert"
 Cohesion: 0.20
 Nodes (7): string, CellConversionResult, TypedCellConverter, Fact, InlineData, Theory, TypedCellConverterTests
 
 ### Community 126 - "DailyWorkflowPresentationSession"
-Cohesion: 0.09
-Nodes (19): IFormatProvider, DailyControlStatus, DailyManualInput, DailyManualStockCount, DailyPackSection, DailyWorkflowScope, DailyWorkflowState, DailyWorkflowStatus (+11 more)
+Cohesion: 0.08
+Nodes (20): IFormatProvider, DailyControlStatus, DailyManualInput, DailyManualStockCount, DailyPackSection, DailyWorkflowScope, DailyWorkflowState, DailyWorkflowStatus (+12 more)
 
 ### Community 127 - "Word64"
 Cohesion: 0.20
@@ -1112,8 +1121,8 @@ Cohesion: 0.25
 Nodes (3): Color, makeHexColor(), Stipple
 
 ### Community 129 - "Task"
-Cohesion: 0.14
-Nodes (15): IAdministrationSqlGateway, ApplicationUserRow, ApprovalRequestRow, AutomationRunRow, CancellationToken, ControlledMasterRow, DataQualityIssueRow, DataQualitySummaryRow (+7 more)
+Cohesion: 0.07
+Nodes (30): FakeAdministrationGateway, FakeOperationsGateway, IAdministrationSqlGateway, IOperationsAdministrationSqlGateway, SqlServerAdministrationService, SqlServerOperationsAdministrationService, ApplicationRole, ApplicationUserRow (+22 more)
 
 ### Community 130 - "fflate-0.8.3.min.js"
 Cohesion: 0.21
@@ -1144,24 +1153,20 @@ Cohesion: 0.16
 Nodes (7): Node, blocked(), clear(), fail(), freeze(), mount(), rec()
 
 ### Community 137 - "etp-operational-runtime.js"
-Cohesion: 0.14
-Nodes (21): adapters, api, foundation, require, storeApi, create(), boot(), commit() (+13 more)
+Cohesion: 0.26
+Nodes (16): create(), boot(), commit(), ingest(), make(), mutate(), put(), read() (+8 more)
 
 ### Community 138 - "etp-store-lifecycle-policy.js"
 Cohesion: 0.30
 Nodes (17): attachManifest(), beginRestatement(), copy(), create(), fenceAfterRestore(), financialYear(), isoDate(), manifestIdentity() (+9 more)
-
-### Community 139 - ".LoadAsync"
-Cohesion: 0.19
-Nodes (8): CancellationToken, Task, IDashboardQuery, CancellationToken, Fact, Task, CancellingDashboardQuery, DashboardApplicationContractTests
 
 ### Community 140 - "whatsapp-share.js"
 Cohesion: 0.19
 Nodes (16): activeModuleName(), applyPrintLook(), authorizeExport(), beginExport(), blobToBase64(), buildPdf(), caps(), dateStamp() (+8 more)
 
 ### Community 141 - "OperationsAdministrationContracts.cs"
-Cohesion: 0.11
-Nodes (30): CancellationToken, DateOnly, IReadOnlyList, Task, TimeOnly, AdministrationDashboard, ApplicationUser, ApprovalRequest (+22 more)
+Cohesion: 0.13
+Nodes (25): CancellationToken, DateOnly, IReadOnlyList, Task, TimeOnly, AdministrationDashboard, ApplicationUser, ApprovalRequest (+17 more)
 
 ### Community 142 - "etp-retail-xlsx-loader.test.mjs"
 Cohesion: 0.13
@@ -1171,21 +1176,21 @@ Nodes (11): datePolicy, foundation, loaderFactory, numeric, profile, require, ta
 Cohesion: 0.12
 Nodes (6): api, require, source, Worker, create(), parse()
 
-### Community 144 - "Deployment and Operations"
-Cohesion: 0.07
-Nodes (27): Backup and restore validation, CI and release gates, Core invariants, Evidence and defect handling, Golden data policy, Production promotion gate, Pull request gate, Purpose and current baseline (+19 more)
+### Community 144 - "Test Strategy"
+Cohesion: 0.15
+Nodes (13): Backup and restore validation, CI and release gates, Core invariants, Evidence and defect handling, Golden data policy, Production promotion gate, Pull request gate, Purpose and current baseline (+5 more)
 
 ### Community 145 - "UiNavigationRegistry"
-Cohesion: 0.14
-Nodes (13): RadioButton, bool, DensitySelector, AccessRole, IReadOnlyList, string, ModuleDefinition, NavigationGroupDefinition (+5 more)
+Cohesion: 0.10
+Nodes (15): RadioButton, bool, DensitySelector, IEnumerable, TextChangedEventArgs, AccessRole, IReadOnlyList, string (+7 more)
 
 ### Community 146 - ".Resolve"
-Cohesion: 0.05
-Nodes (32): Etp.Reporting.Domain.Tests, Etp.Reporting.Domain.Primitives, Etp.Reporting.Domain.Sales, Etp.Reporting.Domain.Periods, Etp.Reporting.Domain.Stock, DateOnly, string, BusinessReportingPeriod (+24 more)
+Cohesion: 0.16
+Nodes (13): DateOnly, string, BusinessReportingPeriod, IndianFinancialYearPeriodPolicy, ReportingPeriodKind, DateOnly, ComparisonPeriod, DateRange (+5 more)
 
-### Community 147 - "constructor"
-Cohesion: 0.05
-Nodes (50): addHex(), BinaryCMapStream, constructor(), createBuiltInCMap(), _createBuiltInEncoding(), decrypt(), expectInt(), expectString() (+42 more)
+### Community 147 - "create"
+Cohesion: 0.03
+Nodes (50): addHex(), BinaryCMapStream, CMap, create(), getInt(), createBuiltInCMap(), decrypt(), expectInt() (+42 more)
 
 ### Community 149 - "Etp.Reporting.Reporting.csproj"
 Cohesion: 0.18
@@ -1196,7 +1201,7 @@ Cohesion: 0.16
 Nodes (12): datePolicy, foundation, parse(), parser, policy, profile, require, table() (+4 more)
 
 ### Community 151 - "SimplePdfVisualReportExporter"
-Cohesion: 0.25
+Cohesion: 0.28
 Nodes (5): double, IReadOnlyList, List, StringBuilder, SimplePdfVisualReportExporter
 
 ### Community 152 - "UserControl"
@@ -1204,8 +1209,8 @@ Cohesion: 0.09
 Nodes (34): BusinessDateInput, DailyPackGrid, InputStatus, ManualEntryHeading, ManualFieldInput, ManualInputsGrid, ManualReasonInput, ManualValueInput (+26 more)
 
 ### Community 153 - "s"
-Cohesion: 0.20
-Nodes (16): a(), C(), e(), b(), br(), dt(), er(), et() (+8 more)
+Cohesion: 0.22
+Nodes (14): C(), e(), br(), dt(), er(), et(), gt(), j() (+6 more)
 
 ### Community 154 - "ProductisationPresentationSessionTests"
 Cohesion: 0.13
@@ -1239,17 +1244,17 @@ Nodes (9): @babel/core, @babel/preset-env, @capacitor/cli, devDependencies, @bab
 Cohesion: 0.14
 Nodes (13): 1. ETP has no capability-oracle protection, and migration does not give it any, 2. ETP is the product's only genuinely responsive surface — do not "bring it into line", 3. The UI surface is ten controls and zero tables — today, 4. The gateway boundary verifies clean against this document's non-negotiables, ETP-0 — Frozen boundary and crash checkpoint, ETP-1 — Modular shell and safe query contracts, ETP-2 — Import, status, coverage and history, ETP-3 — Verified Retail reports and exceptions (+5 more)
 
-### Community 162 - "Task"
-Cohesion: 0.10
-Nodes (25): CancellationToken, DateOnly, IReadOnlyList, Task, AccountingBatchControls, AccountingBatchDraft, AccountingBatchSummary, AccountingBusinessEvent (+17 more)
+### Community 162 - "AccountingContracts.cs"
+Cohesion: 0.16
+Nodes (17): CancellationToken, DateOnly, IReadOnlyList, Task, AccountingBatchControls, AccountingBatchDraft, AccountingBatchSummary, AccountingBusinessEvent (+9 more)
 
 ### Community 163 - "T"
-Cohesion: 0.18
-Nodes (18): b(), Dt(), bt(), f(), hr(), mt(), qt(), T() (+10 more)
+Cohesion: 0.16
+Nodes (20): a(), b(), Dt(), b(), bt(), f(), hr(), mt() (+12 more)
 
 ### Community 164 - "ExcelReportData"
-Cohesion: 0.11
-Nodes (12): IReportExportCoordinator, ReportExcelExportRoute, ReportExportCoordinator, ReportPdfExportRoute, DateOnly, DateTimeOffset, IReadOnlyList, ExcelReportColumn (+4 more)
+Cohesion: 0.13
+Nodes (17): MainWindow, Action, CancellationToken, Task, IReportExportCoordinator, ReportExcelExportRoute, ReportExportCoordinator, ReportPdfExportRoute (+9 more)
 
 ### Community 165 - "etp-native-store.js"
 Cohesion: 0.25
@@ -1259,37 +1264,37 @@ Nodes (26): create(), appendChunk(), beginStage(), call(), fenceAfterRestore(), 
 Cohesion: 0.15
 Nodes (13): @capacitor/android, @capacitor/app, @capacitor/core, @capacitor/filesystem, @capacitor/local-notifications, @capacitor/share, dependencies, @capacitor/android (+5 more)
 
-### Community 169 - ".StoreAsync"
-Cohesion: 0.14
-Nodes (15): ManagedPath, Sha256, Size, CancellationToken, HashSet, Regex, Task, TimeSpan (+7 more)
+### Community 169 - ".IntakeDocumentAsync"
+Cohesion: 0.11
+Nodes (19): ManagedPath, Sha256, Size, CancellationToken, HashSet, Regex, Task, TimeSpan (+11 more)
 
 ### Community 170 - "Etp.Reporting.Infrastructure.SqlServer"
 Cohesion: 0.08
-Nodes (22): Etp.Reporting.Application.Imports, Etp.Reporting.Import.Profiles, Etp.Reporting.Import.Staging, Etp.Reporting.SqlServer.Tests, Etp.Reporting.Import.Conversion, Etp.Reporting.Desktop.Modules.Imports, Etp.Reporting.Import.Workbooks, Etp.Reporting.Application.Dashboard (+14 more)
+Nodes (21): Etp.Reporting.Application.Imports, Etp.Reporting.Import.Profiles, Etp.Reporting.Import.Staging, Etp.Reporting.SqlServer.Tests, Etp.Reporting.Import.Conversion, Etp.Reporting.Import.Workbooks, Etp.Reporting.Infrastructure.SqlServer, Etp.Reporting.Import.Preflight (+13 more)
 
 ### Community 171 - "etp-reconciliation-policy.js"
 Cohesion: 0.45
 Nodes (12): aggregateReportRows(), compareReports(), decimalUnits(), evaluateCoverage(), isoDate(), issue(), publicationDecision(), record() (+4 more)
 
 ### Community 172 - "AccessRole"
-Cohesion: 0.19
-Nodes (8): CancellationToken, Task, AccessRole, AccessSession, IAccessSessionQuery, CancellationToken, Task, SqlServerAccessSessionQuery
+Cohesion: 0.11
+Nodes (16): CancellationToken, Task, AccessRole, AccessSession, IAccessSessionQuery, SaveApplicationUser, CancellationToken, Task (+8 more)
 
 ### Community 173 - "ReportingQueryScope"
-Cohesion: 0.10
-Nodes (30): CancellationToken, IReadOnlyList, SqlCommand, SqlConnection, SqlDataReader, Task, SqlServerReportingQueryRepository, CancellationToken (+22 more)
+Cohesion: 0.09
+Nodes (33): CancellationToken, IReadOnlyList, SqlCommand, SqlConnection, SqlDataReader, Task, SqlServerReportingQueryRepository, CancellationToken (+25 more)
 
 ### Community 174 - "README.md"
-Cohesion: 0.13
-Nodes (9): Daily Reporting Current-State Implementation Map, Deliberately unresolved business items, Business-date contract, Report-to-Source Matrix, Completion result, Inputs deliberately deferred to the Owner, Master Prompt Completion Audit, Verification evidence (+1 more)
+Cohesion: 0.08
+Nodes (19): Active product, Architectural invariants, Current status boundaries, Database and upgrade boundary, ETP Reporting Engine Architecture, Runtime shape, Daily Reporting Current-State Implementation Map, Deliberately unresolved business items (+11 more)
 
 ### Community 175 - "etp-import-coordinator.test.mjs"
 Cohesion: 0.13
 Nodes (20): coordinatorApi, fixture(), H, harness(), lifecyclePolicy, profileAuthority, request, require (+12 more)
 
 ### Community 176 - "HelpCentreView"
-Cohesion: 0.08
-Nodes (26): RoutedUICommand, IReadOnlyDictionary, IReadOnlyList, string, ContextHelpRouter, HelpCentreRegistry, HelpCommands, HelpTopicAvailability (+18 more)
+Cohesion: 0.13
+Nodes (15): Brush, ComboBox, ContentControl, IReadOnlyList, StackPanel, string, TextBlock, TextBox (+7 more)
 
 ### Community 177 - "etp-xlsx-parser-policy.js"
 Cohesion: 0.29
@@ -1335,37 +1340,37 @@ Nodes (8): Confirmed Retail profile identities, Cross-store layouts, Deferred pr
 Cohesion: 0.45
 Nodes (9): coverage(), createReceipt(), indiaDate(), iso(), receipt(), record(), validAuthority(), validDictionary() (+1 more)
 
-### Community 188 - "DailySalesReportTests"
-Cohesion: 0.32
-Nodes (3): DateOnly, Fact, DailySalesReportTests
+### Community 188 - "DesktopSettingsComponentTests"
+Cohesion: 0.12
+Nodes (10): Regex, ConnectionStringValidation, DesktopConnectionSettings, string, DesktopSettingsStore, Fact, InlineData, string (+2 more)
 
 ### Community 189 - "StockWorkbookParserTests"
 Cohesion: 0.42
 Nodes (4): Fact, IReadOnlyList, string, StockWorkbookParserTests
 
 ### Community 191 - "Etp.Reporting.Reporting"
-Cohesion: 0.06
-Nodes (19): Etp.Reporting.Reporting, Etp.Reporting.Reporting.Tests, Etp.Reporting.Desktop.Modules.Reports, string, SqlReportingQueries, Fact, CashBalanceReconciliationServiceTests, Fact (+11 more)
+Cohesion: 0.04
+Nodes (25): Etp.Reporting.Application.Reports, Etp.Reporting.Reporting, Etp.Reporting.Application.Access, Etp.Reporting.Infrastructure.SqlServer.Tests, Etp.Reporting.Application.DailyWorkflow, Etp.Reporting.Reporting.Tests, Etp.Reporting.Desktop.Modules.Reports, string (+17 more)
 
 ### Community 192 - "ProductisationModels.cs"
 Cohesion: 0.36
-Nodes (8): DateOnly, AccountingBatchRow, ApprovalRequestRow, DataQualityIssueRow, DocumentExtractionRow, ImportConflictRow, KpiCatalogueRow, RegisterEntryRow
+Nodes (8): DateOnly, ApprovalRequestRow, DataQualityIssueRow, DocumentExtractionRow, ImportConflictRow, InvestigationResult, KpiCatalogueRow, RegisterEntryRow
 
 ### Community 193 - "Target Architecture"
 Cohesion: 0.20
-Nodes (9): Boundaries deliberately excluded from MVP, Deployment and operations, Import transaction, Logical layers, Product boundary, Proposed solution structure, Reporting architecture, Target Architecture (+1 more)
+Nodes (9): Data and reporting target, Deliberately deferred or excluded, Deployment and operations target, Import target, Product boundary, Security, licensing and AI boundaries, Stable logical boundaries, Status map (+1 more)
 
 ### Community 194 - "Inputs still required"
 Cohesion: 0.20
 Nodes (9): E3, E4, E5, E6, E7, Frozen candidate catalogues, Frozen programme authority, Inputs still required (+1 more)
 
-### Community 195 - ".ReadRow"
-Cohesion: 0.19
-Nodes (9): SharedStringTable, CancellationToken, Cell, HashSet, ISet, Row, Task, WorkbookPart (+1 more)
+### Community 195 - "OpenXmlWorkbookReader"
+Cohesion: 0.18
+Nodes (10): SemaphoreSlim, SharedStringTable, CancellationToken, Cell, HashSet, ISet, Row, Task (+2 more)
 
-### Community 196 - "etp-e4-authority-intake.js"
-Cohesion: 0.15
-Nodes (32): api, approved(), candidate(), packageItems(), payloads, approval(), canonical(), create() (+24 more)
+### Community 196 - "OperationalAuditContractTests"
+Cohesion: 0.16
+Nodes (12): AuditLiteral, AuditLiteralKind, Fact, GeneratedRegex, IEnumerable, IReadOnlyList, IReadOnlySet, Regex (+4 more)
 
 ### Community 197 - "etp-incentive-control.js"
 Cohesion: 0.21
@@ -1383,17 +1388,17 @@ Nodes (6): Enrichment, Initial ETP Mapping Register, Invoice/tender — R022 / R
 Cohesion: 0.29
 Nodes (6): Data protection, Empty report behavior, File and workbook, Initial Validation Rules, Sales controls, Stock controls
 
-### Community 201 - "ImportProfile"
-Cohesion: 0.05
-Nodes (45): InvalidOperationException, ValidatedImport, IEnumerable, IReadOnlyList, CanonicalDataType, ImportFieldMapping, ImportProfile, ImportDiagnostic (+37 more)
+### Community 201 - "WorkbookSnapshot"
+Cohesion: 0.06
+Nodes (41): InvalidOperationException, ImportDiagnostic, ImportDiagnosticSeverity, ICollection, IEnumerable, IReadOnlyList, ISet, ImportPreflight (+33 more)
 
 ### Community 202 - "InvestigationApprovalsWorkspaceView"
-Cohesion: 0.10
+Cohesion: 0.11
 Nodes (21): AdjustmentAmountInput, AdjustmentDateInput, AdjustmentReasonInput, AdjustmentStoreInput, AdjustmentTypeInput, ApprovalGrid, ApprovalReasonInput, GlobalSearchInput (+13 more)
 
-### Community 203 - "InvoiceTenderReconciliation"
-Cohesion: 0.12
-Nodes (17): DocumentNumber, IEnumerable, IReadOnlyList, StoreCode, ApprovedControlRule, DocumentControlResult, InvoiceControlValue, InvoiceTenderReconciliation (+9 more)
+### Community 203 - ".Reconcile"
+Cohesion: 0.20
+Nodes (9): DocumentNumber, IEnumerable, StoreCode, ApprovedControlRule, InvoiceControlValue, InvoiceTenderReconciliationService, TenderControlValue, string (+1 more)
 
 ### Community 204 - "module-table-runtime.js"
 Cohesion: 0.29
@@ -1415,37 +1420,37 @@ Nodes (4): bezierBoundingBox(), CanvasExtraState, intersect(), scaleMinMax()
 Cohesion: 0.22
 Nodes (8): autoBackup, index, nativeOffDevice, nativeSecurity, offDevice, overrides, root, storageCore
 
-### Community 209 - "DashboardView"
-Cohesion: 0.05
-Nodes (34): DataGrid, ExportManagementSummaryPdf, ItemsControl, DashboardSnapshot, DashboardViewState, DateOnly, DateTimeOffset, DashboardManagementSummary (+26 more)
+### Community 209 - "DashboardViewState"
+Cohesion: 0.12
+Nodes (14): DashboardSnapshot, IReadOnlyList, DashboardSnapshot, IReadOnlyList, DashboardChartItem, DashboardHealthSnapshot, DashboardHealthTone, DashboardHealthWarning (+6 more)
 
-### Community 210 - "R022PersistenceProjectionResult"
-Cohesion: 0.27
-Nodes (8): DateOnly, IEnumerable, IReadOnlyDictionary, IReadOnlyList, R022InvoiceControl, R022PersistenceProjectionResult, R022PersistenceProjector, R022TenderRow
+### Community 210 - "UserControl"
+Cohesion: 0.11
+Nodes (23): BatchResultsGrid, CancelBatchButton, DiagnosticsGrid, ImportBusinessDateInput, ImportProgressBar, ImportStoreInput, PersistButton, RestatementModeInput (+15 more)
 
 ### Community 211 - "SqlServerReportArchiveQuery"
-Cohesion: 0.19
-Nodes (13): CancellationToken, DateOnly, IReadOnlyList, Task, ArchivedReportComparisonSection, ArchivedReportGenerationSummary, IReportArchiveQuery, ReportArchiveSearch (+5 more)
+Cohesion: 0.17
+Nodes (13): Etp.Reporting.Application.Archive, CancellationToken, DateOnly, IReadOnlyList, Task, ArchivedReportComparisonSection, ArchivedReportGenerationSummary, IReportArchiveQuery (+5 more)
 
 ### Community 212 - ".onSymbolDictionary"
-Cohesion: 0.17
-Nodes (11): ContextCache, decodeBitmap(), decodeIAID(), decodeInteger(), decodeMMRBitmap(), decodeRefinement(), decodeTextRegion(), getCustomHuffmanTable() (+3 more)
+Cohesion: 0.14
+Nodes (13): ContextCache, decodeBitmap(), decodeIAID(), decodeInteger(), readBits(), decodeMMRBitmap(), decodeRefinement(), decodeTextRegion() (+5 more)
 
-### Community 213 - "convert"
-Cohesion: 0.07
-Nodes (20): adjustMapping(), amend(), amendFallbackToUnicode(), charCodeOf(), convert(), getCharCodes(), createCmapTable(), createNameTable() (+12 more)
+### Community 213 - "Task"
+Cohesion: 0.21
+Nodes (7): CancellationToken, Exception, IReadOnlyList, Task, FakeAccountingService, FakeArchiveQuery, FakeSharingContactsService
 
 ### Community 214 - "El"
 Cohesion: 0.12
 Nodes (5): api, day, Doc, El, require
 
 ### Community 215 - "HelpWorkspaceSessionTests"
-Cohesion: 0.22
+Cohesion: 0.20
 Nodes (6): HelpWorkspaceSession, HelpWorkspaceSnapshot, Fact, InlineData, Theory, HelpWorkspaceSessionTests
 
-### Community 216 - "SqlServerApplicationReportQuery"
-Cohesion: 0.29
-Nodes (5): CancellationToken, DateOnly, IReadOnlyList, Task, SqlServerApplicationReportQuery
+### Community 216 - "Deployment and Operations"
+Cohesion: 0.14
+Nodes (14): Backup policy, CI, packaging, and release, Configuration and secrets, Data handling and privacy, Deployment acceptance checklist, Deployment and Operations, Identity and database permissions, Installation and first start (+6 more)
 
 ### Community 217 - "d"
 Cohesion: 0.25
@@ -1459,13 +1464,13 @@ Nodes (9): b(), close(), fc(), fsync(), hc(), ic(), jc(), Oa() (+1 more)
 Cohesion: 0.44
 Nodes (8): descriptor(), diagnostics(), finiteInteger(), inspectStatus(), knownCode(), reasonFromError(), safeNumber(), safeStorage()
 
-### Community 220 - "ImportPersistenceUseCaseTests"
-Cohesion: 0.19
-Nodes (8): ImportPersistenceRoute, Fact, InlineData, MemberData, Task, Theory, TheoryData, ImportPersistenceUseCaseTests
+### Community 220 - "DashboardView"
+Cohesion: 0.13
+Nodes (14): DataGrid, ExportManagementSummaryPdfAsync, ItemsControl, Action, bool, Brush, DateOnly, Func (+6 more)
 
 ### Community 221 - "Current-State Architecture"
-Cohesion: 0.25
-Nodes (7): A. Existing architecture, B. Existing ETP capabilities, C. Reuse matrix, Current-State Architecture, D. Technical debt and risks, E. Migration recommendation, Scope and evidence
+Cohesion: 0.15
+Nodes (12): Active runtime and layers, Current-State Architecture, Deferred boundaries, Exact import identity and provenance, External closure gates, Implemented architecture, Local diagnostics and operational audit, Partial implementation (+4 more)
 
 ### Community 222 - "capture-api23-compatibility.mjs"
 Cohesion: 0.25
@@ -1480,27 +1485,27 @@ Cohesion: 0.11
 Nodes (17): Backup, Daily operation, Database health, Deferred business controls, ETP Reporting Engine - Operations and Recovery, Logs, Offline support package, Restore drill (+9 more)
 
 ### Community 225 - "create"
-Cohesion: 0.25
-Nodes (26): clean(), create(), e4call(), e5attach(), e5Binding(), e5calculate(), e5clawback(), e5load() (+18 more)
+Cohesion: 0.05
+Nodes (101): bridge, clawback, finalized, policyLine, require, authority, binding, calculationInput (+93 more)
 
 ### Community 227 - "ETP closure sprint checkpoint — 28 August 2026"
-Cohesion: 0.17
-Nodes (11): Architecture state at pause, Closure control and reproducible baseline, Completed in this sprint, ETP closure sprint checkpoint — 28 August 2026, Exact resume point, First composition and shell slice, Repository identity, Requirement ledger state (+3 more)
+Cohesion: 0.25
+Nodes (7): Completed engineering, ETP closure sprint checkpoint — 28 August 2026, Exact resume point, Release artifacts, Repository identity, Verification at pause, Work remaining after the pause
 
 ### Community 228 - "ImportWorkspaceView"
-Cohesion: 0.08
-Nodes (20): Date, IAsyncDisposable, Code, Exception, SafeMessage, CancelBatchButton, PersistButton, RetryBatchButton (+12 more)
+Cohesion: 0.11
+Nodes (12): Date, Code, Exception, SafeMessage, DateOnly, Func, IReadOnlyList, RoutedEventArgs (+4 more)
 
-### Community 229 - "WorkbookSnapshot"
-Cohesion: 0.16
-Nodes (18): CancellationToken, DateOnly, Task, IImportPersistenceUseCase, ImportPersistenceRequest, ImportPersistenceResult, ImportRestatement, ImportRowOutcome (+10 more)
+### Community 229 - "MatchedImportEnvelope"
+Cohesion: 0.08
+Nodes (31): ImportPersistenceRoute, CancellationToken, DateOnly, Task, IImportPersistenceUseCase, ImportPersistenceRequest, ImportPersistenceResult, ImportRestatement (+23 more)
 
 ### Community 231 - ".PersistAsync"
-Cohesion: 0.10
-Nodes (16): CancellationToken, DateOnly, Task, BusinessDate, CancellationToken, DateOnly, Guid, IEnumerable (+8 more)
+Cohesion: 0.17
+Nodes (10): BusinessDate, CancellationToken, DateOnly, Guid, IEnumerable, IReadOnlyDictionary, StoreCode, Task (+2 more)
 
 ### Community 232 - "ETP Reporting Engine — User Manual"
-Cohesion: 0.18
+Cohesion: 0.20
 Nodes (10): Common messages, Complete one business date, Dashboard and reports, ETP Reporting Engine — User Manual, Export and print, Getting support, Import reports, Keyboard and accessibility (+2 more)
 
 ### Community 233 - "mah4-runtime.js"
@@ -1541,7 +1546,7 @@ Nodes (20): Architecture ratchet baseline — 2026-08-28, Archive, registers and
 
 ### Community 242 - ".success"
 Cohesion: 0.02
-Nodes (38): applyAssist(), Arc, ariaLabel(), BooleanElement, Br, Button, Caption, CheckButton (+30 more)
+Nodes (31): applyAssist(), Arc, Area, ariaLabel(), Caption, CheckButton, ChoiceList, ContentArea (+23 more)
 
 ### Community 243 - "UiNavigationTests"
 Cohesion: 0.14
@@ -1552,12 +1557,12 @@ Cohesion: 0.18
 Nodes (28): api, foundation, item(), require, canonical(), clone(), create(), event() (+20 more)
 
 ### Community 247 - "DesktopImportCoordinator"
-Cohesion: 0.17
-Nodes (17): CancellationTokenSource, ImportPersistenceUseCase, CancellationToken, DateOnly, Func, ImportRestatement, IProgress, IReadOnlyList (+9 more)
+Cohesion: 0.12
+Nodes (23): CancellationTokenSource, ImportPersistenceUseCase, CancellationToken, DateOnly, Func, ImportPersistenceResult, ImportRestatement, IProgress (+15 more)
 
 ### Community 248 - "checkAndRepair"
 Cohesion: 0.02
-Nodes (48): adjustWidths(), Ascii85Stream, AsciiHexStream, BaseStream, buildAddOperation(), buildMinOperation(), buildMulOperation(), buildSubOperation() (+40 more)
+Nodes (54): adjustWidths(), amend(), amendFallbackToUnicode(), applyStandardFontGlyphMap(), Ascii85Stream, AsciiHexStream, BaseStream, buildToFontChar() (+46 more)
 
 ### Community 249 - "Ma"
 Cohesion: 0.29
@@ -1577,15 +1582,15 @@ Nodes (5): Authorized outcome, Blocking gates after A0, Controls, ETP-A0 import-
 
 ### Community 253 - "parse"
 Cohesion: 0.04
-Nodes (37): accept(), add(), addNode(), addPdfFont(), addTopLevelNode(), buildComponentData(), CFFCompiler, CFFDict (+29 more)
+Nodes (35): accept(), add(), addPdfFont(), buildComponentData(), CFFCompiler, CFFDict, CFFFDSelect, CFFOffsetTracker (+27 more)
 
 ### Community 254 - "com.getcapacitor.PluginMethod"
 Cohesion: 0.14
 Nodes (13): android.annotation.SuppressLint, android.content.SharedPreferences, androidx.activity.result.ActivityResult, SaagarKeystorePlugin, SaagarSecurityPlugin, com.getcapacitor.annotation.ActivityCallback, com.getcapacitor.annotation.CapacitorPlugin, com.getcapacitor.JSObject (+5 more)
 
 ### Community 255 - "v6-etp-wave6-mounted-ui-acceptance.test.mjs"
-Cohesion: 0.18
-Nodes (11): action(), actor, binding, click(), Document, operationalFacade(), result(), publicDay() (+3 more)
+Cohesion: 0.10
+Nodes (13): action(), actor, binding, click(), Document, Element, operationalFacade(), result() (+5 more)
 
 ### Community 256 - "package.json"
 Cohesion: 0.25
@@ -1604,16 +1609,16 @@ Cohesion: 0.33
 Nodes (19): binding(), create(), authorize(), change(), context(), intakeSources(), load(), pace() (+11 more)
 
 ### Community 261 - ".OpenAsync"
-Cohesion: 0.15
-Nodes (13): Exception, CancellationToken, IReadOnlyList, string, Task, ValueTask, BatchImportSource, HashSet (+5 more)
+Cohesion: 0.14
+Nodes (14): Exception, IAsyncDisposable, CancellationToken, IReadOnlyList, string, Task, ValueTask, BatchImportSource (+6 more)
 
 ### Community 262 - "Release Acceptance — 26 August 2026"
 Cohesion: 0.25
 Nodes (7): Autonomous completion phase, Consolidated operational sprint - version 1.1.0, Delivered operational state, Intentionally fail-closed/deferred business scope, Phase 2 operations sprint - version 1.5.0, Release Acceptance — 26 August 2026, Verification evidence
 
 ### Community 263 - "Subform"
-Cohesion: 0.09
-Nodes (4): Area, getContainedChildren(), Subform, SubformSet
+Cohesion: 0.12
+Nodes (3): getContainedChildren(), Subform, SubformSet
 
 ### Community 264 - "blocksToCsv"
 Cohesion: 0.40
@@ -1652,16 +1657,16 @@ Cohesion: 0.40
 Nodes (4): androidTest, evalDir, files, root
 
 ### Community 273 - "ReportPackDocument"
-Cohesion: 0.08
-Nodes (20): JsonSerializerOptions, Page, Cell, DateOnly, DateTimeOffset, double, IEnumerable, int (+12 more)
+Cohesion: 0.07
+Nodes (22): Page, Cell, DateOnly, DateTimeOffset, double, IEnumerable, int, IReadOnlyList (+14 more)
 
 ### Community 274 - ".Reconcile"
 Cohesion: 0.23
 Nodes (10): ItemCode, IEnumerable, IReadOnlyList, StoreCode, ApprovedStockControlRule, StockControlResult, StockMovementValue, StockPositionValue (+2 more)
 
-### Community 275 - "ReportWorkspaceControl"
-Cohesion: 0.14
-Nodes (11): DatePicker, Grid, ListBox, bool, ComboBox, ContentControl, TextBlock, WrapPanel (+3 more)
+### Community 275 - "SqlServerApplicationReportQuery"
+Cohesion: 0.29
+Nodes (5): CancellationToken, DateOnly, IReadOnlyList, Task, SqlServerApplicationReportQuery
 
 ### Community 276 - "language-localization.test.mjs"
 Cohesion: 0.50
@@ -1669,7 +1674,7 @@ Nodes (4): loadApi(), loadRuntime(), moduleNames, root
 
 ### Community 277 - "DsrPdfFontResolver"
 Cohesion: 0.18
-Nodes (5): FontResolverInfo, IFontResolver, object, bool, DsrPdfFontResolver
+Nodes (5): FontResolverInfo, IFontResolver, bool, object, DsrPdfFontResolver
 
 ### Community 278 - "v6-etp-final-responsive-regression.test.mjs"
 Cohesion: 0.40
@@ -1679,9 +1684,9 @@ Nodes (3): api23Pipeline, moduleHtml, surfaces
 Cohesion: 0.23
 Nodes (5): Fact, MemberData, Theory, TheoryData, ReportingQueryRepositoryTests
 
-### Community 280 - "PDFWorker"
+### Community 280 - ".Activate"
 Cohesion: 0.12
-Nodes (5): has(), LinkAnnotationElement, LoopbackPort, PDFWorker, send()
+Nodes (13): DailySalesReportWorkspace, EventHandler, Action, Dictionary, FrameworkElement, IEnumerable, ReportWorkspaceActionRequest, ReportWorkspaceControl (+5 more)
 
 ### Community 281 - "Etp.Reporting.Domain.Tests.csproj"
 Cohesion: 0.20
@@ -1691,25 +1696,25 @@ Nodes (8): net10.0, Microsoft.NET.Sdk, net10.0, coverlet.collector (6.0.4), Micr
 Cohesion: 0.60
 Nodes (4): clear(), freeze(), load(), render()
 
-### Community 283 - "popFont"
-Cohesion: 0.14
-Nodes (6): addPara(), B, I, P, popFont(), pushData()
+### Community 283 - "WidgetAnnotation"
+Cohesion: 0.06
+Nodes (18): addPara(), addString(), B, Br, charsToGlyphs(), compute(), encodeString(), FreeTextAnnotation (+10 more)
 
-### Community 284 - "ConnectionHealth.cs"
-Cohesion: 0.43
-Nodes (4): CancellationToken, Task, IDatabaseHealthCheck, SqlServerHealthCheck
+### Community 284 - "DatabaseHealth"
+Cohesion: 0.23
+Nodes (8): DatabaseConnectionStatus, CancellationToken, Task, TimeSpan, DatabaseHealth, DatabaseHealthStatus, IDatabaseHealthCheck, SqlServerHealthCheck
 
 ### Community 285 - "ETP Reporting Engine — Project Closure Traceability"
-Cohesion: 0.12
-Nodes (16): A. Governance and architecture, B. Data, import and canonical storage, C. Reporting, daily workflow and business controls, Closure dashboard, D. Visual reporting and WPF user experience, E. Productisation, operations and administration, ETP Reporting Engine — Project Closure Traceability, Evidence rules (+8 more)
+Cohesion: 0.11
+Nodes (17): A. Governance and architecture, B. Data, import and canonical storage, C. Reporting, daily workflow and business controls, Closure dashboard, Current verification boundary, D. Visual reporting and WPF user experience, E. Productisation, operations and administration, ETP Reporting Engine — Project Closure Traceability (+9 more)
 
 ### Community 286 - "app-i18n.js"
 Cohesion: 0.44
 Nodes (12): apply(), blocked(), boot(), ensureDerivedDictionaries(), localizeAttribute(), localizeTextNode(), readLanguage(), schedule() (+4 more)
 
 ### Community 287 - "DailyWorkflowWorkspaceView"
-Cohesion: 0.21
-Nodes (8): DailyPackBinding, Exception, Action, bool, DailyWorkflowScope, Func, Task, DailyWorkflowWorkspaceView
+Cohesion: 0.20
+Nodes (8): DailyPackBinding, bool, DailyWorkflowScope, Exception, Func, Task, DailyWorkflowWorkspaceAccess, DailyWorkflowWorkspaceView
 
 ### Community 288 - "etp-foundation-status.js"
 Cohesion: 0.28
@@ -1724,8 +1729,8 @@ Cohesion: 0.19
 Nodes (10): ReportCode, BusinessDate, CancellationToken, DateOnly, SqlConnection, StoreCode, Task, AutomatedOperationsService (+2 more)
 
 ### Community 292 - "ReportWorkspaceTests"
-Cohesion: 0.21
-Nodes (6): DateOnly, ReportingPeriodLabels, Fact, InlineData, Theory, ReportWorkspaceTests
+Cohesion: 0.31
+Nodes (4): Fact, InlineData, Theory, ReportWorkspaceTests
 
 ### Community 293 - "ProductionWorkbookIngestionTests"
 Cohesion: 0.21
@@ -1771,17 +1776,17 @@ Nodes (4): s(), localOrParent(), parentValue(), open()
 Cohesion: 0.50
 Nodes (4): De(), Ie(), pe(), we()
 
-### Community 311 - "DsrDisplay"
-Cohesion: 0.29
-Nodes (3): CultureInfo, string, DsrDisplay
+### Community 311 - ".Draw"
+Cohesion: 0.30
+Nodes (9): Label, Secondary, Accent, double, IReadOnlyList, DailySalesReportPdfExporter, XColor, XGraphics (+1 more)
 
 ### Community 312 - "BatchImportTests"
-Cohesion: 0.17
+Cohesion: 0.18
 Nodes (9): Queue, CancellationToken, Exception, Fact, string, Task, BatchImportTests, OutcomeProcessor (+1 more)
 
-### Community 313 - ".constructor"
-Cohesion: 0.10
-Nodes (9): getB(), InclusionTree, LZWStream, MeshShading, MeshStreamReader, parseTilePackets(), readCodingpasses(), skipBytes() (+1 more)
+### Community 313 - "XhtmlNamespace"
+Cohesion: 0.06
+Nodes (11): ComponentPositionResolutionLayerIterator(), createPacket(), getKeyword(), getPrecinctIndexIfExist(), getPrecinctSizesInImageScale(), LayerResolutionComponentPositionIterator(), PositionComponentResolutionLayerIterator(), ResolutionLayerComponentPositionIterator() (+3 more)
 
 ### Community 316 - "OperationalStatusRepository.cs"
 Cohesion: 0.28
@@ -1795,21 +1800,21 @@ Nodes (29): AutomationRunsGrid, DataQualityGrid, IssueWorkflowReasonInput, Maint
 Cohesion: 0.31
 Nodes (3): Fact, string, DesktopArchitectureTests
 
-### Community 319 - ".Compose"
-Cohesion: 0.16
-Nodes (9): IReadOnlyList, string, VisualReportComposer, VisualReportDefinition, VisualReportRegistry, VisualReportTemplate, VisualReportTheme, Fact (+1 more)
+### Community 319 - "VisualReportModel"
+Cohesion: 0.10
+Nodes (22): DateOnly, DateTimeOffset, IReadOnlyList, string, IChartRenderer, ReportControl, ReportKpi, ReportVisual (+14 more)
 
 ### Community 320 - "HelpCentreTests"
-Cohesion: 0.24
-Nodes (4): Fact, InlineData, Theory, HelpCentreTests
+Cohesion: 0.17
+Nodes (6): IReadOnlyDictionary, ContextHelpRouter, Fact, InlineData, Theory, HelpCentreTests
 
 ### Community 321 - "CancellationToken"
-Cohesion: 0.24
-Nodes (8): TimeSpan, DatabaseHealth, DatabaseHealthStatus, CancellationToken, Task, DatabaseLifecycleSqlGateway, IDatabaseLifecycleSqlGateway, SqlServerDatabaseLifecycleService
+Cohesion: 0.27
+Nodes (7): IReadOnlyList, DatabaseBootstrapResult, CancellationToken, Task, DatabaseLifecycleSqlGateway, IDatabaseLifecycleSqlGateway, SqlServerDatabaseLifecycleService
 
 ### Community 323 - "UserControl"
-Cohesion: 0.10
-Nodes (24): BrandSegmentFilterInput, ExportExcelButton, ExportPdfButton, ItemFilterInput, ReportFrom, ReportGrid, ReportPresentationHost, ReportResult (+16 more)
+Cohesion: 0.09
+Nodes (25): BrandSegmentFilterInput, ExportExcelButton, ExportPdfButton, ItemFilterInput, ReportFrom, ReportGrid, ReportPresentationHost, ReportResult (+17 more)
 
 ### Community 324 - "shell-responsive-runtime.js"
 Cohesion: 0.36
@@ -1831,13 +1836,17 @@ Nodes (3): evaluate(), finite(), p95()
 Cohesion: 0.50
 Nodes (4): drawPill(), formatCell(), freshAT(), tableOpts()
 
+### Community 333 - "phase6f-etp-bounded-report-gateway.test.mjs"
+Cohesion: 0.08
+Nodes (17): readVerified(), receipt(), readVerified(), api, fixture(), query, readVerified(), receipt() (+9 more)
+
 ### Community 334 - "ArchiveDistributionPresentationSession"
 Cohesion: 0.15
-Nodes (16): long, ArchivedReportComparisonSection, ArchivedReportGenerationSummary, CancellationToken, EmailAttachmentPolicy, Func, IReadOnlyList, RecordDistributionAttempt (+8 more)
+Nodes (16): ArchivedReportComparisonSection, ArchivedReportGenerationSummary, CancellationToken, EmailAttachmentPolicy, Func, IReadOnlyList, long, RecordDistributionAttempt (+8 more)
 
 ### Community 335 - ".push"
 Cohesion: 0.02
-Nodes (65): #a(), addChildren(), addString(), AppearanceStreamEvaluator, bezierBoundingBox(), buildHuffmanTable(), charsToGlyphs(), sanitizeTTProgram() (+57 more)
+Nodes (78): addChildren(), AppearanceStreamEvaluator, bezierBoundingBox(), buildHuffmanTable(), charCodeOf(), sanitizeTTProgram(), compileCharString(), bezierCurveTo() (+70 more)
 
 ### Community 336 - "UserControl"
 Cohesion: 0.11
@@ -1847,9 +1856,9 @@ Nodes (25): ArchiveAllDatesInput, ArchiveDateInput, ArchiveStoreInput, ContactAc
 Cohesion: 0.29
 Nodes (6): Accounting workflow, Conflict workflow, Document/register workflow, Morning workflow, Product Operations Runbook, Recovery and support
 
-### Community 338 - "ReportDefinition.cs"
-Cohesion: 0.26
-Nodes (12): IReadOnlyList, string, InitialReportCatalogue, ProductReportCatalogue, ProductReportEntry, ReportAggregation, ReportColumnDefinition, ReportDefinition (+4 more)
+### Community 338 - "HelpTopicDefinition"
+Cohesion: 0.21
+Nodes (9): RoutedUICommand, IReadOnlyList, string, HelpCentreRegistry, HelpCommands, HelpTopicAvailability, HelpTopicDefinition, ShortcutDefinition (+1 more)
 
 ### Community 340 - "e1-etp-import-foundation.test.mjs"
 Cohesion: 0.29
@@ -1876,16 +1885,20 @@ Cohesion: 0.29
 Nodes (5): net10.0, DocumentFormat.OpenXml (3.3.0), Microsoft.NET.Sdk, net10.0, Microsoft.NET.Sdk
 
 ### Community 350 - "OperationalAuditRepository"
-Cohesion: 0.29
-Nodes (6): CancellationToken, HashSet, IReadOnlyList, Task, OperationalAuditEvent, OperationalAuditRepository
+Cohesion: 0.23
+Nodes (7): FrozenSet, CancellationToken, IReadOnlyList, IReadOnlySet, Task, OperationalAuditEvent, OperationalAuditRepository
 
 ### Community 351 - "SettingsWorkspaceView"
 Cohesion: 0.11
 Nodes (13): Exception, Func, RoutedEventArgs, string, Task, SettingsWorkspaceAccess, SettingsWorkspaceOperation, SettingsWorkspaceView (+5 more)
 
 ### Community 352 - "Changelog"
-Cohesion: 0.05
-Nodes (40): [1.0.0] - 2026-08-26, [1.1.0] - 2026-08-26, [1.2.0] - 2026-08-26, [1.2.1] - 2026-08-26, [1.3.0] - 2026-08-26, [1.3.1] - 2026-08-26, 1.4.0 - 2026-08-26, 1.4.1 - 2026-08-26 (+32 more)
+Cohesion: 0.04
+Nodes (48): [1.0.0] - 2026-08-26, [1.1.0] - 2026-08-26, [1.2.0] - 2026-08-26, [1.2.1] - 2026-08-26, [1.3.0] - 2026-08-26, [1.3.1] - 2026-08-26, 1.4.0 - 2026-08-26, 1.4.1 - 2026-08-26 (+40 more)
+
+### Community 353 - "ETP Reporting Engine — external acceptance evidence pack"
+Cohesion: 0.18
+Nodes (11): A. Clean-PC bootstrap and installer record, B. Live backup and recovery-drill record, C. Production hardware and accessibility record, Candidate identity, D. Role-based business UAT record, E. Source-mapping intake record, ETP Reporting Engine — external acceptance evidence pack, F. Windows code-signing record (+3 more)
 
 ### Community 354 - "CashBalanceReconciliationService.cs"
 Cohesion: 0.31
@@ -1912,8 +1925,8 @@ Cohesion: 0.13
 Nodes (12): DispatchProxy, MethodInfo, Action, DependencyObject, Fact, FrameworkElement, IEnumerable, IReadOnlyList (+4 more)
 
 ### Community 360 - "DatabaseLifecycleContracts.cs"
-Cohesion: 0.24
-Nodes (10): CancellationToken, IReadOnlyList, Task, TimeSpan, BootstrapDatabase, DatabaseBootstrapOutcome, DatabaseConnectionHealth, DatabaseConnectionStatus (+2 more)
+Cohesion: 0.23
+Nodes (9): CancellationToken, IReadOnlyList, Task, TimeSpan, BootstrapDatabase, DatabaseBootstrapOutcome, DatabaseConnectionHealth, IDatabaseLifecycleService (+1 more)
 
 ### Community 361 - "Etp.Reporting.Reporting.Tests.csproj"
 Cohesion: 0.29
@@ -1923,17 +1936,21 @@ Nodes (6): net10.0, coverlet.collector (6.0.4), Microsoft.NET.Test.Sdk (17.14.1)
 Cohesion: 0.26
 Nodes (22): approval(), days, fixture(), addDays(), approval(), buildCurve(), checkedLeaves(), compute() (+14 more)
 
+### Community 364 - "SqlServerSharingContactsService"
+Cohesion: 0.18
+Nodes (12): CancellationToken, IReadOnlyList, Task, ISharingContactsService, SharingContact, SharingContactDraft, SharingContactRow, CancellationToken (+4 more)
+
 ### Community 366 - "offdevice-backup.js"
 Cohesion: 0.21
 Nodes (24): cleanLabel(), configure(), context(), dateKey(), disable(), exportMeta(), fail(), failureEscalated() (+16 more)
 
-### Community 367 - ".BootstrapAsync"
-Cohesion: 0.24
-Nodes (7): GeneratedRegex, CancellationToken, IReadOnlyList, Regex, Task, DatabaseBootstrapResult, SqlServerDatabaseBootstrapper
+### Community 367 - "DesktopCompositionRoot"
+Cohesion: 0.17
+Nodes (9): CancellationToken, string, Task, DesktopCompositionRoot, CancellationToken, GeneratedRegex, Regex, Task (+1 more)
 
-### Community 368 - "ITransactionalImportStore"
-Cohesion: 0.14
-Nodes (14): ITransactionalImportStore, StockSqlImportOrchestrator, CancellationToken, Fact, Task, Capture, R022SqlImportOrchestratorTests, CancellationToken (+6 more)
+### Community 368 - ".BuildManagementSummary"
+Cohesion: 0.21
+Nodes (8): DashboardSnapshot, DashboardViewState, DateOnly, DateTimeOffset, DashboardManagementSummary, DashboardPresentationSession, Fact, DashboardPresentationSessionTests
 
 ### Community 369 - "v6-etp-operational-gateway.test.mjs"
 Cohesion: 0.15
@@ -1943,9 +1960,9 @@ Nodes (15): adapters, authority(), base(), binding, clock(), e3, e3o, e4 (+7 mor
 Cohesion: 0.08
 Nodes (25): additionalProperties, const, $id, schemaVersion, pattern, type, pattern, type (+17 more)
 
-### Community 371 - "ETP Reporting Engine — Pending Input and Deferment Register"
-Cohesion: 0.18
-Nodes (10): A. Owner business decisions, B. Required populated ETP/source-system evidence, C. External production and human-validation inputs, D. Owner-approved deferments, Decision rules, E. Decisions already resolved, ETP Reporting Engine — Pending Input and Deferment Register, F. Explicitly invalid blocker reasons (+2 more)
+### Community 371 - "ETP-EXTERNAL-ACCEPTANCE-EVIDENCE-PACK.md"
+Cohesion: 0.11
+Nodes (13): Accessibility Audit and Release Checklist, Business-date contract, Report-to-Source Matrix, A. Owner business decisions, B. Required populated ETP/source-system evidence, C. External production and human-validation inputs, D. Owner-approved deferments, Decision rules (+5 more)
 
 ### Community 372 - ".LoadAsync"
 Cohesion: 0.57
@@ -1960,8 +1977,8 @@ Cohesion: 0.33
 Nodes (5): net10.0, Microsoft.NET.Test.Sdk (17.14.1), xunit (2.9.3), xunit.runner.visualstudio (3.1.4), Microsoft.NET.Sdk
 
 ### Community 375 - "ETP dual-layer licensing engineering specification"
-Cohesion: 0.12
-Nodes (17): 11. Private-key custody, 13. Audit events, 15. Performance and reliability, 16. Guardrails, 17. Risk assessment, 18. Security-adjacent findings kept separate, 19. Deferred owner inputs, 1. Decision and scope (+9 more)
+Cohesion: 0.07
+Nodes (29): 10. End-to-end sequences, 11. Private-key custody, 12. Application contracts and ownership, 13. Audit events, 15. Performance and reliability, 16. Guardrails, 17. Risk assessment, 18. Security-adjacent findings kept separate (+21 more)
 
 ### Community 376 - "etp-operational-i18n.js"
 Cohesion: 0.33
@@ -1980,16 +1997,16 @@ Cohesion: 0.50
 Nodes (3): authority(), binding, options()
 
 ### Community 390 - "CancellationToken"
-Cohesion: 0.13
-Nodes (12): AutomatedOperationsSummary, DataQualitySummaryRow, WatchFolderSettings, CancellationToken, DateOnly, Func, IReadOnlyList, Task (+4 more)
+Cohesion: 0.12
+Nodes (14): DecideApproval, SaveWatchFolderConfiguration, AutomatedOperationsSummary, DataQualitySummaryRow, WatchFolderSettings, CancellationToken, DateOnly, Func (+6 more)
 
 ### Community 391 - ".CreateAsync"
 Cohesion: 0.29
 Nodes (9): CancellationToken, DateOnly, DateTimeOffset, IReadOnlyList, Task, ReportPackageFile, ReportPackageManifest, ReportPackageResult (+1 more)
 
 ### Community 393 - "compose"
-Cohesion: 0.22
-Nodes (13): scope, setup(), actor(), binding(), cleanScope(), compose(), clock(), privileged() (+5 more)
+Cohesion: 0.33
+Nodes (11): actor(), binding(), cleanScope(), compose(), clock(), privileged(), session(), dependencies() (+3 more)
 
 ### Community 394 - "Etp.Reporting.slnx"
 Cohesion: 0.19
@@ -1997,27 +2014,23 @@ Nodes (8): net10.0, Microsoft.NET.Sdk, net10.0-windows, Microsoft.NET.Sdk, net10
 
 ### Community 395 - "ArchiveWorkspaceView"
 Cohesion: 0.22
-Nodes (8): ExportArchivedReport, AccessSession, ArchivedReportGenerationSummary, Exception, Func, RoutedEventArgs, Task, ArchiveWorkspaceView
+Nodes (9): ExportArchivedReportAsync, AccessSession, ArchivedReportGenerationSummary, bool, Exception, Func, RoutedEventArgs, Task (+1 more)
 
-### Community 397 - "6. Microsoft owner authentication"
-Cohesion: 0.67
-Nodes (3): 6. Microsoft owner authentication, D. Authentication architecture, Owner identity key
-
-### Community 398 - "UserControl"
-Cohesion: 0.16
-Nodes (15): DocumentDateInput, DocumentPathInput, DocumentsGrid, DocumentStoreInput, DocumentTypeInput, ExtractionsGrid, ReviewReasonInput, StatusInput (+7 more)
-
-### Community 400 - "DesktopCompositionRoot"
+### Community 397 - "readBit"
 Cohesion: 0.15
-Nodes (10): CancellationToken, MainWindow, string, Task, DesktopCompositionRoot, CancellationToken, HashSet, Task (+2 more)
+Nodes (10): decodeScan(), decodeBlock(), decodeHuffman(), decodeMcu(), readBit(), receive(), receiveAndExtend(), getBlockBufferOffset() (+2 more)
+
+### Community 398 - "SourceInboxWorkspaceView"
+Cohesion: 0.08
+Nodes (31): SourceInboxService, BrowseButton, DocumentDateInput, DocumentPathInput, DocumentsGrid, DocumentStoreInput, DocumentTypeInput, ExtractionsGrid (+23 more)
+
+### Community 400 - ".RunAsync"
+Cohesion: 0.17
+Nodes (12): Action, CancellationToken, Exception, Func, IReadOnlyList, Task, DesktopStartupCoordinator, DesktopStartupMode (+4 more)
 
 ### Community 401 - "ProductisationServiceTests"
-Cohesion: 0.29
+Cohesion: 0.31
 Nodes (4): Fact, string, Task, ProductisationServiceTests
-
-### Community 402 - ".OnStartup"
-Cohesion: 0.24
-Nodes (5): DispatcherUnhandledExceptionEventArgs, Application, Exception, App, StartupEventArgs
 
 ### Community 403 - "ETP closure sprint — Settings, connection and access slice"
 Cohesion: 0.40
@@ -2039,17 +2052,13 @@ Nodes (5): Fact, MemberData, Theory, TheoryData, ApplicationReportQueryTests
 Cohesion: 0.25
 Nodes (7): Baseline conclusion, Desktop architecture baseline, Environment, ETP closure sprint baseline — 28 August 2026, Executed baseline evidence, Safely not executed during Phase 0, Source identity
 
-### Community 412 - ".PersistAsync"
-Cohesion: 0.36
-Nodes (5): CancellationToken, Fact, Task, CaptureStore, R025SqlImportOrchestratorTests
+### Community 412 - "DesktopCompositionRootStartupTests"
+Cohesion: 0.23
+Nodes (8): Calls, Exception, Fact, InlineData, Task, TheoryData, Calls, DesktopCompositionRootStartupTests
 
 ### Community 413 - "properties"
 Cohesion: 0.14
 Nodes (14): oneOf, pattern, type, const, const, properties, expiresAtUtc, issuedAtUtc (+6 more)
-
-### Community 414 - "makeHexColor"
-Cohesion: 0.19
-Nodes (5): DOMFilterFactory, getRGB(), makeHexColor(), setFillRGBColor(), setStrokeRGBColor()
 
 ### Community 415 - "v6-etp-e4-orchestrator.test.mjs"
 Cohesion: 0.24
@@ -2063,9 +2072,9 @@ Nodes (12): ETP licensing key ceremony and operations, Initial owner enrollment,
 Cohesion: 0.17
 Nodes (6): api, bind, engine, foundation, require, scope
 
-### Community 420 - ".Record_reaches_connection_only_after_privacy_validation"
-Cohesion: 0.53
-Nodes (4): InlineData, Task, Theory, OperationalAuditRepositoryTests
+### Community 420 - "OperationalAuditRepositoryTests"
+Cohesion: 0.36
+Nodes (5): Fact, InlineData, Task, Theory, OperationalAuditRepositoryTests
 
 ### Community 421 - "Deferred licensing implementation backlog"
 Cohesion: 0.17
@@ -2083,7 +2092,7 @@ Nodes (11): Acceptance checklist, Authentication platform, Authority and account
 Cohesion: 0.17
 Nodes (12): deviceId, installationId, productId, schemaVersion, storeId, required, expiresAtUtc, features (+4 more)
 
-### Community 425 - ".Windows_shortcuts_resolve_to_shell_commands"
+### Community 425 - "ShellCommand"
 Cohesion: 0.22
 Nodes (10): IReadOnlyList, Key, ModifierKeys, ShellCommand, ShellShortcut, ShellShortcutRegistry, InlineData, Key (+2 more)
 
@@ -2093,7 +2102,7 @@ Nodes (4): Dedicated DSR route, Main-window hook points, Report workspace integr
 
 ### Community 428 - "Help Centre integration"
 Cohesion: 0.50
-Nodes (3): Extending help later, Help Centre integration, Main-window integration hooks
+Nodes (3): Extending help, Help Centre integration, Main-window integration hooks
 
 ### Community 429 - "Report Catalogue Expansion — v1.7.0"
 Cohesion: 0.25
@@ -2104,7 +2113,7 @@ Cohesion: 0.18
 Nodes (11): 1. What you need (one-time setup on a Windows PC), 2. Build the APK (the short version), 3. Build the APK (with Android Studio UI, recommended first time), 4. A proper release APK (optional, for long-term use), 5. Data storage & durability (this is the important part), 6. Storage permission note (older phones only), 7. Updating the app later (new shell build), 8. Project layout (+3 more)
 
 ### Community 431 - "RoutedEventArgs"
-Cohesion: 0.12
+Cohesion: 0.13
 Nodes (12): ExportPackExcelButton, ExportPackPdfButton, FinaliseDayButton, GenerateCombinedPackButton, GenerateStorePackButton, RefreshButton, ReopenDayButton, SaveManualInputButton (+4 more)
 
 ### Community 432 - "Development Conventions"
@@ -2119,41 +2128,41 @@ Nodes (5): STAThread, DependencyObject, IEnumerable, Window, Program
 Cohesion: 0.20
 Nodes (9): Cryptographic and format tests, Device and storage tests, ETP licensing security and regression test matrix, Evidence record, Mandatory final copy attack, Owner authentication and issuance tests, Regression gate, Startup and offline tests (+1 more)
 
-### Community 436 - "UserControl"
-Cohesion: 0.12
-Nodes (17): BatchResultsGrid, DiagnosticsGrid, ImportBusinessDateInput, ImportProgressBar, ImportStoreInput, RestatementModeInput, RestatementReasonInput, UserControl (+9 more)
+### Community 436 - "v6-etp-operational-runtime.test.mjs"
+Cohesion: 0.22
+Nodes (5): adapters, api, foundation, require, storeApi
 
 ### Community 437 - "v6-etp-wave6-portable-privacy.test.mjs"
 Cohesion: 0.18
 Nodes (7): actor, adapters, engine, foundation, require, runtimeApi, storeApi
 
 ### Community 438 - "UserControl"
-Cohesion: 0.13
-Nodes (22): AdministrationStatus, ApplicationUsersGrid, ControlledMastersGrid, KpiCatalogueGrid, MasterActiveInput, MasterApprovalInput, MasterCodeInput, MasterNameInput (+14 more)
+Cohesion: 0.09
+Nodes (30): AdministrationStatus, ApplicationUsersGrid, ControlledMastersGrid, KpiCatalogueGrid, MasterActiveInput, MasterApprovalInput, MasterCodeInput, MasterNameInput (+22 more)
 
 ### Community 439 - "DashboardSnapshot"
-Cohesion: 0.44
-Nodes (7): IReadOnlyList, DashboardAuditEvent, DashboardHealth, DashboardHealthSeverity, DashboardHealthWarning, DashboardImportHistoryItem, DashboardSnapshot
+Cohesion: 0.16
+Nodes (15): CancellationToken, IReadOnlyList, Task, DashboardAuditEvent, DashboardHealth, DashboardHealthSeverity, DashboardHealthWarning, DashboardImportHistoryItem (+7 more)
 
-### Community 440 - "OperationsWorkspaceView"
-Cohesion: 0.19
-Nodes (8): Exception, Func, IOperationsAdministrationService, IReadOnlyList, ManagementTrendPoint, RoutedEventArgs, Task, OperationsWorkspaceView
+### Community 440 - ".Describe"
+Cohesion: 0.16
+Nodes (10): Exception, DesktopFriendlyError, Exception, Func, IOperationsAdministrationService, IReadOnlyList, ManagementTrendPoint, RoutedEventArgs (+2 more)
 
-### Community 441 - "phase6f-etp-bounded-report-gateway.test.mjs"
-Cohesion: 0.08
-Nodes (17): readVerified(), receipt(), readVerified(), api, fixture(), query, readVerified(), receipt() (+9 more)
-
-### Community 443 - "ReportArchiveQueryTests"
-Cohesion: 0.36
-Nodes (4): Fact, InlineData, Theory, ReportArchiveQueryTests
+### Community 443 - "v6-etp-e4-authority-intake.test.mjs"
+Cohesion: 0.32
+Nodes (5): api, approved(), candidate(), packageItems(), payloads
 
 ### Community 444 - "UI/UX v4 design system"
 Cohesion: 0.20
 Nodes (9): Components, Density and touch, Dependency decision, Errors, empty and loading states, Icons, Tables, Tokens, Typography (+1 more)
 
-### Community 447 - "ReportWorkspaceControls.cs"
+### Community 445 - "DesktopDiagnostics"
+Cohesion: 0.19
+Nodes (10): FileInfo, DateTimeOffset, int, JsonSerializerOptions, List, long, object, DesktopDiagnosticEntry (+2 more)
+
+### Community 447 - "ReportWorkspaceControl"
 Cohesion: 0.11
-Nodes (15): DailySalesReportWorkspace, EventHandler, Action, Dictionary, FrameworkElement, IEnumerable, ReportWorkspaceActionRequest, ReportWorkspaceControl (+7 more)
+Nodes (16): DatePicker, Grid, ListBox, bool, ComboBox, ContentControl, DateOnly, IEnumerable (+8 more)
 
 ### Community 448 - "UI/UX v4 navigation contract"
 Cohesion: 0.22
@@ -2164,16 +2173,16 @@ Cohesion: 0.15
 Nodes (20): BootstrapDatabaseButton, ConnectionResult, ConnectionStringInput, DocumentRepositoryInput, MaximumAttachmentInput, OcrHelperInput, OcrModelInput, ProductSettingsPanel (+12 more)
 
 ### Community 450 - "ReportPresentationSnapshot"
-Cohesion: 0.28
-Nodes (4): ReportPresentationSession, ReportPresentationSnapshot, Fact, ReportsPresentationStateTests
+Cohesion: 0.20
+Nodes (6): ReportPresentationSession, ReportPresentationSnapshot, Fact, InlineData, Theory, ReportsPresentationStateTests
 
 ### Community 451 - "Windows Quick Start"
-Cohesion: 0.33
+Cohesion: 0.29
 Nodes (6): Build a release, Import order, Prerequisite, Reports, Start and configure, Windows Quick Start
 
-### Community 452 - "Phase 2 Operations — Implemented Design"
-Cohesion: 0.29
-Nodes (6): Authority boundaries, Automation behavior, Data retention and uninstall, Default folders and schedules, Delivered capability, Phase 2 Operations — Implemented Design
+### Community 452 - "OpenXmlWorkbookReaderAsyncTests"
+Cohesion: 0.22
+Nodes (8): SendOrPostCallback, SynchronizationContext, Cell, Fact, int, Task, OpenXmlWorkbookReaderAsyncTests, RecordingSynchronizationContext
 
 ### Community 454 - "features"
 Cohesion: 0.29
@@ -2184,8 +2193,8 @@ Cohesion: 0.15
 Nodes (7): android.content.Context, android.database.sqlite.SQLiteOpenHelper, EtpDb, Override, Override, StoreDb, SQLiteOpenHelper
 
 ### Community 456 - "DesktopSettingsPresentationSession"
-Cohesion: 0.07
-Nodes (20): EventArgs, Regex, ConnectionStringValidation, DesktopConnectionSettings, DesktopConnectionState, ProductConfiguration, SaveProductConfiguration, string (+12 more)
+Cohesion: 0.14
+Nodes (11): EventArgs, DailyWorkflowNotificationEventArgs, DesktopConnectionState, ProductConfiguration, SaveProductConfiguration, string, DesktopConnectionCandidate, DesktopConnectionPresentationState (+3 more)
 
 ### Community 457 - "14. Activation and administration UI contract"
 Cohesion: 0.33
@@ -2195,9 +2204,9 @@ Nodes (6): 14. Activation and administration UI contract, Accessibility and shor
 Cohesion: 0.33
 Nodes (5): additionalProperties, $id, $schema, title, type
 
-### Community 467 - "12. Application contracts and ownership"
-Cohesion: 0.40
-Nodes (5): 12. Application contracts and ownership, Conceptual APIs, J. Intended additions at implementation time, K. Intended modifications, Statuses
+### Community 467 - "HandledFailureDiagnosticsTests"
+Cohesion: 0.22
+Nodes (6): Fact, MemberData, string, Theory, TheoryData, HandledFailureDiagnosticsTests
 
 ### Community 478 - "4. Threat model"
 Cohesion: 0.40
@@ -2208,12 +2217,8 @@ Cohesion: 0.40
 Nodes (5): 7. Signed offline licence, Canonical payload, Cryptography, E. Envelope, Validation order
 
 ### Community 486 - "Task"
-Cohesion: 0.26
-Nodes (5): CancellationToken, IReadOnlyList, Task, FakeAdministrationService, FakeOperationsService
-
-### Community 488 - "10. End-to-end sequences"
-Cohesion: 0.50
-Nodes (4): 10. End-to-end sequences, G. First activation, H. Offline startup, Replacement
+Cohesion: 0.24
+Nodes (6): UpdateDataQualityIssue, CancellationToken, IReadOnlyList, Task, FakeAdministrationService, FakeOperationsService
 
 ### Community 489 - "3. Existing architecture audit"
 Cohesion: 0.50
@@ -2223,9 +2228,9 @@ Nodes (4): 3. Existing architecture audit, A. Existing architecture, B. Existing
 Cohesion: 0.50
 Nodes (4): 8. Device and installation identity, F. Identity definition, Hardware-change policy, Machine protection
 
-### Community 491 - "UiControls.cs"
-Cohesion: 0.19
-Nodes (8): ContentPresenter, Brush, UIElement, DetailDrawer, EmptyState, LoadingState, ModuleTile, StatusBadge
+### Community 491 - "BackupScriptContractTests"
+Cohesion: 0.33
+Nodes (3): Fact, string, BackupScriptContractTests
 
 ### Community 494 - "deviceId"
 Cohesion: 0.67
@@ -2251,41 +2256,49 @@ Nodes (6): CancellationToken, DateOnly, Func, IReadOnlyList, Task, SqlServerDail
 Cohesion: 0.18
 Nodes (8): DailyReadinessStatus, Fact, InlineData, MemberData, Task, Theory, TheoryData, DailyWorkflowServiceTests
 
-### Community 500 - "readBit"
-Cohesion: 0.14
-Nodes (11): readBits(), decodeScan(), decodeBlock(), decodeHuffman(), decodeMcu(), readBit(), receive(), receiveAndExtend() (+3 more)
-
-### Community 501 - "Etp.Reporting.Desktop.Tests"
-Cohesion: 0.05
-Nodes (17): Etp.Reporting.Application.Access, Etp.Reporting.Desktop.Tests, Etp.Reporting.Desktop.Composition, Fact, DailyWorkflowCompositionTests, Fact, DesktopConnectionAuthorizationTests, Fact (+9 more)
+### Community 501 - "ReleaseVersionConsistencyTests"
+Cohesion: 0.36
+Nodes (3): Fact, string, ReleaseVersionConsistencyTests
 
 ### Community 502 - "Closure Sprint — Archive, Registers and Shortcut Parity"
 Cohesion: 0.40
 Nodes (4): Closure Sprint — Archive, Registers and Shortcut Parity, Implemented, Remaining boundary, Verification
 
 ### Community 503 - "ProductionDependencies"
-Cohesion: 0.18
+Cohesion: 0.17
 Nodes (9): ProductionDependencies, SqlAdapterConnection, CancellationToken, Func, int, IReadOnlyList, Task, ProductionDependencies (+1 more)
+
+### Community 504 - ".Brush"
+Cohesion: 0.22
+Nodes (7): FontWeight, SolidColorBrush, TextBlock, Thickness, DsrUi, UIElement, TextAlignment
 
 ### Community 505 - "Etp.Reporting.Desktop.Tests.csproj"
 Cohesion: 0.33
 Nodes (5): net10.0-windows, Microsoft.NET.Test.Sdk (17.14.1), xunit (2.9.3), xunit.runner.visualstudio (3.1.4), Microsoft.NET.Sdk
 
-### Community 508 - "ExtractedWorkspaceUiSmokeTests.cs"
-Cohesion: 0.10
-Nodes (17): Etp.Reporting.Desktop.Modules.DailyWorkflow, Etp.Reporting.Desktop.Modules.SourceInbox, Etp.Reporting.Desktop.Modules.Registers, Etp.Reporting.Application.DatabaseLifecycle, Etp.Reporting.Application.Registers, Etp.Reporting.Application.OperationsAdministration, Etp.Reporting.Application.DailyWorkflow, Etp.Reporting.Desktop.Modules.Settings (+9 more)
+### Community 507 - "test-release-evidence-consistency.ps1"
+Cohesion: 0.23
+Nodes (9): Assert-ArtifactRecord(), Assert-ReleaseApplicationVersion(), Assert-StringEqual(), Get-NormalizedProductVersion(), Get-RequiredProperty(), Get-RequiredString(), Get-UniqueCycloneProperty(), Read-ExactBytes() (+1 more)
+
+### Community 508 - "Etp.Reporting.Desktop.Tests"
+Cohesion: 0.05
+Nodes (29): Etp.Reporting.Desktop.Modules.DailyWorkflow, Etp.Reporting.Desktop.Modules.Imports, Etp.Reporting.Desktop.Modules.SourceInbox, Etp.Reporting.Application.Dashboard, Etp.Reporting.Desktop.Modules.Registers, Etp.Reporting.Application.DatabaseLifecycle, Etp.Reporting.Application.Registers, Etp.Reporting.Application.OperationsAdministration (+21 more)
 
 ### Community 509 - "v6-etp-e6-presentation.test.mjs"
 Cohesion: 0.12
 Nodes (7): actor, document, hash, item(), model(), Node, scope
 
+### Community 510 - "ReportDefinition.cs"
+Cohesion: 0.26
+Nodes (12): IReadOnlyList, string, InitialReportCatalogue, ProductReportCatalogue, ProductReportEntry, ReportAggregation, ReportColumnDefinition, ReportDefinition (+4 more)
+
 ### Community 513 - "OperationsAdministrationWorkspaceViewTests"
 Cohesion: 0.19
 Nodes (6): MaintenanceOperationResult, OperationsAdministrationWorkspaceAccess, OperationsAdministrationWorkspaceErrors, Fact, Func, OperationsAdministrationWorkspaceViewTests
 
-### Community 514 - "v6-etp-e4-presentation.test.mjs"
-Cohesion: 0.12
-Nodes (5): actor, document, Node, scope, types
+### Community 514 - "DailySalesReportTests"
+Cohesion: 0.28
+Nodes (3): DateOnly, Fact, DailySalesReportTests
 
 ### Community 515 - "etp-reconciliation-policy.test.mjs"
 Cohesion: 0.40
@@ -2295,41 +2308,37 @@ Nodes (4): coverage, policy, require, rule
 Cohesion: 0.70
 Nodes (4): isoCompact(), parse(), refusal(), scalar()
 
-### Community 517 - "rec"
-Cohesion: 0.28
-Nodes (16): binding(), authority(), e3(), e3call(), e4(), e5(), e5Authority(), e5Package() (+8 more)
+### Community 517 - "MatchedImportEnvelopeTests"
+Cohesion: 0.27
+Nodes (4): IDictionary, IList, Fact, MatchedImportEnvelopeTests
 
 ### Community 518 - "ProductReportVisualClassificationRegistry"
 Cohesion: 0.19
 Nodes (9): IReadOnlyDictionary, IReadOnlyList, ProductReportVisualClass, ProductReportVisualClassification, ProductReportVisualClassificationRegistry, Fact, InlineData, Theory (+1 more)
 
-### Community 519 - "SourceInboxWorkspaceView"
-Cohesion: 0.27
-Nodes (5): SourceInboxService, ComboBox, SelectionChangedEventArgs, Task, SourceInboxWorkspaceView
-
 ### Community 530 - "etp-verified-presentation.js"
 Cohesion: 0.38
 Nodes (15): exact(), fail(), forbidden(), freeze(), injectedScope(), load(), loadReport(), setFilters() (+7 more)
 
-### Community 531 - "AdministrationWorkspaceView"
-Cohesion: 0.22
-Nodes (8): ComboBox, Func, IAdministrationService, RoutedEventArgs, SelectionChangedEventArgs, Task, AdministrationWorkspaceView, SaveControlledMaster
+### Community 531 - "ModuleTile"
+Cohesion: 0.29
+Nodes (4): Brush, UIElement, ModuleTile, Button
 
 ### Community 532 - "Border"
 Cohesion: 0.13
 Nodes (15): AccountingPanel, ContextSidebar, DashboardPanel, DetailDrawerHost, FocusedWorkspaceLayer, GettingStartedPanel, ImportPanel, InvestigationPanel (+7 more)
 
 ### Community 533 - "WorkspaceModuleOwnershipRegistry"
-Cohesion: 0.25
+Cohesion: 0.23
 Nodes (6): IReadOnlyDictionary, IReadOnlyList, WorkspaceModuleOwnership, WorkspaceModuleOwnershipRegistry, Fact, WorkspaceModuleOwnershipRegistryTests
 
-### Community 536 - "OperationsAdministrationServiceBoundaryTests"
-Cohesion: 0.24
-Nodes (7): FakeAdministrationGateway, FakeOperationsGateway, SqlServerAdministrationService, SqlServerOperationsAdministrationService, ApplicationRole, Fact, OperationsAdministrationServiceBoundaryTests
+### Community 534 - "DsrDisplay"
+Cohesion: 0.29
+Nodes (3): CultureInfo, string, DsrDisplay
 
-### Community 537 - "FakeOperationsGateway"
-Cohesion: 0.16
-Nodes (8): IOperationsAdministrationSqlGateway, AutomatedOperationsSummary, DateOnly, List, ManagementTrendRow, TimeOnly, WatchFolderSettings, FakeOperationsGateway
+### Community 535 - ".Map"
+Cohesion: 0.42
+Nodes (7): DateTimeOffset, DailyControlStatus, DailyPackGeneration, DailyPackSection, DailyReadinessStatus, DailyWorkflowSnapshot, ManualInputValue
 
 ### Community 538 - "ContentControl"
 Cohesion: 0.14
@@ -2339,77 +2348,73 @@ Nodes (14): AccountingHost, AdministrationHost, DailyWorkflowPanel, DashboardHos
 Cohesion: 0.26
 Nodes (5): Fact, InlineData, string, Theory, RegistersAccountingWorkspaceExtractionTests
 
-### Community 540 - "etp-demo-operational.js"
-Cohesion: 0.32
-Nodes (12): composeRetail(), copy(), e4Model(), e5Model(), e6Model(), e7Close(), e7Evidence(), e7Model() (+4 more)
-
 ### Community 541 - "SourceInboxCompositionTests"
-Cohesion: 0.28
-Nodes (3): Fact, string, SourceInboxCompositionTests
+Cohesion: 0.15
+Nodes (7): SourceDocumentIntakeOutcome, SourceInboxPresentation, Fact, InlineData, string, Theory, SourceInboxCompositionTests
 
 ### Community 545 - "invoke-security-scan.ps1"
 Cohesion: 0.38
 Nodes (3): Get-DotnetPackageRows(), Get-OptionalProperty(), Get-VulnerablePackageSummary()
 
 ### Community 550 - "DesktopImportCoordinatorTests"
-Cohesion: 0.17
-Nodes (12): FakePersistence, CancellationToken, Task, IWorkbookReader, CancellationToken, DateOnly, Fact, Func (+4 more)
-
-### Community 551 - "AccessSessionQueryTests"
-Cohesion: 0.22
-Nodes (7): ApplicationRole, Fact, InlineData, MemberData, Theory, TheoryData, AccessSessionQueryTests
-
-### Community 552 - "etp-e5-payroll-bridge.js"
-Cohesion: 0.22
-Nodes (10): bridge, clawback, finalized, policyLine, require, createEarningLine(), fail(), freeze() (+2 more)
+Cohesion: 0.29
+Nodes (7): FakePersistence, Fact, Func, RetainEtpEvidence, Task, DesktopImportCoordinatorTests, FakeReader
 
 ### Community 553 - ".RunAsync"
-Cohesion: 0.19
-Nodes (11): Action, CancellationToken, Exception, Func, IReadOnlyList, Task, DesktopStartupCoordinator, DesktopStartupMode (+3 more)
+Cohesion: 0.32
+Nodes (5): CancellationToken, HashSet, Task, PowerShellOperationResult, PowerShellOperationsService
 
 ### Community 554 - "DailyWorkflowWorkspaceViewTests"
 Cohesion: 0.26
 Nodes (5): DependencyObject, Fact, Func, TextBox, DailyWorkflowWorkspaceViewTests
 
-### Community 555 - "RoutedEventArgs"
-Cohesion: 0.21
-Nodes (8): BrowseButton, IntakeButton, OpenButton, RefreshButton, RejectButton, VerifyButton, RoutedEventArgs, Button
+### Community 555 - "CiWorkflowContractTests"
+Cohesion: 0.32
+Nodes (3): Fact, string, CiWorkflowContractTests
+
+### Community 556 - "phase6h2-etp-cro-reconciliation.test.mjs"
+Cohesion: 0.36
+Nodes (7): act(), api, ok(), require, scope, seeded(), verified()
 
 ### Community 557 - "Task"
-Cohesion: 0.35
-Nodes (5): SaveProductConfiguration, CancellationToken, Task, FakeAdministrationService, FakeLifecycleService
+Cohesion: 0.31
+Nodes (6): SaveControlledMaster, SaveProductConfiguration, CancellationToken, Task, FakeAdministrationService, FakeLifecycleService
 
 ### Community 558 - "ArchiveWorkspaceExtractionTests"
-Cohesion: 0.38
+Cohesion: 0.33
 Nodes (3): Fact, string, ArchiveWorkspaceExtractionTests
 
 ### Community 560 - "IArchiveShareLauncher"
-Cohesion: 0.24
+Cohesion: 0.21
 Nodes (3): ArchiveShareLauncher, IArchiveShareLauncher, SafeShareLauncher
 
 ### Community 561 - "ImportWorkspaceExtractionTests"
-Cohesion: 0.38
+Cohesion: 0.33
 Nodes (3): Fact, string, ImportWorkspaceExtractionTests
 
-### Community 562 - "ImportPreflightTests"
-Cohesion: 0.23
-Nodes (6): IEnumerable, ImportProfileMatcher, Fact, ImportPreflightTests, Fact, ImportProfileMatcherTests
+### Community 562 - "ImportProfile"
+Cohesion: 0.07
+Nodes (25): ReadOnlyCollection, IEnumerable, IReadOnlyList, CanonicalDataType, ImportFieldMapping, ImportProfile, ImportProfileIdentity, IReadOnlyList (+17 more)
 
 ### Community 564 - "MainWindowShellBoundaryTests"
 Cohesion: 0.33
 Nodes (3): Fact, string, MainWindowShellBoundaryTests
 
-### Community 565 - "v6-etp-wave9-e5-full-chain-acceptance.test.mjs"
-Cohesion: 0.21
-Nodes (10): authority, binding, calculationInput, e3Authority, e5Authority(), event, memory(), options() (+2 more)
+### Community 565 - "AdapterIntegratedSecurityRegressionTests"
+Cohesion: 0.33
+Nodes (5): Func, MemberData, Theory, TheoryData, AdapterIntegratedSecurityRegressionTests
 
 ### Community 566 - "phase6f-etp-report-presentation.test.mjs"
 Cohesion: 0.28
 Nodes (6): api, queryReport(), require, response(), row(), scope
 
-### Community 568 - ".IntakeOutcome"
-Cohesion: 0.25
-Nodes (4): SourceDocumentIntakeOutcome, SourceInboxPresentation, InlineData, Theory
+### Community 567 - "App"
+Cohesion: 0.33
+Nodes (3): DispatcherUnhandledExceptionEventArgs, Application, App
+
+### Community 568 - "Saagar Business Control Centre legacy Android architecture"
+Cohesion: 0.33
+Nodes (6): Backup boundary, ETP hybrid boundary, Runtime shape, Saagar Business Control Centre legacy Android architecture, Shell-to-module boundary, Storage boundary
 
 ### Community 570 - "todayIsoSafe"
 Cohesion: 0.25
@@ -2427,17 +2432,9 @@ Nodes (6): Guid, IReadOnlyList, ImportFileDescriptor, ImportIssue, ImportIssueSe
 Cohesion: 0.38
 Nodes (3): HashSet, ISourceDocumentLauncher, SourceDocumentLauncher
 
-### Community 574 - "Etp.Reporting.Infrastructure.SqlServer.Tests"
-Cohesion: 0.12
-Nodes (9): Etp.Reporting.Application.Reports, Etp.Reporting.Infrastructure.SqlServer.Tests, Func, MemberData, Theory, TheoryData, AdapterIntegratedSecurityRegressionTests, Fact (+1 more)
-
-### Community 579 - ".Map"
-Cohesion: 0.42
-Nodes (7): DateTimeOffset, DailyControlStatus, DailyPackGeneration, DailyPackSection, DailyReadinessStatus, DailyWorkflowSnapshot, ManualInputValue
-
-### Community 580 - "Task"
-Cohesion: 0.61
-Nodes (3): Fact, Task, SqlBackedReportingExecutorTests
+### Community 574 - "ReportArchiveQueryTests"
+Cohesion: 0.36
+Nodes (4): Fact, InlineData, Theory, ReportArchiveQueryTests
 
 ### Community 582 - "v6-etp-demo-operational.test.mjs"
 Cohesion: 0.22
@@ -2446,10 +2443,6 @@ Nodes (7): demo, e4, e5, e6, e7, require, verified
 ### Community 586 - ".Navigate_Click"
 Cohesion: 0.29
 Nodes (6): ContinueButton, DensityToggleButton, PrimaryAction, SidebarToggleButton, RoutedEventArgs, Button
-
-### Community 587 - ".AttachHost"
-Cohesion: 0.50
-Nodes (3): AccessSession, Exception, Func
 
 ### Community 591 - "ReportSourceDefinition"
 Cohesion: 0.70
@@ -2476,19 +2469,19 @@ Cohesion: 0.67
 Nodes (3): SidebarItemsPanel, WorkspaceStack, StackPanel
 
 ## Knowledge Gaps
-- **1269 isolated node(s):** `fs`, `path`, `BUILD_IDENTITY`, `ANDROID_PKG_DIR`, `MANIFEST` (+1264 more)
+- **1286 isolated node(s):** `fs`, `path`, `BUILD_IDENTITY`, `ANDROID_PKG_DIR`, `MANIFEST` (+1281 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **115 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **123 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `Border` connect `Border` to `pdf.worker.min.js`, `UiNavigationRegistry`, `UiControls.cs`?**
-  _High betweenness centrality (0.263) - this node is a cross-community bridge._
-- **Why does `Etp.Reporting.Reporting` connect `Etp.Reporting.Reporting` to `ProductReportVisualClassificationRegistry`, `.CreateAsync`, `ReconciliationStatus`, `ReportExecutionContracts.cs`, `OperationalReportRepository`, `Phase2OperationsRepository`, `UiNavigationRegistry`, `ReportPackDocument`, `.Reconcile`, `DsrPdfFontResolver`, `SimplePdfVisualReportExporter`, `OperationalCompletionRepository`, `ExcelReportData`, `Etp.Reporting.Infrastructure.SqlServer`, `ReportingQueryScope`, `VisualReportModel`, `ReportingServicesTests`, `Etp.Reporting.Infrastructure.SqlServer.Tests`, `ReportWorkspaceControls.cs`, `SimplePdfReportExporter`, `ReportPresentationSnapshot`, `Border`, `DailyWorkflowWorkspaceView.xaml.cs`, `InvoiceTenderReconciliation`, `CalculatedMetric`, `ArchiveDistributionPresentationSession`, `ReportSourceDefinition`, `DailySalesReportDocument`, `ReportDefinition.cs`, `CancellationToken`, `CashBalanceReconciliationService.cs`, `Etp.Reporting.Desktop`, `Etp.Reporting.Desktop.Tests`, `ExtractedWorkspaceUiSmokeTests.cs`?**
-  _High betweenness centrality (0.187) - this node is a cross-community bridge._
-- **Why does `TemplateNamespace` connect `TemplateNamespace` to `pdf.worker.min.js`, `.get`, `PDFImage`, `convert`, `etp-operational-store.js`?**
-  _High betweenness centrality (0.179) - this node is a cross-community bridge._
+- **Why does `Border` connect `Border` to `pdf.worker.min.js`, `UiNavigationRegistry`?**
+  _High betweenness centrality (0.259) - this node is a cross-community bridge._
+- **Why does `Etp.Reporting.Reporting` connect `Etp.Reporting.Reporting` to `DailySalesReportTests`, `ProductReportVisualClassificationRegistry`, `.CreateAsync`, `ReconciliationStatus`, `ReportExecutionContracts.cs`, `OperationalReportRepository`, `Phase2OperationsRepository`, `UiNavigationRegistry`, `ReportPackDocument`, `.Reconcile`, `DsrPdfFontResolver`, `WorkspaceModuleOwnershipRegistry`, `OperationalCompletionRepository`, `.Activate`, `DailyWorkflowWorkspaceView`, `ExcelReportData`, `ReportWorkspaceTests`, `OpenXmlVisualReportExporter`, `Etp.Reporting.Infrastructure.SqlServer`, `ReportingQueryScope`, `ReportVisualPresenter`, `ReportingServicesTests`, `SimplePdfReportExporter`, `ReportWorkspaceControl`, `VisualReportModel`, `ReportPresentationSnapshot`, `Border`, `.Reconcile`, `CalculatedMetric`, `ArchiveDistributionPresentationSession`, `ReportSourceDefinition`, `DailySalesReportDocument`, `SqlServerReportArchiveQuery`, `CancellationToken`, `DashboardView`, `CashBalanceReconciliationService.cs`, `.BuildManagementSummary`, `Etp.Reporting.Desktop`, `Etp.Reporting.Desktop.Tests`, `ReportDefinition.cs`?**
+  _High betweenness centrality (0.172) - this node is a cross-community bridge._
+- **Why does `TemplateNamespace` connect `TemplateNamespace` to `pdf.worker.min.js`, `PDFImage`, `etp-operational-store.js`, `Page`?**
+  _High betweenness centrality (0.156) - this node is a cross-community bridge._
 - **Are the 50 inferred relationships involving `h()` (e.g. with `Ce()` and `Cr()`) actually correct?**
   _`h()` has 50 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 14 inferred relationships involving `rt()` (e.g. with `Be()` and `Cr()`) actually correct?**
@@ -2496,4 +2489,4 @@ _Questions this graph is uniquely positioned to answer:_
 - **Are the 3 inferred relationships involving `He()` (e.g. with `kr()` and `xr()`) actually correct?**
   _`He()` has 3 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `fs`, `path`, `BUILD_IDENTITY` to the rest of the system?**
-  _1269 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _1286 weakly-connected nodes found - possible documentation gaps or missing edges._

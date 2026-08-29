@@ -29,13 +29,16 @@ public sealed class SqlServerHealthCheck(string connectionString) : IDatabaseHea
             await connection.OpenAsync(cancellationToken);
             return new(DatabaseHealthStatus.Healthy, "SQL Server connection succeeded.", connection.ServerVersion, started.Elapsed);
         }
-        catch (ArgumentException ex)
+        catch (ArgumentException)
         {
-            return new(DatabaseHealthStatus.InvalidConfiguration, ex.Message, Elapsed: started.Elapsed);
+            return new(DatabaseHealthStatus.InvalidConfiguration,
+                "The SQL Server connection settings are invalid.", Elapsed: started.Elapsed);
         }
-        catch (Exception ex) when (ex is SqlException or InvalidOperationException)
+        catch (Exception exception) when (exception is SqlException or InvalidOperationException)
         {
-            return new(DatabaseHealthStatus.Unreachable, ex.Message, Elapsed: started.Elapsed);
+            return new(DatabaseHealthStatus.Unreachable,
+                "SQL Server could not be reached. Verify the configured instance is running and try again.",
+                Elapsed: started.Elapsed);
         }
     }
 }

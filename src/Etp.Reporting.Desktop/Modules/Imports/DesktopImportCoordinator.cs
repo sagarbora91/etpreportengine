@@ -3,12 +3,10 @@ extern alias EtpApplication;
 using Etp.Reporting.Import.Batch;
 using Etp.Reporting.Import.Diagnostics;
 using Etp.Reporting.Import.Preflight;
-using Etp.Reporting.Import.Profiles;
-using Etp.Reporting.Import.Staging;
 using Etp.Reporting.Import.Workbooks;
-using ImportPersistenceRequest = EtpApplication::Etp.Reporting.Application.Imports.ImportPersistenceRequest<Etp.Reporting.Import.Workbooks.WorkbookSnapshot>;
+using ImportPersistenceRequest = EtpApplication::Etp.Reporting.Application.Imports.ImportPersistenceRequest<Etp.Reporting.Import.Preflight.MatchedImportEnvelope>;
 using ImportPersistenceResult = EtpApplication::Etp.Reporting.Application.Imports.ImportPersistenceResult;
-using ImportPersistenceUseCase = EtpApplication::Etp.Reporting.Application.Imports.IImportPersistenceUseCase<Etp.Reporting.Import.Workbooks.WorkbookSnapshot>;
+using ImportPersistenceUseCase = EtpApplication::Etp.Reporting.Application.Imports.IImportPersistenceUseCase<Etp.Reporting.Import.Preflight.MatchedImportEnvelope>;
 using ImportRestatement = EtpApplication::Etp.Reporting.Application.Imports.ImportRestatement;
 
 namespace Etp.Reporting.Desktop.Modules.Imports;
@@ -45,8 +43,7 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
     private readonly Func<string, ImportPersistenceUseCase> persistenceFactory;
     private readonly RetainEtpEvidence retainEvidence;
     private readonly IWorkbookReader workbookReader;
-    private readonly ImportPreflight preflight;
-    private readonly ImportRowStager stager;
+    private readonly MatchedImportEnvelopeFactory envelopeFactory;
     private readonly IImportFailureClassifier failureClassifier;
     private BatchImportSource? activeBatchSource;
     private CancellationTokenSource? batchCancellation;
@@ -60,8 +57,7 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
         this.persistenceFactory = persistenceFactory ?? throw new ArgumentNullException(nameof(persistenceFactory));
         this.retainEvidence = retainEvidence ?? throw new ArgumentNullException(nameof(retainEvidence));
         this.workbookReader = workbookReader ?? new OpenXmlWorkbookReader();
-        preflight = new ImportPreflight();
-        stager = new ImportRowStager();
+        envelopeFactory = new MatchedImportEnvelopeFactory();
         failureClassifier = new SafeImportFailureClassifier();
     }
 
@@ -74,20 +70,15 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
     {
         validatedImport = null;
         var snapshot = await workbookReader.ReadAsync(workbookPath, cancellationToken).ConfigureAwait(false);
-        var result = preflight.Inspect(snapshot, RetailSalesProfiles.FirstSalesSlice.Concat(StockImportProfiles.All));
-        var diagnostics = result.Diagnostics.ToList();
-        ImportStagingResult? staging = null;
-        if (result.CanImport)
-        {
-            staging = stager.Stage(result.Sheet!, result.Profile!);
-            diagnostics.AddRange(staging.Diagnostics);
-        }
-
-        var accepted = result.CanImport && diagnostics.All(row => row.Severity != ImportDiagnosticSeverity.Blocker);
-        validatedImport = accepted
-            ? new(workbookPath, snapshot, result, staging!)
-            : null;
-        return new(accepted, result.Profile?.ReportCode, staging?.Rows.Count ?? 0, diagnostics);
+        var inspection = envelopeFactory.Inspect(snapshot);
+        validatedImport = inspection.AcceptedImport is null
+            ? null
+            : new(workbookPath, inspection.AcceptedImport);
+        return new(
+            inspection.Accepted,
+            inspection.MatchedProfile?.ReportCode,
+            inspection.StagedRows,
+            inspection.Diagnostics);
     }
 
     public async Task<DesktopImportPersistenceOutcome> PersistValidatedAsync(
@@ -99,19 +90,18 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
         var persistence = persistenceFactory(connectionString);
         var restatement = await ResolveRestatementAsync(
             persistence,
-            current.Preflight.Profile!.ReportCode,
+            current.Envelope.ProfileIdentity.ReportCode,
             context,
             cancellationToken).ConfigureAwait(false);
         var result = await persistence.PersistAsync(
             new ImportPersistenceRequest(
-                current.Workbook,
-                current.Preflight.Profile.ReportCode,
+                current.Envelope,
                 context.BusinessDate,
                 context.StoreCode,
                 context.ImportedBy,
                 restatement),
             cancellationToken).ConfigureAwait(false);
-        return new(current.Preflight.Profile.ReportCode, result, restatement is not null);
+        return new(current.Envelope.ProfileIdentity.ReportCode, result, restatement is not null);
     }
 
     public Task RetainValidatedEvidenceAsync(
@@ -125,8 +115,8 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
             : retainEvidence(
                 connectionString,
                 current.WorkbookPath,
-                current.Workbook.Sha256,
-                current.Preflight.Profile!.ReportCode,
+                current.Envelope.Workbook.Sha256,
+                current.Envelope.ProfileIdentity.ReportCode,
                 context.StoreCode,
                 context.BusinessDate,
                 cancellationToken);
@@ -215,19 +205,16 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
             return new(0, 0, 0, 0, true);
         }
 
-        var inspected = preflight.Inspect(snapshot, RetailSalesProfiles.FirstSalesSlice.Concat(StockImportProfiles.All));
-        if (!inspected.CanImport)
-            throw new ImportSourceException("IMPORT_LAYOUT_BLOCKED", "The workbook layout is not an approved ETP layout.");
+        var accepted = envelopeFactory.RequireAccepted(snapshot);
         var context = contextFactory();
         var restatement = await ResolveRestatementAsync(
             persistence,
-            inspected.Profile!.ReportCode,
+            accepted.ProfileIdentity.ReportCode,
             context,
             cancellationToken).ConfigureAwait(false);
         await persistence.PersistAsync(
             new ImportPersistenceRequest(
-                snapshot,
-                inspected.Profile.ReportCode,
+                accepted,
                 context.BusinessDate,
                 context.StoreCode,
                 context.ImportedBy,
@@ -238,7 +225,7 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
             connectionString,
             workbookPath,
             snapshot.Sha256,
-            inspected.Profile.ReportCode,
+            accepted.ProfileIdentity.ReportCode,
             context.StoreCode,
             context.BusinessDate,
             cancellationToken).ConfigureAwait(false);
@@ -276,9 +263,7 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
 
     private sealed record ValidatedImport(
         string WorkbookPath,
-        WorkbookSnapshot Workbook,
-        ImportPreflightResult Preflight,
-        ImportStagingResult Staging);
+        MatchedImportEnvelope Envelope);
 
     private sealed class CoordinatorWorkbookImportOutcomeProcessor(
         Func<string, CancellationToken, Task<WorkbookImportOutcome>> process) : IWorkbookImportOutcomeProcessor

@@ -17,6 +17,41 @@ public sealed record ImportFieldMapping(
     bool IsRequired,
     string? Transformation = null);
 
+public sealed record ImportProfileIdentity
+{
+    public ImportProfileIdentity(
+        string reportCode,
+        string layoutVersion,
+        string profileVersion,
+        string headerSignatureSha256)
+    {
+        ReportCode = RequiredToken(reportCode, nameof(reportCode));
+        LayoutVersion = RequiredToken(layoutVersion, nameof(layoutVersion));
+        ProfileVersion = RequiredToken(profileVersion, nameof(profileVersion));
+        HeaderSignatureSha256 = ValidateSha256(headerSignatureSha256);
+    }
+
+    public string ReportCode { get; }
+    public string LayoutVersion { get; }
+    public string ProfileVersion { get; }
+    public string HeaderSignatureSha256 { get; }
+
+    private static string RequiredToken(string value, string parameterName)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            throw new ArgumentException("Value is required.", parameterName);
+        return value.Trim();
+    }
+
+    private static string ValidateSha256(string value)
+    {
+        var normalized = RequiredToken(value, nameof(value)).ToLowerInvariant();
+        if (normalized.Length != 64 || normalized.Any(c => !Uri.IsHexDigit(c)))
+            throw new ArgumentException("A lowercase 64-character SHA-256 value is required.", nameof(value));
+        return normalized;
+    }
+}
+
 public sealed class ImportProfile
 {
     public ImportProfile(
@@ -31,6 +66,7 @@ public sealed class ImportProfile
         LayoutVersion = RequiredToken(layoutVersion, nameof(layoutVersion));
         ProfileVersion = RequiredToken(profileVersion, nameof(profileVersion));
         HeaderSignatureSha256 = ValidateSha256(headerSignatureSha256);
+        Identity = new ImportProfileIdentity(ReportCode, LayoutVersion, ProfileVersion, HeaderSignatureSha256);
 
         var materialized = fields?.ToArray() ?? throw new ArgumentNullException(nameof(fields));
         if (materialized.Length == 0)
@@ -53,6 +89,7 @@ public sealed class ImportProfile
     public string LayoutVersion { get; }
     public string ProfileVersion { get; }
     public string HeaderSignatureSha256 { get; }
+    public ImportProfileIdentity Identity { get; }
     public IReadOnlyList<ImportFieldMapping> Fields { get; }
     public IReadOnlyList<string> ExpectedSourceHeaders { get; }
 

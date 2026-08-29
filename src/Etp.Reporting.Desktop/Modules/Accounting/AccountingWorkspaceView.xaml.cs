@@ -16,7 +16,7 @@ public sealed partial class AccountingWorkspaceView : UserControl
     private readonly AccountingPresentationSession session;
     private readonly Func<string> connectionStringProvider;
     private Func<AccessSession> accessProvider = () => new("unknown", "Unknown user", AccessRole.None, false);
-    private Func<Exception, string> errorDescriber = exception => exception.Message;
+    private Func<Exception, string> errorDescriber = DesktopFriendlyError.Describe;
 
     public AccountingWorkspaceView(AccountingPresentationSession session, Func<string> connectionStringProvider)
     {
@@ -49,7 +49,7 @@ public sealed partial class AccountingWorkspaceView : UserControl
             RequireViewAccess();
             AccountingBatchGrid.ItemsSource = await session.RefreshAsync(connectionStringProvider());
         }
-        catch (Exception ex) { SetStatus(errorDescriber(ex)); }
+        catch (Exception ex) { DesktopDiagnostics.Record(ex, "Accounting.Workspace", "ACCOUNTING_REFRESH_FAILED"); SetStatus(errorDescriber(ex)); }
     }
 
     private async void PreviewAccountingBatch_Click(object sender, RoutedEventArgs e)
@@ -64,7 +64,7 @@ public sealed partial class AccountingWorkspaceView : UserControl
                 ? $"Balanced preview: debit {preview.Batch.DebitTotal:N2}, credit {preview.Batch.CreditTotal:N2}."
                 : $"Preview blocked. Missing approved mappings: {string.Join(", ", preview.Batch.MissingMappings)}.");
         }
-        catch (Exception ex) { SetStatus(errorDescriber(ex)); }
+        catch (Exception ex) { DesktopDiagnostics.Record(ex, "Accounting.Workspace", "ACCOUNTING_PREVIEW_FAILED"); SetStatus(errorDescriber(ex)); }
     }
 
     private async void SaveAccountingBatch_Click(object sender, RoutedEventArgs e)
@@ -76,7 +76,7 @@ public sealed partial class AccountingWorkspaceView : UserControl
             SetStatus($"Accounting batch {id:N0} saved for Owner review.");
             await RefreshAccountingAsync();
         }
-        catch (Exception ex) { SetStatus(errorDescriber(ex)); }
+        catch (Exception ex) { DesktopDiagnostics.Record(ex, "Accounting.Workspace", "ACCOUNTING_BATCH_SAVE_FAILED"); SetStatus(errorDescriber(ex)); }
     }
 
     private async void ApproveAccountingBatch_Click(object sender, RoutedEventArgs e)
@@ -90,7 +90,7 @@ public sealed partial class AccountingWorkspaceView : UserControl
             SetStatus($"Accounting batch {row.Id:N0} approved.");
             await RefreshAccountingAsync();
         }
-        catch (Exception ex) { SetStatus(errorDescriber(ex)); }
+        catch (Exception ex) { DesktopDiagnostics.Record(ex, "Accounting.Workspace", "ACCOUNTING_BATCH_APPROVAL_FAILED"); SetStatus(errorDescriber(ex)); }
     }
 
     private async void ExportTallyXml_Click(object sender, RoutedEventArgs e)
@@ -111,7 +111,7 @@ public sealed partial class AccountingWorkspaceView : UserControl
             SetStatus($"Approved Tally XML exported with SHA-256 {receipt.Sha256[..12]}…");
             await RefreshAccountingAsync();
         }
-        catch (Exception ex) { SetStatus(errorDescriber(ex)); }
+        catch (Exception ex) { DesktopDiagnostics.Record(ex, "Accounting.Workspace", "ACCOUNTING_EXPORT_FAILED"); SetStatus(errorDescriber(ex)); }
     }
 
     private async void ApproveAccountingMapping_Click(object sender, RoutedEventArgs e)
@@ -129,7 +129,7 @@ public sealed partial class AccountingWorkspaceView : UserControl
             AccountingMappingReasonInput.Clear();
             SetStatus($"Approved {eventCode} ledger mapping is active from {scope.BusinessDate:dd-MMM-yyyy}.");
         }
-        catch (Exception ex) { SetStatus(errorDescriber(ex)); }
+        catch (Exception ex) { DesktopDiagnostics.Record(ex, "Accounting.Workspace", "ACCOUNTING_MAPPING_APPROVAL_FAILED"); SetStatus(errorDescriber(ex)); }
     }
 
     private AccountingScope CurrentScope()

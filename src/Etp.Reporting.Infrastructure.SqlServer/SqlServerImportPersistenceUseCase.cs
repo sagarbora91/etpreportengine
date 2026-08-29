@@ -2,8 +2,6 @@ using Etp.Reporting.Application.Imports;
 using Etp.Reporting.Import.Batch;
 using Etp.Reporting.Import.Preflight;
 using Etp.Reporting.Import.Profiles;
-using Etp.Reporting.Import.Staging;
-using Etp.Reporting.Import.Workbooks;
 
 namespace Etp.Reporting.Infrastructure.SqlServer;
 
@@ -15,7 +13,7 @@ public enum ImportPersistenceRoute
     Stock
 }
 
-public sealed class SqlServerImportPersistenceUseCase : IImportPersistenceUseCase<WorkbookSnapshot>
+public sealed class SqlServerImportPersistenceUseCase : IImportPersistenceUseCase<MatchedImportEnvelope>
 {
     private readonly ITransactionalImportStore store;
     private readonly SqlServerImportFileRepository files;
@@ -56,14 +54,15 @@ public sealed class SqlServerImportPersistenceUseCase : IImportPersistenceUseCas
     }
 
     public async Task<ImportPersistenceResult> PersistAsync(
-        ImportPersistenceRequest<WorkbookSnapshot> request,
+        ImportPersistenceRequest<MatchedImportEnvelope> request,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        ArgumentNullException.ThrowIfNull(request.Workbook);
+        ArgumentNullException.ThrowIfNull(request.AcceptedImport);
         await RequireImportAsync(request.Restatement is not null, cancellationToken).ConfigureAwait(false);
+        _ = ApprovedImportProfileRegistry.Resolve(request.AcceptedImport.ProfileIdentity);
         var restatement = Map(request.Restatement);
-        return SelectRoute(request.ReportCode) switch
+        return SelectRoute(request.AcceptedImport.ProfileIdentity.ReportCode) switch
         {
             ImportPersistenceRoute.Revenue => await PersistRevenueAsync(request, restatement, cancellationToken).ConfigureAwait(false),
             ImportPersistenceRoute.Stock => await PersistStockAsync(request, restatement, cancellationToken).ConfigureAwait(false),
@@ -93,26 +92,19 @@ public sealed class SqlServerImportPersistenceUseCase : IImportPersistenceUseCas
     }
 
     private async Task<ImportPersistenceResult> PersistRevenueAsync(
-        ImportPersistenceRequest<WorkbookSnapshot> request,
+        ImportPersistenceRequest<MatchedImportEnvelope> request,
         ImportRestatementRequest? restatement,
         CancellationToken cancellationToken)
     {
-        var preflight = new ImportPreflight().Inspect(request.Workbook, [RetailSalesProfiles.R022]);
-        if (!preflight.CanImport)
-            throw new ImportSourceException("IMPORT_LAYOUT_BLOCKED", "The workbook layout is not an approved ETP layout.");
-        var staging = new ImportRowStager().Stage(preflight.Sheet!, preflight.Profile!);
-        if (!staging.CanPersist)
-            throw new ImportSourceException("IMPORT_STAGING_BLOCKED", "Workbook rows failed validation.");
-        var projection = new R022PersistenceProjector().Project(staging.Rows);
         await new R022SqlImportOrchestrator(store).PersistAsync(
-            request.Workbook,
-            preflight.Sheet!,
-            projection,
+            request.AcceptedImport,
             cancellationToken: cancellationToken,
             expectedBusinessDate: request.ExpectedBusinessDate,
             expectedStoreCode: request.ExpectedStoreCode,
             importedBy: request.ImportedBy,
             restatement: restatement).ConfigureAwait(false);
+        var projection = new Etp.Reporting.Import.Staging.R022PersistenceProjector()
+            .Project(request.AcceptedImport.Staging.Rows);
         return new(
             "R022",
             projection.InvoiceControls.Count + projection.ClassifiedTenders.Count + projection.QuarantinedTenders.Count,
@@ -122,12 +114,12 @@ public sealed class SqlServerImportPersistenceUseCase : IImportPersistenceUseCas
     }
 
     private async Task<ImportPersistenceResult> PersistSalesAsync(
-        ImportPersistenceRequest<WorkbookSnapshot> request,
+        ImportPersistenceRequest<MatchedImportEnvelope> request,
         ImportRestatementRequest? restatement,
         CancellationToken cancellationToken)
     {
         var outcome = await new R025SqlImportOrchestrator(store).PersistAsync(
-            request.Workbook,
+            request.AcceptedImport,
             cancellationToken: cancellationToken,
             expectedBusinessDate: request.ExpectedBusinessDate,
             expectedStoreCode: request.ExpectedStoreCode,
@@ -137,12 +129,12 @@ public sealed class SqlServerImportPersistenceUseCase : IImportPersistenceUseCas
     }
 
     private async Task<ImportPersistenceResult> PersistStockAsync(
-        ImportPersistenceRequest<WorkbookSnapshot> request,
+        ImportPersistenceRequest<MatchedImportEnvelope> request,
         ImportRestatementRequest? restatement,
         CancellationToken cancellationToken)
     {
         var outcome = await new StockSqlImportOrchestrator(store).PersistAsync(
-            request.Workbook,
+            request.AcceptedImport,
             cancellationToken: cancellationToken,
             expectedBusinessDate: request.ExpectedBusinessDate,
             expectedStoreCode: request.ExpectedStoreCode,
@@ -152,13 +144,12 @@ public sealed class SqlServerImportPersistenceUseCase : IImportPersistenceUseCas
     }
 
     private async Task<ImportPersistenceResult> PersistEnrichmentAsync(
-        ImportPersistenceRequest<WorkbookSnapshot> request,
+        ImportPersistenceRequest<MatchedImportEnvelope> request,
         ImportRestatementRequest? restatement,
         CancellationToken cancellationToken)
     {
         var outcome = await new RetailEnrichmentSqlImportOrchestrator(connectionString).PersistAsync(
-            request.Workbook,
-            request.ReportCode,
+            request.AcceptedImport,
             request.ExpectedBusinessDate,
             request.ExpectedStoreCode,
             request.ImportedBy,

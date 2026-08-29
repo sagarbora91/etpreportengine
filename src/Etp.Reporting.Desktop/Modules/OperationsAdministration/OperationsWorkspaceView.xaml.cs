@@ -62,7 +62,7 @@ public partial class OperationsWorkspaceView : UserControl
             RenderManagementTrendChart(state.Trend);
             OperationsStatus.Text = state.Status;
         }
-        catch (Exception ex) { OperationsStatus.Text = $"Operations center could not be refreshed: {ex.Message}"; }
+        catch (Exception ex) { DesktopDiagnostics.Record(ex, "OperationsAdministration.Operations", "OPERATIONS_REFRESH_FAILED"); OperationsStatus.Text = $"Operations center could not be refreshed: {DesktopFriendlyError.Describe(ex, "This Windows account does not have application access.")}"; }
     }
 
     private IOperationsAdministrationService Service => serviceFactory(connectionStringProvider());
@@ -80,7 +80,7 @@ public partial class OperationsWorkspaceView : UserControl
             OperationsStatus.Text = "Automatic import and report-output folders were saved and audited.";
             await RefreshAsync();
         }
-        catch (Exception ex) { OperationsStatus.Text = $"Automation settings were not saved: {ex.Message}"; }
+        catch (Exception ex) { DesktopDiagnostics.Record(ex, "OperationsAdministration.Operations", "WATCH_FOLDER_SAVE_FAILED"); OperationsStatus.Text = $"Automation settings were not saved: {DesktopFriendlyError.Describe(ex, "Owner permission is required.")}"; }
     }
 
     private async void RunAutomationNow_Click(object sender, RoutedEventArgs e)
@@ -94,7 +94,7 @@ public partial class OperationsWorkspaceView : UserControl
             await RefreshAsync();
             if (DashboardRefreshRequestedAsync is not null) await DashboardRefreshRequestedAsync();
         }
-        catch (Exception ex) { OperationsStatus.Text = $"Unattended processing failed: {ex.Message}"; }
+        catch (Exception ex) { DesktopDiagnostics.Record(ex, "OperationsAdministration.Operations", "AUTOMATION_RUN_FAILED"); OperationsStatus.Text = $"Unattended processing failed: {DesktopFriendlyError.Describe(ex, "Owner or Store Manager permission is required.")}"; }
     }
 
     private void ReportSchedule_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -119,7 +119,7 @@ public partial class OperationsWorkspaceView : UserControl
             OperationsStatus.Text = "The selected report schedule was updated and audited.";
             await RefreshAsync();
         }
-        catch (Exception ex) { OperationsStatus.Text = $"Schedule was not saved: {ex.Message}"; }
+        catch (Exception ex) { DesktopDiagnostics.Record(ex, "OperationsAdministration.Operations", "REPORT_SCHEDULE_SAVE_FAILED"); OperationsStatus.Text = $"Schedule was not saved: {DesktopFriendlyError.Describe(ex, "Owner permission is required.")}"; }
     }
 
     private async void UpdateIssueWorkflow_Click(object sender, RoutedEventArgs e)
@@ -134,29 +134,30 @@ public partial class OperationsWorkspaceView : UserControl
             await RefreshAsync();
             OperationsStatus.Text = $"Issue marked {status.Replace('_', ' ').ToLowerInvariant()}. Technical control remains {row.TechnicalControlStatus}.";
         }
-        catch (Exception ex) { OperationsStatus.Text = OperationsAdministrationWorkspaceErrors.Friendly(ex); }
+        catch (Exception ex) { DesktopDiagnostics.Record(ex, "OperationsAdministration.Operations", "ISSUE_WORKFLOW_UPDATE_FAILED"); OperationsStatus.Text = OperationsAdministrationWorkspaceErrors.Friendly(ex); }
     }
 
     private async void RunBackupNow_Click(object sender, RoutedEventArgs e) => await RunMaintenanceAsync(
         "backup-etp-database.ps1", "Creating and verifying a checksum database backup…",
         result => result.Succeeded ? $"Backup passed. {result.Message}" : $"Backup failed. {result.Message}",
-        ex => $"Backup could not run: {ex.Message}", refreshDashboard: true);
+        ex => $"Backup could not run: {DesktopFriendlyError.Describe(ex, "Owner permission is required.")}", "BACKUP_RUN_FAILED", refreshDashboard: true);
 
     private async void RunRecoveryDrillNow_Click(object sender, RoutedEventArgs e) => await RunMaintenanceAsync(
         "invoke-etp-recovery-drill.ps1", "Running an isolated restore, integrity check and lineage comparison…",
         result => result.Succeeded ? "Recovery drill passed and the temporary database was removed." : $"Recovery drill failed. {result.Message}",
-        ex => $"Recovery drill could not run: {ex.Message}", refreshDashboard: true);
+        ex => $"Recovery drill could not run: {DesktopFriendlyError.Describe(ex, "Owner permission is required.")}", "RECOVERY_DRILL_RUN_FAILED", refreshDashboard: true);
 
     private async void CreateSupportPackage_Click(object sender, RoutedEventArgs e) => await RunMaintenanceAsync(
         "new-etp-support-package.ps1", "Creating an aggregate-only support package without source rows or confidential identifiers…",
         result => result.Succeeded ? $"Support package created. {result.Message}" : $"Support package failed. {result.Message}",
-        ex => $"Support package could not be created: {ex.Message}", auditSupportPackage: true);
+        ex => $"Support package could not be created: {DesktopFriendlyError.Describe(ex, "Owner permission is required.")}", "SUPPORT_PACKAGE_RUN_FAILED", auditSupportPackage: true);
 
     private async Task RunMaintenanceAsync(
         string script,
         string starting,
         Func<MaintenanceOperationResult, string> completed,
         Func<Exception, string> failed,
+        string failureEventId,
         bool refreshDashboard = false,
         bool auditSupportPackage = false)
     {
@@ -170,7 +171,7 @@ public partial class OperationsWorkspaceView : UserControl
             if (auditSupportPackage && AuditRequestedAsync is not null)
                 await AuditRequestedAsync("SupportPackage", result.Succeeded ? "Succeeded" : "Failed", "Privacy-safe support package operation completed");
         }
-        catch (Exception ex) { MaintenanceStatus.Text = failed(ex); }
+        catch (Exception ex) { DesktopDiagnostics.Record(ex, "OperationsAdministration.Maintenance", failureEventId); MaintenanceStatus.Text = failed(ex); }
     }
 
     private void RenderManagementTrendChart(IReadOnlyList<ManagementTrendPoint> rows)

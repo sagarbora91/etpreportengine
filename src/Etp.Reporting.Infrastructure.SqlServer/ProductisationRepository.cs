@@ -6,6 +6,30 @@ namespace Etp.Reporting.Infrastructure.SqlServer;
 
 public sealed class ProductisationRepository(string connectionString)
 {
+    internal const string SaveSharingContactSql = """
+        SET XACT_ABORT ON;
+        BEGIN TRANSACTION;
+        DECLARE @result int;
+        IF @id=0
+        BEGIN
+          INSERT dbo.sharing_contacts(display_name,contact_role,email_address,phone_e164,default_subscriptions,is_active,modified_by,change_reason)
+          VALUES(@name,@role,@email,@phone,@subscriptions,@active,SUSER_SNAME(),@reason);
+          SET @result=CONVERT(int,SCOPE_IDENTITY());
+        END
+        ELSE
+        BEGIN
+          UPDATE dbo.sharing_contacts SET display_name=@name,contact_role=@role,email_address=@email,phone_e164=@phone,default_subscriptions=@subscriptions,
+            is_active=@active,modified_by=SUSER_SNAME(),modified_utc=SYSUTCDATETIME(),change_reason=@reason
+          WHERE sharing_contact_id=@id;
+          IF @@ROWCOUNT<>1 THROW 51227,'The sharing contact was not found.',1;
+          SET @result=@id;
+        END
+        INSERT dbo.operational_audit(event_type,outcome,safe_detail,application_version,actor_name)
+        VALUES('SharingContactChange','Succeeded',N'Sharing contact changed',N'database',SUSER_SNAME());
+        COMMIT TRANSACTION;
+        SELECT @result;
+        """;
+
     public async Task<ProductSettings> LoadSettingsAsync(CancellationToken cancellationToken = default)
     {
         const string sql = """
@@ -148,12 +172,7 @@ public sealed class ProductisationRepository(string connectionString)
     public async Task<int> SaveSharingContactAsync(SharingContactRow contact,string reason,CancellationToken cancellationToken=default)
     {
         await EnsureOwnerAsync(cancellationToken);if(string.IsNullOrWhiteSpace(contact.DisplayName))throw new ArgumentException("Enter a contact name.");if(string.IsNullOrWhiteSpace(contact.EmailAddress)&&string.IsNullOrWhiteSpace(contact.PhoneE164))throw new ArgumentException("Enter an email address or phone number.");if(string.IsNullOrWhiteSpace(reason))throw new ArgumentException("Enter a reason for the contact change.");
-        const string sql="""
-            IF @id=0 BEGIN INSERT dbo.sharing_contacts(display_name,contact_role,email_address,phone_e164,default_subscriptions,is_active,modified_by,change_reason) VALUES(@name,@role,@email,@phone,@subscriptions,@active,SUSER_SNAME(),@reason); SELECT CONVERT(int,SCOPE_IDENTITY()); END
-            ELSE BEGIN UPDATE dbo.sharing_contacts SET display_name=@name,contact_role=@role,email_address=@email,phone_e164=@phone,default_subscriptions=@subscriptions,is_active=@active,modified_by=SUSER_SNAME(),modified_utc=SYSUTCDATETIME(),change_reason=@reason WHERE sharing_contact_id=@id; IF @@ROWCOUNT<>1 THROW 51227,'The sharing contact was not found.',1; SELECT @id; END
-            INSERT dbo.operational_audit(event_type,outcome,safe_detail,application_version,actor_name) VALUES('SharingContactChange','Succeeded',N'Sharing contact changed',N'database',SUSER_SNAME());
-            """;
-        await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(sql,connection);command.Parameters.AddWithValue("@id",contact.Id);command.Parameters.AddWithValue("@name",contact.DisplayName.Trim());Add(command,"@role",Clean(contact.ContactRole));Add(command,"@email",Clean(contact.EmailAddress));Add(command,"@phone",Clean(contact.PhoneE164));Add(command,"@subscriptions",Clean(contact.DefaultSubscriptions));command.Parameters.AddWithValue("@active",contact.IsActive);command.Parameters.AddWithValue("@reason",reason.Trim());return Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken));
+        await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(SaveSharingContactSql,connection);command.Parameters.AddWithValue("@id",contact.Id);command.Parameters.AddWithValue("@name",contact.DisplayName.Trim());Add(command,"@role",Clean(contact.ContactRole));Add(command,"@email",Clean(contact.EmailAddress));Add(command,"@phone",Clean(contact.PhoneE164));Add(command,"@subscriptions",Clean(contact.DefaultSubscriptions));command.Parameters.AddWithValue("@active",contact.IsActive);command.Parameters.AddWithValue("@reason",reason.Trim());return Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken));
     }
 
     public async Task LinkDocumentToImportAsync(long documentId,string sourceSha256,string reportCode,string? storeCode,DateOnly? businessDate,CancellationToken cancellationToken=default)

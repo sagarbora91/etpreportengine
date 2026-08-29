@@ -18,7 +18,7 @@ public sealed partial class SourceInboxWorkspaceView : UserControl
     private readonly Func<string> connectionStringProvider;
     private readonly ISourceDocumentLauncher documentLauncher;
     private Func<AccessSession> accessProvider = () => new("unknown", "Unknown user", AccessRole.None, false);
-    private Func<Exception, string> errorDescriber = exception => exception.Message;
+    private Func<Exception, string> errorDescriber = DesktopFriendlyError.Describe;
 
     public SourceInboxWorkspaceView(
         Func<string, SourceInboxService> serviceFactory,
@@ -61,7 +61,7 @@ public sealed partial class SourceInboxWorkspaceView : UserControl
             DocumentsGrid.ItemsSource = rows;
             SetStatus($"{rows.Count:N0} source document(s). Originals are retained and SHA-256 protected.");
         }
-        catch (Exception ex) { SetStatus(errorDescriber(ex)); }
+        catch (Exception ex) { DesktopDiagnostics.Record(ex, "SourceInbox.Workspace", "SOURCE_INBOX_REFRESH_FAILED"); SetStatus(errorDescriber(ex)); }
     }
 
     private async void Documents_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -75,7 +75,7 @@ public sealed partial class SourceInboxWorkspaceView : UserControl
 
         SelectedDocumentIdChanged?.Invoke(this, document.Id);
         try { ExtractionsGrid.ItemsSource = await Service().LoadExtractionsAsync(document.Id); }
-        catch (Exception ex) { SetStatus(errorDescriber(ex)); }
+        catch (Exception ex) { DesktopDiagnostics.Record(ex, "SourceInbox.Workspace", "SOURCE_EXTRACTIONS_LOAD_FAILED"); SetStatus(errorDescriber(ex)); }
     }
 
     private void Browse_Click(object sender, RoutedEventArgs e)
@@ -110,7 +110,7 @@ public sealed partial class SourceInboxWorkspaceView : UserControl
             DocumentsGrid.SelectedItem = DocumentsGrid.Items.OfType<SourceInboxDocument>().FirstOrDefault(row => row.Id == outcome.Document.Id);
             SetStatus(outcomeMessage);
         }
-        catch (Exception ex) { SetStatus(errorDescriber(ex)); }
+        catch (Exception ex) { DesktopDiagnostics.Record(ex, "SourceInbox.Workspace", "SOURCE_INTAKE_FAILED"); SetStatus(errorDescriber(ex)); }
     }
 
     private async void Open_Click(object sender, RoutedEventArgs e)
@@ -125,7 +125,7 @@ public sealed partial class SourceInboxWorkspaceView : UserControl
             documentLauncher.Open(document.ManagedFilePath);
             SetStatus("Source integrity passed and the retained original was opened.");
         }
-        catch (Exception ex) { SetStatus(errorDescriber(ex)); }
+        catch (Exception ex) { DesktopDiagnostics.Record(ex, "SourceInbox.Workspace", "SOURCE_OPEN_FAILED"); SetStatus(errorDescriber(ex)); }
     }
 
     private async void Verify_Click(object sender, RoutedEventArgs e) => await ReviewExtractionAsync(true);
@@ -145,7 +145,7 @@ public sealed partial class SourceInboxWorkspaceView : UserControl
                 ? "Extraction verified by a human reviewer."
                 : "Extraction rejected and the document quarantined.");
         }
-        catch (Exception ex) { SetStatus(errorDescriber(ex)); }
+        catch (Exception ex) { DesktopDiagnostics.Record(ex, "SourceInbox.Workspace", "SOURCE_EXTRACTION_REVIEW_FAILED"); SetStatus(errorDescriber(ex)); }
     }
 
     private SourceInboxService Service() => serviceFactory(connectionStringProvider());

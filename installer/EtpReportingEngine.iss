@@ -35,7 +35,7 @@ Name: "{group}\Uninstall {#AppName}"; Filename: "{uninstallexe}"
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional shortcuts:"
-Name: "sqlbootstrap"; Description: "Install and configure Microsoft SQL Server 2022 Express when required (accepts Microsoft's SQL Server license terms)"; GroupDescription: "Database prerequisites:"; Flags: checkedonce
+Name: "sqlprerequisites"; Description: "Install missing Microsoft SQL Server 2022 Express and Sqlcmd packages (accepts Microsoft's license terms)"; GroupDescription: "Optional database prerequisites:"; Flags: checkedonce
 
 [Run]
 Filename: "{app}\{#AppExeName}"; Description: "Launch {#AppName}"; Flags: nowait postinstall skipifsilent
@@ -44,21 +44,20 @@ Filename: "{app}\{#AppExeName}"; Description: "Launch {#AppName}"; Flags: nowait
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\scripts\remove-etp-scheduled-tasks.ps1"" -ApplicationDirectory ""{app}"""; RunOnceId: "RemoveEtpScheduledTasks"; Flags: runhidden waituntilterminated skipifdoesntexist
 
 [Code]
-procedure ExitProcess(ExitCode: Integer);
-  external 'ExitProcess@kernel32.dll stdcall';
-
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   ResultCode: Integer;
   Parameters: String;
 begin
-  if (CurStep = ssPostInstall) and WizardIsTaskSelected('sqlbootstrap') then
+  if (CurStep = ssPostInstall) then
   begin
     Parameters := '-NoProfile -ExecutionPolicy Bypass -File "' + ExpandConstant('{app}\scripts\bootstrap-etp-prerequisites.ps1') + '" -ApplicationDirectory "' + ExpandConstant('{app}') + '"';
+    if not WizardIsTaskSelected('sqlprerequisites') then
+      Parameters := Parameters + ' -SkipSqlInstallation';
     if (not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'), Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode)) or (ResultCode <> 0) then
     begin
-      MsgBox('SQL Server and database configuration failed. Review %ProgramData%\EtpReporting\SetupLogs before retrying.', mbError, MB_OK);
-      ExitProcess(1);
+      MsgBox('Mandatory database migration and health validation failed after application files were installed. No automatic restore or database deletion was attempted. Do not launch ETP until setup completes successfully; review %ProgramData%\EtpReporting\SetupLogs and retry.', mbError, MB_OK);
+      RaiseException('Mandatory database migration and health validation failed; setup cannot be completed safely.');
     end;
   end;
 end;

@@ -9,17 +9,39 @@ public sealed class ReportExportCompositionTests
         var mainWindow = File.ReadAllText(Path.Combine(root, "src", "Etp.Reporting.Desktop", "MainWindow.xaml.cs"));
         var composition = File.ReadAllText(Path.Combine(root, "src", "Etp.Reporting.Desktop", "Composition", "DesktopCompositionRoot.cs"));
         var reports = File.ReadAllText(Path.Combine(root, "src", "Etp.Reporting.Desktop", "Modules", "Reports", "ReportsWorkspaceView.xaml.cs"));
+        var coordinator = File.ReadAllText(Path.Combine(root, "src", "Etp.Reporting.Desktop", "Modules", "Reports", "ReportExportCoordinator.cs"));
+        var dailyWorkflow = File.ReadAllText(Path.Combine(root, "src", "Etp.Reporting.Desktop", "Modules", "DailyWorkflow", "DailyWorkflowWorkspaceView.xaml.cs"));
+        var archive = File.ReadAllText(Path.Combine(root, "src", "Etp.Reporting.Desktop", "Modules", "Archive", "ArchiveWorkspaceView.xaml.cs"));
         var dashboard = File.ReadAllText(Path.Combine(root, "src", "Etp.Reporting.Desktop", "Modules", "Dashboard", "DashboardView.cs"));
 
         Assert.DoesNotContain("IReportExportCoordinator", mainWindow, StringComparison.Ordinal);
         Assert.DoesNotContain("new SaveFileDialog", mainWindow, StringComparison.Ordinal);
-        Assert.Contains("exportCoordinator.ExportReportExcel", reports, StringComparison.Ordinal);
-        Assert.Contains("exportCoordinator.ExportReportPdf", reports, StringComparison.Ordinal);
+        Assert.Contains("await exportCoordinator.ExportReportExcelAsync", reports, StringComparison.Ordinal);
+        Assert.Contains("await exportCoordinator.ExportReportPdfAsync", reports, StringComparison.Ordinal);
         Assert.Contains("new SaveFileDialog", reports, StringComparison.Ordinal);
-        Assert.Contains("exportManagementSummaryPdf", dashboard, StringComparison.Ordinal);
-        Assert.Contains("reportExportCoordinator.ExportPackExcel", composition, StringComparison.Ordinal);
-        Assert.Contains("reportExportCoordinator.ExportPackPdf", composition, StringComparison.Ordinal);
-        Assert.Contains("reportExportCoordinator.ExportManagementSummaryPdf", composition, StringComparison.Ordinal);
+        Assert.Contains("exportManagementSummaryPdfAsync", dashboard, StringComparison.Ordinal);
+        Assert.Contains("Task.Run(export", coordinator, StringComparison.Ordinal);
+        Assert.Contains("await exportPackExcelAsync", dailyWorkflow, StringComparison.Ordinal);
+        Assert.Contains("await exportPackPdfAsync", dailyWorkflow, StringComparison.Ordinal);
+        Assert.Contains("await exportExcelAsync", archive, StringComparison.Ordinal);
+        Assert.Contains("await exportPdfAsync", archive, StringComparison.Ordinal);
+        Assert.Contains("await auditRecorder(\"ExportExcel\"", reports, StringComparison.Ordinal);
+        Assert.Contains("await auditRecorder(\"ExportPdf\"", reports, StringComparison.Ordinal);
+        Assert.Contains("await recordAuditAsync(excel ? \"ExportExcel\" : \"ExportPdf\"", dailyWorkflow, StringComparison.Ordinal);
+        Assert.Contains("await auditRecorder(\"ExportExcel\"", archive, StringComparison.Ordinal);
+        Assert.Contains("await auditRecorder(\"ExportPdf\"", archive, StringComparison.Ordinal);
+        Assert.DoesNotContain("_ = auditRecorder(\"ExportExcel\"", reports, StringComparison.Ordinal);
+        Assert.DoesNotContain("_ = auditRecorder(\"ExportPdf\"", reports, StringComparison.Ordinal);
+        Assert.DoesNotContain("_ = recordAuditAsync(excel ? \"ExportExcel\" : \"ExportPdf\"", dailyWorkflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("_ = auditRecorder(\"ExportExcel\"", archive, StringComparison.Ordinal);
+        Assert.DoesNotContain("_ = auditRecorder(\"ExportPdf\"", archive, StringComparison.Ordinal);
+        Assert.Contains("packExportInProgress", dailyWorkflow, StringComparison.Ordinal);
+        Assert.Contains("exportInProgress", reports, StringComparison.Ordinal);
+        Assert.Contains("exportInProgress", archive, StringComparison.Ordinal);
+        Assert.Contains("exportInProgress", dashboard, StringComparison.Ordinal);
+        Assert.Contains("reportExportCoordinator.ExportPackExcelAsync", composition, StringComparison.Ordinal);
+        Assert.Contains("reportExportCoordinator.ExportPackPdfAsync", composition, StringComparison.Ordinal);
+        Assert.Contains("reportExportCoordinator.ExportManagementSummaryPdfAsync", composition, StringComparison.Ordinal);
 
         string[] forbidden =
         [

@@ -294,8 +294,8 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            dashboardView.ShowError(ex.Message);
-            ApplicationStatus.Text = $"Dashboard refresh failed: {ex.Message}";
+            DesktopDiagnostics.Record(ex, "Dashboard.Shell", "DASHBOARD_REFRESH_FAILED");
+            var message = DesktopFriendlyError.Describe(ex); dashboardView.ShowError(message); ApplicationStatus.Text = $"Dashboard refresh failed: {message}";
         }
     }
 
@@ -310,7 +310,7 @@ public partial class MainWindow : Window
     private async Task RecordAuditAsync(string eventType, string outcome, string detail)
     {
         try { await databaseLifecycleServiceFactory(connectionState.ConnectionString).RecordAuditAsync(new RecordOperationalAudit(eventType, outcome, detail)); }
-        catch (Exception ex) when (DesktopFriendlyError.IsAuditFailure(ex)) { }
+        catch (Exception ex) when (DesktopFriendlyError.IsAuditFailure(ex)) { DesktopDiagnostics.Record(ex, "OperationalAudit", "AUDIT_WRITE_FAILED", DesktopDiagnosticSeverity.Warning); }
     }
 
 }

@@ -4,7 +4,9 @@ The new SQL Server-backed Windows reporting application is documented in
 [`docs/14_WINDOWS_QUICK_START.md`](docs/14_WINDOWS_QUICK_START.md). Its .NET solution is
 `Etp.Reporting.slnx`; run `scripts/build-windows-release.ps1` to build, test and publish it.
 The legacy Android Business Control Centre retained below is source/reference material and
-is not the Windows reporting database.
+is not the Windows reporting database. Its architecture is preserved separately in
+[`docs/legacy/SAAGAR_BCC_ANDROID_ARCHITECTURE.md`](docs/legacy/SAAGAR_BCC_ANDROID_ARCHITECTURE.md);
+the root [`ARCHITECTURE.md`](ARCHITECTURE.md) describes the active Windows product.
 
 The Windows application now supports a complete business-date workflow: deterministic batch import for R003/R013/R022/R025 and stock profiles, controlled restatement, detailed physical counts, staff targets, FTD/MTD/YTD/LY reporting, traceable invoice detail, service/cash/stock/staff controls, exception diagnostics, full multi-sheet Excel and paginated PDF report packs, immutable report generations, audited finalise/reopen protection, Windows-integrated roles, unattended watch-folder import, scheduled combined packs, archive comparison/re-export, controlled masters and a management/data-quality operations center. See [`docs/21_DAILY_REPORTING_IMPLEMENTATION_MAP.md`](docs/21_DAILY_REPORTING_IMPLEMENTATION_MAP.md), [`docs/22_REPORT_TO_SOURCE_MATRIX.md`](docs/22_REPORT_TO_SOURCE_MATRIX.md), [`docs/23_MASTER_PROMPT_COMPLETION_AUDIT.md`](docs/23_MASTER_PROMPT_COMPLETION_AUDIT.md), and [`docs/24_PHASE2_OPERATIONS.md`](docs/24_PHASE2_OPERATIONS.md).
 
@@ -14,8 +16,8 @@ The accepted dual-layer offline licensing design is engineering-complete but int
 
 # Saagar Traders — Business Control Centre → Offline Android APK
 
-This project packages the **Business Control Centre shell** (`www/index.html`, with all
-**10** business modules base64-embedded) into a **fully offline Android app** that stores
+This project packages the **Business Control Centre shell** (`www/index.html`, with
+**12** same-origin external business-module routes) into a **fully offline Android app** that stores
 business data for months and writes an automatic daily backup to the phone's **Documents**
 folder.
 
@@ -24,13 +26,13 @@ folder.
   **SQLite-primary storage engine ("Option C", `storage-core.js`) LIVE** on `main`: an
   in-memory `Map` is the synchronous source of truth, persisted to an on-device SQLite file
   via the Capacitor Filesystem plugin, so the old ~5 MB `localStorage` ceiling is gone. See
-  section 5 and **`ARCHITECTURE.md`** for the full storage stack.
+  section 5 and the [legacy Android architecture](docs/legacy/SAAGAR_BCC_ANDROID_ARCHITECTURE.md) for the full storage stack.
 - A dated JSON backup is written every day to `Documents/SaagarBCC-Backups/`
   as a safety net (recover after uninstall / move to a new phone).
-- The 10 modules behave as they always did — they still call the synchronous `localStorage`
+- The 12 modules behave as they always did — they still call the synchronous `localStorage`
   API; the storage engine transparently backs that API with SQLite.
 
-> See **`ARCHITECTURE.md`** for how the shell, the base64-embedded modules, the `postMessage`
+> See the [legacy Android architecture](docs/legacy/SAAGAR_BCC_ANDROID_ARCHITECTURE.md) for how the shell, the external modules, the `postMessage`
 > rail, the storage stack, and the cross-module integration bus fit together.
 
 ---
@@ -153,7 +155,7 @@ boot — modules still call the synchronous `localStorage` API, but the engine o
 `Storage.prototype` so those reads/writes hit `MEM`/SQLite. Because the data no longer
 lives in `localStorage` proper, **the old ~5 MB `localStorage` quota no longer applies.**
 
-Durability / data-safety properties of the engine (see `ARCHITECTURE.md` and the
+Durability / data-safety properties of the engine (see the [legacy Android architecture](docs/legacy/SAAGAR_BCC_ANDROID_ARCHITECTURE.md) and the
 `storage-core.js` header for detail):
 
 - **WAL journaling** — every set/remove/clear is written to a small, sequenced
@@ -225,9 +227,9 @@ you simply lose the external safety-net copy, not the live data.
 
 ## 7. Updating the app later (new shell build)
 
-1. Replace `www\index.html` with the new shell file (the 10 modules are base64-embedded
-   into its `MODULES` array by the build pipeline).
-2. Keep the storage + backup scripts wired in the same load order (see `ARCHITECTURE.md`):
+1. Update `www\index.html`, the external module routes under `www\modules\`, and
+   `www\module-manifest.js` as one validated set.
+2. Keep the storage + backup scripts wired in the same load order (see the [legacy Android architecture](docs/legacy/SAAGAR_BCC_ANDROID_ARCHITECTURE.md)):
    `sql-wasm.js` and `storage-core.js` in `<head>`, and `auto-backup.js` /
    `sqlite-store.js` near the end of `<body>`. Re-add them if a new file is missing them.
 3. Run `npm run build:apk` and reinstall.
@@ -242,17 +244,17 @@ the update.
 ```
 SaagarBCC-Android/
 ├── www/
-│   ├── index.html         ← shell (all 10 modules base64-embedded) + storage/backup scripts
+│   ├── index.html         ← shell hosting 12 manifest-backed external module routes
+│   ├── module-manifest.js ← route and file-identity authority for the external modules
+│   ├── modules/           ← 12 same-origin business-module routes
 │   ├── storage-core.js    ← LIVE storage engine (Option C: SQLite-primary, MEM source-of-truth)
 │   ├── sqlite-store.js    ← older Design-A mirror engine; stands down when storage-core is on
-│   ├── photo-store.js     ← Filesystem-backed photo API (mechanism only; dormant — not yet wired)
-│   ├── integration-bridge.js ← cross-module event bus (saagar_bus) reconciling the 10 modules
 │   ├── auto-backup.js      ← daily offline JSON backup safety net
 │   └── sql-wasm.js / sql-wasm.wasm ← sql.js WebAssembly (defines initSqlJs)
 ├── capacitor.config.json   ← app id, pinned origin (do not change hostname)
 ├── package.json            ← build scripts
 ├── build.bat               ← double-click to build the APK
-├── ARCHITECTURE.md         ← shell / module / postMessage / storage / bus architecture
+├── docs/legacy/SAAGAR_BCC_ANDROID_ARCHITECTURE.md ← preserved legacy architecture
 ├── .gitignore
 └── README.md               ← this file
 ```

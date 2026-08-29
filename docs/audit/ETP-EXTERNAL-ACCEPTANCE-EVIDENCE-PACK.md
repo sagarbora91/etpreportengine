@@ -1,22 +1,23 @@
 # ETP Reporting Engine — external acceptance evidence pack
 
-Status: **READY FOR EXECUTION; NO EXTERNAL GATE IS PASSED BY THIS TEMPLATE**
+Status: **HISTORICAL TEMPLATE; 1.8.4 REJECTED; EXECUTION/PROMOTION CANCELLED**
 
-This pack records the external evidence still required after the verified 28 August 2026 engineering checkpoint. It does not replace the procedures in the deployment, recovery, accessibility, mapping, administrator or user documentation. Complete one copy for each machine, role or source sample as indicated. Never paste confidential report rows, credentials, certificate secrets or private keys into this file.
+This pack is retained to show which external evidence had been planned for the preserved 1.8.4 engineering payloads. Do not execute it as a promotion path: 1.8.4 was rejected for a shipped audit-contract defect and inconsistent SBOM/candidate identity. A future 1.8.5 candidate requires a new, hash-bound copy after it is actually built. Never paste confidential report rows, credentials, certificate secrets or private keys into this file.
 
 ## Candidate identity
 
 | Field | Recorded value |
 |---|---|
-| Version | 1.8.4 engineering candidate |
+| Version | 1.8.4 preserved engineering payloads — REJECTED / NEVER PROMOTED |
 | Base checkpoint commit | `08e39c889fe2a13b09aa33ffa788df63f0b800fd` |
 | Exact committed source identity | `8c8d57e37a26fcd8a9a145ac166b34ac952c8b4b` |
 | Application SHA-256 | `73C615C1EA9A943A74893CE8BE6C4CFDF28796B4BD806902A7EA3A5A014A2B37` |
 | Installer SHA-256 | `67916955FDE3CDD8BB92075023C4108509FF4102966E691DFB95786092B26AFC` |
 | Offline package SHA-256 | `0A1C21DFB9252D77D0DA23EBF5632633B83DE6BC2F7639DE609C42478C023495` |
 | Signature state | Unsigned |
+| Final disposition | [Rejected; preserve but do not promote](../../verification/release/ETP-REPORTING-ENGINE-1.8.4-REJECTION-DISPOSITION.md) |
 
-Before testing, independently calculate the artifact hash and record the exact matching candidate. This 1.8.4 package was built from the clean committed source recorded above. Do not rebuild between formal acceptance and promotion.
+The hashes remain recorded for forensic identity only. External acceptance against them is cancelled and cannot cure the release-blocking findings. Do not rebuild, sign or promote these payloads.
 
 ## Result vocabulary
 
@@ -197,7 +198,7 @@ Current result: `BLOCKED — OWNER AUTHORIZATION REQUIRED`
 
 | Gate | Result | Approver and evidence |
 |---|---|---|
-| Engineering and automated verification | NOT RUN | Reconfirm against the candidate commit |
+| Engineering and automated verification | FAIL | Later review found the shipped audit-contract defect and inconsistent SBOM/candidate binding. |
 | Clean-PC bootstrap/installer | NOT RUN | |
 | Backup and recovery | NOT RUN | |
 | Hardware and accessibility | NOT RUN | |
@@ -205,6 +206,6 @@ Current result: `BLOCKED — OWNER AUTHORIZATION REQUIRED`
 | Required source mappings | BLOCKED | See pending-input register |
 | Windows signing | BLOCKED | Publisher identity and certificate required |
 | Runtime licensing | BLOCKED | Explicit Owner authorization required |
-| No-rebuild release promotion | NOT RUN | |
+| No-rebuild release promotion | FAIL | REJECTED: 1.8.4 is preserved but permanently ineligible for promotion. |
 
-The product may be described as production-approved only when every applicable gate is `PASS`, every blocked business/source item affecting the intended scope is resolved or explicitly accepted, and the promoted artifacts are the exact tested and signed artifacts.
+This 1.8.4 template cannot reach production approval. A future 1.8.5 evidence pack may be opened only for newly built artifacts with internally consistent hashes/SBOM/provenance; every applicable engineering, external, signing and authorization gate must then be completed independently.

@@ -86,12 +86,27 @@ public partial class SettingsWorkspaceView : UserControl
             return;
         }
 
-        var health = await databaseLifecycleServiceFactory(candidate.ConnectionString!).CheckHealthAsync();
-        var connected = health.Status == DatabaseConnectionStatus.Healthy;
-        ApplyPresentation(session.CompleteHealthCheck(candidate, connected, health.Message, health.ServerVersion));
-        ConnectionStringInput.Text = session.ConnectionString;
-        if (OperationCompletedAsync is { } completed)
-            await completed(SettingsWorkspaceOperation.ConnectionTest, connected);
+        try
+        {
+            var health = await databaseLifecycleServiceFactory(candidate.ConnectionString!).CheckHealthAsync();
+            var connected = health.Status == DatabaseConnectionStatus.Healthy;
+            if (!connected)
+                DesktopDiagnostics.Record(null, "Settings.Workspace", "DATABASE_HEALTH_CHECK_FAILED",
+                    DesktopDiagnosticSeverity.Warning);
+            ApplyPresentation(session.CompleteHealthCheck(candidate, connected, health.Message, health.ServerVersion));
+            ConnectionStringInput.Text = session.ConnectionString;
+            if (OperationCompletedAsync is { } completed)
+                await completed(SettingsWorkspaceOperation.ConnectionTest, connected);
+        }
+        catch (Exception exception)
+        {
+            DesktopDiagnostics.Record(exception, "Settings.Workspace", "DATABASE_HEALTH_CHECK_EXCEPTION");
+            var message = DesktopFriendlyError.Describe(exception,
+                "Check the SQL Server settings and try again.");
+            ApplyPresentation(session.CompleteHealthCheck(candidate, false, message, null));
+            if (OperationCompletedAsync is { } completed)
+                await completed(SettingsWorkspaceOperation.ConnectionTest, false);
+        }
     }
 
     public async Task BootstrapDatabaseAsync()
@@ -112,7 +127,8 @@ public partial class SettingsWorkspaceView : UserControl
         }
         catch (Exception exception)
         {
-            ConnectionResult.Text = $"Database setup failed: {exception.Message}";
+            DesktopDiagnostics.Record(exception, "Settings.Workspace", "DATABASE_BOOTSTRAP_FAILED");
+            ConnectionResult.Text = $"Database setup failed: {DesktopFriendlyError.Describe(exception, "Owner permission is required.")}";
         }
     }
 
@@ -127,6 +143,7 @@ public partial class SettingsWorkspaceView : UserControl
         }
         catch (Exception exception)
         {
+            DesktopDiagnostics.Record(exception, "Settings.Workspace", "PRODUCT_CONFIGURATION_LOAD_FAILED");
             ConnectionResult.Text = FriendlyError(exception);
         }
     }
@@ -149,6 +166,7 @@ public partial class SettingsWorkspaceView : UserControl
         }
         catch (Exception exception)
         {
+            DesktopDiagnostics.Record(exception, "Settings.Workspace", "PRODUCT_CONFIGURATION_SAVE_FAILED");
             ConnectionResult.Text = FriendlyError(exception);
         }
     }
@@ -192,12 +210,5 @@ public partial class SettingsWorkspaceView : UserControl
             throw new UnauthorizedAccessException("Owner permission is required.");
     }
 
-    private static string FriendlyError(Exception exception) => exception switch
-    {
-        UnauthorizedAccessException => "Your Windows account does not have permission for this action.",
-        FileNotFoundException => "The selected file is no longer available. Select it again.",
-        IOException => "The file could not be read. Close it in other applications and try again.",
-        InvalidOperationException or ArgumentException => exception.Message,
-        _ => "The action could not be completed. Technical details are available in the support package."
-    };
+    private static string FriendlyError(Exception exception) => DesktopFriendlyError.Describe(exception);
 }

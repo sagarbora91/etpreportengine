@@ -31,6 +31,7 @@ All autonomous preparation, validation, safe defaults and fail-closed behavior m
 | `IN-OWN-007` | `RULE-010` | Decide whether Service remains controlled Manual Entry or moves to an approved ETP Service export | Continue audited Manual Entry and show source type | Owner decision; if ETP, provide populated export | Service automation and source completeness. |
 | `IN-OWN-008` | `DATA-006`, `RULE-009` | Define exchange, cancellation, credit-note and zero-value transaction treatment beyond confirmed `INV` and signed-negative `SR` | Preserve known source behavior; quarantine/diagnose unknown types | Approved transaction dictionary with worked examples | Sales, tender, staff and accounting totals. |
 | `IN-OWN-009` | `DSR-003`, `REP-006` | Decide whether DSR needs a specialized Excel layout distinct from the general workbook | Retain deterministic supported Excel export | Approved workbook mockup/acceptance criteria | Presentation only; calculations remain unchanged. |
+| `IN-OWN-010` | `OPS-013` | Approve the production path and Windows ACL policy for Desktop settings and owner-configured document, share and OCR roots: whether UNC/network roots are forbidden or allowlisted, which principals require access, and whether any service or `SYSTEM` access is required | Keep Desktop connection settings under the current user's LocalAppData with Windows-integrated SQL only; reject invalid/traversal/reparse-point paths; do not broaden ACLs or silently reject otherwise-valid approved shares | Owner-approved supported-path matrix and Windows identity/ACL template for each root | Production path/ACL acceptance cannot close without guessing deployment identities or breaking intended share/backup workflows. |
 
 ## B. Required populated ETP/source-system evidence
 
@@ -46,6 +47,7 @@ All autonomous preparation, validation, safe defaults and fail-closed behavior m
 | `IN-SRC-008` | `RULE-010` | Populated ETP Service export, only if Service is moved from Manual Entry | Normal service, cancellation/return, tender fields and date/store evidence | Manual Entry remains authoritative | Automated Service profile. |
 | `IN-SRC-009` | `RULE-008` | Approved product/category master or export | SKU-to-category mapping, validity dates and unknown/unmapped examples | Do not use `CLUSTER` as category | Category sales/stock, sell-through, stock turn and cover. |
 | `IN-SRC-010` | `DSR-005` | Authoritative LY MTD source coverage | Same stores/period and TY-compatible definitions | Show `— / —` and `LY MTD source required` | LY MTD and derived growth remain unavailable. |
+| `IN-SRC-011` | `IMP-011` | Populated, sanitised changed-layout export for one already-supported report code | Normal records plus the report's return/correction, zero/missing and boundary cases; authoritative changed headers/layout notes | Keep v1 exact matching active and reject the changed layout without guessing | Second-version detection, exact provenance persistence and old/new golden-output equivalence cannot be accepted. |
 
 ## C. External production and human-validation inputs
 

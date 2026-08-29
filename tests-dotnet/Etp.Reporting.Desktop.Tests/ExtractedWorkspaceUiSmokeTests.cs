@@ -97,7 +97,7 @@ public sealed class ExtractedWorkspaceUiSmokeTests
         const string connection = DesktopCompositionRoot.DefaultConnectionString;
         var operationsSession = new OperationsAdministrationPresentationSession();
         var importCoordinator = new DesktopImportCoordinator(
-            _ => Proxy<IImportPersistenceUseCase<WorkbookSnapshot>>(),
+            _ => Proxy<IImportPersistenceUseCase<Etp.Reporting.Import.Preflight.MatchedImportEnvelope>>(),
             (_, _, _, _, _, _, _) => Task.CompletedTask);
 
         return
@@ -114,13 +114,13 @@ public sealed class ExtractedWorkspaceUiSmokeTests
                 _ => Proxy<IDailyWorkflowQuery>(), _ => Proxy<IDailyWorkflowCommands>(),
                 _ => Proxy<IDailyReportPackGenerator<ReportPackDocument>>(),
                 () => new(true, true, true), () => true,
-                (_, _, _) => Task.CompletedTask, (_, _) => { }, (_, _) => { })),
+                (_, _, _) => Task.CompletedTask, (_, _) => Task.CompletedTask, (_, _) => Task.CompletedTask)),
             new("Archive", new ArchiveWorkspaceView(
                 new ArchiveDistributionPresentationSession(
                     _ => Proxy<IReportArchiveQuery<ReportPackDocument>>(),
                     _ => Proxy<ISharingContactsService>(),
                     _ => Proxy<IReportDistributionService<ReportPackDocument>>()),
-                () => connection, (_, _) => { }, (_, _) => { }, Proxy<IArchiveShareLauncher>())),
+                () => connection, (_, _) => Task.CompletedTask, (_, _) => Task.CompletedTask, Proxy<IArchiveShareLauncher>())),
             new("Registers", new RegistersWorkspaceView(
                 new RegistersPresentationSession(_ => Proxy<IDigitalRegisterService>()), () => connection)),
             new("Accounting", new AccountingWorkspaceView(

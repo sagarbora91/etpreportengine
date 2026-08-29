@@ -37,11 +37,12 @@ public partial class DailyWorkflowWorkspaceView : UserControl
     private Func<DailyWorkflowWorkspaceAccess> access;
     private readonly Func<bool> administratorApproved;
     private Func<string, string, string, Task> recordAuditAsync;
-    private readonly Action<string, ReportPackDocument> exportPackExcel;
-    private readonly Action<string, ReportPackDocument> exportPackPdf;
+    private readonly Func<string, ReportPackDocument, Task> exportPackExcelAsync;
+    private readonly Func<string, ReportPackDocument, Task> exportPackPdfAsync;
     private ReportPackDocument? currentPack;
     private DailyPackBinding? currentPackBinding;
     private bool stateAllowsFinalise;
+    private bool packExportInProgress;
 
     public DailyWorkflowWorkspaceView(
         DailyWorkflowPresentationSession presentation,
@@ -52,8 +53,8 @@ public partial class DailyWorkflowWorkspaceView : UserControl
         Func<DailyWorkflowWorkspaceAccess> access,
         Func<bool>? administratorApproved,
         Func<string, string, string, Task> recordAuditAsync,
-        Action<string, ReportPackDocument> exportPackExcel,
-        Action<string, ReportPackDocument> exportPackPdf)
+        Func<string, ReportPackDocument, Task> exportPackExcelAsync,
+        Func<string, ReportPackDocument, Task> exportPackPdfAsync)
     {
         this.presentation = presentation ?? throw new ArgumentNullException(nameof(presentation));
         this.connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
@@ -63,8 +64,8 @@ public partial class DailyWorkflowWorkspaceView : UserControl
         this.access = access ?? throw new ArgumentNullException(nameof(access));
         this.administratorApproved = administratorApproved ?? IsCurrentWindowsAdministrator;
         this.recordAuditAsync = recordAuditAsync ?? throw new ArgumentNullException(nameof(recordAuditAsync));
-        this.exportPackExcel = exportPackExcel ?? throw new ArgumentNullException(nameof(exportPackExcel));
-        this.exportPackPdf = exportPackPdf ?? throw new ArgumentNullException(nameof(exportPackPdf));
+        this.exportPackExcelAsync = exportPackExcelAsync ?? throw new ArgumentNullException(nameof(exportPackExcelAsync));
+        this.exportPackPdfAsync = exportPackPdfAsync ?? throw new ArgumentNullException(nameof(exportPackPdfAsync));
         InitializeComponent();
         BusinessDateInput.SelectedDate = DateTime.Today.AddDays(-1);
         StaffTargetFromInput.SelectedDate = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
@@ -125,8 +126,8 @@ public partial class DailyWorkflowWorkspaceView : UserControl
         ReopenReasonInput.IsEnabled = current.CanAdminister;
         GenerateStorePackButton.IsEnabled = current.CanView;
         GenerateCombinedPackButton.IsEnabled = current.CanView;
-        ExportPackExcelButton.IsEnabled = current.CanView && currentPack is not null;
-        ExportPackPdfButton.IsEnabled = current.CanView && currentPack is not null;
+        ExportPackExcelButton.IsEnabled = current.CanView && currentPack is not null && !packExportInProgress;
+        ExportPackPdfButton.IsEnabled = current.CanView && currentPack is not null && !packExportInProgress;
     }
 
     public async Task RefreshAsync()
@@ -144,7 +145,10 @@ public partial class DailyWorkflowWorkspaceView : UserControl
         }
         catch (Exception exception)
         {
-            Apply(presentation.ShowUnavailable(exception.Message));
+            DesktopDiagnostics.Record(exception, "DailyWorkflow.Workspace", "DAILY_WORKFLOW_LOAD_FAILED");
+            Apply(presentation.ShowUnavailable(DesktopFriendlyError.Describe(
+                exception,
+                "This Windows account does not have application access.")));
         }
     }
 
@@ -165,7 +169,7 @@ public partial class DailyWorkflowWorkspaceView : UserControl
             await RefreshAsync();
             await RelayDashboardRefreshAsync();
         }
-        catch (Exception exception) { Publish(DailyWorkflowPresentationSession.Failed("Manual input was not saved", exception)); }
+        catch (Exception exception) { PublishFailure(exception, "MANUAL_INPUT_SAVE_FAILED", "Manual input was not saved", "Owner or Store Manager permission is required."); }
     }
 
     public async Task SaveStockCountAsync()
@@ -186,7 +190,7 @@ public partial class DailyWorkflowWorkspaceView : UserControl
             await RefreshAsync();
             await RelayDashboardRefreshAsync();
         }
-        catch (Exception exception) { Publish(DailyWorkflowPresentationSession.Failed("Physical stock count was not saved", exception)); }
+        catch (Exception exception) { PublishFailure(exception, "PHYSICAL_STOCK_SAVE_FAILED", "Physical stock count was not saved", "Owner or Store Manager permission is required."); }
     }
 
     public async Task SaveStaffTargetAsync()
@@ -205,7 +209,7 @@ public partial class DailyWorkflowWorkspaceView : UserControl
             await RelayDashboardRefreshAsync();
             Publish("Staff/CRO target saved. Target achievement and ranking are available in the staff report.");
         }
-        catch (Exception exception) { Publish(DailyWorkflowPresentationSession.Failed("Staff target was not saved", exception)); }
+        catch (Exception exception) { PublishFailure(exception, "STAFF_TARGET_SAVE_FAILED", "Staff target was not saved", "Owner or Store Manager permission is required."); }
     }
 
     public async Task FinaliseDayAsync()
@@ -224,7 +228,7 @@ public partial class DailyWorkflowWorkspaceView : UserControl
             await RefreshAsync();
             await RelayDashboardRefreshAsync();
         }
-        catch (Exception exception) { Publish(DailyWorkflowPresentationSession.Failed("Day was not finalised", exception)); }
+        catch (Exception exception) { PublishFailure(exception, "DAY_FINALISE_FAILED", "Day was not finalised", "Owner or Store Manager permission is required."); }
     }
 
     public async Task ReopenDayAsync()
@@ -243,7 +247,7 @@ public partial class DailyWorkflowWorkspaceView : UserControl
             await RefreshAsync();
             await RelayDashboardRefreshAsync();
         }
-        catch (Exception exception) { Publish(DailyWorkflowPresentationSession.Failed("Day was not reopened", exception)); }
+        catch (Exception exception) { PublishFailure(exception, "DAY_REOPEN_FAILED", "Day was not reopened", "Owner permission is required."); }
     }
 
     public async Task GenerateDailyPackAsync()
@@ -257,7 +261,7 @@ public partial class DailyWorkflowWorkspaceView : UserControl
             Publish(DailyWorkflowPresentationSession.PackReady(pack.Status, pack.Message, pack.GenerationNumber, pack.ContentSha256));
             await recordAuditAsync("ReportPack", pack.Status == DailyControlStatus.Passed ? "Succeeded" : "Failed", "Daily report pack");
         }
-        catch (Exception exception) { Publish(DailyWorkflowPresentationSession.Failed("Daily report pack failed", exception)); }
+        catch (Exception exception) { PublishFailure(exception, "DAILY_PACK_GENERATION_FAILED", "Daily report pack failed", "This Windows account does not have application access."); }
     }
 
     public async Task GenerateCombinedDailyPackAsync()
@@ -275,7 +279,7 @@ public partial class DailyWorkflowWorkspaceView : UserControl
                 string.Equals(document.OverallStatus, "Passed", StringComparison.OrdinalIgnoreCase) ? "Succeeded" : "Failed",
                 "Combined daily report pack");
         }
-        catch (Exception exception) { Publish($"Combined daily report pack failed: {exception.Message}"); }
+        catch (Exception exception) { PublishFailure(exception, "COMBINED_PACK_GENERATION_FAILED", "Combined daily report pack failed", "This Windows account does not have application access."); }
     }
 
     private void Apply(DailyWorkflowPresentationState state)
@@ -346,7 +350,8 @@ public partial class DailyWorkflowWorkspaceView : UserControl
         try { await DashboardRefreshRequestedAsync(); }
         catch (Exception exception)
         {
-            NotificationRequested?.Invoke(this, new($"Daily change was saved, but dashboard refresh failed: {exception.Message}"));
+            DesktopDiagnostics.Record(exception, "DailyWorkflow.Workspace", "DAILY_CHANGE_REFRESH_FAILED", DesktopDiagnosticSeverity.Warning);
+            NotificationRequested?.Invoke(this, new($"Daily change was saved, but dashboard refresh failed: {DesktopFriendlyError.Describe(exception)}"));
         }
     }
 
@@ -354,6 +359,16 @@ public partial class DailyWorkflowWorkspaceView : UserControl
     {
         WorkflowMessage.Text = message;
         NotificationRequested?.Invoke(this, new(message));
+    }
+
+    private void PublishFailure(
+        Exception exception,
+        string eventId,
+        string operation,
+        string safeUnauthorizedMessage = "Your Windows account does not have permission for this action.")
+    {
+        DesktopDiagnostics.Record(exception, "DailyWorkflow.Workspace", eventId);
+        Publish(DailyWorkflowPresentationSession.Failed(operation, exception, safeUnauthorizedMessage));
     }
 
     private static bool IsCurrentWindowsAdministrator()
@@ -372,11 +387,12 @@ public partial class DailyWorkflowWorkspaceView : UserControl
     private async void GenerateCombinedDailyPack_Click(object sender, RoutedEventArgs e) => await GenerateCombinedDailyPackAsync();
     private void Scope_Changed(object sender, SelectionChangedEventArgs e) => InvalidatePack();
 
-    private void ExportDailyPackExcel_Click(object sender, RoutedEventArgs e) => ExportCurrentPack("Excel");
-    private void ExportDailyPackPdf_Click(object sender, RoutedEventArgs e) => ExportCurrentPack("PDF");
+    private async void ExportDailyPackExcel_Click(object sender, RoutedEventArgs e) => await ExportCurrentPackAsync("Excel");
+    private async void ExportDailyPackPdf_Click(object sender, RoutedEventArgs e) => await ExportCurrentPackAsync("PDF");
 
-    private void ExportCurrentPack(string format)
+    private async Task ExportCurrentPackAsync(string format)
     {
+        if (packExportInProgress) return;
         if (currentPack is null || !PackMatchesCurrentScope()) { Publish("Generate the complete daily report pack for the selected store and business date before exporting."); return; }
         var excel = string.Equals(format, "Excel", StringComparison.Ordinal);
         var dialog = new SaveFileDialog
@@ -386,13 +402,16 @@ public partial class DailyWorkflowWorkspaceView : UserControl
             AddExtension = true
         };
         if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
+        packExportInProgress = true;
+        RefreshAccessState();
         try
         {
-            if (excel) exportPackExcel(dialog.FileName, currentPack); else exportPackPdf(dialog.FileName, currentPack);
+            if (excel) await exportPackExcelAsync(dialog.FileName, currentPack); else await exportPackPdfAsync(dialog.FileName, currentPack);
             Publish($"Complete {(excel ? "multi-sheet" : "paginated")} report pack saved to {dialog.FileName}");
-            _ = recordAuditAsync(excel ? "ExportExcel" : "ExportPdf", "Succeeded", "Complete report pack exported");
+            await recordAuditAsync(excel ? "ExportExcel" : "ExportPdf", "Succeeded", "Complete report pack exported");
         }
-        catch (Exception exception) { Publish($"Report-pack {format} export failed: {exception.Message}"); }
+        catch (Exception exception) { PublishFailure(exception, "REPORT_PACK_EXPORT_FAILED", $"Report-pack {format} export failed", "This Windows account does not have application access."); }
+        finally { packExportInProgress = false; RefreshAccessState(); }
     }
 
     private sealed record DailyPackBinding(DateOnly BusinessDate, string? StoreCode);

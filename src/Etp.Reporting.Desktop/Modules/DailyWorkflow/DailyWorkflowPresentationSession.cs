@@ -158,7 +158,11 @@ public sealed class DailyWorkflowPresentationSession
     public static string PackReady(DailyControlStatus status, string message, int generationNumber, string contentSha256) =>
         $"{status}: {message} Generation {generationNumber}, control hash {contentSha256[..12]}.";
 
-    public static string Failed(string operation, Exception exception) => $"{operation}: {exception.Message}";
+    public static string Failed(
+        string operation,
+        Exception exception,
+        string safeUnauthorizedMessage = "Your Windows account does not have permission for this action.") =>
+        $"{operation}: {DesktopFriendlyError.Describe(exception, safeUnauthorizedMessage)}";
 
     private static DailyWorkflowTone Tone(DailyWorkflowStatus status) => status switch
     {

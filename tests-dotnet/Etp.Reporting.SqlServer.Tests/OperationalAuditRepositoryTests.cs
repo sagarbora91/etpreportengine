@@ -4,6 +4,22 @@ namespace Etp.Reporting.SqlServer.Tests;
 
 public sealed class OperationalAuditRepositoryTests
 {
+    [Fact]
+    public void Outcome_catalogue_is_the_closed_database_contract()
+    {
+        Assert.Equal(["Blocked", "Cancelled", "Failed", "Succeeded"],
+            OperationalAuditRepository.SupportedOutcomes.Order(StringComparer.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("DocumentExtractionReview")]
+    [InlineData("SharingContactChange")]
+    [InlineData("VisualRender")]
+    public void Productisation_and_visual_events_are_supported(string eventType)
+    {
+        Assert.True(OperationalAuditRepository.SupportsEventType(eventType));
+    }
+
     [Theory]
     [InlineData("ReportRun", "Succeeded", "Daily report")]
     [InlineData("ImportBatch", "Failed", "Aggregate failure")]

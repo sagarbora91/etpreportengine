@@ -1,5 +1,7 @@
 using Etp.Reporting.Application.Imports;
 using Etp.Reporting.Import.Batch;
+using Etp.Reporting.Import.Preflight;
+using Etp.Reporting.Import.Profiles;
 using Etp.Reporting.Import.Workbooks;
 
 namespace Etp.Reporting.Infrastructure.SqlServer.Tests;
@@ -94,9 +96,12 @@ public sealed class ImportPersistenceUseCaseTests
             service.ExistsByHashAsync(new string('a', 64), cancellation.Token));
     }
 
-    private static ImportPersistenceRequest<WorkbookSnapshot> Request(ImportRestatement? restatement) => new(
-        new WorkbookSnapshot("sales.xlsx", 1, new string('a', 64), []),
-        "R025",
+    private static ImportPersistenceRequest<MatchedImportEnvelope> Request(ImportRestatement? restatement) => new(
+        new MatchedImportEnvelopeFactory().RequireAccepted(new WorkbookSnapshot(
+            "sales.xlsx",
+            1,
+            new string('a', 64),
+            [new("Sales", 1, RetailSalesProfiles.R025Headers, [])])),
         new DateOnly(2026, 8, 25),
         "WLMHW",
         "STORE\\Manager",

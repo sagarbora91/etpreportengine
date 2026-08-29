@@ -70,8 +70,8 @@ public sealed class DailyWorkflowWorkspaceViewTests
                 () => currentAccess,
                 () => true,
                 (operation, status, _) => { audits.Add($"{operation}:{status}"); return Task.CompletedTask; },
-                (_, _) => { },
-                (_, _) => { })
+                (_, _) => Task.CompletedTask,
+                (_, _) => Task.CompletedTask)
             {
                 BusinessDate = scopeDate,
                 StoreCode = "WLMHW",
@@ -133,8 +133,8 @@ public sealed class DailyWorkflowWorkspaceViewTests
                 () => new(true, true, true),
                 () => true,
                 (_, _, _) => Task.CompletedTask,
-                (_, _) => { },
-                (_, _) => { })
+                (_, _) => Task.CompletedTask,
+                (_, _) => Task.CompletedTask)
             {
                 BusinessDate = date,
                 StoreCode = "WLMHW"

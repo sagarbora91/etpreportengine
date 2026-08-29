@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using Microsoft.Data.SqlClient;
 
 namespace Etp.Reporting.Infrastructure.SqlServer;
@@ -6,18 +7,23 @@ public sealed record OperationalAuditEvent(DateTime EventUtc, string EventType, 
 
 public sealed class OperationalAuditRepository(string connectionString)
 {
-    private static readonly HashSet<string> EventTypes = new(StringComparer.Ordinal)
-        { "ApplicationStart", "ConnectionTest", "ImportBatch", "ReportRun", "ExportExcel", "ExportPdf", "DatabaseSetup", "SupportPackage",
-          "ManualInput", "DayFinalised", "DayReopened", "ReportPack", "SessionStart", "ImportFailed", "Backup", "RestoreDrill",
-          "ConfigurationChange", "MappingProfileChange", "Restatement", "StockCount", "StaffTarget", "UserAdministration",
-          "MasterDataChange", "AutomationRun", "ReportArchive" };
-    private static readonly HashSet<string> Outcomes = new(StringComparer.Ordinal)
-        { "Succeeded", "Failed", "Blocked", "Cancelled" };
+    private static readonly FrozenSet<string> EventTypes = new[]
+    {
+        "ApplicationStart", "SessionStart", "ConnectionTest", "ImportBatch", "ImportFailed", "ReportRun", "ExportExcel", "ExportPdf", "DatabaseSetup", "SupportPackage",
+        "ManualInput", "DayFinalised", "DayReopened", "ReportPack", "Backup", "RestoreDrill", "ConfigurationChange", "MappingProfileChange", "Restatement", "StockCount", "StaffTarget",
+        "UserAdministration", "MasterDataChange", "AutomationRun", "ReportArchive", "DocumentIntake", "DocumentExtraction", "DocumentExtractionReview", "SharingContactChange",
+        "RegisterEntry", "ShareInitiated", "ReportPackage", "Approval", "Adjustment", "AccountingBatch", "AccountingExport", "ImportConflict", "IssueWorkflow", "VisualRender"
+    }.ToFrozenSet(StringComparer.Ordinal);
+    private static readonly FrozenSet<string> Outcomes = new[]
+        { "Succeeded", "Failed", "Blocked", "Cancelled" }.ToFrozenSet(StringComparer.Ordinal);
+
+    internal static IReadOnlySet<string> SupportedEventTypes => EventTypes;
+    internal static IReadOnlySet<string> SupportedOutcomes => Outcomes;
 
     public async Task RecordAsync(string eventType, string outcome, string? safeDetail = null, string? actorName = null, CancellationToken cancellationToken = default)
     {
-        if (!EventTypes.Contains(eventType)) throw new ArgumentException("Unknown operational event type.", nameof(eventType));
-        if (!Outcomes.Contains(outcome)) throw new ArgumentException("Unknown operational outcome.", nameof(outcome));
+        if (!SupportsEventType(eventType)) throw new ArgumentException("Unknown operational event type.", nameof(eventType));
+        if (!SupportsOutcome(outcome)) throw new ArgumentException("Unknown operational outcome.", nameof(outcome));
         if (safeDetail is { } detail && (detail.Length > 200 || ContainsPathOrIdentifier(detail)))
             throw new ArgumentException("Audit details must be aggregate-only and cannot contain paths or identifiers.", nameof(safeDetail));
         await using var connection = new SqlConnection(connectionString);
@@ -31,6 +37,9 @@ public sealed class OperationalAuditRepository(string connectionString)
         command.Parameters.AddWithValue("@actor", actorName);
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
+
+    internal static bool SupportsEventType(string eventType) => EventTypes.Contains(eventType);
+    internal static bool SupportsOutcome(string outcome) => Outcomes.Contains(outcome);
 
     public async Task<IReadOnlyList<OperationalAuditEvent>> LoadRecentAsync(int limit = 50, CancellationToken cancellationToken = default)
     {

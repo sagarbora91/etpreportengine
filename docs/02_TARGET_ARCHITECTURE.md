@@ -2,80 +2,104 @@
 
 ## Product boundary
 
-The target is a Windows desktop rules-driven reporting engine. ETP files are inputs, SQL Server Express is the structured source of truth, deterministic business services calculate metrics, and Windows/Excel/PDF renderers are output channels.
+ETP is an offline-first Windows reporting engine. Approved ETP workbooks are inputs, local SQL Server Express is the canonical reporting store after successful transactional import, deterministic services calculate reports and WPF/Excel/PDF are presentation channels.
 
-## Technology direction
+The target is an incremental extension of the implemented .NET system, not a rewrite and not the retired Capacitor/WebView product.
 
-- .NET 10 LTS codebase using C#, matching the installed supported toolchain.
-- WPF desktop shell for mature Windows deployment and straightforward operational grids/forms.
-- Generic Host for dependency injection, configuration, logging and background services.
-- SQL Server Express through `Microsoft.Data.SqlClient`; migrations are explicit versioned SQL scripts executed by a small migration runner.
-- Open XML SDK for workbook ingestion/export foundations. A higher-level MIT-licensed wrapper may be evaluated after real workbook tests.
-- xUnit for unit/integration tests; Testcontainers or a configured local SQL Express instance for database integration tests.
+## Status map
 
-The domain and application layers must not reference WPF, Excel rendering or SQL implementation classes.
+| Area | Target state | Current status |
+|---|---|---|
+| Layered .NET 10 solution | Domain/Application independent of WPF and SQL implementations | **Implemented** with manual composition. |
+| Modular WPF desktop | Thin shell plus feature-owned workspaces | **Implemented**; combined-suite and installed-workflow evidence remain open. |
+| Deterministic import acceptance | Exact approved profile identity carried into persistence | **Implemented** for approved v1 layouts. |
+| Canonical SQL store | Checksum migrations, transactional imports, lineage and restatement | **Implemented in source**; live SQL acceptance remains open. |
+| Reporting/export | Shared query/result models rendered to WPF, Excel and PDF | **Implemented/partial** by report; UAT remains open. |
+| Safe installed upgrade | Verified pre-migration backup and post-migration health gate | **Implemented in source, external-blocked** for compiled/live lifecycle evidence. |
+| New/v2 layouts | New approved profile identity based on representative source | **Source-blocked**; no populated sanitised v2 input or approved mapping exists. |
+| Offline device licensing | Owner-issued signed, installation-bound licence | **Accepted-deferred**; no runtime enforcement exists. |
+| AI assistance | Optional advisory tooling outside deterministic authority | **Deferred**; no production AI runtime exists. |
 
-## Logical layers
+## Stable logical boundaries
 
-1. **Desktop Presentation** — navigation, file selection, import progress, diagnostics and report grids.
-2. **Application** — use cases such as identify file, import batch, generate report and manage masters.
-3. **Import** — readers, workbook preflight, profile matching and typed source-row extraction.
-4. **Normalization** — maps source fields into canonical commands and rejects unsafe ambiguity.
-5. **Domain** — business definitions, money/quantity semantics, comparison periods and reconciliation rules.
-6. **Infrastructure.SqlServer** — transactions, repositories, migrations, bulk loading and report query implementations.
-7. **Reporting** — fixed report definitions, measures, filters, controls and renderer-neutral result models.
-8. **Exports** — Excel and later PDF formatters; never calculation engines.
+1. **Desktop** — navigation, operator interaction, progress, diagnostics and result presentation.
+2. **Application** — technology-neutral use-case contracts.
+3. **Import** — file discovery, Open XML reading, structural preflight, profile matching, typed staging and diagnostics.
+4. **Domain** — import identity, canonical types and deterministic business definitions.
+5. **Infrastructure.SqlServer** — transactions, repositories, migrations, audit, automation and operational queries.
+6. **Reporting** — report definitions, controls, result models and Excel/PDF rendering.
 
-## Proposed solution structure
+The current project structure is the target baseline:
 
 ```text
 src/
-  Etp.Reporting.Desktop/
-  Etp.Reporting.Application/
   Etp.Reporting.Domain/
+  Etp.Reporting.Application/
   Etp.Reporting.Import/
   Etp.Reporting.Infrastructure.SqlServer/
   Etp.Reporting.Reporting/
-  Etp.Reporting.Exports.Excel/
-tests/
+  Etp.Reporting.Desktop/
+tests-dotnet/
   Etp.Reporting.Domain.Tests/
+  Etp.Reporting.Application.Tests/       # only if application-only tests justify a project
   Etp.Reporting.Import.Tests/
   Etp.Reporting.SqlServer.Tests/
   Etp.Reporting.Reporting.Tests/
-database/
-  migrations/
-  seeds/
-test-data/golden/
+  Etp.Reporting.Desktop.Tests/
+database/migrations/
 ```
 
-## Import transaction
+A Generic Host or external DI container is not a target requirement by itself. Introduce one only if service lifetime, background-process or configuration complexity exceeds the explicit composition root; do not add infrastructure solely to match an earlier proposal.
 
-1. Hash and register the selected file as a pending `import_file`.
-2. Detect candidate profile by report code, sheet and normalized header signature.
-3. Parse cells into typed source values without business aggregations.
-4. Map into canonical staging records with source row lineage.
-5. Validate blockers and warnings.
-6. Resolve controlled masters and transaction classifications.
-7. Insert/update canonical facts inside one SQL transaction.
-8. Execute control-total and duplicate checks.
-9. Commit the batch as `Completed`; otherwise roll back canonical changes and retain bounded diagnostics.
+## Import target
 
-Known layouts are configured once and reused. Unknown layouts stop before canonical writes.
+The accepted import boundary is an immutable matched envelope containing the workbook snapshot, actual matched sheet, exact approved profile, staged rows and diagnostics. Its profile identity is:
 
-## Reporting architecture
+```text
+report code + layout version + profile version + normalized-header SHA-256
+```
 
-Each predefined report has an ID, parameter contract, query service, formula definitions, result schema and reconciliation control. SQL performs set-based filtering and aggregation; centralized domain/application services handle definitions that cannot safely live in SQL. UI and export render the same report-result model.
+The target import sequence is:
 
-LY/TY comparison is represented by an `IComparisonPeriodResolver`. No report may calculate its own comparison dates. Stock movement signs are controlled by effective-dated transaction-type master data and one stock-balance service.
+1. Read one stable workbook snapshot and calculate the source SHA-256.
+2. Inspect actual sheet content rather than trusting worksheet dimension metadata.
+3. Match exactly one active profile from the approved registry.
+4. Stage typed values and collect bounded diagnostics.
+5. Reject blocker-bearing input before persistence.
+6. Pass the accepted envelope through Desktop/automation/Application boundaries unchanged.
+7. Re-resolve its full profile identity at SQL persistence and register/compare it transactionally.
+8. Persist canonical facts plus file/sheet/source-row lineage in one report-specific transaction.
+9. Commit only after scope, reconciliation and duplicate/restatement controls pass.
 
-## Deployment and operations
+Unknown or changed layouts stop. A new source version requires a new approved identity, mappings and representative-input tests; report code alone is never a compatibility promise. See ADR-007.
 
-The installer will deploy the desktop app and check for a named SQL Server Express instance. Configuration uses Windows-protected local settings and a least-privilege database login or Windows authentication. Database upgrades run before application startup and are recorded in `schema_migrations`. Backup invokes SQL Server backup to a configured local/business-controlled folder with retention handled by an operational policy.
+## Data and reporting target
 
-## Boundaries deliberately excluded from MVP
+Migrations remain the table/constraint authority. Application and reporting code must not invent compatibility behavior that the schema cannot preserve. Existing facts remain append/supersede oriented: correction uses controlled restatement and lineage rather than silent destructive replacement.
 
+Each report retains an ID, parameter contract, query/result model, rule version and reconciliation state. SQL performs set-based filtering/aggregation; deterministic services own reusable calculations. WPF and exporters consume the same governed result. AI cannot supply a missing value, approve a mapping, alter a control status or replace a deterministic formula.
+
+## Deployment and operations target
+
+Normal operation remains local and Windows-integrated. Settings may store a validated integrated connection string without a SQL password; adding credential persistence would require a separate security decision.
+
+Migration-bearing upgrades must follow ADR-008: compatible/healthy target, adequate backup space, verified existing-database backup, checksum migration run, online/read-write/journal/integrity verification, then operational-task setup. Failure stops and retains evidence; it does not pretend to reverse committed migrations. Restore is an explicit operator action after diagnosis.
+
+The source-level implementation is not sufficient release evidence. Required external acceptance includes compiled installer behavior, clean install, previous-version upgrade, injected failure, preserved business data, real backup and restore, offline prerequisite flow and least-privilege/multi-user SQL UAT.
+
+## Security, licensing and AI boundaries
+
+- Windows-integrated SQL connections and role checks remain the active authentication/authorization boundary.
+- Operational logs, diagnostics and support packages remain aggregate/privacy-safe; canonical reporting excludes restricted PII.
+- Offline device licensing remains an accepted-deferred separate boundary under ADR-006. No document may describe it as enforced until source, packaging, key custody and two-machine acceptance exist.
+- AI may later assist investigation or draft mappings only behind an explicit review seam. It remains non-authoritative and must not be required for offline operation.
+
+## Deliberately deferred or excluded
+
+- v2 input support without representative files and approved mappings.
 - Generic drag-and-drop BI design.
-- AI-dependent mappings or calculations.
-- Android/WebView compatibility.
-- Complex approval workflow not required to protect canonical data.
-- PDF output until a report explicitly requires it.
+- Cloud-required operation or centralized licensing SaaS.
+- AI-dependent mapping, calculations or controls.
+- Android/WebView compatibility for the active product.
+- Automatic reverse migrations or destructive uninstall cleanup of business data.
+- Release promotion based only on source or documentation completion.

@@ -43,6 +43,7 @@ public sealed class DesktopSettingsStore
         }
         catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException)
         {
+            DesktopDiagnostics.Record(exception, "Settings.Store", "SETTINGS_LOAD_FAILED", DesktopDiagnosticSeverity.Warning);
             return null;
         }
     }

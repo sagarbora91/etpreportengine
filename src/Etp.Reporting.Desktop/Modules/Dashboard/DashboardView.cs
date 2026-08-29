@@ -13,7 +13,7 @@ namespace Etp.Reporting.Desktop;
 
 using DashboardSnapshot = EtpApplication::Etp.Reporting.Application.Dashboard.DashboardSnapshot;
 
-public delegate void ExportManagementSummaryPdf(string path, ExcelReportMetadata metadata, ExcelReportData data);
+public delegate Task ExportManagementSummaryPdfAsync(string path, ExcelReportMetadata metadata, ExcelReportData data);
 
 public sealed class DashboardView : UserControl
 {
@@ -35,7 +35,8 @@ public sealed class DashboardView : UserControl
     private readonly ItemsControl healthWarningsList = new();
     private readonly DataGrid operationalAuditGrid = ReadOnlyGrid(220);
     private readonly DashboardPresentationSession presentation;
-    private readonly ExportManagementSummaryPdf? exportManagementSummaryPdf;
+    private readonly ExportManagementSummaryPdfAsync? exportManagementSummaryPdfAsync;
+    private bool exportInProgress;
 
     public event EventHandler? RefreshRequested;
     public event EventHandler<string>? NotificationRequested;
@@ -44,10 +45,10 @@ public sealed class DashboardView : UserControl
 
     public DashboardView(
         DashboardPresentationSession? presentation = null,
-        ExportManagementSummaryPdf? exportManagementSummaryPdf = null)
+        ExportManagementSummaryPdfAsync? exportManagementSummaryPdfAsync = null)
     {
         this.presentation = presentation ?? new DashboardPresentationSession();
-        this.exportManagementSummaryPdf = exportManagementSummaryPdf;
+        this.exportManagementSummaryPdfAsync = exportManagementSummaryPdfAsync;
         Content = BuildContent();
         AutomationProperties.SetName(this, "Operational dashboard");
         AutomationProperties.SetName(importHistoryGrid, "Recent import history");
@@ -117,7 +118,7 @@ public sealed class DashboardView : UserControl
 
         var chartHeading = new DockPanel { Margin = new Thickness(0, 16, 0, 8) };
         chartHeading.Children.Add(Label("Imported rows by report"));
-        var export = Button("Export management summary PDF…", "Export management summary PDF", ExportPdf);
+        var export = Button("Export management summary PDF…", "Export management summary PDF", ExportPdfAsync);
         DockPanel.SetDock(export, Dock.Right);
         chartHeading.Children.Insert(0, export);
         root.Children.Add(chartHeading);
@@ -144,27 +145,31 @@ public sealed class DashboardView : UserControl
         return root;
     }
 
-    private void ExportPdf()
+    private async Task ExportPdfAsync()
     {
+        if (exportInProgress) return;
         if (!presentation.HasSnapshot)
         {
             NotificationRequested?.Invoke(this, "Refresh the dashboard before exporting a management summary.");
             return;
         }
-        if (exportManagementSummaryPdf is null) return;
+        if (exportManagementSummaryPdfAsync is null) return;
         var dialog = new SaveFileDialog { Filter = "PDF report (*.pdf)|*.pdf", FileName = $"ETP_Management_Summary_{DateTime.Today:yyyyMMdd}.pdf", AddExtension = true };
         if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
         var today = DateOnly.FromDateTime(DateTime.Today);
         var summary = presentation.BuildManagementSummary(ExportDateFrom?.Invoke() ?? today, ExportDateTo?.Invoke() ?? today, DateTimeOffset.UtcNow);
+        exportInProgress = true;
         try
         {
-            exportManagementSummaryPdf(dialog.FileName, summary.Metadata, summary.Data);
+            await exportManagementSummaryPdfAsync(dialog.FileName, summary.Metadata, summary.Data);
             NotificationRequested?.Invoke(this, $"Management summary saved to {dialog.FileName}");
         }
         catch (Exception ex)
         {
-            NotificationRequested?.Invoke(this, $"Management summary export failed: {ex.Message}");
+            DesktopDiagnostics.Record(ex, "Dashboard.Workspace", "MANAGEMENT_SUMMARY_EXPORT_FAILED");
+            NotificationRequested?.Invoke(this, $"Management summary export failed: {DesktopFriendlyError.Describe(ex)}");
         }
+        finally { exportInProgress = false; }
     }
 
     private void RenderChart(IReadOnlyList<DashboardChartItem> items)
@@ -212,6 +217,14 @@ public sealed class DashboardView : UserControl
         var button = new Button { Content = content, Padding = new Thickness(14, 6, 14, 6) };
         AutomationProperties.SetName(button, automationName);
         button.Click += (_, _) => action();
+        return button;
+    }
+
+    private static Button Button(string content, string automationName, Func<Task> action)
+    {
+        var button = new Button { Content = content, Padding = new Thickness(14, 6, 14, 6) };
+        AutomationProperties.SetName(button, automationName);
+        button.Click += async (_, _) => await action();
         return button;
     }
 

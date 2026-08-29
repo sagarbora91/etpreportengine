@@ -2,7 +2,32 @@
 
 ## Unreleased
 
+## [1.8.5] - 2026-08-29
+
+> Source-version record only. No 1.8.5 artifact, installer, SBOM, provenance, signature, tag or release has been produced or promoted.
+
+### Added
+
+- Added migration `0015_operational_audit_contract.sql` so the database audit constraint covers every emitted event, including document review, sharing-contact and visual-render events.
+- Added exact import-profile identity and a blocker-free matched-import envelope that preserves the approved report/layout/profile/header-signature provenance through Desktop, automation and SQL persistence.
+- Added structured, privacy-safe desktop diagnostics with stable source/code/severity fields and serialized concurrent file writes.
+- Added verified pre-migration backup receipts and post-migration database health gates for migration-bearing upgrades.
+
+### Changed
+
+- Moved workbook materialization and report exports away from the WPF UI thread, added cancellation/concurrency bounds and prevented overlapping export actions.
+- Existing-database bootstrap now checks SQL/database compatibility and backup capacity, verifies backup path/length/SHA-256 before migration, and requires online/read-write state, exact migration journal count and `DBCC CHECKDB` afterward.
+
+### Fixed
+
+- Made sharing-contact mutation and its operational audit write atomic, and normalized report audit outcomes to the database-supported vocabulary.
+- Rejected the preserved 1.8.4 engineering payloads from promotion because their shipped audit contract could reject valid emitted events and their committed SBOM identifies a different source state/application hash than the candidate provenance.
+
 ## [1.8.4] - 2026-08-29
+
+### Release disposition
+
+- Preserved for forensic/reproducibility purposes but rejected and never promoted. Its binaries, hashes, SBOM and provenance remain unchanged historical evidence; only a future newly built and independently accepted 1.8.5 candidate can replace it.
 
 ### Changed
 

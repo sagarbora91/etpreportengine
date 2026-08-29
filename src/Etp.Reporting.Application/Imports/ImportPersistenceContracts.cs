@@ -5,14 +5,13 @@ public sealed record ImportRestatement(
     string RequestedBy,
     string Reason);
 
-public sealed record ImportPersistenceRequest<TWorkbook>(
-    TWorkbook Workbook,
-    string ReportCode,
+public sealed record ImportPersistenceRequest<TAcceptedImport>(
+    TAcceptedImport AcceptedImport,
     DateOnly ExpectedBusinessDate,
     string ExpectedStoreCode,
     string ImportedBy,
     ImportRestatement? Restatement = null)
-    where TWorkbook : notnull;
+    where TAcceptedImport : notnull;
 
 public sealed record ImportPersistenceResult(
     string ReportCode,
@@ -31,7 +30,7 @@ public sealed record ImportRowOutcome(
     int ConflictRows,
     bool ExactDuplicate = false);
 
-public interface IImportPersistenceUseCase<TWorkbook> where TWorkbook : notnull
+public interface IImportPersistenceUseCase<TAcceptedImport> where TAcceptedImport : notnull
 {
     Task<bool> ExistsByHashAsync(string sourceSha256, CancellationToken cancellationToken = default);
     Task<long?> FindCurrentImportFileIdAsync(
@@ -40,7 +39,7 @@ public interface IImportPersistenceUseCase<TWorkbook> where TWorkbook : notnull
         DateOnly businessDate,
         CancellationToken cancellationToken = default);
     Task<ImportPersistenceResult> PersistAsync(
-        ImportPersistenceRequest<TWorkbook> request,
+        ImportPersistenceRequest<TAcceptedImport> request,
         CancellationToken cancellationToken = default);
     Task<ImportRowOutcome> LoadOutcomeByHashAsync(string sourceSha256, CancellationToken cancellationToken = default);
 }

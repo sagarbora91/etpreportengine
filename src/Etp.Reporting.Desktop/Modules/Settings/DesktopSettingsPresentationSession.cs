@@ -160,6 +160,7 @@ public sealed class DesktopSettingsPresentationSession
         }
         catch (Exception exception) when (exception is ArgumentException or IOException or UnauthorizedAccessException or InvalidOperationException)
         {
+            DesktopDiagnostics.Record(exception, "Settings.Session", "SETTINGS_SAVE_FAILED", DesktopDiagnosticSeverity.Warning);
             return false;
         }
     }

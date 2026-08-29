@@ -2,7 +2,6 @@ name: build-and-test
 
 on:
   push:
-    branches: [main]
   pull_request:
 
 permissions:
@@ -11,14 +10,68 @@ permissions:
 jobs:
   windows:
     runs-on: windows-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
       - name: Restore
         run: dotnet restore Etp.Reporting.slnx
+      - name: Install npm dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts
+      - name: Check operational PowerShell syntax
+        shell: pwsh
+        run: |
+          $parseErrors = @()
+          Get-ChildItem -LiteralPath scripts -Filter '*.ps1' -File -Recurse | ForEach-Object {
+            $tokens = $null
+            $fileErrors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              $_.FullName,
+              [ref]$tokens,
+              [ref]$fileErrors) | Out-Null
+            $parseErrors += $fileErrors
+          }
+          if ($parseErrors.Count -gt 0) {
+            $parseErrors | ForEach-Object { Write-Error $_.Message }
+            throw 'Operational PowerShell syntax validation failed.'
+          }
       - name: Build
         run: dotnet build Etp.Reporting.slnx --configuration Release --no-restore
-      - name: Test
+      - name: Run full .NET test suite
         run: dotnet test Etp.Reporting.slnx --configuration Release --no-build
+      - name: Run 23 security regression tests
+        run: npm run test:security
+      - name: Check changed lines for whitespace errors
+        shell: pwsh
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          DIFF_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if ($env:EVENT_NAME -eq 'pull_request') {
+            git diff --check "$env:DIFF_BASE...$env:GITHUB_SHA"
+          }
+          elseif ([string]::IsNullOrWhiteSpace($env:DIFF_BASE) -or $env:DIFF_BASE -match '^0+$') {
+            git diff-tree --check --root --no-commit-id $env:GITHUB_SHA
+          }
+          else {
+            git diff --check "$env:DIFF_BASE..$env:GITHUB_SHA"
+          }
+          if ($LASTEXITCODE -ne 0) { throw 'Whitespace validation failed.' }
+      - name: Run fail-closed dependency security scan
+        shell: pwsh
+        run: ./scripts/invoke-security-scan.ps1 -OutputPath artifacts/security-scan.json
+      - name: Upload dependency security scan evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-security-scan-${{ github.run_id }}
+          path: artifacts/security-scan.json
+          if-no-files-found: error

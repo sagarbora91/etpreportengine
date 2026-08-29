@@ -14,7 +14,7 @@ public sealed partial class RegistersWorkspaceView : UserControl
     private readonly RegistersPresentationSession session;
     private readonly Func<string> connectionStringProvider;
     private Func<AccessSession> accessProvider = () => new("unknown", "Unknown user", AccessRole.None, false);
-    private Func<Exception, string> errorDescriber = exception => exception.Message;
+    private Func<Exception, string> errorDescriber = DesktopFriendlyError.Describe;
 
     public RegistersWorkspaceView(RegistersPresentationSession session, Func<string> connectionStringProvider)
     {
@@ -52,7 +52,7 @@ public sealed partial class RegistersWorkspaceView : UserControl
             RegisterGrid.ItemsSource = rows;
             SetStatus($"{rows.Count:N0} audited register entry or entries found.");
         }
-        catch (Exception ex) { SetStatus(errorDescriber(ex)); }
+        catch (Exception ex) { DesktopDiagnostics.Record(ex, "Registers.Workspace", "REGISTER_REFRESH_FAILED"); SetStatus(errorDescriber(ex)); }
     }
 
     private async void SaveRegisterEntry_Click(object sender, RoutedEventArgs e)
@@ -84,7 +84,7 @@ public sealed partial class RegistersWorkspaceView : UserControl
             RegisterReasonInput.Clear();
             await RefreshRegistersAsync();
         }
-        catch (Exception ex) { SetStatus(errorDescriber(ex)); }
+        catch (Exception ex) { DesktopDiagnostics.Record(ex, "Registers.Workspace", "REGISTER_SAVE_FAILED"); SetStatus(errorDescriber(ex)); }
     }
 
     private void RequireViewAccess()

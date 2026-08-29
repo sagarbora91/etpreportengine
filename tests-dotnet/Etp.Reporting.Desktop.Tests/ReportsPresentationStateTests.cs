@@ -5,6 +5,34 @@ namespace Etp.Reporting.Desktop.Tests;
 
 public sealed class ReportsPresentationStateTests
 {
+    [Theory]
+    [InlineData(Etp.Reporting.Application.Reports.ReportStatus.Passed, "Succeeded")]
+    [InlineData(Etp.Reporting.Application.Reports.ReportStatus.Failed, "Failed")]
+    [InlineData(Etp.Reporting.Application.Reports.ReportStatus.Blocked, "Blocked")]
+    [InlineData(Etp.Reporting.Application.Reports.ReportStatus.NotRun, "Blocked")]
+    public void Application_report_status_has_a_valid_audit_outcome(
+        Etp.Reporting.Application.Reports.ReportStatus status,
+        string expected)
+    {
+        Assert.Equal(expected, ReportsWorkspaceView.ToAuditOutcome(status));
+    }
+
+    [Theory]
+    [InlineData(ReconciliationStatus.Passed, "Succeeded")]
+    [InlineData(ReconciliationStatus.Failed, "Failed")]
+    [InlineData(ReconciliationStatus.Blocked, "Blocked")]
+    [InlineData(ReconciliationStatus.NotRun, "Blocked")]
+    public void Reconciliation_status_has_a_valid_audit_outcome(ReconciliationStatus status, string expected)
+    {
+        Assert.Equal(expected, ReportsWorkspaceView.ToAuditOutcome(status));
+    }
+
+    [Fact]
+    public void Unknown_report_status_is_blocked_for_audit()
+    {
+        Assert.Equal("Blocked", ReportsWorkspaceView.ToAuditOutcome("Unexpected"));
+    }
+
     [Fact]
     public void Session_transitions_keep_daily_pack_but_clear_active_report_state()
     {
@@ -86,6 +114,7 @@ public sealed class ReportsPresentationStateTests
         Assert.Contains("ReportPresentationSession presentation", reportView, StringComparison.Ordinal);
         Assert.Contains("ReportWorkspaceSession reportWorkspaceSession", mainSources, StringComparison.Ordinal);
         Assert.Contains("ReportPresentationHost.Show(snapshot)", reportView, StringComparison.Ordinal);
+        Assert.Contains("eventType == \"ReportRun\" ? ToAuditOutcome(outcome) : outcome", reportView, StringComparison.Ordinal);
         Assert.Contains("ReportsHost", xaml, StringComparison.Ordinal);
         Assert.Contains("ReportPresentationControl", reportXaml, StringComparison.Ordinal);
         Assert.Contains("VisualReportComposer.Compose", session, StringComparison.Ordinal);

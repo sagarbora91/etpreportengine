@@ -26,9 +26,79 @@ public sealed class StockWorkbookParser
         var normalized = WorkbookLayoutNormalizer.Normalize(workbook.Sheets[0]);
         if (normalized.Sheet is null) return new("UNKNOWN", [], [], normalized.Diagnostics);
         var sheet = normalized.Sheet;
-        var profile = new ImportProfileMatcher().Match(sheet.Headers, StockImportProfiles.All);
+        var profile = new ImportProfileMatcher().Match(
+            sheet.Headers,
+            ApprovedImportProfileRegistry.All.Where(candidate =>
+                candidate.ReportCode is "STOCK_LEDGER" or "CLOSING_STOCK"));
         if (profile is null) return new("UNKNOWN", [], [], normalized.Diagnostics.Append(new("UNKNOWN_STOCK_LAYOUT",ImportDiagnosticSeverity.Blocker,"The stock layout is not an approved exact-header profile.",sheet.Name)).ToArray());
         return profile.ReportCode == "STOCK_LEDGER" ? ParseLedger(workbook.Sha256,sheet,normalized.Diagnostics) : ParseClosing(workbook.Sha256,sheet,normalized.Diagnostics);
+    }
+
+    public StockWorkbookParseResult Parse(MatchedImportEnvelope accepted)
+    {
+        ArgumentNullException.ThrowIfNull(accepted);
+        var reportCode = accepted.ProfileIdentity.ReportCode;
+        if (reportCode is not ("STOCK_LEDGER" or "CLOSING_STOCK"))
+            return new("UNKNOWN", [], [], accepted.Diagnostics.Append(new(
+                "UNKNOWN_STOCK_LAYOUT",
+                ImportDiagnosticSeverity.Blocker,
+                "The accepted import is not an approved stock profile.",
+                accepted.MatchedSheet.Name)).ToArray());
+
+        var diagnostics = accepted.Diagnostics.ToList();
+        if (reportCode == "STOCK_LEDGER")
+        {
+            var movements = new List<ParsedStockMovement>();
+            foreach (var row in accepted.Staging.Rows)
+            {
+                var values = row.Values;
+                var type = Required<string>(values, "source_transaction_type");
+                var opening = Required<decimal>(values, "opening_quantity");
+                var transaction = Required<decimal>(values, "transaction_quantity");
+                var closing = Required<decimal>(values, "closing_quantity");
+                if (!KnownTypes.Contains(type))
+                    diagnostics.Add(new("UNKNOWN_STOCK_TRANSACTION_TYPE", ImportDiagnosticSeverity.Blocker,
+                        "The source transaction type is not approved for stock reporting.", accepted.MatchedSheet.Name,
+                        row.SourceRowNumber, "TRANS_TYPE"));
+                if (opening + transaction != closing)
+                    diagnostics.Add(new("STOCK_BALANCE_MISMATCH", ImportDiagnosticSeverity.Blocker,
+                        "Closing quantity does not equal opening plus source transaction quantity.",
+                        accepted.MatchedSheet.Name, row.SourceRowNumber));
+                movements.Add(new(
+                    Required<string>(values, "store_code"),
+                    Required<string>(values, "document_number"),
+                    Required<DateOnly>(values, "document_date"),
+                    Required<string>(values, "product_code"),
+                    type,
+                    Optional<string>(values, "from_location"),
+                    Optional<string>(values, "to_location"),
+                    opening,
+                    transaction,
+                    closing,
+                    new(accepted.Workbook.Sha256, accepted.MatchedSheet.Name, row.SourceRowNumber)));
+            }
+            return new(reportCode, movements, [], diagnostics);
+        }
+
+        var snapshots = accepted.Staging.Rows.Select(row =>
+        {
+            var values = row.Values;
+            return new ParsedStockSnapshot(
+                Required<string>(values, "store_code"),
+                Required<DateOnly>(values, "snapshot_date"),
+                Required<string>(values, "product_code"),
+                Optional<string>(values, "ean"),
+                Optional<string>(values, "brand_code"),
+                Optional<string>(values, "cluster"),
+                Optional<string>(values, "gender"),
+                Optional<string>(values, "batch_number"),
+                Optional<string>(values, "source_uid"),
+                Required<decimal>(values, "quantity"),
+                OptionalValue<decimal>(values, "unit_cost"),
+                OptionalValue<decimal>(values, "total_cost"),
+                new(accepted.Workbook.Sha256, accepted.MatchedSheet.Name, row.SourceRowNumber));
+        }).ToArray();
+        return new(reportCode, [], snapshots, diagnostics);
     }
 
     private StockWorkbookParseResult ParseLedger(string hash,WorkbookSheet sheet,IReadOnlyList<ImportDiagnostic> initial)
@@ -66,4 +136,12 @@ public sealed class StockWorkbookParser
     }
     private static Dictionary<string,int> HeaderMap(WorkbookSheet s)=>s.Headers.Select((x,i)=>(x,i)).ToDictionary(x=>ImportProfile.NormalizeHeader(x.x),x=>x.i,StringComparer.Ordinal);
     private static StockWorkbookParseResult Blocked(string code,string message)=>new("UNKNOWN",[],[],[new(code,ImportDiagnosticSeverity.Blocker,message)]);
+    private static T Required<T>(IReadOnlyDictionary<string, object?> values, string key) =>
+        values.TryGetValue(key, out var value) && value is T typed
+            ? typed
+            : throw new InvalidOperationException($"Required staged stock field '{key}' is missing.");
+    private static T? Optional<T>(IReadOnlyDictionary<string, object?> values, string key) where T : class =>
+        values.TryGetValue(key, out var value) ? value as T : null;
+    private static T? OptionalValue<T>(IReadOnlyDictionary<string, object?> values, string key) where T : struct =>
+        values.TryGetValue(key, out var value) && value is T typed ? typed : null;
 }

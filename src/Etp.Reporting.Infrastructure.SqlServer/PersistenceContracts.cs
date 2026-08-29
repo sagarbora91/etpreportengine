@@ -1,9 +1,12 @@
+using Etp.Reporting.Domain.Imports;
+using Etp.Reporting.Import.Profiles;
+
 namespace Etp.Reporting.Infrastructure.SqlServer;
 
 public sealed record ImportBatchRegistration(Guid BatchId, int? StoreId, DateOnly? PeriodStart, DateOnly? PeriodEnd, DateTimeOffset StartedUtc);
 public sealed record ImportFileRegistration(
     Guid BatchId,
-    int? ImportProfileId,
+    ImportProfileIdentity Profile,
     string OriginalFileName,
     string SourceSha256,
     long SizeBytes,
@@ -88,6 +91,7 @@ public static class PersistenceValidation
         ArgumentNullException.ThrowIfNull(package);
         if (package.Batch.BatchId == Guid.Empty) throw new ArgumentException("Batch id is required.", nameof(package));
         if (package.File.BatchId != package.Batch.BatchId) throw new ArgumentException("The file must belong to the package batch.", nameof(package));
+        _ = ResolveReportCode(package.File);
         if (package.File.SizeBytes < 0) throw new ArgumentException("File size cannot be negative.", nameof(package));
         SqlServerImportFileRepository.NormalizeHash(package.File.SourceSha256);
         if (package.Tenders.Any(x => string.Equals(x.TenderType, "PAYMENTTYPE25", StringComparison.OrdinalIgnoreCase) && x.IsReportingEligible))
@@ -106,5 +110,18 @@ public static class PersistenceValidation
             if (string.IsNullOrWhiteSpace(lineage.SheetName) || lineage.SourceRowNumber <= 0)
                 throw new ArgumentException("Every persisted row requires a sheet name and positive source row.", nameof(package));
         }
+    }
+
+    internal static string ResolveReportCode(ImportFileRegistration file)
+    {
+        ArgumentNullException.ThrowIfNull(file);
+        ArgumentNullException.ThrowIfNull(file.Profile);
+        var approved = ApprovedImportProfileRegistry.Resolve(file.Profile);
+        if (file.ReportCode is { } reportCode &&
+            !string.Equals(reportCode.Trim(), approved.ReportCode, StringComparison.Ordinal))
+            throw new ArgumentException(
+                "The import file report code must match its exact approved profile identity.",
+                nameof(file));
+        return approved.ReportCode;
     }
 }

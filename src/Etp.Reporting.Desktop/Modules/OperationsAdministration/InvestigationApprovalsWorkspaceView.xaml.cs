@@ -46,7 +46,7 @@ public partial class InvestigationApprovalsWorkspaceView : UserControl
             ApprovalGrid.ItemsSource = rows;
             InvestigationStatus.Text = $"{rows.Count:N0} approval(s) pending.";
         }
-        catch (Exception ex) { InvestigationStatus.Text = OperationsAdministrationWorkspaceErrors.Friendly(ex); }
+        catch (Exception ex) { DesktopDiagnostics.Record(ex, "OperationsAdministration.Investigation", "APPROVAL_REFRESH_FAILED"); InvestigationStatus.Text = OperationsAdministrationWorkspaceErrors.Friendly(ex); }
     }
 
     private IOperationsAdministrationService OperationsService => operationsServiceFactory(connectionStringProvider());
@@ -59,7 +59,7 @@ public partial class InvestigationApprovalsWorkspaceView : UserControl
             InvestigationGrid.ItemsSource = rows;
             InvestigationStatus.Text = $"{rows.Count:N0} result(s) across canonical transactions, sources, reports and registers.";
         }
-        catch (Exception ex) { InvestigationStatus.Text = OperationsAdministrationWorkspaceErrors.Friendly(ex); }
+        catch (Exception ex) { DesktopDiagnostics.Record(ex, "OperationsAdministration.Investigation", "INVESTIGATION_SEARCH_FAILED"); InvestigationStatus.Text = OperationsAdministrationWorkspaceErrors.Friendly(ex); }
     }
 
     private async void SubmitAdjustment_Click(object sender, RoutedEventArgs e)
@@ -84,7 +84,7 @@ public partial class InvestigationApprovalsWorkspaceView : UserControl
             InvestigationStatus.Text = $"Adjustment {id:N0} is pending Owner approval. Canonical ETP facts were not changed.";
             await RefreshApprovalsAsync();
         }
-        catch (Exception ex) { InvestigationStatus.Text = OperationsAdministrationWorkspaceErrors.Friendly(ex); }
+        catch (Exception ex) { DesktopDiagnostics.Record(ex, "OperationsAdministration.Investigation", "ADJUSTMENT_SUBMIT_FAILED"); InvestigationStatus.Text = OperationsAdministrationWorkspaceErrors.Friendly(ex); }
     }
 
     private async void RefreshApprovals_Click(object sender, RoutedEventArgs e) => await RefreshApprovalsAsync();
@@ -101,7 +101,7 @@ public partial class InvestigationApprovalsWorkspaceView : UserControl
             ApprovalReasonInput.Clear();
             await RefreshApprovalsAsync();
         }
-        catch (Exception ex) { InvestigationStatus.Text = OperationsAdministrationWorkspaceErrors.Friendly(ex); }
+        catch (Exception ex) { DesktopDiagnostics.Record(ex, "OperationsAdministration.Investigation", "APPROVAL_DECISION_FAILED"); InvestigationStatus.Text = OperationsAdministrationWorkspaceErrors.Friendly(ex); }
     }
 
     private void RequireViewAccess()

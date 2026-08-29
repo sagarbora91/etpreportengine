@@ -37,10 +37,17 @@ public sealed class SqlServerImportFileRepository(string connectionString) : IIm
     }
     public async Task<long> RegisterAsync(ImportFileRegistration file,CancellationToken cancellationToken=default)
     {
+        var reportCode=PersistenceValidation.ResolveReportCode(file);
         await using var connection=new SqlConnection(connectionString); await connection.OpenAsync(cancellationToken);
-        await using var command=new SqlCommand("INSERT dbo.import_files(import_batch_id,import_profile_id,original_file_name,source_sha256,size_bytes,report_code,store_code,business_date,source_report_date,imported_by) VALUES(@batch,@profile,@name,@hash,@size,@report,@store,@business,@sourceDate,@user); SELECT CONVERT(bigint,SCOPE_IDENTITY());",connection);
-        command.Parameters.AddWithValue("@batch",file.BatchId); SqlServerImportBatchRepository.Add(command,"@profile",file.ImportProfileId); command.Parameters.AddWithValue("@name",file.OriginalFileName); command.Parameters.AddWithValue("@hash",NormalizeHash(file.SourceSha256)); command.Parameters.AddWithValue("@size",file.SizeBytes); SqlServerImportBatchRepository.Add(command,"@report",file.ReportCode); SqlServerImportBatchRepository.Add(command,"@store",file.StoreCode); SqlServerImportBatchRepository.Add(command,"@business",file.BusinessDate); SqlServerImportBatchRepository.Add(command,"@sourceDate",file.SourceReportDate); SqlServerImportBatchRepository.Add(command,"@user",file.ImportedBy);
-        return Convert.ToInt64(await command.ExecuteScalarAsync(cancellationToken));
+        await using var transaction=(SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            var profileId=await SqlServerImportProfileResolver.ResolveOrRegisterAsync(connection,transaction,file.Profile,cancellationToken);
+            var fileId=await InsertFileAsync(connection,transaction,file,profileId,reportCode,cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return fileId;
+        }
+        catch { await transaction.RollbackAsync(CancellationToken.None); throw; }
     }
     public async Task<Etp.Reporting.Import.Batch.WorkbookImportOutcome> LoadOutcomeByHashAsync(string sourceSha256,CancellationToken cancellationToken=default)
     {
@@ -67,6 +74,13 @@ public sealed class SqlServerImportFileRepository(string connectionString) : IIm
         if(normalized.Length!=64 || normalized.Any(c=>!Uri.IsHexDigit(c))) throw new ArgumentException("A 64-character SHA-256 value is required.",nameof(value));
         return normalized;
     }
+
+    private static async Task<long> InsertFileAsync(SqlConnection connection,SqlTransaction transaction,ImportFileRegistration file,int profileId,string reportCode,CancellationToken token)
+    {
+        await using var command=new SqlCommand("INSERT dbo.import_files(import_batch_id,import_profile_id,original_file_name,source_sha256,size_bytes,report_code,store_code,business_date,source_report_date,imported_by) VALUES(@batch,@profile,@name,@hash,@size,@report,@store,@business,@sourceDate,@user); SELECT CONVERT(bigint,SCOPE_IDENTITY());",connection,transaction);
+        command.Parameters.AddWithValue("@batch",file.BatchId); command.Parameters.AddWithValue("@profile",profileId); command.Parameters.AddWithValue("@name",file.OriginalFileName); command.Parameters.AddWithValue("@hash",NormalizeHash(file.SourceSha256)); command.Parameters.AddWithValue("@size",file.SizeBytes); command.Parameters.AddWithValue("@report",reportCode); SqlServerImportBatchRepository.Add(command,"@store",file.StoreCode); SqlServerImportBatchRepository.Add(command,"@business",file.BusinessDate); SqlServerImportBatchRepository.Add(command,"@sourceDate",file.SourceReportDate); SqlServerImportBatchRepository.Add(command,"@user",file.ImportedBy);
+        return Convert.ToInt64(await command.ExecuteScalarAsync(token));
+    }
 }
 
 public sealed class SqlServerTransactionalImportStore(string connectionString) : ITransactionalImportStore
@@ -80,7 +94,8 @@ public sealed class SqlServerTransactionalImportStore(string connectionString) :
         try
         {
             await InsertBatch(connection,transaction,package.Batch,cancellationToken);
-            var fileId=await InsertFile(connection,transaction,package.File,cancellationToken);
+            var profileId=await SqlServerImportProfileResolver.ResolveOrRegisterAsync(connection,transaction,package.File.Profile,cancellationToken);
+            var fileId=await InsertFile(connection,transaction,package.File,profileId,cancellationToken);
             if(package.Restatement is { } restatement)
                 await PrepareRestatement(connection,transaction,restatement,fileId,cancellationToken);
             foreach(var row in package.InvoiceControls) await InsertInvoiceControl(connection,transaction,fileId,row,cancellationToken);
@@ -96,7 +111,7 @@ public sealed class SqlServerTransactionalImportStore(string connectionString) :
     }
 
     private static async Task InsertBatch(SqlConnection c,SqlTransaction t,ImportBatchRegistration x,CancellationToken token){await using var q=Cmd(c,t,"INSERT dbo.import_batches(import_batch_id,status,store_id,period_start,period_end,started_utc) VALUES(@id,'Processing',@store,@start,@end,@utc)");q.Parameters.AddWithValue("@id",x.BatchId);Add(q,"@store",x.StoreId);Add(q,"@start",x.PeriodStart);Add(q,"@end",x.PeriodEnd);q.Parameters.AddWithValue("@utc",x.StartedUtc.UtcDateTime);await q.ExecuteNonQueryAsync(token);}
-    private static async Task<long> InsertFile(SqlConnection c,SqlTransaction t,ImportFileRegistration x,CancellationToken token){await using var q=Cmd(c,t,"INSERT dbo.import_files(import_batch_id,import_profile_id,original_file_name,source_sha256,size_bytes,report_code,store_code,business_date,source_report_date,imported_by) VALUES(@batch,@profile,@name,@hash,@size,@report,@store,@business,@sourceDate,@user); SELECT CONVERT(bigint,SCOPE_IDENTITY());");q.Parameters.AddWithValue("@batch",x.BatchId);Add(q,"@profile",x.ImportProfileId);q.Parameters.AddWithValue("@name",x.OriginalFileName);q.Parameters.AddWithValue("@hash",SqlServerImportFileRepository.NormalizeHash(x.SourceSha256));q.Parameters.AddWithValue("@size",x.SizeBytes);Add(q,"@report",x.ReportCode);Add(q,"@store",x.StoreCode);Add(q,"@business",x.BusinessDate);Add(q,"@sourceDate",x.SourceReportDate);Add(q,"@user",x.ImportedBy);return Convert.ToInt64(await q.ExecuteScalarAsync(token));}
+    private static async Task<long> InsertFile(SqlConnection c,SqlTransaction t,ImportFileRegistration x,int profileId,CancellationToken token){var reportCode=PersistenceValidation.ResolveReportCode(x);await using var q=Cmd(c,t,"INSERT dbo.import_files(import_batch_id,import_profile_id,original_file_name,source_sha256,size_bytes,report_code,store_code,business_date,source_report_date,imported_by) VALUES(@batch,@profile,@name,@hash,@size,@report,@store,@business,@sourceDate,@user); SELECT CONVERT(bigint,SCOPE_IDENTITY());");q.Parameters.AddWithValue("@batch",x.BatchId);q.Parameters.AddWithValue("@profile",profileId);q.Parameters.AddWithValue("@name",x.OriginalFileName);q.Parameters.AddWithValue("@hash",SqlServerImportFileRepository.NormalizeHash(x.SourceSha256));q.Parameters.AddWithValue("@size",x.SizeBytes);q.Parameters.AddWithValue("@report",reportCode);Add(q,"@store",x.StoreCode);Add(q,"@business",x.BusinessDate);Add(q,"@sourceDate",x.SourceReportDate);Add(q,"@user",x.ImportedBy);return Convert.ToInt64(await q.ExecuteScalarAsync(token));}
     private static async Task PrepareRestatement(SqlConnection c,SqlTransaction t,ImportRestatementRequest x,long replacementFileId,CancellationToken token)
     {
         await using var q=Cmd(c,t,"EXEC dbo.prepare_import_restatement @previous,@replacement,@user,@reason");

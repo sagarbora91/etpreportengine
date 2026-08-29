@@ -1,6 +1,7 @@
 using Etp.Reporting.Application.Imports;
 using Etp.Reporting.Desktop.Modules.Imports;
 using Etp.Reporting.Import.Batch;
+using Etp.Reporting.Import.Preflight;
 using Etp.Reporting.Import.Profiles;
 using Etp.Reporting.Import.Workbooks;
 
@@ -85,6 +86,8 @@ public sealed class DesktopImportCoordinatorTests
         Assert.Equal("STORE\\Owner", persistence.LastRequest.ImportedBy);
         Assert.Equal("WLMHW", persistence.LastRequest.ExpectedStoreCode);
         Assert.Equal(new DateOnly(2026, 8, 25), persistence.LastRequest.ExpectedBusinessDate);
+        Assert.Equal(RetailSalesProfiles.R025.Identity, persistence.LastRequest.AcceptedImport.ProfileIdentity);
+        Assert.Equal("Sales", persistence.LastRequest.AcceptedImport.MatchedSheet.Name);
         Assert.Equal([$"sales.xlsx|{new string('a', 64)}|R025|WLMHW|2026-08-25"], evidence);
     }
 
@@ -178,13 +181,13 @@ public sealed class DesktopImportCoordinatorTests
             Task.FromResult(read(filePath));
     }
 
-    private sealed class FakePersistence : IImportPersistenceUseCase<WorkbookSnapshot>
+    private sealed class FakePersistence : IImportPersistenceUseCase<MatchedImportEnvelope>
     {
         public bool Exists { get; set; }
         public long? CurrentImportFileId { get; set; }
         public ImportPersistenceResult PersistenceResult { get; set; } = new("R025", 0);
         public ImportRowOutcome RowOutcome { get; set; } = new(0, 0, 0, 0);
-        public ImportPersistenceRequest<WorkbookSnapshot>? LastRequest { get; private set; }
+        public ImportPersistenceRequest<MatchedImportEnvelope>? LastRequest { get; private set; }
 
         public Task<bool> ExistsByHashAsync(string sourceSha256, CancellationToken cancellationToken = default) =>
             Task.FromResult(Exists);
@@ -196,7 +199,7 @@ public sealed class DesktopImportCoordinatorTests
             CancellationToken cancellationToken = default) => Task.FromResult(CurrentImportFileId);
 
         public Task<ImportPersistenceResult> PersistAsync(
-            ImportPersistenceRequest<WorkbookSnapshot> request,
+            ImportPersistenceRequest<MatchedImportEnvelope> request,
             CancellationToken cancellationToken = default)
         {
             LastRequest = request;

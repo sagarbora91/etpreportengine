@@ -7,9 +7,13 @@ namespace Etp.Reporting.Import.Workbooks;
 
 public sealed class OpenXmlWorkbookReader : IWorkbookReader
 {
+    private static readonly SemaphoreSlim MaterializationSlots = new(
+        Math.Clamp(Environment.ProcessorCount / 2, 1, 4));
+
     public async Task<WorkbookSnapshot> ReadAsync(string filePath, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
+        cancellationToken.ThrowIfCancellationRequested();
         var info = new FileInfo(filePath);
         if (!info.Exists) throw new FileNotFoundException("Workbook not found.", filePath);
 
@@ -18,11 +22,30 @@ public sealed class OpenXmlWorkbookReader : IWorkbookReader
         await using var source = new FileStream(filePath, FileMode.Open, FileAccess.Read,
             FileShare.ReadWrite | FileShare.Delete, 81920, FileOptions.Asynchronous | FileOptions.SequentialScan);
         using var snapshot = new MemoryStream(checked((int)Math.Min(source.Length, int.MaxValue)));
-        await source.CopyToAsync(snapshot, cancellationToken);
+        await source.CopyToAsync(snapshot, cancellationToken).ConfigureAwait(false);
         var bytes = snapshot.ToArray();
-        var hash = Convert.ToHexStringLower(SHA256.HashData(bytes));
-        snapshot.Position = 0;
+        await MaterializationSlots.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            return await Task.Run(
+                () => Materialize(info.Name, info.Length, bytes, cancellationToken),
+                cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            MaterializationSlots.Release();
+        }
+    }
 
+    private static WorkbookSnapshot Materialize(
+        string fileName,
+        long fileSizeBytes,
+        byte[] bytes,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var hash = Convert.ToHexStringLower(SHA256.HashData(bytes));
+        using var snapshot = new MemoryStream(bytes, writable: false);
         using var document = SpreadsheetDocument.Open(snapshot, false);
         var workbookPart = document.WorkbookPart ?? throw new InvalidDataException("Workbook part is missing.");
         var shared = workbookPart.SharedStringTablePart?.SharedStringTable;
@@ -37,21 +60,31 @@ public sealed class OpenXmlWorkbookReader : IWorkbookReader
             // Enumerating Row/Cell XML is intentional: ETP files can declare a false A1 worksheet dimension.
             var sourceRows = part.Worksheet.GetFirstChild<SheetData>()?.Elements<Row>().ToArray() ?? [];
             if (sourceRows.Length == 0) continue;
-            var materialized = sourceRows.Select(r => ReadRow(r, shared, dateStyles)).ToArray();
+            var materialized = new WorkbookRow[sourceRows.Length];
+            for (var index = 0; index < sourceRows.Length; index++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                materialized[index] = ReadRow(sourceRows[index], shared, dateStyles, cancellationToken);
+            }
             var header = materialized.FirstOrDefault(r => r.Cells.Any(c => !string.IsNullOrWhiteSpace(c.DisplayText)))
                 ?? materialized[0];
             var headers = header.Cells.Select(c => c.DisplayText?.Trim() ?? string.Empty).ToArray();
             var rows = materialized.Where(r => r.RowNumber > header.RowNumber && r.Cells.Any(c => c.Value is not null)).ToArray();
             sheets.Add(new WorkbookSheet(sheet.Name?.Value ?? string.Empty, header.RowNumber, headers, rows));
         }
-        return new WorkbookSnapshot(info.Name, info.Length, hash, sheets);
+        return new WorkbookSnapshot(fileName, fileSizeBytes, hash, sheets);
     }
 
-    private static WorkbookRow ReadRow(Row row, SharedStringTable? shared, ISet<uint> dateStyles)
+    private static WorkbookRow ReadRow(
+        Row row,
+        SharedStringTable? shared,
+        ISet<uint> dateStyles,
+        CancellationToken cancellationToken)
     {
         var values = new SortedDictionary<int, WorkbookCell>();
         foreach (var cell in row.Elements<Cell>())
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var index = ColumnIndex(cell.CellReference?.Value);
             var value = ReadValue(cell, shared, dateStyles);
             values[index] = new WorkbookCell(value, Convert.ToString(value, CultureInfo.InvariantCulture));

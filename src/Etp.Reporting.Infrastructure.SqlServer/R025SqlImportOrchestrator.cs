@@ -24,12 +24,26 @@ public sealed class R025SqlImportOrchestrator(ITransactionalImportStore store)
         ImportRestatementRequest? restatement = null)
     {
         ArgumentNullException.ThrowIfNull(workbook);
-        var preflight = new ImportPreflight().Inspect(workbook, [RetailSalesProfiles.R025]);
-        if (!preflight.CanImport) throw new SalesImportBlockedException(preflight.Diagnostics);
-        var staged = new ImportRowStager().Stage(preflight.Sheet!, preflight.Profile!);
-        if (!staged.CanPersist) throw new SalesImportBlockedException(staged.Diagnostics);
+        var inspection = new MatchedImportEnvelopeFactory().Inspect(workbook);
+        if (inspection.AcceptedImport is null) throw new SalesImportBlockedException(inspection.Diagnostics);
+        var accepted = inspection.AcceptedImport;
+        return await PersistAsync(accepted, storeId, currencyCode, cancellationToken, expectedBusinessDate,
+            expectedStoreCode, importedBy, restatement).ConfigureAwait(false);
+    }
 
-        var lines = staged.Rows.Select(row =>
+    public async Task<SalesImportPersistenceOutcome> PersistAsync(
+        MatchedImportEnvelope accepted, int? storeId = null, string currencyCode = "INR",
+        CancellationToken cancellationToken = default, DateOnly? expectedBusinessDate = null,
+        string? expectedStoreCode = null, string? importedBy = null,
+        ImportRestatementRequest? restatement = null)
+    {
+        ArgumentNullException.ThrowIfNull(accepted);
+        _ = ApprovedImportProfileRegistry.Resolve(accepted.ProfileIdentity);
+        if (!string.Equals(accepted.ProfileIdentity.ReportCode, "R025", StringComparison.Ordinal))
+            throw new InvalidOperationException("The accepted import is not the approved R025 profile.");
+        if (!accepted.Staging.CanPersist) throw new SalesImportBlockedException(accepted.Diagnostics);
+
+        var lines = accepted.Staging.Rows.Select(row =>
         {
             var values = row.Values;
             var date = Required<DateOnly>(values, "transaction_date");
@@ -39,7 +53,7 @@ public sealed class R025SqlImportOrchestrator(ITransactionalImportStore store)
                 Required<string>(values, "product_code"), Required<string>(values, "source_transaction_type"),
                 Required<decimal>(values, "source_quantity"), null, Required<decimal>(values, "source_net_value"),
                 Optional<string>(values, "source_brand_code"), Optional<string>(values, "source_brand_name"), Optional<string>(values, "brand_segment_code"),
-                currencyCode, new(preflight.Sheet!.Name, row.SourceRowNumber, "R025_SALES_LINE"));
+                currencyCode, new(accepted.MatchedSheet.Name, row.SourceRowNumber, "R025_SALES_LINE"));
         }).ToArray();
         var dates = lines.Select(x => x.TransactionDate).ToArray();
         var storeCode = SingleStore(lines.Select(x => x.StoreCode));
@@ -48,7 +62,7 @@ public sealed class R025SqlImportOrchestrator(ITransactionalImportStore store)
         var batchId = Guid.NewGuid();
         var package = new ImportPersistencePackage(
             new(batchId, storeId, dates.Length == 0 ? null : dates.Min(), dates.Length == 0 ? null : dates.Max(), DateTimeOffset.UtcNow),
-            new(batchId, null, workbook.FileName, workbook.Sha256, workbook.FileSizeBytes,
+            new(batchId, accepted.ProfileIdentity, accepted.Workbook.FileName, accepted.Workbook.Sha256, accepted.Workbook.FileSizeBytes,
                 "R025", storeCode, businessDate, businessDate, importedBy ?? Environment.UserName),
             lines, [], [], []) { Restatement = restatement };
         var fileId = await store.PersistAsync(package, cancellationToken);

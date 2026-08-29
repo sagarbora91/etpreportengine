@@ -13,6 +13,7 @@ public sealed class StockImportOrchestratorTests
         var row=new object?[]{"STORE","Store","Retail","Store","Region","State","City",new DateTime(2026,8,25),"ITEM","HSN","Description","EAN","BR","Cluster","U",3m,10m,30m,null,null};
         var capture=new CaptureStore();var result=await new StockSqlImportOrchestrator(capture).PersistAsync(Book(StockImportProfiles.ClosingStockHeaders,row));
         Assert.Equal("CLOSING_STOCK",result.ReportCode);Assert.Single(capture.Package!.StockSnapshots);Assert.Empty(capture.Package.StockMovements);Assert.Equal(2,capture.Package.StockSnapshots[0].Lineage.SourceRowNumber);
+        Assert.Equal(StockImportProfiles.ClosingStock.Identity,capture.Package.File.Profile);
     }
     [Fact]
     public async Task Unknown_type_never_reaches_persistence()

@@ -14,30 +14,31 @@ using SharingContactDraft = EtpApplication::Etp.Reporting.Application.Sharing.Sh
 
 namespace Etp.Reporting.Desktop.Modules.Archive;
 
-public delegate void ExportArchivedReport(string filePath, ReportPackDocument document);
+public delegate Task ExportArchivedReportAsync(string filePath, ReportPackDocument document);
 
 public sealed partial class ArchiveWorkspaceView : UserControl
 {
     private readonly ArchiveDistributionPresentationSession session;
     private readonly Func<string> connectionStringProvider;
-    private readonly ExportArchivedReport exportExcel;
-    private readonly ExportArchivedReport exportPdf;
+    private readonly ExportArchivedReportAsync exportExcelAsync;
+    private readonly ExportArchivedReportAsync exportPdfAsync;
     private readonly IArchiveShareLauncher shareLauncher;
     private Func<AccessSession> accessProvider = () => new("unknown", "Unknown user", AccessRole.None, false);
     private Func<string, string, string, Task> auditRecorder = (_, _, _) => Task.CompletedTask;
-    private Func<Exception, string> errorDescriber = exception => exception.Message;
+    private Func<Exception, string> errorDescriber = DesktopFriendlyError.Describe;
+    private bool exportInProgress;
 
     public ArchiveWorkspaceView(
         ArchiveDistributionPresentationSession session,
         Func<string> connectionStringProvider,
-        ExportArchivedReport exportExcel,
-        ExportArchivedReport exportPdf,
+        ExportArchivedReportAsync exportExcelAsync,
+        ExportArchivedReportAsync exportPdfAsync,
         IArchiveShareLauncher shareLauncher)
     {
         this.session = session ?? throw new ArgumentNullException(nameof(session));
         this.connectionStringProvider = connectionStringProvider ?? throw new ArgumentNullException(nameof(connectionStringProvider));
-        this.exportExcel = exportExcel ?? throw new ArgumentNullException(nameof(exportExcel));
-        this.exportPdf = exportPdf ?? throw new ArgumentNullException(nameof(exportPdf));
+        this.exportExcelAsync = exportExcelAsync ?? throw new ArgumentNullException(nameof(exportExcelAsync));
+        this.exportPdfAsync = exportPdfAsync ?? throw new ArgumentNullException(nameof(exportPdfAsync));
         this.shareLauncher = shareLauncher ?? throw new ArgumentNullException(nameof(shareLauncher));
         InitializeComponent();
         ArchiveDateInput.SelectedDate = DateTime.Today.AddDays(-1);
@@ -86,7 +87,7 @@ public sealed partial class ArchiveWorkspaceView : UserControl
             ReportArchiveDetailGrid.ItemsSource = null;
             SetStatus($"{rows.Count:N0} immutable generation(s) found. Select one to open or exactly two to compare.");
         }
-        catch (Exception ex) { SetStatus($"Report archive could not be loaded: {ex.Message}"); }
+        catch (Exception ex) { HandleFailure(ex, "REPORT_ARCHIVE_LOAD_FAILED", "Report archive could not be loaded"); }
     }
 
     private async void OpenArchivedGeneration_Click(object sender, RoutedEventArgs e)
@@ -101,7 +102,7 @@ public sealed partial class ArchiveWorkspaceView : UserControl
             SetStatus($"Generation {generation.GenerationNumber} passed its document SHA-256 check and is ready to re-export.");
             await auditRecorder("ReportArchive", "Succeeded", "Archived report opened");
         }
-        catch (Exception ex) { SetStatus($"Archived generation could not be opened: {ex.Message}"); }
+        catch (Exception ex) { HandleFailure(ex, "ARCHIVED_GENERATION_OPEN_FAILED", "Archived generation could not be opened"); }
     }
 
     private async void CompareArchivedGenerations_Click(object sender, RoutedEventArgs e)
@@ -116,37 +117,43 @@ public sealed partial class ArchiveWorkspaceView : UserControl
             SetStatus($"Compared generations {selected[0].GenerationNumber} and {selected[1].GenerationNumber}: {rows.Count(x => x.Changed):N0} report section(s) changed.");
             await auditRecorder("ReportArchive", "Succeeded", "Archived generations compared");
         }
-        catch (Exception ex) { SetStatus($"Generation comparison failed: {ex.Message}"); }
+        catch (Exception ex) { HandleFailure(ex, "GENERATION_COMPARISON_FAILED", "Generation comparison failed"); }
     }
 
-    private void ExportArchivedExcel_Click(object sender, RoutedEventArgs e)
+    private async void ExportArchivedExcel_Click(object sender, RoutedEventArgs e)
     {
+        if (exportInProgress) return;
         try
         {
             RequireViewAccess();
             var document = session.DocumentForExport(SelectedArchiveGeneration());
             var dialog = new SaveFileDialog { Filter = "Excel workbook (*.xlsx)|*.xlsx", FileName = $"ETP_Archived_Pack_{document.DateTo:yyyyMMdd}.xlsx", AddExtension = true };
             if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
-            exportExcel(dialog.FileName, document);
+            exportInProgress = true;
+            await exportExcelAsync(dialog.FileName, document);
             SetStatus($"Archived Excel pack saved to {dialog.FileName}");
-            _ = auditRecorder("ExportExcel", "Succeeded", "Archived report pack exported");
+            await auditRecorder("ExportExcel", "Succeeded", "Archived report pack exported");
         }
-        catch (Exception ex) { SetStatus($"Archived Excel export failed: {ex.Message}"); }
+        catch (Exception ex) { HandleFailure(ex, "ARCHIVED_EXCEL_EXPORT_FAILED", "Archived Excel export failed"); }
+        finally { exportInProgress = false; }
     }
 
-    private void ExportArchivedPdf_Click(object sender, RoutedEventArgs e)
+    private async void ExportArchivedPdf_Click(object sender, RoutedEventArgs e)
     {
+        if (exportInProgress) return;
         try
         {
             RequireViewAccess();
             var document = session.DocumentForExport(SelectedArchiveGeneration());
             var dialog = new SaveFileDialog { Filter = "PDF report (*.pdf)|*.pdf", FileName = $"ETP_Archived_Pack_{document.DateTo:yyyyMMdd}.pdf", AddExtension = true };
             if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
-            exportPdf(dialog.FileName, document);
+            exportInProgress = true;
+            await exportPdfAsync(dialog.FileName, document);
             SetStatus($"Archived PDF pack saved to {dialog.FileName}");
-            _ = auditRecorder("ExportPdf", "Succeeded", "Archived report pack exported");
+            await auditRecorder("ExportPdf", "Succeeded", "Archived report pack exported");
         }
-        catch (Exception ex) { SetStatus($"Archived PDF export failed: {ex.Message}"); }
+        catch (Exception ex) { HandleFailure(ex, "ARCHIVED_PDF_EXPORT_FAILED", "Archived PDF export failed"); }
+        finally { exportInProgress = false; }
     }
 
     private async void ExportArchivedZip_Click(object sender, RoutedEventArgs e)
@@ -160,7 +167,7 @@ public sealed partial class ArchiveWorkspaceView : UserControl
             var result = await session.CreatePackageAsync(connectionStringProvider(), generation, dialog.FileName, accessProvider().DisplayName);
             SetStatus($"Immutable ZIP package created. SHA-256 {result.Sha256[..12]}…");
         }
-        catch (Exception ex) { SetStatus(errorDescriber(ex)); }
+        catch (Exception ex) { HandleFailure(ex, "ARCHIVED_ZIP_CREATE_FAILED", "Archived ZIP package was not created"); }
     }
 
     private async void ShareArchivedWhatsApp_Click(object sender, RoutedEventArgs e)
@@ -178,7 +185,7 @@ public sealed partial class ArchiveWorkspaceView : UserControl
                     "WhatsApp opened; the user must attach and send the prepared file."));
             SetStatus("WhatsApp opened and the ZIP path was copied. Attach the highlighted file, then send it yourself.");
         }
-        catch (Exception ex) { SetStatus(errorDescriber(ex)); }
+        catch (Exception ex) { HandleFailure(ex, "WHATSAPP_SHARE_PREPARE_FAILED", "WhatsApp sharing was not prepared"); }
     }
 
     private async void ShareArchivedEmail_Click(object sender, RoutedEventArgs e)
@@ -198,7 +205,7 @@ public sealed partial class ArchiveWorkspaceView : UserControl
                     "Email draft opened; delivery is not claimed."));
             SetStatus("Email draft opened with the ZIP attached. Review recipients and click Send.");
         }
-        catch (Exception ex) { SetStatus(errorDescriber(ex)); }
+        catch (Exception ex) { HandleFailure(ex, "EMAIL_SHARE_PREPARE_FAILED", "Email sharing was not prepared"); }
     }
 
     private async Task RefreshSharingContactsAsync()
@@ -208,7 +215,7 @@ public sealed partial class ArchiveWorkspaceView : UserControl
             RequireViewAccess();
             SharingContactsGrid.ItemsSource = await session.LoadContactsAsync(connectionStringProvider());
         }
-        catch (Exception ex) { SetStatus(errorDescriber(ex)); }
+        catch (Exception ex) { HandleFailure(ex, "SHARING_CONTACTS_LOAD_FAILED", "Sharing contacts could not be loaded"); }
     }
 
     private void SharingContact_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -237,7 +244,7 @@ public sealed partial class ArchiveWorkspaceView : UserControl
             SetStatus($"Sharing contact {id:N0} saved with audit history.");
             await RefreshSharingContactsAsync();
         }
-        catch (Exception ex) { SetStatus(errorDescriber(ex)); }
+        catch (Exception ex) { HandleFailure(ex, "SHARING_CONTACT_SAVE_FAILED", "Sharing contact was not saved"); }
     }
 
     private ArchivedReportGenerationSummary SelectedArchiveGeneration() =>
@@ -260,5 +267,11 @@ public sealed partial class ArchiveWorkspaceView : UserControl
     {
         ReportArchiveStatus.Text = message;
         NotificationRequested?.Invoke(this, message);
+    }
+
+    private void HandleFailure(Exception exception, string eventId, string operation)
+    {
+        DesktopDiagnostics.Record(exception, "Archive.Workspace", eventId);
+        SetStatus($"{operation}: {errorDescriber(exception)}");
     }
 }

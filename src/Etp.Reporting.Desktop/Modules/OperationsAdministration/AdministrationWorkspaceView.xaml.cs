@@ -42,7 +42,7 @@ public partial class AdministrationWorkspaceView : UserControl
             ProductHealthGrid.ItemsSource = state.ProductHealth;
             AdministrationStatus.Text = state.Status;
         }
-        catch (Exception ex) { AdministrationStatus.Text = $"Master administration could not be loaded: {ex.Message}"; }
+        catch (Exception ex) { DesktopDiagnostics.Record(ex, "OperationsAdministration.Administration", "ADMINISTRATION_REFRESH_FAILED"); AdministrationStatus.Text = $"Master administration could not be loaded: {DesktopFriendlyError.Describe(ex, "Owner permission is required.")}"; }
     }
 
     private IAdministrationService Service => serviceFactory(connectionStringProvider());
@@ -63,7 +63,7 @@ public partial class AdministrationWorkspaceView : UserControl
             MasterCodeInput.Clear(); MasterNameInput.Clear(); MasterReasonInput.Clear();
             await RefreshAsync();
         }
-        catch (Exception ex) { AdministrationStatus.Text = $"Master value was not saved: {ex.Message}"; }
+        catch (Exception ex) { DesktopDiagnostics.Record(ex, "OperationsAdministration.Administration", "MASTER_VALUE_SAVE_FAILED"); AdministrationStatus.Text = $"Master value was not saved: {DesktopFriendlyError.Describe(ex, "Owner permission is required.")}"; }
     }
 
     private async void SaveUserAccess_Click(object sender, RoutedEventArgs e)
@@ -78,7 +78,7 @@ public partial class AdministrationWorkspaceView : UserControl
             await RefreshAsync();
             if (AccessChangedAsync is not null) await AccessChangedAsync();
         }
-        catch (Exception ex) { AdministrationStatus.Text = $"User access was not saved: {ex.Message}"; }
+        catch (Exception ex) { DesktopDiagnostics.Record(ex, "OperationsAdministration.Administration", "USER_ACCESS_SAVE_FAILED"); AdministrationStatus.Text = $"User access was not saved: {DesktopFriendlyError.Describe(ex, "Owner permission is required.")}"; }
     }
 
     private void RequireOwnerAccess()

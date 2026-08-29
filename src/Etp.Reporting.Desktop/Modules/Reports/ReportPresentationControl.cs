@@ -34,7 +34,8 @@ public sealed class ReportPresentationControl : ContentControl
         }
         catch (Exception exception)
         {
-            Content = ReportVisualPresenter.BuildFailure(exception.Message);
+            DesktopDiagnostics.Record(exception, "Reports.Presentation", "VISUAL_RENDER_FAILED", DesktopDiagnosticSeverity.Warning);
+            Content = ReportVisualPresenter.BuildFailure(DesktopFriendlyError.Describe(exception));
             return exception;
         }
     }

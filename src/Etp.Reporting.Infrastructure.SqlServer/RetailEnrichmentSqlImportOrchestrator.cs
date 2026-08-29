@@ -17,7 +17,7 @@ public sealed record RetailEnrichmentImportOutcome(
 
 public sealed class RetailEnrichmentSqlImportOrchestrator(string connectionString)
 {
-    public async Task<RetailEnrichmentImportOutcome> PersistAsync(
+    public Task<RetailEnrichmentImportOutcome> PersistAsync(
         WorkbookSnapshot workbook,
         string reportCode,
         DateOnly? expectedBusinessDate = null,
@@ -26,22 +26,33 @@ public sealed class RetailEnrichmentSqlImportOrchestrator(string connectionStrin
         CancellationToken cancellationToken = default,
         ImportRestatementRequest? restatement = null)
     {
-        ArgumentNullException.ThrowIfNull(workbook);
-        var profile = reportCode switch
-        {
-            "R003" => RetailSalesProfiles.R003,
-            "R013" => RetailSalesProfiles.R013,
-            _ => throw new ArgumentException("Only R003 and R013 are enrichment profiles.", nameof(reportCode))
-        };
-        var preflight = new ImportPreflight().Inspect(workbook, [profile]);
-        if (!preflight.CanImport) throw new SalesImportBlockedException(preflight.Diagnostics);
-        var staging = new ImportRowStager().Stage(preflight.Sheet!, profile);
-        if (!staging.CanPersist) throw new SalesImportBlockedException(staging.Diagnostics);
+        var inspection = new MatchedImportEnvelopeFactory().Inspect(workbook);
+        if (inspection.AcceptedImport is null) throw new SalesImportBlockedException(inspection.Diagnostics);
+        var accepted = inspection.AcceptedImport;
+        if (!string.Equals(accepted.ProfileIdentity.ReportCode, reportCode, StringComparison.Ordinal))
+            throw new InvalidOperationException("The accepted import profile does not match the requested enrichment report.");
+        return PersistAsync(accepted, expectedBusinessDate, expectedStoreCode, importedBy, cancellationToken, restatement);
+    }
 
-        var stores = staging.Rows.Select(x => Required<string>(x.Values, "store_code"))
+    public async Task<RetailEnrichmentImportOutcome> PersistAsync(
+        MatchedImportEnvelope accepted,
+        DateOnly? expectedBusinessDate = null,
+        string? expectedStoreCode = null,
+        string? importedBy = null,
+        CancellationToken cancellationToken = default,
+        ImportRestatementRequest? restatement = null)
+    {
+        ArgumentNullException.ThrowIfNull(accepted);
+        _ = ApprovedImportProfileRegistry.Resolve(accepted.ProfileIdentity);
+        var reportCode = accepted.ProfileIdentity.ReportCode;
+        if (reportCode is not ("R003" or "R013"))
+            throw new ArgumentException("Only R003 and R013 are enrichment profiles.", nameof(accepted));
+        if (!accepted.Staging.CanPersist) throw new SalesImportBlockedException(accepted.Diagnostics);
+
+        var stores = accepted.Staging.Rows.Select(x => Required<string>(x.Values, "store_code"))
             .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         if (stores.Length > 1) throw new InvalidOperationException("A source workbook cannot contain more than one store.");
-        var dates = staging.Rows.Select(x => Required<DateOnly>(x.Values, "transaction_date")).ToArray();
+        var dates = accepted.Staging.Rows.Select(x => Required<DateOnly>(x.Values, "transaction_date")).ToArray();
         var scope = R025SqlImportOrchestrator.ValidateScope(stores.SingleOrDefault(), dates.Length == 0 ? null : dates.Max(),
             expectedStoreCode, expectedBusinessDate);
         if (scope.StoreCode is null || scope.BusinessDate is null)
@@ -62,12 +73,15 @@ public sealed class RetailEnrichmentSqlImportOrchestrator(string connectionStrin
             }
 
             long fileId;
-            await using (var command = Command(connection, transaction, "INSERT dbo.import_files(import_batch_id,original_file_name,source_sha256,size_bytes,report_code,store_code,business_date,source_report_date,imported_by) VALUES(@batch,@name,@hash,@size,@report,@store,@date,@date,@user); SELECT CONVERT(bigint,SCOPE_IDENTITY());"))
+            var profileId = await SqlServerImportProfileResolver.ResolveOrRegisterAsync(
+                connection, transaction, accepted.ProfileIdentity, cancellationToken);
+            await using (var command = Command(connection, transaction, "INSERT dbo.import_files(import_batch_id,import_profile_id,original_file_name,source_sha256,size_bytes,report_code,store_code,business_date,source_report_date,imported_by) VALUES(@batch,@profile,@name,@hash,@size,@report,@store,@date,@date,@user); SELECT CONVERT(bigint,SCOPE_IDENTITY());"))
             {
                 command.Parameters.AddWithValue("@batch", batchId);
-                command.Parameters.AddWithValue("@name", workbook.FileName);
-                command.Parameters.AddWithValue("@hash", SqlServerImportFileRepository.NormalizeHash(workbook.Sha256));
-                command.Parameters.AddWithValue("@size", workbook.FileSizeBytes);
+                command.Parameters.AddWithValue("@profile", profileId);
+                command.Parameters.AddWithValue("@name", accepted.Workbook.FileName);
+                command.Parameters.AddWithValue("@hash", SqlServerImportFileRepository.NormalizeHash(accepted.Workbook.Sha256));
+                command.Parameters.AddWithValue("@size", accepted.Workbook.FileSizeBytes);
                 command.Parameters.AddWithValue("@report", reportCode);
                 command.Parameters.AddWithValue("@store", scope.StoreCode);
                 command.Parameters.AddWithValue("@date", scope.BusinessDate);
@@ -91,9 +105,9 @@ public sealed class RetailEnrichmentSqlImportOrchestrator(string connectionStrin
             var matched = 0;
             var missing = 0;
             var ambiguous = 0;
-            foreach (var row in staging.Rows)
+            foreach (var row in accepted.Staging.Rows)
             {
-                var result = await InsertRowAsync(connection, transaction, fileId, reportCode, preflight.Sheet!.Name, row, cancellationToken);
+                var result = await InsertRowAsync(connection, transaction, fileId, reportCode, accepted.MatchedSheet.Name, row, cancellationToken);
                 if (result == "Matched") matched++;
                 else if (result == "Missing") missing++;
                 else ambiguous++;
@@ -102,12 +116,12 @@ public sealed class RetailEnrichmentSqlImportOrchestrator(string connectionStrin
             await using (var command = Command(connection, transaction,
                 "UPDATE dbo.import_batches SET status='Completed',source_row_count=@rows,completed_utc=SYSUTCDATETIME() WHERE import_batch_id=@batch AND status='Processing'"))
             {
-                command.Parameters.AddWithValue("@rows", staging.Rows.Count);
+                command.Parameters.AddWithValue("@rows", accepted.Staging.Rows.Count);
                 command.Parameters.AddWithValue("@batch", batchId);
                 if (await command.ExecuteNonQueryAsync(cancellationToken) != 1) throw new InvalidOperationException("The enrichment batch could not be completed.");
             }
             await transaction.CommitAsync(cancellationToken);
-            return new(batchId, fileId, reportCode, staging.Rows.Count, matched, missing, ambiguous);
+            return new(batchId, fileId, reportCode, accepted.Staging.Rows.Count, matched, missing, ambiguous);
         }
         catch
         {

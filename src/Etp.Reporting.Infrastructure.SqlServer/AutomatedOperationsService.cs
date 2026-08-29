@@ -115,27 +115,24 @@ public sealed class AutomatedOperationsService(string connectionString)
             var existing = await LoadScopeByHashAsync(workbook.Sha256, cancellationToken);
             return new(existing.ReportCode, existing.StoreCode, existing.BusinessDate, true);
         }
-        var preflight = new ImportPreflight().Inspect(workbook, RetailSalesProfiles.FirstSalesSlice.Concat(StockImportProfiles.All));
-        if (!preflight.CanImport)
+        var inspection = new MatchedImportEnvelopeFactory().Inspect(workbook);
+        if (inspection.AcceptedImport is null)
         {
-            var reason = string.Join(", ", preflight.Diagnostics.Where(x => x.Severity == ImportDiagnosticSeverity.Blocker).Select(x => x.Code).Distinct());
+            var reason = string.Join(", ", inspection.Diagnostics.Where(x => x.Severity == ImportDiagnosticSeverity.Blocker).Select(x => x.Code).Distinct());
             throw new ImportSourceException("IMPORT_LAYOUT_BLOCKED", $"Workbook validation was blocked: {reason}.");
         }
-        var report = preflight.Profile!.ReportCode;
+        var accepted = inspection.AcceptedImport;
+        var report = accepted.ProfileIdentity.ReportCode;
         var store = new SqlServerTransactionalImportStore(connectionString);
         if (report == "R022")
-        {
-            var staged = new ImportRowStager().Stage(preflight.Sheet!, preflight.Profile);
-            if (!staged.CanPersist) throw new ImportSourceException("IMPORT_STAGING_BLOCKED", "Workbook rows failed deterministic validation.");
-            await new R022SqlImportOrchestrator(store).PersistAsync(workbook, preflight.Sheet!, new R022PersistenceProjector().Project(staged.Rows),
+            await new R022SqlImportOrchestrator(store).PersistAsync(accepted,
                 cancellationToken: cancellationToken, importedBy: AutomationIdentity());
-        }
         else if (report is "STOCK_LEDGER" or "CLOSING_STOCK")
-            await new StockSqlImportOrchestrator(store).PersistAsync(workbook, cancellationToken: cancellationToken, importedBy: AutomationIdentity());
+            await new StockSqlImportOrchestrator(store).PersistAsync(accepted, cancellationToken: cancellationToken, importedBy: AutomationIdentity());
         else if (report is "R003" or "R013")
-            await new RetailEnrichmentSqlImportOrchestrator(connectionString).PersistAsync(workbook, report, importedBy: AutomationIdentity(), cancellationToken: cancellationToken);
+            await new RetailEnrichmentSqlImportOrchestrator(connectionString).PersistAsync(accepted, importedBy: AutomationIdentity(), cancellationToken: cancellationToken);
         else
-            await new R025SqlImportOrchestrator(store).PersistAsync(workbook, cancellationToken: cancellationToken, importedBy: AutomationIdentity());
+            await new R025SqlImportOrchestrator(store).PersistAsync(accepted, cancellationToken: cancellationToken, importedBy: AutomationIdentity());
         var scope = await LoadScopeByHashAsync(workbook.Sha256, cancellationToken);
         await new ProductisationOperationsService(connectionString).IntakeEtpEvidenceAsync(workbookPath,workbook.Sha256,report,scope.StoreCode,scope.BusinessDate,cancellationToken);
         var details = await new SqlServerImportFileRepository(connectionString).LoadOutcomeByHashAsync(workbook.Sha256, cancellationToken);

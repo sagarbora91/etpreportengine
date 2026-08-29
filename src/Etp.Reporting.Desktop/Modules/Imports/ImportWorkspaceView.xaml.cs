@@ -102,6 +102,7 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
+            DesktopDiagnostics.Record(ex, "Imports.Workspace", "IMPORT_VALIDATION_READ_FAILED");
             ValidationResult.Text = $"Could not read workbook: {coordinator.DescribeFailure(ex).SafeMessage}";
         }
         finally
@@ -136,10 +137,12 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
         }
         catch (Exception ex) when (ex is UnauthorizedAccessException or InvalidOperationException or ImportSourceException)
         {
-            ValidationResult.Text = $"Import failed: {ex.Message}";
+            DesktopDiagnostics.Record(ex, "Imports.Workspace", "IMPORT_PERSIST_FAILED");
+            ValidationResult.Text = $"Import failed: {DesktopFriendlyError.Describe(ex, "Owner or Store Manager permission is required.")}";
         }
         catch (Exception ex)
         {
+            DesktopDiagnostics.Record(ex, "Imports.Workspace", "IMPORT_PERSIST_FAILED");
             ValidationResult.Text = $"Import failed: {coordinator.DescribeFailure(ex).SafeMessage}";
         }
         finally
@@ -156,7 +159,8 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
         }
         catch (UnauthorizedAccessException ex)
         {
-            ValidationResult.Text = ex.Message;
+            DesktopDiagnostics.Record(ex, "Imports.Workspace", "BATCH_ACCESS_DENIED", DesktopDiagnosticSeverity.Warning);
+            ValidationResult.Text = DesktopFriendlyError.Describe(ex, "Owner or Store Manager permission is required.");
             return;
         }
 
@@ -173,10 +177,12 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
         }
         catch (ImportSourceException ex)
         {
-            ValidationResult.Text = $"Batch blocked ({ex.Code}): {ex.Message}";
+            DesktopDiagnostics.Record(ex, "Imports.Workspace", "BATCH_SOURCE_BLOCKED", DesktopDiagnosticSeverity.Warning);
+            ValidationResult.Text = $"Batch blocked ({ex.Code}): {DesktopFriendlyError.Describe(ex)}";
         }
         catch (Exception ex)
         {
+            DesktopDiagnostics.Record(ex, "Imports.Workspace", "BATCH_START_FAILED");
             ValidationResult.Text = $"Batch could not start: {coordinator.DescribeFailure(ex).SafeMessage}";
         }
     }
