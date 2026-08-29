@@ -15,8 +15,10 @@ $drive = [System.IO.DriveInfo]::new([System.IO.Path]::GetPathRoot($resolvedDirec
 $freeGb = [math]::Round($drive.AvailableFreeSpace / 1GB, 2)
 if ($freeGb -lt 5) { Write-Warning "BACKUP_SPACE_CRITICAL: Backup storage has only $freeGb GB free. Add storage immediately." }
 elseif ($freeGb -lt 20) { Write-Warning "BACKUP_SPACE_LOW: Backup storage has only $freeGb GB free. Plan additional storage." }
-$stamp = Get-Date -Format "yyyyMMdd-HHmmss"
-$backupPath = Join-Path $resolvedDirectory "$Database-$stamp.bak"
+$stamp = Get-Date -Format "yyyyMMdd-HHmmss-fff"
+$uniqueSuffix = [Guid]::NewGuid().ToString("N")
+$backupPath = Join-Path $resolvedDirectory "$Database-$stamp-$uniqueSuffix.bak"
+if (Test-Path -LiteralPath $backupPath) { throw "Refusing to overwrite an existing database backup." }
 $escapedPath = $backupPath.Replace("'", "''")
 & $sqlcmd -S $ServerInstance -E -b -Q "BACKUP DATABASE [$Database] TO DISK=N'$escapedPath' WITH COPY_ONLY, CHECKSUM, INIT; RESTORE VERIFYONLY FROM DISK=N'$escapedPath' WITH CHECKSUM;"
 if ($LASTEXITCODE -ne 0) { throw "Database backup or verification failed." }
