@@ -10,13 +10,13 @@
                 <TextBlock Text="Audited business registers permanently linked to immutable source documents."
                            Foreground="#5D6873" Margin="0,4,0,0"/>
             </StackPanel>
-            <Button DockPanel.Dock="Right" Content="Refresh" Click="RefreshRegisters_Click" Padding="14,7"/>
+            <Button DockPanel.Dock="Right" Content="Refresh" Click="RefreshRegisters_Click" Style="{DynamicResource PrimaryButton}" Padding="14,7"/>
         </DockPanel>
         <WrapPanel Margin="0,12,0,8">
             <TextBox x:Name="RegisterSearchInput" Width="280" Padding="6"
                      ToolTip="Document, supplier, reference or store"
                      automation:AutomationProperties.Name="Register search"/>
-            <Button Content="Search" Click="RefreshRegisters_Click" Padding="14,7" Margin="8,0,0,0"/>
+            <Button Content="Search" Click="RefreshRegisters_Click" Style="{DynamicResource PrimaryButton}" Padding="14,7" Margin="8,0,0,0"/>
         </WrapPanel>
         <DataGrid x:Name="RegisterGrid" AutoGenerateColumns="True" IsReadOnly="True" MaxHeight="280"
                   automation:AutomationProperties.Name="Digital register entries"/>
@@ -49,7 +49,7 @@
                      automation:AutomationProperties.Name="Register remarks"/>
             <TextBox x:Name="RegisterReasonInput" Width="220" Padding="6" Margin="8,0,0,0"
                      ToolTip="Required change reason" automation:AutomationProperties.Name="Register change reason"/>
-            <Button Content="Save draft" Click="SaveRegisterEntry_Click" Padding="14,7" Margin="8,0,0,0"/>
+            <Button Content="Save draft" Click="SaveRegisterEntry_Click" Style="{DynamicResource PrimaryButton}" Padding="14,7" Margin="8,0,0,0"/>
         </WrapPanel>
         <TextBlock x:Name="RegisterStatus" Margin="0,8,0,0" TextWrapping="Wrap"
                    automation:AutomationProperties.Name="Register status"

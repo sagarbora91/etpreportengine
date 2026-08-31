@@ -10,7 +10,7 @@
                 <TextBlock Text="Every workbook, ZIP, PDF and image remains traceable from receipt through import, review or quarantine."
                            Foreground="#5D6873" TextWrapping="Wrap" Margin="0,4,0,0"/>
             </StackPanel>
-            <Button x:Name="RefreshButton" DockPanel.Dock="Right" Content="Refresh inbox" Click="Refresh_Click"
+            <Button x:Name="RefreshButton" DockPanel.Dock="Right" Content="Refresh inbox" Click="Refresh_Click" Style="{DynamicResource PrimaryButton}"
                     Padding="14,7" automation:AutomationProperties.Name="Refresh Source Inbox"/>
         </DockPanel>
         <WrapPanel Margin="0,12,0,8">
@@ -33,7 +33,7 @@
                 <ComboBoxItem Content="Inward Invoice"/><ComboBoxItem Content="Vendor Invoice"/><ComboBoxItem Content="Credit Note"/>
                 <ComboBoxItem Content="Stock Transfer"/><ComboBoxItem Content="Other"/>
             </ComboBox>
-            <Button x:Name="IntakeButton" Content="Store and extract" Click="Intake_Click" Padding="14,7" Margin="8,0,0,0"
+            <Button x:Name="IntakeButton" Content="Store and extract" Click="Intake_Click" Style="{DynamicResource PrimaryButton}" Padding="14,7" Margin="8,0,0,0"
                     automation:AutomationProperties.Name="Store document and extract text"/>
         </WrapPanel>
         <TextBlock x:Name="StatusText" Text="Refresh to view received sources." TextWrapping="Wrap"
@@ -47,9 +47,9 @@
         <WrapPanel Margin="0,8,0,0">
             <TextBox x:Name="ReviewReasonInput" Width="360" Padding="6" ToolTip="Required human review note"
                      automation:AutomationProperties.Name="Extraction review reason"/>
-            <Button x:Name="VerifyButton" Content="Verify extraction" Click="Verify_Click" Padding="14,7" Margin="8,0,0,0"
+            <Button x:Name="VerifyButton" Content="Verify extraction" Click="Verify_Click" Style="{DynamicResource PrimaryButton}" Padding="14,7" Margin="8,0,0,0"
                     automation:AutomationProperties.Name="Verify selected extraction"/>
-            <Button x:Name="RejectButton" Content="Reject and quarantine" Click="Reject_Click" Padding="14,7" Margin="8,0,0,0"
+            <Button x:Name="RejectButton" Content="Reject and quarantine" Click="Reject_Click" Style="{DynamicResource DangerButton}" Padding="14,7" Margin="8,0,0,0"
                     automation:AutomationProperties.Name="Reject selected extraction and quarantine document"/>
         </WrapPanel>
     </StackPanel>

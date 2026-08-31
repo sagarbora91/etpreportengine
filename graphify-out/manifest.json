@@ -180,15 +180,15 @@
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/MainWindow.xaml": {
-    "mtime": 1787928511.3535397,
-    "seen": 1787932813.593341,
-    "ast_hash": "4794d2fa86dac30210b64c29cf1107df",
+    "mtime": 1788191699.1089258,
+    "seen": 1788191820.741779,
+    "ast_hash": "3dba5ed68a1d0adf7bacddba258072d6",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/MainWindow.xaml.cs": {
-    "mtime": 1787989936.8495233,
-    "seen": 1787990851.9897716,
-    "ast_hash": "0476168e3d8c4fdf6984bc85d9b2de9a",
+    "mtime": 1788190758.0483496,
+    "seen": 1788191383.5365183,
+    "ast_hash": "e6fd1776bfb1760c73a018cc85326084",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Domain/Etp.Reporting.Domain.csproj": {
@@ -2736,9 +2736,9 @@
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/DailySalesReportControls.cs": {
-    "mtime": 1787830359.0821836,
-    "seen": 1787830716.566758,
-    "ast_hash": "30f742b0d84644f28daa893573620238",
+    "mtime": 1788190885.0753183,
+    "seen": 1788191383.5364997,
+    "ast_hash": "de6dc38b889671bff47778a07259f903",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Reporting/DailySalesReportDocument.cs": {
@@ -2772,21 +2772,21 @@
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/MainWindow.Shell.cs": {
-    "mtime": 1787927909.3466854,
-    "seen": 1787932813.5933375,
-    "ast_hash": "a40954176f9ad9420e856430494a5433",
+    "mtime": 1788191261.723674,
+    "seen": 1788191383.536513,
+    "ast_hash": "3e6d7d12f187bc710d5ba3085f644e47",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Themes/Colors.xaml": {
-    "mtime": 1787821044.8716164,
-    "seen": 1787823167.878597,
-    "ast_hash": "5898d524d197a7e98d845ad7b63bef3e",
+    "mtime": 1788190153.0839682,
+    "seen": 1788191383.5366173,
+    "ast_hash": "11b338c109764606b2fbb69bf561f73a",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Themes/Controls.xaml": {
-    "mtime": 1787821044.8924809,
-    "seen": 1787823167.8786018,
-    "ast_hash": "0459c7d4b66a82bb6e7b5258ddc68e79",
+    "mtime": 1788190286.9578154,
+    "seen": 1788191383.5366187,
+    "ast_hash": "4e23754e1bdd6ec4dbeb62c01609aaf1",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Themes/Icons.xaml": {
@@ -2796,21 +2796,21 @@
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Themes/Spacing.xaml": {
-    "mtime": 1787821044.875464,
-    "seen": 1787823167.8786106,
-    "ast_hash": "6beb2b4599e15f75bec827076944b0bd",
+    "mtime": 1788190153.0859597,
+    "seen": 1788191383.536622,
+    "ast_hash": "a663f20916bac80e3592f5b9d1ee1ff7",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Themes/Typography.xaml": {
-    "mtime": 1787821044.8786495,
-    "seen": 1787823167.878615,
-    "ast_hash": "803e907f04c0bc2f21bf1f1eea282618",
+    "mtime": 1788190310.0403981,
+    "seen": 1788191383.5366237,
+    "ast_hash": "96f8058bf34b99e9e08ace74cced5148",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/UiControls.cs": {
-    "mtime": 1787821582.6125898,
-    "seen": 1787823167.878619,
-    "ast_hash": "fb05fd841cbea1ceef1868af14572b52",
+    "mtime": 1788190860.409156,
+    "seen": 1788191383.5366251,
+    "ast_hash": "00f07e5910e8e6105a92938948b1937b",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/UiNavigation.cs": {
@@ -2838,9 +2838,9 @@
     "semantic_hash": ""
   },
   "tools/Etp.Reporting.UiSmoke/Program.cs": {
-    "mtime": 1787994476.6290486,
-    "seen": 1787994961.784434,
-    "ast_hash": "13533e03f978f01c7b6edfd902150069",
+    "mtime": 1788191171.8627076,
+    "seen": 1788191383.5371425,
+    "ast_hash": "80f6d9de0d2808b425cec3e0be43b895",
     "semantic_hash": ""
   },
   "docs/UIUX_V4_DESIGN_SYSTEM.md": {
@@ -2934,9 +2934,9 @@
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Modules/Dashboard/DashboardView.cs": {
-    "mtime": 1787989936.8649127,
-    "seen": 1787990851.9897923,
-    "ast_hash": "4e8fbc85699c636e90475e7d4f8d13b4",
+    "mtime": 1788191159.1289313,
+    "seen": 1788191383.5365376,
+    "ast_hash": "be39ab91a639211e69db3ab51cba933a",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Modules/Dashboard/DashboardViewState.cs": {
@@ -3006,9 +3006,9 @@
     "semantic_hash": ""
   },
   "tests-dotnet/Etp.Reporting.Desktop.Tests/DashboardViewTests.cs": {
-    "mtime": 1787928192.1962118,
-    "seen": 1787932813.5936024,
-    "ast_hash": "ea4b70f0f192ca14f8a86dc293a323c0",
+    "mtime": 1788191426.2906637,
+    "seen": 1788191521.667855,
+    "ast_hash": "3ab4466218e7c3cd66e56b877fededdc",
     "semantic_hash": ""
   },
   "tests-dotnet/Etp.Reporting.Desktop.Tests/DesktopArchitectureTests.cs": {
@@ -3486,9 +3486,9 @@
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Modules/Accounting/AccountingWorkspaceView.xaml": {
-    "mtime": 1787926320.7926085,
-    "seen": 1787932813.5933456,
-    "ast_hash": "7eecd267b1fcaec6c4301aa441803ec8",
+    "mtime": 1788190929.52163,
+    "seen": 1788191383.5365217,
+    "ast_hash": "e3e820ec36876ddfb763357253df7ab9",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Modules/Accounting/AccountingWorkspaceView.xaml.cs": {
@@ -3510,9 +3510,9 @@
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Modules/Archive/ArchiveWorkspaceView.xaml": {
-    "mtime": 1787925786.949472,
-    "seen": 1787932813.5933511,
-    "ast_hash": "3033f7a1afae5ff237c46d3a677d29af",
+    "mtime": 1788190929.52163,
+    "seen": 1788191383.5365283,
+    "ast_hash": "f0d6a6bbe9863f59376ec7cfb659c55e",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Modules/Archive/ArchiveWorkspaceView.xaml.cs": {
@@ -3528,9 +3528,9 @@
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Modules/DailyWorkflow/DailyWorkflowWorkspaceView.xaml": {
-    "mtime": 1787927577.148798,
-    "seen": 1787932813.593355,
-    "ast_hash": "878c5d6a3c1ab6389a8c7de08af7857c",
+    "mtime": 1788190929.5369935,
+    "seen": 1788191383.5365329,
+    "ast_hash": "8dd5af6d80e1443edc26b6d3e9bdbc43",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Modules/DailyWorkflow/DailyWorkflowWorkspaceView.xaml.cs": {
@@ -3552,9 +3552,9 @@
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Modules/Imports/ImportWorkspaceView.xaml": {
-    "mtime": 1787926829.3846257,
-    "seen": 1787932813.5933657,
-    "ast_hash": "3206210a031737ff20af6a0d4c2459d7",
+    "mtime": 1788190929.5369935,
+    "seen": 1788191383.5365446,
+    "ast_hash": "3ecafa117d8032316816c2745f3b14e4",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Modules/Imports/ImportWorkspaceView.xaml.cs": {
@@ -3564,9 +3564,9 @@
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Modules/OperationsAdministration/AdministrationWorkspaceView.xaml": {
-    "mtime": 1787926662.2241237,
-    "seen": 1787932813.5933683,
-    "ast_hash": "7f03c2085d5eae7f641abffaa0b3dbf9",
+    "mtime": 1788190929.5369935,
+    "seen": 1788191383.5365477,
+    "ast_hash": "2d15a3c920bf543003c1f0081291f2dd",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Modules/OperationsAdministration/AdministrationWorkspaceView.xaml.cs": {
@@ -3576,9 +3576,9 @@
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Modules/OperationsAdministration/InvestigationApprovalsWorkspaceView.xaml": {
-    "mtime": 1787926662.2220414,
-    "seen": 1787932813.5933714,
-    "ast_hash": "15f426d65353e765f56542d47b4e7788",
+    "mtime": 1788190929.5369935,
+    "seen": 1788191383.536551,
+    "ast_hash": "db2d2e04b921381ee067e39aadd0acd9",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Modules/OperationsAdministration/InvestigationApprovalsWorkspaceView.xaml.cs": {
@@ -3600,9 +3600,9 @@
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Modules/OperationsAdministration/OperationsWorkspaceView.xaml": {
-    "mtime": 1787926573.5042956,
-    "seen": 1787932813.5933764,
-    "ast_hash": "a3a4766560ba765e98a8d0feb1c60536",
+    "mtime": 1788190929.5369935,
+    "seen": 1788191383.5365567,
+    "ast_hash": "ebbbefdda7c6617337c4aa6055ba0c22",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Modules/OperationsAdministration/OperationsWorkspaceView.xaml.cs": {
@@ -3618,9 +3618,9 @@
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Modules/Registers/RegistersWorkspaceView.xaml": {
-    "mtime": 1787926320.7673683,
-    "seen": 1787932813.5933812,
-    "ast_hash": "d69d0a787a3814324e8528e63eaa33f1",
+    "mtime": 1788190929.5369935,
+    "seen": 1788191383.536562,
+    "ast_hash": "3a56d5f02dd0559433dae0f02f735fe5",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Modules/Registers/RegistersWorkspaceView.xaml.cs": {
@@ -3636,9 +3636,9 @@
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Modules/Reports/ReportPresentationControl.cs": {
-    "mtime": 1787989936.8659115,
-    "seen": 1787990851.9898212,
-    "ast_hash": "71ea90386db0bdb1e9cc41320669893d",
+    "mtime": 1788190885.0753183,
+    "seen": 1788191383.5365663,
+    "ast_hash": "219905881f11961fc3cbcce61b203a37",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Modules/Reports/ReportPresentationSession.cs": {
@@ -3654,15 +3654,15 @@
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Modules/Reports/ReportsWorkspaceView.xaml": {
-    "mtime": 1787927545.676998,
-    "seen": 1787932813.5933893,
-    "ast_hash": "f1824d2406e9ec88c157ca4c3229998a",
+    "mtime": 1788191699.1089258,
+    "seen": 1788191820.7418358,
+    "ast_hash": "25b8f792336e0c6ebc2e262d54f974e1",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Modules/Reports/ReportsWorkspaceView.xaml.cs": {
-    "mtime": 1787989682.4425118,
-    "seen": 1787990851.9898276,
-    "ast_hash": "5c2db75e47c6be4cfb4674503beab705",
+    "mtime": 1788190758.0483496,
+    "seen": 1788191383.5365722,
+    "ast_hash": "40c00ae69febf611f9b534ea06815993",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Modules/Settings/DesktopSettingsPresentationSession.cs": {
@@ -3672,9 +3672,9 @@
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Modules/Settings/SettingsWorkspaceView.xaml": {
-    "mtime": 1787925732.4714012,
-    "seen": 1787932813.5934002,
-    "ast_hash": "b0e7e5c2166a6ae2785007621640d823",
+    "mtime": 1788190929.5369935,
+    "seen": 1788191383.536581,
+    "ast_hash": "3a178e76e9b46e7ce3c47b1582790ffa",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Modules/Settings/SettingsWorkspaceView.xaml.cs": {
@@ -3696,9 +3696,9 @@
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Modules/SourceInbox/SourceInboxWorkspaceView.xaml": {
-    "mtime": 1787927300.2883356,
-    "seen": 1787932813.5934057,
-    "ast_hash": "847a7f0b62a194926e8c6b1d49e841db",
+    "mtime": 1788190929.5369935,
+    "seen": 1788191383.5365906,
+    "ast_hash": "02e20702053ac4beb351e1f4a20644b8",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Modules/SourceInbox/SourceInboxWorkspaceView.xaml.cs": {
@@ -3822,9 +3822,9 @@
     "semantic_hash": ""
   },
   "tests-dotnet/Etp.Reporting.Desktop.Tests/ReportsPresentationStateTests.cs": {
-    "mtime": 1787987980.5978267,
-    "seen": 1787990851.9900982,
-    "ast_hash": "45e746547f2e0e0ae3773129b5b06ec3",
+    "mtime": 1788191699.1089258,
+    "seen": 1788191820.7421026,
+    "ast_hash": "ef58b9dfcb7e0c402a7d6b61b7994bbf",
     "semantic_hash": ""
   },
   "tests-dotnet/Etp.Reporting.Desktop.Tests/SettingsAndOperationsAdministrationPresentationTests.cs": {
@@ -4146,15 +4146,15 @@
     "semantic_hash": ""
   },
   "docs/audit/ETP-UI-WORKFLOW-AUDIT-2026-08-31.md": {
-    "mtime": 1788182331.3868887,
-    "seen": 1788183206.6023173,
-    "ast_hash": "d0909928b45ae07a5a75a7d4cb5aa97c",
+    "mtime": 1788183758.6199455,
+    "seen": 1788191383.5374053,
+    "ast_hash": "dfd81e6b4b1da933effb021611efe352",
     "semantic_hash": ""
   },
   "prototypes/etp-uiux-demo/README.md": {
-    "mtime": 1788182331.3888848,
-    "seen": 1788183206.6024787,
-    "ast_hash": "e1316dff8c386f6e4fed55dd3650fc00",
+    "mtime": 1788183758.6199455,
+    "seen": 1788191383.5374477,
+    "ast_hash": "842004a8114a3174440787510f76112a",
     "semantic_hash": ""
   },
   "docs/audit/ui-workflow-audit/screenshots/01-task-first-dashboard-1366x768.png": {
@@ -4185,6 +4185,336 @@
     "mtime": 1788182380.2815766,
     "seen": 1788183206.602582,
     "ast_hash": "0981bb25089ec951ebbb72dcb29c584d",
+    "semantic_hash": ""
+  },
+  "docs/audit/ETP-UI-PRODUCTION-REVAMP-2026-08-31.md": {
+    "mtime": 1788191293.9056206,
+    "seen": 1788191383.5374029,
+    "ast_hash": "253e602eb4c627272495b8de2287ae1d",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/01-welcome-1366x768.png": {
+    "mtime": 1788191741.526874,
+    "seen": 1788191820.7427137,
+    "ast_hash": "b898744729e62fc9d842ff6c61d91f99",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/02-module-home-1366x768.png": {
+    "mtime": 1788191741.5856287,
+    "seen": 1788191820.742715,
+    "ast_hash": "05ffce8c0ec7eed5c488b79b7ac0ba25",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/03-reports-1366x768.png": {
+    "mtime": 1788191741.7904441,
+    "seen": 1788191820.7427163,
+    "ast_hash": "703c8b8deed6ea209c60ea851486529e",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/04-reports-960x600.png": {
+    "mtime": 1788191741.8841746,
+    "seen": 1788191820.7427177,
+    "ast_hash": "d63fb34b20d66fcdff498d38bd91c89d",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/05-module-home-1920x1080.png": {
+    "mtime": 1788191741.985605,
+    "seen": 1788191820.742719,
+    "ast_hash": "a4d6cab67d89f66553b0869fb5978b57",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/06-module-home-compact-1366x768.png": {
+    "mtime": 1788191742.085493,
+    "seen": 1788191820.7427206,
+    "ast_hash": "5ea7280fa62d88776844c17eaa7b22ac",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/07-manual-entry-1366x768.png": {
+    "mtime": 1788191742.3523402,
+    "seen": 1788191820.7427218,
+    "ast_hash": "ddc3bd823d0a4c74ae2be0e5cff244dc",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/08-dsr-screen-1366x768.png": {
+    "mtime": 1788191742.5143032,
+    "seen": 1788191820.742723,
+    "ast_hash": "40cb2028043699fbe3abba4653fe192b",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/09-help-centre-1366x768.png": {
+    "mtime": 1788191742.6475048,
+    "seen": 1788191820.7427244,
+    "ast_hash": "12d3955559ffd88a04d6ea53086fa57f",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/10-keyboard-shortcuts-1366x768.png": {
+    "mtime": 1788191742.7653458,
+    "seen": 1788191820.7427258,
+    "ast_hash": "0915e3c776657f3ff87c71f41cd5c1ea",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/11-stock-workspace-1366x768.png": {
+    "mtime": 1788191742.8841984,
+    "seen": 1788191820.7427273,
+    "ast_hash": "fc524bd29d1d94e5d3ba252493d99c7c",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/all-workspace-routes/destination-accounting.png": {
+    "mtime": 1788191743.9850247,
+    "seen": 1788191820.7427285,
+    "ast_hash": "8941e71590a1ffc234b437b2f02768e0",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/all-workspace-routes/destination-admin---settings.png": {
+    "mtime": 1788191744.6497748,
+    "seen": 1788191820.7427297,
+    "ast_hash": "dfa65cad6007914c74c80060cb42bda1",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/all-workspace-routes/destination-daily-workflow.png": {
+    "mtime": 1788191743.2277572,
+    "seen": 1788191820.742731,
+    "ast_hash": "295692587cf8d59af20d4d31ecd4c8d8",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/all-workspace-routes/destination-dashboard.png": {
+    "mtime": 1788191743.1173158,
+    "seen": 1788191820.7427325,
+    "ast_hash": "812340d27d0b053f1e3d3c3b8d57e203",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/all-workspace-routes/destination-home.png": {
+    "mtime": 1788191742.9860308,
+    "seen": 1788191820.7427337,
+    "ast_hash": "c4f9312b88e91d94196d2eccc87dcadf",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/all-workspace-routes/destination-import-etp.png": {
+    "mtime": 1788191743.4994433,
+    "seen": 1788191820.7427351,
+    "ast_hash": "157f1975658022e371a7389d63f1e824",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/all-workspace-routes/destination-manual-entry.png": {
+    "mtime": 1788191743.3522322,
+    "seen": 1788191820.7427366,
+    "ast_hash": "ddc3bd823d0a4c74ae2be0e5cff244dc",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/all-workspace-routes/destination-masters.png": {
+    "mtime": 1788191744.4154522,
+    "seen": 1788191820.7427385,
+    "ast_hash": "be22fb9bc4626cbbd830613e86afc342",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/all-workspace-routes/destination-operations-center.png": {
+    "mtime": 1788191744.150736,
+    "seen": 1788191820.7427397,
+    "ast_hash": "b5030f48369e7658de028ac9dcab6810",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/all-workspace-routes/destination-registers.png": {
+    "mtime": 1788191743.8689306,
+    "seen": 1788191820.742741,
+    "ast_hash": "e8da0c34694b149e86d81afedee9b445",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/all-workspace-routes/destination-report-archive.png": {
+    "mtime": 1788191744.2798781,
+    "seen": 1788191820.7427423,
+    "ast_hash": "1babd0116d27568656a8266599941494",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/all-workspace-routes/destination-sales-reports.png": {
+    "mtime": 1788191743.639999,
+    "seen": 1788191820.7427435,
+    "ast_hash": "e5cb031372c5f8616559365df346e4e1",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/all-workspace-routes/destination-settings.png": {
+    "mtime": 1788191744.5403867,
+    "seen": 1788191820.742745,
+    "ast_hash": "0d7e486afe16104ac40f6d4332f7d9b5",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/all-workspace-routes/destination-stock-reports.png": {
+    "mtime": 1788191743.749716,
+    "seen": 1788191820.742746,
+    "ast_hash": "2c874d286c7f3c5e91b4271bea808870",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/all-workspace-routes/report-cash.png": {
+    "mtime": 1788191746.017443,
+    "seen": 1788191820.742747,
+    "ast_hash": "139d77bbd87a47506a3c757648724c29",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/all-workspace-routes/report-dsr.png": {
+    "mtime": 1788191744.7278824,
+    "seen": 1788191820.7427485,
+    "ast_hash": "ac848509741778f6b61c045d38b0936a",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/all-workspace-routes/report-exception-source.png": {
+    "mtime": 1788191746.2918499,
+    "seen": 1788191820.7427497,
+    "ast_hash": "1f617e2ae19b68b94c711b5a3717022c",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/all-workspace-routes/report-exception-staff.png": {
+    "mtime": 1788191746.4785297,
+    "seen": 1788191820.7427511,
+    "ast_hash": "6923470f0459cd00bd1e571b8cb657dd",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/all-workspace-routes/report-exception-stock.png": {
+    "mtime": 1788191746.4316711,
+    "seen": 1788191820.7427526,
+    "ast_hash": "5692ccac62e37dc518a30e18c4d38fb2",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/all-workspace-routes/report-exception-tender.png": {
+    "mtime": 1788191746.573418,
+    "seen": 1788191820.742754,
+    "ast_hash": "1b3c3a9c9c7294d7c9491e3baa7e69bd",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/all-workspace-routes/report-exception-unmapped.png": {
+    "mtime": 1788191746.3526177,
+    "seen": 1788191820.7427557,
+    "ast_hash": "f0267a2e2cda22af5063ee7e373e9723",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/all-workspace-routes/report-exceptions.png": {
+    "mtime": 1788191746.2293632,
+    "seen": 1788191820.7427568,
+    "ast_hash": "c5e70baf346a131f5556abb633e94a7f",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/all-workspace-routes/report-invoice-lineage.png": {
+    "mtime": 1788191746.7421143,
+    "seen": 1788191820.742758,
+    "ast_hash": "5c99a041aadebb6521ec5eafe13a0fbd",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/all-workspace-routes/report-invoice.png": {
+    "mtime": 1788191745.0171561,
+    "seen": 1788191820.7427595,
+    "ast_hash": "013fc904d3b176ecc5b3435f3f36628f",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/all-workspace-routes/report-management-trend.png": {
+    "mtime": 1788191746.6639817,
+    "seen": 1788191820.7427607,
+    "ast_hash": "74b0586da2cd60879d00ddb7ee5fa3d2",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/all-workspace-routes/report-sales-brand.png": {
+    "mtime": 1788191745.1327958,
+    "seen": 1788191820.742762,
+    "ast_hash": "cbdae8b78d3e905ea7c63cadeda4f80a",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/all-workspace-routes/report-sales-combined.png": {
+    "mtime": 1788191744.9546676,
+    "seen": 1788191820.7427635,
+    "ast_hash": "44b69eecf58f910b6c412daf5bba8084",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/all-workspace-routes/report-sales-helios.png": {
+    "mtime": 1788191744.883976,
+    "seen": 1788191820.7427647,
+    "ast_hash": "0799ca002c25be538ac054333575a646",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/all-workspace-routes/report-sales-item.png": {
+    "mtime": 1788191745.27335,
+    "seen": 1788191820.7427661,
+    "ast_hash": "ea660c292ff323d005625c71857df820",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/all-workspace-routes/report-sales-returns.png": {
+    "mtime": 1788191745.0849452,
+    "seen": 1788191820.7427673,
+    "ast_hash": "b2977c3bd88588d47d59f3f5c0514f6a",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/all-workspace-routes/report-sales-segment.png": {
+    "mtime": 1788191745.2109015,
+    "seen": 1788191820.7427685,
+    "ast_hash": "dce08c6fae1ddbbb1adfd91fb8050c22",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/all-workspace-routes/report-sales-titan.png": {
+    "mtime": 1788191744.8182316,
+    "seen": 1788191820.74277,
+    "ast_hash": "5569396bc3613ff34ea648768381b5f6",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/all-workspace-routes/report-service.png": {
+    "mtime": 1788191746.1356342,
+    "seen": 1788191820.7427711,
+    "ast_hash": "9615c38ce94a4ff2c75cdaabd3190119",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/all-workspace-routes/report-staff.png": {
+    "mtime": 1788191745.8478017,
+    "seen": 1788191820.7427726,
+    "ast_hash": "123f9a8636f731f251669889a4c44a39",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/all-workspace-routes/report-stock-brand.png": {
+    "mtime": 1788191745.6915882,
+    "seen": 1788191820.742774,
+    "ast_hash": "c87dd61fe724a1dcffed9205df0f177e",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/all-workspace-routes/report-stock-closing.png": {
+    "mtime": 1788191745.3518715,
+    "seen": 1788191820.7427752,
+    "ast_hash": "9a3b2c0ba1fa96dccdf3c7b0eff4814f",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/all-workspace-routes/report-stock-group.png": {
+    "mtime": 1788191745.627014,
+    "seen": 1788191820.7427764,
+    "ast_hash": "2afd4e5b606132b32eb6321b90fb3ffc",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/all-workspace-routes/report-stock-movement.png": {
+    "mtime": 1788191745.5556936,
+    "seen": 1788191820.7427776,
+    "ast_hash": "9d216e7e465b3fba5d1c28b3736f5702",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/all-workspace-routes/report-stock-physical.png": {
+    "mtime": 1788191745.4150999,
+    "seen": 1788191820.7427788,
+    "ast_hash": "b401cdd2aa363130f9ce0f284b0319a5",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/all-workspace-routes/report-stock-slow.png": {
+    "mtime": 1788191745.7540722,
+    "seen": 1788191820.7427804,
+    "ast_hash": "14dae7365100f7ca614e3aa69e224d1c",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/all-workspace-routes/report-stock-variance.png": {
+    "mtime": 1788191745.4932024,
+    "seen": 1788191820.7427816,
+    "ast_hash": "2d90be3f039d45f0ca2e8bf9bf7df88e",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/all-workspace-routes/report-tender-diagnostic.png": {
+    "mtime": 1788191746.0799727,
+    "seen": 1788191820.7427828,
+    "ast_hash": "4619bf60cd9bf63d50fa86b1627bfae1",
+    "semantic_hash": ""
+  },
+  "docs/audit/ui-production-revamp/all-workspace-routes/report-tender.png": {
+    "mtime": 1788191745.9415264,
+    "seen": 1788191820.7427845,
+    "ast_hash": "6e7c6a20309aa7676475f7d4bb105235",
     "semantic_hash": ""
   }
 }

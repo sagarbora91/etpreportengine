@@ -117,6 +117,10 @@ public sealed class ReportsPresentationStateTests
         Assert.Contains("eventType == \"ReportRun\" ? ToAuditOutcome(outcome) : outcome", reportView, StringComparison.Ordinal);
         Assert.Contains("ReportsHost", xaml, StringComparison.Ordinal);
         Assert.Contains("ReportPresentationControl", reportXaml, StringComparison.Ordinal);
+        Assert.Contains("View selected details", reportXaml, StringComparison.Ordinal);
+        Assert.Contains("Brand segments", reportXaml, StringComparison.Ordinal);
+        Assert.Contains("Transaction types", reportXaml, StringComparison.Ordinal);
+        Assert.Contains("Existing context remains visible.", reportView, StringComparison.Ordinal);
         Assert.Contains("VisualReportComposer.Compose", session, StringComparison.Ordinal);
         Assert.Contains("class ReportVisualPresenter", control, StringComparison.Ordinal);
         Assert.Contains("Dictionary<string, ReportWorkspaceControl>", workspaces, StringComparison.Ordinal);

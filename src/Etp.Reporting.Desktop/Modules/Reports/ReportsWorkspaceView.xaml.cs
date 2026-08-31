@@ -162,8 +162,7 @@ public partial class ReportsWorkspaceView : UserControl
         if (!focusedWorkspaceRequester(reportCode)) return false;
         presentation.BeginReport(reportCode);
         RefreshExportAvailability();
-        ReportPresentationHost.Clear();
-        ReportResult.Text = reportCode == "dsr" ? "Loading the governed Daily Sales Report…" : "Loading report…";
+        ReportResult.Text = reportCode == "dsr" ? "Loading the governed Daily Sales Report… Existing context remains visible." : "Loading report… Existing context remains visible.";
         return true;
     }
 
@@ -323,11 +322,13 @@ public partial class ReportsWorkspaceView : UserControl
     }
 
     private void ReportSearch_TextChanged(object sender, RoutedEventArgs e) => ApplyReportFilter();
+    private void ViewDetails_Click(object sender, RoutedEventArgs e) => ShowSelectedDetails();
     private void ApplyReportFilter()
     {
         if(ReportGrid.ItemsSource is null)return; var search=ReportSearchInput.Text.Trim(); var varianceOnly=VarianceOnlyInput.IsChecked==true; var view=CollectionViewSource.GetDefaultView(ReportGrid.ItemsSource); view.Filter=item=>{if(item is null)return false;if(search.Length>0&&!item.ToString()!.Contains(search,StringComparison.OrdinalIgnoreCase))return false;if(!varianceOnly)return true;var property=item.GetType().GetProperty("Variance");return property?.GetValue(item) is decimal variance&&variance!=0;}; view.Refresh();
     }
-    private void ReportGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e) { if(ReportGrid.SelectedItem is not null)detailPresenter(ReportGrid.SelectedItem); }
+    private void ReportGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e) => ShowSelectedDetails();
+    private void ShowSelectedDetails() { if (ReportGrid.SelectedItem is not null) detailPresenter(ReportGrid.SelectedItem); else ReportResult.Text = "Select a report row to view its details and source lineage."; }
 
     internal static string ToAuditOutcome(ApplicationReportStatus status) => ToAuditOutcome(status.ToString());
     internal static string ToAuditOutcome(ReconciliationStatus status) => ToAuditOutcome(status.ToString());

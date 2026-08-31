@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:automation="clr-namespace:System.Windows.Automation;assembly=PresentationCore"
              automation:AutomationProperties.Name="Daily workflow and manual entry workspace">
-    <Border Background="White" BorderBrush="#DCE2E8" BorderThickness="1" CornerRadius="6" Padding="20">
+    <Border Style="{DynamicResource SurfaceCard}">
         <StackPanel>
             <TextBlock Text="Business-date reporting workflow" FontSize="18" FontWeight="SemiBold"/>
             <TextBlock Text="ETP transaction/report dates control FTD, MTD and YTD. Import timestamps never change the business date."
@@ -21,7 +21,7 @@
                         automation:AutomationProperties.Name="Refresh daily workflow"/>
             </WrapPanel>
 
-            <Border Background="#F3F5F7" CornerRadius="4" Padding="12" Margin="0,14,0,12">
+            <Border Style="{DynamicResource StatusBanner}" Margin="0,14,0,12">
                 <StackPanel>
                     <TextBlock x:Name="WorkflowStatus" Text="Select a business date and refresh." FontSize="17" FontWeight="SemiBold"
                                automation:AutomationProperties.Name="Daily workflow readiness status"
@@ -50,7 +50,7 @@
                 <TextBox x:Name="ManualReasonInput" Width="260" Padding="6" Margin="8,0,0,0"
                          ToolTip="Required reason, for example Daily store count"
                          automation:AutomationProperties.Name="Manual input change reason"/>
-                <Button x:Name="SaveManualInputButton" Content="Save input" Click="SaveManualInput_Click" Padding="14,7" Margin="8,0,0,0"
+                <Button x:Name="SaveManualInputButton" Content="Save input" Click="SaveManualInput_Click" Style="{DynamicResource PrimaryButton}" Padding="14,7" Margin="8,0,0,0"
                         automation:AutomationProperties.Name="Save manual input"/>
             </WrapPanel>
 
@@ -68,7 +68,7 @@
                 <TextBox x:Name="StockPhysicalInput" Width="90" Padding="6" Margin="6,0,0,0" ToolTip="Independently counted physical quantity" automation:AutomationProperties.Name="Counted physical quantity"/>
                 <TextBox x:Name="StockRemarksInput" Width="150" Padding="6" Margin="6,0,0,0" ToolTip="Stock remarks" automation:AutomationProperties.Name="Stock remarks"/>
                 <TextBox x:Name="StockReasonInput" Width="160" Padding="6" Margin="6,0,0,0" ToolTip="Required change reason" automation:AutomationProperties.Name="Stock count change reason"/>
-                <Button x:Name="SaveStockCountButton" Content="Save stock count" Click="SaveStockCount_Click" Padding="12,7" Margin="6,0,0,0"
+                <Button x:Name="SaveStockCountButton" Content="Save stock count" Click="SaveStockCount_Click" Style="{DynamicResource PrimaryButton}" Padding="12,7" Margin="6,0,0,0"
                         automation:AutomationProperties.Name="Save physical stock count"/>
             </WrapPanel>
 
@@ -79,17 +79,17 @@
                 <DatePicker x:Name="StaffTargetToInput" Width="140" Margin="6,0,0,0" automation:AutomationProperties.Name="Staff target end date"/>
                 <TextBox x:Name="StaffTargetValueInput" Width="110" Padding="6" Margin="6,0,0,0" ToolTip="Target sales" automation:AutomationProperties.Name="Staff target sales"/>
                 <TextBox x:Name="StaffTargetReasonInput" Width="210" Padding="6" Margin="6,0,0,0" ToolTip="Required change reason" automation:AutomationProperties.Name="Staff target change reason"/>
-                <Button x:Name="SaveStaffTargetButton" Content="Save target" Click="SaveStaffTarget_Click" Padding="12,7" Margin="6,0,0,0"
+                <Button x:Name="SaveStaffTargetButton" Content="Save target" Click="SaveStaffTarget_Click" Style="{DynamicResource PrimaryButton}" Padding="12,7" Margin="6,0,0,0"
                         automation:AutomationProperties.Name="Save staff target"/>
             </WrapPanel>
 
             <WrapPanel Margin="0,14,0,0">
-                <Button x:Name="FinaliseDayButton" Content="Finalise day" Click="FinaliseDay_Click" Padding="16,8" IsEnabled="False"
+                <Button x:Name="FinaliseDayButton" Content="Finalise day" Click="FinaliseDay_Click" Style="{DynamicResource PrimaryButton}" Padding="16,8" IsEnabled="False"
                         automation:AutomationProperties.Name="Finalise business day"/>
                 <TextBox x:Name="ReopenReasonInput" Width="280" Padding="6" Margin="12,0,0,0"
                          ToolTip="Administrator reason required to reopen"
                          automation:AutomationProperties.Name="Reopen reason"/>
-                <Button x:Name="ReopenDayButton" Content="Reopen day" Click="ReopenDay_Click" Padding="16,8" Margin="8,0,0,0"
+                <Button x:Name="ReopenDayButton" Content="Reopen day" Click="ReopenDay_Click" Style="{DynamicResource DangerButton}" Padding="16,8" Margin="8,0,0,0"
                         automation:AutomationProperties.Name="Reopen finalised business day"/>
             </WrapPanel>
 

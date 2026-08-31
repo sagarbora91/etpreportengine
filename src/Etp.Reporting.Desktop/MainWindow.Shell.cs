@@ -59,7 +59,7 @@ public partial class MainWindow
     private void Continue_Click(object sender, RoutedEventArgs e)
     {
         WelcomeOverlay.Visibility = Visibility.Collapsed;
-        ShowModuleHome();
+        if (currentAccess.Role == AccessRole.None) ShowModuleHome(); else NavigateToDestination("Dashboard");
         ApplicationStatus.Text = currentAccess.Role == AccessRole.None
             ? "Database setup is required before operational modules can be used."
             : $"Signed in as {currentAccess.DisplayName} — {RoleLabel(currentAccess.Role)}.";
@@ -118,7 +118,7 @@ public partial class MainWindow
             var pins = uiPreferences.PinnedModuleIds.Count > 0 ? uiPreferences.PinnedModuleIds : ["registers", "approvals", "health"];
             selected.AddRange(UiNavigationRegistry.Modules.Where(x => x.PinAllowed && pins.Contains(x.Id, StringComparer.OrdinalIgnoreCase) && x.IsVisibleTo(role)));
         }
-        var availableWidth = Math.Max(720, ActualWidth - (ContextSidebar.Visibility == Visibility.Visible ? 390 : 100) - 60);
+        var availableWidth = Math.Max(720, Math.Max(Width, ActualWidth) - (ContextSidebar.Visibility == Visibility.Visible ? 390 : 100) - 60);
         var columns = availableWidth >= 1100 ? 3 : availableWidth >= 700 ? 2 : 1;
         var tileWidth = Math.Max(280, Math.Min(560, availableWidth / columns - 18));
         foreach (var module in selected.DistinctBy(x => x.Id).OrderBy(x => x.Order))
@@ -155,10 +155,10 @@ public partial class MainWindow
     {
         var destination = route.Destination;
         if (moduleHomePanel is not null) moduleHomePanel.Visibility = Visibility.Collapsed;
-        ReadinessSummaryPanel.Visibility = destination == "Dashboard" ? Visibility.Visible : Visibility.Collapsed;
+        ReadinessSummaryPanel.Visibility = Visibility.Collapsed;
         GettingStartedPanel.Visibility = Visibility.Collapsed;
         ConfigureSidebar(route.ModuleId);
-        BreadcrumbText.Text = route.ModuleId == "settings" ? "Administration" : $"Modules / {SidebarModuleTitle.Text}";
+        BreadcrumbText.Text = destination == "Dashboard" ? "TODAY  /  OVERVIEW" : route.ModuleId == "settings" ? "Administration" : $"Modules / {SidebarModuleTitle.Text}";
         LegacyWorkspaceScroll.ScrollToTop();
     }
 
@@ -171,7 +171,7 @@ public partial class MainWindow
         SidebarModuleSubtitle.Text = moduleId switch { "reports" => $"{ProductReportCatalogue.All.Count} live reports", "imports" => "Sources, documents & registers", "settings" => "Administration", _ => "Workspace navigation" };
         SidebarSearchInput.Clear();
         PopulateSidebar(UiNavigationRegistry.ForModule(moduleId), string.Empty);
-        ShowSidebar();
+        if (Math.Max(Width, ActualWidth) < 1100) { ContextSidebar.Visibility = Visibility.Collapsed; SidebarColumn.Width = new GridLength(0); SidebarToggleButton.Visibility = Visibility.Visible; sidebarOverlay = true; sidebarExplicitlyCollapsed = false; } else ShowSidebar();
     }
 
     private void PopulateSidebar(IEnumerable<NavigationGroupDefinition> groups, string search)
@@ -215,13 +215,13 @@ public partial class MainWindow
     {
         sidebarExplicitlyCollapsed = false;
         ContextSidebar.Visibility = Visibility.Visible;
-        if (ActualWidth < 1100)
+        if (Math.Max(Width, ActualWidth) < 1100)
         {
-            sidebarOverlay = true; SidebarColumn.Width = new GridLength(0); Grid.SetColumn(ContextSidebar, 2); ContextSidebar.Width = 300; ContextSidebar.HorizontalAlignment = HorizontalAlignment.Left; SidebarToggleButton.Visibility = Visibility.Visible;
+            sidebarOverlay = true; SidebarColumn.Width = new GridLength(0); Grid.SetColumn(ContextSidebar, 2); ContextSidebar.Width = 260; ContextSidebar.HorizontalAlignment = HorizontalAlignment.Left; SidebarToggleButton.Visibility = Visibility.Visible;
         }
         else
         {
-            sidebarOverlay = false; Grid.SetColumn(ContextSidebar, 1); ContextSidebar.Width = double.NaN; ContextSidebar.HorizontalAlignment = HorizontalAlignment.Stretch; SidebarColumn.Width = new GridLength(300); SidebarToggleButton.Visibility = Visibility.Collapsed;
+            sidebarOverlay = false; Grid.SetColumn(ContextSidebar, 1); ContextSidebar.Width = double.NaN; ContextSidebar.HorizontalAlignment = HorizontalAlignment.Stretch; SidebarColumn.Width = new GridLength(260); SidebarToggleButton.Visibility = Visibility.Collapsed;
         }
     }
 
@@ -237,8 +237,8 @@ public partial class MainWindow
 
     private void MainWindow_SizeChanged(object sender, SizeChangedEventArgs e)
     {
-        if (CurrentModuleId != "home" && !sidebarExplicitlyCollapsed) ShowSidebar();
-        BuildModuleHome();
+        if (CurrentModuleId != "home" && !sidebarExplicitlyCollapsed) { if (Math.Max(Width, ActualWidth) < 1100) { ContextSidebar.Visibility = Visibility.Collapsed; SidebarColumn.Width = new GridLength(0); SidebarToggleButton.Visibility = Visibility.Visible; sidebarOverlay = true; } else ShowSidebar(); }
+        PageDescription.Visibility = Math.Max(Width, ActualWidth) < 1100 ? Visibility.Collapsed : Visibility.Visible; BuildModuleHome();
     }
 
     private void ToggleDensity_Click(object sender, RoutedEventArgs e) => ApplyDensity(uiPreferences.Density == UiDensity.Comfortable ? UiDensity.Compact : UiDensity.Comfortable, persist: true);

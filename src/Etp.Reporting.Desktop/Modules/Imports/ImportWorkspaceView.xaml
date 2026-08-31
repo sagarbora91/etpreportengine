@@ -26,10 +26,10 @@
             <TextBox x:Name="WorkbookPathInput" IsReadOnly="True" Padding="8" Margin="0,0,10,0" automation:AutomationProperties.Name="Selected import source"/>
         </DockPanel>
         <WrapPanel>
-            <Button x:Name="ValidateButton" Content="Validate workbook" Click="ValidateWorkbook_Click" Padding="18,9" automation:AutomationProperties.Name="Validate workbook"/>
-            <Button x:Name="PersistButton" Content="Import validated rows" Click="PersistWorkbook_Click" Padding="18,9" Margin="10,0,0,0" IsEnabled="False" automation:AutomationProperties.Name="Import validated rows"/>
+            <Button x:Name="ValidateButton" Content="Validate workbook" Click="ValidateWorkbook_Click" Style="{DynamicResource PrimaryButton}" Padding="18,9" automation:AutomationProperties.Name="Validate workbook"/>
+            <Button x:Name="PersistButton" Content="Import validated rows" Click="PersistWorkbook_Click" Style="{DynamicResource PrimaryButton}" Padding="18,9" Margin="10,0,0,0" IsEnabled="False" automation:AutomationProperties.Name="Import validated rows"/>
             <Button x:Name="StartBatchButton" Content="Import batch" Click="StartBatchImport_Click" Padding="18,9" Margin="10,0,0,0" automation:AutomationProperties.Name="Import batch"/>
-            <Button x:Name="CancelBatchButton" Content="Cancel" Click="CancelBatchImport_Click" Padding="18,9" Margin="10,0,0,0" IsEnabled="False" automation:AutomationProperties.Name="Cancel import batch"/>
+            <Button x:Name="CancelBatchButton" Content="Cancel" Click="CancelBatchImport_Click" Style="{DynamicResource DangerButton}" Padding="18,9" Margin="10,0,0,0" IsEnabled="False" automation:AutomationProperties.Name="Cancel import batch"/>
             <Button x:Name="RetryBatchButton" Content="Retry failed" Click="RetryBatchImport_Click" Padding="18,9" Margin="10,0,0,0" IsEnabled="False" automation:AutomationProperties.Name="Retry failed imports"/>
         </WrapPanel>
         <ProgressBar x:Name="ImportProgressBar" Height="10" Margin="0,12,0,0" Minimum="0" Maximum="1" automation:AutomationProperties.Name="Import progress"/>

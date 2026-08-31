@@ -9,7 +9,7 @@
             <TextBox x:Name="ConnectionStringInput" Margin="0,8,0,12" Padding="8"
                      automation:AutomationProperties.Name="Windows-integrated SQL Server connection string"/>
             <StackPanel Orientation="Horizontal">
-                <Button x:Name="TestConnectionButton" Content="Test connection" Click="TestConnection_Click" Padding="18,9"
+                <Button x:Name="TestConnectionButton" Content="Test connection" Click="TestConnection_Click" Style="{DynamicResource PrimaryButton}" Padding="18,9"
                         automation:AutomationProperties.Name="Test Windows-integrated database connection"/>
                 <Button x:Name="BootstrapDatabaseButton" Content="Create/update database" Click="BootstrapDatabase_Click"
                         Padding="18,9" Margin="10,0,0,0"
@@ -47,7 +47,7 @@
                              automation:AutomationProperties.Name="Maximum attachment size in megabytes"/>
                     <TextBox x:Name="ProductSettingsReasonInput" Width="230" Padding="6" Margin="8,0,0,0" ToolTip="Owner change reason"
                              automation:AutomationProperties.Name="Owner product-settings change reason"/>
-                    <Button x:Name="SaveIntegrationsButton" Content="Save integrations" Click="SaveProductSettings_Click"
+                    <Button x:Name="SaveIntegrationsButton" Content="Save integrations" Click="SaveProductSettings_Click" Style="{DynamicResource PrimaryButton}"
                             Padding="14,7" Margin="8,0,0,0"
                             automation:AutomationProperties.Name="Save product integrations"/>
                 </WrapPanel>

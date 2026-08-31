@@ -8,6 +8,9 @@
     <CornerRadius x:Key="RadiusSmall">8</CornerRadius>
     <CornerRadius x:Key="RadiusMedium">12</CornerRadius>
     <CornerRadius x:Key="RadiusLarge">20</CornerRadius>
+    <Thickness x:Key="PagePadding">24</Thickness>
+    <Thickness x:Key="CardPadding">18</Thickness>
+    <Thickness x:Key="SectionSpacing">0,16,0,0</Thickness>
     <sys:Double x:Key="TouchTargetHeight">48</sys:Double>
     <sys:Double x:Key="CompactTargetHeight">34</sys:Double>
     <sys:Double x:Key="ComfortableGridRowHeight">46</sys:Double>

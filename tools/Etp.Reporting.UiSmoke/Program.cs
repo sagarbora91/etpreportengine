@@ -87,6 +87,10 @@ internal static class Program
     {
         window.Width = width;
         window.Height = height;
+        if (window is MainWindow mainWindow) Invoke(mainWindow, "MainWindow_SizeChanged", mainWindow, null!);
+        window.Measure(new Size(width, height));
+        window.Arrange(new Rect(0, 0, width, height));
+        window.UpdateLayout();
         var root = (FrameworkElement)window.Content;
         root.Measure(new Size(width, height));
         root.Arrange(new Rect(0, 0, width, height));

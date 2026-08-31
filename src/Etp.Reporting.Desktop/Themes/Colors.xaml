@@ -1,19 +1,26 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <Color x:Key="AppBackgroundColor">#F3F6FB</Color>
+    <Color x:Key="AppBackgroundColor">#F3F7F7</Color>
     <Color x:Key="SurfaceColor">#FFFFFF</Color>
-    <Color x:Key="SurfaceSecondaryColor">#F7F9FC</Color>
-    <Color x:Key="PrimaryTextColor">#152038</Color>
-    <Color x:Key="SecondaryTextColor">#6B778C</Color>
-    <Color x:Key="DividerColor">#E3E8F0</Color>
-    <Color x:Key="AccentColor">#246BFE</Color>
-    <Color x:Key="AccentDarkColor">#1553C8</Color>
-    <Color x:Key="SuccessColor">#0B8D62</Color>
-    <Color x:Key="WarningColor">#BB6B00</Color>
-    <Color x:Key="CriticalColor">#C63B42</Color>
-    <Color x:Key="InformationColor">#7757D6</Color>
-    <Color x:Key="NavigationBackgroundColor">#0C1628</Color>
-    <Color x:Key="NavigationSelectedColor">#16243D</Color>
+    <Color x:Key="SurfaceSecondaryColor">#F0F5F5</Color>
+    <Color x:Key="PrimaryTextColor">#10252D</Color>
+    <Color x:Key="SecondaryTextColor">#65757A</Color>
+    <Color x:Key="DividerColor">#D9E3E3</Color>
+    <Color x:Key="AccentColor">#008D78</Color>
+    <Color x:Key="AccentDarkColor">#006B5C</Color>
+    <Color x:Key="AccentSoftColor">#E3F3F0</Color>
+    <Color x:Key="SuccessColor">#087C68</Color>
+    <Color x:Key="SuccessSoftColor">#E6F4F0</Color>
+    <Color x:Key="WarningColor">#A76500</Color>
+    <Color x:Key="WarningSoftColor">#FAF1E3</Color>
+    <Color x:Key="CriticalColor">#C33D49</Color>
+    <Color x:Key="CriticalSoftColor">#FBECEE</Color>
+    <Color x:Key="InformationColor">#315EBA</Color>
+    <Color x:Key="InformationSoftColor">#EAF0FB</Color>
+    <Color x:Key="NavigationBackgroundColor">#062A36</Color>
+    <Color x:Key="NavigationSelectedColor">#008D78</Color>
+    <Color x:Key="NavigationMutedColor">#94B0B8</Color>
+    <Color x:Key="DarkSurfaceColor">#082E3A</Color>
     <SolidColorBrush x:Key="AppBackground" Color="{StaticResource AppBackgroundColor}"/>
     <SolidColorBrush x:Key="Surface" Color="{StaticResource SurfaceColor}"/>
     <SolidColorBrush x:Key="SurfaceSecondary" Color="{StaticResource SurfaceSecondaryColor}"/>
@@ -22,10 +29,17 @@
     <SolidColorBrush x:Key="Divider" Color="{StaticResource DividerColor}"/>
     <SolidColorBrush x:Key="Accent" Color="{StaticResource AccentColor}"/>
     <SolidColorBrush x:Key="AccentDark" Color="{StaticResource AccentDarkColor}"/>
+    <SolidColorBrush x:Key="AccentSoft" Color="{StaticResource AccentSoftColor}"/>
     <SolidColorBrush x:Key="Success" Color="{StaticResource SuccessColor}"/>
+    <SolidColorBrush x:Key="SuccessSoft" Color="{StaticResource SuccessSoftColor}"/>
     <SolidColorBrush x:Key="Warning" Color="{StaticResource WarningColor}"/>
+    <SolidColorBrush x:Key="WarningSoft" Color="{StaticResource WarningSoftColor}"/>
     <SolidColorBrush x:Key="Critical" Color="{StaticResource CriticalColor}"/>
+    <SolidColorBrush x:Key="CriticalSoft" Color="{StaticResource CriticalSoftColor}"/>
     <SolidColorBrush x:Key="Information" Color="{StaticResource InformationColor}"/>
+    <SolidColorBrush x:Key="InformationSoft" Color="{StaticResource InformationSoftColor}"/>
     <SolidColorBrush x:Key="NavigationBackground" Color="{StaticResource NavigationBackgroundColor}"/>
     <SolidColorBrush x:Key="NavigationSelected" Color="{StaticResource NavigationSelectedColor}"/>
+    <SolidColorBrush x:Key="NavigationMuted" Color="{StaticResource NavigationMutedColor}"/>
+    <SolidColorBrush x:Key="DarkSurface" Color="{StaticResource DarkSurfaceColor}"/>
 </ResourceDictionary>

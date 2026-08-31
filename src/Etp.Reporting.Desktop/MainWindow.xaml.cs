@@ -132,7 +132,7 @@ public partial class MainWindow : Window
         InvestigationHost.Content = investigationWorkspaceView;
         AdministrationHost.Content = administrationWorkspaceView;
         administrationWorkspaceView.AccessChangedAsync = RefreshAccessAsync;
-        dashboardView.RefreshRequested += async (_, _) => await RefreshDashboardAsync();
+        dashboardView.RefreshRequested += async (_, _) => await RefreshDashboardAsync(); dashboardView.NavigationRequested += (_, destination) => NavigateToDestination(destination);
         dashboardView.ExportDateFrom = () => reportsWorkspaceView.DateFrom is { } from ? DateOnly.FromDateTime(from) : DateOnly.FromDateTime(DateTime.Today);
         dashboardView.ExportDateTo = () => reportsWorkspaceView.DateTo is { } to ? DateOnly.FromDateTime(to) : DateOnly.FromDateTime(DateTime.Today);
         dashboardView.NotificationRequested += (_, message) => ApplicationStatus.Text = message;
@@ -160,7 +160,7 @@ public partial class MainWindow : Window
     {
         if (!decision.IsAllowed)
         {
-            if (!string.IsNullOrWhiteSpace(decision.DenialReason)) ApplicationStatus.Text = decision.DenialReason;
+            if (!string.IsNullOrWhiteSpace(decision.DenialReason)) { ApplicationStatus.Text = decision.DenialReason; OpenDrawer("Access restricted", decision.DenialReason); }
             return;
         }
         if (decision.RequestedRoute == WorkspaceRoute.Home)
@@ -171,8 +171,8 @@ public partial class MainWindow : Window
         if (decision.Descriptor is not { } page) return;
         var destination = page.Destination;
         HideFocusedWorkspace();
-        PageTitle.Text = destination switch { "Dashboard" => "Home", "Sales Reports" or "Stock Reports" => "Reports", "Operations Center" => "Control Centre", "Report Archive" => "Archive", _ => destination };
-        PageDescription.Text = page.Description;
+        PageTitle.Text = destination switch { "Dashboard" => "Today overview", "Sales Reports" or "Stock Reports" => "Reports", "Operations Center" => "Control Centre", "Report Archive" => "Archive", _ => destination };
+        PageDescription.Text = destination == "Dashboard" ? "Complete the business day with clear readiness, controls and next actions." : page.Description;
         WorkspaceHeading.Text = page.Heading;
         WorkspaceMessage.Text = page.Message;
         PrimaryAction.Content = page.ActionLabel;

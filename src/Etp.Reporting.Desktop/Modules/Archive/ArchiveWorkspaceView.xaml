@@ -19,14 +19,14 @@
                         automation:AutomationProperties.Name="Archive business date"/>
             <CheckBox x:Name="ArchiveAllDatesInput" Content="All dates" IsChecked="True" Margin="10,5,0,0"
                       automation:AutomationProperties.Name="Search all archive dates"/>
-            <Button Content="Refresh archive" Click="RefreshReportArchive_Click" Padding="14,7" Margin="10,0,0,0"
+            <Button Content="Refresh archive" Click="RefreshReportArchive_Click" Style="{DynamicResource PrimaryButton}" Padding="14,7" Margin="10,0,0,0"
                     automation:AutomationProperties.Name="Refresh report archive"/>
         </WrapPanel>
         <DataGrid x:Name="ReportGenerationGrid" AutoGenerateColumns="True" IsReadOnly="True"
                   SelectionMode="Extended" MaxHeight="250" Margin="0,10,0,0"
                   automation:AutomationProperties.Name="Archived report generations"/>
         <WrapPanel Margin="0,10,0,0">
-            <Button Content="Open selected generation" Click="OpenArchivedGeneration_Click" Padding="14,7"/>
+            <Button Content="Open selected generation" Click="OpenArchivedGeneration_Click" Style="{DynamicResource PrimaryButton}" Padding="14,7"/>
             <Button Content="Compare two selected" Click="CompareArchivedGenerations_Click" Padding="14,7" Margin="8,0,0,0"/>
             <Button Content="Export archived Excel…" Click="ExportArchivedExcel_Click" Padding="14,7" Margin="8,0,0,0"/>
             <Button Content="Export archived PDF…" Click="ExportArchivedPdf_Click" Padding="14,7" Margin="8,0,0,0"/>
@@ -61,7 +61,7 @@
                       automation:AutomationProperties.Name="Sharing contact active"/>
             <TextBox x:Name="ContactReasonInput" Width="190" Padding="6" Margin="8,0,0,0" ToolTip="Owner change reason"
                      automation:AutomationProperties.Name="Sharing contact change reason"/>
-            <Button Content="Save contact" Click="SaveSharingContact_Click" Padding="14,7" Margin="8,0,0,0"
+            <Button Content="Save contact" Click="SaveSharingContact_Click" Style="{DynamicResource PrimaryButton}" Padding="14,7" Margin="8,0,0,0"
                     automation:AutomationProperties.Name="Save sharing contact"/>
         </WrapPanel>
         <TextBlock x:Name="ReportArchiveStatus" Margin="0,10,0,0" TextWrapping="Wrap"

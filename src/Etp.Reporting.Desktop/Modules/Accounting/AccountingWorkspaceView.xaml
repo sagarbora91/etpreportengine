@@ -12,7 +12,7 @@
                      automation:AutomationProperties.Name="Accounting store"/>
             <DatePicker x:Name="AccountingDateInput" Width="145" Margin="8,0,0,0"
                         automation:AutomationProperties.Name="Accounting business date"/>
-            <Button Content="Preview batch" Click="PreviewAccountingBatch_Click" Padding="14,7" Margin="8,0,0,0"/>
+            <Button Content="Preview batch" Click="PreviewAccountingBatch_Click" Style="{DynamicResource PrimaryButton}" Padding="14,7" Margin="8,0,0,0"/>
             <Button Content="Save for review" Click="SaveAccountingBatch_Click" Padding="14,7" Margin="8,0,0,0"/>
             <Button Content="Approve selected" Click="ApproveAccountingBatch_Click" Padding="14,7" Margin="8,0,0,0"/>
             <Button Content="Export Tally XML…" Click="ExportTallyXml_Click" Padding="14,7" Margin="8,0,0,0"/>
@@ -43,7 +43,7 @@
                      automation:AutomationProperties.Name="Accounting narration template"/>
             <TextBox x:Name="AccountingMappingReasonInput" Width="210" Padding="6" Margin="8,0,0,0"
                      ToolTip="Owner approval reason" automation:AutomationProperties.Name="Accounting approval reason"/>
-            <Button Content="Approve mapping" Click="ApproveAccountingMapping_Click" Padding="14,7" Margin="8,0,0,0"/>
+            <Button Content="Approve mapping" Click="ApproveAccountingMapping_Click" Style="{DynamicResource PrimaryButton}" Padding="14,7" Margin="8,0,0,0"/>
         </WrapPanel>
     </StackPanel>
 </UserControl>

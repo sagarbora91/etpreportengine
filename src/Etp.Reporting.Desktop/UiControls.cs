@@ -15,7 +15,7 @@ public sealed class ModuleTile : Button
     {
         Definition = definition;
         Tag = definition.Destination;
-        MinHeight = 176;
+        MinHeight = 164;
         Margin = new Thickness(7);
         Padding = new Thickness(20);
         HorizontalContentAlignment = HorizontalAlignment.Stretch;
@@ -34,7 +34,7 @@ public sealed class ModuleTile : Button
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         grid.RowDefinitions.Add(new RowDefinition());
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        var iconHost = new Border { Width = 42, Height = 42, CornerRadius = new CornerRadius(12), Background = AccentTint(definition.Id), HorizontalAlignment = HorizontalAlignment.Left };
+        var iconHost = new Border { Width = 42, Height = 42, CornerRadius = new CornerRadius(13), Background = AccentTint(definition.Id), HorizontalAlignment = HorizontalAlignment.Left };
         iconHost.Child = new Path { Data = (Geometry)Application.Current.Resources[definition.IconKey], Stroke = Accent(definition.Id), Fill = Brushes.Transparent, StrokeThickness = 1.7, Stretch = Stretch.Uniform, Margin = new Thickness(10) };
         grid.Children.Add(iconHost);
         var title = new TextBlock { Text = definition.DisplayName, FontSize = 19, FontWeight = FontWeights.SemiBold, Foreground = (Brush)Application.Current.Resources["PrimaryText"], Margin = new Thickness(0, 14, 0, 3) };

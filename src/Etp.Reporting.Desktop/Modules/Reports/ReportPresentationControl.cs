@@ -114,7 +114,7 @@ public static class ReportVisualPresenter
             var card = new Border
             {
                 Background = Brush(background),
-                BorderBrush = bordered ? Brush("#DCE4EF") : null,
+                BorderBrush = bordered ? Brush("#D9E3E3") : null,
                 BorderThickness = bordered ? new Thickness(1) : new Thickness(0),
                 CornerRadius = new CornerRadius(bordered ? 7 : 6),
                 Padding = new Thickness(12),
