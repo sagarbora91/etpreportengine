@@ -4079,10 +4079,64 @@
     "ast_hash": "63b2c4fcf776fec9dbc76e94ea0d70c6",
     "semantic_hash": ""
   },
+  "prototypes/etp-uiux-demo/components/ui/accordion.tsx": {
+    "mtime": 1788003282.1868696,
+    "seen": 1788183206.597525,
+    "ast_hash": "63e4d06b61b7c855a26fccad190014d5",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/alert-dialog.tsx": {
+    "mtime": 1788003282.188864,
+    "seen": 1788183206.5975301,
+    "ast_hash": "3b3224eaf733822c10123279e8b09c76",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/alert.tsx": {
+    "mtime": 1788003282.1908598,
+    "seen": 1788183206.597535,
+    "ast_hash": "5af8490d57a5e5e06e3a710ec496a0b0",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/aspect-ratio.tsx": {
+    "mtime": 1788003282.1918561,
+    "seen": 1788183206.597615,
+    "ast_hash": "057db37e959fa011b8c9e4d59e0f8849",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/attachment.tsx": {
+    "mtime": 1788003282.1948497,
+    "seen": 1788183206.597621,
+    "ast_hash": "6400413918d96ec1d5882ff43ac3e3c4",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/avatar.tsx": {
+    "mtime": 1788003282.1958454,
+    "seen": 1788183206.597626,
+    "ast_hash": "3d513960c5349479dd7d46f03e824d59",
+    "semantic_hash": ""
+  },
   "prototypes/etp-uiux-demo/components/ui/badge.tsx": {
     "mtime": 1788003282.1978412,
     "seen": 1788183206.5976307,
     "ast_hash": "eb6f331ed2a2a709b5582ce828f52996",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/breadcrumb.tsx": {
+    "mtime": 1788003282.1998353,
+    "seen": 1788183206.597636,
+    "ast_hash": "9d7503281fbe033b5b0cecea6ec05619",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/bubble.tsx": {
+    "mtime": 1788003282.2018998,
+    "seen": 1788183206.597641,
+    "ast_hash": "491aafd730405dcb3ed1696aad8a1d40",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/button-group.tsx": {
+    "mtime": 1788003282.2028987,
+    "seen": 1788183206.5976458,
+    "ast_hash": "ee8f9ec1fa7f9e09d4ff1d4e37978e00",
     "semantic_hash": ""
   },
   "prototypes/etp-uiux-demo/components/ui/button.tsx": {
@@ -4091,16 +4145,304 @@
     "ast_hash": "eb6772c5ba7de0d46e51b86279e5d337",
     "semantic_hash": ""
   },
+  "prototypes/etp-uiux-demo/components/ui/calendar.tsx": {
+    "mtime": 1788003282.2072873,
+    "seen": 1788183206.5976548,
+    "ast_hash": "be20297dadd87834c2491862bcf3a728",
+    "semantic_hash": ""
+  },
   "prototypes/etp-uiux-demo/components/ui/card.tsx": {
     "mtime": 1788003282.2082858,
     "seen": 1788183206.5976593,
     "ast_hash": "5087bbd694359b30b6ae56c3d0da549e",
     "semantic_hash": ""
   },
+  "prototypes/etp-uiux-demo/components/ui/carousel.tsx": {
+    "mtime": 1788003282.2102797,
+    "seen": 1788183206.5976636,
+    "ast_hash": "c4bc72cff5826025a8afd18fff8f8abe",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/chart.tsx": {
+    "mtime": 1788003282.21371,
+    "seen": 1788183206.5976691,
+    "ast_hash": "9c477cb1bb68e2f9cb28e77a8bc763e1",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/checkbox.tsx": {
+    "mtime": 1788003282.2151814,
+    "seen": 1788183206.5976741,
+    "ast_hash": "384bd4071b84f20b9f7b0b9b6c5f9901",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/collapsible.tsx": {
+    "mtime": 1788003282.2165635,
+    "seen": 1788183206.5976791,
+    "ast_hash": "38ce68a8a370ff42c24fffcca4ceaef0",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/combobox.tsx": {
+    "mtime": 1788003282.2180295,
+    "seen": 1788183206.5976837,
+    "ast_hash": "6797bd8d4b1561a10b609bf60f6815f5",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/command.tsx": {
+    "mtime": 1788003282.2198532,
+    "seen": 1788183206.5976887,
+    "ast_hash": "4e29be274490c27e57b245b7f9d2bfb5",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/context-menu.tsx": {
+    "mtime": 1788003282.2212348,
+    "seen": 1788183206.5976932,
+    "ast_hash": "33b02886dd2dad76c59098a639517543",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/dialog.tsx": {
+    "mtime": 1788003282.2228038,
+    "seen": 1788183206.5976982,
+    "ast_hash": "f5a87382fd3a736d0f931e00ec815d00",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/direction.tsx": {
+    "mtime": 1788003282.223804,
+    "seen": 1788183206.5977027,
+    "ast_hash": "1b20c99ed5095d31846e10951fa653f9",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/drawer.tsx": {
+    "mtime": 1788003282.2256863,
+    "seen": 1788183206.5977073,
+    "ast_hash": "00f9396d555c02a2b21eca729da54f51",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/dropdown-menu.tsx": {
+    "mtime": 1788003282.227404,
+    "seen": 1788183206.5977116,
+    "ast_hash": "cba25c54008b110918268ca317c371e6",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/empty.tsx": {
+    "mtime": 1788003282.2287593,
+    "seen": 1788183206.5977168,
+    "ast_hash": "9abf3443f9fb2e24ea6c7b9be75ae623",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/field.tsx": {
+    "mtime": 1788003282.2303414,
+    "seen": 1788183206.5977213,
+    "ast_hash": "fda23cd2f7a23e1d2e37be3fa6b07da5",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/hover-card.tsx": {
+    "mtime": 1788003282.2317832,
+    "seen": 1788183206.5977259,
+    "ast_hash": "15106476e054ee5bceb1bc8ed1b5af7b",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/input-group.tsx": {
+    "mtime": 1788003282.2331536,
+    "seen": 1788183206.5977306,
+    "ast_hash": "c3ae5bffb1717a17da373980162d21d0",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/input-otp.tsx": {
+    "mtime": 1788003282.2341533,
+    "seen": 1788183206.597735,
+    "ast_hash": "15c7cbe94d5155553b3498add461970e",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/input.tsx": {
+    "mtime": 1788003282.2363832,
+    "seen": 1788183206.5977397,
+    "ast_hash": "fd281c19a2b35361d7d3a52ca69b695b",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/item.tsx": {
+    "mtime": 1788003282.237755,
+    "seen": 1788183206.5977447,
+    "ast_hash": "58d8788252a05d98c10c001190b89f2d",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/kbd.tsx": {
+    "mtime": 1788003282.2394593,
+    "seen": 1788183206.5977492,
+    "ast_hash": "0a46c8758fcb12523cb908776c36d145",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/label.tsx": {
+    "mtime": 1788003282.2404592,
+    "seen": 1788183206.5977538,
+    "ast_hash": "0994773dbdc494ca28a6b37c31b0ca9b",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/marker.tsx": {
+    "mtime": 1788003282.243248,
+    "seen": 1788183206.597759,
+    "ast_hash": "af69f41dca3ac4182469a05ca6d6cb7c",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/menubar.tsx": {
+    "mtime": 1788003282.2446938,
+    "seen": 1788183206.5977638,
+    "ast_hash": "e655bd4790cb9ce206b2dfc52b2004d2",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/message-scroller.tsx": {
+    "mtime": 1788003282.2461543,
+    "seen": 1788183206.5977688,
+    "ast_hash": "21588212a5b31a727665860374bcb4fd",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/message.tsx": {
+    "mtime": 1788003282.2475517,
+    "seen": 1788183206.597773,
+    "ast_hash": "7f996e16a66128da98279cd9387342bb",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/native-select.tsx": {
+    "mtime": 1788003282.2491615,
+    "seen": 1788183206.5977778,
+    "ast_hash": "cf4a3ed6eafb71091ce8092e8cb58b40",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/navigation-menu.tsx": {
+    "mtime": 1788003282.2501624,
+    "seen": 1788183206.5977829,
+    "ast_hash": "0c2db264824a4bb748c9e4d1be672f31",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/pagination.tsx": {
+    "mtime": 1788003282.253453,
+    "seen": 1788183206.5977874,
+    "ast_hash": "4713d0244eab97113ce1c43abd819fea",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/popover.tsx": {
+    "mtime": 1788003282.2547996,
+    "seen": 1788183206.5977921,
+    "ast_hash": "375dcf676a9bde6298cc098282b4b8f6",
+    "semantic_hash": ""
+  },
   "prototypes/etp-uiux-demo/components/ui/progress.tsx": {
     "mtime": 1788003282.256143,
     "seen": 1788183206.5977972,
     "ast_hash": "2df81e3425d13d02e423b4c988630fbf",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/radio-group.tsx": {
+    "mtime": 1788003282.2574663,
+    "seen": 1788183206.5978014,
+    "ast_hash": "df955d774ecf644ff49c2ce69984007c",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/resizable.tsx": {
+    "mtime": 1788003282.2590187,
+    "seen": 1788183206.597806,
+    "ast_hash": "0048564b776317ebf96a4eb09648eb76",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/scroll-area.tsx": {
+    "mtime": 1788003282.2603693,
+    "seen": 1788183206.5978107,
+    "ast_hash": "b8463fa7eb09b1396e88abe44e1bac2c",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/select.tsx": {
+    "mtime": 1788003282.2619605,
+    "seen": 1788183206.5978158,
+    "ast_hash": "495e7c817a87dc82df7fdb644abf9bd5",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/separator.tsx": {
+    "mtime": 1788003282.2629604,
+    "seen": 1788183206.5978205,
+    "ast_hash": "d483e29807cf12d04ed304fb3ee1b8b7",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/sheet.tsx": {
+    "mtime": 1788003282.2645721,
+    "seen": 1788183206.5978258,
+    "ast_hash": "de33d2f0a57efdad3679b60d906ef2e0",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/sidebar.tsx": {
+    "mtime": 1788003282.266569,
+    "seen": 1788183206.597831,
+    "ast_hash": "e8caf6ecb08f47f172f373fbf7d369b7",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/skeleton.tsx": {
+    "mtime": 1788003282.2680118,
+    "seen": 1788183206.5978355,
+    "ast_hash": "c4cbf5ca0b6c2d859b86434239dd5279",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/slider.tsx": {
+    "mtime": 1788003282.269969,
+    "seen": 1788183206.5978403,
+    "ast_hash": "cf4231d1b50e947932fda4209fa2f9ca",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/spinner.tsx": {
+    "mtime": 1788003282.2710767,
+    "seen": 1788183206.5978456,
+    "ast_hash": "c909dbd5f76a597663f597b884c1c0da",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/switch.tsx": {
+    "mtime": 1788003282.273301,
+    "seen": 1788183206.5978506,
+    "ast_hash": "ec8b36503a541e2f761b71536e277bc0",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/table.tsx": {
+    "mtime": 1788003282.2743306,
+    "seen": 1788183206.5978553,
+    "ast_hash": "daf7b759405ba9715b9f81e7a562b7eb",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/tabs.tsx": {
+    "mtime": 1788003282.2762947,
+    "seen": 1788183206.59786,
+    "ast_hash": "bfaa40535628ee9e2124bb1872a14743",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/textarea.tsx": {
+    "mtime": 1788003282.2772923,
+    "seen": 1788183206.5978646,
+    "ast_hash": "caa10b28d2248b344eb5e6fa36030b70",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/toast.tsx": {
+    "mtime": 1788003282.2793174,
+    "seen": 1788183206.5978687,
+    "ast_hash": "a7deead781e31dc5d2817d65088bcf6a",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/toggle-group.tsx": {
+    "mtime": 1788003282.281283,
+    "seen": 1788183206.5978737,
+    "ast_hash": "c0e3742ab06b8c2b8d97a82c01e5a97b",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/toggle.tsx": {
+    "mtime": 1788003282.2831328,
+    "seen": 1788183206.5978782,
+    "ast_hash": "f0a84bdae8c330e4da4c342e9c670d81",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/components/ui/tooltip.tsx": {
+    "mtime": 1788003282.2849767,
+    "seen": 1788183206.597883,
+    "ast_hash": "76ebd6b1471bbd7a7f26aa5fe4ecd093",
+    "semantic_hash": ""
+  },
+  "prototypes/etp-uiux-demo/hooks/use-mobile.ts": {
+    "mtime": 1788003282.1829011,
+    "seen": 1788183206.5978873,
+    "ast_hash": "7c1419f33159acd8124bb39a125961f6",
     "semantic_hash": ""
   },
   "prototypes/etp-uiux-demo/lib/function-coverage.json": {
@@ -4128,9 +4470,9 @@
     "semantic_hash": ""
   },
   "prototypes/etp-uiux-demo/package.json": {
-    "mtime": 1788183466.2970695,
-    "seen": 1788183570.8904421,
-    "ast_hash": "5c21aef13acdf6c0252c87b8c0fa5c01",
+    "mtime": 1788182829.5456693,
+    "seen": 1788183206.59791,
+    "ast_hash": "4cd5ab96afb7d491c38bcb785dab6880",
     "semantic_hash": ""
   },
   "prototypes/etp-uiux-demo/tsconfig.json": {
