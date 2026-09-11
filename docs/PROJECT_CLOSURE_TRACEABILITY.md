@@ -1,18 +1,18 @@
 # ETP Reporting Engine — Project Closure Traceability
 
-Status date: 29 August 2026
+Status date: 11 September 2026 (artifact/handoff correction; requirement classifications remain historical)
 Authority: current .NET 10/WPF product only
 Owner: closure sprint Lead Integrator
 
-Current source metadata declares version 1.8.5 in the uncommitted integration working tree. No 1.8.5 application, installer, offline package, SBOM, provenance, signature, tag or release has been produced. The previously recorded 1.8.4 engineering payloads remain preserved under their historical hashes but are **rejected and were never promoted**: shipped audit events were incompatible with the database audit constraint, sharing-contact mutation/audit lacked one explicit transaction, and the committed SBOM identifies a different source state/application hash than the candidate provenance. The old 516-test/build record remains historical evidence for commit `8c8d57e`; it does not verify the current source or make 1.8.4 promotable.
+The 1.8.5 Windows executable containing the UI revamp was built on 31 August from committed application source `55b3954d70b2bab19fca16937ac430fd11412944`. Its SHA-256, rechecked on 11 September, is `281FDED6D2642C146716C0BF10A8648FBA7AA2BF56C27E2B539471AA37267DF6`. The build recorded 601 passing tests and zero build warnings/errors. That delivery did not build a corresponding new installer or establish complete release acceptance. See the [session handoff](audit/ETP-SESSION-HANDOFF-2026-09-11.md) and [planned four-phase review](audit/ETP-FOUR-PHASE-REVIEW-PLAN-2026-09-11.md). The previously recorded 1.8.4 engineering payloads remain **rejected and were never promoted** because of the audit-contract defect, non-transactional sharing-contact mutation/audit, and inconsistent SBOM/candidate identity. Their historical evidence does not make them promotable.
 
 ## Current verification boundary
 
-- `VERIFIED` rows below retain unaffected 28–29 August evidence. Rows affected by the 1.8.5 audit, import, diagnostics, I/O/export or upgrade-safety changes are reset to `IMPLEMENTED_NOT_VERIFIED` until a clean combined run and independent review are tied to the eventual commit.
+- Requirement classifications below retain the 28–29 August baseline. The subsequent 601-test run and UI renders are recorded in the handoff, but do not independently satisfy every row. Reconcile affected rows with fresh evidence during the four-phase review; no row is promoted by this documentation correction.
 - `EXTERNAL_VALIDATION_BLOCKED` rows have source implementation and automated preparation, but their acceptance criteria explicitly require a clean/target PC, live operational exercise, Microsoft Excel/printer/touch/accessibility hardware, or human UAT.
 - Owner-, source- and licensing-dependent rows remain blocked/deferred exactly as recorded in `docs/PENDING_INPUT_AND_DEFERMENT_REGISTER.md`.
 - `HELP-002` is `VERIFIED`: every live module topic now provides numbered, route-backed guidance and focused tests reject placeholders, missing owned destinations and orphaned workspace links.
-- `REL-008` has no eligible candidate: 1.8.4 is rejected and 1.8.5 artifacts do not exist. `REL-011` remains pending explicit publication authorization after all preceding gates.
+- `REL-008` remains unverified: a hash-identified 1.8.5 executable exists, but matching installer, SBOM, acceptance and no-rebuild promotion evidence for this UI candidate have not been established. `REL-011` remains pending explicit publication authorization after all preceding gates.
 
 ## Purpose
 
@@ -90,7 +90,7 @@ Legacy evidence cannot prove a WPF requirement. In particular, Node test results
 | `ARCH-006` | No SQL/repository construction in Views or ViewModels (`SRC-MOD`) | Architecture test and source scan | `VERIFIED` | Guardrails reject SQL dependencies in module views and direct MainWindow SQL/repository construction; the current inventory is zero. |
 | `ARCH-007` | No report formulas or workbook parsing in Desktop (`SRC-CORE`, `SRC-MOD`) | Architecture/source tests | `IMPLEMENTED_NOT_VERIFIED` | Workbook materialization remains in Import and report rendering remains in Reporting/export services; current combined guardrails are pending. |
 | `ARCH-008` | Preserve startup modes during refactor (`SRC-MOD`) | Normal, database-initialize and automation-once tests | `IMPLEMENTED_NOT_VERIFIED` | Startup modes remain and now emit structured privacy-safe diagnostics; current combined startup/diagnostic verification is pending. |
-| `ARCH-009` | Architecture guardrails prevent regression (`SRC-MOD`) | Automated boundary, construction, route and size/responsibility tests | `IMPLEMENTED_NOT_VERIFIED` | Guardrail tests exist, but a clean combined result for the integrated 1.8.5 source has not yet been recorded. |
+| `ARCH-009` | Architecture guardrails prevent regression (`SRC-MOD`) | Automated boundary, construction, route and size/responsibility tests | `IMPLEMENTED_NOT_VERIFIED` | The 31 August combined suite passed at `55b3954`; inspect relevant guardrail results and independently reconcile this requirement during the new review. |
 | `ARCH-010` | Remove obsolete MainWindow paths after migration (`SRC-MOD`) | Source/Graphify references clean; shell-only final audit | `VERIFIED` | Feature partials were removed; source tests keep the legacy partials absent and the current Graphify index is reconciled. |
 
 ## B. Data, import and canonical storage
@@ -203,10 +203,10 @@ Legacy evidence cannot prove a WPF requirement. In particular, Node test results
 | `REL-002` | SQL Server Express starts automatically and storage capacity warnings are visible (Owner decision) | Reboot/service/capacity tests | `EXTERNAL_VALIDATION_BLOCKED` | Bootstrap configures `MSSQL$SQLEXPRESS` automatic start; backup/dashboard thresholds expose capacity warnings. Reboot and real-volume evidence remain `IN-EXT-001`/`IN-EXT-005`. |
 | `REL-003` | Generic branding and installer icon (follow-up item 11) | Installed Programs, shortcuts and executable inspection | `VERIFIED` | Version 1.8.3 artifact/source inspection and the previously completed install/repair/uninstall lifecycle confirm the generic branding assets. |
 | `REL-004` | Installer, upgrade, repair and uninstall preserve data (`follow-up item 12`) | Clean VM matrix and rollback tests | `EXTERNAL_VALIDATION_BLOCKED` | Existing-database migration source now requires a verified backup receipt and post-migration health gate, stops without automatic reverse/delete, and can hash-check a preserved external file in lifecycle testing. No compiled/live 1.8.5 install, upgrade, failure or uninstall proof exists. |
-| `REL-005` | Automatic versioning and changelog generation (follow-up item 13) | Clean-tag build evidence | `IMPLEMENTED_NOT_VERIFIED` | Source/changelog metadata is 1.8.5. No clean commit/tag build or 1.8.5 artifact has been produced. |
+| `REL-005` | Automatic versioning and changelog generation (follow-up item 13) | Clean-tag build evidence | `IMPLEMENTED_NOT_VERIFIED` | Version 1.8.5 executable was built from committed source `55b3954`, with release metadata and checksum. Clean-tag build acceptance remains unverified. |
 | `REL-006` | End-to-end Windows UI automation (follow-up item 14) | Installed application workflow suite | `EXTERNAL_VALIDATION_BLOCKED` | Headless smoke covers all 13 extracted workspace surfaces, focus, accessible controls and duplicate-parent rejection; it is not installed end-to-end workflow acceptance. |
 | `REL-007` | Code-sign installer/executable to remove Unknown Publisher warning | Signed artifact and Windows trust verification | `EXTERNAL_VALIDATION_BLOCKED` | Requires purchased certificate and final publisher identity. |
-| `REL-008` | Exact tested installer is the released artifact | Hash, manifest, SBOM and no-rebuild promotion | `IMPLEMENTED_NOT_VERIFIED` | 1.8.4 is preserved but rejected/never promoted because of the audit defect and inconsistent SBOM. No 1.8.5 artifact, hash, SBOM, provenance or no-rebuild record exists. |
+| `REL-008` | Exact tested installer is the released artifact | Hash, manifest, SBOM and no-rebuild promotion | `IMPLEMENTED_NOT_VERIFIED` | 1.8.4 remains rejected. The 1.8.5 UI executable has a verified hash and source metadata; matching installer, SBOM, acceptance and no-rebuild promotion evidence remain unverified. |
 | `REL-009` | Owner, Store Manager and Viewer UAT on target PC | Signed role-specific scripts/results | `EXTERNAL_VALIDATION_BLOCKED` | Requires human acceptance. |
 | `REL-010` | Printer, actual Excel and PDF output work on target equipment | Printed/PDF/Excel acceptance record | `EXTERNAL_VALIDATION_BLOCKED` | Requires target printer and Microsoft Excel. |
 | `REL-011` | Publish accepted commits/releases to the configured GitHub repository | Remote commit/tag/release verification | `NOT_STARTED` | Push only after reviewed phase commits or explicit release authorization. |
@@ -235,7 +235,7 @@ Legacy evidence cannot prove a WPF requirement. In particular, Node test results
 
 ## Closure dashboard
 
-This is the closure classification for the uncommitted 1.8.5 integration working tree, not a production-approval statement. The 116 active rows comprise 48 `VERIFIED`, 14 `IMPLEMENTED_NOT_VERIFIED`, 40 `EXTERNAL_VALIDATION_BLOCKED`, 7 `OWNER_INPUT_BLOCKED`, 3 `SOURCE_DATA_BLOCKED`, 3 `OWNER_APPROVED_DEFERRED`, 0 `IN_PROGRESS` and 1 `NOT_STARTED`; the four legacy rows remain excluded. Current combined verification, any eligible artifact/evidence set, external acceptance, Owner decisions, source inputs and deferred licensing remain open.
+These are historical closure classifications retained pending the four-phase review, not a production-approval statement. The 116 active rows comprise 48 `VERIFIED`, 14 `IMPLEMENTED_NOT_VERIFIED`, 40 `EXTERNAL_VALIDATION_BLOCKED`, 7 `OWNER_INPUT_BLOCKED`, 3 `SOURCE_DATA_BLOCKED`, 3 `OWNER_APPROVED_DEFERRED`, 0 `IN_PROGRESS` and 1 `NOT_STARTED`; the four legacy rows remain excluded. A committed-source 1.8.5 executable and subsequent combined-test evidence now exist. Requirement-level reconciliation, complete release evidence, external acceptance, Owner decisions, source inputs and deferred licensing remain open.
 
 | Classification | Meaning for the sprint |
 |---|---|

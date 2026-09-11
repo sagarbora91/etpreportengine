@@ -1,5 +1,7 @@
 # ETP Reporting Engine — Windows application
 
+Current review handoff: [11 September session state and resume prompt](docs/audit/ETP-SESSION-HANDOFF-2026-09-11.md), with the [four-phase software and UI review plan](docs/audit/ETP-FOUR-PHASE-REVIEW-PLAN-2026-09-11.md). The new review is planned; its execution and fixes have not started.
+
 The new SQL Server-backed Windows reporting application is documented in
 [`docs/14_WINDOWS_QUICK_START.md`](docs/14_WINDOWS_QUICK_START.md). Its .NET solution is
 `Etp.Reporting.slnx`; run `scripts/build-windows-release.ps1` to build, test and publish it.
