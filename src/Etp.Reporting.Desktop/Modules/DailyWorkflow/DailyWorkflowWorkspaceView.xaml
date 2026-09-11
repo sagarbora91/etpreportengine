@@ -10,7 +10,7 @@
                        Margin="0,6,0,12" Foreground="#5D6873" TextWrapping="Wrap"/>
             <WrapPanel>
                 <TextBlock Text="Business date" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                <DatePicker x:Name="BusinessDateInput" Width="145" SelectedDateChanged="Scope_Changed"
+                <DatePicker x:Name="BusinessDateInput" Width="180" SelectedDateChanged="Scope_Changed"
                             automation:AutomationProperties.Name="Daily workflow business date"/>
                 <TextBlock Text="Store" VerticalAlignment="Center" Margin="14,0,6,0"/>
                 <ComboBox x:Name="StoreInput" Width="160" SelectedIndex="0" SelectionChanged="Scope_Changed"
@@ -75,8 +75,8 @@
             <TextBlock Text="Staff/CRO target" FontWeight="SemiBold" Margin="0,14,0,0"/>
             <WrapPanel Margin="0,6,0,0">
                 <StackPanel Width="132" Margin="0,4,6,4"><TextBlock Text="Staff CRO number" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4"/><TextBox x:Name="StaffTargetCroInput" Width="120" Padding="6" ToolTip="CRO number" automation:AutomationProperties.Name="Staff CRO number"/></StackPanel>
-                <DatePicker x:Name="StaffTargetFromInput" Width="140" Margin="6,0,0,0" automation:AutomationProperties.Name="Staff target start date"/>
-                <DatePicker x:Name="StaffTargetToInput" Width="140" Margin="6,0,0,0" automation:AutomationProperties.Name="Staff target end date"/>
+                <DatePicker x:Name="StaffTargetFromInput" Width="180" Margin="6,0,0,0" automation:AutomationProperties.Name="Staff target start date"/>
+                <DatePicker x:Name="StaffTargetToInput" Width="180" Margin="6,0,0,0" automation:AutomationProperties.Name="Staff target end date"/>
                 <StackPanel Width="122" Margin="0,4,6,4"><TextBlock Text="Staff target sales" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4"/><TextBox x:Name="StaffTargetValueInput" Width="110" Padding="6" Margin="6,0,0,0" ToolTip="Target sales" automation:AutomationProperties.Name="Staff target sales"/></StackPanel>
                 <StackPanel Width="222" Margin="0,4,6,4"><TextBlock Text="Staff target change reason" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4"/><TextBox x:Name="StaffTargetReasonInput" Width="210" Padding="6" Margin="6,0,0,0" ToolTip="Required change reason" automation:AutomationProperties.Name="Staff target change reason"/></StackPanel>
                 <Button x:Name="SaveStaffTargetButton" Content="Save target" Click="SaveStaffTarget_Click" Style="{DynamicResource PrimaryButton}" Padding="12,7" Margin="6,0,0,0"

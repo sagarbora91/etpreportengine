@@ -39,3 +39,8 @@ Before behavior above is directly established from baseline source control flow.
 Run Desktop tests with filter `FullyQualifiedName~DailyWorkflowWorkspaceViewTests|FullyQualifiedName~ReportsRequestOrderingTests|FullyQualifiedName~SettingsWorkspaceViewTests`, then the integrated suite and function audit. Capture after Manual Entry at target sizes and inspect labels, field alignment and scrolling. Recheck report navigation/filter changes while loading and Settings connection edits against isolated resources. Root should perform the single coordinated `graphify update .` after integration.
 
 No financial formula, SQL migration, approved rule, role definition or deferred licensing feature was changed by this UI work.
+
+## Render follow-up
+
+UI-007 (Medium): root's verified 960x600 Manual Entry render showed the business date truncated to 9/10/202. Inspected verification/review-2026-09-11/verified/ui/all-workspace-routes/destination-manual-entry-960x600.png. Increased Daily Workflow business-date and neighbouring staff-target date controls from 140–145 to 180 DIPs, preserving wrap-panel layout. Root owns after-render verification; no build was run by this agent.
+
