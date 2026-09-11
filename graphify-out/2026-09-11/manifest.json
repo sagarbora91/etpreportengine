@@ -3528,9 +3528,9 @@
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Modules/DailyWorkflow/DailyWorkflowWorkspaceView.xaml": {
-    "mtime": 1789135194.3652592,
-    "seen": 1789135294.0038877,
-    "ast_hash": "82bc760cf23b7406c00cc938f4bec7cc",
+    "mtime": 1789134714.3570673,
+    "seen": 1789135170.8557453,
+    "ast_hash": "ce834cc9a4d235f02a6be57b7966afb8",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Modules/DailyWorkflow/DailyWorkflowWorkspaceView.xaml.cs": {
@@ -4530,9 +4530,9 @@
     "semantic_hash": ""
   },
   "docs/audit/ETP-2026-09-11-ACCEPTANCE.md": {
-    "mtime": 1789135236.1130447,
-    "seen": 1789135294.0047565,
-    "ast_hash": "3e35f5e73fae6fa35c16a272ca589d48",
+    "mtime": 1789134902.7268507,
+    "seen": 1789135170.8566713,
+    "ast_hash": "63a9831b8685b58bccbe7abdf0e96801",
     "semantic_hash": ""
   },
   "docs/audit/ETP-2026-09-11-LOGIC-AUDIT.md": {
@@ -4542,9 +4542,9 @@
     "semantic_hash": ""
   },
   "docs/audit/ETP-2026-09-11-UI-AUDIT.md": {
-    "mtime": 1789135194.712601,
-    "seen": 1789135294.0047598,
-    "ast_hash": "d00202077a0409e5986b70c4b040faef",
+    "mtime": 1789135020.5360184,
+    "seen": 1789135170.856674,
+    "ast_hash": "959196536c83f697937d8a88d517f033",
     "semantic_hash": ""
   },
   "docs/audit/ETP-FOUR-PHASE-REVIEW-PLAN-2026-09-11.md": {
