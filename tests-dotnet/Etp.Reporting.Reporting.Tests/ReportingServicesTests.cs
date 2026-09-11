@@ -82,6 +82,44 @@ public sealed class ReportingServicesTests
     }
 
     [Fact]
+    public void Empty_invoice_and_tender_evidence_cannot_pass_control()
+    {
+        var result = new InvoiceTenderReconciliationService().Reconcile([], [], new("approved-v1", 0m));
+
+        Assert.Equal(ReconciliationStatus.Blocked, result.Status);
+        Assert.Empty(result.Documents);
+    }
+
+    [Fact]
+    public void Explicit_zero_invoice_and_tender_evidence_passes_control()
+    {
+        var result = new InvoiceTenderReconciliationService().Reconcile(
+            [new("S1", "ZERO", 0m)], [new("S1", "ZERO", "CASH", 0m, true)], new("approved-v1", 0m));
+
+        Assert.Equal(ReconciliationStatus.Passed, result.Status);
+        Assert.Single(result.Documents);
+    }
+
+    [Fact]
+    public void Empty_stock_position_evidence_cannot_pass_control()
+    {
+        var result = new StockReconciliationService().Reconcile([], [], new("approved-v1", 0m));
+
+        Assert.Equal(ReconciliationStatus.Blocked, result.Status);
+        Assert.Empty(result.Items);
+    }
+
+    [Fact]
+    public void Explicit_stock_position_with_no_movements_can_pass_control()
+    {
+        var result = new StockReconciliationService().Reconcile(
+            [new("S1", "ITEM-1", 10m, 10m)], [], new("approved-v1", 0m));
+
+        Assert.Equal(ReconciliationStatus.Passed, result.Status);
+        Assert.Equal(10m, Assert.Single(result.Items).ExpectedClosing);
+    }
+
+    [Fact]
     public void Stock_control_adds_source_signed_movements()
     {
         var result = new StockReconciliationService().Reconcile(

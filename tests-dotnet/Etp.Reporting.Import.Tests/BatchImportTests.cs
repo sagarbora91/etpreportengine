@@ -105,6 +105,21 @@ public sealed class BatchImportTests : IDisposable
     }
 
     [Fact]
+    public async Task CoordinatorDoesNotStartRetryAfterCancellationDuringTransientFailure()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var processor = new CancelThenFailProcessor(cancellation);
+        var coordinator = new BatchImportCoordinator(processor, maximumAttempts: 2);
+
+        var result = await coordinator.RunAsync(["one.xlsx", "two.xlsx"], cancellationToken: cancellation.Token);
+
+        Assert.Equal(1, processor.Calls);
+        Assert.Equal(2, result.Cancelled);
+        Assert.Equal(1, result.Files[0].Attempts);
+        Assert.Equal(0, result.Files[1].Attempts);
+    }
+
+    [Fact]
     public void SourceValidationRejectsUnsupportedExtension()
     {
         var path = Path.Combine(_root, "legacy.xls");
@@ -149,5 +164,17 @@ public sealed class BatchImportTests : IDisposable
             Task.FromResult(workbookPath.Contains("renamed", StringComparison.Ordinal)
                 ? new WorkbookImportOutcome(0, 0, 0, 0, true)
                 : new WorkbookImportOutcome(120, 70, 45, 5));
+    }
+
+    private sealed class CancelThenFailProcessor(CancellationTokenSource cancellation) : IWorkbookImportProcessor
+    {
+        public int Calls { get; private set; }
+
+        public Task ProcessAsync(string workbookPath, CancellationToken cancellationToken)
+        {
+            Calls++;
+            cancellation.Cancel();
+            throw new IOException("Transient failure concurrent with cancellation.");
+        }
     }
 }

@@ -35,6 +35,9 @@ public sealed class InvoiceTenderReconciliationService
         rule.Validate();
         var invoices = invoiceValues.ToArray();
         var tenders = tenderValues.ToArray();
+        if (invoices.Length == 0 && tenders.Length == 0)
+            return new(ReconciliationStatus.Blocked, [], 0, 0, 0, rule.Version,
+                "No invoice or tender evidence is available for reconciliation.");
         if (invoices.Any(x => Missing(x.StoreCode) || Missing(x.DocumentNumber)) ||
             tenders.Any(x => Missing(x.StoreCode) || Missing(x.DocumentNumber) || Missing(x.TenderType) || !x.IsRecognizedType))
             return new(ReconciliationStatus.Blocked, [], 0, 0, 0, rule.Version,

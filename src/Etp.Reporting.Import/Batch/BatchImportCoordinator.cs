@@ -99,9 +99,10 @@ public sealed class BatchImportCoordinator
             progress?.Report(new(index, workbookPaths.Count, "Importing", safeName));
             while (true)
             {
-                attempts++;
                 try
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    attempts++;
                     var outcome = _processor is IWorkbookImportOutcomeProcessor detailed
                         ? await detailed.ProcessWithOutcomeAsync(workbookPaths[index], cancellationToken).ConfigureAwait(false)
                         : await ProcessWithoutOutcomeAsync(_processor, workbookPaths[index], cancellationToken).ConfigureAwait(false);

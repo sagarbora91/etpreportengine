@@ -31,6 +31,9 @@ public sealed class StockReconciliationService
         rule.Validate();
         var positionRows = positions.ToArray();
         var movementRows = movements.ToArray();
+        if (positionRows.Length == 0)
+            return new(ReconciliationStatus.Blocked, [], rule.Version,
+                "Opening and closing position evidence is required before stock reconciliation.");
         if (positionRows.Any(x => Missing(x.StoreCode) || Missing(x.ItemCode)) ||
             movementRows.Any(x => Missing(x.StoreCode) || Missing(x.ItemCode) || Missing(x.MovementType) || !x.IsRecognizedType))
             return new(ReconciliationStatus.Blocked, [], rule.Version,
