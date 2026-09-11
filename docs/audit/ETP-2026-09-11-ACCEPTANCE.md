@@ -84,5 +84,3 @@ UI smoke recorded 11 baseline views plus 14 workspace routes and 29 report route
 ## Gate decision
 
 Keep **BLOCKED_PENDING_EXTERNAL_ACCEPTANCE** until observed requirements above are satisfied. Unresolved S1 Critical or S2 High defects prohibit release; S3/S4 need disposition. Even zero known unresolved high defects does not make unexecuted workflows pass. Final integrated audit, fixed-issue retests and packaged evidence must be linked by the integrator without upgrading unobserved rows in this ledger.
-
-
