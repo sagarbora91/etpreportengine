@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## [1.8.6] - 2026-09-11
+
+Engineering candidate for the four-phase review; production acceptance remains subject to the recorded workflow, installer and owner gates.
+
+- Block reconciliation success when no source evidence exists.
+- Guard Daily Workflow against stale scope results and overlapping submissions, and clarify input labels.
+- Preserve previous Windows candidates and bind installer packaging to the selected payload version.
+
 ## [1.8.5] - 2026-08-29
 
 > Source-version record only. No 1.8.5 artifact, installer, SBOM, provenance, signature, tag or release has been produced or promoted.

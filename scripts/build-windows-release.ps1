@@ -18,7 +18,12 @@ function Assert-NativeSuccess {
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $solution = Join-Path $repoRoot "Etp.Reporting.slnx"
 $desktopProject = Join-Path $repoRoot "src/Etp.Reporting.Desktop/Etp.Reporting.Desktop.csproj"
-$output = [System.IO.Path]::GetFullPath((Join-Path $repoRoot $OutputDirectory))
+$output = [System.IO.Path]::GetFullPath($(if ([IO.Path]::IsPathRooted($OutputDirectory)) { $OutputDirectory } else { Join-Path $repoRoot $OutputDirectory }))
+if (Test-Path -LiteralPath $output) {
+    throw "Release output already exists. Choose a new OutputDirectory to preserve previous candidates: $output"
+}
+$sourceCommit = (git -C $repoRoot rev-parse HEAD).Trim()
+Assert-NativeSuccess "Source commit lookup"
 if ([string]::IsNullOrWhiteSpace($Version)) {
     [xml]$buildProps = Get-Content -LiteralPath (Join-Path $repoRoot "Directory.Build.props")
     $Version = $buildProps.SelectSingleNode('/Project/PropertyGroup/VersionPrefix').InnerText
@@ -31,9 +36,6 @@ dotnet build $solution -c $Configuration --no-restore -p:Version=$Version
 Assert-NativeSuccess "Release build"
 dotnet test $solution -c $Configuration --no-build
 Assert-NativeSuccess "Release test suite"
-if (Test-Path -LiteralPath $output) {
-    Remove-Item -LiteralPath $output -Recurse -Force
-}
 dotnet publish $desktopProject -c $Configuration -r $Runtime --self-contained true `
     -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:Version=$Version -o $output
 Assert-NativeSuccess "Self-contained desktop publish"
@@ -53,6 +55,7 @@ $hash = Get-FileHash -LiteralPath $executable -Algorithm SHA256
     version = $Version
     runtime = $Runtime
     builtUtc = [DateTime]::UtcNow.ToString("o")
-    commit = (git -C $repoRoot rev-parse --short=12 HEAD 2>$null)
+    commit = $sourceCommit
+    sourceTreeClean = (@(git -C $repoRoot status --porcelain --untracked-files=all).Count -eq 0)
 } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $output "release.json") -Encoding utf8
 Write-Host "Windows release created at $output"

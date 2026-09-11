@@ -57,6 +57,8 @@ internal static class Program
             if (Invoke(window, "NavigateToDestination", destination) is not true)
                 throw new InvalidOperationException($"Executable workspace route was denied during owner audit: {destination}.");
             Render(window, Path.Combine(routeOutput, $"destination-{Slug(destination)}.png"), 1366, 768);
+            Render(window, Path.Combine(routeOutput, $"destination-{Slug(destination)}-960x600.png"), 960, 600);
+            Render(window, Path.Combine(routeOutput, $"destination-{Slug(destination)}-1920x1080.png"), 1920, 1080);
             renderedDestinations++;
         }
 
@@ -66,12 +68,14 @@ internal static class Program
             if (Invoke(window, "ShowFocusedReportWorkspace", report.Code) is not true)
                 throw new InvalidOperationException($"Executable report route was denied during owner audit: {report.Code}.");
             Render(window, Path.Combine(routeOutput, $"report-{Slug(report.Code)}.png"), 1366, 768);
+            Render(window, Path.Combine(routeOutput, $"report-{Slug(report.Code)}-960x600.png"), 960, 600);
+            Render(window, Path.Combine(routeOutput, $"report-{Slug(report.Code)}-1920x1080.png"), 1920, 1080);
             renderedReports++;
         }
         if (renderedReports != WorkspaceModuleOwnershipRegistry.ReportRoutes.Count)
             throw new InvalidOperationException("Rendered report-route count does not match the executable registry.");
         var named = Descendants((DependencyObject)window.Content).OfType<FrameworkElement>().Count(x => !string.IsNullOrWhiteSpace(AutomationProperties.GetName(x)));
-        Console.WriteLine($"Rendered 11 baseline views, {renderedDestinations} workspace routes and {renderedReports} report routes. Accessible named elements: {named:N0}. Output: {output}");
+        Console.WriteLine($"Rendered 11 baseline views, {renderedDestinations} workspace routes and {renderedReports} report routes at three sizes (960x600, 1366x768, 1920x1080), 96-DPI offscreen renders only. Accessible named elements: {named:N0}. Output: {output}");
     }
 
     static void SetAccess(MainWindow window, AccessRole role, string displayName)

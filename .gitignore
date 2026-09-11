@@ -16,6 +16,7 @@ graphify-out/cost.json
 
 # Reproducible function-audit output (workbooks, screenshots, logs and local SQL evidence).
 verification/function-audit/current/
+verification/review-2026-09-11/
 
 # Licensing secrets and machine/owner-specific activation artifacts.
 secrets/
