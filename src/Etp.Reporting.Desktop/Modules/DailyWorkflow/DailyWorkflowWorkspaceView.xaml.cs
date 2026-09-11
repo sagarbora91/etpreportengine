@@ -43,6 +43,8 @@ public partial class DailyWorkflowWorkspaceView : UserControl
     private DailyPackBinding? currentPackBinding;
     private bool stateAllowsFinalise;
     private bool packExportInProgress;
+    private bool operationInProgress;
+    private int refreshRevision;
 
     public DailyWorkflowWorkspaceView(
         DailyWorkflowPresentationSession presentation,
@@ -128,10 +130,12 @@ public partial class DailyWorkflowWorkspaceView : UserControl
         GenerateCombinedPackButton.IsEnabled = current.CanView;
         ExportPackExcelButton.IsEnabled = current.CanView && currentPack is not null && !packExportInProgress;
         ExportPackPdfButton.IsEnabled = current.CanView && currentPack is not null && !packExportInProgress;
+        if (Content is UIElement content) content.IsEnabled = !operationInProgress;
     }
 
     public async Task RefreshAsync()
     {
+        var revision = ++refreshRevision;
         try
         {
             RequireViewAccess();
@@ -141,10 +145,12 @@ public partial class DailyWorkflowWorkspaceView : UserControl
             var stateTask = query.LoadAsync(scope);
             var stockTask = query.LoadStockCountsAsync(scope);
             await Task.WhenAll(stateTask, stockTask);
+            if (revision != refreshRevision) return;
             Apply(presentation.Show(await stateTask, await stockTask));
         }
         catch (Exception exception)
         {
+            if (revision != refreshRevision) return;
             DesktopDiagnostics.Record(exception, "DailyWorkflow.Workspace", "DAILY_WORKFLOW_LOAD_FAILED");
             Apply(presentation.ShowUnavailable(DesktopFriendlyError.Describe(
                 exception,
@@ -154,6 +160,7 @@ public partial class DailyWorkflowWorkspaceView : UserControl
 
     public async Task SaveManualInputAsync()
     {
+        if (!BeginOperation()) return;
         try
         {
             RequireImportAccess();
@@ -170,10 +177,12 @@ public partial class DailyWorkflowWorkspaceView : UserControl
             await RelayDashboardRefreshAsync();
         }
         catch (Exception exception) { PublishFailure(exception, "MANUAL_INPUT_SAVE_FAILED", "Manual input was not saved", "Owner or Store Manager permission is required."); }
+        finally { EndOperation(); }
     }
 
     public async Task SaveStockCountAsync()
     {
+        if (!BeginOperation()) return;
         try
         {
             RequireImportAccess();
@@ -191,10 +200,12 @@ public partial class DailyWorkflowWorkspaceView : UserControl
             await RelayDashboardRefreshAsync();
         }
         catch (Exception exception) { PublishFailure(exception, "PHYSICAL_STOCK_SAVE_FAILED", "Physical stock count was not saved", "Owner or Store Manager permission is required."); }
+        finally { EndOperation(); }
     }
 
     public async Task SaveStaffTargetAsync()
     {
+        if (!BeginOperation()) return;
         try
         {
             RequireImportAccess();
@@ -210,10 +221,12 @@ public partial class DailyWorkflowWorkspaceView : UserControl
             Publish("Staff/CRO target saved. Target achievement and ranking are available in the staff report.");
         }
         catch (Exception exception) { PublishFailure(exception, "STAFF_TARGET_SAVE_FAILED", "Staff target was not saved", "Owner or Store Manager permission is required."); }
+        finally { EndOperation(); }
     }
 
     public async Task FinaliseDayAsync()
     {
+        if (!BeginOperation()) return;
         try
         {
             RequireImportAccess();
@@ -229,10 +242,12 @@ public partial class DailyWorkflowWorkspaceView : UserControl
             await RelayDashboardRefreshAsync();
         }
         catch (Exception exception) { PublishFailure(exception, "DAY_FINALISE_FAILED", "Day was not finalised", "Owner or Store Manager permission is required."); }
+        finally { EndOperation(); }
     }
 
     public async Task ReopenDayAsync()
     {
+        if (!BeginOperation()) return;
         try
         {
             RequireOwnerAccess();
@@ -248,10 +263,12 @@ public partial class DailyWorkflowWorkspaceView : UserControl
             await RelayDashboardRefreshAsync();
         }
         catch (Exception exception) { PublishFailure(exception, "DAY_REOPEN_FAILED", "Day was not reopened", "Owner permission is required."); }
+        finally { EndOperation(); }
     }
 
     public async Task GenerateDailyPackAsync()
     {
+        if (!BeginOperation()) return;
         try
         {
             RequireViewAccess();
@@ -262,10 +279,12 @@ public partial class DailyWorkflowWorkspaceView : UserControl
             await recordAuditAsync("ReportPack", pack.Status == DailyControlStatus.Passed ? "Succeeded" : "Failed", "Daily report pack");
         }
         catch (Exception exception) { PublishFailure(exception, "DAILY_PACK_GENERATION_FAILED", "Daily report pack failed", "This Windows account does not have application access."); }
+        finally { EndOperation(); }
     }
 
     public async Task GenerateCombinedDailyPackAsync()
     {
+        if (!BeginOperation()) return;
         try
         {
             RequireViewAccess();
@@ -280,6 +299,23 @@ public partial class DailyWorkflowWorkspaceView : UserControl
                 "Combined daily report pack");
         }
         catch (Exception exception) { PublishFailure(exception, "COMBINED_PACK_GENERATION_FAILED", "Combined daily report pack failed", "This Windows account does not have application access."); }
+        finally { EndOperation(); }
+    }
+
+    private bool BeginOperation()
+    {
+        if (operationInProgress || packExportInProgress) return false;
+        operationInProgress = true;
+        ++refreshRevision;
+        RefreshAccessState();
+        Publish("Working on the selected store and business date. Please wait…");
+        return true;
+    }
+
+    private void EndOperation()
+    {
+        operationInProgress = false;
+        RefreshAccessState();
     }
 
     private void Apply(DailyWorkflowPresentationState state)
@@ -295,7 +331,9 @@ public partial class DailyWorkflowWorkspaceView : UserControl
         SourceStatus.Text = state.SourceStatus;
         InputStatus.Text = state.InputStatus;
         ManualInputsGrid.ItemsSource = state.ManualInputs;
+        var selectedField = ManualFieldInput.SelectedValue;
         ManualFieldInput.ItemsSource = state.ManualInputs;
+        ManualFieldInput.SelectedValue = selectedField;
         if (ManualFieldInput.SelectedIndex < 0 && state.ManualInputs.Count > 0) ManualFieldInput.SelectedIndex = 0;
         StockCountsGrid.ItemsSource = state.StockCounts;
         stateAllowsFinalise = state.CanFinalise;
@@ -385,7 +423,20 @@ public partial class DailyWorkflowWorkspaceView : UserControl
     private async void ReopenDay_Click(object sender, RoutedEventArgs e) => await ReopenDayAsync();
     private async void GenerateDailyPack_Click(object sender, RoutedEventArgs e) => await GenerateDailyPackAsync();
     private async void GenerateCombinedDailyPack_Click(object sender, RoutedEventArgs e) => await GenerateCombinedDailyPackAsync();
-    private void Scope_Changed(object sender, SelectionChangedEventArgs e) => InvalidatePack();
+    private void Scope_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        ++refreshRevision;
+        InvalidatePack();
+        if (!IsInitialized) return;
+        stateAllowsFinalise = false;
+        WorkflowStatus.Text = "Refresh required";
+        WorkflowMessage.Text = "Store or business date changed. Refresh status before reviewing readiness or finalising. Unsaved values are retained; check them for the selected scope before saving.";
+        SourceStatus.Text = string.Empty;
+        InputStatus.Text = string.Empty;
+        ManualInputsGrid.ItemsSource = null;
+        StockCountsGrid.ItemsSource = null;
+        RefreshAccessState();
+    }
 
     private async void ExportDailyPackExcel_Click(object sender, RoutedEventArgs e) => await ExportCurrentPackAsync("Excel");
     private async void ExportDailyPackPdf_Click(object sender, RoutedEventArgs e) => await ExportCurrentPackAsync("PDF");

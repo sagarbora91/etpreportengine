@@ -32,6 +32,7 @@ public partial class SettingsWorkspaceView : UserControl
     private readonly Func<string, AdministrationService> administrationServiceFactory;
     private readonly string migrationDirectory;
     private SettingsWorkspaceAccess access = new(false, false);
+    private int connectionCheckRevision;
 
     public SettingsWorkspaceView(
         DesktopSettingsPresentationSession session,
@@ -47,6 +48,7 @@ public partial class SettingsWorkspaceView : UserControl
         this.migrationDirectory = Path.GetFullPath(migrationDirectory);
 
         InitializeComponent();
+        ConnectionStringInput.TextChanged += (_, _) => ++connectionCheckRevision;
         ProductSettingsPanel.IsEnabled = false;
     }
 
@@ -78,6 +80,7 @@ public partial class SettingsWorkspaceView : UserControl
 
     public async Task CheckConnectionAsync(bool showProgress)
     {
+        var revision = ++connectionCheckRevision;
         if (showProgress) ConnectionResult.Text = "Testing…";
         var candidate = session.ValidateCandidate(ConnectionStringInput.Text);
         if (!candidate.IsValid)
@@ -89,6 +92,7 @@ public partial class SettingsWorkspaceView : UserControl
         try
         {
             var health = await databaseLifecycleServiceFactory(candidate.ConnectionString!).CheckHealthAsync();
+            if (revision != connectionCheckRevision) return;
             var connected = health.Status == DatabaseConnectionStatus.Healthy;
             if (!connected)
                 DesktopDiagnostics.Record(null, "Settings.Workspace", "DATABASE_HEALTH_CHECK_FAILED",
@@ -100,6 +104,7 @@ public partial class SettingsWorkspaceView : UserControl
         }
         catch (Exception exception)
         {
+            if (revision != connectionCheckRevision) return;
             DesktopDiagnostics.Record(exception, "Settings.Workspace", "DATABASE_HEALTH_CHECK_EXCEPTION");
             var message = DesktopFriendlyError.Describe(exception,
                 "Check the SQL Server settings and try again.");
@@ -111,6 +116,7 @@ public partial class SettingsWorkspaceView : UserControl
 
     public async Task BootstrapDatabaseAsync()
     {
+        ++connectionCheckRevision;
         ConnectionResult.Text = "Creating/updating database…";
         try
         {

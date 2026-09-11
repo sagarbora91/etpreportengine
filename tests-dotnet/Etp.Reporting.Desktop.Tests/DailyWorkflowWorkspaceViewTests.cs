@@ -153,6 +153,69 @@ public sealed class DailyWorkflowWorkspaceViewTests
         });
     }
 
+    [Fact]
+    public void Scope_switch_clears_readiness_and_ignores_an_older_pending_refresh()
+    {
+        RunSta(async () =>
+        {
+            var query = new DeferredQuery();
+            var view = CreateView(query, new FakeCommands());
+            var pending = view.RefreshAsync();
+            view.StoreCode = "HEMW";
+            Assert.False(FindButton(view, "Finalise business day").IsEnabled);
+            Assert.Contains("Store or business date changed", view.StatusText);
+            query.Complete("Old store ready");
+            await pending;
+            Assert.DoesNotContain("Old store ready", view.StatusText);
+            Assert.False(FindButton(view, "Finalise business day").IsEnabled);
+        });
+    }
+
+    [Fact]
+    public void Pending_save_prevents_duplicate_commands_and_preserves_draft_on_failure()
+    {
+        RunSta(async () =>
+        {
+            var query = new DeferredQuery();
+            query.Complete("Ready");
+            var completion = new TaskCompletionSource();
+            var commands = new FakeCommands { SaveCompletion = completion.Task };
+            var view = CreateView(query, commands);
+            await view.RefreshAsync();
+            FindTextBox(view, "Manual input value").Text = "9";
+            FindTextBox(view, "Manual input change reason").Text = "Counted today";
+            var pending = view.SaveManualInputAsync();
+            await view.SaveManualInputAsync();
+            Assert.Equal(1, commands.ManualSaveCalls);
+            Assert.False(FindTextBox(view, "Manual input value").IsEnabled);
+            Assert.False(FindButton(view, "Finalise business day").IsEnabled);
+            completion.SetException(new InvalidOperationException("Synthetic save failure"));
+            await pending;
+            Assert.Equal("9", FindTextBox(view, "Manual input value").Text);
+            Assert.Equal("Counted today", FindTextBox(view, "Manual input change reason").Text);
+            Assert.True(FindButton(view, "Save manual input").IsEnabled);
+            Assert.Contains("not saved", view.StatusText);
+        });
+    }
+
+    private static DailyWorkflowWorkspaceView CreateView(IDailyWorkflowQuery query, FakeCommands commands) => new(
+        new DailyWorkflowPresentationSession(), () => "Integrated Security=True", _ => query,
+        _ => commands, _ => new FakePackGenerator(DateOnly.FromDateTime(DateTime.Today.AddDays(-1))),
+        () => new(true, true, true), () => true, (_, _, _) => Task.CompletedTask,
+        (_, _) => Task.CompletedTask, (_, _) => Task.CompletedTask)
+        { StoreCode = "WLMHW", BusinessDate = DateTime.Today.AddDays(-1) };
+
+    private sealed class DeferredQuery : IDailyWorkflowQuery
+    {
+        private readonly TaskCompletionSource<DailyWorkflowState> completion = new();
+        public void Complete(string message) => completion.SetResult(new(
+            "WLMHW", DateOnly.FromDateTime(DateTime.Today.AddDays(-1)), DailyWorkflowStatus.ReadyWithWarnings,
+            ["R025"], [], [new("WALK_INS", "Walk-ins", "NUMBER", null, null, true, null, null)], [], true, message));
+        public Task<DailyWorkflowState> LoadAsync(DailyWorkflowScope scope, CancellationToken cancellationToken = default) => completion.Task;
+        public Task<IReadOnlyList<DailyManualStockCount>> LoadStockCountsAsync(DailyWorkflowScope scope, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<DailyManualStockCount>>([]);
+        public Task<IReadOnlyList<DailyStaffSalesTarget>> LoadStaffTargetsAsync(DailyStaffTargetSearch search, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<DailyStaffSalesTarget>>([]);
+    }
+
     private static Button FindButton(DependencyObject root, string automationName) =>
         Find<Button>(root, automationName);
 
@@ -208,12 +271,14 @@ public sealed class DailyWorkflowWorkspaceViewTests
 
     private sealed class FakeCommands : IDailyWorkflowCommands
     {
+        public Task SaveCompletion { get; init; } = Task.CompletedTask;
+        public int ManualSaveCalls { get; private set; }
         public SaveDailyManualInput? ManualInput { get; private set; }
         public FinaliseDailyWorkflow? Finalise { get; private set; }
         public ReopenDailyWorkflow? Reopen { get; private set; }
 
         public Task SaveManualInputAsync(SaveDailyManualInput command, CancellationToken cancellationToken = default)
-        { ManualInput = command; return Task.CompletedTask; }
+        { ManualSaveCalls++; ManualInput = command; return SaveCompletion; }
 
         public Task SaveStockCountAsync(SaveDailyStockCount command, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task SaveStaffTargetAsync(SaveDailyStaffTarget command, CancellationToken cancellationToken = default) => Task.CompletedTask;

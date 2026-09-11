@@ -44,12 +44,12 @@
             <WrapPanel>
                 <ComboBox x:Name="ManualFieldInput" Width="220" DisplayMemberPath="DisplayName" SelectedValuePath="FieldCode"
                           automation:AutomationProperties.Name="Manual input field"/>
-                <TextBox x:Name="ManualValueInput" Width="150" Padding="6" Margin="8,0,0,0"
+                <StackPanel Width="162" Margin="0,4,6,4"><TextBlock Text="Manual input value" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4"/><TextBox x:Name="ManualValueInput" Width="150" Padding="6" Margin="8,0,0,0"
                          ToolTip="Value; enter zero when the measured result is zero"
-                         automation:AutomationProperties.Name="Manual input value"/>
-                <TextBox x:Name="ManualReasonInput" Width="260" Padding="6" Margin="8,0,0,0"
+                         automation:AutomationProperties.Name="Manual input value"/></StackPanel>
+                <StackPanel Width="272" Margin="0,4,6,4"><TextBlock Text="Manual input change reason" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4"/><TextBox x:Name="ManualReasonInput" Width="260" Padding="6" Margin="8,0,0,0"
                          ToolTip="Required reason, for example Daily store count"
-                         automation:AutomationProperties.Name="Manual input change reason"/>
+                         automation:AutomationProperties.Name="Manual input change reason"/></StackPanel>
                 <Button x:Name="SaveManualInputButton" Content="Save input" Click="SaveManualInput_Click" Style="{DynamicResource PrimaryButton}" Padding="14,7" Margin="8,0,0,0"
                         automation:AutomationProperties.Name="Save manual input"/>
             </WrapPanel>
@@ -60,25 +60,25 @@
             <DataGrid x:Name="StockCountsGrid" AutoGenerateColumns="True" IsReadOnly="True" MaxHeight="150"
                       automation:AutomationProperties.Name="Physical stock counts by inventory group"/>
             <WrapPanel Margin="0,8,0,0">
-                <TextBox x:Name="StockGroupInput" Width="130" Padding="6" ToolTip="Inventory group, CLUSTER, brand or controlled group code" automation:AutomationProperties.Name="Inventory group code"/>
-                <TextBox x:Name="StockDisplayInput" Width="78" Padding="6" Margin="6,0,0,0" ToolTip="Display quantity" automation:AutomationProperties.Name="Display quantity"/>
-                <TextBox x:Name="StockBackstockInput" Width="78" Padding="6" Margin="6,0,0,0" ToolTip="Backstock quantity" automation:AutomationProperties.Name="Backstock quantity"/>
-                <TextBox x:Name="StockDefectiveInput" Width="78" Padding="6" Margin="6,0,0,0" ToolTip="Defective quantity" automation:AutomationProperties.Name="Defective quantity"/>
-                <TextBox x:Name="StockYLocationInput" Width="78" Padding="6" Margin="6,0,0,0" ToolTip="Y-location quantity" automation:AutomationProperties.Name="Y location quantity"/>
-                <TextBox x:Name="StockPhysicalInput" Width="90" Padding="6" Margin="6,0,0,0" ToolTip="Independently counted physical quantity" automation:AutomationProperties.Name="Counted physical quantity"/>
-                <TextBox x:Name="StockRemarksInput" Width="150" Padding="6" Margin="6,0,0,0" ToolTip="Stock remarks" automation:AutomationProperties.Name="Stock remarks"/>
-                <TextBox x:Name="StockReasonInput" Width="160" Padding="6" Margin="6,0,0,0" ToolTip="Required change reason" automation:AutomationProperties.Name="Stock count change reason"/>
+                <StackPanel Width="142" Margin="0,4,6,4"><TextBlock Text="Inventory group code" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4"/><TextBox x:Name="StockGroupInput" Width="130" Padding="6" ToolTip="Inventory group, CLUSTER, brand or controlled group code" automation:AutomationProperties.Name="Inventory group code"/></StackPanel>
+                <StackPanel Width="90" Margin="0,4,6,4"><TextBlock Text="Display quantity" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4"/><TextBox x:Name="StockDisplayInput" Width="78" Padding="6" Margin="6,0,0,0" ToolTip="Display quantity" automation:AutomationProperties.Name="Display quantity"/></StackPanel>
+                <StackPanel Width="90" Margin="0,4,6,4"><TextBlock Text="Backstock quantity" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4"/><TextBox x:Name="StockBackstockInput" Width="78" Padding="6" Margin="6,0,0,0" ToolTip="Backstock quantity" automation:AutomationProperties.Name="Backstock quantity"/></StackPanel>
+                <StackPanel Width="90" Margin="0,4,6,4"><TextBlock Text="Defective quantity" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4"/><TextBox x:Name="StockDefectiveInput" Width="78" Padding="6" Margin="6,0,0,0" ToolTip="Defective quantity" automation:AutomationProperties.Name="Defective quantity"/></StackPanel>
+                <StackPanel Width="90" Margin="0,4,6,4"><TextBlock Text="Y location quantity" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4"/><TextBox x:Name="StockYLocationInput" Width="78" Padding="6" Margin="6,0,0,0" ToolTip="Y-location quantity" automation:AutomationProperties.Name="Y location quantity"/></StackPanel>
+                <StackPanel Width="102" Margin="0,4,6,4"><TextBlock Text="Counted physical quantity" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4"/><TextBox x:Name="StockPhysicalInput" Width="90" Padding="6" Margin="6,0,0,0" ToolTip="Independently counted physical quantity" automation:AutomationProperties.Name="Counted physical quantity"/></StackPanel>
+                <StackPanel Width="162" Margin="0,4,6,4"><TextBlock Text="Stock remarks" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4"/><TextBox x:Name="StockRemarksInput" Width="150" Padding="6" Margin="6,0,0,0" ToolTip="Stock remarks" automation:AutomationProperties.Name="Stock remarks"/></StackPanel>
+                <StackPanel Width="172" Margin="0,4,6,4"><TextBlock Text="Stock count change reason" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4"/><TextBox x:Name="StockReasonInput" Width="160" Padding="6" Margin="6,0,0,0" ToolTip="Required change reason" automation:AutomationProperties.Name="Stock count change reason"/></StackPanel>
                 <Button x:Name="SaveStockCountButton" Content="Save stock count" Click="SaveStockCount_Click" Style="{DynamicResource PrimaryButton}" Padding="12,7" Margin="6,0,0,0"
                         automation:AutomationProperties.Name="Save physical stock count"/>
             </WrapPanel>
 
             <TextBlock Text="Staff/CRO target" FontWeight="SemiBold" Margin="0,14,0,0"/>
             <WrapPanel Margin="0,6,0,0">
-                <TextBox x:Name="StaffTargetCroInput" Width="120" Padding="6" ToolTip="CRO number" automation:AutomationProperties.Name="Staff CRO number"/>
+                <StackPanel Width="132" Margin="0,4,6,4"><TextBlock Text="Staff CRO number" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4"/><TextBox x:Name="StaffTargetCroInput" Width="120" Padding="6" ToolTip="CRO number" automation:AutomationProperties.Name="Staff CRO number"/></StackPanel>
                 <DatePicker x:Name="StaffTargetFromInput" Width="140" Margin="6,0,0,0" automation:AutomationProperties.Name="Staff target start date"/>
                 <DatePicker x:Name="StaffTargetToInput" Width="140" Margin="6,0,0,0" automation:AutomationProperties.Name="Staff target end date"/>
-                <TextBox x:Name="StaffTargetValueInput" Width="110" Padding="6" Margin="6,0,0,0" ToolTip="Target sales" automation:AutomationProperties.Name="Staff target sales"/>
-                <TextBox x:Name="StaffTargetReasonInput" Width="210" Padding="6" Margin="6,0,0,0" ToolTip="Required change reason" automation:AutomationProperties.Name="Staff target change reason"/>
+                <StackPanel Width="122" Margin="0,4,6,4"><TextBlock Text="Staff target sales" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4"/><TextBox x:Name="StaffTargetValueInput" Width="110" Padding="6" Margin="6,0,0,0" ToolTip="Target sales" automation:AutomationProperties.Name="Staff target sales"/></StackPanel>
+                <StackPanel Width="222" Margin="0,4,6,4"><TextBlock Text="Staff target change reason" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4"/><TextBox x:Name="StaffTargetReasonInput" Width="210" Padding="6" Margin="6,0,0,0" ToolTip="Required change reason" automation:AutomationProperties.Name="Staff target change reason"/></StackPanel>
                 <Button x:Name="SaveStaffTargetButton" Content="Save target" Click="SaveStaffTarget_Click" Style="{DynamicResource PrimaryButton}" Padding="12,7" Margin="6,0,0,0"
                         automation:AutomationProperties.Name="Save staff target"/>
             </WrapPanel>
@@ -86,9 +86,9 @@
             <WrapPanel Margin="0,14,0,0">
                 <Button x:Name="FinaliseDayButton" Content="Finalise day" Click="FinaliseDay_Click" Style="{DynamicResource PrimaryButton}" Padding="16,8" IsEnabled="False"
                         automation:AutomationProperties.Name="Finalise business day"/>
-                <TextBox x:Name="ReopenReasonInput" Width="280" Padding="6" Margin="12,0,0,0"
+                <StackPanel Width="292" Margin="0,4,6,4"><TextBlock Text="Reopen reason" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4"/><TextBox x:Name="ReopenReasonInput" Width="280" Padding="6" Margin="12,0,0,0"
                          ToolTip="Administrator reason required to reopen"
-                         automation:AutomationProperties.Name="Reopen reason"/>
+                         automation:AutomationProperties.Name="Reopen reason"/></StackPanel>
                 <Button x:Name="ReopenDayButton" Content="Reopen day" Click="ReopenDay_Click" Style="{DynamicResource DangerButton}" Padding="16,8" Margin="8,0,0,0"
                         automation:AutomationProperties.Name="Reopen finalised business day"/>
             </WrapPanel>

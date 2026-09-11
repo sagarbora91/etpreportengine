@@ -124,6 +124,44 @@ public sealed class SettingsWorkspaceViewTests
         });
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Older_health_check_cannot_replace_new_connection_or_its_status(bool failOlderCheck)
+    {
+        RunSta(async () =>
+        {
+            var testRoot = Path.Combine(Path.GetTempPath(), "EtpSettingsOrderingTests", Guid.NewGuid().ToString("N"));
+            try
+            {
+                var older = new TaskCompletionSource<DatabaseConnectionHealth>();
+                var lifecycle = new FakeLifecycleService { HealthCompletion = older.Task };
+                var session = new DesktopSettingsPresentationSession(
+                    new DesktopSettingsStore(Path.Combine(testRoot, "settings")), new DesktopConnectionState(ConnectionString));
+                var view = new SettingsWorkspaceView(session, _ => lifecycle,
+                    _ => new FakeAdministrationService(), Path.Combine(testRoot, "migrations"));
+                view.Initialize();
+                var pending = view.CheckConnectionAsync(true);
+                var newConnection = ConnectionString.Replace("EtpReporting", "EtpSyntheticNew");
+                ((TextBox)view.FindName("ConnectionStringInput")).Text = newConnection;
+                lifecycle.HealthCompletion = Task.FromResult(new DatabaseConnectionHealth(DatabaseConnectionStatus.Healthy, "New connection healthy", "16.0"));
+                await view.CheckConnectionAsync(true);
+                var acceptedConnection = session.ConnectionString;
+                Assert.Contains("EtpSyntheticNew", acceptedConnection);
+                if (failOlderCheck) older.SetException(new InvalidOperationException("Old connection failed"));
+                else older.SetResult(new(DatabaseConnectionStatus.Healthy, "Old connection healthy", "16.0"));
+                await pending;
+                Assert.Equal(acceptedConnection, session.ConnectionString);
+                Assert.Equal(acceptedConnection, view.ConnectionStringText);
+                Assert.Equal("New connection healthy", view.StatusText);
+            }
+            finally
+            {
+                if (Directory.Exists(testRoot)) Directory.Delete(testRoot, recursive: true);
+            }
+        });
+    }
+
     private static int Count(string source, string value) =>
         source.Split(value, StringSplitOptions.None).Length - 1;
 
@@ -163,13 +201,14 @@ public sealed class SettingsWorkspaceViewTests
 
     private sealed class FakeLifecycleService : IDatabaseLifecycleService
     {
+        public Task<DatabaseConnectionHealth>? HealthCompletion { get; set; }
         public int HealthChecks { get; private set; }
         public int Bootstraps { get; private set; }
 
         public Task<DatabaseConnectionHealth> CheckHealthAsync(CancellationToken cancellationToken = default)
         {
             HealthChecks++;
-            return Task.FromResult(new DatabaseConnectionHealth(DatabaseConnectionStatus.Healthy, "Healthy", "16.0"));
+            return HealthCompletion ?? Task.FromResult(new DatabaseConnectionHealth(DatabaseConnectionStatus.Healthy, "Healthy", "16.0"));
         }
 
         public Task<DatabaseBootstrapOutcome> BootstrapAsync(BootstrapDatabase command, CancellationToken cancellationToken = default)
