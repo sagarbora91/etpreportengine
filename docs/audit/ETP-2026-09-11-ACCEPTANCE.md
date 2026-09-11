@@ -84,3 +84,7 @@ UI smoke recorded 11 baseline views plus 14 workspace routes and 29 report route
 ## Gate decision
 
 Keep **BLOCKED_PENDING_EXTERNAL_ACCEPTANCE** until observed requirements above are satisfied. Unresolved S1 Critical or S2 High defects prohibit release; S3/S4 need disposition. Even zero known unresolved high defects does not make unexecuted workflows pass. Final integrated audit, fixed-issue retests and packaged evidence must be linked by the integrator without upgrading unobserved rows in this ledger.
+
+## Final packaging follow-up
+
+The release build passed 615 tests after the date-width fix. All 140 renders were refreshed into `verification/review-2026-09-11/after/`; the 960x600 Daily Workflow image was inspected and the full date is readable. The 1.8.6 executable/installer are tied to clean source commit 3752600e4d862379b3f081763bb58d41c31ef66c. Limited packaged startup, dashboard data, Help/back/report navigation and clean exit were observed; full interaction remained restricted by Windows capture/pointer/value API errors. Original user settings were restored and the synthetic database removed. See FINAL-REPORT and package-verification.json for precise evidence. The external acceptance gate remains unchanged.
