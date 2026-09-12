@@ -34,3 +34,18 @@ These observations establish an installation with preinstalled prerequisites, no
 Real Windows role identities, interactive keyboard/Narrator/touch and OS 100/125/150% scaling, Microsoft Excel/printer/email-client integration, representative business-source workbooks and owner sign-off remain unverified. The screen-control helper cannot capture or operate the elevated VM window on this host. Direct PowerShell VM access supports installation and backend tests but does not establish those visual and human workflows. The 85-scenario role UAT register is not blanket-marked passed.
 
 Installer repair/uninstall/reinstall and final installed 1.8.7 evidence will be appended after execution. No production release approval is implied.
+
+## Final 1.8.7 installed results
+
+Candidate built from clean source commit `093b5ef92378a1496d8ac9298dddb31f9e86b602`. The release build passed all 617 tests after synchronizing the changelog version; the initial version-consistency failure is retained in `release-build.log`, and the passing rerun is `release-build-r2.log`.
+
+- Executable SHA-256: `B5C74F5415EF1C6DE91C58424ABF131E3DBAD1399567DA152C300FAE8001264B`.
+- Installer SHA-256: `9D8CBD9E81F7DB3400829A1BBC41D5B9FBE256978EA76BB9878F92B7B9B7F899`.
+- `job-05-installer-lifecycle.ps1.log` and `Lifecycle187/`: upgrade, repair, uninstall, reinstall and the installed recovery drill all passed. Each install verified the executable hash and unchanged original data. Uninstall removed the executable and all three ETP tasks while retaining the original database and SHA-verified backup. Reinstall restored all three tasks. DBCC passed, with 15 applied migrations.
+- `job-06-oracle.ps1.log`: separate full-fixture database independently asserted exactly six sales rows, 4600 net, four signed units, -400 returns and 60 closing-stock units.
+- `job-09-offline-retry.ps1.log`: offline repair passed with the VM network adapter disconnected, using the already-installed SQL/ODBC prerequisites; the host helper restored the original switch in a finally block. The first offline attempt stopped because the remote session could not gracefully close the test-launched app; the retry stopped only a process ID recorded by the prior automated launch. Both attempts' evidence is retained.
+- `job-10-final-state.ps1.log` and `final-state.json`: correct 1.8.7 executable hash; application process present in interactive Windows session 1; SQL running; original database still three sales rows, net 2300, signed units two. Remote process observation is not proof of rendered/interactive UI correctness. No new desktop diagnostic events were observed in the collected log; this does not prove the historical dispatcher defect fixed.
+
+The original application database and verified backups are retained. Separate synthetic acceptance databases are retained in the VM for inspection. Temporary launch tasks were removed. The host-side connection worker was stopped at the end; VM credentials were held in memory only and were not saved. No code was pushed and no production system was installed or changed.
+
+Final disposition: duplicate defect fixed and automated/installed verification passed as scoped above. Do not treat this as completion of the full observed 85-scenario role register, unattended SQL-absent installation, or a production release. The prerequisite download/Go Sqlcmd issues, unreproduced historical dispatcher failure, real role identities, accessibility/scaling/touch, external applications/hardware, representative-source UAT and owner approval remain open.
