@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## [1.8.7] - 2026-09-12
+
+Engineering candidate; observed role, accessibility and external integration acceptance remains open.
+
+- Recognize an already-imported workbook in the single-file desktop flow without attempting another database write.
+- Display an explicit no-change duplicate result and reject identical-file controlled restatements.
+- Add regression coverage for both paths and record VM duplicate, reporting, automation and recovery evidence.
+
 ## [1.8.6] - 2026-09-11
 
 Engineering candidate for the four-phase review; production acceptance remains subject to the recorded workflow, installer and owner gates.
