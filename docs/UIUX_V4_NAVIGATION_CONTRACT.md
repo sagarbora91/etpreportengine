@@ -1,5 +1,7 @@
 # UI/UX v4 navigation contract
 
+> This describes the existing v4 baseline. The [12 September four-phase redesign plan](design/ETP-UI-REDESIGN-FOUR-PHASE-SPRINT-2026-09-12.md) defines the next implementation target, including focused task routes and reduced reliance on the large sidebar. That redesign is not yet implemented; follow its [handoff](audit/ETP-SESSION-HANDOFF-2026-09-12-UI-REDESIGN.md) for execution.
+
 ## Frozen hierarchy
 
 ```text

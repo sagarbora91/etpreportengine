@@ -1,5 +1,7 @@
 # ETP session handoff — 11 September 2026
 
+> Historical checkpoint. For the next UI redesign implementation session, use the [12 September UI redesign handoff](ETP-SESSION-HANDOFF-2026-09-12-UI-REDESIGN.md). The earlier review and installed acceptance progressed after this record; do not restart its old prompt or assume its candidate is current.
+
 ## Resume point
 
 The user requested a software and UI review with fixes, first organised into four phases, then asked for a next-session prompt and repository handoff. The plan is saved in [ETP-FOUR-PHASE-REVIEW-PLAN-2026-09-11.md](ETP-FOUR-PHASE-REVIEW-PLAN-2026-09-11.md). No new audit execution or software fixes were performed during this planning/handoff session.

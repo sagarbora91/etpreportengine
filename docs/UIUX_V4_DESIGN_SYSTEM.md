@@ -1,5 +1,7 @@
 # UI/UX v4 design system
 
+> Existing implementation baseline. The [12 September redesign plan](design/ETP-UI-REDESIGN-FOUR-PHASE-SPRINT-2026-09-12.md) preserves this palette/native-WPF direction and specifies the next shared layout and interaction contract. Planned rules must not be mistaken for already verified implementation.
+
 The visual target follows Windows Fluent principles with restrained Bento-style overview surfaces and enterprise information hierarchy. All production controls remain native WPF.
 
 ## Tokens
