@@ -10,6 +10,36 @@ namespace Etp.Reporting.Desktop.Tests;
 public sealed class DesktopImportCoordinatorTests
 {
     [Fact]
+    public async Task Single_workbook_duplicate_is_a_no_op_without_a_second_persistence_request()
+    {
+        var persistence = new FakePersistence { Exists = true };
+        await using var coordinator = Create(persistence, new FakeReader(_ => ValidR025()));
+        await coordinator.ValidateAsync("sales.xlsx");
+
+        var result = await coordinator.PersistValidatedAsync(
+            "test", new("WLMHW", new(2026, 8, 25), "tester", false, ""));
+
+        Assert.True(result.ExactDuplicate);
+        Assert.Equal(0, result.Result.PersistedRows);
+        Assert.False(result.RestatementApplied);
+        Assert.Null(persistence.LastRequest);
+    }
+
+    [Fact]
+    public async Task Single_workbook_restatement_rejects_an_identical_source_before_persistence()
+    {
+        var persistence = new FakePersistence { Exists = true, CurrentImportFileId = 41 };
+        await using var coordinator = Create(persistence, new FakeReader(_ => ValidR025()));
+        await coordinator.ValidateAsync("sales.xlsx");
+
+        var error = await Assert.ThrowsAsync<ImportSourceException>(() => coordinator.PersistValidatedAsync(
+            "test", new("WLMHW", new(2026, 8, 25), "tester", true, "Correction")));
+
+        Assert.Equal("RESTATEMENT_DUPLICATE_FILE", error.Code);
+        Assert.Null(persistence.LastRequest);
+    }
+
+    [Fact]
     public async Task Validation_owns_the_accepted_snapshot_profile_and_staging_state()
     {
         var persistence = new FakePersistence();

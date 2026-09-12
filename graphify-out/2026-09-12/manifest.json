@@ -3546,9 +3546,9 @@
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Modules/Imports/DesktopImportCoordinator.cs": {
-    "mtime": 1789199776.1124454,
-    "seen": 1789200143.7659047,
-    "ast_hash": "34b367d0f8d48f9d0a36e7abb768c799",
+    "mtime": 1787987443.047542,
+    "seen": 1787990851.9897969,
+    "ast_hash": "437953980e7a2a83f7a344207a348732",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Modules/Imports/ImportWorkspaceView.xaml": {
@@ -3558,9 +3558,9 @@
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Modules/Imports/ImportWorkspaceView.xaml.cs": {
-    "mtime": 1789199776.1134782,
-    "seen": 1789200143.7659087,
-    "ast_hash": "cf198937257f21cd02608b7d0d4e35d7",
+    "mtime": 1787988583.348393,
+    "seen": 1787990851.9897997,
+    "ast_hash": "d58ce9c4acbe4c3c3b6886f727c262dc",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Modules/OperationsAdministration/AdministrationWorkspaceView.xaml": {
@@ -3756,9 +3756,9 @@
     "semantic_hash": ""
   },
   "tests-dotnet/Etp.Reporting.Desktop.Tests/DesktopImportCoordinatorTests.cs": {
-    "mtime": 1789199708.3064497,
-    "seen": 1789200143.76617,
-    "ast_hash": "6b92e1d7d0fbf4e03f4fb4e094e632de",
+    "mtime": 1787987737.0839264,
+    "seen": 1787990851.9900618,
+    "ast_hash": "258aead26753342c7f3c159f6a7527f6",
     "semantic_hash": ""
   },
   "tests-dotnet/Etp.Reporting.Desktop.Tests/ExtractedWorkspaceUiSmokeTests.cs": {
@@ -4530,9 +4530,9 @@
     "semantic_hash": ""
   },
   "docs/audit/ETP-2026-09-11-ACCEPTANCE.md": {
-    "mtime": 1789135717.131553,
-    "seen": 1789200143.766773,
-    "ast_hash": "3af5192e645ce054907a6c765a24efef",
+    "mtime": 1789135236.1130447,
+    "seen": 1789135294.0047565,
+    "ast_hash": "3e35f5e73fae6fa35c16a272ca589d48",
     "semantic_hash": ""
   },
   "docs/audit/ETP-2026-09-11-LOGIC-AUDIT.md": {
@@ -4557,18 +4557,6 @@
     "mtime": 1789134314.62186,
     "seen": 1789135170.856688,
     "ast_hash": "d1d7403ae2e906ade0927669de5e66db",
-    "semantic_hash": ""
-  },
-  "docs/audit/ETP-2026-09-11-FINAL-REPORT.md": {
-    "mtime": 1789135741.9745996,
-    "seen": 1789200143.766775,
-    "ast_hash": "b2a174cb3c99d1d92a30f2b5d816cccf",
-    "semantic_hash": ""
-  },
-  "docs/audit/ETP-LOCAL-VM-PREPARATION-2026-09-11.md": {
-    "mtime": 1789139752.8952758,
-    "seen": 1789200143.7667913,
-    "ast_hash": "1498d354b96ace2b7da1f10093133d58",
     "semantic_hash": ""
   }
 }

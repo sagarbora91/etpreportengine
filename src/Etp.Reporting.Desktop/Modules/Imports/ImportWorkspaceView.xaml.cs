@@ -120,17 +120,20 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
             RequireImportAccess();
             var context = CreateImportRunContext();
             var outcome = await coordinator.PersistValidatedAsync(connectionStringProvider(), context);
-            ValidationResult.Text = outcome.ReportCode switch
+            ValidationResult.Text = outcome.ExactDuplicate
+                ? "This workbook was already imported. No rows were added or changed."
+                : outcome.ReportCode switch
             {
                 "R022" => $"Imported {outcome.Result.InvoiceControls:N0} invoice controls and {outcome.Result.ReportableTenderRows:N0} reportable tender rows. {outcome.Result.QuarantinedTenderRows:N0} unresolved tender rows were quarantined.",
                 "STOCK_LEDGER" or "CLOSING_STOCK" => $"Imported {outcome.Result.PersistedRows:N0} {outcome.Result.ReportCode} rows successfully.",
                 "R003" or "R013" => $"Imported {outcome.Result.PersistedRows:N0} {outcome.Result.ReportCode} enrichment rows: {outcome.Result.MatchedRows:N0} matched, {outcome.Result.MissingMatches:N0} missing, {outcome.Result.AmbiguousMatches:N0} ambiguous. Revenue totals were not changed.",
                 _ => $"Imported {outcome.Result.PersistedRows:N0} sales rows successfully."
             };
-            SetReadiness("Import completed");
+            SetReadiness(outcome.ExactDuplicate ? "Already imported" : "Import completed");
             if (outcome.RestatementApplied)
                 await auditRecorder("Restatement", "Succeeded", "Controlled source restatement applied");
-            await coordinator.RetainValidatedEvidenceAsync(connectionStringProvider(), context);
+            if (!outcome.ExactDuplicate)
+                await coordinator.RetainValidatedEvidenceAsync(connectionStringProvider(), context);
             coordinator.ClearValidatedImport();
             await dashboardRefresher();
             Notify(ValidationResult.Text);

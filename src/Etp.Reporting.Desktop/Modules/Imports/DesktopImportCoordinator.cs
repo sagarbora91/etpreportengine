@@ -36,7 +36,8 @@ public sealed record DesktopImportValidationOutcome(
 public sealed record DesktopImportPersistenceOutcome(
     string ReportCode,
     ImportPersistenceResult Result,
-    bool RestatementApplied);
+    bool RestatementApplied,
+    bool ExactDuplicate = false);
 
 public sealed class DesktopImportCoordinator : IAsyncDisposable
 {
@@ -88,6 +89,15 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
     {
         var current = validatedImport ?? throw new InvalidOperationException("Validate an import workbook before persisting it.");
         var persistence = persistenceFactory(connectionString);
+        if (await persistence.ExistsByHashAsync(current.Envelope.Workbook.Sha256, cancellationToken).ConfigureAwait(false))
+        {
+            if (context.RestatementEnabled)
+                throw new ImportSourceException(
+                    "RESTATEMENT_DUPLICATE_FILE",
+                    "A restatement must use a corrected source file with a new hash.");
+            var reportCode = current.Envelope.ProfileIdentity.ReportCode;
+            return new(reportCode, new ImportPersistenceResult(reportCode, 0), false, true);
+        }
         var restatement = await ResolveRestatementAsync(
             persistence,
             current.Envelope.ProfileIdentity.ReportCode,
