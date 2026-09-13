@@ -4,7 +4,7 @@
 
 **Plan version:** 1.0
 
-**Status:** PLANNED — implementation has not started under this plan.
+**Status at plan creation:** PLANNED. This is the preserved requirements contract; current implementation and blocked acceptance status are recorded in the [current session handoff](../audit/ETP-SESSION-HANDOFF-2026-09-13-UI-REDESIGN.md) and execution ledger.
 
 **Scope:** One continuous sprint, in exactly four phases, covering the complete active Windows application.
 
@@ -12,7 +12,7 @@
 
 **Purpose:** Record what we decided, guide implementation without repeated design questions, and make completion independently checkable.
 
-**Resume implementation:** Read the [session handoff](../audit/ETP-SESSION-HANDOFF-2026-09-12-UI-REDESIGN.md), [execution ledger](ETP-UI-REDESIGN-SPRINT-LEDGER.md) and [decisions register](ETP-UI-REDESIGN-DECISIONS.md). All phase tasks are initially NOT STARTED; this document records planned requirements, not achieved results.
+**Resume implementation:** Read the [session handoff](../audit/ETP-SESSION-HANDOFF-2026-09-13-UI-REDESIGN.md), [execution ledger](ETP-UI-REDESIGN-SPRINT-LEDGER.md) and [decisions register](ETP-UI-REDESIGN-DECISIONS.md). All phase tasks are initially NOT STARTED; this document records planned requirements, not achieved results.
 
 ## 1. Outcome we are committing to
 

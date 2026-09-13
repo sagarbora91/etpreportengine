@@ -1,6 +1,6 @@
 # UI redesign sprint ledger
 
-Checkpoint UTC: 2026-09-12T12:53:09.931255+00:00. Run `20260912-sprint`.
+Verification checkpoint UTC: 2026-09-12T12:53:09.931255+00:00. Documentation/source-push checkpoint: 13 September 2026. Run `20260912-sprint`.
 
 **IMPLEMENTED — VERIFICATION BLOCKED.** Full application conversion and the authorised local follow-up are complete. Mandatory installed/device acceptance remains open. No production deployment.
 
@@ -10,7 +10,7 @@ Resume with the **1.8.8-r9 receipt and source snapshot** and the [prepared VM ru
 
 ## Current candidate and completed checks
 
-- Start source491f5ba; HEAD847f22e is the preserved planning commit. The candidate's source archive and per-file hashes identify the uncommitted implementation.
+- Start source491f5ba; source implementation is committed and pushed as d7eb51538881c7ce46be2e1653d3ed5e7f9523b3. The r9 build used planning HEAD847f22e with implementation in the working tree; its immutable archive identifies exact build inputs. Only two trailing blank lines were removed before committing. See the [13 September handoff](../audit/ETP-SESSION-HANDOFF-2026-09-13-UI-REDESIGN.md) for release hashes and resumption.
 - **1.8.8-r9:668 passing Release tests** — 344 Desktop,195 SQL,66 Reporting,51 Import,12 Domain. Baseline617; r7 had658.
 - Full conversion:128 active canonical destinations,29 reports,7 deferred,243 original controls reconciled,527 coverage rows. Existing matrix-r19, report-states-r7 and controls-r3 remain scoped historical visual/component evidence.
 - [Completed local follow-up](../audit/ETP-UI-REDESIGN-LOCAL-FOLLOWUP-2026-09-12.md): five findings repaired,58 live synthetic report states exported to Excel/PDF,2,431 exact workbook cells checked,all non-DSR PDF model content present,12 independent fixture anchors and11 DSR PDF checks. Additional797-cell stress report and257-page PDF bounds checks pass.

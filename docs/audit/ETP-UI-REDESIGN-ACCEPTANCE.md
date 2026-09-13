@@ -1,12 +1,12 @@
 # ETP UI redesign acceptance — candidate 1.8.8-r9
 
-Updated UTC: 2026-09-12T12:53:09.931255+00:00. Run: `20260912-sprint`.
+Verification updated UTC: 2026-09-12T12:53:09.931255+00:00. Source-push/handoff documentation updated: 13 September 2026; no new UI acceptance claimed. Run: `20260912-sprint`.
 
 **Disposition: IMPLEMENTED — VERIFICATION BLOCKED.** The full source conversion and available automated/component checks are complete. Mandatory installed, DPI, real-role and physical-input checks have not passed; this is not a fully verified sprint or production release.
 
 ## Candidate and protected scope
 
-Branch: `ui/uiux-v4-touch-first-redesign`. Implementation started at `491f5ba5e29dc0d9f9a7458ccaa9d46ca1eb2294`. Current HEAD is the preserved planning commit `847f22eb033f6d77bab34481ada5605eac11dd57` plus uncommitted implementation. HEAD alone does not identify the candidate. [Exact source/file/hash receipt](../../artifacts/ui-redesign/20260912-sprint/candidate-r9-receipt.json) binds the executable, installer and source snapshot. Previous candidates r1–r8 remain preserved.
+Branch: `ui/uiux-v4-touch-first-redesign`. Implementation started at `491f5ba5e29dc0d9f9a7458ccaa9d46ca1eb2294`. Source implementation is committed and pushed as `d7eb51538881c7ce46be2e1653d3ed5e7f9523b3`. The r9 build predates this commit: it used planning HEAD `847f22eb033f6d77bab34481ada5605eac11dd57` with implementation in the working tree. Only two trailing blank lines were removed before committing. The immutable source archive identifies exact build inputs; see the [13 September handoff](ETP-SESSION-HANDOFF-2026-09-13-UI-REDESIGN.md). [Exact source/file/hash receipt](../../artifacts/ui-redesign/20260912-sprint/candidate-r9-receipt.json) binds the executable, installer and source snapshot. Previous candidates r1–r8 remain preserved.
 
 [Candidate](../../artifacts/ui-redesign/20260912-sprint/candidate-1.8.8-r9/Etp.Reporting.Desktop.exe) · [Installer](../../artifacts/ui-redesign/20260912-sprint/installer-1.8.8-r9/EtpReportingEngine-Setup-1.8.8-x64.exe) · [Source archive](../../artifacts/ui-redesign/20260912-sprint/candidate-1.8.8-r9/source-snapshot.zip) · [Coverage CSV](../design/ETP-UI-REDESIGN-ROUTE-COVERAGE.csv) · [Decision log](../design/ETP-UI-REDESIGN-DECISIONS.md) · [Complete gallery](../../artifacts/ui-redesign/20260912-sprint/gallery.html) · [Before/after](../../artifacts/ui-redesign/20260912-sprint/before-after.html)
 

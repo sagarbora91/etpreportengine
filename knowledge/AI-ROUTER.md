@@ -1,14 +1,14 @@
 ---
 type: ai-router
 status: active
-last_verified: 2026-08-28
+last_verified: 2026-09-13
 ---
 
 # AI Router
 
 Always read [[AI-CONTEXT]] first. Then choose one route; do not load the entire vault.
 
-For the complete desktop/tablet UI redesign, also read the [governing sprint plan](../docs/design/ETP-UI-REDESIGN-FOUR-PHASE-SPRINT-2026-09-12.md) and [session handoff](../docs/audit/ETP-SESSION-HANDOFF-2026-09-12-UI-REDESIGN.md). These define the next design target; actual execution status belongs in the linked sprint ledger, not in this knowledge router.
+For the complete desktop/tablet UI redesign, also read the [governing sprint plan](../docs/design/ETP-UI-REDESIGN-FOUR-PHASE-SPRINT-2026-09-12.md) and [session handoff](../docs/audit/ETP-SESSION-HANDOFF-2026-09-13-UI-REDESIGN.md). The plan defines the design contract and the handoff identifies where to resume; actual execution status belongs in the linked sprint ledger, not in this knowledge router.
 
 | Task domain | Read next | Suggested Graphify question | Verify in |
 |---|---|---|---|

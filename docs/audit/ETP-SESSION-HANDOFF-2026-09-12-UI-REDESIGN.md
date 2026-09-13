@@ -1,6 +1,8 @@
 # Session handoff — complete UI redesign
 
-Date: 12 September 2026.
+Date: 12 September 2026. Historical planning checkpoint.
+
+> Superseded for resumption by the [13 September implementation handoff](ETP-SESSION-HANDOFF-2026-09-13-UI-REDESIGN.md). The planning statements below describe the earlier state, not current progress. Source is now committed and pushed; candidate 1.8.8-r9 awaits mandatory installed acceptance.
 
 > Concurrent-work notice: during this handoff, `docs/audit/ETP-UI-REDESIGN-ACCEPTANCE.md` appeared independently. It records run `20260912-sprint`, starting source `491f5ba`, baseline checks pending and Hyper-V inventory permission denied. It was not authored or verified by this handoff session. Read it and inspect current changes before using the initial ledger; another session may already be executing Phase 1. Do not overwrite or restart newer work.
 
