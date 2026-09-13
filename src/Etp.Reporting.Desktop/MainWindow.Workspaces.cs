@@ -11,7 +11,7 @@ public partial class MainWindow
 {
     private readonly ReportWorkspaceSession reportWorkspaceSession = new();
     private HelpCentreView? helpCentre;
-    private string? focusedWorkspaceKind;
+    internal string? focusedWorkspaceKind;
     private readonly HelpWorkspaceSession helpWorkspaceSession = new();
 
     private void InitializeFocusedWorkspaces()
@@ -20,18 +20,19 @@ public partial class MainWindow
         FocusedWorkspaceHost.Content = null;
     }
 
-    private bool ShowFocusedReportWorkspace(string reportCode)
+    internal bool ShowFocusedReportWorkspace(string reportCode)
     {
         var report = ProductReportCatalogue.All.Single(x => x.Code.Equals(reportCode, StringComparison.OrdinalIgnoreCase));
         var destination = report.Category.Equals("Stock", StringComparison.OrdinalIgnoreCase) ? "Stock Reports" : "Sales Reports";
-        var decision = shell.Navigate(new WorkspaceRoute(destination, reportCode), CurrentShellAccess);
+        var reportRoute = TaskNavigation.Find("report-" + reportCode)!.Route;
+        var decision = shell.CurrentRoute == reportRoute ? NavigationDecision.Allowed(reportRoute, ShellRouteRegistry.Find(reportRoute.Destination)!) : shell.Navigate(reportRoute, CurrentShellAccess);
         if (!decision.IsAllowed)
         {
             ApplyNavigationDecision(decision);
             return false;
         }
 
-        PageTitle.Text = report.Name;
+        PageTitle.Text = TaskNavigation.Find("report-" + reportCode)!.Title;
         PageDescription.Text = report.Description;
         BreadcrumbText.Text = $"Reports / {report.Category} / {report.Name}";
         focusedWorkspaceKind = "report";
@@ -45,7 +46,7 @@ public partial class MainWindow
             reportsWorkspaceView.DateTo,
             reportsWorkspaceView.DateTo ?? ShellBusinessDateSelector.SelectedDate ?? DateTime.Today.AddDays(-1),
             FocusedReportActionRequested,
-            RunFocusedReport);
+            RunFocusedReport, reportsWorkspaceView.StoreScope);
         FocusedWorkspaceHost.Content = workspace;
         workspace.Focus();
         return true;
@@ -62,18 +63,17 @@ public partial class MainWindow
         switch (request.Action)
         {
             case ReportWorkspaceAction.Refresh when request.ReportCode is not null:
-                ApplyWorkspaceScope(request.DateFrom.ToDateTime(TimeOnly.MinValue), request.DateTo.ToDateTime(TimeOnly.MinValue), request.Scope);
+                reportsWorkspaceView.ApplyTaskScope(request.ReportCode,request.DateFrom.ToDateTime(TimeOnly.MinValue), request.DateTo.ToDateTime(TimeOnly.MinValue), request.Scope);
                 _ = reportsWorkspaceView.RunReportAsync(request.ReportCode);
                 break;
             case ReportWorkspaceAction.ExportPdf:
-                reportsWorkspaceView.ExportPdf();
+                taskNavigator!.ExportCurrentReport(true);
                 break;
             case ReportWorkspaceAction.ExportExcel:
-                reportsWorkspaceView.ExportExcel();
+                taskNavigator!.ExportCurrentReport(false);
                 break;
             case ReportWorkspaceAction.GenerateReportPack:
-                dailyWorkflowWorkspace.BusinessDate = request.DateTo.ToDateTime(TimeOnly.MinValue);
-                _ = dailyWorkflowWorkspace.GenerateDailyPackAsync();
+                _ = taskNavigator!.GeneratePackAsync(request.DateTo.ToDateTime(TimeOnly.MinValue), request.Scope);
                 break;
             case ReportWorkspaceAction.OpenExportFolder:
                 OpenExportFolder();
@@ -95,10 +95,10 @@ public partial class MainWindow
         ShellBusinessDateSelector.SelectedDate = reportsWorkspaceView.DateTo;
     }
 
-    private void ShowHelpWorkspace(string? topicId = null, bool contextual = false)
+    internal void ShowHelpWorkspace(string? topicId = null, bool contextual = false)
     {
         helpWorkspaceSession.Open(new HelpWorkspaceSnapshot(
-            focusedWorkspaceKind == "report" ? FocusedWorkspaceHost.Content : null,
+            FocusedWorkspaceLayer.Visibility == Visibility.Visible ? FocusedWorkspaceHost.Content : null,
             focusedWorkspaceKind,
             PageTitle.Text,
             PageDescription.Text,
@@ -118,22 +118,20 @@ public partial class MainWindow
         PageTitle.Text = "Help Centre";
         PageDescription.Text = "Guidance for every application area and all supported keyboard shortcuts.";
         BreadcrumbText.Text = "Help";
+        BreadcrumbLinks.Children.Clear();
+        var back = new Button { Content = "← Back", Padding = new Thickness(8,0,8,0) };
+        back.Click += (_, _) => CloseHelpWorkspace(); BreadcrumbLinks.Children.Add(back);
         helpCentre.Focus();
     }
 
     private HelpCentreView CreateHelpCentre()
     {
-        var view = new HelpCentreView();
+        var view = new HelpCentreView { CanNavigateTopic = topic => HelpTaskRoutes.Find(topic)?.IsAllowed(CurrentShellAccess) == true };
         view.CloseRequested += (_, _) => CloseHelpWorkspace();
         view.NavigationRequested += (_, request) =>
         {
-            helpWorkspaceSession.Abandon();
-            HideFocusedWorkspace();
             if (string.IsNullOrWhiteSpace(request.Destination)) return;
-            var destination = request.Destination == "Investigation" ? "Operations Center" : request.Destination;
-            var navigated = NavigateToDestinationWithFeature(destination, request.FeatureCode);
-            if (navigated && !string.IsNullOrWhiteSpace(request.FeatureCode))
-                _ = reportsWorkspaceView.RunReportAsync(request.FeatureCode);
+            if (HelpTaskRoutes.Find(request.TopicId) is { } task) taskNavigator!.NavigateTask(task);
         };
         return view;
     }
@@ -147,6 +145,8 @@ public partial class MainWindow
 
     private void CloseHelpWorkspace()
     {
+        if (shell.CurrentRoute.TaskId?.StartsWith("help:", StringComparison.Ordinal) == true)
+        { helpWorkspaceSession.Abandon(); NavigateHistory(true); return; }
         var returnState = helpWorkspaceSession.Close();
         if (returnState?.CanRestoreFocusedWorkspace == true)
         {
@@ -160,6 +160,7 @@ public partial class MainWindow
         if (returnState?.PageDescription is not null) PageDescription.Text = returnState.PageDescription;
         if (returnState?.Breadcrumb is not null) BreadcrumbText.Text = returnState.Breadcrumb;
         if (returnState?.WasSidebarVisible == true && CurrentModuleId != "home") ShowSidebar();
+        taskNavigator!.RestoreBreadcrumbs();
     }
 
     private void HideFocusedWorkspace()

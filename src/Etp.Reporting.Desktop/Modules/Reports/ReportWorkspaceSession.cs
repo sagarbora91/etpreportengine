@@ -16,7 +16,8 @@ public sealed class ReportWorkspaceSession
         DateTime? dateTo,
         DateTime businessDate,
         EventHandler<ReportWorkspaceActionRequest> actionRequested,
-        Action<string, ReportWorkspaceControl> reportSelected)
+        Action<string, ReportWorkspaceControl> reportSelected,
+        string? storeScope = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(reportCode);
         ArgumentNullException.ThrowIfNull(actionRequested);
@@ -29,6 +30,9 @@ public sealed class ReportWorkspaceSession
                 dailySalesWorkspace.ActionRequested += actionRequested;
             }
             dailySalesWorkspace.BusinessDatePicker.SelectedDate = businessDate;
+            dailySalesWorkspace.ScopeSelector.SelectedIndex = 0;
+            dailySalesWorkspace.ScopeSelector.IsEnabled = false;
+            dailySalesWorkspace.ScopeSelector.ToolTip = "DSR always compares Titan and Helios, including combined totals. Use a store sales report for a single store.";
             dailySalesWorkspace.ShowLoading();
             return dailySalesWorkspace;
         }
@@ -43,15 +47,23 @@ public sealed class ReportWorkspaceSession
         }
         workspace.DateFromPicker.SelectedDate = dateFrom;
         workspace.DateToPicker.SelectedDate = dateTo;
+        workspace.ScopeSelector.IsEnabled = reportCode is not ("sales-titan" or "sales-helios" or "sales-combined");
+        workspace.ScopeSelector.ToolTip = workspace.ScopeSelector.IsEnabled ? "Report store scope" : "This report has a fixed store scope shown in its title.";
         workspace.SelectReport(reportCode);
+        workspace.ConfigureTaskScope(storeScope);
         workspace.ShowLoading($"Loading {ProductReportCatalogue.All.Single(x => x.Code.Equals(reportCode, StringComparison.OrdinalIgnoreCase)).Name}…");
         return workspace;
     }
 
-    public void UpdatePreview(ReportPresentationSnapshot snapshot, IEnumerable? rows, string status)
+    public void UpdatePreview(ReportPresentationSnapshot snapshot, IEnumerable? rows, string status, Action<object>? showDetails = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        if (snapshot.ExportMetadata is null) return;
+        if (snapshot.ExportMetadata is null)
+        {
+            if (snapshot.ReportCode == "dsr") dailySalesWorkspace?.ShowFailure(status);
+            else if (snapshot.ReportCode is { } code && workspaces.TryGetValue(ReportWorkspaceRegistry.ForReport(code).Id,out var pending)) pending.ShowUnavailable("Report not ready",status);
+            return;
+        }
         if (snapshot.DailySalesReport is not null && dailySalesWorkspace is not null)
         {
             dailySalesWorkspace.SetReport(snapshot.DailySalesReport);
@@ -60,7 +72,7 @@ public sealed class ReportWorkspaceSession
         if (snapshot.ReportCode is null || snapshot.VisualReport is null) return;
         var definition = ReportWorkspaceRegistry.ForReport(snapshot.ReportCode);
         if (!workspaces.TryGetValue(definition.Id, out var workspace)) return;
-        workspace.SetPreview(ReportVisualPresenter.BuildFocusedPreview(snapshot.VisualReport, rows), status);
+        workspace.SetPreview(ReportVisualPresenter.BuildFocusedPreview(snapshot.VisualReport, rows, showDetails), status);
     }
 
     public void ShowDailySalesFailure(string message) => dailySalesWorkspace?.ShowFailure(message);
@@ -75,7 +87,7 @@ public sealed class ReportWorkspaceSession
         if (reportCode is null) return false;
         var definition = ReportWorkspaceRegistry.ForReport(reportCode);
         if (!workspaces.TryGetValue(definition.Id, out var workspace)) return false;
-        workspace.DateFromPicker.Focus();
+        workspace.FocusPeriod();
         return true;
     }
 }

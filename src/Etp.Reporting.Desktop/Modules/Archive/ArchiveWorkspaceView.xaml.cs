@@ -72,6 +72,7 @@ public sealed partial class ArchiveWorkspaceView : UserControl
 
     private async Task RefreshReportArchiveAsync()
     {
+        var revision = ++archiveRefreshRevision;
         try
         {
             RequireViewAccess();
@@ -83,15 +84,17 @@ public sealed partial class ArchiveWorkspaceView : UserControl
                 ? (DateOnly?)null
                 : DateOnly.FromDateTime(ArchiveDateInput.SelectedDate.Value);
             var rows = await session.SearchAsync(connectionStringProvider(), new ReportArchiveSearch(store, date));
-            ReportGenerationGrid.ItemsSource = rows;
+            if (revision != archiveRefreshRevision) return;
+            archiveRows = rows; ApplyArchiveFilter();
             ReportArchiveDetailGrid.ItemsSource = null;
             SetStatus($"{rows.Count:N0} immutable generation(s) found. Select one to open or exactly two to compare.");
         }
-        catch (Exception ex) { HandleFailure(ex, "REPORT_ARCHIVE_LOAD_FAILED", "Report archive could not be loaded"); }
+        catch (Exception ex) { if (revision != archiveRefreshRevision) return; HandleFailure(ex, "REPORT_ARCHIVE_LOAD_FAILED", "Report archive could not be loaded"); }
     }
 
     private async void OpenArchivedGeneration_Click(object sender, RoutedEventArgs e)
     {
+        using var operation = operationGate.TryEnter(this); if (operation is null) return;
         try
         {
             RequireViewAccess();
@@ -107,6 +110,7 @@ public sealed partial class ArchiveWorkspaceView : UserControl
 
     private async void CompareArchivedGenerations_Click(object sender, RoutedEventArgs e)
     {
+        using var operation = operationGate.TryEnter(this); if (operation is null) return;
         try
         {
             RequireViewAccess();
@@ -122,6 +126,7 @@ public sealed partial class ArchiveWorkspaceView : UserControl
 
     private async void ExportArchivedExcel_Click(object sender, RoutedEventArgs e)
     {
+        using var operation = operationGate.TryEnter(this); if (operation is null) return;
         if (exportInProgress) return;
         try
         {
@@ -140,6 +145,7 @@ public sealed partial class ArchiveWorkspaceView : UserControl
 
     private async void ExportArchivedPdf_Click(object sender, RoutedEventArgs e)
     {
+        using var operation = operationGate.TryEnter(this); if (operation is null) return;
         if (exportInProgress) return;
         try
         {
@@ -158,6 +164,7 @@ public sealed partial class ArchiveWorkspaceView : UserControl
 
     private async void ExportArchivedZip_Click(object sender, RoutedEventArgs e)
     {
+        using var operation = operationGate.TryEnter(this); if (operation is null) return;
         try
         {
             RequireViewAccess();
@@ -172,6 +179,7 @@ public sealed partial class ArchiveWorkspaceView : UserControl
 
     private async void ShareArchivedWhatsApp_Click(object sender, RoutedEventArgs e)
     {
+        using var operation = operationGate.TryEnter(this); if (operation is null) return;
         try
         {
             RequireViewAccess();
@@ -190,6 +198,7 @@ public sealed partial class ArchiveWorkspaceView : UserControl
 
     private async void ShareArchivedEmail_Click(object sender, RoutedEventArgs e)
     {
+        using var operation = operationGate.TryEnter(this); if (operation is null) return;
         try
         {
             RequireViewAccess();
@@ -213,62 +222,34 @@ public sealed partial class ArchiveWorkspaceView : UserControl
         try
         {
             RequireViewAccess();
-            SharingContactsGrid.ItemsSource = await session.LoadContactsAsync(connectionStringProvider());
+            ApplyContacts(await session.LoadContactsAsync(connectionStringProvider()));
         }
         catch (Exception ex) { HandleFailure(ex, "SHARING_CONTACTS_LOAD_FAILED", "Sharing contacts could not be loaded"); }
     }
 
     private void SharingContact_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (SharingContactsGrid.SelectedItem is not SharingContact row) return;
-        ContactNameInput.Text = row.DisplayName;
-        ContactRoleInput.Text = row.ContactRole;
-        ContactEmailInput.Text = row.EmailAddress;
-        ContactPhoneInput.Text = row.PhoneE164;
-        ContactSubscriptionsInput.Text = row.DefaultSubscriptions;
-        ContactActiveInput.IsChecked = row.IsActive;
-        SharePhoneInput.Text = row.PhoneE164;
-        ShareEmailToInput.Text = row.EmailAddress;
+        SelectContact();
     }
 
-    private async void SaveSharingContact_Click(object sender, RoutedEventArgs e)
+    private async void SaveSharingContact_Click(object sender, RoutedEventArgs e) => await SaveContactDraftAsync();
+    public async Task<bool> SaveContactDraftAsync()
     {
+        using var operation = operationGate.TryEnter(this); if (operation is null) return false;
         try
         {
             RequireOwnerAccess();
-            var current = SharingContactsGrid.SelectedItem as SharingContact;
-            var row = new SharingContactDraft(current?.Id ?? 0, ContactNameInput.Text, ContactRoleInput.Text,
+            var row = new SharingContactDraft(editingContact, ContactNameInput.Text, ContactRoleInput.Text,
                 ContactEmailInput.Text, ContactPhoneInput.Text, ContactSubscriptionsInput.Text, ContactActiveInput.IsChecked == true);
             var id = await session.SaveContactAsync(connectionStringProvider(), row, ContactReasonInput.Text);
             ContactReasonInput.Clear();
+            contactDrafts.Remove(editingContact); editingContact = id; contactBaselines[id] = CaptureContact();
             SetStatus($"Sharing contact {id:N0} saved with audit history.");
             await RefreshSharingContactsAsync();
+            return true;
         }
-        catch (Exception ex) { HandleFailure(ex, "SHARING_CONTACT_SAVE_FAILED", "Sharing contact was not saved"); }
+        catch (Exception ex) { HandleFailure(ex, "SHARING_CONTACT_SAVE_FAILED", "Sharing contact was not saved"); return false; }
     }
-
-    private ArchivedReportGenerationSummary SelectedArchiveGeneration() =>
-        ReportGenerationGrid.SelectedItems.OfType<ArchivedReportGenerationSummary>().SingleOrDefault()
-        ?? throw new InvalidOperationException("Select exactly one report generation.");
-
-    private void RequireViewAccess()
-    {
-        if (!accessProvider().CanView)
-            throw new UnauthorizedAccessException("This Windows account does not have application access.");
-    }
-
-    private void RequireOwnerAccess()
-    {
-        if (!accessProvider().CanAdminister)
-            throw new UnauthorizedAccessException("Owner permission is required.");
-    }
-
-    private void SetStatus(string message)
-    {
-        ReportArchiveStatus.Text = message;
-        NotificationRequested?.Invoke(this, message);
-    }
-
     private void HandleFailure(Exception exception, string eventId, string operation)
     {
         DesktopDiagnostics.Record(exception, "Archive.Workspace", eventId);

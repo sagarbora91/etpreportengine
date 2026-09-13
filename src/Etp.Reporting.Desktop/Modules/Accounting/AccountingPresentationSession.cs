@@ -27,6 +27,7 @@ public sealed class AccountingPresentationSession
         this.serviceFactory = serviceFactory ?? throw new ArgumentNullException(nameof(serviceFactory));
 
     public AccountingPresentationSnapshot Current { get; private set; } = new(null, null, null);
+    public void InvalidatePreview() => Current = new(null, null, null);
 
     public async Task<IReadOnlyList<AccountingBatchSummary>> RefreshAsync(
         string connectionString,

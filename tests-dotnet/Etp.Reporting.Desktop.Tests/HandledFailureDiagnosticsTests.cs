@@ -96,6 +96,8 @@ public sealed class HandledFailureDiagnosticsTests
         string[] eventIds)
     {
         var source = Read(relativePath);
+        if (relativePath == "Modules/Reports/ReportsWorkspaceView.xaml.cs")
+            source += Read("Modules/Reports/ReportExportCompletion.cs");
 
         Assert.Contains($"DesktopDiagnostics.Record(exception, \"{sourceName}\", eventId", source, StringComparison.Ordinal);
         foreach (var eventId in eventIds)

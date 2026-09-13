@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## [1.8.8] - 2026-09-12
+
+UI redesign candidate covering the complete active application. Installed, device and full interactive acceptance remain explicitly unverified; see the sprint ledger. Not approved for production.
+
+- Add canonical task paths, persistent task search, breadcrumbs, retained focused workspaces and grouped Today Overview.
+- Preserve explicit task context and register drafts, invalidate changed import validation, and avoid stale source-extraction selection results.
+- Separate accounting approval, ledger mapping, sharing contacts, backup, recovery and support actions.
+- Record source route coverage, offscreen viewport evidence and automated regression results separately from installed interaction.
+
 ## [1.8.7] - 2026-09-12
 
 Engineering candidate; observed role, accessibility and external integration acceptance remains open.

@@ -9,7 +9,7 @@ public sealed record HelpWorkspaceSnapshot(
     bool WasSidebarVisible)
 {
     public bool CanRestoreFocusedWorkspace =>
-        string.Equals(FocusedWorkspaceKind, "report", StringComparison.Ordinal) && FocusedContent is not null;
+        FocusedWorkspaceKind != "help" && FocusedContent is not null;
 }
 
 public sealed class HelpWorkspaceSession

@@ -49,14 +49,18 @@ public sealed partial class RegistersWorkspaceView : UserControl
         {
             RequireViewAccess();
             var rows = await session.RefreshAsync(connectionStringProvider(), RegisterSearchInput.Text);
-            RegisterGrid.ItemsSource = rows;
+            RegisterGrid.ItemsSource = rows.Where(x => x.RegisterType == SelectedContent(RegisterTypeInput).Replace(' ', '_').ToUpperInvariant()).ToArray();
             SetStatus($"{rows.Count:N0} audited register entry or entries found.");
         }
         catch (Exception ex) { DesktopDiagnostics.Record(ex, "Registers.Workspace", "REGISTER_REFRESH_FAILED"); SetStatus(errorDescriber(ex)); }
     }
 
-    private async void SaveRegisterEntry_Click(object sender, RoutedEventArgs e)
+    private async void SaveRegisterEntry_Click(object sender, RoutedEventArgs e) => await SaveDraftAsync();
+
+    public async Task<bool> SaveDraftAsync()
     {
+        if (savingDraft) return false;
+        savingDraft = true; var enabled = IsEnabled; IsEnabled = false;
         try
         {
             RequireImportAccess();
@@ -82,9 +86,12 @@ public sealed partial class RegistersWorkspaceView : UserControl
             SetStatus($"Register entry {id:N0} saved with audit history.");
             RegisterDocumentNumberInput.Clear();
             RegisterReasonInput.Clear();
+            AcceptDraft();
             await RefreshRegistersAsync();
+            return true;
         }
-        catch (Exception ex) { DesktopDiagnostics.Record(ex, "Registers.Workspace", "REGISTER_SAVE_FAILED"); SetStatus(errorDescriber(ex)); }
+        catch (Exception ex) { DesktopDiagnostics.Record(ex, "Registers.Workspace", "REGISTER_SAVE_FAILED"); SetStatus(errorDescriber(ex)); return false; }
+        finally { savingDraft = false; IsEnabled = enabled; }
     }
 
     private void RequireViewAccess()

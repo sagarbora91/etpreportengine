@@ -52,3 +52,8 @@ Implementation entry points: `DailySalesReportDocument`, `DailySalesReportPdfExp
 Category-wise sales is deferred because `CLUSTER` is brand segment. Sell-through, stock turn and days-of-cover require authoritative receipt/purchase coverage and approved denominator rules.
 
 Related: [[Business Rules Register]], [[Mapping Knowledge]].
+
+
+## September 2026 export fidelity repair
+
+Generic PDF exports reuse the existing PDFsharp/font support and preserve complete detail fields/totals through wrapped column sections with repeated row identifiers. Signed chart axes and all composed points, including Other, remain visible. Excel uses the same five-sheet model; DSR retains its dedicated one-page PDF. These are rendering changes, not altered report calculations. The local follow-up acceptance record contains programmatic file comparisons; installed export/file-dialog acceptance remains open.

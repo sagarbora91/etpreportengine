@@ -1,6 +1,6 @@
 # UI/UX v4 design system
 
-> Existing implementation baseline. The [12 September redesign plan](design/ETP-UI-REDESIGN-FOUR-PHASE-SPRINT-2026-09-12.md) preserves this palette/native-WPF direction and specifies the next shared layout and interaction contract. Planned rules must not be mistaken for already verified implementation.
+> Candidate implementation: the [12 September redesign plan](design/ETP-UI-REDESIGN-FOUR-PHASE-SPRINT-2026-09-12.md) preserves this palette/native-WPF direction and specifies the shared layout and interaction contract. Implementation and observed acceptance are recorded separately.
 
 The visual target follows Windows Fluent principles with restrained Bento-style overview surfaces and enterprise information hierarchy. All production controls remain native WPF.
 
@@ -8,18 +8,18 @@ The visual target follows Windows Fluent principles with restrained Bento-style 
 
 | Purpose | Token | Value |
 |---|---|---|
-| App background | `AppBackground` | `#F3F6FB` |
+| App background | `AppBackground` | `#F3F7F7` |
 | Surface | `Surface` | `#FFFFFF` |
-| Secondary surface | `SurfaceSecondary` | `#F7F9FC` |
-| Primary text | `PrimaryText` | `#152038` |
-| Secondary text | `SecondaryText` | `#6B778C` |
-| Divider | `Divider` | `#E3E8F0` |
-| Accent | `Accent` | `#246BFE` |
-| Success | `Success` | `#0B8D62` |
-| Warning | `Warning` | `#BB6B00` |
-| Critical | `Critical` | `#C63B42` |
-| Information | `Information` | `#7757D6` |
-| Navigation | `NavigationBackground` | `#0C1628` |
+| Secondary surface | `SurfaceSecondary` | `#F0F5F5` |
+| Primary text | `PrimaryText` | `#10252D` |
+| Secondary text | `SecondaryText` | `#65757A` |
+| Divider | `Divider` | `#D9E3E3` |
+| Accent | `Accent` | `#008D78` |
+| Success | `Success` | `#087C68` |
+| Warning | `Warning` | `#A76500` |
+| Critical | `Critical` | `#C33D49` |
+| Information | `Information` | `#315EBA` |
+| Navigation | `NavigationBackground` | `#062A36` |
 
 Spacing is limited to 4, 8, 12, 16, 20, 24, 32 and 40 DIPs. Radii are 8, 12 and 20 DIPs. These resources live in `Themes/` and should be reused rather than duplicated.
 
@@ -31,8 +31,9 @@ Segoe UI Variable Display is used for titles and metrics; Segoe UI Variable Text
 
 - Comfortable: 48-DIP minimum actions and 46-DIP grid rows.
 - Compact: 34-DIP actions and 30-DIP grid rows.
-- Primary operational actions use the accent style and remain visible without hover.
-- Focus is expressed with a two-DIP accent border.
+- Primary operational actions use the existing darker teal `AccentDark` with white text; hover preserves that contrast. Palette token values are unchanged.
+- Keyboard focus uses a black/white outline that remains visible on light and dark surfaces. Body text is 14 DIP; metadata is at least 12 DIP.
+- Calendar opening buttons and all 42 native calendar day buttons are at least 44 × 44 DIP. Date parsing and selection remain native WPF behaviour.
 
 ## Components
 
@@ -40,9 +41,12 @@ Segoe UI Variable Display is used for titles and metrics; Segoe UI Variable Text
 - `StatusBadge`: restrained semantic state.
 - `EmptyState`: plain-language absence plus next action.
 - `LoadingState`: indeterminate or progress-aware non-blocking feedback.
-- Context sidebar: searchable expandable groups with touch targets.
+- Module/category overview: focused task tiles backed by canonical routes, with persistent search and breadcrumbs.
 - Detail drawer: right-side contextual inspection; Escape closes it.
 - Existing DSR reusable cards and visual-report components remain part of the shared report workspace.
+- DSR has Summary, Titan World, Helios and Service & targets tabs. Each selected tab owns one bounded content scroll region. Availability details open a labelled dialog.
+- At constrained widths, generic reports expose Period & store in a labelled Apply/Cancel dialog. Standard widths retain inline filters. Status details preserve complete messages in a bounded dialog with a reachable Close action.
+- Focused multi-table tasks place each table and its input fields on labelled tabs. The owning workspace retains their selection, drafts and operation state.
 
 Cards are reserved for module launch, KPI and status summaries. Detailed work uses tables, split layouts, drawers, filters and grouped lists.
 
@@ -57,6 +61,8 @@ Data grids use horizontal separators, touch/compact row tokens, keyboard navigat
 ## Errors, empty and loading states
 
 User-facing surfaces provide plain-language summaries. Technical exceptions remain available in deeper support/audit views. A missing OCR helper affects only OCR status; it never marks core reporting unavailable.
+
+The short-window footer uses a one-line summary with Status details. Missing report queries replace the loading state with the current failure; stale results cannot re-enable exports. Offscreen contrast and target audits exclude disabled text and business table rows and do not establish Narrator or physical-touch acceptance.
 
 ## Dependency decision
 

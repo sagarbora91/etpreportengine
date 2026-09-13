@@ -16,17 +16,19 @@ namespace Etp.Reporting.Desktop;
 
 public partial class MainWindow
 {
+    private IInputElement? drawerReturnFocus;
+    private TaskNavigator? taskNavigator;
     private UiPreferences uiPreferences = UiPreferences.Default;
     private Border? moduleHomePanel;
     private bool sidebarOverlay;
     private bool sidebarExplicitlyCollapsed;
-    private DensitySelector? sidebarDensitySelector;
+
 
     private string CurrentModuleId => shell.CurrentRoute == WorkspaceRoute.Home
         ? "home"
         : ShellRouteRegistry.Find(shell.CurrentRoute.Destination)?.ModuleId ?? "home";
 
-    private ShellAccess CurrentShellAccess => new(
+    internal ShellAccess CurrentShellAccess => new(
         currentAccess.Role != AccessRole.None,
         currentAccess.CanView,
         currentAccess.CanImport,
@@ -36,7 +38,9 @@ public partial class MainWindow
     {
         uiPreferences = UiPreferenceStore.Load();
         ShellBusinessDateSelector.SelectedDate = DateTime.Today.AddDays(-1);
-        InstallSidebarDensitySelector();
+        taskNavigator = new TaskNavigator(this);
+        taskNavigator.InitializeTaskNavigation();
+        sidebarExplicitlyCollapsed = true;
         ApplyDensity(uiPreferences.Density, persist: false);
         InitializeFocusedWorkspaces();
         ShowModuleHome();
@@ -50,6 +54,7 @@ public partial class MainWindow
         WelcomeRoleText.Text = currentAccess.Role == AccessRole.None ? "Database setup required" : RoleLabel(currentAccess.Role);
         WelcomeProgress.Visibility = Visibility.Collapsed;
         ContinueButton.IsEnabled = true;
+        ContinueButton.Focus();
         WelcomeMessage.Text = currentAccess.Role == AccessRole.None
             ? "Continue to database setup. Existing security rules remain authoritative."
             : "Your Windows identity and application role have been verified.";
@@ -69,7 +74,7 @@ public partial class MainWindow
 
     private void ShowModuleHome()
     {
-        ApplyNavigationDecision(shell.Navigate(WorkspaceRoute.Home, CurrentShellAccess));
+        taskNavigator!.NavigateSafely(() => shell.Navigate(WorkspaceRoute.Home, CurrentShellAccess));
     }
 
     private void DisplayModuleHome()
@@ -81,71 +86,71 @@ public partial class MainWindow
         ContextSidebar.Visibility = Visibility.Collapsed;
         SidebarColumn.Width = new GridLength(0);
         SidebarToggleButton.Visibility = Visibility.Collapsed;
+        BreadcrumbLinks.Children.Clear();
         BreadcrumbText.Text = "Modules";
         PageTitle.Text = currentAccess.Role == AccessRole.Owner ? "Owner Workspace" : "Home";
         PageDescription.Text = "Choose a module. Daily work stays on the surface while governed controls remain underneath.";
         ReadinessSummaryPanel.Visibility = Visibility.Collapsed;
         GettingStartedPanel.Visibility = currentAccess.Role == AccessRole.None ? Visibility.Visible : Visibility.Collapsed;
-        LegacyWorkspaceScroll.ScrollToTop();
+        LegacyWorkspaceScroll.Visibility = Visibility.Collapsed;
+        FocusedWorkspaceLayer.Visibility = Visibility.Visible;
+        FocusedWorkspaceHost.Content = moduleHomePanel;
     }
 
     private void EnsureModuleHome()
     {
         if (moduleHomePanel is not null) { BuildModuleHome(); return; }
         moduleHomePanel = new Border { Background = Brushes.Transparent, Margin = new Thickness(0, 0, 0, 16) };
-        WorkspaceStack.Children.Insert(0, moduleHomePanel);
+
         BuildModuleHome();
     }
 
     private void BuildModuleHome()
     {
         if (moduleHomePanel is null) return;
-        var root = new StackPanel();
-        var heading = new DockPanel { Margin = new Thickness(4, 0, 4, 16) };
-        if (currentAccess.Role == AccessRole.Owner)
+        var root = new System.Windows.Controls.Primitives.UniformGrid { Columns = ActualWidth >= 1000 || ActualHeight < 600 ? 3 : 2, Margin = new Thickness(12) };
+        foreach (var module in UiNavigationRegistry.Modules.Where(x => x.IsVisibleTo(currentAccess.Role)).OrderBy(x => uiPreferences.PinnedModuleIds.Contains(x.Id) ? 0 : 1).ThenBy(x => x.Order))
         {
-            var ownerBadge = new StatusBadge("Owner workspace", "Information"); DockPanel.SetDock(ownerBadge, Dock.Right); heading.Children.Add(ownerBadge);
+            var content = new StackPanel();
+            content.Children.Add(new TextBlock { Text = module.DisplayName, FontSize = 18, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap });
+            if (ActualHeight >= 600) content.Children.Add(new TextBlock { Text = module.Description, FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,6,0,0) });
+            var button = new Button { Content = content, Margin = new Thickness(ActualHeight < 600 ? 2 : 6), Padding = new Thickness(ActualHeight < 600 ? 8 : 14), HorizontalContentAlignment = HorizontalAlignment.Stretch };
+            AutomationProperties.SetName(button, module.DisplayName);
+            button.Click += (_, _) => taskNavigator!.NavigateOverview(module.DisplayName, module.Destination);
+            root.Children.Add(button);
         }
-        var titleBlock = new StackPanel();
-        titleBlock.Children.Add(new TextBlock { Text = currentAccess.Role == AccessRole.Owner ? "Your operational workspace" : "Good morning", FontSize = 27, FontWeight = FontWeights.SemiBold, Foreground = (Brush)FindResource("PrimaryText") });
-        titleBlock.Children.Add(new TextBlock { Text = "Open a module to work with live application data.", Foreground = (Brush)FindResource("SecondaryText"), Margin = new Thickness(0, 4, 0, 0) });
-        heading.Children.Add(titleBlock); root.Children.Add(heading);
-        var wrap = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Stretch };
-        var role = currentAccess.Role;
-        var selected = UiNavigationRegistry.Modules.Where(x => x.DefaultVisibility && x.IsVisibleTo(role)).ToList();
-        if (currentAccess.Role == AccessRole.Owner)
+        if (root.Children.Count == 0)
         {
-            var pins = uiPreferences.PinnedModuleIds.Count > 0 ? uiPreferences.PinnedModuleIds : ["registers", "approvals", "health"];
-            selected.AddRange(UiNavigationRegistry.Modules.Where(x => x.PinAllowed && pins.Contains(x.Id, StringComparer.OrdinalIgnoreCase) && x.IsVisibleTo(role)));
-        }
-        var availableWidth = Math.Max(720, Math.Max(Width, ActualWidth) - (ContextSidebar.Visibility == Visibility.Visible ? 390 : 100) - 60);
-        var columns = availableWidth >= 1100 ? 3 : availableWidth >= 700 ? 2 : 1;
-        var tileWidth = Math.Max(280, Math.Min(560, availableWidth / columns - 18));
-        foreach (var module in selected.DistinctBy(x => x.Id).OrderBy(x => x.Order))
-        {
-            var tile = new ModuleTile(module) { Width = tileWidth };
-            tile.Click += ModuleTile_Click; wrap.Children.Add(tile);
-        }
-        root.Children.Add(wrap);
-        if (currentAccess.Role == AccessRole.None)
-        {
-            var notice = new EmptyState("Database setup required", "Operational module access is granted through the existing Windows-integrated role model.", "Open Settings to configure or initialise SQL Server.") { Margin = new Thickness(7, 16, 7, 0) };
-            root.Children.Add(notice);
+            var setup = new Button { Content = "Configure database connection", Margin = new Thickness(12) };
+            setup.Click += (_, _) => NavigateToDestination("Settings"); root.Children.Add(setup);
         }
         moduleHomePanel.Child = root;
-        AutomationProperties.SetName(moduleHomePanel, $"Module home with {selected.Count:N0} available modules");
     }
 
-    private void ModuleTile_Click(object sender, RoutedEventArgs e)
+    internal void SavePreferences(UiPreferences preferences)
     {
-        if (sender is not ModuleTile tile) return;
-        NavigateToDestination(tile.Definition.Destination);
+        uiPreferences = preferences; UiPreferenceStore.Save(preferences);
+        ApplyDensity(preferences.Density, false); BuildModuleHome();
     }
 
     private bool NavigateToDestination(string destination) => NavigateToDestinationWithFeature(destination, null);
 
     private bool NavigateToDestinationWithFeature(string destination, string? featureCode)
     {
+        if (destination == "Home") return taskNavigator!.NavigateSafely(() => shell.Navigate(WorkspaceRoute.Home, CurrentShellAccess));
+        if (featureCode is not null && TaskNavigation.Find("report-" + featureCode) is { } reportTask) { taskNavigator!.NavigateTask(reportTask); return true; }
+        if (destination == "Daily Workflow" || destination == "Manual Entry" || destination == "Dashboard")
+        {
+            var id = destination == "Manual Entry" ? "walk-ins" : destination == "Daily Workflow" ? "readiness" : "dashboard";
+            var task = TaskNavigation.Find(id)!;
+            var allowed = task.IsAllowed(CurrentShellAccess);
+            taskNavigator!.NavigateTask(task); return allowed;
+        }
+        if (destination != "Settings" || CurrentShellAccess.HasAssignedRole)
+        {
+            var module = destination switch { "Sales Reports" or "Stock Reports" => "Reports", "Admin / Settings" or "Masters" or "Settings" => "Settings", "Import ETP" => "Imports", "Report Archive" => "Archive", "Operations Center" => "Exceptions", _ => destination };
+            taskNavigator!.NavigateOverview(module, destination); return shell.CurrentRoute.Destination == destination;
+        }
         var decision = shell.Navigate(new WorkspaceRoute(destination, featureCode), CurrentShellAccess);
         ApplyNavigationDecision(decision);
         return decision.IsAllowed;
@@ -171,7 +176,7 @@ public partial class MainWindow
         SidebarModuleSubtitle.Text = moduleId switch { "reports" => $"{ProductReportCatalogue.All.Count} live reports", "imports" => "Sources, documents & registers", "settings" => "Administration", _ => "Workspace navigation" };
         SidebarSearchInput.Clear();
         PopulateSidebar(UiNavigationRegistry.ForModule(moduleId), string.Empty);
-        if (Math.Max(Width, ActualWidth) < 1100) { ContextSidebar.Visibility = Visibility.Collapsed; SidebarColumn.Width = new GridLength(0); SidebarToggleButton.Visibility = Visibility.Visible; sidebarOverlay = true; sidebarExplicitlyCollapsed = false; } else ShowSidebar();
+        HideSidebar();
     }
 
     private void PopulateSidebar(IEnumerable<NavigationGroupDefinition> groups, string search)
@@ -199,9 +204,7 @@ public partial class MainWindow
     {
         if (sender is not Button { Tag: NavigationItemDefinition item }) return;
         if (!item.IsAvailable) { ApplicationStatus.Text = item.UnavailableReason ?? "This capability is not available."; return; }
-        var navigated = NavigateToDestinationWithFeature(item.Destination, item.FeatureCode);
-        if (navigated && !string.IsNullOrWhiteSpace(item.FeatureCode))
-            _ = reportsWorkspaceView.RunReportAsync(item.FeatureCode);
+        if (TaskNavigation.ForItem(item) is { } task) { taskNavigator!.NavigateTask(task); return; }
         if (sidebarOverlay) HideSidebar();
     }
 
@@ -225,9 +228,9 @@ public partial class MainWindow
         }
     }
 
-    private void HideSidebar()
+    internal void HideSidebar()
     {
-        ContextSidebar.Visibility = Visibility.Collapsed; SidebarColumn.Width = new GridLength(0); SidebarToggleButton.Visibility = Visibility.Visible; sidebarExplicitlyCollapsed = true;
+        ContextSidebar.Visibility = Visibility.Collapsed; SidebarColumn.Width = new GridLength(0); SidebarToggleButton.Visibility = Visibility.Collapsed; sidebarExplicitlyCollapsed = true;
     }
 
     private void ToggleSidebar_Click(object sender, RoutedEventArgs e)
@@ -243,30 +246,12 @@ public partial class MainWindow
 
     private void ToggleDensity_Click(object sender, RoutedEventArgs e) => ApplyDensity(uiPreferences.Density == UiDensity.Comfortable ? UiDensity.Compact : UiDensity.Comfortable, persist: true);
 
-    private void InstallSidebarDensitySelector()
+    internal void ApplyDensity(UiDensity density, bool persist)
     {
-        DensityToggleButton.Visibility = Visibility.Collapsed;
-        if (ContextSidebar.Child is not Grid sidebarGrid || sidebarDensitySelector is not null) return;
-        var existingFooter = sidebarGrid.Children.Cast<UIElement>().FirstOrDefault(x => Grid.GetRow(x) == 2);
-        if (existingFooter is not null) sidebarGrid.Children.Remove(existingFooter);
-        var footer = new StackPanel();
-        var help = new Button { Content = "Help Centre", Style = (Style)FindResource("SidebarItemButton"), Margin = new Thickness(4, 2, 4, 0) };
-        help.Click += OpenHelp_Click;
-        AutomationProperties.SetName(help, "Open Help Centre");
-        footer.Children.Add(help);
-        sidebarDensitySelector = new DensitySelector();
-        sidebarDensitySelector.DensityChanged += (_, density) => ApplyDensity(density, persist: true);
-        footer.Children.Add(sidebarDensitySelector);
-        if (existingFooter is not null) footer.Children.Add(existingFooter);
-        Grid.SetRow(footer, 2);
-        sidebarGrid.Children.Add(footer);
-    }
-
-    private void ApplyDensity(UiDensity density, bool persist)
-    {
+        DensityToggleButton.Content = density.ToString();
         Resources["ActiveTargetHeight"] = density == UiDensity.Comfortable ? 48d : 34d;
         Resources["ActiveGridRowHeight"] = density == UiDensity.Comfortable ? 46d : 30d;
-        sidebarDensitySelector?.SetDensity(density);
+
         uiPreferences = uiPreferences with { Density = density };
         if (persist) UiPreferenceStore.Save(uiPreferences);
     }
@@ -274,15 +259,16 @@ public partial class MainWindow
     private void ShellBusinessDate_Changed(object sender, SelectionChangedEventArgs e)
     {
         if (ShellBusinessDateSelector.SelectedDate is not { } selected) return;
-        reportsWorkspaceView.SetBusinessDate(selected); dailyWorkflowWorkspace.BusinessDate = selected; importWorkspaceView.BusinessDate = selected; sourceInboxWorkspaceView.BusinessDate = selected; archiveWorkspaceView.BusinessDate = selected; registersWorkspaceView.BusinessDate = selected; accountingWorkspaceView.BusinessDate = selected;
+        taskNavigator?.ApplyBusinessDate(selected);
     }
 
-    private void OpenGlobalSearch_Click(object sender, RoutedEventArgs e) { NavigateToDestination("Operations Center"); investigationWorkspaceView.FocusSearch(); }
+    private void OpenGlobalSearch_Click(object sender, RoutedEventArgs e) => taskNavigator!.FocusMasterSearch();
     private void OpenHelp_Click(object sender, RoutedEventArgs e) => ShowHelpWorkspace(HelpCentreRegistry.HomeTopicId);
-    private void OpenProfile_Click(object sender, RoutedEventArgs e) => OpenDrawer("Current profile", $"Windows identity: {currentAccess.WindowsIdentity}\nUser: {currentAccess.DisplayName}\nRole: {RoleLabel(currentAccess.Role)}\nPermissions continue to be enforced by the existing application services.");
+    internal void OpenProfile_Click(object sender, RoutedEventArgs e) => OpenDrawer("Current profile", $"Windows identity: {currentAccess.WindowsIdentity}\nUser: {currentAccess.DisplayName}\nRole: {RoleLabel(currentAccess.Role)}\nPermissions continue to be enforced by the existing application services.");
 
     private void OpenDrawer(string title, string message, object? detail = null)
     {
+        if (DrawerOverlay.Visibility != Visibility.Visible) drawerReturnFocus = Keyboard.FocusedElement;
         var panel = new StackPanel();
         var close = new Button { Content = "Close", HorizontalAlignment = HorizontalAlignment.Right, MinWidth = 72 };
         close.Click += (_, _) => CloseDrawer(); panel.Children.Add(close);
@@ -293,7 +279,7 @@ public partial class MainWindow
             var properties = TypeDescriptor.GetProperties(detail).Cast<PropertyDescriptor>().Where(x => x.IsBrowsable).Take(18);
             foreach (var property in properties)
             {
-                panel.Children.Add(new TextBlock { Text = property.DisplayName, FontSize = 10, Foreground = (Brush)FindResource("SecondaryText"), Margin = new Thickness(0, 8, 0, 2) });
+                panel.Children.Add(new TextBlock { Text = property.DisplayName, FontSize = 12, Foreground = (Brush)FindResource("SecondaryText"), Margin = new Thickness(0, 8, 0, 2) });
                 panel.Children.Add(new TextBlock { Text = property.GetValue(detail)?.ToString() ?? "—", TextWrapping = TextWrapping.Wrap, FontWeight = FontWeights.SemiBold, Foreground = (Brush)FindResource("PrimaryText") });
             }
         }
@@ -301,12 +287,19 @@ public partial class MainWindow
         DrawerOverlay.Visibility = Visibility.Visible; close.Focus();
     }
 
-    private void CloseDrawer() { DrawerOverlay.Visibility = Visibility.Collapsed; DetailDrawerHost.Child = null; }
+    private void CloseDrawer() { DrawerOverlay.Visibility = Visibility.Collapsed; DetailDrawerHost.Child = null; if (drawerReturnFocus is FrameworkElement { IsVisible: true } element) element.Focus(); drawerReturnFocus = null; }
     private void DrawerOverlay_MouseDown(object sender, MouseButtonEventArgs e) => CloseDrawer();
     private void DetailDrawerHost_MouseDown(object sender, MouseButtonEventArgs e) => e.Handled = true;
 
     private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
     {
+        if (WelcomeOverlay.Visibility == Visibility.Visible && e.Key != Key.System)
+        {
+            if (ContinueButton.IsEnabled && e.Key == Key.Enter) Continue_Click(ContinueButton, new RoutedEventArgs());
+            else if (ContinueButton.IsEnabled) ContinueButton.Focus();
+            e.Handled = true; return;
+        }
+        if (e.Key == Key.K && Keyboard.Modifiers == ModifierKeys.Control) { taskNavigator!.FocusMasterSearch(); e.Handled = true; return; }
         var command = ShellShortcutRegistry.Resolve(e.Key, e.SystemKey, Keyboard.Modifiers);
         if (command == ShellCommand.None) return;
         if (ExecuteShellCommand(command)) e.Handled = true;
@@ -325,23 +318,24 @@ public partial class MainWindow
             case ShellCommand.CloseOrCancel when DrawerOverlay.Visibility == Visibility.Visible: CloseDrawer(); return true;
             case ShellCommand.CloseOrCancel when CloseFocusedHelp(): return true;
             case ShellCommand.Search:
-                if (CurrentModuleId is "reports" or "imports") { SidebarSearchInput.Focus(); SidebarSearchInput.SelectAll(); }
-                else OpenGlobalSearch_Click(this, new RoutedEventArgs());
+                taskNavigator!.SearchCurrentPage();
                 return true;
             case ShellCommand.Refresh: RefreshCurrentWorkspace(); return true;
-            case ShellCommand.Run when shell.CurrentRoute.FeatureCode is { } feature:
-                _ = reportsWorkspaceView.RunReportAsync(feature); return true;
-            case ShellCommand.ExportPdf when CurrentModuleId == "reports": reportsWorkspaceView.ExportPdf(); return true;
-            case ShellCommand.ExportExcel when CurrentModuleId == "reports": reportsWorkspaceView.ExportExcel(); return true;
-            case ShellCommand.GenerateReportPack when CurrentModuleId is "dashboard" or "reports": _ = dailyWorkflowWorkspace.GenerateDailyPackAsync(); return true;
+            case ShellCommand.Run when shell.CurrentRoute.FeatureCode is not null:
+                taskNavigator!.RefreshCurrentReport(); return true;
+            case ShellCommand.ExportPdf when CurrentModuleId == "reports": taskNavigator!.ExportCurrentReport(true); return true;
+            case ShellCommand.ExportExcel when CurrentModuleId == "reports": taskNavigator!.ExportCurrentReport(false); return true;
+            case ShellCommand.GenerateReportPack when CurrentModuleId is "dashboard" or "reports": taskNavigator!.GenerateCurrentPack(); return true;
             case ShellCommand.OpenExportFolder when CurrentModuleId == "reports": OpenExportFolder(); return true;
             case ShellCommand.FocusPeriod: FocusPrimaryPeriod(); return true;
             case ShellCommand.GoToReport:
                 NavigateToDestination("Sales Reports");
-                SidebarSearchInput.Focus();
-                SidebarSearchInput.SelectAll();
+                taskNavigator!.FocusMasterSearch();
+
                 return true;
-            case ShellCommand.Save when shell.CurrentRoute.Destination == "Manual Entry": _ = dailyWorkflowWorkspace.SaveManualInputAsync(); return true;
+            case ShellCommand.Save when shell.CurrentRoute.TaskId == "walk-ins": _ = dailyWorkflowWorkspace.SaveManualInputAsync(); return true;
+            case ShellCommand.Save when shell.CurrentRoute.TaskId == "stock-count": _ = dailyWorkflowWorkspace.SaveStockCountAsync(); return true;
+            case ShellCommand.Save when shell.CurrentRoute.TaskId == "staff-target": _ = dailyWorkflowWorkspace.SaveStaffTargetAsync(); return true;
             case ShellCommand.ImportFiles when CurrentModuleId == "imports": importWorkspaceView.BrowseWorkbook(); return true;
             case ShellCommand.ImportFolder when CurrentModuleId == "imports": importWorkspaceView.BrowseImportFolder(); return true;
             case ShellCommand.RetryImport when CurrentModuleId == "imports" && focusedWorkspaceKind != "help" && importWorkspaceView.CanRetry:
@@ -351,13 +345,9 @@ public partial class MainWindow
         }
     }
 
-    private bool NavigateHistory(bool back)
+    internal bool NavigateHistory(bool back)
     {
-        var decision = back ? shell.GoBack(CurrentShellAccess) : shell.GoForward(CurrentShellAccess);
-        ApplyNavigationDecision(decision);
-        if (!decision.IsAllowed) return false;
-        if (decision.RequestedRoute.FeatureCode is { } feature) _ = reportsWorkspaceView.RunReportAsync(feature);
-        return true;
+        return taskNavigator!.NavigateSafely(() => back ? shell.GoBack(CurrentShellAccess) : shell.GoForward(CurrentShellAccess));
     }
 
     private void OpenShortcutGuide()
@@ -377,19 +367,14 @@ public partial class MainWindow
             case "archive": _ = archiveWorkspaceView.RefreshAsync(); break;
             case "exceptions": _ = operationsWorkspaceView.RefreshAsync(); break;
             case "settings": _ = settingsWorkspace.PrepareForDisplayAsync(shell.CurrentRoute.Destination == "Admin / Settings"); _ = administrationWorkspaceView.RefreshAsync(); break;
-            case "reports" when shell.CurrentRoute.FeatureCode is { } feature: _ = reportsWorkspaceView.RunReportAsync(feature); break;
+            case "reports" when shell.CurrentRoute.FeatureCode is not null: taskNavigator!.RefreshCurrentReport(); break;
         }
     }
 
     private void CycleShellRegion()
     {
-        var regions = new List<IInputElement>();
-        if (ContextSidebar.Visibility == Visibility.Visible) regions.Add(SidebarSearchInput);
-        regions.Add(ShellStoreSelector);
-        regions.Add(LegacyWorkspaceScroll);
-        var focused = Keyboard.FocusedElement;
-        var current = regions.FindIndex(x => ReferenceEquals(x, focused) || x is DependencyObject parent && focused is DependencyObject child && IsDescendant(parent, child));
-        Keyboard.Focus(regions[(current + 1) % regions.Count]);
+        KeyboardRegionNavigation.MoveNext(HeaderSearchHost, ShellStoreSelector,
+            FocusedWorkspaceLayer.IsVisible ? FocusedWorkspaceHost : LegacyWorkspaceScroll, DensityToggleButton);
     }
 
     private void FocusPrimaryPeriod()
@@ -405,7 +390,7 @@ public partial class MainWindow
         return false;
     }
 
-    private void HideAllFeaturePanels()
+    internal void HideAllFeaturePanels()
     {
         foreach (var panel in new FrameworkElement[] { DashboardPanel, SettingsPanel, DailyWorkflowPanel, ImportPanel, SourceInboxPanel, ReportsPanel, OperationsPanel, InvestigationPanel, ReportArchivePanel, RegistersPanel, AccountingPanel, MastersPanel }) panel.Visibility = Visibility.Collapsed;
     }

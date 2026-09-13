@@ -64,24 +64,34 @@ public static class ReportVisualPresenter
         return root;
     }
 
-    public static UIElement BuildFocusedPreview(VisualReportModel model, IEnumerable? rows)
+    public static UIElement BuildFocusedPreview(VisualReportModel model, IEnumerable? rows, Action<object>? showDetails = null)
     {
         ArgumentNullException.ThrowIfNull(model);
         var root = new StackPanel();
         root.Children.Add(BuildKpiCards(model, "#FFFFFF", true));
         foreach (var visual in model.Visuals.Take(2)) root.Children.Add(BuildVisual(visual));
         AddControl(model, root, new Thickness(0, 8, 0, 8));
-        root.Children.Add(new DataGrid
+        var grid = new DataGrid
         {
             ItemsSource = rows,
             AutoGenerateColumns = true,
             IsReadOnly = true,
-            MinHeight = 220,
-            MaxHeight = 520,
             Margin = new Thickness(0, 8, 0, 0),
             HeadersVisibility = DataGridHeadersVisibility.All
-        });
-        return root;
+        };
+        AutomationProperties.SetName(grid, "Report detail rows; Enter opens selected source details");
+        void OpenDetails() { if (grid.SelectedItem is { } row) showDetails?.Invoke(row); }
+        grid.MouseDoubleClick += (_, _) => OpenDetails();
+        grid.PreviewKeyDown += (_, e) => { if (e.Key == System.Windows.Input.Key.Enter) { OpenDetails(); e.Handled = true; } };
+        var detailBody = new DockPanel();
+        var filters = new ReportDetailFilter(grid, rows);
+        var details = new Button { Content = "Open selected row details", HorizontalAlignment = HorizontalAlignment.Left, IsEnabled = false };
+        details.Click += (_, _) => OpenDetails(); grid.SelectionChanged += (_, _) => details.IsEnabled = grid.SelectedItem is not null;
+        filters.Children.Add(details); DockPanel.SetDock(filters, Dock.Top); detailBody.Children.Add(filters); detailBody.Children.Add(grid);
+        return new TabControl { Items = {
+            new TabItem { Header = "Summary", Content = new ScrollViewer { Content = root, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled } },
+            new TabItem { Header = "Detail rows", Content = detailBody }
+        } };
     }
 
     public static UIElement BuildFailure(string message) => new TextBlock
@@ -136,7 +146,7 @@ public static class ReportVisualPresenter
             Text = $"Control {control.Status}: {control.Message}",
             TextWrapping = TextWrapping.Wrap,
             Foreground = Brush(control.Status.Equals("Passed", StringComparison.OrdinalIgnoreCase)
-                ? VisualReportTheme.Teal
+                ? "#006B5C"
                 : VisualReportTheme.Red),
             Margin = margin
         });
@@ -207,7 +217,7 @@ public static class ReportVisualPresenter
     private static void AddFootnote(ReportVisual visual, Panel panel)
     {
         if (string.IsNullOrWhiteSpace(visual.Footnote)) return;
-        panel.Children.Add(new TextBlock { Text = visual.Footnote, FontSize = 11, Foreground = Brush("#5D6873"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) });
+        panel.Children.Add(new TextBlock { Text = visual.Footnote, FontSize = 12, Foreground = Brush("#5D6873"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) });
     }
 
     private static SolidColorBrush Brush(string colour) =>

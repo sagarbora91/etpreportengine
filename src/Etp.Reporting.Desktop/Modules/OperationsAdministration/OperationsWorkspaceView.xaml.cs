@@ -18,6 +18,16 @@ public partial class OperationsWorkspaceView : UserControl
     private readonly Func<string, IOperationsAdministrationService> serviceFactory;
     private readonly Func<string, CancellationToken, Task<MaintenanceOperationResult>> maintenanceRunner;
     private OperationsAdministrationWorkspaceAccess access = new(false, false, false);
+    private int refreshRevision;
+    public bool IsBusy { get; private set; }
+
+    private bool BeginOperation()
+    {
+        if (IsBusy) return false;
+        IsBusy = true; IsEnabled = false;
+        return true;
+    }
+    private void EndOperation() { IsBusy = false; IsEnabled = true; ApplyActionAccess(); }
 
     public OperationsWorkspaceView(
         OperationsAdministrationPresentationSession session,
@@ -30,6 +40,8 @@ public partial class OperationsWorkspaceView : UserControl
         this.serviceFactory = serviceFactory ?? throw new ArgumentNullException(nameof(serviceFactory));
         this.maintenanceRunner = maintenanceRunner ?? throw new ArgumentNullException(nameof(maintenanceRunner));
         InitializeComponent();
+        issueReasons = new(DataQualityGrid, IssueWorkflowReasonInput, row => (row as DataQualityIssue)?.Id);
+        CaptureIssueActions();
         OperationsFromInput.SelectedDate = DateTime.Today.AddDays(-30);
         OperationsToInput.SelectedDate = DateTime.Today;
     }
@@ -40,51 +52,65 @@ public partial class OperationsWorkspaceView : UserControl
     public int TrendRowCount => ManagementTrendGrid.Items.Count;
     public int IssueRowCount => DataQualityGrid.Items.Count;
 
-    public void UpdateAccess(OperationsAdministrationWorkspaceAccess value) => access = value;
+    public void UpdateAccess(OperationsAdministrationWorkspaceAccess value) { access = value; ApplyActionAccess(); }
+
+    public void SelectMaintenanceTask(string taskId)
+    {
+        BackupTaskAction.Visibility = taskId == "backups" ? Visibility.Visible : Visibility.Collapsed;
+        RecoveryTaskAction.Visibility = taskId == "recovery" ? Visibility.Visible : Visibility.Collapsed;
+        SupportTaskAction.Visibility = taskId == "support-package" ? Visibility.Visible : Visibility.Collapsed;
+    }
 
     public async Task RefreshAsync()
     {
+        var revision = ++refreshRevision;
+        var beforeLoad = CaptureWatch();
         try
         {
             RequireViewAccess();
             var dashboard = await Service.LoadDashboardAsync(session.CreatePeriod(
                 OperationsFromInput.SelectedDate, OperationsToInput.SelectedDate));
+            if (revision != refreshRevision) return;
             var state = session.Capture(dashboard);
             ManagementTrendGrid.ItemsSource = state.Trend;
-            DataQualityGrid.ItemsSource = state.Issues;
-            ReportSchedulesGrid.ItemsSource = state.Schedules;
+            issueRows = state.Issues; ApplyIssueFilter();
+            ApplySchedules(state.Schedules);
             AutomationRunsGrid.ItemsSource = state.AutomationRuns;
-            WatchInboundInput.Text = state.WatchFolders.InboundPath;
-            WatchProcessedInput.Text = state.WatchFolders.ProcessedPath;
-            WatchFailedInput.Text = state.WatchFolders.FailedPath;
-            WatchReportOutputInput.Text = state.WatchFolders.ReportOutputPath;
-            WatchEnabledInput.IsChecked = state.WatchFolders.IsEnabled;
+            ApplyWatchSettings(state, beforeLoad);
             RenderManagementTrendChart(state.Trend);
             OperationsStatus.Text = state.Status;
         }
-        catch (Exception ex) { DesktopDiagnostics.Record(ex, "OperationsAdministration.Operations", "OPERATIONS_REFRESH_FAILED"); OperationsStatus.Text = $"Operations center could not be refreshed: {DesktopFriendlyError.Describe(ex, "This Windows account does not have application access.")}"; }
+        catch (Exception ex) { if (revision != refreshRevision) return; DesktopDiagnostics.Record(ex, "OperationsAdministration.Operations", "OPERATIONS_REFRESH_FAILED"); OperationsStatus.Text = $"Operations center could not be refreshed: {DesktopFriendlyError.Describe(ex, "This Windows account does not have application access.")}"; }
     }
 
     private IOperationsAdministrationService Service => serviceFactory(connectionStringProvider());
     private async void RefreshOperations_Click(object sender, RoutedEventArgs e) => await RefreshAsync();
 
-    private async void SaveAutomationSettings_Click(object sender, RoutedEventArgs e)
+    private async void SaveAutomationSettings_Click(object sender, RoutedEventArgs e) => await SaveWatchDraftAsync();
+    public async Task<bool> SaveWatchDraftAsync()
     {
+        if (!BeginOperation()) return false;
+        var submittedWatch = CaptureWatch();
         try
         {
             RequireOwnerAccess();
+            if (loadedWatch is null) throw new InvalidOperationException("Refresh automation settings successfully before saving.");
             await Service.SaveWatchFoldersAsync(OperationsAdministrationPresentationSession.CreateWatchFolderCommand(
                 WatchInboundInput.Text, WatchProcessedInput.Text, WatchFailedInput.Text,
                 WatchReportOutputInput.Text, WatchEnabledInput.IsChecked == true, WatchChangeReasonInput.Text));
             WatchChangeReasonInput.Clear();
+            loadedWatch = submittedWatch;
             OperationsStatus.Text = "Automatic import and report-output folders were saved and audited.";
             await RefreshAsync();
+            return true;
         }
-        catch (Exception ex) { DesktopDiagnostics.Record(ex, "OperationsAdministration.Operations", "WATCH_FOLDER_SAVE_FAILED"); OperationsStatus.Text = $"Automation settings were not saved: {DesktopFriendlyError.Describe(ex, "Owner permission is required.")}"; }
+        catch (Exception ex) { DesktopDiagnostics.Record(ex, "OperationsAdministration.Operations", "WATCH_FOLDER_SAVE_FAILED"); OperationsStatus.Text = $"Automation settings were not saved: {DesktopFriendlyError.Describe(ex, "Owner permission is required.")}"; return false; }
+        finally { EndOperation(); }
     }
 
     private async void RunAutomationNow_Click(object sender, RoutedEventArgs e)
     {
+        if (!BeginOperation()) return;
         try
         {
             RequireImportAccess();
@@ -95,20 +121,18 @@ public partial class OperationsWorkspaceView : UserControl
             if (DashboardRefreshRequestedAsync is not null) await DashboardRefreshRequestedAsync();
         }
         catch (Exception ex) { DesktopDiagnostics.Record(ex, "OperationsAdministration.Operations", "AUTOMATION_RUN_FAILED"); OperationsStatus.Text = $"Unattended processing failed: {DesktopFriendlyError.Describe(ex, "Owner or Store Manager permission is required.")}"; }
+        finally { EndOperation(); }
     }
 
     private void ReportSchedule_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        var selection = session.SelectSchedule(ReportSchedulesGrid.SelectedItem as ReportSchedule);
-        if (selection is null) return;
-        ScheduleTimeInput.Text = selection.Time;
-        ScheduleEnabledInput.IsChecked = selection.IsEnabled;
-        ScheduleExcelInput.IsChecked = selection.ExportExcel;
-        SchedulePdfInput.IsChecked = selection.ExportPdf;
+        RetainScheduleSelection();
     }
 
-    private async void SaveSchedule_Click(object sender, RoutedEventArgs e)
+    private async void SaveSchedule_Click(object sender, RoutedEventArgs e) => await SaveScheduleDraftAsync();
+    public async Task<bool> SaveScheduleDraftAsync()
     {
+        if (!BeginOperation()) return false;
         try
         {
             RequireOwnerAccess();
@@ -116,14 +140,18 @@ public partial class OperationsWorkspaceView : UserControl
                 ScheduleTimeInput.Text, ScheduleEnabledInput.IsChecked == true,
                 ScheduleExcelInput.IsChecked == true, SchedulePdfInput.IsChecked == true, ScheduleReasonInput.Text));
             ScheduleReasonInput.Clear();
+            AcceptScheduleDraft();
             OperationsStatus.Text = "The selected report schedule was updated and audited.";
             await RefreshAsync();
+            return true;
         }
-        catch (Exception ex) { DesktopDiagnostics.Record(ex, "OperationsAdministration.Operations", "REPORT_SCHEDULE_SAVE_FAILED"); OperationsStatus.Text = $"Schedule was not saved: {DesktopFriendlyError.Describe(ex, "Owner permission is required.")}"; }
+        catch (Exception ex) { DesktopDiagnostics.Record(ex, "OperationsAdministration.Operations", "REPORT_SCHEDULE_SAVE_FAILED"); OperationsStatus.Text = $"Schedule was not saved: {DesktopFriendlyError.Describe(ex, "Owner permission is required.")}"; return false; }
+        finally { EndOperation(); }
     }
 
     private async void UpdateIssueWorkflow_Click(object sender, RoutedEventArgs e)
     {
+        if (!BeginOperation()) return;
         try
         {
             RequireImportAccess();
@@ -135,6 +163,7 @@ public partial class OperationsWorkspaceView : UserControl
             OperationsStatus.Text = $"Issue marked {status.Replace('_', ' ').ToLowerInvariant()}. Technical control remains {row.TechnicalControlStatus}.";
         }
         catch (Exception ex) { DesktopDiagnostics.Record(ex, "OperationsAdministration.Operations", "ISSUE_WORKFLOW_UPDATE_FAILED"); OperationsStatus.Text = OperationsAdministrationWorkspaceErrors.Friendly(ex); }
+        finally { EndOperation(); }
     }
 
     private async void RunBackupNow_Click(object sender, RoutedEventArgs e) => await RunMaintenanceAsync(
@@ -161,6 +190,7 @@ public partial class OperationsWorkspaceView : UserControl
         bool refreshDashboard = false,
         bool auditSupportPackage = false)
     {
+        if (!BeginOperation()) return;
         try
         {
             RequireOwnerAccess();
@@ -172,6 +202,7 @@ public partial class OperationsWorkspaceView : UserControl
                 await AuditRequestedAsync("SupportPackage", result.Succeeded ? "Succeeded" : "Failed", "Privacy-safe support package operation completed");
         }
         catch (Exception ex) { DesktopDiagnostics.Record(ex, "OperationsAdministration.Maintenance", failureEventId); MaintenanceStatus.Text = failed(ex); }
+        finally { EndOperation(); }
     }
 
     private void RenderManagementTrendChart(IReadOnlyList<ManagementTrendPoint> rows)

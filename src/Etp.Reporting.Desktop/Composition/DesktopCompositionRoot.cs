@@ -150,7 +150,7 @@ public sealed class DesktopCompositionRoot
             operationsAdministrationServiceFactory,
             async (script, cancellationToken) =>
             {
-                var result = await PowerShellOperationsService.RunAsync(script, cancellationToken);
+                var result = await PowerShellOperationsService.RunAsync(script, connectionState.ConnectionString, cancellationToken);
                 return new MaintenanceOperationResult(result.Succeeded, result.Message);
             });
         var investigationWorkspaceView = new InvestigationApprovalsWorkspaceView(

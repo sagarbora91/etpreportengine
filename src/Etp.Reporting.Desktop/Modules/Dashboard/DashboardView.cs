@@ -112,7 +112,7 @@ public sealed class DashboardView : UserControl
         var completed = ParseMetric(state.CompletedBatches);
         var readiness = files <= 0 ? 0 : Math.Clamp(completed * 100d / files, 0, 100);
         readinessProgress.Value = readiness;
-        readinessPercent.Text = $"{readiness:N0}%";
+        readinessPercent.Text = state.ErrorMessage is not null ? "Unavailable" : files <= 0 ? "No sources" : $"{readiness:N0}% imported";
         dailyCloseMessage.Text = state.ErrorMessage is not null
             ? "Live readiness could not be refreshed. Existing safe context remains visible."
             : files <= 0
@@ -123,50 +123,67 @@ public sealed class DashboardView : UserControl
         RenderChart(state.ImportedRowsByReport);
     }
 
+    private UIElement? overviewContent;
+    private UIElement? historyContent;
+    private UIElement? auditContent;
+    private UIElement? chartContent;
+
+    public void SelectTask(string id)
+    {
+        Content = id switch { "import-history" => historyContent, "audit" or "recent-activity" => auditContent, "trends" => chartContent, _ => overviewContent };
+    }
+
     private UIElement BuildContent()
     {
-        var root = new StackPanel();
-        errorBanner.Background = Brush("#FBECEE");
-        errorBanner.BorderBrush = Brush("#F2CBD0");
-        errorBanner.BorderThickness = new Thickness(1);
-        errorBanner.CornerRadius = new CornerRadius(10);
-        errorBanner.Padding = new Thickness(14);
-        errorBanner.Margin = new Thickness(0, 0, 0, 14);
-        errorBanner.Child = errorMessage;
-        root.Children.Add(errorBanner);
-
-        var overview = new Grid();
-        overview.ColumnDefinitions.Add(new ColumnDefinition());
-        overview.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(318) });
-
-        var left = new StackPanel { Margin = new Thickness(0, 0, 14, 0) };
-        left.Children.Add(BuildDailyCloseCard());
-        left.Children.Add(BuildReadinessCard());
-        overview.Children.Add(left);
-
-        var right = new StackPanel();
-        right.Children.Add(BuildGlanceCard());
-        right.Children.Add(BuildSystemCard());
-        Grid.SetColumn(right, 1);
-        overview.Children.Add(right);
-        root.Children.Add(overview);
-
-        var activity = new Grid { Margin = new Thickness(0, 14, 0, 0) };
-        activity.ColumnDefinitions.Add(new ColumnDefinition());
-        activity.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0.85, GridUnitType.Star) });
-        var history = Card(BuildHistoryContent());
-        history.Margin = new Thickness(0, 0, 7, 0);
-        activity.Children.Add(history);
-        var chart = Card(BuildChartContent());
-        chart.Margin = new Thickness(7, 0, 0, 0);
-        Grid.SetColumn(chart, 1);
-        activity.Children.Add(chart);
-        root.Children.Add(activity);
-
-        var audit = Card(BuildAuditContent());
-        audit.Margin = new Thickness(0, 14, 0, 0);
-        root.Children.Add(audit);
-        return root;
+        historyContent = new ScrollViewer { Content = BuildHistoryContent(), VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+        auditContent = new ScrollViewer { Content = BuildAuditContent(), VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+        chartContent = new ScrollViewer { Content = BuildChartContent(), VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+        var root = new Grid { Margin = new Thickness(12) };
+        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        root.RowDefinitions.Add(new RowDefinition());
+        errorBanner.Child = errorMessage; errorBanner.Padding = new Thickness(8);
+        var top = new DockPanel();
+        var actions = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right };
+        actions.Children.Add(Button("Refresh", "Refresh dashboard", () => RefreshRequested?.Invoke(this, EventArgs.Empty)));
+        actions.Children.Add(Button("Export summary", "Export management summary PDF", ExportPdfAsync));
+        DockPanel.SetDock(actions, Dock.Right); top.Children.Add(actions); top.Children.Add(errorBanner);
+        root.Children.Add(top);
+        var groups = new UniformGrid { Columns = 2, Rows = 2 };
+        Grid.SetRow(groups, 1); root.Children.Add(groups);
+        Border Group(string title, params UIElement[] items)
+        {
+            var panel = new StackPanel(); panel.Children.Add(Title(title));
+            foreach (var item in items) panel.Children.Add(item);
+            var card = Card(panel); card.Margin = new Thickness(6); card.Padding = new Thickness(12); return card;
+        }
+        var closeTasks = new UniformGrid { Columns = 2, Margin = new Thickness(0,8,0,0) };
+        foreach (var item in new[] { ("Manual inputs", "Manual Entry"), ("Readiness", "Daily Workflow"), ("Reports", "Sales Reports"), ("Archive", "Report Archive") })
+        {
+            var button = Button(item.Item1, item.Item1, () => NavigationRequested?.Invoke(this, item.Item2)); button.Margin = new Thickness(3); closeTasks.Children.Add(button);
+        }
+        groups.Children.Add(Group("Daily close", closeTasks));
+        sourceRowsMetric.Foreground = PrimaryText; completedBatchesMetric.Foreground = PrimaryText; failedImportsMetric.Foreground = PrimaryText;
+        var metrics = new UniformGrid { Columns = 2, Margin = new Thickness(0,8,0,0) };
+        metrics.Children.Add(MiniMetric("SOURCE FILES", importedFilesMetric)); metrics.Children.Add(MiniMetric("SOURCE ROWS", sourceRowsMetric));
+        groups.Children.Add(Group("Today at a glance", metrics, new TextBlock { Text = "Operational activity across the loaded database.", Foreground = SecondaryText, FontSize = 12, TextWrapping = TextWrapping.Wrap }));
+        groups.Children.Add(Group("Import completion", readinessPercent, readinessProgress,
+            new TextBlock { Text = "Import completion is not daily-close readiness. Review manual inputs and financial controls before finalising.", Foreground = SecondaryText, FontSize = 14, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,8,0,0) },
+            Button("Review readiness", "Continue daily workflow", () => NavigationRequested?.Invoke(this, "Daily Workflow"))));
+        groups.Children.Add(Group("System status", databaseHealthDetailMetric, backupAgeMetric,
+            Button("Health and recovery", "Open health and recovery", () => NavigationRequested?.Invoke(this, "Admin / Settings"))));
+        var groupSelector = new ComboBox { Width = 195, SelectedIndex = 0, Margin = new Thickness(8,0,0,0), ItemsSource = new[] { "Daily close", "Today at a glance", "Import completion", "System status" }, Visibility = Visibility.Collapsed };
+        AutomationProperties.SetName(groupSelector, "Overview group for short windows");
+        actions.Children.Add(groupSelector);
+        void FitGroups()
+        {
+            var shortWindow = root.ActualHeight < 350;
+            groups.Columns = shortWindow ? 1 : 2; groups.Rows = shortWindow ? 1 : 2;
+            for (var i = 0; i < groups.Children.Count; i++) groups.Children[i].Visibility = shortWindow && i != groupSelector.SelectedIndex ? Visibility.Collapsed : Visibility.Visible;
+            groupSelector.Visibility = shortWindow ? Visibility.Visible : Visibility.Collapsed;
+            actions.Children[1].Visibility = shortWindow ? Visibility.Collapsed : Visibility.Visible;
+        }
+        root.SizeChanged += (_, _) => FitGroups(); groupSelector.SelectionChanged += (_, _) => FitGroups();
+        overviewContent = root; return root;
     }
 
     private Border BuildDailyCloseCard()
@@ -188,7 +205,7 @@ public sealed class DashboardView : UserControl
         var tasks = new UniformGrid { Columns = 2, Margin = new Thickness(0, 15, 0, 0) };
         tasks.Children.Add(TaskCard("Sales files", importedFilesMetric, "Source files received", AccentSoft));
         tasks.Children.Add(TaskCard("Control totals", databaseHealthMetric, "Database and control state", AccentSoft));
-        tasks.Children.Add(TaskCard("Manual inputs", new TextBlock { Text = "Verify", FontWeight = FontWeights.SemiBold, Foreground = Brush("#A76500") }, "Walk-ins, stock counts and targets", Brush("#FAF1E3")));
+        tasks.Children.Add(TaskCard("Manual inputs", new TextBlock { Text = "Verify", FontWeight = FontWeights.SemiBold, Foreground = PrimaryText }, "Walk-ins, stock counts and targets", Brush("#FAF1E3")));
         tasks.Children.Add(TaskCard("Daily pack", new TextBlock { Text = "Next", FontWeight = FontWeights.SemiBold, Foreground = SecondaryText }, "Available after readiness checks", SurfaceSecondary));
         content.Children.Add(tasks);
         return Card(content);
@@ -219,7 +236,7 @@ public sealed class DashboardView : UserControl
         var content = new StackPanel();
         content.Children.Add(new TextBlock { Text = "Today at a glance", FontSize = 17, FontWeight = FontWeights.SemiBold, Foreground = Brushes.White });
         content.Children.Add(new TextBlock { Text = "Live operational source activity", Foreground = Brush("#AFC4C9"), Margin = new Thickness(0, 4, 0, 17) });
-        content.Children.Add(new TextBlock { Text = "SOURCE ROWS", FontSize = 10, FontWeight = FontWeights.SemiBold, Foreground = Brush("#AFC4C9") });
+        content.Children.Add(new TextBlock { Text = "SOURCE ROWS", FontSize = 12, FontWeight = FontWeights.SemiBold, Foreground = Brush("#AFC4C9") });
         content.Children.Add(sourceRowsMetric);
         var measures = new UniformGrid { Columns = 2, Margin = new Thickness(0, 18, 0, 16) };
         measures.Children.Add(DarkMetric("Completed batches", completedBatchesMetric));
@@ -350,14 +367,14 @@ public sealed class DashboardView : UserControl
         content.Children.Add(new TextBlock { Text = title, FontWeight = FontWeights.SemiBold, Foreground = PrimaryText });
         value.Margin = new Thickness(0, 7, 0, 2);
         content.Children.Add(value);
-        content.Children.Add(new TextBlock { Text = detail, FontSize = 11, Foreground = SecondaryText, TextWrapping = TextWrapping.Wrap });
+        content.Children.Add(new TextBlock { Text = detail, FontSize = 12, Foreground = PrimaryText, TextWrapping = TextWrapping.Wrap });
         return new Border { Background = tint, BorderBrush = Divider, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(12), Padding = new Thickness(14), Margin = new Thickness(4), Child = content };
     }
 
     private static Border MiniMetric(string label, TextBlock value)
     {
         var content = new StackPanel();
-        content.Children.Add(new TextBlock { Text = label, FontSize = 9, FontWeight = FontWeights.SemiBold, Foreground = SecondaryText });
+        content.Children.Add(new TextBlock { Text = label, FontSize = 12, FontWeight = FontWeights.SemiBold, Foreground = PrimaryText });
         value.Margin = new Thickness(0, 5, 0, 0);
         content.Children.Add(value);
         return new Border { Background = SurfaceSecondary, CornerRadius = new CornerRadius(10), Padding = new Thickness(12), Margin = new Thickness(3), Child = content };
@@ -367,7 +384,7 @@ public sealed class DashboardView : UserControl
     {
         var content = new StackPanel();
         content.Children.Add(value);
-        content.Children.Add(new TextBlock { Text = label, Foreground = Brush("#AFC4C9"), FontSize = 11, Margin = new Thickness(0, 2, 0, 0) });
+        content.Children.Add(new TextBlock { Text = label, Foreground = Brush("#AFC4C9"), FontSize = 12, Margin = new Thickness(0, 2, 0, 0) });
         return content;
     }
 
@@ -379,7 +396,7 @@ public sealed class DashboardView : UserControl
         var icon = new Border { Width = 28, Height = 28, CornerRadius = new CornerRadius(9), Background = AccentSoft, Child = new TextBlock { Text = "✓", Foreground = Accent, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center } };
         var content = new StackPanel();
         content.Children.Add(new TextBlock { Text = label, FontWeight = FontWeights.SemiBold });
-        value.FontSize = 11;
+        value.FontSize = 12;
         value.FontWeight = FontWeights.Normal;
         value.Foreground = SecondaryText;
         content.Children.Add(value);

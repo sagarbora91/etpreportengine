@@ -26,13 +26,13 @@
                   SelectionMode="Extended" MaxHeight="250" Margin="0,10,0,0"
                   automation:AutomationProperties.Name="Archived report generations"/>
         <WrapPanel Margin="0,10,0,0">
-            <Button Content="Open selected generation" Click="OpenArchivedGeneration_Click" Style="{DynamicResource PrimaryButton}" Padding="14,7"/>
-            <Button Content="Compare two selected" Click="CompareArchivedGenerations_Click" Padding="14,7" Margin="8,0,0,0"/>
-            <Button Content="Export archived Excel…" Click="ExportArchivedExcel_Click" Padding="14,7" Margin="8,0,0,0"/>
-            <Button Content="Export archived PDF…" Click="ExportArchivedPdf_Click" Padding="14,7" Margin="8,0,0,0"/>
-            <Button Content="Export ZIP…" Click="ExportArchivedZip_Click" Padding="14,7" Margin="8,0,0,0"/>
-            <Button Content="WhatsApp" Click="ShareArchivedWhatsApp_Click" Padding="14,7" Margin="8,0,0,0"/>
-            <Button Content="Email draft" Click="ShareArchivedEmail_Click" Padding="14,7" Margin="8,0,0,0"/>
+            <Button Content="Open selected generation" x:Name="OpenArchivedGenerationButton" Click="OpenArchivedGeneration_Click" Style="{DynamicResource PrimaryButton}" Padding="14,7"/>
+            <Button Content="Compare two selected" x:Name="CompareArchivedGenerationsButton" Click="CompareArchivedGenerations_Click" Padding="14,7" Margin="8,0,0,0"/>
+            <Button Content="Export archived Excel…" x:Name="ExportArchivedExcelButton" Click="ExportArchivedExcel_Click" Padding="14,7" Margin="8,0,0,0"/>
+            <Button Content="Export archived PDF…" x:Name="ExportArchivedPdfButton" Click="ExportArchivedPdf_Click" Padding="14,7" Margin="8,0,0,0"/>
+            <Button Content="Export ZIP…" x:Name="ExportArchivedZipButton" Click="ExportArchivedZip_Click" Padding="14,7" Margin="8,0,0,0"/>
+            <Button Content="WhatsApp" x:Name="ShareArchivedWhatsAppButton" Click="ShareArchivedWhatsApp_Click" Padding="14,7" Margin="8,0,0,0"/>
+            <Button Content="Email draft" x:Name="ShareArchivedEmailButton" Click="ShareArchivedEmail_Click" Padding="14,7" Margin="8,0,0,0"/>
         </WrapPanel>
         <WrapPanel Margin="0,8,0,0">
             <TextBox x:Name="SharePhoneInput" Width="150" Padding="6" ToolTip="Optional WhatsApp phone including country code"

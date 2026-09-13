@@ -9,6 +9,7 @@ public sealed class ReportExportCompositionTests
         var mainWindow = File.ReadAllText(Path.Combine(root, "src", "Etp.Reporting.Desktop", "MainWindow.xaml.cs"));
         var composition = File.ReadAllText(Path.Combine(root, "src", "Etp.Reporting.Desktop", "Composition", "DesktopCompositionRoot.cs"));
         var reports = File.ReadAllText(Path.Combine(root, "src", "Etp.Reporting.Desktop", "Modules", "Reports", "ReportsWorkspaceView.xaml.cs"));
+        reports += File.ReadAllText(Path.Combine(root, "src", "Etp.Reporting.Desktop", "Modules", "Reports", "ReportExportCompletion.cs"));
         var coordinator = File.ReadAllText(Path.Combine(root, "src", "Etp.Reporting.Desktop", "Modules", "Reports", "ReportExportCoordinator.cs"));
         var dailyWorkflow = File.ReadAllText(Path.Combine(root, "src", "Etp.Reporting.Desktop", "Modules", "DailyWorkflow", "DailyWorkflowWorkspaceView.xaml.cs"));
         var archive = File.ReadAllText(Path.Combine(root, "src", "Etp.Reporting.Desktop", "Modules", "Archive", "ArchiveWorkspaceView.xaml.cs"));
@@ -25,8 +26,8 @@ public sealed class ReportExportCompositionTests
         Assert.Contains("await exportPackPdfAsync", dailyWorkflow, StringComparison.Ordinal);
         Assert.Contains("await exportExcelAsync", archive, StringComparison.Ordinal);
         Assert.Contains("await exportPdfAsync", archive, StringComparison.Ordinal);
-        Assert.Contains("await auditRecorder(\"ExportExcel\"", reports, StringComparison.Ordinal);
-        Assert.Contains("await auditRecorder(\"ExportPdf\"", reports, StringComparison.Ordinal);
+        Assert.Contains("await auditRecorder(pdf ? \"ExportPdf\" : \"ExportExcel\"", reports, StringComparison.Ordinal);
+        Assert.DoesNotContain("_ = auditRecorder(pdf ?", reports, StringComparison.Ordinal);
         Assert.Contains("await recordAuditAsync(excel ? \"ExportExcel\" : \"ExportPdf\"", dailyWorkflow, StringComparison.Ordinal);
         Assert.Contains("await auditRecorder(\"ExportExcel\"", archive, StringComparison.Ordinal);
         Assert.Contains("await auditRecorder(\"ExportPdf\"", archive, StringComparison.Ordinal);

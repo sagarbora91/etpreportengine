@@ -87,7 +87,7 @@ public sealed class RegistersAccountingWorkspaceExtractionTests
 
     [Theory]
     [InlineData("Modules/Registers/RegistersWorkspaceView.xaml", 13, 70)]
-    [InlineData("Modules/Accounting/AccountingWorkspaceView.xaml", 10, 60)]
+    [InlineData("Modules/Accounting/AccountingWorkspaceView.xaml", 15, 60)]
     public void Workspace_controls_are_accessibly_named_and_layout_is_ratcheted(
         string relativePath,
         int expectedNamedControls,

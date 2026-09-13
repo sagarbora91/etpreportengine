@@ -162,6 +162,80 @@ public sealed class SettingsWorkspaceViewTests
         });
     }
 
+    [Fact]
+    public void Integration_drafts_survive_refresh_and_failed_save_and_reject_reentry()
+    {
+        RunSta(async () =>
+        {
+            var service = new FakeAdministrationService();
+            var root = Path.Combine(Path.GetTempPath(), "EtpSettingsDraftTests", Guid.NewGuid().ToString("N"));
+            var view = new SettingsWorkspaceView(new DesktopSettingsPresentationSession(new DesktopSettingsStore(root), new DesktopConnectionState(ConnectionString)),
+                _ => new FakeLifecycleService(), _ => service, root);
+            view.UpdateAccess(new(true, true));
+            await view.PrepareForDisplayAsync(true);
+            var share = (TextBox)view.FindName("ShareFolderInput");
+            share.Text = "new-share";
+            await view.PrepareForDisplayAsync(true);
+            Assert.Equal("new-share", share.Text); Assert.True(view.HasProductDraft);
+            var pending = new TaskCompletionSource(); service.SaveCompletion = pending.Task;
+            var save = view.SaveProductConfigurationAsync();
+            Assert.True(view.IsBusy); Assert.False(view.ProductConfigurationEnabled);
+            Assert.False(await view.SaveProductConfigurationAsync()); Assert.Equal(1, service.Saves);
+            pending.SetException(new InvalidOperationException("Synthetic failure"));
+            Assert.False(await save); Assert.True(view.HasProductDraft); Assert.Equal("new-share", share.Text);
+            view.DiscardProductDraft(); Assert.False(view.HasProductDraft); Assert.Equal("share", share.Text);
+        });
+    }
+
+    [Fact]
+    public void Failed_integration_load_cannot_overwrite_unloaded_categories()
+    {
+        RunSta(async () =>
+        {
+            var service = new FakeAdministrationService { FailLoad = true };
+            var root = Path.Combine(Path.GetTempPath(), "EtpSettingsLoadTests", Guid.NewGuid().ToString("N"));
+            var view = new SettingsWorkspaceView(new DesktopSettingsPresentationSession(new DesktopSettingsStore(root), new DesktopConnectionState(ConnectionString)),
+                _ => new FakeLifecycleService(), _ => service, root);
+            view.UpdateAccess(new(true, true));
+            await view.PrepareForDisplayAsync(true);
+            Assert.False(view.ProductConfigurationEnabled);
+            Assert.False(await view.SaveProductConfigurationAsync()); Assert.Equal(0, service.Saves);
+            service.FailLoad = false; await view.PrepareForDisplayAsync(true);
+            Assert.True(view.ProductConfigurationEnabled);
+        });
+    }
+
+    [Fact]
+    public void Committed_settings_stay_successful_when_followup_refresh_fails()
+    {
+        RunSta(async () =>
+        {
+            var service = new FakeAdministrationService(); var root = Path.Combine(Path.GetTempPath(), "EtpSavedSettings", Guid.NewGuid().ToString("N"));
+            var view = new SettingsWorkspaceView(new(new DesktopSettingsStore(root), new DesktopConnectionState(ConnectionString)), _ => new FakeLifecycleService(), _ => service, root);
+            view.UpdateAccess(new(true,true)); await view.PrepareForDisplayAsync(true);
+            ((TextBox)view.FindName("ProductSettingsReasonInput")).Text = "Synthetic change";
+            view.OperationCompletedAsync = (_,_) => Task.FromException(new InvalidOperationException("Synthetic refresh failure"));
+            Assert.True(await view.SaveProductConfigurationAsync()); Assert.False(view.HasProductDraft); Assert.Equal(1,service.Saves);
+            Assert.Contains("saved and audited",view.StatusText); Assert.Contains("follow-up display refresh failed",view.StatusText);
+        });
+    }
+
+    [Fact]
+    public void Connection_context_guard_blocks_health_and_bootstrap_before_touching_another_database()
+    {
+        RunSta(async () =>
+        {
+            var lifecycle = new FakeLifecycleService(); var root = Path.Combine(Path.GetTempPath(), "EtpConnectionGuard", Guid.NewGuid().ToString("N"));
+            var session = new DesktopSettingsPresentationSession(new DesktopSettingsStore(root),new DesktopConnectionState(ConnectionString));
+            var view = new SettingsWorkspaceView(session,_=>lifecycle,_=>new FakeAdministrationService(),root) { CanChangeDatabase = () => false };
+            view.UpdateAccess(new(true,true)); view.Initialize(); var original = session.ConnectionString;
+            ((TextBox)view.FindName("ConnectionStringInput")).Text = ConnectionString.Replace("EtpReporting","EtpOtherSynthetic");
+            await view.CheckConnectionAsync(true); await view.BootstrapDatabaseAsync();
+            Assert.Equal(original,session.ConnectionString); Assert.Equal(0,lifecycle.HealthChecks); Assert.Equal(0,lifecycle.Bootstraps);
+            Assert.Contains("active connection is unchanged",view.StatusText);
+        });
+    }
+
     private static int Count(string source, string value) =>
         source.Split(value, StringSplitOptions.None).Length - 1;
 
@@ -199,6 +273,36 @@ public sealed class SettingsWorkspaceViewTests
         throw new DirectoryNotFoundException("Could not locate the ETP repository root.");
     }
 
+    [Fact]
+    public void Loaded_integration_configuration_cannot_be_retargeted_by_connection_or_bootstrap()
+    {
+        RunSta(async () =>
+        {
+            var testRoot = Path.Combine(Path.GetTempPath(), "EtpSettingsRetargetTests", Guid.NewGuid().ToString("N"));
+            try
+            {
+                var session = new DesktopSettingsPresentationSession(new DesktopSettingsStore(Path.Combine(testRoot, "settings")), new DesktopConnectionState(ConnectionString));
+                var lifecycle = new FakeLifecycleService();
+                var view = new SettingsWorkspaceView(session, _ => lifecycle, _ => new FakeAdministrationService(), Path.Combine(testRoot, "migrations")) { CanChangeDatabase = () => true };
+                view.UpdateAccess(new(true, true)); view.Initialize();
+                await view.CheckConnectionAsync(false);
+                var original = session.ConnectionString;
+                await view.PrepareForDisplayAsync(true);
+                Assert.False(view.HasProductDraft);
+                ((TextBox)view.FindName("ConnectionStringInput")).Text = ConnectionString.Replace("Database=EtpReporting", "Database=OtherSyntheticDatabase");
+                await view.CheckConnectionAsync(true);
+                await view.BootstrapDatabaseAsync();
+                Assert.Equal(1, lifecycle.HealthChecks); Assert.Equal(0, lifecycle.Bootstraps);
+                Assert.Equal(original, session.ConnectionString);
+                Assert.Contains("active connection is unchanged", view.StatusText);
+                ((TextBox)view.FindName("ConnectionStringInput")).Text = original;
+                await view.CheckConnectionAsync(false);
+                Assert.Equal(2, lifecycle.HealthChecks);
+            }
+            finally { if (Directory.Exists(testRoot)) Directory.Delete(testRoot, recursive: true); }
+        });
+    }
+
     private sealed class FakeLifecycleService : IDatabaseLifecycleService
     {
         public Task<DatabaseConnectionHealth>? HealthCompletion { get; set; }
@@ -224,9 +328,12 @@ public sealed class SettingsWorkspaceViewTests
     private sealed class FakeAdministrationService : IAdministrationService
     {
         public SaveProductConfiguration? Saved { get; private set; }
+        public bool FailLoad { get; set; }
+        public Task? SaveCompletion { get; set; }
+        public int Saves { get; private set; }
 
         public Task<AdministrationDashboard> LoadAsync(string masterType, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new AdministrationDashboard([], [], [], [],
+            FailLoad ? Task.FromException<AdministrationDashboard>(new InvalidOperationException("Synthetic load failure")) : Task.FromResult(new AdministrationDashboard([], [], [], [],
                 new ProductConfiguration("docs", "share", "ocr", "models", "smtp", 587, true,
                     "from@example.com", 20, DateTime.UtcNow, "owner")));
 
@@ -239,7 +346,8 @@ public sealed class SettingsWorkspaceViewTests
         public Task SaveProductConfigurationAsync(SaveProductConfiguration command, CancellationToken cancellationToken = default)
         {
             Saved = command;
-            return Task.CompletedTask;
+            Saves++;
+            return SaveCompletion ?? Task.CompletedTask;
         }
     }
 }

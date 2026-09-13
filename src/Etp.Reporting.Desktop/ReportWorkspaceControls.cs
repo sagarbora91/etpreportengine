@@ -84,12 +84,20 @@ public static class ReportingPeriodLabels
 
 public sealed class ReportWorkspaceControl : Grid
 {
+    private readonly List<Control> exportActions = [];
+    private ReportPreviewScope? loadingScope;
+    private ReportPreviewScope? loadedScope;
+    private ReportPreviewScope CurrentScope => new(DateFromPicker.SelectedDate, DateToPicker.SelectedDate, ScopeSelector.SelectedItem?.ToString(), SelectedReport?.Code);
+    public bool HasCurrentPreview => loadedScope is not null && loadedScope == CurrentScope;
     private readonly ReportWorkspaceDefinition definition;
     private readonly ListBox reportMenu;
     private readonly ContentControl previewHost;
     private readonly TextBlock reportTitle;
     private TextBlock statusText = null!;
     private bool suppressSelectionChanged;
+    private Action updateToolbar = () => { };
+    private bool compactFilters;
+    public void FocusPeriod() { if(compactFilters) new Modules.Reports.ReportScopeDialog(this).ShowDialog(); else (DateFromPicker.IsEnabled ? DateFromPicker : DateToPicker).Focus(); }
 
     public event EventHandler<ReportWorkspaceActionRequest>? ActionRequested;
     public event EventHandler<ProductReportEntry>? ReportSelected;
@@ -103,11 +111,11 @@ public sealed class ReportWorkspaceControl : Grid
     {
         this.definition = definition ?? throw new ArgumentNullException(nameof(definition));
         Background = DsrUi.Brush("#F4F7FB");
-        ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(238) });
+        ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0) });
         ColumnDefinitions.Add(new ColumnDefinition());
 
         reportMenu = BuildReportMenu();
-        Children.Add(BuildNavigation());
+        var navigation = BuildNavigation(); navigation.Visibility = Visibility.Collapsed; Children.Add(navigation);
 
         var body = new Grid { Margin = new Thickness(18, 12, 18, 14) };
         body.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -117,8 +125,8 @@ public sealed class ReportWorkspaceControl : Grid
         reportTitle = DsrUi.Text(definition.DisplayName, 24, FontWeights.SemiBold);
         body.Children.Add(reportTitle);
 
-        DateFromPicker = new DatePicker { Width = 142, SelectedDate = DateTime.Today, Margin = new Thickness(0, 0, 8, 0) };
-        DateToPicker = new DatePicker { Width = 142, SelectedDate = DateTime.Today, Margin = new Thickness(0, 0, 8, 0) };
+        DateFromPicker = new DatePicker { Width = 180, SelectedDate = DateTime.Today, Margin = new Thickness(0, 0, 8, 0) };
+        DateToPicker = new DatePicker { Width = 180, SelectedDate = DateTime.Today, Margin = new Thickness(0, 0, 8, 0) };
         ScopeSelector = new ComboBox { Width = 190, SelectedIndex = 0, Margin = new Thickness(0, 0, 12, 0), ItemsSource = new[] { "Combined (Titan + Helios)", "Titan", "Helios" } };
         AutomationProperties.SetName(DateFromPicker, "Report start date");
         AutomationProperties.SetName(DateToPicker, "Report end date");
@@ -132,27 +140,27 @@ public sealed class ReportWorkspaceControl : Grid
             HorizontalContentAlignment = HorizontalAlignment.Stretch,
             VerticalContentAlignment = VerticalAlignment.Stretch
         };
-        var previewScroll = new ScrollViewer
-        {
-            Content = previewHost,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Margin = new Thickness(0, 12, 0, 0),
-            Padding = new Thickness(1)
-        };
-        AutomationProperties.SetName(previewScroll, "Report preview and results");
-        Grid.SetRow(previewScroll, 2); body.Children.Add(previewScroll);
+        previewHost.Margin = new Thickness(0, 8, 0, 0);
+        AutomationProperties.SetName(previewHost, "Report preview and results");
+        Grid.SetRow(previewHost, 2); body.Children.Add(previewHost);
+        reportTitle.Visibility = Visibility.Collapsed;
         Grid.SetColumn(body, 1); Children.Add(body);
 
         if (definition.Reports.Count > 0) reportMenu.SelectedIndex = 0;
         AutomationProperties.SetName(this, $"{definition.DisplayName} report workspace");
+        DateFromPicker.SelectedDateChanged += (_, _) => InvalidatePreview();
+        DateToPicker.SelectedDateChanged += (_, _) => { if (Modules.Reports.ReportTaskScope.IsSnapshot(SelectedReport?.Code)) DateFromPicker.SelectedDate = DateToPicker.SelectedDate; InvalidatePreview(); };
+        ScopeSelector.SelectionChanged += (_, _) => InvalidatePreview();
     }
 
     public void SetPreview(UIElement content, string status)
     {
         ArgumentNullException.ThrowIfNull(content);
+        if (loadingScope is not null && loadingScope != CurrentScope) { InvalidatePreview(); return; }
         previewHost.Content = content;
         statusText.Text = status;
+        updateToolbar();
+        loadedScope = CurrentScope; foreach (var button in exportActions) button.IsEnabled = true;
     }
 
     public void SelectReport(string reportCode, bool notify = false)
@@ -169,16 +177,33 @@ public sealed class ReportWorkspaceControl : Grid
         finally { suppressSelectionChanged = false; }
     }
 
+    public void ConfigureTaskScope(string? scope)
+    {
+        ScopeSelector.ItemsSource = Modules.Reports.ReportTaskScope.RequiresSingleStore(SelectedReport?.Code)
+            ? new[] { "Select one store", "Titan", "Helios" } : new[] { "Combined (Titan + Helios)", "Titan", "Helios" };
+        SetStoreScope(scope ?? "Combined (Titan + Helios)");
+        var snapshot = Modules.Reports.ReportTaskScope.IsSnapshot(SelectedReport?.Code);
+        DateFromPicker.IsEnabled = !snapshot;
+        DateFromPicker.ToolTip = snapshot ? "Snapshot reports use the displayed end date as their business date." : "Report start date";
+        if (snapshot) DateFromPicker.SelectedDate = DateToPicker.SelectedDate;
+        updateToolbar();
+    }
+    public void SetStoreScope(string scope) => ScopeSelector.SelectedItem = Modules.Reports.ReportTaskScope.RequiresSingleStore(SelectedReport?.Code) && scope is not ("Titan" or "Helios") ? "Select one store" : scope;
+
     public void ShowLoading(string message)
     {
+        loadingScope = CurrentScope; loadedScope = null; foreach (var button in exportActions) button.IsEnabled = false;
         previewHost.Content = new LoadingState(message);
         statusText.Text = message;
+        updateToolbar();
     }
 
     public void ShowUnavailable(string title, string message)
     {
+        loadedScope = null; foreach (var button in exportActions) button.IsEnabled = false;
         previewHost.Content = new EmptyState(title, message, "Review the relevant source or manual input, then refresh.");
         statusText.Text = message;
+        updateToolbar();
     }
 
     private UIElement BuildNavigation()
@@ -191,6 +216,14 @@ public sealed class ReportWorkspaceControl : Grid
         panel.Children.Add(heading);
         Grid.SetRow(reportMenu, 1); panel.Children.Add(reportMenu);
         return panel;
+    }
+
+    private void InvalidatePreview()
+    {
+        updateToolbar();
+        loadedScope = null; foreach (var button in exportActions) button.IsEnabled = false;
+        previewHost.Content = new EmptyState("Refresh required", "The report date or store changed. Refresh before reviewing or exporting.");
+        statusText.Text = "Scope changed — refresh the preview.";
     }
 
     private ListBox BuildReportMenu()
@@ -223,14 +256,28 @@ public sealed class ReportWorkspaceControl : Grid
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         var actions = new WrapPanel();
         actions.Children.Add(DateFromPicker); actions.Children.Add(DateToPicker); actions.Children.Add(ScopeSelector);
+        var filters = new Button { Content = "Period & store", Margin = new Thickness(0,0,8,0), Padding = new Thickness(12,6,12,6) };
+        filters.Click += (_,_) => new Modules.Reports.ReportScopeDialog(this).ShowDialog();
+        AutomationProperties.SetName(filters,"Edit report period and store"); actions.Children.Add(filters);
         actions.Children.Add(ActionButton("Refresh", ReportWorkspaceAction.Refresh, true));
-        actions.Children.Add(ActionButton("Export PDF", ReportWorkspaceAction.ExportPdf));
-        actions.Children.Add(ActionButton("Export Excel", ReportWorkspaceAction.ExportExcel));
-        actions.Children.Add(ActionButton("Generate Pack", ReportWorkspaceAction.GenerateReportPack));
-        actions.Children.Add(ActionButton("Open Export Folder", ReportWorkspaceAction.OpenExportFolder));
+        actions.Children.Add(ReportActionMenu.Create(RaiseAction, exportActions, false));
         root.Children.Add(actions);
-        statusText = DsrUi.Text(definition.Description, 10.5, colour: "#687285");
-        statusText.Margin = new Thickness(0, 8, 0, 0); Grid.SetRow(statusText, 1); root.Children.Add(statusText);
+        statusText = DsrUi.Text(definition.Description, 12, colour: "#687285"); statusText.Name = "ReportTaskStatus";
+        statusText.TextWrapping = TextWrapping.NoWrap; statusText.TextTrimming = TextTrimming.CharacterEllipsis;
+        var summaries = new StackPanel { Margin = new Thickness(0,6,0,0) }; var scope = DsrUi.Text("",12);
+        summaries.Children.Add(scope); summaries.Children.Add(statusText); Grid.SetRow(summaries,1); root.Children.Add(summaries);
+        updateToolbar = () =>
+        {
+            compactFilters = container.ActualWidth is > 0 and < 780;
+            DateFromPicker.Visibility = !compactFilters && DateFromPicker.IsEnabled ? Visibility.Visible : Visibility.Collapsed;
+            DateToPicker.Visibility = ScopeSelector.Visibility = compactFilters ? Visibility.Collapsed : Visibility.Visible;
+            filters.Visibility = scope.Visibility = compactFilters ? Visibility.Visible : Visibility.Collapsed;
+            scope.Text = $"{DateFromPicker.SelectedDate:dd MMM yyyy} – {DateToPicker.SelectedDate:dd MMM yyyy} · {ScopeSelector.SelectedItem} · {statusText.Text}";
+            scope.TextWrapping = TextWrapping.NoWrap; scope.TextTrimming = TextTrimming.CharacterEllipsis;
+            statusText.Visibility = compactFilters ? Visibility.Collapsed : Visibility.Visible;
+            container.Padding = new Thickness(compactFilters ? 8 : 12); container.Margin = new Thickness(0,compactFilters ? 0 : 10,0,0);
+        };
+        container.SizeChanged += (_,_) => updateToolbar();
         container.Child = root;
         return container;
     }
@@ -238,14 +285,16 @@ public sealed class ReportWorkspaceControl : Grid
     private Button ActionButton(string label, ReportWorkspaceAction action, bool primary = false)
     {
         var button = new Button { Content = label, Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 8, 0), MinWidth = 86 };
-        if (primary) { button.Background = DsrUi.Brush("#2269E8"); button.Foreground = Brushes.White; }
+        if (primary) button.SetResourceReference(StyleProperty, "PrimaryButton");
         AutomationProperties.SetName(button, $"{label} current report");
+        if (action is ReportWorkspaceAction.ExportPdf or ReportWorkspaceAction.ExportExcel) { exportActions.Add(button); button.IsEnabled = false; }
         button.Click += (_, _) => RaiseAction(action);
         return button;
     }
 
     private void RaiseAction(ReportWorkspaceAction action)
     {
+        if (action is ReportWorkspaceAction.ExportPdf or ReportWorkspaceAction.ExportExcel && !HasCurrentPreview) return;
         var from = DateOnly.FromDateTime(DateFromPicker.SelectedDate ?? DateTime.Today);
         var to = DateOnly.FromDateTime(DateToPicker.SelectedDate ?? DateTime.Today);
         ActionRequested?.Invoke(this, new(action, SelectedReport?.Code, from, to, ScopeSelector.SelectedItem?.ToString() ?? "Combined (Titan + Helios)"));
@@ -254,10 +303,16 @@ public sealed class ReportWorkspaceControl : Grid
 
 public sealed class DailySalesReportWorkspace : Grid
 {
+    private readonly List<Control> exportActions = [];
+    private ReportPreviewScope? loadingScope;
+    private ReportPreviewScope? loadedScope;
+    private ReportPreviewScope CurrentScope => new(BusinessDatePicker.SelectedDate, BusinessDatePicker.SelectedDate, ScopeSelector.SelectedItem?.ToString(), "dsr");
+    public bool HasCurrentPreview => loadedScope is not null && loadedScope == CurrentScope;
     private readonly ContentControl previewHost;
     private WrapPanel availabilityPanel = null!;
     private TextBlock periodText = null!;
     private TextBlock statusText = null!;
+    private string availabilityDetails = "Refresh the DSR to check source availability.";
 
     public event EventHandler<ReportWorkspaceActionRequest>? ActionRequested;
 
@@ -279,12 +334,13 @@ public sealed class DailySalesReportWorkspace : Grid
         titles.Children.Add(DsrUi.Text("Daily Sales Report", 26, FontWeights.SemiBold));
         titles.Children.Add(DsrUi.Text("Select the business date, review availability, preview and export from one screen.", 11.5, colour: "#687285"));
         titleRow.Children.Add(titles);
+        titleRow.Visibility = Visibility.Collapsed;
         var back = ActionButton("Back to Reports", ReportWorkspaceAction.BackToReports);
         Grid.SetColumn(back, 1); titleRow.Children.Add(back);
         Children.Add(titleRow);
 
-        BusinessDatePicker = new DatePicker { Width = 150, SelectedDate = DateTime.Today, Margin = new Thickness(0, 0, 8, 0) };
-        ScopeSelector = new ComboBox { Width = 210, SelectedIndex = 0, Margin = new Thickness(0, 0, 12, 0), ItemsSource = new[] { "Combined (Titan + Helios)", "Titan", "Helios" } };
+        BusinessDatePicker = new DatePicker { Width = 180, SelectedDate = DateTime.Today, Margin = new Thickness(0, 0, 8, 0) };
+        ScopeSelector = new ComboBox { Width = 190, SelectedIndex = 0, Margin = new Thickness(0, 0, 12, 0), ItemsSource = new[] { "Combined (Titan + Helios)", "Titan", "Helios" } };
         AutomationProperties.SetName(BusinessDatePicker, "DSR business date");
         AutomationProperties.SetName(ScopeSelector, "DSR store scope");
         BusinessDatePicker.SelectedDateChanged += (_, _) => UpdatePeriodLabel();
@@ -296,47 +352,48 @@ public sealed class DailySalesReportWorkspace : Grid
         {
             Content = new EmptyState("Preview not generated", "Select a business date and choose Refresh Preview."),
             HorizontalContentAlignment = HorizontalAlignment.Stretch,
-            VerticalContentAlignment = VerticalAlignment.Top
+            VerticalContentAlignment = VerticalAlignment.Stretch
         };
-        var previewScroll = new ScrollViewer
-        {
-            Content = previewHost,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Margin = new Thickness(0, 12, 0, 0),
-            Padding = new Thickness(1)
-        };
-        AutomationProperties.SetName(previewScroll, "Daily Sales Report preview");
-        Grid.SetRow(previewScroll, 2); Children.Add(previewScroll);
+        previewHost.Margin = new Thickness(0,8,0,0);
+        AutomationProperties.SetName(previewHost, "Daily Sales Report preview");
+        Grid.SetRow(previewHost, 2); Children.Add(previewHost);
         UpdatePeriodLabel();
         AutomationProperties.SetName(this, "Daily Sales Report workspace");
+        BusinessDatePicker.SelectedDateChanged += (_, _) => InvalidatePreview();
+        ScopeSelector.SelectionChanged += (_, _) => InvalidatePreview();
     }
 
     public void SetReport(DailySalesReportDocument report, IEnumerable<ReportDataAvailability>? availability = null)
     {
         ArgumentNullException.ThrowIfNull(report);
+        if (loadingScope is not null && (loadingScope != CurrentScope || BusinessDatePicker.SelectedDate?.Date != report.BusinessDate.ToDateTime(TimeOnly.MinValue))) { InvalidatePreview(); return; }
         BusinessDatePicker.SelectedDate = report.BusinessDate.ToDateTime(TimeOnly.MinValue);
-        previewHost.Content = new DailySalesReportView(report);
+        previewHost.Content = new Modules.Reports.DailySalesFocusedView(report);
         statusText.Text = $"Preview ready for {report.BusinessDate:dd MMM yyyy}.";
         UpdateAvailability(availability ?? DefaultAvailability(report));
+        loadedScope = CurrentScope; foreach (var button in exportActions) button.IsEnabled = true;
     }
 
     public void ShowLoading(string message = "Loading Daily Sales Report…")
     {
+        loadingScope = CurrentScope; loadedScope = null; foreach (var button in exportActions) button.IsEnabled = false;
         previewHost.Content = new LoadingState(message);
         statusText.Text = message;
     }
 
     public void ShowFailure(string message)
     {
+        loadedScope = null; foreach (var button in exportActions) button.IsEnabled = false;
         previewHost.Content = new EmptyState("DSR could not be generated", message, "Correct the issue and choose Refresh Preview.");
         statusText.Text = message;
     }
 
     public void UpdateAvailability(IEnumerable<ReportDataAvailability> items)
     {
+        var source = items.ToArray();
+        availabilityDetails = string.Join("\n\n",source.Select(item=>$"{item.Label}: {(item.IsAvailable ? "Available" : "Data unavailable")}\n{item.Detail}"));
         availabilityPanel.Children.Clear();
-        foreach (var item in items)
+        foreach (var item in source)
         {
             var badge = new Border
             {
@@ -354,6 +411,13 @@ public sealed class DailySalesReportWorkspace : Grid
         }
     }
 
+    private void InvalidatePreview()
+    {
+        loadedScope = null; foreach (var button in exportActions) button.IsEnabled = false;
+        previewHost.Content = new EmptyState("Refresh required", "The DSR date or store changed. Refresh before reviewing or exporting.");
+        statusText.Text = "Scope changed — refresh the preview.";
+    }
+
     private UIElement BuildToolbar()
     {
         var container = new Border { Background = DsrUi.Brush("#FFFFFF"), BorderBrush = DsrUi.Brush("#DCE4EF"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(12), Margin = new Thickness(0, 10, 0, 0) };
@@ -363,20 +427,28 @@ public sealed class DailySalesReportWorkspace : Grid
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         var actions = new WrapPanel();
         actions.Children.Add(BusinessDatePicker); actions.Children.Add(ScopeSelector);
+        ScopeSelector.Visibility = Visibility.Collapsed;
+        actions.Children.Add(new TextBlock { Text = "Titan + Helios", FontSize = 14, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0,0,12,0) });
         actions.Children.Add(ActionButton("Refresh Preview", ReportWorkspaceAction.Refresh, true));
-        actions.Children.Add(ActionButton("Export PDF", ReportWorkspaceAction.ExportPdf));
-        actions.Children.Add(ActionButton("Export Excel", ReportWorkspaceAction.ExportExcel));
-        actions.Children.Add(ActionButton("Generate Report Pack", ReportWorkspaceAction.GenerateReportPack));
-        actions.Children.Add(ActionButton("Open Export Folder", ReportWorkspaceAction.OpenExportFolder));
-        actions.Children.Add(ActionButton("Manual Entry", ReportWorkspaceAction.OpenManualEntry));
+        actions.Children.Add(ReportActionMenu.Create(RaiseAction, exportActions, true));
+        var availability = new Button { Content = "Availability", Margin = new Thickness(8,0,0,0), Padding = new Thickness(10,6,10,6) };
+        availability.Click += (_,_) => new StatusDetailsDialog(Window.GetWindow(this),availabilityDetails).ShowDialog();
+        AutomationProperties.SetName(availability,"Read DSR source availability"); actions.Children.Add(availability);
         root.Children.Add(actions);
         periodText = DsrUi.Text(string.Empty, 10.5, FontWeights.SemiBold, "#36506F");
         periodText.Margin = new Thickness(0, 8, 0, 0); Grid.SetRow(periodText, 1); root.Children.Add(periodText);
         var footer = new DockPanel { Margin = new Thickness(0, 8, 0, 0) };
-        availabilityPanel = new WrapPanel();
+        availabilityPanel = new WrapPanel { Visibility = Visibility.Collapsed };
         statusText = DsrUi.Text("Select a date and refresh the preview.", 10.5, colour: "#687285", align: TextAlignment.Right);
+        statusText.Name = "DsrTaskStatus"; statusText.TextWrapping = TextWrapping.NoWrap; statusText.TextTrimming = TextTrimming.CharacterEllipsis;
         DockPanel.SetDock(statusText, Dock.Right); footer.Children.Add(statusText); footer.Children.Add(availabilityPanel);
         Grid.SetRow(footer, 2); root.Children.Add(footer);
+        SizeChanged += (_,_) =>
+        {
+            var shortWindow = ActualHeight < 300;
+            periodText.Visibility = footer.Visibility = shortWindow ? Visibility.Collapsed : Visibility.Visible;
+            container.Padding = new Thickness(shortWindow ? 8 : 12); container.Margin = new Thickness(0,shortWindow ? 0 : 10,0,0);
+        };
         container.Child = root;
         return container;
     }
@@ -384,14 +456,16 @@ public sealed class DailySalesReportWorkspace : Grid
     private Button ActionButton(string label, ReportWorkspaceAction action, bool primary = false)
     {
         var button = new Button { Content = label, Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(0, 0, 8, 0), MinWidth = 86 };
-        if (primary) { button.Background = DsrUi.Brush("#2269E8"); button.Foreground = Brushes.White; }
+        if (primary) button.SetResourceReference(StyleProperty, "PrimaryButton");
         AutomationProperties.SetName(button, label);
+        if (action is ReportWorkspaceAction.ExportPdf or ReportWorkspaceAction.ExportExcel) { exportActions.Add(button); button.IsEnabled = false; }
         button.Click += (_, _) => RaiseAction(action);
         return button;
     }
 
     private void RaiseAction(ReportWorkspaceAction action)
     {
+        if (action is ReportWorkspaceAction.ExportPdf or ReportWorkspaceAction.ExportExcel && !HasCurrentPreview) return;
         var date = DateOnly.FromDateTime(BusinessDatePicker.SelectedDate ?? DateTime.Today);
         ActionRequested?.Invoke(this, new(action, "dsr", date, date, ScopeSelector.SelectedItem?.ToString() ?? "Combined (Titan + Helios)"));
     }

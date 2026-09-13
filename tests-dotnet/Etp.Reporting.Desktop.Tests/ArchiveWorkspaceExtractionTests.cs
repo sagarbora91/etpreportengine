@@ -35,7 +35,7 @@ public sealed class ArchiveWorkspaceExtractionTests
         var xaml = Read("Modules", "Archive", "ArchiveWorkspaceView.xaml");
         var source = Read("Modules", "Archive", "ArchiveWorkspaceView.xaml.cs");
 
-        Assert.Equal(17, Count(xaml, "x:Name=\""));
+        Assert.Equal(24, Count(xaml, "x:Name=\"")); // Seven retained actions now have explicit task visibility.
         Assert.True(xaml.Split('\n').Length <= 90, "Archive workspace XAML exceeded its focused layout ratchet.");
         Assert.True(source.Split('\n').Length <= 280, "Archive workspace code-behind exceeded its focused workflow ratchet.");
         Assert.Contains("RequireViewAccess();", source, StringComparison.Ordinal);

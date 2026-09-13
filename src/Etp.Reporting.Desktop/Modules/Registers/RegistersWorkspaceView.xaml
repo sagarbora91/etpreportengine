@@ -47,7 +47,7 @@
                      automation:AutomationProperties.Name="Register reference"/>
             <TextBox x:Name="RegisterRemarksInput" Width="220" Padding="6" Margin="8,0,0,0" ToolTip="Remarks"
                      automation:AutomationProperties.Name="Register remarks"/>
-            <TextBox x:Name="RegisterReasonInput" Width="220" Padding="6" Margin="8,0,0,0"
+            <TextBox x:Name="RegisterReasonInput" Width="200" Padding="6" Margin="8,0,0,0"
                      ToolTip="Required change reason" automation:AutomationProperties.Name="Register change reason"/>
             <Button Content="Save draft" Click="SaveRegisterEntry_Click" Style="{DynamicResource PrimaryButton}" Padding="14,7" Margin="8,0,0,0"/>
         </WrapPanel>

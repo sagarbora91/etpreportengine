@@ -17,6 +17,11 @@ public partial class InvestigationApprovalsWorkspaceView : UserControl
     private readonly Func<string, IOperationsAdministrationService> operationsServiceFactory;
     private readonly Func<string, IInvestigationQuery> investigationQueryFactory;
     private OperationsAdministrationWorkspaceAccess access = new(false, false, false);
+    private readonly WorkspaceOperationGate operationGate = new();
+    private readonly SelectionReasonDrafts approvalReasons;
+    public bool IsBusy => operationGate.IsBusy;
+    public bool HasRetainedDraft => approvalReasons.HasDrafts || new[] { AdjustmentTypeInput, AdjustmentAmountInput, AdjustmentReasonInput }.Any(input => input.Text.Length > 0);
+    public void DiscardRetainedDraft() { approvalReasons.Discard(); AdjustmentTypeInput.Clear(); AdjustmentAmountInput.Clear(); AdjustmentReasonInput.Clear(); }
 
     public InvestigationApprovalsWorkspaceView(
         Func<string> connectionStringProvider,
@@ -27,6 +32,7 @@ public partial class InvestigationApprovalsWorkspaceView : UserControl
         this.operationsServiceFactory = operationsServiceFactory ?? throw new ArgumentNullException(nameof(operationsServiceFactory));
         this.investigationQueryFactory = investigationQueryFactory ?? throw new ArgumentNullException(nameof(investigationQueryFactory));
         InitializeComponent();
+        approvalReasons = new(ApprovalGrid, ApprovalReasonInput, row => (row as ApprovalRequest)?.Id);
         AdjustmentDateInput.SelectedDate = DateTime.Today.AddDays(-1);
     }
 
@@ -52,6 +58,7 @@ public partial class InvestigationApprovalsWorkspaceView : UserControl
     private IOperationsAdministrationService OperationsService => operationsServiceFactory(connectionStringProvider());
     private async void RunGlobalSearch_Click(object sender, RoutedEventArgs e)
     {
+        using var operation = operationGate.TryEnter(this); if (operation is null) return;
         try
         {
             RequireViewAccess();
@@ -64,6 +71,7 @@ public partial class InvestigationApprovalsWorkspaceView : UserControl
 
     private async void SubmitAdjustment_Click(object sender, RoutedEventArgs e)
     {
+        using var operation = operationGate.TryEnter(this); if (operation is null) return;
         try
         {
             RequireImportAccess();
@@ -81,6 +89,7 @@ public partial class InvestigationApprovalsWorkspaceView : UserControl
                 LinkedSourceDocumentId));
             AdjustmentAmountInput.Clear();
             AdjustmentReasonInput.Clear();
+            AdjustmentTypeInput.Clear();
             InvestigationStatus.Text = $"Adjustment {id:N0} is pending Owner approval. Canonical ETP facts were not changed.";
             await RefreshApprovalsAsync();
         }
@@ -93,6 +102,7 @@ public partial class InvestigationApprovalsWorkspaceView : UserControl
 
     private async Task DecideApprovalAsync(bool approve)
     {
+        using var operation = operationGate.TryEnter(this); if (operation is null) return;
         try
         {
             RequireOwnerAccess();

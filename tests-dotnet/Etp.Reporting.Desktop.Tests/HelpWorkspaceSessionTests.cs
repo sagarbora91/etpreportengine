@@ -55,14 +55,16 @@ public sealed class HelpWorkspaceSessionTests
     }
 
     [Theory]
-    [InlineData(null)]
-    [InlineData("dashboard")]
-    [InlineData("help")]
-    public void Only_a_report_with_content_can_restore_the_focused_workspace(string? workspaceKind)
+    [InlineData(null, true)]
+    [InlineData("dashboard", true)]
+    [InlineData("task", true)]
+    [InlineData("overview", true)]
+    [InlineData("help", false)]
+    public void Help_restores_any_previous_focused_content_without_restoring_itself(string? workspaceKind, bool expected)
     {
         var snapshot = new HelpWorkspaceSnapshot(new object(), workspaceKind, "Title", "Description", "Breadcrumb", false);
 
-        Assert.False(snapshot.CanRestoreFocusedWorkspace);
+        Assert.Equal(expected, snapshot.CanRestoreFocusedWorkspace);
     }
 
     [Fact]

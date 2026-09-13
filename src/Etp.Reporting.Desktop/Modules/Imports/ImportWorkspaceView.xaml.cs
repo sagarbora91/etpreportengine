@@ -23,7 +23,28 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
         this.coordinator = coordinator ?? throw new ArgumentNullException(nameof(coordinator));
         this.connectionStringProvider = connectionStringProvider ?? throw new ArgumentNullException(nameof(connectionStringProvider));
         InitializeComponent();
+        CaptureImportControls();
         ImportBusinessDateInput.SelectedDate = DateTime.Today.AddDays(-1);
+        ImportBusinessDateInput.SelectedDateChanged += (_, _) => InvalidateSelection();
+        ImportStoreInput.SelectionChanged += (_, _) => InvalidateSelection();
+        WorkbookPathInput.TextChanged += (_, _) => InvalidateSelection();
+    }
+
+    private IReadOnlyList<BatchImportFileResult> latestResults = [];
+    private string currentTask = "import-files";
+    public void SelectTask(string taskId)
+    {
+        currentTask = taskId;
+        BatchResultsGrid.ItemsSource = latestResults.Where(x => taskId switch { "duplicates" => x.ExactDuplicate, "already-present" => x.AlreadyPresentRows > 0, "conflicts" => x.ConflictRows > 0, "import-failures" => x.Status == BatchImportFileStatus.Failed, _ => true }).ToArray();
+        if (taskId is "duplicates" or "already-present" or "conflicts" or "import-failures") ValidationResult.Text = "Results from the most recent import in this session. Earlier sources remain in Import History and Source Inbox.";
+    }
+
+    private int selectionRevision;
+    private void InvalidateSelection()
+    {
+        selectionRevision++;
+        coordinator.ClearValidatedImport(); PersistButton.IsEnabled = false;
+        ValidationResult.Text = "Source, store or business date changed. Validate this selection before importing.";
     }
 
     public event EventHandler<string>? NotificationRequested;
@@ -49,6 +70,7 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
 
     public bool BrowseWorkbook()
     {
+        if (IsBusy) return false;
         var dialog = new OpenFileDialog
         {
             Filter = "ETP import sources (*.xlsx;*.zip)|*.xlsx;*.zip|Excel workbooks (*.xlsx)|*.xlsx|ZIP archives (*.zip)|*.zip",
@@ -63,6 +85,7 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
 
     public bool BrowseImportFolder()
     {
+        if (IsBusy) return false;
         var dialog = new OpenFolderDialog { Title = "Select folder containing ETP workbooks", Multiselect = false };
         if (dialog.ShowDialog(Window.GetWindow(this)) != true) return false;
         coordinator.ClearValidatedImport();
@@ -71,9 +94,12 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
         return true;
     }
 
-    public Task RetryFailedBatchAsync() => coordinator.FailedBatchPaths.Count > 0
-        ? RunBatchAsync(coordinator.FailedBatchPaths)
-        : Task.CompletedTask;
+    public async Task RetryFailedBatchAsync()
+    {
+        using var operation = BeginImportOperation(); if (operation is null) return;
+        try { RequireImportAccess(); if (coordinator.FailedBatchPaths.Count > 0) await RunBatchAsync(coordinator.FailedBatchPaths); }
+        catch (Exception ex) { ValidationResult.Text = $"Retry could not start: {coordinator.DescribeFailure(ex).SafeMessage}"; }
+    }
 
     private void BrowseWorkbook_Click(object sender, RoutedEventArgs e) => BrowseWorkbook();
 
@@ -81,17 +107,21 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
 
     private async void ValidateWorkbook_Click(object sender, RoutedEventArgs e)
     {
+        using var operation = BeginImportOperation(); if (operation is null) return;
         if (string.IsNullOrWhiteSpace(WorkbookPathInput.Text))
         {
             ValidationResult.Text = "Select an XLSX workbook first.";
             return;
         }
 
+        var revision = selectionRevision;
         ValidateButton.IsEnabled = false;
         ValidationResult.Text = "Reading and validating workbook…";
         try
         {
+            RequireImportAccess();
             var result = await coordinator.ValidateAsync(WorkbookPathInput.Text, CancellationToken.None);
+            if (revision != selectionRevision) { coordinator.ClearValidatedImport(); return; }
             DiagnosticsGrid.ItemsSource = result.Diagnostics;
             PersistButton.IsEnabled = result.Accepted;
             ValidationResult.Text = result.Accepted
@@ -100,7 +130,7 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
             SetReadiness(result.Accepted ? "Workbook validated" : "Validation blocked");
             Notify(ValidationResult.Text);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+        catch (Exception ex)
         {
             DesktopDiagnostics.Record(ex, "Imports.Workspace", "IMPORT_VALIDATION_READ_FAILED");
             ValidationResult.Text = $"Could not read workbook: {coordinator.DescribeFailure(ex).SafeMessage}";
@@ -113,13 +143,16 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
 
     private async void PersistWorkbook_Click(object sender, RoutedEventArgs e)
     {
+        using var operation = BeginImportOperation(); if (operation is null) return;
         if (!coordinator.HasValidatedImport) return;
+        var committed = false;
         PersistButton.IsEnabled = false;
         try
         {
             RequireImportAccess();
             var context = CreateImportRunContext();
             var outcome = await coordinator.PersistValidatedAsync(connectionStringProvider(), context);
+            committed = true;
             ValidationResult.Text = outcome.ExactDuplicate
                 ? "This workbook was already imported. No rows were added or changed."
                 : outcome.ReportCode switch
@@ -129,6 +162,7 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
                 "R003" or "R013" => $"Imported {outcome.Result.PersistedRows:N0} {outcome.Result.ReportCode} enrichment rows: {outcome.Result.MatchedRows:N0} matched, {outcome.Result.MissingMatches:N0} missing, {outcome.Result.AmbiguousMatches:N0} ambiguous. Revenue totals were not changed.",
                 _ => $"Imported {outcome.Result.PersistedRows:N0} sales rows successfully."
             };
+            latestResults = [new BatchImportFileResult(Path.GetFileName(WorkbookPathInput.Text), BatchImportFileStatus.Succeeded, 1, ExactDuplicate: outcome.ExactDuplicate)];
             SetReadiness(outcome.ExactDuplicate ? "Already imported" : "Import completed");
             if (outcome.RestatementApplied)
                 await auditRecorder("Restatement", "Succeeded", "Controlled source restatement applied");
@@ -141,12 +175,12 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
         catch (Exception ex) when (ex is UnauthorizedAccessException or InvalidOperationException or ImportSourceException)
         {
             DesktopDiagnostics.Record(ex, "Imports.Workspace", "IMPORT_PERSIST_FAILED");
-            ValidationResult.Text = $"Import failed: {DesktopFriendlyError.Describe(ex, "Owner or Store Manager permission is required.")}";
+            ValidationResult.Text = ImportFailureMessage(committed, DesktopFriendlyError.Describe(ex, "Owner or Store Manager permission is required."));
         }
         catch (Exception ex)
         {
             DesktopDiagnostics.Record(ex, "Imports.Workspace", "IMPORT_PERSIST_FAILED");
-            ValidationResult.Text = $"Import failed: {coordinator.DescribeFailure(ex).SafeMessage}";
+            ValidationResult.Text = ImportFailureMessage(committed, coordinator.DescribeFailure(ex).SafeMessage);
         }
         finally
         {
@@ -156,6 +190,7 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
 
     private async void StartBatchImport_Click(object sender, RoutedEventArgs e)
     {
+        using var operation = BeginImportOperation(); if (operation is null) return;
         try
         {
             RequireImportAccess();
@@ -196,6 +231,7 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
 
     private async Task RunBatchAsync(IReadOnlyList<string> paths)
     {
+        var context = CreateImportRunContext();
         StartBatchButton.IsEnabled = RetryBatchButton.IsEnabled = false;
         CancelBatchButton.IsEnabled = true;
         ImportProgressBar.Maximum = Math.Max(1, paths.Count);
@@ -211,11 +247,12 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
             var summary = await coordinator.RunBatchAsync(
                 paths,
                 connectionStringProvider(),
-                () => Dispatcher.Invoke(() => RestatementModeInput.IsChecked == true),
-                () => Dispatcher.Invoke(CreateImportRunContext),
+                () => context.RestatementEnabled,
+                () => context,
                 _ => auditRecorder("Restatement", "Succeeded", "Controlled source restatement applied"),
                 progress);
-            BatchResultsGrid.ItemsSource = summary.Files;
+            latestResults = summary.Files;
+            SelectTask(currentTask);
             ValidationResult.Text = $"Batch completed: {summary.Succeeded:N0} processed, {summary.ExactDuplicates:N0} exact duplicate files, " +
                 $"{summary.NewRows:N0} new rows, {summary.AlreadyPresentRows:N0} rows already present, {summary.Conflicts:N0} conflicts, " +
                 $"{summary.Failed:N0} failed, {summary.Cancelled:N0} cancelled.";

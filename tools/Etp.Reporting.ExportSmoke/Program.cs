@@ -1,5 +1,6 @@
 using Etp.Reporting.Reporting;
 
+if (args.Length == 2 && args[0] == "--stress") return ExportStressFixture.Run(args[1]);
 if (args.Length != 1) return 2;
 Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(args[0]))!);
 var metadata = new ExcelReportMetadata("Brand-Segment Sales", new(2026, 7, 1), new(2026, 8, 25), "Passed", RetailReportingPolicy.Version,

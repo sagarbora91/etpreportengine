@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.IO;
+using Microsoft.Data.SqlClient;
+using Etp.Reporting.Desktop.Modules.Settings;
 
 namespace Etp.Reporting.Desktop;
 
@@ -10,7 +12,7 @@ internal static class PowerShellOperationsService
     private static readonly HashSet<string> AllowedScripts = new(StringComparer.OrdinalIgnoreCase)
         { "backup-etp-database.ps1", "invoke-etp-recovery-drill.ps1", "new-etp-support-package.ps1" };
 
-    public static async Task<PowerShellOperationResult> RunAsync(string scriptName, CancellationToken cancellationToken = default)
+    public static async Task<PowerShellOperationResult> RunAsync(string scriptName, string connectionString, CancellationToken cancellationToken = default)
     {
         if (!AllowedScripts.Contains(scriptName)) throw new ArgumentException("This maintenance operation is not approved.", nameof(scriptName));
         var script = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "scripts", scriptName));
@@ -36,6 +38,7 @@ internal static class PowerShellOperationsService
         process.StartInfo.ArgumentList.Add("Bypass");
         process.StartInfo.ArgumentList.Add("-File");
         process.StartInfo.ArgumentList.Add(script);
+        AddDatabaseArguments(process.StartInfo, connectionString);
         if (!process.Start()) throw new InvalidOperationException("The maintenance operation could not be started.");
         var outputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
         var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
@@ -43,6 +46,17 @@ internal static class PowerShellOperationsService
         var output = await outputTask; var error = await errorTask;
         if (process.ExitCode != 0) return new(false, SafeLastLine(error) ?? "The maintenance operation failed. Review the application diagnostic log.");
         return new(true, SafeLastLine(output) ?? "The maintenance operation completed successfully.");
+    }
+
+    internal static void AddDatabaseArguments(ProcessStartInfo startInfo, string connectionString)
+    {
+        var validation = ConnectionStringValidation.Validate(connectionString);
+        if (!validation.IsValid) throw new InvalidOperationException(validation.Error);
+        var target = new SqlConnectionStringBuilder(validation.ConnectionString);
+        if (!System.Text.RegularExpressions.Regex.IsMatch(target.InitialCatalog, "^[A-Za-z0-9_]+$"))
+            throw new InvalidOperationException("Maintenance requires a database name containing letters, numbers or underscores.");
+        startInfo.ArgumentList.Add("-ServerInstance"); startInfo.ArgumentList.Add(target.DataSource);
+        startInfo.ArgumentList.Add("-Database"); startInfo.ArgumentList.Add(target.InitialCatalog);
     }
 
     private static string? SafeLastLine(string value) => value.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)

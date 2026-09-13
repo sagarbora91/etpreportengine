@@ -23,7 +23,10 @@ public sealed partial class AccountingWorkspaceView : UserControl
         this.session = session ?? throw new ArgumentNullException(nameof(session));
         this.connectionStringProvider = connectionStringProvider ?? throw new ArgumentNullException(nameof(connectionStringProvider));
         InitializeComponent();
+        batchReasons = new(AccountingBatchGrid, BatchApprovalReasonInput, row => (row as AccountingBatchSummary)?.Id);
         AccountingDateInput.SelectedDate = DateTime.Today.AddDays(-1);
+        AccountingDateInput.SelectedDateChanged += (_, _) => InvalidatePreview();
+        AccountingStoreInput.TextChanged += (_, _) => InvalidatePreview();
     }
 
     public event EventHandler<string>? NotificationRequested;
@@ -47,6 +50,7 @@ public sealed partial class AccountingWorkspaceView : UserControl
         try
         {
             RequireViewAccess();
+            AccountingEntryGrid.ItemsSource = null; SaveTaskButton.IsEnabled = false;
             AccountingBatchGrid.ItemsSource = await session.RefreshAsync(connectionStringProvider());
         }
         catch (Exception ex) { DesktopDiagnostics.Record(ex, "Accounting.Workspace", "ACCOUNTING_REFRESH_FAILED"); SetStatus(errorDescriber(ex)); }
@@ -54,12 +58,14 @@ public sealed partial class AccountingWorkspaceView : UserControl
 
     private async void PreviewAccountingBatch_Click(object sender, RoutedEventArgs e)
     {
+        using var operation = operationGate.TryEnter(this); if (operation is null) return;
         try
         {
             RequireViewAccess();
             var scope = CurrentScope();
             var preview = await session.PreviewAsync(connectionStringProvider(), scope);
             AccountingEntryGrid.ItemsSource = preview.Batch.Entries;
+            SaveTaskButton.IsEnabled = preview.Batch.IsBalanced && accessProvider().CanImport;
             SetStatus(preview.Batch.IsBalanced
                 ? $"Balanced preview: debit {preview.Batch.DebitTotal:N2}, credit {preview.Batch.CreditTotal:N2}."
                 : $"Preview blocked. Missing approved mappings: {string.Join(", ", preview.Batch.MissingMappings)}.");
@@ -69,6 +75,7 @@ public sealed partial class AccountingWorkspaceView : UserControl
 
     private async void SaveAccountingBatch_Click(object sender, RoutedEventArgs e)
     {
+        using var operation = operationGate.TryEnter(this); if (operation is null) return;
         try
         {
             RequireImportAccess();
@@ -81,12 +88,14 @@ public sealed partial class AccountingWorkspaceView : UserControl
 
     private async void ApproveAccountingBatch_Click(object sender, RoutedEventArgs e)
     {
+        using var operation = operationGate.TryEnter(this); if (operation is null) return;
         try
         {
             RequireOwnerAccess();
             if (AccountingBatchGrid.SelectedItem is not AccountingBatchSummary row)
                 throw new InvalidOperationException("Select one accounting batch.");
-            await session.ApproveAsync(connectionStringProvider(), row, AccountingMappingReasonInput.Text);
+            await session.ApproveAsync(connectionStringProvider(), row, BatchApprovalReasonInput.Text);
+            BatchApprovalReasonInput.Clear();
             SetStatus($"Accounting batch {row.Id:N0} approved.");
             await RefreshAccountingAsync();
         }
@@ -95,6 +104,7 @@ public sealed partial class AccountingWorkspaceView : UserControl
 
     private async void ExportTallyXml_Click(object sender, RoutedEventArgs e)
     {
+        using var operation = operationGate.TryEnter(this); if (operation is null) return;
         try
         {
             RequireOwnerAccess();
@@ -116,6 +126,7 @@ public sealed partial class AccountingWorkspaceView : UserControl
 
     private async void ApproveAccountingMapping_Click(object sender, RoutedEventArgs e)
     {
+        using var operation = operationGate.TryEnter(this); if (operation is null) return;
         try
         {
             RequireOwnerAccess();
@@ -127,19 +138,10 @@ public sealed partial class AccountingWorkspaceView : UserControl
             DebitLedgerInput.Clear();
             CreditLedgerInput.Clear();
             AccountingMappingReasonInput.Clear();
+            AccountingNarrationInput.Text = DefaultNarration;
             SetStatus($"Approved {eventCode} ledger mapping is active from {scope.BusinessDate:dd-MMM-yyyy}.");
         }
         catch (Exception ex) { DesktopDiagnostics.Record(ex, "Accounting.Workspace", "ACCOUNTING_MAPPING_APPROVAL_FAILED"); SetStatus(errorDescriber(ex)); }
-    }
-
-    private AccountingScope CurrentScope()
-    {
-        if (AccountingDateInput.SelectedDate is null)
-            throw new InvalidOperationException("Select the accounting business date.");
-        if (string.IsNullOrWhiteSpace(AccountingStoreInput.Text))
-            throw new InvalidOperationException("Enter the accounting store.");
-        return new(AccountingStoreInput.Text.Trim().ToUpperInvariant(),
-            DateOnly.FromDateTime(AccountingDateInput.SelectedDate.Value));
     }
 
     private void RequireViewAccess()

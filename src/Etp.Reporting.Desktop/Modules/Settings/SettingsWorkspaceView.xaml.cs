@@ -54,32 +54,55 @@ public partial class SettingsWorkspaceView : UserControl
 
     public event EventHandler<SettingsConnectionPresentationChangedEventArgs>? ConnectionPresentationChanged;
     public Func<SettingsWorkspaceOperation, bool, Task>? OperationCompletedAsync { get; set; }
+    public Func<bool>? CanChangeDatabase { get; set; }
 
     public string ConnectionStringText => ConnectionStringInput.Text;
     public string StatusText => ConnectionResult.Text;
     public bool ProductConfigurationEnabled => ProductSettingsPanel.IsEnabled;
 
+    private bool integrationsLoaded;
+    private bool productBusy;
+    private readonly WorkspaceOperationGate databaseOperation = new();
+    private string[]? savedProduct;
+    private TextBox[] ProductFields => [DocumentRepositoryInput, ShareFolderInput, OcrHelperInput, OcrModelInput, SmtpHostInput, SmtpPortInput, SmtpFromInput, MaximumAttachmentInput, ProductSettingsReasonInput];
+    public bool HasProductDraft => savedProduct is not null && !ProductFields.Select(input => input.Text).SequenceEqual(savedProduct);
+    public bool IsBusy => productBusy || databaseOperation.IsBusy;
+    public void DiscardProductDraft() { if (savedProduct is null) return; for (var i = 0; i < ProductFields.Length; i++) ProductFields[i].Text = savedProduct[i]; }
+    public void SelectIntegrationTask(string id)
+    {
+        var elements = ProductSettingsPanel.Children.Cast<UIElement>().ToArray();
+        for (var index = 0; index < elements.Length; index++)
+            elements[index].Visibility = index < 2 || index == 10 || (id == "ocr" ? index is >= 6 and <= 9 : index is >= 2 and <= 5) ? Visibility.Visible : Visibility.Collapsed;
+        foreach (var input in new[] { SmtpHostInput, SmtpPortInput, SmtpFromInput, MaximumAttachmentInput })
+            input.Visibility = id == "sharing" ? Visibility.Visible : Visibility.Collapsed;
+        if (!integrationsLoaded) _ = PrepareForDisplayAsync(true);
+    }
+
     public void Initialize()
     {
         ConnectionStringInput.Text = session.LoadConnectionString();
-        ProductSettingsPanel.IsEnabled = access.CanAdminister;
+        ProductSettingsPanel.IsEnabled = access.CanAdminister && integrationsLoaded && !productBusy;
     }
 
     public void UpdateAccess(SettingsWorkspaceAccess currentAccess)
     {
         access = currentAccess ?? throw new ArgumentNullException(nameof(currentAccess));
-        ProductSettingsPanel.IsEnabled = access.CanAdminister;
+        ProductSettingsPanel.IsEnabled = access.CanAdminister && integrationsLoaded && !productBusy;
     }
 
     public async Task PrepareForDisplayAsync(bool loadProductConfiguration)
     {
-        ProductSettingsPanel.IsEnabled = access.CanAdminister;
+        if (productBusy) return;
+        if (HasProductDraft) { ConnectionResult.Text = "Unsaved integration settings are retained. Save or discard them before reloading."; return; }
         if (loadProductConfiguration && access.CanAdminister)
+        {
             await LoadProductConfigurationAsync();
+        }
     }
 
     public async Task CheckConnectionAsync(bool showProgress)
     {
+        if (IsBusy || HasProductDraft) { ConnectionResult.Text = "Finish the current operation and save or discard integration edits before changing the database connection."; return; }
         var revision = ++connectionCheckRevision;
         if (showProgress) ConnectionResult.Text = "Testing…";
         var candidate = session.ValidateCandidate(ConnectionStringInput.Text);
@@ -88,6 +111,7 @@ public partial class SettingsWorkspaceView : UserControl
             ApplyPresentation(session.Current);
             return;
         }
+        if (!AllowConnectionCandidate(candidate.ConnectionString!)) return;
 
         try
         {
@@ -99,8 +123,7 @@ public partial class SettingsWorkspaceView : UserControl
                     DesktopDiagnosticSeverity.Warning);
             ApplyPresentation(session.CompleteHealthCheck(candidate, connected, health.Message, health.ServerVersion));
             ConnectionStringInput.Text = session.ConnectionString;
-            if (OperationCompletedAsync is { } completed)
-                await completed(SettingsWorkspaceOperation.ConnectionTest, connected);
+            await NotifyCompletedAsync(SettingsWorkspaceOperation.ConnectionTest, connected);
         }
         catch (Exception exception)
         {
@@ -109,13 +132,14 @@ public partial class SettingsWorkspaceView : UserControl
             var message = DesktopFriendlyError.Describe(exception,
                 "Check the SQL Server settings and try again.");
             ApplyPresentation(session.CompleteHealthCheck(candidate, false, message, null));
-            if (OperationCompletedAsync is { } completed)
-                await completed(SettingsWorkspaceOperation.ConnectionTest, false);
+            await NotifyCompletedAsync(SettingsWorkspaceOperation.ConnectionTest, false);
         }
     }
 
     public async Task BootstrapDatabaseAsync()
     {
+        if (productBusy || HasProductDraft) { ConnectionResult.Text = "Save or discard integration edits before updating the database."; return; }
+        using var operation = databaseOperation.TryEnter(this); if (operation is null) return;
         ++connectionCheckRevision;
         ConnectionResult.Text = "Creating/updating database…";
         try
@@ -123,13 +147,13 @@ public partial class SettingsWorkspaceView : UserControl
             RequireBootstrapAccess();
             var candidate = session.ValidateCandidate(ConnectionStringInput.Text);
             if (!candidate.IsValid) throw new InvalidOperationException(candidate.Error);
+            if (!AllowConnectionCandidate(candidate.ConnectionString!)) return;
             var result = await databaseLifecycleServiceFactory(candidate.ConnectionString!)
                 .BootstrapAsync(new BootstrapDatabase(migrationDirectory));
             var message = $"Database ready. Applied migrations: {(result.AppliedMigrations.Count == 0 ? "none" : string.Join(", ", result.AppliedMigrations))}.";
             ApplyPresentation(session.CompleteBootstrap(candidate, message));
             ConnectionStringInput.Text = session.ConnectionString;
-            if (OperationCompletedAsync is { } completed)
-                await completed(SettingsWorkspaceOperation.DatabaseBootstrap, true);
+            await NotifyCompletedAsync(SettingsWorkspaceOperation.DatabaseBootstrap, true);
         }
         catch (Exception exception)
         {
@@ -140,41 +164,48 @@ public partial class SettingsWorkspaceView : UserControl
 
     public async Task LoadProductConfigurationAsync()
     {
-        ProductSettingsPanel.IsEnabled = access.CanAdminister;
-        if (!access.CanAdminister) return;
+        if (!access.CanAdminister || productBusy || HasProductDraft) return;
+        productBusy = true; ProductSettingsPanel.IsEnabled = false;
         try
         {
             var dashboard = await administrationServiceFactory(session.ConnectionString).LoadAsync("Store");
             ApplyProductSettings(session.ShowProductSettings(dashboard.ProductConfiguration));
+            integrationsLoaded = true; savedProduct = ProductFields.Select(input => input.Text).ToArray();
         }
         catch (Exception exception)
         {
             DesktopDiagnostics.Record(exception, "Settings.Workspace", "PRODUCT_CONFIGURATION_LOAD_FAILED");
             ConnectionResult.Text = FriendlyError(exception);
         }
+        finally { productBusy = false; ProductSettingsPanel.IsEnabled = access.CanAdminister && integrationsLoaded; }
     }
 
-    public async Task SaveProductConfigurationAsync()
+    public async Task<bool> SaveProductConfigurationAsync()
     {
+        if (productBusy) return false;
+        productBusy = true; ProductSettingsPanel.IsEnabled = false;
         try
         {
             RequireOwnerAccess();
+            if (!integrationsLoaded) throw new InvalidOperationException("Load the current integration settings before saving.");
             var settings = DesktopSettingsPresentationSession.CreateProductConfiguration(
                 DocumentRepositoryInput.Text, ShareFolderInput.Text, OcrHelperInput.Text, OcrModelInput.Text,
                 SmtpHostInput.Text, SmtpPortInput.Text, SmtpFromInput.Text, MaximumAttachmentInput.Text,
                 ProductSettingsReasonInput.Text);
             await administrationServiceFactory(session.ConnectionString).SaveProductConfigurationAsync(settings);
             ProductSettingsReasonInput.Clear();
+            savedProduct = ProductFields.Select(input => input.Text).ToArray();
             ConnectionResult.Text = "Product integration settings saved and audited.";
-            await LoadProductConfigurationAsync();
-            if (OperationCompletedAsync is { } completed)
-                await completed(SettingsWorkspaceOperation.ProductConfigurationSaved, true);
+            await NotifyCompletedAsync(SettingsWorkspaceOperation.ProductConfigurationSaved, true);
+            return true;
         }
         catch (Exception exception)
         {
             DesktopDiagnostics.Record(exception, "Settings.Workspace", "PRODUCT_CONFIGURATION_SAVE_FAILED");
             ConnectionResult.Text = FriendlyError(exception);
+            return false;
         }
+        finally { productBusy = false; ProductSettingsPanel.IsEnabled = access.CanAdminister && integrationsLoaded; }
     }
 
     private async void TestConnection_Click(object sender, RoutedEventArgs e) =>

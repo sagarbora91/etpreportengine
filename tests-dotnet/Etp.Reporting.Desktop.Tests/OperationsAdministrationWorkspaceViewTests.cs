@@ -1,4 +1,5 @@
 using System.Threading;
+using System.Windows.Controls;
 using Etp.Reporting.Application.Access;
 using Etp.Reporting.Application.Distribution;
 using Etp.Reporting.Application.OperationsAdministration;
@@ -97,6 +98,66 @@ public sealed class OperationsAdministrationWorkspaceViewTests
         });
     }
 
+    [Fact]
+    public void Schedule_edits_survive_row_change_refresh_failed_save_and_discard()
+    {
+        RunSta(async () =>
+        {
+            var service = new FakeOperationsService();
+            var view = new OperationsWorkspaceView(new OperationsAdministrationPresentationSession(), () => "connection", _ => service,
+                (_, _) => Task.FromResult(new MaintenanceOperationResult(true, "done")));
+            view.UpdateAccess(new(true, true, true)); await view.RefreshAsync();
+            var grid = (DataGrid)view.FindName("ReportSchedulesGrid");
+            var time = (TextBox)view.FindName("ScheduleTimeInput");
+            grid.SelectedIndex = 0; time.Text = "09:15";
+            grid.SelectedIndex = 1; time.Text = "19:30";
+            await view.RefreshAsync(); Assert.Equal("19:30", time.Text);
+            grid.SelectedIndex = 0; Assert.Equal("09:15", time.Text);
+            Assert.Equal(new[] {1, 2}, view.UnsavedSchedules);
+            var pending = new TaskCompletionSource(); service.ScheduleCompletion = pending.Task;
+            var save = view.SaveScheduleDraftAsync(); Assert.True(view.IsBusy); Assert.False(view.IsEnabled);
+            Assert.False(await view.SaveScheduleDraftAsync()); Assert.Equal(1, service.ScheduleSaves);
+            pending.SetException(new InvalidOperationException("Synthetic failure"));
+            Assert.False(await save); Assert.Equal("09:15", time.Text); Assert.False(view.IsBusy);
+            view.DiscardScheduleDraft(1); Assert.Equal("08:00", time.Text); Assert.Equal(new[] {2}, view.UnsavedSchedules);
+            view.DiscardScheduleDraft(2); Assert.Empty(view.UnsavedSchedules);
+        });
+    }
+
+    [Fact]
+    public void Watch_folder_draft_survives_refresh_and_save_failure()
+    {
+        RunSta(async () =>
+        {
+            var service = new FakeOperationsService { FailWatchSave = true };
+            var view = new OperationsWorkspaceView(new OperationsAdministrationPresentationSession(), () => "connection", _ => service,
+                (_, _) => Task.FromResult(new MaintenanceOperationResult(true, "done")));
+            view.UpdateAccess(new(true, true, true)); await view.RefreshAsync();
+            var input = (TextBox)view.FindName("WatchInboundInput"); input.Text = "new-inbound";
+            await view.RefreshAsync(); Assert.Equal("new-inbound", input.Text); Assert.True(view.HasWatchDraft);
+            Assert.False(await view.SaveWatchDraftAsync()); Assert.Equal("new-inbound", input.Text);
+            view.DiscardWatchDraft(); Assert.False(view.HasWatchDraft); Assert.Equal("in", input.Text);
+        });
+    }
+
+    [Fact]
+    public void Master_types_keep_separate_drafts_and_failure_does_not_clear_them()
+    {
+        RunSta(async () =>
+        {
+            var service = new FakeAdministrationService { FailMasterSave = true };
+            var view = new AdministrationWorkspaceView(new OperationsAdministrationPresentationSession(), () => "connection", _ => service);
+            view.UpdateAccess(new(true, true, true));
+            var code = (TextBox)view.FindName("MasterCodeInput");
+            code.Text = "STORE-TEST"; view.SelectTask("tender-rules"); code.Text = "TENDER-TEST";
+            view.SelectTask("stores"); Assert.Equal("STORE-TEST", code.Text);
+            Assert.Equal(2, view.UnsavedDrafts.Count); Assert.False(await view.SaveMasterDraftAsync()); Assert.Equal("STORE-TEST", code.Text);
+            view.DiscardDraft("Master: Store"); Assert.Equal("", code.Text); Assert.Single(view.UnsavedDrafts);
+            view.SelectTask("tender-rules"); Assert.Equal("TENDER-TEST", code.Text);
+            view.DiscardDraft("Master: Tender"); Assert.Empty(view.UnsavedDrafts);
+        });
+    }
+
     private static int Count(string source, string value) =>
         source.Split(value, StringSplitOptions.None).Length - 1;
 
@@ -130,6 +191,9 @@ public sealed class OperationsAdministrationWorkspaceViewTests
     private sealed class FakeOperationsService : IOperationsAdministrationService
     {
         public int DashboardLoads { get; private set; }
+        public Task? ScheduleCompletion { get; set; }
+        public int ScheduleSaves { get; private set; }
+        public bool FailWatchSave { get; set; }
 
         public Task<OperationsDashboard> LoadDashboardAsync(OperationsPeriod period, CancellationToken cancellationToken = default)
         {
@@ -139,15 +203,16 @@ public sealed class OperationsAdministrationWorkspaceViewTests
                 [new ManagementTrendPoint(new DateOnly(2026, 8, 27), "WLMHW", 100m, 2m, 1, 0m, 0)],
                 [new DataQualityFinding("Warning", "Sales", "Q1", 1, null, "Review")],
                 [new DataQualityIssue(1, "Sales", "Warning", "WLMHW", new DateOnly(2026, 8, 27), "Passed", "OPEN", "Review", null, DateTime.UtcNow, null)],
-                [new ReportSchedule(1, "Morning", new TimeOnly(8, 0), true, true, true, null, null, null, null)],
+                [new ReportSchedule(1, "Morning", new TimeOnly(8, 0), true, true, true, null, null, null, null),
+                 new ReportSchedule(2, "Evening", new TimeOnly(18, 0), true, true, true, null, null, null, null)],
                 [new AutomationRun(1, "Scheduled", null, "WLMHW", new DateOnly(2026, 8, 27), "Succeeded", "Done", DateTime.UtcNow, DateTime.UtcNow, "system")]));
         }
 
         public Task<IReadOnlyList<ApprovalRequest>> LoadApprovalsAsync(string? status = "PENDING", CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<ApprovalRequest>>([new(1, "Adjustment", "StoreDay", "1", "WLMHW", new DateOnly(2026, 8, 27), "manager", DateTime.UtcNow, "PENDING", null, null, null)]);
         public Task<AutomationExecution> RunAutomationOnceAsync(CancellationToken cancellationToken = default) => Task.FromResult(new AutomationExecution(1, 0, 0, 1, "Done"));
-        public Task SaveWatchFoldersAsync(SaveWatchFolderConfiguration command, CancellationToken cancellationToken = default) => Task.CompletedTask;
-        public Task SaveScheduleAsync(SaveReportSchedule command, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task SaveWatchFoldersAsync(SaveWatchFolderConfiguration command, CancellationToken cancellationToken = default) => FailWatchSave ? Task.FromException(new InvalidOperationException("Synthetic failure")) : Task.CompletedTask;
+        public Task SaveScheduleAsync(SaveReportSchedule command, CancellationToken cancellationToken = default) { ScheduleSaves++; return ScheduleCompletion ?? Task.CompletedTask; }
         public Task UpdateIssueAsync(UpdateDataQualityIssue command, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task<long> SubmitAdjustmentAsync(SubmitAdjustment command, CancellationToken cancellationToken = default) => Task.FromResult(1L);
         public Task DecideApprovalAsync(DecideApproval command, CancellationToken cancellationToken = default) => Task.CompletedTask;
@@ -155,6 +220,7 @@ public sealed class OperationsAdministrationWorkspaceViewTests
 
     private sealed class FakeAdministrationService : IAdministrationService
     {
+        public bool FailMasterSave { get; set; }
         public int Loads { get; private set; }
         public Task<AdministrationDashboard> LoadAsync(string masterType, CancellationToken cancellationToken = default)
         {
@@ -166,7 +232,7 @@ public sealed class OperationsAdministrationWorkspaceViewTests
                 [new ProductHealth("Database", "Healthy", "Ready")],
                 new ProductConfiguration("docs", "share", null, null, null, null, true, null, 20, DateTime.UtcNow, "owner")));
         }
-        public Task SaveMasterAsync(SaveControlledMaster command, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task SaveMasterAsync(SaveControlledMaster command, CancellationToken cancellationToken = default) => FailMasterSave ? Task.FromException(new InvalidOperationException("Synthetic failure")) : Task.CompletedTask;
         public Task SaveUserAsync(SaveApplicationUser command, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task SaveProductConfigurationAsync(SaveProductConfiguration command, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }

@@ -11,7 +11,7 @@ internal static class DsrUi
 {
     public static SolidColorBrush Brush(string value) => (SolidColorBrush)new BrushConverter().ConvertFromString(value)!;
     public static TextBlock Text(string value, double size = 12, FontWeight? weight = null, string colour = "#10252D", TextAlignment align = TextAlignment.Left) =>
-        new() { Text = value, FontSize = size, FontWeight = weight ?? FontWeights.Normal, Foreground = Brush(colour), TextAlignment = align, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap };
+        new() { Text = value, FontSize = Math.Max(12, size), FontWeight = weight ?? FontWeights.Normal, Foreground = Brush(colour.ToUpperInvariant() switch { "#008D78" or "#07965C" => "#006B5C", "#C97800" => "#A76500", "#687285" => "#5D6873", _ => colour }), TextAlignment = align, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap };
     public static Border Card(UIElement child, Thickness? margin = null) => new() { Child = child, Background = Brush("#FFFFFF"), BorderBrush = Brush("#D9E3E3"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(12), Padding = new Thickness(12), Margin = margin ?? new Thickness(4) };
 }
 

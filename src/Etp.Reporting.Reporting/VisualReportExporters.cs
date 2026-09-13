@@ -143,34 +143,10 @@ public sealed class OpenXmlVisualReportExporter
 
 public sealed class SimplePdfVisualReportExporter
 {
-    private const double W = 841.89, H = 595.28, M = 36;
     public void Export(string path, VisualReportModel model)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(path); ArgumentNullException.ThrowIfNull(model);
-        var pages = new List<string> { Summary(model) };
-        pages.AddRange(model.Detail.Rows.Chunk(22).Select((rows, i) => Detail(model, rows, i + 1)));
-        if (model.Detail.Rows.Count == 0) pages.Add(Detail(model, [], 1));
-        WritePdf(path, pages);
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        ArgumentNullException.ThrowIfNull(model);
+        VisualReportPdfDocument.Export(path, model);
     }
-    private static string Summary(VisualReportModel m)
-    {
-        var b = new StringBuilder(); Text(b, "F2", 18, M, H - 42, m.Metadata.ReportName); Text(b, "F1", 9, M, H - 60, $"{m.Metadata.DateFrom:dd MMM yyyy} to {m.Metadata.DateTo:dd MMM yyyy} | Rule {m.Metadata.RuleVersion}");
-        var x = M; foreach (var k in m.Kpis.Take(4)) { b.AppendLine("0.93 0.95 0.97 rg"); b.AppendLine($"{x:F2} {H - 142:F2} 175 62 re f"); Text(b, "F1", 8, x + 8, H - 99, k.Label); Text(b, "F2", 14, x + 8, H - 124, IndianNumberFormatter.Format(k.Value, k.Format, k.State)); x += 185; }
-        var visual = m.Visuals.FirstOrDefault(); if (visual is not null) DrawBars(b, visual, M, H - 420, W - M * 2, 230);
-        var control = m.Controls.FirstOrDefault(); Text(b, "F2", 9, M, 74, $"Control: {control?.Status ?? "Not available"}"); Text(b, "F1", 8, M, 58, Clip(control?.Message ?? string.Empty, 150)); Text(b, "F1", 7, M, 20, "Visuals and details use the same governed report result."); return b.ToString();
-    }
-    private static void DrawBars(StringBuilder b, ReportVisual visual, double x, double y, double w, double h)
-    {
-        Text(b, "F2", 12, x, y + h + 18, visual.Title); var points = visual.Series.FirstOrDefault()?.Points.Where(p => p.Value is not null).Take(10).ToArray() ?? []; var max = Math.Max(1m, points.Select(p => Math.Abs(p.Value ?? 0)).DefaultIfEmpty(1).Max()); var slot = w / Math.Max(1, points.Length);
-        for (var i = 0; i < points.Length; i++) { var bh = (double)(Math.Abs(points[i].Value ?? 0) / max) * (h - 35); b.AppendLine("0.14 0.48 0.63 rg"); b.AppendLine($"{x + i * slot + 5:F2} {y + 20:F2} {Math.Max(5, slot - 12):F2} {bh:F2} re f"); Text(b, "F1", 6, x + i * slot + 3, y + 6, Clip(points[i].Category, 10)); }
-    }
-    private static string Detail(VisualReportModel m, IReadOnlyList<IReadOnlyList<object?>> rows, int page)
-    {
-        var b = new StringBuilder(); Text(b, "F2", 15, M, H - 40, $"{m.Metadata.ReportName} - Detailed Data"); var top = H - 68; var cw = (W - M * 2) / m.Detail.Columns.Count; b.AppendLine("0.09 0.20 0.30 rg"); b.AppendLine($"{M} {top - 18:F2} {W - M * 2:F2} 18 re f"); for (var i = 0; i < m.Detail.Columns.Count; i++) Text(b, "F2", 6, M + i * cw + 3, top - 13, Clip(m.Detail.Columns[i].Header, Math.Max(5, (int)(cw / 4.2)))); var y = top - 36; foreach (var row in rows) { for (var i = 0; i < m.Detail.Columns.Count; i++) Text(b, "F1", 6, M + i * cw + 3, y, Clip(i < row.Count ? Convert.ToString(row[i], CultureInfo.InvariantCulture) ?? "" : "", Math.Max(5, (int)(cw / 4.2)))); y -= 20; } Text(b, "F1", 7, W - 90, 20, $"Detail page {page}"); return b.ToString();
-    }
-    private static void WritePdf(string path, IReadOnlyList<string> pages)
-    {
-        var objects = new List<byte[]> { Array.Empty<byte>() }; var f1 = Add(objects, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"); var f2 = Add(objects, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>"); var ids = new List<int>(); var payload = new List<(int,int)>(); foreach (var p in pages) { var bytes = Encoding.ASCII.GetBytes(p); var c = Add(objects, $"<< /Length {bytes.Length} >>\nstream\n{p}\nendstream"); var id = Add(objects, ""); ids.Add(id); payload.Add((id,c)); } var pagesId = Add(objects, ""); foreach (var p in payload) objects[p.Item1] = Bytes($"<< /Type /Page /Parent {pagesId} 0 R /MediaBox [0 0 {W:F2} {H:F2}] /Resources << /Font << /F1 {f1} 0 R /F2 {f2} 0 R >> >> /Contents {p.Item2} 0 R >>"); objects[pagesId] = Bytes($"<< /Type /Pages /Count {ids.Count} /Kids [{string.Join(' ', ids.Select(x => $"{x} 0 R"))}] >>"); var catalog = Add(objects, $"<< /Type /Catalog /Pages {pagesId} 0 R >>"); Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!); using var s = File.Create(path); Write(s, "%PDF-1.4\n%ETPV\n"); var offsets = new List<long>{0}; for(var i=1;i<objects.Count;i++){offsets.Add(s.Position);Write(s,$"{i} 0 obj\n");s.Write(objects[i]);Write(s,"\nendobj\n");}var xr=s.Position;Write(s,$"xref\n0 {objects.Count}\n0000000000 65535 f \n");foreach(var o in offsets.Skip(1))Write(s,$"{o:0000000000} 00000 n \n");Write(s,$"trailer\n<< /Size {objects.Count} /Root {catalog} 0 R >>\nstartxref\n{xr}\n%%EOF\n");
-    }
-    private static void Text(StringBuilder b,string font,int size,double x,double y,string value)=>b.AppendLine($"BT /{font} {size} Tf 0 g 1 0 0 1 {x:F2} {y:F2} Tm ({Escape(value)}) Tj ET"); private static string Escape(string v)=>new(v.Replace("\\","\\\\").Replace("(","\\(").Replace(")","\\)").Select(c=>c is >= ' ' and <= '~'?c:'?').ToArray()); private static string Clip(string v,int n)=>v.Length<=n?v:v[..Math.Max(1,n-3)]+"..."; private static int Add(List<byte[]>o,string v){o.Add(Bytes(v));return o.Count-1;} private static byte[] Bytes(string v)=>Encoding.ASCII.GetBytes(v); private static void Write(Stream s,string v)=>s.Write(Bytes(v));
 }

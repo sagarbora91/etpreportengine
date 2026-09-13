@@ -8,8 +8,8 @@
         <WrapPanel Margin="0,8,0,10">
             <TextBlock Text="Business date" VerticalAlignment="Center" Margin="0,0,6,0"/>
             <DatePicker x:Name="ImportBusinessDateInput" Width="145" automation:AutomationProperties.Name="Import business date"/>
-            <TextBlock Text="Store" VerticalAlignment="Center" Margin="14,0,6,0"/>
-            <ComboBox x:Name="ImportStoreInput" Width="150" SelectedIndex="0" automation:AutomationProperties.Name="Import store">
+            <TextBlock Text="Import store (required)" VerticalAlignment="Center" Margin="14,0,6,0"/>
+            <ComboBox x:Name="ImportStoreInput" Width="150" SelectedIndex="-1" automation:AutomationProperties.Name="Import store">
                 <ComboBoxItem Content="WLMHW"/>
                 <ComboBoxItem Content="HEMW"/>
             </ComboBox>

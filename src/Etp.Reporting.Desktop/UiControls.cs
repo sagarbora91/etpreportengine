@@ -37,13 +37,13 @@ public sealed class ModuleTile : Button
         var iconHost = new Border { Width = 42, Height = 42, CornerRadius = new CornerRadius(13), Background = AccentTint(definition.Id), HorizontalAlignment = HorizontalAlignment.Left };
         iconHost.Child = new Path { Data = (Geometry)Application.Current.Resources[definition.IconKey], Stroke = Accent(definition.Id), Fill = Brushes.Transparent, StrokeThickness = 1.7, Stretch = Stretch.Uniform, Margin = new Thickness(10) };
         grid.Children.Add(iconHost);
-        var title = new TextBlock { Text = definition.DisplayName, FontSize = 19, FontWeight = FontWeights.SemiBold, Foreground = (Brush)Application.Current.Resources["PrimaryText"], Margin = new Thickness(0, 14, 0, 3) };
+        var title = new TextBlock { Text = definition.DisplayName, FontSize = 19, FontWeight = FontWeights.SemiBold, Foreground = (Brush?)Application.Current?.TryFindResource("PrimaryText") ?? Brushes.Black, Margin = new Thickness(0, 14, 0, 3) };
         Grid.SetRow(title, 1); grid.Children.Add(title);
-        var description = new TextBlock { Text = definition.Description, FontSize = 12.5, Foreground = (Brush)Application.Current.Resources["SecondaryText"], TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12) };
+        var description = new TextBlock { Text = definition.Description, FontSize = 12.5, Foreground = (Brush?)Application.Current?.TryFindResource("SecondaryText") ?? Brushes.DimGray, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12) };
         Grid.SetRow(description, 2); grid.Children.Add(description);
         var status = new DockPanel();
-        var statusText = new TextBlock { Text = definition.StatusText, FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = Accent(definition.Id) };
-        var arrow = new TextBlock { Text = "›", FontSize = 20, FontWeight = FontWeights.SemiBold, Foreground = (Brush)Application.Current.Resources["SecondaryText"] };
+        var statusText = new TextBlock { Text = definition.StatusText, FontSize = 12, FontWeight = FontWeights.SemiBold, Foreground = Accent(definition.Id) };
+        var arrow = new TextBlock { Text = "›", FontSize = 20, FontWeight = FontWeights.SemiBold, Foreground = (Brush?)Application.Current?.TryFindResource("SecondaryText") ?? Brushes.DimGray };
         DockPanel.SetDock(arrow, Dock.Right); status.Children.Add(arrow); status.Children.Add(statusText);
         Grid.SetRow(status, 3); grid.Children.Add(status);
         return grid;
@@ -56,7 +56,7 @@ public sealed class ModuleTile : Button
         "imports" => new SolidColorBrush(Color.FromRgb(174, 96, 0)),
         "archive" => new SolidColorBrush(Color.FromRgb(8, 127, 130)),
         "exceptions" => new SolidColorBrush(Color.FromRgb(198, 59, 66)),
-        _ => (Brush)Application.Current.Resources["Accent"]
+        _ => (Brush?)Application.Current?.TryFindResource("Accent") ?? Brushes.Teal
     };
 
     private static Brush AccentTint(string id)
@@ -71,7 +71,7 @@ public sealed class StatusBadge : Border
     public StatusBadge(string text, string brushKey = "Success")
     {
         CornerRadius = new CornerRadius(10); Padding = new Thickness(9, 4, 9, 4); HorizontalAlignment = HorizontalAlignment.Left;
-        var brush = (Brush)Application.Current.Resources[brushKey]; Background = WithOpacity(brush, .12); Child = new TextBlock { Text = text.ToUpperInvariant(), FontSize = 10, FontWeight = FontWeights.SemiBold, Foreground = brush };
+        var brush = (Brush)Application.Current.Resources[brushKey]; Background = WithOpacity(brush, .12); Child = new TextBlock { Text = text.ToUpperInvariant(), FontSize = 12, FontWeight = FontWeights.SemiBold, Foreground = (Brush)Application.Current.Resources["PrimaryText"] };
         AutomationProperties.SetName(this, text);
     }
     private static Brush WithOpacity(Brush brush, double opacity) { var clone = brush.Clone(); clone.Opacity = opacity; return clone; }
@@ -81,11 +81,11 @@ public sealed class EmptyState : Border
 {
     public EmptyState(string title, string message, string? action = null)
     {
-        Style = (Style)Application.Current.Resources["SurfaceCard"];
+        SetResourceReference(StyleProperty, "SurfaceCard");
         var panel = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, MaxWidth = 520 };
-        panel.Children.Add(new TextBlock { Text = title, FontSize = 18, FontWeight = FontWeights.SemiBold, Foreground = (Brush)Application.Current.Resources["PrimaryText"], TextAlignment = TextAlignment.Center });
-        panel.Children.Add(new TextBlock { Text = message, Margin = new Thickness(0, 7, 0, 0), Foreground = (Brush)Application.Current.Resources["SecondaryText"], TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center });
-        if (!string.IsNullOrWhiteSpace(action)) panel.Children.Add(new TextBlock { Text = action, Margin = new Thickness(0, 12, 0, 0), Foreground = (Brush)Application.Current.Resources["Accent"], FontWeight = FontWeights.SemiBold, TextAlignment = TextAlignment.Center });
+        panel.Children.Add(new TextBlock { Text = title, FontSize = 18, FontWeight = FontWeights.SemiBold, Foreground = (Brush?)Application.Current?.TryFindResource("PrimaryText") ?? Brushes.Black, TextAlignment = TextAlignment.Center });
+        panel.Children.Add(new TextBlock { Text = message, Margin = new Thickness(0, 7, 0, 0), Foreground = (Brush?)Application.Current?.TryFindResource("SecondaryText") ?? Brushes.DimGray, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center });
+        if (!string.IsNullOrWhiteSpace(action)) panel.Children.Add(new TextBlock { Text = action, Margin = new Thickness(0, 12, 0, 0), Foreground = (Brush?)Application.Current?.TryFindResource("Accent") ?? Brushes.Teal, FontWeight = FontWeights.SemiBold, TextAlignment = TextAlignment.Center });
         Child = panel; AutomationProperties.SetName(this, $"{title}. {message}");
     }
 }
@@ -94,10 +94,10 @@ public sealed class LoadingState : Border
 {
     public LoadingState(string message)
     {
-        Background = (Brush)Application.Current.Resources["SurfaceSecondary"]; CornerRadius = new CornerRadius(12); Padding = new Thickness(18);
+        SetResourceReference(BackgroundProperty, "SurfaceSecondary"); CornerRadius = new CornerRadius(12); Padding = new Thickness(18);
         var panel = new StackPanel { Orientation = Orientation.Horizontal };
         panel.Children.Add(new ProgressBar { Width = 90, Height = 7, IsIndeterminate = true, Margin = new Thickness(0, 0, 14, 0) });
-        panel.Children.Add(new TextBlock { Text = message, VerticalAlignment = VerticalAlignment.Center, Foreground = (Brush)Application.Current.Resources["SecondaryText"] });
+        panel.Children.Add(new TextBlock { Text = message, VerticalAlignment = VerticalAlignment.Center, Foreground = (Brush?)Application.Current?.TryFindResource("PrimaryText") ?? Brushes.DimGray });
         Child = panel; AutomationProperties.SetName(this, message);
     }
 }

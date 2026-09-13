@@ -184,17 +184,35 @@ public sealed class DailyWorkflowWorkspaceViewTests
             await view.RefreshAsync();
             FindTextBox(view, "Manual input value").Text = "9";
             FindTextBox(view, "Manual input change reason").Text = "Counted today";
-            var pending = view.SaveManualInputAsync();
+            var pending = view.SaveDraftAsync("Walk-ins");
             await view.SaveManualInputAsync();
             Assert.Equal(1, commands.ManualSaveCalls);
             Assert.False(FindTextBox(view, "Manual input value").IsEnabled);
             Assert.False(FindButton(view, "Finalise business day").IsEnabled);
             completion.SetException(new InvalidOperationException("Synthetic save failure"));
-            await pending;
+            Assert.False(await pending);
             Assert.Equal("9", FindTextBox(view, "Manual input value").Text);
             Assert.Equal("Counted today", FindTextBox(view, "Manual input change reason").Text);
             Assert.True(FindButton(view, "Save manual input").IsEnabled);
             Assert.Contains("not saved", view.StatusText);
+        });
+    }
+
+    [Fact]
+    public void Explicit_zero_is_a_draft_and_discard_does_not_clear_another_input_task()
+    {
+        RunSta(() =>
+        {
+            var query = new DeferredQuery(); query.Complete("Ready");
+            var view = CreateView(query, new FakeCommands());
+            FindTextBox(view, "Manual input value").Text = "0";
+            FindTextBox(view, "Staff CRO number").Text = "TEST-CRO";
+            Assert.Contains("Walk-ins", view.UnsavedDrafts);
+            Assert.Contains("Staff targets", view.UnsavedDrafts);
+            view.DiscardDraft("Walk-ins");
+            Assert.DoesNotContain("Walk-ins", view.UnsavedDrafts);
+            Assert.Equal("TEST-CRO", FindTextBox(view, "Staff CRO number").Text);
+            return Task.CompletedTask;
         });
     }
 

@@ -19,9 +19,20 @@ internal static class Program
         Directory.CreateDirectory(output);
         var app = new App();
         app.InitializeComponent();
+        if (args.Contains("--controls")) { ThemeControlAudit.Run(output); return; }
+        if (args.Contains("--fixture-exports")) { FixtureReportAudit.Run(output,args[^1], exportsOnly: true); return; }
+        if (args.Contains("--fixture-reports")) { FixtureReportAudit.Run(output,args[^1]); return; }
         var window = DesktopCompositionRoot.CreateDefault().CreateMainWindow();
         window.Width = 1366;
         window.Height = 768;
+        if (args.Contains("--inventory"))
+        {
+            SetAccess(window, AccessRole.Owner, "Synthetic Owner");
+            ((FrameworkElement)window.FindName("WelcomeOverlay")).Visibility = Visibility.Collapsed;
+            var navigator = (TaskNavigator)typeof(MainWindow).GetField("taskNavigator", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
+            ControlInventoryAudit.Run(window, navigator, output); return;
+        }
+        if (args.Contains("--tasks")) { AuditTasks(window, output); return; }
         Render(window, Path.Combine(output, "01-welcome-1366x768.png"), 1366, 768);
         SetAccess(window, AccessRole.StoreManager, "Store Manager");
         ((TextBlock)window.FindName("AccessStatus")).Text = "Store Manager — Store Manager";
@@ -78,16 +89,84 @@ internal static class Program
         Console.WriteLine($"Rendered 11 baseline views, {renderedDestinations} workspace routes and {renderedReports} report routes at three sizes (960x600, 1366x768, 1920x1080), 96-DPI offscreen renders only. Accessible named elements: {named:N0}. Output: {output}");
     }
 
-    static void SetAccess(MainWindow window, AccessRole role, string displayName)
+    internal static void SetAccess(MainWindow window, AccessRole role, string displayName)
     {
         var field = typeof(MainWindow).GetField("currentAccess", BindingFlags.Instance | BindingFlags.NonPublic) ?? throw new MissingFieldException("currentAccess");
         field.SetValue(window, new AccessSession("UI-SMOKE\\user", displayName, role, true));
+        Invoke(window, "UpdateOperationsAdministrationAccess");
+        var settings = (Etp.Reporting.Desktop.Modules.Settings.SettingsWorkspaceView)typeof(MainWindow).GetField("settingsWorkspace", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
+        settings.UpdateAccess(new(role != AccessRole.None, role == AccessRole.Owner));
+    }
+
+    static void AuditTasks(MainWindow window, string output)
+    {
+        File.WriteAllText(Path.Combine(output, "capture-metadata.json"), System.Text.Json.JsonSerializer.Serialize(new
+        {
+            timestampUtc = DateTimeOffset.UtcNow,
+            version = typeof(MainWindow).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion,
+            sourceState = "Working tree; commit metadata alone does not identify uncommitted changes",
+            role = "Synthetic Owner", fixture = "Default composition; loading/empty layout, no populated acceptance fixture",
+            dpi = 96, capture = "Offscreen WPF RenderTargetBitmap; no installed interaction claimed"
+        }, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+        SetAccess(window, AccessRole.Owner, "Synthetic Owner");
+        ((FrameworkElement)window.FindName("WelcomeOverlay")).Visibility = Visibility.Collapsed;
+        var navigator = (TaskNavigator)typeof(MainWindow).GetField("taskNavigator", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
+        var evidence = new List<object>();
+        foreach (var task in TaskNavigation.All.Where(x => x.Available))
+        {
+            try
+            {
+                if (!navigator.DisplayTaskRoute(task.Route)) throw new InvalidOperationException($"No task composition for {task.Id}");
+                Render(window, Path.Combine(output, Slug(task.Id) + "-1000x600.png"), 1000, 600);
+                VisualContractAudit.Capture((DependencyObject)window.Content,task.Id);
+                if (new[] { "dashboard", "support-package", "settings", "connection", "import-files", "report-dsr", "register-inward", "walk-ins", "tally-export", "compare", "ocr-review", "users" }.Contains(task.Id))
+                foreach (var density in Enum.GetValues<UiDensity>())
+                foreach (var size in new[] { (1280,720), (1000,600), (960,600), (800,440), (1024,768), (1280,800), (800,1000) })
+                {
+                    Invoke(window, "ApplyDensity", density, false);
+                    Render(window, Path.Combine(output, $"{task.Id}-{density}-{size.Item1}x{size.Item2}.png"), size.Item1, size.Item2);
+                }
+                Invoke(window, "ApplyDensity", UiDensity.Comfortable, false);
+                evidence.Add(new { route = task.Id, task.Path, result = "RENDERED", method = "Direct task composition, bypasses navigation guards; 96-DPI offscreen synthetic-owner layout, not interaction", timestamp = DateTimeOffset.UtcNow });
+            }
+            catch (Exception ex) { evidence.Add(new { route = task.Id, result = "FAIL", error = ex.ToString() }); }
+        }
+        foreach (var density in Enum.GetValues<UiDensity>())
+        {
+            Invoke(window, "ApplyDensity", density, false);
+            var dialog = new DraftNavigationDialog(window, "Synthetic register entry");
+            Render(dialog, Path.Combine(output, $"unsaved-dialog-{density}-480x280.png"), 480, 280);
+            Render(dialog, Path.Combine(output, $"unsaved-dialog-{density}-360x340.png"), 360, 340);
+        }
+        var overviews = new List<object>();
+        Invoke(window, "CloseDrawer"); Invoke(window, "ApplyDensity", UiDensity.Comfortable, false);
+        foreach (var module in TaskNavigation.All.Where(task => task.Available && task.Section != "overview").GroupBy(task => task.Module))
+        foreach (var category in new string?[] { null }.Concat(module.Select(task => task.Category).Distinct()))
+        {
+            var route = new WorkspaceRoute(module.First().Destination, TaskId: category is null ? "overview:" + module.Key : "category:" + module.Key + ":" + category);
+            navigator.DisplayTaskRoute(route);
+            var name = Slug(module.Key + "-" + (category ?? "overview"));
+            Render(window, Path.Combine(output, "overview-" + name + "-1000x600.png"), 1000, 600);
+            var scroll = ((ContentControl)window.FindName("FocusedWorkspaceHost")).Content as ScrollViewer;
+            overviews.Add(new { module = module.Key, category, verticalOverflow = scroll is not null && scroll.ExtentHeight > scroll.ViewportHeight + 1,
+                extent = scroll?.ExtentHeight, viewport = scroll?.ViewportHeight, method = "Direct composition bounds at 1000x600 DIP, 96 DPI" });
+            Render(window, Path.Combine(output, "overview-" + name + "-800x440.png"), 800, 440);
+        }
+        File.WriteAllText(Path.Combine(output, "overview-layout-results.json"), System.Text.Json.JsonSerializer.Serialize(overviews, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+        VisualContractAudit.Write(output);
+        File.WriteAllText(Path.Combine(output, "task-layout-results.json"), System.Text.Json.JsonSerializer.Serialize(evidence, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+        File.WriteAllText(Path.Combine(output, "routes.json"), System.Text.Json.JsonSerializer.Serialize(TaskNavigation.All, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+        File.WriteAllText(Path.Combine(output, "original-menu.json"), System.Text.Json.JsonSerializer.Serialize(UiNavigationRegistry.AllItems.Select(x => new { Original = x, Canonical = TaskNavigation.ForItem(x) }), new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+        var queries = new[] { "DSR", "support package", "backup", "restore", "users", "walk-ins", "Tally", "duplicates", "invoice", "stock" };
+        var times = Enumerable.Range(0, 100).Select(i => { var watch = System.Diagnostics.Stopwatch.StartNew(); TaskNavigation.Search(queries[i % queries.Length], ShellAccess.Owner); return watch.Elapsed.TotalMilliseconds; }).Order().ToArray();
+        File.WriteAllText(Path.Combine(output, "search-performance.json"), System.Text.Json.JsonSerializer.Serialize(new { samples = times.Length, p95Ms = times[94], maximumMs = times[^1], environment = Environment.MachineName, method = "Warm host index query only; excludes popup rendering and debounce. Not VM or first-open acceptance." }));
+        Console.WriteLine($"Task layout audit: {evidence.Count} routes. See task-layout-results.json; rendered does not imply accepted.");
     }
 
     static object? Invoke(MainWindow window, string method, params object[] parameters) =>
         (typeof(MainWindow).GetMethod(method, BindingFlags.Instance | BindingFlags.NonPublic) ?? throw new MissingMethodException(method)).Invoke(window, parameters);
 
-    static void Render(Window window, string path, int width, int height)
+    internal static void Render(Window window, string path, int width, int height)
     {
         window.Width = width;
         window.Height = height;
@@ -100,6 +179,11 @@ internal static class Program
         root.Arrange(new Rect(0, 0, width, height));
         root.UpdateLayout();
         var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+        // Content-only offscreen rendering omits the native Window background.
+        // Composite it first so transparent dialog panels retain readable labels.
+        var background = new DrawingVisual();
+        using (var drawing = background.RenderOpen()) drawing.DrawRectangle(window.Background ?? Brushes.White, null, new Rect(0, 0, width, height));
+        bitmap.Render(background);
         bitmap.Render(root);
         var encoder = new PngBitmapEncoder();
         encoder.Frames.Add(BitmapFrame.Create(bitmap));

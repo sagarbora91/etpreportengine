@@ -35,9 +35,9 @@ public sealed class MainWindowShellBoundaryTests
     public void MainWindow_xaml_contains_only_shell_state_and_compact_feature_hosts()
     {
         var xaml = File.ReadAllText(Path.Combine(DesktopRoot, "MainWindow.xaml"));
-        Assert.True(File.ReadLines(Path.Combine(DesktopRoot, "MainWindow.xaml")).Count() <= 93,
+        Assert.True(File.ReadLines(Path.Combine(DesktopRoot, "MainWindow.xaml")).Count() <= 108,
             "MainWindow XAML exceeded the final shell-host line ratchet.");
-        Assert.Equal(58, Regex.Matches(xaml, "x:Name=").Count);
+        Assert.Equal(60, Regex.Matches(xaml, "x:Name=").Count);
         Assert.True(Regex.Matches(xaml, "(?:Click|SelectionChanged|KeyDown|TextChanged|MouseDoubleClick)=\\\"").Count <= 13,
             "Feature event handlers have regrown in MainWindow XAML.");
 

@@ -17,9 +17,11 @@ public sealed class HelpCentreView : UserControl
     private readonly ContentControl contentHost = new();
     private readonly TextBlock resultSummary = new();
     private string currentTopicId = HelpCentreRegistry.HomeTopicId;
+    private string? currentCategory;
 
     public event EventHandler<HelpNavigationEventArgs>? NavigationRequested;
     public event EventHandler? CloseRequested;
+    public Func<string, bool> CanNavigateTopic { get; set; } = _ => true;
 
     public string CurrentTopicId => currentTopicId;
 
@@ -57,20 +59,24 @@ public sealed class HelpCentreView : UserControl
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         root.RowDefinitions.Add(new RowDefinition());
 
-        var header = new Border { Background = Brush("Surface", Brushes.White), BorderBrush = Brush("Divider", Brushes.LightGray), BorderThickness = new Thickness(0, 0, 0, 1), Padding = new Thickness(24, 18, 24, 16) };
+        var header = new Border { Background = Brush("Surface", Brushes.White), BorderBrush = Brush("Divider", Brushes.LightGray), BorderThickness = new Thickness(0, 0, 0, 1), Padding = new Thickness(16, 8, 16, 8) };
         var headerGrid = new Grid();
         headerGrid.ColumnDefinitions.Add(new ColumnDefinition());
         headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var heading = new StackPanel();
-        heading.Children.Add(new TextBlock { Text = "Help Centre", FontSize = 26, FontWeight = FontWeights.SemiBold, Foreground = Brush("PrimaryText", Brushes.Black) });
-        heading.Children.Add(new TextBlock { Text = "Find guidance for every application area.", Margin = new Thickness(0, 3, 0, 0), Foreground = Brush("SecondaryText", Brushes.DimGray) });
+        heading.Children.Add(new TextBlock { Text = "Help Centre", FontSize = 20, FontWeight = FontWeights.SemiBold, Foreground = Brush("PrimaryText", Brushes.Black), VerticalAlignment = VerticalAlignment.Center });
         headerGrid.Children.Add(heading);
-        var close = new Button { Content = "Close", MinWidth = 76, MinHeight = 34, VerticalAlignment = VerticalAlignment.Center };
+        var close = new Button { Content = "Close", MinWidth = 76, VerticalAlignment = VerticalAlignment.Center };
+        close.SetResourceReference(MinHeightProperty, "ActiveTargetHeight");
         close.Click += (_, _) => CloseRequested?.Invoke(this, EventArgs.Empty);
         AutomationProperties.SetName(close, "Close Help Centre");
-        Grid.SetColumn(close, 1); headerGrid.Children.Add(close); header.Child = headerGrid; root.Children.Add(header);
+        var categories = new Button { Content = "Categories", Margin = new Thickness(0,0,8,0) };
+        categories.SetResourceReference(MinHeightProperty, "ActiveTargetHeight");
+        categories.Click += (_, _) => { currentCategory = null; searchInput.Clear(); ShowHome(); PopulateTiles(HelpCentreRegistry.Topics); };
+        var headerActions = new StackPanel { Orientation = Orientation.Horizontal }; headerActions.Children.Add(categories); headerActions.Children.Add(close);
+        Grid.SetColumn(headerActions, 1); headerGrid.Children.Add(headerActions); header.Child = headerGrid; root.Children.Add(header);
 
-        contentHost.Margin = new Thickness(24, 20, 24, 24);
+        contentHost.Margin = new Thickness(16, 10, 16, 12);
         Grid.SetRow(contentHost, 1); root.Children.Add(contentHost);
         return root;
     }
@@ -83,12 +89,15 @@ public sealed class HelpCentreView : UserControl
             return;
         }
         currentTopicId = HelpCentreRegistry.HomeTopicId;
+        (searchInput.Parent as Panel)?.Children.Remove(searchInput);
+        (resultSummary.Parent as Panel)?.Children.Remove(resultSummary);
+        if (tiles.Parent is ScrollViewer oldScroll) oldScroll.Content = null;
         var root = new Grid();
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         root.RowDefinitions.Add(new RowDefinition());
 
-        searchInput.MinHeight = 42;
+        searchInput.SetResourceReference(MinHeightProperty, "ActiveTargetHeight");
         searchInput.Padding = new Thickness(12, 8, 12, 8);
         searchInput.FontSize = 14;
         searchInput.ToolTip = "Search help topics";
@@ -115,10 +124,26 @@ public sealed class HelpCentreView : UserControl
     private void PopulateTiles(IReadOnlyList<HelpTopicDefinition> topics)
     {
         tiles.Children.Clear();
+        if (string.IsNullOrWhiteSpace(searchInput.Text) && currentCategory is null)
+        {
+            resultSummary.Text = "Choose a help category";
+            foreach (var group in topics.GroupBy(topic => HelpCentreRegistry.Category(topic.Id)))
+            {
+                var button = new Button { Content = new TextBlock { Text = group.Key, TextWrapping = TextWrapping.Wrap, FontSize = 16 }, Width = 260, MinHeight = 88, Margin = new Thickness(6) };
+                AutomationProperties.SetName(button, group.Key + " help category");
+                button.Click += (_, _) => { currentCategory = group.Key; PopulateTiles(HelpCentreRegistry.Topics); };
+                tiles.Children.Add(button);
+            }
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(searchInput.Text) && currentCategory is not null)
+        {
+            topics = topics.Where(topic => HelpCentreRegistry.Category(topic.Id) == currentCategory).ToArray();
+        }
         resultSummary.Text = topics.Count == 1 ? "1 help topic" : $"{topics.Count} help topics";
         foreach (var topic in topics)
         {
-            var tile = new HelpTopicTile(topic) { Width = 278 };
+            var tile = new HelpTopicTile(topic) { Width = 260 };
             tile.Click += (_, _) => OpenTopic(topic.Id);
             tiles.Children.Add(tile);
         }
@@ -131,11 +156,14 @@ public sealed class HelpCentreView : UserControl
         var root = new Grid();
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         root.RowDefinitions.Add(new RowDefinition());
-        var back = new Button { Content = "← All help topics", HorizontalAlignment = HorizontalAlignment.Left, MinHeight = 34, Padding = new Thickness(12, 4, 12, 4) };
+        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        var back = new Button { Content = "← Help categories", HorizontalAlignment = HorizontalAlignment.Left, Padding = new Thickness(12, 4, 12, 4) };
+        back.SetResourceReference(MinHeightProperty, "ActiveTargetHeight");
+        back.Visibility = Visibility.Collapsed; // Categories is persistently available in the help action bar.
         back.Click += (_, _) => ShowHome();
         AutomationProperties.SetName(back, "Return to all Help Centre topics"); root.Children.Add(back);
 
-        var card = new Border { Background = Brush("Surface", Brushes.White), BorderBrush = Brush("Divider", Brushes.LightGray), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(12), Padding = new Thickness(28), Margin = new Thickness(0, 14, 0, 0) };
+        var card = new Border { Background = Brush("Surface", Brushes.White), BorderBrush = Brush("Divider", Brushes.LightGray), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(12), Padding = new Thickness(16), Margin = new Thickness(0, 8, 0, 0) };
         var content = new StackPanel { MaxWidth = 820, HorizontalAlignment = HorizontalAlignment.Left };
         content.Children.Add(new TextBlock { Text = topic.Title, FontSize = 25, FontWeight = FontWeights.SemiBold, Foreground = Brush("PrimaryText", Brushes.Black) });
         content.Children.Add(new TextBlock { Text = topic.Description, FontSize = 14, Foreground = Brush("SecondaryText", Brushes.DimGray), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 5, 0, 20) });
@@ -150,11 +178,14 @@ public sealed class HelpCentreView : UserControl
         }
         if (!string.IsNullOrWhiteSpace(topic.Destination))
         {
-            var open = new Button { Content = $"Open {topic.Title}", HorizontalAlignment = HorizontalAlignment.Left, MinHeight = 38, Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 22, 0, 0) };
+            var open = new Button { Content = $"Open {topic.Title}", HorizontalAlignment = HorizontalAlignment.Left, Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 8, 0, 0) };
+            open.SetResourceReference(MinHeightProperty, "ActiveTargetHeight");
+            open.IsEnabled = CanNavigateTopic(topic.Id);
+            if (!open.IsEnabled) open.ToolTip = "Your role can read this guide but cannot open its restricted task.";
             open.Click += (_, _) => NavigationRequested?.Invoke(this, new HelpNavigationEventArgs(topic.Id, topic.Destination, topic.FeatureCode));
-            AutomationProperties.SetName(open, $"Open {topic.Title} workspace"); content.Children.Add(open);
+            AutomationProperties.SetName(open, $"Open {topic.Title} workspace"); Grid.SetRow(open, 2); root.Children.Add(open);
         }
-        card.Child = content;
+        card.Child = new ScrollViewer { Content = content, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
         Grid.SetRow(card, 1); root.Children.Add(card);
         return root;
     }
@@ -164,7 +195,9 @@ public sealed class HelpCentreView : UserControl
         var root = new Grid();
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         root.RowDefinitions.Add(new RowDefinition());
-        var back = new Button { Content = "← All help topics", HorizontalAlignment = HorizontalAlignment.Left, MinHeight = 34, Padding = new Thickness(12, 4, 12, 4) };
+        var back = new Button { Content = "← Help categories", HorizontalAlignment = HorizontalAlignment.Left, Padding = new Thickness(12, 4, 12, 4) };
+        back.SetResourceReference(MinHeightProperty, "ActiveTargetHeight");
+        back.Visibility = Visibility.Collapsed;
         back.Click += (_, _) => ShowHome();
         AutomationProperties.SetName(back, "Return to all Help Centre topics");
         root.Children.Add(back);
@@ -183,9 +216,9 @@ public sealed class HelpTopicTile : Button
     public HelpTopicTile(HelpTopicDefinition definition)
     {
         Definition = definition;
-        MinHeight = 164;
+        MinHeight = 96;
         Margin = new Thickness(6);
-        Padding = new Thickness(18);
+        Padding = new Thickness(12);
         HorizontalContentAlignment = HorizontalAlignment.Stretch;
         VerticalContentAlignment = VerticalAlignment.Stretch;
         Background = Application.Current?.TryFindResource("Surface") as Brush ?? Brushes.White;
@@ -197,23 +230,15 @@ public sealed class HelpTopicTile : Button
 
     private static UIElement BuildContent(HelpTopicDefinition definition)
     {
-        var root = new Grid();
-        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        root.RowDefinitions.Add(new RowDefinition());
-        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        var icon = new Path { Width = 26, Height = 26, Stretch = Stretch.Uniform, StrokeThickness = 1.7, Stroke = Application.Current?.TryFindResource("Accent") as Brush ?? Brushes.SteelBlue };
-        if (Application.Current?.TryFindResource(definition.IconKey) is Geometry geometry) icon.Data = geometry;
-        root.Children.Add(icon);
-        var title = new TextBlock { Text = definition.Title, FontSize = 17, FontWeight = FontWeights.SemiBold, Foreground = Application.Current?.TryFindResource("PrimaryText") as Brush ?? Brushes.Black, Margin = new Thickness(0, 12, 0, 4) };
-        Grid.SetRow(title, 1); root.Children.Add(title);
-        var description = new TextBlock { Text = definition.Description, TextWrapping = TextWrapping.Wrap, Foreground = Application.Current?.TryFindResource("SecondaryText") as Brush ?? Brushes.DimGray };
-        Grid.SetRow(description, 2); root.Children.Add(description);
-        var status = new TextBlock { Text = StatusText(definition), FontSize = 11, FontWeight = FontWeights.SemiBold, Foreground = Application.Current?.TryFindResource("Accent") as Brush ?? Brushes.SteelBlue, Margin = new Thickness(0, 10, 0, 0) };
-        Grid.SetRow(status, 3); root.Children.Add(status);
-        return root;
+        var content = new StackPanel();
+        content.Children.Add(new TextBlock { Text = definition.Title, FontSize = 16, FontWeight = FontWeights.SemiBold,
+            TextWrapping = TextWrapping.Wrap, Foreground = Application.Current?.TryFindResource("PrimaryText") as Brush ?? Brushes.Black });
+        content.Children.Add(new TextBlock { Text = definition.Description, FontSize = 12, TextWrapping = TextWrapping.Wrap,
+            Foreground = Application.Current?.TryFindResource("SecondaryText") as Brush ?? Brushes.DimGray, Margin = new Thickness(0,6,0,0) });
+        if (definition.Availability != HelpTopicAvailability.Available)
+            content.Children.Add(new TextBlock { Text = StatusText(definition), FontSize = 12, Margin = new Thickness(0,6,0,0) });
+        return content;
     }
-
     private static string StatusText(HelpTopicDefinition definition) => definition.Availability switch
     {
         HelpTopicAvailability.Available => "GUIDE AVAILABLE",
@@ -269,7 +294,7 @@ public sealed class KeyboardShortcutsView : UserControl
         results.Children.Clear(); summary.Text = matches.Count == 1 ? "1 shortcut" : $"{matches.Count} shortcuts";
         foreach (var group in matches.GroupBy(x => x.Category))
         {
-            results.Children.Add(new TextBlock { Text = group.Key.ToUpperInvariant(), FontSize = 11, FontWeight = FontWeights.Bold, Foreground = Brush("SecondaryText", Brushes.DimGray), Margin = new Thickness(2, 14, 0, 6) });
+            results.Children.Add(new TextBlock { Text = group.Key.ToUpperInvariant(), FontSize = 12, FontWeight = FontWeights.Bold, Foreground = Brush("SecondaryText", Brushes.DimGray), Margin = new Thickness(2, 14, 0, 6) });
             foreach (var shortcut in group) results.Children.Add(BuildShortcutRow(shortcut));
         }
     }
@@ -284,7 +309,7 @@ public sealed class KeyboardShortcutsView : UserControl
         row.Children.Add(keys);
         var action = new TextBlock { Text = shortcut.Action, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center, Foreground = Brush("PrimaryText", Brushes.Black), Margin = new Thickness(8, 0, 8, 0) };
         Grid.SetColumn(action, 1); row.Children.Add(action);
-        var scope = new TextBlock { Text = shortcut.Scope + (shortcut.RequiresPermission ? " · permission required" : string.Empty), TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center, Foreground = Brush("SecondaryText", Brushes.DimGray), FontSize = 11 };
+        var scope = new TextBlock { Text = shortcut.Scope + (shortcut.RequiresPermission ? " · permission required" : string.Empty), TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center, Foreground = Brush("SecondaryText", Brushes.DimGray), FontSize = 12 };
         Grid.SetColumn(scope, 2); row.Children.Add(scope);
         AutomationProperties.SetName(row, $"{shortcut.Keys}: {shortcut.Action}. {shortcut.Scope}.");
         return row;

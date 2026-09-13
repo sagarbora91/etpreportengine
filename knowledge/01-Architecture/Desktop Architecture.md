@@ -53,15 +53,19 @@ Reports module owns preview state and export orchestration. Reporting/SQL servic
 - A new feature belongs to one workspace and reaches persistence/queries through an explicit boundary.
 - Preserve formulas, mappings, SQL effects, diagnostics and exports when changing ownership.
 
-Architecture/composition/ownership tests exist for these boundaries, but the current multi-agent integration still requires a clean combined test result. Launch, representative report export, import/database comparison, installed lifecycle and UAT are separate external gates.
+Architecture/composition/ownership tests are part of the passing integrated suite. Synthetic SQL/import/export/recovery checks are recorded separately from actual installed lifecycle and user interaction.
 
 ## Status
 
 - **Implemented in source:** modular shell/workspaces, explicit composition, import-envelope boundary, report/export ownership and local diagnostics.
 - **Partial:** workflow-by-workflow installed/UAT coverage.
-- **External-blocked:** final combined tests, live SQL roles, installer lifecycle, artifact binding and release promotion.
+- **External-blocked:** live Windows/SQL role identities, installed lifecycle, device/accessibility interaction and production promotion.
 - **Deferred:** runtime licence enforcement and any optional AI-assistance UI.
 
 For Desktop work, start here and [[ADR-005 - Modular Desktop Shell]], then inspect the registry, owning `Modules/` folder, Application contract, composed adapter and focused tests. Historical extraction evidence remains in `docs/DESKTOP_MODULAR_ARCHITECTURE_AUDIT.md`; closure status remains in `docs/PROJECT_CLOSURE_TRACEABILITY.md`.
 
 Related: [[System Architecture]], [[Data Architecture]], [[Decision Register]].
+
+## September 2026 UI redesign checkpoint
+
+[[ADR-009 - Canonical Focused Task Navigation]] records canonical task IDs, local metadata search, focused retained controls and explicit task context overrides. TaskNavigator owns visual shell composition; TaskNavigation owns searchable metadata. The full source conversion includes per-record drafts, serialized operations, bounded task tables, report scope validation, DSR tabs, favourite reports and focused settings/help/dialogs. Database switching requires a fresh session before a work module opens, protecting retained IDs and drafts. These source and component checks are not installed acceptance. The governing ledger is docs/design/ETP-UI-REDESIGN-SPRINT-LEDGER.md; current unverified constraints remain visible there.

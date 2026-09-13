@@ -26,23 +26,23 @@ using DatabaseLifecycleService = EtpApplication::Etp.Reporting.Application.Datab
 
 public partial class MainWindow : Window
 {
-    private readonly ShellViewModel shell;
-    private readonly DashboardView dashboardView;
+    internal readonly ShellViewModel shell;
+    internal readonly DashboardView dashboardView;
     private readonly Func<string, DashboardQuery> dashboardQueryFactory;
-    private readonly SettingsWorkspaceView settingsWorkspace;
+    internal readonly SettingsWorkspaceView settingsWorkspace;
     private readonly DesktopConnectionState connectionState;
     private readonly Func<string, AccessSessionQuery> accessSessionQueryFactory;
-    private readonly ArchiveWorkspaceView archiveWorkspaceView;
-    private readonly RegistersWorkspaceView registersWorkspaceView;
-    private readonly DailyWorkflowWorkspaceView dailyWorkflowWorkspace;
-    private readonly SourceInboxWorkspaceView sourceInboxWorkspaceView;
-    private readonly ReportsWorkspaceView reportsWorkspaceView;
-    private readonly AccountingWorkspaceView accountingWorkspaceView;
-    private readonly OperationsWorkspaceView operationsWorkspaceView;
-    private readonly InvestigationApprovalsWorkspaceView investigationWorkspaceView;
-    private readonly AdministrationWorkspaceView administrationWorkspaceView;
+    internal readonly ArchiveWorkspaceView archiveWorkspaceView;
+    internal readonly RegistersWorkspaceView registersWorkspaceView;
+    internal readonly DailyWorkflowWorkspaceView dailyWorkflowWorkspace;
+    internal readonly SourceInboxWorkspaceView sourceInboxWorkspaceView;
+    internal readonly ReportsWorkspaceView reportsWorkspaceView;
+    internal readonly AccountingWorkspaceView accountingWorkspaceView;
+    internal readonly OperationsWorkspaceView operationsWorkspaceView;
+    internal readonly InvestigationApprovalsWorkspaceView investigationWorkspaceView;
+    internal readonly AdministrationWorkspaceView administrationWorkspaceView;
     private readonly Func<string, DatabaseLifecycleService> databaseLifecycleServiceFactory;
-    private readonly ImportWorkspaceView importWorkspaceView;
+    internal readonly ImportWorkspaceView importWorkspaceView;
     private AccessSession currentAccess = new("unknown", "Unknown user", AccessRole.None, false);
 
     public MainWindow(
@@ -108,7 +108,7 @@ public partial class MainWindow : Window
             RecordAuditAsync,
             (snapshot, rows, status) =>
             {
-                if (focusedWorkspaceKind == "report") reportWorkspaceSession.UpdatePreview(snapshot, rows, status);
+                if (focusedWorkspaceKind == "report") { reportWorkspaceSession.UpdatePreview(snapshot, rows, status, reportsWorkspaceView.ShowRowDetails); ApplicationStatus.Text = status; }
             },
             message => reportWorkspaceSession.ShowDailySalesFailure(message),
             row => OpenDrawer("Report row details", "Source evidence and technical lineage remain available without leaving the report workspace.", row));
@@ -156,18 +156,21 @@ public partial class MainWindow : Window
         NavigateToDestination(destination);
     }
 
-    private void ApplyNavigationDecision(NavigationDecision decision)
+    internal void ApplyNavigationDecision(NavigationDecision decision)
     {
         if (!decision.IsAllowed)
         {
             if (!string.IsNullOrWhiteSpace(decision.DenialReason)) { ApplicationStatus.Text = decision.DenialReason; OpenDrawer("Access restricted", decision.DenialReason); }
             return;
         }
+        CloseDrawer();
+        if (decision.RequestedRoute.TaskId?.StartsWith("help:", StringComparison.Ordinal) != true) helpWorkspaceSession.Abandon();
         if (decision.RequestedRoute == WorkspaceRoute.Home)
         {
             DisplayModuleHome();
             return;
         }
+        if (taskNavigator!.DisplayTaskRoute(decision.RequestedRoute)) return;
         if (decision.Descriptor is not { } page) return;
         var destination = page.Destination;
         HideFocusedWorkspace();
@@ -285,7 +288,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task RefreshDashboardAsync()
+    internal async Task RefreshDashboardAsync()
     {
         try
         {

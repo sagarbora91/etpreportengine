@@ -63,6 +63,7 @@ public partial class ReportsWorkspaceView : UserControl
     public DateTime? DateFrom => ReportFrom.SelectedDate;
     public DateTime? DateTo => ReportTo.SelectedDate;
     public string? CurrentReportCode => presentation.Current.ReportCode;
+    public string StoreScope => StoreFilterInput.Text.Trim() switch { "WLMHW" => "Titan", "HEMW" => "Helios", _ => "Combined (Titan + Helios)" };
 
     public void AttachHost(
         Func<string, bool> focusedWorkspaceRequester,
@@ -88,11 +89,18 @@ public partial class ReportsWorkspaceView : UserControl
     }
 
     public void SetBusinessDate(DateTime date) => ReportTo.SelectedDate = date;
+    public void ApplyTaskScope(string report, DateTime? from, DateTime? to, string? scope) => ApplyScope(ReportTaskScope.IsSnapshot(report) ? ReportFrom.SelectedDate : from,to,scope);
     public void FocusSearch() { ReportSearchInput.Focus(); ReportSearchInput.SelectAll(); }
+    public void ShowRowDetails(object row) => detailPresenter(row);
 
     public async Task RunReportAsync(string report)
     {
+        if (report == "sales-titan") StoreFilterInput.Text = "WLMHW";
+        if (report == "sales-helios") StoreFilterInput.Text = "HEMW";
+        if (report is "sales-combined" or "dsr") StoreFilterInput.Clear();
         if (!BeginReportLoad(report)) return;
+        if (ReportTaskScope.RequiresSingleStore(report) && Csv(StoreFilterInput.Text) is not { Count: 1 })
+        { HandleFailure(new InvalidOperationException("Choose Titan or Helios in Report store scope, then refresh. This report requires one store."), "REPORT_STORE_REQUIRED", "Select a store"); return; }
         switch (report)
         {
             case "dsr": await RunDsrAsync(); break;
@@ -134,11 +142,7 @@ public partial class ReportsWorkspaceView : UserControl
         if (!report.CanExportReport || exportInProgress) return;
         var dialog = new SaveFileDialog { Filter = "Excel workbook (*.xlsx)|*.xlsx", FileName = $"{report.ExportMetadata!.ReportName.Replace(' ', '_')}_{report.ExportMetadata.DateFrom:yyyyMMdd}_{report.ExportMetadata.DateTo:yyyyMMdd}.xlsx", AddExtension = true };
         if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
-        exportInProgress = true;
-        RefreshExportAvailability();
-        try { await exportCoordinator.ExportReportExcelAsync(dialog.FileName, report.ExportMetadata, report.ExportData!, report.VisualReport); ReportResult.Text = $"Excel report saved to {dialog.FileName}"; await auditRecorder("ExportExcel", "Succeeded", "Visual report exported"); }
-        catch (Exception ex) { HandleFailure(ex, "REPORT_EXCEL_EXPORT_FAILED", "Excel export failed"); }
-        finally { exportInProgress = false; RefreshExportAvailability(); }
+        if (ReferenceEquals(report, presentation.Current)) await ExportReportToPathAsync(dialog.FileName, pdf: false);
     }
 
     public void ExportPdf() => _ = ExportPdfAsync();
@@ -151,11 +155,7 @@ public partial class ReportsWorkspaceView : UserControl
         { ReportResult.Text = "The DSR document is not ready. Run Daily Sales / DSR again before exporting."; return; }
         var dialog = new SaveFileDialog { Filter = "PDF report (*.pdf)|*.pdf", FileName = $"{SafeFileName(report.ExportMetadata.ReportName)}_{report.ExportMetadata.DateFrom:yyyyMMdd}_{report.ExportMetadata.DateTo:yyyyMMdd}.pdf", AddExtension = true };
         if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
-        exportInProgress = true;
-        RefreshExportAvailability();
-        try { await exportCoordinator.ExportReportPdfAsync(dialog.FileName, report.ExportMetadata, report.ExportData!, report.VisualReport, report.DailySalesReport); ReportResult.Text = $"PDF report saved to {dialog.FileName}"; await auditRecorder("ExportPdf", "Succeeded", report.DailySalesReport is null ? "Visual report exported" : "One-page DSR exported"); }
-        catch (Exception ex) { HandleFailure(ex, "REPORT_PDF_EXPORT_FAILED", "PDF export failed"); }
-        finally { exportInProgress = false; RefreshExportAvailability(); }
+        if (ReferenceEquals(report, presentation.Current)) await ExportReportToPathAsync(dialog.FileName, pdf: true);
     }
 
     private async void RunCatalogueReport_Click(object sender, RoutedEventArgs e)
@@ -185,7 +185,7 @@ public partial class ReportsWorkspaceView : UserControl
     private ApplicationReportScope ReportScope()
     {
         if (ReportFrom.SelectedDate is null || ReportTo.SelectedDate is null) throw new InvalidOperationException("Select both report dates.");
-        return new(DateOnly.FromDateTime(ReportFrom.SelectedDate.Value), DateOnly.FromDateTime(ReportTo.SelectedDate.Value), Csv(StoreFilterInput.Text), Csv(BrandSegmentFilterInput.Text), Csv(TransactionTypeFilterInput.Text), Csv(ItemFilterInput.Text));
+        return new(DateOnly.FromDateTime(ReportTaskScope.IsSnapshot(presentation.Current.ReportCode) ? ReportTo.SelectedDate.Value : ReportFrom.SelectedDate.Value), DateOnly.FromDateTime(ReportTo.SelectedDate.Value), Csv(StoreFilterInput.Text), Csv(BrandSegmentFilterInput.Text), Csv(TransactionTypeFilterInput.Text), Csv(ItemFilterInput.Text));
     }
 
     private void SelectSalesDimension(string name) =>
@@ -351,6 +351,7 @@ public partial class ReportsWorkspaceView : UserControl
         DesktopDiagnostics.Record(exception, "Reports.Workspace", eventId);
         var message = $"{operation}: {DesktopFriendlyError.Describe(exception)}";
         ReportResult.Text = message;
+        previewUpdater(presentation.Current,ReportGrid.ItemsSource,message);
         return message;
     }
 
