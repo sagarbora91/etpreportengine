@@ -1,8 +1,6 @@
-# Session handoff — implemented UI redesign candidate
+# Historical session handoff — 13 September 2026
 
-**Resume here: 1.8.8-r11 is installed in ETP-Acceptance-186 (13 September 09:10:57 UTC).** Read [latest installed result, hashes and exact next action](ETP-UI-REDESIGN-R10-2026-09-13.md). Worker access is connected; original baseline/backup retained; counts/settings/integrity unchanged; 669 tests pass. Density is now under Settings → Display with role-safe personal access. Original Settings sidebar and missing caption buttons still require actual screen reproduction; native capture fails with 0x80004002. Start menu shortcut exists, but menu interaction/launch is unverified. Obtain working screen capture/input next, without repeating credentials or installation. This supersedes older next-action blocks below. Runtime source is uncommitted on d24a525 and bound to the immutable r11 source archive; artifacts are local only. Sprint remains INCOMPLETE.
-
-**Latest resumption checkpoint: INCOMPLETE — WORK REMAINS.** Read [13 September installed-acceptance resumption](ETP-UI-REDESIGN-ACCEPTANCE-RESUME-2026-09-13.md) first. Settings sidebar reproduction/repair is the first application task after a protected VM baseline. The current host window is 1.8.5, not r9; VM access is denied and screen capture fails twice with 0x80004002. Elevated worker/local sign-in requested; no installation, database change or source repair performed. That record's exact next action supersedes the older sequence below.
+**Superseded for resumption by the [14 September handoff](ETP-SESSION-HANDOFF-2026-09-14-UI-REDESIGN.md).** Source/artifacts are pushed as bdba5a7; last installed candidate is r11; worker was CLOSED on the latest check. The following preserves the older r9 record and must not be used as current installation or next-action instructions.
 
 Updated: 13 September 2026. Run: `20260912-sprint`.
 

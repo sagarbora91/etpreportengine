@@ -1,8 +1,8 @@
 # UI redesign sprint ledger
 
-**Latest checkpoint, 13 September 09:10:57 UTC: r11 INSTALLED — acceptance INCOMPLETE.** [r10/r11 evidence and exact next action](../audit/ETP-UI-REDESIGN-R10-2026-09-13.md) supersede earlier connection blockers below. VM credentials/worker access are solved. Original baseline/backup preserved; r11 installed hash and counts/settings/integrity checks pass; 669 tests pass. Density moved into personal Settings → Display. Start menu shortcut exists. Actual screen capture still fails with 0x80004002, so Settings sidebar and caption-button reports, app launch, full journeys, roles/device/accessibility/performance and remaining installer lifecycle are unverified. Do not request credentials or reinstall routinely. Runtime changes are in the working tree on d24a525 and bound by the r11 immutable snapshot; documentation below retains historical r9 evidence.
+**14 September handoff: INCOMPLETE.** Source and selected portable artifacts are committed/pushed as bdba5a7. Last verified installed candidate is r11, with 669 passing tests and successful installed-hash/data-preservation checks. Worker was CLOSED on the latest check; native capture still fails with 0x80004002. See the [current handoff](../audit/ETP-SESSION-HANDOFF-2026-09-14-UI-REDESIGN.md) for open defects, preserved data and exact resumption steps. No new UI acceptance pass. P4-09 remains open for reported Settings/caption defects and the visible singular-count wording defect.
 
-**13 September acceptance resumption: INCOMPLETE — WORK REMAINS.** Settings sidebar defect is user-reported and awaiting reproduction/repair. Fresh VM permission denial and two screen-capture failures prevent installed acceptance. The returned host ETP executable is 1.8.5, not r9; archived r9 hashes match. [Current evidence and exact next action](../audit/ETP-UI-REDESIGN-ACCEPTANCE-RESUME-2026-09-13.md) supersede the previous next action and no-known-defect statement below. No new acceptance pass; P4-09 is reopened for this reported defect.
+The r9 records below are historical except for still-open mandatory requirements.
 
 Verification checkpoint UTC: 2026-09-12T12:53:09.931255+00:00. Documentation/source-push checkpoint: 13 September 2026. Run `20260912-sprint`.
 
@@ -10,7 +10,7 @@ Verification checkpoint UTC: 2026-09-12T12:53:09.931255+00:00. Documentation/sou
 
 ## Exact next action
 
-Resume with the **1.8.8-r9 receipt and source snapshot** and the [prepared VM runbook](../audit/ETP-UI-REDESIGN-VM-ACCEPTANCE-RUNBOOK.md). Check the already requested elevated worker connection to ETP-Acceptance-186. First run the queued read-only installed/data baseline; preserve original data/backups; then install r9 only in the acceptance VM and execute J01–J18, real Windows roles, native DPI/keyboard/Narrator/touch, performance and installer lifecycle. No source reinventory or prototype restart is required. Do not mark a procedure or backend/export check as an installed interaction pass.
+Follow the [14 September handoff](../audit/ETP-SESSION-HANDOFF-2026-09-14-UI-REDESIGN.md): establish observable VM capture/input, verify installed identity, then click Settings → Database & Recovery and capture the result. Do not reinstall r9 or assume the worker is connected.
 
 ## Current candidate and completed checks
 
@@ -27,7 +27,7 @@ Resume with the **1.8.8-r9 receipt and source snapshot** and the [prepared VM ru
 
 | Gate | Status | Decision |
 |---|---|---|
-| G1 | FAIL / BLOCKED | Inventory/design/baseline source deliverables complete. Available host baseline captured; actual VM visual/data baseline remains inaccessible. |
+| G1 | FAIL / BLOCKED | Inventory/design/baseline source deliverables complete. Available host baseline captured; VM data baseline is recorded for r11; actual VM visual baseline remains unverified. |
 | G2 | FAIL / BLOCKED | Shared shell/components/search/context and representative screens implemented and component-tested. Complete representative actual-UI journeys remain unverified. |
 | G3 | PASS | Full active source inventory converted, original controls or replacements reconciled,29 reports and supporting workflows mapped; no active module omitted or financial rule removed. This is the implementation gate, not installed acceptance. |
 | G4 | FAIL / BLOCKED | Final source/build/installer/local evidence complete; mandatory installed journeys, lifecycle, real roles and device/scaling evidence remain unavailable. |

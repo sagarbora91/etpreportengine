@@ -14,3 +14,5 @@ VM disks/checkpoints, original database backups and private settings, dependenci
 Validation: r11 previously passed 669 Release tests; the pre-commit check verifies current runtime source still matches the frozen r11 source manifest. No application source has changed since that successful build. Source line endings may be normalized by Git; the original byte-exact build snapshot is retained separately.
 
 Acceptance remains **INCOMPLETE**. The latest supplied image establishes the Settings overview only. The original sidebar/caption-button reports are unreproduced, the visible `1 tasks` labels are a recorded pending wording defect, and full installed journeys remain UNVERIFIED because native screen capture fails. See [current acceptance](ETP-UI-REDESIGN-R10-2026-09-13.md).
+
+Publication verified: commit **bdba5a79142fd7271156df60206d5f5d22a60057** matched the remote branch; working tree was clean before the subsequent documentation handoff. See [current handoff](ETP-SESSION-HANDOFF-2026-09-14-UI-REDESIGN.md).

@@ -1,13 +1,15 @@
 # ETP redesign — remaining acceptance run
 
-Prepared 12 September 2026. Target: **1.8.8-r9**, identified by its source and artifact receipt, not HEAD alone. This is a prepared procedure; its steps are **NOT RUN** until recorded against the installed application. No production deployment is authorised.
+Prepared 12 September 2026. Updated 14 September: target **1.8.8-r11**, identified by its source and artifact receipt, not HEAD alone. This is a prepared procedure; its steps are **NOT RUN** until recorded against the installed application. No production deployment is authorised.
+
+Resume from the [current handoff](ETP-SESSION-HANDOFF-2026-09-14-UI-REDESIGN.md). The r11 installation and protected baseline are recorded; recheck current state and preserve them. Worker was CLOSED on the latest check. Establish observable screen input and reproduce Settings → Database & Recovery first; do not routinely reinstall. All complete journeys below remain UNVERIFIED.
 
 ## Start and protect the baseline
 
 1. Read the current [ledger](../design/ETP-UI-REDESIGN-SPRINT-LEDGER.md), [acceptance record](ETP-UI-REDESIGN-ACCEPTANCE.md) and candidate receipt. Check the already requested VM worker is actually connected; a VM connection window alone is insufficient. Do not request or record credentials in evidence.
 2. Execute the existing read-only baseline job on `ETP-Acceptance-186`. Record installed executable path, SHA256, version, Windows/SQL versions, account role, database identity, client bounds and scaling. Historical original fixture expectations are 3 sales rows, 2300 net, signed quantity 2, 1 imported source and 3 lineage rows. Treat a mismatch as a finding; do not alter data to obtain the expected result.
 3. Preserve a verified original database backup and its checksum/restore-verification evidence. Capture current settings/preferences and installation identity in the protected local evidence location. Do not put private settings in the portable evidence bundle.
-4. Compare the installer/executable against the r9 receipt. Install only on the acceptance VM, retaining the existing working installer. Verify the **installed** executable hash after setup and observe a launch. Neither installer exit code nor a running process establishes UI acceptance.
+4. Compare the installer/executable against the current candidate receipt. If installation is necessary, install only on the acceptance VM, retaining the existing working installer. Verify the **installed** executable hash after setup and observe a launch. Neither installer exit code nor a running process establishes UI acceptance.
 5. Use a separately named disposable database and the existing synthetic 25 August 2026 workbooks. Establish its counts before each mutating journey. Never run restore, restatement, cancellation experiments or fixture seeding against the protected original database.
 
 ## Record each observation
