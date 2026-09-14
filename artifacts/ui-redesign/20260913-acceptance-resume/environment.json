@@ -1,0 +1,42 @@
+{
+  "timestampUtc": "2026-09-13T08:48:54.5847664Z",
+  "branch": "ui/uiux-v4-touch-first-redesign",
+  "head": "d24a525b11498db7fb39f166ced8adba0900160c",
+  "initialWorkingTree": "clean",
+  "hostOS": "Windows 10 Pro 10.0.19045",
+  "vm": "ETP-Acceptance-186",
+  "vmQuery": "Permission denied by Hyper-V authorization policy on DESKTOP-6IBM1J5",
+  "workerStatusFilePresent": false,
+  "vmWindowObserved": false,
+  "screenCaptureAttempts": 2,
+  "screenCaptureError": "SetIsBorderRequired failed: No such interface supported (0x80004002)",
+  "textObservation": "Read-only accessibility capture succeeded; no Settings interaction attempted; text is not visible screenshot evidence",
+  "hostRunningPath": "artifacts/windows-release/Etp.Reporting.Desktop.exe",
+  "hostRunningVersion": "1.8.5+55b3954d70b2bab19fca16937ac430fd11412944",
+  "hostRunningSha256": "281FDED6D2642C146716C0BF10A8648FBA7AA2BF56C27E2B539471AA37267DF6",
+  "hostUninstallRegistration": "No ETP Reporting match in standard HKLM native/WOW6432 and HKCU uninstall locations",
+  "artifactHashes": [
+    {
+      "Path": "C:\\Codex\\Reporting Manger\\SaagarCC-V6-ETP-Source-and-Report-Engine-605002f\\artifacts\\ui-redesign\\20260912-sprint\\installer-1.8.8-r9\\EtpReportingEngine-Setup-1.8.8-x64.exe",
+      "Hash": "A16EB5E130455395ADCC5FB3A297F634B231440AD21F6F0E915795C553B6E7D1"
+    },
+    {
+      "Path": "C:\\Codex\\Reporting Manger\\SaagarCC-V6-ETP-Source-and-Report-Engine-605002f\\artifacts\\ui-redesign\\20260912-sprint\\candidate-1.8.8-r9\\Etp.Reporting.Desktop.exe",
+      "Hash": "EF49B7A1428E5FE5EE2BE41C2E22B8C83C675D5825D9E18865B39BFABC0EF500"
+    },
+    {
+      "Path": "C:\\Codex\\Reporting Manger\\SaagarCC-V6-ETP-Source-and-Report-Engine-605002f\\artifacts\\ui-redesign\\20260912-sprint\\candidate-1.8.8-r9\\source-snapshot.zip",
+      "Hash": "B0554D8967D8772A8317E67F6DA499953FF3E173C083A8EE01EFA1B611B419BE"
+    },
+    {
+      "Path": "C:\\Codex\\Reporting Manger\\SaagarCC-V6-ETP-Source-and-Report-Engine-605002f\\artifacts\\ui-redesign\\20260912-sprint\\evidence-r9.zip",
+      "Hash": "E11187928349C03477836E64AA696683C98F0A2F51D4DCC12EBD465BCDDD8625"
+    }
+  ],
+  "settingsDefect": "USER-REPORTED; reproduction blocked; cause undetermined; no repair claimed",
+  "vmBaseline": "UNVERIFIED",
+  "originalDataWrites": 0,
+  "installerActions": 0,
+  "appInputActions": 0,
+  "nextAction": "Establish elevated worker and signed-in VM screen; read-only installed/data baseline and preserved backup; reproduce Settings before any repair."
+}

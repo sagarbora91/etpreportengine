@@ -16,7 +16,7 @@ public static class HelpTaskRoutes
         "daily-sales-report" => "report-dsr", "sales-reports" => "reports-home", "stock-reports" => "report-stock-closing",
         "tender-cash-service" => "report-tender", "staff-cro" => "report-staff", "management" => "report-management-trend",
         "exception-centre" => "open-items", "investigation" => "investigation", "digital-registers" => "register-inward",
-        "accounting" => "prepare-batch", "operations-support" or "troubleshooting" => "support-package", "administration" => "settings",
+        "accounting" => "prepare-batch", "operations-support" or "troubleshooting" => "support-package", "administration" => "users",
         "report-archive" => "generations", "backup-recovery" => "backups", _ => ""
     });
 }

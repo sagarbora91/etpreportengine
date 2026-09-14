@@ -1,0 +1,14 @@
+{
+    "timestampUtc":  "2026-09-13T08:54:22.9894034Z",
+    "guest":  "DESKTOP-IPT0J6H",
+    "root":  "C:\\ETPAcceptance\\UI-20260913-baseline",
+    "backupPath":  "C:\\ProgramData\\EtpReporting\\Backups\\EtpReporting-UI-20260913-original.bak",
+    "backupSha256":  "9D8D069D3D08D14215C8CFAFD720F59E8442C0727C4B7AEA0CAFAE8A52CA3A3F",
+    "backupVerified":  true,
+    "appSha256":  "B5C74F5415EF1C6DE91C58424ABF131E3DBAD1399567DA152C300FAE8001264B",
+    "version":  "1.8.7+093b5ef92378a1496d8ac9298dddb31f9e86b602",
+    "identity":  "DESKTOP-IPT0J6H\\ETPTest",
+    "PSComputerName":  "ETP-Acceptance-186",
+    "RunspaceId":  "0d67e0f4-b026-4938-966a-2ad927d360c6",
+    "PSShowComputerName":  true
+}

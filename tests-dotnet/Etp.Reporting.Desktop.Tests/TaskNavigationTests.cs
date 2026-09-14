@@ -4,6 +4,23 @@ namespace Etp.Reporting.Desktop.Tests;
 
 public sealed class TaskNavigationTests
 {
+    [Fact]
+    public void Personal_display_preferences_remain_available_without_administration_access()
+    {
+        foreach (var access in new[] { ShellAccess.Viewer, ShellAccess.StoreManager, ShellAccess.Owner })
+        {
+            var navigation = new ShellNavigationService();
+            var display = TaskNavigation.Search("Display", access).Single(x => x.Id == "settings");
+            Assert.True(navigation.Navigate(new("Home", TaskId: "overview:Settings"), access).IsAllowed);
+            Assert.True(navigation.Navigate(new("Home", TaskId: "category:Settings:Display"), access).IsAllowed);
+            Assert.True(navigation.Navigate(display.Route, access).IsAllowed);
+            Assert.Equal(display.Route, navigation.Current);
+            foreach (var id in new[] { "connection", "users", "recovery" })
+                Assert.Equal(access.CanAdminister, navigation.Navigate(TaskNavigation.Find(id)!.Route, access).IsAllowed);
+        }
+        Assert.False(new ShellNavigationService().Navigate(TaskNavigation.Find("settings")!.Route, ShellAccess.DatabaseSetup).IsAllowed);
+    }
+
     [Theory]
     [InlineData("DSR", "report-dsr", "Reports → Sales → Daily Sales Report")]
     [InlineData("support package", "support-package", "Settings → Database & Recovery → Support Package")]

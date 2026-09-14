@@ -149,6 +149,7 @@ public partial class MainWindow
         if (destination != "Settings" || CurrentShellAccess.HasAssignedRole)
         {
             var module = destination switch { "Sales Reports" or "Stock Reports" => "Reports", "Admin / Settings" or "Masters" or "Settings" => "Settings", "Import ETP" => "Imports", "Report Archive" => "Archive", "Operations Center" => "Exceptions", _ => destination };
+            if (module == "Settings" && CurrentShellAccess.CanView && !CurrentShellAccess.CanAdminister) destination = "Home";
             taskNavigator!.NavigateOverview(module, destination); return shell.CurrentRoute.Destination == destination;
         }
         var decision = shell.Navigate(new WorkspaceRoute(destination, featureCode), CurrentShellAccess);
@@ -244,11 +245,8 @@ public partial class MainWindow
         PageDescription.Visibility = Math.Max(Width, ActualWidth) < 1100 ? Visibility.Collapsed : Visibility.Visible; BuildModuleHome();
     }
 
-    private void ToggleDensity_Click(object sender, RoutedEventArgs e) => ApplyDensity(uiPreferences.Density == UiDensity.Comfortable ? UiDensity.Compact : UiDensity.Comfortable, persist: true);
-
     internal void ApplyDensity(UiDensity density, bool persist)
     {
-        DensityToggleButton.Content = density.ToString();
         Resources["ActiveTargetHeight"] = density == UiDensity.Comfortable ? 48d : 34d;
         Resources["ActiveGridRowHeight"] = density == UiDensity.Comfortable ? 46d : 30d;
 
@@ -374,7 +372,7 @@ public partial class MainWindow
     private void CycleShellRegion()
     {
         KeyboardRegionNavigation.MoveNext(HeaderSearchHost, ShellStoreSelector,
-            FocusedWorkspaceLayer.IsVisible ? FocusedWorkspaceHost : LegacyWorkspaceScroll, DensityToggleButton);
+            FocusedWorkspaceLayer.IsVisible ? FocusedWorkspaceHost : LegacyWorkspaceScroll);
     }
 
     private void FocusPrimaryPeriod()

@@ -40,7 +40,12 @@ public sealed class DensitySelector : Border
     private RadioButton Choice(string label, UiDensity density)
     {
         var button = new RadioButton { Content = label, GroupName = "ShellDensity", Tag = density, Margin = new Thickness(0, 2, 8, 2) };
-        button.Checked += (_, _) => { if (!updating) DensityChanged?.Invoke(this, density); };
+        button.Checked += (_, _) =>
+        {
+            if (updating) return;
+            AutomationProperties.SetHelpText(this, $"Current display density: {density}");
+            DensityChanged?.Invoke(this, density);
+        };
         AutomationProperties.SetName(button, $"Use {label.ToLowerInvariant()} display density");
         return button;
     }

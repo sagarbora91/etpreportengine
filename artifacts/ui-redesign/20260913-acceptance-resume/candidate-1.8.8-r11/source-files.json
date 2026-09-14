@@ -1,0 +1,3097 @@
+[
+  {
+    "path": ".code-review-graphignore",
+    "sha256": "1D42B75701FE2403D8AB63E49B38BF22AFF0752EAB24E5B5C9419205D8B7B511",
+    "bytes": 1024
+  },
+  {
+    "path": ".crgignore",
+    "sha256": "CCE5CEB4D0D0457C6D7CD3B63CB08EB46FD7E17098E55356F9D0671646F524B8",
+    "bytes": 1081
+  },
+  {
+    "path": ".gitattributes",
+    "sha256": "B8FEE13200BEC614F56ED03F4459FFB5966994B13ADCFA82C500C343283686F8",
+    "bytes": 132
+  },
+  {
+    "path": ".gitignore",
+    "sha256": "037A5710C880016CA5973E6A823654C3C90E56B85B57144423E2851D501FECA5",
+    "bytes": 734
+  },
+  {
+    "path": ".graphifyignore",
+    "sha256": "3E3C45B271FCCBC2ED0B8C285F4955080DEB86C272076560FCFF7E9D9C3893E7",
+    "bytes": 87
+  },
+  {
+    "path": "AGENTS.md",
+    "sha256": "0AE350DB9D1F801DF86A6775E7BBBCA2750F8822D4B97FB9D7FD757B8F337250",
+    "bytes": 5346
+  },
+  {
+    "path": "ARCHITECTURE.md",
+    "sha256": "09912B30C40667A9E6C9A6F28A6C51A89DCC4E705BFC94BF76122BA98FBD362B",
+    "bytes": 4822
+  },
+  {
+    "path": "CHANGELOG.md",
+    "sha256": "73B9B5DFC286BD549F63013035C4F64F5EA89C8F6AE2AF53A9B2B5CE1CAB3F6C",
+    "bytes": 14858
+  },
+  {
+    "path": "Directory.Build.props",
+    "sha256": "3BC8656668C5A0331EA3364BF2376D210A2CB7E1089E298B4AEEDFCBDB3D8831",
+    "bytes": 412
+  },
+  {
+    "path": "EXPORT-FILE-MANIFEST.txt",
+    "sha256": "63BB56D461A2CD57D2D027906802505562950F713B7FFF67ABF4DC72E6347F03",
+    "bytes": 12051
+  },
+  {
+    "path": "EXPORT-README.txt",
+    "sha256": "CD7290E60A1AD61560D370FDCF5C6AFDD3A0359CB6362DD9171572DD22455977",
+    "bytes": 1869
+  },
+  {
+    "path": "Etp.Reporting.slnx",
+    "sha256": "4E9BE1A026F438492E4A7D1ED3AD42CCA7B61E06F3B1507E94D44FF8C6ADACD0",
+    "bytes": 1764
+  },
+  {
+    "path": "README.md",
+    "sha256": "22151D00193BDAE94F9AEA62C24783F21C7E5FF1783DAD5E7DA745E611DE6FCA",
+    "bytes": 14999
+  },
+  {
+    "path": "capacitor.config.json",
+    "sha256": "104B8E03CEC48F4BFB1EC124388A1C4EE653A34A540EAF6A1095879F031FFE55",
+    "bytes": 371
+  },
+  {
+    "path": "database/migrations/0001_foundation.sql",
+    "sha256": "4F3C8E8229CA90E77A2D83E43B503A40050300C3B817C683DA063146DCD22518",
+    "bytes": 3374
+  },
+  {
+    "path": "database/migrations/0002_reporting_facts.sql",
+    "sha256": "531735242617A1CC282928048F16930126B6F62D371108BD9A3D1BBAA6693B87",
+    "bytes": 9494
+  },
+  {
+    "path": "database/migrations/0003_sales_dimensions.sql",
+    "sha256": "0255FC6487CCC11DF353599EBE8FE0128F711B6629CB5554D9C81749A6ABD466",
+    "bytes": 1630
+  },
+  {
+    "path": "database/migrations/0004_operational_audit.sql",
+    "sha256": "38635DF957D518856BBD8DB802AB47266CC0337701884CCC217EE33459A6AC00",
+    "bytes": 950
+  },
+  {
+    "path": "database/migrations/0005_daily_reporting_workflow.sql",
+    "sha256": "28FEED39870BB88BD127189A76A2621963F92EF1FB651EB98A43F016595A5230",
+    "bytes": 7115
+  },
+  {
+    "path": "database/migrations/0006_backfill_import_business_scope.sql",
+    "sha256": "66F3AA7B9EDA1DB6607DEAC23C08927993BEFE693703EEA41236761941B95FA3",
+    "bytes": 3168
+  },
+  {
+    "path": "database/migrations/0007_sales_enrichment_facts.sql",
+    "sha256": "11DD8321E4067B9DA6326429E60A05BD79871551843E2CC13590DD7EAF75B137",
+    "bytes": 1719
+  },
+  {
+    "path": "database/migrations/0008_service_cash_inputs.sql",
+    "sha256": "72B6599D18AD099C6A13742FFC515B655D93F1D25381D8332E25964BA88CF1BC",
+    "bytes": 468
+  },
+  {
+    "path": "database/migrations/0009_locked_day_fact_guards.sql",
+    "sha256": "870E9A8A95150937A6C057BCF69D5C7DB9FFB2C25DC703B76DD25109994DEE3A",
+    "bytes": 3274
+  },
+  {
+    "path": "database/migrations/0010_operational_completion.sql",
+    "sha256": "3DC06F5AF32A36A46EB2DBCF13D9F623E1EFCF9BFC30FC594A802418C6414848",
+    "bytes": 21248
+  },
+  {
+    "path": "database/migrations/0011_phase2_operations.sql",
+    "sha256": "057570BDD879551A45BBE25B00264107A1D80FA032B0EF381B1DF07BF14BF6D1",
+    "bytes": 13223
+  },
+  {
+    "path": "database/migrations/0012_windows_database_access.sql",
+    "sha256": "2F20096AFF7EC34F73DA8F74044CF0E4990386311B02CBAAB50211C9C1F3BBD2",
+    "bytes": 1184
+  },
+  {
+    "path": "database/migrations/0013_store_manager_permission_guards.sql",
+    "sha256": "E067A80B26CD57E5AA7FBF4FC5E1FDC597C0E25C4DC34A8F3221B49C063A2C06",
+    "bytes": 939
+  },
+  {
+    "path": "database/migrations/0014_productisation.sql",
+    "sha256": "0C8E12AD645BEAAAF2E4A3B33BFD9E663C43247462A61614169132FA9C038A61",
+    "bytes": 43602
+  },
+  {
+    "path": "database/migrations/0015_operational_audit_contract.sql",
+    "sha256": "2E7E902061830DCF1398BE25A5D7D3A023D187EBCAA456C74E3D89E1294FB1DB",
+    "bytes": 927
+  },
+  {
+    "path": "docs/01_CURRENT_STATE_ARCHITECTURE.md",
+    "sha256": "CC0A00B850CF9C9F65DB27B706E47016D732704A468F7F12C42429105CD0BB66",
+    "bytes": 8491
+  },
+  {
+    "path": "docs/02_TARGET_ARCHITECTURE.md",
+    "sha256": "C24AFFDDEAB37B7A2DD0BF10B52D696E13C81F29EFB9B1BD295C329FFC2D5021",
+    "bytes": 7221
+  },
+  {
+    "path": "docs/03_DATABASE_SCHEMA.md",
+    "sha256": "14E831BF395890F931BB5BDBC9469FBCF22623FF6619529D487FBD729D7D3901",
+    "bytes": 6180
+  },
+  {
+    "path": "docs/04_ETP_IMPORT_PROFILES.md",
+    "sha256": "D95BE95F194AB342C6AE41E7DA329C618ECE39C6EB528AC5F54716C76D1DE593",
+    "bytes": 4481
+  },
+  {
+    "path": "docs/05_MAPPING_REGISTER.md",
+    "sha256": "63158244AF4D6BC9029CCFC4F31FFCA9E56831DC92DF456DF6F2F6C6035B9FC4",
+    "bytes": 4508
+  },
+  {
+    "path": "docs/07_REPORT_CATALOGUE.md",
+    "sha256": "29EA7E70BACDF4E5C65ED6CC66CD326275A98A31E80E69BEC2293DDADA1EFB15",
+    "bytes": 4254
+  },
+  {
+    "path": "docs/08_VALIDATION_RULES.md",
+    "sha256": "E5A27C4149D228E0F3DDDF8D304694EF890DAE111AAC71E48B77B9857C01ABFC",
+    "bytes": 2739
+  },
+  {
+    "path": "docs/09_TEST_STRATEGY.md",
+    "sha256": "7550DF2119E6662556894D1813355EB7A8076AC9D589DBFC936C25117EFB9223",
+    "bytes": 10653
+  },
+  {
+    "path": "docs/10_DEPLOYMENT.md",
+    "sha256": "20A5A9B35A48913C58E7C9F7F79476B016AD66248933AF37583CA6E43B93CF2B",
+    "bytes": 19473
+  },
+  {
+    "path": "docs/11_DECISION_LOG.md",
+    "sha256": "EB0A903D20D37F2E22FC635629A063ACBCE1AEFAD77ED0A08EE6E48274BF4548",
+    "bytes": 3213
+  },
+  {
+    "path": "docs/12_IMPLEMENTATION_ROADMAP.md",
+    "sha256": "88950F2D74DB5C33DBDABA1AA289C6208CFE5C12AE08CF75A96D522F453C2787",
+    "bytes": 3101
+  },
+  {
+    "path": "docs/13_DEVELOPMENT_CONVENTIONS.md",
+    "sha256": "8FCAB51CF2AF8D810D4CA9F0B1E69922337F10F6020954E24D1B05800CE9BDFE",
+    "bytes": 1122
+  },
+  {
+    "path": "docs/14_WINDOWS_QUICK_START.md",
+    "sha256": "5345A05E2CC1D1B971F28227C11A44894931BF942BC1501D43F1BB2F4DE0C02A",
+    "bytes": 3412
+  },
+  {
+    "path": "docs/15_RELEASE_ACCEPTANCE.md",
+    "sha256": "F5E9FCFC8D6C1E63D87A3518B160A110F5648727B8AE414EAC42B49F3DADF4E3",
+    "bytes": 7634
+  },
+  {
+    "path": "docs/16_OPERATIONS_AND_RECOVERY.md",
+    "sha256": "180CD72307213E50AD69E44F307CBE60147E6E365256B06D880CFEFC2DE73672",
+    "bytes": 3601
+  },
+  {
+    "path": "docs/17_ADMINISTRATOR_HANDBOOK.md",
+    "sha256": "A9323281B03815EC2CCD5098FAB193D3B85567086DB531EBF3BB71A47237B7A8",
+    "bytes": 7943
+  },
+  {
+    "path": "docs/18_USER_MANUAL.md",
+    "sha256": "AFCC466869488A3E81967E5281A2DCE342ECE446A650C63C05E3014BBCE4ED14",
+    "bytes": 8072
+  },
+  {
+    "path": "docs/19_ACCESSIBILITY_AUDIT.md",
+    "sha256": "8CFD531EE95CA8C2BEFA0FD5CA1117DB88DBECA675AE8F7E84F253F27179A25A",
+    "bytes": 1855
+  },
+  {
+    "path": "docs/20_TROUBLESHOOTING_AND_RELEASE_RUNBOOK.md",
+    "sha256": "0D6829B4AA8EEFB95E2A1A974BC1A961320C5790CEACF89BABBD189F7BBFD803",
+    "bytes": 2279
+  },
+  {
+    "path": "docs/21_DAILY_REPORTING_IMPLEMENTATION_MAP.md",
+    "sha256": "4436D03B99F14F5C866142731B61C93E64E85E9F840A1775A31E200C75322C9F",
+    "bytes": 6103
+  },
+  {
+    "path": "docs/21_FUNCTION_FIRST_ACCEPTANCE_AUDIT.md",
+    "sha256": "1292D1D1383836A7D42D5AE8CBAFA67318050BC809FDE28A78728F57BD026EC2",
+    "bytes": 2779
+  },
+  {
+    "path": "docs/22_REPORT_TO_SOURCE_MATRIX.md",
+    "sha256": "7B04219989D01A3B852A5D1ADC69F933A0E52B5DA9808EFBA6E9D33BF3439C9C",
+    "bytes": 3789
+  },
+  {
+    "path": "docs/23_MASTER_PROMPT_COMPLETION_AUDIT.md",
+    "sha256": "F4DC0C2C6DDE4ECEF8714E8499F48BD6427B06A61411C0EAAA102B1AB304D8BB",
+    "bytes": 6738
+  },
+  {
+    "path": "docs/24_PHASE2_OPERATIONS.md",
+    "sha256": "BDB46E78693F92EACD967914CFFEA7ACFC90ABD93751EB7117A0BD17734E67E5",
+    "bytes": 3523
+  },
+  {
+    "path": "docs/25_PHASE2_PRODUCTISATION.md",
+    "sha256": "98ABC7AF3AD5738F2AA4142E5341957E6A027DEB45F3B742BF7C7FB8BE8C2E85",
+    "bytes": 1459
+  },
+  {
+    "path": "docs/26_REPORT_CATALOGUE_EXPANSION.md",
+    "sha256": "26BC701A8C95EE169106730ACB837326337E2849EE67A6FB8B0E0D0869F9ABD5",
+    "bytes": 2158
+  },
+  {
+    "path": "docs/ACCOUNTING_TALLY_INTEGRATION.md",
+    "sha256": "7A5E7E637547A0CD0A6D75B64362541615408AE4345158C037D189B0D875094A",
+    "bytes": 1313
+  },
+  {
+    "path": "docs/BULK_IMPORT_AND_DUPLICATION.md",
+    "sha256": "3B1D45510A1D88BADBC505707DF7C88FA1CDF56F61DC63D420344782F36978AB",
+    "bytes": 1246
+  },
+  {
+    "path": "docs/DESKTOP_MODULAR_ARCHITECTURE_AUDIT.md",
+    "sha256": "942B3826C17257F64FDA5AF8288991795CCA093052CC852CCD3C2B0DD61EC6CA",
+    "bytes": 23100
+  },
+  {
+    "path": "docs/DOCUMENT_OCR_ARCHITECTURE.md",
+    "sha256": "F2E066966AEAEB2F08601D571ACAE23E7394F6D6B96B082784CF181AEE622E11",
+    "bytes": 1718
+  },
+  {
+    "path": "docs/ETP-A0-IMPORT-POLICY-CHANGE-CONTRACT-2026-08-08.md",
+    "sha256": "AE0F2D13914B7521EFB6378FBDB74ABD1210D9EE18C8C19C1104EDFA1E4F1F25",
+    "bytes": 2226
+  },
+  {
+    "path": "docs/ETP-A1-PARSER-EVALUATION-CONTRACT-2026-08-08.md",
+    "sha256": "902E4DF9F5BFCBECDFF95908A5B6DF436935044374A829C7E69B16CE8D2C5323",
+    "bytes": 3942
+  },
+  {
+    "path": "docs/ETP-RETAIL-VERIFIED-DATA-PATH-DECISION-REGISTER-2026-08-08.md",
+    "sha256": "C4CBD236D1D01CF05FC8DB2B52E4B470AB1BCF0205E0CED58DC81287D2FDC44A",
+    "bytes": 5644
+  },
+  {
+    "path": "docs/PENDING_INPUT_AND_DEFERMENT_REGISTER.md",
+    "sha256": "CFBE0B47D7C1A9225048AC6453EEA8D4A76360DECF7D984E70F8A566F1793B20",
+    "bytes": 12603
+  },
+  {
+    "path": "docs/PRODUCT_NAVIGATION.md",
+    "sha256": "45992EA9FAF70A04A1FB6968E186B0DD2308415D9E2632B11ED125E482C48DE4",
+    "bytes": 1180
+  },
+  {
+    "path": "docs/PRODUCT_OPERATIONS_RUNBOOK.md",
+    "sha256": "B146738D2595C7DB113DF5FFDF40DB43DC89D16669EA7C882E37335B9ABC0F9F",
+    "bytes": 1608
+  },
+  {
+    "path": "docs/PROJECT_CLOSURE_TRACEABILITY.md",
+    "sha256": "3358DA8D19151FE435C8BC66C454ABB7760FBE902D38442AFD3CC5B21E5976D4",
+    "bytes": 43249
+  },
+  {
+    "path": "docs/REGISTER_ARCHITECTURE.md",
+    "sha256": "6477E070C60FF376BD8FB88E6229F09AF9A3928BEA695D28FB76D3E1B43ADCB9",
+    "bytes": 861
+  },
+  {
+    "path": "docs/SECURITY_AND_PERMISSIONS.md",
+    "sha256": "A86B69E9B7F7DC0DC8FA6C24B95F4E8E1C3EDCAFDF92A0DDFE82AA7E913938D4",
+    "bytes": 2000
+  },
+  {
+    "path": "docs/SHARING_ARCHITECTURE.md",
+    "sha256": "941323128DEC00268C729C61E24C5EC7F242B679F263445EDD3F96DE2121271D",
+    "bytes": 1217
+  },
+  {
+    "path": "docs/UIUX_REPORT_WORKSPACE_INTEGRATION.md",
+    "sha256": "34CAB28FBBCF7AABF5F1040C91E7B7440E6F7F3593FE7A62238182937CAB76E0",
+    "bytes": 2816
+  },
+  {
+    "path": "docs/UIUX_V4_DESIGN_SYSTEM.md",
+    "sha256": "5C2A477FA5A67833E005B8FCAF7ADCB7D14E60C715E7E23F129211F917950858",
+    "bytes": 4503
+  },
+  {
+    "path": "docs/UIUX_V4_IMPLEMENTATION_MAP.md",
+    "sha256": "01F2D7B5686EC0BED110C8F282D7AC686AE8384B694765E95EF542AB38A77558",
+    "bytes": 10653
+  },
+  {
+    "path": "docs/UIUX_V4_NAVIGATION_CONTRACT.md",
+    "sha256": "8DA6541E56FF6B26BE3BD564A5E7FACA9B0727353A834389FB5D63DED2E9785C",
+    "bytes": 6314
+  },
+  {
+    "path": "docs/VISUAL_REPORTING_ARCHITECTURE.md",
+    "sha256": "4985D4636CB363D94F821F6BFA54A2CDDBF210B6533C65047F4AE7D4340B1832",
+    "bytes": 1104
+  },
+  {
+    "path": "docs/VISUAL_REPORTING_DEPENDENCIES.md",
+    "sha256": "127473EDD20A61C4DE9A327156FED4CA89B5C56BFB4C7913DBDF348416A9C482",
+    "bytes": 3170
+  },
+  {
+    "path": "docs/VISUAL_REPORT_CATALOGUE.md",
+    "sha256": "4F002736D243496C0B9CE6D08DC4E4231A66225C088434F00105712D02E9C2B5",
+    "bytes": 2437
+  },
+  {
+    "path": "docs/VISUAL_REPORT_DESIGN_SYSTEM.md",
+    "sha256": "92CA2E5ED41D313C245B7D443BD858321F62897A649AD994AAC0083E23073439",
+    "bytes": 833
+  },
+  {
+    "path": "docs/audit/ETP-1.8.5-UAT-AND-RELEASE-READINESS-PACK.md",
+    "sha256": "C84AEA6421AEEB5C9C97FCCA442238AB8DE4084760640A73E58EAF47C331C7A5",
+    "bytes": 6726
+  },
+  {
+    "path": "docs/audit/ETP-2026-09-11-ACCEPTANCE.md",
+    "sha256": "C322D8D39493174AFB3ABD0DBCA1DEA38730CBB86CED87C6F177FBD9DD52EBEF",
+    "bytes": 13187
+  },
+  {
+    "path": "docs/audit/ETP-2026-09-11-COVERAGE.csv",
+    "sha256": "06D8EB1C75D1C8310F8BA6F5A68C490968566A532A05A615A8BD5804C39F676E",
+    "bytes": 189297
+  },
+  {
+    "path": "docs/audit/ETP-2026-09-11-FINAL-REPORT.md",
+    "sha256": "6DA911FAB5F1517C4610085B956F2721FB41EBDB3C42BBF11F28793AAD05D99E",
+    "bytes": 7133
+  },
+  {
+    "path": "docs/audit/ETP-2026-09-11-ISSUES.csv",
+    "sha256": "246259042A6B1FE6B72608CB55EC7C8314164D46FC6AEE46115DBE8D2BED4D01",
+    "bytes": 4742
+  },
+  {
+    "path": "docs/audit/ETP-2026-09-11-LOGIC-AUDIT.md",
+    "sha256": "2783F35A447CF37780292C10710F2C3F92C168C41B3FDF123B63AE9D19728D6D",
+    "bytes": 6056
+  },
+  {
+    "path": "docs/audit/ETP-2026-09-11-ROLE-UAT.csv",
+    "sha256": "3D873A7A2BA5B0AB5769B2EDEDB38078C43A5743FA43E34DD766237D0F1045DD",
+    "bytes": 13047
+  },
+  {
+    "path": "docs/audit/ETP-2026-09-11-UI-AUDIT.md",
+    "sha256": "731275667AFFF3A58661D283E1F525A126B2BE26C7DC835E2ABE075A9A904192",
+    "bytes": 8112
+  },
+  {
+    "path": "docs/audit/ETP-2026-09-12-VM-ACCEPTANCE.md",
+    "sha256": "7AC8636C0BDD0D1BF15D92E2E295096D11909FB989132A6C7426AD98561B4A57",
+    "bytes": 7378
+  },
+  {
+    "path": "docs/audit/ETP-CLOSURE-SPRINT-ARCHIVE-REGISTERS-SHORTCUTS-2026-08-28.md",
+    "sha256": "C1C450DF3FBFBC58B2DFDD37F6DD4BCF1C4731D81662D85FD43DD799062CF080",
+    "bytes": 2796
+  },
+  {
+    "path": "docs/audit/ETP-CLOSURE-SPRINT-BASELINE-2026-08-28.md",
+    "sha256": "4FCA72D2035D1D80D3BD968439837B4F8DEA9306B818A2D5336D9A2E2C889A16",
+    "bytes": 3567
+  },
+  {
+    "path": "docs/audit/ETP-CLOSURE-SPRINT-CHECKPOINT-2026-08-28.md",
+    "sha256": "F782DF8A24E34002E2597766E9CA069C10BD5A0047789CF0BD21ACA706727045",
+    "bytes": 6033
+  },
+  {
+    "path": "docs/audit/ETP-CLOSURE-SPRINT-SETTINGS-ACCESS-2026-08-28.md",
+    "sha256": "E6F34CFD8DA33DB049CC65FB16DB4E5599A0BB3D682C42070EF29C225D468750",
+    "bytes": 2098
+  },
+  {
+    "path": "docs/audit/ETP-COMPLETION-PHASES-2026-08-21.md",
+    "sha256": "4C903A84C9C9980C352D21529907EC7CFCB28B6A24270D835864A4E078484F08",
+    "bytes": 10346
+  },
+  {
+    "path": "docs/audit/ETP-EXTERNAL-ACCEPTANCE-EVIDENCE-PACK.md",
+    "sha256": "C5AAA75EE48FB64567A57C810873A7EEFDFA061926F87C31D0376E0AB2E7A492",
+    "bytes": 11714
+  },
+  {
+    "path": "docs/audit/ETP-FOUR-PHASE-REVIEW-PLAN-2026-09-11.md",
+    "sha256": "A28822CD32F4D3E42336F0542BEC88DB6D4059769397F63102725927516E3846",
+    "bytes": 6144
+  },
+  {
+    "path": "docs/audit/ETP-LOCAL-VM-PREPARATION-2026-09-11.md",
+    "sha256": "D17ADD3942ABCBBDB9E106716815CF975FB24FD8CEA591988C8AA2C0E55D8864",
+    "bytes": 4826
+  },
+  {
+    "path": "docs/audit/ETP-MODULAR-SPRINT-AUDIT-RECEIPT-2026-08-28.md",
+    "sha256": "6B71C30D7389B2EEA30F0B617202AF45CB1B28510209A2154C7CBAEE399AD937",
+    "bytes": 6561
+  },
+  {
+    "path": "docs/audit/ETP-SESSION-HANDOFF-2026-09-11.md",
+    "sha256": "4E9A6E1776E5BCAE3C33CB0601C9A4B665702E19B6F08CF33EBEC25C26B4E476",
+    "bytes": 5604
+  },
+  {
+    "path": "docs/audit/ETP-SESSION-HANDOFF-2026-09-12-UI-REDESIGN.md",
+    "sha256": "3DD18B2D91DF8B516B731F3D9B1856D068764D4F87CE0AD0AE8D417CAA90FE23",
+    "bytes": 8211
+  },
+  {
+    "path": "docs/audit/ETP-SESSION-HANDOFF-2026-09-13-UI-REDESIGN.md",
+    "sha256": "9071F6E04A88840422C5EFFFD06AA6241E68D664F82DD4D08D67A2CD8D566BF9",
+    "bytes": 8233
+  },
+  {
+    "path": "docs/audit/ETP-UI-PRODUCTION-REVAMP-2026-08-31.md",
+    "sha256": "2B09A5C5FBCE591E0BD9D1E6F490860A8105E1C3E9A88BC7D726DE96754DBBF8",
+    "bytes": 2893
+  },
+  {
+    "path": "docs/audit/ETP-UI-REDESIGN-ACCEPTANCE-RESUME-2026-09-13.md",
+    "sha256": "D6408A5321222DC93B2A1E093E9F7EF6AB7AC97F0815095180FBEA94FD7A6D4A",
+    "bytes": 4239
+  },
+  {
+    "path": "docs/audit/ETP-UI-REDESIGN-ACCEPTANCE.md",
+    "sha256": "3BA0E5300A391D8AB195E12B2E93DC7A40526E902EAF75988EC88F4B3A02384A",
+    "bytes": 23660
+  },
+  {
+    "path": "docs/audit/ETP-UI-REDESIGN-HANDOVER-2026-09-12.md",
+    "sha256": "35D81A27AC552FF7AF2FBCDE1CD63C3DFC849A508A97B7140AA181D8BDA983AA",
+    "bytes": 4840
+  },
+  {
+    "path": "docs/audit/ETP-UI-REDESIGN-LOCAL-FOLLOWUP-2026-09-12.md",
+    "sha256": "84F25D319EE2C99C33B5F1CFA6E539E5CACC510CE4BD7240E3691A494DFE8AE3",
+    "bytes": 7802
+  },
+  {
+    "path": "docs/audit/ETP-UI-REDESIGN-R10-2026-09-13.md",
+    "sha256": "9E36DB5F4A43641290D37DD5FF7451A252D6674A629E8A010D5D1B16A9024868",
+    "bytes": 5151
+  },
+  {
+    "path": "docs/audit/ETP-UI-REDESIGN-VM-ACCEPTANCE-RUNBOOK.md",
+    "sha256": "5730128CC5211B49CBBCEA413F3B892811BC7713C99B81106233A5D807275957",
+    "bytes": 11722
+  },
+  {
+    "path": "docs/audit/ETP-UI-WORKFLOW-AUDIT-2026-08-31.md",
+    "sha256": "DD01CFD629120455EA6A28BB237570C8305BB2B18CE6AD79293D9E4285D2F1BA",
+    "bytes": 9587
+  },
+  {
+    "path": "docs/audit/PHASE-6-CONSOLIDATED-BUILD-PLAN-2026-08-24.md",
+    "sha256": "0C5F8A204CBC7589897717F86F865AEB1C621205F8B4988FE2715A070D2141D0",
+    "bytes": 41151
+  },
+  {
+    "path": "docs/audit/POST-PHASE-4-ETP-COMPLETION-2026-08-21.md",
+    "sha256": "2BCAFB953C5AE3DFFB1C08432823ACDA821B0E0AE705A627D095F1017DB0DBB5",
+    "bytes": 2638
+  },
+  {
+    "path": "docs/audit/V6-ETP-COMPLETION-PHASE-WAVE-1-2026-08-25.md",
+    "sha256": "96A0E71731089374C3B348FD2CBD2A785FE61A7EC5E1EA0C896DC4E87B948C59",
+    "bytes": 1765
+  },
+  {
+    "path": "docs/audit/V6-ETP-COMPLETION-PHASE-WAVE-10-2026-08-25.md",
+    "sha256": "AB143D64B14840C25A14F386C7FF57A160516D0A7C41E233561BE59E2F37F867",
+    "bytes": 2027
+  },
+  {
+    "path": "docs/audit/V6-ETP-COMPLETION-PHASE-WAVE-2-2026-08-25.md",
+    "sha256": "E90C6B8E255E1EDA50C973CDFF440AE33105C4F0EF938057A6BCB14D05C525A1",
+    "bytes": 1424
+  },
+  {
+    "path": "docs/audit/V6-ETP-COMPLETION-PHASE-WAVE-3-2026-08-25.md",
+    "sha256": "A8F70B61B1852D6884C7EB541FB559D65209881DC254FC5626F0C1397E29643F",
+    "bytes": 1415
+  },
+  {
+    "path": "docs/audit/V6-ETP-COMPLETION-PHASE-WAVE-4-2026-08-25.md",
+    "sha256": "B7B749A91B16D8C11F17259394BDF1B913F95B02BBC4C026FF2418DAB4DA3E24",
+    "bytes": 1513
+  },
+  {
+    "path": "docs/audit/V6-ETP-COMPLETION-PHASE-WAVE-5-2026-08-25.md",
+    "sha256": "121A55DFD1ADA47824D21EB149D256C3FCBE53139273FF218FC6F4402ABBD0AE",
+    "bytes": 1571
+  },
+  {
+    "path": "docs/audit/V6-ETP-COMPLETION-PHASE-WAVE-6-2026-08-25.md",
+    "sha256": "3E746C85E5FAA3434B1AB322A60BCA0FFA97DA36B7D28BBBD756D606DDDD3557",
+    "bytes": 2125
+  },
+  {
+    "path": "docs/audit/V6-ETP-COMPLETION-PHASE-WAVE-7-2026-08-25.md",
+    "sha256": "A3958AEF6C68D1DFA0D350DA5DE07C64B26C620A57C8DCD24D56C7EE01889397",
+    "bytes": 1574
+  },
+  {
+    "path": "docs/audit/V6-ETP-COMPLETION-PHASE-WAVE-8-2026-08-25.md",
+    "sha256": "503477606D15CB45196D8237B3D4B5D4FE738E72BCB49A589E4BA017E30AF425",
+    "bytes": 1970
+  },
+  {
+    "path": "docs/audit/V6-ETP-COMPLETION-PHASE-WAVE-9-2026-08-25.md",
+    "sha256": "E2E5695FFC6C15635C522DC10711522131DA0179E2B8EA3A791084DCAD29BAD3",
+    "bytes": 1982
+  },
+  {
+    "path": "docs/audit/V6-ETP-CONTINUOUS-SPRINT-ENGINEERING-RELEASE-EVIDENCE-2026-08-25.md",
+    "sha256": "C65972D7D1495BAAC4861847FFB91402FF6D614F5A6E8972F39487E3F9070824",
+    "bytes": 5879
+  },
+  {
+    "path": "docs/audit/V6-ETP-E3-OWNER-AUTHORITY-2026-08-25.md",
+    "sha256": "FA9EB89F316F4180C737856620BB62244B8C7D2060CC1009B977286F48E53438",
+    "bytes": 1234
+  },
+  {
+    "path": "docs/audit/V6-ETP-E7-PRIVACY-ISOLATION-HANDOFF-2026-08-25.md",
+    "sha256": "6F7B022C1BDCDF5CA44B22E0A6D13105B73AFE2EB91C638BD6183F72CDDC45D2",
+    "bytes": 3329
+  },
+  {
+    "path": "docs/audit/V6-ETP-GATE-0-AUTHORITY-AND-DICTIONARY-FREEZE-2026-08-25.md",
+    "sha256": "B569B2BAC79779C98268C5EE899174E44D9E1F53AB24FC539B5DDB3CF6D5276F",
+    "bytes": 3046
+  },
+  {
+    "path": "docs/audit/V6-ETP-MULTILINGUAL-MOBILE-SYNTHETIC-UAT-2026-08-25.md",
+    "sha256": "31B5255B988883333D97B71EC1EA616FCA8F0768A5DC1A5B1822F347E68088A0",
+    "bytes": 1799
+  },
+  {
+    "path": "docs/audit/V6-ETP-OPERATIONAL-FOUNDATION-2026-08-25.md",
+    "sha256": "B4A6B318DC919B3599E6563536FD95BCACFC650ED938B3B8CB2BA8796667369A",
+    "bytes": 1809
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/01-welcome-1366x768.png",
+    "sha256": "7E3AF9CFC2D2C766016D374317D914ABD6610A9645A6D303B8E0DF71F14E1512",
+    "bytes": 28684
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/02-module-home-1366x768.png",
+    "sha256": "F82962767C66B3BE00E4762E02F62637FC48591EF2110C352A1A8D2BA973AFAA",
+    "bytes": 63691
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/03-reports-1366x768.png",
+    "sha256": "5A06EACD01DEEA38DDC0A9DC17F47EE93577B2D8CFED1A44C88EAB8F76A6296C",
+    "bytes": 110584
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/04-reports-960x600.png",
+    "sha256": "5F38E0FF5BC4D15DF78368D94D91631800BF55F25FB30D01904BA46DA0CE5E12",
+    "bytes": 55392
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/05-module-home-1920x1080.png",
+    "sha256": "D392EDA1F097A579504524EC2D4B22248E588F45EB5F6C443EA98BB0C668970B",
+    "bytes": 73951
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/06-module-home-compact-1366x768.png",
+    "sha256": "D55FD45108D06473CBF52943A7BF5B039F43402CF9657ADBC848A45CC52DCCDD",
+    "bytes": 67267
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/07-manual-entry-1366x768.png",
+    "sha256": "893F383C64BA6894F778319CD821D6140C91E05772BE06B4AA777A71F36FEA3C",
+    "bytes": 105491
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/08-dsr-screen-1366x768.png",
+    "sha256": "DCAD29283D862FD95E96D379F835B0FCE0BC4D9542E2C51907E7B7527C836E6C",
+    "bytes": 62211
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/09-help-centre-1366x768.png",
+    "sha256": "7AB629FD625772BFA5A7E315C44B676EA635D1D6DD9715C93EA03332607C4914",
+    "bytes": 67055
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/10-keyboard-shortcuts-1366x768.png",
+    "sha256": "6C3A976D7FC1DABEC32E012EF7AC68607C15BC69DF7F5A4BE119CA329A4BBBCE",
+    "bytes": 63596
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/11-stock-workspace-1366x768.png",
+    "sha256": "A20FB584EFF9DEBD7A2E48BF81B88B3E53BF27F717DFA7E4067A89EFC4AE6630",
+    "bytes": 53496
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/all-workspace-routes/destination-accounting.png",
+    "sha256": "8EDF421DBF2F72EC41D40911FF6B3962C3E66BB2006282C2A6853CD10CB1D1D1",
+    "bytes": 86364
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/all-workspace-routes/destination-admin---settings.png",
+    "sha256": "2F77F3D0A1069ADFAA7091D2503AFFBED47262270EC99D5E29077B640EBCC750",
+    "bytes": 77594
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/all-workspace-routes/destination-daily-workflow.png",
+    "sha256": "99F9599B41B1EEBD0497E183828360929437B2E6FAAF4FAA18A481692A7B6A79",
+    "bytes": 103952
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/all-workspace-routes/destination-dashboard.png",
+    "sha256": "5ED12A2C6011AE110217E3101AE1E1004960BB5248E67D1DEB9F1F2D7491ABC9",
+    "bytes": 98428
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/all-workspace-routes/destination-home.png",
+    "sha256": "2C465F8C27E1BADBC9A1F6D791EFAA0DAED0872D2F5ACBE251ED85043074E930",
+    "bytes": 89928
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/all-workspace-routes/destination-import-etp.png",
+    "sha256": "0DAE56BA7D4F3DE67EC55127971BBC01DF0789F76CEEB29C97F60CCED35C7F0F",
+    "bytes": 102396
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/all-workspace-routes/destination-manual-entry.png",
+    "sha256": "893F383C64BA6894F778319CD821D6140C91E05772BE06B4AA777A71F36FEA3C",
+    "bytes": 105491
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/all-workspace-routes/destination-masters.png",
+    "sha256": "916CB7937B5A9C519DFAC6F2842E46C317505E264DC46A31B658C4C36F722999",
+    "bytes": 90337
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/all-workspace-routes/destination-operations-center.png",
+    "sha256": "FAB4B9C80E5F8841B79BFCA049E128D43FD43BAC8F3FE6B55F14806F64895DE3",
+    "bytes": 89244
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/all-workspace-routes/destination-registers.png",
+    "sha256": "F8D50768717C240DA69045A2D4D834E2F761BC5A1314587E9D9ACEA2F3F55F22",
+    "bytes": 71235
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/all-workspace-routes/destination-report-archive.png",
+    "sha256": "F1D87705B4AEBBFA00FE89E58A5B539457EB3FF36E965EF6B88C79241A6EEDA6",
+    "bytes": 88246
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/all-workspace-routes/destination-sales-reports.png",
+    "sha256": "A4B7D446C5E71F06E0237703C69C424B4C82EC38D1389E07BE3133B5E4E482F2",
+    "bytes": 125176
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/all-workspace-routes/destination-settings.png",
+    "sha256": "721AE63F55AE5AED52352EE3CC701E37187FA252B3E27518B57F13E65445EC2C",
+    "bytes": 76492
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/all-workspace-routes/destination-stock-reports.png",
+    "sha256": "80A1BF854A119EF3B1240379AB1F60B088B835904EE999C02578A618A905CC25",
+    "bytes": 124184
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/all-workspace-routes/report-cash.png",
+    "sha256": "CDDA099DC4100CC075BD4A9AB8455C4886628CBDC09090CEC8BB4DF76460CA9A",
+    "bytes": 55065
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/all-workspace-routes/report-dsr.png",
+    "sha256": "537BF1AB5D6DDB3700DB8FBE3D8A04DE956D5B4AF90B0F535375CD765D7D50D9",
+    "bytes": 61061
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/all-workspace-routes/report-exception-source.png",
+    "sha256": "F1622322669DC1603890C05FA1F7340EF42FBA515E36F959671EDB0D8316D7B0",
+    "bytes": 54741
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/all-workspace-routes/report-exception-staff.png",
+    "sha256": "260E552EB675EFCC56964A816687E8AED4C36923CE58A00652DD6EF7C96AFF3C",
+    "bytes": 52221
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/all-workspace-routes/report-exception-stock.png",
+    "sha256": "60BE833CF956DD3E06EEE54D89B30930C2EFB63B7443F55B4A2A5CEF1CBC52D4",
+    "bytes": 52982
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/all-workspace-routes/report-exception-tender.png",
+    "sha256": "716939F75D984487D8886207B23C9E5EC493F41EDE89B29270859BFB469C8CF8",
+    "bytes": 52244
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/all-workspace-routes/report-exception-unmapped.png",
+    "sha256": "DAD0BCE91483EF39CC17C135F99D41A203254026B470A01FF99DBCB2686175F8",
+    "bytes": 51918
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/all-workspace-routes/report-exceptions.png",
+    "sha256": "564E45733139D316900828D7F58B4B80165F945AE12828A6999EE2C62FB22728",
+    "bytes": 54993
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/all-workspace-routes/report-invoice-lineage.png",
+    "sha256": "F0295696F61C3A0B0D844CB9D07D6455008E8C19F6547646D12A467E1B056FE9",
+    "bytes": 52476
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/all-workspace-routes/report-invoice.png",
+    "sha256": "EA68F76C4C22CA8893B3C1A6073376DAD693B8158A9B8884FE415AF01D05EEF3",
+    "bytes": 54656
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/all-workspace-routes/report-management-trend.png",
+    "sha256": "0B5316F2B1F86BE292A4A8564075719165A26F561878865B142BC37C44803F27",
+    "bytes": 48458
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/all-workspace-routes/report-sales-brand.png",
+    "sha256": "9ED0280B8B72F33165E2D97A92D2DA5A1FC3E184490721592F657C76B7724F8D",
+    "bytes": 57259
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/all-workspace-routes/report-sales-combined.png",
+    "sha256": "6FBB61D0B2F31795683732E051DA7C924B09039C21EA4FFE827D0553DFCCEF63",
+    "bytes": 58309
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/all-workspace-routes/report-sales-helios.png",
+    "sha256": "69AECA35344D681841EC8FEC9F3F5CAC497961B86DDECEA09410B7A4F93B2D28",
+    "bytes": 55760
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/all-workspace-routes/report-sales-item.png",
+    "sha256": "E587F5D51691C2E19ECFCD39B7894BB3E8CB22563E243A8F276A8F81C8F6EA90",
+    "bytes": 56626
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/all-workspace-routes/report-sales-returns.png",
+    "sha256": "F23986D7076BF283989AF369AAC910602CAD10B267120EA80180EA9878CD4519",
+    "bytes": 50735
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/all-workspace-routes/report-sales-segment.png",
+    "sha256": "928B8F938DE73C07F51461EB0B130ACADA77649BBCF900555B150E541CCD3491",
+    "bytes": 59967
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/all-workspace-routes/report-sales-titan.png",
+    "sha256": "D8EA594A42B620EDBB1AA61989DC059C1158480D87B493E2A31EB01990F2BDB1",
+    "bytes": 55913
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/all-workspace-routes/report-service.png",
+    "sha256": "149A5437A7103445C35E86733F24A6C80643ED234EF5389705E247D487FDF31C",
+    "bytes": 50940
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/all-workspace-routes/report-staff.png",
+    "sha256": "BD127CC439B240F54E055EA72FC02DF80ADBC406F9B2E04F16CD5269E2E53EAB",
+    "bytes": 52385
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/all-workspace-routes/report-stock-brand.png",
+    "sha256": "8457D10ABC55E734D6F2727D7989AD336BC7D5EBEC53FC9E751A49E227F31177",
+    "bytes": 51168
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/all-workspace-routes/report-stock-closing.png",
+    "sha256": "3E70294B7ED3714E565AF3C378898881E2ACCC28B984B335EBC11DF6554359FD",
+    "bytes": 52375
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/all-workspace-routes/report-stock-group.png",
+    "sha256": "DE752A5ECFC9EA8459AF2E64ABC7531F86C7EF8D310571DC345BA0C978429F41",
+    "bytes": 57577
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/all-workspace-routes/report-stock-movement.png",
+    "sha256": "EFF4935EF98E085976A84EB9CE800D2659588F95795AC90B11C8DCF0D0B7B106",
+    "bytes": 53418
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/all-workspace-routes/report-stock-physical.png",
+    "sha256": "A2C5BD3ABA9490173680D6D782B2D8BB959A7B074243CD25E03F77CE6C53D280",
+    "bytes": 52899
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/all-workspace-routes/report-stock-slow.png",
+    "sha256": "6D9005E51412CCE93E19F28AD18600F4CC2A21C52400D5A750628139B8B4D1F7",
+    "bytes": 57104
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/all-workspace-routes/report-stock-variance.png",
+    "sha256": "B3E9B3F8C3DD3D34F8A4BA6C4B97D60635A231B4D1C308CCDB5583A2FF106106",
+    "bytes": 53131
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/all-workspace-routes/report-tender-diagnostic.png",
+    "sha256": "5BC6DB81CE56BF10553171CE2F471704B4C2B07DD50B1F5CBE745D445930E11E",
+    "bytes": 52528
+  },
+  {
+    "path": "docs/audit/ui-production-revamp/all-workspace-routes/report-tender.png",
+    "sha256": "D08A660C37FCDC4C072A816BA9518BABB67B3E44069728016890F0A367A5F1B8",
+    "bytes": 53427
+  },
+  {
+    "path": "docs/audit/ui-workflow-audit/screenshots/01-task-first-dashboard-1366x768.png",
+    "sha256": "B2858EC854528D342B6964A4C38DCAAC37208BC41CB222A4D4BD5DFFE887DDF8",
+    "bytes": 101661
+  },
+  {
+    "path": "docs/audit/ui-workflow-audit/screenshots/02-report-with-lineage-drawer-1366x768.png",
+    "sha256": "6C877C2C8FE3CBC33C98B6BAE2B67FB51665DE0075DB635700D4CC5E4C131DD9",
+    "bytes": 99789
+  },
+  {
+    "path": "docs/audit/ui-workflow-audit/screenshots/03-function-coverage-1366x768.png",
+    "sha256": "D58973DCD3DCE10DDAFDC3FFE3405D9E6221EF7FDC95C1951396AEDFF0A7C97B",
+    "bytes": 193199
+  },
+  {
+    "path": "docs/audit/ui-workflow-audit/screenshots/04-dashboard-960x600.png",
+    "sha256": "0274D3B2C35F6FD2D16B727B6D45E8C1B60887094E49E7727AC1FA7D7AE7B1D5",
+    "bytes": 39489
+  },
+  {
+    "path": "docs/design/ETP-UI-REDESIGN-DECISIONS.md",
+    "sha256": "337763D46802DAC5686631DCF3E1731EFC940A5B4DE6C6FB50BEB23E0A798EFF",
+    "bytes": 13590
+  },
+  {
+    "path": "docs/design/ETP-UI-REDESIGN-FOUR-PHASE-SPRINT-2026-09-12.md",
+    "sha256": "E674E36DC3334E91DCC9A6365113D2B8BFE090B9E0745DA4B1F12690002E05CF",
+    "bytes": 64164
+  },
+  {
+    "path": "docs/design/ETP-UI-REDESIGN-ROUTE-COVERAGE.csv",
+    "sha256": "052EBFA1EBAEDC49F39DD0BC93727EC25A6300A67EB31800FC4D75E9F1761FDC",
+    "bytes": 455690
+  },
+  {
+    "path": "docs/design/ETP-UI-REDESIGN-SPRINT-LEDGER.md",
+    "sha256": "6E80612CD0E09EB17D7DD087E9BED938C90D77378E7A2F30CE25DD0E787CAC68",
+    "bytes": 19218
+  },
+  {
+    "path": "docs/design/reference-today-overview-2026-09-12.png",
+    "sha256": "51F7E115A0F526507565578A31A8FD7D0F6A0C5DDB3279B7E8DBC200085D34A2",
+    "bytes": 157667
+  },
+  {
+    "path": "docs/help-centre-integration.md",
+    "sha256": "F0EFEC709BC1752FD6F52D44E2FCD1FEF69080AA970C97FC361C2533E6221167",
+    "bytes": 1987
+  },
+  {
+    "path": "docs/legacy/SAAGAR_BCC_ANDROID_ARCHITECTURE.md",
+    "sha256": "4740C3B7E51E723EEC2B4DEB695CECA547FC36279ADC7C5128958274431B3383",
+    "bytes": 3527
+  },
+  {
+    "path": "docs/security/ETP_LICENSING_ENGINEERING_SPEC.md",
+    "sha256": "F089C0330409E984FCD134EC6470FBD3164248D4F25EE8CB971A79611604148D",
+    "bytes": 30526
+  },
+  {
+    "path": "docs/security/ETP_LICENSING_IMPLEMENTATION_BACKLOG.md",
+    "sha256": "9C213DA612AF541C5DA4F293A21D66952234C4A95F8ECF7A645D2B511435D6E5",
+    "bytes": 4873
+  },
+  {
+    "path": "docs/security/ETP_LICENSING_OPERATIONS.md",
+    "sha256": "527A1D1BCCCA45C97CFE109E8B7D262FE6028406AE91C7CABB7F388793A8DD9B",
+    "bytes": 6197
+  },
+  {
+    "path": "docs/security/ETP_LICENSING_REQUIREMENTS_TRACEABILITY.md",
+    "sha256": "C97857BF8A0D75596E4B0386441DE68309E430B82045BFF547016131AD797CE7",
+    "bytes": 6228
+  },
+  {
+    "path": "docs/security/ETP_LICENSING_TEST_MATRIX.md",
+    "sha256": "B6A1AA0EC890C6CFC2541C5B474D5A2E9AABC28D10647E550ACE9F2CB46BC92D",
+    "bytes": 7944
+  },
+  {
+    "path": "docs/security/ETP_MICROSOFT_APP_REGISTRATION.md",
+    "sha256": "8F916950A355CCF5AA3C3F85E3B48F6010A58899D8160DECC335482124663516",
+    "bytes": 5607
+  },
+  {
+    "path": "docs/security/schemas/etp-activation-request-v1.schema.json",
+    "sha256": "908C9A7A4A65E71120BA48061BDDB8FB7DE5072DA0E6A8FE4FC285A671184FB8",
+    "bytes": 1151
+  },
+  {
+    "path": "docs/security/schemas/etp-licence-envelope-v1.schema.json",
+    "sha256": "CC523DF6945F2603B745A1BD2FC26EDF7F38327EAC4BB6ABD583D0B25224CC42",
+    "bytes": 654
+  },
+  {
+    "path": "docs/security/schemas/etp-licence-payload-v1.schema.json",
+    "sha256": "465BDE340FC0FD6F9622D81A1BDD38CC920455A4AD886F8A64EA4B001CCC829E",
+    "bytes": 1558
+  },
+  {
+    "path": "installer/EtpReportingEngine.iss",
+    "sha256": "9D34C73B9BFF3A21DC4A3404DAB8835D2C16B16FD93A5C162791845BB520C130",
+    "bytes": 3173
+  },
+  {
+    "path": "knowledge/00-Home/ETP Knowledge Home.md",
+    "sha256": "252F63E7C490CFEC267BD21E5AC07C014BB3C5AB3161E38066E22D3F27D78445",
+    "bytes": 2080
+  },
+  {
+    "path": "knowledge/01-Architecture/Data Architecture.md",
+    "sha256": "8A36C565DC17E5E16EC5476454239A42175CAAE43FBDB0D48BB5280783B93EDC",
+    "bytes": 3427
+  },
+  {
+    "path": "knowledge/01-Architecture/Desktop Architecture.md",
+    "sha256": "F8D811F13B54AF74075EC8C500ACBFB019BF8B83D197FEEF2A524FDDF3AFA222",
+    "bytes": 5662
+  },
+  {
+    "path": "knowledge/01-Architecture/ETP Licensing Architecture.md",
+    "sha256": "DF4CD56991C332631CA69AE3530FDFE1CA17717F375AD716465BCBD5D329EECE",
+    "bytes": 3717
+  },
+  {
+    "path": "knowledge/01-Architecture/System Architecture.md",
+    "sha256": "D2BF430767FD3318BEE4DDEF1C32034A95BE42289240807671C4414D39DD74F5",
+    "bytes": 3396
+  },
+  {
+    "path": "knowledge/02-Business-Domain/Data Dictionary.md",
+    "sha256": "885845878F0495D124BC811FE3ADD75DAD380B9B32B10B14A9B572633EB534C7",
+    "bytes": 2161
+  },
+  {
+    "path": "knowledge/04-Imports/Import Architecture.md",
+    "sha256": "BB3F923ED5F9130AC58DCA707B86B648DADDE3917042EB228E1FA96A92B9A3E1",
+    "bytes": 3872
+  },
+  {
+    "path": "knowledge/05-Mappings/Mapping Knowledge.md",
+    "sha256": "A18050C171EFA26E66A9913A9B61D03BE88C80CBDCCA596476D9E4A47DFFB447",
+    "bytes": 2061
+  },
+  {
+    "path": "knowledge/06-Reports/Report Catalog.md",
+    "sha256": "7F4CF9D447A360B9832ECBD4B95682677BC02AC4C1923A1A548434F40D2B8FA9",
+    "bytes": 4100
+  },
+  {
+    "path": "knowledge/08-Decisions/ADR-001 - SQL Server Express.md",
+    "sha256": "D4934C33CF9208FD4830428B89FB7A258F3BD9D73B8B61AA2736F0C2BDADFE78",
+    "bytes": 1196
+  },
+  {
+    "path": "knowledge/08-Decisions/ADR-002 - Deterministic Reporting Engine.md",
+    "sha256": "CD4C47CF12CBC1FD7B89D9455EEB1A0C377B7148B4BF725106048B2E797FA133",
+    "bytes": 1093
+  },
+  {
+    "path": "knowledge/08-Decisions/ADR-003 - Graphify for Code Intelligence.md",
+    "sha256": "7D0587F9C96268564207B8DC007C908FDFF0C4E63379D4D84BABB93A9214CE2D",
+    "bytes": 1024
+  },
+  {
+    "path": "knowledge/08-Decisions/ADR-004 - Obsidian for Project Knowledge.md",
+    "sha256": "40264857893E1177B488FBC1647E762D59434B98F9136C181A081EED6405DEFF",
+    "bytes": 1170
+  },
+  {
+    "path": "knowledge/08-Decisions/ADR-005 - Modular Desktop Shell.md",
+    "sha256": "373D4647FD0F581EE219A99D5FCEE7F33915AA727CC70BC027C21A0E4E019ABD",
+    "bytes": 2467
+  },
+  {
+    "path": "knowledge/08-Decisions/ADR-006 - Offline Device Licensing.md",
+    "sha256": "42045F0FC3E75687BFB01E666BAD9787A2C85630232003767A7AF574196CCBEE",
+    "bytes": 2771
+  },
+  {
+    "path": "knowledge/08-Decisions/ADR-007 - Exact Import Profile Identity and Provenance.md",
+    "sha256": "4020B946F30B7D348848FA1928A05D6B141515B8550650E365469684974B9D51",
+    "bytes": 1577
+  },
+  {
+    "path": "knowledge/08-Decisions/ADR-008 - Health-Gated Database Upgrade.md",
+    "sha256": "743804FBA50FDDB8B99D5F0A29F2AF861525F445D5F537CA0CA307D5FD6588F3",
+    "bytes": 1550
+  },
+  {
+    "path": "knowledge/08-Decisions/ADR-009 - Canonical Focused Task Navigation.md",
+    "sha256": "284FDE24C11E452DCD0CD82F4C085A17D0030338F62A0E2833B640518FC5D3E3",
+    "bytes": 3649
+  },
+  {
+    "path": "knowledge/08-Decisions/Decision Register.md",
+    "sha256": "3DCA1F8C530618CE1674F7D9FF5353EFBC3090E7549A72CEFE1D1E88B6C5C125",
+    "bytes": 1503
+  },
+  {
+    "path": "knowledge/09-Testing/Knowledge Retrieval Evaluation.md",
+    "sha256": "19768AD1992B09AB782FD10845F064F58C8AB2DF549BD0CC7D06544D4A55D7AC",
+    "bytes": 1690
+  },
+  {
+    "path": "knowledge/AI-CONTEXT.md",
+    "sha256": "6D7609137F8AC5E208B1679E384B082B3B1C9FE60090978EBE46D8ABB8B169DC",
+    "bytes": 2453
+  },
+  {
+    "path": "knowledge/AI-ROUTER.md",
+    "sha256": "C0BE0733A27608E4A4B9353428B2943E9AD0AF669DC96A54548FC84F41895AE5",
+    "bytes": 3159
+  },
+  {
+    "path": "knowledge/Business Rules Register.md",
+    "sha256": "BA1C2B10FF06B2153B24B446C4CBC0C5ED920D1630B469DAFE1890988D374379",
+    "bytes": 2974
+  },
+  {
+    "path": "package-lock.json",
+    "sha256": "87F9FEFC661289816844E160AB0C3ACAB759B0237D59792761D966E8DF098C11",
+    "bytes": 133590
+  },
+  {
+    "path": "package.json",
+    "sha256": "CC8D44B1C2778ED5E0485F011C342CA103A80CCDE8BBA135E152E83EABA5821C",
+    "bytes": 15187
+  },
+  {
+    "path": "scripts/Invoke-EtpFunctionAudit.ps1",
+    "sha256": "9163F87B04BC588AC79A9319A4A0026DE2936F6B14509D9467259894541D0D31",
+    "bytes": 7658
+  },
+  {
+    "path": "scripts/New-EtpExternalAcceptanceWorkspace.ps1",
+    "sha256": "89CF4F9DE1757A24048EDAB921161F80364DE80DF77FF269476B5E6954C02FFB",
+    "bytes": 8266
+  },
+  {
+    "path": "scripts/Test-KnowledgeVault.ps1",
+    "sha256": "AE1B9A3D0AC02C4DC03ABCDB8BD384C83042774AAEF509D0DE5E53DEE1771AE0",
+    "bytes": 1785
+  },
+  {
+    "path": "scripts/android-emulator.ps1",
+    "sha256": "D09C43A688E5DCE3A4B1CDB2984874FB373B791C80E9F2B14550F59E9B9305F4",
+    "bytes": 4976
+  },
+  {
+    "path": "scripts/backup-etp-database.ps1",
+    "sha256": "0E684A39B0146ADD955135B62EB978E47698A3423EBCA992F9BCEA1092592BA9",
+    "bytes": 4161
+  },
+  {
+    "path": "scripts/bootstrap-etp-prerequisites.ps1",
+    "sha256": "F3839EF5C19AACAB59392A87D99056933E30126FBB06B9FF71F92E71A3337F72",
+    "bytes": 14326
+  },
+  {
+    "path": "scripts/build-installer.ps1",
+    "sha256": "D5CCE432FA8FB3FC0662D17E36E0F5EAAA572714C050F1E133EEF8FF24291FF6",
+    "bytes": 873
+  },
+  {
+    "path": "scripts/build-production-release.ps1",
+    "sha256": "28463C4CB418C38650EDD18E22E208CE9E6BC29BAAF6DE25F484DBF42BA0DA71",
+    "bytes": 8384
+  },
+  {
+    "path": "scripts/build-seeded-apk.mjs",
+    "sha256": "656FEBDEC055A68EA84B7320D41F7788B71656EDB5C3B665E4B56F36C3D8E134",
+    "bytes": 5629
+  },
+  {
+    "path": "scripts/build-windows-installer.ps1",
+    "sha256": "64F523D159E0793B3ACCEACC6B03A004F3954D03AC1D97C81B577851005A1149",
+    "bytes": 2635
+  },
+  {
+    "path": "scripts/build-windows-release.ps1",
+    "sha256": "041942DCDBE5317B7BA88F62A2F4289021C3EA48754A176DAA76DAAC96F034BA",
+    "bytes": 3156
+  },
+  {
+    "path": "scripts/capture-api23-compatibility.mjs",
+    "sha256": "C60704D40EBF8978BCE79AF84F6B43BEC3B6DFC04DCEAF2CB55CA42D47EA1E73",
+    "bytes": 2804
+  },
+  {
+    "path": "scripts/create-v6-etp-gate0-freeze.mjs",
+    "sha256": "ACFFF40FD96D1E6926BBC5CC68F232E578A8CADD4DA63308B6CF0DE56C70A4F8",
+    "bytes": 10218
+  },
+  {
+    "path": "scripts/evaluate-etp-parser.mjs",
+    "sha256": "8D1799F3C9DAC588D4E5AFA777EA6005C6285A7CBEED793F95A4F8FFCF0588EA",
+    "bytes": 5357
+  },
+  {
+    "path": "scripts/generate-brand-assets.ps1",
+    "sha256": "0709D6D34AE305A414656B491C3AA938AE6179F9AE56F37F25578CF4D9EF11E1",
+    "bytes": 2187
+  },
+  {
+    "path": "scripts/generate-etp-synthetic-fixtures.mjs",
+    "sha256": "D65AB7A1BFA04898E048F4CE3D264B05CD2E2611821F8C744E5FE07B8EB83406",
+    "bytes": 11406
+  },
+  {
+    "path": "scripts/install-daily-backup-task.ps1",
+    "sha256": "BC1CA2DE789E913AE20D35CA00C068982EE86E713198BB5B6FD8DF3844F9DA0D",
+    "bytes": 1345
+  },
+  {
+    "path": "scripts/install-etp-automation-task.ps1",
+    "sha256": "AD54719DDE2CEE4223557502527775CE289F8A718CFE368B9703EFF4FEA37306",
+    "bytes": 1553
+  },
+  {
+    "path": "scripts/install-monthly-recovery-drill-task.ps1",
+    "sha256": "67269FEE59210EE351CE710722C1D916DD2B71D68067C64BE98766F9F53F85AD",
+    "bytes": 1530
+  },
+  {
+    "path": "scripts/invoke-database-maintenance.ps1",
+    "sha256": "503CBF28F605001C6AC594A7E04D0355E72B863A17957DFD025559E7A309E013",
+    "bytes": 987
+  },
+  {
+    "path": "scripts/invoke-etp-recovery-drill.ps1",
+    "sha256": "F0C0CCEB5A9C9436AE6E2E4A3A0CD8C7A7A92D284B484DD551B4795968E60DA6",
+    "bytes": 4240
+  },
+  {
+    "path": "scripts/invoke-monthly-recovery-drill-runner.ps1",
+    "sha256": "210D8B1AF9A50FB0554A815B37B5EAF1B353482AB4FF9862F5D0F68E50F41151",
+    "bytes": 256
+  },
+  {
+    "path": "scripts/invoke-release-rollback.ps1",
+    "sha256": "BB25C09C467EF923037EACD83503D1A55606B236E4A73A2088991A995ACB87A6",
+    "bytes": 653
+  },
+  {
+    "path": "scripts/invoke-security-scan.ps1",
+    "sha256": "D1C8C114C7E8D3260C5EDF939157EBDA73623CE75502B4EE22CE5BA9E6177C94",
+    "bytes": 8481
+  },
+  {
+    "path": "scripts/lib/module-manifest-source.mjs",
+    "sha256": "D2B1F53FC21F36967B9D6EF20FE27B7A46EB44AFF7336BF027F5730A08AF4BBA",
+    "bytes": 1113
+  },
+  {
+    "path": "scripts/new-etp-support-package.ps1",
+    "sha256": "1B258D56733C0BC54EF8C9A7FBF4225E4B22D81DC3424DD4D74725E000646C3B",
+    "bytes": 3067
+  },
+  {
+    "path": "scripts/new-offline-deployment-package.ps1",
+    "sha256": "86F2C5C18B275811519A6FDAD1E4380387936872F99652E08822F20C7670493A",
+    "bytes": 1646
+  },
+  {
+    "path": "scripts/node-userinfo-shim.cjs",
+    "sha256": "485D09387765BA25EBCA7791A5F73E96E6238F80A82ED9981A22957E3F8C8041",
+    "bytes": 752
+  },
+  {
+    "path": "scripts/prepare-api23-assets.mjs",
+    "sha256": "7659D7711C22B93D825C30E88A03A434BCF269945D2A6373E17EA33E4A3EC54B",
+    "bytes": 9683
+  },
+  {
+    "path": "scripts/refresh-module-manifest-identities.mjs",
+    "sha256": "6EFB85BEDFC40A57CDC14B152486FDEB597D447750C62600A17B8AFEAFCB999D",
+    "bytes": 1004
+  },
+  {
+    "path": "scripts/remove-etp-scheduled-tasks.ps1",
+    "sha256": "DBDF6AC4A67A3B2DA961543BFD58528A0CE26C197BBD000491C8005E829998F4",
+    "bytes": 997
+  },
+  {
+    "path": "scripts/set-release-version.ps1",
+    "sha256": "70FF107BD71EEA8A076262298E3B0FB60F48FA45A0CB197312D9ACD71040FE23",
+    "bytes": 1130
+  },
+  {
+    "path": "scripts/stage-etp-api23-evaluation.mjs",
+    "sha256": "0253244BDE4CA34F234C81ECE744328E3959159EAA8494CE81597AD4961DD3B9",
+    "bytes": 4867
+  },
+  {
+    "path": "scripts/stage-etp-browser-deps.mjs",
+    "sha256": "E1B7EDF52931E092ADD87BA88D4BFD99C9CBCD0379B561D781611014CBDE75BC",
+    "bytes": 1230
+  },
+  {
+    "path": "scripts/test-etp-database-health.ps1",
+    "sha256": "FBAA424563FA12F0AE39C2661F0A9E37582FFD11911437D1046E569BB7281839",
+    "bytes": 917
+  },
+  {
+    "path": "scripts/test-installer-lifecycle.ps1",
+    "sha256": "E2384FEEB942D9B19728D30D2B2024907D00E37DB1258BC0D893FAC450813F01",
+    "bytes": 6260
+  },
+  {
+    "path": "scripts/test-release-evidence-consistency.ps1",
+    "sha256": "1DED97870340FA212AA774DC438536D5EF200C8C2E8CBA3E02EB6B071BA9A472",
+    "bytes": 17027
+  },
+  {
+    "path": "scripts/test-windows-ui.ps1",
+    "sha256": "4498EC0849F631F0B889A9598B0E1119806913C429B1FF9EB2A3E700F07754F7",
+    "bytes": 2917
+  },
+  {
+    "path": "scripts/verify-etp-core-real-files.mjs",
+    "sha256": "CB505C4C9D103C708AA23FFC6486CAFB6F76EBADCAA6ACED3CF6B1048548C998",
+    "bytes": 5835
+  },
+  {
+    "path": "scripts/verify-etp-device.mjs",
+    "sha256": "37A6D9E31135DDE319AE8D9AE24B54B9E276B28425A29C3D74D2646236EFA7A4",
+    "bytes": 5078
+  },
+  {
+    "path": "src/Etp.Reporting.Application/Access/AccessSession.cs",
+    "sha256": "9FFC82E51865BD621936B11AD6386679D965FB8C79518392AF39F512B3BDC5EC",
+    "bytes": 720
+  },
+  {
+    "path": "src/Etp.Reporting.Application/Accounting/AccountingContracts.cs",
+    "sha256": "D9C9E7E4C8036EEB209AD7EADAD7BDD773F0154711ABD72EFEC6ADCA8DB73952",
+    "bytes": 4318
+  },
+  {
+    "path": "src/Etp.Reporting.Application/Archive/ReportArchiveQuery.cs",
+    "sha256": "895ADE94C832B322364A233A495FC44FD20FFB53D8652F0C9DD1CF1DCBA1CC77",
+    "bytes": 1416
+  },
+  {
+    "path": "src/Etp.Reporting.Application/DailyWorkflow/DailyWorkflowContracts.cs",
+    "sha256": "29954C0F78B773E5E9D8EE57D5C5A313B9EB4CFC3725D5E88F227677C34CBB7E",
+    "bytes": 5287
+  },
+  {
+    "path": "src/Etp.Reporting.Application/Dashboard/DashboardQuery.cs",
+    "sha256": "8F55BE546995FDA1E88F41823BEE8469C3F511499716CD6EB9DE2E9EC4D212F9",
+    "bytes": 1256
+  },
+  {
+    "path": "src/Etp.Reporting.Application/DatabaseLifecycle/DatabaseLifecycleContracts.cs",
+    "sha256": "1F1B3B2F1C5DEEAED336017D60CC72F1323CA3669420628E980FFA5E91BE5764",
+    "bytes": 1089
+  },
+  {
+    "path": "src/Etp.Reporting.Application/Distribution/DistributionContracts.cs",
+    "sha256": "A3D356415E260542CC73C7398CC343A045E8374AC4AF3244B1CA4D985D2F2939",
+    "bytes": 1702
+  },
+  {
+    "path": "src/Etp.Reporting.Application/Etp.Reporting.Application.csproj",
+    "sha256": "61E3F2D043E37F0DB4BE1D8083DD31BEBBFBB8FDE2CF027327DB2556C16BC385",
+    "bytes": 219
+  },
+  {
+    "path": "src/Etp.Reporting.Application/Imports/ImportContracts.cs",
+    "sha256": "490AD8D4E14FFC8C786929772A8EFDDF8FE81AA002D2D8E59C6374B293594393",
+    "bytes": 533
+  },
+  {
+    "path": "src/Etp.Reporting.Application/Imports/ImportPersistenceContracts.cs",
+    "sha256": "82072E0442607674283CAEC0900D232D0E423E72622710E3275B9B2947B33C4B",
+    "bytes": 1536
+  },
+  {
+    "path": "src/Etp.Reporting.Application/OperationsAdministration/OperationsAdministrationContracts.cs",
+    "sha256": "48C5001CE84EA24829B2E8DD81FB74AA21D83B39124DD6DDDFEB97047B024B6D",
+    "bytes": 6612
+  },
+  {
+    "path": "src/Etp.Reporting.Application/Registers/DigitalRegisters.cs",
+    "sha256": "C68D7AF8840A45350B92C7FC47BFD76F177A67B8B90A568F42493AF9E82F1D6A",
+    "bytes": 1218
+  },
+  {
+    "path": "src/Etp.Reporting.Application/Reports/ReportQueryContracts.cs",
+    "sha256": "C4243B60898FC29DD2481DEB84AD34FFC8E21BCF75AE0F94AD10FBB98A5E0750",
+    "bytes": 7834
+  },
+  {
+    "path": "src/Etp.Reporting.Application/Sharing/SharingContacts.cs",
+    "sha256": "E33A833885E5A1996A6C61000CCB36D9DA3337A1A7881778AA63E095035B936B",
+    "bytes": 789
+  },
+  {
+    "path": "src/Etp.Reporting.Application/SourceInbox/SourceInboxContracts.cs",
+    "sha256": "70B3009C2A67C6AC7FB3EB7139E0E5C6513B0D828AB0D04D68ECF99F29DB9D08",
+    "bytes": 2165
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/App.xaml",
+    "sha256": "7A260C4B9E6CACC6084703EBC195727DBFF08A336E32BA18755E6666DF24A948",
+    "bytes": 838
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/App.xaml.cs",
+    "sha256": "F858886BAADD1E7305CB81BFAA5ABCAF0B911D334625333BC0C02DE96708BAC2",
+    "bytes": 2208
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/AssemblyInfo.cs",
+    "sha256": "3FAC2AF92385F676E9A941BEFD23FE38F0A5FA6167D4A3A88F07E730C5595CA3",
+    "bytes": 643
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Assets/EtpReporting.ico",
+    "sha256": "148772DE948537C2B11434607D047E9A8AC2C9870425B28C619508A69CE208F4",
+    "bytes": 3225
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Assets/EtpReporting.png",
+    "sha256": "8756435A648E046ECAF002B0D06D348A755207D63604C82554DC62BF8A2C933E",
+    "bytes": 3203
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Composition/DesktopCompositionRoot.cs",
+    "sha256": "D0C82AF127FB6A451518E55BA20B1385204A83B69EFAA5D8C0AEF5F31964EC29",
+    "bytes": 13312
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Composition/DesktopStartupCoordinator.cs",
+    "sha256": "0E2340F8F5146F1332C18C6BC970DB6E8D3E765BDB26C454BE9CC616EDAD5FB3",
+    "bytes": 2966
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Controls/KeyboardRegionNavigation.cs",
+    "sha256": "4FA347BF790BB30CA18CA23098085F91995A7CDC07728A62E1E5131001E35F18",
+    "bytes": 1073
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Controls/SelectionReasonDrafts.cs",
+    "sha256": "3995DF839BAF80510F884011A27EC14F7D211297D16DA917FB14F552E239F206",
+    "bytes": 1105
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Controls/StatusDetailsDialog.cs",
+    "sha256": "87E31C3CC7A6A24B22785069F607EAEE92885F6B8F77363C831A06C9F6809516",
+    "bytes": 1284
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Controls/TaskBodyLayout.cs",
+    "sha256": "68CE39C858C106E2D2F1BBF475F7E2DD9D4658D67A6D45988678924221059F97",
+    "bytes": 6015
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Controls/WorkspaceOperationGate.cs",
+    "sha256": "469091A936930F93BE8EAD949E727BA127F0B35537521F76C87585AE33719E14",
+    "bytes": 743
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/DailySalesReportControls.cs",
+    "sha256": "76061261121EA9F3784F0873A94AA42D141F02BE445703DD5E460D65F5C23412",
+    "bytes": 14087
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/DensitySelector.cs",
+    "sha256": "909E74EDAF326B76C6B75E684AD205AD678BE2C162B939D924725ECE619C4E6F",
+    "bytes": 1941
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/DesktopDiagnostics.cs",
+    "sha256": "E906DB7D7FC9204189DD550C233147D6978E932C071ED8721B3E92E75E558A3E",
+    "bytes": 5514
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/DesktopFriendlyError.cs",
+    "sha256": "A9B124C8CD40DCAB17652ECE727CFB2FA7EFBA3B7A614D6CEC32FA36CB7B4E1D",
+    "bytes": 1519
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Etp.Reporting.Desktop.csproj",
+    "sha256": "771DBF2A785DD303187FCC71D4618406BA1CB3FD3A6C409CA264031AF9025B2A",
+    "bytes": 1312
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/FocusedTaskLayout.cs",
+    "sha256": "511E3E7CEC35F13D3710C3497135AD61DB056F7CB9C926D060B0CA002C286AEB",
+    "bytes": 7003
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/HelpCentre.cs",
+    "sha256": "9502D53035DF8A07245D566C49DB845DAD7E9F8B74AE4A357E74BC07839F0E65",
+    "bytes": 23422
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/HelpCentreControls.cs",
+    "sha256": "F025C44386675250CF702DD3306AB95D8EEAEB6C0D8AE8DDD3324E33535A45C8",
+    "bytes": 19029
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/HelpTaskRoutes.cs",
+    "sha256": "3D6DE9CBD0915C09AA9B733E9646B0442FC61F17D35A027130786AE2B9A486E3",
+    "bytes": 1426
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/MainWindow.Shell.cs",
+    "sha256": "DDFA04DA8E806B48F7C49C94FA026A3A5DC11D92FEBF346449057526A5616161",
+    "bytes": 23572
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/MainWindow.Workspaces.cs",
+    "sha256": "231E4415D730B07F757D2C4D47926B781A2980042A8CCDFDD8EF9B34602329C0",
+    "bytes": 8214
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/MainWindow.xaml",
+    "sha256": "B5FFEBEEB4A194F393A8CC7627F6A000A39C942EB77D43BFC00F3E6034738755",
+    "bytes": 15948
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/MainWindow.xaml.cs",
+    "sha256": "9BBA08C75A9046B17F0A1EB0C00B77A67BC0D74B53D87217D816A94BA2ABABAA",
+    "bytes": 20121
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/Accounting/AccountingPresentationSession.cs",
+    "sha256": "AC4F148722DA428FDDEFE7B11DBA94E79312F9A257D1B6EC7F8E086C9ABAAFAD",
+    "bytes": 4885
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/Accounting/AccountingTaskNavigation.cs",
+    "sha256": "2B3BEEEC1A8DBB3F1FE923D5807E2FA0371E3C93C8979D8BC28874FC82F7F741",
+    "bytes": 2752
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/Accounting/AccountingWorkspaceView.xaml",
+    "sha256": "752B3D0A0D5D14C4ECEA4A7C53856611CD77B5CF9D392EFB8856F3E746BE49C7",
+    "bytes": 4298
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/Accounting/AccountingWorkspaceView.xaml.cs",
+    "sha256": "52BC092BB1BC0D760B33D0A69832962202358D758BA12E750B31432A5C37FC64",
+    "bytes": 8685
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/Archive/ArchiveContactDrafts.cs",
+    "sha256": "9654885CA3AB952A8B93EF322EBFE955902F9D06F516C8D2AF2772633D81C36D",
+    "bytes": 3679
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/Archive/ArchiveDistributionPresentationSession.cs",
+    "sha256": "36D2E5B1A540C57B8A7B2A5A7350BC03077D8E57737A08125A8617703D9B407B",
+    "bytes": 8028
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/Archive/ArchiveShareLauncher.cs",
+    "sha256": "832AABA5A0110A621C244A4C91C45DA7D39013F9CFFC9584F34AFE1635B584D2",
+    "bytes": 1212
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/Archive/ArchiveTaskNavigation.cs",
+    "sha256": "2E9CC79C015D927FA95EE0174DCF35983BB786AC90C0675BFF45CF3C02A598AF",
+    "bytes": 1766
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/Archive/ArchiveWorkspaceFeedback.cs",
+    "sha256": "E525847B3BA1E5C333E2958A5D511B6E9D39E09A329897F9C7661B6AB13B6081",
+    "bytes": 1054
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/Archive/ArchiveWorkspaceView.xaml",
+    "sha256": "A7495E79524882952CC336E3822C02E2B6BE0D06BF190BEF760F92AF54305DA4",
+    "bytes": 6571
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/Archive/ArchiveWorkspaceView.xaml.cs",
+    "sha256": "9B9FA848486C560E8455B10A348A364F12CDE3872C90C10A8F2694766B843872",
+    "bytes": 14379
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/DailyWorkflow/DailyWorkflowDrafts.cs",
+    "sha256": "A910AAFC16EB79E7C3DA761B912BA301FF468924B90CA877811B9956A192B928",
+    "bytes": 1784
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/DailyWorkflow/DailyWorkflowPresentationSession.cs",
+    "sha256": "6DDCD58C8113BEC6B775EEF069E5A15AAF238ADECB0970DE7770AF56A2530AB4",
+    "bytes": 8243
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/DailyWorkflow/DailyWorkflowWorkspaceView.xaml",
+    "sha256": "717D17AA274F3B2E6B1BA7277A271FC23371702BD69F53A8C37658509659EE8D",
+    "bytes": 12694
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/DailyWorkflow/DailyWorkflowWorkspaceView.xaml.cs",
+    "sha256": "4D33513BEA721B1ECB30ECD97C7D353C4AB488C52506AF9CA58671C08099C60E",
+    "bytes": 23226
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/Dashboard/DashboardPresentationSession.cs",
+    "sha256": "3E3B4B2A1B6AF711D98C4A36C408924DE74788FF323B72E6568D4689FE8D8327",
+    "bytes": 1912
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/Dashboard/DashboardView.cs",
+    "sha256": "EA1DE3B5D7B40B81A23104651516AEA496845F1108695B292B1153158296A0B7",
+    "bytes": 25861
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/Dashboard/DashboardViewState.cs",
+    "sha256": "F89485DB9F9701F5D8668E67E251FF4678EEE6D8610B532E617E88142367CE65",
+    "bytes": 4466
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/Help/HelpWorkspaceSession.cs",
+    "sha256": "7E382476FCE85551DD2885C15BED4605F579E981EBC4FDF7AD77AF29BE47202B",
+    "bytes": 1065
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/Imports/DesktopImportCoordinator.cs",
+    "sha256": "CFD0FF1FBA349FE1F8141A2C727896489219F72D0B361047E15FFA24A0BC3BBF",
+    "bytes": 12400
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/Imports/ImportOperationState.cs",
+    "sha256": "BC20FAEDC7652E418362E384540D0B1185984D907CF695D5622BAC4FF15EEDD4",
+    "bytes": 1943
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/Imports/ImportWorkspaceView.xaml",
+    "sha256": "69354DD8C98B1278BFD715DE4BCB845CE204E23D5EF16B809278D681EE95BF02",
+    "bytes": 4210
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/Imports/ImportWorkspaceView.xaml.cs",
+    "sha256": "6D9D813C7B395FCA36E16F65737A82B391E3BCF35958F139F14172AE786C2BBB",
+    "bytes": 14752
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/OperationsAdministration/AdministrationDrafts.cs",
+    "sha256": "60BF7332CD870CA8DA055FCAFF96D9C4EDA436A7979FBDF66CB94D148397AD03",
+    "bytes": 3154
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/OperationsAdministration/AdministrationWorkspaceView.xaml",
+    "sha256": "5B1646B8F0D2117D3B3A80D2B0379DAF3C4F5FD67E32EB32149F4B0DB138994C",
+    "bytes": 4471
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/OperationsAdministration/AdministrationWorkspaceView.xaml.cs",
+    "sha256": "BEF3287FF1767C81E942BCE5F2F5641391E5B0BAB49A86A2BC1B60B9F0CC5AB0",
+    "bytes": 6396
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/OperationsAdministration/InvestigationApprovalsWorkspaceView.xaml",
+    "sha256": "286BE6723AA925BF83C437A046F979F9A0F709EAE423A5B5BFEE4ED9FD447D0A",
+    "bytes": 3164
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/OperationsAdministration/InvestigationApprovalsWorkspaceView.xaml.cs",
+    "sha256": "2FFFBD9CD0CED148546D5DDA68F67547E3EC36C15FB2896419CC423197CE6BCD",
+    "bytes": 7671
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/OperationsAdministration/OperationsAdministrationPresentationSession.cs",
+    "sha256": "FAD609C36437F8C64A76C54A763B7C69E91008949996F6A60690593792705271",
+    "bytes": 9700
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/OperationsAdministration/OperationsAdministrationWorkspaceContracts.cs",
+    "sha256": "AD4A89CC803A9F26F38FD1F4E81C1F865AD6C97606DFBB262001A5C89E9E756F",
+    "bytes": 441
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/OperationsAdministration/OperationsTaskState.cs",
+    "sha256": "9457389D58CA7A0B99B078F88F2BC0B9CBFA87AA384231B4F420F3D9296185F4",
+    "bytes": 6114
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/OperationsAdministration/OperationsWorkspaceView.xaml",
+    "sha256": "AC0DBE77C62F6376C9572B71E5DEC4641710778DBFB868050DD33CF6F887410A",
+    "bytes": 6631
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/OperationsAdministration/OperationsWorkspaceView.xaml.cs",
+    "sha256": "DF447BF968834FF0259FE0C06B3B07B9B8182E13D30DDC81866322029A238742",
+    "bytes": 14254
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/Registers/RegistersPresentationSession.cs",
+    "sha256": "0AECE23F52C8A0E1B891005CDD0FF42EE5CE539C7B7C1D87697D1385B2FEBD77",
+    "bytes": 1453
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/Registers/RegistersTaskNavigation.cs",
+    "sha256": "1D677C64DE1B72A02BE02B54E8CE7F1A0CEE0EF5ACA080A3F0DEA3C7259E9C16",
+    "bytes": 2467
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/Registers/RegistersWorkspaceView.xaml",
+    "sha256": "E8981C7017E20E4AE4FF644862691D73D2FC89A253842D0C36DDA1BB7F2D06FC",
+    "bytes": 4416
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/Registers/RegistersWorkspaceView.xaml.cs",
+    "sha256": "95064C326B4BEB68E961BC81BA3159001D6B86141BC480C9F0A6202048E530F9",
+    "bytes": 5978
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/Reports/DailySalesFocusedView.cs",
+    "sha256": "651869397BEEA3293B583132DB37F278A14A4278A206E3E06669B087F59DB0E8",
+    "bytes": 1227
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/Reports/FavouriteReportsView.cs",
+    "sha256": "886752252B4617895E2FB953BEE7482B4D6E7544FA6EA7D347B6C2B88E12B77F",
+    "bytes": 2108
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/Reports/ReportDetailFilter.cs",
+    "sha256": "8564ED9CBF3912A520A2347C02976BE6DC87E2F1A22A34FD39499842150CDEA4",
+    "bytes": 1820
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/Reports/ReportExportCompletion.cs",
+    "sha256": "67408510F7C3638D6860F0883F470322E60AA010723FBBB18DB51913A9BF3F3F",
+    "bytes": 1895
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/Reports/ReportExportCoordinator.cs",
+    "sha256": "0ED8256E2C782B850CDFC30B5CF5B70D3668FF29A19437B9D07077C9599AB27B",
+    "bytes": 7399
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/Reports/ReportPresentationControl.cs",
+    "sha256": "A92A6EBF68F60D8989F686D95C582A3DC7FC11A9350CCE91EDAAF95CA2BD7199",
+    "bytes": 11250
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/Reports/ReportPresentationSession.cs",
+    "sha256": "B8162652A07E8FD97691B10D69C685BF6AF29B8020CAF73F9C5C73D7A64B334F",
+    "bytes": 2744
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/Reports/ReportScopeDialog.cs",
+    "sha256": "8692D024708403EC4719CE0526CDCBFDBBCEFA624E314F560A8F96D74F15D028",
+    "bytes": 2271
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/Reports/ReportTaskScope.cs",
+    "sha256": "FB141D144C50B0F25E0319B7EEB1DB6C994DF45EC96BA1C4DF7121C4F451EAEA",
+    "bytes": 422
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/Reports/ReportWorkspaceSession.cs",
+    "sha256": "BCF5234BD566B3F0B9B0C073C6CD9955451832FF10C500C24A0A45EC3887A0D2",
+    "bytes": 4611
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/Reports/ReportsWorkspaceView.xaml",
+    "sha256": "35B5A9DB042EF4853443F487F07209B80C99AB5332C4DDEDE143F5AA48D7C1AC",
+    "bytes": 9089
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/Reports/ReportsWorkspaceView.xaml.cs",
+    "sha256": "5CBADC7C6447C47EC6CA2FACE442253F5CDF505FBC6FE8596F560D7C0A4509C0",
+    "bytes": 43978
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/Settings/ApprovedProfilesView.cs",
+    "sha256": "ACEF29E2F4F9F298DD7B90DCA9C3152247F7A959C584E8EAF5A829A86B9BAD18",
+    "bytes": 1069
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/Settings/ConnectionStringValidation.cs",
+    "sha256": "24258249047751C88FC2372D79642F0E877115EEA678F9B6029D920818769F08",
+    "bytes": 1763
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/Settings/DesktopConnectionSettings.cs",
+    "sha256": "DCE9B707B0AB515A814C343FAAF2E65135B36FED05E752800723BF87B2CE5B07",
+    "bytes": 124
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/Settings/DesktopConnectionState.cs",
+    "sha256": "98200D89630C9AA2B4E1BEFE85A3D66844242114753AB903ED51BFBA2AD4E01D",
+    "bytes": 828
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/Settings/DesktopSettingsPresentationSession.cs",
+    "sha256": "A6AB239525F287113CF6E5B9C9B35BFFD003F26210A37E4412328140E2D94FAE",
+    "bytes": 6741
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/Settings/DesktopSettingsStore.cs",
+    "sha256": "F7ECA772F56D749C298F3F820EEEAC62E094939C8CEE5BFBDD07AB951C020F7A",
+    "bytes": 4666
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/Settings/GeneralPreferencesView.cs",
+    "sha256": "95081DBFCC208B0132BA77537C08404F74A83A8B7598B0E6793859D45DC02CF5",
+    "bytes": 2977
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/Settings/SettingsOperationCompletion.cs",
+    "sha256": "BE495238A1D37F48281CADE87A300EA6FEAD95C0476D62163722EAEDCF3AAA4A",
+    "bytes": 1191
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/Settings/SettingsWorkspaceView.xaml",
+    "sha256": "7B4619E747BF0E1B33934A2DD8433BB4C9F6D82B0665EAFF135BC4579E600466",
+    "bytes": 4511
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/Settings/SettingsWorkspaceView.xaml.cs",
+    "sha256": "2ED694AA0BEC584977F5FBE1093ADE0CFECF87FDE0B28BFF7AB7D72A0D9202A5",
+    "bytes": 13160
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/SourceInbox/SourceDocumentLauncher.cs",
+    "sha256": "1CBEB942560A539C001E3B25625EA026E8ED8A21B35388BBE9D2C77398B4B4E0",
+    "bytes": 1274
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/SourceInbox/SourceInboxPresentation.cs",
+    "sha256": "0DA7F9D0B9F9A7B1AA24B8DC14E3DD9B909E30A2EF841AF3E8BF8AD677003B5B",
+    "bytes": 1266
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/SourceInbox/SourceInboxWorkspaceView.xaml",
+    "sha256": "F566860AECCB6FF8D39BFB1D10AF9990109B7F407059283730B694DD7E7F8CC0",
+    "bytes": 4839
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Modules/SourceInbox/SourceInboxWorkspaceView.xaml.cs",
+    "sha256": "0E1672118655D7DF7B1B1FE1FB94AEA7C4C46678306333FF42323FABE9ABB1F0",
+    "bytes": 10507
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/PowerShellOperationsService.cs",
+    "sha256": "80A07983C37DA31FA24EE8620E5BF74A8E7ADA8885FE5F3168E1C3107E561F8D",
+    "bytes": 3877
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/ReportActionMenu.cs",
+    "sha256": "629655B76D89A87442AE781D2F3388807FB9756BF1575AF4D53EEC68978AC22C",
+    "bytes": 1559
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/ReportPreviewScope.cs",
+    "sha256": "42C8BD6233CF98D388315BD36BA57700B94C7921C06A9306BB568A71699C2D6C",
+    "bytes": 136
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/ReportTaskAliases.cs",
+    "sha256": "61691E8DCAB7C097706CEF8FC185A04E8AB792F4570FE52C7911BDF5FD95B6E1",
+    "bytes": 2001
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/ReportWorkspaceControls.cs",
+    "sha256": "ED5B92D3B6F58ED61D49F0E560A60EF8A06DAFB957D82CD5A937D6C2CDBCEB77",
+    "bytes": 27550
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Shell/DraftNavigationDialog.cs",
+    "sha256": "45BB8829C10839AB4A1526B943D672FF02FDE6F2FEA8D8A9185627864A58FC0F",
+    "bytes": 2359
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Shell/Navigation/IShellNavigationService.cs",
+    "sha256": "9FB8A63E10138E2C49043511604E845801712E84FAC7C26E1623140731DE6DB0",
+    "bytes": 406
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Shell/Navigation/NavigationDecision.cs",
+    "sha256": "E4B850463D4CB75A990C9D2B12E1660A160D19BFFC60CC74F2EF3440B2AACBAD",
+    "bytes": 512
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Shell/Navigation/ShellAccess.cs",
+    "sha256": "22ADC655242BBF772104ACA5AD4AC24D4B66FC1F0C57D8D372DCFC3F17D40CEC",
+    "bytes": 487
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Shell/Navigation/ShellNavigationService.cs",
+    "sha256": "5D9C82B0EAE318A4D19275F2039D03381393FC175CE74438C73819DBA865F4AA",
+    "bytes": 4078
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Shell/Navigation/ShellRouteRegistry.cs",
+    "sha256": "95D160345033FAD774236930ABC03F5A4D40DD1558FE3C0FFF3CE344402FD654",
+    "bytes": 4987
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Shell/Navigation/WorkspaceModuleOwnershipRegistry.cs",
+    "sha256": "819A899438581823F835665AD98E29ECE7E263078BCFFDDAF2ED564C06E751EE",
+    "bytes": 3275
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Shell/Navigation/WorkspaceRoute.cs",
+    "sha256": "A9F5A02225EAEE86561473F78DC81DDA4A6DB0529172ECB572DBEFAD0CDD7B92",
+    "bytes": 1495
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Shell/PageSearch.cs",
+    "sha256": "985DA6FF32E8E0326198DA4CDFBB3136C85450808CF0CB3D59FC611DDA7D023A",
+    "bytes": 5813
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Shell/ShellPresentationMetadata.cs",
+    "sha256": "C1F771422AD8F5BB88DBAFA7E413BF1B6A65EAA2C11D037B228772799A20EA94",
+    "bytes": 667
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Shell/ShellViewModel.cs",
+    "sha256": "DDFFA24F73B8FDC3679A6ADD75532675F57C4D7C20A6FC0F54DC48721CC645AF",
+    "bytes": 3126
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Shell/TaskNavigator.ReportActions.cs",
+    "sha256": "2ADC93DE138EE67ECCC321028CFBF0582ACC5124E86EDB83DF57F526C59AAD60",
+    "bytes": 2962
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Shell/TaskNavigator.cs",
+    "sha256": "3CF9796CE0E4B64C8471CCA200EB66EE694315AEB0F6B11AEB8E6166B59F063B",
+    "bytes": 32882
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/ShellNavigation.cs",
+    "sha256": "D183E0760ABD522DED42081A8C507AB51C2A589F3E18CABDD1E87AA7D33820D2",
+    "bytes": 3200
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/TaskNavigation.cs",
+    "sha256": "5150F5C2D58564E58C5C46883DDFF1F58FA554E22BEF96841A23A764BBEB3E80",
+    "bytes": 9064
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Themes/Colors.xaml",
+    "sha256": "724304ED0F24DF716BEF6094ED04139231CC32786A89E7FCAA6AE51306144FD8",
+    "bytes": 3085
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Themes/Controls.xaml",
+    "sha256": "9EE25B697C207C023241D94E1467956EEBEC20C418E1656CA317206CD5B6DAC6",
+    "bytes": 16004
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Themes/Controls.xaml.cs",
+    "sha256": "665BBCA01478C6AF9ECB2EAEECC3D68D6DA75E958579D17BB346923D6238CD54",
+    "bytes": 1295
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Themes/Icons.xaml",
+    "sha256": "194DE8388C6514B166C676353958292B4117E219F405F2A1673631E4D37B9AA5",
+    "bytes": 1665
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Themes/Spacing.xaml",
+    "sha256": "9DA7987C2533B2BCF643181F114F3F6ECF47664B331FB7A1E90546D062AE0CC8",
+    "bytes": 1192
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/Themes/Typography.xaml",
+    "sha256": "D616FB848E1EF0DD09863BF4EA5EBA72ADFA38D604C12AEA11F63AD2468AA04E",
+    "bytes": 2486
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/UiControls.cs",
+    "sha256": "CE6FC3E58C9418032C52133342D95436AF8619BCD268AFA322B44FEC40D68262",
+    "bytes": 7870
+  },
+  {
+    "path": "src/Etp.Reporting.Desktop/UiNavigation.cs",
+    "sha256": "3EC2BD9B5115D2F411449A0A202EADC70A116733D42C3BA69A186C8589C54072",
+    "bytes": 14329
+  },
+  {
+    "path": "src/Etp.Reporting.Domain/Etp.Reporting.Domain.csproj",
+    "sha256": "61E3F2D043E37F0DB4BE1D8083DD31BEBBFBB8FDE2CF027327DB2556C16BC385",
+    "bytes": 219
+  },
+  {
+    "path": "src/Etp.Reporting.Domain/Imports/ImportProfile.cs",
+    "sha256": "9E9AC0F3AA7F67C4FFC0FC290659114471C7A13B619B9477A1CEA1EA5C5F4685",
+    "bytes": 4890
+  },
+  {
+    "path": "src/Etp.Reporting.Domain/Imports/SourceLineage.cs",
+    "sha256": "C67902FE6BFC8EEB6DAF955FEF579074428046AD9CCB59A9E6DEE49142EC3F18",
+    "bytes": 1061
+  },
+  {
+    "path": "src/Etp.Reporting.Domain/Periods/BusinessReportingPeriods.cs",
+    "sha256": "0E5350EF3D589CFC8A9FB664731EF0677A3CE2F2DBD3F41649D2213F20C779AC",
+    "bytes": 1234
+  },
+  {
+    "path": "src/Etp.Reporting.Domain/Periods/ComparisonPeriods.cs",
+    "sha256": "02118F8EE9835F5155F693080BBC4DF8E2BB07340A94404102719ACC6502080F",
+    "bytes": 682
+  },
+  {
+    "path": "src/Etp.Reporting.Domain/Primitives/Money.cs",
+    "sha256": "8E8206F9720194127EB877D1A2E52D3548BA9F2C43162FB841F97ACCC3C44171",
+    "bytes": 1346
+  },
+  {
+    "path": "src/Etp.Reporting.Domain/Primitives/Quantity.cs",
+    "sha256": "B3C7F9C20F8DD6753967FC8ADCF1534D6CE02FB37DB8E8316C1689C30B1461B5",
+    "bytes": 822
+  },
+  {
+    "path": "src/Etp.Reporting.Domain/Sales/SalesContracts.cs",
+    "sha256": "5FF71978069338B84C8500385791072FA86D4AB0C77F21F1D53755D108975532",
+    "bytes": 2149
+  },
+  {
+    "path": "src/Etp.Reporting.Domain/Stock/StockBalanceContracts.cs",
+    "sha256": "9A7EBACF16CC817BA716B5AF6A00C5DFB3F57D9BA54A4C8509EF5758018BA706",
+    "bytes": 499
+  },
+  {
+    "path": "src/Etp.Reporting.Import/Batch/BatchImportCoordinator.cs",
+    "sha256": "A99F9790EA1FD516551B30EF7A118C7B5CA564468155E4A79554DDC9E183FFC6",
+    "bytes": 6727
+  },
+  {
+    "path": "src/Etp.Reporting.Import/Batch/BatchImportSource.cs",
+    "sha256": "C75A1FEAA980A44D2D05BB218CED04C149B94D11BE5735010977BE8F3F9EFE93",
+    "bytes": 5409
+  },
+  {
+    "path": "src/Etp.Reporting.Import/Batch/ImportPathPolicy.cs",
+    "sha256": "F56D361DB5F3043EC860530009867D572A82D67DA056A9CBC86B97412153FED4",
+    "bytes": 6231
+  },
+  {
+    "path": "src/Etp.Reporting.Import/Conversion/TypedCellConverter.cs",
+    "sha256": "E94D4925B2C6E9182BB88BA45144CF4CB040C0862E5518E9F19462E669B013D6",
+    "bytes": 4428
+  },
+  {
+    "path": "src/Etp.Reporting.Import/Diagnostics/ImportDiagnostic.cs",
+    "sha256": "9A74FC9FA52DAEA5613CECCC7A75BE766811F3C0531E1CD6D24A8A9FB385715B",
+    "bytes": 321
+  },
+  {
+    "path": "src/Etp.Reporting.Import/Etp.Reporting.Import.csproj",
+    "sha256": "7DBF413FD955BDFFEC726E06DD09E38DE1E29E31CF0DD6DA38E9223DE7A9C341",
+    "bytes": 405
+  },
+  {
+    "path": "src/Etp.Reporting.Import/Preflight/ImportPreflight.cs",
+    "sha256": "F16B551099A564795E1BD0D480677C92B538DAD35E3712789B9F1761D810A966",
+    "bytes": 5892
+  },
+  {
+    "path": "src/Etp.Reporting.Import/Preflight/MatchedImportEnvelope.cs",
+    "sha256": "CD24F6B45900E70AEABE0D9C7D8B25E0AE63721F2C8A7AC96862CAD5F3AE5D70",
+    "bytes": 5025
+  },
+  {
+    "path": "src/Etp.Reporting.Import/Preflight/WorkbookLayoutNormalizer.cs",
+    "sha256": "A589E5C7E269336361F0CBDF5FD1774F06211E2D0576A78CDDBF3DA4714E1632",
+    "bytes": 2583
+  },
+  {
+    "path": "src/Etp.Reporting.Import/Profiles/ApprovedImportProfileRegistry.cs",
+    "sha256": "96D394EBADDA75305FCC7F76D44671EE98F7F1D5604766EEE1647B67AF137487",
+    "bytes": 1188
+  },
+  {
+    "path": "src/Etp.Reporting.Import/Profiles/ImportProfileMatcher.cs",
+    "sha256": "F70271698D07801C5EDCD4BE71169BB450F5395C291E2AA8F29BCB27459C4674",
+    "bytes": 1261
+  },
+  {
+    "path": "src/Etp.Reporting.Import/Profiles/RetailSalesProfiles.cs",
+    "sha256": "F8EB8C2AA874F4AA2BDDD81323C0866BB1A6761EAE727BFFB3C9651F474C48E5",
+    "bytes": 9633
+  },
+  {
+    "path": "src/Etp.Reporting.Import/Profiles/StockImportProfiles.cs",
+    "sha256": "2E47BE8F1F5E2BB873ED963ED9B66A48F702B98527E0B7E397B0734A0E8B1CF4",
+    "bytes": 3091
+  },
+  {
+    "path": "src/Etp.Reporting.Import/Staging/ImportRowStager.cs",
+    "sha256": "8FC03B7C0A73D97C6FAAB58C10C66C9840FE87285212D1079C7DAF5B3BAB79CC",
+    "bytes": 2243
+  },
+  {
+    "path": "src/Etp.Reporting.Import/Staging/R022PersistenceProjection.cs",
+    "sha256": "AA81F3AFB1D927D83886917CD52301DAC40BADCC6AD5B8E650D5865768BDB6AF",
+    "bytes": 3648
+  },
+  {
+    "path": "src/Etp.Reporting.Import/Stock/StockWorkbookParser.cs",
+    "sha256": "12AB602736053D90D1CEFBC314F84EAF61088765A938A980FB20F0059F861D64",
+    "bytes": 11363
+  },
+  {
+    "path": "src/Etp.Reporting.Import/Workbooks/OpenXmlWorkbookReader.cs",
+    "sha256": "EB0475DEBEA8636D60022D06B8DCE42A6B3F15B9633368186E0003C7CCAFB0B8",
+    "bytes": 7225
+  },
+  {
+    "path": "src/Etp.Reporting.Import/Workbooks/WorkbookContracts.cs",
+    "sha256": "CECDFEC037DB9E280AC8CC461F73EE74DC0F931614BDF021B8381F2CA4186CB7",
+    "bytes": 644
+  },
+  {
+    "path": "src/Etp.Reporting.Infrastructure.SqlServer/AccountingAndSharingServices.cs",
+    "sha256": "8E44C104933D18228C560FE9D2F82C45391F6110979FF4E52BF55AB3FFE45CDF",
+    "bytes": 8509
+  },
+  {
+    "path": "src/Etp.Reporting.Infrastructure.SqlServer/AutomatedOperationsService.cs",
+    "sha256": "0E8F8BD3C4D27431E1BFCE9AB22FFD34544F2CCE6277C197A8A434C7D3FE208E",
+    "bytes": 13755
+  },
+  {
+    "path": "src/Etp.Reporting.Infrastructure.SqlServer/ConnectionHealth.cs",
+    "sha256": "20706E1E38F12AC43775E875EC6485D6B4DA1128C660C0D310795BB82ED1B39F",
+    "bytes": 1727
+  },
+  {
+    "path": "src/Etp.Reporting.Infrastructure.SqlServer/DailyReportingPackService.cs",
+    "sha256": "F8590C9A1BE0ED42A851C0C961891EDB793E857A0A3A27B5DDBD631487CE5B7B",
+    "bytes": 21282
+  },
+  {
+    "path": "src/Etp.Reporting.Infrastructure.SqlServer/DailyReportingWorkflowRepository.cs",
+    "sha256": "8E52500F211514751D8AAEB886A6A3B17AECC3859B299BE9F0D7A247D4327DDB",
+    "bytes": 13606
+  },
+  {
+    "path": "src/Etp.Reporting.Infrastructure.SqlServer/DatabaseBootstrapper.cs",
+    "sha256": "250483B5FCA864BFA43870F765AE79C6A92787863742D2E02857ED365719CA74",
+    "bytes": 2092
+  },
+  {
+    "path": "src/Etp.Reporting.Infrastructure.SqlServer/DatabaseOperationalHealth.cs",
+    "sha256": "3F6D606E2B354E12EE5F9185524D0FE258819EC2ADAB12008EFEC2A53041E823",
+    "bytes": 5566
+  },
+  {
+    "path": "src/Etp.Reporting.Infrastructure.SqlServer/DocumentIntakeService.cs",
+    "sha256": "AC67499CAB878B9920FE892704154B44182150238D2EE11D3CF6EB0DD60B42CA",
+    "bytes": 9004
+  },
+  {
+    "path": "src/Etp.Reporting.Infrastructure.SqlServer/Etp.Reporting.Infrastructure.SqlServer.csproj",
+    "sha256": "98F513657C882D87F56FE064B045F5D5146F0FDB1D5B27B2A0D2C8266D7877EE",
+    "bytes": 685
+  },
+  {
+    "path": "src/Etp.Reporting.Infrastructure.SqlServer/Migrations.cs",
+    "sha256": "85C736626A34E02448831D131899DCEE06AA6F23471C2C88BDD92ACF21F4DA6A",
+    "bytes": 11980
+  },
+  {
+    "path": "src/Etp.Reporting.Infrastructure.SqlServer/OperationalAuditRepository.cs",
+    "sha256": "348C339D70901FA1E8AAFDA7223FFBC662535283B57CA542C4C480F73859A00F",
+    "bytes": 4583
+  },
+  {
+    "path": "src/Etp.Reporting.Infrastructure.SqlServer/OperationalCompletionRepository.cs",
+    "sha256": "1F4646C795DBF4E372F643F878948D57BB6A86FC88E4E5F596569A6AE2A43CAC",
+    "bytes": 16047
+  },
+  {
+    "path": "src/Etp.Reporting.Infrastructure.SqlServer/OperationalReportRepository.cs",
+    "sha256": "ADC34ABD63344D4FE18985210876991B364E43C565E6C0E5EBD457C2CB8516B2",
+    "bytes": 47087
+  },
+  {
+    "path": "src/Etp.Reporting.Infrastructure.SqlServer/OperationalStatusRepository.cs",
+    "sha256": "DB009444CF34272CFDE4039E5F41DD829AE96871559D67AD3D1D09A4CD506B31",
+    "bytes": 2915
+  },
+  {
+    "path": "src/Etp.Reporting.Infrastructure.SqlServer/PersistenceContracts.cs",
+    "sha256": "C6291082456C984CDCBABBAA97C7E800E383EAA827FD57A439805AA54F579570",
+    "bytes": 6683
+  },
+  {
+    "path": "src/Etp.Reporting.Infrastructure.SqlServer/Phase2OperationsRepository.cs",
+    "sha256": "2402DC362BF106A45599CCD2E0045174817434080D8D0858A8935C81B2F2E45C",
+    "bytes": 45015
+  },
+  {
+    "path": "src/Etp.Reporting.Infrastructure.SqlServer/ProductisationModels.cs",
+    "sha256": "61311AE4F32FA5592D3D914B3C0B7665FD43FEBBDCBCA7E90CF1E5CD544AC93F",
+    "bytes": 4280
+  },
+  {
+    "path": "src/Etp.Reporting.Infrastructure.SqlServer/ProductisationOperationsService.cs",
+    "sha256": "E83D2E402E9733B6DF7455BE876CE7A84538DE8B02E631AC7D7B3408AAD17160",
+    "bytes": 4535
+  },
+  {
+    "path": "src/Etp.Reporting.Infrastructure.SqlServer/ProductisationRepository.cs",
+    "sha256": "4A9182488189566EDC6C140F1AD3C4C88F2DC19920025D524BCD4C878344AF78",
+    "bytes": 56693
+  },
+  {
+    "path": "src/Etp.Reporting.Infrastructure.SqlServer/Properties/AssemblyInfo.cs",
+    "sha256": "3EEECD0E86C76BC177FDC60D4AF88E642577F277FD35F97B93412EFA023A1B50",
+    "bytes": 104
+  },
+  {
+    "path": "src/Etp.Reporting.Infrastructure.SqlServer/R022SqlImportOrchestrator.cs",
+    "sha256": "E27BFD30E3109D748C3507BCA2E92B0DE2F92B70257401AB46F02E29BDFED806",
+    "bytes": 4566
+  },
+  {
+    "path": "src/Etp.Reporting.Infrastructure.SqlServer/R025SqlImportOrchestrator.cs",
+    "sha256": "BAC3944BE0A9DB24C22799F871DDB19A4AF3DC6D4131AEF25E6EA9494D7C2468",
+    "bytes": 6029
+  },
+  {
+    "path": "src/Etp.Reporting.Infrastructure.SqlServer/ReportingTenderVarianceDiagnostic.cs",
+    "sha256": "A41B09BD72C5DFDEA47BD4EA999324F4EF6CC5D6D36677E3082DD9E1FC5AFB98",
+    "bytes": 3273
+  },
+  {
+    "path": "src/Etp.Reporting.Infrastructure.SqlServer/RetailEnrichmentSqlImportOrchestrator.cs",
+    "sha256": "43FF9A994660B43DD6C438ACB36A412D08DD19A5027FE6DF961F4C1C2A6871CA",
+    "bytes": 12447
+  },
+  {
+    "path": "src/Etp.Reporting.Infrastructure.SqlServer/SqlAdapterConnection.cs",
+    "sha256": "BB368F9D09DB6B63BDA59DF61C2CDCD69AE63CA884A829255640A3D97C64B397",
+    "bytes": 1116
+  },
+  {
+    "path": "src/Etp.Reporting.Infrastructure.SqlServer/SqlServerAccessSessionQuery.cs",
+    "sha256": "BFC8987C10EDBDE631ED15C5F7459559EB0BFCFA5C3AA998FD8DFEBB05B836F5",
+    "bytes": 1362
+  },
+  {
+    "path": "src/Etp.Reporting.Infrastructure.SqlServer/SqlServerAccountingService.cs",
+    "sha256": "E67522B8FD141E3FA7F37FF242F2C483725DBCB65267FD6E3D5CECD1BF917C4F",
+    "bytes": 16614
+  },
+  {
+    "path": "src/Etp.Reporting.Infrastructure.SqlServer/SqlServerAdministrationService.cs",
+    "sha256": "01418F18FFAA8E1ADB9BE0673322090C23C77424FE863BD6B92B7A17DA6924CE",
+    "bytes": 8492
+  },
+  {
+    "path": "src/Etp.Reporting.Infrastructure.SqlServer/SqlServerApplicationReportQuery.cs",
+    "sha256": "78CADEB708F7E4ED3EBA6CC6B32E535BE5C2A2954023B5610D571B53A41E4C3D",
+    "bytes": 12080
+  },
+  {
+    "path": "src/Etp.Reporting.Infrastructure.SqlServer/SqlServerDailyWorkflowService.cs",
+    "sha256": "B73BC33FCE9DE9A207FE02812837FD5A1DD4DE0883A7C053AE1B6141C866B297",
+    "bytes": 11213
+  },
+  {
+    "path": "src/Etp.Reporting.Infrastructure.SqlServer/SqlServerDashboardQuery.cs",
+    "sha256": "53EC6AC64C7BA37DA8964602486C6FBB803C6ECB97D0ABA3652DF142879C8399",
+    "bytes": 4257
+  },
+  {
+    "path": "src/Etp.Reporting.Infrastructure.SqlServer/SqlServerDatabaseLifecycleService.cs",
+    "sha256": "9CE7AE3D139287811D75426C89673B77A2F8ACE0B848ECEE4CE2C180CD5C2391",
+    "bytes": 4153
+  },
+  {
+    "path": "src/Etp.Reporting.Infrastructure.SqlServer/SqlServerDigitalRegisterService.cs",
+    "sha256": "B48DA56DF91C0076622CA37F498081A7405EBDFE65CC0E634AE97C9DFEC3DE32",
+    "bytes": 2805
+  },
+  {
+    "path": "src/Etp.Reporting.Infrastructure.SqlServer/SqlServerDistributionServices.cs",
+    "sha256": "B8EFA291B73073CBCF2AD3A0A5A9FAA5B1AB2D1CFA46C9E74ED1516F493CD0B4",
+    "bytes": 8139
+  },
+  {
+    "path": "src/Etp.Reporting.Infrastructure.SqlServer/SqlServerImportPersistenceUseCase.cs",
+    "sha256": "9C6DE4433C59525040CAA8086B6FBE5EF2161B24DF14B80969345E1F573669B3",
+    "bytes": 8576
+  },
+  {
+    "path": "src/Etp.Reporting.Infrastructure.SqlServer/SqlServerImportProfileResolver.cs",
+    "sha256": "E7E315913A09894E33D41F074BA89C7A0F0854BB190233C5C9E6650B79BE1CD7",
+    "bytes": 2664
+  },
+  {
+    "path": "src/Etp.Reporting.Infrastructure.SqlServer/SqlServerOperationsAdministrationService.cs",
+    "sha256": "9EB56F83C506F21CB946BAB6D876C17B7232F412FFD64D29C422FB2A5D20DEF8",
+    "bytes": 13754
+  },
+  {
+    "path": "src/Etp.Reporting.Infrastructure.SqlServer/SqlServerReportArchiveQuery.cs",
+    "sha256": "B43C51F5828C7D2FD8DF6EA0F378F79A3A5FB485534CDF070937C10C90147E8F",
+    "bytes": 2656
+  },
+  {
+    "path": "src/Etp.Reporting.Infrastructure.SqlServer/SqlServerReportingQueryRepository.cs",
+    "sha256": "7D58721BCE4053DE1245D98EB7BE201445BEFB569A144F6D98960782CEB6A1B9",
+    "bytes": 9994
+  },
+  {
+    "path": "src/Etp.Reporting.Infrastructure.SqlServer/SqlServerRepositories.cs",
+    "sha256": "4DB73D259F857CC582429B62297C8E364B6399E88A564DAB6E6B25E4890B495D",
+    "bytes": 18377
+  },
+  {
+    "path": "src/Etp.Reporting.Infrastructure.SqlServer/SqlServerSharingContactsService.cs",
+    "sha256": "171AA5799CB232CC2E4525D033C7782EFF76CF3684B40276C073B26017290982",
+    "bytes": 2283
+  },
+  {
+    "path": "src/Etp.Reporting.Infrastructure.SqlServer/SqlServerSourceInboxService.cs",
+    "sha256": "88D1116C345C844C288156CDFB69974213ED7D9A93772D38B034076ADD6C897D",
+    "bytes": 6876
+  },
+  {
+    "path": "src/Etp.Reporting.Infrastructure.SqlServer/StockImportOrchestrator.cs",
+    "sha256": "D4FB199C9993CA16BF84B780A476A2D930BD8791847011676CAD37258CA10A37",
+    "bytes": 3972
+  },
+  {
+    "path": "src/Etp.Reporting.Reporting/CashBalanceReconciliationService.cs",
+    "sha256": "2E300E2463D2BE9C387376D79F3FC693B0550FD27571EA9A0B53B428FC67189F",
+    "bytes": 1900
+  },
+  {
+    "path": "src/Etp.Reporting.Reporting/ControlReconciliationService.cs",
+    "sha256": "214DA54099F518852F5B3F348B4F10FBE4BEB11397E0FAB1890998ABD42C0CF1",
+    "bytes": 3898
+  },
+  {
+    "path": "src/Etp.Reporting.Reporting/DailySalesReportDocument.cs",
+    "sha256": "F79E88FCD47B34B688DB502FCDBE719BB2EC86A29700A830FB5172B997807EE2",
+    "bytes": 9610
+  },
+  {
+    "path": "src/Etp.Reporting.Reporting/DailySalesReportPdfExporter.cs",
+    "sha256": "4272BBB9867037ABE7C706ABD89F30DC93AF84850494D89D5F32D39B7F17CBD3",
+    "bytes": 12457
+  },
+  {
+    "path": "src/Etp.Reporting.Reporting/Etp.Reporting.Reporting.csproj",
+    "sha256": "D50E7DF6C8A084511B27612372A6773FFF81FDEE899DCAD3C90CA8966CE313CC",
+    "bytes": 379
+  },
+  {
+    "path": "src/Etp.Reporting.Reporting/ManagementMetricEngine.cs",
+    "sha256": "50158963EC50ECAB6086BCCFC9C122CE6056092ECD5603B616BE95F123B6A928",
+    "bytes": 3158
+  },
+  {
+    "path": "src/Etp.Reporting.Reporting/OpenXmlReportExporter.cs",
+    "sha256": "6E438E9BF588C66CF20C5BEE5523D70A2AB52248786A73275176CD166A3ECECB",
+    "bytes": 7382
+  },
+  {
+    "path": "src/Etp.Reporting.Reporting/ProductReportVisualClassification.cs",
+    "sha256": "71B6C9F1FFEEDBE799ECAEFEED927263BBEE9298AB19579DD481170FD2E91746",
+    "bytes": 3282
+  },
+  {
+    "path": "src/Etp.Reporting.Reporting/ReportDefinition.cs",
+    "sha256": "A1EF0769C5D35B17E2D1B6DB59B7DD356A2D2F84B9E0B2E44354BC80EA911218",
+    "bytes": 6750
+  },
+  {
+    "path": "src/Etp.Reporting.Reporting/ReportExecutionContracts.cs",
+    "sha256": "14370270D6B2B58C5E1B13A680CBE13FBA15462E2B258A4FFFBE45BFFD2D1292",
+    "bytes": 1259
+  },
+  {
+    "path": "src/Etp.Reporting.Reporting/ReportPackExporters.cs",
+    "sha256": "11EFCAF6B403B69E0C889C81B3F6EB5A5D00177DCD64622A20F966B880E571D7",
+    "bytes": 17155
+  },
+  {
+    "path": "src/Etp.Reporting.Reporting/ReportPackageService.cs",
+    "sha256": "B4931C907183E6859B56C2556975EAE31126372D2CF09FC5111BDA2C6C118FBA",
+    "bytes": 4637
+  },
+  {
+    "path": "src/Etp.Reporting.Reporting/ReportSourceRegistry.cs",
+    "sha256": "4A8D1FF54E6FF5A7897EDDC0438486DD7477A460E9FD87EE22CF6E947CB352E2",
+    "bytes": 5493
+  },
+  {
+    "path": "src/Etp.Reporting.Reporting/ReportingQueryContracts.cs",
+    "sha256": "44F36597D4CF9F863F1127EB09D4E6C15C65816B3E10C106C2B6CE5CE28443D6",
+    "bytes": 3390
+  },
+  {
+    "path": "src/Etp.Reporting.Reporting/RetailReportingPolicy.cs",
+    "sha256": "42910E352841ECF314D5CC6466BC397BDFC1242E729D1BC576254C1694F50282",
+    "bytes": 1375
+  },
+  {
+    "path": "src/Etp.Reporting.Reporting/SalesReportingService.cs",
+    "sha256": "5BC4CB50C625B1F8E049E807C1D99662BA30A8DA82567E28125603165C344FCA",
+    "bytes": 4516
+  },
+  {
+    "path": "src/Etp.Reporting.Reporting/SimplePdfReportExporter.cs",
+    "sha256": "B637AE8E82D9EB7C44F6F11BAAC90D853B04C8B19A9BE7CBE178E09B39B14511",
+    "bytes": 6291
+  },
+  {
+    "path": "src/Etp.Reporting.Reporting/SqlBackedReportingExecutor.cs",
+    "sha256": "D3A62E76BD5E88A1B41DFFF65A55477DA7FD029FC48C6B11A503DD6E4D73704A",
+    "bytes": 4558
+  },
+  {
+    "path": "src/Etp.Reporting.Reporting/StockReconciliationService.cs",
+    "sha256": "F147CFE5D90ACB9C145533A222CDF7BA7876D9A364D59461A7C91132066D4EBA",
+    "bytes": 4290
+  },
+  {
+    "path": "src/Etp.Reporting.Reporting/TenderVarianceDiagnosticService.cs",
+    "sha256": "07279AC0A5A8F957B2948A7F5B3C4587D621E95304357D88FF63447C0CE0ABF9",
+    "bytes": 2810
+  },
+  {
+    "path": "src/Etp.Reporting.Reporting/VisualReportExporters.cs",
+    "sha256": "F55E56C51E38AFCEFB4374C72DB238AA12D635423C7F7DB89A87B19542D03A68",
+    "bytes": 11930
+  },
+  {
+    "path": "src/Etp.Reporting.Reporting/VisualReportPdfDocument.cs",
+    "sha256": "2114977852BD9C5FB16B55640545E9D6CF17A883C3DDFA7114E2869B77683793",
+    "bytes": 9034
+  },
+  {
+    "path": "src/Etp.Reporting.Reporting/VisualReporting.cs",
+    "sha256": "5DCC2695DF61518A177ED006BA125EC463566E40CF373DF97A3F36C7AC15591D",
+    "bytes": 10743
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/AccountingCompositionTests.cs",
+    "sha256": "1D915C6A857F5E877F368D545A2812EA07CD691AB676DA2B664A10B5CBCCC736",
+    "bytes": 4640
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/ArchiveWorkspaceExtractionTests.cs",
+    "sha256": "A71262BC2942A179C795E5218CF6F661E731FAAA3A0BE0AA13768E776A448F4B",
+    "bytes": 6678
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/BackupScriptContractTests.cs",
+    "sha256": "38AC4FA9C35E6CE8E52EC8785A9A62CBAD50B77AD64519895BC4160702F0D83A",
+    "bytes": 8998
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/CiWorkflowContractTests.cs",
+    "sha256": "206B451666C53D78ABA129990CDBE598625C30F35EC827A15F7953DEA159CB48",
+    "bytes": 3397
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/DailyWorkflowCompositionTests.cs",
+    "sha256": "1586D964770BB05122461F3A92BB60685A1E8F9E2A2AC5881CDA99690231B136",
+    "bytes": 3030
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/DailyWorkflowPresentationTests.cs",
+    "sha256": "558ADAE15A86A5FFD1AE739970C0205FFB266B1111799C924389C2514A1A9EFD",
+    "bytes": 5401
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/DailyWorkflowWorkspaceViewTests.cs",
+    "sha256": "E7648C52F3AD4C3634EBE4A787141978F774D5AD1655325972679D685552CEE5",
+    "bytes": 17555
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/DashboardApplicationContractTests.cs",
+    "sha256": "21D0B792A5865F540365D307CC489AD4E55E761615291D209AF8EE7CA604A8D8",
+    "bytes": 2411
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/DashboardPresentationSessionTests.cs",
+    "sha256": "D5F70A29E30DE9F6E524652909747B79F5EE5E709FB9C3B82BE2DE33BC8C3370",
+    "bytes": 4428
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/DashboardViewTests.cs",
+    "sha256": "E47B349FB9BCD00985F04A16E8D980E7EFE8FBF1F5C9529D6E6BABE0CEB954D0",
+    "bytes": 5203
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/DatabaseLifecycleCompositionTests.cs",
+    "sha256": "0DED50D05853C25601F72E906DA4120C8F4B8C8D44C0C95C6F07971AF813B462",
+    "bytes": 4281
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/DesktopArchitectureTests.cs",
+    "sha256": "550AE28902A5E7B1EF1B476BDFF67E993CF0BD2968B4299C99D1224BCEDD232E",
+    "bytes": 5073
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/DesktopCompositionGuardrailTests.cs",
+    "sha256": "5FB9E4202B5A88D5F496B58A0DD48483B4428916B7EA220402287A333DA926E8",
+    "bytes": 16097
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/DesktopCompositionRootStartupTests.cs",
+    "sha256": "5DD4DE155E51DB5AA120133F57D47BF6FE246E75921E12695CCC6FFB6F0CBC6B",
+    "bytes": 4501
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/DesktopCompositionRootTests.cs",
+    "sha256": "A7BC2DC08136BAB8C9770EBD7B85060960C742534180FFAF1C385B5BE35E31C5",
+    "bytes": 2336
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/DesktopConnectionAuthorizationTests.cs",
+    "sha256": "A36E4DF3F701B41E712E6B2A126A7C1255FB55A40CFC539FB31184993F0BD920",
+    "bytes": 1949
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/DesktopDiagnosticsTests.cs",
+    "sha256": "1A7C83B8B128A0AE1E248AF114964C1DCEE09718EA4A188BF19597615081F3B0",
+    "bytes": 5882
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/DesktopImportCoordinatorTests.cs",
+    "sha256": "05BB8FFD116003FF8677573947A721ADA03A66731FC448694AEF5D267EA1F819",
+    "bytes": 10048
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/DesktopSettingsComponentTests.cs",
+    "sha256": "5FF642C4D392B443C06B18903A7B886F8E336824A87E1E48F1AE04F4D66ECDBA",
+    "bytes": 6016
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/Etp.Reporting.Desktop.Tests.csproj",
+    "sha256": "9A1FCAD3C010F01D9C423E7B62B975EB5E8244C2B6D0EF240453B336C1A0BB8A",
+    "bytes": 867
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/ExtractedWorkspaceUiSmokeTests.cs",
+    "sha256": "631EB813CC87E347B93197190F0395FC41DB2CB060382C76F2D13A24141A86BD",
+    "bytes": 14044
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/FocusedReportScopeTests.cs",
+    "sha256": "1F861AEAB0E27AE652E2CE737E04172052A408A9039888073958BA212A90ECFF",
+    "bytes": 6832
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/FocusedTaskLayoutTests.cs",
+    "sha256": "812F0E08267DC3932E92B162A2D743684A586A4CF986B7D7046C5CFBBA5716AA",
+    "bytes": 1857
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/HandledFailureDiagnosticsTests.cs",
+    "sha256": "B03A6164DCC8C3D2A5D302819D558B514B08BA5E49F780A4D7A299044EB8CC40",
+    "bytes": 9629
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/HelpCentreTests.cs",
+    "sha256": "B1B32C493A432B2973CB3582CF2AC01A59AAB7BAAA79F53763A51B6B4D20007F",
+    "bytes": 7132
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/HelpWorkspaceSessionTests.cs",
+    "sha256": "8ECEC09E49279DFCE8367EB39B10253E1DD3DB00269F636F80ECF90462614DA3",
+    "bytes": 3008
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/ImportCoordinatorCompositionTests.cs",
+    "sha256": "D792AAAA38C2B0C5DB79389431D870C49225E82685A6E436BE4E3637D224ADF9",
+    "bytes": 3828
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/ImportPersistenceCompositionTests.cs",
+    "sha256": "4602AC4E78ABA4F3FD04559D950A4B6E13DB687AF088B172CC5ED311E8391D56",
+    "bytes": 2686
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/ImportWorkspaceExtractionTests.cs",
+    "sha256": "5134DBA376A74AFC2EEA179C989BAC4FDB5D4F4402D9675CD90B0842C1109C67",
+    "bytes": 7270
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/MainWindowShellBoundaryTests.cs",
+    "sha256": "A8641C49D79C7D1EE90372764BEF773E324397EC6FAC6F9030CF191DC437A007",
+    "bytes": 4819
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/MaintenanceTargetTests.cs",
+    "sha256": "16B03BB888161AC92314AE51A45583C4DD3ED72841A776B15EE1C457CE8A465D",
+    "bytes": 1156
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/OperationsAdministrationWorkspaceViewTests.cs",
+    "sha256": "52CDC692F726817C842E7244ED75BE848EAE6A99E0625B7A68CFF5C7799C789C",
+    "bytes": 15346
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/ProductisationPresentationSessionTests.cs",
+    "sha256": "3D213ABD5783C75A102985CE4D288C7CA39F736312DFDC9DF328006480505806",
+    "bytes": 15469
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/RegisterDraftTests.cs",
+    "sha256": "A8CA3CDBA1AD50126A70E4F075CE6609E497757321E208A015716FA79F57CD8E",
+    "bytes": 3923
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/RegistersAccountingWorkspaceExtractionTests.cs",
+    "sha256": "052210C2D8E957945BD763FA79F8BC514B8D8F32B75A25B0EFDA0AD1BCFD2699",
+    "bytes": 8151
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/RegistersAndSharingCompositionTests.cs",
+    "sha256": "36B06F3B526B99C676E317D6736F00EC9D18138D6FE47A24776148CE9628CEBB",
+    "bytes": 3104
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/ReleaseEvidenceConsistencyScriptTests.cs",
+    "sha256": "8F9D67DA485A87E0F63FA70AA010A06E107BBC18133BF121DF49D962522EDB5A",
+    "bytes": 12649
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/ReleaseOutputPreservationTests.cs",
+    "sha256": "947488B4F4937F3B5EBB3B99F3A1ADFE499523FA6483AE84955E29CC2C47EF4C",
+    "bytes": 1909
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/ReleaseVersionConsistencyTests.cs",
+    "sha256": "A69857DF95447A3B28CCF1D6EE3393200548ED0A2551AFF392408C2F631C7DC5",
+    "bytes": 3030
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/ReportArchiveCompositionTests.cs",
+    "sha256": "45008E69B12134C0036CB5C6B14FCFB998285A9CEF0139822891639AE585E20E",
+    "bytes": 2725
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/ReportExportCompositionTests.cs",
+    "sha256": "C3DEDB5C140F12F5175826BD6F050514EA253175E4D50D9A9B430DAC03A188EC",
+    "bytes": 5343
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/ReportExportCoordinatorTests.cs",
+    "sha256": "9B97CC6F58A02BF8F5459B7D51865C6F4506CA7FCF84C95C798A2B554B81EBDE",
+    "bytes": 4902
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/ReportWorkspaceTests.cs",
+    "sha256": "1D4C74485C419978B9FAF69F802E8C0FE8531A9F567169CA9BA8FBC7451311A9",
+    "bytes": 2398
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/ReportsCompositionTests.cs",
+    "sha256": "08FBE5038F4698FEB88848D9C85E75999CF5F107147D69BC3C6C77F4608C7C1A",
+    "bytes": 3465
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/ReportsPresentationStateTests.cs",
+    "sha256": "145C64888FF5ECC0AE06FE53E76213F45A4BBA374B8DAC2EE77877D85643B02D",
+    "bytes": 7560
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/ReportsRequestOrderingTests.cs",
+    "sha256": "B986D2B221A89D66BF7E80F2228D971B4F184B24D9A84B0B44C0908A8EA0FEB8",
+    "bytes": 11072
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/SettingsAndOperationsAdministrationPresentationTests.cs",
+    "sha256": "24F2A699D3EB583113A6658EB5DBFD97AE175DEF3E4BC6CB88A03B36DC1B691D",
+    "bytes": 9293
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/SettingsWorkspaceViewTests.cs",
+    "sha256": "0F8E1F4F89F70A527BD80E01420BC0DED45B23B2F75B11799F002D7293AA6CE8",
+    "bytes": 19360
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/ShellNavigationServiceTests.cs",
+    "sha256": "E93A2F66529E89FF333841975BDB92F03214DEA67A3CC386CCD247908230F8CD",
+    "bytes": 4107
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/ShellViewModelTests.cs",
+    "sha256": "86D7A03481B30DC1EECEFE139919D1EDB554F0A72F36457E328557C608CC77EE",
+    "bytes": 5508
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/SourceInboxCompositionTests.cs",
+    "sha256": "44559B5D2DC06474286A40ABEEDB44E90FC369AB1F6145A5B2BEBA5F3331CF6F",
+    "bytes": 8176
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/TaskNavigationTests.cs",
+    "sha256": "3C7A572F6FFC60110A17B626F32180371B2B9893F1FDFB5EF8778BF5D2A4DF6E",
+    "bytes": 6103
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/UiNavigationTests.cs",
+    "sha256": "528142EA158086D4B6FC92D3C20AE5AFAF955785BC36D664371FE8BEEFFEC5C5",
+    "bytes": 7603
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/WorkspaceModuleOwnershipRegistryTests.cs",
+    "sha256": "700C51374224BA37EC7F02CA53756C4B6439A51A4D511233E9D10438C15AD4A0",
+    "bytes": 3375
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Desktop.Tests/WorkspaceStateProtectionTests.cs",
+    "sha256": "CF9531A9A3FD612FA959491D61E4D2B6B8B36D2D0ADA5139900D6D4935E32C7D",
+    "bytes": 8567
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Domain.Tests/BusinessReportingPeriodTests.cs",
+    "sha256": "22DC35C230D3D00546A2EFBB3B18F3E163CC6B18EC23B0FD966257C122D2B5F1",
+    "bytes": 1769
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Domain.Tests/CanonicalContractsTests.cs",
+    "sha256": "D664ADBC323DBB66F5A8D0B9EA01F5441D807DF53B36448D0FCB2237CCF90F41",
+    "bytes": 2065
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Domain.Tests/Etp.Reporting.Domain.Tests.csproj",
+    "sha256": "4EB326FE17940D927FCD344FBC72CCEBF9DCE4860620B4A4D6199B59272E1BB5",
+    "bytes": 757
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Domain.Tests/ImportProfileTests.cs",
+    "sha256": "5D62EC11CC78888F7EEB38F43EF03A7D4436D499BE98BD31555E1CCD7E6FAF4C",
+    "bytes": 679
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Import.Tests/BatchImportTests.cs",
+    "sha256": "F218F0869CDB47691A3AE2E4CF1E37B8CE974D2EC8C9F13260FB7D0AC62AB78E",
+    "bytes": 7096
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Import.Tests/Etp.Reporting.Import.Tests.csproj",
+    "sha256": "73D4066367CBD218DBAA8199A0D3B15C4CF01835FDC143C6000BD83522EDAC61",
+    "bytes": 757
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Import.Tests/ImportPreflightTests.cs",
+    "sha256": "C28C987E76705812729424C26AA20392A4D742D785B7CDDB0320D25BE3B2E528",
+    "bytes": 4079
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Import.Tests/ImportProfileMatcherTests.cs",
+    "sha256": "4E37ABF168BDB6D0EB0D3C6BD1A6CAF1B98A4247CFCBAADC18E07BCA8B85B3D1",
+    "bytes": 1247
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Import.Tests/MatchedImportEnvelopeTests.cs",
+    "sha256": "BF9A2AADE28FCC75D2369196D36B079E634BBA672BD9678E19EF35736269EDB9",
+    "bytes": 8162
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Import.Tests/OpenXmlWorkbookReaderAsyncTests.cs",
+    "sha256": "25192DE7FC5368759F14B7A7ED18C6501E7A4A9BDCF9ADC8CBD7A86E11AE2EAD",
+    "bytes": 4829
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Import.Tests/ProductionWorkbookIngestionTests.cs",
+    "sha256": "42BA910A3F20F6E11AA93635D3500E7F7F46D524273079F04D453CC17CA73EC7",
+    "bytes": 5862
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Import.Tests/R022PersistenceProjectionTests.cs",
+    "sha256": "B78B23178DFCDFE911C8E55D98B724638E1ED45CDF9B66B4268250671BD5C10B",
+    "bytes": 2594
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Import.Tests/RetailSalesProfilesTests.cs",
+    "sha256": "97758052D6DAEEAE87230316A03BDE0FB7A10FB15312B7C8FFA86930DAF6E0B8",
+    "bytes": 2098
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Import.Tests/StockWorkbookParserTests.cs",
+    "sha256": "CA242E2736BB7890C7C49F8A4060D48D79509EA5D0744D20FB5B5DF8ABBE1CCE",
+    "bytes": 2994
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Import.Tests/TypedCellConverterTests.cs",
+    "sha256": "622C66D2437AA45A1E15FF7FE031D1E258C610CE0C868DFC52040D6F62CA2311",
+    "bytes": 2070
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Reporting.Tests/CashBalanceReconciliationServiceTests.cs",
+    "sha256": "936F3FFD670AFA2DA95CE8CD84AE25641BB52F2D94684C3FC604C50A49287F7B",
+    "bytes": 1439
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Reporting.Tests/DailySalesReportTests.cs",
+    "sha256": "ABA1BDC87DBE46978365D68E0749A4E6ED9B03BD7ECFB296FD42EC9F8F4367E4",
+    "bytes": 4980
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Reporting.Tests/Etp.Reporting.Reporting.Tests.csproj",
+    "sha256": "27D926083B859A0F0DB1595D47F360116EA2F62B4AB110E34365A4C49F9EBF8E",
+    "bytes": 698
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Reporting.Tests/ManagementMetricEngineTests.cs",
+    "sha256": "3B78BC2E9A12496B3CB7FB0E6AE4EF227D9B78A38FF719EC82265B43E5D6B4F7",
+    "bytes": 2845
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Reporting.Tests/OpenXmlReportExporterTests.cs",
+    "sha256": "844E83DB6357CEF2420775C263C21F2F984AB7BF4C48303B76E5B88A6EB1A191",
+    "bytes": 1544
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Reporting.Tests/ProductReportVisualClassificationTests.cs",
+    "sha256": "339139CA8180D97881F881DE9938CF533B2B9B6A5F553020F61EE8898F462FEA",
+    "bytes": 2507
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Reporting.Tests/ReportCatalogueTests.cs",
+    "sha256": "8FF5BADE8278BF036EC8E2DA59614E62E1FD73E7332BBB040710ED513C6DED9A",
+    "bytes": 2801
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Reporting.Tests/ReportPackExporterTests.cs",
+    "sha256": "65AB39E413F3D6BB7DD25B1618D950DE6E788AEA30CF65DAE71CC49A75FD872C",
+    "bytes": 3174
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Reporting.Tests/ReportPackageServiceTests.cs",
+    "sha256": "CFA35F9B8BA132C955FFFE0BB7586B66D72AB0CDC68F97E32110B29C6D6CFCCA",
+    "bytes": 1866
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Reporting.Tests/ReportingServicesTests.cs",
+    "sha256": "6D87459E2639835EB47836A529F1A94C860CB36D1CF0C50C0B19FD27BF4B650C",
+    "bytes": 6340
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Reporting.Tests/SimplePdfReportExporterTests.cs",
+    "sha256": "5A7EF3BB7E665B6940731AFE6717B4BB173C40D911DF471B8FE66B45FF0030FF",
+    "bytes": 1463
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Reporting.Tests/SqlBackedReportingExecutorTests.cs",
+    "sha256": "B24793944772D9C26BE95BB2020D5A5E7AE9FB9BA4678ABB407A6BD54B9536BD",
+    "bytes": 4095
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Reporting.Tests/TenderVarianceDiagnosticServiceTests.cs",
+    "sha256": "98C9AB970580D63A8A23E7845AD459A7B2A86A968ADD1ADB03C5D9CB7960837A",
+    "bytes": 1145
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Reporting.Tests/VisualPdfExportRegressionTests.cs",
+    "sha256": "FD3F0A7996AACD4787E554BF0B584F955FA116D150CC38C73B07A10B31A09C93",
+    "bytes": 1914
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.Reporting.Tests/VisualReportingTests.cs",
+    "sha256": "F11446B05EF520A0C97BEA0EB4A8A3B99245164E59A5DD1044AD115C297BAC93",
+    "bytes": 3459
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.SqlServer.Tests/AccessSessionQueryTests.cs",
+    "sha256": "058E5FBC9675167DE0AADB97EA6A96980D2C9D760F9E9260DCAD29771C410144",
+    "bytes": 3088
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.SqlServer.Tests/AccountingServiceBoundaryTests.cs",
+    "sha256": "057A06755C583FB9D549039A7A4A639E55153BD1C2B69067939EE97073637B47",
+    "bytes": 8500
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.SqlServer.Tests/AdapterIntegratedSecurityRegressionTests.cs",
+    "sha256": "1A36211BDC20EF7B932E4CF7AA90603AE866DA9F65ABE07D61D0A2FF071FF88E",
+    "bytes": 992
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.SqlServer.Tests/ApplicationReportQueryTests.cs",
+    "sha256": "9794DB97A28E16A22785A6EA8C862EBAD487101813140DE716A277480FDF8A8E",
+    "bytes": 4781
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.SqlServer.Tests/DailyWorkflowServiceTests.cs",
+    "sha256": "D562E5BFD343640BE842C352FD44386AA723A59DDFC766805BA15C5F71412F30",
+    "bytes": 7994
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.SqlServer.Tests/DatabaseLifecycleServiceBoundaryTests.cs",
+    "sha256": "A8B5DB02BE411AFD1F035BA2612629FBDFAB25F8FE98FACD5BFEF51714EE92DD",
+    "bytes": 4898
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.SqlServer.Tests/DatabaseOperationalHealthTests.cs",
+    "sha256": "6EAE49E642AFCD1C6837633B654AAA9FC7F9BF97E49EBAC2D43FA006F8720308",
+    "bytes": 1787
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.SqlServer.Tests/DistributionServiceBoundaryTests.cs",
+    "sha256": "83B1F2053B25B044AFF1815CEE5BC4EE7126DF293EC8DDA21E8EC1D9E3BF4768",
+    "bytes": 7395
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.SqlServer.Tests/Etp.Reporting.SqlServer.Tests.csproj",
+    "sha256": "662D83192AB6F12BC58810728E7C1B07ECC7A6B78415416E204FE614088D107D",
+    "bytes": 887
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.SqlServer.Tests/ImportPersistenceUseCaseTests.cs",
+    "sha256": "4BEAD0B8CFD7BB3C29008F3B621B0940E553CE10B8FB04A319A66603E783D7CA",
+    "bytes": 4890
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.SqlServer.Tests/ImportProfilePersistenceContractTests.cs",
+    "sha256": "F6D7E09D97C5880CDB2667A59E99F43D76C5B86DBB4A45290D627AEDCD38C4D5",
+    "bytes": 5424
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.SqlServer.Tests/MigrationTests.cs",
+    "sha256": "D04F21FFF5863360F7CD34E3CC173400E3D43B16803A90B7AE746A4B91CC7FDF",
+    "bytes": 26554
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.SqlServer.Tests/OperationalAuditContractTests.cs",
+    "sha256": "8E527A7A3D1399FE6390374C1CE1FD4CA707C316F4739D8563F8AE91C434295A",
+    "bytes": 9536
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.SqlServer.Tests/OperationalAuditRepositoryTests.cs",
+    "sha256": "B61F36989C154888E94377EFE833F25EB71FEBCE8147D9B7DC35A9779FCA8ABE",
+    "bytes": 1489
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.SqlServer.Tests/OperationalCompletionContractsTests.cs",
+    "sha256": "B7962CBB929ACA96E4A7BF63A3DFFDE60AD028C6317DE67348764C4E5952A871",
+    "bytes": 858
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.SqlServer.Tests/OperationsAdministrationServiceBoundaryTests.cs",
+    "sha256": "F2E0FE7BCC2371F369FFF6BE4F6F79921D0362F5CF0922476ECB46C27646DCAF",
+    "bytes": 11784
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.SqlServer.Tests/ProductisationAuditTransactionTests.cs",
+    "sha256": "8B32E48CF4DB2B2E0E0DE2A3DE05678CFA80AB9473079F1DF0D29802747A6454",
+    "bytes": 1187
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.SqlServer.Tests/ProductisationServiceTests.cs",
+    "sha256": "C96ABEC137EFB58F823D40E25FA9E7CD07CC544EDBB18ABF8A40052D193CD1D4",
+    "bytes": 4027
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.SqlServer.Tests/R022SqlImportOrchestratorTests.cs",
+    "sha256": "A583E6028F375D73B521A651CC8FFD49832755CF8A6A7FED2B64D6801F874508",
+    "bytes": 2923
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.SqlServer.Tests/R025SqlImportOrchestratorTests.cs",
+    "sha256": "3BFA12E74C291BCB650B693BB3A0FF4C70BDA4441C92D753B07E1673EB082266",
+    "bytes": 2503
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.SqlServer.Tests/ReportArchiveQueryTests.cs",
+    "sha256": "261A1005A3C49C4BBC8C1B09FD1B67684EC3159758AD983C6EC7E6B56FD8A368",
+    "bytes": 2618
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.SqlServer.Tests/ReportingQueryRepositoryTests.cs",
+    "sha256": "3A5F68D44ED53F5710B989C5B5125AF97EB44102926D1EC2238B424A1FF3AA91",
+    "bytes": 3663
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.SqlServer.Tests/ReportingTenderVarianceDiagnosticTests.cs",
+    "sha256": "80071A26F25EAB85E741A41CDF8029ADD1C0539C00C5D31C810965B0D4302272",
+    "bytes": 1802
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.SqlServer.Tests/SharingContactsAndDigitalRegistersAdapterTests.cs",
+    "sha256": "D7C51B94DF1EDF2582BEC7020B60169BFFF7416E4264A1141F6269B51E61E82E",
+    "bytes": 6058
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.SqlServer.Tests/SourceInboxServiceAdapterTests.cs",
+    "sha256": "A4341132700609AA83838DE514A03AC34F484848424DAC4BE5DB49C1D79F96FE",
+    "bytes": 11917
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.SqlServer.Tests/SqlServerDashboardQueryTests.cs",
+    "sha256": "DFD8354D7EE75560D1B36F84F9DFDB74A864CBDD89BE5D28E158FE64EE5732AD",
+    "bytes": 5073
+  },
+  {
+    "path": "tests-dotnet/Etp.Reporting.SqlServer.Tests/StockImportOrchestratorTests.cs",
+    "sha256": "9DC6D17B385F309F1C96101DE0991A030DF255EBE25943CDF1BF957300083B86",
+    "bytes": 2087
+  },
+  {
+    "path": "tools/Etp.Reporting.DsrSmoke/Etp.Reporting.DsrSmoke.csproj",
+    "sha256": "03818EF0B3874BA6E1FB5F9E25539CCDEE928CF9341C76B04A14A3272B016883",
+    "bytes": 497
+  },
+  {
+    "path": "tools/Etp.Reporting.DsrSmoke/Program.cs",
+    "sha256": "0D848BFEFA96FC704C972AF4E00C9F69C0AFFEC6FD0D70A8EBE9FD32FE9F9E9C",
+    "bytes": 3387
+  },
+  {
+    "path": "tools/Etp.Reporting.ExportSmoke/Etp.Reporting.ExportSmoke.csproj",
+    "sha256": "B06F3AA4BD414E26FE31801CA509AD086A8E41222D7DD7CB5D5A2B7AB5F61554",
+    "bytes": 336
+  },
+  {
+    "path": "tools/Etp.Reporting.ExportSmoke/ExportStressFixture.cs",
+    "sha256": "91ED755F3ECA0AB80182494D2D03238BB844CD8E28072750ABEA557C14F12941",
+    "bytes": 1957
+  },
+  {
+    "path": "tools/Etp.Reporting.ExportSmoke/Program.cs",
+    "sha256": "5380BED5FB86C88EC4F0BABE31B7A8B24D865BD42169A5AF3FC6971C498B61A6",
+    "bytes": 1042
+  },
+  {
+    "path": "tools/Etp.Reporting.FunctionAudit/Etp.Reporting.FunctionAudit.csproj",
+    "sha256": "D86F10B583E3E41DDBB971AC59897D4C19C44F6991571A8EDAC20B28921B5FB7",
+    "bytes": 694
+  },
+  {
+    "path": "tools/Etp.Reporting.FunctionAudit/Program.cs",
+    "sha256": "BA97AF5492349FC8223D3CB009E6FCDCE5991E8FCAEE7E08A3CF3593C74E337C",
+    "bytes": 20021
+  },
+  {
+    "path": "tools/Etp.Reporting.LiveSmoke/Etp.Reporting.LiveSmoke.csproj",
+    "sha256": "1EF67905A2D55096D0721FE29490F15DC639E75304B7CCDE5A3E14B24AC4A13C",
+    "bytes": 568
+  },
+  {
+    "path": "tools/Etp.Reporting.LiveSmoke/Program.cs",
+    "sha256": "A494A49942284E27F67A89B8D0E52399DC948868AF1CCBE18DE9958FAFFD2FC2",
+    "bytes": 26701
+  },
+  {
+    "path": "tools/Etp.Reporting.PerformanceSmoke/Etp.Reporting.PerformanceSmoke.csproj",
+    "sha256": "6698BE2608DEFC3E2C89E708554923F40E030579DEA28542065926192EBC27F0",
+    "bytes": 270
+  },
+  {
+    "path": "tools/Etp.Reporting.PerformanceSmoke/Program.cs",
+    "sha256": "1F6AB837566AB9E245629B4B972393F507418DB34A00A467996A46F88CED93A7",
+    "bytes": 2518
+  },
+  {
+    "path": "tools/Etp.Reporting.Smoke/Etp.Reporting.Smoke.csproj",
+    "sha256": "27C846E0EDB677A53C5FE040BCEDB6504C50E9BC1FF2CEAA52CA49183E4DE576",
+    "bytes": 330
+  },
+  {
+    "path": "tools/Etp.Reporting.Smoke/Program.cs",
+    "sha256": "A8841954BB876A84BA1F7CD97059DBB198447E0E87ADFEE39C9CB58B4ACEB0F9",
+    "bytes": 2212
+  },
+  {
+    "path": "tools/Etp.Reporting.UiSmoke/ControlInventoryAudit.cs",
+    "sha256": "66E14197EB674EF1C4F5978414253190CE93248CB8991D272C7EEF711D100076",
+    "bytes": 4341
+  },
+  {
+    "path": "tools/Etp.Reporting.UiSmoke/Etp.Reporting.UiSmoke.csproj",
+    "sha256": "A3CAA258A6E995B910F02A057BB550C3FADB389019DA838C519EB06AA24795E3",
+    "bytes": 501
+  },
+  {
+    "path": "tools/Etp.Reporting.UiSmoke/FixtureReportAudit.cs",
+    "sha256": "79BD707F950A36931764F535B8F6B3A4571EC3EE5C629629E5137E9172D62477",
+    "bytes": 5276
+  },
+  {
+    "path": "tools/Etp.Reporting.UiSmoke/Program.cs",
+    "sha256": "367CFED623C61D17661FC8E5C6A71038A14CDC90CCE19A0AA673504E2AA4D95A",
+    "bytes": 14876
+  },
+  {
+    "path": "tools/Etp.Reporting.UiSmoke/ThemeControlAudit.cs",
+    "sha256": "2F8D8F3C86ED4FBA911B3517543C8E148EB4ABAEB1E8297615A084E503DB2158",
+    "bytes": 3926
+  },
+  {
+    "path": "tools/Etp.Reporting.UiSmoke/VisualContractAudit.cs",
+    "sha256": "2F88B6B156780D2348E4F8BD0D1FF1A27038BDFF418D200285913DC6F01ACEE6",
+    "bytes": 4442
+  }
+]

@@ -1,0 +1,39 @@
+{
+  "candidate": "1.8.8-r10",
+  "createdUtc": "2026-09-13T09:05:13.184198+00:00",
+  "head": "d24a525b11498db7fb39f166ced8adba0900160c",
+  "branch": "ui/uiux-v4-touch-first-redesign",
+  "sourceTreeClean": false,
+  "sourceFileCount": 619,
+  "note": "HEAD is the starting d24a525 commit; source ZIP and per-file hashes identify the working-tree density and role-navigation changes. Historical graph outputs and ignored evidence are excluded from the source archive.",
+  "tests": {
+    "total": 669,
+    "Desktop": 345,
+    "SqlServer": 195,
+    "Reporting": 66,
+    "Import": 51,
+    "Domain": 12
+  },
+  "artifacts": {
+    "executable": {
+      "path": "artifacts/ui-redesign/20260913-acceptance-resume/candidate-1.8.8-r10/Etp.Reporting.Desktop.exe",
+      "bytes": 160356850,
+      "sha256": "F556E125EFB61C9A48451BB8D1310983902835F435E062EC715EAB7A8F5B90E7"
+    },
+    "installer": {
+      "path": "artifacts/ui-redesign/20260913-acceptance-resume/installer-1.8.8-r10/EtpReportingEngine-Setup-1.8.8-x64.exe",
+      "bytes": 48957451,
+      "sha256": "9F3B85F2D3224D6A530BCADC90974682578C1C31A96CFB3D9EDBFFABEE91C926"
+    },
+    "source": {
+      "path": "artifacts/ui-redesign/20260913-acceptance-resume/candidate-1.8.8-r10/source-snapshot.zip",
+      "bytes": 5035297,
+      "sha256": "FCCECDDEA7C1BDEF3819F7573BC5F75A16B4C1606BB30F7760835F8282DDA896"
+    },
+    "sourceManifest": {
+      "path": "artifacts/ui-redesign/20260913-acceptance-resume/candidate-1.8.8-r10/source-files.json",
+      "bytes": 116697,
+      "sha256": "D9C157D7257A72D7157C9D3FA71EDA17BB1D8FD46417187B7F8C8410BCC40714"
+    }
+  }
+}

@@ -1,5 +1,9 @@
 # UI redesign sprint ledger
 
+**Latest checkpoint, 13 September 09:10:57 UTC: r11 INSTALLED — acceptance INCOMPLETE.** [r10/r11 evidence and exact next action](../audit/ETP-UI-REDESIGN-R10-2026-09-13.md) supersede earlier connection blockers below. VM credentials/worker access are solved. Original baseline/backup preserved; r11 installed hash and counts/settings/integrity checks pass; 669 tests pass. Density moved into personal Settings → Display. Start menu shortcut exists. Actual screen capture still fails with 0x80004002, so Settings sidebar and caption-button reports, app launch, full journeys, roles/device/accessibility/performance and remaining installer lifecycle are unverified. Do not request credentials or reinstall routinely. Runtime changes are in the working tree on d24a525 and bound by the r11 immutable snapshot; documentation below retains historical r9 evidence.
+
+**13 September acceptance resumption: INCOMPLETE — WORK REMAINS.** Settings sidebar defect is user-reported and awaiting reproduction/repair. Fresh VM permission denial and two screen-capture failures prevent installed acceptance. The returned host ETP executable is 1.8.5, not r9; archived r9 hashes match. [Current evidence and exact next action](../audit/ETP-UI-REDESIGN-ACCEPTANCE-RESUME-2026-09-13.md) supersede the previous next action and no-known-defect statement below. No new acceptance pass; P4-09 is reopened for this reported defect.
+
 Verification checkpoint UTC: 2026-09-12T12:53:09.931255+00:00. Documentation/source-push checkpoint: 13 September 2026. Run `20260912-sprint`.
 
 **IMPLEMENTED — VERIFICATION BLOCKED.** Full application conversion and the authorised local follow-up are complete. Mandatory installed/device acceptance remains open. No production deployment.

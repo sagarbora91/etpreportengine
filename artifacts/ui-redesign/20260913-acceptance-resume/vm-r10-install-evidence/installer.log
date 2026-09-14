@@ -1,0 +1,284 @@
+﻿2026-09-13 14:35:40.302   Log opened. (Time zone: UTC+05:30)
+2026-09-13 14:35:40.302   Setup version: Inno Setup version 6.7.3
+2026-09-13 14:35:40.302   Original Setup EXE: C:\ETPAcceptance\UI-20260913-r10\EtpReportingEngine-Setup-1.8.8-x64.exe
+2026-09-13 14:35:40.302   Setup command line: /SL5="$5000B0,47757662,841216,C:\ETPAcceptance\UI-20260913-r10\EtpReportingEngine-Setup-1.8.8-x64.exe" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TASKS=desktopicon /LOG="C:\ETPAcceptance\UI-20260913-r10\installer.log" 
+2026-09-13 14:35:40.302   Windows version: 10.0.26200
+2026-09-13 14:35:40.302   Windows architecture: x64 (64-bit)
+2026-09-13 14:35:40.302   Machine types supported by system: x86 x64
+2026-09-13 14:35:40.302   User privileges: Administrative
+2026-09-13 14:35:40.302   Administrative install mode: Yes
+2026-09-13 14:35:40.302   Install mode root key: HKEY_LOCAL_MACHINE
+2026-09-13 14:35:40.302   64-bit install mode: Yes
+2026-09-13 14:35:40.302   RedirectionGuard status for current process: Enabled in enforcing mode
+2026-09-13 14:35:40.302   Created protected temporary directory: C:\Users\ETPTest\AppData\Local\Temp\is-JIL0BY01A7.tmp
+2026-09-13 14:35:40.486   Found 1 files to register with RestartManager.
+2026-09-13 14:35:40.486   Calling RestartManager's RmGetList.
+2026-09-13 14:35:40.514   RmGetList finished successfully.
+2026-09-13 14:35:40.514   RestartManager found no applications using one of our files.
+2026-09-13 14:35:40.520   Starting the installation process.
+2026-09-13 14:35:40.522   Directory for uninstall files: C:\Program Files\Saagar Traders\ETP Reporting Engine
+2026-09-13 14:35:40.530   Will append to existing uninstall log: C:\Program Files\Saagar Traders\ETP Reporting Engine\unins000.dat
+2026-09-13 14:35:40.533   -- File entry --
+2026-09-13 14:35:40.533   Dest filename: C:\Program Files\Saagar Traders\ETP Reporting Engine\unins000.exe
+2026-09-13 14:35:40.533   Non-default bitness: 32-bit
+2026-09-13 14:35:40.537   Time stamp of our file: 2026-09-13 14:35:38.520
+2026-09-13 14:35:40.537   Dest file exists.
+2026-09-13 14:35:40.537   Time stamp of existing file: 2026-09-12 13:40:48.904
+2026-09-13 14:35:40.537   Version of our file: 51.1054.0.0
+2026-09-13 14:35:40.539   Version of existing file: 51.1054.0.0
+2026-09-13 14:35:40.539   Installing the file.
+2026-09-13 14:35:40.545   Leaving temporary file in place for now.
+2026-09-13 14:35:40.545   -- File entry --
+2026-09-13 14:35:40.545   Dest filename: C:\Program Files\Saagar Traders\ETP Reporting Engine\Etp.Reporting.Application.pdb
+2026-09-13 14:35:40.545   Time stamp of our file: 2026-09-13 14:32:20.000
+2026-09-13 14:35:40.545   Dest file exists.
+2026-09-13 14:35:40.545   Time stamp of existing file: 2026-09-12 13:36:20.000
+2026-09-13 14:35:40.545   Installing the file.
+2026-09-13 14:35:40.551   Successfully installed the file.
+2026-09-13 14:35:40.551   -- File entry --
+2026-09-13 14:35:40.551   Dest filename: C:\Program Files\Saagar Traders\ETP Reporting Engine\Etp.Reporting.Desktop.exe
+2026-09-13 14:35:40.551   Time stamp of our file: 2026-09-13 14:32:40.000
+2026-09-13 14:35:40.551   Dest file exists.
+2026-09-13 14:35:40.551   Time stamp of existing file: 2026-09-12 13:36:30.000
+2026-09-13 14:35:40.551   Installing the file.
+2026-09-13 14:35:47.791   Successfully installed the file.
+2026-09-13 14:35:47.791   -- File entry --
+2026-09-13 14:35:47.791   Dest filename: C:\Program Files\Saagar Traders\ETP Reporting Engine\Etp.Reporting.Desktop.pdb
+2026-09-13 14:35:47.797   Time stamp of our file: 2026-09-13 14:32:34.000
+2026-09-13 14:35:47.797   Dest file exists.
+2026-09-13 14:35:47.797   Time stamp of existing file: 2026-09-12 13:36:26.000
+2026-09-13 14:35:47.797   Installing the file.
+2026-09-13 14:35:47.808   Successfully installed the file.
+2026-09-13 14:35:47.808   -- File entry --
+2026-09-13 14:35:47.808   Dest filename: C:\Program Files\Saagar Traders\ETP Reporting Engine\Etp.Reporting.Domain.pdb
+2026-09-13 14:35:47.820   Time stamp of our file: 2026-09-13 14:32:20.000
+2026-09-13 14:35:47.820   Dest file exists.
+2026-09-13 14:35:47.820   Time stamp of existing file: 2026-09-12 13:36:20.000
+2026-09-13 14:35:47.820   Installing the file.
+2026-09-13 14:35:47.822   Successfully installed the file.
+2026-09-13 14:35:47.822   -- File entry --
+2026-09-13 14:35:47.824   Dest filename: C:\Program Files\Saagar Traders\ETP Reporting Engine\Etp.Reporting.Import.pdb
+2026-09-13 14:35:47.824   Time stamp of our file: 2026-09-13 14:32:24.000
+2026-09-13 14:35:47.824   Dest file exists.
+2026-09-13 14:35:47.824   Time stamp of existing file: 2026-09-12 13:36:20.000
+2026-09-13 14:35:47.824   Installing the file.
+2026-09-13 14:35:47.826   Successfully installed the file.
+2026-09-13 14:35:47.826   -- File entry --
+2026-09-13 14:35:47.828   Dest filename: C:\Program Files\Saagar Traders\ETP Reporting Engine\Etp.Reporting.Infrastructure.SqlServer.pdb
+2026-09-13 14:35:47.828   Time stamp of our file: 2026-09-13 14:32:26.000
+2026-09-13 14:35:47.828   Dest file exists.
+2026-09-13 14:35:47.828   Time stamp of existing file: 2026-09-12 13:36:22.000
+2026-09-13 14:35:47.828   Installing the file.
+2026-09-13 14:35:47.838   Successfully installed the file.
+2026-09-13 14:35:47.838   -- File entry --
+2026-09-13 14:35:47.838   Dest filename: C:\Program Files\Saagar Traders\ETP Reporting Engine\Etp.Reporting.Reporting.pdb
+2026-09-13 14:35:47.838   Time stamp of our file: 2026-09-13 14:32:22.000
+2026-09-13 14:35:47.838   Dest file exists.
+2026-09-13 14:35:47.838   Time stamp of existing file: 2026-09-12 13:36:20.000
+2026-09-13 14:35:47.838   Installing the file.
+2026-09-13 14:35:47.840   Successfully installed the file.
+2026-09-13 14:35:47.840   -- File entry --
+2026-09-13 14:35:47.840   Dest filename: C:\Program Files\Saagar Traders\ETP Reporting Engine\release.json
+2026-09-13 14:35:47.840   Time stamp of our file: 2026-09-13 14:32:42.000
+2026-09-13 14:35:47.840   Dest file exists.
+2026-09-13 14:35:47.840   Time stamp of existing file: 2026-09-12 13:36:32.000
+2026-09-13 14:35:47.840   Installing the file.
+2026-09-13 14:35:47.844   Successfully installed the file.
+2026-09-13 14:35:47.844   -- File entry --
+2026-09-13 14:35:47.844   Dest filename: C:\Program Files\Saagar Traders\ETP Reporting Engine\SHA256SUMS.txt
+2026-09-13 14:35:47.844   Time stamp of our file: 2026-09-13 14:32:42.000
+2026-09-13 14:35:47.844   Dest file exists.
+2026-09-13 14:35:47.844   Time stamp of existing file: 2026-09-12 13:36:32.000
+2026-09-13 14:35:47.844   Installing the file.
+2026-09-13 14:35:47.846   Successfully installed the file.
+2026-09-13 14:35:47.848   -- File entry --
+2026-09-13 14:35:47.848   Dest filename: C:\Program Files\Saagar Traders\ETP Reporting Engine\database\migrations\0001_foundation.sql
+2026-09-13 14:35:47.848   Time stamp of our file: 2026-08-25 20:07:20.000
+2026-09-13 14:35:47.848   Dest file exists.
+2026-09-13 14:35:47.850   Time stamp of existing file: 2026-08-25 20:07:20.000
+2026-09-13 14:35:47.850   Installing the file.
+2026-09-13 14:35:47.850   Successfully installed the file.
+2026-09-13 14:35:47.850   -- File entry --
+2026-09-13 14:35:47.852   Dest filename: C:\Program Files\Saagar Traders\ETP Reporting Engine\database\migrations\0002_reporting_facts.sql
+2026-09-13 14:35:47.852   Time stamp of our file: 2026-08-26 13:14:24.000
+2026-09-13 14:35:47.852   Dest file exists.
+2026-09-13 14:35:47.854   Time stamp of existing file: 2026-08-26 13:14:24.000
+2026-09-13 14:35:47.854   Installing the file.
+2026-09-13 14:35:47.856   Successfully installed the file.
+2026-09-13 14:35:47.856   -- File entry --
+2026-09-13 14:35:47.856   Dest filename: C:\Program Files\Saagar Traders\ETP Reporting Engine\database\migrations\0003_sales_dimensions.sql
+2026-09-13 14:35:47.856   Time stamp of our file: 2026-08-26 13:18:20.000
+2026-09-13 14:35:47.856   Dest file exists.
+2026-09-13 14:35:47.856   Time stamp of existing file: 2026-08-26 13:18:20.000
+2026-09-13 14:35:47.856   Installing the file.
+2026-09-13 14:35:47.858   Successfully installed the file.
+2026-09-13 14:35:47.858   -- File entry --
+2026-09-13 14:35:47.858   Dest filename: C:\Program Files\Saagar Traders\ETP Reporting Engine\database\migrations\0004_operational_audit.sql
+2026-09-13 14:35:47.860   Time stamp of our file: 2026-08-26 14:26:44.000
+2026-09-13 14:35:47.860   Dest file exists.
+2026-09-13 14:35:47.860   Time stamp of existing file: 2026-08-26 14:26:44.000
+2026-09-13 14:35:47.860   Installing the file.
+2026-09-13 14:35:47.862   Successfully installed the file.
+2026-09-13 14:35:47.862   -- File entry --
+2026-09-13 14:35:47.862   Dest filename: C:\Program Files\Saagar Traders\ETP Reporting Engine\database\migrations\0005_daily_reporting_workflow.sql
+2026-09-13 14:35:47.862   Time stamp of our file: 2026-08-26 16:22:18.000
+2026-09-13 14:35:47.862   Dest file exists.
+2026-09-13 14:35:47.862   Time stamp of existing file: 2026-08-26 16:22:18.000
+2026-09-13 14:35:47.862   Installing the file.
+2026-09-13 14:35:47.866   Successfully installed the file.
+2026-09-13 14:35:47.866   -- File entry --
+2026-09-13 14:35:47.866   Dest filename: C:\Program Files\Saagar Traders\ETP Reporting Engine\database\migrations\0006_backfill_import_business_scope.sql
+2026-09-13 14:35:47.866   Time stamp of our file: 2026-08-26 16:26:54.000
+2026-09-13 14:35:47.866   Dest file exists.
+2026-09-13 14:35:47.866   Time stamp of existing file: 2026-08-26 16:26:54.000
+2026-09-13 14:35:47.866   Installing the file.
+2026-09-13 14:35:47.870   Successfully installed the file.
+2026-09-13 14:35:47.870   -- File entry --
+2026-09-13 14:35:47.870   Dest filename: C:\Program Files\Saagar Traders\ETP Reporting Engine\database\migrations\0007_sales_enrichment_facts.sql
+2026-09-13 14:35:47.870   Time stamp of our file: 2026-08-26 16:30:08.000
+2026-09-13 14:35:47.870   Dest file exists.
+2026-09-13 14:35:47.870   Time stamp of existing file: 2026-08-26 16:30:08.000
+2026-09-13 14:35:47.870   Installing the file.
+2026-09-13 14:35:47.872   Successfully installed the file.
+2026-09-13 14:35:47.872   -- File entry --
+2026-09-13 14:35:47.872   Dest filename: C:\Program Files\Saagar Traders\ETP Reporting Engine\database\migrations\0008_service_cash_inputs.sql
+2026-09-13 14:35:47.872   Time stamp of our file: 2026-08-26 16:47:12.000
+2026-09-13 14:35:47.872   Dest file exists.
+2026-09-13 14:35:47.872   Time stamp of existing file: 2026-08-26 16:47:12.000
+2026-09-13 14:35:47.872   Installing the file.
+2026-09-13 14:35:47.874   Successfully installed the file.
+2026-09-13 14:35:47.874   -- File entry --
+2026-09-13 14:35:47.874   Dest filename: C:\Program Files\Saagar Traders\ETP Reporting Engine\database\migrations\0009_locked_day_fact_guards.sql
+2026-09-13 14:35:47.874   Time stamp of our file: 2026-08-26 16:54:40.000
+2026-09-13 14:35:47.874   Dest file exists.
+2026-09-13 14:35:47.874   Time stamp of existing file: 2026-08-26 16:54:40.000
+2026-09-13 14:35:47.874   Installing the file.
+2026-09-13 14:35:47.876   Successfully installed the file.
+2026-09-13 14:35:47.876   -- File entry --
+2026-09-13 14:35:47.878   Dest filename: C:\Program Files\Saagar Traders\ETP Reporting Engine\database\migrations\0010_operational_completion.sql
+2026-09-13 14:35:47.880   Time stamp of our file: 2026-08-26 17:50:48.000
+2026-09-13 14:35:47.880   Dest file exists.
+2026-09-13 14:35:47.880   Time stamp of existing file: 2026-08-26 17:50:48.000
+2026-09-13 14:35:47.880   Installing the file.
+2026-09-13 14:35:47.882   Successfully installed the file.
+2026-09-13 14:35:47.882   -- File entry --
+2026-09-13 14:35:47.884   Dest filename: C:\Program Files\Saagar Traders\ETP Reporting Engine\database\migrations\0011_phase2_operations.sql
+2026-09-13 14:35:47.884   Time stamp of our file: 2026-08-26 18:41:24.000
+2026-09-13 14:35:47.884   Dest file exists.
+2026-09-13 14:35:47.884   Time stamp of existing file: 2026-08-26 18:41:24.000
+2026-09-13 14:35:47.884   Installing the file.
+2026-09-13 14:35:47.886   Successfully installed the file.
+2026-09-13 14:35:47.886   -- File entry --
+2026-09-13 14:35:47.888   Dest filename: C:\Program Files\Saagar Traders\ETP Reporting Engine\database\migrations\0012_windows_database_access.sql
+2026-09-13 14:35:47.888   Time stamp of our file: 2026-08-26 18:58:12.000
+2026-09-13 14:35:47.888   Dest file exists.
+2026-09-13 14:35:47.888   Time stamp of existing file: 2026-08-26 18:58:12.000
+2026-09-13 14:35:47.888   Installing the file.
+2026-09-13 14:35:47.890   Successfully installed the file.
+2026-09-13 14:35:47.890   -- File entry --
+2026-09-13 14:35:47.890   Dest filename: C:\Program Files\Saagar Traders\ETP Reporting Engine\database\migrations\0013_store_manager_permission_guards.sql
+2026-09-13 14:35:47.890   Time stamp of our file: 2026-08-26 19:09:24.000
+2026-09-13 14:35:47.890   Dest file exists.
+2026-09-13 14:35:47.890   Time stamp of existing file: 2026-08-26 19:09:24.000
+2026-09-13 14:35:47.890   Installing the file.
+2026-09-13 14:35:47.892   Successfully installed the file.
+2026-09-13 14:35:47.892   -- File entry --
+2026-09-13 14:35:47.894   Dest filename: C:\Program Files\Saagar Traders\ETP Reporting Engine\database\migrations\0014_productisation.sql
+2026-09-13 14:35:47.894   Time stamp of our file: 2026-08-26 19:25:04.000
+2026-09-13 14:35:47.894   Dest file exists.
+2026-09-13 14:35:47.894   Time stamp of existing file: 2026-08-26 19:25:04.000
+2026-09-13 14:35:47.894   Installing the file.
+2026-09-13 14:35:47.898   Successfully installed the file.
+2026-09-13 14:35:47.898   -- File entry --
+2026-09-13 14:35:47.898   Dest filename: C:\Program Files\Saagar Traders\ETP Reporting Engine\database\migrations\0015_operational_audit_contract.sql
+2026-09-13 14:35:47.898   Time stamp of our file: 2026-08-29 12:37:38.000
+2026-09-13 14:35:47.898   Dest file exists.
+2026-09-13 14:35:47.900   Time stamp of existing file: 2026-08-29 12:37:38.000
+2026-09-13 14:35:47.900   Installing the file.
+2026-09-13 14:35:47.902   Successfully installed the file.
+2026-09-13 14:35:47.902   -- File entry --
+2026-09-13 14:35:47.902   Dest filename: C:\Program Files\Saagar Traders\ETP Reporting Engine\scripts\backup-etp-database.ps1
+2026-09-13 14:35:47.902   Time stamp of our file: 2026-08-29 12:42:42.000
+2026-09-13 14:35:47.902   Dest file exists.
+2026-09-13 14:35:47.902   Time stamp of existing file: 2026-08-29 12:42:42.000
+2026-09-13 14:35:47.902   Installing the file.
+2026-09-13 14:35:47.904   Successfully installed the file.
+2026-09-13 14:35:47.904   -- File entry --
+2026-09-13 14:35:47.906   Dest filename: C:\Program Files\Saagar Traders\ETP Reporting Engine\scripts\bootstrap-etp-prerequisites.ps1
+2026-09-13 14:35:47.906   Time stamp of our file: 2026-08-29 12:45:26.000
+2026-09-13 14:35:47.906   Dest file exists.
+2026-09-13 14:35:47.906   Time stamp of existing file: 2026-08-29 12:45:26.000
+2026-09-13 14:35:47.906   Installing the file.
+2026-09-13 14:35:47.908   Successfully installed the file.
+2026-09-13 14:35:47.908   -- File entry --
+2026-09-13 14:35:47.908   Dest filename: C:\Program Files\Saagar Traders\ETP Reporting Engine\scripts\install-daily-backup-task.ps1
+2026-09-13 14:35:47.910   Time stamp of our file: 2026-08-26 18:58:12.000
+2026-09-13 14:35:47.910   Dest file exists.
+2026-09-13 14:35:47.910   Time stamp of existing file: 2026-08-26 18:58:12.000
+2026-09-13 14:35:47.910   Installing the file.
+2026-09-13 14:35:47.910   Successfully installed the file.
+2026-09-13 14:35:47.912   -- File entry --
+2026-09-13 14:35:47.912   Dest filename: C:\Program Files\Saagar Traders\ETP Reporting Engine\scripts\install-etp-automation-task.ps1
+2026-09-13 14:35:47.912   Time stamp of our file: 2026-08-26 18:58:12.000
+2026-09-13 14:35:47.912   Dest file exists.
+2026-09-13 14:35:47.912   Time stamp of existing file: 2026-08-26 18:58:12.000
+2026-09-13 14:35:47.912   Installing the file.
+2026-09-13 14:35:47.914   Successfully installed the file.
+2026-09-13 14:35:47.914   -- File entry --
+2026-09-13 14:35:47.914   Dest filename: C:\Program Files\Saagar Traders\ETP Reporting Engine\scripts\install-monthly-recovery-drill-task.ps1
+2026-09-13 14:35:47.916   Time stamp of our file: 2026-08-26 15:46:20.000
+2026-09-13 14:35:47.916   Dest file exists.
+2026-09-13 14:35:47.916   Time stamp of existing file: 2026-08-26 15:46:20.000
+2026-09-13 14:35:47.916   Installing the file.
+2026-09-13 14:35:47.917   Successfully installed the file.
+2026-09-13 14:35:47.917   -- File entry --
+2026-09-13 14:35:47.917   Dest filename: C:\Program Files\Saagar Traders\ETP Reporting Engine\scripts\invoke-etp-recovery-drill.ps1
+2026-09-13 14:35:47.919   Time stamp of our file: 2026-08-26 17:36:24.000
+2026-09-13 14:35:47.919   Dest file exists.
+2026-09-13 14:35:47.919   Time stamp of existing file: 2026-08-26 17:36:24.000
+2026-09-13 14:35:47.919   Installing the file.
+2026-09-13 14:35:47.919   Successfully installed the file.
+2026-09-13 14:35:47.919   -- File entry --
+2026-09-13 14:35:47.921   Dest filename: C:\Program Files\Saagar Traders\ETP Reporting Engine\scripts\invoke-monthly-recovery-drill-runner.ps1
+2026-09-13 14:35:47.923   Time stamp of our file: 2026-08-26 15:46:20.000
+2026-09-13 14:35:47.923   Dest file exists.
+2026-09-13 14:35:47.923   Time stamp of existing file: 2026-08-26 15:46:20.000
+2026-09-13 14:35:47.923   Installing the file.
+2026-09-13 14:35:47.923   Successfully installed the file.
+2026-09-13 14:35:47.923   -- File entry --
+2026-09-13 14:35:47.925   Dest filename: C:\Program Files\Saagar Traders\ETP Reporting Engine\scripts\new-etp-support-package.ps1
+2026-09-13 14:35:47.925   Time stamp of our file: 2026-08-26 18:45:36.000
+2026-09-13 14:35:47.925   Dest file exists.
+2026-09-13 14:35:47.925   Time stamp of existing file: 2026-08-26 18:45:36.000
+2026-09-13 14:35:47.925   Installing the file.
+2026-09-13 14:35:47.927   Successfully installed the file.
+2026-09-13 14:35:47.927   -- File entry --
+2026-09-13 14:35:47.929   Dest filename: C:\Program Files\Saagar Traders\ETP Reporting Engine\scripts\remove-etp-scheduled-tasks.ps1
+2026-09-13 14:35:47.929   Time stamp of our file: 2026-08-26 19:02:18.000
+2026-09-13 14:35:47.929   Dest file exists.
+2026-09-13 14:35:47.929   Time stamp of existing file: 2026-08-26 19:02:18.000
+2026-09-13 14:35:47.929   Installing the file.
+2026-09-13 14:35:47.933   Successfully installed the file.
+2026-09-13 14:35:47.933   -- Icon entry --
+2026-09-13 14:35:47.933   Dest filename: C:\ProgramData\Microsoft\Windows\Start Menu\Programs\ETP Reporting Engine\ETP Reporting Engine.lnk
+2026-09-13 14:35:47.933   Creating the icon.
+2026-09-13 14:35:48.404   Successfully created the icon.
+2026-09-13 14:35:48.404   -- Icon entry --
+2026-09-13 14:35:48.404   Dest filename: C:\Users\Public\Desktop\ETP Reporting Engine.lnk
+2026-09-13 14:35:48.404   Creating the icon.
+2026-09-13 14:35:48.408   Successfully created the icon.
+2026-09-13 14:35:48.408   -- Icon entry --
+2026-09-13 14:35:48.408   Dest filename: C:\ProgramData\Microsoft\Windows\Start Menu\Programs\ETP Reporting Engine\Uninstall ETP Reporting Engine.lnk
+2026-09-13 14:35:48.434   Creating the icon.
+2026-09-13 14:35:48.442   Successfully created the icon.
+2026-09-13 14:35:48.442   Saving uninstall information.
+2026-09-13 14:35:48.442   Renaming uninstaller.
+2026-09-13 14:35:48.444   Deleting uninstall key left over from previous administrative 64-bit install.
+2026-09-13 14:35:48.446   Creating new uninstall key: HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Uninstall\{9FB6D99C-2EE3-48BC-B342-8E80F6D81FF5}_is1
+2026-09-13 14:35:48.446   Writing uninstall key values.
+2026-09-13 14:35:48.450   Detected previous non administrative install? No
+2026-09-13 14:35:48.450   Detected previous administrative 32-bit install? No
+2026-09-13 14:35:48.470   Installation process succeeded.
+2026-09-13 14:36:35.957   Need to restart Windows? No
+2026-09-13 14:36:35.963   Deinitializing Setup.
+2026-09-13 14:36:35.975   Log closed.

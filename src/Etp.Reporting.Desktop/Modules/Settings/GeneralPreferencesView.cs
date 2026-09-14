@@ -20,12 +20,10 @@ public sealed class GeneralPreferencesView : UserControl
         }
         var display = Page("Display");
         display.Children.Add(new TextBlock { Text = "Comfortable uses larger touch targets. Compact is an explicit desktop preference. Both offer the same features.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,0,0,16) });
-        foreach (var density in Enum.GetValues<UiDensity>())
-        {
-            var button = new Button { Content = "Use " + density, Margin = new Thickness(0,0,0,8) };
-            AutomationProperties.SetName(button, "Use " + density + " density");
-            button.Click += (_, _) => { current = current with { Density = density }; save(current); }; display.Children.Add(button);
-        }
+        var densitySelector = new DensitySelector();
+        densitySelector.SetDensity(current.Density);
+        densitySelector.DensityChanged += (_, density) => { current = current with { Density = density }; save(current); };
+        display.Children.Add(densitySelector);
         void Toggle(StackPanel panel, string label, string id, bool selected, bool report)
         {
             var check = new CheckBox { Content = label, IsChecked = selected, MinHeight = 48 };

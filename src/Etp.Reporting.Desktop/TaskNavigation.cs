@@ -84,6 +84,7 @@ public static class TaskNavigation
                     "users" => "Users & Access", "stores" or "masters" or "profiles" or "kpi" or "tender-rules" => "Stores & Masters",
                     "health" or "backups" => "Database & Recovery", "ocr" or "sharing" or "scheduler" => "Integrations", _ => "General"
                 };
+                if (id == "settings") { title = "Display & Preferences"; category = "Display"; destination = "Home"; role = 1; }
                 if (id == "tally-export") category = "Export";
                 if (id == "compare") category = "Generations";
                 if (id is "walk-ins" or "readiness" or "finalisation") category = "Daily Close";

@@ -75,7 +75,7 @@ public sealed partial class TaskNavigator(MainWindow window)
         var statusDetails = new Button { Content = "Status details", Padding = new Thickness(8,0,8,0), Margin = new Thickness(0,0,8,0) };
         statusDetails.Click += (_,_) => new StatusDetailsDialog(window,CurrentStatusDetails()).ShowDialog();
         AutomationProperties.SetName(statusDetails,"Read full application status"); DockPanel.SetDock(statusDetails,Dock.Right);
-        ((DockPanel)window.ApplicationStatus.Parent).Children.Insert(1,statusDetails);
+        ((DockPanel)window.ApplicationStatus.Parent).Children.Insert(0,statusDetails);
         window.settingsWorkspace.CanChangeDatabase = () => !databaseContextStarted && !HasUnsavedDrafts && !RetainedDrafts.Any();
         window.ShellStoreSelector.SelectionChanged += ShellStore_Changed;
         masterSearch = new TextBox { MinWidth = 180, MaxWidth = 320, Margin = new Thickness(8, 0, 8, 0), ToolTip = "Search every task (Ctrl+K)" };
@@ -389,7 +389,7 @@ public sealed partial class TaskNavigator(MainWindow window)
         if (task.Section == "help") { window.ShowHelpWorkspace(task.Id[5..]); return true; }
         if (task.Section == "profile") { window.OpenProfile_Click(window, new RoutedEventArgs()); return true; }
         if (task.Section == "overview") { ShowTaskOverview(task.Module, task.Destination, null); return true; }
-        if (task.Destination is not "Settings" and not "Dashboard") databaseContextStarted = true;
+        if (task.Id != "settings" && task.Destination is not "Settings" and not "Dashboard") databaseContextStarted = true;
         if (task.ReportCode is { } code) { _ = window.reportsWorkspaceView.RunReportAsync(code); SetBreadcrumb(task.Module, task.Destination, task.Category); return true; }
         window.HideAllFeaturePanels(); window.HideSidebar();
         window.PageTitle.Text = task.Title; window.BreadcrumbText.Text = task.Path; window.PageDescription.Text = task.Purpose;

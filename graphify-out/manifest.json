@@ -180,9 +180,9 @@
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/MainWindow.xaml": {
-    "mtime": 1789212166.5180106,
-    "seen": 1789214066.20968,
-    "ast_hash": "3df261f8240d34d66eaf2e5cafb08aec",
+    "mtime": 1789289731.029038,
+    "seen": 1789290091.922265,
+    "ast_hash": "a7de65fd7ecc992ac90eb9217fe2dcca",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/MainWindow.xaml.cs": {
@@ -2772,9 +2772,9 @@
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/MainWindow.Shell.cs": {
-    "mtime": 1789214502.2336745,
-    "seen": 1789214653.0104012,
-    "ast_hash": "c678e44aaf61ae57e15d6fb527217669",
+    "mtime": 1789289898.8684394,
+    "seen": 1789290091.9222589,
+    "ast_hash": "98c7a612a4a050c773e847c7cdfa3b72",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Themes/Colors.xaml": {
@@ -2856,15 +2856,15 @@
     "semantic_hash": ""
   },
   "docs/UIUX_V4_NAVIGATION_CONTRACT.md": {
-    "mtime": 1789215272.5260625,
-    "seen": 1789215303.0769193,
-    "ast_hash": "0178ec5e131861e8653d3f06623dfa34",
+    "mtime": 1789290221.3887432,
+    "seen": 1789290353.869188,
+    "ast_hash": "6510f04989255430db7bb40ca4acfbbc",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/DensitySelector.cs": {
-    "mtime": 1789212286.0437424,
-    "seen": 1789214066.2096646,
-    "ast_hash": "a367d5ac54c627c48005d177fdb43b46",
+    "mtime": 1789290455.545163,
+    "seen": 1789290625.7154512,
+    "ast_hash": "ff9dd3291edb1da940c323e7008d52b3",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/HelpCentre.cs": {
@@ -3780,9 +3780,9 @@
     "semantic_hash": ""
   },
   "tests-dotnet/Etp.Reporting.Desktop.Tests/MainWindowShellBoundaryTests.cs": {
-    "mtime": 1789202569.335169,
-    "seen": 1789204195.3719711,
-    "ast_hash": "144e81aa2d6f09a4a62f25a80d1890a8",
+    "mtime": 1789289898.8714356,
+    "seen": 1789290091.9227395,
+    "ast_hash": "208de2e965a259e6b09b77133b94b8af",
     "semantic_hash": ""
   },
   "tests-dotnet/Etp.Reporting.Desktop.Tests/OperationsAdministrationWorkspaceViewTests.cs": {
@@ -4608,21 +4608,21 @@
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Modules/Settings/GeneralPreferencesView.cs": {
-    "mtime": 1789204765.7046504,
-    "seen": 1789206787.2361984,
-    "ast_hash": "f9e3d8af7e7eac20e4b012d610f95311",
+    "mtime": 1789289731.0333176,
+    "seen": 1789290091.922393,
+    "ast_hash": "d6855864308081628d431c847b06e416",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Shell/TaskNavigator.cs": {
-    "mtime": 1789217449.0896666,
-    "seen": 1789217704.6895678,
-    "ast_hash": "2f2407e7ab142e6bc63dd191d7ffa42a",
+    "mtime": 1789289898.8694346,
+    "seen": 1789290091.9224505,
+    "ast_hash": "8c9e8cbed814b576f5bd333e6890426a",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/TaskNavigation.cs": {
-    "mtime": 1789211220.5033836,
-    "seen": 1789214066.209808,
-    "ast_hash": "0c1414c02e34226bfb5aa7ef5ced148e",
+    "mtime": 1789289898.8664377,
+    "seen": 1789290091.9224527,
+    "ast_hash": "a90f92afbd3177606496bb62cab17640",
     "semantic_hash": ""
   },
   "tests-dotnet/Etp.Reporting.Desktop.Tests/FocusedTaskLayoutTests.cs": {
@@ -4632,9 +4632,9 @@
     "semantic_hash": ""
   },
   "tests-dotnet/Etp.Reporting.Desktop.Tests/TaskNavigationTests.cs": {
-    "mtime": 1789213458.6853368,
-    "seen": 1789214066.2100575,
-    "ast_hash": "c73d838f9ac1a409b9d882a261294dcb",
+    "mtime": 1789289957.4265988,
+    "seen": 1789290091.9227884,
+    "ast_hash": "5fc1768f951d5ec5304c6a5d08992366",
     "semantic_hash": ""
   },
   "docs/audit/ETP-2026-09-12-VM-ACCEPTANCE.md": {
@@ -4644,33 +4644,33 @@
     "semantic_hash": ""
   },
   "docs/audit/ETP-SESSION-HANDOFF-2026-09-12-UI-REDESIGN.md": {
-    "mtime": 1789202057.7521515,
-    "seen": 1789204195.37262,
-    "ast_hash": "382bb2f951fb0d151876ea8d7f0e3a43",
+    "mtime": 1789288754.6754856,
+    "seen": 1789290091.9239378,
+    "ast_hash": "7d53aa12c4071723d9aca081a958f975",
     "semantic_hash": ""
   },
   "docs/audit/ETP-UI-REDESIGN-ACCEPTANCE.md": {
-    "mtime": 1789217675.0792644,
-    "seen": 1789217704.6904333,
-    "ast_hash": "ab030a08a44ca5504d9b59a7b9457ba6",
+    "mtime": 1789289337.6878903,
+    "seen": 1789290091.9239523,
+    "ast_hash": "4edf44e119be431d67533d2d90cc3c3f",
     "semantic_hash": ""
   },
   "docs/design/ETP-UI-REDESIGN-DECISIONS.md": {
-    "mtime": 1789217589.9372954,
-    "seen": 1789217704.6904712,
-    "ast_hash": "c950baf35bb1156b57e0328a8ff34d08",
+    "mtime": 1789290221.3937514,
+    "seen": 1789290353.8693142,
+    "ast_hash": "2e130630e545e1008e6f4fd387ce20a9",
     "semantic_hash": ""
   },
   "docs/design/ETP-UI-REDESIGN-FOUR-PHASE-SPRINT-2026-09-12.md": {
-    "mtime": 1789202070.480259,
-    "seen": 1789204195.3726585,
-    "ast_hash": "7119dafead4cd02eae66ac3662aa6341",
+    "mtime": 1789288754.699571,
+    "seen": 1789290091.924041,
+    "ast_hash": "d41b77ab56b4d7a0d79cc46f9ccbd23e",
     "semantic_hash": ""
   },
   "docs/design/ETP-UI-REDESIGN-SPRINT-LEDGER.md": {
-    "mtime": 1789217589.9322965,
-    "seen": 1789217704.6904745,
-    "ast_hash": "e7c4c36ac5d925ee43169cf55612f7cc",
+    "mtime": 1789289337.685805,
+    "seen": 1789290091.9240441,
+    "ast_hash": "1f5ab74e4bc6b797ceee4cc396687f24",
     "semantic_hash": ""
   },
   "docs/design/reference-today-overview-2026-09-12.png": {
@@ -4758,9 +4758,9 @@
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/HelpTaskRoutes.cs": {
-    "mtime": 1789213458.6843379,
-    "seen": 1789214066.209675,
-    "ast_hash": "8aafe4d36b87dca193d5c241cf753f3c",
+    "mtime": 1789290103.9569778,
+    "seen": 1789290353.867765,
+    "ast_hash": "aa3d8ed47fed4f6c056892f360c59ebf",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Modules/Archive/ArchiveContactDrafts.cs": {
@@ -4770,9 +4770,9 @@
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Modules/Archive/ArchiveWorkspaceFeedback.cs": {
-    "mtime": 1789210727.2379515,
-    "seen": 1789214066.2096963,
-    "ast_hash": "5135bc7ed1f094b0beedcf26ef796f7c",
+    "mtime": 1789288110.6080837,
+    "seen": 1789290091.9222884,
+    "ast_hash": "88901af6dd051b396bf8d4e4d83f34e5",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Modules/Imports/ImportOperationState.cs": {
@@ -4866,9 +4866,9 @@
     "semantic_hash": ""
   },
   "docs/audit/ETP-UI-REDESIGN-HANDOVER-2026-09-12.md": {
-    "mtime": 1789217589.9352949,
-    "seen": 1789217704.6904352,
-    "ast_hash": "ddaaad7985286bfb612e28edf6b94d2d",
+    "mtime": 1789288754.767454,
+    "seen": 1789290091.9239557,
+    "ast_hash": "e2b5929efee100867d160de02196613d",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Controls/KeyboardRegionNavigation.cs": {
@@ -4911,6 +4911,24 @@
     "mtime": 1789217514.1860068,
     "seen": 1789217704.690437,
     "ast_hash": "4f1df1f69a315e549c0bfb45955083cd",
+    "semantic_hash": ""
+  },
+  "docs/audit/ETP-SESSION-HANDOFF-2026-09-13-UI-REDESIGN.md": {
+    "mtime": 1789289337.6888902,
+    "seen": 1789290091.9239414,
+    "ast_hash": "708e2440a902de98f703322efe8824bc",
+    "semantic_hash": ""
+  },
+  "docs/audit/ETP-UI-REDESIGN-ACCEPTANCE-RESUME-2026-09-13.md": {
+    "mtime": 1789289337.6838038,
+    "seen": 1789290091.9239488,
+    "ast_hash": "3489202d5da6dc0e8b4c2d52b33b1852",
+    "semantic_hash": ""
+  },
+  "docs/audit/ETP-UI-REDESIGN-R10-2026-09-13.md": {
+    "mtime": 1789290505.90541,
+    "seen": 1789290625.7169561,
+    "ast_hash": "76fd1bd02a14c62507a2c728b5cf288a",
     "semantic_hash": ""
   }
 }

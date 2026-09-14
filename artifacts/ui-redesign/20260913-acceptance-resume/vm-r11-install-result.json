@@ -1,0 +1,18 @@
+{
+    "timestampUtc":  "2026-09-13T09:10:57.9339889Z",
+    "candidate":  "1.8.8-r11",
+    "version":  "1.8.8+d24a525b11498db7fb39f166ced8adba0900160c",
+    "installedSha256":  "432BF3914BD97B4DAC3280B52E2D1E401ADB0F99DAEC2B0E3429A3DFFBA52E3A",
+    "installerSha256":  "04ADFDBA153C5B07864C589AE08087E69098B1BB9607F100BE8C6C5F185C66C4",
+    "installerExitCode":  0,
+    "countsUnchanged":  true,
+    "settingsUnchanged":  true,
+    "integrityPassed":  true,
+    "startMenuShortcut":  "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\ETP Reporting Engine\\ETP Reporting Engine.lnk",
+    "startMenuTarget":  "C:\\Program Files\\Saagar Traders\\ETP Reporting Engine\\Etp.Reporting.Desktop.exe",
+    "uiInteraction":  "UNVERIFIED - native capture blocked",
+    "root":  "C:\\ETPAcceptance\\UI-20260913-r11",
+    "PSComputerName":  "ETP-Acceptance-186",
+    "RunspaceId":  "0d67e0f4-b026-4938-966a-2ad927d360c6",
+    "PSShowComputerName":  true
+}

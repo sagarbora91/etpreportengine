@@ -1,0 +1,17 @@
+[
+    {
+        "path":  "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\ETP Reporting Engine\\ETP Reporting Engine.lnk",
+        "target":  "C:\\Program Files\\Saagar Traders\\ETP Reporting Engine\\Etp.Reporting.Desktop.exe",
+        "targetExists":  true
+    },
+    {
+        "path":  "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\ETP Reporting Engine\\Uninstall ETP Reporting Engine.lnk",
+        "target":  "C:\\Program Files\\Saagar Traders\\ETP Reporting Engine\\unins000.exe",
+        "targetExists":  true
+    },
+    {
+        "path":  "C:\\Users\\Public\\Desktop\\ETP Reporting Engine.lnk",
+        "target":  "C:\\Program Files\\Saagar Traders\\ETP Reporting Engine\\Etp.Reporting.Desktop.exe",
+        "targetExists":  true
+    }
+]

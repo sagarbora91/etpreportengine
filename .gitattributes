@@ -5,4 +5,4 @@
 *.sql text eol=crlf
 *.md text eol=lf
 *.json text eol=lf
-
+artifacts/ui-redesign/** -text

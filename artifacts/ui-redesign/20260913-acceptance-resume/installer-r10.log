@@ -1,0 +1,97 @@
+Inno Setup 6 Command-Line Compiler
+Copyright (C) 1997-2026 Jordan Russell. All rights reserved.
+Portions Copyright (C) 2000-2026 Martijn Laan. All rights reserved.
+Portions Copyright (C) 2001-2004 Alex Yackimoff. All rights reserved.
+https://www.innosetup.com
+
+Compiler engine version: Inno Setup 6.7.3
+Non-commercial use only
+
+Preprocessing
+   Reading file: C:\Users\Sagar\AppData\Local\Programs\Inno Setup 6\ISPPBuiltins.iss
+Parsing [Setup] section, line 15
+Parsing [Setup] section, line 16
+Parsing [Setup] section, line 17
+Parsing [Setup] section, line 18
+Parsing [Setup] section, line 19
+Parsing [Setup] section, line 20
+Parsing [Setup] section, line 21
+Parsing [Setup] section, line 22
+Parsing [Setup] section, line 23
+Parsing [Setup] section, line 24
+Parsing [Setup] section, line 25
+Parsing [Setup] section, line 26
+Parsing [Setup] section, line 27
+Parsing [Setup] section, line 28
+Parsing [Setup] section, line 29
+Parsing [Setup] section, line 30
+Parsing [Setup] section, line 31
+Parsing [Setup] section, line 32
+Creating output directory: C:\Codex\Reporting Manger\SaagarCC-V6-ETP-Source-and-Report-Engine-605002f\artifacts\ui-redesign\20260913-acceptance-resume\installer-1.8.8-r10
+Reading file (WizardImageFile)
+Reading file (WizardSmallImageFile)
+Preparing Setup program executable
+   Verification successful
+   Updating icons (Setup.e32)
+   Updating version info (Setup.e32)
+Determining language code pages
+   Reading file: C:\Users\Sagar\AppData\Local\Programs\Inno Setup 6\Default.isl
+   Messages in script file
+Reading default messages from Default.isl
+Parsing [LangOptions], [Messages], and [CustomMessages] sections
+   Reading file: C:\Users\Sagar\AppData\Local\Programs\Inno Setup 6\Default.isl
+   Messages in script file
+Reading [Code] section
+Parsing [Tasks] section, line 43
+Parsing [Tasks] section, line 44
+Parsing [Icons] section, line 38
+Parsing [Icons] section, line 39
+Parsing [Icons] section, line 40
+Parsing [Run] section, line 47
+Parsing [UninstallRun] section, line 50
+Parsing [Files] section, line 35
+Compiling [Code] section
+Creating setup files
+   Verification successful
+   Updating icons (Setup.exe)
+   Compressing: C:\Codex\Reporting Manger\SaagarCC-V6-ETP-Source-and-Report-Engine-605002f\artifacts\ui-redesign\20260913-acceptance-resume\candidate-1.8.8-r10\Etp.Reporting.Application.pdb
+   Compressing: C:\Codex\Reporting Manger\SaagarCC-V6-ETP-Source-and-Report-Engine-605002f\artifacts\ui-redesign\20260913-acceptance-resume\candidate-1.8.8-r10\Etp.Reporting.Desktop.exe
+   Compressing: C:\Codex\Reporting Manger\SaagarCC-V6-ETP-Source-and-Report-Engine-605002f\artifacts\ui-redesign\20260913-acceptance-resume\candidate-1.8.8-r10\Etp.Reporting.Desktop.pdb
+   Compressing: C:\Codex\Reporting Manger\SaagarCC-V6-ETP-Source-and-Report-Engine-605002f\artifacts\ui-redesign\20260913-acceptance-resume\candidate-1.8.8-r10\Etp.Reporting.Domain.pdb
+   Compressing: C:\Codex\Reporting Manger\SaagarCC-V6-ETP-Source-and-Report-Engine-605002f\artifacts\ui-redesign\20260913-acceptance-resume\candidate-1.8.8-r10\Etp.Reporting.Import.pdb
+   Compressing: C:\Codex\Reporting Manger\SaagarCC-V6-ETP-Source-and-Report-Engine-605002f\artifacts\ui-redesign\20260913-acceptance-resume\candidate-1.8.8-r10\Etp.Reporting.Infrastructure.SqlServer.pdb
+   Compressing: C:\Codex\Reporting Manger\SaagarCC-V6-ETP-Source-and-Report-Engine-605002f\artifacts\ui-redesign\20260913-acceptance-resume\candidate-1.8.8-r10\Etp.Reporting.Reporting.pdb
+   Compressing: C:\Codex\Reporting Manger\SaagarCC-V6-ETP-Source-and-Report-Engine-605002f\artifacts\ui-redesign\20260913-acceptance-resume\candidate-1.8.8-r10\release.json
+   Compressing: C:\Codex\Reporting Manger\SaagarCC-V6-ETP-Source-and-Report-Engine-605002f\artifacts\ui-redesign\20260913-acceptance-resume\candidate-1.8.8-r10\SHA256SUMS.txt
+   Compressing: C:\Codex\Reporting Manger\SaagarCC-V6-ETP-Source-and-Report-Engine-605002f\artifacts\ui-redesign\20260913-acceptance-resume\candidate-1.8.8-r10\database\migrations\0001_foundation.sql
+   Compressing: C:\Codex\Reporting Manger\SaagarCC-V6-ETP-Source-and-Report-Engine-605002f\artifacts\ui-redesign\20260913-acceptance-resume\candidate-1.8.8-r10\database\migrations\0002_reporting_facts.sql
+   Compressing: C:\Codex\Reporting Manger\SaagarCC-V6-ETP-Source-and-Report-Engine-605002f\artifacts\ui-redesign\20260913-acceptance-resume\candidate-1.8.8-r10\database\migrations\0003_sales_dimensions.sql
+   Compressing: C:\Codex\Reporting Manger\SaagarCC-V6-ETP-Source-and-Report-Engine-605002f\artifacts\ui-redesign\20260913-acceptance-resume\candidate-1.8.8-r10\database\migrations\0004_operational_audit.sql
+   Compressing: C:\Codex\Reporting Manger\SaagarCC-V6-ETP-Source-and-Report-Engine-605002f\artifacts\ui-redesign\20260913-acceptance-resume\candidate-1.8.8-r10\database\migrations\0005_daily_reporting_workflow.sql
+   Compressing: C:\Codex\Reporting Manger\SaagarCC-V6-ETP-Source-and-Report-Engine-605002f\artifacts\ui-redesign\20260913-acceptance-resume\candidate-1.8.8-r10\database\migrations\0006_backfill_import_business_scope.sql
+   Compressing: C:\Codex\Reporting Manger\SaagarCC-V6-ETP-Source-and-Report-Engine-605002f\artifacts\ui-redesign\20260913-acceptance-resume\candidate-1.8.8-r10\database\migrations\0007_sales_enrichment_facts.sql
+   Compressing: C:\Codex\Reporting Manger\SaagarCC-V6-ETP-Source-and-Report-Engine-605002f\artifacts\ui-redesign\20260913-acceptance-resume\candidate-1.8.8-r10\database\migrations\0008_service_cash_inputs.sql
+   Compressing: C:\Codex\Reporting Manger\SaagarCC-V6-ETP-Source-and-Report-Engine-605002f\artifacts\ui-redesign\20260913-acceptance-resume\candidate-1.8.8-r10\database\migrations\0009_locked_day_fact_guards.sql
+   Compressing: C:\Codex\Reporting Manger\SaagarCC-V6-ETP-Source-and-Report-Engine-605002f\artifacts\ui-redesign\20260913-acceptance-resume\candidate-1.8.8-r10\database\migrations\0010_operational_completion.sql
+   Compressing: C:\Codex\Reporting Manger\SaagarCC-V6-ETP-Source-and-Report-Engine-605002f\artifacts\ui-redesign\20260913-acceptance-resume\candidate-1.8.8-r10\database\migrations\0011_phase2_operations.sql
+   Compressing: C:\Codex\Reporting Manger\SaagarCC-V6-ETP-Source-and-Report-Engine-605002f\artifacts\ui-redesign\20260913-acceptance-resume\candidate-1.8.8-r10\database\migrations\0012_windows_database_access.sql
+   Compressing: C:\Codex\Reporting Manger\SaagarCC-V6-ETP-Source-and-Report-Engine-605002f\artifacts\ui-redesign\20260913-acceptance-resume\candidate-1.8.8-r10\database\migrations\0013_store_manager_permission_guards.sql
+   Compressing: C:\Codex\Reporting Manger\SaagarCC-V6-ETP-Source-and-Report-Engine-605002f\artifacts\ui-redesign\20260913-acceptance-resume\candidate-1.8.8-r10\database\migrations\0014_productisation.sql
+   Compressing: C:\Codex\Reporting Manger\SaagarCC-V6-ETP-Source-and-Report-Engine-605002f\artifacts\ui-redesign\20260913-acceptance-resume\candidate-1.8.8-r10\database\migrations\0015_operational_audit_contract.sql
+   Compressing: C:\Codex\Reporting Manger\SaagarCC-V6-ETP-Source-and-Report-Engine-605002f\artifacts\ui-redesign\20260913-acceptance-resume\candidate-1.8.8-r10\scripts\backup-etp-database.ps1
+   Compressing: C:\Codex\Reporting Manger\SaagarCC-V6-ETP-Source-and-Report-Engine-605002f\artifacts\ui-redesign\20260913-acceptance-resume\candidate-1.8.8-r10\scripts\bootstrap-etp-prerequisites.ps1
+   Compressing: C:\Codex\Reporting Manger\SaagarCC-V6-ETP-Source-and-Report-Engine-605002f\artifacts\ui-redesign\20260913-acceptance-resume\candidate-1.8.8-r10\scripts\install-daily-backup-task.ps1
+   Compressing: C:\Codex\Reporting Manger\SaagarCC-V6-ETP-Source-and-Report-Engine-605002f\artifacts\ui-redesign\20260913-acceptance-resume\candidate-1.8.8-r10\scripts\install-etp-automation-task.ps1
+   Compressing: C:\Codex\Reporting Manger\SaagarCC-V6-ETP-Source-and-Report-Engine-605002f\artifacts\ui-redesign\20260913-acceptance-resume\candidate-1.8.8-r10\scripts\install-monthly-recovery-drill-task.ps1
+   Compressing: C:\Codex\Reporting Manger\SaagarCC-V6-ETP-Source-and-Report-Engine-605002f\artifacts\ui-redesign\20260913-acceptance-resume\candidate-1.8.8-r10\scripts\invoke-etp-recovery-drill.ps1
+   Compressing: C:\Codex\Reporting Manger\SaagarCC-V6-ETP-Source-and-Report-Engine-605002f\artifacts\ui-redesign\20260913-acceptance-resume\candidate-1.8.8-r10\scripts\invoke-monthly-recovery-drill-runner.ps1
+   Compressing: C:\Codex\Reporting Manger\SaagarCC-V6-ETP-Source-and-Report-Engine-605002f\artifacts\ui-redesign\20260913-acceptance-resume\candidate-1.8.8-r10\scripts\new-etp-support-package.ps1
+   Compressing: C:\Codex\Reporting Manger\SaagarCC-V6-ETP-Source-and-Report-Engine-605002f\artifacts\ui-redesign\20260913-acceptance-resume\candidate-1.8.8-r10\scripts\remove-etp-scheduled-tasks.ps1
+   Compressing Setup program executable
+   Updating version info (Setup.exe)
+   Updating manifest (Setup.exe)
+
+
+Successful compile (47.015 sec). Resulting Setup program filename is:
+C:\Codex\Reporting Manger\SaagarCC-V6-ETP-Source-and-Report-Engine-605002f\artifacts\ui-redesign\20260913-acceptance-resume\installer-1.8.8-r10\EtpReportingEngine-Setup-1.8.8-x64.exe
+Windows installer created at C:\Codex\Reporting Manger\SaagarCC-V6-ETP-Source-and-Report-Engine-605002f\artifacts\ui-redesign\20260913-acceptance-resume\installer-1.8.8-r10\EtpReportingEngine-Setup-1.8.8-x64.exe

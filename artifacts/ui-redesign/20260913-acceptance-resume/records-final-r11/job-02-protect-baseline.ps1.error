@@ -1,0 +1,10 @@
+Copy-Item : Cannot find path 'C:\ETPAcceptance\UI-20260913-baseline\processes.json' because it does not exist.
+At C:\Codex\Reporting Manger\SaagarCC-V6-ETP-Source-and-Report-Engine-605002f\artifacts\ui-redesign\20260912-sprint\job
+-02-protect-baseline.ps1:44 char:5
++     Copy-Item -FromSession $Session -LiteralPath "C:\ETPAcceptance\UI ...
++     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (C:\ETPAcceptanc...\processes.json:String) [Copy-Item], ArgumentExcepti 
+   on
+    + FullyQualifiedErrorId : RemotePathNotFound,Microsoft.PowerShell.Commands.CopyItemCommand
+ 
+

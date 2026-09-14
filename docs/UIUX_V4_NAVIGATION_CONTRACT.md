@@ -34,12 +34,12 @@ Status details opens the complete task/application message. Native file pickers 
 
 ## Preferences and keyboard
 
-General settings exposes display density, pinned modules and favourite reports. Comfortable uses 48-DIP actions and 46-DIP grid rows; Compact uses 34/30. The status bar also exposes density. Preferences remain in the existing atomic local preference store.
+Settings → Display → Display & Preferences exposes density on its Display tab, alongside separate pinned-module and favourite-report tabs. Comfortable uses 48-DIP actions and 46-DIP grid rows; Compact uses 34/30. The selected density applies throughout the application; the selector appears only in Settings, not in every screen's status bar. Viewer, Store Manager and Owner retain access to personal preferences; administration and recovery remain restricted. Preferences remain in the existing atomic local preference store.
 
 - Ctrl+K: master task navigation search.
 - Ctrl+F: filter the active table locally, or find text in the current page. The labelled popup states that filtering does not change summary totals or exported data. Close clears the local filter.
 - Alt+Left/Right: task history; Alt+Home: Dashboard.
-- F6: cycle master search, scope, the visible task content and density; hidden legacy surfaces are skipped.
+- F6: cycle master search, scope and the visible task content; hidden legacy surfaces are skipped.
 - F1: contextual help; Ctrl+/: shortcut guide.
 - Escape: close active local search/detail/help surface as applicable.
 - Existing report refresh/run/export shortcuts use the displayed report scope.

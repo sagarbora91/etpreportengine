@@ -68,4 +68,6 @@ Related: [[System Architecture]], [[Data Architecture]], [[Decision Register]].
 
 ## September 2026 UI redesign checkpoint
 
+The 13 September user-directed follow-up places density in Settings → Display → Display & Preferences. This personal-preferences task uses the role-checked Home shell host so Viewer and Store Manager keep access without receiving administration rights; database, users and recovery routes retain their existing guards. The global footer no longer offers density. See sprint decision D43 and installed acceptance evidence for verification limits.
+
 [[ADR-009 - Canonical Focused Task Navigation]] records canonical task IDs, local metadata search, focused retained controls and explicit task context overrides. TaskNavigator owns visual shell composition; TaskNavigation owns searchable metadata. The full source conversion includes per-record drafts, serialized operations, bounded task tables, report scope validation, DSR tabs, favourite reports and focused settings/help/dialogs. Database switching requires a fresh session before a work module opens, protecting retained IDs and drafts. These source and component checks are not installed acceptance. The governing ledger is docs/design/ETP-UI-REDESIGN-SPRINT-LEDGER.md; current unverified constraints remain visible there.

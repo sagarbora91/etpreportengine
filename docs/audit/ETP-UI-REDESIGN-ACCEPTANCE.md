@@ -1,4 +1,8 @@
-# ETP UI redesign acceptance — candidate 1.8.8-r9
+# ETP UI redesign acceptance — current installed candidate 1.8.8-r11
+
+**Latest checkpoint: INCOMPLETE — WORK REMAINS.** [r10/r11 acceptance evidence](ETP-UI-REDESIGN-R10-2026-09-13.md) records solved VM access, preserved original baseline/backup, 669 passing tests, r11 installation/hash and unchanged counts/settings/integrity, and Settings-only density. Screen capture still fails; original Settings sidebar and missing window-button reports remain unreproduced. Start menu shortcut file/target is verified, visible launch is not. UX-22 now has an installed hash/preservation PASS subset; its full launch/lifecycle requirement remains UNVERIFIED. Other full UX/J outcomes below are not upgraded. Remaining r9 material is historical evidence, superseded where this latest report records new observations.
+
+**13 September resumption: INCOMPLETE — WORK REMAINS.** [Fresh evidence and blocker record](ETP-UI-REDESIGN-ACCEPTANCE-RESUME-2026-09-13.md): Settings sidebar defect reported by user, not yet reproduced or repaired; host executable identifies as 1.8.5; r9 archives match; VM permission and native capture still blocked. The matrix below preserves historical scoped evidence, with no new PASS. UX-03 has this additional open reported defect; all full J01–J18 remain UNVERIFIED.
 
 Verification updated UTC: 2026-09-12T12:53:09.931255+00:00. Source-push/handoff documentation updated: 13 September 2026; no new UI acceptance claimed. Run: `20260912-sprint`.
 

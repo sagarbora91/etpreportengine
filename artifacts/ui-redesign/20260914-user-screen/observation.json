@@ -1,0 +1,9 @@
+{
+  "timestampUtc": "2026-09-14T13:47:30.4068780Z",
+  "captureMethod": "User-supplied screenshot",
+  "imageSha256": "D6B8AC8A4D9822DB75400A20F76101E9088198874D2DCFD541ACB7F7EEFBE44D",
+  "observed": "Settings overview; six categories; Display present; singular category counts say 1 tasks; no title bar in supplied image",
+  "candidateIdentity": "Not independently verified from image; r11 was last installed",
+  "inputResult": "UNVERIFIED - static image does not show a click outcome",
+  "nextAction": "Observe Database & Recovery tile click and resulting screen; obtain uncropped window/VM bounds for caption-button diagnosis"
+}
