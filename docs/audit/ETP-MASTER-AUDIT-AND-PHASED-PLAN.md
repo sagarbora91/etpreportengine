@@ -1,6 +1,6 @@
 # ETP Reporting Engine — Master Audit and Phased Rebuild Plan
 
-Version 1.0 — 15 September 2026. Author: Claude (audit and plan). Executor: Codex. Decision owner: Sagar.
+Version 1.2 — 15 September 2026 (all owner decisions D1–D11 frozen). Author: Claude (audit and plan). Executor: Codex. Decision owner: Sagar.
 
 This document replaces every earlier "acceptance", "sprint ledger", "handoff" and "review plan" document under `docs/` as the single working plan. Detailed evidence lives in `docs/audit/claude-audit-2026-09/01..06-*.md`.
 
@@ -40,15 +40,15 @@ Decisions (Sagar answers before the phase that needs them):
 | ID | Question | Needed by | Default if no answer |
 |---|---|---|---|
 | D1 | **DECIDED 15 Sep 2026:** Reports use GST-inclusive NETAMOUNT as "Value" everywhere; NETVALUE and TAX kept as separate columns for GST reports. | Phase 1 | — |
-| D2 | "LY" compares the same calendar date last year, or the same weekday (retail convention)? | Phase 2 | Same calendar date (matches the Excel sheet) |
+| D2 | **DECIDED 15 Sep 2026:** LY = same calendar date last year (29 Feb → 28 Feb). | Phase 2 | — |
 | D3 | **DECIDED 15 Sep 2026:** Store customer name and full phone number. Consequence: Phase 4 task 2 (backup folder ACLs) and task 5 (privacy scrub) are mandatory before staff use the app; customer columns are excluded from diagnostics and the support package. | Phase 1 | — |
-| D4 | Brand rows on the DSR: Titan = NEBULA, EDGE, XYLYS, AUTOMATIC, RAGA; Helios = SEIKO, CITIZEN, CERRUTI. Confirm the exact ETP BRANDNAME/CLUSTER values that map to each row. | Phase 2 | Codex proposes a mapping from the workbook's distinct BRAND/BRANDNAME/CLUSTER values; Sagar confirms |
-| D5 | Targets: monthly store target and per-CRO monthly target entered once per month; DAY TGT = monthly ÷ days in month; MTD BLA = monthly − MTD; REQ ADS = BLA ÷ days remaining. Confirm formulas. | Phase 2 | As stated |
-| D6 | Which secondary modules matter in the next 6 months: Accounting/Tally export, Archive sharing by email/WhatsApp, Digital Registers, OCR of supplier documents, Approvals workflow? | Phase 5 | Hide all from staff; keep code behind an Owner-only "Advanced" area |
-| D7 | Who uses the app: Owner only, or also store staff on the touch PC with their own Windows logins? | Phase 3/4 | Owner + staff on one shared login (Store Manager role) |
-| D8 | Last-year data: is a 2025-26 ETP export available to load so LY and growth columns work? | Phase 2 | If not, LY columns show "—" and the plan adds a one-time historical import task |
-| D9 | Backups: encrypt with a SQL certificate (Sagar must keep the certificate backup off the PC, or the backups are unrestorable) or rely on Windows BitLocker plus folder permissions? | Phase 4 | BitLocker plus folder permissions |
-| D10 | Closing-stock location split (Display / Backstock / Defective / Y Loc) does not exist in any ETP export. Confirm staff will key it per brand each evening in the app, with yesterday's values pre-filled. | Phase 2 | Yes, manual per brand |
+| D4 | **DECIDED 15 Sep 2026:** Both. Codex lists every distinct BRAND/BRANDNAME/CLUSTER from the real exports with a proposed DSR row in `PHASE-2-REPORT.md` and Sagar ticks each; AND Phase 2 ships an Owner-editable **Brand rows** master in Settings (store, DSR row label, order, mapped ETP brand codes) so rows can change later without code. Rows: Titan = NEBULA, EDGE, XYLYS, AUTOMATIC, RAGA; Helios = SEIKO, CITIZEN, CERRUTI. | Phase 2 | — |
+| D5 | **DECIDED 15 Sep 2026:** Monthly store target and per-CRO target entered once per month. DAY TGT = monthly ÷ days in month; MTD BLA = monthly − MTD actual; REQ ADS = BLA ÷ days remaining including today. Codex shows the calculation in the DSR help. | Phase 2 | — |
+| D6 | **DECIDED 15 Sep 2026:** Keep and finish all four: Accounting/Tally export, report sharing by WhatsApp and email (contacts + delivery history), Digital Registers (all seven types), Approvals workflow (adjustments and restatements). OCR/Source Inbox scaffolding is still deleted. See the revised Phase 5 table. | Phase 5 | — |
+| D7 | **DECIDED 15 Sep 2026:** Owner plus staff on one shared Store Manager Windows login on the shop PC; Owner uses their own login for admin. Audit shows the shared account. | Phase 3/4 | — |
+| D8 | **DECIDED 15 Sep 2026:** Yes, Sagar will export 2025-26 for both stores. Phase 2 adds a one-time historical import (multi-month files, same profiles) so LY, growth and LY YTD fill in. Sagar exports the files before Phase 2 starts. | Phase 2 | — |
+| D9 | **DECIDED 15 Sep 2026:** SQL backup encryption with a certificate. Phase 4 must: create the certificate, export it with a password to two off-PC locations chosen by Sagar, verify a restore on a second machine from the exported certificate, and document the custody steps in `docs/OPERATIONS.md`. The recovery drill fails loudly if the certificate backup is missing. | Phase 4 | — |
+| D10 | **DECIDED 15 Sep 2026:** Staff key Display / Backstock / Defective / Y Loc per brand each evening in the app, yesterday's values pre-filled; System from ETP Closing Stock; Difference computed. | Phase 2 | — |
 | D11 | **DECIDED 15 Sep 2026:** Cash-book modes are Cash, Card, UPI, CN, TC, Service Cash, Service Card, Service UPI. Codex lists every PAYMENTTYPE column with its AGENCYNAME from the Payment Type Report in `PHASE-1-REPORT.md`; Sagar ticks the mode for each before Phase 1 closes (PAYMENTTYPE25 = Airpay → UPI, PAYMENTTYPE20 = PhonePe → UPI). | Phase 1 | — |
 
 ## 4. Audit summary by module
@@ -199,6 +199,8 @@ Tasks (each report gets its own screen, Excel export, PDF export and a golden te
 7. **Exports** — replace the fixed-width tabular PDF with measured column widths and an embedded Unicode font (₹, —); Excel gets real number cells with Indian grouping (`[>=10000000]##\,##\,##\,##0;[>=100000]##\,##\,##0;##,##0`), dates as dates, freeze panes, autofilter; remove the "Executive Summary" KPI sheet or compute it correctly (no summing percentages). DSR PDF stays single A4 landscape but sizes tiles to content.
 8. Fix C9–C16 from audit 01 (SR in counts, target halving, `TyInvoices ?? 0`, tender-variance sign, cash blocking on optional inputs, service SumIfAny).
 9. Remove alias catalogue entries (`stock-group`, the five `exception-*` filters become filter chips on one Exceptions screen).
+10. **Brand rows master** (D4): Owner-editable screen in Settings mapping ETP brand codes to DSR rows per store; the DSR reads from it.
+11. **Historical import** (D8): import the 2025-26 exports for both stores through the same profiles (multi-month scope from Phase 1); LY, growth and LY YTD then populate. Acceptance A2.6: after loading the 2025-26 files, the DSR for 25 Aug 2026 shows LY and GROWTH% values, and LY YTD for Titan equals the sum Claude computes from the 2025-26 workbook for 1 Apr–25 Aug 2025.
 
 Acceptance:
 - A2.1 For 25 Aug 2026 the DSR screen and PDF show, for the invoices present in the export: Titan VOL 5, VALUE ₹34,215, AUPT 1.00, AVPT ₹6,843; Helios VOL 2, VALUE ₹29,290; MTD Titan ₹9,38,197 / 182 invoices, Helios ₹7,74,869 / 38; brand rows sum to the store value; combined block = sum of stores. Claude recomputes each from the workbooks.
@@ -228,7 +230,7 @@ Acceptance: A3.1 Launch → DSR in 0 taps (it is the landing screen), → import
 ### Phase 4 — Security and operations hardening (3–5 days)
 Tasks (from audit 04, in priority order):
 1. **Day lock in SQL.** `INSTEAD OF UPDATE` trigger (or a stored procedure that is the only granted path) on `daily_reporting_days`: LOCKED→OPEN only for members of an `etp_owner` database role, with a non-empty reason written to `daily_reporting_events` in the same statement. Delete the client `administratorApproved` flag and the elevated-token check (`DailyWorkflowWorkspaceView.xaml.cs:412-416`).
-2. **Folder ACLs and backups.** Bootstrap sets `C:\ProgramData\EtpReporting\{Backups,Documents,Share}` to SYSTEM, Administrators and the SQL service only (`icacls /inheritance:r`); backup rotation (keep 14 daily + 12 monthly); `BACKUP … WITH ENCRYPTION` only if D9 (key custody) is answered, otherwise document BitLocker. Fix the ACL on the existing PC as part of the phase.
+2. **Folder ACLs and backups.** Bootstrap sets `C:\ProgramData\EtpReporting\{Backups,Documents,Share}` to SYSTEM, Administrators and the SQL service only (`icacls /inheritance:r`); backup rotation (keep 14 daily + 12 monthly); `BACKUP … WITH ENCRYPTION (ALGORITHM = AES_256, SERVER CERTIFICATE = EtpBackupCert)` per D9: a Settings → Database action creates the certificate and exports it plus its private key with a password to a location Sagar chooses (off the PC: USB or cloud folder), records the export hash, and the recovery drill fails loudly if no exported certificate is on record; the restore procedure is verified on a second machine and written in `docs/OPERATIONS.md`. Fix the ACL on the existing PC as part of the phase.
 3. **Scheduled tasks.** Install the daily backup and ETP automation tasks (they are missing on the live PC); register all three with the same principal; run automation under a dedicated least-privilege local account with the STORE_MANAGER SQL role, not SYSTEM. Recovery drill restores the file named in the last verified receipt (hash-checked), compares against the backup's own metadata, and reports into System status.
 4. **Store Manager grants.** Replace `db_datawriter` with explicit per-table grants matching the app's rules; INSERT on `operational_audit` only via a stored procedure that takes actor from `SUSER_SNAME()`; audit table append-only for everyone (INSTEAD OF UPDATE/DELETE trigger); maintenance script archives instead of deleting.
 5. **Connection string.** Allow only local instance forms (`.\SQLEXPRESS`, `(local)`, `localhost`, `lpc:`, `np:`); reject `Encrypt=False`, `AttachDbFilename`; drop `TrustServerCertificate=True` default in favour of `Encrypt=Optional` for local; absolute `powershell.exe` path; `-x` on every sqlcmd call.
@@ -238,15 +240,15 @@ Tasks (from audit 04, in priority order):
 Acceptance: A4.1 As a Viewer login in SSMS, `UPDATE daily_reporting_days SET status='OPEN'` and `DELETE FROM operational_audit` both fail; as Store Manager, updating `import_files.is_superseded` and `sales_lines` fails. A4.2 `icacls` on the three ProgramData folders shows no BUILTIN\Users entry. A4.3 `Get-ScheduledTask` shows three ETP tasks with the same non-SYSTEM service principal, and a daily backup has run within 24 h. A4.4 Backup → drill restore → verify passes on the audit PC from the receipt-named file. A4.5 Support package and diagnostics for a session that imported the real files contain no customer name, phone, file path or SQL text. A4.6 Connection settings reject `Server=remotehost` and `Encrypt=False`.
 
 ### Phase 5 — Secondary modules: finish, hide or delete (per D6; 3–10 days)
-Default disposition if D6 is not answered (Claude's recommendation, based on audit 05):
+Disposition per D6 (decided 15 Sep 2026): all four business modules are kept and finished; OCR scaffolding is deleted.
 
 | Module | Disposition | Work |
 |---|---|---|
-| Accounting / Tally export | **Keep, Owner-only, under Settings → Advanced** | Fix the ADJUSTMENT mapping gap; persist the approval reason; make mapping approval one transaction; add Reject; delete the four alias tasks (Mapping Review, Validation, Export History, Reconciliation) and show one screen: Prepare → Review → Export, with a real export history (batch, time, hash, file). |
-| Archive | **Keep, simplified** | One screen: list of generated packs with Open / Excel / PDF / ZIP buttons on every row; delete Compare, Restatements filter, Shared Reports task and `share_attempts`. Sharing = "Save PDF to the Share folder and open WhatsApp Desktop" with the file path copied; delete the `.eml` draft path and SMTP settings unless D6 asks for email. |
-| Registers | **Hide** unless D6 says needed | If kept: fix Courier type, allow VERIFIED, add server-side access check; else remove from staff navigation. |
+| Accounting / Tally export | **Keep and finish, Owner-only** (D6) | Fix the ADJUSTMENT mapping gap; persist the approval reason; make mapping approval one transaction; add Reject; delete the four alias tasks (Mapping Review, Validation, Export History, Reconciliation) and show one screen: Prepare → Review → Export, with a real export history (batch, time, hash, file). |
+| Archive and sharing | **Keep and finish** (D6) | One screen: list of generated packs with Open / Excel / PDF / ZIP / Share on every row. Sharing: contacts list (name, WhatsApp number, email), WhatsApp Desktop launch with the PDF path copied, real SMTP sending (MailKit) using the stored settings with a test-send button, and a delivery history per pack (`share_attempts` gets a reader and a final outcome). Delete Compare and the Restatements filter. |
+| Registers | **Keep and finish** (D6) | Fix Courier type, allow DRAFT → VERIFIED with reason, server-side access check, register entries visible from the day's Close-day tab; seven types. |
 | Source Inbox / OCR / native PDF | **Delete** | Remove `DocumentIntakeService`, PaddleOCR helper path, `document_extractions`, OCR settings and Help topic. Keep "attach a scanned document to a business day" only if D6 asks. |
-| Approvals / Adjustments | **Hide** | Approval Centre only ever holds adjustments; move "Adjustment request" under Exceptions for Store Manager, Owner decides from the same list; delete the empty producers (`RESTATEMENT`, `REOPEN_DAY`, `MASTER_MAPPING`, `CONTROL_WAIVER`) from the CHECK and UI. |
+| Approvals / Adjustments | **Keep and finish** (D6) | Store Manager raises adjustment and restatement requests; Owner approves from one queue that also shows decided history; wire the RESTATEMENT producer (import restatement waits for approval); delete the unused REOPEN_DAY / MASTER_MAPPING / CONTROL_WAIVER types. |
 | Stores / Master data / Tender rules | **Replace** | Stores table becomes the single source for every store list (delete all hard-coded WLMHW/HEMW); tender modes master from Phase 1 replaces "Tender rules"; delete `controlled_master_values` and its screens. |
 | Scheduler / Watch folder | **Keep, honest** | Rename to "Automatic import"; show the installed task status and last run; remove `poll_minutes`; fix the app-lock release; a full ETP ZIP with unsupported workbook types must succeed with "not needed" entries. |
 | Help centre | **Rewrite to match** | One topic per top-level tab of the Phase 3 shell, screenshots included; delete Coming Soon states. |
@@ -259,17 +261,17 @@ Installer that installs/updates SQL Express and the app in one run on a clean Wi
 
 ## 6. Sequence and estimate
 
-| Phase | Codex effort | Depends on | Owner decisions needed first |
+| Phase | Codex effort | Depends on | Owner decisions (all decided 15 Sep) |
 |---|---|---|---|
 | 0 Stabilise | 1–2 days | — | none |
 | 1 Data truth | 5–7 days | 0 | D1, D3, D11 |
 | 2 Six reports | 7–10 days | 1 | D2, D4, D5, D8, D10 |
 | 3 Touch shell | 5–7 days | 2 (can start UI scaffolding after 0) | D7 |
 | 4 Security & ops | 3–5 days | 0 (independent of 1–3) | D9 |
-| 5 Secondary modules | 3–10 days | 3 | D6 |
+| 5 Secondary modules | 8–12 days (all four kept) | 3 | — |
 | 6 Release | 2–3 days | all | — |
 
-Phases 1 and 4 can run in parallel on separate branches. Total: roughly 5–7 weeks of Codex time plus Claude audit turnaround after each phase.
+Phases 1 and 4 can run in parallel on separate branches. Total: roughly 6–8 weeks of Codex time plus Claude audit turnaround after each phase.
 
 ## 7. Open items log
 - 14 Sep fixes uncommitted — Phase 0 task 1.
