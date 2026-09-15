@@ -115,6 +115,42 @@ public sealed class FolderImportServiceTests
     }
 
     [Fact]
+    public async Task Duplicate_retry_repairs_a_failed_original_document_copy_without_new_data()
+    {
+        var attempts = 0;
+        Task Retain(string path, MatchedImportEnvelope envelope, string store, DateOnly date, CancellationToken token)
+        {
+            if (++attempts == 1) throw new IOException("Temporary copy failure.");
+            return Task.CompletedTask;
+        }
+        var reader = new Reader(path => Sales(path, "HEMW", [20260825]));
+        var first = await new FolderImportService(new CapturePersistence(), reader, Retain).RunFilesAsync(["sales.xlsx"], new("tester"));
+        Assert.Contains("could not be retained", Assert.Single(first.Files).Message);
+        Assert.Equal("Imported", first.Files[0].Status);
+        var duplicatePersistence = new CapturePersistence { Exists = true };
+        var second = await new FolderImportService(duplicatePersistence, reader, Retain).RunFilesAsync(["sales.xlsx"], new("tester"));
+        Assert.Equal(2, attempts);
+        Assert.Equal("Duplicate", Assert.Single(second.Files).Status);
+        Assert.DoesNotContain("could not be retained", second.Files[0].Message);
+        Assert.Empty(duplicatePersistence.Requests);
+        Assert.Equal(0, second.NewRows);
+    }
+
+    [Theory]
+    [InlineData("Duplicate content")]
+    [InlineData("Already present")]
+    public async Task Content_duplicates_and_subsets_retain_their_original_document(string status)
+    {
+        var retained = 0;
+        var summary = await new FolderImportService(new CapturePersistence { Status = status },
+            new Reader(path => Sales(path, "HEMW", [20260825])),
+            (_, _, _, _, _) => { retained++; return Task.CompletedTask; }).RunFilesAsync(["sales.xlsx"], new("tester"));
+        Assert.Equal(status, Assert.Single(summary.Files).Status);
+        Assert.Equal(1, retained);
+        Assert.Equal(0, summary.NewRows);
+    }
+
+    [Fact]
     public async Task Cancellation_stops_before_the_next_file_and_preserves_finished_results()
     {
         using var cancellation = new CancellationTokenSource();
