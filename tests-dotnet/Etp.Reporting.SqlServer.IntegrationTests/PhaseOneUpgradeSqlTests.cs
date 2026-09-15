@@ -24,7 +24,7 @@ public sealed class PhaseOneUpgradeSqlTests
             VALUES(@batch,'synthetic-legacy.xlsx',REPLICATE('c',64),1,'R025','UPGRADE','20260701');
             SET @file=SCOPE_IDENTITY();
             INSERT dbo.source_lineage(import_file_id,sheet_name,source_row_number,source_record_type)
-            VALUES(@file,'Sales',1,'sale'),(@file,'Sales',2,'sale'),(@file,'Sales',3,'sale'),(@file,'Tender',1,'tender');
+            VALUES(@file,'Sales',1,'sale'),(@file,'Sales',2,'sale'),(@file,'Sales',3,'sale'),(@file,'Tender',1,'tender'),(@file,'Stock',1,'stock'),(@file,'Staff',1,'staff');
             INSERT dbo.sales_invoices(store_code,document_number,invoice_year,transaction_date)
             VALUES('UPGRADE','100000068',2025,'20250101'),('UPGRADE','100000068',2026,'20260701'),('UPGRADE','MISSING_GROSS',2026,'20260701');
             INSERT dbo.sales_lines(sales_invoice_id,line_identifier,product_code,source_transaction_type,source_quantity,source_gross_amount,source_net_amount,currency_code,source_lineage_id)
@@ -39,6 +39,14 @@ public sealed class PhaseOneUpgradeSqlTests
             SELECT i.sales_invoice_id,'PAYMENTTYPE25',236,'INR',s.source_lineage_id,0,'UNRESOLVED_PAYMENTTYPE25'
             FROM dbo.sales_invoices i JOIN dbo.source_lineage s ON s.import_file_id=@file AND s.sheet_name='Tender'
             WHERE i.store_code='UPGRADE' AND i.invoice_year=2025;
+            INSERT dbo.stock_movements(store_code,document_number,invoice_year,document_date,product_code,source_transaction_type,opening_quantity,transaction_quantity,closing_quantity,source_lineage_id)
+            SELECT 'UPGRADE','STOCK1',2026,'20260701','ITEM','INV',10,-1,9,source_lineage_id
+            FROM dbo.source_lineage WHERE import_file_id=@file AND sheet_name='Stock';
+            INSERT dbo.sales_line_enrichments(enrichment_type,store_code,transaction_date,document_number,product_code,source_transaction_type,source_quantity,source_net_value,source_cro_number,matched_sales_line_id,match_status,source_lineage_id)
+            SELECT 'R013','UPGRADE','20260701','100000068','ITEM','SR',-1,-100,'CRO1',l.sales_line_id,'Matched',s.source_lineage_id
+            FROM dbo.sales_lines l JOIN dbo.source_lineage s ON s.import_file_id=@file AND s.sheet_name='Staff' WHERE l.line_identifier='2';
+            INSERT dbo.daily_reporting_days(store_code,business_date,status,finalised_by,finalised_utc)
+            VALUES('UPGRADE','20250101','LOCKED','Prior owner',SYSUTCDATETIME()),('UPGRADE','20260701','LOCKED','Prior owner',SYSUTCDATETIME());
             """);
 
         var applied = await new MigrationRunner(source, store).RunAsync();
@@ -53,6 +61,23 @@ public sealed class PhaseOneUpgradeSqlTests
         Assert.Equal(DBNull.Value, await database.ExecuteAsync("SELECT source_tax_amount FROM dbo.sales_lines WHERE line_identifier='3'"));
         Assert.Equal(236m, await database.ExecuteAsync("SELECT SUM(source_amount) FROM dbo.reporting_sales_tenders WHERE tender_type='PAYMENTTYPE25'"));
         Assert.Equal("2025-01-01/2026-07-01", await database.ExecuteAsync("SELECT CONCAT(CONVERT(char(10),period_start,23),'/',CONVERT(char(10),period_end,23)) FROM dbo.import_files WHERE store_code='UPGRADE'"));
+        Assert.Equal(2027, await database.ExecuteAsync("SELECT invoice_year FROM dbo.stock_movements WHERE store_code='UPGRADE'"));
+        Assert.Equal(2027, await database.ExecuteAsync("SELECT invoice_year FROM dbo.sales_line_enrichments WHERE store_code='UPGRADE'"));
+        Assert.Equal(2, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.daily_reporting_days WHERE store_code='UPGRADE' AND status='LOCKED' AND finalised_by='Prior owner'"));
+        foreach (var (sql, errorNumber) in new (string, int)[]
+        {
+            ("UPDATE dbo.sales_lines SET source_gross_amount=source_gross_amount+1 WHERE line_identifier='1'", 51030),
+            ("UPDATE dbo.sales_invoices SET invoice_year=invoice_year+10 WHERE store_code='UPGRADE'", 51038),
+            ("UPDATE dbo.sales_tenders SET source_amount=source_amount+1", 51032),
+            ("UPDATE dbo.stock_movements SET invoice_year=invoice_year+1 WHERE store_code='UPGRADE'", 51033),
+            ("UPDATE dbo.sales_line_enrichments SET source_net_value=source_net_value+1 WHERE store_code='UPGRADE'", 51035),
+            ("UPDATE dbo.import_files SET source_row_count=99 WHERE store_code='UPGRADE'", 51021)
+        })
+        {
+            var error = await Assert.ThrowsAsync<SqlException>(() => database.ExecuteAsync(sql));
+            Assert.Equal(errorNumber, error.Number);
+        }
+        Assert.Equal(236m, await database.ExecuteAsync("SELECT source_gross_amount FROM dbo.sales_lines WHERE line_identifier='1'"));
         var after = await store.GetAppliedAsync();
         foreach (var old in before)
             Assert.Equal(old, Assert.Single(after, x => x.Id == old.Id));
