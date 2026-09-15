@@ -190,7 +190,8 @@ public sealed class DesktopCompositionRoot
     }
 
     public string LoadConnectionString() =>
-        new DesktopSettingsStore(settingsDirectory).Load()?.ConnectionString ?? connectionString;
+        new DesktopConnectionState(new DesktopSettingsStore(settingsDirectory).Load()?.ConnectionString ?? connectionString)
+            .ConnectionString;
 
     public async Task InitializeDatabaseAsync(CancellationToken cancellationToken = default)
     {
