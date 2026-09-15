@@ -24,7 +24,18 @@ public sealed class MigrationIntegrityException(string message) : InvalidOperati
 
 public static class MigrationChecksum
 {
-    public static string Compute(string sql) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(sql))).ToLowerInvariant();
+    public static string Compute(string sql) => Raw(sql.Replace("\r\n", "\n").Replace('\r', '\n'));
+
+    internal static bool Matches(string sql, string checksum)
+    {
+        var lf = sql.Replace("\r\n", "\n").Replace('\r', '\n');
+        // Upgrade compatibility: accept only hashes of this exact SQL in legacy LF/CRLF form.
+        // Do not rewrite the journal or accept changes to spaces, comments or SQL tokens.
+        return new[] { Compute(sql), Raw(sql), Raw(lf.Replace("\n", "\r\n")) }
+            .Contains(checksum, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static string Raw(string sql) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(sql))).ToLowerInvariant();
 }
 
 public sealed class DirectoryMigrationSource(string directory) : IMigrationSource
@@ -56,7 +67,7 @@ public static class MigrationPlanner
         {
             if (!known.TryGetValue(item.Id, out var script))
                 throw new MigrationIntegrityException($"Applied migration '{item.Id}' is missing from the migration source.");
-            if (!string.Equals(script.Checksum, item.Checksum, StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(script.Checksum, item.Checksum, StringComparison.OrdinalIgnoreCase) && !MigrationChecksum.Matches(script.Sql, item.Checksum))
                 throw new MigrationIntegrityException($"Checksum mismatch for applied migration '{item.Id}'.");
         }
         var appliedIds = applied.Select(x => x.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -127,7 +138,7 @@ public sealed class SqlServerMigrationStore(string connectionString) : IMigratio
 
     public async Task<IAsyncDisposable> AcquireMigrationLockAsync(CancellationToken cancellationToken = default)
     {
-        var connection = new SqlConnection(connectionString);
+        var connection = new SqlConnection(LocalSqlConnectionPolicy.Validate(connectionString));
         try
         {
             await connection.OpenAsync(cancellationToken);
@@ -160,7 +171,7 @@ public sealed class SqlServerMigrationStore(string connectionString) : IMigratio
 
     public async Task<IReadOnlyList<AppliedMigration>> GetAppliedAsync(CancellationToken cancellationToken = default)
     {
-        await using var connection = new SqlConnection(connectionString);
+        await using var connection = new SqlConnection(LocalSqlConnectionPolicy.Validate(connectionString));
         await connection.OpenAsync(cancellationToken);
         await EnsureJournalAsync(connection, cancellationToken);
         await using var command = new SqlCommand("SELECT migration_id, checksum, applied_utc FROM dbo.schema_migrations ORDER BY migration_id", connection);
@@ -173,7 +184,7 @@ public sealed class SqlServerMigrationStore(string connectionString) : IMigratio
 
     public async Task ApplyAsync(MigrationScript migration, CancellationToken cancellationToken = default)
     {
-        await using var connection = new SqlConnection(connectionString);
+        await using var connection = new SqlConnection(LocalSqlConnectionPolicy.Validate(connectionString));
         await connection.OpenAsync(cancellationToken);
         await EnsureJournalAsync(connection, cancellationToken);
         await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
