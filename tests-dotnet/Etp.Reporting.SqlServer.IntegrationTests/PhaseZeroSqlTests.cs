@@ -55,6 +55,25 @@ public sealed class PhaseZeroSqlTests(SqlDatabaseFixture database) : IClassFixtu
         finally { await database.ExecuteAsync("DELETE dbo.application_users WHERE windows_identity=N'Phase0SyntheticOwner'"); }
     }
 
+    [Theory]
+    [InlineData("UPDATE dbo.application_users SET role_code='VIEWER' WHERE windows_identity=N'Phase0AuditOwner'")]
+    [InlineData("UPDATE dbo.application_users SET is_active=0 WHERE windows_identity=N'Phase0AuditOwner'")]
+    [InlineData("DELETE dbo.application_users WHERE windows_identity=N'Phase0AuditOwner'")]
+    public async Task Successful_owner_changes_append_one_audit_event_with_the_acting_login(string sql)
+    {
+        await database.ExecuteAsync("INSERT dbo.application_users(windows_identity,display_name,role_code,modified_by,change_reason) VALUES(N'Phase0AuditOwner',N'Test Owner','OWNER',N'Untrusted actor label',N'Integration test')");
+        try
+        {
+            var auditBefore = Convert.ToInt32(await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.operational_audit WHERE event_type='UserAdministration'"));
+            var historyBefore = Convert.ToInt32(await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.application_user_history WHERE windows_identity=N'Phase0AuditOwner'"));
+            await database.ExecuteAsync(sql);
+            Assert.Equal(auditBefore + 1, Convert.ToInt32(await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.operational_audit WHERE event_type='UserAdministration'")));
+            Assert.Equal(historyBefore + 1, Convert.ToInt32(await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.application_user_history WHERE windows_identity=N'Phase0AuditOwner'")));
+            Assert.Equal(await database.ExecuteAsync("SELECT ORIGINAL_LOGIN()"), await database.ExecuteAsync("SELECT TOP(1) actor_name FROM dbo.operational_audit WHERE event_type='UserAdministration' ORDER BY operational_audit_id DESC"));
+        }
+        finally { await database.ExecuteAsync("DELETE dbo.application_users WHERE windows_identity=N'Phase0AuditOwner'"); }
+    }
+
     [Fact]
     public async Task Failed_import_opens_owner_dashboard_and_severity_sync_inserts_updates_and_resolves()
     {

@@ -19,6 +19,8 @@ BEGIN
         CASE WHEN i.application_user_id IS NULL THEN NULL ELSE (SELECT i.display_name displayName,i.role_code roleCode,i.is_active isActive FOR JSON PATH,WITHOUT_ARRAY_WRAPPER) END,
         COALESCE(i.modified_by,d.modified_by),COALESCE(i.change_reason,d.change_reason)
     FROM inserted i FULL OUTER JOIN deleted d ON d.application_user_id=i.application_user_id;
+    INSERT dbo.operational_audit(event_type,outcome,safe_detail,application_version,actor_name)
+    VALUES(''UserAdministration'',''Succeeded'',N''Application access changed'',N''database'',ORIGINAL_LOGIN());
 END;');
 
 COMMIT TRANSACTION;
