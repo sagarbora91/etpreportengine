@@ -140,12 +140,7 @@ $result = [ordered]@{
         deprecationScanExitCode = $dotnetDeprecatedCommand.ExitCode
         deprecatedPackages = $deprecatedPackages
     }
-        status = if (-not $npmSucceeded) { "error" } elseif ($npmTotal -gt 0) { "findings" } else { "clean" }
-        scanSucceeded = $npmSucceeded
-        exitCode = $npmCommand.ExitCode
-        retriedWithSystemCa = $npmRetriedWithSystemCa
-        vulnerabilityCounts = if ($npmSucceeded) { $npmCounts } else { $null }
-    }
+
 }
 $result | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $output -Encoding utf8
 $result | Format-List
