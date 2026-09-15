@@ -1804,7 +1804,7 @@
       {
         "SourceHeader": "BANKEDON",
         "CanonicalField": "bankedon",
-        "DataType": "Decimal",
+        "DataType": "Date",
         "IsRequired": false
       },
       {

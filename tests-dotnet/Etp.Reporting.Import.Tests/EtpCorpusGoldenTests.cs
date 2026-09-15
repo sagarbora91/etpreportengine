@@ -52,12 +52,32 @@ public sealed class EtpCorpusGoldenTests(ITestOutputHelper output)
             Assert.Equal(118m, row.Values["paymenttype25"]);
         }
         if (familyCode == "R001") Assert.Equal(19.75m, row.Values["phonepe"]);
+        if (familyCode == "R008") Assert.Equal(new DateOnly(2026, 8, 27), row.Values["bankedon"]);
         if (familyCode == "R022")
         {
             var projection = new R022PersistenceProjector().Project(accepted.Staging.Rows);
             Assert.Empty(projection.QuarantinedTenders);
             Assert.Equal(118m, Assert.Single(projection.ClassifiedTenders).SourceAmount);
         }
+    }
+
+    [Fact]
+    public async Task Banking_date_accepts_numeric_and_date_cells_and_keeps_unbanked_zero_empty()
+    {
+        var path = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "fixtures", "etp-sample"), "R008_*.xlsx").Single();
+        var workbook = await new OpenXmlWorkbookReader().ReadAsync(path);
+        var data = workbook.Sheets[0];
+        var column = data.Headers.ToList().IndexOf("BANKEDON");
+        var values = new object[] { 20260827m, new DateTime(2026, 8, 27), new DateTime(2026, 8, 27).ToOADate(), 0m };
+        var rows = values.Select((value, index) =>
+        {
+            var cells = data.Rows[0].Cells.ToArray(); cells[column] = new WorkbookCell(value);
+            return new WorkbookRow(index + 2, cells);
+        }).ToArray();
+        var accepted = new MatchedImportEnvelopeFactory().RequireAccepted(workbook with { Sheets = [data with { Rows = rows }] });
+        Assert.Equal(4, accepted.Staging.Rows.Count);
+        Assert.All(accepted.Staging.Rows.Take(3), row => Assert.Equal(new DateOnly(2026, 8, 27), row.Values["bankedon"]));
+        Assert.Null(accepted.Staging.Rows[3].Values["bankedon"]);
     }
 
     [RealCorpusFact]
