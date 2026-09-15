@@ -33,7 +33,7 @@ public sealed class UiNavigationTests
     {
         var labels = UiNavigationRegistry.AllItems.Select(x => x.Label).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var label in new[] { "Manual Entry", "Source Inbox", "OCR Review Queue", "Inward Register", "Prepare Batch", "Report Generations", "Open Items", "Approval Centre", "Backup & Recovery", "System Health" })
+        foreach (var label in new[] { "Manual Entry", "Source Inbox", "Inward Register", "Prepare Batch", "Report Generations", "Open Items", "Approval Centre", "Backup & Recovery", "System Health" })
             Assert.Contains(label, labels);
     }
 

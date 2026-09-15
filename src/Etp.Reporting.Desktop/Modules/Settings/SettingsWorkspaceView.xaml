@@ -22,7 +22,7 @@
             <Separator Margin="0,16,0,12"/>
             <StackPanel x:Name="ProductSettingsPanel">
                 <TextBlock Text="Product integrations" FontWeight="SemiBold"/>
-                <TextBlock Text="Local paths contain no passwords. OCR is optional and reporting remains available when it is not configured."
+                <TextBlock Text="Choose local folders for scanned documents and shared reports."
                            Foreground="#5D6873" Margin="0,4,0,8" TextWrapping="Wrap"/>
                 <TextBlock Text="Document repository"/>
                 <TextBox x:Name="DocumentRepositoryInput" Padding="6" Margin="0,3,0,6"
@@ -30,12 +30,6 @@
                 <TextBlock Text="Share folder"/>
                 <TextBox x:Name="ShareFolderInput" Padding="6" Margin="0,3,0,6"
                          automation:AutomationProperties.Name="Report share folder path"/>
-                <TextBlock Text="PaddleOCR helper (optional)"/>
-                <TextBox x:Name="OcrHelperInput" Padding="6" Margin="0,3,0,6"
-                         automation:AutomationProperties.Name="Optional PaddleOCR helper path"/>
-                <TextBlock Text="PaddleOCR model folder (optional)"/>
-                <TextBox x:Name="OcrModelInput" Padding="6" Margin="0,3,0,6"
-                         automation:AutomationProperties.Name="Optional PaddleOCR model folder"/>
                 <WrapPanel>
                     <TextBox x:Name="SmtpHostInput" Width="190" Padding="6" ToolTip="Optional SMTP host metadata"
                              automation:AutomationProperties.Name="Optional SMTP host metadata"/>
@@ -52,6 +46,7 @@
                             automation:AutomationProperties.Name="Save product integrations"/>
                 </WrapPanel>
             </StackPanel>
+            <StackPanel x:Name="DataTruthMastersHost"/>
         </StackPanel>
     </Border>
 </UserControl>

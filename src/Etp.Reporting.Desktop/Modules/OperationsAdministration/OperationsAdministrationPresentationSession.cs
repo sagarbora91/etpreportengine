@@ -52,8 +52,6 @@ public sealed record AdministrationUserPresentation(
 public sealed record ProductSettingsPresentation(
     string DocumentRepositoryPath,
     string ShareFolderPath,
-    string OcrHelperPath,
-    string OcrModelPath,
     string SmtpHost,
     string SmtpPort,
     string SmtpFromAddress,
@@ -163,8 +161,6 @@ public sealed class OperationsAdministrationPresentationSession
     public static SaveProductConfiguration CreateProductConfiguration(
         string documentRepositoryPath,
         string shareFolderPath,
-        string ocrHelperPath,
-        string ocrModelPath,
         string smtpHost,
         string smtpPortText,
         string smtpFromAddress,
@@ -182,7 +178,7 @@ public sealed class OperationsAdministrationPresentationSession
             port = parsedPort;
         }
 
-        return new(documentRepositoryPath, shareFolderPath, ocrHelperPath, ocrModelPath,
+        return new(documentRepositoryPath, shareFolderPath,
             smtpHost, port, true, smtpFromAddress, maximum, reason);
     }
 
@@ -192,7 +188,6 @@ public sealed class OperationsAdministrationPresentationSession
 
     private static ProductSettingsPresentation PresentProductSettings(ProductConfiguration settings) =>
         new(settings.DocumentRepositoryPath, settings.ShareFolderPath,
-            settings.OcrHelperPath ?? string.Empty, settings.OcrModelPath ?? string.Empty,
             settings.SmtpHost ?? string.Empty,
             settings.SmtpPort?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
             settings.SmtpFromAddress ?? string.Empty,

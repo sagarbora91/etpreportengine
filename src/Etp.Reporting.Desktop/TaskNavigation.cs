@@ -26,7 +26,7 @@ public static class TaskNavigation
     public static string CanonicalId(string id) => id switch
     {
         "reports-dsr-favourite" => "report-dsr", "source-documents" => "documents",
-        "import-conflicts" => "conflicts", "ocr-exceptions" => "ocr-review",
+        "import-conflicts" => "conflicts",
         "watch" => "watch-folder", "accounting-map" => "ledger-mapping",
         "manual-entry" => "walk-ins", "backup" => "backups", _ => id
     };
@@ -75,14 +75,14 @@ public static class TaskNavigation
             {
                 if (module == "imports") role = Math.Max(role, 2);
                 if (id.StartsWith("register-")) { moduleName = "Registers"; category = "Registers"; role = 2; section = "register"; }
-                if (new[] { "source-inbox", "quarantine", "duplicates", "already-present", "conflicts", "documents", "native-pdf", "ocr-review", "extraction-history", "unknown-layouts" }.Contains(id))
+                if (new[] { "source-inbox", "quarantine", "duplicates", "already-present", "conflicts", "documents", "unknown-layouts" }.Contains(id))
                     section = "inbox";
                 if (new[] { "quarantine", "duplicates", "already-present", "conflicts", "import-failures", "import-history", "unknown-layouts" }.Contains(id)) category = "Quality & History";
-                if (new[] { "watch-folder", "scheduler", "ocr", "sharing" }.Contains(id)) { moduleName = "Settings"; category = "Integrations"; }
+                if (new[] { "watch-folder", "scheduler", "sharing" }.Contains(id)) { moduleName = "Settings"; category = "Integrations"; }
                 if (module == "settings") category = id switch
                 {
                     "users" => "Users & Access", "stores" or "masters" or "profiles" or "kpi" or "tender-rules" => "Stores & Masters",
-                    "health" or "backups" => "Database & Recovery", "ocr" or "sharing" or "scheduler" => "Integrations", _ => "General"
+                    "health" or "backups" => "Database & Recovery", "sharing" or "scheduler" => "Integrations", _ => "General"
                 };
                 if (id == "settings") { title = "Display & Preferences"; category = "Display"; destination = "Home"; role = 1; }
                 if (id == "tally-export") category = "Export";
@@ -92,7 +92,7 @@ public static class TaskNavigation
                 if (id == "backups") { title = "Backups"; section = "backups"; }
                 if (id == "approval-centre") { moduleName = "Approvals"; category = "Review"; }
             }
-            if (id is "duplicates" or "already-present" or "conflicts" or "import-failures") { section = "import-results"; destination = "Import ETP"; role = 2; }
+            if (id is "duplicates" or "already-present" or "conflicts" or "import-failures" or "unknown-layouts") { section = "import-results"; destination = "Import ETP"; role = 2; }
             if (id is "reports-home" or "import-overview" or "accounting-overview" or "archive-overview") section = "overview";
             if (id == "dashboard") title = "Today Overview";
             if (id is "ledger-mapping" or "mapping-review") role = 3;

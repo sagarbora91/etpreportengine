@@ -190,7 +190,7 @@ public sealed class OperationsAdministrationWorkspaceViewTests
                 [new ApplicationUser(1, @"DOMAIN\owner", "Owner", AccessRole.Owner, true, DateTime.UtcNow, "seed")],
                 [new KpiDefinition("SALES", "Sales", "Net sales", "SUM", "ETP", new DateOnly(2026, 4, 1), 1, "APPROVED", "owner", true)],
                 [new ProductHealth("Database", "Healthy", "Ready")],
-                new ProductConfiguration("docs", "share", null, null, null, null, true, null, 20, DateTime.UtcNow, "owner")));
+                new ProductConfiguration("docs", "share", null, null, true, null, 20, DateTime.UtcNow, "owner")));
         }
         public Task SaveMasterAsync(SaveControlledMaster command, CancellationToken cancellationToken = default) => FailMasterSave ? Task.FromException(new InvalidOperationException("Synthetic failure")) : Task.CompletedTask;
         public Task SaveUserAsync(SaveApplicationUser command, CancellationToken cancellationToken = default) => Task.CompletedTask;

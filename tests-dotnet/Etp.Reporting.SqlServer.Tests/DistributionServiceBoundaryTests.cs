@@ -108,7 +108,7 @@ public sealed class DistributionServiceBoundaryTests
         new("Daily Pack", new(2026, 8, 28), new(2026, 8, 28), "Passed", "rule", "Complete", DateTimeOffset.UtcNow, []);
 
     private static ProductSettings Settings(int maximumAttachmentMb) =>
-        new("documents", "share", null, null, null, null, true, null, maximumAttachmentMb, DateTime.MinValue, "owner");
+        new("documents", "share", null, null, true, null, maximumAttachmentMb, DateTime.MinValue, "owner");
 
     private sealed class FakeGateway : IDistributionSqlGateway
     {

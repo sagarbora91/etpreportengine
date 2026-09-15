@@ -49,7 +49,7 @@ public static class FocusedTaskLayout
         }
         actionPanel.Children.Add(toolbar);
         var available = toolbar.Children.OfType<Button>().Where(button => button.Visibility == Visibility.Visible).ToArray();
-        var primary = available.FirstOrDefault(button => button.Content?.ToString() is { } caption && (caption.StartsWith("Save", StringComparison.Ordinal) || caption.StartsWith("Submit", StringComparison.Ordinal) || caption.StartsWith("Update", StringComparison.Ordinal) || caption == "Verify extraction")) ?? available.FirstOrDefault();
+        var primary = available.FirstOrDefault(button => button.Content?.ToString() is { } caption && (caption.StartsWith("Save", StringComparison.Ordinal) || caption.StartsWith("Submit", StringComparison.Ordinal) || caption.StartsWith("Update", StringComparison.Ordinal))) ?? available.FirstOrDefault();
         foreach (var button in available)
         {
             if (button.Content?.ToString() is { } caption && (caption.StartsWith("Reject", StringComparison.Ordinal) || caption == "Waive")) continue;
