@@ -120,13 +120,4 @@ public sealed class SettingsAndOperationsAdministrationPresentationTests : IDisp
         if (Directory.Exists(testRoot)) Directory.Delete(testRoot, recursive: true);
     }
 
-    private static string FindRepositoryRoot()
-    {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-        {
-            if (File.Exists(Path.Combine(directory.FullName, "Etp.Reporting.slnx"))) return directory.FullName;
-        }
-
-        throw new DirectoryNotFoundException("Could not locate the ETP repository root.");
-    }
 }

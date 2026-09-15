@@ -58,10 +58,4 @@ public sealed class ImportProfilePersistenceContractTests
         Assert.Throws<InvalidOperationException>(() => PersistenceValidation.Validate(package));
     }
 
-    private static string FindRepositoryRoot()
-    {
-        var current = new DirectoryInfo(AppContext.BaseDirectory);
-        while (current is not null && !Directory.Exists(Path.Combine(current.FullName, "src"))) current = current.Parent;
-        return current?.FullName ?? throw new DirectoryNotFoundException("Repository root was not found.");
-    }
 }

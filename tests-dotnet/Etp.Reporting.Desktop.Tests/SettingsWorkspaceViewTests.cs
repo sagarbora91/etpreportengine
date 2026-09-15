@@ -238,15 +238,6 @@ public sealed class SettingsWorkspaceViewTests
         if (failure is not null) throw new InvalidOperationException("STA test failed.", failure);
     }
 
-    private static string FindRepositoryRoot()
-    {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-        {
-            if (File.Exists(Path.Combine(directory.FullName, "Etp.Reporting.slnx"))) return directory.FullName;
-        }
-        throw new DirectoryNotFoundException("Could not locate the ETP repository root.");
-    }
-
     [Fact]
     public void Loaded_integration_configuration_cannot_be_retargeted_by_connection_or_bootstrap()
     {

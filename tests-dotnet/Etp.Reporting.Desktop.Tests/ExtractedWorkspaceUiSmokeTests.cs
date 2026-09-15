@@ -245,12 +245,5 @@ public sealed class ExtractedWorkspaceUiSmokeTests
         if (failure is not null) throw new InvalidOperationException("STA UI smoke test failed.", failure);
     }
 
-    private static string FindRepositoryRoot()
-    {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-            if (File.Exists(Path.Combine(directory.FullName, "Etp.Reporting.slnx"))) return directory.FullName;
-        throw new DirectoryNotFoundException("Could not locate the ETP repository root.");
-    }
-
     private sealed record WorkspaceCase(string Name, FrameworkElement View);
 }

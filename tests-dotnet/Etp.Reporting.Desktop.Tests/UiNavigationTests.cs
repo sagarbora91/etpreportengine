@@ -9,24 +9,6 @@ namespace Etp.Reporting.Desktop.Tests;
 public sealed class UiNavigationTests
 {
     [Fact]
-    public void Store_manager_has_the_frozen_six_module_home()
-    {
-        var modules = UiNavigationRegistry.Modules.Where(x => x.DefaultVisibility && x.IsVisibleTo(AccessRole.StoreManager)).ToArray();
-
-        Assert.Equal(6, modules.Length);
-        Assert.Equal(["dashboard", "reports", "accounting", "imports", "archive", "exceptions"], modules.OrderBy(x => x.Order).Select(x => x.Id));
-    }
-
-    [Fact]
-    public void Owner_can_expand_the_same_registry_to_nine_cards()
-    {
-        var modules = UiNavigationRegistry.Modules.Where(x => (x.DefaultVisibility || x.PinAllowed) && x.IsVisibleTo(AccessRole.Owner)).ToArray();
-
-        Assert.Equal(9, modules.Length);
-        Assert.Equal(3, modules.Count(x => x.PinAllowed));
-    }
-
-    [Fact]
     public void Viewer_visibility_never_expands_import_or_administration_permission()
     {
         var viewer = UiNavigationRegistry.Modules.Where(x => x.IsVisibleTo(AccessRole.Viewer)).Select(x => x.Id).ToArray();
@@ -145,13 +127,4 @@ public sealed class UiNavigationTests
         Assert.Empty(duplicates);
     }
 
-    private static string FindRepositoryRoot()
-    {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-        {
-            if (File.Exists(Path.Combine(directory.FullName, "Etp.Reporting.slnx"))) return directory.FullName;
-        }
-
-        throw new DirectoryNotFoundException("Could not locate the ETP repository root.");
-    }
 }

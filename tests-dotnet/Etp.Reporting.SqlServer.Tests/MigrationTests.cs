@@ -220,13 +220,6 @@ public sealed class MigrationTests
         PersistenceValidation.Validate(valid);
     }
 
-    private static string FindRepositoryRoot()
-    {
-        var current = new DirectoryInfo(AppContext.BaseDirectory);
-        while (current is not null && !Directory.Exists(Path.Combine(current.FullName, "database", "migrations"))) current = current.Parent;
-        return current?.FullName ?? throw new DirectoryNotFoundException("Repository root was not found.");
-    }
-
     private static MigrationScript Script(string id, string sql) => new(id, MigrationChecksum.Compute(sql), sql, $"{id}.sql");
 
     private static HashSet<string> OperationalAuditEventTypes(string sql)

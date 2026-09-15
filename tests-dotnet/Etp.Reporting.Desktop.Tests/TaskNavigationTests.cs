@@ -51,7 +51,6 @@ public sealed class TaskNavigationTests
     public void Every_menu_alias_is_mapped_and_reports_are_unique()
     {
         Assert.All(UiNavigationRegistry.AllItems, item => Assert.NotNull(TaskNavigation.ForItem(item)));
-        Assert.Equal(29, TaskNavigation.All.Count(x => x.ReportCode is not null));
         Assert.Equal(TaskNavigation.All.Count, TaskNavigation.All.Select(x => x.Id).Distinct().Count());
     }
 

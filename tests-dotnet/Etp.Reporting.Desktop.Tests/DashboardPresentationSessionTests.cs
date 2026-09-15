@@ -62,10 +62,4 @@ public sealed class DashboardPresentationSessionTests
         new(DashboardHealthSeverity.Healthy, 100m, new DateTime(2026, 8, 25, 1, 0, 0, DateTimeKind.Utc), 0, 50m, []),
         []);
 
-    private static string FindRepositoryRoot()
-    {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-            if (File.Exists(Path.Combine(directory.FullName, "Etp.Reporting.slnx"))) return directory.FullName;
-        throw new DirectoryNotFoundException("Could not locate the ETP repository root.");
-    }
 }

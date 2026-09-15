@@ -5,9 +5,6 @@ namespace Etp.Reporting.Desktop.Tests;
 
 public sealed class SourceInboxCompositionTests
 {
-    private static readonly string RepositoryRoot = FindRepositoryRoot();
-    private static readonly string DesktopRoot = Path.Combine(RepositoryRoot, "src", "Etp.Reporting.Desktop");
-
     [Theory]
     [InlineData("All", null)]
     [InlineData("Review Required", "REVIEW_REQUIRED")]
@@ -60,17 +57,4 @@ public sealed class SourceInboxCompositionTests
         id, "invoice.pdf", @"C:\managed\invoice.pdf", new string('a', 64), 1024, "PDF", "VENDOR_INVOICE",
         "WLMHW", new DateOnly(2026, 8, 25), "RECEIVED", null, null, null, "tester", DateTime.UtcNow, null);
 
-    private static int Count(string source, string value)
-    {
-        var count = 0;
-        for (var index = 0; (index = source.IndexOf(value, index, StringComparison.Ordinal)) >= 0; index += value.Length) count++;
-        return count;
-    }
-
-    private static string FindRepositoryRoot()
-    {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-            if (File.Exists(Path.Combine(directory.FullName, "Etp.Reporting.slnx"))) return directory.FullName;
-        throw new DirectoryNotFoundException("Could not locate the ETP repository root.");
-    }
 }
