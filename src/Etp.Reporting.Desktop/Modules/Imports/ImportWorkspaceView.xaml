@@ -15,10 +15,11 @@
             <TextBlock x:Name="DetectedScopeText" Text="Detected store and date range will appear here." TextWrapping="Wrap" FontWeight="SemiBold" Margin="0,0,0,8" automation:AutomationProperties.Name="Detected import scope"/>
             <ProgressBar x:Name="ImportProgressBar" Height="10" Minimum="0" Maximum="1" Margin="0,4,0,8" automation:AutomationProperties.Name="Folder import progress"/>
             <TextBlock x:Name="ValidationResult" Text="Ready to import a folder." TextWrapping="Wrap" Margin="0,0,0,8" automation:AutomationProperties.Name="Folder import status" automation:AutomationProperties.LiveSetting="Polite"/>
-            <Expander Header="Source and restatement options" Margin="0,0,0,8" automation:AutomationProperties.Name="Source and restatement options">
+            <Expander x:Name="ImportOptionsExpander" Header="Source and restatement options" Margin="0,0,0,8" automation:AutomationProperties.Name="Source and restatement options">
                 <StackPanel>
             <TextBox x:Name="WorkbookPathInput" IsReadOnly="True" Padding="8" Margin="0,0,0,8" automation:AutomationProperties.Name="Selected import source"/>
             <CheckBox x:Name="RestatementModeInput" Content="Override for restatement (Owner)" Checked="RestatementMode_Changed" Unchecked="RestatementMode_Changed" MinHeight="32" automation:AutomationProperties.Name="Override for restatement"/>
+            <TextBlock Text="Overrides can fill a missing store or date. Values already detected in the file must match; a corrected file is required to change them." TextWrapping="Wrap" Margin="0,0,0,8"/>
             <WrapPanel x:Name="OverridePanel" Visibility="Collapsed" Margin="0,0,0,8">
                 <TextBlock Text="Store override" VerticalAlignment="Center" Margin="0,0,6,0"/>
                 <ComboBox x:Name="ImportStoreInput" Width="120" SelectedIndex="-1" IsEnabled="False" automation:AutomationProperties.Name="Restatement store override"><ComboBoxItem Content="WLMHW"/><ComboBoxItem Content="HEMW"/></ComboBox>

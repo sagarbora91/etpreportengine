@@ -77,6 +77,22 @@ public sealed class FolderImportServiceTests
     }
 
     [Fact]
+    public async Task Restatement_cannot_replace_detected_store_or_date_even_for_duplicate_bytes()
+    {
+        foreach (var options in new[] { new FolderImportOptions("tester", true, "Correction", "WLMHW"),
+                     new FolderImportOptions("tester", true, "Correction", OverrideBusinessDate: new(2026, 8, 26)) })
+        {
+            var persistence = new CapturePersistence { Exists = true };
+            var summary = await new FolderImportService(persistence, new Reader(path => Sales(path, "HEMW", [20260825])))
+                .RunFilesAsync(["sales.xlsx"], options);
+            var file = Assert.Single(summary.Files);
+            Assert.Equal("Failed", file.Status);
+            Assert.Contains("override does not match", file.Message);
+            Assert.Empty(persistence.Requests);
+        }
+    }
+
+    [Fact]
     public async Task Header_only_file_inherits_its_store_folder_scope_and_succeeds_as_empty_export()
     {
         var persistence = new CapturePersistence();

@@ -76,8 +76,13 @@ public sealed class FolderImportService(
             {
                 var siblings = ready.Where(item => string.Equals(Path.GetDirectoryName(item.Path), Path.GetDirectoryName(entry.Path), StringComparison.OrdinalIgnoreCase))
                     .Select(item => item.Inspection.AcceptedImport?.Scope).Where(item => item is not null).ToArray();
-                var store = options.OverrideStoreCode ?? scope?.StoreCode ?? siblings.Select(item => item!.StoreCode).FirstOrDefault(value => value is not null);
-                var end = options.OverrideBusinessDate ?? scope?.PeriodEnd ?? siblings.Select(item => item!.PeriodEnd).Max();
+                if (scope?.StoreCode is { } detectedStore && options.OverrideStoreCode is { } overrideStore &&
+                    !string.Equals(detectedStore, overrideStore, StringComparison.OrdinalIgnoreCase))
+                    throw new ImportSourceException("STORE_OVERRIDE_MISMATCH", "The store override does not match the file. Use a corrected source file to change its store.");
+                if (scope?.PeriodEnd is { } detectedDate && options.OverrideBusinessDate is { } overrideDate && detectedDate != overrideDate)
+                    throw new ImportSourceException("DATE_OVERRIDE_MISMATCH", "The date override does not match the file. Use a corrected source file to change its date.");
+                var store = scope?.StoreCode ?? options.OverrideStoreCode ?? siblings.Select(item => item!.StoreCode).FirstOrDefault(value => value is not null);
+                var end = scope?.PeriodEnd ?? options.OverrideBusinessDate ?? siblings.Select(item => item!.PeriodEnd).Max();
                 if (string.IsNullOrWhiteSpace(store) || end is null)
                     throw new ImportSourceException("SCOPE_NOT_DETECTED", "Store or date could not be detected. Keep this file beside the other exports for its store.");
                 var persistedStore = scope?.StoreCode ?? store;

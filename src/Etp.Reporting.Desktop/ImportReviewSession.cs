@@ -43,6 +43,12 @@ internal static class ImportReviewSession
             await ReviewCapture.CaptureSizesAsync(window, output, "folder-results");
             await CaptureFocusSizesAsync(window, output, "folder-results-scrolled", (ScrollViewer)view.Content,
                 (DataGrid)view.FindName("BatchResultsGrid"));
+            var options = (Expander)view.FindName("ImportOptionsExpander");
+            options.IsExpanded = true;
+            ((CheckBox)view.FindName("RestatementModeInput")).IsChecked = true;
+            await CaptureFocusSizesAsync(window, output, "folder-restatement-options", (ScrollViewer)view.Content, options);
+            ((CheckBox)view.FindName("RestatementModeInput")).IsChecked = false;
+            options.IsExpanded = false;
             }
             ((TextBox)view.FindName("WorkbookPathInput")).Text = corrupted;
             await view.ImportSelectedSourceAsync();
