@@ -134,9 +134,21 @@ public sealed class ProductisationRepository(string connectionString)
     public async Task LinkDocumentToImportAsync(long documentId,string sourceSha256,string reportCode,string? storeCode,DateOnly? businessDate,CancellationToken cancellationToken=default)
     {
         const string sql="""
+            SET XACT_ABORT ON;
+            BEGIN TRANSACTION;
+            INSERT dbo.source_document_import_links(source_document_id,import_file_id)
+            SELECT @document,f.import_file_id FROM dbo.import_files f
+            WHERE f.source_sha256=@hash AND f.data_truth_version=1 AND f.report_code=@report
+              AND (@store IS NULL OR f.store_code=@store) AND (@date IS NULL OR f.period_end=@date)
+              AND NOT EXISTS(SELECT 1 FROM dbo.source_document_import_links l WITH(UPDLOCK,HOLDLOCK)
+                  WHERE l.source_document_id=@document AND l.import_file_id=f.import_file_id);
             UPDATE d SET import_file_id=f.import_file_id,period_start=f.period_start,period_end=f.period_end,report_code=@report,store_code=COALESCE(@store,f.store_code),business_date=COALESCE(@date,f.business_date),
               lifecycle_status='IMPORTED',last_status_by=SUSER_SNAME(),last_status_utc=SYSUTCDATETIME(),safe_message=N'ETP source validated and imported into canonical data.'
-            FROM dbo.source_documents d JOIN dbo.import_files f ON f.source_sha256=@hash AND f.data_truth_version=1 WHERE d.source_document_id=@document;
+            FROM dbo.source_documents d CROSS APPLY(SELECT TOP(1) f.* FROM dbo.import_files f
+              WHERE f.source_sha256=@hash AND f.data_truth_version=1 AND f.report_code=@report
+                AND (@store IS NULL OR f.store_code=@store) AND (@date IS NULL OR f.period_end=@date)
+              ORDER BY f.import_file_id DESC) f WHERE d.source_document_id=@document;
+            COMMIT TRANSACTION;
             """;
         await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(sql,connection);command.Parameters.AddWithValue("@document",documentId);command.Parameters.AddWithValue("@hash",SqlServerImportFileRepository.NormalizeHash(sourceSha256));command.Parameters.AddWithValue("@report",reportCode);Add(command,"@store",Clean(storeCode)?.ToUpperInvariant());Add(command,"@date",businessDate);await command.ExecuteNonQueryAsync(cancellationToken);
     }

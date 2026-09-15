@@ -59,7 +59,8 @@ public sealed class OperationalCompletionRepository(string connectionString)
         const string sql = """
             SELECT import_file_id,report_code,store_code,business_date,source_sha256
             FROM dbo.import_files
-            WHERE report_code=@report AND store_code=@store AND business_date=@date AND is_superseded=0
+            WHERE report_code=@report AND store_code=@store
+              AND @date BETWEEN COALESCE(period_start,business_date) AND COALESCE(period_end,business_date) AND is_superseded=0
             ORDER BY import_file_id DESC;
             """;
         await using var connection = await OpenAsync(cancellationToken);

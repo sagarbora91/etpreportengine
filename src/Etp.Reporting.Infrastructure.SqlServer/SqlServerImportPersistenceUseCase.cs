@@ -10,7 +10,8 @@ public enum ImportPersistenceRoute
     Revenue,
     Sales,
     Enrichment,
-    Stock
+    Stock,
+    Family
 }
 
 public sealed class SqlServerImportPersistenceUseCase : IImportPersistenceUseCase<MatchedImportEnvelope>
@@ -43,6 +44,13 @@ public sealed class SqlServerImportPersistenceUseCase : IImportPersistenceUseCas
         return await files.ExistsByHashAsync(sourceSha256, cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<bool> ExistsInScopeAsync(string sourceSha256, string reportCode, string storeCode,
+        DateOnly periodStart, DateOnly periodEnd, CancellationToken cancellationToken = default)
+    {
+        await RequireImportAsync(false, cancellationToken).ConfigureAwait(false);
+        return await files.ExistsInScopeAsync(sourceSha256, reportCode, storeCode, periodStart, periodEnd, cancellationToken).ConfigureAwait(false);
+    }
+
     public async Task<long?> FindCurrentImportFileIdAsync(
         string reportCode,
         string storeCode,
@@ -62,13 +70,27 @@ public sealed class SqlServerImportPersistenceUseCase : IImportPersistenceUseCas
         await RequireImportAsync(request.Restatement is not null, cancellationToken).ConfigureAwait(false);
         _ = ApprovedImportProfileRegistry.Resolve(request.AcceptedImport.ProfileIdentity);
         var restatement = Map(request.Restatement);
-        return SelectRoute(request.AcceptedImport.ProfileIdentity.ReportCode) switch
+        var accepted = request.AcceptedImport;
+        var scope = R025SqlImportOrchestrator.ValidateScope(accepted.Scope.StoreCode, accepted.Scope.PeriodEnd,
+            request.ExpectedStoreCode, request.ExpectedBusinessDate);
+        var periodStart = accepted.Scope.PeriodStart ?? scope.BusinessDate!.Value;
+        var periodEnd = scope.BusinessDate!.Value;
+        if (await files.ExistsInScopeAsync(accepted.Workbook.Sha256, accepted.ProfileIdentity.ReportCode,
+            scope.StoreCode!, periodStart, periodEnd, cancellationToken).ConfigureAwait(false))
+            return new(accepted.ProfileIdentity.ReportCode, 0) { Status = "Duplicate", AlreadyPresentRows = accepted.Staging.Rows.Count };
+        var result = SelectRoute(request.AcceptedImport.ProfileIdentity.ReportCode) switch
         {
             ImportPersistenceRoute.Revenue => await PersistRevenueAsync(request, restatement, cancellationToken).ConfigureAwait(false),
             ImportPersistenceRoute.Stock => await PersistStockAsync(request, restatement, cancellationToken).ConfigureAwait(false),
             ImportPersistenceRoute.Enrichment => await PersistEnrichmentAsync(request, restatement, cancellationToken).ConfigureAwait(false),
+            ImportPersistenceRoute.Family => await PersistFamilyAsync(request, restatement, cancellationToken).ConfigureAwait(false),
             _ => await PersistSalesAsync(request, restatement, cancellationToken).ConfigureAwait(false)
         };
+        var outcome = await files.LoadOutcomeInScopeAsync(accepted.Workbook.Sha256, accepted.ProfileIdentity.ReportCode,
+            scope.StoreCode!, periodStart, periodEnd, cancellationToken);
+        return result with { PersistedRows=outcome.NewRows,
+            Status=outcome.NewRows==0 && outcome.AlreadyPresentRows>0 ? "Duplicate content" : "Imported",
+            AlreadyPresentRows=outcome.AlreadyPresentRows,ConflictRows=outcome.ConflictRows };
     }
 
     public async Task<ImportRowOutcome> LoadOutcomeByHashAsync(string sourceSha256, CancellationToken cancellationToken = default)
@@ -77,13 +99,29 @@ public sealed class SqlServerImportPersistenceUseCase : IImportPersistenceUseCas
         return Map(await files.LoadOutcomeByHashAsync(sourceSha256, cancellationToken).ConfigureAwait(false));
     }
 
+    public async Task<ImportRowOutcome> LoadOutcomeInScopeAsync(string sourceSha256, string reportCode, string storeCode,
+        DateOnly periodStart, DateOnly periodEnd, CancellationToken cancellationToken = default)
+    {
+        await RequireImportAsync(false, cancellationToken).ConfigureAwait(false);
+        return Map(await files.LoadOutcomeInScopeAsync(sourceSha256, reportCode, storeCode, periodStart, periodEnd, cancellationToken).ConfigureAwait(false));
+    }
+
     public static ImportPersistenceRoute SelectRoute(string reportCode) => reportCode?.Trim().ToUpperInvariant() switch
     {
         "R022" => ImportPersistenceRoute.Revenue,
         "STOCK_LEDGER" or "CLOSING_STOCK" => ImportPersistenceRoute.Stock,
         "R003" or "R013" => ImportPersistenceRoute.Enrichment,
-        _ => ImportPersistenceRoute.Sales
+        "R025" => ImportPersistenceRoute.Sales,
+        _ => ImportPersistenceRoute.Family
     };
+
+    private async Task<ImportPersistenceResult> PersistFamilyAsync(ImportPersistenceRequest<MatchedImportEnvelope> request,
+        ImportRestatementRequest? restatement,CancellationToken token)
+    {
+        await new EtpFamilySqlImportOrchestrator(store).PersistAsync(request.AcceptedImport,request.ExpectedBusinessDate,
+            request.ExpectedStoreCode,request.ImportedBy,restatement,token);
+        return new(request.AcceptedImport.ProfileIdentity.ReportCode,request.AcceptedImport.Staging.Rows.Count);
+    }
 
     public static ImportRowOutcome Map(WorkbookImportOutcome outcome)
     {

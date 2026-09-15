@@ -32,8 +32,22 @@ public sealed class SqlServerImportFileRepository(string connectionString) : IIm
     public async Task<bool> ExistsByHashAsync(string sourceSha256, CancellationToken cancellationToken=default)
     {
         await using var connection=new SqlConnection(connectionString); await connection.OpenAsync(cancellationToken);
-        await using var command=new SqlCommand("SELECT CONVERT(bit,CASE WHEN EXISTS(SELECT 1 FROM dbo.import_files WHERE source_sha256=@hash) THEN 1 ELSE 0 END)",connection);
+        await using var command=new SqlCommand("SELECT CONVERT(bit,CASE WHEN EXISTS(SELECT 1 FROM dbo.import_files WHERE source_sha256=@hash AND data_truth_version=1) THEN 1 ELSE 0 END)",connection);
         command.Parameters.AddWithValue("@hash",NormalizeHash(sourceSha256)); return (bool)(await command.ExecuteScalarAsync(cancellationToken))!;
+    }
+    public async Task<bool> ExistsInScopeAsync(string sourceSha256, string reportCode, string storeCode,
+        DateOnly periodStart, DateOnly periodEnd, CancellationToken cancellationToken=default)
+    {
+        await using var connection=new SqlConnection(connectionString); await connection.OpenAsync(cancellationToken);
+        await using var command=new SqlCommand("""
+            SELECT CONVERT(bit,CASE WHEN EXISTS(
+                SELECT 1 FROM dbo.import_files WHERE source_sha256=@hash AND data_truth_version=1
+                  AND report_code=@report AND store_code=@store AND period_start=@start AND period_end=@end
+            ) THEN 1 ELSE 0 END)
+            """,connection);
+        command.Parameters.AddWithValue("@hash",NormalizeHash(sourceSha256));
+        BindScope(command,reportCode,storeCode,periodStart,periodEnd);
+        return (bool)(await command.ExecuteScalarAsync(cancellationToken))!;
     }
     public async Task<long> RegisterAsync(ImportFileRegistration file,CancellationToken cancellationToken=default)
     {
@@ -49,24 +63,54 @@ public sealed class SqlServerImportFileRepository(string connectionString) : IIm
         }
         catch { await transaction.RollbackAsync(CancellationToken.None); throw; }
     }
-    public async Task<Etp.Reporting.Import.Batch.WorkbookImportOutcome> LoadOutcomeByHashAsync(string sourceSha256,CancellationToken cancellationToken=default)
+    public Task<Etp.Reporting.Import.Batch.WorkbookImportOutcome> LoadOutcomeByHashAsync(string sourceSha256,CancellationToken cancellationToken=default) =>
+        LoadOutcomeAsync(sourceSha256,null,null,null,null,cancellationToken);
+
+    public Task<Etp.Reporting.Import.Batch.WorkbookImportOutcome> LoadOutcomeInScopeAsync(string sourceSha256,
+        string reportCode,string storeCode,DateOnly periodStart,DateOnly periodEnd,CancellationToken cancellationToken=default) =>
+        LoadOutcomeAsync(sourceSha256,reportCode,storeCode,periodStart,periodEnd,cancellationToken);
+
+    private async Task<Etp.Reporting.Import.Batch.WorkbookImportOutcome> LoadOutcomeAsync(string sourceSha256,
+        string? reportCode,string? storeCode,DateOnly? periodStart,DateOnly? periodEnd,CancellationToken cancellationToken)
     {
-        const string sql="""
+        var sql="""
             SELECT COALESCE(b.source_row_count,0),
-                   COALESCE(SUM(CASE WHEN o.outcome='NEW' THEN 1 ELSE 0 END),0),
-                   COALESCE(SUM(CASE WHEN o.outcome='ALREADY_PRESENT' THEN 1 ELSE 0 END),0),
-                   COALESCE(SUM(CASE WHEN o.outcome='CONFLICT' THEN 1 ELSE 0 END),0)
+                   COALESCE(SUM(CASE WHEN o.conflict_row=1 THEN 0 ELSE o.new_row END),0),
+                   COALESCE(SUM(CASE WHEN o.conflict_row=1 OR o.new_row=1 THEN 0 ELSE o.present_row END),0),
+                   COALESCE(SUM(o.conflict_row),0)
             FROM dbo.import_files f
             JOIN dbo.import_batches b ON b.import_batch_id=f.import_batch_id
-            LEFT JOIN dbo.import_row_outcomes o ON o.import_file_id=f.import_file_id
-            WHERE f.source_sha256=@hash
-            GROUP BY b.source_row_count;
+            OUTER APPLY (
+                SELECT MAX(CASE WHEN r.outcome='NEW' THEN 1 ELSE 0 END) AS new_row,
+                       MAX(CASE WHEN r.outcome='ALREADY_PRESENT' THEN 1 ELSE 0 END) AS present_row,
+                       MAX(CASE WHEN r.outcome='CONFLICT' THEN 1 ELSE 0 END) AS conflict_row
+                FROM dbo.import_row_outcomes r
+                LEFT JOIN dbo.source_lineage l ON l.source_lineage_id=r.source_lineage_id
+                WHERE r.import_file_id=f.import_file_id
+                GROUP BY l.sheet_name,l.source_row_number,
+                    CASE WHEN r.source_lineage_id IS NULL THEN r.business_identity END
+            ) o
+            WHERE f.source_sha256=@hash AND f.data_truth_version=1
             """;
+        if(reportCode is not null)
+            sql += " AND f.report_code=@report AND f.store_code=@store AND f.period_start=@start AND f.period_end=@end";
+        sql += " GROUP BY f.import_file_id,b.source_row_count ORDER BY f.import_file_id DESC;";
         await using var connection=new SqlConnection(connectionString);await connection.OpenAsync(cancellationToken);
         await using var command=new SqlCommand(sql,connection);command.Parameters.AddWithValue("@hash",NormalizeHash(sourceSha256));
+        if(reportCode is not null) BindScope(command,reportCode,storeCode!,periodStart!.Value,periodEnd!.Value);
         await using var reader=await command.ExecuteReaderAsync(cancellationToken);
         if(!await reader.ReadAsync(cancellationToken)) return Etp.Reporting.Import.Batch.WorkbookImportOutcome.Imported;
         return new(Convert.ToInt32(reader.GetValue(0)),Convert.ToInt32(reader.GetValue(1)),Convert.ToInt32(reader.GetValue(2)),Convert.ToInt32(reader.GetValue(3)));
+    }
+    private static void BindScope(SqlCommand command,string reportCode,string storeCode,DateOnly periodStart,DateOnly periodEnd)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(reportCode);
+        ArgumentException.ThrowIfNullOrWhiteSpace(storeCode);
+        if(periodStart>periodEnd) throw new ArgumentException("The period start cannot follow its end.",nameof(periodStart));
+        command.Parameters.AddWithValue("@report",reportCode.Trim().ToUpperInvariant());
+        command.Parameters.AddWithValue("@store",storeCode.Trim().ToUpperInvariant());
+        command.Parameters.AddWithValue("@start",periodStart);
+        command.Parameters.AddWithValue("@end",periodEnd);
     }
     internal static string NormalizeHash(string value)
     {
@@ -77,41 +121,55 @@ public sealed class SqlServerImportFileRepository(string connectionString) : IIm
 
     private static async Task<long> InsertFileAsync(SqlConnection connection,SqlTransaction transaction,ImportFileRegistration file,int profileId,string reportCode,CancellationToken token)
     {
-        await using var command=new SqlCommand("INSERT dbo.import_files(import_batch_id,import_profile_id,original_file_name,source_sha256,size_bytes,report_code,store_code,business_date,source_report_date,imported_by) VALUES(@batch,@profile,@name,@hash,@size,@report,@store,@business,@sourceDate,@user); SELECT CONVERT(bigint,SCOPE_IDENTITY());",connection,transaction);
-        command.Parameters.AddWithValue("@batch",file.BatchId); command.Parameters.AddWithValue("@profile",profileId); command.Parameters.AddWithValue("@name",file.OriginalFileName); command.Parameters.AddWithValue("@hash",NormalizeHash(file.SourceSha256)); command.Parameters.AddWithValue("@size",file.SizeBytes); command.Parameters.AddWithValue("@report",reportCode); SqlServerImportBatchRepository.Add(command,"@store",file.StoreCode); SqlServerImportBatchRepository.Add(command,"@business",file.BusinessDate); SqlServerImportBatchRepository.Add(command,"@sourceDate",file.SourceReportDate); SqlServerImportBatchRepository.Add(command,"@user",file.ImportedBy);
+        await using var command=new SqlCommand("INSERT dbo.import_files(import_batch_id,import_profile_id,original_file_name,source_sha256,size_bytes,report_code,store_code,business_date,source_report_date,imported_by,period_start,period_end,data_truth_version) VALUES(@batch,@profile,@name,@hash,@size,@report,@store,@business,@sourceDate,@user,@periodStart,@periodEnd,1); SELECT CONVERT(bigint,SCOPE_IDENTITY());",connection,transaction);
+        command.Parameters.AddWithValue("@batch",file.BatchId); command.Parameters.AddWithValue("@profile",profileId); command.Parameters.AddWithValue("@name",file.OriginalFileName); command.Parameters.AddWithValue("@hash",NormalizeHash(file.SourceSha256)); command.Parameters.AddWithValue("@size",file.SizeBytes); command.Parameters.AddWithValue("@report",reportCode); SqlServerImportBatchRepository.Add(command,"@store",file.StoreCode); SqlServerImportBatchRepository.Add(command,"@business",file.BusinessDate); SqlServerImportBatchRepository.Add(command,"@sourceDate",file.SourceReportDate); SqlServerImportBatchRepository.Add(command,"@user",file.ImportedBy); SqlServerImportBatchRepository.Add(command,"@periodStart",file.PeriodStart??file.BusinessDate); SqlServerImportBatchRepository.Add(command,"@periodEnd",file.PeriodEnd??file.BusinessDate);
         return Convert.ToInt64(await command.ExecuteScalarAsync(token));
     }
 }
 
-public sealed class SqlServerTransactionalImportStore(string connectionString) : ITransactionalImportStore
+public sealed partial class SqlServerTransactionalImportStore(string connectionString) : ITransactionalImportStore
 {
     public async Task<long> PersistAsync(ImportPersistencePackage package,CancellationToken cancellationToken=default)
     {
         PersistenceValidation.Validate(package);
-        var expectedRows=package.InvoiceControls.Count+package.SalesLines.Count+package.Tenders.Count+package.StockMovements.Count+package.StockSnapshots.Count;
+        var expectedRows=package.InvoiceControls.Count+package.SalesLines.Count+package.Tenders.Count+package.StockMovements.Count+package.StockSnapshots.Count+package.Enrichments.Count;
         await using var connection=new SqlConnection(connectionString); await connection.OpenAsync(cancellationToken);
         await using var transaction=(SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
         try
         {
+            var plan=await PlanImportAsync(connection,transaction,package,cancellationToken);
+            if(plan.ExistingHashFileId is { } existingId) { await transaction.CommitAsync(cancellationToken); return existingId; }
             await InsertBatch(connection,transaction,package.Batch,cancellationToken);
             var profileId=await SqlServerImportProfileResolver.ResolveOrRegisterAsync(connection,transaction,package.File.Profile,cancellationToken);
             var fileId=await InsertFile(connection,transaction,package.File,profileId,cancellationToken);
-            if(package.Restatement is { } restatement)
+            if(plan.DuplicateContent)
+            {
+                await RecordDuplicateAsync(connection,transaction,package,fileId,plan,cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+                return fileId;
+            }
+            foreach(var previous in plan.PreviousFiles)
+                await PrepareRestatement(connection,transaction,new(previous.Id,package.File.ImportedBy ?? Environment.UserName,
+                    package.Restatement?.Reason ?? "Later export includes the complete earlier export."),fileId,cancellationToken);
+            if(package.Restatement is { } restatement && !plan.PreviousFiles.Any(x=>x.Id==restatement.PreviousImportFileId))
                 await PrepareRestatement(connection,transaction,restatement,fileId,cancellationToken);
+            await InsertFamilySourceAsync(connection,transaction,package,fileId,plan.Keys,cancellationToken);
             foreach(var row in package.InvoiceControls) await InsertInvoiceControl(connection,transaction,fileId,row,cancellationToken);
             foreach(var row in package.SalesLines) await InsertSales(connection,transaction,fileId,row,cancellationToken);
             foreach(var row in package.Tenders) await InsertTender(connection,transaction,fileId,row,cancellationToken);
             foreach(var row in package.StockMovements) await InsertMovement(connection,transaction,fileId,row,cancellationToken);
             foreach(var row in package.StockSnapshots) await InsertSnapshot(connection,transaction,fileId,row,cancellationToken);
+            foreach(var row in package.Enrichments) await InsertEnrichmentAsync(connection,transaction,fileId,row,cancellationToken);
+            await ThrowOnConflictsAsync(connection,transaction,fileId,cancellationToken);
             if(package.SalesLines.Count>0) await RefreshEnrichmentMatches(connection,transaction,cancellationToken);
-            await using var complete=Cmd(connection,transaction,"UPDATE dbo.import_batches SET status='Completed',source_row_count=@rows,completed_utc=SYSUTCDATETIME() WHERE import_batch_id=@id AND status='Processing'"); complete.Parameters.AddWithValue("@rows",expectedRows);complete.Parameters.AddWithValue("@id",package.Batch.BatchId);if(await complete.ExecuteNonQueryAsync(cancellationToken)!=1)throw new DBConcurrencyException("Import batch completion failed.");
+            await using var complete=Cmd(connection,transaction,"UPDATE dbo.import_batches SET status='Completed',source_row_count=@rows,completed_utc=SYSUTCDATETIME() WHERE import_batch_id=@id AND status='Processing'"); complete.Parameters.AddWithValue("@rows",package.AcceptedImport?.Staging.Rows.Count ?? expectedRows);complete.Parameters.AddWithValue("@id",package.Batch.BatchId);if(await complete.ExecuteNonQueryAsync(cancellationToken)!=1)throw new DBConcurrencyException("Import batch completion failed.");
             await transaction.CommitAsync(cancellationToken); return fileId;
         }
         catch { await transaction.RollbackAsync(CancellationToken.None); throw; }
     }
 
     private static async Task InsertBatch(SqlConnection c,SqlTransaction t,ImportBatchRegistration x,CancellationToken token){await using var q=Cmd(c,t,"INSERT dbo.import_batches(import_batch_id,status,store_id,period_start,period_end,started_utc) VALUES(@id,'Processing',@store,@start,@end,@utc)");q.Parameters.AddWithValue("@id",x.BatchId);Add(q,"@store",x.StoreId);Add(q,"@start",x.PeriodStart);Add(q,"@end",x.PeriodEnd);q.Parameters.AddWithValue("@utc",x.StartedUtc.UtcDateTime);await q.ExecuteNonQueryAsync(token);}
-    private static async Task<long> InsertFile(SqlConnection c,SqlTransaction t,ImportFileRegistration x,int profileId,CancellationToken token){var reportCode=PersistenceValidation.ResolveReportCode(x);await using var q=Cmd(c,t,"INSERT dbo.import_files(import_batch_id,import_profile_id,original_file_name,source_sha256,size_bytes,report_code,store_code,business_date,source_report_date,imported_by) VALUES(@batch,@profile,@name,@hash,@size,@report,@store,@business,@sourceDate,@user); SELECT CONVERT(bigint,SCOPE_IDENTITY());");q.Parameters.AddWithValue("@batch",x.BatchId);q.Parameters.AddWithValue("@profile",profileId);q.Parameters.AddWithValue("@name",x.OriginalFileName);q.Parameters.AddWithValue("@hash",SqlServerImportFileRepository.NormalizeHash(x.SourceSha256));q.Parameters.AddWithValue("@size",x.SizeBytes);q.Parameters.AddWithValue("@report",reportCode);Add(q,"@store",x.StoreCode);Add(q,"@business",x.BusinessDate);Add(q,"@sourceDate",x.SourceReportDate);Add(q,"@user",x.ImportedBy);return Convert.ToInt64(await q.ExecuteScalarAsync(token));}
+    private static async Task<long> InsertFile(SqlConnection c,SqlTransaction t,ImportFileRegistration x,int profileId,CancellationToken token){var reportCode=PersistenceValidation.ResolveReportCode(x);await using var q=Cmd(c,t,"INSERT dbo.import_files(import_batch_id,import_profile_id,original_file_name,source_sha256,size_bytes,report_code,store_code,business_date,source_report_date,imported_by,period_start,period_end,data_truth_version) VALUES(@batch,@profile,@name,@hash,@size,@report,@store,@business,@sourceDate,@user,@periodStart,@periodEnd,1); SELECT CONVERT(bigint,SCOPE_IDENTITY());");q.Parameters.AddWithValue("@batch",x.BatchId);q.Parameters.AddWithValue("@profile",profileId);q.Parameters.AddWithValue("@name",x.OriginalFileName);q.Parameters.AddWithValue("@hash",SqlServerImportFileRepository.NormalizeHash(x.SourceSha256));q.Parameters.AddWithValue("@size",x.SizeBytes);q.Parameters.AddWithValue("@report",reportCode);Add(q,"@store",x.StoreCode);Add(q,"@business",x.BusinessDate);Add(q,"@sourceDate",x.SourceReportDate);Add(q,"@user",x.ImportedBy);Add(q,"@periodStart",x.PeriodStart??x.BusinessDate);Add(q,"@periodEnd",x.PeriodEnd??x.BusinessDate);return Convert.ToInt64(await q.ExecuteScalarAsync(token));}
     private static async Task PrepareRestatement(SqlConnection c,SqlTransaction t,ImportRestatementRequest x,long replacementFileId,CancellationToken token)
     {
         await using var q=Cmd(c,t,"EXEC dbo.prepare_import_restatement @previous,@replacement,@user,@reason");
@@ -120,7 +178,7 @@ public sealed class SqlServerTransactionalImportStore(string connectionString) :
         await q.ExecuteNonQueryAsync(token);
     }
     private static async Task<long> Lineage(SqlConnection c,SqlTransaction t,long fileId,SourceRowRegistration x,CancellationToken token){await using var q=Cmd(c,t,"INSERT dbo.source_lineage(import_file_id,sheet_name,source_row_number,source_record_type) OUTPUT INSERTED.source_lineage_id VALUES(@file,@sheet,@row,@type)");q.Parameters.AddWithValue("@file",fileId);q.Parameters.AddWithValue("@sheet",x.SheetName);q.Parameters.AddWithValue("@row",x.SourceRowNumber);Add(q,"@type",x.SourceRecordType);return Convert.ToInt64(await q.ExecuteScalarAsync(token));}
-    private static async Task InsertSales(SqlConnection c,SqlTransaction t,long f,SalesLinePersistence x,CancellationToken token){var l=await Lineage(c,t,f,x.Lineage,token);await using var q=Cmd(c,t,"EXEC dbo.persist_sales_line @store,@doc,@year,@date,@line,@product,@type,@qty,@gross,@net,@brandcode,@brandname,@segment,@currency,@lineage");Bind(q,x.StoreCode,x.DocumentNumber,x.InvoiceYear,x.TransactionDate,x.LineIdentifier,x.ProductCode,x.SourceTransactionType,x.SourceQuantity,x.SourceGrossAmount,x.SourceNetAmount,x.SourceBrandCode,x.SourceBrandName,x.BrandSegment,x.CurrencyCode,l);await q.ExecuteNonQueryAsync(token);}
+    private static async Task InsertSales(SqlConnection c,SqlTransaction t,long f,SalesLinePersistence x,CancellationToken token){var l=await Lineage(c,t,f,x.Lineage,token);await using var q=Cmd(c,t,"EXEC dbo.persist_sales_line @store,@doc,@year,@date,@line,@product,@type,@qty,@gross,@net,@brandcode,@brandname,@segment,@currency,@lineage,@tax");Add(q,"@tax",x.SourceTaxAmount);Bind(q,x.StoreCode,x.DocumentNumber,x.InvoiceYear,x.TransactionDate,x.LineIdentifier,x.ProductCode,x.SourceTransactionType,x.SourceQuantity,x.SourceGrossAmount,x.SourceNetAmount,x.SourceBrandCode,x.SourceBrandName,x.BrandSegment,x.CurrencyCode,l);await q.ExecuteNonQueryAsync(token);}
     private static async Task InsertInvoiceControl(SqlConnection c,SqlTransaction t,long f,SalesInvoiceControlPersistence x,CancellationToken token){var l=await Lineage(c,t,f,x.Lineage,token);await using var q=Cmd(c,t,"EXEC dbo.persist_sales_invoice_control @store,@doc,@year,@date,@type,@qty,@net,@currency,@lineage");q.Parameters.AddWithValue("@store",x.StoreCode);q.Parameters.AddWithValue("@doc",x.DocumentNumber);q.Parameters.AddWithValue("@year",x.InvoiceYear);q.Parameters.AddWithValue("@date",x.TransactionDate);Add(q,"@type",x.SourceTransactionType);q.Parameters.AddWithValue("@qty",x.SourceInvoiceQuantity);q.Parameters.AddWithValue("@net",x.SourceNetValue);q.Parameters.AddWithValue("@currency",x.CurrencyCode);q.Parameters.AddWithValue("@lineage",l);await q.ExecuteNonQueryAsync(token);}
     private static async Task InsertTender(SqlConnection c,SqlTransaction t,long f,TenderPersistence x,CancellationToken token){var l=await Lineage(c,t,f,x.Lineage,token);await using var q=Cmd(c,t,"EXEC dbo.persist_sales_tender @store,@doc,@year,@date,@type,@amount,@currency,@lineage,@eligible,@reason");q.Parameters.AddWithValue("@store",x.StoreCode);q.Parameters.AddWithValue("@doc",x.DocumentNumber);q.Parameters.AddWithValue("@year",x.InvoiceYear);q.Parameters.AddWithValue("@date",x.TransactionDate);q.Parameters.AddWithValue("@type",x.TenderType);q.Parameters.AddWithValue("@amount",x.SourceAmount);q.Parameters.AddWithValue("@currency",x.CurrencyCode);q.Parameters.AddWithValue("@lineage",l);q.Parameters.AddWithValue("@eligible",x.IsReportingEligible);Add(q,"@reason",x.ExclusionReason);await q.ExecuteNonQueryAsync(token);}
     private static async Task InsertMovement(SqlConnection c,SqlTransaction t,long f,StockMovementPersistence x,CancellationToken token){var l=await Lineage(c,t,f,x.Lineage,token);await using var q=Cmd(c,t,"EXEC dbo.persist_stock_movement @store,@doc,@year,@date,@product,@type,@from,@to,@opening,@transaction,@closing,@lineage");q.Parameters.AddWithValue("@store",x.StoreCode);q.Parameters.AddWithValue("@doc",x.DocumentNumber);q.Parameters.AddWithValue("@year",x.InvoiceYear);q.Parameters.AddWithValue("@date",x.DocumentDate);q.Parameters.AddWithValue("@product",x.ProductCode);q.Parameters.AddWithValue("@type",x.SourceTransactionType);Add(q,"@from",x.FromLocation);Add(q,"@to",x.ToLocation);q.Parameters.AddWithValue("@opening",x.OpeningQuantity);q.Parameters.AddWithValue("@transaction",x.TransactionQuantity);q.Parameters.AddWithValue("@closing",x.ClosingQuantity);q.Parameters.AddWithValue("@lineage",l);await q.ExecuteNonQueryAsync(token);}
