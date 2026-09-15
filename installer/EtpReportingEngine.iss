@@ -23,7 +23,6 @@ SetupIconFile=..\src\Etp.Reporting.Desktop\Assets\EtpReporting.ico
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=admin
-PrivilegesRequiredOverridesAllowed=commandline
 OutputDir={#InstallerOutputDirectory}
 OutputBaseFilename=EtpReportingEngine-Setup-{#AppVersion}-x64
 Compression=lzma2
@@ -47,7 +46,7 @@ Name: "sqlprerequisites"; Description: "Install missing Microsoft SQL Server 202
 Filename: "{app}\{#AppExeName}"; Description: "Launch {#AppName}"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\scripts\remove-etp-scheduled-tasks.ps1"" -ApplicationDirectory ""{app}"""; RunOnceId: "RemoveEtpScheduledTasks"; Flags: runhidden waituntilterminated skipifdoesntexist
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy AllSigned -File ""{app}\scripts\remove-etp-scheduled-tasks.ps1"" -ApplicationDirectory ""{app}"""; RunOnceId: "RemoveEtpScheduledTasks"; Flags: runhidden waituntilterminated skipifdoesntexist
 
 [Code]
 procedure CurStepChanged(CurStep: TSetupStep);
@@ -57,7 +56,7 @@ var
 begin
   if (CurStep = ssPostInstall) then
   begin
-    Parameters := '-NoProfile -ExecutionPolicy Bypass -File "' + ExpandConstant('{app}\scripts\bootstrap-etp-prerequisites.ps1') + '" -ApplicationDirectory "' + ExpandConstant('{app}') + '"';
+    Parameters := '-NoProfile -ExecutionPolicy AllSigned -File "' + ExpandConstant('{app}\scripts\bootstrap-etp-prerequisites.ps1') + '" -ApplicationDirectory "' + ExpandConstant('{app}') + '"';
     if not WizardIsTaskSelected('sqlprerequisites') then
       Parameters := Parameters + ' -SkipSqlInstallation';
     if (not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'), Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode)) or (ResultCode <> 0) then
