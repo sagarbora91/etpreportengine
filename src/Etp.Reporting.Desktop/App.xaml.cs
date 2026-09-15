@@ -21,11 +21,17 @@ public partial class App : Application
             DesktopDiagnostics.Record(args.Exception, "TaskScheduler", "TASK_UNOBSERVED");
             args.SetObserved();
         };
-        var compositionRoot = DesktopCompositionRoot.CreateDefault();
+        var compositionRoot = DesktopCompositionRoot.CreateForArguments(e.Args);
         var startup = new DesktopStartupCoordinator(
             compositionRoot.InitializeDatabaseAsync,
             compositionRoot.RunAutomationOnceAsync,
-            () => compositionRoot.CreateMainWindow().Show());
+            () =>
+            {
+                var window = compositionRoot.CreateMainWindow();
+                window.Show();
+                if (e.Args.Contains("--capture-review"))
+                    _ = ImportReviewSession.RunAsync(window, compositionRoot.LoadConnectionString(), e.Args);
+            });
         var mode = DesktopStartupCoordinator.Route(e.Args);
         if (mode != DesktopStartupMode.Interactive)
             ShutdownMode = ShutdownMode.OnExplicitShutdown;

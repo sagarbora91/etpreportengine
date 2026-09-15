@@ -47,11 +47,13 @@ public sealed class DesktopCompositionRoot
     private readonly string baseDirectory;
     private readonly string connectionString;
     private readonly string settingsDirectory;
+    private readonly bool temporaryConnection;
 
     public DesktopCompositionRoot(
         string baseDirectory,
         string connectionString,
-        string? settingsDirectory = null)
+        string? settingsDirectory = null,
+        bool temporaryConnection = false)
     {
         if (string.IsNullOrWhiteSpace(baseDirectory))
             throw new ArgumentException("The application base directory is required.", nameof(baseDirectory));
@@ -62,6 +64,7 @@ public sealed class DesktopCompositionRoot
 
         this.baseDirectory = Path.GetFullPath(baseDirectory);
         this.connectionString = connectionString;
+        this.temporaryConnection = temporaryConnection;
         this.settingsDirectory = Path.GetFullPath(settingsDirectory ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "EtpReporting"));
@@ -72,6 +75,16 @@ public sealed class DesktopCompositionRoot
 
     public static DesktopCompositionRoot CreateDefault() =>
         new(AppContext.BaseDirectory, DefaultConnectionString);
+
+    public static DesktopCompositionRoot CreateForArguments(IReadOnlyList<string> arguments)
+    {
+        var index = arguments.ToList().FindIndex(value => value.Equals("--connection-string", StringComparison.OrdinalIgnoreCase));
+        if (index < 0) return CreateDefault();
+        if (index + 1 >= arguments.Count) throw new ArgumentException("Provide a connection string after --connection-string.");
+        var validation = ConnectionStringValidation.Validate(arguments[index + 1]);
+        if (!validation.IsValid) throw new ArgumentException(validation.Error);
+        return new(AppContext.BaseDirectory, validation.ConnectionString!, temporaryConnection: true);
+    }
 
     public MainWindow CreateMainWindow()
     {
@@ -100,7 +113,7 @@ public sealed class DesktopCompositionRoot
         Func<string, ImportPersistenceUseCase> importPersistenceUseCaseFactory = value => new SqlServerImportPersistenceUseCase(value);
         Func<string, DatabaseLifecycleService> databaseLifecycleServiceFactory = value => new SqlServerDatabaseLifecycleService(value);
         var settingsWorkspaceView = new SettingsWorkspaceView(
-            new DesktopSettingsPresentationSession(settingsStore, connectionState),
+            new DesktopSettingsPresentationSession(settingsStore, connectionState, temporaryConnection),
             databaseLifecycleServiceFactory,
             administrationServiceFactory,
             MigrationDirectory);
@@ -190,7 +203,7 @@ public sealed class DesktopCompositionRoot
     }
 
     public string LoadConnectionString() =>
-        new DesktopConnectionState(new DesktopSettingsStore(settingsDirectory).Load()?.ConnectionString ?? connectionString)
+        new DesktopConnectionState(temporaryConnection ? connectionString : new DesktopSettingsStore(settingsDirectory).Load()?.ConnectionString ?? connectionString)
             .ConnectionString;
 
     public async Task InitializeDatabaseAsync(CancellationToken cancellationToken = default)
