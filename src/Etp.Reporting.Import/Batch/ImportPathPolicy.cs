@@ -19,6 +19,8 @@ public sealed class ImportPathPolicy
 
     private readonly ImportPathPolicyOptions _options;
     internal int MaximumFolderDepth => _options.MaximumFolderDepth;
+    internal long MaximumEntryBytes => _options.MaximumEntryBytes;
+    internal long MaximumExpandedBytes => _options.MaximumExpandedBytes;
 
     public ImportPathPolicy(ImportPathPolicyOptions? options = null)
     {

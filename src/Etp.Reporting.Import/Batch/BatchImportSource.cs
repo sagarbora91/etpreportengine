@@ -71,7 +71,8 @@ public sealed class BatchImportSource : IAsyncDisposable
             {
                 token.ThrowIfCancellationRequested();
                 ImportPathPolicy.RejectReparsePoint(file);
-                if (!Path.GetExtension(file).Equals(".xlsx", StringComparison.OrdinalIgnoreCase))
+                if (Path.GetFileName(file).StartsWith("~$", StringComparison.Ordinal) ||
+                    !Path.GetExtension(file).Equals(".xlsx", StringComparison.OrdinalIgnoreCase))
                     continue;
                 policy.ValidateWorkbook(file);
                 workbooks.Add(file);
@@ -94,11 +95,12 @@ public sealed class BatchImportSource : IAsyncDisposable
         using var archive = new ZipArchive(stream, ZipArchiveMode.Read, false);
         policy.ValidateArchive(archive);
         var extracted = new List<string>();
+        long expandedBytes = 0;
         foreach (var entry in archive.Entries.OrderBy(e => e.FullName, StringComparer.OrdinalIgnoreCase))
         {
             token.ThrowIfCancellationRequested();
             policy.ValidateRelativeArchivePath(destinationRoot, entry);
-            if (string.IsNullOrEmpty(entry.Name))
+            if (string.IsNullOrEmpty(entry.Name) || entry.Name.StartsWith("~$", StringComparison.Ordinal))
                 continue;
             if (!Path.GetExtension(entry.Name).Equals(".xlsx", StringComparison.OrdinalIgnoreCase))
                 throw new ImportSourceException("IMPORT_ARCHIVE_LAYOUT", "ZIP archives may contain folders and .xlsx workbooks only.");
@@ -106,7 +108,28 @@ public sealed class BatchImportSource : IAsyncDisposable
             Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
             await using var input = entry.Open();
             await using var output = new FileStream(destination, FileMode.CreateNew, FileAccess.Write, FileShare.None, 64 * 1024, true);
-            await input.CopyToAsync(output, token).ConfigureAwait(false);
+            var buffer = new byte[64 * 1024];
+            long entryBytes = 0;
+            uint crc = uint.MaxValue;
+            int read;
+            while ((read = await input.ReadAsync(buffer, token).ConfigureAwait(false)) != 0)
+            {
+                entryBytes = checked(entryBytes + read);
+                expandedBytes = checked(expandedBytes + read);
+                if (entryBytes > policy.MaximumEntryBytes)
+                    throw new ImportSourceException("IMPORT_ARCHIVE_ENTRY_SIZE", "An archive entry exceeds the configured safety limit.");
+                if (expandedBytes > policy.MaximumExpandedBytes)
+                    throw new ImportSourceException("IMPORT_ARCHIVE_SIZE_LIMIT", "The expanded archive exceeds the configured safety limit.");
+                foreach (var value in buffer.AsSpan(0, read))
+                {
+                    crc ^= value;
+                    for (var bit = 0; bit < 8; bit++) crc = (crc >> 1) ^ ((crc & 1) == 0 ? 0 : 0xEDB88320u);
+                }
+                await output.WriteAsync(buffer.AsMemory(0, read), token).ConfigureAwait(false);
+            }
+            if (entryBytes != entry.Length || ~crc != entry.Crc32)
+                throw new ImportSourceException("IMPORT_ARCHIVE_CORRUPT", "An archive entry is incomplete or has a mismatched checksum.");
+            await output.FlushAsync(token).ConfigureAwait(false);
             policy.ValidateWorkbook(destination);
             extracted.Add(destination);
         }
