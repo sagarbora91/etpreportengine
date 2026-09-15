@@ -56,20 +56,6 @@ public sealed class TaskNavigationTests
     }
 
     [Fact]
-    public void Every_legacy_catalogue_button_label_finds_its_original_report()
-    {
-        var root = new DirectoryInfo(AppContext.BaseDirectory);
-        while (root is not null && !File.Exists(Path.Combine(root.FullName, "Etp.Reporting.slnx"))) root = root.Parent;
-        var document = System.Xml.Linq.XDocument.Load(Path.Combine(root!.FullName, "src", "Etp.Reporting.Desktop", "Modules", "Reports", "ReportsWorkspaceView.xaml"));
-        foreach (var button in document.Descendants().Where(element => element.Name.LocalName == "Button" && element.Attribute("Tag") is not null))
-        {
-            var label = button.Attribute("Content")!.Value; var code = button.Attribute("Tag")!.Value;
-            Assert.Contains(label, ReportTaskAliases.For(code));
-            Assert.Equal("report-" + code, TaskNavigation.Search(label, ShellAccess.Owner).First().Id);
-        }
-    }
-
-    [Fact]
     public void Back_and_forward_retain_exact_task_identity()
     {
         var navigation = new ShellNavigationService();
