@@ -21,7 +21,12 @@ public sealed record ImportPersistenceResult(
     int QuarantinedTenderRows = 0,
     int MatchedRows = 0,
     int MissingMatches = 0,
-    int AmbiguousMatches = 0);
+    int AmbiguousMatches = 0)
+{
+    public string Status { get; init; } = "Imported";
+    public int AlreadyPresentRows { get; init; }
+    public int ConflictRows { get; init; }
+}
 
 public sealed record ImportRowOutcome(
     int RowsProcessed,

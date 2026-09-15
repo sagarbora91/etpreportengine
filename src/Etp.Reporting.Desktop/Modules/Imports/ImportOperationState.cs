@@ -28,8 +28,8 @@ public partial class ImportWorkspaceView
         {
             foreach (var state in states) state.Control.IsEnabled = state.Enabled;
             IsBusy = false; CancelBatchButton.IsEnabled = false;
-            PersistButton.IsEnabled = coordinator.HasValidatedImport;
-            RetryBatchButton.IsEnabled = coordinator.FailedBatchPaths.Count > 0;
+
+
         });
     }
     private sealed class ImportCompletion(Action complete) : IDisposable
