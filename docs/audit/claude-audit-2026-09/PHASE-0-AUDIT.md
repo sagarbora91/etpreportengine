@@ -8,9 +8,9 @@ All application and SQL work that writes was done against `EtpClaudeAudit`, a CO
 
 ## 1. Verdict
 
-**PHASE 0 REOPENED** — migration `0016` silently deleted the `operational_audit` write from the user-administration trigger, removing the only producer of user-administration audit rows, and the branch head has no green CI run (run 25 failed at the .NET test step).
+**PHASE 0 CLOSED** at `eff3fc0`, after a second pass on 15 September 2026 confirmed all four returned items fixed — full evidence in section 8.
 
-Everything else in Phase 0 works, including the three A0.4 checks Codex could not run. The two items above are in section 6.
+*First pass, at `4537bd8`:* **PHASE 0 REOPENED** — migration `0016` silently deleted the `operational_audit` write from the user-administration trigger, removing the only producer of user-administration audit rows, and the branch head had no green CI run (run 25 failed at the .NET test step). Everything else in Phase 0 worked, including the three A0.4 checks Codex could not run. Sections 2 to 5 record that first pass and are left unchanged.
 
 ---
 
@@ -109,19 +109,21 @@ Passed!  - Failed:     0, Passed:   268, Skipped:     0, Total:   268, Duration:
 
 ## 6. Items returned to Codex
 
-**R1 — `0016` removed the user-administration audit write. (A0.8 / task 9)**
+All four were returned after the first pass and **all four are now signed off** — see section 8 for the verification evidence. The original text of each item is kept below unchanged.
+
+**R1 — `0016` removed the user-administration audit write. (A0.8 / task 9) — CLOSED**
 *Observed:* `CREATE OR ALTER TRIGGER dbo.trg_application_users_history` in `database/migrations/0016_reporting_indexes.sql` reproduces the `0011` body without its final `INSERT dbo.operational_audit(...) VALUES('UserAdministration','Succeeded',…,ORIGINAL_LOGIN())`. On the restored copy, two successful user changes wrote 3 `application_user_history` rows and 0 `UserAdministration` rows to `operational_audit`; `OBJECT_DEFINITION` of the deployed trigger contains no reference to `operational_audit`; and no code path in `src/` writes that event either.
 *Fixed looks like:* a new migration `0017` (or a corrected `0016`, if the branch has not been merged) that restores the `operational_audit` insert alongside the history insert and the strengthened guard, plus an integration test in `PhaseZeroSqlTests` asserting that a demotion, a deactivation and a deletion each append exactly one `UserAdministration` row with the acting login. Do not renumber past `0017` if Phase 1 still needs that slot; say in the phase report which number you used.
 
-**R2 — The branch head has no green CI run. (A0.9, and it undermines A0.2 and A0.3)**
+**R2 — The branch head has no green CI run. (A0.9, and it undermines A0.2 and A0.3) — CLOSED**
 *Observed:* run 25 (`34945915964`) on `4537bd8` failed; the GitHub API reports the failing step as `Run full .NET test suite`, with the whitespace and security-scan steps skipped in consequence. Run 21 (`34944494201`) failed at the same step. Runs 22, 23 and 24 passed. Commits `197e85b` and `4537bd8` change documentation only, so identical test code was green on run 24 and red on run 25, which points at a flaky test rather than a broken one. I could not reproduce it: five consecutive clean-build full-suite runs here were green, this PC has no LocalDB so CI's `(localdb)\MSSQLLocalDB` path cannot be exercised, and the run logs need repository admin rights (HTTP 403).
 *Fixed looks like:* read the run 25 log, name the test that failed and why it is timing- or environment-dependent, fix it behaviourally rather than by widening a timeout, and show a green CI run on the branch head commit in `PHASE-0-REPORT.md`. If it turns out to be a LocalDB concurrency problem in the new integration fixture, that matters more than the flake itself, because every later phase builds on that fixture.
 
-**R3 — `Connect Timeout=5` never reaches a real installation. (A0.4, task 7)**
+**R3 — `Connect Timeout=5` never reaches a real installation. (A0.4, task 7) — CLOSED**
 *Observed:* the timeout is baked into `DesktopCompositionRoot.DefaultConnectionString` only; `DesktopCompositionRoot.cs:193` returns a saved `settings.json` connection string verbatim. The shop's settings file contains no `Connect Timeout`, so with the SQL service stopped the window sat blank for **16.1 s** before the friendly panel appeared, against the ~10 s the audit brief asks for.
 *Fixed looks like:* apply the connect timeout to whatever connection string the app ends up using — parse it with `SqlConnectionStringBuilder` and set `ConnectTimeout` to 5 when the saved value is absent or larger — so the panel appears in about five seconds regardless of what is in `settings.json`, with a behavioural test covering a saved string that omits the setting.
 
-**R4 — Finish the ratchet cleanup. (A0.2, task 3; low priority, do it with Phase 1)**
+**R4 — Finish the ratchet cleanup. (A0.2, task 3; low priority, do it with Phase 1) — CLOSED**
 *Observed:* no file-reading ratchet survives, but eleven files keep an uncalled `FindRepositoryRoot()`, `HandledFailureDiagnosticsTests` keeps ~70 diagnostic codes and 13 source paths as unused `TheoryData`, `SourceInboxCompositionTests` keeps an unused source-counting helper, and four count assertions (29 report codes twice, 6/9 modules, 3 pinnable) will fail on the legitimate changes scheduled for Phases 2 and 3.
 *Fixed looks like:* delete the dead helpers and data, and either delete the count assertions or convert them into assertions about specific named entries that Phase 2 and 3 intend to keep.
 
@@ -140,3 +142,44 @@ Passed!  - Failed:     0, Passed:   268, Skipped:     0, Total:   268, Duration:
 **Service.** `MSSQL$SQLEXPRESS` was stopped once for A0.4b and restarted. Final state: **Running**. The application is not running.
 
 **Repository.** No source, test or migration file was modified. The only additions are this document and `phase-0-audit-screenshots/`. Nothing was merged; the branch was not rebased or force-pushed.
+
+---
+
+## 8. Follow-up sign-off — second pass, 15 September 2026
+
+Branch re-audited at `eff3fc0`. Codex addressed the four returned items in `91e004a`, `81d487b`, `7e30698` and `5e2a540`. Every check below was executed again from a clean build; nothing was accepted from `PHASE-0-REPORT.md`. Writes went to `EtpSignoff`, a fresh COPY_ONLY restore of `EtpReporting`, dropped afterwards.
+
+### Local build and startup checks
+
+| Check | Result | Evidence |
+|---|---|---|
+| Clean Release build | **PASS** | All `bin`/`obj` deleted, then `dotnet build Etp.Reporting.slnx -c Release` → `Build succeeded. 0 Warning(s), 0 Error(s)`, 28.4 s. |
+| Full suite, repeated | **PASS** | `dotnet test Etp.Reporting.slnx -c Release --no-build` run three times, green every time: **580 tests, 0 failed, 0 skipped** (Domain 12, Import 51, Reporting 59, **SqlServer.Integration 11**, SqlServer 177, Desktop 270). The integration project grew from 8 to 11 tests, covering the restored audit events. |
+| Launch maximised with title bar | **PASS** | `IsZoomed(hWnd)` → True; UI Automation shows `[TitleBar] 'ETP Reporting Engine'` with `Minimize`, `Restore` and `Close`. |
+| DSR on 25 Aug 2026 | **PASS** | **COMBINED FTD ₹53,818**, **UNITS 7 (Titan 5 · Helios 2)**, MTD ₹14.52 L, YTD ₹32.03 L — identical to the first pass, confirming the fixes changed no reported figure. Screenshot: `signoff-dsr-25aug2026.png`. |
+| SQL stopped → friendly panel, no crash | **PASS** | Service stopped under an elevated token. Panel showed **"Cannot reach SQL Server: SQL Server is unreachable…"** with a Retry button; process alive. Screenshot: `signoff-sql-stopped-5s-panel.png`. |
+| Retry recovers to Owner | **PASS** | Service restarted, `sqlcmd` confirmed accepting connections, Retry clicked → **"Signed in as DESKTOP-6IBM1J5\Sagar — Owner."** Screenshot: `signoff-retry-recovered-owner.png`. |
+
+### Returned items
+
+**R1 — user-administration audit write. CLOSED.** `0016` now ends the trigger with the `INSERT dbo.operational_audit(...) VALUES('UserAdministration','Succeeded',…,ORIGINAL_LOGIN())` it had dropped. Verified on `EtpSignoff` after `--initialize-database` took it to 16 migrations: `OBJECT_DEFINITION` of the deployed trigger now references `operational_audit`, and re-running the same guard script as the first pass gave **`UserAdministration` audit rows before = 1, after = 3** — one row per successful change, where the first pass produced no new rows at all. The guard itself is unchanged and still correct: demotion, deactivation and deletion of the last Owner are each refused with error 51230 and the row is unchanged; after a second Owner is added the demotion is allowed; a multi-row update demoting every Owner is refused. Refused statements write no audit row, which is right because they roll back.
+
+*One caution, not a defect here.* Codex corrected `0016` in place rather than adding `0017`. That changes the file's checksum, and the migration runner is fail-closed on a checksum mismatch, so any database that had applied the interim `0016` would now refuse to migrate. On this PC there is none: `EtpReporting` is still at 14 migrations, and `EtpReportingHelios` stores checksum `8c47064c…` for `0016`, which matches the current file exactly. If any other machine applied the interim version, it needs that row corrected or the database rebuilt.
+
+**R2 — CI green at the branch head. CLOSED.** `ReportExportCoordinatorTests` no longer blocks a pool worker or imposes a wall-clock deadline: the exporter runs on a dedicated caller thread modelling WPF, completion is observed without `WaitAsync(TimeSpan)`, and the assertion is still that the exporter ran off the caller thread. Five consecutive green CI runs now follow the failure: **26 (`e1b56e6`), 27 (`5e2a540`), 28 (`e4615d5`), 29 (`d785261`) and 30 (`2e4391e`) all success**, against one failure at run 25. Three local full-suite runs were also green. The original run 25 log remains unreadable without repository admin rights, so the flaky test was identified from the symptom rather than the log; the sustained green run and the removal of the timing dependency are what close this.
+
+**R3 — connect timeout reaches a real installation. CLOSED, and better than asked.** `ConnectionStringValidation.Validate` now caps `ConnectTimeout` at 5 and treats 0 (infinite) as 5, and `DesktopCompositionRoot.LoadConnectionString` routes the saved settings string through `DesktopConnectionState`, which validates it. Measured with the SQL service stopped: a settings file **without** any `Connect Timeout` gave the panel in **6.0 s**, and a settings file with an explicit **`Connect Timeout=30`** also gave the panel in **6.0 s**, against **16.1 s** in the first pass. A third run measured **5.7 s**. The cap is applied to the in-memory connection string and does not rewrite the user's file.
+
+**R4 — ratchet cleanup. CLOSED.** The eleven uncalled `FindRepositoryRoot()` helpers are gone; the only one left is in `ReleaseEvidenceConsistencyScriptTests`, which genuinely uses it to locate and execute a script. The unused `TheoryData` in `HandledFailureDiagnosticsTests` and the unused counting helper and `DesktopRoot` in `SourceInboxCompositionTests` are gone. All four count assertions are gone (`ProductReportCatalogue.All.Count >= 29`, the 29 report codes in `TaskNavigationTests`, and the 6/9/3 module counts in `UiNavigationTests`).
+
+*Worth noting for Phase 3.* Codex removed the two `UiNavigationTests` facts whole rather than keeping their named-entry halves, so nothing now asserts which modules a Store Manager sees. The assertion `["dashboard","reports","accounting","imports","archive","exceptions"]` was the durable half and would have survived Phase 3. Viewer visibility and the Store-Manager manual-entry route are still covered. Recommend restoring a named-module assertion when the Phase 3 shell lands.
+
+### Observations from this pass
+
+1. **The plan document was amended twice more by Codex** (`2e4391e`, `eff3fc0`), expanding Phase 1 task 4 to import every ETP report family, defining `BC` as bill cancellation, and adding acceptance items A1.10 and A1.11. The content reflects owner decisions and no Phase 1 code has landed on this branch — `2e4391e..eff3fc0` touches only two Markdown files. The process point from section 4 stands: the plan reserves its own amendment to Claude's phase audits.
+2. **A second application instance was already running** against `EtpReportingHelios` when this pass started, and a new `EtpReportingHelios` database (675 invoices, latest 6 Sep 2026, 16 migrations) now exists from the two-year Helios import work. Neither was touched. The other instance recovered on its own from both service stops and was left running on the Daily Sales Report.
+3. **The live database is still at 14 migrations**, so the indexes, the last-Owner guard and the restored audit write are still not in effect on the shop database. Section 5 item 1 applies: someone must run `--initialize-database` against `EtpReporting` for Phase 0's database work to take effect in the shop.
+
+### Cleanup for this pass
+
+`EtpSignoff` dropped and its `.bak`, `.mdf` and `.ldf` removed; final database list is `EtpReporting` and `EtpReportingHelios` only, exactly as found. `settings.json` restored to its pre-pass content (`EtpReportingHelios`, SHA-256 `53662857FEC3FFA31475E31BF5D713153800452E579EAF3BCA45425A3A85B0D0`) and the working backup deleted. `MSSQL$SQLEXPRESS` stopped twice and restarted; final state **Running**. Live `EtpReporting` re-checked read-only: **490 invoices, latest 2026-08-25, 14 migrations** — unchanged. No source, test or migration file was modified in this pass.
