@@ -22,6 +22,7 @@ The application is real, not vapour: it builds, runs against SQL Express, import
 5. Business rules come from Section 3 and from the owner's Excel sheets in `..\Reports to be generated\`. If code, docs and the sheets disagree, the sheets win; record the decision in the phase report, not in a new document.
 6. Never change financial calculations without a golden test that reproduces the owner's sheet numbers for 25 August 2026 from the real workbooks in `..\ETP Source Data\`.
 7. Ask instead of guessing on anything in Section 3 marked OPEN.
+8. Read `docs/audit/IMPORT-FAILURE-REGISTER.md` at the start of every phase; close every OPEN row mapped to the phase or state in the phase report why it is deferred. Imports must become seamless: one folder, one button, correct numbers, no manual store or date entry.
 
 **Phase report format** (`docs/audit/claude-audit-2026-09/PHASE-N-REPORT.md`): What changed (files) · How to verify (commands) · Test results (pasted summary lines) · Screenshots (paths) · Decisions taken · Known gaps · Acceptance checklist copied from this plan with Codex's self-assessment.
 
@@ -185,6 +186,7 @@ Acceptance:
 - A1.7 Importing the Titan SDB workbook, then a copy with three rows moved to the top, adds zero facts and reports "Duplicate content".
 - A1.8 Importing the July–August export once as a 55-day file works without the user typing any date; the Daily Workflow shows each day inside the range as "sources present".
 - A1.9 Staff report for 25 Aug shows returns as negative and CRO names, and the staff total equals the store total.
+- A1.10 `docs/audit/IMPORT-FAILURE-REGISTER.md`: every row mapped to Phase 1 is FIXED, and importing the complete two-year Helios consolidated folder (`ETP Source Data\HEMW	ill 6 sep 26`, Info sheets included, no manual store or date entry) plus the Titan folder produces zero new OPEN rows. Monthly totals match `ETP Source Data\HEMW\golden-monthly-HEMW-R025.csv`.
 
 ### Phase 2 — The six evening reports, matched to the owner's sheets (1–2 weeks)
 Goal: after the import, the owner opens "Today" and sees the same numbers as the Excel sheets, and can export/share each as PDF and Excel.
