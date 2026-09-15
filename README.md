@@ -13,7 +13,7 @@ dotnet test Etp.Reporting.slnx -c Release
 .\src\Etp.Reporting.Desktop\bin\Release\net10.0-windows\Etp.Reporting.Desktop.exe
 ```
 
-Connection settings are saved in `%LOCALAPPDATA%\EtpReporting\settings.json`. The default database is `EtpReporting`. Database setup and automation command-line modes use the same settings. Maintenance scripts and migrations accompany build output.
+Interactive connection settings are saved in `%LOCALAPPDATA%\EtpReporting\settings.json`. The default database is `EtpReporting`. Scheduled operations use the protected machine configuration in `%ProgramData%\EtpReporting\Operations\operations.json`. Maintenance scripts and migrations accompany build output.
 
 SQL integration tests create and drop their own uniquely named database. They never target the shop database. Set `ETP_TEST_SQL_CONNECTION` to use another local SQL instance; the default is Windows authentication on `.\SQLEXPRESS`.
 
@@ -24,5 +24,7 @@ SQL integration tests create and drop their own uniquely named database. They ne
 - [Import profiles](docs/04_ETP_IMPORT_PROFILES.md)
 - [Mapping register](docs/05_MAPPING_REGISTER.md)
 - [Approved rebuild plan](docs/audit/ETP-MASTER-AUDIT-AND-PHASED-PLAN.md)
+- [Security and operations setup](docs/OPERATIONS.md)
+- [Phase 4 implementation and validation](docs/audit/claude-audit-2026-09/PHASE-4-REPORT.md)
 
-The rebuild is in Phase 0. Financial reporting corrections belong to later approved phases; existing figures are not yet the final shop-sheet implementation. Older design and process documents are retained under `docs/_archive-2026-09/` for reference.
+This branch implements Phase 4 security and operations from the Phase 0 baseline. Phase 1 financial/import corrections must be integrated separately. Phase 4 deployment requires a SQL edition supporting native encrypted backups, a signing certificate, and the folder-access decision described in Operations. SQL Express supports the local development tests but cannot create the approved native encrypted backups. Older design and process documents are retained under `docs/_archive-2026-09/` for reference.
