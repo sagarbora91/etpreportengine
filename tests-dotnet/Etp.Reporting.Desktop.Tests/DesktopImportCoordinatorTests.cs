@@ -186,6 +186,26 @@ public sealed class DesktopImportCoordinatorTests
         Assert.Equal(0, evidenceCalls);
     }
 
+    [Fact]
+    public async Task Batch_duplicate_retains_the_original_without_persisting_new_data()
+    {
+        var persistence = new FakePersistence { Exists = true };
+        var retained = new List<(string Path, string Report, string Store, DateOnly Date)>();
+        await using var coordinator = Create(persistence, new FakeReader(_ => ValidR025()),
+            (_, path, _, report, store, date, _) =>
+            {
+                retained.Add((path, report, store, date));
+                return Task.CompletedTask;
+            });
+        var summary = await coordinator.RunBatchAsync(["sales.xlsx"], "integrated", () => false,
+            () => new("WLMHW", new(2026, 8, 25), "tester", false, ""), _ => Task.CompletedTask);
+        Assert.Equal(BatchImportFileStatus.Succeeded, Assert.Single(summary.Files).Status);
+        Assert.True(summary.Files[0].ExactDuplicate);
+        Assert.Equal(0, summary.Files[0].NewRows);
+        Assert.Equal(("sales.xlsx", "R025", "WLMHW", new DateOnly(2026, 8, 25)), Assert.Single(retained));
+        Assert.Null(persistence.LastRequest);
+    }
+
     private static DesktopImportCoordinator Create(
         FakePersistence persistence,
         IWorkbookReader reader,

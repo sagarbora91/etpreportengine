@@ -246,6 +246,9 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
                 throw new ImportSourceException(
                     "RESTATEMENT_DUPLICATE_FILE",
                     "A restatement must use a corrected source file with a new hash.");
+            await retainEvidence(connectionString, workbookPath, snapshot.Sha256, accepted.ProfileIdentity.ReportCode,
+                accepted.Scope.StoreCode ?? context.StoreCode, accepted.Scope.PeriodEnd ?? context.BusinessDate,
+                cancellationToken).ConfigureAwait(false);
             return new(0, 0, 0, 0, true);
         }
 
