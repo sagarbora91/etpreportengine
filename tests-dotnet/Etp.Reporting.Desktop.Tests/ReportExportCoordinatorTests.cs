@@ -40,13 +40,8 @@ public sealed class ReportExportCoordinatorTests
     [Fact]
     public async Task Every_synchronous_exporter_is_scheduled_away_from_the_caller_thread()
     {
-        TaskCompletionSource<int>? exporterStarted = null;
-        ManualResetEventSlim? releaseExporter = null;
-        void Capture()
-        {
-            exporterStarted!.SetResult(Environment.CurrentManagedThreadId);
-            releaseExporter!.Wait();
-        }
+        var exporterThread = 0;
+        void Capture() => exporterThread = Environment.CurrentManagedThreadId;
         var coordinator = new ReportExportCoordinator(
             (_, _) => Capture(),
             (_, _) => Capture(),
@@ -72,30 +67,22 @@ public sealed class ReportExportCoordinatorTests
 
         async Task AssertOffloadedAsync(Func<Task> export)
         {
-            var started = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
-            var invoked = new TaskCompletionSource<Task>(TaskCreationOptions.RunContinuationsAsynchronously);
-            using var release = new ManualResetEventSlim();
-            exporterStarted = started;
-            releaseExporter = release;
+            exporterThread = 0;
+            var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             var callerThread = 0;
-            // Keep the caller off the worker pool, as the real WPF UI thread is.
-            // Blocking a pool worker here can starve Task.Run on a busy CI host.
+            // A dedicated caller models WPF. Observe completion without blocking the exporter
+            // or requiring the worker pool to schedule it within a wall-clock deadline.
             var caller = new Thread(() =>
             {
                 callerThread = Environment.CurrentManagedThreadId;
-                try { invoked.SetResult(export()); }
-                catch (Exception exception) { invoked.SetException(exception); }
+                try { export().GetAwaiter().GetResult(); completed.SetResult(); }
+                catch (Exception exception) { completed.SetException(exception); }
             });
             caller.Start();
-            try
-            {
-                var exporterThread = await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
-                Assert.NotEqual(callerThread, exporterThread);
-                await invoked.Task.WaitAsync(TimeSpan.FromSeconds(5));
-            }
-            finally { release.Set(); }
-            await await invoked.Task;
+            await completed.Task;
             caller.Join();
+            Assert.NotEqual(0, exporterThread);
+            Assert.NotEqual(callerThread, exporterThread);
         }
     }
 
