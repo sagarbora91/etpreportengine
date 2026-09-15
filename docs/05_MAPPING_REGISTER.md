@@ -18,7 +18,7 @@ This register records source-to-canonical candidates supported by the supplied e
 | QTY | source_quantity | decimal | retain source sign; `SR` is already negative |
 | UCP / GROSSUCP | unit/list and gross source values | decimal | definitions pending |
 | SCH_DISCOUNTS / USER_DISCOUNTS / PRE_DISCOUNTS | discount components | decimal | retain separately |
-| NETAMOUNT / NETVALUE | net measures | decimal | retain source sign; `NETVALUE` is the primary sales value, includes GST, and `SR` is already negative |
+| NETAMOUNT / NETVALUE | net measures | decimal | retain source sign; `NETVALUE` excludes GST; `NETAMOUNT` includes GST (reporting changes are scheduled for Phase 1), and `SR` is already negative |
 | SGST/UTGST, CGST, IGST, CESS rates/values | tax components | decimal | retain separately |
 | INVREFNO / INVREFDATE | reference document identity/date | identifier/date | required for returns/restatements where populated |
 | STORETIMESTAMP | source timestamp | datetime/text | lineage and tie-break evidence |
