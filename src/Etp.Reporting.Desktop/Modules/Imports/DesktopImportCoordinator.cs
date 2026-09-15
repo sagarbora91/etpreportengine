@@ -103,7 +103,9 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
     {
         var current = validatedImport ?? throw new InvalidOperationException("Validate an import workbook before persisting it.");
         var persistence = persistenceFactory(connectionString);
-        if (await persistence.ExistsByHashAsync(current.Envelope.Workbook.Sha256, cancellationToken).ConfigureAwait(false))
+        if (await persistence.ExistsInScopeAsync(current.Envelope.Workbook.Sha256, current.Envelope.ProfileIdentity.ReportCode,
+            current.Envelope.Scope.StoreCode ?? context.StoreCode, current.Envelope.Scope.PeriodStart ?? context.BusinessDate,
+            current.Envelope.Scope.PeriodEnd ?? context.BusinessDate, cancellationToken).ConfigureAwait(false))
         {
             if (context.RestatementEnabled)
                 throw new ImportSourceException(
@@ -234,7 +236,11 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
     {
         var snapshot = await workbookReader.ReadAsync(workbookPath, cancellationToken).ConfigureAwait(false);
         var persistence = persistenceFactory(connectionString);
-        if (await persistence.ExistsByHashAsync(snapshot.Sha256, cancellationToken).ConfigureAwait(false))
+        var accepted = envelopeFactory.RequireAccepted(snapshot);
+        var context = contextFactory();
+        if (await persistence.ExistsInScopeAsync(snapshot.Sha256, accepted.ProfileIdentity.ReportCode,
+            accepted.Scope.StoreCode ?? context.StoreCode, accepted.Scope.PeriodStart ?? context.BusinessDate,
+            accepted.Scope.PeriodEnd ?? context.BusinessDate, cancellationToken).ConfigureAwait(false))
         {
             if (restatementEnabled())
                 throw new ImportSourceException(
@@ -243,8 +249,6 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
             return new(0, 0, 0, 0, true);
         }
 
-        var accepted = envelopeFactory.RequireAccepted(snapshot);
-        var context = contextFactory();
         var restatement = await ResolveRestatementAsync(
             persistence,
             accepted.ProfileIdentity.ReportCode,
@@ -267,7 +271,9 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
             context.StoreCode,
             context.BusinessDate,
             cancellationToken).ConfigureAwait(false);
-        var outcome = await persistence.LoadOutcomeByHashAsync(snapshot.Sha256, cancellationToken).ConfigureAwait(false);
+        var outcome = await persistence.LoadOutcomeInScopeAsync(snapshot.Sha256, accepted.ProfileIdentity.ReportCode,
+            accepted.Scope.StoreCode ?? context.StoreCode, accepted.Scope.PeriodStart ?? context.BusinessDate,
+            accepted.Scope.PeriodEnd ?? context.BusinessDate, cancellationToken).ConfigureAwait(false);
         return new(
             outcome.RowsProcessed,
             outcome.NewRows,

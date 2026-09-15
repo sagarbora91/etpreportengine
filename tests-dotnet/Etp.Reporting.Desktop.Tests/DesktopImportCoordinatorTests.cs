@@ -175,7 +175,7 @@ public sealed class DesktopImportCoordinatorTests
             ["sales.xlsx"],
             "integrated",
             () => true,
-            () => throw new Xunit.Sdk.XunitException("Scope should not be requested for a duplicate restatement."),
+            () => new("WLMHW", new(2026, 8, 25), "tester", true, "Correction"),
             _ => Task.CompletedTask);
 
         var file = Assert.Single(summary.Files);

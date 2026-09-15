@@ -74,18 +74,23 @@ public sealed class FolderImportService(
             }
             try
             {
-                if (await persistence.ExistsByHashAsync(accepted.Workbook.Sha256, cancellationToken).ConfigureAwait(false))
-                {
-                    results.Add(result with { Status = "Duplicate", RowsProcessed = accepted.Staging.Rows.Count,
-                        AlreadyPresentRows = accepted.Staging.Rows.Count, Message = "This file was already imported; no new rows." });
-                    continue;
-                }
                 var siblings = ready.Where(item => string.Equals(Path.GetDirectoryName(item.Path), Path.GetDirectoryName(entry.Path), StringComparison.OrdinalIgnoreCase))
                     .Select(item => item.Inspection.AcceptedImport?.Scope).Where(item => item is not null).ToArray();
                 var store = options.OverrideStoreCode ?? scope?.StoreCode ?? siblings.Select(item => item!.StoreCode).FirstOrDefault(value => value is not null);
                 var end = options.OverrideBusinessDate ?? scope?.PeriodEnd ?? siblings.Select(item => item!.PeriodEnd).Max();
                 if (string.IsNullOrWhiteSpace(store) || end is null)
                     throw new ImportSourceException("SCOPE_NOT_DETECTED", "Store or date could not be detected. Keep this file beside the other exports for its store.");
+                var persistedStore = scope?.StoreCode ?? store;
+                var periodStart = scope?.PeriodStart ?? end.Value;
+                var periodEnd = scope?.PeriodEnd ?? end.Value;
+                if (await persistence.ExistsInScopeAsync(accepted.Workbook.Sha256, accepted.ProfileIdentity.ReportCode,
+                    persistedStore, periodStart, periodEnd, cancellationToken).ConfigureAwait(false))
+                {
+                    results.Add(result with { StoreCode = persistedStore, PeriodStart = periodStart, PeriodEnd = periodEnd,
+                        Status = "Duplicate", RowsProcessed = accepted.Staging.Rows.Count,
+                        AlreadyPresentRows = accepted.Staging.Rows.Count, Message = "This file was already imported for this store and date range; no new rows." });
+                    continue;
+                }
                 ImportRestatement? restatement = null;
                 if (options.RestatementEnabled)
                 {
@@ -94,9 +99,10 @@ public sealed class FolderImportService(
                 }
                 var saved = await persistence.PersistAsync(new(accepted, end.Value, store, options.ImportedBy, restatement), cancellationToken).ConfigureAwait(false);
                 var outcome = saved.Status == "Imported"
-                    ? await persistence.LoadOutcomeByHashAsync(accepted.Workbook.Sha256, cancellationToken).ConfigureAwait(false)
+                    ? await persistence.LoadOutcomeInScopeAsync(accepted.Workbook.Sha256, accepted.ProfileIdentity.ReportCode,
+                        persistedStore, periodStart, periodEnd, cancellationToken).ConfigureAwait(false)
                     : new ImportRowOutcome(accepted.Staging.Rows.Count, saved.PersistedRows, saved.AlreadyPresentRows, saved.ConflictRows);
-                result = result with { StoreCode = store, PeriodStart = scope?.PeriodStart ?? end, PeriodEnd = end,
+                result = result with { StoreCode = persistedStore, PeriodStart = periodStart, PeriodEnd = periodEnd,
                     Status = accepted.Staging.Rows.Count == 0 && saved.Status == "Imported" ? "empty export" : saved.Status,
                     RowsProcessed = Math.Max(accepted.Staging.Rows.Count, outcome.RowsProcessed), NewRows = Math.Max(saved.PersistedRows, outcome.NewRows),
                     AlreadyPresentRows = outcome.AlreadyPresentRows, ConflictRows = outcome.ConflictRows };

@@ -63,6 +63,19 @@ public sealed class FolderImportServiceTests
         Assert.Equal(0, summary.NewRows);
     }
 
+    [Theory]
+    [InlineData("WLMHW", 20260825)]
+    [InlineData("HEMW", 20260826)]
+    public async Task Identical_bytes_in_another_store_or_period_are_not_an_exact_duplicate(string store, int date)
+    {
+        var persistence = new CapturePersistence { Exists = true, ExactScope = ("HEMW", new(2026, 8, 25), new(2026, 8, 25)) };
+        var summary = await new FolderImportService(persistence, new Reader(path => Sales(path, store, [date])))
+            .RunFilesAsync(["sales.xlsx"], new("tester"));
+        Assert.Equal("Imported", Assert.Single(summary.Files).Status);
+        Assert.Single(persistence.Requests);
+        Assert.Equal(1, summary.NewRows);
+    }
+
     [Fact]
     public async Task Header_only_file_inherits_its_store_folder_scope_and_succeeds_as_empty_export()
     {
@@ -121,8 +134,11 @@ public sealed class FolderImportServiceTests
     {
         public string Status { get; init; } = "Imported";
         public bool Exists { get; init; }
+        public (string Store, DateOnly Start, DateOnly End)? ExactScope { get; init; }
         public List<ImportPersistenceRequest<MatchedImportEnvelope>> Requests { get; } = [];
         public Task<bool> ExistsByHashAsync(string hash, CancellationToken cancellationToken = default) => Task.FromResult(Exists);
+        public Task<bool> ExistsInScopeAsync(string hash, string report, string store, DateOnly start, DateOnly end, CancellationToken cancellationToken = default) =>
+            Task.FromResult(Exists && (ExactScope is null || ExactScope == (store, start, end)));
         public Task<long?> FindCurrentImportFileIdAsync(string report, string store, DateOnly date, CancellationToken cancellationToken = default) => Task.FromResult<long?>(null);
         public Task<ImportPersistenceResult> PersistAsync(ImportPersistenceRequest<MatchedImportEnvelope> request, CancellationToken cancellationToken = default)
         {
