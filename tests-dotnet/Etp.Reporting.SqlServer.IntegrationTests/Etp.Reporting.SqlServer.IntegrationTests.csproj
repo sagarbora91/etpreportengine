@@ -8,5 +8,6 @@
     <ProjectReference Include="../../src/Etp.Reporting.Desktop/Etp.Reporting.Desktop.csproj" />
     <ProjectReference Include="../../src/Etp.Reporting.Application/Etp.Reporting.Application.csproj" />
     <Content Include="../../database/migrations/*.sql" Link="database/migrations/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../fixtures/etp-sample/*.xlsx" Link="fixtures/etp-sample/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

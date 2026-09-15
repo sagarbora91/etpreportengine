@@ -17,7 +17,7 @@ public sealed class ImportPersistenceUseCaseTests
         { "R003", ImportPersistenceRoute.Enrichment },
         { "R013", ImportPersistenceRoute.Enrichment },
         { "R025", ImportPersistenceRoute.Sales },
-        { "UNKNOWN", ImportPersistenceRoute.Sales }
+        { "R020", ImportPersistenceRoute.Family }
     };
 
     [Theory]

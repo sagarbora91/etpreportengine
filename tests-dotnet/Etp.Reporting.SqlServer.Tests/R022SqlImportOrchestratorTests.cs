@@ -7,7 +7,7 @@ namespace Etp.Reporting.SqlServer.Tests;
 public sealed class R022SqlImportOrchestratorTests
 {
     [Fact]
-    public async Task Invoice_control_and_quarantined_tender_keep_distinct_lineage_reporting_state_and_profile()
+    public async Task Invoice_control_and_Airpay_tender_keep_distinct_lineage_and_are_reporting_eligible()
     {
         var workbook = Workbook();
         var capture = new Capture();
@@ -18,15 +18,15 @@ public sealed class R022SqlImportOrchestratorTests
         Assert.Single(package.InvoiceControls);
         Assert.Equal(2, package.Tenders.Count);
         var quarantined = Assert.Single(package.Tenders, row => row.TenderType == "PAYMENTTYPE25");
-        Assert.False(quarantined.IsReportingEligible);
-        Assert.NotNull(quarantined.ExclusionReason);
+        Assert.True(quarantined.IsReportingEligible);
+        Assert.Null(quarantined.ExclusionReason);
         Assert.Equal(3, new[] { package.InvoiceControls[0].Lineage.SourceRecordType }
             .Concat(package.Tenders.Select(row => row.Lineage.SourceRecordType)).Distinct().Count());
         Assert.Equal(RetailSalesProfiles.R022.Identity, package.File.Profile);
     }
 
     [Fact]
-    public void Paymenttype25_cannot_be_accidentally_marked_reporting_eligible()
+    public void Paymenttype25_is_an_eligible_Airpay_tender()
     {
         var id = Guid.NewGuid();
         var batch = new ImportBatchRegistration(id, null, null, null, DateTimeOffset.UtcNow);
@@ -35,8 +35,7 @@ public sealed class R022SqlImportOrchestratorTests
         var tender = new TenderPersistence(
             "STORE", "DOC", 2026, new(2026, 8, 25), "PAYMENTTYPE25", 1m, "INR",
             new("Sheet0", 2, "R022_TENDER_PAYMENTTYPE25"));
-        Assert.Throws<ArgumentException>(() =>
-            PersistenceValidation.Validate(new(batch, file, [], [tender], [], [])));
+        PersistenceValidation.Validate(new(batch, file, [], [tender], [], []));
     }
 
     private static WorkbookSnapshot Workbook()
@@ -54,7 +53,7 @@ public sealed class R022SqlImportOrchestratorTests
             _ => null
         })).ToArray();
         return new(
-            "sanitized.xlsx",
+            "R022_Revenue_Report.xlsx",
             1,
             new string('c', 64),
             [new("Sheet0", 1, RetailSalesProfiles.R022Headers, [new(2, cells)])]);
