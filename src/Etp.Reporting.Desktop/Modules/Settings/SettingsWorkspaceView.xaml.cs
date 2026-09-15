@@ -87,6 +87,7 @@ public partial class SettingsWorkspaceView : UserControl
     public void UpdateAccess(SettingsWorkspaceAccess currentAccess)
     {
         access = currentAccess ?? throw new ArgumentNullException(nameof(currentAccess));
+        ExportRecoveryKeysButton.IsEnabled = access.CanAdminister;
         ProductSettingsPanel.IsEnabled = access.CanAdminister && integrationsLoaded && !productBusy;
     }
 
@@ -206,6 +207,41 @@ public partial class SettingsWorkspaceView : UserControl
             return false;
         }
         finally { productBusy = false; ProductSettingsPanel.IsEnabled = access.CanAdminister && integrationsLoaded; }
+    }
+
+    private void ChooseRecoveryLocation_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new Microsoft.Win32.OpenFolderDialog { Title = "Choose an off-PC recovery location" };
+        if (dialog.ShowDialog() != true) return;
+        if ((sender as Button)?.Tag as string == "first") FirstRecoveryLocation.Text = dialog.FolderName;
+        else SecondRecoveryLocation.Text = dialog.FolderName;
+    }
+
+    private async void ExportRecoveryKeys_Click(object sender, RoutedEventArgs e)
+    {
+        if (!access.CanAdminister) { ConnectionResult.Text = "Owner permission is required to export recovery keys."; return; }
+        if (RecoveryLocationsConfirmed.IsChecked != true) { ConnectionResult.Text = "Confirm that both recovery copies are outside this PC."; return; }
+        if (IsBusy) return;
+        ExportRecoveryKeysButton.IsEnabled = false;
+        productBusy = true;
+        try
+        {
+            var receipt = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "EtpReporting", "Backups", "certificate-custody.json");
+            await new Etp.Reporting.Infrastructure.SqlServer.BackupCertificateService(ConnectionStringInput.Text).ExportAsync(
+                RecoveryPassword.Password, FirstRecoveryLocation.Text, SecondRecoveryLocation.Text, receipt);
+            ConnectionResult.Text = "Two recovery key copies were exported and their hashes recorded. Keep the password separately; verify a restore on a second machine before deployment.";
+        }
+        catch (Exception exception)
+        {
+            DesktopDiagnostics.Record(exception, "Settings.BackupCertificate", "CERTIFICATE_EXPORT_FAILED");
+            ConnectionResult.Text = exception is ArgumentException ? exception.Message : "Recovery key export failed. Check the SQL edition, Owner permissions and access to both recovery folders. No successful custody receipt was recorded.";
+        }
+        finally
+        {
+            RecoveryPassword.Clear();
+            productBusy = false;
+            ExportRecoveryKeysButton.IsEnabled = access.CanAdminister;
+        }
     }
 
     private async void TestConnection_Click(object sender, RoutedEventArgs e) =>

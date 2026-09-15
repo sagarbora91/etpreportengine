@@ -36,6 +36,9 @@ public sealed class DashboardView : UserControl
     private readonly TextBlock databaseHealthDetailMetric = MetricValue();
     private readonly TextBlock databaseSizeMetric = MetricValue();
     private readonly TextBlock backupAgeMetric = MetricValue();
+    private readonly TextBlock recoveryDrillMetric = MetricValue();
+    private readonly TextBlock backupHashMetric = new() { TextWrapping = TextWrapping.Wrap, FontSize = 12 };
+    private readonly TextBlock recoveryDrillHashMetric = new() { TextWrapping = TextWrapping.Wrap, FontSize = 12 };
     private readonly TextBlock backupSpaceMetric = MetricValue();
     private readonly TextBlock failedImportsMetric = MetricValue(21, Brushes.White);
     private readonly ItemsControl healthWarningsList = new();
@@ -67,6 +70,10 @@ public sealed class DashboardView : UserControl
         AutomationProperties.SetName(dashboardChartPanel, "Imported rows by report chart");
         AutomationProperties.SetName(healthWarningsList, "Database health warnings");
         AutomationProperties.SetName(operationalAuditGrid, "Recent operational activity");
+        AutomationProperties.SetName(backupAgeMetric, "Last verified backup UTC");
+        AutomationProperties.SetName(recoveryDrillMetric, "Last recovery drill UTC");
+        AutomationProperties.SetName(backupHashMetric, "Verified backup fingerprint");
+        AutomationProperties.SetName(recoveryDrillHashMetric, "Recovery drill backup fingerprint");
     }
 
     public Func<DateOnly>? ExportDateFrom { get; set; }
@@ -101,6 +108,9 @@ public sealed class DashboardView : UserControl
             };
         databaseSizeMetric.Text = state.DatabaseSize;
         backupAgeMetric.Text = state.LatestBackup;
+        recoveryDrillMetric.Text = state.LatestRecoveryDrill;
+        backupHashMetric.Text = state.LatestBackupSha256;
+        recoveryDrillHashMetric.Text = state.LatestRecoveryDrillSha256;
         backupSpaceMetric.Text = state.BackupFreeSpace;
         failedImportsMetric.Text = state.FailedImports;
         healthWarningsList.ItemsSource = state.HealthWarnings;
@@ -171,7 +181,15 @@ public sealed class DashboardView : UserControl
         groups.Children.Add(Group("Import completion", readinessPercent, readinessProgress,
             new TextBlock { Text = "Import completion is not daily-close readiness. Review manual inputs and financial controls before finalising.", Foreground = SecondaryText, FontSize = 14, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,8,0,0) },
             Button("Review readiness", "Continue daily workflow", () => NavigationRequested?.Invoke(this, "Daily Workflow"))));
-        groups.Children.Add(Group("System status", databaseHealthDetailMetric, backupAgeMetric,
+        var fingerprints = new StackPanel();
+        fingerprints.Children.Add(new TextBlock { Text = "Verified backup", Margin = new Thickness(0, 6, 0, 2) });
+        fingerprints.Children.Add(backupHashMetric);
+        fingerprints.Children.Add(new TextBlock { Text = "Backup used by recovery drill", Margin = new Thickness(0, 6, 0, 2) });
+        fingerprints.Children.Add(recoveryDrillHashMetric);
+        groups.Children.Add(Group("System status", databaseHealthDetailMetric,
+            new TextBlock { Text = "Last verified backup (UTC)", Margin = new Thickness(0, 8, 0, 2) }, backupAgeMetric,
+            new TextBlock { Text = "Last recovery drill (UTC)", Margin = new Thickness(0, 8, 0, 2) }, recoveryDrillMetric,
+            new Expander { Header = "Verification fingerprints", Content = fingerprints, Margin = new Thickness(0, 8, 0, 8) },
             Button("Health and recovery", "Open health and recovery", () => NavigationRequested?.Invoke(this, "Admin / Settings"))));
         // Cards keep their natural height and reflow to one column in narrow windows; nothing is hidden or clipped, the overview scrolls instead.
         void FitGroups()

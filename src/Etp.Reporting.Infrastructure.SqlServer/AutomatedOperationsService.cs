@@ -162,7 +162,7 @@ public sealed class AutomatedOperationsService(string connectionString)
 
     private async Task<(string ReportCode, string? StoreCode, DateOnly? BusinessDate)> LoadScopeByHashAsync(string sha256, CancellationToken token)
     {
-        await using var connection = new SqlConnection(connectionString); await connection.OpenAsync(token);
+        await using var connection = new SqlConnection(LocalSqlConnectionPolicy.Validate(connectionString)); await connection.OpenAsync(token);
         await using var command = new SqlCommand("SELECT report_code,store_code,business_date FROM dbo.import_files WHERE source_sha256=@hash", connection);
         command.Parameters.AddWithValue("@hash", SqlServerImportFileRepository.NormalizeHash(sha256));
         await using var reader = await command.ExecuteReaderAsync(token);
@@ -172,7 +172,7 @@ public sealed class AutomatedOperationsService(string connectionString)
 
     private async Task<SqlConnection?> TryAcquireLeaseAsync(CancellationToken token)
     {
-        var connection = new SqlConnection(connectionString); await connection.OpenAsync(token);
+        var connection = new SqlConnection(LocalSqlConnectionPolicy.Validate(connectionString)); await connection.OpenAsync(token);
         await using var command = new SqlCommand("DECLARE @result int; EXEC @result=sp_getapplock @Resource=N'ETP_PHASE2_AUTOMATION',@LockMode='Exclusive',@LockOwner='Session',@LockTimeout=0; SELECT @result;", connection);
         if (Convert.ToInt32(await command.ExecuteScalarAsync(token)) < 0) { await connection.DisposeAsync(); return null; }
         return connection;

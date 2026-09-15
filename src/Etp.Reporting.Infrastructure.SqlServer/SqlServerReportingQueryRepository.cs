@@ -140,7 +140,7 @@ public sealed class SqlServerReportingQueryRepository(string connectionString) :
     private async Task<SqlConnection> Open(CancellationToken token)
     {
         if (string.IsNullOrWhiteSpace(connectionString)) throw new InvalidOperationException("A SQL Server connection string is required.");
-        var connection = new SqlConnection(connectionString);
+        var connection = new SqlConnection(LocalSqlConnectionPolicy.Validate(connectionString));
         try { await connection.OpenAsync(token); return connection; }
         catch { await connection.DisposeAsync(); throw; }
     }

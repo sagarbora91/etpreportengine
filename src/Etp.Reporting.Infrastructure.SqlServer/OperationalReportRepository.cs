@@ -756,7 +756,7 @@ public sealed class OperationalReportRepository(string connectionString)
 
     private async Task<SqlConnection> OpenAsync(CancellationToken token)
     {
-        var connection = new SqlConnection(connectionString);
+        var connection = new SqlConnection(LocalSqlConnectionPolicy.Validate(connectionString));
         try { await connection.OpenAsync(token); return connection; }
         catch { await connection.DisposeAsync(); throw; }
     }

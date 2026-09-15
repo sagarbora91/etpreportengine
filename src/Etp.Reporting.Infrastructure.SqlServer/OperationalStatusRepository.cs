@@ -41,7 +41,7 @@ public sealed class OperationalStatusRepository(string connectionString)
         if (string.IsNullOrWhiteSpace(connectionString))
             throw new InvalidOperationException("A SQL Server connection string is required.");
 
-        await using var connection = new SqlConnection(connectionString);
+        await using var connection = new SqlConnection(LocalSqlConnectionPolicy.Validate(connectionString));
         await connection.OpenAsync(cancellationToken);
         int files;
         int batches;

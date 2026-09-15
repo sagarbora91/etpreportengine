@@ -152,8 +152,7 @@ public sealed class DailyWorkflowPresentationSession
     public static ReopenDailyWorkflow CreateReopen(
         DailyWorkflowScope scope,
         string user,
-        string reason,
-        bool administratorApproved) => new(scope, user, reason.Trim(), administratorApproved);
+        string reason) => new(scope, user, reason.Trim());
 
     public static string PackReady(DailyControlStatus status, string message, int generationNumber, string contentSha256) =>
         $"{status}: {message} Generation {generationNumber}, control hash {contentSha256[..12]}.";

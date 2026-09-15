@@ -1,7 +1,6 @@
 extern alias EtpApplication;
 
 using System.Globalization;
-using System.Security.Principal;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -35,7 +34,6 @@ public partial class DailyWorkflowWorkspaceView : UserControl
     private readonly Func<string, DailyWorkflowCommands> commandsFactory;
     private readonly Func<string, DailyReportPackGenerator> packGeneratorFactory;
     private Func<DailyWorkflowWorkspaceAccess> access;
-    private readonly Func<bool> administratorApproved;
     private Func<string, string, string, Task> recordAuditAsync;
     private readonly Func<string, ReportPackDocument, Task> exportPackExcelAsync;
     private readonly Func<string, ReportPackDocument, Task> exportPackPdfAsync;
@@ -53,7 +51,6 @@ public partial class DailyWorkflowWorkspaceView : UserControl
         Func<string, DailyWorkflowCommands> commandsFactory,
         Func<string, DailyReportPackGenerator> packGeneratorFactory,
         Func<DailyWorkflowWorkspaceAccess> access,
-        Func<bool>? administratorApproved,
         Func<string, string, string, Task> recordAuditAsync,
         Func<string, ReportPackDocument, Task> exportPackExcelAsync,
         Func<string, ReportPackDocument, Task> exportPackPdfAsync)
@@ -64,7 +61,6 @@ public partial class DailyWorkflowWorkspaceView : UserControl
         this.commandsFactory = commandsFactory ?? throw new ArgumentNullException(nameof(commandsFactory));
         this.packGeneratorFactory = packGeneratorFactory ?? throw new ArgumentNullException(nameof(packGeneratorFactory));
         this.access = access ?? throw new ArgumentNullException(nameof(access));
-        this.administratorApproved = administratorApproved ?? IsCurrentWindowsAdministrator;
         this.recordAuditAsync = recordAuditAsync ?? throw new ArgumentNullException(nameof(recordAuditAsync));
         this.exportPackExcelAsync = exportPackExcelAsync ?? throw new ArgumentNullException(nameof(exportPackExcelAsync));
         this.exportPackPdfAsync = exportPackPdfAsync ?? throw new ArgumentNullException(nameof(exportPackPdfAsync));
@@ -254,7 +250,7 @@ public partial class DailyWorkflowWorkspaceView : UserControl
             var scope = SelectedScope();
             await commandsFactory(connectionString()).ReopenAsync(
                 DailyWorkflowPresentationSession.CreateReopen(
-                    scope, Environment.UserName, ReopenReasonInput.Text, administratorApproved()));
+                    scope, Environment.UserName, ReopenReasonInput.Text));
             InvalidatePack();
             ReopenReasonInput.Clear();
             await recordAuditAsync("DayReopened", "Succeeded", "Business day reopened");
@@ -407,12 +403,6 @@ public partial class DailyWorkflowWorkspaceView : UserControl
     {
         DesktopDiagnostics.Record(exception, "DailyWorkflow.Workspace", eventId);
         Publish(DailyWorkflowPresentationSession.Failed(operation, exception, safeUnauthorizedMessage));
-    }
-
-    private static bool IsCurrentWindowsAdministrator()
-    {
-        using var identity = WindowsIdentity.GetCurrent();
-        return new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator);
     }
 
     private async void Refresh_Click(object sender, RoutedEventArgs e) => await RefreshAsync();

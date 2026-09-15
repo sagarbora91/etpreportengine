@@ -25,7 +25,8 @@ public partial class App : Application
         var startup = new DesktopStartupCoordinator(
             compositionRoot.InitializeDatabaseAsync,
             compositionRoot.RunAutomationOnceAsync,
-            () => compositionRoot.CreateMainWindow().Show());
+            () => compositionRoot.CreateMainWindow().Show(),
+            compositionRoot.InitializeConfiguredDatabaseAsync);
         var mode = DesktopStartupCoordinator.Route(e.Args);
         if (mode != DesktopStartupMode.Interactive)
             ShutdownMode = ShutdownMode.OnExplicitShutdown;

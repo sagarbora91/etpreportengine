@@ -87,7 +87,7 @@
                 <Button x:Name="FinaliseDayButton" Content="Finalise day" Click="FinaliseDay_Click" Style="{DynamicResource PrimaryButton}" Padding="16,8" IsEnabled="False"
                         automation:AutomationProperties.Name="Finalise business day"/>
                 <StackPanel Width="292" Margin="0,4,6,4"><TextBlock Text="Reopen reason" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4"/><TextBox x:Name="ReopenReasonInput" Width="280" Padding="6" Margin="12,0,0,0"
-                         ToolTip="Administrator reason required to reopen"
+                         ToolTip="Owner reason required to reopen"
                          automation:AutomationProperties.Name="Reopen reason"/></StackPanel>
                 <Button x:Name="ReopenDayButton" Content="Reopen day" Click="ReopenDay_Click" Style="{DynamicResource DangerButton}" Padding="16,8" Margin="8,0,0,0"
                         automation:AutomationProperties.Name="Reopen finalised business day"/>

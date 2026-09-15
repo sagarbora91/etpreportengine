@@ -21,11 +21,13 @@ internal static class PowerShellOperationsService
             throw new FileNotFoundException("The installed maintenance script is unavailable.", scriptName);
         if ((File.GetAttributes(script) & FileAttributes.ReparsePoint) != 0) throw new InvalidOperationException("Linked maintenance scripts cannot be executed.");
 
+        ProtectedOperationPath.Validate(script);
+
         using var process = new Process
         {
             StartInfo = new ProcessStartInfo
             {
-                FileName = "powershell.exe",
+                FileName = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), @"WindowsPowerShell\v1.0\powershell.exe"),
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 WindowStyle = ProcessWindowStyle.Hidden,
@@ -33,9 +35,10 @@ internal static class PowerShellOperationsService
                 RedirectStandardError = true
             }
         };
+        process.StartInfo.Environment.Remove("PSModulePath");
         process.StartInfo.ArgumentList.Add("-NoProfile");
         process.StartInfo.ArgumentList.Add("-ExecutionPolicy");
-        process.StartInfo.ArgumentList.Add("Bypass");
+        process.StartInfo.ArgumentList.Add("AllSigned");
         process.StartInfo.ArgumentList.Add("-File");
         process.StartInfo.ArgumentList.Add(script);
         AddDatabaseArguments(process.StartInfo, connectionString);
@@ -44,8 +47,8 @@ internal static class PowerShellOperationsService
         var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
         await process.WaitForExitAsync(cancellationToken);
         var output = await outputTask; var error = await errorTask;
-        if (process.ExitCode != 0) return new(false, SafeLastLine(error) ?? "The maintenance operation failed. Review the application diagnostic log.");
-        return new(true, SafeLastLine(output) ?? "The maintenance operation completed successfully.");
+        if (process.ExitCode != 0) return new(false, "The maintenance operation failed. Check its prerequisites and protected operations log.");
+        return new(true, "The maintenance operation completed successfully.");
     }
 
     internal static void AddDatabaseArguments(ProcessStartInfo startInfo, string connectionString)
@@ -59,6 +62,4 @@ internal static class PowerShellOperationsService
         startInfo.ArgumentList.Add("-Database"); startInfo.ArgumentList.Add(target.InitialCatalog);
     }
 
-    private static string? SafeLastLine(string value) => value.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
-        .Select(x => x.Trim()).LastOrDefault(x => x.Length > 0) is { } line ? line[..Math.Min(line.Length, 300)] : null;
 }

@@ -22,7 +22,7 @@ public sealed class PhaseZeroSqlTests(SqlDatabaseFixture database) : IClassFixtu
         var result = await new MigrationRunner(new DirectoryMigrationSource(database.MigrationDirectory),
             new SqlServerMigrationStore(database.ConnectionString)).RunAsync();
         Assert.Empty(result);
-        Assert.Equal(16, Convert.ToInt32(await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.schema_migrations")));
+        Assert.Equal((await new DirectoryMigrationSource(database.MigrationDirectory).DiscoverAsync()).Count, Convert.ToInt32(await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.schema_migrations")));
         Assert.Equal("transaction_date,store_code", await database.ExecuteAsync("SELECT STRING_AGG(c.name, ',') WITHIN GROUP(ORDER BY ic.key_ordinal) FROM sys.indexes i JOIN sys.index_columns ic ON ic.object_id=i.object_id AND ic.index_id=i.index_id JOIN sys.columns c ON c.object_id=ic.object_id AND c.column_id=ic.column_id WHERE i.name='IX_sales_invoices_date' AND ic.key_ordinal>0"));
         Assert.Equal("document_number,sales_invoice_id", await database.ExecuteAsync("SELECT STRING_AGG(c.name, ',') WITHIN GROUP(ORDER BY ic.index_column_id) FROM sys.indexes i JOIN sys.index_columns ic ON ic.object_id=i.object_id AND ic.index_id=i.index_id JOIN sys.columns c ON c.object_id=ic.object_id AND c.column_id=ic.column_id WHERE i.name='IX_sales_invoices_date' AND ic.is_included_column=1"));
         Assert.Equal("store_code,product_code,snapshot_date", await database.ExecuteAsync("SELECT STRING_AGG(c.name, ',') WITHIN GROUP(ORDER BY ic.key_ordinal) FROM sys.indexes i JOIN sys.index_columns ic ON ic.object_id=i.object_id AND ic.index_id=i.index_id JOIN sys.columns c ON c.object_id=ic.object_id AND c.column_id=ic.column_id WHERE i.name='IX_stock_snapshots_product' AND ic.key_ordinal>0"));
@@ -69,7 +69,7 @@ public sealed class PhaseZeroSqlTests(SqlDatabaseFixture database) : IClassFixtu
             await database.ExecuteAsync(sql);
             Assert.Equal(auditBefore + 1, Convert.ToInt32(await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.operational_audit WHERE event_type='UserAdministration'")));
             Assert.Equal(historyBefore + 1, Convert.ToInt32(await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.application_user_history WHERE windows_identity=N'Phase0AuditOwner'")));
-            Assert.Equal(await database.ExecuteAsync("SELECT ORIGINAL_LOGIN()"), await database.ExecuteAsync("SELECT TOP(1) actor_name FROM dbo.operational_audit WHERE event_type='UserAdministration' ORDER BY operational_audit_id DESC"));
+            Assert.Equal(await database.ExecuteAsync("SELECT SUSER_SNAME()"), await database.ExecuteAsync("SELECT TOP(1) actor_name FROM dbo.operational_audit WHERE event_type='UserAdministration' ORDER BY operational_audit_id DESC"));
         }
         finally { await database.ExecuteAsync("DELETE dbo.application_users WHERE windows_identity=N'Phase0AuditOwner'"); }
     }
@@ -93,7 +93,7 @@ public sealed class PhaseZeroSqlTests(SqlDatabaseFixture database) : IClassFixtu
     }
 
     [Fact]
-    public async Task Headless_modes_use_saved_database_instead_of_the_constructor_fallback()
+    public async Task Manual_database_initialization_uses_saved_database_instead_of_the_constructor_fallback()
     {
         var folder = Path.Combine(Path.GetTempPath(), "EtpPhase0Settings_" + Guid.NewGuid().ToString("N"));
         try
@@ -103,7 +103,6 @@ public sealed class PhaseZeroSqlTests(SqlDatabaseFixture database) : IClassFixtu
                 @"Server=invalid;Database=MustNeverBeUsed;Integrated Security=True;Connect Timeout=1", folder);
             Assert.Equal(database.Name, new SqlConnectionStringBuilder(root.LoadConnectionString()).InitialCatalog);
             await root.InitializeDatabaseAsync();
-            Assert.Equal(0, await root.RunAutomationOnceAsync());
         }
         finally { if (Directory.Exists(folder)) Directory.Delete(folder, true); }
     }

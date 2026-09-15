@@ -59,7 +59,7 @@ public sealed class RetailEnrichmentSqlImportOrchestrator(string connectionStrin
             throw new InvalidOperationException("A header-only enrichment report requires a selected store and business date.");
 
         var batchId = Guid.NewGuid();
-        await using var connection = new SqlConnection(connectionString);
+        await using var connection = new SqlConnection(LocalSqlConnectionPolicy.Validate(connectionString));
         await connection.OpenAsync(cancellationToken);
         await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
         try
@@ -150,20 +150,7 @@ public sealed class RetailEnrichmentSqlImportOrchestrator(string connectionStrin
             lineageId = Convert.ToInt64(await lineage.ExecuteScalarAsync(token));
         }
 
-        const string sql = """
-            DECLARE @matchCount int,@salesLineId bigint;
-            SELECT @matchCount=COUNT(*),@salesLineId=CASE WHEN COUNT(*)=1 THEN MAX(l.sales_line_id) END
-            FROM dbo.sales_lines l JOIN dbo.sales_invoices i ON i.sales_invoice_id=l.sales_invoice_id
-            WHERE i.store_code=@store AND i.transaction_date=@date AND i.document_number=@document AND l.product_code=@product;
-            DECLARE @status varchar(20)=CASE @matchCount WHEN 0 THEN 'Missing' WHEN 1 THEN 'Matched' ELSE 'Ambiguous' END;
-            INSERT dbo.sales_line_enrichments
-              (enrichment_type,store_code,transaction_date,document_number,product_code,source_transaction_type,source_quantity,source_net_value,
-               source_cro_number,scheme_discount,user_discount,pre_discount,other_charges,activation_details,user_discount_details,
-               matched_sales_line_id,match_status,source_lineage_id)
-            VALUES(@report,@store,@date,@document,@product,@type,@quantity,@net,@cro,@scheme,@userDiscount,@pre,@other,@activation,@discountDetails,
-                   @salesLineId,@status,@lineage);
-            SELECT @status;
-            """;
+        const string sql = "EXEC dbo.persist_sales_enrichment @report,@store,@date,@document,@product,@type,@quantity,@net,@cro,@scheme,@userDiscount,@pre,@other,@activation,@discountDetails,@lineage";
         await using var command = Command(connection, transaction, sql);
         var values = row.Values;
         command.Parameters.AddWithValue("@report", reportCode);

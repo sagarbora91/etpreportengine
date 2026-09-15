@@ -33,7 +33,7 @@ using Etp.Reporting.Reporting;
 
 namespace Etp.Reporting.Desktop.Tests;
 
-public sealed class ExtractedWorkspaceUiSmokeTests
+public sealed partial class ExtractedWorkspaceUiSmokeTests
 {
     [Fact]
     public void Extracted_workspaces_render_focus_and_expose_accessible_interactive_controls()
@@ -88,7 +88,7 @@ public sealed class ExtractedWorkspaceUiSmokeTests
                 new DailyWorkflowPresentationSession(), () => connection,
                 _ => Proxy<IDailyWorkflowQuery>(), _ => Proxy<IDailyWorkflowCommands>(),
                 _ => Proxy<IDailyReportPackGenerator<ReportPackDocument>>(),
-                () => new(true, true, true), () => true,
+                () => new(true, true, true),
                 (_, _, _) => Task.CompletedTask, (_, _) => Task.CompletedTask, (_, _) => Task.CompletedTask)),
             new("Archive", new ArchiveWorkspaceView(
                 new ArchiveDistributionPresentationSession(

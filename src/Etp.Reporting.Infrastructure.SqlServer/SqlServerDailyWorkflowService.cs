@@ -152,7 +152,6 @@ public sealed class SqlServerDailyWorkflowService :
             command.Scope.BusinessDate,
             command.User,
             command.Reason,
-            command.AdministratorApproved,
             cancellationToken).ConfigureAwait(false);
     }
 
