@@ -1,6 +1,6 @@
 # ETP Reporting Engine — Master Audit and Phased Rebuild Plan
 
-Version 1.2 — 15 September 2026 (all owner decisions D1–D11 frozen). Author: Claude (audit and plan). Executor: Codex. Decision owner: Sagar.
+Version 1.3 — 15 September 2026 (all owner decisions D1–D11 frozen; Phase 0 CLOSED at `6791c9e`). Author: Claude (audit and plan). Executor: Codex. Decision owner: Sagar.
 
 This document replaces every earlier "acceptance", "sprint ledger", "handoff" and "review plan" document under `docs/` as the single working plan. Detailed evidence lives in `docs/audit/claude-audit-2026-09/01..06-*.md`.
 
@@ -23,6 +23,8 @@ The application is real, not vapour: it builds, runs against SQL Express, import
 6. Never change financial calculations without a golden test that reproduces the owner's sheet numbers for 25 August 2026 from the real workbooks in `..\ETP Source Data\`.
 7. Ask instead of guessing on anything in Section 3 marked OPEN.
 8. Read `docs/audit/IMPORT-FAILURE-REGISTER.md` at the start of every phase; close every OPEN row mapped to the phase or state in the phase report why it is deferred. Imports must become seamless: one folder, one button, correct numbers, no manual store or date entry.
+9. Never edit a migration script that has been committed, even on the same branch; the runner is checksum fail-closed, so an edited script bricks any database that applied the earlier version. Fix a migration by adding the next-numbered script. (Learned in Phase 0: `0016` was corrected in place.)
+10. Source data under `..\ETP Source Data\` contains customer names and phone numbers. Tests read it by absolute path and skip with a clear message when it is absent; never copy it into the repository. A sanitised sample (names replaced, phones masked, ≤ 50 rows per family) may be committed under `tests-dotnet/fixtures/etp-sample/` for CI.
 
 **Phase report format** (`docs/audit/claude-audit-2026-09/PHASE-N-REPORT.md`): What changed (files) · How to verify (commands) · Test results (pasted summary lines) · Screenshots (paths) · Decisions taken · Known gaps · Acceptance checklist copied from this plan with Codex's self-assessment.
 
@@ -284,3 +286,5 @@ Phases 1 and 4 can run in parallel on separate branches. Total: roughly 6–8 we
 ## 7. Open items log
 - 14 Sep fixes uncommitted — Phase 0 task 1.
 - Version 1.0 of this plan, 15 Sep 2026: all six audits incorporated. Changes to this document happen only through Claude's phase audits.
+- **Phase 0 CLOSED 15 Sep 2026** (`PHASE-0-AUDIT.md` section 8, commit `6791c9e`, 580 tests green, five green CI runs). Not yet done on the shop PC: `EtpReporting` is still at 14 migrations; run `Etp.Reporting.Desktop.exe --initialize-database` with `settings.json` pointing at `EtpReporting` to apply 0015–0016 (indexes, last-Owner guard, restored audit write). `EtpReportingHelios` (two-year Helios corpus, created 15 Sep) carries the final 0016 checksum (verified) but holds the 272 dropped-row import; Phase 1's whole-folder test drops and rebuilds it.
+- Phase 1 branch: `phase-1/data-truth` from `main` after the fast-forward merge of `phase-0/stabilise`.
