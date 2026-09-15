@@ -16,6 +16,7 @@
     <Project Path="tests-dotnet/Etp.Reporting.SqlServer.Tests/Etp.Reporting.SqlServer.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">
+    <Project Path="tools/Etp.Reporting.ImportAudit/Etp.Reporting.ImportAudit.csproj" />
     <Project Path="tools/Etp.Reporting.DsrSmoke/Etp.Reporting.DsrSmoke.csproj" />
     <Project Path="tools/Etp.Reporting.ExportSmoke/Etp.Reporting.ExportSmoke.csproj" />
     <Project Path="tools/Etp.Reporting.FunctionAudit/Etp.Reporting.FunctionAudit.csproj" />
