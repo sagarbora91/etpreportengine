@@ -7,7 +7,8 @@ public sealed record OperationalSummary(
     int CompletedBatches,
     long SourceRows,
     DateTime? LatestImportUtc,
-    IReadOnlyList<ImportHistoryRow> RecentImports);
+    IReadOnlyList<ImportHistoryRow> RecentImports,
+    DateOnly? LatestBusinessDate = null);
 
 public sealed record ImportHistoryRow(
     string FileName,
@@ -21,7 +22,8 @@ public sealed class OperationalStatusRepository(string connectionString)
 {
     private const string SummarySql = """
         SELECT COUNT_BIG(*), (SELECT COUNT_BIG(*) FROM dbo.source_lineage),
-               MAX(b.completed_utc), COUNT_BIG(DISTINCT CASE WHEN b.status='Completed' THEN b.import_batch_id END)
+               MAX(b.completed_utc), COUNT_BIG(DISTINCT CASE WHEN b.status='Completed' THEN b.import_batch_id END),
+               MAX(CASE WHEN f.is_superseded=0 THEN f.business_date END)
         FROM dbo.import_files f JOIN dbo.import_batches b ON b.import_batch_id=f.import_batch_id;
         """;
 
@@ -45,6 +47,7 @@ public sealed class OperationalStatusRepository(string connectionString)
         int batches;
         long rows;
         DateTime? latest;
+        DateOnly? latestBusinessDate;
         await using (var command = new SqlCommand(SummarySql, connection))
         await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
         {
@@ -53,6 +56,7 @@ public sealed class OperationalStatusRepository(string connectionString)
             rows = reader.GetInt64(1);
             latest = reader.IsDBNull(2) ? null : reader.GetDateTime(2);
             batches = checked((int)reader.GetInt64(3));
+            latestBusinessDate = reader.IsDBNull(4) ? null : DateOnly.FromDateTime(reader.GetDateTime(4));
         }
 
         var history = new List<ImportHistoryRow>();
@@ -62,6 +66,6 @@ public sealed class OperationalStatusRepository(string connectionString)
                 history.Add(new(reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetInt32(3),
                     reader.GetDateTime(4), reader.IsDBNull(5) ? null : reader.GetDateTime(5)));
 
-        return new(files, batches, rows, latest, history);
+        return new(files, batches, rows, latest, history, latestBusinessDate);
     }
 }

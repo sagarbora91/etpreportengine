@@ -37,7 +37,7 @@ public partial class MainWindow
     private void InitializeShell()
     {
         uiPreferences = UiPreferenceStore.Load();
-        ShellBusinessDateSelector.SelectedDate = DateTime.Today.AddDays(-1);
+        ShellBusinessDateSelector.SelectedDate = TaskNavigator.InitialBusinessDate;
         taskNavigator = new TaskNavigator(this);
         taskNavigator.InitializeTaskNavigation();
         sidebarExplicitlyCollapsed = true;

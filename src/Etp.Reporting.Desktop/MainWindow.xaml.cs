@@ -294,6 +294,7 @@ public partial class MainWindow : Window
         {
             var snapshot = await dashboardQueryFactory(connectionState.ConnectionString).LoadAsync();
             dashboardView.Show(snapshot);
+            taskNavigator?.DefaultBusinessDateToLatestData(snapshot.LatestBusinessDate);
         }
         catch (Exception ex)
         {

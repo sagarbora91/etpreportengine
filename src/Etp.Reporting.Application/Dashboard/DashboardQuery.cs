@@ -42,7 +42,8 @@ public sealed record DashboardSnapshot(
     DateTime? LatestImportUtc,
     IReadOnlyList<DashboardImportHistoryItem> RecentImports,
     DashboardHealth Health,
-    IReadOnlyList<DashboardAuditEvent> RecentAudit);
+    IReadOnlyList<DashboardAuditEvent> RecentAudit,
+    DateOnly? LatestBusinessDate = null);
 
 public interface IDashboardQuery
 {

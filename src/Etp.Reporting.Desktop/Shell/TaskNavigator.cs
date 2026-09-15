@@ -17,6 +17,8 @@ public sealed partial class TaskNavigator(MainWindow window)
     private readonly HashSet<UserControl> visited = new();
     private WorkspaceRoute? displayedRoute;
     private bool databaseContextStarted;
+    private bool businessDateDefaulted;
+    public static DateTime InitialBusinessDate => DateTime.Today.AddDays(-1);
     private readonly Dictionary<WorkspaceRoute, (double Offset, IInputElement? Focus)> contexts = new();
 
     private static IEnumerable<DependencyObject> LogicalChildren(DependencyObject root)
@@ -53,6 +55,17 @@ public sealed partial class TaskNavigator(MainWindow window)
         if (window.FocusedWorkspaceHost.Content is ReportWorkspaceControl report && report.ScopeSelector.IsEnabled) report.SetStoreScope(scope);
         if (store is not null && !visited.Contains(window.dailyWorkflowWorkspace)) window.dailyWorkflowWorkspace.StoreCode = store;
         window.ApplicationStatus.Text = store is null ? "All authorised stores. Select an explicit task store for imports and edits." : $"Current scope: {store}";
+    }
+
+    /// <summary>Until the user picks a date, the shell business date follows the newest imported ETP day so reports open with data.</summary>
+    public void DefaultBusinessDateToLatestData(DateOnly? latest)
+    {
+        if (businessDateDefaulted || latest is not { } date) return;
+        businessDateDefaulted = true;
+        var selected = window.ShellBusinessDateSelector.SelectedDate;
+        if (selected is null || selected.Value.Date != InitialBusinessDate) return;
+        var target = date.ToDateTime(TimeOnly.MinValue);
+        if (target != selected.Value.Date) window.ShellBusinessDateSelector.SelectedDate = target;
     }
 
     public void ApplyBusinessDate(DateTime selected)
@@ -302,7 +315,7 @@ public sealed partial class TaskNavigator(MainWindow window)
         foreach (var name in entries)
         {
             var count = tasks.Count(x => x.Category == name);
-            var button = MakeTaskTile(name, $"{count} tasks", () => NavigateOverview(module, destination, name)); panel.Children.Add(button);
+            var button = MakeTaskTile(name, count == 1 ? "1 task" : $"{count} tasks", () => NavigateOverview(module, destination, name)); panel.Children.Add(button);
         }
         if (category is not null)
         foreach (var task in tasks.Where(x => x.Category == category)) panel.Children.Add(MakeTaskTile(task.Title, task.Purpose, () => NavigateTask(task)));

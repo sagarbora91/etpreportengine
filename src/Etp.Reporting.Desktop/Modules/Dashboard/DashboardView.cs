@@ -148,8 +148,10 @@ public sealed class DashboardView : UserControl
         actions.Children.Add(Button("Export summary", "Export management summary PDF", ExportPdfAsync));
         DockPanel.SetDock(actions, Dock.Right); top.Children.Add(actions); top.Children.Add(errorBanner);
         root.Children.Add(top);
-        var groups = new UniformGrid { Columns = 2, Rows = 2 };
-        Grid.SetRow(groups, 1); root.Children.Add(groups);
+        var groups = new Grid();
+        groups.ColumnDefinitions.Add(new ColumnDefinition()); groups.ColumnDefinitions.Add(new ColumnDefinition());
+        var groupScroll = new ScrollViewer { Content = groups, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
+        Grid.SetRow(groupScroll, 1); root.Children.Add(groupScroll);
         Border Group(string title, params UIElement[] items)
         {
             var panel = new StackPanel(); panel.Children.Add(Title(title));
@@ -171,18 +173,18 @@ public sealed class DashboardView : UserControl
             Button("Review readiness", "Continue daily workflow", () => NavigationRequested?.Invoke(this, "Daily Workflow"))));
         groups.Children.Add(Group("System status", databaseHealthDetailMetric, backupAgeMetric,
             Button("Health and recovery", "Open health and recovery", () => NavigationRequested?.Invoke(this, "Admin / Settings"))));
-        var groupSelector = new ComboBox { Width = 195, SelectedIndex = 0, Margin = new Thickness(8,0,0,0), ItemsSource = new[] { "Daily close", "Today at a glance", "Import completion", "System status" }, Visibility = Visibility.Collapsed };
-        AutomationProperties.SetName(groupSelector, "Overview group for short windows");
-        actions.Children.Add(groupSelector);
+        // Cards keep their natural height and reflow to one column in narrow windows; nothing is hidden or clipped, the overview scrolls instead.
         void FitGroups()
         {
-            var shortWindow = root.ActualHeight < 350;
-            groups.Columns = shortWindow ? 1 : 2; groups.Rows = shortWindow ? 1 : 2;
-            for (var i = 0; i < groups.Children.Count; i++) groups.Children[i].Visibility = shortWindow && i != groupSelector.SelectedIndex ? Visibility.Collapsed : Visibility.Visible;
-            groupSelector.Visibility = shortWindow ? Visibility.Visible : Visibility.Collapsed;
-            actions.Children[1].Visibility = shortWindow ? Visibility.Collapsed : Visibility.Visible;
+            var columns = root.ActualWidth < 700 ? 1 : 2;
+            groups.RowDefinitions.Clear();
+            for (var i = 0; i < groups.Children.Count; i++)
+            {
+                if (i % columns == 0) groups.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+                Grid.SetRow(groups.Children[i], i / columns); Grid.SetColumn(groups.Children[i], i % columns); Grid.SetColumnSpan(groups.Children[i], columns == 1 ? 2 : 1);
+            }
         }
-        root.SizeChanged += (_, _) => FitGroups(); groupSelector.SelectionChanged += (_, _) => FitGroups();
+        FitGroups(); root.SizeChanged += (_, _) => FitGroups();
         overviewContent = root; return root;
     }
 

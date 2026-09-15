@@ -6,6 +6,13 @@ last_verified: 2026-08-28
 
 # ETP AI Context
 
+## Project identity
+
+- This repository is **ETP Reporting Engine**, remote `https://github.com/sagarbora91/etpreportengine.git`.
+- Its historical folder name is `SaagarCC-V6-ETP-Source-and-Report-Engine-605002f`; do not infer project identity from the `SaagarCC` prefix or retained legacy Android material.
+- The user's ETP Obsidian vault is `C:\Codex\Reporting Manger\ETP`. Its `Project Knowledge` folder is a reading copy; repository knowledge remains authoritative.
+- **Saagar Control Centre** is a separate project under `C:\Codex\Saagar Control Centre`. Do not mix its files, vault, graph or work status with ETP. Verify repository path and remote before changes or publishing.
+
 ## Purpose
 
 ETP Reporting Engine is a rules-driven Windows retail reporting application. It imports changing ETP XLSX/ZIP exports, validates and normalizes them, stores auditable facts in SQL Server Express, and produces deterministic on-screen, Excel and PDF reports.

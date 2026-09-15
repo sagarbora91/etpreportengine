@@ -1,7 +1,7 @@
 ---
 type: home
 status: active
-last_verified: 2026-08-27
+last_verified: 2026-09-14
 ---
 
 # ETP Knowledge Home
@@ -9,6 +9,8 @@ last_verified: 2026-08-27
 This vault stores the business meaning, decisions, mappings and architectural context of the ETP Reporting Engine. Graphify remains responsible for code structure and relationships; source code and migrations remain authoritative for current implementation.
 
 ## Start here
+
+- Graph navigation and maintenance: [[Knowledge Graph Guide]]
 
 - AI agents: [[AI-CONTEXT]] → [[AI-ROUTER]]
 - Architecture: [[System Architecture]], [[Data Architecture]], [[Desktop Architecture]] and [[ETP Licensing Architecture]]

@@ -54,7 +54,8 @@ public sealed class SqlServerDashboardQuery : IDashboardQuery
                 health.FailedImportsLast24Hours,
                 health.BackupFreeSpaceGb,
                 health.Warnings.Select(warning => new DashboardHealthWarning(warning.Code, warning.Message)).ToArray()),
-            audit.Select(Map).ToArray());
+            audit.Select(Map).ToArray(),
+            summary.LatestBusinessDate);
     }
 
     private static ProductionDependencies CreateProductionDependencies(string connectionString)

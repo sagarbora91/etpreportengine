@@ -180,15 +180,15 @@
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/MainWindow.xaml": {
-    "mtime": 1789396607.5437062,
-    "seen": 1789398209.9888673,
-    "ast_hash": "63ad57fc90690d7dcbf211d63729bf17",
+    "mtime": 1789289731.029038,
+    "seen": 1789290091.922265,
+    "ast_hash": "a7de65fd7ecc992ac90eb9217fe2dcca",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/MainWindow.xaml.cs": {
-    "mtime": 1789396778.4028182,
-    "seen": 1789398209.988869,
-    "ast_hash": "1aaa4a6358048bb3d229670c7da34f72",
+    "mtime": 1789213293.9115877,
+    "seen": 1789214066.2096817,
+    "ast_hash": "721d9fbf1500029302c79f3a29dd3ed0",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Domain/Etp.Reporting.Domain.csproj": {
@@ -2154,9 +2154,9 @@
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Infrastructure.SqlServer/OperationalStatusRepository.cs": {
-    "mtime": 1789396650.1800392,
-    "seen": 1789398209.9890876,
-    "ast_hash": "57a2c40fa2b02aa600165689601c1f16",
+    "mtime": 1787743443.1939223,
+    "seen": 1787743652.6949944,
+    "ast_hash": "75b59dcfa602c3726501fa27d418611c",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Reporting/SimplePdfReportExporter.cs": {
@@ -2772,9 +2772,9 @@
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/MainWindow.Shell.cs": {
-    "mtime": 1789396778.4028182,
-    "seen": 1789398209.9888635,
-    "ast_hash": "70995a42a9240d6e3b7c5d8e8add0ee7",
+    "mtime": 1789289898.8684394,
+    "seen": 1789290091.9222589,
+    "ast_hash": "98c7a612a4a050c773e847c7cdfa3b72",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Themes/Colors.xaml": {
@@ -2928,15 +2928,15 @@
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Application/Dashboard/DashboardQuery.cs": {
-    "mtime": 1789396650.1800392,
-    "seen": 1789398209.988811,
-    "ast_hash": "4551c9f81d908a401ecad64669543b88",
+    "mtime": 1787841809.313903,
+    "seen": 1787842184.2678711,
+    "ast_hash": "f7e19ebe2cb06725546b027525f7e004",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Modules/Dashboard/DashboardView.cs": {
-    "mtime": 1789397073.3485093,
-    "seen": 1789398209.9888985,
-    "ast_hash": "f2338581ad2c6d1e2dd65024d8d6356d",
+    "mtime": 1789212594.0298584,
+    "seen": 1789214066.20971,
+    "ast_hash": "c055c1667f8f99dcf595fe3052459388",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Modules/Dashboard/DashboardViewState.cs": {
@@ -2994,9 +2994,9 @@
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Infrastructure.SqlServer/SqlServerDashboardQuery.cs": {
-    "mtime": 1789396650.1800392,
-    "seen": 1789398209.9891157,
-    "ast_hash": "d5dfc957f59e22ea8bfdf6aaa5cc32c6",
+    "mtime": 1787927815.692138,
+    "seen": 1787932813.5935354,
+    "ast_hash": "1aab7834accc1ac0488ac7c2fc0d1b65",
     "semantic_hash": ""
   },
   "tests-dotnet/Etp.Reporting.Desktop.Tests/DashboardApplicationContractTests.cs": {
@@ -4614,9 +4614,9 @@
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/Shell/TaskNavigator.cs": {
-    "mtime": 1789396778.4028182,
-    "seen": 1789398209.9890077,
-    "ast_hash": "d5d4bea45e1a3751f31eb912f8043ea7",
+    "mtime": 1789289898.8694346,
+    "seen": 1789290091.9224505,
+    "ast_hash": "8c9e8cbed814b576f5bd333e6890426a",
     "semantic_hash": ""
   },
   "src/Etp.Reporting.Desktop/TaskNavigation.cs": {
@@ -4650,9 +4650,9 @@
     "semantic_hash": ""
   },
   "docs/audit/ETP-UI-REDESIGN-ACCEPTANCE.md": {
-    "mtime": 1789394796.5059328,
-    "seen": 1789398209.9898765,
-    "ast_hash": "85a876ef06685ecad55d2c0d76dc6590",
+    "mtime": 1789289337.6878903,
+    "seen": 1789290091.9239523,
+    "ast_hash": "4edf44e119be431d67533d2d90cc3c3f",
     "semantic_hash": ""
   },
   "docs/design/ETP-UI-REDESIGN-DECISIONS.md": {
@@ -4668,9 +4668,9 @@
     "semantic_hash": ""
   },
   "docs/design/ETP-UI-REDESIGN-SPRINT-LEDGER.md": {
-    "mtime": 1789394796.5049348,
-    "seen": 1789398209.9899182,
-    "ast_hash": "232ccbc6f631167ee5a8a68459fe56ce",
+    "mtime": 1789289337.685805,
+    "seen": 1789290091.9240441,
+    "ast_hash": "1f5ab74e4bc6b797ceee4cc396687f24",
     "semantic_hash": ""
   },
   "docs/design/reference-today-overview-2026-09-12.png": {
@@ -4902,9 +4902,9 @@
     "semantic_hash": ""
   },
   "docs/audit/ETP-UI-REDESIGN-VM-ACCEPTANCE-RUNBOOK.md": {
-    "mtime": 1789394796.5079353,
-    "seen": 1789398209.9898837,
-    "ast_hash": "49bd87bbe30d3d7911c9dcd8d14d437d",
+    "mtime": 1789217589.9362962,
+    "seen": 1789217704.690439,
+    "ast_hash": "003bcff9232696cabba67789f9aef0e4",
     "semantic_hash": ""
   },
   "docs/audit/ETP-UI-REDESIGN-LOCAL-FOLLOWUP-2026-09-12.md": {
@@ -4914,333 +4914,21 @@
     "semantic_hash": ""
   },
   "docs/audit/ETP-SESSION-HANDOFF-2026-09-13-UI-REDESIGN.md": {
-    "mtime": 1789394796.5029323,
-    "seen": 1789398209.9898705,
-    "ast_hash": "3b3a81c29b8bca8074f934f5ecf41dd4",
+    "mtime": 1789289337.6888902,
+    "seen": 1789290091.9239414,
+    "ast_hash": "708e2440a902de98f703322efe8824bc",
     "semantic_hash": ""
   },
   "docs/audit/ETP-UI-REDESIGN-ACCEPTANCE-RESUME-2026-09-13.md": {
-    "mtime": 1789290758.0140958,
-    "seen": 1789398209.9898753,
-    "ast_hash": "f2657a7c26a27541d84197dd0a100ebf",
+    "mtime": 1789289337.6838038,
+    "seen": 1789290091.9239488,
+    "ast_hash": "3489202d5da6dc0e8b4c2d52b33b1852",
     "semantic_hash": ""
   },
   "docs/audit/ETP-UI-REDESIGN-R10-2026-09-13.md": {
-    "mtime": 1789394796.5069363,
-    "seen": 1789398209.9898825,
-    "ast_hash": "44d2d7e69af44fbc6715bb5efcd42f6f",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260912-sprint/candidate-1.8.8-r9/source-files.json": {
-    "mtime": 1789217702.1368093,
-    "seen": 1789398209.988605,
-    "ast_hash": "4193b486360d90545cba18cd2da588c6",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260912-sprint/candidate-r9-receipt.json": {
-    "mtime": 1789217702.7853541,
-    "seen": 1789398209.9886086,
-    "ast_hash": "4d6c1a89b4689a535784f99242a8b865",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260912-sprint/evidence-r9-receipt.json": {
-    "mtime": 1789217777.3796718,
-    "seen": 1789398209.98861,
-    "ast_hash": "a8fd15f064fa6a9b45c1196a2f31cb3a",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260913-acceptance-resume/Finalize-r11.py": {
-    "mtime": 1789290820.876073,
-    "seen": 1789398209.988612,
-    "ast_hash": "0f0335e31a308ffd655d787b1949f47b",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260913-acceptance-resume/Snapshot-Candidate-r10.py": {
-    "mtime": 1789290276.3061073,
-    "seen": 1789398209.9886136,
-    "ast_hash": "99e8af76ab44ae8baeeb0899b0ecf5ec",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260913-acceptance-resume/Snapshot-Candidate-r11.py": {
-    "mtime": 1789290506.5161707,
-    "seen": 1789398209.9886155,
-    "ast_hash": "4f49a708db840669083cab57569aa5ac",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260913-acceptance-resume/Start-AcceptanceVm.ps1": {
-    "mtime": 1789289400.7694776,
-    "seen": 1789398209.988617,
-    "ast_hash": "701620b62107189b2ad54d855338c215",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260913-acceptance-resume/baseline-completion.json": {
-    "mtime": 1789289763.0528474,
-    "seen": 1789398209.9886186,
-    "ast_hash": "d159fb8603c4ad2a84068f298341fc38",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260913-acceptance-resume/candidate-1.8.8-r10/release.json": {
-    "mtime": 1789290162.7095592,
-    "seen": 1789398209.9886198,
-    "ast_hash": "08512faeedcd321bf79448a7a4014e82",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260913-acceptance-resume/candidate-1.8.8-r10/source-files.json": {
-    "mtime": 1789290313.1826582,
-    "seen": 1789398209.9886212,
-    "ast_hash": "79129fd6277119dc792b7a0ce2bfde05",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260913-acceptance-resume/candidate-1.8.8-r11/release.json": {
-    "mtime": 1789290508.9422345,
-    "seen": 1789398209.988623,
-    "ast_hash": "8acbb4e16a5d5e7a89c6c5e1556e60e4",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260913-acceptance-resume/candidate-1.8.8-r11/source-files.json": {
-    "mtime": 1789290590.3707495,
-    "seen": 1789398209.9886246,
-    "ast_hash": "f54fb5be2d88ccc5c40aefd95123558d",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260913-acceptance-resume/candidate-r10-receipt.json": {
-    "mtime": 1789290314.0467,
-    "seen": 1789398209.9886262,
-    "ast_hash": "9c6ec09d170f069a5444cbd93edfe3ec",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260913-acceptance-resume/candidate-r11-receipt.json": {
-    "mtime": 1789290591.2122986,
-    "seen": 1789398209.9886277,
-    "ast_hash": "b7ae714972e813d9b414d0aa692928e1",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260913-acceptance-resume/environment.json": {
-    "mtime": 1789289337.224766,
-    "seen": 1789398209.988629,
-    "ast_hash": "27b2d66a8f7a81d3598c10cbaf0478dd",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260913-acceptance-resume/evidence-r11-receipt.json": {
-    "mtime": 1789290823.510392,
-    "seen": 1789398209.9886303,
-    "ast_hash": "c846433851a3bbc2014255ff14476e6b",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260913-acceptance-resume/final-consistency-r11.json": {
-    "mtime": 1789290823.4216838,
-    "seen": 1789398209.9886317,
-    "ast_hash": "033f4bc0684e77a2b74b06ec53a16c21",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260913-acceptance-resume/installation.json": {
-    "mtime": 1789289662.2864065,
-    "seen": 1789398209.9886332,
-    "ast_hash": "363de421ca40f273572ee542c2ab004f",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260913-acceptance-resume/os.json": {
-    "mtime": 1789289662.5064619,
-    "seen": 1789398209.9886346,
-    "ast_hash": "df93d12f08015414ad05dff739e3368e",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260913-acceptance-resume/processes.json": {
-    "mtime": 1789289762.8160415,
-    "seen": 1789398209.9886363,
-    "ast_hash": "cdc6bc1cb4ec05d3e1952695ca640971",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260913-acceptance-resume/records-final-r11/job-02-protect-baseline.ps1": {
-    "mtime": 1789289658.0797317,
-    "seen": 1789398209.988638,
-    "ast_hash": "0627dbe99c62baecec9b2474845aead3",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260913-acceptance-resume/records-final-r11/job-03-complete-baseline.ps1": {
-    "mtime": 1789289761.5305371,
-    "seen": 1789398209.988639,
-    "ast_hash": "37aa1e2a0474654402eae17ae5d39bc9",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260913-acceptance-resume/records-final-r11/job-04-install-r10.ps1": {
-    "mtime": 1789290060.013055,
-    "seen": 1789398209.9886408,
-    "ast_hash": "6a90a7c26fa728d1d00841125af2cbb2",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260913-acceptance-resume/records-final-r11/job-05-install-r11.ps1": {
-    "mtime": 1789290506.520176,
-    "seen": 1789398209.9886422,
-    "ast_hash": "f37c0e7369fea2cb4fe28cc54095352f",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260913-acceptance-resume/shortcuts.json": {
-    "mtime": 1789289661.936069,
-    "seen": 1789398209.9886436,
-    "ast_hash": "23c87df0412ad01821675021212b9bb6",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260913-acceptance-resume/vm-protected-baseline.json": {
-    "mtime": 1789289663.8679502,
-    "seen": 1789398209.988645,
-    "ast_hash": "569d189de3d897f5d071b8a4e07a3197",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260913-acceptance-resume/vm-r10-install-evidence/before-settings-hashes.json": {
-    "mtime": 1789290330.4729166,
-    "seen": 1789398209.9886465,
-    "ast_hash": "8e509fef51f1980fa38487533c642be8",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260913-acceptance-resume/vm-r10-install-evidence/result.json": {
-    "mtime": 1789290398.8147702,
-    "seen": 1789398209.988648,
-    "ast_hash": "66a83abf9d29780efe26866564a9f027",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260913-acceptance-resume/vm-r10-install-result.json": {
-    "mtime": 1789290398.8519225,
-    "seen": 1789398209.9886491,
-    "ast_hash": "bcbeba9f701e047770fe01d5868a85e9",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260913-acceptance-resume/vm-r11-install-evidence/before-settings-hashes.json": {
-    "mtime": 1789290603.072662,
-    "seen": 1789398209.9886506,
-    "ast_hash": "8e509fef51f1980fa38487533c642be8",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260913-acceptance-resume/vm-r11-install-evidence/result.json": {
-    "mtime": 1789290657.9339888,
-    "seen": 1789398209.9886518,
-    "ast_hash": "b4f04f51c2181cd721638a434a7a64d3",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260913-acceptance-resume/vm-r11-install-result.json": {
-    "mtime": 1789290657.992785,
-    "seen": 1789398209.9886534,
-    "ast_hash": "a5c787f0f4fc6e3bc5dc6f624f0b9140",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260914-user-screen/observation.json": {
-    "mtime": 1789393650.4764478,
-    "seen": 1789398209.9886546,
-    "ast_hash": "db9c30221c4abe045d58969b85a509ad",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260913-acceptance-resume/backup-verification.txt": {
-    "mtime": 1789289662.9894035,
-    "seen": 1789398209.989743,
-    "ast_hash": "71357c8f46abef449e645e9ce26f3a91",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260913-acceptance-resume/candidate-1.8.8-r10/SHA256SUMS.txt": {
-    "mtime": 1789290162.5314589,
-    "seen": 1789398209.989745,
-    "ast_hash": "d5a4361a2a30df8f140be58a9fa51699",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260913-acceptance-resume/candidate-1.8.8-r11/SHA256SUMS.txt": {
-    "mtime": 1789290508.8309247,
-    "seen": 1789398209.989746,
-    "ast_hash": "8ac0b265dc816310904ae1ceb63eed10",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260913-acceptance-resume/installer-1.8.8-r10/SHA256SUMS.txt": {
-    "mtime": 1789290286.4139783,
-    "seen": 1789398209.9897473,
-    "ast_hash": "16efe9966495c0d61d8eaf43d45fa36c",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260913-acceptance-resume/installer-1.8.8-r11/SHA256SUMS.txt": {
-    "mtime": 1789290558.4595149,
-    "seen": 1789398209.989749,
-    "ast_hash": "dc5c8a3a37ec3a838f8461ab38f58fd1",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260913-acceptance-resume/original-counts.txt": {
-    "mtime": 1789289661.4978983,
-    "seen": 1789398209.9897504,
-    "ast_hash": "4cbfa6484010e1727df61fef153f36bb",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260913-acceptance-resume/records-final-r11/ETP-SESSION-HANDOFF-2026-09-13-UI-REDESIGN.md": {
-    "mtime": 1789290758.0125637,
-    "seen": 1789398209.9897518,
-    "ast_hash": "2999920667586ac66e1e85ae46e1fa56",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260913-acceptance-resume/records-final-r11/ETP-UI-REDESIGN-ACCEPTANCE.md": {
-    "mtime": 1789290758.0099256,
-    "seen": 1789398209.989753,
-    "ast_hash": "2a5188c1f58026d81b6fe4fc77f978e4",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260913-acceptance-resume/records-final-r11/ETP-UI-REDESIGN-DECISIONS.md": {
-    "mtime": 1789290221.3937514,
-    "seen": 1789398209.9897544,
-    "ast_hash": "2e130630e545e1008e6f4fd387ce20a9",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260913-acceptance-resume/records-final-r11/ETP-UI-REDESIGN-R10-2026-09-13.md": {
-    "mtime": 1789290820.8750825,
-    "seen": 1789398209.9897554,
-    "ast_hash": "da169582a513634e04d70196f545838b",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260913-acceptance-resume/records-final-r11/ETP-UI-REDESIGN-SPRINT-LEDGER.md": {
-    "mtime": 1789290758.0079243,
-    "seen": 1789398209.9897568,
-    "ast_hash": "7e4e21eb22e4e49a294050d6d96902f5",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260913-acceptance-resume/vm-r10-install-evidence/after-counts.txt": {
-    "mtime": 1789290397.2881582,
-    "seen": 1789398209.9897583,
-    "ast_hash": "456d0181a351000cc4eb94e78cec4deb",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260913-acceptance-resume/vm-r10-install-evidence/before-counts.txt": {
-    "mtime": 1789290330.4442658,
-    "seen": 1789398209.9897592,
-    "ast_hash": "456d0181a351000cc4eb94e78cec4deb",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260913-acceptance-resume/vm-r11-install-evidence/after-counts.txt": {
-    "mtime": 1789290656.40064,
-    "seen": 1789398209.9897604,
-    "ast_hash": "456d0181a351000cc4eb94e78cec4deb",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260913-acceptance-resume/vm-r11-install-evidence/before-counts.txt": {
-    "mtime": 1789290603.038795,
-    "seen": 1789398209.9897616,
-    "ast_hash": "456d0181a351000cc4eb94e78cec4deb",
-    "semantic_hash": ""
-  },
-  "docs/audit/CLAUDE-AUDIT-PROGRESS-2026-09-14.md": {
-    "mtime": 1789397768.5667236,
-    "seen": 1789398209.9898403,
-    "ast_hash": "f648eec1fd66efd1a247fd27cdbb4f15",
-    "semantic_hash": ""
-  },
-  "docs/audit/ETP-SESSION-HANDOFF-2026-09-14-UI-REDESIGN.md": {
-    "mtime": 1789394796.5009334,
-    "seen": 1789398209.989872,
-    "ast_hash": "2676687be4620207b0292246ca62c5ba",
-    "semantic_hash": ""
-  },
-  "docs/audit/ETP-UI-REDESIGN-PUSH-CHECKPOINT-2026-09-14.md": {
-    "mtime": 1789394796.5079353,
-    "seen": 1789398209.9898808,
-    "ast_hash": "192ad5f9656b83fabd34f2e1fc2838d5",
-    "semantic_hash": ""
-  },
-  "artifacts/ui-redesign/20260914-user-screen/settings-overview-user.png": {
-    "mtime": 1789393615.6657107,
-    "seen": 1789398209.9899542,
-    "ast_hash": "47d4b4ab39310a9d8566c6260a5b6c36",
+    "mtime": 1789290505.90541,
+    "seen": 1789290625.7169561,
+    "ast_hash": "76fd1bd02a14c62507a2c728b5cf288a",
     "semantic_hash": ""
   }
 }
