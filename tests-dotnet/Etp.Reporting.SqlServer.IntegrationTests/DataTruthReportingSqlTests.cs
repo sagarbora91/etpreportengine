@@ -64,6 +64,17 @@ public sealed class DataTruthReportingSqlTests(SqlDatabaseFixture database) : IC
         var year = await operations.LoadStaffTargetsAsync(new(new(2026, 4, 1), new(2026, 8, 25), ["TARGET"]));
         Assert.Equal(1600m, year.Sum(x => x.TargetSales));
         await Assert.ThrowsAsync<ArgumentException>(() => operations.SaveStaffTargetAsync("TARGET", "CRO1", new(2026, 7, 1), new(2026, 8, 31), 100m, "test", "Ambiguous span"));
+        await masters.SaveStaffAsync(new("TARGET", "CRO1", "Staff Without Sales", true));
+        var reports = new OperationalReportRepository(database.ConnectionString);
+        var staff = await reports.LoadStaffPerformanceAsync(new(new(2026, 4, 1), new(2026, 8, 25), ["TARGET"]));
+        Assert.Equal(1600m, Assert.Single(staff.Rows).TargetSales);
+        Assert.Equal("Staff Without Sales", Assert.Single(staff.Rows).CroName);
+        await masters.SaveMonthlyTargetAsync(new("WLMHW", new(2030, 8, 1), 2000m));
+        foreach (var dayInMonth in new[] { 2, 25 })
+        {
+            var dsr = await reports.LoadDailySalesReportDocumentAsync(new(2030, 8, dayInMonth));
+            Assert.Equal(2000m, Assert.Single(dsr.Targets, x => x.StoreCode == "WLMHW").MonthlyTarget);
+        }
     }
 
     [Fact]

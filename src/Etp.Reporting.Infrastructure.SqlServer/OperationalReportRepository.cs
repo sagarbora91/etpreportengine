@@ -355,10 +355,13 @@ public sealed class OperationalReportRepository(string connectionString)
             while (await reader.ReadAsync(cancellationToken)) canonicalByStore[reader.GetString(0)] = reader.GetDecimal(1);
         var targets = await new OperationalCompletionRepository(connectionString).LoadStaffTargetsAsync(scope, cancellationToken);
         var targetByStaff = targets.GroupBy(x => (x.StoreCode.ToUpperInvariant(), x.CroNumber.ToUpperInvariant())).ToDictionary(x => x.Key, x => x.Sum(t => t.TargetSales));
+        var staffNames = (await new DataTruthMasterRepository(connectionString).LoadStaffAsync(cancellationToken))
+            .ToDictionary(x => (x.StoreCode.ToUpperInvariant(), x.Code.ToUpperInvariant()), x => x.Name);
         foreach (var target in targets.Where(target => raw.All(x =>
                      !string.Equals(x.Store, target.StoreCode, StringComparison.OrdinalIgnoreCase) ||
                      !string.Equals(x.Cro, target.CroNumber, StringComparison.OrdinalIgnoreCase))))
-            raw.Add((target.StoreCode, target.CroNumber, 0m, 0m, 0m, 0, target.CroNumber));
+            raw.Add((target.StoreCode, target.CroNumber, 0m, 0m, 0m, 0,
+                staffNames.GetValueOrDefault((target.StoreCode.ToUpperInvariant(), target.CroNumber.ToUpperInvariant())) ?? target.CroNumber));
 
         var metricEngine = new ManagementMetricEngine();
         var rows = new List<StaffPerformanceRow>();
