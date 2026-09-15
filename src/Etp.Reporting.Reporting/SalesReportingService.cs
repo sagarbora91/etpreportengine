@@ -13,7 +13,8 @@ public sealed record SalesReportingLine(
     string ItemCode,
     ReportingTransactionType TransactionType,
     decimal SourceSignedQuantity,
-    decimal SourceSignedNetAmount);
+    decimal SourceSignedNetAmount,
+    int? InvoiceYear = null);
 
 public sealed record ApprovedSalesReportingPolicy(
     string Version,
@@ -68,7 +69,7 @@ public sealed class SalesReportingService
                 group.Key,
                 group.Sum(x => x.SourceSignedQuantity),
                 group.Sum(x => x.SourceSignedNetAmount),
-                group.Select(x => $"{x.StoreCode}\u001f{x.DocumentNumber}").Distinct(StringComparer.Ordinal).Count()))
+                group.Select(x => $"{x.StoreCode}\u001f{x.InvoiceYear ?? (x.TransactionDate.Month >= 4 ? x.TransactionDate.Year + 1 : x.TransactionDate.Year)}\u001f{x.DocumentNumber}").Distinct(StringComparer.Ordinal).Count()))
             .ToArray();
 
         return new(dimension, ReconciliationStatus.Passed, rows, policy.Version,

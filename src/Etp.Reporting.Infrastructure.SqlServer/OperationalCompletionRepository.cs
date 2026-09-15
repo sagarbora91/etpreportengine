@@ -153,13 +153,17 @@ public sealed class OperationalCompletionRepository(string connectionString)
         croNumber = Required(croNumber, nameof(croNumber));
         user = Required(user, nameof(user));
         reason = Required(reason, nameof(reason));
-        if (periodEnd < periodStart) throw new ArgumentException("The target end date cannot precede its start date.");
+        if (periodEnd < periodStart || periodStart.Year != periodEnd.Year || periodStart.Month != periodEnd.Month)
+            throw new ArgumentException("Choose dates within one target month.");
+        if (targetSales < 0) throw new ArgumentException("The target cannot be negative.");
+        periodStart = new DateOnly(periodStart.Year, periodStart.Month, 1);
+        periodEnd = periodStart.AddMonths(1).AddDays(-1);
         if (croNumber.Length > 80 || reason.Length > 500) throw new ArgumentException("The CRO number or change reason is too long.");
         const string sql = """
             MERGE dbo.staff_sales_targets WITH(HOLDLOCK) AS target
             USING (SELECT @store store_code,@cro cro_number,@from period_start,@to period_end) AS source
-              ON target.store_code=source.store_code AND target.cro_number=source.cro_number AND target.period_start=source.period_start AND target.period_end=source.period_end
-            WHEN MATCHED THEN UPDATE SET target_sales=@target,modified_by=@user,modified_utc=SYSUTCDATETIME(),change_reason=@reason
+              ON target.store_code=source.store_code AND target.cro_number=source.cro_number AND target.target_month=source.period_start
+            WHEN MATCHED THEN UPDATE SET period_start=@from,period_end=@to,target_sales=@target,modified_by=@user,modified_utc=SYSUTCDATETIME(),change_reason=@reason
             WHEN NOT MATCHED THEN INSERT(store_code,cro_number,period_start,period_end,target_sales,entered_by,modified_by,change_reason)
               VALUES(@store,@cro,@from,@to,@target,@user,@user,@reason);
             """;
@@ -179,7 +183,7 @@ public sealed class OperationalCompletionRepository(string connectionString)
         const string sql = """
             SELECT store_code,cro_number,period_start,period_end,target_sales,modified_utc,modified_by
             FROM dbo.staff_sales_targets
-            WHERE period_start=@from AND period_end=@to
+            WHERE period_start<=@to AND period_end>=@from
               AND (@stores IS NULL OR store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores)))
             ORDER BY store_code,cro_number;
             """;
