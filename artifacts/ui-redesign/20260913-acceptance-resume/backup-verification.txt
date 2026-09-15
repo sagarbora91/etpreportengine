@@ -1,4 +1,0 @@
-Processed 1056 pages for database 'EtpReporting', file 'EtpReporting' on file 1.
-Processed 2 pages for database 'EtpReporting', file 'EtpReporting_log' on file 1.
-BACKUP DATABASE successfully processed 1058 pages in 0.114 seconds (72.471 MB/sec).
-The backup set on file 1 is valid.

@@ -1,8 +1,0 @@
-{
-  "candidate": "1.8.8-r9",
-  "path": "artifacts/ui-redesign/20260912-sprint/evidence-r9.zip",
-  "sha256": "E11187928349C03477836E64AA696683C98F0A2F51D4DCC12EBD465BCDDD8625",
-  "bytes": 42712549,
-  "files": 1510,
-  "contents": "Prior r7 evidence plus current local follow-up, actual exports, failure/rerun logs, current records, package/source manifests. Installer/executable/source archive supplied separately. Original settings and SQL database/backup files excluded."
-}
