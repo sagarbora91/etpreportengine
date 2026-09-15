@@ -29,6 +29,8 @@ internal static class ImportReviewSession
             void Navigate(string id) => window.ApplyNavigationDecision(window.shell.Navigate(TaskNavigation.Find(id)!.Route, window.CurrentShellAccess));
             Navigate("import-files");
             var view = window.importWorkspaceView;
+            if (!arguments.Contains("--review-existing-data"))
+            {
             ((TextBox)view.FindName("WorkbookPathInput")).Text = folder;
             Task? progressCapture = null;
             view.ProgressChanged += (_, progress) =>
@@ -41,6 +43,7 @@ internal static class ImportReviewSession
             await ReviewCapture.CaptureSizesAsync(window, output, "folder-results");
             await CaptureFocusSizesAsync(window, output, "folder-results-scrolled", (ScrollViewer)view.Content,
                 (DataGrid)view.FindName("BatchResultsGrid"));
+            }
             ((TextBox)view.FindName("WorkbookPathInput")).Text = corrupted;
             await view.ImportSelectedSourceAsync();
             ((DataGrid)view.FindName("BatchResultsGrid")).SelectedIndex = 0;
@@ -61,6 +64,8 @@ internal static class ImportReviewSession
             Navigate("source-inbox");
             await window.sourceInboxWorkspaceView.RefreshAsync();
             await ReviewCapture.CaptureSizesAsync(window, output, "scanned-documents");
+            await CaptureFocusSizesAsync(window, output, "scanned-documents-scrolled", (ScrollViewer)window.sourceInboxWorkspaceView.Content,
+                (DataGrid)window.sourceInboxWorkspaceView.FindName("DocumentsGrid"));
             await File.WriteAllTextAsync(Path.Combine(output, "capture-complete.txt"), "Captured the live WPF app surface at both requested window sizes. Native Windows frame is not included.\n");
         }
         catch (Exception error)

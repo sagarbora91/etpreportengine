@@ -46,7 +46,11 @@
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Issue" Binding="{Binding Code}" Width="210"/>
                     <DataGridTextColumn Header="Column" Binding="{Binding SourceColumn}" Width="160"/>
-                    <DataGridTextColumn Header="Details" Binding="{Binding Message}" Width="*" MinWidth="330"/>
+                    <DataGridTextColumn Header="Details" Binding="{Binding Message}" Width="*" MinWidth="300">
+                        <DataGridTextColumn.ElementStyle>
+                            <Style TargetType="TextBlock"><Setter Property="TextWrapping" Value="Wrap"/><Setter Property="Padding" Value="4"/></Style>
+                        </DataGridTextColumn.ElementStyle>
+                    </DataGridTextColumn>
                 </DataGrid.Columns>
             </DataGrid>
         </StackPanel>

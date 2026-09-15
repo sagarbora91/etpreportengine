@@ -6,13 +6,13 @@
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
     <StackPanel>
         <DockPanel>
+            <Button x:Name="RefreshButton" DockPanel.Dock="Right" Content="Refresh inbox" Click="Refresh_Click" Style="{DynamicResource PrimaryButton}"
+                    Padding="14,7" Margin="8,0,0,0" VerticalAlignment="Top" automation:AutomationProperties.Name="Refresh Source Inbox"/>
             <StackPanel>
                 <TextBlock Text="Source Inbox" FontSize="18" FontWeight="SemiBold"/>
                 <TextBlock Text="Attach a scanned document to a business day. Originals are stored with a SHA-256 hash and opened in your document viewer."
                            Foreground="#5D6873" TextWrapping="Wrap" Margin="0,4,0,0"/>
             </StackPanel>
-            <Button x:Name="RefreshButton" DockPanel.Dock="Right" Content="Refresh inbox" Click="Refresh_Click" Style="{DynamicResource PrimaryButton}"
-                    Padding="14,7" automation:AutomationProperties.Name="Refresh Source Inbox"/>
         </DockPanel>
         <WrapPanel Margin="0,12,0,8">
             <ComboBox x:Name="StatusInput" Width="170" SelectedIndex="0" automation:AutomationProperties.Name="Source Inbox status filter">
@@ -28,13 +28,22 @@
                      automation:AutomationProperties.Name="Selected source document"/>
         </WrapPanel>
         <WrapPanel Margin="0,0,0,8">
-            <TextBox x:Name="DocumentStoreInput" Width="110" Padding="6" ToolTip="Store code" automation:AutomationProperties.Name="Document store"/>
-            <DatePicker x:Name="DocumentDateInput" Width="145" Margin="8,0,0,0" automation:AutomationProperties.Name="Document business date"/>
-            <ComboBox x:Name="DocumentTypeInput" Width="180" SelectedIndex="0" Margin="8,0,0,0" automation:AutomationProperties.Name="Document type">
+            <StackPanel Margin="0,0,8,0">
+                <TextBlock Text="Store code" Margin="0,0,0,4"/>
+                <TextBox x:Name="DocumentStoreInput" Width="110" Padding="6" automation:AutomationProperties.Name="Document store"/>
+            </StackPanel>
+            <StackPanel Margin="0,0,8,0">
+                <TextBlock Text="Business day" Margin="0,0,0,4"/>
+                <DatePicker x:Name="DocumentDateInput" Width="145" automation:AutomationProperties.Name="Document business date"/>
+            </StackPanel>
+            <StackPanel Margin="0,0,8,0">
+                <TextBlock Text="Document type" Margin="0,0,0,4"/>
+            <ComboBox x:Name="DocumentTypeInput" Width="180" SelectedIndex="0" automation:AutomationProperties.Name="Document type">
                 <ComboBoxItem Content="Inward Invoice"/><ComboBoxItem Content="Vendor Invoice"/><ComboBoxItem Content="Credit Note"/>
                 <ComboBoxItem Content="Stock Transfer"/><ComboBoxItem Content="Other"/>
             </ComboBox>
-            <Button x:Name="IntakeButton" Content="Attach to day" Click="Intake_Click" Style="{DynamicResource PrimaryButton}" Padding="14,7" Margin="8,0,0,0"
+            </StackPanel>
+            <Button x:Name="IntakeButton" Content="Attach to day" Click="Intake_Click" Style="{DynamicResource PrimaryButton}" Padding="14,7" VerticalAlignment="Bottom"
                     automation:AutomationProperties.Name="Attach scanned document to business day"/>
         </WrapPanel>
         <TextBlock x:Name="StatusText" Text="Refresh to view received sources." TextWrapping="Wrap"
