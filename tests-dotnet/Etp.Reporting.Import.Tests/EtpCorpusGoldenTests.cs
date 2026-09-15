@@ -51,6 +51,7 @@ public sealed class EtpCorpusGoldenTests(ITestOutputHelper output)
             Assert.Equal("AIRPAY", row.Values["agencyname"]);
             Assert.Equal(118m, row.Values["paymenttype25"]);
         }
+        if (familyCode == "R001") Assert.Equal(19.75m, row.Values["phonepe"]);
         if (familyCode == "R022")
         {
             var projection = new R022PersistenceProjector().Project(accepted.Staging.Rows);
@@ -166,6 +167,39 @@ public sealed class EtpCorpusGoldenTests(ITestOutputHelper output)
             { Sheets = [data with { Rows = [data.Rows[0], new(3, cells)] }] });
         Assert.False(result.Accepted);
         Assert.Contains(result.Diagnostics, d => d.Code == "WORKBOOK_MULTIPLE_STORES");
+    }
+
+    [Fact]
+    public async Task Corrupt_header_names_the_closest_family_without_exposing_customer_values()
+    {
+        var path = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "fixtures", "etp-sample"), "R025_*.xlsx").Single();
+        var workbook = await new OpenXmlWorkbookReader().ReadAsync(path);
+        var data = workbook.Sheets[0]; var headers = data.Headers.ToArray(); headers[34] = "WRONG COLUMN";
+        var result = new MatchedImportEnvelopeFactory().Inspect(workbook with { Sheets = [data with { Headers = headers }] });
+        Assert.False(result.Accepted);
+        Assert.Contains(result.Diagnostics, d => d.Code == "REQUIRED_COLUMN_MISSING" && d.ColumnName == "NETVALUE" && d.Message.Contains("R025"));
+        Assert.All(result.Diagnostics, d =>
+        {
+            Assert.DoesNotContain("Sample Customer", d.Message);
+            Assert.DoesNotContain("9XXXXXX000", d.Message);
+            Assert.DoesNotContain(path, d.Message);
+        });
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Extra_data_cells_never_disappear_when_staging_or_collapsing_a_repeated_layout(bool repeated)
+    {
+        var path = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "fixtures", "etp-sample"), "R025_*.xlsx").Single();
+        var workbook = await new OpenXmlWorkbookReader().ReadAsync(path); var data = workbook.Sheets[0];
+        var headers = repeated ? data.Headers.Concat(data.Headers).ToArray() : data.Headers;
+        var cells = repeated ? data.Rows[0].Cells.Concat(data.Rows[0].Cells).ToArray() : data.Rows[0].Cells;
+        var result = new MatchedImportEnvelopeFactory().Inspect(workbook with
+            { Sheets = [new("Data", 1, headers, [new(2, [..cells, new("PRIVATE EXTRA VALUE")])])] });
+        Assert.False(result.Accepted);
+        Assert.Contains(result.Diagnostics, d => d.Code == "ROW_EXTRA_COLUMNS" && d.RowNumber == 2);
+        Assert.All(result.Diagnostics, d => Assert.DoesNotContain("PRIVATE EXTRA VALUE", d.Message));
     }
 
     [RealCorpusFact]

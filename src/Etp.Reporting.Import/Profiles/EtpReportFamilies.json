@@ -250,7 +250,7 @@
       {
         "SourceHeader": "PHONEPE",
         "CanonicalField": "phonepe",
-        "DataType": "Identifier",
+        "DataType": "Decimal",
         "IsRequired": false
       },
       {
@@ -316,7 +316,7 @@
       {
         "SourceHeader": "STORETIMESTAMP",
         "CanonicalField": "storetimestamp",
-        "DataType": "Identifier",
+        "DataType": "Text",
         "IsRequired": false
       },
       {

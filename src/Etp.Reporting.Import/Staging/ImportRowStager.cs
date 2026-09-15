@@ -26,6 +26,13 @@ public sealed class ImportRowStager
 
         foreach (var row in sheet.Rows)
         {
+            if (row.Cells.Skip(sheet.Headers.Count).Any(cell => cell.Value is not null &&
+                !string.IsNullOrWhiteSpace(cell.Value.ToString())))
+            {
+                diagnostics.Add(new("ROW_EXTRA_COLUMNS", ImportDiagnosticSeverity.Blocker,
+                    "This row contains data beyond the approved header columns.", sheet.Name, row.RowNumber));
+                continue;
+            }
             var typeIndex = headerIndexes.GetValueOrDefault("TRANS_TYPE", -1);
             var transactionType = typeIndex >= 0 && typeIndex < row.Cells.Count ? row.Cells[typeIndex].Value?.ToString()?.Trim() : null;
             var salesFamily = profile.ReportCode is "R003" or "R013" or "R022" or "R024" or "R025";
