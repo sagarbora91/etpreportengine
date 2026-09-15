@@ -407,7 +407,7 @@ public sealed class ProductisationRepository(string connectionString)
 
     public async Task SyncDataQualityIssuesAsync(IReadOnlyList<DataQualitySummaryRow> findings,CancellationToken cancellationToken=default)
     {
-        var payload=findings.Where(x=>x.Count>0).Select(x=>new{IssueKey=$"COMPUTED/{x.Area}/{x.Code}",x.Area,x.Code,x.Severity,x.Count,x.Message}).ToArray();
+        var payload=findings.Where(x=>x.Count>0).Select(x=>new{IssueKey=$"COMPUTED/{x.Area}/{x.Code}",x.Area,x.Code,Severity=x.Severity.ToUpperInvariant() switch { "FAIL" => "CRITICAL", "INFORMATION" => "INFO", "INFO" => "INFO", "WARNING" => "WARNING", "CRITICAL" => "CRITICAL", _ => throw new ArgumentException("Unknown data-quality severity.", nameof(findings)) },x.Count,x.Message}).ToArray();
         const string sql="""
             DECLARE @now datetime2(3)=SYSUTCDATETIME();
             MERGE dbo.data_quality_issues WITH(HOLDLOCK) target

@@ -11,6 +11,8 @@ jobs:
   windows:
     runs-on: windows-latest
     timeout-minutes: 45
+    env:
+      ETP_TEST_SQL_CONNECTION: "Server=(localdb)\\MSSQLLocalDB;Integrated Security=True;TrustServerCertificate=True;Connect Timeout=5"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -39,6 +41,8 @@ jobs:
           }
       - name: Build
         run: dotnet build Etp.Reporting.slnx --configuration Release --no-restore
+      - name: Start isolated SQL test instance
+        run: sqllocaldb start MSSQLLocalDB
       - name: Run full .NET test suite
         run: dotnet test Etp.Reporting.slnx --configuration Release --no-build
       - name: Check changed lines for whitespace errors

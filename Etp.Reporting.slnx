@@ -12,6 +12,7 @@
     <Project Path="tests-dotnet/Etp.Reporting.Domain.Tests/Etp.Reporting.Domain.Tests.csproj" />
     <Project Path="tests-dotnet/Etp.Reporting.Import.Tests/Etp.Reporting.Import.Tests.csproj" />
     <Project Path="tests-dotnet/Etp.Reporting.Reporting.Tests/Etp.Reporting.Reporting.Tests.csproj" />
+    <Project Path="tests-dotnet/Etp.Reporting.SqlServer.IntegrationTests/Etp.Reporting.SqlServer.IntegrationTests.csproj" />
     <Project Path="tests-dotnet/Etp.Reporting.SqlServer.Tests/Etp.Reporting.SqlServer.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">
