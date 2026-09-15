@@ -53,3 +53,4 @@ knowledge/.obsidian/plugins/
 /knowledge/
 /AGENTS.md
 /.codex/hooks.json
+/tests/**/*.mjs
