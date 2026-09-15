@@ -131,7 +131,7 @@ public partial class MainWindow : Window
         operationsWorkspaceView.AuditRequestedAsync = RecordAuditAsync;
         InvestigationHost.Content = investigationWorkspaceView;
         AdministrationHost.Content = administrationWorkspaceView;
-        administrationWorkspaceView.AccessChangedAsync = RefreshAccessAsync;
+        administrationWorkspaceView.AccessChangedAsync = () => RefreshAccessAsync();
         dashboardView.RefreshRequested += async (_, _) => await RefreshDashboardAsync(); dashboardView.NavigationRequested += (_, destination) => NavigateToDestination(destination);
         dashboardView.ExportDateFrom = () => reportsWorkspaceView.DateFrom is { } from ? DateOnly.FromDateTime(from) : DateOnly.FromDateTime(DateTime.Today);
         dashboardView.ExportDateTo = () => reportsWorkspaceView.DateTo is { } to ? DateOnly.FromDateTime(to) : DateOnly.FromDateTime(DateTime.Today);
@@ -142,12 +142,37 @@ public partial class MainWindow : Window
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
-        settingsWorkspace.Initialize();
-        await RefreshAccessAsync();
-        CompleteWelcomeState();
-        await settingsWorkspace.CheckConnectionAsync(false);
-        await RecordAuditAsync("ApplicationStart", "Succeeded", "Desktop application started");
-        await RecordAuditAsync("SessionStart", "Succeeded", "Windows integrated user session started");
+        await InitializeWorkspaceAsync();
+    }
+
+    private bool startupFailed;
+
+    private async Task InitializeWorkspaceAsync()
+    {
+        ContinueButton.IsEnabled = false;
+        WelcomeProgress.Visibility = Visibility.Visible;
+        try
+        {
+            settingsWorkspace.Initialize();
+            await RefreshAccessAsync(propagateFailure: true);
+            await settingsWorkspace.CheckConnectionAsync(false);
+            await RecordAuditAsync("ApplicationStart", "Succeeded", "Desktop application started");
+            await RecordAuditAsync("SessionStart", "Succeeded", "Windows integrated user session started");
+            startupFailed = false;
+            ContinueButton.Content = "Continue";
+            CompleteWelcomeState();
+        }
+        catch (Exception exception)
+        {
+            DesktopDiagnostics.Record(exception, "Startup", "STARTUP_FAILED", DesktopDiagnosticSeverity.Error);
+            startupFailed = true;
+            WelcomeOverlay.Visibility = Visibility.Visible;
+            WelcomeRoleText.Text = "Connection unavailable";
+            WelcomeMessage.Text = "Cannot reach SQL Server: " + DesktopFriendlyError.Describe(exception);
+            WelcomeProgress.Visibility = Visibility.Collapsed;
+            ContinueButton.Content = "Retry";
+            ContinueButton.IsEnabled = true;
+        }
     }
 
     private void Navigate_Click(object sender, RoutedEventArgs e)
@@ -209,7 +234,7 @@ public partial class MainWindow : Window
             dailyWorkflowWorkspace.PrepareForDisplay(destination == "Manual Entry");
     }
 
-    private async Task RefreshAccessAsync()
+    private async Task RefreshAccessAsync(bool propagateFailure = false)
     {
         try
         {
@@ -221,7 +246,7 @@ public partial class MainWindow : Window
             AccessStatus.Foreground = currentAccess.CanView ? Brushes.SeaGreen : Brushes.Firebrick;
             if (PageTitle.Text is "Dashboard" or "Home") DashboardPanel.Visibility = currentAccess.CanView ? Visibility.Visible : Visibility.Collapsed;
         }
-        catch (Exception ex) when (DesktopFriendlyError.IsDatabaseAvailabilityFailure(ex))
+        catch (Exception ex) when (!propagateFailure && DesktopFriendlyError.IsDatabaseAvailabilityFailure(ex))
         {
             currentAccess = new("unknown", "Access not initialized", AccessRole.None, false);
             settingsWorkspace.UpdateAccess(new(currentAccess.Role != AccessRole.None, currentAccess.CanAdminister));

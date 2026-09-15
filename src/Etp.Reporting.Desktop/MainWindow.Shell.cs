@@ -61,8 +61,9 @@ public partial class MainWindow
         BuildModuleHome();
     }
 
-    private void Continue_Click(object sender, RoutedEventArgs e)
+    private async void Continue_Click(object sender, RoutedEventArgs e)
     {
+        if (startupFailed) { await InitializeWorkspaceAsync(); return; }
         WelcomeOverlay.Visibility = Visibility.Collapsed;
         if (currentAccess.Role == AccessRole.None) ShowModuleHome(); else NavigateToDestination("Dashboard");
         ApplicationStatus.Text = currentAccess.Role == AccessRole.None

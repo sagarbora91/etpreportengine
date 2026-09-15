@@ -8,7 +8,7 @@ public sealed class DesktopCompositionRootTests
     public void Default_connection_preserves_the_installed_sql_express_database()
     {
         Assert.Equal(
-            @"Server=.\SQLEXPRESS;Database=EtpReporting;Integrated Security=True;TrustServerCertificate=True",
+            @"Server=.\SQLEXPRESS;Database=EtpReporting;Integrated Security=True;TrustServerCertificate=True;Connect Timeout=5",
             DesktopCompositionRoot.DefaultConnectionString);
     }
 

@@ -42,7 +42,7 @@ namespace Etp.Reporting.Desktop.Composition;
 public sealed class DesktopCompositionRoot
 {
     public const string DefaultConnectionString =
-        @"Server=.\SQLEXPRESS;Database=EtpReporting;Integrated Security=True;TrustServerCertificate=True";
+        @"Server=.\SQLEXPRESS;Database=EtpReporting;Integrated Security=True;TrustServerCertificate=True;Connect Timeout=5";
 
     private readonly string baseDirectory;
     private readonly string connectionString;
@@ -189,16 +189,19 @@ public sealed class DesktopCompositionRoot
             importWorkspaceView);
     }
 
+    public string LoadConnectionString() =>
+        new DesktopSettingsStore(settingsDirectory).Load()?.ConnectionString ?? connectionString;
+
     public async Task InitializeDatabaseAsync(CancellationToken cancellationToken = default)
     {
         var migrations = new DirectoryMigrationSource(MigrationDirectory);
-        var bootstrapper = new SqlServerDatabaseBootstrapper(connectionString, migrations);
+        var bootstrapper = new SqlServerDatabaseBootstrapper(LoadConnectionString(), migrations);
         await bootstrapper.BootstrapAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<int> RunAutomationOnceAsync(CancellationToken cancellationToken = default)
     {
-        var result = await new SqlServerOperationsAdministrationService(connectionString)
+        var result = await new SqlServerOperationsAdministrationService(LoadConnectionString())
             .RunAutomationOnceAsync(cancellationToken)
             .ConfigureAwait(false);
         return result.SourcesFailed == 0 ? 0 : 1;
