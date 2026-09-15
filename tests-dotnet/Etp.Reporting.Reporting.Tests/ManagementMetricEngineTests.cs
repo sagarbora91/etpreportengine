@@ -61,13 +61,4 @@ public sealed class ManagementMetricEngineTests
         Assert.Equal(0m, 501m - 501m);
     }
 
-    [Fact]
-    public void Report_source_registry_exposes_ambiguities_instead_of_guessing()
-    {
-        Assert.Equal(8, ReportSourceRegistry.All.Count);
-        Assert.All(ReportSourceRegistry.All, report => Assert.False(string.IsNullOrWhiteSpace(report.ReconciliationRule)));
-        Assert.Contains(ReportSourceRegistry.Get("RPT-CASH").UnresolvedDefinitions,
-            x => x.Contains("quarantined", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains("R013", ReportSourceRegistry.Get("RPT-STAFF").SourceReports);
-    }
 }

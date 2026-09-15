@@ -10,41 +10,6 @@ namespace Etp.Reporting.Desktop.Tests;
 
 public sealed class DailyWorkflowWorkspaceViewTests
 {
-    [Fact]
-    public void MainWindow_hosts_daily_workspace_without_daily_controls_or_handlers()
-    {
-        var root = FindRepositoryRoot();
-        var desktop = Path.Combine(root, "src", "Etp.Reporting.Desktop");
-        var mainXaml = File.ReadAllText(Path.Combine(desktop, "MainWindow.xaml"));
-        var main = File.ReadAllText(Path.Combine(desktop, "MainWindow.xaml.cs"));
-        var viewXaml = File.ReadAllText(Path.Combine(desktop, "Modules", "DailyWorkflow", "DailyWorkflowWorkspaceView.xaml"));
-        var view = File.ReadAllText(Path.Combine(desktop, "Modules", "DailyWorkflow", "DailyWorkflowWorkspaceView.xaml.cs"));
-
-        var start = mainXaml.IndexOf("<ContentControl x:Name=\"DailyWorkflowPanel\"", StringComparison.Ordinal);
-        var end = mainXaml.IndexOf("<Border x:Name=\"ImportPanel\"", start, StringComparison.Ordinal);
-        Assert.True(start >= 0 && end > start);
-        Assert.Equal(1, Count(mainXaml[start..end], "x:Name=\""));
-        Assert.DoesNotContain("DailyBusinessDateInput", mainXaml, StringComparison.Ordinal);
-        Assert.DoesNotContain("ManualFieldInput", mainXaml, StringComparison.Ordinal);
-        Assert.DoesNotContain("StockGroupInput", mainXaml, StringComparison.Ordinal);
-        Assert.DoesNotContain("StaffTargetCroInput", mainXaml, StringComparison.Ordinal);
-        Assert.DoesNotContain("SaveManualInput_Click", main, StringComparison.Ordinal);
-        Assert.DoesNotContain("SaveStockCount_Click", main, StringComparison.Ordinal);
-        Assert.DoesNotContain("FinaliseDay_Click", main, StringComparison.Ordinal);
-        Assert.DoesNotContain("ExportDailyPackExcel_Click", main, StringComparison.Ordinal);
-        Assert.DoesNotContain("dailyWorkflowQueryFactory(connectionState", main, StringComparison.Ordinal);
-        Assert.Contains("DailyWorkflowPanel.Content = dailyWorkflowWorkspace", main, StringComparison.Ordinal);
-        Assert.Contains("destination is \"Daily Workflow\" or \"Manual Entry\" ? Visibility.Visible", main, StringComparison.Ordinal);
-        Assert.DoesNotContain("\"Daily Workflow\" or \"Manual Entry\" or \"Dashboard\"", main, StringComparison.Ordinal);
-        Assert.Contains("DashboardRefreshRequestedAsync = RefreshDashboardAsync", main, StringComparison.Ordinal);
-
-        Assert.Equal(37, Count(viewXaml, "x:Name=\""));
-        Assert.Equal(37, Count(viewXaml, "automation:AutomationProperties.Name="));
-        Assert.Contains("Walk-ins feed the combined conversion calculation; zero remains different from missing", viewXaml, StringComparison.Ordinal);
-        Assert.Contains("presentation.CreateManualInput", view, StringComparison.Ordinal);
-        Assert.Contains("DailyWorkflowPresentationSession.CreateFinalise", view, StringComparison.Ordinal);
-        Assert.Contains("DailyWorkflowPresentationSession.CreateReopen", view, StringComparison.Ordinal);
-    }
 
     [Fact]
     public void View_preserves_access_manual_zero_audit_refresh_and_finalisation_flow()

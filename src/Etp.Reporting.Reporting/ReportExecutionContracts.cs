@@ -17,7 +17,3 @@ public sealed record ReconciliationResult(string ControlId, ReconciliationStatus
 public sealed record ReportResult(ReportDefinition Definition, ReportTable Table,
     ReconciliationResult Reconciliation, DateTimeOffset GeneratedAtUtc);
 
-public interface IReportExecutor
-{
-    Task<ReportResult> ExecuteAsync(ReportRequest request, CancellationToken cancellationToken = default);
-}

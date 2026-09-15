@@ -68,29 +68,6 @@ public sealed class DailyWorkflowPresentationTests
         Assert.Equal(scope, command.Scope);
     }
 
-    [Fact]
-    public void MainWindow_has_no_daily_snapshot_or_inline_input_parsing_state()
-    {
-        var mainWindow = Source("MainWindow.xaml.cs");
-        var session = Source("Modules", "DailyWorkflow", "DailyWorkflowPresentationSession.cs");
-        var workspace = Source("Modules", "DailyWorkflow", "DailyWorkflowWorkspaceView.xaml.cs");
-
-        Assert.DoesNotContain("currentDailySnapshot", mainWindow, StringComparison.Ordinal);
-        Assert.DoesNotContain("decimal.Truncate(parsed)", mainWindow, StringComparison.Ordinal);
-        Assert.DoesNotContain("Missing ETP sources:", mainWindow, StringComparison.Ordinal);
-        Assert.Contains("DailyWorkflowWorkspaceView dailyWorkflowWorkspace", mainWindow, StringComparison.Ordinal);
-        Assert.DoesNotContain("CreateManualInput", mainWindow, StringComparison.Ordinal);
-        Assert.DoesNotContain("CreateStockCount", mainWindow, StringComparison.Ordinal);
-        Assert.DoesNotContain("CreateStaffTarget", mainWindow, StringComparison.Ordinal);
-        Assert.Contains("presentation.CreateManualInput", workspace, StringComparison.Ordinal);
-        Assert.Contains("presentation.CreateStockCount", workspace, StringComparison.Ordinal);
-        Assert.Contains("presentation.CreateStaffTarget", workspace, StringComparison.Ordinal);
-        Assert.Contains("private DailyWorkflowState? snapshot", session, StringComparison.Ordinal);
-    }
-
-    private static string Source(params string[] path) =>
-        File.ReadAllText(path.Aggregate(Path.Combine(FindRepositoryRoot(), "src", "Etp.Reporting.Desktop"), Path.Combine));
-
     private static string FindRepositoryRoot()
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)

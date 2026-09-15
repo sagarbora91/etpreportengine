@@ -42,12 +42,4 @@ public sealed class ProductReportVisualClassificationTests
         Assert.Throws<KeyNotFoundException>(() => ProductReportVisualClassificationRegistry.ForReport("not-a-production-report"));
     }
 
-    [Fact]
-    public void Representative_visual_definition_set_remains_the_existing_seven()
-    {
-        Assert.Equal(7, VisualReportRegistry.All.Count);
-        Assert.Equal(
-            ["RPT-SALES-001", "RPT-SALES-002", "RPT-STOCK-001", "RPT-STAFF-001", "RPT-TENDER-001", "RPT-MGMT-001", "RPT-EXCEPTION-001"],
-            VisualReportRegistry.All.Select(definition => definition.ReportId).ToArray());
-    }
 }

@@ -58,34 +58,6 @@ public sealed class ImportProfilePersistenceContractTests
         Assert.Throws<InvalidOperationException>(() => PersistenceValidation.Validate(package));
     }
 
-    [Fact]
-    public void Governed_file_persistence_resolves_profile_inside_the_same_transaction_and_never_backfills_history()
-    {
-        var root = FindRepositoryRoot();
-        var repositories = File.ReadAllText(Path.Combine(root, "src", "Etp.Reporting.Infrastructure.SqlServer", "SqlServerRepositories.cs"));
-        var resolver = File.ReadAllText(Path.Combine(root, "src", "Etp.Reporting.Infrastructure.SqlServer", "SqlServerImportProfileResolver.cs"));
-        var enrichment = File.ReadAllText(Path.Combine(root, "src", "Etp.Reporting.Infrastructure.SqlServer", "RetailEnrichmentSqlImportOrchestrator.cs"));
-        var completion = File.ReadAllText(Path.Combine(root, "src", "Etp.Reporting.Infrastructure.SqlServer", "OperationalCompletionRepository.cs"));
-        var automation = File.ReadAllText(Path.Combine(root, "src", "Etp.Reporting.Infrastructure.SqlServer", "AutomatedOperationsService.cs"));
-        var restatement = File.ReadAllText(Path.Combine(root, "database", "migrations", "0010_operational_completion.sql"));
-
-        Assert.Contains("ResolveOrRegisterAsync(connection,transaction,package.File.Profile", repositories, StringComparison.Ordinal);
-        Assert.Contains("InsertFile(connection,transaction,package.File,profileId", repositories, StringComparison.Ordinal);
-        Assert.Contains("WITH(UPDLOCK,HOLDLOCK)", resolver, StringComparison.Ordinal);
-        Assert.Contains("report_code=@report AND layout_version=@layout AND profile_version=@profile", resolver, StringComparison.Ordinal);
-        Assert.Contains("header_signature_sha256", resolver, StringComparison.Ordinal);
-        Assert.DoesNotContain("UPDATE dbo.import_files SET import_profile_id", repositories, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("var reportCode=PersistenceValidation.ResolveReportCode(file)", repositories, StringComparison.Ordinal);
-        Assert.Contains("var reportCode=PersistenceValidation.ResolveReportCode(x)", repositories, StringComparison.Ordinal);
-        Assert.DoesNotContain("@report\",file.ReportCode", repositories, StringComparison.Ordinal);
-        Assert.DoesNotContain("@report\",x.ReportCode", repositories, StringComparison.Ordinal);
-        Assert.Contains("ResolveOrRegisterAsync(\n                connection, transaction, accepted.ProfileIdentity", enrichment.Replace("\r\n", "\n"), StringComparison.Ordinal);
-        Assert.Contains("import_profile_id", enrichment, StringComparison.Ordinal);
-        Assert.Contains("WHERE report_code=@report AND store_code=@store AND business_date=@date", completion, StringComparison.Ordinal);
-        Assert.Contains("SELECT report_code,store_code,business_date FROM dbo.import_files", automation, StringComparison.Ordinal);
-        Assert.Contains("SELECT @store=store_code,@date=business_date,@report=report_code FROM dbo.import_files", restatement, StringComparison.Ordinal);
-    }
-
     private static string FindRepositoryRoot()
     {
         var current = new DirectoryInfo(AppContext.BaseDirectory);

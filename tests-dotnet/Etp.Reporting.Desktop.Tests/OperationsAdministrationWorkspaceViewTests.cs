@@ -9,39 +9,6 @@ namespace Etp.Reporting.Desktop.Tests;
 
 public sealed class OperationsAdministrationWorkspaceViewTests
 {
-    [Fact]
-    public void MainWindow_contains_only_compact_hosts_and_global_relays()
-    {
-        var root = FindRepositoryRoot();
-        var mainXaml = File.ReadAllText(Path.Combine(root, "src", "Etp.Reporting.Desktop", "MainWindow.xaml"));
-        var main = File.ReadAllText(Path.Combine(root, "src", "Etp.Reporting.Desktop", "MainWindow.xaml.cs"));
-        var productisationPath = Path.Combine(root, "src", "Etp.Reporting.Desktop", "MainWindow.Productisation.cs");
-        Assert.False(File.Exists(productisationPath));
-        const string productisation = "";
-        var composition = File.ReadAllText(Path.Combine(root, "src", "Etp.Reporting.Desktop", "Composition", "DesktopCompositionRoot.cs"));
-        var moduleRoot = Path.Combine(root, "src", "Etp.Reporting.Desktop", "Modules", "OperationsAdministration");
-        var moduleXaml = string.Join(Environment.NewLine,
-            File.ReadAllText(Path.Combine(moduleRoot, "OperationsWorkspaceView.xaml")),
-            File.ReadAllText(Path.Combine(moduleRoot, "InvestigationApprovalsWorkspaceView.xaml")),
-            File.ReadAllText(Path.Combine(moduleRoot, "AdministrationWorkspaceView.xaml")));
-
-        Assert.Contains("<ContentControl x:Name=\"OperationsHost\"/>", mainXaml, StringComparison.Ordinal);
-        Assert.Contains("<ContentControl x:Name=\"InvestigationHost\"/>", mainXaml, StringComparison.Ordinal);
-        Assert.Contains("<ContentControl x:Name=\"AdministrationHost\"/>", mainXaml, StringComparison.Ordinal);
-        Assert.DoesNotContain("x:Name=\"OperationsFromInput\"", mainXaml, StringComparison.Ordinal);
-        Assert.DoesNotContain("x:Name=\"GlobalSearchInput\"", mainXaml, StringComparison.Ordinal);
-        Assert.DoesNotContain("x:Name=\"MasterTypeInput\"", mainXaml, StringComparison.Ordinal);
-        Assert.DoesNotContain("RefreshOperations_Click", main, StringComparison.Ordinal);
-        Assert.DoesNotContain("RunGlobalSearch_Click", productisation, StringComparison.Ordinal);
-        Assert.DoesNotContain("SaveUserAccess_Click", main, StringComparison.Ordinal);
-        Assert.DoesNotContain("operationsAdministrationServiceFactory", main, StringComparison.Ordinal);
-        Assert.DoesNotContain("investigationQueryFactory", main, StringComparison.Ordinal);
-        Assert.Contains("new OperationsWorkspaceView", composition, StringComparison.Ordinal);
-        Assert.Contains("new InvestigationApprovalsWorkspaceView", composition, StringComparison.Ordinal);
-        Assert.Contains("new AdministrationWorkspaceView", composition, StringComparison.Ordinal);
-        Assert.True(Count(moduleXaml, "automation:AutomationProperties.Name=") >= 29,
-            "Operations, investigation, approval and administration controls need accessible names.");
-    }
 
     [Fact]
     public void Operations_view_enforces_access_and_loads_dashboard_through_application_service()

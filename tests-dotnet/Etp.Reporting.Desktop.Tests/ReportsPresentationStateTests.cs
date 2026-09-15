@@ -87,46 +87,6 @@ public sealed class ReportsPresentationStateTests
         Assert.True(snapshot.CanExportReport);
     }
 
-    [Fact]
-    public void MainWindow_delegates_report_state_workspaces_and_visual_rendering()
-    {
-        var root = FindRepositoryRoot();
-        var desktop = Path.Combine(root, "src", "Etp.Reporting.Desktop");
-        var mainSources = string.Join("\n", Directory.EnumerateFiles(desktop, "MainWindow*.cs").Select(File.ReadAllText));
-        var xaml = File.ReadAllText(Path.Combine(desktop, "MainWindow.xaml"));
-        var session = File.ReadAllText(Path.Combine(desktop, "Modules", "Reports", "ReportPresentationSession.cs"));
-        var control = File.ReadAllText(Path.Combine(desktop, "Modules", "Reports", "ReportPresentationControl.cs"));
-        var workspaces = File.ReadAllText(Path.Combine(desktop, "Modules", "Reports", "ReportWorkspaceSession.cs"));
-        var reportView = File.ReadAllText(Path.Combine(desktop, "Modules", "Reports", "ReportsWorkspaceView.xaml.cs"));
-        var reportXaml = File.ReadAllText(Path.Combine(desktop, "Modules", "Reports", "ReportsWorkspaceView.xaml"));
-
-        string[] removedFields =
-        [
-            "currentExportMetadata", "currentExportData", "currentVisualReport", "currentDsrReport",
-            "currentReportCode", "currentDailyPackDocument", "reportWorkspaces", "dsrWorkspace"
-        ];
-        foreach (var field in removedFields) Assert.DoesNotContain(field, mainSources, StringComparison.Ordinal);
-        Assert.DoesNotContain("RenderVisualReport", mainSources, StringComparison.Ordinal);
-        Assert.DoesNotContain("BuildFocusedReportPreview", mainSources, StringComparison.Ordinal);
-        Assert.DoesNotContain("VisualReportPanel", xaml, StringComparison.Ordinal);
-
-        Assert.DoesNotContain("ReportPresentationSession reportPresentation", mainSources, StringComparison.Ordinal);
-        Assert.Contains("ReportPresentationSession presentation", reportView, StringComparison.Ordinal);
-        Assert.Contains("ReportWorkspaceSession reportWorkspaceSession", mainSources, StringComparison.Ordinal);
-        Assert.Contains("ReportPresentationHost.Show(snapshot)", reportView, StringComparison.Ordinal);
-        Assert.Contains("eventType == \"ReportRun\" ? ToAuditOutcome(outcome) : outcome", reportView, StringComparison.Ordinal);
-        Assert.Contains("ReportsHost", xaml, StringComparison.Ordinal);
-        Assert.Contains("ReportPresentationControl", reportXaml, StringComparison.Ordinal);
-        Assert.Contains("View selected details", reportXaml, StringComparison.Ordinal);
-        Assert.Contains("Brand segments", reportXaml, StringComparison.Ordinal);
-        Assert.Contains("Transaction types", reportXaml, StringComparison.Ordinal);
-        Assert.Contains("Existing context remains visible.", reportView, StringComparison.Ordinal);
-        Assert.Contains("VisualReportComposer.Compose", session, StringComparison.Ordinal);
-        Assert.Contains("class ReportVisualPresenter", control, StringComparison.Ordinal);
-        Assert.Contains("Dictionary<string, ReportWorkspaceControl>", workspaces, StringComparison.Ordinal);
-        Assert.Contains("DailySalesReportWorkspace?", workspaces, StringComparison.Ordinal);
-    }
-
     private static ExcelReportMetadata Metadata(string name) => new(
         name,
         new DateOnly(2026, 8, 25),

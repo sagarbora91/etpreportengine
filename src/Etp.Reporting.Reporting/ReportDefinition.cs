@@ -31,38 +31,6 @@ public static class SalesMeasureIds
     public const string ContributionPercent = "sales.contribution-percent";
 }
 
-public static class InitialReportCatalogue
-{
-    private static readonly IReadOnlyList<ReportParameterDefinition> SalesParameters =
-    [
-        new(ReportParameterIds.DateFrom, "From date", ReportValueType.Date),
-        new(ReportParameterIds.DateTo, "To date", ReportValueType.Date),
-        new(ReportParameterIds.StoreIds, "Stores", ReportValueType.Text, false)
-    ];
-
-    public static ReportDefinition DailySales { get; } = new("RPT-SALES-001", "Daily Sales", SalesParameters,
-    [
-        new("date", "Date", ReportValueType.Date), new("store", "Store", ReportValueType.Text),
-        new("net-sales", "Net Sales", ReportValueType.Money, ReportAggregation.Sum, SalesMeasureIds.NetSales),
-        new("units", "Units", ReportValueType.Decimal, ReportAggregation.Sum, SalesMeasureIds.Units),
-        new("bills", "Bills", ReportValueType.Integer, ReportAggregation.Sum, SalesMeasureIds.Bills)
-    ], "sales.canonical-total");
-
-    public static ReportDefinition BrandSales { get; } = CreateClassificationReport(
-        "RPT-SALES-002", "Brand-Wise Sales", "brand", "Brand", "sales.brand-partition-total");
-    public static ReportDefinition BrandSegmentSales { get; } = CreateClassificationReport(
-        "RPT-SALES-003", "Brand-Segment Sales", "brand-segment", "Brand Segment", "sales.brand-segment-partition-total");
-    public static IReadOnlyList<ReportDefinition> All { get; } = [DailySales, BrandSales, BrandSegmentSales];
-
-    private static ReportDefinition CreateClassificationReport(string id, string name, string dimensionId,
-        string dimensionLabel, string controlId) => new(id, name, SalesParameters,
-        [
-            new(dimensionId, dimensionLabel, ReportValueType.Text), new("store", "Store", ReportValueType.Text),
-            new("net-sales", "Net Sales", ReportValueType.Money, ReportAggregation.Sum, SalesMeasureIds.NetSales),
-            new("units", "Units", ReportValueType.Decimal, ReportAggregation.Sum, SalesMeasureIds.Units),
-            new("contribution", "Contribution %", ReportValueType.Percentage, ReportAggregation.None, SalesMeasureIds.ContributionPercent)
-        ], controlId);
-}
 
 public sealed record ProductReportEntry(string Code,string Category,string Name,string Description);
 

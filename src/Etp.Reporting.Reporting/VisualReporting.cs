@@ -47,7 +47,21 @@ public static class IndianNumberFormatter
 
 public static class VisualReportComposer
 {
-    public static bool IsRepresentative(string reportName) => VisualReportRegistry.Find(reportName) is not null;
+    private static ReportVisualType? FindVisualType(string name)
+    {
+        (string Name, ReportVisualType Type)[] styles =
+        [
+            ("Daily Sales", ReportVisualType.Line), ("Brand", ReportVisualType.Bar),
+            ("Closing Stock", ReportVisualType.StackedBar), ("Staff", ReportVisualType.Bar),
+            ("Tender Reconciliation", ReportVisualType.ClusteredBar),
+            ("Management Trend", ReportVisualType.Line), ("Daily Exceptions", ReportVisualType.Bar)
+        ];
+        foreach (var style in styles)
+            if (name.Contains(style.Name, StringComparison.OrdinalIgnoreCase)) return style.Type;
+        return null;
+    }
+
+    public static bool IsRepresentative(string reportName) => FindVisualType(reportName) is not null;
 
     public static VisualReportModel Compose(ExcelReportMetadata metadata, ExcelReportData data)
     {
@@ -62,12 +76,12 @@ public static class VisualReportComposer
         if (kpis.Count == 0) kpis.Add(new("Rows", data.Rows.Count, "integer"));
 
         var visuals = new List<ReportVisual>();
-        var definition = VisualReportRegistry.Find(metadata.ReportName);
+        var definition = FindVisualType(metadata.ReportName);
         if (numeric.Length > 0 && definition is not null)
         {
             var primary = numeric[0];
             var points = TopN(data.Rows.Select(row => new ReportVisualPoint(Label(row, labelIndex), Number(row, primary.index))).ToArray(), 10);
-            var type = definition.PrimaryVisualType;
+            var type = definition.Value;
             var series = new List<ReportVisualSeries> { new(primary.column.Header, points, VisualReportTheme.Blue) };
             if (type == ReportVisualType.ClusteredBar && numeric.Length > 1)
                 series.Add(new(numeric[1].column.Header, TopN(data.Rows.Select(row => new ReportVisualPoint(Label(row, labelIndex), Number(row, numeric[1].index))).ToArray(), 10), VisualReportTheme.Teal));
@@ -76,7 +90,7 @@ public static class VisualReportComposer
         }
 
         var controls = new[] { new ReportControl("Report control", metadata.Status, metadata.Message) };
-        return new(new(definition?.ReportId ?? "RPT-GENERIC", metadata.ReportName, metadata.DateFrom, metadata.DateTo, metadata.RuleVersion, metadata.GeneratedUtc),
+        return new(new(metadata.ReportName, metadata.ReportName, metadata.DateFrom, metadata.DateTo, metadata.RuleVersion, metadata.GeneratedUtc),
             kpis, visuals, data, controls,
             ["All KPIs, visuals and detail rows use the same report result; visuals do not recalculate business values.", "Blank, zero and not-applicable values are displayed differently."]);
     }
@@ -112,23 +126,6 @@ public static class VisualReportComposer
         try { number = Convert.ToDecimal(value, CultureInfo.InvariantCulture); return true; }
         catch { number = 0; return false; }
     }
-}
-
-public sealed record VisualReportDefinition(string ReportId, string NameMatch, VisualReportTemplate Template, ReportVisualType PrimaryVisualType, int MaximumCategories = 10);
-
-public static class VisualReportRegistry
-{
-    public static IReadOnlyList<VisualReportDefinition> All { get; } =
-    [
-        new("RPT-SALES-001", "Daily Sales", VisualReportTemplate.Trend, ReportVisualType.Line),
-        new("RPT-SALES-002", "Brand", VisualReportTemplate.Ranking, ReportVisualType.Bar),
-        new("RPT-STOCK-001", "Closing Stock", VisualReportTemplate.Stock, ReportVisualType.StackedBar),
-        new("RPT-STAFF-001", "Staff", VisualReportTemplate.Ranking, ReportVisualType.Bar),
-        new("RPT-TENDER-001", "Tender Reconciliation", VisualReportTemplate.Comparison, ReportVisualType.ClusteredBar),
-        new("RPT-MGMT-001", "Management Trend", VisualReportTemplate.ExecutiveSummary, ReportVisualType.Line),
-        new("RPT-EXCEPTION-001", "Daily Exceptions", VisualReportTemplate.Exception, ReportVisualType.Bar)
-    ];
-    public static VisualReportDefinition? Find(string reportName) => All.FirstOrDefault(x => reportName.Contains(x.NameMatch, StringComparison.OrdinalIgnoreCase));
 }
 
 public interface IChartRenderer { string RenderSvg(ReportVisual visual, int width = 900, int height = 360); }

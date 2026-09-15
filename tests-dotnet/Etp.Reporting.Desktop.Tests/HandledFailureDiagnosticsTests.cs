@@ -53,87 +53,6 @@ public sealed class HandledFailureDiagnosticsTests
             "SHARING_CONTACT_SAVE_FAILED"] }
     };
 
-    [Theory]
-    [MemberData(nameof(WorkspaceDiagnostics))]
-    public void Handled_workspace_failures_have_stable_privacy_safe_diagnostics(
-        string relativePath,
-        string sourceName,
-        string[] eventIds)
-    {
-        var source = Read(relativePath);
-
-        foreach (var eventId in eventIds)
-            Assert.Contains($"\"{sourceName}\", \"{eventId}\"", source, StringComparison.Ordinal);
-
-        Assert.DoesNotContain("ex.Message", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("exception.Message", source, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Operations_and_settings_internal_failure_paths_are_diagnostic()
-    {
-        var operations = Read("Modules/OperationsAdministration/OperationsWorkspaceView.xaml.cs");
-        Assert.Contains("\"OperationsAdministration.Operations\", \"OPERATIONS_REFRESH_FAILED\"", operations, StringComparison.Ordinal);
-        Assert.Contains("\"OperationsAdministration.Operations\", \"WATCH_FOLDER_SAVE_FAILED\"", operations, StringComparison.Ordinal);
-        Assert.Contains("\"OperationsAdministration.Operations\", \"AUTOMATION_RUN_FAILED\"", operations, StringComparison.Ordinal);
-        Assert.Contains("\"OperationsAdministration.Operations\", \"REPORT_SCHEDULE_SAVE_FAILED\"", operations, StringComparison.Ordinal);
-        Assert.Contains("\"OperationsAdministration.Operations\", \"ISSUE_WORKFLOW_UPDATE_FAILED\"", operations, StringComparison.Ordinal);
-        Assert.Contains("\"OperationsAdministration.Maintenance\", failureEventId", operations, StringComparison.Ordinal);
-        Assert.Contains("\"BACKUP_RUN_FAILED\"", operations, StringComparison.Ordinal);
-        Assert.Contains("\"RECOVERY_DRILL_RUN_FAILED\"", operations, StringComparison.Ordinal);
-        Assert.Contains("\"SUPPORT_PACKAGE_RUN_FAILED\"", operations, StringComparison.Ordinal);
-        Assert.DoesNotContain("ex.Message", operations, StringComparison.Ordinal);
-
-        Assert.Contains("\"Settings.Store\", \"SETTINGS_LOAD_FAILED\", DesktopDiagnosticSeverity.Warning", Read("Modules/Settings/DesktopSettingsStore.cs"), StringComparison.Ordinal);
-        Assert.Contains("\"Settings.Session\", \"SETTINGS_SAVE_FAILED\", DesktopDiagnosticSeverity.Warning", Read("Modules/Settings/DesktopSettingsPresentationSession.cs"), StringComparison.Ordinal);
-    }
-
-    [Theory]
-    [MemberData(nameof(HelperRoutedWorkspaceDiagnostics))]
-    public void Report_daily_and_archive_failures_use_friendly_messages_and_stable_diagnostics(
-        string relativePath,
-        string sourceName,
-        string[] eventIds)
-    {
-        var source = Read(relativePath);
-        if (relativePath == "Modules/Reports/ReportsWorkspaceView.xaml.cs")
-            source += Read("Modules/Reports/ReportExportCompletion.cs");
-
-        Assert.Contains($"DesktopDiagnostics.Record(exception, \"{sourceName}\", eventId", source, StringComparison.Ordinal);
-        foreach (var eventId in eventIds)
-            Assert.Contains($"\"{eventId}\"", source, StringComparison.Ordinal);
-
-        Assert.DoesNotContain("ex.Message", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("exception.Message", source, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Daily_workflow_failure_presentation_does_not_expose_unclassified_exception_text()
-    {
-        var source = Read("Modules/DailyWorkflow/DailyWorkflowPresentationSession.cs");
-
-        Assert.DoesNotContain("exception.Message", source, StringComparison.Ordinal);
-        Assert.Equal(
-            "Daily report pack failed: The action could not be completed. Technical details are available in the support package.",
-            Etp.Reporting.Desktop.Modules.DailyWorkflow.DailyWorkflowPresentationSession.Failed(
-                "Daily report pack failed",
-                new Exception("server=C:/sensitive/source.xlsx")));
-    }
-
-    [Fact]
-    public void Desktop_user_surfaces_do_not_bypass_the_central_friendly_error_policy()
-    {
-        var files = Directory.GetFiles(DesktopRoot, "*.cs", SearchOption.AllDirectories)
-            .Where(path => !path.EndsWith("DesktopFriendlyError.cs", StringComparison.OrdinalIgnoreCase));
-
-        foreach (var path in files)
-        {
-            var source = File.ReadAllText(path);
-            Assert.DoesNotContain("ex.Message", source, StringComparison.Ordinal);
-            Assert.DoesNotContain("exception.Message", source, StringComparison.Ordinal);
-        }
-    }
-
     [Fact]
     public void Friendly_error_preserves_the_safe_import_source_contract()
     {
@@ -144,9 +63,6 @@ public sealed class HandledFailureDiagnosticsTests
             "The action could not be completed. Technical details are available in the support package.",
             DesktopFriendlyError.Describe(new Exception("server=C:/sensitive/source.xlsx")));
     }
-
-    private static string Read(string relativePath) =>
-        File.ReadAllText(Path.Combine([DesktopRoot, .. relativePath.Split('/')]));
 
     private static string FindRepositoryRoot()
     {

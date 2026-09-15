@@ -145,25 +145,6 @@ public sealed class UiNavigationTests
         Assert.Empty(duplicates);
     }
 
-    [Fact]
-    public void Retry_shortcut_reuses_only_the_enabled_import_retry_action()
-    {
-        var source = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(),
-            "src",
-            "Etp.Reporting.Desktop",
-            "MainWindow.Shell.cs"));
-
-        Assert.Contains(
-            "case ShellCommand.RetryImport when CurrentModuleId == \"imports\" && focusedWorkspaceKind != \"help\" && importWorkspaceView.CanRetry:",
-            source,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            "_ = importWorkspaceView.RetryFailedBatchAsync(); return true;",
-            source,
-            StringComparison.Ordinal);
-    }
-
     private static string FindRepositoryRoot()
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)

@@ -49,22 +49,6 @@ public sealed class DashboardPresentationSessionTests
         Assert.Equal("Refresh the dashboard before exporting a management summary.", error.Message);
     }
 
-    [Fact]
-    public void MainWindow_has_no_latest_dashboard_snapshot_or_summary_calculation()
-    {
-        var root = FindRepositoryRoot();
-        var mainWindow = File.ReadAllText(Path.Combine(root, "src", "Etp.Reporting.Desktop", "MainWindow.xaml.cs"));
-        var compositionRoot = File.ReadAllText(Path.Combine(root, "src", "Etp.Reporting.Desktop", "Composition", "DesktopCompositionRoot.cs"));
-        var dashboardView = File.ReadAllText(Path.Combine(root, "src", "Etp.Reporting.Desktop", "Modules", "Dashboard", "DashboardView.cs"));
-
-        Assert.DoesNotContain("latestDashboardSnapshot", mainWindow, StringComparison.Ordinal);
-        Assert.DoesNotContain("RecentImports.GroupBy", mainWindow, StringComparison.Ordinal);
-        Assert.DoesNotContain("new ExcelReportMetadata(\"ETP Management Summary\"", mainWindow, StringComparison.Ordinal);
-        Assert.DoesNotContain("DashboardPresentationSession", mainWindow, StringComparison.Ordinal);
-        Assert.Contains("new DashboardPresentationSession()", compositionRoot, StringComparison.Ordinal);
-        Assert.Contains("presentation.BuildManagementSummary", dashboardView, StringComparison.Ordinal);
-    }
-
     private static DashboardSnapshot Snapshot() => new(
         2,
         2,

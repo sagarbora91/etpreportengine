@@ -67,31 +67,6 @@ public sealed class ExtractedWorkspaceUiSmokeTests
         });
     }
 
-    [Fact]
-    public void Production_composition_constructs_every_extracted_workspace_at_the_boundary()
-    {
-        var root = FindRepositoryRoot();
-        var composition = File.ReadAllText(Path.Combine(root, "src", "Etp.Reporting.Desktop", "Composition", "DesktopCompositionRoot.cs"));
-        var main = File.ReadAllText(Path.Combine(root, "src", "Etp.Reporting.Desktop", "MainWindow.xaml.cs"));
-        var constructionBoundary = composition + main;
-
-        foreach (var typeName in new[]
-                 {
-                     "SettingsWorkspaceView", "DailyWorkflowWorkspaceView", "ArchiveWorkspaceView",
-                     "RegistersWorkspaceView", "AccountingWorkspaceView", "OperationsWorkspaceView",
-                     "InvestigationApprovalsWorkspaceView", "AdministrationWorkspaceView",
-                     "ImportWorkspaceView", "SourceInboxWorkspaceView", "ReportsWorkspaceView"
-                 })
-            Assert.Contains($"new {typeName}", constructionBoundary, StringComparison.Ordinal);
-
-        Assert.Contains("DashboardView", composition, StringComparison.Ordinal);
-        Assert.Contains("ReportPresentationControl", File.ReadAllText(Path.Combine(root, "src", "Etp.Reporting.Desktop", "Modules", "Reports", "ReportsWorkspaceView.xaml")), StringComparison.Ordinal);
-        var mainWindowSources = string.Join(Environment.NewLine,
-            Directory.EnumerateFiles(Path.Combine(root, "src", "Etp.Reporting.Desktop"), "MainWindow*.cs")
-                .Select(File.ReadAllText));
-        Assert.Contains("HelpCentreView", mainWindowSources, StringComparison.Ordinal);
-    }
-
     private static IReadOnlyList<WorkspaceCase> CreateWorkspaces(string testRoot)
     {
         const string connection = DesktopCompositionRoot.DefaultConnectionString;

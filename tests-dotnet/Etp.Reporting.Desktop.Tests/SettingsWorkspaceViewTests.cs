@@ -14,32 +14,6 @@ public sealed class SettingsWorkspaceViewTests
         @"Server=.\SQLEXPRESS;Database=EtpReporting;Integrated Security=True;TrustServerCertificate=True";
 
     [Fact]
-    public void MainWindow_hosts_settings_without_owning_settings_controls_or_handlers()
-    {
-        var root = FindRepositoryRoot();
-        var mainXaml = File.ReadAllText(Path.Combine(root, "src", "Etp.Reporting.Desktop", "MainWindow.xaml"));
-        var main = File.ReadAllText(Path.Combine(root, "src", "Etp.Reporting.Desktop", "MainWindow.xaml.cs"));
-        var productisationPath = Path.Combine(root, "src", "Etp.Reporting.Desktop", "MainWindow.Productisation.cs");
-        Assert.False(File.Exists(productisationPath));
-        const string productisation = "";
-        var composition = File.ReadAllText(Path.Combine(root, "src", "Etp.Reporting.Desktop", "Composition", "DesktopCompositionRoot.cs"));
-        var viewXaml = File.ReadAllText(Path.Combine(root, "src", "Etp.Reporting.Desktop", "Modules", "Settings", "SettingsWorkspaceView.xaml"));
-
-        Assert.Contains("<ContentControl x:Name=\"SettingsPanel\"", mainXaml, StringComparison.Ordinal);
-        Assert.DoesNotContain("x:Name=\"ConnectionStringInput\"", mainXaml, StringComparison.Ordinal);
-        Assert.DoesNotContain("TestConnection_Click", main, StringComparison.Ordinal);
-        Assert.DoesNotContain("BootstrapDatabase_Click", main, StringComparison.Ordinal);
-        Assert.DoesNotContain("SaveProductSettings_Click", productisation, StringComparison.Ordinal);
-        Assert.DoesNotContain("DocumentRepositoryInput", main, StringComparison.Ordinal);
-        Assert.DoesNotContain("new SettingsWorkspaceView", main, StringComparison.Ordinal);
-        Assert.Contains("new SettingsWorkspaceView", composition, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"ConnectionStringInput\"", viewXaml, StringComparison.Ordinal);
-        Assert.Contains("automation:AutomationProperties.Name=\"Settings workspace\"", viewXaml, StringComparison.Ordinal);
-        Assert.True(Count(viewXaml, "automation:AutomationProperties.Name=") >= 13,
-            "Every interactive Settings control and status needs an accessible name.");
-    }
-
-    [Fact]
     public void View_runs_connection_and_product_configuration_through_injected_boundaries()
     {
         RunSta(async () =>

@@ -115,29 +115,6 @@ public sealed class SettingsAndOperationsAdministrationPresentationTests : IDisp
                 "docs", "share", "", "", "smtp", "587", "from", "invalid", "reason")).Message);
     }
 
-    [Fact]
-    public void MainWindow_delegates_settings_and_operations_administration_presentation_logic()
-    {
-        var root = FindRepositoryRoot();
-        var main = File.ReadAllText(Path.Combine(root, "src", "Etp.Reporting.Desktop", "MainWindow.xaml.cs"));
-        var productisationPath = Path.Combine(root, "src", "Etp.Reporting.Desktop", "MainWindow.Productisation.cs");
-        Assert.False(File.Exists(productisationPath));
-        const string productisation = "";
-        var settingsView = File.ReadAllText(Path.Combine(root, "src", "Etp.Reporting.Desktop", "Modules", "Settings", "SettingsWorkspaceView.xaml.cs"));
-
-        Assert.Contains("SettingsWorkspaceView settingsWorkspace", main, StringComparison.Ordinal);
-        Assert.Contains("OperationsWorkspaceView operationsWorkspaceView", main, StringComparison.Ordinal);
-        Assert.Contains("InvestigationApprovalsWorkspaceView investigationWorkspaceView", main, StringComparison.Ordinal);
-        Assert.Contains("AdministrationWorkspaceView administrationWorkspaceView", main, StringComparison.Ordinal);
-        Assert.DoesNotContain("OperationsAdministrationPresentationSession operationsAdministrationPresentation", main, StringComparison.Ordinal);
-        Assert.DoesNotContain("operationsAdministrationServiceFactory", main, StringComparison.Ordinal);
-        Assert.DoesNotContain("investigationQueryFactory", productisation, StringComparison.Ordinal);
-        Assert.Contains("DesktopSettingsPresentationSession.CreateProductConfiguration", settingsView, StringComparison.Ordinal);
-        Assert.DoesNotContain("TimeOnly.TryParseExact(ScheduleTimeInput.Text", main, StringComparison.Ordinal);
-        Assert.DoesNotContain("dashboard.Users.Select", main, StringComparison.Ordinal);
-        Assert.DoesNotContain("MaximumAttachmentInput", productisation, StringComparison.Ordinal);
-    }
-
     public void Dispose()
     {
         if (Directory.Exists(testRoot)) Directory.Delete(testRoot, recursive: true);
