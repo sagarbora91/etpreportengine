@@ -19,7 +19,7 @@ public static class DesktopFriendlyError
     {
         18456 or 18452 => "SQL Server login failed. Check your Windows account access.",
         229 or 230 or 262 or 916 or 4060 => "SQL Server permission denied. Ask the Owner to grant access to this database.",
-        0 or -2 or -1 or 2 or 26 or 40 or 53 or 64 or 233 or 10060 or 10061 or 11001 =>
+        0 or -2 or -1 or 2 or 26 or 40 or 53 or 64 or 233 or 258 or 10060 or 10061 or 11001 =>
             "SQL Server is unreachable. Check that the SQL Server service is running and the instance name is correct.",
         _ => null
     };

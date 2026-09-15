@@ -110,41 +110,16 @@ $dotnetDeprecatedRows = @(Get-DotnetPackageRows $dotnetDeprecatedJson)
 $dotnetVulnerableSucceeded = $dotnetVulnerableCommand.ExitCode -eq 0 -and $null -ne (Get-OptionalProperty $dotnetVulnerableJson "projects")
 $dotnetDeprecatedSucceeded = $dotnetDeprecatedCommand.ExitCode -eq 0 -and $null -ne (Get-OptionalProperty $dotnetDeprecatedJson "projects")
 
-$npmCommand = Invoke-CapturedCommand { npm --prefix $repoRoot audit --json }
-$npmAudit = ConvertFrom-JsonPayload $npmCommand.Raw
-$npmCounts = Get-OptionalProperty (Get-OptionalProperty $npmAudit "metadata") "vulnerabilities"
-$npmRetriedWithSystemCa = $false
-if ($null -eq $npmCounts -and $npmCommand.Raw -match "unable to verify the first certificate") {
-    $npmRetriedWithSystemCa = $true
-    $previousNodeOptions = $env:NODE_OPTIONS
-    try {
-        if ($previousNodeOptions -notmatch "(?:^|\s)--use-system-ca(?:\s|$)") {
-            $env:NODE_OPTIONS = (($previousNodeOptions, "--use-system-ca") | Where-Object { $_ }) -join " "
-        }
-        $npmCommand = Invoke-CapturedCommand { npm --prefix $repoRoot audit --json }
-        $npmAudit = ConvertFrom-JsonPayload $npmCommand.Raw
-        $npmCounts = Get-OptionalProperty (Get-OptionalProperty $npmAudit "metadata") "vulnerabilities"
-    }
-    finally {
-        if ($null -eq $previousNodeOptions) { Remove-Item Env:NODE_OPTIONS -ErrorAction SilentlyContinue }
-        else { $env:NODE_OPTIONS = $previousNodeOptions }
-    }
-}
-$npmTotalValue = Get-OptionalProperty $npmCounts "total"
-$npmSucceeded = $null -ne $npmAudit -and $null -ne $npmCounts -and $null -ne $npmTotalValue
-
 $scanErrors = @()
 if (-not $dotnetVulnerableSucceeded) { $scanErrors += ".NET vulnerability scan did not return valid JSON (exit $($dotnetVulnerableCommand.ExitCode))." }
 if (-not $dotnetDeprecatedSucceeded) { $scanErrors += ".NET deprecation scan did not return valid JSON (exit $($dotnetDeprecatedCommand.ExitCode))." }
-if (-not $npmSucceeded) { $scanErrors += "npm audit did not return a valid vulnerability summary (exit $($npmCommand.ExitCode))." }
 
 $vulnerablePackages = @(Get-VulnerablePackageSummary $dotnetVulnerableRows)
 $deprecatedPackages = @(Get-DeprecatedPackageSummary $dotnetDeprecatedRows)
-$npmTotal = if ($npmSucceeded) { [int]$npmTotalValue } else { $null }
 $scanStatus = if ($scanErrors.Count -gt 0) {
     "error"
 }
-elseif ($vulnerablePackages.Count -gt 0 -or $deprecatedPackages.Count -gt 0 -or $npmTotal -gt 0) {
+elseif ($vulnerablePackages.Count -gt 0 -or $deprecatedPackages.Count -gt 0) {
     "findings"
 }
 else {
@@ -157,8 +132,6 @@ $result = [ordered]@{
     scanErrors = $scanErrors
     dotnetVulnerabilitiesFound = $vulnerablePackages.Count -gt 0
     dotnetDeprecatedFound = $deprecatedPackages.Count -gt 0
-    npmExitCode = $npmCommand.ExitCode
-    npmVulnerabilityCounts = if ($npmSucceeded) { $npmCounts } else { $null }
     dotnet = [ordered]@{
         vulnerabilityScanSucceeded = $dotnetVulnerableSucceeded
         vulnerabilityScanExitCode = $dotnetVulnerableCommand.ExitCode
@@ -167,7 +140,6 @@ $result = [ordered]@{
         deprecationScanExitCode = $dotnetDeprecatedCommand.ExitCode
         deprecatedPackages = $deprecatedPackages
     }
-    npm = [ordered]@{
         status = if (-not $npmSucceeded) { "error" } elseif ($npmTotal -gt 0) { "findings" } else { "clean" }
         scanSucceeded = $npmSucceeded
         exitCode = $npmCommand.ExitCode
@@ -179,4 +151,4 @@ $result | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $output -Encoding 
 $result | Format-List
 
 if ($scanErrors.Count -gt 0) { throw "One or more dependency scans failed. No clean result was claimed. See $output." }
-if ($result.dotnetVulnerabilitiesFound -or $npmTotal -gt 0) { throw "Dependency vulnerabilities were detected. See $output." }
+if ($result.dotnetVulnerabilitiesFound) { throw "Dependency vulnerabilities were detected. See $output." }

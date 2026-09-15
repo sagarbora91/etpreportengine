@@ -9,6 +9,14 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 public sealed class PhaseZeroSqlTests(SqlDatabaseFixture database) : IClassFixture<SqlDatabaseFixture>
 {
     [Fact]
+    public async Task Unreachable_server_gives_actionable_error()
+    {
+        await using var connection = new SqlConnection(@"Server=tcp:127.0.0.1,65001;Database=EtpPhase0NeverUsed;Integrated Security=True;TrustServerCertificate=True;Connect Timeout=1");
+        var error = await Assert.ThrowsAsync<SqlException>(() => connection.OpenAsync());
+        Assert.True(Etp.Reporting.Desktop.DesktopFriendlyError.Describe(error).Contains("unreachable"), $"Unclassified SQL error {error.Number}");
+    }
+
+    [Fact]
     public async Task All_migrations_apply_once_and_indexes_have_the_requested_columns()
     {
         var result = await new MigrationRunner(new DirectoryMigrationSource(database.MigrationDirectory),

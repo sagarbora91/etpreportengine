@@ -13,6 +13,7 @@ public sealed class StartupFailureTests
     [InlineData(229, "permission denied")]
     [InlineData(4060, "permission denied")]
     [InlineData(0, "unreachable")]
+    [InlineData(258, "unreachable")]
     [InlineData(53, "unreachable")]
     [InlineData(-2, "unreachable")]
     [InlineData(10061, "unreachable")]
