@@ -8,6 +8,36 @@ namespace Etp.Reporting.Import.Tests;
 
 public sealed class OpenXmlWorkbookReaderAsyncTests
 {
+    [Theory]
+    [InlineData("20260825")]
+    [InlineData("46259")]
+    [InlineData("25/08/2026")]
+    public async Task Date_styled_numeric_etp_serial_and_text_dates_have_the_same_business_date(string raw)
+    {
+        var path = CreateWorkbook();
+        try
+        {
+            using (var document = SpreadsheetDocument.Open(path, true))
+            {
+                var workbook = document.WorkbookPart!;
+                var styles = workbook.AddNewPart<WorkbookStylesPart>();
+                styles.Stylesheet = new Stylesheet(new CellFormats(new CellFormat { NumberFormatId = 14 }));
+                var worksheet = workbook.WorksheetParts.Single();
+                var cell = worksheet.Worksheet.Descendants<Cell>().Single(c => c.CellReference == "B2");
+                cell.CellValue = new CellValue(raw); cell.StyleIndex = 0;
+                cell.DataType = raw.Contains('/') ? CellValues.String : CellValues.Number;
+                worksheet.Worksheet.Save(); styles.Stylesheet.Save();
+            }
+            var snapshot = await new OpenXmlWorkbookReader().ReadAsync(path);
+            var converted = new Etp.Reporting.Import.Conversion.TypedCellConverter().Convert(
+                snapshot.Sheets.Single().Rows.Single().Cells[1].Value,
+                Etp.Reporting.Domain.Imports.CanonicalDataType.Date, true);
+            Assert.True(converted.IsSuccess);
+            Assert.Equal(new DateOnly(2026, 8, 25), converted.Value);
+        }
+        finally { File.Delete(path); }
+    }
+
     [Fact]
     public async Task Read_does_not_capture_the_callers_synchronization_context()
     {

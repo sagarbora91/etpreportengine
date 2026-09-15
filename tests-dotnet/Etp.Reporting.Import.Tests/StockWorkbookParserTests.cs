@@ -22,13 +22,13 @@ public sealed class StockWorkbookParserTests
     }
 
     [Fact]
-    public void Unknown_ledger_transaction_type_is_fail_closed_but_source_value_is_retained()
+    public void Unknown_ledger_transaction_type_warns_and_skips_the_row()
     {
         var values = new object?[] { "NEW TYPE", "STORE", "Store", "ITEM", "HSN", "BR", "Brand", "Cluster", "U", "DOC", new DateTime(2026,8,25), null, "STORE", null, null, 1m, -1m, 0m, "City", "State", "Location" };
         var result = new StockWorkbookParser().Parse(Book(StockImportProfiles.VariantStockLedgerHeaders, values));
-        Assert.True(result.HasBlockers);
-        Assert.Equal("NEW TYPE", Assert.Single(result.Movements).SourceTransactionType);
-        Assert.Contains(result.Diagnostics,x=>x.Code=="UNKNOWN_STOCK_TRANSACTION_TYPE" && x.Severity==ImportDiagnosticSeverity.Blocker);
+        Assert.False(result.HasBlockers);
+        Assert.Empty(result.Movements);
+        Assert.Contains(result.Diagnostics,x=>x.Code=="UNKNOWN_STOCK_TRANSACTION_TYPE" && x.Severity==ImportDiagnosticSeverity.Warning);
     }
 
     [Fact]

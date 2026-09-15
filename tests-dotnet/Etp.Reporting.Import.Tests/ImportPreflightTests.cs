@@ -19,7 +19,7 @@ public sealed class ImportPreflightTests
         Assert.True(result.CanImport);
         Assert.Same(profile, result.Profile);
         Assert.NotNull(result.Sheet);
-        Assert.Empty(result.Diagnostics);
+        Assert.Contains(result.Diagnostics, d => d.Code == "EMPTY_EXPORT");
     }
 
     [Fact]

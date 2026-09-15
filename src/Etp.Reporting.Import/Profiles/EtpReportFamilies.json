@@ -1,0 +1,6483 @@
+[
+  {
+    "FamilyCode": "R001",
+    "ReportCode": "R001",
+    "Name": "AdvanceOrder Collection",
+    "IsTyped": false,
+    "TableName": "etp_landing_r001",
+    "PrimaryDateHeader": "INVOICEDATE",
+    "Headers": [
+      "TRANS_TYPE",
+      "STORE CODE",
+      "STORE NAME",
+      "STORE TYPE",
+      "CHANNEL",
+      "REGION",
+      "STATE",
+      "CITY",
+      "INVNUMBER",
+      "CUSTOMERNAME",
+      "ContactNo",
+      "InvoiceQuantity",
+      "INVOICEDATE",
+      "INVOICEYEAR",
+      "CASH",
+      "CARD",
+      "CHEQUE",
+      "LOYALTY_POINTS",
+      "GV",
+      "CREDITNOTE REDEEM",
+      "EXCESS GV",
+      "ROUND OFF",
+      "NO REFUND",
+      "OTHERS",
+      "TATA GV",
+      "GIFTCARD",
+      "TataCliQ",
+      "GYFTR",
+      "PAYTM",
+      "HELIOSOMNI",
+      "ADVANCERDEEM",
+      "BHIMUPI",
+      "PHONEPE",
+      "BHARATPE",
+      "BAJAJFIN",
+      "RAZORPAY",
+      "PAYMENTTYPE24",
+      "PAYMENTTYPE25",
+      "ISSUED CREDITNOTE",
+      "CASH REFUND",
+      "Cheque/RTGS REFUND",
+      "NetValue",
+      "ENCIRCLE",
+      "STORETIMESTAMP",
+      "REFERENCENUMBER",
+      "REFERENCEYEAR"
+    ],
+    "Columns": [
+      {
+        "SourceHeader": "TRANS_TYPE",
+        "CanonicalField": "trans_type",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORE CODE",
+        "CanonicalField": "store_code",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORE NAME",
+        "CanonicalField": "store_name",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORE TYPE",
+        "CanonicalField": "store_type",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CHANNEL",
+        "CanonicalField": "channel",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REGION",
+        "CanonicalField": "region",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STATE",
+        "CanonicalField": "state",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CITY",
+        "CanonicalField": "city",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVNUMBER",
+        "CanonicalField": "invnumber",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CUSTOMERNAME",
+        "CanonicalField": "customer_name",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ContactNo",
+        "CanonicalField": "customer_phone",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "InvoiceQuantity",
+        "CanonicalField": "invoicequantity",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVOICEDATE",
+        "CanonicalField": "invoicedate",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVOICEYEAR",
+        "CanonicalField": "invoice_year",
+        "DataType": "Integer",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CASH",
+        "CanonicalField": "cash",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CARD",
+        "CanonicalField": "card",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CHEQUE",
+        "CanonicalField": "cheque",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "LOYALTY_POINTS",
+        "CanonicalField": "loyalty_points",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "GV",
+        "CanonicalField": "gv",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CREDITNOTE REDEEM",
+        "CanonicalField": "creditnote_redeem",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "EXCESS GV",
+        "CanonicalField": "excess_gv",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ROUND OFF",
+        "CanonicalField": "round_off",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "NO REFUND",
+        "CanonicalField": "no_refund",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "OTHERS",
+        "CanonicalField": "others",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TATA GV",
+        "CanonicalField": "tata_gv",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "GIFTCARD",
+        "CanonicalField": "giftcard",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TataCliQ",
+        "CanonicalField": "tatacliq",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "GYFTR",
+        "CanonicalField": "gyftr",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PAYTM",
+        "CanonicalField": "paytm",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "HELIOSOMNI",
+        "CanonicalField": "heliosomni",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ADVANCERDEEM",
+        "CanonicalField": "advancerdeem",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "BHIMUPI",
+        "CanonicalField": "bhimupi",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PHONEPE",
+        "CanonicalField": "phonepe",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "BHARATPE",
+        "CanonicalField": "bharatpe",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "BAJAJFIN",
+        "CanonicalField": "bajajfin",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "RAZORPAY",
+        "CanonicalField": "razorpay",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PAYMENTTYPE24",
+        "CanonicalField": "paymenttype24",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PAYMENTTYPE25",
+        "CanonicalField": "paymenttype25",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ISSUED CREDITNOTE",
+        "CanonicalField": "issued_creditnote",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CASH REFUND",
+        "CanonicalField": "cash_refund",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "Cheque/RTGS REFUND",
+        "CanonicalField": "cheque_rtgs_refund",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "NetValue",
+        "CanonicalField": "netvalue",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ENCIRCLE",
+        "CanonicalField": "encircle",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORETIMESTAMP",
+        "CanonicalField": "storetimestamp",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REFERENCENUMBER",
+        "CanonicalField": "referencenumber",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REFERENCEYEAR",
+        "CanonicalField": "referenceyear",
+        "DataType": "Integer",
+        "IsRequired": false
+      }
+    ]
+  },
+  {
+    "FamilyCode": "R002",
+    "ReportCode": "R002",
+    "Name": "AdvanceOrder Sales",
+    "IsTyped": false,
+    "TableName": "etp_landing_r002",
+    "PrimaryDateHeader": "INVDATE",
+    "Headers": [
+      "TRANS_TYPE",
+      "STORETYPE",
+      "REGION",
+      "STORE CODE",
+      "STORENAME",
+      "CITY",
+      "STATE",
+      "CUSTOMERNUMBER",
+      "CUSTOMERNAME",
+      "CONTACTNO",
+      "INVNUMBER",
+      "INVDATE",
+      "SIGNET_NO",
+      "ULPNUMBER",
+      "BRAND",
+      "CLUSTER",
+      "GENDER",
+      "ITEMNUMBER",
+      "QTY",
+      "UCP",
+      "GROSSUCP",
+      "SCH_DISCOUNTS",
+      "NETGROSS",
+      "PRE_DISCOUNTS",
+      "OTHRCHRGS",
+      "NETAMOUNT",
+      "TAX",
+      "STORETIMESTAMP",
+      "HSNCODE",
+      "SGST/UTGST VALUE",
+      "CSGT VALUE",
+      "IGST VALUE",
+      "REMARKS",
+      "NETVALUE",
+      "INVREFNO",
+      "INVREFDATE",
+      "BRANDNAME",
+      "CHANNEL",
+      "SCHEME REFERENCE NUMBER",
+      "ONLINE"
+    ],
+    "Columns": [
+      {
+        "SourceHeader": "TRANS_TYPE",
+        "CanonicalField": "trans_type",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORETYPE",
+        "CanonicalField": "storetype",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REGION",
+        "CanonicalField": "region",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORE CODE",
+        "CanonicalField": "store_code",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORENAME",
+        "CanonicalField": "storename",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CITY",
+        "CanonicalField": "city",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STATE",
+        "CanonicalField": "state",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CUSTOMERNUMBER",
+        "CanonicalField": "customernumber",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CUSTOMERNAME",
+        "CanonicalField": "customer_name",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CONTACTNO",
+        "CanonicalField": "customer_phone",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVNUMBER",
+        "CanonicalField": "invnumber",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVDATE",
+        "CanonicalField": "invdate",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "SIGNET_NO",
+        "CanonicalField": "signet_no",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ULPNUMBER",
+        "CanonicalField": "ulpnumber",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "BRAND",
+        "CanonicalField": "brand",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CLUSTER",
+        "CanonicalField": "cluster",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "GENDER",
+        "CanonicalField": "gender",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ITEMNUMBER",
+        "CanonicalField": "itemnumber",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "QTY",
+        "CanonicalField": "qty",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "UCP",
+        "CanonicalField": "ucp",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "GROSSUCP",
+        "CanonicalField": "grossucp",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "SCH_DISCOUNTS",
+        "CanonicalField": "sch_discounts",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "NETGROSS",
+        "CanonicalField": "netgross",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PRE_DISCOUNTS",
+        "CanonicalField": "pre_discounts",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "OTHRCHRGS",
+        "CanonicalField": "othrchrgs",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "NETAMOUNT",
+        "CanonicalField": "netamount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TAX",
+        "CanonicalField": "tax",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORETIMESTAMP",
+        "CanonicalField": "storetimestamp",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "HSNCODE",
+        "CanonicalField": "hsncode",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "SGST/UTGST VALUE",
+        "CanonicalField": "sgst_utgst_value",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CSGT VALUE",
+        "CanonicalField": "csgt_value",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "IGST VALUE",
+        "CanonicalField": "igst_value",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REMARKS",
+        "CanonicalField": "remarks",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "NETVALUE",
+        "CanonicalField": "netvalue",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVREFNO",
+        "CanonicalField": "invrefno",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVREFDATE",
+        "CanonicalField": "invrefdate",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "BRANDNAME",
+        "CanonicalField": "brandname",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CHANNEL",
+        "CanonicalField": "channel",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "SCHEME REFERENCE NUMBER",
+        "CanonicalField": "scheme_reference_number",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ONLINE",
+        "CanonicalField": "online",
+        "DataType": "Text",
+        "IsRequired": false
+      }
+    ]
+  },
+  {
+    "FamilyCode": "R003",
+    "ReportCode": "R003",
+    "Name": "All Discount Type",
+    "IsTyped": true,
+    "TableName": "etp_r003",
+    "PrimaryDateHeader": "INVOICE DATE",
+    "Headers": [
+      "TRANS_TYPE",
+      "STORE CODE",
+      "STORE NAME",
+      "STORE TYPE",
+      "CHANNEL",
+      "REGION",
+      "CITY",
+      "INVOICE NUMBER",
+      "INVOICE DATE",
+      "ITEMNUMBER",
+      "BRAND",
+      "BRAND NAME",
+      "CLUSTER",
+      "GENDER",
+      "QTY",
+      "UCP",
+      "GROSSUCP",
+      "SCH_DISCOUNTS",
+      "NETGROSS",
+      "ACTIVATION DETAILS",
+      "USER DISCOUNTS",
+      "OTHERCHARG",
+      "NETAMOUNT",
+      "USER DISCOUNT DETAILS",
+      "TAX",
+      "NETVALUE",
+      "INVOICE REF NO",
+      "INVOICE REF DATE",
+      "CUSTOMERNUMBER",
+      "CUSTOMERNAME",
+      "CONTACTNO",
+      "ULP NO",
+      "EASTIMESTAMP",
+      "STORETIMESTAMP"
+    ],
+    "Columns": [
+      {
+        "SourceHeader": "TRANS_TYPE",
+        "CanonicalField": "source_transaction_type",
+        "DataType": "Text",
+        "IsRequired": true
+      },
+      {
+        "SourceHeader": "STORE CODE",
+        "CanonicalField": "store_code",
+        "DataType": "Identifier",
+        "IsRequired": true
+      },
+      {
+        "SourceHeader": "STORE NAME",
+        "CanonicalField": "store_name",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORE TYPE",
+        "CanonicalField": "store_type",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CHANNEL",
+        "CanonicalField": "channel",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REGION",
+        "CanonicalField": "region",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CITY",
+        "CanonicalField": "city",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVOICE NUMBER",
+        "CanonicalField": "invoice_number",
+        "DataType": "Identifier",
+        "IsRequired": true
+      },
+      {
+        "SourceHeader": "INVOICE DATE",
+        "CanonicalField": "transaction_date",
+        "DataType": "Date",
+        "IsRequired": true
+      },
+      {
+        "SourceHeader": "ITEMNUMBER",
+        "CanonicalField": "product_code",
+        "DataType": "Identifier",
+        "IsRequired": true
+      },
+      {
+        "SourceHeader": "BRAND",
+        "CanonicalField": "brand",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "BRAND NAME",
+        "CanonicalField": "brand_name",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CLUSTER",
+        "CanonicalField": "cluster",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "GENDER",
+        "CanonicalField": "gender",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "QTY",
+        "CanonicalField": "source_quantity",
+        "DataType": "Decimal",
+        "IsRequired": true
+      },
+      {
+        "SourceHeader": "UCP",
+        "CanonicalField": "ucp",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "GROSSUCP",
+        "CanonicalField": "grossucp",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "SCH_DISCOUNTS",
+        "CanonicalField": "scheme_discount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "NETGROSS",
+        "CanonicalField": "netgross",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ACTIVATION DETAILS",
+        "CanonicalField": "activation_details",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "USER DISCOUNTS",
+        "CanonicalField": "user_discount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "OTHERCHARG",
+        "CanonicalField": "other_charges",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "NETAMOUNT",
+        "CanonicalField": "source_net_amount",
+        "DataType": "Decimal",
+        "IsRequired": true
+      },
+      {
+        "SourceHeader": "USER DISCOUNT DETAILS",
+        "CanonicalField": "user_discount_details",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TAX",
+        "CanonicalField": "tax",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "NETVALUE",
+        "CanonicalField": "source_net_value",
+        "DataType": "Decimal",
+        "IsRequired": true
+      },
+      {
+        "SourceHeader": "INVOICE REF NO",
+        "CanonicalField": "invoice_ref_no",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVOICE REF DATE",
+        "CanonicalField": "invoice_ref_date",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CUSTOMERNUMBER",
+        "CanonicalField": "customernumber",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CUSTOMERNAME",
+        "CanonicalField": "customer_name",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CONTACTNO",
+        "CanonicalField": "customer_phone",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ULP NO",
+        "CanonicalField": "ulp_no",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "EASTIMESTAMP",
+        "CanonicalField": "eastimestamp",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORETIMESTAMP",
+        "CanonicalField": "storetimestamp",
+        "DataType": "Identifier",
+        "IsRequired": false
+      }
+    ]
+  },
+  {
+    "FamilyCode": "R004",
+    "ReportCode": "R004",
+    "Name": "All Issues Detail",
+    "IsTyped": false,
+    "TableName": "etp_landing_r004",
+    "PrimaryDateHeader": "DOCUMENTDATE",
+    "Headers": [
+      "TRANS_TYPE",
+      "STORE CODE",
+      "REGION",
+      "STATE",
+      "CITY",
+      "TOLOCATION",
+      "TO_REGION",
+      "TO_STATE",
+      "TO_CITY",
+      "EMPLOYEEID",
+      "BRAND",
+      "ITEMNUMBER",
+      "HSNCODE",
+      "TAXABLEAMOUNT",
+      "CGST %",
+      "CSGT \n\nVALUE",
+      "SGST/UTGST %",
+      "SGST/UTGST VALUE",
+      "IGST %",
+      "IGST VALUE",
+      "DOCNO",
+      "INVOICEYEAR",
+      "DOCUMENTDATE",
+      "QTY",
+      "UCP",
+      "GROSSUCP",
+      "PURINVNO",
+      "PURINVDATE",
+      "REMARK",
+      "ORDER_TYPE"
+    ],
+    "Columns": [
+      {
+        "SourceHeader": "TRANS_TYPE",
+        "CanonicalField": "trans_type",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORE CODE",
+        "CanonicalField": "store_code",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REGION",
+        "CanonicalField": "region",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STATE",
+        "CanonicalField": "state",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CITY",
+        "CanonicalField": "city",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TOLOCATION",
+        "CanonicalField": "tolocation",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TO_REGION",
+        "CanonicalField": "to_region",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TO_STATE",
+        "CanonicalField": "to_state",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TO_CITY",
+        "CanonicalField": "to_city",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "EMPLOYEEID",
+        "CanonicalField": "employeeid",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "BRAND",
+        "CanonicalField": "brand",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ITEMNUMBER",
+        "CanonicalField": "itemnumber",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "HSNCODE",
+        "CanonicalField": "hsncode",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TAXABLEAMOUNT",
+        "CanonicalField": "taxableamount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CGST %",
+        "CanonicalField": "cgst",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CSGT \n\nVALUE",
+        "CanonicalField": "csgt_value",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "SGST/UTGST %",
+        "CanonicalField": "sgst_utgst",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "SGST/UTGST VALUE",
+        "CanonicalField": "sgst_utgst_value",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "IGST %",
+        "CanonicalField": "igst",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "IGST VALUE",
+        "CanonicalField": "igst_value",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "DOCNO",
+        "CanonicalField": "docno",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVOICEYEAR",
+        "CanonicalField": "invoice_year",
+        "DataType": "Integer",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "DOCUMENTDATE",
+        "CanonicalField": "documentdate",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "QTY",
+        "CanonicalField": "qty",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "UCP",
+        "CanonicalField": "ucp",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "GROSSUCP",
+        "CanonicalField": "grossucp",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PURINVNO",
+        "CanonicalField": "purinvno",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PURINVDATE",
+        "CanonicalField": "purinvdate",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REMARK",
+        "CanonicalField": "remark",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ORDER_TYPE",
+        "CanonicalField": "order_type",
+        "DataType": "Text",
+        "IsRequired": false
+      }
+    ]
+  },
+  {
+    "FamilyCode": "R005",
+    "ReportCode": "R005",
+    "Name": "All Issues Summary",
+    "IsTyped": false,
+    "TableName": "etp_landing_r005",
+    "PrimaryDateHeader": "DOCUMENTDATE",
+    "Headers": [
+      "TRANS_TYPE",
+      "STORE CODE",
+      "REGION",
+      "STATE",
+      "CITY",
+      "TOLOCATION",
+      "TO_REGION",
+      "TO_STATE",
+      "TO_CITY",
+      "EMPLOYEEID",
+      "DOCNO",
+      "INVOICEYEAR",
+      "DOCUMENTDATE",
+      "QTY",
+      "GROSSUCP",
+      "TAXABLEAMOUNT",
+      "STMVALUE",
+      "CSGT VALUE",
+      "SGST/UTGST VALUE",
+      "IGST VALUE",
+      "REMARKS",
+      "ORDER_TYPE",
+      "CourierName",
+      "CourierNumber",
+      "CourierDate",
+      "AIRWAYBILLNO",
+      "DispatchType"
+    ],
+    "Columns": [
+      {
+        "SourceHeader": "TRANS_TYPE",
+        "CanonicalField": "trans_type",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORE CODE",
+        "CanonicalField": "store_code",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REGION",
+        "CanonicalField": "region",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STATE",
+        "CanonicalField": "state",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CITY",
+        "CanonicalField": "city",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TOLOCATION",
+        "CanonicalField": "tolocation",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TO_REGION",
+        "CanonicalField": "to_region",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TO_STATE",
+        "CanonicalField": "to_state",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TO_CITY",
+        "CanonicalField": "to_city",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "EMPLOYEEID",
+        "CanonicalField": "employeeid",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "DOCNO",
+        "CanonicalField": "docno",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVOICEYEAR",
+        "CanonicalField": "invoice_year",
+        "DataType": "Integer",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "DOCUMENTDATE",
+        "CanonicalField": "documentdate",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "QTY",
+        "CanonicalField": "qty",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "GROSSUCP",
+        "CanonicalField": "grossucp",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TAXABLEAMOUNT",
+        "CanonicalField": "taxableamount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STMVALUE",
+        "CanonicalField": "stmvalue",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CSGT VALUE",
+        "CanonicalField": "csgt_value",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "SGST/UTGST VALUE",
+        "CanonicalField": "sgst_utgst_value",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "IGST VALUE",
+        "CanonicalField": "igst_value",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REMARKS",
+        "CanonicalField": "remarks",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ORDER_TYPE",
+        "CanonicalField": "order_type",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CourierName",
+        "CanonicalField": "couriername",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CourierNumber",
+        "CanonicalField": "couriernumber",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CourierDate",
+        "CanonicalField": "courierdate",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "AIRWAYBILLNO",
+        "CanonicalField": "airwaybillno",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "DispatchType",
+        "CanonicalField": "dispatchtype",
+        "DataType": "Text",
+        "IsRequired": false
+      }
+    ]
+  },
+  {
+    "FamilyCode": "R006",
+    "ReportCode": "R006",
+    "Name": "All Receipts Summary",
+    "IsTyped": false,
+    "TableName": "etp_landing_r006",
+    "PrimaryDateHeader": "DOCUMENTDATE",
+    "Headers": [
+      "TRANS_TYPE",
+      "STORECODE",
+      "REGION",
+      "STATE",
+      "CITY",
+      "FROMLOCATION",
+      "FROM REGION",
+      "FROM STATE",
+      "FROM CITY",
+      "EMPLOYEEID",
+      "DOCNUMBER",
+      "INVOICEYEAR",
+      "DOCUMENTDATE",
+      "QTY",
+      "GROSSUCP",
+      "DISCOUNT",
+      "TAXABLEAMOUNT",
+      "CSGT VALUE",
+      "SGST/UTGST VALUE",
+      "IGST VALUE",
+      "REFDOCNUMBER",
+      "REFDOCDATE",
+      "REMARK",
+      "ORDER_TYPE"
+    ],
+    "Columns": [
+      {
+        "SourceHeader": "TRANS_TYPE",
+        "CanonicalField": "trans_type",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORECODE",
+        "CanonicalField": "store_code",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REGION",
+        "CanonicalField": "region",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STATE",
+        "CanonicalField": "state",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CITY",
+        "CanonicalField": "city",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "FROMLOCATION",
+        "CanonicalField": "fromlocation",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "FROM REGION",
+        "CanonicalField": "from_region",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "FROM STATE",
+        "CanonicalField": "from_state",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "FROM CITY",
+        "CanonicalField": "from_city",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "EMPLOYEEID",
+        "CanonicalField": "employeeid",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "DOCNUMBER",
+        "CanonicalField": "docnumber",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVOICEYEAR",
+        "CanonicalField": "invoice_year",
+        "DataType": "Integer",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "DOCUMENTDATE",
+        "CanonicalField": "documentdate",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "QTY",
+        "CanonicalField": "qty",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "GROSSUCP",
+        "CanonicalField": "grossucp",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "DISCOUNT",
+        "CanonicalField": "discount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TAXABLEAMOUNT",
+        "CanonicalField": "taxableamount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CSGT VALUE",
+        "CanonicalField": "csgt_value",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "SGST/UTGST VALUE",
+        "CanonicalField": "sgst_utgst_value",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "IGST VALUE",
+        "CanonicalField": "igst_value",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REFDOCNUMBER",
+        "CanonicalField": "refdocnumber",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REFDOCDATE",
+        "CanonicalField": "refdocdate",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REMARK",
+        "CanonicalField": "remark",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ORDER_TYPE",
+        "CanonicalField": "order_type",
+        "DataType": "Text",
+        "IsRequired": false
+      }
+    ]
+  },
+  {
+    "FamilyCode": "R007",
+    "ReportCode": "R007",
+    "Name": "All Receipts Detail",
+    "IsTyped": false,
+    "TableName": "etp_landing_r007",
+    "PrimaryDateHeader": "DOCUMENTDATE",
+    "Headers": [
+      "TRANS_TYPE",
+      "STORE CODE",
+      "REGION",
+      "STATE",
+      "CITY",
+      "FROMLOCATION",
+      "EMPLOYEEID",
+      "ITEMNUMBER",
+      "HSNCODE",
+      "BRAND",
+      "DOCNUMBER",
+      "INVOICEYEAR",
+      "DOCUMENTDATE",
+      "FROM REGION",
+      "FROM STATE",
+      "FROM CITY",
+      "QTY",
+      "UCP VALUE",
+      "GROSSUCP",
+      "DISCOUNT",
+      "CGST %",
+      "CSGT VALUE",
+      "SGST/UTGST %",
+      "SGST/UTGST VALUE",
+      "IGST %",
+      "IGST VALUE",
+      "NETVALUE",
+      "REFDOCDATE",
+      "REFDOCNUMBER",
+      "PURINVNO",
+      "PURINVDATE",
+      "REMARK",
+      "ORDER_TYPE"
+    ],
+    "Columns": [
+      {
+        "SourceHeader": "TRANS_TYPE",
+        "CanonicalField": "trans_type",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORE CODE",
+        "CanonicalField": "store_code",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REGION",
+        "CanonicalField": "region",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STATE",
+        "CanonicalField": "state",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CITY",
+        "CanonicalField": "city",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "FROMLOCATION",
+        "CanonicalField": "fromlocation",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "EMPLOYEEID",
+        "CanonicalField": "employeeid",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ITEMNUMBER",
+        "CanonicalField": "itemnumber",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "HSNCODE",
+        "CanonicalField": "hsncode",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "BRAND",
+        "CanonicalField": "brand",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "DOCNUMBER",
+        "CanonicalField": "docnumber",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVOICEYEAR",
+        "CanonicalField": "invoice_year",
+        "DataType": "Integer",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "DOCUMENTDATE",
+        "CanonicalField": "documentdate",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "FROM REGION",
+        "CanonicalField": "from_region",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "FROM STATE",
+        "CanonicalField": "from_state",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "FROM CITY",
+        "CanonicalField": "from_city",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "QTY",
+        "CanonicalField": "qty",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "UCP VALUE",
+        "CanonicalField": "ucp_value",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "GROSSUCP",
+        "CanonicalField": "grossucp",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "DISCOUNT",
+        "CanonicalField": "discount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CGST %",
+        "CanonicalField": "cgst",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CSGT VALUE",
+        "CanonicalField": "csgt_value",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "SGST/UTGST %",
+        "CanonicalField": "sgst_utgst",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "SGST/UTGST VALUE",
+        "CanonicalField": "sgst_utgst_value",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "IGST %",
+        "CanonicalField": "igst",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "IGST VALUE",
+        "CanonicalField": "igst_value",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "NETVALUE",
+        "CanonicalField": "netvalue",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REFDOCDATE",
+        "CanonicalField": "refdocdate",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REFDOCNUMBER",
+        "CanonicalField": "refdocnumber",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PURINVNO",
+        "CanonicalField": "purinvno",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PURINVDATE",
+        "CanonicalField": "purinvdate",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REMARK",
+        "CanonicalField": "remark",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ORDER_TYPE",
+        "CanonicalField": "order_type",
+        "DataType": "Text",
+        "IsRequired": false
+      }
+    ]
+  },
+  {
+    "FamilyCode": "R008",
+    "ReportCode": "R008",
+    "Name": "Banking Details",
+    "IsTyped": true,
+    "TableName": "etp_r008",
+    "PrimaryDateHeader": "INVOICE DATE",
+    "Headers": [
+      "STORE CODE",
+      "STORENAME",
+      "BANKDEPOSITNUMBER",
+      "TransactionDate",
+      "TRANS_TYPE",
+      "INVOICE YEAR",
+      "INVOICE NUMBER",
+      "INVOICE DATE",
+      "AMOUNT",
+      "BANKEDON",
+      "BANKEDAMOUNT",
+      "UNBANKED AMOUNT",
+      "DEPOSIT_SLIPNO",
+      "CC_CHEQUENO",
+      "DEPOSIT DATE",
+      "CREATEDATE"
+    ],
+    "Columns": [
+      {
+        "SourceHeader": "STORE CODE",
+        "CanonicalField": "store_code",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORENAME",
+        "CanonicalField": "storename",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "BANKDEPOSITNUMBER",
+        "CanonicalField": "bankdepositnumber",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TransactionDate",
+        "CanonicalField": "transactiondate",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TRANS_TYPE",
+        "CanonicalField": "trans_type",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVOICE YEAR",
+        "CanonicalField": "invoice_year",
+        "DataType": "Integer",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVOICE NUMBER",
+        "CanonicalField": "invoice_number",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVOICE DATE",
+        "CanonicalField": "invoice_date",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "AMOUNT",
+        "CanonicalField": "amount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "BANKEDON",
+        "CanonicalField": "bankedon",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "BANKEDAMOUNT",
+        "CanonicalField": "bankedamount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "UNBANKED AMOUNT",
+        "CanonicalField": "unbanked_amount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "DEPOSIT_SLIPNO",
+        "CanonicalField": "deposit_slipno",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CC_CHEQUENO",
+        "CanonicalField": "cc_chequeno",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "DEPOSIT DATE",
+        "CanonicalField": "deposit_date",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CREATEDATE",
+        "CanonicalField": "createdate",
+        "DataType": "Date",
+        "IsRequired": false
+      }
+    ]
+  },
+  {
+    "FamilyCode": "R009",
+    "ReportCode": "R009",
+    "Name": "Banking Summary",
+    "IsTyped": true,
+    "TableName": "etp_r009",
+    "PrimaryDateHeader": "TRANSACTIONDATE",
+    "Headers": [
+      "STORE CODE",
+      "STORE NAME",
+      "INVOICEYEAR",
+      "TRANSACTIONDATE",
+      "CASH",
+      "CARD",
+      "CHEQUE/DD",
+      "TOTAL",
+      "CASH DEPOSITED",
+      "CC DEPOSITED",
+      "CHEQUE/DD DEPOSITED",
+      "CASH DIFFERENCE",
+      "CARD DIFFERENCE",
+      "CHEQUE/DD DIFFERENCE"
+    ],
+    "Columns": [
+      {
+        "SourceHeader": "STORE CODE",
+        "CanonicalField": "store_code",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORE NAME",
+        "CanonicalField": "store_name",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVOICEYEAR",
+        "CanonicalField": "invoice_year",
+        "DataType": "Integer",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TRANSACTIONDATE",
+        "CanonicalField": "transactiondate",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CASH",
+        "CanonicalField": "cash",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CARD",
+        "CanonicalField": "card",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CHEQUE/DD",
+        "CanonicalField": "cheque_dd",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TOTAL",
+        "CanonicalField": "total",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CASH DEPOSITED",
+        "CanonicalField": "cash_deposited",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CC DEPOSITED",
+        "CanonicalField": "cc_deposited",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CHEQUE/DD DEPOSITED",
+        "CanonicalField": "cheque_dd_deposited",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CASH DIFFERENCE",
+        "CanonicalField": "cash_difference",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CARD DIFFERENCE",
+        "CanonicalField": "card_difference",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CHEQUE/DD DIFFERENCE",
+        "CanonicalField": "cheque_dd_difference",
+        "DataType": "Decimal",
+        "IsRequired": false
+      }
+    ]
+  },
+  {
+    "FamilyCode": "R010",
+    "ReportCode": "R010",
+    "Name": "BinWise Stock",
+    "IsTyped": true,
+    "TableName": "etp_r010",
+    "PrimaryDateHeader": null,
+    "Headers": [
+      "STORE CODE",
+      "STORE NAME",
+      "STORE TYPE",
+      "CHANNEL",
+      "REGION",
+      "CITY",
+      "ITEMNUMBER",
+      "HSN CODE",
+      "BRAND",
+      "BRANDNAME",
+      "CLUSTER",
+      "GENDER",
+      "EAN_CATEGORY",
+      "LOTNUMBER",
+      "UID",
+      "RETAILBIN",
+      "SERVICEBIN",
+      "REPLACEMENTBIN",
+      "DEFECTIVEBIN",
+      "INSTIBIN",
+      "ECOMM",
+      "OTHER1",
+      "OTHER2",
+      "OTHER3",
+      "OTHER4",
+      "OTHER5",
+      "OTHER6",
+      "OTHER7",
+      "OTHER8",
+      "OTHER9",
+      "OTHER10",
+      "OTHER11",
+      "OTHER12",
+      "OTHER13",
+      "OTHER14",
+      "OTHER15",
+      "OTHER16",
+      "OTHER17",
+      "OTHER18",
+      "OTHER19",
+      "OTHER20",
+      "OTHER21",
+      "OTHER22",
+      "OTHER23",
+      "OTHER24",
+      "OTHER25",
+      "UCP",
+      "CLOSINGBALANCE",
+      "TOTALUCP"
+    ],
+    "Columns": [
+      {
+        "SourceHeader": "STORE CODE",
+        "CanonicalField": "store_code",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORE NAME",
+        "CanonicalField": "store_name",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORE TYPE",
+        "CanonicalField": "store_type",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CHANNEL",
+        "CanonicalField": "channel",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REGION",
+        "CanonicalField": "region",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CITY",
+        "CanonicalField": "city",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ITEMNUMBER",
+        "CanonicalField": "itemnumber",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "HSN CODE",
+        "CanonicalField": "hsn_code",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "BRAND",
+        "CanonicalField": "brand",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "BRANDNAME",
+        "CanonicalField": "brandname",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CLUSTER",
+        "CanonicalField": "cluster",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "GENDER",
+        "CanonicalField": "gender",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "EAN_CATEGORY",
+        "CanonicalField": "ean_category",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "LOTNUMBER",
+        "CanonicalField": "lotnumber",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "UID",
+        "CanonicalField": "uid",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "RETAILBIN",
+        "CanonicalField": "retailbin",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "SERVICEBIN",
+        "CanonicalField": "servicebin",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REPLACEMENTBIN",
+        "CanonicalField": "replacementbin",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "DEFECTIVEBIN",
+        "CanonicalField": "defectivebin",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INSTIBIN",
+        "CanonicalField": "instibin",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ECOMM",
+        "CanonicalField": "ecomm",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "OTHER1",
+        "CanonicalField": "other1",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "OTHER2",
+        "CanonicalField": "other2",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "OTHER3",
+        "CanonicalField": "other3",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "OTHER4",
+        "CanonicalField": "other4",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "OTHER5",
+        "CanonicalField": "other5",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "OTHER6",
+        "CanonicalField": "other6",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "OTHER7",
+        "CanonicalField": "other7",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "OTHER8",
+        "CanonicalField": "other8",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "OTHER9",
+        "CanonicalField": "other9",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "OTHER10",
+        "CanonicalField": "other10",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "OTHER11",
+        "CanonicalField": "other11",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "OTHER12",
+        "CanonicalField": "other12",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "OTHER13",
+        "CanonicalField": "other13",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "OTHER14",
+        "CanonicalField": "other14",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "OTHER15",
+        "CanonicalField": "other15",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "OTHER16",
+        "CanonicalField": "other16",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "OTHER17",
+        "CanonicalField": "other17",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "OTHER18",
+        "CanonicalField": "other18",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "OTHER19",
+        "CanonicalField": "other19",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "OTHER20",
+        "CanonicalField": "other20",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "OTHER21",
+        "CanonicalField": "other21",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "OTHER22",
+        "CanonicalField": "other22",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "OTHER23",
+        "CanonicalField": "other23",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "OTHER24",
+        "CanonicalField": "other24",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "OTHER25",
+        "CanonicalField": "other25",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "UCP",
+        "CanonicalField": "ucp",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CLOSINGBALANCE",
+        "CanonicalField": "closingbalance",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TOTALUCP",
+        "CanonicalField": "totalucp",
+        "DataType": "Decimal",
+        "IsRequired": false
+      }
+    ]
+  },
+  {
+    "FamilyCode": "R011",
+    "ReportCode": "CLOSING_STOCK",
+    "Name": "Closing Stock",
+    "IsTyped": true,
+    "TableName": "etp_r011",
+    "PrimaryDateHeader": "Date",
+    "Headers": [
+      "STORE CODE",
+      "STORE NAME",
+      "STORE TYPE",
+      "CHANNEL",
+      "REGION",
+      "STATE",
+      "CITY",
+      "Date",
+      "ITEMNUMBER",
+      "HSN CODE",
+      "ITEMDESCRIPTION",
+      "EAN NO",
+      "BRAND",
+      "CLUSTER",
+      "GENDER",
+      "QTY",
+      "UCP",
+      "TOTALUCP",
+      "BATCHNUMBER",
+      "UID_ITEM"
+    ],
+    "Columns": [
+      {
+        "SourceHeader": "STORE CODE",
+        "CanonicalField": "store_code",
+        "DataType": "Identifier",
+        "IsRequired": true
+      },
+      {
+        "SourceHeader": "STORE NAME",
+        "CanonicalField": "store_name",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORE TYPE",
+        "CanonicalField": "store_type",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CHANNEL",
+        "CanonicalField": "channel",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REGION",
+        "CanonicalField": "region",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STATE",
+        "CanonicalField": "state",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CITY",
+        "CanonicalField": "city",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "Date",
+        "CanonicalField": "snapshot_date",
+        "DataType": "Date",
+        "IsRequired": true
+      },
+      {
+        "SourceHeader": "ITEMNUMBER",
+        "CanonicalField": "product_code",
+        "DataType": "Identifier",
+        "IsRequired": true
+      },
+      {
+        "SourceHeader": "HSN CODE",
+        "CanonicalField": "hsn_code",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ITEMDESCRIPTION",
+        "CanonicalField": "itemdescription",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "EAN NO",
+        "CanonicalField": "ean",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "BRAND",
+        "CanonicalField": "brand_code",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CLUSTER",
+        "CanonicalField": "cluster",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "GENDER",
+        "CanonicalField": "gender",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "QTY",
+        "CanonicalField": "quantity",
+        "DataType": "Decimal",
+        "IsRequired": true
+      },
+      {
+        "SourceHeader": "UCP",
+        "CanonicalField": "unit_cost",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TOTALUCP",
+        "CanonicalField": "total_cost",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "BATCHNUMBER",
+        "CanonicalField": "batch_number",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "UID_ITEM",
+        "CanonicalField": "source_uid",
+        "DataType": "Identifier",
+        "IsRequired": false
+      }
+    ]
+  },
+  {
+    "FamilyCode": "R012",
+    "ReportCode": "R012",
+    "Name": "CN Register",
+    "IsTyped": true,
+    "TableName": "etp_r012",
+    "PrimaryDateHeader": "CREDITNOTEDATE",
+    "Headers": [
+      "STORE CODE",
+      "STORE NAME",
+      "STORE TYPE",
+      "CHANNEL",
+      "REGION",
+      "STATE",
+      "CITY",
+      "CREDITNOTENUMBER",
+      "CREDITNOTEDATE",
+      "REF_GRNNO",
+      "CN_REFDOCNO",
+      "EXPIRYDATE",
+      "ISSUETO",
+      "CREDITNOTEAMOUNT",
+      "INVOICENUMBER",
+      "INVOICEDATE",
+      "INVOICEVALUE",
+      "REDEEMED DATE",
+      "REDEEMED BY",
+      "ISSUED_CNNO",
+      "ISSUED_CNAMT"
+    ],
+    "Columns": [
+      {
+        "SourceHeader": "STORE CODE",
+        "CanonicalField": "store_code",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORE NAME",
+        "CanonicalField": "store_name",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORE TYPE",
+        "CanonicalField": "store_type",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CHANNEL",
+        "CanonicalField": "channel",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REGION",
+        "CanonicalField": "region",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STATE",
+        "CanonicalField": "state",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CITY",
+        "CanonicalField": "city",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CREDITNOTENUMBER",
+        "CanonicalField": "creditnotenumber",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CREDITNOTEDATE",
+        "CanonicalField": "creditnotedate",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REF_GRNNO",
+        "CanonicalField": "ref_grnno",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CN_REFDOCNO",
+        "CanonicalField": "cn_refdocno",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "EXPIRYDATE",
+        "CanonicalField": "expirydate",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ISSUETO",
+        "CanonicalField": "issueto",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CREDITNOTEAMOUNT",
+        "CanonicalField": "creditnoteamount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVOICENUMBER",
+        "CanonicalField": "invoicenumber",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVOICEDATE",
+        "CanonicalField": "invoicedate",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVOICEVALUE",
+        "CanonicalField": "invoicevalue",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REDEEMED DATE",
+        "CanonicalField": "redeemed_date",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REDEEMED BY",
+        "CanonicalField": "redeemed_by",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ISSUED_CNNO",
+        "CanonicalField": "issued_cnno",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ISSUED_CNAMT",
+        "CanonicalField": "issued_cnamt",
+        "DataType": "Decimal",
+        "IsRequired": false
+      }
+    ]
+  },
+  {
+    "FamilyCode": "R013",
+    "ReportCode": "R013",
+    "Name": "CRO Wise Sales",
+    "IsTyped": true,
+    "TableName": "etp_r013",
+    "PrimaryDateHeader": "INVDATE",
+    "Headers": [
+      "TRANS_TYPE",
+      "STORE CODE",
+      "STORE NAME",
+      "STORE TYPE",
+      "CHANNEL",
+      "REGION",
+      "CITY",
+      "ITEMNUMBER",
+      "BRAND",
+      "BRANDNAME",
+      "CLUSTER",
+      "GENDER",
+      "CRO NUMBER",
+      "CRO NAME",
+      "CUSTOMERNAME",
+      "CONTACTNO",
+      "INVNUMBER",
+      "INVDATE",
+      "QTY",
+      "UCP",
+      "GROSSUCP",
+      "SCH_DISCOUNTS",
+      "NETGROSS",
+      "PRE_DISCOUNTS",
+      "NETAMOUNT",
+      "NETVALUE",
+      "INVREFNO",
+      "INVREFDATE"
+    ],
+    "Columns": [
+      {
+        "SourceHeader": "TRANS_TYPE",
+        "CanonicalField": "source_transaction_type",
+        "DataType": "Text",
+        "IsRequired": true
+      },
+      {
+        "SourceHeader": "STORE CODE",
+        "CanonicalField": "store_code",
+        "DataType": "Identifier",
+        "IsRequired": true
+      },
+      {
+        "SourceHeader": "STORE NAME",
+        "CanonicalField": "store_name",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORE TYPE",
+        "CanonicalField": "store_type",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CHANNEL",
+        "CanonicalField": "channel",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REGION",
+        "CanonicalField": "region",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CITY",
+        "CanonicalField": "city",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ITEMNUMBER",
+        "CanonicalField": "product_code",
+        "DataType": "Identifier",
+        "IsRequired": true
+      },
+      {
+        "SourceHeader": "BRAND",
+        "CanonicalField": "brand",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "BRANDNAME",
+        "CanonicalField": "brandname",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CLUSTER",
+        "CanonicalField": "cluster",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "GENDER",
+        "CanonicalField": "gender",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CRO NUMBER",
+        "CanonicalField": "cro_number",
+        "DataType": "Identifier",
+        "IsRequired": true
+      },
+      {
+        "SourceHeader": "CRO NAME",
+        "CanonicalField": "cro_name",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CUSTOMERNAME",
+        "CanonicalField": "customer_name",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CONTACTNO",
+        "CanonicalField": "customer_phone",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVNUMBER",
+        "CanonicalField": "invoice_number",
+        "DataType": "Identifier",
+        "IsRequired": true
+      },
+      {
+        "SourceHeader": "INVDATE",
+        "CanonicalField": "transaction_date",
+        "DataType": "Date",
+        "IsRequired": true
+      },
+      {
+        "SourceHeader": "QTY",
+        "CanonicalField": "source_quantity",
+        "DataType": "Decimal",
+        "IsRequired": true
+      },
+      {
+        "SourceHeader": "UCP",
+        "CanonicalField": "ucp",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "GROSSUCP",
+        "CanonicalField": "grossucp",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "SCH_DISCOUNTS",
+        "CanonicalField": "scheme_discount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "NETGROSS",
+        "CanonicalField": "netgross",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PRE_DISCOUNTS",
+        "CanonicalField": "pre_discount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "NETAMOUNT",
+        "CanonicalField": "source_net_amount",
+        "DataType": "Decimal",
+        "IsRequired": true
+      },
+      {
+        "SourceHeader": "NETVALUE",
+        "CanonicalField": "source_net_value",
+        "DataType": "Decimal",
+        "IsRequired": true
+      },
+      {
+        "SourceHeader": "INVREFNO",
+        "CanonicalField": "invrefno",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVREFDATE",
+        "CanonicalField": "invrefdate",
+        "DataType": "Date",
+        "IsRequired": false
+      }
+    ]
+  },
+  {
+    "FamilyCode": "R014",
+    "ReportCode": "R014",
+    "Name": "Daywise Collection",
+    "IsTyped": true,
+    "TableName": "etp_r014",
+    "PrimaryDateHeader": "INVOICE DATE",
+    "Headers": [
+      "STORE CODE",
+      "STORE NAME",
+      "INVOICEYEAR",
+      "INVOICE DATE",
+      "CASH",
+      "CREDITCARD",
+      "CN_UTILISED",
+      "GIFTCARD",
+      "CHEQUE",
+      "ROUND OFF",
+      "NO REFUND",
+      "TATA GV",
+      "LOYALTY",
+      "CN_ISSUED",
+      "CASH_REFUND",
+      "TATACLIQ",
+      "GYFTR",
+      "PAYTM",
+      "HELIOSOMNI",
+      "PAYMENTTYPE19",
+      "PAYMENTTYPE20",
+      "PAYMENTTYPE21",
+      "PAYMENTTYPE22",
+      "PAYMENTTYPE23",
+      "PAYMENTTYPE24",
+      "PAYMENTTYPE25",
+      "PAYMENTTYPE26",
+      "OMNI",
+      "TOTAL_REVENUE"
+    ],
+    "Columns": [
+      {
+        "SourceHeader": "STORE CODE",
+        "CanonicalField": "store_code",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORE NAME",
+        "CanonicalField": "store_name",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVOICEYEAR",
+        "CanonicalField": "invoice_year",
+        "DataType": "Integer",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVOICE DATE",
+        "CanonicalField": "invoice_date",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CASH",
+        "CanonicalField": "cash",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CREDITCARD",
+        "CanonicalField": "creditcard",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CN_UTILISED",
+        "CanonicalField": "cn_utilised",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "GIFTCARD",
+        "CanonicalField": "giftcard",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CHEQUE",
+        "CanonicalField": "cheque",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ROUND OFF",
+        "CanonicalField": "round_off",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "NO REFUND",
+        "CanonicalField": "no_refund",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TATA GV",
+        "CanonicalField": "tata_gv",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "LOYALTY",
+        "CanonicalField": "loyalty",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CN_ISSUED",
+        "CanonicalField": "cn_issued",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CASH_REFUND",
+        "CanonicalField": "cash_refund",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TATACLIQ",
+        "CanonicalField": "tatacliq",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "GYFTR",
+        "CanonicalField": "gyftr",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PAYTM",
+        "CanonicalField": "paytm",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "HELIOSOMNI",
+        "CanonicalField": "heliosomni",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PAYMENTTYPE19",
+        "CanonicalField": "paymenttype19",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PAYMENTTYPE20",
+        "CanonicalField": "paymenttype20",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PAYMENTTYPE21",
+        "CanonicalField": "paymenttype21",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PAYMENTTYPE22",
+        "CanonicalField": "paymenttype22",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PAYMENTTYPE23",
+        "CanonicalField": "paymenttype23",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PAYMENTTYPE24",
+        "CanonicalField": "paymenttype24",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PAYMENTTYPE25",
+        "CanonicalField": "paymenttype25",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PAYMENTTYPE26",
+        "CanonicalField": "paymenttype26",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "OMNI",
+        "CanonicalField": "omni",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TOTAL_REVENUE",
+        "CanonicalField": "total_revenue",
+        "DataType": "Decimal",
+        "IsRequired": false
+      }
+    ]
+  },
+  {
+    "FamilyCode": "R015",
+    "ReportCode": "R015",
+    "Name": "Encircle Enrollment",
+    "IsTyped": false,
+    "TableName": "etp_landing_r015",
+    "PrimaryDateHeader": "INVOICEDATE",
+    "Headers": [
+      "STORE CODE",
+      "STORE NAME",
+      "CHANNEL",
+      "REGION",
+      "STATE",
+      "CITY",
+      "ENCIRCLE NO",
+      "ENCIRCLE ENROL DATE",
+      "INVOICENUMBER",
+      "INVOICEDATE",
+      "INVOICEQUANTITY",
+      "GROSSUCP",
+      "SCH_DISCOUNTS",
+      "NETGROSS",
+      "PRE_DISCOUNTS",
+      "NETAMOUNT",
+      "CUSTOMERNUMBER",
+      "CUSTOMERNAME",
+      "CONTACTNO"
+    ],
+    "Columns": [
+      {
+        "SourceHeader": "STORE CODE",
+        "CanonicalField": "store_code",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORE NAME",
+        "CanonicalField": "store_name",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CHANNEL",
+        "CanonicalField": "channel",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REGION",
+        "CanonicalField": "region",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STATE",
+        "CanonicalField": "state",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CITY",
+        "CanonicalField": "city",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ENCIRCLE NO",
+        "CanonicalField": "encircle_no",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ENCIRCLE ENROL DATE",
+        "CanonicalField": "encircle_enrol_date",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVOICENUMBER",
+        "CanonicalField": "invoicenumber",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVOICEDATE",
+        "CanonicalField": "invoicedate",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVOICEQUANTITY",
+        "CanonicalField": "invoicequantity",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "GROSSUCP",
+        "CanonicalField": "grossucp",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "SCH_DISCOUNTS",
+        "CanonicalField": "sch_discounts",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "NETGROSS",
+        "CanonicalField": "netgross",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PRE_DISCOUNTS",
+        "CanonicalField": "pre_discounts",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "NETAMOUNT",
+        "CanonicalField": "netamount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CUSTOMERNUMBER",
+        "CanonicalField": "customernumber",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CUSTOMERNAME",
+        "CanonicalField": "customer_name",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CONTACTNO",
+        "CanonicalField": "customer_phone",
+        "DataType": "Identifier",
+        "IsRequired": false
+      }
+    ]
+  },
+  {
+    "FamilyCode": "R016",
+    "ReportCode": "R016",
+    "Name": "Encircle Redemption",
+    "IsTyped": false,
+    "TableName": "etp_landing_r016",
+    "PrimaryDateHeader": "TRANSACTION DATE",
+    "Headers": [
+      "STORE CODE",
+      "STORE NAME",
+      "STORE TYPE",
+      "CHANNEL",
+      "REGION",
+      "STATE",
+      "CITY",
+      "ENCIRCLE_NUMBER",
+      "DOCNUMBER",
+      "CUSTOMER NAME",
+      "TRANSACTION DATE",
+      "INVOICE AMOUNT",
+      "LOYALITY POINTS",
+      "APPROVAL NUMBER",
+      "OTP_NUMBER",
+      "REFINVOICENUMBER"
+    ],
+    "Columns": [
+      {
+        "SourceHeader": "STORE CODE",
+        "CanonicalField": "store_code",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORE NAME",
+        "CanonicalField": "store_name",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORE TYPE",
+        "CanonicalField": "store_type",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CHANNEL",
+        "CanonicalField": "channel",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REGION",
+        "CanonicalField": "region",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STATE",
+        "CanonicalField": "state",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CITY",
+        "CanonicalField": "city",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ENCIRCLE_NUMBER",
+        "CanonicalField": "encircle_number",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "DOCNUMBER",
+        "CanonicalField": "docnumber",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CUSTOMER NAME",
+        "CanonicalField": "customer_name",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TRANSACTION DATE",
+        "CanonicalField": "transaction_date",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVOICE AMOUNT",
+        "CanonicalField": "invoice_amount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "LOYALITY POINTS",
+        "CanonicalField": "loyality_points",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "APPROVAL NUMBER",
+        "CanonicalField": "approval_number",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "OTP_NUMBER",
+        "CanonicalField": "otp_number",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REFINVOICENUMBER",
+        "CanonicalField": "refinvoicenumber",
+        "DataType": "Identifier",
+        "IsRequired": false
+      }
+    ]
+  },
+  {
+    "FamilyCode": "R017",
+    "ReportCode": "R017",
+    "Name": "GC Wise Redemption",
+    "IsTyped": false,
+    "TableName": "etp_landing_r017",
+    "PrimaryDateHeader": "INVDATE",
+    "Headers": [
+      "STORE CODE",
+      "STORE NAME",
+      "STORE TYPE",
+      "CHANNEL",
+      "REGION",
+      "CITY",
+      "INVNUMBER",
+      "INVDATE",
+      "QTY",
+      "TOTALBILLVALUE",
+      "TOTALGCAMTREDEEMD",
+      "GIFTCARDNO",
+      "APPROVALNUMBER",
+      "GCCOUNT"
+    ],
+    "Columns": [
+      {
+        "SourceHeader": "STORE CODE",
+        "CanonicalField": "store_code",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORE NAME",
+        "CanonicalField": "store_name",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORE TYPE",
+        "CanonicalField": "store_type",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CHANNEL",
+        "CanonicalField": "channel",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REGION",
+        "CanonicalField": "region",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CITY",
+        "CanonicalField": "city",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVNUMBER",
+        "CanonicalField": "invnumber",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVDATE",
+        "CanonicalField": "invdate",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "QTY",
+        "CanonicalField": "qty",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TOTALBILLVALUE",
+        "CanonicalField": "totalbillvalue",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TOTALGCAMTREDEEMD",
+        "CanonicalField": "totalgcamtredeemd",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "GIFTCARDNO",
+        "CanonicalField": "giftcardno",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "APPROVALNUMBER",
+        "CanonicalField": "approvalnumber",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "GCCOUNT",
+        "CanonicalField": "gccount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      }
+    ]
+  },
+  {
+    "FamilyCode": "R018",
+    "ReportCode": "R018",
+    "Name": "GST Tax Report Issue",
+    "IsTyped": true,
+    "TableName": "etp_r018",
+    "PrimaryDateHeader": "DOC / INVOICE DATE",
+    "Headers": [
+      "DOCUMENT_NUMBER",
+      "STORE CODE",
+      "STORE NAME",
+      "TRANSACTION TYPE",
+      "DOC / INVOICE NO",
+      "DOC / INVOICE DATE",
+      "INVOICEYEAR",
+      "REFERENCE DOC",
+      "REFERENCE DATE",
+      "ISSUE STATE NAME",
+      "ISSUE GSTN NO",
+      "ISSUE STATE CODE",
+      "RECIPIENT STATE NAME",
+      "RECIPIENT GSTN NO",
+      "RECIPIENT STATE CODE",
+      "ITEM NUMBER",
+      "HSN CODE",
+      "QTY",
+      "UOM",
+      "UCP",
+      "GROSS UCP",
+      "DISCOUNTS",
+      "NET AMOUNT",
+      "TAXABLE VALUE",
+      "CGST RATE",
+      "CGST AMOUNT",
+      "SGST/UTGST RATE",
+      "SGST/UTGST AMOUNT",
+      "IGST RATE",
+      "IGST AMOUNT",
+      "CESS RATE",
+      "CESS AMOUNT",
+      "CustomerName",
+      "CustomerNumber"
+    ],
+    "Columns": [
+      {
+        "SourceHeader": "DOCUMENT_NUMBER",
+        "CanonicalField": "document_number",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORE CODE",
+        "CanonicalField": "store_code",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORE NAME",
+        "CanonicalField": "store_name",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TRANSACTION TYPE",
+        "CanonicalField": "transaction_type",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "DOC / INVOICE NO",
+        "CanonicalField": "doc_invoice_no",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "DOC / INVOICE DATE",
+        "CanonicalField": "doc_invoice_date",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVOICEYEAR",
+        "CanonicalField": "invoice_year",
+        "DataType": "Integer",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REFERENCE DOC",
+        "CanonicalField": "reference_doc",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REFERENCE DATE",
+        "CanonicalField": "reference_date",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ISSUE STATE NAME",
+        "CanonicalField": "issue_state_name",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ISSUE GSTN NO",
+        "CanonicalField": "issue_gstn_no",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ISSUE STATE CODE",
+        "CanonicalField": "issue_state_code",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "RECIPIENT STATE NAME",
+        "CanonicalField": "recipient_state_name",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "RECIPIENT GSTN NO",
+        "CanonicalField": "recipient_gstn_no",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "RECIPIENT STATE CODE",
+        "CanonicalField": "recipient_state_code",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ITEM NUMBER",
+        "CanonicalField": "item_number",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "HSN CODE",
+        "CanonicalField": "hsn_code",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "QTY",
+        "CanonicalField": "qty",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "UOM",
+        "CanonicalField": "uom",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "UCP",
+        "CanonicalField": "ucp",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "GROSS UCP",
+        "CanonicalField": "gross_ucp",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "DISCOUNTS",
+        "CanonicalField": "discounts",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "NET AMOUNT",
+        "CanonicalField": "net_amount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TAXABLE VALUE",
+        "CanonicalField": "taxable_value",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CGST RATE",
+        "CanonicalField": "cgst_rate",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CGST AMOUNT",
+        "CanonicalField": "cgst_amount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "SGST/UTGST RATE",
+        "CanonicalField": "sgst_utgst_rate",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "SGST/UTGST AMOUNT",
+        "CanonicalField": "sgst_utgst_amount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "IGST RATE",
+        "CanonicalField": "igst_rate",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "IGST AMOUNT",
+        "CanonicalField": "igst_amount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CESS RATE",
+        "CanonicalField": "cess_rate",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CESS AMOUNT",
+        "CanonicalField": "cess_amount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CustomerName",
+        "CanonicalField": "customer_name",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CustomerNumber",
+        "CanonicalField": "customernumber",
+        "DataType": "Identifier",
+        "IsRequired": false
+      }
+    ]
+  },
+  {
+    "FamilyCode": "R019",
+    "ReportCode": "R019",
+    "Name": "GST Tax Report Receipt",
+    "IsTyped": true,
+    "TableName": "etp_r019",
+    "PrimaryDateHeader": "DOC / INVOICE DATE",
+    "Headers": [
+      "STORE CODE",
+      "STORE NAME",
+      "TRANSACTION TYPE",
+      "DOC / INVOICE NO",
+      "DOC / INVOICE DATE",
+      "REFERENCE DOC",
+      "REFERENCE DATE",
+      "ISSUE STATE NAME",
+      "ISSUE GSTN NO",
+      "ISSUE STATE CODE",
+      "RECIPIENT STATE NAME",
+      "RECIPIENT GSTN NO",
+      "RECIPIENT STATE CODE",
+      "ITEM NUMBER",
+      "HSN CODE",
+      "QTY",
+      "UOM",
+      "UCP",
+      "GROSS UCP",
+      "DISCOUNTS",
+      "NET AMOUNT",
+      "TAXABLE VALUE",
+      "CGST RATE",
+      "CGST AMOUNT",
+      "SGST RATE",
+      "SGST AMOUNT",
+      "IGST RATE",
+      "IGST AMOUNT"
+    ],
+    "Columns": [
+      {
+        "SourceHeader": "STORE CODE",
+        "CanonicalField": "store_code",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORE NAME",
+        "CanonicalField": "store_name",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TRANSACTION TYPE",
+        "CanonicalField": "transaction_type",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "DOC / INVOICE NO",
+        "CanonicalField": "doc_invoice_no",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "DOC / INVOICE DATE",
+        "CanonicalField": "doc_invoice_date",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REFERENCE DOC",
+        "CanonicalField": "reference_doc",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REFERENCE DATE",
+        "CanonicalField": "reference_date",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ISSUE STATE NAME",
+        "CanonicalField": "issue_state_name",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ISSUE GSTN NO",
+        "CanonicalField": "issue_gstn_no",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ISSUE STATE CODE",
+        "CanonicalField": "issue_state_code",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "RECIPIENT STATE NAME",
+        "CanonicalField": "recipient_state_name",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "RECIPIENT GSTN NO",
+        "CanonicalField": "recipient_gstn_no",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "RECIPIENT STATE CODE",
+        "CanonicalField": "recipient_state_code",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ITEM NUMBER",
+        "CanonicalField": "item_number",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "HSN CODE",
+        "CanonicalField": "hsn_code",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "QTY",
+        "CanonicalField": "qty",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "UOM",
+        "CanonicalField": "uom",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "UCP",
+        "CanonicalField": "ucp",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "GROSS UCP",
+        "CanonicalField": "gross_ucp",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "DISCOUNTS",
+        "CanonicalField": "discounts",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "NET AMOUNT",
+        "CanonicalField": "net_amount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TAXABLE VALUE",
+        "CanonicalField": "taxable_value",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CGST RATE",
+        "CanonicalField": "cgst_rate",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CGST AMOUNT",
+        "CanonicalField": "cgst_amount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "SGST RATE",
+        "CanonicalField": "sgst_rate",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "SGST AMOUNT",
+        "CanonicalField": "sgst_amount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "IGST RATE",
+        "CanonicalField": "igst_rate",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "IGST AMOUNT",
+        "CanonicalField": "igst_amount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      }
+    ]
+  },
+  {
+    "FamilyCode": "R020",
+    "ReportCode": "R020",
+    "Name": "Payment Type Report",
+    "IsTyped": true,
+    "TableName": "etp_r020",
+    "PrimaryDateHeader": "INVDATE",
+    "Headers": [
+      "CHANNEL",
+      "TYPE",
+      "REGION",
+      "STORE CODE",
+      "STORENAME",
+      "CITY",
+      "STATE",
+      "INVNUMBER",
+      "INVDATE",
+      "INVOICE AMOUNT",
+      "DOC TYPE NO",
+      "AGENCYNAME",
+      "CREDITCARDNO",
+      "APPROVALNUMBER",
+      "CASHAMOUNT",
+      "CARDAMOUNT",
+      "CHEQUEAMOUNT",
+      "GVAMOUNT",
+      "GCAMOUNT",
+      "CREDITNOTE",
+      "LOYALTYPOINTS",
+      "ROUND OFF",
+      "NO REFUND",
+      "TATA GV",
+      "REFUND",
+      "PAYMENTTYPE15",
+      "GYFTR",
+      "PAYTM",
+      "HELIOSOMNI",
+      "PAYMENTTYPE19",
+      "PAYMENTTYPE20",
+      "PAYMENTTYPE21",
+      "PAYMENTTYPE22",
+      "PAYMENTTYPE23",
+      "PAYMENTTYPE24",
+      "PAYMENTTYPE25"
+    ],
+    "Columns": [
+      {
+        "SourceHeader": "CHANNEL",
+        "CanonicalField": "channel",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TYPE",
+        "CanonicalField": "type",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REGION",
+        "CanonicalField": "region",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORE CODE",
+        "CanonicalField": "store_code",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORENAME",
+        "CanonicalField": "storename",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CITY",
+        "CanonicalField": "city",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STATE",
+        "CanonicalField": "state",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVNUMBER",
+        "CanonicalField": "invnumber",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVDATE",
+        "CanonicalField": "invdate",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVOICE AMOUNT",
+        "CanonicalField": "invoice_amount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "DOC TYPE NO",
+        "CanonicalField": "doc_type_no",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "AGENCYNAME",
+        "CanonicalField": "agencyname",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CREDITCARDNO",
+        "CanonicalField": "creditcardno",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "APPROVALNUMBER",
+        "CanonicalField": "approvalnumber",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CASHAMOUNT",
+        "CanonicalField": "cashamount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CARDAMOUNT",
+        "CanonicalField": "cardamount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CHEQUEAMOUNT",
+        "CanonicalField": "chequeamount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "GVAMOUNT",
+        "CanonicalField": "gvamount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "GCAMOUNT",
+        "CanonicalField": "gcamount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CREDITNOTE",
+        "CanonicalField": "creditnote",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "LOYALTYPOINTS",
+        "CanonicalField": "loyaltypoints",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ROUND OFF",
+        "CanonicalField": "round_off",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "NO REFUND",
+        "CanonicalField": "no_refund",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TATA GV",
+        "CanonicalField": "tata_gv",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REFUND",
+        "CanonicalField": "refund",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PAYMENTTYPE15",
+        "CanonicalField": "paymenttype15",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "GYFTR",
+        "CanonicalField": "gyftr",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PAYTM",
+        "CanonicalField": "paytm",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "HELIOSOMNI",
+        "CanonicalField": "heliosomni",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PAYMENTTYPE19",
+        "CanonicalField": "paymenttype19",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PAYMENTTYPE20",
+        "CanonicalField": "paymenttype20",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PAYMENTTYPE21",
+        "CanonicalField": "paymenttype21",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PAYMENTTYPE22",
+        "CanonicalField": "paymenttype22",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PAYMENTTYPE23",
+        "CanonicalField": "paymenttype23",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PAYMENTTYPE24",
+        "CanonicalField": "paymenttype24",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PAYMENTTYPE25",
+        "CanonicalField": "paymenttype25",
+        "DataType": "Decimal",
+        "IsRequired": false
+      }
+    ]
+  },
+  {
+    "FamilyCode": "R021",
+    "ReportCode": "R021",
+    "Name": "Purchase Receipt Summary",
+    "IsTyped": false,
+    "TableName": "etp_landing_r021",
+    "PrimaryDateHeader": "PHYSC RECV DATE",
+    "Headers": [
+      "STORE CODE",
+      "STORE NAME",
+      "REGION",
+      "STATE",
+      "CITY",
+      "LOCATION",
+      "FROM_REGION",
+      "FROM_STATE",
+      "FROM_CITY",
+      "DOC NUMBER",
+      "INVOICEYEAR",
+      "TOTALQTY",
+      "TOTALVALUE",
+      "DISCOUNT",
+      "NETVALUE",
+      "TAX",
+      "REMARK",
+      "REF DOCUMENT NUMBER",
+      "REF DOCUMENT DATE",
+      "PHYSC RECV DATE",
+      "TCSChargePercentage",
+      "TCSAmount",
+      "TOTAL FINAL VALUE"
+    ],
+    "Columns": [
+      {
+        "SourceHeader": "STORE CODE",
+        "CanonicalField": "store_code",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORE NAME",
+        "CanonicalField": "store_name",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REGION",
+        "CanonicalField": "region",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STATE",
+        "CanonicalField": "state",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CITY",
+        "CanonicalField": "city",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "LOCATION",
+        "CanonicalField": "location",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "FROM_REGION",
+        "CanonicalField": "from_region",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "FROM_STATE",
+        "CanonicalField": "from_state",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "FROM_CITY",
+        "CanonicalField": "from_city",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "DOC NUMBER",
+        "CanonicalField": "doc_number",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVOICEYEAR",
+        "CanonicalField": "invoice_year",
+        "DataType": "Integer",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TOTALQTY",
+        "CanonicalField": "totalqty",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TOTALVALUE",
+        "CanonicalField": "totalvalue",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "DISCOUNT",
+        "CanonicalField": "discount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "NETVALUE",
+        "CanonicalField": "netvalue",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TAX",
+        "CanonicalField": "tax",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REMARK",
+        "CanonicalField": "remark",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REF DOCUMENT NUMBER",
+        "CanonicalField": "ref_document_number",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REF DOCUMENT DATE",
+        "CanonicalField": "ref_document_date",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PHYSC RECV DATE",
+        "CanonicalField": "physc_recv_date",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TCSChargePercentage",
+        "CanonicalField": "tcschargepercentage",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TCSAmount",
+        "CanonicalField": "tcsamount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TOTAL FINAL VALUE",
+        "CanonicalField": "total_final_value",
+        "DataType": "Decimal",
+        "IsRequired": false
+      }
+    ]
+  },
+  {
+    "FamilyCode": "R022",
+    "ReportCode": "R022",
+    "Name": "Revenue Report",
+    "IsTyped": true,
+    "TableName": "etp_r022",
+    "PrimaryDateHeader": "INVOICEDATE",
+    "Headers": [
+      "TRANS_TYPE",
+      "STORE CODE",
+      "STORE NAME",
+      "STORE TYPE",
+      "CHANNEL",
+      "REGION",
+      "STATE",
+      "CITY",
+      "INVNUMBER",
+      "CUSTOMERNAME",
+      "ContactNo",
+      "InvoiceQuantity",
+      "INVOICEDATE",
+      "INVOICEYEAR",
+      "CASH",
+      "CARD",
+      "CHEQUE",
+      "LOYALTY_POINTS",
+      "GV",
+      "CREDITNOTE REDEEM",
+      "EXCESS GV",
+      "ROUND OFF",
+      "NO REFUND",
+      "OTHERS",
+      "TATA GV",
+      "GIFTCARD",
+      "TataCliQ",
+      "GYFTR",
+      "PAYTM",
+      "HELIOSOMNI",
+      "ADVANCERDEEM",
+      "BHIMUPI",
+      "PHONEPE",
+      "BHARATPE",
+      "BAJAJFIN",
+      "RAZORPAY",
+      "PAYMENTTYPE24",
+      "PAYMENTTYPE25",
+      "ISSUED CREDITNOTE",
+      "CASH REFUND",
+      "Cheque/RTGS REFUND",
+      "NetValue",
+      "ENCIRCLE",
+      "STORETIMESTAMP",
+      "REFERENCENUMBER",
+      "REFERENCEYEAR"
+    ],
+    "Columns": [
+      {
+        "SourceHeader": "TRANS_TYPE",
+        "CanonicalField": "source_transaction_type",
+        "DataType": "Text",
+        "IsRequired": true
+      },
+      {
+        "SourceHeader": "STORE CODE",
+        "CanonicalField": "store_code",
+        "DataType": "Identifier",
+        "IsRequired": true
+      },
+      {
+        "SourceHeader": "STORE NAME",
+        "CanonicalField": "store_name",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORE TYPE",
+        "CanonicalField": "store_type",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CHANNEL",
+        "CanonicalField": "channel",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REGION",
+        "CanonicalField": "region",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STATE",
+        "CanonicalField": "state",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CITY",
+        "CanonicalField": "city",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVNUMBER",
+        "CanonicalField": "invoice_number",
+        "DataType": "Identifier",
+        "IsRequired": true
+      },
+      {
+        "SourceHeader": "CUSTOMERNAME",
+        "CanonicalField": "customer_name",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ContactNo",
+        "CanonicalField": "customer_phone",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "InvoiceQuantity",
+        "CanonicalField": "source_invoice_quantity",
+        "DataType": "Decimal",
+        "IsRequired": true
+      },
+      {
+        "SourceHeader": "INVOICEDATE",
+        "CanonicalField": "transaction_date",
+        "DataType": "Date",
+        "IsRequired": true
+      },
+      {
+        "SourceHeader": "INVOICEYEAR",
+        "CanonicalField": "invoice_year",
+        "DataType": "Integer",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CASH",
+        "CanonicalField": "tender_cash",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CARD",
+        "CanonicalField": "tender_card",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CHEQUE",
+        "CanonicalField": "tender_cheque",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "LOYALTY_POINTS",
+        "CanonicalField": "tender_loyalty_points",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "GV",
+        "CanonicalField": "tender_gift_voucher",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CREDITNOTE REDEEM",
+        "CanonicalField": "tender_credit_note_redeemed",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "EXCESS GV",
+        "CanonicalField": "tender_excess_gv",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ROUND OFF",
+        "CanonicalField": "tender_round_off",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "NO REFUND",
+        "CanonicalField": "tender_no_refund",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "OTHERS",
+        "CanonicalField": "tender_others",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TATA GV",
+        "CanonicalField": "tender_tata_gv",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "GIFTCARD",
+        "CanonicalField": "tender_gift_card",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TataCliQ",
+        "CanonicalField": "tender_tatacliq",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "GYFTR",
+        "CanonicalField": "tender_gyftr",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PAYTM",
+        "CanonicalField": "tender_paytm",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "HELIOSOMNI",
+        "CanonicalField": "tender_helios_omni",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ADVANCERDEEM",
+        "CanonicalField": "tender_advance_redeem",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "BHIMUPI",
+        "CanonicalField": "tender_bhim_upi",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PHONEPE",
+        "CanonicalField": "tender_phonepe",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "BHARATPE",
+        "CanonicalField": "tender_bharatpe",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "BAJAJFIN",
+        "CanonicalField": "tender_bajaj_finance",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "RAZORPAY",
+        "CanonicalField": "tender_razorpay",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PAYMENTTYPE24",
+        "CanonicalField": "tender_payment_type24",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PAYMENTTYPE25",
+        "CanonicalField": "tender_payment_type25",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ISSUED CREDITNOTE",
+        "CanonicalField": "tender_issued_credit_note",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CASH REFUND",
+        "CanonicalField": "tender_cash_refund",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "Cheque/RTGS REFUND",
+        "CanonicalField": "tender_cheque_rtgs_refund",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "NetValue",
+        "CanonicalField": "source_net_value",
+        "DataType": "Decimal",
+        "IsRequired": true
+      },
+      {
+        "SourceHeader": "ENCIRCLE",
+        "CanonicalField": "encircle",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORETIMESTAMP",
+        "CanonicalField": "source_store_timestamp",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REFERENCENUMBER",
+        "CanonicalField": "reference_invoice_number",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REFERENCEYEAR",
+        "CanonicalField": "referenceyear",
+        "DataType": "Integer",
+        "IsRequired": false
+      }
+    ]
+  },
+  {
+    "FamilyCode": "R023",
+    "ReportCode": "R023",
+    "Name": "Scheme Details",
+    "IsTyped": false,
+    "TableName": "etp_landing_r023",
+    "PrimaryDateHeader": null,
+    "Headers": [
+      "BusinessRuleId",
+      "BusinessRuleName",
+      "VersionID",
+      "STRATEGY_ID",
+      "Brand_Code",
+      "Brand_Name",
+      "CLUSTER",
+      "DISCOUNT_AMT",
+      "DISCOUNT_Percentage",
+      "START_DATE",
+      "END_DATE",
+      "StrategyName",
+      "ItemNumber",
+      "UCP"
+    ],
+    "Columns": [
+      {
+        "SourceHeader": "BusinessRuleId",
+        "CanonicalField": "businessruleid",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "BusinessRuleName",
+        "CanonicalField": "businessrulename",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "VersionID",
+        "CanonicalField": "versionid",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STRATEGY_ID",
+        "CanonicalField": "strategy_id",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "Brand_Code",
+        "CanonicalField": "brand_code",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "Brand_Name",
+        "CanonicalField": "brand_name",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CLUSTER",
+        "CanonicalField": "cluster",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "DISCOUNT_AMT",
+        "CanonicalField": "discount_amt",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "DISCOUNT_Percentage",
+        "CanonicalField": "discount_percentage",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "START_DATE",
+        "CanonicalField": "start_date",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "END_DATE",
+        "CanonicalField": "end_date",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "StrategyName",
+        "CanonicalField": "strategyname",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ItemNumber",
+        "CanonicalField": "itemnumber",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "UCP",
+        "CanonicalField": "ucp",
+        "DataType": "Decimal",
+        "IsRequired": false
+      }
+    ]
+  },
+  {
+    "FamilyCode": "R024",
+    "ReportCode": "R024",
+    "Name": "SDB Document Wise",
+    "IsTyped": true,
+    "TableName": "etp_r024",
+    "PrimaryDateHeader": "INV DATE",
+    "Headers": [
+      "TRANS_TYPE",
+      "STORE CODE",
+      "STORENAME",
+      "STORE TYPE",
+      "CHANNEL",
+      "REGION",
+      "CITY",
+      "INV NUMBER",
+      "INV DATE",
+      "QTY",
+      "GROSSUCP",
+      "SCH_DISCOUNTS",
+      "NETGROSS",
+      "PRE_DISCOUNTS",
+      "NETAMOUNT",
+      "SGST/UTGST VALUE",
+      "CSGT VALUE",
+      "IGST VALUE",
+      "cess VALUE",
+      "TAX",
+      "TAX INC",
+      "TAX EXC",
+      "NETVALUE",
+      "INVREFNO",
+      "INVREFDATE",
+      "CUSTOMER NO",
+      "CUSTOMER NAME",
+      "CONTACT NO",
+      "ULP NUMBER",
+      "Customer GSTIN No",
+      "Customer Address",
+      "STORE TIMESTAMP",
+      "EAS TIMESTAMP"
+    ],
+    "Columns": [
+      {
+        "SourceHeader": "TRANS_TYPE",
+        "CanonicalField": "trans_type",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORE CODE",
+        "CanonicalField": "store_code",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORENAME",
+        "CanonicalField": "storename",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORE TYPE",
+        "CanonicalField": "store_type",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CHANNEL",
+        "CanonicalField": "channel",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REGION",
+        "CanonicalField": "region",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CITY",
+        "CanonicalField": "city",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INV NUMBER",
+        "CanonicalField": "inv_number",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INV DATE",
+        "CanonicalField": "inv_date",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "QTY",
+        "CanonicalField": "qty",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "GROSSUCP",
+        "CanonicalField": "grossucp",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "SCH_DISCOUNTS",
+        "CanonicalField": "sch_discounts",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "NETGROSS",
+        "CanonicalField": "netgross",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PRE_DISCOUNTS",
+        "CanonicalField": "pre_discounts",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "NETAMOUNT",
+        "CanonicalField": "netamount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "SGST/UTGST VALUE",
+        "CanonicalField": "sgst_utgst_value",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CSGT VALUE",
+        "CanonicalField": "csgt_value",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "IGST VALUE",
+        "CanonicalField": "igst_value",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "cess VALUE",
+        "CanonicalField": "cess_value",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TAX",
+        "CanonicalField": "tax",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TAX INC",
+        "CanonicalField": "tax_inc",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TAX EXC",
+        "CanonicalField": "tax_exc",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "NETVALUE",
+        "CanonicalField": "netvalue",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVREFNO",
+        "CanonicalField": "invrefno",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVREFDATE",
+        "CanonicalField": "invrefdate",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CUSTOMER NO",
+        "CanonicalField": "customer_no",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CUSTOMER NAME",
+        "CanonicalField": "customer_name",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CONTACT NO",
+        "CanonicalField": "customer_phone",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ULP NUMBER",
+        "CanonicalField": "ulp_number",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "Customer GSTIN No",
+        "CanonicalField": "customer_gstin_no",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "Customer Address",
+        "CanonicalField": "customer_address",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORE TIMESTAMP",
+        "CanonicalField": "store_timestamp",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "EAS TIMESTAMP",
+        "CanonicalField": "eas_timestamp",
+        "DataType": "Identifier",
+        "IsRequired": false
+      }
+    ]
+  },
+  {
+    "FamilyCode": "R025",
+    "ReportCode": "R025",
+    "Name": "SDB VariantwiseSales",
+    "IsTyped": true,
+    "TableName": "etp_r025",
+    "PrimaryDateHeader": "INVDATE",
+    "Headers": [
+      "TRANS_TYPE",
+      "STORE CODE",
+      "STORENAME",
+      "STORETYPE",
+      "CHANNEL",
+      "REGION",
+      "CITY",
+      "ITEMNUMBER",
+      "HSNCODE",
+      "BRAND",
+      "BRANDNAME",
+      "CLUSTER",
+      "GENDER",
+      "INVNUMBER",
+      "INVDATE",
+      "QTY",
+      "UCP",
+      "GROSSUCP",
+      "SCH_DISCOUNTS",
+      "USER_DISCOUNTS",
+      "HELIOS_CREDITNOTE",
+      "PROMO_GC",
+      "NETGROSS",
+      "PRE_DISCOUNTS",
+      "NETAMOUNT",
+      "SGST/UTGST %",
+      "SGST/UTGST VALUE",
+      "CSGT %",
+      "CSGT VALUE",
+      "IGST %",
+      "IGST VALUE",
+      "CESS %",
+      "CESS VALUE",
+      "TAX",
+      "NETVALUE",
+      "INVREFNO",
+      "INVREFDATE",
+      "CUSTOMERNAME",
+      "CONTACTNO",
+      "ULPNUMBER",
+      "STORETIMESTAMP"
+    ],
+    "Columns": [
+      {
+        "SourceHeader": "TRANS_TYPE",
+        "CanonicalField": "source_transaction_type",
+        "DataType": "Text",
+        "IsRequired": true
+      },
+      {
+        "SourceHeader": "STORE CODE",
+        "CanonicalField": "store_code",
+        "DataType": "Identifier",
+        "IsRequired": true
+      },
+      {
+        "SourceHeader": "STORENAME",
+        "CanonicalField": "storename",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORETYPE",
+        "CanonicalField": "storetype",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CHANNEL",
+        "CanonicalField": "channel",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REGION",
+        "CanonicalField": "region",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CITY",
+        "CanonicalField": "city",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ITEMNUMBER",
+        "CanonicalField": "product_code",
+        "DataType": "Identifier",
+        "IsRequired": true
+      },
+      {
+        "SourceHeader": "HSNCODE",
+        "CanonicalField": "hsn_code",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "BRAND",
+        "CanonicalField": "source_brand_code",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "BRANDNAME",
+        "CanonicalField": "source_brand_name",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CLUSTER",
+        "CanonicalField": "brand_segment_code",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "GENDER",
+        "CanonicalField": "gender_code",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVNUMBER",
+        "CanonicalField": "invoice_number",
+        "DataType": "Identifier",
+        "IsRequired": true
+      },
+      {
+        "SourceHeader": "INVDATE",
+        "CanonicalField": "transaction_date",
+        "DataType": "Date",
+        "IsRequired": true
+      },
+      {
+        "SourceHeader": "QTY",
+        "CanonicalField": "source_quantity",
+        "DataType": "Decimal",
+        "IsRequired": true
+      },
+      {
+        "SourceHeader": "UCP",
+        "CanonicalField": "source_ucp",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "GROSSUCP",
+        "CanonicalField": "source_gross_ucp",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "SCH_DISCOUNTS",
+        "CanonicalField": "scheme_discount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "USER_DISCOUNTS",
+        "CanonicalField": "user_discount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "HELIOS_CREDITNOTE",
+        "CanonicalField": "helios_creditnote",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PROMO_GC",
+        "CanonicalField": "promo_gc",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "NETGROSS",
+        "CanonicalField": "netgross",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PRE_DISCOUNTS",
+        "CanonicalField": "pre_discount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "NETAMOUNT",
+        "CanonicalField": "source_net_amount",
+        "DataType": "Decimal",
+        "IsRequired": true
+      },
+      {
+        "SourceHeader": "SGST/UTGST %",
+        "CanonicalField": "sgst_utgst",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "SGST/UTGST VALUE",
+        "CanonicalField": "sgst_utgst_value",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CSGT %",
+        "CanonicalField": "csgt",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CSGT VALUE",
+        "CanonicalField": "csgt_value",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "IGST %",
+        "CanonicalField": "igst",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "IGST VALUE",
+        "CanonicalField": "igst_value",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CESS %",
+        "CanonicalField": "cess",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CESS VALUE",
+        "CanonicalField": "cess_value",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TAX",
+        "CanonicalField": "source_tax_amount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "NETVALUE",
+        "CanonicalField": "source_net_value",
+        "DataType": "Decimal",
+        "IsRequired": true
+      },
+      {
+        "SourceHeader": "INVREFNO",
+        "CanonicalField": "reference_invoice_number",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVREFDATE",
+        "CanonicalField": "reference_invoice_date",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CUSTOMERNAME",
+        "CanonicalField": "customer_name",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CONTACTNO",
+        "CanonicalField": "customer_phone",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ULPNUMBER",
+        "CanonicalField": "ulpnumber",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORETIMESTAMP",
+        "CanonicalField": "source_store_timestamp",
+        "DataType": "Text",
+        "IsRequired": false
+      }
+    ]
+  },
+  {
+    "FamilyCode": "R026",
+    "ReportCode": "R026",
+    "Name": "PRP SALES",
+    "IsTyped": false,
+    "TableName": "etp_landing_r026",
+    "PrimaryDateHeader": "PRP DOC DATE",
+    "Headers": [
+      "Transaction Type",
+      "Store Code",
+      "Store SAP code",
+      "store type",
+      "Channel",
+      "city",
+      "State",
+      "Region",
+      "PRP DOC NO",
+      "PRP DOC DATE",
+      "PRP Amount",
+      "JO_No",
+      "JO_Date",
+      "PRP variant NO",
+      "PRP scrap Item code"
+    ],
+    "Columns": [
+      {
+        "SourceHeader": "Transaction Type",
+        "CanonicalField": "transaction_type",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "Store Code",
+        "CanonicalField": "store_code",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "Store SAP code",
+        "CanonicalField": "store_sap_code",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "store type",
+        "CanonicalField": "store_type",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "Channel",
+        "CanonicalField": "channel",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "city",
+        "CanonicalField": "city",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "State",
+        "CanonicalField": "state",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "Region",
+        "CanonicalField": "region",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PRP DOC NO",
+        "CanonicalField": "prp_doc_no",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PRP DOC DATE",
+        "CanonicalField": "prp_doc_date",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PRP Amount",
+        "CanonicalField": "prp_amount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "JO_No",
+        "CanonicalField": "jo_no",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "JO_Date",
+        "CanonicalField": "jo_date",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PRP variant NO",
+        "CanonicalField": "prp_variant_no",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PRP scrap Item code",
+        "CanonicalField": "prp_scrap_item_code",
+        "DataType": "Identifier",
+        "IsRequired": false
+      }
+    ]
+  },
+  {
+    "FamilyCode": "R027",
+    "ReportCode": "R027",
+    "Name": "PRP STM",
+    "IsTyped": false,
+    "TableName": "etp_landing_r027",
+    "PrimaryDateHeader": "PRP DOC DATE",
+    "Headers": [
+      "warehouse",
+      "Store SAP code",
+      "store type",
+      "Channel",
+      "city",
+      "State",
+      "Region",
+      "PRP DOC NO",
+      "PRP DOC DATE",
+      "PRP variant NO",
+      "PRP Amount",
+      "ETP INVOICE NO",
+      "ETP INVOICE DATE",
+      "PRP Amount Redeemed",
+      "Stock Reciept Doc No",
+      "Stock Reciept Doc Date",
+      "Reciept Scrap Item code",
+      "RECEIPT Scrap Item Value",
+      "STM/Purchase Return doc no",
+      "STM/Purchase Return doc  Date",
+      "STM Scrap Item code",
+      "STM Scrap Item Value",
+      "STM courier doc no",
+      "STM Courier Doc Date"
+    ],
+    "Columns": [
+      {
+        "SourceHeader": "warehouse",
+        "CanonicalField": "warehouse",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "Store SAP code",
+        "CanonicalField": "store_sap_code",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "store type",
+        "CanonicalField": "store_type",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "Channel",
+        "CanonicalField": "channel",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "city",
+        "CanonicalField": "city",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "State",
+        "CanonicalField": "state",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "Region",
+        "CanonicalField": "region",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PRP DOC NO",
+        "CanonicalField": "prp_doc_no",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PRP DOC DATE",
+        "CanonicalField": "prp_doc_date",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PRP variant NO",
+        "CanonicalField": "prp_variant_no",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PRP Amount",
+        "CanonicalField": "prp_amount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ETP INVOICE NO",
+        "CanonicalField": "etp_invoice_no",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ETP INVOICE DATE",
+        "CanonicalField": "etp_invoice_date",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PRP Amount Redeemed",
+        "CanonicalField": "prp_amount_redeemed",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "Stock Reciept Doc No",
+        "CanonicalField": "stock_reciept_doc_no",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "Stock Reciept Doc Date",
+        "CanonicalField": "stock_reciept_doc_date",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "Reciept Scrap Item code",
+        "CanonicalField": "reciept_scrap_item_code",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "RECEIPT Scrap Item Value",
+        "CanonicalField": "receipt_scrap_item_value",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STM/Purchase Return doc no",
+        "CanonicalField": "stm_purchase_return_doc_no",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STM/Purchase Return doc  Date",
+        "CanonicalField": "stm_purchase_return_doc_date",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STM Scrap Item code",
+        "CanonicalField": "stm_scrap_item_code",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STM Scrap Item Value",
+        "CanonicalField": "stm_scrap_item_value",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STM courier doc no",
+        "CanonicalField": "stm_courier_doc_no",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STM Courier Doc Date",
+        "CanonicalField": "stm_courier_doc_date",
+        "DataType": "Date",
+        "IsRequired": false
+      }
+    ]
+  },
+  {
+    "FamilyCode": "R028",
+    "ReportCode": "R028",
+    "Name": "SOR Sales",
+    "IsTyped": false,
+    "TableName": "etp_landing_r028",
+    "PrimaryDateHeader": "INVDATE",
+    "Headers": [
+      "STORE CODE",
+      "STORE NAME",
+      "STORE TYPE",
+      "CHANNEL",
+      "REGION",
+      "STATE",
+      "CITY",
+      "ITEMNUMBER",
+      "BRAND",
+      "BRANDNAME",
+      "CLUSTER",
+      "GENDER",
+      "INVNUMBER",
+      "INVDATE",
+      "QTY",
+      "UCP",
+      "GROSSUCP",
+      "SCH_DISCOUNT",
+      "NETGROSS",
+      "PRE_DISCOUNT",
+      "NETAMOUNT",
+      "HSN CODE",
+      "TAX",
+      "CSGT %",
+      "CSGT VALUE",
+      "SGST/UTGST %",
+      "SGST/UTGST VALUE",
+      "IGST %",
+      "IGST VALUE",
+      "NETVALUE",
+      "PURINVNO",
+      "PURINVDATE",
+      "PURPRICE",
+      "INVOICEREFERENCENUMBER"
+    ],
+    "Columns": [
+      {
+        "SourceHeader": "STORE CODE",
+        "CanonicalField": "store_code",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORE NAME",
+        "CanonicalField": "store_name",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORE TYPE",
+        "CanonicalField": "store_type",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CHANNEL",
+        "CanonicalField": "channel",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REGION",
+        "CanonicalField": "region",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STATE",
+        "CanonicalField": "state",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CITY",
+        "CanonicalField": "city",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ITEMNUMBER",
+        "CanonicalField": "itemnumber",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "BRAND",
+        "CanonicalField": "brand",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "BRANDNAME",
+        "CanonicalField": "brandname",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CLUSTER",
+        "CanonicalField": "cluster",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "GENDER",
+        "CanonicalField": "gender",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVNUMBER",
+        "CanonicalField": "invnumber",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVDATE",
+        "CanonicalField": "invdate",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "QTY",
+        "CanonicalField": "qty",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "UCP",
+        "CanonicalField": "ucp",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "GROSSUCP",
+        "CanonicalField": "grossucp",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "SCH_DISCOUNT",
+        "CanonicalField": "sch_discount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "NETGROSS",
+        "CanonicalField": "netgross",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PRE_DISCOUNT",
+        "CanonicalField": "pre_discount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "NETAMOUNT",
+        "CanonicalField": "netamount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "HSN CODE",
+        "CanonicalField": "hsn_code",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TAX",
+        "CanonicalField": "tax",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CSGT %",
+        "CanonicalField": "csgt",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CSGT VALUE",
+        "CanonicalField": "csgt_value",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "SGST/UTGST %",
+        "CanonicalField": "sgst_utgst",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "SGST/UTGST VALUE",
+        "CanonicalField": "sgst_utgst_value",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "IGST %",
+        "CanonicalField": "igst",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "IGST VALUE",
+        "CanonicalField": "igst_value",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "NETVALUE",
+        "CanonicalField": "netvalue",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PURINVNO",
+        "CanonicalField": "purinvno",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PURINVDATE",
+        "CanonicalField": "purinvdate",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PURPRICE",
+        "CanonicalField": "purprice",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVOICEREFERENCENUMBER",
+        "CanonicalField": "invoicereferencenumber",
+        "DataType": "Identifier",
+        "IsRequired": false
+      }
+    ]
+  },
+  {
+    "FamilyCode": "R029",
+    "ReportCode": "R029",
+    "Name": "Transactionwise Bank",
+    "IsTyped": true,
+    "TableName": "etp_r029",
+    "PrimaryDateHeader": "TRANS_DATE",
+    "Headers": [
+      "STORE CODE",
+      "STORE NAME",
+      "BANKDEPOSITNO",
+      "INVOICEYEAR",
+      "TRANS_TYPE",
+      "INVOICENUMBER",
+      "TRANS_DATE",
+      "BANKEDAMOUNT",
+      "BANKEDDATE"
+    ],
+    "Columns": [
+      {
+        "SourceHeader": "STORE CODE",
+        "CanonicalField": "store_code",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORE NAME",
+        "CanonicalField": "store_name",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "BANKDEPOSITNO",
+        "CanonicalField": "bankdepositno",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVOICEYEAR",
+        "CanonicalField": "invoice_year",
+        "DataType": "Integer",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TRANS_TYPE",
+        "CanonicalField": "trans_type",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVOICENUMBER",
+        "CanonicalField": "invoicenumber",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TRANS_DATE",
+        "CanonicalField": "trans_date",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "BANKEDAMOUNT",
+        "CanonicalField": "bankedamount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "BANKEDDATE",
+        "CanonicalField": "bankeddate",
+        "DataType": "Date",
+        "IsRequired": false
+      }
+    ]
+  },
+  {
+    "FamilyCode": "R030",
+    "ReportCode": "STOCK_LEDGER",
+    "Name": "Variant Stock Ledger",
+    "IsTyped": true,
+    "TableName": "etp_r030",
+    "PrimaryDateHeader": "DOCUMENTDATE",
+    "Headers": [
+      "TRANS_TYPE",
+      "STORE CODE",
+      "STORE NAME",
+      "ITEMNUMBER",
+      "HSN CODE",
+      "BRAND",
+      "BRANDNAME",
+      "CLUSTER",
+      "GENDER",
+      "DOCUMENTNUMBER",
+      "DOCUMENTDATE",
+      "FROM LOCATION",
+      "TO LOCATION",
+      "REF_DOCUMENTNUMBER",
+      "REF_DOCUMENTDATE",
+      "OPENING_QTY",
+      "TRANS_QTY",
+      "CLOSING_QTY",
+      "CITY",
+      "STATE",
+      "LOCATION"
+    ],
+    "Columns": [
+      {
+        "SourceHeader": "TRANS_TYPE",
+        "CanonicalField": "source_transaction_type",
+        "DataType": "Text",
+        "IsRequired": true
+      },
+      {
+        "SourceHeader": "STORE CODE",
+        "CanonicalField": "store_code",
+        "DataType": "Identifier",
+        "IsRequired": true
+      },
+      {
+        "SourceHeader": "STORE NAME",
+        "CanonicalField": "store_name",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ITEMNUMBER",
+        "CanonicalField": "product_code",
+        "DataType": "Identifier",
+        "IsRequired": true
+      },
+      {
+        "SourceHeader": "HSN CODE",
+        "CanonicalField": "hsn_code",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "BRAND",
+        "CanonicalField": "brand",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "BRANDNAME",
+        "CanonicalField": "brandname",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CLUSTER",
+        "CanonicalField": "cluster",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "GENDER",
+        "CanonicalField": "gender",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "DOCUMENTNUMBER",
+        "CanonicalField": "document_number",
+        "DataType": "Identifier",
+        "IsRequired": true
+      },
+      {
+        "SourceHeader": "DOCUMENTDATE",
+        "CanonicalField": "document_date",
+        "DataType": "Date",
+        "IsRequired": true
+      },
+      {
+        "SourceHeader": "FROM LOCATION",
+        "CanonicalField": "from_location",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TO LOCATION",
+        "CanonicalField": "to_location",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REF_DOCUMENTNUMBER",
+        "CanonicalField": "ref_documentnumber",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REF_DOCUMENTDATE",
+        "CanonicalField": "ref_documentdate",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "OPENING_QTY",
+        "CanonicalField": "opening_quantity",
+        "DataType": "Decimal",
+        "IsRequired": true
+      },
+      {
+        "SourceHeader": "TRANS_QTY",
+        "CanonicalField": "transaction_quantity",
+        "DataType": "Decimal",
+        "IsRequired": true
+      },
+      {
+        "SourceHeader": "CLOSING_QTY",
+        "CanonicalField": "closing_quantity",
+        "DataType": "Decimal",
+        "IsRequired": true
+      },
+      {
+        "SourceHeader": "CITY",
+        "CanonicalField": "city",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STATE",
+        "CanonicalField": "state",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "LOCATION",
+        "CanonicalField": "location",
+        "DataType": "Text",
+        "IsRequired": false
+      }
+    ]
+  },
+  {
+    "FamilyCode": "R031",
+    "ReportCode": "R031",
+    "Name": "SDB VariantwiseSales OMNI",
+    "IsTyped": false,
+    "TableName": "etp_landing_r031",
+    "PrimaryDateHeader": "INVDATE",
+    "Headers": [
+      "TRANS_TYPE",
+      "STORE CODE",
+      "STORENAME",
+      "STORETYPE",
+      "CHANNEL",
+      "REGION",
+      "CITY",
+      "ITEMNUMBER",
+      "HSNCODE",
+      "BRAND",
+      "BRANDNAME",
+      "CLUSTER",
+      "GENDER",
+      "INVNUMBER",
+      "INVDATE",
+      "QTY",
+      "UCP",
+      "GROSSUCP",
+      "SCH_DISCOUNTS",
+      "NETGROSS",
+      "PRE_DISCOUNTS",
+      "NETAMOUNT",
+      "SGST/UTGST %",
+      "SGST/UTGST VALUE",
+      "CSGT %",
+      "CSGT VALUE",
+      "IGST %",
+      "IGST VALUE",
+      "TAX",
+      "NETVALUE",
+      "INVREFNO",
+      "INVREFDATE",
+      "CUSTOMERNAME",
+      "CONTACTNO",
+      "ULPNUMBER",
+      "STORETIMESTAMP",
+      "ETPADVORDER",
+      "ETPADVDATE",
+      "ORDERTYPE",
+      "OCSHIPMENTNO"
+    ],
+    "Columns": [
+      {
+        "SourceHeader": "TRANS_TYPE",
+        "CanonicalField": "trans_type",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORE CODE",
+        "CanonicalField": "store_code",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORENAME",
+        "CanonicalField": "storename",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORETYPE",
+        "CanonicalField": "storetype",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CHANNEL",
+        "CanonicalField": "channel",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "REGION",
+        "CanonicalField": "region",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CITY",
+        "CanonicalField": "city",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ITEMNUMBER",
+        "CanonicalField": "itemnumber",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "HSNCODE",
+        "CanonicalField": "hsncode",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "BRAND",
+        "CanonicalField": "brand",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "BRANDNAME",
+        "CanonicalField": "brandname",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CLUSTER",
+        "CanonicalField": "cluster",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "GENDER",
+        "CanonicalField": "gender",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVNUMBER",
+        "CanonicalField": "invnumber",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVDATE",
+        "CanonicalField": "invdate",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "QTY",
+        "CanonicalField": "qty",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "UCP",
+        "CanonicalField": "ucp",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "GROSSUCP",
+        "CanonicalField": "grossucp",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "SCH_DISCOUNTS",
+        "CanonicalField": "sch_discounts",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "NETGROSS",
+        "CanonicalField": "netgross",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PRE_DISCOUNTS",
+        "CanonicalField": "pre_discounts",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "NETAMOUNT",
+        "CanonicalField": "netamount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "SGST/UTGST %",
+        "CanonicalField": "sgst_utgst",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "SGST/UTGST VALUE",
+        "CanonicalField": "sgst_utgst_value",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CSGT %",
+        "CanonicalField": "csgt",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CSGT VALUE",
+        "CanonicalField": "csgt_value",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "IGST %",
+        "CanonicalField": "igst",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "IGST VALUE",
+        "CanonicalField": "igst_value",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "TAX",
+        "CanonicalField": "tax",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "NETVALUE",
+        "CanonicalField": "netvalue",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVREFNO",
+        "CanonicalField": "invrefno",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "INVREFDATE",
+        "CanonicalField": "invrefdate",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CUSTOMERNAME",
+        "CanonicalField": "customer_name",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CONTACTNO",
+        "CanonicalField": "customer_phone",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ULPNUMBER",
+        "CanonicalField": "ulpnumber",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORETIMESTAMP",
+        "CanonicalField": "storetimestamp",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ETPADVORDER",
+        "CanonicalField": "etpadvorder",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ETPADVDATE",
+        "CanonicalField": "etpadvdate",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ORDERTYPE",
+        "CanonicalField": "ordertype",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "OCSHIPMENTNO",
+        "CanonicalField": "ocshipmentno",
+        "DataType": "Identifier",
+        "IsRequired": false
+      }
+    ]
+  },
+  {
+    "FamilyCode": "SOR_AGEING",
+    "ReportCode": "SOR_AGEING",
+    "Name": "SOR Ageing",
+    "IsTyped": false,
+    "TableName": "etp_landing_sor_ageing",
+    "PrimaryDateHeader": null,
+    "Headers": [
+      "STORE CODE",
+      "STORE NAME",
+      "ITEMNUMBER",
+      "HSN CODE",
+      "BRAND",
+      "BRANDNAME",
+      "CLUSTER",
+      "GENDER",
+      "GR_NUMBER",
+      "PURCHASEINVNO",
+      "PURCHASEINVDT",
+      "AVAILABLE_STK",
+      "NUMBEROFDAYS"
+    ],
+    "Columns": [
+      {
+        "SourceHeader": "STORE CODE",
+        "CanonicalField": "store_code",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "STORE NAME",
+        "CanonicalField": "store_name",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "ITEMNUMBER",
+        "CanonicalField": "itemnumber",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "HSN CODE",
+        "CanonicalField": "hsn_code",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "BRAND",
+        "CanonicalField": "brand",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "BRANDNAME",
+        "CanonicalField": "brandname",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CLUSTER",
+        "CanonicalField": "cluster",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "GENDER",
+        "CanonicalField": "gender",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "GR_NUMBER",
+        "CanonicalField": "gr_number",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PURCHASEINVNO",
+        "CanonicalField": "purchaseinvno",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "PURCHASEINVDT",
+        "CanonicalField": "purchaseinvdt",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "AVAILABLE_STK",
+        "CanonicalField": "available_stk",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "NUMBEROFDAYS",
+        "CanonicalField": "numberofdays",
+        "DataType": "Decimal",
+        "IsRequired": false
+      }
+    ]
+  }
+]

@@ -12,7 +12,7 @@ public sealed record CellConversionResult(object? Value, string? ErrorCode = nul
 
 public sealed class TypedCellConverter
 {
-    private static readonly string[] DateFormats = ["yyyy-MM-dd", "yyyyMMdd", "dd/MM/yyyy", "dd-MM-yyyy", "yyyy/MM/dd"];
+    private static readonly string[] DateFormats = ["yyyy-MM-dd", "yyyyMMdd", "dd/MM/yyyy", "dd-MM-yyyy", "yyyy/MM/dd", "d-MMM-yyyy", "dd MMM yyyy", "d MMM yy"];
 
     public CellConversionResult Convert(object? source, CanonicalDataType target, bool isRequired)
     {
@@ -46,7 +46,12 @@ public sealed class TypedCellConverter
 
     private static CellConversionResult ConvertIdentifier(object source)
     {
-        var value = source is string s ? s.Trim() : System.Convert.ToString(source, CultureInfo.InvariantCulture)?.Trim();
+        var value = source switch
+        {
+            string s => s.Trim(),
+            decimal d => d.ToString("0.############################", CultureInfo.InvariantCulture),
+            _ => System.Convert.ToString(source, CultureInfo.InvariantCulture)?.Trim()
+        };
         return string.IsNullOrEmpty(value)
             ? CellConversionResult.Failure("VALUE_REQUIRED", "An identifier cannot be empty.")
             : CellConversionResult.Success(value);
@@ -62,6 +67,7 @@ public sealed class TypedCellConverter
     {
         int i => CellConversionResult.Success(i),
         long l => CellConversionResult.Success(l),
+        decimal d when d == decimal.Truncate(d) => CellConversionResult.Success(checked((long)d)),
         _ => CellConversionResult.Success(long.Parse(source.ToString()!.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture))
     };
 
@@ -71,6 +77,10 @@ public sealed class TypedCellConverter
         if (source is DateTime dateTime) return CellConversionResult.Success(DateOnly.FromDateTime(dateTime));
         if (DateOnly.TryParseExact(source.ToString()!.Trim(), DateFormats, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed))
             return CellConversionResult.Success(parsed);
+        if (source is decimal or double or float or int or long &&
+            double.TryParse(System.Convert.ToString(source, CultureInfo.InvariantCulture), NumberStyles.Float,
+                CultureInfo.InvariantCulture, out var serial) && serial > 0 && serial < 2958466)
+            return CellConversionResult.Success(DateOnly.FromDateTime(DateTime.FromOADate(serial)));
         throw new FormatException();
     }
 
@@ -89,6 +99,6 @@ public sealed class TypedCellConverter
     {
         byte value => value == 0, short value => value == 0, int value => value == 0,
         long value => value == 0, float value => value == 0, double value => value == 0,
-        decimal value => value == 0, _ => false
+        decimal value => value == 0, string value => value.Trim() == "0", _ => false
     };
 }
