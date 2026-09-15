@@ -38,6 +38,9 @@ public sealed record ImportRowOutcome(
 public interface IImportPersistenceUseCase<TAcceptedImport> where TAcceptedImport : notnull
 {
     Task<bool> ExistsByHashAsync(string sourceSha256, CancellationToken cancellationToken = default);
+    Task<bool> ExistsInScopeAsync(string sourceSha256, string reportCode, string storeCode,
+        DateOnly periodStart, DateOnly periodEnd, CancellationToken cancellationToken = default) =>
+        ExistsByHashAsync(sourceSha256, cancellationToken);
     Task<long?> FindCurrentImportFileIdAsync(
         string reportCode,
         string storeCode,
@@ -47,4 +50,7 @@ public interface IImportPersistenceUseCase<TAcceptedImport> where TAcceptedImpor
         ImportPersistenceRequest<TAcceptedImport> request,
         CancellationToken cancellationToken = default);
     Task<ImportRowOutcome> LoadOutcomeByHashAsync(string sourceSha256, CancellationToken cancellationToken = default);
+    Task<ImportRowOutcome> LoadOutcomeInScopeAsync(string sourceSha256, string reportCode, string storeCode,
+        DateOnly periodStart, DateOnly periodEnd, CancellationToken cancellationToken = default) =>
+        LoadOutcomeByHashAsync(sourceSha256, cancellationToken);
 }
