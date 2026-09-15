@@ -96,6 +96,8 @@ Two things are the owner's to settle before merge, and neither is a defect in Co
 
 **D11 — tick the tender modes.** The evidence from the two-year Helios corpus, computed independently from the Payment Type Report:
 
+**Owner clarification — 15 September 2026:** CN means Credit Note. Gift Card must have its own **Gift Card** category; Cheque / RTGS must use **Bank**. These supersede the proposed TC mappings below. This records the reporting decision; implementation of these corrections remains to be verified. Other proposed mappings are not newly approved by this clarification.
+
 | Source column | AGENCYNAME | Non-zero rows | Corpus total | Proposed mode |
 |---|---|---:|---:|---|
 | PAYMENTTYPE20 | PHONEPE | 381 | 5,702,087 | UPI |
