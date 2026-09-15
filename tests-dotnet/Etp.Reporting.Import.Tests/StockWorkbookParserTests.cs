@@ -1,4 +1,5 @@
 using Etp.Reporting.Import.Diagnostics;
+using Etp.Reporting.Import.Preflight;
 using Etp.Reporting.Import.Profiles;
 using Etp.Reporting.Import.Stock;
 using Etp.Reporting.Import.Workbooks;
@@ -8,6 +9,34 @@ namespace Etp.Reporting.Import.Tests;
 public sealed class StockWorkbookParserTests
 {
     private const string Hash = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+    [Theory]
+    [InlineData("INV", -1)]
+    [InlineData("SR", 1)]
+    [InlineData("BC", 1)]
+    [InlineData("Purchase Return", -1)]
+    [InlineData("Purchase Receipt", 1)]
+    [InlineData("STM Issue", -1)]
+    [InlineData("STM Receipt", 1)]
+    [InlineData("STM Dispatch", -1)]
+    [InlineData("Stock Issue", -1)]
+    [InlineData("Stock Receipt", 1)]
+    public void Every_approved_stock_type_stages_and_preserves_signed_movements_including_cancellation_receipts(string type, int quantity)
+    {
+        var signedQuantity = (decimal)quantity;
+        var values = new object?[] { type, "STORE", "Sample Store", "ITEM", "HSN", "BR", "Sample Brand", "Cluster", "U",
+            "DOC", new DateTime(2026, 8, 25), null, "RETAILBIN", null, null, 8m, signedQuantity, 8m + signedQuantity, "City", "State", "Location" };
+        var accepted = new MatchedImportEnvelopeFactory().RequireAccepted(Book(StockImportProfiles.VariantStockLedgerHeaders, values));
+        var staged = Assert.Single(accepted.Staging.Rows);
+        Assert.Equal(signedQuantity, staged.Values["transaction_quantity"]);
+        var result = new StockWorkbookParser().Parse(accepted);
+        Assert.False(result.HasBlockers);
+        Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Code == "UNKNOWN_STOCK_TRANSACTION_TYPE");
+        var movement = Assert.Single(result.Movements);
+        Assert.Equal(type, movement.SourceTransactionType);
+        Assert.Equal(signedQuantity, movement.TransactionQuantity);
+        Assert.Equal(8m + signedQuantity, movement.ClosingQuantity);
+    }
 
     [Fact]
     public void Ledger_profile_preserves_source_sign_and_exact_lineage()
