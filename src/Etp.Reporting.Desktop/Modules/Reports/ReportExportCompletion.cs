@@ -20,7 +20,7 @@ public partial class ReportsWorkspaceView
                 ? exportCoordinator.ExportReportPdfAsync(temporary, report.ExportMetadata!, report.ExportData!, report.VisualReport, report.DailySalesReport, progress.Token)
                 : exportCoordinator.ExportReportExcelAsync(temporary, report.ExportMetadata!, report.ExportData!, report.VisualReport, progress.Token), progress.Token);
             if (revision == reportRevision) ReportResult.Text = $"{format} report saved to {path}";
-            try { await auditRecorder(pdf ? "ExportPdf" : "ExportExcel", "Succeeded", $"{report.ReportCode}: report exported"); }
+            try { await auditRecorder(pdf ? "ExportPdf" : "ExportExcel", "Succeeded", "Report exported"); }
             catch (Exception ex)
             {
                 DesktopDiagnostics.Record(ex, "Reports.Workspace", "REPORT_EXPORT_AUDIT_FAILED");

@@ -102,6 +102,42 @@ public sealed class ReportsRequestOrderingTests
         });
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Successful_export_records_only_privacy_safe_detail(bool pdf)
+    {
+        RunSta(async () =>
+        {
+            var exporter = new DeferredExport();
+            var view = CreateView(new DeferredTrendQuery(), [], exporter);
+            var recorded = new List<(string Kind, string Outcome, string Detail)>();
+            view.AttachHost(_ => true, (kind, outcome, detail) =>
+            {
+                if (detail.Length > 200 || detail.IndexOfAny([':', '/', '\\']) >= 0 || detail.Any(char.IsDigit))
+                    throw new ArgumentException("Audit details must not contain paths or identifiers.", nameof(detail));
+                recorded.Add((kind, outcome, detail));
+                return Task.CompletedTask;
+            }, (_, _, _) => { }, _ => { }, _ => { });
+            var path = Path.Combine(Path.GetTempPath(), "etp-test-" + Guid.NewGuid().ToString("N") + (pdf ? ".pdf" : ".xlsx"));
+            try
+            {
+                await view.RunReportAsync("sales-titan");
+                exporter.Completion.SetResult();
+                await view.ExportReportToPathAsync(path, pdf);
+
+                Assert.True(File.Exists(path));
+                Assert.Equal((pdf ? "ExportPdf" : "ExportExcel", "Succeeded", "Report exported"),
+                    Assert.Single(recorded, entry => entry.Kind.StartsWith("Export", StringComparison.Ordinal)));
+                var status = ((TextBlock)view.FindName("ReportResult")).Text;
+                Assert.Contains("report saved to", status);
+                Assert.DoesNotContain("Activity history could not be updated", status);
+                Assert.DoesNotContain("export failed", status);
+            }
+            finally { if (File.Exists(path)) File.Delete(path); }
+        });
+    }
+
     [Fact]
     public void Saved_file_is_not_reported_as_failed_when_activity_history_fails()
     {
