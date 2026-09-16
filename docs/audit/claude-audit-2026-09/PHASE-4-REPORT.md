@@ -1,5 +1,139 @@
 # Phase 4 — Security and operations
 
+## 16 September 2026 integration remediation
+
+Current branch: `integration/phase-2-3-4-fixes`, based on `origin/phase-3/touch-shell` and merged with `origin/phase-4/security-operations`. The original implementation report below is historical; this section supersedes its integration and automation-default statements. Nothing is marked closed; Claude re-audits and Sagar merges. No live shop database was migrated.
+
+### Integration and write model
+
+The chosen model is narrow SQL procedures for protected facts, import lifecycle changes and Phase 1/2 source/master mutations. Store Managers retain the existing Phase 0 import bookkeeping grants, but receive no blanket writer role or new direct fact/master DML. Phase 1 enrichment, staff seeding, typed family rows, retained-document links and duplicate classification now use procedures. The latest fix prompt explicitly requires a Store Manager brand edit; this is a narrow exception for brand rows, with Viewer rejection and Owner-only staff/tender/target administration retained.
+
+This model keeps one SQL authorization boundary even when a caller bypasses the desktop. The 32 static family procedures append typed source rows and their manifests only inside an open import transaction. Automatic superset promotion independently compares typed source values instead of trusting supplied content keys, preserves canonical fact IDs/amounts, and rebinds their lineage. Committing immediately after promotion cannot delete existing facts. Corrective restatement and legacy files without manifests remain Owner-only. The UI now opens the actual brand editor for Managers; monthly-target saving and other administration remain Owner-only.
+
+Migration `0022` is immutable and fails before a later migration can run. `SqlServerMigrationStore` therefore recognises its exact original checksum and, only when `0020` is journalled and the retired table is absent, creates a minimal empty compatibility object in the same transaction. The original SQL runs unchanged, then the object is dropped before journal commit. A failed migration rolls the object and permissions back. The new `0025` extends the procedure boundary; no committed migration was edited or reordered. Tests cover fresh setup, Phase 3-first and Phase 4-first upgrades, journal preservation, rerun idempotence, and forced `0022` failure/retry.
+
+### Returned Phase 4 items
+
+| Item | Change / remaining evidence |
+| --- | --- |
+| P4-1 / work item 1a | Transactional compatibility bridge plus new migration, with all four bootstrap/upgrade tests passing. |
+| P4-2 / work item 1b | Procedure-based cross-phase import and brand edit; restricted-connection folder, duplicate, promotion and denial tests provide the acceptance evidence below. |
+| P4-3 | Sagar delegated the choice during this fix session. Selected `<machine>\EtpAutomation`, non-admin, S4U. Folder setup defaults to its required access and writes the protected configuration. `-CreateAutomationAccount` provisions a missing account with an unrecorded random password; explicit `-GrantAutomationFolderAccess:$false` retains strict mode. Task installation still requires elevation, signing and operational SQL prerequisites. |
+| P4-4 | New `0026` accepts numeric details only as bounded aggregate-count messages, including `3 files imported`. Paths, invoice-shaped identifiers and phone-sized digit strings remain blocked in the client and SQL. SQL-stamped actors and append-only triggers are unchanged. PDF/Excel completion now emits the safe static detail `Report exported`; its old colon-bearing detail was rejected and omitted from database history by the host audit wrapper. Both formats have completion regressions. |
+| P4-5 | INSTALL and CI now use `Encrypt=Optional`. Test connection setup preserves that spelling before validation because SqlClient can serialise it as `False`. Connection policy itself is unchanged. |
+| P4-6 | `Invoke-EtpFunctionAudit.ps1` resolves the shared ACL-checked absolute sqlcmd path and retains `-x`. The live resolver selected `C:\Program Files\Microsoft SQL Server\Client SDK\ODBC\170\Tools\Binn\SQLCMD.EXE`. |
+
+### Shop folder evidence — still blocked by elevation
+
+Read-only verification confirmed machine `DESKTOP-6IBM1J5`, account `DESKTOP-6IBM1J5\Sagar`, and a non-elevated token. `EtpAutomation` does not yet exist. The selected account is not a claim of successful provisioning.
+
+Commands run:
+
+```powershell
+icacls 'C:\ProgramData\EtpReporting'
+icacls 'C:\ProgramData\EtpReporting\Backups'
+icacls 'C:\ProgramData\EtpReporting\Documents'
+Test-Path -LiteralPath 'C:\ProgramData\EtpReporting\Share'
+```
+
+Before evidence (the same two Users entries occur on the root, Backups and Documents):
+
+```text
+BUILTIN\Users:(I)(OI)(CI)(RX)
+BUILTIN\Users:(I)(CI)(WD,AD,WEA,WA)
+Share exists: False
+```
+
+Attempted `Start-Process` of the prepared ACL evidence script with `-Verb RunAs -WindowStyle Hidden`. Windows returned **“The operation was canceled by the user.”** No setup process ran, no account was created, and no after evidence is claimed. A4.2 remains unmet. The prepared wrapper is `%TEMP%\EtpPhase234AclEvidence\apply-folder-protection.ps1`; it checks the actual SQL service identity, captures before/after `icacls`, provisions only the chosen account, invokes setup and reads back the protected configuration. Run the reviewed setup from an elevated PowerShell session:
+
+```powershell
+& 'C:\Codex\Reporting Manger\phase234-integration-fixes\scripts\initialize-etp-operation-folders.ps1' `
+    -SqlServiceIdentity 'NT SERVICE\MSSQL$SQLEXPRESS' -CreateAutomationAccount
+```
+
+The original high exposure is therefore still present on the PC. Staff Documents/Share access has not been broadened to compensate.
+
+### Executed checks
+
+Final shared gate after all code fixes: Debug and Release solution builds both passed with **0 warnings, 0 errors**. The full Release suite passed with **830 passed, 0 failed, 3 opt-in skips**. The Phase 3 fixture capture was executed separately and passed; the two pre-existing Phase 4 opt-in render/full-window cases were not rerun in this final gate. The private-corpus tests ran, rather than skipping. Only new migrations `0025` and `0026` differ from the merged baseline; the master plan is unchanged.
+
+```powershell
+dotnet build Etp.Reporting.slnx -c Debug --no-restore --nologo --verbosity minimal
+dotnet build Etp.Reporting.slnx -c Release --no-restore --nologo --verbosity minimal
+dotnet test Etp.Reporting.slnx -c Release --no-build --verbosity minimal
+```
+
+```text
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Passed!  - Failed:     0, Passed:    12, Skipped:     0, Total:    12, Duration: 132 ms - Etp.Reporting.Domain.Tests.dll (net10.0)
+Passed!  - Failed:     0, Passed:    63, Skipped:     0, Total:    63, Duration: 1 s - Etp.Reporting.Reporting.Tests.dll (net10.0)
+Passed!  - Failed:     0, Passed:   236, Skipped:     0, Total:   236, Duration: 5 s - Etp.Reporting.SqlServer.Tests.dll (net10.0)
+Passed!  - Failed:     0, Passed:   110, Skipped:     0, Total:   110, Duration: 32 s - Etp.Reporting.Import.Tests.dll (net10.0)
+Passed!  - Failed:     0, Passed:   350, Skipped:     2, Total:   352, Duration: 34 s - Etp.Reporting.Desktop.Tests.dll (net10.0)
+Passed!  - Failed:     0, Passed:    59, Skipped:     1, Total:    60, Duration: 2 m 57 s - Etp.Reporting.SqlServer.IntegrationTests.dll (net10.0)
+```
+
+The final console logs are retained outside the repository under `%TEMP%\EtpPhase234Final`. Earlier focused checks follow.
+
+```powershell
+dotnet build Etp.Reporting.slnx -c Release --nologo -v minimal
+dotnet test tests-dotnet/Etp.Reporting.SqlServer.IntegrationTests -c Release --filter FullyQualifiedName~CrossPhaseMigrationTests --logger 'console;verbosity=minimal' --nologo
+dotnet test tests-dotnet/Etp.Reporting.SqlServer.IntegrationTests -c Release --filter 'FullyQualifiedName~AggregateAuditSqlTests|FullyQualifiedName~PhaseFourSecurityTests' --logger 'console;verbosity=minimal' --nologo
+dotnet test tests-dotnet/Etp.Reporting.SqlServer.Tests -c Release --filter 'FullyQualifiedName~OperationalAuditRepositoryTests|FullyQualifiedName~PhaseFourBoundaryTests|FullyQualifiedName~Migration' --logger 'console;verbosity=minimal' --nologo
+```
+
+```text
+Build succeeded. 0 Warning(s), 0 Error(s).
+Passed!  - Failed:     0, Passed:     4, Skipped:     0, Total:     4, Duration: 5 s - Etp.Reporting.SqlServer.IntegrationTests.dll (net10.0)
+Passed!  - Failed:     0, Passed:     7, Skipped:     0, Total:     7, Duration: 1 s - Etp.Reporting.SqlServer.IntegrationTests.dll (net10.0)
+Passed!  - Failed:     0, Passed:    61, Skipped:     0, Total:    61, Duration: 186 ms - Etp.Reporting.SqlServer.Tests.dll (net10.0)
+```
+
+Ran `& scripts/test-etp-operations-boundaries.ps1 -Scenario <name>` for TargetAliases, BackupReceipts, CertificateCustody, CertificateBinding, Retention, Paths, ProtectedInstall and AtomicReceipts: all eight succeeded, 190 assertions. Both changed PowerShell scripts parsed without errors. A direct Windows PowerShell test-harness invocation was blocked by that host's execution policy; the existing workspace PowerShell host executed the same scenarios successfully. No machine execution policy was changed.
+
+Cross-phase acceptance and adversarial verification:
+
+```powershell
+dotnet test tests-dotnet/Etp.Reporting.SqlServer.IntegrationTests/Etp.Reporting.SqlServer.IntegrationTests.csproj --filter 'FullyQualifiedName~CrossPhaseStoreManagerImportTests|FullyQualifiedName~PhaseOneImportSqlTests|FullyQualifiedName~StaffImportNameSqlTests|FullyQualifiedName~ScopedImportDuplicateSqlTests|FullyQualifiedName~PhaseFourSecurityTests' --no-restore --verbosity minimal -p:BuildProjectReferences=false --logger 'trx;LogFileName=cross-phase-write-boundary.trx'
+dotnet test tests-dotnet/Etp.Reporting.SqlServer.IntegrationTests/Etp.Reporting.SqlServer.IntegrationTests.csproj --filter FullyQualifiedName~CrossPhaseStoreManagerImportTests --no-restore --verbosity minimal -p:BuildProjectReferences=false --logger 'trx;LogFileName=cross-phase-restricted-roles.trx'
+dotnet test tests-dotnet/Etp.Reporting.SqlServer.IntegrationTests/Etp.Reporting.SqlServer.IntegrationTests.csproj -c Release --no-restore --filter 'FullyQualifiedName~AggregateAuditSqlTests|FullyQualifiedName~CrossPhaseMigrationTests' --verbosity minimal --logger 'trx;LogFileName=phase234-audit-migrations.trx'
+```
+
+```text
+Passed!  - Failed:     0, Passed:    20, Skipped:     0, Total:    20, Duration: 2 m 22 s - Etp.Reporting.SqlServer.IntegrationTests.dll (net10.0)
+Passed!  - Failed:     0, Passed:     5, Skipped:     0, Total:     5, Duration: 19 s - Etp.Reporting.SqlServer.IntegrationTests.dll (net10.0)
+Passed!  - Failed:     0, Passed:     5, Skipped:     0, Total:     5, Duration: 7 s - Etp.Reporting.SqlServer.IntegrationTests.dll (net10.0)
+```
+
+`CrossPhaseStoreManagerImportTests` bootstraps the complete migration set, imports a real folder containing all 32 sanitised XLSX families, retains document links, repeats the folder as duplicates, and saves a brand row through the repository. A test-only SQL diagnostic observer covers every connection to that generated database and verifies the Manager role, absence of Owner/db_owner/db_datawriter/sysadmin, and impersonation inside every command. It also checks Viewer rejection, SQL error 229 for direct fact mutations, locked dates, copied-key tampering, immediate commit after promotion, and equivalent 7/07 state codes. No production identity hook was added.
+
+A separate fresh read-only security review identified a full-width-digit bypass in the first draft of `0026`. The final migration preserves collation-aware identifier detection and uses the narrower ASCII grammar only for allowed count messages. The SQL regression rejects `Invoice１２３` and `３ files imported` as Viewer while accepting legitimate aggregate counts. A suspected state-code regression was withdrawn after the reviewer inspected the existing normalization; both R018/R019 cases pass. The migration bridge, Manager brand exception, Owner-only target control and folder initializer had no further supported findings in that review.
+
+The desktop brand route also has real-control tests for Manager/Owner/Viewer behavior, late role assignment and revocation. Role changes refresh button state, and action handlers recheck access before writing. This caught and corrected an embedded editor created before its initial Owner session was assigned.
+
+```powershell
+dotnet test tests-dotnet/Etp.Reporting.Desktop.Tests/Etp.Reporting.Desktop.Tests.csproj -c Release --no-restore --filter 'FullyQualifiedName~EveningMastersAccessTests|FullyQualifiedName~TaskNavigationTests|FullyQualifiedName~ShellNavigationServiceTests|FullyQualifiedName~UiNavigationTests' --verbosity minimal --logger 'trx;LogFileName=brand-access-navigation.trx'
+dotnet test tests-dotnet/Etp.Reporting.SqlServer.Tests/Etp.Reporting.SqlServer.Tests.csproj -c Release --no-restore --verbosity minimal --logger 'trx;LogFileName=phase234-sql-unit.trx'
+```
+
+```text
+Passed!  - Failed:     0, Passed:    56, Skipped:     0, Total:    56, Duration: 891 ms - Etp.Reporting.Desktop.Tests.dll (net10.0)
+Passed!  - Failed:     0, Passed:   236, Skipped:     0, Total:   236, Duration: 1 s - Etp.Reporting.SqlServer.Tests.dll (net10.0)
+```
+
+Remaining owner/deployment gates: compatible production SQL edition for native encrypted backups, purchased code-signing certificate, encrypted recovery/custody on a second machine, elevated live ACL setup, task installation/run evidence, and native/DPI audit. The validated day lock, connection policy, append-only audit triggers, certificate design, signing and backup rotation were not refactored.
+
+---
+
+## Original Phase 4 implementation record
+
 Branch: `phase-4/security-operations`, from `main` at `9a028a4`. This is the coding implementation; the shop deployment and Claude's acceptance audit are outstanding. All SQL verification uses uniquely named disposable databases. No shop database migration, existing folder ACL change, task installation, certificate export or production signing was performed.
 
 ## 1. What changed

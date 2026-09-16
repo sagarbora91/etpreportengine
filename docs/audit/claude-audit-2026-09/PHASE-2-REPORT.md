@@ -62,11 +62,25 @@ Passed!  - Failed:     0, Passed:     2, Skipped:     0, Total:     2, Duration:
 
 This private-corpus run verifies the unchanged real six-report figures and the new owner-confirmed per-CRO golden.
 
+After visual review, the Cash Book/CRO detail-grid correction was verified with:
+
+```powershell
+dotnet test tests-dotnet/Etp.Reporting.Desktop.Tests/Etp.Reporting.Desktop.Tests.csproj --no-restore --filter 'FullyQualifiedName~EveningReportInteractionTests|FullyQualifiedName~Phase3ShellTests.Table_columns_format_dates_amounts_and_identifiers_without_losing_rows' -v minimal
+```
+
+```text
+Passed!  - Failed:     0, Passed:    16, Skipped:     0, Total:    16, Duration: 3 s - Etp.Reporting.Desktop.Tests.dll (net10.0)
+```
+
 ## Visual evidence and limits
 
-The interaction tests instantiate the real WPF report workspace, execute report loading and inspect the visible row collection and scope selection. The shared application launch and shell verification are recorded in `PHASE-3-REPORT.md`. Native screenshot capture in this session hit an operating-system capture failure; these behavioural tests are not claimed as replacement screenshots at 1366×768 and 816×480. The Cash Book, Customer-wise Invoices and CRO screens still require that screenshot evidence during re-audit. No phase is closed on the strength of the tests alone.
+The interaction tests instantiate the real WPF report workspace, execute report loading and inspect the visible row collection and scope selection. Visual review then caught Cash Book's detail grid exposing `DataRowView` infrastructure properties instead of its actual columns. The correction preserves the table schema during filtering, including empty results, and uses typed date/money cells. Rendered regression assertions inspect the actual column headings and displayed date, store, debit/credit, Indian-grouped amounts and missing-value cells. Staff/CRO detail headings now explicitly say Unique invoices, AUPT and ATV.
+
+The actual composed shell against a disposable synthetic database is rendered in [Cash Book](phase-3-fix-screenshots/Cash-1366x728-wpf.png), [Customer-wise Invoices](phase-3-fix-screenshots/Customer-invoices-1366x728-wpf.png) and [Staff/CRO](phase-3-fix-screenshots/Staff-CRO-1366x728-wpf.png), with compact counterparts in the same folder. The shared application launch and shell verification are recorded in `PHASE-3-REPORT.md`. Native screenshot capture hit an operating-system capture failure; the WPF client-area images at 1366×728 and 816×440 are not claimed as native screen captures at 1366×768 and 816×480. Native/DPI and shop-staff touch acceptance remain for re-audit. No phase is closed on the strength of the tests alone.
 
 ## Acceptance and remaining owner items
+
+The final shared gate passed Debug and Release solution builds with zero warnings/errors, then `dotnet test Etp.Reporting.slnx -c Release --no-build --verbosity minimal`: **830 passed, 0 failed, 3 opt-in skipped**. Private-corpus cases ran successfully. Full commands and project summary lines are in `PHASE-4-REPORT.md`; the sanitised and private Phase 2 focused results above remain the specific numeric evidence.
 
 | Criterion | Self-assessment for re-audit |
 |---|---|

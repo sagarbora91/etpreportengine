@@ -17,13 +17,21 @@ Branch: `integration/phase-2-3-4-fixes`. No item is marked closed; Claude re-aud
 | Lower priority | Density values and persisted output are Touch/Desktop; the converter accepts old numeric values and Comfortable/Compact names. DSR matrix headings expose Level2. The shell route registry is now only a small legacy destination-to-module map, with screen information in TaskNavigation. | Legacy/current density round trips, a rendered DSR heading assertion, and existing navigation/access/history/help tests pass. |
 | Compact report review | Both date pickers and Refresh stay visible; the existing Actions menu contains exports. The detail search label moves beside its field and the compact table removes its top gap. | At 816×440 a complete 44 DIP Cash row is inside the scrolling viewport, with search, variance and details available. Tests also verify export dispatch and invalidation after a date change. |
 
-The changes are split into commits `f3abf67`, `bd05c70`, `f2a8d6b` and `d261268`, followed by this evidence update. Financial calculations were not changed by these Phase 3 fixes.
+The changes are split into commits `f3abf67`, `bd05c70`, `f2a8d6b` and `d261268`, followed by evidence updates. The full solution build also caught stale density-enum references in `tools/Etp.Reporting.UiSmoke`; these now use Touch/Desktop and no longer invoke the deleted drawer handler. Financial calculations were not changed by these Phase 3 fixes.
 
 The footer deliberately uses the audit's one-line-plus-hidden-count option, preserving the 28 DIP footer and 652 DIP content area. This is the proposed interpretation of the plan's “up to three lines” requirement; it is not a claim that an expanding three-line footer, or its acceptance, has been verified.
 
 The integration correction also exposes the existing brand editor to Store Managers through a narrow `masters` route exception. Monthly targets and other administration routes remain Owner-only; SQL permissions enforce the same distinction. The displayed master workspace now uses the evening brand/target editor. Its integration tests and commit are recorded in the Phase 4 report.
 
 ## Commands and results
+
+The final shared solution gate after the smoke-tool compatibility fix passed both Debug and Release builds with zero warnings/errors. `dotnet test Etp.Reporting.slnx -c Release --no-build --verbosity minimal` passed **830 tests, 0 failed, 3 opt-in skipped**. The final Desktop summary is:
+
+```text
+Passed!  - Failed:     0, Passed:   350, Skipped:     2, Total:   352, Duration: 34 s - Etp.Reporting.Desktop.Tests.dll (net10.0)
+```
+
+The fixture capture was run separately and passed. Full commands and all six project summaries are recorded in `PHASE-4-REPORT.md`; earlier focused checks follow.
 
 ```text
 dotnet build src/Etp.Reporting.Desktop/Etp.Reporting.Desktop.csproj -c Release --no-restore --verbosity quiet
