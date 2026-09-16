@@ -80,3 +80,27 @@ All six reports exist, are wired to real repository queries and are reachable fr
 ## 7. Cleanup
 
 Audit database `EtpPhase1Test_ClaudeP3` created and dropped. Live `EtpReporting` re-checked read-only afterwards: **490 invoices, 16 migrations**, unchanged. `settings.json` unchanged (SHA-256 `5A58FC54…`). The application instance I launched was closed. No source, test or migration file was modified. Codex's own `EtpPhase1Test_RawAcceptance` and `EtpPhase1Test_UiReview` were left alone.
+
+---
+
+## 8. Addendum — verification completed 16 September 2026
+
+The first pass left two Phase 2 items unexecuted. Both are now done.
+
+**A2.4 upgraded from PARTIAL to PASS.** I exported the DSR for 25 August from the running application to both formats and inspected the files.
+
+The workbook is correct on every point the criterion asks for: a single sheet named "Daily Sales Report" with **no Executive Summary**, **78 real numeric cells** carrying number styles, the plan's exact Indian grouping format `[>=10000000]##\,##\,##\,##0.00;[>=100000]##\,##\,##0.00;##,##0.00` together with its integer variant, `dd mmm yyyy` as a date format, percentages formatted as `0.00"%"` so they are shown once rather than multiplied, a frozen pane at row 8 and an autofilter over `A8:I60`. **Zero `?` characters** in any cell, and the em dash renders.
+
+The PDF is a two-page A4 document embedding **two Segoe UI subsets**, one regular and one bold, so the em dash and rupee glyphs have real font data behind them rather than falling back to a question mark.
+
+The one caveat from the first pass stands: the font is read from `%WINDIR%\Fonts` at export time rather than shipped with the application, so a machine without Segoe UI throws. That is audit finding D14 and it is still open.
+
+I inspected the file contents rather than opening them in Excel and Acrobat. For an OOXML package that is the stronger check, but if you want the literal "opens in Excel with no complaint" evidence, that remains a two-minute manual step.
+
+**The CRO-wise report verified live.** Opened for Titan, 1 to 25 August. The status line reads **"Passed: recorded 938,197.00, attributed 938,197.00, variance 0.00. R013 attributed sales reconcile to canonical R025 sales."** Four of the six staff rows match your photographed sheet to the rupee. The two that differ, by 2,075 and 33,590, sum to exactly 35,665 — the invoice missing from the 20:50 export. The report is right for the file.
+
+**Two new observations.**
+
+*P2-6 — the cash book cannot open on the default scope.* It requires a single store, but the header opens on "Both stores" and the screen shows "Report not ready — Select a store: Choose Titan World or Helios in the header." A staff member reaching Today → Cash gets an empty screen and has to know to change the header first. The message says what to do, but the default state of the shop's most-used evening screen should not be an error.
+
+*P2-7 — per-CRO ATV and UPT are defined differently from your sheet.* The application computes them per CRO from quantity and transaction count. Your sheet shows UPT 1.00 for nearly every CRO where the app shows 0.95 to 1.37, and your total UPT of 1.11 uses a different denominator again. This is the same class of question as the invoice-count rule in A2.1 and needs the same treatment: pick one definition and write it into the plan.
