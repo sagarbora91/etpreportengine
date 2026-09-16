@@ -144,3 +144,38 @@ So A4.5 as written, "a session that imported the real files", is **unreachable u
 | A4.6 | PASS | **PASS**, now with the test run behind it |
 
 The verdict does not change. Phase 4 stays reopened on the merge blocker, and the folder permissions move to the top of the list because they are exploitable today and cost nothing to fix.
+
+---
+
+## 9. Addendum — direct source reading, 16 September 2026
+
+Read the worktree source, migrations, scripts and tests first-hand rather than through a summary. Two things confirmed, one sharpened considerably.
+
+### The merge blocker is larger and better defined than section 4 said
+
+Section 4 estimated "roughly 35 tables". The exact figure, counted from the migrations:
+
+**Phases 1 to 3 create 39 tables. All 39 have no write grant from Phase 4.** The only schema-wide grant is `GRANT SELECT ON SCHEMA::dbo`, so a Store Manager would be able to read every ETP family table, landing table and master, and write to none of them. There is no grant on `etp_r025`, `etp_r013`, `etp_r020`, the sixteen `etp_landing_*` tables, `tender_modes`, `staff`, `monthly_targets`, `brand_rows` or `brand_row_codes`.
+
+The cause is an architectural mismatch, not an oversight in a list:
+
+- **Phase 4 assumes writes go through stored procedures.** It denies direct DML on the sensitive tables and grants `EXECUTE` on narrow procedures instead: `DENY INSERT,UPDATE,DELETE ON dbo.sales_line_enrichments TO etp_store_manager` with `GRANT EXECUTE ON dbo.persist_sales_enrichment` as the sanctioned path, and the same pattern for `sales_lines` via `persist_sales_line`.
+- **Phase 1's importer does direct DML and calls no procedure at all.** Its persistence class issues `MERGE dbo.staff` and `INSERT dbo.sales_line_enrichments` directly, and contains **zero** `EXEC dbo.` calls.
+
+So the two halves of the product disagree about how writes reach the database. Closing this is not a matter of adding 39 grants; it is a decision about which model wins, and then either extending the grant surface or routing Phase 1's writes through procedures.
+
+### Why a green test suite did not catch it
+
+`Staff_permissions_reject_fact_edits_spoofed_audit_and_owner_operations_but_preserve_imports` looks like exactly the test that should have found this. Reading it, the "preserve imports" half writes to `import_batches`, `import_files` and `source_lineage` and then calls `EXEC dbo.persist_sales_line`. Every one of those is a **Phase 0** object, and the write goes through the sanctioned procedure.
+
+The test is correct and proves something real: the Phase 0 import path survives the least-privilege model. It cannot prove anything about the Phase 1 path, because none of those tables exists on this branch. That is the whole reason the suite is green here and the product would break after a merge.
+
+The fix that would actually catch it is the one named in section 4: run a real folder import and a master edit **as a Store Manager** against a database carrying migrations 0017 to 0024 alongside 0021 to 0023. Until that test exists, a green Phase 4 suite says nothing about the merged product.
+
+### Confirmed by direct reading
+
+**The connection boundary is enforced everywhere, not just in settings.** Every `new SqlConnection(...)` in the infrastructure layer passes through `LocalSqlConnectionPolicy.Validate`. The only two exceptions build a `master` connection string derived from a string that was already validated on the line above. The policy inspects the raw supplied spelling of `Encrypt` before SqlClient canonicalises `False` and `Optional` to the same value, which is the subtle part and is done correctly and commented. It also caps the connect timeout at five seconds, matching the Phase 0 fix. `tcp:`, bare remote hostnames, attached files, user instances, failover partners and any stored credential are all rejected.
+
+**The day-lock trigger is sound on every path I could think to attack.** It blocks moving a locked day to another store or date, blocks deleting it, and for a reopen requires `etp_owner` membership, a target status of exactly `OPEN`, and a reason that is non-empty after tabs, newlines and carriage returns are stripped. A multi-row update where any one row lacks a reason fails the whole statement. The reopening event is written in the same statement with the actor taken from `SUSER_SNAME()`, and a second trigger prevents forging that event separately. A transition to any status other than `OPEN` is rejected by the reason check rather than slipping through.
+
+Neither of these changes the verdict. They are recorded because the phase deserves the credit: the parts that are right are right for good reasons, and the blocker is a boundary problem between phases rather than a defect inside this one.
