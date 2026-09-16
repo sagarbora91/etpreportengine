@@ -32,7 +32,7 @@ internal static class ThemeControlAudit
         if(picker.SelectedDate!=expected.AddDays(1)) throw new InvalidOperationException("Calendar selection not reflected in field");
         var status=new StatusDetailsDialog(null,"Synthetic operational failure.\n\n"+string.Join("\n",Enumerable.Range(1,20).Select(index=>$"Detail line {index}: the original operation result is retained.")));
         Program.Render(status,Path.Combine(output,"status-details-360x280.png"),360,280);
-        var report=new ReportWorkspaceControl(ReportWorkspaceRegistry.ForReport("invoice")); report.SelectReport("invoice");report.ConfigureTaskScope("Titan");
+        var report=new ReportWorkspaceControl(ReportWorkspaceDefinition.ForReport("invoice")); report.SelectReport("invoice");report.ConfigureTaskScope("Titan");
         var scopeDialog=new Etp.Reporting.Desktop.Modules.Reports.ReportScopeDialog(report);
         Program.Render(scopeDialog,Path.Combine(output,"report-scope-400x370.png"),400,370);
         File.WriteAllText(Path.Combine(output,"controls.json"),JsonSerializer.Serialize(new { result="PASS", method="WPF component events and offscreen bounds, full App resources. Not physical input or installed UI acceptance.", dateParsed=true, selectionUpdatesDate=true, dayCount=days.Length, minimumDayWidth=days.Min(day=>day.ActualWidth), minimumDayHeight=days.Min(day=>day.ActualHeight), calendarButtonWidth=button.ActualWidth,calendarButtonHeight=button.ActualHeight,timestamp=DateTimeOffset.UtcNow }));

@@ -11,8 +11,8 @@
     <Thickness x:Key="PagePadding">24</Thickness>
     <Thickness x:Key="CardPadding">18</Thickness>
     <Thickness x:Key="SectionSpacing">0,16,0,0</Thickness>
-    <sys:Double x:Key="TouchTargetHeight">48</sys:Double>
-    <sys:Double x:Key="CompactTargetHeight">34</sys:Double>
-    <sys:Double x:Key="ComfortableGridRowHeight">46</sys:Double>
-    <sys:Double x:Key="CompactGridRowHeight">30</sys:Double>
+    <sys:Double x:Key="TouchTargetHeight">44</sys:Double>
+    <sys:Double x:Key="CompactTargetHeight">36</sys:Double>
+    <sys:Double x:Key="ComfortableGridRowHeight">44</sys:Double>
+    <sys:Double x:Key="CompactGridRowHeight">36</sys:Double>
 </ResourceDictionary>

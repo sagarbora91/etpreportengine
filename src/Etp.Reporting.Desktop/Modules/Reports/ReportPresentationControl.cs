@@ -79,6 +79,7 @@ public static class ReportVisualPresenter
             Margin = new Thickness(0, 8, 0, 0),
             HeadersVisibility = DataGridHeadersVisibility.All
         };
+        TablePresentation.Configure(grid);
         AutomationProperties.SetName(grid, "Report detail rows; Enter opens selected source details");
         void OpenDetails() { if (grid.SelectedItem is { } row) showDetails?.Invoke(row); }
         grid.MouseDoubleClick += (_, _) => OpenDetails();

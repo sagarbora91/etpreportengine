@@ -108,7 +108,7 @@ public partial class DailyWorkflowWorkspaceView : UserControl
         {
             var item = StoreInput.Items.OfType<ComboBoxItem>()
                 .FirstOrDefault(candidate => string.Equals(candidate.Content?.ToString(), value, StringComparison.OrdinalIgnoreCase));
-            if (item is not null) StoreInput.SelectedItem = item;
+            StoreInput.SelectedItem = item;
         }
     }
 
@@ -138,6 +138,7 @@ public partial class DailyWorkflowWorkspaceView : UserControl
 
     public async Task RefreshAsync()
     {
+        if (string.IsNullOrWhiteSpace(StoreCode)) { WorkflowStatus.Text = "Choose a store"; WorkflowStatus.SetResourceReference(TextBlock.ForegroundProperty,"SecondaryText"); Publish("Choose Titan World or Helios in the header."); return; }
         var revision = ++refreshRevision;
         try
         {
@@ -163,14 +164,21 @@ public partial class DailyWorkflowWorkspaceView : UserControl
 
     public async Task SaveManualInputAsync()
     {
+        if (string.IsNullOrWhiteSpace(ManualValueInput.Text)) { Publish(cashInputsMode ? "Enter the amount" : "Enter the walk-in count"); ManualValueInput.Focus(); return; }
+        if (string.IsNullOrWhiteSpace(StoreCode)) { Publish("Choose Titan World or Helios in the header."); return; }
+        if (string.IsNullOrWhiteSpace(ManualReasonInput.Text))
+        {
+            if (cashInputsMode) { Publish("Enter a reason for this cash entry"); ManualReasonInput.Focus(); return; }
+            ManualReasonInput.Text = "Daily count";
+        }
         if (!BeginOperation()) return;
         try
         {
             RequireImportAccess();
-            await commandsFactory(connectionString()).SaveManualInputAsync(
-                presentation.CreateManualInput(
+            var command = presentation.CreateManualInput(
                     SelectedScope(), ManualFieldInput.SelectedValue as string, ManualValueInput.Text,
-                    Environment.UserName, ManualReasonInput.Text, CultureInfo.CurrentCulture));
+                    Environment.UserName, ManualReasonInput.Text, CultureInfo.CurrentCulture);
+            await commandsFactory(connectionString()).SaveManualInputAsync(command);
             InvalidatePack();
             ManualValueInput.Clear();
             ManualReasonInput.Clear();
@@ -230,20 +238,22 @@ public partial class DailyWorkflowWorkspaceView : UserControl
     public async Task FinaliseDayAsync()
     {
         if (!BeginOperation()) return;
+        using var progress = new OperationProgress(this, "Preparing daily report pack");
         try
         {
             RequireImportAccess();
             var scope = SelectedScope();
-            var pack = await packGeneratorFactory(connectionString()).GenerateAsync(scope, Environment.UserName);
+            var pack = await packGeneratorFactory(connectionString()).GenerateAsync(scope, Environment.UserName, progress.Token);
             ShowPack(pack.Document, pack.Sections, new(scope.BusinessDate, scope.StoreCode));
             await commandsFactory(connectionString()).FinaliseAsync(
-                DailyWorkflowPresentationSession.CreateFinalise(scope, Environment.UserName, pack.Sections));
+                DailyWorkflowPresentationSession.CreateFinalise(scope, Environment.UserName, pack.Sections), progress.Token);
             InvalidatePack();
             await recordAuditAsync("DayFinalised", "Succeeded", "Business day finalised");
             Publish("Business day finalised and dashboard readiness refreshed.");
             await RefreshAsync();
             await RelayDashboardRefreshAsync();
         }
+        catch (OperationCanceledException) { Publish("Cancellation requested. Refresh day status before retrying."); }
         catch (Exception exception) { PublishFailure(exception, "DAY_FINALISE_FAILED", "Day was not finalised", "Owner or Store Manager permission is required."); }
         finally { EndOperation(); }
     }
@@ -272,15 +282,17 @@ public partial class DailyWorkflowWorkspaceView : UserControl
     public async Task GenerateDailyPackAsync()
     {
         if (!BeginOperation()) return;
+        using var progress = new OperationProgress(this, "Preparing daily report pack");
         try
         {
             RequireViewAccess();
             var scope = SelectedScope();
-            var pack = await packGeneratorFactory(connectionString()).GenerateAsync(scope, Environment.UserName);
+            var pack = await packGeneratorFactory(connectionString()).GenerateAsync(scope, Environment.UserName, progress.Token);
             ShowPack(pack.Document, pack.Sections, new(scope.BusinessDate, scope.StoreCode));
             Publish(DailyWorkflowPresentationSession.PackReady(pack.Status, pack.Message, pack.GenerationNumber, pack.ContentSha256));
             await recordAuditAsync("ReportPack", pack.Status == DailyControlStatus.Passed ? "Succeeded" : "Failed", "Daily report pack");
         }
+        catch (OperationCanceledException) { Publish("Cancellation requested. Refresh day status before retrying."); }
         catch (Exception exception) { PublishFailure(exception, "DAILY_PACK_GENERATION_FAILED", "Daily report pack failed", "This Windows account does not have application access."); }
         finally { EndOperation(); }
     }
@@ -288,12 +300,13 @@ public partial class DailyWorkflowWorkspaceView : UserControl
     public async Task GenerateCombinedDailyPackAsync()
     {
         if (!BeginOperation()) return;
+        using var progress = new OperationProgress(this, "Preparing daily report pack");
         try
         {
             RequireViewAccess();
             if (BusinessDateInput.SelectedDate is null) throw new InvalidOperationException("Select the ETP business date.");
             var date = DateOnly.FromDateTime(BusinessDateInput.SelectedDate.Value);
-            var document = await packGeneratorFactory(connectionString()).GenerateCombinedAsync(date, Environment.UserName);
+            var document = await packGeneratorFactory(connectionString()).GenerateCombinedAsync(date, Environment.UserName, progress.Token);
             ShowPack(document, document.Tables.Select(table => new
                 { Report = table.Name, Status = table.Status, Rows = table.Data.Rows.Count, table.Message }), new(date, null));
             Publish($"{document.OverallStatus}: {document.Message} The export contains {document.Tables.Count:N0} report sections.");
@@ -301,6 +314,7 @@ public partial class DailyWorkflowWorkspaceView : UserControl
                 string.Equals(document.OverallStatus, "Passed", StringComparison.OrdinalIgnoreCase) ? "Succeeded" : "Failed",
                 "Combined daily report pack");
         }
+        catch (OperationCanceledException) { Publish("Cancellation requested. Refresh day status before retrying."); }
         catch (Exception exception) { PublishFailure(exception, "COMBINED_PACK_GENERATION_FAILED", "Combined daily report pack failed", "This Windows account does not have application access."); }
         finally { EndOperation(); }
     }
@@ -335,9 +349,9 @@ public partial class DailyWorkflowWorkspaceView : UserControl
         InputStatus.Text = state.InputStatus;
         ManualInputsGrid.ItemsSource = state.ManualInputs;
         var selectedField = ManualFieldInput.SelectedValue;
-        ManualFieldInput.ItemsSource = state.ManualInputs;
-        ManualFieldInput.SelectedValue = selectedField;
-        if (ManualFieldInput.SelectedIndex < 0 && state.ManualInputs.Count > 0) ManualFieldInput.SelectedIndex = 0;
+        ManualFieldInput.ItemsSource = cashInputsMode ? state.ManualInputs.Where(input => input.FieldCode != "WALK_INS").ToArray() : state.ManualInputs;
+        ManualFieldInput.SelectedValue = walkinsMode ? "WALK_INS" : selectedField;
+        if (ManualFieldInput.SelectedIndex < 0 && state.ManualInputs.Count > 0) ManualFieldInput.SelectedValue = cashInputsMode ? "OPENING_CASH" : state.ManualInputs.FirstOrDefault(x => x.FieldCode.Contains("WALK", StringComparison.OrdinalIgnoreCase))?.FieldCode ?? state.ManualInputs[0].FieldCode;
         StockCountsGrid.ItemsSource = state.StockCounts;
         stateAllowsFinalise = state.CanFinalise;
         RefreshAccessState();
@@ -422,8 +436,8 @@ public partial class DailyWorkflowWorkspaceView : UserControl
     private async void SaveManualInput_Click(object sender, RoutedEventArgs e) => await SaveManualInputAsync();
     private async void SaveStockCount_Click(object sender, RoutedEventArgs e) => await SaveStockCountAsync();
     private async void SaveStaffTarget_Click(object sender, RoutedEventArgs e) => await SaveStaffTargetAsync();
-    private async void FinaliseDay_Click(object sender, RoutedEventArgs e) => await FinaliseDayAsync();
-    private async void ReopenDay_Click(object sender, RoutedEventArgs e) => await ReopenDayAsync();
+    private async void FinaliseDay_Click(object sender, RoutedEventArgs e) { if (ConfirmationSheet.Show(this, "Finalise day", $"Lock {StoreCode} for {BusinessDate:dd MMM yyyy}? Changes require reopening.")) await FinaliseDayAsync(); }
+    private async void ReopenDay_Click(object sender, RoutedEventArgs e) { if (ConfirmationSheet.Show(this, "Reopen day", $"Allow corrections for {StoreCode} on {BusinessDate:dd MMM yyyy}?")) await ReopenDayAsync(); }
     private async void GenerateDailyPack_Click(object sender, RoutedEventArgs e) => await GenerateDailyPackAsync();
     private async void GenerateCombinedDailyPack_Click(object sender, RoutedEventArgs e) => await GenerateCombinedDailyPackAsync();
     private void Scope_Changed(object sender, SelectionChangedEventArgs e)
@@ -456,14 +470,17 @@ public partial class DailyWorkflowWorkspaceView : UserControl
             AddExtension = true
         };
         if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
+        using var progress = new OperationProgress(this,"Saving report pack");
         packExportInProgress = true;
         RefreshAccessState();
         try
         {
-            if (excel) await exportPackExcelAsync(dialog.FileName, currentPack); else await exportPackPdfAsync(dialog.FileName, currentPack);
+            var document = currentPack;
+            await Reports.ExportStaging.WriteAsync(dialog.FileName, temporary => excel ? exportPackExcelAsync(temporary, document) : exportPackPdfAsync(temporary, document), progress.Token);
             Publish($"Complete {(excel ? "multi-sheet" : "paginated")} report pack saved to {dialog.FileName}");
             await recordAuditAsync(excel ? "ExportExcel" : "ExportPdf", "Succeeded", "Complete report pack exported");
         }
+        catch (OperationCanceledException) { Publish("Export cancelled. The destination file was unchanged."); }
         catch (Exception exception) { PublishFailure(exception, "REPORT_PACK_EXPORT_FAILED", $"Report-pack {format} export failed", "This Windows account does not have application access."); }
         finally { packExportInProgress = false; RefreshAccessState(); }
     }

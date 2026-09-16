@@ -18,7 +18,7 @@
             <Expander x:Name="ImportOptionsExpander" Header="Source and restatement options" Margin="0,0,0,8" automation:AutomationProperties.Name="Source and restatement options">
                 <StackPanel>
             <TextBox x:Name="WorkbookPathInput" IsReadOnly="True" Padding="8" Margin="0,0,0,8" automation:AutomationProperties.Name="Selected import source"/>
-            <CheckBox x:Name="RestatementModeInput" Content="Override for restatement (Owner)" Checked="RestatementMode_Changed" Unchecked="RestatementMode_Changed" MinHeight="32" automation:AutomationProperties.Name="Override for restatement"/>
+            <CheckBox x:Name="RestatementModeInput" Content="Override for restatement (Owner)" Checked="RestatementMode_Changed" Unchecked="RestatementMode_Changed" MinHeight="{DynamicResource ActiveTargetHeight}" automation:AutomationProperties.Name="Override for restatement"/>
             <TextBlock Text="Overrides can fill a missing store or date. Values already detected in the file must match; a corrected file is required to change them." TextWrapping="Wrap" Margin="0,0,0,8"/>
             <WrapPanel x:Name="OverridePanel" Visibility="Collapsed" Margin="0,0,0,8">
                 <TextBlock Text="Store override" VerticalAlignment="Center" Margin="0,0,6,0"/>
@@ -29,7 +29,7 @@
             </WrapPanel>
                 </StackPanel>
             </Expander>
-            <DataGrid x:Name="BatchResultsGrid" AutoGenerateColumns="False" IsReadOnly="True" MinHeight="160" MaxHeight="300" RowHeight="36" SelectionMode="Single" SelectionChanged="Result_SelectionChanged" HorizontalScrollBarVisibility="Auto" automation:AutomationProperties.Name="Per-file import results">
+            <DataGrid x:Name="BatchResultsGrid" AutoGenerateColumns="False" IsReadOnly="True" MinHeight="160" MaxHeight="300" RowHeight="{DynamicResource ActiveGridRowHeight}" SelectionMode="Single" SelectionChanged="Result_SelectionChanged" HorizontalScrollBarVisibility="Auto" automation:AutomationProperties.Name="Per-file import results">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="File" Binding="{Binding FileName}" Width="250"/>
                     <DataGridTextColumn Header="Result" Binding="{Binding Status}" Width="130"/>

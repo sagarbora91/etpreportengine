@@ -4,7 +4,7 @@
              xmlns:automation="clr-namespace:System.Windows.Automation;assembly=PresentationCore"
              automation:AutomationProperties.Name="Report archive and sharing workspace">
     <StackPanel>
-        <TextBlock Text="Immutable report-generation archive" FontSize="18" FontWeight="SemiBold"/>
+        <TextBlock Text="saved report-generation archive" FontSize="18" FontWeight="SemiBold"/>
         <TextBlock Text="Open, compare and re-export prior generated packs. SHA-256 integrity is verified before an archived document is displayed."
                    Margin="0,6,0,10" Foreground="#5D6873" TextWrapping="Wrap"/>
         <WrapPanel>

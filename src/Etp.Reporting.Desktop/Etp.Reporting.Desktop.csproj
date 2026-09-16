@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -11,6 +11,7 @@
     <Company>Saagar Traders</Company>
     <Description>ETP sales, tender and stock reporting for Windows.</Description>
     <Copyright>Copyright © 2026 Saagar Traders</Copyright>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\EtpReporting.ico</ApplicationIcon>
   </PropertyGroup>
 

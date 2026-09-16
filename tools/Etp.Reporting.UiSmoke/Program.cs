@@ -18,11 +18,13 @@ internal static class Program
         var output = Path.GetFullPath(args.Length > 0 ? args[0] : "output/uiux-v4");
         Directory.CreateDirectory(output);
         var app = new App();
+        PresentationCulture.Initialize();
         app.InitializeComponent();
         if (args.Contains("--controls")) { ThemeControlAudit.Run(output); return; }
         if (args.Contains("--fixture-exports")) { FixtureReportAudit.Run(output,args[^1], exportsOnly: true); return; }
         if (args.Contains("--fixture-reports")) { FixtureReportAudit.Run(output,args[^1]); return; }
-        var window = DesktopCompositionRoot.CreateDefault().CreateMainWindow();
+        if (!args.Contains("--connection-string")) throw new ArgumentException("Provide --connection-string for an isolated review database; default live settings are never used.");
+        var window = DesktopCompositionRoot.CreateForArguments(args).CreateMainWindow();
         window.Width = 1366;
         window.Height = 768;
         if (args.Contains("--inventory"))
@@ -35,15 +37,14 @@ internal static class Program
         if (args.Contains("--tasks")) { AuditTasks(window, output); return; }
         Render(window, Path.Combine(output, "01-welcome-1366x768.png"), 1366, 768);
         SetAccess(window, AccessRole.StoreManager, "Store Manager");
-        ((TextBlock)window.FindName("AccessStatus")).Text = "Store Manager — Store Manager";
         Invoke(window, "CompleteWelcomeState");
         ((FrameworkElement)window.FindName("WelcomeOverlay")).Visibility = Visibility.Collapsed;
-        Invoke(window, "ShowModuleHome");
+        Invoke(window, "OpenSection", "Today", null!);
         Render(window, Path.Combine(output, "02-module-home-1366x768.png"), 1366, 768);
         Invoke(window, "NavigateToDestination", "Sales Reports");
         Render(window, Path.Combine(output, "03-reports-1366x768.png"), 1366, 768);
         Render(window, Path.Combine(output, "04-reports-960x600.png"), 960, 600);
-        Invoke(window, "ShowModuleHome");
+        Invoke(window, "OpenSection", "Today", null!);
         Render(window, Path.Combine(output, "05-module-home-1920x1080.png"), 1920, 1080);
         Invoke(window, "ApplyDensity", UiDensity.Compact, false);
         Render(window, Path.Combine(output, "06-module-home-compact-1366x768.png"), 1366, 768);
@@ -63,7 +64,7 @@ internal static class Program
         var routeOutput = Path.Combine(output, "all-workspace-routes");
         Directory.CreateDirectory(routeOutput);
         var renderedDestinations = 0;
-        foreach (var destination in WorkspaceModuleOwnershipRegistry.Destinations.Select(x => x.Destination).Distinct(StringComparer.Ordinal))
+        foreach (var destination in ShellRouteRegistry.All.Select(x => x.Destination).Distinct(StringComparer.Ordinal))
         {
             if (Invoke(window, "NavigateToDestination", destination) is not true)
                 throw new InvalidOperationException($"Executable workspace route was denied during owner audit: {destination}.");
@@ -83,7 +84,7 @@ internal static class Program
             Render(window, Path.Combine(routeOutput, $"report-{Slug(report.Code)}-1920x1080.png"), 1920, 1080);
             renderedReports++;
         }
-        if (renderedReports != WorkspaceModuleOwnershipRegistry.ReportRoutes.Count)
+        if (renderedReports != TaskNavigation.All.Count(x => x.ReportCode is not null))
             throw new InvalidOperationException("Rendered report-route count does not match the executable registry.");
         var named = Descendants((DependencyObject)window.Content).OfType<FrameworkElement>().Count(x => !string.IsNullOrWhiteSpace(AutomationProperties.GetName(x)));
         Console.WriteLine($"Rendered 11 baseline views, {renderedDestinations} workspace routes and {renderedReports} report routes at three sizes (960x600, 1366x768, 1920x1080), 96-DPI offscreen renders only. Accessible named elements: {named:N0}. Output: {output}");
@@ -140,23 +141,18 @@ internal static class Program
         }
         var overviews = new List<object>();
         Invoke(window, "CloseDrawer"); Invoke(window, "ApplyDensity", UiDensity.Comfortable, false);
-        foreach (var module in TaskNavigation.All.Where(task => task.Available && task.Section != "overview").GroupBy(task => task.Module))
-        foreach (var category in new string?[] { null }.Concat(module.Select(task => task.Category).Distinct()))
+        foreach (var section in TaskNavigation.Sections)
         {
-            var route = new WorkspaceRoute(module.First().Destination, TaskId: category is null ? "overview:" + module.Key : "category:" + module.Key + ":" + category);
-            navigator.DisplayTaskRoute(route);
-            var name = Slug(module.Key + "-" + (category ?? "overview"));
-            Render(window, Path.Combine(output, "overview-" + name + "-1000x600.png"), 1000, 600);
-            var scroll = ((ContentControl)window.FindName("FocusedWorkspaceHost")).Content as ScrollViewer;
-            overviews.Add(new { module = module.Key, category, verticalOverflow = scroll is not null && scroll.ExtentHeight > scroll.ViewportHeight + 1,
-                extent = scroll?.ExtentHeight, viewport = scroll?.ViewportHeight, method = "Direct composition bounds at 1000x600 DIP, 96 DPI" });
-            Render(window, Path.Combine(output, "overview-" + name + "-800x440.png"), 800, 440);
+            Invoke(window,"OpenSection",section,null!);
+            Render(window,Path.Combine(output,"section-"+Slug(section)+"-1366x768.png"),1366,768);
+            Render(window,Path.Combine(output,"section-"+Slug(section)+"-816x480.png"),816,480);
+            overviews.Add(new { section, method="Offscreen section composition; physical touch acceptance remains separate" });
         }
         File.WriteAllText(Path.Combine(output, "overview-layout-results.json"), System.Text.Json.JsonSerializer.Serialize(overviews, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
         VisualContractAudit.Write(output);
         File.WriteAllText(Path.Combine(output, "task-layout-results.json"), System.Text.Json.JsonSerializer.Serialize(evidence, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
         File.WriteAllText(Path.Combine(output, "routes.json"), System.Text.Json.JsonSerializer.Serialize(TaskNavigation.All, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
-        File.WriteAllText(Path.Combine(output, "original-menu.json"), System.Text.Json.JsonSerializer.Serialize(UiNavigationRegistry.AllItems.Select(x => new { Original = x, Canonical = TaskNavigation.ForItem(x) }), new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+        File.WriteAllText(Path.Combine(output, "original-menu.json"), System.Text.Json.JsonSerializer.Serialize(TaskNavigation.All, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
         var queries = new[] { "DSR", "support package", "backup", "restore", "users", "walk-ins", "Tally", "duplicates", "invoice", "stock" };
         var times = Enumerable.Range(0, 100).Select(i => { var watch = System.Diagnostics.Stopwatch.StartNew(); TaskNavigation.Search(queries[i % queries.Length], ShellAccess.Owner); return watch.Elapsed.TotalMilliseconds; }).Order().ToArray();
         File.WriteAllText(Path.Combine(output, "search-performance.json"), System.Text.Json.JsonSerializer.Serialize(new { samples = times.Length, p95Ms = times[94], maximumMs = times[^1], environment = Environment.MachineName, method = "Warm host index query only; excludes popup rendering and debounce. Not VM or first-open acceptance." }));

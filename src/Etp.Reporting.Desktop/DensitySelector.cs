@@ -17,10 +17,10 @@ public sealed class DensitySelector : Border
     {
         Padding = new Thickness(12, 10, 12, 10);
         var root = new StackPanel();
-        root.Children.Add(new TextBlock { Text = "DISPLAY DENSITY", FontSize = 12, FontWeight = FontWeights.SemiBold });
+        root.Children.Add(new TextBlock { Text = "Display density", FontSize = 12, FontWeight = FontWeights.SemiBold });
         var choices = new UniformGrid { Columns = 2, Margin = new Thickness(0, 7, 0, 0) };
-        comfortable = Choice("Comfortable", UiDensity.Comfortable);
-        compact = Choice("Compact", UiDensity.Compact);
+        comfortable = Choice("Touch", UiDensity.Comfortable);
+        compact = Choice("Desktop", UiDensity.Compact);
         choices.Children.Add(comfortable);
         choices.Children.Add(compact);
         root.Children.Add(choices);

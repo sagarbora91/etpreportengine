@@ -37,7 +37,7 @@ public sealed class ReportWorkspaceSession
             return dailySalesWorkspace;
         }
 
-        var definition = ReportWorkspaceRegistry.ForReport(reportCode);
+        var definition = ReportWorkspaceDefinition.ForReport(reportCode);
         if (!workspaces.TryGetValue(definition.Id, out var workspace))
         {
             workspace = new ReportWorkspaceControl(definition);
@@ -61,7 +61,7 @@ public sealed class ReportWorkspaceSession
         if (snapshot.ExportMetadata is null)
         {
             if (snapshot.ReportCode == "dsr") dailySalesWorkspace?.ShowFailure(status);
-            else if (snapshot.ReportCode is { } code && workspaces.TryGetValue(ReportWorkspaceRegistry.ForReport(code).Id,out var pending)) pending.ShowUnavailable("Report not ready",status);
+            else if (snapshot.ReportCode is { } code && workspaces.TryGetValue(ReportWorkspaceDefinition.ForReport(code).Id,out var pending)) pending.ShowUnavailable("Report not ready",status);
             return;
         }
         if (snapshot.DailySalesReport is not null && dailySalesWorkspace is not null)
@@ -70,7 +70,7 @@ public sealed class ReportWorkspaceSession
             return;
         }
         if (snapshot.ReportCode is null || snapshot.VisualReport is null) return;
-        var definition = ReportWorkspaceRegistry.ForReport(snapshot.ReportCode);
+        var definition = ReportWorkspaceDefinition.ForReport(snapshot.ReportCode);
         if (!workspaces.TryGetValue(definition.Id, out var workspace)) return;
         workspace.SetPreview(ReportVisualPresenter.BuildFocusedPreview(snapshot.VisualReport, rows, showDetails), status);
     }
@@ -81,12 +81,12 @@ public sealed class ReportWorkspaceSession
     {
         if (string.Equals(reportCode, "dsr", StringComparison.Ordinal) && dailySalesWorkspace is not null)
         {
-            dailySalesWorkspace.BusinessDatePicker.Focus();
-            return true;
+            return false; // The date now lives in the shell header.
         }
         if (reportCode is null) return false;
-        var definition = ReportWorkspaceRegistry.ForReport(reportCode);
+        var definition = ReportWorkspaceDefinition.ForReport(reportCode);
         if (!workspaces.TryGetValue(definition.Id, out var workspace)) return false;
+        if (!workspace.DateFromPicker.IsEnabled) return false;
         workspace.FocusPeriod();
         return true;
     }

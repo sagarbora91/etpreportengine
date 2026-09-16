@@ -68,7 +68,7 @@ public sealed class SettingsAndOperationsAdministrationPresentationTests : IDisp
         Assert.Single(state.Quality);
         Assert.Single(state.Issues);
         Assert.Single(state.AutomationRuns);
-        Assert.Contains("1 daily store result(s), 1 governed quality issue(s), and 1 recent unattended run(s)", state.Status, StringComparison.Ordinal);
+        Assert.Contains("1 daily store result(s), 1 approved quality issue(s), and 1 recent unattended run(s)", state.Status, StringComparison.Ordinal);
         Assert.Equal("07:30", editor.Time);
         Assert.Equal(7, command.Id);
         Assert.Equal(new TimeOnly(8, 15), command.LocalRunTime);

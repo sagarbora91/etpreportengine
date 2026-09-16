@@ -19,7 +19,7 @@ public sealed class GeneralPreferencesView : UserControl
             tabs.Items.Add(new TabItem { Header = title, Content = new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto } }); return panel;
         }
         var display = Page("Display");
-        display.Children.Add(new TextBlock { Text = "Comfortable uses larger touch targets. Compact is an explicit desktop preference. Both offer the same features.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,0,0,16) });
+        display.Children.Add(new TextBlock { Text = "Touch: 44-pixel controls. Desktop: 36-pixel controls.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,0,0,16) });
         var densitySelector = new DensitySelector();
         densitySelector.SetDensity(current.Density);
         densitySelector.DensityChanged += (_, density) => { current = current with { Density = density }; save(current); };
@@ -36,9 +36,6 @@ public sealed class GeneralPreferencesView : UserControl
             };
             panel.Children.Add(check);
         }
-        var modules = Page("Pinned modules");
-        foreach (var module in UiNavigationRegistry.Modules.Where(x => TaskNavigation.All.Any(task => task.Module == x.DisplayName && task.IsAllowed(access))))
-            Toggle(modules, module.DisplayName, module.Id, current.PinnedModuleIds.Contains(module.Id), false);
         var reports = Page("Favourite reports");
         foreach (var report in TaskNavigation.All.Where(x => x.ReportCode is not null && x.IsAllowed(access)))
             Toggle(reports, report.Title, report.ReportCode!, current.FavouriteReportCodes.Contains(report.ReportCode!), true);

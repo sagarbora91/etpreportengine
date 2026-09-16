@@ -67,7 +67,7 @@ public sealed class ExtractedWorkspaceUiSmokeTests
         });
     }
 
-    private static IReadOnlyList<WorkspaceCase> CreateWorkspaces(string testRoot)
+    internal static IReadOnlyList<WorkspaceCase> CreateWorkspaces(string testRoot)
     {
         const string connection = DesktopCompositionRoot.DefaultConnectionString;
         var operationsSession = new OperationsAdministrationPresentationSession();
@@ -245,5 +245,5 @@ public sealed class ExtractedWorkspaceUiSmokeTests
         if (failure is not null) throw new InvalidOperationException("STA UI smoke test failed.", failure);
     }
 
-    private sealed record WorkspaceCase(string Name, FrameworkElement View);
+    internal sealed record WorkspaceCase(string Name, FrameworkElement View);
 }

@@ -52,7 +52,7 @@ public sealed class HelpCentreTests
     [Fact]
     public void Every_owned_shell_destination_resolves_to_an_available_help_topic()
     {
-        foreach (var ownership in WorkspaceModuleOwnershipRegistry.Destinations)
+        foreach (var ownership in ShellRouteRegistry.All)
         {
             var topicId = ContextHelpRouter.ResolveTopicId(ownership.Destination);
             var topic = Assert.Single(HelpCentreRegistry.Topics, candidate => candidate.Id == topicId);
@@ -63,7 +63,7 @@ public sealed class HelpCentreTests
     [Fact]
     public void Every_help_workspace_link_targets_an_owned_shell_destination()
     {
-        var destinations = WorkspaceModuleOwnershipRegistry.Destinations
+        var destinations = ShellRouteRegistry.All
             .Select(ownership => ownership.Destination)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 

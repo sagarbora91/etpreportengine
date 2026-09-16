@@ -23,7 +23,6 @@ public partial class MainWindow
     internal bool ShowFocusedReportWorkspace(string reportCode)
     {
         var report = ProductReportCatalogue.All.Single(x => x.Code.Equals(reportCode, StringComparison.OrdinalIgnoreCase));
-        var destination = report.Category.Equals("Stock", StringComparison.OrdinalIgnoreCase) ? "Stock Reports" : "Sales Reports";
         var reportRoute = TaskNavigation.Find("report-" + reportCode)!.Route;
         var decision = shell.CurrentRoute == reportRoute ? NavigationDecision.Allowed(reportRoute, ShellRouteRegistry.Find(reportRoute.Destination)!) : shell.Navigate(reportRoute, CurrentShellAccess);
         if (!decision.IsAllowed)
@@ -32,13 +31,9 @@ public partial class MainWindow
             return false;
         }
 
-        PageTitle.Text = TaskNavigation.Find("report-" + reportCode)!.Title;
-        PageDescription.Text = report.Description;
-        BreadcrumbText.Text = $"Reports / {report.Category} / {report.Name}";
+        UpdateSection(TaskNavigation.Find("report-" + reportCode)!);
         focusedWorkspaceKind = "report";
-        LegacyWorkspaceScroll.Visibility = Visibility.Collapsed;
         FocusedWorkspaceLayer.Visibility = Visibility.Visible;
-        HideSidebar();
 
         var workspace = reportWorkspaceSession.Activate(
             reportCode,
@@ -63,11 +58,15 @@ public partial class MainWindow
         switch (request.Action)
         {
             case ReportWorkspaceAction.Refresh when request.ReportCode is not null:
-                reportsWorkspaceView.ApplyTaskScope(request.ReportCode,request.DateFrom.ToDateTime(TimeOnly.MinValue), request.DateTo.ToDateTime(TimeOnly.MinValue), request.Scope);
+                ApplyWorkspaceScope(request.DateFrom.ToDateTime(TimeOnly.MinValue), request.DateTo.ToDateTime(TimeOnly.MinValue), request.Scope);
                 _ = reportsWorkspaceView.RunReportAsync(request.ReportCode);
                 break;
             case ReportWorkspaceAction.ExportPdf:
                 taskNavigator!.ExportCurrentReport(true);
+                break;
+            case ReportWorkspaceAction.Share:
+                taskNavigator!.NavigateTask(TaskNavigation.Find("shared")!);
+                ApplicationStatus.Text = "Choose an archived report and recipient to share.";
                 break;
             case ReportWorkspaceAction.ExportExcel:
                 taskNavigator!.ExportCurrentReport(false);
@@ -101,9 +100,9 @@ public partial class MainWindow
             FocusedWorkspaceLayer.Visibility == Visibility.Visible ? FocusedWorkspaceHost.Content : null,
             focusedWorkspaceKind,
             PageTitle.Text,
-            PageDescription.Text,
-            BreadcrumbText.Text,
-            ContextSidebar.Visibility == Visibility.Visible));
+            null,
+            null,
+            false));
         helpCentre ??= CreateHelpCentre();
         if (contextual)
         {
@@ -111,16 +110,9 @@ public partial class MainWindow
         }
         else helpCentre.OpenTopic(topicId ?? HelpCentreRegistry.HomeTopicId);
         focusedWorkspaceKind = "help";
-        LegacyWorkspaceScroll.Visibility = Visibility.Collapsed;
         FocusedWorkspaceHost.Content = helpCentre;
         FocusedWorkspaceLayer.Visibility = Visibility.Visible;
-        HideSidebar();
         PageTitle.Text = "Help Centre";
-        PageDescription.Text = "Guidance for every application area and all supported keyboard shortcuts.";
-        BreadcrumbText.Text = "Help";
-        BreadcrumbLinks.Children.Clear();
-        var back = new Button { Content = "← Back", Padding = new Thickness(8,0,8,0) };
-        back.Click += (_, _) => CloseHelpWorkspace(); BreadcrumbLinks.Children.Add(back);
         helpCentre.Focus();
     }
 
@@ -152,14 +144,10 @@ public partial class MainWindow
         {
             FocusedWorkspaceHost.Content = returnState.FocusedContent;
             FocusedWorkspaceLayer.Visibility = Visibility.Visible;
-            LegacyWorkspaceScroll.Visibility = Visibility.Collapsed;
             focusedWorkspaceKind = returnState.FocusedWorkspaceKind;
         }
         else HideFocusedWorkspace();
         if (returnState?.PageTitle is not null) PageTitle.Text = returnState.PageTitle;
-        if (returnState?.PageDescription is not null) PageDescription.Text = returnState.PageDescription;
-        if (returnState?.Breadcrumb is not null) BreadcrumbText.Text = returnState.Breadcrumb;
-        if (returnState?.WasSidebarVisible == true && CurrentModuleId != "home") ShowSidebar();
         taskNavigator!.RestoreBreadcrumbs();
     }
 
@@ -167,7 +155,6 @@ public partial class MainWindow
     {
         FocusedWorkspaceLayer.Visibility = Visibility.Collapsed;
         FocusedWorkspaceHost.Content = null;
-        LegacyWorkspaceScroll.Visibility = Visibility.Visible;
         focusedWorkspaceKind = null;
     }
 

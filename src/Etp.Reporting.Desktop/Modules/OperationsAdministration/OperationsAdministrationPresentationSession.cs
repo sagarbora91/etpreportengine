@@ -90,7 +90,7 @@ public sealed class OperationsAdministrationPresentationSession
             dashboard.Issues,
             dashboard.Schedules,
             dashboard.AutomationRuns,
-            $"Loaded {dashboard.Trend.Count:N0} daily store result(s), {dashboard.Issues.Count:N0} governed quality issue(s), and {dashboard.AutomationRuns.Count:N0} recent unattended run(s).");
+            $"Loaded {dashboard.Trend.Count:N0} daily store result(s), {dashboard.Issues.Count:N0} approved quality issue(s), and {dashboard.AutomationRuns.Count:N0} recent unattended run(s).");
         return Operations;
     }
 

@@ -5,7 +5,7 @@
              automation:AutomationProperties.Name="Accounting preparation workspace">
     <StackPanel>
         <TextBlock Text="Accounting Preparation" FontSize="18" FontWeight="SemiBold"/>
-        <TextBlock Text="Prepare balanced, approval-controlled entries from a final immutable report generation. Canonical ETP facts are never edited."
+        <TextBlock Text="Prepare balanced, approval-controlled entries from a final saved report generation. recorded ETP facts are never edited."
                    Foreground="#5D6873" Margin="0,4,0,10" TextWrapping="Wrap"/>
         <WrapPanel>
             <TextBox x:Name="AccountingStoreInput" Width="110" Padding="6" Text="WLMHW"

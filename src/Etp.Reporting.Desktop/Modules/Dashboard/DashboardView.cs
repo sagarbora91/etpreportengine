@@ -18,13 +18,13 @@ public delegate Task ExportManagementSummaryPdfAsync(string path, ExcelReportMet
 
 public sealed class DashboardView : UserControl
 {
-    private static readonly Brush PrimaryText = Brush("#10252D");
-    private static readonly Brush SecondaryText = Brush("#65757A");
-    private static readonly Brush Accent = Brush("#008D78");
-    private static readonly Brush AccentSoft = Brush("#E3F3F0");
-    private static readonly Brush DarkSurface = Brush("#082E3A");
-    private static readonly Brush Divider = Brush("#D9E3E3");
-    private static readonly Brush SurfaceSecondary = Brush("#F0F5F5");
+    private static readonly Brush PrimaryText = Brush("Success");
+    private static readonly Brush SecondaryText = Brush("SecondaryText");
+    private static readonly Brush Accent = Brush("Success");
+    private static readonly Brush AccentSoft = Brush("SurfaceSecondary");
+    private static readonly Brush DarkSurface = Brush("PrimaryText");
+    private static readonly Brush Divider = Brush("SecondaryText");
+    private static readonly Brush SurfaceSecondary = Brush("SurfaceSecondary");
 
     private readonly TextBlock importedFilesMetric = MetricValue(21);
     private readonly TextBlock completedBatchesMetric = MetricValue(21, Brushes.White);
@@ -44,13 +44,12 @@ public sealed class DashboardView : UserControl
     private readonly TextBlock readinessPercent = new() { FontWeight = FontWeights.SemiBold, Foreground = Accent };
     private readonly TextBlock dailyCloseMessage = new() { Foreground = SecondaryText, TextWrapping = TextWrapping.Wrap };
     private readonly Border errorBanner = new() { Visibility = Visibility.Collapsed };
-    private readonly TextBlock errorMessage = new() { Foreground = Brush("#C33D49"), TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock errorMessage = new() { Foreground = Brush("Critical"), TextWrapping = TextWrapping.Wrap };
     private readonly DashboardPresentationSession presentation;
     private readonly ExportManagementSummaryPdfAsync? exportManagementSummaryPdfAsync;
     private bool exportInProgress;
 
     public event EventHandler? RefreshRequested;
-    public event EventHandler<string>? NavigationRequested;
     public event EventHandler<string>? NotificationRequested;
 
     public DashboardViewState? CurrentState { get; private set; }
@@ -96,8 +95,8 @@ public sealed class DashboardView : UserControl
             databaseHealthMetric.Foreground = state.DatabaseHealthTone switch
             {
                 DashboardHealthTone.Healthy => Accent,
-                DashboardHealthTone.Warning => Brush("#A76500"),
-                _ => Brush("#C33D49")
+                DashboardHealthTone.Warning => Brush("Critical"),
+                _ => Brush("Critical")
             };
         databaseSizeMetric.Text = state.DatabaseSize;
         backupAgeMetric.Text = state.LatestBackup;
@@ -138,134 +137,14 @@ public sealed class DashboardView : UserControl
         historyContent = new ScrollViewer { Content = BuildHistoryContent(), VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
         auditContent = new ScrollViewer { Content = BuildAuditContent(), VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
         chartContent = new ScrollViewer { Content = BuildChartContent(), VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
-        var root = new Grid { Margin = new Thickness(12) };
-        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        root.RowDefinitions.Add(new RowDefinition());
-        errorBanner.Child = errorMessage; errorBanner.Padding = new Thickness(8);
-        var top = new DockPanel();
-        var actions = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right };
-        actions.Children.Add(Button("Refresh", "Refresh dashboard", () => RefreshRequested?.Invoke(this, EventArgs.Empty)));
+        var root = new DockPanel { Margin = new Thickness(8) };
+        var actions = new WrapPanel();
+        actions.Children.Add(Button("Refresh", "Refresh dashboard", () => RefreshRequested?.Invoke(this,EventArgs.Empty)));
         actions.Children.Add(Button("Export summary", "Export management summary PDF", ExportPdfAsync));
-        DockPanel.SetDock(actions, Dock.Right); top.Children.Add(actions); top.Children.Add(errorBanner);
-        root.Children.Add(top);
-        var groups = new Grid();
-        groups.ColumnDefinitions.Add(new ColumnDefinition()); groups.ColumnDefinitions.Add(new ColumnDefinition());
-        var groupScroll = new ScrollViewer { Content = groups, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
-        Grid.SetRow(groupScroll, 1); root.Children.Add(groupScroll);
-        Border Group(string title, params UIElement[] items)
-        {
-            var panel = new StackPanel(); panel.Children.Add(Title(title));
-            foreach (var item in items) panel.Children.Add(item);
-            var card = Card(panel); card.Margin = new Thickness(6); card.Padding = new Thickness(12); return card;
-        }
-        var closeTasks = new UniformGrid { Columns = 2, Margin = new Thickness(0,8,0,0) };
-        foreach (var item in new[] { ("Manual inputs", "Manual Entry"), ("Readiness", "Daily Workflow"), ("Reports", "Sales Reports"), ("Archive", "Report Archive") })
-        {
-            var button = Button(item.Item1, item.Item1, () => NavigationRequested?.Invoke(this, item.Item2)); button.Margin = new Thickness(3); closeTasks.Children.Add(button);
-        }
-        groups.Children.Add(Group("Daily close", closeTasks));
-        sourceRowsMetric.Foreground = PrimaryText; completedBatchesMetric.Foreground = PrimaryText; failedImportsMetric.Foreground = PrimaryText;
-        var metrics = new UniformGrid { Columns = 2, Margin = new Thickness(0,8,0,0) };
-        metrics.Children.Add(MiniMetric("SOURCE FILES", importedFilesMetric)); metrics.Children.Add(MiniMetric("SOURCE ROWS", sourceRowsMetric));
-        groups.Children.Add(Group("Today at a glance", metrics, new TextBlock { Text = "Operational activity across the loaded database.", Foreground = SecondaryText, FontSize = 12, TextWrapping = TextWrapping.Wrap }));
-        groups.Children.Add(Group("Import completion", readinessPercent, readinessProgress,
-            new TextBlock { Text = "Import completion is not daily-close readiness. Review manual inputs and financial controls before finalising.", Foreground = SecondaryText, FontSize = 14, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,8,0,0) },
-            Button("Review readiness", "Continue daily workflow", () => NavigationRequested?.Invoke(this, "Daily Workflow"))));
-        groups.Children.Add(Group("System status", databaseHealthDetailMetric, backupAgeMetric,
-            Button("Health and recovery", "Open health and recovery", () => NavigationRequested?.Invoke(this, "Admin / Settings"))));
-        // Cards keep their natural height and reflow to one column in narrow windows; nothing is hidden or clipped, the overview scrolls instead.
-        void FitGroups()
-        {
-            var columns = root.ActualWidth < 700 ? 1 : 2;
-            groups.RowDefinitions.Clear();
-            for (var i = 0; i < groups.Children.Count; i++)
-            {
-                if (i % columns == 0) groups.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-                Grid.SetRow(groups.Children[i], i / columns); Grid.SetColumn(groups.Children[i], i % columns); Grid.SetColumnSpan(groups.Children[i], columns == 1 ? 2 : 1);
-            }
-        }
-        FitGroups(); root.SizeChanged += (_, _) => FitGroups();
-        overviewContent = root; return root;
+        DockPanel.SetDock(actions,Dock.Top);root.Children.Add(actions);root.Children.Add(auditContent);
+        overviewContent = root;return root;
     }
 
-    private Border BuildDailyCloseCard()
-    {
-        var content = new StackPanel();
-        var heading = new Grid();
-        heading.ColumnDefinitions.Add(new ColumnDefinition());
-        heading.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var continueButton = Button("Continue daily close  →", "Continue daily workflow", () => NavigationRequested?.Invoke(this, "Daily Workflow"), primary: true);
-        var titles = new StackPanel();
-        titles.Children.Add(Title("Daily close"));
-        dailyCloseMessage.Margin = new Thickness(0, 4, 18, 0);
-        titles.Children.Add(dailyCloseMessage);
-        heading.Children.Add(titles);
-        Grid.SetColumn(continueButton, 1);
-        heading.Children.Add(continueButton);
-        content.Children.Add(heading);
-
-        var tasks = new UniformGrid { Columns = 2, Margin = new Thickness(0, 15, 0, 0) };
-        tasks.Children.Add(TaskCard("Sales files", importedFilesMetric, "Source files received", AccentSoft));
-        tasks.Children.Add(TaskCard("Control totals", databaseHealthMetric, "Database and control state", AccentSoft));
-        tasks.Children.Add(TaskCard("Manual inputs", new TextBlock { Text = "Verify", FontWeight = FontWeights.SemiBold, Foreground = PrimaryText }, "Walk-ins, stock counts and targets", Brush("#FAF1E3")));
-        tasks.Children.Add(TaskCard("Daily pack", new TextBlock { Text = "Next", FontWeight = FontWeights.SemiBold, Foreground = SecondaryText }, "Available after readiness checks", SurfaceSecondary));
-        content.Children.Add(tasks);
-        return Card(content);
-    }
-
-    private Border BuildReadinessCard()
-    {
-        var content = new StackPanel();
-        var heading = new DockPanel();
-        DockPanel.SetDock(readinessPercent, Dock.Right);
-        heading.Children.Add(readinessPercent);
-        heading.Children.Add(Title("Reporting readiness"));
-        content.Children.Add(heading);
-        content.Children.Add(new TextBlock { Text = "Completed import batches compared with received source files.", Foreground = SecondaryText, Margin = new Thickness(0, 4, 0, 12) });
-        content.Children.Add(readinessProgress);
-        var facts = new UniformGrid { Columns = 3, Margin = new Thickness(0, 13, 0, 0) };
-        facts.Children.Add(MiniMetric("LATEST IMPORT", latestImportMetric));
-        facts.Children.Add(MiniMetric("DATABASE SIZE", databaseSizeMetric));
-        facts.Children.Add(MiniMetric("BACKUP SPACE", backupSpaceMetric));
-        content.Children.Add(facts);
-        var card = Card(content);
-        card.Margin = new Thickness(0, 14, 0, 0);
-        return card;
-    }
-
-    private Border BuildGlanceCard()
-    {
-        var content = new StackPanel();
-        content.Children.Add(new TextBlock { Text = "Today at a glance", FontSize = 17, FontWeight = FontWeights.SemiBold, Foreground = Brushes.White });
-        content.Children.Add(new TextBlock { Text = "Live operational source activity", Foreground = Brush("#AFC4C9"), Margin = new Thickness(0, 4, 0, 17) });
-        content.Children.Add(new TextBlock { Text = "SOURCE ROWS", FontSize = 12, FontWeight = FontWeights.SemiBold, Foreground = Brush("#AFC4C9") });
-        content.Children.Add(sourceRowsMetric);
-        var measures = new UniformGrid { Columns = 2, Margin = new Thickness(0, 18, 0, 16) };
-        measures.Children.Add(DarkMetric("Completed batches", completedBatchesMetric));
-        measures.Children.Add(DarkMetric("Failed imports", failedImportsMetric));
-        content.Children.Add(measures);
-        var reports = Button("Open reports  →", "Open reports", () => NavigationRequested?.Invoke(this, "Sales Reports"));
-        reports.Background = Brush("#1B4651");
-        reports.BorderBrush = Brush("#1B4651");
-        reports.Foreground = Brushes.White;
-        reports.HorizontalContentAlignment = HorizontalAlignment.Stretch;
-        content.Children.Add(reports);
-        return new Border { Background = DarkSurface, CornerRadius = new CornerRadius(14), Padding = new Thickness(18), Child = content };
-    }
-
-    private Border BuildSystemCard()
-    {
-        var content = new StackPanel();
-        content.Children.Add(Title("System status"));
-        content.Children.Add(new TextBlock { Text = "Operational services and recovery controls.", Foreground = SecondaryText, Margin = new Thickness(0, 4, 0, 12) });
-        content.Children.Add(StatusRow("SQL database", databaseHealthDetailMetric));
-        content.Children.Add(StatusRow("Last backup", backupAgeMetric));
-        healthWarningsList.Margin = new Thickness(0, 8, 0, 0);
-        content.Children.Add(healthWarningsList);
-        var card = Card(content);
-        card.Margin = new Thickness(0, 14, 0, 0);
-        return card;
-    }
 
     private StackPanel BuildHistoryContent()
     {
@@ -363,15 +242,7 @@ public sealed class DashboardView : UserControl
         Child = child
     };
 
-    private static Border TaskCard(string title, FrameworkElement value, string detail, Brush tint)
-    {
-        var content = new StackPanel();
-        content.Children.Add(new TextBlock { Text = title, FontWeight = FontWeights.SemiBold, Foreground = PrimaryText });
-        value.Margin = new Thickness(0, 7, 0, 2);
-        content.Children.Add(value);
-        content.Children.Add(new TextBlock { Text = detail, FontSize = 12, Foreground = PrimaryText, TextWrapping = TextWrapping.Wrap });
-        return new Border { Background = tint, BorderBrush = Divider, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(12), Padding = new Thickness(14), Margin = new Thickness(4), Child = content };
-    }
+
 
     private static Border MiniMetric(string label, TextBlock value)
     {
@@ -382,30 +253,9 @@ public sealed class DashboardView : UserControl
         return new Border { Background = SurfaceSecondary, CornerRadius = new CornerRadius(10), Padding = new Thickness(12), Margin = new Thickness(3), Child = content };
     }
 
-    private static StackPanel DarkMetric(string label, TextBlock value)
-    {
-        var content = new StackPanel();
-        content.Children.Add(value);
-        content.Children.Add(new TextBlock { Text = label, Foreground = Brush("#AFC4C9"), FontSize = 12, Margin = new Thickness(0, 2, 0, 0) });
-        return content;
-    }
 
-    private static Grid StatusRow(string label, TextBlock value)
-    {
-        var row = new Grid { Margin = new Thickness(0, 5, 0, 5) };
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(34) });
-        row.ColumnDefinitions.Add(new ColumnDefinition());
-        var icon = new Border { Width = 28, Height = 28, CornerRadius = new CornerRadius(9), Background = AccentSoft, Child = new TextBlock { Text = "✓", Foreground = Accent, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center } };
-        var content = new StackPanel();
-        content.Children.Add(new TextBlock { Text = label, FontWeight = FontWeights.SemiBold });
-        value.FontSize = 12;
-        value.FontWeight = FontWeights.Normal;
-        value.Foreground = SecondaryText;
-        content.Children.Add(value);
-        Grid.SetColumn(content, 1);
-        row.Children.Add(icon); row.Children.Add(content);
-        return row;
-    }
+
+
 
     private static TextBlock Title(string text) => new() { Text = text, FontSize = 16, FontWeight = FontWeights.SemiBold, Foreground = PrimaryText };
 
@@ -436,8 +286,6 @@ public sealed class DashboardView : UserControl
 
     private static SolidColorBrush Brush(string colour)
     {
-        var brush = (SolidColorBrush)new BrushConverter().ConvertFromString(colour)!;
-        brush.Freeze();
-        return brush;
+        return Themes.ThemeBrushes.Resolve(colour);
     }
 }

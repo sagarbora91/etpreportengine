@@ -56,6 +56,14 @@ public sealed partial class SourceInboxWorkspaceView : UserControl
         _ = RefreshInboxAsync();
     }
 
+    public async Task<IReadOnlyList<Modules.Imports.ImportProblem>> LoadProblemsAsync()
+    {
+        RequireImportAccess();
+        var documents = await Service().LoadDocumentsAsync();
+        return documents.Where(d => d.LifecycleStatus is "Quarantined" or "Conflict" or "Duplicate" or "Failed" or "QUARANTINED" or "FAILED")
+            .Select(d => new Modules.Imports.ImportProblem(d.OriginalFileName, System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase(d.LifecycleStatus.ToLowerInvariant()), d.StoreCode ?? "", d.BusinessDate?.ToString("dd MMM yyyy") ?? "", d.SafeMessage ?? "")).ToArray();
+    }
+
     public Task RefreshAsync() => RefreshInboxAsync();
 
     private int refreshRevision;

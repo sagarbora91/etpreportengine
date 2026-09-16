@@ -64,7 +64,7 @@ public partial class InvestigationApprovalsWorkspaceView : UserControl
             RequireViewAccess();
             var rows = await investigationQueryFactory(connectionStringProvider()).SearchAsync(GlobalSearchInput.Text);
             InvestigationGrid.ItemsSource = rows;
-            InvestigationStatus.Text = $"{rows.Count:N0} result(s) across canonical transactions, sources, reports and registers.";
+            InvestigationStatus.Text = $"{rows.Count:N0} result(s) across recorded transactions, sources, reports and registers.";
         }
         catch (Exception ex) { DesktopDiagnostics.Record(ex, "OperationsAdministration.Investigation", "INVESTIGATION_SEARCH_FAILED"); InvestigationStatus.Text = OperationsAdministrationWorkspaceErrors.Friendly(ex); }
     }
@@ -90,7 +90,7 @@ public partial class InvestigationApprovalsWorkspaceView : UserControl
             AdjustmentAmountInput.Clear();
             AdjustmentReasonInput.Clear();
             AdjustmentTypeInput.Clear();
-            InvestigationStatus.Text = $"Adjustment {id:N0} is pending Owner approval. Canonical ETP facts were not changed.";
+            InvestigationStatus.Text = $"Adjustment {id:N0} is pending Owner approval. recorded ETP facts were not changed.";
             await RefreshApprovalsAsync();
         }
         catch (Exception ex) { DesktopDiagnostics.Record(ex, "OperationsAdministration.Investigation", "ADJUSTMENT_SUBMIT_FAILED"); InvestigationStatus.Text = OperationsAdministrationWorkspaceErrors.Friendly(ex); }
@@ -98,7 +98,7 @@ public partial class InvestigationApprovalsWorkspaceView : UserControl
 
     private async void RefreshApprovals_Click(object sender, RoutedEventArgs e) => await RefreshApprovalsAsync();
     private async void ApproveSelected_Click(object sender, RoutedEventArgs e) => await DecideApprovalAsync(true);
-    private async void RejectSelected_Click(object sender, RoutedEventArgs e) => await DecideApprovalAsync(false);
+    private async void RejectSelected_Click(object sender, RoutedEventArgs e) { if (ConfirmationSheet.Show(this, "Reject request", "Reject the selected request with the entered reason?")) await DecideApprovalAsync(false); }
 
     private async Task DecideApprovalAsync(bool approve)
     {

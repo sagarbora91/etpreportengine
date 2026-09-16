@@ -110,6 +110,7 @@ public partial class OperationsWorkspaceView : UserControl
 
     private async void RunAutomationNow_Click(object sender, RoutedEventArgs e)
     {
+        if (!ConfirmationSheet.Show(this, "Run automation", "Import watched files and run due report schedules now?")) return;
         if (!BeginOperation()) return;
         try
         {
@@ -157,6 +158,7 @@ public partial class OperationsWorkspaceView : UserControl
             RequireImportAccess();
             if (sender is not Button { Tag: string status } || DataQualityGrid.SelectedItem is not DataQualityIssue row)
                 throw new InvalidOperationException("Select one data-quality issue.");
+            if (status == "WAIVED" && !ConfirmationSheet.Show(this, "Waive issue", "Waive this issue? Its technical result remains recorded.")) return;
             await Service.UpdateIssueAsync(new UpdateDataQualityIssue(row.Id, status, IssueWorkflowReasonInput.Text));
             IssueWorkflowReasonInput.Clear();
             await RefreshAsync();
@@ -172,7 +174,7 @@ public partial class OperationsWorkspaceView : UserControl
         ex => $"Backup could not run: {DesktopFriendlyError.Describe(ex, "Owner permission is required.")}", "BACKUP_RUN_FAILED", refreshDashboard: true);
 
     private async void RunRecoveryDrillNow_Click(object sender, RoutedEventArgs e) => await RunMaintenanceAsync(
-        "invoke-etp-recovery-drill.ps1", "Running an isolated restore, integrity check and lineage comparison…",
+        "invoke-etp-recovery-drill.ps1", "Running an isolated restore, integrity check and source history comparison…",
         result => result.Succeeded ? "Recovery drill passed and the temporary database was removed." : $"Recovery drill failed. {result.Message}",
         ex => $"Recovery drill could not run: {DesktopFriendlyError.Describe(ex, "Owner permission is required.")}", "RECOVERY_DRILL_RUN_FAILED", refreshDashboard: true);
 
@@ -190,6 +192,7 @@ public partial class OperationsWorkspaceView : UserControl
         bool refreshDashboard = false,
         bool auditSupportPackage = false)
     {
+        if (!ConfirmationSheet.Show(this, "Run maintenance", starting)) return;
         if (!BeginOperation()) return;
         try
         {

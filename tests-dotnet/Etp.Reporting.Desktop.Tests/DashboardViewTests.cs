@@ -56,16 +56,12 @@ public sealed class DashboardViewTests
         {
             var view = new DashboardView();
             var refreshRaised = false;
-            string? requestedDestination = null;
             view.RefreshRequested += (_, _) => refreshRaised = true;
-            view.NavigationRequested += (_, destination) => requestedDestination = destination;
 
             FindButton(view, "Refresh dashboard").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             FindButton(view, "Export management summary PDF").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            FindButton(view, "Continue daily workflow").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
             Assert.True(refreshRaised);
-            Assert.Equal("Daily Workflow", requestedDestination);
         });
     }
 

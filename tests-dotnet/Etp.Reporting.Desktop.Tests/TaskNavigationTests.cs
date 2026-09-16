@@ -11,8 +11,8 @@ public sealed class TaskNavigationTests
         {
             var navigation = new ShellNavigationService();
             var display = TaskNavigation.Search("Display", access).Single(x => x.Id == "settings");
-            Assert.True(navigation.Navigate(new("Home", TaskId: "overview:Settings"), access).IsAllowed);
-            Assert.True(navigation.Navigate(new("Home", TaskId: "category:Settings:Display"), access).IsAllowed);
+            Assert.False(navigation.Navigate(new("Home", TaskId: "overview:Settings"), access).IsAllowed);
+            Assert.False(navigation.Navigate(new("Home", TaskId: "category:Settings:Display"), access).IsAllowed);
             Assert.True(navigation.Navigate(display.Route, access).IsAllowed);
             Assert.Equal(display.Route, navigation.Current);
             foreach (var id in new[] { "connection", "users", "recovery" })
@@ -22,9 +22,9 @@ public sealed class TaskNavigationTests
     }
 
     [Theory]
-    [InlineData("DSR", "report-dsr", "Reports → Sales → Daily Sales Report")]
-    [InlineData("support package", "support-package", "Settings → Database & Recovery → Support Package")]
-    [InlineData("restore", "recovery", "Settings → Database & Recovery → Restore & Recovery Drill")]
+    [InlineData("DSR", "report-dsr", "Today → Sales → Sales")]
+    [InlineData("support package", "support-package", "Settings → Database → Support package")]
+    [InlineData("restore", "recovery", "Settings → Database → Recovery drill")]
     public void Search_opens_canonical_destination(string query, string id, string path)
     {
         var task = TaskNavigation.Search(query, ShellAccess.Owner).First();
@@ -50,7 +50,7 @@ public sealed class TaskNavigationTests
     [Fact]
     public void Every_menu_alias_is_mapped_and_reports_are_unique()
     {
-        Assert.All(UiNavigationRegistry.AllItems, item => Assert.NotNull(TaskNavigation.ForItem(item)));
+        Assert.All(TaskNavigation.All, task => Assert.Contains(task.Rail, TaskNavigation.Sections));
         Assert.Equal(TaskNavigation.All.Count, TaskNavigation.All.Select(x => x.Id).Distinct().Count());
     }
 
@@ -90,7 +90,7 @@ public sealed class TaskNavigationTests
             var task=HelpTaskRoutes.Find(topic.Id); Assert.NotNull(task);
             Assert.True(new ShellNavigationService().Navigate(task.Route,ShellAccess.Owner).IsAllowed,topic.Id);
         }
-        Assert.Equal("category:Reports:Stock",HelpTaskRoutes.Find("stock-reports")!.Route.TaskId);
+        Assert.Equal("report-stock-closing",HelpTaskRoutes.Find("stock-reports")!.Route.TaskId);
         Assert.False(HelpTaskRoutes.Find("administration")!.IsAllowed(ShellAccess.Viewer));
     }
 }

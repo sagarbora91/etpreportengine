@@ -1,4 +1,4 @@
-﻿using System.Configuration;
+using System.Configuration;
 using System.Windows;
 using System.Windows.Threading;
 using Etp.Reporting.Desktop.Composition;
@@ -12,6 +12,8 @@ public partial class App : Application
 {
     protected override async void OnStartup(StartupEventArgs e)
     {
+        PresentationCulture.Initialize();
+        Themes.ThemeBrushes.ApplyContrast(Resources);
         base.OnStartup(e);
         DispatcherUnhandledException += OnDispatcherUnhandledException;
         AppDomain.CurrentDomain.UnhandledException += (_, args) =>

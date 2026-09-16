@@ -7,21 +7,23 @@ public sealed record TaskDestination(string Id, string Title, string Module, str
     string Destination, string Section, int MinimumRole, string? ReportCode = null,
     string[]? Aliases = null, bool Available = true, string? UnavailableReason = null)
 {
+    public string Rail => Module;
+    public string Tab => Category;
     public string Path => $"{Module} → {Category} → {Title}";
     public string Purpose => ReportCode is null ? $"Open {Title.ToLowerInvariant()} in {Module}." : ProductReportCatalogue.All.Single(x => x.Code == ReportCode).Description;
     public WorkspaceRoute Route => new(Destination, ReportCode, Id);
     public bool IsAllowed(ShellAccess access) => Available
         && (Destination != "Import ETP" || access.CanImport)
-        && (Destination is not ("Settings" or "Masters" or "Admin / Settings") || access.CanAdminister)
+        && (Destination is not ("Settings" or "Admin / Settings") || access.CanAdminister)
         && (MinimumRole >= 3 ? access.CanAdminister : MinimumRole >= 2 ? access.CanImport : access.CanView);
 }
 
 public static class TaskNavigation
 {
-    public static IReadOnlyList<TaskDestination> All { get; } = Build();
     public static TaskDestination? Find(string? id) => All.FirstOrDefault(x => x.Id == id);
-    public static TaskDestination? ForItem(NavigationItemDefinition item) =>
-        item.FeatureCode is not null ? Find("report-" + item.FeatureCode) : Find(CanonicalId(item.Id));
+    public static IReadOnlyList<string> Sections { get; } = ["Today", "Import", "Reports", "Stock", "Settings"];
+    public static IReadOnlyList<TaskDestination> All { get; } = Build();
+    public static IReadOnlyList<TaskDestination> InSection(string section, ShellAccess access) => All.Where(t => t.Rail == section && t.IsAllowed(access)).ToArray();
 
     public static string CanonicalId(string id) => id switch
     {
@@ -52,69 +54,83 @@ public static class TaskNavigation
     private static IReadOnlyList<TaskDestination> Build()
     {
         var result = new List<TaskDestination>();
-        var modules = new[] { "dashboard", "reports", "imports", "accounting", "archive", "exceptions", "settings" };
-        foreach (var module in modules)
-        foreach (var group in UiNavigationRegistry.ForModule(module))
-        foreach (var item in group.Items)
+        void Add(string id, string title, string rail, string tab, string destination, string section, int role = 1)
+            => result.Add(new(id, title, rail, tab, destination, section, role, Aliases: id == "recovery" ? ["restore", "recovery drill"] : [id.Replace('-', ' ')]));
+        Add("walk-ins", "Walk-ins", "Today", "Walk-ins", "Manual Entry", "manual", 2);
+        Add("readiness", "Close day", "Today", "Close day", "Daily Workflow", "readiness", 1);
+        Add("finalisation", "Finalise day", "Today", "Close day", "Daily Workflow", "finalisation", 2);
+        Add("store-daily-pack", "Store pack", "Today", "Close day", "Daily Workflow", "pack", 1);
+        Add("combined-pack", "Both stores pack", "Today", "Close day", "Daily Workflow", "pack", 1);
+        Add("register-expense", "Expense entry", "Today", "Cash", "Registers", "register", 2);
+        Add("cash-input", "Cash and service entries", "Today", "Cash", "Manual Entry", "manual", 2);
+        Add("import-files", "Import folder", "Import", "Import", "Import ETP", "import", 2);
+        Add("conflicts", "Problems", "Import", "Problems", "Import ETP", "import-results", 2);
+        Add("source-inbox", "Received files", "Import", "History", "Import ETP", "inbox", 2);
+        Add("documents", "Documents", "Import", "Documents", "Import ETP", "inbox", 2);
+        Add("stock-count", "Physical count", "Stock", "Physical count", "Manual Entry", "stock-count", 2);
+        Add("settings", "Display", "Settings", "Display", "Home", "settings", 1);
+        Add("connection", "Connection", "Settings", "Database", "Settings", "connection", 3);
+        Add("health", "Database health", "Settings", "Database", "Admin / Settings", "health", 3);
+        Add("backups", "Backups", "Settings", "Database", "Operations Center", "backups", 3);
+        Add("recovery", "Recovery drill", "Settings", "Database", "Operations Center", "recovery", 3);
+        Add("support-package", "Support package", "Settings", "Database", "Operations Center", "support-package", 3);
+        Add("audit", "Audit trail", "Settings", "Database", "Dashboard", "audit", 3);
+        Add("users", "Users", "Settings", "Users", "Admin / Settings", "users", 3);
+        Add("profiles", "Import profiles", "Settings", "Users", "Admin / Settings", "profiles", 3);
+        Add("masters", "Brands and targets", "Settings", "Stores & masters", "Admin / Settings", "masters", 3);
+        Add("stores", "Stores", "Settings", "Stores & masters", "Admin / Settings", "stores", 3);
+        Add("kpi", "Calculations", "Settings", "Stores & masters", "Admin / Settings", "kpi", 3);
+        Add("tender-rules", "Tender mapping", "Settings", "Stores & masters", "Admin / Settings", "tender-rules", 3);
+        Add("staff-target", "Staff targets", "Settings", "Stores & masters", "Manual Entry", "staff-target", 3);
+        Add("watch-folder", "Watch folder", "Settings", "Integrations", "Operations Center", "watch-folder", 3);
+        Add("scheduler", "Scheduler", "Settings", "Integrations", "Operations Center", "scheduler", 3);
+        Add("sharing", "Email and sharing", "Settings", "Integrations", "Settings", "sharing", 3);
+        Add("sharing-contacts", "Sharing contacts", "Settings", "Integrations", "Report Archive", "sharing-contacts", 3);
+        Add("prepare-batch", "Prepare batch", "Settings", "Accounting", "Accounting", "prepare-batch", 3);
+        Add("ledger-mapping", "Ledger mapping", "Settings", "Accounting", "Accounting", "ledger-mapping", 3);
+        Add("mapping-review", "Mapping review", "Settings", "Accounting", "Accounting", "mapping-review", 3);
+        Add("validation", "Validation", "Settings", "Accounting", "Accounting", "validation", 3);
+        Add("tally-export", "Tally export", "Settings", "Accounting", "Accounting", "tally-export", 3);
+        Add("export-history", "Export history", "Settings", "Accounting", "Accounting", "export-history", 3);
+        Add("accounting-reconciliation", "Accounting reconciliation", "Settings", "Accounting", "Accounting", "accounting-reconciliation", 3);
+        Add("accounting-approval", "Approve batch", "Settings", "Accounting", "Accounting", "accounting-approval", 3);
+        Add("open-items", "Open items", "Settings", "Control centre", "Operations Center", "open-items", 3);
+        Add("data-quality", "Data quality", "Settings", "Control centre", "Operations Center", "data-quality", 3);
+        Add("approval-centre", "Approvals", "Settings", "Control centre", "Operations Center", "approval-centre", 3);
+        Add("adjustment", "Adjustment request", "Settings", "Control centre", "Operations Center", "adjustment", 3);
+        Add("investigation", "Investigation", "Settings", "Control centre", "Operations Center", "investigation", 3);
+        Add("reports-list", "All reports", "Reports", "All reports", "Sales Reports", "report-list");
+        Add("generations", "Report generations", "Reports", "Archive", "Report Archive", "generations", 1);
+        Add("final-packs", "Final packs", "Reports", "Archive", "Report Archive", "final-packs", 1);
+        Add("restatements", "Restatements", "Reports", "Archive", "Report Archive", "restatements", 1);
+        Add("compare", "Compare generations", "Reports", "Archive", "Report Archive", "compare", 1);
+        Add("re-export", "Re-export", "Reports", "Archive", "Report Archive", "re-export", 1);
+        Add("shared", "Shared reports", "Reports", "Archive", "Report Archive", "shared", 1);
+        Add("historical-packs", "Historical packs", "Reports", "Archive", "Report Archive", "historical-packs", 1);
+        Add("favourite-reports", "Favourites", "Reports", "Favourites", "Sales Reports", "favourite-reports", 1);
+        Add("trends", "Trends", "Reports", "Management", "Operations Center", "trends", 1);
+        Add("profile", "Current profile", "Settings", "Help", "Home", "profile", 1);
+        Add("register-inward", "Inward", "Settings", "Registers", "Registers", "register", 3);
+        Add("register-outward", "Outward", "Settings", "Registers", "Registers", "register", 3);
+        Add("register-credit", "Credit notes", "Settings", "Registers", "Registers", "register", 3);
+        Add("register-service", "Service receipts", "Settings", "Registers", "Registers", "register", 3);
+        Add("register-transfer", "Stock transfers", "Settings", "Registers", "Registers", "register", 3);
+        Add("register-vendor", "Vendor invoices", "Settings", "Registers", "Registers", "register", 3);
+        foreach (var report in ProductReportCatalogue.All)
         {
-            var id = item.FeatureCode is null ? CanonicalId(item.Id) : "report-" + item.FeatureCode;
-            if (result.Any(x => x.Id == id)) continue;
-            var moduleName = char.ToUpperInvariant(module[0]) + module[1..];
-            var title = item.Label;
-            var category = System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase(group.Label.ToLowerInvariant());
-            var destination = item.Destination;
-            var section = id;
-            var role = (int)item.MinimumRole;
-            if (item.FeatureCode is { } code)
+            var (rail, tab) = report.Code switch
             {
-                var report = ProductReportCatalogue.All.Single(x => x.Code == code);
-                moduleName = "Reports"; category = report.Category; title = code == "dsr" ? "Daily Sales Report" : report.Name;
-                destination = "Sales Reports"; section = "report";
-            }
-            else
-            {
-                if (module == "imports") role = Math.Max(role, 2);
-                if (id.StartsWith("register-")) { moduleName = "Registers"; category = "Registers"; role = 2; section = "register"; }
-                if (new[] { "source-inbox", "quarantine", "duplicates", "already-present", "conflicts", "documents", "unknown-layouts" }.Contains(id))
-                    section = "inbox";
-                if (new[] { "quarantine", "duplicates", "already-present", "conflicts", "import-failures", "import-history", "unknown-layouts" }.Contains(id)) category = "Quality & History";
-                if (new[] { "watch-folder", "scheduler", "sharing" }.Contains(id)) { moduleName = "Settings"; category = "Integrations"; }
-                if (module == "settings") category = id switch
-                {
-                    "users" => "Users & Access", "stores" or "masters" or "profiles" or "kpi" or "tender-rules" => "Stores & Masters",
-                    "health" or "backups" => "Database & Recovery", "sharing" or "scheduler" => "Integrations", _ => "General"
-                };
-                if (id == "settings") { title = "Display & Preferences"; category = "Display"; destination = "Home"; role = 1; }
-                if (id == "tally-export") category = "Export";
-                if (id == "compare") category = "Generations";
-                if (id is "walk-ins" or "readiness" or "finalisation") category = "Daily Close";
-                if (id == "walk-ins") { title = "Walk-ins"; section = "manual"; destination = "Manual Entry"; }
-                if (id == "backups") { title = "Backups"; section = "backups"; }
-                if (id == "approval-centre") { moduleName = "Approvals"; category = "Review"; }
-            }
-            if (id is "duplicates" or "already-present" or "conflicts" or "import-failures" or "unknown-layouts") { section = "import-results"; destination = "Import ETP"; role = 2; }
-            if (id is "reports-home" or "import-overview" or "accounting-overview" or "archive-overview") section = "overview";
-            if (id == "dashboard") title = "Today Overview";
-            if (id is "ledger-mapping" or "mapping-review") role = 3;
-            result.Add(new(id, title, moduleName, category, destination, section, role, item.FeatureCode,
-                new[] { item.Label, id.Replace('-', ' ') }.Concat(ReportTaskAliases.For(item.FeatureCode)).Distinct().ToArray(), item.IsAvailable, item.UnavailableReason));
+                "dsr" => ("Today", "Sales"), "cash" => ("Today", "Cash"),
+                "stock-closing" => ("Stock", "Closing stock"), "stock-brand" => ("Stock", "Brand stock"),
+                "stock-physical" => ("Stock", "Physical count"), "stock-variance" => ("Stock", "Variance"),
+                "stock-movement" => ("Stock", "Movement"), "stock-slow" => ("Stock", "Slow stock"),
+                _ => ("Reports", report.Category switch { "Tender / Cash" => "Tender & service", "Service" => "Tender & service", "Investigation" => "Management", _ => report.Category })
+            };
+            result.Add(new("report-" + report.Code, report.Code == "dsr" ? "Sales" : report.Name, rail, tab, "Sales Reports", "report", 1, report.Code, ReportTaskAliases.For(report.Code).ToArray()));
         }
-        void Add(string id, string title, string module, string category, string destination, string section, int role, params string[] aliases)
-            => result.Add(new(id, title, module, category, destination, section, role, Aliases: aliases));
-        Add("accounting-approval", "Approve Accounting Batch", "Approvals", "Accounting", "Accounting", "accounting-approval", 3);
-        Add("sharing-contacts", "Sharing Contacts", "Settings", "Integrations", "Report Archive", "sharing-contacts", 3);
-        Add("report-filters", "Report Filters", "Reports", "Filters", "Sales Reports", "report-filters", 1, "brand segment", "transaction type", "item filter");
-        Add("favourite-reports", "Favourite Reports", "Reports", "Favourites", "Sales Reports", "favourite-reports", 1, "favorites", "favourites", "starred reports");
-        Add("support-package", "Support Package", "Settings", "Database & Recovery", "Operations Center", "support-package", 3, "diagnostics package", "support");
-        Add("recovery", "Restore & Recovery Drill", "Settings", "Database & Recovery", "Operations Center", "recovery", 3, "restore", "recovery drill");
-        Add("connection", "Database Connection", "Settings", "Database & Recovery", "Settings", "connection", 3, "sql", "connection");
-        Add("stock-count", "Stock Counts", "Dashboard", "Daily Close", "Manual Entry", "stock-count", 2, "physical count");
-        Add("staff-target", "Staff Targets", "Dashboard", "Daily Close", "Manual Entry", "staff-target", 2, "targets");
-        Add("adjustment", "Adjustment Request", "Exceptions", "Review", "Operations Center", "adjustment", 2);
-        Add("investigation", "Investigation", "Exceptions", "Review", "Operations Center", "investigation", 1, "invoice lookup");
-        foreach (var topic in HelpCentreRegistry.Topics.Where(x => x.Availability != HelpTopicAvailability.ComingSoon))
-            result.Add(new("help:" + topic.Id, "Help: " + topic.Title, "Help", HelpCentreRegistry.Category(topic.Id), "Home", "help", topic.Destination is "Settings" or "Admin / Settings" ? 3 : 1, Aliases: [topic.Title + " help"]));
-        Add("profile", "Profile", "Help", "Your account", "Home", "profile", 1, "role", "identity");
-        return result;
+        foreach (var topic in HelpCentreRegistry.Topics.Where(t => t.Availability != HelpTopicAvailability.ComingSoon))
+            Add("help:" + topic.Id, topic.Title, "Settings", "Help", "Home", "help");
+        var tabOrder = new[] { "All reports", "Sales", "Cash", "Walk-ins", "Close day", "Import", "Problems", "History", "Documents", "Staff", "Tender & service", "Exceptions", "Management", "Archive", "Favourites", "Closing stock", "Brand stock", "Physical count", "Variance", "Movement", "Slow stock", "Display", "Database", "Users", "Stores & masters", "Integrations", "Accounting", "Control centre", "Registers", "Help" };
+        return result.OrderBy(t => Array.IndexOf(Sections.ToArray(), t.Rail)).ThenBy(t => Array.IndexOf(tabOrder, t.Tab)).ThenBy(t => t.ReportCode is null ? 1 : 0).ToArray();
     }
 }

@@ -42,4 +42,5 @@
     <SolidColorBrush x:Key="NavigationSelected" Color="{StaticResource NavigationSelectedColor}"/>
     <SolidColorBrush x:Key="NavigationMuted" Color="{StaticResource NavigationMutedColor}"/>
     <SolidColorBrush x:Key="DarkSurface" Color="{StaticResource DarkSurfaceColor}"/>
+    <SolidColorBrush x:Key="OnAccent" Color="White"/>
 </ResourceDictionary>

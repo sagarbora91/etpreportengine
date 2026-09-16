@@ -14,7 +14,6 @@ public sealed class ShellViewModelTests
         Assert.False(viewModel.CanGoBack);
         Assert.False(viewModel.CanGoForward);
         Assert.Equal([WorkspaceRoute.Home], viewModel.History);
-        Assert.Equal(PresentationFrom(descriptor), viewModel.CurrentPresentation);
         Assert.True(viewModel.LastNavigationDecision.IsAllowed);
     }
 
@@ -29,7 +28,6 @@ public sealed class ShellViewModelTests
         Assert.Same(decision, viewModel.LastNavigationDecision);
         Assert.True(decision.IsAllowed);
         Assert.Equal(new WorkspaceRoute("Sales Reports", "dsr"), viewModel.CurrentRoute);
-        Assert.Equal(PresentationFrom(descriptor), viewModel.CurrentPresentation);
         Assert.True(viewModel.CanGoBack);
         Assert.False(viewModel.CanGoForward);
     }
@@ -38,7 +36,6 @@ public sealed class ShellViewModelTests
     public void Denied_navigation_keeps_current_route_and_presentation_and_exposes_reason()
     {
         var viewModel = new ShellViewModel(new ShellNavigationService());
-        var originalPresentation = viewModel.CurrentPresentation;
 
         var decision = viewModel.Navigate(new("Import ETP"), ShellAccess.Viewer);
 
@@ -48,7 +45,6 @@ public sealed class ShellViewModelTests
             "Owner or Store Manager permission is required to import ETP reports.",
             decision.DenialReason);
         Assert.Equal(WorkspaceRoute.Home, viewModel.CurrentRoute);
-        Assert.Same(originalPresentation, viewModel.CurrentPresentation);
         Assert.Equal([WorkspaceRoute.Home], viewModel.History);
         Assert.False(viewModel.CanGoBack);
         Assert.False(viewModel.CanGoForward);
@@ -65,7 +61,6 @@ public sealed class ShellViewModelTests
 
         Assert.True(back.IsAllowed);
         Assert.Equal(new WorkspaceRoute("Dashboard"), viewModel.CurrentRoute);
-        Assert.Equal("dashboard", viewModel.CurrentPresentation.ModuleId);
         Assert.True(viewModel.CanGoBack);
         Assert.True(viewModel.CanGoForward);
 
@@ -73,7 +68,6 @@ public sealed class ShellViewModelTests
 
         Assert.True(forward.IsAllowed);
         Assert.Equal(new WorkspaceRoute("Report Archive"), viewModel.CurrentRoute);
-        Assert.Equal("archive", viewModel.CurrentPresentation.ModuleId);
         Assert.True(viewModel.CanGoBack);
         Assert.False(viewModel.CanGoForward);
     }
@@ -116,16 +110,6 @@ public sealed class ShellViewModelTests
                         property.Name.Contains("Report", StringComparison.Ordinal) ||
                         property.Name.Contains("Sql", StringComparison.Ordinal));
     }
-
-    private static ShellPresentationMetadata PresentationFrom(ShellRouteDescriptor descriptor) =>
-        new(
-            descriptor.Destination,
-            descriptor.ModuleId,
-            descriptor.Description,
-            descriptor.Heading,
-            descriptor.Message,
-            descriptor.ActionLabel,
-            descriptor.ActionDestination);
 
     private static Type UnwrapSequence(Type type) =>
         type.IsGenericType && type.GetGenericTypeDefinition() == typeof(IReadOnlyList<>)

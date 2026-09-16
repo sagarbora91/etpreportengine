@@ -25,11 +25,14 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
         this.connectionStringProvider = connectionStringProvider ?? throw new ArgumentNullException(nameof(connectionStringProvider));
         InitializeComponent();
         CaptureImportControls();
+        TablePresentation.Configure(BatchResultsGrid);
     }
     public event EventHandler<string>? NotificationRequested;
     public event EventHandler<string>? ReadinessChanged;
     public event EventHandler<FolderImportProgress>? ProgressChanged;
     public DateTime? BusinessDate { get; set; }
+    public IReadOnlyList<ImportProblem> Problems => latestResults.Where(r => r.Failed || r.ConflictRows > 0 || r.Status.Contains("Duplicate",StringComparison.OrdinalIgnoreCase) || r.Status == "Unknown layout")
+        .Select(r => new ImportProblem(r.FileName, r.ConflictRows > 0 ? "Conflict" : r.Status, r.StoreCode ?? "", r.Period, $"{r.NewRows} new rows; {r.AlreadyPresentRows} present; {r.ConflictRows} conflicts")).ToArray();
     public bool CanRetry => !IsBusy && latestResults.Any(result => result.Failed);
     public void AttachHost(Func<ImportWorkspaceAccess> accessProvider, Func<string, string, string, Task> auditRecorder, Func<Task> dashboardRefresher)
     {
@@ -126,7 +129,7 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
         if (BatchResultsGrid.SelectedItem is not FolderImportFileResult result) return;
         DiagnosticsGrid.ItemsSource = result.Diagnostics;
         DiagnosticsGrid.Visibility = result.Diagnostics?.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-        FileDetailText.Text = $"{result.FileName} · {result.StoreCode} · {result.Period} · {result.Status} · {result.RowsProcessed:N0} rows, {result.NewRows:N0} new, {result.AlreadyPresentRows:N0} already present, {result.ConflictRows:N0} conflicts. {result.Message}";
+        FileDetailText.Text = $"{result.FileName} · {TablePresentation.StoreLabel(result.StoreCode ?? "")} · {result.Period} · {result.Status} · {result.RowsProcessed:N0} rows, {result.NewRows:N0} new, {result.AlreadyPresentRows:N0} already present, {result.ConflictRows:N0} conflicts. {result.Message}";
     }
     private void RestatementMode_Changed(object sender, RoutedEventArgs e)
     {
@@ -138,7 +141,7 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
     private async void ImportFolder_Click(object sender, RoutedEventArgs e) { if (BrowseImportFolder()) await ImportSelectedSourceAsync(); }
     private void BrowseWorkbook_Click(object sender, RoutedEventArgs e) => BrowseWorkbook();
     private async void StartBatchImport_Click(object sender, RoutedEventArgs e) => await ImportSelectedSourceAsync();
-    private void CancelBatchImport_Click(object sender, RoutedEventArgs e) => coordinator.CancelBatch();
+    private void CancelBatchImport_Click(object sender, RoutedEventArgs e) { if (ConfirmationSheet.Show(this, "Cancel import", "Stop after the current step? Completed imports remain saved.")) coordinator.CancelBatch(); }
     public Task RetryFailedBatchAsync() => ImportSelectedSourceAsync();
     public ValueTask DisposeAsync() => coordinator.DisposeAsync();
 }

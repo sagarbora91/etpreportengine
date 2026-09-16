@@ -32,9 +32,10 @@ public static class DesktopFriendlyError
         SqlException sql when DescribeConnectionFailure(sql.Number) is { } message => message,
         SqlException { Number: 2601 or 2627 } => "This item already exists.",
         SqlException { Number: 51210 } => "This business day is finalised. Reopen it before making changes.",
-        SqlException sql when sql.Number >= 51000 => sql.Message,
+        SqlException sql when sql.Number >= 51000 => "The database rejected this change. Review the inputs and day status.",
         ImportSourceException => exception.Message,
-        InvalidOperationException or ArgumentException => exception.Message,
+        ArgumentException => System.Text.RegularExpressions.Regex.Replace(exception.Message, @"\s*\(Parameter .*?\)\s*$", ""),
+        InvalidOperationException => exception.Message,
         _ => "The action could not be completed. Technical details are available in the support package."
     };
 }

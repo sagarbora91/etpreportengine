@@ -14,7 +14,7 @@ public sealed class DataTruthMastersView : UserControl
     private readonly DataGrid staff = Table();
     private readonly TextBox sourceCode = Input();
     private readonly TextBox agency = Input(220);
-    private readonly ComboBox mode = new() { ItemsSource = DataTruthMasterRepository.Modes, MinHeight = 36, Width = 155, SelectedIndex = 0 };
+    private readonly ComboBox mode = new() { ItemsSource = DataTruthMasterRepository.Modes, MinHeight = 44, Width = 155, SelectedIndex = 0 };
     private readonly CheckBox tenderActive = new() { Content = "Active", IsChecked = true, VerticalAlignment = VerticalAlignment.Center, Margin = new(8) };
     private readonly TextBox storeCode = Input();
     private readonly TextBox staffCode = Input();
@@ -101,13 +101,13 @@ public sealed class DataTruthMastersView : UserControl
 
     private Button Button(string text, Func<Task> action)
     {
-        var button = new Button { Content = text, MinHeight = 36, Padding = new(12, 6, 12, 6), Margin = new(4) };
+        var button = new Button { Content = text, MinHeight = 44, Padding = new(12, 6, 12, 6), Margin = new(4) };
         button.Click += async (_, _) => await RunAsync(action);
         System.Windows.Automation.AutomationProperties.SetName(button, text);
         return button;
     }
-    private static DataGrid Table() => new() { AutoGenerateColumns = false, IsReadOnly = true, CanUserAddRows = false, Height = 190, MinHeight = 100, RowHeight = 36, Margin = new(0, 6, 0, 8) };
-    private static TextBox Input(double width = 130) => new() { Width = width, MinHeight = 36, Padding = new(6) };
+    private static DataGrid Table() => new() { AutoGenerateColumns = false, IsReadOnly = true, CanUserAddRows = false, Height = 190, MinHeight = 100, RowHeight = 44, Margin = new(0, 6, 0, 8) };
+    private static TextBox Input(double width = 130) => new() { Width = width, MinHeight = 44, Padding = new(6) };
     private static void Column(DataGrid grid, string header, string binding, double width) => grid.Columns.Add(new DataGridTextColumn { Header = header, Binding = new Binding(binding), Width = width });
     private static StackPanel Panel(params UIElement[] children)
     {

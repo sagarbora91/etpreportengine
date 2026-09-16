@@ -31,7 +31,7 @@ public sealed class OperationsAdministrationWorkspaceViewTests
             Assert.Equal(1, service.DashboardLoads);
             Assert.Equal(1, view.TrendRowCount);
             Assert.Equal(1, view.IssueRowCount);
-            Assert.Contains("1 daily store result(s), 1 governed quality issue(s), and 1 recent unattended run(s)", view.StatusText, StringComparison.Ordinal);
+            Assert.Contains("1 daily store result(s), 1 approved quality issue(s), and 1 recent unattended run(s)", view.StatusText, StringComparison.Ordinal);
         });
     }
 

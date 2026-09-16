@@ -46,24 +46,15 @@ public sealed class ShellNavigationService : IShellNavigationService
     {
         var descriptor = ShellRouteRegistry.Find(route.Destination);
         if (descriptor is null) return NavigationDecision.Denied(route, null, null);
-        if (route.TaskId is { } overviewId && (overviewId.StartsWith("overview:", StringComparison.Ordinal) || overviewId.StartsWith("category:", StringComparison.Ordinal)))
-        {
-            var parts = overviewId.Split(':', 3);
-            var module = parts.Length > 1 ? parts[1] : string.Empty;
-            var category = parts[0] == "category" && parts.Length == 3 ? parts[2] : null;
-            if ((parts[0] == "category" && category is null) || route.FeatureCode is not null ||
-                !TaskNavigation.All.Any(x => x.Module == module && (category is null || x.Category == category) && x.IsAllowed(access)))
-                return NavigationDecision.Denied(route, descriptor, "This category has no available tasks for your role.");
-        }
-        if (route.TaskId is { } taskId && !taskId.StartsWith("overview:", StringComparison.Ordinal) && !taskId.StartsWith("category:", StringComparison.Ordinal))
+        if (route.TaskId is { } taskId)
         {
             var task = TaskNavigation.Find(taskId);
             if (task is null || task.Destination != route.Destination || task.ReportCode != route.FeatureCode || !task.IsAllowed(access))
-                return NavigationDecision.Denied(route, descriptor, "This task is unavailable or requires a different application role.");
+                return NavigationDecision.Denied(route, descriptor, "This task requires a different role.");
         }
         if (route == WorkspaceRoute.Home) return NavigationDecision.Allowed(route, descriptor);
 
-        if (route.Destination is "Masters" or "Admin / Settings" ||
+        if (route.Destination is "Admin / Settings" ||
             route.Destination == "Settings" && access.HasAssignedRole)
         {
             return access.CanAdminister
