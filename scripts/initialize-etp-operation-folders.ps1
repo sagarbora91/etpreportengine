@@ -2,8 +2,9 @@ param(
     [Parameter(Mandatory)][string]$SqlServiceIdentity,
     [string]$ServerInstance='.\SQLEXPRESS',
     [string]$Database='EtpReporting',
-    [string]$AutomationPrincipal,
-    [switch]$GrantAutomationFolderAccess
+    [string]$AutomationPrincipal=([Environment]::MachineName+'\EtpAutomation'),
+    [switch]$GrantAutomationFolderAccess=$true,
+    [switch]$CreateAutomationAccount
 )
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'etp-operations-common.ps1')
@@ -16,9 +17,26 @@ $sqlSid=([Security.Principal.NTAccount]::new($SqlServiceIdentity)).Translate([Se
 $automationSid=$null
 if ($GrantAutomationFolderAccess) {
     if ($AutomationPrincipal -notmatch ('^'+[regex]::Escape([Environment]::MachineName)+'\\[^\\]+$')) { throw 'Choose the dedicated local automation account.' }
+    if ($CreateAutomationAccount) {
+        $accountName=$AutomationPrincipal.Split('\')[1]
+        if (-not (Get-LocalUser -Name $accountName -ErrorAction SilentlyContinue)) {
+            # S4U tasks do not store a password. Generate an unrecorded random local
+            # password rather than enabling a blank or shared interactive credential.
+            $randomBytes=New-Object byte[] 48
+            $rng=[Security.Cryptography.RandomNumberGenerator]::Create()
+            try { $rng.GetBytes($randomBytes) } finally { $rng.Dispose() }
+            $password=ConvertTo-SecureString ('Etp!'+[Convert]::ToBase64String($randomBytes)) -AsPlainText -Force
+            try {
+                New-LocalUser -Name $accountName -Password $password -AccountNeverExpires -PasswordNeverExpires `
+                    -Description 'ETP scheduled operations; dedicated non-administrator S4U account' | Out-Null
+            }
+            finally { $password.Dispose(); [Array]::Clear($randomBytes,0,$randomBytes.Length) }
+        }
+    }
     $automationSid=([Security.Principal.NTAccount]::new($AutomationPrincipal)).Translate([Security.Principal.SecurityIdentifier])
     if ($automationSid.Value -in @('S-1-5-18','S-1-5-19','S-1-5-20') -or $automationSid.Value -match '-500$') { throw 'Choose a non-administrator automation account.' }
     if ($automationSid.Value -in @(Get-LocalGroupMember -SID 'S-1-5-32-544' | ForEach-Object { $_.SID.Value })) { throw 'The automation account must not be an administrator.' }
+    if (-not (Get-LocalUser -SID $automationSid -ErrorAction Stop).Enabled) { throw 'Enable the dedicated automation account first.' }
 }
 function Set-PrivateDirectory([string]$Path,[switch]$ReadOnlyAutomation,[switch]$ParentOnly) {
     $full=[IO.Path]::GetFullPath($Path)
