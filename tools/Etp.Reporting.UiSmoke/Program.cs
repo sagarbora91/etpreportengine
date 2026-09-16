@@ -46,7 +46,7 @@ internal static class Program
         Render(window, Path.Combine(output, "04-reports-960x600.png"), 960, 600);
         Invoke(window, "OpenSection", "Today", null!);
         Render(window, Path.Combine(output, "05-module-home-1920x1080.png"), 1920, 1080);
-        Invoke(window, "ApplyDensity", UiDensity.Compact, false);
+        Invoke(window, "ApplyDensity", UiDensity.Desktop, false);
         Render(window, Path.Combine(output, "06-module-home-compact-1366x768.png"), 1366, 768);
         Invoke(window, "NavigateToDestination", "Manual Entry");
         Render(window, Path.Combine(output, "07-manual-entry-1366x768.png"), 1366, 768);
@@ -127,7 +127,7 @@ internal static class Program
                     Invoke(window, "ApplyDensity", density, false);
                     Render(window, Path.Combine(output, $"{task.Id}-{density}-{size.Item1}x{size.Item2}.png"), size.Item1, size.Item2);
                 }
-                Invoke(window, "ApplyDensity", UiDensity.Comfortable, false);
+                Invoke(window, "ApplyDensity", UiDensity.Touch, false);
                 evidence.Add(new { route = task.Id, task.Path, result = "RENDERED", method = "Direct task composition, bypasses navigation guards; 96-DPI offscreen synthetic-owner layout, not interaction", timestamp = DateTimeOffset.UtcNow });
             }
             catch (Exception ex) { evidence.Add(new { route = task.Id, result = "FAIL", error = ex.ToString() }); }
@@ -140,7 +140,7 @@ internal static class Program
             Render(dialog, Path.Combine(output, $"unsaved-dialog-{density}-360x340.png"), 360, 340);
         }
         var overviews = new List<object>();
-        Invoke(window, "CloseDrawer"); Invoke(window, "ApplyDensity", UiDensity.Comfortable, false);
+        Invoke(window, "ApplyDensity", UiDensity.Touch, false);
         foreach (var section in TaskNavigation.Sections)
         {
             Invoke(window,"OpenSection",section,null!);
