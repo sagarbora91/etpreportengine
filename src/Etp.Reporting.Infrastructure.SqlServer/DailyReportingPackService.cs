@@ -32,7 +32,7 @@ public sealed class DailyReportingPackService(string connectionString)
         var packs = await Task.WhenAll(
             GenerateAsync("WLMHW", businessDate, generatedBy, cancellationToken),
             GenerateAsync("HEMW", businessDate, generatedBy, cancellationToken));
-        var dsr = await new OperationalReportRepository(connectionString).LoadDsrAsync(businessDate, ["WLMHW", "HEMW"], cancellationToken);
+        var dsrDocument = await new OperationalReportRepository(connectionString).LoadDailySalesReportDocumentAsync(businessDate,cancellationToken);
         var overall = packs.Any(x => x.Status == ReconciliationStatus.Failed) ? ReconciliationStatus.Failed
             : packs.All(x => x.Status == ReconciliationStatus.Passed) ? ReconciliationStatus.Passed : ReconciliationStatus.NotRun;
         var message = overall == ReconciliationStatus.Passed
@@ -44,9 +44,7 @@ public sealed class DailyReportingPackService(string connectionString)
         {
             new("Combined Control Summary", overall.ToString(), message,
                 new([new("Store"),new("Report"),new("Status"),new("Control Total","#,##0.00"),new("Variance","#,##0.00"),new("Message")], controlRows)),
-            new("Titan Helios Combined DSR", overall.ToString(), "Titan World + Helios equals the COMBINED row for every business-date period.",
-                new([new("Period"),new("Store"),new("From"),new("To"),new("TY Sales","#,##0.00"),new("LY Sales","#,##0.00"),new("Growth %","#,##0.00"),new("Growth Status"),new("TY Units","#,##0.00"),new("LY Units","#,##0.00"),new("TY Invoices","#,##0"),new("LY Invoices","#,##0"),new("UPT","#,##0.00"),new("ATV","#,##0.00"),new("Walk-ins","#,##0.00"),new("Conversion %","#,##0.00"),new("Walk-in missing days","#,##0")],
-                    dsr.Select(x => (IReadOnlyList<object?>)[x.Period,x.Store,x.PeriodStart,x.PeriodEnd,x.TySales,x.LySales,x.GrowthPercent,x.GrowthStatus,x.TyUnits,x.LyUnits,x.TyInvoices,x.LyInvoices,x.Upt,x.Atv,x.WalkIns,x.ConversionPercent,x.WalkInMissingDays]).ToArray()))
+            new("Titan Helios Combined DSR", overall.ToString(), "The same store matrices and combined values as the DSR screen.",EveningReportTables.Dsr(dsrDocument.EveningSheets))
         };
         foreach (var pack in packs)
             tables.AddRange(pack.Document.Tables.Skip(1).Select(table => table with { Name = $"{pack.StoreCode} {table.Name}" }));
@@ -83,29 +81,32 @@ public sealed class DailyReportingPackService(string connectionString)
         var dsr = await operational.LoadDsrAsync(businessDate, [storeCode], cancellationToken);
         var tender = await executor.ExecuteTenderReconciliationAsync(scope, cancellationToken);
         var stock = await executor.ExecuteStockReconciliationAsync(scope, cancellationToken);
-        var physicalStock = await operational.LoadPhysicalStockAsync(storeCode, businessDate, cancellationToken);
+        var physicalStock = await operational.LoadBrandPhysicalStockAsync(storeCode, businessDate, cancellationToken);
         var staff = await operational.LoadStaffPerformanceAsync(scope, cancellationToken);
         var service = await operational.LoadServiceSalesAsync(businessDate, [storeCode], cancellationToken);
         var cash = await operational.LoadCashReconciliationAsync(storeCode, businessDate, cancellationToken);
+        var cashBook=await operational.LoadCashBookAsync(storeCode,businessDate,businessDate,cancellationToken);
+        var evening=await operational.LoadEveningSheetsAsync(businessDate,dsr,cancellationToken);
         var exceptions = await operational.LoadDailyExceptionsAsync(storeCode, businessDate, cancellationToken);
         var invoiceTotal = invoice.Sum(x => x.NetValue);
         var dsrFtd = dsr.SingleOrDefault(x => x.Period == "FTD" && string.Equals(x.Store, storeCode, StringComparison.OrdinalIgnoreCase));
         var serviceFtd = service.SingleOrDefault(x => x.Period == "FTD" && string.Equals(x.StoreCode, storeCode, StringComparison.OrdinalIgnoreCase));
         var hasR025 = workflow.ImportedReports.Contains("R025", StringComparer.OrdinalIgnoreCase);
         var hasR013 = workflow.ImportedReports.Contains("R013", StringComparer.OrdinalIgnoreCase);
-        var dsrVariance = dsrFtd?.TySales is null ? null : invoiceTotal - dsrFtd.TySales;
-        var dsrStatus = !hasR025 || dsrFtd?.TySales is null ? ReconciliationStatus.Blocked
+        var hasRevenue=workflow.ImportedReports.Contains("R022",StringComparer.OrdinalIgnoreCase);
+        var dsrVariance = dsrFtd?.TySales is null || !hasRevenue ? null : tender.InvoiceTotal - dsrFtd.TySales;
+        var dsrStatus = !hasR025 || !hasRevenue || dsrFtd?.TySales is null ? ReconciliationStatus.Blocked
             : dsrVariance != 0 ? ReconciliationStatus.Failed : ReconciliationStatus.Passed;
-        var physicalMissing = physicalStock.Count(x => x.Status == "MANUAL INPUT MISSING");
+        var physicalMissing = physicalStock.Count(x => x.Status is not ("PASS" or "FAIL"));
         var physicalFailures = physicalStock.Count(x => x.Status == "FAIL");
 
         var sections = new List<DailyReportPackSection>
         {
-            new("Customer-safe Invoice Sales Summary", !hasR025 ? ReconciliationStatus.Blocked : ReconciliationStatus.Passed,
+            new("Customer-wise Invoice Sales", !hasR025 ? ReconciliationStatus.Blocked : ReconciliationStatus.Passed,
                 hasR025 ? invoiceTotal : null, null,
-                !hasR025 ? "R025 source is missing for this business date." : $"{invoice.Count:N0} invoices; zero sales remains distinct from a missing source. Customer PII is excluded pending policy approval."),
+                !hasR025 ? "R025 source is missing for this business date." : $"{invoice.Count:N0} invoices; zero sales remains distinct from a missing source. Customer names use active R024; unavailable names remain blank."),
             new("Daily Sales Report", dsrStatus, dsrFtd?.TySales, dsrVariance,
-                "FTD/MTD/YTD and equivalent LY use the selected ETP business date; invoice summary and FTD DSR must match exactly."),
+                "FTD DSR uses R025 and is compared independently with imported Revenue Report controls (R022). MTD/YTD use the selected business date."),
             new("Service Sale Report", serviceFtd?.Total is null ? ReconciliationStatus.Blocked : ReconciliationStatus.Passed,
                 serviceFtd?.Total, null, serviceFtd?.Total is null
                     ? "Enter separate service cash, card and UPI values; missing values are not converted to zero."
@@ -114,11 +115,11 @@ public sealed class DailyReportingPackService(string connectionString)
             new("Daily Cash Reconciliation", cash.Status, cash.CalculatedClosing, cash.Variance, cash.Message),
             new("System Closing Stock", stock.Status, stock.Items.Count == 0 ? null : stock.Items.Sum(x => x.ReportedClosing),
                 stock.Items.Count == 0 ? null : stock.Items.Sum(x => x.Variance), stock.Message),
-            new("Physical Closing Stock", physicalFailures > 0 ? ReconciliationStatus.Failed : physicalMissing > 0 ? ReconciliationStatus.NotRun : ReconciliationStatus.Passed,
-                physicalStock.Where(x => x.CountedPhysicalQuantity is not null).Sum(x => x.CountedPhysicalQuantity),
+            new("Physical Closing Stock", physicalFailures > 0 ? ReconciliationStatus.Failed : physicalMissing > 0 || physicalStock.Count==0 ? ReconciliationStatus.NotRun : ReconciliationStatus.Passed,
+                physicalStock.Count==0||physicalMissing>0?null:physicalStock.Sum(x => x.ComponentTotal),
                 physicalStock.Where(x => x.SystemVariance is not null).Sum(x => x.SystemVariance),
-                physicalMissing == 0 ? "Entered physical counts are compared with ETP system stock; component composition remains independent evidence."
-                    : $"{physicalMissing:N0} inventory group(s) do not yet have a counted physical quantity; this remains visible without changing system stock."),
+                physicalMissing == 0 ? "Physical is the sum of all four entered components; difference is Physical minus System."
+                    : $"{physicalMissing:N0} brand(s) do not yet have a counted physical quantity; this remains visible without changing system stock."),
             new("Staff / CRO Performance", !hasR013 ? ReconciliationStatus.Blocked : staff.Status,
                 hasR013 ? staff.AttributedSales : null, hasR013 ? staff.Variance : null,
                 !hasR013 ? "R013 source is missing for this business date." : staff.Message),
@@ -143,7 +144,7 @@ public sealed class DailyReportingPackService(string connectionString)
         };
         var generatedAt = DateTimeOffset.UtcNow;
         var document = BuildDocument(storeCode, businessDate, status, message, generatedAt, sections, invoice, invoiceLineage, dsr,
-            service, tender, cash, stock, physicalStock, staff, exceptions, workflow);
+            service, tender, cashBook, evening, stock, physicalStock, staff, exceptions, workflow);
         var controlJson = JsonSerializer.Serialize(new
         {
             storeCode,
@@ -169,7 +170,8 @@ public sealed class DailyReportingPackService(string connectionString)
         IReadOnlyList<DsrManagementRow> dsr,
         IReadOnlyList<ServiceSalesRow> service,
         InvoiceTenderReconciliation tender,
-        CashReconciliationResult cash,
+        IReadOnlyList<CashBookDay> cashBook,
+        IReadOnlyList<EveningStoreSheet> evening,
         StockReconciliationResult stock,
         IReadOnlyList<PhysicalStockReportRow> physicalStock,
         StaffPerformanceResult staff,
@@ -183,35 +185,32 @@ public sealed class DailyReportingPackService(string connectionString)
                     sections.Select(x => (IReadOnlyList<object?>)[x.Report,x.Status.ToString(),x.ControlTotal,x.Variance,x.Message]).ToArray(),
                     ["Overall",status.ToString(),null,null,message])),
             new("Invoice Summary", sections[0].Status.ToString(), sections[0].Message,
-                new([new("Date"),new("Store"),new("Document"),new("Transaction Type"),new("Quantity","#,##0.00"),new("Net Value","#,##0.00"),new("Source Rows","#,##0")],
-                    invoice.Select(x => (IReadOnlyList<object?>)[x.BusinessDate,x.StoreCode,x.DocumentNumber,x.TransactionTypes,x.Quantity,x.NetValue,x.SourceRows]).ToArray(),
-                    ["Total","","","",invoice.Sum(x=>x.Quantity),invoice.Sum(x=>x.NetValue),invoice.Sum(x=>x.SourceRows)])),
+                new([new("Date"),new("Store"),new("Document"),new("Customer"),new("Transaction Type"),new("Quantity","#,##0.00"),new("Net Value","#,##0.00"),new("Source Rows","#,##0")],
+                    invoice.Select(x => (IReadOnlyList<object?>)[x.BusinessDate,x.StoreCode,x.DocumentNumber,x.CustomerName,x.TransactionTypes,x.Quantity,x.NetValue,x.SourceRows]).ToArray(),
+                    ["Total","","","","",invoice.Sum(x=>x.Quantity),invoice.Sum(x=>x.NetValue),invoice.Sum(x=>x.SourceRows)])),
             new("Invoice Lineage", sections[0].Status.ToString(), "Canonical line detail with source workbook, sheet and row; customer PII remains excluded.",
                 new([new("Date"),new("Store"),new("Document"),new("Line"),new("Item"),new("Brand"),new("Segment"),new("Type"),new("Quantity","#,##0.00"),new("Net Value","#,##0.00"),new("CRO"),new("Workbook"),new("Sheet"),new("Source Row","#,##0")],
                     invoiceLineage.Select(x => (IReadOnlyList<object?>)[x.BusinessDate,x.StoreCode,x.DocumentNumber,x.LineIdentifier,x.ProductCode,x.Brand,x.BrandSegment,x.TransactionType,x.Quantity,x.NetValue,x.CroNumber,x.SourceWorkbook,x.SourceSheet,x.SourceRow]).ToArray(),
                     ["Total","","","","","","","",invoiceLineage.Sum(x=>x.Quantity),invoiceLineage.Sum(x=>x.NetValue),"","","",invoiceLineage.Count])),
-            new("DSR", sections[1].Status.ToString(), sections[1].Message,
-                new([new("Period"),new("Store"),new("From"),new("To"),new("TY Sales","#,##0.00"),new("LY Sales","#,##0.00"),new("Growth %","#,##0.00"),new("Growth Status"),new("TY Units","#,##0.00"),new("LY Units","#,##0.00"),new("TY Invoices","#,##0"),new("LY Invoices","#,##0"),new("UPT","#,##0.00"),new("ATV","#,##0.00"),new("Walk-ins","#,##0.00"),new("Conversion %","#,##0.00"),new("Walk-in missing days","#,##0")],
-                    dsr.Select(x => (IReadOnlyList<object?>)[x.Period,x.Store,x.PeriodStart,x.PeriodEnd,x.TySales,x.LySales,x.GrowthPercent,x.GrowthStatus,x.TyUnits,x.LyUnits,x.TyInvoices,x.LyInvoices,x.Upt,x.Atv,x.WalkIns,x.ConversionPercent,x.WalkInMissingDays]).ToArray())),
+            new("DSR", sections[1].Status.ToString(), sections[1].Message,EveningReportTables.Dsr(evening.Where(x=>x.StoreCode==storeCode).ToArray())),
             new("Service Sales", sections[2].Status.ToString(), sections[2].Message,
-                new([new("Period"),new("Store"),new("From"),new("To"),new("Cash","#,##0.00"),new("Card","#,##0.00"),new("UPI","#,##0.00"),new("Total","#,##0.00"),new("LY Total","#,##0.00"),new("Growth %","#,##0.00"),new("Availability"),new("Missing days","#,##0"),new("LY missing days","#,##0")],
-                    service.Select(x => (IReadOnlyList<object?>)[x.Period,x.StoreCode,x.PeriodStart,x.PeriodEnd,x.Cash,x.Card,x.Upi,x.Total,x.LastYearTotal,x.GrowthPercent,x.Availability,x.MissingDays,x.LastYearMissingDays]).ToArray())),
+                new([new("Period"),new("Store"),new("From"),new("To"),new("WDC","#,##0.00"),new("Cash","#,##0.00"),new("Card","#,##0.00"),new("UPI","#,##0.00"),new("Total","#,##0.00"),new("LY Total","#,##0.00"),new("Growth %","0.00%"),new("Availability"),new("Missing days","#,##0"),new("LY missing days","#,##0")],
+                    service.Select(x => (IReadOnlyList<object?>)[x.Period,x.StoreCode,x.PeriodStart,x.PeriodEnd,x.Wdc,x.Cash,x.Card,x.Upi,x.Total,x.LastYearTotal,x.GrowthPercent,x.Availability,x.MissingDays,x.LastYearMissingDays]).ToArray())),
             new("Tender Reconciliation", tender.Status.ToString(), tender.Message,
                 new([new("Store"),new("Document"),new("Revenue","#,##0.00"),new("Tender","#,##0.00"),new("Variance","#,##0.00"),new("Status")],
                     tender.Documents.Select(x => (IReadOnlyList<object?>)[x.StoreCode,x.DocumentNumber,x.InvoiceAmount,x.TenderAmount,x.Variance,x.Status.ToString()]).ToArray(),
                     ["Total","",tender.InvoiceTotal,tender.TenderTotal,tender.Variance,tender.Status.ToString()])),
-            new("Cash Reconciliation", cash.Status.ToString(), cash.Message,
-                new([new("Store"),new("Date"),new("Opening","#,##0.00"),new("Retail Cash","#,##0.00"),new("Service Cash","#,##0.00"),new("Expenses","#,##0.00"),new("Deposit","#,##0.00"),new("Adjustment","#,##0.00"),new("Calculated Closing","#,##0.00"),new("Counted Closing","#,##0.00"),new("Variance","#,##0.00"),new("Status")],
-                    [(IReadOnlyList<object?>)[cash.StoreCode,cash.BusinessDate,cash.OpeningCash,cash.RetailCash,cash.ServiceCash,cash.Expenses,cash.CashDeposit,cash.Adjustment,cash.CalculatedClosing,cash.CountedClosing,cash.Variance,cash.Status.ToString()]])),
+            new("Cash Book", sections[4].Status.ToString(), sections[4].Message,CashBookTables.Create(cashBook)),
             new("System Stock", stock.Status.ToString(), stock.Message,
                 new([new("Store"),new("Item"),new("Opening","#,##0.00"),new("Movements","#,##0.00"),new("Expected","#,##0.00"),new("System Closing","#,##0.00"),new("Variance","#,##0.00"),new("Status")],
                     stock.Items.Select(x => (IReadOnlyList<object?>)[x.StoreCode,x.ItemCode,x.Opening,x.SourceSignedMovements,x.ExpectedClosing,x.ReportedClosing,x.Variance,x.Status.ToString()]).ToArray(),
                     ["Total","",stock.Items.Sum(x=>x.Opening),stock.Items.Sum(x=>x.SourceSignedMovements),stock.Items.Sum(x=>x.ExpectedClosing),stock.Items.Sum(x=>x.ReportedClosing),stock.Items.Sum(x=>x.Variance),stock.Status.ToString()])),
             new("Physical Stock", sections[6].Status.ToString(), sections[6].Message,
-                new([new("Store"),new("Date"),new("Inventory Group"),new("Display","#,##0.00"),new("Backstock","#,##0.00"),new("Defective","#,##0.00"),new("Y Location","#,##0.00"),new("Component Total","#,##0.00"),new("Counted Physical","#,##0.00"),new("Composition Variance","#,##0.00"),new("System","#,##0.00"),new("System Variance","#,##0.00"),new("Remarks"),new("Status")],
-                    physicalStock.Select(x => (IReadOnlyList<object?>)[x.StoreCode,x.BusinessDate,x.InventoryGroupCode,x.DisplayQuantity,x.BackstockQuantity,x.DefectiveQuantity,x.YLocationQuantity,x.ComponentTotal,x.CountedPhysicalQuantity,x.CompositionVariance,x.SystemQuantity,x.SystemVariance,x.Remarks,x.Status]).ToArray())),
+                new([new("Store"),new("Date"),new("Brand"),new("Display","#,##0.00"),new("Backstock","#,##0.00"),new("Defective","#,##0.00"),new("Y Location","#,##0.00"),new("Physical","#,##0.00"),new("System","#,##0.00"),new("System Variance","#,##0.00"),new("Remarks"),new("Status")],
+                    physicalStock.Select(x => (IReadOnlyList<object?>)[x.StoreCode,x.BusinessDate,x.InventoryGroupCode,x.DisplayQuantity,x.BackstockQuantity,x.DefectiveQuantity,x.YLocationQuantity,x.ComponentTotal,x.SystemQuantity,x.SystemVariance,x.Remarks,x.Status]).ToArray(),
+                    ["Total","","",physicalStock.Sum(x=>x.DisplayQuantity),physicalStock.Sum(x=>x.BackstockQuantity),physicalStock.Sum(x=>x.DefectiveQuantity),physicalStock.Sum(x=>x.YLocationQuantity),physicalStock.All(x=>x.ComponentTotal!=null)?physicalStock.Sum(x=>x.ComponentTotal):null,physicalStock.Sum(x=>x.SystemQuantity),physicalStock.All(x=>x.SystemVariance!=null)?physicalStock.Sum(x=>x.SystemVariance):null,"",sections[6].Status.ToString()])),
             new("Staff Performance", sections[7].Status.ToString(), sections[7].Message,
-                new([new("Store"),new("CRO"),new("CRO name"),new("Value incl. GST","#,##0.00"),new("LY Sales","#,##0.00"),new("Growth %","#,##0.00"),new("Growth Status"),new("Net Quantity","#,##0.00"),new("Discount","#,##0.00"),new("Transactions","#,##0"),new("UPT","#,##0.00"),new("ATV","#,##0.00"),new("Contribution %","#,##0.00"),new("Target","#,##0.00"),new("Achievement %","#,##0.00"),new("Rank","#,##0")],
+                new([new("Store"),new("CRO"),new("CRO name"),new("Value incl. GST","#,##0.00"),new("LY Sales","#,##0.00"),new("Growth %","0.00%"),new("Growth Status"),new("Net Quantity","#,##0.00"),new("Discount","#,##0.00"),new("Transactions","#,##0"),new("UPT","#,##0.00"),new("ATV","#,##0.00"),new("Contribution %","0.00%"),new("Target","#,##0.00"),new("Achievement %","0.00%"),new("Rank","#,##0")],
                     staff.Rows.Select(x => (IReadOnlyList<object?>)[x.StoreCode,x.CroNumber,x.CroName,x.NetSales,x.LastYearSales,x.GrowthPercent,x.GrowthStatus,x.NetQuantity,x.Discount,x.Transactions,x.Upt,x.Atv,x.ContributionPercent,x.TargetSales,x.TargetAchievementPercent,x.Rank]).ToArray(),
                     ["Control","","",staff.AttributedSales,"","","","","",staff.Rows.Sum(x=>x.Transactions),"","",staff.Variance,"","",""])),
             new("Exceptions", sections[9].Status.ToString(), sections[9].Message,

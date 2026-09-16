@@ -69,6 +69,9 @@ public partial class DailyWorkflowWorkspaceView : UserControl
         this.exportPackExcelAsync = exportPackExcelAsync ?? throw new ArgumentNullException(nameof(exportPackExcelAsync));
         this.exportPackPdfAsync = exportPackPdfAsync ?? throw new ArgumentNullException(nameof(exportPackPdfAsync));
         InitializeComponent();
+        var brandEntry = new Button { Content = "Enter stock by brand", MinHeight = 44, Margin = new Thickness(6) };
+        brandEntry.Click += (_, _) => { var scope = SelectedScope(); new Reports.BrandStockEntryWindow(this.connectionString(), scope.StoreCode, scope.BusinessDate) { Owner = Window.GetWindow(this) }.ShowDialog(); };
+        ((Panel)SaveStockCountButton.Parent).Children.Add(brandEntry);
         BusinessDateInput.SelectedDate = DateTime.Today.AddDays(-1);
         StaffTargetFromInput.SelectedDate = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
         StaffTargetToInput.SelectedDate = DateTime.Today.AddDays(-1);

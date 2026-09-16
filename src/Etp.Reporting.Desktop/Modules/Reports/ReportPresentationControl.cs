@@ -88,7 +88,7 @@ public static class ReportVisualPresenter
         var details = new Button { Content = "Open selected row details", HorizontalAlignment = HorizontalAlignment.Left, IsEnabled = false };
         details.Click += (_, _) => OpenDetails(); grid.SelectionChanged += (_, _) => details.IsEnabled = grid.SelectedItem is not null;
         filters.Children.Add(details); DockPanel.SetDock(filters, Dock.Top); detailBody.Children.Add(filters); detailBody.Children.Add(grid);
-        return new TabControl { Items = {
+        return new TabControl { SelectedIndex=1, Items = {
             new TabItem { Header = "Summary", Content = new ScrollViewer { Content = root, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled } },
             new TabItem { Header = "Detail rows", Content = detailBody }
         } };

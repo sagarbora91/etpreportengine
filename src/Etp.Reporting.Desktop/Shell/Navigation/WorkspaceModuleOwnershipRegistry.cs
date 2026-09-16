@@ -48,7 +48,6 @@ public static class WorkspaceModuleOwnershipRegistry
         Report("stock-physical"),
         Report("stock-variance"),
         Report("stock-movement"),
-        Report("stock-group"),
         Report("stock-brand"),
         Report("stock-slow"),
         Report("staff"),
@@ -57,11 +56,6 @@ public static class WorkspaceModuleOwnershipRegistry
         Report("tender-diagnostic"),
         Report("service"),
         Report("exceptions"),
-        Report("exception-source"),
-        Report("exception-unmapped"),
-        Report("exception-stock"),
-        Report("exception-staff"),
-        Report("exception-tender"),
         Report("management-trend"),
         Report("invoice-lineage")
     ];

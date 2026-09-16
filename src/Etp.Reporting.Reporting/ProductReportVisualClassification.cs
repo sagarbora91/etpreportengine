@@ -30,7 +30,6 @@ public static class ProductReportVisualClassificationRegistry
         Entry("stock-physical", ProductReportVisualClass.KpiTable),
         Entry("stock-variance", ProductReportVisualClass.ExceptionDiagnostic),
         Entry("stock-movement", ProductReportVisualClass.KpiChartTable),
-        Entry("stock-group", ProductReportVisualClass.KpiChartTable),
         Entry("stock-brand", ProductReportVisualClass.KpiChartTable),
         Entry("stock-slow", ProductReportVisualClass.ExceptionDiagnostic),
         Entry("staff", ProductReportVisualClass.ExecutiveVisual),
@@ -39,11 +38,6 @@ public static class ProductReportVisualClassificationRegistry
         Entry("tender-diagnostic", ProductReportVisualClass.ExceptionDiagnostic),
         Entry("service", ProductReportVisualClass.KpiChartTable),
         Entry("exceptions", ProductReportVisualClass.ExceptionDiagnostic),
-        Entry("exception-source", ProductReportVisualClass.ExceptionDiagnostic),
-        Entry("exception-unmapped", ProductReportVisualClass.ExceptionDiagnostic),
-        Entry("exception-stock", ProductReportVisualClass.ExceptionDiagnostic),
-        Entry("exception-staff", ProductReportVisualClass.ExceptionDiagnostic),
-        Entry("exception-tender", ProductReportVisualClass.ExceptionDiagnostic),
         Entry("management-trend", ProductReportVisualClass.ExecutiveVisual),
         Entry("invoice-lineage", ProductReportVisualClass.TableOnly)
     ];

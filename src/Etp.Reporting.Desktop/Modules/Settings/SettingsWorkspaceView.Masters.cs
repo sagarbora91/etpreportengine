@@ -6,5 +6,11 @@ public partial class SettingsWorkspaceView
         new DataTruthMastersView(() => session.ConnectionString, () => access.CanAdminister);
 
     private void InitializeDataTruthMasters() =>
+        InitializeEveningMasters();
+
+    private void InitializeEveningMasters()
+    {
         DataTruthMastersHost.Children.Add(CreateDataTruthMastersView());
+        DataTruthMastersHost.Children.Add(new EveningMastersView(() => session.ConnectionString, () => access.CanAdminister));
+    }
 }

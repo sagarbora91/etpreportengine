@@ -9,7 +9,7 @@ public sealed record MonthlyTargetRow(string StoreCode, DateOnly Month, decimal 
 
 public sealed class DataTruthMasterRepository(string connectionString)
 {
-    public static IReadOnlyList<string> Modes { get; } = ["Cash", "Card", "UPI", "CN", "TC", "Service Cash", "Service Card", "Service UPI"];
+    public static IReadOnlyList<string> Modes { get; } = ["Cash", "Card", "UPI", "CN", "TC", "Gift Card", "Bank", "Service Cash", "Service Card", "Service UPI"];
 
     public async Task<IReadOnlyList<TenderModeRow>> LoadTenderModesAsync(CancellationToken token = default)
     {

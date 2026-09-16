@@ -38,7 +38,7 @@ public static class IndianNumberFormatter
         return format switch
         {
             "currency" => value.Value.ToString("₹#,##0.00;−₹#,##0.00;₹0.00", India),
-            "percent" => value.Value.ToString("0.0%;−0.0%;0.0%", India),
+            "percent" => value.Value.ToString("0.0;−0.0;0.0", India) + "%",
             "integer" => value.Value.ToString("#,##0;−#,##0;0", India),
             _ => value.Value.ToString("#,##0.00;−#,##0.00;0.00", India)
         };
@@ -66,29 +66,9 @@ public static class VisualReportComposer
     public static VisualReportModel Compose(ExcelReportMetadata metadata, ExcelReportData data)
     {
         ArgumentNullException.ThrowIfNull(metadata); ArgumentNullException.ThrowIfNull(data);
-        var numeric = data.Columns.Select((column, index) => (column, index))
-            .Where(x => x.column.NumberFormat is "#,##0.00" or "#,##0").ToArray();
-        var labelIndex = data.Columns.Select((column, index) => (column, index))
-            .FirstOrDefault(x => x.column.NumberFormat == "General").index;
-        var kpis = numeric.Take(4).Select(x => new ReportKpi(x.column.Header,
-            Total(data, x.index), DisplayFormat(x.column),
-            Total(data, x.index) is null ? VisualValueState.Missing : VisualValueState.Available)).ToList();
-        if (kpis.Count == 0) kpis.Add(new("Rows", data.Rows.Count, "integer"));
-
+        // A report's periods and percentages are not additive. Detail owns its totals.
+        var kpis = new List<ReportKpi> { new("Rows", data.Rows.Count, "integer") };
         var visuals = new List<ReportVisual>();
-        var definition = FindVisualType(metadata.ReportName);
-        if (numeric.Length > 0 && definition is not null)
-        {
-            var primary = numeric[0];
-            var points = TopN(data.Rows.Select(row => new ReportVisualPoint(Label(row, labelIndex), Number(row, primary.index))).ToArray(), 10);
-            var type = definition.Value;
-            var series = new List<ReportVisualSeries> { new(primary.column.Header, points, VisualReportTheme.Blue) };
-            if (type == ReportVisualType.ClusteredBar && numeric.Length > 1)
-                series.Add(new(numeric[1].column.Header, TopN(data.Rows.Select(row => new ReportVisualPoint(Label(row, labelIndex), Number(row, numeric[1].index))).ToArray(), 10), VisualReportTheme.Teal));
-            visuals.Add(new($"{metadata.ReportName} analysis", type, series,
-                DisplayFormat(primary.column), "Top 10 categories are shown; remaining categories are combined as Other."));
-        }
-
         var controls = new[] { new ReportControl("Report control", metadata.Status, metadata.Message) };
         return new(new(metadata.ReportName, metadata.ReportName, metadata.DateFrom, metadata.DateTo, metadata.RuleVersion, metadata.GeneratedUtc),
             kpis, visuals, data, controls,
@@ -116,7 +96,7 @@ public static class VisualReportComposer
     {
         var header = column.Header;
         if (header.Contains('%') || header.Contains("Contribution", StringComparison.OrdinalIgnoreCase) || header.Contains("Achievement", StringComparison.OrdinalIgnoreCase) || header.Contains("Growth", StringComparison.OrdinalIgnoreCase)) return "percent";
-        if (new[] { "Sales", "Value", "Cost", "Amount", "Tender", "Invoice", "Cash", "Variance", "Revenue" }.Any(x => header.Contains(x, StringComparison.OrdinalIgnoreCase))) return "currency";
+        if (new[] { "Sales", "Value", "Cost", "Amount", "Tender", "Cash", "Variance", "Revenue" }.Any(x => header.Contains(x, StringComparison.OrdinalIgnoreCase))) return "currency";
         return column.NumberFormat == "#,##0" ? "integer" : "number";
     }
     private static decimal? Number(IReadOnlyList<object?> row, int index) => index < row.Count && TryDecimal(row[index], out var value) ? value : null;

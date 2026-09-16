@@ -120,7 +120,7 @@ public static class UiNavigationRegistry
 
     private static readonly IReadOnlyList<NavigationGroupDefinition> Exceptions =
     [
-        Group("exceptions-main", "EXCEPTIONS & APPROVALS", 10, Item("open-items", "Open Items", "Operations Center"), Item("data-quality", "Data Quality", "Operations Center"), Item("missing-sources", "Missing Sources", "Sales Reports", "exception-source"), Item("unknown-layouts", "Unknown Layouts", "Import ETP"), Item("unmapped", "Unmapped Data", "Sales Reports", "exception-unmapped"), Item("import-conflicts", "Import Conflicts", "Import ETP"), Item("tender-exceptions", "Tender", "Sales Reports", "exception-tender"), Item("stock-exceptions", "Stock", "Sales Reports", "exception-stock"), Item("staff-exceptions", "Staff", "Sales Reports", "exception-staff"), Item("accounting-exceptions", "Accounting", "Accounting"), Item("approval-centre", "Approval Centre", "Operations Center", minimumRole: AccessRole.Owner))
+        Group("exceptions-main", "EXCEPTIONS & APPROVALS", 10, Item("daily-exceptions", "Daily Exceptions", "Sales Reports", "exceptions"), Item("open-items", "Open Items", "Operations Center"), Item("data-quality", "Data Quality", "Operations Center"), Item("unknown-layouts", "Unknown Layouts", "Import ETP"), Item("import-conflicts", "Import Conflicts", "Import ETP"), Item("accounting-exceptions", "Accounting", "Accounting"), Item("approval-centre", "Approval Centre", "Operations Center", minimumRole: AccessRole.Owner))
     ];
 
     private static readonly IReadOnlyList<NavigationGroupDefinition> Settings =

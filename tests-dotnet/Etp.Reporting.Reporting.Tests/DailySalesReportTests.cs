@@ -25,8 +25,8 @@ public sealed class DailySalesReportTests
 
         Assert.Equal(MetricAvailability.MissingSource, missing.Availability);
         Assert.Equal(MetricAvailability.NotApplicable, zero.Availability);
-        Assert.Equal("N/A", DsrDisplay.Percent(missing));
-        Assert.Equal("N/A", DsrDisplay.Percent(zero));
+        Assert.Equal("—", DsrDisplay.Percent(missing));
+        Assert.Equal("—", DsrDisplay.Percent(zero));
     }
 
     [Fact]

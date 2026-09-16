@@ -36,12 +36,12 @@ public sealed class DataTruthReportingSqlTests(SqlDatabaseFixture database) : IC
         Assert.Equal(new DateOnly(2026, 8, 3).DayNumber - new DateOnly(2026, 4, 1).DayNumber - 1, ytd.WalkInMissingDays);
         var service = await reports.LoadServiceSalesAsync(new(2026, 8, 3), ["PARTIAL"]);
         var serviceMtd = Assert.Single(service, x => x.Period == "MTD");
-        Assert.Equal(150m, serviceMtd.Total);
+        Assert.Equal(158m, serviceMtd.Total);
         Assert.Equal(130m, serviceMtd.Cash);
         Assert.Equal(2, serviceMtd.MissingDays);
         Assert.Equal(3, serviceMtd.LastYearMissingDays);
         Assert.Contains("Partial", serviceMtd.Availability);
-        Assert.Equal(150m, Assert.Single(service, x => x.Period == "YTD").Total);
+        Assert.Equal(158m, Assert.Single(service, x => x.Period == "YTD").Total);
     }
 
     [Fact]

@@ -13,7 +13,7 @@ public static class RetailReportingPolicy
             ["BC"] = ReportingTransactionType.Return
         },
         new HashSet<string>(
-        ["CASH", "CARD", "UPI", "CN", "TC", "Service Cash", "Service Card", "Service UPI", "PAYMENTTYPE25", "CHEQUE", "LOYALTY_POINTS", "GV", "CREDITNOTE_REDEEM", "EXCESS_GV",
+        ["CASH", "CARD", "UPI", "CN", "TC", "Gift Card", "Bank", "Service Cash", "Service Card", "Service UPI", "PAYMENTTYPE25", "CHEQUE", "LOYALTY_POINTS", "GV", "CREDITNOTE_REDEEM", "EXCESS_GV",
          "ROUND_OFF", "NO_REFUND", "OTHERS", "TATA_GV", "GIFTCARD", "TATACLIQ", "GYFTR", "PAYTM",
          "HELIOSOMNI", "ADVANCERDEEM", "BHIMUPI", "PHONEPE", "BHARATPE", "BAJAJFIN", "RAZORPAY",
          "PAYMENTTYPE24", "ISSUED_CREDITNOTE", "CASH_REFUND", "CHEQUE_RTGS_REFUND"], StringComparer.OrdinalIgnoreCase),

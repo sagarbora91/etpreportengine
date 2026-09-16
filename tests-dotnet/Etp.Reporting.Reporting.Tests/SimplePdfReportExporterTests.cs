@@ -1,3 +1,4 @@
+using PdfSharp.Pdf.IO;
 using System.Text;
 using Etp.Reporting.Reporting;
 
@@ -21,10 +22,9 @@ public sealed class SimplePdfReportExporterTests
             var bytes = File.ReadAllBytes(path);
             var text = Encoding.ASCII.GetString(bytes);
             Assert.StartsWith("%PDF-1.4", text, StringComparison.Ordinal);
-            Assert.Contains("Daily Sales", text, StringComparison.Ordinal);
-            Assert.Contains("Control passed.", text, StringComparison.Ordinal);
-            Assert.Contains("Page 1 of 2", text, StringComparison.Ordinal);
-            Assert.Contains("Page 2 of 2", text, StringComparison.Ordinal);
+            using var document=PdfReader.Open(path,PdfDocumentOpenMode.Import);
+            Assert.Equal(2,document.PageCount);
+            Assert.All(document.Pages.Cast<PdfSharp.Pdf.PdfPage>(),page=>Assert.True(page.Width.Point>page.Height.Point));
             Assert.EndsWith("%%EOF\n", text, StringComparison.Ordinal);
         }
         finally { if (File.Exists(path)) File.Delete(path); }

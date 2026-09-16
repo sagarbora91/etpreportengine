@@ -421,7 +421,7 @@ public sealed class Phase2OperationsRepository(string connectionString)
               SELECT transaction_date,store_code,COUNT_BIG(*) unmatched
               FROM dbo.sales_line_enrichments WHERE transaction_date BETWEEN @from AND @to AND match_status<>'Matched' GROUP BY transaction_date,store_code
             )
-            SELECT s.transaction_date,s.store_code,s.net_sales,s.units,s.invoices,COALESCE(t.tender,0)-COALESCE(c.revenue,0),CONVERT(int,COALESCE(u.unmatched,0))
+            SELECT s.transaction_date,s.store_code,s.net_sales,s.units,s.invoices,COALESCE(c.revenue,0)-COALESCE(t.tender,0),CONVERT(int,COALESCE(u.unmatched,0))
             FROM sales s LEFT JOIN controls c ON c.transaction_date=s.transaction_date AND c.store_code=s.store_code
             LEFT JOIN tenders t ON t.transaction_date=s.transaction_date AND t.store_code=s.store_code
             LEFT JOIN unmatched u ON u.transaction_date=s.transaction_date AND u.store_code=s.store_code

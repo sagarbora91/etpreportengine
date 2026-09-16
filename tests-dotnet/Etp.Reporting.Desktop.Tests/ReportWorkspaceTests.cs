@@ -21,7 +21,7 @@ public sealed class ReportWorkspaceTests
     [InlineData("tender", "tender-service")]
     [InlineData("service", "tender-service")]
     [InlineData("staff", "staff")]
-    [InlineData("exception-source", "exceptions")]
+    [InlineData("exceptions", "exceptions")]
     [InlineData("management-trend", "management")]
     [InlineData("invoice-lineage", "investigation")]
     public void Report_resolves_to_its_purpose_built_workspace(string reportCode, string expectedWorkspace)

@@ -119,17 +119,12 @@ public partial class ReportsWorkspaceView : UserControl
             case "tender": await RunTenderReportAsync(); break;
             case "tender-diagnostic": await RunTenderDiagnosticAsync(); break;
             case "stock-variance": await RunStockReportAsync(); break;
-            case "stock-physical" or "stock-group": await RunPhysicalStockAsync(); break;
+            case "stock-physical": await RunPhysicalStockAsync(); break;
             case "stock-closing": await RunStockInventoryAsync("CLOSING"); break;
             case "stock-brand": await RunStockInventoryAsync("BRAND"); break;
             case "stock-slow": await RunStockInventoryAsync("SLOW"); break;
             case "stock-movement": await RunStockMovementAsync(); break;
             case "exceptions": await RunDailyExceptionsAsync(); break;
-            case "exception-source": await RunFocusedExceptionAsync("Source"); break;
-            case "exception-unmapped": await RunFocusedExceptionAsync("Unmapped"); break;
-            case "exception-stock": await RunFocusedExceptionAsync("Stock"); break;
-            case "exception-staff": await RunFocusedExceptionAsync("Staff"); break;
-            case "exception-tender": await RunFocusedExceptionAsync("Tender"); break;
             case "management-trend": await RunManagementTrendReportAsync(); break;
         }
     }
@@ -168,6 +163,7 @@ public partial class ReportsWorkspaceView : UserControl
         if (!focusedWorkspaceRequester(reportCode)) return false;
         ++reportRevision;
         presentation.BeginReport(reportCode);
+        ExceptionFilters.Visibility=reportCode=="exceptions"?Visibility.Visible:Visibility.Collapsed;
         RefreshExportAvailability();
         ReportResult.Text = reportCode == "dsr" ? "Loading the governed Daily Sales Report… Existing context remains visible." : "Loading report… Existing context remains visible.";
         return true;
@@ -178,6 +174,7 @@ public partial class ReportsWorkspaceView : UserControl
         ++reportRevision;
         if (presentation.Current.ReportCode is not { } reportCode) return;
         presentation.BeginReport(reportCode);
+        ExceptionFilters.Visibility=reportCode=="exceptions"?Visibility.Visible:Visibility.Collapsed;
         RefreshExportAvailability();
         ReportResult.Text = "Filters changed. Run the report again before exporting. Existing results belong to the previous scope.";
     }
@@ -221,13 +218,6 @@ public partial class ReportsWorkspaceView : UserControl
         catch (Exception ex) { if (revision != reportRevision) return; HandleFailure(ex, "STOCK_MOVEMENT_REPORT_FAILED", "Stock movement report failed"); }
     }
 
-    private async Task RunFocusedExceptionAsync(string focus)
-    {
-        var revision = reportRevision;
-        try { var scope = ReportScope(); if (scope.StoreCodes is not { Count: 1 } || scope.DateFrom != scope.DateTo) throw new InvalidOperationException("Select one store and one business date for an exception report."); var all = await operationalReportQueryFactory(connectionStringProvider()).LoadDailyExceptionsAsync(scope.StoreCodes[0], scope.DateTo); var rows = focus switch { "Source" => all.Where(x=>x.Area=="Source"), "Unmapped" => all.Where(x=>x.Area.Contains("Staff",StringComparison.OrdinalIgnoreCase)||x.Code.Contains("MISSING",StringComparison.OrdinalIgnoreCase)||x.Code.Contains("AMBIGUOUS",StringComparison.OrdinalIgnoreCase)), "Stock" => all.Where(x=>x.Area.Contains("stock",StringComparison.OrdinalIgnoreCase)), "Staff" => all.Where(x=>x.Area.Contains("Staff",StringComparison.OrdinalIgnoreCase)), "Tender" => all.Where(x=>x.Area=="Tender"), _ => all }; var result = rows.ToArray(); var status = result.Any(x=>x.Severity is "BLOCKER" or "FAIL") ? ReconciliationStatus.Failed : ReconciliationStatus.Passed; if (revision != reportRevision) return; ReportGrid.ItemsSource=result; ReportResult.Text=$"{status}: {result.Length:N0} {focus.ToLowerInvariant()} exception(s)."; SetExport($"{focus} Exceptions",status,RetailReportingPolicy.Version,"Focused view of the same immutable daily exception evidence; filtering never changes technical control status.",[new("Severity"),new("Area"),new("Code"),new("Store"),new("Date"),new("Document"),new("Item"),new("Variance","#,##0.00"),new("Workbook"),new("Sheet"),new("Source Row","#,##0"),new("Message"),new("Recommended Action")],result.Select(x=>(IReadOnlyList<object?>)[x.Severity,x.Area,x.Code,x.StoreCode,x.BusinessDate,x.DocumentNumber,x.ItemCode,x.Variance,x.SourceWorkbook,x.SourceSheet,x.SourceRow,x.Message,x.RecommendedAction]).ToArray(),["Total",result.Length,"","","","","",result.Where(x=>x.Variance is not null).Sum(x=>x.Variance),"","","","",""]); ApplyReportFilter(); await auditRecorder("ReportRun",ToAuditOutcome(status),$"{focus} exceptions"); }
-        catch (Exception ex) { if (revision != reportRevision) return; HandleFailure(ex, "FOCUSED_EXCEPTION_REPORT_FAILED", "Exception report failed"); }
-    }
-
     private async Task RunManagementTrendReportAsync()
     {
         var revision = reportRevision;
@@ -244,9 +234,18 @@ public partial class ReportsWorkspaceView : UserControl
 
     private async Task RunInvoiceSummaryAsync()
     {
-        var revision = reportRevision;
-        try { var rows=await operationalReportQueryFactory(connectionStringProvider()).LoadInvoiceSummaryAsync(ReportScope()); var status=rows.Count==0?ReconciliationStatus.Blocked:ReconciliationStatus.Passed; var message=rows.Count==0?"No canonical invoice lines are available for the selected scope.":"Invoice totals are generated from canonical R025 lines; customer PII is intentionally excluded."; if (revision != reportRevision) return; ReportGrid.ItemsSource=rows; ReportResult.Text=$"{status}: {rows.Count:N0} invoices."; SetExport("Customer-safe Invoice Sales Summary",status,RetailReportingPolicy.Version,message,[new("Business Date"),new("Store"),new("Document"),new("Transaction Type"),new("Quantity","#,##0.00"),new("Net Value","#,##0.00"),new("Source Rows","#,##0")],rows.Select(x=>(IReadOnlyList<object?>)[x.BusinessDate,x.StoreCode,x.DocumentNumber,x.TransactionTypes,x.Quantity,x.NetValue,x.SourceRows]).ToArray(),["Total","","","",rows.Sum(x=>x.Quantity),rows.Sum(x=>x.NetValue),rows.Sum(x=>x.SourceRows)]); ApplyReportFilter(); await auditRecorder("ReportRun",status==ReconciliationStatus.Passed?"Succeeded":"Blocked","Invoice summary"); }
-        catch (Exception ex) { if (revision != reportRevision) return; HandleFailure(ex, "INVOICE_SUMMARY_FAILED", "Invoice summary failed"); }
+        var revision=reportRevision;
+        try {
+            var rows=await operationalReportQueryFactory(connectionStringProvider()).LoadInvoiceSummaryAsync(ReportScope());
+            if(revision!=reportRevision)return; ReportGrid.ItemsSource=rows;
+            var status=rows.Count==0?ReconciliationStatus.Blocked:ReconciliationStatus.Passed;
+            ReportResult.Text=$"{rows.Count} invoices; {rows.Count(x=>string.IsNullOrWhiteSpace(x.CustomerName))} missing customer names.";
+            SetExport("Customer-wise Invoices",status,RetailReportingPolicy.Version,ReportResult.Text,
+                [new("Date","date"),new("Store"),new("Invoice"),new("Customer name"),new("Invoice quantity","#,##0.00"),new("Value incl. GST","#,##0.00")],
+                rows.Select(x=>(IReadOnlyList<object?>)[x.BusinessDate,x.StoreCode,x.DocumentNumber,x.CustomerName??"Name unavailable",x.Quantity,x.NetValue]).ToArray(),
+                ["Grand total","","","",rows.Sum(x=>x.Quantity),rows.Sum(x=>x.NetValue)]);
+            await auditRecorder("ReportRun",ToAuditOutcome(status),"Customer invoice report");
+        }catch(Exception e){if(revision==reportRevision)HandleFailure(e,"INVOICE_SUMMARY_FAILED","Customer report failed");}
     }
 
     private async Task RunInvoiceLineageAsync()
@@ -258,14 +257,17 @@ public partial class ReportsWorkspaceView : UserControl
 
     private async Task RunDsrAsync()
     {
-        var revision = reportRevision;
-        try { var scope=ReportScope(); var repository=operationalReportQueryFactory(connectionStringProvider()); var rows=await repository.LoadDsrAsync(scope.DateTo,["WLMHW","HEMW"]); var document=await repository.ComposeDsrDocumentAsync(scope.DateTo,rows); var status=rows.Any(x=>x.TySales is not null)?ReconciliationStatus.Passed:ReconciliationStatus.Blocked; var unavailable=rows.Count(x=>x.GrowthStatus!=MetricAvailability.Available.ToString()); var message=$"FTD, MTD and Indian-financial-year YTD use business date {scope.DateTo:dd-MMM-yyyy}; {unavailable:N0} row(s) have unavailable LY growth rather than a misleading percentage."; if (revision != reportRevision) return; ReportGrid.ItemsSource=rows; ReportResult.Text=$"{status}: {message}"; var policy=rows.Select(x=>x.MetricPolicy).FirstOrDefault(x=>!string.IsNullOrWhiteSpace(x))??"DSR_INVOICE_DENOMINATOR_SOURCE_EVIDENCE_V1"; SetExport("Daily Sales Report",status,policy,message,[new("Period"),new("Store"),new("From"),new("To"),new("TY Sales","#,##0.00"),new("LY Sales","#,##0.00"),new("Growth %","#,##0.00"),new("Growth Status"),new("TY Units","#,##0.00"),new("LY Units","#,##0.00"),new("TY Invoices","#,##0"),new("LY Invoices","#,##0"),new("UPT","#,##0.00"),new("ATV","#,##0.00"),new("Walk-ins","#,##0.00"),new("Conversion %","#,##0.00"),new("Walk-in missing days","#,##0")],rows.Select(x=>(IReadOnlyList<object?>)[x.Period,x.Store,x.PeriodStart,x.PeriodEnd,x.TySales,x.LySales,x.GrowthPercent,x.GrowthStatus,x.TyUnits,x.LyUnits,x.TyInvoices,x.LyInvoices,x.Upt,x.Atv,x.WalkIns,x.ConversionPercent,x.WalkInMissingDays]).ToArray(),["Independent periods","","","","","","","","","","","","","","","",""],document,scope.DateTo); ApplyReportFilter(); await auditRecorder("ReportRun",status==ReconciliationStatus.Passed?"Succeeded":"Blocked","Daily sales report"); }
-        catch (Exception ex)
-        {
-            if (revision != reportRevision) return;
-            var message = HandleFailure(ex, "DSR_REPORT_FAILED", "DSR failed");
-            dailySalesFailure(message);
-        }
+        var revision=reportRevision;
+        try {
+            var scope=ReportScope();var repo=operationalReportQueryFactory(connectionStringProvider());
+            var rows=await repo.LoadDsrAsync(scope.DateTo,["WLMHW","HEMW"]);var document=await repo.ComposeDsrDocumentAsync(scope.DateTo,rows);
+            if(revision!=reportRevision)return;ReportGrid.ItemsSource=rows;
+            var status=rows.Any(x=>x.TySales is not null)?ReconciliationStatus.Passed:ReconciliationStatus.Blocked;
+            ReportResult.Text="GST-inclusive sales; invoice counts exclude returns. Manual totals use available entries. Check Other / unmapped brands in Settings.";
+            var data=EveningReportTables.Dsr(document.EveningSheets);
+            SetExport("Daily Sales Report",status,RetailReportingPolicy.Version,ReportResult.Text,data.Columns,data.Rows,data.Totals,document,scope.DateTo);
+            await auditRecorder("ReportRun",ToAuditOutcome(status),"Daily sales report");
+        }catch(Exception e){if(revision==reportRevision)dailySalesFailure(HandleFailure(e,"DSR_REPORT_FAILED","DSR failed"));}
     }
 
     private async Task RunStaffPerformanceAsync()
@@ -277,7 +279,7 @@ public partial class ReportsWorkspaceView : UserControl
             if (revision != reportRevision) return; ReportGrid.ItemsSource = result.Rows;
             ReportResult.Text = $"{result.Status}: canonical {result.CanonicalSales:N2}, attributed {result.AttributedSales:N2}, variance {result.Variance:N2}. {result.Message}";
             SetExport("Staff CRO Performance",ToReportingStatus(result.Status), result.MetricPolicy, result.Message,
-                [new("Store"),new("CRO"),new("CRO name"),new("Value incl. GST","#,##0.00"),new("LY Sales","#,##0.00"),new("Growth %","#,##0.00"),new("Growth Status"),new("Net Quantity","#,##0.00"),new("Discount","#,##0.00"),new("Transactions","#,##0"),new("UPT","#,##0.00"),new("ATV","#,##0.00"),new("Contribution %","#,##0.00"),new("Target","#,##0.00"),new("Achievement %","#,##0.00"),new("Rank","#,##0")],
+                [new("Store"),new("CRO"),new("CRO name"),new("Value incl. GST","#,##0.00"),new("LY Sales","#,##0.00"),new("Growth %","0.00%"),new("Growth Status"),new("Net Quantity","#,##0.00"),new("Discount","#,##0.00"),new("Transactions","#,##0"),new("UPT","#,##0.00"),new("ATV","#,##0.00"),new("Contribution %","0.00%"),new("Target","#,##0.00"),new("Achievement %","0.00%"),new("Rank","#,##0")],
                 result.Rows.Select(x => (IReadOnlyList<object?>)[x.StoreCode,x.CroNumber,x.CroName,x.NetSales,x.LastYearSales,x.GrowthPercent,x.GrowthStatus,x.NetQuantity,x.Discount,x.Transactions,x.Upt,x.Atv,x.ContributionPercent,x.TargetSales,x.TargetAchievementPercent,x.Rank]).ToArray(),
                 ["Control","","",result.AttributedSales,"","","","","",result.Rows.Sum(x=>x.Transactions),"","",result.Variance,"","",""]);
             ApplyReportFilter();
@@ -289,15 +291,23 @@ public partial class ReportsWorkspaceView : UserControl
     private async Task RunServiceSalesAsync()
     {
         var revision = reportRevision;
-        try { var scope=ReportScope(); var rows=await operationalReportQueryFactory(connectionStringProvider()).LoadServiceSalesAsync(scope.DateTo,scope.StoreCodes); var status=rows.Any(x=>x.Total is not null)?ReconciliationStatus.Passed:ReconciliationStatus.Blocked; const string message="Service totals sum available entries. Missing days count days without all three service modes."; if (revision != reportRevision) return; ReportGrid.ItemsSource=rows; ReportResult.Text=$"{status}: {message}"; SetExport("Service Sales",status,RetailReportingPolicy.Version,message,[new("Period"),new("Store"),new("From"),new("To"),new("Cash","#,##0.00"),new("Card","#,##0.00"),new("UPI","#,##0.00"),new("Total","#,##0.00"),new("LY Total","#,##0.00"),new("Growth %","#,##0.00"),new("Availability"),new("Missing days","#,##0"),new("LY missing days","#,##0")],rows.Select(x=>(IReadOnlyList<object?>)[x.Period,x.StoreCode,x.PeriodStart,x.PeriodEnd,x.Cash,x.Card,x.Upi,x.Total,x.LastYearTotal,x.GrowthPercent,x.Availability,x.MissingDays,x.LastYearMissingDays]).ToArray(),["Independent periods","","","","","","","","","","","",""]); ApplyReportFilter(); await auditRecorder("ReportRun",status==ReconciliationStatus.Passed?"Succeeded":"Blocked","Service sales"); }
+        try { var scope=ReportScope(); var rows=await operationalReportQueryFactory(connectionStringProvider()).LoadServiceSalesAsync(scope.DateTo,scope.StoreCodes); var status=rows.Any(x=>x.Total is not null)?ReconciliationStatus.Passed:ReconciliationStatus.Blocked; const string message="Service totals sum available entries. Missing days count days without all three service modes."; if (revision != reportRevision) return; ReportGrid.ItemsSource=rows; ReportResult.Text=$"{status}: {message}"; SetExport("Service Sales",status,RetailReportingPolicy.Version,message,[new("Period"),new("Store"),new("From"),new("To"),new("WDC","#,##0.00"),new("Cash","#,##0.00"),new("Card","#,##0.00"),new("UPI","#,##0.00"),new("Total","#,##0.00"),new("LY Total","#,##0.00"),new("Growth %","0.00%"),new("Availability"),new("Missing days","#,##0"),new("LY missing days","#,##0")],rows.Select(x=>(IReadOnlyList<object?>)[x.Period,x.StoreCode,x.PeriodStart,x.PeriodEnd,x.Wdc,x.Cash,x.Card,x.Upi,x.Total,x.LastYearTotal,x.GrowthPercent,x.Availability,x.MissingDays,x.LastYearMissingDays]).ToArray(),null); ApplyReportFilter(); await auditRecorder("ReportRun",status==ReconciliationStatus.Passed?"Succeeded":"Blocked","Service sales"); }
         catch (Exception ex) { if (revision != reportRevision) return; HandleFailure(ex, "SERVICE_REPORT_FAILED", "Service report failed"); }
     }
 
     private async Task RunCashReconciliationAsync()
     {
-        var revision = reportRevision;
-        try { var scope=ReportScope(); if(scope.StoreCodes is not {Count:1})throw new InvalidOperationException("Enter exactly one store code for cash reconciliation."); var result=await operationalReportQueryFactory(connectionStringProvider()).LoadCashReconciliationAsync(scope.StoreCodes[0],scope.DateTo); if (revision != reportRevision) return; ReportGrid.ItemsSource=new[]{result}; ReportResult.Text=$"{result.Status}: {result.Message}"; SetExport("Daily Cash Reconciliation",ToReportingStatus(result.Status),RetailReportingPolicy.Version,result.Message,[new("Store"),new("Business Date"),new("Opening","#,##0.00"),new("Retail Cash","#,##0.00"),new("Service Cash","#,##0.00"),new("Expenses","#,##0.00"),new("Deposit","#,##0.00"),new("Adjustment","#,##0.00"),new("Calculated Closing","#,##0.00"),new("Counted Closing","#,##0.00"),new("Variance","#,##0.00"),new("Status")],[(IReadOnlyList<object?>)[result.StoreCode,result.BusinessDate,result.OpeningCash,result.RetailCash,result.ServiceCash,result.Expenses,result.CashDeposit,result.Adjustment,result.CalculatedClosing,result.CountedClosing,result.Variance,result.Status.ToString()]],["Control","","","","","","","","",result.CountedClosing,result.Variance,result.Status.ToString()]); ApplyReportFilter(); await auditRecorder("ReportRun",result.Status==ApplicationReportStatus.Passed?"Succeeded":result.Status.ToString(),"Cash reconciliation"); }
-        catch (Exception ex) { if (revision != reportRevision) return; HandleFailure(ex, "CASH_RECONCILIATION_FAILED", "Cash reconciliation failed"); }
+        var revision=reportRevision;
+        try {
+            var scope=ReportScope();if(scope.StoreCodes is not {Count:1})throw new InvalidOperationException("Choose one store for the cash book.");
+            var days=await new Etp.Reporting.Infrastructure.SqlServer.OperationalReportRepository(connectionStringProvider()).LoadCashBookAsync(scope.StoreCodes[0],scope.DateFrom,scope.DateTo);
+            if(revision!=reportRevision)return;
+            var data=CashBookTables.Create(days);var table=new System.Data.DataTable();foreach(var col in data.Columns)table.Columns.Add(col.Header,typeof(object));foreach(var row in data.Rows)table.Rows.Add(row.Select(x=>x??DBNull.Value).ToArray());ReportGrid.ItemsSource=table.DefaultView;
+            var status=days.All(x=>x.Status=="Complete")?ReconciliationStatus.Passed:ReconciliationStatus.Blocked;
+            ReportResult.Text=$"{days.Count} days. Opening carries forward from the previous calculated closing. Enter opening overrides with a reason in Daily inputs.";
+            SetExport("Cash Book",status,RetailReportingPolicy.Version,ReportResult.Text,data.Columns,data.Rows,data.Totals);
+            await auditRecorder("ReportRun",ToAuditOutcome(status),"Cash book");
+        }catch(Exception e){if(revision==reportRevision)HandleFailure(e,"CASH_BOOK_FAILED","Cash book failed");}
     }
 
     private async Task RunTenderReportAsync()
@@ -324,7 +334,7 @@ public partial class ReportsWorkspaceView : UserControl
     private async Task RunPhysicalStockAsync()
     {
         var revision = reportRevision;
-        try { var scope=ReportScope(); if(scope.StoreCodes is not {Count:1})throw new InvalidOperationException("Enter exactly one store code for physical stock reporting."); var rows=await operationalReportQueryFactory(connectionStringProvider()).LoadPhysicalStockAsync(scope.StoreCodes[0],scope.DateTo); var status=rows.Any(x=>x.Status=="FAIL")?ReconciliationStatus.Failed:rows.Count==0?ReconciliationStatus.Blocked:ReconciliationStatus.Passed; const string message="Physical count, component total and ETP system quantity remain separate; neither count overwrites the other."; if (revision != reportRevision) return; ReportGrid.ItemsSource=rows; ReportResult.Text=$"{status}: {rows.Count:N0} inventory group(s)."; SetExport("Physical Closing Stock",status,RetailReportingPolicy.Version,message,[new("Store"),new("Date"),new("Inventory Group"),new("Display","#,##0.00"),new("Backstock","#,##0.00"),new("Defective","#,##0.00"),new("Y Location","#,##0.00"),new("Component Total","#,##0.00"),new("Counted Physical","#,##0.00"),new("Composition Variance","#,##0.00"),new("System","#,##0.00"),new("System Variance","#,##0.00"),new("Remarks"),new("Status")],rows.Select(x=>(IReadOnlyList<object?>)[x.StoreCode,x.BusinessDate,x.InventoryGroupCode,x.DisplayQuantity,x.BackstockQuantity,x.DefectiveQuantity,x.YLocationQuantity,x.ComponentTotal,x.CountedPhysicalQuantity,x.CompositionVariance,x.SystemQuantity,x.SystemVariance,x.Remarks,x.Status]).ToArray(),["Total","","","","","","",rows.Sum(x=>x.ComponentTotal),rows.Sum(x=>x.CountedPhysicalQuantity),rows.Sum(x=>x.CompositionVariance),rows.Sum(x=>x.SystemQuantity),rows.Sum(x=>x.SystemVariance),"",status.ToString()]); ApplyReportFilter(); await auditRecorder("ReportRun",status==ReconciliationStatus.Passed?"Succeeded":status.ToString(),"Physical stock report"); }
+        try { var scope=ReportScope(); if(scope.StoreCodes is not {Count:1})throw new InvalidOperationException("Enter exactly one store code for physical stock reporting."); var rows=await operationalReportQueryFactory(connectionStringProvider()).LoadPhysicalStockAsync(scope.StoreCodes[0],scope.DateTo); var status=rows.Any(x=>x.Status=="FAIL")?ReconciliationStatus.Failed:rows.Count==0||rows.Any(x=>x.Status!="PASS")?ReconciliationStatus.Blocked:ReconciliationStatus.Passed; const string message="Physical = Display + Backstock + Defective + Y Location. Difference = Physical − System. Missing counts remain blank."; if (revision != reportRevision) return; ReportGrid.ItemsSource=rows; ReportResult.Text=$"{status}: {rows.Count:N0} brand(s)."; SetExport("Physical Closing Stock",status,RetailReportingPolicy.Version,message,[new("Store"),new("Date"),new("Brand"),new("Display","#,##0.00"),new("Backstock","#,##0.00"),new("Defective","#,##0.00"),new("Y Location","#,##0.00"),new("Physical","#,##0.00"),new("System","#,##0.00"),new("System Variance","#,##0.00"),new("Remarks"),new("Status")],rows.Select(x=>(IReadOnlyList<object?>)[x.StoreCode,x.BusinessDate,x.InventoryGroupCode,x.DisplayQuantity,x.BackstockQuantity,x.DefectiveQuantity,x.YLocationQuantity,x.ComponentTotal,x.SystemQuantity,x.SystemVariance,x.Remarks,x.Status]).ToArray(),["Total","","",rows.Sum(x=>x.DisplayQuantity),rows.Sum(x=>x.BackstockQuantity),rows.Sum(x=>x.DefectiveQuantity),rows.Sum(x=>x.YLocationQuantity),rows.All(x=>x.ComponentTotal!=null)?rows.Sum(x=>x.ComponentTotal):null,rows.Sum(x=>x.SystemQuantity),rows.Sum(x=>x.SystemVariance),"",status.ToString()]); ApplyReportFilter(); await auditRecorder("ReportRun",status==ReconciliationStatus.Passed?"Succeeded":status.ToString(),"Physical stock report"); }
         catch (Exception ex) { if (revision != reportRevision) return; HandleFailure(ex, "PHYSICAL_STOCK_REPORT_FAILED", "Physical stock report failed"); }
     }
 
@@ -335,7 +345,7 @@ public partial class ReportsWorkspaceView : UserControl
         catch (Exception ex) { if (revision != reportRevision) return; HandleFailure(ex, "DAILY_EXCEPTIONS_REPORT_FAILED", "Daily exceptions failed"); }
     }
 
-    private void SetExport(string name, ReconciliationStatus status, string ruleVersion, string message, IReadOnlyList<ExcelReportColumn> columns, IReadOnlyList<IReadOnlyList<object?>> rows, IReadOnlyList<object?> totals, DailySalesReportDocument? dsrReport = null, DateOnly? businessDate = null)
+    private void SetExport(string name, ReconciliationStatus status, string ruleVersion, string message, IReadOnlyList<ExcelReportColumn> columns, IReadOnlyList<IReadOnlyList<object?>> rows, IReadOnlyList<object?>? totals, DailySalesReportDocument? dsrReport = null, DateOnly? businessDate = null)
     {
         var scope=ReportScope(); var snapshot=presentation.SetReport(new(name,businessDate??scope.DateFrom,businessDate??scope.DateTo,status.ToString(),ruleVersion,message,DateTimeOffset.UtcNow),new(columns,rows,totals),dsrReport); var renderFailure=ReportPresentationHost.Show(snapshot); if(renderFailure is not null)_=auditRecorder("VisualRender","Failed","Visual summary could not be rendered; detailed report remained available"); previewUpdater(snapshot,ReportGrid.ItemsSource,ReportResult.Text); RefreshExportAvailability();
     }
@@ -355,11 +365,22 @@ public partial class ReportsWorkspaceView : UserControl
         return message;
     }
 
+    private string exceptionFocus="All";
+    private void ExceptionFilter_Click(object sender,RoutedEventArgs e)
+    {
+        if(sender is Button { Tag:string focus }) { exceptionFocus=focus;ApplyReportFilter(); }
+    }
+    private bool MatchesException(object item)
+    {
+        var area=item.GetType().GetProperty("Area")?.GetValue(item)?.ToString()??"";
+        var code=item.GetType().GetProperty("Code")?.GetValue(item)?.ToString()??"";
+        return exceptionFocus switch { "All"=>true,"Unmapped"=>code.Contains("MISSING")||code.Contains("AMBIGUOUS")||code.Contains("UNMAPPED"),_=>area.Contains(exceptionFocus,StringComparison.OrdinalIgnoreCase) };
+    }
     private void ReportSearch_TextChanged(object sender, RoutedEventArgs e) => ApplyReportFilter();
     private void ViewDetails_Click(object sender, RoutedEventArgs e) => ShowSelectedDetails();
     private void ApplyReportFilter()
     {
-        if(ReportGrid.ItemsSource is null)return; var search=ReportSearchInput.Text.Trim(); var varianceOnly=VarianceOnlyInput.IsChecked==true; var view=CollectionViewSource.GetDefaultView(ReportGrid.ItemsSource); view.Filter=item=>{if(item is null)return false;if(search.Length>0&&!item.ToString()!.Contains(search,StringComparison.OrdinalIgnoreCase))return false;if(!varianceOnly)return true;var property=item.GetType().GetProperty("Variance");return property?.GetValue(item) is decimal variance&&variance!=0;}; view.Refresh();
+        if(ReportGrid.ItemsSource is null)return; var search=ReportSearchInput.Text.Trim(); var varianceOnly=VarianceOnlyInput.IsChecked==true; var view=CollectionViewSource.GetDefaultView(ReportGrid.ItemsSource); view.Filter=item=>{if(item is null)return false;if(search.Length>0&&!item.ToString()!.Contains(search,StringComparison.OrdinalIgnoreCase))return false;if(presentation.Current.ReportCode=="exceptions" && !MatchesException(item))return false;if(!varianceOnly)return true;var property=item.GetType().GetProperty("Variance");return property?.GetValue(item) is decimal variance&&variance!=0;}; view.Refresh();
     }
     private void ReportGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e) => ShowSelectedDetails();
     private void ShowSelectedDetails() { if (ReportGrid.SelectedItem is not null) detailPresenter(ReportGrid.SelectedItem); else ReportResult.Text = "Select a report row to view its details and source lineage."; }

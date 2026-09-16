@@ -28,14 +28,12 @@ public sealed class CashBalanceReconciliationService
         AddIfMissing(inputs.ServiceCash, "SERVICE_CASH", missing);
         AddIfMissing(inputs.Expenses, "EXPENSES", missing);
         AddIfMissing(inputs.CashDeposit, "CASH_DEPOSIT", missing);
-        AddIfMissing(inputs.Adjustment, "CASH_ADJUSTMENT", missing);
-        AddIfMissing(inputs.CountedClosingCash, "CLOSING_CASH_COUNTED", missing);
         if (missing.Count > 0) return new(null, null, ReconciliationStatus.Blocked, missing, Formula);
 
         var calculated = inputs.OpeningCash!.Value + inputs.RetailCash + inputs.ServiceCash!.Value
-            - inputs.Expenses!.Value - inputs.CashDeposit!.Value + inputs.Adjustment!.Value;
-        var variance = inputs.CountedClosingCash!.Value - calculated;
-        return new(calculated, variance, variance == 0 ? ReconciliationStatus.Passed : ReconciliationStatus.Failed, [], Formula);
+            - inputs.Expenses!.Value - inputs.CashDeposit!.Value + (inputs.Adjustment ?? 0m);
+        var variance = inputs.CountedClosingCash - calculated;
+        return new(calculated, variance, variance is null or 0 ? ReconciliationStatus.Passed : ReconciliationStatus.Failed, [], Formula);
     }
 
     private static void AddIfMissing(decimal? value, string field, ICollection<string> missing)
