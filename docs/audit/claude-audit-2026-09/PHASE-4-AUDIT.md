@@ -89,3 +89,58 @@ Migrations apply in numeric order, so on any merged branch 0020 drops the table 
 ## 7. Cleanup
 
 Nothing was created on this machine for this phase and nothing needs removing. No database was created or dropped, no ACL changed, no task installed, no certificate created, no artefact signed. Live `EtpReporting` re-checked read-only: **490 invoices, 16 migrations**, unchanged. `settings.json` unchanged. No source, test or migration file was modified.
+
+---
+
+## 8. Addendum — verification completed 16 September 2026
+
+The first pass was static: I had not built this branch or run a single test on it. That gap is now closed, and it changes three verdicts.
+
+**Build and tests verified.** Clean Release build from a wiped tree: **0 warnings, 0 errors**. Full suite: **653 passed, 0 failed, 2 skipped**, which matches Codex's reported figure exactly. The two skips are the opt-in environment-gated render and full-window smoke tests, correctly gated rather than silently absent.
+
+**A4.1 upgraded to PASS on my own execution.** I ran the Phase 4 security tests by name against disposable databases with real impersonation. All passed:
+
+- `Locked_day_rejects_raw_reopen_delete_and_key_move_even_with_legacy_writer_permissions`
+- `Staff_permissions_reject_fact_edits_spoofed_audit_and_owner_operations_but_preserve_imports`
+- `Owner_without_windows_elevation_reopens_once_with_sql_actor_and_required_reason`
+- `Audit_is_append_only_for_owner_and_archiving_keeps_original_history`
+- `Staff_submissions_cannot_forge_approval_and_locked_day_adjustments_enter_accounting_only_after_owner_decision`
+- `Only_dedicated_automation_and_owner_can_publish_verified_health_while_staff_can_read_safe_status`
+- `Recovery_uses_backup_metadata_despite_later_live_changes_and_rejects_path_escape`
+- `Support_package_contains_only_aggregate_health_and_omits_private_database_content`
+
+The day lock and the staff denials are genuinely enforced in SQL. The real SSMS login under separate Windows accounts is still worth doing once at deployment, but the mechanism is proven.
+
+**A4.2 is now a definite FAIL, as a statement about this PC.** I read the current permissions rather than changing them:
+
+```
+C:\ProgramData\EtpReporting\Backups
+  NT SERVICE\MSSQL$SQLEXPRESS:(OI)(CI)(M)
+  NT AUTHORITY\SYSTEM:(I)(OI)(CI)(F)
+  BUILTIN\Administrators:(I)(OI)(CI)(F)
+  DESKTOP-6IBM1J5\Sagar:(I)(F)
+  CREATOR OWNER:(I)(OI)(CI)(IO)(F)
+  BUILTIN\Users:(I)(OI)(CI)(RX)
+  BUILTIN\Users:(I)(CI)(WD,AD,WEA,WA)
+```
+
+**BUILTIN\Users still holds read and execute plus write-data and append-data** on the root, on Backups and on Documents. The `Share` folder does not exist. This is audit 04's high finding exactly as it was first written: every unencrypted backup of the shop's sales and customer data is readable by any local account, and anyone can drop a file into the backup folder. Phase 4 wrote the code to fix this and the code looks right, but it has never been run, so **the exposure on the shop PC today is unchanged**. This is the item I would fix first, ahead of anything else in the phase, because it needs no merge and no certificate.
+
+**A4.5 cannot be run on this branch at all.** I tried to generate a support package from a database holding real customer names and phone numbers. It failed with "Support health query failed. Check database access and try again." The cause is structural, not a bug: Phase 4's support package reads health objects created by its own migration 0023, and a Phase 1 to 3 database does not have them. Going the other way is also impossible — Phase 4 has **no folder import service, no ETP family profiles and no customer table**, so the real files cannot be imported into a Phase 4 database in the first place.
+
+So A4.5 as written, "a session that imported the real files", is **unreachable until the merge blocker in section 4 is fixed**. It is not merely not run. Worth noting in passing that the failure message itself was a clean generic sentence with no SQL text in it, which is the behaviour Phase 4 intends.
+
+**A4.4 confirmed blocked by edition.** The backup script requires AES-256 with a server certificate and fails closed. SQL Server Express does not support backup encryption. No amount of testing on this machine will close A4.4.
+
+### Revised acceptance position
+
+| ID | First pass | Now |
+|---|---|---|
+| A4.1 | not run | **PASS** by execution |
+| A4.2 | not run | **FAIL** — BUILTIN\Users still has read and write |
+| A4.3 | not run | still blocked on the automation-account decision |
+| A4.4 | not run | **blocked by SQL edition**, not closeable here |
+| A4.5 | partial | **unreachable until the merge blocker is fixed** |
+| A4.6 | PASS | **PASS**, now with the test run behind it |
+
+The verdict does not change. Phase 4 stays reopened on the merge blocker, and the folder permissions move to the top of the list because they are exploitable today and cost nothing to fix.
