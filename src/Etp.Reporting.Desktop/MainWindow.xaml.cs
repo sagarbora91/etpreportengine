@@ -111,7 +111,7 @@ public partial class MainWindow : Window
                 if (focusedWorkspaceKind == "report") { reportWorkspaceSession.UpdatePreview(snapshot, rows, status, reportsWorkspaceView.ShowRowDetails); ApplicationStatus.Text = status; }
             },
             message => reportWorkspaceSession.ShowDailySalesFailure(message),
-            row => OpenDrawer("Report row details", "Source evidence and technical source history remain available without leaving the report workspace.", row));
+            row => ShowReportDetails("Report row details", "Details for the selected report row.", row));
 
         importWorkspaceView.AttachHost(
             () => new(currentAccess.CanImport, currentAccess.CanAdminister),
@@ -185,10 +185,9 @@ public partial class MainWindow : Window
     {
         if (!decision.IsAllowed)
         {
-            if (!string.IsNullOrWhiteSpace(decision.DenialReason)) { ApplicationStatus.Text = decision.DenialReason; OpenDrawer("Access restricted", decision.DenialReason); }
+            if (!string.IsNullOrWhiteSpace(decision.DenialReason)) ApplicationStatus.Text = decision.DenialReason;
             return;
         }
-        CloseDrawer();
         if (decision.RequestedRoute.TaskId?.StartsWith("help:", StringComparison.Ordinal) != true) helpWorkspaceSession.Abandon();
         if (decision.RequestedRoute == WorkspaceRoute.Home) { OpenSection("Today"); return; }
         taskNavigator!.DisplayTaskRoute(decision.RequestedRoute);

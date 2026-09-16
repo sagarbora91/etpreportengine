@@ -104,7 +104,7 @@ public sealed class Phase3ShellTests
                     foreach(var scroll in scrolls) Assert.True(scroll.ScrollableHeight<1,$"{screen} scrolls by {scroll.ScrollableHeight} DIP");
                 }
             }
-            Assert.Equal(5,window.RailPanel.Children.OfType<Button>().Count(b=>b.Tag is string));
+            Assert.Equal(TaskNavigation.Sections,window.RailPanel.Children.OfType<Button>().Where(b=>b.Tag is string).Select(b=>(string)b.Tag));
             window.importWorkspaceView.DisposeAsync().AsTask().GetAwaiter().GetResult();
         });
     }
@@ -171,7 +171,7 @@ public sealed class Phase3ShellTests
             View<AdministrationWorkspaceView>("Administration"),_=>throw new InvalidOperationException("Synthetic audit"),View<ImportWorkspaceView>("Import"));
         typeof(MainWindow).GetField("currentAccess",BindingFlags.NonPublic|BindingFlags.Instance)!.SetValue(window,new AccessSession("synthetic","Synthetic owner",AccessRole.Owner,true));
         window.WelcomeOverlay.Visibility=Visibility.Collapsed;
-        window.ApplyDensity(UiDensity.Comfortable,false);
+        window.ApplyDensity(UiDensity.Touch,false);
         return window;
     }
     private static DailySalesReportDocument Document()
@@ -183,8 +183,8 @@ public sealed class Phase3ShellTests
     }
     private static string Output()
     {
-        var root=new DirectoryInfo(AppContext.BaseDirectory);while(root is not null&&!File.Exists(Path.Combine(root.FullName,"Etp.Reporting.slnx")))root=root.Parent;
-        var path=Path.Combine(root!.FullName,"artifacts","phase3-review");Directory.CreateDirectory(path);return path;
+        var path=Environment.GetEnvironmentVariable("ETP_PHASE3_UI_EVIDENCE") ?? Path.Combine(Path.GetTempPath(),"EtpPhase3Review");
+        Directory.CreateDirectory(path);return path;
     }
     private static bool Rendered(FrameworkElement element,DependencyObject root)
     {

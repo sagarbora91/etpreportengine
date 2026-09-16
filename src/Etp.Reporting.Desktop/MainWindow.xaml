@@ -21,29 +21,30 @@
    </StackPanel>
   </Border>
   <Grid Grid.Column="1">
-   <Grid.RowDefinitions><RowDefinition Height="48"/><RowDefinition Height="Auto"/><RowDefinition/><RowDefinition Height="28"/></Grid.RowDefinitions>
-   <Grid Background="{DynamicResource Surface}" Margin="8,0">
-    <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="180"/><ColumnDefinition Width="170"/></Grid.ColumnDefinitions>
+   <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition/><RowDefinition Height="28"/></Grid.RowDefinitions>
+   <Grid x:Name="ShellHeader" Background="{DynamicResource Surface}" Margin="8,0">
+    <Grid.RowDefinitions><RowDefinition Height="48"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+    <Grid.ColumnDefinitions><ColumnDefinition Width="86"/><ColumnDefinition/><ColumnDefinition Width="180"/><ColumnDefinition Width="170"/></Grid.ColumnDefinitions>
     <TextBlock x:Name="PageTitle" Text="Today" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center" automation:AutomationProperties.HeadingLevel="Level1"/>
-    <DatePicker x:Name="ShellBusinessDateSelector" Grid.Column="1" Margin="2" SelectedDateChanged="ShellBusinessDate_Changed" automation:AutomationProperties.Name="Business date"/>
-    <ComboBox x:Name="ShellStoreSelector" Grid.Column="2" SelectedIndex="2" Margin="2" automation:AutomationProperties.Name="Store">
+    <WrapPanel x:Name="SectionTabs" Grid.Column="1" VerticalAlignment="Center" automation:AutomationProperties.Name="Section tabs"/>
+    <DatePicker x:Name="ShellBusinessDateSelector" Grid.Column="2" Margin="2" SelectedDateChanged="ShellBusinessDate_Changed" automation:AutomationProperties.Name="Business date"/>
+    <ComboBox x:Name="ShellStoreSelector" Grid.Column="3" SelectedIndex="2" Margin="2" automation:AutomationProperties.Name="Store">
      <ComboBoxItem Content="Titan World"/><ComboBoxItem Content="Helios"/><ComboBoxItem Content="Both stores"/>
     </ComboBox>
    </Grid>
-   <WrapPanel x:Name="SectionTabs" Grid.Row="1" Margin="8,2" automation:AutomationProperties.Name="Section tabs"/>
-   <Border x:Name="FocusedWorkspaceLayer" Grid.Row="2" Background="{DynamicResource AppBackground}">
+   <Border x:Name="FocusedWorkspaceLayer" Grid.Row="1" Background="{DynamicResource AppBackground}">
     <ContentControl x:Name="FocusedWorkspaceHost" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"/>
    </Border>
-   <Border x:Name="StatusFooter" Grid.Row="3" Background="{DynamicResource Surface}" Padding="8,0" Focusable="True" automation:AutomationProperties.Name="Application status">
-    <TextBlock x:Name="ApplicationStatus" Text="Starting…" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" automation:AutomationProperties.LiveSetting="Polite" MouseDown="Status_Click"/>
+   <Border x:Name="StatusFooter" Grid.Row="2" Background="{DynamicResource Surface}" Padding="8,0" Focusable="True" automation:AutomationProperties.Name="Application status">
+    <DockPanel>
+     <TextBlock x:Name="StatusOverflowSummary" DockPanel.Dock="Right" FontSize="12" Margin="8,0,0,0" VerticalAlignment="Center" Visibility="Collapsed" TextWrapping="NoWrap" automation:AutomationProperties.Name="Hidden status lines"/>
+     <TextBlock x:Name="ApplicationStatus" Text="Starting…" FontSize="12" LineHeight="16" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" automation:AutomationProperties.LiveSetting="Polite" MouseDown="Status_Click"/>
+    </DockPanel>
    </Border>
   </Grid>
   <Border x:Name="SuccessToast" Grid.Column="1" Panel.ZIndex="25" Visibility="Collapsed" Background="{DynamicResource SuccessSoft}" BorderBrush="{DynamicResource Success}" BorderThickness="1" CornerRadius="8" Padding="12" Margin="12,0,12,40" VerticalAlignment="Bottom" HorizontalAlignment="Right" MaxWidth="520">
    <StackPanel><TextBlock x:Name="ToastMessage" MaxHeight="60" TextWrapping="Wrap" automation:AutomationProperties.LiveSetting="Polite"/><Button Content="More details" Click="StatusDetails_Click" HorizontalAlignment="Right" Margin="0,4,0,0"/></StackPanel>
   </Border>
-  <Grid x:Name="DrawerOverlay" Grid.Column="1" Background="#550C1628" Visibility="Collapsed" Panel.ZIndex="40" MouseDown="DrawerOverlay_MouseDown">
-   <Border x:Name="DetailDrawerHost" Width="390" HorizontalAlignment="Right" Background="{DynamicResource Surface}" Padding="16" MouseDown="DetailDrawerHost_MouseDown"/>
-  </Grid>
   <Grid x:Name="WelcomeOverlay" Grid.ColumnSpan="2" Background="{DynamicResource AppBackground}" Panel.ZIndex="100">
    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="480" Margin="24">
     <TextBlock Text="Database setup" FontSize="24" FontWeight="SemiBold"/>

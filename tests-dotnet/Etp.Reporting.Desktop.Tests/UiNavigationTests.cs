@@ -46,8 +46,8 @@ public sealed class UiNavigationTests
     }
 
     [Theory]
-    [InlineData(UiDensity.Comfortable)]
-    [InlineData(UiDensity.Compact)]
+    [InlineData(UiDensity.Touch)]
+    [InlineData(UiDensity.Desktop)]
     public void Density_preference_round_trips_without_creating_a_second_ui(UiDensity density)
     {
         var preference = new UiPreferences(density, ["registers"], ["dsr"]);
@@ -57,6 +57,20 @@ public sealed class UiNavigationTests
         Assert.Equal(preference.Density, restored.Density);
         Assert.Equal(preference.PinnedModuleIds, restored.PinnedModuleIds);
         Assert.Equal(preference.FavouriteReportCodes, restored.FavouriteReportCodes);
+    }
+
+    [Theory]
+    [InlineData("0", UiDensity.Touch)]
+    [InlineData("1", UiDensity.Desktop)]
+    [InlineData("\"Comfortable\"", UiDensity.Touch)]
+    [InlineData("\"Compact\"", UiDensity.Desktop)]
+    [InlineData("\"Touch\"", UiDensity.Touch)]
+    [InlineData("\"Desktop\"", UiDensity.Desktop)]
+    public void Legacy_density_preferences_retain_choice_and_save_current_names(string json, UiDensity expected)
+    {
+        var density = JsonSerializer.Deserialize<UiDensity>(json);
+        Assert.Equal(expected, density);
+        Assert.Equal($"\"{expected}\"", JsonSerializer.Serialize(density));
     }
 
     [Fact]

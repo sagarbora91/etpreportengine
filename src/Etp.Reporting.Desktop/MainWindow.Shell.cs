@@ -16,7 +16,6 @@ namespace Etp.Reporting.Desktop;
 
 public partial class MainWindow
 {
-    private IInputElement? drawerReturnFocus;
     private TaskNavigator? taskNavigator;
     private UiPreferences uiPreferences = UiPreferences.Default;
     internal ShellAccess CurrentShellAccess => new(currentAccess.Role != AccessRole.None,
@@ -39,11 +38,13 @@ public partial class MainWindow
         EventHandler changed = (_,_) =>
         {
             var text = ApplicationStatus.Text;
+            UpdateStatusOverflow();
             if (System.Text.RegularExpressions.Regex.IsMatch(text,"saved|completed|succeeded",System.Text.RegularExpressions.RegexOptions.IgnoreCase)
                 && !System.Text.RegularExpressions.Regex.IsMatch(text,"failed|not saved|cancel|could not",System.Text.RegularExpressions.RegexOptions.IgnoreCase))
             { ToastMessage.Text = text; SuccessToast.Visibility = Visibility.Visible; toastTimer.Stop(); toastTimer.Start(); }
         };
         descriptor.AddValueChanged(ApplicationStatus,changed);
+        ApplicationStatus.SizeChanged += (_, _) => UpdateStatusOverflow();
         Closed += (_,_) => { toastTimer.Stop(); descriptor.RemoveValueChanged(ApplicationStatus,changed); };
     }
 
@@ -86,16 +87,22 @@ public partial class MainWindow
         activeSection = task.Rail;
         PageTitle.Text = task.Rail;
         SectionTabs.Children.Clear();
-        foreach (var group in TaskNavigation.InSection(task.Rail, CurrentShellAccess).GroupBy(t => t.Tab))
+        var groups = TaskNavigation.InSection(task.Rail, CurrentShellAccess).Select(t => t.Tab).Distinct().ToArray();
+        if (groups.Length > 4)
         {
-            var button = new Button { Content = group.Key, Tag = group.Key, Margin = new Thickness(0,0,4,0), Padding = new Thickness(8,4,8,4), MinWidth = 44 };
-            if (group.Key == task.Tab) button.SetResourceReference(StyleProperty, "PrimaryButton");
-            AutomationProperties.SetName(button, group.Key + " tab");
-            button.Click += (_,_) => OpenSection(task.Rail, group.Key);
+            var sectionSelector = new ComboBox { ItemsSource = groups, SelectedItem = task.Tab, Width = 180, Margin = new Thickness(0, 0, 4, 0) };
+            AutomationProperties.SetName(sectionSelector, "Choose " + task.Rail.ToLowerInvariant() + " section");
+            sectionSelector.SelectionChanged += (_, _) => { if (sectionSelector.SelectedItem is string tab) OpenSection(task.Rail, tab); };
+            SectionTabs.Children.Add(sectionSelector);
+        }
+        else foreach (var group in groups)
+        {
+            var button = new Button { Content = group, Tag = group, Margin = new Thickness(0,0,4,0), Padding = new Thickness(8,4,8,4), MinWidth = 44 };
+            if (group == task.Tab) button.SetResourceReference(StyleProperty, "PrimaryButton");
+            AutomationProperties.SetName(button, group + " tab");
+            button.Click += (_,_) => OpenSection(task.Rail, group);
             SectionTabs.Children.Add(button);
         }
-        if (task.Rail == "Settings" && task.Tab == "Database")
-            SectionTabs.Children.Add(new TextBlock { Text = databaseHealthLine, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8,0,0,0), FontSize = 12 });
         var choices = TaskNavigation.InSection(task.Rail, CurrentShellAccess).Where(t => t.Tab == task.Tab).ToArray();
         if (choices.Length > 1)
         {
@@ -140,15 +147,32 @@ public partial class MainWindow
     {
         if (RailColumn is null) return;
         RailColumn.Width = new GridLength(ActualWidth < 1000 ? 100 : 112);
+        var narrow = ActualWidth < 1000;
+        Grid.SetRow(SectionTabs, narrow ? 1 : 0);
+        Grid.SetColumn(SectionTabs, narrow ? 0 : 1);
+        Grid.SetColumnSpan(SectionTabs, narrow ? 4 : 1);
+        SectionTabs.Margin = narrow ? new Thickness(0, 2, 0, 2) : new Thickness(0);
     }
 
     private void StatusDetails_Click(object sender, RoutedEventArgs e) => new StatusDetailsDialog(this, taskNavigator?.CurrentStatusDetails() ?? ApplicationStatus.Text).ShowDialog();
     private void Status_Click(object sender, MouseButtonEventArgs e) => new StatusDetailsDialog(this, taskNavigator?.CurrentStatusDetails() ?? ApplicationStatus.Text).ShowDialog();
 
+    private void UpdateStatusOverflow()
+    {
+        if (ApplicationStatus.ActualWidth <= 0) return;
+        var formatted = new FormattedText(ApplicationStatus.Text, PresentationCulture.Indian, FlowDirection.LeftToRight,
+            new Typeface(ApplicationStatus.FontFamily, ApplicationStatus.FontStyle, ApplicationStatus.FontWeight, ApplicationStatus.FontStretch),
+            ApplicationStatus.FontSize, Brushes.Black, VisualTreeHelper.GetDpi(ApplicationStatus).PixelsPerDip)
+        { MaxTextWidth = ApplicationStatus.ActualWidth, LineHeight = 16 };
+        var hidden = Math.Max(0, (int)Math.Ceiling(formatted.Height / 16) - 1);
+        StatusOverflowSummary.Text = hidden == 1 ? "1 more line · More details" : $"{hidden} more lines · More details";
+        StatusOverflowSummary.Visibility = hidden == 0 ? Visibility.Collapsed : Visibility.Visible;
+    }
+
     internal void ApplyDensity(UiDensity density, bool persist)
     {
-        Resources["ActiveTargetHeight"] = density == UiDensity.Comfortable ? 44d : 36d;
-        Resources["ActiveGridRowHeight"] = density == UiDensity.Comfortable ? 44d : 36d;
+        Resources["ActiveTargetHeight"] = density == UiDensity.Touch ? 44d : 36d;
+        Resources["ActiveGridRowHeight"] = density == UiDensity.Touch ? 44d : 36d;
 
         uiPreferences = uiPreferences with { Density = density };
         if (persist) UiPreferenceStore.Save(uiPreferences);
@@ -162,15 +186,20 @@ public partial class MainWindow
 
     private void OpenGlobalSearch_Click(object sender, RoutedEventArgs e) => taskNavigator!.FocusMasterSearch();
     private void OpenHelp_Click(object sender, RoutedEventArgs e) => ShowHelpWorkspace(HelpCentreRegistry.HomeTopicId);
-    internal void OpenProfile_Click(object sender, RoutedEventArgs e) => OpenDrawer("Current profile", $"Windows identity: {currentAccess.WindowsIdentity}\nUser: {currentAccess.DisplayName}\nRole: {RoleLabel(currentAccess.Role)}\nPermissions continue to be enforced by the existing application services.");
-
-    private void OpenDrawer(string title, string message, object? detail = null)
+    internal void OpenProfile_Click(object sender, RoutedEventArgs e)
     {
-        if (DrawerOverlay.Visibility != Visibility.Visible) drawerReturnFocus = Keyboard.FocusedElement;
-        var panel = new StackPanel();
-        var close = new Button { Content = "Close", HorizontalAlignment = HorizontalAlignment.Right, MinWidth = 72 };
-        close.Click += (_, _) => CloseDrawer(); panel.Children.Add(close);
-        panel.Children.Add(new TextBlock { Text = title, FontSize = 22, FontWeight = FontWeights.SemiBold, Foreground = (Brush)FindResource("PrimaryText"), Margin = new Thickness(0, 18, 0, 8) });
+        var profile = TaskNavigation.Find("profile")!;
+        UpdateSection(profile);
+        FocusedWorkspaceHost.Content = DetailContent("Current profile", $"Windows identity: {currentAccess.WindowsIdentity}\nUser: {currentAccess.DisplayName}\nRole: {RoleLabel(currentAccess.Role)}");
+        FocusedWorkspaceLayer.Visibility = Visibility.Visible;
+    }
+
+    private FrameworkElement DetailContent(string title, string message, object? detail = null)
+    {
+        var panel = new StackPanel { Margin = new Thickness(16) };
+        var heading = new TextBlock { Text = title, FontSize = 22, FontWeight = FontWeights.SemiBold, Foreground = (Brush)FindResource("PrimaryText"), Margin = new Thickness(0, 0, 0, 8) };
+        AutomationProperties.SetHeadingLevel(heading, AutomationHeadingLevel.Level2);
+        panel.Children.Add(heading);
         panel.Children.Add(new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap, Foreground = (Brush)FindResource("SecondaryText"), Margin = new Thickness(0, 0, 0, 18) });
         if (detail is not null)
         {
@@ -181,13 +210,15 @@ public partial class MainWindow
                 panel.Children.Add(new TextBlock { Text = property.GetValue(detail)?.ToString() ?? "—", TextWrapping = TextWrapping.Wrap, FontWeight = FontWeights.SemiBold, Foreground = (Brush)FindResource("PrimaryText") });
             }
         }
-        DetailDrawerHost.Child = new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
-        DrawerOverlay.Visibility = Visibility.Visible; close.Focus();
+        return new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
     }
 
-    private void CloseDrawer() { DrawerOverlay.Visibility = Visibility.Collapsed; DetailDrawerHost.Child = null; if (drawerReturnFocus is FrameworkElement { IsVisible: true } element) element.Focus(); drawerReturnFocus = null; }
-    private void DrawerOverlay_MouseDown(object sender, MouseButtonEventArgs e) => CloseDrawer();
-    private void DetailDrawerHost_MouseDown(object sender, MouseButtonEventArgs e) => e.Handled = true;
+    private void ShowReportDetails(string title, string message, object? detail)
+    {
+        var dialog = new Window { Owner = this, Title = title, Width = 620, Height = 520,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = DetailContent(title, message, detail) };
+        dialog.ShowDialog();
+    }
 
     private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
     {
@@ -213,7 +244,6 @@ public partial class MainWindow
             case ShellCommand.Home: NavigateToDestination("Dashboard"); return true;
             case ShellCommand.Help: ShowHelpWorkspace(contextual: true); return true;
             case ShellCommand.ShortcutGuide: OpenShortcutGuide(); return true;
-            case ShellCommand.CloseOrCancel when DrawerOverlay.Visibility == Visibility.Visible: CloseDrawer(); return true;
             case ShellCommand.CloseOrCancel when CloseFocusedHelp(): return true;
             case ShellCommand.Search:
                 taskNavigator!.SearchCurrentPage();

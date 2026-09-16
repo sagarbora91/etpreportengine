@@ -15,7 +15,9 @@ public sealed class EveningDsrView : TabControl
         foreach(var sheet in document.EveningSheets)
         {
             var panel=new StackPanel();
-            panel.Children.Add(new TextBlock{Text=$"{sheet.StoreName} · {document.BusinessDate:dd MMM yyyy}",FontSize=19,FontWeight=FontWeights.Bold,Margin=new(6)});
+            var heading = new TextBlock{Text=$"{sheet.StoreName} · {document.BusinessDate:dd MMM yyyy}",FontSize=19,FontWeight=FontWeights.Bold,Margin=new(6)};
+            System.Windows.Automation.AutomationProperties.SetHeadingLevel(heading,System.Windows.Automation.AutomationHeadingLevel.Level2);
+            panel.Children.Add(heading);
             panel.Children.Add(new TextBlock{Text=$"Store target {Money(sheet.StoreTarget)}   Day target {Money(sheet.DayTarget)}\nMTD balance {Money(sheet.Balance)}   Required daily sales {Money(sheet.RequiredAds)}",TextWrapping=TextWrapping.Wrap,Margin=new(6)});
             var grid=new Grid{MinWidth=680};grid.ColumnDefinitions.Add(new(){Width=new GridLength(150)});for(var i=0;i<6;i++)grid.ColumnDefinitions.Add(new(){Width=new GridLength(1,GridUnitType.Star)});
             var all=new List<string[]>{new[]{"Metric","FTD","LY","Growth %","MTD","YTD","LY YTD"}};
