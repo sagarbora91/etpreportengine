@@ -35,7 +35,7 @@
             <Button Content="Email draft" x:Name="ShareArchivedEmailButton" Click="ShareArchivedEmail_Click" Padding="14,7" Margin="8,0,0,0"/>
         </WrapPanel>
         <WrapPanel Margin="0,8,0,0">
-            <TextBox x:Name="SharePhoneInput" Width="150" Padding="6" ToolTip="Optional WhatsApp phone including country code"
+            <TextBox x:Name="SharePhoneInput" InputScope="Number" Width="150" Padding="6" ToolTip="Optional WhatsApp phone including country code"
                      automation:AutomationProperties.Name="WhatsApp phone"/>
             <TextBox x:Name="ShareEmailToInput" Width="240" Padding="6" Margin="8,0,0,0" ToolTip="Email To"
                      automation:AutomationProperties.Name="Email recipient"/>
@@ -53,7 +53,7 @@
                      automation:AutomationProperties.Name="Sharing contact role"/>
             <TextBox x:Name="ContactEmailInput" Width="220" Padding="6" Margin="8,0,0,0" ToolTip="Email"
                      automation:AutomationProperties.Name="Sharing contact email"/>
-            <TextBox x:Name="ContactPhoneInput" Width="150" Padding="6" Margin="8,0,0,0" ToolTip="Phone including country code"
+            <TextBox x:Name="ContactPhoneInput" InputScope="Number" Width="150" Padding="6" Margin="8,0,0,0" ToolTip="Phone including country code"
                      automation:AutomationProperties.Name="Sharing contact phone"/>
             <TextBox x:Name="ContactSubscriptionsInput" Width="180" Padding="6" Margin="8,0,0,0" ToolTip="Default report subscriptions"
                      automation:AutomationProperties.Name="Default report subscriptions"/>

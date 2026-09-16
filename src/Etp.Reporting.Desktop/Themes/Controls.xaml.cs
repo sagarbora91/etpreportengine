@@ -2,6 +2,8 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
+using System.Windows.Input;
+using System.Windows.Threading;
 namespace Etp.Reporting.Desktop.Themes;
 
 public partial class ControlsTheme : ResourceDictionary
@@ -19,6 +21,10 @@ public partial class ControlsTheme : ResourceDictionary
         if (sender is not DatePicker picker) return;
         picker.SelectedDateChanged -= DateChanged;
         picker.SelectedDateChanged += DateChanged;
+        picker.RemoveHandler(Keyboard.KeyDownEvent, new KeyEventHandler(DateKeyDown));
+        picker.AddHandler(Keyboard.KeyDownEvent, new KeyEventHandler(DateKeyDown), true);
+        picker.RemoveHandler(Keyboard.LostKeyboardFocusEvent, new KeyboardFocusChangedEventHandler(DateFocusLost));
+        picker.AddHandler(Keyboard.LostKeyboardFocusEvent, new KeyboardFocusChangedEventHandler(DateFocusLost), true);
         FormatDate(picker);
         picker.CalendarOpened -= CalendarOpened;
         picker.CalendarOpened += CalendarOpened;
@@ -27,9 +33,22 @@ public partial class ControlsTheme : ResourceDictionary
     {
         if (sender is DatePicker picker) picker.Dispatcher.BeginInvoke(() => FormatDate(picker));
     }
+    private static void DateKeyDown(object sender, KeyEventArgs e)
+    {
+        if (sender is DatePicker picker && e.Key == Key.Return)
+            picker.Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, () => FormatDate(picker));
+    }
+    private static void DateFocusLost(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        if (sender is DatePicker picker)
+            picker.Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, () => FormatDate(picker));
+    }
     private static void FormatDate(DatePicker picker)
     {
-        if (picker.SelectedDate is { } date) picker.SetCurrentValue(DatePicker.TextProperty, date.ToString("dd MMM yyyy", PresentationCulture.Indian));
+        // DatePicker.Text normalises back to the language's built-in short-date format.
+        // Update its editor after that normalisation, including same-date typed commits.
+        if (picker.SelectedDate is { } date && picker.Template?.FindName("PART_TextBox", picker) is DatePickerTextBox editor)
+            editor.SetCurrentValue(TextBox.TextProperty, date.ToString("dd MMM yyyy", PresentationCulture.Indian));
     }
     private void CalendarOpened(object sender, RoutedEventArgs e)
     {

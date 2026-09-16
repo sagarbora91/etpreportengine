@@ -74,7 +74,7 @@
 
             <TextBlock Text="Staff/CRO target" FontWeight="SemiBold" Margin="0,14,0,0"/>
             <WrapPanel Margin="0,6,0,0">
-                <StackPanel Width="132" Margin="0,4,6,4"><TextBlock Text="Staff CRO number" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4"/><TextBox x:Name="StaffTargetCroInput" Width="120" Padding="6" ToolTip="CRO number" automation:AutomationProperties.Name="Staff CRO number"/></StackPanel>
+                <StackPanel Width="132" Margin="0,4,6,4"><TextBlock Text="Staff CRO number" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4"/><TextBox x:Name="StaffTargetCroInput" InputScope="Number" Width="120" Padding="6" ToolTip="CRO number" automation:AutomationProperties.Name="Staff CRO number"/></StackPanel>
                 <DatePicker x:Name="StaffTargetFromInput" Width="180" Margin="6,0,0,0" automation:AutomationProperties.Name="Staff target start date"/>
                 <DatePicker x:Name="StaffTargetToInput" Width="180" Margin="6,0,0,0" automation:AutomationProperties.Name="Staff target end date"/>
                 <StackPanel Width="122" Margin="0,4,6,4"><TextBlock Text="Staff target sales" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4"/><TextBox x:Name="StaffTargetValueInput" Width="110" Padding="6" Margin="6,0,0,0" ToolTip="Target sales" automation:AutomationProperties.Name="Staff target sales"/></StackPanel>

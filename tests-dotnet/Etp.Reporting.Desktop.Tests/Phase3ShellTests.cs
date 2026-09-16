@@ -159,7 +159,7 @@ public sealed class Phase3ShellTests
         });
     }
 
-    private static MainWindow CreateWindow()
+    internal static MainWindow CreateWindow()
     {
         var cases=ExtractedWorkspaceUiSmokeTests.CreateWorkspaces(Path.Combine(Path.GetTempPath(),"EtpPhase3Ui",Guid.NewGuid().ToString("N")));
         T View<T>(string name)=>(T)(object)cases.Single(c=>c.Name==name).View;
