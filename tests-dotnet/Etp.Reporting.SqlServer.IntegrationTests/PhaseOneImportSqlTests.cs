@@ -35,7 +35,8 @@ public sealed class PhaseOneImportSqlTests(ITestOutputHelper output)
         var c=Row(original,4,"100000068",new(2026,7,1));
         var usecase=new SqlServerImportPersistenceUseCase(db.Fixture.ConnectionString);
         var first=await Save(usecase,Workbook(original,[a,b]));Assert.Equal(2,first.PersistedRows);
-        var superset=await Save(usecase,Workbook(original,[a,b,c]));Assert.Equal(3,superset.PersistedRows);
+        var superset=await Save(usecase,Workbook(original,[a,b,c]));Assert.Equal(1,superset.PersistedRows);
+        Assert.Equal(2,superset.AlreadyPresentRows);
         Assert.Equal(3,await db.Int("SELECT COUNT(*) FROM dbo.sales_lines"));
         Assert.Equal("2025,2026,2027",await db.Fixture.ExecuteAsync("SELECT STRING_AGG(CONVERT(varchar(4),invoice_year),',') WITHIN GROUP(ORDER BY invoice_year) FROM dbo.sales_invoices"));
         Assert.Equal(1,await db.Int("SELECT COUNT(*) FROM dbo.import_restatements"));
@@ -129,9 +130,7 @@ public sealed class PhaseOneImportSqlTests(ITestOutputHelper output)
     public async Task A_locked_day_inside_the_range_prevents_the_whole_file()
     {
         await using var db=new TestDatabase();await db.InitializeAsync();var source=await Sample();
-        var repo=new DailyReportingWorkflowRepository(db.Fixture.ConnectionString);
-        await repo.LoadAsync("HEMW",new(2026,8,20));
-        await db.Fixture.ExecuteAsync("UPDATE dbo.daily_reporting_days SET status='LOCKED',finalised_by=N'SQL test',finalised_utc=SYSUTCDATETIME() WHERE store_code='HEMW' AND business_date='20260820'");
+        await db.Fixture.ExecuteAsync("INSERT dbo.daily_reporting_days(store_code,business_date,status,finalised_by,finalised_utc) VALUES('HEMW','20260820','LOCKED',N'SQL test',SYSUTCDATETIME())");
         var workbook=Workbook(source,[Row(source,2,"100000001",new(2026,8,1)),Row(source,3,"100000002",new(2026,8,25))]);
         var error=await Assert.ThrowsAsync<SqlException>(()=>Save(new(db.Fixture.ConnectionString),workbook));
         Assert.Contains("finalised",error.Message);

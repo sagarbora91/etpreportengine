@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.Data.SqlClient;
 
 namespace Etp.Reporting.Infrastructure.SqlServer;
@@ -25,8 +26,8 @@ public sealed class EveningMasterRepository(string connectionString)
 
     public async Task SaveBrandAsync(BrandRowDefinition row, CancellationToken token = default)
     {
-        if (!(await new Phase2OperationsRepository(connectionString).LoadCurrentAccessAsync(token)).CanAdminister)
-            throw new UnauthorizedAccessException("Owner permission is required.");
+        if (!(await new Phase2OperationsRepository(connectionString).LoadCurrentAccessAsync(token)).CanImport)
+            throw new UnauthorizedAccessException("Owner or Store Manager permission is required.");
         if (string.IsNullOrWhiteSpace(row.StoreCode) || row.StoreCode.Length > 30 || string.IsNullOrWhiteSpace(row.Label) || row.Label.Length > 100)
             throw new ArgumentException("Enter a store and brand row label.");
         if(new[]{"Other / unmapped","VOL","VALUE","AUPT","AVPT","RETAIL WALKIN","INVOICE","CONVERSION %","WCC WALKIN","WCC SALES","WDC BILLS"}.Contains(row.Label.Trim(),StringComparer.OrdinalIgnoreCase))
@@ -34,34 +35,13 @@ public sealed class EveningMasterRepository(string connectionString)
         var codes = row.SourceCodes.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         if (codes.Any(x => x.Length > 100)) throw new ArgumentException("Each source brand code must be at most 100 characters.");
         await using var c = await Open(token);
-        await using var t = (SqlTransaction)await c.BeginTransactionAsync(token);
-        try
-        {
-            await using var q = new SqlCommand("""
-                DECLARE @id int=@requested;
-                IF @id=0 BEGIN
-                  INSERT dbo.brand_rows(store_code,row_label,sort_order) VALUES(@store,@label,@order);
-                  SET @id=SCOPE_IDENTITY();
-                END ELSE BEGIN
-                  UPDATE dbo.brand_rows SET row_label=@label,sort_order=@order,modified_by=ORIGINAL_LOGIN(),modified_utc=SYSUTCDATETIME()
-                  WHERE brand_row_id=@id AND store_code=@store;
-                  IF @@ROWCOUNT<>1 THROW 51401,'The brand row no longer exists in this store.',1;
-                END;
-                DELETE dbo.brand_row_codes WHERE brand_row_id=@id;
-                SELECT @id;
-                """, c, t);
-            q.Parameters.AddWithValue("@requested", row.Id); q.Parameters.AddWithValue("@store", row.StoreCode.Trim().ToUpperInvariant());
-            q.Parameters.AddWithValue("@label", row.Label.Trim()); q.Parameters.AddWithValue("@order", row.Order);
-            var id = Convert.ToInt32(await q.ExecuteScalarAsync(token));
-            foreach (var code in codes)
-            {
-                await using var insert = new SqlCommand("IF EXISTS(SELECT 1 FROM dbo.brand_row_codes WITH(UPDLOCK,HOLDLOCK) WHERE store_code=@store AND source_brand=@code) THROW 51402,'This source brand is already assigned. Remove it from the other row first.',1; INSERT dbo.brand_row_codes(store_code,source_brand,brand_row_id) VALUES(@store,@code,@id)", c, t);
-                insert.Parameters.AddWithValue("@store", row.StoreCode.Trim().ToUpperInvariant()); insert.Parameters.AddWithValue("@code", code); insert.Parameters.AddWithValue("@id", id);
-                await insert.ExecuteNonQueryAsync(token);
-            }
-            await t.CommitAsync(token);
-        }
-        catch { await t.RollbackAsync(CancellationToken.None); throw; }
+        await using var q = new SqlCommand("EXEC dbo.save_evening_brand @requested,@store,@label,@order,@codes", c);
+        q.Parameters.AddWithValue("@requested", row.Id);
+        q.Parameters.AddWithValue("@store", row.StoreCode.Trim().ToUpperInvariant());
+        q.Parameters.AddWithValue("@label", row.Label.Trim());
+        q.Parameters.AddWithValue("@order", row.Order);
+        q.Parameters.AddWithValue("@codes", JsonSerializer.Serialize(codes));
+        await q.ExecuteNonQueryAsync(token);
     }
 
     public async Task<IReadOnlyList<SourceBrandEvidence>> LoadSourceBrandsAsync(CancellationToken token = default)

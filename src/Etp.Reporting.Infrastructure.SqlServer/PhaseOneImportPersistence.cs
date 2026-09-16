@@ -106,15 +106,14 @@ public sealed partial class SqlServerTransactionalImportStore
     private static async Task RecordDuplicateAsync(SqlConnection c,SqlTransaction t,ImportPersistencePackage p,
         long fileId,ImportPlan plan,CancellationToken token)
     {
-        await using(var q=Cmd(c,t,"UPDATE dbo.import_files SET is_superseded=1,superseded_by_import_file_id=@previous,superseded_utc=SYSUTCDATETIME(),superseded_by=@user,restatement_reason=N'Duplicate content; all rows already present.' WHERE import_file_id=@file; UPDATE dbo.import_batches SET status='Completed',source_row_count=@rows,completed_utc=SYSUTCDATETIME() WHERE import_batch_id=@batch"))
+        // Stage retained source rows before SQL validates their content against current imports.
+        await InsertFamilySourceAsync(c,t,p,fileId,plan.Keys,token,recordOutcomes:false);
+        await using(var q=Cmd(c,t,"EXEC dbo.complete_duplicate_import @file,@previous"))
         {
-            q.Parameters.AddWithValue("@previous",plan.PreviousFiles[0].Id); q.Parameters.AddWithValue("@file",fileId);
-            q.Parameters.AddWithValue("@batch",p.Batch.BatchId); q.Parameters.AddWithValue("@rows",plan.Keys.Count); Add(q,"@user",p.File.ImportedBy);
+            q.Parameters.AddWithValue("@previous",plan.PreviousFiles[0].Id);
+            q.Parameters.AddWithValue("@file",fileId);
             await q.ExecuteNonQueryAsync(token);
         }
-        // Keep a typed, non-current source copy for each distinct workbook hash, including
-        // harmless formatting/reference changes, without adding canonical reporting facts.
-        await InsertFamilySourceAsync(c,t,p,fileId,plan.Keys,token,recordOutcomes:false);
         foreach(var row in plan.Keys)
         {
             var lineage=await Lineage(c,t,fileId,new(p.AcceptedImport!.MatchedSheet.Name,row.Key,"DUPLICATE_SOURCE"),token);
@@ -128,10 +127,9 @@ public sealed partial class SqlServerTransactionalImportStore
         if(package.AcceptedImport is not { } accepted) return;
         var family=EtpReportFamilyRegistry.Families.Single(x=>x.ReportCode==accepted.ProfileIdentity.ReportCode);
         var table=family.TableName;
-        // Identifiers come only from the compiled, exact-header family catalogue.
-        var columnNames=family.Columns.Select(x=>$"[{x.CanonicalField}]").ToArray();
+        // Each catalogue family has a static, typed SQL append procedure.
         var parameters=family.Columns.Select((_,i)=>$"@v{i}").ToArray();
-        var sql=$"INSERT dbo.[{table}](import_file_id,source_lineage_id,content_key,{string.Join(',',columnNames)}) VALUES(@file,@lineage,@key,{string.Join(',',parameters)})";
+        var sql=$"EXEC dbo.[append_{table}] @file,@lineage,@key,{string.Join(',',parameters)}";
         foreach(var row in accepted.Staging.Rows)
         {
             var key=keys[row.SourceRowNumber];
@@ -141,11 +139,6 @@ public sealed partial class SqlServerTransactionalImportStore
                 insert.Parameters.AddWithValue("@file",fileId); insert.Parameters.AddWithValue("@lineage",lineage); insert.Parameters.AddWithValue("@key",key);
                 for(var i=0;i<family.Columns.Count;i++) Add(insert,$"@v{i}",row.Values.GetValueOrDefault(family.Columns[i].CanonicalField));
                 await insert.ExecuteNonQueryAsync(token);
-            }
-            await using(var manifest=Cmd(c,t,"INSERT dbo.etp_import_content(import_file_id,source_row_number,content_key) VALUES(@file,@row,@key)"))
-            {
-                manifest.Parameters.AddWithValue("@file",fileId); manifest.Parameters.AddWithValue("@row",row.SourceRowNumber); manifest.Parameters.AddWithValue("@key",key);
-                await manifest.ExecuteNonQueryAsync(token);
             }
             if(recordOutcomes && package.SalesLines.Count+package.InvoiceControls.Count+package.Enrichments.Count+package.StockMovements.Count+package.StockSnapshots.Count==0)
                 await RecordOutcomeAsync(c,t,fileId,lineage,key,"NEW",token);
@@ -170,27 +163,9 @@ public sealed partial class SqlServerTransactionalImportStore
     private static async Task InsertEnrichmentAsync(SqlConnection c,SqlTransaction t,long file,EnrichmentPersistence row,CancellationToken token)
     {
         var lineage=await Lineage(c,t,file,row.Lineage,token);
-        const string sql="""
-            DECLARE @matches int,@line bigint;
-            SELECT @matches=COUNT(*),@line=CASE WHEN COUNT(*)=1 THEN MAX(l.sales_line_id) END
-            FROM dbo.sales_lines l JOIN dbo.sales_invoices i ON i.sales_invoice_id=l.sales_invoice_id
-            WHERE i.store_code=@store AND i.document_number=@doc AND i.transaction_date=@date AND l.product_code=@product;
-            IF NOT EXISTS(SELECT 1 FROM dbo.sales_line_enrichments WHERE enrichment_type=@report AND store_code=@store AND content_key=@key)
-            BEGIN
-              INSERT dbo.sales_line_enrichments(enrichment_type,store_code,transaction_date,document_number,product_code,
-                source_transaction_type,source_quantity,source_net_value,source_gross_value,source_cro_number,staff_name,
-                scheme_discount,user_discount,pre_discount,other_charges,activation_details,user_discount_details,matched_sales_line_id,match_status,source_lineage_id,content_key,invoice_year)
-              VALUES(@report,@store,@date,@doc,@product,@type,@qty,@net,@gross,@cro,@name,@scheme,@userDiscount,@pre,@other,@activation,@details,@line,
-                CASE @matches WHEN 0 THEN 'Missing' WHEN 1 THEN 'Matched' ELSE 'Ambiguous' END,@lineage,@key,YEAR(@date)+CASE WHEN MONTH(@date)>=4 THEN 1 ELSE 0 END);
-            END;
-            IF @cro IS NOT NULL
-              MERGE dbo.staff WITH(HOLDLOCK) AS target USING(SELECT @store store_code,@cro staff_code) source
-              ON target.store_code=source.store_code AND target.staff_code=source.staff_code
-              WHEN MATCHED AND target.staff_name=target.staff_code AND NULLIF(LTRIM(RTRIM(@name)),N'') IS NOT NULL
-                THEN UPDATE SET staff_name=@name,modified_utc=SYSUTCDATETIME(),modified_by=ORIGINAL_LOGIN()
-              WHEN NOT MATCHED THEN INSERT(store_code,staff_code,staff_name,active) VALUES(@store,@cro,COALESCE(@name,@cro),1);
-            """;
+        const string sql="EXEC dbo.persist_phase_one_enrichment @file,@report,@store,@doc,@date,@product,@type,@qty,@net,@gross,@cro,@name,@scheme,@userDiscount,@pre,@other,@activation,@details,@lineage,@key";
         await using var q=Cmd(c,t,sql);
+        q.Parameters.AddWithValue("@file",file);
         q.Parameters.AddWithValue("@report",row.ReportCode);q.Parameters.AddWithValue("@store",row.StoreCode);q.Parameters.AddWithValue("@doc",row.DocumentNumber);
         q.Parameters.AddWithValue("@date",row.TransactionDate);q.Parameters.AddWithValue("@product",row.ProductCode);q.Parameters.AddWithValue("@type",row.TransactionType);
         q.Parameters.AddWithValue("@qty",row.Quantity);q.Parameters.AddWithValue("@net",row.NetValue);q.Parameters.AddWithValue("@gross",row.GrossValue);

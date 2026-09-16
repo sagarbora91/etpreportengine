@@ -148,12 +148,22 @@ public sealed partial class SqlServerTransactionalImportStore(string connectionS
                 await transaction.CommitAsync(cancellationToken);
                 return fileId;
             }
+            // The database checks superset content itself before it archives any current facts.
+            await InsertFamilySourceAsync(connection,transaction,package,fileId,plan.Keys,cancellationToken);
             foreach(var previous in plan.PreviousFiles)
-                await PrepareRestatement(connection,transaction,new(previous.Id,package.File.ImportedBy ?? Environment.UserName,
-                    package.Restatement?.Reason ?? "Later export includes the complete earlier export."),fileId,cancellationToken);
+            {
+                if(package.Restatement is { } explicitRestatement && explicitRestatement.PreviousImportFileId==previous.Id)
+                    await PrepareRestatement(connection,transaction,explicitRestatement,fileId,cancellationToken);
+                else
+                {
+                    await using var promotion=Cmd(connection,transaction,"EXEC dbo.promote_import_superset @previous,@replacement");
+                    promotion.Parameters.AddWithValue("@previous",previous.Id);
+                    promotion.Parameters.AddWithValue("@replacement",fileId);
+                    await promotion.ExecuteNonQueryAsync(cancellationToken);
+                }
+            }
             if(package.Restatement is { } restatement && !plan.PreviousFiles.Any(x=>x.Id==restatement.PreviousImportFileId))
                 await PrepareRestatement(connection,transaction,restatement,fileId,cancellationToken);
-            await InsertFamilySourceAsync(connection,transaction,package,fileId,plan.Keys,cancellationToken);
             foreach(var row in package.InvoiceControls) await InsertInvoiceControl(connection,transaction,fileId,row,cancellationToken);
             foreach(var row in package.SalesLines) await InsertSales(connection,transaction,fileId,row,cancellationToken);
             foreach(var row in package.Tenders) await InsertTender(connection,transaction,fileId,row,cancellationToken);
@@ -177,7 +187,7 @@ public sealed partial class SqlServerTransactionalImportStore(string connectionS
         q.Parameters.AddWithValue("@user",x.RequestedBy.Trim());q.Parameters.AddWithValue("@reason",x.Reason.Trim());
         await q.ExecuteNonQueryAsync(token);
     }
-    private static async Task<long> Lineage(SqlConnection c,SqlTransaction t,long fileId,SourceRowRegistration x,CancellationToken token){await using var q=Cmd(c,t,"INSERT dbo.source_lineage(import_file_id,sheet_name,source_row_number,source_record_type) OUTPUT INSERTED.source_lineage_id VALUES(@file,@sheet,@row,@type)");q.Parameters.AddWithValue("@file",fileId);q.Parameters.AddWithValue("@sheet",x.SheetName);q.Parameters.AddWithValue("@row",x.SourceRowNumber);Add(q,"@type",x.SourceRecordType);return Convert.ToInt64(await q.ExecuteScalarAsync(token));}
+    private static async Task<long> Lineage(SqlConnection c,SqlTransaction t,long fileId,SourceRowRegistration x,CancellationToken token){await using var q=Cmd(c,t,"DECLARE @existing bigint=(SELECT source_lineage_id FROM dbo.source_lineage WITH(UPDLOCK,HOLDLOCK) WHERE import_file_id=@file AND sheet_name=@sheet AND source_row_number=@row AND source_record_type=@type); IF @existing IS NOT NULL SELECT @existing; ELSE INSERT dbo.source_lineage(import_file_id,sheet_name,source_row_number,source_record_type) OUTPUT INSERTED.source_lineage_id VALUES(@file,@sheet,@row,@type)");q.Parameters.AddWithValue("@file",fileId);q.Parameters.AddWithValue("@sheet",x.SheetName);q.Parameters.AddWithValue("@row",x.SourceRowNumber);Add(q,"@type",x.SourceRecordType);return Convert.ToInt64(await q.ExecuteScalarAsync(token));}
     private static async Task InsertSales(SqlConnection c,SqlTransaction t,long f,SalesLinePersistence x,CancellationToken token){var l=await Lineage(c,t,f,x.Lineage,token);await using var q=Cmd(c,t,"EXEC dbo.persist_sales_line @store,@doc,@year,@date,@line,@product,@type,@qty,@gross,@net,@brandcode,@brandname,@segment,@currency,@lineage,@tax");Add(q,"@tax",x.SourceTaxAmount);Bind(q,x.StoreCode,x.DocumentNumber,x.InvoiceYear,x.TransactionDate,x.LineIdentifier,x.ProductCode,x.SourceTransactionType,x.SourceQuantity,x.SourceGrossAmount,x.SourceNetAmount,x.SourceBrandCode,x.SourceBrandName,x.BrandSegment,x.CurrencyCode,l);await q.ExecuteNonQueryAsync(token);}
     private static async Task InsertInvoiceControl(SqlConnection c,SqlTransaction t,long f,SalesInvoiceControlPersistence x,CancellationToken token){var l=await Lineage(c,t,f,x.Lineage,token);await using var q=Cmd(c,t,"EXEC dbo.persist_sales_invoice_control @store,@doc,@year,@date,@type,@qty,@net,@currency,@lineage");q.Parameters.AddWithValue("@store",x.StoreCode);q.Parameters.AddWithValue("@doc",x.DocumentNumber);q.Parameters.AddWithValue("@year",x.InvoiceYear);q.Parameters.AddWithValue("@date",x.TransactionDate);Add(q,"@type",x.SourceTransactionType);q.Parameters.AddWithValue("@qty",x.SourceInvoiceQuantity);q.Parameters.AddWithValue("@net",x.SourceNetValue);q.Parameters.AddWithValue("@currency",x.CurrencyCode);q.Parameters.AddWithValue("@lineage",l);await q.ExecuteNonQueryAsync(token);}
     private static async Task InsertTender(SqlConnection c,SqlTransaction t,long f,TenderPersistence x,CancellationToken token){var l=await Lineage(c,t,f,x.Lineage,token);await using var q=Cmd(c,t,"EXEC dbo.persist_sales_tender @store,@doc,@year,@date,@type,@amount,@currency,@lineage,@eligible,@reason");q.Parameters.AddWithValue("@store",x.StoreCode);q.Parameters.AddWithValue("@doc",x.DocumentNumber);q.Parameters.AddWithValue("@year",x.InvoiceYear);q.Parameters.AddWithValue("@date",x.TransactionDate);q.Parameters.AddWithValue("@type",x.TenderType);q.Parameters.AddWithValue("@amount",x.SourceAmount);q.Parameters.AddWithValue("@currency",x.CurrencyCode);q.Parameters.AddWithValue("@lineage",l);q.Parameters.AddWithValue("@eligible",x.IsReportingEligible);Add(q,"@reason",x.ExclusionReason);await q.ExecuteNonQueryAsync(token);}
