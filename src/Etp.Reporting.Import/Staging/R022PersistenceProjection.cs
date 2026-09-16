@@ -56,10 +56,9 @@ public sealed class R022PersistenceProjector
             foreach (var (field, code) in TenderFields)
             {
                 if (!v.TryGetValue(field, out var raw) || raw is not decimal amount || amount == 0m) continue;
-                var isQuarantined = code == "PAYMENTTYPE25";
                 var tender = new R022TenderRow(row.SourceRowNumber, store, invoice, date, code, amount,
-                    isQuarantined, isQuarantined ? "UNRESOLVED_PAYMENTTYPE25" : null);
-                (isQuarantined ? quarantined : classified).Add(tender);
+                    false, null);
+                classified.Add(tender);
             }
         }
         return new(invoices, classified, quarantined);

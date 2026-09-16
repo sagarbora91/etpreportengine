@@ -24,6 +24,9 @@ public static class WorkbookLayoutNormalizer
 
         foreach (var row in sheet.Rows)
         {
+            if (row.Cells.Skip(width * 2).Any(cell => cell.Value is not null && !string.IsNullOrWhiteSpace(cell.Value.ToString())))
+                return new(null, [new("ROW_EXTRA_COLUMNS", ImportDiagnosticSeverity.Blocker,
+                    "This row contains data beyond the repeated header columns.", sheet.Name, row.RowNumber)]);
             var cells = Pad(row.Cells, width * 2);
             if (!cells.Take(width).SequenceEqual(cells.Skip(width).Take(width)))
             {

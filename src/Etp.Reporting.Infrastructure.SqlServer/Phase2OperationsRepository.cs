@@ -400,7 +400,7 @@ public sealed class Phase2OperationsRepository(string connectionString)
         var sql = """
             WITH sales AS
             (
-              SELECT i.transaction_date,i.store_code,SUM(l.source_net_amount) net_sales,SUM(l.source_quantity) units,COUNT(DISTINCT i.sales_invoice_id) invoices
+              SELECT i.transaction_date,i.store_code,SUM(l.source_gross_amount) net_sales,SUM(l.source_quantity) units,COUNT(DISTINCT i.sales_invoice_id) invoices
               FROM dbo.sales_lines l JOIN dbo.sales_invoices i ON i.sales_invoice_id=l.sales_invoice_id
               JOIN dbo.source_lineage sl ON sl.source_lineage_id=l.source_lineage_id JOIN dbo.import_files f ON f.import_file_id=sl.import_file_id AND f.is_superseded=0
               WHERE i.transaction_date BETWEEN @from AND @to GROUP BY i.transaction_date,i.store_code

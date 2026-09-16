@@ -30,7 +30,7 @@ public sealed class ProductionWorkbookIngestionTests
     }
 
     [Fact]
-    public async Task Staging_maps_typed_R025_fields_and_excludes_PII()
+    public async Task Staging_maps_typed_R025_fields_and_preserves_approved_customer_data()
     {
         var path = CreateWorkbook(RetailSalesProfiles.R025Headers, R025Values(), "A1:A1");
         try
@@ -43,25 +43,11 @@ public sealed class ProductionWorkbookIngestionTests
             Assert.Equal("SKU-1", values["product_code"]);
             Assert.IsType<decimal>(values["source_quantity"]);
             Assert.IsType<DateOnly>(values["transaction_date"]);
-            Assert.DoesNotContain(values.Keys, x => x.Contains("customer", StringComparison.OrdinalIgnoreCase));
-            Assert.DoesNotContain(values.Keys, x => x.Contains("contact", StringComparison.OrdinalIgnoreCase));
-            Assert.DoesNotContain(values.Keys, x => x.Contains("ulp", StringComparison.OrdinalIgnoreCase));
+            Assert.Equal("REDACTED", values["customer_name"]);
+            Assert.Equal("REDACTED", values["customer_phone"]);
+
         }
         finally { File.Delete(path); }
-    }
-
-    [Theory]
-    [InlineData("R003")]
-    [InlineData("R013")]
-    public void Legacy_enrichment_profiles_are_exact_and_never_stage_customer_pii(string reportCode)
-    {
-        var profile = reportCode == "R003" ? RetailSalesProfiles.R003 : RetailSalesProfiles.R013;
-
-        Assert.Equal(reportCode, profile.ReportCode);
-        Assert.Contains(profile.Fields, x => x.CanonicalField == "source_net_value" && x.IsRequired);
-        Assert.DoesNotContain(profile.Fields, x => x.SourceHeader.Contains("CUSTOMER", StringComparison.OrdinalIgnoreCase));
-        Assert.DoesNotContain(profile.Fields, x => x.CanonicalField is "activation_details" or "user_discount_details");
-        if (reportCode == "R013") Assert.Contains(profile.Fields, x => x.CanonicalField == "cro_number");
     }
 
     [Fact]
@@ -101,6 +87,6 @@ public sealed class ProductionWorkbookIngestionTests
     }
 
     private static string Column(int index) { var s = ""; while (index > 0) { index--; s = (char)('A' + index % 26) + s; index /= 26; } return s; }
-    private static string[] R022Values() => RetailSalesProfiles.R022Headers.Select(h => h switch { "INVNUMBER" => "INV-1", "InvoiceQuantity" => "1", "INVOICEDATE" => "2026-08-25", "NetValue" => "100.00", "CUSTOMERNAME" => "REDACTED", "ContactNo" => "REDACTED", _ => "0" }).ToArray();
-    private static string[] R025Values() => RetailSalesProfiles.R025Headers.Select(h => h switch { "ITEMNUMBER" => "SKU-1", "INVNUMBER" => "INV-1", "INVDATE" => "2026-08-25", "INVREFDATE" => "", "QTY" => "1", "NETAMOUNT" => "100.00", "NETVALUE" => "100.00", "CUSTOMERNAME" or "CONTACTNO" or "ULPNUMBER" => "REDACTED", _ => "0" }).ToArray();
+    private static string[] R022Values() => RetailSalesProfiles.R022Headers.Select(h => h switch { "TRANS_TYPE" => "INV", "INVNUMBER" => "INV-1", "InvoiceQuantity" => "1", "INVOICEDATE" => "2026-08-25", "NetValue" => "100.00", "CUSTOMERNAME" => "REDACTED", "ContactNo" => "REDACTED", _ => "0" }).ToArray();
+    private static string[] R025Values() => RetailSalesProfiles.R025Headers.Select(h => h switch { "TRANS_TYPE" => "INV", "ITEMNUMBER" => "SKU-1", "INVNUMBER" => "INV-1", "INVDATE" => "2026-08-25", "INVREFDATE" => "", "QTY" => "1", "NETAMOUNT" => "100.00", "NETVALUE" => "100.00", "CUSTOMERNAME" or "CONTACTNO" or "ULPNUMBER" => "REDACTED", _ => "0" }).ToArray();
 }

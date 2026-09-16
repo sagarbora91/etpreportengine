@@ -179,7 +179,6 @@ public sealed partial class TaskNavigator(MainWindow window)
             if (window.accountingWorkspaceView.HasRetainedDraft) yield return ("Accounting review", window.accountingWorkspaceView.DiscardRetainedDraft);
             if (window.investigationWorkspaceView.HasRetainedDraft) yield return ("Adjustments and approvals", window.investigationWorkspaceView.DiscardRetainedDraft);
             if (window.operationsWorkspaceView.HasRetainedDraft) yield return ("Data-quality review", window.operationsWorkspaceView.DiscardRetainedDraft);
-            if (window.sourceInboxWorkspaceView.HasRetainedDraft) yield return ("Source extraction review", window.sourceInboxWorkspaceView.DiscardRetainedDraft);
         }
     }
     private bool BlockWhileBusy()
@@ -425,16 +424,20 @@ public sealed partial class TaskNavigator(MainWindow window)
         UserControl view;
         int[] body; int[] actions;
         var id = task.Id;
-        if (task.Section == "report-filters") { view = window.reportsWorkspaceView; body = new int[] {0,1}; actions = new int[] {}; }
-        else if (task.Section == "import-results") { view = window.importWorkspaceView; body = new int[] {6,8}; actions = new int[] {}; window.importWorkspaceView.SelectTask(id); }
-        else if (task.Section == "inbox")
+        if (task.Section == "import-results" || task.Destination == "Import ETP" && task.Section != "inbox")
         {
-            view = window.sourceInboxWorkspaceView;
-            body = id is "ocr-review" or "extraction-history" or "unknown-layouts" ? new int[] {1,3,7,4,6} : id is "source-inbox" or "documents" or "native-pdf" ? new int[] {1,2,3,4} : new int[] {1,3,4};
-            actions = id is "ocr-review" or "extraction-history" or "unknown-layouts" ? new int[] {0,1,7} : new int[] {0,1,2};
-            window.sourceInboxWorkspaceView.SelectTask(id);
+            window.importWorkspaceView.SelectTask(id);
+            visited.Add(window.importWorkspaceView);
+            return window.importWorkspaceView;
         }
-        else if (task.Destination == "Import ETP") { view = window.importWorkspaceView; window.importWorkspaceView.SelectTask(id); body = new int[] {1,2,3,5,6,7,8}; actions = new int[] {4}; }
+        if (task.Section == "inbox")
+        {
+            window.sourceInboxWorkspaceView.SelectTask(id);
+            visited.Add(window.sourceInboxWorkspaceView);
+            return window.sourceInboxWorkspaceView;
+        }
+        if (id is "masters" or "tender-rules") return new UserControl { Content = new ScrollViewer { Content = window.settingsWorkspace.CreateDataTruthMastersView(), VerticalScrollBarVisibility = ScrollBarVisibility.Auto } };
+        if (task.Section == "report-filters") { view = window.reportsWorkspaceView; body = new int[] {0,1}; actions = new int[] {}; }
         else if (task.Destination is "Daily Workflow" or "Manual Entry")
         {
             view = window.dailyWorkflowWorkspace;
@@ -453,8 +456,8 @@ public sealed partial class TaskNavigator(MainWindow window)
             (body, actions) = id == "accounting-approval" ? (new int[] {3,5,6,9}, new int[] {2}) : id is "ledger-mapping" or "mapping-review" ? (new int[] {3,7}, new int[] {8}) : id is "export-history" or "tally-export" ? (new int[] {3,5,6}, new int[] {2}) : (new int[] {3,4,5,6}, new int[] {2});
         }
         else if (task.Destination == "Report Archive") { view = window.archiveWorkspaceView; window.archiveWorkspaceView.SelectTask(id); body = id == "sharing-contacts" ? new int[] {6,7,9} : id == "shared" ? new int[] {2,3,5,9,10} : new int[] {2,3,9,10}; actions = id == "sharing-contacts" ? new int[] {8} : new int[] {4}; }
-        else if (id is "connection" or "settings" or "ocr" or "sharing")
-        { view = window.settingsWorkspace; if (id is "ocr" or "sharing") window.settingsWorkspace.SelectIntegrationTask(id); body = id is "connection" or "settings" ? new int[] {0,1,3} : new int[] {3,5}; actions = id is "connection" or "settings" ? new int[] {2} : new int[] {}; }
+        else if (id is "connection" or "settings" or "sharing")
+        { view = window.settingsWorkspace; if (id == "sharing") window.settingsWorkspace.SelectIntegrationTask(id); body = id is "connection" or "settings" ? new int[] {0,1,3} : new int[] {3,5}; actions = id is "connection" or "settings" ? new int[] {2} : new int[] {}; }
         else if (task.Destination is "Masters" or "Admin / Settings")
         {
             view = window.administrationWorkspaceView; window.administrationWorkspaceView.SelectTask(id);

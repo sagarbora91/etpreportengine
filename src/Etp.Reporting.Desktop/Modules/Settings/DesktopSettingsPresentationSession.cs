@@ -23,8 +23,6 @@ public sealed record DesktopConnectionPresentationState(
 public sealed record DesktopProductSettingsPresentation(
     string DocumentRepositoryPath,
     string ShareFolderPath,
-    string OcrHelperPath,
-    string OcrModelPath,
     string SmtpHost,
     string SmtpPort,
     string SmtpFromAddress,
@@ -37,13 +35,16 @@ public sealed class DesktopSettingsPresentationSession
 
     private readonly DesktopSettingsStore store;
     private readonly DesktopConnectionState connectionState;
+    private readonly bool temporaryConnection;
 
     public DesktopSettingsPresentationSession(
         DesktopSettingsStore store,
-        DesktopConnectionState connectionState)
+        DesktopConnectionState connectionState,
+        bool temporaryConnection = false)
     {
         this.store = store ?? throw new ArgumentNullException(nameof(store));
         this.connectionState = connectionState ?? throw new ArgumentNullException(nameof(connectionState));
+        this.temporaryConnection = temporaryConnection;
         Current = new(false, string.Empty, "Connection failed",
             "Waiting for a valid Windows-integrated connection", string.Empty, false);
     }
@@ -56,6 +57,7 @@ public sealed class DesktopSettingsPresentationSession
 
     public string LoadConnectionString()
     {
+        if (temporaryConnection) return connectionState.ConnectionString;
         var saved = store.Load();
         if (saved is not null) connectionState.TryUpdate(saved.ConnectionString, out _);
         return connectionState.ConnectionString;
@@ -113,8 +115,6 @@ public sealed class DesktopSettingsPresentationSession
         ProductSettings = new(
             settings.DocumentRepositoryPath,
             settings.ShareFolderPath,
-            settings.OcrHelperPath ?? string.Empty,
-            settings.OcrModelPath ?? string.Empty,
             settings.SmtpHost ?? string.Empty,
             settings.SmtpPort?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
             settings.SmtpFromAddress ?? string.Empty,
@@ -125,8 +125,6 @@ public sealed class DesktopSettingsPresentationSession
     public static SaveProductConfiguration CreateProductConfiguration(
         string documentRepositoryPath,
         string shareFolderPath,
-        string ocrHelperPath,
-        string ocrModelPath,
         string smtpHost,
         string smtpPortText,
         string smtpFromAddress,
@@ -144,7 +142,7 @@ public sealed class DesktopSettingsPresentationSession
             port = parsedPort;
         }
 
-        return new(documentRepositoryPath, shareFolderPath, ocrHelperPath, ocrModelPath,
+        return new(documentRepositoryPath, shareFolderPath,
             smtpHost, port, true, smtpFromAddress, maximum, reason);
     }
 
@@ -155,6 +153,7 @@ public sealed class DesktopSettingsPresentationSession
 
         try
         {
+            if (temporaryConnection) return true;
             store.Save(connectionState.ConnectionString);
             return true;
         }

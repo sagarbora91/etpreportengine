@@ -21,11 +21,11 @@ public sealed record ReportingQueryScope(
 public sealed record SalesQueryRow(
     DateOnly TransactionDate, string StoreCode, string DocumentNumber, string LineIdentifier,
     string ProductCode, string? Brand, string? BrandSegment, string? SourceTransactionType,
-    decimal SourceQuantity, decimal? SourceGrossAmount, decimal? SourceNetAmount);
+    decimal SourceQuantity, decimal? SourceGrossAmount, decimal? SourceNetAmount, int? InvoiceYear = null);
 public sealed record TenderQueryRow(
-    string StoreCode, string DocumentNumber, string TenderType, decimal SourceAmount);
+    string StoreCode, string DocumentNumber, string TenderType, decimal SourceAmount, int? InvoiceYear = null);
 public sealed record InvoiceControlQueryRow(
-    string StoreCode, string DocumentNumber, decimal SourceNetValue);
+    string StoreCode, string DocumentNumber, decimal SourceNetValue, int? InvoiceYear = null);
 public sealed record StockPositionQueryRow(
     string StoreCode, string ItemCode, decimal? SourceOpeningQuantity, decimal? SourceClosingQuantity);
 public sealed record StockMovementQueryRow(

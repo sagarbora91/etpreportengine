@@ -12,21 +12,13 @@ public sealed class SourceInboxCompositionTests
     public void Lifecycle_filter_preserves_existing_SQL_status_mapping(string selected, string? expected) =>
         Assert.Equal(expected, SourceInboxPresentation.LifecycleStatus(selected));
 
-    [Fact]
-    public void Intake_outcome_keeps_OCR_human_verification_wording()
+    [Theory]
+    [InlineData(false, "Document attached to the business day. Its original and SHA-256 hash are retained.")]
+    [InlineData(true, "This document was already attached. The existing copy has been selected.")]
+    public void Intake_reports_attachment_and_duplicate_outcomes(bool duplicate, string expected)
     {
-        var extraction = new SourceDocumentExtractionResult("PADDLE_OCR", "1", "recognized", 0.82m, 1, null, null, "PENDING");
-        var message = SourceInboxPresentation.IntakeOutcome(new SourceDocumentIntakeOutcome(Document(41), extraction, false));
-
-        Assert.Equal("Document stored. PaddleOCR extraction was captured for human verification.", message);
-    }
-
-    [Fact]
-    public void Intake_outcome_never_claims_extraction_when_no_usable_text_exists()
-    {
-        var message = SourceInboxPresentation.IntakeOutcome(new SourceDocumentIntakeOutcome(Document(42), null, false));
-
-        Assert.Equal("Document stored. No usable native text was found; manual review is required.", message);
+        var message = SourceInboxPresentation.IntakeOutcome(new SourceDocumentIntakeOutcome(Document(41), duplicate));
+        Assert.Equal(expected, message);
     }
 
     [Fact]

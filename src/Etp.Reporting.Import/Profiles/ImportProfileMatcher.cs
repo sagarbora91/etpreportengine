@@ -6,19 +6,17 @@ namespace Etp.Reporting.Import.Profiles;
 
 public sealed class ImportProfileMatcher
 {
-    public ImportProfile? Match(IEnumerable<string> sourceHeaders, IEnumerable<ImportProfile> profiles)
+    public ImportProfile? Match(IEnumerable<string> sourceHeaders, IEnumerable<ImportProfile> profiles,
+        string? fileName = null, string? sheetName = null)
     {
         ArgumentNullException.ThrowIfNull(sourceHeaders);
         ArgumentNullException.ThrowIfNull(profiles);
 
         var signature = CreateHeaderSignature(sourceHeaders);
         var matches = profiles.Where(x => x.HeaderSignatureSha256 == signature).ToArray();
-        return matches.Length switch
-        {
-            0 => null,
-            1 => matches[0],
-            _ => throw new InvalidOperationException("Multiple active import profiles share the same header signature.")
-        };
+        if (matches.Length <= 1) return matches.SingleOrDefault();
+        var named = EtpReportFamilyRegistry.IdentifyName(fileName) ?? EtpReportFamilyRegistry.IdentifyName(sheetName);
+        return named is null ? null : matches.SingleOrDefault(profile => profile.ReportCode == named.ReportCode);
     }
 
     public static string CreateHeaderSignature(IEnumerable<string> sourceHeaders)

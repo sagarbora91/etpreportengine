@@ -13,16 +13,19 @@ public sealed class SqlBackedReportingExecutor(
         Validate(scope);
         var rows = await repository.LoadSalesAsync(scope, cancellationToken);
         var projected = new List<SalesReportingLine>(rows.Count);
+        var unknownRows = 0;
         foreach (var row in rows)
         {
-            if (!TryClassify(row.SourceTransactionType, out var type) || !TryAmount(row, out var amount))
+            if (!TryClassify(row.SourceTransactionType, out var type)) { unknownRows++; continue; }
+            if (!TryAmount(row, out var amount))
                 return new(dimension, ReconciliationStatus.Blocked, [], salesPolicy.Version,
-                    "An unknown transaction type or missing approved amount prevents reporting.");
+                    "The GST-inclusive amount is missing. Re-import the source export.");
             projected.Add(new(row.TransactionDate, row.StoreCode, row.DocumentNumber, row.LineIdentifier,
                 row.Brand ?? string.Empty, row.BrandSegment ?? string.Empty, row.ProductCode,
-                type, row.SourceQuantity, amount));
+                type, row.SourceQuantity, amount, row.InvoiceYear));
         }
-        return new SalesReportingService().Summarize(projected, dimension, salesPolicy);
+        var result = new SalesReportingService().Summarize(projected, dimension, salesPolicy);
+        return unknownRows == 0 ? result : result with { Message = $"Warning: skipped {unknownRows} rows with unknown transaction types. {result.Message}" };
     }
 
     public async Task<InvoiceTenderReconciliation> ExecuteTenderReconciliationAsync(
@@ -30,11 +33,15 @@ public sealed class SqlBackedReportingExecutor(
     {
         Validate(scope);
         var controls = await repository.LoadInvoiceControlsAsync(scope, cancellationToken);
-        var invoices = controls.Select(x => new InvoiceControlValue(x.StoreCode, x.DocumentNumber, x.SourceNetValue)).ToArray();
+        var invoices = controls.Select(x => new InvoiceControlValue(x.StoreCode, x.DocumentNumber, x.SourceNetValue, x.InvoiceYear)).ToArray();
         var tenderRows = await repository.LoadTendersAsync(scope, cancellationToken);
         var tenders = tenderRows.Select(x => new TenderControlValue(x.StoreCode, x.DocumentNumber,
-            x.TenderType, x.SourceAmount, Contains(mapping.TenderTypes, x.TenderType))).ToArray();
-        return new InvoiceTenderReconciliationService().Reconcile(invoices, tenders, tenderRule);
+            x.TenderType, x.SourceAmount, Contains(mapping.TenderTypes, x.TenderType), x.InvoiceYear)).ToArray();
+        var result = new InvoiceTenderReconciliationService().Reconcile(invoices, tenders, tenderRule);
+        var modes = string.Join(" / ", tenderRows.GroupBy(x => x.TenderType, StringComparer.OrdinalIgnoreCase)
+            .Select(x => new { Mode = x.Key, Total = x.Sum(t => t.SourceAmount) }).OrderByDescending(x => x.Total)
+            .Select(x => $"{x.Mode}: {x.Total:N2}"));
+        return result with { Message = $"{result.Message} Tender modes: {modes}" };
     }
 
     public async Task<StockReconciliationResult> ExecuteStockReconciliationAsync(

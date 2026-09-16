@@ -299,7 +299,7 @@ public sealed class SettingsWorkspaceViewTests
 
         public Task<AdministrationDashboard> LoadAsync(string masterType, CancellationToken cancellationToken = default) =>
             FailLoad ? Task.FromException<AdministrationDashboard>(new InvalidOperationException("Synthetic load failure")) : Task.FromResult(new AdministrationDashboard([], [], [], [],
-                new ProductConfiguration("docs", "share", "ocr", "models", "smtp", 587, true,
+                new ProductConfiguration("docs", "share", "smtp", 587, true,
                     "from@example.com", 20, DateTime.UtcNow, "owner")));
 
         public Task SaveMasterAsync(SaveControlledMaster command, CancellationToken cancellationToken = default) =>

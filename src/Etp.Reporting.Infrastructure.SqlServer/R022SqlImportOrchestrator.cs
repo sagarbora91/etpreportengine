@@ -53,7 +53,7 @@ public sealed class R022SqlImportOrchestrator(ITransactionalImportStore store)
         if (stores.Length > 1) throw new InvalidOperationException("A source workbook cannot contain more than one store.");
         var businessDate = dates.Length == 0 ? (DateOnly?)null : dates.Max();
         var scope = R025SqlImportOrchestrator.ValidateScope(
-            stores.SingleOrDefault(), businessDate, expectedStoreCode, expectedBusinessDate);
+            stores.SingleOrDefault() ?? accepted.Scope.StoreCode, accepted.Scope.PeriodEnd ?? businessDate, expectedStoreCode, expectedBusinessDate);
         var batchId = Guid.NewGuid();
         var batch = new ImportBatchRegistration(
             batchId,
@@ -70,11 +70,12 @@ public sealed class R022SqlImportOrchestrator(ITransactionalImportStore store)
             StoreCode: scope.StoreCode,
             BusinessDate: scope.BusinessDate,
             SourceReportDate: scope.BusinessDate,
-            ImportedBy: importedBy ?? Environment.UserName);
+            ImportedBy: importedBy ?? Environment.UserName,
+            PeriodStart: accepted.Scope.PeriodStart ?? scope.BusinessDate, PeriodEnd: scope.BusinessDate);
         var controls = projection.InvoiceControls.Select(x => new SalesInvoiceControlPersistence(
             x.StoreCode,
             x.InvoiceNumber,
-            x.TransactionDate.Year,
+            EtpInvoiceIdentity.FinancialYearEnd(x.TransactionDate, accepted.Staging.Rows.Single(r => r.SourceRowNumber == x.SourceRowNumber).Values),
             x.TransactionDate,
             x.TransactionTypeRaw,
             x.InvoiceQuantity,
@@ -85,7 +86,7 @@ public sealed class R022SqlImportOrchestrator(ITransactionalImportStore store)
             new TenderPersistence(
                 x.StoreCode,
                 x.InvoiceNumber,
-                x.TransactionDate.Year,
+                EtpInvoiceIdentity.FinancialYearEnd(x.TransactionDate, accepted.Staging.Rows.Single(r => r.SourceRowNumber == x.SourceRowNumber).Values),
                 x.TransactionDate,
                 x.TenderCode,
                 x.SourceAmount,
@@ -96,7 +97,8 @@ public sealed class R022SqlImportOrchestrator(ITransactionalImportStore store)
         var package = new ImportPersistencePackage(batch, file, [], tenders, [], [])
         {
             InvoiceControls = controls,
-            Restatement = restatement
+            Restatement = restatement,
+            AcceptedImport = accepted
         };
         return await store.PersistAsync(package, cancellationToken).ConfigureAwait(false);
     }

@@ -14,7 +14,9 @@ public sealed record ImportFileRegistration(
     string? StoreCode = null,
     DateOnly? BusinessDate = null,
     DateOnly? SourceReportDate = null,
-    string? ImportedBy = null);
+    string? ImportedBy = null,
+    DateOnly? PeriodStart = null,
+    DateOnly? PeriodEnd = null);
 
 public sealed record SourceRowRegistration(string SheetName, int SourceRowNumber, string? SourceRecordType = null);
 
@@ -25,7 +27,8 @@ public sealed record SalesLinePersistence(
     string LineIdentifier, string ProductCode, string? SourceTransactionType,
     decimal SourceQuantity, decimal? SourceGrossAmount, decimal? SourceNetAmount,
     string? SourceBrandCode, string? SourceBrandName, string? BrandSegment,
-    string CurrencyCode, SourceRowRegistration Lineage);
+    string CurrencyCode, SourceRowRegistration Lineage,
+    decimal? SourceTaxAmount = null);
 
 public sealed record TenderPersistence(
     string StoreCode, string DocumentNumber, int InvoiceYear, DateOnly TransactionDate,
@@ -59,7 +62,15 @@ public sealed record ImportPersistencePackage(
 {
     public IReadOnlyList<SalesInvoiceControlPersistence> InvoiceControls { get; init; } = [];
     public ImportRestatementRequest? Restatement { get; init; }
+    public Etp.Reporting.Import.Preflight.MatchedImportEnvelope? AcceptedImport { get; init; }
+    public IReadOnlyList<EnrichmentPersistence> Enrichments { get; init; } = [];
 }
+
+public sealed record EnrichmentPersistence(string ReportCode, string StoreCode, DateOnly TransactionDate,
+    string DocumentNumber, string ProductCode, string TransactionType, decimal Quantity,
+    decimal NetValue, decimal GrossValue, string? CroNumber, string? StaffName,
+    decimal? SchemeDiscount, decimal? UserDiscount, decimal? PreDiscount, decimal? OtherCharges,
+    string? ActivationDetails, string? UserDiscountDetails, string ContentKey, SourceRowRegistration Lineage);
 
 public interface IImportBatchRepository
 {
@@ -71,6 +82,9 @@ public interface IImportBatchRepository
 public interface IImportFileRepository
 {
     Task<bool> ExistsByHashAsync(string sourceSha256, CancellationToken cancellationToken = default);
+    Task<bool> ExistsInScopeAsync(string sourceSha256, string reportCode, string storeCode,
+        DateOnly periodStart, DateOnly periodEnd, CancellationToken cancellationToken = default) =>
+        ExistsByHashAsync(sourceSha256, cancellationToken);
     Task<long> RegisterAsync(ImportFileRegistration file, CancellationToken cancellationToken = default);
 }
 
@@ -94,8 +108,6 @@ public static class PersistenceValidation
         _ = ResolveReportCode(package.File);
         if (package.File.SizeBytes < 0) throw new ArgumentException("File size cannot be negative.", nameof(package));
         SqlServerImportFileRepository.NormalizeHash(package.File.SourceSha256);
-        if (package.Tenders.Any(x => string.Equals(x.TenderType, "PAYMENTTYPE25", StringComparison.OrdinalIgnoreCase) && x.IsReportingEligible))
-            throw new ArgumentException("PAYMENTTYPE25 must be quarantined from reporting.", nameof(package));
         if (package.Tenders.Any(x => !x.IsReportingEligible && string.IsNullOrWhiteSpace(x.ExclusionReason)))
             throw new ArgumentException("A quarantined tender requires an exclusion reason.", nameof(package));
         if (package.Restatement is { } restatement &&
@@ -105,7 +117,8 @@ public static class PersistenceValidation
                      .Concat(package.InvoiceControls.Select(x => x.Lineage))
                      .Concat(package.Tenders.Select(x => x.Lineage))
                      .Concat(package.StockMovements.Select(x => x.Lineage))
-                     .Concat(package.StockSnapshots.Select(x => x.Lineage)))
+                     .Concat(package.StockSnapshots.Select(x => x.Lineage))
+                     .Concat(package.Enrichments.Select(x => x.Lineage)))
         {
             if (string.IsNullOrWhiteSpace(lineage.SheetName) || lineage.SourceRowNumber <= 0)
                 throw new ArgumentException("Every persisted row requires a sheet name and positive source row.", nameof(package));

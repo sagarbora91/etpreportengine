@@ -5,6 +5,14 @@ namespace Etp.Reporting.Import.Tests;
 
 public sealed class TypedCellConverterTests
 {
+    [Fact]
+    public void Numeric_identifier_scale_does_not_change_invoice_identity()
+    {
+        var converter = new TypedCellConverter();
+        Assert.Equal("100000001", converter.Convert(100000001.0m, CanonicalDataType.Identifier, true).Value);
+        Assert.Equal("00123", converter.Convert("00123", CanonicalDataType.Identifier, true).Value);
+        Assert.Equal(2027L, converter.Convert(2027.0m, CanonicalDataType.Integer, true).Value);
+    }
     private readonly TypedCellConverter converter = new();
 
     [Fact]

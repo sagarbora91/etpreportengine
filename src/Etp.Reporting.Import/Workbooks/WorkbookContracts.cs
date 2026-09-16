@@ -14,7 +14,8 @@ public sealed record WorkbookSnapshot(
     string FileName,
     long FileSizeBytes,
     string Sha256,
-    IReadOnlyList<WorkbookSheet> Sheets);
+    IReadOnlyList<WorkbookSheet> Sheets,
+    string? SourcePath = null);
 
 public interface IWorkbookReader
 {

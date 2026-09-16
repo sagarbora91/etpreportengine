@@ -1,8 +1,10 @@
-using System.IO;
+extern alias EtpApplication;
 using System.Windows;
 using System.Windows.Controls;
-using Etp.Reporting.Import.Batch;
 using Microsoft.Win32;
+using FolderImportOptions = EtpApplication::Etp.Reporting.Application.Imports.FolderImportOptions;
+using FolderImportProgress = EtpApplication::Etp.Reporting.Application.Imports.FolderImportProgress;
+using FolderImportFileResult = EtpApplication::Etp.Reporting.Application.Imports.FolderImportFileResult;
 
 namespace Etp.Reporting.Desktop.Modules.Imports;
 
@@ -15,286 +17,128 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
     private Func<ImportWorkspaceAccess> accessProvider = static () => new(false, false);
     private Func<string, string, string, Task> auditRecorder = static (_, _, _) => Task.CompletedTask;
     private Func<Task> dashboardRefresher = static () => Task.CompletedTask;
-
-    public ImportWorkspaceView(
-        DesktopImportCoordinator coordinator,
-        Func<string> connectionStringProvider)
+    private IReadOnlyList<FolderImportFileResult> latestResults = [];
+    private string currentTask = "import-files";
+    public ImportWorkspaceView(DesktopImportCoordinator coordinator, Func<string> connectionStringProvider)
     {
         this.coordinator = coordinator ?? throw new ArgumentNullException(nameof(coordinator));
         this.connectionStringProvider = connectionStringProvider ?? throw new ArgumentNullException(nameof(connectionStringProvider));
         InitializeComponent();
         CaptureImportControls();
-        ImportBusinessDateInput.SelectedDate = DateTime.Today.AddDays(-1);
-        ImportBusinessDateInput.SelectedDateChanged += (_, _) => InvalidateSelection();
-        ImportStoreInput.SelectionChanged += (_, _) => InvalidateSelection();
-        WorkbookPathInput.TextChanged += (_, _) => InvalidateSelection();
     }
-
-    private IReadOnlyList<BatchImportFileResult> latestResults = [];
-    private string currentTask = "import-files";
+    public event EventHandler<string>? NotificationRequested;
+    public event EventHandler<string>? ReadinessChanged;
+    public event EventHandler<FolderImportProgress>? ProgressChanged;
+    public DateTime? BusinessDate { get; set; }
+    public bool CanRetry => !IsBusy && latestResults.Any(result => result.Failed);
+    public void AttachHost(Func<ImportWorkspaceAccess> accessProvider, Func<string, string, string, Task> auditRecorder, Func<Task> dashboardRefresher)
+    {
+        this.accessProvider = accessProvider;
+        this.auditRecorder = auditRecorder;
+        this.dashboardRefresher = dashboardRefresher;
+    }
     public void SelectTask(string taskId)
     {
         currentTask = taskId;
-        BatchResultsGrid.ItemsSource = latestResults.Where(x => taskId switch { "duplicates" => x.ExactDuplicate, "already-present" => x.AlreadyPresentRows > 0, "conflicts" => x.ConflictRows > 0, "import-failures" => x.Status == BatchImportFileStatus.Failed, _ => true }).ToArray();
-        if (taskId is "duplicates" or "already-present" or "conflicts" or "import-failures") ValidationResult.Text = "Results from the most recent import in this session. Earlier sources remain in Import History and Source Inbox.";
+        BatchResultsGrid.ItemsSource = latestResults.Where(result => taskId switch
+        {
+            "duplicates" => result.Status is "Duplicate" or "Duplicate content",
+            "already-present" => result.AlreadyPresentRows > 0,
+            "conflicts" => result.ConflictRows > 0,
+            "import-failures" => result.Failed,
+            "unknown-layouts" => result.Status == "Unknown layout",
+            _ => true
+        }).ToArray();
     }
-
-    private int selectionRevision;
-    private void InvalidateSelection()
-    {
-        selectionRevision++;
-        coordinator.ClearValidatedImport(); PersistButton.IsEnabled = false;
-        ValidationResult.Text = "Source, store or business date changed. Validate this selection before importing.";
-    }
-
-    public event EventHandler<string>? NotificationRequested;
-    public event EventHandler<string>? ReadinessChanged;
-
-    public DateTime? BusinessDate
-    {
-        get => ImportBusinessDateInput.SelectedDate;
-        set => ImportBusinessDateInput.SelectedDate = value;
-    }
-
-    public bool CanRetry => RetryBatchButton.IsEnabled;
-
-    public void AttachHost(
-        Func<ImportWorkspaceAccess> accessProvider,
-        Func<string, string, string, Task> auditRecorder,
-        Func<Task> dashboardRefresher)
-    {
-        this.accessProvider = accessProvider ?? throw new ArgumentNullException(nameof(accessProvider));
-        this.auditRecorder = auditRecorder ?? throw new ArgumentNullException(nameof(auditRecorder));
-        this.dashboardRefresher = dashboardRefresher ?? throw new ArgumentNullException(nameof(dashboardRefresher));
-    }
-
     public bool BrowseWorkbook()
     {
         if (IsBusy) return false;
-        var dialog = new OpenFileDialog
-        {
-            Filter = "ETP import sources (*.xlsx;*.zip)|*.xlsx;*.zip|Excel workbooks (*.xlsx)|*.xlsx|ZIP archives (*.zip)|*.zip",
-            CheckFileExists = true
-        };
+        var dialog = new OpenFileDialog { Filter = "ETP sources (*.xlsx;*.zip)|*.xlsx;*.zip", CheckFileExists = true };
         if (dialog.ShowDialog(Window.GetWindow(this)) != true) return false;
-        coordinator.ClearValidatedImport();
-        PersistButton.IsEnabled = false;
         WorkbookPathInput.Text = dialog.FileName;
         return true;
     }
-
     public bool BrowseImportFolder()
     {
         if (IsBusy) return false;
-        var dialog = new OpenFolderDialog { Title = "Select folder containing ETP workbooks", Multiselect = false };
+        var dialog = new OpenFolderDialog { Title = "Choose a store folder or the parent containing both stores" };
         if (dialog.ShowDialog(Window.GetWindow(this)) != true) return false;
-        coordinator.ClearValidatedImport();
-        PersistButton.IsEnabled = false;
         WorkbookPathInput.Text = dialog.FolderName;
         return true;
     }
-
-    public async Task RetryFailedBatchAsync()
+    public async Task ImportSelectedSourceAsync()
     {
-        using var operation = BeginImportOperation(); if (operation is null) return;
-        try { RequireImportAccess(); if (coordinator.FailedBatchPaths.Count > 0) await RunBatchAsync(coordinator.FailedBatchPaths); }
-        catch (Exception ex) { ValidationResult.Text = $"Retry could not start: {coordinator.DescribeFailure(ex).SafeMessage}"; }
-    }
-
-    private void BrowseWorkbook_Click(object sender, RoutedEventArgs e) => BrowseWorkbook();
-
-    private void BrowseImportFolder_Click(object sender, RoutedEventArgs e) => BrowseImportFolder();
-
-    private async void ValidateWorkbook_Click(object sender, RoutedEventArgs e)
-    {
-        using var operation = BeginImportOperation(); if (operation is null) return;
-        if (string.IsNullOrWhiteSpace(WorkbookPathInput.Text))
-        {
-            ValidationResult.Text = "Select an XLSX workbook first.";
-            return;
-        }
-
-        var revision = selectionRevision;
-        ValidateButton.IsEnabled = false;
-        ValidationResult.Text = "Reading and validating workbook…";
+        using var operation = BeginImportOperation();
+        if (operation is null) return;
         try
         {
-            RequireImportAccess();
-            var result = await coordinator.ValidateAsync(WorkbookPathInput.Text, CancellationToken.None);
-            if (revision != selectionRevision) { coordinator.ClearValidatedImport(); return; }
-            DiagnosticsGrid.ItemsSource = result.Diagnostics;
-            PersistButton.IsEnabled = result.Accepted;
-            ValidationResult.Text = result.Accepted
-                ? $"Validated as {result.ReportCode}. {result.StagedRows:N0} rows are ready for persistence."
-                : "Validation blocked. Review the diagnostics below.";
-            SetReadiness(result.Accepted ? "Workbook validated" : "Validation blocked");
-            Notify(ValidationResult.Text);
-        }
-        catch (Exception ex)
-        {
-            DesktopDiagnostics.Record(ex, "Imports.Workspace", "IMPORT_VALIDATION_READ_FAILED");
-            ValidationResult.Text = $"Could not read workbook: {coordinator.DescribeFailure(ex).SafeMessage}";
-        }
-        finally
-        {
-            ValidateButton.IsEnabled = true;
-        }
-    }
-
-    private async void PersistWorkbook_Click(object sender, RoutedEventArgs e)
-    {
-        using var operation = BeginImportOperation(); if (operation is null) return;
-        if (!coordinator.HasValidatedImport) return;
-        var committed = false;
-        PersistButton.IsEnabled = false;
-        try
-        {
-            RequireImportAccess();
-            var context = CreateImportRunContext();
-            var outcome = await coordinator.PersistValidatedAsync(connectionStringProvider(), context);
-            committed = true;
-            ValidationResult.Text = outcome.ExactDuplicate
-                ? "This workbook was already imported. No rows were added or changed."
-                : outcome.ReportCode switch
+            if (!accessProvider().CanImport) throw new UnauthorizedAccessException("Owner or Store Manager permission is required.");
+            if (string.IsNullOrWhiteSpace(WorkbookPathInput.Text)) throw new InvalidOperationException("Choose a folder, workbook or ZIP first.");
+            var restate = RestatementModeInput.IsChecked == true;
+            if (restate && !accessProvider().CanAdminister) throw new UnauthorizedAccessException("Owner permission is required for a restatement.");
+            var options = new FolderImportOptions(Environment.UserName, restate, RestatementReasonInput.Text.Trim(),
+                restate ? (ImportStoreInput.SelectedItem as ComboBoxItem)?.Content?.ToString() : null,
+                restate && ImportBusinessDateInput.SelectedDate is { } date ? DateOnly.FromDateTime(date) : null);
+            CancelBatchButton.IsEnabled = true;
+            latestResults = [];
+            DetectedScopeText.Text = "Detecting store and date range…";
+            BatchResultsGrid.ItemsSource = latestResults;
+            DiagnosticsGrid.ItemsSource = null;
+            DiagnosticsGrid.Visibility = Visibility.Collapsed;
+            FileDetailText.Text = "Select a file to see its results and diagnostics.";
+            ImportProgressBar.Value = 0;
+            var progress = new Progress<FolderImportProgress>(value =>
             {
-                "R022" => $"Imported {outcome.Result.InvoiceControls:N0} invoice controls and {outcome.Result.ReportableTenderRows:N0} reportable tender rows. {outcome.Result.QuarantinedTenderRows:N0} unresolved tender rows were quarantined.",
-                "STOCK_LEDGER" or "CLOSING_STOCK" => $"Imported {outcome.Result.PersistedRows:N0} {outcome.Result.ReportCode} rows successfully.",
-                "R003" or "R013" => $"Imported {outcome.Result.PersistedRows:N0} {outcome.Result.ReportCode} enrichment rows: {outcome.Result.MatchedRows:N0} matched, {outcome.Result.MissingMatches:N0} missing, {outcome.Result.AmbiguousMatches:N0} ambiguous. Revenue totals were not changed.",
-                _ => $"Imported {outcome.Result.PersistedRows:N0} sales rows successfully."
-            };
-            latestResults = [new BatchImportFileResult(Path.GetFileName(WorkbookPathInput.Text), BatchImportFileStatus.Succeeded, 1, ExactDuplicate: outcome.ExactDuplicate)];
-            SetReadiness(outcome.ExactDuplicate ? "Already imported" : "Import completed");
-            if (outcome.RestatementApplied)
-                await auditRecorder("Restatement", "Succeeded", "Controlled source restatement applied");
-            if (!outcome.ExactDuplicate)
-                await coordinator.RetainValidatedEvidenceAsync(connectionStringProvider(), context);
-            coordinator.ClearValidatedImport();
-            await dashboardRefresher();
-            Notify(ValidationResult.Text);
-        }
-        catch (Exception ex) when (ex is UnauthorizedAccessException or InvalidOperationException or ImportSourceException)
-        {
-            DesktopDiagnostics.Record(ex, "Imports.Workspace", "IMPORT_PERSIST_FAILED");
-            ValidationResult.Text = ImportFailureMessage(committed, DesktopFriendlyError.Describe(ex, "Owner or Store Manager permission is required."));
-        }
-        catch (Exception ex)
-        {
-            DesktopDiagnostics.Record(ex, "Imports.Workspace", "IMPORT_PERSIST_FAILED");
-            ValidationResult.Text = ImportFailureMessage(committed, coordinator.DescribeFailure(ex).SafeMessage);
-        }
-        finally
-        {
-            PersistButton.IsEnabled = coordinator.HasValidatedImport;
-        }
-    }
-
-    private async void StartBatchImport_Click(object sender, RoutedEventArgs e)
-    {
-        using var operation = BeginImportOperation(); if (operation is null) return;
-        try
-        {
-            RequireImportAccess();
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            DesktopDiagnostics.Record(ex, "Imports.Workspace", "BATCH_ACCESS_DENIED", DesktopDiagnosticSeverity.Warning);
-            ValidationResult.Text = DesktopFriendlyError.Describe(ex, "Owner or Store Manager permission is required.");
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(WorkbookPathInput.Text))
-        {
-            ValidationResult.Text = "Select a folder, XLSX workbook, or ZIP archive first.";
-            return;
-        }
-
-        try
-        {
-            var paths = await coordinator.OpenBatchSourceAsync(WorkbookPathInput.Text);
-            await RunBatchAsync(paths);
-        }
-        catch (ImportSourceException ex)
-        {
-            DesktopDiagnostics.Record(ex, "Imports.Workspace", "BATCH_SOURCE_BLOCKED", DesktopDiagnosticSeverity.Warning);
-            ValidationResult.Text = $"Batch blocked ({ex.Code}): {DesktopFriendlyError.Describe(ex)}";
-        }
-        catch (Exception ex)
-        {
-            DesktopDiagnostics.Record(ex, "Imports.Workspace", "BATCH_START_FAILED");
-            ValidationResult.Text = $"Batch could not start: {coordinator.DescribeFailure(ex).SafeMessage}";
-        }
-    }
-
-    private void CancelBatchImport_Click(object sender, RoutedEventArgs e) => coordinator.CancelBatch();
-
-    private async void RetryBatchImport_Click(object sender, RoutedEventArgs e) => await RetryFailedBatchAsync();
-
-    private async Task RunBatchAsync(IReadOnlyList<string> paths)
-    {
-        var context = CreateImportRunContext();
-        StartBatchButton.IsEnabled = RetryBatchButton.IsEnabled = false;
-        CancelBatchButton.IsEnabled = true;
-        ImportProgressBar.Maximum = Math.Max(1, paths.Count);
-        ImportProgressBar.Value = 0;
-        var progress = new Progress<BatchImportProgress>(x =>
-        {
-            ImportProgressBar.Maximum = Math.Max(1, x.Total);
-            ImportProgressBar.Value = x.Completed;
-            ValidationResult.Text = $"{x.Stage}: {x.SafeFileName}";
-        });
-        try
-        {
-            var summary = await coordinator.RunBatchAsync(
-                paths,
-                connectionStringProvider(),
-                () => context.RestatementEnabled,
-                () => context,
-                _ => auditRecorder("Restatement", "Succeeded", "Controlled source restatement applied"),
-                progress);
+                ImportProgressBar.Maximum = Math.Max(1, value.Total);
+                ImportProgressBar.Value = value.Completed;
+                ValidationResult.Text = $"{value.Completed:N0} of {value.Total:N0} files · {value.Stage} · {value.CurrentFile}";
+                latestResults = value.Files;
+                SelectTask(currentTask);
+                ShowScope();
+                ProgressChanged?.Invoke(this, value);
+            });
+            var summary = await coordinator.ImportFolderAsync(WorkbookPathInput.Text, connectionStringProvider(), options, progress);
             latestResults = summary.Files;
             SelectTask(currentTask);
-            ValidationResult.Text = $"Batch completed: {summary.Succeeded:N0} processed, {summary.ExactDuplicates:N0} exact duplicate files, " +
-                $"{summary.NewRows:N0} new rows, {summary.AlreadyPresentRows:N0} rows already present, {summary.Conflicts:N0} conflicts, " +
-                $"{summary.Failed:N0} failed, {summary.Cancelled:N0} cancelled.";
-            RetryBatchButton.IsEnabled = coordinator.FailedBatchPaths.Count > 0;
+            ShowScope();
+            ValidationResult.Text = $"{summary.Imported:N0} imported · {summary.Duplicates:N0} duplicate/already present · {summary.NewRows:N0} new rows · {summary.Conflicts:N0} conflicts · {summary.Failed:N0} failed · {summary.UnknownLayouts:N0} unknown layouts.";
+            ReadinessChanged?.Invoke(this, summary.Failed > 0 ? "Review import results" : "Import completed");
             await dashboardRefresher();
-            await auditRecorder("ImportBatch", summary.Failed > 0 ? "Failed" : summary.Cancelled > 0 ? "Cancelled" : "Succeeded", "Batch import completed");
-            Notify(ValidationResult.Text);
+            await auditRecorder("ImportBatch", summary.Failed > 0 ? "Failed" : "Succeeded", "Folder import completed");
+            NotificationRequested?.Invoke(this, ValidationResult.Text);
         }
-        finally
+        catch (Exception exception)
         {
-            StartBatchButton.IsEnabled = true;
-            CancelBatchButton.IsEnabled = false;
+            DesktopDiagnostics.Record(exception, "Imports.Workspace", "FOLDER_IMPORT_FAILED");
+            ValidationResult.Text = DesktopFriendlyError.Describe(exception);
         }
     }
-
-    private DesktopImportRunContext CreateImportRunContext()
+    private void ShowScope()
     {
-        var (store, businessDate) = ImportScope();
-        var restatementEnabled = RestatementModeInput.IsChecked == true;
-        if (restatementEnabled && !accessProvider().CanAdminister)
-            throw new UnauthorizedAccessException("Owner permission is required.");
-        return new(store, businessDate, Environment.UserName, restatementEnabled, RestatementReasonInput.Text.Trim());
+        var stores = latestResults.Where(result => result.StoreCode is not null).Select(result => result.StoreCode).Distinct().ToArray();
+        var first = latestResults.Select(result => result.PeriodStart).Min();
+        var last = latestResults.Select(result => result.PeriodEnd).Max();
+        if (stores.Length > 0) DetectedScopeText.Text = $"Detected: {string.Join(" + ", stores)} · {first:dd MMM yyyy} – {last:dd MMM yyyy}";
+        else DetectedScopeText.Text = "Store and date range are not yet available for this source.";
     }
-
-    private (string Store, DateOnly Date) ImportScope()
+    private void Result_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (ImportBusinessDateInput.SelectedDate is null)
-            throw new InvalidOperationException("Select the ETP business date before importing.");
-        if (ImportStoreInput.SelectedItem is not ComboBoxItem storeItem)
-            throw new InvalidOperationException("Select the ETP store before importing.");
-        return (storeItem.Content!.ToString()!, DateOnly.FromDateTime(ImportBusinessDateInput.SelectedDate.Value));
+        if (BatchResultsGrid.SelectedItem is not FolderImportFileResult result) return;
+        DiagnosticsGrid.ItemsSource = result.Diagnostics;
+        DiagnosticsGrid.Visibility = result.Diagnostics?.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        FileDetailText.Text = $"{result.FileName} · {result.StoreCode} · {result.Period} · {result.Status} · {result.RowsProcessed:N0} rows, {result.NewRows:N0} new, {result.AlreadyPresentRows:N0} already present, {result.ConflictRows:N0} conflicts. {result.Message}";
     }
-
-    private void RequireImportAccess()
+    private void RestatementMode_Changed(object sender, RoutedEventArgs e)
     {
-        if (!accessProvider().CanImport)
-            throw new UnauthorizedAccessException("Owner or Store Manager permission is required.");
+        if (OverridePanel is null) return;
+        var enabled = RestatementModeInput.IsChecked == true;
+        OverridePanel.Visibility = enabled ? Visibility.Visible : Visibility.Collapsed;
+        ImportStoreInput.IsEnabled = ImportBusinessDateInput.IsEnabled = enabled;
     }
-
-    private void Notify(string message) => NotificationRequested?.Invoke(this, message);
-
-    private void SetReadiness(string status) => ReadinessChanged?.Invoke(this, status);
-
+    private async void ImportFolder_Click(object sender, RoutedEventArgs e) { if (BrowseImportFolder()) await ImportSelectedSourceAsync(); }
+    private void BrowseWorkbook_Click(object sender, RoutedEventArgs e) => BrowseWorkbook();
+    private async void StartBatchImport_Click(object sender, RoutedEventArgs e) => await ImportSelectedSourceAsync();
+    private void CancelBatchImport_Click(object sender, RoutedEventArgs e) => coordinator.CancelBatch();
+    public Task RetryFailedBatchAsync() => ImportSelectedSourceAsync();
     public ValueTask DisposeAsync() => coordinator.DisposeAsync();
 }

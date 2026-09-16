@@ -18,29 +18,6 @@ public sealed record SourceInboxDocument(
     DateTime ReceivedUtc,
     string? SafeMessage);
 
-public sealed record SourceDocumentExtraction(
-    long Id,
-    long SourceDocumentId,
-    string Method,
-    string Version,
-    string Text,
-    decimal? Confidence,
-    string ReviewStatus,
-    string? ReviewedBy,
-    DateTime? ReviewedUtc,
-    string? ReviewReason,
-    DateTime CreatedUtc);
-
-public sealed record SourceDocumentExtractionResult(
-    string Method,
-    string Version,
-    string Text,
-    decimal? Confidence,
-    int? PageNumber,
-    string? BoundingBoxJson,
-    string? StructuredFieldsJson,
-    string ReviewStatus);
-
 public sealed record SourceDocumentIntakeRequest(
     string SourcePath,
     string? StoreCode,
@@ -49,7 +26,6 @@ public sealed record SourceDocumentIntakeRequest(
 
 public sealed record SourceDocumentIntakeOutcome(
     SourceInboxDocument Document,
-    SourceDocumentExtractionResult? Extraction,
     bool Duplicate);
 
 public interface ISourceInboxService
@@ -57,16 +33,6 @@ public interface ISourceInboxService
     Task<IReadOnlyList<SourceInboxDocument>> LoadDocumentsAsync(
         string? lifecycleStatus = null,
         int limit = 500,
-        CancellationToken cancellationToken = default);
-
-    Task<IReadOnlyList<SourceDocumentExtraction>> LoadExtractionsAsync(
-        long sourceDocumentId,
-        CancellationToken cancellationToken = default);
-
-    Task ReviewExtractionAsync(
-        long extractionId,
-        bool verified,
-        string reason,
         CancellationToken cancellationToken = default);
 
     Task<SourceDocumentIntakeOutcome> IntakeAsync(

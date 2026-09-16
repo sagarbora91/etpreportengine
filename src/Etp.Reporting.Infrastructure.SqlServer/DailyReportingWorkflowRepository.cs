@@ -46,7 +46,7 @@ public sealed class DailyReportingWorkflowRepository(string connectionString)
             "SELECT status FROM dbo.daily_reporting_days WHERE store_code=@store AND business_date=@date",
             storeCode, businessDate, cancellationToken);
         var imported = await LoadStringsAsync(connection,
-            "SELECT DISTINCT report_code FROM dbo.import_files WHERE store_code=@store AND business_date=@date AND report_code IS NOT NULL ORDER BY report_code",
+            "SELECT DISTINCT report_code FROM dbo.import_files WHERE store_code=@store AND @date BETWEEN COALESCE(period_start,business_date) AND COALESCE(period_end,business_date) AND is_superseded=0 AND report_code IS NOT NULL ORDER BY report_code",
             storeCode, businessDate, cancellationToken);
         var inputs = await LoadInputsAsync(connection, storeCode, businessDate, cancellationToken);
         var missingReports = RequiredReports.Except(imported, StringComparer.OrdinalIgnoreCase).ToArray();

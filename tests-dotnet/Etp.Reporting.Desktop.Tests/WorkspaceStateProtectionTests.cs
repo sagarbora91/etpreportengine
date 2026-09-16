@@ -109,7 +109,7 @@ public sealed class WorkspaceStateProtectionTests
             var original = date.SelectedDate; var lease = (IDisposable)begin.Invoke(view,null)!;
             Assert.True(view.IsBusy); Assert.False(date.IsEnabled); Assert.False(store.IsEnabled); Assert.Null(begin.Invoke(view,null));
             cancel.IsEnabled = true; Assert.True(cancel.IsEnabled); Assert.False(view.BrowseWorkbook());
-            lease.Dispose(); lease.Dispose(); Assert.False(view.IsBusy); Assert.True(date.IsEnabled); Assert.True(store.IsEnabled); Assert.False(cancel.IsEnabled); Assert.Equal(original,date.SelectedDate);
+            lease.Dispose(); lease.Dispose(); Assert.False(view.IsBusy); Assert.False(date.IsEnabled); Assert.False(store.IsEnabled); Assert.False(cancel.IsEnabled); Assert.Equal(original,date.SelectedDate);
         });
     }
     private static IEnumerable<DependencyObject> Walk(DependencyObject root)

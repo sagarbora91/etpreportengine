@@ -46,6 +46,14 @@ public sealed class DesktopStartupCoordinator
     public static DesktopStartupMode Route(IReadOnlyList<string> arguments)
     {
         ArgumentNullException.ThrowIfNull(arguments);
+        if (arguments.Contains("--connection-string"))
+        {
+            var options = arguments.ToList();
+            var index = options.IndexOf("--connection-string");
+            if (index + 1 < options.Count) options.RemoveAt(index + 1);
+            options.RemoveAt(index);
+            return Route(options);
+        }
         if (arguments.Count != 1) return DesktopStartupMode.Interactive;
         if (string.Equals(arguments[0], "--initialize-database", StringComparison.Ordinal))
             return DesktopStartupMode.InitializeDatabase;
