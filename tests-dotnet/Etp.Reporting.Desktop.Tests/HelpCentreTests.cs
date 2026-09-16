@@ -6,6 +6,15 @@ namespace Etp.Reporting.Desktop.Tests;
 public sealed class HelpCentreTests
 {
     [Fact]
+    public void Operations_help_uses_consistent_centre_spelling()
+    {
+        var topic = HelpCentreRegistry.Topics.Single(topic => topic.Id == "exception-centre");
+        Assert.Contains("Operations Centre", topic.Overview);
+        Assert.Contains("Approval Centre", topic.Overview);
+        Assert.DoesNotContain("Center", topic.Overview);
+    }
+
+    [Fact]
     public void Help_home_covers_every_approved_application_area()
     {
         var ids = HelpCentreRegistry.Topics.Select(x => x.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
