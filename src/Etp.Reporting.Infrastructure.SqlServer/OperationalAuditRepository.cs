@@ -1,4 +1,5 @@
 using System.Collections.Frozen;
+using System.Text.RegularExpressions;
 using Microsoft.Data.SqlClient;
 
 namespace Etp.Reporting.Infrastructure.SqlServer;
@@ -49,5 +50,8 @@ public sealed class OperationalAuditRepository(string connectionString)
         return rows;
     }
 
-    private static bool ContainsPathOrIdentifier(string value) => value.Contains('\\') || value.Contains('/') || value.Contains(':') || value.Any(char.IsDigit);
+    internal static bool ContainsPathOrIdentifier(string value) => value.Contains('\\') || value.Contains('/') || value.Contains(':') ||
+        value.Any(char.IsDigit) && !Regex.IsMatch(value,
+            @"\A[0-9]{1,9} (?:files imported|files skipped|files failed|rows imported|rows skipped|reports generated)\.?\z",
+            RegexOptions.CultureInvariant);
 }
