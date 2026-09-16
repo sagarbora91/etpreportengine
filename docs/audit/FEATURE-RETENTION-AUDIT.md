@@ -287,6 +287,15 @@ Four questions, each with the recommended default, plus one item that arises fro
 | **Q4** | Add a failed-file retry button on the Problems tab? | **Yes** | Small; avoids re-importing a whole folder on a touch screen. |
 | **Q5 (new)** | Record D23 — that 1.8.1 / `8e35d83` is the installed baseline and 1.8.8 was never shipped? | **Yes** | Stops future audits measuring loss against software the shop never ran. |
 
+**Answered by Sagar, 16 September 2026 — all four at the recommended default:**
+
+- **Q1 = Yes, with a server-side check.** Store Manager may create and edit register entries and use investigation search; VERIFIED status and approvals remain Owner-only and are enforced in SQL as well as the UI. **R5 is unblocked** and moves from "gated" to "approved, Phase 5".
+- **Q2 = No.** Folder import keeps its one-action design. No pre-commit review step is to be built. EF-05's review half is therefore **RETIRED-BY-DECISION** and closed; only the retry half remains open.
+- **Q3 = Drop.** The aggregate counters and the management summary PDF are not rebuilt. EF-08 is **RETIRED-BY-DECISION** and closed. The Import history tab from R1 carries the per-file facts instead.
+- **Q4 = Yes.** The failed-file retry button is approved for the Problems tab. **R3 is approved.**
+
+Q5 (record D23) remains with the planner as proposed amendment text in section 6; it is a factual record of the installed baseline, not a business choice.
+
 D22 is already decided and was not re-asked.
 
 ## 9. What this audit did not establish
