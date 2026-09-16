@@ -32,7 +32,7 @@
             <ComboBox x:Name="AccountingEventInput" Width="150" SelectedIndex="0"
                       automation:AutomationProperties.Name="Accounting business event">
                 <ComboBoxItem Content="NET_SALES"/><ComboBoxItem Content="TENDER_TOTAL"/>
-                <ComboBoxItem Content="SERVICE_SALES"/>
+                <ComboBoxItem Content="SERVICE_SALES"/><ComboBoxItem Content="ADJUSTMENT"/>
             </ComboBox>
             <TextBox x:Name="DebitLedgerInput" Width="170" Padding="6" Margin="8,0,0,0" ToolTip="Debit ledger"
                      automation:AutomationProperties.Name="Debit ledger"/>
