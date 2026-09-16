@@ -37,4 +37,6 @@ dotnet run --project tools/Etp.Reporting.ImportAudit -c Release -- --database Et
 - [Mapping register](docs/05_MAPPING_REGISTER.md)
 - [Approved rebuild plan](docs/audit/ETP-MASTER-AUDIT-AND-PHASED-PLAN.md)
 
-Phase 1 data-truth work is ready for the independent audit described in [PHASE-1-REPORT](docs/audit/claude-audit-2026-09/PHASE-1-REPORT.md). Sales value uses GST-inclusive NETAMOUNT; NETVALUE and tax remain separate. The shop-sheet report layouts and targets UI are Phase 2 work. Older design and process documents are retained under `docs/_archive-2026-09/` for reference.
+Phase 1 is CLOSED by the independent audit. Phase 2 evening reports and Phase 3 touch shell are implemented on their own branches; Phase 4 security/operations is separate. Claude’s 16 September audits REOPENED Phases 2, 3 and 4 for targeted fixes and remaining acceptance/deployment gates. Read the new audits before the original implementation reports. This checkout remains on the Phase 1 branch; documentation copies do not integrate later application code.
+
+Start with [current Claude handoff](docs/audit/CLAUDE-HANDOFF.md), [Phase 2–4 reports](docs/audit/PHASE-2-3-4-REPORTS.md) and [16 September session record](docs/audit/SESSION-HANDOFF-2026-09-16.md). Use the matching worktree for implementation review. Older design/process documents remain under `docs/_archive-2026-09/`.

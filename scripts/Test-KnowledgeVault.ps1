@@ -25,7 +25,8 @@ $stale = [System.Collections.Generic.List[string]]::new()
 $today = [DateTime]::Today
 
 foreach ($note in $notes) {
-    $content = Get-Content -LiteralPath $note.FullName -Raw
+    [string]$content = Get-Content -LiteralPath $note.FullName -Raw
+    if ([string]::IsNullOrEmpty($content)) { continue }
     foreach ($match in [regex]::Matches($content, '\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|[^\]]+)?\]\]')) {
         $target = $match.Groups[1].Value.Trim()
         if (-not $names.ContainsKey($target.ToLowerInvariant())) {
