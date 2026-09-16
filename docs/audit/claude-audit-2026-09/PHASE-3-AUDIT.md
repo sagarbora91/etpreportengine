@@ -82,3 +82,21 @@ Build and tests from clean: **0 warnings, 0 errors**, and **680 tests passed, 0 
 ## 7. Cleanup
 
 Audit database `EtpPhase1Test_ClaudeP3` created and dropped. Live `EtpReporting` unchanged at 490 invoices and 16 migrations. `settings.json` unchanged (SHA-256 `5A58FC54…`); the app ran on an explicit `--connection-string`. My application instance was closed. No source, test or migration file was modified.
+
+---
+
+## 8. Addendum — verification completed 16 September 2026
+
+**A3.3 is now half closed, and the half I ran passes.**
+
+I restored the window to a literal 816x480 and measured Today → Sales with real data. The five rail sections stay visible at full size, the action buttons wrap onto a second row rather than disappearing, a vertical scrollbar appears in the content area, and nothing is clipped or hidden. That is exactly what the criterion asks for: scroll appears, everything stays reachable.
+
+Interactive controls under 44 px at compact size: **two**, both scrollbar arrow buttons at 17 px, which fall under the plan's own 24 px scrollbar exception. Every other control held its touch target as the window shrank.
+
+Screenshot `p3-compact-sales.png`.
+
+**The 125% DPI half remains unverified.** Changing the display scaling affects the whole desktop and, on this Windows build, wants a sign-out to apply cleanly to a running application. I did not want to disturb the machine mid-session for it. It is a five-minute check whenever the screen is free, and it is the only part of A3.3 still open.
+
+**P3-5 confirmed again, and it is wider than the header.** The date-format regression is not limited to the shell header. The cash book's own From and To pickers also render `8/1/2026` and `8/25/2026` rather than `01 Aug 2026` and `25 Aug 2026`. So the US format appears on report date controls as well, not only after a typed edit in the header. The fix needs to cover every date picker, not just the one in the header.
+
+**Unchanged:** the five items returned in section 4 all still stand. Nothing in this pass moved A3.2, the chrome budget, the footer, the detail drawer or the control-count test.
