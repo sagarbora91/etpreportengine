@@ -96,9 +96,7 @@ public sealed class PhaseOneUpgradeSqlTests
         public string ConnectionString { get; }
         public UpgradeDatabase()
         {
-            var builder = new SqlConnectionStringBuilder(Environment.GetEnvironmentVariable("ETP_TEST_SQL_CONNECTION")
-                ?? @"Server=.\SQLEXPRESS;Integrated Security=True;TrustServerCertificate=True;Connect Timeout=5") { InitialCatalog = name };
-            ConnectionString = builder.ConnectionString;
+            ConnectionString = TestSqlConnections.ForDatabase(name);
         }
         public async Task<object?> ExecuteAsync(string sql)
         {

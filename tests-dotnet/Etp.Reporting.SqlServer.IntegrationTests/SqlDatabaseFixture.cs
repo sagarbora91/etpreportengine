@@ -11,10 +11,7 @@ public sealed class SqlDatabaseFixture : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        var builder = new SqlConnectionStringBuilder(Environment.GetEnvironmentVariable("ETP_TEST_SQL_CONNECTION")
-            ?? @"Server=.\SQLEXPRESS;Integrated Security=True;TrustServerCertificate=True;Connect Timeout=5");
-        builder.InitialCatalog = Name;
-        ConnectionString = builder.ConnectionString;
+        ConnectionString = TestSqlConnections.ForDatabase(Name);
         try
         {
             await new SqlServerDatabaseBootstrapper(ConnectionString, new DirectoryMigrationSource(MigrationDirectory)).BootstrapAsync();

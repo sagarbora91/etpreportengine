@@ -190,8 +190,14 @@ public sealed class SqlServerMigrationStore(string connectionString) : IMigratio
         await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
         try
         {
+            var bridgedRetiredTable = await PrepareRetiredExtractionGrantAsync(migration, connection, transaction, cancellationToken);
             await using var script = new SqlCommand(migration.Sql, connection, transaction) { CommandTimeout = 0 };
             await script.ExecuteNonQueryAsync(cancellationToken);
+            if (bridgedRetiredTable)
+            {
+                await using var cleanup = new SqlCommand("DROP TABLE dbo.document_extractions;", connection, transaction);
+                await cleanup.ExecuteNonQueryAsync(cancellationToken);
+            }
             await using var journal = new SqlCommand("IF NOT EXISTS (SELECT 1 FROM dbo.schema_migrations WHERE migration_id=@id) INSERT dbo.schema_migrations(migration_id, checksum) VALUES(@id,@checksum)", connection, transaction);
             journal.Parameters.AddWithValue("@id", migration.Id);
             journal.Parameters.AddWithValue("@checksum", migration.Checksum);
@@ -199,6 +205,32 @@ public sealed class SqlServerMigrationStore(string connectionString) : IMigratio
             await transaction.CommitAsync(cancellationToken);
         }
         catch { await transaction.RollbackAsync(CancellationToken.None); throw; }
+    }
+
+    private static async Task<bool> PrepareRetiredExtractionGrantAsync(MigrationScript migration,
+        SqlConnection connection, SqlTransaction transaction, CancellationToken token)
+    {
+        if (migration.Id != "0022_least_privilege_audit") return false;
+        // The committed Phase 4 script grants on an object retired by Phase 1.
+        // Preserve its bytes, checksum and numeric order. This empty compatibility
+        // object exists only inside this migration transaction and is dropped before
+        // commit. A later migration cannot repair a failure in 0022.
+        const string originalChecksum = "e272fa70f48e92731c0b3c78072ac924a530b2f1fb415f2cf7a32903a91611f9";
+        if (MigrationChecksum.Compute(migration.Sql) != originalChecksum)
+            throw new MigrationIntegrityException("The retired-table compatibility bridge requires the original 0022 migration.");
+        const string sql = """
+            IF OBJECT_ID(N'dbo.document_extractions') IS NULL
+              AND EXISTS(SELECT 1 FROM dbo.schema_migrations WHERE migration_id='0020_remove_document_extraction')
+            BEGIN
+              CREATE TABLE dbo.document_extractions(
+                review_status varchar(30) NULL,reviewed_by nvarchar(256) NULL,
+                reviewed_utc datetime2(3) NULL,review_reason nvarchar(1000) NULL);
+              SELECT CAST(1 AS bit);
+            END
+            ELSE SELECT CAST(0 AS bit);
+            """;
+        await using var command = new SqlCommand(sql, connection, transaction);
+        return (bool)(await command.ExecuteScalarAsync(token))!;
     }
 
     private static async Task EnsureJournalAsync(SqlConnection connection, CancellationToken cancellationToken)
