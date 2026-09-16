@@ -5,39 +5,41 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$sqlcmd = (Get-Command sqlcmd.exe -ErrorAction SilentlyContinue).Source
-if (-not $sqlcmd) { $sqlcmd = "C:\Program Files\Microsoft SQL Server\Client SDK\ODBC\170\Tools\Binn\SQLCMD.EXE" }
+. (Join-Path $PSScriptRoot 'etp-operations-common.ps1')
+Assert-EtpLocalSqlTarget $ServerInstance $Database
+$sqlcmd = Resolve-EtpSqlCmd
 if (-not (Test-Path -LiteralPath $sqlcmd)) { throw "SQLCMD is not installed at the expected SQL Server tools path." }
 if ($Database -notmatch '^[A-Za-z0-9_]+$') { throw "Database must contain only letters, numbers, or underscore." }
 $resolvedOutput = [IO.Path]::GetFullPath($OutputDirectory)
+Assert-EtpNoLinks $resolvedOutput
 New-Item -ItemType Directory -Path $resolvedOutput -Force | Out-Null
-$stamp = Get-Date -Format "yyyyMMdd-HHmmss"
+$stamp = [DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss') + '-' + [Guid]::NewGuid().ToString('N')
 $staging = Join-Path $resolvedOutput "support-$stamp"
 $archive = Join-Path $resolvedOutput "EtpReporting-Support-$stamp.zip"
 New-Item -ItemType Directory -Path $staging | Out-Null
 try {
     $healthFile = Join-Path $staging "database-health.txt"
-    $query = @"
-SET NOCOUNT ON;
-SELECT DB_NAME() DatabaseName,CAST(SUM(size)*8.0/1024.0 AS decimal(18,2)) DatabaseSizeMb FROM sys.database_files;
-SELECT COUNT_BIG(*) ImportedFiles FROM dbo.import_files;
-SELECT COUNT_BIG(*) LineageRows FROM dbo.source_lineage;
-SELECT status,COUNT_BIG(*) BatchCount FROM dbo.import_batches GROUP BY status ORDER BY status;
-SELECT MAX(completed_utc) LatestCompletedImportUtc FROM dbo.import_batches WHERE status='Completed';
-SELECT MAX(backup_finish_date) LatestFullBackupLocalTime FROM msdb.dbo.backupset WHERE database_name=DB_NAME() AND type='D';
-"@
-    & $sqlcmd -S $ServerInstance -E -b -d $Database -W -Q $query 2>&1 | Out-File -LiteralPath $healthFile -Encoding utf8
-    if ($LASTEXITCODE -ne 0) { throw "Support health query failed." }
+    try {
+        $health = @(Invoke-EtpSql -SqlCmd $sqlcmd -Server $ServerInstance -Database $Database -Query 'SET NOCOUNT ON; EXEC dbo.load_database_operational_health;')
+    }
+    catch {
+        # Native SQL stderr can contain submitted values and server diagnostics.
+        # The package is created only after the safe reader completes successfully.
+        [Console]::Error.WriteLine('Support health query failed. Check database access and try again.')
+        exit 1
+    }
+    @('DatabaseSizeMb | MaximumDatabaseSizeMb | VerifiedBackupUtc | FailedImportsLastDay | BackupSha256 | VerifiedRecoveryDrillUtc | RecoveryDrillBackupSha256') + $health |
+        Out-File -LiteralPath $healthFile -Encoding utf8
     Get-CimInstance Win32_OperatingSystem | Select-Object Caption,Version,OSArchitecture,LastBootUpTime |
         Format-List | Out-File -LiteralPath (Join-Path $staging "system.txt") -Encoding utf8
-    Get-Service -Name 'MSSQL$SQLEXPRESS' -ErrorAction SilentlyContinue | Select-Object Name,Status,StartType |
-        Format-List | Out-File -LiteralPath (Join-Path $staging "sql-service.txt") -Encoding utf8
     Get-ScheduledTask -TaskName "ETP Reporting Daily Backup","ETP Reporting Monthly Recovery Drill","ETP Reporting Automated Operations" -ErrorAction SilentlyContinue |
         Select-Object TaskName,State | Format-List | Out-File -LiteralPath (Join-Path $staging "scheduled-tasks.txt") -Encoding utf8
     Set-Content -LiteralPath (Join-Path $staging "privacy.txt") -Value "This package contains aggregate health and environment metadata only. Source rows, customer data, invoice identifiers, workbook names and workbook paths are intentionally excluded."
     Compress-Archive -Path (Join-Path $staging "*") -DestinationPath $archive -CompressionLevel Optimal
-    Get-FileHash -LiteralPath $archive -Algorithm SHA256 | Format-List
+    Write-Output 'Aggregate support package created.'
 }
 finally {
+    if ([IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($staging)) -ine $resolvedOutput.TrimEnd('\')) { throw 'Support cleanup escaped its output folder.' }
+    Assert-EtpNoLinks $staging
     if (Test-Path -LiteralPath $staging) { Remove-Item -LiteralPath $staging -Recurse -Force }
 }

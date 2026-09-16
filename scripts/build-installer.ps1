@@ -1,4 +1,4 @@
-param([string]$Version)
+param([string]$Version,[string]$CertificateThumbprint,[uri]$TimestampServer)
 
 $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
@@ -7,10 +7,8 @@ if ([string]::IsNullOrWhiteSpace($Version)) {
     $Version = $props.SelectSingleNode('/Project/PropertyGroup/VersionPrefix').InnerText
 }
 if ($Version -notmatch '^\d+\.\d+\.\d+([-.][0-9A-Za-z.-]+)?$') { throw "Invalid semantic version: $Version" }
-$compiler = @(
-    "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
-    "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe"
-) | Where-Object { $_ -and (Test-Path -LiteralPath $_) } | Select-Object -First 1
-if (-not $compiler) { throw "Inno Setup 6 compiler was not found." }
-& $compiler "/DAppVersion=$Version" (Join-Path $repoRoot "installer\EtpReportingEngine.iss")
-if ($LASTEXITCODE -ne 0) { throw "Installer compilation failed." }
+[xml]$buildProps = Get-Content -LiteralPath (Join-Path $repoRoot "Directory.Build.props")
+if ($Version -cne $buildProps.SelectSingleNode('/Project/PropertyGroup/VersionPrefix').InnerText) {
+    throw 'The installer version must match Directory.Build.props.'
+}
+& (Join-Path $PSScriptRoot 'build-windows-installer.ps1') -SkipReleaseBuild -CertificateThumbprint $CertificateThumbprint -TimestampServer $TimestampServer

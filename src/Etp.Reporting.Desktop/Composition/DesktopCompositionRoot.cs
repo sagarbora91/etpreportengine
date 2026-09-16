@@ -42,7 +42,7 @@ namespace Etp.Reporting.Desktop.Composition;
 public sealed class DesktopCompositionRoot
 {
     public const string DefaultConnectionString =
-        @"Server=.\SQLEXPRESS;Database=EtpReporting;Integrated Security=True;TrustServerCertificate=True;Connect Timeout=5";
+        @"Server=.\SQLEXPRESS;Database=EtpReporting;Integrated Security=True;Encrypt=Optional;Connect Timeout=5";
 
     private readonly string baseDirectory;
     private readonly string connectionString;
@@ -132,7 +132,6 @@ public sealed class DesktopCompositionRoot
             dailyWorkflowCommandsFactory,
             dailyReportPackGeneratorFactory,
             static () => new(false, false, false),
-            administratorApproved: null,
             static (_, _, _) => Task.CompletedTask,
             (path, document) => reportExportCoordinator.ExportPackExcelAsync(path, document),
             (path, document) => reportExportCoordinator.ExportPackPdfAsync(path, document));
@@ -206,16 +205,46 @@ public sealed class DesktopCompositionRoot
         new DesktopConnectionState(temporaryConnection ? connectionString : new DesktopSettingsStore(settingsDirectory).Load()?.ConnectionString ?? connectionString)
             .ConnectionString;
 
-    public async Task InitializeDatabaseAsync(CancellationToken cancellationToken = default)
+    public Task InitializeDatabaseAsync(CancellationToken cancellationToken = default) =>
+        InitializeDatabaseTargetAsync(LoadConnectionString(), cancellationToken);
+
+    public Task InitializeConfiguredDatabaseAsync(CancellationToken cancellationToken = default) =>
+        InitializeDatabaseTargetAsync(LoadAutomationConnectionString(), cancellationToken);
+
+    private async Task InitializeDatabaseTargetAsync(string targetConnectionString, CancellationToken cancellationToken)
     {
         var migrations = new DirectoryMigrationSource(MigrationDirectory);
-        var bootstrapper = new SqlServerDatabaseBootstrapper(LoadConnectionString(), migrations);
+        var bootstrapper = new SqlServerDatabaseBootstrapper(targetConnectionString, migrations);
         await bootstrapper.BootstrapAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public static string LoadAutomationConnectionString()
+    {
+        var path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "EtpReporting", "Operations", "operations.json");
+        return LoadOperationsConnectionString(path);
+    }
+
+    internal static string LoadOperationsConnectionString(string path)
+    {
+        ProtectedOperationPath.Validate(path);
+        return ParseOperationsConnectionString(File.ReadAllText(path));
+    }
+
+    internal static string ParseOperationsConnectionString(string configuration)
+    {
+        using var document = System.Text.Json.JsonDocument.Parse(configuration);
+        if (!document.RootElement.TryGetProperty("serverInstance", out var serverValue) || serverValue.ValueKind != System.Text.Json.JsonValueKind.String ||
+            !document.RootElement.TryGetProperty("database", out var databaseValue) || databaseValue.ValueKind != System.Text.Json.JsonValueKind.String)
+            throw new InvalidOperationException("Configure the protected machine database target before running unattended operations.");
+        var server = serverValue.GetString();
+        var database = databaseValue.GetString();
+        var builder = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder { DataSource = server, InitialCatalog = database, IntegratedSecurity = true };
+        return LocalSqlConnectionPolicy.Validate(builder.ConnectionString);
     }
 
     public async Task<int> RunAutomationOnceAsync(CancellationToken cancellationToken = default)
     {
-        var result = await new SqlServerOperationsAdministrationService(LoadConnectionString())
+        var result = await new SqlServerOperationsAdministrationService(LoadAutomationConnectionString())
             .RunAutomationOnceAsync(cancellationToken)
             .ConfigureAwait(false);
         return result.SourcesFailed == 0 ? 0 : 1;

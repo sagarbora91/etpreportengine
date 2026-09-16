@@ -36,10 +36,14 @@ public sealed class DashboardView : UserControl
     private readonly TextBlock databaseHealthDetailMetric = MetricValue();
     private readonly TextBlock databaseSizeMetric = MetricValue();
     private readonly TextBlock backupAgeMetric = MetricValue();
+    private readonly TextBlock recoveryDrillMetric = MetricValue();
+    private readonly TextBlock backupHashMetric = new() { TextWrapping = TextWrapping.Wrap, FontSize = 12 };
+    private readonly TextBlock recoveryDrillHashMetric = new() { TextWrapping = TextWrapping.Wrap, FontSize = 12 };
     private readonly TextBlock backupSpaceMetric = MetricValue();
     private readonly TextBlock failedImportsMetric = MetricValue(21, Brushes.White);
     private readonly ItemsControl healthWarningsList = new();
     private readonly DataGrid operationalAuditGrid = ReadOnlyGrid(230);
+    private readonly DataGrid overviewAuditGrid = ReadOnlyGrid(230);
     private readonly ProgressBar readinessProgress = new() { Minimum = 0, Maximum = 100, Height = 8 };
     private readonly TextBlock readinessPercent = new() { FontWeight = FontWeights.SemiBold, Foreground = Accent };
     private readonly TextBlock dailyCloseMessage = new() { Foreground = SecondaryText, TextWrapping = TextWrapping.Wrap };
@@ -66,6 +70,11 @@ public sealed class DashboardView : UserControl
         AutomationProperties.SetName(dashboardChartPanel, "Imported rows by report chart");
         AutomationProperties.SetName(healthWarningsList, "Database health warnings");
         AutomationProperties.SetName(operationalAuditGrid, "Recent operational activity");
+        AutomationProperties.SetName(overviewAuditGrid, "Dashboard operational activity");
+        AutomationProperties.SetName(backupAgeMetric, "Last verified backup UTC");
+        AutomationProperties.SetName(recoveryDrillMetric, "Last recovery drill UTC");
+        AutomationProperties.SetName(backupHashMetric, "Verified backup fingerprint");
+        AutomationProperties.SetName(recoveryDrillHashMetric, "Recovery drill backup fingerprint");
     }
 
     public Func<DateOnly>? ExportDateFrom { get; set; }
@@ -100,10 +109,14 @@ public sealed class DashboardView : UserControl
             };
         databaseSizeMetric.Text = state.DatabaseSize;
         backupAgeMetric.Text = state.LatestBackup;
+        recoveryDrillMetric.Text = state.LatestRecoveryDrill;
+        backupHashMetric.Text = state.LatestBackupSha256;
+        recoveryDrillHashMetric.Text = state.LatestRecoveryDrillSha256;
         backupSpaceMetric.Text = state.BackupFreeSpace;
         failedImportsMetric.Text = state.FailedImports;
         healthWarningsList.ItemsSource = state.HealthWarnings;
         operationalAuditGrid.ItemsSource = state.RecentAuditEvents;
+        overviewAuditGrid.ItemsSource = state.RecentAuditEvents;
         errorMessage.Text = state.ErrorMessage ?? string.Empty;
         errorBanner.Visibility = string.IsNullOrWhiteSpace(state.ErrorMessage) ? Visibility.Collapsed : Visibility.Visible;
 
@@ -141,8 +154,30 @@ public sealed class DashboardView : UserControl
         var actions = new WrapPanel();
         actions.Children.Add(Button("Refresh", "Refresh dashboard", () => RefreshRequested?.Invoke(this,EventArgs.Empty)));
         actions.Children.Add(Button("Export summary", "Export management summary PDF", ExportPdfAsync));
-        DockPanel.SetDock(actions,Dock.Top);root.Children.Add(actions);root.Children.Add(auditContent);
-        overviewContent = root;return root;
+        DockPanel.SetDock(actions, Dock.Top);
+        root.Children.Add(actions);
+        errorBanner.Child = errorMessage;
+        errorBanner.Margin = new Thickness(0, 8, 0, 0);
+        DockPanel.SetDock(errorBanner, Dock.Top);
+        root.Children.Add(errorBanner);
+        var content = new StackPanel();
+        var status = new WrapPanel { Margin = new Thickness(0, 8, 0, 8) };
+        status.Children.Add(MiniMetric("SYSTEM STATUS", databaseHealthDetailMetric));
+        status.Children.Add(MiniMetric("LAST VERIFIED BACKUP (UTC)", backupAgeMetric));
+        status.Children.Add(MiniMetric("LAST RECOVERY DRILL (UTC)", recoveryDrillMetric));
+        content.Children.Add(status);
+        var fingerprints = new StackPanel();
+        fingerprints.Children.Add(new TextBlock { Text = "Verified backup", Margin = new Thickness(0, 6, 0, 2) });
+        fingerprints.Children.Add(backupHashMetric);
+        fingerprints.Children.Add(new TextBlock { Text = "Backup used by recovery drill", Margin = new Thickness(0, 6, 0, 2) });
+        fingerprints.Children.Add(recoveryDrillHashMetric);
+        content.Children.Add(new Expander { Header = "Verification fingerprints", Content = fingerprints, Margin = new Thickness(0, 0, 0, 8) });
+        content.Children.Add(Title("Recent privacy-safe activity"));
+        overviewAuditGrid.Margin = new Thickness(0, 12, 0, 0);
+        content.Children.Add(overviewAuditGrid);
+        root.Children.Add(new ScrollViewer { Content = content, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled });
+        overviewContent = root; return root;
     }
 
 

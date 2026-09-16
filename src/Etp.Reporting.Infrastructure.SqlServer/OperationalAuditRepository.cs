@@ -26,15 +26,12 @@ public sealed class OperationalAuditRepository(string connectionString)
         if (!SupportsOutcome(outcome)) throw new ArgumentException("Unknown operational outcome.", nameof(outcome));
         if (safeDetail is { } detail && (detail.Length > 200 || ContainsPathOrIdentifier(detail)))
             throw new ArgumentException("Audit details must be aggregate-only and cannot contain paths or identifiers.", nameof(safeDetail));
-        await using var connection = new SqlConnection(connectionString);
+        await using var connection = new SqlConnection(LocalSqlConnectionPolicy.Validate(connectionString));
         await connection.OpenAsync(cancellationToken);
-        actorName = string.IsNullOrWhiteSpace(actorName) ? Environment.UserName : actorName.Trim();
-        if (actorName.Length > 100) throw new ArgumentException("The audit actor name is too long.", nameof(actorName));
-        await using var command = new SqlCommand("INSERT dbo.operational_audit(event_type,outcome,safe_detail,application_version,actor_name) VALUES(@type,@outcome,@detail,@version,@actor)", connection);
+        await using var command = new SqlCommand("EXEC dbo.record_operational_audit @type,@outcome,@detail,@version", connection);
         command.Parameters.AddWithValue("@type", eventType); command.Parameters.AddWithValue("@outcome", outcome);
         command.Parameters.AddWithValue("@detail", (object?)safeDetail ?? DBNull.Value);
         command.Parameters.AddWithValue("@version", typeof(OperationalAuditRepository).Assembly.GetName().Version?.ToString(3) ?? "unknown");
-        command.Parameters.AddWithValue("@actor", actorName);
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
@@ -44,7 +41,7 @@ public sealed class OperationalAuditRepository(string connectionString)
     public async Task<IReadOnlyList<OperationalAuditEvent>> LoadRecentAsync(int limit = 50, CancellationToken cancellationToken = default)
     {
         if (limit is < 1 or > 200) throw new ArgumentOutOfRangeException(nameof(limit));
-        await using var connection = new SqlConnection(connectionString); await connection.OpenAsync(cancellationToken);
+        await using var connection = new SqlConnection(LocalSqlConnectionPolicy.Validate(connectionString)); await connection.OpenAsync(cancellationToken);
         await using var command = new SqlCommand("SELECT TOP(@limit) event_utc,event_type,outcome,safe_detail,application_version,actor_name FROM dbo.operational_audit ORDER BY event_utc DESC,operational_audit_id DESC", connection);
         command.Parameters.AddWithValue("@limit", limit);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken); var rows = new List<OperationalAuditEvent>();

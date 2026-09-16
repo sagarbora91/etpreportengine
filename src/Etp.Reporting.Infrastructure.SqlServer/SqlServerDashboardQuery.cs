@@ -53,7 +53,12 @@ public sealed class SqlServerDashboardQuery : IDashboardQuery
                 health.LastSuccessfulBackupUtc,
                 health.FailedImportsLast24Hours,
                 health.BackupFreeSpaceGb,
-                health.Warnings.Select(warning => new DashboardHealthWarning(warning.Code, warning.Message)).ToArray()),
+                health.Warnings.Select(warning => new DashboardHealthWarning(warning.Code, warning.Message)).ToArray())
+            {
+                LastSuccessfulBackupSha256 = health.LastSuccessfulBackupSha256,
+                LastSuccessfulRecoveryDrillUtc = health.LastSuccessfulRecoveryDrillUtc,
+                LastSuccessfulRecoveryDrillSha256 = health.LastSuccessfulRecoveryDrillSha256
+            },
             audit.Select(Map).ToArray(),
             summary.LatestBusinessDate);
     }

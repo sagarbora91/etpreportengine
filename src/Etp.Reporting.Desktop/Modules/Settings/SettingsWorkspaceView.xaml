@@ -19,6 +19,8 @@
                        automation:AutomationProperties.Name="Settings operation status"
                        automation:AutomationProperties.LiveSetting="Polite"/>
 
+
+
             <Separator Margin="0,16,0,12"/>
             <StackPanel x:Name="ProductSettingsPanel">
                 <TextBlock Text="Product integrations" FontWeight="SemiBold"/>
@@ -47,6 +49,23 @@
                 </WrapPanel>
             </StackPanel>
             <StackPanel x:Name="DataTruthMastersHost"/>
+            <Expander Header="Encrypted backup recovery keys" Margin="0,12,0,0">
+                <StackPanel>
+                    <TextBlock Text="Owner setup: choose two recovery folders on USB drives or cloud storage outside this PC. SQL Server must have permission to write there. Keep the password separately. Native encryption requires a supported SQL edition." TextWrapping="Wrap" Margin="0,6"/>
+                    <DockPanel Margin="0,4">
+                        <Button Content="Choose first location" DockPanel.Dock="Right" Click="ChooseRecoveryLocation_Click" Tag="first" MinHeight="44"/>
+                        <TextBox x:Name="FirstRecoveryLocation" IsReadOnly="True" MinHeight="44" automation:AutomationProperties.Name="First recovery key location"/>
+                    </DockPanel>
+                    <DockPanel Margin="0,4">
+                        <Button Content="Choose second location" DockPanel.Dock="Right" Click="ChooseRecoveryLocation_Click" Tag="second" MinHeight="44"/>
+                        <TextBox x:Name="SecondRecoveryLocation" IsReadOnly="True" MinHeight="44" automation:AutomationProperties.Name="Second recovery key location"/>
+                    </DockPanel>
+                    <TextBlock Text="Recovery password (at least sixteen characters)"/>
+                    <PasswordBox x:Name="RecoveryPassword" MinHeight="44" automation:AutomationProperties.Name="Recovery key password"/>
+                    <CheckBox x:Name="RecoveryLocationsConfirmed" Content="Both locations provide a copy outside this PC" MinHeight="44"/>
+                    <Button x:Name="ExportRecoveryKeysButton" Content="Create and export recovery keys" Click="ExportRecoveryKeys_Click" MinHeight="44" IsEnabled="False"/>
+                </StackPanel>
+            </Expander>
         </StackPanel>
     </Border>
 </UserControl>

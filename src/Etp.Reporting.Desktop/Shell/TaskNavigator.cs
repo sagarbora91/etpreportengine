@@ -415,7 +415,7 @@ public sealed partial class TaskNavigator(MainWindow window)
         }
         else if (task.Destination == "Report Archive") { view = window.archiveWorkspaceView; window.archiveWorkspaceView.SelectTask(id); body = id == "sharing-contacts" ? new int[] {6,7,9} : id == "shared" ? new int[] {2,3,5,9,10} : new int[] {2,3,9,10}; actions = id == "sharing-contacts" ? new int[] {8} : new int[] {4}; }
         else if (id is "connection" or "settings" or "sharing")
-        { view = window.settingsWorkspace; if (id == "sharing") window.settingsWorkspace.SelectIntegrationTask(id); body = id is "connection" or "settings" ? new int[] {0,1,3} : new int[] {3,5}; actions = id is "connection" or "settings" ? new int[] {2} : new int[] {}; }
+        { view = window.settingsWorkspace; if (id == "sharing") window.settingsWorkspace.SelectIntegrationTask(id); body = id is "connection" or "settings" ? new int[] {0,1,3,7} : new int[] {3,5}; actions = id is "connection" or "settings" ? new int[] {2} : new int[] {}; }
         else if (task.Destination == "Admin / Settings")
         {
             view = window.administrationWorkspaceView; window.administrationWorkspaceView.SelectTask(id);

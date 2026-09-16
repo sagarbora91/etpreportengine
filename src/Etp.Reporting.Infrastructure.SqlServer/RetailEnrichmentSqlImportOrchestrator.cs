@@ -73,7 +73,7 @@ public sealed class RetailEnrichmentSqlImportOrchestrator(string connectionStrin
                 accepted.Scope.PeriodStart ?? scope.BusinessDate,scope.BusinessDate), [],[],[],[])
             { Enrichments=rows, AcceptedImport=accepted, Restatement=restatement };
         var id = await new SqlServerTransactionalImportStore(connectionString).PersistAsync(package,cancellationToken);
-        await using var connection=new SqlConnection(connectionString);
+        await using var connection=new SqlConnection(LocalSqlConnectionPolicy.Validate(connectionString));
         await connection.OpenAsync(cancellationToken);
         await using var query=new SqlCommand("SELECT e.match_status,COUNT(*) FROM dbo.sales_line_enrichments e JOIN dbo.source_lineage s ON s.source_lineage_id=e.source_lineage_id WHERE s.import_file_id=@file GROUP BY e.match_status",connection);
         query.Parameters.AddWithValue("@file",id);

@@ -118,8 +118,7 @@ public sealed record FinaliseDailyWorkflow(
 public sealed record ReopenDailyWorkflow(
     DailyWorkflowScope Scope,
     string User,
-    string Reason,
-    bool AdministratorApproved);
+    string Reason);
 
 public sealed record DailyPackSection(
     string Report,

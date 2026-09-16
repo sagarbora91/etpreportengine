@@ -40,10 +40,8 @@ public sealed class DailyReportingWorkflowRepository(string connectionString)
     {
         storeCode = Required(storeCode, nameof(storeCode));
         await using var connection = await OpenAsync(cancellationToken);
-        await EnsureDayAsync(connection, storeCode, businessDate, cancellationToken);
-
         var storedStatus = await ScalarAsync<string>(connection,
-            "SELECT status FROM dbo.daily_reporting_days WHERE store_code=@store AND business_date=@date",
+            "SELECT COALESCE((SELECT status FROM dbo.daily_reporting_days WHERE store_code=@store AND business_date=@date),'OPEN')",
             storeCode, businessDate, cancellationToken);
         var imported = await LoadStringsAsync(connection,
             "SELECT DISTINCT report_code FROM dbo.import_files WHERE store_code=@store AND @date BETWEEN COALESCE(period_start,business_date) AND COALESCE(period_end,business_date) AND is_superseded=0 AND report_code IS NOT NULL ORDER BY report_code",
@@ -142,30 +140,18 @@ public sealed class DailyReportingWorkflowRepository(string connectionString)
         DateOnly businessDate,
         string user,
         string reason,
-        bool administratorApproved,
         CancellationToken cancellationToken = default)
     {
-        if (!administratorApproved) throw new UnauthorizedAccessException("Administrator approval is required to reopen a finalised day.");
         user = Required(user, nameof(user));
         reason = Required(reason, nameof(reason));
-        const string sql = """
-            SET XACT_ABORT ON;
-            BEGIN TRANSACTION;
-            UPDATE dbo.daily_reporting_days WITH(UPDLOCK,HOLDLOCK)
-              SET status='OPEN',reopened_by=@user,reopened_utc=SYSUTCDATETIME(),reopen_reason=@reason
-              WHERE store_code=@store AND business_date=@date AND status='LOCKED';
-            IF @@ROWCOUNT<>1 THROW 51024,'Only a finalised day can be reopened.',1;
-            INSERT dbo.daily_reporting_events(store_code,business_date,event_type,performed_by,reason)
-              VALUES(@store,@date,'DayReopened',@user,@reason);
-            COMMIT TRANSACTION;
-            """;
+        const string sql = "EXEC dbo.reopen_reporting_day @store,@date,@reason";
         await ExecuteScopeAsync(sql, storeCode, businessDate, user, reason, cancellationToken);
     }
 
     private async Task<SqlConnection> OpenAsync(CancellationToken token)
     {
         if (string.IsNullOrWhiteSpace(connectionString)) throw new InvalidOperationException("A SQL Server connection string is required.");
-        var connection = new SqlConnection(connectionString);
+        var connection = new SqlConnection(LocalSqlConnectionPolicy.Validate(connectionString));
         try { await connection.OpenAsync(token); return connection; }
         catch { await connection.DisposeAsync(); throw; }
     }

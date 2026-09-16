@@ -5,10 +5,41 @@ namespace Etp.Reporting.Desktop.Tests;
 public sealed class DesktopCompositionRootTests
 {
     [Fact]
+    public void Machine_configuration_preserves_its_exact_target_and_ignores_other_settings()
+    {
+        var connection = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(DesktopCompositionRoot.ParseOperationsConnectionString(
+            """{"serverInstance":"localhost\\ConfiguredInstance","database":"ConfiguredDatabase","connectionString":"Server=remote;Database=AnotherDatabase"}"""));
+        Assert.Equal(@"localhost\ConfiguredInstance", connection.DataSource);
+        Assert.Equal("ConfiguredDatabase", connection.InitialCatalog);
+        Assert.True(connection.IntegratedSecurity);
+    }
+
+    [Theory]
+    [InlineData("{}")]
+    [InlineData("{\"serverInstance\":\"localhost\"}")]
+    [InlineData("{\"serverInstance\":null,\"database\":\"Target\"}")]
+    public void Incomplete_machine_configuration_never_falls_back_to_a_default(string configuration) =>
+        Assert.Throws<InvalidOperationException>(() => DesktopCompositionRoot.ParseOperationsConnectionString(configuration));
+
+    [Theory]
+    [InlineData("{\"serverInstance\":\"remote.example\",\"database\":\"Target\"}")]
+    [InlineData("{\"serverInstance\":\"localhost\",\"database\":\"\"}")]
+    public void Unsafe_machine_target_is_rejected_before_database_access(string configuration) =>
+        Assert.Throws<ArgumentException>(() => DesktopCompositionRoot.ParseOperationsConnectionString(configuration));
+
+    [Fact]
+    public void Missing_machine_configuration_never_reads_user_settings()
+    {
+        var missing = Path.Combine(Path.GetTempPath(), "EtpMissingOperations", Guid.NewGuid().ToString("N"), "operations.json");
+        Assert.ThrowsAny<IOException>(() => DesktopCompositionRoot.LoadOperationsConnectionString(missing));
+        Assert.False(File.Exists(missing));
+    }
+
+    [Fact]
     public void Default_connection_preserves_the_installed_sql_express_database()
     {
         Assert.Equal(
-            @"Server=.\SQLEXPRESS;Database=EtpReporting;Integrated Security=True;TrustServerCertificate=True;Connect Timeout=5",
+            @"Server=.\SQLEXPRESS;Database=EtpReporting;Integrated Security=True;Encrypt=Optional;Connect Timeout=5",
             DesktopCompositionRoot.DefaultConnectionString);
     }
 

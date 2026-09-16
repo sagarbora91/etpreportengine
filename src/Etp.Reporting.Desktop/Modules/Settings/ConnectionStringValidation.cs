@@ -36,9 +36,8 @@ public sealed record ConnectionStringValidation(
         if (ContainsCredentialKeyword(value))
             return Invalid("User names and passwords cannot be retained in desktop settings.");
 
-        // Zero means infinite; keep shorter explicit limits and cap every desktop connection.
-        if (builder.ConnectTimeout == 0 || builder.ConnectTimeout > 5) builder.ConnectTimeout = 5;
-        return new(true, builder.ConnectionString, null);
+        try { return new(true, Etp.Reporting.Infrastructure.SqlServer.LocalSqlConnectionPolicy.Validate(value), null); }
+        catch (ArgumentException exception) { return Invalid(exception.Message); }
     }
 
     private static ConnectionStringValidation Invalid(string error) =>

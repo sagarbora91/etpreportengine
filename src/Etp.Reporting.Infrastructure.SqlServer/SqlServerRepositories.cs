@@ -19,7 +19,7 @@ public sealed class SqlServerImportBatchRepository(string connectionString) : II
 
     private async Task ExecuteAsync(string sql, Action<SqlCommand> bind, CancellationToken token, bool requireOne=false)
     {
-        await using var connection=new SqlConnection(connectionString); await connection.OpenAsync(token);
+        await using var connection=new SqlConnection(LocalSqlConnectionPolicy.Validate(connectionString)); await connection.OpenAsync(token);
         await using var command=new SqlCommand(sql,connection); bind(command);
         var affected=await command.ExecuteNonQueryAsync(token);
         if(requireOne && affected!=1) throw new DBConcurrencyException("The import batch is missing or is not in an allowed state.");
@@ -31,14 +31,14 @@ public sealed class SqlServerImportFileRepository(string connectionString) : IIm
 {
     public async Task<bool> ExistsByHashAsync(string sourceSha256, CancellationToken cancellationToken=default)
     {
-        await using var connection=new SqlConnection(connectionString); await connection.OpenAsync(cancellationToken);
+        await using var connection=new SqlConnection(LocalSqlConnectionPolicy.Validate(connectionString)); await connection.OpenAsync(cancellationToken);
         await using var command=new SqlCommand("SELECT CONVERT(bit,CASE WHEN EXISTS(SELECT 1 FROM dbo.import_files WHERE source_sha256=@hash AND data_truth_version=1) THEN 1 ELSE 0 END)",connection);
         command.Parameters.AddWithValue("@hash",NormalizeHash(sourceSha256)); return (bool)(await command.ExecuteScalarAsync(cancellationToken))!;
     }
     public async Task<bool> ExistsInScopeAsync(string sourceSha256, string reportCode, string storeCode,
         DateOnly periodStart, DateOnly periodEnd, CancellationToken cancellationToken=default)
     {
-        await using var connection=new SqlConnection(connectionString); await connection.OpenAsync(cancellationToken);
+        await using var connection=new SqlConnection(LocalSqlConnectionPolicy.Validate(connectionString)); await connection.OpenAsync(cancellationToken);
         await using var command=new SqlCommand("""
             SELECT CONVERT(bit,CASE WHEN EXISTS(
                 SELECT 1 FROM dbo.import_files WHERE source_sha256=@hash AND data_truth_version=1
@@ -52,7 +52,7 @@ public sealed class SqlServerImportFileRepository(string connectionString) : IIm
     public async Task<long> RegisterAsync(ImportFileRegistration file,CancellationToken cancellationToken=default)
     {
         var reportCode=PersistenceValidation.ResolveReportCode(file);
-        await using var connection=new SqlConnection(connectionString); await connection.OpenAsync(cancellationToken);
+        await using var connection=new SqlConnection(LocalSqlConnectionPolicy.Validate(connectionString)); await connection.OpenAsync(cancellationToken);
         await using var transaction=(SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
         try
         {
@@ -95,7 +95,7 @@ public sealed class SqlServerImportFileRepository(string connectionString) : IIm
         if(reportCode is not null)
             sql += " AND f.report_code=@report AND f.store_code=@store AND f.period_start=@start AND f.period_end=@end";
         sql += " GROUP BY f.import_file_id,b.source_row_count ORDER BY f.import_file_id DESC;";
-        await using var connection=new SqlConnection(connectionString);await connection.OpenAsync(cancellationToken);
+        await using var connection=new SqlConnection(LocalSqlConnectionPolicy.Validate(connectionString));await connection.OpenAsync(cancellationToken);
         await using var command=new SqlCommand(sql,connection);command.Parameters.AddWithValue("@hash",NormalizeHash(sourceSha256));
         if(reportCode is not null) BindScope(command,reportCode,storeCode!,periodStart!.Value,periodEnd!.Value);
         await using var reader=await command.ExecuteReaderAsync(cancellationToken);
@@ -133,7 +133,7 @@ public sealed partial class SqlServerTransactionalImportStore(string connectionS
     {
         PersistenceValidation.Validate(package);
         var expectedRows=package.InvoiceControls.Count+package.SalesLines.Count+package.Tenders.Count+package.StockMovements.Count+package.StockSnapshots.Count+package.Enrichments.Count;
-        await using var connection=new SqlConnection(connectionString); await connection.OpenAsync(cancellationToken);
+        await using var connection=new SqlConnection(LocalSqlConnectionPolicy.Validate(connectionString)); await connection.OpenAsync(cancellationToken);
         await using var transaction=(SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
         try
         {
@@ -185,20 +185,7 @@ public sealed partial class SqlServerTransactionalImportStore(string connectionS
     private static async Task InsertSnapshot(SqlConnection c,SqlTransaction t,long f,StockSnapshotPersistence x,CancellationToken token){var l=await Lineage(c,t,f,x.Lineage,token);await using var q=Cmd(c,t,"EXEC dbo.persist_stock_snapshot @store,@date,@product,@ean,@brand,@brandname,@cluster,@gender,@batch,@uid,@qty,@unit,@total,@lineage");q.Parameters.AddWithValue("@store",x.StoreCode);q.Parameters.AddWithValue("@date",x.SnapshotDate);q.Parameters.AddWithValue("@product",x.ProductCode);Add(q,"@ean",x.Ean);Add(q,"@brand",x.BrandCode);Add(q,"@brandname",x.BrandName);Add(q,"@cluster",x.Cluster);Add(q,"@gender",x.Gender);Add(q,"@batch",x.BatchNumber);Add(q,"@uid",x.SourceUid);q.Parameters.AddWithValue("@qty",x.Quantity);Add(q,"@unit",x.UnitCost);Add(q,"@total",x.TotalCost);q.Parameters.AddWithValue("@lineage",l);await q.ExecuteNonQueryAsync(token);}
     private static async Task RefreshEnrichmentMatches(SqlConnection c,SqlTransaction t,CancellationToken token)
     {
-        const string sql="""
-            IF OBJECT_ID(N'dbo.sales_line_enrichments',N'U') IS NOT NULL
-            UPDATE e SET matched_sales_line_id=matches.sales_line_id,match_status=matches.match_status
-            FROM dbo.sales_line_enrichments e
-            CROSS APPLY
-            (
-              SELECT CASE WHEN COUNT_BIG(*)=1 THEN MAX(l.sales_line_id) END sales_line_id,
-                     CASE COUNT_BIG(*) WHEN 0 THEN 'Missing' WHEN 1 THEN 'Matched' ELSE 'Ambiguous' END match_status
-              FROM dbo.sales_lines l JOIN dbo.sales_invoices i ON i.sales_invoice_id=l.sales_invoice_id
-              WHERE i.store_code=e.store_code AND i.transaction_date=e.transaction_date
-                AND i.document_number=e.document_number AND l.product_code=e.product_code
-            ) matches
-            WHERE e.match_status<>'Matched';
-            """;
+        const string sql="EXEC dbo.refresh_enrichment_matches";
         await using var q=Cmd(c,t,sql);await q.ExecuteNonQueryAsync(token);
     }
     private static SqlCommand Cmd(SqlConnection c,SqlTransaction t,string sql)=>new(sql,c,t){CommandTimeout=0};

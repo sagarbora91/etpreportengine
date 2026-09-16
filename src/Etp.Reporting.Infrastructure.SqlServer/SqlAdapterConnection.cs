@@ -26,6 +26,6 @@ internal static class SqlAdapterConnection
                 "The SQL adapter requires Windows-integrated SQL Server security without SQL credentials.",
                 parameterName);
 
-        return builder.ConnectionString;
+        return LocalSqlConnectionPolicy.Validate(connectionString);
     }
 }

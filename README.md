@@ -13,7 +13,7 @@ dotnet test Etp.Reporting.slnx -c Release
 .\src\Etp.Reporting.Desktop\bin\Release\net10.0-windows\Etp.Reporting.Desktop.exe
 ```
 
-Connection settings are saved in `%LOCALAPPDATA%\EtpReporting\settings.json`. The default database is `EtpReporting`. Use `--connection-string` to launch an isolated review session without changing saved settings. Maintenance scripts and migrations accompany build output.
+Interactive connection settings are saved in `%LOCALAPPDATA%\EtpReporting\settings.json`. The default database is `EtpReporting`. Use `--connection-string` to launch an isolated review session without changing saved settings. Scheduled operations use the protected machine configuration in `%ProgramData%\EtpReporting\Operations\operations.json`. Maintenance scripts and migrations accompany build output.
 
 SQL integration tests create and drop their own uniquely named database. They never target the shop database. Set `ETP_TEST_SQL_CONNECTION` to use another local SQL instance; the default is Windows authentication on `.\SQLEXPRESS`.
 
@@ -36,5 +36,7 @@ dotnet run --project tools/Etp.Reporting.ImportAudit -c Release -- --database Et
 - [Import profiles](docs/04_ETP_IMPORT_PROFILES.md)
 - [Mapping register](docs/05_MAPPING_REGISTER.md)
 - [Approved rebuild plan](docs/audit/ETP-MASTER-AUDIT-AND-PHASED-PLAN.md)
+- [Security and operations setup](docs/OPERATIONS.md)
+- [Phase 4 implementation and validation](docs/audit/claude-audit-2026-09/PHASE-4-REPORT.md)
 
-Phase 1 data-truth work is ready for the independent audit described in [PHASE-1-REPORT](docs/audit/claude-audit-2026-09/PHASE-1-REPORT.md). Sales value uses GST-inclusive NETAMOUNT; NETVALUE and tax remain separate. The shop-sheet report layouts and targets UI are Phase 2 work. Older design and process documents are retained under `docs/_archive-2026-09/` for reference.
+This integration branch combines the data-truth imports, evening reports, touch shell, and security operations. Sales value uses GST-inclusive NETAMOUNT; NETVALUE and tax remain separate. Phase 4 deployment requires a SQL edition supporting native encrypted backups, a signing certificate, and the folder-access decision described in Operations. SQL Express supports the local development tests but cannot create the approved native encrypted backups. Older design and process documents are retained under `docs/_archive-2026-09/` for reference.

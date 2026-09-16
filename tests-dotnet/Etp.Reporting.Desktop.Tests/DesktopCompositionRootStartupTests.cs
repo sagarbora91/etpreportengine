@@ -7,11 +7,14 @@ public sealed class DesktopCompositionRootStartupTests
     public static TheoryData<string[], DesktopStartupMode> Routes => new()
     {
         { ["--initialize-database"], DesktopStartupMode.InitializeDatabase },
+        { ["--initialize-configured-database"], DesktopStartupMode.InitializeConfiguredDatabase },
         { ["--automation-once"], DesktopStartupMode.AutomationOnce },
         { [], DesktopStartupMode.Interactive },
         { ["--INITIALIZE-DATABASE"], DesktopStartupMode.Interactive },
+        { ["--INITIALIZE-CONFIGURED-DATABASE"], DesktopStartupMode.Interactive },
         { ["--AUTOMATION-ONCE"], DesktopStartupMode.Interactive },
         { ["--initialize-database", "extra"], DesktopStartupMode.Interactive },
+        { ["--initialize-configured-database", "extra"], DesktopStartupMode.Interactive },
         { ["--automation-once", "extra"], DesktopStartupMode.Interactive },
         { ["--unknown"], DesktopStartupMode.Interactive }
     };
@@ -23,6 +26,31 @@ public sealed class DesktopCompositionRootStartupTests
         DesktopStartupMode expected)
     {
         Assert.Equal(expected, DesktopStartupCoordinator.Route(arguments));
+    }
+
+    [Fact]
+    public async Task Configured_database_initialization_never_uses_the_manual_initializer_or_window()
+    {
+        var calls = new Calls();
+        var outcome = await Coordinator(calls).RunAsync(["--initialize-configured-database"]);
+        Assert.Equal(DesktopStartupMode.InitializeConfiguredDatabase, outcome.Mode);
+        Assert.Equal(0, outcome.ExitCode);
+        Assert.Equal("ConfiguredDatabaseInitialization", outcome.DiagnosticSource);
+        Assert.Equal(1, calls.ConfiguredInitialize);
+        Assert.Equal(0, calls.Initialize);
+        Assert.Equal(0, calls.Automation);
+        Assert.Equal(0, calls.Window);
+    }
+
+    [Fact]
+    public async Task Missing_machine_initializer_fails_closed_without_using_manual_settings()
+    {
+        var manualCalled = false;
+        var coordinator = new DesktopStartupCoordinator(_ => { manualCalled = true; return Task.CompletedTask; }, _ => Task.FromResult(0), () => { });
+        var outcome = await coordinator.RunAsync(["--initialize-configured-database"]);
+        Assert.Equal(1, outcome.ExitCode);
+        Assert.False(manualCalled);
+        Assert.IsType<InvalidOperationException>(outcome.Failure);
     }
 
     [Fact]
@@ -59,6 +87,7 @@ public sealed class DesktopCompositionRootStartupTests
 
     [Theory]
     [InlineData("--initialize-database", "DatabaseInitialization")]
+    [InlineData("--initialize-configured-database", "ConfiguredDatabaseInitialization")]
     [InlineData("--automation-once", "UnattendedAutomation")]
     public async Task Headless_failure_maps_to_exit_one_and_the_existing_diagnostic_source(
         string argument,
@@ -93,11 +122,13 @@ public sealed class DesktopCompositionRootStartupTests
     private static DesktopStartupCoordinator Coordinator(Calls calls) => new(
         _ => calls.InitializeAsync(),
         _ => calls.AutomateAsync(),
-        calls.ShowWindow);
+        calls.ShowWindow,
+        _ => calls.InitializeConfiguredAsync());
 
     private sealed class Calls
     {
         public int Initialize { get; private set; }
+        public int ConfiguredInitialize { get; private set; }
         public int Automation { get; private set; }
         public int Window { get; private set; }
         public int AutomationExitCode { get; init; }
@@ -106,6 +137,12 @@ public sealed class DesktopCompositionRootStartupTests
         public Task InitializeAsync()
         {
             Initialize++;
+            return Failure is null ? Task.CompletedTask : Task.FromException(Failure);
+        }
+
+        public Task InitializeConfiguredAsync()
+        {
+            ConfiguredInitialize++;
             return Failure is null ? Task.CompletedTask : Task.FromException(Failure);
         }
 

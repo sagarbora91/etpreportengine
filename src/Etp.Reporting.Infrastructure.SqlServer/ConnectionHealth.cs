@@ -25,7 +25,7 @@ public sealed class SqlServerHealthCheck(string connectionString) : IDatabaseHea
         var started = System.Diagnostics.Stopwatch.StartNew();
         try
         {
-            await using var connection = new SqlConnection(connectionString);
+            await using var connection = new SqlConnection(LocalSqlConnectionPolicy.Validate(connectionString));
             await connection.OpenAsync(cancellationToken);
             return new(DatabaseHealthStatus.Healthy, "SQL Server connection succeeded.", connection.ServerVersion, started.Elapsed);
         }

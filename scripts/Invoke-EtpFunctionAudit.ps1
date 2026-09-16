@@ -114,7 +114,7 @@ catch {
 finally {
     try {
         $dropSql = "IF DB_ID(N'$databaseName') IS NOT NULL BEGIN ALTER DATABASE [$databaseName] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [$databaseName]; END"
-        & sqlcmd -S $SqlServer -E -C -b -Q $dropSql 2>&1 | Set-Content -Encoding UTF8 (Join-Path $logPath "11-database-cleanup.log")
+        & sqlcmd -x -S $SqlServer -E -C -b -Q $dropSql 2>&1 | Set-Content -Encoding UTF8 (Join-Path $logPath "11-database-cleanup.log")
         if ($LASTEXITCODE -ne 0) { throw "Disposable database cleanup failed." }
         $databaseRemoved = $true
     }

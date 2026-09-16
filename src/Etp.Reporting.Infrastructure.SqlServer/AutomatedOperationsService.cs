@@ -160,7 +160,7 @@ public sealed class AutomatedOperationsService(string connectionString)
 
     private async Task<SqlConnection?> TryAcquireLeaseAsync(CancellationToken token)
     {
-        var connection = new SqlConnection(connectionString); await connection.OpenAsync(token);
+        var connection = new SqlConnection(LocalSqlConnectionPolicy.Validate(connectionString)); await connection.OpenAsync(token);
         await using var command = new SqlCommand("DECLARE @result int; EXEC @result=sp_getapplock @Resource=N'ETP_PHASE2_AUTOMATION',@LockMode='Exclusive',@LockOwner='Session',@LockTimeout=0; SELECT @result;", connection);
         if (Convert.ToInt32(await command.ExecuteScalarAsync(token)) < 0) { await connection.DisposeAsync(); return null; }
         return connection;

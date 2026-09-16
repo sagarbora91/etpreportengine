@@ -9,9 +9,10 @@ public sealed partial class SqlServerDatabaseBootstrapper(string connectionStrin
 {
     public async Task<DatabaseBootstrapResult> BootstrapAsync(CancellationToken cancellationToken = default)
     {
-        var target = new SqlConnectionStringBuilder(connectionString);
+        var validated = LocalSqlConnectionPolicy.Validate(connectionString);
+        var target = new SqlConnectionStringBuilder(validated);
         var databaseName = ValidateDatabaseName(target.InitialCatalog);
-        var master = new SqlConnectionStringBuilder(connectionString) { InitialCatalog = "master" };
+        var master = new SqlConnectionStringBuilder(validated) { InitialCatalog = "master" };
         var created = false;
         await using (var connection = new SqlConnection(master.ConnectionString))
         {
@@ -25,7 +26,7 @@ public sealed partial class SqlServerDatabaseBootstrapper(string connectionStrin
                 created = true;
             }
         }
-        var applied = await new MigrationRunner(migrationSource, new SqlServerMigrationStore(connectionString)).RunAsync(cancellationToken);
+        var applied = await new MigrationRunner(migrationSource, new SqlServerMigrationStore(validated)).RunAsync(cancellationToken);
         return new(created, applied);
     }
 

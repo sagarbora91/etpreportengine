@@ -33,7 +33,8 @@ public partial class App : Application
                 window.Show();
                 if (e.Args.Contains("--capture-review"))
                     _ = ImportReviewSession.RunAsync(window, compositionRoot.LoadConnectionString(), e.Args);
-            });
+            },
+            compositionRoot.InitializeConfiguredDatabaseAsync);
         var mode = DesktopStartupCoordinator.Route(e.Args);
         if (mode != DesktopStartupMode.Interactive)
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
