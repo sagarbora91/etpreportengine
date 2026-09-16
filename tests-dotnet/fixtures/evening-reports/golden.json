@@ -1,0 +1,38 @@
+{
+  "description": "Entirely synthetic values applied to the committed etp-sample workbook shapes; no private source rows or identities.",
+  "sales": [
+    { "store": "WLMHW", "date": "2025-03-31", "invoice": "REUSED", "type": "INV", "item": "A", "quantity": 1, "gross": 118, "cro": "A" },
+    { "store": "WLMHW", "date": "2025-04-01", "invoice": "REUSED", "type": "INV", "item": "A", "quantity": 1, "gross": 118, "cro": "A" },
+    { "store": "WLMHW", "date": "2025-08-25", "invoice": "LY", "type": "INV", "item": "A", "quantity": 1, "gross": 118, "cro": "A" },
+    { "store": "WLMHW", "date": "2026-08-24", "invoice": "PREVIOUS", "type": "INV", "item": "A", "quantity": 1, "gross": 118, "cro": "A" },
+    { "store": "WLMHW", "date": "2026-08-25", "invoice": "TODAY1", "type": "INV", "item": "A", "quantity": 2, "gross": 236, "cro": "A" },
+    { "store": "WLMHW", "date": "2026-08-25", "invoice": "TODAY1", "type": "INV", "item": "B", "quantity": 1, "gross": 118, "cro": "A" },
+    { "store": "WLMHW", "date": "2026-08-25", "invoice": "TODAY2", "type": "INV", "item": "C", "quantity": 1, "gross": 236, "cro": "B" },
+    { "store": "WLMHW", "date": "2026-08-25", "invoice": "RETURN", "type": "SR", "item": "A", "quantity": -1, "gross": -118, "cro": "A" },
+    { "store": "WLMHW", "date": "2026-08-25", "invoice": "CANCEL", "type": "BC", "item": "B", "quantity": -1, "gross": -118, "cro": "A" },
+    { "store": "HEMW", "date": "2026-08-25", "invoice": "HELIOS1", "type": "INV", "item": "D", "quantity": 1, "gross": 118, "cro": "C" }
+  ],
+  "expected": {
+    "titanFtdSales": 354,
+    "titanFtdUnits": 2,
+    "titanFtdInvoices": 2,
+    "titanMtdSales": 472,
+    "titanMtdInvoices": 3,
+    "titanLySales": 118,
+    "combinedFtdSales": 472,
+    "combinedFtdUnits": 3,
+    "combinedFtdInvoices": 3,
+    "titanStockSystem": 10,
+    "heliosStockSystem": 5,
+    "titanCashOpening": 105,
+    "titanCashClosing": 110,
+    "titanServiceFtd": 35,
+    "titanServiceMtd": 70,
+    "titanCustomerRows": 4,
+    "croANetSales": 118,
+    "croANetQuantity": 1,
+    "croAUniqueInvoices": 1,
+    "croAAtv": 118,
+    "croAAupt": 1
+  }
+}

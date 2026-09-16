@@ -82,7 +82,7 @@ public sealed class EveningReportsSqlTests(SqlDatabaseFixture db, ITestOutputHel
                 await new OperationalCompletionRepository(db.ConnectionString).SaveManualStockCountAsync(store,date,stock.InventoryGroupCode,stock.SystemQuantity,0,0,0,stock.SystemQuantity,"Synthetic matching count","test","Test fixture, not an asserted shop count");
             Assert.All(await r.LoadBrandPhysicalStockAsync(store,date),x=>Assert.Equal("PASS",x.Status));
             var pack=await new DailyReportingPackService(db.ConnectionString).GenerateAsync(store,date,"test");
-            var dir=Path.Combine(FindRoot(),"artifacts","phase2-review");Directory.CreateDirectory(dir);
+            var dir=Path.Combine(Path.GetTempPath(),"EtpPhase2Review",db.Name);Directory.CreateDirectory(dir);
             foreach(var table in pack.Document.Tables.Where(x=>new[]{"Invoice Summary","DSR","Service Sales","Cash Book","Physical Stock","Staff Performance"}.Contains(x.Name)))
             {
                 var metadata=new ExcelReportMetadata(table.Name,date,date,table.Status,RetailReportingPolicy.Version,table.Message,DateTimeOffset.UtcNow);
@@ -91,6 +91,21 @@ public sealed class EveningReportsSqlTests(SqlDatabaseFixture db, ITestOutputHel
                 new SimplePdfReportExporter().Export(name+".pdf",metadata,table.Data);
             }
             new OpenXmlReportPackExporter().Export(Path.Combine(dir,store+"-pack.xlsx"),pack.Document);
+        }
+        // Aggregate goldens independently recomputed from the private R013 workbook.
+        // Identities and source rows are deliberately absent from this assertion.
+        // SR/BC values retain the source return sign; only INV documents divide ATV/AUPT.
+        var monthlyCro = (await r.LoadStaffPerformanceAsync(new(new(2026,8,1),date,["WLMHW"]))).Rows.OrderByDescending(x=>x.NetSales).ToArray();
+        var croGolden = new (decimal Sales, decimal Quantity, int Invoices)[]
+        {
+            (213660.5m,39m,37), (177432.5m,37m,38), (166775.5m,35m,33),
+            (132041.5m,26m,19), (129547.5m,29m,27), (89880.5m,24m,22), (28859m,6m,2)
+        };
+        Assert.Equal(croGolden,monthlyCro.Select(x=>(x.NetSales,x.NetQuantity,x.Transactions)).ToArray());
+        for(var index=0;index<croGolden.Length;index++)
+        {
+            Assert.Equal(croGolden[index].Sales/croGolden[index].Invoices,monthlyCro[index].Atv);
+            Assert.Equal(croGolden[index].Quantity/croGolden[index].Invoices,monthlyCro[index].Upt);
         }
         var doc=await r.LoadDailySalesReportDocumentAsync(date);
         var titan=doc.EveningSheets.Single(x=>x.StoreCode=="WLMHW");var helios=doc.EveningSheets.Single(x=>x.StoreCode=="HEMW");
@@ -104,7 +119,7 @@ public sealed class EveningReportsSqlTests(SqlDatabaseFixture db, ITestOutputHel
             Assert.Equal(sheet.Rows.Single(x=>x.Metric=="VALUE").Ftd,sheet.Rows.Where(x=>x.Format=="currency"&&x.Metric is not ("VALUE" or "AVPT" or "WCC SALES")).Sum(x=>x.Ftd));
             output.WriteLine($"{sheet.StoreCode}: INV-only MTD {sheet.Rows.Single(x=>x.Metric=="INVOICE").Mtd}; LY {sheet.Rows.Single(x=>x.Metric=="VALUE").Ly}");
         }
-        var review=Path.Combine(FindRoot(),"artifacts","phase2-review");
+        var review=Path.Combine(Path.GetTempPath(),"EtpPhase2Review",db.Name);
         new DailySalesReportPdfExporter().Export(Path.Combine(review,"Evening-DSR.pdf"),doc);
         File.WriteAllText(Path.Combine(review,"dsr.json"),System.Text.Json.JsonSerializer.Serialize(doc));
         var history=Path.Combine(PrivatePhaseOneCorpusAttribute.Root,"HEMW","till 6 sep 26","R025_SDB_VariantwiseSales.xlsx");
@@ -151,5 +166,4 @@ public sealed class EveningReportsSqlTests(SqlDatabaseFixture db, ITestOutputHel
         Assert.All(service,x=>Assert.Null(x.Total));
     }
 
-    private static string FindRoot(){var d=new DirectoryInfo(AppContext.BaseDirectory);while(d is not null&&!File.Exists(Path.Combine(d.FullName,"Etp.Reporting.slnx")))d=d.Parent;return d!.FullName;}
 }

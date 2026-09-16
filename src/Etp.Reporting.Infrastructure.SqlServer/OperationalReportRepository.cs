@@ -154,7 +154,7 @@ public sealed record CashReconciliationResult(
 public sealed partial class OperationalReportRepository(string connectionString)
 {
     public const string DsrMetricPolicy = "DSR_INVOICE_DENOMINATOR_SOURCE_EVIDENCE_V1";
-    public const string StaffMetricPolicy = "R013_ATTRIBUTED_TRANSACTION_DENOMINATOR_V1";
+    public const string StaffMetricPolicy = "R013_NET_SALES_AND_QUANTITY_PER_UNIQUE_INV_V2";
     public const string StockInventorySql = """
         SELECT s.snapshot_date,s.store_code,s.product_code,
                COALESCE(NULLIF(LTRIM(RTRIM(s.brand_name)),''),NULLIF(LTRIM(RTRIM(s.brand_code)),'')),
@@ -317,7 +317,7 @@ public sealed partial class OperationalReportRepository(string connectionString)
         const string staffSql = """
             SELECT e.store_code,e.source_cro_number,SUM(e.source_gross_value),SUM(e.source_quantity),
                    SUM(COALESCE(e.scheme_discount,0)+COALESCE(e.user_discount,0)+COALESCE(e.pre_discount,0)),
-                   COUNT(DISTINCT CONCAT(e.invoice_year,'|',e.document_number)),
+                   COUNT(DISTINCT CASE WHEN UPPER(e.source_transaction_type)='INV' THEN CONCAT(e.invoice_year,'|',e.document_number) END),
                    MAX(COALESCE(s.staff_name,e.staff_name,e.source_cro_number))
             FROM dbo.sales_line_enrichments e
             LEFT JOIN dbo.staff s ON s.store_code=e.store_code AND s.staff_code=e.source_cro_number

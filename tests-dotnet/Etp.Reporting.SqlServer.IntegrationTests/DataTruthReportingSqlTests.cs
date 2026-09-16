@@ -112,6 +112,9 @@ public sealed class DataTruthReportingSqlTests(SqlDatabaseFixture database) : IC
         Assert.Equal(118m, staff.CanonicalSales);
         var cancelled = Assert.Single(staff.Rows, x => x.CroNumber == "CRO2");
         Assert.Equal(-118m, cancelled.NetSales);
+        Assert.Equal(0, cancelled.Transactions);
+        Assert.Null(cancelled.Atv);
+        Assert.Null(cancelled.Upt);
         Assert.Equal("Corrected Staff Name", cancelled.CroName);
         Assert.Equal(118m, (await reports.LoadInvoiceSummaryAsync(scope)).Sum(x => x.NetValue));
         Assert.Equal(118m, Assert.Single(await reports.LoadDsrAsync(new(2026, 8, 25), ["REPORT"]), x => x.Store == "REPORT" && x.Period == "FTD").TySales);
