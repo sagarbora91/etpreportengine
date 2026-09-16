@@ -5,6 +5,19 @@ namespace Etp.Reporting.Desktop.Tests;
 public sealed class TaskNavigationTests
 {
     [Fact]
+    public void Store_manager_can_open_brand_editor_without_other_administration_access()
+    {
+        var navigation = new ShellNavigationService();
+        var brands = TaskNavigation.Find("masters")!;
+        Assert.Contains(brands, TaskNavigation.InSection("Settings", ShellAccess.StoreManager));
+        Assert.True(navigation.Navigate(brands.Route, ShellAccess.StoreManager).IsAllowed);
+        Assert.False(navigation.Navigate(brands.Route, ShellAccess.Viewer).IsAllowed);
+        foreach (var id in new[] { "users", "connection", "tender-rules", "stores" })
+            Assert.False(navigation.Navigate(TaskNavigation.Find(id)!.Route, ShellAccess.StoreManager).IsAllowed);
+        Assert.False(navigation.Navigate(new("Admin / Settings"), ShellAccess.StoreManager).IsAllowed);
+    }
+
+    [Fact]
     public void Personal_display_preferences_remain_available_without_administration_access()
     {
         foreach (var access in new[] { ShellAccess.Viewer, ShellAccess.StoreManager, ShellAccess.Owner })

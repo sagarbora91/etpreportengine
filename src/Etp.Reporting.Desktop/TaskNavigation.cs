@@ -14,7 +14,7 @@ public sealed record TaskDestination(string Id, string Title, string Module, str
     public WorkspaceRoute Route => new(Destination, ReportCode, Id);
     public bool IsAllowed(ShellAccess access) => Available
         && (Destination != "Import ETP" || access.CanImport)
-        && (Destination is not ("Settings" or "Admin / Settings") || access.CanAdminister)
+        && (Destination is not ("Settings" or "Admin / Settings") || access.CanAdminister || Id == "masters" && access.CanImport)
         && (MinimumRole >= 3 ? access.CanAdminister : MinimumRole >= 2 ? access.CanImport : access.CanView);
 }
 
@@ -77,7 +77,7 @@ public static class TaskNavigation
         Add("audit", "Audit trail", "Settings", "Database", "Dashboard", "audit", 3);
         Add("users", "Users", "Settings", "Users", "Admin / Settings", "users", 3);
         Add("profiles", "Import profiles", "Settings", "Users", "Admin / Settings", "profiles", 3);
-        Add("masters", "Brands and targets", "Settings", "Stores & masters", "Admin / Settings", "masters", 3);
+        Add("masters", "Brands and targets", "Settings", "Stores & masters", "Admin / Settings", "masters", 2);
         Add("stores", "Stores", "Settings", "Stores & masters", "Admin / Settings", "stores", 3);
         Add("kpi", "Calculations", "Settings", "Stores & masters", "Admin / Settings", "kpi", 3);
         Add("tender-rules", "Tender mapping", "Settings", "Stores & masters", "Admin / Settings", "tender-rules", 3);

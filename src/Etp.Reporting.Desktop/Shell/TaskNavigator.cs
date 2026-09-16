@@ -354,6 +354,12 @@ public sealed partial class TaskNavigator(MainWindow window)
             appliedStore = task.ReportCode == "sales-titan" ? 0 : task.ReportCode == "sales-helios" ? 1 : 2;
             RestoreHeader(appliedDate,appliedStore);
         }
+        var reportStore = Modules.Reports.ReportTaskScope.StoreIndexForReport(task.ReportCode, appliedStore);
+        if (reportStore != appliedStore)
+        {
+            appliedStore = reportStore;
+            RestoreHeader(appliedDate, appliedStore);
+        }
         window.reportsWorkspaceView.ApplyScope(window.reportsWorkspaceView.DateFrom,appliedDate,appliedStore == 0 ? "Titan" : appliedStore == 1 ? "Helios" : "Combined");
         if (task.ReportCode is { } code) { _ = window.reportsWorkspaceView.RunReportAsync(code); return true; }
 
@@ -393,7 +399,8 @@ public sealed partial class TaskNavigator(MainWindow window)
             visited.Add(window.sourceInboxWorkspaceView);
             return window.sourceInboxWorkspaceView;
         }
-        if (id is "masters" or "tender-rules") return new UserControl { Content = new ScrollViewer { Content = window.settingsWorkspace.CreateDataTruthMastersView(), VerticalScrollBarVisibility = ScrollBarVisibility.Auto } };
+        if (id == "masters") return new UserControl { Content = new ScrollViewer { Content = window.settingsWorkspace.CreateEveningMastersView(() => window.CurrentShellAccess.CanImport), VerticalScrollBarVisibility = ScrollBarVisibility.Auto } };
+        if (id == "tender-rules") return new UserControl { Content = new ScrollViewer { Content = window.settingsWorkspace.CreateDataTruthMastersView(), VerticalScrollBarVisibility = ScrollBarVisibility.Auto } };
         if (task.Section == "report-filters") { view = window.reportsWorkspaceView; body = new int[] {0,1}; actions = new int[] {}; }
         else if (task.Destination is "Daily Workflow" or "Manual Entry")
         {

@@ -87,6 +87,7 @@ public partial class SettingsWorkspaceView : UserControl
         access = currentAccess ?? throw new ArgumentNullException(nameof(currentAccess));
         ExportRecoveryKeysButton.IsEnabled = access.CanAdminister;
         ProductSettingsPanel.IsEnabled = access.CanAdminister && integrationsLoaded && !productBusy;
+        foreach (var masters in DataTruthMastersHost.Children.OfType<EveningMastersView>()) masters.RefreshAccessState();
     }
 
     public async Task PrepareForDisplayAsync(bool loadProductConfiguration)

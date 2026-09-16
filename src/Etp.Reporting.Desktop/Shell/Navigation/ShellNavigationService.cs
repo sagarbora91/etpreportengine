@@ -53,6 +53,8 @@ public sealed class ShellNavigationService : IShellNavigationService
                 return NavigationDecision.Denied(route, descriptor, "This task requires a different role.");
         }
         if (route == WorkspaceRoute.Home) return NavigationDecision.Allowed(route, descriptor);
+        if (route.TaskId == "masters" && access.CanImport)
+            return NavigationDecision.Allowed(route, descriptor);
 
         if (route.Destination is "Admin / Settings" ||
             route.Destination == "Settings" && access.HasAssignedRole)
