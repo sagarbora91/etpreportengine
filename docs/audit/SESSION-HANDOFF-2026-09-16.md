@@ -65,11 +65,11 @@ Apply findings as targeted fixes, with small commits. Do not alter approved fina
 
 The primary checkout's ignored `knowledge/` directory and `C:/Codex/Reporting Manger/ETP/Project Knowledge` now contain 26 matching Markdown notes. Updates cover current phase status, the session note, home/router/context, Desktop/Data/System architecture, report catalogue, business rules, mapping, dictionary, decision authority and knowledge retrieval. The old `Rebuild Status and Phase 2 Handoff` filename is retained so existing wiki links continue to work; its content now covers all four phases.
 
-`ETP/ETP Project.md` links the new session and report index. Personal `Welcome.md`, dated personal notes, the canvas, `.obsidian` configuration and the separate Magnus/Saagar Control Centre vault are not changed. Markdown changes automatically feed Obsidian's existing graph view; no plugin or synchronization service was installed.
+`ETP/ETP Project.md` links the new session and report index. The existing `.etp-import/manifest.json` is refreshed with all 26 source/destination SHA-256 pairs and a fresh timestamp; its original import timestamp is preserved. Personal `Welcome.md`, dated personal notes, the canvas, `.obsidian` configuration and the separate Magnus/Saagar Control Centre vault are not changed. Markdown changes automatically feed Obsidian's existing graph view; no plugin or synchronization service was installed.
 
 ### Graphify
 
-Four worktrees have separate refreshed `graphify-out/graph.json`, `graph.html` and `GRAPH_REPORT.md` outputs:
+Four worktrees have separate refreshed `graphify-out/graph.json`, `graph.html` and `GRAPH_REPORT.md` outputs. The table captures the pre-commit refresh; community counts can vary on re-clustering. Current local statistics and exact graph commits are recorded in `artifacts/session-refresh-20260916/graph-validation.json` and each generated report:
 
 | Worktree (under `C:/Codex/Reporting Manger/`) | Nodes | Edges after clustering | Communities |
 |---|---:|---:|---:|
