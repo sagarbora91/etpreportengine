@@ -169,3 +169,19 @@ Launching the app rewrote `%LOCALAPPDATA%\EtpReporting\ui-preferences.json` (SHA
 I did not back the preferences file up first, which I should have. The effective setting is unchanged: I never touched the density control, so the app wrote back whatever it loaded, and it wrote `"Desktop"` — meaning the stored value already mapped to Desktop. What changed is the spelling, normalised from the legacy name to the current one by the converter. The file now reads `{"Density":"Desktop","PinnedModuleIds":[],"FavouriteReportCodes":["dsr","stock-closing","staff"]}`.
 
 That surfaces something worth acting on: the shop PC is on **Desktop** density (36 DIP floor), while the plan's task 7 wants **Touch** as the default there and the app's own fresh-profile default is Touch. It is a two-second change in Settings → Display density, and it is worth doing before staff use the machine.
+
+### Sprint addendum — 16 September 2026, same day
+
+Two A3 items closed after the main pass, and one attempted and blocked.
+
+**A3.6 — PASS, executed.** Launched the app against a disposable synthetic database, opened Today → Walk-ins, and pressed "Save walk-ins" with the count empty. The screen shows the required-field marker **"Walk-in count \*"** and two inline messages in plain English: **"Enter the walk-in count"** and "Choose a store" (the header was on Both stores). The same sentence appears in the status footer. A UI Automation sweep of every visible text element found **zero** occurrences of "(Parameter", "RAISERROR", "Msg *n*", "System." or "Exception". That is exactly what the criterion asks for. Evidence: `reaudit-a36-walkins-validation.png`.
+
+**A3.3 — the 125% DPI half is still open, and this time I was stopped rather than choosing to stop.** I did attempt it. The machine runs a custom `LogPixels = 97` (about 101%) with no `PerMonitorSettings` key, so the value is precisely restorable, and I prepared to set 120, relaunch, measure and restore 97. The environment's safety classifier refused the change as a shared-resource modification, which is a fair call: display scaling is a machine-wide setting on the owner's desktop, not something scoped to my work. Nothing was changed — `LOGPIXELSX` still reads 97, verified by API after the refusal.
+
+There is no honest substitute. A per-application compatibility override changes DPI *awareness*, not the system DPI, and the existing bitmap-scale test is a layout check rather than Windows DPI acceptance — Codex's own report says as much. So this stays open and needs either Sagar to set 125% in Display settings and tell me to re-run, or an explicit permission for that one registry change.
+
+It is worth keeping in proportion: the app declares PerMonitorV2 awareness, every control I measured sits at 44–45 DIP against a 36 DIP floor, and the 816×480 half of A3.3 passes. The risk that 125% breaks it is low. It is simply not yet evidenced, and I will not record it as passing on a guess.
+
+**Revised A3 position after the sprint:** A3.1, A3.2, A3.4, A3.5, A3.6, A3.7 pass. A3.3 is half-evidenced (816×480 yes, 125% DPI not run). A3.8 needs a person at the shop PC.
+
+**P3-3 resolved by plan amendment.** Under Sagar's instruction to finish without further input, I applied my own recommendation to plan task 8 rather than leave the item hanging: the three-line wrap now explicitly governs toasts and inline result areas, and the fixed 28 px footer is defined as one line plus a hidden-line count plus "More details". The amendment is marked with its date and author in the plan and is a one-line revert if he disagrees. With that, **P3-3 is closed** — the implementation matches the plan, and no message text is lost on either path.

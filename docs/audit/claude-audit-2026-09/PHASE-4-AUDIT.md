@@ -303,3 +303,47 @@ Total               830 passed,   0 failed,  3 skipped
 - My two disposable databases (`EtpPhase1Test_ClaudeReaudit`, `EtpPhase1Test_ClaudeUi`) were dropped; zero remain.
 - **Four orphaned databases remain that are not mine:** `EtpCrossPhaseMigration_*`, all created 2026-09-16 14:07, from Codex's interrupted earlier runs — its own report mentions runs failing on locked output DLLs. My clean run created and dropped its own, so this is residue, **not a fixture leak**. They should be dropped; I left them alone because they are not mine to remove.
 - No ACL, account, scheduled task, certificate or service state was changed. I hold a non-elevated token.
+
+### Sprint addendum — A4.5 closed by execution, 16 September 2026
+
+A4.5 was unreachable on the Phase 4 branch because that branch had no importer. The merged branch does, so I ran it properly.
+
+**A4.5 — PASS.** I built a disposable database (`EtpPhase1Test_ClaudeA45`) and imported the **real** shop workbooks into it — both the Titan and Helios "01 JULY 2026 TO 25 AUG 2026" folders, 59 files. Result: **540 sales lines, 490 invoices, 1,079 stock movements, 0 conflict outcomes**, and **540 rows carrying real customer names and real phone numbers**. The live `EtpReporting` database was never opened for writing.
+
+I then generated a support package from that database with `scripts/new-etp-support-package.ps1` and searched it against sentinels pulled from the database itself, rather than eyeballing it:
+
+| Sentinel set | Tested | Found in package |
+|---|---|---|
+| Distinct real customer names | 432 | **0** |
+| Distinct real phone numbers | 439 | **0** |
+| Path-like strings (`C:\`, UNC) | — | **0** |
+| SQL keywords (SELECT/EXEC/FROM/INSERT/UPDATE) | — | **0** |
+| `.xlsx` workbook names | — | **0** |
+| The database name itself | — | **0** |
+
+The whole package is 897 bytes and contains four files: aggregate database health (size, backup timestamps, failed-import count), a scheduled-task name and state, OS version and boot time, and a privacy statement. Nothing else.
+
+This is the criterion met on real customer data, which is the only way it could ever have been met. **Both the disposable database and the generated package were deleted immediately afterwards**; no customer data was copied into the repository at any point, and the sentinel lists were deleted after the comparison.
+
+One incidental confirmation worth recording, because it settles a plan correction empirically rather than by my recomputation alone: the real import yields Titan August **182 documents with 4 return lines** and Helios **38 with 1**. Removing the SR/BC documents that task 1 excludes from the denominator gives **178** and **37** — exactly the correction I applied to A1.2 and A2.1.
+
+**Revised A4 position after the sprint:** A4.1 and A4.6 pass; **A4.5 now passes**; A4.2 and A4.3 still fail on this PC; A4.4 remains blocked by SQL Express. Every remaining item is deployment or edition, none is code.
+
+### Correction: A4.2 and A4.3 are not the same kind of blocked
+
+In the main pass I grouped these together as "deployment". Reading the installers closely, they are gated differently, and the difference matters.
+
+**A4.2 is one elevated command.** `initialize-etp-operation-folders.ps1` never calls `Assert-EtpProtectedInstall`; it only rejects reparse points. It runs from the current worktree with nothing but an elevated shell:
+
+```
+& 'C:\Codex\Reporting Manger\phase234-integration-fixes\scripts\initialize-etp-operation-folders.ps1' `
+    -SqlServiceIdentity 'NT SERVICE\MSSQL$SQLEXPRESS' -CreateAutomationAccount
+```
+
+That creates `EtpAutomation`, applies the ACLs, creates `Share` and writes the protected configuration. It closes the only live exposure on the machine. I did not run it: changing folder ACLs and creating a Windows account is a system security change that belongs to the owner, and the environment's safety controls correctly treat it that way.
+
+**A4.3 cannot be completed even with elevation.** All three task installers call `Assert-EtpProtectedInstall`, which walks every parent directory and throws unless the whole tree is owned by Administrators or SYSTEM and is not writable by a non-administrator. A development worktree under `C:\Codex\…` fails that by construction. They also register their actions with `-ExecutionPolicy AllSigned`, so the scripts must carry a valid Authenticode signature.
+
+So A4.3 needs, in order: the **code-signing certificate**, a signed installed release under an administrator-owned directory, then elevation, then the folder configuration from A4.2. It is blocked behind the certificate purchase, not behind a single command. My earlier "one elevated run" framing was right for A4.2 and wrong for A4.3.
+
+The one existing task, "ETP Reporting Monthly Recovery Drill" running as `Sagar`, predates this work and is not what A4.3 asks for. It should be removed and reinstalled under the dedicated principal when the signed release exists — `scripts/remove-etp-scheduled-tasks.ps1` is the supported route.
