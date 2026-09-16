@@ -28,6 +28,7 @@ public partial class ReportsWorkspaceView : UserControl
     private readonly Func<string, ManagementTrendQuery> managementTrendQueryFactory;
     private readonly IReportExportCoordinator exportCoordinator;
     private readonly TenderVarianceDiagnostic tenderVarianceDiagnostic;
+    private readonly Func<string, string, DateOnly, DateOnly, Task<IReadOnlyList<CashBookDay>>> cashBookLoader;
     private Func<string, bool> focusedWorkspaceRequester = static _ => true;
     private Func<string, string, string, Task> auditRecorder = static (_, _, _) => Task.CompletedTask;
     private Action<ReportPresentationSnapshot, IEnumerable?, string> previewUpdater = static (_, _, _) => { };
@@ -42,7 +43,8 @@ public partial class ReportsWorkspaceView : UserControl
         Func<string, OperationalReportQuery> operationalReportQueryFactory,
         Func<string, ManagementTrendQuery> managementTrendQueryFactory,
         IReportExportCoordinator exportCoordinator,
-        TenderVarianceDiagnostic tenderVarianceDiagnostic)
+        TenderVarianceDiagnostic tenderVarianceDiagnostic,
+        Func<string, string, DateOnly, DateOnly, Task<IReadOnlyList<CashBookDay>>>? cashBookLoader = null)
     {
         this.connectionStringProvider = connectionStringProvider ?? throw new ArgumentNullException(nameof(connectionStringProvider));
         this.controlledReportQueryFactory = controlledReportQueryFactory ?? throw new ArgumentNullException(nameof(controlledReportQueryFactory));
@@ -50,6 +52,8 @@ public partial class ReportsWorkspaceView : UserControl
         this.managementTrendQueryFactory = managementTrendQueryFactory ?? throw new ArgumentNullException(nameof(managementTrendQueryFactory));
         this.exportCoordinator = exportCoordinator ?? throw new ArgumentNullException(nameof(exportCoordinator));
         this.tenderVarianceDiagnostic = tenderVarianceDiagnostic ?? throw new ArgumentNullException(nameof(tenderVarianceDiagnostic));
+        this.cashBookLoader = cashBookLoader ?? ((connection, store, from, to) =>
+            new Etp.Reporting.Infrastructure.SqlServer.OperationalReportRepository(connection).LoadCashBookAsync(store, from, to));
         InitializeComponent();
         ReportFrom.SelectedDate = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1).AddMonths(-1);
         ReportTo.SelectedDate = DateTime.Today.AddDays(-1);
@@ -98,6 +102,7 @@ public partial class ReportsWorkspaceView : UserControl
         if (report == "sales-titan") StoreFilterInput.Text = "WLMHW";
         if (report == "sales-helios") StoreFilterInput.Text = "HEMW";
         if (report is "sales-combined" or "dsr") StoreFilterInput.Clear();
+        if (report == "cash" && Csv(StoreFilterInput.Text) is not { Count: 1 }) StoreFilterInput.Text = "WLMHW";
         if (!BeginReportLoad(report)) return;
         if (ReportTaskScope.RequiresSingleStore(report) && Csv(StoreFilterInput.Text) is not { Count: 1 })
         { HandleFailure(new InvalidOperationException("Choose Titan World or Helios in the header."), "REPORT_STORE_REQUIRED", "Select a store"); return; }
@@ -244,6 +249,7 @@ public partial class ReportsWorkspaceView : UserControl
                 [new("Date","date"),new("Store"),new("Invoice"),new("Customer name"),new("Invoice quantity","#,##0.00"),new("Value incl. GST","#,##0.00")],
                 rows.Select(x=>(IReadOnlyList<object?>)[x.BusinessDate,x.StoreCode,x.DocumentNumber,x.CustomerName??"Name unavailable",x.Quantity,x.NetValue]).ToArray(),
                 ["Grand total","","","",rows.Sum(x=>x.Quantity),rows.Sum(x=>x.NetValue)]);
+            ApplyReportFilter();
             await auditRecorder("ReportRun",ToAuditOutcome(status),"Customer invoice report");
         }catch(Exception e){if(revision==reportRevision)HandleFailure(e,"INVOICE_SUMMARY_FAILED","Customer report failed");}
     }
@@ -266,6 +272,7 @@ public partial class ReportsWorkspaceView : UserControl
             ReportResult.Text="GST-inclusive sales; invoice counts exclude returns. Manual totals use available entries. Check Other / unmapped brands in Settings.";
             var data=EveningReportTables.Dsr(document.EveningSheets);
             SetExport("Daily Sales Report",status,RetailReportingPolicy.Version,ReportResult.Text,data.Columns,data.Rows,data.Totals,document,scope.DateTo);
+            ApplyReportFilter();
             await auditRecorder("ReportRun",ToAuditOutcome(status),"Daily sales report");
         }catch(Exception e){if(revision==reportRevision)dailySalesFailure(HandleFailure(e,"DSR_REPORT_FAILED","DSR failed"));}
     }
@@ -279,7 +286,7 @@ public partial class ReportsWorkspaceView : UserControl
             if (revision != reportRevision) return; ReportGrid.ItemsSource = result.Rows;
             ReportResult.Text = $"{result.Status}: recorded {result.CanonicalSales:N2}, attributed {result.AttributedSales:N2}, variance {result.Variance:N2}. {result.Message}";
             SetExport("Staff CRO Performance",ToReportingStatus(result.Status), result.MetricPolicy, result.Message,
-                [new("Store"),new("CRO"),new("CRO name"),new("Value incl. GST","#,##0.00"),new("LY Sales","#,##0.00"),new("Growth %","0.00%"),new("Growth Status"),new("Net Quantity","#,##0.00"),new("Discount","#,##0.00"),new("Transactions","#,##0"),new("UPT","#,##0.00"),new("ATV","#,##0.00"),new("Contribution %","0.00%"),new("Target","#,##0.00"),new("Achievement %","0.00%"),new("Rank","#,##0")],
+                [new("Store"),new("CRO"),new("CRO name"),new("Value incl. GST","#,##0.00"),new("LY Sales","#,##0.00"),new("Growth %","0.00%"),new("Growth Status"),new("Net Quantity","#,##0.00"),new("Discount","#,##0.00"),new("Unique invoices","#,##0"),new("AUPT","#,##0.00"),new("ATV","#,##0.00"),new("Contribution %","0.00%"),new("Target","#,##0.00"),new("Achievement %","0.00%"),new("Rank","#,##0")],
                 result.Rows.Select(x => (IReadOnlyList<object?>)[x.StoreCode,x.CroNumber,x.CroName,x.NetSales,x.LastYearSales,x.GrowthPercent,x.GrowthStatus,x.NetQuantity,x.Discount,x.Transactions,x.Upt,x.Atv,x.ContributionPercent,x.TargetSales,x.TargetAchievementPercent,x.Rank]).ToArray(),
                 ["Control","","",result.AttributedSales,"","","","","",result.Rows.Sum(x=>x.Transactions),"","",result.Variance,"","",""]);
             ApplyReportFilter();
@@ -300,12 +307,13 @@ public partial class ReportsWorkspaceView : UserControl
         var revision=reportRevision;
         try {
             var scope=ReportScope();if(scope.StoreCodes is not {Count:1})throw new InvalidOperationException("Choose one store for the cash book.");
-            var days=await new Etp.Reporting.Infrastructure.SqlServer.OperationalReportRepository(connectionStringProvider()).LoadCashBookAsync(scope.StoreCodes[0],scope.DateFrom,scope.DateTo);
+            var days=await cashBookLoader(connectionStringProvider(),scope.StoreCodes[0],scope.DateFrom,scope.DateTo);
             if(revision!=reportRevision)return;
             var data=CashBookTables.Create(days);var table=new System.Data.DataTable();foreach(var col in data.Columns)table.Columns.Add(col.Header,typeof(object));foreach(var row in data.Rows)table.Rows.Add(row.Select(x=>x??DBNull.Value).ToArray());ReportGrid.ItemsSource=table.DefaultView;
             var status=days.All(x=>x.Status=="Complete")?ReconciliationStatus.Passed:ReconciliationStatus.Blocked;
             ReportResult.Text=$"{days.Count} days. Opening carries forward from the previous calculated closing. Enter opening overrides with a reason in Daily inputs.";
             SetExport("Cash Book",status,RetailReportingPolicy.Version,ReportResult.Text,data.Columns,data.Rows,data.Totals);
+            ApplyReportFilter();
             await auditRecorder("ReportRun",ToAuditOutcome(status),"Cash book");
         }catch(Exception e){if(revision==reportRevision)HandleFailure(e,"CASH_BOOK_FAILED","Cash book failed");}
     }
@@ -380,7 +388,22 @@ public partial class ReportsWorkspaceView : UserControl
     private void ViewDetails_Click(object sender, RoutedEventArgs e) => ShowSelectedDetails();
     private void ApplyReportFilter()
     {
-        if(ReportGrid.ItemsSource is null)return; var search=ReportSearchInput.Text.Trim(); var varianceOnly=VarianceOnlyInput.IsChecked==true; var view=CollectionViewSource.GetDefaultView(ReportGrid.ItemsSource); view.Filter=item=>{if(item is null)return false;if(search.Length>0&&!item.ToString()!.Contains(search,StringComparison.OrdinalIgnoreCase))return false;if(presentation.Current.ReportCode=="exceptions" && !MatchesException(item))return false;if(!varianceOnly)return true;var property=item.GetType().GetProperty("Variance");return property?.GetValue(item) is decimal variance&&variance!=0;}; view.Refresh();
+        if (ReportGrid.ItemsSource is null) return;
+        var search = ReportSearchInput.Text.Trim();
+        var varianceOnly = VarianceOnlyInput.IsChecked == true;
+        var view = CollectionViewSource.GetDefaultView(ReportGrid.ItemsSource);
+        // DataView's default view cannot accept predicates. Keep its original cell rows
+        // in an independent list so clearing search restores the complete report.
+        if (!view.CanFilter)
+        {
+            view = new ListCollectionView(ReportGrid.ItemsSource.Cast<object>().ToList());
+            ReportGrid.ItemsSource = view;
+        }
+        view.Filter = item => item is not null
+            && (search.Length == 0 || PageSearch.Matches(item, search))
+            && (presentation.Current.ReportCode != "exceptions" || MatchesException(item))
+            && (!varianceOnly || ReportDetailFilter.HasVariance(item));
+        view.Refresh();
     }
     private void ReportGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e) => ShowSelectedDetails();
     private void ShowSelectedDetails() { if (ReportGrid.SelectedItem is not null) detailPresenter(ReportGrid.SelectedItem); else ReportResult.Text = "Select a report row to view its details and source source history."; }

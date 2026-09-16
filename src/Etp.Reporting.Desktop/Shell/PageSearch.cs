@@ -64,6 +64,8 @@ public sealed class PageSearch
     {
         if (item is null) return false;
         if (item is string value) return value.Contains(text, StringComparison.OrdinalIgnoreCase);
+        if (item is System.Data.DataRowView row)
+            return row.Row.ItemArray.Any(cell => Convert.ToString(cell, System.Globalization.CultureInfo.CurrentCulture)?.Contains(text, StringComparison.OrdinalIgnoreCase) == true);
         var properties = item.GetType().GetProperties().Where(x => x.CanRead && x.GetIndexParameters().Length == 0).ToArray();
         return properties.Length == 0 ? Convert.ToString(item, System.Globalization.CultureInfo.CurrentCulture)?.Contains(text, StringComparison.OrdinalIgnoreCase) == true
             : properties.Any(x => Convert.ToString(x.GetValue(item), System.Globalization.CultureInfo.CurrentCulture)?.Contains(text, StringComparison.OrdinalIgnoreCase) == true);

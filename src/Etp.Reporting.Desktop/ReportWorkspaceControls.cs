@@ -155,6 +155,7 @@ public sealed class ReportWorkspaceControl : Grid
     public void SetStoreScope(string scope)
     {
         scope = scope == "Titan" ? "Titan World" : scope.StartsWith("Combined",StringComparison.Ordinal) ? "Both stores" : scope;
+        if (SelectedReport?.Code == "cash" && scope is not ("Titan World" or "Helios")) scope = "Titan World";
         ScopeSelector.SelectedItem = Modules.Reports.ReportTaskScope.RequiresSingleStore(SelectedReport?.Code) && scope is not ("Titan World" or "Helios") ? "Select one store" : scope;
     }
 
