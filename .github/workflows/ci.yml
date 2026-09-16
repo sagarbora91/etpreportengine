@@ -12,7 +12,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 45
     env:
-      ETP_TEST_SQL_CONNECTION: "Server=(localdb)\\MSSQLLocalDB;Integrated Security=True;TrustServerCertificate=True;Connect Timeout=5"
+      ETP_TEST_SQL_CONNECTION: "Server=(localdb)\\MSSQLLocalDB;Integrated Security=True;Encrypt=Optional;Connect Timeout=5"
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:

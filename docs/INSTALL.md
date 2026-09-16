@@ -14,7 +14,7 @@ Install Microsoft SQL Server Express with the `SQLEXPRESS` instance and enable W
 
 1. Run `Etp.Reporting.Desktop.exe` from the release folder.
 2. Open **Settings**.
-3. Confirm or edit `Server=.\SQLEXPRESS;Database=EtpReporting;Integrated Security=True;TrustServerCertificate=True`.
+3. Confirm or edit `Server=.\SQLEXPRESS;Database=EtpReporting;Integrated Security=True;Encrypt=Optional`.
 4. Select **Create/update database**. The application creates the database when absent and applies checksum-controlled migrations.
 
 ## Import order

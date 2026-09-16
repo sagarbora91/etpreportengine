@@ -5,6 +5,8 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot 'etp-operations-common.ps1')
+$sqlcmdPath=Resolve-EtpSqlCmd
 $repositoryRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $resolvedOutput = [System.IO.Path]::GetFullPath((Join-Path $repositoryRoot $OutputPath))
 if (-not $resolvedOutput.StartsWith($repositoryRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
@@ -16,7 +18,8 @@ if ($databaseName -notmatch '^EtpReportingFunctionAudit_[0-9]{14}_[0-9]+$') {
     throw "Generated validation database name failed the safety check."
 }
 
-$connectionString = "Server=$SqlServer;Database=$databaseName;Integrated Security=true;Encrypt=true;TrustServerCertificate=true;Connect Timeout=30"
+Assert-EtpLocalSqlTarget $SqlServer $databaseName
+$connectionString = "Server=$SqlServer;Database=$databaseName;Integrated Security=true;Encrypt=Optional;Connect Timeout=5"
 $migrationPath = Join-Path $repositoryRoot "database/migrations"
 $logPath = Join-Path $resolvedOutput "logs"
 New-Item -ItemType Directory -Force -Path $resolvedOutput, $logPath | Out-Null
@@ -114,7 +117,7 @@ catch {
 finally {
     try {
         $dropSql = "IF DB_ID(N'$databaseName') IS NOT NULL BEGIN ALTER DATABASE [$databaseName] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [$databaseName]; END"
-        & sqlcmd -x -S $SqlServer -E -C -b -Q $dropSql 2>&1 | Set-Content -Encoding UTF8 (Join-Path $logPath "11-database-cleanup.log")
+        & $sqlcmdPath -x -S $SqlServer -E -b -Q $dropSql 2>&1 | Set-Content -Encoding UTF8 (Join-Path $logPath "11-database-cleanup.log")
         if ($LASTEXITCODE -ne 0) { throw "Disposable database cleanup failed." }
         $databaseRemoved = $true
     }
