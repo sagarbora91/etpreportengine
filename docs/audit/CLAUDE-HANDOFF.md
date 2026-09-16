@@ -1,5 +1,7 @@
 # Claude handoff — ETP Reporting Engine rebuild
 
+> **16 Sep 2026 — plan v1.4.** `ETP-MASTER-AUDIT-AND-PHASED-PLAN.md` is now v1.4: Phase 7 (Tally transfer, Stage 2) and Phase 8 (Collections reconciliation, Stage 3) added after Phase 6; decisions D12–D21 recorded OPEN; Phase 2 tasks 12–15, Phase 4 task 6 (no certificate purchase) and the Phase 5 Accounting row amended; Section 8 crosswalk to the roadmap documents under `docs/roadmap/`. The auditor's procedure for the new phases is `docs/audit/OPUS-AUDIT-PLAN-PHASES-7-8.md`. Branch status for Phases 1–5 (Phase 1 CLOSED; 2, 3, 4 REOPENED; 5 started) is tracked in `SESSION-HANDOFF-2026-09-16.md` on `phase-1/data-truth`, not here.
+
 Last updated: 15 September 2026, end of day. This is the one file a future Claude session reads first. It supersedes every earlier progress note.
 
 ## Where we are
