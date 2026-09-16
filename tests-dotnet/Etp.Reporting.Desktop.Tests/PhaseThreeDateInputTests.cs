@@ -21,6 +21,8 @@ public sealed class PhaseThreeDateInputTests
     [InlineData("Daily", "StaffTargetToInput")]
     [InlineData("Reports", "ReportFrom")]
     [InlineData("Reports", "ReportTo")]
+    [InlineData("Cash", "From")]
+    [InlineData("Cash", "To")]
     public void Date_inputs_keep_day_month_year_after_typed_commit(string workspace, string name)
     {
         Sta(() =>
@@ -34,7 +36,9 @@ public sealed class PhaseThreeDateInputTests
                     "Daily" => window.dailyWorkflowWorkspace,
                     _ => window.reportsWorkspaceView
                 };
-                var picker = Assert.IsType<DatePicker>(owner.FindName(name));
+                var cash = workspace == "Cash" ? new ReportWorkspaceControl(ReportWorkspaceDefinition.ForReport("cash")) : null;
+                var picker = cash is null ? Assert.IsType<DatePicker>(owner.FindName(name))
+                    : name == "From" ? cash.DateFromPicker : cash.DateToPicker;
                 Theme(picker);
                 picker.Language = XmlLanguage.GetLanguage("en-IN");
                 picker.SelectedDate = new DateTime(2026, 8, 1);

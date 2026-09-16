@@ -15,6 +15,58 @@ namespace Etp.Reporting.Desktop.Tests;
 public sealed class PhaseThreeAuditRegressionTests
 {
     [Fact]
+    public void Compact_cash_keeps_a_complete_detail_row_visible_with_dates_filters_and_exports_available()
+    {
+        Sta(() =>
+        {
+            var window = Phase3ShellTests.CreateWindow();
+            try
+            {
+                var workspace = new ReportWorkspaceControl(ReportWorkspaceDefinition.ForReport("cash"));
+                workspace.ConfigureTaskScope("Titan World");
+                workspace.DateFromPicker.SelectedDate = new DateTime(2026, 8, 1);
+                workspace.DateToPicker.SelectedDate = new DateTime(2026, 8, 25);
+                var row = new { Date = new DateOnly(2026, 8, 25), Store = "Titan World", Particular = "Expenses", Amount = 118m,
+                    CreditParticular = "Opening balance", CreditAmount = 100m, Notes = "Synthetic opening balance and expense detail." };
+                var model = new VisualReportModel(new("cash", "Cash Book", new(2026,8,1), new(2026,8,25), "synthetic", DateTimeOffset.UtcNow), [], [], new([], []), [], []);
+                workspace.SetPreview(ReportVisualPresenter.BuildFocusedPreview(model, new[] { row }),
+                    "25 days. Opening carries forward from the previous calculated closing. Enter opening overrides with a reason in Daily inputs.");
+                window.FocusedWorkspaceHost.Content = workspace;
+                window.FocusedWorkspaceLayer.Visibility = Visibility.Visible;
+                window.WelcomeOverlay.Visibility = Visibility.Collapsed;
+                var root = (FrameworkElement)window.Content;
+                window.Content = null; root.Resources = window.Resources;
+                Grid.SetRow(window.SectionTabs, 1); Grid.SetColumn(window.SectionTabs, 0); Grid.SetColumnSpan(window.SectionTabs, 4);
+                Layout(root, 816, 440);
+                var grid = Visuals(workspace).OfType<DataGrid>().Single();
+                var renderedRow = Assert.IsType<DataGridRow>(grid.ItemContainerGenerator.ContainerFromItem(row));
+                var viewport = Visuals(grid).OfType<ScrollContentPresenter>().First();
+                var bounds = renderedRow.TransformToAncestor(viewport).TransformBounds(new Rect(renderedRow.RenderSize));
+                Assert.True(bounds.Top >= 0 && bounds.Bottom <= viewport.ActualHeight,
+                    $"Cash row occupies {bounds.Top}–{bounds.Bottom} DIP in a {viewport.ActualHeight} DIP viewport.");
+                Assert.True(renderedRow.ActualHeight >= 44);
+                Assert.Equal(Visibility.Visible, workspace.DateFromPicker.Visibility);
+                Assert.Equal(Visibility.Visible, workspace.DateToPicker.Visibility);
+                Assert.True(workspace.DateFromPicker.ActualHeight >= 44 && workspace.DateToPicker.ActualHeight >= 44);
+                var filter = Visuals(workspace).OfType<ReportDetailFilter>().Single();
+                filter.Search.Text = "Expenses"; Assert.Same(row, grid.Items[0]);
+                Assert.True(filter.Search.ActualHeight >= 44 && filter.VarianceOnly.ActualHeight >= 44);
+                var actions = Visuals(workspace).OfType<Button>().Single(button => button.Content?.ToString() == "Actions ▾");
+                Assert.Equal(Visibility.Visible, actions.Visibility);
+                Assert.True(actions.ActualHeight >= 44);
+                ReportWorkspaceAction? requested = null;
+                workspace.ActionRequested += (_, request) => requested = request.Action;
+                var pdf = actions.ContextMenu.Items.OfType<MenuItem>().Single(item => item.Header?.ToString() == "Export PDF");
+                Assert.True(pdf.IsEnabled); pdf.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+                Assert.Equal(ReportWorkspaceAction.ExportPdf, requested);
+                workspace.DateToPicker.SelectedDate = new DateTime(2026, 8, 26);
+                Assert.False(pdf.IsEnabled);
+            }
+            finally { window.importWorkspaceView.DisposeAsync().AsTask().GetAwaiter().GetResult(); }
+        });
+    }
+
+    [Fact]
     public void Complete_report_catalogue_fits_touch_canvas_and_opens_each_report()
     {
         Sta(() =>

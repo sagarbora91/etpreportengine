@@ -16,11 +16,20 @@ public sealed class ReportDetailFilter : WrapPanel
     public ReportDetailFilter(DataGrid grid, IEnumerable? source)
     {
         rows = new ListCollectionView(source?.Cast<object>().ToList() ?? []); grid.ItemsSource = rows;
-        var field = new StackPanel(); field.Children.Add(new TextBlock { Text = "Filter detail rows", FontSize = 12 }); field.Children.Add(Search);
+        var label = new TextBlock { Text = "Filter detail rows", FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
+        var field = new StackPanel(); field.Children.Add(label); field.Children.Add(Search);
         Children.Add(field); Children.Add(VarianceOnly);
         AutomationProperties.SetName(Search, "Filter report detail rows"); AutomationProperties.SetName(VarianceOnly, "Show non-zero variance rows only");
         ToolTip = "Detail filtering does not change summary totals or exported data.";
         Search.TextChanged += (_, _) => Apply(); VarianceOnly.Checked += (_, _) => Apply(); VarianceOnly.Unchecked += (_, _) => Apply();
+        SizeChanged += (_, _) =>
+        {
+            var compact = ActualWidth > 0 && ActualWidth < 1000;
+            field.Orientation = compact ? Orientation.Horizontal : Orientation.Vertical;
+            label.Text = compact ? "Find" : "Filter detail rows";
+            label.Margin = compact ? new Thickness(0,0,8,0) : new Thickness(0);
+            Search.Width = compact ? 170 : 210;
+        };
         if(rows.SourceCollection.Cast<object>().FirstOrDefault()?.GetType().GetProperty("Area") is not null)
             foreach(var name in new[]{"All","Source","Unmapped","Stock","Staff","Tender","Cash"})
             {

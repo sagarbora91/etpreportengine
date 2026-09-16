@@ -85,6 +85,7 @@ public static class ReportVisualPresenter
         grid.MouseDoubleClick += (_, _) => OpenDetails();
         grid.PreviewKeyDown += (_, e) => { if (e.Key == System.Windows.Input.Key.Enter) { OpenDetails(); e.Handled = true; } };
         var detailBody = new DockPanel();
+        detailBody.SizeChanged += (_, _) => grid.Margin = new Thickness(0, detailBody.ActualWidth < 1000 ? 0 : 8, 0, 0);
         var filters = new ReportDetailFilter(grid, rows);
         var details = new Button { Content = "Open selected row details", HorizontalAlignment = HorizontalAlignment.Left, IsEnabled = false };
         details.Click += (_, _) => OpenDetails(); grid.SelectionChanged += (_, _) => details.IsEnabled = grid.SelectedItem is not null;

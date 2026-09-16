@@ -199,8 +199,10 @@ public sealed class ReportWorkspaceControl : Grid
         filters.Click += (_,_) => new Modules.Reports.ReportScopeDialog(this).ShowDialog();
         AutomationProperties.SetName(filters,"Edit report period and store"); filters.Visibility = Visibility.Collapsed;
         actions.Children.Add(ActionButton("Refresh", ReportWorkspaceAction.Refresh, true));
-        actions.Children.Add(ActionButton("Export PDF", ReportWorkspaceAction.ExportPdf));
-        actions.Children.Add(ActionButton("Export Excel", ReportWorkspaceAction.ExportExcel));
+        var pdf = ActionButton("Export PDF", ReportWorkspaceAction.ExportPdf);
+        var excel = ActionButton("Export Excel", ReportWorkspaceAction.ExportExcel);
+        var actionMenu = ReportActionMenu.Create(RaiseAction, exportActions, false);
+        actions.Children.Add(pdf); actions.Children.Add(excel); actions.Children.Add(actionMenu);
         root.Children.Add(actions);
         statusText = DsrUi.Text(definition.Description, 12, colour: "SecondaryText"); statusText.Name = "ReportTaskStatus";
         statusText.TextWrapping = TextWrapping.Wrap; statusText.TextTrimming = TextTrimming.None;
@@ -208,6 +210,7 @@ public sealed class ReportWorkspaceControl : Grid
         summaries.Children.Add(scope); summaries.Children.Add(statusText); Grid.SetRow(summaries,1); root.Children.Add(summaries);
         updateToolbar = () =>
         {
+            var compact = container.ActualWidth > 0 && container.ActualWidth < 1000;
             compactFilters = false;
             DateFromPicker.Visibility = !compactFilters && DateFromPicker.IsEnabled ? Visibility.Visible : Visibility.Collapsed;
             DateToPicker.Visibility = DateFromPicker.IsEnabled ? Visibility.Visible : Visibility.Collapsed;
@@ -216,7 +219,9 @@ public sealed class ReportWorkspaceControl : Grid
             scope.Text = $"{DateFromPicker.SelectedDate:dd MMM yyyy} – {DateToPicker.SelectedDate:dd MMM yyyy} · {ScopeSelector.SelectedItem} · {statusText.Text}";
             scope.TextWrapping = TextWrapping.Wrap; scope.TextTrimming = TextTrimming.None;
             statusText.Visibility = compactFilters ? Visibility.Collapsed : Visibility.Visible;
-            container.Padding = new Thickness(compactFilters ? 8 : 12); container.Margin = new Thickness(0,compactFilters ? 0 : 10,0,0);
+            pdf.Visibility = excel.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
+            actionMenu.Visibility = compact ? Visibility.Visible : Visibility.Collapsed;
+            container.Padding = new Thickness(compact ? 8 : 12); container.Margin = new Thickness(0,compact ? 0 : 10,0,0);
         };
         container.SizeChanged += (_,_) => updateToolbar();
         container.Child = root;
