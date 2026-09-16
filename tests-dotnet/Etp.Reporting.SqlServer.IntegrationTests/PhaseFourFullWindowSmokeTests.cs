@@ -17,7 +17,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 public sealed class PhaseFourFullWindowSmokeTests(ITestOutputHelper output)
 {
     [FullWindowSmokeFact]
-    public async Task Full_MainWindow_starts_displays_dashboard_renders_and_closes_with_disposable_database()
+    public async Task Full_MainWindow_starts_displays_today_renders_and_closes_with_disposable_database()
     {
         var database = new SqlDatabaseFixture();
         var settings = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "EtpFullWindowSmoke", Guid.NewGuid().ToString("N"))).FullName;
@@ -32,7 +32,7 @@ public sealed class PhaseFourFullWindowSmokeTests(ITestOutputHelper output)
             Assert.Equal(2, Convert.ToInt32(await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.operational_audit WHERE event_type IN ('ApplicationStart','SessionStart') AND outcome='Succeeded';")));
             Assert.Equal(settingsBefore, HashIfPresent(realSettings));
             Assert.Equal(preferencesBefore, HashIfPresent(UiPreferenceStore.FilePath));
-            output.WriteLine("Full MainWindow test host: real window shown, startup and SQL session succeeded, dashboard loaded, WPF rendering passed at 1366x768 and 816x480, and window closed. Only a generated test database and temporary connection settings were used; existing user settings hashes are unchanged. This is not production App.OnStartup or native screenshot capture.");
+            output.WriteLine("Full MainWindow test host: real window shown, startup and SQL session succeeded, Today loaded for Owner, WPF rendering passed at 1366x768 and 816x480, and window closed. Only a generated test database and temporary connection settings were used; existing user settings hashes are unchanged. This is not production App.OnStartup or native screenshot capture.");
         }
         finally
         {
@@ -77,11 +77,9 @@ public sealed class PhaseFourFullWindowSmokeTests(ITestOutputHelper output)
                         var continueButton = (Button)window.FindName("ContinueButton");
                         await WaitUntilAsync(() => continueButton.IsEnabled, () => dispatcherFailure);
                         Assert.Equal("Continue", continueButton.Content);
-                        Assert.StartsWith("Connected", ((TextBlock)window.FindName("ConnectionStatus")).Text);
-                        var dashboard = (DashboardView)((ContentControl)window.FindName("DashboardHost")).Content;
-                        continueButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-                        await WaitUntilAsync(() => dashboard.CurrentState is not null, () => dispatcherFailure);
-                        Assert.Null(dashboard.CurrentState!.ErrorMessage);
+                        Assert.Equal("Owner", ((TextBlock)window.FindName("WelcomeRoleText")).Text);
+                        Assert.Equal("Today", ((TextBlock)window.FindName("PageTitle")).Text);
+                        Assert.NotNull(((ContentControl)window.FindName("FocusedWorkspaceHost")).Content);
                         Assert.Equal(Visibility.Collapsed, ((Grid)window.FindName("WelcomeOverlay")).Visibility);
                         foreach (var size in new[] { (Width: 1366, Height: 768), (Width: 816, Height: 480) })
                         {
