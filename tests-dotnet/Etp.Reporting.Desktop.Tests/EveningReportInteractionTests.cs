@@ -1,4 +1,8 @@
+using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Media;
+using System.Windows.Threading;
 using Etp.Reporting.Application.Reports;
 using Etp.Reporting.Desktop;
 using Etp.Reporting.Desktop.Modules.Reports;
@@ -8,6 +12,97 @@ namespace Etp.Reporting.Desktop.Tests;
 
 public sealed class EveningReportInteractionTests
 {
+    [Theory]
+    [InlineData("Expenses")]
+    [InlineData("No matching cash entry")]
+    public void Cash_grids_preserve_table_headers_and_render_formatted_cells_through_filtering(string initialSearch)
+    {
+        RunSta(async () =>
+        {
+            var view = CreateView((_, store, _, _) => Task.FromResult<IReadOnlyList<CashBookDay>>(
+                CashDays(store).Select(day => day with { Expenses = 1234567.125m }).ToArray()));
+            FrameworkElement? preview = null;
+            view.AttachHost(_ => true, (_, _, _) => Task.CompletedTask,
+                (snapshot, rows, _) => preview = (FrameworkElement)ReportVisualPresenter.BuildFocusedPreview(snapshot.VisualReport!, rows),
+                _ => { }, _ => { });
+            ((TextBox)view.FindName("ReportSearchInput")).Text = initialSearch;
+            await view.RunReportAsync("cash");
+            var reportGrid = (DataGrid)view.FindName("ReportGrid");
+            TablePresentation.Configure(reportGrid);
+            var headers = CashBookTables.Create([]).Columns.Select(column => column.Header).ToArray();
+            Assert.Equal(headers, reportGrid.Columns.Select(column => column.Header));
+            Assert.NotNull(preview);
+            Layout(preview);
+            var grid = Visuals(preview).OfType<DataGrid>().Single();
+            var filter = Visuals(preview).OfType<ReportDetailFilter>().Single();
+            filter.Search.Text = "Expenses";
+            Layout(preview);
+            Assert.Equal(headers, Visuals(grid).OfType<DataGridColumnHeader>()
+                .Where(header => header.Content is string).OrderBy(header => header.DisplayIndex).Select(header => header.Content));
+            var row = grid.Items[0];
+            Assert.Equal("24 Aug 2026", Assert.IsType<TextBlock>(grid.Columns[0].GetCellContent(row)).Text);
+            Assert.Equal("Titan World", Assert.IsType<TextBlock>(grid.Columns[1].GetCellContent(row)).Text);
+            Assert.Equal("Expenses", Assert.IsType<TextBlock>(grid.Columns[2].GetCellContent(row)).Text);
+            var amount = Assert.IsType<TextBlock>(grid.Columns[3].GetCellContent(row));
+            Assert.Equal("12,34,567.13", amount.Text);
+            Assert.Equal(TextAlignment.Right, amount.TextAlignment);
+            Assert.Equal("Opening balance", Assert.IsType<TextBlock>(grid.Columns[4].GetCellContent(row)).Text);
+            Assert.Equal("100.00", Assert.IsType<TextBlock>(grid.Columns[5].GetCellContent(row)).Text);
+            filter.Search.Text = "Bank cash deposit";
+            Layout(preview);
+            Assert.Equal("—", Assert.IsType<TextBlock>(grid.Columns[5].GetCellContent(grid.Items[0])).Text);
+            filter.Search.Text = "No matching cash entry";
+            Layout(preview);
+            Assert.Empty(grid.Items.Cast<object>());
+            Assert.Equal(headers, grid.Columns.Select(column => column.Header));
+            filter.Search.Clear();
+            Layout(preview);
+            Assert.NotEmpty(grid.Items.Cast<object>());
+            Assert.Equal("24 Aug 2026", Assert.IsType<TextBlock>(grid.Columns[0].GetCellContent(grid.Items[0])).Text);
+        });
+    }
+
+    [Fact]
+    public void Cash_grid_keeps_its_table_schema_when_the_source_contains_no_days()
+    {
+        RunSta(async () =>
+        {
+            var view = CreateView((_, _, _, _) => Task.FromResult<IReadOnlyList<CashBookDay>>([]));
+            FrameworkElement? preview = null;
+            view.AttachHost(_ => true, (_, _, _) => Task.CompletedTask,
+                (snapshot, rows, _) => preview = (FrameworkElement)ReportVisualPresenter.BuildFocusedPreview(snapshot.VisualReport!, rows),
+                _ => { }, _ => { });
+            await view.RunReportAsync("cash");
+            var grid = (DataGrid)view.FindName("ReportGrid");
+            TablePresentation.Configure(grid);
+            Assert.Empty(grid.Items.Cast<object>());
+            Assert.Equal(CashBookTables.Create([]).Columns.Select(column => column.Header), grid.Columns.Select(column => column.Header));
+            Assert.NotNull(preview);
+            Layout(preview);
+            var previewGrid = Visuals(preview).OfType<DataGrid>().Single();
+            Assert.Empty(previewGrid.Items.Cast<object>());
+            Assert.Equal(CashBookTables.Create([]).Columns.Select(column => column.Header), previewGrid.Columns.Select(column => column.Header));
+        });
+    }
+
+    [Fact]
+    public void Staff_performance_headers_name_the_agreed_invoice_metrics_without_renaming_other_reports()
+    {
+        RunSta(() =>
+        {
+            var grid = new DataGrid { ItemsSource = new StaffPerformanceRecord[]
+                { new("WLMHW", "001", 200m, null, null, "Missing", 3m, 0m, 2, 1.5m, 100m, 1m, null, null, 1, "Synthetic CRO") } };
+            TablePresentation.Configure(grid);
+            Assert.Equal("Unique invoices", grid.Columns[8].Header);
+            Assert.Equal("AUPT", grid.Columns[9].Header);
+            Assert.Equal("ATV", grid.Columns[10].Header);
+            var otherReport = new DataGrid { ItemsSource = new[] { new { Transactions = 2, Upt = 1.5m, Atv = 100m } } };
+            TablePresentation.Configure(otherReport);
+            Assert.Equal(new[] { "Transactions", "Upt", "Atv" }, otherReport.Columns.Select(column => column.Header));
+            return Task.CompletedTask;
+        });
+    }
+
     [Theory]
     [InlineData("dsr", "HEMW", 1)]
     [InlineData("invoice", "Second customer", 1)]
@@ -127,5 +222,26 @@ public sealed class EveningReportInteractionTests
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start(); thread.Join();
         if (failure is not null) throw new InvalidOperationException("Evening report interaction failed", failure);
+    }
+
+    private static void Layout(FrameworkElement root)
+    {
+        for (var iteration = 0; iteration < 3; iteration++)
+        {
+            root.Measure(new Size(1300, 650));
+            root.Arrange(new Rect(0, 0, 1300, 650));
+            root.UpdateLayout();
+            Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+        }
+    }
+
+    private static IEnumerable<DependencyObject> Visuals(DependencyObject root)
+    {
+        for (var index = 0; index < VisualTreeHelper.GetChildrenCount(root); index++)
+        {
+            var child = VisualTreeHelper.GetChild(root, index);
+            yield return child;
+            foreach (var descendant in Visuals(child)) yield return descendant;
+        }
     }
 }

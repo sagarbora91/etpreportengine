@@ -309,7 +309,12 @@ public partial class ReportsWorkspaceView : UserControl
             var scope=ReportScope();if(scope.StoreCodes is not {Count:1})throw new InvalidOperationException("Choose one store for the cash book.");
             var days=await cashBookLoader(connectionStringProvider(),scope.StoreCodes[0],scope.DateFrom,scope.DateTo);
             if(revision!=reportRevision)return;
-            var data=CashBookTables.Create(days);var table=new System.Data.DataTable();foreach(var col in data.Columns)table.Columns.Add(col.Header,typeof(object));foreach(var row in data.Rows)table.Rows.Add(row.Select(x=>x??DBNull.Value).ToArray());ReportGrid.ItemsSource=table.DefaultView;
+            var data=CashBookTables.Create(days);
+            var table=new System.Data.DataTable();
+            foreach(var col in data.Columns)
+                table.Columns.Add(col.Header,col.NumberFormat=="date"?typeof(DateOnly):col.NumberFormat=="#,##0.00"?typeof(decimal):typeof(string));
+            foreach(var row in data.Rows)table.Rows.Add(row.Select(x=>x??DBNull.Value).ToArray());
+            ReportGrid.ItemsSource=table.DefaultView;
             var status=days.All(x=>x.Status=="Complete")?ReconciliationStatus.Passed:ReconciliationStatus.Blocked;
             ReportResult.Text=$"{days.Count} days. Opening carries forward from the previous calculated closing. Enter opening overrides with a reason in Daily inputs.";
             SetExport("Cash Book",status,RetailReportingPolicy.Version,ReportResult.Text,data.Columns,data.Rows,data.Totals);
@@ -392,11 +397,11 @@ public partial class ReportsWorkspaceView : UserControl
         var search = ReportSearchInput.Text.Trim();
         var varianceOnly = VarianceOnlyInput.IsChecked == true;
         var view = CollectionViewSource.GetDefaultView(ReportGrid.ItemsSource);
-        // DataView's default view cannot accept predicates. Keep its original cell rows
-        // in an independent list so clearing search restores the complete report.
+        // DataView's default view cannot accept predicates. A separate list view
+        // preserves its typed column schema while keeping all rows available to search.
         if (!view.CanFilter)
         {
-            view = new ListCollectionView(ReportGrid.ItemsSource.Cast<object>().ToList());
+            view = new ListCollectionView(ReportGrid.ItemsSource as IList ?? ReportGrid.ItemsSource.Cast<object>().ToList());
             ReportGrid.ItemsSource = view;
         }
         view.Filter = item => item is not null
