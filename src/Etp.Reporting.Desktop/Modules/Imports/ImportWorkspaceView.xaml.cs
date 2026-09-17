@@ -37,6 +37,11 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
     // list survives closing the application; this stays for the in-run summary.
     public IReadOnlyList<ImportProblem> Problems => ImportProblems.From(latestResults);
     public bool CanRetry => accessProvider().CanImport && !IsBusy && coordinator.FailedBatchPaths.Count > 0;
+
+    // Retry can be unavailable because the role forbids it, because an import is
+    // running, or because nothing failed. Only the first deserves an explanation
+    // beside the button; the other two are obvious from the screen.
+    public bool CanRetryByRole => accessProvider().CanImport;
     public void AttachHost(Func<ImportWorkspaceAccess> accessProvider, Func<string, string, string, Task> auditRecorder, Func<Task> dashboardRefresher)
     {
         this.accessProvider = accessProvider;

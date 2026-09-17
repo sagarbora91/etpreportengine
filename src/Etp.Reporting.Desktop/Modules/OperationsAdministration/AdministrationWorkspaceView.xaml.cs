@@ -89,8 +89,13 @@ public partial class AdministrationWorkspaceView : UserControl
             RecoveryLines = DatabaseRecoveryPresentation.Lines(
                 health, Etp.Reporting.Infrastructure.SqlServer.DatabaseOperationalHealthThresholds.Default, DateTime.UtcNow);
             DatabaseRecoveryGrid.ItemsSource = RecoveryLines;
+            // Warning rows carry their severity in Status, so counting only Missing and
+            // Stale let the block announce that everything was current while a Critical
+            // row sat on screen beneath the sentence.
             var unresolved = RecoveryLines.Count(line =>
-                line.Status == DatabaseRecoveryPresentation.Missing || line.Status.StartsWith("Stale", StringComparison.Ordinal));
+                line.Item == "Warning"
+                || line.Status == DatabaseRecoveryPresentation.Missing
+                || line.Status.StartsWith("Stale", StringComparison.Ordinal));
             DatabaseRecoveryStatus.Text = unresolved == 0
                 ? "Backup and recovery evidence is present and current."
                 : $"{unresolved} item(s) need attention. Missing or stale evidence is never reported as healthy.";
@@ -111,6 +116,9 @@ public partial class AdministrationWorkspaceView : UserControl
         DatabaseRecoveryStatus.Text = "Creating the support package…";
         try
         {
+            // Every other handler in this view re-checks the role rather than relying on
+            // the screen being Owner-only. This one was the exception.
+            RequireOwnerAccess();
             var result = await PowerShellOperationsService.RunAsync("new-etp-support-package.ps1", connectionStringProvider());
             DatabaseRecoveryStatus.Text = result.Message;
         }

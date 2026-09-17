@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -397,10 +397,10 @@ public sealed partial class TaskNavigator(MainWindow window)
             // the problems list has to still be there after the application is closed
             // and reopened. appliedDate and HeaderStore are read on every load.
             var persisted = window.importHistoryView is { } history
-                ? Modules.Imports.ImportProblems.From(
+                ? Modules.Imports.ImportProblems.FromHistory(
                     (await history.FetchAsync(new(DateOnly.FromDateTime(appliedDate), DateOnly.FromDateTime(appliedDate),
                         string.IsNullOrEmpty(HeaderStore) ? null : HeaderStore)))
-                    .Select(entry => entry.Result))
+                    .Select(entry => (entry.RecordedUtc, entry.Result)))
                 : [];
             return persisted.Concat(await window.sourceInboxWorkspaceView.LoadProblemsAsync()).Distinct().ToArray();
         });
@@ -442,9 +442,14 @@ public sealed partial class TaskNavigator(MainWindow window)
         else if (task.Destination == "Admin / Settings")
         {
             view = window.administrationWorkspaceView; window.administrationWorkspaceView.SelectTask(id);
-            (body, actions) = id switch { "users" => (new int[] {5,6,8,14}, new int[] {7}), "kpi" or "profiles" => (new int[] {10,11,14}, new int[] {}), // R4 inserted the Database and recovery block at 12, moving the renamed
-                // Integration health heading, its grid and the status line down by one.
-                "health" => (new int[] {12,13,14,15}, new int[] {}), _ => (new int[] {0,1,3,14}, new int[] {2}) };
+            // R4 appends the Database and recovery section at the end of the view, so every
+            // index below it is the one this screen always had. The recovery grid has to be a
+            // direct child of the panel: the focused layout only gives a named tab to a direct
+            // child, and nested in a Border it landed in the unnamed catch-all tab instead.
+            // 13 ProductHealthGrid, 14 AdministrationStatus, 16 DatabaseRecoveryStatus,
+            // 17 DatabaseRecoveryGrid, 18 the Support package button.
+            (body, actions) = id switch { "users" => (new int[] {5,6,8,13}, new int[] {7}), "kpi" or "profiles" => (new int[] {10,11,13}, new int[] {}),
+                "health" => (new int[] {16,17,13,14}, new int[] {18}), _ => (new int[] {0,1,3,13}, new int[] {2}) };
         }
         else if (id is "approval-centre" or "adjustment" or "investigation")
         { view = window.investigationWorkspaceView; (body, actions) = id switch { "approval-centre" => (new int[] {3,7,8}, new int[] {9}), "adjustment" => (new int[] {3,5,6}, new int[] {}), _ => (new int[] {0,1,3,4}, new int[] {2}) }; }
