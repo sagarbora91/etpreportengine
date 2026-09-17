@@ -706,3 +706,22 @@ Two honest limits on this deployment:
 
 - **It is a file-level deployment, not an installer run.** `build-windows-installer.ps1` refuses to build without a code-signing certificate, and the installer's post-install step runs the bootstrap script under `-ExecutionPolicy AllSigned`, so an unsigned installer would fail by design. A genuine installer acceptance run stays blocked on **A4.3**. Consequently `release.json` and `SHA256SUMS.txt` in the install folder still describe the previously packaged release and no longer match the binary beside them; they were left untouched rather than hand-edited, because fabricating release evidence would be worse than stale evidence.
 - **Stale copies removed where permitted.** `C:\EtpCandidate\candidate` and its two archives were deleted. `C:\Program Files\ETP Candidate` (`1.8.8+dfd9f8c`) could not be removed — this environment blocks deletion under `C:\Program Files` — and `C:\ETPAcceptance\UI-20260913-baseline\original-application` (`1.8.7`) was left deliberately, as earlier acceptance evidence that is not mine to discard.
+
+### P4-11 — the installer's SQL prerequisite option does nothing, and promises something the product rejects — **OPEN**
+
+Found while scoping the owner's request to embed SQL Server in the installer.
+
+`installer/EtpReportingEngine.iss` offers a task, checked by default:
+
+> *"Install missing Microsoft SQL Server 2022 Express and Sqlcmd packages (accepts Microsoft's license terms)"*
+
+When it is cleared, setup passes `-SkipSqlInstallation` to `bootstrap-etp-prerequisites.ps1`. **That parameter is declared and never read**, and the script contains no download, no `winget`, no `msiexec` and no `setup.exe` call. Its own comment says so: *"Retained for installer compatibility; prerequisites now require manual installation."* If the service is absent the script simply throws and tells the operator to install SQL by hand.
+
+So the checkbox installs nothing. Two consequences, the second more serious than the first:
+
+1. The operator is told setup will install SQL Server and is asked to **accept Microsoft's licence terms** for an installation that never happens. A consent prompt for a non-existent action should not ship.
+2. The text names **Express**, and `Assert-EtpBootstrapSqlEdition` **explicitly rejects Express and Web**: *"Native encrypted backups require a supported SQL Server edition."* Had the task ever worked, it would have installed the one edition the product refuses to run against.
+
+**This blocks the embedded-SQL request as specified.** Carrying SQL Express inside the installer would produce a machine the application then declines to bootstrap. The only free alternative, Developer Edition, is licensed for development and test use and cannot lawfully run a shop. So "embed SQL so we never download it again" cannot be delivered without first settling **A4.4 / D9**: either license a supported edition, or relax the native-encrypted-backup requirement so Express becomes viable.
+
+Recorded rather than fixed: removing the dead option is trivial, but which edition the product targets is the owner's commercial decision and the rest of the work follows from it.
