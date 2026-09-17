@@ -94,6 +94,7 @@ public sealed class HelpCentreTests
     [InlineData("Sales Reports", "dsr", "daily-sales-report")]
     [InlineData("Manual Entry", null, "business-day")]
     [InlineData("Import ETP", null, "import-etp")]
+    [InlineData("Import History", null, "import-history")]
     [InlineData("Admin / Settings", null, "administration")]
     [InlineData("Unknown", null, HelpCentreRegistry.HomeTopicId)]
     public void Context_help_routes_to_the_most_specific_available_topic(string destination, string? featureCode, string expected)

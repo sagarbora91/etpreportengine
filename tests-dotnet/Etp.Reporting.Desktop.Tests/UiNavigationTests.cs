@@ -9,9 +9,11 @@ namespace Etp.Reporting.Desktop.Tests;
 public sealed class UiNavigationTests
 {
     [Fact]
-    public void Viewer_cannot_reach_import_or_administration_but_can_read_reports()
+    public void Viewer_can_read_import_history_and_reports_but_cannot_import_or_administer()
     {
-        Assert.Empty(TaskNavigation.InSection("Import", ShellAccess.Viewer));
+        Assert.Contains(TaskNavigation.Find("import-history"), TaskNavigation.InSection("Import", ShellAccess.Viewer));
+        foreach (var id in new[] { "import-files", "conflicts" })
+            Assert.False(new ShellNavigationService().Navigate(TaskNavigation.Find(id)!.Route, ShellAccess.Viewer).IsAllowed);
         Assert.All(TaskNavigation.InSection("Settings",ShellAccess.Viewer), t => Assert.Contains(t.Tab,new[] {"Display","Help"}));
         Assert.NotEmpty(TaskNavigation.InSection("Reports",ShellAccess.Viewer));
     }

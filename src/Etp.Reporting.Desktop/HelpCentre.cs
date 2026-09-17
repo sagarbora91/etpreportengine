@@ -51,7 +51,7 @@ public static class HelpCentreRegistry
     public static string Category(string topicId) => topicId switch
     {
         "getting-started" or "dashboard" or "keyboard-shortcuts" => "Getting Started",
-        "business-day" or "import-etp" or "digital-registers" => "Daily Work",
+        "business-day" or "import-etp" or "import-history" or "digital-registers" => "Daily Work",
         "daily-sales-report" or "sales-reports" or "stock-reports" or "tender-cash-service" or "staff-cro" or "management" => "Reports",
         "exception-centre" or "investigation" or "accounting" or "report-archive" => "Review & Records",
         _ => "Settings & Support"
@@ -71,6 +71,12 @@ public static class HelpCentreRegistry
         Topic("import-etp", "Import ETP", "Import files, folders and ZIP packages safely.", "IconImport", 40,
             Guide("Open Imports → Intake → Import Files and choose approved XLSX files, a folder or an ETP ZIP package.", "Review discovered files and the detected report, store and business date before starting the batch.", "Start the import and monitor completed, failed and duplicate counts; cancellation occurs safely between files.", "Read the failure summary, correct the source problem and retry only failed files; never rename a file to bypass duplicate protection."),
             ["file", "folder", "zip", "duplicate", "failure", "retry"], "Import ETP"),
+        Topic("import-history", "Import History", "Review saved outcomes and repeat import attempts.", "IconImport", 45,
+            Guide("Open Import → History → Imports to see saved outcomes, including after restarting the application.",
+                "Choose the header date and store. Files whose period includes that date are listed newest first; attempts with undetected dates use their recorded UTC date.",
+                "Select a file to review its row counts and safe diagnostics. Duplicate attempts remain alongside earlier outcomes and add no facts.",
+                "Use Received files for retained documents. An Owner or Store Manager can correct a failed source and use Import → Problems → Retry failed during the current import session."),
+            ["import", "history", "duplicate", "diagnostics", "received files"], "Import History"),
         Topic("daily-sales-report", "Daily Sales Report", "Preview and export the approved DSR.", "IconReports", 50,
             Guide("Search DSR with Ctrl+K, or open Reports → Sales → Daily Sales Report, then select the required business date. DSR compares Titan and Helios with combined totals.", "Refresh the preview and review FTD, MTD, YTD, TY/LY, Service, target and control states. Other reports have Summary and Detail rows tabs; select a row to open its source details.", "Treat an unavailable LY MTD as unavailable; do not replace the displayed source-required state with zero. Ctrl+F finds page text or filters the active detail table; it does not change exported totals.", "Use Actions to export PDF or Excel after refreshing the displayed scope, or generate a report pack for that date and store."),
             ["dsr", "ftd", "mtd", "ytd", "pdf", "excel", "preview"], "Sales Reports", "dsr"),
@@ -210,6 +216,7 @@ public static class ContextHelpRouter
         ["Daily Workflow"] = "business-day",
         ["Manual Entry"] = "business-day",
         ["Import ETP"] = "import-etp",
+        ["Import History"] = "import-history",
         ["Sales Reports"] = "sales-reports",
         ["Sales Reports"] = "stock-reports",
         ["Report Archive"] = "report-archive",
