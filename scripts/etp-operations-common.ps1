@@ -57,7 +57,13 @@ function Resolve-EtpSqlCmd {
     # Server Express and Developer enable by default. go-sqlcmd resolves a bare
     # ".\INSTANCE" over named pipes, which they disable by default, so it is
     # preferred only when the ODBC client is absent.
-    $candidates = @($ExplicitPath, (Join-Path $env:ProgramFiles 'Microsoft SQL Server\Client SDK\ODBC\170\Tools\Binn\SQLCMD.EXE'), (Join-Path $env:ProgramFiles 'sqlcmd\sqlcmd.exe'))
+    # ODBC 18 ships with SQL Server 2025 tooling, 17 with 2022. Look for the newer one
+    # first: pinning a single version meant a machine with only the current tools
+    # resolved nothing and fell through to go-sqlcmd.
+    $candidates = @($ExplicitPath,
+        (Join-Path $env:ProgramFiles 'Microsoft SQL Server\Client SDK\ODBC\180\Tools\Binn\SQLCMD.EXE'),
+        (Join-Path $env:ProgramFiles 'Microsoft SQL Server\Client SDK\ODBC\170\Tools\Binn\SQLCMD.EXE'),
+        (Join-Path $env:ProgramFiles 'sqlcmd\sqlcmd.exe'))
     foreach ($candidate in $candidates) {
         if ($candidate -and (Test-Path -LiteralPath $candidate -PathType Leaf)) {
             Assert-EtpProtectedInstall $candidate
@@ -139,13 +145,27 @@ function Read-EtpVerifiedReceipt {
     param([string]$ReceiptPath,[string]$BackupDirectory,[string]$Database,[switch]$SkipCertificateCheck)
     Assert-EtpNoLinks $ReceiptPath
     $receipt = Get-Content -Raw -LiteralPath $ReceiptPath | ConvertFrom-Json
-    if ($receipt.schemaVersion -ne 2 -or $receipt.verified -ne $true -or $receipt.database -cne $Database -or $receipt.encryption -cne 'AES_256') { throw 'A verified encrypted backup receipt is required.' }
+    # D9 revised: AES_256 where the edition can encrypt, NONE where it cannot. Anything
+    # else is a receipt this build did not write and is not trusted.
+    if ($receipt.schemaVersion -ne 2 -or $receipt.verified -ne $true -or $receipt.database -cne $Database -or $receipt.encryption -cnotin @('AES_256','NONE')) { throw 'A verified backup receipt is required.' }
     $root = [IO.Path]::GetFullPath($BackupDirectory).TrimEnd('\') + '\'
     $backup = [IO.Path]::GetFullPath($receipt.backupPath)
     if (-not $backup.StartsWith($root,[StringComparison]::OrdinalIgnoreCase) -or [IO.Path]::GetDirectoryName($backup)+'\' -ine $root) { throw 'The receipt backup is outside the backup folder.' }
     Assert-EtpNoLinks $backup
     $file = Get-Item -LiteralPath $backup
     if ($receipt.sha256 -notmatch '^[A-Fa-f0-9]{64}$' -or $file.Length -ne $receipt.lengthBytes -or (Get-FileHash -LiteralPath $backup -Algorithm SHA256).Hash -ine $receipt.sha256) { throw 'Backup verification failed: the receipt and file differ.' }
+    if ($receipt.encryption -ceq 'NONE') {
+        # A receipt must not be able to opt out of custody merely by saying so. An
+        # unencrypted backup has no certificate, so custody details appearing here mean
+        # the field was altered on a receipt that WAS encrypted. Refuse it rather than
+        # skip the chain, otherwise editing one word downgrades every check below.
+        $thumb = [string]$receipt.certificateThumbprint
+        $custody = [string]$receipt.certificateReceipt
+        if (-not [string]::IsNullOrWhiteSpace($thumb) -or -not [string]::IsNullOrWhiteSpace($custody)) {
+            throw 'An unencrypted backup receipt must not carry certificate custody details.'
+        }
+        return $receipt
+    }
     if ($null -eq $receipt.PSObject.Properties['certificateThumbprint'] -or $receipt.certificateThumbprint -notmatch '^(?:[A-Fa-f0-9]{2}){20,64}$') { throw 'The backup certificate thumbprint is invalid.' }
     # Rotation may move the latest pointer to another certificate. Every backup
     # remains bound to the immutable custody receipt for its own encryption key.

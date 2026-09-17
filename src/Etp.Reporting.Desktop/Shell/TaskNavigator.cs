@@ -425,9 +425,12 @@ public sealed partial class TaskNavigator(MainWindow window)
             window.dailyWorkflowWorkspace.StoreCode = HeaderStore;
             (body, actions) = task.Section switch
             {
-                "manual" => (new int[] {7,3,6}, new int[] {7}), "stock-count" => (new int[] {2,11,3,10}, new int[] {11}),
-                "staff-target" => (new int[] {2,13,3}, new int[] {13}), "finalisation" => (new int[] {2,14,3}, new int[] {14}),
-                "readiness" => (new int[] {3,14,16}, new int[] {14,15}), _ => (new int[] {2,3,16}, new int[] {15})
+                // Indices are positions in DailyWorkflowWorkspaceView's root StackPanel.
+                // CashQuickFields was inserted at 7, so every child from 7 onward moved
+                // down by one and each entry below was corrected to match.
+                "manual" => (new int[] {8,3,6}, new int[] {8}), "stock-count" => (new int[] {2,12,3,11}, new int[] {12}),
+                "staff-target" => (new int[] {2,14,3}, new int[] {14}), "finalisation" => (new int[] {2,15,3}, new int[] {15}),
+                "readiness" => (new int[] {3,15,17}, new int[] {15,16}), _ => (new int[] {2,3,17}, new int[] {16})
             };
         }
         else if (task.Destination == "Registers") { view = window.registersWorkspaceView; body = new int[] {4,5,6,1,2}; actions = new int[] {0,1,5}; window.registersWorkspaceView.SelectTask(id); }

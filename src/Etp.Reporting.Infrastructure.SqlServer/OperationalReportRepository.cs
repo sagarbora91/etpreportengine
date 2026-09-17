@@ -315,7 +315,7 @@ public sealed partial class OperationalReportRepository(string connectionString)
     {
         scope.Validate();
         const string staffSql = """
-            SELECT e.store_code,e.source_cro_number,SUM(e.source_gross_value),SUM(e.source_quantity),
+            SELECT e.store_code,e.source_cro_number,COALESCE(SUM(e.source_gross_value),0),COALESCE(SUM(e.source_quantity),0),
                    SUM(COALESCE(e.scheme_discount,0)+COALESCE(e.user_discount,0)+COALESCE(e.pre_discount,0)),
                    COUNT(DISTINCT CASE WHEN UPPER(e.source_transaction_type)='INV' THEN CONCAT(e.invoice_year,'|',e.document_number) END),
                    MAX(COALESCE(s.staff_name,e.staff_name,e.source_cro_number))
@@ -327,7 +327,7 @@ public sealed partial class OperationalReportRepository(string connectionString)
             GROUP BY e.store_code,e.source_cro_number ORDER BY e.store_code,SUM(e.source_gross_value) DESC;
             """;
         const string lastYearSql = """
-            SELECT e.store_code,e.source_cro_number,SUM(e.source_gross_value)
+            SELECT e.store_code,e.source_cro_number,COALESCE(SUM(e.source_gross_value),0)
             FROM dbo.sales_line_enrichments e
             WHERE e.enrichment_type='R013' AND e.match_status='Matched' AND UPPER(e.source_transaction_type) IN('INV','SR','BC') AND e.transaction_date BETWEEN @from AND @to
               AND (@stores IS NULL OR e.store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores)))

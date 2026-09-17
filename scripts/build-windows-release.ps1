@@ -24,7 +24,13 @@ $output = [System.IO.Path]::GetFullPath($(if ([IO.Path]::IsPathRooted($OutputDir
 if (Test-Path -LiteralPath $output) {
     throw "Release output already exists. Choose a new OutputDirectory to preserve previous candidates: $output"
 }
-if (-not $CertificateThumbprint -or -not $TimestampServer) { throw 'A signing certificate and timestamp service are required to build a release.' }
+# A4.3 accepted unsigned: signing is applied when a certificate is supplied and
+# skipped when it is not. An unsigned build is a deliberate, recorded choice, so the
+# release still builds; what it loses is the guarantee of who produced it.
+# Partial credentials are a mistake, not a choice: supplying one and not the other
+# used to throw, and must not now degrade silently into an unsigned release.
+if ([bool]$CertificateThumbprint -ne [bool]$TimestampServer) { throw 'Supply both a signing certificate and a timestamp service, or neither.' }
+$signRelease = [bool]$CertificateThumbprint -and [bool]$TimestampServer
 $sourceCommit = (git -C $repoRoot rev-parse HEAD).Trim()
 Assert-NativeSuccess "Source commit lookup"
 if ([string]::IsNullOrWhiteSpace($Version)) {
@@ -55,7 +61,8 @@ Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'sql\etp-operations-broker.sql')
 $executable = Join-Path $output "Etp.Reporting.Desktop.exe"
 if (-not (Test-Path -LiteralPath $executable)) { throw "Published executable was not produced." }
 $signingInputs = @($executable) + @(Get-ChildItem -LiteralPath $packagedScripts -Filter '*.ps1' -File | ForEach-Object FullName)
-& (Join-Path $PSScriptRoot 'sign-etp-artifacts.ps1') -Paths $signingInputs -CertificateThumbprint $CertificateThumbprint -TimestampServer $TimestampServer
+if ($signRelease) { & (Join-Path $PSScriptRoot 'sign-etp-artifacts.ps1') -Paths $signingInputs -CertificateThumbprint $CertificateThumbprint -TimestampServer $TimestampServer }
+else { Write-Warning 'Building an UNSIGNED release. The executable and scripts carry no publisher signature.' }
 $hash = Get-FileHash -LiteralPath $executable -Algorithm SHA256
 "$($hash.Hash)  $($hash.Path | Split-Path -Leaf)" | Set-Content -LiteralPath (Join-Path $output "SHA256SUMS.txt") -Encoding ascii
 @{
