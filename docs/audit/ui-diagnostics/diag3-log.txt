@@ -1,0 +1,21 @@
+=== search path vs landing 2026-09-17T19:50:33 ===
+ok        'Database health'  shown [Settings ? Database ? Database health]  header [settings / Database / Database health]
+ok        'Getting Started'  shown [Settings ? Help ? Getting Started]  header [settings / Help / Getting Started]
+ok        'Inward'  shown [Settings ? Registers ? Inward]  header [settings / Registers / Inward]
+ok        'Expense entry'  shown [Today ? Cash ? Expense entry]  header [ /  / Expense entry]
+ok        'Cash and service entries'  shown [Today ? Cash ? Cash and service entries]  header [ /  / Cash and service entries]
+ok        'Walk-ins'  shown [Today ? Walk-ins ? Walk-ins]  header [ /  / ]
+ok        'Staff targets'  shown [Settings ? Stores & masters ? Staff targets]  header [settings / Stores & masters / Staff targets]
+ok        'Audit trail'  shown [Settings ? Database ? Audit trail]  header [settings / Database / Audit trail]
+ok        'Trends'  shown [Reports ? Management ? Trends]  header [reports / Management / Trends]
+ok        'Current profile'  shown [Settings ? Help ? Current profile]  header [settings / Help / Current profile]
+ok        'Backups'  shown [Settings ? Database ? Backups]  header [settings / Database / Backups]
+ok        'Physical count'  shown [Stock ? Physical count ? Physical count]  header [stock / Physical count / Physical count]
+ok        'Problems'  shown [Import ? Problems ? Problems]  header [ /  / ]
+ok        'Imports'  shown [Import ? History ? Imports]  header [ /  / Imports]
+ok        'Brands and targets'  shown [Settings ? Stores & masters ? Brands and targets]  header [settings / Stores & masters / Brands and targets]
+ok        'Watch folder'  shown [Settings ? Integrations ? Watch folder]  header [settings / Integrations / Watch folder]
+ok        'Tally export'  shown [Settings ? Accounting ? Tally export]  header [settings / Accounting / Tally export]
+
+TOTAL MISMATCHES: 0
+=== finished 2026-09-17T19:54:44 ===

@@ -1,0 +1,43 @@
+=== UI diagnostics 2 2026-09-17T19:47:36 ===
+
+--- Settings rail: section list (all items, offscreen included) ---
+    [Display]
+    [Database]
+    [Users]
+    [Stores & masters]
+    [Integrations]
+    [Accounting]
+    [Control centre]
+    [Registers (scrolled out of view)]
+    [Help (scrolled out of view)]
+  TOTAL: 9
+
+--- Today rail: section list (all items, offscreen included) ---
+  no section ComboBox; the rail uses tab buttons:
+    [Sales tab]
+    [Cash tab]
+    [Walk-ins tab]
+    [Close day tab]
+
+--- Ctrl+K 'Database health' ---
+  RESULT PATH SHOWN: [Settings ? Database ? Database health]
+  LANDED HEADER:
+    Choose settings section = "Database"
+    Choose database task = "TaskDestination { Id = health, Title = Database health, Module = Settings, Category = Database, Destination = Admin / Settings, Section = health, MinimumRole = 3, ReportCode = , Aliases = System.String[], Available = True, UnavailableReason = , Rail = Settings, Tab = Database, Path = Settings ? Database ? Database health, Purpose = Open database health in Settings., Route = WorkspaceRoute { Destination = Admin / Settings, FeatureCode = , TaskId = health } }"
+  shot landed2-database-health.png
+
+--- Ctrl+K 'Getting Started' ---
+  RESULT PATH SHOWN: [Settings ? Help ? Getting Started]
+  LANDED HEADER:
+    Choose settings section = "Help"
+    Choose help task = "TaskDestination { Id = help:getting-started, Title = Getting Started, Module = Settings, Category = Help, Destination = Home, Section = help, MinimumRole = 1, ReportCode = , Aliases = System.String[], Available = True, UnavailableReason = , Rail = Settings, Tab = Help, Path = Settings ? Help ? Getting Started, Purpose = Open getting started in Settings., Route = WorkspaceRoute { Destination = Home, FeatureCode = , TaskId = help:getting-started } }"
+  shot landed2-help-getting-started.png
+
+--- Ctrl+K 'Inward' ---
+  RESULT PATH SHOWN: [Settings ? Registers ? Inward]
+  LANDED HEADER:
+    Choose settings section = "Registers"
+    Choose registers task = "TaskDestination { Id = register-inward, Title = Inward, Module = Settings, Category = Registers, Destination = Registers, Section = register, MinimumRole = 3, ReportCode = , Aliases = System.String[], Available = True, UnavailableReason = , Rail = Settings, Tab = Registers, Path = Settings ? Registers ? Inward, Purpose = Open inward in Settings., Route = WorkspaceRoute { Destination = Registers, FeatureCode = , TaskId = register-inward } }"
+  shot landed2-register-inward.png
+
+=== diagnostics 2 finished 2026-09-17T19:49:12 ===

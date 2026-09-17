@@ -1,0 +1,14 @@
+=== dropdown verification 2026-09-17T20:01:11 ===
+build title: ETP Reporting Engine 1.8.8 (3c80035)
+    [Display]  visible
+    [Database]  visible
+    [Users]  visible
+    [Stores & masters]  visible
+    [Integrations]  visible
+    [Accounting]  visible
+    [Control centre]  visible
+    [Registers]  visible
+    [Help]  visible
+  VISIBLE: 9   HIDDEN: 0
+  shot verify-settings-sections.png
+=== finished ===

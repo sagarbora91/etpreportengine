@@ -23,7 +23,7 @@ five real defects, each listed under the item that owns it.
 | **A-R0** | Gate: Release build and tests green, regression tests exist, no migration added, rebases on `phase-5/secondary-modules` | **Met** |
 | **A-R1** | Durable import history and problems survive a restart | **Met** — one defect found and fixed |
 | **A-R2** | Advanced report filters agree on screen, in Excel and in PDF | **Met** — already correct, verified |
-| **A-R3** | Retry re-runs only the failed file | **Met for the button path**, with one honest limit — one defect found and fixed |
+| **A-R3** | Retry re-runs only the failed file | **Met** — automated for the button path, physical touch passed by the owner; one defect found and fixed |
 | **A-R4** | Database and recovery health visible to the owner | **Met after fixing the screen** — three defects found and fixed, one of which made the block effectively invisible |
 
 ---
@@ -135,13 +135,16 @@ Added an inline `"Owner or store manager can retry"` notice beside the button, d
 import is running and when nothing has failed, and **those two are obvious from the screen** —
 only the role case needs a sentence, so only the role case shows one.
 
-### The honest limit
+### The touch pass
 
-The brief says *"press Retry on the touch screen"*. What is proven here is the **button path**,
-driven by an automated WPF click. That is not a finger on a 1366×768 touch panel. The same limit
-applied to A3.8 in the Phase 3 audit and is recorded here for the same reason: an automated
-`Button.ClickEvent` cannot detect a target too small to hit, a control hidden under the on-screen
-keyboard, or a gesture the shell swallows. **A-R3 still needs a physical touch pass.**
+The brief says *"press Retry on the touch screen"*. The automated evidence above proves the
+**button path** only — an automated `Button.ClickEvent` cannot detect a target too small to hit,
+a control hidden under the on-screen keyboard, or a gesture the shell swallows.
+
+**Sagar performed the physical touch pass on 17 September 2026 and reported it as a pass.**
+That closes the gap the automated evidence could not. Recorded as the owner's observation rather
+than as something this audit measured: I did not witness it, and the distinction between "the
+owner pressed it and it worked" and "a test asserted it" is worth keeping visible.
 
 ---
 
@@ -342,22 +345,27 @@ asserts rather than my having eyeballed it.
 
 ## What this report does not claim
 
-1. **A-R3 has not been tested by touch.** The retry path is proven by an automated WPF button
-   event. A finger on the shop's 1366×768 panel is still outstanding, exactly as A3.8 was.
+1. **A-R3's touch pass is the owner's observation, not this audit's measurement.** The automated
+   evidence covers the button path; Sagar reported the physical touch pass on 17 September 2026.
+   I did not witness it and took no screenshot of it.
 2. **The Viewer notice is not in a screenshot.** This session ran as Owner, so the
    `"Owner or store manager can retry"` sentence was correctly collapsed. It is covered by test,
    not by image.
 3. **The fixture data is synthetic.** It proves classification, suppression and layout. It proves
    nothing about real ETP workbooks.
-4. **"Last successful import" and "Failed imports" read different tables from Problems.**
-   The health procedure counts `import_batches`; the Problems tab reads `import_attempts`. A
-   history made only of retried attempts can therefore show problems while health reports zero
-   failed imports. Fixing this means editing `dbo.load_database_operational_health`, which is a
-   committed migration — out of bounds for this branch. **Recorded, not fixed.**
+4. ~~**"Failed imports" reads a different table from Problems.**~~ **Fixed** after this report was
+   first written. Migration `0031_health_counts_what_problems_shows.sql` replaces the procedure so
+   the count uses the same rule as the Problems list, including the suppression of a failure that a
+   later clean import cleared. `0023` is untouched, because the migration runner is checksum
+   fail-closed. One deliberate exception remains: a batch that failed before recording any file is
+   still counted even though Problems cannot list it, because a failure the owner cannot see must
+   not vanish entirely — so the number can exceed the Problems count by those.
 5. **"Last successful import" has no store predicate.** It reports the newest completed batch
    across both stores. Same reason as above.
-6. **`docs/OPERATIONS.md` and `docs/INSTALL.md` still describe the pre-D9 behaviour** and
-   contradict the code on unsigned installs and unencrypted Express backups. That belongs to the
-   Phase 4 branch, not this one.
+6. ~~**`docs/OPERATIONS.md` and `docs/INSTALL.md` still describe the pre-D9 behaviour.**~~ **Fixed**
+   after this report was first written. Nine statements in `OPERATIONS.md` and two in `INSTALL.md`
+   claimed things the code no longer does: that D9 has no plaintext fallback, that release builders
+   require a certificate, that deployed PowerShell runs `AllSigned`, that a backup always uses
+   AES-256, and that the installer obtains SQL Server through Windows Package Manager.
 7. **The screenshots were taken on this development machine, not the shop PC.** The window was
    sized to the shop's resolution; it is not the shop's hardware, GPU or DPI setting.
