@@ -4,11 +4,54 @@ using Etp.Reporting.Import.Batch;
 using Etp.Reporting.Import.Preflight;
 using Etp.Reporting.Import.Profiles;
 using Etp.Reporting.Import.Workbooks;
+using System.IO.Compression;
 
 namespace Etp.Reporting.Desktop.Tests;
 
 public sealed class DesktopImportCoordinatorTests
 {
+    [Fact]
+    public async Task Folder_retry_keeps_zip_sources_until_disposal_and_reads_only_the_failed_entry()
+    {
+        var archivePath = Path.Combine(Path.GetTempPath(), "EtpRetry_" + Guid.NewGuid().ToString("N") + ".zip");
+        using (var archive = ZipFile.Open(archivePath, ZipArchiveMode.Create))
+            foreach (var name in new[] { "WLMHW_good_20260825.xlsx", "WLMHW_bad_20260825.xlsx" })
+            {
+                using var writer = new StreamWriter(archive.CreateEntry(name).Open());
+                writer.Write("Synthetic workbook read by the fixture reader");
+            }
+        var reads = new List<string>();
+        var repaired = false;
+        var coordinator = Create(new FakePersistence(), new FakeReader(path =>
+        {
+            Assert.True(File.Exists(path));
+            reads.Add(path);
+            if (path.Contains("bad") && !repaired) throw new InvalidDataException("Synthetic corrupt workbook");
+            return ValidR025() with { FileName = path };
+        }));
+        string? failedPath = null;
+        try
+        {
+            var first = await coordinator.ImportFolderAsync(archivePath, "test", new("tester"));
+            Assert.Equal(1, first.Imported);
+            Assert.Equal(1, first.Failed);
+            failedPath = Assert.Single(coordinator.FailedBatchPaths);
+            Assert.True(File.Exists(failedPath));
+            repaired = true;
+            reads.Clear();
+            var retried = await coordinator.RetryFailedFolderAsync();
+            Assert.Equal(new[] { failedPath }, reads);
+            Assert.Equal("empty export", Assert.Single(retried.Files).Status);
+            Assert.Empty(coordinator.FailedBatchPaths);
+        }
+        finally
+        {
+            await coordinator.DisposeAsync();
+            File.Delete(archivePath);
+        }
+        Assert.False(File.Exists(failedPath));
+    }
+
     [Fact]
     public async Task Single_workbook_duplicate_is_a_no_op_without_a_second_persistence_request()
     {

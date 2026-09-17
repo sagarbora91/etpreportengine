@@ -13,6 +13,7 @@ public sealed class FolderImportService(
 {
     private readonly IWorkbookReader reader = workbookReader ?? new OpenXmlWorkbookReader();
     private readonly MatchedImportEnvelopeFactory envelopes = new();
+    private readonly Dictionary<string, ImportScope> detectedScopes = new(StringComparer.OrdinalIgnoreCase);
     public IReadOnlyList<string> FailedPaths { get; private set; } = [];
 
     public async Task<FolderImportSummary> RunAsync(string sourcePath, FolderImportOptions options,
@@ -22,7 +23,18 @@ public sealed class FolderImportService(
         return await RunFilesAsync(source.WorkbookPaths, options, progress, cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<FolderImportSummary> RunFilesAsync(IReadOnlyList<string> paths, FolderImportOptions options,
+    public Task<FolderImportSummary> RunFilesAsync(IReadOnlyList<string> paths, FolderImportOptions options,
+        IProgress<FolderImportProgress>? progress = null, CancellationToken cancellationToken = default)
+    {
+        detectedScopes.Clear();
+        return RunFilesCoreAsync(paths, options, progress, cancellationToken);
+    }
+
+    public Task<FolderImportSummary> RetryFailedAsync(FolderImportOptions options,
+        IProgress<FolderImportProgress>? progress = null, CancellationToken cancellationToken = default) =>
+        RunFilesCoreAsync(FailedPaths.ToArray(), options, progress, cancellationToken);
+
+    private async Task<FolderImportSummary> RunFilesCoreAsync(IReadOnlyList<string> paths, FolderImportOptions options,
         IProgress<FolderImportProgress>? progress = null, CancellationToken cancellationToken = default)
     {
         if (options.RestatementEnabled && string.IsNullOrWhiteSpace(options.RestatementReason))
@@ -32,7 +44,6 @@ public sealed class FolderImportService(
 
         var results = new List<FolderImportFileResult>();
         var ready = new List<(string Path, MatchedImportInspection Inspection)>();
-        var failed = new List<string>();
         var handled = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var path in paths)
         {
@@ -40,14 +51,15 @@ public sealed class FolderImportService(
             progress?.Report(new(0, paths.Count, Path.GetFileName(path), "Reading folder", results.ToArray()));
             try
             {
-                ready.Add((path, envelopes.Inspect(await reader.ReadAsync(path, cancellationToken).ConfigureAwait(false))));
+                var inspection = envelopes.Inspect(await reader.ReadAsync(path, cancellationToken).ConfigureAwait(false));
+                ready.Add((path, inspection));
+                if (inspection.AcceptedImport is { } accepted) detectedScopes[path] = accepted.Scope;
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { break; }
             catch (Exception exception)
             {
                 var message = new SafeImportFailureClassifier().Describe(exception).SafeMessage;
-                results.Add(new(Path.GetFileName(path), null, null, null, null, "Failed", Message: message));
-                failed.Add(path);
+                results.Add(new(Path.GetFileName(path), null, null, null, null, "Failed", Message: message) { SourcePath = path });
                 handled.Add(path);
             }
         }
@@ -61,7 +73,7 @@ public sealed class FolderImportService(
                 (ImportIssueSeverity)(int)issue.Severity, issue.Code, issue.Message, issue.RowNumber, issue.ColumnName)).ToArray();
             var result = new FolderImportFileResult(Path.GetFileName(entry.Path), entry.Inspection.MatchedProfile?.ReportCode,
                 scope?.StoreCode, scope?.PeriodStart, scope?.PeriodEnd, "Importing", Diagnostics: issues)
-                { SourceSha256 = accepted?.Workbook.Sha256 };
+                { SourcePath = entry.Path, SourceSha256 = accepted?.Workbook.Sha256 };
             progress?.Report(new(results.Count, paths.Count, result.FileName, "Importing", results.Append(result).ToArray()));
             if (accepted is null)
             {
@@ -69,14 +81,15 @@ public sealed class FolderImportService(
                 var notNeeded = result.FileName.StartsWith("00_", StringComparison.OrdinalIgnoreCase);
                 result = result with { Status = notNeeded ? "Not needed" : unknown ? "Unknown layout" : "Failed",
                     Message = notNeeded ? "Consolidation control workbook; report workbooks are imported separately." : string.Join(" ", issues.Select(issue => issue.Message).Distinct()) };
-                if (result.Failed) failed.Add(entry.Path);
                 results.Add(result);
                 continue;
             }
             try
             {
-                var siblings = ready.Where(item => string.Equals(Path.GetDirectoryName(item.Path), Path.GetDirectoryName(entry.Path), StringComparison.OrdinalIgnoreCase))
-                    .Select(item => item.Inspection.AcceptedImport?.Scope).Where(item => item is not null).ToArray();
+                // A retry re-reads only failed files. Preserve the original sibling scope for
+                // empty exports that depend on the other successful exports in their folder.
+                var siblings = detectedScopes.Where(item => string.Equals(Path.GetDirectoryName(item.Key), Path.GetDirectoryName(entry.Path), StringComparison.OrdinalIgnoreCase))
+                    .Select(item => item.Value).ToArray();
                 if (scope?.StoreCode is { } detectedStore && options.OverrideStoreCode is { } overrideStore &&
                     !string.Equals(detectedStore, overrideStore, StringComparison.OrdinalIgnoreCase))
                     throw new ImportSourceException("STORE_OVERRIDE_MISMATCH", "The store override does not match the file. Use a corrected source file to change its store.");
@@ -123,15 +136,14 @@ public sealed class FolderImportService(
             catch (Exception exception)
             {
                 result = result with { Status = "Failed", Message = new SafeImportFailureClassifier().Describe(exception).SafeMessage };
-                failed.Add(entry.Path);
             }
             results.Add(result);
             progress?.Report(new(results.Count, paths.Count, result.FileName, result.Status, results.ToArray()));
         }
         if (cancellationToken.IsCancellationRequested)
             foreach (var path in paths.Where(path => !handled.Contains(path)))
-                results.Add(new(Path.GetFileName(path), null, null, null, null, "Cancelled"));
-        FailedPaths = failed;
+                results.Add(new(Path.GetFileName(path), null, null, null, null, "Cancelled") { SourcePath = path });
+        FailedPaths = results.Where(result => result.Failed).Select(result => result.SourcePath!).ToArray();
         if (persistence is IImportAttemptRecorder recorder)
             foreach (var result in results)
                 await recorder.RecordAttemptAsync(result, CancellationToken.None).ConfigureAwait(false);

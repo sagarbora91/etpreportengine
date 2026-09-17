@@ -391,7 +391,7 @@ public sealed partial class TaskNavigator(MainWindow window)
             _ = history.ActivateAsync(new(DateOnly.FromDateTime(appliedDate), DateOnly.FromDateTime(appliedDate), string.IsNullOrEmpty(HeaderStore) ? null : HeaderStore));
             return history;
         }
-        if (task.Id == "conflicts") return new Modules.Imports.ImportProblemsView(async () =>
+        if (task.Id == "conflicts") return new Modules.Imports.ImportProblemsView(window.importWorkspaceView, async () =>
             window.importWorkspaceView.Problems.Concat(await window.sourceInboxWorkspaceView.LoadProblemsAsync()).Distinct().ToArray());
         if (task.Section == "import-results" || task.Destination == "Import ETP" && task.Section != "inbox")
         {

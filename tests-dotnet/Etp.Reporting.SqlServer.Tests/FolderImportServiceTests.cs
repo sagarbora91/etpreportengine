@@ -9,6 +9,46 @@ namespace Etp.Reporting.SqlServer.Tests;
 public sealed class FolderImportServiceTests
 {
     [Fact]
+    public async Task Retry_reads_only_failed_files_and_preserves_successful_sibling_scope()
+    {
+        var repaired = false;
+        var reads = new List<string>();
+        var persistence = new CapturePersistence();
+        var service = new FolderImportService(persistence, new Reader(path =>
+        {
+            reads.Add(path);
+            if (path == "empty.xlsx" && !repaired) throw new InvalidDataException("Corrupted workbook");
+            return Sales(path, "HEMW", path == "empty.xlsx" ? [] : [20260825]);
+        }));
+        var first = await service.RunFilesAsync(["sales.xlsx", "empty.xlsx"], new("tester"));
+        Assert.Equal(1, first.Imported);
+        Assert.Equal(1, first.Failed);
+        Assert.Equal(new[] { "empty.xlsx" }, service.FailedPaths);
+        repaired = true;
+        reads.Clear();
+        var retry = await service.RetryFailedAsync(new("tester"));
+        Assert.Equal(new[] { "empty.xlsx" }, reads);
+        var result = Assert.Single(retry.Files);
+        Assert.Equal("empty export", result.Status);
+        Assert.Equal("HEMW", result.StoreCode);
+        Assert.Equal(new DateOnly(2026, 8, 25), result.PeriodEnd);
+        Assert.Equal(2, persistence.Requests.Count);
+        Assert.Empty(service.FailedPaths);
+        Assert.Empty((await service.RetryFailedAsync(new("tester"))).Files);
+    }
+
+    [Fact]
+    public async Task Conflict_outcome_is_retryable_even_when_persistence_did_not_throw()
+    {
+        var persistence = new CapturePersistence { Status = "Conflict", Conflicts = 1 };
+        var service = new FolderImportService(persistence, new Reader(path => Sales(path, "HEMW", [20260825])));
+        Assert.Equal(1, (await service.RunFilesAsync(["sales.xlsx"], new("tester"))).Failed);
+        Assert.Equal(new[] { "sales.xlsx" }, service.FailedPaths);
+        Assert.Equal(1, (await service.RetryFailedAsync(new("tester"))).Failed);
+        Assert.Equal(2, persistence.Requests.Count);
+    }
+
+    [Fact]
     public async Task One_folder_detects_each_store_and_full_period_without_user_scope()
     {
         var persistence = new CapturePersistence();
@@ -186,6 +226,7 @@ public sealed class FolderImportServiceTests
     {
         public string Status { get; init; } = "Imported";
         public bool Exists { get; init; }
+        public int Conflicts { get; init; }
         public (string Store, DateOnly Start, DateOnly End)? ExactScope { get; init; }
         public List<ImportPersistenceRequest<MatchedImportEnvelope>> Requests { get; } = [];
         public Task<bool> ExistsByHashAsync(string hash, CancellationToken cancellationToken = default) => Task.FromResult(Exists);
@@ -196,7 +237,7 @@ public sealed class FolderImportServiceTests
         {
             Requests.Add(request);
             return Task.FromResult(new ImportPersistenceResult(request.AcceptedImport.ProfileIdentity.ReportCode, Status == "Imported" ? request.AcceptedImport.Staging.Rows.Count : 0)
-            { Status = Status, AlreadyPresentRows = Status == "Imported" ? 0 : request.AcceptedImport.Staging.Rows.Count });
+            { Status = Status, AlreadyPresentRows = Status == "Imported" ? 0 : request.AcceptedImport.Staging.Rows.Count, ConflictRows = Conflicts });
         }
         public Task<ImportRowOutcome> LoadOutcomeByHashAsync(string hash, CancellationToken cancellationToken = default) => Task.FromResult(new ImportRowOutcome(0, 0, 0, 0));
     }

@@ -58,6 +58,8 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
     private BatchImportSource? activeBatchSource;
     private CancellationTokenSource? batchCancellation;
     private ValidatedImport? validatedImport;
+    private FolderImportService? folderImportService;
+    private FolderImportOptions? folderImportOptions;
 
     public DesktopImportCoordinator(
         Func<string, ImportPersistenceUseCase> persistenceFactory,
@@ -156,10 +158,24 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
     {
         batchCancellation?.Dispose();
         batchCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        var service = new FolderImportService(persistenceFactory(connectionString), workbookReader,
+        var paths = await OpenBatchSourceAsync(sourcePath, batchCancellation.Token).ConfigureAwait(false);
+        folderImportOptions = options;
+        folderImportService = new FolderImportService(persistenceFactory(connectionString), workbookReader,
             (path, envelope, store, end, token) => retainEvidence(connectionString, path, envelope.Workbook.Sha256,
                 envelope.ProfileIdentity.ReportCode, store, end, token));
-        var result = await service.RunAsync(sourcePath, options, progress, batchCancellation.Token).ConfigureAwait(false);
+        var result = await folderImportService.RunFilesAsync(paths, options, progress, batchCancellation.Token).ConfigureAwait(false);
+        FailedBatchPaths = folderImportService.FailedPaths;
+        return result;
+    }
+
+    public async Task<FolderImportSummary> RetryFailedFolderAsync(IProgress<FolderImportProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        var service = folderImportService ?? throw new InvalidOperationException("Import a source before retrying failed files.");
+        var options = folderImportOptions ?? throw new InvalidOperationException("The original import options are unavailable.");
+        batchCancellation?.Dispose();
+        batchCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var result = await service.RetryFailedAsync(options, progress, batchCancellation.Token).ConfigureAwait(false);
         FailedBatchPaths = service.FailedPaths;
         return result;
     }
@@ -215,6 +231,8 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
     {
         if (activeBatchSource is not null) await activeBatchSource.DisposeAsync().ConfigureAwait(false);
         activeBatchSource = null;
+        folderImportService = null;
+        folderImportOptions = null;
         FailedBatchPaths = [];
     }
 
