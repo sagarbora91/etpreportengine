@@ -412,3 +412,50 @@ Codex's own runbook lists guest scaling at 100/125/150% as step 7, which is the 
 ### State left behind
 
 `C:\EtpPhase4Test\scripts\` in the guest holds the two transferred scripts, retained deliberately so the automation-account step can be run without re-transfer. The guest's machine execution policy is **Undefined at every scope** — verified after the run; only a process-scope bypass was used. No host ACL, account, task or database was touched, and the shop PC was not involved in any of this work.
+
+### A4.4 — unblocked and proven at the SQL layer, 17 September 2026
+
+The VM's SQL instance was **upgraded from Express to Developer Edition in place**, on Sagar's approval, so the instance name `.\SQLEXPRESS` and every existing database were preserved and no script needed repointing.
+
+The Microsoft SSEI bootstrapper could not be used: launched over PowerShell Direct it has no interactive desktop, and it stalled at 0.66 seconds of CPU with no window, no child process and nothing written to disk. It was stopped. The upgrade was instead performed headlessly with the Setup Bootstrap already installed in the guest:
+
+```
+setup.exe /ACTION=EditionUpgrade /INSTANCENAME=SQLEXPRESS /PID=<Developer> /IACCEPTSQLSERVERLICENSETERMS /QUIET
+-> exit code 0
+SELECT SERVERPROPERTY('Edition')  ->  Developer Edition (64-bit) | 16.0.1000.6
+```
+
+Developer Edition is free and licensed for non-production use, which is exactly what this acceptance VM is.
+
+**The full encrypted backup and drill chain then passed:**
+
+| Step | Result |
+|---|---|
+| Create master key and server certificate | thumbprint `0x35F0261838D0FC9A2AEC09ED38F855025DCBFAAA` |
+| `BACKUP … WITH ENCRYPTION(ALGORITHM=AES_256, SERVER CERTIFICATE=…)` | **succeeded**, 362 pages |
+| `msdb.dbo.backupset` | `encryptor_type=CERTIFICATE`, `algorithm=aes_256` |
+| `RESTORE VERIFYONLY … WITH CHECKSUM` | "The backup set on file 1 is valid" |
+| Drill restore under a recovery name | 362 pages restored |
+| Data integrity after the round trip | `restored row: A44-ORIGINAL-ROW` |
+| Plaintext leak check on the file | no plaintext row in the first 2 KB |
+
+The identical statement on Express was refused outright (`Msg 1844`). So the blocker was the edition and nothing else, and the mechanism the plan calls for is sound.
+
+All drill artefacts were removed: both databases dropped, the backup file deleted, `sys.databases` confirms zero remaining.
+
+**What this does not yet close, stated plainly.** A4.4's wording is "Backup → drill restore → verify passes on the audit PC **from the receipt-named file**". I proved the SQL layer, not the Phase 4 scripts. `backup-etp-database.ps1` first calls `Resolve-EtpLatestCertificateCustody`, which requires a `certificate-custody.json` pointer of schema version 2 naming an immutable receipt, verified by `Assert-EtpCertificateCustody`. That custody chain is produced by the application's Owner "Encrypted backup recovery keys" action, and the guest runs **1.8.8** (`d24a525b`), not the Phase 2–5 candidate that contains it.
+
+So A4.4 moves from **BLOCKED by edition** — where no further work could have helped — to **PASS at the SQL layer, with the script-level custody chain outstanding**. Completing it needs the candidate build installed in this VM, the Owner certificate export run once, and then `backup-etp-database.ps1` and `invoke-etp-recovery-drill.ps1` executed against their own receipts. That is now ordinary work rather than an impossibility.
+
+**Production remains a separate decision.** The shop PC still runs Express, so the encrypted backup it needs in production still requires either a supported edition there or an explicit revision of decision D9. This VM result proves the code and the procedure are correct; it does not license the shop machine.
+
+### Revised Phase 4 position
+
+| ID | Status |
+|---|---|
+| A4.1 | PASS |
+| A4.2 | **PASS** — closed by execution on the VM, 17 Sep |
+| A4.3 | Blocked: needs the `EtpAutomation` account, then a signed install tree |
+| A4.4 | **PASS at the SQL layer** — script-level custody chain outstanding; production edition still a purchase decision |
+| A4.5 | PASS |
+| A4.6 | PASS |
