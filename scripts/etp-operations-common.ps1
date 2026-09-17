@@ -53,7 +53,11 @@ function Assert-EtpProtectedInstall {
 
 function Resolve-EtpSqlCmd {
     param([string]$ExplicitPath)
-    $candidates = @($ExplicitPath, (Join-Path $env:ProgramFiles 'sqlcmd\sqlcmd.exe'), (Join-Path $env:ProgramFiles 'Microsoft SQL Server\Client SDK\ODBC\170\Tools\Binn\SQLCMD.EXE'))
+    # The ODBC client reaches a local instance over shared memory, which SQL
+    # Server Express and Developer enable by default. go-sqlcmd resolves a bare
+    # ".\INSTANCE" over named pipes, which they disable by default, so it is
+    # preferred only when the ODBC client is absent.
+    $candidates = @($ExplicitPath, (Join-Path $env:ProgramFiles 'Microsoft SQL Server\Client SDK\ODBC\170\Tools\Binn\SQLCMD.EXE'), (Join-Path $env:ProgramFiles 'sqlcmd\sqlcmd.exe'))
     foreach ($candidate in $candidates) {
         if ($candidate -and (Test-Path -LiteralPath $candidate -PathType Leaf)) {
             Assert-EtpProtectedInstall $candidate
@@ -61,6 +65,29 @@ function Resolve-EtpSqlCmd {
         }
     }
     throw 'Install Microsoft Sqlcmd in a protected Program Files folder.'
+}
+
+function Resolve-EtpSqlConnection {
+    param([string]$SqlCmd,[string]$ServerInstance)
+    # A client that cannot reach the instance fails every later call behind the
+    # same masked message, which sends the operator to SQL permissions instead
+    # of to the connection. Settle the protocol once, here. An instance that
+    # already names its protocol is used exactly as configured.
+    $attempts = @($ServerInstance)
+    if ($ServerInstance -notmatch '^(?i)(lpc|np|tcp|admin):') { $attempts += 'lpc:' + $ServerInstance }
+    foreach ($attempt in $attempts) {
+        Assert-EtpLocalSqlTarget $attempt 'master'
+        $previousPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = 'Continue'
+            & $SqlCmd -x -S $attempt -E -b -d master -Q 'SET NOCOUNT ON; SELECT 1;' 2>$null | Out-Null
+            $probeExitCode = $LASTEXITCODE
+        }
+        catch { $probeExitCode = 1 }
+        finally { $ErrorActionPreference = $previousPreference }
+        if ($probeExitCode -eq 0) { return $attempt }
+    }
+    throw 'Could not reach the SQL Server instance with the installed command-line client. Check the instance name and that the client can connect to it.'
 }
 
 function Invoke-EtpSql {
@@ -77,7 +104,21 @@ function Invoke-EtpSql {
     }
     catch { throw 'The database operation failed. Check SQL permissions and operation prerequisites.' }
     finally { $ErrorActionPreference = $previousPreference }
-    if ($sqlExitCode -ne 0) { throw 'The database operation failed. Check SQL permissions and operation prerequisites.' }
+    if ($sqlExitCode -ne 0) {
+        # Say which of the two it was without ever exposing stderr: an operator
+        # sent to SQL permissions for an unreachable instance looks in the
+        # wrong place for as long as the backups keep failing.
+        $previousPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = 'Continue'
+            & $SqlCmd -x -S $Server -E -b -d master -Q 'SET NOCOUNT ON; SELECT 1;' 2>$null | Out-Null
+            $probeExitCode = $LASTEXITCODE
+        }
+        catch { $probeExitCode = 1 }
+        finally { $ErrorActionPreference = $previousPreference }
+        if ($probeExitCode -ne 0) { throw 'Could not reach the SQL Server instance with the installed command-line client. Check the instance name and that the client can connect to it.' }
+        throw 'The database operation failed. Check SQL permissions and operation prerequisites.'
+    }
     return $result
 }
 

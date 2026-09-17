@@ -32,6 +32,7 @@ if (-not $PSBoundParameters.ContainsKey('ServerInstance') -and -not $PSBoundPara
 
 Assert-EtpLocalSqlTarget $ServerInstance $Database
 $sqlcmd = Resolve-EtpSqlCmd $SqlCmdPath
+$ServerInstance = Resolve-EtpSqlConnection -SqlCmd $sqlcmd -ServerInstance $ServerInstance
 $directory = [IO.Path]::GetFullPath($BackupDirectory)
 Assert-EtpNoLinks $directory
 if (-not (Test-Path -LiteralPath $directory -PathType Container)) { throw 'Complete protected backup-folder setup first.' }

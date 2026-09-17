@@ -653,3 +653,26 @@ It fails on `SELECT 1`, so it is connectivity, not the query. Proven to be the s
 go-sqlcmd v1.10.0 on this VM dates from 3 March 2026 and is part of the base image, not something introduced by this audit. **The shop PC does not currently have go-sqlcmd installed, so production is not affected today** — but it ships with recent SSMS builds and any future install would silently break backups.
 
 `Assert-EtpLocalSqlTarget` already accepts `lpc:` and `np:` prefixes, so the protocol prefix is an anticipated concept; it is simply never paired with the client that needs it. Not fixed here: choosing between preferring the ODBC client, probing candidates for reachability, or prefixing `lpc:` for local instances is a deployment decision for the owner.
+
+### P4-9 — **FIXED**
+
+**Author's note: I wrote this fix myself as well**, at Sagar's instruction, so the independence caveat recorded for P4-7 and P4-8 applies to it equally. That is now three of three fixes in this branch written by the auditor.
+
+Three changes, all in `scripts/`:
+
+1. **`Resolve-EtpSqlCmd` prefers the ODBC client.** go-sqlcmd moves behind it rather than ahead of it, because the ODBC client reaches a local instance over shared memory, which Express and Developer enable by default.
+2. **`Resolve-EtpSqlConnection` settles the protocol once.** It probes the configured instance with `SELECT 1`; if that fails it retries with an `lpc:` prefix and uses whichever connects. An instance that already names its protocol (`lpc:`, `np:`, `tcp:`, `admin:`) is used exactly as configured and never rewritten. This makes a go-sqlcmd-only machine work without any operator action.
+3. **The masked error now distinguishes the two cases.** On failure, `Invoke-EtpSql` re-probes and, if the instance is unreachable, says so instead of blaming SQL permissions. Stderr is still never exposed, so the security property the mask exists for is unchanged.
+
+`invoke-etp-recovery-drill.ps1` and `install-etp-sql-operations.ps1` also gained the `-SqlCmdPath` override that `backup-etp-database.ps1` already had, so no operations script is now without an escape hatch.
+
+**Proven in both directions, on the acceptance VM, with go-sqlcmd v1.10.0 present throughout:**
+
+| Condition | Before | After |
+|---|---|---|
+| go-sqlcmd installed, ODBC installed, no override | drill **exit 1**, masked error | drill **exit 0** |
+| go-sqlcmd only (ODBC renamed away) | not reachable at all | drill **exit 0**, backup **exit 0** |
+
+The second row is the new `lpc:` fallback doing the work: with the ODBC client renamed away, both the drill and a full encrypted backup completed using go-sqlcmd alone. Nothing was renamed for the first row — that is the shipped arrangement.
+
+**No regression.** The operations boundary harness still passes all eight scenarios, **190 checks**, both in the guest and through `OperationsScriptBoundaryTests` in the .NET suite on the host (8/8, 10 s). The change touches no C#, no migration and no SQL, so the 860-test result recorded above stands.

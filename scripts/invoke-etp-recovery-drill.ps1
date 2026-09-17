@@ -1,7 +1,8 @@
 param(
     [string]$ServerInstance='.\SQLEXPRESS',
     [string]$Database='EtpReporting',
-    [string]$BackupDirectory="$env:ProgramData\EtpReporting\Backups"
+    [string]$BackupDirectory="$env:ProgramData\EtpReporting\Backups",
+    [string]$SqlCmdPath
 )
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'etp-operations-common.ps1')
@@ -10,7 +11,8 @@ if (-not $PSBoundParameters.ContainsKey('ServerInstance') -and -not $PSBoundPara
     $ServerInstance=$configuration.serverInstance; $Database=$configuration.database
 }
 Assert-EtpLocalSqlTarget $ServerInstance $Database
-$sqlcmd=Resolve-EtpSqlCmd
+$sqlcmd=Resolve-EtpSqlCmd $SqlCmdPath
+$ServerInstance=Resolve-EtpSqlConnection -SqlCmd $sqlcmd -ServerInstance $ServerInstance
 $directory=[IO.Path]::GetFullPath($BackupDirectory)
 $receipt=Read-EtpVerifiedReceipt -ReceiptPath (Join-Path $directory "$Database-latest-verified.json") -BackupDirectory $directory -Database $Database
 $metadata=@(Invoke-EtpOperationsBroker -SqlCmd $sqlcmd -Server $ServerInstance -Database $Database -BackupPath $receipt.backupPath -Operation METADATA)

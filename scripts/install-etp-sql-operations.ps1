@@ -2,7 +2,8 @@ param(
     [Parameter(Mandatory)][string]$ServerInstance,
     [Parameter(Mandatory)][string]$Database,
     [Parameter(Mandatory)][string]$AutomationPrincipal,
-    [string]$BackupDirectory="$env:ProgramData\EtpReporting\Backups"
+    [string]$BackupDirectory="$env:ProgramData\EtpReporting\Backups",
+    [string]$SqlCmdPath
 )
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'etp-operations-common.ps1')
@@ -16,7 +17,8 @@ $procedure=Get-EtpOperationsProcedureName $Database
 Assert-EtpProtectedInstall (Join-Path $PSScriptRoot 'sql\etp-operations-broker.sql')
 $template=Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'sql\etp-operations-broker.sql')
 $query=$template.Replace('__PROCEDURE__',$procedure).Replace('__DATABASE_LITERAL__',$Database.Replace("'","''")).Replace('__DATABASE_IDENTIFIER__',$Database.Replace(']',']]')).Replace('__BACKUP_DIRECTORY__',$backupRoot.Replace("'","''")).Replace('__RESTORE_DIRECTORY__',$restoreRoot.Replace("'","''"))
-$sqlcmd=Resolve-EtpSqlCmd
+$sqlcmd=Resolve-EtpSqlCmd $SqlCmdPath
+$ServerInstance=Resolve-EtpSqlConnection -SqlCmd $sqlcmd -ServerInstance $ServerInstance
 Invoke-EtpSql -SqlCmd $sqlcmd -Server $ServerInstance -Query $query | Out-Null
 $identity=$AutomationPrincipal.Replace(']',']]'); $literalIdentity=$AutomationPrincipal.Replace("'","''")
 $permissions=@"
