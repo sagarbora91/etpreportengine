@@ -1,8 +1,10 @@
-# Phase 2, 3 and 4 — reports for Claude review
+> **17 September update:** Phase 5 is unblocked and in progress. The current handoff/report are on `phase-5/secondary-modules` in `C:/Codex/Reporting Manger/phase5-secondary-modules`. Application commits `9f0c0a7` and `f33fef8` implement atomic approval, saved reasons and Reject. The older branch-location/verdict statements below are historical. All project branches are being published in the 17 September synchronization; check origin rather than relying on the older local-only note.
+
+# Phase 2, 3 and 4 â€” reports for Claude review
 
 Collected on 16 September 2026. These are copies of the committed implementation reports, not new acceptance audits. No builds, tests or deployment checks were rerun to assemble this bundle.
 
-## Latest acceptance status — independent audits received during refresh
+## Latest acceptance status â€” independent audits received during refresh
 
 **Phases 2, 3 and 4 are REOPENED.** The original implementation reports below remain unchanged snapshots. Read these later audits first:
 
@@ -18,9 +20,9 @@ Audit files were copied byte-for-byte from their committed `docs/audit/claude-au
 
 | Phase | Local report | Implementation branch | Commit containing the report | Acceptance status |
 |---|---|---|---|---|
-| 2 — Evening reports | [PHASE-2-REPORT.md](PHASE-2-REPORT.md) | `phase-2/evening-reports` | `9241e2690aed4a286fb88ebdb94476efad3f2d50` | Implementation delivered; D4 brand mapping, Titan history, stock cutoff and native export/touch evidence remain open. |
-| 3 — Touch shell | [PHASE-3-REPORT.md](PHASE-3-REPORT.md) | `phase-3/touch-shell` | `12f108a2876f67d3af0f431e000c20fe41d74952` | Implementation delivered; reports 680 passing tests. Native DPI/accessibility checks and timed shop-staff acceptance remain open. |
-| 4 — Security and operations | [PHASE-4-REPORT.md](PHASE-4-REPORT.md) | `phase-4/security-operations` | `df35d90fd84fa5c95fa4158a6304fd0b06b3563c` | Coding implementation available; deployment-dependent acceptance remains open. Native encrypted backups require a compatible SQL edition or an explicit D9 revision. |
+| 2 â€” Evening reports | [PHASE-2-REPORT.md](PHASE-2-REPORT.md) | `phase-2/evening-reports` | `9241e2690aed4a286fb88ebdb94476efad3f2d50` | Implementation delivered; D4 brand mapping, Titan history, stock cutoff and native export/touch evidence remain open. |
+| 3 â€” Touch shell | [PHASE-3-REPORT.md](PHASE-3-REPORT.md) | `phase-3/touch-shell` | `12f108a2876f67d3af0f431e000c20fe41d74952` | Implementation delivered; reports 680 passing tests. Native DPI/accessibility checks and timed shop-staff acceptance remain open. |
+| 4 â€” Security and operations | [PHASE-4-REPORT.md](PHASE-4-REPORT.md) | `phase-4/security-operations` | `df35d90fd84fa5c95fa4158a6304fd0b06b3563c` | Coding implementation available; deployment-dependent acceptance remains open. Native encrypted backups require a compatible SQL edition or an explicit D9 revision. |
 
 Each report contains implementation references, validation instructions, recorded test evidence, limitations and its acceptance checklist. Preserve the distinction between working code, report acceptance and deployment validation.
 
@@ -37,6 +39,8 @@ The original committed locations are:
 The three copies were read directly from Git and verified byte-for-byte against those committed files. Generated evidence under `artifacts/` remains in the corresponding implementation worktree; it is not copied into this documentation bundle.
 
 ## Inspect the actual implementation in its worktree
+
+**Phase 4 code location:** `C:/Codex/Reporting Manger/phase4-security-operations`, branch `phase-4/security-operations`, current HEAD `1268c2b`. Read [the direct source/test paths and PowerShell commands](CLAUDE-HANDOFF.md#where-to-find-phase-4-code). This branch is local only: the remote branch lookup returned no match on 16 September 2026. Searching only the Phase 1 checkout or GitHub will not find this implementation.
 
 All paths are under `C:/Codex/Reporting Manger/`:
 
