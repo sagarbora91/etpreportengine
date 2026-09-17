@@ -9,7 +9,7 @@ public sealed partial class TaskNavigator
         var code = window.shell.CurrentRoute.FeatureCode;
         if (code is null) return;
         if (window.FocusedWorkspaceHost.Content is ReportWorkspaceControl report)
-            window.reportsWorkspaceView.ApplyTaskScope(code, report.DateFromPicker.SelectedDate, report.DateToPicker.SelectedDate, report.ScopeSelector.SelectedItem?.ToString());
+            window.reportsWorkspaceView.ApplyReportPeriod(report.DateFromPicker.SelectedDate, report.DateToPicker.SelectedDate);
         if (window.FocusedWorkspaceHost.Content is DailySalesReportWorkspace dsr)
             window.reportsWorkspaceView.ApplyScope(dsr.BusinessDatePicker.SelectedDate, dsr.BusinessDatePicker.SelectedDate, dsr.ScopeSelector.SelectedItem?.ToString());
         _ = window.reportsWorkspaceView.RunReportAsync(code);

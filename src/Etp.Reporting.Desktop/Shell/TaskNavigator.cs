@@ -407,8 +407,7 @@ public sealed partial class TaskNavigator(MainWindow window)
         }
         if (id == "masters") return new UserControl { Content = new ScrollViewer { Content = window.settingsWorkspace.CreateEveningMastersView(() => window.CurrentShellAccess.CanImport), VerticalScrollBarVisibility = ScrollBarVisibility.Auto } };
         if (id == "tender-rules") return new UserControl { Content = new ScrollViewer { Content = window.settingsWorkspace.CreateDataTruthMastersView(), VerticalScrollBarVisibility = ScrollBarVisibility.Auto } };
-        if (task.Section == "report-filters") { view = window.reportsWorkspaceView; body = new int[] {0,1}; actions = new int[] {}; }
-        else if (task.Destination is "Daily Workflow" or "Manual Entry")
+        if (task.Destination is "Daily Workflow" or "Manual Entry")
         {
             view = window.dailyWorkflowWorkspace;
             window.dailyWorkflowWorkspace.SelectPackTask(id);

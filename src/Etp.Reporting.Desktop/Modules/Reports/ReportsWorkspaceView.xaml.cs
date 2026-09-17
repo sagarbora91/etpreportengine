@@ -99,6 +99,7 @@ public partial class ReportsWorkspaceView : UserControl
 
     public async Task RunReportAsync(string report)
     {
+        ConfigureQueryFilters(report);
         if (report == "sales-titan") StoreFilterInput.Text = "WLMHW";
         if (report == "sales-helios") StoreFilterInput.Text = "HEMW";
         if (report is "sales-combined" or "dsr") StoreFilterInput.Clear();
@@ -177,6 +178,7 @@ public partial class ReportsWorkspaceView : UserControl
     private void InvalidateReportScope()
     {
         ++reportRevision;
+        filterWorkspace?.InvalidateQueryFilters();
         if (presentation.Current.ReportCode is not { } reportCode) return;
         presentation.BeginReport(reportCode);
         ExceptionFilters.Visibility=reportCode=="exceptions"?Visibility.Visible:Visibility.Collapsed;
@@ -233,7 +235,22 @@ public partial class ReportsWorkspaceView : UserControl
     private async Task RunSalesReportAsync()
     {
         var revision = reportRevision;
-        try { var name=((ComboBoxItem)SalesDimensionInput.SelectedItem).Content!.ToString()!; var result=await controlledReportQueryFactory(connectionStringProvider()).RunSalesSummaryAsync(ReportScope(),Enum.Parse<ApplicationSalesDimension>(name)); if (revision != reportRevision) return; ReportGrid.ItemsSource=result.Rows; ReportResult.Text=$"{result.Status}: {result.Message}"; SetExport($"{name} Sales",ToReportingStatus(result.Status),result.PolicyVersion,result.Message,[new("Group"),new("Units","#,##0.00"),new("Net Sales","#,##0.00"),new("Bills","#,##0")],result.Rows.Select(x=>(IReadOnlyList<object?>)[x.Key,x.SourceSignedQuantity,x.SourceSignedNetAmount,x.DistinctInvoices]).ToArray(),["Total",result.Rows.Sum(x=>x.SourceSignedQuantity),result.Rows.Sum(x=>x.SourceSignedNetAmount),result.Rows.Sum(x=>x.DistinctInvoices)]); ApplyReportFilter(); await auditRecorder("ReportRun",ToAuditOutcome(result.Status),"Sales report"); }
+        try
+        {
+            var name = ((ComboBoxItem)SalesDimensionInput.SelectedItem).Content!.ToString()!;
+            var result = await controlledReportQueryFactory(connectionStringProvider()).RunSalesSummaryAsync(ReportScope(), Enum.Parse<ApplicationSalesDimension>(name));
+            if (revision != reportRevision) return;
+            var sales = result.Rows.Sum(row => row.SourceSignedNetAmount);
+            var units = result.Rows.Sum(row => row.SourceSignedQuantity);
+            ReportGrid.ItemsSource = result.Rows;
+            ReportResult.Text = $"{result.Status}: Sales incl. GST {sales:N2}; units {units:N2}. {result.Message}";
+            SetExport($"{name} Sales", ToReportingStatus(result.Status), result.PolicyVersion, result.Message,
+                [new("Group"), new("Units", "#,##0.00"), new("Net Sales", "#,##0.00"), new("Bills", "#,##0")],
+                result.Rows.Select(row => (IReadOnlyList<object?>)[row.Key, row.SourceSignedQuantity, row.SourceSignedNetAmount, row.DistinctInvoices]).ToArray(),
+                ["Total", units, sales, result.Rows.Sum(row => row.DistinctInvoices)]);
+            ApplyReportFilter();
+            await auditRecorder("ReportRun", ToAuditOutcome(result.Status), "Sales report");
+        }
         catch (Exception ex) { if (revision != reportRevision) return; HandleFailure(ex, "SALES_REPORT_FAILED", "Sales report failed"); }
     }
 
@@ -360,7 +377,7 @@ public partial class ReportsWorkspaceView : UserControl
 
     private void SetExport(string name, ReconciliationStatus status, string ruleVersion, string message, IReadOnlyList<ExcelReportColumn> columns, IReadOnlyList<IReadOnlyList<object?>> rows, IReadOnlyList<object?>? totals, DailySalesReportDocument? dsrReport = null, DateOnly? businessDate = null)
     {
-        var scope=ReportScope(); var snapshot=presentation.SetReport(new(name,businessDate??scope.DateFrom,businessDate??scope.DateTo,status.ToString(),ruleVersion,message,DateTimeOffset.UtcNow),new(columns,rows,totals),dsrReport); var renderFailure=ReportPresentationHost.Show(snapshot); if(renderFailure is not null)_=auditRecorder("VisualRender","Failed","Visual summary could not be rendered; detailed report remained available"); previewUpdater(snapshot,ReportGrid.ItemsSource,ReportResult.Text); RefreshExportAvailability();
+        var scope=ReportScope(); var snapshot=presentation.SetReport(new(name,businessDate??scope.DateFrom,businessDate??scope.DateTo,status.ToString(),ruleVersion,message,DateTimeOffset.UtcNow,AppliedQueryScope()),new(columns,rows,totals),dsrReport); var renderFailure=ReportPresentationHost.Show(snapshot); if(renderFailure is not null)_=auditRecorder("VisualRender","Failed","Visual summary could not be rendered; detailed report remained available"); previewUpdater(snapshot,ReportGrid.ItemsSource,ReportResult.Text); RefreshExportAvailability();
     }
 
     private void RefreshExportAvailability()
