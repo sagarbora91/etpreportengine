@@ -27,6 +27,13 @@ public partial class AdministrationWorkspaceView : UserControl
 
     public Func<Task>? AccessChangedAsync { get; set; }
     public string StatusText => AdministrationStatus.Text;
+
+    /// <summary>R4. The Database and recovery lines currently shown, for assertions.</summary>
+    public IReadOnlyList<DatabaseRecoveryLine> RecoveryLines { get; private set; } = [];
+    public string RecoveryStatusText => DatabaseRecoveryStatus.Text;
+
+    /// <summary>Overridable so a test can supply health without a live SQL instance.</summary>
+    internal Func<Task<Etp.Reporting.Infrastructure.SqlServer.DatabaseOperationalHealth>>? HealthLoader { get; set; }
     public int MasterRowCount => ControlledMastersGrid.Items.Count;
     public int UserRowCount => ApplicationUsersGrid.Items.Count;
     public void UpdateAccess(OperationsAdministrationWorkspaceAccess value) => access = value;
@@ -55,6 +62,7 @@ public partial class AdministrationWorkspaceView : UserControl
             KpiCatalogueGrid.ItemsSource = state.Kpis;
             ProductHealthGrid.ItemsSource = state.ProductHealth;
             AdministrationStatus.Text = state.Status;
+            await RefreshDatabaseRecoveryAsync(revision);
         }
         catch (Exception ex) { if (revision != refreshRevision) return; DesktopDiagnostics.Record(ex, "OperationsAdministration.Administration", "ADMINISTRATION_REFRESH_FAILED"); AdministrationStatus.Text = $"Master administration could not be loaded: {DesktopFriendlyError.Describe(ex, "Owner permission is required.")}"; }
     }
@@ -68,6 +76,52 @@ public partial class AdministrationWorkspaceView : UserControl
     }
 
     private async void SaveMaster_Click(object sender, RoutedEventArgs e) => await SaveMasterDraftAsync();
+    // R4. Owner-only, like the rest of this screen: RefreshAsync has already called
+    // RequireOwnerAccess before this runs.
+    private async Task RefreshDatabaseRecoveryAsync(int revision)
+    {
+        try
+        {
+            var loader = HealthLoader
+                ?? (() => new Etp.Reporting.Infrastructure.SqlServer.DatabaseOperationalHealthRepository(connectionStringProvider()).LoadAsync(default));
+            var health = await loader();
+            if (revision != refreshRevision) return;
+            RecoveryLines = DatabaseRecoveryPresentation.Lines(
+                health, Etp.Reporting.Infrastructure.SqlServer.DatabaseOperationalHealthThresholds.Default, DateTime.UtcNow);
+            DatabaseRecoveryGrid.ItemsSource = RecoveryLines;
+            var unresolved = RecoveryLines.Count(line =>
+                line.Status == DatabaseRecoveryPresentation.Missing || line.Status.StartsWith("Stale", StringComparison.Ordinal));
+            DatabaseRecoveryStatus.Text = unresolved == 0
+                ? "Backup and recovery evidence is present and current."
+                : $"{unresolved} item(s) need attention. Missing or stale evidence is never reported as healthy.";
+        }
+        catch (Exception ex)
+        {
+            if (revision != refreshRevision) return;
+            DesktopDiagnostics.Record(ex, "OperationsAdministration.Administration", "DATABASE_RECOVERY_LOAD_FAILED");
+            RecoveryLines = DatabaseRecoveryPresentation.Lines(null, Etp.Reporting.Infrastructure.SqlServer.DatabaseOperationalHealthThresholds.Default, DateTime.UtcNow);
+            DatabaseRecoveryGrid.ItemsSource = RecoveryLines;
+            DatabaseRecoveryStatus.Text = "Database and recovery health could not be read. " + DesktopFriendlyError.Describe(ex, "Owner permission is required.");
+        }
+    }
+
+    private async void SupportPackage_Click(object sender, RoutedEventArgs e)
+    {
+        SupportPackageButton.IsEnabled = false;
+        DatabaseRecoveryStatus.Text = "Creating the support package…";
+        try
+        {
+            var result = await PowerShellOperationsService.RunAsync("new-etp-support-package.ps1", connectionStringProvider());
+            DatabaseRecoveryStatus.Text = result.Message;
+        }
+        catch (Exception ex)
+        {
+            DesktopDiagnostics.Record(ex, "OperationsAdministration.Administration", "SUPPORT_PACKAGE_FAILED");
+            DatabaseRecoveryStatus.Text = "The support package could not be created. " + DesktopFriendlyError.Describe(ex, "Owner permission is required.");
+        }
+        finally { SupportPackageButton.IsEnabled = true; }
+    }
+
     public async Task<bool> SaveMasterDraftAsync()
     {
         if (!BeginSave()) return false;

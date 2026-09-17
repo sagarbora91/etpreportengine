@@ -442,7 +442,9 @@ public sealed partial class TaskNavigator(MainWindow window)
         else if (task.Destination == "Admin / Settings")
         {
             view = window.administrationWorkspaceView; window.administrationWorkspaceView.SelectTask(id);
-            (body, actions) = id switch { "users" => (new int[] {5,6,8,14}, new int[] {7}), "kpi" or "profiles" => (new int[] {10,11,14}, new int[] {}), "health" => (new int[] {12,13,14}, new int[] {}), _ => (new int[] {0,1,3,14}, new int[] {2}) };
+            (body, actions) = id switch { "users" => (new int[] {5,6,8,14}, new int[] {7}), "kpi" or "profiles" => (new int[] {10,11,14}, new int[] {}), // R4 inserted the Database and recovery block at 12, moving the renamed
+                // Integration health heading, its grid and the status line down by one.
+                "health" => (new int[] {12,13,14,15}, new int[] {}), _ => (new int[] {0,1,3,14}, new int[] {2}) };
         }
         else if (id is "approval-centre" or "adjustment" or "investigation")
         { view = window.investigationWorkspaceView; (body, actions) = id switch { "approval-centre" => (new int[] {3,7,8}, new int[] {9}), "adjustment" => (new int[] {3,5,6}, new int[] {}), _ => (new int[] {0,1,3,4}, new int[] {2}) }; }

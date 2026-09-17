@@ -18,6 +18,11 @@ public sealed record DatabaseOperationalHealth(
     public string? LastSuccessfulBackupSha256 { get; init; }
     public DateTime? LastSuccessfulRecoveryDrillUtc { get; init; }
     public string? LastSuccessfulRecoveryDrillSha256 { get; init; }
+
+    // Read alongside the health procedure rather than added to it: the procedure is
+    // owned by a committed migration and the runner is checksum fail-closed.
+    public DateTime? LastSuccessfulImportUtc { get; init; }
+    public int LastSuccessfulImportFiles { get; init; }
 }
 
 public sealed record DatabaseOperationalHealthThresholds(
@@ -94,17 +99,40 @@ public sealed class DatabaseOperationalHealthRepository(string connectionString)
             throw new InvalidOperationException("A SQL Server connection string is required.");
         await using var connection = new SqlConnection(LocalSqlConnectionPolicy.Validate(connectionString));
         await connection.OpenAsync(cancellationToken);
-        await using var command = new SqlCommand(Sql, connection);
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        if (!await reader.ReadAsync(cancellationToken))
-            throw new InvalidOperationException("Database health metrics were not returned.");
-        var size = reader.GetDecimal(0);
-        decimal? max = reader.IsDBNull(1) ? null : reader.GetDecimal(1);
-        DateTime? backup = reader.IsDBNull(2) ? null : DateTime.SpecifyKind(reader.GetDateTime(2), DateTimeKind.Utc);
-        var failures = reader.GetInt32(3);
-        string? backupHash = reader.IsDBNull(4) ? null : reader.GetString(4);
-        DateTime? drill = reader.IsDBNull(5) ? null : DateTime.SpecifyKind(reader.GetDateTime(5), DateTimeKind.Utc);
-        string? drillHash = reader.IsDBNull(6) ? null : reader.GetString(6);
+        decimal size; decimal? max; DateTime? backup; int failures; string? backupHash; DateTime? drill; string? drillHash;
+        await using (var command = new SqlCommand(Sql, connection))
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+        {
+            if (!await reader.ReadAsync(cancellationToken))
+                throw new InvalidOperationException("Database health metrics were not returned.");
+            size = reader.GetDecimal(0);
+            max = reader.IsDBNull(1) ? null : reader.GetDecimal(1);
+            backup = reader.IsDBNull(2) ? null : DateTime.SpecifyKind(reader.GetDateTime(2), DateTimeKind.Utc);
+            failures = reader.GetInt32(3);
+            backupHash = reader.IsDBNull(4) ? null : reader.GetString(4);
+            drill = reader.IsDBNull(5) ? null : DateTime.SpecifyKind(reader.GetDateTime(5), DateTimeKind.Utc);
+            drillHash = reader.IsDBNull(6) ? null : reader.GetString(6);
+        }
+
+        // Last completed import and how many files it carried. Read-only, and separate
+        // from the health procedure so no committed migration has to be touched.
+        DateTime? lastImport = null; var lastImportFiles = 0;
+        await using (var importCommand = new SqlCommand("""
+            SELECT TOP(1) b.completed_utc,
+                   (SELECT COUNT(*) FROM dbo.import_files f WHERE f.import_batch_id=b.import_batch_id)
+            FROM dbo.import_batches b
+            WHERE b.status='Completed' AND b.completed_utc IS NOT NULL
+            ORDER BY b.completed_utc DESC;
+            """, connection))
+        await using (var importReader = await importCommand.ExecuteReaderAsync(cancellationToken))
+        {
+            if (await importReader.ReadAsync(cancellationToken))
+            {
+                lastImport = DateTime.SpecifyKind(importReader.GetDateTime(0), DateTimeKind.Utc);
+                lastImportFiles = importReader.GetInt32(1);
+            }
+        }
+
         decimal? backupFreeSpaceGb = null;
         var backupDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "EtpReporting", "Backups");
         try
@@ -115,6 +143,7 @@ public sealed class DatabaseOperationalHealthRepository(string connectionString)
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException) { }
         return DatabaseOperationalHealthEvaluator.Evaluate(size, max, backup, failures, DateTime.UtcNow,
             backupFreeSpaceGb: backupFreeSpaceGb, lastBackupSha256: backupHash,
-            lastRecoveryDrillUtc: drill, lastRecoveryDrillSha256: drillHash, monitorRecoveryDrill: true);
+            lastRecoveryDrillUtc: drill, lastRecoveryDrillSha256: drillHash, monitorRecoveryDrill: true)
+            with { LastSuccessfulImportUtc = lastImport, LastSuccessfulImportFiles = lastImportFiles };
     }
 }
