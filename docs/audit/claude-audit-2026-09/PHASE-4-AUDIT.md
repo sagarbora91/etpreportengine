@@ -347,3 +347,68 @@ That creates `EtpAutomation`, applies the ACLs, creates `Share` and writes the p
 So A4.3 needs, in order: the **code-signing certificate**, a signed installed release under an administrator-owned directory, then elevation, then the folder configuration from A4.2. It is blocked behind the certificate purchase, not behind a single command. My earlier "one elevated run" framing was right for A4.2 and wrong for A4.3.
 
 The one existing task, "ETP Reporting Monthly Recovery Drill" running as `Sagar`, predates this work and is not what A4.3 asks for. It should be removed and reinstalled under the dedicated principal when the signed release exists — `scripts/remove-etp-scheduled-tasks.ps1` is the supported route.
+
+---
+
+## 11. Acceptance VM results — 17 September 2026
+
+Tested on the Hyper-V acceptance VM `ETP-Acceptance-186` rather than the shop PC, so a mistake costs nothing. Host `DESKTOP-6IBM1J5`, guest `DESKTOP-IPT0J6H`, Windows 11 Enterprise Evaluation build 26200 (licence valid to 10 Dec 2026), 4 GB assigned, SQL Server 2022 **Express Edition** 16.0.1000.6, ETP 1.8.8 (`d24a525b`) installed.
+
+Access was by **PowerShell Direct over the VMBus**, not the network: the guest firewall has 5985, 5986, 3389 and 445 all closed and does not answer ping, which is correct for a fresh Windows 11 on an unidentified network. PowerShell Direct is unaffected by that. The guest account `ETPTest` holds local administrator rights.
+
+The VM would not previously start because `Create-TestVM.ps1` set 6 GB of **fixed** memory (`-DynamicMemoryEnabled $false`) against a host with 3.6–4.5 GB free. Enabling dynamic memory at 1 GB minimum / 3 GB startup / 6 GB maximum fixed it; the VM has since stayed up and reported "Operating normally".
+
+### A4.2 folder ACLs — **PASS, by execution**
+
+The guest reproduced the shop PC's defect exactly before the fix: `BUILTIN\Users:(I)(OI)(CI)(RX)` **and** `BUILTIN\Users:(I)(CI)(WD,AD,WEA,WA)` on the root, `Backups` and `Documents`; `Share` absent; four backup files exposed.
+
+The two scripts were transferred through PowerShell Direct and **verified by SHA-256 against the host copies before running** — `initialize-etp-operation-folders.ps1` `BD2EF95AD2A9C60C…`, `etp-operations-common.ps1` `F2E3AB7CDBAAB3E5…` — so what ran is exactly what is committed on `integration/phase-2-3-4-fixes`.
+
+Run in strict mode (`-GrantAutomationFolderAccess:$false`), exit code 0, output: *"Strict folder protection applied. Automation remains unconfigured until its folder-access decision is approved."*
+
+After:
+
+```
+C:\ProgramData\EtpReporting          SYSTEM:(OI)(CI)(F)  Administrators:(OI)(CI)(F)  MSSQL$SQLEXPRESS:(OI)(CI)(RX)
+C:\ProgramData\EtpReporting\Backups  SYSTEM:(OI)(CI)(F)  Administrators:(OI)(CI)(F)  MSSQL$SQLEXPRESS:(OI)(CI)(M)
+C:\ProgramData\EtpReporting\Documents SYSTEM:(OI)(CI)(F) Administrators:(OI)(CI)(F)  MSSQL$SQLEXPRESS:(OI)(CI)(M)
+C:\ProgramData\EtpReporting\Share    SYSTEM:(OI)(CI)(F)  Administrators:(OI)(CI)(F)  MSSQL$SQLEXPRESS:(OI)(CI)(M)
+```
+
+**Every `BUILTIN\Users` entry is gone**, inheritance is correctly broken (no `(I)` flags remain), `CREATOR OWNER` is removed, the interactive user's own grant on `Documents` is removed, `Share` is created, and the four existing backup files were **preserved, not deleted**. That is the criterion met.
+
+**And it does not break the service.** The regression that would actually matter is locking the folder so tightly that SQL can no longer write a backup. It can: `BACKUP DATABASE master ... WITH COPY_ONLY, CHECKSUM` to the locked-down `Backups` folder succeeded — 506 pages, 4.1 MB — after the lockdown. The test file was removed. So the fix is secure **and** functional.
+
+**One gap, and it is mine, not the code's.** I ran strict mode only. The `-CreateAutomationAccount` path — which provisions `EtpAutomation` and grants it folder access — was refused by this environment's safety controls because it creates a Windows account and rewrites permissions. `EtpAutomation` therefore still does not exist in the guest, and that path remains **UNVERIFIED**. It is one command for Sagar to run inside the VM, and A4.3 depends on it.
+
+### A4.4 encrypted backup — **BLOCKED, now proven rather than inferred**
+
+Previously I recorded this as blocked by reading the edition string. The engine has now refused the operation in its own words:
+
+```
+Msg 1844, Level 16, State 1
+BACKUP DATABASE WITH ENCRYPTION is not supported on Express Edition (64-bit).
+Msg 3013: BACKUP DATABASE is terminating abnormally.
+```
+
+The VM carries the same Express edition as the shop PC, so moving the test to a clean machine changes nothing. **A4.4 cannot be closed on any Express instance**, and no amount of further testing alters that.
+
+Three ways forward, in order of cost:
+
+1. **Install SQL Server Developer Edition in the VM.** It is free, licensed for non-production, and supports `BACKUP ... WITH ENCRYPTION`. That would close A4.4 as a *mechanism* — certificate creation, encrypted backup, drill restore and receipt verification all proven end to end — while leaving the production edition a separate purchase.
+2. **Buy SQL Server Standard** for the shop PC, which closes it for production.
+3. **Revise decision D9** to accept a different protection for backups at rest, at which point A4.4 is rewritten rather than met.
+
+Option 1 is the only one that produces evidence without spending money, and I recommend it.
+
+### A4.3 scheduled tasks — still blocked, unchanged
+
+Two prerequisites remain unmet in the guest: the `EtpAutomation` account does not exist (above), and the task installers require a signed, administrator-owned install tree (`Assert-EtpProtectedInstall` plus `-ExecutionPolicy AllSigned`). A self-signed certificate created inside the VM could prove the mechanism, but only after the automation account exists.
+
+### Phase 3 A3.3 — not attempted here, and why
+
+Codex's own runbook lists guest scaling at 100/125/150% as step 7, which is the natural home for A3.3's outstanding DPI half. It was **not** run, because the guest has **1.8.8** (`d24a525b`) installed, not the Phase 2–5 candidate. Testing 125% scaling against the old shell would prove nothing about the Phase 3 redesign. Closing A3.3 in the VM first requires building the candidate and installing it there; the self-contained executable is ~159 MB, so that needs Guest Service Interface enabled for `Copy-VMFile` (currently disabled) or an ISO.
+
+### State left behind
+
+`C:\EtpPhase4Test\scripts\` in the guest holds the two transferred scripts, retained deliberately so the automation-account step can be run without re-transfer. The guest's machine execution policy is **Undefined at every scope** — verified after the run; only a process-scope bypass was used. No host ACL, account, task or database was touched, and the shop PC was not involved in any of this work.
