@@ -343,6 +343,19 @@ asserts rather than my having eyeballed it.
 
 ---
 
+## What happened after this report
+
+This report covers the R1–R4 recovery track only. The same session went on to merge the
+product line into `main`, build and install the application, and find four further defects
+in doing so — P4-12 (setup reported a failed install as a success, and hung when silent)
+and P4-13 (the D9 revision was only applied to the backup script, not to the operations
+module installer, which blocks Phase 4 closure on Express).
+
+`docs/audit/SESSION-HANDOFF-2026-09-17.md` carries that state, the machine and database
+state as left, and what Phase 4 still needs. **Phase 4 is not closed.**
+
+---
+
 ## What this report does not claim
 
 1. **A-R3's touch pass is the owner's observation, not this audit's measurement.** The automated
