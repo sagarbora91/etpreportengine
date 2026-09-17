@@ -154,3 +154,73 @@ Because `0024` is committed and immutable, correcting these means either an Owne
 ### Import Failure Register
 
 All thirteen rows remain `VERIFIED (Claude Phase 1 audit)`. The integration work produced no new import failure: my own 32-file fixture import through the restricted Store Manager path completed with every file `Imported` or `empty export`. No new row is warranted.
+
+---
+
+## 10. Owner decisions closed — 17 September 2026
+
+The three items that were blocking Phase 2 are now decided. None of them needs application code: the DSR brand query already matches a row against brand code, brand name **or** cluster (`EveningReportRepository.cs:43`), so D4 is data, not development.
+
+### A2.2 Closing stock — **CLOSED. Source figure accepted.**
+
+Sagar accepts the source export figure of **Titan 814 / Helios 502**. His three single-unit paper corrections (Titan EDGE −1, Titan cluster WRKWR −1, Helios SEIKO −1) stay off the system: they are not subtracted, and no adjustment feature is built for them now. Reports reconcile to the ETP export, and the owner's sheet will differ by three units until an adjustment-with-reason feature is proposed separately. **A2.2 passes.**
+
+### A2.6 Titan 2025–26 history — **DEFERRED TO PHASE 5, not waived.**
+
+Sagar will have the real Titan and Service exports by the time Phase 5 runs, so the criterion is not retired — it moves. Phase 2 does not hold open for it. Record against Phase 5: import the real Titan 2025–26 history and verify last-year comparison figures against the workbook. Until then the last-year logic is evidenced by the synthetic fixture and by Helios only.
+
+### D4 Brand rows — **CLOSED with a corrected mapping.**
+
+Two corrections to my own earlier reporting, found by querying the real 1 Jul–25 Aug exports rather than reading the seed:
+
+- **XYLYS does exist** in the Titan data (₹10,005, one line). My earlier statement that it was absent was wrong.
+- **CERUTI is a brand name**, not a cluster-only value (₹98,549). Only the spelling was wrong — the source has one R, the seed has two.
+- `AUTOMATIC` is still not a Titan brand. `AUTMC` is a **Helios** cluster belonging to Kenneth Cole, and `GAUTO` does not appear in this period at all. My earlier "AUTOMATIC → GAUTO" was wrong.
+
+**Why the seeded rows read zero.** `0024_evening_report_masters.sql:25` seeds `brand_row_codes` as `source_brand = row_label`, so the row labelled SEIKO looks for a brand literally named "SEIKO". Helios has no such brand: it sells Seiko under brand name `HELIOS` with cluster `SEKOG`. The row label and the matching value are different things, and the query already supports matching either.
+
+**Approved mapping — Titan World (WLMHW), by brand name:**
+
+| Row label | Source values mapped | Value 1 Jul–25 Aug |
+|---|---|---:|
+| TITAN | `TITAN` | ₹10,17,619 |
+| Raga | `Raga` | ₹4,35,267 |
+| EDGE | `EDGE` | ₹2,71,586 |
+| SONATA | `SONATA` | ₹1,31,059 |
+| **Fastrack** | `FASTRACK WATCH`, `FASTRACK WEARABLES` | ₹1,41,445 |
+| XYLYS | `XYLYS` | ₹10,005 |
+
+`NEBULA` is **removed** — it appears only on a packaging line and is not a brand. `AUTOMATIC` is removed. Fastrack watches and wearables are combined into one row at Sagar's instruction (17 Sep 2026). Remaining small brands (TITAN FRAGRANCES, VYB, ZOOP, TITAN WEARABLES, CLOCKY, Tees, POZE) stay under Other / unmapped by choice, not by defect.
+
+**Approved mapping — Helios (HEMW), by cluster where the house brand carries the watch:**
+
+| Row label | Source values mapped | Match type | Value 1 Jul–25 Aug |
+|---|---|---|---:|
+| SEIKO | `SEKOG` | cluster | ₹5,63,500 |
+| FOSSIL | `FOSLG`, `FOSLL` | cluster | ₹4,45,746 |
+| TOMMY HILFIGER | `TOMMY HILFIGER` | brand name | ₹1,81,471 |
+| CERUTI | `CERUTI` | brand name | ₹98,549 |
+| KENNETH COLE | `KENNETH COLE` | brand name | ₹96,788 |
+| CITIZEN | `CTZNG` | cluster | ₹86,700 |
+| POLICE | `POLICE` | brand name | ₹62,997 |
+| ANNE KLEIN | `ANNE KLEIN` | brand name | ₹53,988 |
+
+**Implementation note that must not be missed: do not create a `HELIOS` row.** The query orders matches brand code → brand name → cluster (`:44`). A row mapped to the brand name `HELIOS` would capture every Seiko, Fossil, Citizen, G-Shock and Guess line by name before their cluster rules could fire, and silently empty four of the eight rows. `HELIOS` must stay unmapped so those lines fall through to cluster matching. The same ordering is what makes Tommy Hilfiger, Ceruti and Kenneth Cole safe despite all three carrying a `SPORT` cluster — they match by name first.
+
+**How it lands.** `0024` is committed and immutable, and it seeded eight wrong rows. Correcting them needs either a new migration that replaces the contents of `brand_rows` and `brand_row_codes` for both stores, or an Owner edit through Settings → Brands and targets after deployment. A migration is preferable: reproducible, and it fixes a fresh install as well as this one. `brand_row_codes` has primary key `(store_code, source_brand)`, so mapping two source values to one row — Fastrack and Fossil — is supported without change.
+
+**Acceptance for the fix:** with the mapping applied, run the DSR for 1 Jul–25 Aug on a disposable database loaded from the real exports; each row above shows the value in its table, the sum of the mapped rows plus Other / unmapped equals the store total, and no mapped row reads 0.00.
+
+### Revised Phase 2 position
+
+| ID | Status |
+|---|---|
+| A2.1 | PASS |
+| A2.2 | **PASS** — source figure accepted 17 Sep |
+| A2.3 | PASS |
+| A2.4 | PASS (carried) |
+| A2.5 | PASS |
+| A2.6 | **DEFERRED to Phase 5** with the owner's agreement |
+| D4 | **DECIDED** — mapping above, implementation outstanding |
+
+Phase 2's acceptance criteria are now all either passed or deliberately moved. What remains before Phase 2 can be called closed is **code, not decisions**: the D4 mapping migration, plus R1 (durable import history) and R2 (advanced report filters) carried in from the feature-retention audit.
