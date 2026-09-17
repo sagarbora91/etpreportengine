@@ -1,4 +1,4 @@
-using Etp.Reporting.Desktop;
+﻿using Etp.Reporting.Desktop;
 
 namespace Etp.Reporting.Desktop.Tests;
 
@@ -28,7 +28,9 @@ public sealed class TaskNavigationTests
             Assert.False(navigation.Navigate(new("Home", TaskId: "category:Settings:Display"), access).IsAllowed);
             Assert.True(navigation.Navigate(display.Route, access).IsAllowed);
             Assert.Equal(display.Route, navigation.Current);
-            foreach (var id in new[] { "connection", "users", "recovery" })
+            // Every owner-only Settings task, not a sample of three: R4 put the database and
+            // recovery block behind this gate, so "health" in particular has to be named here.
+            foreach (var id in new[] { "connection", "health", "backups", "recovery", "support-package", "audit", "users", "profiles" })
                 Assert.Equal(access.CanAdminister, navigation.Navigate(TaskNavigation.Find(id)!.Route, access).IsAllowed);
         }
         Assert.False(new ShellNavigationService().Navigate(TaskNavigation.Find("settings")!.Route, ShellAccess.DatabaseSetup).IsAllowed);
