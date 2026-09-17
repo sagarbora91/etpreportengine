@@ -21,6 +21,8 @@ public sealed record FolderImportFileResult(
     string Message = "",
     IReadOnlyList<ImportIssue>? Diagnostics = null)
 {
+    public string? SourcePath { get; init; }
+    public string? SourceSha256 { get; init; }
     public string Period => PeriodStart is null ? "—" : PeriodStart == PeriodEnd
         ? PeriodStart.Value.ToString("dd MMM yyyy")
         : $"{PeriodStart:dd MMM yyyy} – {PeriodEnd:dd MMM yyyy}";

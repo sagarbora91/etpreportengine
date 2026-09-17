@@ -18,6 +18,7 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
     private Func<string, string, string, Task> auditRecorder = static (_, _, _) => Task.CompletedTask;
     private Func<Task> dashboardRefresher = static () => Task.CompletedTask;
     private IReadOnlyList<FolderImportFileResult> latestResults = [];
+    private FolderImportOptions? lastImportOptions;
     private string currentTask = "import-files";
     public ImportWorkspaceView(DesktopImportCoordinator coordinator, Func<string> connectionStringProvider)
     {
@@ -30,15 +31,17 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
     public event EventHandler<string>? NotificationRequested;
     public event EventHandler<string>? ReadinessChanged;
     public event EventHandler<FolderImportProgress>? ProgressChanged;
+    public event EventHandler? RetryAvailabilityChanged;
     public DateTime? BusinessDate { get; set; }
     public IReadOnlyList<ImportProblem> Problems => latestResults.Where(r => r.Failed || r.ConflictRows > 0 || r.Status.Contains("Duplicate",StringComparison.OrdinalIgnoreCase) || r.Status == "Unknown layout")
         .Select(r => new ImportProblem(r.FileName, r.ConflictRows > 0 ? "Conflict" : r.Status, r.StoreCode ?? "", r.Period, $"{r.NewRows} new rows; {r.AlreadyPresentRows} present; {r.ConflictRows} conflicts")).ToArray();
-    public bool CanRetry => !IsBusy && latestResults.Any(result => result.Failed);
+    public bool CanRetry => accessProvider().CanImport && !IsBusy && coordinator.FailedBatchPaths.Count > 0;
     public void AttachHost(Func<ImportWorkspaceAccess> accessProvider, Func<string, string, string, Task> auditRecorder, Func<Task> dashboardRefresher)
     {
         this.accessProvider = accessProvider;
         this.auditRecorder = auditRecorder;
         this.dashboardRefresher = dashboardRefresher;
+        RetryAvailabilityChanged?.Invoke(this, EventArgs.Empty);
     }
     public void SelectTask(string taskId)
     {
@@ -69,21 +72,25 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
         WorkbookPathInput.Text = dialog.FolderName;
         return true;
     }
-    public async Task ImportSelectedSourceAsync()
+    public Task ImportSelectedSourceAsync() => RunImportAsync(retry: false);
+    public Task RetryFailedBatchAsync() => CanRetry ? RunImportAsync(retry: true) : Task.CompletedTask;
+    private async Task RunImportAsync(bool retry)
     {
         using var operation = BeginImportOperation();
         if (operation is null) return;
         try
         {
             if (!accessProvider().CanImport) throw new UnauthorizedAccessException("Owner or Store Manager permission is required.");
-            if (string.IsNullOrWhiteSpace(WorkbookPathInput.Text)) throw new InvalidOperationException("Choose a folder, workbook or ZIP first.");
-            var restate = RestatementModeInput.IsChecked == true;
+            if (!retry && string.IsNullOrWhiteSpace(WorkbookPathInput.Text)) throw new InvalidOperationException("Choose a folder, workbook or ZIP first.");
+            var restate = retry ? lastImportOptions?.RestatementEnabled == true : RestatementModeInput.IsChecked == true;
             if (restate && !accessProvider().CanAdminister) throw new UnauthorizedAccessException("Owner permission is required for a restatement.");
-            var options = new FolderImportOptions(Environment.UserName, restate, RestatementReasonInput.Text.Trim(),
+            var options = retry ? lastImportOptions! : new FolderImportOptions(Environment.UserName, restate, RestatementReasonInput.Text.Trim(),
                 restate ? (ImportStoreInput.SelectedItem as ComboBoxItem)?.Content?.ToString() : null,
                 restate && ImportBusinessDateInput.SelectedDate is { } date ? DateOnly.FromDateTime(date) : null);
+            lastImportOptions = options;
+            var previousResults = latestResults;
             CancelBatchButton.IsEnabled = true;
-            latestResults = [];
+            if (!retry) latestResults = [];
             DetectedScopeText.Text = "Detecting store and date range…";
             BatchResultsGrid.ItemsSource = latestResults;
             DiagnosticsGrid.ItemsSource = null;
@@ -95,19 +102,21 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
                 ImportProgressBar.Maximum = Math.Max(1, value.Total);
                 ImportProgressBar.Value = value.Completed;
                 ValidationResult.Text = $"{value.Completed:N0} of {value.Total:N0} files · {value.Stage} · {value.CurrentFile}";
-                latestResults = value.Files;
+                latestResults = retry ? MergeRetryResults(previousResults, value.Files) : value.Files;
                 SelectTask(currentTask);
                 ShowScope();
                 ProgressChanged?.Invoke(this, value);
             });
-            var summary = await coordinator.ImportFolderAsync(WorkbookPathInput.Text, connectionStringProvider(), options, progress);
-            latestResults = summary.Files;
+            var summary = retry
+                ? await coordinator.RetryFailedFolderAsync(progress)
+                : await coordinator.ImportFolderAsync(WorkbookPathInput.Text, connectionStringProvider(), options, progress);
+            latestResults = retry ? MergeRetryResults(previousResults, summary.Files) : summary.Files;
             SelectTask(currentTask);
             ShowScope();
             ValidationResult.Text = $"{summary.Imported:N0} imported · {summary.Duplicates:N0} duplicate/already present · {summary.NewRows:N0} new rows · {summary.Conflicts:N0} conflicts · {summary.Failed:N0} failed · {summary.UnknownLayouts:N0} unknown layouts.";
             ReadinessChanged?.Invoke(this, summary.Failed > 0 ? "Review import results" : "Import completed");
             await dashboardRefresher();
-            await auditRecorder("ImportBatch", summary.Failed > 0 ? "Failed" : "Succeeded", "Folder import completed");
+            await auditRecorder("ImportBatch", summary.Failed > 0 ? "Failed" : "Succeeded", retry ? "Failed-file retry completed" : "Folder import completed");
             NotificationRequested?.Invoke(this, ValidationResult.Text);
         }
         catch (Exception exception)
@@ -115,6 +124,14 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
             DesktopDiagnostics.Record(exception, "Imports.Workspace", "FOLDER_IMPORT_FAILED");
             ValidationResult.Text = DesktopFriendlyError.Describe(exception);
         }
+    }
+    private static IReadOnlyList<FolderImportFileResult> MergeRetryResults(IReadOnlyList<FolderImportFileResult> previous,
+        IReadOnlyList<FolderImportFileResult> retried)
+    {
+        var updated = retried.Where(result => result.SourcePath is not null)
+            .ToDictionary(result => result.SourcePath!, StringComparer.OrdinalIgnoreCase);
+        return previous.Select(result => result.Failed && result.SourcePath is { } path && updated.TryGetValue(path, out var replacement)
+            ? replacement : result).ToArray();
     }
     private void ShowScope()
     {
@@ -142,6 +159,5 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
     private void BrowseWorkbook_Click(object sender, RoutedEventArgs e) => BrowseWorkbook();
     private async void StartBatchImport_Click(object sender, RoutedEventArgs e) => await ImportSelectedSourceAsync();
     private void CancelBatchImport_Click(object sender, RoutedEventArgs e) { if (ConfirmationSheet.Show(this, "Cancel import", "Stop after the current step? Completed imports remain saved.")) coordinator.CancelBatch(); }
-    public Task RetryFailedBatchAsync() => ImportSelectedSourceAsync();
     public ValueTask DisposeAsync() => coordinator.DisposeAsync();
 }

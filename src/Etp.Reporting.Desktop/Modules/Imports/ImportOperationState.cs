@@ -22,14 +22,14 @@ public partial class ImportWorkspaceView
     {
         if (IsBusy) return null;
         IsBusy = true;
+        RetryAvailabilityChanged?.Invoke(this, EventArgs.Empty);
         var states = importControls.Select(control => (Control: control, Enabled: control.IsEnabled)).ToArray();
         foreach (var state in states) state.Control.IsEnabled = false;
         return new ImportCompletion(() =>
         {
             foreach (var state in states) state.Control.IsEnabled = state.Enabled;
             IsBusy = false; CancelBatchButton.IsEnabled = false;
-
-
+            RetryAvailabilityChanged?.Invoke(this, EventArgs.Empty);
         });
     }
     private sealed class ImportCompletion(Action complete) : IDisposable

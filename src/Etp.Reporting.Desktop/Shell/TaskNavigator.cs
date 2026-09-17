@@ -385,7 +385,7 @@ public sealed partial class TaskNavigator(MainWindow window)
         UserControl view;
         int[] body; int[] actions;
         var id = task.Id;
-        if (task.Id == "conflicts") return new Modules.Imports.ImportProblemsView(async () =>
+        if (task.Id == "conflicts") return new Modules.Imports.ImportProblemsView(window.importWorkspaceView, async () =>
             window.importWorkspaceView.Problems.Concat(await window.sourceInboxWorkspaceView.LoadProblemsAsync()).Distinct().ToArray());
         if (task.Section == "import-results" || task.Destination == "Import ETP" && task.Section != "inbox")
         {
