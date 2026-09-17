@@ -1,6 +1,83 @@
-# Phase 3 audit fixes — 16 September 2026
+# Phase 3 audit fixes — 17 September 2026
 
-Branch: `integration/phase-2-3-4-fixes`. No item is marked closed; Claude re-audits and Sagar merges. The integration branch includes Phases 1–4, and Phase 2's outstanding owner decisions remain prerequisites for closure.
+## Closure candidate — 17 September
+
+Branch: `phase-2-3/closure`, created from Phase 5 at `0a0c38f`. Job 4 of the closure prompt is implemented for re-audit. The other three jobs are in `PHASE-2-REPORT.md`. No phase or criterion is marked closed; Claude re-audits, Sagar merges, and neither main nor Phase 5 has been merged into.
+
+### Job 4 — touch-accessible selective retry
+
+Import → Problems now exposes a **Retry failed** button beside the status filter. The button follows `CanRetry`, including role/busy changes; Ctrl+R remains available. The operation re-reads only the previous failed paths and preserves successful results. Changing the source chooser cannot retarget a retry. Extracted ZIP inputs remain available while the coordinator owns the source, and retry preserves sibling scope needed by empty exports. Failed files with identical names in different directories remain distinct by full path.
+
+`ImportRetryClosureTests` imports a real sanitised R025 workbook beside a deliberately corrupt workbook through `ImportWorkspaceView` and `DesktopImportCoordinator`. It repairs the failed input with the R022 fixture and raises the actual WPF button event. The reader observes only that failed path; successful R025 files, facts and row outcomes remain unchanged. Owner and Store Manager can retry; Viewer cannot reach the write route, the button is disabled, direct method invocation is rejected, and SQL denies write/execute access. It also checks the busy state and retained Ctrl+R command.
+
+This is automated button-path evidence, **not physical touch acceptance**. No restartable retry queue or retry export is claimed, so durability/export are not applicable under retention-audit §7. Durable outcome history and its separate-process restart test are covered by job 2.
+
+Focused commands run in `closure-retry`:
+
+```powershell
+dotnet test tests-dotnet/Etp.Reporting.SqlServer.Tests/Etp.Reporting.SqlServer.Tests.csproj -c Release --filter FullyQualifiedName~FolderImportServiceTests --verbosity minimal -m:1 -nodeReuse:false
+dotnet test tests-dotnet/Etp.Reporting.Desktop.Tests/Etp.Reporting.Desktop.Tests.csproj -c Release --filter FullyQualifiedName~DesktopImportCoordinatorTests --verbosity minimal -m:1 -nodeReuse:false
+dotnet test tests-dotnet/Etp.Reporting.SqlServer.IntegrationTests/Etp.Reporting.SqlServer.IntegrationTests.csproj -c Release --filter FullyQualifiedName~ImportRetryClosureTests --verbosity minimal -m:1 -nodeReuse:false
+```
+
+```text
+Passed! - Failed: 0, Passed: 16, Skipped: 0, Total: 16
+Passed! - Failed: 0, Passed: 10, Skipped: 0, Total: 10
+Passed! - Failed: 0, Passed: 3, Skipped: 0, Total: 3
+```
+
+### Remaining acceptance
+
+Claude still needs to install the candidate in the acceptance VM and perform A3.3's native Windows 125% DPI check. Sagar still needs to perform A3.8's timed touch walkthrough, including Retry with no keyboard. WPF layout/button tests do not substitute for those checks. The approved footer/More details design remains unchanged. Registers/investigation access is Phase 5 work. A2.2's 814/502 stock figures are owner-accepted, D4 now has the approved mapping, and A2.6's actual historical exports are deferred to Phase 5; there are no new owner design decisions requested by this branch.
+
+The 16 September evidence below is historical and describes the earlier integration snapshot.
+
+### Full combined validation — 17 September
+
+Verified application/test commit: `8055d99`; the remaining changes are these reports. Commands ran from `C:\Codex\Reporting Manger\phase23-closure`:
+
+```powershell
+dotnet build Etp.Reporting.slnx -c Debug --verbosity minimal -m:1 -nodeReuse:false
+dotnet build Etp.Reporting.slnx -c Release --verbosity minimal -m:1 -nodeReuse:false
+dotnet test Etp.Reporting.slnx -c Release --no-build --verbosity minimal -m:1 -nodeReuse:false --logger 'trx;LogFilePrefix=closure'
+```
+
+Both builds and the final test command exited 0. Build summaries:
+
+```text
+Debug:
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+Time Elapsed 00:00:20.11
+
+Release:
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+Time Elapsed 00:00:22.56
+```
+
+Final test summaries, **857 passed, 0 failed, 3 opt-in skipped**:
+
+```text
+Passed!  - Failed:     0, Passed:   355, Skipped:     2, Total:   357, Duration: 15 s - Etp.Reporting.Desktop.Tests.dll (net10.0)
+Passed!  - Failed:     0, Passed:    12, Skipped:     0, Total:    12, Duration: 103 ms - Etp.Reporting.Domain.Tests.dll (net10.0)
+Passed!  - Failed:     0, Passed:   110, Skipped:     0, Total:   110, Duration: 16 s - Etp.Reporting.Import.Tests.dll (net10.0)
+Passed!  - Failed:     0, Passed:    63, Skipped:     0, Total:    63, Duration: 542 ms - Etp.Reporting.Reporting.Tests.dll (net10.0)
+Passed!  - Failed:     0, Passed:    79, Skipped:     1, Total:    80, Duration: 4 m 10 s - Etp.Reporting.SqlServer.IntegrationTests.dll (net10.0)
+Passed!  - Failed:     0, Passed:   238, Skipped:     0, Total:   238, Duration: 984 ms - Etp.Reporting.SqlServer.Tests.dll (net10.0)
+```
+
+The three skips are the existing opt-in `PhaseThreeLiveCaptureTests`, `ExtractedWorkspaceUiSmokeTests` capture case, and `PhaseFourFullWindowSmokeTests`. The new history application-process restart test is always on and passed. Available private-corpus tests also ran. Detailed TRX files are in each test project's ignored `TestResults` directory. Console logs are outside Git in `C:\Codex\Reporting Manger\closure-validation`.
+
+The first full run found the missing History F1 route, an obsolete test expecting Viewer to have no Import tasks, and a WPF package-resource exception during parallel shell tests. History now has contextual help and a return route; the Viewer regression asserts read-only History plus denied import/problem routes; the new report-navigation tests run in a dedicated nonparallel WPF collection. The complete solution was rebuilt and rerun successfully after those corrections. The restricted Manager connection regression passes with the parameterised receipt command.
+
+Only new migrations 0027 and 0028 differ from the base migration set. `git diff --check` passed. This is coding/test evidence for re-audit, not phase closure or native DPI/touch acceptance.
+
+## Historical report — 16 September
+
+Historical branch: `integration/phase-2-3-4-fixes`. No item is marked closed; Claude re-audits and Sagar merges. The owner decisions mentioned in this earlier snapshot were resolved on 17 September as recorded above.
 
 ## Changes and regression evidence
 

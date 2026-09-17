@@ -1,4 +1,137 @@
-# Phase 2 audit fixes — 16 September 2026
+# Phase 2 audit fixes — 17 September 2026
+
+## Closure candidate — 17 September
+
+Branch: `phase-2-3/closure`, based on `phase-5/secondary-modules` at `0a0c38f`. This addendum supersedes the earlier pending decisions below. The candidate implements jobs 1–3 of `PHASE-2-3-CLOSURE-PROMPT.md`; job 4 is recorded in `PHASE-3-REPORT.md`. No phase or criterion is marked closed. Claude re-audits and Sagar merges; neither main nor Phase 5 has been merged into.
+
+### Job 1 — approved D4 mappings
+
+New migration `0027_approved_evening_brand_rows.sql` replaces only the two approved stores' mapping rows. Titan has TITAN, Raga, EDGE, SONATA, Fastrack (both source values) and XYLYS. Helios has SEIKO/SEKOG, FOSSIL/FOSLG+FOSLL, TOMMY HILFIGER, CERUTI, KENNETH COLE, CITIZEN/CTZNG, POLICE and ANNE KLEIN. There is no HELIOS mapping to intercept cluster matches. NEBULA/AUTOMATIC are removed. Production financial C# and earlier migrations are unchanged.
+
+`ApprovedBrandMappingTests` verifies a fresh install and an upgrade from 0026, unchanged existing migration receipts and facts, another store's retained mappings, a new physical connection, and opened Excel cell values/date scope. Its always-on fixture is synthetic. Existing brand-master role tests exercise actual Owner/Manager/Viewer reachability and SQL denial.
+
+Real acceptance imported the two authoritative R025 workbooks for 1 July–25 August into a generated disposable database. All 14 approved rows were nonzero. No private workbook, source row or private export was added to the repository.
+
+| Store | Mapped rows | Other / unmapped | Store total |
+|---|---:|---:|---:|
+| WLMHW | 2,006,980.25 | 136,473.50 | 2,143,453.75 |
+| HEMW | 1,589,739.10 | 46,775.00 | 1,636,514.10 |
+
+TITAN is **1,017,619.00** and SEIKO is **563,500.00**. Independent raw XML summation with Python `Decimal` confirmed that the audit rounded four source amounts: Raga **435,267.25**, EDGE **271,585.50**, SONATA **131,058.50**, KENNETH COLE **96,788.10**. Tests preserve source precision. The independent script is outside the repository at `C:\Codex\Reporting Manger\closure-brand-evidence\independent_source_check.py`.
+
+Commands run in the `closure-brands` worktree:
+
+```powershell
+dotnet test tests-dotnet/Etp.Reporting.SqlServer.IntegrationTests/Etp.Reporting.SqlServer.IntegrationTests.csproj -c Release --no-restore -m:1 -nodeReuse:false --filter 'FullyQualifiedName~ApprovedBrandMappingTests|FullyQualifiedName~CrossPhaseStoreManagerImportTests.Manager_duplicates_supersets_and_brands_preserve_fact_denials_and_locked_dates|FullyQualifiedName~CrossPhaseStoreManagerImportTests.Viewer_cannot_edit_brands_even_with_accidental_execute_grant' --logger 'console;verbosity=detailed'
+dotnet test tests-dotnet/Etp.Reporting.Desktop.Tests/Etp.Reporting.Desktop.Tests.csproj -c Release --filter FullyQualifiedName~EveningMastersAccessTests --verbosity minimal
+```
+
+```text
+Test Run Successful.
+Total tests: 6
+     Passed: 6
+ Total time: 21.6781 Seconds
+Passed! - Failed: 0, Passed: 5, Skipped: 0, Total: 5
+```
+
+### Job 2 — durable import history
+
+Import → History defaults to **Imports**, with **Received files** retained as the separate document inbox. The new view queries persisted `import_files`, `import_batches` and aggregated `import_row_outcomes` on activation and header date/store changes; it never uses `latestResults`. Source-row aggregation prevents R022's multiple fact projections from inflating the displayed counts. Newest outcomes appear first, with file/report/store/period/status/counts and selected diagnostics. Attempts whose date cannot be detected explicitly use their recorded UTC date. All assigned roles can read history; importing remains Owner/Manager-only. F1 opens the new import-history guide, whose workspace link returns to this read-only task.
+
+**Reasoned plan amendment:** a read-only query over those three tables cannot retain every duplicate or pre-persistence failure. Exact duplicates create no new canonical file, and the existing hash/scope uniqueness rule must remain intact. New migration `0028_durable_import_attempts.sql` adds separate append-only attempt receipts and a narrowly granted recording procedure. The canonical facts, existing day locks and previous migrations are unchanged. The query represents the original receipt once alongside its canonical row and retains subsequent receipts, including duplicates, failures and cancellations. Direct DML is denied; Viewer cannot execute the recording procedure.
+
+Messages are replaced with safe guidance and columns are allowlisted against approved schema headers on both write and read. Codes and source row numbers remain available. Review regressions cover an unexpected header containing sensitive text and linked failed/cancelled/subsequent attempts that would otherwise disappear.
+
+`DurableImportHistoryTests` launches the **actual composed application in four separate processes**: import three sanitised workbook families, exit; reopen/read, exit; repeat import, exit; reopen/read. It checks persisted row outcomes against SQL, three new Duplicate entries alongside the three earlier entries, unchanged facts, selected diagnostics, and application-process termination between assertions. A test-only helper refuses databases outside the generated `EtpPhase0Test_` namespace. Separate SQL tests cover date/store filtering, safe diagnostics, Manager recording, Viewer read/execute denial and direct-write denial; navigation checks cover all three assigned roles. History has no export feature, so export regression is not applicable under retention-audit §7.
+
+```powershell
+dotnet test tests-dotnet/Etp.Reporting.SqlServer.IntegrationTests/Etp.Reporting.SqlServer.IntegrationTests.csproj -c Release --filter FullyQualifiedName~DurableImportHistoryTests --verbosity minimal -m:1 -nodeReuse:false
+```
+
+```text
+Passed!  - Failed:     0, Passed:     6, Skipped:     0, Total:     6, Duration: 23 s - Etp.Reporting.SqlServer.IntegrationTests.dll (net10.0)
+```
+
+Review also reproduced concurrent duplicate misclassification: two services passed the preliminary existence check, then the second reused the first file's NEW outcomes after the SQL lock. The persistence adapter now compares the committed file's immutable batch identity with the attempted batch and reports the losing attempt as Duplicate. `ConcurrentImportAttemptTests` holds the existing SQL import lock until both requests wait, then verifies one file/batch, no extra facts, and both durable attempts/history entries across R025, R022, R020 and R013. No SQL lock or financial formula was changed. Receipt writes use a parameterised `EXEC` command, so the existing restricted-connection role observer verifies them as well.
+
+```powershell
+dotnet test tests-dotnet/Etp.Reporting.SqlServer.IntegrationTests/Etp.Reporting.SqlServer.IntegrationTests.csproj -c Release --no-restore -m:1 -nodeReuse:false --filter FullyQualifiedName~ConcurrentImportAttemptTests --verbosity minimal
+```
+
+```text
+Passed! - Failed: 0, Passed: 4, Skipped: 0, Total: 4, Duration: 12 s
+```
+
+### Job 3 — advanced report filters
+
+The actual focused report header now contains a **Filters** expander with Apply/Clear. It attaches the existing query inputs on every activation, including cached report navigation. Store, brand segment, transaction type and item drive SQL scope; detail-row search remains a separate display filter. Unsupported inputs on specialised reports are disabled and cleared. The applied scope appears above the grid and in Excel/PDF. Editing scope invalidates stale export actions, and refresh preserves the typed store filter. The unreachable `report-filters` dispatch was removed.
+
+The real SQL/WPF regression runs Owner, Store Manager and Viewer through Brand-wise Sales: original **767.00**, segment **531.00**, store **59.00**, transaction type **118.00**, nonmatching item **0.00**, then Clear **767.00**. It opens the Excel file, validates its schema, decodes PDF text, compares totals and scope, and verifies detail search does not alter export totals. SQL read access and Viewer/Manager write denial are exercised. No filter persistence/history is claimed; restart durability is not applicable.
+
+Commands run in the `closure-filters` worktree:
+
+```powershell
+dotnet test tests-dotnet/Etp.Reporting.SqlServer.IntegrationTests -c Release --no-restore -m:1 -nodeReuse:false --filter FullyQualifiedName~ReportFilterClosureTests --verbosity minimal
+dotnet test tests-dotnet/Etp.Reporting.Desktop.Tests -c Release --no-restore -m:1 -nodeReuse:false --filter 'FullyQualifiedName~ReportFilterNavigationTests|FullyQualifiedName~PhaseThreeAuditRegressionTests|FullyQualifiedName~ReportsRequestOrderingTests|FullyQualifiedName~ReportsPresentationStateTests' --verbosity minimal
+dotnet test tests-dotnet/Etp.Reporting.Reporting.Tests -c Release -m:1 -nodeReuse:false --verbosity minimal
+```
+
+```text
+Passed! - Failed: 0, Passed: 1, Skipped: 0, Total: 1
+Passed! - Failed: 0, Passed: 34, Skipped: 0, Total: 34
+Passed! - Failed: 0, Passed: 63, Skipped: 0, Total: 63
+```
+
+### Scope and acceptance limits
+
+Sagar accepted A2.2's source stock **814/502**; there is no paper adjustment. A2.6's actual Titan 2025–26 and Service sources are deferred to Phase 5; synthetic history is not a substitute. Registers/investigation access remain Phase 5. The new UI is retained. Native 125% DPI and timed shop-staff touch acceptance remain with Claude/Sagar. No existing day-lock trigger, connection policy, append-only audit design, signing/certificate wiring or backup rotation was changed.
+
+The earlier 16 September evidence below is historical and describes a different integration snapshot.
+
+### Full combined validation — 17 September
+
+Verified application/test commit: `8055d99`; the remaining changes are these reports. Commands ran from `C:\Codex\Reporting Manger\phase23-closure`:
+
+```powershell
+dotnet build Etp.Reporting.slnx -c Debug --verbosity minimal -m:1 -nodeReuse:false
+dotnet build Etp.Reporting.slnx -c Release --verbosity minimal -m:1 -nodeReuse:false
+dotnet test Etp.Reporting.slnx -c Release --no-build --verbosity minimal -m:1 -nodeReuse:false --logger 'trx;LogFilePrefix=closure'
+```
+
+Both builds and the final test command exited 0. Build summaries:
+
+```text
+Debug:
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+Time Elapsed 00:00:20.11
+
+Release:
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+Time Elapsed 00:00:22.56
+```
+
+Final test summaries, **857 passed, 0 failed, 3 opt-in skipped**:
+
+```text
+Passed!  - Failed:     0, Passed:   355, Skipped:     2, Total:   357, Duration: 15 s - Etp.Reporting.Desktop.Tests.dll (net10.0)
+Passed!  - Failed:     0, Passed:    12, Skipped:     0, Total:    12, Duration: 103 ms - Etp.Reporting.Domain.Tests.dll (net10.0)
+Passed!  - Failed:     0, Passed:   110, Skipped:     0, Total:   110, Duration: 16 s - Etp.Reporting.Import.Tests.dll (net10.0)
+Passed!  - Failed:     0, Passed:    63, Skipped:     0, Total:    63, Duration: 542 ms - Etp.Reporting.Reporting.Tests.dll (net10.0)
+Passed!  - Failed:     0, Passed:    79, Skipped:     1, Total:    80, Duration: 4 m 10 s - Etp.Reporting.SqlServer.IntegrationTests.dll (net10.0)
+Passed!  - Failed:     0, Passed:   238, Skipped:     0, Total:   238, Duration: 984 ms - Etp.Reporting.SqlServer.Tests.dll (net10.0)
+```
+
+The three skips are the existing opt-in `PhaseThreeLiveCaptureTests`, `ExtractedWorkspaceUiSmokeTests` capture case, and `PhaseFourFullWindowSmokeTests`. The new history application-process restart test is always on and passed. Available private-corpus tests also ran. Detailed TRX files are in each test project's ignored `TestResults` directory. Console logs are outside Git in `C:\Codex\Reporting Manger\closure-validation`.
+
+The first full run found the missing History F1 route, an obsolete test expecting Viewer to have no Import tasks, and a WPF package-resource exception during parallel shell tests. History now has contextual help and a return route; the Viewer regression asserts read-only History plus denied import/problem routes; the new report-navigation tests run in a dedicated nonparallel WPF collection. The complete solution was rebuilt and rerun successfully after those corrections. The restricted Manager connection regression passes with the parameterised receipt command.
+
+Only new migrations 0027 and 0028 differ from the base migration set. `git diff --check` passed. This is coding/test evidence for re-audit, not phase closure or native DPI/touch acceptance.
+
+## Historical report — 16 September
 
 Branch: `integration/phase-2-3-4-fixes`. This report records implementation and verification for re-audit. No phase or acceptance criterion is marked closed; Claude re-audits and Sagar merges.
 
@@ -85,10 +218,10 @@ The final shared gate passed Debug and Release solution builds with zero warning
 | Criterion | Self-assessment for re-audit |
 |---|---|
 | A2.1 | Existing source figures and INV-only DSR denominator retained. Sanitised golden verifies signed amounts, store/combined totals, targets and history. The plan's MTD 182/38 text remains for Claude to correct to 178/37. |
-| A2.2 | Source stock remains 814/502; no manual subtraction to 812/501. Sagar must accept source stock or approve an explicit reasoned adjustment feature. |
+| A2.2 | Source stock remains 814/502; Sagar accepted it on 17 September. No manual subtraction or adjustment feature is requested. |
 | A2.3 | Cash carry-forward, per-mode signed tender totals and Dr/Cr totals have an always-on golden. Default cash navigation is usable. |
 | A2.4 | Existing export paths retained; private corpus continues generating Excel/PDF evidence. No claim of native Excel/Acrobat review is made by these tests. |
 | A2.5 | Six independent sanitised report goldens now run without private files; the private check remains additional evidence. |
-| A2.6 | Titan 2025–26 history remains missing. Synthetic LY proves behaviour but cannot substitute for the missing owner data. |
+| A2.6 | Actual Titan 2025–26 history remains unavailable and is deferred to Phase 5 by Sagar. Synthetic LY cannot substitute for owner data. |
 
-D4 remains Sagar's decision: AUTOMATIC/SEIKO/CITIZEN need cluster mapping (GAUTO/SEKOG/CTZNG), NEBULA appears only on a packaging line, and source spelling is CERUTI. Synthetic tests use an explicit synthetic brand mapping and do not approve production mappings. The source/export timing gap remains visible; no figures are invented to match the photographed sheets.
+D4's earlier pending decision is superseded by Sagar's exact mapping and migration 0027 documented above. AUTOMATIC and NEBULA are removed. The source/export timing gap remains visible; no figures are invented to match the photographed sheets.
