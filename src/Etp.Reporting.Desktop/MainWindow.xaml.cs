@@ -84,6 +84,8 @@ public partial class MainWindow : Window
         this.importWorkspaceView = importWorkspaceView ?? throw new ArgumentNullException(nameof(importWorkspaceView));
         if (Application.Current is null) Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("/Etp.Reporting.Desktop;component/Themes/Theme.xaml", UriKind.Relative) });
         InitializeComponent();
+        // Set after InitializeComponent: the XAML Title is the design-time name.
+        Title = DesktopProductVersion.WindowTitle;
         dailyWorkflowWorkspace.AttachHost(
             () => new(currentAccess.CanView, currentAccess.CanImport, currentAccess.CanAdminister),
             RecordAuditAsync,
