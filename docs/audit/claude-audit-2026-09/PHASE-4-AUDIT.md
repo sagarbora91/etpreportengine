@@ -531,3 +531,28 @@ Not claimed: I did not write a test backup on the shop PC, because a non-elevate
 | A4.6 | PASS |
 
 Four of six pass. Neither remaining item is a coding defect: A4.3 waits on a certificate, A4.4 on an edition. P4-7 is the one open code defect and it is a one-line fix.
+
+### P4-8 (new defect) — headless startup hangs instead of failing on a bad connection string
+
+Found 17 September 2026 while installing the candidate in the acceptance VM.
+
+`Etp.Reporting.Desktop.exe --initialize-database --connection-string <invalid>` does not exit. The process starts, consumes about one second of CPU, creates no window, and then **sits idle indefinitely with no exit code**. Two runs behaved identically before the cause was found.
+
+The application's own diagnostics record what happened:
+
+```
+{"Severity":"Critical","EventId":"DISPATCHER_UNHANDLED",
+ "ExceptionType":"System.ArgumentException","HResult":-2147024809}
+```
+
+`App.OnStartup` is `async void` and calls `DesktopCompositionRoot.CreateForArguments`, which throws `ArgumentException` when `ConnectionStringValidation` rejects the supplied string. Because the method is `async void`, the exception reaches the WPF dispatcher's unhandled handler, which logs it — and the process then stays alive with a message pump and nothing to pump.
+
+**Why it matters.** Headless initialization is the installer's path and the scheduled-task path. A caller that supplies a malformed connection string gets no exit code, no console output and no window: an installer or task would block indefinitely rather than reporting a bad configuration. Phase 0's A0.7 verified `--initialize-database` returns exit 0 on the *happy* path; the failure path was never exercised.
+
+**Expected behaviour:** exit non-zero and write the validation message to stderr. The message already exists — `ConnectionStringValidation` produces a specific reason — it simply never reaches the caller.
+
+**Reproduction:** run `--initialize-database --connection-string "Server=.\SQLEXPRESS;Database=X;Integrated"` (a truncated string). Observe no exit, no window, and a `DISPATCHER_UNHANDLED` entry in `%LOCALAPPDATA%\EtpReporting\Logs`.
+
+**Severity:** medium. It cannot corrupt data and the happy path is unaffected, but it turns a clear configuration error into a silent hang in exactly the unattended contexts where diagnosis is hardest.
+
+**Not a defect, for the record:** the original failure that led here was my own — I passed the connection string through PowerShell `-ArgumentList` unquoted, and `Integrated Security=True` and `Connect Timeout=5` contain spaces, so the app received a truncated argument. The application was right to reject it. It was wrong to hang.
