@@ -592,3 +592,64 @@ The test asserts behaviour — exit code, timeliness, stderr — not source text
 Scope kept: no day lock, connection policy, audit protection, signing, certificate or backup-rotation code was touched. `LocalSqlConnectionPolicy` is unchanged; the rejection it performs is the same, only its reporting changed.
 
 **Full suite after both fixes:** 860 passed, 0 failed, 3 skipped (857 + 3 new). Debug and Release both 0 errors, reproduced with `-m:1 -nodeReuse:false`. Integration rose 79 -> 82.
+
+---
+
+### A4.4 script-level certificate-custody chain — **PASS** (with one new defect found)
+
+Executed in the acceptance VM against the candidate's own scripts, all six copied by `Copy-VMFile` and **SHA-256 verified identical** to the repository copies before use.
+
+**1. The repository's own boundary harness — 190 checks, all scenarios green.**
+
+`test-etp-operations-boundaries.ps1` run for all eight scenarios in the guest: TargetAliases 46, BackupReceipts 12, CertificateCustody 14, CertificateBinding 26, Retention 71, Paths 11, ProtectedInstall 6, AtomicReceipts 4. Exit 0 in every case. This harness never calls SQL; it is fixture-level, so it is reported as such and not as end-to-end proof.
+
+**2. A real certificate, a real export, a real backup.**
+
+Not fixtures. `CREATE CERTIFICATE EtpBackupCert` in `master`, then `BACKUP CERTIFICATE ... WITH PRIVATE KEY` to two distinct custody locations. Thumbprint `BF088489D2B991E6A821124046357F182E1B29C1`. A custody receipt was written with the product's own `Write-EtpJsonAtomically`, named `certificate-custody-<thumbprint>-<exportId>.json` as the contract requires, with SHA-256 of all four exported files.
+
+- `Assert-EtpCertificateCustody -RequireAvailable -ExpectedThumbprint` **accepted** the genuine export.
+- `Resolve-EtpLatestCertificateCustody` **selected the immutable receipt** through the `certificate-custody.json` pointer.
+- `backup-etp-database.ps1` completed: "Encrypted backup and verification completed.", producing an 8.1 MB backup, a `.bak.receipt.json` and `EtpCustodyDrill-latest-verified.json`.
+
+**The encryption was verified independently of the script**, from `msdb.dbo.backupset`:
+
+```
+alg=aes_256  thumb=BF088489D2B991E6A821124046357F182E1B29C1  type=CERTIFICATE  db=EtpCustodyDrill
+```
+
+AES_256, encrypted by certificate, and the thumbprint is exactly the key held in custody. The script's own claim was not taken as evidence.
+
+- `invoke-etp-recovery-drill.ps1` completed a receipt-verified isolated restore: "Receipt-verified recovery drill completed.", with a durable `latest-drill.json` recording the backup SHA-256.
+
+**3. Fail-closed behaviour — proven, and my first reading of it was wrong.**
+
+Tampering with one exported private key and re-running the **backup** did not fail; it completed normally. My initial expectation was that it should refuse. That expectation was incorrect, and the code is right:
+
+- `backup-etp-database.ps1` resolves custody **without** `-RequireAvailable`, and reads receipts with `-SkipCertificateCheck`.
+- `invoke-etp-recovery-drill.ps1` reads **with** the check, and with the same tampered copy it refused: "A certificate recovery copy is missing or has changed. Reconnect the recovery storage and verify custody."
+
+So the trade-off is deliberate and coherent: **a disconnected or offline recovery drive never stops a nightly backup, but it always stops the drill.** `Read-EtpVerifiedReceipt` documents exactly this, and the boundary harness asserts it. Recorded as designed behaviour, not a defect.
+
+**One residual operational risk, for the owner rather than the code:** because the media check lives only in the drill, a lost or corrupted private key is not detected until the next monthly drill. Up to a month of backups could in principle be undecryptable before anyone is told. The drill is the control that catches it, so the drill must actually run and its failures must be seen.
+
+**4. The protected-install guard bites.** `Assert-EtpProtectedInstall` **rejected** the script folder used for this test — "The installation folder can be changed by a non-administrator." — because it was a user-writable directory rather than a protected install location. Correct refusal, recorded as evidence that the guard works.
+
+**Not exercised in this run:** the least-privilege grants to the dedicated automation account (`install-etp-sql-operations.ps1`). Creating a Windows local account is outside what this audit environment permits, and the request was refused for a third time. Rather than route around it, the broker procedure alone was installed from the shipped template using the identical substitutions, and the backup and drill were run as an administrator, for which the procedure's own `IS_SRVROLEMEMBER('sysadmin')` branch bypasses the role gate. **The least-privilege half of A4.4 therefore rests on the earlier Phase 4 evidence, not on this run.** Provisioning that account remains Sagar's step.
+
+### P4-9 — operations scripts resolve a SQL client that cannot reach the instance — **OPEN**
+
+Found while running the above. `Resolve-EtpSqlCmd` (`scripts/etp-operations-common.ps1:54-57`) prefers `%ProgramFiles%\sqlcmd\sqlcmd.exe` (go-sqlcmd) ahead of the ODBC `SQLCMD.EXE`. go-sqlcmd resolves `.\INSTANCE` and `localhost\INSTANCE` over **named pipes**, which is disabled by default on SQL Server Express and Developer. On the acceptance VM every call failed:
+
+```
+[.\SQLEXPRESS]         exit=1  Timed out waiting for pipe SQLLocal\SQLEXPRESS
+[localhost\SQLEXPRESS] exit=1  Timed out waiting for pipe SQLLocal\SQLEXPRESS
+[lpc:.\SQLEXPRESS]     exit=0  OK
+```
+
+It fails on `SELECT 1`, so it is connectivity, not the query. Proven to be the sole cause: with go-sqlcmd temporarily renamed, the identical recovery drill went from exit 1 to exit 0 and back again, with nothing else changed.
+
+**Impact.** On any machine where go-sqlcmd is installed and named pipes is off, `install-etp-sql-operations.ps1`, `backup-etp-database.ps1` and `invoke-etp-recovery-drill.ps1` all fail — that is scheduled backups and the monthly recovery drill. `backup-etp-database.ps1` has a `-SqlCmdPath` override; **`invoke-etp-recovery-drill.ps1` has none**, so the drill cannot be rescued without changing code or the environment. The failure surfaces as the deliberately masked "The database operation failed. Check SQL permissions and operation prerequisites.", which points the operator at permissions rather than at the client.
+
+go-sqlcmd v1.10.0 on this VM dates from 3 March 2026 and is part of the base image, not something introduced by this audit. **The shop PC does not currently have go-sqlcmd installed, so production is not affected today** — but it ships with recent SSMS builds and any future install would silently break backups.
+
+`Assert-EtpLocalSqlTarget` already accepts `lpc:` and `np:` prefixes, so the protocol prefix is an anticipated concept; it is simply never paired with the client that needs it. Not fixed here: choosing between preferring the ODBC client, probing candidates for reachability, or prefixing `lpc:` for local instances is a deployment decision for the owner.
