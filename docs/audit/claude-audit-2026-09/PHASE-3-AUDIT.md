@@ -242,3 +242,37 @@ Cannot be produced by any automated means. A walkthrough has been prepared for S
 | P3-3 | **CLOSED** | Resolved by the task 8 plan amendment |
 
 **Phase 3 has no outstanding coding work.** Both open items are acceptance checks, one of which is two steps away and one of which requires a person.
+
+---
+
+## 11. A3.3 closed by native measurement — 17 September 2026
+
+Previously **NOT VERIFIED**: the `SPI_SETLOGICALDPIOVERRIDE` approach never changed the guest's scaling, and the console was at 1024x768. Both conditions are now genuinely met and measured.
+
+**Configuration proven, not assumed.** After a guest sign-in with `LogPixels=120` primed, and the guest display set to 1366x768:
+
+```
+screen 1366x768   systemDPI 120   window DPI 120 (scale 1.25)
+client 1366 x 679 px  =  1092.8 x 543.2 DIP
+```
+
+System DPI, the application window's own DPI and the physical framebuffer were each read independently. The application reports PerMonitorV2 scaling of exactly 1.25, so this is real Windows scaling rather than a client-side render.
+
+**The criterion is "every control remains reachable (scroll appears, nothing hidden)".** A scrollbar appearing at 125% is therefore expected, not a defect. What had to be proven was that nothing becomes unreachable. Measured per screen, counting UI Automation elements by `IsOffscreen` and then driving the real `ScrollPattern` to the bottom:
+
+| Screen | Offscreen before | Vertically scrollable | Revealed by scrolling | Still offscreen |
+|---|---:|---:|---:|---:|
+| Landing | 0 | 1 | 0 | **0** |
+| Today | 0 | 1 | 0 | **0** |
+| Import | 0 | 0 | — | **0** |
+| Reports | 0 | 1 | 0 | **0** |
+| Stock | 0 | 0 | — | **0** |
+| Settings | 0 | 0 | — | **0** |
+
+**Nothing is hidden on any screen.** Landing, Today and Reports carry a vertical scroller because 543 DIP of height is less than their content needs at 125%; Import, Stock and Settings need none. Every named control was onscreen before scrolling, so the scrollers exist as headroom rather than as the only route to a control.
+
+**Touch targets hold at 125%.** Across every screen the only interactive elements under 44 DIP were two unnamed 16.8 DIP buttons, and they appeared **only** on the three screens that have a scrollbar and never on the three that do not. That one-to-one correspondence identifies them as the scrollbar arrow buttons, which fall under the plan's own 24 px scrollbar exception. This matches the earlier 100% measurement exactly, so the layout does not degrade when scaling is applied.
+
+**A3.3 — PASS.** The 816x480 half passed earlier; the 125% DPI half is now measured natively at 1366x768 rather than inferred.
+
+One limit worth stating: this ran against a disposable empty database, so the screens carried no imported rows. Real data would lengthen lists, which the existing scrollers already accommodate, but the shop-floor check of that belongs to the A3.8 walkthrough.
