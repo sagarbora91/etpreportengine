@@ -28,7 +28,7 @@ if ($GrantAutomationFolderAccess) {
             $password=ConvertTo-SecureString ('Etp!'+[Convert]::ToBase64String($randomBytes)) -AsPlainText -Force
             try {
                 New-LocalUser -Name $accountName -Password $password -AccountNeverExpires -PasswordNeverExpires `
-                    -Description 'ETP scheduled operations; dedicated non-administrator S4U account' | Out-Null
+                    -Description 'ETP scheduled operations (non-admin S4U)' | Out-Null
             }
             finally { $password.Dispose(); [Array]::Clear($randomBytes,0,$randomBytes.Length) }
         }
