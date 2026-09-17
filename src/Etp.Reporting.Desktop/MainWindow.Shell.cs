@@ -1,4 +1,4 @@
-extern alias EtpApplication;
+﻿extern alias EtpApplication;
 
 using System.ComponentModel;
 using System.Reflection;
@@ -74,6 +74,16 @@ public partial class MainWindow
         if (sender is Button { Tag: string section }) OpenSection(section);
     }
 
+    /// <summary>
+    /// A WPF drop-down defaults to a third of the screen height, which is seven rows on the
+    /// shop's 1366x768 panel. Settings has nine sections, Accounting has eight tasks and Help
+    /// has twenty topics, so the tail of each list was simply unreachable - Help and Registers
+    /// were never on screen, and the owner reasonably concluded there was no help at all.
+    /// Size the list to its contents, still bounded so a long list cannot cover the screen.
+    /// </summary>
+    internal static double DropDownHeightFor(int items) =>
+        Math.Min(SystemParameters.PrimaryScreenHeight * 0.6, items * 44 + 12);
+
     internal void OpenSection(string section, string? tab = null)
     {
         var tasks = TaskNavigation.InSection(section, CurrentShellAccess);
@@ -90,7 +100,8 @@ public partial class MainWindow
         var groups = TaskNavigation.InSection(task.Rail, CurrentShellAccess).Select(t => t.Tab).Distinct().ToArray();
         if (groups.Length > 4)
         {
-            var sectionSelector = new ComboBox { ItemsSource = groups, SelectedItem = task.Tab, Width = 180, Margin = new Thickness(0, 0, 4, 0) };
+            var sectionSelector = new ComboBox { ItemsSource = groups, SelectedItem = task.Tab, Width = 180,
+                MaxDropDownHeight = DropDownHeightFor(groups.Length), Margin = new Thickness(0, 0, 4, 0) };
             AutomationProperties.SetName(sectionSelector, "Choose " + task.Rail.ToLowerInvariant() + " section");
             sectionSelector.SelectionChanged += (_, _) => { if (sectionSelector.SelectedItem is string tab) OpenSection(task.Rail, tab); };
             SectionTabs.Children.Add(sectionSelector);
@@ -106,7 +117,8 @@ public partial class MainWindow
         var choices = TaskNavigation.InSection(task.Rail, CurrentShellAccess).Where(t => t.Tab == task.Tab).ToArray();
         if (choices.Length > 1)
         {
-            var selector = new ComboBox { ItemsSource = choices, DisplayMemberPath = "Title", SelectedItem = task, MinWidth = 180, MaxWidth = 290, Margin = new Thickness(4,0,0,0) };
+            var selector = new ComboBox { ItemsSource = choices, DisplayMemberPath = "Title", SelectedItem = task, MinWidth = 180, MaxWidth = 290,
+                MaxDropDownHeight = DropDownHeightFor(choices.Length), Margin = new Thickness(4,0,0,0) };
             AutomationProperties.SetName(selector, "Choose " + task.Tab.ToLowerInvariant() + " task");
             selector.SelectionChanged += (_,_) => { if (selector.SelectedItem is TaskDestination next) taskNavigator!.NavigateTask(next); };
             SectionTabs.Children.Add(selector);

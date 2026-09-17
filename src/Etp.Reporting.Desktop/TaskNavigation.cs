@@ -1,4 +1,4 @@
-using Etp.Reporting.Reporting;
+﻿using Etp.Reporting.Reporting;
 
 namespace Etp.Reporting.Desktop;
 
@@ -12,6 +12,11 @@ public sealed record TaskDestination(string Id, string Title, string Module, str
     public string Path => $"{Module} → {Category} → {Title}";
     public string Purpose => ReportCode is null ? $"Open {Title.ToLowerInvariant()} in {Module}." : ProductReportCatalogue.All.Single(x => x.Code == ReportCode).Description;
     public WorkspaceRoute Route => new(Destination, ReportCode, Id);
+    // The shell binds this record straight into a ComboBox. A record's generated ToString
+    // prints every field, so a screen reader announced the whole object - id, destination,
+    // role, route - instead of the task name a sighted user sees through DisplayMemberPath.
+    public override string ToString() => Title;
+
     public bool IsAllowed(ShellAccess access) => Available
         && (Destination != "Import ETP" || access.CanImport)
         && (Destination is not ("Settings" or "Admin / Settings") || access.CanAdminister || Id == "masters" && access.CanImport)

@@ -1,5 +1,7 @@
 ﻿using Etp.Reporting.Desktop;
 
+using System.Windows;
+
 namespace Etp.Reporting.Desktop.Tests;
 
 public sealed class TaskNavigationTests
@@ -15,6 +17,48 @@ public sealed class TaskNavigationTests
         foreach (var id in new[] { "users", "connection", "tender-rules", "stores" })
             Assert.False(navigation.Navigate(TaskNavigation.Find(id)!.Route, ShellAccess.StoreManager).IsAllowed);
         Assert.False(navigation.Navigate(new("Admin / Settings"), ShellAccess.StoreManager).IsAllowed);
+    }
+
+    [Fact]
+    public void Every_rail_shows_all_of_its_sections_without_scrolling()
+    {
+        // The shop panel is 1366x768, where WPF's default cap of a third of the screen shows
+        // seven rows. Settings has nine sections, so Registers and Help sat below the fold and
+        // the owner reasonably concluded the help module had been removed. A section list is
+        // the shell's top-level menu: all of it has to be on screen.
+        const double Row = 44;
+        foreach (var rail in TaskNavigation.Sections)
+        {
+            var tabs = TaskNavigation.InSection(rail, ShellAccess.Owner).Select(t => t.Tab).Distinct().ToArray();
+            Assert.True(MainWindow.DropDownHeightFor(tabs.Length) >= tabs.Length * Row,
+                $"{rail} has {tabs.Length} sections and they do not all fit on screen.");
+        }
+        var settings = TaskNavigation.InSection("Settings", ShellAccess.Owner).Select(t => t.Tab).Distinct().ToArray();
+        Assert.Contains("Help", settings);
+        Assert.Contains("Registers", settings);
+    }
+
+    [Fact]
+    public void A_long_list_is_taller_than_the_platform_default_and_still_bounded_by_the_screen()
+    {
+        // Settings has a Help section holding every help topic; such a list must scroll, but it
+        // should show far more than the seven rows the platform default allowed.
+        var platformDefault = SystemParameters.PrimaryScreenHeight / 3;
+        Assert.True(MainWindow.DropDownHeightFor(9) > platformDefault);
+        Assert.True(MainWindow.DropDownHeightFor(22) > platformDefault);
+        Assert.True(MainWindow.DropDownHeightFor(22) <= SystemParameters.PrimaryScreenHeight * 0.6);
+        // A short list is sized to its contents, not padded out to the maximum.
+        Assert.True(MainWindow.DropDownHeightFor(2) < platformDefault);
+    }
+
+    [Fact]
+    public void A_task_reads_as_its_title_rather_than_as_a_record_dump()
+    {
+        // The shell binds the record itself into a ComboBox, so ToString is what assistive
+        // technology announces.
+        var task = TaskNavigation.Find("health")!;
+        Assert.Equal("Database health", task.ToString());
+        Assert.DoesNotContain("Destination", task.ToString());
     }
 
     [Fact]
