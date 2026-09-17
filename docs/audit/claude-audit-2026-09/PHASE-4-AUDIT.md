@@ -459,3 +459,28 @@ So A4.4 moves from **BLOCKED by edition** — where no further work could have h
 | A4.4 | **PASS at the SQL layer** — script-level custody chain outstanding; production edition still a purchase decision |
 | A4.5 | PASS |
 | A4.6 | PASS |
+
+### P4-7 (new defect) — `-CreateAutomationAccount` fails on first use
+
+Found 17 September 2026 when Sagar ran the account-provisioning path on the shop PC.
+
+`scripts/initialize-etp-operation-folders.ps1:31` passes a 65-character string to `New-LocalUser -Description`:
+
+```
+'ETP scheduled operations; dedicated non-administrator S4U account'
+```
+
+`New-LocalUser` validates `-Description` at **48 characters maximum**, so the call throws `ParameterArgumentValidationError` and the script aborts before granting any folder access:
+
+```
+Cannot validate argument on parameter 'Description'. The character length of the 65 argument
+is too long. Shorten ... so it is fewer than or equal to "48" characters.
+```
+
+**Severity: blocks A4.2's automation half and all of A4.3.** Strict mode (`-GrantAutomationFolderAccess:$false`) is unaffected and works, as proven on the VM — this defect is confined to the branch that provisions `EtpAutomation`.
+
+**Why it survived to now.** This path had never been executed by anyone. Codex's elevation attempt was cancelled by Windows; my own attempts were refused by the environment's safety controls, and section 11 of this audit recorded the path explicitly as **UNVERIFIED** rather than assuming it worked. That disposition proved correct on first contact.
+
+**Fix:** shorten the description to 48 characters or fewer. `'ETP scheduled operations (non-admin S4U)'` is 40 and preserves the meaning. Add a test that provisions the account against a throwaway name and asserts it exists, enabled and outside Administrators — a source-text assertion would not have caught this, but an execution would.
+
+**Workaround in the meantime**, which needs no change to the committed script: create the account manually with a compliant description, then re-run the script with `-CreateAutomationAccount`. The script guards creation with `if (-not (Get-LocalUser -Name $accountName ...))`, so it skips the failing call and proceeds to grant folder access normally.
