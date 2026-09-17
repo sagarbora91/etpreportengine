@@ -1,19 +1,28 @@
 using System.Data;
 using System.Text.Json;
 using Etp.Reporting.Application.Imports;
+using Etp.Reporting.Import.Profiles;
 using Microsoft.Data.SqlClient;
 
 namespace Etp.Reporting.Infrastructure.SqlServer;
 
 public sealed class SqlServerImportHistoryQuery(string connectionString) : IImportHistoryQuery, IImportAttemptRecorder
 {
+    private static readonly HashSet<string> SafeColumns = ApprovedImportProfileRegistry.All
+        .SelectMany(profile => profile.ExpectedSourceHeaders).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+    private static ImportIssue SafeIssue(ImportIssue issue) => issue with
+    {
+        Message = "Review the indicated source column or row and correct the workbook before retrying.",
+        SourceColumn = issue.SourceColumn is { } column && SafeColumns.Contains(column) ? column : null
+    };
+
     public async Task RecordAttemptAsync(FolderImportFileResult result, CancellationToken cancellationToken = default)
     {
         var access = await new Phase2OperationsRepository(connectionString).LoadCurrentAccessAsync(cancellationToken);
         if (!access.CanImport) throw new UnauthorizedAccessException("Owner or Store Manager permission is required.");
         // Retain location/code/severity, never source values, paths, SQL, or exception text.
-        var diagnostics = (result.Diagnostics ?? []).Select(issue => issue with
-        { Message = "Review the indicated source column or row and correct the workbook before retrying." }).ToArray();
+        var diagnostics = (result.Diagnostics ?? []).Select(SafeIssue).ToArray();
         await using var connection = new SqlConnection(LocalSqlConnectionPolicy.Validate(connectionString));
         await connection.OpenAsync(cancellationToken);
         await using var command = new SqlCommand("dbo.record_import_attempt", connection) { CommandType = CommandType.StoredProcedure };
@@ -53,22 +62,29 @@ public sealed class SqlServerImportHistoryQuery(string connectionString) : IImpo
                   GROUP BY l.sheet_name,l.source_row_number,CASE WHEN r.source_lineage_id IS NULL THEN r.business_identity END
                 ) x
               ) o
-            ), history AS (
-              SELECT CONCAT('file:',f.import_file_id) entry_key,f.recorded_utc,f.import_file_id,
-                f.original_file_name file_name,f.report_code,f.store_code,f.period_start,f.period_end,
+            ), classified AS (
+              SELECT f.*,
                 CASE WHEN f.conflicts>0 THEN 'Failed' WHEN f.status='Completed' AND f.new_rows=0 AND f.present_rows>0 THEN 'Duplicate content'
                   WHEN f.status='Completed' AND f.rows_processed=0 THEN 'empty export'
-                  WHEN f.status='Completed' THEN 'Imported' ELSE f.status END outcome,
-                f.rows_processed,f.new_rows,f.present_rows,f.conflicts,COALESCE(a.diagnostics_json,N'[]') diagnostics_json
-              FROM canonical f OUTER APPLY (
-                SELECT TOP(1) diagnostics_json FROM dbo.import_attempts a WHERE a.import_file_id=f.import_file_id
-                  AND a.outcome NOT IN('Duplicate','Already present') ORDER BY a.import_attempt_id
+                  WHEN f.status='Completed' THEN 'Imported' ELSE f.status END outcome
+              FROM canonical f
+            ), represented AS (
+              SELECT f.*,a.import_attempt_id,COALESCE(a.diagnostics_json,N'[]') diagnostics_json
+              FROM classified f OUTER APPLY (
+                SELECT TOP(1) import_attempt_id,diagnostics_json FROM dbo.import_attempts a WHERE a.import_file_id=f.import_file_id
+                  AND a.outcome=f.outcome AND a.rows_processed=f.rows_processed AND a.new_rows=f.new_rows
+                  AND a.already_present_rows=f.present_rows AND a.conflict_rows=f.conflicts ORDER BY a.import_attempt_id
               ) a
+            ), history AS (
+              SELECT CONCAT('file:',f.import_file_id) entry_key,f.recorded_utc,f.import_file_id,
+                f.original_file_name file_name,f.report_code,f.store_code,f.period_start,f.period_end,f.outcome,
+                f.rows_processed,f.new_rows,f.present_rows,f.conflicts,f.diagnostics_json
+              FROM represented f
               UNION ALL
               SELECT CONCAT('attempt:',a.import_attempt_id),a.recorded_utc,a.import_file_id,a.file_name,a.report_code,a.store_code,
                 a.period_start,a.period_end,a.outcome,a.rows_processed,a.new_rows,a.already_present_rows,a.conflict_rows,a.diagnostics_json
               FROM dbo.import_attempts a
-              WHERE a.import_file_id IS NULL OR a.outcome IN('Duplicate','Already present')
+              WHERE NOT EXISTS(SELECT 1 FROM represented f WHERE f.import_attempt_id=a.import_attempt_id)
             )
             SELECT * FROM history
             WHERE COALESCE(period_start,CONVERT(date,recorded_utc))<=@to
@@ -86,7 +102,7 @@ public sealed class SqlServerImportHistoryQuery(string connectionString) : IImpo
         while (await reader.ReadAsync(cancellationToken))
         {
             var status = reader.GetString(8);
-            var diagnostics = JsonSerializer.Deserialize<ImportIssue[]>(reader.GetString(13)) ?? [];
+            var diagnostics = (JsonSerializer.Deserialize<ImportIssue[]>(reader.GetString(13)) ?? []).Select(SafeIssue).ToArray();
             var conflicts = reader.GetInt32(12);
             var message = conflicts > 0 ? $"{conflicts:N0} source rows conflict with existing data. Review the source before retrying."
                 : status == "Duplicate" ? "This source was already imported. No facts were added by this attempt."

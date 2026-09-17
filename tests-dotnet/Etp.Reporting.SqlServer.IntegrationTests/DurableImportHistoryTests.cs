@@ -83,14 +83,25 @@ public sealed class DurableImportHistoryTests
             await database.InitializeAsync();
             var history = new SqlServerImportHistoryQuery(database.ConnectionString);
             await history.RecordAttemptAsync(new("failed.xlsx", "R025", "WLMHW", new(2026, 8, 25), new(2026, 8, 25), "Failed",
-                Diagnostics: [new(ImportIssueSeverity.Blocker, "REQUIRED_COLUMN_MISSING", "Customer Secret C:\\private\\source.xlsx SQL SELECT", 4, "ITEMNUMBER")]));
+                Diagnostics: [new(ImportIssueSeverity.Blocker, "REQUIRED_COLUMN_MISSING", "Customer Secret C:\\private\\source.xlsx SQL SELECT", 4, "ITEMNUMBER"),
+                    new(ImportIssueSeverity.Warning, "UNEXPECTED_COLUMN", "Secret", 1, "Customer Secret C:\\private\\source.xlsx")]));
             var reopened = new SqlServerImportHistoryQuery(database.ConnectionString);
             var rows = await reopened.LoadAsync(new(new(2026, 8, 25), new(2026, 8, 25), "WLMHW"));
             var row = Assert.Single(rows);
             Assert.Equal("Failed", row.Result.Status);
-            var issue = Assert.Single(row.Result.Diagnostics!);
+            var issue = Assert.Single(row.Result.Diagnostics!, diagnostic => diagnostic.Code == "REQUIRED_COLUMN_MISSING");
             Assert.Equal("REQUIRED_COLUMN_MISSING", issue.Code); Assert.Equal(4, issue.SourceRow);
+            Assert.Equal("ITEMNUMBER", issue.SourceColumn);
+            Assert.Null(Assert.Single(row.Result.Diagnostics!, diagnostic => diagnostic.Code == "UNEXPECTED_COLUMN").SourceColumn);
             Assert.DoesNotContain("Secret", issue.Message); Assert.DoesNotContain("private", issue.Message);
+            var savedDiagnostics = (string)(await database.ExecuteAsync("SELECT diagnostics_json FROM dbo.import_attempts"))!;
+            Assert.DoesNotContain("Secret", savedDiagnostics); Assert.DoesNotContain("private", savedDiagnostics);
+            // Older or externally recorded receipts also pass the display sanitizer.
+            await database.ExecuteAsync("""
+                UPDATE dbo.import_attempts SET diagnostics_json=N'[{"Severity":1,"Code":"UNEXPECTED_COLUMN","Message":"Secret","SourceRow":1,"SourceColumn":"Secret path"}]';
+                """);
+            var oldIssue = Assert.Single(Assert.Single(await reopened.LoadAsync(new(new(2026, 8, 25), new(2026, 8, 25)))).Result.Diagnostics!);
+            Assert.Null(oldIssue.SourceColumn); Assert.DoesNotContain("Secret", oldIssue.Message);
             Assert.Empty(await reopened.LoadAsync(new(new(2026, 8, 24), new(2026, 8, 24))));
             Assert.Empty(await reopened.LoadAsync(new(new(2026, 8, 25), new(2026, 8, 25), "HEMW")));
             await database.ExecuteAsync("""
@@ -108,6 +119,41 @@ public sealed class DurableImportHistoryTests
             Assert.Equal(229, denied.Number);
             var direct = await Assert.ThrowsAsync<SqlException>(() => database.ExecuteAsync("EXECUTE AS USER='history_manager'; DELETE dbo.import_attempts; REVERT;"));
             Assert.Equal(229, direct.Number);
+        }
+        finally { await database.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task Linked_cancelled_failed_and_subsequent_attempts_remain_visible_without_repeating_original_receipt()
+    {
+        var database = new SqlDatabaseFixture();
+        try
+        {
+            await database.InitializeAsync();
+            var path = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "fixtures", "etp-sample"), "R025_*.xlsx").Single();
+            var imported = Assert.Single((await new FolderImportService(new SqlServerImportPersistenceUseCase(database.ConnectionString))
+                .RunAsync(path, new("Synthetic Owner"))).Files);
+            Assert.Equal("Imported", imported.Status);
+            var history = new SqlServerImportHistoryQuery(database.ConnectionString);
+            var scope = new ImportHistoryScope(imported.PeriodStart!.Value, imported.PeriodEnd!.Value, imported.StoreCode);
+            var original = Assert.Single(await history.LoadAsync(scope));
+            await history.RecordAttemptAsync(imported with { Status = "Cancelled", NewRows = 0 });
+            await history.RecordAttemptAsync(imported with { Status = "Failed", NewRows = 0,
+                Diagnostics = [new(ImportIssueSeverity.Blocker, "IMPORT_FAILED", "Secret", 1)] });
+            // Even historical clients that classified a later attempt as Imported must not erase it.
+            await history.RecordAttemptAsync(imported);
+            var reopened = await new SqlServerImportHistoryQuery(database.ConnectionString).LoadAsync(scope);
+            Assert.Equal(4, reopened.Count);
+            var retained = Assert.Single(reopened, entry => entry.Key == original.Key);
+            Assert.Equal(original.ImportFileId, retained.ImportFileId);
+            Assert.Equal(original.Result.NewRows, retained.Result.NewRows);
+            Assert.Equal(original.Result.Status, retained.Result.Status);
+            Assert.Single(reopened, entry => entry.Result.Status == "Cancelled");
+            var failed = Assert.Single(reopened, entry => entry.Result.Status == "Failed");
+            Assert.Equal("IMPORT_FAILED", Assert.Single(failed.Result.Diagnostics!).Code);
+            Assert.Equal(2, reopened.Count(entry => entry.Result.Status == "Imported"));
+            Assert.Equal(1, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.import_files"));
+            Assert.Equal(imported.NewRows, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.sales_lines"));
         }
         finally { await database.DisposeAsync(); }
     }
