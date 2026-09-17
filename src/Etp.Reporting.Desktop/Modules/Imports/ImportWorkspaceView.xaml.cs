@@ -33,8 +33,9 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
     public event EventHandler<FolderImportProgress>? ProgressChanged;
     public event EventHandler? RetryAvailabilityChanged;
     public DateTime? BusinessDate { get; set; }
-    public IReadOnlyList<ImportProblem> Problems => latestResults.Where(r => r.Failed || r.ConflictRows > 0 || r.Status.Contains("Duplicate",StringComparison.OrdinalIgnoreCase) || r.Status == "Unknown layout")
-        .Select(r => new ImportProblem(r.FileName, r.ConflictRows > 0 ? "Conflict" : r.Status, r.StoreCode ?? "", r.Period, $"{r.NewRows} new rows; {r.AlreadyPresentRows} present; {r.ConflictRows} conflicts")).ToArray();
+    // Session results only. The Problems tab reads the database instead, so that the
+    // list survives closing the application; this stays for the in-run summary.
+    public IReadOnlyList<ImportProblem> Problems => ImportProblems.From(latestResults);
     public bool CanRetry => accessProvider().CanImport && !IsBusy && coordinator.FailedBatchPaths.Count > 0;
     public void AttachHost(Func<ImportWorkspaceAccess> accessProvider, Func<string, string, string, Task> auditRecorder, Func<Task> dashboardRefresher)
     {
