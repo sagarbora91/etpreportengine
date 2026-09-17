@@ -1,4 +1,3 @@
-using System.Data;
 using System.Text.Json;
 using Etp.Reporting.Application.Imports;
 using Etp.Reporting.Import.Profiles;
@@ -25,7 +24,11 @@ public sealed class SqlServerImportHistoryQuery(string connectionString) : IImpo
         var diagnostics = (result.Diagnostics ?? []).Select(SafeIssue).ToArray();
         await using var connection = new SqlConnection(LocalSqlConnectionPolicy.Validate(connectionString));
         await connection.OpenAsync(cancellationToken);
-        await using var command = new SqlCommand("dbo.record_import_attempt", connection) { CommandType = CommandType.StoredProcedure };
+        await using var command = new SqlCommand("""
+            EXEC dbo.record_import_attempt @name=@name,@hash=@hash,@report=@report,@store=@store,
+              @start=@start,@end=@end,@outcome=@outcome,@rows=@rows,@new=@new,@present=@present,
+              @conflicts=@conflicts,@diagnostics=@diagnostics;
+            """, connection);
         Add("@name", Path.GetFileName(result.FileName)); Add("@hash", result.SourceSha256);
         Add("@report", result.ReportCode); Add("@store", result.StoreCode);
         Add("@start", result.PeriodStart); Add("@end", result.PeriodEnd); Add("@outcome", result.Status);
