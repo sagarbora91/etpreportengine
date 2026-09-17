@@ -132,3 +132,9 @@ erDiagram
 ```
 
 Final nullability, unique keys, hierarchy and signs remain subject to real ETP samples and approved business definitions.
+
+## Phase 5 accounting additions — 17 September 2026
+
+Migration 0029 adds nullable `accounting_batches.approval_reason nvarchar(1000)`; historical reasons are not fabricated. Approval persists the supplied reason with its status/actor/time. Mapping request, decision and replacement run in one transaction.
+
+Migration 0030 adds `rejection_reason nvarchar(1000)`, `rejected_by nvarchar(200)` and `rejected_utc datetime2`, plus Owner-only `dbo.reject_accounting_batch`. Rejection and audit are atomic; DRAFT/REVIEW/APPROVED are eligible, EXPORTED/REJECTED are not. The original approval fields remain intact. The planned status renaming and invoice/export-receipt tables are still pending.
