@@ -25,7 +25,12 @@ public sealed record DashboardHealth(
     DateTime? LastSuccessfulBackupUtc,
     int FailedImportsLast24Hours,
     decimal? BackupFreeSpaceGb,
-    IReadOnlyList<DashboardHealthWarning> Warnings);
+    IReadOnlyList<DashboardHealthWarning> Warnings)
+{
+    public string? LastSuccessfulBackupSha256 { get; init; }
+    public DateTime? LastSuccessfulRecoveryDrillUtc { get; init; }
+    public string? LastSuccessfulRecoveryDrillSha256 { get; init; }
+}
 
 public sealed record DashboardAuditEvent(
     DateTime EventUtc,

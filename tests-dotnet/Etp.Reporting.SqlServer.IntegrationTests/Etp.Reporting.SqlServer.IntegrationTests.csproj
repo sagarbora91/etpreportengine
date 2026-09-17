@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><TargetFramework>net10.0-windows</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><IsPackable>false</IsPackable></PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="../Etp.Reporting.HistoryRestartHost/Etp.Reporting.HistoryRestartHost.csproj" ReferenceOutputAssembly="false" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
@@ -8,5 +9,10 @@
     <ProjectReference Include="../../src/Etp.Reporting.Desktop/Etp.Reporting.Desktop.csproj" />
     <ProjectReference Include="../../src/Etp.Reporting.Application/Etp.Reporting.Application.csproj" />
     <Content Include="../../database/migrations/*.sql" Link="database/migrations/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../fixtures/etp-sample/*.xlsx" Link="fixtures/etp-sample/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../fixtures/evening-reports/*.json" Link="fixtures/evening-reports/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../scripts/sql/etp-operations-broker.sql" Link="scripts/sql/etp-operations-broker.sql" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../scripts/new-etp-support-package.ps1" Link="scripts/new-etp-support-package.ps1" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../scripts/etp-operations-common.ps1" Link="scripts/etp-operations-common.ps1" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

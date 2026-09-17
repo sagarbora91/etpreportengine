@@ -41,6 +41,10 @@
                        Margin="0,4,0,0" Foreground="#5D6873" TextWrapping="Wrap"/>
             <DataGrid x:Name="ManualInputsGrid" Margin="0,8,0,10" AutoGenerateColumns="True" IsReadOnly="True" MaxHeight="210"
                       automation:AutomationProperties.Name="Daily manual operational inputs"/>
+            <!-- The cash-book figures as labelled fields. They were reachable only through
+                 the dropdown below, which made Expenses look as though it did not exist. -->
+            <WrapPanel x:Name="CashQuickFields" Margin="0,0,0,10" Visibility="Collapsed"
+                       automation:AutomationProperties.Name="Cash book entries"/>
             <WrapPanel>
                 <ComboBox x:Name="ManualFieldInput" Width="220" DisplayMemberPath="DisplayName" SelectedValuePath="FieldCode"
                           automation:AutomationProperties.Name="Manual input field"/>
@@ -74,7 +78,7 @@
 
             <TextBlock Text="Staff/CRO target" FontWeight="SemiBold" Margin="0,14,0,0"/>
             <WrapPanel Margin="0,6,0,0">
-                <StackPanel Width="132" Margin="0,4,6,4"><TextBlock Text="Staff CRO number" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4"/><TextBox x:Name="StaffTargetCroInput" Width="120" Padding="6" ToolTip="CRO number" automation:AutomationProperties.Name="Staff CRO number"/></StackPanel>
+                <StackPanel Width="132" Margin="0,4,6,4"><TextBlock Text="Staff CRO number" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4"/><TextBox x:Name="StaffTargetCroInput" InputScope="Number" Width="120" Padding="6" ToolTip="CRO number" automation:AutomationProperties.Name="Staff CRO number"/></StackPanel>
                 <DatePicker x:Name="StaffTargetFromInput" Width="180" Margin="6,0,0,0" automation:AutomationProperties.Name="Staff target start date"/>
                 <DatePicker x:Name="StaffTargetToInput" Width="180" Margin="6,0,0,0" automation:AutomationProperties.Name="Staff target end date"/>
                 <StackPanel Width="122" Margin="0,4,6,4"><TextBlock Text="Staff target sales" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4"/><TextBox x:Name="StaffTargetValueInput" Width="110" Padding="6" Margin="6,0,0,0" ToolTip="Target sales" automation:AutomationProperties.Name="Staff target sales"/></StackPanel>
@@ -87,7 +91,7 @@
                 <Button x:Name="FinaliseDayButton" Content="Finalise day" Click="FinaliseDay_Click" Style="{DynamicResource PrimaryButton}" Padding="16,8" IsEnabled="False"
                         automation:AutomationProperties.Name="Finalise business day"/>
                 <StackPanel Width="292" Margin="0,4,6,4"><TextBlock Text="Reopen reason" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4"/><TextBox x:Name="ReopenReasonInput" Width="280" Padding="6" Margin="12,0,0,0"
-                         ToolTip="Administrator reason required to reopen"
+                         ToolTip="Owner reason required to reopen"
                          automation:AutomationProperties.Name="Reopen reason"/></StackPanel>
                 <Button x:Name="ReopenDayButton" Content="Reopen day" Click="ReopenDay_Click" Style="{DynamicResource DangerButton}" Padding="16,8" Margin="8,0,0,0"
                         automation:AutomationProperties.Name="Reopen finalised business day"/>

@@ -55,23 +55,27 @@ public sealed class AutomatedOperationsService(string connectionString)
                         documentOutcome.Duplicate ? "Document duplicate skipped by SHA-256." : "Document stored in Source Inbox for classification and review.", started, cancellationToken);
                     continue;
                 }
-                await using var batchSource = await BatchImportSource.OpenAsync(source, cancellationToken: cancellationToken);
-                var outcomes = new List<AutomatedWorkbookOutcome>();
-                foreach (var workbook in batchSource.WorkbookPaths)
+                var folderService=new FolderImportService(new SqlServerImportPersistenceUseCase(connectionString),
+                    retainEvidence: (path,accepted,store,businessDate,token)=>new ProductisationOperationsService(connectionString).IntakeEtpEvidenceAsync(
+                        path,accepted.Workbook.Sha256,accepted.ProfileIdentity.ReportCode,store,businessDate,token));
+                var batch=await folderService.RunAsync(source,new(AutomationIdentity()),cancellationToken:cancellationToken);
+                duplicates+=batch.Duplicates;
+                foreach(var file in batch.Files.Where(x=>x.Status=="Imported" && x.PeriodEnd is not null)) importedDates.Add(file.PeriodEnd!.Value);
+                if(batch.Failed>0)
                 {
-                    var outcome = await ProcessWorkbookAsync(workbook, cancellationToken);
-                    outcomes.Add(outcome);
-                    if (outcome.Duplicate) duplicates++;
-                    if (!outcome.Duplicate && outcome.ConflictRows == 0 && outcome.BusinessDate is { } date) importedDates.Add(date);
+                    failed++;
+                    MoveCompletedSource(source,paths.FailedPath);
+                    await repository.RecordAutomationRunAsync("WATCH_IMPORT",Path.GetFileName(source),null,null,"Failed",
+                        $"{batch.Imported} workbook(s) imported; {batch.Failed} file(s) need review. Other files were processed.",started,cancellationToken);
+                    continue;
                 }
-                MoveCompletedSource(source, outcomes.All(x => x.Duplicate) ? duplicatePath : paths.ProcessedPath);
+                MoveCompletedSource(source,batch.Imported==0 && batch.Duplicates>0 ? duplicatePath : paths.ProcessedPath);
                 processed++;
-                var imported = outcomes.Count(x => !x.Duplicate);
-                var stores = outcomes.Select(x => x.StoreCode).Where(x => x is not null).Select(x => x!).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-                var dates = outcomes.Select(x => x.BusinessDate).Where(x => x is not null).Select(x => x!.Value).Distinct().ToArray();
-                await repository.RecordAutomationRunAsync("WATCH_IMPORT", Path.GetFileName(source), stores.Length == 1 ? stores[0] : stores.Length > 1 ? "MULTIPLE" : null,
-                    dates.Length == 1 ? dates[0] : null,
-                    imported == 0 ? "Skipped" : "Succeeded", imported == 0 ? "All workbooks were already imported." : $"{imported} workbook(s) processed; {outcomes.Sum(x => x.ConflictRows)} conflict row(s) require review.", started, cancellationToken);
+                var stores=batch.Files.Select(x=>x.StoreCode).Where(x=>x is not null).Distinct().ToArray();
+                var dates=batch.Files.Select(x=>x.PeriodEnd).Where(x=>x is not null).Distinct().ToArray();
+                await repository.RecordAutomationRunAsync("WATCH_IMPORT",Path.GetFileName(source),stores.Length==1?stores[0]:null,
+                    dates.Length==1?dates[0]:null,batch.Imported==0?"Skipped":"Succeeded",
+                    $"{batch.Imported} workbook(s) imported; {batch.Duplicates} duplicate(s); {batch.UnknownLayouts} unknown layout(s) skipped.",started,cancellationToken);
             }
             catch (Exception ex)
             {
@@ -110,11 +114,6 @@ public sealed class AutomatedOperationsService(string connectionString)
     public async Task<AutomatedWorkbookOutcome> ProcessWorkbookAsync(string workbookPath, CancellationToken cancellationToken = default)
     {
         var workbook = await new OpenXmlWorkbookReader().ReadAsync(workbookPath, cancellationToken);
-        if (await new SqlServerImportFileRepository(connectionString).ExistsByHashAsync(workbook.Sha256, cancellationToken))
-        {
-            var existing = await LoadScopeByHashAsync(workbook.Sha256, cancellationToken);
-            return new(existing.ReportCode, existing.StoreCode, existing.BusinessDate, true);
-        }
         var inspection = new MatchedImportEnvelopeFactory().Inspect(workbook);
         if (inspection.AcceptedImport is null)
         {
@@ -123,20 +122,19 @@ public sealed class AutomatedOperationsService(string connectionString)
         }
         var accepted = inspection.AcceptedImport;
         var report = accepted.ProfileIdentity.ReportCode;
-        var store = new SqlServerTransactionalImportStore(connectionString);
-        if (report == "R022")
-            await new R022SqlImportOrchestrator(store).PersistAsync(accepted,
-                cancellationToken: cancellationToken, importedBy: AutomationIdentity());
-        else if (report is "STOCK_LEDGER" or "CLOSING_STOCK")
-            await new StockSqlImportOrchestrator(store).PersistAsync(accepted, cancellationToken: cancellationToken, importedBy: AutomationIdentity());
-        else if (report is "R003" or "R013")
-            await new RetailEnrichmentSqlImportOrchestrator(connectionString).PersistAsync(accepted, importedBy: AutomationIdentity(), cancellationToken: cancellationToken);
-        else
-            await new R025SqlImportOrchestrator(store).PersistAsync(accepted, cancellationToken: cancellationToken, importedBy: AutomationIdentity());
-        var scope = await LoadScopeByHashAsync(workbook.Sha256, cancellationToken);
-        await new ProductisationOperationsService(connectionString).IntakeEtpEvidenceAsync(workbookPath,workbook.Sha256,report,scope.StoreCode,scope.BusinessDate,cancellationToken);
-        var details = await new SqlServerImportFileRepository(connectionString).LoadOutcomeByHashAsync(workbook.Sha256, cancellationToken);
-        return new(scope.ReportCode, scope.StoreCode, scope.BusinessDate, false, details.ConflictRows);
+        var end = accepted.Scope.PeriodEnd ?? throw new ImportSourceException("SCOPE_NOT_DETECTED","Keep this file beside the other exports for its store.");
+        var start = accepted.Scope.PeriodStart ?? end;
+        var store = accepted.Scope.StoreCode ?? throw new ImportSourceException("SCOPE_NOT_DETECTED","Store could not be detected.");
+        var files = new SqlServerImportFileRepository(connectionString);
+        if (await files.ExistsInScopeAsync(workbook.Sha256, report, store, start, end, cancellationToken))
+        {
+            await new ProductisationOperationsService(connectionString).IntakeEtpEvidenceAsync(workbookPath,workbook.Sha256,report,store,end,cancellationToken);
+            return new(report, store, end, true);
+        }
+        var result = await new SqlServerImportPersistenceUseCase(connectionString).PersistAsync(
+            new(accepted, end, store, AutomationIdentity()), cancellationToken);
+        await new ProductisationOperationsService(connectionString).IntakeEtpEvidenceAsync(workbookPath,workbook.Sha256,report,store,end,cancellationToken);
+        return new(report, store, end, result.Status.StartsWith("Duplicate", StringComparison.Ordinal), result.ConflictRows);
     }
 
     private async Task<bool> GenerateAndExportAsync(DateOnly date, string label, bool excel, bool pdf, string outputPath,
@@ -160,19 +158,9 @@ public sealed class AutomatedOperationsService(string connectionString)
         }
     }
 
-    private async Task<(string ReportCode, string? StoreCode, DateOnly? BusinessDate)> LoadScopeByHashAsync(string sha256, CancellationToken token)
-    {
-        await using var connection = new SqlConnection(connectionString); await connection.OpenAsync(token);
-        await using var command = new SqlCommand("SELECT report_code,store_code,business_date FROM dbo.import_files WHERE source_sha256=@hash", connection);
-        command.Parameters.AddWithValue("@hash", SqlServerImportFileRepository.NormalizeHash(sha256));
-        await using var reader = await command.ExecuteReaderAsync(token);
-        if (!await reader.ReadAsync(token)) throw new InvalidOperationException("The persisted workbook scope was not found.");
-        return (reader.IsDBNull(0) ? "UNKNOWN" : reader.GetString(0), reader.IsDBNull(1) ? null : reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetFieldValue<DateOnly>(2));
-    }
-
     private async Task<SqlConnection?> TryAcquireLeaseAsync(CancellationToken token)
     {
-        var connection = new SqlConnection(connectionString); await connection.OpenAsync(token);
+        var connection = new SqlConnection(LocalSqlConnectionPolicy.Validate(connectionString)); await connection.OpenAsync(token);
         await using var command = new SqlCommand("DECLARE @result int; EXEC @result=sp_getapplock @Resource=N'ETP_PHASE2_AUTOMATION',@LockMode='Exclusive',@LockOwner='Session',@LockTimeout=0; SELECT @result;", connection);
         if (Convert.ToInt32(await command.ExecuteScalarAsync(token)) < 0) { await connection.DisposeAsync(); return null; }
         return connection;

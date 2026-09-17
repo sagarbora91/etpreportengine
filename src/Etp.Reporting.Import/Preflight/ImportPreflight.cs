@@ -38,8 +38,20 @@ public sealed class ImportPreflight
             diagnostics.Add(Blocker("WORKBOOK_NO_SHEETS", "The workbook contains no readable sheets."));
 
         var candidates = new List<(WorkbookSheet Sheet, ImportProfile Profile)>();
-        foreach (var sheet in workbook.Sheets)
+        foreach (var originalSheet in workbook.Sheets.Where(sheet => !sheet.Name.Equals("Info", StringComparison.OrdinalIgnoreCase)))
         {
+            var sheet = originalSheet;
+            if (sheet.Rows.Count == 0 && (sheet.Headers.Count == 0 || sheet.Headers.All(string.IsNullOrWhiteSpace)))
+            {
+                // Consolidation explicitly records an absent snapshot as an empty Data sheet.
+                // Require both a family identity and the Info empty marker; an arbitrary blank workbook is not a known layout.
+                var info = workbook.Sheets.FirstOrDefault(s => s.Name.Equals("Info", StringComparison.OrdinalIgnoreCase));
+                var named = EtpReportFamilyRegistry.IdentifyName(workbook.FileName);
+                var infoValues = info?.Rows.SelectMany(r => r.Cells).Select(c => c.Value?.ToString() ?? "").ToArray() ?? [];
+                if (named is not null && infoValues.Contains(named.FamilyCode, StringComparer.OrdinalIgnoreCase) &&
+                    infoValues.Any(value => value.StartsWith("EMPTY", StringComparison.OrdinalIgnoreCase)))
+                    sheet = sheet with { Headers = named.Headers, HeaderRowNumber = 1 };
+            }
             if (string.IsNullOrWhiteSpace(sheet.Name))
                 diagnostics.Add(Blocker("SHEET_NAME_MISSING", "A worksheet has no name."));
             if (sheet.HeaderRowNumber < 1 || sheet.Headers.Count == 0 || sheet.Headers.Any(string.IsNullOrWhiteSpace))
@@ -60,7 +72,7 @@ public sealed class ImportPreflight
                 continue;
             }
 
-            var match = matcher.Match(normalizedSheet.Headers, materializedProfiles);
+            var match = matcher.Match(normalizedSheet.Headers, materializedProfiles, workbook.FileName, sheet.Name);
             if (match is not null) candidates.Add((normalizedSheet, match));
             else AddSchemaDifferenceDiagnostics(normalizedSheet, materializedProfiles, diagnostics);
         }
@@ -69,6 +81,8 @@ public sealed class ImportPreflight
             diagnostics.Add(Blocker("LAYOUT_UNKNOWN", "No import profile exactly matches a worksheet header signature."));
         else if (candidates.Count > 1)
             diagnostics.Add(Blocker("LAYOUT_AMBIGUOUS", "More than one worksheet matches an import profile."));
+        else if (candidates[0].Sheet.Rows.Count == 0)
+            diagnostics.Add(new("EMPTY_EXPORT", ImportDiagnosticSeverity.Information, "Empty export; no rows to import.", candidates[0].Sheet.Name));
 
         return new(
             candidates.Count == 1 ? candidates[0].Profile : null,

@@ -35,7 +35,7 @@ var active = coverage.Where(x => x.Disposition != "DEFERRED_UNAVAILABLE").ToArra
 var uncovered = active.Where(x => x.Evidence.Length == 0).ToArray();
 var duplicateIds = coverage.GroupBy(x => x.Id, StringComparer.OrdinalIgnoreCase).Where(x => x.Count() > 1).Select(x => x.Key).ToArray();
 var catalogueCodes = ProductReportCatalogue.All.Select(x => x.Code).Order().ToArray();
-var routeCodes = WorkspaceModuleOwnershipRegistry.ReportRoutes.Select(x => x.FeatureCode!).Order().ToArray();
+var routeCodes = TaskNavigation.All.Where(x => x.ReportCode is not null).Select(x => x.ReportCode!).Order().ToArray();
 if (!catalogueCodes.SequenceEqual(routeCodes, StringComparer.Ordinal))
     throw new InvalidOperationException("The product report catalogue and executable report routes differ.");
 if (uncovered.Length != 0 || duplicateIds.Length != 0)
@@ -154,14 +154,14 @@ static int CountStagedRows(ImportStagingResult staged, string path)
 static List<CoverageEntry> BuildCoverage()
 {
     var entries = new List<CoverageEntry>();
-    entries.AddRange(UiNavigationRegistry.Modules.Select(x => new CoverageEntry($"module:{x.Id}", "Module", x.DisplayName,
-        x.DefaultVisibility ? "AUTOMATED_UI" : "AUTOMATED_ROLE_UI", ["ui-all-workspaces", "dotnet-tests"])));
-    entries.AddRange(UiNavigationRegistry.AllItems.Select(x => new CoverageEntry($"navigation:{x.Id}", "Navigation function", x.Label,
-        x.IsAvailable ? "AUTOMATED_LAYERED" : "DEFERRED_UNAVAILABLE",
-        x.IsAvailable ? EvidenceForDestination(x.Destination) : ["declared-unavailable-with-reason"], x.UnavailableReason)));
+    entries.AddRange(TaskNavigation.Sections.Select(x => new CoverageEntry($"section:{x}", "Section", x,
+        "AUTOMATED_UI", ["ui-all-workspaces", "dotnet-tests"])));
+    entries.AddRange(TaskNavigation.All.Select(x => new CoverageEntry($"navigation:{x.Id}", "Navigation function", x.Title,
+        x.Available ? "AUTOMATED_LAYERED" : "DEFERRED_UNAVAILABLE",
+        x.Available ? EvidenceForDestination(x.Destination) : ["declared-unavailable-with-reason"], x.UnavailableReason)));
     entries.AddRange(ProductReportCatalogue.All.Select(x => new CoverageEntry($"report:{x.Code}", "Report", x.Name,
         "AUTOMATED_LIVE_AND_UI", ["live-sql-reporting", "ui-all-report-routes", "dotnet-tests"])));
-    entries.AddRange(WorkspaceModuleOwnershipRegistry.Destinations.Select(x => new CoverageEntry($"route:{Slug(x.Destination)}", "Workspace route", x.Destination,
+    entries.AddRange(ShellRouteRegistry.All.Select(x => new CoverageEntry($"route:{Slug(x.Destination)}", "Workspace route", x.Destination,
         "AUTOMATED_UI", ["ui-all-workspaces", "dotnet-tests"])));
     entries.AddRange(RetailSalesProfiles.FirstSalesSlice.Concat(StockImportProfiles.All).Select(x => new CoverageEntry($"import:{x.ReportCode}", "Import profile", x.ReportCode,
         "AUTOMATED_LIVE", ["synthetic-fixture-preflight", "offline-import-smoke", "live-sql-import"] )));

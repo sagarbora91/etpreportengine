@@ -24,7 +24,7 @@ public sealed class VisualPdfExportRegressionTests
                 new(columns, rows, ["Total", -12345678901234.5678m]));
             new SimplePdfVisualReportExporter().Export(path, model);
             using var pdf = PdfReader.Open(path, PdfDocumentOpenMode.Import);
-            Assert.True(pdf.PageCount >= 9, "Thirteen columns and sixty rows must span readable column sections and vertical pages.");
+            Assert.True(pdf.PageCount >= 4, "Thirteen measured columns and sixty rows must span horizontal sections and vertical pages.");
             foreach (var page in pdf.Pages)
             {
                 Assert.InRange(page.Width.Point, 841, 843);

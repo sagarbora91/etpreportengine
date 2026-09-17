@@ -7,7 +7,7 @@
         <DockPanel>
             <StackPanel>
                 <TextBlock Text="Digital Registers" FontSize="18" FontWeight="SemiBold"/>
-                <TextBlock Text="Audited business registers permanently linked to immutable source documents."
+                <TextBlock Text="Audited business registers permanently linked to saved source documents."
                            Foreground="#5D6873" Margin="0,4,0,0"/>
             </StackPanel>
             <Button DockPanel.Dock="Right" Content="Refresh" Click="RefreshRegisters_Click" Style="{DynamicResource PrimaryButton}" Padding="14,7"/>

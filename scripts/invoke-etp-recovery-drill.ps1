@@ -1,61 +1,35 @@
 param(
-    [string]$ServerInstance = ".\SQLEXPRESS",
-    [string]$Database = "EtpReporting",
-    [string]$BackupDirectory = "$env:ProgramData\EtpReporting\Backups"
+    [string]$ServerInstance='.\SQLEXPRESS',
+    [string]$Database='EtpReporting',
+    [string]$BackupDirectory="$env:ProgramData\EtpReporting\Backups",
+    [string]$SqlCmdPath
 )
-
-$ErrorActionPreference = "Stop"
-$sqlcmd = (Get-Command sqlcmd.exe -ErrorAction SilentlyContinue).Source
-if (-not $sqlcmd) { $sqlcmd = "C:\Program Files\Microsoft SQL Server\Client SDK\ODBC\170\Tools\Binn\SQLCMD.EXE" }
-if (-not (Test-Path -LiteralPath $sqlcmd)) { throw "SQLCMD is not installed at the expected SQL Server tools path." }
-if ($Database -notmatch '^[A-Za-z0-9_]+$') { throw "Database must contain only letters, numbers, or underscore." }
-$resolvedBackupDirectory = [IO.Path]::GetFullPath($BackupDirectory)
-$backup = Get-ChildItem -LiteralPath $resolvedBackupDirectory -Filter "$Database-*.bak" -File |
-    Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
-if (-not $backup) { throw "No database backup is available for the recovery drill." }
-
-$validationDatabase = "EtpReportingRecoveryDrill_$(Get-Date -Format 'yyyyMMddHHmmss')"
-$dataDirectory = [IO.Path]::GetFullPath((Join-Path $resolvedBackupDirectory "RecoveryDrill"))
-New-Item -ItemType Directory -Path $dataDirectory -Force | Out-Null
-$dataPath = Join-Path $dataDirectory "$validationDatabase.mdf"
-$logPath = Join-Path $dataDirectory "$validationDatabase`_log.ldf"
-$escapedBackup = $backup.FullName.Replace("'", "''")
-$escapedData = $dataPath.Replace("'", "''")
-$escapedLog = $logPath.Replace("'", "''")
-
-try {
-    $logicalNames = & $sqlcmd -S $ServerInstance -E -b -W -h -1 -s "|" -Q "RESTORE FILELISTONLY FROM DISK=N'$escapedBackup';"
-    if ($LASTEXITCODE -ne 0) { throw "Could not read backup file metadata." }
-    $records = @($logicalNames | Where-Object { $_ -match '\|' } | ForEach-Object {
-        $fields = $_ -split '\|'
-        [pscustomobject]@{ LogicalName = $fields[0].Trim(); FileType = $fields[2].Trim() }
-    })
-    $dataLogical = ($records | Where-Object FileType -eq 'D' | Select-Object -First 1).LogicalName
-    $logLogical = ($records | Where-Object FileType -eq 'L' | Select-Object -First 1).LogicalName
-    if (-not $dataLogical -or -not $logLogical) { throw "Backup logical file names could not be determined." }
-    $escapedDataLogical = $dataLogical.Replace("'", "''")
-    $escapedLogLogical = $logLogical.Replace("'", "''")
-
-    $query = @"
-RESTORE VERIFYONLY FROM DISK=N'$escapedBackup' WITH CHECKSUM;
-RESTORE DATABASE [$validationDatabase] FROM DISK=N'$escapedBackup'
- WITH MOVE N'$escapedDataLogical' TO N'$escapedData', MOVE N'$escapedLogLogical' TO N'$escapedLog', RECOVERY;
-DBCC CHECKDB ([$validationDatabase]) WITH NO_INFOMSGS;
-DECLARE @liveFiles bigint=(SELECT COUNT_BIG(*) FROM [$Database].dbo.import_files);
-DECLARE @drillFiles bigint=(SELECT COUNT_BIG(*) FROM [$validationDatabase].dbo.import_files);
-DECLARE @liveRows bigint=(SELECT COUNT_BIG(*) FROM [$Database].dbo.source_lineage);
-DECLARE @drillRows bigint=(SELECT COUNT_BIG(*) FROM [$validationDatabase].dbo.source_lineage);
-IF @liveFiles<>@drillFiles OR @liveRows<>@drillRows THROW 51000,'Recovery drill aggregate comparison failed.',1;
-SELECT '$validationDatabase' ValidationDatabase,@drillFiles ImportedFiles,@drillRows LineageRows,'PASSED' DrillStatus;
-"@
-    & $sqlcmd -S $ServerInstance -E -b -d master -Q $query
-    if ($LASTEXITCODE -ne 0) { throw "Recovery drill failed." }
-    $auditActor = ([Environment]::UserName).Replace("'", "''")
-    & $sqlcmd -S $ServerInstance -E -b -d $Database -Q "IF COL_LENGTH('dbo.operational_audit','actor_name') IS NOT NULL INSERT dbo.operational_audit(event_type,outcome,safe_detail,application_version,actor_name) VALUES('RestoreDrill','Succeeded','Isolated restore and aggregate comparison passed','operations',N'$auditActor');"
-    if ($LASTEXITCODE -ne 0) { throw "Recovery drill passed but its audit event could not be recorded." }
+$ErrorActionPreference='Stop'
+. (Join-Path $PSScriptRoot 'etp-operations-common.ps1')
+if (-not $PSBoundParameters.ContainsKey('ServerInstance') -and -not $PSBoundParameters.ContainsKey('Database')) {
+    $configuration=Get-EtpOperationsConfiguration
+    $ServerInstance=$configuration.serverInstance; $Database=$configuration.database
 }
-finally {
-    & $sqlcmd -S $ServerInstance -E -b -d master -Q "IF DB_ID(N'$validationDatabase') IS NOT NULL BEGIN ALTER DATABASE [$validationDatabase] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [$validationDatabase]; END;"
-    if (Test-Path -LiteralPath $dataPath) { Remove-Item -LiteralPath $dataPath -Force }
-    if (Test-Path -LiteralPath $logPath) { Remove-Item -LiteralPath $logPath -Force }
-}
+Assert-EtpLocalSqlTarget $ServerInstance $Database
+$sqlcmd=Resolve-EtpSqlCmd $SqlCmdPath
+$ServerInstance=Resolve-EtpSqlConnection -SqlCmd $sqlcmd -ServerInstance $ServerInstance
+$directory=[IO.Path]::GetFullPath($BackupDirectory)
+$receipt=Read-EtpVerifiedReceipt -ReceiptPath (Join-Path $directory "$Database-latest-verified.json") -BackupDirectory $directory -Database $Database
+$metadata=@(Invoke-EtpOperationsBroker -SqlCmd $sqlcmd -Server $ServerInstance -Database $Database -BackupPath $receipt.backupPath -Operation METADATA)
+$expected=($receipt.files | Sort-Object fileId | ConvertTo-Json -Depth 5 -Compress)
+$actual=($metadata | Sort-Object fileId | ConvertTo-Json -Depth 5 -Compress)
+if ($expected -cne $actual) { throw 'Backup metadata does not match the verification receipt.' }
+# No live table counts: imports after this backup cannot cause a false recovery failure.
+Invoke-EtpOperationsBroker -SqlCmd $sqlcmd -Server $ServerInstance -Database $Database -BackupPath $receipt.backupPath -Operation DRILL | Out-Null
+# Detect changes that occurred while SQL read the backup, before recording success.
+$null=Read-EtpVerifiedReceipt -ReceiptPath (Join-Path $directory "$Database-latest-verified.json") -BackupDirectory $directory -Database $Database
+if ((Get-FileHash -LiteralPath $receipt.backupPath -Algorithm SHA256).Hash -ine $receipt.sha256) { throw 'The backup changed during the recovery drill.' }
+$result=[ordered]@{ schemaVersion=1; succeeded=$true; backupSha256=$receipt.sha256; completedAtUtc=[DateTime]::UtcNow.ToString('o') }
+Write-EtpJsonAtomically -Path (Join-Path $directory "$Database-latest-drill.json") -Value $result -Replace
+Invoke-EtpSql -SqlCmd $sqlcmd -Server $ServerInstance -Database $Database -Query "EXEC dbo.record_verified_operation 'RestoreDrill','$($receipt.sha256)';" | Out-Null
+# The audit trail must describe the backup that was actually drilled. Claiming an
+# encrypted restore for an unencrypted backup would put a false statement into an
+# append-only compliance record, which is worse than recording nothing.
+$drillDetail = if ($receipt.encryption -ceq 'AES_256') { 'Isolated encrypted restore and backup metadata checks passed' } else { 'Isolated restore and backup metadata checks passed; the backup was not encrypted' }
+Invoke-EtpSql -SqlCmd $sqlcmd -Server $ServerInstance -Database $Database -Query "EXEC dbo.record_operational_audit 'RestoreDrill','Succeeded',N'$drillDetail',N'operations';" | Out-Null
+Write-Output 'Receipt-verified recovery drill completed.'

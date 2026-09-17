@@ -69,8 +69,7 @@ public sealed class SqlServerAdministrationService : App.IAdministrationService
         ArgumentNullException.ThrowIfNull(command);
         await RequireOwnerAsync(cancellationToken).ConfigureAwait(false);
         await gateway.SaveProductConfigurationAsync(
-            new(command.DocumentRepositoryPath, command.ShareFolderPath, command.OcrHelperPath,
-                command.OcrModelPath, command.SmtpHost, command.SmtpPort, command.SmtpUseTls,
+            new(command.DocumentRepositoryPath, command.ShareFolderPath, command.SmtpHost, command.SmtpPort, command.SmtpUseTls,
                 command.SmtpFromAddress, command.MaximumAttachmentMb, DateTime.MinValue, string.Empty),
             command.Reason,
             cancellationToken).ConfigureAwait(false);
@@ -107,7 +106,7 @@ public sealed class SqlServerAdministrationService : App.IAdministrationService
             row.Version, row.ApprovalStatus, row.ApprovedBy, row.IsActive);
     private static App.ProductHealth Map(ProductHealthItem row) => new(row.Component, row.Status, row.Guidance);
     private static App.ProductConfiguration Map(ProductSettings row) =>
-        new(row.DocumentRepositoryPath, row.ShareFolderPath, row.OcrHelperPath, row.OcrModelPath,
+        new(row.DocumentRepositoryPath, row.ShareFolderPath,
             row.SmtpHost, row.SmtpPort, row.SmtpUseTls, row.SmtpFromAddress, row.MaximumAttachmentMb,
             row.ModifiedUtc, row.ModifiedBy);
 }

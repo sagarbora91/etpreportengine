@@ -1,0 +1,43 @@
+=== UI diagnostics 2026-09-17T19:44:11 ===
+TITLE BAR TEXT: 'ETP Reporting Engine 1.8.8 (3074dbb)'
+
+--- search 'Database health' ---
+  clicked 'Find a screen'
+  RESULTS:
+    [Settings ? Database ? Database health]
+  shot search-database-health.png
+  dumped 240 elements -> search-database-health.tree.txt
+  AFTER ENTER:
+  shot landed-database-health.png
+  dumped 240 elements -> landed-database-health.tree.txt
+
+--- search 'Getting Started' ---
+  clicked 'Find a screen'
+  RESULTS:
+    [Settings ? Help ? Getting Started]
+  shot search-help-getting-started.png
+  dumped 240 elements -> search-help-getting-started.tree.txt
+  AFTER ENTER:
+  shot landed-help-getting-started.png
+  dumped 240 elements -> landed-help-getting-started.tree.txt
+
+--- Settings rail sections ---
+  clicked 'Settings'
+  SECTION OPTIONS:
+    [Display]
+    [Database]
+    [Users]
+    [Stores & masters]
+    [Integrations]
+    [Accounting]
+    [Control centre]
+    [Display]
+    [Database]
+    [Users]
+    [Stores & masters]
+    [Integrations]
+    [Accounting]
+    [Control centre]
+  shot settings-sections.png
+
+=== diagnostics finished 2026-09-17T19:45:27 ===

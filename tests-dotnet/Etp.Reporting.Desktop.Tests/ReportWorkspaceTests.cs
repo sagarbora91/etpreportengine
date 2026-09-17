@@ -8,7 +8,7 @@ public sealed class ReportWorkspaceTests
     [Fact]
     public void Every_catalogue_report_belongs_to_exactly_one_workspace()
     {
-        var assigned = ReportWorkspaceRegistry.All.SelectMany(workspace => workspace.Reports).ToArray();
+        var assigned = ProductReportCatalogue.All.SelectMany(report => ReportWorkspaceDefinition.ForReport(report.Code).Reports).ToArray();
 
         Assert.Equal(ProductReportCatalogue.All.Count, assigned.Length);
         Assert.Equal(ProductReportCatalogue.All.Count, assigned.Select(report => report.Code).Distinct(StringComparer.OrdinalIgnoreCase).Count());
@@ -16,17 +16,18 @@ public sealed class ReportWorkspaceTests
     }
 
     [Theory]
-    [InlineData("dsr", "sales")]
-    [InlineData("stock-closing", "stock")]
-    [InlineData("tender", "tender-service")]
-    [InlineData("service", "tender-service")]
-    [InlineData("staff", "staff")]
-    [InlineData("exception-source", "exceptions")]
-    [InlineData("management-trend", "management")]
-    [InlineData("invoice-lineage", "investigation")]
-    public void Report_resolves_to_its_purpose_built_workspace(string reportCode, string expectedWorkspace)
+    [InlineData("dsr")]
+    [InlineData("stock-closing")]
+    [InlineData("tender")]
+    [InlineData("service")]
+    [InlineData("staff")]
+    [InlineData("exceptions")]
+    [InlineData("management-trend")]
+    [InlineData("invoice-lineage")]
+    public void Report_resolves_to_its_purpose_built_workspace(string reportCode)
     {
-        Assert.Equal(expectedWorkspace, ReportWorkspaceRegistry.ForReport(reportCode).Id);
+        Assert.Equal(reportCode, ReportWorkspaceDefinition.ForReport(reportCode).Id);
+        Assert.Single(ReportWorkspaceDefinition.ForReport(reportCode).Reports);
     }
 
     [Theory]

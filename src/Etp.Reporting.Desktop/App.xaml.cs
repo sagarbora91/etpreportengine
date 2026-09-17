@@ -1,4 +1,4 @@
-﻿using System.Configuration;
+using System.Configuration;
 using System.Windows;
 using System.Windows.Threading;
 using Etp.Reporting.Desktop.Composition;
@@ -12,6 +12,8 @@ public partial class App : Application
 {
     protected override async void OnStartup(StartupEventArgs e)
     {
+        PresentationCulture.Initialize();
+        Themes.ThemeBrushes.ApplyContrast(Resources);
         base.OnStartup(e);
         DispatcherUnhandledException += OnDispatcherUnhandledException;
         AppDomain.CurrentDomain.UnhandledException += (_, args) =>
@@ -21,11 +23,30 @@ public partial class App : Application
             DesktopDiagnostics.Record(args.Exception, "TaskScheduler", "TASK_UNOBSERVED");
             args.SetObserved();
         };
-        var compositionRoot = DesktopCompositionRoot.CreateDefault();
+        // Route first: a headless caller must receive an exit code and a message on
+        // stderr, never a modal dialog it cannot dismiss. Composition validates the
+        // supplied connection string and throws before any coordinator exists.
+        headless = DesktopStartupCoordinator.Route(e.Args) != DesktopStartupMode.Interactive;
+        DesktopCompositionRoot compositionRoot;
+        try { compositionRoot = DesktopCompositionRoot.CreateForArguments(e.Args); }
+        catch (Exception configuration) when (headless)
+        {
+            DesktopDiagnostics.Record(configuration, "Startup", "STARTUP_CONFIGURATION_REJECTED", DesktopDiagnosticSeverity.Critical);
+            Console.Error.WriteLine(configuration.Message);
+            Shutdown(2);
+            return;
+        }
         var startup = new DesktopStartupCoordinator(
             compositionRoot.InitializeDatabaseAsync,
             compositionRoot.RunAutomationOnceAsync,
-            () => compositionRoot.CreateMainWindow().Show());
+            () =>
+            {
+                var window = compositionRoot.CreateMainWindow();
+                window.Show();
+                if (e.Args.Contains("--capture-review"))
+                    _ = ImportReviewSession.RunAsync(window, compositionRoot.LoadConnectionString(), e.Args);
+            },
+            compositionRoot.InitializeConfiguredDatabaseAsync);
         var mode = DesktopStartupCoordinator.Route(e.Args);
         if (mode != DesktopStartupMode.Interactive)
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
@@ -40,9 +61,20 @@ public partial class App : Application
         }
     }
 
+    // Set before composition so the handler below never blocks an unattended caller.
+    private static bool headless;
+
     private static void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
         DesktopDiagnostics.Record(e.Exception, "Dispatcher", "DISPATCHER_UNHANDLED", DesktopDiagnosticSeverity.Critical);
+        if (headless)
+        {
+            // A modal dialog cannot be dismissed by an installer or a scheduled task.
+            Console.Error.WriteLine(e.Exception.Message);
+            e.Handled = true;
+            Current.Shutdown(2);
+            return;
+        }
         MessageBox.Show("The operation could not be completed. A diagnostic entry was recorded. No source rows were written to the log.", "ETP Reporting Engine", MessageBoxButton.OK, MessageBoxImage.Error);
         e.Handled = true;
     }

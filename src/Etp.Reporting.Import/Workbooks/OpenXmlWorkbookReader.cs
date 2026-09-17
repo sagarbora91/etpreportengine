@@ -28,7 +28,7 @@ public sealed class OpenXmlWorkbookReader : IWorkbookReader
         try
         {
             return await Task.Run(
-                () => Materialize(info.Name, info.Length, bytes, cancellationToken),
+                () => Materialize(info.Name, bytes.Length, bytes, cancellationToken) with { SourcePath = info.FullName },
                 cancellationToken).ConfigureAwait(false);
         }
         finally
@@ -59,7 +59,11 @@ public sealed class OpenXmlWorkbookReader : IWorkbookReader
 
             // Enumerating Row/Cell XML is intentional: ETP files can declare a false A1 worksheet dimension.
             var sourceRows = part.Worksheet.GetFirstChild<SheetData>()?.Elements<Row>().ToArray() ?? [];
-            if (sourceRows.Length == 0) continue;
+            if (sourceRows.Length == 0)
+            {
+                sheets.Add(new WorkbookSheet(sheet.Name?.Value ?? string.Empty, 1, [], []));
+                continue;
+            }
             var materialized = new WorkbookRow[sourceRows.Length];
             for (var index = 0; index < sourceRows.Length; index++)
             {
@@ -104,8 +108,12 @@ public sealed class OpenXmlWorkbookReader : IWorkbookReader
         if (type == CellValues.Boolean) return raw == "1";
         if (cell.StyleIndex?.Value is uint style && dateStyles.Contains(style) &&
             double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out var serial))
-            return DateTime.FromOADate(serial);
-        if (type == CellValues.Number && decimal.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out var number)) return number;
+        {
+            if (DateTime.TryParseExact(raw, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var etpDate)) return etpDate;
+            if (serial > 0 && serial < 2958466) return DateTime.FromOADate(serial);
+            // Zero is an ETP missing-date sentinel, and invalid serials must become safe cell diagnostics.
+        }
+        if ((type is null || type == CellValues.Number) && decimal.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out var number)) return number;
         if (type == CellValues.Date && DateTime.TryParse(raw, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var date)) return date;
         return raw;
     }

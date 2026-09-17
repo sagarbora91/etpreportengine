@@ -11,20 +11,6 @@ namespace Etp.Reporting.Import.Tests;
 public sealed class MatchedImportEnvelopeTests
 {
     [Fact]
-    public void Approved_registry_contains_only_the_six_evidenced_v1_profiles()
-    {
-        Assert.Equal(
-            ["R025", "R022", "R013", "R003", "STOCK_LEDGER", "CLOSING_STOCK"],
-            ApprovedImportProfileRegistry.All.Select(profile => profile.ReportCode));
-        Assert.All(ApprovedImportProfileRegistry.All, profile =>
-        {
-            Assert.Equal("ETP_2026_08", profile.LayoutVersion);
-            Assert.Equal("1", profile.ProfileVersion);
-            Assert.Same(profile, ApprovedImportProfileRegistry.Resolve(profile.Identity));
-        });
-    }
-
-    [Fact]
     public void Accepted_envelope_carries_the_exact_profile_sheet_staging_diagnostics_and_lineage_source()
     {
         var cells = RetailSalesProfiles.R025Headers.Select(header => new WorkbookCell(header switch
@@ -94,8 +80,9 @@ public sealed class MatchedImportEnvelopeTests
 
         var inspection = new MatchedImportEnvelopeFactory().Inspect(workbook);
 
-        Assert.False(inspection.Accepted);
-        Assert.Contains(inspection.Diagnostics, diagnostic => diagnostic.Code == "UNKNOWN_STOCK_TRANSACTION_TYPE");
+        Assert.True(inspection.Accepted);
+        Assert.Empty(inspection.AcceptedImport!.Staging.Rows);
+        Assert.Contains(inspection.Diagnostics, diagnostic => diagnostic.Code == "UNKNOWN_STOCK_TRANSACTION_TYPE" && diagnostic.Severity == ImportDiagnosticSeverity.Warning);
     }
 
     [Fact]
@@ -174,7 +161,7 @@ public sealed class MatchedImportEnvelopeTests
 
         Assert.True(profiles.IsReadOnly);
         Assert.Throws<NotSupportedException>(() => profiles[0] = RetailSalesProfiles.R022);
-        Assert.Same(RetailSalesProfiles.R025, ApprovedImportProfileRegistry.All[0]);
+        Assert.Equal(RetailSalesProfiles.R025.Identity, ApprovedImportProfileRegistry.Resolve(RetailSalesProfiles.R025.Identity).Identity);
     }
 
     private static void AssertReadOnly(IList values)

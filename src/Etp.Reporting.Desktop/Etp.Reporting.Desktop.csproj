@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -11,6 +11,7 @@
     <Company>Saagar Traders</Company>
     <Description>ETP sales, tender and stock reporting for Windows.</Description>
     <Copyright>Copyright © 2026 Saagar Traders</Copyright>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\EtpReporting.ico</ApplicationIcon>
   </PropertyGroup>
 
@@ -22,7 +23,25 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="..\..\scripts\**\*" Link="scripts\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <!-- Only the operational scripts belong beside the application. Copying the whole
+         scripts tree put build, signing, release-rollback, security-scan and emulator
+         tooling into every install, and the release signature was then applied to it.
+         This is the same set build-windows-release.ps1 curates; they stay in step. -->
+    <Content Include="..\..\scripts\bootstrap-etp-prerequisites.ps1;
+                      ..\..\scripts\backup-etp-database.ps1;
+                      ..\..\scripts\etp-operations-common.ps1;
+                      ..\..\scripts\initialize-etp-operation-folders.ps1;
+                      ..\..\scripts\install-daily-backup-task.ps1;
+                      ..\..\scripts\install-etp-automation-task.ps1;
+                      ..\..\scripts\install-etp-sql-operations.ps1;
+                      ..\..\scripts\install-monthly-recovery-drill-task.ps1;
+                      ..\..\scripts\invoke-database-maintenance.ps1;
+                      ..\..\scripts\invoke-etp-recovery-drill.ps1;
+                      ..\..\scripts\invoke-monthly-recovery-drill-runner.ps1;
+                      ..\..\scripts\new-etp-support-package.ps1;
+                      ..\..\scripts\remove-etp-scheduled-tasks.ps1"
+             Link="scripts\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\scripts\sql\etp-operations-broker.sql" Link="scripts\sql\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Resource Include="Assets\EtpReporting.ico" />
     <Content Include="..\..\database\migrations\*.sql" Link="database\migrations\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

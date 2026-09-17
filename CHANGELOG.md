@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Restore approved brand mappings, durable import history, query filters with export scope, and selective Retry failed.
+- Allow Owner-approved adjustments in accounting mappings.
+- Make mapping approval atomic and persist batch approval reasons (migration 0029).
+- Add Owner-only rejection of unexported accounting batches with reason, actor/time and audit (migration 0030).
+- Phase 5 remains in progress; targeted evidence and remaining work are in the current handoff and Phase 5 report.
+
 ## [1.8.8] - 2026-09-12
 
 UI redesign candidate covering the complete active application. Installed, device and full interactive acceptance remain explicitly unverified; see the sprint ledger. Not approved for production.

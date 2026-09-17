@@ -2,21 +2,22 @@ namespace Etp.Reporting.Reporting;
 
 public static class RetailReportingPolicy
 {
-    public const string Version = "USER_CONFIRMED_2026_08";
+    public const string Version = "DATA_TRUTH_GST_INCLUSIVE_2026_09";
 
     public static ApprovedReportingMapping Mapping { get; } = new(
-        Version, ApprovedSalesAmountSource.Net,
+        Version, ApprovedSalesAmountSource.Gross,
         new Dictionary<string, ReportingTransactionType>(StringComparer.OrdinalIgnoreCase)
         {
             ["INV"] = ReportingTransactionType.Sale,
-            ["SR"] = ReportingTransactionType.Return
+            ["SR"] = ReportingTransactionType.Return,
+            ["BC"] = ReportingTransactionType.Return
         },
         new HashSet<string>(
-        ["CASH", "CARD", "CHEQUE", "LOYALTY_POINTS", "GV", "CREDITNOTE_REDEEM", "EXCESS_GV",
+        ["CASH", "CARD", "UPI", "CN", "TC", "Gift Card", "Bank", "Service Cash", "Service Card", "Service UPI", "PAYMENTTYPE25", "CHEQUE", "LOYALTY_POINTS", "GV", "CREDITNOTE_REDEEM", "EXCESS_GV",
          "ROUND_OFF", "NO_REFUND", "OTHERS", "TATA_GV", "GIFTCARD", "TATACLIQ", "GYFTR", "PAYTM",
          "HELIOSOMNI", "ADVANCERDEEM", "BHIMUPI", "PHONEPE", "BHARATPE", "BAJAJFIN", "RAZORPAY",
          "PAYMENTTYPE24", "ISSUED_CREDITNOTE", "CASH_REFUND", "CHEQUE_RTGS_REFUND"], StringComparer.OrdinalIgnoreCase),
-        new HashSet<string>(["INV", "SR", "Purchase Return", "Purchase Receipt"], StringComparer.OrdinalIgnoreCase));
+        new HashSet<string>(["INV", "SR", "BC", "Purchase Return", "Purchase Receipt", "STM Issue", "STM Receipt", "STM Dispatch", "Stock Issue", "Stock Receipt"], StringComparer.OrdinalIgnoreCase));
 
     public static ApprovedSalesReportingPolicy Sales { get; } = new(Version,
         new HashSet<ReportingTransactionType>([ReportingTransactionType.Sale, ReportingTransactionType.Return]));

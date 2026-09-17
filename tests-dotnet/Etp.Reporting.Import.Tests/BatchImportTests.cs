@@ -140,6 +140,46 @@ public sealed class BatchImportTests : IDisposable
         Assert.Equal("IMPORT_NO_WORKBOOKS", error.Code);
     }
 
+    [Fact]
+    public async Task Folder_and_zip_skip_excel_lock_files_and_zip_temp_data_is_deleted_on_dispose()
+    {
+        File.WriteAllBytes(Path.Combine(_root, "~$locked.xlsx"), []);
+        File.WriteAllBytes(Path.Combine(_root, "valid.xlsx"), [1]);
+        await using (var folder = await BatchImportSource.OpenAsync(_root)) Assert.Single(folder.WorkbookPaths);
+        var zipPath = Path.Combine(_root, "locks.zip");
+        using (var archive = ZipFile.Open(zipPath, ZipArchiveMode.Create))
+        {
+            archive.CreateEntry("~$locked.xlsx");
+            using var stream = archive.CreateEntry("valid.xlsx").Open(); stream.WriteByte(1);
+        }
+        var zip = await BatchImportSource.OpenAsync(zipPath);
+        var extracted = Assert.Single(zip.WorkbookPaths);
+        Assert.True(File.Exists(extracted));
+        await zip.DisposeAsync();
+        Assert.False(Directory.Exists(Path.GetDirectoryName(extracted)));
+    }
+
+    [Fact]
+    public async Task Zip_inflated_bytes_are_capped_even_when_declared_size_is_forged()
+    {
+        var zipPath = Path.Combine(_root, "forged.zip");
+        using (var archive = ZipFile.Open(zipPath, ZipArchiveMode.Create))
+        {
+            using var stream = archive.CreateEntry("payload.xlsx", CompressionLevel.Optimal).Open();
+            stream.Write(new byte[32 * 1024]);
+        }
+        var bytes = await File.ReadAllBytesAsync(zipPath);
+        for (var i = 0; i < bytes.Length - 46; i++)
+        {
+            if (BitConverter.ToUInt32(bytes, i) == 0x02014b50) BitConverter.GetBytes(16).CopyTo(bytes, i + 24);
+            if (BitConverter.ToUInt32(bytes, i) == 0x04034b50) BitConverter.GetBytes(16).CopyTo(bytes, i + 22);
+        }
+        await File.WriteAllBytesAsync(zipPath, bytes);
+        var policy = new ImportPathPolicy(new(MaximumEntryBytes: 1024));
+        var error = await Assert.ThrowsAsync<ImportSourceException>(() => BatchImportSource.OpenAsync(zipPath, policy));
+        Assert.Contains(error.Code, new[] { "IMPORT_ARCHIVE_ENTRY_SIZE", "IMPORT_ARCHIVE_CORRUPT" });
+    }
+
     public void Dispose()
     {
         try { Directory.Delete(_root, true); } catch (IOException) { }

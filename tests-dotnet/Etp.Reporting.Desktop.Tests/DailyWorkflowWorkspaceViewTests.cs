@@ -33,7 +33,6 @@ public sealed class DailyWorkflowWorkspaceViewTests
                 _ => commands,
                 _ => generator,
                 () => currentAccess,
-                () => true,
                 (operation, status, _) => { audits.Add($"{operation}:{status}"); return Task.CompletedTask; },
                 (_, _) => Task.CompletedTask,
                 (_, _) => Task.CompletedTask)
@@ -73,7 +72,7 @@ public sealed class DailyWorkflowWorkspaceViewTests
             view.RefreshAccessState();
             FindTextBox(view, "Reopen reason").Text = "Approved correction";
             await view.ReopenDayAsync();
-            Assert.True(commands.Reopen?.AdministratorApproved);
+            Assert.NotNull(commands.Reopen);
             Assert.Equal("Approved correction", commands.Reopen?.Reason);
             Assert.Contains("DayReopened:Succeeded", audits);
             Assert.Equal(3, dashboardRefreshes);
@@ -96,7 +95,6 @@ public sealed class DailyWorkflowWorkspaceViewTests
                 _ => new FakeCommands(),
                 _ => new FakePackGenerator(DateOnly.FromDateTime(date)),
                 () => new(true, true, true),
-                () => true,
                 (_, _, _) => Task.CompletedTask,
                 (_, _) => Task.CompletedTask,
                 (_, _) => Task.CompletedTask)
@@ -184,7 +182,7 @@ public sealed class DailyWorkflowWorkspaceViewTests
     private static DailyWorkflowWorkspaceView CreateView(IDailyWorkflowQuery query, FakeCommands commands) => new(
         new DailyWorkflowPresentationSession(), () => "Integrated Security=True", _ => query,
         _ => commands, _ => new FakePackGenerator(DateOnly.FromDateTime(DateTime.Today.AddDays(-1))),
-        () => new(true, true, true), () => true, (_, _, _) => Task.CompletedTask,
+        () => new(true, true, true), (_, _, _) => Task.CompletedTask,
         (_, _) => Task.CompletedTask, (_, _) => Task.CompletedTask)
         { StoreCode = "WLMHW", BusinessDate = DateTime.Today.AddDays(-1) };
 

@@ -192,7 +192,7 @@ public sealed class DailyWorkflowServiceTests
             @"Server=.\SQLEXPRESS;Database=EtpReporting;Integrated Security=True;TrustServerCertificate=True",
             _ => Task.FromResult(new ApplicationAccess("manager", "Manager", ApplicationRole.StoreManager, true)));
         var command = new ReopenDailyWorkflow(
-            new("WLMHW", new DateOnly(2026, 8, 25)), "manager", "correction", true);
+            new("WLMHW", new DateOnly(2026, 8, 25)), "manager", "correction");
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.ReopenAsync(command));
     }

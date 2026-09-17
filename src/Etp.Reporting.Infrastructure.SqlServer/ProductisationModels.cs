@@ -3,8 +3,6 @@ namespace Etp.Reporting.Infrastructure.SqlServer;
 public sealed record ProductSettings(
     string DocumentRepositoryPath,
     string ShareFolderPath,
-    string? OcrHelperPath,
-    string? OcrModelPath,
     string? SmtpHost,
     int? SmtpPort,
     bool SmtpUseTls,
@@ -30,29 +28,6 @@ public sealed record SourceDocumentRow(
     string ReceivedBy,
     DateTime ReceivedUtc,
     string? SafeMessage);
-
-public sealed record DocumentExtractionResult(
-    string Method,
-    string Version,
-    string Text,
-    decimal? Confidence,
-    int? PageNumber = null,
-    string? BoundingBoxJson = null,
-    string? StructuredFieldsJson = null,
-    string ReviewStatus = "REVIEW_REQUIRED");
-
-public sealed record DocumentExtractionRow(
-    long Id,
-    long SourceDocumentId,
-    string Method,
-    string Version,
-    string Text,
-    decimal? Confidence,
-    string ReviewStatus,
-    string? ReviewedBy,
-    DateTime? ReviewedUtc,
-    string? ReviewReason,
-    DateTime CreatedUtc);
 
 public sealed record SharingContactRow(
     int Id,

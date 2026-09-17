@@ -18,11 +18,7 @@ public static class SourceInboxPresentation
     {
         ArgumentNullException.ThrowIfNull(outcome);
         return outcome.Duplicate
-            ? "This document was already received. The existing immutable copy has been selected."
-            : outcome.Extraction?.Method == "PADDLE_OCR"
-                ? "Document stored. PaddleOCR extraction was captured for human verification."
-                : string.IsNullOrWhiteSpace(outcome.Extraction?.Text)
-                    ? "Document stored. No usable native text was found; manual review is required."
-                    : "Document stored. Native PDF text was extracted and is awaiting human verification.";
+            ? "This document was already attached. The existing copy has been selected."
+            : "Document attached to the business day. Its original and SHA-256 hash are retained.";
     }
 }

@@ -4,6 +4,10 @@ using Etp.Reporting.Import.Batch;
 using Etp.Reporting.Import.Diagnostics;
 using Etp.Reporting.Import.Preflight;
 using Etp.Reporting.Import.Workbooks;
+using Etp.Reporting.Infrastructure.SqlServer;
+using FolderImportOptions = EtpApplication::Etp.Reporting.Application.Imports.FolderImportOptions;
+using FolderImportProgress = EtpApplication::Etp.Reporting.Application.Imports.FolderImportProgress;
+using FolderImportSummary = EtpApplication::Etp.Reporting.Application.Imports.FolderImportSummary;
 using ImportPersistenceRequest = EtpApplication::Etp.Reporting.Application.Imports.ImportPersistenceRequest<Etp.Reporting.Import.Preflight.MatchedImportEnvelope>;
 using ImportPersistenceResult = EtpApplication::Etp.Reporting.Application.Imports.ImportPersistenceResult;
 using ImportPersistenceUseCase = EtpApplication::Etp.Reporting.Application.Imports.IImportPersistenceUseCase<Etp.Reporting.Import.Preflight.MatchedImportEnvelope>;
@@ -31,7 +35,12 @@ public sealed record DesktopImportValidationOutcome(
     bool Accepted,
     string? ReportCode,
     int StagedRows,
-    IReadOnlyList<ImportDiagnostic> Diagnostics);
+    IReadOnlyList<ImportDiagnostic> Diagnostics)
+{
+    public string? StoreCode { get; init; }
+    public DateOnly? PeriodStart { get; init; }
+    public DateOnly? PeriodEnd { get; init; }
+}
 
 public sealed record DesktopImportPersistenceOutcome(
     string ReportCode,
@@ -49,6 +58,8 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
     private BatchImportSource? activeBatchSource;
     private CancellationTokenSource? batchCancellation;
     private ValidatedImport? validatedImport;
+    private FolderImportService? folderImportService;
+    private FolderImportOptions? folderImportOptions;
 
     public DesktopImportCoordinator(
         Func<string, ImportPersistenceUseCase> persistenceFactory,
@@ -79,7 +90,12 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
             inspection.Accepted,
             inspection.MatchedProfile?.ReportCode,
             inspection.StagedRows,
-            inspection.Diagnostics);
+            inspection.Diagnostics)
+        {
+            StoreCode = inspection.AcceptedImport?.Scope.StoreCode,
+            PeriodStart = inspection.AcceptedImport?.Scope.PeriodStart,
+            PeriodEnd = inspection.AcceptedImport?.Scope.PeriodEnd
+        };
     }
 
     public async Task<DesktopImportPersistenceOutcome> PersistValidatedAsync(
@@ -89,7 +105,9 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
     {
         var current = validatedImport ?? throw new InvalidOperationException("Validate an import workbook before persisting it.");
         var persistence = persistenceFactory(connectionString);
-        if (await persistence.ExistsByHashAsync(current.Envelope.Workbook.Sha256, cancellationToken).ConfigureAwait(false))
+        if (await persistence.ExistsInScopeAsync(current.Envelope.Workbook.Sha256, current.Envelope.ProfileIdentity.ReportCode,
+            current.Envelope.Scope.StoreCode ?? context.StoreCode, current.Envelope.Scope.PeriodStart ?? context.BusinessDate,
+            current.Envelope.Scope.PeriodEnd ?? context.BusinessDate, cancellationToken).ConfigureAwait(false))
         {
             if (context.RestatementEnabled)
                 throw new ImportSourceException(
@@ -133,6 +151,34 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
     }
 
     public void ClearValidatedImport() => validatedImport = null;
+
+    public async Task<FolderImportSummary> ImportFolderAsync(string sourcePath, string connectionString,
+        FolderImportOptions options, IProgress<FolderImportProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        batchCancellation?.Dispose();
+        batchCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var paths = await OpenBatchSourceAsync(sourcePath, batchCancellation.Token).ConfigureAwait(false);
+        folderImportOptions = options;
+        folderImportService = new FolderImportService(persistenceFactory(connectionString), workbookReader,
+            (path, envelope, store, end, token) => retainEvidence(connectionString, path, envelope.Workbook.Sha256,
+                envelope.ProfileIdentity.ReportCode, store, end, token));
+        var result = await folderImportService.RunFilesAsync(paths, options, progress, batchCancellation.Token).ConfigureAwait(false);
+        FailedBatchPaths = folderImportService.FailedPaths;
+        return result;
+    }
+
+    public async Task<FolderImportSummary> RetryFailedFolderAsync(IProgress<FolderImportProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        var service = folderImportService ?? throw new InvalidOperationException("Import a source before retrying failed files.");
+        var options = folderImportOptions ?? throw new InvalidOperationException("The original import options are unavailable.");
+        batchCancellation?.Dispose();
+        batchCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var result = await service.RetryFailedAsync(options, progress, batchCancellation.Token).ConfigureAwait(false);
+        FailedBatchPaths = service.FailedPaths;
+        return result;
+    }
 
     public async Task<IReadOnlyList<string>> OpenBatchSourceAsync(
         string sourcePath,
@@ -185,6 +231,8 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
     {
         if (activeBatchSource is not null) await activeBatchSource.DisposeAsync().ConfigureAwait(false);
         activeBatchSource = null;
+        folderImportService = null;
+        folderImportOptions = null;
         FailedBatchPaths = [];
     }
 
@@ -206,17 +254,22 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
     {
         var snapshot = await workbookReader.ReadAsync(workbookPath, cancellationToken).ConfigureAwait(false);
         var persistence = persistenceFactory(connectionString);
-        if (await persistence.ExistsByHashAsync(snapshot.Sha256, cancellationToken).ConfigureAwait(false))
+        var accepted = envelopeFactory.RequireAccepted(snapshot);
+        var context = contextFactory();
+        if (await persistence.ExistsInScopeAsync(snapshot.Sha256, accepted.ProfileIdentity.ReportCode,
+            accepted.Scope.StoreCode ?? context.StoreCode, accepted.Scope.PeriodStart ?? context.BusinessDate,
+            accepted.Scope.PeriodEnd ?? context.BusinessDate, cancellationToken).ConfigureAwait(false))
         {
             if (restatementEnabled())
                 throw new ImportSourceException(
                     "RESTATEMENT_DUPLICATE_FILE",
                     "A restatement must use a corrected source file with a new hash.");
+            await retainEvidence(connectionString, workbookPath, snapshot.Sha256, accepted.ProfileIdentity.ReportCode,
+                accepted.Scope.StoreCode ?? context.StoreCode, accepted.Scope.PeriodEnd ?? context.BusinessDate,
+                cancellationToken).ConfigureAwait(false);
             return new(0, 0, 0, 0, true);
         }
 
-        var accepted = envelopeFactory.RequireAccepted(snapshot);
-        var context = contextFactory();
         var restatement = await ResolveRestatementAsync(
             persistence,
             accepted.ProfileIdentity.ReportCode,
@@ -239,7 +292,9 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
             context.StoreCode,
             context.BusinessDate,
             cancellationToken).ConfigureAwait(false);
-        var outcome = await persistence.LoadOutcomeByHashAsync(snapshot.Sha256, cancellationToken).ConfigureAwait(false);
+        var outcome = await persistence.LoadOutcomeInScopeAsync(snapshot.Sha256, accepted.ProfileIdentity.ReportCode,
+            accepted.Scope.StoreCode ?? context.StoreCode, accepted.Scope.PeriodStart ?? context.BusinessDate,
+            accepted.Scope.PeriodEnd ?? context.BusinessDate, cancellationToken).ConfigureAwait(false);
         return new(
             outcome.RowsProcessed,
             outcome.NewRows,

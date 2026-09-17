@@ -86,9 +86,9 @@ public sealed class ReportsRequestOrderingTests
             var previews = new List<ReportPresentationSnapshot>();
             var view = CreateView(new DeferredTrendQuery(), previews, exporter);
             await view.RunReportAsync("sales-titan");
-            var saving = view.ExportReportToPathAsync("synthetic-output", pdf);
+            var saving = view.ExportReportToPathAsync(Path.Combine(Path.GetTempPath(), "etp-test-" + Guid.NewGuid().ToString("N") + ".xlsx"), pdf);
             Assert.True(view.IsExportInProgress);
-            await view.ExportReportToPathAsync("duplicate-output", pdf);
+            await view.ExportReportToPathAsync(Path.Combine(Path.GetTempPath(), "etp-test-" + Guid.NewGuid().ToString("N") + ".xlsx"), pdf);
             Assert.Equal(1, exporter.Calls);
             await view.RunReportAsync("sales-helios");
             var status = ((TextBlock)view.FindName("ReportResult")).Text;
@@ -102,6 +102,42 @@ public sealed class ReportsRequestOrderingTests
         });
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Successful_export_records_only_privacy_safe_detail(bool pdf)
+    {
+        RunSta(async () =>
+        {
+            var exporter = new DeferredExport();
+            var view = CreateView(new DeferredTrendQuery(), [], exporter);
+            var recorded = new List<(string Kind, string Outcome, string Detail)>();
+            view.AttachHost(_ => true, (kind, outcome, detail) =>
+            {
+                if (detail.Length > 200 || detail.IndexOfAny([':', '/', '\\']) >= 0 || detail.Any(char.IsDigit))
+                    throw new ArgumentException("Audit details must not contain paths or identifiers.", nameof(detail));
+                recorded.Add((kind, outcome, detail));
+                return Task.CompletedTask;
+            }, (_, _, _) => { }, _ => { }, _ => { });
+            var path = Path.Combine(Path.GetTempPath(), "etp-test-" + Guid.NewGuid().ToString("N") + (pdf ? ".pdf" : ".xlsx"));
+            try
+            {
+                await view.RunReportAsync("sales-titan");
+                exporter.Completion.SetResult();
+                await view.ExportReportToPathAsync(path, pdf);
+
+                Assert.True(File.Exists(path));
+                Assert.Equal((pdf ? "ExportPdf" : "ExportExcel", "Succeeded", "Report exported"),
+                    Assert.Single(recorded, entry => entry.Kind.StartsWith("Export", StringComparison.Ordinal)));
+                var status = ((TextBlock)view.FindName("ReportResult")).Text;
+                Assert.Contains("report saved to", status);
+                Assert.DoesNotContain("Activity history could not be updated", status);
+                Assert.DoesNotContain("export failed", status);
+            }
+            finally { if (File.Exists(path)) File.Delete(path); }
+        });
+    }
+
     [Fact]
     public void Saved_file_is_not_reported_as_failed_when_activity_history_fails()
     {
@@ -112,11 +148,11 @@ public sealed class ReportsRequestOrderingTests
             view.AttachHost(_ => true, (kind, _, _) => kind.StartsWith("Export") ? Task.FromException(new IOException("Audit unavailable")) : Task.CompletedTask,
                 (_, _, _) => { }, _ => { }, _ => { });
             await view.RunReportAsync("sales-titan");
-            var saving = view.ExportReportToPathAsync("saved-output.xlsx", false);
+            var saving = view.ExportReportToPathAsync(Path.Combine(Path.GetTempPath(), "etp-test-" + Guid.NewGuid().ToString("N") + ".xlsx"), false);
             exporter.Completion.SetResult();
             await saving;
             var status = ((TextBlock)view.FindName("ReportResult")).Text;
-            Assert.Contains("report saved to saved-output.xlsx", status);
+            Assert.Contains("report saved to", status);
             Assert.Contains("Activity history could not be updated", status);
             Assert.DoesNotContain("export failed", status);
         });
@@ -132,14 +168,14 @@ public sealed class ReportsRequestOrderingTests
             var exporter = new DeferredExport();
             var view = CreateView(new DeferredTrendQuery(), [], exporter);
             await view.RunReportAsync("sales-titan");
-            var saving = view.ExportReportToPathAsync("synthetic-output", false);
+            var saving = view.ExportReportToPathAsync(Path.Combine(Path.GetTempPath(), "etp-test-" + Guid.NewGuid().ToString("N") + ".xlsx"), false);
             if (cancelled) exporter.Completion.SetCanceled();
             else exporter.Completion.SetException(new IOException("Synthetic disk failure"));
             await saving;
-            Assert.Contains("Excel export failed", ((TextBlock)view.FindName("ReportResult")).Text);
+            Assert.Contains(cancelled ? "Export cancelled" : "Excel export failed", ((TextBlock)view.FindName("ReportResult")).Text);
             Assert.Equal("sales-titan", view.CurrentReportCode);
             Assert.True(((Button)view.FindName("ExportExcelButton")).IsEnabled);
-            await view.ExportReportToPathAsync("synthetic-retry", false);
+            await view.ExportReportToPathAsync(Path.Combine(Path.GetTempPath(), "etp-test-" + Guid.NewGuid().ToString("N") + ".xlsx"), false);
             Assert.Equal(2, exporter.Calls);
         });
     }
@@ -148,8 +184,9 @@ public sealed class ReportsRequestOrderingTests
     {
         public TaskCompletionSource Completion { get; } = new();
         public int Calls { get; private set; }
-        public Task ExportReportExcelAsync(string path, Etp.Reporting.Reporting.ExcelReportMetadata metadata, Etp.Reporting.Reporting.ExcelReportData data, Etp.Reporting.Reporting.VisualReportModel? visual, CancellationToken token = default) { Calls++; return Completion.Task; }
-        public Task ExportReportPdfAsync(string path, Etp.Reporting.Reporting.ExcelReportMetadata metadata, Etp.Reporting.Reporting.ExcelReportData data, Etp.Reporting.Reporting.VisualReportModel? visual, Etp.Reporting.Reporting.DailySalesReportDocument? dsr, CancellationToken token = default) { Calls++; return Completion.Task; }
+        private async Task WriteAsync(string path) { await Completion.Task; File.WriteAllText(path,"Synthetic export"); }
+        public Task ExportReportExcelAsync(string path, Etp.Reporting.Reporting.ExcelReportMetadata metadata, Etp.Reporting.Reporting.ExcelReportData data, Etp.Reporting.Reporting.VisualReportModel? visual, CancellationToken token = default) { Calls++; return WriteAsync(path); }
+        public Task ExportReportPdfAsync(string path, Etp.Reporting.Reporting.ExcelReportMetadata metadata, Etp.Reporting.Reporting.ExcelReportData data, Etp.Reporting.Reporting.VisualReportModel? visual, Etp.Reporting.Reporting.DailySalesReportDocument? dsr, CancellationToken token = default) { Calls++; return WriteAsync(path); }
         public Task ExportPackExcelAsync(string path, Etp.Reporting.Reporting.ReportPackDocument document, CancellationToken token = default) => throw new NotSupportedException();
         public Task ExportPackPdfAsync(string path, Etp.Reporting.Reporting.ReportPackDocument document, CancellationToken token = default) => throw new NotSupportedException();
         public Task ExportManagementSummaryPdfAsync(string path, Etp.Reporting.Reporting.ExcelReportMetadata metadata, Etp.Reporting.Reporting.ExcelReportData data, CancellationToken token = default) => throw new NotSupportedException();

@@ -9,7 +9,7 @@ public static class SqlReportingQueries
     public const string Sales = """
         SELECT i.transaction_date,i.store_code,i.document_number,l.line_identifier,l.product_code,
                COALESCE(l.source_brand_name,l.source_brand_code,p.brand_name),COALESCE(l.brand_segment,p.cluster),l.source_transaction_type,l.source_quantity,
-               l.source_gross_amount,l.source_net_amount
+               l.source_gross_amount,l.source_net_amount,i.invoice_year
         FROM dbo.sales_lines l
         JOIN dbo.sales_invoices i ON i.sales_invoice_id=l.sales_invoice_id
         OUTER APPLY
@@ -28,16 +28,17 @@ public static class SqlReportingQueries
         """;
 
     public const string Tenders = """
-        SELECT i.store_code,i.document_number,t.tender_type,t.source_amount
+        SELECT i.store_code,i.document_number,COALESCE(m.mode,CONCAT('Unmapped: ',t.tender_type)),t.source_amount,i.invoice_year
         FROM dbo.reporting_sales_tenders t
         JOIN dbo.sales_invoices i ON i.sales_invoice_id=t.sales_invoice_id
+        LEFT JOIN dbo.tender_modes m ON m.source_tender_code=t.tender_type AND m.active=1
         WHERE i.transaction_date>=@dateFrom AND i.transaction_date<=@dateTo
           AND (@storesJson IS NULL OR i.store_code IN (SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@storesJson)))
         ORDER BY i.store_code,i.document_number,t.sales_tender_id;
         """;
 
     public const string InvoiceControls = """
-        SELECT i.store_code,i.document_number,c.source_net_value
+        SELECT i.store_code,i.document_number,c.source_net_value,i.invoice_year
         FROM dbo.sales_invoice_controls c
         JOIN dbo.sales_invoices i ON i.sales_invoice_id=c.sales_invoice_id
         WHERE i.transaction_date>=@dateFrom AND i.transaction_date<=@dateTo
@@ -92,7 +93,7 @@ public sealed class SqlServerReportingQueryRepository(string connectionString) :
         while (await reader.ReadAsync(cancellationToken))
             rows.Add(new(reader.GetFieldValue<DateOnly>(0), reader.GetString(1), reader.GetString(2), reader.GetString(3),
                 reader.GetString(4), NullableString(reader, 5), NullableString(reader, 6), NullableString(reader, 7),
-                reader.GetDecimal(8), NullableDecimal(reader, 9), NullableDecimal(reader, 10)));
+                reader.GetDecimal(8), NullableDecimal(reader, 9), NullableDecimal(reader, 10), reader.GetInt32(11)));
         return rows;
     }
 
@@ -104,7 +105,7 @@ public sealed class SqlServerReportingQueryRepository(string connectionString) :
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         var rows = new List<TenderQueryRow>();
         while (await reader.ReadAsync(cancellationToken))
-            rows.Add(new(reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetDecimal(3)));
+            rows.Add(new(reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetDecimal(3), reader.GetInt32(4)));
         return rows;
     }
 
@@ -116,7 +117,7 @@ public sealed class SqlServerReportingQueryRepository(string connectionString) :
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         var rows = new List<InvoiceControlQueryRow>();
         while (await reader.ReadAsync(cancellationToken))
-            rows.Add(new(reader.GetString(0), reader.GetString(1), reader.GetDecimal(2)));
+            rows.Add(new(reader.GetString(0), reader.GetString(1), reader.GetDecimal(2), reader.GetInt32(3)));
         return rows;
     }
 
@@ -140,7 +141,7 @@ public sealed class SqlServerReportingQueryRepository(string connectionString) :
     private async Task<SqlConnection> Open(CancellationToken token)
     {
         if (string.IsNullOrWhiteSpace(connectionString)) throw new InvalidOperationException("A SQL Server connection string is required.");
-        var connection = new SqlConnection(connectionString);
+        var connection = new SqlConnection(LocalSqlConnectionPolicy.Validate(connectionString));
         try { await connection.OpenAsync(token); return connection; }
         catch { await connection.DisposeAsync(); throw; }
     }

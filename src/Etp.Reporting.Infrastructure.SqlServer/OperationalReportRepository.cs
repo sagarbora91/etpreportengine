@@ -12,7 +12,7 @@ public sealed record InvoiceSalesSummaryRow(
     string TransactionTypes,
     decimal Quantity,
     decimal NetValue,
-    int SourceRows);
+    int SourceRows, string? CustomerName = null);
 
 public sealed record InvoiceSalesLineageRow(
     DateOnly BusinessDate,
@@ -47,7 +47,8 @@ public sealed record DsrManagementRow(
     decimal? Atv,
     decimal? WalkIns,
     decimal? ConversionPercent,
-    string MetricPolicy);
+    string MetricPolicy,
+    int WalkInMissingDays = 0);
 
 public sealed record StaffPerformanceRow(
     string StoreCode,
@@ -64,7 +65,8 @@ public sealed record StaffPerformanceRow(
     decimal ContributionPercent,
     decimal? TargetSales,
     decimal? TargetAchievementPercent,
-    int Rank);
+    int Rank,
+    string? CroName = null);
 
 public sealed record StaffPerformanceResult(
     IReadOnlyList<StaffPerformanceRow> Rows,
@@ -130,7 +132,9 @@ public sealed record ServiceSalesRow(
     decimal? Total,
     decimal? LastYearTotal,
     decimal? GrowthPercent,
-    string Availability);
+    string Availability,
+    int MissingDays = 0,
+    int LastYearMissingDays = 0, decimal? Wdc = null);
 
 public sealed record CashReconciliationResult(
     string StoreCode,
@@ -147,10 +151,10 @@ public sealed record CashReconciliationResult(
     ReconciliationStatus Status,
     string Message);
 
-public sealed class OperationalReportRepository(string connectionString)
+public sealed partial class OperationalReportRepository(string connectionString)
 {
     public const string DsrMetricPolicy = "DSR_INVOICE_DENOMINATOR_SOURCE_EVIDENCE_V1";
-    public const string StaffMetricPolicy = "R013_ATTRIBUTED_TRANSACTION_DENOMINATOR_V1";
+    public const string StaffMetricPolicy = "R013_NET_SALES_AND_QUANTITY_PER_UNIQUE_INV_V2";
     public const string StockInventorySql = """
         SELECT s.snapshot_date,s.store_code,s.product_code,
                COALESCE(NULLIF(LTRIM(RTRIM(s.brand_name)),''),NULLIF(LTRIM(RTRIM(s.brand_code)),'')),
@@ -186,8 +190,11 @@ public sealed class OperationalReportRepository(string connectionString)
             SELECT i.transaction_date,i.store_code,i.document_number,
                    CASE WHEN COUNT(DISTINCT COALESCE(l.source_transaction_type,'UNMAPPED'))=1
                         THEN MIN(COALESCE(l.source_transaction_type,'UNMAPPED')) ELSE 'MIXED' END,
-                   SUM(l.source_quantity),SUM(l.source_net_amount),COUNT_BIG(*)
+                   COALESCE(SUM(l.source_quantity),0),COALESCE(SUM(l.source_gross_amount),0),COUNT_BIG(*),MAX(customer.customer_name)
             FROM dbo.sales_invoices i JOIN dbo.sales_lines l ON l.sales_invoice_id=i.sales_invoice_id
+            OUTER APPLY (SELECT TOP(1) d.customer_name FROM dbo.etp_r024 d JOIN dbo.import_files f ON f.import_file_id=d.import_file_id
+              WHERE f.is_superseded=0 AND d.store_code=i.store_code AND d.inv_number=i.document_number AND d.inv_date=i.transaction_date
+              ORDER BY d.etp_row_id DESC) customer
             WHERE i.transaction_date BETWEEN @from AND @to
               AND (@stores IS NULL OR i.store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores)))
             GROUP BY i.transaction_date,i.store_code,i.document_number
@@ -202,7 +209,7 @@ public sealed class OperationalReportRepository(string connectionString)
         var rows = new List<InvoiceSalesSummaryRow>();
         while (await reader.ReadAsync(cancellationToken))
             rows.Add(new(reader.GetFieldValue<DateOnly>(0), reader.GetString(1), reader.GetString(2), reader.GetString(3),
-                reader.GetDecimal(4), reader.GetDecimal(5), checked((int)reader.GetInt64(6))));
+                reader.GetDecimal(4), reader.GetDecimal(5), checked((int)reader.GetInt64(6)), reader.IsDBNull(7)?null:reader.GetString(7)));
         return rows;
     }
 
@@ -214,7 +221,7 @@ public sealed class OperationalReportRepository(string connectionString)
         const string sql = """
             SELECT i.transaction_date,i.store_code,i.document_number,l.line_identifier,l.product_code,
                    COALESCE(l.source_brand_name,l.source_brand_code),l.brand_segment,l.source_transaction_type,
-                   l.source_quantity,l.source_net_amount,cro.source_cro_number,f.original_file_name,s.sheet_name,s.source_row_number
+                   l.source_quantity,l.source_gross_amount,cro.source_cro_number,f.original_file_name,s.sheet_name,s.source_row_number
             FROM dbo.sales_lines l
             JOIN dbo.sales_invoices i ON i.sales_invoice_id=l.sales_invoice_id
             JOIN dbo.source_lineage s ON s.source_lineage_id=l.source_lineage_id
@@ -267,13 +274,13 @@ public sealed class OperationalReportRepository(string connectionString)
             var walkIns = await LoadWalkInsAsync(connection, period.Current, stores, cancellationToken);
             foreach (var store in stores)
                 rows.Add(BuildDsrRow(kind.ToString().ToUpperInvariant(), store, period, facts.GetValueOrDefault(store) ?? new(),
-                    walkIns.GetValueOrDefault(store) ?? new(), metricEngine));
+                    walkIns.GetValueOrDefault(store) ?? new(0m, period.Current.InclusiveDayCount), metricEngine));
 
-            var combinedFacts = Combine(facts.Values);
-            decimal? combinedWalkIns = walkIns.Count == stores.Length && walkIns.Values.All(x => x.IsComplete)
-                ? walkIns.Values.Sum(x => x.Value) : null;
+            var combinedFacts = Combine(stores.Select(store=>facts.GetValueOrDefault(store)??new()));
+            decimal combinedWalkIns = walkIns.Values.Sum(x => x.Value);
+            var combinedMissingDays = stores.Sum(store => walkIns.TryGetValue(store, out var value) ? value.MissingDays : period.Current.InclusiveDayCount);
             rows.Add(BuildDsrRow(kind.ToString().ToUpperInvariant(), "COMBINED", period, combinedFacts,
-                new(combinedWalkIns, combinedWalkIns is not null), metricEngine));
+                new(combinedWalkIns, combinedMissingDays), metricEngine));
         }
         return rows;
     }
@@ -294,11 +301,12 @@ public sealed class OperationalReportRepository(string connectionString)
         ArgumentNullException.ThrowIfNull(dsr);
         var service = await LoadServiceSalesAsync(businessDate, ["WLMHW", "HEMW"], cancellationToken);
         var supplementary = await LoadDsrSupplementaryAsync(businessDate, cancellationToken);
-        return DailySalesReportBuilder.Build(businessDate,
+        var document = DailySalesReportBuilder.Build(businessDate,
             dsr.Select(x => new DsrPeriodFact(x.Period, x.Store, x.TySales, x.LySales, x.TyUnits, x.LyUnits,
                 x.TyInvoices, x.LyInvoices, x.Upt, x.Atv, x.WalkIns, x.ConversionPercent)).ToArray(),
-            service.Select(x => new DsrServiceFact(x.Period, x.StoreCode, x.Cash, x.Card, x.Upi, x.Total, x.LastYearTotal)).ToArray(),
+            service.Select(x => new DsrServiceFact(x.Period, x.StoreCode, x.Cash, x.Card, x.Upi, x.MissingDays==0?x.Total:null, x.LastYearMissingDays==0?x.LastYearTotal:null)).ToArray(),
             supplementary.Targets, supplementary.ServiceWdc, DsrMetricPolicy);
+        return document with { EveningSheets = await LoadEveningSheetsAsync(businessDate, dsr, cancellationToken) };
     }
 
     public async Task<StaffPerformanceResult> LoadStaffPerformanceAsync(
@@ -307,36 +315,38 @@ public sealed class OperationalReportRepository(string connectionString)
     {
         scope.Validate();
         const string staffSql = """
-            SELECT e.store_code,e.source_cro_number,SUM(e.source_net_value),SUM(e.source_quantity),
+            SELECT e.store_code,e.source_cro_number,COALESCE(SUM(e.source_gross_value),0),COALESCE(SUM(e.source_quantity),0),
                    SUM(COALESCE(e.scheme_discount,0)+COALESCE(e.user_discount,0)+COALESCE(e.pre_discount,0)),
-                   COUNT(DISTINCT e.document_number)
+                   COUNT(DISTINCT CASE WHEN UPPER(e.source_transaction_type)='INV' THEN CONCAT(e.invoice_year,'|',e.document_number) END),
+                   MAX(COALESCE(s.staff_name,e.staff_name,e.source_cro_number))
             FROM dbo.sales_line_enrichments e
-            WHERE e.enrichment_type='R013' AND e.match_status='Matched' AND e.transaction_date BETWEEN @from AND @to
+            LEFT JOIN dbo.staff s ON s.store_code=e.store_code AND s.staff_code=e.source_cro_number
+            WHERE e.enrichment_type='R013' AND e.match_status='Matched' AND UPPER(e.source_transaction_type) IN('INV','SR','BC') AND e.transaction_date BETWEEN @from AND @to
               AND (@stores IS NULL OR e.store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores)))
               AND e.source_cro_number IS NOT NULL
-            GROUP BY e.store_code,e.source_cro_number ORDER BY e.store_code,SUM(e.source_net_value) DESC;
+            GROUP BY e.store_code,e.source_cro_number ORDER BY e.store_code,SUM(e.source_gross_value) DESC;
             """;
         const string lastYearSql = """
-            SELECT e.store_code,e.source_cro_number,SUM(e.source_net_value)
+            SELECT e.store_code,e.source_cro_number,COALESCE(SUM(e.source_gross_value),0)
             FROM dbo.sales_line_enrichments e
-            WHERE e.enrichment_type='R013' AND e.match_status='Matched' AND e.transaction_date BETWEEN @from AND @to
+            WHERE e.enrichment_type='R013' AND e.match_status='Matched' AND UPPER(e.source_transaction_type) IN('INV','SR','BC') AND e.transaction_date BETWEEN @from AND @to
               AND (@stores IS NULL OR e.store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores)))
               AND e.source_cro_number IS NOT NULL
             GROUP BY e.store_code,e.source_cro_number;
             """;
         const string totalSql = """
-            SELECT i.store_code,COALESCE(SUM(l.source_net_amount),0)
+            SELECT i.store_code,COALESCE(SUM(l.source_gross_amount),0)
             FROM dbo.sales_lines l JOIN dbo.sales_invoices i ON i.sales_invoice_id=l.sales_invoice_id
             WHERE i.transaction_date BETWEEN @from AND @to
               AND (@stores IS NULL OR i.store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores)))
             GROUP BY i.store_code;
             """;
         await using var connection = await OpenAsync(cancellationToken);
-        var raw = new List<(string Store, string Cro, decimal Sales, decimal Quantity, decimal Discount, int Transactions)>();
+        var raw = new List<(string Store, string Cro, decimal Sales, decimal Quantity, decimal Discount, int Transactions, string Name)>();
         await using (var command = ScopeCommand(connection, staffSql, scope))
         await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
             while (await reader.ReadAsync(cancellationToken))
-                raw.Add((reader.GetString(0), reader.GetString(1), reader.GetDecimal(2), reader.GetDecimal(3), reader.GetDecimal(4), reader.GetInt32(5)));
+                raw.Add((reader.GetString(0), reader.GetString(1), reader.GetDecimal(2), reader.GetDecimal(3), reader.GetDecimal(4), reader.GetInt32(5), reader.GetString(6)));
         var lastYearScope = scope with { DateFrom = scope.DateFrom.AddYears(-1), DateTo = scope.DateTo.AddYears(-1) };
         var lastYear = new Dictionary<(string Store, string Cro), decimal>();
         await using (var command = ScopeCommand(connection, lastYearSql, lastYearScope))
@@ -348,11 +358,14 @@ public sealed class OperationalReportRepository(string connectionString)
         await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
             while (await reader.ReadAsync(cancellationToken)) canonicalByStore[reader.GetString(0)] = reader.GetDecimal(1);
         var targets = await new OperationalCompletionRepository(connectionString).LoadStaffTargetsAsync(scope, cancellationToken);
-        var targetByStaff = targets.ToDictionary(x => (x.StoreCode.ToUpperInvariant(), x.CroNumber.ToUpperInvariant()), x => x.TargetSales);
+        var targetByStaff = targets.GroupBy(x => (x.StoreCode.ToUpperInvariant(), x.CroNumber.ToUpperInvariant())).ToDictionary(x => x.Key, x => x.Sum(t => t.TargetSales));
+        var staffNames = (await new DataTruthMasterRepository(connectionString).LoadStaffAsync(cancellationToken))
+            .ToDictionary(x => (x.StoreCode.ToUpperInvariant(), x.Code.ToUpperInvariant()), x => x.Name);
         foreach (var target in targets.Where(target => raw.All(x =>
                      !string.Equals(x.Store, target.StoreCode, StringComparison.OrdinalIgnoreCase) ||
                      !string.Equals(x.Cro, target.CroNumber, StringComparison.OrdinalIgnoreCase))))
-            raw.Add((target.StoreCode, target.CroNumber, 0m, 0m, 0m, 0));
+            raw.Add((target.StoreCode, target.CroNumber, 0m, 0m, 0m, 0,
+                staffNames.GetValueOrDefault((target.StoreCode.ToUpperInvariant(), target.CroNumber.ToUpperInvariant())) ?? target.CroNumber));
 
         var metricEngine = new ManagementMetricEngine();
         var rows = new List<StaffPerformanceRow>();
@@ -373,7 +386,7 @@ public sealed class OperationalReportRepository(string connectionString)
                     x.Transactions == 0 ? null : x.Quantity / x.Transactions,
                     x.Transactions == 0 ? null : x.Sales / x.Transactions,
                     storeCanonical == 0 ? 0 : x.Sales / storeCanonical * 100m,
-                    target, achievement, rank));
+                    target, achievement, rank, x.Name));
             }
         }
         var canonical = canonicalByStore.Values.Sum();
@@ -406,17 +419,17 @@ public sealed class OperationalReportRepository(string connectionString)
             foreach (var store in stores)
             {
                 var fact = facts.GetValueOrDefault(store) ?? new();
-                var currentComplete = fact.CurrentCount == period.Current.InclusiveDayCount * 3;
-                var lastComplete = fact.LastYearCount == period.LastYear.InclusiveDayCount * 3;
-                decimal? cash = currentComplete ? fact.Cash : null;
-                decimal? card = currentComplete ? fact.Card : null;
-                decimal? upi = currentComplete ? fact.Upi : null;
-                decimal? total = currentComplete ? cash + card + upi : null;
-                decimal? ly = lastComplete ? fact.LastYearTotal : null;
+                var missingDays = period.Current.InclusiveDayCount - fact.CurrentCount;
+                var lastYearMissingDays = period.LastYear.InclusiveDayCount - fact.LastYearCount;
+                decimal? cash = fact.Cash;
+                decimal? card = fact.Card;
+                decimal? upi = fact.Upi;
+                decimal? total = SumNullable([cash,card,upi,fact.Wdc]);
+                decimal? ly = fact.LastYearTotal;
                 var growth = metricEngine.Growth(total, ly);
                 rows.Add(new(kind.ToString().ToUpperInvariant(), store, period.Current.Start, period.Current.End,
                     cash, card, upi, total, ly, growth.Value,
-                    currentComplete ? growth.Availability.ToString() : MetricAvailability.MissingInput.ToString()));
+                    missingDays == 0 ? growth.Availability.ToString() : $"Partial — {missingDays} missing days", missingDays, lastYearMissingDays, fact.Wdc));
             }
         }
         return rows;
@@ -427,25 +440,10 @@ public sealed class OperationalReportRepository(string connectionString)
         DateOnly businessDate,
         CancellationToken cancellationToken = default)
     {
-        var workflow = await new DailyReportingWorkflowRepository(connectionString).LoadAsync(storeCode, businessDate, cancellationToken);
-        var values = workflow.ManualInputs.ToDictionary(x => x.FieldCode, x => x.NumericValue, StringComparer.OrdinalIgnoreCase);
-        var tenders = await new SqlServerReportingQueryRepository(connectionString).LoadTendersAsync(
-            new(businessDate, businessDate, [storeCode]), cancellationToken);
-        var retailCash = tenders.Where(x => string.Equals(x.TenderType, "CASH", StringComparison.OrdinalIgnoreCase)).Sum(x => x.SourceAmount);
-        var evaluation = new CashBalanceReconciliationService().Reconcile(new(
-            Value(values, "OPENING_CASH"), retailCash, Value(values, "SERVICE_CASH"), Value(values, "EXPENSES"),
-            Value(values, "CASH_DEPOSIT"), Value(values, "CASH_ADJUSTMENT"), Value(values, "CLOSING_CASH_COUNTED")));
-        var missing = evaluation.MissingInputs;
-        if (!workflow.ImportedReports.Contains("R022", StringComparer.OrdinalIgnoreCase)) missing = missing.Append("R022").ToArray();
-        if (missing.Count > 0)
-            return new(storeCode, businessDate, Value(values, "OPENING_CASH"), retailCash, Value(values, "SERVICE_CASH"),
-                Value(values, "EXPENSES"), Value(values, "CASH_DEPOSIT"), Value(values, "CASH_ADJUSTMENT"), null,
-                Value(values, "CLOSING_CASH_COUNTED"), null, ReconciliationStatus.Blocked,
-                $"Missing required cash evidence: {string.Join(", ", missing)}.");
-
-        return new(storeCode, businessDate, values["OPENING_CASH"], retailCash, values["SERVICE_CASH"], values["EXPENSES"],
-            values["CASH_DEPOSIT"], values["CASH_ADJUSTMENT"], evaluation.CalculatedClosingCash, values["CLOSING_CASH_COUNTED"],
-            evaluation.Variance, evaluation.Status, $"{evaluation.Formula}; counted closing remains independent evidence.");
+        var day=(await LoadCashBookAsync(storeCode,businessDate,businessDate,cancellationToken)).Single();
+        var variance=day.Counted-day.Closing;
+        var status=day.Closing is null?ReconciliationStatus.Blocked:variance is not null and not 0?ReconciliationStatus.Failed:ReconciliationStatus.Passed;
+        return new(storeCode,businessDate,day.Opening,day.Modes.GetValueOrDefault("Cash"),day.ServiceCash,day.Expenses,day.Deposit,day.Adjustment,day.Closing,day.Counted,variance,status,day.OpeningSource+"; "+day.Status);
     }
 
     public async Task<IReadOnlyList<PhysicalStockReportRow>> LoadPhysicalStockAsync(
@@ -557,7 +555,7 @@ public sealed class OperationalReportRepository(string connectionString)
                     "The staff/CRO enrichment could not be linked to exactly one canonical R025 sales line.", "Review the invoice, item and source row; preserve the exact variance."));
         }
 
-        var physical = await LoadPhysicalStockAsync(storeCode, businessDate, cancellationToken);
+        var physical = await LoadBrandPhysicalStockAsync(storeCode, businessDate, cancellationToken);
         foreach (var item in physical.Where(x => x.Status is "FAIL" or "WARNING" or "MANUAL INPUT MISSING"))
             rows.Add(new(item.Status == "MANUAL INPUT MISSING" ? "WARNING" : item.Status, "Physical stock", item.Status switch
                 {
@@ -611,16 +609,16 @@ public sealed class OperationalReportRepository(string connectionString)
     {
         const string sql = """
             SELECT i.store_code,
-              SUM(CASE WHEN i.transaction_date BETWEEN @currentFrom AND @currentTo THEN l.source_net_amount END),
-              SUM(CASE WHEN i.transaction_date BETWEEN @lastFrom AND @lastTo THEN l.source_net_amount END),
+              SUM(CASE WHEN i.transaction_date BETWEEN @currentFrom AND @currentTo THEN l.source_gross_amount END),
+              SUM(CASE WHEN i.transaction_date BETWEEN @lastFrom AND @lastTo THEN l.source_gross_amount END),
               SUM(CASE WHEN i.transaction_date BETWEEN @currentFrom AND @currentTo THEN l.source_quantity END),
               SUM(CASE WHEN i.transaction_date BETWEEN @lastFrom AND @lastTo THEN l.source_quantity END),
-              COUNT(DISTINCT CASE WHEN i.transaction_date BETWEEN @currentFrom AND @currentTo THEN i.document_number END),
-              COUNT(DISTINCT CASE WHEN i.transaction_date BETWEEN @lastFrom AND @lastTo THEN i.document_number END)
+              COUNT(DISTINCT CASE WHEN i.transaction_date BETWEEN @currentFrom AND @currentTo AND UPPER(l.source_transaction_type)='INV' THEN i.sales_invoice_id END),
+              COUNT(DISTINCT CASE WHEN i.transaction_date BETWEEN @lastFrom AND @lastTo AND UPPER(l.source_transaction_type)='INV' THEN i.sales_invoice_id END)
             FROM dbo.sales_invoices i JOIN dbo.sales_lines l ON l.sales_invoice_id=i.sales_invoice_id
             WHERE (i.transaction_date BETWEEN @currentFrom AND @currentTo OR i.transaction_date BETWEEN @lastFrom AND @lastTo)
               AND i.store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores))
-              AND UPPER(COALESCE(l.source_transaction_type,'')) IN('INV','SR')
+              AND UPPER(COALESCE(l.source_transaction_type,'')) IN('INV','SR','BC')
             GROUP BY i.store_code;
             """;
         await using var command = new SqlCommand(sql, connection);
@@ -634,7 +632,20 @@ public sealed class OperationalReportRepository(string connectionString)
         while (await reader.ReadAsync(token))
             result[reader.GetString(0)] = new(
                 NullableDecimal(reader, 1), NullableDecimal(reader, 2), NullableDecimal(reader, 3), NullableDecimal(reader, 4),
-                reader.GetInt32(5), reader.GetInt32(6));
+                reader.IsDBNull(1) ? null : reader.GetInt32(5), reader.IsDBNull(2) ? null : reader.GetInt32(6));
+        await reader.DisposeAsync();
+        await using var coverage=new SqlCommand("SELECT store_code,COALESCE(period_start,business_date),COALESCE(period_end,business_date) FROM dbo.import_files WHERE report_code='R025' AND data_truth_version=1 AND is_superseded=0 AND store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores))",connection);
+        coverage.Parameters.AddWithValue("@stores",JsonSerializer.Serialize(stores));
+        var ranges=new List<(string Store,DateOnly From,DateOnly To)>();
+        await using(var cr=await coverage.ExecuteReaderAsync(token))while(await cr.ReadAsync(token))if(!cr.IsDBNull(1)&&!cr.IsDBNull(2))ranges.Add((cr.GetString(0),cr.GetFieldValue<DateOnly>(1),cr.GetFieldValue<DateOnly>(2)));
+        foreach(var store in stores)
+        {
+            bool Covered(DateRange range)=>Enumerable.Range(0,range.InclusiveDayCount).All(offset=>ranges.Any(r=>r.Store==store&&range.Start.AddDays(offset)>=r.From&&range.Start.AddDays(offset)<=r.To));
+            var fact=result.GetValueOrDefault(store)??new();
+            if(fact.TySales is null&&Covered(period.Current))fact=fact with{TySales=0,TyUnits=0,TyInvoices=0};
+            if(fact.LySales is null&&Covered(period.LastYear))fact=fact with{LySales=0,LyUnits=0,LyInvoices=0};
+            result[store]=fact;
+        }
         return result;
     }
 
@@ -647,7 +658,7 @@ public sealed class OperationalReportRepository(string connectionString)
         const string sql = """
             SELECT store_code,SUM(numeric_value),COUNT(DISTINCT business_date)
             FROM dbo.manual_operational_inputs
-            WHERE field_code='WALK_INS' AND business_date BETWEEN @from AND @to
+            WHERE field_code='WALK_INS' AND numeric_value IS NOT NULL AND business_date BETWEEN @from AND @to
               AND store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores))
             GROUP BY store_code;
             """;
@@ -659,8 +670,7 @@ public sealed class OperationalReportRepository(string connectionString)
         var result = new Dictionary<string, WalkInFacts>(StringComparer.OrdinalIgnoreCase);
         while (await reader.ReadAsync(token))
         {
-            var complete = reader.GetInt32(2) == period.InclusiveDayCount;
-            result[reader.GetString(0)] = new(complete ? reader.GetDecimal(1) : null, complete);
+            result[reader.GetString(0)] = new(reader.IsDBNull(1) ? 0m : reader.GetDecimal(1), period.InclusiveDayCount - reader.GetInt32(2));
         }
         return result;
     }
@@ -670,8 +680,9 @@ public sealed class OperationalReportRepository(string connectionString)
         const string sql = """
             SELECT store_code,field_code,numeric_value
             FROM dbo.manual_operational_inputs
-            WHERE business_date=@date AND field_code IN('SALES_TARGET','SERVICE_WDC')
-              AND store_code IN('WLMHW','HEMW');
+            WHERE business_date=@date AND field_code='SERVICE_WDC' AND store_code IN('WLMHW','HEMW')
+            UNION ALL SELECT store_code,'SALES_TARGET',target_sales FROM dbo.monthly_targets
+            WHERE target_month=DATEFROMPARTS(YEAR(@date),MONTH(@date),1) AND store_code IN('WLMHW','HEMW');
             """;
         await using var connection = await OpenAsync(token);
         await using var command = new SqlCommand(sql, connection);
@@ -695,18 +706,29 @@ public sealed class OperationalReportRepository(string connectionString)
         CancellationToken token)
     {
         const string sql = """
+            WITH days AS
+            (
+              SELECT store_code,business_date,
+                SUM(CASE WHEN field_code='SERVICE_CASH' THEN numeric_value END) cash,
+                SUM(CASE WHEN field_code='SERVICE_CARD' THEN numeric_value END) card,
+                SUM(CASE WHEN field_code='SERVICE_UPI' THEN numeric_value END) upi,
+                SUM(CASE WHEN field_code='SERVICE_WDC' THEN numeric_value END) wdc,
+                CASE WHEN COUNT(CASE WHEN field_code<>'SERVICE_WDC' THEN numeric_value END)=3 THEN 1 ELSE 0 END complete
+              FROM dbo.manual_operational_inputs
+              WHERE field_code IN('SERVICE_CASH','SERVICE_CARD','SERVICE_UPI','SERVICE_WDC')
+                AND (business_date BETWEEN @currentFrom AND @currentTo OR business_date BETWEEN @lastFrom AND @lastTo)
+                AND store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores))
+              GROUP BY store_code,business_date
+            )
             SELECT store_code,
-              SUM(CASE WHEN business_date BETWEEN @currentFrom AND @currentTo AND field_code='SERVICE_CASH' THEN numeric_value ELSE 0 END),
-              SUM(CASE WHEN business_date BETWEEN @currentFrom AND @currentTo AND field_code='SERVICE_CARD' THEN numeric_value ELSE 0 END),
-              SUM(CASE WHEN business_date BETWEEN @currentFrom AND @currentTo AND field_code='SERVICE_UPI' THEN numeric_value ELSE 0 END),
-              SUM(CASE WHEN business_date BETWEEN @lastFrom AND @lastTo THEN numeric_value ELSE 0 END),
-              COUNT(DISTINCT CASE WHEN business_date BETWEEN @currentFrom AND @currentTo THEN CONCAT(CONVERT(char(10),business_date,23),'|',field_code) END),
-              COUNT(DISTINCT CASE WHEN business_date BETWEEN @lastFrom AND @lastTo THEN CONCAT(CONVERT(char(10),business_date,23),'|',field_code) END)
-            FROM dbo.manual_operational_inputs
-            WHERE field_code IN('SERVICE_CASH','SERVICE_CARD','SERVICE_UPI')
-              AND (business_date BETWEEN @currentFrom AND @currentTo OR business_date BETWEEN @lastFrom AND @lastTo)
-              AND store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores))
-            GROUP BY store_code;
+              SUM(CASE WHEN business_date BETWEEN @currentFrom AND @currentTo THEN cash END),
+              SUM(CASE WHEN business_date BETWEEN @currentFrom AND @currentTo THEN card END),
+              SUM(CASE WHEN business_date BETWEEN @currentFrom AND @currentTo THEN upi END),
+              SUM(CASE WHEN business_date BETWEEN @lastFrom AND @lastTo THEN COALESCE(cash,0)+COALESCE(card,0)+COALESCE(upi,0)+COALESCE(wdc,0) END),
+              SUM(CASE WHEN business_date BETWEEN @currentFrom AND @currentTo THEN complete ELSE 0 END),
+              SUM(CASE WHEN business_date BETWEEN @lastFrom AND @lastTo THEN complete ELSE 0 END),
+              SUM(CASE WHEN business_date BETWEEN @currentFrom AND @currentTo THEN wdc END)
+            FROM days GROUP BY store_code;
             """;
         await using var command = new SqlCommand(sql, connection);
         command.Parameters.AddWithValue("@currentFrom", period.Current.Start);
@@ -717,8 +739,8 @@ public sealed class OperationalReportRepository(string connectionString)
         await using var reader = await command.ExecuteReaderAsync(token);
         var result = new Dictionary<string, ServiceFacts>(StringComparer.OrdinalIgnoreCase);
         while (await reader.ReadAsync(token))
-            result[reader.GetString(0)] = new(reader.GetDecimal(1), reader.GetDecimal(2), reader.GetDecimal(3),
-                reader.GetDecimal(4), reader.GetInt32(5), reader.GetInt32(6));
+            result[reader.GetString(0)] = new(NullableDecimal(reader,1), NullableDecimal(reader,2), NullableDecimal(reader,3),
+                NullableDecimal(reader,4), reader.GetInt32(5), reader.GetInt32(6), NullableDecimal(reader,7));
         return result;
     }
 
@@ -734,18 +756,19 @@ public sealed class OperationalReportRepository(string connectionString)
         var denominator = new ProductivityRule(DsrMetricPolicy, TransactionDenominator.InvoiceCount);
         var upt = engine.UnitsPerTransaction(facts.TyUnits, facts.TyInvoices, denominator);
         var atv = engine.AverageTransactionValue(facts.TySales, facts.TyInvoices, denominator);
-        var conversion = engine.Conversion(facts.TyInvoices, walkIns.Value);
+        var conversion = engine.Conversion(facts.TyInvoices, walkIns.MissingDays==0?walkIns.Value:null);
         return new(periodName, store, period.Current.Start, period.Current.End, facts.TySales, facts.LySales,
             growth.Value, growth.Availability.ToString(), facts.TyUnits, facts.LyUnits, facts.TyInvoices, facts.LyInvoices,
-            upt.Value, atv.Value, walkIns.Value, conversion.Value, DsrMetricPolicy);
+            upt.Value, atv.Value, walkIns.Value, conversion.Value, DsrMetricPolicy, walkIns.MissingDays);
     }
 
     private static DsrFacts Combine(IEnumerable<DsrFacts> facts)
     {
         var values = facts.ToArray();
-        return new(SumNullable(values.Select(x => x.TySales)), SumNullable(values.Select(x => x.LySales)),
-            SumNullable(values.Select(x => x.TyUnits)), SumNullable(values.Select(x => x.LyUnits)),
-            values.Sum(x => x.TyInvoices ?? 0), values.Sum(x => x.LyInvoices ?? 0));
+        decimal? Complete(IEnumerable<decimal?> items){var a=items.ToArray();return a.Length>0&&a.All(x=>x!=null)?a.Sum(x=>x!.Value):null;}
+        return new(Complete(values.Select(x => x.TySales)), Complete(values.Select(x => x.LySales)),
+            Complete(values.Select(x => x.TyUnits)), Complete(values.Select(x => x.LyUnits)),
+            values.Length>0&&values.All(x => x.TyInvoices is not null) ? values.Sum(x => x.TyInvoices!.Value) : null, values.Length>0&&values.All(x => x.LyInvoices is not null) ? values.Sum(x => x.LyInvoices!.Value) : null);
     }
 
     private static decimal? SumNullable(IEnumerable<decimal?> values)
@@ -756,7 +779,7 @@ public sealed class OperationalReportRepository(string connectionString)
 
     private async Task<SqlConnection> OpenAsync(CancellationToken token)
     {
-        var connection = new SqlConnection(connectionString);
+        var connection = new SqlConnection(LocalSqlConnectionPolicy.Validate(connectionString));
         try { await connection.OpenAsync(token); return connection; }
         catch { await connection.DisposeAsync(); throw; }
     }
@@ -776,8 +799,8 @@ public sealed class OperationalReportRepository(string connectionString)
     private static decimal? NullableDecimal(SqlDataReader reader, int ordinal) => reader.IsDBNull(ordinal) ? null : reader.GetDecimal(ordinal);
     private static decimal? Value(IReadOnlyDictionary<string, decimal?> values, string key) => values.GetValueOrDefault(key);
     private sealed record DsrFacts(decimal? TySales = null, decimal? LySales = null, decimal? TyUnits = null, decimal? LyUnits = null, int? TyInvoices = null, int? LyInvoices = null);
-    private sealed record WalkInFacts(decimal? Value = null, bool IsComplete = false);
+    private sealed record WalkInFacts(decimal Value = 0m, int MissingDays = 0);
     private sealed record DsrSupplementaryFacts(IReadOnlyDictionary<string, decimal?> Targets, decimal? ServiceWdc);
-    private sealed record ServiceFacts(decimal Cash = 0, decimal Card = 0, decimal Upi = 0, decimal LastYearTotal = 0, int CurrentCount = 0, int LastYearCount = 0);
+    private sealed record ServiceFacts(decimal? Cash = null, decimal? Card = null, decimal? Upi = null, decimal? LastYearTotal = null, int CurrentCount = 0, int LastYearCount = 0, decimal? Wdc = null);
     private sealed record SourcePointer(string FileName, string SheetName, int SourceRow);
 }

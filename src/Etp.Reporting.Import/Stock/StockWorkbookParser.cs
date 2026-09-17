@@ -3,6 +3,7 @@ using Etp.Reporting.Import.Conversion;
 using Etp.Reporting.Import.Diagnostics;
 using Etp.Reporting.Import.Preflight;
 using Etp.Reporting.Import.Profiles;
+using Etp.Reporting.Import.Staging;
 using Etp.Reporting.Import.Workbooks;
 
 namespace Etp.Reporting.Import.Stock;
@@ -16,14 +17,15 @@ public sealed record StockWorkbookParseResult(string ReportCode,IReadOnlyList<Pa
 
 public sealed class StockWorkbookParser
 {
-    private static readonly HashSet<string> KnownTypes = new(StringComparer.OrdinalIgnoreCase) { "INV", "SR", "Purchase Return", "Purchase Receipt" };
+    private static IReadOnlySet<string> KnownTypes => ImportRowStager.StockTransactionTypes;
     private readonly TypedCellConverter converter = new();
 
     public StockWorkbookParseResult Parse(WorkbookSnapshot workbook)
     {
         ArgumentNullException.ThrowIfNull(workbook);
-        if (workbook.Sheets.Count != 1) return Blocked("WORKBOOK_SHEET_COUNT", "A stock workbook must contain exactly one worksheet.");
-        var normalized = WorkbookLayoutNormalizer.Normalize(workbook.Sheets[0]);
+        var dataSheets = workbook.Sheets.Where(sheet => !sheet.Name.Equals("Info", StringComparison.OrdinalIgnoreCase)).ToArray();
+        if (dataSheets.Length != 1) return Blocked("WORKBOOK_SHEET_COUNT", "A stock workbook must contain exactly one data worksheet.");
+        var normalized = WorkbookLayoutNormalizer.Normalize(dataSheets[0]);
         if (normalized.Sheet is null) return new("UNKNOWN", [], [], normalized.Diagnostics);
         var sheet = normalized.Sheet;
         var profile = new ImportProfileMatcher().Match(
@@ -57,9 +59,12 @@ public sealed class StockWorkbookParser
                 var transaction = Required<decimal>(values, "transaction_quantity");
                 var closing = Required<decimal>(values, "closing_quantity");
                 if (!KnownTypes.Contains(type))
-                    diagnostics.Add(new("UNKNOWN_STOCK_TRANSACTION_TYPE", ImportDiagnosticSeverity.Blocker,
-                        "The source transaction type is not approved for stock reporting.", accepted.MatchedSheet.Name,
+                {
+                    diagnostics.Add(new("UNKNOWN_STOCK_TRANSACTION_TYPE", ImportDiagnosticSeverity.Warning,
+                        "Unrecognised stock transaction type; this row was skipped.", accepted.MatchedSheet.Name,
                         row.SourceRowNumber, "TRANS_TYPE"));
+                    continue;
+                }
                 if (opening + transaction != closing)
                     diagnostics.Add(new("STOCK_BALANCE_MISMATCH", ImportDiagnosticSeverity.Blocker,
                         "Closing quantity does not equal opening plus source transaction quantity.",
@@ -107,7 +112,7 @@ public sealed class StockWorkbookParser
         foreach(var row in sheet.Rows)
         {
             if(!Try(row,h,"TRANS_TYPE",CanonicalDataType.Text,true,out string? type,diagnostics,sheet.Name) || !Try(row,h,"STORE CODE",CanonicalDataType.Identifier,true,out string? store,diagnostics,sheet.Name) || !Try(row,h,"DOCUMENTNUMBER",CanonicalDataType.Identifier,true,out string? doc,diagnostics,sheet.Name) || !Try(row,h,"DOCUMENTDATE",CanonicalDataType.Date,true,out DateOnly date,diagnostics,sheet.Name) || !Try(row,h,"ITEMNUMBER",CanonicalDataType.Identifier,true,out string? product,diagnostics,sheet.Name) || !Try(row,h,"OPENING_QTY",CanonicalDataType.Decimal,true,out decimal opening,diagnostics,sheet.Name) || !Try(row,h,"TRANS_QTY",CanonicalDataType.Decimal,true,out decimal trans,diagnostics,sheet.Name) || !Try(row,h,"CLOSING_QTY",CanonicalDataType.Decimal,true,out decimal closing,diagnostics,sheet.Name)) continue;
-            if(!KnownTypes.Contains(type!)) diagnostics.Add(new("UNKNOWN_STOCK_TRANSACTION_TYPE",ImportDiagnosticSeverity.Blocker,"The source transaction type is not approved for stock reporting.",sheet.Name,row.RowNumber,"TRANS_TYPE"));
+            if(!KnownTypes.Contains(type!)) { diagnostics.Add(new("UNKNOWN_STOCK_TRANSACTION_TYPE",ImportDiagnosticSeverity.Warning,"Unrecognised stock transaction type; this row was skipped.",sheet.Name,row.RowNumber,"TRANS_TYPE")); continue; }
             if(opening+trans!=closing) diagnostics.Add(new("STOCK_BALANCE_MISMATCH",ImportDiagnosticSeverity.Blocker,"Closing quantity does not equal opening plus source transaction quantity.",sheet.Name,row.RowNumber));
             Try(row,h,"FROM LOCATION",CanonicalDataType.Identifier,false,out string? from,diagnostics,sheet.Name);Try(row,h,"TO LOCATION",CanonicalDataType.Identifier,false,out string? to,diagnostics,sheet.Name);
             rows.Add(new(store!,doc!,date,product!,type!,from,to,opening,trans,closing,new(hash,sheet.Name,row.RowNumber)));

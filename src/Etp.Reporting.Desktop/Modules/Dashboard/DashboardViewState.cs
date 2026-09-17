@@ -18,7 +18,12 @@ public sealed record DashboardHealthSnapshot(
     DateTime? LastSuccessfulBackupUtc,
     int FailedImportsLast24Hours,
     decimal? BackupFreeSpaceGb,
-    IReadOnlyList<DashboardHealthWarning> Warnings);
+    IReadOnlyList<DashboardHealthWarning> Warnings)
+{
+    public string? LastSuccessfulBackupSha256 { get; init; }
+    public DateTime? LastSuccessfulRecoveryDrillUtc { get; init; }
+    public string? LastSuccessfulRecoveryDrillSha256 { get; init; }
+}
 
 public sealed record DashboardChartItem(string ReportCode, long SourceRows);
 
@@ -46,6 +51,10 @@ public sealed record DashboardViewState(
     IReadOnlyList<object> RecentAuditEvents,
     string? ErrorMessage = null)
 {
+    public string LatestBackupSha256 { get; init; } = "Unavailable";
+    public string LatestRecoveryDrill { get; init; } = "Missing";
+    public string LatestRecoveryDrillSha256 { get; init; } = "Unavailable";
+
     public static DashboardViewState FromSnapshot(EtpApplication::Etp.Reporting.Application.Dashboard.DashboardSnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
@@ -57,7 +66,12 @@ public sealed record DashboardViewState(
             snapshot.Health.LastSuccessfulBackupUtc,
             snapshot.Health.FailedImportsLast24Hours,
             snapshot.Health.BackupFreeSpaceGb,
-            snapshot.Health.Warnings.Select(warning => new DashboardHealthWarning(warning.Code, warning.Message)).ToArray());
+            snapshot.Health.Warnings.Select(warning => new DashboardHealthWarning(warning.Code, warning.Message)).ToArray())
+        {
+            LastSuccessfulBackupSha256 = snapshot.Health.LastSuccessfulBackupSha256,
+            LastSuccessfulRecoveryDrillUtc = snapshot.Health.LastSuccessfulRecoveryDrillUtc,
+            LastSuccessfulRecoveryDrillSha256 = snapshot.Health.LastSuccessfulRecoveryDrillSha256
+        };
         return Create(
             snapshot.ImportedFiles,
             snapshot.CompletedBatches,
@@ -107,11 +121,19 @@ public sealed record DashboardViewState(
             health.BackupFreeSpaceGb is { } freeGb ? $"{freeGb:N2} GB" : "Unavailable",
             health.FailedImportsLast24Hours.ToString("N0"),
             health.Warnings.Select(warning => $"{warning.Code}: {warning.Message}").ToArray(),
-            recentAuditEvents);
+            recentAuditEvents)
+        {
+            LatestBackupSha256 = FormatVerificationHash(health.LastSuccessfulBackupSha256),
+            LatestRecoveryDrill = health.LastSuccessfulRecoveryDrillUtc?.ToString("dd MMM yyyy HH:mm") ?? "Missing",
+            LatestRecoveryDrillSha256 = FormatVerificationHash(health.LastSuccessfulRecoveryDrillSha256)
+        };
     }
 
     public static DashboardViewState Error(string message, DashboardViewState? previous = null) => new(
         "-", "-", "-", "Unavailable", previous?.RecentImports ?? [], previous?.ImportedRowsByReport ?? [],
         "Unavailable", DashboardHealthTone.Critical, "Unavailable", "Unavailable", "Unavailable", "Unavailable",
-        [], [], message);
+        [], [], message) { LatestRecoveryDrill = "Unavailable" };
+
+    private static string FormatVerificationHash(string? hash) =>
+        hash is { Length: 64 } && hash.All(char.IsAsciiHexDigit) ? hash.ToUpperInvariant() : "Unavailable";
 }

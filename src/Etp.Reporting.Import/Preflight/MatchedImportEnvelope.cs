@@ -29,6 +29,7 @@ public sealed class MatchedImportEnvelope
         Profile = profile;
         Staging = Snapshot(staging);
         Diagnostics = ReadOnly(diagnostics);
+        Scope = ImportScope.Detect(workbook, profile, staging);
     }
 
     public WorkbookSnapshot Workbook { get; }
@@ -36,13 +37,14 @@ public sealed class MatchedImportEnvelope
     public ImportProfile Profile { get; }
     public ImportStagingResult Staging { get; }
     public IReadOnlyList<ImportDiagnostic> Diagnostics { get; }
+    public ImportScope Scope { get; }
     public ImportProfileIdentity ProfileIdentity => Profile.Identity;
 
     private static WorkbookSnapshot Snapshot(WorkbookSnapshot workbook) => new(
         workbook.FileName,
         workbook.FileSizeBytes,
         workbook.Sha256,
-        ReadOnly(workbook.Sheets.Select(Snapshot)));
+        ReadOnly(workbook.Sheets.Select(Snapshot)), workbook.SourcePath);
 
     private static WorkbookSheet Snapshot(WorkbookSheet sheet) => new(
         sheet.Name,
@@ -89,6 +91,10 @@ public sealed class MatchedImportEnvelopeFactory
         {
             staging = stager.Stage(inspected.Sheet!, inspected.Profile!);
             diagnostics.AddRange(staging.Diagnostics);
+            if (staging.Rows.Select(row => row.Values.GetValueOrDefault("store_code") as string)
+                .Where(value => !string.IsNullOrWhiteSpace(value)).Distinct(StringComparer.OrdinalIgnoreCase).Take(2).Count() > 1)
+                diagnostics.Add(new("WORKBOOK_MULTIPLE_STORES", ImportDiagnosticSeverity.Blocker,
+                    "This workbook contains more than one store. Export one workbook per store.", inspected.Sheet!.Name));
         }
 
         if (inspected.CanImport && staging is not null && staging.CanPersist &&

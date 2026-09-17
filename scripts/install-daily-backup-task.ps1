@@ -1,17 +1,16 @@
-param(
-    [string]$TaskName = "ETP Reporting Daily Backup",
-    [string]$BackupTime = "22:00"
-)
-$ErrorActionPreference = "Stop"
-$backupScript = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "backup-etp-database.ps1"))
-if (-not (Test-Path -LiteralPath $backupScript)) { throw "Backup script was not found." }
-$time = [datetime]::ParseExact($BackupTime, "HH:mm", [Globalization.CultureInfo]::InvariantCulture)
-$arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$backupScript`""
-$action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument $arguments
+param([string]$TaskName='ETP Reporting Daily Backup',[Alias('BackupTime')][string]$RunTime='22:00')
+$ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'etp-operations-common.ps1')
+$script = Join-Path $PSScriptRoot 'backup-etp-database.ps1'
+Assert-EtpProtectedInstall $script
+$configuration = Get-EtpOperationsConfiguration
+$time = [datetime]::ParseExact($RunTime,'HH:mm',[Globalization.CultureInfo]::InvariantCulture)
+# A4.3 accepted unsigned installs. AllSigned here would refuse the nightly backup on
+# every unsigned install and the shop would find out only when a restore was needed.
+# Assert-EtpProtectedInstall above still refuses a script a non-administrator can edit.
+$arguments = '-NoProfile -NonInteractive -ExecutionPolicy RemoteSigned -File "' + $script + '"'
+$powerShell = Join-Path ([Environment]::GetFolderPath('System')) 'WindowsPowerShell\v1.0\powershell.exe'
+$action = New-ScheduledTaskAction -Execute $powerShell -Argument $arguments
 $trigger = New-ScheduledTaskTrigger -Daily -At $time
-$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew
-Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Settings $settings -User "SYSTEM" -RunLevel Highest -Description "Checksum-verified backup of the ETP Reporting SQL Server database. Backups are retained indefinitely by policy." -Force | Out-Null
-$task = Get-ScheduledTask -TaskName $TaskName -ErrorAction Stop
-if ($task.State -eq 'Disabled') { throw "Scheduled backup task was installed but is disabled." }
-$taskInfo = Get-ScheduledTaskInfo -TaskName $TaskName -ErrorAction Stop
-Write-Host "Scheduled task '$TaskName' installed and enabled for $BackupTime daily. Next run: $($taskInfo.NextRunTime)."
+Register-EtpScheduledOperation -TaskName $TaskName -Action $action -Trigger $trigger -Description 'Encrypted, verified database backup with receipt-based rotation.'
+Write-Output 'Scheduled operation installed.'

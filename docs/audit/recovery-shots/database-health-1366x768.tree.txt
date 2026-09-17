@@ -1,0 +1,106 @@
+﻿Text           ETP
+Button         Today
+Text           Today
+Button         Import
+Text           Import
+Button         Reports
+Text           Reports
+Button         Stock
+Text           Stock
+Button         Settings
+Text           Settings
+Button         Find a screen
+Text           ⌕ Search
+Button         Read full status
+Text           More details
+Text           Needs attention
+Text           Settings
+ComboBox       Choose settings section
+ComboBox       Choose database task
+Custom         Business date
+Edit           Business date
+Text           <Enter text here>
+Button         Open calendar
+Text           ▾
+ComboBox       Store
+Button         Create support package
+Text           Support package
+Text           Database and recovery status
+Text           Administration status
+TabItem        Database and recovery
+Text           Database and recovery
+DataGrid       Database and recovery
+HeaderItem     Item
+Text           Item
+HeaderItem     Status
+Text           Status
+HeaderItem     Detail
+Text           Detail
+DataItem       DatabaseRecoveryLine { Item = Database size, Status = 16 MB, Detail = No edition size limit }
+Custom         Database size
+Text           Database size
+Custom         16 MB
+Text           16 MB
+Custom         No edition size limit
+Text           No edition size limit
+DataItem       DatabaseRecoveryLine { Item = Backup folder free space, Status = 203.9 GB, Detail = Warn below 20 GB, critical below 5 GB }
+Custom         Backup folder free space
+Text           Backup folder free space
+Custom         203.9 GB
+Text           203.9 GB
+Custom         Warn below 20 GB, critical below 5 GB
+Text           Warn below 20 GB, critical below 5 GB
+DataItem       DatabaseRecoveryLine { Item = Last successful import, Status = Missing, Detail = No completed import has been recorded. }
+Custom         Last successful import
+Text           Last successful import
+Custom         Missing
+Text           Missing
+Custom         No completed import has been recorded.
+Text           No completed import has been recorded.
+DataItem       DatabaseRecoveryLine { Item = Last verified backup, Status = Missing, Detail = No verified backup receipt has been recorded. }
+Custom         Last verified backup
+Text           Last verified backup
+Custom         Missing
+Text           Missing
+Custom         No verified backup receipt has been recorded.
+Text           No verified backup receipt has been recorded.
+DataItem       DatabaseRecoveryLine { Item = Last verified recovery drill, Status = Missing, Detail = No verified recovery drill has been recorded. }
+Custom         Last verified recovery drill
+Text           Last verified recovery drill
+Custom         Missing
+Text           Missing
+Custom         No verified recovery drill has been recorded.
+Text           No verified recovery drill has been recorded.
+DataItem       DatabaseRecoveryLine { Item = Failed imports, last 24 hours, Status = 1, Detail = Open Import, then Problems, to see them. }
+Custom         Failed imports, last 24 hours
+Text           Failed imports, last 24 hours
+Custom         1
+Text           1
+Custom         Open Import, then Problems, to see them.
+Text           Open Import, then Problems, to see them.
+DataItem       DatabaseRecoveryLine { Item = Warning, Status = Critical, Detail = No verified encrypted database backup is recorded. }
+Custom         Warning
+Text           Warning
+Custom         Critical
+Text           Critical
+Custom         No verified encrypted database backup is recorded.
+Text           No verified encrypted database backup is recorded.
+DataItem       DatabaseRecoveryLine { Item = Warning, Status = Warning, Detail = No successful receipt-verified recovery drill is recorded. }
+Custom         Warning
+Text           Warning
+Custom         Warning
+Text           Warning
+Custom         No successful receipt-verified recovery drill is recorded.
+Text           No successful receipt-verified recovery drill is recorded.
+DataItem       DatabaseRecoveryLine { Item = Warning, Status = Warning, Detail = One or more imports failed in the last 24 hours. }
+Custom         Warning
+Text           Warning
+Custom         Warning
+Text           Warning
+Custom         One or more imports failed in the last 24 hours.
+Text           One or more imports failed in the last 24 hours.
+TabItem        Integration health
+Text           Integration health
+TabItem        Guidance
+Text           Guidance
+Text           GST-inclusive sales; invoice counts exclude returns. Manual totals use available entries. Check Other / unmapped brands in Settings.

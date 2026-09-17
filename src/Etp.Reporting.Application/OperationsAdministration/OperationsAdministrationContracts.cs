@@ -173,8 +173,6 @@ public sealed record ProductHealth(string Component, string Status, string Guida
 public sealed record ProductConfiguration(
     string DocumentRepositoryPath,
     string ShareFolderPath,
-    string? OcrHelperPath,
-    string? OcrModelPath,
     string? SmtpHost,
     int? SmtpPort,
     bool SmtpUseTls,
@@ -208,8 +206,6 @@ public sealed record SaveApplicationUser(
 public sealed record SaveProductConfiguration(
     string DocumentRepositoryPath,
     string ShareFolderPath,
-    string? OcrHelperPath,
-    string? OcrModelPath,
     string? SmtpHost,
     int? SmtpPort,
     bool SmtpUseTls,

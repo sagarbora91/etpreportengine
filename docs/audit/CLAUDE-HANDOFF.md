@@ -1,37 +1,38 @@
-# Claude handoff — ETP Reporting Engine rebuild
+# Claude handoff — 17 September 2026
 
 > **16 Sep 2026 — plan v1.4.** `ETP-MASTER-AUDIT-AND-PHASED-PLAN.md` is now v1.4: Phase 7 (Tally transfer, Stage 2) and Phase 8 (Collections reconciliation, Stage 3) added after Phase 6; decisions D12–D21 recorded OPEN; Phase 2 tasks 12–15, Phase 4 task 6 (no certificate purchase) and the Phase 5 Accounting row amended; Section 8 crosswalk to the roadmap documents under `docs/roadmap/`. The auditor's procedure for the new phases is `docs/audit/OPUS-AUDIT-PLAN-PHASES-7-8.md`. Branch status for Phases 1–5 (Phase 1 CLOSED; 2, 3, 4 REOPENED; 5 started) is tracked in `SESSION-HANDOFF-2026-09-16.md` on `phase-1/data-truth`, not here.
 
 Last updated: 15 September 2026, end of day. This is the one file a future Claude session reads first. It supersedes every earlier progress note.
 
-## Where we are
+Phase 5 is **unblocked and in progress**, not complete. Continue in `C:/Codex/Reporting Manger/phase5-secondary-modules`, branch `phase-5/secondary-modules`. Latest application commit: `f33fef8` (Reject); preceding increment: `9f0c0a7` (atomic mapping approval and saved approval reasons). Read `claude-audit-2026-09/PHASE-5-REPORT.md` for commands/evidence.
 
-| Item | State |
-|---|---|
-| Plan | `docs/audit/ETP-MASTER-AUDIT-AND-PHASED-PLAN.md` v1.3. Six phases. Owner decisions D1–D11 all frozen on 15 Sep. Published page: artifact "ETP Rebuild Plan" (source `C:\Codex\Reporting Manger\.claude\tools\etp-rebuild-plan.html`). |
-| Phase 0 (stabilise) | **CLOSED** 15 Sep, `PHASE-0-AUDIT.md` §8, commit `6791c9e`. Merged fast-forward into `main` (`2cdc258`) and pushed. Live database `EtpReporting` migrated to 0016 on 15 Sep 09:54 UTC (indexes present, 490 invoices unchanged). |
-| Phase 1 (data truth: import every ETP family) | **NEXT.** Codex prompt was handed to Sagar on 15 Sep (see "Phase 1 prompt" below to regenerate). Branch `phase-1/data-truth` from `main`. Not started as of this note. |
-| Import Failure Register | `docs/audit/IMPORT-FAILURE-REGISTER.md`, rows IF-001–IF-013, all OPEN, all mapped to Phase 1. BC = bill cancellation (proven from 11 files). |
-| Two-year Helios corpus | `..\ETP Source Data\HEMW\till 6 sep 26\` (31 consolidated files, 16 Sep 2024 → 6 Sep 2026, extra "Info" sheet, Excel dates). Golden monthly totals: `..\ETP Source Data\HEMW\golden-monthly-HEMW-R025.csv`. Data-only copies that the current importer accepts: `..\ETP Source Data\HEMW\dataonly-for-current-importer\`. Titan World and service-centre consolidated sets: not yet received; import them after Phase 1. |
-| Corpus database | `EtpReportingHelios` on `.\SQLEXPRESS`: created 15 Sep with the app's `--initialize-database`, four files imported through the UI, **incomplete** (272 rows dropped by the invoice-year collision, IF-012). Phase 1's whole-folder acceptance A1.11 drops and rebuilds it. Safe to drop any time. |
-| App settings | `%LOCALAPPDATA%\EtpReporting\settings.json` points at the live `EtpReporting`. Spare pointers beside it: `settings.json.helios-corpus`, `settings.json.bak-before-helios-corpus`. |
-| Tooling | Skill `/etp-import-failure` and agent `etp-import-triage` under `C:\Codex\Reporting Manger\.claude\`; pre-flight checker `.claude\skills\etp-import-failure\check_workbook.py`; desktop automation helpers with README under `C:\Codex\Reporting Manger\.claude\tools\`. |
+The latest master plan is on **main**, version 1.4 with Phases 7/8 and subsequent recovery-track additions. The plan copy on the Phase 5 branch is older. Read `git show main:docs/audit/ETP-MASTER-AUDIT-AND-PHASED-PLAN.md`; do not silently replace or rewrite Claude's plan.
 
-## The working loop
+## Completed coding
 
-Claude plans and audits; Codex builds; Sagar decides and merges. Per phase: Codex writes `docs/audit/claude-audit-2026-09/PHASE-N-REPORT.md` → Claude audits by building, launching, screenshotting, re-running every acceptance item and recomputing numbers from the workbooks → writes `PHASE-N-AUDIT.md` with PASS/FAIL → Sagar merges on CLOSED. Plan §2 has the full rules (Codex rules 1–10; rule 9: never edit a committed migration; rule 10: source data never enters the repo).
+- Phase 2/3 closure: approved brand mappings, durable import history including duplicates/restarts, query filters with Excel/PDF scope, selective Retry failed; full closure gate was 857 passed / 0 failed / 3 opt-in skipped.
+- Phase 5 increment 1: approved positive/negative adjustments can be mapped and prepared through the actual accounting screen.
+- Increment 2: mapping request/decision/save are one SQL transaction; migration 0029 persists the batch approval reason. Failure-injection test proves rollback restores the prior mapping and removes orphan approvals/audits.
+- Increment 3: Owner-only Reject selected with mandatory reason, actor/time and atomic audit. Migration 0030; already rejected/exported batches are refused and original approval reason survives.
+- Latest targeted checks: 9 integration/security + 6 accounting boundary + 9 desktop presentation tests passed, zero failures. Release dependencies built. No full-suite/native acceptance claim is made for these last two increments.
 
-## Exact next actions
+## Resume coding
 
-1. When Sagar says Codex has finished Phase 1: read `PHASE-1-REPORT.md`, then run the Phase 1 audit: create an empty database, import `till 6 sep 26` in ONE action with Info sheets present and no manual store/date entry, check A1.1–A1.11 (790 lines / 759 invoices from R025, zero CONFLICT, invoice 100000068 ×3 with FY-end years 2025/2026/2027, every month equals the golden CSV, stock ledger 3,955 rows imports, tender modes sum to invoice totals, re-import adds zero rows). Flip register rows to VERIFIED only on observed success. Review Codex's tender-mode table (D11) with Sagar.
-2. If Phase 1 closes: Sagar merges; ask Sagar for the Titan World and service-centre consolidated folders and the 2025-26 exports (D8); run the checker on them; then hand over the Phase 2 prompt (six evening reports, brand rows master, historical import, exports).
-3. Standing reminders for Sagar: export ETP after the last bill of the day; keep the backup certificate off the PC once Phase 4 lands (D9); staff use one shared Store Manager login (D7).
+1. Revised accounting statuses DRAFT/BLOCKED/APPROVED_READY/EXPORTED_AWAITING_IMPORT/REJECTED. Update the rejection procedure's eligible statuses in a NEW migration too.
+2. Invoice business-key duplication guard; company and TEST/PRODUCTION settings; persistent export receipts/history; unified Prepare → Review → Export screen and alias removal.
+3. Archive/sharing, registers, approval/restatement queue, database-driven store/master lists, honest automatic-import status, remaining OCR cleanup, Help and investigation navigation. Follow the latest plan plus approved retention decisions; preserve retained Received files functionality.
+4. Actual Titan 2025–26/Service source acceptance is deferred into Phase 5; no synthetic substitute. Actual Tally transfer/read-back belongs to Phase 7.
 
-## Phase 1 prompt (regenerate from these ingredients if the chat copy is lost)
+## Parallel branches / acceptance
 
-Scope = plan §5 Phase 1 tasks 1–15 plus register IF-001–IF-013; branch `phase-1/data-truth` from `main`; read order: plan (§2 rules, §3 decisions D1/D3/D11, §5 Phase 1), register, audit 03 and audit 01 headlines; data locations as in the table above (never committed; sanitised sample allowed under `tests-dotnet/fixtures/etp-sample/`); proven facts (NETVALUE = NETAMOUNT − TAX; FY-end INVOICEYEAR identity; BC rule; ten stock types; PAYMENTTYPE25 = Airpay, AGENCYNAME mapping; R013 sign quirk; BinWise bins); suggested order identity → reader → scope → profiles → type rules → tender modes → folder UI → completeness; self-run A1.1–A1.11 on a fresh database; report sections: what changed, how to verify, test results, screenshots, decisions, tender-mode table for D11, register disposition, known gaps, acceptance checklist.
+- `phase-2-3/closure` at fa8706f includes Claude's re-audit: Phase 2 has no remaining coding or owner decisions; stock 814/502 accepted; A2.6 deliberately deferred.
+- Phase 5 includes Phase 4 script fixes through 2111ba5. P4-7/8/9 were written by the auditor; preserve the independence caveat in PHASE-4-AUDIT.md.
+- `phase-4/defect-fixes` at 71a1aa2 records **A3.3 native 125% DPI PASS**. A3.8 shop-staff touch walkthrough remains NOT VERIFIED in that audit.
+- `ux/title-version` at a2ec520 adds the running build to the title. This separate branch and its DPI audit are NOT in the current Phase 5 branch. Do not lose them or claim them merged.
+- Main remains 1d02059; publishing branches does not close phases or merge them. Sagar controls integration.
 
-## History (short)
+## Safety and tooling
 
-- 14 Sep: first real run of the app; fixed window off-screen, date default, dashboard reflow; found ex-GST vs GST-inclusive discrepancy.
-- 15 Sep: six module audits; plan v1.0 → v1.3; decisions frozen; Phase 0 built by Codex, reopened once (0016 audit write, red CI), closed; two-year Helios corpus analysed and imported, exposing IF-012/IF-013; register, skill, agent created.
+Never edit committed migrations; next migration after this branch's 0030 must be checked against other branches before allocation. Do not commit private source workbooks, certificates, credentials, graph databases or generated build/test output. No live shop migration/install was performed by these increments.
+
+User explicitly requested Graphify and Obsidian refresh on 17 September; this overrides the older plan's instruction not to maintain those local notes for this refresh only. Current Graphify output is local/ignored under this Phase 5 worktree's graphify-out; code-review graph is local/ignored under .code-review-graph. Active Obsidian vault: C:/Codex/Reporting Manger/ETP. Its Project Knowledge folder is a reading copy, not two-way sync.

@@ -1,0 +1,240 @@
+﻿Window         ETP Reporting Engine 1.8.8 (3074dbb)
+Window         Find a screen
+ListItem       Settings → Help → Getting Started
+Text           Getting Started
+Text           Settings → Help → Getting Started
+Text           Open getting started in Settings.
+Text           Search tasks · Ctrl+K
+Edit           Search tasks and reports
+Text           ETP
+Button         Today
+Text           Today
+Button         Import
+Text           Import
+Button         Reports
+Text           Reports
+Button         Stock
+Text           Stock
+Button         Settings
+Text           Settings
+Button         Find a screen
+Text           ⌕ Search
+Button         Read full status
+Text           More details
+Text           Needs attention
+Text           Today
+Button         Sales tab
+Text           Sales
+Button         Cash tab
+Text           Cash
+Button         Walk-ins tab
+Text           Walk-ins
+Button         Close day tab
+Text           Close day
+Custom         Business date
+Edit           Business date
+Text           <Enter text here>
+Button         Open calendar
+Text           ▾
+ComboBox       Store
+Text           Both stores
+Button         Refresh Preview
+Text           Refresh Preview
+Button         Export PDF
+Text           Export PDF
+Button         Share
+Text           Share
+Button         Export Excel
+Text           Export Excel
+Button         Full matrix
+Text           Full matrix
+Button         Read DSR source availability
+Text           Availability
+Text           FTD 17 Sep 2026  ·  MTD 01 Sep–17 Sep 2026  ·  YTD 01 Apr 2026–17 Sep 2026
+Text           Sales today
+Text           —
+Text           Sales this month
+Text           —
+Text           Invoices today
+Text           —
+Text           Walk-ins today
+Text           —
+Text           Titan World
+Text           LY today — · Growth —
+Text           Metric
+Text           FTD
+Text           MTD
+Text           YTD
+Text           Units
+Text           —
+Text           —
+Text           —
+Text           Sales ₹
+Text           —
+Text           —
+Text           —
+Text           AUPT
+Text           —
+Text           —
+Text           —
+Text           AVPT
+Text           —
+Text           —
+Text           —
+Text           TITAN
+Text           —
+Text           —
+Text           —
+Text           Raga
+Text           —
+Text           —
+Text           —
+Text           EDGE
+Text           —
+Text           —
+Text           —
+Text           SONATA
+Text           —
+Text           —
+Text           —
+Text           Fastrack
+Text           —
+Text           —
+Text           —
+Text           XYLYS
+Text           —
+Text           —
+Text           —
+Text           Other / unmapped
+Text           —
+Text           —
+Text           —
+Text           Walk-ins
+Text           —
+Text           —
+Text           —
+Text           Invoices
+Text           —
+Text           —
+Text           —
+Text           Conversion %
+Text           —
+Text           —
+Text           —
+Text           WCC WALKIN
+Text           —
+Text           —
+Text           —
+Text           WCC SALES
+Text           —
+Text           —
+Text           —
+Text           WDC BILLS
+Text           —
+Text           —
+Text           —
+Text           Helios
+Text           LY today — · Growth —
+Text           Metric
+Text           FTD
+Text           MTD
+Text           YTD
+Text           Units
+Text           —
+Text           —
+Text           —
+Text           Sales ₹
+Text           —
+Text           —
+Text           —
+Text           AUPT
+Text           —
+Text           —
+Text           —
+Text           AVPT
+Text           —
+Text           —
+Text           —
+Text           SEIKO
+Text           —
+Text           —
+Text           —
+Text           FOSSIL
+Text           —
+Text           —
+Text           —
+Text           TOMMY HILFIGER
+Text           —
+Text           —
+Text           —
+Text           CERUTI
+Text           —
+Text           —
+Text           —
+Text           KENNETH COLE
+Text           —
+Text           —
+Text           —
+Text           CITIZEN
+Text           —
+Text           —
+Text           —
+Text           POLICE
+Text           —
+Text           —
+Text           —
+Text           ANNE KLEIN
+Text           —
+Text           —
+Text           —
+Text           Other / unmapped
+Text           —
+Text           —
+Text           —
+Text           Walk-ins
+Text           —
+Text           —
+Text           —
+Text           Invoices
+Text           —
+Text           —
+Text           —
+Text           Conversion %
+Text           —
+Text           —
+Text           —
+Text           WCC WALKIN
+Text           —
+Text           —
+Text           —
+Text           WCC SALES
+Text           —
+Text           —
+Text           —
+Text           WDC BILLS
+Text           —
+Text           —
+Text           —
+Text           Service & targets
+Text           Service today
+Text           —
+Text           Titan World
+Text           Month target
+Text           —
+Text           Day target
+Text           —
+Text           Balance
+Text           —
+Text           Required daily sales
+Text           —
+Text           Helios
+Text           Month target
+Text           —
+Text           Day target
+Text           —
+Text           Balance
+Text           —
+Text           Required daily sales
+Text           —
+Text           — means data unavailable.
+Text           GST-inclusive sales; invoice counts exclude returns. Manual totals use available entries. Check Other / unmapped brands in Settings.

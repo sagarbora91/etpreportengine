@@ -19,7 +19,7 @@ public sealed class StockImportOrchestratorTests
     public async Task Unknown_type_never_reaches_persistence()
     {
         var row=new object?[]{"UNKNOWN","STORE","Store","ITEM","HSN","BR","Brand","Cluster","U","DOC",new DateTime(2026,8,25),null,"STORE",null,null,1m,-1m,0m,"City","State","Location"};
-        var capture=new CaptureStore();await Assert.ThrowsAsync<StockImportBlockedException>(()=>new StockSqlImportOrchestrator(capture).PersistAsync(Book(StockImportProfiles.VariantStockLedgerHeaders,row)));Assert.Null(capture.Package);
+        var capture=new CaptureStore();var result=await new StockSqlImportOrchestrator(capture).PersistAsync(Book(StockImportProfiles.VariantStockLedgerHeaders,row));Assert.Empty(capture.Package!.StockMovements);Assert.Contains(result.Diagnostics,d=>d.Code=="UNKNOWN_STOCK_TRANSACTION_TYPE");
     }
     private static WorkbookSnapshot Book(IReadOnlyList<string> headers,IReadOnlyList<object?> values)=>new("sanitized.xlsx",10,Hash,[new("Sheet0",1,headers,[new(2,values.Select(x=>new WorkbookCell(x)).ToArray())])]);
     private sealed class CaptureStore:ITransactionalImportStore{public ImportPersistencePackage? Package{get;private set;}public Task<long> PersistAsync(ImportPersistencePackage package,CancellationToken cancellationToken=default){Package=package;return Task.FromResult(42L);}}

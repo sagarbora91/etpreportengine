@@ -1,9 +1,66 @@
-using Etp.Reporting.Desktop;
+﻿using Etp.Reporting.Desktop;
+
+using System.Windows;
 
 namespace Etp.Reporting.Desktop.Tests;
 
 public sealed class TaskNavigationTests
 {
+    [Fact]
+    public void Store_manager_can_open_brand_editor_without_other_administration_access()
+    {
+        var navigation = new ShellNavigationService();
+        var brands = TaskNavigation.Find("masters")!;
+        Assert.Contains(brands, TaskNavigation.InSection("Settings", ShellAccess.StoreManager));
+        Assert.True(navigation.Navigate(brands.Route, ShellAccess.StoreManager).IsAllowed);
+        Assert.False(navigation.Navigate(brands.Route, ShellAccess.Viewer).IsAllowed);
+        foreach (var id in new[] { "users", "connection", "tender-rules", "stores" })
+            Assert.False(navigation.Navigate(TaskNavigation.Find(id)!.Route, ShellAccess.StoreManager).IsAllowed);
+        Assert.False(navigation.Navigate(new("Admin / Settings"), ShellAccess.StoreManager).IsAllowed);
+    }
+
+    [Fact]
+    public void Every_rail_shows_all_of_its_sections_without_scrolling()
+    {
+        // The shop panel is 1366x768, where WPF's default cap of a third of the screen shows
+        // seven rows. Settings has nine sections, so Registers and Help sat below the fold and
+        // the owner reasonably concluded the help module had been removed. A section list is
+        // the shell's top-level menu: all of it has to be on screen.
+        const double Row = 44;
+        foreach (var rail in TaskNavigation.Sections)
+        {
+            var tabs = TaskNavigation.InSection(rail, ShellAccess.Owner).Select(t => t.Tab).Distinct().ToArray();
+            Assert.True(MainWindow.DropDownHeightFor(tabs.Length) >= tabs.Length * Row,
+                $"{rail} has {tabs.Length} sections and they do not all fit on screen.");
+        }
+        var settings = TaskNavigation.InSection("Settings", ShellAccess.Owner).Select(t => t.Tab).Distinct().ToArray();
+        Assert.Contains("Help", settings);
+        Assert.Contains("Registers", settings);
+    }
+
+    [Fact]
+    public void A_long_list_is_taller_than_the_platform_default_and_still_bounded_by_the_screen()
+    {
+        // Settings has a Help section holding every help topic; such a list must scroll, but it
+        // should show far more than the seven rows the platform default allowed.
+        var platformDefault = SystemParameters.PrimaryScreenHeight / 3;
+        Assert.True(MainWindow.DropDownHeightFor(9) > platformDefault);
+        Assert.True(MainWindow.DropDownHeightFor(22) > platformDefault);
+        Assert.True(MainWindow.DropDownHeightFor(22) <= SystemParameters.PrimaryScreenHeight * 0.6);
+        // A short list is sized to its contents, not padded out to the maximum.
+        Assert.True(MainWindow.DropDownHeightFor(2) < platformDefault);
+    }
+
+    [Fact]
+    public void A_task_reads_as_its_title_rather_than_as_a_record_dump()
+    {
+        // The shell binds the record itself into a ComboBox, so ToString is what assistive
+        // technology announces.
+        var task = TaskNavigation.Find("health")!;
+        Assert.Equal("Database health", task.ToString());
+        Assert.DoesNotContain("Destination", task.ToString());
+    }
+
     [Fact]
     public void Personal_display_preferences_remain_available_without_administration_access()
     {
@@ -11,20 +68,22 @@ public sealed class TaskNavigationTests
         {
             var navigation = new ShellNavigationService();
             var display = TaskNavigation.Search("Display", access).Single(x => x.Id == "settings");
-            Assert.True(navigation.Navigate(new("Home", TaskId: "overview:Settings"), access).IsAllowed);
-            Assert.True(navigation.Navigate(new("Home", TaskId: "category:Settings:Display"), access).IsAllowed);
+            Assert.False(navigation.Navigate(new("Home", TaskId: "overview:Settings"), access).IsAllowed);
+            Assert.False(navigation.Navigate(new("Home", TaskId: "category:Settings:Display"), access).IsAllowed);
             Assert.True(navigation.Navigate(display.Route, access).IsAllowed);
             Assert.Equal(display.Route, navigation.Current);
-            foreach (var id in new[] { "connection", "users", "recovery" })
+            // Every owner-only Settings task, not a sample of three: R4 put the database and
+            // recovery block behind this gate, so "health" in particular has to be named here.
+            foreach (var id in new[] { "connection", "health", "backups", "recovery", "support-package", "audit", "users", "profiles" })
                 Assert.Equal(access.CanAdminister, navigation.Navigate(TaskNavigation.Find(id)!.Route, access).IsAllowed);
         }
         Assert.False(new ShellNavigationService().Navigate(TaskNavigation.Find("settings")!.Route, ShellAccess.DatabaseSetup).IsAllowed);
     }
 
     [Theory]
-    [InlineData("DSR", "report-dsr", "Reports → Sales → Daily Sales Report")]
-    [InlineData("support package", "support-package", "Settings → Database & Recovery → Support Package")]
-    [InlineData("restore", "recovery", "Settings → Database & Recovery → Restore & Recovery Drill")]
+    [InlineData("DSR", "report-dsr", "Today → Sales → Sales")]
+    [InlineData("support package", "support-package", "Settings → Database → Support package")]
+    [InlineData("restore", "recovery", "Settings → Database → Recovery drill")]
     public void Search_opens_canonical_destination(string query, string id, string path)
     {
         var task = TaskNavigation.Search(query, ShellAccess.Owner).First();
@@ -50,7 +109,7 @@ public sealed class TaskNavigationTests
     [Fact]
     public void Every_menu_alias_is_mapped_and_reports_are_unique()
     {
-        Assert.All(UiNavigationRegistry.AllItems, item => Assert.NotNull(TaskNavigation.ForItem(item)));
+        Assert.All(TaskNavigation.All, task => Assert.Contains(task.Rail, TaskNavigation.Sections));
         Assert.Equal(TaskNavigation.All.Count, TaskNavigation.All.Select(x => x.Id).Distinct().Count());
     }
 
@@ -90,7 +149,7 @@ public sealed class TaskNavigationTests
             var task=HelpTaskRoutes.Find(topic.Id); Assert.NotNull(task);
             Assert.True(new ShellNavigationService().Navigate(task.Route,ShellAccess.Owner).IsAllowed,topic.Id);
         }
-        Assert.Equal("category:Reports:Stock",HelpTaskRoutes.Find("stock-reports")!.Route.TaskId);
+        Assert.Equal("report-stock-closing",HelpTaskRoutes.Find("stock-reports")!.Route.TaskId);
         Assert.False(HelpTaskRoutes.Find("administration")!.IsAllowed(ShellAccess.Viewer));
     }
 }

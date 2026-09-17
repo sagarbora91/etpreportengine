@@ -1,0 +1,31 @@
+=== capture started 2026-09-17T19:37:36 ===
+exe   : C:\Codex\Reporting Manger\opus-recovery\src\Etp.Reporting.Desktop\bin\Release\net10.0-windows\Etp.Reporting.Desktop.exe
+build : 2026-09-17T19:34:24
+target: Server=.\SQLEXPRESS;Database=EtpOpusRecovery;Integrated Security=True;TrustServerCertificate=True;Connect Timeout=30
+pid   : 2452   window dpi: 97   title: ETP Reporting Engine 1.8.8 (3074dbb)
+
+--- requested 1366x768 ---
+Import -> Problems
+  clicked 'Import'
+  clicked 'Problems tab'
+  shot  : import-problems-1366x768.png  window 1366x768  client 1350x729  dpi 97
+  tree  : 93 on-screen named elements -> import-problems-1366x768.tree.txt
+Settings -> Database -> Database health
+  clicked 'Find a screen'
+  searched to 'Database health'
+  shot  : database-health-1366x768.png  window 1366x768  client 1350x729  dpi 97
+  tree  : 106 on-screen named elements -> database-health-1366x768.tree.txt
+
+--- requested 816x480 ---
+Import -> Problems
+  clicked 'Import'
+  clicked 'Problems tab'
+  shot  : import-problems-816x480.png  window 816x480  client 800x441  dpi 97
+  tree  : 94 on-screen named elements -> import-problems-816x480.tree.txt
+Settings -> Database -> Database health
+  clicked 'Find a screen'
+  searched to 'Database health'
+  shot  : database-health-816x480.png  window 816x480  client 800x441  dpi 97
+  tree  : 70 on-screen named elements -> database-health-816x480.tree.txt
+
+=== capture finished 2026-09-17T19:39:02 ===

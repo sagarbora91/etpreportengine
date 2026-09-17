@@ -9,6 +9,29 @@ namespace Etp.Reporting.Desktop.Tests;
 public sealed class DashboardViewTests
 {
     [Fact]
+    public void Recovery_status_shows_verified_times_and_distinct_backup_fingerprints()
+    {
+        RunSta(() =>
+        {
+            var health = new DashboardHealthSnapshot("Healthy", 100m, new DateTime(2026, 9, 15, 10, 30, 0, DateTimeKind.Utc), 0, null, [])
+            {
+                LastSuccessfulBackupSha256 = new string('b', 64),
+                LastSuccessfulRecoveryDrillUtc = new DateTime(2026, 9, 1, 8, 15, 0, DateTimeKind.Utc),
+                LastSuccessfulRecoveryDrillSha256 = new string('a', 64)
+            };
+            var view = new DashboardView();
+            view.Show(DashboardViewState.Create(0, 0, 0, null, [], health, []));
+            Assert.Equal("15 Sep 2026 10:30", FindStatusText(view, "Last verified backup UTC"));
+            Assert.Equal("01 Sep 2026 08:15", FindStatusText(view, "Last recovery drill UTC"));
+            Assert.Equal(new string('B', 64), FindStatusText(view, "Verified backup fingerprint"));
+            Assert.Equal(new string('A', 64), FindStatusText(view, "Recovery drill backup fingerprint"));
+            view.ShowError("Refresh failed");
+            Assert.Equal("Unavailable", FindStatusText(view, "Last recovery drill UTC"));
+            Assert.Equal("Unavailable", FindStatusText(view, "Verified backup fingerprint"));
+        });
+    }
+
+    [Fact]
     public void State_formats_metrics_health_and_chart_with_existing_dashboard_rules()
     {
         var imports = new DashboardImportActivity[]
@@ -56,16 +79,33 @@ public sealed class DashboardViewTests
         {
             var view = new DashboardView();
             var refreshRaised = false;
-            string? requestedDestination = null;
             view.RefreshRequested += (_, _) => refreshRaised = true;
-            view.NavigationRequested += (_, destination) => requestedDestination = destination;
 
             FindButton(view, "Refresh dashboard").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             FindButton(view, "Export management summary PDF").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            FindButton(view, "Continue daily workflow").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
             Assert.True(refreshRaised);
-            Assert.Equal("Daily Workflow", requestedDestination);
+        });
+    }
+
+    [Fact]
+    public void Activity_and_recovery_views_remain_accessible_when_switching_tasks()
+    {
+        RunSta(() =>
+        {
+            var view = new DashboardView();
+            view.Show(DashboardViewState.Create(0, 0, 0, null, [],
+                new("Healthy", 1m, null, 0, null, []), []));
+
+            view.SelectTask("recent-activity");
+            Assert.NotNull(view.Content);
+            view.SelectTask("import-history");
+            FindButton(view, "Refresh dashboard");
+            view.SelectTask("overview");
+            Assert.Equal("Missing", FindStatusText(view, "Last verified backup UTC"));
+            view.SelectTask("audit");
+            view.SelectTask("overview");
+            Assert.Equal("Missing", FindStatusText(view, "Last verified backup UTC"));
         });
     }
 
@@ -97,6 +137,17 @@ public sealed class DashboardViewTests
             if (found is not null) return found;
         }
         throw new InvalidOperationException($"Button '{automationName}' was not found.");
+    }
+
+    private static string? FindStatusText(DependencyObject root, string automationName)
+    {
+        if (root is TextBlock text && AutomationProperties.GetName(text) == automationName) return text.Text;
+        foreach (var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>())
+        {
+            var found = FindStatusText(child, automationName);
+            if (found is not null) return found;
+        }
+        return null;
     }
 
     private static Button? FindButtonOrNull(DependencyObject root, string automationName)

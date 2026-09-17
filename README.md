@@ -13,9 +13,21 @@ dotnet test Etp.Reporting.slnx -c Release
 .\src\Etp.Reporting.Desktop\bin\Release\net10.0-windows\Etp.Reporting.Desktop.exe
 ```
 
-Connection settings are saved in `%LOCALAPPDATA%\EtpReporting\settings.json`. The default database is `EtpReporting`. Database setup and automation command-line modes use the same settings. Maintenance scripts and migrations accompany build output.
+Interactive connection settings are saved in `%LOCALAPPDATA%\EtpReporting\settings.json`. The default database is `EtpReporting`. Use `--connection-string` to launch an isolated review session without changing saved settings. Scheduled operations use the protected machine configuration in `%ProgramData%\EtpReporting\Operations\operations.json`. Maintenance scripts and migrations accompany build output.
 
 SQL integration tests create and drop their own uniquely named database. They never target the shop database. Set `ETP_TEST_SQL_CONNECTION` to use another local SQL instance; the default is Windows authentication on `.\SQLEXPRESS`.
+
+## Import ETP data
+
+Open **Import today's folder**, choose the export folder or ZIP, and start. Store and date range come from the workbook; keep its Info sheet. Each file shows its result and source-row counts. Identical files and content subsets add no reporting facts. Changed overlapping periods require an explicit restatement.
+
+The audit tool can create a disposable database and run the same folder service:
+
+```powershell
+dotnet run --project tools/Etp.Reporting.ImportAudit -c Release -- --database EtpReportingHelios --rebuild --folder "C:\Codex\Reporting Manger\ETP Source Data\HEMW\till 6 sep 26"
+```
+
+`--rebuild` deletes only the named audit database. The tool refuses the live `EtpReporting` database. Only `EtpReportingHelios` and names beginning `EtpPhase1Test_` are allowed. Repeat `--folder` to import both stores in one action. Private corpus tests run when the supplied folders exist; CI uses the artificial samples under `tests-dotnet/fixtures/etp-sample/`.
 
 ## Reference
 
@@ -24,5 +36,7 @@ SQL integration tests create and drop their own uniquely named database. They ne
 - [Import profiles](docs/04_ETP_IMPORT_PROFILES.md)
 - [Mapping register](docs/05_MAPPING_REGISTER.md)
 - [Approved rebuild plan](docs/audit/ETP-MASTER-AUDIT-AND-PHASED-PLAN.md)
+- [Security and operations setup](docs/OPERATIONS.md)
+- [Phase 4 implementation and validation](docs/audit/claude-audit-2026-09/PHASE-4-REPORT.md)
 
-The rebuild is in Phase 0. Financial reporting corrections belong to later approved phases; existing figures are not yet the final shop-sheet implementation. Older design and process documents are retained under `docs/_archive-2026-09/` for reference.
+This Phase 5 branch includes the integrated Phase 2–4 fixes and the first three accounting increments. Phase 5 is unblocked and remains in progress. Read the [current handoff](docs/audit/CLAUDE-HANDOFF.md), [Phase 5 evidence](docs/audit/claude-audit-2026-09/PHASE-5-REPORT.md) and [current workflow guide](docs/USER-GUIDE.md). The newer master plan and separate title/DPI changes are identified in the handoff; they have not been silently merged here. Deployment and phase acceptance follow the current audit evidence, not historical README statements.

@@ -24,7 +24,18 @@ public sealed class MigrationIntegrityException(string message) : InvalidOperati
 
 public static class MigrationChecksum
 {
-    public static string Compute(string sql) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(sql))).ToLowerInvariant();
+    public static string Compute(string sql) => Raw(sql.Replace("\r\n", "\n").Replace('\r', '\n'));
+
+    internal static bool Matches(string sql, string checksum)
+    {
+        var lf = sql.Replace("\r\n", "\n").Replace('\r', '\n');
+        // Upgrade compatibility: accept only hashes of this exact SQL in legacy LF/CRLF form.
+        // Do not rewrite the journal or accept changes to spaces, comments or SQL tokens.
+        return new[] { Compute(sql), Raw(sql), Raw(lf.Replace("\n", "\r\n")) }
+            .Contains(checksum, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static string Raw(string sql) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(sql))).ToLowerInvariant();
 }
 
 public sealed class DirectoryMigrationSource(string directory) : IMigrationSource
@@ -56,7 +67,7 @@ public static class MigrationPlanner
         {
             if (!known.TryGetValue(item.Id, out var script))
                 throw new MigrationIntegrityException($"Applied migration '{item.Id}' is missing from the migration source.");
-            if (!string.Equals(script.Checksum, item.Checksum, StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(script.Checksum, item.Checksum, StringComparison.OrdinalIgnoreCase) && !MigrationChecksum.Matches(script.Sql, item.Checksum))
                 throw new MigrationIntegrityException($"Checksum mismatch for applied migration '{item.Id}'.");
         }
         var appliedIds = applied.Select(x => x.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -127,7 +138,7 @@ public sealed class SqlServerMigrationStore(string connectionString) : IMigratio
 
     public async Task<IAsyncDisposable> AcquireMigrationLockAsync(CancellationToken cancellationToken = default)
     {
-        var connection = new SqlConnection(connectionString);
+        var connection = new SqlConnection(LocalSqlConnectionPolicy.Validate(connectionString));
         try
         {
             await connection.OpenAsync(cancellationToken);
@@ -160,7 +171,7 @@ public sealed class SqlServerMigrationStore(string connectionString) : IMigratio
 
     public async Task<IReadOnlyList<AppliedMigration>> GetAppliedAsync(CancellationToken cancellationToken = default)
     {
-        await using var connection = new SqlConnection(connectionString);
+        await using var connection = new SqlConnection(LocalSqlConnectionPolicy.Validate(connectionString));
         await connection.OpenAsync(cancellationToken);
         await EnsureJournalAsync(connection, cancellationToken);
         await using var command = new SqlCommand("SELECT migration_id, checksum, applied_utc FROM dbo.schema_migrations ORDER BY migration_id", connection);
@@ -173,14 +184,20 @@ public sealed class SqlServerMigrationStore(string connectionString) : IMigratio
 
     public async Task ApplyAsync(MigrationScript migration, CancellationToken cancellationToken = default)
     {
-        await using var connection = new SqlConnection(connectionString);
+        await using var connection = new SqlConnection(LocalSqlConnectionPolicy.Validate(connectionString));
         await connection.OpenAsync(cancellationToken);
         await EnsureJournalAsync(connection, cancellationToken);
         await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
         try
         {
+            var bridgedRetiredTable = await PrepareRetiredExtractionGrantAsync(migration, connection, transaction, cancellationToken);
             await using var script = new SqlCommand(migration.Sql, connection, transaction) { CommandTimeout = 0 };
             await script.ExecuteNonQueryAsync(cancellationToken);
+            if (bridgedRetiredTable)
+            {
+                await using var cleanup = new SqlCommand("DROP TABLE dbo.document_extractions;", connection, transaction);
+                await cleanup.ExecuteNonQueryAsync(cancellationToken);
+            }
             await using var journal = new SqlCommand("IF NOT EXISTS (SELECT 1 FROM dbo.schema_migrations WHERE migration_id=@id) INSERT dbo.schema_migrations(migration_id, checksum) VALUES(@id,@checksum)", connection, transaction);
             journal.Parameters.AddWithValue("@id", migration.Id);
             journal.Parameters.AddWithValue("@checksum", migration.Checksum);
@@ -188,6 +205,32 @@ public sealed class SqlServerMigrationStore(string connectionString) : IMigratio
             await transaction.CommitAsync(cancellationToken);
         }
         catch { await transaction.RollbackAsync(CancellationToken.None); throw; }
+    }
+
+    private static async Task<bool> PrepareRetiredExtractionGrantAsync(MigrationScript migration,
+        SqlConnection connection, SqlTransaction transaction, CancellationToken token)
+    {
+        if (migration.Id != "0022_least_privilege_audit") return false;
+        // The committed Phase 4 script grants on an object retired by Phase 1.
+        // Preserve its bytes, checksum and numeric order. This empty compatibility
+        // object exists only inside this migration transaction and is dropped before
+        // commit. A later migration cannot repair a failure in 0022.
+        const string originalChecksum = "e272fa70f48e92731c0b3c78072ac924a530b2f1fb415f2cf7a32903a91611f9";
+        if (MigrationChecksum.Compute(migration.Sql) != originalChecksum)
+            throw new MigrationIntegrityException("The retired-table compatibility bridge requires the original 0022 migration.");
+        const string sql = """
+            IF OBJECT_ID(N'dbo.document_extractions') IS NULL
+              AND EXISTS(SELECT 1 FROM dbo.schema_migrations WHERE migration_id='0020_remove_document_extraction')
+            BEGIN
+              CREATE TABLE dbo.document_extractions(
+                review_status varchar(30) NULL,reviewed_by nvarchar(256) NULL,
+                reviewed_utc datetime2(3) NULL,review_reason nvarchar(1000) NULL);
+              SELECT CAST(1 AS bit);
+            END
+            ELSE SELECT CAST(0 AS bit);
+            """;
+        await using var command = new SqlCommand(sql, connection, transaction);
+        return (bool)(await command.ExecuteScalarAsync(token))!;
     }
 
     private static async Task EnsureJournalAsync(SqlConnection connection, CancellationToken cancellationToken)

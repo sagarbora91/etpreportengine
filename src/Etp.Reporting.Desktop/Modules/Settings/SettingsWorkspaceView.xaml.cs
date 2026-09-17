@@ -48,6 +48,7 @@ public partial class SettingsWorkspaceView : UserControl
         this.migrationDirectory = Path.GetFullPath(migrationDirectory);
 
         InitializeComponent();
+        InitializeDataTruthMasters();
         ConnectionStringInput.TextChanged += (_, _) => ++connectionCheckRevision;
         ProductSettingsPanel.IsEnabled = false;
     }
@@ -64,15 +65,12 @@ public partial class SettingsWorkspaceView : UserControl
     private bool productBusy;
     private readonly WorkspaceOperationGate databaseOperation = new();
     private string[]? savedProduct;
-    private TextBox[] ProductFields => [DocumentRepositoryInput, ShareFolderInput, OcrHelperInput, OcrModelInput, SmtpHostInput, SmtpPortInput, SmtpFromInput, MaximumAttachmentInput, ProductSettingsReasonInput];
+    private TextBox[] ProductFields => [DocumentRepositoryInput, ShareFolderInput, SmtpHostInput, SmtpPortInput, SmtpFromInput, MaximumAttachmentInput, ProductSettingsReasonInput];
     public bool HasProductDraft => savedProduct is not null && !ProductFields.Select(input => input.Text).SequenceEqual(savedProduct);
     public bool IsBusy => productBusy || databaseOperation.IsBusy;
     public void DiscardProductDraft() { if (savedProduct is null) return; for (var i = 0; i < ProductFields.Length; i++) ProductFields[i].Text = savedProduct[i]; }
     public void SelectIntegrationTask(string id)
     {
-        var elements = ProductSettingsPanel.Children.Cast<UIElement>().ToArray();
-        for (var index = 0; index < elements.Length; index++)
-            elements[index].Visibility = index < 2 || index == 10 || (id == "ocr" ? index is >= 6 and <= 9 : index is >= 2 and <= 5) ? Visibility.Visible : Visibility.Collapsed;
         foreach (var input in new[] { SmtpHostInput, SmtpPortInput, SmtpFromInput, MaximumAttachmentInput })
             input.Visibility = id == "sharing" ? Visibility.Visible : Visibility.Collapsed;
         if (!integrationsLoaded) _ = PrepareForDisplayAsync(true);
@@ -87,7 +85,9 @@ public partial class SettingsWorkspaceView : UserControl
     public void UpdateAccess(SettingsWorkspaceAccess currentAccess)
     {
         access = currentAccess ?? throw new ArgumentNullException(nameof(currentAccess));
+        ExportRecoveryKeysButton.IsEnabled = access.CanAdminister;
         ProductSettingsPanel.IsEnabled = access.CanAdminister && integrationsLoaded && !productBusy;
+        foreach (var masters in DataTruthMastersHost.Children.OfType<EveningMastersView>()) masters.RefreshAccessState();
     }
 
     public async Task PrepareForDisplayAsync(bool loadProductConfiguration)
@@ -104,7 +104,7 @@ public partial class SettingsWorkspaceView : UserControl
     {
         if (IsBusy || HasProductDraft) { ConnectionResult.Text = "Finish the current operation and save or discard integration edits before changing the database connection."; return; }
         var revision = ++connectionCheckRevision;
-        if (showProgress) ConnectionResult.Text = "Testing…";
+        if (showProgress) ConnectionResult.Text = "Testingâ€¦";
         var candidate = session.ValidateCandidate(ConnectionStringInput.Text);
         if (!candidate.IsValid)
         {
@@ -141,7 +141,7 @@ public partial class SettingsWorkspaceView : UserControl
         if (productBusy || HasProductDraft) { ConnectionResult.Text = "Save or discard integration edits before updating the database."; return; }
         using var operation = databaseOperation.TryEnter(this); if (operation is null) return;
         ++connectionCheckRevision;
-        ConnectionResult.Text = "Creating/updating database…";
+        ConnectionResult.Text = "Creating/updating databaseâ€¦";
         try
         {
             RequireBootstrapAccess();
@@ -189,7 +189,7 @@ public partial class SettingsWorkspaceView : UserControl
             RequireOwnerAccess();
             if (!integrationsLoaded) throw new InvalidOperationException("Load the current integration settings before saving.");
             var settings = DesktopSettingsPresentationSession.CreateProductConfiguration(
-                DocumentRepositoryInput.Text, ShareFolderInput.Text, OcrHelperInput.Text, OcrModelInput.Text,
+                DocumentRepositoryInput.Text, ShareFolderInput.Text,
                 SmtpHostInput.Text, SmtpPortInput.Text, SmtpFromInput.Text, MaximumAttachmentInput.Text,
                 ProductSettingsReasonInput.Text);
             await administrationServiceFactory(session.ConnectionString).SaveProductConfigurationAsync(settings);
@@ -206,6 +206,41 @@ public partial class SettingsWorkspaceView : UserControl
             return false;
         }
         finally { productBusy = false; ProductSettingsPanel.IsEnabled = access.CanAdminister && integrationsLoaded; }
+    }
+
+    private void ChooseRecoveryLocation_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new Microsoft.Win32.OpenFolderDialog { Title = "Choose an off-PC recovery location" };
+        if (dialog.ShowDialog() != true) return;
+        if ((sender as Button)?.Tag as string == "first") FirstRecoveryLocation.Text = dialog.FolderName;
+        else SecondRecoveryLocation.Text = dialog.FolderName;
+    }
+
+    private async void ExportRecoveryKeys_Click(object sender, RoutedEventArgs e)
+    {
+        if (!access.CanAdminister) { ConnectionResult.Text = "Owner permission is required to export recovery keys."; return; }
+        if (RecoveryLocationsConfirmed.IsChecked != true) { ConnectionResult.Text = "Confirm that both recovery copies are outside this PC."; return; }
+        if (IsBusy) return;
+        ExportRecoveryKeysButton.IsEnabled = false;
+        productBusy = true;
+        try
+        {
+            var receipt = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "EtpReporting", "Backups", "certificate-custody.json");
+            await new Etp.Reporting.Infrastructure.SqlServer.BackupCertificateService(ConnectionStringInput.Text).ExportAsync(
+                RecoveryPassword.Password, FirstRecoveryLocation.Text, SecondRecoveryLocation.Text, receipt);
+            ConnectionResult.Text = "Two recovery key copies were exported and their hashes recorded. Keep the password separately; verify a restore on a second machine before deployment.";
+        }
+        catch (Exception exception)
+        {
+            DesktopDiagnostics.Record(exception, "Settings.BackupCertificate", "CERTIFICATE_EXPORT_FAILED");
+            ConnectionResult.Text = exception is ArgumentException ? exception.Message : "Recovery key export failed. Check the SQL edition, Owner permissions and access to both recovery folders. No successful custody receipt was recorded.";
+        }
+        finally
+        {
+            RecoveryPassword.Clear();
+            productBusy = false;
+            ExportRecoveryKeysButton.IsEnabled = access.CanAdminister;
+        }
     }
 
     private async void TestConnection_Click(object sender, RoutedEventArgs e) =>
@@ -227,8 +262,6 @@ public partial class SettingsWorkspaceView : UserControl
     {
         DocumentRepositoryInput.Text = settings.DocumentRepositoryPath;
         ShareFolderInput.Text = settings.ShareFolderPath;
-        OcrHelperInput.Text = settings.OcrHelperPath;
-        OcrModelInput.Text = settings.OcrModelPath;
         SmtpHostInput.Text = settings.SmtpHost;
         SmtpPortInput.Text = settings.SmtpPort;
         SmtpFromInput.Text = settings.SmtpFromAddress;

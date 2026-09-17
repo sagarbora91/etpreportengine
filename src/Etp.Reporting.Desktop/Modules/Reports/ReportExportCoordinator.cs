@@ -2,6 +2,7 @@ using Etp.Reporting.Reporting;
 using System.Runtime.CompilerServices;
 
 [assembly: InternalsVisibleTo("Etp.Reporting.Desktop.Tests")]
+[assembly: InternalsVisibleTo("Etp.Reporting.SqlServer.IntegrationTests")]
 
 namespace Etp.Reporting.Desktop.Modules.Reports;
 

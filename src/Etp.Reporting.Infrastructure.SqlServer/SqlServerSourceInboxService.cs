@@ -5,8 +5,6 @@ namespace Etp.Reporting.Infrastructure.SqlServer;
 public sealed class SqlServerSourceInboxService : ISourceInboxService
 {
     private readonly Func<string?, int, CancellationToken, Task<IReadOnlyList<SourceDocumentRow>>> loadDocuments;
-    private readonly Func<long, CancellationToken, Task<IReadOnlyList<DocumentExtractionRow>>> loadExtractions;
-    private readonly Func<long, bool, string, CancellationToken, Task> reviewExtraction;
     private readonly Func<string, string?, DateOnly?, string?, CancellationToken, Task<DocumentIntakeOutcome>> intake;
     private readonly Func<string, string, CancellationToken, Task<bool>> verifyIntegrity;
     private readonly Func<CancellationToken, Task<ApplicationAccess>> loadAccess;
@@ -20,8 +18,6 @@ public sealed class SqlServerSourceInboxService : ISourceInboxService
         var operations = new ProductisationOperationsService(validated);
 
         loadDocuments = repository.LoadSourceInboxAsync;
-        loadExtractions = repository.LoadDocumentExtractionsAsync;
-        reviewExtraction = repository.ReviewDocumentExtractionAsync;
         intake = operations.IntakeDocumentAsync;
         verifyIntegrity = ManagedDocumentRepository.VerifyIntegrityAsync;
         loadAccess = new Phase2OperationsRepository(validated).LoadCurrentAccessAsync;
@@ -29,15 +25,11 @@ public sealed class SqlServerSourceInboxService : ISourceInboxService
 
     internal SqlServerSourceInboxService(
         Func<string?, int, CancellationToken, Task<IReadOnlyList<SourceDocumentRow>>> loadDocuments,
-        Func<long, CancellationToken, Task<IReadOnlyList<DocumentExtractionRow>>> loadExtractions,
-        Func<long, bool, string, CancellationToken, Task> reviewExtraction,
         Func<string, string?, DateOnly?, string?, CancellationToken, Task<DocumentIntakeOutcome>> intake,
         Func<string, string, CancellationToken, Task<bool>> verifyIntegrity,
         Func<CancellationToken, Task<ApplicationAccess>> loadAccess)
     {
         this.loadDocuments = loadDocuments ?? throw new ArgumentNullException(nameof(loadDocuments));
-        this.loadExtractions = loadExtractions ?? throw new ArgumentNullException(nameof(loadExtractions));
-        this.reviewExtraction = reviewExtraction ?? throw new ArgumentNullException(nameof(reviewExtraction));
         this.intake = intake ?? throw new ArgumentNullException(nameof(intake));
         this.verifyIntegrity = verifyIntegrity ?? throw new ArgumentNullException(nameof(verifyIntegrity));
         this.loadAccess = loadAccess ?? throw new ArgumentNullException(nameof(loadAccess));
@@ -54,26 +46,6 @@ public sealed class SqlServerSourceInboxService : ISourceInboxService
             .ToArray();
     }
 
-    public async Task<IReadOnlyList<SourceDocumentExtraction>> LoadExtractionsAsync(
-        long sourceDocumentId,
-        CancellationToken cancellationToken = default)
-    {
-        await RequireViewAsync(cancellationToken).ConfigureAwait(false);
-        return (await loadExtractions(sourceDocumentId, cancellationToken).ConfigureAwait(false))
-            .Select(Map)
-            .ToArray();
-    }
-
-    public async Task ReviewExtractionAsync(
-        long extractionId,
-        bool verified,
-        string reason,
-        CancellationToken cancellationToken = default)
-    {
-        await RequireImportAsync(cancellationToken).ConfigureAwait(false);
-        await reviewExtraction(extractionId, verified, reason, cancellationToken).ConfigureAwait(false);
-    }
-
     public async Task<SourceDocumentIntakeOutcome> IntakeAsync(
         SourceDocumentIntakeRequest request,
         CancellationToken cancellationToken = default)
@@ -88,7 +60,6 @@ public sealed class SqlServerSourceInboxService : ISourceInboxService
             cancellationToken).ConfigureAwait(false);
         return new(
             Map(outcome.Document),
-            outcome.Extraction is null ? null : Map(outcome.Extraction),
             outcome.Duplicate);
     }
 
@@ -132,28 +103,4 @@ public sealed class SqlServerSourceInboxService : ISourceInboxService
             row.ReceivedUtc,
             row.SafeMessage);
 
-    internal static SourceDocumentExtraction Map(DocumentExtractionRow row) =>
-        new(
-            row.Id,
-            row.SourceDocumentId,
-            row.Method,
-            row.Version,
-            row.Text,
-            row.Confidence,
-            row.ReviewStatus,
-            row.ReviewedBy,
-            row.ReviewedUtc,
-            row.ReviewReason,
-            row.CreatedUtc);
-
-    internal static SourceDocumentExtractionResult Map(DocumentExtractionResult result) =>
-        new(
-            result.Method,
-            result.Version,
-            result.Text,
-            result.Confidence,
-            result.PageNumber,
-            result.BoundingBoxJson,
-            result.StructuredFieldsJson,
-            result.ReviewStatus);
 }

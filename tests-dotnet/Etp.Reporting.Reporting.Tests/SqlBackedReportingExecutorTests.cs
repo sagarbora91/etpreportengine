@@ -19,17 +19,49 @@ public sealed class SqlBackedReportingExecutorTests
     }
 
     [Fact]
-    public async Task Executor_blocks_unmapped_source_transaction_type()
+    public async Task Executor_warns_and_skips_unmapped_source_transaction_without_blocking_period()
     {
         var repository = new FakeRepository
         {
-            Sales = [new(new(2026, 7, 1), "S1", "I1", "1", "P1", "Brand", "Segment", "NEW", 1m, 10m, 10m)]
+            Sales = [new(new(2026, 7, 1), "S1", "I1", "1", "P1", "Brand", "Segment", "NEW", 1m, 10m, 10m),
+                new(new(2026, 7, 1), "S1", "I2", "1", "P1", "Brand", "Segment", "SALE", 1m, 118m, 100m)]
         };
 
         var result = await Executor(repository).ExecuteSalesSummaryAsync(Scope(), SalesSummaryDimension.Daily);
 
-        Assert.Equal(ReconciliationStatus.Blocked, result.Status);
-        Assert.Empty(result.Rows);
+        Assert.Equal(ReconciliationStatus.Passed, result.Status);
+        Assert.Equal(100m, Assert.Single(result.Rows).SourceSignedNetAmount);
+        Assert.Contains("skipped 1 rows", result.Message);
+    }
+
+    [Fact]
+    public async Task Retail_policy_uses_gross_and_treats_bill_cancellation_as_a_return()
+    {
+        var repository = new FakeRepository
+        {
+            Sales = [new(new(2026, 7, 1), "S1", "I1", "1", "P1", "Brand", "Segment", "INV", 2m, 236m, 200m),
+                new(new(2026, 7, 1), "S1", "BC1", "1", "P1", "Brand", "Segment", "BC", -1m, -118m, -100m)]
+        };
+        var executor = new SqlBackedReportingExecutor(repository, RetailReportingPolicy.Mapping, RetailReportingPolicy.Sales, RetailReportingPolicy.Tender, RetailReportingPolicy.Stock);
+        var result = await executor.ExecuteSalesSummaryAsync(Scope(), SalesSummaryDimension.Store);
+        Assert.Equal(118m, Assert.Single(result.Rows).SourceSignedNetAmount);
+        var returns = await executor.ExecuteSalesSummaryAsync(Scope(), SalesSummaryDimension.Returns);
+        Assert.Equal(-118m, Assert.Single(returns.Rows).SourceSignedNetAmount);
+    }
+
+    [Fact]
+    public async Task Repeated_invoice_numbers_in_different_financial_years_do_not_cancel_variances()
+    {
+        var repository = new FakeRepository
+        {
+            InvoiceControls = [new("S1", "100000068", 100m, 2026), new("S1", "100000068", 200m, 2027)],
+            Tenders = [new("S1", "100000068", "CARD", 200m, 2026), new("S1", "100000068", "CARD", 100m, 2027)]
+        };
+        var result = await Executor(repository).ExecuteTenderReconciliationAsync(Scope());
+        Assert.Equal(ReconciliationStatus.Failed, result.Status);
+        Assert.Equal(2, result.Documents.Count);
+        Assert.All(result.Documents, row => Assert.Equal(100m, Math.Abs(row.Variance)));
+        Assert.Equal(0m, result.Variance);
     }
 
     [Fact]

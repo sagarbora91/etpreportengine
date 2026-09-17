@@ -43,28 +43,30 @@ public sealed class R025SqlImportOrchestrator(ITransactionalImportStore store)
             throw new InvalidOperationException("The accepted import is not the approved R025 profile.");
         if (!accepted.Staging.CanPersist) throw new SalesImportBlockedException(accepted.Diagnostics);
 
+        var lineKeys = EtpInvoiceIdentity.LineKeys(accepted.Staging.Rows);
         var lines = accepted.Staging.Rows.Select(row =>
         {
             var values = row.Values;
             var date = Required<DateOnly>(values, "transaction_date");
             return new SalesLinePersistence(
                 Required<string>(values, "store_code"), Required<string>(values, "invoice_number"),
-                date.Year, date, row.SourceRowNumber.ToString(CultureInfo.InvariantCulture),
+                EtpInvoiceIdentity.FinancialYearEnd(date, values), date, lineKeys[row.SourceRowNumber],
                 Required<string>(values, "product_code"), Required<string>(values, "source_transaction_type"),
-                Required<decimal>(values, "source_quantity"), null, Required<decimal>(values, "source_net_value"),
+                Required<decimal>(values, "source_quantity"), Required<decimal>(values, "source_net_amount"), Required<decimal>(values, "source_net_value"),
                 Optional<string>(values, "source_brand_code"), Optional<string>(values, "source_brand_name"), Optional<string>(values, "brand_segment_code"),
-                currencyCode, new(accepted.MatchedSheet.Name, row.SourceRowNumber, "R025_SALES_LINE"));
+                currencyCode, new(accepted.MatchedSheet.Name, row.SourceRowNumber, "R025_SALES_LINE"), Required<decimal>(values, "source_tax_amount"));
         }).ToArray();
         var dates = lines.Select(x => x.TransactionDate).ToArray();
-        var storeCode = SingleStore(lines.Select(x => x.StoreCode));
-        var businessDate = dates.Length == 0 ? (DateOnly?)null : dates.Max();
+        var storeCode = SingleStore(lines.Select(x => x.StoreCode)) ?? accepted.Scope.StoreCode;
+        var businessDate = accepted.Scope.PeriodEnd ?? (dates.Length == 0 ? (DateOnly?)null : dates.Max());
         (storeCode, businessDate) = ValidateScope(storeCode, businessDate, expectedStoreCode, expectedBusinessDate);
         var batchId = Guid.NewGuid();
         var package = new ImportPersistencePackage(
             new(batchId, storeId, dates.Length == 0 ? null : dates.Min(), dates.Length == 0 ? null : dates.Max(), DateTimeOffset.UtcNow),
             new(batchId, accepted.ProfileIdentity, accepted.Workbook.FileName, accepted.Workbook.Sha256, accepted.Workbook.FileSizeBytes,
-                "R025", storeCode, businessDate, businessDate, importedBy ?? Environment.UserName),
-            lines, [], [], []) { Restatement = restatement };
+                "R025", storeCode, businessDate, businessDate, importedBy ?? Environment.UserName,
+                accepted.Scope.PeriodStart ?? businessDate, businessDate),
+            lines, [], [], []) { Restatement = restatement, AcceptedImport = accepted };
         var fileId = await store.PersistAsync(package, cancellationToken);
         return new(batchId, fileId, lines.Length);
     }

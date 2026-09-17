@@ -67,7 +67,6 @@ public sealed class ShellNavigationServiceTests
     [InlineData("Dashboard", "dashboard")]
     [InlineData("Daily Workflow", "dashboard")]
     [InlineData("Sales Reports", "reports")]
-    [InlineData("Stock Reports", "reports")]
     [InlineData("Import ETP", "imports")]
     [InlineData("Registers", "registers")]
     [InlineData("Accounting", "accounting")]

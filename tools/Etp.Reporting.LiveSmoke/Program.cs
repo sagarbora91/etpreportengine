@@ -124,7 +124,7 @@ foreach (var storeCode in new[] { "WLMHW", "HEMW" })
     await dailyRepository.FinaliseAsync(storeCode, testDate, "live-smoke", false);
     if ((await dailyRepository.LoadAsync(storeCode, testDate)).Status != DailyReadinessStatus.Locked)
         throw new InvalidOperationException("Daily finalisation did not lock the business date.");
-    await dailyRepository.ReopenAsync(storeCode, testDate, "live-smoke", "Validate controlled reopen", true);
+    await dailyRepository.ReopenAsync(storeCode, testDate, "live-smoke", "Validate controlled reopen");
     if ((await dailyRepository.LoadAsync(storeCode, testDate)).Status == DailyReadinessStatus.Locked)
         throw new InvalidOperationException("Controlled daily reopen did not unlock the business date.");
     var reopenedPack = await packService.GenerateAsync(storeCode, testDate, "live-smoke");

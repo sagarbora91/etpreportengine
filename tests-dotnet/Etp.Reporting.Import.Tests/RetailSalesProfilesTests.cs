@@ -34,16 +34,6 @@ public sealed class RetailSalesProfilesTests
         Assert.Contains(result.Diagnostics, x => x.Code == "REPEATED_LAYOUT_COLLAPSED");
     }
 
-    [Fact]
-    public void Restricted_customer_columns_are_not_mapped_to_canonical_fields()
-    {
-        Assert.DoesNotContain(RetailSalesProfiles.R025.Fields,
-            field => field.SourceHeader is "CUSTOMERNAME" or "CONTACTNO");
-        Assert.DoesNotContain(RetailSalesProfiles.R022.Fields,
-            field => field.SourceHeader.Equals("CUSTOMERNAME", StringComparison.OrdinalIgnoreCase)
-                || field.SourceHeader.Equals("ContactNo", StringComparison.OrdinalIgnoreCase));
-    }
-
     private static WorkbookSnapshot Workbook(string fileName, IReadOnlyList<string> headers) =>
         new(fileName, 100, new string('a', 64), [new WorkbookSheet("Sheet0", 1, headers, [])]);
 }

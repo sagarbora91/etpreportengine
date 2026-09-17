@@ -68,7 +68,7 @@ public sealed class SettingsAndOperationsAdministrationPresentationTests : IDisp
         Assert.Single(state.Quality);
         Assert.Single(state.Issues);
         Assert.Single(state.AutomationRuns);
-        Assert.Contains("1 daily store result(s), 1 governed quality issue(s), and 1 recent unattended run(s)", state.Status, StringComparison.Ordinal);
+        Assert.Contains("1 daily store result(s), 1 approved quality issue(s), and 1 recent unattended run(s)", state.Status, StringComparison.Ordinal);
         Assert.Equal("07:30", editor.Time);
         Assert.Equal(7, command.Id);
         Assert.Equal(new TimeOnly(8, 15), command.LocalRunTime);
@@ -89,14 +89,14 @@ public sealed class SettingsAndOperationsAdministrationPresentationTests : IDisp
             [new ApplicationUser(1, @"DOMAIN\owner", "Owner", AccessRole.Owner, true, DateTime.UtcNow, "seed")],
             [new KpiDefinition("SALES", "Sales", "Net sales", "SUM", "ETP", new DateOnly(2026, 4, 1), 1, "APPROVED", "owner", true)],
             [new ProductHealth("Database", "Healthy", "Ready")],
-            new ProductConfiguration("docs", "share", null, null, "smtp.example", 587, true,
+            new ProductConfiguration("docs", "share", "smtp.example", 587, true,
                 "reports@example.com", 20, DateTime.UtcNow, "owner"));
 
         var state = session.Capture(dashboard);
         var user = OperationsAdministrationPresentationSession.CreateUserCommand(
             @"DOMAIN\manager", "Manager", "Store Manager", true, "Approved");
         var product = OperationsAdministrationPresentationSession.CreateProductConfiguration(
-            "docs", "share", "", "", "smtp.example", "587", "reports@example.com", "25", "Approved");
+            "docs", "share", "smtp.example", "587", "reports@example.com", "25", "Approved");
 
         Assert.Equal("OWNER", Assert.Single(state.Users).RoleCode);
         Assert.Single(state.Masters);
@@ -109,10 +109,10 @@ public sealed class SettingsAndOperationsAdministrationPresentationTests : IDisp
         Assert.Equal(25, product.MaximumAttachmentMb);
         Assert.Equal("Enter a valid SMTP port.",
             Assert.Throws<InvalidOperationException>(() => OperationsAdministrationPresentationSession.CreateProductConfiguration(
-                "docs", "share", "", "", "smtp", "invalid", "from", "25", "reason")).Message);
+                "docs", "share", "smtp", "invalid", "from", "25", "reason")).Message);
         Assert.Equal("Enter a valid maximum attachment size in MB.",
             Assert.Throws<InvalidOperationException>(() => OperationsAdministrationPresentationSession.CreateProductConfiguration(
-                "docs", "share", "", "", "smtp", "587", "from", "invalid", "reason")).Message);
+                "docs", "share", "smtp", "587", "from", "invalid", "reason")).Message);
     }
 
     public void Dispose()

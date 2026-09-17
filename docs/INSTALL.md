@@ -1,6 +1,12 @@
 # Windows Quick Start
 
-For the packaged release, run the versioned `EtpReportingEngine-Setup-<version>-x64.exe` as administrator and keep **Install and configure Microsoft SQL Server 2022 Express** selected. The online bootstrapper detects an existing `SQLEXPRESS` instance or obtains the official Microsoft package through Windows Package Manager, configures automatic startup, initializes `EtpReporting`, prepares backup access, and registers daily backup, monthly recovery-drill and five-minute ETP automation tasks. Internet access is required only when SQL Server Express is missing. The installer supports upgrades and uninstall through Windows Installed Apps; uninstall removes the ETP tasks but never removes SQL Server, databases, sources, reports or backups.
+For the packaged release, run the versioned `EtpReportingEngine-Setup-<version>-x64.exe` as administrator.
+
+**The SQL Server option appears only when the installer was built with SQL media embedded** (`build-windows-installer.ps1 -SqlPayloadDirectory`). P4-11 recorded why: the option used to be offered on every build, did nothing, and named an edition that was not what it installed. When the option is present, keep **Install and configure Microsoft SQL Server Express** selected and setup installs the engine from the media inside the installer, with no internet access required. When it is absent, install SQL Server yourself first as described under Prerequisite.
+
+Setup then configures automatic startup, initializes `EtpReporting`, prepares backup access, and registers the daily backup, monthly recovery-drill and five-minute ETP automation tasks. It creates a Start Menu entry, and supports upgrades and uninstall through Windows Installed Apps; uninstall removes the ETP tasks but never removes SQL Server, databases, sources, reports or backups.
+
+If the release was built without a signing certificate, which A4.3 accepts, Windows will warn that the publisher is unverified. Confirm the SHA-256 in `SHA256SUMS.txt` beside the installer before running it.
 
 The SQL connection is saved for the current Windows user after a successful connection test and is checked automatically at startup. The Dashboard shows aggregate import status and recent import history. No database password is stored by the default Windows-integrated connection.
 
@@ -8,13 +14,15 @@ Reports can be exported to fixed-format Excel or PDF. PDF output is landscape, p
 
 ## Prerequisite
 
-Install Microsoft SQL Server Express with the `SQLEXPRESS` instance and enable Windows authentication for the Windows user running the application. The application is self-contained; a separate .NET runtime is not required.
+Install Microsoft SQL Server with the `SQLEXPRESS` instance and enable Windows authentication for the Windows user running the application. The application is self-contained; a separate .NET runtime is not required.
+
+Express is supported and is the usual choice for a single shop PC. Note one consequence: Express and Web refuse `BACKUP ... WITH ENCRYPTION`, so backups on those editions are taken unencrypted, and their receipts record that plainly rather than claiming encryption. The backup folder policy is then the only thing protecting them at rest. An encrypted backup requires Standard, Developer or Enterprise. See `docs/OPERATIONS.md`.
 
 ## Start and configure
 
 1. Run `Etp.Reporting.Desktop.exe` from the release folder.
 2. Open **Settings**.
-3. Confirm or edit `Server=.\SQLEXPRESS;Database=EtpReporting;Integrated Security=True;TrustServerCertificate=True`.
+3. Confirm or edit `Server=.\SQLEXPRESS;Database=EtpReporting;Integrated Security=True;Encrypt=Optional`.
 4. Select **Create/update database**. The application creates the database when absent and applies checksum-controlled migrations.
 
 ## Import order

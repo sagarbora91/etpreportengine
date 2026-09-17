@@ -8,6 +8,8 @@ public sealed class DailySalesFocusedView : TabControl
 {
     public DailySalesFocusedView(DailySalesReportDocument report)
     {
+        Background=System.Windows.Media.Brushes.White;
+        if (report.EveningSheets.Count > 0) { var view=new EveningDsrView(report);while(view.Items.Count>0){var tab=view.Items[0];view.Items.RemoveAt(0);Items.Add(tab);} return; }
         var original = new DailySalesReportView(report);
         var metrics = original.Children.OfType<UniformGrid>().Single(); original.Children.Remove(metrics); metrics.Columns=3;
         Add("Summary",metrics);

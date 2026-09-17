@@ -24,8 +24,7 @@ public sealed class ProductisationRepository(string connectionString)
           IF @@ROWCOUNT<>1 THROW 51227,'The sharing contact was not found.',1;
           SET @result=@id;
         END
-        INSERT dbo.operational_audit(event_type,outcome,safe_detail,application_version,actor_name)
-        VALUES('SharingContactChange','Succeeded',N'Sharing contact changed',N'database',SUSER_SNAME());
+        EXEC dbo.record_operational_audit 'SharingContactChange','Succeeded',N'Sharing contact changed',N'database';
         COMMIT TRANSACTION;
         SELECT @result;
         """;
@@ -33,7 +32,7 @@ public sealed class ProductisationRepository(string connectionString)
     public async Task<ProductSettings> LoadSettingsAsync(CancellationToken cancellationToken = default)
     {
         const string sql = """
-            SELECT document_repository_path,share_folder_path,ocr_helper_path,ocr_model_path,smtp_host,smtp_port,
+            SELECT document_repository_path,share_folder_path,smtp_host,smtp_port,
                    smtp_use_tls,smtp_from_address,maximum_attachment_mb,modified_utc,modified_by
             FROM dbo.product_settings WHERE product_setting_id=1;
             """;
@@ -41,9 +40,9 @@ public sealed class ProductisationRepository(string connectionString)
         await using var command = new SqlCommand(sql, connection);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken)) throw new InvalidOperationException("Product settings are not initialized.");
-        return new(reader.GetString(0), reader.GetString(1), OptionalString(reader, 2), OptionalString(reader, 3),
-            OptionalString(reader, 4), reader.IsDBNull(5) ? null : reader.GetInt32(5), reader.GetBoolean(6),
-            OptionalString(reader, 7), reader.GetInt32(8), reader.GetDateTime(9), reader.GetString(10));
+        return new(reader.GetString(0), reader.GetString(1), OptionalString(reader, 2),
+            reader.IsDBNull(3) ? null : reader.GetInt32(3), reader.GetBoolean(4),
+            OptionalString(reader, 5), reader.GetInt32(6), reader.GetDateTime(7), reader.GetString(8));
     }
 
     public async Task SaveSettingsAsync(ProductSettings settings, string reason, CancellationToken cancellationToken = default)
@@ -53,15 +52,13 @@ public sealed class ProductisationRepository(string connectionString)
         _ = Path.GetFullPath(settings.DocumentRepositoryPath); _ = Path.GetFullPath(settings.ShareFolderPath);
         const string sql = """
             UPDATE dbo.product_settings SET document_repository_path=@documents,share_folder_path=@share,
-              ocr_helper_path=@helper,ocr_model_path=@model,smtp_host=@smtp,smtp_port=@port,smtp_use_tls=@tls,
+              smtp_host=@smtp,smtp_port=@port,smtp_use_tls=@tls,
               smtp_from_address=@from,maximum_attachment_mb=@maximum,modified_by=SUSER_SNAME(),modified_utc=SYSUTCDATETIME(),change_reason=@reason
             WHERE product_setting_id=1;
-            INSERT dbo.operational_audit(event_type,outcome,safe_detail,application_version,actor_name)
-            VALUES('ConfigurationChange','Succeeded',N'Product integration settings changed',N'database',SUSER_SNAME());
+            EXEC dbo.record_operational_audit 'ConfigurationChange','Succeeded',N'Product integration settings changed',N'database';
             """;
         await using var connection = await OpenAsync(cancellationToken); await using var command = new SqlCommand(sql, connection);
         Add(command, "@documents", Path.GetFullPath(settings.DocumentRepositoryPath)); Add(command, "@share", Path.GetFullPath(settings.ShareFolderPath));
-        Add(command, "@helper", Clean(settings.OcrHelperPath)); Add(command, "@model", Clean(settings.OcrModelPath));
         Add(command, "@smtp", Clean(settings.SmtpHost)); Add(command, "@port", settings.SmtpPort); command.Parameters.AddWithValue("@tls", settings.SmtpUseTls);
         Add(command, "@from", Clean(settings.SmtpFromAddress)); command.Parameters.AddWithValue("@maximum", settings.MaximumAttachmentMb);
         command.Parameters.AddWithValue("@reason", reason.Trim()); await command.ExecuteNonQueryAsync(cancellationToken);
@@ -89,7 +86,7 @@ public sealed class ProductisationRepository(string connectionString)
               INSERT dbo.source_documents(original_file_name,managed_file_path,source_sha256,size_bytes,source_type,document_type,store_code,business_date,lifecycle_status,received_by,last_status_by,safe_message)
               VALUES(@name,@path,@hash,@size,@sourceType,@documentType,@store,@date,@status,SUSER_SNAME(),SUSER_SNAME(),@message);
               SET @id=SCOPE_IDENTITY();
-              INSERT dbo.operational_audit(event_type,outcome,safe_detail,application_version,actor_name) VALUES('DocumentIntake','Succeeded',N'Source document received',N'database',SUSER_SNAME());
+              EXEC dbo.record_operational_audit 'DocumentIntake','Succeeded',N'Source document received',N'database';
             END
             SELECT @id; COMMIT TRANSACTION;
             """;
@@ -119,49 +116,6 @@ public sealed class ProductisationRepository(string connectionString)
         while (await reader.ReadAsync(cancellationToken)) rows.Add(ReadDocument(reader)); return rows;
     }
 
-    public async Task RecordExtractionAsync(long documentId, DocumentExtractionResult result, CancellationToken cancellationToken = default)
-    {
-        const string sql = """
-            INSERT dbo.document_extractions(source_document_id,extraction_method,extraction_version,page_number,extracted_text,confidence,bounding_box_json,structured_fields_json,review_status)
-            VALUES(@document,@method,@version,@page,@text,@confidence,@boxes,@fields,@review);
-            UPDATE dbo.source_documents SET lifecycle_status=CASE WHEN @review='REVIEW_REQUIRED' THEN 'REVIEW_REQUIRED' ELSE lifecycle_status END,
-              last_status_by=SUSER_SNAME(),last_status_utc=SYSUTCDATETIME(),safe_message=CASE WHEN @review='REVIEW_REQUIRED' THEN N'Extraction completed; human verification is required.' ELSE safe_message END
-            WHERE source_document_id=@document;
-            INSERT dbo.operational_audit(event_type,outcome,safe_detail,application_version,actor_name) VALUES('DocumentExtraction','Succeeded',N'Document text extraction recorded for review',N'database',SUSER_SNAME());
-            """;
-        await using var connection = await OpenAsync(cancellationToken); await using var command = new SqlCommand(sql, connection);
-        command.Parameters.AddWithValue("@document", documentId); command.Parameters.AddWithValue("@method", result.Method);
-        command.Parameters.AddWithValue("@version", result.Version); Add(command, "@page", result.PageNumber); command.Parameters.AddWithValue("@text", result.Text);
-        Add(command, "@confidence", result.Confidence); Add(command, "@boxes", result.BoundingBoxJson); Add(command, "@fields", result.StructuredFieldsJson);
-        command.Parameters.AddWithValue("@review", result.ReviewStatus); await command.ExecuteNonQueryAsync(cancellationToken);
-    }
-
-    public async Task<IReadOnlyList<DocumentExtractionRow>> LoadDocumentExtractionsAsync(long documentId, CancellationToken cancellationToken = default)
-    {
-        const string sql = "SELECT document_extraction_id,source_document_id,extraction_method,extraction_version,extracted_text,confidence,review_status,reviewed_by,reviewed_utc,review_reason,created_utc FROM dbo.document_extractions WHERE source_document_id=@document ORDER BY created_utc DESC";
-        await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(sql,connection);command.Parameters.AddWithValue("@document",documentId);
-        await using var reader=await command.ExecuteReaderAsync(cancellationToken);var rows=new List<DocumentExtractionRow>();
-        while(await reader.ReadAsync(cancellationToken))rows.Add(new(reader.GetInt64(0),reader.GetInt64(1),reader.GetString(2),reader.GetString(3),reader.GetString(4),reader.IsDBNull(5)?null:reader.GetDecimal(5),reader.GetString(6),OptionalString(reader,7),reader.IsDBNull(8)?null:reader.GetDateTime(8),OptionalString(reader,9),reader.GetDateTime(10)));
-        return rows;
-    }
-
-    public async Task ReviewDocumentExtractionAsync(long extractionId,bool verified,string reason,CancellationToken cancellationToken=default)
-    {
-        if(string.IsNullOrWhiteSpace(reason))throw new ArgumentException("Enter a review reason.",nameof(reason));
-        const string sql="""
-            SET XACT_ABORT ON; BEGIN TRANSACTION;
-            DECLARE @document bigint;
-            UPDATE dbo.document_extractions SET review_status=CASE WHEN @verified=1 THEN 'VERIFIED' ELSE 'REJECTED' END,reviewed_by=SUSER_SNAME(),reviewed_utc=SYSUTCDATETIME(),review_reason=@reason
-            WHERE document_extraction_id=@id AND review_status='REVIEW_REQUIRED';
-            IF @@ROWCOUNT<>1 THROW 51226,'This extraction is no longer awaiting review.',1;
-            SELECT @document=source_document_id FROM dbo.document_extractions WHERE document_extraction_id=@id;
-            UPDATE dbo.source_documents SET lifecycle_status=CASE WHEN @verified=1 THEN 'VALIDATED' ELSE 'QUARANTINED' END,last_status_by=SUSER_SNAME(),last_status_utc=SYSUTCDATETIME(),safe_message=CASE WHEN @verified=1 THEN N'Extraction was human-verified.' ELSE N'Extraction was rejected and quarantined.' END WHERE source_document_id=@document;
-            INSERT dbo.operational_audit(event_type,outcome,safe_detail,application_version,actor_name) VALUES('DocumentExtractionReview','Succeeded',CASE WHEN @verified=1 THEN N'Document extraction verified' ELSE N'Document extraction rejected' END,N'database',SUSER_SNAME());
-            COMMIT TRANSACTION;
-            """;
-        await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(sql,connection);command.Parameters.AddWithValue("@id",extractionId);command.Parameters.AddWithValue("@verified",verified);command.Parameters.AddWithValue("@reason",reason.Trim());await command.ExecuteNonQueryAsync(cancellationToken);
-    }
-
     public async Task<IReadOnlyList<SharingContactRow>> LoadSharingContactsAsync(CancellationToken cancellationToken=default)
     {
         const string sql="SELECT sharing_contact_id,display_name,contact_role,email_address,phone_e164,default_subscriptions,is_active,modified_by,modified_utc FROM dbo.sharing_contacts ORDER BY is_active DESC,display_name";
@@ -177,11 +131,7 @@ public sealed class ProductisationRepository(string connectionString)
 
     public async Task LinkDocumentToImportAsync(long documentId,string sourceSha256,string reportCode,string? storeCode,DateOnly? businessDate,CancellationToken cancellationToken=default)
     {
-        const string sql="""
-            UPDATE d SET import_file_id=f.import_file_id,report_code=@report,store_code=COALESCE(@store,f.store_code),business_date=COALESCE(@date,f.business_date),
-              lifecycle_status='IMPORTED',last_status_by=SUSER_SNAME(),last_status_utc=SYSUTCDATETIME(),safe_message=N'ETP source validated and imported into canonical data.'
-            FROM dbo.source_documents d JOIN dbo.import_files f ON f.source_sha256=@hash WHERE d.source_document_id=@document;
-            """;
+        const string sql="EXEC dbo.link_document_to_import @document,@hash,@report,@store,@date";
         await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(sql,connection);command.Parameters.AddWithValue("@document",documentId);command.Parameters.AddWithValue("@hash",SqlServerImportFileRepository.NormalizeHash(sourceSha256));command.Parameters.AddWithValue("@report",reportCode);Add(command,"@store",Clean(storeCode)?.ToUpperInvariant());Add(command,"@date",businessDate);await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
@@ -200,7 +150,7 @@ public sealed class ProductisationRepository(string connectionString)
               verification_status,remarks,created_by,modified_by,change_reason)
               VALUES(@type,@document,@store,@date,@number,@documentDate,@counterparty,@quantity,@amount,@reference,@received,@verification,@remarks,SUSER_SNAME(),SUSER_SNAME(),@reason);
             DECLARE @id bigint=(SELECT register_entry_id FROM dbo.register_entries WHERE register_type=@type AND store_code=@store AND business_date=@date AND document_number=@number);
-            INSERT dbo.operational_audit(event_type,outcome,safe_detail,application_version,actor_name) VALUES('RegisterEntry','Succeeded',N'Register entry saved',N'database',SUSER_SNAME()); SELECT @id;
+            EXEC dbo.record_operational_audit 'RegisterEntry','Succeeded',N'Register entry saved',N'database'; SELECT @id;
             """;
         await using var connection = await OpenAsync(cancellationToken); await using var command = new SqlCommand(sql, connection);
         command.Parameters.AddWithValue("@type", entry.RegisterType.ToUpperInvariant()); Add(command, "@document", entry.SourceDocumentId);
@@ -245,7 +195,7 @@ public sealed class ProductisationRepository(string connectionString)
 
     public async Task<long> CreateApprovalAsync(string approvalType,string subjectType,string subjectId,object payload,string? storeCode=null,DateOnly? businessDate=null,CancellationToken cancellationToken=default)
     {
-        const string sql="INSERT dbo.approval_requests(approval_type,subject_type,subject_id,store_code,business_date,request_payload_json,requested_by) VALUES(@type,@subjectType,@subject,@store,@date,@payload,SUSER_SNAME()); INSERT dbo.operational_audit(event_type,outcome,safe_detail,application_version,actor_name) VALUES('Approval','Succeeded',N'Approval requested',N'database',SUSER_SNAME()); SELECT CONVERT(bigint,SCOPE_IDENTITY());";
+        const string sql="EXEC dbo.submit_approval_request @type,@subjectType,@subject,@store,@date,@payload;";
         await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(sql,connection);command.Parameters.AddWithValue("@type",approvalType.ToUpperInvariant());command.Parameters.AddWithValue("@subjectType",subjectType.Trim());command.Parameters.AddWithValue("@subject",subjectId.Trim());Add(command,"@store",Clean(storeCode)?.ToUpperInvariant());Add(command,"@date",businessDate);command.Parameters.AddWithValue("@payload",JsonSerializer.Serialize(payload));return Convert.ToInt64(await command.ExecuteScalarAsync(cancellationToken));
     }
 
@@ -258,21 +208,14 @@ public sealed class ProductisationRepository(string connectionString)
     public async Task DecideApprovalAsync(long id,bool approve,string reason,CancellationToken cancellationToken=default)
     {
         await EnsureOwnerAsync(cancellationToken);if(string.IsNullOrWhiteSpace(reason))throw new ArgumentException("Enter an approval decision reason.",nameof(reason));
-        const string sql="UPDATE dbo.approval_requests SET status=@status,decided_by=SUSER_SNAME(),decided_utc=SYSUTCDATETIME(),decision_reason=@reason WHERE approval_request_id=@id AND status='PENDING'; IF @@ROWCOUNT<>1 THROW 51211,'The approval is no longer pending.',1; UPDATE dbo.controlled_adjustments SET status=CASE @status WHEN 'APPROVED' THEN 'APPROVED' ELSE 'REJECTED' END WHERE approval_request_id=@id AND status='PENDING'; INSERT dbo.operational_audit(event_type,outcome,safe_detail,application_version,actor_name) VALUES('Approval','Succeeded',N'Approval decided',N'database',SUSER_SNAME());";
-        await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(sql,connection);command.Parameters.AddWithValue("@id",id);command.Parameters.AddWithValue("@status",approve?"APPROVED":"REJECTED");command.Parameters.AddWithValue("@reason",reason.Trim());await command.ExecuteNonQueryAsync(cancellationToken);
+        const string sql="EXEC dbo.decide_approval_request @id,@approve,@reason;";
+        await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(sql,connection);command.Parameters.AddWithValue("@id",id);command.Parameters.AddWithValue("@approve",approve);command.Parameters.AddWithValue("@reason",reason.Trim());await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
     public async Task<long> CreateAdjustmentRequestAsync(string storeCode,DateOnly businessDate,string adjustmentType,decimal amount,string reason,long? sourceDocumentId=null,CancellationToken cancellationToken=default)
     {
         if(string.IsNullOrWhiteSpace(reason))throw new ArgumentException("Enter the adjustment reason.",nameof(reason));
-        const string sql="""
-            SET XACT_ABORT ON; BEGIN TRANSACTION;
-            INSERT dbo.approval_requests(approval_type,subject_type,subject_id,store_code,business_date,request_payload_json,requested_by)
-            VALUES('ADJUSTMENT','ControlledAdjustment',CONCAT(@store,'/',CONVERT(varchar(10),@date,23),'/',@type),@store,@date,(SELECT @type adjustmentType,@amount amount,@reason reason FOR JSON PATH,WITHOUT_ARRAY_WRAPPER),SUSER_SNAME()); DECLARE @approval bigint=SCOPE_IDENTITY();
-            INSERT dbo.controlled_adjustments(store_code,business_date,adjustment_type,amount,reason,source_document_id,approval_request_id,created_by)
-            VALUES(@store,@date,@type,@amount,@reason,@document,@approval,SUSER_SNAME()); DECLARE @id bigint=SCOPE_IDENTITY();
-            INSERT dbo.operational_audit(event_type,outcome,safe_detail,application_version,actor_name) VALUES('Adjustment','Succeeded',N'Controlled adjustment submitted for Owner approval',N'database',SUSER_SNAME()); SELECT @id; COMMIT TRANSACTION;
-            """;
+        const string sql="EXEC dbo.submit_controlled_adjustment @store,@date,@type,@amount,@reason,@document;";
         await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(sql,connection);command.Parameters.AddWithValue("@store",storeCode.Trim().ToUpperInvariant());command.Parameters.AddWithValue("@date",businessDate);command.Parameters.AddWithValue("@type",adjustmentType.Trim().ToUpperInvariant());command.Parameters.AddWithValue("@amount",amount);command.Parameters.AddWithValue("@reason",reason.Trim());Add(command,"@document",sourceDocumentId);return Convert.ToInt64(await command.ExecuteScalarAsync(cancellationToken));
     }
 
@@ -296,13 +239,13 @@ public sealed class ProductisationRepository(string connectionString)
 
     public async Task RecordPackageAsync(long generationId,string packageType,string path,string manifestJson,string sha256,bool isFinal,CancellationToken cancellationToken=default)
     {
-        const string sql="IF NOT EXISTS(SELECT 1 FROM dbo.report_packages WITH(UPDLOCK,HOLDLOCK) WHERE package_sha256=@hash) INSERT dbo.report_packages(daily_report_generation_id,package_type,package_path,manifest_json,package_sha256,package_status,created_by) VALUES(@generation,@type,@path,@manifest,@hash,@status,SUSER_SNAME()); INSERT dbo.operational_audit(event_type,outcome,safe_detail,application_version,actor_name) VALUES('ReportPackage','Succeeded',N'Immutable ZIP report package created or re-exported',N'database',SUSER_SNAME());";
+        const string sql="IF NOT EXISTS(SELECT 1 FROM dbo.report_packages WITH(UPDLOCK,HOLDLOCK) WHERE package_sha256=@hash) INSERT dbo.report_packages(daily_report_generation_id,package_type,package_path,manifest_json,package_sha256,package_status,created_by) VALUES(@generation,@type,@path,@manifest,@hash,@status,SUSER_SNAME()); EXEC dbo.record_operational_audit 'ReportPackage','Succeeded',N'Immutable ZIP report package created or re-exported',N'database';";
         await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(sql,connection);command.Parameters.AddWithValue("@generation",generationId);command.Parameters.AddWithValue("@type",packageType);command.Parameters.AddWithValue("@path",Path.GetFullPath(path));command.Parameters.AddWithValue("@manifest",manifestJson);command.Parameters.AddWithValue("@hash",SqlServerImportFileRepository.NormalizeHash(sha256));command.Parameters.AddWithValue("@status",isFinal?"FINAL":"DRAFT");await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
     public async Task RecordShareAttemptAsync(long generationId,long? packageId,string channel,string? destinationSafe,string attachmentName,string outcome,string message,CancellationToken cancellationToken=default)
     {
-        const string sql="INSERT dbo.share_attempts(daily_report_generation_id,report_package_id,channel,destination_safe,attachment_file_name,outcome,safe_message,initiated_by) VALUES(@generation,@package,@channel,@destination,@attachment,@outcome,@message,SUSER_SNAME()); INSERT dbo.operational_audit(event_type,outcome,safe_detail,application_version,actor_name) VALUES('ShareInitiated',@auditOutcome,N'Report share action initiated',N'database',SUSER_SNAME());";
+        const string sql="INSERT dbo.share_attempts(daily_report_generation_id,report_package_id,channel,destination_safe,attachment_file_name,outcome,safe_message,initiated_by) VALUES(@generation,@package,@channel,@destination,@attachment,@outcome,@message,SUSER_SNAME()); EXEC dbo.record_operational_audit 'ShareInitiated',@auditOutcome,N'Report share action initiated',N'database';";
         await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(sql,connection);command.Parameters.AddWithValue("@generation",generationId);Add(command,"@package",packageId);command.Parameters.AddWithValue("@channel",channel);Add(command,"@destination",Clean(destinationSafe));command.Parameters.AddWithValue("@attachment",Path.GetFileName(attachmentName));command.Parameters.AddWithValue("@outcome",outcome);command.Parameters.AddWithValue("@message",message);command.Parameters.AddWithValue("@auditOutcome",outcome=="FAILED"?"Failed":"Succeeded");await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
@@ -317,19 +260,47 @@ public sealed class ProductisationRepository(string connectionString)
         await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(sql,connection);command.Parameters.AddWithValue("@store",storeCode.Trim().ToUpperInvariant());command.Parameters.AddWithValue("@date",businessDate);await using var reader=await command.ExecuteReaderAsync(cancellationToken);var rows=new List<AccountingMapping>();var seen=new HashSet<string>(StringComparer.OrdinalIgnoreCase);while(await reader.ReadAsync(cancellationToken)){var code=reader.GetString(0);if(seen.Add(code))rows.Add(new(code,reader.GetString(1),reader.GetString(2),reader.GetString(3),OptionalString(reader,4)));}return rows;
     }
 
-    public async Task SaveAccountingMappingAsync(long approvedRequestId,string businessEvent,string debitLedger,string creditLedger,string narration,string? storeCode,DateOnly effectiveFrom,CancellationToken cancellationToken=default)
-    {
-        await EnsureOwnerAsync(cancellationToken);
-        if(new[]{businessEvent,debitLedger,creditLedger,narration}.Any(string.IsNullOrWhiteSpace))throw new ArgumentException("Business event, debit ledger, credit ledger and narration are required.");
-        const string sql="""
+    private const string SaveAccountingMappingSql="""
             IF NOT EXISTS(SELECT 1 FROM dbo.approval_requests WHERE approval_request_id=@approval AND approval_type='ACCOUNTING_MAPPING' AND status='APPROVED')
               THROW 51224,'An approved accounting-mapping request is required.',1;
             DECLARE @version int=ISNULL((SELECT MAX(version) FROM dbo.accounting_mappings WITH(UPDLOCK,HOLDLOCK) WHERE business_event=@event AND ISNULL(store_code,'')=ISNULL(@store,'')),0)+1;
             UPDATE dbo.accounting_mappings SET is_active=0,modified_by=SUSER_SNAME(),modified_utc=SYSUTCDATETIME() WHERE business_event=@event AND ISNULL(store_code,'')=ISNULL(@store,'') AND is_active=1;
             INSERT dbo.accounting_mappings(business_event,store_code,debit_ledger,credit_ledger,narration_template,effective_from,version,approval_request_id,modified_by)
             VALUES(@event,@store,@debit,@credit,@narration,@effective,@version,@approval,SUSER_SNAME());
-            INSERT dbo.operational_audit(event_type,outcome,safe_detail,application_version,actor_name) VALUES('MasterDataChange','Succeeded',N'Approved accounting mapping version created',N'database',SUSER_SNAME());
+            EXEC dbo.record_operational_audit 'MasterDataChange','Succeeded',N'Approved accounting mapping version created',N'database';
             """;
+
+    public async Task ApproveAccountingMappingAsync(Etp.Reporting.Application.Accounting.ApproveAccountingMapping value, CancellationToken token=default)
+    {
+        await EnsureOwnerAsync(token);
+        if(new[]{value.BusinessEvent,value.DebitLedger,value.CreditLedger,value.NarrationTemplate,value.Reason}.Any(string.IsNullOrWhiteSpace))
+            throw new ArgumentException("Mapping fields and an approval reason are required.");
+        await using var connection=await OpenAsync(token);
+        await using var transaction=(SqlTransaction)await connection.BeginTransactionAsync(token);
+        var eventCode=value.BusinessEvent.Trim().ToUpperInvariant();
+        await using var create=new SqlCommand("EXEC dbo.submit_approval_request 'ACCOUNTING_MAPPING','AccountingMapping',@event,@store,@date,@payload;",connection,transaction);
+        create.Parameters.AddWithValue("@event",eventCode);
+        create.Parameters.AddWithValue("@store",value.Scope.StoreCode.Trim().ToUpperInvariant());
+        create.Parameters.AddWithValue("@date",value.Scope.BusinessDate);
+        create.Parameters.AddWithValue("@payload",JsonSerializer.Serialize(new { Event=eventCode,Debit=value.DebitLedger,Credit=value.CreditLedger,Narration=value.NarrationTemplate,Store=value.Scope.StoreCode }));
+        var id=Convert.ToInt64(await create.ExecuteScalarAsync(token));
+        await using var decide=new SqlCommand("EXEC dbo.decide_approval_request @id,1,@reason;",connection,transaction);
+        decide.Parameters.AddWithValue("@id",id);decide.Parameters.AddWithValue("@reason",value.Reason.Trim());
+        await decide.ExecuteNonQueryAsync(token);
+        await using var save=new SqlCommand(SaveAccountingMappingSql,connection,transaction);
+        save.Parameters.AddWithValue("@approval",id);save.Parameters.AddWithValue("@event",eventCode);
+        save.Parameters.AddWithValue("@store",value.Scope.StoreCode.Trim().ToUpperInvariant());
+        save.Parameters.AddWithValue("@debit",value.DebitLedger.Trim());save.Parameters.AddWithValue("@credit",value.CreditLedger.Trim());
+        save.Parameters.AddWithValue("@narration",value.NarrationTemplate.Trim());save.Parameters.AddWithValue("@effective",value.Scope.BusinessDate);
+        await save.ExecuteNonQueryAsync(token);
+        await transaction.CommitAsync(token);
+    }
+
+    public async Task SaveAccountingMappingAsync(long approvedRequestId,string businessEvent,string debitLedger,string creditLedger,string narration,string? storeCode,DateOnly effectiveFrom,CancellationToken cancellationToken=default)
+    {
+        await EnsureOwnerAsync(cancellationToken);
+        if(new[]{businessEvent,debitLedger,creditLedger,narration}.Any(string.IsNullOrWhiteSpace))throw new ArgumentException("Business event, debit ledger, credit ledger and narration are required.");
+        const string sql=SaveAccountingMappingSql;
         await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(sql,connection);command.Parameters.AddWithValue("@approval",approvedRequestId);command.Parameters.AddWithValue("@event",businessEvent.Trim().ToUpperInvariant());Add(command,"@store",Clean(storeCode)?.ToUpperInvariant());command.Parameters.AddWithValue("@debit",debitLedger.Trim());command.Parameters.AddWithValue("@credit",creditLedger.Trim());command.Parameters.AddWithValue("@narration",narration.Trim());command.Parameters.AddWithValue("@effective",effectiveFrom);await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
@@ -341,7 +312,7 @@ public sealed class ProductisationRepository(string connectionString)
             SELECT @generation;
             SELECT event_code,amount,source_reference,description FROM
             (
-              SELECT 'NET_SALES' event_code,COALESCE(SUM(l.source_net_amount),0) amount,CONCAT(@store,'/',CONVERT(varchar(10),@date,23)) source_reference,'ETP net sales including GST' description
+              SELECT 'NET_SALES' event_code,COALESCE(SUM(l.source_gross_amount),0) amount,CONCAT(@store,'/',CONVERT(varchar(10),@date,23)) source_reference,'ETP net sales including GST' description
               FROM dbo.sales_lines l JOIN dbo.sales_invoices i ON i.sales_invoice_id=l.sales_invoice_id WHERE i.store_code=@store AND i.transaction_date=@date
               UNION ALL
               SELECT 'TENDER_TOTAL',COALESCE(SUM(t.source_amount),0),CONCAT(@store,'/',CONVERT(varchar(10),@date,23)),'Eligible ETP tender total'
@@ -368,7 +339,7 @@ public sealed class ProductisationRepository(string connectionString)
             INSERT dbo.accounting_entries(accounting_batch_id,line_number,business_event,ledger_name,debit_amount,credit_amount,narration,cost_centre,source_reference)
             SELECT @id,line_number,business_event,ledger_name,debit_amount,credit_amount,narration,cost_centre,source_reference FROM OPENJSON(@entries)
             WITH(line_number int '$.LineNumber',business_event varchar(50) '$.BusinessEvent',ledger_name nvarchar(200) '$.LedgerName',debit_amount decimal(19,4) '$.DebitAmount',credit_amount decimal(19,4) '$.CreditAmount',narration nvarchar(500) '$.Narration',cost_centre nvarchar(200) '$.CostCentre',source_reference nvarchar(200) '$.SourceReference');
-            INSERT dbo.operational_audit(event_type,outcome,safe_detail,application_version,actor_name) VALUES('AccountingBatch','Succeeded',N'Balanced accounting batch prepared for review',N'database',SUSER_SNAME()); SELECT @id; COMMIT TRANSACTION;
+            EXEC dbo.record_operational_audit 'AccountingBatch','Succeeded',N'Balanced accounting batch prepared for review',N'database'; SELECT @id; COMMIT TRANSACTION;
             """;
         await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(sql,connection);command.Parameters.AddWithValue("@store",storeCode.Trim().ToUpperInvariant());command.Parameters.AddWithValue("@date",businessDate);command.Parameters.AddWithValue("@report",reportGenerationId);command.Parameters.AddWithValue("@debit",batch.DebitTotal);command.Parameters.AddWithValue("@credit",batch.CreditTotal);command.Parameters.AddWithValue("@entries",JsonSerializer.Serialize(batch.Entries));return Convert.ToInt64(await command.ExecuteScalarAsync(cancellationToken));
     }
@@ -388,20 +359,30 @@ public sealed class ProductisationRepository(string connectionString)
     public async Task ApproveAccountingBatchAsync(long batchId,string reason,CancellationToken cancellationToken=default)
     {
         await EnsureOwnerAsync(cancellationToken);if(string.IsNullOrWhiteSpace(reason))throw new ArgumentException("Enter an accounting approval reason.",nameof(reason));
-        const string sql="UPDATE dbo.accounting_batches SET status='APPROVED',approved_by=SUSER_SNAME(),approved_utc=SYSUTCDATETIME() WHERE accounting_batch_id=@id AND status='REVIEW' AND debit_total=credit_total; IF @@ROWCOUNT<>1 THROW 51221,'The batch is not eligible for approval.',1; INSERT dbo.operational_audit(event_type,outcome,safe_detail,application_version,actor_name) VALUES('AccountingBatch','Succeeded',N'Balanced accounting batch approved',N'database',SUSER_SNAME());";
+        const string sql="UPDATE dbo.accounting_batches SET status='APPROVED',approval_reason=@reason,approved_by=SUSER_SNAME(),approved_utc=SYSUTCDATETIME() WHERE accounting_batch_id=@id AND status='REVIEW' AND debit_total=credit_total; IF @@ROWCOUNT<>1 THROW 51221,'The batch is not eligible for approval.',1; EXEC dbo.record_operational_audit 'AccountingBatch','Succeeded',N'Balanced accounting batch approved',N'database';";
         await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(sql,connection);command.Parameters.AddWithValue("@id",batchId);command.Parameters.AddWithValue("@reason",reason.Trim());await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task RejectAccountingBatchAsync(long batchId,string reason,CancellationToken token=default)
+    {
+        await EnsureOwnerAsync(token);
+        if(string.IsNullOrWhiteSpace(reason)) throw new ArgumentException("Enter an accounting rejection reason.",nameof(reason));
+        await using var connection=await OpenAsync(token);
+        await using var command=new SqlCommand("EXEC dbo.reject_accounting_batch @id,@reason;",connection);
+        command.Parameters.AddWithValue("@id",batchId);command.Parameters.AddWithValue("@reason",reason.Trim());
+        await command.ExecuteNonQueryAsync(token);
     }
 
     public async Task RecordAccountingExportAsync(long batchId,string sha256,CancellationToken cancellationToken=default)
     {
-        const string sql="UPDATE dbo.accounting_batches SET status='EXPORTED',exported_utc=SYSUTCDATETIME(),export_sha256=@hash WHERE accounting_batch_id=@id AND status='APPROVED'; IF @@ROWCOUNT<>1 THROW 51222,'Approve the accounting batch before export.',1; INSERT dbo.operational_audit(event_type,outcome,safe_detail,application_version,actor_name) VALUES('AccountingExport','Succeeded',N'Approved accounting batch exported to Tally XML',N'database',SUSER_SNAME());";
+        const string sql="UPDATE dbo.accounting_batches SET status='EXPORTED',exported_utc=SYSUTCDATETIME(),export_sha256=@hash WHERE accounting_batch_id=@id AND status='APPROVED'; IF @@ROWCOUNT<>1 THROW 51222,'Approve the accounting batch before export.',1; EXEC dbo.record_operational_audit 'AccountingExport','Succeeded',N'Approved accounting batch exported to Tally XML',N'database';";
         await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(sql,connection);command.Parameters.AddWithValue("@id",batchId);command.Parameters.AddWithValue("@hash",SqlServerImportFileRepository.NormalizeHash(sha256));await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
     public async Task UpdateIssueWorkflowAsync(long issueId,string status,string reason,CancellationToken cancellationToken=default)
     {
         if(string.IsNullOrWhiteSpace(reason))throw new ArgumentException("Enter an issue workflow reason.",nameof(reason));
-        const string sql="UPDATE dbo.data_quality_issues SET workflow_status=@status,modified_by=SUSER_SNAME(),modified_utc=SYSUTCDATETIME(),resolution_reason=@reason WHERE data_quality_issue_id=@id; IF @@ROWCOUNT<>1 THROW 51223,'The issue was not found.',1; INSERT dbo.operational_audit(event_type,outcome,safe_detail,application_version,actor_name) VALUES('IssueWorkflow','Succeeded',N'Data-quality issue workflow updated; technical control status retained',N'database',SUSER_SNAME());";
+        const string sql="UPDATE dbo.data_quality_issues SET workflow_status=@status,modified_by=SUSER_SNAME(),modified_utc=SYSUTCDATETIME(),resolution_reason=@reason WHERE data_quality_issue_id=@id; IF @@ROWCOUNT<>1 THROW 51223,'The issue was not found.',1; EXEC dbo.record_operational_audit 'IssueWorkflow','Succeeded',N'Data-quality issue workflow updated; technical control status retained',N'database';";
         await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(sql,connection);command.Parameters.AddWithValue("@id",issueId);command.Parameters.AddWithValue("@status",status.ToUpperInvariant());command.Parameters.AddWithValue("@reason",reason.Trim());await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
@@ -434,16 +415,15 @@ public sealed class ProductisationRepository(string connectionString)
     {
         var settings=await LoadSettingsAsync(cancellationToken);var items=new List<ProductHealthItem>();
         items.Add(PathHealth("Document repository",settings.DocumentRepositoryPath));items.Add(PathHealth("Share folder",settings.ShareFolderPath));
-        items.Add(string.IsNullOrWhiteSpace(settings.OcrHelperPath)?new("OCR runtime","Warning","Optional OCR helper is not configured; workbook reporting remains fully available."):File.Exists(settings.OcrHelperPath)?new("OCR runtime","Healthy","PaddleOCR helper is available."):new("OCR runtime","Critical","Configured OCR helper is missing. Correct the path or clear the optional setting."));
         items.Add(string.IsNullOrWhiteSpace(settings.SmtpHost)?new("Email","Warning","Direct SMTP is not configured; use safe email drafts instead."):new("Email","Healthy","SMTP metadata is configured; credentials remain outside the database."));
-        await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand("SELECT (SELECT COUNT_BIG(*) FROM dbo.document_extractions WHERE review_status='REVIEW_REQUIRED'),(SELECT COUNT_BIG(*) FROM dbo.import_conflicts WHERE status IN('OPEN','ACKNOWLEDGED')),(SELECT COUNT_BIG(*) FROM dbo.approval_requests WHERE status='PENDING')",connection);await using var reader=await command.ExecuteReaderAsync(cancellationToken);if(await reader.ReadAsync(cancellationToken)){items.Add(QueueHealth("OCR review queue",reader.GetInt64(0)));items.Add(QueueHealth("Import conflicts",reader.GetInt64(1)));items.Add(QueueHealth("Pending approvals",reader.GetInt64(2)));}return items;
+        await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand("SELECT (SELECT COUNT_BIG(*) FROM dbo.import_conflicts WHERE status IN('OPEN','ACKNOWLEDGED')),(SELECT COUNT_BIG(*) FROM dbo.approval_requests WHERE status='PENDING')",connection);await using var reader=await command.ExecuteReaderAsync(cancellationToken);if(await reader.ReadAsync(cancellationToken)){items.Add(QueueHealth("Import conflicts",reader.GetInt64(0)));items.Add(QueueHealth("Pending approvals",reader.GetInt64(1)));}return items;
     }
 
     private async Task EnsureOwnerAsync(CancellationToken token)
     {
         var access=await new Phase2OperationsRepository(connectionString).LoadCurrentAccessAsync(token);if(!access.CanAdminister)throw new UnauthorizedAccessException("Owner permission is required.");
     }
-    private async Task<SqlConnection> OpenAsync(CancellationToken token){var connection=new SqlConnection(connectionString);await connection.OpenAsync(token);return connection;}
+    private async Task<SqlConnection> OpenAsync(CancellationToken token){var connection=new SqlConnection(LocalSqlConnectionPolicy.Validate(connectionString));await connection.OpenAsync(token);return connection;}
     private static void Add(SqlCommand command,string name,object? value)=>command.Parameters.AddWithValue(name,value??DBNull.Value);
     private static string? Clean(string? value)=>string.IsNullOrWhiteSpace(value)?null:value.Trim();
     private static string? OptionalString(SqlDataReader reader,int ordinal)=>reader.IsDBNull(ordinal)?null:reader.GetString(ordinal);

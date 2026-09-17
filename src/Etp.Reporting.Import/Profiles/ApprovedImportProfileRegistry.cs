@@ -5,15 +5,8 @@ namespace Etp.Reporting.Import.Profiles;
 
 public static class ApprovedImportProfileRegistry
 {
-    private static readonly ReadOnlyCollection<ImportProfile> Profiles = Array.AsReadOnly(new[]
-    {
-        RetailSalesProfiles.R025,
-        RetailSalesProfiles.R022,
-        RetailSalesProfiles.R013,
-        RetailSalesProfiles.R003,
-        StockImportProfiles.VariantStockLedger,
-        StockImportProfiles.ClosingStock
-    });
+    private static readonly ReadOnlyCollection<ImportProfile> Profiles = Array.AsReadOnly(
+        EtpReportFamilyRegistry.Families.Select(family => family.CreateProfile()).ToArray());
 
     public static IReadOnlyList<ImportProfile> All => Profiles;
 

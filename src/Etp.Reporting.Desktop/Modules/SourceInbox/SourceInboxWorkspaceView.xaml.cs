@@ -7,7 +7,6 @@ using AccessRole = EtpApplication::Etp.Reporting.Application.Access.AccessRole;
 using AccessSession = EtpApplication::Etp.Reporting.Application.Access.AccessSession;
 using SourceInboxDocument = EtpApplication::Etp.Reporting.Application.SourceInbox.SourceInboxDocument;
 using SourceInboxService = EtpApplication::Etp.Reporting.Application.SourceInbox.ISourceInboxService;
-using SourceDocumentExtraction = EtpApplication::Etp.Reporting.Application.SourceInbox.SourceDocumentExtraction;
 using SourceDocumentIntakeRequest = EtpApplication::Etp.Reporting.Application.SourceInbox.SourceDocumentIntakeRequest;
 
 namespace Etp.Reporting.Desktop.Modules.SourceInbox;
@@ -20,10 +19,7 @@ public sealed partial class SourceInboxWorkspaceView : UserControl
     private Func<AccessSession> accessProvider = () => new("unknown", "Unknown user", AccessRole.None, false);
     private Func<Exception, string> errorDescriber = DesktopFriendlyError.Describe;
     private readonly WorkspaceOperationGate operationGate = new();
-    private readonly SelectionReasonDrafts reviewReasons;
     public bool IsBusy => operationGate.IsBusy;
-    public bool HasRetainedDraft => reviewReasons.HasDrafts;
-    public void DiscardRetainedDraft() => reviewReasons.Discard();
 
     public SourceInboxWorkspaceView(
         Func<string, SourceInboxService> serviceFactory,
@@ -34,7 +30,6 @@ public sealed partial class SourceInboxWorkspaceView : UserControl
         this.connectionStringProvider = connectionStringProvider ?? throw new ArgumentNullException(nameof(connectionStringProvider));
         this.documentLauncher = documentLauncher ?? throw new ArgumentNullException(nameof(documentLauncher));
         InitializeComponent();
-        reviewReasons = new(ExtractionsGrid, ReviewReasonInput, row => (row as SourceDocumentExtraction)?.Id);
         DocumentDateInput.SelectedDate = DateTime.Today;
     }
 
@@ -55,10 +50,18 @@ public sealed partial class SourceInboxWorkspaceView : UserControl
 
     public void SelectTask(string taskId)
     {
-        BrowseButton.Visibility = DocumentPathInput.Visibility = IntakeButton.Visibility = taskId is "source-inbox" or "documents" or "native-pdf" ? Visibility.Visible : Visibility.Collapsed;
-        var status = taskId switch { "duplicates" => "Duplicate", "conflicts" => "Conflict", "quarantine" => "Quarantined", "ocr-review" or "unknown-layouts" => "Review Required", _ => "All" };
+        BrowseButton.Visibility = DocumentPathInput.Visibility = IntakeButton.Visibility = taskId is "source-inbox" or "documents" ? Visibility.Visible : Visibility.Collapsed;
+        var status = taskId switch { "duplicates" => "Duplicate", "conflicts" => "Conflict", "quarantine" => "Quarantined", _ => "All" };
         StatusInput.SelectedItem = StatusInput.Items.OfType<ComboBoxItem>().First(x => x.Content?.ToString() == status);
         _ = RefreshInboxAsync();
+    }
+
+    public async Task<IReadOnlyList<Modules.Imports.ImportProblem>> LoadProblemsAsync()
+    {
+        RequireImportAccess();
+        var documents = await Service().LoadDocumentsAsync();
+        return documents.Where(d => d.LifecycleStatus is "Quarantined" or "Conflict" or "Duplicate" or "Failed" or "QUARANTINED" or "FAILED")
+            .Select(d => new Modules.Imports.ImportProblem(d.OriginalFileName, System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase(d.LifecycleStatus.ToLowerInvariant()), d.StoreCode ?? "", d.BusinessDate?.ToString("dd MMM yyyy") ?? "", d.SafeMessage ?? "")).ToArray();
     }
 
     public Task RefreshAsync() => RefreshInboxAsync();
@@ -84,20 +87,8 @@ public sealed partial class SourceInboxWorkspaceView : UserControl
         catch (Exception ex) { if (revision != refreshRevision) return; DesktopDiagnostics.Record(ex, "SourceInbox.Workspace", "SOURCE_INBOX_REFRESH_FAILED"); SetStatus(errorDescriber(ex)); }
     }
 
-    private async void Documents_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        ExtractionsGrid.ItemsSource = null;
-        if (DocumentsGrid.SelectedItem is not SourceInboxDocument document)
-        {
-            ExtractionsGrid.ItemsSource = null;
-            SelectedDocumentIdChanged?.Invoke(this, null);
-            return;
-        }
-
-        SelectedDocumentIdChanged?.Invoke(this, document.Id);
-        try { var rows = await Service().LoadExtractionsAsync(document.Id); if ((DocumentsGrid.SelectedItem as SourceInboxDocument)?.Id == document.Id) ExtractionsGrid.ItemsSource = rows; }
-        catch (Exception ex) { if ((DocumentsGrid.SelectedItem as SourceInboxDocument)?.Id != document.Id) return; DesktopDiagnostics.Record(ex, "SourceInbox.Workspace", "SOURCE_EXTRACTIONS_LOAD_FAILED"); SetStatus(errorDescriber(ex)); }
-    }
+    private void Documents_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
+        SelectedDocumentIdChanged?.Invoke(this, (DocumentsGrid.SelectedItem as SourceInboxDocument)?.Id);
 
     private void Browse_Click(object sender, RoutedEventArgs e)
     {
@@ -120,7 +111,7 @@ public sealed partial class SourceInboxWorkspaceView : UserControl
                 throw new InvalidOperationException("Select a PDF or image first.");
             var date = DocumentDateInput.SelectedDate is { } value ? DateOnly.FromDateTime(value) : (DateOnly?)null;
             var type = SelectedContent(DocumentTypeInput).Replace(' ', '_').ToUpperInvariant();
-            SetStatus("Storing the original document and checking whether text extraction is needed…");
+            SetStatus("Attaching the original document and checking its hash…");
             var outcome = await Service().IntakeAsync(new SourceDocumentIntakeRequest(
                 DocumentPathInput.Text,
                 string.IsNullOrWhiteSpace(DocumentStoreInput.Text) ? null : DocumentStoreInput.Text.Trim(),
@@ -149,27 +140,6 @@ public sealed partial class SourceInboxWorkspaceView : UserControl
             SetStatus("Source integrity passed and the retained original was opened.");
         }
         catch (Exception ex) { DesktopDiagnostics.Record(ex, "SourceInbox.Workspace", "SOURCE_OPEN_FAILED"); SetStatus(errorDescriber(ex)); }
-    }
-
-    private async void Verify_Click(object sender, RoutedEventArgs e) => await ReviewExtractionAsync(true);
-    private async void Reject_Click(object sender, RoutedEventArgs e) => await ReviewExtractionAsync(false);
-
-    private async Task ReviewExtractionAsync(bool verified)
-    {
-        using var operation = operationGate.TryEnter(this); if (operation is null) return;
-        try
-        {
-            RequireImportAccess();
-            if (ExtractionsGrid.SelectedItem is not SourceDocumentExtraction extraction)
-                throw new InvalidOperationException("Select one extraction awaiting review.");
-            await Service().ReviewExtractionAsync(extraction.Id, verified, ReviewReasonInput.Text);
-            ReviewReasonInput.Clear();
-            await RefreshInboxAsync();
-            SetStatus(verified
-                ? "Extraction verified by a human reviewer."
-                : "Extraction rejected and the document quarantined.");
-        }
-        catch (Exception ex) { DesktopDiagnostics.Record(ex, "SourceInbox.Workspace", "SOURCE_EXTRACTION_REVIEW_FAILED"); SetStatus(errorDescriber(ex)); }
     }
 
     private SourceInboxService Service() => serviceFactory(connectionStringProvider());

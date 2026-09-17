@@ -312,6 +312,7 @@ public sealed class ProductisationPresentationSessionTests
             return Task.FromResult(41L);
         }
 
+        public Task RejectAsync(RejectAccountingBatch command, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task ApproveAsync(ApproveAccountingBatch command, CancellationToken cancellationToken = default) => Task.CompletedTask;
 
         public Task ApproveMappingAsync(ApproveAccountingMapping command, CancellationToken cancellationToken = default) => Task.CompletedTask;

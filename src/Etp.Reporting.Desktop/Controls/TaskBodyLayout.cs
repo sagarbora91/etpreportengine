@@ -18,7 +18,7 @@ public static class TaskBodyLayout
         if (scope is not null) { DockPanel.SetDock(scope, Dock.Top); root.Children.Add(scope); }
         var status = new StackPanel();
         foreach (var item in body.Children.OfType<TextBlock>().Where(text => text.Name.Contains("Status") || text.Name.Contains("Result")).ToArray())
-        { body.Children.Remove(item); item.Margin = new Thickness(0,0,0,6); item.TextWrapping = TextWrapping.NoWrap; item.TextTrimming = TextTrimming.CharacterEllipsis; status.Children.Add(item); }
+        { body.Children.Remove(item); item.Margin = new Thickness(0,0,0,6); item.TextWrapping = TextWrapping.Wrap; item.MaxHeight = 60; item.ToolTip = item.Text; status.Children.Add(item); }
         DockPanel.SetDock(status, Dock.Top); root.Children.Add(status);
         var tabs = new TabControl();
         foreach (var grid in grids)

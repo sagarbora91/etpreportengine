@@ -7,7 +7,6 @@ public sealed class ShellViewModel : INotifyPropertyChanged
 {
     private readonly IShellNavigationService navigation;
     private NavigationDecision lastNavigationDecision;
-    private ShellPresentationMetadata currentPresentation;
 
     public ShellViewModel(IShellNavigationService navigation)
     {
@@ -17,7 +16,6 @@ public sealed class ShellViewModel : INotifyPropertyChanged
             ?? throw new InvalidOperationException(
                 $"The current shell destination '{navigation.Current.Destination}' is not registered.");
 
-        currentPresentation = ShellPresentationMetadata.From(descriptor);
         lastNavigationDecision = NavigationDecision.Allowed(navigation.Current, descriptor);
     }
 
@@ -32,12 +30,6 @@ public sealed class ShellViewModel : INotifyPropertyChanged
     {
         get => lastNavigationDecision;
         private set => SetField(ref lastNavigationDecision, value);
-    }
-
-    public ShellPresentationMetadata CurrentPresentation
-    {
-        get => currentPresentation;
-        private set => SetField(ref currentPresentation, value);
     }
 
     public NavigationDecision Navigate(WorkspaceRoute route, ShellAccess access) =>
@@ -57,8 +49,6 @@ public sealed class ShellViewModel : INotifyPropertyChanged
         var decision = navigate();
 
         LastNavigationDecision = decision;
-        if (decision.IsAllowed && decision.Descriptor is { } descriptor)
-            CurrentPresentation = ShellPresentationMetadata.From(descriptor);
 
         if (previousRoute != CurrentRoute) OnPropertyChanged(nameof(CurrentRoute));
         if (couldGoBack != CanGoBack) OnPropertyChanged(nameof(CanGoBack));

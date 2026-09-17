@@ -43,6 +43,7 @@ public partial class MainWindow : Window
     internal readonly AdministrationWorkspaceView administrationWorkspaceView;
     private readonly Func<string, DatabaseLifecycleService> databaseLifecycleServiceFactory;
     internal readonly ImportWorkspaceView importWorkspaceView;
+    internal ImportHistoryView? importHistoryView;
     private AccessSession currentAccess = new("unknown", "Unknown user", AccessRole.None, false);
 
     public MainWindow(
@@ -81,28 +82,30 @@ public partial class MainWindow : Window
         this.administrationWorkspaceView = administrationWorkspaceView ?? throw new ArgumentNullException(nameof(administrationWorkspaceView));
         this.databaseLifecycleServiceFactory = databaseLifecycleServiceFactory ?? throw new ArgumentNullException(nameof(databaseLifecycleServiceFactory));
         this.importWorkspaceView = importWorkspaceView ?? throw new ArgumentNullException(nameof(importWorkspaceView));
+        if (Application.Current is null) Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("/Etp.Reporting.Desktop;component/Themes/Theme.xaml", UriKind.Relative) });
         InitializeComponent();
-        DailyWorkflowPanel.Content = dailyWorkflowWorkspace;
+        // Set after InitializeComponent: the XAML Title is the design-time name.
+        Title = DesktopProductVersion.WindowTitle;
         dailyWorkflowWorkspace.AttachHost(
             () => new(currentAccess.CanView, currentAccess.CanImport, currentAccess.CanAdminister),
             RecordAuditAsync,
             RefreshDashboardAsync);
         dailyWorkflowWorkspace.NotificationRequested += (_, args) => ApplicationStatus.Text = args.Message;
-        SettingsPanel.Content = settingsWorkspace;
         settingsWorkspace.ConnectionPresentationChanged += SettingsWorkspace_ConnectionPresentationChanged;
         settingsWorkspace.OperationCompletedAsync = SettingsWorkspace_OperationCompletedAsync;
-        DashboardHost.Content = dashboardView;
-        ReportArchiveHost.Content = archiveWorkspaceView;
+
+
         archiveWorkspaceView.AttachHost(() => currentAccess, RecordAuditAsync, DesktopFriendlyError.Describe);
         archiveWorkspaceView.NotificationRequested += (_, message) => ApplicationStatus.Text = message;
-        RegistersHost.Content = registersWorkspaceView;
+
         registersWorkspaceView.AttachHost(() => currentAccess, DesktopFriendlyError.Describe);
         registersWorkspaceView.NotificationRequested += (_, message) => ApplicationStatus.Text = message;
-        SourceInboxHost.Content = sourceInboxWorkspaceView;
+
         sourceInboxWorkspaceView.AttachHost(() => currentAccess, DesktopFriendlyError.Describe);
         sourceInboxWorkspaceView.NotificationRequested += (_, message) => ApplicationStatus.Text = message;
         sourceInboxWorkspaceView.SelectedDocumentIdChanged += (_, documentId) => registersWorkspaceView.LinkedSourceDocumentId = documentId;
-        ReportsHost.Content = reportsWorkspaceView;
+
+        reportsWorkspaceView.NotificationRequested += (_, message) => ApplicationStatus.Text = message;
         reportsWorkspaceView.AttachHost(
             ShowFocusedReportWorkspace,
             RecordAuditAsync,
@@ -111,8 +114,8 @@ public partial class MainWindow : Window
                 if (focusedWorkspaceKind == "report") { reportWorkspaceSession.UpdatePreview(snapshot, rows, status, reportsWorkspaceView.ShowRowDetails); ApplicationStatus.Text = status; }
             },
             message => reportWorkspaceSession.ShowDailySalesFailure(message),
-            row => OpenDrawer("Report row details", "Source evidence and technical lineage remain available without leaving the report workspace.", row));
-        ImportHost.Content = importWorkspaceView;
+            row => ShowReportDetails("Report row details", "Details for the selected report row.", row));
+
         importWorkspaceView.AttachHost(
             () => new(currentAccess.CanImport, currentAccess.CanAdminister),
             RecordAuditAsync,
@@ -120,19 +123,18 @@ public partial class MainWindow : Window
         importWorkspaceView.NotificationRequested += (_, message) => ApplicationStatus.Text = message;
         importWorkspaceView.ReadinessChanged += (_, status) =>
         {
-            ImportStatus.Text = status;
-            AutomationProperties.SetName(ImportStatus, $"Import readiness status: {status}");
+            ApplicationStatus.Text = status;
         };
-        AccountingHost.Content = accountingWorkspaceView;
+
         accountingWorkspaceView.AttachHost(() => currentAccess, DesktopFriendlyError.Describe);
         accountingWorkspaceView.NotificationRequested += (_, message) => ApplicationStatus.Text = message;
-        OperationsHost.Content = operationsWorkspaceView;
+
         operationsWorkspaceView.DashboardRefreshRequestedAsync = RefreshDashboardAsync;
         operationsWorkspaceView.AuditRequestedAsync = RecordAuditAsync;
-        InvestigationHost.Content = investigationWorkspaceView;
-        AdministrationHost.Content = administrationWorkspaceView;
+
+
         administrationWorkspaceView.AccessChangedAsync = () => RefreshAccessAsync();
-        dashboardView.RefreshRequested += async (_, _) => await RefreshDashboardAsync(); dashboardView.NavigationRequested += (_, destination) => NavigateToDestination(destination);
+        dashboardView.RefreshRequested += async (_, _) => await RefreshDashboardAsync();
         dashboardView.ExportDateFrom = () => reportsWorkspaceView.DateFrom is { } from ? DateOnly.FromDateTime(from) : DateOnly.FromDateTime(DateTime.Today);
         dashboardView.ExportDateTo = () => reportsWorkspaceView.DateTo is { } to ? DateOnly.FromDateTime(to) : DateOnly.FromDateTime(DateTime.Today);
         dashboardView.NotificationRequested += (_, message) => ApplicationStatus.Text = message;
@@ -158,6 +160,7 @@ public partial class MainWindow : Window
             await settingsWorkspace.CheckConnectionAsync(false);
             await RecordAuditAsync("ApplicationStart", "Succeeded", "Desktop application started");
             await RecordAuditAsync("SessionStart", "Succeeded", "Windows integrated user session started");
+            if (currentAccess.CanView) await RefreshDashboardAsync();
             startupFailed = false;
             ContinueButton.Content = "Continue";
             CompleteWelcomeState();
@@ -185,53 +188,12 @@ public partial class MainWindow : Window
     {
         if (!decision.IsAllowed)
         {
-            if (!string.IsNullOrWhiteSpace(decision.DenialReason)) { ApplicationStatus.Text = decision.DenialReason; OpenDrawer("Access restricted", decision.DenialReason); }
+            if (!string.IsNullOrWhiteSpace(decision.DenialReason)) ApplicationStatus.Text = decision.DenialReason;
             return;
         }
-        CloseDrawer();
         if (decision.RequestedRoute.TaskId?.StartsWith("help:", StringComparison.Ordinal) != true) helpWorkspaceSession.Abandon();
-        if (decision.RequestedRoute == WorkspaceRoute.Home)
-        {
-            DisplayModuleHome();
-            return;
-        }
-        if (taskNavigator!.DisplayTaskRoute(decision.RequestedRoute)) return;
-        if (decision.Descriptor is not { } page) return;
-        var destination = page.Destination;
-        HideFocusedWorkspace();
-        PageTitle.Text = destination switch { "Dashboard" => "Today overview", "Sales Reports" or "Stock Reports" => "Reports", "Operations Center" => "Control Centre", "Report Archive" => "Archive", _ => destination };
-        PageDescription.Text = destination == "Dashboard" ? "Complete the business day with clear readiness, controls and next actions." : page.Description;
-        WorkspaceHeading.Text = page.Heading;
-        WorkspaceMessage.Text = page.Message;
-        PrimaryAction.Content = page.ActionLabel;
-        PrimaryAction.Tag = page.ActionDestination;
-        PrimaryAction.IsEnabled = destination == "Dashboard";
-        SettingsPanel.Visibility = destination is "Settings" or "Admin / Settings" ? Visibility.Visible : Visibility.Collapsed;
-        if (destination is "Settings" or "Admin / Settings")
-            _ = settingsWorkspace.PrepareForDisplayAsync(destination == "Admin / Settings");
-        DailyWorkflowPanel.Visibility = destination is "Daily Workflow" or "Manual Entry" ? Visibility.Visible : Visibility.Collapsed;
-        ImportPanel.Visibility = destination == "Import ETP" ? Visibility.Visible : Visibility.Collapsed;
-        SourceInboxPanel.Visibility = destination == "Import ETP" ? Visibility.Visible : Visibility.Collapsed;
-        ReportsPanel.Visibility = destination is "Sales Reports" or "Stock Reports" ? Visibility.Visible : Visibility.Collapsed;
-        DashboardPanel.Visibility = destination == "Dashboard" ? Visibility.Visible : Visibility.Collapsed;
-        OperationsPanel.Visibility = destination == "Operations Center" ? Visibility.Visible : Visibility.Collapsed;
-        InvestigationPanel.Visibility = destination == "Operations Center" ? Visibility.Visible : Visibility.Collapsed;
-        ReportArchivePanel.Visibility = destination == "Report Archive" ? Visibility.Visible : Visibility.Collapsed;
-        RegistersPanel.Visibility = destination == "Registers" ? Visibility.Visible : Visibility.Collapsed;
-        AccountingPanel.Visibility = destination == "Accounting" ? Visibility.Visible : Visibility.Collapsed;
-        MastersPanel.Visibility = destination is "Masters" or "Admin / Settings" ? Visibility.Visible : Visibility.Collapsed;
-        UpdateShellForDestination(page);
-        ApplicationStatus.Text = $"{destination} selected. {page.Message}";
-        if (destination == "Dashboard") _ = RefreshDashboardAsync();
-        if (destination is "Daily Workflow" or "Manual Entry") _ = dailyWorkflowWorkspace.RefreshAsync();
-        if (destination == "Import ETP") _ = sourceInboxWorkspaceView.RefreshAsync();
-        if (destination == "Registers") _ = registersWorkspaceView.RefreshAsync();
-        if (destination == "Accounting") _ = accountingWorkspaceView.RefreshAsync();
-        if (destination == "Operations Center") { _ = operationsWorkspaceView.RefreshAsync(); _ = investigationWorkspaceView.RefreshApprovalsAsync(); }
-        if (destination == "Report Archive") _ = archiveWorkspaceView.RefreshAsync();
-        if (destination is "Masters" or "Admin / Settings") _ = administrationWorkspaceView.RefreshAsync();
-        if (destination is "Daily Workflow" or "Manual Entry")
-            dailyWorkflowWorkspace.PrepareForDisplay(destination == "Manual Entry");
+        if (decision.RequestedRoute == WorkspaceRoute.Home) { OpenSection("Today"); return; }
+        taskNavigator!.DisplayTaskRoute(decision.RequestedRoute);
     }
 
     private async Task RefreshAccessAsync(bool propagateFailure = false)
@@ -242,9 +204,6 @@ public partial class MainWindow : Window
             settingsWorkspace.UpdateAccess(new(currentAccess.Role != AccessRole.None, currentAccess.CanAdminister));
             UpdateOperationsAdministrationAccess();
             dailyWorkflowWorkspace.RefreshAccessState();
-            AccessStatus.Text = $"{currentAccess.DisplayName} — {RoleLabel(currentAccess.Role)}";
-            AccessStatus.Foreground = currentAccess.CanView ? Brushes.SeaGreen : Brushes.Firebrick;
-            if (PageTitle.Text is "Dashboard" or "Home") DashboardPanel.Visibility = currentAccess.CanView ? Visibility.Visible : Visibility.Collapsed;
         }
         catch (Exception ex) when (!propagateFailure && DesktopFriendlyError.IsDatabaseAvailabilityFailure(ex))
         {
@@ -252,9 +211,6 @@ public partial class MainWindow : Window
             settingsWorkspace.UpdateAccess(new(currentAccess.Role != AccessRole.None, currentAccess.CanAdminister));
             UpdateOperationsAdministrationAccess();
             dailyWorkflowWorkspace.RefreshAccessState();
-            AccessStatus.Text = "Access: initialize database";
-            AccessStatus.Foreground = Brushes.DarkOrange;
-            if (PageTitle.Text is "Dashboard" or "Home") DashboardPanel.Visibility = Visibility.Collapsed;
         }
     }
 
@@ -278,12 +234,7 @@ public partial class MainWindow : Window
         SettingsConnectionPresentationChangedEventArgs e)
     {
         var state = e.State;
-        ConnectionStatus.Text = state.ConnectionStatus;
-        ConnectionStatus.Foreground = state.IsConnected ? System.Windows.Media.Brushes.SeaGreen : System.Windows.Media.Brushes.DarkOrange;
-        ImportStatus.Text = state.ImportStatus;
         ApplicationStatus.Text = state.ApplicationStatus;
-        AutomationProperties.SetName(ConnectionStatus, $"Database connection status: {ConnectionStatus.Text}");
-        AutomationProperties.SetName(ImportStatus, $"Import readiness status: {ImportStatus.Text}");
     }
 
     private async Task SettingsWorkspace_OperationCompletedAsync(
@@ -319,6 +270,10 @@ public partial class MainWindow : Window
         {
             var snapshot = await dashboardQueryFactory(connectionState.ConnectionString).LoadAsync();
             dashboardView.Show(snapshot);
+            var state = dashboardView.CurrentState!;
+            databaseHealthLine = $"Database: {state.DatabaseHealth} · Last backup: {state.LatestBackup}";
+            AttentionBadge.Text = state.DatabaseHealthTone == DashboardHealthTone.Critical ? "Needs attention" : "";
+            AttentionBadge.Visibility = state.DatabaseHealthTone == DashboardHealthTone.Critical ? Visibility.Visible : Visibility.Collapsed;
             taskNavigator?.DefaultBusinessDateToLatestData(snapshot.LatestBusinessDate);
         }
         catch (Exception ex)

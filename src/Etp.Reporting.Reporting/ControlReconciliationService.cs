@@ -1,12 +1,13 @@
 namespace Etp.Reporting.Reporting;
 
-public sealed record InvoiceControlValue(string StoreCode, string DocumentNumber, decimal SourceSignedNetAmount);
+public sealed record InvoiceControlValue(string StoreCode, string DocumentNumber, decimal SourceSignedNetAmount, int? InvoiceYear = null);
 public sealed record TenderControlValue(
     string StoreCode,
     string DocumentNumber,
     string TenderType,
     decimal SourceSignedAmount,
-    bool IsRecognizedType);
+    bool IsRecognizedType,
+    int? InvoiceYear = null);
 public sealed record ApprovedControlRule(string Version, decimal AbsoluteTolerance)
 {
     public void Validate()
@@ -17,7 +18,7 @@ public sealed record ApprovedControlRule(string Version, decimal AbsoluteToleran
 }
 public sealed record DocumentControlResult(
     string StoreCode, string DocumentNumber, decimal InvoiceAmount, decimal TenderAmount,
-    decimal Variance, ReconciliationStatus Status);
+    decimal Variance, ReconciliationStatus Status, int? InvoiceYear = null);
 public sealed record InvoiceTenderReconciliation(
     ReconciliationStatus Status, IReadOnlyList<DocumentControlResult> Documents,
     decimal InvoiceTotal, decimal TenderTotal, decimal Variance, string RuleVersion, string Message);
@@ -52,7 +53,7 @@ public sealed class InvoiceTenderReconciliationService
             var tender = tenderMap.GetValueOrDefault(key);
             var variance = invoice - tender;
             return new DocumentControlResult(key.StoreCode, key.DocumentNumber, invoice, tender, variance,
-                Math.Abs(variance) <= rule.AbsoluteTolerance ? ReconciliationStatus.Passed : ReconciliationStatus.Failed);
+                Math.Abs(variance) <= rule.AbsoluteTolerance ? ReconciliationStatus.Passed : ReconciliationStatus.Failed, key.InvoiceYear);
         }).ToArray();
         var invoiceTotal = invoices.Sum(x => x.SourceSignedNetAmount);
         var tenderTotal = tenders.Sum(x => x.SourceSignedAmount);
@@ -63,7 +64,7 @@ public sealed class InvoiceTenderReconciliationService
             "Compared source-signed invoice and tender values by store and document.");
     }
 
-    private static (string StoreCode, string DocumentNumber) Key(InvoiceControlValue x) => (x.StoreCode, x.DocumentNumber);
-    private static (string StoreCode, string DocumentNumber) Key(TenderControlValue x) => (x.StoreCode, x.DocumentNumber);
+    private static (string StoreCode, string DocumentNumber, int? InvoiceYear) Key(InvoiceControlValue x) => (x.StoreCode, x.DocumentNumber, x.InvoiceYear);
+    private static (string StoreCode, string DocumentNumber, int? InvoiceYear) Key(TenderControlValue x) => (x.StoreCode, x.DocumentNumber, x.InvoiceYear);
     private static bool Missing(string value) => string.IsNullOrWhiteSpace(value);
 }

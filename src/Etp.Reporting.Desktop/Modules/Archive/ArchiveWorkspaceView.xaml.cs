@@ -87,7 +87,7 @@ public sealed partial class ArchiveWorkspaceView : UserControl
             if (revision != archiveRefreshRevision) return;
             archiveRows = rows; ApplyArchiveFilter();
             ReportArchiveDetailGrid.ItemsSource = null;
-            SetStatus($"{rows.Count:N0} immutable generation(s) found. Select one to open or exactly two to compare.");
+            SetStatus($"{rows.Count:N0} saved generation(s) found. Select one to open or exactly two to compare.");
         }
         catch (Exception ex) { if (revision != archiveRefreshRevision) return; HandleFailure(ex, "REPORT_ARCHIVE_LOAD_FAILED", "Report archive could not be loaded"); }
     }
@@ -172,7 +172,7 @@ public sealed partial class ArchiveWorkspaceView : UserControl
             var dialog = new SaveFileDialog { Filter = "ZIP report package (*.zip)|*.zip", FileName = $"ETP_ReportPack_{generation.BusinessDate:yyyy-MM-dd}_Gen{generation.GenerationNumber:D2}.zip", AddExtension = true };
             if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
             var result = await session.CreatePackageAsync(connectionStringProvider(), generation, dialog.FileName, accessProvider().DisplayName);
-            SetStatus($"Immutable ZIP package created. SHA-256 {result.Sha256[..12]}…");
+            SetStatus($"saved ZIP package created. SHA-256 {result.Sha256[..12]}…");
         }
         catch (Exception ex) { HandleFailure(ex, "ARCHIVED_ZIP_CREATE_FAILED", "Archived ZIP package was not created"); }
     }
@@ -208,7 +208,7 @@ public sealed partial class ArchiveWorkspaceView : UserControl
             var policy = await session.ValidateEmailAttachmentAsync(connectionStringProvider(), generation);
             shareLauncher.OpenEmailDraft(policy.ShareFolderPath, shareFile, ShareEmailToInput.Text, ShareEmailCcInput.Text,
                 $"ETP report pack - {generation.StoreCode} - {generation.BusinessDate:dd-MMM-yyyy}",
-                $"Please find attached immutable ETP report generation {generation.GenerationNumber}.");
+                $"Please find attached saved ETP report generation {generation.GenerationNumber}.");
             await session.RecordAttemptAsync(connectionStringProvider(),
                 new RecordDistributionAttempt(generation.Id, null, "EMAIL", "Configured recipient", shareFile, "INITIATED",
                     "Email draft opened; delivery is not claimed."));

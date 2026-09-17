@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -10,6 +10,8 @@ namespace Etp.Reporting.Desktop;
 public sealed partial class TaskNavigator(MainWindow window)
 {
     private TextBox? masterSearch;
+    private StackPanel? searchWindowContent;
+    private Window? searchWindow;
     private ListBox? masterResults;
     private Popup? searchPopup;
     private IInputElement? searchReturnFocus;
@@ -17,8 +19,7 @@ public sealed partial class TaskNavigator(MainWindow window)
     private readonly HashSet<UserControl> visited = new();
     private WorkspaceRoute? displayedRoute;
     private bool databaseContextStarted;
-    private bool businessDateDefaulted;
-    public static DateTime InitialBusinessDate => DateTime.Today.AddDays(-1);
+    public static DateTime InitialBusinessDate => DateTime.Today;
     private readonly Dictionary<WorkspaceRoute, (double Offset, IInputElement? Focus)> contexts = new();
 
     private static IEnumerable<DependencyObject> LogicalChildren(DependencyObject root)
@@ -40,55 +41,81 @@ public sealed partial class TaskNavigator(MainWindow window)
                 LogicalChildren(content).OfType<ScrollViewer>().FirstOrDefault()?.ScrollToVerticalOffset(context.Offset);
                 if (context.Focus is FrameworkElement { IsVisible: true } element) { element.Focus(); return; }
             }
+            if (next.TaskId == "walk-ins") { ((TextBox)window.dailyWorkflowWorkspace.FindName("ManualValueInput")).Focus(); return; }
             var buttons = LogicalChildren(content).OfType<Button>().Where(x => x.IsVisible && x.IsEnabled).ToArray();
             (buttons.FirstOrDefault(x => x.Content?.ToString() == "Refresh Preview") ?? buttons.FirstOrDefault())?.Focus();
         });
     }
 
-    public void ShellStore_Changed(object sender, SelectionChangedEventArgs e)
+    private bool updatingScope;
+    private DateTime appliedDate = InitialBusinessDate;
+    private int appliedStore = 2;
+    private string HeaderStore => appliedStore == 0 ? "WLMHW" : appliedStore == 1 ? "HEMW" : "";
+
+    public void ShellStore_Changed(object sender, SelectionChangedEventArgs e) => RequestScopeChange();
+
+    public async void RequestScopeChange()
     {
-        if (window.reportsWorkspaceView is null || window.ShellBusinessDateSelector is null) return;
-        var selected = (window.ShellStoreSelector.SelectedItem as ComboBoxItem)?.Content?.ToString();
-        window.reportsWorkspaceView.ApplyScope(window.reportsWorkspaceView.DateFrom, window.reportsWorkspaceView.DateTo, selected == "Titan World" ? "Titan" : selected == "All authorised stores" ? "Combined" : selected);
-        var store = selected == "Titan World" ? "WLMHW" : selected == "Helios" ? "HEMW" : null;
-        var scope = store == "WLMHW" ? "Titan" : store == "HEMW" ? "Helios" : "Combined (Titan + Helios)";
-        if (window.FocusedWorkspaceHost.Content is ReportWorkspaceControl report && report.ScopeSelector.IsEnabled) report.SetStoreScope(scope);
-        if (store is not null && !visited.Contains(window.dailyWorkflowWorkspace)) window.dailyWorkflowWorkspace.StoreCode = store;
-        window.ApplicationStatus.Text = store is null ? "All authorised stores. Select an explicit task store for imports and edits." : $"Current scope: {store}";
+        if (updatingScope || window.ShellBusinessDateSelector.SelectedDate is not { } nextDate) return;
+        var nextStore = window.ShellStoreSelector.SelectedIndex;
+        if (nextDate == appliedDate && nextStore == appliedStore) return;
+        RestoreHeader(appliedDate, appliedStore);
+        if (navigationPending || BlockWhileBusy()) return;
+        navigationPending = true;
+        try
+        {
+            // Resolve drafts while every editor and the header still show the OLD scope.
+            if (!await ResolveDraftsAsync()) return;
+            foreach (var draft in RetainedDrafts.ToArray())
+            {
+                var dialog = new DraftNavigationDialog(window, draft.Name, canSave: false); dialog.ShowDialog();
+                if (dialog.Choice != DraftNavigationChoice.Discard) return;
+                draft.Discard();
+            }
+            appliedStore = nextStore;
+            ApplyBusinessDate(nextDate);
+            RestoreHeader(nextDate, nextStore);
+            window.reportsWorkspaceView.ApplyScope(window.reportsWorkspaceView.DateFrom, nextDate,
+                nextStore == 0 ? "Titan" : nextStore == 1 ? "Helios" : "Combined");
+            window.dailyWorkflowWorkspace.StoreCode = HeaderStore;
+            ApplyHiddenScope(window.registersWorkspaceView);
+            ApplyHiddenScope(window.accountingWorkspaceView);
+            ApplyHiddenScope(window.sourceInboxWorkspaceView);
+            ApplyHiddenScope(window.archiveWorkspaceView);
+            if (TaskNavigation.Find(window.shell.CurrentRoute.TaskId) is { } task) DisplayTaskRoute(task.Route);
+            window.ApplicationStatus.Text = $"Scope updated: {nextDate:dd MMM yyyy}.";
+        }
+        finally { navigationPending = false; }
     }
 
-    /// <summary>Until the user picks a date, the shell business date follows the newest imported ETP day so reports open with data.</summary>
-    public void DefaultBusinessDateToLatestData(DateOnly? latest)
+    private void RestoreHeader(DateTime date, int store)
     {
-        if (businessDateDefaulted || latest is not { } date) return;
-        businessDateDefaulted = true;
-        var selected = window.ShellBusinessDateSelector.SelectedDate;
-        if (selected is null || selected.Value.Date != InitialBusinessDate) return;
-        var target = date.ToDateTime(TimeOnly.MinValue);
-        if (target != selected.Value.Date) window.ShellBusinessDateSelector.SelectedDate = target;
+        updatingScope = true;
+        try { window.ShellBusinessDateSelector.SelectedDate = date; window.ShellStoreSelector.SelectedIndex = store; }
+        finally { updatingScope = false; }
     }
+
+    private void ApplyHiddenScope(UserControl view) => ShellScopeApplier.Apply(view, appliedDate, HeaderStore);
+
+    // The user-selected header date is authoritative; imports never silently retarget it.
+    public void DefaultBusinessDateToLatestData(DateOnly? latest) { }
 
     public void ApplyBusinessDate(DateTime selected)
     {
+        appliedDate = selected;
         window.reportsWorkspaceView.SetBusinessDate(selected);
         if (window.FocusedWorkspaceHost.Content is ReportWorkspaceControl report) report.DateToPicker.SelectedDate = selected;
         if (window.FocusedWorkspaceHost.Content is DailySalesReportWorkspace dsr) dsr.BusinessDatePicker.SelectedDate = selected;
-        // Open editing workspaces retain explicit context so global changes cannot retarget drafts or jobs.
-        if (!visited.Contains(window.dailyWorkflowWorkspace)) window.dailyWorkflowWorkspace.BusinessDate = selected;
-        if (!visited.Contains(window.importWorkspaceView)) window.importWorkspaceView.BusinessDate = selected;
-        if (!visited.Contains(window.registersWorkspaceView)) window.registersWorkspaceView.BusinessDate = selected;
-        if (!visited.Contains(window.accountingWorkspaceView)) window.accountingWorkspaceView.BusinessDate = selected;
-        if (!visited.Contains(window.sourceInboxWorkspaceView)) window.sourceInboxWorkspaceView.BusinessDate = selected;
-        if (!visited.Contains(window.archiveWorkspaceView)) window.archiveWorkspaceView.BusinessDate = selected;
-        window.ApplicationStatus.Text = "Report date updated. Open tasks retain their displayed task date and store; change those fields explicitly when needed.";
+        window.dailyWorkflowWorkspace.BusinessDate = selected;
+        window.importWorkspaceView.BusinessDate = selected;
+        window.registersWorkspaceView.BusinessDate = selected;
+        window.accountingWorkspaceView.BusinessDate = selected;
+        window.sourceInboxWorkspaceView.BusinessDate = selected;
+        window.archiveWorkspaceView.BusinessDate = selected;
     }
 
     public void InitializeTaskNavigation()
     {
-        var statusDetails = new Button { Content = "Status details", Padding = new Thickness(8,0,8,0), Margin = new Thickness(0,0,8,0) };
-        statusDetails.Click += (_,_) => new StatusDetailsDialog(window,CurrentStatusDetails()).ShowDialog();
-        AutomationProperties.SetName(statusDetails,"Read full application status"); DockPanel.SetDock(statusDetails,Dock.Right);
-        ((DockPanel)window.ApplicationStatus.Parent).Children.Insert(0,statusDetails);
         window.settingsWorkspace.CanChangeDatabase = () => !databaseContextStarted && !HasUnsavedDrafts && !RetainedDrafts.Any();
         window.ShellStoreSelector.SelectionChanged += ShellStore_Changed;
         masterSearch = new TextBox { MinWidth = 180, MaxWidth = 320, Margin = new Thickness(8, 0, 8, 0), ToolTip = "Search every task (Ctrl+K)" };
@@ -110,7 +137,8 @@ public sealed partial class TaskNavigator(MainWindow window)
         masterResults.PreviewMouseLeftButtonUp += (_, _) => OpenSearchSelection();
         var searchField = new StackPanel();
         searchField.Children.Add(new TextBlock { Text = "Search tasks · Ctrl+K", FontSize = 12, Margin = new Thickness(8,0,0,2) });
-        searchField.Children.Add(masterSearch); window.HeaderSearchHost.Content = searchField;
+        searchField.Children.Add(masterSearch);
+        searchWindowContent = searchField;
         if (window.ShellBusinessDateSelector.SelectedDate is { } date) ApplyBusinessDate(date);
         window.Closing += (_, e) =>
         {
@@ -127,7 +155,7 @@ public sealed partial class TaskNavigator(MainWindow window)
         };
     }
 
-    private string CurrentStatusDetails() => string.Join("\n\n", new[] { window.ApplicationStatus.Text }.Concat(
+    internal string CurrentStatusDetails() => string.Join("\n\n", new[] { window.ApplicationStatus.Text }.Concat(
         window.FocusedWorkspaceHost.Content is DependencyObject content ? LogicalChildren(content).OfType<TextBlock>()
             .Where(text => text.Name.Contains("Status",StringComparison.Ordinal) || text.Name.Contains("Result",StringComparison.Ordinal))
             .Select(text => text.Text) : []).Where(text => !string.IsNullOrWhiteSpace(text)).Distinct());
@@ -159,12 +187,19 @@ public sealed partial class TaskNavigator(MainWindow window)
     private void CloseMasterSearch()
     {
         if (searchPopup is not null) searchPopup.IsOpen = false;
+        searchWindow?.Close();
         if (searchReturnFocus is not null) Keyboard.Focus(searchReturnFocus);
     }
 
     public void FocusMasterSearch()
     {
         searchReturnFocus = Keyboard.FocusedElement;
+        if (searchWindow is null)
+        {
+            searchWindow = new Window { Title = "Find a screen", Owner = window, Width = 520, Height = 180, Content = searchWindowContent, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            searchWindow.Closed += (_,_) => { if (searchWindow is not null) searchWindow.Content = null; searchWindow = null; };
+            searchWindow.Show();
+        }
         masterSearch?.Focus(); masterSearch?.SelectAll(); UpdateMasterSearch();
     }
 
@@ -179,12 +214,11 @@ public sealed partial class TaskNavigator(MainWindow window)
             if (window.accountingWorkspaceView.HasRetainedDraft) yield return ("Accounting review", window.accountingWorkspaceView.DiscardRetainedDraft);
             if (window.investigationWorkspaceView.HasRetainedDraft) yield return ("Adjustments and approvals", window.investigationWorkspaceView.DiscardRetainedDraft);
             if (window.operationsWorkspaceView.HasRetainedDraft) yield return ("Data-quality review", window.operationsWorkspaceView.DiscardRetainedDraft);
-            if (window.sourceInboxWorkspaceView.HasRetainedDraft) yield return ("Source extraction review", window.sourceInboxWorkspaceView.DiscardRetainedDraft);
         }
     }
     private bool BlockWhileBusy()
     {
-        if (!window.settingsWorkspace.IsBusy && !window.operationsWorkspaceView.IsBusy && !window.registersWorkspaceView.IsBusy
+        if (!window.reportsWorkspaceView.IsExportInProgress && !window.settingsWorkspace.IsBusy && !window.operationsWorkspaceView.IsBusy && !window.registersWorkspaceView.IsBusy
             && !window.dailyWorkflowWorkspace.IsBusy && !window.administrationWorkspaceView.IsBusy && !window.importWorkspaceView.IsBusy
             && !window.accountingWorkspaceView.IsBusy && !window.archiveWorkspaceView.IsBusy && !window.investigationWorkspaceView.IsBusy && !window.sourceInboxWorkspaceView.IsBusy) return false;
         window.ApplicationStatus.Text = "Wait for the current operation to finish before leaving this task or closing ETP.";
@@ -295,127 +329,53 @@ public sealed partial class TaskNavigator(MainWindow window)
         NavigateSafely(() => window.shell.Navigate(task.Route, window.CurrentShellAccess));
     }
 
-    public void NavigateOverview(string module, string destination, string? category = null)
-    {
-        if (module == "System Health") { module = "Settings"; category = "Database & Recovery"; }
-        NavigateSafely(() => window.shell.Navigate(new(destination, TaskId: category is null ? "overview:" + module : "category:" + module + ":" + category), window.CurrentShellAccess));
-    }
-
-    private void ShowTaskOverview(string module, string destination, string? category)
-    {
-        window.HideAllFeaturePanels(); window.HideSidebar();
-        window.focusedWorkspaceKind = "overview";
-        window.LegacyWorkspaceScroll.Visibility = Visibility.Collapsed;
-        window.FocusedWorkspaceLayer.Visibility = Visibility.Visible;
-        var panel = new UniformGrid { Columns = window.ActualWidth >= 1280 ? 3 : 2, Margin = new Thickness(12) };
-        var tasks = TaskNavigation.All.Where(x => x.Module == module && x.Section != "overview" && x.IsAllowed(window.CurrentShellAccess)).ToArray();
-        if (module == "Reports" && category == "Favourites") { ShowFavouriteReports(); return; }
-        if (module == "Reports" && category is null) { ShowReportCategories(tasks, destination); return; }
-        var entries = category is null ? tasks.Select(x => x.Category).Distinct().Order().ToArray() : Array.Empty<string>();
-        foreach (var name in entries)
-        {
-            var count = tasks.Count(x => x.Category == name);
-            var button = MakeTaskTile(name, count == 1 ? "1 task" : $"{count} tasks", () => NavigateOverview(module, destination, name)); panel.Children.Add(button);
-        }
-        if (category is not null)
-        foreach (var task in tasks.Where(x => x.Category == category)) panel.Children.Add(MakeTaskTile(task.Title, task.Purpose, () => NavigateTask(task)));
-        if (panel.Children.Count > 6) panel.Columns = 3;
-        panel.MinHeight = Math.Ceiling(panel.Children.Count / (double)panel.Columns) * 104;
-        window.PageTitle.Text = category ?? module;
-        window.BreadcrumbText.Text = category is null ? $"Modules → {module}" : $"{module} → {category}";
-        window.PageDescription.Text = "Choose a focused task.";
-        window.FocusedWorkspaceHost.Content = new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
-        SetBreadcrumb(module, destination, category);
-    }
-
-    private Button MakeTaskTile(string title, string detail, Action open)
-    {
-        var body = new StackPanel();
-        body.Children.Add(new TextBlock { Text = title, FontSize = 16, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap });
-        body.Children.Add(new TextBlock { Text = detail, FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0), MaxHeight = 30 });
-        var button = new Button { Content = body, Margin = new Thickness(6), Padding = new Thickness(10), HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Center };
-        AutomationProperties.SetName(button, title); button.Click += (_, _) => open(); return button;
-    }
-
-    private void SetBreadcrumb(string module, string destination, string? category)
-    {
-        window.BreadcrumbLinks.Children.Clear();
-        void Link(string name, Action click)
-        {
-            var button = new Button { Content = name, Padding = new Thickness(8, 0, 8, 0), Margin = new Thickness(0, 0, 4, 0) };
-            button.Click += (_, _) => click(); window.BreadcrumbLinks.Children.Add(button);
-        }
-        Link("← Back", () => window.NavigateHistory(true));
-        Link(module, () => NavigateOverview(module, destination));
-        if (category is not null) Link(category, () => NavigateOverview(module, destination, category));
-    }
-    private void ShowFavouriteReports()
-    {
-        window.HideAllFeaturePanels(); window.HideSidebar(); window.LegacyWorkspaceScroll.Visibility = Visibility.Collapsed;
-        window.FocusedWorkspaceLayer.Visibility = Visibility.Visible; window.focusedWorkspaceKind = "task";
-        window.PageTitle.Text = "Favourite Reports"; window.PageDescription.Text = "Your selected reports, grouped by category.";
-        window.BreadcrumbText.Text = "Reports → Favourites → Favourite Reports";
-        SetBreadcrumb("Reports", "Sales Reports", "Favourites");
-        window.FocusedWorkspaceHost.Content = new Modules.Reports.FavouriteReportsView(UiPreferenceStore.Load(), window.CurrentShellAccess, NavigateTask);
-    }
-    private void ShowReportCategories(TaskDestination[] tasks, string destination)
-    {
-        var body = new StackPanel { Margin = new Thickness(16) };
-        var secondary = new[] { "Favourites", "Filters", "Report Packs" };
-        foreach (var tools in new[] { false, true })
-        {
-            body.Children.Add(new TextBlock { Text = tools ? "Favourites, filters and packs" : "Report categories", FontSize = 16, FontWeight = FontWeights.SemiBold, Margin = new Thickness(4, tools ? 12 : 0, 0, 6) });
-            var group = new UniformGrid { Columns = tools ? 3 : 2 };
-            foreach (var category in tasks.Select(task => task.Category).Distinct().Where(category => secondary.Contains(category) == tools).Order())
-            {
-                var count = tasks.Count(task => task.Category == category);
-                var button = new Button { Content = new TextBlock { Text = $"{category} · {count}", FontSize = 14, TextWrapping = TextWrapping.Wrap }, MinHeight = 48, Margin = new Thickness(4), Padding = new Thickness(8) };
-                AutomationProperties.SetName(button, category); button.Click += (_, _) => NavigateOverview("Reports", destination, category); group.Children.Add(button);
-            }
-            body.Children.Add(group);
-        }
-        window.PageTitle.Text = "Reports"; window.PageDescription.Text = "Choose a report category or a reporting tool."; window.BreadcrumbText.Text = "Modules → Reports";
-        SetBreadcrumb("Reports", destination, null);
-        window.FocusedWorkspaceHost.Content = new ScrollViewer { Content = body, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
-    }
-
-    public void RestoreBreadcrumbs()
-    {
-        var route = window.shell.CurrentRoute;
-        if (TaskNavigation.Find(route.TaskId) is { } task) SetBreadcrumb(task.Module, task.Destination, task.Category);
-        else if (route.TaskId?.StartsWith("overview:") == true) SetBreadcrumb(route.TaskId[9..], route.Destination, null);
-        else if (route.TaskId?.StartsWith("category:") == true) { var bits = route.TaskId.Split(':',3); SetBreadcrumb(bits[1], route.Destination, bits[2]); }
-        else window.BreadcrumbLinks.Children.Clear();
-    }
+    public void NavigateOverview(string module, string destination, string? category = null) =>
+        window.OpenSection(module switch { "Dashboard" => "Today", "Imports" => "Import", "Reports" => "Reports", _ => "Settings" });
+    public void RestoreBreadcrumbs() { if (TaskNavigation.Find(window.shell.CurrentRoute.TaskId) is { } task) window.UpdateSection(task); }
 
     public bool DisplayTaskRoute(WorkspaceRoute route)
     {
         pageSearch?.Close();
         RememberContext(route);
-        if (route.TaskId?.StartsWith("overview:") == true) { ShowTaskOverview(route.TaskId[9..], route.Destination, null); return true; }
-        if (route.TaskId?.StartsWith("category:") == true)
-        {
-            var bits = route.TaskId.Split(':', 3); ShowTaskOverview(bits[1], route.Destination, bits[2]); return true;
-        }
         if (TaskNavigation.Find(route.TaskId) is not { } task) return false;
-        if (task.Section == "favourite-reports") { ShowFavouriteReports(); return true; }
+
+        window.UpdateSection(task);
+        window.ShellStoreSelector.IsEnabled = true;
+        if (task.Section == "report-list") { window.FocusedWorkspaceHost.Content = new Modules.Reports.ReportListView(window.CurrentShellAccess, NavigateTask); window.focusedWorkspaceKind = "task"; return true; }
+        if (task.Section == "favourite-reports") { window.FocusedWorkspaceHost.Content = new Modules.Reports.FavouriteReportsView(UiPreferenceStore.Load(), window.CurrentShellAccess, NavigateTask); return true; }
         if (task.Section == "help") { window.ShowHelpWorkspace(task.Id[5..]); return true; }
         if (task.Section == "profile") { window.OpenProfile_Click(window, new RoutedEventArgs()); return true; }
-        if (task.Section == "overview") { ShowTaskOverview(task.Module, task.Destination, null); return true; }
+
         if (task.Id != "settings" && task.Destination is not "Settings" and not "Dashboard") databaseContextStarted = true;
-        if (task.ReportCode is { } code) { _ = window.reportsWorkspaceView.RunReportAsync(code); SetBreadcrumb(task.Module, task.Destination, task.Category); return true; }
-        window.HideAllFeaturePanels(); window.HideSidebar();
-        window.PageTitle.Text = task.Title; window.BreadcrumbText.Text = task.Path; window.PageDescription.Text = task.Purpose;
-        SetBreadcrumb(task.Module, task.Destination, task.Category);
+        window.UpdateSection(task);
+        window.ShellStoreSelector.IsEnabled = task.ReportCode is not ("dsr" or "sales-combined" or "sales-titan" or "sales-helios");
+        if (task.ReportCode is "dsr" or "sales-combined" or "sales-titan" or "sales-helios")
+        {
+            appliedStore = task.ReportCode == "sales-titan" ? 0 : task.ReportCode == "sales-helios" ? 1 : 2;
+            RestoreHeader(appliedDate,appliedStore);
+        }
+        var reportStore = Modules.Reports.ReportTaskScope.StoreIndexForReport(task.ReportCode, appliedStore);
+        if (reportStore != appliedStore)
+        {
+            appliedStore = reportStore;
+            RestoreHeader(appliedDate, appliedStore);
+        }
+        window.reportsWorkspaceView.ApplyScope(window.reportsWorkspaceView.DateFrom,appliedDate,appliedStore == 0 ? "Titan" : appliedStore == 1 ? "Helios" : "Combined");
+        if (task.ReportCode is { } code) { _ = window.reportsWorkspaceView.RunReportAsync(code); return true; }
+
+
+
         UserControl view;
         if (task.Id == "profiles") view = new Modules.Settings.ApprovedProfilesView();
         else if (task.Id == "settings") view = new Modules.Settings.GeneralPreferencesView(UiPreferenceStore.Load(), window.SavePreferences, window.CurrentShellAccess);
         else if (task.Destination == "Dashboard") { view = window.dashboardView; window.dashboardView.SelectTask(task.Id); _ = window.RefreshDashboardAsync(); }
         else view = ResolveTaskView(task);
+        ApplyHiddenScope(view);
         if (view.Parent is ContentControl host) host.Content = null;
-        window.LegacyWorkspaceScroll.Visibility = Visibility.Collapsed;
+
         window.FocusedWorkspaceLayer.Visibility = Visibility.Visible;
         window.FocusedWorkspaceHost.Content = view; window.focusedWorkspaceKind = "task";
+
         return true;
     }
 
@@ -425,25 +385,52 @@ public sealed partial class TaskNavigator(MainWindow window)
         UserControl view;
         int[] body; int[] actions;
         var id = task.Id;
-        if (task.Section == "report-filters") { view = window.reportsWorkspaceView; body = new int[] {0,1}; actions = new int[] {}; }
-        else if (task.Section == "import-results") { view = window.importWorkspaceView; body = new int[] {6,8}; actions = new int[] {}; window.importWorkspaceView.SelectTask(id); }
-        else if (task.Section == "inbox")
+        if (id == "import-history")
         {
-            view = window.sourceInboxWorkspaceView;
-            body = id is "ocr-review" or "extraction-history" or "unknown-layouts" ? new int[] {1,3,7,4,6} : id is "source-inbox" or "documents" or "native-pdf" ? new int[] {1,2,3,4} : new int[] {1,3,4};
-            actions = id is "ocr-review" or "extraction-history" or "unknown-layouts" ? new int[] {0,1,7} : new int[] {0,1,2};
-            window.sourceInboxWorkspaceView.SelectTask(id);
+            var history = window.importHistoryView ?? throw new InvalidOperationException("Import history is not configured.");
+            _ = history.ActivateAsync(new(DateOnly.FromDateTime(appliedDate), DateOnly.FromDateTime(appliedDate), string.IsNullOrEmpty(HeaderStore) ? null : HeaderStore));
+            return history;
         }
-        else if (task.Destination == "Import ETP") { view = window.importWorkspaceView; window.importWorkspaceView.SelectTask(id); body = new int[] {1,2,3,5,6,7,8}; actions = new int[] {4}; }
-        else if (task.Destination is "Daily Workflow" or "Manual Entry")
+        if (task.Id == "conflicts") return new Modules.Imports.ImportProblemsView(window.importWorkspaceView, async () =>
+        {
+            // Persisted outcomes for the header scope, never the session's last import:
+            // the problems list has to still be there after the application is closed
+            // and reopened. appliedDate and HeaderStore are read on every load.
+            var persisted = window.importHistoryView is { } history
+                ? Modules.Imports.ImportProblems.FromHistory(
+                    (await history.FetchAsync(new(DateOnly.FromDateTime(appliedDate), DateOnly.FromDateTime(appliedDate),
+                        string.IsNullOrEmpty(HeaderStore) ? null : HeaderStore)))
+                    .Select(entry => (entry.RecordedUtc, entry.Result)))
+                : [];
+            return persisted.Concat(await window.sourceInboxWorkspaceView.LoadProblemsAsync()).Distinct().ToArray();
+        });
+        if (task.Section == "import-results" || task.Destination == "Import ETP" && task.Section != "inbox")
+        {
+            window.importWorkspaceView.SelectTask(id);
+            visited.Add(window.importWorkspaceView);
+            return window.importWorkspaceView;
+        }
+        if (task.Section == "inbox")
+        {
+            window.sourceInboxWorkspaceView.SelectTask(id);
+            visited.Add(window.sourceInboxWorkspaceView);
+            return window.sourceInboxWorkspaceView;
+        }
+        if (id == "masters") return new UserControl { Content = new ScrollViewer { Content = window.settingsWorkspace.CreateEveningMastersView(() => window.CurrentShellAccess.CanImport), VerticalScrollBarVisibility = ScrollBarVisibility.Auto } };
+        if (id == "tender-rules") return new UserControl { Content = new ScrollViewer { Content = window.settingsWorkspace.CreateDataTruthMastersView(), VerticalScrollBarVisibility = ScrollBarVisibility.Auto } };
+        if (task.Destination is "Daily Workflow" or "Manual Entry")
         {
             view = window.dailyWorkflowWorkspace;
             window.dailyWorkflowWorkspace.SelectPackTask(id);
+            window.dailyWorkflowWorkspace.StoreCode = HeaderStore;
             (body, actions) = task.Section switch
             {
-                "manual" => (new int[] {2,7,3,6}, new int[] {7}), "stock-count" => (new int[] {2,11,3,10}, new int[] {11}),
-                "staff-target" => (new int[] {2,13,3}, new int[] {13}), "finalisation" => (new int[] {2,14,3}, new int[] {14}),
-                "readiness" => (new int[] {2,3}, new int[] {}), _ => (new int[] {2,3,16}, new int[] {15})
+                // Indices are positions in DailyWorkflowWorkspaceView's root StackPanel.
+                // CashQuickFields was inserted at 7, so every child from 7 onward moved
+                // down by one and each entry below was corrected to match.
+                "manual" => (new int[] {8,3,6}, new int[] {8}), "stock-count" => (new int[] {2,12,3,11}, new int[] {12}),
+                "staff-target" => (new int[] {2,14,3}, new int[] {14}), "finalisation" => (new int[] {2,15,3}, new int[] {15}),
+                "readiness" => (new int[] {3,15,17}, new int[] {15,16}), _ => (new int[] {2,3,17}, new int[] {16})
             };
         }
         else if (task.Destination == "Registers") { view = window.registersWorkspaceView; body = new int[] {4,5,6,1,2}; actions = new int[] {0,1,5}; window.registersWorkspaceView.SelectTask(id); }
@@ -453,12 +440,19 @@ public sealed partial class TaskNavigator(MainWindow window)
             (body, actions) = id == "accounting-approval" ? (new int[] {3,5,6,9}, new int[] {2}) : id is "ledger-mapping" or "mapping-review" ? (new int[] {3,7}, new int[] {8}) : id is "export-history" or "tally-export" ? (new int[] {3,5,6}, new int[] {2}) : (new int[] {3,4,5,6}, new int[] {2});
         }
         else if (task.Destination == "Report Archive") { view = window.archiveWorkspaceView; window.archiveWorkspaceView.SelectTask(id); body = id == "sharing-contacts" ? new int[] {6,7,9} : id == "shared" ? new int[] {2,3,5,9,10} : new int[] {2,3,9,10}; actions = id == "sharing-contacts" ? new int[] {8} : new int[] {4}; }
-        else if (id is "connection" or "settings" or "ocr" or "sharing")
-        { view = window.settingsWorkspace; if (id is "ocr" or "sharing") window.settingsWorkspace.SelectIntegrationTask(id); body = id is "connection" or "settings" ? new int[] {0,1,3} : new int[] {3,5}; actions = id is "connection" or "settings" ? new int[] {2} : new int[] {}; }
-        else if (task.Destination is "Masters" or "Admin / Settings")
+        else if (id is "connection" or "settings" or "sharing")
+        { view = window.settingsWorkspace; if (id == "sharing") window.settingsWorkspace.SelectIntegrationTask(id); body = id is "connection" or "settings" ? new int[] {0,1,3,7} : new int[] {3,5}; actions = id is "connection" or "settings" ? new int[] {2} : new int[] {}; }
+        else if (task.Destination == "Admin / Settings")
         {
             view = window.administrationWorkspaceView; window.administrationWorkspaceView.SelectTask(id);
-            (body, actions) = id switch { "users" => (new int[] {5,6,8,14}, new int[] {7}), "kpi" or "profiles" => (new int[] {10,11,14}, new int[] {}), "health" => (new int[] {12,13,14}, new int[] {}), _ => (new int[] {0,1,3,14}, new int[] {2}) };
+            // R4 appends the Database and recovery section at the end of the view, so every
+            // index below it is the one this screen always had. The recovery grid has to be a
+            // direct child of the panel: the focused layout only gives a named tab to a direct
+            // child, and nested in a Border it landed in the unnamed catch-all tab instead.
+            // 13 ProductHealthGrid, 14 AdministrationStatus, 16 DatabaseRecoveryStatus,
+            // 17 DatabaseRecoveryGrid, 18 the Support package button.
+            (body, actions) = id switch { "users" => (new int[] {5,6,8,13}, new int[] {7}), "kpi" or "profiles" => (new int[] {10,11,13}, new int[] {}),
+                "health" => (new int[] {16,17,13,14}, new int[] {18}), _ => (new int[] {0,1,3,13}, new int[] {2}) };
         }
         else if (id is "approval-centre" or "adjustment" or "investigation")
         { view = window.investigationWorkspaceView; (body, actions) = id switch { "approval-centre" => (new int[] {3,7,8}, new int[] {9}), "adjustment" => (new int[] {3,5,6}, new int[] {}), _ => (new int[] {0,1,3,4}, new int[] {2}) }; }
@@ -468,8 +462,9 @@ public sealed partial class TaskNavigator(MainWindow window)
         { view = window.operationsWorkspaceView; (body, actions) = id == "watch-folder" ? (new int[] {2,12,13,14,15,16,17,18,19}, new int[] {20}) : (new int[] {2,21,22,24,25}, new int[] {23}); }
         else { view = window.operationsWorkspaceView; window.operationsWorkspaceView.SelectIssueTask(id); body = id is "trends" ? new int[] {1,2,3,4,5} : new int[] {1,2,8,7}; actions = id is "trends" ? new int[] {0} : new int[] {0,8}; }
         FocusedTaskLayout.Show(view, task.Title, body, actions);
+        if (view == window.dailyWorkflowWorkspace) window.dailyWorkflowWorkspace.PrepareTouchTask(id);
         visited.Add(view);
-        if (prepared.Add(view))
+        if (prepared.Add(view) || view == window.dailyWorkflowWorkspace)
         {
             if (view == window.dailyWorkflowWorkspace) { window.dailyWorkflowWorkspace.RefreshAccessState(); _ = window.dailyWorkflowWorkspace.RefreshAsync(); }
             if (view == window.accountingWorkspaceView) _ = window.accountingWorkspaceView.RefreshAsync();

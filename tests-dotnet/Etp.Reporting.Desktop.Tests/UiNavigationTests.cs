@@ -9,64 +9,47 @@ namespace Etp.Reporting.Desktop.Tests;
 public sealed class UiNavigationTests
 {
     [Fact]
-    public void Viewer_visibility_never_expands_import_or_administration_permission()
+    public void Viewer_can_read_import_history_and_reports_but_cannot_import_or_administer()
     {
-        var viewer = UiNavigationRegistry.Modules.Where(x => x.IsVisibleTo(AccessRole.Viewer)).Select(x => x.Id).ToArray();
-
-        Assert.DoesNotContain("imports", viewer);
-        Assert.DoesNotContain("registers", viewer);
-        Assert.DoesNotContain("approvals", viewer);
-        Assert.DoesNotContain("health", viewer);
+        Assert.Contains(TaskNavigation.Find("import-history"), TaskNavigation.InSection("Import", ShellAccess.Viewer));
+        foreach (var id in new[] { "import-files", "conflicts" })
+            Assert.False(new ShellNavigationService().Navigate(TaskNavigation.Find(id)!.Route, ShellAccess.Viewer).IsAllowed);
+        Assert.All(TaskNavigation.InSection("Settings",ShellAccess.Viewer), t => Assert.Contains(t.Tab,new[] {"Display","Help"}));
+        Assert.NotEmpty(TaskNavigation.InSection("Reports",ShellAccess.Viewer));
     }
-
     [Fact]
-    public void Every_production_report_is_reachable_from_reports_navigation()
+    public void Every_production_report_has_one_executable_task()
     {
-        var reachableCodes = UiNavigationRegistry.ForModule("reports").SelectMany(x => x.Items)
-            .Where(x => x.IsAvailable && x.FeatureCode is not null).Select(x => x.FeatureCode!).ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        Assert.All(ProductReportCatalogue.All, report => Assert.Contains(report.Code, reachableCodes));
+        foreach (var report in ProductReportCatalogue.All)
+        {
+            var task = Assert.Single(TaskNavigation.All,t => t.ReportCode == report.Code);
+            Assert.True(new ShellNavigationService().Navigate(task.Route,ShellAccess.Viewer).IsAllowed);
+        }
     }
-
     [Fact]
-    public void Critical_operational_capabilities_have_authorised_routes()
+    public void Operational_tasks_are_reused_and_access_checked()
     {
-        var labels = UiNavigationRegistry.AllItems.Select(x => x.Label).ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var label in new[] { "Manual Entry", "Source Inbox", "OCR Review Queue", "Inward Register", "Prepare Batch", "Report Generations", "Open Items", "Approval Centre", "Backup & Recovery", "System Health" })
-            Assert.Contains(label, labels);
+        foreach (var id in new[] {"walk-ins","source-inbox","register-inward","prepare-batch","generations","open-items","approval-centre","backups","health"})
+        {
+            var task = TaskNavigation.Find(id)!;
+            Assert.NotNull(task);
+            Assert.True(new ShellNavigationService().Navigate(task.Route,ShellAccess.Owner).IsAllowed);
+        }
+        Assert.False(TaskNavigation.Find("walk-ins")!.IsAllowed(ShellAccess.Viewer));
+        Assert.True(TaskNavigation.Find("walk-ins")!.IsAllowed(ShellAccess.StoreManager));
     }
-
     [Fact]
-    public void Manual_entry_is_a_store_manager_business_day_workspace()
+    public void Five_sections_have_the_approved_daily_tabs()
     {
-        var item = Assert.Single(UiNavigationRegistry.AllItems, x => x.Id == "manual-entry");
-
-        Assert.Equal("Manual Entry", item.Destination);
-        Assert.True(item.IsVisibleTo(AccessRole.StoreManager));
-        Assert.False(item.IsVisibleTo(AccessRole.Viewer));
-    }
-
-    [Fact]
-    public void No_live_navigation_item_has_an_orphan_destination()
-    {
-        var allowed = new HashSet<string>(["Dashboard", "Daily Workflow", "Manual Entry", "Sales Reports", "Stock Reports", "Import ETP", "Registers", "Accounting", "Report Archive", "Operations Center", "Settings", "Admin / Settings", "Masters"], StringComparer.Ordinal);
-
-        Assert.All(UiNavigationRegistry.AllItems.Where(x => x.IsAvailable), item => Assert.Contains(item.Destination, allowed));
-    }
-
-    [Fact]
-    public void Future_items_are_locked_with_a_plain_language_reason()
-    {
-        var future = UiNavigationRegistry.AllItems.Where(x => !x.IsAvailable).ToArray();
-
-        Assert.NotEmpty(future);
-        Assert.All(future, item => Assert.False(string.IsNullOrWhiteSpace(item.UnavailableReason)));
+        Assert.Equal(new[]{"Today","Import","Reports","Stock","Settings"},TaskNavigation.Sections);
+        Assert.Equal(new[]{"Sales","Cash","Walk-ins","Close day"},TaskNavigation.InSection("Today",ShellAccess.Owner).Select(t=>t.Tab).Distinct());
+        Assert.Equal("report-dsr",TaskNavigation.InSection("Today",ShellAccess.Owner)[0].Id);
+        Assert.Equal("import-files",TaskNavigation.InSection("Import",ShellAccess.Owner)[0].Id);
     }
 
     [Theory]
-    [InlineData(UiDensity.Comfortable)]
-    [InlineData(UiDensity.Compact)]
+    [InlineData(UiDensity.Touch)]
+    [InlineData(UiDensity.Desktop)]
     public void Density_preference_round_trips_without_creating_a_second_ui(UiDensity density)
     {
         var preference = new UiPreferences(density, ["registers"], ["dsr"]);
@@ -78,30 +61,35 @@ public sealed class UiNavigationTests
         Assert.Equal(preference.FavouriteReportCodes, restored.FavouriteReportCodes);
     }
 
-    [Fact]
-    public void Navigation_history_supports_back_forward_and_truncates_abandoned_forward_path()
+    [Theory]
+    [InlineData("0", UiDensity.Touch)]
+    [InlineData("1", UiDensity.Desktop)]
+    [InlineData("\"Comfortable\"", UiDensity.Touch)]
+    [InlineData("\"Compact\"", UiDensity.Desktop)]
+    [InlineData("\"Touch\"", UiDensity.Touch)]
+    [InlineData("\"Desktop\"", UiDensity.Desktop)]
+    public void Legacy_density_preferences_retain_choice_and_save_current_names(string json, UiDensity expected)
     {
-        var history = new WorkspaceNavigationHistory();
-        history.Visit(WorkspaceLocation.Home);
-        history.Visit(new("Sales Reports"));
-        history.Visit(new("Sales Reports", "dsr"));
-
-        Assert.Equal(new WorkspaceLocation("Sales Reports"), history.GoBack());
-        Assert.Equal(new WorkspaceLocation("Sales Reports", "dsr"), history.GoForward());
-        Assert.Equal(new WorkspaceLocation("Sales Reports"), history.GoBack());
-        history.Visit(new("Import ETP"));
-
-        Assert.False(history.CanGoForward);
-        Assert.Equal([WorkspaceLocation.Home, new("Sales Reports"), new("Import ETP")], history.Entries);
+        var density = JsonSerializer.Deserialize<UiDensity>(json);
+        Assert.Equal(expected, density);
+        Assert.Equal($"\"{expected}\"", JsonSerializer.Serialize(density));
     }
 
     [Fact]
-    public void Repeated_location_does_not_pollute_navigation_history()
+    public void One_navigation_history_truncates_abandoned_forward_routes()
     {
-        var history = new WorkspaceNavigationHistory();
-        Assert.True(history.Visit(WorkspaceLocation.Home));
-        Assert.False(history.Visit(WorkspaceLocation.Home));
-        Assert.Single(history.Entries);
+        var history = new ShellNavigationService();
+        var sales=TaskNavigation.Find("report-dsr")!.Route;
+        var stock=TaskNavigation.Find("report-stock-closing")!.Route;
+        history.Navigate(sales,ShellAccess.Owner); history.Navigate(stock,ShellAccess.Owner);
+        Assert.Equal(sales,history.GoBack(ShellAccess.Owner).RequestedRoute);
+        Assert.Equal(stock,history.GoForward(ShellAccess.Owner).RequestedRoute);
+        history.GoBack(ShellAccess.Owner);
+        history.Navigate(TaskNavigation.Find("import-files")!.Route,ShellAccess.Owner);
+        Assert.False(history.CanGoForward);
+        var count=history.History.Count;
+        history.Navigate(history.Current,ShellAccess.Owner);
+        Assert.Equal(count,history.History.Count);
     }
 
     [Theory]

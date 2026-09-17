@@ -6,6 +6,15 @@ namespace Etp.Reporting.Desktop.Tests;
 public sealed class HelpCentreTests
 {
     [Fact]
+    public void Operations_help_uses_consistent_centre_spelling()
+    {
+        var topic = HelpCentreRegistry.Topics.Single(topic => topic.Id == "exception-centre");
+        Assert.Contains("Operations Centre", topic.Overview);
+        Assert.Contains("Approval Centre", topic.Overview);
+        Assert.DoesNotContain("Center", topic.Overview);
+    }
+
+    [Fact]
     public void Help_home_covers_every_approved_application_area()
     {
         var ids = HelpCentreRegistry.Topics.Select(x => x.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -52,7 +61,7 @@ public sealed class HelpCentreTests
     [Fact]
     public void Every_owned_shell_destination_resolves_to_an_available_help_topic()
     {
-        foreach (var ownership in WorkspaceModuleOwnershipRegistry.Destinations)
+        foreach (var ownership in ShellRouteRegistry.All)
         {
             var topicId = ContextHelpRouter.ResolveTopicId(ownership.Destination);
             var topic = Assert.Single(HelpCentreRegistry.Topics, candidate => candidate.Id == topicId);
@@ -63,7 +72,7 @@ public sealed class HelpCentreTests
     [Fact]
     public void Every_help_workspace_link_targets_an_owned_shell_destination()
     {
-        var destinations = WorkspaceModuleOwnershipRegistry.Destinations
+        var destinations = ShellRouteRegistry.All
             .Select(ownership => ownership.Destination)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
@@ -85,6 +94,7 @@ public sealed class HelpCentreTests
     [InlineData("Sales Reports", "dsr", "daily-sales-report")]
     [InlineData("Manual Entry", null, "business-day")]
     [InlineData("Import ETP", null, "import-etp")]
+    [InlineData("Import History", null, "import-history")]
     [InlineData("Admin / Settings", null, "administration")]
     [InlineData("Unknown", null, HelpCentreRegistry.HomeTopicId)]
     public void Context_help_routes_to_the_most_specific_available_topic(string destination, string? featureCode, string expected)

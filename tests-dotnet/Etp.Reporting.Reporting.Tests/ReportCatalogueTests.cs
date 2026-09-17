@@ -10,7 +10,7 @@ public sealed class ReportCatalogueTests
     {
         Assert.Equal(ProductReportCatalogue.All.Count,ProductReportCatalogue.All.Select(x=>x.Code).Distinct(StringComparer.Ordinal).Count());
         Assert.Contains(ProductReportCatalogue.All,x=>x.Name=="Closing Stock"&&x.Category=="Stock");
-        Assert.Contains(ProductReportCatalogue.All,x=>x.Name=="Missing Source Report"&&x.Category=="Exceptions");
+        Assert.Contains(ProductReportCatalogue.All,x=>x.Code=="exceptions"&&x.Category=="Exceptions");
         Assert.Contains(ProductReportCatalogue.All,x=>x.Name=="Management Trend"&&x.Category=="Management");
     }
 }

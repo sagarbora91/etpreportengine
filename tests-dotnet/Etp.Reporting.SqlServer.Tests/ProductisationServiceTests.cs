@@ -60,14 +60,14 @@ public sealed class ProductisationServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Native_pdf_extraction_uses_text_layer_without_ocr()
+    public async Task Attached_scan_integrity_check_detects_a_changed_original_copy()
     {
-        var source = Path.Combine(root, "text.pdf");
-        await File.WriteAllTextAsync(source, "%PDF-1.4\n(Invoice ABC123 supplier value 10000 GST included) Tj\n%%EOF");
-        var result = await new NativePdfTextExtractor().ExtractAsync(source);
-        Assert.Equal("NATIVE_PDF", result.Method);
-        Assert.Contains("ABC123", result.Text, StringComparison.Ordinal);
-        Assert.Equal("REVIEW_REQUIRED", result.ReviewStatus);
+        var source = Path.Combine(root, "scan.pdf");
+        await File.WriteAllBytesAsync(source, [37, 80, 68, 70, 45, 0, 1, 2]);
+        var stored = await ManagedDocumentRepository.StoreAsync(source, Path.Combine(root, "managed"));
+        Assert.True(await ManagedDocumentRepository.VerifyIntegrityAsync(stored.ManagedPath, stored.Sha256));
+        await File.AppendAllTextAsync(stored.ManagedPath, "changed");
+        Assert.False(await ManagedDocumentRepository.VerifyIntegrityAsync(stored.ManagedPath, stored.Sha256));
     }
 
     [Fact]

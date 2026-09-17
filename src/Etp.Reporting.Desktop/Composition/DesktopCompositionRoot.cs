@@ -42,16 +42,18 @@ namespace Etp.Reporting.Desktop.Composition;
 public sealed class DesktopCompositionRoot
 {
     public const string DefaultConnectionString =
-        @"Server=.\SQLEXPRESS;Database=EtpReporting;Integrated Security=True;TrustServerCertificate=True;Connect Timeout=5";
+        @"Server=.\SQLEXPRESS;Database=EtpReporting;Integrated Security=True;Encrypt=Optional;Connect Timeout=5";
 
     private readonly string baseDirectory;
     private readonly string connectionString;
     private readonly string settingsDirectory;
+    private readonly bool temporaryConnection;
 
     public DesktopCompositionRoot(
         string baseDirectory,
         string connectionString,
-        string? settingsDirectory = null)
+        string? settingsDirectory = null,
+        bool temporaryConnection = false)
     {
         if (string.IsNullOrWhiteSpace(baseDirectory))
             throw new ArgumentException("The application base directory is required.", nameof(baseDirectory));
@@ -62,6 +64,7 @@ public sealed class DesktopCompositionRoot
 
         this.baseDirectory = Path.GetFullPath(baseDirectory);
         this.connectionString = connectionString;
+        this.temporaryConnection = temporaryConnection;
         this.settingsDirectory = Path.GetFullPath(settingsDirectory ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "EtpReporting"));
@@ -72,6 +75,16 @@ public sealed class DesktopCompositionRoot
 
     public static DesktopCompositionRoot CreateDefault() =>
         new(AppContext.BaseDirectory, DefaultConnectionString);
+
+    public static DesktopCompositionRoot CreateForArguments(IReadOnlyList<string> arguments)
+    {
+        var index = arguments.ToList().FindIndex(value => value.Equals("--connection-string", StringComparison.OrdinalIgnoreCase));
+        if (index < 0) return CreateDefault();
+        if (index + 1 >= arguments.Count) throw new ArgumentException("Provide a connection string after --connection-string.");
+        var validation = ConnectionStringValidation.Validate(arguments[index + 1]);
+        if (!validation.IsValid) throw new ArgumentException(validation.Error);
+        return new(AppContext.BaseDirectory, validation.ConnectionString!, temporaryConnection: true);
+    }
 
     public MainWindow CreateMainWindow()
     {
@@ -100,7 +113,7 @@ public sealed class DesktopCompositionRoot
         Func<string, ImportPersistenceUseCase> importPersistenceUseCaseFactory = value => new SqlServerImportPersistenceUseCase(value);
         Func<string, DatabaseLifecycleService> databaseLifecycleServiceFactory = value => new SqlServerDatabaseLifecycleService(value);
         var settingsWorkspaceView = new SettingsWorkspaceView(
-            new DesktopSettingsPresentationSession(settingsStore, connectionState),
+            new DesktopSettingsPresentationSession(settingsStore, connectionState, temporaryConnection),
             databaseLifecycleServiceFactory,
             administrationServiceFactory,
             MigrationDirectory);
@@ -119,7 +132,6 @@ public sealed class DesktopCompositionRoot
             dailyWorkflowCommandsFactory,
             dailyReportPackGeneratorFactory,
             static () => new(false, false, false),
-            administratorApproved: null,
             static (_, _, _) => Task.CompletedTask,
             (path, document) => reportExportCoordinator.ExportPackExcelAsync(path, document),
             (path, document) => reportExportCoordinator.ExportPackPdfAsync(path, document));
@@ -169,7 +181,7 @@ public sealed class DesktopCompositionRoot
         var importWorkspaceView = new ImportWorkspaceView(
             importCoordinator,
             () => connectionState.ConnectionString);
-        return new MainWindow(
+        var window = new MainWindow(
             shell,
             dashboardView,
             dashboardQueryFactory,
@@ -187,22 +199,55 @@ public sealed class DesktopCompositionRoot
             administrationWorkspaceView,
             databaseLifecycleServiceFactory,
             importWorkspaceView);
+        window.importHistoryView = new ImportHistoryView(scope =>
+            new SqlServerImportHistoryQuery(connectionState.ConnectionString).LoadAsync(scope));
+        return window;
     }
 
     public string LoadConnectionString() =>
-        new DesktopConnectionState(new DesktopSettingsStore(settingsDirectory).Load()?.ConnectionString ?? connectionString)
+        new DesktopConnectionState(temporaryConnection ? connectionString : new DesktopSettingsStore(settingsDirectory).Load()?.ConnectionString ?? connectionString)
             .ConnectionString;
 
-    public async Task InitializeDatabaseAsync(CancellationToken cancellationToken = default)
+    public Task InitializeDatabaseAsync(CancellationToken cancellationToken = default) =>
+        InitializeDatabaseTargetAsync(LoadConnectionString(), cancellationToken);
+
+    public Task InitializeConfiguredDatabaseAsync(CancellationToken cancellationToken = default) =>
+        InitializeDatabaseTargetAsync(LoadAutomationConnectionString(), cancellationToken);
+
+    private async Task InitializeDatabaseTargetAsync(string targetConnectionString, CancellationToken cancellationToken)
     {
         var migrations = new DirectoryMigrationSource(MigrationDirectory);
-        var bootstrapper = new SqlServerDatabaseBootstrapper(LoadConnectionString(), migrations);
+        var bootstrapper = new SqlServerDatabaseBootstrapper(targetConnectionString, migrations);
         await bootstrapper.BootstrapAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public static string LoadAutomationConnectionString()
+    {
+        var path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "EtpReporting", "Operations", "operations.json");
+        return LoadOperationsConnectionString(path);
+    }
+
+    internal static string LoadOperationsConnectionString(string path)
+    {
+        ProtectedOperationPath.Validate(path);
+        return ParseOperationsConnectionString(File.ReadAllText(path));
+    }
+
+    internal static string ParseOperationsConnectionString(string configuration)
+    {
+        using var document = System.Text.Json.JsonDocument.Parse(configuration);
+        if (!document.RootElement.TryGetProperty("serverInstance", out var serverValue) || serverValue.ValueKind != System.Text.Json.JsonValueKind.String ||
+            !document.RootElement.TryGetProperty("database", out var databaseValue) || databaseValue.ValueKind != System.Text.Json.JsonValueKind.String)
+            throw new InvalidOperationException("Configure the protected machine database target before running unattended operations.");
+        var server = serverValue.GetString();
+        var database = databaseValue.GetString();
+        var builder = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder { DataSource = server, InitialCatalog = database, IntegratedSecurity = true };
+        return LocalSqlConnectionPolicy.Validate(builder.ConnectionString);
     }
 
     public async Task<int> RunAutomationOnceAsync(CancellationToken cancellationToken = default)
     {
-        var result = await new SqlServerOperationsAdministrationService(LoadConnectionString())
+        var result = await new SqlServerOperationsAdministrationService(LoadAutomationConnectionString())
             .RunAutomationOnceAsync(cancellationToken)
             .ConfigureAwait(false);
         return result.SourcesFailed == 0 ? 0 : 1;

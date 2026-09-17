@@ -5,6 +5,17 @@ namespace Etp.Reporting.Infrastructure.SqlServer.Tests;
 public sealed class AccountingServiceBoundaryTests
 {
     [Fact]
+    public async Task Rejection_requires_owner_and_a_reason()
+    {
+        var gateway=new FakeGateway();
+        foreach(var role in new[]{ApplicationRole.Viewer,ApplicationRole.StoreManager})
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(()=>Create(gateway,role).RejectAsync(new(5,"Correction")));
+        await Assert.ThrowsAsync<ArgumentException>(()=>Create(gateway,ApplicationRole.Owner).RejectAsync(new(5," ")));
+        Assert.Empty(gateway.Calls);
+        await Create(gateway,ApplicationRole.Owner).RejectAsync(new(5,"Correction"));
+        Assert.Equal(new[]{"reject:5"},gateway.Calls);
+    }
+    [Fact]
     public void Production_adapter_requires_windows_integrated_security()
     {
         _ = new SqlServerAccountingService(
@@ -67,7 +78,7 @@ public sealed class AccountingServiceBoundaryTests
     }
 
     [Fact]
-    public async Task Mapping_approval_is_owner_only_and_keeps_request_decision_save_order()
+    public async Task Mapping_approval_is_owner_only_and_submits_one_atomic_operation()
     {
         var gateway = new FakeGateway();
         var command = new App.ApproveAccountingMapping(
@@ -84,7 +95,7 @@ public sealed class AccountingServiceBoundaryTests
 
         await Create(gateway, ApplicationRole.Owner).ApproveMappingAsync(command);
 
-        Assert.Equal(["create:NET_SALES", "decide:71", "save:71:NET_SALES"], gateway.Calls);
+        Assert.Equal(["mapping:NET_SALES"], gateway.Calls);
     }
 
     [Fact]
@@ -178,26 +189,12 @@ public sealed class AccountingServiceBoundaryTests
             return Task.CompletedTask;
         }
 
-        public Task<long> CreateMappingApprovalAsync(
-            string eventCode, object payload, string storeCode, DateOnly businessDate,
-            CancellationToken cancellationToken)
-        {
-            Calls.Add($"create:{eventCode}");
-            return Task.FromResult(71L);
-        }
+        public Task RejectBatchAsync(long batchId, string reason, CancellationToken cancellationToken)
+        { Calls.Add($"reject:{batchId}"); return Task.CompletedTask; }
 
-        public Task DecideApprovalAsync(long approvalId, string reason, CancellationToken cancellationToken)
+        public Task ApproveMappingAsync(App.ApproveAccountingMapping command, CancellationToken cancellationToken)
         {
-            Calls.Add($"decide:{approvalId}");
-            return Task.CompletedTask;
-        }
-
-        public Task SaveMappingAsync(
-            long approvalId, string eventCode, string debitLedger, string creditLedger,
-            string narration, string storeCode, DateOnly effectiveFrom,
-            CancellationToken cancellationToken)
-        {
-            Calls.Add($"save:{approvalId}:{eventCode}");
+            Calls.Add($"mapping:{command.BusinessEvent}");
             return Task.CompletedTask;
         }
 

@@ -1,13 +1,119 @@
 param(
     [Parameter(Mandatory)][string]$ApplicationDirectory,
+    # P4-11. Setup passes this only when it actually carries the SQL media, so the
+    # option and the licence prompt cannot appear for an install that cannot happen.
     [switch]$SkipSqlInstallation,
+    [string]$SqlPayloadDirectory,
     [ValidateRange(0.1, 1048576)][double]$MinimumBackupFreeSpaceGb = 5
 )
 
 $ErrorActionPreference = "Stop"
-$serviceName = 'MSSQL$SQLEXPRESS'
-$ServerInstance = '.\SQLEXPRESS'
-$Database = 'EtpReporting'
+. (Join-Path $PSScriptRoot 'etp-operations-common.ps1')
+
+function Resolve-EtpBootstrapServiceName {
+    param([Parameter(Mandatory)][string]$ServerInstance,[Parameter(Mandatory)][string]$Database)
+    Assert-EtpLocalSqlTarget $ServerInstance $Database
+    $server = $ServerInstance.Trim()
+    if ($server -match '^(?i)(lpc|np):') { $server = $server.Substring($server.IndexOf(':')+1) }
+    if ($server.StartsWith('\\') -or $server.StartsWith('(localdb)',[StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Bootstrap requires a standard local SQL Server service endpoint. Configure a supported default or named instance manually first.'
+    }
+    $parts = $server.Split('\')
+    if ($parts.Count -eq 1) { return 'MSSQLSERVER' }
+    return 'MSSQL$'+$parts[1]
+}
+
+function Assert-EtpBootstrapSqlEdition {
+    param([int]$MajorVersion,[int]$EngineEdition,[string]$Edition)
+    if ($MajorVersion -lt 16) { throw 'SQL Server 2022 or newer is required. Install a supported edition manually before bootstrap.' }
+    # D9 revised: Express and Web are accepted. They cannot encrypt a backup, so the
+    # backup runs unencrypted and its receipt says so; protecting the backup folder at
+    # rest is a separate, deferred control rather than a reason to refuse the edition.
+    if ($EngineEdition -notin @(2,3,4)) {
+        throw 'This SQL Server edition is not supported. Install SQL Server Express or a fuller edition before bootstrap.'
+    }
+    if ($Edition -match '(?i)Express|Web') {
+        Write-Warning 'This SQL Server edition cannot encrypt backups. Backups will be unencrypted; protect the backup folder at rest.'
+    }
+}
+
+function Install-EtpSqlFromPayload {
+    param([Parameter(Mandatory)][string]$PayloadDirectory,[Parameter(Mandatory)][string]$ServiceName)
+    # The media is whatever the build packaged. Say exactly what is missing rather
+    # than failing halfway through an unattended setup.
+    Assert-EtpNoLinks $PayloadDirectory
+    if (-not (Test-Path -LiteralPath $PayloadDirectory -PathType Container)) { throw 'The bundled SQL Server media is missing from this installer.' }
+    # These binaries run with the full administrator token. Every other elevated payload
+    # in this script passes the ownership and ACL gate; this one must too, or a folder a
+    # non-administrator can write becomes an elevation path.
+    Assert-EtpProtectedInstall $PayloadDirectory
+    $engine = Get-ChildItem -LiteralPath $PayloadDirectory -Filter 'SQLEXPR*_x64_*.exe' -File | Select-Object -First 1
+    if (-not $engine) { throw 'The bundled SQL Server Express package was not found in the installer media.' }
+
+    # The package is a self-extractor; extract, then run its own setup unattended.
+    $extract = Join-Path ([IO.Path]::GetTempPath()) ('EtpSqlMedia-' + [Guid]::NewGuid().ToString('N'))
+    try {
+        Start-EtpProcess -FilePath $engine.FullName -Arguments @('/Q', "/X:$extract") -Description 'extract the SQL Server media'
+        $setup = Join-Path $extract 'setup.exe'
+        if (-not (Test-Path -LiteralPath $setup -PathType Leaf)) { throw 'The bundled SQL Server media did not extract a setup program.' }
+        # Shared memory only: the engine is local to this machine and must not listen
+        # on the network. Administrators become sysadmin so the owner can administer it.
+        # Install the instance the configuration actually asks for. Hard-coding
+        # SQLEXPRESS would install an instance, then fail looking for the configured
+        # service, and leave SQL Server behind on the machine.
+        $instance = if ($ServiceName -ceq 'MSSQLSERVER') { 'MSSQLSERVER' } else { $ServiceName.Substring($ServiceName.IndexOf('$') + 1) }
+        if ([string]::IsNullOrWhiteSpace($instance)) { throw 'The configured SQL Server instance name could not be determined.' }
+        # SECURITYMODE is omitted deliberately: its only supported value is SQL, and
+        # omitting it is the documented way to get Windows-only authentication.
+        Start-EtpProcess -FilePath $setup -Description 'install SQL Server Express' -Arguments @(
+            '/ACTION=Install','/QUIET','/IACCEPTSQLSERVERLICENSETERMS','/FEATURES=SQLENGINE',
+            "/INSTANCENAME=$instance",'/SQLSYSADMINACCOUNTS=BUILTIN\Administrators',
+            '/TCPENABLED=0','/NPENABLED=0','/UPDATEENABLED=0')
+    }
+    finally { if (Test-Path -LiteralPath $extract) { Remove-Item -LiteralPath $extract -Recurse -Force -ErrorAction SilentlyContinue } }
+
+    if (-not (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue)) { throw 'SQL Server Express was installed but its service did not appear.' }
+
+    # Sqlcmd and its ODBC driver ship beside the engine when the build supplies them.
+    foreach ($package in @(
+        @{ Filter = 'msodbcsql*.msi'; Terms = 'IACCEPTMSODBCSQLLICENSETERMS=YES'; What = 'the ODBC driver' },
+        @{ Filter = 'MsSqlCmdLnUtils*.msi'; Terms = 'IACCEPTMSSQLCMDLNUTILSLICENSETERMS=YES'; What = 'Sqlcmd' })) {
+        $msi = Get-ChildItem -LiteralPath $PayloadDirectory -Filter $package.Filter -File | Select-Object -First 1
+        if (-not $msi) { continue }
+        Start-EtpProcess -FilePath "$env:SystemRoot\System32\msiexec.exe" -Description ('install ' + $package.What) `
+            -Arguments @('/i', $msi.FullName, '/qn', 'ADDLOCAL=ALL', $package.Terms)
+    }
+}
+
+function Start-EtpProcess {
+    param([Parameter(Mandatory)][string]$FilePath,[string[]]$Arguments=@(),[Parameter(Mandatory)][string]$Description)
+    # Start-Process joins ArgumentList with spaces and never quotes, so any path
+    # containing a space splits into two arguments and the installer sees nonsense.
+    $quoted = @($Arguments | ForEach-Object { if ($_ -match '\s' -and $_ -notmatch '^".*"$') { '"' + $_ + '"' } else { $_ } })
+    $process = Start-Process -FilePath $FilePath -ArgumentList $quoted -Wait -PassThru -NoNewWindow
+    # 3010 is "restart required", which is a success for an unattended prerequisite.
+    if ($process.ExitCode -notin @(0, 3010)) { throw "Could not $Description. The installer reported exit code $($process.ExitCode)." }
+}
+
+function Assert-EtpBootstrapPayloads {
+    param([Parameter(Mandatory)][string]$ApplicationDirectory)
+    # Check before any elevated executable, migration or companion script runs.
+    # A protected directory can still contain an explicitly writable child file.
+    $pending = [Collections.Generic.Queue[string]]::new()
+    $pending.Enqueue([IO.Path]::GetFullPath($ApplicationDirectory))
+    while ($pending.Count -gt 0) {
+        $item = $pending.Dequeue()
+        Assert-EtpProtectedInstall $item
+        if (Test-Path -LiteralPath $item -PathType Container) {
+            foreach ($child in Get-ChildItem -LiteralPath $item -Force) { $pending.Enqueue($child.FullName) }
+        }
+    }
+}
+
+# Dot-sourcing exposes only the pure preflight functions for behavioral tests.
+if ($MyInvocation.InvocationName -eq '.') { return }
+
+$setupPreflightValidated = $false
 $applicationRoot = [System.IO.Path]::GetFullPath($ApplicationDirectory)
 $application = Join-Path $applicationRoot 'Etp.Reporting.Desktop.exe'
 $scripts = Join-Path $applicationRoot 'scripts'
@@ -20,12 +126,11 @@ $migrationPhaseStarted = $false
 $migrationPhaseCompleted = $false
 $preMigrationBackupPath = $null
 
-New-Item -ItemType Directory -Path $logDirectory -Force | Out-Null
 $logPath = Join-Path $logDirectory "bootstrap-$(Get-Date -Format 'yyyyMMdd-HHmmss-fff').log"
 
 function Write-SetupLog([string]$message) {
     $line = "$(Get-Date -Format o) $message"
-    Add-Content -LiteralPath $logPath -Value $line -Encoding utf8
+    if ($setupPreflightValidated -and (Test-Path -LiteralPath $logDirectory -PathType Container)) { Add-Content -LiteralPath $logPath -Value $line -Encoding utf8 }
     Write-Host $message
 }
 
@@ -46,17 +151,7 @@ trap {
 }
 
 function Resolve-SqlCmdPath {
-    $command = Get-Command sqlcmd.exe -ErrorAction SilentlyContinue
-    if ($command) { return $command.Source }
-
-    $candidates = @(
-        (Join-Path $env:ProgramFiles 'sqlcmd\sqlcmd.exe'),
-        'C:\Program Files\Microsoft SQL Server\Client SDK\ODBC\170\Tools\Binn\SQLCMD.EXE'
-    )
-    foreach ($candidate in $candidates) {
-        if (Test-Path -LiteralPath $candidate) { return $candidate }
-    }
-    return $null
+    try { return Resolve-EtpSqlCmd } catch { return $null }
 }
 
 function Invoke-SqlScalar {
@@ -68,7 +163,7 @@ function Invoke-SqlScalar {
     $arguments = @('-S', $ServerInstance, '-E', '-b', '-h', '-1', '-W')
     if (-not [string]::IsNullOrWhiteSpace($TargetDatabase)) { $arguments += @('-d', $TargetDatabase) }
     $arguments += @('-Q', $Query)
-    $output = @(& $sqlcmdPath @arguments)
+    $output = @(& $sqlcmdPath -x @arguments)
     if ($LASTEXITCODE -ne 0) { throw "SQL Server preflight query failed with exit code $LASTEXITCODE." }
     $lines = @($output | ForEach-Object { "$_".Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
     if ($lines.Count -ne 1) { throw "SQL Server preflight query returned an unexpected result." }
@@ -78,32 +173,24 @@ function Invoke-SqlScalar {
 function Invoke-SqlHealthCommand {
     param([Parameter(Mandatory)][string]$Query)
 
-    & $sqlcmdPath -S $ServerInstance -E -b -d $Database -Q $Query | Out-Null
+    & $sqlcmdPath -x -S $ServerInstance -E -b -d $Database -Q $Query | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "Post-migration database health verification failed with exit code $LASTEXITCODE." }
 }
 
 function Assert-VerifiedBackupReceipt {
     param([Parameter(Mandatory)][string]$ReceiptPath)
 
-    if (-not (Test-Path -LiteralPath $ReceiptPath -PathType Leaf)) { throw "The pre-migration backup did not produce a verification receipt." }
-    $receipt = Get-Content -LiteralPath $ReceiptPath -Raw | ConvertFrom-Json
-    if ($receipt.schemaVersion -ne 1 -or $receipt.verified -ne $true) { throw "The pre-migration backup receipt is not a verified version-1 receipt." }
-    if ($receipt.database -cne $Database -or $receipt.serverInstance -cne $ServerInstance) { throw "The pre-migration backup receipt does not match the target database." }
-    if ([string]::IsNullOrWhiteSpace($receipt.backupPath) -or [string]::IsNullOrWhiteSpace($receipt.sha256)) { throw "The pre-migration backup receipt is incomplete." }
-
-    $resolvedBackupDirectory = [System.IO.Path]::GetFullPath($backupDirectory).TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)
-    $resolvedBackupPath = [System.IO.Path]::GetFullPath([string]$receipt.backupPath)
-    $backupPrefix = $resolvedBackupDirectory + [System.IO.Path]::DirectorySeparatorChar
-    if (-not $resolvedBackupPath.StartsWith($backupPrefix, [StringComparison]::OrdinalIgnoreCase)) { throw "The verified backup is outside the configured backup directory." }
-    if (-not (Test-Path -LiteralPath $resolvedBackupPath -PathType Leaf)) { throw "The verified pre-migration backup file is missing." }
-
-    $backupFile = Get-Item -LiteralPath $resolvedBackupPath
-    if ($backupFile.Length -le 0 -or $backupFile.Length -ne [long]$receipt.lengthBytes) { throw "The verified pre-migration backup file length does not match its receipt." }
-    $actualHash = (Get-FileHash -LiteralPath $resolvedBackupPath -Algorithm SHA256).Hash
-    if (-not $actualHash.Equals([string]$receipt.sha256, [StringComparison]::OrdinalIgnoreCase)) { throw "The verified pre-migration backup hash does not match its receipt." }
-
-    $script:preMigrationBackupPath = $resolvedBackupPath
+    $receipt=Read-EtpVerifiedReceipt -ReceiptPath $ReceiptPath -BackupDirectory $backupDirectory -Database $Database -SkipCertificateCheck
+    if ($receipt.serverInstance -cne $ServerInstance) { throw 'The verified backup does not match the target server.' }
+    $script:preMigrationBackupPath=$receipt.backupPath
 }
+
+$operationConfiguration = Get-EtpOperationsConfiguration
+Assert-EtpBootstrapPayloads $applicationRoot
+if ($operationConfiguration.allowAutomationFolderAccess -ne $true) { throw 'Resolve automation folder access in the protected machine configuration before bootstrap.' }
+$ServerInstance = [string]$operationConfiguration.serverInstance
+$Database = [string]$operationConfiguration.database
+$serviceName = Resolve-EtpBootstrapServiceName $ServerInstance $Database
 
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 $principal = [Security.Principal.WindowsPrincipal]::new($identity)
@@ -117,42 +204,30 @@ $migrationFiles = @(Get-ChildItem -LiteralPath $migrationDirectory -Filter '*.sq
 if ($migrationFiles.Count -eq 0) { throw "No bundled database migrations were found." }
 
 $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
-if (-not $service -and -not $SkipSqlInstallation) {
-    Write-SetupLog 'SQL Server Express is absent; installing the official Microsoft SQL Server 2022 Express package.'
-    $winget = Get-Command winget.exe -ErrorAction SilentlyContinue
-    if (-not $winget) { throw 'Windows Package Manager is required for automatic SQL Server installation. For offline/manual deployment, install SQL Server 2022 Express and Microsoft Sqlcmd first, then retry with -SkipSqlInstallation.' }
-    & $winget.Source install --id Microsoft.SQLServer.2022.Express --exact --silent --accept-package-agreements --accept-source-agreements --disable-interactivity
-    if ($LASTEXITCODE -ne 0) { throw "SQL Server Express installation failed with exit code $LASTEXITCODE." }
-    $deadline = [DateTime]::UtcNow.AddMinutes(3)
-    do { Start-Sleep -Seconds 3; $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue } while (-not $service -and [DateTime]::UtcNow -lt $deadline)
+if (-not $service -and -not $SkipSqlInstallation -and $SqlPayloadDirectory) {
+    Write-Host 'Installing SQL Server Express from the media included with this installer.'
+    Install-EtpSqlFromPayload -PayloadDirectory $SqlPayloadDirectory -ServiceName $serviceName
+    $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
 }
-if (-not $service) { throw 'The SQLEXPRESS database-engine service is not installed. Offline/manual deployment can preinstall SQL Server 2022 Express before rerunning this bootstrap.' }
-
-Set-Service -Name $serviceName -StartupType Automatic
-if ((Get-Service -Name $serviceName).Status -ne 'Running') { Start-Service -Name $serviceName }
-Write-SetupLog 'SQLEXPRESS is installed, configured for automatic startup, and running.'
+if (-not $service) { throw 'The configured database-engine service is not installed. Install SQL Server manually, or run setup with the bundled database media, then retry.' }
+if ($service.Status -ne 'Running') { Start-Service -Name $serviceName -ErrorAction SilentlyContinue; $service.Refresh() }
+if ($service.Status -ne 'Running') { throw 'Start the configured SQL Server service manually before bootstrap so its edition can be verified before changes are made.' }
 
 $sqlcmdPath = Resolve-SqlCmdPath
-if (-not $sqlcmdPath -and -not $SkipSqlInstallation) {
-    $winget = Get-Command winget.exe -ErrorAction SilentlyContinue
-    if (-not $winget) { throw 'Windows Package Manager is required for automatic Microsoft Sqlcmd installation. Offline/manual deployment can preinstall Sqlcmd and retry with -SkipSqlInstallation.' }
-    Write-SetupLog 'Microsoft Sqlcmd is absent; installing the official Microsoft package.'
-    & $winget.Source install --id Microsoft.Sqlcmd --exact --silent --accept-package-agreements --accept-source-agreements --disable-interactivity
-    if ($LASTEXITCODE -ne 0) { throw "Microsoft Sqlcmd installation failed with exit code $LASTEXITCODE." }
-    $sqlcmdPath = Resolve-SqlCmdPath
-}
 if (-not $sqlcmdPath) { throw 'Microsoft Sqlcmd is not installed. Install it from approved offline media or an approved package source, then retry.' }
 
-$serverProperties = Invoke-SqlScalar -Query "SET NOCOUNT ON; SELECT CONVERT(varchar(10),SERVERPROPERTY('ProductMajorVersion')) + '|' + CONVERT(varchar(10),SERVERPROPERTY('EngineEdition'));"
+$serverProperties = Invoke-SqlScalar -Query "SET NOCOUNT ON; SELECT CONVERT(varchar(10),SERVERPROPERTY('ProductMajorVersion')) + '|' + CONVERT(varchar(10),SERVERPROPERTY('EngineEdition')) + '|' + CONVERT(varchar(128),SERVERPROPERTY('Edition'));"
 $serverParts = $serverProperties.Split('|')
 $serverMajorVersion = 0
-if ($serverParts.Count -ne 2 -or -not [int]::TryParse($serverParts[0], [ref]$serverMajorVersion)) { throw "SQL Server returned an unreadable version result." }
-if ($serverMajorVersion -lt 16) { throw "SQL Server 2022 or newer is required; detected major version $serverMajorVersion." }
+$serverEngineEdition = 0
+if ($serverParts.Count -ne 3 -or -not [int]::TryParse($serverParts[0], [ref]$serverMajorVersion) -or -not [int]::TryParse($serverParts[1], [ref]$serverEngineEdition)) { throw "SQL Server returned an unreadable version result." }
+Assert-EtpBootstrapSqlEdition $serverMajorVersion $serverEngineEdition $serverParts[2]
 Write-SetupLog "SQL Server compatibility preflight passed (major version $serverMajorVersion, engine edition $($serverParts[1]))."
 
-New-Item -ItemType Directory -Path $backupDirectory -Force | Out-Null
-& icacls.exe $backupDirectory /grant 'NT SERVICE\MSSQL$SQLEXPRESS:(OI)(CI)M' /T /C | Out-Null
-if ($LASTEXITCODE -ne 0) { throw 'Could not grant the SQL Server service access to the backup directory.' }
+Set-Service -Name $serviceName -StartupType Automatic
+& (Join-Path $PSScriptRoot 'initialize-etp-operation-folders.ps1') -SqlServiceIdentity ('NT SERVICE\'+$serviceName) -ServerInstance $ServerInstance -Database $Database -AutomationPrincipal $operationConfiguration.automationPrincipal -GrantAutomationFolderAccess
+$setupPreflightValidated = $true
+
 
 $databaseState = Invoke-SqlScalar -Query "SET NOCOUNT ON; IF DB_ID(N'$Database') IS NULL SELECT 'MISSING' ELSE SELECT 'EXISTS';"
 $databaseExistedBeforeMigration = $databaseState -ceq 'EXISTS'
@@ -181,12 +256,12 @@ if ($databaseExistedBeforeMigration) {
     }
 }
 else {
-    Write-SetupLog 'EtpReporting does not exist. A clean database will be created; no pre-migration backup is applicable.'
+    Write-SetupLog 'The configured database does not exist. A clean database will be created; no pre-migration backup is applicable.'
 }
 
 $migrationPhaseStarted = $true
-$process = Start-Process -FilePath $application -ArgumentList '--initialize-database' -Wait -PassThru
-if ($process.ExitCode -ne 0) { throw "EtpReporting database migration failed with exit code $($process.ExitCode). Review the privacy-safe setup log." }
+$process = Start-Process -FilePath $application -ArgumentList '--initialize-configured-database' -Wait -PassThru -WindowStyle Hidden
+if ($process.ExitCode -ne 0) { throw "Configured database migration failed with exit code $($process.ExitCode). Review the privacy-safe setup log." }
 
 $postState = Invoke-SqlScalar -Query "SET NOCOUNT ON; SELECT state_desc + '|' + CONVERT(varchar(5),is_read_only) FROM sys.databases WHERE name=N'$Database';"
 if ($postState -cne 'ONLINE|0') { throw "Post-migration health verification requires the database to be ONLINE and read-write." }

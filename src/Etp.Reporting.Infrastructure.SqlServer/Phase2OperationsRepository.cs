@@ -64,78 +64,7 @@ public sealed class Phase2OperationsRepository(string connectionString)
         if (!Regex.IsMatch(windowsIdentity, """^[^\\/\[\];'"]+\\[^\\/\[\];'"]+$""", RegexOptions.CultureInvariant))
             throw new ArgumentException(@"Enter a Windows identity as DOMAIN\User or COMPUTER\User.", nameof(windowsIdentity));
         if (roleCode is not ("OWNER" or "STORE_MANAGER" or "VIEWER")) throw new ArgumentException("Select Owner, Store Manager or Viewer.", nameof(roleCode));
-        const string provisionSql = """
-            IF SUSER_ID(@identity) IS NULL
-            BEGIN
-              DECLARE @createLogin nvarchar(max)=N'CREATE LOGIN '+QUOTENAME(@identity)+N' FROM WINDOWS';
-              EXEC(@createLogin);
-            END;
-            DECLARE @principal sysname=(SELECT TOP(1) name FROM sys.database_principals WHERE sid=SUSER_SID(@identity));
-            IF @principal IS NULL
-            BEGIN
-              DECLARE @createUser nvarchar(max)=N'CREATE USER '+QUOTENAME(@identity)+N' FOR LOGIN '+QUOTENAME(@identity);
-              EXEC(@createUser);
-              SET @principal=@identity;
-            END;
-            IF @principal<>N'dbo'
-            BEGIN
-              DECLARE @membership nvarchar(max)=N'';
-              IF IS_ROLEMEMBER(N'db_owner',@principal)=1 SET @membership+=N'ALTER ROLE db_owner DROP MEMBER '+QUOTENAME(@principal)+N';';
-              IF IS_ROLEMEMBER(N'db_datawriter',@principal)=1 SET @membership+=N'ALTER ROLE db_datawriter DROP MEMBER '+QUOTENAME(@principal)+N';';
-              IF IS_ROLEMEMBER(N'db_datareader',@principal)=1 SET @membership+=N'ALTER ROLE db_datareader DROP MEMBER '+QUOTENAME(@principal)+N';';
-              IF IS_ROLEMEMBER(N'db_backupoperator',@principal)=1 SET @membership+=N'ALTER ROLE db_backupoperator DROP MEMBER '+QUOTENAME(@principal)+N';';
-              SET @membership+=N'REVOKE DELETE ON SCHEMA::dbo FROM '+QUOTENAME(@principal)+N';';
-              SET @membership+=N'REVOKE INSERT,UPDATE,DELETE ON dbo.application_users FROM '+QUOTENAME(@principal)+N';';
-              SET @membership+=N'REVOKE INSERT,UPDATE,DELETE ON dbo.application_user_history FROM '+QUOTENAME(@principal)+N';';
-              SET @membership+=N'REVOKE INSERT,UPDATE,DELETE ON dbo.controlled_master_values FROM '+QUOTENAME(@principal)+N';';
-              SET @membership+=N'REVOKE INSERT,UPDATE,DELETE ON dbo.controlled_master_history FROM '+QUOTENAME(@principal)+N';';
-              SET @membership+=N'REVOKE INSERT,UPDATE,DELETE ON dbo.watch_folder_settings FROM '+QUOTENAME(@principal)+N';';
-              SET @membership+=N'REVOKE INSERT,UPDATE,DELETE ON dbo.stores FROM '+QUOTENAME(@principal)+N';';
-              SET @membership+=N'REVOKE INSERT,UPDATE,DELETE ON dbo.schema_migrations FROM '+QUOTENAME(@principal)+N';';
-              SET @membership+=N'REVOKE INSERT,UPDATE,DELETE ON dbo.report_pack_schedules FROM '+QUOTENAME(@principal)+N';';
-              SET @membership+=N'REVOKE UPDATE,DELETE ON dbo.operational_audit FROM '+QUOTENAME(@principal)+N';';
-              SET @membership+=N'REVOKE UPDATE,DELETE ON dbo.automation_runs FROM '+QUOTENAME(@principal)+N';';
-              IF OBJECT_ID(N'dbo.product_settings',N'U') IS NOT NULL SET @membership+=N'REVOKE INSERT,UPDATE,DELETE ON dbo.product_settings FROM '+QUOTENAME(@principal)+N';';
-              IF OBJECT_ID(N'dbo.sharing_contacts',N'U') IS NOT NULL SET @membership+=N'REVOKE INSERT,UPDATE,DELETE ON dbo.sharing_contacts FROM '+QUOTENAME(@principal)+N';';
-              IF OBJECT_ID(N'dbo.kpi_catalogue',N'U') IS NOT NULL SET @membership+=N'REVOKE INSERT,UPDATE,DELETE ON dbo.kpi_catalogue FROM '+QUOTENAME(@principal)+N';';
-              IF OBJECT_ID(N'dbo.approval_requests',N'U') IS NOT NULL SET @membership+=N'REVOKE UPDATE,DELETE ON dbo.approval_requests FROM '+QUOTENAME(@principal)+N';';
-              IF OBJECT_ID(N'dbo.controlled_adjustments',N'U') IS NOT NULL SET @membership+=N'REVOKE UPDATE,DELETE ON dbo.controlled_adjustments FROM '+QUOTENAME(@principal)+N';';
-              IF OBJECT_ID(N'dbo.accounting_mappings',N'U') IS NOT NULL SET @membership+=N'REVOKE INSERT,UPDATE,DELETE ON dbo.accounting_mappings FROM '+QUOTENAME(@principal)+N';';
-              IF OBJECT_ID(N'dbo.accounting_batches',N'U') IS NOT NULL SET @membership+=N'REVOKE UPDATE,DELETE ON dbo.accounting_batches FROM '+QUOTENAME(@principal)+N';';
-              IF OBJECT_ID(N'dbo.accounting_entries',N'U') IS NOT NULL SET @membership+=N'REVOKE UPDATE,DELETE ON dbo.accounting_entries FROM '+QUOTENAME(@principal)+N';';
-              IF @role='OWNER' AND @active=1 SET @membership+=N'ALTER ROLE db_owner ADD MEMBER '+QUOTENAME(@principal)+N';';
-              IF @role='STORE_MANAGER' AND @active=1
-              BEGIN
-                SET @membership+=N'ALTER ROLE db_datareader ADD MEMBER '+QUOTENAME(@principal)+N';ALTER ROLE db_datawriter ADD MEMBER '+QUOTENAME(@principal)+N';';
-                SET @membership+=N'DENY DELETE ON SCHEMA::dbo TO '+QUOTENAME(@principal)+N';';
-                SET @membership+=N'DENY INSERT,UPDATE,DELETE ON dbo.application_users TO '+QUOTENAME(@principal)+N';';
-                SET @membership+=N'DENY INSERT,UPDATE,DELETE ON dbo.application_user_history TO '+QUOTENAME(@principal)+N';';
-                SET @membership+=N'DENY INSERT,UPDATE,DELETE ON dbo.controlled_master_values TO '+QUOTENAME(@principal)+N';';
-                SET @membership+=N'DENY INSERT,UPDATE,DELETE ON dbo.controlled_master_history TO '+QUOTENAME(@principal)+N';';
-                SET @membership+=N'DENY INSERT,UPDATE,DELETE ON dbo.watch_folder_settings TO '+QUOTENAME(@principal)+N';';
-                SET @membership+=N'DENY INSERT,UPDATE,DELETE ON dbo.stores TO '+QUOTENAME(@principal)+N';';
-                SET @membership+=N'DENY INSERT,UPDATE,DELETE ON dbo.schema_migrations TO '+QUOTENAME(@principal)+N';';
-                IF @identity<>N'NT AUTHORITY\SYSTEM' SET @membership+=N'DENY INSERT,UPDATE,DELETE ON dbo.report_pack_schedules TO '+QUOTENAME(@principal)+N';';
-                SET @membership+=N'DENY UPDATE,DELETE ON dbo.operational_audit TO '+QUOTENAME(@principal)+N';';
-                SET @membership+=N'DENY UPDATE,DELETE ON dbo.automation_runs TO '+QUOTENAME(@principal)+N';';
-                IF OBJECT_ID(N'dbo.product_settings',N'U') IS NOT NULL SET @membership+=N'DENY INSERT,UPDATE,DELETE ON dbo.product_settings TO '+QUOTENAME(@principal)+N';';
-                IF OBJECT_ID(N'dbo.sharing_contacts',N'U') IS NOT NULL SET @membership+=N'DENY INSERT,UPDATE,DELETE ON dbo.sharing_contacts TO '+QUOTENAME(@principal)+N';';
-                IF OBJECT_ID(N'dbo.kpi_catalogue',N'U') IS NOT NULL SET @membership+=N'DENY INSERT,UPDATE,DELETE ON dbo.kpi_catalogue TO '+QUOTENAME(@principal)+N';';
-                IF OBJECT_ID(N'dbo.approval_requests',N'U') IS NOT NULL SET @membership+=N'DENY UPDATE,DELETE ON dbo.approval_requests TO '+QUOTENAME(@principal)+N';';
-                IF OBJECT_ID(N'dbo.controlled_adjustments',N'U') IS NOT NULL SET @membership+=N'DENY UPDATE,DELETE ON dbo.controlled_adjustments TO '+QUOTENAME(@principal)+N';';
-                IF OBJECT_ID(N'dbo.accounting_mappings',N'U') IS NOT NULL SET @membership+=N'DENY INSERT,UPDATE,DELETE ON dbo.accounting_mappings TO '+QUOTENAME(@principal)+N';';
-                IF OBJECT_ID(N'dbo.accounting_batches',N'U') IS NOT NULL SET @membership+=N'DENY UPDATE,DELETE ON dbo.accounting_batches TO '+QUOTENAME(@principal)+N';';
-                IF OBJECT_ID(N'dbo.accounting_entries',N'U') IS NOT NULL SET @membership+=N'DENY UPDATE,DELETE ON dbo.accounting_entries TO '+QUOTENAME(@principal)+N';';
-              END;
-              IF @role='VIEWER' AND @active=1 SET @membership+=N'ALTER ROLE db_datareader ADD MEMBER '+QUOTENAME(@principal)+N';';
-              IF @identity=N'NT AUTHORITY\SYSTEM' AND @active=1 SET @membership+=N'ALTER ROLE db_backupoperator ADD MEMBER '+QUOTENAME(@principal)+N';';
-              SET @membership+=CASE WHEN @active=1 THEN N'REVOKE CONNECT TO ' ELSE N'DENY CONNECT TO ' END+QUOTENAME(@principal)+N';';
-              SET @membership+=N'GRANT INSERT ON dbo.operational_audit TO '+QUOTENAME(@principal)+N';';
-              EXEC(@membership);
-            END;
-            DECLARE @serverPermission nvarchar(max)=N'USE [master]; '+CASE WHEN @role='OWNER' AND @active=1 THEN N'GRANT ALTER ANY LOGIN TO ' ELSE N'REVOKE ALTER ANY LOGIN TO ' END+QUOTENAME(@identity)+N';';
-            EXEC(@serverPermission);
-            """;
+        const string provisionSql = "EXEC dbo.configure_application_role @identity,@role,@active";
         const string upsertSql = """
             MERGE dbo.application_users WITH(HOLDLOCK) AS target
             USING(SELECT @identity windows_identity) source ON target.windows_identity=source.windows_identity
@@ -198,7 +127,7 @@ public sealed class Phase2OperationsRepository(string connectionString)
               MERGE dbo.stores WITH(HOLDLOCK) target USING(SELECT CONVERT(varchar(30),@code) store_code) source ON target.store_code=source.store_code
               WHEN MATCHED THEN UPDATE SET store_name=@name,is_active=@active,modified_by=SUSER_SNAME(),modified_utc=SYSUTCDATETIME(),change_reason=@reason
               WHEN NOT MATCHED THEN INSERT(store_code,store_name,is_active,modified_by,modified_utc,change_reason) VALUES(@code,@name,@active,SUSER_SNAME(),SYSUTCDATETIME(),@reason);
-              INSERT dbo.operational_audit(event_type,outcome,safe_detail,application_version,actor_name) VALUES('MasterDataChange','Succeeded',N'Store master changed',N'database',SUSER_SNAME());
+              EXEC dbo.record_operational_audit 'MasterDataChange','Succeeded',N'Store master changed',N'database';
               """
             : """
               MERGE dbo.controlled_master_values WITH(HOLDLOCK) target USING(SELECT @type master_type,@code master_code) source
@@ -231,7 +160,7 @@ public sealed class Phase2OperationsRepository(string connectionString)
         var sql = """
             UPDATE dbo.watch_folder_settings SET inbound_path=@inbound,processed_path=@processed,failed_path=@failed,report_output_path=@output,
               poll_minutes=@poll,is_enabled=@enabled,modified_by=SUSER_SNAME(),modified_utc=SYSUTCDATETIME(),change_reason=@reason WHERE watch_folder_setting_id=1;
-            INSERT dbo.operational_audit(event_type,outcome,safe_detail,application_version,actor_name) VALUES('ConfigurationChange','Succeeded',N'Watch-folder configuration changed',N'database',SUSER_SNAME());
+            EXEC dbo.record_operational_audit 'ConfigurationChange','Succeeded',N'Watch-folder configuration changed',N'database';
             """;
         await using var connection = await OpenAsync(cancellationToken);
         await EnsureOwnerAsync(connection, cancellationToken);
@@ -261,7 +190,7 @@ public sealed class Phase2OperationsRepository(string connectionString)
             UPDATE dbo.report_pack_schedules SET local_run_time=@time,is_enabled=@enabled,export_excel=@excel,export_pdf=@pdf,
               modified_by=SUSER_SNAME(),modified_utc=SYSUTCDATETIME(),change_reason=@reason WHERE report_pack_schedule_id=@id;
             IF @@ROWCOUNT<>1 THROW 51101,'The report-pack schedule was not found.',1;
-            INSERT dbo.operational_audit(event_type,outcome,safe_detail,application_version,actor_name) VALUES('ConfigurationChange','Succeeded',N'Report-pack schedule changed',N'database',SUSER_SNAME());
+            EXEC dbo.record_operational_audit 'ConfigurationChange','Succeeded',N'Report-pack schedule changed',N'database';
             """;
         await using var connection = await OpenAsync(cancellationToken);
         await EnsureOwnerAsync(connection, cancellationToken);
@@ -291,8 +220,7 @@ public sealed class Phase2OperationsRepository(string connectionString)
         const string sql = """
             INSERT dbo.automation_runs(run_type,source_file_name,store_code,business_date,outcome,safe_message,started_utc,completed_utc,run_by)
             VALUES(@type,@file,@store,@date,@outcome,@message,@started,SYSUTCDATETIME(),SUSER_SNAME());
-            INSERT dbo.operational_audit(event_type,outcome,safe_detail,application_version,actor_name)
-            VALUES('AutomationRun',CASE WHEN @outcome='Succeeded' THEN 'Succeeded' WHEN @outcome='Skipped' THEN 'Blocked' ELSE 'Failed' END,N'Unattended operation completed',N'automation',SUSER_SNAME());
+            DECLARE @auditOutcome varchar(20)=CASE WHEN @outcome='Succeeded' THEN 'Succeeded' WHEN @outcome='Skipped' THEN 'Blocked' ELSE 'Failed' END; EXEC dbo.record_operational_audit 'AutomationRun',@auditOutcome,N'Unattended operation completed',N'automation';
             """;
         await using var connection = await OpenAsync(token);
         await using var command = new SqlCommand(sql, connection);
@@ -400,7 +328,7 @@ public sealed class Phase2OperationsRepository(string connectionString)
         var sql = """
             WITH sales AS
             (
-              SELECT i.transaction_date,i.store_code,SUM(l.source_net_amount) net_sales,SUM(l.source_quantity) units,COUNT(DISTINCT i.sales_invoice_id) invoices
+              SELECT i.transaction_date,i.store_code,SUM(l.source_gross_amount) net_sales,SUM(l.source_quantity) units,COUNT(DISTINCT i.sales_invoice_id) invoices
               FROM dbo.sales_lines l JOIN dbo.sales_invoices i ON i.sales_invoice_id=l.sales_invoice_id
               JOIN dbo.source_lineage sl ON sl.source_lineage_id=l.source_lineage_id JOIN dbo.import_files f ON f.import_file_id=sl.import_file_id AND f.is_superseded=0
               WHERE i.transaction_date BETWEEN @from AND @to GROUP BY i.transaction_date,i.store_code
@@ -421,7 +349,7 @@ public sealed class Phase2OperationsRepository(string connectionString)
               SELECT transaction_date,store_code,COUNT_BIG(*) unmatched
               FROM dbo.sales_line_enrichments WHERE transaction_date BETWEEN @from AND @to AND match_status<>'Matched' GROUP BY transaction_date,store_code
             )
-            SELECT s.transaction_date,s.store_code,s.net_sales,s.units,s.invoices,COALESCE(t.tender,0)-COALESCE(c.revenue,0),CONVERT(int,COALESCE(u.unmatched,0))
+            SELECT s.transaction_date,s.store_code,s.net_sales,s.units,s.invoices,COALESCE(c.revenue,0)-COALESCE(t.tender,0),CONVERT(int,COALESCE(u.unmatched,0))
             FROM sales s LEFT JOIN controls c ON c.transaction_date=s.transaction_date AND c.store_code=s.store_code
             LEFT JOIN tenders t ON t.transaction_date=s.transaction_date AND t.store_code=s.store_code
             LEFT JOIN unmatched u ON u.transaction_date=s.transaction_date AND u.store_code=s.store_code
@@ -458,7 +386,7 @@ public sealed class Phase2OperationsRepository(string connectionString)
     private async Task<SqlConnection> OpenAsync(CancellationToken token)
     {
         if (string.IsNullOrWhiteSpace(connectionString)) throw new InvalidOperationException("A SQL Server connection string is required.");
-        var connection = new SqlConnection(connectionString);
+        var connection = new SqlConnection(LocalSqlConnectionPolicy.Validate(connectionString));
         try { await connection.OpenAsync(token); return connection; }
         catch { await connection.DisposeAsync(); throw; }
     }

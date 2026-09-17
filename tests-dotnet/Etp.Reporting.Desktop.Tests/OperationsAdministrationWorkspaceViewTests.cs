@@ -1,4 +1,6 @@
-using System.Threading;
+﻿using System.Threading;
+using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
 using Etp.Reporting.Application.Access;
 using Etp.Reporting.Application.Distribution;
@@ -31,7 +33,7 @@ public sealed class OperationsAdministrationWorkspaceViewTests
             Assert.Equal(1, service.DashboardLoads);
             Assert.Equal(1, view.TrendRowCount);
             Assert.Equal(1, view.IssueRowCount);
-            Assert.Contains("1 daily store result(s), 1 governed quality issue(s), and 1 recent unattended run(s)", view.StatusText, StringComparison.Ordinal);
+            Assert.Contains("1 daily store result(s), 1 approved quality issue(s), and 1 recent unattended run(s)", view.StatusText, StringComparison.Ordinal);
         });
     }
 
@@ -62,6 +64,26 @@ public sealed class OperationsAdministrationWorkspaceViewTests
             Assert.Equal(1, administration.MasterRowCount);
             Assert.Equal(1, administration.UserRowCount);
             Assert.Equal("Controlled masters and Windows-integrated access are ready for Owner administration.", administration.StatusText);
+
+            // TaskNavigator selects this view's children by position, and TaskBodyLayout gives a
+            // named tab only to a DataGrid that is a DIRECT child of the panel. Both have broken
+            // before: a section inserted in the middle shifted every index below it, and the
+            // recovery grid, nested inside a Border, lost its tab and fell into the catch-all.
+            // Pin the positions so the next insert fails here rather than on the shop counter.
+            var root = administration.Content is Border border ? border.Child : administration.Content;
+            var children = Assert.IsAssignableFrom<Panel>(root).Children;
+            foreach (var (index, name) in new[]
+            {
+                (3, "ControlledMastersGrid"), (8, "ApplicationUsersGrid"), (11, "KpiCatalogueGrid"),
+                (13, "ProductHealthGrid"), (14, "AdministrationStatus"),
+                (16, "DatabaseRecoveryStatus"), (17, "DatabaseRecoveryGrid"), (18, "DatabaseRecoveryActions"),
+            })
+            {
+                Assert.Equal(name, Assert.IsAssignableFrom<FrameworkElement>(children[index]).Name);
+            }
+            // The invariant behind the tab, not merely its position.
+            Assert.IsType<DataGrid>(children[17]);
+            Assert.Equal("Database and recovery", AutomationProperties.GetName(children[17]));
         });
     }
 
@@ -190,7 +212,7 @@ public sealed class OperationsAdministrationWorkspaceViewTests
                 [new ApplicationUser(1, @"DOMAIN\owner", "Owner", AccessRole.Owner, true, DateTime.UtcNow, "seed")],
                 [new KpiDefinition("SALES", "Sales", "Net sales", "SUM", "ETP", new DateOnly(2026, 4, 1), 1, "APPROVED", "owner", true)],
                 [new ProductHealth("Database", "Healthy", "Ready")],
-                new ProductConfiguration("docs", "share", null, null, null, null, true, null, 20, DateTime.UtcNow, "owner")));
+                new ProductConfiguration("docs", "share", null, null, true, null, 20, DateTime.UtcNow, "owner")));
         }
         public Task SaveMasterAsync(SaveControlledMaster command, CancellationToken cancellationToken = default) => FailMasterSave ? Task.FromException(new InvalidOperationException("Synthetic failure")) : Task.CompletedTask;
         public Task SaveUserAsync(SaveApplicationUser command, CancellationToken cancellationToken = default) => Task.CompletedTask;

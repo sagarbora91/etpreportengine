@@ -88,7 +88,7 @@ public sealed class OperationsAdministrationServiceBoundaryTests
         var owner = Administration(gateway, ApplicationRole.Owner);
         await owner.SaveUserAsync(new(@"STORE\Manager", "Manager", AccessRole.StoreManager, true, "Access approved"));
         await owner.SaveMasterAsync(new("STORE", "WLMHW", "WLM Highway", "APPROVED", true, "Master approved"));
-        await owner.SaveProductConfigurationAsync(new("documents", "share", null, null, null, null, true, null, 20, "Settings approved"));
+        await owner.SaveProductConfigurationAsync(new("documents", "share", null, null, true, null, 20, "Settings approved"));
 
         Assert.Equal(["user:STORE_MANAGER", "master:STORE:WLMHW", "settings:Settings approved"], gateway.Calls);
         await Assert.ThrowsAsync<ArgumentException>(() => owner.SaveUserAsync(
@@ -229,7 +229,7 @@ public sealed class OperationsAdministrationServiceBoundaryTests
         public Task<ProductSettings> LoadProductConfigurationAsync(CancellationToken token)
         {
             Calls.Add("settings-load");
-            return Task.FromResult(new ProductSettings("documents", "share", null, null, null, null, true, null, 20, DateTime.MinValue, "owner"));
+            return Task.FromResult(new ProductSettings("documents", "share", null, null, true, null, 20, DateTime.MinValue, "owner"));
         }
 
         public Task SaveMasterAsync(string type, string code, string name, string approval, bool active, string reason, CancellationToken token)

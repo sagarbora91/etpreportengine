@@ -79,16 +79,18 @@ public static class ReportVisualPresenter
             Margin = new Thickness(0, 8, 0, 0),
             HeadersVisibility = DataGridHeadersVisibility.All
         };
+        TablePresentation.Configure(grid);
         AutomationProperties.SetName(grid, "Report detail rows; Enter opens selected source details");
         void OpenDetails() { if (grid.SelectedItem is { } row) showDetails?.Invoke(row); }
         grid.MouseDoubleClick += (_, _) => OpenDetails();
         grid.PreviewKeyDown += (_, e) => { if (e.Key == System.Windows.Input.Key.Enter) { OpenDetails(); e.Handled = true; } };
         var detailBody = new DockPanel();
+        detailBody.SizeChanged += (_, _) => grid.Margin = new Thickness(0, detailBody.ActualWidth < 1000 ? 0 : 8, 0, 0);
         var filters = new ReportDetailFilter(grid, rows);
         var details = new Button { Content = "Open selected row details", HorizontalAlignment = HorizontalAlignment.Left, IsEnabled = false };
         details.Click += (_, _) => OpenDetails(); grid.SelectionChanged += (_, _) => details.IsEnabled = grid.SelectedItem is not null;
         filters.Children.Add(details); DockPanel.SetDock(filters, Dock.Top); detailBody.Children.Add(filters); detailBody.Children.Add(grid);
-        return new TabControl { Items = {
+        return new TabControl { SelectedIndex=1, Items = {
             new TabItem { Header = "Summary", Content = new ScrollViewer { Content = root, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled } },
             new TabItem { Header = "Detail rows", Content = detailBody }
         } };

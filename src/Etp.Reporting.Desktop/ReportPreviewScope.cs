@@ -1,3 +1,3 @@
 namespace Etp.Reporting.Desktop;
 
-public sealed record ReportPreviewScope(DateTime? From, DateTime? To, string? Store, string? Report);
+public sealed record ReportPreviewScope(DateTime? From, DateTime? To, string? Store, string? Report, string? Filters = null);

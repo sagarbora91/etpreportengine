@@ -14,7 +14,12 @@ public sealed class SqlServerDashboardQueryTests
         var summary = new OperationalSummary(12, 8, 3456, latestImport,
             [new("R025.xlsx", "R025", "Completed", 123, latestImport, completed)]);
         var health = new DatabaseOperationalHealth(OperationalHealthSeverity.Warning, 100.25m, 10240m, latestBackup, 2, 18.5m,
-            [new("BACKUP_SPACE_LOW", OperationalHealthSeverity.Warning, "Backup storage is low.")]);
+            [new("BACKUP_SPACE_LOW", OperationalHealthSeverity.Warning, "Backup storage is low.")])
+        {
+            LastSuccessfulBackupSha256 = new string('B', 64),
+            LastSuccessfulRecoveryDrillUtc = latestBackup.AddDays(-10),
+            LastSuccessfulRecoveryDrillSha256 = new string('A', 64)
+        };
         IReadOnlyList<OperationalAuditEvent> audit =
             [new(latestImport, "ReportRun", "Succeeded", "Aggregate report", "1.2.3", "operator")];
         var observedAuditLimit = 0;
@@ -34,6 +39,9 @@ public sealed class SqlServerDashboardQueryTests
         Assert.Equal(DashboardHealthSeverity.Warning, result.Health.Severity);
         Assert.Equal(100.25m, result.Health.DatabaseSizeMb);
         Assert.Equal(latestBackup, result.Health.LastSuccessfulBackupUtc);
+        Assert.Equal(new string('B', 64), result.Health.LastSuccessfulBackupSha256);
+        Assert.Equal(latestBackup.AddDays(-10), result.Health.LastSuccessfulRecoveryDrillUtc);
+        Assert.Equal(new string('A', 64), result.Health.LastSuccessfulRecoveryDrillSha256);
         Assert.Equal(2, result.Health.FailedImportsLast24Hours);
         Assert.Equal(18.5m, result.Health.BackupFreeSpaceGb);
         Assert.Equal(new DashboardHealthWarning("BACKUP_SPACE_LOW", "Backup storage is low."), Assert.Single(result.Health.Warnings));

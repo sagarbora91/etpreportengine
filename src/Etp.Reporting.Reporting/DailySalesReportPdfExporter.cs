@@ -20,7 +20,7 @@ public sealed class DailySalesReportPdfExporter
         document.Info.Title = report.Title;
         document.Info.Subject = "ETP governed Daily Sales Report";
         var page = document.AddPage(); page.Width = XUnit.FromPoint(PageWidth); page.Height = XUnit.FromPoint(PageHeight);
-        using (var gfx = XGraphics.FromPdfPage(page)) Draw(gfx, report);
+        using (var gfx = XGraphics.FromPdfPage(page)) { if (report.EveningSheets.Count > 0) EveningDsrPdf.Draw(gfx, report); else Draw(gfx, report); }
         document.Save(path);
         ValidateSingleA4LandscapePage(path);
     }

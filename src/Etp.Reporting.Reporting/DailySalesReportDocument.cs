@@ -35,6 +35,7 @@ public sealed record DailySalesReportDocument(DateOnly BusinessDate, string Titl
     decimal? YtdSales, CalculatedMetric YtdGrowth, IReadOnlyList<DsrStoreCard> Stores,
     DsrServiceSummary Service, IReadOnlyList<DsrTargetProgress> Targets, string MetricPolicy)
 {
+    public IReadOnlyList<EveningStoreSheet> EveningSheets { get; init; } = [];
     public string Weekday(CultureInfo? culture = null) => BusinessDate.ToString("dddd", culture ?? CultureInfo.GetCultureInfo("en-IN"));
 }
 
@@ -59,7 +60,7 @@ public static class DailySalesReportBuilder
         var combinedYtd = Find(sales, "COMBINED", "YTD");
         var targets = StorePresentation.Select(store => BuildTarget(store.Key, store.Value, Find(sales, store.Key, "MTD")?.TySales,
             monthlyTargets.GetValueOrDefault(store.Key), engine)).ToList();
-        var combinedTarget = SumIfAny(targets.Select(x => x.MonthlyTarget));
+        var combinedTarget = SumIfComplete(targets.Select(x => x.MonthlyTarget));
         targets.Add(BuildTarget("COMBINED", ("Combined", "#162034"), combinedMtd?.TySales, combinedTarget, engine));
         var serviceSummary = BuildService(service, serviceWdc);
         var conversion = engine.Conversion(combinedFtd?.TyInvoices, combinedFtd?.WalkIns);
@@ -111,7 +112,7 @@ public static class DailySalesReportBuilder
         }
         var ftd = rows.Where(x => x.Period.Equals("FTD", StringComparison.OrdinalIgnoreCase)).ToArray();
         var cash = SumIfComplete(ftd.Select(x => x.Cash)); var card = SumIfComplete(ftd.Select(x => x.Card)); var upi = SumIfComplete(ftd.Select(x => x.Upi));
-        return new(wdc, cash, card, upi, SumIfAny([wdc, cash, card, upi]), totals);
+        return new(wdc, cash, card, upi, totals.GetValueOrDefault("FTD"), totals);
     }
 
     private static DsrPeriodFact? Find(IReadOnlyList<DsrPeriodFact> rows, string store, string period) =>
@@ -127,8 +128,8 @@ public static class DsrDisplay
     public const string Missing = "—";
     public static string Currency(decimal? value) => value is null ? Missing : value.Value.ToString("₹#,##0;−₹#,##0;₹0", India);
     public static string Number(decimal? value, int decimals = 2) => value is null ? Missing : value.Value.ToString(decimals == 0 ? "#,##0" : "0.00", India);
-    public static string Percent(CalculatedMetric metric) => metric.Value is null ? "N/A" : $"{metric.Value.Value.ToString("+0.0;-0.0;+0.0", India)}%";
-    public static string PercentValue(CalculatedMetric metric) => metric.Value is null ? "N/A" : $"{metric.Value:+0.0;-0.0;+0.0}%";
+    public static string Percent(CalculatedMetric metric) => metric.Value is null ? Missing : $"{metric.Value.Value.ToString("+0.0;-0.0;+0.0", India)}%";
+    public static string PercentValue(CalculatedMetric metric) => metric.Value is null ? Missing : $"{metric.Value:+0.0;-0.0;+0.0}%";
     public static string ValueQuantity(decimal? value, decimal? quantity) => value is null || quantity is null ? "— / —" : $"{Currency(value)} / {quantity.Value.ToString("#,##0.##", India)}";
     public static string CompactCurrency(decimal? value)
     {

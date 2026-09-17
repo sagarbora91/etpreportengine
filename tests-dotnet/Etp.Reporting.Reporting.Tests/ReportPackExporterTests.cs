@@ -1,3 +1,4 @@
+using PdfSharp.Pdf.IO;
 using System.Text;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
@@ -48,10 +49,9 @@ public sealed class ReportPackExporterTests
         {
             new SimplePdfReportPackExporter().Export(path, Pack());
             var text = Encoding.ASCII.GetString(File.ReadAllBytes(path));
-            Assert.Contains("Invoice Summary", text, StringComparison.Ordinal);
-            Assert.Contains("Daily Exceptions", text, StringComparison.Ordinal);
-            Assert.Contains("Page 1 of 2", text, StringComparison.Ordinal);
-            Assert.Contains("Page 2 of 2", text, StringComparison.Ordinal);
+            using var document=PdfReader.Open(path,PdfDocumentOpenMode.Import);
+            Assert.Equal(2,document.PageCount);
+            Assert.All(document.Pages.Cast<PdfSharp.Pdf.PdfPage>(),page=>Assert.True(page.Width.Point>page.Height.Point));
             Assert.EndsWith("%%EOF\n", text, StringComparison.Ordinal);
         }
         finally { if (File.Exists(path)) File.Delete(path); }
