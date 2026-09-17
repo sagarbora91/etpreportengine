@@ -1,4 +1,4 @@
-namespace Etp.Reporting.Desktop.Tests;
+﻿namespace Etp.Reporting.Desktop.Tests;
 
 /// <summary>
 /// P4-10 regression. The desktop project copied the entire repository scripts tree
@@ -8,6 +8,38 @@ namespace Etp.Reporting.Desktop.Tests;
 /// </summary>
 public sealed class ShippedScriptsTests
 {
+    private static string RepositoryRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Etp.Reporting.slnx"))) dir = dir.Parent;
+        return dir?.FullName ?? throw new InvalidOperationException("Repository root not found from " + AppContext.BaseDirectory);
+    }
+
+    [Fact]
+    public void The_installer_detects_a_running_application_by_the_mutex_the_application_publishes()
+    {
+        // P4-12c. The installer refuses to upgrade while ETP is running, and it finds out
+        // by this exact name. If the two drift apart nothing fails loudly: setup simply
+        // stops detecting a running shop, replaces a locked executable, aborts halfway and
+        // rolls back. The coupling is invisible, so it is asserted here.
+        var installer = File.ReadAllText(Path.Combine(RepositoryRoot(), "installer", "EtpReportingEngine.iss"));
+        Assert.Contains("AppMutex={#AppMutexName}", installer, StringComparison.Ordinal);
+        Assert.Contains("#define AppMutexName \"" + App.RunningMutexName + "\"", installer, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_failed_setup_marks_itself_and_exits_with_a_deliberate_code()
+    {
+        // P4-12a and P4-12b. Setup used to fail its mandatory step, raise an exception,
+        // and still exit 0 - and in a silent install with no interactive desktop its error
+        // dialog blocked forever rather than failing at all.
+        var installer = File.ReadAllText(Path.Combine(RepositoryRoot(), "installer", "EtpReportingEngine.iss"));
+        Assert.Contains("SetupIncompleteExitCode = 1603", installer, StringComparison.Ordinal);
+        Assert.Contains("ExitProcess(SetupIncompleteExitCode)", installer, StringComparison.Ordinal);
+        Assert.Contains("SETUP-INCOMPLETE.txt", installer, StringComparison.Ordinal);
+        Assert.Contains("if not WizardSilent then", installer, StringComparison.Ordinal);
+    }
+
     private static string ScriptsDirectory => Path.Combine(AppContext.BaseDirectory, "scripts");
 
     private static string[] ShippedNames() =>

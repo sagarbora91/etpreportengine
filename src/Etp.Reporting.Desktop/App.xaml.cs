@@ -1,4 +1,4 @@
-using System.Configuration;
+﻿using System.Configuration;
 using System.Windows;
 using System.Windows.Threading;
 using Etp.Reporting.Desktop.Composition;
@@ -10,8 +10,25 @@ namespace Etp.Reporting.Desktop;
 /// </summary>
 public partial class App : Application
 {
+    // P4-12c. The installer refuses to upgrade while ETP is running, because replacing a
+    // locked executable used to abort setup halfway and roll back. It detects us by this
+    // mutex, so the name must match AppMutex in installer/EtpReportingEngine.iss. Held for
+    // the life of the process and never released early.
+    internal const string RunningMutexName = @"Global\EtpReportingEngineRunning";
+    private static System.Threading.Mutex? runningMutex;
+
+    private static void PublishRunningMutex()
+    {
+        // A failure here must never stop the shop working: the worst case is that an
+        // upgrade is attempted while ETP is open, which setup still detects by the locked
+        // executable.
+        try { runningMutex = new System.Threading.Mutex(false, RunningMutexName); }
+        catch (Exception ex) { DesktopDiagnostics.Record(ex, "Startup", "RUNNING_MUTEX_UNAVAILABLE"); }
+    }
+
     protected override async void OnStartup(StartupEventArgs e)
     {
+        PublishRunningMutex();
         PresentationCulture.Initialize();
         Themes.ThemeBrushes.ApplyContrast(Resources);
         base.OnStartup(e);
