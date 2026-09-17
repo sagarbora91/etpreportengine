@@ -1,0 +1,93 @@
+﻿Text           ETP
+Button         Today
+Text           Today
+Button         Import
+Text           Import
+Button         Reports
+Text           Reports
+Button         Stock
+Text           Stock
+Button         Settings
+Text           Settings
+Button         Find a screen
+Text           ⌕ Search
+Button         Read full status
+Text           More details
+Text           Needs attention
+Text           Import
+Button         Import tab
+Text           Import
+Button         Problems tab
+Text           Problems
+Button         History tab
+Text           History
+Button         Documents tab
+Text           Documents
+Custom         Business date
+Edit           Business date
+Text           <Enter text here>
+Button         Open calendar
+Text           ▾
+ComboBox       Store
+ComboBox       Problem status filter
+Button         Retry failed imports
+Text           Retry failed
+Button         Refresh problems
+Text           Refresh problems
+Text           4 problems. Select a status to filter.
+DataGrid       Import problems
+HeaderItem     File
+Text           File
+HeaderItem     Status
+Text           Status
+HeaderItem     Store
+Text           Store
+HeaderItem     Period
+Text           Period
+HeaderItem     Detail
+Text           Detail
+DataItem       ImportProblem { File = R045_CustomerVisits.xlsx, Status = Duplicate content, Store = HEMW, Period = 17 Sep 2026, Detail = 0 new rows; 88 present; 0 conflicts }
+Custom         R045_CustomerVisits.xlsx
+Text           R045_CustomerVisits.xlsx
+Custom         Duplicate content
+Text           Duplicate content
+Custom         Helios
+Text           Helios
+Custom         17 Sep 2026
+Text           17 Sep 2026
+Custom         0 new rows; 88 present; 0 conflicts
+Text           0 new rows; 88 present; 0 conflicts
+DataItem       ImportProblem { File = R031_BrandMix.xlsx, Status = Unknown layout, Store = HEMW, Period = 17 Sep 2026, Detail = 0 new rows; 0 present; 0 conflicts }
+Custom         R031_BrandMix.xlsx
+Text           R031_BrandMix.xlsx
+Custom         Unknown layout
+Text           Unknown layout
+Custom         Helios
+Text           Helios
+Custom         17 Sep 2026
+Text           17 Sep 2026
+Custom         0 new rows; 0 present; 0 conflicts
+Text           0 new rows; 0 present; 0 conflicts
+DataItem       ImportProblem { File = R014_StockOnHand.xlsx, Status = Conflict, Store = WLMHW, Period = 17 Sep 2026, Detail = 0 new rows; 136 present; 6 conflicts }
+Custom         R014_StockOnHand.xlsx
+Text           R014_StockOnHand.xlsx
+Custom         Conflict
+Text           Conflict
+Custom         Titan World
+Text           Titan World
+Custom         17 Sep 2026
+Text           17 Sep 2026
+Custom         0 new rows; 136 present; 6 conflicts
+Text           0 new rows; 136 present; 6 conflicts
+DataItem       ImportProblem { File = R022_RevenueDetails.xlsx, Status = Failed, Store = WLMHW, Period = 17 Sep 2026, Detail = 0 new rows; 0 present; 0 conflicts }
+Custom         R022_RevenueDetails.xlsx
+Text           R022_RevenueDetails.xlsx
+Custom         Failed
+Text           Failed
+Custom         Titan World
+Text           Titan World
+Custom         17 Sep 2026
+Text           17 Sep 2026
+Custom         0 new rows; 0 present; 0 conflicts
+Text           0 new rows; 0 present; 0 conflicts
+Text           GST-inclusive sales; invoice counts exclude returns. Manual totals use available entries. Check Other / unmapped brands in Settings.
