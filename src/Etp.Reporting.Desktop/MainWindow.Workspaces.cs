@@ -43,13 +43,14 @@ public partial class MainWindow
             FocusedReportActionRequested,
             RunFocusedReport, reportsWorkspaceView.StoreScope);
         FocusedWorkspaceHost.Content = workspace;
+        if (workspace is ReportWorkspaceControl filteredReport) reportsWorkspaceView.AttachQueryFilters(filteredReport);
         workspace.Focus();
         return true;
     }
 
     private void RunFocusedReport(string reportCode, ReportWorkspaceControl workspace)
     {
-        ApplyWorkspaceScope(workspace.DateFromPicker.SelectedDate, workspace.DateToPicker.SelectedDate, workspace.ScopeSelector.SelectedItem?.ToString());
+        reportsWorkspaceView.ApplyReportPeriod(workspace.DateFromPicker.SelectedDate, workspace.DateToPicker.SelectedDate);
         _ = reportsWorkspaceView.RunReportAsync(reportCode);
     }
 
@@ -58,7 +59,9 @@ public partial class MainWindow
         switch (request.Action)
         {
             case ReportWorkspaceAction.Refresh when request.ReportCode is not null:
-                ApplyWorkspaceScope(request.DateFrom.ToDateTime(TimeOnly.MinValue), request.DateTo.ToDateTime(TimeOnly.MinValue), request.Scope);
+                if (sender is ReportWorkspaceControl)
+                    reportsWorkspaceView.ApplyReportPeriod(request.DateFrom.ToDateTime(TimeOnly.MinValue), request.DateTo.ToDateTime(TimeOnly.MinValue));
+                else ApplyWorkspaceScope(request.DateFrom.ToDateTime(TimeOnly.MinValue), request.DateTo.ToDateTime(TimeOnly.MinValue), request.Scope);
                 _ = reportsWorkspaceView.RunReportAsync(request.ReportCode);
                 break;
             case ReportWorkspaceAction.ExportPdf:

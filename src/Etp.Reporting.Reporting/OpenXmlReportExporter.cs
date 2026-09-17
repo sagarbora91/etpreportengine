@@ -7,7 +7,7 @@ namespace Etp.Reporting.Reporting;
 
 public sealed record ExcelReportColumn(string Header, string NumberFormat = "General");
 public sealed record ExcelReportMetadata(string ReportName, DateOnly DateFrom, DateOnly DateTo,
-    string Status, string RuleVersion, string Message, DateTimeOffset GeneratedUtc);
+    string Status, string RuleVersion, string Message, DateTimeOffset GeneratedUtc, string? AppliedScope = null);
 public sealed record ExcelReportData(IReadOnlyList<ExcelReportColumn> Columns,
     IReadOnlyList<IReadOnlyList<object?>> Rows, IReadOnlyList<object?>? Totals = null);
 

@@ -57,7 +57,10 @@ public sealed class ReportWorkspaceControl : Grid
     private readonly List<Control> exportActions = [];
     private ReportPreviewScope? loadingScope;
     private ReportPreviewScope? loadedScope;
-    private ReportPreviewScope CurrentScope => new(DateFromPicker.SelectedDate, DateToPicker.SelectedDate, ScopeSelector.SelectedItem?.ToString(), SelectedReport?.Code);
+    private Func<string>? queryFilterSignature;
+    private readonly Expander queryFilters = new() { Header = "Filters", Visibility = Visibility.Collapsed, Margin = new Thickness(0, 8, 0, 0) };
+    private readonly TextBlock appliedScope = new() { TextWrapping = TextWrapping.Wrap, Visibility = Visibility.Collapsed, Margin = new Thickness(0, 6, 0, 0) };
+    private ReportPreviewScope CurrentScope => new(DateFromPicker.SelectedDate, DateToPicker.SelectedDate, ScopeSelector.SelectedItem?.ToString(), SelectedReport?.Code, queryFilterSignature?.Invoke());
     public bool HasCurrentPreview => loadedScope is not null && loadedScope == CurrentScope;
     private readonly ReportWorkspaceDefinition definition;
     private ProductReportEntry? selectedReport;
@@ -121,12 +124,24 @@ public sealed class ReportWorkspaceControl : Grid
         ScopeSelector.SelectionChanged += (_, _) => InvalidatePreview();
     }
 
-    public void SetPreview(UIElement content, string status)
+    public void AttachQueryFilters(FrameworkElement panel, Func<string> signature)
+    {
+        queryFilterSignature = signature;
+        queryFilters.Content = panel;
+        queryFilters.Visibility = Visibility.Visible;
+        ShowLoading("Loading report…");
+    }
+
+    public void InvalidateQueryFilters() => InvalidatePreview();
+
+    public void SetPreview(UIElement content, string status, string? scope = null)
     {
         ArgumentNullException.ThrowIfNull(content);
         if (loadingScope is not null && loadingScope != CurrentScope) { InvalidatePreview(); return; }
         previewHost.Content = content;
         statusText.Text = status;
+        appliedScope.Text = scope ?? string.Empty;
+        appliedScope.Visibility = string.IsNullOrEmpty(scope) ? Visibility.Collapsed : Visibility.Visible;
         updateToolbar();
         loadedScope = CurrentScope; foreach (var button in exportActions) button.IsEnabled = true;
     }
@@ -181,7 +196,8 @@ public sealed class ReportWorkspaceControl : Grid
     {
         updateToolbar();
         loadedScope = null; foreach (var button in exportActions) button.IsEnabled = false;
-        previewHost.Content = new EmptyState("Refresh required", "The report date or store changed. Refresh before reviewing or exporting.");
+        previewHost.Content = new EmptyState("Refresh required", "The report date, store or query filters changed. Apply filters or refresh before reviewing or exporting.");
+        appliedScope.Text = "Applied scope: refresh required.";
         statusText.Text = "Scope changed — refresh the preview.";
     }
 
@@ -191,6 +207,8 @@ public sealed class ReportWorkspaceControl : Grid
     {
         var container = new Border { Background = DsrUi.Brush("Surface"), BorderBrush = DsrUi.Brush("SecondaryText"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(12), Margin = new Thickness(0, 10, 0, 0) };
         var root = new Grid();
+        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         var actions = new WrapPanel();
@@ -208,6 +226,10 @@ public sealed class ReportWorkspaceControl : Grid
         statusText.TextWrapping = TextWrapping.Wrap; statusText.TextTrimming = TextTrimming.None;
         var summaries = new StackPanel { Margin = new Thickness(0,6,0,0) }; var scope = DsrUi.Text("",12);
         summaries.Children.Add(scope); summaries.Children.Add(statusText); Grid.SetRow(summaries,1); root.Children.Add(summaries);
+        AutomationProperties.SetName(queryFilters, "Report query filters");
+        AutomationProperties.SetName(appliedScope, "Applied report scope");
+        Grid.SetRow(queryFilters,2); root.Children.Add(queryFilters);
+        Grid.SetRow(appliedScope,3); root.Children.Add(appliedScope);
         updateToolbar = () =>
         {
             var compact = container.ActualWidth > 0 && container.ActualWidth < 1000;

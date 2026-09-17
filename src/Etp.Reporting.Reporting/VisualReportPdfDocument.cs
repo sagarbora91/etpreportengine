@@ -45,6 +45,8 @@ internal sealed class VisualReportPdfDocument : IDisposable
         graphics = XGraphics.FromPdfPage(page); y = Margin;
         foreach (var line in Wrap(model.Metadata.ReportName, title, ContentWidth)) { Line(line, title, navy, Margin, y); y += 24; }
         Line($"{model.Metadata.DateFrom:yyyy-MM-dd} to {model.Metadata.DateTo:yyyy-MM-dd}  |  {section}", normal, navy, Margin, y); y += 23;
+        if (!string.IsNullOrWhiteSpace(model.Metadata.AppliedScope))
+            foreach (var line in Wrap(model.Metadata.AppliedScope, normal, ContentWidth)) { Line(line, normal, navy, Margin, y); y += 13; }
         foreach(var line in Wrap(string.Join("; ",model.Controls.Select(c=>$"{c.Status}: {c.Message}"))+ $" · Rule {model.Metadata.RuleVersion}",normal,ContentWidth)){Line(line,normal,navy,Margin,y);y+=13;} y+=8;
     }
 

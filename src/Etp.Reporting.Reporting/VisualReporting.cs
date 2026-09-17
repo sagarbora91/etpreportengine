@@ -12,7 +12,7 @@ public sealed record ReportVisualPoint(string Category, decimal? Value, VisualVa
 public sealed record ReportVisualSeries(string Name, IReadOnlyList<ReportVisualPoint> Points, string Colour);
 public sealed record ReportVisual(string Title, ReportVisualType Type, IReadOnlyList<ReportVisualSeries> Series, string ValueFormat, string? Footnote = null);
 public sealed record ReportControl(string Name, string Status, string Message);
-public sealed record VisualReportMetadata(string ReportId, string ReportName, DateOnly DateFrom, DateOnly DateTo, string RuleVersion, DateTimeOffset GeneratedUtc);
+public sealed record VisualReportMetadata(string ReportId, string ReportName, DateOnly DateFrom, DateOnly DateTo, string RuleVersion, DateTimeOffset GeneratedUtc, string? AppliedScope = null);
 public sealed record VisualReportModel(VisualReportMetadata Metadata, IReadOnlyList<ReportKpi> Kpis,
     IReadOnlyList<ReportVisual> Visuals, ExcelReportData Detail, IReadOnlyList<ReportControl> Controls,
     IReadOnlyList<string> Footnotes);
@@ -70,7 +70,7 @@ public static class VisualReportComposer
         var kpis = new List<ReportKpi> { new("Rows", data.Rows.Count, "integer") };
         var visuals = new List<ReportVisual>();
         var controls = new[] { new ReportControl("Report control", metadata.Status, metadata.Message) };
-        return new(new(metadata.ReportName, metadata.ReportName, metadata.DateFrom, metadata.DateTo, metadata.RuleVersion, metadata.GeneratedUtc),
+        return new(new(metadata.ReportName, metadata.ReportName, metadata.DateFrom, metadata.DateTo, metadata.RuleVersion, metadata.GeneratedUtc, metadata.AppliedScope),
             kpis, visuals, data, controls,
             ["All KPIs, visuals and detail rows use the same report result; visuals do not recalculate business values.", "Blank, zero and not-applicable values are displayed differently."]);
     }
