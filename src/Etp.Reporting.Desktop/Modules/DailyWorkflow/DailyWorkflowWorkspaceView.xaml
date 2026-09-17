@@ -41,6 +41,10 @@
                        Margin="0,4,0,0" Foreground="#5D6873" TextWrapping="Wrap"/>
             <DataGrid x:Name="ManualInputsGrid" Margin="0,8,0,10" AutoGenerateColumns="True" IsReadOnly="True" MaxHeight="210"
                       automation:AutomationProperties.Name="Daily manual operational inputs"/>
+            <!-- The cash-book figures as labelled fields. They were reachable only through
+                 the dropdown below, which made Expenses look as though it did not exist. -->
+            <WrapPanel x:Name="CashQuickFields" Margin="0,0,0,10" Visibility="Collapsed"
+                       automation:AutomationProperties.Name="Cash book entries"/>
             <WrapPanel>
                 <ComboBox x:Name="ManualFieldInput" Width="220" DisplayMemberPath="DisplayName" SelectedValuePath="FieldCode"
                           automation:AutomationProperties.Name="Manual input field"/>

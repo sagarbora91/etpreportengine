@@ -10,6 +10,7 @@ using Microsoft.Win32;
 namespace Etp.Reporting.Desktop.Modules.DailyWorkflow;
 
 using DailyControlStatus = EtpApplication::Etp.Reporting.Application.DailyWorkflow.DailyControlStatus;
+using DailyManualInput = EtpApplication::Etp.Reporting.Application.DailyWorkflow.DailyManualInput;
 using DailyReportPackGenerator = EtpApplication::Etp.Reporting.Application.DailyWorkflow.IDailyReportPackGenerator<ReportPackDocument>;
 using DailyWorkflowCommands = EtpApplication::Etp.Reporting.Application.DailyWorkflow.IDailyWorkflowCommands;
 using DailyWorkflowQuery = EtpApplication::Etp.Reporting.Application.DailyWorkflow.IDailyWorkflowQuery;
@@ -348,6 +349,7 @@ public partial class DailyWorkflowWorkspaceView : UserControl
         ManualFieldInput.ItemsSource = cashInputsMode ? state.ManualInputs.Where(input => input.FieldCode != "WALK_INS").ToArray() : state.ManualInputs;
         ManualFieldInput.SelectedValue = walkinsMode ? "WALK_INS" : selectedField;
         if (ManualFieldInput.SelectedIndex < 0 && state.ManualInputs.Count > 0) ManualFieldInput.SelectedValue = cashInputsMode ? "OPENING_CASH" : state.ManualInputs.FirstOrDefault(x => x.FieldCode.Contains("WALK", StringComparison.OrdinalIgnoreCase))?.FieldCode ?? state.ManualInputs[0].FieldCode;
+        RebuildCashQuickFields(state.ManualInputs);
         StockCountsGrid.ItemsSource = state.StockCounts;
         stateAllowsFinalise = state.CanFinalise;
         RefreshAccessState();
@@ -423,6 +425,51 @@ public partial class DailyWorkflowWorkspaceView : UserControl
     }
 
     private async void Refresh_Click(object sender, RoutedEventArgs e) => await RefreshAsync();
+    // One labelled control per cash-book figure, in formula order, each showing what is
+    // recorded today. Choosing one drives the existing dropdown, so the save path keeps
+    // its mandatory reason and its audit trail exactly as they were.
+    private void RebuildCashQuickFields(IReadOnlyList<DailyManualInput> inputs)
+    {
+        CashQuickFields.Children.Clear();
+        CashQuickFields.Visibility = cashInputsMode ? Visibility.Visible : Visibility.Collapsed;
+        if (!cashInputsMode) return;
+        foreach (var field in CashEntryFields.Prominent(inputs, input => input.FieldCode))
+        {
+            var recorded = field.NumericValue?.ToString("N2", CultureInfo.CurrentCulture);
+            var caption = new TextBlock { Text = field.DisplayName, FontSize = 12, TextWrapping = TextWrapping.Wrap };
+            var amount = new TextBlock
+            {
+                // Zero is a real answer and must not read the same as an empty field.
+                Text = recorded ?? "Not entered",
+                FontSize = 15,
+                FontWeight = recorded is null ? FontWeights.Normal : FontWeights.SemiBold,
+                Margin = new Thickness(0, 2, 0, 0)
+            };
+            var button = new Button
+            {
+                Content = new StackPanel { Children = { caption, amount } },
+                MinHeight = 44,
+                MinWidth = 150,
+                Margin = new Thickness(0, 0, 8, 8),
+                Padding = new Thickness(10, 6, 10, 6),
+                HorizontalContentAlignment = HorizontalAlignment.Left,
+                Tag = field.FieldCode
+            };
+            System.Windows.Automation.AutomationProperties.SetName(
+                button, $"{field.DisplayName}, {recorded ?? "not entered"}");
+            button.Click += CashQuickField_Click;
+            CashQuickFields.Children.Add(button);
+        }
+    }
+
+    private void CashQuickField_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string fieldCode }) return;
+        ManualFieldInput.SelectedValue = fieldCode;
+        ManualValueInput.Focus();
+        ManualValueInput.SelectAll();
+    }
+
     private async void SaveManualInput_Click(object sender, RoutedEventArgs e) => await SaveManualInputAsync();
     private async void SaveStockCount_Click(object sender, RoutedEventArgs e) => await SaveStockCountAsync();
     private async void SaveStaffTarget_Click(object sender, RoutedEventArgs e) => await SaveStaffTargetAsync();
