@@ -38,7 +38,12 @@ internal static class PowerShellOperationsService
         process.StartInfo.Environment.Remove("PSModulePath");
         process.StartInfo.ArgumentList.Add("-NoProfile");
         process.StartInfo.ArgumentList.Add("-ExecutionPolicy");
-        process.StartInfo.ArgumentList.Add("AllSigned");
+        // A4.3 accepted unsigned installs. AllSigned here would refuse every maintenance
+        // operation the owner can start -- backup, recovery drill, support package -- on
+        // an unsigned build. The script is still constrained by the allow-list above and
+        // by ProtectedOperationPath.Validate, which refuses a non-administrator-writable
+        // folder, so relaxing the policy does not widen which scripts can run.
+        process.StartInfo.ArgumentList.Add("RemoteSigned");
         process.StartInfo.ArgumentList.Add("-File");
         process.StartInfo.ArgumentList.Add(script);
         AddDatabaseArguments(process.StartInfo, connectionString);

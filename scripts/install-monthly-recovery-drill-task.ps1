@@ -5,7 +5,10 @@ $script = Join-Path $PSScriptRoot 'invoke-monthly-recovery-drill-runner.ps1'
 Assert-EtpProtectedInstall $script
 $configuration = Get-EtpOperationsConfiguration
 $time = [datetime]::ParseExact($RunTime,'HH:mm',[Globalization.CultureInfo]::InvariantCulture)
-$arguments = '-NoProfile -NonInteractive -ExecutionPolicy AllSigned -File "' + $script + '"'
+# A4.3 accepted unsigned installs. AllSigned here would refuse the monthly drill, which
+# is the control that proves a backup can actually be restored.
+# Assert-EtpProtectedInstall above still refuses a script a non-administrator can edit.
+$arguments = '-NoProfile -NonInteractive -ExecutionPolicy RemoteSigned -File "' + $script + '"'
 $arguments += ' -DayOfMonth ' + $DayOfMonth
 $powerShell = Join-Path ([Environment]::GetFolderPath('System')) 'WindowsPowerShell\v1.0\powershell.exe'
 $action = New-ScheduledTaskAction -Execute $powerShell -Argument $arguments

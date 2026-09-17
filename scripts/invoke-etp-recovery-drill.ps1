@@ -27,5 +27,9 @@ if ((Get-FileHash -LiteralPath $receipt.backupPath -Algorithm SHA256).Hash -ine 
 $result=[ordered]@{ schemaVersion=1; succeeded=$true; backupSha256=$receipt.sha256; completedAtUtc=[DateTime]::UtcNow.ToString('o') }
 Write-EtpJsonAtomically -Path (Join-Path $directory "$Database-latest-drill.json") -Value $result -Replace
 Invoke-EtpSql -SqlCmd $sqlcmd -Server $ServerInstance -Database $Database -Query "EXEC dbo.record_verified_operation 'RestoreDrill','$($receipt.sha256)';" | Out-Null
-Invoke-EtpSql -SqlCmd $sqlcmd -Server $ServerInstance -Database $Database -Query "EXEC dbo.record_operational_audit 'RestoreDrill','Succeeded',N'Isolated encrypted restore and backup metadata checks passed',N'operations';" | Out-Null
+# The audit trail must describe the backup that was actually drilled. Claiming an
+# encrypted restore for an unencrypted backup would put a false statement into an
+# append-only compliance record, which is worse than recording nothing.
+$drillDetail = if ($receipt.encryption -ceq 'AES_256') { 'Isolated encrypted restore and backup metadata checks passed' } else { 'Isolated restore and backup metadata checks passed; the backup was not encrypted' }
+Invoke-EtpSql -SqlCmd $sqlcmd -Server $ServerInstance -Database $Database -Query "EXEC dbo.record_operational_audit 'RestoreDrill','Succeeded',N'$drillDetail',N'operations';" | Out-Null
 Write-Output 'Receipt-verified recovery drill completed.'

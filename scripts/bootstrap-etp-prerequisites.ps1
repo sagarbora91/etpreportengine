@@ -1,7 +1,9 @@
 param(
     [Parameter(Mandatory)][string]$ApplicationDirectory,
-    # Retained for installer compatibility; prerequisites now require manual installation.
+    # P4-11. Setup passes this only when it actually carries the SQL media, so the
+    # option and the licence prompt cannot appear for an install that cannot happen.
     [switch]$SkipSqlInstallation,
+    [string]$SqlPayloadDirectory,
     [ValidateRange(0.1, 1048576)][double]$MinimumBackupFreeSpaceGb = 5
 )
 
@@ -24,9 +26,73 @@ function Resolve-EtpBootstrapServiceName {
 function Assert-EtpBootstrapSqlEdition {
     param([int]$MajorVersion,[int]$EngineEdition,[string]$Edition)
     if ($MajorVersion -lt 16) { throw 'SQL Server 2022 or newer is required. Install a supported edition manually before bootstrap.' }
-    if ($EngineEdition -notin @(2,3) -or $Edition -match '(?i)Express|Web') {
-        throw 'Native encrypted backups require a supported SQL Server edition. Express and Web cannot create them; install a supported edition manually before bootstrap.'
+    # D9 revised: Express and Web are accepted. They cannot encrypt a backup, so the
+    # backup runs unencrypted and its receipt says so; protecting the backup folder at
+    # rest is a separate, deferred control rather than a reason to refuse the edition.
+    if ($EngineEdition -notin @(2,3,4)) {
+        throw 'This SQL Server edition is not supported. Install SQL Server Express or a fuller edition before bootstrap.'
     }
+    if ($Edition -match '(?i)Express|Web') {
+        Write-Warning 'This SQL Server edition cannot encrypt backups. Backups will be unencrypted; protect the backup folder at rest.'
+    }
+}
+
+function Install-EtpSqlFromPayload {
+    param([Parameter(Mandatory)][string]$PayloadDirectory,[Parameter(Mandatory)][string]$ServiceName)
+    # The media is whatever the build packaged. Say exactly what is missing rather
+    # than failing halfway through an unattended setup.
+    Assert-EtpNoLinks $PayloadDirectory
+    if (-not (Test-Path -LiteralPath $PayloadDirectory -PathType Container)) { throw 'The bundled SQL Server media is missing from this installer.' }
+    # These binaries run with the full administrator token. Every other elevated payload
+    # in this script passes the ownership and ACL gate; this one must too, or a folder a
+    # non-administrator can write becomes an elevation path.
+    Assert-EtpProtectedInstall $PayloadDirectory
+    $engine = Get-ChildItem -LiteralPath $PayloadDirectory -Filter 'SQLEXPR*_x64_*.exe' -File | Select-Object -First 1
+    if (-not $engine) { throw 'The bundled SQL Server Express package was not found in the installer media.' }
+
+    # The package is a self-extractor; extract, then run its own setup unattended.
+    $extract = Join-Path ([IO.Path]::GetTempPath()) ('EtpSqlMedia-' + [Guid]::NewGuid().ToString('N'))
+    try {
+        Start-EtpProcess -FilePath $engine.FullName -Arguments @('/Q', "/X:$extract") -Description 'extract the SQL Server media'
+        $setup = Join-Path $extract 'setup.exe'
+        if (-not (Test-Path -LiteralPath $setup -PathType Leaf)) { throw 'The bundled SQL Server media did not extract a setup program.' }
+        # Shared memory only: the engine is local to this machine and must not listen
+        # on the network. Administrators become sysadmin so the owner can administer it.
+        # Install the instance the configuration actually asks for. Hard-coding
+        # SQLEXPRESS would install an instance, then fail looking for the configured
+        # service, and leave SQL Server behind on the machine.
+        $instance = if ($ServiceName -ceq 'MSSQLSERVER') { 'MSSQLSERVER' } else { $ServiceName.Substring($ServiceName.IndexOf('$') + 1) }
+        if ([string]::IsNullOrWhiteSpace($instance)) { throw 'The configured SQL Server instance name could not be determined.' }
+        # SECURITYMODE is omitted deliberately: its only supported value is SQL, and
+        # omitting it is the documented way to get Windows-only authentication.
+        Start-EtpProcess -FilePath $setup -Description 'install SQL Server Express' -Arguments @(
+            '/ACTION=Install','/QUIET','/IACCEPTSQLSERVERLICENSETERMS','/FEATURES=SQLENGINE',
+            "/INSTANCENAME=$instance",'/SQLSYSADMINACCOUNTS=BUILTIN\Administrators',
+            '/TCPENABLED=0','/NPENABLED=0','/UPDATEENABLED=0')
+    }
+    finally { if (Test-Path -LiteralPath $extract) { Remove-Item -LiteralPath $extract -Recurse -Force -ErrorAction SilentlyContinue } }
+
+    if (-not (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue)) { throw 'SQL Server Express was installed but its service did not appear.' }
+
+    # Sqlcmd and its ODBC driver ship beside the engine when the build supplies them.
+    foreach ($package in @(
+        @{ Filter = 'msodbcsql*.msi'; Terms = 'IACCEPTMSODBCSQLLICENSETERMS=YES'; What = 'the ODBC driver' },
+        @{ Filter = 'MsSqlCmdLnUtils*.msi'; Terms = 'IACCEPTMSSQLCMDLNUTILSLICENSETERMS=YES'; What = 'Sqlcmd' })) {
+        $msi = Get-ChildItem -LiteralPath $PayloadDirectory -Filter $package.Filter -File | Select-Object -First 1
+        if (-not $msi) { continue }
+        Start-EtpProcess -FilePath "$env:SystemRoot\System32\msiexec.exe" -Description ('install ' + $package.What) `
+            -Arguments @('/i', $msi.FullName, '/qn', 'ADDLOCAL=ALL', $package.Terms)
+    }
+}
+
+function Start-EtpProcess {
+    param([Parameter(Mandatory)][string]$FilePath,[string[]]$Arguments=@(),[Parameter(Mandatory)][string]$Description)
+    # Start-Process joins ArgumentList with spaces and never quotes, so any path
+    # containing a space splits into two arguments and the installer sees nonsense.
+    $quoted = @($Arguments | ForEach-Object { if ($_ -match '\s' -and $_ -notmatch '^".*"$') { '"' + $_ + '"' } else { $_ } })
+    $process = Start-Process -FilePath $FilePath -ArgumentList $quoted -Wait -PassThru -NoNewWindow
+    # 3010 is "restart required", which is a success for an unattended prerequisite.
+    if ($process.ExitCode -notin @(0, 3010)) { throw "Could not $Description. The installer reported exit code $($process.ExitCode)." }
 }
 
 function Assert-EtpBootstrapPayloads {
@@ -138,7 +204,13 @@ $migrationFiles = @(Get-ChildItem -LiteralPath $migrationDirectory -Filter '*.sq
 if ($migrationFiles.Count -eq 0) { throw "No bundled database migrations were found." }
 
 $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
-if (-not $service) { throw 'The configured database-engine service is not installed. Manually install a SQL Server edition supporting native encrypted backups, then retry.' }
+if (-not $service -and -not $SkipSqlInstallation -and $SqlPayloadDirectory) {
+    Write-Host 'Installing SQL Server Express from the media included with this installer.'
+    Install-EtpSqlFromPayload -PayloadDirectory $SqlPayloadDirectory -ServiceName $serviceName
+    $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
+}
+if (-not $service) { throw 'The configured database-engine service is not installed. Install SQL Server manually, or run setup with the bundled database media, then retry.' }
+if ($service.Status -ne 'Running') { Start-Service -Name $serviceName -ErrorAction SilentlyContinue; $service.Refresh() }
 if ($service.Status -ne 'Running') { throw 'Start the configured SQL Server service manually before bootstrap so its edition can be verified before changes are made.' }
 
 $sqlcmdPath = Resolve-SqlCmdPath

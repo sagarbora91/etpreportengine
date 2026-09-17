@@ -465,9 +465,16 @@ public partial class DailyWorkflowWorkspaceView : UserControl
     private void CashQuickField_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button { Tag: string fieldCode }) return;
+        // Clear the previous field's amount and reason. Carrying them over means one
+        // tap can save the last field's figure, with the last field's reason, against
+        // a different cash-book line.
+        if (!string.Equals(ManualFieldInput.SelectedValue as string, fieldCode, StringComparison.Ordinal))
+        {
+            ManualValueInput.Clear();
+            ManualReasonInput.Clear();
+        }
         ManualFieldInput.SelectedValue = fieldCode;
         ManualValueInput.Focus();
-        ManualValueInput.SelectAll();
     }
 
     private async void SaveManualInput_Click(object sender, RoutedEventArgs e) => await SaveManualInputAsync();

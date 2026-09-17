@@ -32,6 +32,12 @@ SetupLogging=yes
 
 [Files]
 Source: "{#ReleaseDirectory}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; P4-11. The SQL media travels inside the installer only when the build supplied
+; it. Without it there is no option and no licence prompt, so setup never offers
+; an installation it cannot perform.
+#ifdef SqlPayloadDirectory
+Source: "{#SqlPayloadDirectory}\*"; DestDir: "{tmp}\SqlPayload"; Flags: deleteafterinstall recursesubdirs createallsubdirs
+#endif
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"
@@ -40,13 +46,15 @@ Name: "{group}\Uninstall {#AppName}"; Filename: "{uninstallexe}"
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional shortcuts:"
-Name: "sqlprerequisites"; Description: "Install missing Microsoft SQL Server 2022 Express and Sqlcmd packages (accepts Microsoft's license terms)"; GroupDescription: "Optional database prerequisites:"; Flags: checkedonce
+#ifdef SqlPayloadDirectory
+Name: "sqlprerequisites"; Description: "Install Microsoft SQL Server 2022 Express and Sqlcmd from the media included with this installer (accepts Microsoft's licence terms)"; GroupDescription: "Optional database prerequisites:"; Flags: checkedonce
+#endif
 
 [Run]
 Filename: "{app}\{#AppExeName}"; Description: "Launch {#AppName}"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy AllSigned -File ""{app}\scripts\remove-etp-scheduled-tasks.ps1"" -ApplicationDirectory ""{app}"""; RunOnceId: "RemoveEtpScheduledTasks"; Flags: runhidden waituntilterminated skipifdoesntexist
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy RemoteSigned -File ""{app}\scripts\remove-etp-scheduled-tasks.ps1"" -ApplicationDirectory ""{app}"""; RunOnceId: "RemoveEtpScheduledTasks"; Flags: runhidden waituntilterminated skipifdoesntexist
 
 [Code]
 procedure CurStepChanged(CurStep: TSetupStep);
@@ -56,9 +64,15 @@ var
 begin
   if (CurStep = ssPostInstall) then
   begin
-    Parameters := '-NoProfile -ExecutionPolicy AllSigned -File "' + ExpandConstant('{app}\scripts\bootstrap-etp-prerequisites.ps1') + '" -ApplicationDirectory "' + ExpandConstant('{app}') + '"';
-    if not WizardIsTaskSelected('sqlprerequisites') then
+    Parameters := '-NoProfile -ExecutionPolicy RemoteSigned -File "' + ExpandConstant('{app}\scripts\bootstrap-etp-prerequisites.ps1') + '" -ApplicationDirectory "' + ExpandConstant('{app}') + '"';
+#ifdef SqlPayloadDirectory
+    if WizardIsTaskSelected('sqlprerequisites') then
+      Parameters := Parameters + ' -SqlPayloadDirectory "' + ExpandConstant('{tmp}\SqlPayload') + '"'
+    else
       Parameters := Parameters + ' -SkipSqlInstallation';
+#else
+    Parameters := Parameters + ' -SkipSqlInstallation';
+#endif
     if (not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'), Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode)) or (ResultCode <> 0) then
     begin
       MsgBox('Mandatory database migration and health validation failed after application files were installed. No automatic restore or database deletion was attempted. Do not launch ETP until setup completes successfully; review %ProgramData%\EtpReporting\SetupLogs and retry.', mbError, MB_OK);

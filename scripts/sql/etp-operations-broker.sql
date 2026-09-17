@@ -21,11 +21,19 @@ BEGIN
  DECLARE @sql nvarchar(max),@drill sysname=N'EtpRecovery_'+REPLACE(CONVERT(nvarchar(36),NEWID()),N'-',N'');
  IF @operation='BACKUP'
  BEGIN
-  IF CONVERT(nvarchar(128),SERVERPROPERTY('Edition')) LIKE '%Express%' OR CONVERT(nvarchar(128),SERVERPROPERTY('Edition')) LIKE '%Web%'
-   THROW 51320,'Native encrypted backups require a supported SQL Server edition.',1;
+  -- D9 revised: Express and Web cannot encrypt a backup at all, so on those editions
+  -- the backup is taken unencrypted and the receipt says so. Protecting the backup
+  -- folder at rest is a deferred control, not something this procedure can claim.
+  DECLARE @encrypted bit = CASE WHEN CONVERT(nvarchar(128),SERVERPROPERTY('Edition')) LIKE '%Express%'
+                                  OR CONVERT(nvarchar(128),SERVERPROPERTY('Edition')) LIKE '%Web%'
+                             THEN 0 ELSE 1 END;
   IF EXISTS(SELECT 1 FROM sys.dm_os_file_exists(@path) WHERE file_exists=1) THROW 51330,'An existing backup cannot be overwritten.',1;
-  SET @sql=N'BACKUP DATABASE [__DATABASE_IDENTIFIER__] TO DISK=N'''+REPLACE(@path,'''','''''')+N''' WITH COPY_ONLY,CHECKSUM,ENCRYPTION(ALGORITHM=AES_256,SERVER CERTIFICATE=EtpBackupCert);';
+  IF @encrypted=1
+   SET @sql=N'BACKUP DATABASE [__DATABASE_IDENTIFIER__] TO DISK=N'''+REPLACE(@path,'''','''''')+N''' WITH COPY_ONLY,CHECKSUM,ENCRYPTION(ALGORITHM=AES_256,SERVER CERTIFICATE=EtpBackupCert);';
+  ELSE
+   SET @sql=N'BACKUP DATABASE [__DATABASE_IDENTIFIER__] TO DISK=N'''+REPLACE(@path,'''','''''')+N''' WITH COPY_ONLY,CHECKSUM;';
   EXEC sys.sp_executesql @sql;
+  PRINT 'ETP_ENCRYPTION:'+CASE WHEN @encrypted=1 THEN 'AES_256' ELSE 'NONE' END;
  END;
  SET @sql=N'RESTORE VERIFYONLY FROM DISK=N'''+REPLACE(@path,'''','''''')+N''' WITH CHECKSUM;';
  EXEC sys.sp_executesql @sql;

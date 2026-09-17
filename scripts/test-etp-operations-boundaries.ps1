@@ -90,7 +90,7 @@ try {
             $read = Read-EtpVerifiedReceipt $fixture.ReceiptPath $fixture.BackupDirectory 'DisposableDatabase'
             Assert-True ($read.backupPath -ceq $fixture.BackupPath) 'A valid receipt did not preserve its exact backup path.'
             Assert-Rejected { Read-EtpVerifiedReceipt (Join-Path $fixture.BackupDirectory 'missing.json') $fixture.BackupDirectory 'DisposableDatabase' } ''
-            Assert-Rejected { Read-EtpVerifiedReceipt $fixture.ReceiptPath $fixture.BackupDirectory 'AnotherDatabase' } 'verified encrypted backup'
+            Assert-Rejected { Read-EtpVerifiedReceipt $fixture.ReceiptPath $fixture.BackupDirectory 'AnotherDatabase' } 'verified backup receipt'
             [IO.File]::AppendAllText($fixture.BackupPath, 'tampered')
             Assert-Rejected { Read-EtpVerifiedReceipt $fixture.ReceiptPath $fixture.BackupDirectory 'DisposableDatabase' } 'receipt and file differ'
             $fixture.Receipt.lengthBytes = (Get-Item -LiteralPath $fixture.BackupPath).Length
@@ -99,11 +99,31 @@ try {
             $fixture.Receipt.sha256 = (Get-FileHash -LiteralPath $fixture.BackupPath -Algorithm SHA256).Hash
             $fixture.Receipt.verified = $false
             Save-Json $fixture.ReceiptPath $fixture.Receipt
-            Assert-Rejected { Read-EtpVerifiedReceipt $fixture.ReceiptPath $fixture.BackupDirectory 'DisposableDatabase' } 'verified encrypted backup'
+            Assert-Rejected { Read-EtpVerifiedReceipt $fixture.ReceiptPath $fixture.BackupDirectory 'DisposableDatabase' } 'verified backup receipt'
             $fixture.Receipt.verified = $true
+            # D9 revised: an unencrypted receipt is valid, because SQL Express cannot
+            # encrypt a backup at all. But flipping the field on a receipt that still
+            # carries custody details is a downgrade, and must be refused -- otherwise
+            # editing one word skips the whole certificate chain.
             $fixture.Receipt.encryption = 'NONE'
             Save-Json $fixture.ReceiptPath $fixture.Receipt
-            Assert-Rejected { Read-EtpVerifiedReceipt $fixture.ReceiptPath $fixture.BackupDirectory 'DisposableDatabase' } 'verified encrypted backup'
+            Assert-Rejected { Read-EtpVerifiedReceipt $fixture.ReceiptPath $fixture.BackupDirectory 'DisposableDatabase' } 'must not carry certificate custody'
+            # A genuine unencrypted receipt carries no certificate at all, and is accepted.
+            $encryptedReceipt = $fixture.Receipt.certificateReceipt
+            $encryptedThumb = $fixture.Receipt.certificateThumbprint
+            $fixture.Receipt.certificateReceipt = $null
+            $fixture.Receipt.certificateThumbprint = $null
+            Save-Json $fixture.ReceiptPath $fixture.Receipt
+            $unencrypted = Read-EtpVerifiedReceipt $fixture.ReceiptPath $fixture.BackupDirectory 'DisposableDatabase'
+            Assert-True ($unencrypted.encryption -ceq 'NONE') 'A genuine unencrypted receipt should be readable once D9 was revised.'
+            $fixture.Receipt.certificateReceipt = $encryptedReceipt
+            $fixture.Receipt.certificateThumbprint = $encryptedThumb
+            # Anything this build did not write is still refused.
+            $fixture.Receipt.encryption = 'AES_128'
+            Save-Json $fixture.ReceiptPath $fixture.Receipt
+            Assert-Rejected { Read-EtpVerifiedReceipt $fixture.ReceiptPath $fixture.BackupDirectory 'DisposableDatabase' } 'verified backup receipt'
+            $fixture.Receipt.encryption = 'AES_256'
+            Save-Json $fixture.ReceiptPath $fixture.Receipt
         }
         CertificateCustody {
             $fixture = New-ReceiptFixture

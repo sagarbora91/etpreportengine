@@ -25,14 +25,18 @@ public sealed class BootstrapPrerequisiteTests
                 if (-not $rejected) { throw 'Unsupported bootstrap endpoint accepted.' }
                 $checks++
             }
-            foreach ($case in @(@(16,2,'Standard Edition'), @(16,3,'Enterprise Edition'), @(17,3,'Developer Edition'))) {
+            # D9 revised: Express and Web are accepted. They cannot encrypt a backup, which
+            # the backup path handles by taking an unencrypted one and recording NONE in
+            # the receipt, rather than by refusing to run on the edition the shop owns.
+            foreach ($case in @(@(16,2,'Standard Edition'), @(16,3,'Enterprise Edition'), @(17,3,'Developer Edition'), @(16,4,'Express Edition'), @(16,2,'Web Edition'))) {
                 Assert-EtpBootstrapSqlEdition $case[0] $case[1] $case[2]
                 $checks++
             }
-            foreach ($case in @(@(16,4,'Express Edition'), @(16,2,'Web Edition'), @(15,3,'Enterprise Edition'), @(16,8,'Managed Instance'))) {
+            # Too old, or not a local engine at all: still refused.
+            foreach ($case in @(@(15,3,'Enterprise Edition'), @(16,8,'Managed Instance'))) {
                 $rejected = $false
                 try { Assert-EtpBootstrapSqlEdition $case[0] $case[1] $case[2] } catch { $rejected = $true }
-                if (-not $rejected) { throw 'Unsupported encrypted-backup prerequisite accepted.' }
+                if (-not $rejected) { throw 'Unsupported SQL Server edition accepted.' }
                 $checks++
             }
             if ($checks -ne 16) { throw 'Not all bootstrap preflight cases ran.' }
