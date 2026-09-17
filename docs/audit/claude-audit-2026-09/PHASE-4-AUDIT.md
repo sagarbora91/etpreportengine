@@ -676,3 +676,33 @@ Three changes, all in `scripts/`:
 The second row is the new `lpc:` fallback doing the work: with the ODBC client renamed away, both the drill and a full encrypted backup completed using go-sqlcmd alone. Nothing was renamed for the first row — that is the shipped arrangement.
 
 **No regression.** The operations boundary harness still passes all eight scenarios, **190 checks**, both in the guest and through `OperationsScriptBoundaryTests` in the .NET suite on the host (8/8, 10 s). The change touches no C#, no migration and no SQL, so the 860-test result recorded above stands.
+
+### P4-10 — the release now ships the entire repository `scripts/` tree — **OPEN**
+
+Found while deploying the latest build to the acceptance VM.
+
+`src/Etp.Reporting.Desktop/Etp.Reporting.Desktop.csproj:26` copies **every** file under `scripts/` into the publish output:
+
+```xml
+<Content Include="..\..\scripts\**\*" Link="scripts\%(RecursiveDir)%(Filename)%(Extension)"
+         CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+```
+
+A plain `dotnet publish` therefore emits **46 scripts**. `build-windows-release.ps1` then copies a deliberately curated **13** into the same folder, but it never prunes, so the curation has no effect and the installer's `[Files]` rule (`Source: "{#ReleaseDirectory}\*"`) packages all of them.
+
+**This is a regression, not long-standing behaviour.** The build currently installed on the acceptance VM, `1.8.8+d24a525`, carries only **9** scripts, and `git show d24a525:...csproj` confirms that revision had no `scripts` rule at all — only the migrations rule. `git log -S` puts the introduction at **`216f919`** ("Recover from startup failures and honor saved headless settings"). Every release built since then would carry the full tree.
+
+**What that means on a shop PC.** The install folder gains build and maintenance tooling that has no business on a till machine, including `sign-etp-artifacts.ps1`, `build-windows-installer.ps1`, `build-production-release.ps1`, `invoke-security-scan.ps1`, `invoke-release-rollback.ps1`, `new-offline-deployment-package.ps1`, `android-emulator.ps1` and several `.mjs` build helpers. It also enlarges the signing surface: `build-windows-release.ps1` signs `scripts\*.ps1` at the top level, so the release signature is now applied to developer tooling rather than to the small operational set that was intended.
+
+**Not fixed here, deliberately.** The obvious change — restrict the `Include` to the operational scripts, or drop the rule and let the release script do the curation as it did before `216f919` — has a blast radius I have not measured: the rule was added for a reason, and some tests resolve scripts relative to the build output. That is a judgement about the build and test layout rather than an isolated defect, so it is recorded for the owner to route rather than changed by the auditor, who has already written three fixes on this branch.
+
+### Acceptance VM brought to the current build — 17 September 2026
+
+`C:\Program Files\Saagar Traders\ETP Reporting Engine` now runs **`1.8.8+a2ec520`**, SHA-256 `C98498B6…`, byte-identical to the host publish. Verified by launching **through the Start Menu shortcut**, which resolved to the installed executable and produced a window titled `ETP Reporting Engine 1.8.8 (a2ec520)`, read back independently via Win32 `MainWindowTitle` and UI Automation.
+
+**The Start Menu entry already existed** and is created by the installer's `[Icons]` section (`{group}\ETP Reporting Engine` plus an uninstall entry); no change was needed for it.
+
+Two honest limits on this deployment:
+
+- **It is a file-level deployment, not an installer run.** `build-windows-installer.ps1` refuses to build without a code-signing certificate, and the installer's post-install step runs the bootstrap script under `-ExecutionPolicy AllSigned`, so an unsigned installer would fail by design. A genuine installer acceptance run stays blocked on **A4.3**. Consequently `release.json` and `SHA256SUMS.txt` in the install folder still describe the previously packaged release and no longer match the binary beside them; they were left untouched rather than hand-edited, because fabricating release evidence would be worse than stale evidence.
+- **Stale copies removed where permitted.** `C:\EtpCandidate\candidate` and its two archives were deleted. `C:\Program Files\ETP Candidate` (`1.8.8+dfd9f8c`) could not be removed — this environment blocks deletion under `C:\Program Files` — and `C:\ETPAcceptance\UI-20260913-baseline\original-application` (`1.8.7`) was left deliberately, as earlier acceptance evidence that is not mine to discard.
