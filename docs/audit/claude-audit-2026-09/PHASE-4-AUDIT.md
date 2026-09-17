@@ -484,3 +484,50 @@ is too long. Shorten ... so it is fewer than or equal to "48" characters.
 **Fix:** shorten the description to 48 characters or fewer. `'ETP scheduled operations (non-admin S4U)'` is 40 and preserves the meaning. Add a test that provisions the account against a throwaway name and asserts it exists, enabled and outside Administrators — a source-text assertion would not have caught this, but an execution would.
 
 **Workaround in the meantime**, which needs no change to the committed script: create the account manually with a compliant description, then re-run the script with `-CreateAutomationAccount`. The script guards creation with `if (-not (Get-LocalUser -Name $accountName ...))`, so it skips the failing call and proceeds to grant folder access normally.
+
+### A4.2 — **CLOSED on the shop PC**, 17 September 2026
+
+Sagar ran the committed script elevated on `DESKTOP-6IBM1J5` after working around P4-7 by creating the account manually. Output: *"Protected folders and dedicated automation configuration prepared."*
+
+`icacls` on all four folders afterwards:
+
+```
+C:\ProgramData\EtpReporting            SYSTEM:(OI)(CI)(F)  Administrators:(OI)(CI)(F)
+                                       EtpAutomation:(OI)(CI)(RX)  MSSQL$SQLEXPRESS:(OI)(CI)(RX)
+C:\ProgramData\EtpReporting\Backups    SYSTEM:(OI)(CI)(F)  Administrators:(OI)(CI)(F)
+                                       EtpAutomation:(OI)(CI)(M)   MSSQL$SQLEXPRESS:(OI)(CI)(M)
+C:\ProgramData\EtpReporting\Documents  (same as Backups)
+C:\ProgramData\EtpReporting\Share      (same as Backups)
+```
+
+**No `BUILTIN\Users` entry on any of the four.** No `CREATOR OWNER`, no inherited `(I)` flags, and no interactive-user grant. That is the criterion, met literally.
+
+The privilege split is correct rather than merely permissive: the **root is read-only** (`RX`) for both the automation account and the SQL service, while only the three working folders carry `Modify`. Neither identity can restructure the parent.
+
+Independently verified, not taken from the script's own success message:
+
+| Check | Method | Result |
+|---|---|---|
+| Standard users cannot read | non-elevated session attempted all four folders | **Access is denied** on every one |
+| Backups preserved | `sys.dm_os_enumerate_filesystem` as the SQL service | **17 `.bak` files**, newest `20260916-102109.bak` at 12.3 MB, unchanged |
+| SQL retains access | same enumeration succeeded | Yes |
+| `EtpAutomation` exists and is enabled | `Get-LocalUser` | Yes |
+| **Not an administrator** | `Get-LocalGroupMember Administrators` | **Correct — absent** |
+| SQL service healthy | `Get-Service` | Running |
+
+The original high finding from audit 04 — every unencrypted backup of the shop's sales and customer data readable by any local account, in a folder anyone could write to — **is fixed on the machine that matters**. It stood from the first audit on 15 September until now.
+
+Not claimed: I did not write a test backup on the shop PC, because a non-elevated session could not then delete it and I will not leave litter in the owner's backup folder. The write path is proven on the VM under the identical ACL set, the `Modify` ACE is present here, and the next scheduled backup confirms it in practice.
+
+### Phase 4 position after 17 September
+
+| ID | Status |
+|---|---|
+| A4.1 | PASS |
+| A4.2 | **PASS — closed on the shop PC and the VM** |
+| A4.3 | Blocked on a code-signing certificate and a protected install tree; the automation account now exists |
+| A4.4 | PASS at the SQL layer on Developer Edition; script custody chain outstanding; production edition still a purchase decision |
+| A4.5 | PASS |
+| A4.6 | PASS |
+
+Four of six pass. Neither remaining item is a coding defect: A4.3 waits on a certificate, A4.4 on an edition. P4-7 is the one open code defect and it is a one-line fix.
