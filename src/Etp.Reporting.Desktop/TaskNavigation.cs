@@ -65,6 +65,7 @@ public static class TaskNavigation
         Add("cash-input", "Cash and service entries", "Today", "Cash", "Manual Entry", "manual", 2);
         Add("import-files", "Import folder", "Import", "Import", "Import ETP", "import", 2);
         Add("conflicts", "Problems", "Import", "Problems", "Import ETP", "import-results", 2);
+        Add("import-history", "Imports", "Import", "History", "Import History", "import-history", 1);
         Add("source-inbox", "Received files", "Import", "History", "Import ETP", "inbox", 2);
         Add("documents", "Documents", "Import", "Documents", "Import ETP", "inbox", 2);
         Add("stock-count", "Physical count", "Stock", "Physical count", "Manual Entry", "stock-count", 2);

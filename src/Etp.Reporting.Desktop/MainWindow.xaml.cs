@@ -43,6 +43,7 @@ public partial class MainWindow : Window
     internal readonly AdministrationWorkspaceView administrationWorkspaceView;
     private readonly Func<string, DatabaseLifecycleService> databaseLifecycleServiceFactory;
     internal readonly ImportWorkspaceView importWorkspaceView;
+    internal ImportHistoryView? importHistoryView;
     private AccessSession currentAccess = new("unknown", "Unknown user", AccessRole.None, false);
 
     public MainWindow(

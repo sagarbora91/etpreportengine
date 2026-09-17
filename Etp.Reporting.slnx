@@ -8,6 +8,7 @@
     <Project Path="src/Etp.Reporting.Reporting/Etp.Reporting.Reporting.csproj" />
   </Folder>
   <Folder Name="/tests-dotnet/">
+    <Project Path="tests-dotnet/Etp.Reporting.HistoryRestartHost/Etp.Reporting.HistoryRestartHost.csproj" />
     <Project Path="tests-dotnet/Etp.Reporting.Desktop.Tests/Etp.Reporting.Desktop.Tests.csproj" />
     <Project Path="tests-dotnet/Etp.Reporting.Domain.Tests/Etp.Reporting.Domain.Tests.csproj" />
     <Project Path="tests-dotnet/Etp.Reporting.Import.Tests/Etp.Reporting.Import.Tests.csproj" />

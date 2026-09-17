@@ -385,6 +385,12 @@ public sealed partial class TaskNavigator(MainWindow window)
         UserControl view;
         int[] body; int[] actions;
         var id = task.Id;
+        if (id == "import-history")
+        {
+            var history = window.importHistoryView ?? throw new InvalidOperationException("Import history is not configured.");
+            _ = history.ActivateAsync(new(DateOnly.FromDateTime(appliedDate), DateOnly.FromDateTime(appliedDate), string.IsNullOrEmpty(HeaderStore) ? null : HeaderStore));
+            return history;
+        }
         if (task.Id == "conflicts") return new Modules.Imports.ImportProblemsView(async () =>
             window.importWorkspaceView.Problems.Concat(await window.sourceInboxWorkspaceView.LoadProblemsAsync()).Distinct().ToArray());
         if (task.Section == "import-results" || task.Destination == "Import ETP" && task.Section != "inbox")

@@ -12,6 +12,7 @@ public static class ShellRouteRegistry
         new("Daily Workflow", "dashboard"),
         new("Manual Entry", "dashboard"),
         new("Import ETP", "imports"),
+        new("Import History", "imports"),
         new("Sales Reports", "reports"),
         new("Registers", "registers"),
         new("Accounting", "accounting"),

@@ -9,7 +9,7 @@
             <Button x:Name="RefreshButton" DockPanel.Dock="Right" Content="Refresh inbox" Click="Refresh_Click" Style="{DynamicResource PrimaryButton}"
                     Padding="14,7" Margin="8,0,0,0" VerticalAlignment="Top" automation:AutomationProperties.Name="Refresh Source Inbox"/>
             <StackPanel>
-                <TextBlock Text="Source Inbox" FontSize="18" FontWeight="SemiBold"/>
+                <TextBlock Text="Received files — document inbox" FontSize="18" FontWeight="SemiBold"/>
                 <TextBlock Text="Attach a scanned document to a business day. Originals are stored with a SHA-256 hash and opened in your document viewer."
                            Foreground="#5D6873" TextWrapping="Wrap" Margin="0,4,0,0"/>
             </StackPanel>

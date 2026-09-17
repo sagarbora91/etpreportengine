@@ -60,7 +60,8 @@ public sealed class FolderImportService(
             var issues = entry.Inspection.Diagnostics.Select(issue => new ImportIssue(
                 (ImportIssueSeverity)(int)issue.Severity, issue.Code, issue.Message, issue.RowNumber, issue.ColumnName)).ToArray();
             var result = new FolderImportFileResult(Path.GetFileName(entry.Path), entry.Inspection.MatchedProfile?.ReportCode,
-                scope?.StoreCode, scope?.PeriodStart, scope?.PeriodEnd, "Importing", Diagnostics: issues);
+                scope?.StoreCode, scope?.PeriodStart, scope?.PeriodEnd, "Importing", Diagnostics: issues)
+                { SourceSha256 = accepted?.Workbook.Sha256 };
             progress?.Report(new(results.Count, paths.Count, result.FileName, "Importing", results.Append(result).ToArray()));
             if (accepted is null)
             {
@@ -131,6 +132,9 @@ public sealed class FolderImportService(
             foreach (var path in paths.Where(path => !handled.Contains(path)))
                 results.Add(new(Path.GetFileName(path), null, null, null, null, "Cancelled"));
         FailedPaths = failed;
+        if (persistence is IImportAttemptRecorder recorder)
+            foreach (var result in results)
+                await recorder.RecordAttemptAsync(result, CancellationToken.None).ConfigureAwait(false);
         progress?.Report(new(results.Count, paths.Count, string.Empty, cancellationToken.IsCancellationRequested ? "Cancelled" : "Completed", results.ToArray()));
         return new(results);
     }

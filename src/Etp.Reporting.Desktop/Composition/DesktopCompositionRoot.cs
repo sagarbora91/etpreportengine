@@ -181,7 +181,7 @@ public sealed class DesktopCompositionRoot
         var importWorkspaceView = new ImportWorkspaceView(
             importCoordinator,
             () => connectionState.ConnectionString);
-        return new MainWindow(
+        var window = new MainWindow(
             shell,
             dashboardView,
             dashboardQueryFactory,
@@ -199,6 +199,9 @@ public sealed class DesktopCompositionRoot
             administrationWorkspaceView,
             databaseLifecycleServiceFactory,
             importWorkspaceView);
+        window.importHistoryView = new ImportHistoryView(scope =>
+            new SqlServerImportHistoryQuery(connectionState.ConnectionString).LoadAsync(scope));
+        return window;
     }
 
     public string LoadConnectionString() =>

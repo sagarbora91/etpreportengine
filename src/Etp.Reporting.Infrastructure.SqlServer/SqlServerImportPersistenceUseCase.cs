@@ -14,13 +14,16 @@ public enum ImportPersistenceRoute
     Family
 }
 
-public sealed class SqlServerImportPersistenceUseCase : IImportPersistenceUseCase<MatchedImportEnvelope>
+public sealed class SqlServerImportPersistenceUseCase : IImportPersistenceUseCase<MatchedImportEnvelope>, IImportAttemptRecorder
 {
     private readonly ITransactionalImportStore store;
     private readonly SqlServerImportFileRepository files;
     private readonly OperationalCompletionRepository completion;
     private readonly string connectionString;
     private readonly Func<CancellationToken, Task<ApplicationAccess>> loadAccess;
+
+    public Task RecordAttemptAsync(FolderImportFileResult result, CancellationToken cancellationToken = default) =>
+        new SqlServerImportHistoryQuery(connectionString).RecordAttemptAsync(result, cancellationToken);
 
     public SqlServerImportPersistenceUseCase(string connectionString) : this(connectionString, null)
     {
