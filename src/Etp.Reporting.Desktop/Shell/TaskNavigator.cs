@@ -392,7 +392,18 @@ public sealed partial class TaskNavigator(MainWindow window)
             return history;
         }
         if (task.Id == "conflicts") return new Modules.Imports.ImportProblemsView(window.importWorkspaceView, async () =>
-            window.importWorkspaceView.Problems.Concat(await window.sourceInboxWorkspaceView.LoadProblemsAsync()).Distinct().ToArray());
+        {
+            // Persisted outcomes for the header scope, never the session's last import:
+            // the problems list has to still be there after the application is closed
+            // and reopened. appliedDate and HeaderStore are read on every load.
+            var persisted = window.importHistoryView is { } history
+                ? Modules.Imports.ImportProblems.From(
+                    (await history.FetchAsync(new(DateOnly.FromDateTime(appliedDate), DateOnly.FromDateTime(appliedDate),
+                        string.IsNullOrEmpty(HeaderStore) ? null : HeaderStore)))
+                    .Select(entry => entry.Result))
+                : [];
+            return persisted.Concat(await window.sourceInboxWorkspaceView.LoadProblemsAsync()).Distinct().ToArray();
+        });
         if (task.Section == "import-results" || task.Destination == "Import ETP" && task.Section != "inbox")
         {
             window.importWorkspaceView.SelectTask(id);

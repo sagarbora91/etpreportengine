@@ -49,7 +49,23 @@ internal static class Program
                 await Until(() => host.Content is ImportHistoryView { IsLoading: false });
                 var history = (ImportHistoryView)host.Content;
                 if (history.StatusText.Contains("could not")) throw new InvalidOperationException(history.StatusText);
-                File.WriteAllText(args[2], JsonSerializer.Serialize(new { history.Entries, history.StatusText, history.DetailText }));
+
+                // Problems must survive the restart too: it now reads persisted outcomes
+                // rather than the results of the import this process just ran.
+                var problemsTab = tabs.Children.OfType<Button>().FirstOrDefault(button => button.Tag?.ToString() == "Problems");
+                if (problemsTab is not null) problemsTab.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                else tabs.Children.OfType<ComboBox>().Single(combo => combo.Items.Cast<object>().Any(item => item is string text && text == "Problems")).SelectedItem = "Problems";
+                await Until(() => host.Content is ImportProblemsView { HasLoaded: true });
+                var problems = (ImportProblemsView)host.Content;
+
+                File.WriteAllText(args[2], JsonSerializer.Serialize(new
+                {
+                    history.Entries,
+                    history.StatusText,
+                    history.DetailText,
+                    Problems = problems.Rows,
+                    ProblemsMessage = problems.MessageText
+                }));
                 window.Close();
                 application.Shutdown();
             }

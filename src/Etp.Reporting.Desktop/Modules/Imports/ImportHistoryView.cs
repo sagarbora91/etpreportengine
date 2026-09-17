@@ -52,6 +52,13 @@ public sealed class ImportHistoryView : UserControl
         AutomationProperties.SetName(this, "Durable import history");
     }
 
+    /// <summary>
+    /// Reads the same persisted outcomes the grid shows, without disturbing the grid.
+    /// Problems needs the database rather than the session's last import, and must not
+    /// move the History screen underneath the operator in order to get it.
+    /// </summary>
+    public Task<IReadOnlyList<HistoryEntry>> FetchAsync(HistoryScope value) => load(value);
+
     public async Task ActivateAsync(HistoryScope value)
     {
         scope = value; var current = ++revision; IsLoading = true;
