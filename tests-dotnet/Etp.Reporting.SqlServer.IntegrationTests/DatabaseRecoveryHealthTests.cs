@@ -1,4 +1,4 @@
-using Etp.Reporting.Desktop.Modules.OperationsAdministration;
+﻿using Etp.Reporting.Desktop.Modules.OperationsAdministration;
 using Etp.Reporting.Infrastructure.SqlServer;
 using Microsoft.Data.SqlClient;
 
@@ -16,6 +16,55 @@ public sealed class DatabaseRecoveryHealthTests
 
     private static string StatusOf(DatabaseOperationalHealth health, string item) =>
         DatabaseRecoveryPresentation.Lines(health, Thresholds, DateTime.UtcNow).Single(x => x.Item == item).Status;
+
+    [Fact]
+    public async Task The_failed_import_count_is_what_the_Problems_list_will_actually_show()
+    {
+        // The block says "Open Import, then Problems, to see them". That promise was broken:
+        // the count came from import_batches while Problems is built from import_attempts, so
+        // a retried failure showed a row in Problems while health reported zero.
+        var database = new SqlDatabaseFixture();
+        try
+        {
+            await database.InitializeAsync();
+
+            await database.ExecuteAsync("""
+                INSERT dbo.import_attempts
+                 (recorded_utc,file_name,outcome,rows_processed,new_rows,already_present_rows,conflict_rows,diagnostics_json)
+                VALUES
+                 (DATEADD(hour,-4,SYSUTCDATETIME()),'R022_revenue.xlsx','Failed',0,0,0,0,N'[]'),
+                 (DATEADD(hour,-3,SYSUTCDATETIME()),'R014_stock.xlsx','Conflict',10,0,4,6,N'[]'),
+                 (DATEADD(hour,-2,SYSUTCDATETIME()),'R008_cash.xlsx','Failed',0,0,0,0,N'[]'),
+                 (DATEADD(hour,-1,SYSUTCDATETIME()),'R008_cash.xlsx','Imported',57,57,0,0,N'[]');
+                """);
+
+            var health = await new DatabaseOperationalHealthRepository(database.ConnectionString).LoadAsync();
+
+            // Two unresolved files. R008 failed and then imported cleanly, so it is no longer a
+            // problem and must not be counted - counting it is exactly the lie this fixes.
+            Assert.Equal(2, health.FailedImportsLast24Hours);
+            Assert.Equal("2", StatusOf(health, "Failed imports, last 24 hours"));
+
+            // An older failure outside the window is not today's problem.
+            await database.ExecuteAsync("""
+                INSERT dbo.import_attempts
+                 (recorded_utc,file_name,outcome,rows_processed,new_rows,already_present_rows,conflict_rows,diagnostics_json)
+                VALUES (DATEADD(hour,-30,SYSUTCDATETIME()),'R099_old.xlsx','Failed',0,0,0,0,N'[]');
+                """);
+            Assert.Equal(2, (await new DatabaseOperationalHealthRepository(database.ConnectionString).LoadAsync())
+                .FailedImportsLast24Hours);
+
+            // A batch that failed before recording any file cannot appear in Problems, and is
+            // still counted: a failure the owner cannot see listed must not vanish entirely.
+            await database.ExecuteAsync("""
+                INSERT dbo.import_batches(import_batch_id,status,started_utc,failure_reason)
+                VALUES(NEWID(),'Failed',SYSUTCDATETIME(),N'Folder could not be read');
+                """);
+            Assert.Equal(3, (await new DatabaseOperationalHealthRepository(database.ConnectionString).LoadAsync())
+                .FailedImportsLast24Hours);
+        }
+        finally { await database.DisposeAsync(); }
+    }
 
     [Fact]
     public async Task A_failed_import_with_no_receipts_reads_as_failed_and_missing_never_healthy()
