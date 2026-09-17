@@ -1,0 +1,32 @@
+{
+  "description": "Synthetic R025 rows and amounts. Public brand names and approved mappings only; no private invoices, customer details or source rows.",
+  "sales": [
+    { "store": "WLMHW", "brand": "TITAN", "cluster": "SYNTHETIC", "type": "INV", "gross": 1180 },
+    { "store": "WLMHW", "brand": "TITAN", "cluster": "SYNTHETIC", "type": "SR", "gross": -118 },
+    { "store": "WLMHW", "brand": "Raga", "cluster": "SYNTHETIC", "type": "INV", "gross": 236 },
+    { "store": "WLMHW", "brand": "EDGE", "cluster": "SYNTHETIC", "type": "INV", "gross": 354 },
+    { "store": "WLMHW", "brand": "SONATA", "cluster": "SYNTHETIC", "type": "INV", "gross": 472 },
+    { "store": "WLMHW", "brand": "FASTRACK WATCH", "cluster": "SYNTHETIC", "type": "INV", "gross": 590 },
+    { "store": "WLMHW", "brand": "FASTRACK WEARABLES", "cluster": "SYNTHETIC", "type": "INV", "gross": 118 },
+    { "store": "WLMHW", "brand": "XYLYS", "cluster": "SYNTHETIC", "type": "INV", "gross": 708 },
+    { "store": "WLMHW", "brand": "SYNTHETIC OTHER", "cluster": "NEBULA", "type": "INV", "gross": 59 },
+    { "store": "WLMHW", "brand": "SYNTHETIC OTHER", "cluster": "GAUTO", "type": "INV", "gross": 177 },
+    { "store": "HEMW", "brand": "HELIOS", "cluster": "SEKOG", "type": "INV", "gross": 1180 },
+    { "store": "HEMW", "brand": "HELIOS", "cluster": "FOSLG", "type": "INV", "gross": 236 },
+    { "store": "HEMW", "brand": "HELIOS", "cluster": "FOSLL", "type": "INV", "gross": 354 },
+    { "store": "HEMW", "brand": "HELIOS", "cluster": "FOSLG", "type": "BC", "gross": -118 },
+    { "store": "HEMW", "brand": "TOMMY HILFIGER", "cluster": "SPORT", "type": "INV", "gross": 472 },
+    { "store": "HEMW", "brand": "CERUTI", "cluster": "SPORT", "type": "INV", "gross": 590 },
+    { "store": "HEMW", "brand": "KENNETH COLE", "cluster": "SPORT", "type": "INV", "gross": 708 },
+    { "store": "HEMW", "brand": "KENNETH COLE", "cluster": "AUTMC", "type": "INV", "gross": 59 },
+    { "store": "HEMW", "brand": "HELIOS", "cluster": "CTZNG", "type": "INV", "gross": 826 },
+    { "store": "HEMW", "brand": "POLICE", "cluster": "SPORT", "type": "INV", "gross": 944 },
+    { "store": "HEMW", "brand": "ANNE KLEIN", "cluster": "SPORT", "type": "INV", "gross": 1062 },
+    { "store": "HEMW", "brand": "HELIOS", "cluster": "GSHOCK", "type": "INV", "gross": 177 },
+    { "store": "HEMW", "brand": "HELIOS", "cluster": "GUESS", "type": "INV", "gross": 59 }
+  ],
+  "expected": {
+    "WLMHW": { "TITAN": 1062, "Raga": 236, "EDGE": 354, "SONATA": 472, "Fastrack": 708, "XYLYS": 708, "Other / unmapped": 236 },
+    "HEMW": { "SEIKO": 1180, "FOSSIL": 472, "TOMMY HILFIGER": 472, "CERUTI": 590, "KENNETH COLE": 767, "CITIZEN": 826, "POLICE": 944, "ANNE KLEIN": 1062, "Other / unmapped": 236 }
+  }
+}
