@@ -37,7 +37,10 @@ public sealed partial class OperationalReportRepository
             while(await r.ReadAsync(token)) manual.Add((r.GetString(0),r.GetFieldValue<DateOnly>(1),r.GetString(2),r.GetDecimal(3)));
         }
         await using (var q = new SqlCommand("""
-            SELECT i.store_code,i.transaction_date,COALESCE(mapped.row_label,'Other / unmapped'),SUM(l.source_gross_amount)
+            -- SUM already ignores NULL amounts inside a mixed group, so a group with
+            -- no usable amount at all is the same case and must read as zero rather
+            -- than NULL: an unguarded GetDecimal would fail the whole DSR screen.
+            SELECT i.store_code,i.transaction_date,COALESCE(mapped.row_label,'Other / unmapped'),COALESCE(SUM(l.source_gross_amount),0)
             FROM dbo.sales_lines l JOIN dbo.sales_invoices i ON i.sales_invoice_id=l.sales_invoice_id
             OUTER APPLY (SELECT TOP(1) r.row_label FROM dbo.brand_row_codes b JOIN dbo.brand_rows r ON r.brand_row_id=b.brand_row_id AND r.store_code=b.store_code
               WHERE b.store_code=i.store_code AND b.source_brand IN(l.source_brand_code,l.source_brand_name,l.brand_segment)

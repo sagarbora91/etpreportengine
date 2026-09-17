@@ -17,6 +17,19 @@ public sealed class ReportListView : UserControl
             button.Click += (_,_) => open(task); list.Children.Add(button);
         }
         Content = new ScrollViewer { Content = list, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
-        SizeChanged += (_,_) => list.Columns = ActualWidth < 1000 ? 1 : 3;
+        // Fit as many columns as stay readable instead of stepping straight from three
+        // to one. A 1366x768 screen at 125% leaves about 980 DIP here, which fell just
+        // under the old 1000 threshold and dropped the whole catalogue into one column.
+        list.Columns = ColumnsFor(ActualWidth);
+        SizeChanged += (_,_) => list.Columns = ColumnsFor(ActualWidth);
     }
+
+    /// <summary>Report names need roughly 330 DIP to stay readable; never fewer than one
+    /// column, never more than three so the titles do not become a wall of short strips.
+    /// 330 keeps two columns on the 816x480 touch case once the workspace inset is taken
+    /// off, which is the narrowest layout the plan asks the catalogue to survive.</summary>
+    internal const double MinimumColumnWidth = 330d;
+
+    internal static int ColumnsFor(double availableWidth) =>
+        Math.Clamp((int)(availableWidth / MinimumColumnWidth), 1, 3);
 }

@@ -32,7 +32,9 @@
      <ComboBoxItem Content="Titan World"/><ComboBoxItem Content="Helios"/><ComboBoxItem Content="Both stores"/>
     </ComboBox>
    </Grid>
-   <Border x:Name="FocusedWorkspaceLayer" Grid.Row="1" Background="{DynamicResource AppBackground}">
+   <!-- Match the header's 8 DIP inset. Without it the workspace ran flush into the
+        window edge, so right-docked buttons sat hard against the border. -->
+   <Border x:Name="FocusedWorkspaceLayer" Grid.Row="1" Background="{DynamicResource AppBackground}" Padding="8,0">
     <ContentControl x:Name="FocusedWorkspaceHost" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"/>
    </Border>
    <Border x:Name="StatusFooter" Grid.Row="2" Background="{DynamicResource Surface}" Padding="8,0" Focusable="True" automation:AutomationProperties.Name="Application status">
