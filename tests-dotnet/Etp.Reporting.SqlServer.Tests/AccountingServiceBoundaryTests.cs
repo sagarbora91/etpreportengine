@@ -5,6 +5,17 @@ namespace Etp.Reporting.Infrastructure.SqlServer.Tests;
 public sealed class AccountingServiceBoundaryTests
 {
     [Fact]
+    public async Task Rejection_requires_owner_and_a_reason()
+    {
+        var gateway=new FakeGateway();
+        foreach(var role in new[]{ApplicationRole.Viewer,ApplicationRole.StoreManager})
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(()=>Create(gateway,role).RejectAsync(new(5,"Correction")));
+        await Assert.ThrowsAsync<ArgumentException>(()=>Create(gateway,ApplicationRole.Owner).RejectAsync(new(5," ")));
+        Assert.Empty(gateway.Calls);
+        await Create(gateway,ApplicationRole.Owner).RejectAsync(new(5,"Correction"));
+        Assert.Equal(new[]{"reject:5"},gateway.Calls);
+    }
+    [Fact]
     public void Production_adapter_requires_windows_integrated_security()
     {
         _ = new SqlServerAccountingService(
@@ -177,6 +188,9 @@ public sealed class AccountingServiceBoundaryTests
             Calls.Add($"approve:{batchId}");
             return Task.CompletedTask;
         }
+
+        public Task RejectBatchAsync(long batchId, string reason, CancellationToken cancellationToken)
+        { Calls.Add($"reject:{batchId}"); return Task.CompletedTask; }
 
         public Task ApproveMappingAsync(App.ApproveAccountingMapping command, CancellationToken cancellationToken)
         {

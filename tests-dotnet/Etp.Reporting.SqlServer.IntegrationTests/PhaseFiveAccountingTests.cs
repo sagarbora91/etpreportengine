@@ -81,6 +81,35 @@ public sealed class PhaseFiveAccountingTests
             await service.ApproveAsync(new(batch.Id, "  Checked source and balanced entries  "));
             Assert.Equal("APPROVED", Assert.Single(await new SqlServerAccountingService(database.ConnectionString).LoadBatchesAsync()).Status);
             Assert.Equal("Checked source and balanced entries", await database.ExecuteAsync($"SELECT approval_reason FROM dbo.accounting_batches WHERE accounting_batch_id={batch.Id}"));
+            await Assert.ThrowsAsync<ArgumentException>(()=>service.RejectAsync(new(batch.Id," ")));
+            var approved=Assert.Single(await service.LoadBatchesAsync());
+            RunSta(()=>
+            {
+                var view=new AccountingWorkspaceView(new AccountingPresentationSession(_=>service),()=>database.ConnectionString);
+                view.AttachHost(()=>new AccessSession("synthetic","Owner",AccessRole.Owner,true),error=>error.Message);
+                var grid=(DataGrid)view.FindName("AccountingBatchGrid");grid.ItemsSource=new[]{approved};grid.SelectedIndex=0;
+                ((TextBox)view.FindName("BatchApprovalReasonInput")).Text="Correction needed before export";
+                ((Button)view.FindName("RejectTaskButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                var status=(TextBlock)view.FindName("AccountingStatus");
+                PumpUntil(()=>view.IsEnabled && status.Text.Length>0,status);
+                Assert.Contains("rejected",status.Text);
+            });
+            Assert.Equal("REJECTED",Assert.Single(await service.LoadBatchesAsync()).Status);
+            Assert.Equal("Correction needed before export",await database.ExecuteAsync($"SELECT rejection_reason FROM dbo.accounting_batches WHERE accounting_batch_id={batch.Id}"));
+            Assert.Equal("Checked source and balanced entries",await database.ExecuteAsync($"SELECT approval_reason FROM dbo.accounting_batches WHERE accounting_batch_id={batch.Id}"));
+            foreach(var state in new[]{"REJECTED","EXPORTED"})
+            {
+                await database.ExecuteAsync($"UPDATE dbo.accounting_batches SET status='{state}' WHERE accounting_batch_id={batch.Id}");
+                var denied=await Assert.ThrowsAsync<Microsoft.Data.SqlClient.SqlException>(()=>service.RejectAsync(new(batch.Id,"Second decision")));
+                Assert.Equal(51432,denied.Number);
+            }
+            foreach(var role in new[]{"etp_viewer","etp_store_manager"})
+            {
+                await database.ExecuteAsync($"CREATE USER reject_probe WITHOUT LOGIN; ALTER ROLE {role} ADD MEMBER reject_probe;");
+                var denied=await Assert.ThrowsAsync<Microsoft.Data.SqlClient.SqlException>(()=>database.ExecuteAsync($"EXECUTE AS USER='reject_probe'; BEGIN TRY EXEC dbo.reject_accounting_batch {batch.Id},N'Denied'; REVERT; END TRY BEGIN CATCH REVERT; THROW; END CATCH;"));
+                Assert.Equal(229,denied.Number);
+                await database.ExecuteAsync("DROP USER reject_probe;");
+            }
         }
         finally { await database.DisposeAsync(); }
     }

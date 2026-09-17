@@ -80,6 +80,9 @@ public sealed class AccountingPresentationSession
         return serviceFactory(connectionString).ApproveAsync(new ApproveAccountingBatch(batch.Id, reason), cancellationToken);
     }
 
+    public Task RejectAsync(string connectionString, AccountingBatchSummary batch, string reason, CancellationToken cancellationToken=default) =>
+        serviceFactory(connectionString).RejectAsync(new EtpApplication::Etp.Reporting.Application.Accounting.RejectAccountingBatch(batch.Id,reason),cancellationToken);
+
     public Task ApproveMappingAsync(
         string connectionString,
         ApproveAccountingMapping command,

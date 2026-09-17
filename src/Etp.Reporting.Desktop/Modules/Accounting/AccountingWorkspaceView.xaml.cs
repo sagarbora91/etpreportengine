@@ -102,6 +102,22 @@ public sealed partial class AccountingWorkspaceView : UserControl
         catch (Exception ex) { DesktopDiagnostics.Record(ex, "Accounting.Workspace", "ACCOUNTING_BATCH_APPROVAL_FAILED"); SetStatus(errorDescriber(ex)); }
     }
 
+    private async void RejectAccountingBatch_Click(object sender, RoutedEventArgs e)
+    {
+        using var operation = operationGate.TryEnter(this); if (operation is null) return;
+        try
+        {
+            RequireOwnerAccess();
+            if (AccountingBatchGrid.SelectedItem is not AccountingBatchSummary row)
+                throw new InvalidOperationException("Select one accounting batch.");
+            await session.RejectAsync(connectionStringProvider(), row, BatchApprovalReasonInput.Text);
+            BatchApprovalReasonInput.Clear();
+            SetStatus($"Accounting batch {row.Id:N0} rejected.");
+            await RefreshAccountingAsync();
+        }
+        catch (Exception ex) { DesktopDiagnostics.Record(ex, "Accounting.Workspace", "ACCOUNTING_BATCH_REJECTION_FAILED"); SetStatus(errorDescriber(ex)); }
+    }
+
     private async void ExportTallyXml_Click(object sender, RoutedEventArgs e)
     {
         using var operation = operationGate.TryEnter(this); if (operation is null) return;

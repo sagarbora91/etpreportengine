@@ -121,6 +121,15 @@ public sealed class SqlServerAccountingService : App.IAccountingService
         await gateway.ApproveBatchAsync(command.BatchId, command.Reason, cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task RejectAsync(App.RejectAccountingBatch command, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        ValidateBatchId(command.BatchId);
+        ValidateReason(command.Reason, "Enter an accounting rejection reason.");
+        await RequireOwnerAsync(cancellationToken).ConfigureAwait(false);
+        await gateway.RejectBatchAsync(command.BatchId, command.Reason, cancellationToken).ConfigureAwait(false);
+    }
+
     public async Task ApproveMappingAsync(
         App.ApproveAccountingMapping command,
         CancellationToken cancellationToken = default)
@@ -256,6 +265,7 @@ internal interface IAccountingSqlGateway
         string storeCode, DateOnly businessDate, long reportGenerationId,
         AccountingBatchDraft batch, CancellationToken cancellationToken);
     Task ApproveBatchAsync(long batchId, string reason, CancellationToken cancellationToken);
+    Task RejectBatchAsync(long batchId, string reason, CancellationToken cancellationToken);
     Task ApproveMappingAsync(App.ApproveAccountingMapping command, CancellationToken cancellationToken);
     Task RecordExportAsync(long batchId, string sha256, CancellationToken cancellationToken);
 }
@@ -284,6 +294,9 @@ internal sealed class ProductisationAccountingGateway(ProductisationRepository r
 
     public Task ApproveBatchAsync(long batchId, string reason, CancellationToken cancellationToken) =>
         repository.ApproveAccountingBatchAsync(batchId, reason, cancellationToken);
+
+    public Task RejectBatchAsync(long batchId, string reason, CancellationToken cancellationToken) =>
+        repository.RejectAccountingBatchAsync(batchId, reason, cancellationToken);
 
     public Task ApproveMappingAsync(App.ApproveAccountingMapping command, CancellationToken cancellationToken) =>
         repository.ApproveAccountingMappingAsync(command, cancellationToken);

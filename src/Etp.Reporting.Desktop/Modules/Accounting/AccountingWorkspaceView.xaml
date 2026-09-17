@@ -15,6 +15,7 @@
             <Button x:Name="PreviewTaskButton" Content="Preview batch" Click="PreviewAccountingBatch_Click" Style="{DynamicResource PrimaryButton}" Padding="14,7" Margin="8,0,0,0"/>
             <Button x:Name="SaveTaskButton" Content="Save for review" Click="SaveAccountingBatch_Click" Padding="14,7" Margin="8,0,0,0"/>
             <Button x:Name="ApproveTaskButton" Content="Approve selected" Click="ApproveAccountingBatch_Click" Padding="14,7" Margin="8,0,0,0"/>
+            <Button x:Name="RejectTaskButton" Content="Reject selected" Click="RejectAccountingBatch_Click" Padding="14,7" Margin="8,0,0,0"/>
             <Button x:Name="TallyTaskButton" Content="Export Tally XML…" Click="ExportTallyXml_Click" Padding="14,7" Margin="8,0,0,0"/>
         </WrapPanel>
         <TextBlock x:Name="AccountingStatus" Margin="0,10,0,0" TextWrapping="Wrap"
@@ -45,6 +46,6 @@
                      ToolTip="Owner approval reason" automation:AutomationProperties.Name="Accounting approval reason"/>
             <Button Content="Approve mapping" Click="ApproveAccountingMapping_Click" Style="{DynamicResource PrimaryButton}" Padding="14,7" Margin="8,0,0,0"/>
         </WrapPanel>
-        <StackPanel><TextBlock Text="Batch approval reason"/><TextBox x:Name="BatchApprovalReasonInput" automation:AutomationProperties.Name="Batch approval reason"/></StackPanel>
+        <StackPanel><TextBlock Text="Batch decision reason"/><TextBox x:Name="BatchApprovalReasonInput" automation:AutomationProperties.Name="Batch decision reason"/></StackPanel>
     </StackPanel>
 </UserControl>

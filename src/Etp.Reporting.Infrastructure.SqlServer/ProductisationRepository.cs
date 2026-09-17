@@ -363,6 +363,16 @@ public sealed class ProductisationRepository(string connectionString)
         await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(sql,connection);command.Parameters.AddWithValue("@id",batchId);command.Parameters.AddWithValue("@reason",reason.Trim());await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
+    public async Task RejectAccountingBatchAsync(long batchId,string reason,CancellationToken token=default)
+    {
+        await EnsureOwnerAsync(token);
+        if(string.IsNullOrWhiteSpace(reason)) throw new ArgumentException("Enter an accounting rejection reason.",nameof(reason));
+        await using var connection=await OpenAsync(token);
+        await using var command=new SqlCommand("EXEC dbo.reject_accounting_batch @id,@reason;",connection);
+        command.Parameters.AddWithValue("@id",batchId);command.Parameters.AddWithValue("@reason",reason.Trim());
+        await command.ExecuteNonQueryAsync(token);
+    }
+
     public async Task RecordAccountingExportAsync(long batchId,string sha256,CancellationToken cancellationToken=default)
     {
         const string sql="UPDATE dbo.accounting_batches SET status='EXPORTED',exported_utc=SYSUTCDATETIME(),export_sha256=@hash WHERE accounting_batch_id=@id AND status='APPROVED'; IF @@ROWCOUNT<>1 THROW 51222,'Approve the accounting batch before export.',1; EXEC dbo.record_operational_audit 'AccountingExport','Succeeded',N'Approved accounting batch exported to Tally XML',N'database';";

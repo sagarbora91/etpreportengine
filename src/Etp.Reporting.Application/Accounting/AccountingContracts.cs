@@ -60,6 +60,7 @@ public sealed record SaveAccountingBatch(
     AccountingBatchDraft Batch);
 
 public sealed record ApproveAccountingBatch(long BatchId, string Reason);
+public sealed record RejectAccountingBatch(long BatchId, string Reason);
 
 public sealed record ApproveAccountingMapping(
     AccountingScope Scope,
@@ -127,6 +128,8 @@ public interface IAccountingService
     Task ApproveAsync(
         ApproveAccountingBatch command,
         CancellationToken cancellationToken = default);
+
+    Task RejectAsync(RejectAccountingBatch command, CancellationToken cancellationToken = default);
 
     Task ApproveMappingAsync(
         ApproveAccountingMapping command,
