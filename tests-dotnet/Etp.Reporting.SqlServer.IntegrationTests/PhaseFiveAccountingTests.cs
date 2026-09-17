@@ -76,6 +76,11 @@ public sealed class PhaseFiveAccountingTests
             Assert.Equal(batch.DebitTotal, batch.CreditTotal);
             Assert.All(await service.LoadEntriesAsync(batch.Id), entry => Assert.Equal("ADJUSTMENT", entry.BusinessEvent));
             Assert.Equal(amount, await database.ExecuteAsync($"SELECT amount FROM dbo.controlled_adjustments WHERE controlled_adjustment_id={adjustment}"));
+            await Assert.ThrowsAsync<ArgumentException>(() => service.ApproveAsync(new(batch.Id, " ")));
+            Assert.Equal(DBNull.Value, await database.ExecuteAsync($"SELECT approval_reason FROM dbo.accounting_batches WHERE accounting_batch_id={batch.Id}"));
+            await service.ApproveAsync(new(batch.Id, "  Checked source and balanced entries  "));
+            Assert.Equal("APPROVED", Assert.Single(await new SqlServerAccountingService(database.ConnectionString).LoadBatchesAsync()).Status);
+            Assert.Equal("Checked source and balanced entries", await database.ExecuteAsync($"SELECT approval_reason FROM dbo.accounting_batches WHERE accounting_batch_id={batch.Id}"));
         }
         finally { await database.DisposeAsync(); }
     }

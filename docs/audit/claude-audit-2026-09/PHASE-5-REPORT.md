@@ -2,6 +2,33 @@
 
 Status: **started; not complete and not submitted for closure**.
 
+## Second increment — accounting approval integrity, 17 September 2026
+
+Implemented on `phase-5/secondary-modules` after `2111ba5`:
+
+- Accounting mapping request creation, Owner decision, previous-version deactivation and new-version insertion now share **one SQL connection and one transaction**. Existing approval/audit procedures participate in that transaction; permissions and financial formulas are unchanged.
+- New migration `0029_accounting_approval_reason.sql` adds nullable `accounting_batches.approval_reason nvarchar(1000)`. Existing approvals retain NULL rather than inventing historical reasons. New approval writes the trimmed reason alongside the status/actor/time. Blank reasons are refused.
+- The real WPF/SQL positive and negative adjustment tests now verify blank-reason rejection, persisted approval reason and the approved batch through a fresh service instance.
+- `AccountingMappingAtomicityTests` injects a SQL trigger failure during replacement insertion. It verifies that the previous mapping remains active and that the new request, decision, audit entries and deactivation all roll back. Removing the fixture trigger allows a successful version-2 replacement with exactly one active mapping.
+
+Validation commands:
+
+```powershell
+dotnet test tests-dotnet/Etp.Reporting.SqlServer.IntegrationTests/Etp.Reporting.SqlServer.IntegrationTests.csproj -c Release --filter 'FullyQualifiedName~PhaseFiveAccountingTests|FullyQualifiedName~AccountingMappingAtomicityTests|FullyQualifiedName~PhaseFourSecurityTests' --verbosity minimal -m:1 -nodeReuse:false
+dotnet test tests-dotnet/Etp.Reporting.SqlServer.Tests/Etp.Reporting.SqlServer.Tests.csproj -c Release --filter FullyQualifiedName~AccountingServiceBoundaryTests --verbosity minimal -m:1 -nodeReuse:false
+```
+
+```text
+Passed!  - Failed:     0, Passed:     9, Skipped:     0, Total:     9, Duration: 18 s - Etp.Reporting.SqlServer.IntegrationTests.dll (net10.0)
+Passed!  - Failed:     0, Passed:     5, Skipped:     0, Total:     5, Duration: 668 ms - Etp.Reporting.SqlServer.Tests.dll (net10.0)
+```
+
+Release project/dependency builds succeeded. The first integration attempt exposed SQL batch compilation of the new-column check constraint; the uncommitted migration was corrected to compile that constraint after the column exists, then all nine tests passed. No existing migration was edited and no live shop database was migrated. The full solution suite and native acceptance were not rerun for this bounded increment; the previous 857-test result belongs to the earlier closure candidate.
+
+**Next:** implement the revised accounting batch statuses and Reject, invoice duplication guard, company/environment settings and permanent export receipts, then consolidate Prepare → Review → Export. The other Phase 5 modules remain pending. Actual Tally transfer/read-back is Phase 7. Phase 5 remains unblocked and in progress.
+
+The first-increment evidence below is historical.
+
 Branch: `phase-5/secondary-modules`.
 Worktree: `C:\Codex\Reporting Manger\phase5-secondary-modules`.
 Starting commit: `123e1d4` on `integration/phase-2-3-4-fixes`.
@@ -65,7 +92,7 @@ These images show the isolated Accounting view with real synthetic SQL preview r
 
 ## Remaining Phase 5 work
 
-- Accounting: atomic mapping approval, persisted batch approval reason, Reject, one Prepare → Review → Export screen, removal of alias tasks and real export history.
+- Accounting: Reject and revised statuses, invoice duplication guard, company/TEST-PRODUCTION settings, permanent export receipts, one Prepare → Review → Export screen and removal of alias tasks. Atomic mapping approval and persisted batch approval reason are implemented in the second increment above.
 - Archive/sharing: consolidated pack actions, contacts, actual SMTP/test-send, WhatsApp PDF handoff and final delivery history. No external messages have been sent by this work.
 - Registers: Courier, verified transitions/reasons, server authorization and Close-day entries.
 - Approvals: adjustment/restatement queue and decided history, import restatement producer and removal of unused request types.
@@ -82,4 +109,4 @@ These images show the isolated Accounting view with real synthetic SQL preview r
 | A5.3 Accounting: approve an adjustment for 25 Aug, then Prepare Batch for 25 Aug succeeds. | Initial implementation supported by two real-UI/SQL synthetic cases for 25 Aug; final real-data/Owner acceptance remains. |
 | A5.4 `grep -r "WLMHW\|HEMW" src/` returns only the seed migration and tests. | Not complete; database-driven store replacement remains. |
 
-Next coding increment: make mapping approval atomic and persist the batch decision reason before extending the Accounting review/export workflow. This report does not close Phase 5 or any earlier phase.
+Next coding increment: revised accounting statuses and Reject, followed by invoice duplication protection and the review/export workflow. This report does not close Phase 5 or any earlier phase.

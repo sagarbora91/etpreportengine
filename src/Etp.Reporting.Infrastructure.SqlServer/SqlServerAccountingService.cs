@@ -134,33 +134,7 @@ public sealed class SqlServerAccountingService : App.IAccountingService
         ValidateReason(command.Reason, "Enter an accounting mapping approval reason.");
         await RequireOwnerAsync(cancellationToken).ConfigureAwait(false);
 
-        var eventCode = command.BusinessEvent.Trim().ToUpperInvariant();
-        var payload = new
-        {
-            Event = eventCode,
-            Debit = command.DebitLedger,
-            Credit = command.CreditLedger,
-            Narration = command.NarrationTemplate,
-            Store = command.Scope.StoreCode
-        };
-        var approvalId = await gateway.CreateMappingApprovalAsync(
-            eventCode,
-            payload,
-            command.Scope.StoreCode,
-            command.Scope.BusinessDate,
-            cancellationToken).ConfigureAwait(false);
-        await gateway.DecideApprovalAsync(
-            approvalId,
-            command.Reason,
-            cancellationToken).ConfigureAwait(false);
-        await gateway.SaveMappingAsync(
-            approvalId,
-            eventCode,
-            command.DebitLedger,
-            command.CreditLedger,
-            command.NarrationTemplate,
-            command.Scope.StoreCode,
-            command.Scope.BusinessDate,
+        await gateway.ApproveMappingAsync(command with { BusinessEvent = command.BusinessEvent.Trim().ToUpperInvariant() },
             cancellationToken).ConfigureAwait(false);
     }
 
@@ -282,14 +256,7 @@ internal interface IAccountingSqlGateway
         string storeCode, DateOnly businessDate, long reportGenerationId,
         AccountingBatchDraft batch, CancellationToken cancellationToken);
     Task ApproveBatchAsync(long batchId, string reason, CancellationToken cancellationToken);
-    Task<long> CreateMappingApprovalAsync(
-        string eventCode, object payload, string storeCode, DateOnly businessDate,
-        CancellationToken cancellationToken);
-    Task DecideApprovalAsync(long approvalId, string reason, CancellationToken cancellationToken);
-    Task SaveMappingAsync(
-        long approvalId, string eventCode, string debitLedger, string creditLedger,
-        string narration, string storeCode, DateOnly effectiveFrom,
-        CancellationToken cancellationToken);
+    Task ApproveMappingAsync(App.ApproveAccountingMapping command, CancellationToken cancellationToken);
     Task RecordExportAsync(long batchId, string sha256, CancellationToken cancellationToken);
 }
 
@@ -318,23 +285,8 @@ internal sealed class ProductisationAccountingGateway(ProductisationRepository r
     public Task ApproveBatchAsync(long batchId, string reason, CancellationToken cancellationToken) =>
         repository.ApproveAccountingBatchAsync(batchId, reason, cancellationToken);
 
-    public Task<long> CreateMappingApprovalAsync(
-        string eventCode, object payload, string storeCode, DateOnly businessDate,
-        CancellationToken cancellationToken) =>
-        repository.CreateApprovalAsync(
-            "ACCOUNTING_MAPPING", "AccountingMapping", eventCode, payload,
-            storeCode, businessDate, cancellationToken);
-
-    public Task DecideApprovalAsync(long approvalId, string reason, CancellationToken cancellationToken) =>
-        repository.DecideApprovalAsync(approvalId, true, reason, cancellationToken);
-
-    public Task SaveMappingAsync(
-        long approvalId, string eventCode, string debitLedger, string creditLedger,
-        string narration, string storeCode, DateOnly effectiveFrom,
-        CancellationToken cancellationToken) =>
-        repository.SaveAccountingMappingAsync(
-            approvalId, eventCode, debitLedger, creditLedger, narration,
-            storeCode, effectiveFrom, cancellationToken);
+    public Task ApproveMappingAsync(App.ApproveAccountingMapping command, CancellationToken cancellationToken) =>
+        repository.ApproveAccountingMappingAsync(command, cancellationToken);
 
     public Task RecordExportAsync(long batchId, string sha256, CancellationToken cancellationToken) =>
         repository.RecordAccountingExportAsync(batchId, sha256, cancellationToken);

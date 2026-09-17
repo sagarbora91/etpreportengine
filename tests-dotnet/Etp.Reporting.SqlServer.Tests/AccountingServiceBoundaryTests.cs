@@ -67,7 +67,7 @@ public sealed class AccountingServiceBoundaryTests
     }
 
     [Fact]
-    public async Task Mapping_approval_is_owner_only_and_keeps_request_decision_save_order()
+    public async Task Mapping_approval_is_owner_only_and_submits_one_atomic_operation()
     {
         var gateway = new FakeGateway();
         var command = new App.ApproveAccountingMapping(
@@ -84,7 +84,7 @@ public sealed class AccountingServiceBoundaryTests
 
         await Create(gateway, ApplicationRole.Owner).ApproveMappingAsync(command);
 
-        Assert.Equal(["create:NET_SALES", "decide:71", "save:71:NET_SALES"], gateway.Calls);
+        Assert.Equal(["mapping:NET_SALES"], gateway.Calls);
     }
 
     [Fact]
@@ -178,26 +178,9 @@ public sealed class AccountingServiceBoundaryTests
             return Task.CompletedTask;
         }
 
-        public Task<long> CreateMappingApprovalAsync(
-            string eventCode, object payload, string storeCode, DateOnly businessDate,
-            CancellationToken cancellationToken)
+        public Task ApproveMappingAsync(App.ApproveAccountingMapping command, CancellationToken cancellationToken)
         {
-            Calls.Add($"create:{eventCode}");
-            return Task.FromResult(71L);
-        }
-
-        public Task DecideApprovalAsync(long approvalId, string reason, CancellationToken cancellationToken)
-        {
-            Calls.Add($"decide:{approvalId}");
-            return Task.CompletedTask;
-        }
-
-        public Task SaveMappingAsync(
-            long approvalId, string eventCode, string debitLedger, string creditLedger,
-            string narration, string storeCode, DateOnly effectiveFrom,
-            CancellationToken cancellationToken)
-        {
-            Calls.Add($"save:{approvalId}:{eventCode}");
+            Calls.Add($"mapping:{command.BusinessEvent}");
             return Task.CompletedTask;
         }
 

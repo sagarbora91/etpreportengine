@@ -260,11 +260,7 @@ public sealed class ProductisationRepository(string connectionString)
         await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(sql,connection);command.Parameters.AddWithValue("@store",storeCode.Trim().ToUpperInvariant());command.Parameters.AddWithValue("@date",businessDate);await using var reader=await command.ExecuteReaderAsync(cancellationToken);var rows=new List<AccountingMapping>();var seen=new HashSet<string>(StringComparer.OrdinalIgnoreCase);while(await reader.ReadAsync(cancellationToken)){var code=reader.GetString(0);if(seen.Add(code))rows.Add(new(code,reader.GetString(1),reader.GetString(2),reader.GetString(3),OptionalString(reader,4)));}return rows;
     }
 
-    public async Task SaveAccountingMappingAsync(long approvedRequestId,string businessEvent,string debitLedger,string creditLedger,string narration,string? storeCode,DateOnly effectiveFrom,CancellationToken cancellationToken=default)
-    {
-        await EnsureOwnerAsync(cancellationToken);
-        if(new[]{businessEvent,debitLedger,creditLedger,narration}.Any(string.IsNullOrWhiteSpace))throw new ArgumentException("Business event, debit ledger, credit ledger and narration are required.");
-        const string sql="""
+    private const string SaveAccountingMappingSql="""
             IF NOT EXISTS(SELECT 1 FROM dbo.approval_requests WHERE approval_request_id=@approval AND approval_type='ACCOUNTING_MAPPING' AND status='APPROVED')
               THROW 51224,'An approved accounting-mapping request is required.',1;
             DECLARE @version int=ISNULL((SELECT MAX(version) FROM dbo.accounting_mappings WITH(UPDLOCK,HOLDLOCK) WHERE business_event=@event AND ISNULL(store_code,'')=ISNULL(@store,'')),0)+1;
@@ -273,6 +269,38 @@ public sealed class ProductisationRepository(string connectionString)
             VALUES(@event,@store,@debit,@credit,@narration,@effective,@version,@approval,SUSER_SNAME());
             EXEC dbo.record_operational_audit 'MasterDataChange','Succeeded',N'Approved accounting mapping version created',N'database';
             """;
+
+    public async Task ApproveAccountingMappingAsync(Etp.Reporting.Application.Accounting.ApproveAccountingMapping value, CancellationToken token=default)
+    {
+        await EnsureOwnerAsync(token);
+        if(new[]{value.BusinessEvent,value.DebitLedger,value.CreditLedger,value.NarrationTemplate,value.Reason}.Any(string.IsNullOrWhiteSpace))
+            throw new ArgumentException("Mapping fields and an approval reason are required.");
+        await using var connection=await OpenAsync(token);
+        await using var transaction=(SqlTransaction)await connection.BeginTransactionAsync(token);
+        var eventCode=value.BusinessEvent.Trim().ToUpperInvariant();
+        await using var create=new SqlCommand("EXEC dbo.submit_approval_request 'ACCOUNTING_MAPPING','AccountingMapping',@event,@store,@date,@payload;",connection,transaction);
+        create.Parameters.AddWithValue("@event",eventCode);
+        create.Parameters.AddWithValue("@store",value.Scope.StoreCode.Trim().ToUpperInvariant());
+        create.Parameters.AddWithValue("@date",value.Scope.BusinessDate);
+        create.Parameters.AddWithValue("@payload",JsonSerializer.Serialize(new { Event=eventCode,Debit=value.DebitLedger,Credit=value.CreditLedger,Narration=value.NarrationTemplate,Store=value.Scope.StoreCode }));
+        var id=Convert.ToInt64(await create.ExecuteScalarAsync(token));
+        await using var decide=new SqlCommand("EXEC dbo.decide_approval_request @id,1,@reason;",connection,transaction);
+        decide.Parameters.AddWithValue("@id",id);decide.Parameters.AddWithValue("@reason",value.Reason.Trim());
+        await decide.ExecuteNonQueryAsync(token);
+        await using var save=new SqlCommand(SaveAccountingMappingSql,connection,transaction);
+        save.Parameters.AddWithValue("@approval",id);save.Parameters.AddWithValue("@event",eventCode);
+        save.Parameters.AddWithValue("@store",value.Scope.StoreCode.Trim().ToUpperInvariant());
+        save.Parameters.AddWithValue("@debit",value.DebitLedger.Trim());save.Parameters.AddWithValue("@credit",value.CreditLedger.Trim());
+        save.Parameters.AddWithValue("@narration",value.NarrationTemplate.Trim());save.Parameters.AddWithValue("@effective",value.Scope.BusinessDate);
+        await save.ExecuteNonQueryAsync(token);
+        await transaction.CommitAsync(token);
+    }
+
+    public async Task SaveAccountingMappingAsync(long approvedRequestId,string businessEvent,string debitLedger,string creditLedger,string narration,string? storeCode,DateOnly effectiveFrom,CancellationToken cancellationToken=default)
+    {
+        await EnsureOwnerAsync(cancellationToken);
+        if(new[]{businessEvent,debitLedger,creditLedger,narration}.Any(string.IsNullOrWhiteSpace))throw new ArgumentException("Business event, debit ledger, credit ledger and narration are required.");
+        const string sql=SaveAccountingMappingSql;
         await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(sql,connection);command.Parameters.AddWithValue("@approval",approvedRequestId);command.Parameters.AddWithValue("@event",businessEvent.Trim().ToUpperInvariant());Add(command,"@store",Clean(storeCode)?.ToUpperInvariant());command.Parameters.AddWithValue("@debit",debitLedger.Trim());command.Parameters.AddWithValue("@credit",creditLedger.Trim());command.Parameters.AddWithValue("@narration",narration.Trim());command.Parameters.AddWithValue("@effective",effectiveFrom);await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
@@ -331,7 +359,7 @@ public sealed class ProductisationRepository(string connectionString)
     public async Task ApproveAccountingBatchAsync(long batchId,string reason,CancellationToken cancellationToken=default)
     {
         await EnsureOwnerAsync(cancellationToken);if(string.IsNullOrWhiteSpace(reason))throw new ArgumentException("Enter an accounting approval reason.",nameof(reason));
-        const string sql="UPDATE dbo.accounting_batches SET status='APPROVED',approved_by=SUSER_SNAME(),approved_utc=SYSUTCDATETIME() WHERE accounting_batch_id=@id AND status='REVIEW' AND debit_total=credit_total; IF @@ROWCOUNT<>1 THROW 51221,'The batch is not eligible for approval.',1; EXEC dbo.record_operational_audit 'AccountingBatch','Succeeded',N'Balanced accounting batch approved',N'database';";
+        const string sql="UPDATE dbo.accounting_batches SET status='APPROVED',approval_reason=@reason,approved_by=SUSER_SNAME(),approved_utc=SYSUTCDATETIME() WHERE accounting_batch_id=@id AND status='REVIEW' AND debit_total=credit_total; IF @@ROWCOUNT<>1 THROW 51221,'The batch is not eligible for approval.',1; EXEC dbo.record_operational_audit 'AccountingBatch','Succeeded',N'Balanced accounting batch approved',N'database';";
         await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(sql,connection);command.Parameters.AddWithValue("@id",batchId);command.Parameters.AddWithValue("@reason",reason.Trim());await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
