@@ -5,8 +5,8 @@ for everything dated 17 September 2026.
 
 | | |
 |---|---|
-| Branch | `recovery/opus-r1-r4` at `9d0afbb`, pushed |
-| `main` | `a28d034` — the whole product line (Phases 0–5) merged in tonight by the owner's decision |
+| Branch | `recovery/opus-r1-r4`, pushed. Last code commit `9d0afbb`; documentation after it. |
+| `main` | the whole product line (Phases 0-5) merged in tonight by the owner's decision, and carrying identical source to the branch |
 | Gate | 925 passed, 3 skipped, 0 failed, `BUILD=0` `TEST=0` |
 | Installer | `artifacts/installer-9d0afbb/EtpReportingEngine-Setup-1.8.8-x64.exe`, 822 MB, unsigned, SQL Express media embedded |
 
@@ -88,7 +88,7 @@ Separate them, and make the message name the one that is actually missing. Creat
 master key needs a password with real custody consequences, so it stays a deliberate
 operator step, not something a script generates silently.
 
-Measured preconditions on this machine, all absent:
+Measured preconditions on this machine:
 
 ```
 master_key           = NO   <- guard 1 throws first
@@ -98,6 +98,23 @@ automation SQL login = NO   <- the Windows account exists, the SQL login does no
 store_manager member = NO
 etp_automation role  = present
 ```
+
+**The module is half-installed, not absent.** The attempted run created the broker before
+throwing: `master.dbo.etp_operations_31736fb143c6912a` exists, targets
+`C:\ProgramData\EtpReporting\Backups` and `BACKUP DATABASE [EtpReporting]`, and is
+correct. What is missing is the signature and the grants:
+
+```
+procedure exists   = YES
+signed             = NO    <- cannot use the elevated permissions it needs
+signer certificate = NO
+master key         = NO
+```
+
+An unsigned procedure still runs for a sysadmin, who bypasses the role check and already
+holds BACKUP rights, so a backup started by the owner may now get further than it did
+tonight. It will not work for the dedicated automation account, which is what the
+scheduled tasks use - that needs the signature and `GRANT EXECUTE`.
 
 ### An unhandled ArgumentException the owner sees
 
@@ -136,16 +153,22 @@ This is the only defect on the list that a shop owner actually sees. It should b
 
 ---
 
-## Cleanup owed on this machine
+## Cleanup — done, 17 September 2026
 
-Test residue left by this work, awaiting the owner's approval to remove:
+Test residue from this work has been removed, with the owner's approval, so it cannot
+mislead a later diagnosis the way it misled one tonight:
 
-- Stored procedure `master.dbo.etp_operations_b26bdf59e7bd299f` — an operations broker for
-  the throwaway `EtpD9Proof` database, pointing at `C:\EtpD9Proof\Backups`. It is what made
-  an earlier check report "the module is installed" when the module for the real database
-  was never installed.
-- Databases created for proofs: `EtpD9Proof`, `EtpWalkthrough`, `EtpOpusRecovery`,
-  `EtpPhase0Test_*`, `EtpPhase1Test_*`.
+- Dropped `master.dbo.etp_operations_b26bdf59e7bd299f`, an operations broker for the
+  throwaway `EtpD9Proof` database pointing at `C:\EtpD9Proof\Backups`. A name-only check
+  found it and reported "the module is installed" when the module for the real database
+  was not.
+- Dropped the proof databases `EtpD9Proof`, `EtpWalkthrough`, `EtpOpusRecovery` and the
+  integration-test leftovers `EtpPhase0Test_*`, `EtpPhase1Test_*`.
+- Removed `C:\EtpD9Proof` from disk.
+
+**Only `EtpReporting` and `EtpReportingHelios` remain**, and only one operations broker,
+`etp_operations_31736fb143c6912a`, which serves `EtpReporting`. The removal ran behind an
+explicit allow-list: a database not named on it was kept even if it looked like residue.
 
 ---
 
