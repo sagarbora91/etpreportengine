@@ -82,7 +82,12 @@ public partial class MainWindow
     /// Size the list to its contents, still bounded so a long list cannot cover the screen.
     /// </summary>
     internal static double DropDownHeightFor(int items) =>
-        Math.Min(SystemParameters.PrimaryScreenHeight * 0.6, items * 44 + 12);
+        DropDownHeightFor(items, SystemParameters.PrimaryScreenHeight);
+
+    // The screen height is a parameter so the rule can be tested against the shop's 768-pixel
+    // panel whatever monitor the tests happen to run on.
+    internal static double DropDownHeightFor(int items, double screenHeight) =>
+        Math.Min(screenHeight * 0.6, items * 44 + 12);
 
     internal void OpenSection(string section, string? tab = null)
     {

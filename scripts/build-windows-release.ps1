@@ -57,6 +57,7 @@ foreach ($scriptName in @('bootstrap-etp-prerequisites.ps1','backup-etp-database
 
 New-Item -ItemType Directory -Path (Join-Path $packagedScripts 'sql') -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'sql\etp-operations-broker.sql') -Destination (Join-Path $packagedScripts 'sql')
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'sql\etp-operations-grants.sql') -Destination (Join-Path $packagedScripts 'sql')
 
 $executable = Join-Path $output "Etp.Reporting.Desktop.exe"
 if (-not (Test-Path -LiteralPath $executable)) { throw "Published executable was not produced." }

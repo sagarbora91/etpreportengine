@@ -42,6 +42,7 @@
                       ..\..\scripts\remove-etp-scheduled-tasks.ps1"
              Link="scripts\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\..\scripts\sql\etp-operations-broker.sql" Link="scripts\sql\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\scripts\sql\etp-operations-grants.sql" Link="scripts\sql\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Resource Include="Assets\EtpReporting.ico" />
     <Content Include="..\..\database\migrations\*.sql" Link="database\migrations\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

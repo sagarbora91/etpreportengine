@@ -64,6 +64,12 @@ public sealed class ShippedScriptsTests
     public void The_broker_template_ships_under_its_sql_folder()
         => Assert.True(File.Exists(Path.Combine(ScriptsDirectory, "sql", "etp-operations-broker.sql")));
 
+    [Fact]
+    public void The_grants_template_ships_beside_the_broker()
+        // P4-13. install-etp-sql-operations.ps1 reads it; a release without it cannot
+        // install the operations module at all.
+        => Assert.True(File.Exists(Path.Combine(ScriptsDirectory, "sql", "etp-operations-grants.sql")));
+
     [Theory]
     // Build and release tooling. None of this has any business on a till machine,
     // and sign-etp-artifacts in particular should never travel with the product.

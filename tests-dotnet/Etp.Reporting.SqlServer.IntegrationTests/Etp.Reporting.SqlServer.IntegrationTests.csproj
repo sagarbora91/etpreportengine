@@ -12,6 +12,7 @@
     <Content Include="../fixtures/etp-sample/*.xlsx" Link="fixtures/etp-sample/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../fixtures/evening-reports/*.json" Link="fixtures/evening-reports/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../scripts/sql/etp-operations-broker.sql" Link="scripts/sql/etp-operations-broker.sql" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../scripts/sql/etp-operations-grants.sql" Link="scripts/sql/etp-operations-grants.sql" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../scripts/new-etp-support-package.ps1" Link="scripts/new-etp-support-package.ps1" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../scripts/etp-operations-common.ps1" Link="scripts/etp-operations-common.ps1" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
