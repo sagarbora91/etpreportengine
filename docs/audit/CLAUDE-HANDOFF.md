@@ -1,6 +1,20 @@
-# Claude handoff — 17 September 2026
+# Claude handoff — 22 September 2026
 
 ## Start here
+
+The product line is **`recovery/opus-r1-r4`** in the worktree `C:/Codex/Reporting Manger/opus-recovery` (pushed; latest `8139041`). `main` is at `714d117`, which already contains this branch up to `fdcc7fe`; the newer commits are **not** on `main` — Sagar decides that merge (the auto-mode permission check refused it on 22 Sep). **Read `docs/audit/WORKING-STATE-2026-09-22.md` first**: its "Resume here" section is the exact state, what is still running, and the next steps in order.
+
+In one paragraph: Phase 4's last three defects are fixed and proven on real SQL Server Express — P4-13 (the operations module could not be installed on Express), P4-14 (Settings > Users locked every Store Manager and Viewer out, and 0022 locked `NT AUTHORITY\SYSTEM` out of the live database; migration `0032` repairs it), P4-15 (the recovery drill needs a SQL administrator; Owner decision: it runs as the Owner). An adversarial review's 11 findings are all dealt with (one was wrong and is recorded as such). Also fixed: every scheduled-task registration would have failed (Task Scheduler reports `COMPUTER\User` as `User`), and an interactive launch with a rejected `--connection-string` left an invisible process holding the installer's lock. The "startup DISPATCHER_UNHANDLED dialog" was diagnosed as test-launch artefacts, not an owner-facing fault. A3.8 is recorded as accepted on the Owner's report.
+
+Not done yet, in order: Sagar's decisions (merge to `main`; P3-3; D14; `EtpReportingHelios`) → review and commit the two background tasks' uncommitted work in this worktree (flaky tests; test diagnostics isolation) → build the installer on a quiet machine (the release gate starves SQL Express memory under load; see WORKING-STATE) → Sagar's elevated install on this PC (runbook `docs/audit/LIVE-INSTALL-RUNBOOK-2026-09-22.md`, verify with `scratchpad/recovery/live-verify.ps1` from the session scratchpad or re-create it) → VM `ETP-Acceptance-186` and the second-machine restore (`docs/audit/VM-AND-SECOND-MACHINE-RUNBOOK-2026-09-22.md`) → shop PC (still `1.8.1+8e35d83`) last. Decision papers: `docs/audit/D14-FONT-DECISION-2026-09-22.md`, `docs/audit/ETPREPORTINGHELIOS-FINDINGS-2026-09-22.md` (written by a verified agent workflow on 22 Sep; review before relying on them).
+
+Boundaries that hold: never write to live `EtpReporting` except through Sagar's elevated steps; never edit a committed migration; never touch Codex's worktrees; push to `main`, saving/stopping the VM, elevated backups and live migrations are Sagar's to run or approve.
+
+---
+
+# Earlier handoff — 17 September 2026 (history; superseded above)
+
+## Start here (17 Sep)
 
 Phase 5 is **unblocked and in progress**, not complete. Continue in `C:/Codex/Reporting Manger/phase5-secondary-modules`, branch `phase-5/secondary-modules`. Latest application commit: `f33fef8` (Reject); preceding increment: `9f0c0a7` (atomic mapping approval and saved approval reasons). Read `claude-audit-2026-09/PHASE-5-REPORT.md` for commands/evidence.
 
