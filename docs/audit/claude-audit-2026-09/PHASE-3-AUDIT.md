@@ -276,3 +276,11 @@ System DPI, the application window's own DPI and the physical framebuffer were e
 **A3.3 — PASS.** The 816x480 half passed earlier; the 125% DPI half is now measured natively at 1366x768 rather than inferred.
 
 One limit worth stating: this ran against a disposable empty database, so the screens carried no imported rows. Real data would lengthen lists, which the existing scrollers already accommodate, but the shop-floor check of that belongs to the A3.8 walkthrough.
+
+---
+
+## Addendum, 22 September 2026 — A3.8 recorded as the Owner's observation
+
+**A3.8 — accepted on the Owner's report.** Sagar reported on 22 September 2026 that he has carried out the timed touch-only walkthrough (`PHASE-3-TOUCH-WALKTHROUGH.md`) and raised no finding from it. This audit did not observe or time it, and the four details the walkthrough sheet asks for (total time, any keyboard or mouse use, any control missed on the first tap, whether the DSR brand rows showed real values) were not supplied, so none of them is stated here. It sits beside the physical touch pass for the retry path that Sagar reported on 17 September 2026 (`RECOVERY-R1-R4-REPORT.md`, A-R3).
+
+With A3.3 measured and A3.8 reported, every A3 criterion is now either passed on evidence or accepted on the Owner's observation. **P3-3** is the one Phase 3 item still open: the recommendation is to keep the one-line footer and amend plan task 8, because a three-line footer drops the content area to 598 DIP, below the 610 DIP floor. That is Sagar's decision.

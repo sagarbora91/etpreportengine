@@ -46,10 +46,17 @@ public partial class App : Application
         headless = DesktopStartupCoordinator.Route(e.Args) != DesktopStartupMode.Interactive;
         DesktopCompositionRoot compositionRoot;
         try { compositionRoot = DesktopCompositionRoot.CreateForArguments(e.Args); }
-        catch (Exception configuration) when (headless)
+        catch (Exception configuration)
         {
             DesktopDiagnostics.Record(configuration, "Startup", "STARTUP_CONFIGURATION_REJECTED", DesktopDiagnosticSeverity.Critical);
-            Console.Error.WriteLine(configuration.Message);
+            // Interactive launches too. The rejection used to escape this async void method to
+            // the dispatcher handler, which showed a generic "operation could not be completed"
+            // dialog and left a process with no window running - still holding the mutex that
+            // makes setup refuse to upgrade - until someone killed it. The reason is fixed
+            // validation text, never the connection string itself.
+            if (headless) Console.Error.WriteLine(configuration.Message);
+            else MessageBox.Show("ETP Reporting Engine could not start with the connection it was given. " + configuration.Message,
+                "ETP Reporting Engine", MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(2);
             return;
         }

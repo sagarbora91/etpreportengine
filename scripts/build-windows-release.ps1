@@ -43,7 +43,11 @@ dotnet restore $solution
 Assert-NativeSuccess "Solution restore"
 dotnet build $solution -c $Configuration --no-restore -p:Version=$Version
 Assert-NativeSuccess "Release build"
-dotnet test $solution -c $Configuration --no-build
+# One test project at a time. Run together, the CPU-heavy UI and import suites slowed SQL
+# Server Express until its query-memory queue backed up: on 22 September 2026 the recovery
+# drill's DBCC CHECKDB waited 57 s on RESOURCE_SEMAPHORE behind ten other sessions and the
+# gate failed four runs out of four, while the same suite run project by project passed.
+dotnet test $solution -c $Configuration --no-build -m:1
 Assert-NativeSuccess "Release test suite"
 dotnet publish $desktopProject -c $Configuration -r $Runtime --self-contained true `
     -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:Version=$Version -o $output

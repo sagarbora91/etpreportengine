@@ -43,7 +43,10 @@ public sealed class PhaseFourRecoveryTests(SqlDatabaseFixture database) : IClass
             for (var index = 0; index < metadata.RootElement.GetArrayLength(); index++)
                 Assert.Equal(metadata.RootElement[index].GetRawText(), fromCli.RootElement[index].GetRawText());
             await database.ExecuteAsync("INSERT dbo.import_batches(import_batch_id,status,started_utc) VALUES(NEWID(),'Processing',SYSUTCDATETIME());");
-            var restored = (string)(await database.ExecuteAsync($"EXEC dbo.test_recovery_broker 'DRILL',N'{file}'"))!;
+            // The shipped drill runs through sqlcmd with no timeout. DBCC CHECKDB needs a query
+            // memory grant, and on SQL Server Express under a busy test run it has waited over
+            // 60 s for one, so the test's 60 s default measured contention, not the drill.
+            var restored = (string)(await database.ExecuteAsync($"EXEC dbo.test_recovery_broker 'DRILL',N'{file}'", timeoutSeconds: 300))!;
             Assert.Equal(before, restored);
             Assert.Equal(1, Convert.ToInt32(await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.import_batches")));
             foreach (var badFile in new[] { "..\\other.bak", database.Name + "-..bak", "OtherDatabase-file.bak", database.Name + "-x';DROP DATABASE master;--.bak" })

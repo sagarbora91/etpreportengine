@@ -40,3 +40,7 @@ Only four things — I will turn them into the audit record:
 **Retry needs a failed file to exist.** If every file imports cleanly you cannot test step 4 honestly. Either run it on a day with a genuine failure, or skip steps 3–4 and say so — do not manufacture a corrupt file on the shop PC.
 
 **This does not test 125% scaling.** I ran that separately in the acceptance VM. If you personally run the shop PC at 125%, say so and I will re-run it at that setting.
+
+### Outcome
+
+Sagar reported on 22 September 2026 that he has done this walkthrough, with no finding raised, and it is recorded as accepted on his observation (see the addendum in `PHASE-3-AUDIT.md`). The four details above were not written down for this record.
