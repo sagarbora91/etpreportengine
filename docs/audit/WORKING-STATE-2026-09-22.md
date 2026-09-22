@@ -3,6 +3,16 @@
 The state of the P4-13/14/15 work and the review that followed it. Read this first when
 continuing.
 
+## Resume here (saved 22 Sep, ~18:45 IST)
+
+- Branch `recovery/opus-r1-r4` pushed at `375e3b2` (on top of `9547f06`). `main` untouched at `714d117`.
+- Sagar **saved the VM** `ETP-Acceptance-186` to free memory (available RAM went 1.4 GB → 5.2 GB). Resume it with `Start-VM -Name 'ETP-Acceptance-186'` once the installer is built.
+- **Running when saved — check their results first:**
+  1. Background task `task_61b988d7` "Fix two intermittently failing tests" (separate session and worktree): `ScopedImportDuplicateSqlTests` transport error, `Phase3ShellTests` concurrent-collection race.
+  2. Background task `task_b380b90b` "Stop tests writing to the owner's diagnostics log" (separate session and worktree): may change `src/Etp.Reporting.Desktop/DesktopDiagnostics.cs`, so it belongs in the installer.
+  3. Workflow `wf_55b339dd-669` (4 prepare agents + 4 verifiers), writing, in this worktree: `docs/audit/LIVE-INSTALL-RUNBOOK-2026-09-22.md`, `docs/audit/VM-AND-SECOND-MACHINE-RUNBOOK-2026-09-22.md`, `docs/audit/ETPREPORTINGHELIOS-FINDINGS-2026-09-22.md`, `docs/audit/D14-FONT-DECISION-2026-09-22.md`, and the read-only check script `scratchpad/recovery/live-verify.ps1`. If it was cut off, resume it: `Workflow({scriptPath: "C:\Users\Sagar\.claude\projects\C--Codex-Reporting-Manger-opus-recovery\38f855f7-3921-4259-b901-2a97df36d8cc\workflows\scripts\phase4-live-prep-wf_55b339dd-669.js", resumeFromRunId: "wf_55b339dd-669"})`. Review its four documents before handing them to Sagar, then commit them.
+- **Next, in order:** (1) Sagar's answers: merge to `main` yes/no; P3-3 (recommended: keep the one-line footer, amend plan task 8); D14 (after the workflow's findings); `EtpReportingHelios` (after the workflow's findings). (2) Review and merge both background tasks' branches into `recovery/opus-r1-r4`; full gate `-m:1`. (3) Build the installer on a quiet machine (no test runs in other sessions): command in the Installer section below. (4) Sagar's elevated install on this PC, following the live runbook, with `live-verify.ps1` after each step. (5) VM + second-machine restore. (6) Shop PC last.
+
 - Worktree: `C:\Codex\Reporting Manger\opus-recovery`, branch `recovery/opus-r1-r4`
 - Everything below is committed on that branch; see the commit that adds this file.
 
