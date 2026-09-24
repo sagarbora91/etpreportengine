@@ -22,7 +22,8 @@ public sealed class OperationsAdministrationWorkspaceViewTests
                 new OperationsAdministrationPresentationSession(),
                 () => "connection",
                 _ => service,
-                (_, _) => Task.FromResult(new MaintenanceOperationResult(true, "done")));
+                (_, _) => Task.FromResult(new MaintenanceOperationResult(true, "done")),
+                _ => Task.FromResult<IReadOnlyList<Etp.Reporting.Desktop.AutomaticImportTaskStatus>>([new("Test task", "Not installed", null, null, null, "Settings do not install a task.")]));
 
             await view.RefreshAsync();
             Assert.Equal(0, service.DashboardLoads);
@@ -33,6 +34,8 @@ public sealed class OperationsAdministrationWorkspaceViewTests
             Assert.Equal(1, service.DashboardLoads);
             Assert.Equal(1, view.TrendRowCount);
             Assert.Equal(1, view.IssueRowCount);
+            Assert.Contains("Not installed", ((TextBlock)view.FindName("InstalledAutomationTaskStatus")).Text);
+            Assert.Contains("Never / unavailable", ((TextBlock)view.FindName("InstalledAutomationTaskStatus")).Text);
             Assert.Contains("1 daily store result(s), 1 approved quality issue(s), and 1 recent unattended run(s)", view.StatusText, StringComparison.Ordinal);
         });
     }
@@ -97,7 +100,8 @@ public sealed class OperationsAdministrationWorkspaceViewTests
         {
             var service = new FakeOperationsService();
             var view = new OperationsWorkspaceView(new OperationsAdministrationPresentationSession(), () => "connection", _ => service,
-                (_, _) => Task.FromResult(new MaintenanceOperationResult(true, "done")));
+                (_, _) => Task.FromResult(new MaintenanceOperationResult(true, "done")),
+                _ => Task.FromResult<IReadOnlyList<Etp.Reporting.Desktop.AutomaticImportTaskStatus>>([new("Test task", "Not installed", null, null, null, "Settings do not install a task.")]));
             view.UpdateAccess(new(true, true, true)); await view.RefreshAsync();
             var grid = (DataGrid)view.FindName("ReportSchedulesGrid");
             var time = (TextBox)view.FindName("ScheduleTimeInput");
@@ -123,7 +127,8 @@ public sealed class OperationsAdministrationWorkspaceViewTests
         {
             var service = new FakeOperationsService { FailWatchSave = true };
             var view = new OperationsWorkspaceView(new OperationsAdministrationPresentationSession(), () => "connection", _ => service,
-                (_, _) => Task.FromResult(new MaintenanceOperationResult(true, "done")));
+                (_, _) => Task.FromResult(new MaintenanceOperationResult(true, "done")),
+                _ => Task.FromResult<IReadOnlyList<Etp.Reporting.Desktop.AutomaticImportTaskStatus>>([new("Test task", "Not installed", null, null, null, "Settings do not install a task.")]));
             view.UpdateAccess(new(true, true, true)); await view.RefreshAsync();
             var input = (TextBox)view.FindName("WatchInboundInput"); input.Text = "new-inbound";
             await view.RefreshAsync(); Assert.Equal("new-inbound", input.Text); Assert.True(view.HasWatchDraft);
@@ -203,7 +208,7 @@ public sealed class OperationsAdministrationWorkspaceViewTests
         {
             DashboardLoads++;
             return Task.FromResult(new OperationsDashboard(
-                new WatchFolderConfiguration("in", "done", "failed", "reports", 5, true, DateTime.UtcNow, "owner"),
+                new WatchFolderConfiguration("in", "done", "failed", "reports", true, DateTime.UtcNow, "owner"),
                 [new ManagementTrendPoint(new DateOnly(2026, 8, 27), "WLMHW", 100m, 2m, 1, 0m, 0)],
                 [new DataQualityFinding("Warning", "Sales", "Q1", 1, null, "Review")],
                 [new DataQualityIssue(1, "Sales", "Warning", "WLMHW", new DateOnly(2026, 8, 27), "Passed", "OPEN", "Review", null, DateTime.UtcNow, null)],

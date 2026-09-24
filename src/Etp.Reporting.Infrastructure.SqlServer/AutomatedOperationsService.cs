@@ -16,13 +16,13 @@ public sealed class AutomatedOperationsService(string connectionString)
 {
     public async Task<AutomatedOperationsSummary> RunOnceAsync(CancellationToken cancellationToken = default)
     {
-        await using var lease = await TryAcquireLeaseAsync(cancellationToken);
+        await using var lease = await AutomationSessionLease.TryAcquireAsync(connectionString, cancellationToken);
         if (lease is null) return new(0, 0, 0, 0, "Another unattended run is already active.");
         var repository = new Phase2OperationsRepository(connectionString);
         var configured = await repository.LoadWatchFolderSettingsAsync(cancellationToken);
         if (!configured.IsEnabled) return new(0, 0, 0, 0, "Watch-folder automation is disabled.");
         var paths = AutomationPathPolicy.Validate(configured.InboundPath, configured.ProcessedPath, configured.FailedPath, configured.ReportOutputPath,
-            configured.PollMinutes, configured.IsEnabled);
+            configured.IsEnabled);
         var duplicatePath = Path.Combine(paths.ProcessedPath, "Duplicate");
         foreach (var directory in new[] { paths.InboundPath, paths.ProcessedPath, paths.FailedPath, paths.ReportOutputPath, duplicatePath })
         {
@@ -31,7 +31,7 @@ public sealed class AutomatedOperationsService(string connectionString)
         }
 
         var sources = Directory.EnumerateFiles(paths.InboundPath, "*", SearchOption.TopDirectoryOnly)
-            .Where(path => new[] { ".xlsx", ".zip", ".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp" }.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase))
+            .Where(path => new[] { ".xlsx", ".zip" }.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase))
             .Where(path => !Path.GetFileName(path).StartsWith("~$", StringComparison.Ordinal))
             .Where(IsStableAndReadable)
             .Order(StringComparer.OrdinalIgnoreCase).Take(200).ToArray();
@@ -43,30 +43,18 @@ public sealed class AutomatedOperationsService(string connectionString)
             var started = DateTime.UtcNow;
             try
             {
-                var extension = Path.GetExtension(source);
-                if (extension is not null && new[] { ".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp" }.Contains(extension, StringComparer.OrdinalIgnoreCase))
-                {
-                    var documentOutcome = await new ProductisationOperationsService(connectionString).IntakeDocumentAsync(source, null, null, null, cancellationToken);
-                    MoveCompletedSource(source, documentOutcome.Duplicate ? duplicatePath : paths.ProcessedPath);
-                    if (documentOutcome.Duplicate) duplicates++;
-                    processed++;
-                    await repository.RecordAutomationRunAsync("WATCH_IMPORT", Path.GetFileName(source), null, null,
-                        documentOutcome.Duplicate ? "Skipped" : "Succeeded",
-                        documentOutcome.Duplicate ? "Document duplicate skipped by SHA-256." : "Document stored in Source Inbox for classification and review.", started, cancellationToken);
-                    continue;
-                }
                 var folderService=new FolderImportService(new SqlServerImportPersistenceUseCase(connectionString),
                     retainEvidence: (path,accepted,store,businessDate,token)=>new ProductisationOperationsService(connectionString).IntakeEtpEvidenceAsync(
                         path,accepted.Workbook.Sha256,accepted.ProfileIdentity.ReportCode,store,businessDate,token));
                 var batch=await folderService.RunAsync(source,new(AutomationIdentity()),cancellationToken:cancellationToken);
                 duplicates+=batch.Duplicates;
                 foreach(var file in batch.Files.Where(x=>x.Status=="Imported" && x.PeriodEnd is not null)) importedDates.Add(file.PeriodEnd!.Value);
-                if(batch.Failed>0)
+                if(batch.Failed>0 || batch.UnknownLayouts>0)
                 {
                     failed++;
                     MoveCompletedSource(source,paths.FailedPath);
                     await repository.RecordAutomationRunAsync("WATCH_IMPORT",Path.GetFileName(source),null,null,"Failed",
-                        $"{batch.Imported} workbook(s) imported; {batch.Failed} file(s) need review. Other files were processed.",started,cancellationToken);
+                        $"{batch.Imported} workbook(s) imported; {batch.Failed + batch.UnknownLayouts} file(s) need review. Other files were processed.",started,cancellationToken);
                     continue;
                 }
                 MoveCompletedSource(source,batch.Imported==0 && batch.Duplicates>0 ? duplicatePath : paths.ProcessedPath);
@@ -75,7 +63,7 @@ public sealed class AutomatedOperationsService(string connectionString)
                 var dates=batch.Files.Select(x=>x.PeriodEnd).Where(x=>x is not null).Distinct().ToArray();
                 await repository.RecordAutomationRunAsync("WATCH_IMPORT",Path.GetFileName(source),stores.Length==1?stores[0]:null,
                     dates.Length==1?dates[0]:null,batch.Imported==0?"Skipped":"Succeeded",
-                    $"{batch.Imported} workbook(s) imported; {batch.Duplicates} duplicate(s); {batch.UnknownLayouts} unknown layout(s) skipped.",started,cancellationToken);
+                    $"{batch.Imported} workbook(s) imported; {batch.Duplicates} duplicate(s); {batch.Files.Count(file => file.Status == "Not needed")} not needed.",started,cancellationToken);
             }
             catch (Exception ex)
             {
@@ -148,7 +136,7 @@ public sealed class AutomatedOperationsService(string connectionString)
             var stem = $"ETP_{safeLabel}_{date:yyyyMMdd}_{DateTime.Now:HHmmss}";
             if (excel) new OpenXmlReportPackExporter().Export(Path.Combine(outputPath, stem + ".xlsx"), pack);
             if (pdf) new SimplePdfReportPackExporter().Export(Path.Combine(outputPath, stem + ".pdf"), pack);
-            await repository.RecordAutomationRunAsync(runType, null, "COMBINED", date, "Succeeded", "Complete Titan and Helios management pack generated.", started, token);
+            await repository.RecordAutomationRunAsync(runType, null, "COMBINED", date, "Succeeded", "Combined management pack generated for the configured stores.", started, token);
             return true;
         }
         catch (Exception)
@@ -156,14 +144,6 @@ public sealed class AutomatedOperationsService(string connectionString)
             await repository.RecordAutomationRunAsync(runType, null, "COMBINED", date, "Failed", "Report generation failed; review daily exceptions and application diagnostics.", started, token);
             return false;
         }
-    }
-
-    private async Task<SqlConnection?> TryAcquireLeaseAsync(CancellationToken token)
-    {
-        var connection = new SqlConnection(LocalSqlConnectionPolicy.Validate(connectionString)); await connection.OpenAsync(token);
-        await using var command = new SqlCommand("DECLARE @result int; EXEC @result=sp_getapplock @Resource=N'ETP_PHASE2_AUTOMATION',@LockMode='Exclusive',@LockOwner='Session',@LockTimeout=0; SELECT @result;", connection);
-        if (Convert.ToInt32(await command.ExecuteScalarAsync(token)) < 0) { await connection.DisposeAsync(); return null; }
-        return connection;
     }
 
     private static void MoveCompletedSource(string source, string destinationRoot)

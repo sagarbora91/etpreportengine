@@ -84,7 +84,7 @@ public sealed class SqlServerOperationsAdministrationService : App.IOperationsAd
         await RequireOwnerAsync(cancellationToken).ConfigureAwait(false);
         await gateway.SaveWatchFoldersAsync(
             new(command.InboundPath, command.ProcessedPath, command.FailedPath, command.ReportOutputPath,
-                command.PollMinutes, command.IsEnabled, DateTime.MinValue, string.Empty),
+                command.IsEnabled, DateTime.MinValue, string.Empty),
             command.Reason,
             cancellationToken).ConfigureAwait(false);
     }
@@ -149,7 +149,7 @@ public sealed class SqlServerOperationsAdministrationService : App.IOperationsAd
 
     private static App.WatchFolderConfiguration Map(WatchFolderSettings row) =>
         new(row.InboundPath, row.ProcessedPath, row.FailedPath, row.ReportOutputPath,
-            row.PollMinutes, row.IsEnabled, row.ModifiedUtc, row.ModifiedBy);
+            row.IsEnabled, row.ModifiedUtc, row.ModifiedBy);
     private static App.ManagementTrendPoint Map(ManagementTrendRow row) =>
         new(row.BusinessDate, row.StoreCode, row.NetSales, row.Units, row.Invoices,
             row.TenderVariance, row.UnmatchedEnrichmentRows);

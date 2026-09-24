@@ -19,6 +19,7 @@ public partial class OperationsWorkspaceView : UserControl
     private readonly Func<string, CancellationToken, Task<MaintenanceOperationResult>> maintenanceRunner;
     private OperationsAdministrationWorkspaceAccess access = new(false, false, false);
     private int refreshRevision;
+    private readonly Func<CancellationToken, Task<IReadOnlyList<AutomaticImportTaskStatus>>> readTaskStatus;
     public bool IsBusy { get; private set; }
 
     private bool BeginOperation()
@@ -33,12 +34,14 @@ public partial class OperationsWorkspaceView : UserControl
         OperationsAdministrationPresentationSession session,
         Func<string> connectionStringProvider,
         Func<string, IOperationsAdministrationService> serviceFactory,
-        Func<string, CancellationToken, Task<MaintenanceOperationResult>> maintenanceRunner)
+        Func<string, CancellationToken, Task<MaintenanceOperationResult>> maintenanceRunner,
+        Func<CancellationToken, Task<IReadOnlyList<AutomaticImportTaskStatus>>>? readTaskStatus = null)
     {
         this.session = session ?? throw new ArgumentNullException(nameof(session));
         this.connectionStringProvider = connectionStringProvider ?? throw new ArgumentNullException(nameof(connectionStringProvider));
         this.serviceFactory = serviceFactory ?? throw new ArgumentNullException(nameof(serviceFactory));
         this.maintenanceRunner = maintenanceRunner ?? throw new ArgumentNullException(nameof(maintenanceRunner));
+        this.readTaskStatus = readTaskStatus ?? AutomaticImportTaskReader.ReadAsync;
         InitializeComponent();
         issueReasons = new(DataQualityGrid, IssueWorkflowReasonInput, row => (row as DataQualityIssue)?.Id);
         CaptureIssueActions();
@@ -79,6 +82,8 @@ public partial class OperationsWorkspaceView : UserControl
             ApplyWatchSettings(state, beforeLoad);
             RenderManagementTrendChart(state.Trend);
             OperationsStatus.Text = state.Status;
+            var tasks = await readTaskStatus(CancellationToken.None);
+            if (revision == refreshRevision) InstalledAutomationTaskStatus.Text = string.Join(Environment.NewLine, tasks.Select(task => task.Summary));
         }
         catch (Exception ex) { if (revision != refreshRevision) return; DesktopDiagnostics.Record(ex, "OperationsAdministration.Operations", "OPERATIONS_REFRESH_FAILED"); OperationsStatus.Text = $"Operations center could not be refreshed: {DesktopFriendlyError.Describe(ex, "This Windows account does not have application access.")}"; }
     }

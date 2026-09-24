@@ -2,12 +2,14 @@ extern alias EtpApplication;
 
 using System.IO;
 using Etp.Reporting.Reporting;
-using ArchivedReportComparisonSection = EtpApplication::Etp.Reporting.Application.Archive.ArchivedReportComparisonSection;
 using ArchivedReportGenerationSummary = EtpApplication::Etp.Reporting.Application.Archive.ArchivedReportGenerationSummary;
 using ReportArchiveQuery = EtpApplication::Etp.Reporting.Application.Archive.IReportArchiveQuery<Etp.Reporting.Reporting.ReportPackDocument>;
 using ReportArchiveSearch = EtpApplication::Etp.Reporting.Application.Archive.ReportArchiveSearch;
 using CreateReportPackage = EtpApplication::Etp.Reporting.Application.Distribution.CreateReportPackage<Etp.Reporting.Reporting.ReportPackDocument>;
 using EmailAttachmentPolicy = EtpApplication::Etp.Reporting.Application.Distribution.EmailAttachmentPolicy;
+using ShareDeliveryHistory = EtpApplication::Etp.Reporting.Application.Distribution.ShareDeliveryHistory;
+using EmailSendResult = EtpApplication::Etp.Reporting.Application.Distribution.EmailSendResult;
+using SendReportEmail = EtpApplication::Etp.Reporting.Application.Distribution.SendReportEmail;
 using RecordDistributionAttempt = EtpApplication::Etp.Reporting.Application.Distribution.RecordDistributionAttempt;
 using ReportDistributionService = EtpApplication::Etp.Reporting.Application.Distribution.IReportDistributionService<Etp.Reporting.Reporting.ReportPackDocument>;
 using ReportPackageReceipt = EtpApplication::Etp.Reporting.Application.Distribution.ReportPackageReceipt;
@@ -75,20 +77,6 @@ public sealed class ArchiveDistributionPresentationSession
         return new(generation, document, sections);
     }
 
-    public async Task<IReadOnlyList<ArchivedReportComparisonSection>> CompareAsync(
-        string connectionString,
-        ArchivedReportGenerationSummary first,
-        ArchivedReportGenerationSummary second,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(first);
-        ArgumentNullException.ThrowIfNull(second);
-        if (first.Id == second.Id) throw new InvalidOperationException("Select exactly two report generations.");
-        ClearOpenedGeneration();
-        var rows = await archiveFactory(connectionString).CompareAsync(first.Id, second.Id, cancellationToken).ConfigureAwait(false);
-        return rows;
-    }
-
     public ReportPackDocument DocumentForExport(ArchivedReportGenerationSummary generation)
     {
         ArgumentNullException.ThrowIfNull(generation);
@@ -132,6 +120,17 @@ public sealed class ArchiveDistributionPresentationSession
         var shareFile = ShareFileFor(generation);
         return await distributionFactory(connectionString).ValidateEmailAttachmentAsync(shareFile, cancellationToken).ConfigureAwait(false);
     }
+
+    public Task<string> PreparePdfAsync(string connectionString, long generationId, CancellationToken token = default) =>
+        distributionFactory(connectionString).PreparePdfAsync(generationId, token);
+    public Task<EmailSendResult> SendEmailAsync(string connectionString, SendReportEmail command, CancellationToken token = default) =>
+        distributionFactory(connectionString).SendEmailAsync(command, token);
+    public Task<EmailSendResult> TestEmailAsync(string connectionString, string recipient, CancellationToken token = default) =>
+        distributionFactory(connectionString).TestEmailAsync(recipient, token);
+    public Task SaveSmtpCredentialsAsync(string connectionString, string userName, string password, CancellationToken token = default) =>
+        distributionFactory(connectionString).SaveSmtpCredentialsAsync(userName, password, token);
+    public Task<IReadOnlyList<ShareDeliveryHistory>> LoadHistoryAsync(string connectionString, long generationId, CancellationToken token = default) =>
+        distributionFactory(connectionString).LoadHistoryAsync(generationId, token);
 
     public Task RecordAttemptAsync(
         string connectionString,

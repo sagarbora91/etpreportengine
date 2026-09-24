@@ -9,7 +9,6 @@ public sealed record WatchFolderConfiguration(
     string ProcessedPath,
     string FailedPath,
     string ReportOutputPath,
-    int PollMinutes,
     bool IsEnabled,
     DateTime ModifiedUtc,
     string ModifiedBy);
@@ -88,7 +87,6 @@ public sealed record SaveWatchFolderConfiguration(
     string ProcessedPath,
     string FailedPath,
     string ReportOutputPath,
-    int PollMinutes,
     bool IsEnabled,
     string Reason);
 

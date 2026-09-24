@@ -126,7 +126,7 @@ public sealed class OperationsAdministrationPresentationSession
         string reportOutputPath,
         bool isEnabled,
         string reason) =>
-        new(inboundPath, processedPath, failedPath, reportOutputPath, 5, isEnabled, reason);
+        new(inboundPath, processedPath, failedPath, reportOutputPath, isEnabled, reason);
 
     public AdministrationPresentationState Capture(AdministrationDashboard dashboard)
     {
