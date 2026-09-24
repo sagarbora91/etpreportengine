@@ -38,7 +38,8 @@ public partial class SettingsWorkspaceView : UserControl
         DesktopSettingsPresentationSession session,
         Func<string, DatabaseLifecycleService> databaseLifecycleServiceFactory,
         Func<string, AdministrationService> administrationServiceFactory,
-        string migrationDirectory)
+        string migrationDirectory,
+        Func<string, EtpApplication::Etp.Reporting.Application.Accounting.IAccountingService>? accountingServiceFactory = null)
     {
         this.session = session ?? throw new ArgumentNullException(nameof(session));
         this.databaseLifecycleServiceFactory = databaseLifecycleServiceFactory ?? throw new ArgumentNullException(nameof(databaseLifecycleServiceFactory));
@@ -49,6 +50,11 @@ public partial class SettingsWorkspaceView : UserControl
 
         InitializeComponent();
         InitializeDataTruthMasters();
+        if (accountingServiceFactory is not null)
+        {
+            tallySettings = new(() => session.ConnectionString, () => access.CanAdminister, accountingServiceFactory);
+            ProductSettingsPanel.Children.Add(tallySettings);
+        }
         ConnectionStringInput.TextChanged += (_, _) => ++connectionCheckRevision;
         ProductSettingsPanel.IsEnabled = false;
     }
@@ -61,14 +67,15 @@ public partial class SettingsWorkspaceView : UserControl
     public string StatusText => ConnectionResult.Text;
     public bool ProductConfigurationEnabled => ProductSettingsPanel.IsEnabled;
 
+    private readonly TallyDestinationSettingsView? tallySettings;
     private bool integrationsLoaded;
     private bool productBusy;
     private readonly WorkspaceOperationGate databaseOperation = new();
     private string[]? savedProduct;
     private TextBox[] ProductFields => [DocumentRepositoryInput, ShareFolderInput, SmtpHostInput, SmtpPortInput, SmtpFromInput, MaximumAttachmentInput, ProductSettingsReasonInput];
-    public bool HasProductDraft => savedProduct is not null && !ProductFields.Select(input => input.Text).SequenceEqual(savedProduct);
-    public bool IsBusy => productBusy || databaseOperation.IsBusy;
-    public void DiscardProductDraft() { if (savedProduct is null) return; for (var i = 0; i < ProductFields.Length; i++) ProductFields[i].Text = savedProduct[i]; }
+    public bool HasProductDraft => tallySettings?.HasDraft == true || savedProduct is not null && !ProductFields.Select(input => input.Text).SequenceEqual(savedProduct);
+    public bool IsBusy => tallySettings?.IsBusy == true || productBusy || databaseOperation.IsBusy;
+    public void DiscardProductDraft() { tallySettings?.DiscardDraft(); if (savedProduct is null) return; for (var i = 0; i < ProductFields.Length; i++) ProductFields[i].Text = savedProduct[i]; }
     public void SelectIntegrationTask(string id)
     {
         foreach (var input in new[] { SmtpHostInput, SmtpPortInput, SmtpFromInput, MaximumAttachmentInput })
@@ -97,6 +104,7 @@ public partial class SettingsWorkspaceView : UserControl
         if (loadProductConfiguration && access.CanAdminister)
         {
             await LoadProductConfigurationAsync();
+            if (tallySettings is not null) await tallySettings.LoadAsync();
         }
     }
 

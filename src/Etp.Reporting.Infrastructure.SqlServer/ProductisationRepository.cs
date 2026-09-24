@@ -4,7 +4,7 @@ using Microsoft.Data.SqlClient;
 
 namespace Etp.Reporting.Infrastructure.SqlServer;
 
-public sealed class ProductisationRepository(string connectionString)
+public sealed partial class ProductisationRepository(string connectionString)
 {
     internal const string SaveSharingContactSql = """
         SET XACT_ABORT ON;
@@ -315,57 +315,6 @@ public sealed class ProductisationRepository(string connectionString)
             ) source WHERE amount<>0;
             """;
         await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(sql,connection);command.Parameters.AddWithValue("@store",storeCode.Trim().ToUpperInvariant());command.Parameters.AddWithValue("@date",businessDate);await using var reader=await command.ExecuteReaderAsync(cancellationToken);if(!await reader.ReadAsync(cancellationToken))throw new InvalidOperationException("A final report generation was not found.");var generation=reader.GetInt64(0);await reader.NextResultAsync(cancellationToken);var events=new List<AccountingBusinessEvent>();while(await reader.ReadAsync(cancellationToken))events.Add(new(reader.GetString(0),reader.GetDecimal(1),reader.GetString(2),reader.GetString(3)));return(generation,events);
-    }
-
-    public async Task<long> SaveAccountingBatchAsync(string storeCode,DateOnly businessDate,long reportGenerationId,AccountingBatchDraft batch,CancellationToken cancellationToken=default)
-    {
-        if(!batch.IsBalanced||batch.DebitTotal!=batch.CreditTotal||batch.MissingMappings.Count>0)throw new InvalidOperationException("The accounting batch must be balanced and fully mapped before it can be saved.");
-        const string sql="""
-            SET XACT_ABORT ON; BEGIN TRANSACTION;
-            DECLARE @number int=ISNULL((SELECT MAX(accounting_generation) FROM dbo.accounting_batches WITH(UPDLOCK,HOLDLOCK) WHERE store_code=@store AND business_date=@date),0)+1;
-            INSERT dbo.accounting_batches(store_code,business_date,daily_report_generation_id,accounting_generation,debit_total,credit_total,status,created_by)
-            VALUES(@store,@date,@report,@number,@debit,@credit,'REVIEW',SUSER_SNAME()); DECLARE @id bigint=SCOPE_IDENTITY();
-            INSERT dbo.accounting_entries(accounting_batch_id,line_number,business_event,ledger_name,debit_amount,credit_amount,narration,cost_centre,source_reference)
-            SELECT @id,line_number,business_event,ledger_name,debit_amount,credit_amount,narration,cost_centre,source_reference FROM OPENJSON(@entries)
-            WITH(line_number int '$.LineNumber',business_event varchar(50) '$.BusinessEvent',ledger_name nvarchar(200) '$.LedgerName',debit_amount decimal(19,4) '$.DebitAmount',credit_amount decimal(19,4) '$.CreditAmount',narration nvarchar(500) '$.Narration',cost_centre nvarchar(200) '$.CostCentre',source_reference nvarchar(200) '$.SourceReference');
-            EXEC dbo.record_operational_audit 'AccountingBatch','Succeeded',N'Balanced accounting batch prepared for review',N'database'; SELECT @id; COMMIT TRANSACTION;
-            """;
-        await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(sql,connection);command.Parameters.AddWithValue("@store",storeCode.Trim().ToUpperInvariant());command.Parameters.AddWithValue("@date",businessDate);command.Parameters.AddWithValue("@report",reportGenerationId);command.Parameters.AddWithValue("@debit",batch.DebitTotal);command.Parameters.AddWithValue("@credit",batch.CreditTotal);command.Parameters.AddWithValue("@entries",JsonSerializer.Serialize(batch.Entries));return Convert.ToInt64(await command.ExecuteScalarAsync(cancellationToken));
-    }
-
-    public async Task<IReadOnlyList<AccountingBatchRow>> LoadAccountingBatchesAsync(CancellationToken cancellationToken=default)
-    {
-        const string sql="SELECT TOP(500) accounting_batch_id,store_code,business_date,daily_report_generation_id,accounting_generation,debit_total,credit_total,status,approved_by,exported_utc,tally_reference,created_utc FROM dbo.accounting_batches ORDER BY business_date DESC,accounting_generation DESC";
-        await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(sql,connection);await using var reader=await command.ExecuteReaderAsync(cancellationToken);var rows=new List<AccountingBatchRow>();while(await reader.ReadAsync(cancellationToken))rows.Add(new(reader.GetInt64(0),reader.GetString(1),DateOnly.FromDateTime(reader.GetDateTime(2)),reader.GetInt64(3),reader.GetInt32(4),reader.GetDecimal(5),reader.GetDecimal(6),reader.GetString(7),OptionalString(reader,8),reader.IsDBNull(9)?null:reader.GetDateTime(9),OptionalString(reader,10),reader.GetDateTime(11)));return rows;
-    }
-
-    public async Task<IReadOnlyList<AccountingEntryDraft>> LoadAccountingEntriesAsync(long batchId,CancellationToken cancellationToken=default)
-    {
-        const string sql="SELECT line_number,business_event,ledger_name,debit_amount,credit_amount,narration,cost_centre,source_reference FROM dbo.accounting_entries WHERE accounting_batch_id=@id ORDER BY line_number";
-        await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(sql,connection);command.Parameters.AddWithValue("@id",batchId);await using var reader=await command.ExecuteReaderAsync(cancellationToken);var rows=new List<AccountingEntryDraft>();while(await reader.ReadAsync(cancellationToken))rows.Add(new(reader.GetInt32(0),reader.GetString(1),reader.GetString(2),reader.GetDecimal(3),reader.GetDecimal(4),reader.GetString(5),OptionalString(reader,6),reader.GetString(7)));return rows;
-    }
-
-    public async Task ApproveAccountingBatchAsync(long batchId,string reason,CancellationToken cancellationToken=default)
-    {
-        await EnsureOwnerAsync(cancellationToken);if(string.IsNullOrWhiteSpace(reason))throw new ArgumentException("Enter an accounting approval reason.",nameof(reason));
-        const string sql="UPDATE dbo.accounting_batches SET status='APPROVED',approval_reason=@reason,approved_by=SUSER_SNAME(),approved_utc=SYSUTCDATETIME() WHERE accounting_batch_id=@id AND status='REVIEW' AND debit_total=credit_total; IF @@ROWCOUNT<>1 THROW 51221,'The batch is not eligible for approval.',1; EXEC dbo.record_operational_audit 'AccountingBatch','Succeeded',N'Balanced accounting batch approved',N'database';";
-        await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(sql,connection);command.Parameters.AddWithValue("@id",batchId);command.Parameters.AddWithValue("@reason",reason.Trim());await command.ExecuteNonQueryAsync(cancellationToken);
-    }
-
-    public async Task RejectAccountingBatchAsync(long batchId,string reason,CancellationToken token=default)
-    {
-        await EnsureOwnerAsync(token);
-        if(string.IsNullOrWhiteSpace(reason)) throw new ArgumentException("Enter an accounting rejection reason.",nameof(reason));
-        await using var connection=await OpenAsync(token);
-        await using var command=new SqlCommand("EXEC dbo.reject_accounting_batch @id,@reason;",connection);
-        command.Parameters.AddWithValue("@id",batchId);command.Parameters.AddWithValue("@reason",reason.Trim());
-        await command.ExecuteNonQueryAsync(token);
-    }
-
-    public async Task RecordAccountingExportAsync(long batchId,string sha256,CancellationToken cancellationToken=default)
-    {
-        const string sql="UPDATE dbo.accounting_batches SET status='EXPORTED',exported_utc=SYSUTCDATETIME(),export_sha256=@hash WHERE accounting_batch_id=@id AND status='APPROVED'; IF @@ROWCOUNT<>1 THROW 51222,'Approve the accounting batch before export.',1; EXEC dbo.record_operational_audit 'AccountingExport','Succeeded',N'Approved accounting batch exported to Tally XML',N'database';";
-        await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(sql,connection);command.Parameters.AddWithValue("@id",batchId);command.Parameters.AddWithValue("@hash",SqlServerImportFileRepository.NormalizeHash(sha256));await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
     public async Task UpdateIssueWorkflowAsync(long issueId,string status,string reason,CancellationToken cancellationToken=default)

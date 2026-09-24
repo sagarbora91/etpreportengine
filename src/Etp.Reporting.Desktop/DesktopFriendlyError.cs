@@ -32,6 +32,7 @@ public static class DesktopFriendlyError
         SqlException sql when DescribeConnectionFailure(sql.Number) is { } message => message,
         SqlException { Number: 2601 or 2627 } => "This item already exists.",
         SqlException { Number: 51210 } => "This business day is finalised. Reopen it before making changes.",
+        SqlException sql when sql.Number is >= 51450 and <= 51460 or >= 51430 and <= 51432 or >= 51220 and <= 51222 => sql.Message,
         SqlException sql when sql.Number >= 51000 => "The database rejected this change. Review the inputs and day status.",
         ImportSourceException => exception.Message,
         ArgumentException => System.Text.RegularExpressions.Regex.Replace(exception.Message, @"\s*\(Parameter .*?\)\s*$", ""),

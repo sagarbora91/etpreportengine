@@ -38,7 +38,7 @@ public sealed class SqlServerAccountingService : App.IAccountingService
         CancellationToken cancellationToken = default)
     {
         ValidateScope(scope);
-        await RequireViewAsync(cancellationToken).ConfigureAwait(false);
+        await RequireOwnerAsync(cancellationToken).ConfigureAwait(false);
         return Map(await gateway.LoadSourceAsync(
             scope.StoreCode,
             scope.BusinessDate,
@@ -50,7 +50,7 @@ public sealed class SqlServerAccountingService : App.IAccountingService
         CancellationToken cancellationToken = default)
     {
         ValidateScope(scope);
-        await RequireViewAsync(cancellationToken).ConfigureAwait(false);
+        await RequireOwnerAsync(cancellationToken).ConfigureAwait(false);
         var rows = await gateway.LoadMappingsAsync(
             scope.StoreCode,
             scope.BusinessDate,
@@ -63,7 +63,7 @@ public sealed class SqlServerAccountingService : App.IAccountingService
         CancellationToken cancellationToken = default)
     {
         ValidateScope(scope);
-        await RequireViewAsync(cancellationToken).ConfigureAwait(false);
+        await RequireOwnerAsync(cancellationToken).ConfigureAwait(false);
         var source = await gateway.LoadSourceAsync(
             scope.StoreCode,
             scope.BusinessDate,
@@ -79,7 +79,7 @@ public sealed class SqlServerAccountingService : App.IAccountingService
     public async Task<IReadOnlyList<App.AccountingBatchSummary>> LoadBatchesAsync(
         CancellationToken cancellationToken = default)
     {
-        await RequireViewAsync(cancellationToken).ConfigureAwait(false);
+        await RequireOwnerAsync(cancellationToken).ConfigureAwait(false);
         return (await gateway.LoadBatchesAsync(cancellationToken).ConfigureAwait(false)).Select(Map).ToArray();
     }
 
@@ -88,7 +88,7 @@ public sealed class SqlServerAccountingService : App.IAccountingService
         CancellationToken cancellationToken = default)
     {
         ValidateBatchId(batchId);
-        await RequireViewAsync(cancellationToken).ConfigureAwait(false);
+        await RequireOwnerAsync(cancellationToken).ConfigureAwait(false);
         return (await gateway.LoadEntriesAsync(batchId, cancellationToken).ConfigureAwait(false)).Select(Map).ToArray();
     }
 
@@ -100,8 +100,12 @@ public sealed class SqlServerAccountingService : App.IAccountingService
         ValidateScope(command.Scope);
         if (command.ReportGenerationId <= 0)
             throw new ArgumentOutOfRangeException(nameof(command), "A report generation is required.");
-        App.AccountingBatchControls.EnsureBalancedAndComplete(command.Batch);
-        await RequireImportAsync(cancellationToken).ConfigureAwait(false);
+        if (command.Batch.Entries.Any(e => e.DebitAmount < 0 || e.CreditAmount < 0 || e.DebitAmount > 0 && e.CreditAmount > 0)
+            || command.Batch.DebitTotal != command.Batch.CreditTotal
+            || command.Batch.Entries.Sum(e => e.DebitAmount) != command.Batch.DebitTotal
+            || command.Batch.Entries.Sum(e => e.CreditAmount) != command.Batch.CreditTotal)
+            throw new InvalidOperationException("Accounting entry totals must balance before saving.");
+        await RequireOwnerAsync(cancellationToken).ConfigureAwait(false);
         return await gateway.SaveBatchAsync(
             command.Scope.StoreCode,
             command.Scope.BusinessDate,
@@ -153,14 +157,18 @@ public sealed class SqlServerAccountingService : App.IAccountingService
     {
         ArgumentNullException.ThrowIfNull(command);
         ValidateBatchId(command.BatchId);
-        ValidateRequired(command.CompanyName, "A Tally company name is required.");
         ValidateRequired(command.OutputPath, "An export path is required.");
         await RequireOwnerAsync(cancellationToken).ConfigureAwait(false);
 
+        var destination = await gateway.LoadDestinationAsync(cancellationToken).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(destination.CompanyName)) throw new InvalidOperationException("Tally company not decided (D12). Set it in Settings.");
+        if (destination.EnvironmentLabel != "TEST") throw new InvalidOperationException("Live Tally export is not enabled (D18 / Phase 7). Select TEST in Settings.");
+        if (!string.IsNullOrWhiteSpace(command.CompanyName) && !string.Equals(command.CompanyName, destination.CompanyName, StringComparison.Ordinal))
+            throw new InvalidOperationException("The requested company differs from Settings. Refresh the accounting screen.");
         var batch = (await gateway.LoadBatchesAsync(cancellationToken).ConfigureAwait(false))
             .SingleOrDefault(row => row.Id == command.BatchId)
             ?? throw new InvalidOperationException("The accounting batch was not found.");
-        if (!string.Equals(batch.Status, "APPROVED", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(batch.Status, "APPROVED_READY", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("Approve the accounting batch before exporting it.");
 
         var entries = await gateway.LoadEntriesAsync(command.BatchId, cancellationToken).ConfigureAwait(false);
@@ -171,14 +179,32 @@ public sealed class SqlServerAccountingService : App.IAccountingService
             batch.DebitTotal == batch.CreditTotal,
             []);
         App.AccountingBatchControls.EnsureBalancedAndComplete(draft);
-        var hash = await exportTally(
-            command.OutputPath,
-            command.CompanyName,
-            batch.BusinessDate,
-            Map(draft),
+        return await gateway.ExportBatchAsync(command.BatchId, command.OutputPath, destination,
+            token => exportTally(command.OutputPath, destination.CompanyName, batch.BusinessDate, Map(draft), token),
             cancellationToken).ConfigureAwait(false);
-        await gateway.RecordExportAsync(command.BatchId, hash, cancellationToken).ConfigureAwait(false);
-        return new(command.BatchId, Path.GetFullPath(command.OutputPath), hash);
+    }
+
+    public async Task<App.AccountingDestination> LoadDestinationAsync(CancellationToken cancellationToken = default)
+    {
+        await RequireOwnerAsync(cancellationToken).ConfigureAwait(false);
+        return await gateway.LoadDestinationAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task SaveDestinationAsync(App.SaveAccountingDestination command, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        await RequireOwnerAsync(cancellationToken).ConfigureAwait(false);
+        ValidateReason(command.Reason, "Enter a Tally settings change reason.");
+        if (command.EnvironmentLabel is not ("TEST" or "PRODUCTION")) throw new ArgumentException("Choose TEST or PRODUCTION.");
+        if (command.EnvironmentLabel == "PRODUCTION" && (string.IsNullOrWhiteSpace(command.CompanyName) || command.CompanyConfirmation != command.CompanyName.Trim()))
+            throw new ArgumentException("Type the exact company name to confirm PRODUCTION.");
+        await gateway.SaveDestinationAsync(command, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<IReadOnlyList<App.AccountingExportReceipt>> LoadExportHistoryAsync(CancellationToken cancellationToken = default)
+    {
+        await RequireOwnerAsync(cancellationToken).ConfigureAwait(false);
+        return await gateway.LoadExportHistoryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     internal static App.AccountingSource Map((long GenerationId, IReadOnlyList<AccountingBusinessEvent> Events) source) =>
@@ -201,7 +227,7 @@ public sealed class SqlServerAccountingService : App.IAccountingService
     internal static App.AccountingBatchSummary Map(AccountingBatchRow source) =>
         new(source.Id, source.StoreCode, source.BusinessDate, source.ReportGenerationId,
             source.AccountingGeneration, source.DebitTotal, source.CreditTotal, source.Status,
-            source.ApprovedBy, source.ExportedUtc, source.TallyReference, source.CreatedUtc);
+            source.ApprovedBy, source.ExportedUtc, source.TallyReference, source.CreatedUtc, source.BlockingReason);
 
     internal static AccountingEntryDraft Map(App.AccountingEntry source) =>
         new(source.LineNumber, source.BusinessEvent, source.LedgerName, source.DebitAmount,
@@ -210,18 +236,6 @@ public sealed class SqlServerAccountingService : App.IAccountingService
     internal static AccountingBatchDraft Map(App.AccountingBatchDraft source) =>
         new(source.Entries.Select(Map).ToArray(), source.DebitTotal, source.CreditTotal,
             source.IsBalanced, source.MissingMappings);
-
-    private async Task RequireViewAsync(CancellationToken cancellationToken)
-    {
-        if (!(await loadAccess(cancellationToken).ConfigureAwait(false)).CanView)
-            throw new UnauthorizedAccessException("This Windows account does not have application access.");
-    }
-
-    private async Task RequireImportAsync(CancellationToken cancellationToken)
-    {
-        if (!(await loadAccess(cancellationToken).ConfigureAwait(false)).CanImport)
-            throw new UnauthorizedAccessException("Owner or Store Manager permission is required.");
-    }
 
     private async Task RequireOwnerAsync(CancellationToken cancellationToken)
     {
@@ -267,7 +281,11 @@ internal interface IAccountingSqlGateway
     Task ApproveBatchAsync(long batchId, string reason, CancellationToken cancellationToken);
     Task RejectBatchAsync(long batchId, string reason, CancellationToken cancellationToken);
     Task ApproveMappingAsync(App.ApproveAccountingMapping command, CancellationToken cancellationToken);
-    Task RecordExportAsync(long batchId, string sha256, CancellationToken cancellationToken);
+    Task<App.AccountingDestination> LoadDestinationAsync(CancellationToken cancellationToken);
+    Task SaveDestinationAsync(App.SaveAccountingDestination command, CancellationToken cancellationToken);
+    Task<IReadOnlyList<App.AccountingExportReceipt>> LoadExportHistoryAsync(CancellationToken cancellationToken);
+    Task<App.AccountingExportReceipt> ExportBatchAsync(long batchId, string outputPath, App.AccountingDestination destination,
+        Func<CancellationToken,Task<string>> writeFile, CancellationToken cancellationToken);
 }
 
 internal sealed class ProductisationAccountingGateway(ProductisationRepository repository) : IAccountingSqlGateway
@@ -301,6 +319,9 @@ internal sealed class ProductisationAccountingGateway(ProductisationRepository r
     public Task ApproveMappingAsync(App.ApproveAccountingMapping command, CancellationToken cancellationToken) =>
         repository.ApproveAccountingMappingAsync(command, cancellationToken);
 
-    public Task RecordExportAsync(long batchId, string sha256, CancellationToken cancellationToken) =>
-        repository.RecordAccountingExportAsync(batchId, sha256, cancellationToken);
+    public Task<App.AccountingDestination> LoadDestinationAsync(CancellationToken token) => repository.LoadAccountingDestinationAsync(token);
+    public Task SaveDestinationAsync(App.SaveAccountingDestination command, CancellationToken token) => repository.SaveAccountingDestinationAsync(command,token);
+    public Task<IReadOnlyList<App.AccountingExportReceipt>> LoadExportHistoryAsync(CancellationToken token) => repository.LoadAccountingExportHistoryAsync(token);
+    public Task<App.AccountingExportReceipt> ExportBatchAsync(long batchId, string outputPath, App.AccountingDestination destination,
+        Func<CancellationToken,Task<string>> writeFile, CancellationToken token) => repository.ExportAccountingBatchAsync(batchId,outputPath,destination,writeFile,token);
 }

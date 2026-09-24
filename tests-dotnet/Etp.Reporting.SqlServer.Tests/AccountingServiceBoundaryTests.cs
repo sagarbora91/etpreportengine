@@ -41,7 +41,7 @@ public sealed class AccountingServiceBoundaryTests
                 new("RETURN", "Sales Return", "Tender Control", "{description}")
             ]
         };
-        var service = Create(gateway, ApplicationRole.Viewer);
+        var service = Create(gateway, ApplicationRole.Owner);
 
         var preview = await service.PreviewAsync(new("WLMHW", new(2026, 8, 25)));
 
@@ -53,7 +53,7 @@ public sealed class AccountingServiceBoundaryTests
     }
 
     [Fact]
-    public async Task Save_requires_store_manager_access_and_recomputed_balanced_totals()
+    public async Task Save_requires_owner_access_and_recomputed_balanced_totals()
     {
         var gateway = new FakeGateway();
         var unbalanced = new App.AccountingBatchDraft(
@@ -72,7 +72,7 @@ public sealed class AccountingServiceBoundaryTests
             .SaveAsync(new(new("WLMHW", new(2026, 8, 25)), 17, balanced)));
         Assert.Equal(0, gateway.SaveCalls);
 
-        Assert.Equal(91, await Create(gateway, ApplicationRole.StoreManager)
+        Assert.Equal(91, await Create(gateway, ApplicationRole.Owner)
             .SaveAsync(new(new("WLMHW", new(2026, 8, 25)), 17, balanced)));
         Assert.Equal(1, gateway.SaveCalls);
     }
@@ -105,7 +105,7 @@ public sealed class AccountingServiceBoundaryTests
         {
             Batches =
             [
-                new(5, "WLMHW", new(2026, 8, 25), 17, 1, 10m, 10m, "APPROVED",
+                new(5, "WLMHW", new(2026, 8, 25), 17, 1, 10m, 10m, "APPROVED_READY",
                     "OWNER", null, null, new(2026, 8, 25, 10, 0, 0))
             ],
             Entries =
@@ -130,6 +130,22 @@ public sealed class AccountingServiceBoundaryTests
         gateway.Calls.Clear();
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
             Create(gateway, ApplicationRole.StoreManager).ExportAsync(new(5, "Saagar Traders", output)));
+        Assert.Empty(gateway.Calls);
+    }
+
+    [Fact]
+    public async Task Destination_requires_owner_and_explicit_production_confirmation_and_live_exports_are_blocked()
+    {
+        var gateway = new FakeGateway();
+        var owner = Create(gateway,ApplicationRole.Owner);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(()=>Create(gateway,ApplicationRole.StoreManager).LoadDestinationAsync());
+        await Assert.ThrowsAsync<ArgumentException>(()=>owner.SaveDestinationAsync(new("Firm", "PRODUCTION", "firm", "Checked")));
+        await owner.SaveDestinationAsync(new("Firm", "PRODUCTION", "Firm", "Checked"));
+        var live = await Assert.ThrowsAsync<InvalidOperationException>(()=>owner.ExportAsync(new(5,"", "test.xml")));
+        Assert.Contains("D18",live.Message);
+        gateway.Destination = new(null,"TEST");
+        var unset = await Assert.ThrowsAsync<InvalidOperationException>(()=>owner.ExportAsync(new(5,"", "test.xml")));
+        Assert.Contains("D12",unset.Message);
         Assert.Empty(gateway.Calls);
     }
 
@@ -198,10 +214,15 @@ public sealed class AccountingServiceBoundaryTests
             return Task.CompletedTask;
         }
 
-        public Task RecordExportAsync(long batchId, string sha256, CancellationToken cancellationToken)
+        public App.AccountingDestination Destination { get; set; } = new("Saagar Traders", "TEST");
+        public Task<App.AccountingDestination> LoadDestinationAsync(CancellationToken token) => Task.FromResult(Destination);
+        public Task SaveDestinationAsync(App.SaveAccountingDestination command, CancellationToken token) { Destination = new(command.CompanyName,command.EnvironmentLabel); return Task.CompletedTask; }
+        public Task<IReadOnlyList<App.AccountingExportReceipt>> LoadExportHistoryAsync(CancellationToken token) => Task.FromResult<IReadOnlyList<App.AccountingExportReceipt>>([]);
+        public async Task<App.AccountingExportReceipt> ExportBatchAsync(long batchId,string outputPath,App.AccountingDestination destination,Func<CancellationToken,Task<string>> writeFile,CancellationToken token)
         {
+            var hash=await writeFile(token);
             Calls.Add($"audit:{batchId}");
-            return Task.CompletedTask;
+            return new(batchId,outputPath,hash,destination.CompanyName!,destination.EnvironmentLabel);
         }
     }
 }

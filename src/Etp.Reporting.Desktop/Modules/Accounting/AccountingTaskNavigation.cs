@@ -24,19 +24,28 @@ public sealed partial class AccountingWorkspaceView
     }
     private void InvalidatePreview()
     {
+        ++entriesRevision;
         session.InvalidatePreview(); AccountingEntryGrid.ItemsSource = null;
         SaveTaskButton.IsEnabled = false;
         SetStatus("Accounting scope changed. Preview this store and business date again before saving.");
     }
-    public void SelectTask(string id)
+    public void SelectTask(string id) => RefreshActionState();
+
+    private void RefreshActionState()
     {
-        SaveTaskButton.IsEnabled = accessProvider().CanImport && session.Current.Draft is not null;
-        ApproveTaskButton.IsEnabled = TallyTaskButton.IsEnabled = accessProvider().CanAdminister;
-        SaveTaskButton.ToolTip = SaveTaskButton.IsEnabled ? null : "Owner or Store Manager permission is required.";
-        TallyTaskButton.ToolTip = TallyTaskButton.IsEnabled ? null : "Owner permission is required to export Tally XML.";
-        PreviewTaskButton.Visibility = id is "prepare-batch" or "validation" or "accounting-reconciliation" ? Visibility.Visible : Visibility.Collapsed;
-        SaveTaskButton.Visibility = id == "prepare-batch" ? Visibility.Visible : Visibility.Collapsed;
-        ApproveTaskButton.Visibility = id == "accounting-approval" ? Visibility.Visible : Visibility.Collapsed;
-        TallyTaskButton.Visibility = id == "tally-export" ? Visibility.Visible : Visibility.Collapsed;
+        var owner = accessProvider().CanAdminister;
+        var selected = AccountingBatchGrid.SelectedItem as EtpApplication::Etp.Reporting.Application.Accounting.AccountingBatchSummary;
+        PreviewTaskButton.IsEnabled = owner;
+        SaveTaskButton.IsEnabled = owner && session.Current.Draft is not null;
+        ApproveTaskButton.IsEnabled = owner && selected?.Status == "DRAFT";
+        RejectTaskButton.IsEnabled = owner && selected?.Status is "DRAFT" or "BLOCKED" or "APPROVED_READY";
+        TallyTaskButton.IsEnabled = owner && selected?.Status == "APPROVED_READY";
+        foreach (var button in new[] { PreviewTaskButton, SaveTaskButton, ApproveTaskButton, RejectTaskButton, TallyTaskButton }) button.Visibility = Visibility.Visible;
+        ActionGuidance.Text = !owner ? "Owner permission is required for Accounting."
+            : selected is null ? "Select a saved batch to review, approve or reject. Enter a decision reason below."
+            : selected.Status == "BLOCKED" ? $"Blocked: {selected.BlockingReason} Correct the setup, reject this batch with a reason, and prepare it again."
+            : selected.Status == "EXPORTED_AWAITING_IMPORT" ? "File recorded below. Tally import and read-back have not been verified; this batch cannot be exported again."
+            : selected.Status == "REJECTED" ? "Rejected. You can prepare a replacement for this day."
+            : "Review the saved entries and enter a reason before approving or rejecting. Only an approved batch can be exported.";
     }
 }

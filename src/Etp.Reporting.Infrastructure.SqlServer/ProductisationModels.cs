@@ -92,6 +92,6 @@ public sealed record AccountingBatchDraft(IReadOnlyList<AccountingEntryDraft> En
 
 public sealed record AccountingBatchRow(long Id, string StoreCode, DateOnly BusinessDate, long ReportGenerationId,
     int AccountingGeneration, decimal DebitTotal, decimal CreditTotal, string Status, string? ApprovedBy,
-    DateTime? ExportedUtc, string? TallyReference, DateTime CreatedUtc);
+    DateTime? ExportedUtc, string? TallyReference, DateTime CreatedUtc, string? BlockingReason = null);
 
 public sealed record ProductHealthItem(string Component, string Status, string Guidance);

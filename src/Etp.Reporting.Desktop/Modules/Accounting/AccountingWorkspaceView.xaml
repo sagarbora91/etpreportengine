@@ -4,20 +4,22 @@
              xmlns:automation="clr-namespace:System.Windows.Automation;assembly=PresentationCore"
              automation:AutomationProperties.Name="Accounting preparation workspace">
     <StackPanel>
-        <TextBlock Text="Accounting Preparation" FontSize="18" FontWeight="SemiBold"/>
-        <TextBlock Text="Prepare balanced, approval-controlled entries from a final saved report generation. recorded ETP facts are never edited."
+        <TextBlock Text="Prepare → Review → Export" FontSize="18" FontWeight="SemiBold"/>
+        <TextBlock Text="Prepare the final report, review entries and record a TEST Tally file. The file export does not confirm any result in Tally."
                    Foreground="#5D6873" Margin="0,4,0,10" TextWrapping="Wrap"/>
         <WrapPanel>
-            <TextBox x:Name="AccountingStoreInput" Width="110" Padding="6" Text="WLMHW"
+            <TextBox x:Name="AccountingStoreInput" Width="110" Padding="6"
                      automation:AutomationProperties.Name="Accounting store"/>
             <DatePicker x:Name="AccountingDateInput" Width="145" Margin="8,0,0,0"
                         automation:AutomationProperties.Name="Accounting business date"/>
-            <Button x:Name="PreviewTaskButton" Content="Preview batch" Click="PreviewAccountingBatch_Click" Style="{DynamicResource PrimaryButton}" Padding="14,7" Margin="8,0,0,0"/>
-            <Button x:Name="SaveTaskButton" Content="Save for review" Click="SaveAccountingBatch_Click" Padding="14,7" Margin="8,0,0,0"/>
-            <Button x:Name="ApproveTaskButton" Content="Approve selected" Click="ApproveAccountingBatch_Click" Padding="14,7" Margin="8,0,0,0"/>
+            <Button x:Name="PreviewTaskButton" Content="1 Prepare preview" Click="PreviewAccountingBatch_Click" Style="{DynamicResource PrimaryButton}" Padding="14,7" Margin="8,0,0,0"/>
+            <Button x:Name="SaveTaskButton" Content="Save batch" Click="SaveAccountingBatch_Click" Padding="14,7" Margin="8,0,0,0"/>
+            <Button x:Name="ApproveTaskButton" Content="2 Approve selected" Click="ApproveAccountingBatch_Click" Padding="14,7" Margin="8,0,0,0"/>
             <Button x:Name="RejectTaskButton" Content="Reject selected" Click="RejectAccountingBatch_Click" Padding="14,7" Margin="8,0,0,0"/>
-            <Button x:Name="TallyTaskButton" Content="Export Tally XML…" Click="ExportTallyXml_Click" Padding="14,7" Margin="8,0,0,0"/>
+            <Button x:Name="TallyTaskButton" Content="3 Write Tally file…" Click="ExportTallyXml_Click" Padding="14,7" Margin="8,0,0,0"/>
         </WrapPanel>
+        <TextBlock x:Name="DestinationStatus" Margin="0,8,0,0" TextWrapping="Wrap"/>
+        <TextBlock x:Name="ActionGuidance" Margin="0,6,0,0" TextWrapping="Wrap"/>
         <TextBlock x:Name="AccountingStatus" Margin="0,10,0,0" TextWrapping="Wrap"
                    automation:AutomationProperties.Name="Accounting status"
                    automation:AutomationProperties.LiveSetting="Polite"/>
@@ -28,6 +30,9 @@
         <DataGrid x:Name="AccountingBatchGrid" AutoGenerateColumns="True" IsReadOnly="True"
                   SelectionMode="Single" MaxHeight="220"
                   automation:AutomationProperties.Name="Accounting batch history"/>
+        <TextBlock Text="Export history — file evidence; Tally result not checked" FontWeight="SemiBold" Margin="0,14,0,6"/>
+        <DataGrid x:Name="AccountingExportHistoryGrid" AutoGenerateColumns="True" IsReadOnly="True" MaxHeight="220"
+                  automation:AutomationProperties.Name="Accounting export history"/>
         <TextBlock Text="Owner-approved ledger mapping" FontWeight="SemiBold" Margin="0,14,0,6"/>
         <WrapPanel>
             <ComboBox x:Name="AccountingEventInput" Width="150" SelectedIndex="0"
