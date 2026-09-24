@@ -210,6 +210,31 @@ public sealed class SettingsWorkspaceViewTests
         });
     }
 
+    [Fact]
+    public void Navigation_save_persists_a_Tally_only_draft_without_requiring_an_unrelated_integration_reason()
+    {
+        RunSta(async () =>
+        {
+            var root=Path.Combine(Path.GetTempPath(),"EtpTallyNavigation_"+Guid.NewGuid().ToString("N"));
+            try
+            {
+                var accounting=System.Reflection.DispatchProxy.Create<Etp.Reporting.Application.Accounting.IAccountingService,AccountingWorkspaceControlsTests.AccountingProxy>();
+                var proxy=(AccountingWorkspaceControlsTests.AccountingProxy)(object)accounting;
+                var administration=new FakeAdministrationService();
+                var view=new SettingsWorkspaceView(new(new DesktopSettingsStore(root),new DesktopConnectionState(ConnectionString)),
+                    _=>new FakeLifecycleService(),_=>administration,root,_=>accounting);
+                view.UpdateAccess(new(true,true)); view.Initialize(); await view.PrepareForDisplayAsync(true);
+                var tally=((StackPanel)view.FindName("ProductSettingsPanel")).Children.OfType<TallyDestinationSettingsView>().Single();
+                var fields=tally.Children.OfType<TextBox>().ToArray(); fields[0].Text="TEST New destination"; fields[2].Text="Owner reviewed destination";
+                Assert.True(view.HasProductDraft);
+                Assert.True(await view.SaveProductConfigurationAsync());
+                Assert.Equal("TEST New destination",proxy.Saved!.CompanyName);
+                Assert.Null(administration.Saved); Assert.False(view.HasProductDraft);
+            }
+            finally { if(Directory.Exists(root)) Directory.Delete(root,true); }
+        });
+    }
+
     private static int Count(string source, string value) =>
         source.Split(value, StringSplitOptions.None).Length - 1;
 
