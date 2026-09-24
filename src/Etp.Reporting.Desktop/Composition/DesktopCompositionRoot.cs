@@ -202,6 +202,8 @@ public sealed class DesktopCompositionRoot
             importWorkspaceView);
         window.importHistoryView = new ImportHistoryView(scope =>
             new SqlServerImportHistoryQuery(connectionState.ConnectionString).LoadAsync(scope));
+        dailyWorkflowWorkspaceView.AttachRegisters((store, date, token) =>
+            SqlServerDigitalRegisterService.LoadDayAsync(connectionState.ConnectionString, store, date, token));
         return window;
     }
 

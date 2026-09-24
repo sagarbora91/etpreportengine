@@ -32,7 +32,7 @@ public sealed class ReportWorkspaceSession
             dailySalesWorkspace.BusinessDatePicker.SelectedDate = businessDate;
             dailySalesWorkspace.ScopeSelector.SelectedIndex = 0;
             dailySalesWorkspace.ScopeSelector.IsEnabled = false;
-            dailySalesWorkspace.ScopeSelector.ToolTip = "DSR always compares Titan and Helios, including combined totals. Use a store sales report for a single store.";
+            dailySalesWorkspace.ScopeSelector.ToolTip = "DSR includes every active store and combined totals. Use Store Sales Summary for one store.";
             dailySalesWorkspace.ShowLoading();
             return dailySalesWorkspace;
         }

@@ -58,4 +58,13 @@ public partial class ReportsWorkspaceView
         static string Values(IReadOnlyList<string>? values) => values is null ? "All" : string.Join(", ", values);
         return $"Applied scope: {scope.DateFrom:yyyy-MM-dd} to {scope.DateTo:yyyy-MM-dd}; Stores: {Values(scope.StoreCodes)}; Brand segments: {Values(scope.BrandSegments)}; Transaction types: {Values(scope.TransactionTypes)}; Items: {Values(scope.ItemCodes)}";
     }
+
+    public async Task OpenInvestigationAsync(string report, string reference)
+    {
+        BrandSegmentFilterInput.Clear(); TransactionTypeFilterInput.Clear();
+        ItemFilterInput.Text = report == "sales-item" ? reference : string.Empty;
+        ReportSearchInput.Clear();
+        await RunReportAsync(report);
+        ApplyReportFilter();
+    }
 }

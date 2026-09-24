@@ -100,8 +100,8 @@
             <WrapPanel Margin="0,14,0,0">
                 <Button x:Name="GenerateStorePackButton" Content="Generate selected-store pack" Click="GenerateDailyPack_Click" Padding="16,8"
                         automation:AutomationProperties.Name="Generate selected store daily reporting pack"/>
-                <Button x:Name="GenerateCombinedPackButton" Content="Generate Titan + Helios pack" Click="GenerateCombinedDailyPack_Click" Padding="16,8" Margin="8,0,0,0"
-                        automation:AutomationProperties.Name="Generate combined Titan and Helios daily reporting pack"/>
+                <Button x:Name="GenerateCombinedPackButton" Content="Generate all stores pack" Click="GenerateCombinedDailyPack_Click" Padding="16,8" Margin="8,0,0,0"
+                        automation:AutomationProperties.Name="Generate combined daily reporting pack for all active stores"/>
                 <Button x:Name="ExportPackExcelButton" Content="Export complete pack Excel…" Click="ExportDailyPackExcel_Click" Padding="16,8" Margin="8,0,0,0" IsEnabled="False"
                         automation:AutomationProperties.Name="Export complete report pack Excel"/>
                 <Button x:Name="ExportPackPdfButton" Content="Export complete pack PDF…" Click="ExportDailyPackPdf_Click" Padding="16,8" Margin="8,0,0,0" IsEnabled="False"

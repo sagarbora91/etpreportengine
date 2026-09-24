@@ -55,7 +55,7 @@ public sealed class ImportRetryClosureTests
                     var problems = new ImportProblemsView(imports, () => Task.FromResult(imports.Problems));
                     problems.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
                     var retry = Children(problems).OfType<Button>().Single(button => Equals(button.Content, "Retry failed"));
-                    Assert.Equal(access.CanImport, TaskNavigation.Find("conflicts")!.IsAllowed(new(access.HasAssignedRole, access.CanView, access.CanImport, access.CanAdminister)));
+                    Assert.Equal(access.CanView, TaskNavigation.Find("conflicts")!.IsAllowed(new(access.HasAssignedRole, access.CanView, access.CanImport, access.CanAdminister)));
                     Assert.Equal(imports.CanRetry, retry.IsEnabled);
                     Assert.Equal(access.CanImport, retry.IsEnabled);
                     Assert.Equal(ShellCommand.RetryImport, ShellShortcutRegistry.Resolve(Key.R, Key.None, ModifierKeys.Control));

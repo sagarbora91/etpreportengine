@@ -62,14 +62,14 @@ public sealed class ImportHistoryView : UserControl
     public async Task ActivateAsync(HistoryScope value)
     {
         scope = value; var current = ++revision; IsLoading = true;
-        status.Text = $"Loading saved imports for {value.From:dd MMM yyyy} – {value.To:dd MMM yyyy} · {value.StoreCode ?? "Both stores"}…";
+        status.Text = $"Loading saved imports for {value.From:dd MMM yyyy} – {value.To:dd MMM yyyy} · {value.StoreCode ?? "All stores"}…";
         Entries = []; rows.ItemsSource = null; ShowDetails(null);
         try
         {
             var loaded = await load(value);
             if (current != revision) return;
             Entries = loaded; rows.ItemsSource = loaded;
-            status.Text = $"{loaded.Count:N0} saved outcomes · {value.From:dd MMM yyyy} – {value.To:dd MMM yyyy} · {value.StoreCode ?? "Both stores"}";
+            status.Text = $"{loaded.Count:N0} saved outcomes · {value.From:dd MMM yyyy} – {value.To:dd MMM yyyy} · {value.StoreCode ?? "All stores"}";
             if (loaded.Count > 0) rows.SelectedIndex = 0;
         }
         catch (Exception exception)

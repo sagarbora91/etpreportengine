@@ -71,7 +71,7 @@ public static class FocusedTaskLayout
             var index = indices[position];
             // A toolbar's old title block is already represented by the persistent task header.
             if (parts.Children[index] is DockPanel && !content.Contains(index)) continue;
-            if (title == "Watch Folder" && index == 12)
+            if (title == "Automatic import" && index == 12)
             {
                 var fields = new WrapPanel { ItemWidth = 350 };
                 for (var labelIndex = 12; labelIndex <= 18; labelIndex += 2)

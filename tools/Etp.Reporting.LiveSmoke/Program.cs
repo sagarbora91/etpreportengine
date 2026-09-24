@@ -199,7 +199,7 @@ static async Task VerifyPhase2OperationsAsync(string connectionString, string du
     var failed = Path.Combine(root, "Failed"); var reports = Path.Combine(root, "Reports");
     try
     {
-        await repository.SaveWatchFolderSettingsAsync(new(inbound, processed, failed, reports, 5, true, DateTime.MinValue, access.WindowsIdentity),
+        await repository.SaveWatchFolderSettingsAsync(new(inbound, processed, failed, reports, true, DateTime.MinValue, access.WindowsIdentity),
             "Live validation of unattended duplicate protection");
         Directory.CreateDirectory(inbound);
         var queued = Path.Combine(inbound, Path.GetFileName(duplicateWorkbook));

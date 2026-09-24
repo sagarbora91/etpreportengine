@@ -8,6 +8,20 @@ namespace Etp.Reporting.Desktop.Tests;
 public sealed class RegisterDraftTests
 {
     [Fact]
+    public void Header_scope_does_not_create_a_draft_but_existing_edits_stay_dirty()
+    {
+        RunSta(() =>
+        {
+            var view=Create(new RegistersStub()); view.SelectTask("register-courier");
+            view.ApplyHeaderScope(new(2026,8,25),"EAST"); Assert.False(view.HasUnsavedChanges);
+            view.SelectTask("register-inward"); view.ApplyHeaderScope(new(2026,8,26),"WEST"); Assert.False(view.HasUnsavedChanges);
+            Input(view,"RegisterRemarksInput").Text="Keep this draft";
+            view.ApplyHeaderScope(new(2026,8,27),"WEST");
+            Assert.True(view.HasUnsavedChanges); Assert.Equal("Keep this draft",Input(view,"RegisterRemarksInput").Text);
+        });
+    }
+
+    [Fact]
     public void New_entry_preserves_unsaved_fields_until_discard_is_confirmed()
     {
         RunSta(() =>

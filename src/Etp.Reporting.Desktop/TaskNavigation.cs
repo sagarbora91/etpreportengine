@@ -88,7 +88,7 @@ public static class TaskNavigation
         Add("tender-rules", "Tender mapping", "Settings", "Stores & masters", "Admin / Settings", "tender-rules", 3);
         Add("staff-target", "Staff targets", "Settings", "Stores & masters", "Manual Entry", "staff-target", 3);
         Add("watch-folder", "Automatic import", "Settings", "Automatic import", "Operations Center", "watch-folder", 3);
-        Add("sharing", "Email and sharing", "Settings", "Integrations", "Settings", "sharing", 3);
+        Add("sharing", "Email, sharing and Tally", "Settings", "Integrations", "Settings", "sharing", 3);
         Add("sharing-contacts", "Sharing contacts", "Settings", "Integrations", "Report Archive", "sharing-contacts", 3);
         Add("prepare-batch", "Prepare → Review → Export", "Settings", "Accounting", "Accounting", "prepare-batch", 3);
         Add("open-items", "Open items", "Settings", "Control centre", "Operations Center", "open-items", 3);

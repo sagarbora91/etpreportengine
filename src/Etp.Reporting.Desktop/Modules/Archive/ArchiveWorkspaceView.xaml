@@ -11,8 +11,7 @@
             <TextBlock Text="Store" VerticalAlignment="Center"/>
             <ComboBox x:Name="ArchiveStoreInput" Width="130" SelectedIndex="0" Margin="6,0,10,0"
                       automation:AutomationProperties.Name="Archive store">
-                <ComboBoxItem Content="All"/><ComboBoxItem Content="COMBINED"/>
-                <ComboBoxItem Content="WLMHW"/><ComboBoxItem Content="HEMW"/>
+                <ComboBoxItem Content="All"/>
             </ComboBox>
             <TextBlock Text="Business date" VerticalAlignment="Center"/>
             <DatePicker x:Name="ArchiveDateInput" Width="140" Margin="6,0,0,0"
@@ -27,8 +26,8 @@
                   automation:AutomationProperties.Name="Archived report generations">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Store" Binding="{Binding StoreCode}" Width="100"/>
-                <DataGridTextColumn Header="Business date" Binding="{Binding BusinessDate}" Width="110"/>
-                <DataGridTextColumn Header="Generation" Binding="{Binding GenerationNumber}" Width="90"/>
+                <DataGridTextColumn Header="Business date" Binding="{Binding BusinessDate, StringFormat=dd MMM yyyy}" Width="125"/>
+                <DataGridTextColumn Header="Generation" Binding="{Binding GenerationNumber}" Width="105"/>
                 <DataGridCheckBoxColumn Header="Final" Binding="{Binding IsFinal}" Width="60"/>
                 <DataGridTemplateColumn Header="Pack actions" Width="*">
                     <DataGridTemplateColumn.CellTemplate><DataTemplate><WrapPanel>
@@ -101,7 +100,7 @@
             </DataGrid.Columns>
         </DataGrid>
         <StackPanel Margin="0,14,0,0">
-            <TextBlock Text="SMTP credentials for this Windows user (optional for an approved relay). Host, port, TLS and sender are stored in Settings > Email and sharing." TextWrapping="Wrap"/>
+            <TextBlock Text="SMTP credentials for this Windows user (optional for an approved relay). Host, port, TLS and sender are stored in Settings > Integrations > Email, sharing and Tally." TextWrapping="Wrap"/>
             <WrapPanel Margin="0,6,0,0">
                 <TextBlock Text="SMTP user" VerticalAlignment="Center"/>
                 <TextBox x:Name="SmtpUserInput" Width="220" Margin="6,0,8,0" automation:AutomationProperties.Name="Personal SMTP user"/>

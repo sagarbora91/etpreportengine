@@ -42,6 +42,7 @@ public sealed partial class ArchiveWorkspaceView : UserControl
         this.exportPdfAsync = exportPdfAsync ?? throw new ArgumentNullException(nameof(exportPdfAsync));
         this.shareLauncher = shareLauncher ?? throw new ArgumentNullException(nameof(shareLauncher));
         InitializeComponent();
+        ReportGenerationGrid.RowHeight = double.NaN;
         ArchiveDateInput.SelectedDate = DateTime.Today.AddDays(-1);
     }
 
@@ -270,8 +271,15 @@ public sealed partial class ArchiveWorkspaceView : UserControl
             case "ZIP": ExportArchivedZip_Click(sender, e); break;
             case "Share":
                 SetStatus($"Sharing generation {row.GenerationNumber}. Select a contact or enter a recipient, then choose WhatsApp or Send email. A PDF is prepared automatically.");
-                ShareEmailToInput.BringIntoView(); ShareEmailToInput.Focus(); break;
+                RevealShareRecipient(); break;
         }
+    }
+
+    internal void RevealShareRecipient()
+    {
+        for (DependencyObject? current = ShareEmailToInput; current is not null; current = LogicalTreeHelper.GetParent(current))
+            if (current is TabItem tab) tab.IsSelected = true;
+        ShareEmailToInput.BringIntoView(); ShareEmailToInput.Focus();
     }
 
     private void NewContact_Click(object sender, RoutedEventArgs e)

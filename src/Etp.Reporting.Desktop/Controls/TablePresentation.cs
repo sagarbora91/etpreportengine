@@ -43,7 +43,7 @@ public static class TablePresentation
             grid.Columns.Clear();
             foreach (PropertyDescriptor property in properties)
             {
-                if (!property.IsBrowsable) continue;
+                if (!property.IsBrowsable || property.Name is "TargetTaskId" or "TargetId" or "NavigationHint") continue;
                 var valueType = Nullable.GetUnderlyingType(property.PropertyType) ?? property.PropertyType;
                 var numeric = valueType == typeof(decimal) || valueType == typeof(double) || valueType == typeof(float) || valueType == typeof(int) || valueType == typeof(long);
                 var money = valueType == typeof(decimal) && Regex.IsMatch(property.Name, "Amount|Value|Sales|Cash|Card|Bank|GiftCard|Opening|Closing|Total|Balance|Expense|UPI", RegexOptions.IgnoreCase)

@@ -44,10 +44,16 @@ public static class UiPreferenceStore
         try
         {
             if (!File.Exists(FilePath)) return UiPreferences.Default;
-            return JsonSerializer.Deserialize<UiPreferences>(File.ReadAllText(FilePath)) ?? UiPreferences.Default;
+            return Normalize(JsonSerializer.Deserialize<UiPreferences>(File.ReadAllText(FilePath)) ?? UiPreferences.Default);
         }
         catch (Exception) when (File.Exists(FilePath)) { return UiPreferences.Default; }
     }
+
+    internal static UiPreferences Normalize(UiPreferences preferences) => preferences with
+    {
+        FavouriteReportCodes = preferences.FavouriteReportCodes.Select(code => code is "sales-titan" or "sales-helios" ? "sales-store" : code)
+            .Where(code => ProductReportCatalogue.All.Any(report => report.Code == code)).Distinct().ToArray()
+    };
 
     public static void Save(UiPreferences preferences)
     {

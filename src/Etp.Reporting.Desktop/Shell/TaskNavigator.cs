@@ -60,7 +60,12 @@ public sealed partial class TaskNavigator(MainWindow window)
         try
         {
             window.ShellStoreSelector.Items.Clear();
-            foreach(var store in catalog.Stores) window.ShellStoreSelector.Items.Add(new ComboBoxItem { Content=StoreScopeCatalog.Label(store), Tag=store.Code });
+            var labelFactory = new FrameworkElementFactory(typeof(TextBlock));
+            labelFactory.SetBinding(TextBlock.TextProperty, new System.Windows.Data.Binding());
+            labelFactory.SetValue(TextBlock.TextWrappingProperty, TextWrapping.NoWrap);
+            labelFactory.SetValue(TextBlock.TextTrimmingProperty, TextTrimming.CharacterEllipsis);
+            var labelTemplate = new DataTemplate { VisualTree = labelFactory };
+            foreach(var store in catalog.Stores) window.ShellStoreSelector.Items.Add(new ComboBoxItem { Content=StoreScopeCatalog.Label(store), Tag=store.Code, ToolTip=StoreScopeCatalog.Label(store), ContentTemplate=labelTemplate });
             window.ShellStoreSelector.Items.Add(new ComboBoxItem { Content=StoreScopeCatalog.AllStores, Tag="" });
             window.ShellStoreSelector.SelectedItem=window.ShellStoreSelector.Items.OfType<ComboBoxItem>().FirstOrDefault(x=>x.Tag?.ToString()==previous)
                 ?? window.ShellStoreSelector.Items[window.ShellStoreSelector.Items.Count-1];
@@ -125,7 +130,7 @@ public sealed partial class TaskNavigator(MainWindow window)
         if (window.FocusedWorkspaceHost.Content is DailySalesReportWorkspace dsr) dsr.BusinessDatePicker.SelectedDate = selected;
         window.dailyWorkflowWorkspace.BusinessDate = selected;
         window.importWorkspaceView.BusinessDate = selected;
-        window.registersWorkspaceView.BusinessDate = selected;
+        window.registersWorkspaceView.ApplyHeaderScope(selected, HeaderStore);
         window.accountingWorkspaceView.BusinessDate = selected;
         window.sourceInboxWorkspaceView.BusinessDate = selected;
         window.archiveWorkspaceView.BusinessDate = selected;
@@ -378,7 +383,12 @@ public sealed partial class TaskNavigator(MainWindow window)
             RestoreHeader(appliedDate, appliedStore);
         }
         window.reportsWorkspaceView.ApplyScope(window.reportsWorkspaceView.DateFrom,appliedDate,HeaderStore);
-        if (task.ReportCode is { } code) { _ = window.reportsWorkspaceView.RunReportAsync(code); return true; }
+        if (task.ReportCode is { } code)
+        {
+            if (pendingInvestigation is { } reportHit) { pendingInvestigation = null; _ = OpenInvestigationReportAsync(code, reportHit.PrimaryReference); }
+            else _ = window.reportsWorkspaceView.RunReportAsync(code);
+            return true;
+        }
 
 
 
@@ -392,6 +402,7 @@ public sealed partial class TaskNavigator(MainWindow window)
 
         window.FocusedWorkspaceLayer.Visibility = Visibility.Visible;
         window.FocusedWorkspaceHost.Content = view; window.focusedWorkspaceKind = "task";
+        if (pendingInvestigation is { } hit) { pendingInvestigation = null; _ = SelectInvestigationAsync(hit); }
 
         return true;
     }
@@ -447,12 +458,13 @@ public sealed partial class TaskNavigator(MainWindow window)
                 // down by one and each entry below was corrected to match.
                 "manual" => (new int[] {8,3,6}, new int[] {8}), "stock-count" => (new int[] {2,12,3,11}, new int[] {12}),
                 "staff-target" => (new int[] {2,14,3}, new int[] {14}), "finalisation" => (new int[] {2,15,3}, new int[] {15}),
-                "readiness" => (new int[] {3,15,17}, new int[] {15,16}), _ => (new int[] {2,3,17}, new int[] {16})
+                "readiness" => (new int[] {3,15,17,18}, new int[] {15,16}), _ => (new int[] {2,3,17}, new int[] {16})
             };
         }
         else if (task.Destination == "Registers") { view = window.registersWorkspaceView; body = new int[] {4,5,6,1,2}; actions = new int[] {0,1,5}; window.registersWorkspaceView.SelectTask(id); }
         else if (task.Destination == "Accounting")
         {
+            ApplyHiddenScope(window.accountingWorkspaceView);
             window.accountingWorkspaceView.SelectTask("prepare-batch");
             visited.Add(window.accountingWorkspaceView);
             _ = window.accountingWorkspaceView.RefreshAsync();
@@ -460,10 +472,11 @@ public sealed partial class TaskNavigator(MainWindow window)
         }
         else if (task.Destination == "Report Archive")
         {
+            ApplyHiddenScope(window.archiveWorkspaceView);
             window.archiveWorkspaceView.SelectTask(id);
-            visited.Add(window.archiveWorkspaceView);
-            _ = window.archiveWorkspaceView.RefreshAsync();
-            return window.archiveWorkspaceView;
+            view = window.archiveWorkspaceView;
+            body = id == "sharing-contacts" ? new int[] {6,7,8,9} : new int[] {0,1,2,3,5,9,10,11,12,13};
+            actions = id == "sharing-contacts" ? [] : [4];
         }
         else if (id is "connection" or "settings" or "sharing")
         { view = window.settingsWorkspace; if (id == "sharing") window.settingsWorkspace.SelectIntegrationTask(id); body = id is "connection" or "settings" ? new int[] {0,1,3,7} : new int[] {3,5}; actions = id is "connection" or "settings" ? new int[] {2} : new int[] {}; }
@@ -483,19 +496,20 @@ public sealed partial class TaskNavigator(MainWindow window)
         { view = window.investigationWorkspaceView; (body, actions) = id switch { "approval-centre" => (new int[] {3,7,8}, new int[] {9}), "adjustment" => (new int[] {3,5,6}, new int[] {}), _ => (new int[] {0,1,3,4}, new int[] {2}) }; }
         else if (id is "backups" or "support-package" or "recovery")
         { view = window.operationsWorkspaceView; body = new int[] {29}; actions = new int[] {28}; window.operationsWorkspaceView.SelectMaintenanceTask(id); }
-        else if (id is "watch-folder" or "scheduler")
-        { view = window.operationsWorkspaceView; (body, actions) = id == "watch-folder" ? (new int[] {2,12,13,14,15,16,17,18,19}, new int[] {20}) : (new int[] {2,21,22,24,25}, new int[] {23}); }
+        else if (id == "watch-folder")
+        { view = window.operationsWorkspaceView; body = new int[] {2,11,12,13,14,15,16,17,18,19,21,22,24,25}; actions = [20,23]; }
         else { view = window.operationsWorkspaceView; window.operationsWorkspaceView.SelectIssueTask(id); body = id is "trends" ? new int[] {1,2,3,4,5} : new int[] {1,2,8,7}; actions = id is "trends" ? new int[] {0} : new int[] {0,8}; }
         FocusedTaskLayout.Show(view, task.Title, body, actions);
+        ApplyHiddenScope(view);
         if (view == window.dailyWorkflowWorkspace) window.dailyWorkflowWorkspace.PrepareTouchTask(id);
         visited.Add(view);
-        if (prepared.Add(view) || view == window.dailyWorkflowWorkspace)
+        if (prepared.Add(view) || view == window.dailyWorkflowWorkspace || view == window.archiveWorkspaceView || view == window.investigationWorkspaceView)
         {
             if (view == window.dailyWorkflowWorkspace) { window.dailyWorkflowWorkspace.RefreshAccessState(); _ = window.dailyWorkflowWorkspace.RefreshAsync(); }
             if (view == window.accountingWorkspaceView) _ = window.accountingWorkspaceView.RefreshAsync();
             if (view == window.archiveWorkspaceView) _ = window.archiveWorkspaceView.RefreshAsync();
             if (view == window.operationsWorkspaceView) _ = window.operationsWorkspaceView.RefreshAsync();
-            if (view == window.investigationWorkspaceView) _ = window.investigationWorkspaceView.RefreshApprovalsAsync();
+            if (view == window.investigationWorkspaceView && id == "approval-centre") _ = window.investigationWorkspaceView.RefreshApprovalsAsync();
         }
         return view;
     }

@@ -25,6 +25,15 @@ public sealed class StoreScopeCatalogTests
         Assert.Equal(0,Modules.Reports.ReportTaskScope.StoreIndexForReport("cash",3,3));
         Assert.Equal(0,Modules.Reports.ReportTaskScope.StoreIndexForReport("cash",0,0));
     }
+
+    [Fact]
+    public void Custom_store_filters_and_legacy_favourites_survive_normalization()
+    {
+        var catalog = TestStoreCatalog.Create();
+        Assert.Equal("WLMHW,HEMW", catalog.Resolve(catalog.Display("WLMHW,HEMW")));
+        Assert.Equal("UNKNOWN", catalog.Resolve(catalog.Display("UNKNOWN")));
+        Assert.Equal(["sales-store","dsr"], UiPreferenceStore.Normalize(new(UiDensity.Touch,[],["sales-titan","sales-helios","dsr","retired"])).FavouriteReportCodes);
+    }
 }
 
 internal static class TestStoreCatalog

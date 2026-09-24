@@ -145,6 +145,20 @@ Run signed `invoke-database-maintenance.ps1` as Owner/SQL administrator with the
 
 ## Troubleshooting
 
+### Phase 5 upgrade and operating checks
+
+Migrations 0033–0036 add accounting invoice reservations and immutable export receipts, sharing outcomes, bound restatement/register controls, then remove the unused `controlled_master_values` table. The active `stores` table and master-change audit history remain. Do not modify already-applied migration files or their checksums.
+
+Before applying 0033 to an existing database, review historical non-rejected batches for invoices reserved more than once. The migration deliberately refuses ambiguous duplicates. Using the prior app, the Owner can reject duplicate **unexported** batches with a reason. Already-exported overlaps require an Owner/accountant review and a reviewed recovery plan; do not invent rejections, delete rows or fabricate export receipts. Historical exports retain their recorded facts without invented file hashes. Take and verify the existing-database backup before the supervised upgrade.
+
+For accounting, configure the agreed company and TEST environment in Settings → Integrations → Email, sharing and Tally. TEST XML remains a Phase 5 file export. Production and real Tally read-back require Phase 7 acceptance and unresolved company/accounting decisions. Keep exported XML with its SQL receipt; a missing or altered file is not made valid by editing its recorded hash.
+
+For email, configure SMTP host/port/TLS/sender in integration settings as Owner. Each intended Windows sender saves optional personal authentication credentials under Archive → Filters & input; Windows DPAPI binds them to that account. Only the Owner can change shared server settings or initiate the confirmed test send. Check recipient and attachment before sending. `SMTP_ACCEPTED` means the server accepted the submission; `UNKNOWN` means the outcome is uncertain and must be checked before retry. WhatsApp `HANDOFF_READY` is a manual handoff, never delivery confirmation. Do not place credentials in source control, diagnostics or support packages.
+
+Automatic import now reads configured active stores and observes installed Windows tasks separately from the database's enabled setting. A missing task, disabled task and unreadable task service are shown distinctly. Schedule frequency belongs to Windows Task Scheduler, not the removed `poll_minutes` setting. The automation session releases its SQL application lock even on failure. Review recorded file outcomes and run history; a task's next-run time alone is not import evidence.
+
+The coding sprint used disposable databases and synthetic/loopback delivery tests. It did not upgrade the shop database, change scheduled tasks, send external messages or deploy an installer. Use the [Phase 5 report](audit/PHASE-5-REPORT.md) for the final tested scope and outstanding installed-account acceptance.
+
 | Symptom | Action |
 | --- | --- |
 | Native encryption unsupported | Expected on Express and Web: the backup is taken unencrypted and the receipt records `NONE`. Confirm the backup folder policy protects it at rest, and treat an edition transition as the fix if an encrypted backup is required. Do not remove encryption from the backup command on an edition that supports it. |

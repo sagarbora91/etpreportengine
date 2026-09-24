@@ -5,10 +5,11 @@ namespace Etp.Reporting.Desktop;
 
 internal static class ShellScopeApplier
 {
-    private static readonly string[] Dates = ["BusinessDateInput", "RegisterBusinessDateInput", "AccountingDateInput", "ArchiveDateInput", "DocumentDateInput"];
-    private static readonly string[] Stores = ["StoreInput", "RegisterStoreInput", "AccountingStoreInput", "ArchiveStoreInput", "DocumentStoreInput"];
+    private static readonly string[] Dates = ["BusinessDateInput", "RegisterBusinessDateInput", "AccountingDateInput", "ArchiveDateInput", "DocumentDateInput", "AdjustmentDateInput"];
+    private static readonly string[] Stores = ["StoreInput", "RegisterStoreInput", "AccountingStoreInput", "ArchiveStoreInput", "DocumentStoreInput", "AdjustmentStoreInput"];
     public static void Apply(UserControl view, DateTime date, string store)
     {
+        if (view is Modules.Registers.RegistersWorkspaceView registers) registers.ApplyHeaderScope(date, store);
         foreach (var name in Dates)
             if (view.FindName(name) is DatePicker picker) { picker.SelectedDate = date; Hide(picker); }
         foreach (var name in Stores)

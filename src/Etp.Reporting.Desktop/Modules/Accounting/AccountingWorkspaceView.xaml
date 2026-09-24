@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:automation="clr-namespace:System.Windows.Automation;assembly=PresentationCore"
              automation:AutomationProperties.Name="Accounting preparation workspace">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
     <StackPanel>
         <TextBlock Text="Prepare → Review → Export" FontSize="18" FontWeight="SemiBold"/>
         <TextBlock Text="Prepare the final report, review entries and record a TEST Tally file. The file export does not confirm any result in Tally."
@@ -53,4 +54,5 @@
         </WrapPanel>
         <StackPanel><TextBlock Text="Batch decision reason"/><TextBox x:Name="BatchApprovalReasonInput" automation:AutomationProperties.Name="Batch decision reason"/></StackPanel>
     </StackPanel>
+    </ScrollViewer>
 </UserControl>

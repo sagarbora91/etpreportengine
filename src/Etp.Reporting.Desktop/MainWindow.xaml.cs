@@ -91,6 +91,10 @@ public partial class MainWindow : Window
             RecordAuditAsync,
             RefreshDashboardAsync);
         dailyWorkflowWorkspace.NotificationRequested += (_, args) => ApplicationStatus.Text = args.Message;
+        dailyWorkflowWorkspace.RegisterNavigationRequested += (_, entry) => taskNavigator!.NavigateInvestigation(new(
+            "Register", entry.DocumentNumber, entry.StoreCode, entry.BusinessDate, "Register entry", "Registers")
+            { TargetTaskId = TaskNavigator.RegisterTask(entry.RegisterType), TargetId = entry.Id, StoreCode = entry.StoreCode });
+        investigationWorkspaceView.InvestigationNavigationRequested += (_, hit) => taskNavigator!.NavigateInvestigation(hit);
         settingsWorkspace.ConnectionPresentationChanged += SettingsWorkspace_ConnectionPresentationChanged;
         settingsWorkspace.OperationCompletedAsync = SettingsWorkspace_OperationCompletedAsync;
 

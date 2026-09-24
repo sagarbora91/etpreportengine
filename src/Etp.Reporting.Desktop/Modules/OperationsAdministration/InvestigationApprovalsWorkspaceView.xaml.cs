@@ -33,6 +33,8 @@ public partial class InvestigationApprovalsWorkspaceView : UserControl
         this.operationsServiceFactory = operationsServiceFactory ?? throw new ArgumentNullException(nameof(operationsServiceFactory));
         this.investigationQueryFactory = investigationQueryFactory ?? throw new ArgumentNullException(nameof(investigationQueryFactory));
         InitializeComponent();
+        System.Windows.Automation.AutomationProperties.SetName(ApprovalStatusFilter, "Filter approval status");
+        InvestigationGrid.AutoGeneratingColumn += (_, e) => { if (e.PropertyName is "TargetTaskId" or "TargetId" or "NavigationHint") e.Cancel = true; };
         approvalReasons = new(ApprovalGrid, ApprovalReasonInput, row => (row as ApprovalRequest)?.Id);
         AdjustmentDateInput.SelectedDate = DateTime.Today.AddDays(-1);
     }

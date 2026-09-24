@@ -74,7 +74,7 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
     public bool BrowseImportFolder()
     {
         if (IsBusy) return false;
-        var dialog = new OpenFolderDialog { Title = "Choose a store folder or the parent containing both stores" };
+        var dialog = new OpenFolderDialog { Title = "Choose a store folder or the parent containing the store folders" };
         if (dialog.ShowDialog(Window.GetWindow(this)) != true) return false;
         WorkbookPathInput.Text = dialog.FolderName;
         return true;

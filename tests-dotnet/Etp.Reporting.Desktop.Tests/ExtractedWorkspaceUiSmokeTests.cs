@@ -225,6 +225,8 @@ public sealed partial class ExtractedWorkspaceUiSmokeTests
             {
                 var resultType = returnType.GetGenericArguments()[0];
                 var value = resultType.IsValueType ? Activator.CreateInstance(resultType) : null;
+                if (resultType.IsGenericType && resultType.GetGenericTypeDefinition() == typeof(IReadOnlyList<>))
+                    value = Array.CreateInstance(resultType.GetGenericArguments()[0], 0);
                 return typeof(Task).GetMethod(nameof(Task.FromResult))!.MakeGenericMethod(resultType).Invoke(null, [value]);
             }
             return returnType.IsValueType ? Activator.CreateInstance(returnType) : null;

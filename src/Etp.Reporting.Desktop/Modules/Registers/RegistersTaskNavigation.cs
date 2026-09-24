@@ -18,6 +18,14 @@ public sealed partial class RegistersWorkspaceView
             ? !DraftFields.Select(input => input.Text).SequenceEqual(baseline.Values) || BusinessDate != baseline.Date || LinkedSourceDocumentId != baseline.Source
             : DraftFields.Any(input => input.Text.Length > 0));
     private void AcceptDraft() { if (activeRegisterTask is not null) savedDrafts[activeRegisterTask] = CaptureDraft(); }
+    public void ApplyHeaderScope(DateTime date, string store)
+    {
+        if (BusinessDate == date && StoreCode == store) return;
+        var dirty = HasUnsavedChanges;
+        if (!dirty) ClearEntry();
+        BusinessDate = date; StoreCode = store;
+        if (!dirty) AcceptDraft();
+    }
     public void DiscardDraft()
     {
         var baseline = activeRegisterTask is null ? null : savedDrafts.GetValueOrDefault(activeRegisterTask);
