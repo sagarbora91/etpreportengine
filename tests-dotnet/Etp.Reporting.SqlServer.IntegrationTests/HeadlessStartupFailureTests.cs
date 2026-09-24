@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using Etp.Reporting.Desktop;
+using Etp.Reporting.TestSupport;
 
 namespace Etp.Reporting.SqlServer.IntegrationTests;
 
@@ -35,6 +37,9 @@ public sealed class HeadlessStartupFailureTests
         info.ArgumentList.Add(mode);
         info.ArgumentList.Add("--connection-string");
         info.ArgumentList.Add(@"Server=.\SQLEXPRESS;Database=EtpPhase0Test_HeadlessReject;Integrated");
+        // Its own folder, so the check below sees only this launch's diagnostics.
+        var diagnostics = Directory.CreateDirectory(Path.Combine(DiagnosticsIsolation.LogDirectory, Guid.NewGuid().ToString("N"))).FullName;
+        info.Environment[DesktopDiagnostics.DirectoryVariable] = diagnostics;
 
         using var process = Process.Start(info)!;
         var stderr = process.StandardError.ReadToEndAsync();
@@ -49,6 +54,9 @@ public sealed class HeadlessStartupFailureTests
         Assert.True(exited, "Headless startup did not exit; a rejected configuration must not block an unattended caller.");
         Assert.NotEqual(0, process.ExitCode);
         Assert.False(string.IsNullOrWhiteSpace(await stderr), "The rejection reason must reach the caller on stderr.");
+        // Recorded - and recorded in the test's folder, not the Owner's log.
+        Assert.Contains("\"STARTUP_CONFIGURATION_REJECTED\"",
+            File.ReadAllText(Assert.Single(Directory.GetFiles(diagnostics, "diagnostics-*.jsonl"))), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -108,6 +116,7 @@ public sealed class HeadlessStartupFailureTests
             "net10.0-windows", "Etp.Reporting.Desktop.exe");
         Assert.True(File.Exists(application), $"Build the desktop application before running this test: {application}");
         var info = new ProcessStartInfo(application) { UseShellExecute = false };
+        info.Environment[DesktopDiagnostics.DirectoryVariable] = DiagnosticsIsolation.LogDirectory;
         if (mode is not null) info.ArgumentList.Add(mode);
         info.ArgumentList.Add("--connection-string");
         info.ArgumentList.Add(@"Server=.\SQLEXPRESS;Database=EtpPhase0Test_HeadlessReject;Integrated");

@@ -6,6 +6,7 @@
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
     <Using Include="Xunit" />
+    <Compile Include="../TestSupport/DiagnosticsIsolation.cs" Link="TestSupport/DiagnosticsIsolation.cs" />
     <ProjectReference Include="../../src/Etp.Reporting.Desktop/Etp.Reporting.Desktop.csproj" />
     <ProjectReference Include="../../src/Etp.Reporting.Application/Etp.Reporting.Application.csproj" />
     <Content Include="../../database/migrations/*.sql" Link="database/migrations/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
