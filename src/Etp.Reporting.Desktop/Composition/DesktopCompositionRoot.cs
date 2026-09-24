@@ -116,7 +116,8 @@ public sealed class DesktopCompositionRoot
             new DesktopSettingsPresentationSession(settingsStore, connectionState, temporaryConnection),
             databaseLifecycleServiceFactory,
             administrationServiceFactory,
-            MigrationDirectory);
+            MigrationDirectory,
+            accountingServiceFactory);
         TenderVarianceDiagnostic tenderVarianceDiagnostic = new ReportingTenderVarianceDiagnostic();
         var reportsWorkspaceView = new ReportsWorkspaceView(
             () => connectionState.ConnectionString,

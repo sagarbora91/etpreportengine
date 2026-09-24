@@ -279,6 +279,9 @@ public sealed class ProductisationPresentationSessionTests
 
     private sealed class FakeAccountingService : IAccountingService
     {
+        public Task<AccountingDestination> LoadDestinationAsync(CancellationToken token=default) => Task.FromResult(new AccountingDestination("Test company","TEST"));
+        public Task SaveDestinationAsync(SaveAccountingDestination command,CancellationToken token=default) => Task.CompletedTask;
+        public Task<IReadOnlyList<AccountingExportReceipt>> LoadExportHistoryAsync(CancellationToken token=default) => Task.FromResult<IReadOnlyList<AccountingExportReceipt>>([]);
         private readonly AccountingBatchDraft draft = new(
             [new AccountingEntry(1, "SALES", "Sales", 100, 0, "Sale", null, "R025"),
              new AccountingEntry(2, "SALES", "Cash", 0, 100, "Sale", null, "R025")],
