@@ -31,7 +31,7 @@ public partial class ReportsWorkspaceView
         Configure(BrandSegmentFilterInput, salesLines || report is "stock-closing" or "stock-brand" or "stock-slow");
         Configure(TransactionTypeFilterInput, salesLines);
         Configure(ItemFilterInput, salesLines || report.StartsWith("stock-", StringComparison.Ordinal) && report != "stock-physical");
-        StoreFilterInput.IsEnabled = report is not ("dsr" or "sales-titan" or "sales-helios" or "sales-combined");
+        StoreFilterInput.IsEnabled = report is not ("dsr" or "sales-combined");
         void Configure(TextBox input, bool enabled) { input.IsEnabled = enabled; if (!enabled) input.Clear(); }
     }
 

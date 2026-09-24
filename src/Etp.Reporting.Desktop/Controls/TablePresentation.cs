@@ -78,6 +78,6 @@ public static class TablePresentation
     }
     internal static string StoreLabel(string value) => value switch
     {
-        "WLMHW" or "Titan" => "Titan World", "HEMW" => "Helios", "COMBINED" or "All" => "Both stores", _ => value
+        "COMBINED" or "All" => "All stores", _ => value
     };
 }

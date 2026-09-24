@@ -47,7 +47,7 @@ public sealed class ReportWorkspaceSession
         }
         workspace.DateFromPicker.SelectedDate = dateFrom;
         workspace.DateToPicker.SelectedDate = dateTo;
-        workspace.ScopeSelector.IsEnabled = reportCode is not ("sales-titan" or "sales-helios" or "sales-combined");
+        workspace.ScopeSelector.IsEnabled = reportCode is not ("sales-combined");
         workspace.ScopeSelector.ToolTip = workspace.ScopeSelector.IsEnabled ? "Report store scope" : "This report has a fixed store scope shown in its title.";
         workspace.SelectReport(reportCode);
         workspace.ConfigureTaskScope(storeScope);

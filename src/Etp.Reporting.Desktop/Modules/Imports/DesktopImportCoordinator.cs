@@ -53,7 +53,9 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
     private readonly Func<string, ImportPersistenceUseCase> persistenceFactory;
     private readonly RetainEtpEvidence retainEvidence;
     private readonly IWorkbookReader workbookReader;
-    private readonly MatchedImportEnvelopeFactory envelopeFactory;
+    private MatchedImportEnvelopeFactory envelopeFactory;
+    private IReadOnlyList<string> knownStores = [];
+    public void SetKnownStores(IReadOnlyList<string> stores) { knownStores=stores; envelopeFactory=new(stores); }
     private readonly IImportFailureClassifier failureClassifier;
     private BatchImportSource? activeBatchSource;
     private CancellationTokenSource? batchCancellation;
@@ -162,7 +164,7 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
         folderImportOptions = options;
         folderImportService = new FolderImportService(persistenceFactory(connectionString), workbookReader,
             (path, envelope, store, end, token) => retainEvidence(connectionString, path, envelope.Workbook.Sha256,
-                envelope.ProfileIdentity.ReportCode, store, end, token));
+                envelope.ProfileIdentity.ReportCode, store, end, token), knownStores);
         var result = await folderImportService.RunFilesAsync(paths, options, progress, batchCancellation.Token).ConfigureAwait(false);
         FailedBatchPaths = folderImportService.FailedPaths;
         return result;

@@ -29,7 +29,7 @@
     <WrapPanel x:Name="SectionTabs" Grid.Column="1" VerticalAlignment="Center" automation:AutomationProperties.Name="Section tabs"/>
     <DatePicker x:Name="ShellBusinessDateSelector" Grid.Column="2" Margin="2" SelectedDateChanged="ShellBusinessDate_Changed" automation:AutomationProperties.Name="Business date"/>
     <ComboBox x:Name="ShellStoreSelector" Grid.Column="3" SelectedIndex="2" Margin="2" automation:AutomationProperties.Name="Store">
-     <ComboBoxItem Content="Titan World"/><ComboBoxItem Content="Helios"/><ComboBoxItem Content="Both stores"/>
+     <ComboBoxItem Content="All stores" Tag=""/>
     </ComboBox>
    </Grid>
    <!-- Match the header's 8 DIP inset. Without it the workspace ran flush into the

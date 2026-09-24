@@ -50,7 +50,7 @@ public sealed partial class SourceInboxWorkspaceView : UserControl
 
     public void SelectTask(string taskId)
     {
-        BrowseButton.Visibility = DocumentPathInput.Visibility = IntakeButton.Visibility = taskId is "source-inbox" or "documents" ? Visibility.Visible : Visibility.Collapsed;
+        BrowseButton.Visibility = DocumentPathInput.Visibility = IntakeButton.Visibility = accessProvider().CanImport ? Visibility.Visible : Visibility.Collapsed;
         var status = taskId switch { "duplicates" => "Duplicate", "conflicts" => "Conflict", "quarantine" => "Quarantined", _ => "All" };
         StatusInput.SelectedItem = StatusInput.Items.OfType<ComboBoxItem>().First(x => x.Content?.ToString() == status);
         _ = RefreshInboxAsync();
@@ -58,7 +58,7 @@ public sealed partial class SourceInboxWorkspaceView : UserControl
 
     public async Task<IReadOnlyList<Modules.Imports.ImportProblem>> LoadProblemsAsync()
     {
-        RequireImportAccess();
+        RequireViewAccess();
         var documents = await Service().LoadDocumentsAsync();
         return documents.Where(d => d.LifecycleStatus is "Quarantined" or "Conflict" or "Duplicate" or "Failed" or "QUARANTINED" or "FAILED")
             .Select(d => new Modules.Imports.ImportProblem(d.OriginalFileName, System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase(d.LifecycleStatus.ToLowerInvariant()), d.StoreCode ?? "", d.BusinessDate?.ToString("dd MMM yyyy") ?? "", d.SafeMessage ?? "")).ToArray();

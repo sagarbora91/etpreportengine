@@ -36,6 +36,7 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
     // Session results only. The Problems tab reads the database instead, so that the
     // list survives closing the application; this stays for the in-run summary.
     public IReadOnlyList<ImportProblem> Problems => ImportProblems.From(latestResults);
+    public void SetKnownStores(IReadOnlyList<string> stores) => coordinator.SetKnownStores(stores);
     public bool CanRetry => accessProvider().CanImport && !IsBusy && coordinator.FailedBatchPaths.Count > 0;
 
     // Retry can be unavailable because the role forbids it, because an import is

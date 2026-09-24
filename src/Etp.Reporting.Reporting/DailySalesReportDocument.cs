@@ -39,32 +39,31 @@ public sealed record DailySalesReportDocument(DateOnly BusinessDate, string Titl
     public string Weekday(CultureInfo? culture = null) => BusinessDate.ToString("dddd", culture ?? CultureInfo.GetCultureInfo("en-IN"));
 }
 
+public sealed record DsrStoreDefinition(string Code, string Name);
+
 public static class DailySalesReportBuilder
 {
-    private static readonly IReadOnlyDictionary<string, (string Name, string Accent)> StorePresentation =
-        new Dictionary<string, (string, string)>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["WLMHW"] = ("Titan World", "#2269E8"),
-            ["HEMW"] = ("Helios", "#7137D4")
-        };
 
     public static DailySalesReportDocument Build(DateOnly businessDate, IReadOnlyList<DsrPeriodFact> sales,
         IReadOnlyList<DsrServiceFact> service, IReadOnlyDictionary<string, decimal?> monthlyTargets,
-        decimal? serviceWdc = null, string metricPolicy = "DSR_INVOICE_DENOMINATOR_SOURCE_EVIDENCE_V1")
+        decimal? serviceWdc = null, string metricPolicy = "DSR_INVOICE_DENOMINATOR_SOURCE_EVIDENCE_V1",
+        IReadOnlyList<DsrStoreDefinition>? stores = null)
     {
         ArgumentNullException.ThrowIfNull(sales); ArgumentNullException.ThrowIfNull(service); ArgumentNullException.ThrowIfNull(monthlyTargets);
         var engine = new ManagementMetricEngine();
-        var storeCards = StorePresentation.Select(store => BuildStore(store.Key, store.Value, sales, engine)).ToArray();
+        var definitions = stores ?? sales.Where(x=>x.StoreCode!="COMBINED").Select(x=>x.StoreCode).Distinct(StringComparer.OrdinalIgnoreCase).Select(x=>new DsrStoreDefinition(x,x)).ToArray();
+        var storePresentation = definitions.Select((store,index)=>new { Key=store.Code, Value=(Name:store.Name,Accent:index%2==0?"#2269E8":"#7137D4") }).ToArray();
+        var storeCards = storePresentation.Select(store => BuildStore(store.Key, store.Value, sales, engine)).ToArray();
         var combinedFtd = Find(sales, "COMBINED", "FTD");
         var combinedMtd = Find(sales, "COMBINED", "MTD");
         var combinedYtd = Find(sales, "COMBINED", "YTD");
-        var targets = StorePresentation.Select(store => BuildTarget(store.Key, store.Value, Find(sales, store.Key, "MTD")?.TySales,
+        var targets = storePresentation.Select(store => BuildTarget(store.Key, store.Value, Find(sales, store.Key, "MTD")?.TySales,
             monthlyTargets.GetValueOrDefault(store.Key), engine)).ToList();
         var combinedTarget = SumIfComplete(targets.Select(x => x.MonthlyTarget));
         targets.Add(BuildTarget("COMBINED", ("Combined", "#162034"), combinedMtd?.TySales, combinedTarget, engine));
         var serviceSummary = BuildService(service, serviceWdc);
         var conversion = engine.Conversion(combinedFtd?.TyInvoices, combinedFtd?.WalkIns);
-        return new(businessDate, "Daily Sales Report (DSR)", "Executive summary · Titan World + Helios",
+        return new(businessDate, "Daily Sales Report (DSR)", "Executive summary · " + string.Join(" + ", definitions.Select(x=>x.Name)),
             combinedFtd?.TySales, engine.Growth(combinedFtd?.TySales, combinedFtd?.LySales), combinedFtd?.TyUnits,
             combinedFtd?.WalkIns, combinedFtd?.TyInvoices, conversion, combinedMtd?.TySales,
             Achievement(combinedMtd?.TySales, combinedTarget), combinedYtd?.TySales,

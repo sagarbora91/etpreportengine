@@ -168,14 +168,15 @@ public sealed class HelpCentreView : UserControl
         content.Children.Add(new TextBlock { Text = topic.Title, FontSize = 25, FontWeight = FontWeights.SemiBold, Foreground = Brush("PrimaryText", Brushes.Black) });
         content.Children.Add(new TextBlock { Text = topic.Description, FontSize = 14, Foreground = Brush("SecondaryText", Brushes.DimGray), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 5, 0, 20) });
         content.Children.Add(new TextBlock { Text = topic.Overview, FontSize = 14, LineHeight = 22, Foreground = Brush("PrimaryText", Brushes.Black), TextWrapping = TextWrapping.Wrap });
-        if (topic.Availability != HelpTopicAvailability.Available)
+        var screenshot = new Uri($"pack://application:,,,/Etp.Reporting.Desktop;component/HelpScreenshots/{HelpCentreRegistry.ScreenshotFor(topic.Id)}.png");
+        try
         {
-            content.Children.Add(new Border
-            {
-                Background = Brush("SurfaceSecondary", Brushes.GhostWhite), CornerRadius = new CornerRadius(8), Padding = new Thickness(14), Margin = new Thickness(0, 20, 0, 0),
-                Child = new TextBlock { Text = "Detailed step-by-step guide coming soon", FontWeight = FontWeights.SemiBold, Foreground = Brush("SecondaryText", Brushes.DimGray) }
-            });
+            var preview = new System.Windows.Controls.Image { Source=new System.Windows.Media.Imaging.BitmapImage(screenshot), MaxWidth=780, Stretch=Stretch.Uniform, Margin=new Thickness(0,16,0,0) };
+            AutomationProperties.SetName(preview,"Example " + HelpCentreRegistry.ScreenshotFor(topic.Id) + " screen with synthetic demonstration data");
+            content.Children.Add(preview);
+            content.Children.Add(new TextBlock { Text="Example screen with synthetic demonstration data.",FontSize=12,TextWrapping=TextWrapping.Wrap });
         }
+        catch (System.IO.IOException) { /* A developer build may precede screenshot generation. */ }
         if (!string.IsNullOrWhiteSpace(topic.Destination))
         {
             var open = new Button { Content = $"Open {topic.Title}", HorizontalAlignment = HorizontalAlignment.Left, Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 8, 0, 0) };
@@ -235,16 +236,9 @@ public sealed class HelpTopicTile : Button
             TextWrapping = TextWrapping.Wrap, Foreground = Application.Current?.TryFindResource("PrimaryText") as Brush ?? Brushes.Black });
         content.Children.Add(new TextBlock { Text = definition.Description, FontSize = 12, TextWrapping = TextWrapping.Wrap,
             Foreground = Application.Current?.TryFindResource("SecondaryText") as Brush ?? Brushes.DimGray, Margin = new Thickness(0,6,0,0) });
-        if (definition.Availability != HelpTopicAvailability.Available)
-            content.Children.Add(new TextBlock { Text = StatusText(definition), FontSize = 12, Margin = new Thickness(0,6,0,0) });
         return content;
     }
-    private static string StatusText(HelpTopicDefinition definition) => definition.Availability switch
-    {
-        HelpTopicAvailability.Available => "GUIDE AVAILABLE",
-        HelpTopicAvailability.ComingSoon => "COMING SOON",
-        _ => "OVERVIEW AVAILABLE"
-    };
+    private static string StatusText(HelpTopicDefinition definition) => "GUIDE AVAILABLE";
 }
 
 public sealed class KeyboardShortcutsView : UserControl

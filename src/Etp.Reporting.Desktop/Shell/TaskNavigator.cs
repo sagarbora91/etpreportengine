@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -49,8 +49,25 @@ public sealed partial class TaskNavigator(MainWindow window)
 
     private bool updatingScope;
     private DateTime appliedDate = InitialBusinessDate;
-    private int appliedStore = 2;
-    private string HeaderStore => appliedStore == 0 ? "WLMHW" : appliedStore == 1 ? "HEMW" : "";
+    private int appliedStore;
+    private string HeaderStore => appliedStore >= 0 && appliedStore < window.ShellStoreSelector.Items.Count
+        ? (window.ShellStoreSelector.Items[appliedStore] as ComboBoxItem)?.Tag?.ToString() ?? "" : "";
+
+    internal void SetStores(StoreScopeCatalog catalog)
+    {
+        var previous = HeaderStore;
+        updatingScope = true;
+        try
+        {
+            window.ShellStoreSelector.Items.Clear();
+            foreach(var store in catalog.Stores) window.ShellStoreSelector.Items.Add(new ComboBoxItem { Content=StoreScopeCatalog.Label(store), Tag=store.Code });
+            window.ShellStoreSelector.Items.Add(new ComboBoxItem { Content=StoreScopeCatalog.AllStores, Tag="" });
+            window.ShellStoreSelector.SelectedItem=window.ShellStoreSelector.Items.OfType<ComboBoxItem>().FirstOrDefault(x=>x.Tag?.ToString()==previous)
+                ?? window.ShellStoreSelector.Items[window.ShellStoreSelector.Items.Count-1];
+            appliedStore=window.ShellStoreSelector.SelectedIndex;
+        }
+        finally { updatingScope=false; }
+    }
 
     public void ShellStore_Changed(object sender, SelectionChangedEventArgs e) => RequestScopeChange();
 
@@ -76,7 +93,7 @@ public sealed partial class TaskNavigator(MainWindow window)
             ApplyBusinessDate(nextDate);
             RestoreHeader(nextDate, nextStore);
             window.reportsWorkspaceView.ApplyScope(window.reportsWorkspaceView.DateFrom, nextDate,
-                nextStore == 0 ? "Titan" : nextStore == 1 ? "Helios" : "Combined");
+                HeaderStore);
             window.dailyWorkflowWorkspace.StoreCode = HeaderStore;
             ApplyHiddenScope(window.registersWorkspaceView);
             ApplyHiddenScope(window.accountingWorkspaceView);
@@ -348,19 +365,19 @@ public sealed partial class TaskNavigator(MainWindow window)
 
         if (task.Id != "settings" && task.Destination is not "Settings" and not "Dashboard") databaseContextStarted = true;
         window.UpdateSection(task);
-        window.ShellStoreSelector.IsEnabled = task.ReportCode is not ("dsr" or "sales-combined" or "sales-titan" or "sales-helios");
-        if (task.ReportCode is "dsr" or "sales-combined" or "sales-titan" or "sales-helios")
+        window.ShellStoreSelector.IsEnabled = task.ReportCode is not ("dsr" or "sales-combined");
+        if (task.ReportCode is "dsr" or "sales-combined")
         {
-            appliedStore = task.ReportCode == "sales-titan" ? 0 : task.ReportCode == "sales-helios" ? 1 : 2;
+            appliedStore = window.ShellStoreSelector.Items.Count - 1;
             RestoreHeader(appliedDate,appliedStore);
         }
-        var reportStore = Modules.Reports.ReportTaskScope.StoreIndexForReport(task.ReportCode, appliedStore);
+        var reportStore = Modules.Reports.ReportTaskScope.StoreIndexForReport(task.ReportCode, appliedStore, window.StoreScopes.Stores.Count);
         if (reportStore != appliedStore)
         {
             appliedStore = reportStore;
             RestoreHeader(appliedDate, appliedStore);
         }
-        window.reportsWorkspaceView.ApplyScope(window.reportsWorkspaceView.DateFrom,appliedDate,appliedStore == 0 ? "Titan" : appliedStore == 1 ? "Helios" : "Combined");
+        window.reportsWorkspaceView.ApplyScope(window.reportsWorkspaceView.DateFrom,appliedDate,HeaderStore);
         if (task.ReportCode is { } code) { _ = window.reportsWorkspaceView.RunReportAsync(code); return true; }
 
 
@@ -436,10 +453,18 @@ public sealed partial class TaskNavigator(MainWindow window)
         else if (task.Destination == "Registers") { view = window.registersWorkspaceView; body = new int[] {4,5,6,1,2}; actions = new int[] {0,1,5}; window.registersWorkspaceView.SelectTask(id); }
         else if (task.Destination == "Accounting")
         {
-            view = window.accountingWorkspaceView; window.accountingWorkspaceView.SelectTask(id);
-            (body, actions) = id == "accounting-approval" ? (new int[] {3,5,6,9}, new int[] {2}) : id is "ledger-mapping" or "mapping-review" ? (new int[] {3,7}, new int[] {8}) : id is "export-history" or "tally-export" ? (new int[] {3,5,6}, new int[] {2}) : (new int[] {3,4,5,6}, new int[] {2});
+            window.accountingWorkspaceView.SelectTask("prepare-batch");
+            visited.Add(window.accountingWorkspaceView);
+            _ = window.accountingWorkspaceView.RefreshAsync();
+            return window.accountingWorkspaceView;
         }
-        else if (task.Destination == "Report Archive") { view = window.archiveWorkspaceView; window.archiveWorkspaceView.SelectTask(id); body = id == "sharing-contacts" ? new int[] {6,7,9} : id == "shared" ? new int[] {2,3,5,9,10} : new int[] {2,3,9,10}; actions = id == "sharing-contacts" ? new int[] {8} : new int[] {4}; }
+        else if (task.Destination == "Report Archive")
+        {
+            window.archiveWorkspaceView.SelectTask(id);
+            visited.Add(window.archiveWorkspaceView);
+            _ = window.archiveWorkspaceView.RefreshAsync();
+            return window.archiveWorkspaceView;
+        }
         else if (id is "connection" or "settings" or "sharing")
         { view = window.settingsWorkspace; if (id == "sharing") window.settingsWorkspace.SelectIntegrationTask(id); body = id is "connection" or "settings" ? new int[] {0,1,3,7} : new int[] {3,5}; actions = id is "connection" or "settings" ? new int[] {2} : new int[] {}; }
         else if (task.Destination == "Admin / Settings")
@@ -451,8 +476,8 @@ public sealed partial class TaskNavigator(MainWindow window)
             // child, and nested in a Border it landed in the unnamed catch-all tab instead.
             // 13 ProductHealthGrid, 14 AdministrationStatus, 16 DatabaseRecoveryStatus,
             // 17 DatabaseRecoveryGrid, 18 the Support package button.
-            (body, actions) = id switch { "users" => (new int[] {5,6,8,13}, new int[] {7}), "kpi" or "profiles" => (new int[] {10,11,13}, new int[] {}),
-                "health" => (new int[] {16,17,13,14}, new int[] {18}), _ => (new int[] {0,1,3,13}, new int[] {2}) };
+            (body, actions) = id switch { "users" => (new int[] {5,6,8,13,14}, new int[] {7}), "kpi" or "profiles" => (new int[] {10,11,13}, new int[] {}),
+                "health" => (new int[] {16,17,13,14}, new int[] {18}), _ => (new int[] {0,1,3,13,14}, new int[] {2}) };
         }
         else if (id is "approval-centre" or "adjustment" or "investigation")
         { view = window.investigationWorkspaceView; (body, actions) = id switch { "approval-centre" => (new int[] {3,7,8}, new int[] {9}), "adjustment" => (new int[] {3,5,6}, new int[] {}), _ => (new int[] {0,1,3,4}, new int[] {2}) }; }

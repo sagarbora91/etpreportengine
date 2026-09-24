@@ -34,6 +34,8 @@ public partial class ReportsWorkspaceView : UserControl
     private Action<ReportPresentationSnapshot, IEnumerable?, string> previewUpdater = static (_, _, _) => { };
     private Action<string> dailySalesFailure = static _ => { };
     private Action<object> detailPresenter = static _ => { };
+    private StoreScopeCatalog stores = new();
+    public void SetStores(StoreScopeCatalog catalog) => stores = catalog;
     private bool exportInProgress;
     private int reportRevision;
 
@@ -67,7 +69,7 @@ public partial class ReportsWorkspaceView : UserControl
     public DateTime? DateFrom => ReportFrom.SelectedDate;
     public DateTime? DateTo => ReportTo.SelectedDate;
     public string? CurrentReportCode => presentation.Current.ReportCode;
-    public string StoreScope => StoreFilterInput.Text.Trim() switch { "WLMHW" => "Titan", "HEMW" => "Helios", _ => "Combined (Titan + Helios)" };
+    public string StoreScope => stores.Display(StoreFilterInput.Text.Trim());
 
     public void AttachHost(
         Func<string, bool> focusedWorkspaceRequester,
@@ -89,7 +91,7 @@ public partial class ReportsWorkspaceView : UserControl
     {
         ReportFrom.SelectedDate = from ?? DateTime.Today;
         ReportTo.SelectedDate = to ?? from ?? DateTime.Today;
-        StoreFilterInput.Text = scope switch { "Titan" or "Titan World" => "WLMHW", "Helios" => "HEMW", _ => string.Empty };
+        StoreFilterInput.Text = stores.Resolve(scope) ?? string.Empty;
     }
 
     public void SetBusinessDate(DateTime date) => ReportTo.SelectedDate = date;
@@ -100,18 +102,16 @@ public partial class ReportsWorkspaceView : UserControl
     public async Task RunReportAsync(string report)
     {
         ConfigureQueryFilters(report);
-        if (report == "sales-titan") StoreFilterInput.Text = "WLMHW";
-        if (report == "sales-helios") StoreFilterInput.Text = "HEMW";
         if (report is "sales-combined" or "dsr") StoreFilterInput.Clear();
-        if (report == "cash" && Csv(StoreFilterInput.Text) is not { Count: 1 }) StoreFilterInput.Text = "WLMHW";
+        if (report == "cash" && Csv(StoreFilterInput.Text) is not { Count: 1 } && stores.Stores.Count > 0)
+            StoreFilterInput.Text = stores.Stores[0].Code;
         if (!BeginReportLoad(report)) return;
         if (ReportTaskScope.RequiresSingleStore(report) && Csv(StoreFilterInput.Text) is not { Count: 1 })
-        { HandleFailure(new InvalidOperationException("Choose Titan World or Helios in the header."), "REPORT_STORE_REQUIRED", "Select a store"); return; }
+        { HandleFailure(new InvalidOperationException("Choose one store in the header."), "REPORT_STORE_REQUIRED", "Select a store"); return; }
         switch (report)
         {
             case "dsr": await RunDsrAsync(); break;
-            case "sales-titan": StoreFilterInput.Text = "WLMHW"; SelectSalesDimension("Daily"); await RunSalesReportAsync(); break;
-            case "sales-helios": StoreFilterInput.Text = "HEMW"; SelectSalesDimension("Daily"); await RunSalesReportAsync(); break;
+            case "sales-store": SelectSalesDimension("Daily"); await RunSalesReportAsync(); break;
             case "sales-combined": StoreFilterInput.Clear(); SelectSalesDimension("Store"); await RunSalesReportAsync(); break;
             case "sales-returns": SelectSalesDimension("Returns"); await RunSalesReportAsync(); break;
             case "sales-brand": SelectSalesDimension("Brand"); await RunSalesReportAsync(); break;
@@ -283,7 +283,7 @@ public partial class ReportsWorkspaceView : UserControl
         var revision=reportRevision;
         try {
             var scope=ReportScope();var repo=operationalReportQueryFactory(connectionStringProvider());
-            var rows=await repo.LoadDsrAsync(scope.DateTo,["WLMHW","HEMW"]);var document=await repo.ComposeDsrDocumentAsync(scope.DateTo,rows);
+            var rows=await repo.LoadDsrAsync(scope.DateTo,[]);var document=await repo.ComposeDsrDocumentAsync(scope.DateTo,rows);
             if(revision!=reportRevision)return;ReportGrid.ItemsSource=rows;
             var status=rows.Any(x=>x.TySales is not null)?ReconciliationStatus.Passed:ReconciliationStatus.Blocked;
             ReportResult.Text="GST-inclusive sales; invoice counts exclude returns. Manual totals use available entries. Check Other / unmapped brands in Settings.";

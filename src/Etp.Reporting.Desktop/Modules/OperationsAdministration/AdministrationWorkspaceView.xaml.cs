@@ -40,9 +40,9 @@ public partial class AdministrationWorkspaceView : UserControl
 
     public void SelectTask(string taskId)
     {
-        if (taskId is "stores" or "tender-rules")
+        if (taskId == "stores")
         {
-            var type = taskId == "stores" ? "Store" : "Tender";
+            var type = "Store";
             MasterTypeInput.SelectedItem = MasterTypeInput.Items.OfType<ComboBoxItem>().First(x => x.Content?.ToString() == type);
         }
         _ = RefreshAsync();
@@ -130,6 +130,8 @@ public partial class AdministrationWorkspaceView : UserControl
         finally { SupportPackageButton.IsEnabled = true; }
     }
 
+    public Func<Task>? StoresChangedAsync { get; set; }
+
     public async Task<bool> SaveMasterDraftAsync()
     {
         if (!BeginSave()) return false;
@@ -142,6 +144,7 @@ public partial class AdministrationWorkspaceView : UserControl
             MasterCodeInput.Clear(); MasterNameInput.Clear(); MasterReasonInput.Clear();
             masterBaselines[editingMaster] = CaptureMaster();
             await RefreshAsync();
+            if (StoresChangedAsync is not null) await StoresChangedAsync();
             return true;
         }
         catch (Exception ex) { DesktopDiagnostics.Record(ex, "OperationsAdministration.Administration", "MASTER_VALUE_SAVE_FAILED"); AdministrationStatus.Text = $"Master value was not saved: {DesktopFriendlyError.Describe(ex, "Owner permission is required.")}"; return false; }

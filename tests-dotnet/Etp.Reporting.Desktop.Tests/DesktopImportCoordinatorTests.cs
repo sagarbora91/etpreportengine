@@ -29,6 +29,7 @@ public sealed class DesktopImportCoordinatorTests
             if (path.Contains("bad") && !repaired) throw new InvalidDataException("Synthetic corrupt workbook");
             return ValidR025() with { FileName = path };
         }));
+        coordinator.SetKnownStores(["WLMHW","HEMW"]);
         string? failedPath = null;
         try
         {

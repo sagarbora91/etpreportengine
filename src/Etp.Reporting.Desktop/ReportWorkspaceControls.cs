@@ -98,7 +98,7 @@ public sealed class ReportWorkspaceControl : Grid
 
         DateFromPicker = new DatePicker { Width = 180, SelectedDate = DateTime.Today, Margin = new Thickness(0, 0, 8, 0) };
         DateToPicker = new DatePicker { Width = 180, SelectedDate = DateTime.Today, Margin = new Thickness(0, 0, 8, 0) };
-        ScopeSelector = new ComboBox { Width = 190, SelectedIndex = 0, Margin = new Thickness(0, 0, 12, 0), ItemsSource = new[] { "Both stores", "Titan World", "Helios" } };
+        ScopeSelector = new ComboBox { Width = 190, SelectedIndex = 0, Margin = new Thickness(0, 0, 12, 0), ItemsSource = new[] { StoreScopeCatalog.AllStores } };
         AutomationProperties.SetName(DateFromPicker, "Report start date");
         AutomationProperties.SetName(DateToPicker, "Report end date");
         AutomationProperties.SetName(ScopeSelector, "Report store scope");
@@ -156,11 +156,14 @@ public sealed class ReportWorkspaceControl : Grid
         statusText.Text = report.Description;
     }
 
+    private StoreScopeCatalog storeScopes = new();
+    public void SetStores(StoreScopeCatalog stores, string? scope) { storeScopes=stores; ConfigureTaskScope(scope); }
+
     public void ConfigureTaskScope(string? scope)
     {
         ScopeSelector.ItemsSource = Modules.Reports.ReportTaskScope.RequiresSingleStore(SelectedReport?.Code)
-            ? new[] { "Select one store", "Titan World", "Helios" } : new[] { "Both stores", "Titan World", "Helios" };
-        SetStoreScope(scope ?? "Both stores");
+            ? new[] { "Select one store" }.Concat(storeScopes.Labels).ToArray() : new[] { StoreScopeCatalog.AllStores }.Concat(storeScopes.Labels).ToArray();
+        SetStoreScope(scope ?? StoreScopeCatalog.AllStores);
         var snapshot = Modules.Reports.ReportTaskScope.IsSnapshot(SelectedReport?.Code);
         DateFromPicker.IsEnabled = !snapshot;
         DateFromPicker.ToolTip = snapshot ? "Snapshot reports use the displayed end date as their business date." : "Report start date";
@@ -169,9 +172,9 @@ public sealed class ReportWorkspaceControl : Grid
     }
     public void SetStoreScope(string scope)
     {
-        scope = scope == "Titan" ? "Titan World" : scope.StartsWith("Combined",StringComparison.Ordinal) ? "Both stores" : scope;
-        if (SelectedReport?.Code == "cash" && scope is not ("Titan World" or "Helios")) scope = "Titan World";
-        ScopeSelector.SelectedItem = Modules.Reports.ReportTaskScope.RequiresSingleStore(SelectedReport?.Code) && scope is not ("Titan World" or "Helios") ? "Select one store" : scope;
+        var code = storeScopes.Resolve(scope);
+        if (code is null && SelectedReport?.Code == "cash") code = storeScopes.Stores.FirstOrDefault()?.Code;
+        ScopeSelector.SelectedItem = code is null && Modules.Reports.ReportTaskScope.RequiresSingleStore(SelectedReport?.Code) ? "Select one store" : storeScopes.Display(code);
     }
 
     public void ShowLoading(string message)
@@ -265,7 +268,7 @@ public sealed class ReportWorkspaceControl : Grid
         if (action is ReportWorkspaceAction.ExportPdf or ReportWorkspaceAction.ExportExcel or ReportWorkspaceAction.Share && !HasCurrentPreview) return;
         var from = DateOnly.FromDateTime(DateFromPicker.SelectedDate ?? DateTime.Today);
         var to = DateOnly.FromDateTime(DateToPicker.SelectedDate ?? DateTime.Today);
-        ActionRequested?.Invoke(this, new(action, SelectedReport?.Code, from, to, ScopeSelector.SelectedItem?.ToString() ?? "Both stores"));
+        ActionRequested?.Invoke(this, new(action, SelectedReport?.Code, from, to, ScopeSelector.SelectedItem?.ToString() ?? StoreScopeCatalog.AllStores));
     }
 }
 
@@ -309,7 +312,7 @@ public sealed class DailySalesReportWorkspace : Grid
         Children.Add(titleRow);
 
         BusinessDatePicker = new DatePicker { Width = 180, SelectedDate = DateTime.Today, Margin = new Thickness(0, 0, 8, 0) };
-        ScopeSelector = new ComboBox { Width = 190, SelectedIndex = 0, Margin = new Thickness(0, 0, 12, 0), ItemsSource = new[] { "Both stores", "Titan World", "Helios" } };
+        ScopeSelector = new ComboBox { Width = 190, SelectedIndex = 0, Margin = new Thickness(0, 0, 12, 0), ItemsSource = new[] { StoreScopeCatalog.AllStores } };
         AutomationProperties.SetName(BusinessDatePicker, "DSR business date");
         AutomationProperties.SetName(ScopeSelector, "DSR store scope");
         BusinessDatePicker.SelectedDateChanged += (_, _) => UpdatePeriodLabel();
@@ -385,7 +388,7 @@ public sealed class DailySalesReportWorkspace : Grid
         BusinessDatePicker.Visibility = Visibility.Collapsed;
         actions.Children.Add(BusinessDatePicker); actions.Children.Add(ScopeSelector);
         ScopeSelector.Visibility = Visibility.Collapsed;
-        actions.Children.Add(new TextBlock { Text = "Both stores", FontSize = 14, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0,0,12,0) });
+        actions.Children.Add(new TextBlock { Text = StoreScopeCatalog.AllStores, FontSize = 14, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0,0,12,0) });
         actions.Children.Add(ActionButton("Refresh Preview", ReportWorkspaceAction.Refresh, true));
         actions.Children.Add(ActionButton("Export PDF", ReportWorkspaceAction.ExportPdf, true));
         actions.Children.Add(ActionButton("Share", ReportWorkspaceAction.Share, true));
@@ -429,7 +432,7 @@ public sealed class DailySalesReportWorkspace : Grid
     {
         if (action is ReportWorkspaceAction.ExportPdf or ReportWorkspaceAction.ExportExcel or ReportWorkspaceAction.Share && !HasCurrentPreview) return;
         var date = DateOnly.FromDateTime(BusinessDatePicker.SelectedDate ?? DateTime.Today);
-        ActionRequested?.Invoke(this, new(action, "dsr", date, date, ScopeSelector.SelectedItem?.ToString() ?? "Both stores"));
+        ActionRequested?.Invoke(this, new(action, "dsr", date, date, ScopeSelector.SelectedItem?.ToString() ?? StoreScopeCatalog.AllStores));
     }
 
     private void UpdatePeriodLabel()

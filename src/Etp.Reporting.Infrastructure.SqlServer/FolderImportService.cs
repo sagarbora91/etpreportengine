@@ -9,10 +9,11 @@ namespace Etp.Reporting.Infrastructure.SqlServer;
 public sealed class FolderImportService(
     IImportPersistenceUseCase<MatchedImportEnvelope> persistence,
     IWorkbookReader? workbookReader = null,
-    Func<string, MatchedImportEnvelope, string, DateOnly, CancellationToken, Task>? retainEvidence = null) : IFolderImportService
+    Func<string, MatchedImportEnvelope, string, DateOnly, CancellationToken, Task>? retainEvidence = null,
+    IReadOnlyList<string>? knownStores = null) : IFolderImportService
 {
     private readonly IWorkbookReader reader = workbookReader ?? new OpenXmlWorkbookReader();
-    private readonly MatchedImportEnvelopeFactory envelopes = new();
+    private readonly MatchedImportEnvelopeFactory envelopes = new(knownStores);
     private readonly Dictionary<string, ImportScope> detectedScopes = new(StringComparer.OrdinalIgnoreCase);
     public IReadOnlyList<string> FailedPaths { get; private set; } = [];
 

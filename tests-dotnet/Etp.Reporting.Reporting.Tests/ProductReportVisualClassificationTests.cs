@@ -24,7 +24,7 @@ public sealed class ProductReportVisualClassificationTests
 
     [Theory]
     [InlineData("dsr", ProductReportVisualClass.ExecutiveVisual)]
-    [InlineData("sales-titan", ProductReportVisualClass.KpiTable)]
+    [InlineData("sales-store", ProductReportVisualClass.KpiTable)]
     [InlineData("sales-brand", ProductReportVisualClass.KpiChartTable)]
     [InlineData("tender-diagnostic", ProductReportVisualClass.ExceptionDiagnostic)]
     [InlineData("invoice-lineage", ProductReportVisualClass.TableOnly)]

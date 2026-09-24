@@ -261,7 +261,7 @@ public sealed partial class OperationalReportRepository(string connectionString)
     {
         var stores = storeCodes is { Count: > 0 }
             ? storeCodes.Distinct(StringComparer.OrdinalIgnoreCase).ToArray()
-            : ["WLMHW", "HEMW"];
+            : await new StoreCatalogRepository(connectionString).ActiveCodesAsync(cancellationToken);
         if (stores.Any(string.IsNullOrWhiteSpace)) throw new ArgumentException("Store codes cannot be blank.", nameof(storeCodes));
         var periodPolicy = new IndianFinancialYearPeriodPolicy();
         var metricEngine = new ManagementMetricEngine();
@@ -289,7 +289,7 @@ public sealed partial class OperationalReportRepository(string connectionString)
         DateOnly businessDate,
         CancellationToken cancellationToken = default)
     {
-        var dsr = await LoadDsrAsync(businessDate, ["WLMHW", "HEMW"], cancellationToken);
+        var dsr = await LoadDsrAsync(businessDate, cancellationToken: cancellationToken);
         return await ComposeDailySalesReportDocumentAsync(businessDate, dsr, cancellationToken);
     }
 
@@ -299,13 +299,15 @@ public sealed partial class OperationalReportRepository(string connectionString)
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(dsr);
-        var service = await LoadServiceSalesAsync(businessDate, ["WLMHW", "HEMW"], cancellationToken);
+        var service = await LoadServiceSalesAsync(businessDate, cancellationToken: cancellationToken);
         var supplementary = await LoadDsrSupplementaryAsync(businessDate, cancellationToken);
         var document = DailySalesReportBuilder.Build(businessDate,
             dsr.Select(x => new DsrPeriodFact(x.Period, x.Store, x.TySales, x.LySales, x.TyUnits, x.LyUnits,
                 x.TyInvoices, x.LyInvoices, x.Upt, x.Atv, x.WalkIns, x.ConversionPercent)).ToArray(),
             service.Select(x => new DsrServiceFact(x.Period, x.StoreCode, x.Cash, x.Card, x.Upi, x.MissingDays==0?x.Total:null, x.LastYearMissingDays==0?x.LastYearTotal:null)).ToArray(),
-            supplementary.Targets, supplementary.ServiceWdc, DsrMetricPolicy);
+            supplementary.Targets, supplementary.ServiceWdc, DsrMetricPolicy,
+            (await new StoreCatalogRepository(connectionString).LoadAsync(cancellationToken)).Where(x=>x.IsActive)
+                .Select(x=>new DsrStoreDefinition(x.Code,x.Name)).ToArray());
         return document with { EveningSheets = await LoadEveningSheetsAsync(businessDate, dsr, cancellationToken) };
     }
 
@@ -407,7 +409,7 @@ public sealed partial class OperationalReportRepository(string connectionString)
     {
         var stores = storeCodes is { Count: > 0 }
             ? storeCodes.Distinct(StringComparer.OrdinalIgnoreCase).ToArray()
-            : ["WLMHW", "HEMW"];
+            : await new StoreCatalogRepository(connectionString).ActiveCodesAsync(cancellationToken);
         var policy = new IndianFinancialYearPeriodPolicy();
         var metricEngine = new ManagementMetricEngine();
         var rows = new List<ServiceSalesRow>();
@@ -680,9 +682,9 @@ public sealed partial class OperationalReportRepository(string connectionString)
         const string sql = """
             SELECT store_code,field_code,numeric_value
             FROM dbo.manual_operational_inputs
-            WHERE business_date=@date AND field_code='SERVICE_WDC' AND store_code IN('WLMHW','HEMW')
+            WHERE business_date=@date AND field_code='SERVICE_WDC' AND store_code IN(SELECT store_code FROM dbo.stores WHERE is_active=1)
             UNION ALL SELECT store_code,'SALES_TARGET',target_sales FROM dbo.monthly_targets
-            WHERE target_month=DATEFROMPARTS(YEAR(@date),MONTH(@date),1) AND store_code IN('WLMHW','HEMW');
+            WHERE target_month=DATEFROMPARTS(YEAR(@date),MONTH(@date),1) AND store_code IN(SELECT store_code FROM dbo.stores WHERE is_active=1);
             """;
         await using var connection = await OpenAsync(token);
         await using var command = new SqlCommand(sql, connection);

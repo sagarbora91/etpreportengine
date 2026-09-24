@@ -10,7 +10,7 @@ namespace Etp.Reporting.Import.Preflight;
 
 public sealed record ImportScope(string? StoreCode, DateOnly? PeriodStart, DateOnly? PeriodEnd)
 {
-    public static ImportScope Detect(WorkbookSnapshot workbook, ImportProfile profile, ImportStagingResult staging)
+    public static ImportScope Detect(WorkbookSnapshot workbook, ImportProfile profile, ImportStagingResult staging, IReadOnlyList<string>? knownStores = null)
     {
         var stores = staging.Rows.Select(row => row.Values.GetValueOrDefault("store_code") as string)
             .Where(value => !string.IsNullOrWhiteSpace(value)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
@@ -24,8 +24,8 @@ public sealed record ImportScope(string? StoreCode, DateOnly? PeriodStart, DateO
         var detectedStore = stores.Length == 1 ? stores[0] : null;
         if (stores.Length == 0)
         {
-            var contextual = context.SelectMany(value => Regex.Matches(value, @"(?<![A-Z0-9])(WLMHW|HEMW)(?![A-Z0-9])", RegexOptions.IgnoreCase)
-                    .Select(match => match.Value.ToUpperInvariant())).Distinct().ToArray();
+            var contextual = (knownStores ?? []).Where(code => context.Any(value => Regex.IsMatch(value, @"(?<![A-Z0-9])" + Regex.Escape(code) + @"(?![A-Z0-9])", RegexOptions.IgnoreCase)))
+                .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
             if (contextual.Length == 1) detectedStore = contextual[0];
         }
         if (dates.Length != 0) return new(detectedStore, dates.Min(), dates.Max());

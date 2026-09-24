@@ -29,14 +29,14 @@ public sealed class DailyReportingPackService(string connectionString)
         CancellationToken cancellationToken = default)
     {
         generatedBy = string.IsNullOrWhiteSpace(generatedBy) ? Environment.UserName : generatedBy.Trim();
-        var packs = await Task.WhenAll(
-            GenerateAsync("WLMHW", businessDate, generatedBy, cancellationToken),
-            GenerateAsync("HEMW", businessDate, generatedBy, cancellationToken));
+        var stores = await new StoreCatalogRepository(connectionString).ActiveCodesAsync(cancellationToken);
+        if(stores.Length == 0) throw new InvalidOperationException("Configure an active store before generating a combined pack.");
+        var packs = await Task.WhenAll(stores.Select(store=>GenerateAsync(store, businessDate, generatedBy, cancellationToken)));
         var dsrDocument = await new OperationalReportRepository(connectionString).LoadDailySalesReportDocumentAsync(businessDate,cancellationToken);
         var overall = packs.Any(x => x.Status == ReconciliationStatus.Failed) ? ReconciliationStatus.Failed
             : packs.All(x => x.Status == ReconciliationStatus.Passed) ? ReconciliationStatus.Passed : ReconciliationStatus.NotRun;
         var message = overall == ReconciliationStatus.Passed
-            ? "Titan World, Helios and combined controls are reconciled."
+            ? "All active stores and combined controls are reconciled."
             : "The combined management pack retains every store-level warning, blocker and exact variance.";
         var controlRows = packs.SelectMany(pack => pack.Sections.Select(section =>
             (IReadOnlyList<object?>)[pack.StoreCode,section.Report,section.Status.ToString(),section.ControlTotal,section.Variance,section.Message])).ToArray();

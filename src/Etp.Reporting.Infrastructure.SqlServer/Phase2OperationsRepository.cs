@@ -98,11 +98,8 @@ public sealed class Phase2OperationsRepository(string connectionString)
         masterType = NormalizeMasterType(masterType);
         await using var connection = await OpenAsync(cancellationToken);
         var rows = new List<ControlledMasterRow>();
-        var sql = masterType == "STORE"
-            ? "SELECT 'STORE',store_code,store_name,'APPROVED',is_active,modified_utc,modified_by FROM dbo.stores ORDER BY store_code"
-            : "SELECT master_type,master_code,display_name,approval_status,is_active,modified_utc,modified_by FROM dbo.controlled_master_values WHERE master_type=@type ORDER BY master_code";
+        const string sql = "SELECT 'STORE',store_code,store_name,'APPROVED',is_active,modified_utc,modified_by FROM dbo.stores ORDER BY store_code";
         await using var command = new SqlCommand(sql, connection);
-        if (masterType != "STORE") command.Parameters.AddWithValue("@type", masterType);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
             rows.Add(new(reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetBoolean(4),
@@ -122,19 +119,11 @@ public sealed class Phase2OperationsRepository(string connectionString)
         if (approvalStatus is not ("OBSERVED" or "APPROVED" or "QUARANTINED")) throw new ArgumentException("Select Observed, Approved or Quarantined.", nameof(approvalStatus));
         await using var connection = await OpenAsync(cancellationToken);
         await EnsureOwnerAsync(connection, cancellationToken);
-        var sql = masterType == "STORE"
-            ? """
+        const string sql = """
               MERGE dbo.stores WITH(HOLDLOCK) target USING(SELECT CONVERT(varchar(30),@code) store_code) source ON target.store_code=source.store_code
               WHEN MATCHED THEN UPDATE SET store_name=@name,is_active=@active,modified_by=SUSER_SNAME(),modified_utc=SYSUTCDATETIME(),change_reason=@reason
               WHEN NOT MATCHED THEN INSERT(store_code,store_name,is_active,modified_by,modified_utc,change_reason) VALUES(@code,@name,@active,SUSER_SNAME(),SYSUTCDATETIME(),@reason);
               EXEC dbo.record_operational_audit 'MasterDataChange','Succeeded',N'Store master changed',N'database';
-              """
-            : """
-              MERGE dbo.controlled_master_values WITH(HOLDLOCK) target USING(SELECT @type master_type,@code master_code) source
-                ON target.master_type=source.master_type AND target.master_code=source.master_code
-              WHEN MATCHED THEN UPDATE SET display_name=@name,approval_status=@approval,is_active=@active,modified_by=SUSER_SNAME(),modified_utc=SYSUTCDATETIME(),change_reason=@reason
-              WHEN NOT MATCHED THEN INSERT(master_type,master_code,display_name,approval_status,is_active,modified_by,change_reason)
-                VALUES(@type,@code,@name,@approval,@active,SUSER_SNAME(),@reason);
               """;
         await using var command = new SqlCommand(sql, connection);
         command.Parameters.AddWithValue("@type", masterType); command.Parameters.AddWithValue("@code", code); command.Parameters.AddWithValue("@name", displayName);
@@ -234,8 +223,8 @@ public sealed class Phase2OperationsRepository(string connectionString)
     {
         const string sql = """
             SELECT MAX(business_date) FROM
-            (SELECT business_date FROM dbo.import_files WHERE report_code='R025' AND is_superseded=0 AND store_code IN('WLMHW','HEMW')
-             GROUP BY business_date HAVING COUNT(DISTINCT store_code)=2) x;
+            (SELECT business_date FROM dbo.import_files WHERE report_code='R025' AND is_superseded=0 AND store_code IN(SELECT store_code FROM dbo.stores WHERE is_active=1)
+             GROUP BY business_date HAVING COUNT(DISTINCT store_code)=(SELECT COUNT(*) FROM dbo.stores WHERE is_active=1)) x;
             """;
         await using var connection = await OpenAsync(token);
         await using var command = new SqlCommand(sql, connection);
@@ -403,8 +392,8 @@ public sealed class Phase2OperationsRepository(string connectionString)
     private static ApplicationRole ParseRole(string value) => value switch { "OWNER" => ApplicationRole.Owner, "STORE_MANAGER" => ApplicationRole.StoreManager, "VIEWER" => ApplicationRole.Viewer, _ => ApplicationRole.None };
     private static string NormalizeMasterType(string value) => Required(value, nameof(value)).Trim().Replace(' ', '_').ToUpperInvariant() switch
     {
-        "STORE" => "STORE", "BRAND_SEGMENT" => "BRAND_SEGMENT", "INVENTORY_GROUP" => "INVENTORY_GROUP", "TENDER" => "TENDER",
-        _ => throw new ArgumentException("Select Store, Brand Segment, Inventory Group or Tender.", nameof(value))
+        "STORE" => "STORE",
+        _ => throw new ArgumentException("Use Stores, Brand rows or Tender mapping to change the relevant master.", nameof(value))
     };
     private static string? Text(SqlDataReader reader, int ordinal) => reader.IsDBNull(ordinal) ? null : reader.GetString(ordinal);
     private static string? BlankToNull(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();

@@ -1,4 +1,4 @@
-﻿using System.Threading;
+using System.Threading;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
@@ -130,20 +130,16 @@ public sealed class OperationsAdministrationWorkspaceViewTests
     }
 
     [Fact]
-    public void Master_types_keep_separate_drafts_and_failure_does_not_clear_them()
+    public void Store_master_failure_preserves_the_draft_until_explicit_discard()
     {
         RunSta(async () =>
         {
             var service = new FakeAdministrationService { FailMasterSave = true };
             var view = new AdministrationWorkspaceView(new OperationsAdministrationPresentationSession(), () => "connection", _ => service);
-            view.UpdateAccess(new(true, true, true));
-            var code = (TextBox)view.FindName("MasterCodeInput");
-            code.Text = "STORE-TEST"; view.SelectTask("tender-rules"); code.Text = "TENDER-TEST";
-            view.SelectTask("stores"); Assert.Equal("STORE-TEST", code.Text);
-            Assert.Equal(2, view.UnsavedDrafts.Count); Assert.False(await view.SaveMasterDraftAsync()); Assert.Equal("STORE-TEST", code.Text);
-            view.DiscardDraft("Master: Store"); Assert.Equal("", code.Text); Assert.Single(view.UnsavedDrafts);
-            view.SelectTask("tender-rules"); Assert.Equal("TENDER-TEST", code.Text);
-            view.DiscardDraft("Master: Tender"); Assert.Empty(view.UnsavedDrafts);
+            view.UpdateAccess(new(true,true,true));
+            var code=(TextBox)view.FindName("MasterCodeInput");code.Text="STORE-TEST";
+            Assert.Single(view.UnsavedDrafts);Assert.False(await view.SaveMasterDraftAsync());Assert.Equal("STORE-TEST",code.Text);
+            view.DiscardDraft("Master: Store");Assert.Equal("",code.Text);Assert.Empty(view.UnsavedDrafts);
         });
     }
 

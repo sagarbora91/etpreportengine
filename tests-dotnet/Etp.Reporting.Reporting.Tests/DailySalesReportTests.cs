@@ -59,7 +59,7 @@ public sealed class DailySalesReportTests
     public void Missing_ly_mtd_is_explicit_and_never_fabricated()
     {
         var document = DailySalesReportBuilder.Build(new DateOnly(2026, 8, 25), SalesFacts(), [],
-            new Dictionary<string, decimal?> { ["WLMHW"] = 1_600_000m, ["HEMW"] = 1_300_000m });
+            new Dictionary<string, decimal?> { ["WLMHW"] = 1_600_000m, ["HEMW"] = 1_300_000m }, stores: [new("WLMHW","Titan World"),new("HEMW","Helios")]);
 
         Assert.All(document.Stores, store =>
         {
@@ -75,7 +75,7 @@ public sealed class DailySalesReportTests
     public void Approved_fixture_contains_all_required_report_sections()
     {
         var document = DailySalesReportBuilder.Build(new DateOnly(2026, 8, 25), SalesFacts(), [],
-            new Dictionary<string, decimal?> { ["WLMHW"] = 1_600_000m, ["HEMW"] = 1_300_000m });
+            new Dictionary<string, decimal?> { ["WLMHW"] = 1_600_000m, ["HEMW"] = 1_300_000m }, stores: [new("WLMHW","Titan World"),new("HEMW","Helios")]);
 
         Assert.Equal(["Titan World", "Helios"], document.Stores.Select(x => x.DisplayName));
         Assert.All(document.Stores, x => Assert.Equal(["FTD", "MTD", "YTD"], x.Periods.Select(p => p.Period)));

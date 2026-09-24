@@ -18,9 +18,9 @@ public sealed class ReportsRequestOrderingTests
             var previews = new List<ReportPresentationSnapshot>();
             var view = CreateView(query, previews);
             var older = view.RunReportAsync("management-trend");
-            await view.RunReportAsync("sales-titan");
+            await view.RunReportAsync("sales-store");
             Assert.Single(previews);
-            Assert.Equal("sales-titan", previews[0].ReportCode);
+            Assert.Equal("sales-store", previews[0].ReportCode);
             Assert.Equal(42m, previews[0].ExportData!.Rows[0][2]);
             var currentStatus = ((TextBlock)view.FindName("ReportResult")).Text;
             if (failOlderRequest) query.Completion.SetException(new InvalidOperationException("Old query failed"));
@@ -28,7 +28,7 @@ public sealed class ReportsRequestOrderingTests
             await older;
             Assert.Single(previews);
             Assert.Equal(currentStatus, ((TextBlock)view.FindName("ReportResult")).Text);
-            Assert.Equal("sales-titan", view.CurrentReportCode);
+            Assert.Equal("sales-store", view.CurrentReportCode);
             Assert.True(((Button)view.FindName("ExportExcelButton")).IsEnabled);
         });
     }
@@ -41,7 +41,7 @@ public sealed class ReportsRequestOrderingTests
             var query = new DeferredTrendQuery();
             var previews = new List<ReportPresentationSnapshot>();
             var view = CreateView(query, previews);
-            await view.RunReportAsync("sales-titan");
+            await view.RunReportAsync("sales-store");
             Assert.True(((Button)view.FindName("ExportExcelButton")).IsEnabled);
             var older = view.RunReportAsync("management-trend");
             view.SetBusinessDate(new(2026, 9, 9));
@@ -50,7 +50,7 @@ public sealed class ReportsRequestOrderingTests
             Assert.Single(previews);
             Assert.False(((Button)view.FindName("ExportExcelButton")).IsEnabled);
             Assert.Contains("Filters changed", ((TextBlock)view.FindName("ReportResult")).Text);
-            await view.RunReportAsync("sales-titan");
+            await view.RunReportAsync("sales-store");
             Assert.Equal(new DateOnly(2026, 9, 9), previews[^1].ExportMetadata!.DateTo);
             Assert.True(((Button)view.FindName("ExportExcelButton")).IsEnabled);
         });
@@ -63,12 +63,12 @@ public sealed class ReportsRequestOrderingTests
         {
             var previews = new List<ReportPresentationSnapshot>();
             var view = CreateView(new DeferredTrendQuery(), previews);
-            view.ApplyTaskScope("stock-physical", new(2026, 9, 10), new(2026, 9, 10), "Titan");
-            await view.RunReportAsync("sales-titan");
+            view.ApplyTaskScope("stock-physical", new(2026, 9, 10), new(2026, 9, 10), "WLMHW");
+            await view.RunReportAsync("sales-store");
             Assert.Equal(new DateOnly(2026, 9, 1), previews[^1].ExportMetadata!.DateFrom);
             Assert.Equal(new DateOnly(2026, 9, 10), previews[^1].ExportMetadata!.DateTo);
-            view.ApplyTaskScope("stock-variance", new(2026, 9, 5), new(2026, 9, 10), "Titan");
-            await view.RunReportAsync("sales-titan");
+            view.ApplyTaskScope("stock-variance", new(2026, 9, 5), new(2026, 9, 10), "WLMHW");
+            await view.RunReportAsync("sales-store");
             Assert.Equal(new DateOnly(2026, 9, 5), previews[^1].ExportMetadata!.DateFrom);
         });
     }
@@ -85,19 +85,19 @@ public sealed class ReportsRequestOrderingTests
             var exporter = new DeferredExport();
             var previews = new List<ReportPresentationSnapshot>();
             var view = CreateView(new DeferredTrendQuery(), previews, exporter);
-            await view.RunReportAsync("sales-titan");
+            await view.RunReportAsync("sales-store");
             var saving = view.ExportReportToPathAsync(Path.Combine(Path.GetTempPath(), "etp-test-" + Guid.NewGuid().ToString("N") + ".xlsx"), pdf);
             Assert.True(view.IsExportInProgress);
             await view.ExportReportToPathAsync(Path.Combine(Path.GetTempPath(), "etp-test-" + Guid.NewGuid().ToString("N") + ".xlsx"), pdf);
             Assert.Equal(1, exporter.Calls);
-            await view.RunReportAsync("sales-helios");
+            await view.RunReportAsync("sales-combined");
             var status = ((TextBlock)view.FindName("ReportResult")).Text;
             if (fail) exporter.Completion.SetException(new IOException("Synthetic disk failure"));
             else exporter.Completion.SetResult();
             await saving;
             Assert.False(view.IsExportInProgress);
             Assert.Equal(status, ((TextBlock)view.FindName("ReportResult")).Text);
-            Assert.Equal("sales-helios", view.CurrentReportCode);
+            Assert.Equal("sales-combined", view.CurrentReportCode);
             Assert.True(((Button)view.FindName("ExportExcelButton")).IsEnabled);
         });
     }
@@ -122,7 +122,7 @@ public sealed class ReportsRequestOrderingTests
             var path = Path.Combine(Path.GetTempPath(), "etp-test-" + Guid.NewGuid().ToString("N") + (pdf ? ".pdf" : ".xlsx"));
             try
             {
-                await view.RunReportAsync("sales-titan");
+                await view.RunReportAsync("sales-store");
                 exporter.Completion.SetResult();
                 await view.ExportReportToPathAsync(path, pdf);
 
@@ -147,7 +147,7 @@ public sealed class ReportsRequestOrderingTests
             var view = CreateView(new DeferredTrendQuery(), [], exporter);
             view.AttachHost(_ => true, (kind, _, _) => kind.StartsWith("Export") ? Task.FromException(new IOException("Audit unavailable")) : Task.CompletedTask,
                 (_, _, _) => { }, _ => { }, _ => { });
-            await view.RunReportAsync("sales-titan");
+            await view.RunReportAsync("sales-store");
             var saving = view.ExportReportToPathAsync(Path.Combine(Path.GetTempPath(), "etp-test-" + Guid.NewGuid().ToString("N") + ".xlsx"), false);
             exporter.Completion.SetResult();
             await saving;
@@ -167,13 +167,13 @@ public sealed class ReportsRequestOrderingTests
         {
             var exporter = new DeferredExport();
             var view = CreateView(new DeferredTrendQuery(), [], exporter);
-            await view.RunReportAsync("sales-titan");
+            await view.RunReportAsync("sales-store");
             var saving = view.ExportReportToPathAsync(Path.Combine(Path.GetTempPath(), "etp-test-" + Guid.NewGuid().ToString("N") + ".xlsx"), false);
             if (cancelled) exporter.Completion.SetCanceled();
             else exporter.Completion.SetException(new IOException("Synthetic disk failure"));
             await saving;
             Assert.Contains(cancelled ? "Export cancelled" : "Excel export failed", ((TextBlock)view.FindName("ReportResult")).Text);
-            Assert.Equal("sales-titan", view.CurrentReportCode);
+            Assert.Equal("sales-store", view.CurrentReportCode);
             Assert.True(((Button)view.FindName("ExportExcelButton")).IsEnabled);
             await view.ExportReportToPathAsync(Path.Combine(Path.GetTempPath(), "etp-test-" + Guid.NewGuid().ToString("N") + ".xlsx"), false);
             Assert.Equal(2, exporter.Calls);
@@ -197,7 +197,8 @@ public sealed class ReportsRequestOrderingTests
         var view = new ReportsWorkspaceView(() => "synthetic", _ => new SalesQuery(),
             _ => throw new InvalidOperationException("Unexpected operational query"), _ => query,
             exporter ?? new ReportExportCoordinator(), new UnusedDiagnostic());
-        view.ApplyScope(new(2026, 9, 1), new(2026, 9, 10), "Titan");
+        view.SetStores(TestStoreCatalog.Create());
+        view.ApplyScope(new(2026, 9, 1), new(2026, 9, 10), "WLMHW");
         view.AttachHost(_ => true, (_, _, _) => Task.CompletedTask,
             (snapshot, _, _) => previews.Add(snapshot), _ => { }, _ => { });
         return view;

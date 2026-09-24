@@ -43,14 +43,14 @@ public partial class MainWindow
             FocusedReportActionRequested,
             RunFocusedReport, reportsWorkspaceView.StoreScope);
         FocusedWorkspaceHost.Content = workspace;
-        if (workspace is ReportWorkspaceControl filteredReport) reportsWorkspaceView.AttachQueryFilters(filteredReport);
+        if (workspace is ReportWorkspaceControl filteredReport) { filteredReport.SetStores(StoreScopes,reportsWorkspaceView.StoreScope); reportsWorkspaceView.AttachQueryFilters(filteredReport); }
         workspace.Focus();
         return true;
     }
 
     private void RunFocusedReport(string reportCode, ReportWorkspaceControl workspace)
     {
-        reportsWorkspaceView.ApplyReportPeriod(workspace.DateFromPicker.SelectedDate, workspace.DateToPicker.SelectedDate);
+        reportsWorkspaceView.ApplyScope(workspace.DateFromPicker.SelectedDate, workspace.DateToPicker.SelectedDate, workspace.ScopeSelector.SelectedItem?.ToString());
         _ = reportsWorkspaceView.RunReportAsync(reportCode);
     }
 
@@ -60,7 +60,7 @@ public partial class MainWindow
         {
             case ReportWorkspaceAction.Refresh when request.ReportCode is not null:
                 if (sender is ReportWorkspaceControl)
-                    reportsWorkspaceView.ApplyReportPeriod(request.DateFrom.ToDateTime(TimeOnly.MinValue), request.DateTo.ToDateTime(TimeOnly.MinValue));
+                    reportsWorkspaceView.ApplyScope(request.DateFrom.ToDateTime(TimeOnly.MinValue), request.DateTo.ToDateTime(TimeOnly.MinValue), request.Scope);
                 else ApplyWorkspaceScope(request.DateFrom.ToDateTime(TimeOnly.MinValue), request.DateTo.ToDateTime(TimeOnly.MinValue), request.Scope);
                 _ = reportsWorkspaceView.RunReportAsync(request.ReportCode);
                 break;
@@ -68,7 +68,7 @@ public partial class MainWindow
                 taskNavigator!.ExportCurrentReport(true);
                 break;
             case ReportWorkspaceAction.Share:
-                taskNavigator!.NavigateTask(TaskNavigation.Find("shared")!);
+                taskNavigator!.NavigateTask(TaskNavigation.Find("generations")!);
                 ApplicationStatus.Text = "Choose an archived report and recipient to share.";
                 break;
             case ReportWorkspaceAction.ExportExcel:

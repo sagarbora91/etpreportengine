@@ -39,8 +39,7 @@ public static class ProductReportCatalogue
     public static IReadOnlyList<ProductReportEntry> All { get; } =
     [
         new("dsr","Sales","Daily Sales / DSR","FTD, MTD and Indian-financial-year YTD with LY comparison."),
-        new("sales-titan","Sales","Titan Sales Summary","Titan World canonical NETVALUE sales."),
-        new("sales-helios","Sales","Helios Sales Summary","Helios canonical NETVALUE sales."),
+        new("sales-store","Sales","Store Sales Summary","Selected store, GST-inclusive daily sales."),
         new("sales-combined","Sales","Combined Sales Summary","Store comparison and combined scope."),
         new("invoice","Sales","Customer-wise Invoices","Customer names, invoice quantities and GST-inclusive values."),
         new("sales-returns","Sales","Returns","Source-signed sales returns."),

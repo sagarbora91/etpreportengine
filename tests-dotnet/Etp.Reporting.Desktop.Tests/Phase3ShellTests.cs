@@ -186,6 +186,7 @@ public sealed class Phase3ShellTests
             View<AccountingWorkspaceView>("Accounting"),View<OperationsWorkspaceView>("Operations"),View<InvestigationApprovalsWorkspaceView>("Investigation"),
             View<AdministrationWorkspaceView>("Administration"),_=>throw new InvalidOperationException("Synthetic audit"),View<ImportWorkspaceView>("Import"));
         typeof(MainWindow).GetField("currentAccess",BindingFlags.NonPublic|BindingFlags.Instance)!.SetValue(window,new AccessSession("synthetic","Synthetic owner",AccessRole.Owner,true));
+        window.ApplyStoreCatalog(TestStoreCatalog.Entries);
         window.WelcomeOverlay.Visibility=Visibility.Collapsed;
         window.ApplyDensity(UiDensity.Touch,false);
         return window;

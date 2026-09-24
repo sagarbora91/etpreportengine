@@ -15,7 +15,7 @@
                 <TextBlock Text="Store" VerticalAlignment="Center" Margin="14,0,6,0"/>
                 <ComboBox x:Name="StoreInput" Width="160" SelectedIndex="0" SelectionChanged="Scope_Changed"
                           automation:AutomationProperties.Name="Daily workflow store">
-                    <ComboBoxItem Content="WLMHW"/><ComboBoxItem Content="HEMW"/>
+
                 </ComboBox>
                 <Button x:Name="RefreshButton" Content="Refresh status" Click="Refresh_Click" Padding="14,7" Margin="12,0,0,0"
                         automation:AutomationProperties.Name="Refresh daily workflow"/>

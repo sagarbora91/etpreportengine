@@ -134,6 +134,7 @@ public partial class MainWindow : Window
 
 
         administrationWorkspaceView.AccessChangedAsync = () => RefreshAccessAsync();
+        administrationWorkspaceView.StoresChangedAsync = RefreshStoresAsync;
         dashboardView.RefreshRequested += async (_, _) => await RefreshDashboardAsync();
         dashboardView.ExportDateFrom = () => reportsWorkspaceView.DateFrom is { } from ? DateOnly.FromDateTime(from) : DateOnly.FromDateTime(DateTime.Today);
         dashboardView.ExportDateTo = () => reportsWorkspaceView.DateTo is { } to ? DateOnly.FromDateTime(to) : DateOnly.FromDateTime(DateTime.Today);
@@ -160,7 +161,7 @@ public partial class MainWindow : Window
             await settingsWorkspace.CheckConnectionAsync(false);
             await RecordAuditAsync("ApplicationStart", "Succeeded", "Desktop application started");
             await RecordAuditAsync("SessionStart", "Succeeded", "Windows integrated user session started");
-            if (currentAccess.CanView) await RefreshDashboardAsync();
+            if (currentAccess.CanView) { await RefreshStoresAsync(); await RefreshDashboardAsync(); }
             startupFailed = false;
             ContinueButton.Content = "Continue";
             CompleteWelcomeState();
@@ -248,7 +249,7 @@ public partial class MainWindow : Window
                 {
                     await RefreshAccessAsync();
                     await RecordAuditAsync("ConfigurationChange", "Succeeded", "Windows integrated database configuration saved");
-                    if (currentAccess.CanView) await RefreshDashboardAsync();
+                    if (currentAccess.CanView) { await RefreshStoresAsync(); await RefreshDashboardAsync(); }
                 }
                 await RecordAuditAsync("ConnectionTest", succeeded ? "Succeeded" : "Failed", "Database connection tested");
                 break;
