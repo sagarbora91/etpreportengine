@@ -64,7 +64,7 @@ public sealed class SqlServerOperationsAdministrationService : App.IOperationsAd
         string? status = "PENDING",
         CancellationToken cancellationToken = default)
     {
-        await RequireViewAsync(cancellationToken).ConfigureAwait(false);
+        await RequireOwnerAsync(cancellationToken).ConfigureAwait(false);
         return (await gateway.LoadApprovalsAsync(status, cancellationToken).ConfigureAwait(false))
             .Select(Map).ToArray();
     }
@@ -107,7 +107,7 @@ public sealed class SqlServerOperationsAdministrationService : App.IOperationsAd
     public async Task<long> SubmitAdjustmentAsync(App.SubmitAdjustment command, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(command);
-        await RequireOperationsAsync(cancellationToken).ConfigureAwait(false);
+        await RequireOwnerAsync(cancellationToken).ConfigureAwait(false);
         return await gateway.SubmitAdjustmentAsync(command.StoreCode, command.BusinessDate, command.AdjustmentType,
             command.Amount, command.Reason, command.SourceDocumentId, cancellationToken).ConfigureAwait(false);
     }
@@ -167,7 +167,7 @@ public sealed class SqlServerOperationsAdministrationService : App.IOperationsAd
             row.SafeMessage, row.StartedUtc, row.CompletedUtc, row.RunBy);
     private static App.ApprovalRequest Map(ApprovalRequestRow row) =>
         new(row.Id, row.ApprovalType, row.SubjectType, row.SubjectId, row.StoreCode, row.BusinessDate,
-            row.RequestedBy, row.RequestedUtc, row.Status, row.DecidedBy, row.DecidedUtc, row.DecisionReason);
+            row.RequestedBy, row.RequestedUtc, row.Status, row.DecidedBy, row.DecidedUtc, row.DecisionReason, row.RequestReason, row.SourceFingerprint);
 }
 
 internal interface IOperationsAdministrationSqlGateway

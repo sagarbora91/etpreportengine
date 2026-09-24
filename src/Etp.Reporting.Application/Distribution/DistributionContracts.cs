@@ -6,7 +6,12 @@ public sealed record InvestigationHit(
     string Scope,
     DateOnly? BusinessDate,
     string Summary,
-    string NavigationHint);
+    string NavigationHint)
+{
+    public string? TargetTaskId { get; init; }
+    public long? TargetId { get; init; }
+    public string? StoreCode { get; init; }
+}
 
 public interface IInvestigationQuery
 {

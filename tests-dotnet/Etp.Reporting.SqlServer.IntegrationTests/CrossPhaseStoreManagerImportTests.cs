@@ -151,7 +151,7 @@ public sealed class CrossPhaseStoreManagerImportTests
             })
             {
                 var denied = await Assert.ThrowsAsync<SqlException>(() => Execute(session.ConnectionString, sql));
-                Assert.Equal(229, denied.Number);
+                Assert.Equal(sql.StartsWith("EXEC dbo.prepare_import_restatement", StringComparison.Ordinal) ? 51422 : 229, denied.Number);
             }
 
             var brands = new EveningMasterRepository(session.ConnectionString);

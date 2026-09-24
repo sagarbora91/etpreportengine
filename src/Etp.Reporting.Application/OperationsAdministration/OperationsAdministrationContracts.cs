@@ -122,7 +122,7 @@ public sealed record ApprovalRequest(
     string Status,
     string? DecidedBy,
     DateTime? DecidedUtc,
-    string? DecisionReason);
+    string? DecisionReason, string? RequestReason = null, string? SourceFingerprint = null);
 
 public sealed record DecideApproval(long ApprovalId, bool Approve, string Reason);
 

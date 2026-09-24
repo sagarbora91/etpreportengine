@@ -132,6 +132,7 @@ public sealed partial class SqlServerTransactionalImportStore(string connectionS
     public async Task<long> PersistAsync(ImportPersistencePackage package,CancellationToken cancellationToken=default)
     {
         PersistenceValidation.Validate(package);
+        if (package.Restatement is not null) await RequireRestatementApprovalAsync(package, cancellationToken);
         var expectedRows=package.InvoiceControls.Count+package.SalesLines.Count+package.Tenders.Count+package.StockMovements.Count+package.StockSnapshots.Count+package.Enrichments.Count;
         await using var connection=new SqlConnection(LocalSqlConnectionPolicy.Validate(connectionString)); await connection.OpenAsync(cancellationToken);
         await using var transaction=(SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);

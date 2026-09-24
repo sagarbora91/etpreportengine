@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Controls;
 using AccessSession = EtpApplication::Etp.Reporting.Application.Access.AccessSession;
 using AccessRole = EtpApplication::Etp.Reporting.Application.Access.AccessRole;
+using DigitalRegisterEntry = EtpApplication::Etp.Reporting.Application.Registers.DigitalRegisterEntry;
 using DigitalRegisterEntryDraft = EtpApplication::Etp.Reporting.Application.Registers.DigitalRegisterEntryDraft;
 
 namespace Etp.Reporting.Desktop.Modules.Registers;
@@ -14,6 +15,7 @@ public sealed partial class RegistersWorkspaceView : UserControl
     private readonly RegistersPresentationSession session;
     private readonly Func<string> connectionStringProvider;
     private Func<AccessSession> accessProvider = () => new("unknown", "Unknown user", AccessRole.None, false);
+    private bool restoringSelection;
     private Func<Exception, string> errorDescriber = DesktopFriendlyError.Describe;
 
     public RegistersWorkspaceView(RegistersPresentationSession session, Func<string> connectionStringProvider)
@@ -39,6 +41,9 @@ public sealed partial class RegistersWorkspaceView : UserControl
         this.errorDescriber = errorDescriber ?? throw new ArgumentNullException(nameof(errorDescriber));
     }
 
+    public string StoreCode { get => RegisterStoreInput.Text; set => RegisterStoreInput.Text = value; }
+    public void SearchFor(string documentNumber) => RegisterSearchInput.Text = documentNumber;
+
     public Task RefreshAsync() => RefreshRegistersAsync();
 
     private async void RefreshRegisters_Click(object sender, RoutedEventArgs e) => await RefreshRegistersAsync();
@@ -48,22 +53,28 @@ public sealed partial class RegistersWorkspaceView : UserControl
         try
         {
             RequireViewAccess();
+            VerifyRegisterButton.IsEnabled = accessProvider().CanAdminister;
             var rows = await session.RefreshAsync(connectionStringProvider(), RegisterSearchInput.Text);
-            RegisterGrid.ItemsSource = rows.Where(x => x.RegisterType == SelectedContent(RegisterTypeInput).Replace(' ', '_').ToUpperInvariant()).ToArray();
-            SetStatus($"{rows.Count:N0} audited register entry or entries found.");
+            var visible = rows.Where(x => x.RegisterType == SelectedContent(RegisterTypeInput).Replace(' ', '_').ToUpperInvariant()).ToArray();
+            RegisterGrid.ItemsSource = visible;
+            SetStatus($"{visible.Length:N0} audited register entry or entries found.");
         }
         catch (Exception ex) { DesktopDiagnostics.Record(ex, "Registers.Workspace", "REGISTER_REFRESH_FAILED"); SetStatus(errorDescriber(ex)); }
     }
 
     private async void SaveRegisterEntry_Click(object sender, RoutedEventArgs e) => await SaveDraftAsync();
 
-    public async Task<bool> SaveDraftAsync()
+    public Task<bool> SaveDraftAsync() => SaveEntryAsync(false);
+
+    public async Task<bool> SaveEntryAsync(bool verify)
     {
         if (savingDraft) return false;
         savingDraft = true; var enabled = IsEnabled; IsEnabled = false;
         try
         {
             RequireImportAccess();
+            if (verify && !accessProvider().CanAdminister) throw new UnauthorizedAccessException("Owner permission is required to verify entries.");
+            if (verify && RegisterGrid.SelectedItem is not DigitalRegisterEntry) throw new InvalidOperationException("Select a saved draft to verify.");
             if (RegisterBusinessDateInput.SelectedDate is null)
                 throw new InvalidOperationException("Select the register business date.");
             if (string.IsNullOrWhiteSpace(RegisterStoreInput.Text) || string.IsNullOrWhiteSpace(RegisterDocumentNumberInput.Text))
@@ -74,17 +85,17 @@ public sealed partial class RegistersWorkspaceView : UserControl
                 RegisterStoreInput.Text,
                 DateOnly.FromDateTime(RegisterBusinessDateInput.SelectedDate.Value),
                 RegisterDocumentNumberInput.Text,
-                null,
+                (RegisterGrid.SelectedItem as DigitalRegisterEntry)?.DocumentDate,
                 RegisterCounterpartyInput.Text,
                 OptionalDecimal(RegisterQuantityInput.Text),
                 OptionalDecimal(RegisterAmountInput.Text),
                 RegisterReferenceInput.Text,
                 accessProvider().DisplayName,
-                "DRAFT",
+                verify ? "VERIFIED" : "DRAFT",
                 RegisterRemarksInput.Text);
             var id = await session.SaveAsync(connectionStringProvider(), entry, RegisterReasonInput.Text);
             SetStatus($"Register entry {id:N0} saved with audit history.");
-            RegisterDocumentNumberInput.Clear();
+            ClearEntry();
             RegisterReasonInput.Clear();
             AcceptDraft();
             await RefreshRegistersAsync();
@@ -92,6 +103,36 @@ public sealed partial class RegistersWorkspaceView : UserControl
         }
         catch (Exception ex) { DesktopDiagnostics.Record(ex, "Registers.Workspace", "REGISTER_SAVE_FAILED"); SetStatus(errorDescriber(ex)); return false; }
         finally { savingDraft = false; IsEnabled = enabled; }
+    }
+
+    private async void VerifyRegisterEntry_Click(object sender, RoutedEventArgs e) => await SaveEntryAsync(true);
+    private void NewRegisterEntry_Click(object sender, RoutedEventArgs e) { ClearEntry(); AcceptDraft(); }
+    private void ClearEntry()
+    {
+        RegisterGrid.SelectedItem = null;
+        foreach (var field in DraftFields.Where(x => x != RegisterStoreInput)) field.Clear();
+        LinkedSourceDocumentId = null;
+        RegisterStoreInput.IsEnabled = RegisterBusinessDateInput.IsEnabled = RegisterDocumentNumberInput.IsEnabled = true;
+    }
+    private void RegisterSelection_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (restoringSelection || RegisterGrid.SelectedItem is not DigitalRegisterEntry row) return;
+        if (HasUnsavedChanges)
+        {
+            restoringSelection = true;
+            try { RegisterGrid.SelectedItem = e.RemovedItems.OfType<DigitalRegisterEntry>().FirstOrDefault(); }
+            finally { restoringSelection = false; }
+            SetStatus("Save or discard the current draft before selecting another entry.");
+            return;
+        }
+        RegisterStoreInput.Text = row.StoreCode; BusinessDate = row.BusinessDate.ToDateTime(TimeOnly.MinValue);
+        RegisterDocumentNumberInput.Text = row.DocumentNumber; RegisterCounterpartyInput.Text = row.Counterparty ?? "";
+        RegisterQuantityInput.Text = row.Quantity?.ToString(CultureInfo.CurrentCulture) ?? "";
+        RegisterAmountInput.Text = row.Amount?.ToString(CultureInfo.CurrentCulture) ?? "";
+        RegisterReferenceInput.Text = row.Reference ?? ""; RegisterRemarksInput.Text = row.Remarks ?? "";
+        RegisterReasonInput.Clear(); LinkedSourceDocumentId = row.SourceDocumentId;
+        RegisterStoreInput.IsEnabled = RegisterBusinessDateInput.IsEnabled = RegisterDocumentNumberInput.IsEnabled = false;
+        AcceptDraft();
     }
 
     private void RequireViewAccess()

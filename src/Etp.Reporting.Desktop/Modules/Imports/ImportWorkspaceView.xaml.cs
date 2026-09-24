@@ -89,7 +89,6 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
             if (!accessProvider().CanImport) throw new UnauthorizedAccessException("Owner or Store Manager permission is required.");
             if (!retry && string.IsNullOrWhiteSpace(WorkbookPathInput.Text)) throw new InvalidOperationException("Choose a folder, workbook or ZIP first.");
             var restate = retry ? lastImportOptions?.RestatementEnabled == true : RestatementModeInput.IsChecked == true;
-            if (restate && !accessProvider().CanAdminister) throw new UnauthorizedAccessException("Owner permission is required for a restatement.");
             var options = retry ? lastImportOptions! : new FolderImportOptions(Environment.UserName, restate, RestatementReasonInput.Text.Trim(),
                 restate ? (ImportStoreInput.SelectedItem as ComboBoxItem)?.Content?.ToString() : null,
                 restate && ImportBusinessDateInput.SelectedDate is { } date ? DateOnly.FromDateTime(date) : null);

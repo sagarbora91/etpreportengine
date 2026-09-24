@@ -28,9 +28,10 @@ public sealed partial class RegistersWorkspaceView
             var draft = registerDrafts.GetValueOrDefault(taskId);
             for (var i = 0; i < DraftFields.Length; i++) DraftFields[i].Text = draft?.Values[i] ?? string.Empty;
             if (draft is not null) { BusinessDate = draft.Date; LinkedSourceDocumentId = draft.Source; }
+            RegisterStoreInput.IsEnabled = RegisterBusinessDateInput.IsEnabled = RegisterDocumentNumberInput.IsEnabled = true;
             activeRegisterTask = taskId;
         }
-        var type = taskId switch { "register-outward" => "Outward", "register-credit" => "Credit Note", "register-service" => "Service Receipt", "register-transfer" => "Stock Transfer", "register-expense" => "Expense", "register-vendor" => "Vendor Invoice", _ => "Inward" };
+        var type = taskId switch { "register-courier" => "Courier", "register-outward" => "Outward", "register-credit" => "Credit Note", "register-service" => "Service Receipt", "register-transfer" => "Stock Transfer", "register-expense" => "Expense", "register-vendor" => "Vendor Invoice", _ => "Inward" };
         RegisterTypeInput.SelectedItem = RegisterTypeInput.Items.OfType<ComboBoxItem>().First(x => x.Content?.ToString() == type);
         RegisterTypeInput.IsEnabled = false;
         _ = RefreshRegistersAsync();

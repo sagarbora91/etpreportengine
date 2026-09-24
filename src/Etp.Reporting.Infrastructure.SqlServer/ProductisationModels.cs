@@ -66,13 +66,18 @@ public sealed record DataQualityIssueRow(long Id,string Category,string Severity
 
 public sealed record ApprovalRequestRow(long Id, string ApprovalType, string SubjectType, string SubjectId,
     string? StoreCode, DateOnly? BusinessDate, string RequestedBy, DateTime RequestedUtc, string Status,
-    string? DecidedBy, DateTime? DecidedUtc, string? DecisionReason);
+    string? DecidedBy, DateTime? DecidedUtc, string? DecisionReason, string? RequestReason = null, string? SourceFingerprint = null);
 
 public sealed record KpiCatalogueRow(string Code, string BusinessName, string Definition, string Formula,
     string DataSource, DateOnly EffectiveDate, int Version, string ApprovalStatus, string? ApprovedBy, bool IsActive);
 
 public sealed record InvestigationResult(string ResultType, string PrimaryReference, string Scope,
-    DateOnly? BusinessDate, string Summary, string NavigationHint);
+    DateOnly? BusinessDate, string Summary, string NavigationHint)
+{
+    public string? TargetTaskId { get; init; }
+    public long? TargetId { get; init; }
+    public string? StoreCode { get; init; }
+}
 
 public sealed record AccountingMapping(string BusinessEvent, string DebitLedger, string CreditLedger,
     string NarrationTemplate, string? CostCentre = null);

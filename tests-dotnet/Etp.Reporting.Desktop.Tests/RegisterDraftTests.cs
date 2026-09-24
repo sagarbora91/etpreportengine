@@ -52,6 +52,48 @@ public sealed class RegisterDraftTests
         });
     }
 
+    [Fact]
+    public void Courier_edit_and_owner_verification_preserve_document_binding_and_manager_cannot_verify()
+    {
+        RunSta(() =>
+        {
+            var day = new DateOnly(2026,8,25);
+            var row = new DigitalRegisterEntry(12,"COURIER",42,"HEMW",day,"COURIER-1",day,"Carrier",1,25,"TRACK-1","Manager","DRAFT","Received","Manager",DateTime.UtcNow);
+            var service = new RegistersStub { Fail = false, Entries = [row] };
+            var view = Create(service); view.SelectTask("register-courier");
+            var grid = (DataGrid)view.FindName("RegisterGrid");
+            Assert.Single(grid.Items); grid.SelectedIndex = 0;
+            Assert.Equal("COURIER-1",Input(view,"RegisterDocumentNumberInput").Text);
+            Assert.Equal(42,view.LinkedSourceDocumentId);
+            Input(view,"RegisterReasonInput").Text = "Checked delivery evidence";
+            Assert.True(view.SaveEntryAsync(true).GetAwaiter().GetResult());
+            Assert.Equal("VERIFIED",service.LastEntry!.VerificationStatus);
+            Assert.Equal(day,service.LastEntry.DocumentDate);
+            Assert.Equal("COURIER",service.LastEntry.RegisterType);
+            grid.SelectedIndex = 0;
+            view.AttachHost(() => new AccessSession("TEST\\manager","Manager",AccessRole.StoreManager,true),ex => ex.Message);
+            Assert.False(view.SaveEntryAsync(true).GetAwaiter().GetResult());
+            Assert.Equal(1,service.Writes);
+        });
+    }
+
+    [Fact]
+    public void Changing_selected_entry_cannot_discard_an_edited_register_draft()
+    {
+        RunSta(() =>
+        {
+            var row = new DigitalRegisterEntry(12,"INWARD",null,"HEMW",new(2026,8,25),"IN-1",null,"Vendor",1,25,null,"Manager","DRAFT",null,"Manager",DateTime.UtcNow);
+            var service = new RegistersStub { Entries = [row, row with { Id=13, DocumentNumber="IN-2" }] };
+            var view = Create(service); view.SelectTask("register-inward");
+            var grid = (DataGrid)view.FindName("RegisterGrid"); grid.SelectedIndex = 0;
+            Input(view,"RegisterRemarksInput").Text = "Unsaved receiving notes";
+            grid.SelectedIndex = 1;
+            Assert.Equal(row,grid.SelectedItem);
+            Assert.Equal("Unsaved receiving notes",Input(view,"RegisterRemarksInput").Text);
+            Assert.True(view.HasUnsavedChanges);
+        });
+    }
+
     private static RegistersWorkspaceView Create(RegistersStub service)
     {
         var view = new RegistersWorkspaceView(new RegistersPresentationSession(_ => service), () => "synthetic");
@@ -67,11 +109,13 @@ public sealed class RegisterDraftTests
     private sealed class RegistersStub : IDigitalRegisterService
     {
         public bool Fail = true; public int Writes;
-        public Task<IReadOnlyList<DigitalRegisterEntry>> LoadAsync(string? search = null, int limit = 500, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<DigitalRegisterEntry>>([]);
+        public IReadOnlyList<DigitalRegisterEntry> Entries = [];
+        public DigitalRegisterEntryDraft? LastEntry;
+        public Task<IReadOnlyList<DigitalRegisterEntry>> LoadAsync(string? search = null, int limit = 500, CancellationToken cancellationToken = default) => Task.FromResult(Entries);
         public Task<long> SaveAsync(DigitalRegisterEntryDraft entry, string reason, CancellationToken cancellationToken = default)
         {
             if (Fail) return Task.FromException<long>(new InvalidOperationException("Synthetic service failure"));
-            Writes++; return Task.FromResult(1L);
+            Writes++; LastEntry = entry; return Task.FromResult(1L);
         }
     }
 }
