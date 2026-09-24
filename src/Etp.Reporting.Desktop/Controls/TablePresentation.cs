@@ -60,7 +60,7 @@ public static class TablePresentation
                 grid.Columns.Add(new DataGridTextColumn { Header = header, Binding = binding, ElementStyle = style, MinWidth = numeric ? 100 : 120, IsReadOnly = true });
             }
         }
-        DependencyPropertyDescriptor.FromProperty(ItemsControl.ItemsSourceProperty,typeof(DataGrid)).AddValueChanged(grid,(_,_) => Rebuild());
+        PropertyChangeWatcher.Watch(grid,ItemsControl.ItemsSourceProperty,Rebuild);
         Rebuild();
     }
     private sealed class CellFormat(Type type,bool numeric,string name) : IValueConverter

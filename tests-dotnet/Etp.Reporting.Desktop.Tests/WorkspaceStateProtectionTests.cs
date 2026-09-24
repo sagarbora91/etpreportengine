@@ -6,6 +6,7 @@ using Etp.Reporting.Application.Sharing;
 using Etp.Reporting.Desktop.Modules.Archive;
 namespace Etp.Reporting.Desktop.Tests;
 
+[Collection(WpfViewCollection.Name)]
 public sealed class WorkspaceStateProtectionTests
 {
     [Fact]

@@ -5,6 +5,7 @@ using Etp.Reporting.Desktop.Modules.Registers;
 
 namespace Etp.Reporting.Desktop.Tests;
 
+[Collection(WpfViewCollection.Name)]
 public sealed class RegisterDraftTests
 {
     [Fact]
