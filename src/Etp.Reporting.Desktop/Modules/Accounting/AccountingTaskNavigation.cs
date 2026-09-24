@@ -26,6 +26,8 @@ public sealed partial class AccountingWorkspaceView
     {
         ++entriesRevision;
         session.InvalidatePreview(); AccountingEntryGrid.ItemsSource = null;
+        AccountingBatchGrid.SelectedItem = null;
+        RefreshActionState();
         SaveTaskButton.IsEnabled = false;
         SetStatus("Accounting scope changed. Preview this store and business date again before saving.");
     }
