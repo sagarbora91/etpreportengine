@@ -66,6 +66,7 @@ public sealed partial class ArchiveWorkspaceView : UserControl
 
     public async Task RefreshAsync()
     {
+        TestSmtpButton.IsEnabled = accessProvider().CanAdminister;
         await RefreshReportArchiveAsync();
         await RefreshSharingContactsAsync();
     }

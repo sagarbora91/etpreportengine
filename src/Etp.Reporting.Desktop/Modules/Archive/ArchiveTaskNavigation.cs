@@ -15,6 +15,7 @@ public sealed partial class ArchiveWorkspaceView
     }
     public void SelectTask(string id)
     {
+        TestSmtpButton.IsEnabled = accessProvider().CanAdminister;
         ApplyArchiveFilter();
         foreach (var button in new[] { OpenArchivedGenerationButton, ExportArchivedExcelButton, ExportArchivedPdfButton,
             ExportArchivedZipButton, ShareArchivedWhatsAppButton, ShareArchivedEmailButton })
