@@ -99,14 +99,14 @@ public sealed class PhaseFourSecurityTests(SqlDatabaseFixture database) : IClass
             CREATE USER phase4_decider WITHOUT LOGIN; ALTER ROLE etp_owner ADD MEMBER phase4_decider;
             """);
         var genericRequest = Convert.ToInt64(await ExecuteAsync("""
-            EXECUTE AS USER='phase4_submitter';
+            EXECUTE AS USER='phase4_decider';
             EXEC dbo.submit_approval_request 'ACCOUNTING_MAPPING','Mapping','Proposal','APPROVALGUARD','20260825',
                 N'{"status":"APPROVED","decided_by":"forged-owner"}';
             """));
         Assert.True(genericRequest > 0);
         Assert.Equal("PENDING", await ExecuteAsync($"SELECT status FROM dbo.approval_requests WHERE approval_request_id={genericRequest}"));
         Assert.Equal(1, await ExecuteAsync($"SELECT COUNT(*) FROM dbo.approval_requests WHERE approval_request_id={genericRequest} AND decided_by IS NULL AND decided_utc IS NULL AND decision_reason IS NULL"));
-        var staffActor = await ExecuteAsync("EXECUTE AS USER='phase4_submitter'; SELECT SUSER_SNAME()");
+        var staffActor = await ExecuteAsync("EXECUTE AS USER='phase4_decider'; SELECT SUSER_SNAME()");
         Assert.Equal(staffActor, await ExecuteAsync($"SELECT requested_by FROM dbo.approval_requests WHERE approval_request_id={genericRequest}"));
 
         foreach (var mutation in new[]
@@ -128,7 +128,7 @@ public sealed class PhaseFourSecurityTests(SqlDatabaseFixture database) : IClass
             INSERT dbo.daily_report_generations(store_code,business_date,generation_number,content_sha256,control_json,generated_by,is_final)
             VALUES('APPROVALGUARD','20260825',1,REPLICATE('a',64),N'{}',SUSER_SNAME(),1);
             """);
-        var adjustment = Convert.ToInt64(await ExecuteAsync("EXECUTE AS USER='phase4_submitter'; EXEC dbo.submit_controlled_adjustment 'APPROVALGUARD','20260825','CORRECTION',125.75,N'Evidence for Owner review'"));
+        var adjustment = Convert.ToInt64(await ExecuteAsync("EXECUTE AS USER='phase4_decider'; EXEC dbo.submit_controlled_adjustment 'APPROVALGUARD','20260825','CORRECTION',125.75,N'Evidence for Owner review'"));
         var request = Convert.ToInt64(await ExecuteAsync($"SELECT approval_request_id FROM dbo.controlled_adjustments WHERE controlled_adjustment_id={adjustment}"));
         Assert.NotEqual(genericRequest, request);
         Assert.Equal("PENDING", await ExecuteAsync($"SELECT status FROM dbo.controlled_adjustments WHERE controlled_adjustment_id={adjustment}"));
@@ -140,7 +140,7 @@ public sealed class PhaseFourSecurityTests(SqlDatabaseFixture database) : IClass
         await Assert.ThrowsAsync<SqlException>(() => ExecuteAsync($"EXECUTE AS USER='phase4_submitter'; UPDATE dbo.controlled_adjustments SET status='APPROVED' WHERE controlled_adjustment_id={adjustment}"));
 
         var countBeforeFailure = await ExecuteAsync("SELECT COUNT(*) FROM dbo.approval_requests");
-        await Assert.ThrowsAsync<SqlException>(() => ExecuteAsync("EXECUTE AS USER='phase4_submitter'; EXEC dbo.submit_controlled_adjustment 'APPROVALGUARD','20260825','CORRECTION',2,N'Missing supporting document',-1"));
+        await Assert.ThrowsAsync<SqlException>(() => ExecuteAsync("EXECUTE AS USER='phase4_decider'; EXEC dbo.submit_controlled_adjustment 'APPROVALGUARD','20260825','CORRECTION',2,N'Missing supporting document',-1"));
         Assert.Equal(countBeforeFailure, await ExecuteAsync("SELECT COUNT(*) FROM dbo.approval_requests"));
         var missingReason = await Assert.ThrowsAsync<SqlException>(() => ExecuteAsync($"EXECUTE AS USER='phase4_decider'; EXEC dbo.decide_approval_request {request},1,N' '"));
         Assert.Equal(51314, missingReason.Number);

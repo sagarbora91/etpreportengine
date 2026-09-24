@@ -13,7 +13,7 @@ public sealed class SqlServerDigitalRegisterService : IDigitalRegisterService
             connectionString,
             nameof(connectionString));
         var repository = new ProductisationRepository(validated);
-        load = repository.LoadRegisterEntriesAsync;
+        load = (search, limit, token) => repository.LoadRegisterEntriesAsync(search, limit, token);
         save = repository.SaveRegisterEntryAsync;
     }
 
@@ -24,6 +24,10 @@ public sealed class SqlServerDigitalRegisterService : IDigitalRegisterService
         this.load = load ?? throw new ArgumentNullException(nameof(load));
         this.save = save ?? throw new ArgumentNullException(nameof(save));
     }
+
+    public static async Task<IReadOnlyList<DigitalRegisterEntry>> LoadDayAsync(string connectionString, string storeCode, DateOnly date, CancellationToken token = default) =>
+        (await new ProductisationRepository(SqlAdapterConnection.RequireWindowsIntegrated(connectionString, nameof(connectionString)))
+            .LoadRegisterEntriesAsync(null, 2000, token, storeCode, date).ConfigureAwait(false)).Select(Map).ToArray();
 
     public async Task<IReadOnlyList<DigitalRegisterEntry>> LoadAsync(
         string? search = null,

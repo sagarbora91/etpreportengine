@@ -31,7 +31,7 @@ public sealed class SqlServerInvestigationQuery : App.IInvestigationQuery
         await RequireViewAsync(loadAccess, cancellationToken).ConfigureAwait(false);
         return (await gateway.SearchAsync(term, limit, cancellationToken).ConfigureAwait(false))
             .Select(row => new App.InvestigationHit(row.ResultType, row.PrimaryReference, row.Scope,
-                row.BusinessDate, row.Summary, row.NavigationHint))
+                row.BusinessDate, row.Summary, row.NavigationHint) { TargetTaskId = row.TargetTaskId, TargetId = row.TargetId, StoreCode = row.StoreCode })
             .ToArray();
     }
 

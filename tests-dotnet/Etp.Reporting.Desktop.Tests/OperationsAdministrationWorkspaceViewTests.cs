@@ -49,8 +49,11 @@ public sealed class OperationsAdministrationWorkspaceViewTests
             Assert.Equal("Your Windows account does not have permission for this action.", investigation.StatusText);
             investigation.UpdateAccess(new(true, false, false));
             await investigation.RefreshApprovalsAsync();
+            Assert.Equal(0, investigation.ApprovalRowCount);
+            investigation.UpdateAccess(new(true, true, true));
+            await investigation.RefreshApprovalsAsync();
             Assert.Equal(1, investigation.ApprovalRowCount);
-            Assert.Equal("1 approval(s) pending.", investigation.StatusText);
+            Assert.Equal("1 request(s), 1 pending. Select a pending request to decide.", investigation.StatusText);
 
             var administrationService = new FakeAdministrationService();
             var administration = new AdministrationWorkspaceView(
@@ -140,6 +143,29 @@ public sealed class OperationsAdministrationWorkspaceViewTests
             var code=(TextBox)view.FindName("MasterCodeInput");code.Text="STORE-TEST";
             Assert.Single(view.UnsavedDrafts);Assert.False(await view.SaveMasterDraftAsync());Assert.Equal("STORE-TEST",code.Text);
             view.DiscardDraft("Master: Store");Assert.Equal("",code.Text);Assert.Empty(view.UnsavedDrafts);
+        });
+    }
+
+    [Fact]
+    public void Investigation_clickthrough_uses_typed_source_identity_and_checks_register_access()
+    {
+        RunSta(() =>
+        {
+            var view = new InvestigationApprovalsWorkspaceView(() => "connection",_ => new FakeOperationsService(),_ => new FakeInvestigationQuery());
+            var grid = (DataGrid)view.FindName("InvestigationGrid");
+            var invoice = new InvestigationHit("Invoice","INV-001","HEMW",new(2026,8,25),"Found","Display label")
+                { TargetTaskId="invoice-lineage",TargetId=73,StoreCode="HEMW" };
+            InvestigationHit? opened = null;
+            view.InvestigationNavigationRequested += (_, hit) => opened = hit;
+            grid.ItemsSource = new[] { invoice }; grid.SelectedIndex = 0;
+            view.OpenSelectedInvestigation(); Assert.Null(opened);
+            view.UpdateAccess(new(true,false,false)); view.OpenSelectedInvestigation(); Assert.Equal(invoice,opened);
+            opened = null;
+            grid.ItemsSource = new[] { invoice with { ResultType="Register",TargetTaskId="register-courier",TargetId=83 } }; grid.SelectedIndex = 0;
+            view.OpenSelectedInvestigation(); Assert.Null(opened);
+            view.UpdateAccess(new(true,true,false)); view.OpenSelectedInvestigation(); Assert.Equal(83,opened!.TargetId);
+            Assert.Equal("HEMW",opened.StoreCode);
+            return Task.CompletedTask;
         });
     }
 

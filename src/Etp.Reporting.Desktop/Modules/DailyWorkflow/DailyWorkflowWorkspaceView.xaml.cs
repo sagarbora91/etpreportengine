@@ -152,6 +152,7 @@ public partial class DailyWorkflowWorkspaceView : UserControl
             await Task.WhenAll(stateTask, stockTask);
             if (revision != refreshRevision) return;
             Apply(presentation.Show(await stateTask, await stockTask));
+            await RefreshDayRegistersAsync();
         }
         catch (Exception exception)
         {

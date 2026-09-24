@@ -109,6 +109,12 @@
             </WrapPanel>
             <DataGrid x:Name="DailyPackGrid" Margin="0,10,0,0" AutoGenerateColumns="True" IsReadOnly="True" MaxHeight="260"
                       automation:AutomationProperties.Name="Daily reporting pack status"/>
+            <StackPanel x:Name="DayRegistersPanel" Margin="0,14,0,0">
+                <TextBlock Text="Today's register entries" FontSize="18" FontWeight="SemiBold"/>
+                <TextBlock x:Name="DayRegistersStatus" TextWrapping="Wrap" Margin="0,4,0,6"/>
+                <WrapPanel><Button Content="Refresh entries" Click="RefreshDayRegisters_Click" Padding="14,7"/><Button Content="Open selected register" Click="OpenDayRegister_Click" Padding="14,7" Margin="8,0,0,0"/></WrapPanel>
+                <DataGrid x:Name="DayRegistersGrid" AutoGenerateColumns="True" IsReadOnly="True" SelectionMode="Single" MaxHeight="240" Margin="0,6,0,0" automation:AutomationProperties.Name="Today's register entries"/>
+            </StackPanel>
         </StackPanel>
     </Border>
 </UserControl>
