@@ -37,7 +37,7 @@ public sealed class ProductisationPresentationSessionTests
     }
 
     [Fact]
-    public async Task Archive_search_and_comparison_clear_document_and_prepared_share_state()
+    public async Task Archive_search_clears_document_and_prepared_share_state()
     {
         var archive = new FakeArchiveQuery();
         var distribution = new FakeDistributionService();
@@ -47,7 +47,7 @@ public sealed class ProductisationPresentationSessionTests
         await session.OpenAsync("connection", first);
         await session.CreatePackageAsync("connection", first, "first.zip", "Owner");
 
-        await session.CompareAsync("connection", first, second);
+        await session.SearchAsync("connection", new ReportArchiveSearch());
 
         Assert.Null(session.CurrentDocument);
         Assert.Null(session.CurrentShareFile);

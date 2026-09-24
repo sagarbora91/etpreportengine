@@ -135,7 +135,7 @@ public sealed class DistributionServiceBoundaryTests
             return Task.CompletedTask;
         }
 
-        public Task RecordShareAttemptAsync(long generationId, long? packageId, string channel, string? destinationSafe, string attachmentName, string outcome, string message, CancellationToken token)
+        public Task RecordShareAttemptAsync(long generationId, long? packageId, string channel, string? destinationSafe, string attachmentName, string outcome, string message, CancellationToken token, Guid? attemptKey = null)
         {
             Calls.Add($"share:{generationId}:{channel}:{destinationSafe}:{Path.GetFileName(attachmentName)}:{outcome}:{message}");
             return Task.CompletedTask;

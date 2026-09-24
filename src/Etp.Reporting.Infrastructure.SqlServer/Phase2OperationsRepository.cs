@@ -18,7 +18,7 @@ public sealed record ApplicationAccess(string WindowsIdentity, string DisplayNam
 
 public sealed record ApplicationUserRow(int Id, string WindowsIdentity, string DisplayName, string RoleCode, bool IsActive, DateTime ModifiedUtc, string ModifiedBy);
 public sealed record ControlledMasterRow(string MasterType, string Code, string DisplayName, string ApprovalStatus, bool IsActive, DateTime? ModifiedUtc, string? ModifiedBy);
-public sealed record WatchFolderSettings(string InboundPath, string ProcessedPath, string FailedPath, string ReportOutputPath, int PollMinutes, bool IsEnabled, DateTime ModifiedUtc, string ModifiedBy);
+public sealed record WatchFolderSettings(string InboundPath, string ProcessedPath, string FailedPath, string ReportOutputPath, bool IsEnabled, DateTime ModifiedUtc, string ModifiedBy);
 public sealed record ReportPackSchedule(int Id, string Name, TimeOnly LocalRunTime, bool IsEnabled, bool ExportExcel, bool ExportPdf, DateOnly? LastBusinessDate, DateTime? LastRunUtc, string? LastStatus, string? LastMessage);
 public sealed record AutomationRunRow(long Id, string RunType, string? SourceFileName, string? StoreCode, DateOnly? BusinessDate, string Outcome, string SafeMessage, DateTime StartedUtc, DateTime CompletedUtc, string RunBy);
 public sealed record ArchivedReportGeneration(long Id, string StoreCode, DateOnly BusinessDate, int GenerationNumber, string ControlSha256, string? DocumentSha256, DateTime GeneratedUtc, string GeneratedBy, bool IsFinal, long? SupersedesGenerationId, bool CanReExport);
@@ -145,10 +145,10 @@ public sealed class Phase2OperationsRepository(string connectionString)
     public async Task<WatchFolderSettings> LoadWatchFolderSettingsAsync(CancellationToken cancellationToken = default)
     {
         await using var connection = await OpenAsync(cancellationToken);
-        await using var command = new SqlCommand("SELECT inbound_path,processed_path,failed_path,report_output_path,poll_minutes,is_enabled,modified_utc,modified_by FROM dbo.watch_folder_settings WHERE watch_folder_setting_id=1", connection);
+        await using var command = new SqlCommand("SELECT inbound_path,processed_path,failed_path,report_output_path,is_enabled,modified_utc,modified_by FROM dbo.watch_folder_settings WHERE watch_folder_setting_id=1", connection);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken)) throw new InvalidOperationException("Watch-folder settings are missing.");
-        return new(reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetInt32(4), reader.GetBoolean(5), reader.GetDateTime(6), reader.GetString(7));
+        return new(reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetBoolean(4), reader.GetDateTime(5), reader.GetString(6));
     }
 
     public async Task SaveWatchFolderSettingsAsync(WatchFolderSettings settings, string reason, CancellationToken cancellationToken = default)
@@ -156,10 +156,10 @@ public sealed class Phase2OperationsRepository(string connectionString)
         ArgumentNullException.ThrowIfNull(settings);
         var paths = AutomationPathPolicy.Validate(settings.InboundPath, settings.ProcessedPath, settings.FailedPath, settings.ReportOutputPath);
         reason = Required(reason, nameof(reason));
-        if (settings.PollMinutes is < 1 or > 60 || reason.Length > 500) throw new ArgumentException("Polling must be 1–60 minutes and the reason at most 500 characters.");
+        if (reason.Length > 500) throw new ArgumentException("The reason must be at most 500 characters.");
         var sql = """
             UPDATE dbo.watch_folder_settings SET inbound_path=@inbound,processed_path=@processed,failed_path=@failed,report_output_path=@output,
-              poll_minutes=@poll,is_enabled=@enabled,modified_by=SUSER_SNAME(),modified_utc=SYSUTCDATETIME(),change_reason=@reason WHERE watch_folder_setting_id=1;
+              is_enabled=@enabled,modified_by=SUSER_SNAME(),modified_utc=SYSUTCDATETIME(),change_reason=@reason WHERE watch_folder_setting_id=1;
             EXEC dbo.record_operational_audit 'ConfigurationChange','Succeeded',N'Watch-folder configuration changed',N'database';
             """;
         await using var connection = await OpenAsync(cancellationToken);
@@ -167,7 +167,7 @@ public sealed class Phase2OperationsRepository(string connectionString)
         await using var command = new SqlCommand(sql, connection);
         command.Parameters.AddWithValue("@inbound", paths.InboundPath); command.Parameters.AddWithValue("@processed", paths.ProcessedPath);
         command.Parameters.AddWithValue("@failed", paths.FailedPath); command.Parameters.AddWithValue("@output", paths.ReportOutputPath);
-        command.Parameters.AddWithValue("@poll", settings.PollMinutes); command.Parameters.AddWithValue("@enabled", settings.IsEnabled); command.Parameters.AddWithValue("@reason", reason);
+        command.Parameters.AddWithValue("@enabled", settings.IsEnabled); command.Parameters.AddWithValue("@reason", reason);
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
@@ -413,12 +413,12 @@ public sealed class Phase2OperationsRepository(string connectionString)
 
 public static class AutomationPathPolicy
 {
-    public static WatchFolderSettings Validate(string inbound, string processed, string failed, string output, int pollMinutes = 5, bool enabled = true)
+    public static WatchFolderSettings Validate(string inbound, string processed, string failed, string output, bool enabled = true)
     {
         var values = new[] { Canonical(inbound), Canonical(processed), Canonical(failed), Canonical(output) };
         if (values.Distinct(StringComparer.OrdinalIgnoreCase).Count() != values.Length) throw new ArgumentException("Automation folders must be different locations.");
         if (values.Skip(1).Any(path => IsWithin(path, values[0]))) throw new ArgumentException("Processed, failed and report folders cannot be inside the inbound folder.");
-        return new(values[0], values[1], values[2], values[3], pollMinutes, enabled, DateTime.MinValue, string.Empty);
+        return new(values[0], values[1], values[2], values[3], enabled, DateTime.MinValue, string.Empty);
     }
 
     private static string Canonical(string value)

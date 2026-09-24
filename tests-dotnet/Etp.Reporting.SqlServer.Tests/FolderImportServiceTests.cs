@@ -9,6 +9,34 @@ namespace Etp.Reporting.SqlServer.Tests;
 public sealed class FolderImportServiceTests
 {
     [Fact]
+    public async Task Full_zip_imports_supported_files_and_reports_unsupported_ETP_workbooks_as_not_needed()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), "EtpZipTest-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        try
+        {
+            var zip = Path.Combine(folder, "full-etp.zip");
+            using (var archive = System.IO.Compression.ZipFile.Open(zip, System.IO.Compression.ZipArchiveMode.Create))
+                foreach (var name in new[] { "R025_VariantwiseSales.xlsx", "R099_UnsupportedReport.xlsx" })
+                    using (var writer = new StreamWriter(archive.CreateEntry(name).Open())) writer.Write("synthetic workbook read by test adapter");
+            var persistence = new CapturePersistence();
+            var service = new FolderImportService(persistence, new Reader(path =>
+            {
+                var snapshot = Sales(path, "HEMW", [20260825]);
+                return Path.GetFileName(path).StartsWith("R099", StringComparison.Ordinal)
+                    ? snapshot with { Sheets = [snapshot.Sheets[0] with { Headers = ["UNSUPPORTED_COLUMN"] }] } : snapshot;
+            }));
+            var result = await service.RunAsync(zip, new("tester"));
+            Assert.Equal(1, result.Imported);
+            Assert.Equal(0, result.Failed);
+            Assert.Equal(0, result.UnknownLayouts);
+            Assert.Equal("Not needed", Assert.Single(result.Files, file => file.FileName.StartsWith("R099")).Status);
+            Assert.Single(persistence.Requests);
+        }
+        finally { Directory.Delete(folder, true); }
+    }
+
+    [Fact]
     public async Task Retry_reads_only_failed_files_and_preserves_successful_sibling_scope()
     {
         var repaired = false;

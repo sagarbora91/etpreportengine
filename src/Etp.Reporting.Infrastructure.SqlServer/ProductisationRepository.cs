@@ -4,7 +4,7 @@ using Microsoft.Data.SqlClient;
 
 namespace Etp.Reporting.Infrastructure.SqlServer;
 
-public sealed class ProductisationRepository(string connectionString)
+public sealed partial class ProductisationRepository(string connectionString)
 {
     internal const string SaveSharingContactSql = """
         SET XACT_ABORT ON;
@@ -243,10 +243,10 @@ public sealed class ProductisationRepository(string connectionString)
         await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(sql,connection);command.Parameters.AddWithValue("@generation",generationId);command.Parameters.AddWithValue("@type",packageType);command.Parameters.AddWithValue("@path",Path.GetFullPath(path));command.Parameters.AddWithValue("@manifest",manifestJson);command.Parameters.AddWithValue("@hash",SqlServerImportFileRepository.NormalizeHash(sha256));command.Parameters.AddWithValue("@status",isFinal?"FINAL":"DRAFT");await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    public async Task RecordShareAttemptAsync(long generationId,long? packageId,string channel,string? destinationSafe,string attachmentName,string outcome,string message,CancellationToken cancellationToken=default)
+    public async Task RecordShareAttemptAsync(long generationId,long? packageId,string channel,string? destinationSafe,string attachmentName,string outcome,string message,CancellationToken cancellationToken=default,Guid? attemptKey=null)
     {
-        const string sql="INSERT dbo.share_attempts(daily_report_generation_id,report_package_id,channel,destination_safe,attachment_file_name,outcome,safe_message,initiated_by) VALUES(@generation,@package,@channel,@destination,@attachment,@outcome,@message,SUSER_SNAME()); EXEC dbo.record_operational_audit 'ShareInitiated',@auditOutcome,N'Report share action initiated',N'database';";
-        await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(sql,connection);command.Parameters.AddWithValue("@generation",generationId);Add(command,"@package",packageId);command.Parameters.AddWithValue("@channel",channel);Add(command,"@destination",Clean(destinationSafe));command.Parameters.AddWithValue("@attachment",Path.GetFileName(attachmentName));command.Parameters.AddWithValue("@outcome",outcome);command.Parameters.AddWithValue("@message",message);command.Parameters.AddWithValue("@auditOutcome",outcome=="FAILED"?"Failed":"Succeeded");await command.ExecuteNonQueryAsync(cancellationToken);
+        const string sql="INSERT dbo.share_attempts(daily_report_generation_id,report_package_id,channel,destination_safe,attachment_file_name,outcome,safe_message,initiated_by,attempt_key) VALUES(@generation,@package,@channel,@destination,@attachment,@outcome,@message,SUSER_SNAME(),@attemptKey); EXEC dbo.record_operational_audit 'ShareInitiated',@auditOutcome,N'Report share action initiated',N'database';";
+        await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(sql,connection);command.Parameters.AddWithValue("@generation",generationId);Add(command,"@package",packageId);command.Parameters.AddWithValue("@channel",channel);Add(command,"@destination",Clean(destinationSafe));command.Parameters.AddWithValue("@attachment",Path.GetFileName(attachmentName));command.Parameters.AddWithValue("@outcome",outcome);command.Parameters.AddWithValue("@message",message);command.Parameters.AddWithValue("@auditOutcome",outcome is "FAILED" or "UNKNOWN"?"Failed":"Succeeded");Add(command,"@attemptKey",attemptKey);await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyList<AccountingMapping>> LoadApprovedAccountingMappingsAsync(string storeCode,DateOnly businessDate,CancellationToken cancellationToken=default)
@@ -415,7 +415,7 @@ public sealed class ProductisationRepository(string connectionString)
     {
         var settings=await LoadSettingsAsync(cancellationToken);var items=new List<ProductHealthItem>();
         items.Add(PathHealth("Document repository",settings.DocumentRepositoryPath));items.Add(PathHealth("Share folder",settings.ShareFolderPath));
-        items.Add(string.IsNullOrWhiteSpace(settings.SmtpHost)?new("Email","Warning","Direct SMTP is not configured; use safe email drafts instead."):new("Email","Healthy","SMTP metadata is configured; credentials remain outside the database."));
+        items.Add(string.IsNullOrWhiteSpace(settings.SmtpHost)?new("Email","Warning","SMTP is not configured. Save host, port and sender, then use Send test email in Report archive."):new("Email","Healthy","SMTP settings are saved. Send a test email to verify the connection; credentials are protected per Windows user."));
         await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand("SELECT (SELECT COUNT_BIG(*) FROM dbo.import_conflicts WHERE status IN('OPEN','ACKNOWLEDGED')),(SELECT COUNT_BIG(*) FROM dbo.approval_requests WHERE status='PENDING')",connection);await using var reader=await command.ExecuteReaderAsync(cancellationToken);if(await reader.ReadAsync(cancellationToken)){items.Add(QueueHealth("Import conflicts",reader.GetInt64(0)));items.Add(QueueHealth("Pending approvals",reader.GetInt64(1)));}return items;
     }
 
