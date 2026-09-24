@@ -93,6 +93,7 @@ public sealed class PhaseFiveFullWindowCaptureTests(ITestOutputHelper output)
                         var captures = new List<Capture>();
                         foreach (var role in new[] { "OWNER", "STORE_MANAGER", "VIEWER" })
                         {
+                            File.AppendAllText(Path.Combine(evidence, "capture-progress.txt"), $"{DateTimeOffset.UtcNow:O} Starting {role}\n");
                             // Update only the fixture's application claim. SQL role enforcement
                             // has separate integration tests; this does not impersonate Windows.
                             await database.ExecuteAsync($"UPDATE dbo.application_users SET role_code='{role}',display_name=N'Demo {role.Replace('_', ' ')}',is_active=1 WHERE windows_identity=SUSER_SNAME();");
@@ -158,15 +159,18 @@ public sealed class PhaseFiveFullWindowCaptureTests(ITestOutputHelper output)
                                     AssertShellLayout(window, root);
                                     var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
                                     bitmap.Render(root);
-                                    var colours = AssertUsefulPixels(bitmap);
                                     var file = $"{role}-{name}-{width}x{height}-wpf.png";
                                     SavePng(bitmap, Path.Combine(evidence, file));
+                                    var colours = AssertUsefulPixels(bitmap);
                                     captures.Add(new(role, id, width, height, file, colours));
                                     if (help is not null && role == "OWNER" && width == 1366 && TaskNavigation.Sections.Contains(name))
                                         SavePng(bitmap, Path.Combine(help, name + ".png"));
                                 }
                             }
                             // No UI operation can outlive the fixture database.
+                            var drafts = UnexpectedDrafts(window);
+                            File.AppendAllText(Path.Combine(evidence, "capture-progress.txt"), $"{DateTimeOffset.UtcNow:O} Closing {role}; unexpected drafts: {string.Join(", ", drafts)}\n");
+                            Assert.Empty(drafts);
                             await window.importWorkspaceView.DisposeAsync();
                             window.Close(); window = null;
                             await application.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
@@ -175,7 +179,11 @@ public sealed class PhaseFiveFullWindowCaptureTests(ITestOutputHelper output)
                         completion.TrySetResult(captures);
                     }
                     catch (Exception exception) { completion.TrySetException(exception); }
-                    finally { window?.Close(); application.Shutdown(); }
+                    finally
+                    {
+                        if (window is not null) { DiscardFixtureDrafts(window); window.Close(); }
+                        application.Shutdown();
+                    }
                 });
                 application.Run();
             }
@@ -197,6 +205,38 @@ public sealed class PhaseFiveFullWindowCaptureTests(ITestOutputHelper output)
         else if (task.Id == "prepare-batch") await window.accountingWorkspaceView.RefreshAsync();
         else if (task.Id == "approval-centre") await window.investigationWorkspaceView.RefreshApprovalsAsync();
         else if (task.Id == "watch-folder") await window.operationsWorkspaceView.RefreshAsync();
+    }
+
+    private static IReadOnlyList<string> UnexpectedDrafts(MainWindow window)
+    {
+        var drafts = new List<string>();
+        if (window.registersWorkspaceView.HasUnsavedChanges) drafts.Add("Register entry");
+        drafts.AddRange(window.dailyWorkflowWorkspace.UnsavedDrafts.Select(task => "Daily workflow: " + task));
+        if (window.settingsWorkspace.HasProductDraft) drafts.Add("Integration settings");
+        if (window.operationsWorkspaceView.HasWatchDraft) drafts.Add("Automatic import");
+        drafts.AddRange(window.operationsWorkspaceView.UnsavedSchedules.Select(id => "Schedule " + id));
+        drafts.AddRange(window.administrationWorkspaceView.UnsavedDrafts.Select(task => "Administration: " + task));
+        drafts.AddRange(window.archiveWorkspaceView.UnsavedContacts.Select(id => "Sharing contact " + id));
+        if (window.accountingWorkspaceView.HasRetainedDraft) drafts.Add("Accounting review");
+        if (window.investigationWorkspaceView.HasRetainedDraft) drafts.Add("Adjustments/approvals");
+        if (window.operationsWorkspaceView.HasRetainedDraft) drafts.Add("Data-quality review");
+        return drafts;
+    }
+
+    private static void DiscardFixtureDrafts(MainWindow window)
+    {
+        // Failure cleanup only; the assertion above still fails for any untouched
+        // screen that creates a draft. Never accept a modal or save fixture edits.
+        window.registersWorkspaceView.DiscardDraft();
+        foreach (var task in window.dailyWorkflowWorkspace.UnsavedDrafts.ToArray()) window.dailyWorkflowWorkspace.DiscardDraft(task);
+        window.settingsWorkspace.DiscardProductDraft();
+        window.operationsWorkspaceView.DiscardWatchDraft();
+        foreach (var id in window.operationsWorkspaceView.UnsavedSchedules.ToArray()) window.operationsWorkspaceView.DiscardScheduleDraft(id);
+        foreach (var task in window.administrationWorkspaceView.UnsavedDrafts.ToArray()) window.administrationWorkspaceView.DiscardDraft(task);
+        foreach (var id in window.archiveWorkspaceView.UnsavedContacts.ToArray()) window.archiveWorkspaceView.DiscardContactDraft(id);
+        window.accountingWorkspaceView.DiscardRetainedDraft();
+        window.investigationWorkspaceView.DiscardRetainedDraft();
+        window.operationsWorkspaceView.DiscardRetainedDraft();
     }
 
     private static async Task AssertWorkflowDataAsync(MainWindow window, string task, Func<Exception?> failure)
@@ -272,13 +312,21 @@ public sealed class PhaseFiveFullWindowCaptureTests(ITestOutputHelper output)
         var pixels = new byte[bitmap.PixelWidth * bitmap.PixelHeight * 4];
         bitmap.CopyPixels(pixels, bitmap.PixelWidth * 4, 0);
         var colours = new HashSet<uint>();
-        var opaque = 0;
+        var nonOpaqueInterior = 0;
         for (var offset = 0; offset < pixels.Length; offset += 4)
         {
-            if (pixels[offset + 3] == 255) opaque++;
+            // WPF's premultiplied composition can round a fully painted text/edge
+            // pixel to alpha 254. Permit that single quantisation unit, while
+            // requiring coverage for EVERY interior pixel. The native HWND can
+            // round the requested logical size by <1 DIP at non-100% Windows DPI;
+            // only the outermost pixel may therefore have fractional coverage.
+            var pixel = offset / 4;
+            var x = pixel % bitmap.PixelWidth; var y = pixel / bitmap.PixelWidth;
+            if (pixels[offset + 3] < 254 && x > 0 && x < bitmap.PixelWidth - 1 && y > 0 && y < bitmap.PixelHeight - 1)
+                nonOpaqueInterior++;
             if (offset % 68 == 0) colours.Add(BitConverter.ToUInt32(pixels, offset));
         }
-        Assert.True(opaque >= bitmap.PixelWidth * bitmap.PixelHeight * .98, "Capture has unexpected transparent/blank areas.");
+        Assert.Equal(0, nonOpaqueInterior);
         Assert.True(colours.Count >= 32, $"Only {colours.Count} sampled colours; screen may be blank.");
         return colours.Count;
     }
