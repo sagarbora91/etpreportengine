@@ -431,3 +431,14 @@ taking them out would itself be a change.
   without elevation. **The backup size** (about 50 MB) is an estimate from the 47 MB of used data
   space.
 - **Whether importing the two-year Helios workbooks into `EtpReporting` would go cleanly.** Not tested.
+
+---
+
+## Outcome — 24 September 2026
+
+Sagar approved archiving and dropping. Done the same day:
+
+- Elevated checks passed: the three ETP scheduled tasks are Automated Operations (SYSTEM), Daily Backup (SYSTEM) and Monthly Recovery Drill (Sagar), **none** mentioning Helios; `operations.json` names `EtpReporting` with automation account `DESKTOP-6IBM1J5\EtpAutomation`; no session was connected to Helios.
+- All **58 of 58** source workbooks were still on disk, so the data can be rebuilt from them; the archive is a convenience copy, not the only copy.
+- Archive: `C:\Program Files\Microsoft SQL Server\MSSQL16.SQLEXPRESS\MSSQL\Backup\EtpReportingHelios-archive-20260924-140925.bak`, copy-only with CHECKSUM, 47.5 MB, `RESTORE VERIFYONLY ... WITH CHECKSUM` reported the backup set valid. It is unencrypted (D9) and holds customer data, so it stays in the protected SQL backup folder.
+- `EtpReportingHelios` was then dropped. The instance now holds one user database, `EtpReporting`.

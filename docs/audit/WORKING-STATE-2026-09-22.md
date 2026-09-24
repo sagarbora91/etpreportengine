@@ -3,6 +3,17 @@
 The state of the P4-13/14/15 work and the review that followed it. Read this first when
 continuing.
 
+## 24 September — merged, test reliability fixed, installer built
+
+- **`main` is now `870c9ab`**: Sagar approved the merge on 24 Sep. The merge carried the tested code byte-identically; only main's own planning documents differed.
+- Both background tasks' work is committed: `59fd42c` (WPF STA races) and `1a24b94` (test diagnostics isolation), branch pushed.
+- The flaky-test task's own new toast test then failed on the `System.IO.Packaging` race. Fixed at the class of failure rather than the test: every Desktop test class that builds a view now shares the `WPF views` collection with parallelisation disabled (`tests-dotnet/Etp.Reporting.Desktop.Tests/WpfViewCollection.cs`). 428 passed on three consecutive runs, suite no slower (18-19 s).
+- Full gate on `1a24b94`, one project at a time: Desktop 428, Domain 12, Import 110, Reporting 63, SQL integration 101 (1 skipped), SQL unit 239 — no failures, and the integration project no longer times out (2 m 21 s).
+- Still open from the flaky-test chip: `ScopedImportDuplicateSqlTests`' shared-memory transport error was not addressed by that task (it passed in every run since). Watch for it.
+- Installer built from `1a24b94` (see below for its location once confirmed).
+- Sagar approved archiving and dropping `EtpReportingHelios`. Elevated checks passed on 24 Sep: three ETP tasks, none mentioning Helios; `operations.json` → `EtpReporting`, automation `DESKTOP-6IBM1J5\EtpAutomation`; nothing connected to Helios.
+- Codex has finished Phase 5 coding (Sagar, 24 Sep). Phase 5 audit is separate work after Phase 4 closes.
+
 ## Resume here (saved 22 Sep, ~18:45 IST)
 
 - Branch `recovery/opus-r1-r4` pushed at `375e3b2` (on top of `9547f06`). `main` untouched at `714d117`.
