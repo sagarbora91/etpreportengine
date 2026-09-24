@@ -50,6 +50,10 @@ public partial class SettingsWorkspaceView : UserControl
 
         InitializeComponent();
         InitializeDataTruthMasters();
+        RegisterName(smtpTlsInput.Name, smtpTlsInput);
+        System.Windows.Automation.AutomationProperties.SetName(smtpTlsInput, "Use SMTP TLS");
+        var smtpFields = (Panel)SmtpHostInput.Parent;
+        smtpFields.Children.Insert(smtpFields.Children.IndexOf(SmtpPortInput) + 1, smtpTlsInput);
         if (accountingServiceFactory is not null)
         {
             tallySettings = new(() => session.ConnectionString, () => access.CanAdminister, accountingServiceFactory);
@@ -72,15 +76,30 @@ public partial class SettingsWorkspaceView : UserControl
     private bool productBusy;
     private readonly WorkspaceOperationGate databaseOperation = new();
     private string[]? savedProduct;
+    private bool savedSmtpUseTls = true;
+    private readonly CheckBox smtpTlsInput = new()
+    {
+        Name = "SmtpUseTlsInput", Content = "Use SMTP TLS", IsChecked = true,
+        MinHeight = 44, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0),
+        ToolTip = "TLS is required when saved SMTP credentials are used."
+    };
     private TextBox[] ProductFields => [DocumentRepositoryInput, ShareFolderInput, SmtpHostInput, SmtpPortInput, SmtpFromInput, MaximumAttachmentInput, ProductSettingsReasonInput];
-    private bool HasIntegrationFieldsDraft => savedProduct is not null && !ProductFields.Select(input => input.Text).SequenceEqual(savedProduct);
+    private bool HasIntegrationFieldsDraft => savedProduct is not null &&
+        (!ProductFields.Select(input => input.Text).SequenceEqual(savedProduct) || (smtpTlsInput.IsChecked == true) != savedSmtpUseTls);
     public bool HasProductDraft => tallySettings?.HasDraft == true || HasIntegrationFieldsDraft;
     public bool IsBusy => tallySettings?.IsBusy == true || productBusy || databaseOperation.IsBusy;
-    public void DiscardProductDraft() { tallySettings?.DiscardDraft(); if (savedProduct is null) return; for (var i = 0; i < ProductFields.Length; i++) ProductFields[i].Text = savedProduct[i]; }
+    public void DiscardProductDraft()
+    {
+        tallySettings?.DiscardDraft();
+        if (savedProduct is null) return;
+        for (var i = 0; i < ProductFields.Length; i++) ProductFields[i].Text = savedProduct[i];
+        smtpTlsInput.IsChecked = savedSmtpUseTls;
+    }
     public void SelectIntegrationTask(string id)
     {
         foreach (var input in new[] { SmtpHostInput, SmtpPortInput, SmtpFromInput, MaximumAttachmentInput })
             input.Visibility = id == "sharing" ? Visibility.Visible : Visibility.Collapsed;
+        smtpTlsInput.Visibility = id == "sharing" ? Visibility.Visible : Visibility.Collapsed;
         if (!integrationsLoaded) _ = PrepareForDisplayAsync(true);
     }
 
@@ -113,7 +132,7 @@ public partial class SettingsWorkspaceView : UserControl
     {
         if (IsBusy || HasProductDraft) { ConnectionResult.Text = "Finish the current operation and save or discard integration edits before changing the database connection."; return; }
         var revision = ++connectionCheckRevision;
-        if (showProgress) ConnectionResult.Text = "Testingâ€¦";
+        if (showProgress) ConnectionResult.Text = "Testing…";
         var candidate = session.ValidateCandidate(ConnectionStringInput.Text);
         if (!candidate.IsValid)
         {
@@ -150,7 +169,7 @@ public partial class SettingsWorkspaceView : UserControl
         if (productBusy || HasProductDraft) { ConnectionResult.Text = "Save or discard integration edits before updating the database."; return; }
         using var operation = databaseOperation.TryEnter(this); if (operation is null) return;
         ++connectionCheckRevision;
-        ConnectionResult.Text = "Creating/updating databaseâ€¦";
+        ConnectionResult.Text = "Creating/updating database…";
         try
         {
             RequireBootstrapAccess();
@@ -179,7 +198,9 @@ public partial class SettingsWorkspaceView : UserControl
         {
             var dashboard = await administrationServiceFactory(session.ConnectionString).LoadAsync("Store");
             ApplyProductSettings(session.ShowProductSettings(dashboard.ProductConfiguration));
+            smtpTlsInput.IsChecked = dashboard.ProductConfiguration.SmtpUseTls;
             integrationsLoaded = true; savedProduct = ProductFields.Select(input => input.Text).ToArray();
+            savedSmtpUseTls = smtpTlsInput.IsChecked == true;
         }
         catch (Exception exception)
         {
@@ -205,10 +226,11 @@ public partial class SettingsWorkspaceView : UserControl
             var settings = DesktopSettingsPresentationSession.CreateProductConfiguration(
                 DocumentRepositoryInput.Text, ShareFolderInput.Text,
                 SmtpHostInput.Text, SmtpPortInput.Text, SmtpFromInput.Text, MaximumAttachmentInput.Text,
-                ProductSettingsReasonInput.Text);
+                ProductSettingsReasonInput.Text) with { SmtpUseTls = smtpTlsInput.IsChecked == true };
             await administrationServiceFactory(session.ConnectionString).SaveProductConfigurationAsync(settings);
             ProductSettingsReasonInput.Clear();
             savedProduct = ProductFields.Select(input => input.Text).ToArray();
+            savedSmtpUseTls = settings.SmtpUseTls;
             ConnectionResult.Text = "Product integration settings saved and audited.";
             await NotifyCompletedAsync(SettingsWorkspaceOperation.ProductConfigurationSaved, true);
             return true;
