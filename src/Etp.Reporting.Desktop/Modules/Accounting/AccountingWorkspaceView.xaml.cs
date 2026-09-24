@@ -86,6 +86,8 @@ public sealed partial class AccountingWorkspaceView : UserControl
         {
             RequireOwnerAccess();
             ++entriesRevision;
+            AccountingBatchGrid.SelectedItem = null;
+            RefreshActionState();
             var scope = CurrentScope();
             var preview = await session.PreviewAsync(connectionStringProvider(), scope);
             AccountingEntryGrid.ItemsSource = preview.Batch.Entries;

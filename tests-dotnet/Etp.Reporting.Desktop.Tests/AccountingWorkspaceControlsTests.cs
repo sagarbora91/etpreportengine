@@ -31,6 +31,14 @@ public sealed class AccountingWorkspaceControlsTests
                 foreach(var name in new[]{"PreviewTaskButton","SaveTaskButton","ApproveTaskButton","RejectTaskButton","TallyTaskButton"})
                     Assert.Equal(Visibility.Visible,((Button)view.FindName(name)).Visibility);
             }
+            grid.ItemsSource=new[]{new AccountingBatchSummary(1,"FIXTURE",new(2026,8,25),1,1,25,25,"DRAFT",null,null,null,DateTime.UtcNow)};
+            grid.SelectedIndex=0; Assert.True(((Button)view.FindName("ApproveTaskButton")).IsEnabled);
+            view.StoreCode="ANOTHER";
+            Assert.Null(grid.SelectedItem); Assert.False(((Button)view.FindName("ApproveTaskButton")).IsEnabled);
+            grid.SelectedIndex=0;
+            ((Button)view.FindName("PreviewTaskButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert.Null(grid.SelectedItem); Assert.False(((Button)view.FindName("ApproveTaskButton")).IsEnabled);
+            Assert.False(((Button)view.FindName("RejectTaskButton")).IsEnabled); Assert.False(((Button)view.FindName("TallyTaskButton")).IsEnabled);
             owner=new("fixture","Manager",AccessRole.StoreManager,true); view.SelectTask("prepare-batch");
             Assert.False(((Button)view.FindName("PreviewTaskButton")).IsEnabled);
             Assert.Contains("Owner permission",((TextBlock)view.FindName("ActionGuidance")).Text);
@@ -62,6 +70,7 @@ public sealed class AccountingWorkspaceControlsTests
         protected override object? Invoke(MethodInfo? method, object?[]? args) => method?.Name switch
         {
             nameof(IAccountingService.LoadDestinationAsync)=>Task.FromResult(new AccountingDestination("TEST Fixture","TEST")),
+            nameof(IAccountingService.PreviewAsync)=>Task.FromResult(new AccountingPreview(1,new([],0,0,true,[]))),
             nameof(IAccountingService.LoadEntriesAsync)=>Task.FromResult<IReadOnlyList<AccountingEntry>>([]),
             nameof(IAccountingService.SaveDestinationAsync)=>Save((SaveAccountingDestination)args![0]!),
             _=>throw new InvalidOperationException("Unexpected fixture call: "+method?.Name)
