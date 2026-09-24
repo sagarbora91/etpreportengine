@@ -16,6 +16,7 @@ public sealed partial class RegistersWorkspaceView : UserControl
     private readonly Func<string> connectionStringProvider;
     private Func<AccessSession> accessProvider = () => new("unknown", "Unknown user", AccessRole.None, false);
     private bool restoringSelection;
+    private int registerRefreshRevision;
     private Func<Exception, string> errorDescriber = DesktopFriendlyError.Describe;
 
     public RegistersWorkspaceView(RegistersPresentationSession session, Func<string> connectionStringProvider)
@@ -50,16 +51,19 @@ public sealed partial class RegistersWorkspaceView : UserControl
 
     private async Task RefreshRegistersAsync()
     {
+        var revision = ++registerRefreshRevision;
         try
         {
             RequireViewAccess();
             VerifyRegisterButton.IsEnabled = accessProvider().CanAdminister;
-            var rows = await session.RefreshAsync(connectionStringProvider(), RegisterSearchInput.Text);
-            var visible = rows.Where(x => x.RegisterType == SelectedContent(RegisterTypeInput).Replace(' ', '_').ToUpperInvariant()).ToArray();
+            var registerType = SelectedContent(RegisterTypeInput).Replace(' ', '_').ToUpperInvariant();
+            var rows = await session.RefreshAsync(connectionStringProvider(), RegisterSearchInput.Text, registerType: registerType);
+            if (revision != registerRefreshRevision) return;
+            var visible = rows.Where(x => x.RegisterType == registerType).ToArray();
             RegisterGrid.ItemsSource = visible;
             SetStatus($"{visible.Length:N0} audited register entry or entries found.");
         }
-        catch (Exception ex) { DesktopDiagnostics.Record(ex, "Registers.Workspace", "REGISTER_REFRESH_FAILED"); SetStatus(errorDescriber(ex)); }
+        catch (Exception ex) { if (revision != registerRefreshRevision) return; DesktopDiagnostics.Record(ex, "Registers.Workspace", "REGISTER_REFRESH_FAILED"); SetStatus(errorDescriber(ex)); }
     }
 
     private async void SaveRegisterEntry_Click(object sender, RoutedEventArgs e) => await SaveDraftAsync();
@@ -106,7 +110,23 @@ public sealed partial class RegistersWorkspaceView : UserControl
     }
 
     private async void VerifyRegisterEntry_Click(object sender, RoutedEventArgs e) => await SaveEntryAsync(true);
-    private void NewRegisterEntry_Click(object sender, RoutedEventArgs e) { ClearEntry(); AcceptDraft(); }
+    private void NewRegisterEntry_Click(object sender, RoutedEventArgs e)
+    {
+        if (HasUnsavedChanges && !ConfirmationSheet.Show(this, "Discard register changes", "Discard the current unsaved register changes and start a new entry?")) return;
+        StartNewEntry(discardConfirmed: true);
+    }
+
+    public bool StartNewEntry(bool discardConfirmed = false)
+    {
+        if (savingDraft) return false;
+        if (HasUnsavedChanges && !discardConfirmed)
+        {
+            SetStatus("The current register has unsaved changes. Save them or confirm discarding them before starting a new entry.");
+            return false;
+        }
+        ClearEntry(); AcceptDraft();
+        return true;
+    }
     private void ClearEntry()
     {
         RegisterGrid.SelectedItem = null;

@@ -67,7 +67,7 @@ public sealed class SharingContactsAndDigitalRegistersAdapterTests
             new(12, "INWARD", 44, "WLMHW", date, "INV-12", date, "Vendor", 2m, 4999m, "PO-1", "Manager", "VERIFIED", "Received", @"STORE\Manager", modified)
         ];
         var service = new SqlServerDigitalRegisterService(
-            (_, _, _) => Task.FromResult(rows),
+            (_, _, _, _) => Task.FromResult(rows),
             (_, _, _) => Task.FromResult(0L));
 
         var entry = Assert.Single(await service.LoadAsync());
@@ -85,14 +85,16 @@ public sealed class SharingContactsAndDigitalRegistersAdapterTests
             "PO-1", "Manager", "DRAFT", "Received");
         using var cancellation = new CancellationTokenSource();
         string? observedSearch = null;
+        string? observedRegisterType = null;
         var observedLimit = 0;
         RegisterEntryRow? observedEntry = null;
         string? observedReason = null;
         var observedTokens = new List<CancellationToken>();
         var service = new SqlServerDigitalRegisterService(
-            (search, limit, token) =>
+            (search, limit, type, token) =>
             {
                 observedSearch = search;
+                observedRegisterType = type;
                 observedLimit = limit;
                 observedTokens.Add(token);
                 return Task.FromResult<IReadOnlyList<RegisterEntryRow>>([]);
@@ -105,10 +107,11 @@ public sealed class SharingContactsAndDigitalRegistersAdapterTests
                 return Task.FromResult(91L);
             });
 
-        await service.LoadAsync("INV-12", 75, cancellation.Token);
+        await service.LoadAsync("INV-12", 75, cancellation.Token, registerType: "INWARD");
         var id = await service.SaveAsync(draft, "Document received", cancellation.Token);
 
         Assert.Equal("INV-12", observedSearch);
+        Assert.Equal("INWARD", observedRegisterType);
         Assert.Equal(75, observedLimit);
         Assert.Equal(91, id);
         Assert.Equal(

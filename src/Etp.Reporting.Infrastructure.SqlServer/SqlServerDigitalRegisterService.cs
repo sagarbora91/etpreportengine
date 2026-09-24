@@ -4,7 +4,7 @@ namespace Etp.Reporting.Infrastructure.SqlServer;
 
 public sealed class SqlServerDigitalRegisterService : IDigitalRegisterService
 {
-    private readonly Func<string?, int, CancellationToken, Task<IReadOnlyList<RegisterEntryRow>>> load;
+    private readonly Func<string?, int, string?, CancellationToken, Task<IReadOnlyList<RegisterEntryRow>>> load;
     private readonly Func<RegisterEntryRow, string, CancellationToken, Task<long>> save;
 
     public SqlServerDigitalRegisterService(string connectionString)
@@ -13,12 +13,12 @@ public sealed class SqlServerDigitalRegisterService : IDigitalRegisterService
             connectionString,
             nameof(connectionString));
         var repository = new ProductisationRepository(validated);
-        load = (search, limit, token) => repository.LoadRegisterEntriesAsync(search, limit, token);
+        load = (search, limit, type, token) => repository.LoadRegisterEntriesAsync(search, limit, token, registerType: type);
         save = repository.SaveRegisterEntryAsync;
     }
 
     internal SqlServerDigitalRegisterService(
-        Func<string?, int, CancellationToken, Task<IReadOnlyList<RegisterEntryRow>>> load,
+        Func<string?, int, string?, CancellationToken, Task<IReadOnlyList<RegisterEntryRow>>> load,
         Func<RegisterEntryRow, string, CancellationToken, Task<long>> save)
     {
         this.load = load ?? throw new ArgumentNullException(nameof(load));
@@ -32,8 +32,9 @@ public sealed class SqlServerDigitalRegisterService : IDigitalRegisterService
     public async Task<IReadOnlyList<DigitalRegisterEntry>> LoadAsync(
         string? search = null,
         int limit = 500,
-        CancellationToken cancellationToken = default) =>
-        (await load(search, limit, cancellationToken).ConfigureAwait(false)).Select(Map).ToArray();
+        CancellationToken cancellationToken = default,
+        string? registerType = null) =>
+        (await load(search, limit, registerType, cancellationToken).ConfigureAwait(false)).Select(Map).ToArray();
 
     public Task<long> SaveAsync(
         DigitalRegisterEntryDraft entry,

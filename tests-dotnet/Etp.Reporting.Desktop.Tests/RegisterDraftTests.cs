@@ -8,6 +8,44 @@ namespace Etp.Reporting.Desktop.Tests;
 public sealed class RegisterDraftTests
 {
     [Fact]
+    public void New_entry_preserves_unsaved_fields_until_discard_is_confirmed()
+    {
+        RunSta(() =>
+        {
+            var view = Create(new RegistersStub()); view.SelectTask("register-courier");
+            Input(view, "RegisterDocumentNumberInput").Text = "UNSAVED-COURIER";
+            Input(view, "RegisterRemarksInput").Text = "Unsaved receiving notes";
+            view.BusinessDate = new DateTime(2026, 9, 24); view.LinkedSourceDocumentId = 42;
+            Assert.False(view.StartNewEntry());
+            Assert.Equal("UNSAVED-COURIER", Input(view, "RegisterDocumentNumberInput").Text);
+            Assert.Equal("Unsaved receiving notes", Input(view, "RegisterRemarksInput").Text);
+            Assert.Equal(42, view.LinkedSourceDocumentId);
+            Assert.True(view.StartNewEntry(discardConfirmed: true));
+            Assert.Equal("", Input(view, "RegisterDocumentNumberInput").Text);
+            Assert.Equal("", Input(view, "RegisterRemarksInput").Text);
+            Assert.Null(view.LinkedSourceDocumentId);
+            Assert.False(view.HasUnsavedChanges);
+            var savedDate = view.BusinessDate;
+            view.BusinessDate = savedDate!.Value.AddDays(-1);
+            Assert.True(view.HasUnsavedChanges);
+            Assert.False(view.StartNewEntry());
+            view.DiscardDraft();
+            Assert.Equal(savedDate, view.BusinessDate);
+        });
+    }
+
+    [Fact]
+    public void Selecting_a_register_passes_its_type_to_the_query_before_paging()
+    {
+        RunSta(() =>
+        {
+            var service = new RegistersStub(); var view = Create(service);
+            view.SelectTask("register-courier"); Assert.Equal("COURIER", service.LastRegisterType);
+            view.SelectTask("register-expense"); Assert.Equal("EXPENSE", service.LastRegisterType);
+        });
+    }
+
+    [Fact]
     public void Failed_save_retains_draft_and_success_clears_dirty_state_without_duplicate_write()
     {
         RunSta(() =>
@@ -111,7 +149,9 @@ public sealed class RegisterDraftTests
         public bool Fail = true; public int Writes;
         public IReadOnlyList<DigitalRegisterEntry> Entries = [];
         public DigitalRegisterEntryDraft? LastEntry;
-        public Task<IReadOnlyList<DigitalRegisterEntry>> LoadAsync(string? search = null, int limit = 500, CancellationToken cancellationToken = default) => Task.FromResult(Entries);
+        public string? LastRegisterType;
+        public Task<IReadOnlyList<DigitalRegisterEntry>> LoadAsync(string? search = null, int limit = 500, CancellationToken cancellationToken = default, string? registerType = null)
+        { LastRegisterType = registerType; return Task.FromResult(Entries); }
         public Task<long> SaveAsync(DigitalRegisterEntryDraft entry, string reason, CancellationToken cancellationToken = default)
         {
             if (Fail) return Task.FromException<long>(new InvalidOperationException("Synthetic service failure"));

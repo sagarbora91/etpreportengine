@@ -149,18 +149,19 @@ public sealed partial class ProductisationRepository(string connectionString)
         return Convert.ToInt64(await command.ExecuteScalarAsync(cancellationToken));
     }
 
-    public async Task<IReadOnlyList<RegisterEntryRow>> LoadRegisterEntriesAsync(string? search = null, int limit = 500, CancellationToken cancellationToken = default, string? storeCode = null, DateOnly? businessDate = null)
+    public async Task<IReadOnlyList<RegisterEntryRow>> LoadRegisterEntriesAsync(string? search = null, int limit = 500, CancellationToken cancellationToken = default, string? storeCode = null, DateOnly? businessDate = null, string? registerType = null)
     {
         const string sql = """
             SELECT TOP(@limit) register_entry_id,register_type,source_document_id,store_code,business_date,document_number,document_date,counterparty,quantity,amount,
               reference,received_by,verification_status,remarks,modified_by,modified_utc
             FROM dbo.register_entries
-            WHERE (@search IS NULL OR document_number LIKE @pattern OR counterparty LIKE @pattern OR reference LIKE @pattern OR store_code LIKE @pattern)
+            WHERE (@search IS NULL OR document_number LIKE @pattern ESCAPE N'~' OR counterparty LIKE @pattern ESCAPE N'~' OR reference LIKE @pattern ESCAPE N'~' OR store_code LIKE @pattern ESCAPE N'~')
               AND (@store IS NULL OR store_code=@store) AND (@date IS NULL OR business_date=@date)
+              AND (@type IS NULL OR register_type=@type)
             ORDER BY business_date DESC,register_entry_id DESC;
             """;
         await using var connection = await OpenAsync(cancellationToken); await using var command = new SqlCommand(sql, connection);
-        Add(command,"@store",Clean(storeCode)); Add(command,"@date",businessDate);
+        Add(command,"@store",Clean(storeCode)); Add(command,"@date",businessDate); Add(command,"@type",Clean(registerType)?.ToUpperInvariant());
         command.Parameters.AddWithValue("@limit", Math.Clamp(limit, 1, 2000)); Add(command, "@search", Clean(search)); Add(command, "@pattern", Clean(search) is null ? null : $"%{EscapeLike(search!.Trim())}%");
         await using var reader = await command.ExecuteReaderAsync(cancellationToken); var rows = new List<RegisterEntryRow>();
         while (await reader.ReadAsync(cancellationToken)) rows.Add(new(reader.GetInt64(0),reader.GetString(1),reader.IsDBNull(2)?null:reader.GetInt64(2),reader.GetString(3),DateOnly.FromDateTime(reader.GetDateTime(4)),reader.GetString(5),reader.IsDBNull(6)?null:DateOnly.FromDateTime(reader.GetDateTime(6)),OptionalString(reader,7),reader.IsDBNull(8)?null:reader.GetDecimal(8),reader.IsDBNull(9)?null:reader.GetDecimal(9),OptionalString(reader,10),OptionalString(reader,11),reader.GetString(12),OptionalString(reader,13),reader.GetString(14),reader.GetDateTime(15)));

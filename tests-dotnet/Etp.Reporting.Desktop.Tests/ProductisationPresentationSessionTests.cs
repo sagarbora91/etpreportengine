@@ -262,7 +262,7 @@ public sealed class ProductisationPresentationSessionTests
         public string? LastReason { get; private set; }
 
         public Task<IReadOnlyList<DigitalRegisterEntry>> LoadAsync(
-            string? search = null, int limit = 500, CancellationToken cancellationToken = default)
+            string? search = null, int limit = 500, CancellationToken cancellationToken = default, string? registerType = null)
         {
             LastSearch = search;
             return Task.FromResult(rows);
