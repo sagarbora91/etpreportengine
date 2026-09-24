@@ -550,6 +550,7 @@ Run with the installer built from `70bf46e`. Every step below was observed, not 
 | E3 | Monthly Recovery Drill task started under the Microsoft-account-linked `Sagar` with S4U: result `0x00000000`. The open question from 22 Sep is answered |
 | E4 | Automated Operations ran as `EtpAutomation`, result `0x00000000` |
 | F | Six folders: no `BUILTIN\Users`, no `Everyone`; only Administrators, `EtpAutomation`, SYSTEM and the SQL service; **no change at all** from the record taken before setup |
+| G | `NT AUTHORITY\SYSTEM` deactivated in Settings > Users the same day, once both automation tasks had run: its application entry is inactive and its database access is now `DENY`. `EtpAutomation` was unaffected — CONNECT `GRANT`, with `etp_store_manager`, `etp_automation` and `db_backupoperator` all intact — which also shows that saving one user does not disturb another |
 
 ### The defect this run found: setup could never register its own tasks
 
