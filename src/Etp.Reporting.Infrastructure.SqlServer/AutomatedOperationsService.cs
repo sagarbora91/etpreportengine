@@ -21,6 +21,7 @@ public sealed class AutomatedOperationsService(string connectionString)
         var repository = new Phase2OperationsRepository(connectionString);
         var configured = await repository.LoadWatchFolderSettingsAsync(cancellationToken);
         if (!configured.IsEnabled) return new(0, 0, 0, 0, "Watch-folder automation is disabled.");
+        var knownStores = await new StoreCatalogRepository(connectionString).ActiveCodesAsync(cancellationToken);
         var paths = AutomationPathPolicy.Validate(configured.InboundPath, configured.ProcessedPath, configured.FailedPath, configured.ReportOutputPath,
             configured.IsEnabled);
         var duplicatePath = Path.Combine(paths.ProcessedPath, "Duplicate");
@@ -45,7 +46,8 @@ public sealed class AutomatedOperationsService(string connectionString)
             {
                 var folderService=new FolderImportService(new SqlServerImportPersistenceUseCase(connectionString),
                     retainEvidence: (path,accepted,store,businessDate,token)=>new ProductisationOperationsService(connectionString).IntakeEtpEvidenceAsync(
-                        path,accepted.Workbook.Sha256,accepted.ProfileIdentity.ReportCode,store,businessDate,token));
+                        path,accepted.Workbook.Sha256,accepted.ProfileIdentity.ReportCode,store,businessDate,token),
+                    knownStores: knownStores);
                 var batch=await folderService.RunAsync(source,new(AutomationIdentity()),cancellationToken:cancellationToken);
                 duplicates+=batch.Duplicates;
                 foreach(var file in batch.Files.Where(x=>x.Status=="Imported" && x.PeriodEnd is not null)) importedDates.Add(file.PeriodEnd!.Value);
@@ -102,7 +104,8 @@ public sealed class AutomatedOperationsService(string connectionString)
     public async Task<AutomatedWorkbookOutcome> ProcessWorkbookAsync(string workbookPath, CancellationToken cancellationToken = default)
     {
         var workbook = await new OpenXmlWorkbookReader().ReadAsync(workbookPath, cancellationToken);
-        var inspection = new MatchedImportEnvelopeFactory().Inspect(workbook);
+        var knownStores = await new StoreCatalogRepository(connectionString).ActiveCodesAsync(cancellationToken);
+        var inspection = new MatchedImportEnvelopeFactory(knownStores).Inspect(workbook);
         if (inspection.AcceptedImport is null)
         {
             var reason = string.Join(", ", inspection.Diagnostics.Where(x => x.Severity == ImportDiagnosticSeverity.Blocker).Select(x => x.Code).Distinct());
