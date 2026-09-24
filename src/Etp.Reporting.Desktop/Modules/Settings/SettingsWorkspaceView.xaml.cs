@@ -73,7 +73,8 @@ public partial class SettingsWorkspaceView : UserControl
     private readonly WorkspaceOperationGate databaseOperation = new();
     private string[]? savedProduct;
     private TextBox[] ProductFields => [DocumentRepositoryInput, ShareFolderInput, SmtpHostInput, SmtpPortInput, SmtpFromInput, MaximumAttachmentInput, ProductSettingsReasonInput];
-    public bool HasProductDraft => tallySettings?.HasDraft == true || savedProduct is not null && !ProductFields.Select(input => input.Text).SequenceEqual(savedProduct);
+    private bool HasIntegrationFieldsDraft => savedProduct is not null && !ProductFields.Select(input => input.Text).SequenceEqual(savedProduct);
+    public bool HasProductDraft => tallySettings?.HasDraft == true || HasIntegrationFieldsDraft;
     public bool IsBusy => tallySettings?.IsBusy == true || productBusy || databaseOperation.IsBusy;
     public void DiscardProductDraft() { tallySettings?.DiscardDraft(); if (savedProduct is null) return; for (var i = 0; i < ProductFields.Length; i++) ProductFields[i].Text = savedProduct[i]; }
     public void SelectIntegrationTask(string id)
@@ -190,7 +191,12 @@ public partial class SettingsWorkspaceView : UserControl
 
     public async Task<bool> SaveProductConfigurationAsync()
     {
-        if (productBusy) return false;
+        if (IsBusy) return false;
+        if (tallySettings?.HasDraft == true)
+        {
+            if (!await tallySettings.SaveDraftAsync()) return false;
+            if (!HasIntegrationFieldsDraft) return true;
+        }
         productBusy = true; ProductSettingsPanel.IsEnabled = false;
         try
         {

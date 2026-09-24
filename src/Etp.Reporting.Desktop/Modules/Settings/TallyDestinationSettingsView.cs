@@ -31,7 +31,7 @@ public sealed class TallyDestinationSettingsView : StackPanel
         AddField("Type the exact company name to save PRODUCTION", confirmation);
         AddField("Change reason", reason);
         var save = new Button { Content = "Save Tally destination", MinHeight = 44, HorizontalAlignment = HorizontalAlignment.Left };
-        save.Click += async (_, _) => await SaveAsync(); Children.Add(save); Children.Add(status);
+        save.Click += async (_, _) => await SaveDraftAsync(); Children.Add(save); Children.Add(status);
         IsEnabled = false;
     }
 
@@ -61,17 +61,18 @@ public sealed class TallyDestinationSettingsView : StackPanel
         company.Text = saved[0]; environment.SelectedItem = saved[1]; confirmation.Text = saved[2]; reason.Text = saved[3];
     }
 
-    private async Task SaveAsync()
+    public async Task<bool> SaveDraftAsync()
     {
-        if (!isOwner() || IsBusy) return;
+        if (!isOwner() || IsBusy) return false;
         IsBusy = true; IsEnabled = false;
         try
         {
             await serviceFactory(connection()).SaveDestinationAsync(new(company.Text, environment.SelectedItem?.ToString() ?? "TEST", confirmation.Text, reason.Text));
             confirmation.Clear(); reason.Clear(); saved = Values;
             status.Text = "Tally destination saved. This does not enable live Tally export.";
+            return true;
         }
-        catch(Exception exception) { status.Text = DesktopFriendlyError.Describe(exception); }
+        catch(Exception exception) { status.Text = DesktopFriendlyError.Describe(exception); return false; }
         finally { IsBusy = false; IsEnabled = isOwner(); }
     }
 }
