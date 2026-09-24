@@ -37,6 +37,10 @@ if ($GrantAutomationFolderAccess) {
     if ($automationSid.Value -in @('S-1-5-18','S-1-5-19','S-1-5-20') -or $automationSid.Value -match '-500$') { throw 'Choose a non-administrator automation account.' }
     if ($automationSid.Value -in @(Get-LocalGroupMember -SID 'S-1-5-32-544' | ForEach-Object { $_.SID.Value })) { throw 'The automation account must not be an administrator.' }
     if (-not (Get-LocalUser -SID $automationSid -ErrorAction Stop).Enabled) { throw 'Enable the dedicated automation account first.' }
+    # Every ETP scheduled operation runs as this account with S4U logon, which Windows
+    # refuses unless the account may log on as a batch job. A freshly created local account
+    # has no privileges, so without this the task step of setup fails with "Access is denied".
+    Add-EtpBatchLogonRight -Sid $automationSid
 }
 function Set-PrivateDirectory([string]$Path,[switch]$ReadOnlyAutomation,[switch]$ParentOnly) {
     $full=[IO.Path]::GetFullPath($Path)
