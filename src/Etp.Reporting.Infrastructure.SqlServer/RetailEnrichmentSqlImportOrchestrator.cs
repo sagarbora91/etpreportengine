@@ -26,7 +26,7 @@ public sealed class RetailEnrichmentSqlImportOrchestrator(string connectionStrin
         CancellationToken cancellationToken = default,
         ImportRestatementRequest? restatement = null)
     {
-        var inspection = new MatchedImportEnvelopeFactory().Inspect(workbook);
+        var inspection = new MatchedImportEnvelopeFactory(string.IsNullOrWhiteSpace(expectedStoreCode) ? [] : [expectedStoreCode]).Inspect(workbook);
         if (inspection.AcceptedImport is null) throw new SalesImportBlockedException(inspection.Diagnostics);
         var accepted = inspection.AcceptedImport;
         if (!string.Equals(accepted.ProfileIdentity.ReportCode, reportCode, StringComparison.Ordinal))
