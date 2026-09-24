@@ -11,6 +11,7 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
   </ItemGroup>
   <ItemGroup><Using Include="Xunit" /></ItemGroup>
+  <ItemGroup><Compile Include="..\TestSupport\DiagnosticsIsolation.cs" Link="TestSupport\DiagnosticsIsolation.cs" /></ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\Etp.Reporting.Application\Etp.Reporting.Application.csproj" />
     <ProjectReference Include="..\..\src\Etp.Reporting.Desktop\Etp.Reporting.Desktop.csproj" />

@@ -1,9 +1,53 @@
 using System.Text.Json;
+using Etp.Reporting.TestSupport;
 
 namespace Etp.Reporting.Desktop.Tests;
 
 public sealed class DesktopDiagnosticsTests
 {
+    private static readonly string OwnersLogDirectory = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "EtpReporting", "Logs");
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData(@"relative\Logs")]
+    [InlineData(@"\rooted\but\no\drive")]
+    [InlineData(@"C:drive\relative")]
+    public void The_Owners_log_folder_is_kept_unless_the_variable_names_a_full_path(string? configured) =>
+        Assert.Equal(OwnersLogDirectory, DesktopDiagnostics.DefaultDirectory(configured));
+
+    [Fact]
+    public void A_full_path_in_the_variable_replaces_the_Owners_log_folder()
+    {
+        var configured = Path.Combine(Path.GetTempPath(), "etp-diagnostics-elsewhere");
+
+        Assert.Equal(configured, DesktopDiagnostics.DefaultDirectory(configured));
+    }
+
+    [Fact]
+    public void This_test_run_writes_diagnostics_to_its_own_temporary_folder_and_not_the_Owners_log()
+    {
+        // Views under test record failures without naming a folder. They must land here.
+        var correlationId = Guid.NewGuid().ToString("N");
+
+        DesktopDiagnostics.Record(null, "Tests", "TEST_RUN_ISOLATION_CHECK", correlationId: correlationId);
+
+        Assert.StartsWith(Path.GetFullPath(Path.GetTempPath()), DiagnosticsIsolation.LogDirectory, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(DiagnosticsIsolation.LogDirectory, Environment.GetEnvironmentVariable(DesktopDiagnostics.DirectoryVariable));
+        Assert.Contains(Directory.GetFiles(DiagnosticsIsolation.LogDirectory, "diagnostics-*.jsonl"),
+            path => ReadWhileOthersAppend(path).Contains(correlationId, StringComparison.Ordinal));
+    }
+
+    // Other tests in this run append to the same file concurrently.
+    private static string ReadWhileOthersAppend(string path)
+    {
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        using var reader = new StreamReader(stream);
+        return reader.ReadToEnd();
+    }
+
     [Fact]
     public void Record_writes_structured_privacy_safe_diagnostic()
     {

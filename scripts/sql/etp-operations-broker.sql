@@ -14,10 +14,22 @@ BEGIN
   IF @allowed<>1 THROW 51333,'The configured application role is inactive or unavailable.',1;
  END;
  IF @operation NOT IN ('BACKUP','METADATA','DRILL') OR @operation IS NULL THROW 51330,'Unknown operation.',1;
+ -- P4-15, decided: the recovery drill runs as the Owner. It restores a full copy and checks
+ -- every page with DBCC CHECKDB, which SQL Server allows only a sysadmin or the copy's own
+ -- dbo to do - and a login that restores someone else's backup becomes its server-level
+ -- owner without ever becoming the dbo inside it, and cannot fix that. No signature changes
+ -- it. Backups and metadata checks stay available to the least-privileged automation
+ -- account; the drill says plainly who has to run it instead of failing halfway through.
+ IF @operation='DRILL' AND COALESCE(IS_SRVROLEMEMBER('sysadmin'),0)<>1
+  THROW 51334,'The recovery drill restores and integrity-checks a complete copy of the database, which only a SQL administrator can do. Run it as the Owner.',1;
  IF @file IS NULL OR @file COLLATE Latin1_General_100_BIN2 LIKE N'%[^-A-Za-z0-9_.]%'
   OR CHARINDEX(N'..',@file)>0 OR RIGHT(@file,4)<>N'.bak' OR LEFT(@file,LEN(N'__DATABASE_LITERAL__')+1)<>N'__DATABASE_LITERAL__-'
   THROW 51330,'Choose a backup belonging to the configured database.',1;
  DECLARE @path nvarchar(520)=N'__BACKUP_DIRECTORY__\'+@file;
+ -- Both folders are held as values here and escaped again wherever they go into dynamic
+ -- SQL. Substituting a folder straight into the dynamic statement escaped it for this
+ -- procedure's literal only, so a folder with an apostrophe broke the drill's restore.
+ DECLARE @restoreDirectory nvarchar(260)=N'__RESTORE_DIRECTORY__';
  DECLARE @sql nvarchar(max),@drill sysname=N'EtpRecovery_'+REPLACE(CONVERT(nvarchar(36),NEWID()),N'-',N'');
  IF @operation='BACKUP'
  BEGIN
@@ -49,12 +61,19 @@ BEGIN
  IF @operation='DRILL'
  BEGIN
   DECLARE @moves nvarchar(max);
-  SELECT @moves=STRING_AGG(CONVERT(nvarchar(max),N'MOVE N'''+REPLACE(LogicalName,'''','''''')+N''' TO N''__RESTORE_DIRECTORY__\'+@drill+N'_'+CONVERT(nvarchar(20),FileId)+CASE Type WHEN 'L' THEN N'.ldf' ELSE N'.mdf' END+N''''),N',') FROM #files;
+  SELECT @moves=STRING_AGG(CONVERT(nvarchar(max),N'MOVE N'''+REPLACE(LogicalName,'''','''''')+N''' TO N'''+REPLACE(@restoreDirectory+N'\'+@drill+N'_'+CONVERT(nvarchar(20),FileId)+CASE Type WHEN 'L' THEN N'.ldf' ELSE N'.mdf' END,'''','''''')+N''''),N',') FROM #files;
   BEGIN TRY
    SET @sql=N'RESTORE DATABASE '+QUOTENAME(@drill)+N' FROM DISK=N'''+REPLACE(@path,'''','''''')+N''' WITH '+@moves+N',RECOVERY;';
    EXEC sys.sp_executesql @sql;
-   -- Always disable trust and cross-database ownership chaining on the restored copy.
-   SET @sql=N'ALTER DATABASE '+QUOTENAME(@drill)+N' SET SINGLE_USER WITH ROLLBACK IMMEDIATE; ALTER DATABASE '+QUOTENAME(@drill)+N' SET TRUSTWORTHY OFF; ALTER DATABASE '+QUOTENAME(@drill)+N' SET DB_CHAINING OFF; DBCC CHECKDB ('+QUOTENAME(@drill)+N') WITH NO_INFOMSGS;';
+   -- P4-15. A restored copy must never trust cross-database access: a backup that carried
+   -- TRUSTWORTHY or DB_CHAINING in could otherwise reach outside its own database. Both
+   -- options used to be SET here, but only sysadmin may set either one, and this runs as
+   -- the automation account - so the drill had never worked for anyone but a SQL
+   -- administrator. RESTORE already leaves TRUSTWORTHY off. Verify both instead, and
+   -- refuse the backup outright if either one came in on.
+   IF EXISTS(SELECT 1 FROM sys.databases WHERE name=@drill AND (is_trustworthy_on=1 OR is_db_chaining_on=1))
+    THROW 51331,'The restored copy trusts cross-database access. This backup is refused.',1;
+   SET @sql=N'ALTER DATABASE '+QUOTENAME(@drill)+N' SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DBCC CHECKDB ('+QUOTENAME(@drill)+N') WITH NO_INFOMSGS;';
    EXEC sys.sp_executesql @sql;
    SET @sql=N'IF EXISTS(SELECT FileId,LogicalName FROM #files EXCEPT SELECT file_id,name FROM '+QUOTENAME(@drill)+N'.sys.database_files) OR EXISTS(SELECT file_id,name FROM '+QUOTENAME(@drill)+N'.sys.database_files EXCEPT SELECT FileId,LogicalName FROM #files) THROW 51331,''Restored file metadata differs from its backup.'',1;';
    EXEC sys.sp_executesql @sql;

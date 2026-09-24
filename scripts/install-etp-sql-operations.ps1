@@ -14,28 +14,31 @@ $backupRoot=[IO.Path]::GetFullPath($BackupDirectory).TrimEnd('\')
 $restoreRoot=Join-Path $backupRoot 'RecoveryDrill'
 if (-not (Test-Path -LiteralPath $restoreRoot -PathType Container)) { throw 'Complete protected recovery-folder setup first.' }
 $procedure=Get-EtpOperationsProcedureName $Database
+# Both templates are checked and read before anything in SQL changes. An installation folder
+# a non-administrator can edit, or a grants template that is missing, now stops the install
+# with the working broker untouched, instead of after it has been replaced by an unsigned one.
 Assert-EtpProtectedInstall (Join-Path $PSScriptRoot 'sql\etp-operations-broker.sql')
+Assert-EtpProtectedInstall (Join-Path $PSScriptRoot 'sql\etp-operations-grants.sql')
 $template=Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'sql\etp-operations-broker.sql')
+$grants=Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'sql\etp-operations-grants.sql')
 $query=$template.Replace('__PROCEDURE__',$procedure).Replace('__DATABASE_LITERAL__',$Database.Replace("'","''")).Replace('__DATABASE_IDENTIFIER__',$Database.Replace(']',']]')).Replace('__BACKUP_DIRECTORY__',$backupRoot.Replace("'","''")).Replace('__RESTORE_DIRECTORY__',$restoreRoot.Replace("'","''"))
+# P4-13. Signing, grants and every precondition live in one SQL template beside the broker,
+# so the integration tests run the exact SQL that ships. It validates before it signs, and
+# if anything fails it removes the signer it created and keeps the broker, which a SQL
+# administrator - and so the next upgrade's pre-migration backup - can still use.
+# One signer per broker: reinstalling one database's module must never invalidate the
+# signature on another's. The suffix is the same database hash the procedure name uses.
+$signer='EtpOperationsModuleSigner_'+$procedure.Substring('etp_operations_'.Length)
+$grants=$grants.Replace('__PROCEDURE__',$procedure).Replace('__SIGNER__',$signer)
+$grants=$grants.Replace('__IDENTITY_LITERAL__',$AutomationPrincipal.Replace("'","''")).Replace('__DATABASE_LITERAL__',$Database.Replace("'","''"))
 $sqlcmd=Resolve-EtpSqlCmd $SqlCmdPath
 $ServerInstance=Resolve-EtpSqlConnection -SqlCmd $sqlcmd -ServerInstance $ServerInstance
 Invoke-EtpSql -SqlCmd $sqlcmd -Server $ServerInstance -Query $query | Out-Null
-$identity=$AutomationPrincipal.Replace(']',']]'); $literalIdentity=$AutomationPrincipal.Replace("'","''")
-$permissions=@"
-IF NOT EXISTS(SELECT 1 FROM sys.symmetric_keys WHERE name='##MS_DatabaseMasterKey##') THROW 51332,'Create the backup certificate first.',1;
-IF NOT EXISTS(SELECT 1 FROM sys.certificates WHERE name='EtpOperationsModuleSigner') CREATE CERTIFICATE EtpOperationsModuleSigner WITH SUBJECT='Restricted ETP backup and recovery operations';
-IF SUSER_ID('EtpOperationsModuleSigner') IS NULL CREATE LOGIN EtpOperationsModuleSigner FROM CERTIFICATE EtpOperationsModuleSigner;
-GRANT CREATE ANY DATABASE,ALTER ANY DATABASE,VIEW SERVER STATE TO EtpOperationsModuleSigner;
-ADD SIGNATURE TO OBJECT::dbo.[$procedure] BY CERTIFICATE EtpOperationsModuleSigner;
-IF SUSER_ID(N'$literalIdentity') IS NULL THROW 51332,'Provision the dedicated Store Manager login first.',1;
-IF USER_ID(N'$literalIdentity') IS NULL CREATE USER [$identity] FOR LOGIN [$identity];
-GRANT EXECUTE ON dbo.[$procedure] TO [$identity];
-GRANT VIEW DEFINITION ON CERTIFICATE::EtpBackupCert TO [$identity];
-USE [$Database];
-IF IS_ROLEMEMBER('etp_store_manager',N'$literalIdentity')<>1 THROW 51332,'The automation login must have the Store Manager database role.',1;
-IF DATABASE_PRINCIPAL_ID(N'etp_automation') IS NULL THROW 51332,'Complete the operations-status database migration first.',1;
-IF IS_ROLEMEMBER('etp_automation',N'$literalIdentity')<>1 ALTER ROLE etp_automation ADD MEMBER [$identity];
-IF IS_ROLEMEMBER('db_backupoperator',N'$literalIdentity')<>1 ALTER ROLE db_backupoperator ADD MEMBER [$identity];
-"@
-Invoke-EtpSql -SqlCmd $sqlcmd -Server $ServerInstance -Query $permissions | Out-Null
-Write-Output 'Restricted SQL backup and recovery module installed. Verify it under the dedicated account before enabling tasks.'
+$output=@(Invoke-EtpSql -SqlCmd $sqlcmd -Server $ServerInstance -Query $grants)
+# A step the Owner has to take first comes back as one line of fixed text. Show it as it is.
+$refused=@($output | Where-Object { $_.StartsWith('ETP_MODULE_REFUSED:') })
+if ($refused.Count -gt 0) { throw $refused[0].Substring(19) }
+$installed=@($output | Where-Object { $_.StartsWith('ETP_MODULE:') })
+if ($installed.Count -ne 1) { throw 'The operations module did not confirm its signature and grants.' }
+$module=$installed[0].Substring(11) | ConvertFrom-Json
+Write-Output ("Restricted SQL backup and recovery module installed for $Database. Backups on this edition: $($module.backupEncryption). Verify it under the dedicated account before enabling tasks.")

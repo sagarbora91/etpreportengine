@@ -6,11 +6,8 @@ using Etp.Reporting.Desktop.Modules.Reports;
 
 namespace Etp.Reporting.Desktop.Tests;
 
-[CollectionDefinition("Report filter WPF navigation", DisableParallelization = true)]
-public sealed class ReportFilterNavigationCollection { }
-
 // WPF's pack-resource cache is shared across STA test threads in the process.
-[Collection("Report filter WPF navigation")]
+[Collection(WpfViewCollection.Name)]
 public sealed class ReportFilterNavigationTests
 {
     [Theory]

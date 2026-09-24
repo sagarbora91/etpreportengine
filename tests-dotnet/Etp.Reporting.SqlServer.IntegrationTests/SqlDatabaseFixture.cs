@@ -19,11 +19,11 @@ public sealed class SqlDatabaseFixture : IAsyncLifetime
         catch { await DisposeAsync(); throw; }
     }
 
-    public async Task<object?> ExecuteAsync(string sql)
+    public async Task<object?> ExecuteAsync(string sql, int timeoutSeconds = 60)
     {
         await using var connection = new SqlConnection(ConnectionString);
         await connection.OpenAsync();
-        await using var command = new SqlCommand(sql, connection) { CommandTimeout = 60 };
+        await using var command = new SqlCommand(sql, connection) { CommandTimeout = timeoutSeconds };
         return await command.ExecuteScalarAsync();
     }
 

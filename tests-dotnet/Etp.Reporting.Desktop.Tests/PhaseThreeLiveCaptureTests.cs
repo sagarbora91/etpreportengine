@@ -11,6 +11,7 @@ using Etp.Reporting.Desktop.Modules.Settings;
 
 namespace Etp.Reporting.Desktop.Tests;
 
+[Collection(WpfViewCollection.Name)]
 public sealed class PhaseThreeLiveCaptureTests
 {
     [LiveCaptureFact]

@@ -128,6 +128,26 @@ function Invoke-EtpSql {
     return $result
 }
 
+function Invoke-EtpSqlAsAutomationUser {
+    # P4-15 review. The recovery drill runs as a SQL administrator, and the procedures that
+    # record its result live in the application database, where any application Owner - a
+    # db_owner, not necessarily a SQL administrator - can redefine them. Called directly,
+    # code planted there would run with the drill's server rights. Run it instead as the
+    # automation account's database user: impersonating a database user confines the batch
+    # to that database, with none of the caller's server rights, and NO REVERT means code
+    # further down cannot switch back. It records under the account that records backups.
+    param([string]$SqlCmd,[string]$Server,[string]$Database,[string]$AutomationPrincipal,[string]$Query)
+    if ($AutomationPrincipal -notmatch '^[^\\/\[\];''"]+\\[^\\/\[\];''"]+$') { throw 'Configure a dedicated local automation account.' }
+    $literal = $AutomationPrincipal.Replace("'","''")
+    # A database marked TRUSTWORTHY lets an impersonated user reach back out to the server,
+    # which is the one thing this is for. Only a SQL administrator can set it; refuse it here.
+    $scoped = "SET NOCOUNT ON; IF EXISTS(SELECT 1 FROM sys.databases WHERE database_id=DB_ID() AND is_trustworthy_on=1) THROW 51335,'The database is marked TRUSTWORTHY.',1; " +
+        "DECLARE @etpAutomationUser sysname=(SELECT name FROM sys.database_principals WHERE sid=SUSER_SID(N'$literal') AND type=N'U'); " +
+        "IF @etpAutomationUser IS NULL THROW 51335,'The automation account has no user in this database.',1; " +
+        "EXECUTE AS USER=@etpAutomationUser WITH NO REVERT; " + $Query
+    return Invoke-EtpSql -SqlCmd $SqlCmd -Server $Server -Database $Database -Query $scoped
+}
+
 function Write-EtpJsonAtomically {
     param([string]$Path,[object]$Value,[switch]$Replace)
     Assert-EtpNoLinks $Path
@@ -233,13 +253,32 @@ function Get-EtpOperationsConfiguration {
 }
 
 function Register-EtpScheduledOperation {
-    param([string]$TaskName,[object]$Action,[object]$Trigger,[string]$Description)
+    # Every operation runs as the least-privileged automation account unless told otherwise.
+    # The one exception is the recovery drill, which only a SQL administrator can perform
+    # (P4-15) and is registered under the Owner with -Principal.
+    param([string]$TaskName,[object]$Action,[object]$Trigger,[string]$Description,
+          [string]$Principal,[ValidateSet('Limited','Highest')][string]$RunLevel='Limited')
     $configuration = Get-EtpOperationsConfiguration
-    $principal = New-ScheduledTaskPrincipal -UserId $configuration.automationPrincipal -LogonType S4U -RunLevel Limited
+    $userId = if ([string]::IsNullOrWhiteSpace($Principal)) { $configuration.automationPrincipal } else { $Principal }
+    $principalObject = New-ScheduledTaskPrincipal -UserId $userId -LogonType S4U -RunLevel $RunLevel
     $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Hours 2)
-    Register-ScheduledTask -TaskName $TaskName -Action $Action -Trigger $Trigger -Settings $settings -Principal $principal -Description $Description -Force | Out-Null
+    Register-ScheduledTask -TaskName $TaskName -Action $Action -Trigger $Trigger -Settings $settings -Principal $principalObject -Description $Description -Force | Out-Null
     $task = Get-ScheduledTask -TaskName $TaskName -ErrorAction Stop
-    if ($task.State -eq 'Disabled' -or $task.Principal.UserId -ine $configuration.automationPrincipal -or $task.Principal.RunLevel -ne 'Limited') { throw 'The scheduled task did not retain the required principal and settings.' }
+    # Compare accounts, not spellings. Task Scheduler reports a local account registered as
+    # COMPUTER\User by its bare name, so comparing the text failed every registration.
+    $expectedSid = Resolve-EtpAccountSid $userId
+    if (-not $expectedSid -or $task.State -eq 'Disabled' -or (Resolve-EtpAccountSid $task.Principal.UserId) -ne $expectedSid -or $task.Principal.RunLevel -ne $RunLevel) { throw 'The scheduled task did not retain the required principal and settings.' }
+}
+
+function Resolve-EtpAccountSid {
+    # A Windows account named as DOMAIN\User, a bare name, or a SID string; $null if unknown.
+    param([string]$Account)
+    if ([string]::IsNullOrWhiteSpace($Account)) { return $null }
+    try {
+        if ($Account -match '^S-1-\d+(-\d+)+$') { return ([Security.Principal.SecurityIdentifier]::new($Account)).Value }
+        return ([Security.Principal.NTAccount]::new($Account)).Translate([Security.Principal.SecurityIdentifier]).Value
+    }
+    catch { return $null }
 }
 function Get-EtpOperationsProcedureName {
     param([string]$Database)

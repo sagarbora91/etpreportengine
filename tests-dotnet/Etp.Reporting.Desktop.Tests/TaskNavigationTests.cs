@@ -19,36 +19,52 @@ public sealed class TaskNavigationTests
         Assert.False(navigation.Navigate(new("Admin / Settings"), ShellAccess.StoreManager).IsAllowed);
     }
 
+    // The shop's touch panel. These tests used to read the screen the tests ran on, and started
+    // failing when the development machine moved to a 3440x1440 monitor - where the platform
+    // default already shows every section, so there is nothing to fix. The rule is asserted
+    // against the screen it exists for, and a large one, never against whatever is attached.
+    private const double ShopPanelHeight = 768;
+    private const double Row = 44;
+
     [Fact]
-    public void Every_rail_shows_all_of_its_sections_without_scrolling()
+    public void Every_rail_shows_all_of_its_sections_without_scrolling_on_the_shop_panel()
     {
-        // The shop panel is 1366x768, where WPF's default cap of a third of the screen shows
-        // seven rows. Settings has nine sections, so Registers and Help sat below the fold and
-        // the owner reasonably concluded the help module had been removed. A section list is
-        // the shell's top-level menu: all of it has to be on screen.
-        const double Row = 44;
+        // Seven rows is the platform default on a 768-pixel panel. Settings has nine sections,
+        // so Registers and Help sat below the fold and the owner concluded the help module was gone.
         foreach (var rail in TaskNavigation.Sections)
         {
             var tabs = TaskNavigation.InSection(rail, ShellAccess.Owner).Select(t => t.Tab).Distinct().ToArray();
-            Assert.True(MainWindow.DropDownHeightFor(tabs.Length) >= tabs.Length * Row,
-                $"{rail} has {tabs.Length} sections and they do not all fit on screen.");
+            Assert.True(MainWindow.DropDownHeightFor(tabs.Length, ShopPanelHeight) >= tabs.Length * Row,
+                $"{rail} has {tabs.Length} sections and they do not all fit on the shop panel.");
         }
         var settings = TaskNavigation.InSection("Settings", ShellAccess.Owner).Select(t => t.Tab).Distinct().ToArray();
         Assert.Contains("Help", settings);
         Assert.Contains("Registers", settings);
     }
 
-    [Fact]
-    public void A_long_list_is_taller_than_the_platform_default_and_still_bounded_by_the_screen()
+    [Theory]
+    [InlineData(768)]
+    [InlineData(1080)]
+    [InlineData(1440)]
+    public void A_list_is_never_cut_short_and_never_taller_than_the_bound(double screenHeight)
     {
-        // Settings has a Help section holding every help topic; such a list must scroll, but it
-        // should show far more than the seven rows the platform default allowed.
-        var platformDefault = SystemParameters.PrimaryScreenHeight / 3;
-        Assert.True(MainWindow.DropDownHeightFor(9) > platformDefault);
-        Assert.True(MainWindow.DropDownHeightFor(22) > platformDefault);
-        Assert.True(MainWindow.DropDownHeightFor(22) <= SystemParameters.PrimaryScreenHeight * 0.6);
-        // A short list is sized to its contents, not padded out to the maximum.
-        Assert.True(MainWindow.DropDownHeightFor(2) < platformDefault);
+        foreach (var items in new[] { 2, 9, 22 })
+        {
+            var height = MainWindow.DropDownHeightFor(items, screenHeight);
+            // Never shorter than its contents need, up to the bound...
+            Assert.True(height >= Math.Min(items * Row, screenHeight * 0.6), $"{items} items cut short at {screenHeight}px.");
+            // ...and never taller than the bound, so a long list scrolls rather than covering the screen.
+            Assert.True(height <= screenHeight * 0.6 + 0.001, $"{items} items too tall at {screenHeight}px.");
+        }
+    }
+
+    [Fact]
+    public void On_the_shop_panel_the_rule_shows_more_than_the_platform_default_would()
+    {
+        // The case the fix exists for: nine sections need more than a third of 768 pixels.
+        var platformDefault = ShopPanelHeight / 3;
+        Assert.True(9 * Row > platformDefault, "The premise no longer holds; revisit this test.");
+        Assert.True(MainWindow.DropDownHeightFor(9, ShopPanelHeight) > platformDefault);
     }
 
     [Fact]

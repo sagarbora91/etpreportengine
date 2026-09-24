@@ -43,7 +43,11 @@ dotnet restore $solution
 Assert-NativeSuccess "Solution restore"
 dotnet build $solution -c $Configuration --no-restore -p:Version=$Version
 Assert-NativeSuccess "Release build"
-dotnet test $solution -c $Configuration --no-build
+# One test project at a time. Run together, the CPU-heavy UI and import suites slowed SQL
+# Server Express until its query-memory queue backed up: on 22 September 2026 the recovery
+# drill's DBCC CHECKDB waited 57 s on RESOURCE_SEMAPHORE behind ten other sessions and the
+# gate failed four runs out of four, while the same suite run project by project passed.
+dotnet test $solution -c $Configuration --no-build -m:1
 Assert-NativeSuccess "Release test suite"
 dotnet publish $desktopProject -c $Configuration -r $Runtime --self-contained true `
     -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:Version=$Version -o $output
@@ -57,6 +61,7 @@ foreach ($scriptName in @('bootstrap-etp-prerequisites.ps1','backup-etp-database
 
 New-Item -ItemType Directory -Path (Join-Path $packagedScripts 'sql') -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'sql\etp-operations-broker.sql') -Destination (Join-Path $packagedScripts 'sql')
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'sql\etp-operations-grants.sql') -Destination (Join-Path $packagedScripts 'sql')
 
 $executable = Join-Path $output "Etp.Reporting.Desktop.exe"
 if (-not (Test-Path -LiteralPath $executable)) { throw "Published executable was not produced." }

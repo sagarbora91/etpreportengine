@@ -1,4 +1,4 @@
-﻿using System.Threading;
+using System.Threading;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
@@ -9,6 +9,7 @@ using Etp.Reporting.Desktop.Modules.OperationsAdministration;
 
 namespace Etp.Reporting.Desktop.Tests;
 
+[Collection(WpfViewCollection.Name)]
 public sealed class OperationsAdministrationWorkspaceViewTests
 {
 
