@@ -34,18 +34,16 @@ public partial class MainWindow
         InitializeFocusedWorkspaces();
         var toastTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
         toastTimer.Tick += (_,_) => { toastTimer.Stop(); SuccessToast.Visibility = Visibility.Collapsed; };
-        var descriptor = DependencyPropertyDescriptor.FromProperty(TextBlock.TextProperty,typeof(TextBlock));
-        EventHandler changed = (_,_) =>
+        var statusWatcher = PropertyChangeWatcher.Watch(ApplicationStatus,TextBlock.TextProperty,() =>
         {
             var text = ApplicationStatus.Text;
             UpdateStatusOverflow();
             if (System.Text.RegularExpressions.Regex.IsMatch(text,"saved|completed|succeeded",System.Text.RegularExpressions.RegexOptions.IgnoreCase)
                 && !System.Text.RegularExpressions.Regex.IsMatch(text,"failed|not saved|cancel|could not",System.Text.RegularExpressions.RegexOptions.IgnoreCase))
             { ToastMessage.Text = text; SuccessToast.Visibility = Visibility.Visible; toastTimer.Stop(); toastTimer.Start(); }
-        };
-        descriptor.AddValueChanged(ApplicationStatus,changed);
+        });
         ApplicationStatus.SizeChanged += (_, _) => UpdateStatusOverflow();
-        Closed += (_,_) => { toastTimer.Stop(); descriptor.RemoveValueChanged(ApplicationStatus,changed); };
+        Closed += (_,_) => { toastTimer.Stop(); statusWatcher.Dispose(); };
     }
 
     private void CompleteWelcomeState()

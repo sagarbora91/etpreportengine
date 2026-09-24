@@ -51,6 +51,22 @@ public sealed class Phase3ShellTests
         });
     }
 
+    [Fact]
+    public void Status_changes_raise_the_success_toast_only_for_successful_outcomes()
+    {
+        Sta(() =>
+        {
+            var window=CreateWindow();
+            window.SuccessToast.Visibility=Visibility.Collapsed;
+            window.ApplicationStatus.Text="Import failed: could not save R022.";
+            Assert.Equal(Visibility.Collapsed,window.SuccessToast.Visibility);
+            window.ApplicationStatus.Text="Settings saved.";
+            Assert.Equal(Visibility.Visible,window.SuccessToast.Visibility);
+            Assert.Equal("Settings saved.",window.ToastMessage.Text);
+            window.importWorkspaceView.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        });
+    }
+
     [Theory]
     [InlineData(1366,728,1)]
     [InlineData(816,440,1)]

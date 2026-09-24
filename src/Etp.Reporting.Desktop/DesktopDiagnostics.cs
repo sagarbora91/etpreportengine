@@ -31,6 +31,10 @@ public static class DesktopDiagnostics
     internal const long MaxLogFileBytes = 5L * 1024 * 1024;
     internal const int MaxRetainedFiles = 24;
     internal const int RetentionDays = 180;
+
+    // Test runs set this so neither they nor the application they launch write into the
+    // Owner's log. The shipped application never sets it.
+    internal const string DirectoryVariable = "ETP_DIAGNOSTICS_DIRECTORY";
     private static readonly object WriteLock = new();
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
@@ -52,10 +56,7 @@ public static class DesktopDiagnostics
         try
         {
             var timestamp = timestampUtc ?? DateTimeOffset.UtcNow;
-            var directory = logDirectory ?? Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "EtpReporting",
-                "Logs");
+            var directory = logDirectory ?? DefaultDirectory(Environment.GetEnvironmentVariable(DirectoryVariable));
             Directory.CreateDirectory(directory);
             var entry = new DesktopDiagnosticEntry(
                 timestamp,
@@ -78,6 +79,16 @@ public static class DesktopDiagnostics
         catch (UnauthorizedAccessException) { }
         catch (SecurityException) { }
     }
+
+    // Anything but a full path - unset, blank, relative - keeps the Owner's folder, so a
+    // stray value cannot scatter diagnostics relative to the working directory.
+    internal static string DefaultDirectory(string? configured) =>
+        !string.IsNullOrWhiteSpace(configured) && Path.IsPathFullyQualified(configured)
+            ? configured
+            : Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "EtpReporting",
+                "Logs");
 
     private static string RequiredCorrelationId(string? correlationId)
     {

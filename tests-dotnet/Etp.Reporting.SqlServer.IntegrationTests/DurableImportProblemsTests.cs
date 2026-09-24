@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json;
+using Etp.Reporting.Desktop;
+using Etp.Reporting.TestSupport;
 using Microsoft.Data.SqlClient;
 
 namespace Etp.Reporting.SqlServer.IntegrationTests;
@@ -77,6 +79,7 @@ public sealed class DurableImportProblemsTests
             var host = Path.Combine(root!.FullName, "tests-dotnet", "Etp.Reporting.HistoryRestartHost", "bin", configuration, "net10.0-windows", "Etp.Reporting.HistoryRestartHost.dll");
             var output = Path.Combine(scratch, name + ".json");
             var info = new ProcessStartInfo("dotnet") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
+            info.Environment[DesktopDiagnostics.DirectoryVariable] = DiagnosticsIsolation.LogDirectory;
             foreach (var arg in new[] { host, database.ConnectionString, Path.Combine(scratch, "settings"), output, source }) info.ArgumentList.Add(arg);
             using var process = Process.Start(info)!;
             var stdout = process.StandardOutput.ReadToEndAsync(); var stderr = process.StandardError.ReadToEndAsync();
