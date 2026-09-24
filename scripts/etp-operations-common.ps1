@@ -252,6 +252,92 @@ function Get-EtpOperationsConfiguration {
     return $configuration
 }
 
+function Add-EtpBatchLogonRight {
+    # A task that runs whether or not anyone is signed in logs on as a batch job, so the
+    # account needs that right or the task registers and then fails to start. Task Scheduler
+    # usually adds it when a task is registered; granting it here makes it certain and
+    # visible in the local policy. Only an administrator can grant it, and granting it twice
+    # is harmless. It is NOT what made registration fail on 24 September 2026: a missing
+    # batch right returns SCHED_S_BATCH_LOGON_PROBLEM, which still registers the task.
+    param([Parameter(Mandatory)][Security.Principal.SecurityIdentifier]$Sid)
+    if (-not ('Etp.LocalSecurityPolicy' -as [type])) {
+        Add-Type -Namespace Etp -Name LocalSecurityPolicy -UsingNamespace System.Text -MemberDefinition @'
+[StructLayout(LayoutKind.Sequential)]
+private struct LsaUnicodeString { public ushort Length; public ushort MaximumLength; public IntPtr Buffer; }
+[StructLayout(LayoutKind.Sequential)]
+private struct LsaObjectAttributes { public int Length; public IntPtr RootDirectory; public IntPtr ObjectName; public int Attributes; public IntPtr SecurityDescriptor; public IntPtr SecurityQualityOfService; }
+[DllImport("advapi32.dll", SetLastError = true)]
+private static extern uint LsaOpenPolicy(IntPtr systemName, ref LsaObjectAttributes objectAttributes, int desiredAccess, out IntPtr policyHandle);
+[DllImport("advapi32.dll", SetLastError = true)]
+private static extern uint LsaAddAccountRights(IntPtr policyHandle, byte[] accountSid, LsaUnicodeString[] userRights, int countOfRights);
+[DllImport("advapi32.dll", SetLastError = true)]
+private static extern uint LsaEnumerateAccountRights(IntPtr policyHandle, byte[] accountSid, out IntPtr userRights, out int countOfRights);
+[DllImport("advapi32.dll")] private static extern uint LsaClose(IntPtr objectHandle);
+[DllImport("advapi32.dll")] private static extern uint LsaFreeMemory(IntPtr buffer);
+[DllImport("advapi32.dll")] private static extern int LsaNtStatusToWinError(uint status);
+
+private static IntPtr OpenPolicy(int access)
+{
+    LsaObjectAttributes attributes = new LsaObjectAttributes();
+    attributes.Length = Marshal.SizeOf(typeof(LsaObjectAttributes));
+    IntPtr handle;
+    uint status = LsaOpenPolicy(IntPtr.Zero, ref attributes, access, out handle);
+    if (status != 0) throw new System.ComponentModel.Win32Exception(LsaNtStatusToWinError(status));
+    return handle;
+}
+
+private static LsaUnicodeString Text(string value)
+{
+    LsaUnicodeString text = new LsaUnicodeString();
+    text.Buffer = Marshal.StringToHGlobalUni(value);
+    text.Length = (ushort)(value.Length * 2);
+    text.MaximumLength = (ushort)(text.Length + 2);
+    return text;
+}
+
+public static void Grant(byte[] sid, string right)
+{
+    IntPtr policy = OpenPolicy(0x00000800 | 0x00000010 | 0x00000004); // create account, lookup names, view local information
+    LsaUnicodeString[] rights = new LsaUnicodeString[] { Text(right) };
+    try
+    {
+        uint status = LsaAddAccountRights(policy, sid, rights, 1);
+        if (status != 0) throw new System.ComponentModel.Win32Exception(LsaNtStatusToWinError(status));
+    }
+    finally { Marshal.FreeHGlobal(rights[0].Buffer); LsaClose(policy); }
+}
+
+public static string[] Rights(byte[] sid)
+{
+    IntPtr policy = OpenPolicy(0x00000010 | 0x00000004);
+    IntPtr buffer = IntPtr.Zero;
+    try
+    {
+        int count;
+        uint status = LsaEnumerateAccountRights(policy, sid, out buffer, out count);
+        if (status == 0xC0000034) return new string[0]; // the account holds none
+        if (status != 0) throw new System.ComponentModel.Win32Exception(LsaNtStatusToWinError(status));
+        string[] found = new string[count];
+        int size = Marshal.SizeOf(typeof(LsaUnicodeString));
+        for (int index = 0; index < count; index++)
+        {
+            LsaUnicodeString item = (LsaUnicodeString)Marshal.PtrToStructure(new IntPtr(buffer.ToInt64() + index * size), typeof(LsaUnicodeString));
+            found[index] = Marshal.PtrToStringUni(item.Buffer, item.Length / 2);
+        }
+        return found;
+    }
+    finally { if (buffer != IntPtr.Zero) LsaFreeMemory(buffer); LsaClose(policy); }
+}
+'@
+    }
+    $bytes = New-Object byte[] $Sid.BinaryLength
+    $Sid.GetBinaryForm($bytes, 0)
+    [Etp.LocalSecurityPolicy]::Grant($bytes, 'SeBatchLogonRight')
+    if ('SeBatchLogonRight' -notin [Etp.LocalSecurityPolicy]::Rights($bytes)) {
+        throw 'The automation account still cannot log on as a batch job. Check the local security policy.'
+    }
+}
+
 function Register-EtpScheduledOperation {
     # Every operation runs as the least-privileged automation account unless told otherwise.
     # The one exception is the recovery drill, which only a SQL administrator can perform
@@ -260,14 +346,29 @@ function Register-EtpScheduledOperation {
           [string]$Principal,[ValidateSet('Limited','Highest')][string]$RunLevel='Limited')
     $configuration = Get-EtpOperationsConfiguration
     $userId = if ([string]::IsNullOrWhiteSpace($Principal)) { $configuration.automationPrincipal } else { $Principal }
-    $principalObject = New-ScheduledTaskPrincipal -UserId $userId -LogonType S4U -RunLevel $RunLevel
     $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Hours 2)
-    Register-ScheduledTask -TaskName $TaskName -Action $Action -Trigger $Trigger -Settings $settings -Principal $principalObject -Description $Description -Force | Out-Null
+    $mine = (Resolve-EtpAccountSid ([Security.Principal.WindowsIdentity]::GetCurrent().Name)) -eq (Resolve-EtpAccountSid $userId)
+    if ($mine) {
+        # Registering an S4U task for the account doing the registering needs no credential.
+        $principalObject = New-ScheduledTaskPrincipal -UserId $userId -LogonType S4U -RunLevel $RunLevel
+        Register-ScheduledTask -TaskName $TaskName -Action $Action -Trigger $Trigger -Settings $settings -Principal $principalObject -Description $Description -Force | Out-Null
+    }
+    else {
+        # For anyone else's account Windows demands that account's password once, to prove the
+        # principal is real. That is documented for TASK_LOGON_S4U, and measured here on
+        # 24 September 2026: an elevated administrator, and even SYSTEM (which does hold
+        # SeTcbPrivilege), are both refused with a bare "Access is denied" without it. The
+        # password is used for this one call and never stored - S4U means Task Scheduler keeps
+        # no credential and asks Windows for a token when the task runs. Nobody keeps a copy,
+        # so the account's password is reset to a fresh random value and discarded again.
+        Register-EtpAutomationTask -TaskName $TaskName -Action $Action -Trigger $Trigger -Settings $settings -Description $Description -UserId $userId -RunLevel $RunLevel
+    }
     $task = Get-ScheduledTask -TaskName $TaskName -ErrorAction Stop
     # Compare accounts, not spellings. Task Scheduler reports a local account registered as
     # COMPUTER\User by its bare name, so comparing the text failed every registration.
     $expectedSid = Resolve-EtpAccountSid $userId
     if (-not $expectedSid -or $task.State -eq 'Disabled' -or (Resolve-EtpAccountSid $task.Principal.UserId) -ne $expectedSid -or $task.Principal.RunLevel -ne $RunLevel) { throw 'The scheduled task did not retain the required principal and settings.' }
+    if ($task.Principal.LogonType -ne 'S4U') { throw 'The scheduled task must run without a stored password.' }
 }
 
 function Resolve-EtpAccountSid {
@@ -280,6 +381,83 @@ function Resolve-EtpAccountSid {
     }
     catch { return $null }
 }
+
+function Register-EtpAutomationTask {
+    # Registers one task for the dedicated automation account through the Task Scheduler COM
+    # API, the only way to pass a password together with S4U: Register-ScheduledTask's
+    # -Principal parameter set accepts no password, and its -User/-Password set registers a
+    # Password-logon task, which would store the credential and defeat the point.
+    param([string]$TaskName,[object]$Action,[object]$Trigger,[object]$Settings,[string]$Description,
+          [string]$UserId,[string]$RunLevel)
+    $sid = Resolve-EtpAccountSid $UserId
+    if (-not $sid) { throw 'The automation account could not be resolved.' }
+    $account = Get-LocalUser -SID $sid -ErrorAction Stop
+    if (-not $account.Enabled) { throw 'Enable the dedicated automation account first.' }
+    $bytes = New-Object byte[] 48
+    $random = [Security.Cryptography.RandomNumberGenerator]::Create()
+    $secret = $null
+    $service = $null
+    try {
+        $random.GetBytes($bytes)
+        $secret = 'Etp!' + [Convert]::ToBase64String($bytes)
+        $secure = ConvertTo-SecureString $secret -AsPlainText -Force
+        try {
+            # The account never signs in and nothing is encrypted under it, so replacing its
+            # password costs nothing; it only has to be known for the call below.
+            Set-LocalUser -SID $sid -Password $secure -ErrorAction Stop
+        }
+        finally { $secure.Dispose() }
+
+        $service = New-Object -ComObject 'Schedule.Service'
+        $service.Connect()
+        $definition = $service.NewTask(0)
+        $definition.RegistrationInfo.Description = $Description
+        $definition.Settings.StartWhenAvailable = $true
+        $definition.Settings.MultipleInstances = 2          # TASK_INSTANCES_IGNORE_NEW
+        $definition.Settings.ExecutionTimeLimit = 'PT2H'
+        $definition.Settings.Enabled = $true
+        $definition.Principal.LogonType = 2                 # TASK_LOGON_S4U
+        $definition.Principal.UserId = $UserId
+        $definition.Principal.RunLevel = if ($RunLevel -eq 'Highest') { 1 } else { 0 }
+
+        $exec = $definition.Actions.Create(0)               # TASK_ACTION_EXEC
+        $exec.Path = $Action.Execute
+        if ($Action.Arguments) { $exec.Arguments = $Action.Arguments }
+        if ($Action.WorkingDirectory) { $exec.WorkingDirectory = $Action.WorkingDirectory }
+
+        $start = ([datetime]$Trigger.StartBoundary).ToString('yyyy-MM-ddTHH:mm:ss')
+        switch ($Trigger.CimClass.CimClassName) {
+            'MSFT_TaskDailyTrigger' {
+                $created = $definition.Triggers.Create(2)   # TASK_TRIGGER_DAILY
+                $created.DaysInterval = [int]$Trigger.DaysInterval
+            }
+            'MSFT_TaskTimeTrigger' {
+                $created = $definition.Triggers.Create(1)   # TASK_TRIGGER_TIME
+                if ($Trigger.Repetition -and $Trigger.Repetition.Interval) {
+                    $created.Repetition.Interval = $Trigger.Repetition.Interval
+                    if ($Trigger.Repetition.Duration) { $created.Repetition.Duration = $Trigger.Repetition.Duration }
+                    if ($null -ne $Trigger.Repetition.StopAtDurationEnd) { $created.Repetition.StopAtDurationEnd = [bool]$Trigger.Repetition.StopAtDurationEnd }
+                }
+            }
+            default { throw ('This scheduled operation uses a trigger this installer cannot register for the automation account: ' + $Trigger.CimClass.CimClassName) }
+        }
+        $created.StartBoundary = $start
+        $created.Enabled = $true
+
+        try { $definition.Principal.Id = 'Author'; $folder = $service.GetFolder('\'); $folder.RegisterTaskDefinition($TaskName, $definition, 6, $UserId, $secret, 2) | Out-Null }  # TASK_CREATE_OR_UPDATE, TASK_LOGON_S4U
+        catch {
+            throw ("Windows refused to register '" + $TaskName + "' to run as " + $UserId +
+                ' without a stored password. Windows said: ' + $_.Exception.Message)
+        }
+    }
+    finally {
+        $random.Dispose()
+        [Array]::Clear($bytes, 0, $bytes.Length)
+        $secret = $null
+        if ($service) { [void][Runtime.InteropServices.Marshal]::ReleaseComObject($service) }
+    }
+}
+
 function Get-EtpOperationsProcedureName {
     param([string]$Database)
     $sha=[Security.Cryptography.SHA256]::Create()
