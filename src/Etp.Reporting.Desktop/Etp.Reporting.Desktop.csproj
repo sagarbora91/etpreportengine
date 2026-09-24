@@ -44,6 +44,7 @@
     <Content Include="..\..\scripts\sql\etp-operations-broker.sql" Link="scripts\sql\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\..\scripts\sql\etp-operations-grants.sql" Link="scripts\sql\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Resource Include="Assets\EtpReporting.ico" />
+    <Resource Include="HelpScreenshots\*.png" />
     <Content Include="..\..\database\migrations\*.sql" Link="database\migrations\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
