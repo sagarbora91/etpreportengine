@@ -64,12 +64,13 @@ public sealed class DistributionServiceBoundaryTests
     {
         var gateway = new FakeGateway { Settings = Settings(maximumAttachmentMb: 5) };
         var allowed = Distribution(gateway, ApplicationRole.Viewer, PackageBuilder(), _ => true, _ => 5 * 1024L * 1024L);
-        var policy = await allowed.ValidateEmailAttachmentAsync("pack.zip");
-        Assert.Equal("share", policy.ShareFolderPath);
+        var path = Path.Combine(gateway.Settings.ShareFolderPath, "pack.zip");
+        var policy = await allowed.ValidateEmailAttachmentAsync(path);
+        Assert.Equal(gateway.Settings.ShareFolderPath, policy.ShareFolderPath);
         Assert.Equal(5, policy.MaximumAttachmentMb);
 
         var oversized = Distribution(gateway, ApplicationRole.Viewer, PackageBuilder(), _ => true, _ => 5 * 1024L * 1024L + 1);
-        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => oversized.ValidateEmailAttachmentAsync("pack.zip"));
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => oversized.ValidateEmailAttachmentAsync(path));
         Assert.Equal("The attachment exceeds the configured 5 MB email limit.", error.Message);
     }
 
@@ -108,7 +109,7 @@ public sealed class DistributionServiceBoundaryTests
         new("Daily Pack", new(2026, 8, 28), new(2026, 8, 28), "Passed", "rule", "Complete", DateTimeOffset.UtcNow, []);
 
     private static ProductSettings Settings(int maximumAttachmentMb) =>
-        new("documents", "share", null, null, true, null, maximumAttachmentMb, DateTime.MinValue, "owner");
+        new("documents", Path.Combine(Path.GetTempPath(), "EtpEmailPolicy"), null, null, true, null, maximumAttachmentMb, DateTime.MinValue, "owner");
 
     private sealed class FakeGateway : IDistributionSqlGateway
     {

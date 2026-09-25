@@ -107,10 +107,20 @@ public sealed partial class SqlServerReportDistributionService : App.IReportDist
         CancellationToken cancellationToken = default)
     {
         await SqlServerInvestigationQuery.RequireViewAsync(loadAccess, cancellationToken).ConfigureAwait(false);
-        if (string.IsNullOrWhiteSpace(attachmentPath) || !fileExists(attachmentPath))
+        if (string.IsNullOrWhiteSpace(attachmentPath))
+            throw new FileNotFoundException("The report attachment was not found.", attachmentPath);
+        var fullPath = Path.GetFullPath(attachmentPath);
+        if (!fileExists(fullPath))
             throw new FileNotFoundException("The report attachment was not found.", attachmentPath);
         var settings = await gateway.LoadSettingsAsync(cancellationToken).ConfigureAwait(false);
-        if (fileLength(attachmentPath) > settings.MaximumAttachmentMb * 1024L * 1024L)
+        var folder = Path.GetFullPath(settings.ShareFolderPath);
+        var prefix = Path.EndsInDirectorySeparator(folder) ? folder : folder + Path.DirectorySeparatorChar;
+        if (!fullPath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            throw new UnauthorizedAccessException("Report attachments must be prepared in the sharing folder.");
+        for (var candidate = fullPath; !string.IsNullOrEmpty(candidate); candidate = Path.GetDirectoryName(candidate))
+            if ((File.Exists(candidate) || Directory.Exists(candidate)) && (File.GetAttributes(candidate) & FileAttributes.ReparsePoint) != 0)
+                throw new UnauthorizedAccessException("Report attachments must be prepared in the sharing folder.");
+        if (fileLength(fullPath) > settings.MaximumAttachmentMb * 1024L * 1024L)
             throw new InvalidOperationException($"The attachment exceeds the configured {settings.MaximumAttachmentMb} MB email limit.");
         return new(settings.ShareFolderPath, settings.MaximumAttachmentMb);
     }

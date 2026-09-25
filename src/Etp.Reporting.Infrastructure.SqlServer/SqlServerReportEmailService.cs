@@ -31,7 +31,8 @@ public sealed partial class SqlServerReportDistributionService
     {
         ArgumentNullException.ThrowIfNull(command);
         if (command.GenerationId <= 0) throw new ArgumentOutOfRangeException(nameof(command.GenerationId));
-        await ValidateEmailAttachmentAsync(command.AttachmentPath, cancellationToken).ConfigureAwait(false);
+        var attachmentPath = string.IsNullOrWhiteSpace(command.AttachmentPath) ? command.AttachmentPath : Path.GetFullPath(command.AttachmentPath);
+        await ValidateEmailAttachmentAsync(attachmentPath, cancellationToken).ConfigureAwait(false);
         var settings = SmtpSettings(await gateway.LoadSettingsAsync(cancellationToken).ConfigureAwait(false));
         _ = MailKitReportEmailTransport.ParseRecipients(command.To);
         if (!string.IsNullOrWhiteSpace(command.Cc)) _ = MailKitReportEmailTransport.ParseRecipients(command.Cc);
@@ -41,7 +42,7 @@ public sealed partial class SqlServerReportDistributionService
         try
         {
             result = await emailTransport.SendAsync(settings, new(command.To, command.Cc,
-                $"ETP report pack - generation {command.GenerationId}", "Please find the saved ETP report pack attached.", command.AttachmentPath), cancellationToken).ConfigureAwait(false);
+                $"ETP report pack - generation {command.GenerationId}", "Please find the saved ETP report pack attached.", attachmentPath), cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         { result = new("UNKNOWN", "SMTP outcome could not be confirmed. Check the mail server before retrying."); }
@@ -51,7 +52,7 @@ public sealed partial class SqlServerReportDistributionService
         return new(result.Outcome, result.Message);
 
         Task Record(string outcome, string message) => gateway.RecordShareAttemptAsync(command.GenerationId, null, "EMAIL", "Configured recipient",
-            Path.GetFileName(command.AttachmentPath), outcome, message, CancellationToken.None, key);
+            Path.GetFileName(attachmentPath), outcome, message, CancellationToken.None, key);
     }
 
     public async Task<App.EmailSendResult> TestEmailAsync(string recipient, CancellationToken cancellationToken = default)
