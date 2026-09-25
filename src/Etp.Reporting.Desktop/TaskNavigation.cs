@@ -30,14 +30,6 @@ public static class TaskNavigation
     public static IReadOnlyList<TaskDestination> All { get; } = Build();
     public static IReadOnlyList<TaskDestination> InSection(string section, ShellAccess access) => All.Where(t => t.Rail == section && t.IsAllowed(access)).ToArray();
 
-    public static string CanonicalId(string id) => id switch
-    {
-        "reports-dsr-favourite" => "report-dsr", "source-documents" => "documents",
-        "import-conflicts" => "conflicts",
-        "watch" => "watch-folder", "accounting-map" => "ledger-mapping",
-        "manual-entry" => "walk-ins", "backup" => "backups", _ => id
-    };
-
     public static IReadOnlyList<TaskDestination> Search(string query, ShellAccess access)
     {
         var value = query.Trim();
@@ -121,7 +113,7 @@ public static class TaskNavigation
         }
         foreach (var topic in HelpCentreRegistry.Topics)
             Add("help:" + topic.Id, topic.Title, "Settings", "Help", "Home", "help");
-        var tabOrder = new[] { "All reports", "Sales", "Cash", "Walk-ins", "Close day", "Import", "Problems", "History", "Documents", "Staff", "Tender & service", "Exceptions", "Investigation", "Management", "Archive", "Favourites", "Closing stock", "Brand stock", "Physical count", "Variance", "Movement", "Slow stock", "Display", "Database", "Users", "Stores & masters", "Integrations", "Automatic import", "Accounting", "Control centre", "Registers", "Help" };
+        var tabOrder = new[] { "All reports", "Sales", "Cash", "Walk-ins", "Close day", "Import", "Problems", "History", "Staff", "Tender & service", "Exceptions", "Investigation", "Management", "Archive", "Favourites", "Closing stock", "Brand stock", "Physical count", "Variance", "Movement", "Slow stock", "Display", "Database", "Users", "Stores & masters", "Integrations", "Automatic import", "Accounting", "Control centre", "Registers", "Help" };
         return result.OrderBy(t => Array.IndexOf(Sections.ToArray(), t.Rail)).ThenBy(t => Array.IndexOf(tabOrder, t.Tab)).ThenBy(t => t.ReportCode is null ? 1 : 0).ToArray();
     }
 }

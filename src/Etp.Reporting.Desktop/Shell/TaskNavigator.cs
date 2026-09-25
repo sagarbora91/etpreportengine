@@ -48,7 +48,7 @@ public sealed partial class TaskNavigator(MainWindow window)
     internal static (int[] Body, int[] Actions) AdministrationTaskLayout(string id) => id switch
     {
         "users" => (new int[] {5,6,8,12,13,14}, new int[] {7}),
-        "kpi" or "profiles" => (new int[] {10,11,12,13,14}, new int[] {}),
+        "kpi" => (new int[] {10,11,12,13,14}, new int[] {}),
         "health" => (new int[] {16,17,12,13,14}, new int[] {}),
         _ => (new int[] {0,1,3,12,13,14}, new int[] {2})
     };
@@ -388,8 +388,15 @@ public sealed partial class TaskNavigator(MainWindow window)
 
         window.UpdateSection(task);
         window.ShellStoreSelector.IsEnabled = true;
-        if (task.Section == "report-list") { window.FocusedWorkspaceHost.Content = new Modules.Reports.ReportListView(window.CurrentShellAccess, NavigateTask); window.focusedWorkspaceKind = "task"; return true; }
-        if (task.Section == "favourite-reports") { window.FocusedWorkspaceHost.Content = new Modules.Reports.FavouriteReportsView(UiPreferenceStore.Load(), window.CurrentShellAccess, NavigateTask); return true; }
+        if (task.Section is "report-list" or "favourite-reports")
+        {
+            window.FocusedWorkspaceHost.Content = task.Section == "report-list"
+                ? new Modules.Reports.ReportListView(window.CurrentShellAccess, NavigateTask)
+                : new Modules.Reports.FavouriteReportsView(UiPreferenceStore.Load(), window.CurrentShellAccess, NavigateTask);
+            window.focusedWorkspaceKind = "task";
+            window.FocusedWorkspaceLayer.Visibility = Visibility.Visible;
+            return true;
+        }
         if (task.Section == "help") { window.ShowHelpWorkspace(task.Id[5..]); return true; }
         if (task.Section == "profile") { window.OpenProfile_Click(window, new RoutedEventArgs()); return true; }
 
@@ -503,8 +510,8 @@ public sealed partial class TaskNavigator(MainWindow window)
             body = id == "sharing-contacts" ? new int[] {6,7,8,9} : new int[] {0,1,2,3,5,9,10,11,12,13};
             actions = id == "sharing-contacts" ? [] : [4];
         }
-        else if (id is "connection" or "settings" or "sharing")
-        { view = window.settingsWorkspace; if (id == "sharing") window.settingsWorkspace.SelectIntegrationTask(id); body = id is "connection" or "settings" ? new int[] {0,1,3,7} : new int[] {3,5}; actions = id is "connection" or "settings" ? new int[] {2} : new int[] {}; }
+        else if (id is "connection" or "sharing")
+        { view = window.settingsWorkspace; if (id == "sharing") window.settingsWorkspace.SelectIntegrationTask(id); body = id == "connection" ? new int[] {0,1,3,7} : new int[] {3,5}; actions = id == "connection" ? new int[] {2} : new int[] {}; }
         else if (task.Destination == "Admin / Settings")
         {
             view = window.administrationWorkspaceView; window.administrationWorkspaceView.SelectTask(id);
