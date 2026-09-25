@@ -6,20 +6,27 @@ namespace Etp.Reporting.Infrastructure.SqlServer;
 public sealed partial class SqlServerTransactionalImportStore
 {
     // Request commits independently so a pending decision survives without writing import facts.
-    private async Task RequireRestatementApprovalAsync(ImportPersistencePackage package, CancellationToken token)
+    private Task RequireRestatementApprovalAsync(ImportPersistencePackage package, CancellationToken token) =>
+        RequestRestatementApprovalAsync(connectionString, package.Restatement!, package.File.SourceSha256,
+            PersistenceValidation.ResolveReportCode(package.File), package.File.StoreCode ?? string.Empty,
+            (package.File.PeriodStart ?? package.File.BusinessDate)!.Value,
+            (package.File.PeriodEnd ?? package.File.BusinessDate)!.Value, token);
+
+    internal static async Task RequestRestatementApprovalAsync(string connectionString, ImportRestatementRequest restatement,
+        string sourceSha256, string reportCode, string storeCode, DateOnly periodStart, DateOnly periodEnd,
+        CancellationToken token)
     {
-        var restatement = package.Restatement!;
         if (restatement.Reason.Trim().Length > 500)
             throw new ImportSourceException("RESTATEMENT_REASON_TOO_LONG", "Keep the restatement reason within 500 characters.");
         await using var connection = new SqlConnection(LocalSqlConnectionPolicy.Validate(connectionString));
         await connection.OpenAsync(token);
         await using var command = new SqlCommand("EXEC dbo.request_import_restatement @previous,@hash,@report,@store,@start,@end,@reason", connection);
         command.Parameters.AddWithValue("@previous", restatement.PreviousImportFileId);
-        command.Parameters.AddWithValue("@hash", SqlServerImportFileRepository.NormalizeHash(package.File.SourceSha256));
-        command.Parameters.AddWithValue("@report", PersistenceValidation.ResolveReportCode(package.File));
-        command.Parameters.AddWithValue("@store", package.File.StoreCode ?? string.Empty);
-        command.Parameters.AddWithValue("@start", package.File.PeriodStart ?? package.File.BusinessDate);
-        command.Parameters.AddWithValue("@end", package.File.PeriodEnd ?? package.File.BusinessDate);
+        command.Parameters.AddWithValue("@hash", SqlServerImportFileRepository.NormalizeHash(sourceSha256));
+        command.Parameters.AddWithValue("@report", reportCode);
+        command.Parameters.AddWithValue("@store", storeCode);
+        command.Parameters.AddWithValue("@start", periodStart);
+        command.Parameters.AddWithValue("@end", periodEnd);
         command.Parameters.AddWithValue("@reason", restatement.Reason.Trim());
         await using var reader = await command.ExecuteReaderAsync(token);
         if (!await reader.ReadAsync(token)) throw new InvalidOperationException("The restatement request could not be read.");

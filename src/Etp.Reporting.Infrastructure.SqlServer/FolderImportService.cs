@@ -124,7 +124,10 @@ public sealed class FolderImportService(
                     var previous = await persistence.FindCurrentImportFileIdAsync(accepted.ProfileIdentity.ReportCode, store, end.Value, cancellationToken).ConfigureAwait(false);
                     if (previous is not null) restatement = new(previous.Value, options.ImportedBy, options.RestatementReason);
                 }
-                var saved = await persistence.PersistAsync(new(accepted, end.Value, store, options.ImportedBy, restatement), cancellationToken).ConfigureAwait(false);
+                var request = new ImportPersistenceRequest<MatchedImportEnvelope>(accepted, end.Value, store, options.ImportedBy, restatement);
+                if (restatement is not null)
+                    await persistence.PrepareRestatementAsync(request, cancellationToken).ConfigureAwait(false);
+                var saved = await persistence.PersistAsync(request, cancellationToken).ConfigureAwait(false);
                 var outcome = saved.Status == "Imported"
                     ? await persistence.LoadOutcomeInScopeAsync(accepted.Workbook.Sha256, accepted.ProfileIdentity.ReportCode,
                         persistedStore, periodStart, periodEnd, cancellationToken).ConfigureAwait(false)

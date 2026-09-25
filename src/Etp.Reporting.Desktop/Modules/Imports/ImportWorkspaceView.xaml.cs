@@ -113,6 +113,10 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
                 ShowScope();
                 ProgressChanged?.Invoke(this, value);
             });
+            // A manager may request and apply an Owner-approved replacement, but
+            // a revoked import role must stop before entering that approval flow.
+            if (restate && !accessProvider().CanImport)
+                throw new UnauthorizedAccessException("Owner or Store Manager permission is required for a restatement.");
             var summary = retry
                 ? await coordinator.RetryFailedFolderAsync(progress)
                 : await coordinator.ImportFolderAsync(WorkbookPathInput.Text, connectionStringProvider(), options, progress);

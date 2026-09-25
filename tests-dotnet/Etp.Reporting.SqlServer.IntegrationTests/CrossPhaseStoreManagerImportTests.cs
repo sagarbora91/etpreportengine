@@ -3,6 +3,8 @@ using System.Data.Common;
 using System.Diagnostics;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
+using Etp.Reporting.Application.Imports;
+using Etp.Reporting.Import.Batch;
 using Etp.Reporting.Import.Preflight;
 using Etp.Reporting.Import.Profiles;
 using Etp.Reporting.Import.Workbooks;
@@ -13,6 +15,111 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 
 public sealed class CrossPhaseStoreManagerImportTests
 {
+    [Fact]
+    public async Task Manager_restatement_requires_every_approved_binding_and_preserves_request_and_retry_workflow()
+    {
+        var database = new SqlDatabaseFixture();
+        try
+        {
+            await database.InitializeAsync();
+            await SeedRoles(database);
+            using var session = new RestrictedConnections(database.Name, "crossphase_manager", "etp_store_manager");
+            var service = new SqlServerImportPersistenceUseCase(session.ConnectionString);
+            var sample = await Sample();
+            var row = Row(sample, 2, "100000001", new(2026, 8, 25));
+            await Save(service, Workbook(sample, [row]));
+            var previous = Convert.ToInt64(await database.ExecuteAsync("SELECT import_file_id FROM dbo.import_files"));
+            var cells = row.Cells.ToArray();
+            cells[sample.Sheets[0].Headers.ToList().IndexOf("CONTACTNO")] = new("9876500123");
+            var workbook = Workbook(sample, [row with { Cells = cells }]);
+            var accepted = new MatchedImportEnvelopeFactory().RequireAccepted(workbook with { Sha256 = workbook.Sha256.ToUpperInvariant() });
+            var request = new ImportPersistenceRequest<MatchedImportEnvelope>(accepted,
+                accepted.Scope.PeriodEnd!.Value, accepted.Scope.StoreCode!, "Synthetic manager",
+                new(previous, "Synthetic manager", "  Correct synthetic contact  "));
+            var pending = await Assert.ThrowsAsync<ImportSourceException>(() => service.PrepareRestatementAsync(request));
+            Assert.Equal("RESTATEMENT_APPROVAL_PENDING", pending.Code);
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.PersistAsync(request));
+            var approval = Convert.ToInt64(await database.ExecuteAsync("SELECT approval_request_id FROM dbo.import_restatement_approvals"));
+            Assert.Equal(1, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.import_files"));
+            await database.ExecuteAsync($"EXEC dbo.decide_approval_request {approval},1,N'Checked exact replacement';");
+
+            var start = accepted.Scope.PeriodStart!.Value;
+            var end = accepted.Scope.PeriodEnd.Value;
+            var bindings = new (string Column, string Other, string Original)[]
+            {
+                ("replacement_sha256", "REPLICATE('0',64)", $"'{workbook.Sha256}'"),
+                ("store_code", "'OTHER'", $"'{accepted.Scope.StoreCode}'"),
+                ("report_code", "'R022'", "'R025'"),
+                ("period_start", $"'{start.AddDays(-1):yyyyMMdd}'", $"'{start:yyyyMMdd}'"),
+                ("period_end", $"'{end.AddDays(1):yyyyMMdd}'", $"'{end:yyyyMMdd}'"),
+                ("request_reason", "N'correct synthetic contact'", "N'Correct synthetic contact'"),
+                ("applied_import_file_id", previous.ToString(), "NULL")
+            };
+            foreach (var (column, other, original) in bindings)
+            {
+                await database.ExecuteAsync($"UPDATE dbo.import_restatement_approvals SET {column}={other} WHERE approval_request_id={approval}");
+                await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.PersistAsync(request));
+                await database.ExecuteAsync($"UPDATE dbo.import_restatement_approvals SET {column}={original} WHERE approval_request_id={approval}");
+            }
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.PersistAsync(request with
+            { Restatement = request.Restatement! with { PreviousImportFileId = previous + 10000 } }));
+            foreach (var status in new[] { "PENDING", "REJECTED", "CANCELLED" })
+            {
+                await database.ExecuteAsync($"UPDATE dbo.approval_requests SET status='{status}' WHERE approval_request_id={approval}");
+                await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.PersistAsync(request));
+            }
+            var rejected = await Assert.ThrowsAsync<ImportSourceException>(() => service.PrepareRestatementAsync(request));
+            Assert.Equal("RESTATEMENT_APPROVAL_REJECTED", rejected.Code);
+            Assert.Equal(1, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.sales_lines"));
+            Assert.Equal(1, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.import_files"));
+            Assert.Equal(0, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.import_restatements"));
+            await database.ExecuteAsync($"UPDATE dbo.approval_requests SET status='APPROVED' WHERE approval_request_id={approval}");
+
+            await service.PrepareRestatementAsync(request);
+            await service.PersistAsync(request);
+            Assert.Equal(1, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.sales_lines"));
+            Assert.Equal(1, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.import_files WHERE is_superseded=1"));
+            Assert.Equal("9876500123", await database.ExecuteAsync("SELECT r.customer_phone FROM dbo.etp_r025 r JOIN dbo.import_files f ON f.import_file_id=r.import_file_id WHERE f.is_superseded=0"));
+            Assert.NotEqual(DBNull.Value, await database.ExecuteAsync($"SELECT applied_import_file_id FROM dbo.import_restatement_approvals WHERE approval_request_id={approval}"));
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.PersistAsync(request));
+            session.AssertCoverage(12);
+        }
+        finally { await database.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task Manager_restatement_without_approval_is_denied_before_canonical_facts_change()
+    {
+        var database = new SqlDatabaseFixture();
+        try
+        {
+            await database.InitializeAsync();
+            await SeedRoles(database);
+            using var session = new RestrictedConnections(database.Name, "crossphase_manager", "etp_store_manager");
+            var service = new SqlServerImportPersistenceUseCase(session.ConnectionString);
+            var sample = await Sample();
+            var row = Row(sample, 2, "100000001", new(2026, 8, 25));
+            await Save(service, Workbook(sample, [row]));
+            var previous = Convert.ToInt64(await database.ExecuteAsync("SELECT import_file_id FROM dbo.import_files"));
+            var before = await database.ExecuteAsync("SELECT CONCAT(sales_line_id,':',source_gross_amount,':',source_net_amount) FROM dbo.sales_lines");
+            var cells = row.Cells.ToArray();
+            cells[sample.Sheets[0].Headers.ToList().IndexOf("CONTACTNO")] = new("9876500123");
+            var accepted = new MatchedImportEnvelopeFactory().RequireAccepted(Workbook(sample, [row with { Cells = cells }]));
+
+            var failure = await Record.ExceptionAsync(() => service.PersistAsync(new(accepted,
+                accepted.Scope.PeriodEnd!.Value, accepted.Scope.StoreCode!, "Synthetic manager",
+                new(previous, "Synthetic manager", "Correct synthetic contact"))));
+
+            Assert.Equal(1, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.sales_lines"));
+            Assert.Equal(before, await database.ExecuteAsync("SELECT CONCAT(sales_line_id,':',source_gross_amount,':',source_net_amount) FROM dbo.sales_lines"));
+            Assert.Equal(0, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.import_files WHERE is_superseded=1"));
+            Assert.Equal(0, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.import_restatements"));
+            Assert.IsType<UnauthorizedAccessException>(failure);
+            session.AssertCoverage(4);
+        }
+        finally { await database.DisposeAsync(); }
+    }
+
     [Theory]
     [InlineData("R018")]
     [InlineData("R019")]

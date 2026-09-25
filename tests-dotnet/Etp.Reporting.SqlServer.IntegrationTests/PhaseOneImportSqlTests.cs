@@ -71,8 +71,9 @@ public sealed class PhaseOneImportSqlTests(ITestOutputHelper output)
         Assert.Equal(1,await db.Int("SELECT COUNT(*) FROM dbo.import_files"));
         var oldId=Convert.ToInt64(await db.Fixture.ExecuteAsync("SELECT import_file_id FROM dbo.import_files"));
         var accepted=new MatchedImportEnvelopeFactory().RequireAccepted(corrected);
-        var pending = await Assert.ThrowsAsync<Etp.Reporting.Import.Batch.ImportSourceException>(() => service.PersistAsync(new(accepted,new(2026,8,25),"HEMW","SQL test",new(oldId,"SQL test","Correct synthetic contact"))));
+        var pending = await Assert.ThrowsAsync<Etp.Reporting.Import.Batch.ImportSourceException>(() => service.PrepareRestatementAsync(new(accepted,new(2026,8,25),"HEMW","SQL test",new(oldId,"SQL test","Correct synthetic contact"))));
         Assert.Equal("RESTATEMENT_APPROVAL_PENDING", pending.Code);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.PersistAsync(new(accepted,new(2026,8,25),"HEMW","SQL test",new(oldId,"SQL test","Correct synthetic contact"))));
         Assert.Equal(1,await db.Int("SELECT COUNT(*) FROM dbo.import_files"));
         await db.Fixture.ExecuteAsync("DECLARE @id bigint=(SELECT approval_request_id FROM dbo.approval_requests WHERE approval_type='RESTATEMENT'); EXEC dbo.decide_approval_request @id,1,N'Checked exact replacement';");
         await service.PersistAsync(new(accepted,new(2026,8,25),"HEMW","SQL test",new(oldId,"SQL test","Correct synthetic contact")));

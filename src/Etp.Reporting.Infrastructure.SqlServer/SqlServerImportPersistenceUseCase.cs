@@ -15,7 +15,7 @@ public enum ImportPersistenceRoute
     Family
 }
 
-public sealed class SqlServerImportPersistenceUseCase : IImportPersistenceUseCase<MatchedImportEnvelope>, IImportAttemptRecorder
+public sealed partial class SqlServerImportPersistenceUseCase : IImportPersistenceUseCase<MatchedImportEnvelope>, IImportAttemptRecorder
 {
     private readonly ITransactionalImportStore store;
     private readonly SqlServerImportFileRepository files;
@@ -79,6 +79,9 @@ public sealed class SqlServerImportPersistenceUseCase : IImportPersistenceUseCas
             request.ExpectedStoreCode, request.ExpectedBusinessDate);
         var periodStart = accepted.Scope.PeriodStart ?? scope.BusinessDate!.Value;
         var periodEnd = scope.BusinessDate!.Value;
+        if (restatement is not null)
+            await RequireApprovedRestatementAsync(restatement, accepted.Workbook.Sha256, accepted.ProfileIdentity.ReportCode,
+                scope.StoreCode!, periodStart, periodEnd, cancellationToken).ConfigureAwait(false);
         if (await files.ExistsInScopeAsync(accepted.Workbook.Sha256, accepted.ProfileIdentity.ReportCode,
             scope.StoreCode!, periodStart, periodEnd, cancellationToken).ConfigureAwait(false))
             return new(accepted.ProfileIdentity.ReportCode, 0) { Status = "Duplicate", AlreadyPresentRows = accepted.Staging.Rows.Count };
@@ -250,6 +253,5 @@ public sealed class SqlServerImportPersistenceUseCase : IImportPersistenceUseCas
         var access = await loadAccess(cancellationToken).ConfigureAwait(false);
         if (!access.CanImport)
             throw new UnauthorizedAccessException("Owner or Store Manager permission is required.");
-        // Corrective replacements remain blocked in SQL until the Owner approves the exact source.
     }
 }

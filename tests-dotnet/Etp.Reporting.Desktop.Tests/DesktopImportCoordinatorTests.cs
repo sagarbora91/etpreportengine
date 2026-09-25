@@ -5,11 +5,73 @@ using Etp.Reporting.Import.Preflight;
 using Etp.Reporting.Import.Profiles;
 using Etp.Reporting.Import.Workbooks;
 using System.IO.Compression;
+using System.Diagnostics;
+using System.Windows.Controls;
+using System.Windows.Threading;
 
 namespace Etp.Reporting.Desktop.Tests;
 
 public sealed class DesktopImportCoordinatorTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Restatement_handler_rechecks_revoked_import_role_before_start_and_retry(bool retry)
+    {
+        RunSta(() =>
+        {
+            var path = Path.Combine(Path.GetTempPath(), "EtpRestatementRole_" + Guid.NewGuid().ToString("N") + ".xlsx");
+            File.WriteAllText(path, "Synthetic workbook supplied by the fixture reader");
+            var persistence = new FakePersistence { CurrentImportFileId = 42 };
+            var coordinator = Create(persistence, new FakeReader(_ => ValidR025()));
+            var options = new FolderImportOptions("manager", true, "Corrected source", "WLMHW", new(2026, 8, 25));
+            try
+            {
+                if (retry)
+                {
+                    persistence.PersistenceFailure = new InvalidOperationException("Synthetic first failure");
+                    Await(coordinator.ImportFolderAsync(path, "synthetic", options));
+                    Assert.Single(coordinator.FailedBatchPaths);
+                    persistence.PersistenceFailure = null;
+                }
+                var view = new ImportWorkspaceView(coordinator, () => "synthetic");
+                var checks = 0;
+                view.AttachHost(() => new(++checks <= (retry ? 2 : 1), false),
+                    (_, _, _) => Task.CompletedTask, () => Task.CompletedTask);
+                ((TextBox)view.FindName("WorkbookPathInput")).Text = path;
+                ((CheckBox)view.FindName("RestatementModeInput")).IsChecked = true;
+                if (retry)
+                    typeof(ImportWorkspaceView).GetField("lastImportOptions", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.SetValue(view, options);
+                var writes = persistence.PersistenceCalls;
+                var preparations = persistence.PrepareCalls;
+
+                Await(retry ? view.RetryFailedBatchAsync() : view.ImportSelectedSourceAsync());
+
+                Assert.Equal(writes, persistence.PersistenceCalls);
+                Assert.Equal(preparations, persistence.PrepareCalls);
+                Assert.Contains("does not have permission", ((TextBlock)view.FindName("ValidationResult")).Text);
+            }
+            finally { Await(coordinator.DisposeAsync().AsTask()); File.Delete(path); }
+        });
+    }
+
+    [Fact]
+    public async Task Restatement_preflight_refusal_stops_validated_persistence()
+    {
+        var persistence = new FakePersistence
+        {
+            CurrentImportFileId = 42,
+            PrepareFailure = new UnauthorizedAccessException("Exact approval is absent.")
+        };
+        await using var coordinator = Create(persistence, new FakeReader(_ => ValidR025()));
+        await coordinator.ValidateAsync("sales.xlsx");
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => coordinator.PersistValidatedAsync("synthetic",
+            new("WLMHW", new(2026, 8, 25), "manager", true, "Corrected source")));
+        Assert.Equal(1, persistence.PrepareCalls);
+        Assert.Equal(0, persistence.PersistenceCalls);
+        Assert.Null(persistence.LastRequest);
+    }
+
     [Fact]
     public async Task Folder_retry_keeps_zip_sources_until_disposal_and_reads_only_the_failed_entry()
     {
@@ -155,6 +217,7 @@ public sealed class DesktopImportCoordinatorTests
         await coordinator.RetainValidatedEvidenceAsync("integrated", context);
 
         Assert.True(outcome.RestatementApplied);
+        Assert.Same(persistence.PreparedRequest, persistence.LastRequest);
         Assert.Equal("R025", outcome.ReportCode);
         Assert.Equal(41, persistence.LastRequest!.Restatement!.PreviousImportFileId);
         Assert.Equal("STORE\\Owner", persistence.LastRequest.ImportedBy);
@@ -275,6 +338,32 @@ public sealed class DesktopImportCoordinatorTests
             Task.FromResult(read(filePath));
     }
 
+    private static void Await(Task task)
+    {
+        var elapsed = Stopwatch.StartNew();
+        while (!task.IsCompleted)
+        {
+            Assert.True(elapsed.Elapsed < TimeSpan.FromSeconds(30), "Restatement UI action timed out.");
+            Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+            Thread.Sleep(5);
+        }
+        task.GetAwaiter().GetResult();
+    }
+
+    private static void RunSta(Action action)
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext());
+            try { action(); } catch (Exception exception) { failure = exception; }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        Assert.True(thread.Join(TimeSpan.FromMinutes(1)), "Restatement UI test timed out.");
+        if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
+    }
+
     private sealed class FakePersistence : IImportPersistenceUseCase<MatchedImportEnvelope>
     {
         public bool Exists { get; set; }
@@ -282,6 +371,19 @@ public sealed class DesktopImportCoordinatorTests
         public ImportPersistenceResult PersistenceResult { get; set; } = new("R025", 0);
         public ImportRowOutcome RowOutcome { get; set; } = new(0, 0, 0, 0);
         public ImportPersistenceRequest<MatchedImportEnvelope>? LastRequest { get; private set; }
+        public ImportPersistenceRequest<MatchedImportEnvelope>? PreparedRequest { get; private set; }
+        public Exception? PrepareFailure { get; set; }
+        public Exception? PersistenceFailure { get; set; }
+        public int PersistenceCalls { get; private set; }
+        public int PrepareCalls { get; private set; }
+
+        public Task PrepareRestatementAsync(ImportPersistenceRequest<MatchedImportEnvelope> request,
+            CancellationToken cancellationToken = default)
+        {
+            PrepareCalls++;
+            PreparedRequest = request;
+            return PrepareFailure is null ? Task.CompletedTask : Task.FromException(PrepareFailure);
+        }
 
         public Task<bool> ExistsByHashAsync(string sourceSha256, CancellationToken cancellationToken = default) =>
             Task.FromResult(Exists);
@@ -296,6 +398,8 @@ public sealed class DesktopImportCoordinatorTests
             ImportPersistenceRequest<MatchedImportEnvelope> request,
             CancellationToken cancellationToken = default)
         {
+            PersistenceCalls++;
+            if (PersistenceFailure is not null) return Task.FromException<ImportPersistenceResult>(PersistenceFailure);
             LastRequest = request;
             return Task.FromResult(PersistenceResult);
         }
