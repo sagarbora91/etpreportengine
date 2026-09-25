@@ -32,6 +32,12 @@ public sealed partial class PhaseFiveFullWindowCaptureTests(ITestOutputHelper ou
     [Fact]
     public async Task Every_role_reachable_destination_loads_with_disposable_data_and_optional_captures()
     {
+        if (Environment.GetEnvironmentVariable(RoleWalkChildVariable) != "1")
+        {
+            await RunIsolatedRoleWalkAsync();
+            AssertSubsequentWpfViewLoads();
+            return;
+        }
         // The role walk is a default gate. Only raster artifacts require opt-in.
         var suppliedEvidence = Environment.GetEnvironmentVariable("ETP_PHASE5_UI_EVIDENCE");
         var evidence = Environment.GetEnvironmentVariable("ETP_PHASE5_UI_CAPTURE") == "1" && !string.IsNullOrWhiteSpace(suppliedEvidence)
@@ -219,9 +225,8 @@ public sealed partial class PhaseFiveFullWindowCaptureTests(ITestOutputHelper ou
         }) { IsBackground = true };
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
-        var result = await completion.Task.WaitAsync(TimeSpan.FromMinutes(8));
-        Assert.True(thread.Join(TimeSpan.FromSeconds(5)), "Capture dispatcher did not close.");
-        return result;
+        try { return await completion.Task.WaitAsync(TimeSpan.FromMinutes(8)); }
+        finally { Assert.True(thread.Join(TimeSpan.FromSeconds(5)), "Capture dispatcher did not close."); }
     }
 
     private static async Task RefreshTaskAsync(MainWindow window, TaskDestination task)
