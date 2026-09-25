@@ -148,6 +148,63 @@ public sealed class OperationsAdministrationWorkspaceViewTests
         });
     }
 
+    // Settings > Users refused a save in silence. Every one of these screens writes the
+    // reason into AdministrationStatus and nowhere else, and every layout except "health"
+    // left that child out of the task, so the owner clicked Save and saw nothing at all.
+    // Found on the owner's PC on 24 September 2026; Phase 4 closure record, item 5.
+    [Fact]
+    public void Every_administration_task_keeps_the_line_that_says_why_a_save_failed()
+    {
+        // "stores" stands for the default branch; "masters" and "tender-rules" never reach
+        // this view, so they are deliberately not here.
+        foreach (var id in new[] { "users", "profiles", "kpi", "health", "stores" })
+        {
+            var (body, actions) = TaskNavigator.AdministrationTaskLayout(id);
+            Assert.Contains(14, body.Concat(actions));
+        }
+    }
+
+    [Fact]
+    public void Users_task_shows_the_owner_why_a_user_save_failed()
+    {
+        RunSta(async () =>
+        {
+            var service = new FakeAdministrationService();
+            var view = new AdministrationWorkspaceView(
+                new OperationsAdministrationPresentationSession(), () => "connection", _ => service);
+            view.UpdateAccess(new(true, true, true));
+            await view.RefreshAsync();
+
+            // The real task layout, not a hand-written one: if the arrays change, this fails.
+            var (body, actions) = TaskNavigator.AdministrationTaskLayout("users");
+            FocusedTaskLayout.Show(view, "Users", body, actions);
+
+            service.FailUserSave = true;
+            Assert.False(await view.SaveUserDraftAsync());
+            Assert.Contains("User access was not saved", view.StatusText, StringComparison.Ordinal);
+
+            // Not view.StatusText, which reads the control whether or not it is on screen:
+            // the message has to be somewhere the owner can actually see it.
+            var shown = Displayed(view).OfType<TextBlock>()
+                .Where(text => text.Name == "AdministrationStatus" && text.Visibility == Visibility.Visible)
+                .ToArray();
+            var status = Assert.Single(shown);
+            Assert.Contains("User access was not saved", status.Text, StringComparison.Ordinal);
+        });
+    }
+
+    /// <summary>Everything in the task's own tree, including the contents of unselected tabs.</summary>
+    private static IEnumerable<DependencyObject> Displayed(UserControl view)
+    {
+        if (view.Content is not DependencyObject root) yield break;
+        foreach (var item in Walk(root)) yield return item;
+        static IEnumerable<DependencyObject> Walk(DependencyObject node)
+        {
+            foreach (var child in LogicalTreeHelper.GetChildren(node).OfType<DependencyObject>())
+            { yield return child; foreach (var descendant in Walk(child)) yield return descendant; }
+        }
+    }
+
     private static int Count(string source, string value) =>
         source.Split(value, StringSplitOptions.None).Length - 1;
 
@@ -204,6 +261,7 @@ public sealed class OperationsAdministrationWorkspaceViewTests
     private sealed class FakeAdministrationService : IAdministrationService
     {
         public bool FailMasterSave { get; set; }
+        public bool FailUserSave { get; set; }
         public int Loads { get; private set; }
         public Task<AdministrationDashboard> LoadAsync(string masterType, CancellationToken cancellationToken = default)
         {
@@ -216,7 +274,7 @@ public sealed class OperationsAdministrationWorkspaceViewTests
                 new ProductConfiguration("docs", "share", null, null, true, null, 20, DateTime.UtcNow, "owner")));
         }
         public Task SaveMasterAsync(SaveControlledMaster command, CancellationToken cancellationToken = default) => FailMasterSave ? Task.FromException(new InvalidOperationException("Synthetic failure")) : Task.CompletedTask;
-        public Task SaveUserAsync(SaveApplicationUser command, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task SaveUserAsync(SaveApplicationUser command, CancellationToken cancellationToken = default) => FailUserSave ? Task.FromException(new InvalidOperationException("Synthetic failure")) : Task.CompletedTask;
         public Task SaveProductConfigurationAsync(SaveProductConfiguration command, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 }

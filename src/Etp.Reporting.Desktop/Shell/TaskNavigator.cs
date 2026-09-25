@@ -28,6 +28,31 @@ public sealed partial class TaskNavigator(MainWindow window)
         { yield return child; foreach (var descendant in LogicalChildren(child)) yield return descendant; }
     }
 
+    /// <summary>
+    /// Which of the administration view's children each Settings task shows, by position.
+    /// R4 appends the Database and recovery section at the end of that view, so every index
+    /// here is the one the screen always had. The recovery grid has to be a direct child of
+    /// the panel: the focused layout only gives a named tab to a direct child, and nested in
+    /// a Border it landed in the unnamed catch-all tab instead.
+    /// 13 ProductHealthGrid, 14 AdministrationStatus, 16 DatabaseRecoveryStatus,
+    /// 17 DatabaseRecoveryGrid, 18 the Support package button.
+    /// <para>
+    /// 14 is the only place any of these screens says why a save or a refresh failed, and
+    /// until 25 September 2026 every layout but "health" left it out, so Settings &gt; Users
+    /// refused a save in silence. Where it sits in the array does not matter: TaskBodyLayout
+    /// lifts every <c>*Status</c> and <c>*Result</c> text block out of the body and docks it
+    /// above the tabs. What matters is that it is listed at all.
+    /// Internal so the tests can assert these layouts without building a window.
+    /// </para>
+    /// </summary>
+    internal static (int[] Body, int[] Actions) AdministrationTaskLayout(string id) => id switch
+    {
+        "users" => (new int[] {5,6,8,13,14}, new int[] {7}),
+        "kpi" or "profiles" => (new int[] {10,11,13,14}, new int[] {}),
+        "health" => (new int[] {16,17,13,14}, new int[] {18}),
+        _ => (new int[] {0,1,3,13,14}, new int[] {2})
+    };
+
     private void RememberContext(WorkspaceRoute next)
     {
         if (displayedRoute is not null && window.FocusedWorkspaceHost.Content is DependencyObject previous)
@@ -445,14 +470,7 @@ public sealed partial class TaskNavigator(MainWindow window)
         else if (task.Destination == "Admin / Settings")
         {
             view = window.administrationWorkspaceView; window.administrationWorkspaceView.SelectTask(id);
-            // R4 appends the Database and recovery section at the end of the view, so every
-            // index below it is the one this screen always had. The recovery grid has to be a
-            // direct child of the panel: the focused layout only gives a named tab to a direct
-            // child, and nested in a Border it landed in the unnamed catch-all tab instead.
-            // 13 ProductHealthGrid, 14 AdministrationStatus, 16 DatabaseRecoveryStatus,
-            // 17 DatabaseRecoveryGrid, 18 the Support package button.
-            (body, actions) = id switch { "users" => (new int[] {5,6,8,13}, new int[] {7}), "kpi" or "profiles" => (new int[] {10,11,13}, new int[] {}),
-                "health" => (new int[] {16,17,13,14}, new int[] {18}), _ => (new int[] {0,1,3,13}, new int[] {2}) };
+            (body, actions) = AdministrationTaskLayout(id);
         }
         else if (id is "approval-centre" or "adjustment" or "investigation")
         { view = window.investigationWorkspaceView; (body, actions) = id switch { "approval-centre" => (new int[] {3,7,8}, new int[] {9}), "adjustment" => (new int[] {3,5,6}, new int[] {}), _ => (new int[] {0,1,3,4}, new int[] {2}) }; }

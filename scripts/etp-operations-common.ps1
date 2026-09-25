@@ -224,12 +224,50 @@ function Assert-EtpCertificateCustody {
     }
 }
 
+function Test-EtpRotatableBackupReceipt {
+    # Only an ordinary scheduled backup may ever be deleted by rotation. A receipt written
+    # before the purpose field existed has none, and is scheduled. Anything else - a
+    # pre-migration backup, or a purpose this build cannot interpret - is kept, because the
+    # cost of keeping a file is disk and the cost of deleting one is the database.
+    param([Parameter(Mandatory)][object]$Receipt)
+    if ($null -eq $Receipt.PSObject.Properties['purpose']) { return $true }
+    return ([string]$Receipt.purpose) -ceq 'SCHEDULED'
+}
+
+function Invoke-EtpBackupRotation {
+    # Deletes the scheduled backups retention no longer needs and returns the bytes that
+    # reclaimed. Only verified receipt/file pairs for this database are considered: a
+    # receipt that cannot be read, and any .bak without one, is left for an administrator.
+    # Extracted from backup-etp-database.ps1 so it can also run on the refusal path there.
+    param([Parameter(Mandatory)][string]$Directory,[Parameter(Mandatory)][string]$Database)
+    $receipts = @()
+    foreach ($candidate in Get-ChildItem -LiteralPath $Directory -Filter "$Database-*.bak.receipt.json" -File) {
+        try { $receipts += Read-EtpVerifiedReceipt -ReceiptPath $candidate.FullName -BackupDirectory $Directory -Database $Database -SkipCertificateCheck }
+        catch { Write-Warning 'An older backup receipt needs review; its files were retained.' }
+    }
+    $keep = @(Get-EtpRetainedBackupReceipts $receipts | ForEach-Object backupPath)
+    $reclaimed = [int64]0
+    foreach ($old in $receipts) {
+        if ($old.backupPath -in $keep) { continue }
+        # Read-EtpVerifiedReceipt already checked absolute containment and rejected junctions.
+        $reclaimed += [int64]$old.lengthBytes
+        Remove-Item -LiteralPath $old.backupPath -Force
+        Remove-Item -LiteralPath "$($old.backupPath).receipt.json" -Force
+    }
+    return $reclaimed
+}
+
 function Get-EtpRetainedBackupReceipts {
     param([object[]]$Receipts)
     # Latest successful backup per UTC day, plus latest per calendar month.
+    # A pre-migration backup is the only copy of the database as it was before a schema
+    # change. It is kept whatever its date, and it does not occupy a day or a month slot,
+    # so taking one never shortens the ordinary history. Before 25 September 2026 it had
+    # neither protection: setup's own backup was deleted by that same day's rotation.
     $ordered = @($Receipts | Sort-Object { ([datetimeoffset]$_.verifiedAtUtc).UtcDateTime } -Descending)
     $days = @{}; $months = @{}; $keep = @{}
     foreach ($receipt in $ordered) {
+        if (-not (Test-EtpRotatableBackupReceipt -Receipt $receipt)) { $keep[$receipt.backupPath]=$receipt; continue }
         $date = ([datetimeoffset]$receipt.verifiedAtUtc).UtcDateTime
         $day = $date.ToString('yyyy-MM-dd'); $month = $date.ToString('yyyy-MM')
         if (-not $days.ContainsKey($day) -and $days.Count -lt 14) { $days[$day]=$true; $keep[$receipt.backupPath]=$receipt }
