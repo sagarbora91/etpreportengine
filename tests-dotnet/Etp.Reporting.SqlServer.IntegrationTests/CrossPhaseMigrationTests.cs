@@ -63,7 +63,7 @@ public sealed class CrossPhaseMigrationTests
 
     private sealed class MigrationDatabase : IAsyncDisposable
     {
-        private readonly string name = "EtpCrossPhaseMigration_" + Guid.NewGuid().ToString("N");
+        private readonly string name = "EtpPhase0Test_CrossPhaseMigration_" + Guid.NewGuid().ToString("N");
         public string ConnectionString { get; }
         public MigrationDatabase() => ConnectionString = TestSqlConnections.ForDatabase(name, pooling: false);
         public async Task<object?> ExecuteAsync(string sql)

@@ -92,7 +92,7 @@ public sealed class PhaseOneUpgradeSqlTests
 
     private sealed class UpgradeDatabase : IAsyncDisposable
     {
-        private readonly string name = "EtpPhase1Upgrade_" + Guid.NewGuid().ToString("N");
+        private readonly string name = "EtpPhase0Test_Phase1Upgrade_" + Guid.NewGuid().ToString("N");
         public string ConnectionString { get; }
         public UpgradeDatabase()
         {
@@ -107,7 +107,7 @@ public sealed class PhaseOneUpgradeSqlTests
         }
         public async ValueTask DisposeAsync()
         {
-            if (!name.StartsWith("EtpPhase1Upgrade_", StringComparison.Ordinal)) throw new InvalidOperationException("Unsafe test database name.");
+            if (!name.StartsWith("EtpPhase0Test_Phase1Upgrade_", StringComparison.Ordinal)) throw new InvalidOperationException("Unsafe test database name.");
             SqlConnection.ClearAllPools();
             var master = new SqlConnectionStringBuilder(ConnectionString) { InitialCatalog = "master" };
             await using var connection = new SqlConnection(master.ConnectionString);

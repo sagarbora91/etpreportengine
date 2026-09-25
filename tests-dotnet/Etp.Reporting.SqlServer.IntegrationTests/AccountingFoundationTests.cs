@@ -149,7 +149,7 @@ public sealed class AccountingFoundationTests
     [Fact]
     public async Task Legacy_status_upgrade_retains_amounts_reasons_and_checksums_and_backfills_invoice_reservations()
     {
-        var name="EtpAccountingUpgrade_"+Guid.NewGuid().ToString("N");
+        var name="EtpPhase0Test_AccountingUpgrade_"+Guid.NewGuid().ToString("N");
         var connectionString=TestSqlConnections.ForDatabase(name);
         var source=new DirectoryMigrationSource(Path.Combine(AppContext.BaseDirectory,"database","migrations"));
         async Task<object?> Execute(string sql)
@@ -179,7 +179,7 @@ public sealed class AccountingFoundationTests
         }
         finally
         {
-            if(!name.StartsWith("EtpAccountingUpgrade_",StringComparison.Ordinal)) throw new InvalidOperationException("Unsafe fixture name");
+            if(!name.StartsWith("EtpPhase0Test_AccountingUpgrade_",StringComparison.Ordinal)) throw new InvalidOperationException("Unsafe fixture name");
             SqlConnection.ClearAllPools(); var master=new SqlConnectionStringBuilder(connectionString){InitialCatalog="master"};
             await using var connection=new SqlConnection(master.ConnectionString); await connection.OpenAsync();
             await using var command=new SqlCommand($"IF DB_ID(N'{name}') IS NOT NULL BEGIN ALTER DATABASE [{name}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{name}]; END",connection);
