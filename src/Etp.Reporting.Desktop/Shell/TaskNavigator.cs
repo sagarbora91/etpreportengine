@@ -47,10 +47,10 @@ public sealed partial class TaskNavigator(MainWindow window)
     /// </summary>
     internal static (int[] Body, int[] Actions) AdministrationTaskLayout(string id) => id switch
     {
-        "users" => (new int[] {5,6,8,13,14}, new int[] {7}),
-        "kpi" or "profiles" => (new int[] {10,11,13,14}, new int[] {}),
-        "health" => (new int[] {16,17,13,14}, new int[] {18}),
-        _ => (new int[] {0,1,3,13,14}, new int[] {2})
+        "users" => (new int[] {5,6,8,12,13,14}, new int[] {7}),
+        "kpi" or "profiles" => (new int[] {10,11,12,13,14}, new int[] {}),
+        "health" => (new int[] {16,17,12,13,14}, new int[] {18}),
+        _ => (new int[] {0,1,3,12,13,14}, new int[] {2})
     };
 
     private void RememberContext(WorkspaceRoute next)
@@ -481,7 +481,7 @@ public sealed partial class TaskNavigator(MainWindow window)
                 // Indices are positions in DailyWorkflowWorkspaceView's root StackPanel.
                 // CashQuickFields was inserted at 7, so every child from 7 onward moved
                 // down by one and each entry below was corrected to match.
-                "manual" => (new int[] {8,3,6}, new int[] {8}), "stock-count" => (new int[] {2,12,3,11}, new int[] {12}),
+                "manual" => (new int[] {7,8,3,6}, new int[] {8}), "stock-count" => (new int[] {2,12,3,11}, new int[] {12}),
                 "staff-target" => (new int[] {2,14,3}, new int[] {14}), "finalisation" => (new int[] {2,15,3}, new int[] {15}),
                 "readiness" => (new int[] {3,15,17,18}, new int[] {15,16}), _ => (new int[] {2,3,17}, new int[] {16})
             };
@@ -513,9 +513,9 @@ public sealed partial class TaskNavigator(MainWindow window)
         else if (id is "approval-centre" or "adjustment" or "investigation")
         { view = window.investigationWorkspaceView; (body, actions) = id switch { "approval-centre" => (new int[] {3,7,8}, new int[] {9}), "adjustment" => (new int[] {3,5,6}, new int[] {}), _ => (new int[] {0,1,3,4}, new int[] {2}) }; }
         else if (id is "backups" or "support-package" or "recovery")
-        { view = window.operationsWorkspaceView; body = new int[] {29}; actions = new int[] {28}; window.operationsWorkspaceView.SelectMaintenanceTask(id); }
+        { view = window.operationsWorkspaceView; body = new int[] {27,29}; actions = new int[] {28}; window.operationsWorkspaceView.SelectMaintenanceTask(id); }
         else if (id == "watch-folder")
-        { view = window.operationsWorkspaceView; body = new int[] {2,11,12,13,14,15,16,17,18,19,21,22,24,25}; actions = [20,23]; }
+        { view = window.operationsWorkspaceView; body = new int[] {2,11,12,13,14,15,16,17,18,19,21,22,24,25}; actions = [0,20,23]; }
         else { view = window.operationsWorkspaceView; window.operationsWorkspaceView.SelectIssueTask(id); body = id is "trends" ? new int[] {1,2,3,4,5} : new int[] {1,2,8,7}; actions = id is "trends" ? new int[] {0} : new int[] {0,8}; }
         FocusedTaskLayout.Show(view, task.Title, body, actions);
         ApplyHiddenScope(view);

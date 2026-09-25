@@ -10,6 +10,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Etp.Reporting.Desktop;
 using Etp.Reporting.Desktop.Composition;
+using Etp.Reporting.Desktop.Modules.Imports;
 using Etp.Reporting.Desktop.Modules.Settings;
 using Etp.Reporting.Reporting;
 using Microsoft.Data.SqlClient;
@@ -18,22 +19,24 @@ using Xunit.Abstractions;
 namespace Etp.Reporting.SqlServer.IntegrationTests;
 
 /// <summary>
-/// Run alone, after all Phase 5 branches are integrated. No configured database is
-/// accepted: the fixture creates and drops its own randomly named database.
-/// These are themed WPF logical-pixel captures, not Windows DPI/VM certification.
+/// The default gate walks every role-reachable task in a disposable database.
+/// Optional themed WPF captures are not Windows DPI/VM or production certification.
 /// </summary>
 [Collection("Full MainWindow smoke")]
 public sealed class PhaseFiveFullWindowCaptureTests(ITestOutputHelper output)
 {
     private static readonly DateOnly Day = new(2026, 8, 25);
     private sealed record Capture(string Role, string Task, int Width, int Height, string File, int DistinctSampleColours);
+    private sealed record RoleWalk(IReadOnlyList<Capture> Captures, IReadOnlyDictionary<string, int> Destinations, IReadOnlyList<string> Failures);
 
-    [PhaseFiveCaptureFact]
-    public async Task Five_rails_and_phase_five_workflows_render_with_disposable_synthetic_data_for_each_role()
+    [Fact]
+    public async Task Every_role_reachable_destination_loads_with_disposable_data_and_optional_captures()
     {
-        var evidence = Path.GetFullPath(Environment.GetEnvironmentVariable("ETP_PHASE5_UI_EVIDENCE")!);
-        Directory.CreateDirectory(evidence);
-        var help = HelpOutputDirectory();
+        // The role walk is a default gate. Only raster artifacts require opt-in.
+        var suppliedEvidence = Environment.GetEnvironmentVariable("ETP_PHASE5_UI_EVIDENCE");
+        var evidence = Environment.GetEnvironmentVariable("ETP_PHASE5_UI_CAPTURE") == "1" && !string.IsNullOrWhiteSpace(suppliedEvidence)
+            ? Directory.CreateDirectory(Path.GetFullPath(suppliedEvidence)).FullName : null;
+        var help = evidence is null ? null : HelpOutputDirectory();
         var settings = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "EtpPhaseFiveCapture", Guid.NewGuid().ToString("N"))).FullName;
         var realSettings = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "EtpReporting", "settings.json");
         var settingsHash = HashIfPresent(realSettings);
@@ -44,18 +47,26 @@ public sealed class PhaseFiveFullWindowCaptureTests(ITestOutputHelper output)
             await database.InitializeAsync();
             await SeedAsync(database);
             new DesktopSettingsStore(settings).Save(database.ConnectionString);
-            var captures = await CaptureOnStaAsync(database, settings, evidence, help);
-            Assert.Equal(66, captures.Count);
-            await File.WriteAllTextAsync(Path.Combine(evidence, "capture-manifest.json"), JsonSerializer.Serialize(new
+            var result = await WalkOnStaAsync(database, settings, evidence, help);
+            foreach (var (role, count) in result.Destinations)
+                output.WriteLine($"Walked every available destination for {role}: {count}.");
+            Assert.True(result.Failures.Count == 0, string.Join(Environment.NewLine, result.Failures));
+            var captures = result.Captures;
+            if (evidence is not null)
             {
+                Assert.Equal(66, captures.Count);
+                await File.WriteAllTextAsync(Path.Combine(evidence, "capture-manifest.json"), JsonSerializer.Serialize(new
+                {
                 generatedUtc = DateTimeOffset.UtcNow,
                 fixtureDatabase = database.Name,
                 data = "Synthetic demonstration data only; generated fixture database is dropped on exit.",
                 evidence = "Real shown MainWindow; themed WPF at 96 DPI and exact logical viewport sizes. Application-role rendering, not separate Windows-account or native DPI validation. No export, sharing, scheduler installation or approval decision is invoked by the UI.",
                 checks = "Nonblank opaque pixels, five visible rails, shell content inside viewport, role-gated destinations, successful startup and unchanged real preferences/connection settings.",
                 captures
-            }, new JsonSerializerOptions { WriteIndented = true }));
-            output.WriteLine($"Captured {captures.Count} synthetic Phase 5 screens: {evidence}");
+                }, new JsonSerializerOptions { WriteIndented = true }));
+                output.WriteLine($"Captured {captures.Count} synthetic Phase 5 screens: {evidence}");
+            }
+            else Assert.Empty(captures);
         }
         finally
         {
@@ -69,9 +80,9 @@ public sealed class PhaseFiveFullWindowCaptureTests(ITestOutputHelper output)
         }
     }
 
-    private static async Task<IReadOnlyList<Capture>> CaptureOnStaAsync(SqlDatabaseFixture database, string settings, string evidence, string? help)
+    private static async Task<RoleWalk> WalkOnStaAsync(SqlDatabaseFixture database, string settings, string? evidence, string? help)
     {
-        var completion = new TaskCompletionSource<IReadOnlyList<Capture>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var completion = new TaskCompletionSource<RoleWalk>(TaskCreationOptions.RunContinuationsAsynchronously);
         var thread = new Thread(() =>
         {
             System.Windows.Application? application = null;
@@ -91,13 +102,16 @@ public sealed class PhaseFiveFullWindowCaptureTests(ITestOutputHelper output)
                     try
                     {
                         var captures = new List<Capture>();
+                        var destinations = new Dictionary<string, int>();
+                        var failures = new List<string>();
                         foreach (var role in new[] { "OWNER", "STORE_MANAGER", "VIEWER" })
                         {
-                            File.AppendAllText(Path.Combine(evidence, "capture-progress.txt"), $"{DateTimeOffset.UtcNow:O} Starting {role}\n");
+                            if (evidence is not null) File.AppendAllText(Path.Combine(evidence, "capture-progress.txt"), $"{DateTimeOffset.UtcNow:O} Starting {role}\n");
                             // Update only the fixture's application claim. SQL role enforcement
                             // has separate integration tests; this does not impersonate Windows.
                             await database.ExecuteAsync($"UPDATE dbo.application_users SET role_code='{role}',display_name=N'Demo {role.Replace('_', ' ')}',is_active=1 WHERE windows_identity=SUSER_SNAME();");
                             window = new DesktopCompositionRoot(AppContext.BaseDirectory, database.ConnectionString, settings, temporaryConnection: true).CreateMainWindow();
+                            var integrationHealthHeading = (TextBlock)((Panel)window.administrationWorkspaceView.Content).Children[12];
                             window.Title = "ETP Phase 5 demonstration — synthetic data";
                             window.WindowState = WindowState.Normal;
                             // Remove the native caption so content has precisely the requested
@@ -118,37 +132,42 @@ public sealed class PhaseFiveFullWindowCaptureTests(ITestOutputHelper output)
                             var store = Assert.Single(window.ShellStoreSelector.Items.OfType<ComboBoxItem>(), item => item.Tag?.ToString() == "CAPTURE");
                             window.ShellStoreSelector.SelectedItem = store;
                             await SettleAsync(window);
+                            window.reportsWorkspaceView.ApplyScope(Day.ToDateTime(TimeOnly.MinValue), Day.ToDateTime(TimeOnly.MinValue), "CAPTURE");
+                            ((DatePicker)window.operationsWorkspaceView.FindName("OperationsFromInput")).SelectedDate = Day.ToDateTime(TimeOnly.MinValue);
+                            ((DatePicker)window.operationsWorkspaceView.FindName("OperationsToInput")).SelectedDate = Day.ToDateTime(TimeOnly.MinValue);
                             Assert.False(TaskNavigation.Find("prepare-batch")!.IsAllowed(window.CurrentShellAccess) && role != "OWNER");
                             Assert.False(TaskNavigation.Find("approval-centre")!.IsAllowed(window.CurrentShellAccess) && role != "OWNER");
                             Assert.False(TaskNavigation.Find("register-courier")!.IsAllowed(window.CurrentShellAccess) && role == "VIEWER");
                             Assert.False(TaskNavigation.Find("import-files")!.IsAllowed(window.CurrentShellAccess) && role == "VIEWER");
 
-                            var tasks = new List<(string Name, string Id)>
+                            var screenshots = ScreenshotTasks(role);
+                            var tasks = TaskNavigation.All.Where(task => task.Available && task.IsAllowed(window.CurrentShellAccess)).ToArray();
+                            var walked = new List<string>();
+                            foreach (var destination in tasks)
                             {
-                                ("Today", "report-dsr"), ("Import", role == "VIEWER" ? "import-history" : "import-files"),
-                                ("Reports", "reports-list"), ("Stock", "report-stock-closing"), ("Settings", "settings"),
-                                ("Archive", "generations"), ("Close-day", "readiness"), ("Help", "help:getting-started")
-                            };
-                            if (role != "VIEWER") tasks.AddRange([("Courier", "register-courier"), ("Inward", "register-inward"), ("Investigation", "investigation")]);
-                            if (role == "OWNER") tasks.AddRange([("Accounting", "prepare-batch"), ("Automatic-import", "watch-folder"), ("Approvals", "approval-centre")]);
-                            foreach (var (name, id) in tasks)
-                            {
+                                var id = destination.Id;
                                 // DSR intentionally changes the header to all stores. Restore
                                 // the demonstration store before each following workflow.
-                                if (id != "report-dsr")
+                                if (destination.ReportCode is not ("dsr" or "sales-combined"))
                                 {
                                     window.ShellStoreSelector.SelectedItem = store;
                                     await SettleAsync(window);
                                 }
-                                var destination = Assert.IsType<TaskDestination>(TaskNavigation.Find(id));
                                 Assert.True(destination.IsAllowed(window.CurrentShellAccess), $"Expected {role} to access {id}.");
                                 window.ApplyNavigationDecision(window.shell.Navigate(destination.Route, window.CurrentShellAccess));
+                                await WaitForWorkspaceOperationsAsync(window, () => dispatcherFailure);
                                 await RefreshTaskAsync(window, destination);
+                                await WaitForWorkspaceOperationsAsync(window, () => dispatcherFailure);
                                 await SettleAsync(window);
-                                await AssertWorkflowDataAsync(window, id, () => dispatcherFailure);
+                                if (window.FocusedWorkspaceHost.Content is ImportProblemsView problems)
+                                    await WaitUntilAsync(() => problems.HasLoaded, () => dispatcherFailure);
+                                if (screenshots.ContainsKey(id)) await AssertWorkflowDataAsync(window, id, () => dispatcherFailure);
                                 Assert.Equal(id, window.shell.CurrentRoute.TaskId);
                                 Assert.NotNull(window.FocusedWorkspaceHost.Content);
                                 Assert.Null(dispatcherFailure);
+                                walked.Add(id);
+                                CheckTaskContent(window, destination, role, integrationHealthHeading, failures);
+                                if (evidence is null || !screenshots.TryGetValue(id, out var name)) continue;
                                 foreach (var (width, height) in new[] { (1366, 768), (816, 480) })
                                 {
                                     window.Width = width; window.Height = height;
@@ -167,16 +186,19 @@ public sealed class PhaseFiveFullWindowCaptureTests(ITestOutputHelper output)
                                         SavePng(bitmap, Path.Combine(help, name + ".png"));
                                 }
                             }
+                            Assert.Equal(tasks.Select(task => task.Id).Order(), walked.Order());
+                            destinations.Add(role, walked.Count);
                             // No UI operation can outlive the fixture database.
                             var drafts = UnexpectedDrafts(window);
-                            File.AppendAllText(Path.Combine(evidence, "capture-progress.txt"), $"{DateTimeOffset.UtcNow:O} Closing {role}; unexpected drafts: {string.Join(", ", drafts)}\n");
-                            Assert.Empty(drafts);
+                            if (evidence is not null) File.AppendAllText(Path.Combine(evidence, "capture-progress.txt"), $"{DateTimeOffset.UtcNow:O} Closing {role}; unexpected drafts: {string.Join(", ", drafts)}\n");
+                            if (drafts.Count != 0) failures.Add($"{role}: navigation created unexpected drafts: {string.Join(", ", drafts)}");
+                            DiscardFixtureDrafts(window);
                             await window.importWorkspaceView.DisposeAsync();
                             window.Close(); window = null;
                             await application.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
                             Assert.Null(dispatcherFailure);
                         }
-                        completion.TrySetResult(captures);
+                        completion.TrySetResult(new(captures, destinations, failures));
                     }
                     catch (Exception exception) { completion.TrySetException(exception); }
                     finally
@@ -199,12 +221,109 @@ public sealed class PhaseFiveFullWindowCaptureTests(ITestOutputHelper output)
     private static async Task RefreshTaskAsync(MainWindow window, TaskDestination task)
     {
         if (task.ReportCode is not null) await window.reportsWorkspaceView.RunReportAsync(task.ReportCode);
-        else if (task.Id == "generations") await window.archiveWorkspaceView.RefreshAsync();
-        else if (task.Id == "readiness") await window.dailyWorkflowWorkspace.RefreshAsync();
+        else if (task.Id == "import-history") await window.importHistoryView!.ActivateAsync(new(Day, Day, "CAPTURE"));
+        else if (task.Id == "source-inbox") await window.sourceInboxWorkspaceView.RefreshAsync();
+        else if (task.Destination == "Dashboard") await window.RefreshDashboardAsync();
+        else if (task.Destination == "Report Archive") await window.archiveWorkspaceView.RefreshAsync();
+        else if (task.Destination is "Daily Workflow" or "Manual Entry") await window.dailyWorkflowWorkspace.RefreshAsync();
         else if (task.Id.StartsWith("register-", StringComparison.Ordinal)) await window.registersWorkspaceView.RefreshAsync();
         else if (task.Id == "prepare-batch") await window.accountingWorkspaceView.RefreshAsync();
         else if (task.Id == "approval-centre") await window.investigationWorkspaceView.RefreshApprovalsAsync();
-        else if (task.Id == "watch-folder") await window.operationsWorkspaceView.RefreshAsync();
+        else if (task.Id is "users" or "kpi" or "health" or "stores") await window.administrationWorkspaceView.RefreshAsync();
+        else if (task.Destination == "Operations Center" && task.Id is not ("investigation" or "adjustment")) await window.operationsWorkspaceView.RefreshAsync();
+    }
+
+    private static Task WaitForWorkspaceOperationsAsync(MainWindow window, Func<Exception?> failure) => WaitUntilAsync(() =>
+        !window.dailyWorkflowWorkspace.IsBusy && !window.registersWorkspaceView.IsBusy && !window.accountingWorkspaceView.IsBusy &&
+        !window.archiveWorkspaceView.IsBusy && !window.operationsWorkspaceView.IsBusy && !window.administrationWorkspaceView.IsBusy &&
+        !window.investigationWorkspaceView.IsBusy && !window.sourceInboxWorkspaceView.IsBusy && !window.importWorkspaceView.IsBusy &&
+        !window.settingsWorkspace.IsBusy && window.importHistoryView?.IsLoading != true, failure);
+
+    private static IReadOnlyDictionary<string, string> ScreenshotTasks(string role)
+    {
+        // Artifact volume is deliberate; coverage is always the complete catalogue above.
+        var tasks = new Dictionary<string, string>
+        {
+            ["report-dsr"] = "Today", [role == "VIEWER" ? "import-history" : "import-files"] = "Import",
+            ["reports-list"] = "Reports", ["report-stock-closing"] = "Stock", ["settings"] = "Settings",
+            ["generations"] = "Archive", ["readiness"] = "Close-day", ["help:getting-started"] = "Help"
+        };
+        if (role != "VIEWER")
+        {
+            tasks.Add("register-courier", "Courier"); tasks.Add("register-inward", "Inward"); tasks.Add("investigation", "Investigation");
+        }
+        if (role == "OWNER")
+        {
+            tasks.Add("prepare-batch", "Accounting"); tasks.Add("watch-folder", "Automatic-import"); tasks.Add("approval-centre", "Approvals");
+        }
+        return tasks;
+    }
+
+    private static void CheckTaskContent(MainWindow window, TaskDestination task, string role, TextBlock integrationHealthHeading, List<string> failures)
+    {
+        void Require(bool condition, string message)
+        {
+            if (!condition) failures.Add($"{role} / {task.Id}: {message}");
+        }
+        var nodes = Attached(window.FocusedWorkspaceHost).ToArray();
+        var text = nodes.OfType<TextBlock>().ToArray();
+        var buttons = nodes.OfType<Button>().ToArray();
+        Require(window.FocusedWorkspaceLayer.Visibility == Visibility.Visible, "Focused workspace is hidden.");
+        Require(nodes.Any(node => node is TextBlock or Button or DataGrid), "Focused workspace has no rendered content.");
+        var loadFailures = new[] { "could not", "was not saved", "unable to", "does not have permission", "does not have application access", "report failed", "login failed", "permission denied", "SQL Server is unreachable", "database rejected" };
+        var statuses = text.Where(block => block.Name.Contains("Status", StringComparison.Ordinal) || block.Name.Contains("Result", StringComparison.Ordinal) || block.Name.Contains("Message", StringComparison.Ordinal))
+            .Select(block => (Name: block.Name, Text: block.Text)).ToList();
+        statuses.Add(("ApplicationStatus", window.ApplicationStatus.Text));
+        if (window.FocusedWorkspaceHost.Content is ImportHistoryView history) statuses.Add(("Import history", history.StatusText));
+        if (window.FocusedWorkspaceHost.Content is ImportProblemsView problems) statuses.Add(("Import problems", problems.MessageText));
+        foreach (var status in statuses)
+            Require(!loadFailures.Any(phrase => status.Text.Contains(phrase, StringComparison.OrdinalIgnoreCase)), $"{status.Name} reports a load failure: {status.Text}");
+        if (task.ReportCode is { } code)
+        {
+            Require(window.FocusedWorkspaceHost.Content switch
+            {
+                ReportWorkspaceControl report => report.SelectedReport?.Code == code && report.HasCurrentPreview,
+                DailySalesReportWorkspace daily => code == "dsr" && daily.HasCurrentPreview,
+                _ => false
+            }, "Report did not produce a current preview for its selected scope.");
+        }
+        if (task.Id == "cash-input")
+        {
+            var fields = (WrapPanel)window.dailyWorkflowWorkspace.FindName("CashQuickFields");
+            Require(nodes.Contains(fields), "F-01: CashQuickFields is detached from the focused task.");
+            Require(fields.Visibility == Visibility.Visible && fields.Children.OfType<Button>().Any(), "F-01: cash-book labelled tiles did not load in their body panel.");
+        }
+        if (task.Id == "investigation")
+            Require(buttons.All(button => button.Name != "RefreshApprovalsButton"), "F-02: Investigation carries the Approvals refresh action.");
+        if (task.Id == "approval-centre")
+            Require(buttons.Any(button => button.Name == "RefreshApprovalsButton"), "F-02: Approvals is missing its refresh action.");
+        if (task.Id is "users" or "kpi" or "health" or "stores")
+        {
+            Require(text.Any(block => block.Name == "AdministrationStatus"), "F-03: administration status line is detached.");
+            Require(text.Contains(integrationHealthHeading), "F-03: integration health heading is detached.");
+        }
+        if (task.Id is "support-package" or "backups" or "recovery")
+        {
+            var guidance = task.Id switch
+            {
+                "support-package" => "aggregate-only diagnostic package",
+                "backups" => "checksum backup and verify it",
+                _ => "isolated temporary database"
+            };
+            Require(text.Any(block => block.Text.Contains(guidance, StringComparison.Ordinal)), $"F-04: {task.Title} has no explanatory guidance.");
+            Require(text.Any(block => block.Text == "Backup, recovery and support"), "F-04: maintenance task has no heading.");
+        }
+        if (task.Id == "watch-folder")
+            Require(buttons.Any(button => button.Content?.ToString() == "Refresh operations" && button.IsEnabled), "F-05: Automatic import has no usable refresh action.");
+    }
+
+    private static IEnumerable<DependencyObject> Attached(DependencyObject root)
+    {
+        foreach (var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>())
+        {
+            yield return child;
+            foreach (var descendant in Attached(child)) yield return descendant;
+        }
     }
 
     private static IReadOnlyList<string> UnexpectedDrafts(MainWindow window)
@@ -414,14 +533,5 @@ public sealed class PhaseFiveFullWindowCaptureTests(ITestOutputHelper output)
         command.Parameters.AddWithValue("@document", json);
         command.Parameters.AddWithValue("@hash", Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(json))).ToLowerInvariant());
         await command.ExecuteNonQueryAsync();
-    }
-}
-
-public sealed class PhaseFiveCaptureFactAttribute : FactAttribute
-{
-    public PhaseFiveCaptureFactAttribute()
-    {
-        if (Environment.GetEnvironmentVariable("ETP_PHASE5_UI_CAPTURE") != "1" || string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("ETP_PHASE5_UI_EVIDENCE")))
-            Skip = "Opt-in disposable capture: set ETP_PHASE5_UI_CAPTURE=1 and ETP_PHASE5_UI_EVIDENCE to an artifact directory; run alone.";
     }
 }

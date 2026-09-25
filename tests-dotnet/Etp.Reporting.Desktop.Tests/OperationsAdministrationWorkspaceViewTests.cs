@@ -188,6 +188,7 @@ public sealed class OperationsAdministrationWorkspaceViewTests
         {
             var (body, actions) = TaskNavigator.AdministrationTaskLayout(id);
             Assert.Contains(14, body.Concat(actions));
+            Assert.Contains(12, body.Concat(actions));
         }
     }
 

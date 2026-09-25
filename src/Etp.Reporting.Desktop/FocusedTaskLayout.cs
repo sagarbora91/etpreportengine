@@ -57,9 +57,9 @@ public static class FocusedTaskLayout
         }
         var guidance = title switch
         {
-            "Support Package" => "Create an aggregate-only diagnostic package. Source rows and confidential identifiers are excluded. The result shows the saved package location.",
+            "Support package" => "Create an aggregate-only diagnostic package. Source rows and confidential identifiers are excluded. The result shows the saved package location.",
             "Backups" => "Create a checksum backup and verify it. The result reports whether verification succeeded and identifies the backup location.",
-            "Restore & Recovery Drill" => "Restore a backup into an isolated temporary database, check integrity and source history, then remove that temporary database. The active database is retained.",
+            "Recovery drill" => "Restore a backup into an isolated temporary database, check integrity and source history, then remove that temporary database. The active database is retained.",
             _ => null
         };
         if (guidance is not null) actionPanel.Children.Add(new TextBlock { Text = guidance, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,12,0,0), MaxWidth = 720, HorizontalAlignment = HorizontalAlignment.Left });
