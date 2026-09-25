@@ -69,7 +69,21 @@ if ($encrypts)
 }
 else { Write-Warning 'This SQL Server edition cannot encrypt backups. The backup file is unencrypted; protect the backup folder at rest.' }
 $drive = [IO.DriveInfo]::new([IO.Path]::GetPathRoot($directory))
-if ($drive.AvailableFreeSpace / 1GB -lt $MinimumFreeSpaceGb) { throw 'Backup storage is below the required free-space limit.' }
+if ($drive.AvailableFreeSpace / 1GB -lt $MinimumFreeSpaceGb) {
+    # Rotation runs only after a successful backup, so once the drive falls below the limit
+    # the folder can never shrink by itself: the backup refuses, rotation never runs, and
+    # every night after that fails the same way until somebody deletes files by hand.
+    # Reclaim what retention no longer needs, then look again. This deletes nothing that a
+    # successful backup would have kept, and no safety backup at all, so it cannot trade a
+    # recovery point for disk space. Found reviewing the purpose change on 25 September 2026;
+    # the defect is older than that change, which only makes the limit arrive sooner.
+    $reclaimedBytes = Invoke-EtpBackupRotation -Directory $directory -Database $Database
+    $drive = [IO.DriveInfo]::new([IO.Path]::GetPathRoot($directory))
+    if ($drive.AvailableFreeSpace / 1GB -lt $MinimumFreeSpaceGb) {
+        throw "Backup storage is below the required free-space limit. Expired backups were removed first and reclaimed $([math]::Round($reclaimedBytes / 1GB, 2)) GB, which is still not enough. Free space on this drive, or remove backups the retention policy is keeping."
+    }
+    Write-Warning "Backup storage was below the required free-space limit; removing expired backups reclaimed $([math]::Round($reclaimedBytes / 1GB, 2)) GB. Review how much this drive has left."
+}
 $backupPath = Join-Path $directory "$Database-$([DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss'))-$([Guid]::NewGuid().ToString('N')).bak"
 $files = @(Invoke-EtpOperationsBroker -SqlCmd $sqlcmd -Server $ServerInstance -Database $Database -BackupPath $backupPath -Operation BACKUP)
 if ($encrypts) { Invoke-EtpSql -SqlCmd $sqlcmd -Server $ServerInstance -Query "IF NOT EXISTS(SELECT 1 FROM master.sys.certificates WHERE name='EtpBackupCert' AND thumbprint=0x$certificateThumbprint) THROW 51321,'The backup certificate changed during backup; verify the encryption key before publishing a receipt.',1;" | Out-Null }
@@ -97,17 +111,5 @@ Invoke-EtpSql -SqlCmd $sqlcmd -Server $ServerInstance -Database $Database -Query
 # Record only after durable verification evidence exists. Upgrades may precede the audit procedure.
 Invoke-EtpSql -SqlCmd $sqlcmd -Server $ServerInstance -Database $Database -Query "IF OBJECT_ID('dbo.record_operational_audit','P') IS NOT NULL EXEC dbo.record_operational_audit 'Backup','Succeeded',N'$(if ($encrypts) { "Encrypted checksum backup verified" } else { "Checksum backup verified, not encrypted" })',N'operations';" | Out-Null
 # Rotation considers only valid receipts for this database. Unknown/unverified backups are never deleted.
-$receipts = @()
-foreach ($candidate in Get-ChildItem -LiteralPath $directory -Filter "$Database-*.bak.receipt.json" -File) {
-    try { $receipts += Read-EtpVerifiedReceipt -ReceiptPath $candidate.FullName -BackupDirectory $directory -Database $Database -SkipCertificateCheck }
-    catch { Write-Warning 'An older backup receipt needs review; its files were retained.' }
-}
-$keep = @(Get-EtpRetainedBackupReceipts $receipts | ForEach-Object backupPath)
-foreach ($old in $receipts) {
-    if ($old.backupPath -notin $keep) {
-        # Read-EtpVerifiedReceipt already checked absolute containment and rejected junctions.
-        Remove-Item -LiteralPath $old.backupPath -Force
-        Remove-Item -LiteralPath "$($old.backupPath).receipt.json" -Force
-    }
-}
+$null = Invoke-EtpBackupRotation -Directory $directory -Database $Database
 Write-Output $(if ($encrypts) { 'Encrypted backup and verification completed.' } else { 'Backup and verification completed. The file is NOT encrypted on this SQL Server edition; protect the backup folder at rest.' })

@@ -234,6 +234,29 @@ function Test-EtpRotatableBackupReceipt {
     return ([string]$Receipt.purpose) -ceq 'SCHEDULED'
 }
 
+function Invoke-EtpBackupRotation {
+    # Deletes the scheduled backups retention no longer needs and returns the bytes that
+    # reclaimed. Only verified receipt/file pairs for this database are considered: a
+    # receipt that cannot be read, and any .bak without one, is left for an administrator.
+    # Extracted from backup-etp-database.ps1 so it can also run on the refusal path there.
+    param([Parameter(Mandatory)][string]$Directory,[Parameter(Mandatory)][string]$Database)
+    $receipts = @()
+    foreach ($candidate in Get-ChildItem -LiteralPath $Directory -Filter "$Database-*.bak.receipt.json" -File) {
+        try { $receipts += Read-EtpVerifiedReceipt -ReceiptPath $candidate.FullName -BackupDirectory $Directory -Database $Database -SkipCertificateCheck }
+        catch { Write-Warning 'An older backup receipt needs review; its files were retained.' }
+    }
+    $keep = @(Get-EtpRetainedBackupReceipts $receipts | ForEach-Object backupPath)
+    $reclaimed = [int64]0
+    foreach ($old in $receipts) {
+        if ($old.backupPath -in $keep) { continue }
+        # Read-EtpVerifiedReceipt already checked absolute containment and rejected junctions.
+        $reclaimed += [int64]$old.lengthBytes
+        Remove-Item -LiteralPath $old.backupPath -Force
+        Remove-Item -LiteralPath "$($old.backupPath).receipt.json" -Force
+    }
+    return $reclaimed
+}
+
 function Get-EtpRetainedBackupReceipts {
     param([object[]]$Receipts)
     # Latest successful backup per UTC day, plus latest per calendar month.

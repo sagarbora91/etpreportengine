@@ -306,6 +306,69 @@ try {
             ) | ForEach-Object backupPath)
             Assert-True ($casingKept -contains 'wrong-casing.bak' -and $casingKept -contains 'padded.bak') 'A purpose this build does not write was treated as an ordinary backup.'
             Assert-True ($casingKept -contains 'exact.bak') 'The exact spelling lost its daily recovery point.'
+
+            # Rotation on disk, not only the selection above. Until 25 September 2026 its only
+            # caller ran after a successful backup, so a drive that had fallen below the
+            # free-space limit could never recover: the backup refused before it started,
+            # rotation never ran, and every night repeated it until somebody deleted files by
+            # hand. backup-etp-database.ps1 now also calls this on that refusal path, so what
+            # retention no longer needs can be reclaimed and the limit checked again.
+            $fixture = New-ReceiptFixture
+            $rotationDirectory = $fixture.BackupDirectory
+            function New-RotationBackup {
+                param([string]$Name,[string]$VerifiedAtUtc,[string]$Purpose,[int]$Size)
+                $path = Join-Path $rotationDirectory "DisposableDatabase-$Name.bak"
+                [IO.File]::WriteAllText($path, ('x' * $Size))
+                $entry = [ordered]@{
+                    schemaVersion=2; verified=$true; serverInstance='.\DisposableInstance'; database='DisposableDatabase'
+                    encryption='AES_256'; verifiedAtUtc=$VerifiedAtUtc; purpose=$Purpose
+                    backupPath=$path; lengthBytes=(Get-Item -LiteralPath $path).Length
+                    sha256=(Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash
+                    certificateReceipt=$fixture.CustodyPath; certificateThumbprint=$fixture.Custody.certificateThumbprint
+                }
+                Save-Json "$path.receipt.json" $entry
+                return $path
+            }
+            $supersededPath = New-RotationBackup -Name 'superseded' -VerifiedAtUtc '2026-09-24T08:00:00.0000000Z' -Purpose 'SCHEDULED' -Size 2048
+            $newestPath = New-RotationBackup -Name 'newest' -VerifiedAtUtc '2026-09-24T10:00:00.0000000Z' -Purpose 'SCHEDULED' -Size 512
+            $safetyPath = New-RotationBackup -Name 'premigration' -VerifiedAtUtc '2026-09-24T07:00:00.0000000Z' -Purpose 'PRE_MIGRATION' -Size 4096
+            # A .bak nobody wrote a receipt for is never enumerated, so it is never deleted.
+            $orphanPath = Join-Path $rotationDirectory 'DisposableDatabase-orphan.bak'
+            [IO.File]::WriteAllText($orphanPath, 'No receipt was ever written for this file.')
+
+            $reclaimed = Invoke-EtpBackupRotation -Directory $rotationDirectory -Database 'DisposableDatabase'
+            Assert-True (-not (Test-Path -LiteralPath $supersededPath)) 'The superseded backup from that day was not reclaimed.'
+            Assert-True (-not (Test-Path -LiteralPath "$supersededPath.receipt.json")) 'A reclaimed backup left its receipt behind.'
+            Assert-True ($reclaimed -eq 2048) "Rotation reported $reclaimed bytes reclaimed instead of the superseded file's size."
+            Assert-True (Test-Path -LiteralPath $newestPath) "That day's newest backup was deleted."
+            Assert-True (Test-Path -LiteralPath $safetyPath) 'The pre-migration backup was deleted by rotation on disk.'
+            Assert-True (Test-Path -LiteralPath $orphanPath) 'A backup with no receipt was deleted.'
+            Assert-True (Test-Path -LiteralPath $fixture.BackupPath) 'A backup on its own retained day was deleted.'
+            # Nothing left to reclaim: rotation is safe to call again and takes nothing more.
+            Assert-True ((Invoke-EtpBackupRotation -Directory $rotationDirectory -Database 'DisposableDatabase') -eq 0) 'A second rotation deleted a backup the first one kept.'
+
+            # The ordering the fix depends on cannot be exercised here - reaching the
+            # free-space check needs a live SQL connection for the edition probe - so assert
+            # it structurally rather than claim coverage this harness does not have: inside
+            # the block that refuses for space, rotation must be attempted before the throw.
+            $backupScriptPath = (Resolve-Path (Join-Path $PSScriptRoot 'backup-etp-database.ps1')).Path
+            $backupTokens = $null; $backupErrors = $null
+            $backupAst = [System.Management.Automation.Language.Parser]::ParseFile($backupScriptPath, [ref]$backupTokens, [ref]$backupErrors)
+            Assert-True (@($backupErrors).Count -eq 0) 'backup-etp-database.ps1 does not parse.'
+            $spaceGuards = @($backupAst.FindAll({ param($node)
+                $node -is [System.Management.Automation.Language.IfStatementAst] -and
+                $node.Extent.Text -match 'below the required free-space limit' }, $true))
+            Assert-True ($spaceGuards.Count -ge 1) 'The free-space guard is no longer an if statement.'
+            # The outermost of the nested pair: the one that owns the whole refusal path.
+            $guard = @($spaceGuards | Sort-Object { $_.Extent.Text.Length } -Descending)[0]
+            $rotationCalls = @($guard.FindAll({ param($node)
+                $node -is [System.Management.Automation.Language.CommandAst] -and
+                $node.GetCommandName() -eq 'Invoke-EtpBackupRotation' }, $true))
+            Assert-True ($rotationCalls.Count -eq 1) 'The free-space refusal no longer reclaims expired backups before giving up.'
+            $spaceThrows = @($guard.FindAll({ param($node)
+                $node -is [System.Management.Automation.Language.ThrowStatementAst] }, $true))
+            Assert-True ($spaceThrows.Count -eq 1) 'The free-space refusal has more than one exit.'
+            Assert-True ($rotationCalls[0].Extent.StartOffset -lt $spaceThrows[0].Extent.StartOffset) 'The free-space refusal throws before it reclaims anything, so the folder can never shrink.'
         }
         Paths {
             $fixture = New-ReceiptFixture
