@@ -1351,3 +1351,57 @@ Facts checked on this PC on 22 September 2026, read-only:
 - the tables used in D5 and D19 exist;
 - `EtpReporting` has AUTO_CLOSE on, so `sys.databases` shows its collation as `NULL` while it is closed (D15);
 - from a window that is not elevated, `sys.login_token` still lists `BUILTIN\Administrators`, with usage `DENY ONLY` (B6, C2). This PC's Owner connects through its own login, so the VM's unelevated result may instead be "Login failed".
+
+---
+
+## Outcome — 24 September 2026
+
+The VM had to be shrunk from 4 GB to 2.5 GB of RAM and cold-booted: the host could not spare
+4 GB. Its SQL is **Developer Edition 16.0.1000.6**, as the 17 September note warned, with a
+master key and `EtpBackupCert` already present. `ETPTest` holds its own sysadmin login, so the
+VM as found does **not** reproduce the shop PC's group-only administrator case.
+
+**Provisioning (Part B) passed.** `initialize-etp-operation-folders.ps1 -CreateAutomationAccount`
+created `DESKTOP-IPT0J6H\EtpAutomation` (enabled, not an administrator), wrote `operations.json`,
+and protected the folders. One trap confirmed for the second time: the script must be started as
+`powershell.exe -ExecutionPolicy Bypass -File ...`; invoked with `&` it is refused, because the
+VM's effective execution policy is the default `Restricted`. `docs/OPERATIONS.md` still shows the
+`&` form and needs the same correction the live runbook already carries.
+
+**Setup (Part C) is blocked on this edition, and that is a finding.** The new installer ran
+silently and failed with exit code 1603, leaving `SETUP-INCOMPLETE.txt`. The bootstrap log:
+
+    Existing database has pending bundled migrations. Creating and verifying a pre-migration backup before any migration runs.
+    FAILED: ItemNotFoundException: Cannot find path 'C:\ProgramData\EtpReporting\Backups\certificate-custody.json' because it does not exist.
+
+On an edition that encrypts backups, setup's own mandatory pre-migration backup needs the
+certificate custody receipts, so **an existing database cannot be upgraded until the Owner has
+exported the recovery keys** (Settings > Database > Encrypted backup recovery keys, two
+locations, a password of 16-128 characters). Nothing warns about this before setup runs, and the
+message an operator sees is a missing-file exception rather than "export the recovery keys
+first". Both this PC and the shop PC run Express, where backups are unencrypted (D9), so neither
+is affected. Recorded for a later product fix; the VM install stops here until the keys are
+exported.
+
+**Second-machine restore (Part D) passed — this is the Phase 4 recovery evidence.** This PC's
+verified backup `EtpReporting-20260924-102239-....bak` (15,454,208 bytes, `encryption: NONE`) was
+checked against its receipt on this PC, copied into the VM, and checked again there: hash and
+size matched both times. Then, inside the VM:
+
+- `RESTORE VERIFYONLY ... WITH CHECKSUM`: "The backup set on file 1 is valid."
+- Restored as `EtpRestoreCheck_<timestamp>`, a new name, with a `MOVE` for each of the two files
+  into a folder only Administrators, SYSTEM and the SQL service can read. Never `WITH REPLACE`,
+  and the VM's own `EtpReporting` was untouched.
+- `DBCC CHECKDB ... WITH NO_INFOMSGS, ALL_ERRORMSGS`: no output, exit code 0.
+- The copy came up `ONLINE | MULTI_USER | is_trustworthy_on 0 | is_db_chaining_on 0 | read_only 0`.
+- Row counts in the copy matched this PC exactly: sales_invoices 490, sales_lines 540,
+  sales_tenders 592, stock_movements 1079, source_lineage 3957, import_files 8,
+  application_users 3, schema_migrations 32, newest `0032_active_users_can_connect`.
+- `msdb` recorded the source as `DESKTOP-6IBM1J5\SQLEXPRESS`, copy-only, with checksums and no
+  encryptor.
+- The copy was dropped, the copied backup and its receipt deleted: **no shop data is left in the
+  VM**, and no `EtpRestoreCheck_*` database remains.
+
+**Not done in the VM:** its own backup and drill (blocked by the encrypted-key export above), and
+the group-only administrator case, which Sagar declined to have simulated there. That case is
+exercised for real by the shop PC install.

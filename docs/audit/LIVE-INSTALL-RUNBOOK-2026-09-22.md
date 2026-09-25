@@ -550,6 +550,7 @@ Run with the installer built from `70bf46e`. Every step below was observed, not 
 | E3 | Monthly Recovery Drill task started under the Microsoft-account-linked `Sagar` with S4U: result `0x00000000`. The open question from 22 Sep is answered |
 | E4 | Automated Operations ran as `EtpAutomation`, result `0x00000000` |
 | F | Six folders: no `BUILTIN\Users`, no `Everyone`; only Administrators, `EtpAutomation`, SYSTEM and the SQL service; **no change at all** from the record taken before setup |
+| G | `NT AUTHORITY\SYSTEM` deactivated in Settings > Users the same day, once both automation tasks had run: its application entry is inactive and its database access is now `DENY`. `EtpAutomation` was unaffected — CONNECT `GRANT`, with `etp_store_manager`, `etp_automation` and `db_backupoperator` all intact — which also shows that saving one user does not disturb another |
 
 ### The defect this run found: setup could never register its own tasks
 
@@ -569,3 +570,24 @@ Fixed in `70bf46e`.
 Corrected along the way: the "Log on as a batch job" right is **not** what caused this. A missing
 batch right returns `SCHED_S_BATCH_LOGON_PROBLEM`, which registers the task and only warns. The
 grant stays (a batch task does need it to start) but the earlier explanation was wrong.
+
+### First unattended run — 25 September 2026
+
+The laptop was shut down before the 22:00 backup on 24 September, so all three tasks missed their
+time and caught up when it was next switched on, as `StartWhenAvailable` intends. Checked at
+12:52 IST on 25 September, elevated:
+
+| Task | Account | Last run | Result | Next |
+|---|---|---|---|---|
+| ETP Reporting Automated Operations | `EtpAutomation` (S4U) | 25 Sep 12:48:18 | `0x00000000` | every 5 minutes |
+| ETP Reporting Daily Backup | `EtpAutomation` (S4U) | 25 Sep 12:48:18 | `0x00000000` | 25 Sep 22:00 |
+| ETP Reporting Monthly Recovery Drill | `Sagar` (S4U) | 25 Sep 12:48:18 | `0x00000000` | 26 Sep 08:00 |
+
+The backup task produced `EtpReporting-20260925-071854-....bak` (15 MB) and a receipt recorded by
+`DESKTOP-6IBM1J5\EtpAutomation` at `2026-09-25 07:18:56` UTC. Nobody started it: this is the first
+backup this installation has taken on its own, by the dedicated non-administrator account, through
+the signed module, with no password stored anywhere.
+
+Honest limit: `dbo.automation_runs` still shows only two rows, both from 26 August. The
+five-minute Automated Operations task exits successfully with nothing to do, and records a run
+only when it has work. That it ran is shown by the task result, not by a row.
