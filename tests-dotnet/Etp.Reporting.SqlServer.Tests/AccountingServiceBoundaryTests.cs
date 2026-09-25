@@ -106,7 +106,7 @@ public sealed class AccountingServiceBoundaryTests
             Batches =
             [
                 new(5, "WLMHW", new(2026, 8, 25), 17, 1, 10m, 10m, "APPROVED_READY",
-                    "OWNER", null, null, new(2026, 8, 25, 10, 0, 0))
+                    "OWNER", null, new(2026, 8, 25, 10, 0, 0))
             ],
             Entries =
             [

@@ -227,7 +227,7 @@ public sealed class SqlServerAccountingService : App.IAccountingService
     internal static App.AccountingBatchSummary Map(AccountingBatchRow source) =>
         new(source.Id, source.StoreCode, source.BusinessDate, source.ReportGenerationId,
             source.AccountingGeneration, source.DebitTotal, source.CreditTotal, source.Status,
-            source.ApprovedBy, source.ExportedUtc, source.TallyReference, source.CreatedUtc, source.BlockingReason);
+            source.ApprovedBy, source.ExportedUtc, source.CreatedUtc, source.BlockingReason);
 
     internal static AccountingEntryDraft Map(App.AccountingEntry source) =>
         new(source.LineNumber, source.BusinessEvent, source.LedgerName, source.DebitAmount,

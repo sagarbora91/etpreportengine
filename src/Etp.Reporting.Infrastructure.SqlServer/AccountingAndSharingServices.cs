@@ -36,7 +36,11 @@ public sealed class TallyXmlExportService
         AccountingBatchDraft batch, CancellationToken cancellationToken = default)
     {
         if (!batch.IsBalanced || batch.DebitTotal != batch.CreditTotal) throw new InvalidOperationException("Only a balanced accounting batch with complete mappings can be exported.");
-        var full = Path.GetFullPath(path); Directory.CreateDirectory(Path.GetDirectoryName(full)!); var temporary = full + $".{Guid.NewGuid():N}.tmp";
+        var full = Path.GetFullPath(path);
+        for (var candidate = full; !string.IsNullOrEmpty(candidate); candidate = Path.GetDirectoryName(candidate))
+            if ((File.Exists(candidate) || Directory.Exists(candidate)) && (File.GetAttributes(candidate) & FileAttributes.ReparsePoint) != 0)
+                throw new InvalidOperationException("Accounting exports cannot use linked folders or files.");
+        Directory.CreateDirectory(Path.GetDirectoryName(full)!); var temporary = full + $".{Guid.NewGuid():N}.tmp";
         var moved = false;
         try
         {

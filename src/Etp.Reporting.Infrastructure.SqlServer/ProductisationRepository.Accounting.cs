@@ -94,10 +94,10 @@ public sealed partial class ProductisationRepository
     public async Task<IReadOnlyList<AccountingBatchRow>> LoadAccountingBatchesAsync(CancellationToken token = default)
     {
         await EnsureOwnerAsync(token);
-        const string sql = "SELECT TOP(500) accounting_batch_id,store_code,business_date,daily_report_generation_id,accounting_generation,debit_total,credit_total,status,approved_by,exported_utc,tally_reference,created_utc,blocking_reason FROM dbo.accounting_batches ORDER BY business_date DESC,accounting_generation DESC";
+        const string sql = "SELECT TOP(500) accounting_batch_id,store_code,business_date,daily_report_generation_id,accounting_generation,debit_total,credit_total,status,approved_by,exported_utc,created_utc,blocking_reason FROM dbo.accounting_batches ORDER BY business_date DESC,accounting_generation DESC";
         await using var connection = await OpenAsync(token); await using var command = new SqlCommand(sql, connection);
         await using var reader = await command.ExecuteReaderAsync(token); var rows = new List<AccountingBatchRow>();
-        while (await reader.ReadAsync(token)) rows.Add(new(reader.GetInt64(0),reader.GetString(1),DateOnly.FromDateTime(reader.GetDateTime(2)),reader.GetInt64(3),reader.GetInt32(4),reader.GetDecimal(5),reader.GetDecimal(6),reader.GetString(7),OptionalString(reader,8),reader.IsDBNull(9)?null:reader.GetDateTime(9),OptionalString(reader,10),reader.GetDateTime(11),OptionalString(reader,12)));
+        while (await reader.ReadAsync(token)) rows.Add(new(reader.GetInt64(0),reader.GetString(1),DateOnly.FromDateTime(reader.GetDateTime(2)),reader.GetInt64(3),reader.GetInt32(4),reader.GetDecimal(5),reader.GetDecimal(6),reader.GetString(7),OptionalString(reader,8),reader.IsDBNull(9)?null:reader.GetDateTime(9),reader.GetDateTime(10),OptionalString(reader,11)));
         return rows;
     }
 
@@ -175,14 +175,14 @@ public sealed partial class ProductisationRepository
                 EXEC dbo.record_operational_audit 'AccountingExport','Succeeded',N'Accounting XML exported; Tally result has not been checked',N'database';
                 SELECT exported_utc,exported_by FROM dbo.accounting_export_receipts WHERE accounting_export_receipt_id=SCOPE_IDENTITY();
                 """, connection, transaction);
-            record.Parameters.AddWithValue("@id",batchId); record.Parameters.AddWithValue("@path",fullPath);
+            record.Parameters.AddWithValue("@id",batchId); record.Parameters.AddWithValue("@path",Path.GetFileName(fullPath));
             record.Parameters.AddWithValue("@hash",SqlServerImportFileRepository.NormalizeHash(hash)); Add(record,"@company",destination.CompanyName);
             record.Parameters.AddWithValue("@environment",destination.EnvironmentLabel);
             DateTime time; string actor;
             await using(var reader = await record.ExecuteReaderAsync(token)) { await reader.ReadAsync(token); time=reader.GetDateTime(0); actor=reader.GetString(1); }
             commitStarted = true;
             await transaction.CommitAsync(token);
-            return new(batchId,fullPath,hash,destination.CompanyName!,destination.EnvironmentLabel,time,actor);
+            return new(batchId,Path.GetFileName(fullPath),hash,destination.CompanyName!,destination.EnvironmentLabel,time,actor);
         }
         catch
         {

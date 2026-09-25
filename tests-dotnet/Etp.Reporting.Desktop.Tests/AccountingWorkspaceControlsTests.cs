@@ -23,7 +23,7 @@ public sealed class AccountingWorkspaceControlsTests
             var grid=(DataGrid)view.FindName("AccountingBatchGrid");
             foreach(var state in new[]{"DRAFT","BLOCKED","APPROVED_READY","EXPORTED_AWAITING_IMPORT","REJECTED"})
             {
-                grid.ItemsSource=new[]{new AccountingBatchSummary(1,"FIXTURE",new(2026,8,25),1,1,25,25,state,null,null,null,DateTime.UtcNow,"Missing mapping")};
+                grid.ItemsSource=new[]{new AccountingBatchSummary(1,"FIXTURE",new(2026,8,25),1,1,25,25,state,null,null,DateTime.UtcNow,"Missing mapping")};
                 grid.SelectedIndex=0;
                 Assert.Equal(state=="DRAFT",((Button)view.FindName("ApproveTaskButton")).IsEnabled);
                 Assert.Equal(state=="APPROVED_READY",((Button)view.FindName("TallyTaskButton")).IsEnabled);
@@ -31,7 +31,7 @@ public sealed class AccountingWorkspaceControlsTests
                 foreach(var name in new[]{"PreviewTaskButton","SaveTaskButton","ApproveTaskButton","RejectTaskButton","TallyTaskButton"})
                     Assert.Equal(Visibility.Visible,((Button)view.FindName(name)).Visibility);
             }
-            grid.ItemsSource=new[]{new AccountingBatchSummary(1,"FIXTURE",new(2026,8,25),1,1,25,25,"DRAFT",null,null,null,DateTime.UtcNow)};
+            grid.ItemsSource=new[]{new AccountingBatchSummary(1,"FIXTURE",new(2026,8,25),1,1,25,25,"DRAFT",null,null,DateTime.UtcNow)};
             grid.SelectedIndex=0; Assert.True(((Button)view.FindName("ApproveTaskButton")).IsEnabled);
             view.StoreCode="ANOTHER";
             Assert.Null(grid.SelectedItem); Assert.False(((Button)view.FindName("ApproveTaskButton")).IsEnabled);

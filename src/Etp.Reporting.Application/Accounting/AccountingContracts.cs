@@ -51,7 +51,6 @@ public sealed record AccountingBatchSummary(
     string Status,
     string? ApprovedBy,
     DateTime? ExportedUtc,
-    string? TallyReference,
     DateTime CreatedUtc,
     string? BlockingReason = null);
 

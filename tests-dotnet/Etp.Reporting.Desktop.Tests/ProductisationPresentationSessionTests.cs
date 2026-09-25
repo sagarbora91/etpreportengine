@@ -191,7 +191,7 @@ public sealed class ProductisationPresentationSessionTests
 
     private static AccountingBatchSummary Batch(string status) =>
         new(9, "WLMHW", new DateOnly(2026, 8, 25), 31, 2, 100, 100, status,
-            null, null, null, new DateTime(2026, 8, 25, 12, 0, 0, DateTimeKind.Utc));
+            null, null, new DateTime(2026, 8, 25, 12, 0, 0, DateTimeKind.Utc));
 
     private sealed class FakeArchiveQuery : IReportArchiveQuery<ReportPackDocument>
     {
