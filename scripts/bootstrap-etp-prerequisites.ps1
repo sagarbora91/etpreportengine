@@ -223,6 +223,9 @@ $serverEngineEdition = 0
 if ($serverParts.Count -ne 3 -or -not [int]::TryParse($serverParts[0], [ref]$serverMajorVersion) -or -not [int]::TryParse($serverParts[1], [ref]$serverEngineEdition)) { throw "SQL Server returned an unreadable version result." }
 Assert-EtpBootstrapSqlEdition $serverMajorVersion $serverEngineEdition $serverParts[2]
 Write-SetupLog "SQL Server compatibility preflight passed (major version $serverMajorVersion, engine edition $($serverParts[1]))."
+# The same test backup-etp-database.ps1 makes. Express and Web cannot encrypt a backup and
+# need no recovery keys; every other edition encrypts, and cannot back up without them.
+$editionEncryptsBackups = -not ($serverParts[2] -like '*Express*' -or $serverParts[2] -like '*Web*')
 
 Set-Service -Name $serviceName -StartupType Automatic
 & (Join-Path $PSScriptRoot 'initialize-etp-operation-folders.ps1') -SqlServiceIdentity ('NT SERVICE\'+$serviceName) -ServerInstance $ServerInstance -Database $Database -AutomationPrincipal $operationConfiguration.automationPrincipal -GrantAutomationFolderAccess
@@ -243,11 +246,20 @@ if ($databaseExistedBeforeMigration) {
 
     $appliedMigrationCount = [long](Invoke-SqlScalar -TargetDatabase $Database -Query "SET NOCOUNT ON; IF OBJECT_ID(N'dbo.schema_migrations',N'U') IS NULL SELECT CONVERT(bigint,0) ELSE SELECT COUNT_BIG(1) FROM dbo.schema_migrations;")
     if ($appliedMigrationCount -lt $migrationFiles.Count) {
+        # On an edition that encrypts, the pre-migration backup cannot be taken at all until
+        # the recovery keys have been exported. Refuse here, naming the step, instead of
+        # letting the backup script fail part-way into an upgrade. A clean install takes no
+        # pre-migration backup, so this belongs in this branch and not in the preflight.
+        if ($editionEncryptsBackups -and -not (Test-Path -LiteralPath (Join-Path $backupDirectory 'certificate-custody.json') -PathType Leaf)) {
+            throw 'This SQL Server edition encrypts backups, so the pre-migration backup needs exported recovery keys. Open the application as Owner, go to Settings > Database > Encrypted backup recovery keys, select "Create and export recovery keys", and run setup again. The database has not been changed.'
+        }
         $databaseSizeMb = [double](Invoke-SqlScalar -Query "SET NOCOUNT ON; SELECT CONVERT(decimal(18,2),SUM(size)*8.0/1024.0) FROM sys.master_files WHERE database_id=DB_ID(N'$Database');")
         $requiredFreeSpaceGb = [math]::Ceiling(([math]::Max($MinimumBackupFreeSpaceGb, ($databaseSizeMb / 1024.0) * 1.25)) * 100) / 100
         $receiptPath = Join-Path $logDirectory "pre-migration-backup-$(Get-Date -Format 'yyyyMMdd-HHmmss-fff')-$([Guid]::NewGuid().ToString('N')).json"
         Write-SetupLog 'Existing database has pending bundled migrations. Creating and verifying a pre-migration backup before any migration runs.'
-        & $backupScript -ServerInstance $ServerInstance -Database $Database -BackupDirectory $backupDirectory -MinimumFreeSpaceGb $requiredFreeSpaceGb -ResultPath $receiptPath -SqlCmdPath $sqlcmdPath
+        # -Purpose PreMigration marks the receipt so the next daily backup's rotation keeps
+        # this file. Without it the upgrade's own safety copy was deleted the same day.
+        & $backupScript -ServerInstance $ServerInstance -Database $Database -BackupDirectory $backupDirectory -MinimumFreeSpaceGb $requiredFreeSpaceGb -ResultPath $receiptPath -SqlCmdPath $sqlcmdPath -Purpose PreMigration
         Assert-VerifiedBackupReceipt -ReceiptPath $receiptPath
         Write-SetupLog "Verified pre-migration backup is retained at $preMigrationBackupPath."
     }
@@ -275,4 +287,9 @@ Write-SetupLog 'EtpReporting migration completed and post-migration state, journ
 & (Join-Path $scripts 'install-monthly-recovery-drill-task.ps1')
 & (Join-Path $scripts 'install-etp-automation-task.ps1')
 Write-SetupLog 'Daily backup, monthly recovery-drill and five-minute ETP automation tasks are installed.'
+# A clean install on an encrypting edition gets this far with no recovery keys, and then
+# every nightly backup refuses. Say it now, while somebody is still at the machine.
+if ($editionEncryptsBackups -and -not (Test-Path -LiteralPath (Join-Path $backupDirectory 'certificate-custody.json') -PathType Leaf)) {
+    Write-SetupLog 'WARNING: this SQL Server edition encrypts backups and no recovery keys have been exported, so the daily backup will refuse to run. Open the application as Owner, go to Settings > Database > Encrypted backup recovery keys, and select "Create and export recovery keys".'
+}
 Write-SetupLog 'ETP prerequisite bootstrap completed successfully.'

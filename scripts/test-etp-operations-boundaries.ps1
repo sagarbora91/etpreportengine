@@ -158,6 +158,11 @@ try {
             $null = Read-EtpVerifiedReceipt $fixture.ReceiptPath $fixture.BackupDirectory 'DisposableDatabase'
             $script:checks++
             $latestPointer = Join-Path $fixture.BackupDirectory 'certificate-custody.json'
+            # No pointer at all is the state of a machine whose recovery keys have never been
+            # exported. Until 25 September 2026 it surfaced as "Cannot find path ...", which
+            # stopped setup on Developer Edition with nothing an owner could act on.
+            Assert-True (-not (Test-Path -LiteralPath $latestPointer)) 'The fixture already had a latest custody pointer.'
+            Assert-Rejected { Resolve-EtpLatestCertificateCustody $fixture.BackupDirectory } 'Encrypted backup recovery keys'
             Save-Json $latestPointer @{ schemaVersion=2; certificateThumbprint=$fixture.Custody.certificateThumbprint; immutableReceiptPath=$fixture.CustodyPath }
             Assert-True ((Resolve-EtpLatestCertificateCustody $fixture.BackupDirectory) -ceq $fixture.CustodyPath) 'The latest pointer did not select immutable certificate A.'
             $otherThumbprint = 'CD' * 20
@@ -257,6 +262,37 @@ try {
             )
             $utcDayKept = @(Get-EtpRetainedBackupReceipts $utcDayReceipts)
             Assert-True ($utcDayKept.Count -eq 1 -and $utcDayKept[0].backupPath -eq 'after-local-midnight.bak') 'A local clock boundary split one UTC recovery day.'
+
+            # The live case, 24 September 2026: setup took its pre-migration backup at 08:50,
+            # the owner took a daily backup at 10:22, and the pre-migration file was gone.
+            $upgradeDayReceipts = @(
+                [pscustomobject]@{ backupPath='pre-migration.bak'; verifiedAtUtc='2026-09-24T08:50:14Z'; purpose='PRE_MIGRATION' },
+                [pscustomobject]@{ backupPath='same-day-daily.bak'; verifiedAtUtc='2026-09-24T10:22:39Z'; purpose='SCHEDULED' },
+                [pscustomobject]@{ backupPath='earlier-same-day-daily.bak'; verifiedAtUtc='2026-09-24T07:10:00Z'; purpose='SCHEDULED' }
+            )
+            $upgradeDayKept = @(Get-EtpRetainedBackupReceipts $upgradeDayReceipts | ForEach-Object backupPath)
+            Assert-True ($upgradeDayKept -contains 'pre-migration.bak') 'The upgrade backup was deleted by the same day rotation.'
+            # It must not take the day's slot either, or taking one would cost a daily point.
+            Assert-True ($upgradeDayKept -contains 'same-day-daily.bak') 'The pre-migration backup consumed the daily recovery point.'
+            Assert-True ($upgradeDayKept -notcontains 'earlier-same-day-daily.bak') 'An older scheduled backup from the same day was retained.'
+
+            # Age never reaches it: this one is outside both the 14-day and 12-month windows.
+            $agedReceipts = @([pscustomobject]@{ backupPath='old-pre-migration.bak'; verifiedAtUtc='2024-01-02T03:04:05Z'; purpose='PRE_MIGRATION' })
+            foreach ($day in 0..29) {
+                $agedReceipts += [pscustomobject]@{ backupPath="aged-daily-$day.bak"; verifiedAtUtc=$latest.AddDays(-$day).ToString('o'); purpose='SCHEDULED' }
+            }
+            $agedKept = @(Get-EtpRetainedBackupReceipts $agedReceipts | ForEach-Object backupPath)
+            Assert-True ($agedKept -contains 'old-pre-migration.bak') 'An aged pre-migration backup was rotated out.'
+            Assert-True ($agedKept -notcontains 'aged-daily-20.bak') 'A scheduled backup outside the retention windows was kept.'
+
+            # A purpose this build cannot interpret is kept rather than deleted: the cost of
+            # keeping a file is disk, the cost of deleting the wrong one is the database.
+            $unknownKept = @(Get-EtpRetainedBackupReceipts @(
+                [pscustomobject]@{ backupPath='written-by-a-later-build.bak'; verifiedAtUtc='2026-09-01T01:00:00Z'; purpose='SOMETHING_ELSE' },
+                [pscustomobject]@{ backupPath='newer-scheduled.bak'; verifiedAtUtc='2026-09-01T02:00:00Z'; purpose='SCHEDULED' }
+            ) | ForEach-Object backupPath)
+            Assert-True ($unknownKept -contains 'written-by-a-later-build.bak') 'A backup with an unreadable purpose was deleted.'
+            Assert-True ($unknownKept -contains 'newer-scheduled.bak') 'The unreadable purpose consumed the daily recovery point.'
         }
         Paths {
             $fixture = New-ReceiptFixture

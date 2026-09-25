@@ -4,7 +4,12 @@ param(
     [string]$BackupDirectory = "$env:ProgramData\EtpReporting\Backups",
     [ValidateRange(0,1048576)][double]$MinimumFreeSpaceGb = 5,
     [string]$ResultPath,
-    [string]$SqlCmdPath
+    [string]$SqlCmdPath,
+    # A pre-migration backup is the only copy of the database as it was before a schema
+    # change, so it is recorded as such and rotation never deletes it. Setup's own backup
+    # used to be removed by the same day's rotation: on the owner's PC on 25 September 2026
+    # the 08:50 pre-migration file was already gone and only the 10:22 daily one remained.
+    [ValidateSet('Scheduled','PreMigration','PreRollback')][string]$Purpose = 'Scheduled'
 )
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'etp-operations-common.ps1')
@@ -14,6 +19,13 @@ function Resolve-EtpLatestCertificateCustody {
     $root = [IO.Path]::GetFullPath($BackupDirectory).TrimEnd('\')
     $latest = Join-Path $root 'certificate-custody.json'
     Assert-EtpNoLinks $latest
+    # An edition that encrypts has no unencrypted fallback: a backup taken without exported
+    # recovery keys could never be restored. Say so. Until 25 September 2026 this arrived as
+    # "Cannot find path ...certificate-custody.json", which stopped setup on Developer
+    # Edition at its own pre-migration backup with nothing to act on.
+    if (-not (Test-Path -LiteralPath $latest -PathType Leaf)) {
+        throw 'This SQL Server edition encrypts backups, and no exported recovery keys were found. In the application, open Settings > Database > Encrypted backup recovery keys and select "Create and export recovery keys", then run this again.'
+    }
     $pointer = Get-Content -Raw -LiteralPath $latest | ConvertFrom-Json
     if ($pointer.schemaVersion -ne 2 -or $pointer.certificateThumbprint -notmatch '^(?:[A-Fa-f0-9]{2}){20,64}$' -or
         -not [IO.Path]::IsPathRooted([string]$pointer.immutableReceiptPath)) { throw 'Export the current certificate to immutable recovery custody before backup.' }
@@ -67,6 +79,10 @@ $receipt = [ordered]@{
     backupPath=$file.FullName; sha256=(Get-FileHash -LiteralPath $backupPath -Algorithm SHA256).Hash
     lengthBytes=$file.Length; verifiedAtUtc=[DateTime]::UtcNow.ToString('o')
     encryption=$(if ($encrypts) { 'AES_256' } else { 'NONE' })
+    # New in this receipt, and deliberately not a schema bump: a receipt without it is an
+    # ordinary scheduled backup, so an installation still running the previous scripts
+    # reads these receipts and an older receipt is read here.
+    purpose=$(switch ($Purpose) { 'PreMigration' { 'PRE_MIGRATION' } 'PreRollback' { 'PRE_ROLLBACK' } default { 'SCHEDULED' } })
     certificateReceipt=$certificateReceipt; certificateThumbprint=$certificateThumbprint
     files=$files
 }
