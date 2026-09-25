@@ -22,6 +22,7 @@ public sealed class AccountingFoundationTests
             await Assert.ThrowsAsync<SqlException>(()=>service.ApproveAsync(new(first,"Checked")));
             Assert.Equal(DBNull.Value,await db.ExecuteAsync($"SELECT approval_reason FROM dbo.accounting_batches WHERE accounting_batch_id={first}"));
             var duplicate = await Assert.ThrowsAsync<SqlException>(()=>service.SaveAsync(new(scope,preview.ReportGenerationId,preview.Batch)));
+            Assert.Equal(51452,duplicate.Number);
             Assert.Contains($"batch {first}",duplicate.Message);
             await service.SaveDestinationAsync(new("TEST Accounting","TEST","","Test destination"));
             await service.RejectAsync(new(first,"Company now configured; prepare again"));
@@ -31,8 +32,18 @@ public sealed class AccountingFoundationTests
             Assert.Equal(1,await db.ExecuteAsync("SELECT COUNT(*) FROM dbo.accounting_batch_invoices WHERE is_active=1"));
             await Assert.ThrowsAsync<SqlException>(()=>db.ExecuteAsync($"UPDATE dbo.accounting_batches SET status='DRAFT' WHERE accounting_batch_id={first}"));
             await Assert.ThrowsAsync<SqlException>(()=>db.ExecuteAsync($"UPDATE dbo.accounting_batch_invoices SET is_active=0 WHERE accounting_batch_id={next}"));
-            await Assert.ThrowsAsync<SqlException>(()=>service.SaveAsync(new(scope,preview.ReportGenerationId,preview.Batch)));
+            var approvedDuplicate = await Assert.ThrowsAsync<SqlException>(()=>service.SaveAsync(new(scope,preview.ReportGenerationId,preview.Batch)));
+            Assert.Equal(51452,approvedDuplicate.Number);
+            Assert.Contains($"batch {next}",approvedDuplicate.Message);
+            Assert.Equal($"This day is already in batch {next}. Reject that unexported batch before preparing another.",approvedDuplicate.Message);
             Assert.Equal(2,await db.ExecuteAsync("SELECT COUNT(*) FROM dbo.accounting_batches"));
+            await service.RejectAsync(new(next,"Correct before export"));
+            Assert.Equal(0,await db.ExecuteAsync("SELECT COUNT(*) FROM dbo.accounting_batch_invoices WHERE is_active=1"));
+            var replacement = await service.SaveAsync(new(scope,preview.ReportGenerationId,preview.Batch));
+            Assert.NotEqual(next,replacement);
+            Assert.Equal("REJECTED",await db.ExecuteAsync($"SELECT status FROM dbo.accounting_batches WHERE accounting_batch_id={next}"));
+            Assert.Equal("DRAFT",await db.ExecuteAsync($"SELECT status FROM dbo.accounting_batches WHERE accounting_batch_id={replacement}"));
+            Assert.Equal(1,await db.ExecuteAsync("SELECT COUNT(*) FROM dbo.accounting_batch_invoices WHERE is_active=1"));
         }
         finally { await db.DisposeAsync(); }
     }
@@ -66,7 +77,10 @@ public sealed class AccountingFoundationTests
             Assert.Equal("EXPORTED_AWAITING_IMPORT",Assert.Single(await service.LoadBatchesAsync()).Status);
             await Assert.ThrowsAsync<SqlException>(()=>service.RejectAsync(new(id,"Too late")));
             await Assert.ThrowsAsync<InvalidOperationException>(()=>service.ExportAsync(new(id,"",Path.Combine(folder,"second.xml"))));
-            await Assert.ThrowsAsync<SqlException>(()=>service.SaveAsync(new(scope,preview.ReportGenerationId,preview.Batch)));
+            var exportedDuplicate = await Assert.ThrowsAsync<SqlException>(()=>service.SaveAsync(new(scope,preview.ReportGenerationId,preview.Batch)));
+            Assert.Equal(51452,exportedDuplicate.Number);
+            Assert.Contains($"batch {id}",exportedDuplicate.Message);
+            Assert.Equal($"This day is already in exported batch {id}. An exported batch is final; it cannot be replaced.",exportedDuplicate.Message);
             await Assert.ThrowsAsync<SqlException>(()=>db.ExecuteAsync("UPDATE dbo.accounting_export_receipts SET tally_company_name='Changed'"));
             await Assert.ThrowsAsync<SqlException>(()=>db.ExecuteAsync("DELETE dbo.accounting_export_receipts"));
             await Assert.ThrowsAsync<SqlException>(()=>db.ExecuteAsync($"UPDATE dbo.accounting_entries SET narration='Changed' WHERE accounting_batch_id={id}"));

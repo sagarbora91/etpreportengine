@@ -61,9 +61,15 @@ public sealed partial class ProductisationRepository
             SET XACT_ABORT ON; BEGIN TRANSACTION;
             DECLARE @lock int; EXEC @lock=sys.sp_getapplock @Resource='ETP.AccountingReservations',@LockMode='Exclusive',@LockOwner='Transaction',@LockTimeout=15000;
             IF @lock<0 THROW 51451,'Accounting is busy. Try again.',1;
-            DECLARE @previous bigint=(SELECT TOP(1) accounting_batch_id FROM dbo.accounting_batches WITH(UPDLOCK,HOLDLOCK)
-              WHERE store_code=@store AND business_date=@date AND status<>'REJECTED' ORDER BY accounting_batch_id);
-            IF @previous IS NOT NULL BEGIN DECLARE @message nvarchar(2048)=CONCAT('This day is already in batch ',@previous,'. Reject that unexported batch before preparing another.'); THROW 51452,@message,1; END;
+            DECLARE @previous bigint,@previousStatus varchar(40);
+            SELECT TOP(1) @previous=accounting_batch_id,@previousStatus=status FROM dbo.accounting_batches WITH(UPDLOCK,HOLDLOCK)
+              WHERE store_code=@store AND business_date=@date AND status<>'REJECTED' ORDER BY accounting_batch_id;
+            IF @previous IS NOT NULL BEGIN
+              DECLARE @message nvarchar(2048)=CASE WHEN @previousStatus='EXPORTED_AWAITING_IMPORT'
+                THEN CONCAT('This day is already in exported batch ',@previous,'. An exported batch is final; it cannot be replaced.')
+                ELSE CONCAT('This day is already in batch ',@previous,'. Reject that unexported batch before preparing another.') END;
+              THROW 51452,@message,1;
+            END;
             DECLARE @number int=ISNULL((SELECT MAX(accounting_generation) FROM dbo.accounting_batches WHERE store_code=@store AND business_date=@date),0)+1;
             INSERT dbo.accounting_batches(store_code,business_date,daily_report_generation_id,accounting_generation,debit_total,credit_total,status,blocking_reason,created_by)
             VALUES(@store,@date,@report,@number,@debit,@credit,CASE WHEN @blocking IS NULL THEN 'DRAFT' ELSE 'BLOCKED' END,@blocking,SUSER_SNAME());
