@@ -3,6 +3,40 @@
 The state of the P4-13/14/15 work and the review that followed it. Read this first when
 continuing.
 
+## Resume here (saved 25 September 2026)
+
+**Read `docs/audit/PHASE-4-CLOSURE-2026-09-24.md` first.** It is the authoritative record of what
+Phase 4 proved, what it did not, and the four conditions for closing. This file is the working
+notes behind it.
+
+- Branch `recovery/opus-r1-r4` = `38f5f04`, pushed. `main` = `acfdfcd`, current with it.
+- Phase 4 is **working and observed on the owner's PC**, part proven in the VM, **untried on the shop's**.
+- The acceptance VM `ETP-Acceptance-186` is **Off**; its startup memory is now 2560 MB (was 4096).
+- Installer to use everywhere: `artifacts/installer-70bf46e/EtpReportingEngine-Setup-1.8.8-x64.exe`, 861,912,136 bytes, SHA-256 `0130EEB3743161E6260922233D987828EFFA1E4DA706791AD831548C0BB46703`, built from `70bf46e` with a clean tree and a green gate.
+
+### Next, in order
+
+1. **Shop PC install** (still `1.8.1+8e35d83`) — Sagar, following `docs/audit/LIVE-INSTALL-RUNBOOK-2026-09-22.md`. It is the only machine where the Owner is a SQL administrator only through `BUILTIN\Administrators`, so it is the real test of the drill-task check. Capture tasks and ACLs before and after, as was done here. Helper scripts used on this PC are in the session scratchpad (`step-a.ps1`, `step-b.ps1`, `step-d.ps1`, `step-e.ps1`, `step-f.ps1`, `check-unattended.ps1`); re-create them if the scratchpad is gone — each is a thin wrapper around the runbook's own commands.
+2. **Sagar's three rulings**, each a contradiction between the plan and what the product does: A4.7 signing, D9 backup encryption, A4.4 row counts. Closure record section 6, items 6, 7 and 14.
+3. **Five minutes, elevated, on both machines**: `icacls` on `C:\Program Files\Microsoft SQL Server\MSSQL16.SQLEXPRESS\MSSQL\Backup`, filed beside `acl-after.txt`. It holds 28 `.bak` files, three with real customer data, permissions never captured.
+4. ~~**Four small product fixes** (closure record section 6, items 2-5)~~ — **done 25 September 2026.** `docs/OPERATIONS.md` corrected in all three ways; backup receipts carry a `purpose` and rotation never deletes a pre-migration or pre-rollback copy; an edition that encrypts refuses in words and names Settings > Database > Encrypted backup recovery keys; the administration screen shows why a save failed — on all five of its tasks, not only Users, which is what the item had said. Each row in closure record section 6 records what changed and how it was tested, and section 8 has a dated addendum. Reviewing those fixes found a fifteenth defect, older than them and fixed the same day (closure record item 15): rotation ran only after a successful backup while the free-space check refused before one started, so a backup folder that had filled up could never empty itself. **Two decisions left over for Sagar**: whether safety backups should be capped automatically now that they accumulate one per upgrade *attempt*, and the fact that the encrypted-edition path is tested but has never run on an edition that encrypts.
+5. **Then** the closure record's section 8 conditions are met and Phase 4 can be declared closed. Condition (c) is now met; (a), (b) and (d) are Sagar's.
+
+### Live machine facts (25 Sep)
+
+`EtpReporting` at `0032`, TRUSTWORTHY and DB_CHAINING off. Broker `master.dbo.etp_operations_31736fb143c6912a` signed once, signer certificate `NO_PRIVATE_KEY`, no master key. `EtpAutomation`: CONNECT GRANT, `etp_store_manager` + `etp_automation` + `db_backupoperator`. `NT AUTHORITY\SYSTEM`: DENY, inactive in Settings > Users. Three tasks, none as SYSTEM, all last run 25 Sep 12:48:18 with result 0; first unattended backup receipt `2026-09-25 07:18:56` UTC by `EtpAutomation`. Only user database on the instance is `EtpReporting`.
+
+## 24 September — merged, test reliability fixed, installer built
+
+- **`main` is now `870c9ab`**: Sagar approved the merge on 24 Sep. The merge carried the tested code byte-identically; only main's own planning documents differed.
+- Both background tasks' work is committed: `59fd42c` (WPF STA races) and `1a24b94` (test diagnostics isolation), branch pushed.
+- The flaky-test task's own new toast test then failed on the `System.IO.Packaging` race. Fixed at the class of failure rather than the test: every Desktop test class that builds a view now shares the `WPF views` collection with parallelisation disabled (`tests-dotnet/Etp.Reporting.Desktop.Tests/WpfViewCollection.cs`). 428 passed on three consecutive runs, suite no slower (18-19 s).
+- Full gate on `1a24b94`, one project at a time: Desktop 428, Domain 12, Import 110, Reporting 63, SQL integration 101 (1 skipped), SQL unit 239 — no failures, and the integration project no longer times out (2 m 21 s).
+- Still open from the flaky-test chip: `ScopedImportDuplicateSqlTests`' shared-memory transport error was not addressed by that task (it passed in every run since). Watch for it.
+- Installer built from `1a24b94` (see below for its location once confirmed).
+- Sagar approved archiving and dropping `EtpReportingHelios`. Elevated checks passed on 24 Sep: three ETP tasks, none mentioning Helios; `operations.json` → `EtpReporting`, automation `DESKTOP-6IBM1J5\EtpAutomation`; nothing connected to Helios.
+- Codex has finished Phase 5 coding (Sagar, 24 Sep). Phase 5 audit is separate work after Phase 4 closes.
+
 ## Resume here (saved 22 Sep, ~18:45 IST)
 
 - Branch `recovery/opus-r1-r4` pushed at `375e3b2` (on top of `9547f06`). `main` untouched at `714d117`.

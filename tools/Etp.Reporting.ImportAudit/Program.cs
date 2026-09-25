@@ -6,21 +6,25 @@ var database=Option("--database")??"EtpReportingHelios";
 if(database!="EtpReportingHelios" && !(database.StartsWith("EtpPhase1Test_",StringComparison.Ordinal) && database.All(c=>char.IsAsciiLetterOrDigit(c)||c=='_')))
     throw new ArgumentException("This audit tool only writes EtpReportingHelios or a generated EtpPhase1Test_ database.");
 var folders=args.Select((value,index)=>(value,index)).Where(x=>x.value=="--folder" && x.index+1<args.Length).Select(x=>args[x.index+1]).ToArray();
-var builder=new SqlConnectionStringBuilder { DataSource=Option("--server")??@".\SQLEXPRESS",InitialCatalog=database,
-    IntegratedSecurity=true,TrustServerCertificate=true,ConnectTimeout=5 };
+// The last residual of P4-5: this tool used to set TrustServerCertificate=true by hand and
+// connect without the check every other caller goes through. It now takes the same boundary
+// as the application - a SQL Server on this computer, Windows authentication, Encrypt=Optional
+// - so a --server elsewhere is refused here rather than quietly trusted.
+var connectionString=LocalSqlConnectionPolicy.Validate(new SqlConnectionStringBuilder
+    { DataSource=Option("--server")??@".\SQLEXPRESS",InitialCatalog=database,IntegratedSecurity=true,ConnectTimeout=5 }.ConnectionString);
 if(args.Contains("--rebuild"))
 {
-    var master=new SqlConnectionStringBuilder(builder.ConnectionString){InitialCatalog="master"};
-    await using var connection=new SqlConnection(master.ConnectionString);await connection.OpenAsync();
+    var master=LocalSqlConnectionPolicy.Validate(new SqlConnectionStringBuilder(connectionString){InitialCatalog="master"}.ConnectionString);
+    await using var connection=new SqlConnection(master);await connection.OpenAsync();
     await using var command=new SqlCommand($"IF DB_ID(N'{database}') IS NOT NULL BEGIN ALTER DATABASE [{database}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{database}]; END",connection);
     await command.ExecuteNonQueryAsync();
 }
-await new SqlServerDatabaseBootstrapper(builder.ConnectionString,new DirectoryMigrationSource(Path.Combine(AppContext.BaseDirectory,"database","migrations"))).BootstrapAsync();
+await new SqlServerDatabaseBootstrapper(connectionString,new DirectoryMigrationSource(Path.Combine(AppContext.BaseDirectory,"database","migrations"))).BootstrapAsync();
 Console.WriteLine($"Audit database ready: {database}");
 if(folders.Length>0)
 {
-    var knownStores=await new StoreCatalogRepository(builder.ConnectionString).ActiveCodesAsync();
-    var service=new FolderImportService(new SqlServerImportPersistenceUseCase(builder.ConnectionString),knownStores:knownStores);
+    var knownStores=await new StoreCatalogRepository(connectionString).ActiveCodesAsync();
+    var service=new FolderImportService(new SqlServerImportPersistenceUseCase(connectionString),knownStores:knownStores);
     var summary=folders.Length==1 ? await service.RunAsync(folders[0],new(Environment.UserName))
         : await service.RunFilesAsync(folders.SelectMany(path=>Directory.EnumerateFiles(path,"*.xlsx",SearchOption.AllDirectories))
             .Where(path=>!Path.GetFileName(path).StartsWith("~$")).ToArray(),new(Environment.UserName));
@@ -30,7 +34,7 @@ if(folders.Length>0)
         foreach(var d in f.Diagnostics??[]) Console.WriteLine($"  {d.Code}: {d.Message}");
     if(summary.Files.Any(f=>f.Failed)) Environment.ExitCode=1;
 }
-await using(var connection=new SqlConnection(builder.ConnectionString))
+await using(var connection=new SqlConnection(connectionString))
 {
     await connection.OpenAsync();
     const string sql="""

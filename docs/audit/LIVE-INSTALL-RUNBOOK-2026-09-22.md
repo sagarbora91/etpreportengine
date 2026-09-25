@@ -531,3 +531,63 @@ If something still ran as SYSTEM, it now fails; the B3 task-list command (elevat
 3. **The SQL instance has a `BUILTIN\Users` login.** Any local Windows user can connect to the instance (not to `EtpReporting` without a database user). It does not affect this runbook.
 4. **A task registered for another account is invisible without elevation.** `Get-ScheduledTask` does not list it and `schtasks` answers "Access is denied", so Claude's unelevated check reports those tasks as PENDING, and steps B3 and E ask you to list them.
 5. **Windows PowerShell's execution policy on this PC is `Restricted`.** No scope sets a policy (the registry value under `HKLM:\SOFTWARE\Microsoft\PowerShell\1\ShellIds\Microsoft.PowerShell` is empty), so a script cannot be started with `&` from a PowerShell window. Setup and the scheduled tasks are not affected, because they pass `-ExecutionPolicy RemoteSigned` themselves. `docs/OPERATIONS.md` (the `& '...initialize-etp-operation-folders.ps1'` and `& '...install-etp-sql-operations.ps1'` commands in its steps) assumes a policy that allows scripts, so on this PC those commands would be refused as written.
+
+---
+
+## Outcome — 24 September 2026, this PC
+
+Run with the installer built from `70bf46e`. Every step below was observed, not inferred.
+
+| Step | Result |
+|---|---|
+| A | No ETP or test process running; `operations.json` correct; three tasks recorded as they were (two as SYSTEM); no `BUILTIN\Users` on any of the six folders; installer hash matched `SHA256SUMS.txt`; independent backup `EtpReporting-pre-0032-20260924-141742.bak` (14 MB) taken and `RESTORE VERIFYONLY` reported it valid |
+| B, first attempt (build `1a24b94`) | **Failed, exit 1603.** The database half succeeded — verified pre-migration backup, migration `0032`, journal count and `DBCC CHECKDB` all passed — and then task registration failed with `CimException: Access is denied`. Setup wrote `SETUP-INCOMPLETE.txt` and left the three old SYSTEM tasks untouched. Cause and fix: see the defect note below |
+| B, second attempt (build `70bf46e`) | **Exit code 0.** No migration pending, so no second backup. Tasks registered: Automated Operations and Daily Backup as `EtpAutomation` (S4U, Limited), Monthly Recovery Drill as `Sagar` (S4U, **Highest**). None as SYSTEM. First time this step has ever completed on any machine |
+| C | `DESKTOP-6IBM1J5\EtpAutomation` saved as an active Store Manager. Database check: SQL login created, database user created, **CONNECT = GRANT** (migration 0032 doing its job), `etp_store_manager` = 1 |
+| D | "Restricted SQL backup and recovery module installed for EtpReporting. Backups on this edition: NONE." Broker carries 1 signature; signer certificate `EtpOperationsModuleSigner_31736fb143c6912a` has **NO_PRIVATE_KEY**; no database master key; `EXECUTE` granted only to `EtpAutomation`; the legacy shared `EtpOperationsModuleSigner` was retired; `etp_automation` and `db_backupoperator` both granted |
+| E1 | Daily Backup task ran as `EtpAutomation`, result `0x00000000`, new 15 MB backup, receipt **recorded by `DESKTOP-6IBM1J5\EtpAutomation`** — the non-administrator path through the signed module, which is what P4-13 was about |
+| E2 | Recovery drill as the Owner: "Receipt-verified recovery drill completed", exit 0, **no `EtpRecovery_*` copy left behind**. Its receipt is recorded by `EtpAutomation`, not by the administrator who ran it — the drill's database work stays inside the automation account's rights |
+| E3 | Monthly Recovery Drill task started under the Microsoft-account-linked `Sagar` with S4U: result `0x00000000`. The open question from 22 Sep is answered |
+| E4 | Automated Operations ran as `EtpAutomation`, result `0x00000000` |
+| F | Six folders: no `BUILTIN\Users`, no `Everyone`; only Administrators, `EtpAutomation`, SYSTEM and the SQL service; **no change at all** from the record taken before setup |
+| G | `NT AUTHORITY\SYSTEM` deactivated in Settings > Users the same day, once both automation tasks had run: its application entry is inactive and its database access is now `DENY`. `EtpAutomation` was unaffected — CONNECT `GRANT`, with `etp_store_manager`, `etp_automation` and `db_backupoperator` all intact — which also shows that saving one user does not disturb another |
+
+### The defect this run found: setup could never register its own tasks
+
+Windows requires the target account's password once, at registration, when anyone registers a
+task with S4U logon for an account **other than their own**. It authenticates the principal and
+is discarded; S4U still stores no credential. Measured here: an elevated administrator is
+refused, and so is SYSTEM, which does hold `SeTcbPrivilege` — so no privilege grant could have
+fixed it. Registering for the caller's own account needs nothing, which is why the Owner's drill
+task always registered and the automation account's two never did.
+
+`Register-ScheduledTask`'s `-Principal` parameter set takes no password, and its `-User`/`-Password`
+set would register a Password-logon task that stores the credential. The automation account's
+tasks now go through the Task Scheduler COM API, which accepts both: its password is reset to a
+fresh random value, used for that one call, and discarded — nobody ever knows it, as designed.
+Fixed in `70bf46e`.
+
+Corrected along the way: the "Log on as a batch job" right is **not** what caused this. A missing
+batch right returns `SCHED_S_BATCH_LOGON_PROBLEM`, which registers the task and only warns. The
+grant stays (a batch task does need it to start) but the earlier explanation was wrong.
+
+### First unattended run — 25 September 2026
+
+The laptop was shut down before the 22:00 backup on 24 September, so all three tasks missed their
+time and caught up when it was next switched on, as `StartWhenAvailable` intends. Checked at
+12:52 IST on 25 September, elevated:
+
+| Task | Account | Last run | Result | Next |
+|---|---|---|---|---|
+| ETP Reporting Automated Operations | `EtpAutomation` (S4U) | 25 Sep 12:48:18 | `0x00000000` | every 5 minutes |
+| ETP Reporting Daily Backup | `EtpAutomation` (S4U) | 25 Sep 12:48:18 | `0x00000000` | 25 Sep 22:00 |
+| ETP Reporting Monthly Recovery Drill | `Sagar` (S4U) | 25 Sep 12:48:18 | `0x00000000` | 26 Sep 08:00 |
+
+The backup task produced `EtpReporting-20260925-071854-....bak` (15 MB) and a receipt recorded by
+`DESKTOP-6IBM1J5\EtpAutomation` at `2026-09-25 07:18:56` UTC. Nobody started it: this is the first
+backup this installation has taken on its own, by the dedicated non-administrator account, through
+the signed module, with no password stored anywhere.
+
+Honest limit: `dbo.automation_runs` still shows only two rows, both from 26 August. The
+five-minute Automated Operations task exits successfully with nothing to do, and records a run
+only when it has work. That it ran is shown by the task result, not by a row.

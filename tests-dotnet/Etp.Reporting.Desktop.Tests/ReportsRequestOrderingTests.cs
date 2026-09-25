@@ -5,6 +5,7 @@ using Etp.Reporting.Desktop.Modules.Reports;
 
 namespace Etp.Reporting.Desktop.Tests;
 
+[Collection(WpfViewCollection.Name)]
 public sealed class ReportsRequestOrderingTests
 {
     [Theory]

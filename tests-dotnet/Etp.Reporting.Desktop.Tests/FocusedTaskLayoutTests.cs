@@ -4,6 +4,7 @@ using Etp.Reporting.Desktop;
 
 namespace Etp.Reporting.Desktop.Tests;
 
+[Collection(WpfViewCollection.Name)]
 public sealed class FocusedTaskLayoutTests
 {
     [Fact]

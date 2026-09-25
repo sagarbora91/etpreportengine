@@ -10,6 +10,7 @@ using Etp.Reporting.Reporting;
 
 namespace Etp.Reporting.Desktop.Tests;
 
+[Collection(WpfViewCollection.Name)]
 public sealed class EveningReportInteractionTests
 {
     [Theory]

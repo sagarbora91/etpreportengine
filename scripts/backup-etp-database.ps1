@@ -4,7 +4,12 @@ param(
     [string]$BackupDirectory = "$env:ProgramData\EtpReporting\Backups",
     [ValidateRange(0,1048576)][double]$MinimumFreeSpaceGb = 5,
     [string]$ResultPath,
-    [string]$SqlCmdPath
+    [string]$SqlCmdPath,
+    # A pre-migration backup is the only copy of the database as it was before a schema
+    # change, so it is recorded as such and rotation never deletes it. Setup's own backup
+    # used to be removed by the same day's rotation: on the owner's PC on 25 September 2026
+    # the 08:50 pre-migration file was already gone and only the 10:22 daily one remained.
+    [ValidateSet('Scheduled','PreMigration','PreRollback')][string]$Purpose = 'Scheduled'
 )
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'etp-operations-common.ps1')
@@ -14,6 +19,13 @@ function Resolve-EtpLatestCertificateCustody {
     $root = [IO.Path]::GetFullPath($BackupDirectory).TrimEnd('\')
     $latest = Join-Path $root 'certificate-custody.json'
     Assert-EtpNoLinks $latest
+    # An edition that encrypts has no unencrypted fallback: a backup taken without exported
+    # recovery keys could never be restored. Say so. Until 25 September 2026 this arrived as
+    # "Cannot find path ...certificate-custody.json", which stopped setup on Developer
+    # Edition at its own pre-migration backup with nothing to act on.
+    if (-not (Test-Path -LiteralPath $latest -PathType Leaf)) {
+        throw 'This SQL Server edition encrypts backups, and no exported recovery keys were found. In the application, open Settings > Database > Encrypted backup recovery keys and select "Create and export recovery keys", then run this again.'
+    }
     $pointer = Get-Content -Raw -LiteralPath $latest | ConvertFrom-Json
     if ($pointer.schemaVersion -ne 2 -or $pointer.certificateThumbprint -notmatch '^(?:[A-Fa-f0-9]{2}){20,64}$' -or
         -not [IO.Path]::IsPathRooted([string]$pointer.immutableReceiptPath)) { throw 'Export the current certificate to immutable recovery custody before backup.' }
@@ -57,7 +69,21 @@ if ($encrypts)
 }
 else { Write-Warning 'This SQL Server edition cannot encrypt backups. The backup file is unencrypted; protect the backup folder at rest.' }
 $drive = [IO.DriveInfo]::new([IO.Path]::GetPathRoot($directory))
-if ($drive.AvailableFreeSpace / 1GB -lt $MinimumFreeSpaceGb) { throw 'Backup storage is below the required free-space limit.' }
+if ($drive.AvailableFreeSpace / 1GB -lt $MinimumFreeSpaceGb) {
+    # Rotation runs only after a successful backup, so once the drive falls below the limit
+    # the folder can never shrink by itself: the backup refuses, rotation never runs, and
+    # every night after that fails the same way until somebody deletes files by hand.
+    # Reclaim what retention no longer needs, then look again. This deletes nothing that a
+    # successful backup would have kept, and no safety backup at all, so it cannot trade a
+    # recovery point for disk space. Found reviewing the purpose change on 25 September 2026;
+    # the defect is older than that change, which only makes the limit arrive sooner.
+    $reclaimedBytes = Invoke-EtpBackupRotation -Directory $directory -Database $Database
+    $drive = [IO.DriveInfo]::new([IO.Path]::GetPathRoot($directory))
+    if ($drive.AvailableFreeSpace / 1GB -lt $MinimumFreeSpaceGb) {
+        throw "Backup storage is below the required free-space limit. Expired backups were removed first and reclaimed $([math]::Round($reclaimedBytes / 1GB, 2)) GB, which is still not enough. Free space on this drive, or remove backups the retention policy is keeping."
+    }
+    Write-Warning "Backup storage was below the required free-space limit; removing expired backups reclaimed $([math]::Round($reclaimedBytes / 1GB, 2)) GB. Review how much this drive has left."
+}
 $backupPath = Join-Path $directory "$Database-$([DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss'))-$([Guid]::NewGuid().ToString('N')).bak"
 $files = @(Invoke-EtpOperationsBroker -SqlCmd $sqlcmd -Server $ServerInstance -Database $Database -BackupPath $backupPath -Operation BACKUP)
 if ($encrypts) { Invoke-EtpSql -SqlCmd $sqlcmd -Server $ServerInstance -Query "IF NOT EXISTS(SELECT 1 FROM master.sys.certificates WHERE name='EtpBackupCert' AND thumbprint=0x$certificateThumbprint) THROW 51321,'The backup certificate changed during backup; verify the encryption key before publishing a receipt.',1;" | Out-Null }
@@ -67,6 +93,10 @@ $receipt = [ordered]@{
     backupPath=$file.FullName; sha256=(Get-FileHash -LiteralPath $backupPath -Algorithm SHA256).Hash
     lengthBytes=$file.Length; verifiedAtUtc=[DateTime]::UtcNow.ToString('o')
     encryption=$(if ($encrypts) { 'AES_256' } else { 'NONE' })
+    # New in this receipt, and deliberately not a schema bump: a receipt without it is an
+    # ordinary scheduled backup, so an installation still running the previous scripts
+    # reads these receipts and an older receipt is read here.
+    purpose=$(switch ($Purpose) { 'PreMigration' { 'PRE_MIGRATION' } 'PreRollback' { 'PRE_ROLLBACK' } default { 'SCHEDULED' } })
     certificateReceipt=$certificateReceipt; certificateThumbprint=$certificateThumbprint
     files=$files
 }
@@ -81,17 +111,5 @@ Invoke-EtpSql -SqlCmd $sqlcmd -Server $ServerInstance -Database $Database -Query
 # Record only after durable verification evidence exists. Upgrades may precede the audit procedure.
 Invoke-EtpSql -SqlCmd $sqlcmd -Server $ServerInstance -Database $Database -Query "IF OBJECT_ID('dbo.record_operational_audit','P') IS NOT NULL EXEC dbo.record_operational_audit 'Backup','Succeeded',N'$(if ($encrypts) { "Encrypted checksum backup verified" } else { "Checksum backup verified, not encrypted" })',N'operations';" | Out-Null
 # Rotation considers only valid receipts for this database. Unknown/unverified backups are never deleted.
-$receipts = @()
-foreach ($candidate in Get-ChildItem -LiteralPath $directory -Filter "$Database-*.bak.receipt.json" -File) {
-    try { $receipts += Read-EtpVerifiedReceipt -ReceiptPath $candidate.FullName -BackupDirectory $directory -Database $Database -SkipCertificateCheck }
-    catch { Write-Warning 'An older backup receipt needs review; its files were retained.' }
-}
-$keep = @(Get-EtpRetainedBackupReceipts $receipts | ForEach-Object backupPath)
-foreach ($old in $receipts) {
-    if ($old.backupPath -notin $keep) {
-        # Read-EtpVerifiedReceipt already checked absolute containment and rejected junctions.
-        Remove-Item -LiteralPath $old.backupPath -Force
-        Remove-Item -LiteralPath "$($old.backupPath).receipt.json" -Force
-    }
-}
+$null = Invoke-EtpBackupRotation -Directory $directory -Database $Database
 Write-Output $(if ($encrypts) { 'Encrypted backup and verification completed.' } else { 'Backup and verification completed. The file is NOT encrypted on this SQL Server edition; protect the backup folder at rest.' })
