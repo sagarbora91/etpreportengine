@@ -23,7 +23,7 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 /// Optional themed WPF captures are not Windows DPI/VM or production certification.
 /// </summary>
 [Collection("Full MainWindow smoke")]
-public sealed class PhaseFiveFullWindowCaptureTests(ITestOutputHelper output)
+public sealed partial class PhaseFiveFullWindowCaptureTests(ITestOutputHelper output)
 {
     private static readonly DateOnly Day = new(2026, 8, 25);
     private sealed record Capture(string Role, string Task, int Width, int Height, string File, int DistinctSampleColours);
@@ -143,19 +143,23 @@ public sealed class PhaseFiveFullWindowCaptureTests(ITestOutputHelper output)
                             var screenshots = ScreenshotTasks(role);
                             var tasks = TaskNavigation.All.Where(task => task.Available && task.IsAllowed(window.CurrentShellAccess)).ToArray();
                             var walked = new List<string>();
+                            var fingerprints = new List<DestinationFingerprint>();
                             foreach (var destination in tasks)
                             {
                                 var id = destination.Id;
-                                // DSR intentionally changes the header to all stores. Restore
-                                // the demonstration store before each following workflow.
+                                Assert.True(destination.IsAllowed(window.CurrentShellAccess), $"Expected {role} to access {id}.");
+                                window.ApplyNavigationDecision(window.shell.Navigate(destination.Route, window.CurrentShellAccess));
+                                await WaitForWorkspaceOperationsAsync(window, () => dispatcherFailure);
+                                // Choose scope after the next destination is active. Changing
+                                // it while still on DSR immediately restores All stores.
                                 if (destination.ReportCode is not ("dsr" or "sales-combined"))
                                 {
                                     window.ShellStoreSelector.SelectedItem = store;
                                     await SettleAsync(window);
+                                    await WaitForWorkspaceOperationsAsync(window, () => dispatcherFailure);
+                                    Assert.Equal("CAPTURE", (window.ShellStoreSelector.SelectedItem as ComboBoxItem)?.Tag?.ToString());
+                                    Assert.Equal("CAPTURE", window.StoreScopes.Resolve(window.reportsWorkspaceView.StoreScope));
                                 }
-                                Assert.True(destination.IsAllowed(window.CurrentShellAccess), $"Expected {role} to access {id}.");
-                                window.ApplyNavigationDecision(window.shell.Navigate(destination.Route, window.CurrentShellAccess));
-                                await WaitForWorkspaceOperationsAsync(window, () => dispatcherFailure);
                                 await RefreshTaskAsync(window, destination);
                                 await WaitForWorkspaceOperationsAsync(window, () => dispatcherFailure);
                                 await SettleAsync(window);
@@ -167,6 +171,7 @@ public sealed class PhaseFiveFullWindowCaptureTests(ITestOutputHelper output)
                                 Assert.Null(dispatcherFailure);
                                 walked.Add(id);
                                 CheckTaskContent(window, destination, role, integrationHealthHeading, failures);
+                                if (role == "OWNER") fingerprints.Add(Fingerprint(window, id));
                                 if (evidence is null || !screenshots.TryGetValue(id, out var name)) continue;
                                 foreach (var (width, height) in new[] { (1366, 768), (816, 480) })
                                 {
@@ -187,6 +192,7 @@ public sealed class PhaseFiveFullWindowCaptureTests(ITestOutputHelper output)
                                 }
                             }
                             Assert.Equal(tasks.Select(task => task.Id).Order(), walked.Order());
+                            if (role == "OWNER") failures.AddRange(DuplicateDestinations(fingerprints));
                             destinations.Add(role, walked.Count);
                             // No UI operation can outlive the fixture database.
                             var drafts = UnexpectedDrafts(window);
@@ -285,7 +291,7 @@ public sealed class PhaseFiveFullWindowCaptureTests(ITestOutputHelper output)
                 ReportWorkspaceControl report => report.SelectedReport?.Code == code && report.HasCurrentPreview,
                 DailySalesReportWorkspace daily => code == "dsr" && daily.HasCurrentPreview,
                 _ => false
-            }, "Report did not produce a current preview for its selected scope.");
+            }, $"Report did not produce a current preview. Header store: {(window.ShellStoreSelector.SelectedItem as ComboBoxItem)?.Tag}; report store: {window.reportsWorkspaceView.StoreScope}; displayed status: {string.Join(" / ", statuses.Select(status => status.Text))}");
         }
         if (task.Id == "cash-input")
         {

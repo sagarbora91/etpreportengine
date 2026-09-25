@@ -99,7 +99,6 @@ public static class TaskNavigation
         Add("reports-list", "All reports", "Reports", "All reports", "Sales Reports", "report-list");
         Add("generations", "Report archive", "Reports", "Archive", "Report Archive", "generations", 1);
         Add("favourite-reports", "Favourites", "Reports", "Favourites", "Sales Reports", "favourite-reports", 1);
-        Add("trends", "Trends", "Reports", "Management", "Operations Center", "trends", 1);
         Add("profile", "Current profile", "Settings", "Help", "Home", "profile", 1);
         Add("register-inward", "Inward", "Stock", "Registers", "Registers", "register", 2);
         Add("register-outward", "Outward", "Stock", "Registers", "Registers", "register", 2);

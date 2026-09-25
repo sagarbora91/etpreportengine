@@ -78,7 +78,7 @@ public static class HelpCentreRegistry
         Topic("sales-reports", "Sales Reports", "Run sales, return, brand and comparison reports.", "IconReports", 60,
             Guide("Open Reports and choose a report. Select dates and an active store from the database catalogue.", "Filters apply to store, brand segment, transaction type and item where supported. The applied scope is printed on exports.", "Run or refresh, then inspect totals and source rows. Clearing filters restores the broader report.", "Export Excel or PDF from the current successful result. A changed scope requires a refresh before export."),
             ["sales", "invoice", "return", "brand", "item", "ly", "ty"], "Sales Reports"),
-        Topic("stock-reports", "Sales Reports", "Review closing, physical, movement and variance stock.", "IconArchive", 70,
+        Topic("stock-reports", "Stock Reports", "Review closing, physical, movement and variance stock.", "IconArchive", 70,
             Guide("Open Stock and select Closing stock, Physical count, Stock ledger or a stock register.", "Choose the store/date. ETP Closing Stock supplies system stock; enter Display, Backstock, Defective and Y Loc as actual counts.", "Review the difference and source availability. Prior counts are suggestions to review, not confirmation for today.", "Owner and Store Manager can enter registers; only an Owner verifies them with a reason."),
             ["closing", "physical", "variance", "movement", "inventory", "slow stock"], "Sales Reports"),
         Topic("tender-cash-service", "Tender, Cash & Service", "Review reconciliation, diagnostics and service results.", "IconAccounting", 80,

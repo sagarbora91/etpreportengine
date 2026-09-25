@@ -110,26 +110,6 @@ public partial class AdministrationWorkspaceView : UserControl
         }
     }
 
-    private async void SupportPackage_Click(object sender, RoutedEventArgs e)
-    {
-        SupportPackageButton.IsEnabled = false;
-        DatabaseRecoveryStatus.Text = "Creating the support package…";
-        try
-        {
-            // Every other handler in this view re-checks the role rather than relying on
-            // the screen being Owner-only. This one was the exception.
-            RequireOwnerAccess();
-            var result = await PowerShellOperationsService.RunAsync("new-etp-support-package.ps1", connectionStringProvider());
-            DatabaseRecoveryStatus.Text = result.Message;
-        }
-        catch (Exception ex)
-        {
-            DesktopDiagnostics.Record(ex, "OperationsAdministration.Administration", "SUPPORT_PACKAGE_FAILED");
-            DatabaseRecoveryStatus.Text = "The support package could not be created. " + DesktopFriendlyError.Describe(ex, "Owner permission is required.");
-        }
-        finally { SupportPackageButton.IsEnabled = true; }
-    }
-
     public Func<Task>? StoresChangedAsync { get; set; }
 
     public async Task<bool> SaveMasterDraftAsync()

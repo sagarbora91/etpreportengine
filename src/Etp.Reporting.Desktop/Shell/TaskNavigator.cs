@@ -35,7 +35,7 @@ public sealed partial class TaskNavigator(MainWindow window)
     /// the panel: the focused layout only gives a named tab to a direct child, and nested in
     /// a Border it landed in the unnamed catch-all tab instead.
     /// 13 ProductHealthGrid, 14 AdministrationStatus, 16 DatabaseRecoveryStatus,
-    /// 17 DatabaseRecoveryGrid, 18 the Support package button.
+    /// 17 DatabaseRecoveryGrid, 18 the retained empty recovery-action panel.
     /// <para>
     /// 14 is the only place any of these screens says why a save or a refresh failed, and
     /// until 25 September 2026 every layout but "health" left it out, so Settings &gt; Users
@@ -49,7 +49,7 @@ public sealed partial class TaskNavigator(MainWindow window)
     {
         "users" => (new int[] {5,6,8,12,13,14}, new int[] {7}),
         "kpi" or "profiles" => (new int[] {10,11,12,13,14}, new int[] {}),
-        "health" => (new int[] {16,17,12,13,14}, new int[] {18}),
+        "health" => (new int[] {16,17,12,13,14}, new int[] {}),
         _ => (new int[] {0,1,3,12,13,14}, new int[] {2})
     };
 
@@ -516,7 +516,7 @@ public sealed partial class TaskNavigator(MainWindow window)
         { view = window.operationsWorkspaceView; body = new int[] {27,29}; actions = new int[] {28}; window.operationsWorkspaceView.SelectMaintenanceTask(id); }
         else if (id == "watch-folder")
         { view = window.operationsWorkspaceView; body = new int[] {2,11,12,13,14,15,16,17,18,19,21,22,24,25}; actions = [0,20,23]; }
-        else { view = window.operationsWorkspaceView; window.operationsWorkspaceView.SelectIssueTask(id); body = id is "trends" ? new int[] {1,2,3,4,5} : new int[] {1,2,8,7}; actions = id is "trends" ? new int[] {0} : new int[] {0,8}; }
+        else { view = window.operationsWorkspaceView; window.operationsWorkspaceView.SelectIssueTask(id); body = new int[] {1,2,8,7}; actions = new int[] {0,8}; }
         FocusedTaskLayout.Show(view, task.Title, body, actions);
         ApplyHiddenScope(view);
         if (view == window.dailyWorkflowWorkspace) window.dailyWorkflowWorkspace.PrepareTouchTask(id);
