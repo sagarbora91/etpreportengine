@@ -176,7 +176,7 @@ public sealed class ReportWorkspaceControl : Grid
     {
         if (scope.StartsWith("Custom: ", StringComparison.Ordinal)) { ScopeSelector.SelectedItem = scope; return; }
         var code = storeScopes.Resolve(scope);
-        if (code is null && SelectedReport?.Code == "cash") code = storeScopes.Stores.FirstOrDefault()?.Code;
+        if (code is null && SelectedReport?.Code == "cash" && storeScopes.Stores.Count == 1) code = storeScopes.Stores[0].Code;
         ScopeSelector.SelectedItem = code is null && Modules.Reports.ReportTaskScope.RequiresSingleStore(SelectedReport?.Code) ? "Select one store" : storeScopes.Display(code);
     }
 

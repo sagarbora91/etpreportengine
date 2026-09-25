@@ -103,7 +103,7 @@ public partial class ReportsWorkspaceView : UserControl
     {
         ConfigureQueryFilters(report);
         if (report is "sales-combined" or "dsr") StoreFilterInput.Clear();
-        if (report == "cash" && Csv(StoreFilterInput.Text) is not { Count: 1 } && stores.Stores.Count > 0)
+        if (report == "cash" && Csv(StoreFilterInput.Text) is not { Count: 1 } && stores.Stores.Count == 1)
             StoreFilterInput.Text = stores.Stores[0].Code;
         if (!BeginReportLoad(report)) return;
         if (ReportTaskScope.RequiresSingleStore(report) && Csv(StoreFilterInput.Text) is not { Count: 1 })

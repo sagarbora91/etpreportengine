@@ -19,11 +19,12 @@ public sealed class StoreScopeCatalogTests
     }
 
     [Fact]
-    public void Cash_default_uses_the_active_store_count_without_reassigning_the_third_store()
+    public void Cash_defaults_only_when_there_is_exactly_one_active_store()
     {
         Assert.Equal(2,Modules.Reports.ReportTaskScope.StoreIndexForReport("cash",2,3));
-        Assert.Equal(0,Modules.Reports.ReportTaskScope.StoreIndexForReport("cash",3,3));
+        Assert.Equal(3,Modules.Reports.ReportTaskScope.StoreIndexForReport("cash",3,3));
         Assert.Equal(0,Modules.Reports.ReportTaskScope.StoreIndexForReport("cash",0,0));
+        Assert.Equal(0,Modules.Reports.ReportTaskScope.StoreIndexForReport("cash",1,1));
     }
 
     [Fact]
