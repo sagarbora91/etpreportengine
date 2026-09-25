@@ -293,6 +293,19 @@ try {
             ) | ForEach-Object backupPath)
             Assert-True ($unknownKept -contains 'written-by-a-later-build.bak') 'A backup with an unreadable purpose was deleted.'
             Assert-True ($unknownKept -contains 'newer-scheduled.bak') 'The unreadable purpose consumed the daily recovery point.'
+
+            # The comparison is exact and case-sensitive, like every other receipt field this
+            # module trusts. 'Scheduled' is therefore NOT something this build wrote, and is
+            # kept. Pinned because the consequence of relaxing it is a deleted database and
+            # the consequence of keeping it is one extra file: if the writer's spelling ever
+            # changes, this fails here rather than turning every backup permanent in silence.
+            $casingKept = @(Get-EtpRetainedBackupReceipts @(
+                [pscustomobject]@{ backupPath='wrong-casing.bak'; verifiedAtUtc='2026-09-02T01:00:00Z'; purpose='Scheduled' },
+                [pscustomobject]@{ backupPath='padded.bak'; verifiedAtUtc='2026-09-02T02:00:00Z'; purpose=' SCHEDULED ' },
+                [pscustomobject]@{ backupPath='exact.bak'; verifiedAtUtc='2026-09-02T03:00:00Z'; purpose='SCHEDULED' }
+            ) | ForEach-Object backupPath)
+            Assert-True ($casingKept -contains 'wrong-casing.bak' -and $casingKept -contains 'padded.bak') 'A purpose this build does not write was treated as an ordinary backup.'
+            Assert-True ($casingKept -contains 'exact.bak') 'The exact spelling lost its daily recovery point.'
         }
         Paths {
             $fixture = New-ReceiptFixture
