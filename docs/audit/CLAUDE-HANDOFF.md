@@ -1,8 +1,26 @@
-# Claude handoff — 22 September 2026
+# Claude handoff — 25 September 2026
 
 > **16 Sep 2026 — plan v1.4.** `ETP-MASTER-AUDIT-AND-PHASED-PLAN.md` is now v1.4: Phase 7 (Tally transfer, Stage 2) and Phase 8 (Collections reconciliation, Stage 3) added after Phase 6; decisions D12–D21 recorded OPEN; Phase 2 tasks 12–15, Phase 4 task 6 (no certificate purchase) and the Phase 5 Accounting row amended; Section 8 crosswalk to the roadmap documents under `docs/roadmap/`. The auditor's procedure for the new phases is `docs/audit/OPUS-AUDIT-PLAN-PHASES-7-8.md`. Branch status for Phases 1–5 (Phase 1 CLOSED; 2, 3, 4 REOPENED; 5 started) is tracked in `SESSION-HANDOFF-2026-09-16.md` on `phase-1/data-truth`, not here.
 
 Last updated: 15 September 2026, end of day. This is the one file a future Claude session reads first. It supersedes every earlier progress note.
+
+**Read `docs/audit/PHASE-4-CLOSURE-2026-09-24.md` first**, then `docs/audit/WORKING-STATE-2026-09-22.md` ("Resume here", 25 September). The product line is `recovery/opus-r1-r4` in the worktree `C:/Codex/Reporting Manger/opus-recovery` (`38f5f04`); `main` is `acfdfcd` and current with it.
+
+Phase 4 is **working and observed on the owner's PC, part proven in the VM, and untried on the shop's** — that is the honest one-line state, and the closure record says so rather than declaring the phase closed. On the owner's PC, on 24-25 September: migration `0032` applied and integrity-checked, the signed operations module installed on SQL Express with its signer's private key destroyed, three scheduled tasks running with nothing as SYSTEM and no stored password, a verified backup and a recovery drill taken by a non-administrator account, `NT AUTHORITY\SYSTEM` deactivated, and — the following morning, with nobody driving it — the first genuinely unattended backup. In the VM: the second-machine restore passed with row counts matching exactly; its own install is blocked because Developer Edition refuses to back up until the encrypted-backup recovery keys are exported.
+
+Two defects were found by running the software rather than reading it, and both had blocked every machine silently: **every scheduled-task registration would have failed**, because Task Scheduler reports `COMPUTER\User` as the bare `User` and the code compared spellings; and **setup could never register its own tasks at all**, because Windows demands the target account's password once when registering an S4U task for anyone but the caller — an elevated administrator is refused, and so is SYSTEM. The automation account's tasks now go through the Task Scheduler COM API with a password reset to a fresh random value, used once and discarded.
+
+Closing waits on four things, all small, set out in the closure record's section 8: the **shop PC install** (the only machine where the Owner is a SQL administrator only through `BUILTIN\Administrators`, and so the real test of the drill-task fix); Sagar's rulings on **A4.7 signing, D9 backup encryption and A4.4's row counts**, each a contradiction between the plan and the 17 September decisions; four small product fixes; and capturing the **SQL backup folder's permissions** on both machines (28 `.bak` files, three with real customer data, never checked).
+
+Boundaries unchanged: never write to live `EtpReporting` except through Sagar's elevated steps; never edit a committed migration; never touch Codex's worktrees; pushing to `main`, VM power state, elevated backups, account creation and passwords are Sagar's.
+
+Codex finished Phase 5 coding on 24 September; auditing it is separate work that starts after Phase 4 closes.
+
+---
+
+# Earlier handoff — 22 September 2026 (history; superseded above)
+
+## Start here (22 Sep)
 
 The product line is **`recovery/opus-r1-r4`** in the worktree `C:/Codex/Reporting Manger/opus-recovery` (pushed; latest `8139041`). `main` is at `714d117`, which already contains this branch up to `fdcc7fe`; the newer commits are **not** on `main` — Sagar decides that merge (the auto-mode permission check refused it on 22 Sep). **Read `docs/audit/WORKING-STATE-2026-09-22.md` first**: its "Resume here" section is the exact state, what is still running, and the next steps in order.
 

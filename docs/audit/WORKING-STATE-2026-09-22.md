@@ -3,16 +3,28 @@
 The state of the P4-13/14/15 work and the review that followed it. Read this first when
 continuing.
 
-## Resume here (saved 24 Sep, ~21:05 IST — laptop battery)
+## Resume here (saved 25 September 2026)
 
-Phase 4 is finished on the owner's PC and in the VM. Two things remain.
+**Read `docs/audit/PHASE-4-CLOSURE-2026-09-24.md` first.** It is the authoritative record of what
+Phase 4 proved, what it did not, and the four conditions for closing. This file is the working
+notes behind it.
 
-1. **The Phase 4 closure record was not written.** The workflow drafting it (`wf_463e7ea2-139`) was stopped mid-draft; nothing was written and the tree is clean. Re-run it: `Workflow({scriptPath: "C:\Users\Sagar\.claude\projects\C--Codex-Reporting-Manger-opus-recovery\38f855f7-3921-4259-b901-2a97df36d8cc\workflows\scripts\phase4-closure-record-wf_463e7ea2-139.js"})` — it drafts `docs/audit/PHASE-4-CLOSURE-2026-09-24.md` from the plan's A4 criteria, the defect register and today's evidence, then has two agents check every claim and its completeness. Sagar asked to see it, then push it to `main`.
-2. **The shop PC install** (still `1.8.1+8e35d83`) is the last live step. It is the only machine with the group-only administrator setup, so it is also the real test of the drill-task fix. Use `docs/audit/LIVE-INSTALL-RUNBOOK-2026-09-22.md`; the installer is `artifacts/installer-70bf46e/EtpReportingEngine-Setup-1.8.8-x64.exe` (822 MB, sha256 0130EEB3743161E6260922233D987828EFFA1E4DA706791AD831548C0BB46703).
+- Branch `recovery/opus-r1-r4` = `38f5f04`, pushed. `main` = `acfdfcd`, current with it.
+- Phase 4 is **working and observed on the owner's PC**, part proven in the VM, **untried on the shop's**.
+- The acceptance VM `ETP-Acceptance-186` is **Off**; its startup memory is now 2560 MB (was 4096).
+- Installer to use everywhere: `artifacts/installer-70bf46e/EtpReportingEngine-Setup-1.8.8-x64.exe`, 861,912,136 bytes, SHA-256 `0130EEB3743161E6260922233D987828EFFA1E4DA706791AD831548C0BB46703`, built from `70bf46e` with a clean tree and a green gate.
 
-Branch `recovery/opus-r1-r4` = `2fa03f2`, pushed. `main` = `849e3f2`, which is behind it by the live-install and VM records; merge when the closure record goes in. The acceptance VM is **Off**, and its startup memory is now 2560 MB (was 4096; the host could not spare 4 GB).
+### Next, in order
 
-Open, none blocking: Developer/Standard editions cannot upgrade until recovery keys are exported (setup stops at its own pre-migration backup with a missing-file error — the VM hit this); `docs/OPERATIONS.md` still shows `& 'script.ps1'`, which a default Restricted execution policy refuses (bitten on both machines); setup's pre-migration backup is deleted by the same day's rotation; Settings > Users does not show why a save failed; D14 (Phase 2) and P3-3 (Phase 3) await Sagar.
+1. **Shop PC install** (still `1.8.1+8e35d83`) — Sagar, following `docs/audit/LIVE-INSTALL-RUNBOOK-2026-09-22.md`. It is the only machine where the Owner is a SQL administrator only through `BUILTIN\Administrators`, so it is the real test of the drill-task check. Capture tasks and ACLs before and after, as was done here. Helper scripts used on this PC are in the session scratchpad (`step-a.ps1`, `step-b.ps1`, `step-d.ps1`, `step-e.ps1`, `step-f.ps1`, `check-unattended.ps1`); re-create them if the scratchpad is gone — each is a thin wrapper around the runbook's own commands.
+2. **Sagar's three rulings**, each a contradiction between the plan and what the product does: A4.7 signing, D9 backup encryption, A4.4 row counts. Closure record section 6, items 6, 7 and 14.
+3. **Five minutes, elevated, on both machines**: `icacls` on `C:\Program Files\Microsoft SQL Server\MSSQL16.SQLEXPRESS\MSSQL\Backup`, filed beside `acl-after.txt`. It holds 28 `.bak` files, three with real customer data, permissions never captured.
+4. **Four small product fixes** (closure record section 6, items 2-5): `docs/OPERATIONS.md` is wrong in three ways; pre-migration backups are deleted by the same day's rotation; Developer/Standard cannot upgrade until recovery keys are exported; Settings > Users does not show why a save failed.
+5. **Then** the closure record's section 8 conditions are met and Phase 4 can be declared closed.
+
+### Live machine facts (25 Sep)
+
+`EtpReporting` at `0032`, TRUSTWORTHY and DB_CHAINING off. Broker `master.dbo.etp_operations_31736fb143c6912a` signed once, signer certificate `NO_PRIVATE_KEY`, no master key. `EtpAutomation`: CONNECT GRANT, `etp_store_manager` + `etp_automation` + `db_backupoperator`. `NT AUTHORITY\SYSTEM`: DENY, inactive in Settings > Users. Three tasks, none as SYSTEM, all last run 25 Sep 12:48:18 with result 0; first unattended backup receipt `2026-09-25 07:18:56` UTC by `EtpAutomation`. Only user database on the instance is `EtpReporting`.
 
 ## 24 September — merged, test reliability fixed, installer built
 
