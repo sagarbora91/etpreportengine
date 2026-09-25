@@ -29,6 +29,6 @@ public partial class DailyWorkflowWorkspaceView
             Dispatcher.BeginInvoke(() => ManualValueInput.Focus());
         }
         if (string.IsNullOrWhiteSpace(StoreCode))
-            WorkflowMessage.Text = "Choose Titan World or Helios in the header.";
+            WorkflowMessage.Text = "Choose a single store in the header before entering data.";
     }
 }

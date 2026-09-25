@@ -11,6 +11,31 @@ namespace Etp.Reporting.Desktop.Tests;
 [Collection(WpfViewCollection.Name)]
 public sealed class DailyWorkflowWorkspaceViewTests
 {
+    [Theory]
+    [InlineData("readiness")]
+    [InlineData("walk-ins")]
+    [InlineData("stock-count")]
+    [InlineData("staff-target")]
+    public void Store_choice_prompt_is_valid_for_any_configured_catalogue(string task)
+    {
+        RunSta(() =>
+        {
+            var view = CreateView(new DeferredQuery(), new FakeCommands());
+            view.StoreCode = string.Empty;
+            view.PrepareTouchTask(task);
+            Assert.Equal("Choose a single store in the header before entering data.", view.StatusText);
+            return Task.CompletedTask;
+        });
+    }
+
+    [Fact]
+    public void Dsr_help_describes_configured_stores_without_seed_store_names()
+    {
+        var guide = HelpCentreRegistry.Topics.Single(topic => topic.Id == "daily-sales-report").Overview;
+        Assert.Contains("active stores", guide);
+        Assert.DoesNotContain("Titan", guide, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Helios", guide, StringComparison.OrdinalIgnoreCase);
+    }
 
     [Fact]
     public void View_preserves_access_manual_zero_audit_refresh_and_finalisation_flow()

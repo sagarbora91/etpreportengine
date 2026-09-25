@@ -22,6 +22,16 @@ public sealed class PhaseFiveStoreCatalogTests
         Assert.Equal(["EAST","COMBINED"],document.EveningSheets.Select(x=>x.StoreCode));
         Assert.Equal(3100m,document.EveningSheets.Single(x=>x.StoreCode=="COMBINED").StoreTarget);
         Assert.Equal(100m,document.EveningSheets.Single(x=>x.StoreCode=="EAST").DayTarget);
+        var pack = await new DailyReportingPackService(db.Fixture.ConnectionString).GenerateCombinedAsync(day, "Synthetic catalogue test");
+        Assert.Contains("East branch", pack.Title);
+        Assert.DoesNotContain("Titan", pack.Title, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Helios", pack.Title, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(pack.Tables, table => table.Name.Contains("East branch", StringComparison.Ordinal) && table.Name.Contains("DSR", StringComparison.Ordinal));
+        Assert.All(pack.Tables, table =>
+        {
+            Assert.DoesNotContain("Titan", table.Name, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("Helios", table.Name, StringComparison.OrdinalIgnoreCase);
+        });
         Assert.Equal(DBNull.Value,await db.Fixture.ExecuteAsync("SELECT OBJECT_ID(N'dbo.controlled_master_values',N'U')"));
         await Assert.ThrowsAsync<ArgumentException>(()=>repository.UpsertMasterValueAsync("TENDER","UNUSED","Unused","APPROVED",true,"Not used"));
     }

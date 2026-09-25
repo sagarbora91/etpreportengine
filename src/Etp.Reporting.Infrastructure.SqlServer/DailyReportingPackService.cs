@@ -29,9 +29,11 @@ public sealed class DailyReportingPackService(string connectionString)
         CancellationToken cancellationToken = default)
     {
         generatedBy = string.IsNullOrWhiteSpace(generatedBy) ? Environment.UserName : generatedBy.Trim();
-        var stores = await new StoreCatalogRepository(connectionString).ActiveCodesAsync(cancellationToken);
+        var stores = (await new StoreCatalogRepository(connectionString).LoadAsync(cancellationToken))
+            .Where(store => store.IsActive).ToArray();
         if(stores.Length == 0) throw new InvalidOperationException("Configure an active store before generating a combined pack.");
-        var packs = await Task.WhenAll(stores.Select(store=>GenerateAsync(store, businessDate, generatedBy, cancellationToken)));
+        var storeNames = string.Join(" + ", stores.Select(store => store.Name));
+        var packs = await Task.WhenAll(stores.Select(store=>GenerateAsync(store.Code, businessDate, generatedBy, cancellationToken)));
         var dsrDocument = await new OperationalReportRepository(connectionString).LoadDailySalesReportDocumentAsync(businessDate,cancellationToken);
         var overall = packs.Any(x => x.Status == ReconciliationStatus.Failed) ? ReconciliationStatus.Failed
             : packs.All(x => x.Status == ReconciliationStatus.Passed) ? ReconciliationStatus.Passed : ReconciliationStatus.NotRun;
@@ -44,11 +46,11 @@ public sealed class DailyReportingPackService(string connectionString)
         {
             new("Combined Control Summary", overall.ToString(), message,
                 new([new("Store"),new("Report"),new("Status"),new("Control Total","#,##0.00"),new("Variance","#,##0.00"),new("Message")], controlRows)),
-            new("Titan Helios Combined DSR", overall.ToString(), "The same store matrices and combined values as the DSR screen.",EveningReportTables.Dsr(dsrDocument.EveningSheets))
+            new($"{storeNames} Combined DSR", overall.ToString(), "The same store matrices and combined values as the DSR screen.",EveningReportTables.Dsr(dsrDocument.EveningSheets))
         };
         foreach (var pack in packs)
             tables.AddRange(pack.Document.Tables.Skip(1).Select(table => table with { Name = $"{pack.StoreCode} {table.Name}" }));
-        var document = new ReportPackDocument("ETP Complete Daily Management Pack — Titan World + Helios", businessDate, businessDate, overall.ToString(),
+        var document = new ReportPackDocument($"ETP Complete Daily Management Pack — {storeNames}", businessDate, businessDate, overall.ToString(),
             RetailReportingPolicy.Version, message, DateTimeOffset.UtcNow, tables);
         var controlJson = JsonSerializer.Serialize(new
         {
