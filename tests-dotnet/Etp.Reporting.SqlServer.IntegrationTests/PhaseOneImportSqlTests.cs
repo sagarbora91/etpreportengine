@@ -12,14 +12,29 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 
 public sealed class PrivatePhaseOneCorpusAttribute : FactAttribute
 {
-    public const string Root=@"C:\Codex\Reporting Manger\ETP Source Data";
+    // ETP_PRIVATE_CORPUS names the corpus explicitly. Otherwise it is the "ETP Source Data"
+    // folder beside the checkout: a hard-coded drive path silently turned these tests into
+    // skips when the project moved from C: to E: on 26 September 2026.
+    public static readonly string? Configured=Environment.GetEnvironmentVariable("ETP_PRIVATE_CORPUS") is { Length: > 0 } value ? Path.GetFullPath(value) : null;
+    public static readonly string Root=Configured ?? FindBesideCheckout();
     public PrivatePhaseOneCorpusAttribute()
     {
-        if(!Directory.Exists(Path.Combine(Root,"HEMW","till 6 sep 26")) ||
+        // A corpus someone named but that is incomplete fails the test instead of skipping it.
+        if(Configured is null && (!Directory.Exists(Path.Combine(Root,"HEMW","till 6 sep 26")) ||
            !Directory.Exists(Path.Combine(Root,"HEMW","HELIOS ALL REPORT 01 JULY 2026 TO 25 AUG 2026")) ||
            !Directory.Exists(Path.Combine(Root,"WLMHW","TITAN ALL REPORT 01 JULY 2026 TO 25 AUG 2026")) ||
-           !File.Exists(Path.Combine(Root,"HEMW","golden-monthly-HEMW-R025.csv")))
-            Skip="Optional private acceptance corpus (both raw stores, consolidated Helios and monthly CSV) is incomplete or absent. Sanitised SQL behavior tests still run.";
+           !File.Exists(Path.Combine(Root,"HEMW","golden-monthly-HEMW-R025.csv"))))
+            Skip="Optional private acceptance corpus (both raw stores, consolidated Helios and monthly CSV) is incomplete or absent (set ETP_PRIVATE_CORPUS or place \"ETP Source Data\" beside the checkout). Sanitised SQL behavior tests still run.";
+    }
+
+    static string FindBesideCheckout()
+    {
+        for(var folder=new DirectoryInfo(AppContext.BaseDirectory);folder is not null;folder=folder.Parent)
+        {
+            var candidate=Path.Combine(folder.FullName,"ETP Source Data");
+            if(Directory.Exists(candidate)) return candidate;
+        }
+        return Path.Combine(AppContext.BaseDirectory,"ETP Source Data");
     }
 }
 

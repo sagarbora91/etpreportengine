@@ -10,10 +10,25 @@ namespace Etp.Reporting.Import.Tests;
 
 public sealed class RealCorpusFactAttribute : FactAttribute
 {
-    public const string Root = @"C:\Codex\Reporting Manger\ETP Source Data";
+    // ETP_PRIVATE_CORPUS names the corpus explicitly. Otherwise it is the "ETP Source Data"
+    // folder beside the checkout: a hard-coded drive path silently turned these tests into
+    // skips when the project moved from C: to E: on 26 September 2026.
+    public static readonly string? Configured = Environment.GetEnvironmentVariable("ETP_PRIVATE_CORPUS") is { Length: > 0 } value ? Path.GetFullPath(value) : null;
+    public static readonly string Root = Configured ?? FindBesideCheckout();
     public RealCorpusFactAttribute()
     {
-        if (!Directory.Exists(Root)) Skip = "Optional private ETP corpus is absent; sanitised per-family golden fixtures still run in CI.";
+        // A corpus someone named but that is missing fails the test instead of skipping it.
+        if (Configured is null && !Directory.Exists(Root)) Skip = "Optional private ETP corpus is absent (set ETP_PRIVATE_CORPUS or place \"ETP Source Data\" beside the checkout); sanitised per-family golden fixtures still run in CI.";
+    }
+
+    static string FindBesideCheckout()
+    {
+        for (var folder = new DirectoryInfo(AppContext.BaseDirectory); folder is not null; folder = folder.Parent)
+        {
+            var candidate = Path.Combine(folder.FullName, "ETP Source Data");
+            if (Directory.Exists(candidate)) return candidate;
+        }
+        return Path.Combine(AppContext.BaseDirectory, "ETP Source Data");
     }
 }
 
