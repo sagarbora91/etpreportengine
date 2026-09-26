@@ -12,6 +12,10 @@ param(
 # "Create a new empty database" unticked, and before setup runs again: that next run takes a
 # verified safety backup of the restored data and then applies the newer database updates.
 # It never replaces an existing database - there is no WITH REPLACE anywhere in ETP.
+# Restore only an ETP backup from a trusted source, such as the old PC's own backup: this
+# helper and the next setup run execute the database's own procedures and triggers as a SQL
+# administrator. Trigger kinds ETP never creates are refused (Assert-EtpRestoredDatabaseCode),
+# but a changed body of ETP's own code cannot be told apart from the original.
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'etp-operations-common.ps1')
 
@@ -176,6 +180,24 @@ DECLARE @principal sysname=(SELECT TOP(1) name FROM sys.database_principals WHER
 SELECT N'ETP_OWNER:'+CASE WHEN EXISTS(SELECT 1 FROM dbo.application_users WHERE windows_identity=@identity AND role_code='OWNER' AND is_active=1)
   AND (@principal=N'dbo' OR IS_ROLEMEMBER(N'etp_owner',@principal)=1) THEN N'1' ELSE N'0' END;
 '@
+}
+
+function Assert-EtpRestoredDatabaseCode {
+    # The Owner recovery below, and setup's database updates after it, run the restored
+    # database's own code as a SQL administrator: dbo.configure_application_role, the triggers
+    # on dbo.application_users, and any database-level DDL trigger, which fires on every
+    # CREATE USER or CREATE OR ALTER. Anyone who was an application Owner on the old PC is
+    # db_owner there and could have added such code. ETP never creates a database-level
+    # trigger, and puts exactly one trigger on application_users, so anything else is refused
+    # before it can run. A redefined body of ETP's own procedure or trigger is not detected
+    # here, which is why only a backup from a trusted source may be restored.
+    param([AllowEmptyCollection()][AllowNull()][string[]]$Lines)
+    $found = @(@(Get-EtpRestoreMarkers -Lines $Lines -Name 'ETP_DATABASE_DDL_TRIGGER') +
+        @(Get-EtpRestoreMarkers -Lines $Lines -Name 'ETP_USERS_TRIGGER' | Where-Object { $_ -ine 'trg_application_users_history' }))
+    if ($found.Count -gt 0) {
+        $names = @($found | ForEach-Object { $_ -replace '[\x00-\x1F\x7F]', '?' }) -join ', '
+        throw "The database was restored and checked, but it contains triggers ETP never creates ($names). They would run with SQL Server administrator rights during the Owner recovery and setup's database updates, so neither was started. It has been left in place for a SQL administrator to examine. Do not run setup against it."
+    }
 }
 
 function Get-EtpRestoreMarkers {
@@ -373,10 +395,13 @@ Write-RestoreLog 'DBCC CHECKDB found no damage.'
 $schema = @(Invoke-EtpSql -SqlCmd $sqlcmd -Server $ServerInstance -Database $Database -Query ("SET NOCOUNT ON; " +
     "SELECT N'ETP_SCHEMA:'+CASE WHEN OBJECT_ID(N'dbo.schema_migrations',N'U') IS NOT NULL AND OBJECT_ID(N'dbo.application_users',N'U') IS NOT NULL AND OBJECT_ID(N'dbo.configure_application_role',N'P') IS NOT NULL THEN N'1' ELSE N'0' END; " +
     "IF OBJECT_ID(N'dbo.schema_migrations',N'U') IS NOT NULL EXEC(N'SELECT N''ETP_MIGRATION:''+migration_id FROM dbo.schema_migrations;'); " +
-    "IF OBJECT_ID(N'dbo.accounting_batches',N'U') IS NOT NULL EXEC(N'SELECT N''ETP_DUPLICATE_BATCH_DAYS:''+CONVERT(nvarchar(20),COUNT_BIG(*)) FROM (SELECT store_code,business_date FROM dbo.accounting_batches WHERE status<>''REJECTED'' GROUP BY store_code,business_date HAVING COUNT(*)>1) d;');"))
+    "IF OBJECT_ID(N'dbo.accounting_batches',N'U') IS NOT NULL EXEC(N'SELECT N''ETP_DUPLICATE_BATCH_DAYS:''+CONVERT(nvarchar(20),COUNT_BIG(*)) FROM (SELECT store_code,business_date FROM dbo.accounting_batches WHERE status<>''REJECTED'' GROUP BY store_code,business_date HAVING COUNT(*)>1) d;'); " +
+    "SELECT N'ETP_DATABASE_DDL_TRIGGER:'+name FROM sys.triggers WHERE parent_class=0; " +
+    "SELECT N'ETP_USERS_TRIGGER:'+name FROM sys.triggers WHERE parent_class=1 AND parent_id=OBJECT_ID(N'dbo.application_users');"))
 if ((Get-EtpRestoreMarker $schema 'ETP_SCHEMA') -cne '1') {
     throw "$Database was restored and checked, but it is not an ETP database with user administration (migration 0022 or later), so this helper cannot make you its Owner. Follow docs\OPERATIONS.md, Owner recovery and maintenance, by hand before running setup."
 }
+Assert-EtpRestoredDatabaseCode -Lines $schema
 $applied = @(Get-EtpRestoreMarkers $schema 'ETP_MIGRATION')
 $migrationDirectory = Join-Path (Split-Path -Parent $PSScriptRoot) 'database\migrations'
 $bundled = @()

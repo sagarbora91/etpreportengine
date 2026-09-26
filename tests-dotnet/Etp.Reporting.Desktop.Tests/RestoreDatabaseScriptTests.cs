@@ -257,6 +257,41 @@ public sealed class RestoreDatabaseScriptTests
     }
 
     [Fact]
+    public async Task Triggers_etp_never_creates_are_refused_before_the_restored_code_runs_as_administrator()
+    {
+        // The Owner recovery and setup's migrations run the restored database's own code as a
+        // SQL administrator. A database-level DDL trigger fires on the CREATE USER inside
+        // configure_application_role; an extra trigger on application_users fires on the MERGE.
+        // ETP creates neither, so either is refused before step 14.
+        var script = FindScript("restore-etp-database.ps1").Replace("'", "''");
+        var command = $$"""
+            {{Preamble()}}
+            $etp = @('', '------', 'ETP_SCHEMA:1', 'ETP_MIGRATION:0032_active_users_can_connect', 'ETP_USERS_TRIGGER:trg_application_users_history')
+            Assert-EtpRestoredDatabaseCode -Lines $etp
+            Assert-EtpRestoredDatabaseCode -Lines @('ETP_SCHEMA:1')
+            Assert-Refused { Assert-EtpRestoredDatabaseCode -Lines ($etp + 'ETP_DATABASE_DDL_TRIGGER:audit_everything') } 'triggers ETP never creates \(audit_everything\)'
+            Assert-Refused { Assert-EtpRestoredDatabaseCode -Lines ($etp + 'ETP_USERS_TRIGGER:trg_grant_me_sysadmin') } 'trg_grant_me_sysadmin'
+            Assert-Refused { Assert-EtpRestoredDatabaseCode -Lines ($etp + ('ETP_DATABASE_DDL_TRIGGER:bad' + [char]7 + 'name')) } 'bad\?name'
+            Assert-Refused { Assert-EtpRestoredDatabaseCode -Lines ($etp + 'ETP_DATABASE_DDL_TRIGGER:x') } 'Do not run setup against it'
+            $tokens = $null; $errors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile('{{script}}', [ref]$tokens, [ref]$errors)
+            if (@($errors).Count -ne 0) { throw 'restore-etp-database.ps1 does not parse.' }
+            $top = @($ast.EndBlock.Statements)
+            $check = @($top | Where-Object { $_ -is [System.Management.Automation.Language.PipelineAst] -and $_.Extent.Text -eq 'Assert-EtpRestoredDatabaseCode -Lines $schema' })
+            $schema = @($top | Where-Object { $_ -is [System.Management.Automation.Language.AssignmentStatementAst] -and $_.Left.Extent.Text -eq '$schema' })
+            $owner = @($top | Where-Object { $_ -isnot [System.Management.Automation.Language.FunctionDefinitionAst] -and $_.Extent.Text -match 'New-EtpOwnerRecoverySql' })
+            if ($check.Count -ne 1 -or $schema.Count -ne 1 -or $owner.Count -ne 1) { throw 'The code check, the schema query or the Owner recovery could not be found.' }
+            if ($check[0].Extent.StartOffset -lt $schema[0].Extent.EndOffset -or $check[0].Extent.EndOffset -gt $owner[0].Extent.StartOffset) { throw 'The code check does not run between the schema query and the Owner recovery.' }
+            if ($schema[0].Extent.Text -notmatch "ETP_DATABASE_DDL_TRIGGER:'\+name FROM sys\.triggers WHERE parent_class=0" -or
+                $schema[0].Extent.Text -notmatch "ETP_USERS_TRIGGER:'\+name FROM sys\.triggers WHERE parent_class=1 AND parent_id=OBJECT_ID\(N'dbo\.application_users'\)") { throw 'The schema query does not list the triggers.' }
+            Write-Output 'Restored code checks passed.'
+            """;
+        var result = await RunPowerShellAsync(["-Command", command]);
+        Assert.True(result.ExitCode == 0, result.Output);
+        Assert.Contains("Restored code checks passed.", result.Output);
+    }
+
+    [Fact]
     public async Task Broker_only_install_never_alters_an_existing_broker()
     {
         // CREATE OR ALTER on a signed broker would silently drop the signature the automation
