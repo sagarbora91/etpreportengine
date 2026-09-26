@@ -2,7 +2,7 @@
 
 For the packaged release, run the versioned `EtpReportingEngine-Setup-<version>-x64.exe` as administrator.
 
-**The SQL Server option appears only when the installer was built with SQL media embedded** (`build-windows-installer.ps1 -SqlPayloadDirectory`). P4-11 recorded why: the option used to be offered on every build, did nothing, and named an edition that was not what it installed. When the option is present, keep **Install and configure Microsoft SQL Server Express** selected and setup installs the engine from the media inside the installer, with no internet access required. When it is absent, install SQL Server yourself first as described under Prerequisite.
+**The SQL Server option appears only when the installer was built with SQL media embedded** (`build-windows-installer.ps1 -SqlPayloadDirectory`, a folder holding the SQL Server Express package, `msodbcsql17.msi` and `MsSqlCmdLnUtils.msi`). P4-11 recorded why: the option used to be offered on every build, did nothing, and named an edition that was not what it installed. The option reads **Install Microsoft SQL Server 2025 Express, its ODBC drivers and Sqlcmd**. On a new PC keep it ticked: setup installs SQL Server Express (instance `SQLEXPRESS`, Windows authentication only, no TCP or named pipes, `BUILTIN\Administrators` as SQL administrators, collation `Latin1_General_CI_AS`), then ODBC Driver 17 and Sqlcmd, from the media inside the installer with no internet access, and then creates the protected folders, the `EtpAutomation` account and the machine configuration itself. Anything already installed is skipped, and the media is deleted when setup finishes. SQL Server 2025 is one-way: a database restored onto it can no longer be restored onto SQL Server 2022. When the option is absent, install SQL Server yourself first as described under Prerequisite. For a silent install choose tasks with `/MERGETASKS`, not `/TASKS=`, which would also untick the database option below.
 
 Setup then configures automatic startup, initializes `EtpReporting`, prepares backup access, and registers the daily backup, monthly recovery-drill and five-minute ETP automation tasks. It creates a Start Menu entry, and supports upgrades and uninstall through Windows Installed Apps; uninstall removes the ETP tasks but never removes SQL Server, databases, sources, reports or backups.
 
@@ -12,9 +12,24 @@ The SQL connection is saved for the current Windows user after a successful conn
 
 Reports can be exported to fixed-format Excel or PDF. PDF output is landscape, paginated, and includes the report period, control status, rule version, totals, generation time, and page numbers.
 
+## Bringing existing data to a new PC
+
+**Create a new empty ETP database if this PC has none** is ticked by default. To carry on with an existing ETP database on a new PC instead:
+
+1. Run setup elevated with the SQL Server option ticked and **Create a new empty database unticked**. Setup prepares SQL Server and the protected configuration, creates no database, and says so. It ends with exit code 0 and leaves `DATABASE-RESTORE-PENDING.txt` in the installation folder.
+2. In an elevated PowerShell window, restore the backup. Add `-ReceiptPath "<the .bak.receipt.json>"` if you have the receipt:
+
+   ```powershell
+   powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Program Files\Saagar Traders\ETP Reporting Engine\scripts\restore-etp-database.ps1" -BackupPath "<full path of the .bak>"
+   ```
+
+   It verifies, restores and checks the backup, and makes the Windows account running it the database's Owner (`docs/OPERATIONS.md`, Moving the live database to a new PC).
+3. Run setup again. It takes a verified safety backup of the restored data before it applies the newer database updates.
+4. In ETP as Owner, add `<PC>\EtpAutomation` as an active Store Manager in Settings > Users, then install the SQL operations module (`docs/OPERATIONS.md`, deployment step 7).
+
 ## Prerequisite
 
-Install Microsoft SQL Server with the `SQLEXPRESS` instance and enable Windows authentication for the Windows user running the application. The application is self-contained; a separate .NET runtime is not required.
+Unless setup installs it (the SQL Server option above), install Microsoft SQL Server with the `SQLEXPRESS` instance and enable Windows authentication for the Windows user running the application. The application is self-contained; a separate .NET runtime is not required.
 
 Express is supported and is the usual choice for a single shop PC. Note one consequence: Express and Web refuse `BACKUP ... WITH ENCRYPTION`, so backups on those editions are taken unencrypted, and their receipts record that plainly rather than claiming encryption. The backup folder policy is then the only thing protecting them at rest. An encrypted backup requires Standard, Developer or Enterprise. See `docs/OPERATIONS.md`.
 
