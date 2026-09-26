@@ -2,11 +2,33 @@
 
 ## Unreleased
 
+## [1.9.0] - 2026-09-26
+
+Phase 5 finishes, replaces or deletes the secondary modules per D6:
+
+- accounting and Tally export: approved adjustments, atomic mapping approval, approval reasons, Owner-only reject, honest statuses, duplicate-batch refusal and export receipts
+- archive and sharing: SMTP email, WhatsApp handoff and delivery history
+- registers
+- approvals and adjustments, including restatement requests that wait for Owner approval
+- a store catalogue in place of hard-coded stores
+- automatic import
+- a rewritten Help centre
+- investigation click-through
+- removal of the OCR / Source Inbox code
+
+Also included:
+
+- the Phase 4 fixes of 25 September: Settings says why a save failed; rotation keeps safety backups; a full backup folder can free space; an encrypting SQL edition is refused in plain words
+- migrations 0025-0037
+
+Status: an unsigned build (A4.7). Phase 5 acceptance A5.1-A5.7 is not yet proven on an installed copy. Import bug IF-014 (a slow disk can report a saved import as Failed) is open.
+
+Earlier entries that were listed under Unreleased:
+
 - Restore approved brand mappings, durable import history, query filters with export scope, and selective Retry failed.
 - Allow Owner-approved adjustments in accounting mappings.
 - Make mapping approval atomic and persist batch approval reasons (migration 0029).
 - Add Owner-only rejection of unexported accounting batches with reason, actor/time and audit (migration 0030).
-- Phase 5 remains in progress; targeted evidence and remaining work are in the current handoff and Phase 5 report.
 
 ## [1.8.8] - 2026-09-12
 
