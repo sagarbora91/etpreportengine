@@ -51,6 +51,30 @@ function Assert-EtpProtectedInstall {
     }
 }
 
+function New-EtpProtectedDirectory {
+    # A new folder only SYSTEM and Administrators can change, created in one step with that
+    # protection so nothing can be planted in it between creation and use. -ReadSid lets one
+    # more account (the SQL Server service) read what is put there. Used for work that runs
+    # with the administrator's full token: SQL Server's extracted setup, and the copy of a
+    # backup that is about to be restored.
+    param([Parameter(Mandatory)][string]$Path,[Security.Principal.SecurityIdentifier]$ReadSid)
+    $full = [IO.Path]::GetFullPath($Path)
+    Assert-EtpNoLinks $full
+    if (Test-Path -LiteralPath $full) { throw 'A protected work folder already exists at that path.' }
+    $security = [Security.AccessControl.DirectorySecurity]::new()
+    $security.SetAccessRuleProtection($true,$false)
+    $security.SetOwner([Security.Principal.SecurityIdentifier]::new('S-1-5-32-544'))
+    foreach ($sid in @('S-1-5-18','S-1-5-32-544')) {
+        $security.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new($sid),'FullControl','ContainerInherit,ObjectInherit','None','Allow'))
+    }
+    if ($ReadSid) { $security.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($ReadSid,'ReadAndExecute','ContainerInherit,ObjectInherit','None','Allow')) }
+    $null = [IO.Directory]::CreateDirectory($full,$security)
+    # Also closes the gap between Test-Path and CreateDirectory: a folder somebody else
+    # planted there first is left as it was by CreateDirectory, and has the wrong owner.
+    Assert-EtpProtectedInstall $full
+    return $full
+}
+
 function Resolve-EtpSqlCmd {
     param([string]$ExplicitPath)
     # The ODBC client reaches a local instance over shared memory, which SQL

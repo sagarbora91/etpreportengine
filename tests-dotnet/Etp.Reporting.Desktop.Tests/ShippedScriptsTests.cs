@@ -40,6 +40,34 @@ public sealed class ShippedScriptsTests
         Assert.Contains("if not WizardSilent then", installer, StringComparison.Ordinal);
     }
 
+    private static string Installer() => File.ReadAllText(Path.Combine(RepositoryRoot(), "installer", "EtpReportingEngine.iss"));
+
+    [Fact]
+    public void The_sql_media_is_placed_in_the_protected_installation_folder_only_when_chosen_and_removed_after_use()
+    {
+        // The media runs with the administrator's full token. Setup's {tmp} is under the user
+        // profile and fails bootstrap's ownership check, so the option could never work there.
+        var installer = Installer();
+        Assert.Contains("DestDir: \"{app}\\SqlSetupMedia\"; Tasks: sqlprerequisites; Flags: deleteafterinstall", installer, StringComparison.Ordinal);
+        Assert.Contains("-SqlPayloadDirectory \"' + ExpandConstant('{app}\\SqlSetupMedia')", installer, StringComparison.Ordinal);
+        Assert.DoesNotContain("{tmp}\\SqlPayload", installer, StringComparison.Ordinal);
+        // Removed straight after bootstrap, before the failure path raises and before
+        // DeinitializeSetup's ExitProcess can skip setup's own clean-up.
+        var removal = installer.IndexOf("DelTree(ExpandConstant('{app}\\SqlSetupMedia'), True, True, True);", StringComparison.Ordinal);
+        Assert.True(removal > installer.IndexOf("Launched := Exec(", StringComparison.Ordinal), "The media is removed before bootstrap has run.");
+        Assert.True(removal < installer.IndexOf("RaiseException(", StringComparison.Ordinal), "The media is left behind when setup fails.");
+        Assert.Contains("Type: filesandordirs; Name: \"{app}\\SqlSetupMedia\"", installer, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void The_sql_option_names_the_edition_it_installs()
+    {
+        // The embedded media is SQL Server 2025 Express (17.0.1000.7); the label said 2022.
+        var installer = Installer();
+        Assert.Contains("Install Microsoft SQL Server 2025 Express", installer, StringComparison.Ordinal);
+        Assert.DoesNotContain("SQL Server 2022", installer, StringComparison.Ordinal);
+    }
+
     private static string ScriptsDirectory => Path.Combine(AppContext.BaseDirectory, "scripts");
 
     private static string[] ShippedNames() =>
@@ -57,6 +85,9 @@ public sealed class ShippedScriptsTests
     // Run by the installer after files are placed, and by the uninstaller.
     [InlineData("bootstrap-etp-prerequisites.ps1")]
     [InlineData("remove-etp-scheduled-tasks.ps1")]
+    // Run by bootstrap on a new PC, and by the owner to bring existing data onto one.
+    [InlineData("initialize-etp-operation-folders.ps1")]
+    [InlineData("install-etp-sql-operations.ps1")]
     public void Operational_scripts_ship_beside_the_application(string name)
         => Assert.Contains(name, ShippedNames());
 

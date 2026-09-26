@@ -10,6 +10,10 @@ param(
 $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot 'etp-operations-common.ps1')
 
+# What setup provisions on a PC that has no ETP configuration yet (the documented defaults).
+$EtpNewMachineServerInstance = '.\SQLEXPRESS'
+$EtpNewMachineDatabase = 'EtpReporting'
+
 function Resolve-EtpBootstrapServiceName {
     param([Parameter(Mandatory)][string]$ServerInstance,[Parameter(Mandatory)][string]$Database)
     Assert-EtpLocalSqlTarget $ServerInstance $Database
@@ -37,7 +41,111 @@ function Assert-EtpBootstrapSqlEdition {
     }
 }
 
-function Install-EtpSqlFromPayload {
+function Assert-EtpBootstrapAdministrator {
+    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = [Security.Principal.WindowsPrincipal]::new($identity)
+    if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+        throw 'ETP prerequisite configuration requires administrator rights.'
+    }
+}
+
+function Get-EtpSqlEngineSetupArguments {
+    param([Parameter(Mandatory)][string]$InstanceName)
+    if ($InstanceName -notmatch '^[A-Za-z0-9_$-]{1,16}$') { throw 'The configured SQL Server instance name could not be determined.' }
+    # Shared memory only: the engine is local to this machine and must not listen
+    # on the network. Administrators become sysadmin so the owner can administer it.
+    # SECURITYMODE is omitted deliberately: its only supported value is SQL, and
+    # omitting it is the documented way to get Windows-only authentication.
+    # The collation is the one the owner's database has always had. Left to SQL setup it
+    # follows the Windows locale, and an en-US machine gets SQL_Latin1_General_CP1_CI_AS
+    # (the acceptance VM did, 24 September 2026). The monthly recovery drill compares a
+    # temporary table, which takes the server's collation, with the restored copy's file
+    # list, which takes the database's, and has no COLLATE clause: on such an instance a
+    # restored Latin1_General_CI_AS database fails its drill with a collation conflict.
+    # A new database simply inherits it. Only an instance setup installs is affected.
+    return @('/ACTION=Install','/QUIET','/IACCEPTSQLSERVERLICENSETERMS','/FEATURES=SQLENGINE',
+        "/INSTANCENAME=$InstanceName",'/SQLSYSADMINACCOUNTS=BUILTIN\Administrators',
+        '/SQLCOLLATION=Latin1_General_CI_AS','/TCPENABLED=0','/NPENABLED=0','/UPDATEENABLED=0')
+}
+
+function Install-EtpSqlEngineFromPayload {
+    param([Parameter(Mandatory)][string]$PayloadDirectory,[Parameter(Mandatory)][string]$ServiceName)
+    $engine = Get-ChildItem -LiteralPath $PayloadDirectory -Filter 'SQLEXPR*_x64_*.exe' -File | Select-Object -First 1
+    if (-not $engine) { throw 'The bundled SQL Server Express package was not found in the installer media.' }
+    # Install the instance the configuration actually asks for. Hard-coding
+    # SQLEXPRESS would install an instance, then fail looking for the configured
+    # service, and leave SQL Server behind on the machine.
+    $instance = if ($ServiceName -ceq 'MSSQLSERVER') { 'MSSQLSERVER' } else { $ServiceName.Substring($ServiceName.IndexOf('$') + 1) }
+    $arguments = Get-EtpSqlEngineSetupArguments $instance
+
+    # The package is a self-extractor; extract, then run its own setup unattended. The
+    # extracted setup.exe runs with the administrator's full token, so it must not sit in a
+    # folder the user's unelevated processes can write - which the user's Temp folder, where
+    # this used to extract, is. The path has no spaces: /X: with a quoted path is unverified.
+    $extract = $null
+    try {
+        $extract = New-EtpProtectedDirectory -Path (Join-Path $env:ProgramData ('EtpSqlSetup-' + [Guid]::NewGuid().ToString('N')))
+        Start-EtpProcess -FilePath $engine.FullName -Arguments @('/Q', "/X:$extract") -Description 'extract the SQL Server media'
+        $setup = Join-Path $extract 'setup.exe'
+        if (-not (Test-Path -LiteralPath $setup -PathType Leaf)) {
+            # Where SQL Server 2025's extractor puts setup.exe is unverified. Accept it one
+            # level down, but only if there is exactly one.
+            $found = @(Get-ChildItem -LiteralPath $extract -Filter 'setup.exe' -File -Recurse -Depth 1)
+            if ($found.Count -ne 1) { throw 'The bundled SQL Server media did not extract a setup program.' }
+            $setup = $found[0].FullName
+        }
+        Start-EtpProcess -FilePath $setup -Description 'install SQL Server Express' -Arguments $arguments
+    }
+    # Only a folder this function created is ever removed.
+    finally { if ($extract -and (Test-Path -LiteralPath $extract)) { Remove-Item -LiteralPath $extract -Recurse -Force -ErrorAction SilentlyContinue } }
+
+    if (-not (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue)) { throw 'SQL Server Express was installed but its service did not appear.' }
+}
+
+function Get-EtpInstalledOdbcDrivers {
+    # Setup starts the 64-bit powershell.exe from {sys}, so this is the 64-bit driver list.
+    $key = 'HKLM:\SOFTWARE\ODBC\ODBCINST.INI\ODBC Drivers'
+    if (-not (Test-Path -LiteralPath $key)) { return @() }
+    $item = Get-Item -LiteralPath $key
+    return @($item.GetValueNames() | Where-Object { [string]$item.GetValue($_) -ceq 'Installed' })
+}
+
+function Get-EtpSqlClientInstallPlan {
+    # The client packages, chosen by exact file name, in the order they have to install.
+    # The bundled Sqlcmd (Microsoft Command Line Utilities 15) stops with error 26010 unless
+    # ODBC Driver 17 is already there - its custom action MSSQLODBC17_64 - and the SQL Server
+    # 2025 media carries only Driver 18, as msodbcsql.msi. Until 27 September 2026 setup took
+    # the first msodbcsql*.msi it found, which was Driver 18, so Sqlcmd could never install.
+    # Media that cannot finish the job is refused here, before anything has been changed.
+    # LocalDB, and anything else in the media, is never installed.
+    param([Parameter(Mandatory)][string]$PayloadDirectory,[string[]]$InstalledOdbcDrivers)
+    $installed = @($InstalledOdbcDrivers | Where-Object { $_ })
+    $packages = @(
+        [pscustomobject]@{ File='msodbcsql17.msi'; Driver='ODBC Driver 17 for SQL Server'; Terms='IACCEPTMSODBCSQLLICENSETERMS=YES'; What='ODBC Driver 17 for SQL Server' },
+        [pscustomobject]@{ File='msodbcsql.msi'; Driver='ODBC Driver 18 for SQL Server'; Terms='IACCEPTMSODBCSQLLICENSETERMS=YES'; What='ODBC Driver 18 for SQL Server' },
+        [pscustomobject]@{ File='MsSqlCmdLnUtils.msi'; Driver=''; Terms='IACCEPTMSSQLCMDLNUTILSLICENSETERMS=YES'; What='Sqlcmd' })
+    $present = @{}
+    foreach ($package in $packages) { $present[$package.File] = Test-Path -LiteralPath (Join-Path $PayloadDirectory $package.File) -PathType Leaf }
+    if (-not $present['MsSqlCmdLnUtils.msi']) {
+        throw 'The SQL Server media included with this installer has no Sqlcmd package (MsSqlCmdLnUtils.msi), and this PC has no Sqlcmd. Nothing was installed.'
+    }
+    if ('ODBC Driver 17 for SQL Server' -notin $installed -and -not $present['msodbcsql17.msi']) {
+        throw 'The bundled Sqlcmd needs Microsoft ODBC Driver 17 for SQL Server, which is not installed and is not included with this installer (msodbcsql17.msi). Nothing was installed.'
+    }
+    $plan = @()
+    foreach ($package in $packages) {
+        if (-not $present[$package.File]) { continue }
+        if ($package.Driver -and $package.Driver -in $installed) { continue }
+        $plan += [pscustomobject]@{ Path=(Join-Path $PayloadDirectory $package.File); Terms=$package.Terms; What=$package.What }
+    }
+    return $plan
+}
+
+function Test-EtpSqlCmdInstalled {
+    try { $null = Resolve-EtpSqlCmd; return $true } catch { return $false }
+}
+
+function Install-EtpSqlPrerequisitesFromPayload {
     param([Parameter(Mandatory)][string]$PayloadDirectory,[Parameter(Mandatory)][string]$ServiceName)
     # The media is whatever the build packaged. Say exactly what is missing rather
     # than failing halfway through an unattended setup.
@@ -47,42 +155,51 @@ function Install-EtpSqlFromPayload {
     # in this script passes the ownership and ACL gate; this one must too, or a folder a
     # non-administrator can write becomes an elevation path.
     Assert-EtpProtectedInstall $PayloadDirectory
-    $engine = Get-ChildItem -LiteralPath $PayloadDirectory -Filter 'SQLEXPR*_x64_*.exe' -File | Select-Object -First 1
-    if (-not $engine) { throw 'The bundled SQL Server Express package was not found in the installer media.' }
-
-    # The package is a self-extractor; extract, then run its own setup unattended.
-    $extract = Join-Path ([IO.Path]::GetTempPath()) ('EtpSqlMedia-' + [Guid]::NewGuid().ToString('N'))
-    try {
-        Start-EtpProcess -FilePath $engine.FullName -Arguments @('/Q', "/X:$extract") -Description 'extract the SQL Server media'
-        $setup = Join-Path $extract 'setup.exe'
-        if (-not (Test-Path -LiteralPath $setup -PathType Leaf)) { throw 'The bundled SQL Server media did not extract a setup program.' }
-        # Shared memory only: the engine is local to this machine and must not listen
-        # on the network. Administrators become sysadmin so the owner can administer it.
-        # Install the instance the configuration actually asks for. Hard-coding
-        # SQLEXPRESS would install an instance, then fail looking for the configured
-        # service, and leave SQL Server behind on the machine.
-        $instance = if ($ServiceName -ceq 'MSSQLSERVER') { 'MSSQLSERVER' } else { $ServiceName.Substring($ServiceName.IndexOf('$') + 1) }
-        if ([string]::IsNullOrWhiteSpace($instance)) { throw 'The configured SQL Server instance name could not be determined.' }
-        # SECURITYMODE is omitted deliberately: its only supported value is SQL, and
-        # omitting it is the documented way to get Windows-only authentication.
-        Start-EtpProcess -FilePath $setup -Description 'install SQL Server Express' -Arguments @(
-            '/ACTION=Install','/QUIET','/IACCEPTSQLSERVERLICENSETERMS','/FEATURES=SQLENGINE',
-            "/INSTANCENAME=$instance",'/SQLSYSADMINACCOUNTS=BUILTIN\Administrators',
-            '/TCPENABLED=0','/NPENABLED=0','/UPDATEENABLED=0')
+    $needEngine = -not (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue)
+    if ($needEngine -and -not (Get-ChildItem -LiteralPath $PayloadDirectory -Filter 'SQLEXPR*_x64_*.exe' -File)) { throw 'The bundled SQL Server Express package was not found in the installer media.' }
+    # Work out everything first, so media that cannot finish the job stops setup before
+    # SQL Server is half-installed.
+    $clientPlan = @()
+    if (-not (Test-EtpSqlCmdInstalled)) { $clientPlan = @(Get-EtpSqlClientInstallPlan -PayloadDirectory $PayloadDirectory -InstalledOdbcDrivers (Get-EtpInstalledOdbcDrivers)) }
+    if ($needEngine) {
+        Write-Host 'Installing SQL Server Express from the media included with this installer.'
+        Install-EtpSqlEngineFromPayload -PayloadDirectory $PayloadDirectory -ServiceName $ServiceName
     }
-    finally { if (Test-Path -LiteralPath $extract) { Remove-Item -LiteralPath $extract -Recurse -Force -ErrorAction SilentlyContinue } }
-
-    if (-not (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue)) { throw 'SQL Server Express was installed but its service did not appear.' }
-
-    # Sqlcmd and its ODBC driver ship beside the engine when the build supplies them.
-    foreach ($package in @(
-        @{ Filter = 'msodbcsql*.msi'; Terms = 'IACCEPTMSODBCSQLLICENSETERMS=YES'; What = 'the ODBC driver' },
-        @{ Filter = 'MsSqlCmdLnUtils*.msi'; Terms = 'IACCEPTMSSQLCMDLNUTILSLICENSETERMS=YES'; What = 'Sqlcmd' })) {
-        $msi = Get-ChildItem -LiteralPath $PayloadDirectory -Filter $package.Filter -File | Select-Object -First 1
-        if (-not $msi) { continue }
-        Start-EtpProcess -FilePath "$env:SystemRoot\System32\msiexec.exe" -Description ('install ' + $package.What) `
-            -Arguments @('/i', $msi.FullName, '/qn', 'ADDLOCAL=ALL', $package.Terms)
+    # SQL Server setup may have brought a Sqlcmd of its own; then nothing more is needed.
+    if ($clientPlan.Count -gt 0 -and -not (Test-EtpSqlCmdInstalled)) {
+        foreach ($package in $clientPlan) {
+            # /norestart: a driver that asks for a restart must not restart the PC under setup.
+            Start-EtpProcess -FilePath "$env:SystemRoot\System32\msiexec.exe" -Description ('install ' + $package.What) `
+                -Arguments @('/i', $package.Path, '/qn', '/norestart', 'ADDLOCAL=ALL', $package.Terms)
+        }
+        if (-not (Test-EtpSqlCmdInstalled)) { throw 'Sqlcmd was installed but was not found in its protected Program Files folder.' }
     }
+}
+
+function Invoke-EtpOperationFolderSetup {
+    param([Parameter(Mandatory)][string]$ServiceName,[Parameter(Mandatory)][string]$ServerInstance,[Parameter(Mandatory)][string]$Database,
+          [string]$AutomationPrincipal,[switch]$CreateAutomationAccount)
+    $arguments = @{ SqlServiceIdentity = ('NT SERVICE\' + $ServiceName); ServerInstance = $ServerInstance; Database = $Database; GrantAutomationFolderAccess = $true }
+    if (-not [string]::IsNullOrWhiteSpace($AutomationPrincipal)) { $arguments.AutomationPrincipal = $AutomationPrincipal }
+    if ($CreateAutomationAccount) { $arguments.CreateAutomationAccount = $true }
+    & (Join-Path $PSScriptRoot 'initialize-etp-operation-folders.ps1') @arguments
+}
+
+function Initialize-EtpFreshMachine {
+    # A PC with no ETP machine configuration yet. The configuration names the SQL Server
+    # service account, which Windows only knows once SQL Server exists, so the order is SQL
+    # Server, then its client tools, then the configuration. Until 27 September 2026 setup
+    # read the configuration first, so on a new PC it could never reach the step that
+    # installs SQL Server: every run ended at the missing file with exit code 1603.
+    param([Parameter(Mandatory)][string]$ApplicationRoot,[string]$SqlPayloadDirectory,[switch]$SkipSqlInstallation)
+    Assert-EtpBootstrapAdministrator
+    Assert-EtpBootstrapPayloads $ApplicationRoot
+    if ($SkipSqlInstallation -or [string]::IsNullOrWhiteSpace($SqlPayloadDirectory)) {
+        throw 'This PC has no ETP machine configuration yet. Run setup again with "Install Microsoft SQL Server 2025 Express" ticked (it skips anything already installed; an installer built without SQL media does not offer it), or prepare SQL Server and the protected folders as described in docs\OPERATIONS.md, then run setup again. Nothing was changed.'
+    }
+    $serviceName = Resolve-EtpBootstrapServiceName $EtpNewMachineServerInstance $EtpNewMachineDatabase
+    Install-EtpSqlPrerequisitesFromPayload -PayloadDirectory $SqlPayloadDirectory -ServiceName $serviceName
+    Invoke-EtpOperationFolderSetup -ServiceName $serviceName -ServerInstance $EtpNewMachineServerInstance -Database $EtpNewMachineDatabase -CreateAutomationAccount
 }
 
 function Start-EtpProcess {
@@ -185,6 +302,17 @@ function Assert-VerifiedBackupReceipt {
     $script:preMigrationBackupPath=$receipt.backupPath
 }
 
+# No protected configuration means a PC ETP has never been set up on. Prepare SQL Server
+# and the configuration first (see Initialize-EtpFreshMachine); everything after this
+# point is the same for a new PC and an existing one.
+$freshMachine = $false
+$configurationPath = Join-Path $env:ProgramData 'EtpReporting\Operations\operations.json'
+Assert-EtpNoLinks $configurationPath
+if (-not (Test-Path -LiteralPath $configurationPath)) {
+    $freshMachine = $true
+    Initialize-EtpFreshMachine -ApplicationRoot $applicationRoot -SqlPayloadDirectory $SqlPayloadDirectory -SkipSqlInstallation:$SkipSqlInstallation
+}
+
 $operationConfiguration = Get-EtpOperationsConfiguration
 Assert-EtpBootstrapPayloads $applicationRoot
 if ($operationConfiguration.allowAutomationFolderAccess -ne $true) { throw 'Resolve automation folder access in the protected machine configuration before bootstrap.' }
@@ -204,9 +332,10 @@ $migrationFiles = @(Get-ChildItem -LiteralPath $migrationDirectory -Filter '*.sq
 if ($migrationFiles.Count -eq 0) { throw "No bundled database migrations were found." }
 
 $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
-if (-not $service -and -not $SkipSqlInstallation -and $SqlPayloadDirectory) {
-    Write-Host 'Installing SQL Server Express from the media included with this installer.'
-    Install-EtpSqlFromPayload -PayloadDirectory $SqlPayloadDirectory -ServiceName $serviceName
+# With the media ticked, also when SQL Server is there but Sqlcmd is not: that used to stop
+# below with "Sqlcmd is not installed" although the installer carried it.
+if (-not $SkipSqlInstallation -and $SqlPayloadDirectory -and (-not $service -or -not (Test-EtpSqlCmdInstalled))) {
+    Install-EtpSqlPrerequisitesFromPayload -PayloadDirectory $SqlPayloadDirectory -ServiceName $serviceName
     $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
 }
 if (-not $service) { throw 'The configured database-engine service is not installed. Install SQL Server manually, or run setup with the bundled database media, then retry.' }
@@ -230,7 +359,9 @@ $editionEncryptsBackups = -not ($serverParts[2] -like '*Express*' -or $serverPar
 Set-Service -Name $serviceName -StartupType Automatic
 & (Join-Path $PSScriptRoot 'initialize-etp-operation-folders.ps1') -SqlServiceIdentity ('NT SERVICE\'+$serviceName) -ServerInstance $ServerInstance -Database $Database -AutomationPrincipal $operationConfiguration.automationPrincipal -GrantAutomationFolderAccess
 $setupPreflightValidated = $true
-
+if ($freshMachine) {
+    Write-SetupLog 'This PC had no ETP machine configuration. Setup installed whatever was missing of SQL Server Express, ODBC Driver 17 and Sqlcmd from the included media, and created the protected folders, the EtpAutomation account and the configuration for .\SQLEXPRESS / EtpReporting.'
+}
 
 $databaseState = Invoke-SqlScalar -Query "SET NOCOUNT ON; IF DB_ID(N'$Database') IS NULL SELECT 'MISSING' ELSE SELECT 'EXISTS';"
 $databaseExistedBeforeMigration = $databaseState -ceq 'EXISTS'

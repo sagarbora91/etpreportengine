@@ -38,7 +38,11 @@ Source: "{#ReleaseDirectory}\*"; DestDir: "{app}"; Flags: ignoreversion recurses
 ; it. Without it there is no option and no licence prompt, so setup never offers
 ; an installation it cannot perform.
 #ifdef SqlPayloadDirectory
-Source: "{#SqlPayloadDirectory}\*"; DestDir: "{tmp}\SqlPayload"; Flags: deleteafterinstall recursesubdirs createallsubdirs
+; The media runs with the administrator's full token, so it sits where only administrators
+; can change it - inside the protected installation folder, never setup's {tmp} under the
+; user profile, which bootstrap's ownership/ACL check refuses. Copied only when the option
+; is ticked, and deleted again as soon as bootstrap returns.
+Source: "{#SqlPayloadDirectory}\*"; DestDir: "{app}\SqlSetupMedia"; Tasks: sqlprerequisites; Flags: deleteafterinstall recursesubdirs createallsubdirs
 #endif
 
 [Icons]
@@ -49,11 +53,15 @@ Name: "{group}\Uninstall {#AppName}"; Filename: "{uninstallexe}"
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional shortcuts:"
 #ifdef SqlPayloadDirectory
-Name: "sqlprerequisites"; Description: "Install Microsoft SQL Server 2022 Express and Sqlcmd from the media included with this installer (accepts Microsoft's licence terms)"; GroupDescription: "Optional database prerequisites:"; Flags: checkedonce
+Name: "sqlprerequisites"; Description: "Install Microsoft SQL Server 2025 Express, its ODBC drivers and Sqlcmd from the media included with this installer (accepts Microsoft's licence terms)"; GroupDescription: "Optional database prerequisites:"; Flags: checkedonce
 #endif
 
 [Run]
 Filename: "{app}\{#AppExeName}"; Description: "Launch {#AppName}"; Flags: nowait postinstall skipifsilent
+
+[UninstallDelete]
+Type: filesandordirs; Name: "{app}\SqlSetupMedia"
+Type: files; Name: "{app}\SETUP-INCOMPLETE.txt"
 
 [UninstallRun]
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy RemoteSigned -File ""{app}\scripts\remove-etp-scheduled-tasks.ps1"" -ApplicationDirectory ""{app}"""; RunOnceId: "RemoveEtpScheduledTasks"; Flags: runhidden waituntilterminated skipifdoesntexist
@@ -84,8 +92,8 @@ begin
   else
   begin
     SaveStringToFile(Marker, 'Setup did not complete. ' + Detail + #13#10 +
-      'The database migration and health validation step failed, so this installation is not ready to use.' + #13#10 +
-      'Do not launch ETP. Review %ProgramData%\EtpReporting\SetupLogs and run setup again.' + #13#10, False);
+      'Setup''s post-install step (SQL Server preparation, database migration or health validation) failed, so this installation is not ready to use.' + #13#10 +
+      'Do not launch ETP. Review %ProgramData%\EtpReporting\SetupLogs, or setup''s own log in %TEMP% if that folder does not exist yet, and run setup again.' + #13#10, False);
     DeleteFile(ExpandConstant('{group}\{#AppName}.lnk'));
     DeleteFile(ExpandConstant('{autodesktop}\{#AppName}.lnk'));
   end;
@@ -118,19 +126,27 @@ procedure CurStepChanged(CurStep: TSetupStep);
 var
   ResultCode: Integer;
   Parameters: String;
+  Launched: Boolean;
 begin
   if (CurStep = ssPostInstall) then
   begin
     Parameters := '-NoProfile -ExecutionPolicy RemoteSigned -File "' + ExpandConstant('{app}\scripts\bootstrap-etp-prerequisites.ps1') + '" -ApplicationDirectory "' + ExpandConstant('{app}') + '"';
 #ifdef SqlPayloadDirectory
     if WizardIsTaskSelected('sqlprerequisites') then
-      Parameters := Parameters + ' -SqlPayloadDirectory "' + ExpandConstant('{tmp}\SqlPayload') + '"'
+      Parameters := Parameters + ' -SqlPayloadDirectory "' + ExpandConstant('{app}\SqlSetupMedia') + '"'
     else
       Parameters := Parameters + ' -SkipSqlInstallation';
 #else
     Parameters := Parameters + ' -SkipSqlInstallation';
 #endif
-    if (not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'), Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode)) or (ResultCode <> 0) then
+    Launched := Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'), Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+#ifdef SqlPayloadDirectory
+    // The media has done its job whatever the outcome; do not leave ~800 MB of installers
+    // behind. Removed here, before any exception below and before DeinitializeSetup's
+    // ExitProcess, which can skip setup's own deleteafterinstall clean-up.
+    DelTree(ExpandConstant('{app}\SqlSetupMedia'), True, True, True);
+#endif
+    if (not Launched) or (ResultCode <> 0) then
     begin
       MandatorySetupFailed := True;
       RecordSetupOutcome(False, 'Bootstrap exit code: ' + IntToStr(ResultCode) + '.');
@@ -139,8 +155,8 @@ begin
       // with the failure already decided. Show it only when someone can answer it;
       // the marker file and the log carry the same message either way.
       if not WizardSilent then
-        MsgBox('Mandatory database migration and health validation failed after application files were installed. No automatic restore or database deletion was attempted. Do not launch ETP until setup completes successfully; review %ProgramData%\EtpReporting\SetupLogs and retry.', mbError, MB_OK);
-      RaiseException('Mandatory database migration and health validation failed; setup cannot be completed safely.');
+        MsgBox('Setup''s post-install step (SQL Server preparation, database migration or health validation) failed after application files were installed. No automatic restore or database deletion was attempted. Do not launch ETP until setup completes successfully; review %ProgramData%\EtpReporting\SetupLogs (or setup''s own log in %TEMP% if that folder does not exist yet) and retry.', mbError, MB_OK);
+      RaiseException('Mandatory SQL Server preparation, database migration or health validation failed; setup cannot be completed safely.');
     end
     else
       RecordSetupOutcome(True, '');
