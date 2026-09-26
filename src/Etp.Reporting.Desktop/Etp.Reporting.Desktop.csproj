@@ -39,7 +39,8 @@
                       ..\..\scripts\invoke-etp-recovery-drill.ps1;
                       ..\..\scripts\invoke-monthly-recovery-drill-runner.ps1;
                       ..\..\scripts\new-etp-support-package.ps1;
-                      ..\..\scripts\remove-etp-scheduled-tasks.ps1"
+                      ..\..\scripts\remove-etp-scheduled-tasks.ps1;
+                      ..\..\scripts\restore-etp-database.ps1"
              Link="scripts\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\..\scripts\sql\etp-operations-broker.sql" Link="scripts\sql\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\..\scripts\sql\etp-operations-grants.sql" Link="scripts\sql\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />

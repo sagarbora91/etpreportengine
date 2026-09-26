@@ -3,7 +3,13 @@ param(
     [Parameter(Mandatory)][string]$Database,
     [Parameter(Mandatory)][string]$AutomationPrincipal,
     [string]$BackupDirectory="$env:ProgramData\EtpReporting\Backups",
-    [string]$SqlCmdPath
+    [string]$SqlCmdPath,
+    # Used by setup's restore mode and by restore-etp-database.ps1. Creates the broker only
+    # where it is missing: a SQL administrator - and so setup's pre-migration backup - can use
+    # it unsigned. Signing and the automation account's grants follow later, once that account
+    # is an active Store Manager. An existing broker is left untouched, because re-creating it
+    # discards the signature the dedicated account's backups rely on.
+    [switch]$BrokerOnly
 )
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'etp-operations-common.ps1')
@@ -33,6 +39,18 @@ $grants=$grants.Replace('__PROCEDURE__',$procedure).Replace('__SIGNER__',$signer
 $grants=$grants.Replace('__IDENTITY_LITERAL__',$AutomationPrincipal.Replace("'","''")).Replace('__DATABASE_LITERAL__',$Database.Replace("'","''"))
 $sqlcmd=Resolve-EtpSqlCmd $SqlCmdPath
 $ServerInstance=Resolve-EtpSqlConnection -SqlCmd $sqlcmd -ServerInstance $ServerInstance
+if ($BrokerOnly) {
+    $state=@(Invoke-EtpSql -SqlCmd $sqlcmd -Server $ServerInstance -Query "SET NOCOUNT ON; SELECT CASE WHEN OBJECT_ID(N'dbo.[$procedure]',N'P') IS NULL THEN 'ETP_BROKER:MISSING' ELSE 'ETP_BROKER:PRESENT' END;")
+    $missing=@($state | Where-Object { "$_".Trim() -ceq 'ETP_BROKER:MISSING' }).Count
+    $present=@($state | Where-Object { "$_".Trim() -ceq 'ETP_BROKER:PRESENT' }).Count
+    if ($missing + $present -ne 1) { throw 'Could not tell whether the operations broker is installed.' }
+    if ($missing -eq 1) {
+        Invoke-EtpSql -SqlCmd $sqlcmd -Server $ServerInstance -Query $query | Out-Null
+        Write-Output "Operations broker installed for $Database. Its signing and the automation account's grants follow once $AutomationPrincipal is an active Store Manager (docs\OPERATIONS.md, step 7)."
+    }
+    else { Write-Output "The operations broker for $Database is already installed; it was left unchanged." }
+    return
+}
 Invoke-EtpSql -SqlCmd $sqlcmd -Server $ServerInstance -Query $query | Out-Null
 $output=@(Invoke-EtpSql -SqlCmd $sqlcmd -Server $ServerInstance -Query $grants)
 # A step the Owner has to take first comes back as one line of fixed text. Show it as it is.

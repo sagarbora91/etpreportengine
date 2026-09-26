@@ -4,12 +4,21 @@ param(
     # option and the licence prompt cannot appear for an install that cannot happen.
     [switch]$SkipSqlInstallation,
     [string]$SqlPayloadDirectory,
-    [ValidateRange(0.1, 1048576)][double]$MinimumBackupFreeSpaceGb = 5
+    [ValidateRange(0.1, 1048576)][double]$MinimumBackupFreeSpaceGb = 5,
+    # Setup's "Create a new empty database" option, unticked. Only a MISSING database is
+    # affected: setup prepares SQL Server and the configuration and stops without creating
+    # it, so an existing backup can be restored first with restore-etp-database.ps1. A
+    # database created now would have to be replaced by that restore, which the recovery
+    # procedures never do (no WITH REPLACE).
+    [switch]$DeferDatabaseCreation
 )
 
 $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot 'etp-operations-common.ps1')
 
+# Setup reads this exit code as "ready for a restore", not as a failure. It must equal
+# DatabaseRestorePendingExitCode in installer\EtpReportingEngine.iss.
+$DatabaseRestorePendingExitCode = 2
 # What setup provisions on a PC that has no ETP configuration yet (the documented defaults).
 $EtpNewMachineServerInstance = '.\SQLEXPRESS'
 $EtpNewMachineDatabase = 'EtpReporting'
@@ -202,6 +211,17 @@ function Initialize-EtpFreshMachine {
     Invoke-EtpOperationFolderSetup -ServiceName $serviceName -ServerInstance $EtpNewMachineServerInstance -Database $EtpNewMachineDatabase -CreateAutomationAccount
 }
 
+function Get-EtpBootstrapDatabaseAction {
+    # EXISTS is upgraded, whatever the option says. MISSING is created, unless setup was asked
+    # to leave it for a restore. Anything else is not an answer this script understands.
+    param([string]$DatabaseState,[switch]$DeferDatabaseCreation)
+    switch -CaseSensitive ($DatabaseState) {
+        'EXISTS' { return 'Upgrade' }
+        'MISSING' { if ($DeferDatabaseCreation) { return 'AwaitRestore' }; return 'Create' }
+    }
+    throw 'SQL Server returned an unexpected database-existence result.'
+}
+
 function Start-EtpProcess {
     param([Parameter(Mandatory)][string]$FilePath,[string[]]$Arguments=@(),[Parameter(Mandatory)][string]$Description)
     # Start-Process joins ArgumentList with spaces and never quotes, so any path
@@ -364,8 +384,18 @@ if ($freshMachine) {
 }
 
 $databaseState = Invoke-SqlScalar -Query "SET NOCOUNT ON; IF DB_ID(N'$Database') IS NULL SELECT 'MISSING' ELSE SELECT 'EXISTS';"
-$databaseExistedBeforeMigration = $databaseState -ceq 'EXISTS'
-if (-not $databaseExistedBeforeMigration -and $databaseState -cne 'MISSING') { throw "SQL Server returned an unexpected database-existence result." }
+$databaseAction = Get-EtpBootstrapDatabaseAction -DatabaseState $databaseState -DeferDatabaseCreation:$DeferDatabaseCreation
+$databaseExistedBeforeMigration = $databaseAction -ceq 'Upgrade'
+
+if ($databaseAction -ceq 'AwaitRestore') {
+    # The restore that follows and the next setup run both need the master operations
+    # broker: the restore helper ensures it, and setup's pre-migration backup of the
+    # restored data goes through it. It can be created before the database exists, and
+    # -BrokerOnly never touches one that is already there.
+    foreach ($line in @(& (Join-Path $scripts 'install-etp-sql-operations.ps1') -ServerInstance $ServerInstance -Database $Database -AutomationPrincipal $operationConfiguration.automationPrincipal -SqlCmdPath $sqlcmdPath -BrokerOnly)) { Write-SetupLog "$line" }
+    Write-SetupLog 'Setup stopped before creating a database, as asked, so that existing ETP data can be restored first. SQL Server, the protected folders, the EtpAutomation account, the configuration and the operations broker are ready; no database was created and no scheduled task was installed. Next: run scripts\restore-etp-database.ps1 -BackupPath <your .bak> in an administrator PowerShell window, then run setup again.'
+    exit $DatabaseRestorePendingExitCode
+}
 
 if ($databaseExistedBeforeMigration) {
     $databaseProperties = Invoke-SqlScalar -Query "SET NOCOUNT ON; SELECT state_desc + '|' + user_access_desc + '|' + CONVERT(varchar(5),is_read_only) + '|' + CONVERT(varchar(5),compatibility_level) FROM sys.databases WHERE name=N'$Database';"

@@ -169,6 +169,34 @@ public sealed class BootstrapPrerequisiteTests
         finally { Directory.Delete(root, recursive: true); }
     }
 
+    [Fact]
+    public async Task Restore_mode_waits_only_when_the_database_is_missing()
+    {
+        var script = FindBootstrapScript().Replace("'", "''");
+        var command = $$"""
+            $ErrorActionPreference = 'Stop'
+            . '{{script}}' -ApplicationDirectory 'C:\UnusedBootstrapTest'
+            $checks = 0
+            foreach ($case in @(@('MISSING', $false, 'Create'), @('MISSING', $true, 'AwaitRestore'), @('EXISTS', $false, 'Upgrade'), @('EXISTS', $true, 'Upgrade'))) {
+                $action = Get-EtpBootstrapDatabaseAction -DatabaseState $case[0] -DeferDatabaseCreation:$case[1]
+                if ($action -cne $case[2]) { throw "$($case[0]) with defer=$($case[1]) gave $action" }
+                $checks++
+            }
+            foreach ($answer in @('exists', 'missing', '', 'EXISTS ')) {
+                $refused = $false
+                try { Get-EtpBootstrapDatabaseAction -DatabaseState $answer -DeferDatabaseCreation | Out-Null } catch { $refused = $_.Exception.Message -like '*unexpected database-existence result*' }
+                if (-not $refused) { throw "An unreadable answer was accepted: '$answer'" }
+                $checks++
+            }
+            if ($DatabaseRestorePendingExitCode -ne 2) { throw 'The restore-pending exit code changed.' }
+            if ($checks -ne 8) { throw 'Not every case ran.' }
+            Write-Output 'Restore mode decisions passed.'
+            """;
+        var result = await RunPowerShellAsync(["-Command", command]);
+        Assert.True(result.ExitCode == 0, result.Output);
+        Assert.Contains("Restore mode decisions passed.", result.Output);
+    }
+
     // The bundled Sqlcmd (Command Line Utilities 15) stops with error 26010 without ODBC
     // Driver 17, and the SQL Server 2025 media's msodbcsql.msi is Driver 18. The old wildcard
     // msodbcsql*.msi took that one, so Sqlcmd could never install.
@@ -328,6 +356,43 @@ public sealed class BootstrapPrerequisiteTests
         var result = await RunPowerShellAsync(["-Command", command]);
         Assert.True(result.ExitCode == 0, result.Output);
         Assert.Contains("Protected extraction passed.", result.Output);
+    }
+
+    [Fact]
+    public async Task Bootstrap_prepares_a_new_pc_before_reading_its_configuration_and_stops_for_a_restore_before_creating_a_database()
+    {
+        // The top-level flow needs SQL Server and elevation to run, so its order is checked
+        // structurally: the new-PC step comes before the configuration is read, and restore
+        // mode installs only the broker and exits before the migration step can create a
+        // database that a later restore would have to replace.
+        var script = FindBootstrapScript().Replace("'", "''");
+        var command = $$"""
+            $ErrorActionPreference = 'Stop'
+            $tokens = $null; $errors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile('{{script}}', [ref]$tokens, [ref]$errors)
+            if (@($errors).Count -ne 0) { throw 'bootstrap-etp-prerequisites.ps1 does not parse.' }
+            $top = @($ast.EndBlock.Statements)
+            $fresh = @($top | Where-Object { $_ -is [System.Management.Automation.Language.IfStatementAst] -and $_.Clauses[0].Item1.Extent.Text -match 'Test-Path -LiteralPath \$configurationPath' })
+            if ($fresh.Count -ne 1) { throw 'There is no single new-PC branch.' }
+            $prepares = @($fresh[0].FindAll({ param($node) $node -is [System.Management.Automation.Language.CommandAst] -and $node.GetCommandName() -eq 'Initialize-EtpFreshMachine' }, $true))
+            if ($prepares.Count -ne 1) { throw 'The new-PC branch does not prepare the machine.' }
+            $reads = @($top | Where-Object { $_ -is [System.Management.Automation.Language.AssignmentStatementAst] -and $_.Left.Extent.Text -eq '$operationConfiguration' })
+            if ($reads.Count -ne 1 -or $reads[0].Extent.StartOffset -lt $fresh[0].Extent.EndOffset) { throw 'The configuration is read before a new PC is prepared.' }
+            $restore = @($top | Where-Object { $_ -is [System.Management.Automation.Language.IfStatementAst] -and $_.Clauses[0].Item1.Extent.Text -eq '$databaseAction -ceq ''AwaitRestore''' })
+            if ($restore.Count -ne 1) { throw 'There is no single restore-mode branch.' }
+            $broker = @($restore[0].FindAll({ param($node) $node -is [System.Management.Automation.Language.CommandAst] -and $node.Extent.Text -match 'install-etp-sql-operations\.ps1' -and @($node.CommandElements | Where-Object { $_ -is [System.Management.Automation.Language.CommandParameterAst] -and $_.ParameterName -eq 'BrokerOnly' }).Count -eq 1 }, $true))
+            if ($broker.Count -ne 1) { throw 'Restore mode does not install the broker, and only the broker.' }
+            $exits = @($restore[0].FindAll({ param($node) $node -is [System.Management.Automation.Language.ExitStatementAst] -and $node.Pipeline.Extent.Text -eq '$DatabaseRestorePendingExitCode' }, $true))
+            if ($exits.Count -ne 1) { throw 'Restore mode does not exit with the restore-pending code.' }
+            $migrationStart = @($top | Where-Object { $_.Extent.Text -eq '$migrationPhaseStarted = $true' })
+            $creates = @($ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.StringConstantExpressionAst] -and $node.Value -eq '--initialize-configured-database' }, $true))
+            if ($migrationStart.Count -ne 1 -or $creates.Count -ne 1) { throw 'The migration step could not be found.' }
+            if ($restore[0].Extent.EndOffset -gt $migrationStart[0].Extent.StartOffset -or $restore[0].Extent.EndOffset -gt $creates[0].Extent.StartOffset) { throw 'Restore mode stops after the migration step.' }
+            Write-Output 'Bootstrap order passed.'
+            """;
+        var result = await RunPowerShellAsync(["-Command", command]);
+        Assert.True(result.ExitCode == 0, result.Output);
+        Assert.Contains("Bootstrap order passed.", result.Output);
     }
 
     [Fact]
