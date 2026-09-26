@@ -55,7 +55,7 @@ Assert-NativeSuccess "Self-contained desktop publish"
 
 $packagedScripts = Join-Path $output "scripts"
 New-Item -ItemType Directory -Path $packagedScripts -Force | Out-Null
-foreach ($scriptName in @('bootstrap-etp-prerequisites.ps1','backup-etp-database.ps1','install-daily-backup-task.ps1','install-monthly-recovery-drill-task.ps1','install-etp-automation-task.ps1','remove-etp-scheduled-tasks.ps1','invoke-monthly-recovery-drill-runner.ps1','invoke-etp-recovery-drill.ps1','new-etp-support-package.ps1','etp-operations-common.ps1','invoke-database-maintenance.ps1','initialize-etp-operation-folders.ps1','install-etp-sql-operations.ps1')) {
+foreach ($scriptName in @('bootstrap-etp-prerequisites.ps1','backup-etp-database.ps1','install-daily-backup-task.ps1','install-monthly-recovery-drill-task.ps1','install-etp-automation-task.ps1','remove-etp-scheduled-tasks.ps1','invoke-monthly-recovery-drill-runner.ps1','invoke-etp-recovery-drill.ps1','new-etp-support-package.ps1','etp-operations-common.ps1','invoke-database-maintenance.ps1','initialize-etp-operation-folders.ps1','install-etp-sql-operations.ps1','restore-etp-database.ps1')) {
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot $scriptName) -Destination $packagedScripts -Force
 }
 

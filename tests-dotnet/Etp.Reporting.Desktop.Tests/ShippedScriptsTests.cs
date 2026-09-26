@@ -40,6 +40,67 @@ public sealed class ShippedScriptsTests
         Assert.Contains("if not WizardSilent then", installer, StringComparison.Ordinal);
     }
 
+    private static string Installer() => File.ReadAllText(Path.Combine(RepositoryRoot(), "installer", "EtpReportingEngine.iss"));
+
+    [Fact]
+    public void The_sql_media_is_placed_in_the_protected_installation_folder_only_when_chosen_and_removed_after_use()
+    {
+        // The media runs with the administrator's full token. Setup's {tmp} is under the user
+        // profile and fails bootstrap's ownership check, so the option could never work there.
+        var installer = Installer();
+        Assert.Contains("DestDir: \"{app}\\SqlSetupMedia\"; Tasks: sqlprerequisites; Flags: deleteafterinstall", installer, StringComparison.Ordinal);
+        Assert.Contains("-SqlPayloadDirectory \"' + ExpandConstant('{app}\\SqlSetupMedia')", installer, StringComparison.Ordinal);
+        Assert.DoesNotContain("{tmp}\\SqlPayload", installer, StringComparison.Ordinal);
+        // Removed straight after bootstrap, before the failure path raises and before
+        // DeinitializeSetup's ExitProcess can skip setup's own clean-up.
+        var removal = installer.IndexOf("DelTree(ExpandConstant('{app}\\SqlSetupMedia'), True, True, True);", StringComparison.Ordinal);
+        Assert.True(removal > installer.IndexOf("Launched := Exec(", StringComparison.Ordinal), "The media is removed before bootstrap has run.");
+        Assert.True(removal < installer.IndexOf("RaiseException(", StringComparison.Ordinal), "The media is left behind when setup fails.");
+        Assert.Contains("Type: filesandordirs; Name: \"{app}\\SqlSetupMedia\"", installer, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void The_sql_option_names_the_edition_it_installs()
+    {
+        // The embedded media is SQL Server 2025 Express (17.0.1000.7); the label said 2022.
+        var installer = Installer();
+        Assert.Contains("Install Microsoft SQL Server 2025 Express", installer, StringComparison.Ordinal);
+        Assert.DoesNotContain("SQL Server 2022", installer, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Unticking_new_database_asks_bootstrap_to_wait_for_a_restore_with_the_same_exit_code()
+    {
+        var installer = Installer();
+        Assert.Contains("Name: \"newdatabase\"", installer, StringComparison.Ordinal);
+        Assert.Matches(@"if not WizardIsTaskSelected\('newdatabase'\) then\s+Parameters := Parameters \+ ' -DeferDatabaseCreation';", installer);
+        // Exit code 2 is a success only when the option really was unticked.
+        Assert.Contains("(ResultCode = DatabaseRestorePendingExitCode) and (not WizardIsTaskSelected('newdatabase'))", installer, StringComparison.Ordinal);
+        // Two files, one number: if they drift apart, a restore-ready PC reports failure, or
+        // a real failure reports ready. Nothing else would notice.
+        var bootstrap = File.ReadAllText(Path.Combine(RepositoryRoot(), "scripts", "bootstrap-etp-prerequisites.ps1"));
+        var inSetup = System.Text.RegularExpressions.Regex.Match(installer, @"DatabaseRestorePendingExitCode = (\d+);");
+        var inBootstrap = System.Text.RegularExpressions.Regex.Match(bootstrap, @"\$DatabaseRestorePendingExitCode = (\d+)");
+        Assert.True(inSetup.Success && inBootstrap.Success, "The restore-pending exit code is not declared in both places.");
+        Assert.Equal(inSetup.Groups[1].Value, inBootstrap.Groups[1].Value);
+        Assert.Contains("exit $DatabaseRestorePendingExitCode", bootstrap, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Launch_is_not_offered_after_a_failed_or_restore_pending_setup()
+    {
+        var installer = Installer();
+        Assert.Contains("Flags: nowait postinstall skipifsilent; Check: ShouldOfferLaunch", installer, StringComparison.Ordinal);
+        Assert.Contains("Result := (not MandatorySetupFailed) and (not DatabaseRestorePending);", installer, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void The_release_packages_the_restore_helper()
+    {
+        var release = File.ReadAllText(Path.Combine(RepositoryRoot(), "scripts", "build-windows-release.ps1"));
+        Assert.Contains("'restore-etp-database.ps1'", release, StringComparison.Ordinal);
+    }
+
     private static string ScriptsDirectory => Path.Combine(AppContext.BaseDirectory, "scripts");
 
     private static string[] ShippedNames() =>
@@ -57,6 +118,10 @@ public sealed class ShippedScriptsTests
     // Run by the installer after files are placed, and by the uninstaller.
     [InlineData("bootstrap-etp-prerequisites.ps1")]
     [InlineData("remove-etp-scheduled-tasks.ps1")]
+    // Run by bootstrap on a new PC, and by the owner to bring existing data onto one.
+    [InlineData("initialize-etp-operation-folders.ps1")]
+    [InlineData("install-etp-sql-operations.ps1")]
+    [InlineData("restore-etp-database.ps1")]
     public void Operational_scripts_ship_beside_the_application(string name)
         => Assert.Contains(name, ShippedNames());
 

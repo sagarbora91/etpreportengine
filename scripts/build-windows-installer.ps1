@@ -22,6 +22,21 @@ if (Test-Path -LiteralPath $output) { throw "Installer output already exists. Ch
 # used to throw, and must not now degrade silently into an unsigned release.
 if ([bool]$CertificateThumbprint -ne [bool]$TimestampServer) { throw 'Supply both a signing certificate and a timestamp service, or neither.' }
 $signRelease = [bool]$CertificateThumbprint -and [bool]$TimestampServer
+# Check the SQL media before anything is built, so media that cannot work stops here and
+# not after a full release build. Setup installs, from exactly these files, the engine,
+# ODBC Driver 17, then Sqlcmd; see Get-EtpSqlClientInstallPlan in bootstrap.
+# $sqlMedia, never $payload: the signing loop below walks $payloads with its own loop
+# variable, and PowerShell's foreach leaves that variable set to the last item afterwards.
+# Sharing the name once handed ISCC the last signed .ps1 as the media folder, so every
+# signed build failed.
+$sqlMedia = $null
+if ($SqlPayloadDirectory) {
+    $sqlMedia = [IO.Path]::GetFullPath($SqlPayloadDirectory)
+    if (-not (Test-Path -LiteralPath $sqlMedia -PathType Container)) { throw "The SQL media directory does not exist: $sqlMedia" }
+    if (-not (Get-ChildItem -LiteralPath $sqlMedia -Filter 'SQLEXPR*_x64_*.exe' -File)) { throw "No SQL Server Express package was found in: $sqlMedia" }
+    if (-not (Test-Path -LiteralPath (Join-Path $sqlMedia 'MsSqlCmdLnUtils.msi') -PathType Leaf)) { throw "No Sqlcmd package (MsSqlCmdLnUtils.msi) was found in: $sqlMedia" }
+    if (-not (Test-Path -LiteralPath (Join-Path $sqlMedia 'msodbcsql17.msi') -PathType Leaf)) { throw "No ODBC Driver 17 package (msodbcsql17.msi) was found in: $sqlMedia. The bundled Sqlcmd (Command Line Utilities 15) cannot install without it; copy MSODBCSQL.MSI from the SQL Server 2022 media and name it msodbcsql17.msi." }
+}
 if (-not $SkipReleaseBuild) { & (Join-Path $PSScriptRoot "build-windows-release.ps1") -Configuration $Configuration -OutputDirectory $ReleaseDirectory -CertificateThumbprint $CertificateThumbprint -TimestampServer $TimestampServer }
 $compilerCandidates = @(
     (Join-Path $env:LOCALAPPDATA "Programs\Inno Setup 6\ISCC.exe"),
@@ -49,12 +64,9 @@ if ($signRelease) {
 }
 else { Write-Warning 'Building an UNSIGNED installer. Windows will warn on install and the payload cannot be traced to its publisher.' }
 $compilerArguments = @("/DAppVersion=$version", "/DReleaseDirectory=$release", "/DInstallerOutputDirectory=$output")
-if ($SqlPayloadDirectory) {
-    $payload = [IO.Path]::GetFullPath($SqlPayloadDirectory)
-    if (-not (Test-Path -LiteralPath $payload -PathType Container)) { throw "The SQL media directory does not exist: $payload" }
-    if (-not (Get-ChildItem -LiteralPath $payload -Filter 'SQLEXPR*_x64_*.exe' -File)) { throw "No SQL Server Express package was found in: $payload" }
-    $compilerArguments += "/DSqlPayloadDirectory=$payload"
-    Write-Host "Embedding SQL Server media from $payload"
+if ($sqlMedia) {
+    $compilerArguments += "/DSqlPayloadDirectory=$sqlMedia"
+    Write-Host "Embedding SQL Server media from $sqlMedia"
 }
 else { Write-Warning 'Building without SQL media: setup will not offer to install the database engine.' }
 & $compiler @compilerArguments (Join-Path $repoRoot "installer\EtpReportingEngine.iss")

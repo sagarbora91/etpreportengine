@@ -38,7 +38,11 @@ Source: "{#ReleaseDirectory}\*"; DestDir: "{app}"; Flags: ignoreversion recurses
 ; it. Without it there is no option and no licence prompt, so setup never offers
 ; an installation it cannot perform.
 #ifdef SqlPayloadDirectory
-Source: "{#SqlPayloadDirectory}\*"; DestDir: "{tmp}\SqlPayload"; Flags: deleteafterinstall recursesubdirs createallsubdirs
+; The media runs with the administrator's full token, so it sits where only administrators
+; can change it - inside the protected installation folder, never setup's {tmp} under the
+; user profile, which bootstrap's ownership/ACL check refuses. Copied only when the option
+; is ticked, and deleted again as soon as bootstrap returns.
+Source: "{#SqlPayloadDirectory}\*"; DestDir: "{app}\SqlSetupMedia"; Tasks: sqlprerequisites; Flags: deleteafterinstall recursesubdirs createallsubdirs
 #endif
 
 [Icons]
@@ -49,11 +53,21 @@ Name: "{group}\Uninstall {#AppName}"; Filename: "{uninstallexe}"
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional shortcuts:"
 #ifdef SqlPayloadDirectory
-Name: "sqlprerequisites"; Description: "Install Microsoft SQL Server 2022 Express and Sqlcmd from the media included with this installer (accepts Microsoft's licence terms)"; GroupDescription: "Optional database prerequisites:"; Flags: checkedonce
+Name: "sqlprerequisites"; Description: "Install Microsoft SQL Server 2025 Express, its ODBC drivers and Sqlcmd from the media included with this installer (accepts Microsoft's licence terms)"; GroupDescription: "Optional database prerequisites:"; Flags: checkedonce
 #endif
+; Unticked, setup prepares SQL Server and the protected configuration but does not create a
+; missing database, so a backup from another PC can be restored first (restore-etp-database.ps1).
+; An empty database created now could only be replaced by a restore WITH REPLACE, which the
+; recovery procedures never do. An existing database is upgraded either way.
+Name: "newdatabase"; Description: "Create a new empty ETP database if this PC has none (untick only if you will restore an existing ETP backup first)"; GroupDescription: "Database:"
 
 [Run]
-Filename: "{app}\{#AppExeName}"; Description: "Launch {#AppName}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#AppExeName}"; Description: "Launch {#AppName}"; Flags: nowait postinstall skipifsilent; Check: ShouldOfferLaunch
+
+[UninstallDelete]
+Type: filesandordirs; Name: "{app}\SqlSetupMedia"
+Type: files; Name: "{app}\SETUP-INCOMPLETE.txt"
+Type: files; Name: "{app}\DATABASE-RESTORE-PENDING.txt"
 
 [UninstallRun]
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy RemoteSigned -File ""{app}\scripts\remove-etp-scheduled-tasks.ps1"" -ApplicationDirectory ""{app}"""; RunOnceId: "RemoveEtpScheduledTasks"; Flags: runhidden waituntilterminated skipifdoesntexist
@@ -70,25 +84,56 @@ procedure ExitProcess(uExitCode: UINT);
 
 const
   SetupIncompleteExitCode = 1603;
+  // Bootstrap's "SQL Server and the configuration are ready; restore the database, then run
+  // setup again". It must equal $DatabaseRestorePendingExitCode in
+  // scripts\bootstrap-etp-prerequisites.ps1, and it is a success only when "Create a new
+  // empty database" was unticked - anything else that returns it is still a failure.
+  DatabaseRestorePendingExitCode = 2;
 
 var
   MandatorySetupFailed: Boolean;
+  DatabaseRestorePending: Boolean;
+
+// A failed setup, or one waiting for a restore, has no database ETP can open yet.
+function ShouldOfferLaunch(): Boolean;
+begin
+  Result := (not MandatorySetupFailed) and (not DatabaseRestorePending);
+end;
+
+function RestoreInstructions(): String;
+begin
+  Result := 'SQL Server and the protected ETP configuration are ready. No database was created, because "Create a new empty database" was not ticked.' + #13#10 + #13#10 +
+    'Next:' + #13#10 +
+    '1. In an administrator PowerShell window run:' + #13#10 +
+    'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' + ExpandConstant('{app}\scripts\restore-etp-database.ps1') + '" -BackupPath "<full path of the .bak>"' + #13#10 +
+    '(add -ReceiptPath "<the .bak.receipt.json>" if you have it).' + #13#10 +
+    '2. Run this setup again. It takes a verified safety backup of the restored data before it updates it.' + #13#10;
+end;
 
 procedure RecordSetupOutcome(Succeeded: Boolean; Detail: String);
 var
   Marker: String;
 begin
+  DeleteFile(ExpandConstant('{app}\DATABASE-RESTORE-PENDING.txt'));
   Marker := ExpandConstant('{app}\SETUP-INCOMPLETE.txt');
   if Succeeded then
     DeleteFile(Marker)
   else
   begin
     SaveStringToFile(Marker, 'Setup did not complete. ' + Detail + #13#10 +
-      'The database migration and health validation step failed, so this installation is not ready to use.' + #13#10 +
-      'Do not launch ETP. Review %ProgramData%\EtpReporting\SetupLogs and run setup again.' + #13#10, False);
+      'Setup''s post-install step (SQL Server preparation, database migration or health validation) failed, so this installation is not ready to use.' + #13#10 +
+      'Do not launch ETP. Review %ProgramData%\EtpReporting\SetupLogs, or setup''s own log in %TEMP% if that folder does not exist yet, and run setup again.' + #13#10, False);
     DeleteFile(ExpandConstant('{group}\{#AppName}.lnk'));
     DeleteFile(ExpandConstant('{autodesktop}\{#AppName}.lnk'));
   end;
+end;
+
+// Not a failure, and not ready either: the application stays installed, and the marker
+// says what to do next for anyone who missed the message.
+procedure RecordRestorePending();
+begin
+  DeleteFile(ExpandConstant('{app}\SETUP-INCOMPLETE.txt'));
+  SaveStringToFile(ExpandConstant('{app}\DATABASE-RESTORE-PENDING.txt'), RestoreInstructions(), False);
 end;
 
 procedure DeinitializeSetup();
@@ -118,19 +163,36 @@ procedure CurStepChanged(CurStep: TSetupStep);
 var
   ResultCode: Integer;
   Parameters: String;
+  Launched: Boolean;
 begin
   if (CurStep = ssPostInstall) then
   begin
     Parameters := '-NoProfile -ExecutionPolicy RemoteSigned -File "' + ExpandConstant('{app}\scripts\bootstrap-etp-prerequisites.ps1') + '" -ApplicationDirectory "' + ExpandConstant('{app}') + '"';
 #ifdef SqlPayloadDirectory
     if WizardIsTaskSelected('sqlprerequisites') then
-      Parameters := Parameters + ' -SqlPayloadDirectory "' + ExpandConstant('{tmp}\SqlPayload') + '"'
+      Parameters := Parameters + ' -SqlPayloadDirectory "' + ExpandConstant('{app}\SqlSetupMedia') + '"'
     else
       Parameters := Parameters + ' -SkipSqlInstallation';
 #else
     Parameters := Parameters + ' -SkipSqlInstallation';
 #endif
-    if (not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'), Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode)) or (ResultCode <> 0) then
+    if not WizardIsTaskSelected('newdatabase') then
+      Parameters := Parameters + ' -DeferDatabaseCreation';
+    Launched := Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'), Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+#ifdef SqlPayloadDirectory
+    // The media has done its job whatever the outcome; do not leave ~800 MB of installers
+    // behind. Removed here, before any exception below and before DeinitializeSetup's
+    // ExitProcess, which can skip setup's own deleteafterinstall clean-up.
+    DelTree(ExpandConstant('{app}\SqlSetupMedia'), True, True, True);
+#endif
+    if Launched and (ResultCode = DatabaseRestorePendingExitCode) and (not WizardIsTaskSelected('newdatabase')) then
+    begin
+      DatabaseRestorePending := True;
+      RecordRestorePending();
+      if not WizardSilent then
+        MsgBox(RestoreInstructions(), mbInformation, MB_OK);
+    end
+    else if (not Launched) or (ResultCode <> 0) then
     begin
       MandatorySetupFailed := True;
       RecordSetupOutcome(False, 'Bootstrap exit code: ' + IntToStr(ResultCode) + '.');
@@ -139,8 +201,8 @@ begin
       // with the failure already decided. Show it only when someone can answer it;
       // the marker file and the log carry the same message either way.
       if not WizardSilent then
-        MsgBox('Mandatory database migration and health validation failed after application files were installed. No automatic restore or database deletion was attempted. Do not launch ETP until setup completes successfully; review %ProgramData%\EtpReporting\SetupLogs and retry.', mbError, MB_OK);
-      RaiseException('Mandatory database migration and health validation failed; setup cannot be completed safely.');
+        MsgBox('Setup''s post-install step (SQL Server preparation, database migration or health validation) failed after application files were installed. No automatic restore or database deletion was attempted. Do not launch ETP until setup completes successfully; review %ProgramData%\EtpReporting\SetupLogs (or setup''s own log in %TEMP% if that folder does not exist yet) and retry.', mbError, MB_OK);
+      RaiseException('Mandatory SQL Server preparation, database migration or health validation failed; setup cannot be completed safely.');
     end
     else
       RecordSetupOutcome(True, '');
