@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## [1.9.1] - 2026-09-27
+
+Setup can now prepare a new PC from the installer alone:
+
+- "Install Microsoft SQL Server 2025 Express" now works on a PC with no ETP on it yet. Setup installs SQL Server 2025 Express (Windows accounts only, no network access, Administrators as SQL administrators), ODBC Driver 17, ODBC Driver 18 and Sqlcmd, then creates the protected folders, the EtpAutomation account and the machine configuration. Until now it stopped at the missing configuration before it could install anything.
+- The SQL Server media is unpacked into admin-only folders and deleted after setup, instead of the user's Temp folder, which SQL Server setup's own security check refused.
+- New option "Create a new empty ETP database". Untick it to move existing data: setup prepares SQL Server and stops, then the new `scripts\restore-etp-database.ps1` restores the backup (it checks the backup, never replaces an existing database, and makes the person running it the Owner), and setup is run again to update it.
+- A new database's Owner gets a SQL Server login of their own, so ETP opens for them without administrator rights.
+- An SQLEXPRESS instance that was already on the PC is used only if it has the same hardening; otherwise setup refuses and changes nothing.
+- The installer build keeps the SQL media path out of the signing loop, which broke every signed build.
+
+Status: unsigned. The new-PC path is covered by automated tests but has not yet run on a real new PC; its first real run is the move to the new PC.
+
 ## [1.9.0] - 2026-09-26
 
 Phase 5 finishes, replaces or deletes the secondary modules per D6:
