@@ -104,6 +104,8 @@ public sealed class BootstrapPrerequisiteTests
             function Assert-EtpBootstrapPayloads { param($ApplicationDirectory) $global:calls.Add("payloads($ApplicationDirectory)") }
             function Install-EtpSqlPrerequisitesFromPayload { param($PayloadDirectory, $ServiceName) $global:calls.Add("sql($PayloadDirectory,$ServiceName)") }
             function Invoke-EtpOperationFolderSetup { param($ServiceName, $ServerInstance, $Database, $AutomationPrincipal, [switch]$CreateAutomationAccount) $global:calls.Add("folders($ServiceName,$ServerInstance,$Database,CreateAutomationAccount=$CreateAutomationAccount)") }
+            function Test-EtpSqlEngineInstalled { param($ServiceName) $false }
+            function Assert-EtpAdoptedSqlInstance { param($ServiceName, $ServerInstance) $global:calls.Add('adopt') }
             function Get-EtpOperationsConfiguration { throw 'The configuration was read before it could exist.' }
             Initialize-EtpFreshMachine -ApplicationRoot 'C:\Unused' -SqlPayloadDirectory 'C:\UnusedMedia'
             $expected = @('admin', 'payloads(C:\Unused)', 'sql(C:\UnusedMedia,MSSQL$SQLEXPRESS)', 'folders(MSSQL$SQLEXPRESS,.\SQLEXPRESS,EtpReporting,CreateAutomationAccount=True)')
@@ -113,6 +115,220 @@ public sealed class BootstrapPrerequisiteTests
         var result = await RunPowerShellAsync(["-Command", command]);
         Assert.True(result.ExitCode == 0, result.Output);
         Assert.Contains("Fresh machine order passed.", result.Output);
+    }
+
+    // An SQLEXPRESS instance already on a new PC - another program's, say - was adopted as it
+    // was and described as hardened. It is now checked, after the client tools the check
+    // needs and before any ETP folder, account or configuration exists, and refused unless it
+    // matches what setup would have installed.
+    [Fact]
+    public async Task An_sql_instance_already_on_a_new_pc_is_checked_before_any_etp_configuration_is_created()
+    {
+        var script = FindBootstrapScript().Replace("'", "''");
+        var command = $$"""
+            $ErrorActionPreference = 'Stop'
+            . '{{script}}' -ApplicationDirectory 'C:\UnusedBootstrapTest'
+            $global:calls = [Collections.Generic.List[string]]::new()
+            $global:refuse = $false
+            function Assert-EtpBootstrapAdministrator { $global:calls.Add('admin') }
+            function Assert-EtpBootstrapPayloads { param($ApplicationDirectory) $global:calls.Add('payloads') }
+            function Test-EtpSqlEngineInstalled { param($ServiceName) $global:calls.Add("present($ServiceName)"); $true }
+            function Install-EtpSqlPrerequisitesFromPayload { param($PayloadDirectory, $ServiceName) $global:calls.Add('sql') }
+            function Assert-EtpAdoptedSqlInstance { param($ServiceName, $ServerInstance) $global:calls.Add("adopt($ServiceName,$ServerInstance)"); if ($global:refuse) { throw 'Refused by the adopted-instance check.' } }
+            function Invoke-EtpOperationFolderSetup { param($ServiceName, $ServerInstance, $Database, $AutomationPrincipal, [switch]$CreateAutomationAccount) $global:calls.Add('folders') }
+            Initialize-EtpFreshMachine -ApplicationRoot 'C:\Unused' -SqlPayloadDirectory 'C:\UnusedMedia'
+            $expected = 'admin / payloads / present(MSSQL$SQLEXPRESS) / sql / adopt(MSSQL$SQLEXPRESS,.\SQLEXPRESS) / folders'
+            if (($global:calls -join ' / ') -cne $expected) { throw "Accepted instance ran as: $($global:calls -join ' / ')" }
+            $global:calls.Clear(); $global:refuse = $true
+            $refused = $false
+            try { Initialize-EtpFreshMachine -ApplicationRoot 'C:\Unused' -SqlPayloadDirectory 'C:\UnusedMedia' } catch { $refused = $_.Exception.Message -eq 'Refused by the adopted-instance check.' }
+            if (-not $refused) { throw 'A refused instance did not stop setup.' }
+            if ($global:calls -contains 'folders') { throw "Folders were set up for a refused instance: $($global:calls -join ' / ')" }
+            Write-Output 'Adopted instance order passed.'
+            """;
+        var result = await RunPowerShellAsync(["-Command", command]);
+        Assert.True(result.ExitCode == 0, result.Output);
+        Assert.Contains("Adopted instance order passed.", result.Output);
+    }
+
+    [Fact]
+    public async Task An_adopted_sql_instance_must_have_the_settings_setup_would_have_installed()
+    {
+        var script = FindBootstrapScript().Replace("'", "''");
+        var command = $$"""
+            $ErrorActionPreference = 'Stop'
+            . '{{script}}' -ApplicationDirectory 'C:\UnusedBootstrapTest'
+            function Hex([string]$Sid) { $s = [Security.Principal.SecurityIdentifier]::new($Sid); $b = [byte[]]::new($s.BinaryLength); $s.GetBinaryForm($b, 0); '0x' + (($b | ForEach-Object { $_.ToString('X2') }) -join '') }
+            $administrators = 'ETP_ADOPT_ADMIN:' + (Hex 'S-1-5-32-544') + '|BUILTIN\Administrators'
+            $service = 'ETP_ADOPT_ADMIN:' + (Hex 'S-1-5-80-3880718306-3832830129-1677859214-2598158968-1052248003') + '|NT SERVICE\MSSQL$SQLEXPRESS'
+            # As sqlcmd prints it: a blank header and a dashes line before each result.
+            $good = @('', '------', 'ETP_ADOPT_SYSADMIN:1', 'ETP_ADOPT_WINDOWS_ONLY:1  ', 'ETP_ADOPT_PROTOCOL:NP=0', 'ETP_ADOPT_PROTOCOL:TCP=0', $administrators, $service)
+            function Problems([string[]]$Lines) { @(Get-EtpAdoptedSqlInstanceProblems -Lines $Lines) }
+            $found = @(Problems $good)
+            if ($found.Count -ne 0) { throw "What setup installs was refused: $($found -join '; ')" }
+            function Expect([string[]]$Lines, [string]$Pattern) {
+                $found = @(Problems $Lines)
+                if (($found -join '; ') -notmatch $Pattern) { throw "Expected '$Pattern', got: $($found -join '; ')" }
+            }
+            Expect ($good -replace 'SYSADMIN:1', 'SYSADMIN:0') 'not a SQL Server administrator'
+            Expect @() 'not a SQL Server administrator'
+            Expect ($good -replace 'WINDOWS_ONLY:1', 'WINDOWS_ONLY:0') 'SQL Server logins'
+            Expect @($good | Where-Object { $_ -notlike '*WINDOWS_ONLY*' }) 'SQL Server logins'
+            Expect ($good -replace 'TCP=0', 'TCP=1') 'over the network'
+            Expect ($good -replace 'NP=0', 'NP=1') 'named-pipe'
+            Expect @($good | Where-Object { $_ -notlike '*TCP=*' }) 'whether TCP/IP is on'
+            Expect ($good + 'ETP_ADOPT_PROTOCOL:NP=0') 'whether named pipes is on'
+            Expect ($good + ('ETP_ADOPT_ADMIN:' + (Hex 'S-1-5-32-545') + '|BUILTIN\Users')) 'BUILTIN\\Users'
+            Expect ($good + ('ETP_ADOPT_ADMIN:' + (Hex 'S-1-5-21-1-2-3-1001') + '|POSPC\Vendor')) 'POSPC\\Vendor'
+            Expect ($good + 'ETP_ADOPT_ADMIN:0xZZ|Broken') 'Broken'
+            Write-Output 'Adopted instance settings passed.'
+            """;
+        var result = await RunPowerShellAsync(["-Command", command]);
+        Assert.True(result.ExitCode == 0, result.Output);
+        Assert.Contains("Adopted instance settings passed.", result.Output);
+    }
+
+    // Strict folder setup writes no operations.json on purpose. Missing file alone used to count
+    // as a new PC, so setup created EtpAutomation and granted it the folders over that decision.
+    [Fact]
+    public async Task Strict_folders_without_a_configuration_are_refused_and_not_treated_as_a_new_pc()
+    {
+        var root = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "EtpBootstrapBoundary", Guid.NewGuid().ToString("N"))).FullName;
+        try
+        {
+            var programData = Directory.CreateDirectory(Path.Combine(root, "ProgramData")).FullName;
+            var operations = Directory.CreateDirectory(Path.Combine(programData, "EtpReporting", "Operations")).FullName;
+            var application = Directory.CreateDirectory(Path.Combine(root, "Application")).FullName;
+            var media = Directory.CreateDirectory(Path.Combine(root, "Media")).FullName;
+            foreach (var name in FullMedia) await File.WriteAllTextAsync(Path.Combine(media, name), "Disposable media marker " + name);
+            // The real script, as setup starts it with the SQL option ticked. The refusal comes
+            // before the administrator check, so it is the same elevated or not.
+            var result = await RunPowerShellAsync(["-File", FindBootstrapScript(), "-ApplicationDirectory", application, "-SqlPayloadDirectory", media], programData);
+            Assert.NotEqual(0, result.ExitCode);
+            Assert.Contains("strict folder setup", result.Output);
+            Assert.Contains("Nothing was changed.", result.Output);
+            Assert.Equal(new[] { operations }, Directory.EnumerateFileSystemEntries(programData, "*", SearchOption.AllDirectories).Where(x => x != Path.GetDirectoryName(operations)));
+            foreach (var name in FullMedia) Assert.Equal("Disposable media marker " + name, await File.ReadAllTextAsync(Path.Combine(media, name)));
+
+            var script = FindBootstrapScript().Replace("'", "''");
+            var command = $$"""
+                $ErrorActionPreference = 'Stop'
+                . '{{script}}' -ApplicationDirectory 'C:\UnusedBootstrapTest'
+                $operations = '{{operations.Replace("'", "''")}}'
+                $missing = Join-Path (Split-Path -Parent $operations) 'NoSuchOperations'
+                if (-not (Test-EtpNewMachine -OperationsDirectory $missing)) { throw 'A PC without ETP folders was not new.' }
+                $refused = $false
+                try { Test-EtpNewMachine -OperationsDirectory $operations | Out-Null } catch { $refused = $_.Exception.Message -like '*strict folder setup*Nothing was changed.*' }
+                if (-not $refused) { throw 'Strict folders were taken for a new PC.' }
+                Set-Content -LiteralPath (Join-Path $operations 'operations.json') -Value '{}'
+                if (Test-EtpNewMachine -OperationsDirectory $operations) { throw 'A configured PC was taken for a new one.' }
+                Write-Output 'New machine decision passed.'
+                """;
+            var decisions = await RunPowerShellAsync(["-Command", command]);
+            Assert.True(decisions.ExitCode == 0, decisions.Output);
+            Assert.Contains("New machine decision passed.", decisions.Output);
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Fact]
+    public async Task A_new_database_gives_its_owner_a_login_of_their_own_the_documented_way()
+    {
+        // Setup's SQL Server makes only BUILTIN\Administrators a SQL administrator, which an
+        // unelevated token does not carry: the Owner of a database setup had just created could
+        // not open ETP from the Start menu at all. Needs SQL Server to run, so the SQL and where
+        // it runs are checked here.
+        var script = FindBootstrapScript().Replace("'", "''");
+        var command = $$"""
+            $ErrorActionPreference = 'Stop'
+            . '{{script}}' -ApplicationDirectory 'C:\UnusedBootstrapTest'
+            $own = @((Get-Command New-EtpSetupOwnerLoginSql).Parameters.Keys | Where-Object { $_ -notin [System.Management.Automation.PSCmdlet]::CommonParameters -and $_ -notin [System.Management.Automation.PSCmdlet]::OptionalCommonParameters })
+            if ($own.Count -ne 0) { throw "The Owner login batch takes input: $($own -join ', ')" }
+            Write-Output '---SQL---'
+            New-EtpSetupOwnerLoginSql
+            Write-Output '---END---'
+            $tokens = $null; $errors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile('{{script}}', [ref]$tokens, [ref]$errors)
+            if (@($errors).Count -ne 0) { throw 'bootstrap-etp-prerequisites.ps1 does not parse.' }
+            $top = @($ast.EndBlock.Statements)
+            $create = @($top | Where-Object { $_ -is [System.Management.Automation.Language.IfStatementAst] -and $_.Clauses[0].Item1.Extent.Text -eq '$databaseAction -ceq ''Create''' })
+            if ($create.Count -ne 1) { throw 'There is no single new-database branch.' }
+            $uses = @($ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.CommandAst] -and $node.GetCommandName() -eq 'New-EtpSetupOwnerLoginSql' }, $true))
+            if ($uses.Count -ne 1 -or $uses[0].Extent.StartOffset -lt $create[0].Extent.StartOffset -or $uses[0].Extent.EndOffset -gt $create[0].Extent.EndOffset) { throw 'The Owner login is given outside the new-database branch.' }
+            $completed = @($top | Where-Object { $_.Extent.Text -eq '$migrationPhaseCompleted = $true' })
+            $tasks = @($top | Where-Object { $_.Extent.Text -match 'install-daily-backup-task\.ps1' })
+            if ($completed.Count -ne 1 -or $tasks.Count -ne 1) { throw 'The migration end or the task step could not be found.' }
+            if ($create[0].Extent.StartOffset -lt $completed[0].Extent.EndOffset -or $create[0].Extent.EndOffset -gt $tasks[0].Extent.StartOffset) { throw 'The Owner login is not given between the checked migration and the tasks.' }
+            $refusals = @($create[0].FindAll({ param($node) $node -is [System.Management.Automation.Language.ThrowStatementAst] }, $true))
+            if ($refusals.Count -ne 1) { throw 'A failed Owner login does not stop setup.' }
+            Write-Output 'Owner login placement passed.'
+            """;
+        var result = await RunPowerShellAsync(["-Command", command]);
+        Assert.True(result.ExitCode == 0, result.Output);
+        Assert.Contains("Owner login placement passed.", result.Output);
+        var start = result.Output.IndexOf("---SQL---", StringComparison.Ordinal);
+        var end = result.Output.IndexOf("---END---", StringComparison.Ordinal);
+        Assert.True(start >= 0 && end > start, result.Output);
+        var sql = result.Output[start..end];
+        string[] ordered =
+        [
+            "SET XACT_ABORT ON",
+            "DECLARE @identity nvarchar(200)=SUSER_SNAME();",
+            "IF SUSER_ID(@identity) IS NULL",
+            "IF NOT EXISTS(SELECT 1 FROM dbo.application_users WHERE windows_identity=@identity AND role_code='OWNER' AND is_active=1)",
+            "THROW 51920",
+            "BEGIN TRANSACTION;",
+            "EXEC dbo.configure_application_role @identity=@identity,@role='OWNER',@active=1;",
+            "COMMIT TRANSACTION;",
+        ];
+        var position = -1;
+        foreach (var fragment in ordered)
+        {
+            var next = sql.IndexOf(fragment, StringComparison.Ordinal);
+            Assert.True(next > position, $"'{fragment}' is missing or out of order.");
+            position = next;
+        }
+        // Only the account running setup, and nothing that changes who owns the database or its rows.
+        Assert.DoesNotContain("ALTER AUTHORIZATION", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("sysadmin", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("MERGE", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("DELETE", sql, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Pre_migration_backup_installs_a_missing_broker_first_and_only_after_the_last_refusal()
+    {
+        // The backup goes through the master broker. A database restored by hand, or after the
+        // restore helper's broker step failed, reached setup without one, and the upgrade
+        // stopped with only "The database operation failed".
+        var script = FindBootstrapScript().Replace("'", "''");
+        var command = $$"""
+            $ErrorActionPreference = 'Stop'
+            $tokens = $null; $errors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile('{{script}}', [ref]$tokens, [ref]$errors)
+            if (@($errors).Count -ne 0) { throw 'bootstrap-etp-prerequisites.ps1 does not parse.' }
+            $top = @($ast.EndBlock.Statements)
+            $upgrade = @($top | Where-Object { $_ -is [System.Management.Automation.Language.IfStatementAst] -and $_.Clauses[0].Item1.Extent.Text -eq '$databaseExistedBeforeMigration' })
+            if ($upgrade.Count -ne 1) { throw 'There is no single existing-database branch.' }
+            $pending = @($upgrade[0].Clauses[0].Item2.Statements | Where-Object { $_ -is [System.Management.Automation.Language.IfStatementAst] -and $_.Clauses[0].Item1.Extent.Text -match '\$appliedMigrationCount -lt' })
+            if ($pending.Count -ne 1) { throw 'There is no single pending-migrations branch.' }
+            $body = $pending[0].Clauses[0].Item2
+            $isBroker = { param($node) $node -is [System.Management.Automation.Language.CommandAst] -and $node.Extent.Text -match 'install-etp-sql-operations\.ps1' -and @($node.CommandElements | Where-Object { $_ -is [System.Management.Automation.Language.CommandParameterAst] -and $_.ParameterName -eq 'BrokerOnly' }).Count -eq 1 }
+            $broker = @($body.FindAll($isBroker, $true))
+            if ($broker.Count -ne 1) { throw 'The pending-migrations branch does not install the broker, and only the broker.' }
+            $backup = @($body.FindAll({ param($node) $node -is [System.Management.Automation.Language.CommandAst] -and $node.Extent.Text -match '^& \$backupScript ' }, $true))
+            if ($backup.Count -ne 1 -or $broker[0].Extent.EndOffset -gt $backup[0].Extent.StartOffset) { throw 'The broker is not in place before the pre-migration backup.' }
+            # The encrypted-edition refusal promises the database has not been changed; the
+            # broker must not have been installed by then.
+            $refusals = @($body.FindAll({ param($node) $node -is [System.Management.Automation.Language.ThrowStatementAst] }, $true))
+            if ($refusals.Count -lt 1 -or @($refusals | Where-Object { $_.Extent.StartOffset -gt $broker[0].Extent.StartOffset }).Count -ne 0) { throw 'The broker is installed before a refusal that says nothing was changed.' }
+            $allBroker = @($ast.FindAll($isBroker, $true))
+            if ($allBroker.Count -ne 2) { throw "The broker is installed from $($allBroker.Count) places; expected restore mode and the pre-migration backup." }
+            Write-Output 'Broker before backup passed.'
+            """;
+        var result = await RunPowerShellAsync(["-Command", command]);
+        Assert.True(result.ExitCode == 0, result.Output);
+        Assert.Contains("Broker before backup passed.", result.Output);
     }
 
     [Fact]
@@ -372,7 +588,7 @@ public sealed class BootstrapPrerequisiteTests
             $ast = [System.Management.Automation.Language.Parser]::ParseFile('{{script}}', [ref]$tokens, [ref]$errors)
             if (@($errors).Count -ne 0) { throw 'bootstrap-etp-prerequisites.ps1 does not parse.' }
             $top = @($ast.EndBlock.Statements)
-            $fresh = @($top | Where-Object { $_ -is [System.Management.Automation.Language.IfStatementAst] -and $_.Clauses[0].Item1.Extent.Text -match 'Test-Path -LiteralPath \$configurationPath' })
+            $fresh = @($top | Where-Object { $_ -is [System.Management.Automation.Language.IfStatementAst] -and $_.Clauses[0].Item1.Extent.Text -match '^Test-EtpNewMachine ' })
             if ($fresh.Count -ne 1) { throw 'There is no single new-PC branch.' }
             $prepares = @($fresh[0].FindAll({ param($node) $node -is [System.Management.Automation.Language.CommandAst] -and $node.GetCommandName() -eq 'Initialize-EtpFreshMachine' }, $true))
             if ($prepares.Count -ne 1) { throw 'The new-PC branch does not prepare the machine.' }

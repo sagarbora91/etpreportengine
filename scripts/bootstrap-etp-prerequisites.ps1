@@ -154,6 +154,110 @@ function Test-EtpSqlCmdInstalled {
     try { $null = Resolve-EtpSqlCmd; return $true } catch { return $false }
 }
 
+function Test-EtpSqlEngineInstalled {
+    param([Parameter(Mandatory)][string]$ServiceName)
+    return [bool](Get-Service -Name $ServiceName -ErrorAction SilentlyContinue)
+}
+
+function Get-EtpAdoptedSqlInstanceQuery {
+    # Read-only. Everything after the first line needs a SQL administrator, which setup's
+    # elevated account is on an instance this installer set up (BUILTIN\Administrators).
+    return "SET NOCOUNT ON; " +
+        "SELECT N'ETP_ADOPT_SYSADMIN:'+CONVERT(nvarchar(1),COALESCE(IS_SRVROLEMEMBER('sysadmin'),0)); " +
+        "IF COALESCE(IS_SRVROLEMEMBER('sysadmin'),0)=1 BEGIN " +
+        "SELECT N'ETP_ADOPT_WINDOWS_ONLY:'+CONVERT(nvarchar(10),SERVERPROPERTY('IsIntegratedSecurityOnly')); " +
+        "SELECT N'ETP_ADOPT_PROTOCOL:'+CASE WHEN registry_key LIKE N'%\SuperSocketNetLib\Tcp' THEN N'TCP' ELSE N'NP' END+N'='+CONVERT(nvarchar(10),value_data) FROM sys.dm_server_registry " +
+        "WHERE value_name=N'Enabled' AND (registry_key LIKE N'%\SuperSocketNetLib\Tcp' OR registry_key LIKE N'%\SuperSocketNetLib\Np'); " +
+        "SELECT N'ETP_ADOPT_ADMIN:'+CONVERT(nvarchar(200),m.sid,1)+N'|'+m.name FROM sys.server_role_members rm " +
+        "JOIN sys.server_principals r ON r.principal_id=rm.role_principal_id JOIN sys.server_principals m ON m.principal_id=rm.member_principal_id " +
+        "WHERE r.name=N'sysadmin' AND m.type IN ('U','G') AND m.is_disabled=0; END;"
+}
+
+function Get-EtpAdoptedSqlInstanceProblems {
+    # What stops setup from using an instance it did not install, in plain words; nothing
+    # when it matches what this installer's own SQL Server setup produces: Windows accounts
+    # only, TCP/IP and named pipes off, and no enabled Windows account or group among the SQL
+    # administrators except Administrators and SQL Server's own service accounts (NT SERVICE\,
+    # S-1-5-80-). SQL logins are not listed: with Windows-only authentication they cannot sign in.
+    param([AllowEmptyCollection()][AllowNull()][string[]]$Lines)
+    $values = @{}
+    foreach ($line in @($Lines | ForEach-Object { "$_".Trim() })) {
+        if ($line -cmatch '^ETP_ADOPT_([A-Z_]+):(.*)$') {
+            if (-not $values.ContainsKey($Matches[1])) { $values[$Matches[1]] = @() }
+            $values[$Matches[1]] += $Matches[2]
+        }
+    }
+    foreach ($key in @('SYSADMIN', 'WINDOWS_ONLY', 'PROTOCOL', 'ADMIN')) { if (-not $values.ContainsKey($key)) { $values[$key] = @() } }
+    $sysadmin = @($values['SYSADMIN'])
+    if ($sysadmin.Count -ne 1 -or $sysadmin[0] -cne '1') { return @('the account running setup is not a SQL Server administrator on it, so its settings cannot be checked') }
+    $problems = @()
+    $windowsOnly = @($values['WINDOWS_ONLY'])
+    if ($windowsOnly.Count -ne 1 -or $windowsOnly[0] -cne '1') { $problems += 'it accepts SQL Server logins as well as Windows accounts' }
+    foreach ($protocol in @(@('TCP', 'TCP/IP', 'it can be reached over the network (TCP/IP is on)'), @('NP', 'named pipes', 'it accepts named-pipe connections'))) {
+        $settings = @($values['PROTOCOL'] | Where-Object { $_.StartsWith($protocol[0] + '=', [StringComparison]::Ordinal) })
+        if ($settings.Count -ne 1) { $problems += "setup could not read whether $($protocol[1]) is on" }
+        elseif ($settings[0] -cne ($protocol[0] + '=0')) { $problems += $protocol[2] }
+    }
+    $others = @()
+    foreach ($admin in @($values['ADMIN'])) {
+        $parts = $admin.Split([char[]]'|', 2)
+        $sid = $null
+        try {
+            if ($parts[0] -notmatch '^0x([0-9A-Fa-f]{2}){8,68}$') { throw 'unreadable' }
+            $hex = $parts[0].Substring(2)
+            $bytes = [byte[]]::new($hex.Length / 2)
+            for ($i = 0; $i -lt $bytes.Length; $i++) { $bytes[$i] = [Convert]::ToByte($hex.Substring($i * 2, 2), 16) }
+            $sid = [Security.Principal.SecurityIdentifier]::new($bytes, 0).Value
+        }
+        catch { $sid = $null }
+        $name = if ($parts.Count -eq 2 -and $parts[1]) { $parts[1] -replace '[\x00-\x1F\x7F]', '?' } else { '(unnamed)' }
+        if (-not $sid) { $others += $name; continue }
+        if ($sid -ceq 'S-1-5-32-544' -or $sid.StartsWith('S-1-5-80-', [StringComparison]::Ordinal)) { continue }
+        $others += $name
+    }
+    if ($others.Count -gt 0) { $problems += "other Windows accounts or groups are SQL Server administrators on it ($($others -join ', '))" }
+    return $problems
+}
+
+function Assert-EtpAdoptedSqlInstance {
+    # Setup installs SQL Server hardened: Windows accounts only, no TCP/IP or named pipes, and
+    # only Administrators as SQL administrators. An instance of the same name that was already
+    # on the PC - another program's, say - was not set up that way by anyone ETP knows of. On
+    # an existing ETP machine an administrator chose the instance by hand; a new PC's setup
+    # would otherwise adopt it silently and put the shop's data in it. So it is checked before
+    # any ETP folder, account or configuration is created, and refused unless it matches. A
+    # second run after this installer's own SQL Server setup succeeded passes, because that
+    # instance matches.
+    param([Parameter(Mandatory)][string]$ServiceName,[Parameter(Mandatory)][string]$ServerInstance)
+    $refusal = 'SQL Server ({0}) was already installed on this PC, so setup did not install or configure it, and it will not put ETP in it as it is: {1}. Setup created no ETP folder, account or configuration. To use this instance deliberately, prepare it and the protected folders by hand as described in docs\OPERATIONS.md (deployment steps 1 and 3), then run setup again.'
+    $service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+    if (-not $service -or $service.Status -ne 'Running') { throw ($refusal -f $ServiceName, 'it is not running, so its settings cannot be checked') }
+    $lines = @()
+    try {
+        $sqlcmd = Resolve-EtpSqlCmd
+        $server = Resolve-EtpSqlConnection -SqlCmd $sqlcmd -ServerInstance $ServerInstance
+        $lines = @(Invoke-EtpSql -SqlCmd $sqlcmd -Server $server -Query (Get-EtpAdoptedSqlInstanceQuery))
+    }
+    catch { throw ($refusal -f $ServiceName, 'setup could not connect to it and read its settings') }
+    $problems = @(Get-EtpAdoptedSqlInstanceProblems -Lines $lines)
+    if ($problems.Count -gt 0) { throw ($refusal -f $ServiceName, ($problems -join '; ')) }
+    Write-Host "SQL Server ($ServiceName) was already installed; its settings match what setup would have installed, so ETP will use it."
+}
+
+function Test-EtpNewMachine {
+    # A PC counts as new only when ETP's protected Operations folder does not exist at all.
+    # Strict folder setup (-GrantAutomationFolderAccess:$false) creates that folder and
+    # deliberately writes no operations.json. Taking the missing file alone as "new PC" made
+    # setup create EtpAutomation and grant it the ETP folders over that recorded decision.
+    param([Parameter(Mandatory)][string]$OperationsDirectory)
+    Assert-EtpNoLinks $OperationsDirectory
+    if (Test-Path -LiteralPath (Join-Path $OperationsDirectory 'operations.json')) { return $false }
+    if (Test-Path -LiteralPath $OperationsDirectory) {
+        throw 'This PC already has ETP''s protected folders but no automation configuration (operations.json), which is how strict folder setup leaves them, and setup does not override that decision. Resolve automation folder access in the protected machine configuration (docs\OPERATIONS.md, Folder policy decision), then run setup again. Nothing was changed.'
+    }
+    return $true
+}
+
 function Install-EtpSqlPrerequisitesFromPayload {
     param([Parameter(Mandatory)][string]$PayloadDirectory,[Parameter(Mandatory)][string]$ServiceName)
     # The media is whatever the build packaged. Say exactly what is missing rather
@@ -164,7 +268,7 @@ function Install-EtpSqlPrerequisitesFromPayload {
     # in this script passes the ownership and ACL gate; this one must too, or a folder a
     # non-administrator can write becomes an elevation path.
     Assert-EtpProtectedInstall $PayloadDirectory
-    $needEngine = -not (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue)
+    $needEngine = -not (Test-EtpSqlEngineInstalled $ServiceName)
     if ($needEngine -and -not (Get-ChildItem -LiteralPath $PayloadDirectory -Filter 'SQLEXPR*_x64_*.exe' -File)) { throw 'The bundled SQL Server Express package was not found in the installer media.' }
     # Work out everything first, so media that cannot finish the job stops setup before
     # SQL Server is half-installed.
@@ -207,7 +311,12 @@ function Initialize-EtpFreshMachine {
         throw 'This PC has no ETP machine configuration yet. Run setup again with "Install Microsoft SQL Server 2025 Express" ticked (it skips anything already installed; an installer built without SQL media does not offer it), or prepare SQL Server and the protected folders as described in docs\OPERATIONS.md, then run setup again. Nothing was changed.'
     }
     $serviceName = Resolve-EtpBootstrapServiceName $EtpNewMachineServerInstance $EtpNewMachineDatabase
+    # Decided before anything is installed: an instance that is already here was not set up
+    # by this run, and is checked (after the client tools, which the check needs) rather than
+    # taken as it is.
+    $adoptsExistingEngine = Test-EtpSqlEngineInstalled $serviceName
     Install-EtpSqlPrerequisitesFromPayload -PayloadDirectory $SqlPayloadDirectory -ServiceName $serviceName
+    if ($adoptsExistingEngine) { Assert-EtpAdoptedSqlInstance -ServiceName $serviceName -ServerInstance $EtpNewMachineServerInstance }
     Invoke-EtpOperationFolderSetup -ServiceName $serviceName -ServerInstance $EtpNewMachineServerInstance -Database $EtpNewMachineDatabase -CreateAutomationAccount
 }
 
@@ -220,6 +329,31 @@ function Get-EtpBootstrapDatabaseAction {
         'MISSING' { if ($DeferDatabaseCreation) { return 'AwaitRestore' }; return 'Create' }
     }
     throw 'SQL Server returned an unexpected database-existence result.'
+}
+
+function New-EtpSetupOwnerLoginSql {
+    # Setup creates a new database as the account running it, which migration 0011 makes the
+    # first Owner and which owns the database (dbo). But on an instance this installer set up,
+    # that account is a SQL administrator only through BUILTIN\Administrators, which Windows
+    # removes from an unelevated token: opened normally from the Start menu, ETP could not sign
+    # in to SQL Server at all, so the Owner never reached Settings > Users. When the account has
+    # no login of its own it is given one the documented way - dbo.configure_application_role
+    # as OWNER, the same call Settings > Users and the restore helper's Owner recovery make,
+    # which also grants the ALTER ANY LOGIN that adding staff needs. SUSER_SNAME() is taken
+    # inside SQL Server, so no text from outside reaches this batch. An account that already
+    # has its own login (an administrator's own sysadmin login, for one) is left as it is.
+    return @'
+SET NOCOUNT ON; SET XACT_ABORT ON;
+DECLARE @identity nvarchar(200)=SUSER_SNAME();
+IF SUSER_ID(@identity) IS NULL
+BEGIN
+  IF NOT EXISTS(SELECT 1 FROM dbo.application_users WHERE windows_identity=@identity AND role_code='OWNER' AND is_active=1)
+    THROW 51920,N'The account running setup is not the new database''s Owner.',1;
+  BEGIN TRANSACTION;
+  EXEC dbo.configure_application_role @identity=@identity,@role='OWNER',@active=1;
+  COMMIT TRANSACTION;
+END;
+'@
 }
 
 function Start-EtpProcess {
@@ -322,13 +456,14 @@ function Assert-VerifiedBackupReceipt {
     $script:preMigrationBackupPath=$receipt.backupPath
 }
 
-# No protected configuration means a PC ETP has never been set up on. Prepare SQL Server
+# No protected Operations folder means a PC ETP has never been set up on. Prepare SQL Server
 # and the configuration first (see Initialize-EtpFreshMachine); everything after this
-# point is the same for a new PC and an existing one.
+# point is the same for a new PC and an existing one. Strict folders without a
+# configuration are refused by Test-EtpNewMachine, unchanged.
 $freshMachine = $false
 $configurationPath = Join-Path $env:ProgramData 'EtpReporting\Operations\operations.json'
 Assert-EtpNoLinks $configurationPath
-if (-not (Test-Path -LiteralPath $configurationPath)) {
+if (Test-EtpNewMachine -OperationsDirectory (Split-Path -Parent $configurationPath)) {
     $freshMachine = $true
     Initialize-EtpFreshMachine -ApplicationRoot $applicationRoot -SqlPayloadDirectory $SqlPayloadDirectory -SkipSqlInstallation:$SkipSqlInstallation
 }
@@ -380,7 +515,7 @@ Set-Service -Name $serviceName -StartupType Automatic
 & (Join-Path $PSScriptRoot 'initialize-etp-operation-folders.ps1') -SqlServiceIdentity ('NT SERVICE\'+$serviceName) -ServerInstance $ServerInstance -Database $Database -AutomationPrincipal $operationConfiguration.automationPrincipal -GrantAutomationFolderAccess
 $setupPreflightValidated = $true
 if ($freshMachine) {
-    Write-SetupLog 'This PC had no ETP machine configuration. Setup installed whatever was missing of SQL Server Express, ODBC Driver 17 and Sqlcmd from the included media, and created the protected folders, the EtpAutomation account and the configuration for .\SQLEXPRESS / EtpReporting.'
+    Write-SetupLog 'This PC had no ETP machine configuration. Setup installed whatever was missing of SQL Server Express, ODBC Driver 17 and Sqlcmd from the included media (an SQLEXPRESS instance that was already here was checked, not reconfigured), and created the protected folders, the EtpAutomation account and the configuration for .\SQLEXPRESS / EtpReporting.'
 }
 
 $databaseState = Invoke-SqlScalar -Query "SET NOCOUNT ON; IF DB_ID(N'$Database') IS NULL SELECT 'MISSING' ELSE SELECT 'EXISTS';"
@@ -418,6 +553,12 @@ if ($databaseExistedBeforeMigration) {
         $requiredFreeSpaceGb = [math]::Ceiling(([math]::Max($MinimumBackupFreeSpaceGb, ($databaseSizeMb / 1024.0) * 1.25)) * 100) / 100
         $receiptPath = Join-Path $logDirectory "pre-migration-backup-$(Get-Date -Format 'yyyyMMdd-HHmmss-fff')-$([Guid]::NewGuid().ToString('N')).json"
         Write-SetupLog 'Existing database has pending bundled migrations. Creating and verifying a pre-migration backup before any migration runs.'
+        # The backup goes through the master operations broker. A database that reached this
+        # instance by a restore rather than through setup - by hand, or after the restore
+        # helper's own broker step failed - can be here without one, and the backup then
+        # stopped with only "The database operation failed". -BrokerOnly creates it only where
+        # it is missing and never alters one, so a machine that has it is left as it was.
+        foreach ($line in @(& (Join-Path $scripts 'install-etp-sql-operations.ps1') -ServerInstance $ServerInstance -Database $Database -AutomationPrincipal $operationConfiguration.automationPrincipal -SqlCmdPath $sqlcmdPath -BrokerOnly)) { Write-SetupLog "$line" }
         # -Purpose PreMigration marks the receipt so the next daily backup's rotation keeps
         # this file. Without it the upgrade's own safety copy was deleted the same day.
         & $backupScript -ServerInstance $ServerInstance -Database $Database -BackupDirectory $backupDirectory -MinimumFreeSpaceGb $requiredFreeSpaceGb -ResultPath $receiptPath -SqlCmdPath $sqlcmdPath -Purpose PreMigration
@@ -443,6 +584,19 @@ if ($postMigrationCount -ne $migrationFiles.Count) { throw "Post-migration healt
 Invoke-SqlHealthCommand -Query "SET NOCOUNT ON; DBCC CHECKDB ([$Database]) WITH NO_INFOMSGS;"
 $migrationPhaseCompleted = $true
 Write-SetupLog 'EtpReporting migration completed and post-migration state, journal count, and DBCC integrity checks passed.'
+
+if ($databaseAction -ceq 'Create') {
+    # See New-EtpSetupOwnerLoginSql: without a login of its own the new Owner can open ETP
+    # only as administrator. A restored database gets the same from the restore helper.
+    & $sqlcmdPath -x -S $ServerInstance -E -b -d $Database -Q (New-EtpSetupOwnerLoginSql) | Out-Null
+    $ownerLogin = if ($LASTEXITCODE -eq 0) {
+        Invoke-SqlScalar -TargetDatabase $Database -Query "SET NOCOUNT ON; SELECT CASE WHEN SUSER_ID(SUSER_SNAME()) IS NOT NULL AND EXISTS(SELECT 1 FROM dbo.application_users WHERE windows_identity=SUSER_SNAME() AND role_code='OWNER' AND is_active=1) THEN 'READY' ELSE 'MISSING' END;"
+    } else { 'FAILED' }
+    if ($ownerLogin -cne 'READY') {
+        throw "The new database was created and checked, but setup could not give $($identity.Name), its Owner, a SQL Server login of its own, so ETP would open only when run as administrator. The database is complete and was left as it is: follow docs\OPERATIONS.md, Owner recovery and maintenance, for that account (a SQL administrator calls dbo.configure_application_role for it as OWNER), then run setup again."
+    }
+    Write-SetupLog "$($identity.Name) is the new database's Owner and has its own SQL Server login, so ETP opens for it without administrator rights."
+}
 
 & (Join-Path $scripts 'install-daily-backup-task.ps1')
 & (Join-Path $scripts 'install-monthly-recovery-drill-task.ps1')
