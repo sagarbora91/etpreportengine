@@ -36,6 +36,7 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
     // Session results only. The Problems tab reads the database instead, so that the
     // list survives closing the application; this stays for the in-run summary.
     public IReadOnlyList<ImportProblem> Problems => ImportProblems.From(latestResults);
+    public void SetKnownStores(IReadOnlyList<string> stores) => coordinator.SetKnownStores(stores);
     public bool CanRetry => accessProvider().CanImport && !IsBusy && coordinator.FailedBatchPaths.Count > 0;
 
     // Retry can be unavailable because the role forbids it, because an import is
@@ -73,7 +74,7 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
     public bool BrowseImportFolder()
     {
         if (IsBusy) return false;
-        var dialog = new OpenFolderDialog { Title = "Choose a store folder or the parent containing both stores" };
+        var dialog = new OpenFolderDialog { Title = "Choose a store folder or the parent containing the store folders" };
         if (dialog.ShowDialog(Window.GetWindow(this)) != true) return false;
         WorkbookPathInput.Text = dialog.FolderName;
         return true;
@@ -89,7 +90,6 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
             if (!accessProvider().CanImport) throw new UnauthorizedAccessException("Owner or Store Manager permission is required.");
             if (!retry && string.IsNullOrWhiteSpace(WorkbookPathInput.Text)) throw new InvalidOperationException("Choose a folder, workbook or ZIP first.");
             var restate = retry ? lastImportOptions?.RestatementEnabled == true : RestatementModeInput.IsChecked == true;
-            if (restate && !accessProvider().CanAdminister) throw new UnauthorizedAccessException("Owner permission is required for a restatement.");
             var options = retry ? lastImportOptions! : new FolderImportOptions(Environment.UserName, restate, RestatementReasonInput.Text.Trim(),
                 restate ? (ImportStoreInput.SelectedItem as ComboBoxItem)?.Content?.ToString() : null,
                 restate && ImportBusinessDateInput.SelectedDate is { } date ? DateOnly.FromDateTime(date) : null);
@@ -113,6 +113,10 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
                 ShowScope();
                 ProgressChanged?.Invoke(this, value);
             });
+            // A manager may request and apply an Owner-approved replacement, but
+            // a revoked import role must stop before entering that approval flow.
+            if (restate && !accessProvider().CanImport)
+                throw new UnauthorizedAccessException("Owner or Store Manager permission is required for a restatement.");
             var summary = retry
                 ? await coordinator.RetryFailedFolderAsync(progress)
                 : await coordinator.ImportFolderAsync(WorkbookPathInput.Text, connectionStringProvider(), options, progress);

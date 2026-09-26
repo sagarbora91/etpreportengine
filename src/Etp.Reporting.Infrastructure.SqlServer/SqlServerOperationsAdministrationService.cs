@@ -64,7 +64,7 @@ public sealed class SqlServerOperationsAdministrationService : App.IOperationsAd
         string? status = "PENDING",
         CancellationToken cancellationToken = default)
     {
-        await RequireViewAsync(cancellationToken).ConfigureAwait(false);
+        await RequireOwnerAsync(cancellationToken).ConfigureAwait(false);
         return (await gateway.LoadApprovalsAsync(status, cancellationToken).ConfigureAwait(false))
             .Select(Map).ToArray();
     }
@@ -84,7 +84,7 @@ public sealed class SqlServerOperationsAdministrationService : App.IOperationsAd
         await RequireOwnerAsync(cancellationToken).ConfigureAwait(false);
         await gateway.SaveWatchFoldersAsync(
             new(command.InboundPath, command.ProcessedPath, command.FailedPath, command.ReportOutputPath,
-                command.PollMinutes, command.IsEnabled, DateTime.MinValue, string.Empty),
+                command.IsEnabled, DateTime.MinValue, string.Empty),
             command.Reason,
             cancellationToken).ConfigureAwait(false);
     }
@@ -107,7 +107,7 @@ public sealed class SqlServerOperationsAdministrationService : App.IOperationsAd
     public async Task<long> SubmitAdjustmentAsync(App.SubmitAdjustment command, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(command);
-        await RequireOperationsAsync(cancellationToken).ConfigureAwait(false);
+        await RequireOwnerAsync(cancellationToken).ConfigureAwait(false);
         return await gateway.SubmitAdjustmentAsync(command.StoreCode, command.BusinessDate, command.AdjustmentType,
             command.Amount, command.Reason, command.SourceDocumentId, cancellationToken).ConfigureAwait(false);
     }
@@ -149,7 +149,7 @@ public sealed class SqlServerOperationsAdministrationService : App.IOperationsAd
 
     private static App.WatchFolderConfiguration Map(WatchFolderSettings row) =>
         new(row.InboundPath, row.ProcessedPath, row.FailedPath, row.ReportOutputPath,
-            row.PollMinutes, row.IsEnabled, row.ModifiedUtc, row.ModifiedBy);
+            row.IsEnabled, row.ModifiedUtc, row.ModifiedBy);
     private static App.ManagementTrendPoint Map(ManagementTrendRow row) =>
         new(row.BusinessDate, row.StoreCode, row.NetSales, row.Units, row.Invoices,
             row.TenderVariance, row.UnmatchedEnrichmentRows);
@@ -167,7 +167,7 @@ public sealed class SqlServerOperationsAdministrationService : App.IOperationsAd
             row.SafeMessage, row.StartedUtc, row.CompletedUtc, row.RunBy);
     private static App.ApprovalRequest Map(ApprovalRequestRow row) =>
         new(row.Id, row.ApprovalType, row.SubjectType, row.SubjectId, row.StoreCode, row.BusinessDate,
-            row.RequestedBy, row.RequestedUtc, row.Status, row.DecidedBy, row.DecidedUtc, row.DecisionReason);
+            row.RequestedBy, row.RequestedUtc, row.Status, row.DecidedBy, row.DecidedUtc, row.DecisionReason, row.RequestReason, row.SourceFingerprint);
 }
 
 internal interface IOperationsAdministrationSqlGateway

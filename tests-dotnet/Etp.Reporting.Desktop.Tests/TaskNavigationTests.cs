@@ -39,7 +39,7 @@ public sealed class TaskNavigationTests
         }
         var settings = TaskNavigation.InSection("Settings", ShellAccess.Owner).Select(t => t.Tab).Distinct().ToArray();
         Assert.Contains("Help", settings);
-        Assert.Contains("Registers", settings);
+        Assert.Contains(TaskNavigation.InSection("Stock", ShellAccess.StoreManager), task => task.Tab == "Registers");
     }
 
     [Theory]

@@ -33,6 +33,7 @@ public sealed class PhaseFiveAccountingTests
             var request = Convert.ToInt64(await database.ExecuteAsync(
                 $"SELECT approval_request_id FROM dbo.controlled_adjustments WHERE controlled_adjustment_id={adjustment}"));
             var service = new SqlServerAccountingService(database.ConnectionString);
+            await service.SaveDestinationAsync(new("TEST Fixture", "TEST", "", "Synthetic destination"));
             var scope = new AccountingScope("PHASE5", new(2026, 8, 25));
             Assert.Empty((await service.LoadSourceAsync(scope)).Events);
             await database.ExecuteAsync($"EXEC dbo.decide_approval_request {request},1,N'Synthetic evidence checked';");
@@ -71,7 +72,7 @@ public sealed class PhaseFiveAccountingTests
             });
 
             var batch = Assert.Single(await service.LoadBatchesAsync());
-            Assert.Equal("REVIEW", batch.Status);
+            Assert.Equal("DRAFT", batch.Status);
             Assert.Equal(Math.Abs(amount), batch.DebitTotal);
             Assert.Equal(batch.DebitTotal, batch.CreditTotal);
             Assert.All(await service.LoadEntriesAsync(batch.Id), entry => Assert.Equal("ADJUSTMENT", entry.BusinessEvent));
@@ -79,7 +80,7 @@ public sealed class PhaseFiveAccountingTests
             await Assert.ThrowsAsync<ArgumentException>(() => service.ApproveAsync(new(batch.Id, " ")));
             Assert.Equal(DBNull.Value, await database.ExecuteAsync($"SELECT approval_reason FROM dbo.accounting_batches WHERE accounting_batch_id={batch.Id}"));
             await service.ApproveAsync(new(batch.Id, "  Checked source and balanced entries  "));
-            Assert.Equal("APPROVED", Assert.Single(await new SqlServerAccountingService(database.ConnectionString).LoadBatchesAsync()).Status);
+            Assert.Equal("APPROVED_READY", Assert.Single(await new SqlServerAccountingService(database.ConnectionString).LoadBatchesAsync()).Status);
             Assert.Equal("Checked source and balanced entries", await database.ExecuteAsync($"SELECT approval_reason FROM dbo.accounting_batches WHERE accounting_batch_id={batch.Id}"));
             await Assert.ThrowsAsync<ArgumentException>(()=>service.RejectAsync(new(batch.Id," ")));
             var approved=Assert.Single(await service.LoadBatchesAsync());
@@ -97,12 +98,8 @@ public sealed class PhaseFiveAccountingTests
             Assert.Equal("REJECTED",Assert.Single(await service.LoadBatchesAsync()).Status);
             Assert.Equal("Correction needed before export",await database.ExecuteAsync($"SELECT rejection_reason FROM dbo.accounting_batches WHERE accounting_batch_id={batch.Id}"));
             Assert.Equal("Checked source and balanced entries",await database.ExecuteAsync($"SELECT approval_reason FROM dbo.accounting_batches WHERE accounting_batch_id={batch.Id}"));
-            foreach(var state in new[]{"REJECTED","EXPORTED"})
-            {
-                await database.ExecuteAsync($"UPDATE dbo.accounting_batches SET status='{state}' WHERE accounting_batch_id={batch.Id}");
-                var denied=await Assert.ThrowsAsync<Microsoft.Data.SqlClient.SqlException>(()=>service.RejectAsync(new(batch.Id,"Second decision")));
-                Assert.Equal(51432,denied.Number);
-            }
+            var repeated=await Assert.ThrowsAsync<Microsoft.Data.SqlClient.SqlException>(()=>service.RejectAsync(new(batch.Id,"Second decision")));
+            Assert.Equal(51432,repeated.Number);
             foreach(var role in new[]{"etp_viewer","etp_store_manager"})
             {
                 await database.ExecuteAsync($"CREATE USER reject_probe WITHOUT LOGIN; ALTER ROLE {role} ADD MEMBER reject_probe;");

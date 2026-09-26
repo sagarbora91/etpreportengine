@@ -116,7 +116,8 @@ public sealed class DesktopCompositionRoot
             new DesktopSettingsPresentationSession(settingsStore, connectionState, temporaryConnection),
             databaseLifecycleServiceFactory,
             administrationServiceFactory,
-            MigrationDirectory);
+            MigrationDirectory,
+            accountingServiceFactory);
         TenderVarianceDiagnostic tenderVarianceDiagnostic = new ReportingTenderVarianceDiagnostic();
         var reportsWorkspaceView = new ReportsWorkspaceView(
             () => connectionState.ConnectionString,
@@ -201,6 +202,8 @@ public sealed class DesktopCompositionRoot
             importWorkspaceView);
         window.importHistoryView = new ImportHistoryView(scope =>
             new SqlServerImportHistoryQuery(connectionState.ConnectionString).LoadAsync(scope));
+        dailyWorkflowWorkspaceView.AttachRegisters((store, date, token) =>
+            SqlServerDigitalRegisterService.LoadDayAsync(connectionState.ConnectionString, store, date, token));
         return window;
     }
 

@@ -15,7 +15,7 @@
                 <TextBlock Text="Store" VerticalAlignment="Center" Margin="14,0,6,0"/>
                 <ComboBox x:Name="StoreInput" Width="160" SelectedIndex="0" SelectionChanged="Scope_Changed"
                           automation:AutomationProperties.Name="Daily workflow store">
-                    <ComboBoxItem Content="WLMHW"/><ComboBoxItem Content="HEMW"/>
+
                 </ComboBox>
                 <Button x:Name="RefreshButton" Content="Refresh status" Click="Refresh_Click" Padding="14,7" Margin="12,0,0,0"
                         automation:AutomationProperties.Name="Refresh daily workflow"/>
@@ -100,8 +100,8 @@
             <WrapPanel Margin="0,14,0,0">
                 <Button x:Name="GenerateStorePackButton" Content="Generate selected-store pack" Click="GenerateDailyPack_Click" Padding="16,8"
                         automation:AutomationProperties.Name="Generate selected store daily reporting pack"/>
-                <Button x:Name="GenerateCombinedPackButton" Content="Generate Titan + Helios pack" Click="GenerateCombinedDailyPack_Click" Padding="16,8" Margin="8,0,0,0"
-                        automation:AutomationProperties.Name="Generate combined Titan and Helios daily reporting pack"/>
+                <Button x:Name="GenerateCombinedPackButton" Content="Generate all stores pack" Click="GenerateCombinedDailyPack_Click" Padding="16,8" Margin="8,0,0,0"
+                        automation:AutomationProperties.Name="Generate combined daily reporting pack for all active stores"/>
                 <Button x:Name="ExportPackExcelButton" Content="Export complete pack Excel…" Click="ExportDailyPackExcel_Click" Padding="16,8" Margin="8,0,0,0" IsEnabled="False"
                         automation:AutomationProperties.Name="Export complete report pack Excel"/>
                 <Button x:Name="ExportPackPdfButton" Content="Export complete pack PDF…" Click="ExportDailyPackPdf_Click" Padding="16,8" Margin="8,0,0,0" IsEnabled="False"
@@ -109,6 +109,12 @@
             </WrapPanel>
             <DataGrid x:Name="DailyPackGrid" Margin="0,10,0,0" AutoGenerateColumns="True" IsReadOnly="True" MaxHeight="260"
                       automation:AutomationProperties.Name="Daily reporting pack status"/>
+            <StackPanel x:Name="DayRegistersPanel" Margin="0,14,0,0">
+                <TextBlock Text="Today's register entries" FontSize="18" FontWeight="SemiBold"/>
+                <TextBlock x:Name="DayRegistersStatus" TextWrapping="Wrap" Margin="0,4,0,6"/>
+                <WrapPanel><Button Content="Refresh entries" Click="RefreshDayRegisters_Click" Padding="14,7"/><Button Content="Open selected register" Click="OpenDayRegister_Click" Padding="14,7" Margin="8,0,0,0"/></WrapPanel>
+                <DataGrid x:Name="DayRegistersGrid" AutoGenerateColumns="True" IsReadOnly="True" SelectionMode="Single" MaxHeight="240" Margin="0,6,0,0" automation:AutomationProperties.Name="Today's register entries"/>
+            </StackPanel>
         </StackPanel>
     </Border>
 </UserControl>

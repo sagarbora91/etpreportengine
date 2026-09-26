@@ -1,4 +1,4 @@
-﻿using Etp.Reporting.Reporting;
+using Etp.Reporting.Reporting;
 
 namespace Etp.Reporting.Desktop;
 
@@ -18,7 +18,7 @@ public sealed record TaskDestination(string Id, string Title, string Module, str
     public override string ToString() => Title;
 
     public bool IsAllowed(ShellAccess access) => Available
-        && (Destination != "Import ETP" || access.CanImport)
+        && (Destination != "Import ETP" || access.CanImport || Id is "conflicts" or "source-inbox" && access.CanView)
         && (Destination is not ("Settings" or "Admin / Settings") || access.CanAdminister || Id == "masters" && access.CanImport)
         && (MinimumRole >= 3 ? access.CanAdminister : MinimumRole >= 2 ? access.CanImport : access.CanView);
 }
@@ -29,14 +29,6 @@ public static class TaskNavigation
     public static IReadOnlyList<string> Sections { get; } = ["Today", "Import", "Reports", "Stock", "Settings"];
     public static IReadOnlyList<TaskDestination> All { get; } = Build();
     public static IReadOnlyList<TaskDestination> InSection(string section, ShellAccess access) => All.Where(t => t.Rail == section && t.IsAllowed(access)).ToArray();
-
-    public static string CanonicalId(string id) => id switch
-    {
-        "reports-dsr-favourite" => "report-dsr", "source-documents" => "documents",
-        "import-conflicts" => "conflicts",
-        "watch" => "watch-folder", "accounting-map" => "ledger-mapping",
-        "manual-entry" => "walk-ins", "backup" => "backups", _ => id
-    };
 
     public static IReadOnlyList<TaskDestination> Search(string query, ShellAccess access)
     {
@@ -65,14 +57,13 @@ public static class TaskNavigation
         Add("readiness", "Close day", "Today", "Close day", "Daily Workflow", "readiness", 1);
         Add("finalisation", "Finalise day", "Today", "Close day", "Daily Workflow", "finalisation", 2);
         Add("store-daily-pack", "Store pack", "Today", "Close day", "Daily Workflow", "pack", 1);
-        Add("combined-pack", "Both stores pack", "Today", "Close day", "Daily Workflow", "pack", 1);
+        Add("combined-pack", "All stores pack", "Today", "Close day", "Daily Workflow", "pack", 1);
         Add("register-expense", "Expense entry", "Today", "Cash", "Registers", "register", 2);
         Add("cash-input", "Cash and service entries", "Today", "Cash", "Manual Entry", "manual", 2);
         Add("import-files", "Import folder", "Import", "Import", "Import ETP", "import", 2);
-        Add("conflicts", "Problems", "Import", "Problems", "Import ETP", "import-results", 2);
+        Add("conflicts", "Problems", "Import", "Problems", "Import ETP", "import-results", 1);
         Add("import-history", "Imports", "Import", "History", "Import History", "import-history", 1);
-        Add("source-inbox", "Received files", "Import", "History", "Import ETP", "inbox", 2);
-        Add("documents", "Documents", "Import", "Documents", "Import ETP", "inbox", 2);
+        Add("source-inbox", "Received files", "Import", "History", "Import ETP", "inbox", 1);
         Add("stock-count", "Physical count", "Stock", "Physical count", "Manual Entry", "stock-count", 2);
         Add("settings", "Display", "Settings", "Display", "Home", "settings", 1);
         Add("connection", "Connection", "Settings", "Database", "Settings", "connection", 3);
@@ -88,40 +79,26 @@ public static class TaskNavigation
         Add("kpi", "Calculations", "Settings", "Stores & masters", "Admin / Settings", "kpi", 3);
         Add("tender-rules", "Tender mapping", "Settings", "Stores & masters", "Admin / Settings", "tender-rules", 3);
         Add("staff-target", "Staff targets", "Settings", "Stores & masters", "Manual Entry", "staff-target", 3);
-        Add("watch-folder", "Watch folder", "Settings", "Integrations", "Operations Center", "watch-folder", 3);
-        Add("scheduler", "Scheduler", "Settings", "Integrations", "Operations Center", "scheduler", 3);
-        Add("sharing", "Email and sharing", "Settings", "Integrations", "Settings", "sharing", 3);
+        Add("watch-folder", "Automatic import", "Settings", "Automatic import", "Operations Center", "watch-folder", 3);
+        Add("sharing", "Email, sharing and Tally", "Settings", "Integrations", "Settings", "sharing", 3);
         Add("sharing-contacts", "Sharing contacts", "Settings", "Integrations", "Report Archive", "sharing-contacts", 3);
-        Add("prepare-batch", "Prepare batch", "Settings", "Accounting", "Accounting", "prepare-batch", 3);
-        Add("ledger-mapping", "Ledger mapping", "Settings", "Accounting", "Accounting", "ledger-mapping", 3);
-        Add("mapping-review", "Mapping review", "Settings", "Accounting", "Accounting", "mapping-review", 3);
-        Add("validation", "Validation", "Settings", "Accounting", "Accounting", "validation", 3);
-        Add("tally-export", "Tally export", "Settings", "Accounting", "Accounting", "tally-export", 3);
-        Add("export-history", "Export history", "Settings", "Accounting", "Accounting", "export-history", 3);
-        Add("accounting-reconciliation", "Accounting reconciliation", "Settings", "Accounting", "Accounting", "accounting-reconciliation", 3);
-        Add("accounting-approval", "Approve batch", "Settings", "Accounting", "Accounting", "accounting-approval", 3);
+        Add("prepare-batch", "Prepare → Review → Export", "Settings", "Accounting", "Accounting", "prepare-batch", 3);
         Add("open-items", "Open items", "Settings", "Control centre", "Operations Center", "open-items", 3);
         Add("data-quality", "Data quality", "Settings", "Control centre", "Operations Center", "data-quality", 3);
         Add("approval-centre", "Approvals", "Settings", "Control centre", "Operations Center", "approval-centre", 3);
         Add("adjustment", "Adjustment request", "Settings", "Control centre", "Operations Center", "adjustment", 3);
-        Add("investigation", "Investigation", "Settings", "Control centre", "Operations Center", "investigation", 3);
+        Add("investigation", "Investigation", "Reports", "Investigation", "Operations Center", "investigation", 2);
         Add("reports-list", "All reports", "Reports", "All reports", "Sales Reports", "report-list");
-        Add("generations", "Report generations", "Reports", "Archive", "Report Archive", "generations", 1);
-        Add("final-packs", "Final packs", "Reports", "Archive", "Report Archive", "final-packs", 1);
-        Add("restatements", "Restatements", "Reports", "Archive", "Report Archive", "restatements", 1);
-        Add("compare", "Compare generations", "Reports", "Archive", "Report Archive", "compare", 1);
-        Add("re-export", "Re-export", "Reports", "Archive", "Report Archive", "re-export", 1);
-        Add("shared", "Shared reports", "Reports", "Archive", "Report Archive", "shared", 1);
-        Add("historical-packs", "Historical packs", "Reports", "Archive", "Report Archive", "historical-packs", 1);
+        Add("generations", "Report archive", "Reports", "Archive", "Report Archive", "generations", 1);
         Add("favourite-reports", "Favourites", "Reports", "Favourites", "Sales Reports", "favourite-reports", 1);
-        Add("trends", "Trends", "Reports", "Management", "Operations Center", "trends", 1);
         Add("profile", "Current profile", "Settings", "Help", "Home", "profile", 1);
-        Add("register-inward", "Inward", "Settings", "Registers", "Registers", "register", 3);
-        Add("register-outward", "Outward", "Settings", "Registers", "Registers", "register", 3);
-        Add("register-credit", "Credit notes", "Settings", "Registers", "Registers", "register", 3);
-        Add("register-service", "Service receipts", "Settings", "Registers", "Registers", "register", 3);
-        Add("register-transfer", "Stock transfers", "Settings", "Registers", "Registers", "register", 3);
-        Add("register-vendor", "Vendor invoices", "Settings", "Registers", "Registers", "register", 3);
+        Add("register-inward", "Inward", "Stock", "Registers", "Registers", "register", 2);
+        Add("register-outward", "Outward", "Stock", "Registers", "Registers", "register", 2);
+        Add("register-credit", "Credit notes", "Today", "Close day", "Registers", "register", 2);
+        Add("register-service", "Service receipts", "Today", "Close day", "Registers", "register", 2);
+        Add("register-transfer", "Stock transfers", "Stock", "Registers", "Registers", "register", 2);
+        Add("register-vendor", "Vendor invoices", "Today", "Close day", "Registers", "register", 2);
+        Add("register-courier", "Courier", "Today", "Close day", "Registers", "register", 2);
         foreach (var report in ProductReportCatalogue.All)
         {
             var (rail, tab) = report.Code switch
@@ -134,9 +111,9 @@ public static class TaskNavigation
             };
             result.Add(new("report-" + report.Code, report.Code == "dsr" ? "Sales" : report.Name, rail, tab, "Sales Reports", "report", 1, report.Code, ReportTaskAliases.For(report.Code).ToArray()));
         }
-        foreach (var topic in HelpCentreRegistry.Topics.Where(t => t.Availability != HelpTopicAvailability.ComingSoon))
+        foreach (var topic in HelpCentreRegistry.Topics)
             Add("help:" + topic.Id, topic.Title, "Settings", "Help", "Home", "help");
-        var tabOrder = new[] { "All reports", "Sales", "Cash", "Walk-ins", "Close day", "Import", "Problems", "History", "Documents", "Staff", "Tender & service", "Exceptions", "Management", "Archive", "Favourites", "Closing stock", "Brand stock", "Physical count", "Variance", "Movement", "Slow stock", "Display", "Database", "Users", "Stores & masters", "Integrations", "Accounting", "Control centre", "Registers", "Help" };
+        var tabOrder = new[] { "All reports", "Sales", "Cash", "Walk-ins", "Close day", "Import", "Problems", "History", "Staff", "Tender & service", "Exceptions", "Investigation", "Management", "Archive", "Favourites", "Closing stock", "Brand stock", "Physical count", "Variance", "Movement", "Slow stock", "Display", "Database", "Users", "Stores & masters", "Integrations", "Automatic import", "Accounting", "Control centre", "Registers", "Help" };
         return result.OrderBy(t => Array.IndexOf(Sections.ToArray(), t.Rail)).ThenBy(t => Array.IndexOf(tabOrder, t.Tab)).ThenBy(t => t.ReportCode is null ? 1 : 0).ToArray();
     }
 }

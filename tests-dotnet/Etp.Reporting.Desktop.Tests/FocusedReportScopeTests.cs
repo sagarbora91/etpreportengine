@@ -43,6 +43,7 @@ public sealed class FocusedReportScopeTests
         RunSta(() =>
         {
             var view = new ReportWorkspaceControl(ReportWorkspaceDefinition.ForReport("stock-closing"));
+            view.SetStores(TestStoreCatalog.Create(),StoreScopeCatalog.AllStores);
             view.SelectReport("stock-closing"); view.ShowLoading("Loading original scope");
             view.DateToPicker.SelectedDate = DateTime.Today.AddDays(-1);
             view.SetPreview(new TextBlock { Text = "Late original result" }, "Done");
@@ -69,7 +70,7 @@ public sealed class FocusedReportScopeTests
             Assert.False(view.HasCurrentPreview);
             view.ShowLoading(); view.SetReport(DailySalesReportBuilder.Build(DateOnly.FromDateTime(date.AddDays(1)), [], [], new Dictionary<string, decimal?>()));
             Assert.True(view.HasCurrentPreview);
-            view.ScopeSelector.SelectedIndex = 2; Assert.False(view.HasCurrentPreview);
+            view.BusinessDatePicker.SelectedDate = date.AddDays(2); Assert.False(view.HasCurrentPreview);
         });
     }
 
@@ -79,14 +80,15 @@ public sealed class FocusedReportScopeTests
         RunSta(() =>
         {
             var view = new ReportWorkspaceControl(ReportWorkspaceDefinition.ForReport("stock-physical"));
+            view.SetStores(TestStoreCatalog.Create(),StoreScopeCatalog.AllStores);
             view.SelectReport("stock-physical"); view.ConfigureTaskScope("Combined (Titan + Helios)");
             Assert.Equal("Select one store",view.ScopeSelector.SelectedItem); Assert.False(view.DateFromPicker.IsEnabled);
             Assert.DoesNotContain("Combined (Titan + Helios)",view.ScopeSelector.Items.Cast<string>());
             view.DateToPicker.SelectedDate=new DateTime(2026,8,25); Assert.Equal(view.DateToPicker.SelectedDate,view.DateFromPicker.SelectedDate);
-            view.SetStoreScope("Helios"); Assert.Equal("Helios",view.ScopeSelector.SelectedItem);
+            view.SetStoreScope("Helios"); Assert.Equal("Helios (HEMW)",view.ScopeSelector.SelectedItem);
             view = new ReportWorkspaceControl(ReportWorkspaceDefinition.ForReport("stock-movement"));
             view.SelectReport("stock-movement"); view.ConfigureTaskScope("Combined (Titan + Helios)"); Assert.True(view.DateFromPicker.IsEnabled);
-            Assert.Equal("Both stores",view.ScopeSelector.SelectedItem);
+            Assert.Equal(StoreScopeCatalog.AllStores,view.ScopeSelector.SelectedItem);
         });
     }
 

@@ -38,7 +38,8 @@ public interface IDigitalRegisterService
     Task<IReadOnlyList<DigitalRegisterEntry>> LoadAsync(
         string? search = null,
         int limit = 500,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        string? registerType = null);
 
     Task<long> SaveAsync(
         DigitalRegisterEntryDraft entry,

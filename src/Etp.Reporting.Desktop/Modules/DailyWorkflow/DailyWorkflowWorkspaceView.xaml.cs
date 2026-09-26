@@ -98,14 +98,18 @@ public partial class DailyWorkflowWorkspaceView : UserControl
         set => BusinessDateInput.SelectedDate = value;
     }
 
+    private string? requestedStore;
     public string? StoreCode
     {
-        get => (StoreInput.SelectedItem as ComboBoxItem)?.Content?.ToString();
+        get => (StoreInput.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? requestedStore;
         set
         {
+            var changed = !string.Equals(StoreCode,value,StringComparison.OrdinalIgnoreCase);
+            requestedStore = value;
             var item = StoreInput.Items.OfType<ComboBoxItem>()
                 .FirstOrDefault(candidate => string.Equals(candidate.Content?.ToString(), value, StringComparison.OrdinalIgnoreCase));
             StoreInput.SelectedItem = item;
+            if (changed) InvalidateScope();
         }
     }
 
@@ -135,7 +139,7 @@ public partial class DailyWorkflowWorkspaceView : UserControl
 
     public async Task RefreshAsync()
     {
-        if (string.IsNullOrWhiteSpace(StoreCode)) { WorkflowStatus.Text = "Choose a store"; WorkflowStatus.SetResourceReference(TextBlock.ForegroundProperty,"SecondaryText"); Publish("Choose Titan World or Helios in the header."); return; }
+        if (string.IsNullOrWhiteSpace(StoreCode)) { WorkflowStatus.Text = "Choose a store"; WorkflowStatus.SetResourceReference(TextBlock.ForegroundProperty,"SecondaryText"); Publish("Choose one store in the header."); return; }
         var revision = ++refreshRevision;
         try
         {
@@ -148,6 +152,7 @@ public partial class DailyWorkflowWorkspaceView : UserControl
             await Task.WhenAll(stateTask, stockTask);
             if (revision != refreshRevision) return;
             Apply(presentation.Show(await stateTask, await stockTask));
+            await RefreshDayRegistersAsync();
         }
         catch (Exception exception)
         {
@@ -162,7 +167,7 @@ public partial class DailyWorkflowWorkspaceView : UserControl
     public async Task SaveManualInputAsync()
     {
         if (string.IsNullOrWhiteSpace(ManualValueInput.Text)) { Publish(cashInputsMode ? "Enter the amount" : "Enter the walk-in count"); ManualValueInput.Focus(); return; }
-        if (string.IsNullOrWhiteSpace(StoreCode)) { Publish("Choose Titan World or Helios in the header."); return; }
+        if (string.IsNullOrWhiteSpace(StoreCode)) { Publish("Choose one store in the header."); return; }
         if (string.IsNullOrWhiteSpace(ManualReasonInput.Text))
         {
             if (cashInputsMode) { Publish("Enter a reason for this cash entry"); ManualReasonInput.Focus(); return; }
@@ -485,6 +490,9 @@ public partial class DailyWorkflowWorkspaceView : UserControl
     private async void GenerateDailyPack_Click(object sender, RoutedEventArgs e) => await GenerateDailyPackAsync();
     private async void GenerateCombinedDailyPack_Click(object sender, RoutedEventArgs e) => await GenerateCombinedDailyPackAsync();
     private void Scope_Changed(object sender, SelectionChangedEventArgs e)
+        => InvalidateScope();
+
+    private void InvalidateScope()
     {
         ++refreshRevision;
         InvalidatePack();

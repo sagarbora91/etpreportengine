@@ -51,8 +51,8 @@ public sealed record AccountingBatchSummary(
     string Status,
     string? ApprovedBy,
     DateTime? ExportedUtc,
-    string? TallyReference,
-    DateTime CreatedUtc);
+    DateTime CreatedUtc,
+    string? BlockingReason = null);
 
 public sealed record SaveAccountingBatch(
     AccountingScope Scope,
@@ -78,7 +78,14 @@ public sealed record ExportAccountingBatch(
 public sealed record AccountingExportReceipt(
     long BatchId,
     string OutputPath,
-    string Sha256);
+    string Sha256,
+    string CompanyName = "",
+    string EnvironmentLabel = "TEST",
+    DateTime? ExportedUtc = null,
+    string? ExportedBy = null);
+
+public sealed record AccountingDestination(string? CompanyName, string EnvironmentLabel);
+public sealed record SaveAccountingDestination(string? CompanyName, string EnvironmentLabel, string CompanyConfirmation, string Reason);
 
 public static class AccountingBatchControls
 {
@@ -102,6 +109,9 @@ public static class AccountingBatchControls
 
 public interface IAccountingService
 {
+    Task<AccountingDestination> LoadDestinationAsync(CancellationToken cancellationToken = default);
+    Task SaveDestinationAsync(SaveAccountingDestination command, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<AccountingExportReceipt>> LoadExportHistoryAsync(CancellationToken cancellationToken = default);
     Task<AccountingSource> LoadSourceAsync(
         AccountingScope scope,
         CancellationToken cancellationToken = default);

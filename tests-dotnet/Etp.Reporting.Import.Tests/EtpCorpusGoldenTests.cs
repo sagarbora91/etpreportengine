@@ -10,15 +10,33 @@ namespace Etp.Reporting.Import.Tests;
 
 public sealed class RealCorpusFactAttribute : FactAttribute
 {
-    public const string Root = @"C:\Codex\Reporting Manger\ETP Source Data";
+    // ETP_PRIVATE_CORPUS names the corpus explicitly. Otherwise it is the "ETP Source Data"
+    // folder beside the checkout: a hard-coded drive path silently turned these tests into
+    // skips when the project moved from C: to E: on 26 September 2026.
+    public static readonly string? Configured = Environment.GetEnvironmentVariable("ETP_PRIVATE_CORPUS") is { Length: > 0 } value ? Path.GetFullPath(value) : null;
+    public static readonly string Root = Configured ?? FindBesideCheckout();
     public RealCorpusFactAttribute()
     {
-        if (!Directory.Exists(Root)) Skip = "Optional private ETP corpus is absent; sanitised per-family golden fixtures still run in CI.";
+        // A corpus someone named but that is missing fails the test instead of skipping it.
+        if (Configured is null && !Directory.Exists(Root)) Skip = "Optional private ETP corpus is absent (set ETP_PRIVATE_CORPUS or place \"ETP Source Data\" beside the checkout); sanitised per-family golden fixtures still run in CI.";
+    }
+
+    static string FindBesideCheckout()
+    {
+        for (var folder = new DirectoryInfo(AppContext.BaseDirectory); folder is not null; folder = folder.Parent)
+        {
+            var candidate = Path.Combine(folder.FullName, "ETP Source Data");
+            if (Directory.Exists(candidate)) return candidate;
+        }
+        return Path.Combine(AppContext.BaseDirectory, "ETP Source Data");
     }
 }
 
 public sealed class EtpCorpusGoldenTests(ITestOutputHelper output)
 {
+    // This corpus belongs to these configured fixture stores; production detection
+    // receives its catalogue from SQL rather than a global list of retail codes.
+    private static readonly string[] FixtureStores = ["HEMW", "WLMHW"];
     public static IEnumerable<object[]> Families => Enumerable.Range(1, 31).Select(i => new object[] { $"R{i:000}" })
         .Append(["SOR_AGEING"]);
 
@@ -28,7 +46,7 @@ public sealed class EtpCorpusGoldenTests(ITestOutputHelper output)
     {
         var path = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "fixtures", "etp-sample"), familyCode + "_*.xlsx").Single();
         var snapshot = await new OpenXmlWorkbookReader().ReadAsync(path);
-        var inspection = new MatchedImportEnvelopeFactory().Inspect(snapshot);
+        var inspection = new MatchedImportEnvelopeFactory(FixtureStores).Inspect(snapshot);
         Assert.True(inspection.Accepted, string.Join("; ", inspection.Diagnostics.Select(d => $"{d.Code}:{d.ColumnName}")));
         var accepted = inspection.AcceptedImport!;
         var family = EtpReportFamilyRegistry.Resolve(accepted.Profile.ReportCode);
@@ -74,7 +92,7 @@ public sealed class EtpCorpusGoldenTests(ITestOutputHelper output)
             var cells = data.Rows[0].Cells.ToArray(); cells[column] = new WorkbookCell(value);
             return new WorkbookRow(index + 2, cells);
         }).ToArray();
-        var accepted = new MatchedImportEnvelopeFactory().RequireAccepted(workbook with { Sheets = [data with { Rows = rows }] });
+        var accepted = new MatchedImportEnvelopeFactory(FixtureStores).RequireAccepted(workbook with { Sheets = [data with { Rows = rows }] });
         Assert.Equal(4, accepted.Staging.Rows.Count);
         Assert.All(accepted.Staging.Rows.Take(3), row => Assert.Equal(new DateOnly(2026, 8, 27), row.Values["bankedon"]));
         Assert.Null(accepted.Staging.Rows[3].Values["bankedon"]);
@@ -92,7 +110,7 @@ public sealed class EtpCorpusGoldenTests(ITestOutputHelper output)
         foreach (var folder in folders)
         foreach (var path in Directory.GetFiles(folder, "*.xlsx").Where(path => !Path.GetFileName(path).StartsWith("00_")))
         {
-            var inspection = new MatchedImportEnvelopeFactory().Inspect(await new OpenXmlWorkbookReader().ReadAsync(path));
+            var inspection = new MatchedImportEnvelopeFactory(FixtureStores).Inspect(await new OpenXmlWorkbookReader().ReadAsync(path));
             var errors = string.Join("; ", inspection.Diagnostics.Where(d => d.Severity == ImportDiagnosticSeverity.Blocker)
                 .Select(d => $"{d.Code} row {d.RowNumber} column {d.ColumnName}"));
             Assert.True(inspection.Accepted, Path.GetFileName(path) + ": " + errors);
@@ -128,7 +146,7 @@ public sealed class EtpCorpusGoldenTests(ITestOutputHelper output)
         var cells = data.Rows[0].Cells.ToArray();
         cells[0] = new WorkbookCell(transactionType);
         var changed = workbook with { Sheets = [data with { Rows = [new(2, cells)] }] };
-        var row = Assert.Single(new MatchedImportEnvelopeFactory().RequireAccepted(changed).Staging.Rows);
+        var row = Assert.Single(new MatchedImportEnvelopeFactory(FixtureStores).RequireAccepted(changed).Staging.Rows);
         Assert.Equal(-118m, row.Values["source_net_amount"]);
         Assert.Equal(-100m, row.Values["source_net_value"]);
         Assert.Equal(-1m, row.Values["source_quantity"]);
@@ -141,7 +159,7 @@ public sealed class EtpCorpusGoldenTests(ITestOutputHelper output)
         var path = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "fixtures", "etp-sample"), "R025_*.xlsx").Single();
         var workbook = await new OpenXmlWorkbookReader().ReadAsync(path);
         var data = workbook.Sheets[0]; var bad = data.Rows[0].Cells.ToArray(); bad[0] = new("NEW_TYPE");
-        var accepted = new MatchedImportEnvelopeFactory().RequireAccepted(workbook with
+        var accepted = new MatchedImportEnvelopeFactory(FixtureStores).RequireAccepted(workbook with
             { Sheets = [data with { Rows = [data.Rows[0], new(3, bad)] }] });
         Assert.Single(accepted.Staging.Rows);
         Assert.Contains(accepted.Diagnostics, d => d.Code == "UNKNOWN_SALES_TRANSACTION_TYPE" && d.Severity == ImportDiagnosticSeverity.Warning && d.RowNumber == 3);
@@ -156,7 +174,7 @@ public sealed class EtpCorpusGoldenTests(ITestOutputHelper output)
     {
         var workbook = new WorkbookSnapshot(file, 1, new string('a', 64),
             [new(sheet, 1, RetailSalesProfiles.R022Headers, []), new("Info", 1, ["informational"], [])]);
-        var accepted = new MatchedImportEnvelopeFactory().RequireAccepted(workbook);
+        var accepted = new MatchedImportEnvelopeFactory(FixtureStores).RequireAccepted(workbook);
         Assert.Equal(expected, accepted.Profile.ReportCode);
         Assert.Empty(accepted.Staging.Rows);
         Assert.Contains(accepted.Diagnostics, d => d.Code == "EMPTY_EXPORT");
@@ -169,12 +187,12 @@ public sealed class EtpCorpusGoldenTests(ITestOutputHelper output)
             [new(2, [new("Family ID"), new("R011")]), new(3, [new("Status"), new("EMPTY — no export")]),
              new(4, [new("Snapshot HEMW 07-Sep-2026")])]);
         var workbook = new WorkbookSnapshot("R011_Closing_Stock.xlsx", 1, new string('a', 64), [new("Data", 1, [], []), info]);
-        var accepted = new MatchedImportEnvelopeFactory().RequireAccepted(workbook);
+        var accepted = new MatchedImportEnvelopeFactory(FixtureStores).RequireAccepted(workbook);
         Assert.Equal("CLOSING_STOCK", accepted.Profile.ReportCode);
         Assert.Equal("HEMW", accepted.Scope.StoreCode);
         Assert.Equal(new DateOnly(2026, 9, 7), accepted.Scope.PeriodEnd);
         Assert.Empty(accepted.Staging.Rows);
-        Assert.False(new MatchedImportEnvelopeFactory().Inspect(workbook with { Sheets = [workbook.Sheets[0]] }).Accepted);
+        Assert.False(new MatchedImportEnvelopeFactory(FixtureStores).Inspect(workbook with { Sheets = [workbook.Sheets[0]] }).Accepted);
     }
 
     [Fact]
@@ -183,7 +201,7 @@ public sealed class EtpCorpusGoldenTests(ITestOutputHelper output)
         var path = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "fixtures", "etp-sample"), "R020_*.xlsx").Single();
         var workbook = await new OpenXmlWorkbookReader().ReadAsync(path);
         var data = workbook.Sheets[0]; var cells = data.Rows[0].Cells.ToArray(); cells[3] = new("WLMHW");
-        var result = new MatchedImportEnvelopeFactory().Inspect(workbook with
+        var result = new MatchedImportEnvelopeFactory(FixtureStores).Inspect(workbook with
             { Sheets = [data with { Rows = [data.Rows[0], new(3, cells)] }] });
         Assert.False(result.Accepted);
         Assert.Contains(result.Diagnostics, d => d.Code == "WORKBOOK_MULTIPLE_STORES");
@@ -195,7 +213,7 @@ public sealed class EtpCorpusGoldenTests(ITestOutputHelper output)
         var path = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "fixtures", "etp-sample"), "R025_*.xlsx").Single();
         var workbook = await new OpenXmlWorkbookReader().ReadAsync(path);
         var data = workbook.Sheets[0]; var headers = data.Headers.ToArray(); headers[34] = "WRONG COLUMN";
-        var result = new MatchedImportEnvelopeFactory().Inspect(workbook with { Sheets = [data with { Headers = headers }] });
+        var result = new MatchedImportEnvelopeFactory(FixtureStores).Inspect(workbook with { Sheets = [data with { Headers = headers }] });
         Assert.False(result.Accepted);
         Assert.Contains(result.Diagnostics, d => d.Code == "REQUIRED_COLUMN_MISSING" && d.ColumnName == "NETVALUE" && d.Message.Contains("R025"));
         Assert.All(result.Diagnostics, d =>
@@ -215,7 +233,7 @@ public sealed class EtpCorpusGoldenTests(ITestOutputHelper output)
         var workbook = await new OpenXmlWorkbookReader().ReadAsync(path); var data = workbook.Sheets[0];
         var headers = repeated ? data.Headers.Concat(data.Headers).ToArray() : data.Headers;
         var cells = repeated ? data.Rows[0].Cells.Concat(data.Rows[0].Cells).ToArray() : data.Rows[0].Cells;
-        var result = new MatchedImportEnvelopeFactory().Inspect(workbook with
+        var result = new MatchedImportEnvelopeFactory(FixtureStores).Inspect(workbook with
             { Sheets = [new("Data", 1, headers, [new(2, [..cells, new("PRIVATE EXTRA VALUE")])])] });
         Assert.False(result.Accepted);
         Assert.Contains(result.Diagnostics, d => d.Code == "ROW_EXTRA_COLUMNS" && d.RowNumber == 2);
@@ -230,7 +248,7 @@ public sealed class EtpCorpusGoldenTests(ITestOutputHelper output)
         {
             var file = Directory.GetFiles(Path.Combine(root, store), "*SDB-VariantwiseSales - SDB-VariantwiseSales.xlsx", SearchOption.AllDirectories)
                 .Single(path => path.Contains("ALL REPORT 01 JULY"));
-            var accepted = new MatchedImportEnvelopeFactory().RequireAccepted(await new OpenXmlWorkbookReader().ReadAsync(file));
+            var accepted = new MatchedImportEnvelopeFactory(FixtureStores).RequireAccepted(await new OpenXmlWorkbookReader().ReadAsync(file));
             var day = accepted.Staging.Rows.Where(row => (DateOnly)row.Values["transaction_date"]! == new DateOnly(2026, 8, 25)).ToArray();
             Assert.Equal(expectedGross, day.Sum(row => (decimal)row.Values["source_net_amount"]!));
             Assert.Equal(expectedNet, day.Sum(row => (decimal)row.Values["source_net_value"]!));
@@ -238,7 +256,7 @@ public sealed class EtpCorpusGoldenTests(ITestOutputHelper output)
             Assert.Equal(store == "WLMHW" ? 938197m : 774868.60m, decimal.Round(month.Sum(row => (decimal)row.Values["source_net_amount"]!), 2));
             Assert.Equal(store == "WLMHW" ? 182 : 38, month.Select(row => row.Values["invoice_number"]).Distinct().Count());
         }
-        var history = new MatchedImportEnvelopeFactory().RequireAccepted(await new OpenXmlWorkbookReader().ReadAsync(
+        var history = new MatchedImportEnvelopeFactory(FixtureStores).RequireAccepted(await new OpenXmlWorkbookReader().ReadAsync(
             Path.Combine(root, "HEMW", "till 6 sep 26", "R025_SDB_VariantwiseSales.xlsx")));
         var golden = await File.ReadAllLinesAsync(Path.Combine(root, "HEMW", "golden-monthly-HEMW-R025.csv"));
         foreach (var expected in golden.Skip(1).Where(line => !string.IsNullOrWhiteSpace(line)).Select(line => line.Split(',')))

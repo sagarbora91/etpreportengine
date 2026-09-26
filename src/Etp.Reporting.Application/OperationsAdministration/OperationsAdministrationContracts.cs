@@ -9,7 +9,6 @@ public sealed record WatchFolderConfiguration(
     string ProcessedPath,
     string FailedPath,
     string ReportOutputPath,
-    int PollMinutes,
     bool IsEnabled,
     DateTime ModifiedUtc,
     string ModifiedBy);
@@ -88,7 +87,6 @@ public sealed record SaveWatchFolderConfiguration(
     string ProcessedPath,
     string FailedPath,
     string ReportOutputPath,
-    int PollMinutes,
     bool IsEnabled,
     string Reason);
 
@@ -122,7 +120,7 @@ public sealed record ApprovalRequest(
     string Status,
     string? DecidedBy,
     DateTime? DecidedUtc,
-    string? DecisionReason);
+    string? DecisionReason, string? RequestReason = null, string? SourceFingerprint = null);
 
 public sealed record DecideApproval(long ApprovalId, bool Approve, string Reason);
 

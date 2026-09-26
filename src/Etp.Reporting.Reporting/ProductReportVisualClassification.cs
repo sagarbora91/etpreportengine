@@ -18,8 +18,7 @@ public static class ProductReportVisualClassificationRegistry
     public static IReadOnlyList<ProductReportVisualClassification> All { get; } =
     [
         Entry("dsr", ProductReportVisualClass.ExecutiveVisual),
-        Entry("sales-titan", ProductReportVisualClass.KpiTable),
-        Entry("sales-helios", ProductReportVisualClass.KpiTable),
+        Entry("sales-store", ProductReportVisualClass.KpiTable),
         Entry("sales-combined", ProductReportVisualClass.KpiChartTable),
         Entry("invoice", ProductReportVisualClass.KpiTable),
         Entry("sales-returns", ProductReportVisualClass.KpiTable),

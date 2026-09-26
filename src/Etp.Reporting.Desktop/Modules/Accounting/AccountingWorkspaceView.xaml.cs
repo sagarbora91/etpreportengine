@@ -14,6 +14,7 @@ namespace Etp.Reporting.Desktop.Modules.Accounting;
 public sealed partial class AccountingWorkspaceView : UserControl
 {
     private readonly AccountingPresentationSession session;
+    private int entriesRevision;
     private readonly Func<string> connectionStringProvider;
     private Func<AccessSession> accessProvider = () => new("unknown", "Unknown user", AccessRole.None, false);
     private Func<Exception, string> errorDescriber = DesktopFriendlyError.Describe;
@@ -27,8 +28,23 @@ public sealed partial class AccountingWorkspaceView : UserControl
         AccountingDateInput.SelectedDate = DateTime.Today.AddDays(-1);
         AccountingDateInput.SelectedDateChanged += (_, _) => InvalidatePreview();
         AccountingStoreInput.TextChanged += (_, _) => InvalidatePreview();
+        AccountingBatchGrid.SelectionChanged += async (_, _) =>
+        {
+            var revision = ++entriesRevision;
+            RefreshActionState();
+            if (AccountingBatchGrid.SelectedItem is AccountingBatchSummary selected)
+            {
+                try
+                {
+                    var entries = await session.LoadEntriesAsync(connectionStringProvider(), selected.Id);
+                    if (revision == entriesRevision) AccountingEntryGrid.ItemsSource = entries;
+                }
+                catch (Exception exception) { SetStatus(errorDescriber(exception)); }
+            }
+        };
     }
 
+    public string StoreCode { get => AccountingStoreInput.Text; set => AccountingStoreInput.Text = value; }
     public event EventHandler<string>? NotificationRequested;
 
     public DateTime? BusinessDate
@@ -41,6 +57,7 @@ public sealed partial class AccountingWorkspaceView : UserControl
     {
         this.accessProvider = accessProvider ?? throw new ArgumentNullException(nameof(accessProvider));
         this.errorDescriber = errorDescriber ?? throw new ArgumentNullException(nameof(errorDescriber));
+        RefreshActionState();
     }
 
     public Task RefreshAsync() => RefreshAccountingAsync();
@@ -49,9 +66,15 @@ public sealed partial class AccountingWorkspaceView : UserControl
     {
         try
         {
-            RequireViewAccess();
+            RequireOwnerAccess();
             AccountingEntryGrid.ItemsSource = null; SaveTaskButton.IsEnabled = false;
             AccountingBatchGrid.ItemsSource = await session.RefreshAsync(connectionStringProvider());
+            AccountingExportHistoryGrid.ItemsSource = await session.LoadExportHistoryAsync(connectionStringProvider());
+            var destination = await session.LoadDestinationAsync(connectionStringProvider());
+            DestinationStatus.Text = string.IsNullOrWhiteSpace(destination.CompanyName)
+                ? "Tally company not decided (D12). Enter the intended TEST company in Settings."
+                : $"Destination: {destination.CompanyName} · {destination.EnvironmentLabel}. Journal file only; no Tally read-back.";
+            RefreshActionState();
         }
         catch (Exception ex) { DesktopDiagnostics.Record(ex, "Accounting.Workspace", "ACCOUNTING_REFRESH_FAILED"); SetStatus(errorDescriber(ex)); }
     }
@@ -61,11 +84,14 @@ public sealed partial class AccountingWorkspaceView : UserControl
         using var operation = operationGate.TryEnter(this); if (operation is null) return;
         try
         {
-            RequireViewAccess();
+            RequireOwnerAccess();
+            ++entriesRevision;
+            AccountingBatchGrid.SelectedItem = null;
+            RefreshActionState();
             var scope = CurrentScope();
             var preview = await session.PreviewAsync(connectionStringProvider(), scope);
             AccountingEntryGrid.ItemsSource = preview.Batch.Entries;
-            SaveTaskButton.IsEnabled = preview.Batch.IsBalanced && accessProvider().CanImport;
+            SaveTaskButton.IsEnabled = accessProvider().CanAdminister;
             SetStatus(preview.Batch.IsBalanced
                 ? $"Balanced preview: debit {preview.Batch.DebitTotal:N2}, credit {preview.Batch.CreditTotal:N2}."
                 : $"Preview blocked. Missing approved mappings: {string.Join(", ", preview.Batch.MissingMappings)}.");
@@ -78,7 +104,7 @@ public sealed partial class AccountingWorkspaceView : UserControl
         using var operation = operationGate.TryEnter(this); if (operation is null) return;
         try
         {
-            RequireImportAccess();
+            RequireOwnerAccess();
             var id = await session.SaveCurrentAsync(connectionStringProvider(), CurrentScope());
             SetStatus($"Accounting batch {id:N0} saved for Owner review.");
             await RefreshAccountingAsync();
@@ -133,8 +159,8 @@ public sealed partial class AccountingWorkspaceView : UserControl
                 AddExtension = true
             };
             if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
-            var receipt = await session.ExportAsync(connectionStringProvider(), row, "Saagar Traders", dialog.FileName);
-            SetStatus($"Approved Tally XML exported with SHA-256 {receipt.Sha256[..12]}…");
+            var receipt = await session.ExportAsync(connectionStringProvider(), row, "", dialog.FileName);
+            SetStatus($"{receipt.EnvironmentLabel} file written for {receipt.CompanyName}. SHA-256 {receipt.Sha256[..12]}… Tally result has not been checked.");
             await RefreshAccountingAsync();
         }
         catch (Exception ex) { DesktopDiagnostics.Record(ex, "Accounting.Workspace", "ACCOUNTING_EXPORT_FAILED"); SetStatus(errorDescriber(ex)); }

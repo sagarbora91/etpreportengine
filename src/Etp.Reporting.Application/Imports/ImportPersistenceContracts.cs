@@ -46,6 +46,9 @@ public interface IImportPersistenceUseCase<TAcceptedImport> where TAcceptedImpor
         string storeCode,
         DateOnly businessDate,
         CancellationToken cancellationToken = default);
+    Task PrepareRestatementAsync(
+        ImportPersistenceRequest<TAcceptedImport> request,
+        CancellationToken cancellationToken = default);
     Task<ImportPersistenceResult> PersistAsync(
         ImportPersistenceRequest<TAcceptedImport> request,
         CancellationToken cancellationToken = default);

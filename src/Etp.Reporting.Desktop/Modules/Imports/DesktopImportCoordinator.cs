@@ -53,7 +53,9 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
     private readonly Func<string, ImportPersistenceUseCase> persistenceFactory;
     private readonly RetainEtpEvidence retainEvidence;
     private readonly IWorkbookReader workbookReader;
-    private readonly MatchedImportEnvelopeFactory envelopeFactory;
+    private MatchedImportEnvelopeFactory envelopeFactory;
+    private IReadOnlyList<string> knownStores = [];
+    public void SetKnownStores(IReadOnlyList<string> stores) { knownStores=stores; envelopeFactory=new(stores); }
     private readonly IImportFailureClassifier failureClassifier;
     private BatchImportSource? activeBatchSource;
     private CancellationTokenSource? batchCancellation;
@@ -121,14 +123,11 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
             current.Envelope.ProfileIdentity.ReportCode,
             context,
             cancellationToken).ConfigureAwait(false);
-        var result = await persistence.PersistAsync(
-            new ImportPersistenceRequest(
-                current.Envelope,
-                context.BusinessDate,
-                context.StoreCode,
-                context.ImportedBy,
-                restatement),
-            cancellationToken).ConfigureAwait(false);
+        var request = new ImportPersistenceRequest(current.Envelope, context.BusinessDate,
+            context.StoreCode, context.ImportedBy, restatement);
+        if (restatement is not null)
+            await persistence.PrepareRestatementAsync(request, cancellationToken).ConfigureAwait(false);
+        var result = await persistence.PersistAsync(request, cancellationToken).ConfigureAwait(false);
         return new(current.Envelope.ProfileIdentity.ReportCode, result, restatement is not null);
     }
 
@@ -162,7 +161,7 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
         folderImportOptions = options;
         folderImportService = new FolderImportService(persistenceFactory(connectionString), workbookReader,
             (path, envelope, store, end, token) => retainEvidence(connectionString, path, envelope.Workbook.Sha256,
-                envelope.ProfileIdentity.ReportCode, store, end, token));
+                envelope.ProfileIdentity.ReportCode, store, end, token), knownStores);
         var result = await folderImportService.RunFilesAsync(paths, options, progress, batchCancellation.Token).ConfigureAwait(false);
         FailedBatchPaths = folderImportService.FailedPaths;
         return result;
@@ -275,14 +274,11 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
             accepted.ProfileIdentity.ReportCode,
             context,
             cancellationToken).ConfigureAwait(false);
-        await persistence.PersistAsync(
-            new ImportPersistenceRequest(
-                accepted,
-                context.BusinessDate,
-                context.StoreCode,
-                context.ImportedBy,
-                restatement),
-            cancellationToken).ConfigureAwait(false);
+        var request = new ImportPersistenceRequest(accepted, context.BusinessDate,
+            context.StoreCode, context.ImportedBy, restatement);
+        if (restatement is not null)
+            await persistence.PrepareRestatementAsync(request, cancellationToken).ConfigureAwait(false);
+        await persistence.PersistAsync(request, cancellationToken).ConfigureAwait(false);
         if (restatement is not null) await recordRestatementAudit(cancellationToken).ConfigureAwait(false);
         await retainEvidence(
             connectionString,

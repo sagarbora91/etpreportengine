@@ -9,6 +9,54 @@ namespace Etp.Reporting.SqlServer.Tests;
 public sealed class FolderImportServiceTests
 {
     [Fact]
+    public async Task Empty_export_for_a_new_store_uses_the_active_catalogue_instead_of_seeded_store_names()
+    {
+        const string path = "STORE3_R025_20260924.xlsx";
+        var unknownPersistence = new CapturePersistence();
+        var unknown = await new FolderImportService(unknownPersistence, new Reader(file => Sales(file, "STORE3", [])), knownStores: [])
+            .RunFilesAsync([path], new("automation-test"));
+        Assert.Equal(1, unknown.Failed);
+        Assert.Empty(unknownPersistence.Requests);
+
+        var knownPersistence = new CapturePersistence();
+        var known = await new FolderImportService(knownPersistence, new Reader(file => Sales(file, "STORE3", [])), knownStores: ["STORE3"])
+            .RunFilesAsync([path], new("automation-test"));
+        var result = Assert.Single(known.Files);
+        Assert.Equal("empty export", result.Status);
+        Assert.Equal("STORE3", result.StoreCode);
+        Assert.Equal(new DateOnly(2026, 9, 24), result.PeriodEnd);
+        Assert.Equal("STORE3", Assert.Single(knownPersistence.Requests).ExpectedStoreCode);
+    }
+
+    [Fact]
+    public async Task Full_zip_imports_supported_files_and_reports_unsupported_ETP_workbooks_as_not_needed()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), "EtpZipTest-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        try
+        {
+            var zip = Path.Combine(folder, "full-etp.zip");
+            using (var archive = System.IO.Compression.ZipFile.Open(zip, System.IO.Compression.ZipArchiveMode.Create))
+                foreach (var name in new[] { "R025_VariantwiseSales.xlsx", "R099_UnsupportedReport.xlsx" })
+                    using (var writer = new StreamWriter(archive.CreateEntry(name).Open())) writer.Write("synthetic workbook read by test adapter");
+            var persistence = new CapturePersistence();
+            var service = new FolderImportService(persistence, new Reader(path =>
+            {
+                var snapshot = Sales(path, "HEMW", [20260825]);
+                return Path.GetFileName(path).StartsWith("R099", StringComparison.Ordinal)
+                    ? snapshot with { Sheets = [snapshot.Sheets[0] with { Headers = ["UNSUPPORTED_COLUMN"] }] } : snapshot;
+            }));
+            var result = await service.RunAsync(zip, new("tester"));
+            Assert.Equal(1, result.Imported);
+            Assert.Equal(0, result.Failed);
+            Assert.Equal(0, result.UnknownLayouts);
+            Assert.Equal("Not needed", Assert.Single(result.Files, file => file.FileName.StartsWith("R099")).Status);
+            Assert.Single(persistence.Requests);
+        }
+        finally { Directory.Delete(folder, true); }
+    }
+
+    [Fact]
     public async Task Retry_reads_only_failed_files_and_preserves_successful_sibling_scope()
     {
         var repaired = false;
@@ -233,6 +281,7 @@ public sealed class FolderImportServiceTests
         public Task<bool> ExistsInScopeAsync(string hash, string report, string store, DateOnly start, DateOnly end, CancellationToken cancellationToken = default) =>
             Task.FromResult(Exists && (ExactScope is null || ExactScope == (store, start, end)));
         public Task<long?> FindCurrentImportFileIdAsync(string report, string store, DateOnly date, CancellationToken cancellationToken = default) => Task.FromResult<long?>(null);
+        public Task PrepareRestatementAsync(ImportPersistenceRequest<MatchedImportEnvelope> request, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task<ImportPersistenceResult> PersistAsync(ImportPersistenceRequest<MatchedImportEnvelope> request, CancellationToken cancellationToken = default)
         {
             Requests.Add(request);

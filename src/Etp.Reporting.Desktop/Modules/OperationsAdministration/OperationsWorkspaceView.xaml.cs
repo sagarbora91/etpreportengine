@@ -2,10 +2,8 @@ extern alias EtpApplication;
 
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media;
 using DataQualityIssue = EtpApplication::Etp.Reporting.Application.OperationsAdministration.DataQualityIssue;
 using IOperationsAdministrationService = EtpApplication::Etp.Reporting.Application.OperationsAdministration.IOperationsAdministrationService;
-using ManagementTrendPoint = EtpApplication::Etp.Reporting.Application.OperationsAdministration.ManagementTrendPoint;
 using ReportSchedule = EtpApplication::Etp.Reporting.Application.OperationsAdministration.ReportSchedule;
 using UpdateDataQualityIssue = EtpApplication::Etp.Reporting.Application.OperationsAdministration.UpdateDataQualityIssue;
 
@@ -19,6 +17,7 @@ public partial class OperationsWorkspaceView : UserControl
     private readonly Func<string, CancellationToken, Task<MaintenanceOperationResult>> maintenanceRunner;
     private OperationsAdministrationWorkspaceAccess access = new(false, false, false);
     private int refreshRevision;
+    private readonly Func<CancellationToken, Task<IReadOnlyList<AutomaticImportTaskStatus>>> readTaskStatus;
     public bool IsBusy { get; private set; }
 
     private bool BeginOperation()
@@ -33,12 +32,14 @@ public partial class OperationsWorkspaceView : UserControl
         OperationsAdministrationPresentationSession session,
         Func<string> connectionStringProvider,
         Func<string, IOperationsAdministrationService> serviceFactory,
-        Func<string, CancellationToken, Task<MaintenanceOperationResult>> maintenanceRunner)
+        Func<string, CancellationToken, Task<MaintenanceOperationResult>> maintenanceRunner,
+        Func<CancellationToken, Task<IReadOnlyList<AutomaticImportTaskStatus>>>? readTaskStatus = null)
     {
         this.session = session ?? throw new ArgumentNullException(nameof(session));
         this.connectionStringProvider = connectionStringProvider ?? throw new ArgumentNullException(nameof(connectionStringProvider));
         this.serviceFactory = serviceFactory ?? throw new ArgumentNullException(nameof(serviceFactory));
         this.maintenanceRunner = maintenanceRunner ?? throw new ArgumentNullException(nameof(maintenanceRunner));
+        this.readTaskStatus = readTaskStatus ?? AutomaticImportTaskReader.ReadAsync;
         InitializeComponent();
         issueReasons = new(DataQualityGrid, IssueWorkflowReasonInput, row => (row as DataQualityIssue)?.Id);
         CaptureIssueActions();
@@ -77,8 +78,9 @@ public partial class OperationsWorkspaceView : UserControl
             ApplySchedules(state.Schedules);
             AutomationRunsGrid.ItemsSource = state.AutomationRuns;
             ApplyWatchSettings(state, beforeLoad);
-            RenderManagementTrendChart(state.Trend);
             OperationsStatus.Text = state.Status;
+            var tasks = await readTaskStatus(CancellationToken.None);
+            if (revision == refreshRevision) InstalledAutomationTaskStatus.Text = string.Join(Environment.NewLine, tasks.Select(task => task.Summary));
         }
         catch (Exception ex) { if (revision != refreshRevision) return; DesktopDiagnostics.Record(ex, "OperationsAdministration.Operations", "OPERATIONS_REFRESH_FAILED"); OperationsStatus.Text = $"Operations center could not be refreshed: {DesktopFriendlyError.Describe(ex, "This Windows account does not have application access.")}"; }
     }
@@ -206,25 +208,6 @@ public partial class OperationsWorkspaceView : UserControl
         }
         catch (Exception ex) { DesktopDiagnostics.Record(ex, "OperationsAdministration.Maintenance", failureEventId); MaintenanceStatus.Text = failed(ex); }
         finally { EndOperation(); }
-    }
-
-    private void RenderManagementTrendChart(IReadOnlyList<ManagementTrendPoint> rows)
-    {
-        ManagementTrendChartPanel.Children.Clear();
-        var points = rows.GroupBy(x => x.BusinessDate).Select(group => new { Date = group.Key, Sales = group.Sum(x => x.NetSales) }).OrderBy(x => x.Date).TakeLast(31).ToArray();
-        var maximum = Math.Max(1m, points.Select(x => Math.Abs(x.Sales)).DefaultIfEmpty(1m).Max());
-        foreach (var point in points)
-        {
-            var row = new Grid { Margin = new Thickness(0, 2, 0, 2) };
-            row.ColumnDefinitions.Add(new() { Width = new GridLength(95) });
-            row.ColumnDefinitions.Add(new() { Width = new GridLength(1, GridUnitType.Star) });
-            row.ColumnDefinitions.Add(new() { Width = new GridLength(120) });
-            var label = new TextBlock { Text = point.Date.ToString("dd MMM"), VerticalAlignment = VerticalAlignment.Center };
-            var bar = new Border { Background = point.Sales < 0 ? Brushes.Firebrick : new SolidColorBrush(Color.FromRgb(23, 107, 135)), Height = 14, HorizontalAlignment = HorizontalAlignment.Left, Width = 480d * (double)(Math.Abs(point.Sales) / maximum) };
-            var value = new TextBlock { Text = point.Sales.ToString("N2"), HorizontalAlignment = HorizontalAlignment.Right };
-            Grid.SetColumn(label, 0); Grid.SetColumn(bar, 1); Grid.SetColumn(value, 2);
-            row.Children.Add(label); row.Children.Add(bar); row.Children.Add(value); ManagementTrendChartPanel.Children.Add(row);
-        }
     }
 
     private void RequireViewAccess()

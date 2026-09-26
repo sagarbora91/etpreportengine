@@ -9,6 +9,58 @@ namespace Etp.Reporting.Desktop.Tests;
 public sealed class RegisterDraftTests
 {
     [Fact]
+    public void Header_scope_does_not_create_a_draft_but_existing_edits_stay_dirty()
+    {
+        RunSta(() =>
+        {
+            var view=Create(new RegistersStub()); view.SelectTask("register-courier");
+            view.ApplyHeaderScope(new(2026,8,25),"EAST"); Assert.False(view.HasUnsavedChanges);
+            view.SelectTask("register-inward"); view.ApplyHeaderScope(new(2026,8,26),"WEST"); Assert.False(view.HasUnsavedChanges);
+            Input(view,"RegisterRemarksInput").Text="Keep this draft";
+            view.ApplyHeaderScope(new(2026,8,27),"WEST");
+            Assert.True(view.HasUnsavedChanges); Assert.Equal("Keep this draft",Input(view,"RegisterRemarksInput").Text);
+        });
+    }
+
+    [Fact]
+    public void New_entry_preserves_unsaved_fields_until_discard_is_confirmed()
+    {
+        RunSta(() =>
+        {
+            var view = Create(new RegistersStub()); view.SelectTask("register-courier");
+            Input(view, "RegisterDocumentNumberInput").Text = "UNSAVED-COURIER";
+            Input(view, "RegisterRemarksInput").Text = "Unsaved receiving notes";
+            view.BusinessDate = new DateTime(2026, 9, 24); view.LinkedSourceDocumentId = 42;
+            Assert.False(view.StartNewEntry());
+            Assert.Equal("UNSAVED-COURIER", Input(view, "RegisterDocumentNumberInput").Text);
+            Assert.Equal("Unsaved receiving notes", Input(view, "RegisterRemarksInput").Text);
+            Assert.Equal(42, view.LinkedSourceDocumentId);
+            Assert.True(view.StartNewEntry(discardConfirmed: true));
+            Assert.Equal("", Input(view, "RegisterDocumentNumberInput").Text);
+            Assert.Equal("", Input(view, "RegisterRemarksInput").Text);
+            Assert.Null(view.LinkedSourceDocumentId);
+            Assert.False(view.HasUnsavedChanges);
+            var savedDate = view.BusinessDate;
+            view.BusinessDate = savedDate!.Value.AddDays(-1);
+            Assert.True(view.HasUnsavedChanges);
+            Assert.False(view.StartNewEntry());
+            view.DiscardDraft();
+            Assert.Equal(savedDate, view.BusinessDate);
+        });
+    }
+
+    [Fact]
+    public void Selecting_a_register_passes_its_type_to_the_query_before_paging()
+    {
+        RunSta(() =>
+        {
+            var service = new RegistersStub(); var view = Create(service);
+            view.SelectTask("register-courier"); Assert.Equal("COURIER", service.LastRegisterType);
+            view.SelectTask("register-expense"); Assert.Equal("EXPENSE", service.LastRegisterType);
+        });
+    }
+
+    [Fact]
     public void Failed_save_retains_draft_and_success_clears_dirty_state_without_duplicate_write()
     {
         RunSta(() =>
@@ -53,6 +105,48 @@ public sealed class RegisterDraftTests
         });
     }
 
+    [Fact]
+    public void Courier_edit_and_owner_verification_preserve_document_binding_and_manager_cannot_verify()
+    {
+        RunSta(() =>
+        {
+            var day = new DateOnly(2026,8,25);
+            var row = new DigitalRegisterEntry(12,"COURIER",42,"HEMW",day,"COURIER-1",day,"Carrier",1,25,"TRACK-1","Manager","DRAFT","Received","Manager",DateTime.UtcNow);
+            var service = new RegistersStub { Fail = false, Entries = [row] };
+            var view = Create(service); view.SelectTask("register-courier");
+            var grid = (DataGrid)view.FindName("RegisterGrid");
+            Assert.Single(grid.Items); grid.SelectedIndex = 0;
+            Assert.Equal("COURIER-1",Input(view,"RegisterDocumentNumberInput").Text);
+            Assert.Equal(42,view.LinkedSourceDocumentId);
+            Input(view,"RegisterReasonInput").Text = "Checked delivery evidence";
+            Assert.True(view.SaveEntryAsync(true).GetAwaiter().GetResult());
+            Assert.Equal("VERIFIED",service.LastEntry!.VerificationStatus);
+            Assert.Equal(day,service.LastEntry.DocumentDate);
+            Assert.Equal("COURIER",service.LastEntry.RegisterType);
+            grid.SelectedIndex = 0;
+            view.AttachHost(() => new AccessSession("TEST\\manager","Manager",AccessRole.StoreManager,true),ex => ex.Message);
+            Assert.False(view.SaveEntryAsync(true).GetAwaiter().GetResult());
+            Assert.Equal(1,service.Writes);
+        });
+    }
+
+    [Fact]
+    public void Changing_selected_entry_cannot_discard_an_edited_register_draft()
+    {
+        RunSta(() =>
+        {
+            var row = new DigitalRegisterEntry(12,"INWARD",null,"HEMW",new(2026,8,25),"IN-1",null,"Vendor",1,25,null,"Manager","DRAFT",null,"Manager",DateTime.UtcNow);
+            var service = new RegistersStub { Entries = [row, row with { Id=13, DocumentNumber="IN-2" }] };
+            var view = Create(service); view.SelectTask("register-inward");
+            var grid = (DataGrid)view.FindName("RegisterGrid"); grid.SelectedIndex = 0;
+            Input(view,"RegisterRemarksInput").Text = "Unsaved receiving notes";
+            grid.SelectedIndex = 1;
+            Assert.Equal(row,grid.SelectedItem);
+            Assert.Equal("Unsaved receiving notes",Input(view,"RegisterRemarksInput").Text);
+            Assert.True(view.HasUnsavedChanges);
+        });
+    }
+
     private static RegistersWorkspaceView Create(RegistersStub service)
     {
         var view = new RegistersWorkspaceView(new RegistersPresentationSession(_ => service), () => "synthetic");
@@ -68,11 +162,15 @@ public sealed class RegisterDraftTests
     private sealed class RegistersStub : IDigitalRegisterService
     {
         public bool Fail = true; public int Writes;
-        public Task<IReadOnlyList<DigitalRegisterEntry>> LoadAsync(string? search = null, int limit = 500, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<DigitalRegisterEntry>>([]);
+        public IReadOnlyList<DigitalRegisterEntry> Entries = [];
+        public DigitalRegisterEntryDraft? LastEntry;
+        public string? LastRegisterType;
+        public Task<IReadOnlyList<DigitalRegisterEntry>> LoadAsync(string? search = null, int limit = 500, CancellationToken cancellationToken = default, string? registerType = null)
+        { LastRegisterType = registerType; return Task.FromResult(Entries); }
         public Task<long> SaveAsync(DigitalRegisterEntryDraft entry, string reason, CancellationToken cancellationToken = default)
         {
             if (Fail) return Task.FromException<long>(new InvalidOperationException("Synthetic service failure"));
-            Writes++; return Task.FromResult(1L);
+            Writes++; LastEntry = entry; return Task.FromResult(1L);
         }
     }
 }

@@ -67,8 +67,9 @@ public sealed class SharingContactsAndDigitalRegistersAdapterTests
             new(12, "INWARD", 44, "WLMHW", date, "INV-12", date, "Vendor", 2m, 4999m, "PO-1", "Manager", "VERIFIED", "Received", @"STORE\Manager", modified)
         ];
         var service = new SqlServerDigitalRegisterService(
-            (_, _, _) => Task.FromResult(rows),
-            (_, _, _) => Task.FromResult(0L));
+            (_, _, _, _) => Task.FromResult(rows),
+            (_, _, _) => Task.FromResult(0L),
+            _ => Task.FromResult(new ApplicationAccess("fixture", "Owner", ApplicationRole.Owner, true)));
 
         var entry = Assert.Single(await service.LoadAsync());
 
@@ -85,14 +86,16 @@ public sealed class SharingContactsAndDigitalRegistersAdapterTests
             "PO-1", "Manager", "DRAFT", "Received");
         using var cancellation = new CancellationTokenSource();
         string? observedSearch = null;
+        string? observedRegisterType = null;
         var observedLimit = 0;
         RegisterEntryRow? observedEntry = null;
         string? observedReason = null;
         var observedTokens = new List<CancellationToken>();
         var service = new SqlServerDigitalRegisterService(
-            (search, limit, token) =>
+            (search, limit, type, token) =>
             {
                 observedSearch = search;
+                observedRegisterType = type;
                 observedLimit = limit;
                 observedTokens.Add(token);
                 return Task.FromResult<IReadOnlyList<RegisterEntryRow>>([]);
@@ -103,12 +106,14 @@ public sealed class SharingContactsAndDigitalRegistersAdapterTests
                 observedReason = reason;
                 observedTokens.Add(token);
                 return Task.FromResult(91L);
-            });
+            },
+            _ => Task.FromResult(new ApplicationAccess("fixture", "Owner", ApplicationRole.Owner, true)));
 
-        await service.LoadAsync("INV-12", 75, cancellation.Token);
+        await service.LoadAsync("INV-12", 75, cancellation.Token, registerType: "INWARD");
         var id = await service.SaveAsync(draft, "Document received", cancellation.Token);
 
         Assert.Equal("INV-12", observedSearch);
+        Assert.Equal("INWARD", observedRegisterType);
         Assert.Equal(75, observedLimit);
         Assert.Equal(91, id);
         Assert.Equal(
@@ -134,5 +139,34 @@ public sealed class SharingContactsAndDigitalRegistersAdapterTests
     {
         _ = new SqlServerSharingContactsService(IntegratedConnection);
         _ = new SqlServerDigitalRegisterService(IntegratedConnection);
+    }
+
+    [Fact]
+    public async Task Register_boundary_checks_current_access_before_delegates_and_sends_only_canonical_status()
+    {
+        var access = new ApplicationAccess("fixture", "Viewer", ApplicationRole.Viewer, true);
+        var reads = 0; var writes = 0; var checks = 0; string? savedStatus = null;
+        var service = new SqlServerDigitalRegisterService(
+            (_, _, _, _) => { reads++; return Task.FromResult<IReadOnlyList<RegisterEntryRow>>([]); },
+            (row, _, _) => { writes++; savedStatus = row.VerificationStatus; return Task.FromResult(1L); },
+            _ => { checks++; return Task.FromResult(access); });
+        var draft = new DigitalRegisterEntryDraft("INWARD", null, "FIXTURE", new(2026, 8, 25), "INV-1", null, "Vendor", 1, 12, null, null, " draft ", null);
+        await service.LoadAsync(); Assert.Equal(1, reads);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.SaveAsync(draft, "Viewer cannot write"));
+        Assert.Equal(0, writes);
+        access = access with { Role = ApplicationRole.StoreManager };
+        await service.SaveAsync(draft, "Draft received");
+        Assert.Equal("DRAFT", savedStatus); Assert.Equal(1, writes);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.SaveAsync(draft with { VerificationStatus = " verified " }, "Manager cannot verify"));
+        Assert.Equal(1, writes);
+        access = access with { Role = ApplicationRole.Owner };
+        await service.SaveAsync(draft with { VerificationStatus = " verified " }, "Owner checked");
+        Assert.Equal("VERIFIED", savedStatus); Assert.Equal(2, writes);
+        var previousChecks = checks;
+        await Assert.ThrowsAsync<ArgumentException>(() => service.SaveAsync(draft with { VerificationStatus = "VERIFIED            suffix" }, "Invalid status"));
+        Assert.Equal(previousChecks, checks); Assert.Equal(2, writes);
+        access = access with { IsActive = false };
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.LoadAsync());
+        Assert.Equal(1, reads);
     }
 }

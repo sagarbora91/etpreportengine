@@ -24,7 +24,7 @@ public sealed class R025SqlImportOrchestrator(ITransactionalImportStore store)
         ImportRestatementRequest? restatement = null)
     {
         ArgumentNullException.ThrowIfNull(workbook);
-        var inspection = new MatchedImportEnvelopeFactory().Inspect(workbook);
+        var inspection = new MatchedImportEnvelopeFactory(string.IsNullOrWhiteSpace(expectedStoreCode) ? [] : [expectedStoreCode]).Inspect(workbook);
         if (inspection.AcceptedImport is null) throw new SalesImportBlockedException(inspection.Diagnostics);
         var accepted = inspection.AcceptedImport;
         return await PersistAsync(accepted, storeId, currencyCode, cancellationToken, expectedBusinessDate,

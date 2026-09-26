@@ -46,17 +46,17 @@ public sealed class OperationsAdministrationServiceBoundaryTests
 
         Assert.Equal(3, (await service.RunAutomationOnceAsync()).SourcesProcessed);
         await service.UpdateIssueAsync(new(8, "ACKNOWLEDGED", "Investigating source"));
-        Assert.Equal(44, await service.SubmitAdjustmentAsync(
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.SubmitAdjustmentAsync(
             new("wlmhw", new(2026, 8, 28), "sales", 10m, "Controlled correction")));
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.SaveScheduleAsync(
             new(1, new(18, 0), true, true, true, "Owner schedule change")));
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.SaveWatchFoldersAsync(
-            new("in", "processed", "failed", "reports", 5, true, "Owner config change")));
+            new("in", "processed", "failed", "reports", true, "Owner config change")));
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.DecideApprovalAsync(
             new(12, true, "Owner decision")));
 
-        Assert.Equal(["run", "issue:8:ACKNOWLEDGED", "adjust:WLMHW"], gateway.Calls);
+        Assert.Equal(["run", "issue:8:ACKNOWLEDGED"], gateway.Calls);
     }
 
     [Fact]
@@ -65,7 +65,7 @@ public sealed class OperationsAdministrationServiceBoundaryTests
         var gateway = new FakeOperationsGateway();
         var service = Operations(gateway, ApplicationRole.Owner);
 
-        await service.SaveWatchFoldersAsync(new("in", "processed", "failed", "reports", 5, true, "Changed paths"));
+        await service.SaveWatchFoldersAsync(new("in", "processed", "failed", "reports", true, "Changed paths"));
         await service.SaveScheduleAsync(new(2, new(7, 30), true, true, false, "Changed schedule"));
         await service.DecideApprovalAsync(new(91, false, "Evidence insufficient"));
 
@@ -113,7 +113,7 @@ public sealed class OperationsAdministrationServiceBoundaryTests
         public Task<WatchFolderSettings> LoadWatchFoldersAsync(CancellationToken token)
         {
             Calls.Add("watch-load");
-            return Task.FromResult(new WatchFolderSettings("inbound", "processed", "failed", "reports", 5, true, DateTime.MinValue, "owner"));
+            return Task.FromResult(new WatchFolderSettings("inbound", "processed", "failed", "reports", true, DateTime.MinValue, "owner"));
         }
 
         public Task<IReadOnlyList<ManagementTrendRow>> LoadTrendAsync(DateOnly from, DateOnly to, CancellationToken token)

@@ -50,7 +50,7 @@ public sealed class SettingsAndOperationsAdministrationPresentationTests : IDisp
         var schedule = new ReportSchedule(7, "Morning", new TimeOnly(7, 30), true, true, false,
             null, null, null, null);
         var dashboard = new OperationsDashboard(
-            new WatchFolderConfiguration("in", "done", "failed", "reports", 5, true, DateTime.UtcNow, "owner"),
+            new WatchFolderConfiguration("in", "done", "failed", "reports", true, DateTime.UtcNow, "owner"),
             [new ManagementTrendPoint(new DateOnly(2026, 8, 25), "WLMHW", 100m, 2m, 1, 0m, 0)],
             [new DataQualityFinding("Warning", "Sales", "Q1", 1, null, "Review")],
             [new DataQualityIssue(1, "Sales", "Warning", "WLMHW", new DateOnly(2026, 8, 25),

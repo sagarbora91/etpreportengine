@@ -64,7 +64,7 @@ public sealed class ShellNavigationService : IShellNavigationService
                 : NavigationDecision.Denied(route, descriptor, "Owner permission is required to open administration and database settings.");
         }
 
-        if (route.Destination == "Import ETP" && !access.CanImport)
+        if (route.Destination == "Import ETP" && !access.CanImport && !(route.TaskId is "source-inbox" or "conflicts" && access.CanView))
             return NavigationDecision.Denied(route, descriptor, "Owner or Store Manager permission is required to import ETP reports.");
 
         if (route.Destination != "Settings" && !access.CanView)

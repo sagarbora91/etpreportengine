@@ -4,15 +4,14 @@
              xmlns:automation="clr-namespace:System.Windows.Automation;assembly=PresentationCore"
              automation:AutomationProperties.Name="Report archive and sharing workspace">
     <StackPanel>
-        <TextBlock Text="saved report-generation archive" FontSize="18" FontWeight="SemiBold"/>
-        <TextBlock Text="Open, compare and re-export prior generated packs. SHA-256 integrity is verified before an archived document is displayed."
+        <TextBlock Text="Saved report packs" FontSize="18" FontWeight="SemiBold"/>
+        <TextBlock Text="Open, export or share any saved pack. Document integrity is verified before use. Email history records server acceptance; WhatsApp requires you to attach and send the PDF."
                    Margin="0,6,0,10" Foreground="#5D6873" TextWrapping="Wrap"/>
         <WrapPanel>
             <TextBlock Text="Store" VerticalAlignment="Center"/>
             <ComboBox x:Name="ArchiveStoreInput" Width="130" SelectedIndex="0" Margin="6,0,10,0"
                       automation:AutomationProperties.Name="Archive store">
-                <ComboBoxItem Content="All"/><ComboBoxItem Content="COMBINED"/>
-                <ComboBoxItem Content="WLMHW"/><ComboBoxItem Content="HEMW"/>
+                <ComboBoxItem Content="All"/>
             </ComboBox>
             <TextBlock Text="Business date" VerticalAlignment="Center"/>
             <DatePicker x:Name="ArchiveDateInput" Width="140" Margin="6,0,0,0"
@@ -22,19 +21,37 @@
             <Button Content="Refresh archive" Click="RefreshReportArchive_Click" Style="{DynamicResource PrimaryButton}" Padding="14,7" Margin="10,0,0,0"
                     automation:AutomationProperties.Name="Refresh report archive"/>
         </WrapPanel>
-        <DataGrid x:Name="ReportGenerationGrid" AutoGenerateColumns="True" IsReadOnly="True"
-                  SelectionMode="Extended" MaxHeight="250" Margin="0,10,0,0"
-                  automation:AutomationProperties.Name="Archived report generations"/>
+        <DataGrid x:Name="ReportGenerationGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                  SelectionMode="Single" MaxHeight="300" Margin="0,10,0,0" SelectionChanged="ArchiveGeneration_SelectionChanged"
+                  automation:AutomationProperties.Name="Archived report generations">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Store" Binding="{Binding StoreCode}" Width="100"/>
+                <DataGridTextColumn Header="Business date" Binding="{Binding BusinessDate, StringFormat=dd MMM yyyy}" Width="125"/>
+                <DataGridTextColumn Header="Generation" Binding="{Binding GenerationNumber}" Width="105"/>
+                <DataGridCheckBoxColumn Header="Final" Binding="{Binding IsFinal}" Width="60"/>
+                <DataGridTemplateColumn Header="Pack actions" Width="*">
+                    <DataGridTemplateColumn.CellTemplate><DataTemplate><WrapPanel>
+                        <Button Content="Open" Tag="Open" Click="ArchiveRowAction_Click" Padding="8,5" Margin="2"/>
+                        <Button Content="Excel" Tag="Excel" Click="ArchiveRowAction_Click" Padding="8,5" Margin="2"/>
+                        <Button Content="PDF" Tag="PDF" Click="ArchiveRowAction_Click" Padding="8,5" Margin="2"/>
+                        <Button Content="ZIP" Tag="ZIP" Click="ArchiveRowAction_Click" Padding="8,5" Margin="2"/>
+                        <Button Content="Share" Tag="Share" Click="ArchiveRowAction_Click" Padding="8,5" Margin="2"/>
+                    </WrapPanel></DataTemplate></DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+            </DataGrid.Columns>
+        </DataGrid>
         <WrapPanel Margin="0,10,0,0">
             <Button Content="Open selected generation" x:Name="OpenArchivedGenerationButton" Click="OpenArchivedGeneration_Click" Style="{DynamicResource PrimaryButton}" Padding="14,7"/>
-            <Button Content="Compare two selected" x:Name="CompareArchivedGenerationsButton" Click="CompareArchivedGenerations_Click" Padding="14,7" Margin="8,0,0,0"/>
             <Button Content="Export archived Excel…" x:Name="ExportArchivedExcelButton" Click="ExportArchivedExcel_Click" Padding="14,7" Margin="8,0,0,0"/>
             <Button Content="Export archived PDF…" x:Name="ExportArchivedPdfButton" Click="ExportArchivedPdf_Click" Padding="14,7" Margin="8,0,0,0"/>
             <Button Content="Export ZIP…" x:Name="ExportArchivedZipButton" Click="ExportArchivedZip_Click" Padding="14,7" Margin="8,0,0,0"/>
             <Button Content="WhatsApp" x:Name="ShareArchivedWhatsAppButton" Click="ShareArchivedWhatsApp_Click" Padding="14,7" Margin="8,0,0,0"/>
-            <Button Content="Email draft" x:Name="ShareArchivedEmailButton" Click="ShareArchivedEmail_Click" Padding="14,7" Margin="8,0,0,0"/>
+            <Button Content="Send email" x:Name="ShareArchivedEmailButton" Click="ShareArchivedEmail_Click" Padding="14,7" Margin="8,0,0,0"/>
         </WrapPanel>
         <WrapPanel Margin="0,8,0,0">
+            <TextBlock Text="Contact" VerticalAlignment="Center" Margin="0,0,6,0"/>
+            <ComboBox x:Name="ShareContactPicker" Width="190" DisplayMemberPath="DisplayName" SelectionChanged="ShareContactPicker_SelectionChanged" Margin="0,0,12,0" automation:AutomationProperties.Name="Choose sharing recipient"/>
+            <TextBlock Text="WhatsApp" VerticalAlignment="Center" Margin="0,0,6,0"/>
             <TextBox x:Name="SharePhoneInput" InputScope="Number" Width="150" Padding="6" ToolTip="Optional WhatsApp phone including country code"
                      automation:AutomationProperties.Name="WhatsApp phone"/>
             <TextBox x:Name="ShareEmailToInput" Width="240" Padding="6" Margin="8,0,0,0" ToolTip="Email To"
@@ -61,6 +78,7 @@
                       automation:AutomationProperties.Name="Sharing contact active"/>
             <TextBox x:Name="ContactReasonInput" Width="190" Padding="6" Margin="8,0,0,0" ToolTip="Owner change reason"
                      automation:AutomationProperties.Name="Sharing contact change reason"/>
+            <Button Content="New contact" Click="NewContact_Click" Padding="14,7" Margin="8,0,0,0"/>
             <Button Content="Save contact" Click="SaveSharingContact_Click" Style="{DynamicResource PrimaryButton}" Padding="14,7" Margin="8,0,0,0"
                     automation:AutomationProperties.Name="Save sharing contact"/>
         </WrapPanel>
@@ -69,6 +87,30 @@
                    automation:AutomationProperties.LiveSetting="Polite"/>
         <DataGrid x:Name="ReportArchiveDetailGrid" AutoGenerateColumns="True" IsReadOnly="True"
                   MaxHeight="300" Margin="0,8,0,0"
-                  automation:AutomationProperties.Name="Archive detail or comparison"/>
+                  automation:AutomationProperties.Name="Archive detail"/>
+        <TextBlock Text="Sharing history for the selected pack" FontWeight="SemiBold" Margin="0,14,0,6"/>
+        <DataGrid x:Name="ShareHistoryGrid" AutoGenerateColumns="False" IsReadOnly="True" MaxHeight="240"
+                  automation:AutomationProperties.Name="Selected pack sharing history">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Time (UTC)" Binding="{Binding InitiatedUtc}"/>
+                <DataGridTextColumn Header="Channel" Binding="{Binding Channel}"/>
+                <DataGridTextColumn Header="Outcome" Binding="{Binding OutcomeLabel}"/>
+                <DataGridTextColumn Header="By" Binding="{Binding InitiatedBy}"/>
+                <DataGridTextColumn Header="Details" Binding="{Binding Message}" Width="*"/>
+            </DataGrid.Columns>
+        </DataGrid>
+        <StackPanel Margin="0,14,0,0">
+            <TextBlock Text="SMTP credentials for this Windows user (optional for an approved relay). Host, port, TLS and sender are stored in Settings > Integrations > Email, sharing and Tally." TextWrapping="Wrap"/>
+            <WrapPanel Margin="0,6,0,0">
+                <TextBlock Text="SMTP user" VerticalAlignment="Center"/>
+                <TextBox x:Name="SmtpUserInput" Width="220" Margin="6,0,8,0" automation:AutomationProperties.Name="Personal SMTP user"/>
+                <TextBlock Text="Password" VerticalAlignment="Center"/>
+                <PasswordBox x:Name="SmtpPasswordInput" Width="180" Margin="6,0,8,0" automation:AutomationProperties.Name="Personal SMTP password"/>
+                <Button Content="Save credentials" Click="SaveSmtpCredentials_Click" Padding="12,7"/>
+                <Button Content="Clear credentials" Click="ClearSmtpCredentials_Click" Padding="12,7" Margin="8,0,0,0"/>
+                <Button x:Name="TestSmtpButton" Content="Send test email" Click="TestEmail_Click" Padding="12,7" Margin="8,0,0,0"/>
+            </WrapPanel>
+            <TextBlock Text="The test uses the Email recipient above and the saved SMTP settings; Owner access is required. Credentials are protected by Windows and never included in exports or diagnostics." TextWrapping="Wrap" Margin="0,5,0,0"/>
+        </StackPanel>
     </StackPanel>
 </UserControl>

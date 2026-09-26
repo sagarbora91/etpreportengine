@@ -15,7 +15,7 @@ public enum ImportPersistenceRoute
     Family
 }
 
-public sealed class SqlServerImportPersistenceUseCase : IImportPersistenceUseCase<MatchedImportEnvelope>, IImportAttemptRecorder
+public sealed partial class SqlServerImportPersistenceUseCase : IImportPersistenceUseCase<MatchedImportEnvelope>, IImportAttemptRecorder
 {
     private readonly ITransactionalImportStore store;
     private readonly SqlServerImportFileRepository files;
@@ -44,14 +44,14 @@ public sealed class SqlServerImportPersistenceUseCase : IImportPersistenceUseCas
 
     public async Task<bool> ExistsByHashAsync(string sourceSha256, CancellationToken cancellationToken = default)
     {
-        await RequireImportAsync(false, cancellationToken).ConfigureAwait(false);
+        await RequireImportAsync(cancellationToken).ConfigureAwait(false);
         return await files.ExistsByHashAsync(sourceSha256, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<bool> ExistsInScopeAsync(string sourceSha256, string reportCode, string storeCode,
         DateOnly periodStart, DateOnly periodEnd, CancellationToken cancellationToken = default)
     {
-        await RequireImportAsync(false, cancellationToken).ConfigureAwait(false);
+        await RequireImportAsync(cancellationToken).ConfigureAwait(false);
         return await files.ExistsInScopeAsync(sourceSha256, reportCode, storeCode, periodStart, periodEnd, cancellationToken).ConfigureAwait(false);
     }
 
@@ -61,7 +61,7 @@ public sealed class SqlServerImportPersistenceUseCase : IImportPersistenceUseCas
         DateOnly businessDate,
         CancellationToken cancellationToken = default)
     {
-        await RequireImportAsync(false, cancellationToken).ConfigureAwait(false);
+        await RequireImportAsync(cancellationToken).ConfigureAwait(false);
         return (await completion.FindCurrentImportAsync(reportCode, storeCode, businessDate, cancellationToken).ConfigureAwait(false))?.ImportFileId;
     }
 
@@ -71,7 +71,7 @@ public sealed class SqlServerImportPersistenceUseCase : IImportPersistenceUseCas
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(request.AcceptedImport);
-        await RequireImportAsync(request.Restatement is not null, cancellationToken).ConfigureAwait(false);
+        await RequireImportAsync(cancellationToken).ConfigureAwait(false);
         _ = ApprovedImportProfileRegistry.Resolve(request.AcceptedImport.ProfileIdentity);
         var restatement = Map(request.Restatement);
         var accepted = request.AcceptedImport;
@@ -79,6 +79,9 @@ public sealed class SqlServerImportPersistenceUseCase : IImportPersistenceUseCas
             request.ExpectedStoreCode, request.ExpectedBusinessDate);
         var periodStart = accepted.Scope.PeriodStart ?? scope.BusinessDate!.Value;
         var periodEnd = scope.BusinessDate!.Value;
+        if (restatement is not null)
+            await RequireApprovedRestatementAsync(restatement, accepted.Workbook.Sha256, accepted.ProfileIdentity.ReportCode,
+                scope.StoreCode!, periodStart, periodEnd, cancellationToken).ConfigureAwait(false);
         if (await files.ExistsInScopeAsync(accepted.Workbook.Sha256, accepted.ProfileIdentity.ReportCode,
             scope.StoreCode!, periodStart, periodEnd, cancellationToken).ConfigureAwait(false))
             return new(accepted.ProfileIdentity.ReportCode, 0) { Status = "Duplicate", AlreadyPresentRows = accepted.Staging.Rows.Count };
@@ -100,14 +103,14 @@ public sealed class SqlServerImportPersistenceUseCase : IImportPersistenceUseCas
 
     public async Task<ImportRowOutcome> LoadOutcomeByHashAsync(string sourceSha256, CancellationToken cancellationToken = default)
     {
-        await RequireImportAsync(false, cancellationToken).ConfigureAwait(false);
+        await RequireImportAsync(cancellationToken).ConfigureAwait(false);
         return Map(await files.LoadOutcomeByHashAsync(sourceSha256, cancellationToken).ConfigureAwait(false));
     }
 
     public async Task<ImportRowOutcome> LoadOutcomeInScopeAsync(string sourceSha256, string reportCode, string storeCode,
         DateOnly periodStart, DateOnly periodEnd, CancellationToken cancellationToken = default)
     {
-        await RequireImportAsync(false, cancellationToken).ConfigureAwait(false);
+        await RequireImportAsync(cancellationToken).ConfigureAwait(false);
         return Map(await files.LoadOutcomeInScopeAsync(sourceSha256, reportCode, storeCode, periodStart, periodEnd, cancellationToken).ConfigureAwait(false));
     }
 
@@ -245,12 +248,10 @@ public sealed class SqlServerImportPersistenceUseCase : IImportPersistenceUseCas
         return new(source.PreviousImportFileId, source.RequestedBy, source.Reason);
     }
 
-    private async Task RequireImportAsync(bool ownerRequired, CancellationToken cancellationToken)
+    private async Task RequireImportAsync(CancellationToken cancellationToken)
     {
         var access = await loadAccess(cancellationToken).ConfigureAwait(false);
         if (!access.CanImport)
             throw new UnauthorizedAccessException("Owner or Store Manager permission is required.");
-        if (ownerRequired && !access.CanAdminister)
-            throw new UnauthorizedAccessException("Owner permission is required for a controlled restatement.");
     }
 }

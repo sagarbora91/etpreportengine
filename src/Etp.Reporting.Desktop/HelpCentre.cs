@@ -4,9 +4,7 @@ namespace Etp.Reporting.Desktop;
 
 public enum HelpTopicAvailability
 {
-    Available,
-    Overview,
-    ComingSoon
+    Available
 }
 
 public sealed record HelpTopicDefinition(
@@ -60,64 +58,61 @@ public static class HelpCentreRegistry
     public static IReadOnlyList<HelpTopicDefinition> Topics { get; } =
     [
         Topic("getting-started", "Getting Started", "Set up the application and learn the main navigation.", "IconDashboard", 10,
-            Guide("Confirm SQL Server and the reporting database show ready on the Dashboard; ask an administrator to resolve a connection warning.", "Choose a module, then a category and focused task. Ctrl+K searches task names and full paths; Back returns to the previous task. Check the header date and explicit task store before saving.", "Follow readiness and control messages before importing, entering data or exporting; unavailable data must remain unavailable rather than being entered as zero.", "Press F1 from a workspace for contextual help, or Ctrl + / for the implemented keyboard shortcuts."),
+            Guide("Choose Today, Import, Reports, Stock or Settings on the left. The header shows the business date and store.", "Use Today for daily sales, cash, walk-ins and Close day. Import reads a folder or ZIP and keeps a durable history.", "Use Reports for filters, exports, investigations and the archive; Stock contains stock reports, physical counts and registers. Settings contains Owner configuration and approvals.", "Press Ctrl+K to find a task or F1 for its guide. Saving and approving depend on your Windows role."),
             ["setup", "sign in", "sidebar", "store", "business date"]),
-        Topic("dashboard", "Dashboard", "Understand daily status, warnings and quick actions.", "IconDashboard", 20,
-            Guide("Open Dashboard and confirm the displayed business date, store and signed-in role.", "Review database, backup, import and control warnings; warnings do not alter source values.", "Use the Business Day and control sections to open the next required workspace.", "Refresh after an import or manual-entry change before relying on the displayed status."),
+        Topic("dashboard", "Today", "Sales, cash, walk-ins and Close day.", "IconDashboard", 20,
+            Guide("Today opens the daily sales report for the header date. Choose the store before entering data.", "Use Cash for the cash book and expense entries; use Walk-ins for daily inputs.", "Close day shows readiness and register entries. Generate and review the pack before finalising.", "For database size, verified backups and recovery evidence, an Owner opens Settings → Database → Database health."),
             ["status", "warning", "quick action", "daily health"], "Dashboard"),
         Topic("business-day", "Business Day", "Complete daily readiness, manual entry and finalisation.", "IconRegister", 30,
-            Guide("Open Dashboard → Daily Close → Readiness for the required store and ETP business date, then review source readiness.", "Open the Walk-ins, Stock Count or Targets task and record only approved values that ETP does not supply; enter zero only when zero is confirmed and include the required reason.", "Generate and review the selected-store or combined pack, including blocking controls and unavailable-source messages.", "Finalise only after blocking sections are resolved; an authorised Owner must reopen a locked date with a recorded reason before correction."),
+            Guide("Choose Today → Close day and a store/date. Review required imports and missing inputs.", "Enter confirmed walk-ins and cash/service inputs; stock counts are under Stock. Register entries for the day are shown in Close day.", "Generate the pack, review all blockers, then finalise. Unavailable source figures remain unavailable.", "A finalised day is protected. Corrections need the authorised reopen or restatement workflow and a reason."),
             ["readiness", "manual entry", "walking", "walk-ins", "lock", "finalise"], "Daily Workflow"),
         Topic("import-etp", "Import ETP", "Import files, folders and ZIP packages safely.", "IconImport", 40,
-            Guide("Open Imports → Intake → Import Files and choose approved XLSX files, a folder or an ETP ZIP package.", "Review discovered files and the detected report, store and business date before starting the batch.", "Start the import and monitor completed, failed and duplicate counts; cancellation occurs safely between files.", "Read the failure summary, correct the source problem and retry only failed files; never rename a file to bypass duplicate protection."),
+            Guide("Open Import → Import folder and select the folder or ZIP received from ETP. Stores and dates are detected from workbook data.", "Start once. Review imported, duplicate, not needed, empty and failed outcomes. Originals are retained.", "Open History after restarting to see persisted imports and Received files. Problems shows safe diagnostics and Retry failed retries only failed entries.", "A replacement import creates a restatement request and waits for Owner approval. Retry the same file and scope after the Owner decides."),
             ["file", "folder", "zip", "duplicate", "failure", "retry"], "Import ETP"),
         Topic("import-history", "Import History", "Review saved outcomes and repeat import attempts.", "IconImport", 45,
-            Guide("Open Import → History → Imports to see saved outcomes, including after restarting the application.",
-                "Choose the header date and store. Files whose period includes that date are listed newest first; attempts with undetected dates use their recorded UTC date.",
-                "Select a file to review its row counts and safe diagnostics. Duplicate attempts remain alongside earlier outcomes and add no facts.",
-                "Use Received files for retained documents. An Owner or Store Manager can correct a failed source and use Import → Problems → Retry failed during the current import session."),
+            Guide("Open Import → History → Imports and set the header scope.", "Select an import to review its persisted outcome and safe diagnostics. History survives app restarts.", "Received files lists retained originals with integrity checks. Opening a file verifies its stored hash.", "Use Problems to investigate failures. Owner and Store Manager can retry; Viewer access is read-only."),
             ["import", "history", "duplicate", "diagnostics", "received files"], "Import History"),
         Topic("daily-sales-report", "Daily Sales Report", "Preview and export the approved DSR.", "IconReports", 50,
-            Guide("Search DSR with Ctrl+K, or open Reports → Sales → Daily Sales Report, then select the required business date. DSR compares Titan and Helios with combined totals.", "Refresh the preview and review FTD, MTD, YTD, TY/LY, Service, target and control states. Other reports have Summary and Detail rows tabs; select a row to open its source details.", "Treat an unavailable LY MTD as unavailable; do not replace the displayed source-required state with zero. Ctrl+F finds page text or filters the active detail table; it does not change exported totals.", "Use Actions to export PDF or Excel after refreshing the displayed scope, or generate a report pack for that date and store."),
+            Guide("Search DSR with Ctrl+K, or open Reports → Sales → Daily Sales Report, then select the required business date. DSR compares active stores with combined totals.", "Refresh the preview and review FTD, MTD, YTD, TY/LY, Service, target and control states. Other reports have Summary and Detail rows tabs; select a row to open its source details.", "Treat an unavailable LY MTD as unavailable; do not replace the displayed source-required state with zero. Ctrl+F finds page text or filters the active detail table; it does not change exported totals.", "Use Actions to export PDF or Excel after refreshing the displayed scope, or generate a report pack for that date and store."),
             ["dsr", "ftd", "mtd", "ytd", "pdf", "excel", "preview"], "Sales Reports", "dsr"),
         Topic("sales-reports", "Sales Reports", "Run sales, return, brand and comparison reports.", "IconReports", 60,
-            Guide("Open Reports → Sales and select the required report.", "Set the period, store and supported brand-segment, transaction-type or item filters, then run or refresh the report.", "Use search, sorting, variance-only view and row drill-down where the selected report provides them.", "Verify scope, source source history and control status before exporting PDF or Excel."),
+            Guide("Open Reports and choose a report. Select dates and an active store from the database catalogue.", "Filters apply to store, brand segment, transaction type and item where supported. The applied scope is printed on exports.", "Run or refresh, then inspect totals and source rows. Clearing filters restores the broader report.", "Export Excel or PDF from the current successful result. A changed scope requires a refresh before export."),
             ["sales", "invoice", "return", "brand", "item", "ly", "ty"], "Sales Reports"),
-        Topic("stock-reports", "Sales Reports", "Review closing, physical, movement and variance stock.", "IconArchive", 70,
-            Guide("Open Reports → Stock and choose the required snapshot or movement report.", "Set the end date and store; stock reports use the selected end date as their snapshot.", "Review quantities, source signs, missing components and variances without inventing a physical-stock composition.", "Open supporting detail where available, then export only after the snapshot scope is confirmed."),
+        Topic("stock-reports", "Stock Reports", "Review closing, physical, movement and variance stock.", "IconArchive", 70,
+            Guide("Open Stock and select Closing stock, Physical count, Stock ledger or a stock register.", "Choose the store/date. ETP Closing Stock supplies system stock; enter Display, Backstock, Defective and Y Loc as actual counts.", "Review the difference and source availability. Prior counts are suggestions to review, not confirmation for today.", "Owner and Store Manager can enter registers; only an Owner verifies them with a reason."),
             ["closing", "physical", "variance", "movement", "inventory", "slow stock"], "Sales Reports"),
         Topic("tender-cash-service", "Tender, Cash & Service", "Review reconciliation, diagnostics and service results.", "IconAccounting", 80,
             Guide("Open the tender, cash or service report for one store and business date.", "Compare R022 invoice/tender controls with the displayed diagnostic and review manual service or cash inputs separately.", "Investigate unknown tender codes and variances; never force a diagnostic difference to zero or approve an unmapped code.", "Correct the authoritative source or approved manual entry, refresh, and retain unresolved findings in the exported result."),
             ["tender", "cash", "service", "upi", "card", "reconciliation"], "Sales Reports", "tender"),
         Topic("staff-cro", "Staff / CRO", "Review performance, targets and attribution exceptions.", "IconUser", 90,
-            Guide("Open Staff / CRO reporting and select the required period and store.", "Review attributed sales, units, invoices, targets, ranking and unassigned transactions.", "Keep the staff-attributed denominator separate from the recorded invoice denominator and inspect any displayed variance.", "Drill into supporting rows where available before exporting the reviewed result."),
+            Guide("Open the Staff / CRO report and choose the date range and store.", "Review net sales, net quantity and unique invoices attributed to each CRO.", "ATV is CRO net sales divided by CRO unique invoices; AUPT is CRO net quantity divided by CRO unique invoices. Missing or zero denominators remain unavailable.", "Owner-maintained targets appear with the report. Inspect unassigned transactions before exporting."),
             ["staff", "cro", "target", "ranking", "unassigned", "performance"], "Sales Reports", "staff"),
         Topic("exception-centre", "Exception Centre", "Find blockers, warnings and the evidence needed to resolve them.", "IconAlert", 100,
-            Guide("Open Operations Centre and choose Open Items, Data Quality or Approval Centre as permitted by your role.", "Filter to the affected store/date and select the highest-severity unresolved item.", "Read its source, safe diagnostic and recommended action; use the linked import, report or accounting workspace to correct the cause.", "Refresh the item and retain it as open when source data or Owner approval is still required."),
+            Guide("Open Reports → Exceptions for report exceptions, Import → Problems for file failures, or the Owner control centre for operational issues.", "Select the affected store/date and inspect the cause and supporting record.", "Correct source data through imports, or raise the authorised adjustment/restatement request. Do not invent a replacement value.", "Refresh after the correction. Unresolved data or approval requirements remain visible."),
             ["exception", "blocker", "warning", "missing source", "unmapped", "approval"], "Operations Center"),
         Topic("management", "Management", "Review trends, targets and management report packs.", "IconDashboard", 110,
             Guide("Open Reports → Management → Management Trend.", "Set the period and store scope, then refresh the approved summary.", "Review targets, trends, comparison states and any missing-source warning; use drill-down to inspect supporting results.", "Generate a report pack or export only after confirming the displayed scope and controls."),
             ["management", "trend", "target", "report pack", "summary"], "Sales Reports", "management-trend"),
         Topic("investigation", "Investigation", "Trace an invoice to its source evidence.", "IconSearch", 120,
-            Guide("Open Investigation and enter the invoice or document identifier supplied by the approved result.", "Review sales, returns and tender details without copying restricted customer information into support material.", "Follow workbook, worksheet and source-row source history to identify the authoritative source.", "Record the finding and return to the owning report or import workflow for any authorised correction."),
+            Guide("Open Reports → Investigation as Owner or Store Manager and enter an invoice, product or document reference.", "Select a result and use Open selected (or double-click) to reach the report, import, archive or register record it names.", "Check the destination store, business date and selected reference before taking action.", "Customer information stays in authorised reports and retained sources; exclude it from support diagnostics."),
             ["invoice", "document", "lineage", "source", "evidence", "drill-down"], "Operations Center", "invoice-drilldown"),
         Topic("digital-registers", "Digital Registers", "Create and review document-linked operational registers.", "IconRegister", 130,
-            Guide("Open Registers and select an available register; unavailable schemas remain visibly unavailable.", "Choose the correct store/date and link the retained Source Inbox document when the workflow requires evidence.", "Enter the approved operational fields, review them and save with the current Windows identity recorded.", "Search or review the audit history; reopen a locked date through the authorised workflow before correcting an entry."),
+            Guide("Open stock registers from Stock or money/document registers from Today → Close day. Courier and Expense are both retained.", "Choose the store/date, enter the register fields and save a draft. Owner and Store Manager may create and edit drafts.", "An Owner verifies the selected draft with a reason. Verified entries and locked business days cannot be silently edited.", "Review today’s register entries in Close day and open the selected entry to inspect its detail."),
             ["inward", "outward", "credit note", "service receipt", "courier", "stock transfer", "expense", "vendor"], "Registers"),
         Topic("accounting", "Accounting", "Prepare approved accounting batches and controlled exports.", "IconAccounting", 140,
-            Guide("Open Accounting → Accounting Workflow → Prepare Batch and prepare a batch from a final saved report generation.", "Review the proposed ledger mapping, tax treatment, balance and exceptions without inferring an unapproved mapping.", "A Store Manager may save a review batch; an Owner must approve mapping changes and controlled export.", "Back up the Tally company, export the balanced XML, then review Tally import exceptions and the ETP export history."),
+            Guide("As Owner, open Settings → Accounting → Prepare → Review → Export. Set the Tally company and TEST environment in Settings first.", "Prepare from a final report generation. Missing mappings or company setup produce a BLOCKED batch with a reason. Each invoice can belong to only one non-rejected batch.", "Review the balanced entries. Approve or reject with a reason; rejecting an unexported batch releases its invoices for a replacement batch.", "Export approved TEST XML and review its permanent receipt: file, SHA-256, company and environment. Exported means awaiting import; actual Tally import/read-back belongs to the later Tally integration phase."),
             ["accounting", "ledger", "mapping", "batch", "tally", "export", "reconciliation"], "Accounting"),
         Topic("operations-support", "Operations & Support", "Review system health, schedules and support information.", "IconSettings", 150,
-            Guide("Open Settings and choose Database & Recovery, Integrations or General for the required focused task.", "Review SQL, backup age, disk capacity, import, scheduler and integration states.", "Use only Owner-authorised local folders and schedules; run the privacy-safe support package when diagnostics are needed.", "Share the generated support ZIP without source workbooks, database backups, credentials or confidential screenshots."),
+            Guide("An Owner opens Settings → Database → Database health to see database size, disk space and verified backup/recovery evidence.", "Settings → Automatic import shows the installed Windows task and its last run separately from folder configuration. Missing task evidence is shown as missing.", "Configure the approved folders and schedules, then verify a run through its history. Backup and recovery actions follow the operations runbook.", "Use Support package for privacy-safe diagnostics. Share it only with the intended support recipient."),
             ["operations", "support", "system health", "scheduler", "watch folder", "printer", "database growth"], "Admin / Settings"),
         Topic("administration", "Administration", "Manage authorised users, stores, rules and master data.", "IconSettings", 160,
-            Guide("Open Settings while signed in as an Owner; other roles cannot change approved configuration.", "Select Users & Roles, Stores, Master Data, Import Profiles, KPI, tender or sharing settings.", "Review the current value and enter a meaningful reason before an authorised change; do not approve unknown mappings or business rules.", "Save, refresh the affected workspace and confirm the audit trail records the Windows identity and change."),
+            Guide("An Owner opens Settings to manage Users, Stores, Brand rows, Tender mapping and monthly/staff targets.", "Store lists come from the active store master. Store Manager can maintain Brand rows but cannot change Owner-only targets or users.", "Enter a reason for audited changes. Tender mapping uses the actual source tender master.", "Save and refresh the affected screen. Review the audit record and verify access using the intended Windows account."),
             ["user", "role", "store", "master", "profile", "kpi", "rule", "audit"], "Admin / Settings"),
-        Topic("report-archive", "Report Archive", "Verify, compare, re-export and package saved report generations.", "IconArchive", 170,
-            Guide("Open Report Archive and select the required store, period or report generation.", "Open a generation to verify its document hash and review its recorded scope before using it.", "Select two compatible generations to compare them, or re-export the currently opened generation without changing its stored result.", "Create the approved ZIP manifest or initiate an approved email/WhatsApp share; the application records initiation unless delivery is independently verifiable."),
+        Topic("report-archive", "Report Archive", "Open, export and share saved report packs with delivery history.", "IconArchive", 170,
+            Guide("Open Reports → Archive and select a generated pack for the required scope.", "Each row offers Open, Excel, PDF, ZIP and Share. Opening verifies the saved pack integrity.", "For sharing, select a saved contact. Email uses the configured SMTP server; WhatsApp opens a handoff with the PDF path copied for attachment.", "Read delivery history for the pack. SMTP accepted does not prove recipient delivery, and WhatsApp handoff does not prove a message was sent."),
             ["archive", "generation", "hash", "compare", "re-export", "zip", "share"], "Report Archive"),
         Topic("backup-recovery", "Backup & Recovery", "Check backup health and recovery readiness.", "IconArchive", 180,
-            Guide("Open Settings → Database & Recovery → System Health, then Backups or Restore & Recovery Drill.", "Create a checksum backup to the approved destination and verify it before relying on it.", "For a drill, restore into a separate recovery database, run integrity and source history comparisons, and never overwrite production.", "Record the backup identity, restore result, comparisons, operator and time; retain database backups indefinitely."),
+            Guide("Open Settings → Database → Database health and check the last verified backup and recovery drill.", "Create and verify a backup using the approved operations setup. SQL Express backup encryption follows the configured edition policy.", "A recovery drill restores to a separate database, checks integrity and records evidence. Never overwrite the live database for a drill.", "Retain required recovery keys and independent pre-upgrade backups according to the operations runbook. Missing or stale evidence must be resolved."),
             ["backup", "restore", "sql", "disk space", "health", "recovery"], "Operations Center"),
         Topic("troubleshooting", "Troubleshooting", "Resolve common import, database and export problems.", "IconHelp", 190,
             Guide("Start with the plain-language message in the affected workspace and record its safe error code and event time.", "For database or backup warnings open System Health; for imports review the batch summary; for reports confirm date/store and required sources.", "Retry only after correcting the reported cause, and never bypass an unknown layout, missing mapping or control failure.", "Generate the privacy-safe support ZIP and send only that package through the authorised support process."),
@@ -184,6 +179,7 @@ public static class HelpCentreRegistry
         var query = text.Trim();
         return Topics.Where(x => x.Title.Contains(query, StringComparison.OrdinalIgnoreCase)
             || x.Description.Contains(query, StringComparison.OrdinalIgnoreCase)
+            || x.Overview.Contains(query, StringComparison.OrdinalIgnoreCase)
             || x.Keywords.Any(keyword => keyword.Contains(query, StringComparison.OrdinalIgnoreCase)))
             .OrderBy(x => x.Order).ToArray();
     }
@@ -197,6 +193,15 @@ public static class HelpCentreRegistry
                 || x.Scope.Contains(query, StringComparison.OrdinalIgnoreCase)))
             .ToArray();
     }
+
+    public static string ScreenshotFor(string topicId) => topicId switch
+    {
+        "getting-started" or "dashboard" or "business-day" or "daily-sales-report" or "tender-cash-service" => "Today",
+        "import-etp" or "import-history" => "Import",
+        "stock-reports" or "digital-registers" => "Stock",
+        "sales-reports" or "staff-cro" or "exception-centre" or "investigation" or "management" or "report-archive" => "Reports",
+        _ => "Settings"
+    };
 
     private static HelpTopicDefinition Topic(string id, string title, string description, string iconKey, int order,
         string overview, IReadOnlyList<string> keywords, string? destination = null, string? featureCode = null) =>
@@ -218,7 +223,6 @@ public static class ContextHelpRouter
         ["Import ETP"] = "import-etp",
         ["Import History"] = "import-history",
         ["Sales Reports"] = "sales-reports",
-        ["Sales Reports"] = "stock-reports",
         ["Report Archive"] = "report-archive",
         ["Registers"] = "digital-registers",
         ["Accounting"] = "accounting",

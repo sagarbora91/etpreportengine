@@ -23,7 +23,8 @@ await new SqlServerDatabaseBootstrapper(connectionString,new DirectoryMigrationS
 Console.WriteLine($"Audit database ready: {database}");
 if(folders.Length>0)
 {
-    var service=new FolderImportService(new SqlServerImportPersistenceUseCase(connectionString));
+    var knownStores=await new StoreCatalogRepository(connectionString).ActiveCodesAsync();
+    var service=new FolderImportService(new SqlServerImportPersistenceUseCase(connectionString),knownStores:knownStores);
     var summary=folders.Length==1 ? await service.RunAsync(folders[0],new(Environment.UserName))
         : await service.RunFilesAsync(folders.SelectMany(path=>Directory.EnumerateFiles(path,"*.xlsx",SearchOption.AllDirectories))
             .Where(path=>!Path.GetFileName(path).StartsWith("~$")).ToArray(),new(Environment.UserName));

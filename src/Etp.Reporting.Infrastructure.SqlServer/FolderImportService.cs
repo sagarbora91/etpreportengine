@@ -1,6 +1,8 @@
 using Etp.Reporting.Application.Imports;
 using Etp.Reporting.Import.Batch;
 using Etp.Reporting.Import.Preflight;
+using Etp.Reporting.Import.Profiles;
+using System.Text.RegularExpressions;
 using Etp.Reporting.Import.Workbooks;
 
 namespace Etp.Reporting.Infrastructure.SqlServer;
@@ -9,10 +11,11 @@ namespace Etp.Reporting.Infrastructure.SqlServer;
 public sealed class FolderImportService(
     IImportPersistenceUseCase<MatchedImportEnvelope> persistence,
     IWorkbookReader? workbookReader = null,
-    Func<string, MatchedImportEnvelope, string, DateOnly, CancellationToken, Task>? retainEvidence = null) : IFolderImportService
+    Func<string, MatchedImportEnvelope, string, DateOnly, CancellationToken, Task>? retainEvidence = null,
+    IReadOnlyList<string>? knownStores = null) : IFolderImportService
 {
     private readonly IWorkbookReader reader = workbookReader ?? new OpenXmlWorkbookReader();
-    private readonly MatchedImportEnvelopeFactory envelopes = new();
+    private readonly MatchedImportEnvelopeFactory envelopes = new(knownStores);
     private readonly Dictionary<string, ImportScope> detectedScopes = new(StringComparer.OrdinalIgnoreCase);
     public IReadOnlyList<string> FailedPaths { get; private set; } = [];
 
@@ -78,9 +81,12 @@ public sealed class FolderImportService(
             if (accepted is null)
             {
                 var unknown = issues.Any(issue => issue.Code is "LAYOUT_UNKNOWN" or "REQUIRED_COLUMN_MISSING" or "UNEXPECTED_COLUMN");
-                var notNeeded = result.FileName.StartsWith("00_", StringComparison.OrdinalIgnoreCase);
+                var sourceCode = Regex.Match(result.FileName, @"(?:^|[^A-Z0-9])(R\d{3})(?:[^A-Z0-9]|$)", RegexOptions.IgnoreCase);
+                var unsupportedFamily = sourceCode.Success && !EtpReportFamilyRegistry.Families.Any(family =>
+                    family.FamilyCode.Equals(sourceCode.Groups[1].Value, StringComparison.OrdinalIgnoreCase));
+                var notNeeded = result.FileName.StartsWith("00_", StringComparison.OrdinalIgnoreCase) || unsupportedFamily;
                 result = result with { Status = notNeeded ? "Not needed" : unknown ? "Unknown layout" : "Failed",
-                    Message = notNeeded ? "Consolidation control workbook; report workbooks are imported separately." : string.Join(" ", issues.Select(issue => issue.Message).Distinct()) };
+                    Message = notNeeded ? unsupportedFamily ? "This ETP report type is not needed by the reporting engine; the other workbooks are processed." : "Consolidation control workbook; report workbooks are imported separately." : string.Join(" ", issues.Select(issue => issue.Message).Distinct()) };
                 results.Add(result);
                 continue;
             }
@@ -118,7 +124,10 @@ public sealed class FolderImportService(
                     var previous = await persistence.FindCurrentImportFileIdAsync(accepted.ProfileIdentity.ReportCode, store, end.Value, cancellationToken).ConfigureAwait(false);
                     if (previous is not null) restatement = new(previous.Value, options.ImportedBy, options.RestatementReason);
                 }
-                var saved = await persistence.PersistAsync(new(accepted, end.Value, store, options.ImportedBy, restatement), cancellationToken).ConfigureAwait(false);
+                var request = new ImportPersistenceRequest<MatchedImportEnvelope>(accepted, end.Value, store, options.ImportedBy, restatement);
+                if (restatement is not null)
+                    await persistence.PrepareRestatementAsync(request, cancellationToken).ConfigureAwait(false);
+                var saved = await persistence.PersistAsync(request, cancellationToken).ConfigureAwait(false);
                 var outcome = saved.Status == "Imported"
                     ? await persistence.LoadOutcomeInScopeAsync(accepted.Workbook.Sha256, accepted.ProfileIdentity.ReportCode,
                         persistedStore, periodStart, periodEnd, cancellationToken).ConfigureAwait(false)

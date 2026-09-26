@@ -31,7 +31,7 @@ public partial class ReportsWorkspaceView
         Configure(BrandSegmentFilterInput, salesLines || report is "stock-closing" or "stock-brand" or "stock-slow");
         Configure(TransactionTypeFilterInput, salesLines);
         Configure(ItemFilterInput, salesLines || report.StartsWith("stock-", StringComparison.Ordinal) && report != "stock-physical");
-        StoreFilterInput.IsEnabled = report is not ("dsr" or "sales-titan" or "sales-helios" or "sales-combined");
+        StoreFilterInput.IsEnabled = report is not ("dsr" or "sales-combined");
         void Configure(TextBox input, bool enabled) { input.IsEnabled = enabled; if (!enabled) input.Clear(); }
     }
 
@@ -57,5 +57,14 @@ public partial class ReportsWorkspaceView
         var scope = ReportScope();
         static string Values(IReadOnlyList<string>? values) => values is null ? "All" : string.Join(", ", values);
         return $"Applied scope: {scope.DateFrom:yyyy-MM-dd} to {scope.DateTo:yyyy-MM-dd}; Stores: {Values(scope.StoreCodes)}; Brand segments: {Values(scope.BrandSegments)}; Transaction types: {Values(scope.TransactionTypes)}; Items: {Values(scope.ItemCodes)}";
+    }
+
+    public async Task OpenInvestigationAsync(string report, string reference)
+    {
+        BrandSegmentFilterInput.Clear(); TransactionTypeFilterInput.Clear();
+        ItemFilterInput.Text = report == "sales-item" ? reference : string.Empty;
+        ReportSearchInput.Clear();
+        await RunReportAsync(report);
+        ApplyReportFilter();
     }
 }

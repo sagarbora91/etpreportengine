@@ -9,8 +9,8 @@ public sealed class HelpCentreTests
     public void Operations_help_uses_consistent_centre_spelling()
     {
         var topic = HelpCentreRegistry.Topics.Single(topic => topic.Id == "exception-centre");
-        Assert.Contains("Operations Centre", topic.Overview);
-        Assert.Contains("Approval Centre", topic.Overview);
+        Assert.Contains("Reports → Exceptions", topic.Overview);
+        Assert.Contains("Import → Problems", topic.Overview);
         Assert.DoesNotContain("Center", topic.Overview);
     }
 

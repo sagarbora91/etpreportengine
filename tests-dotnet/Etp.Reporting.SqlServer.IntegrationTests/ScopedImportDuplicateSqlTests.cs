@@ -27,7 +27,8 @@ public sealed class ScopedImportDuplicateSqlTests
                 await File.WriteAllBytesAsync(path, bytes);
             }
             var persistence = new SqlServerImportPersistenceUseCase(database.ConnectionString);
-            var first = await new FolderImportService(persistence).RunFilesAsync(paths,new("Scoped outcome SQL test"));
+            var knownStores = await new StoreCatalogRepository(database.ConnectionString).ActiveCodesAsync();
+            var first = await new FolderImportService(persistence, knownStores: knownStores).RunFilesAsync(paths,new("Scoped outcome SQL test"));
             Assert.Equal(2,first.Files.Count);
             Assert.All(first.Files,file =>
             {
@@ -38,7 +39,7 @@ public sealed class ScopedImportDuplicateSqlTests
             Assert.Equal(1,await database.ExecuteAsync("SELECT COUNT(DISTINCT source_sha256) FROM dbo.import_files"));
             foreach(var path in paths)
             {
-                var accepted = new MatchedImportEnvelopeFactory().RequireAccepted(await new OpenXmlWorkbookReader().ReadAsync(path));
+                var accepted = new MatchedImportEnvelopeFactory(knownStores).RequireAccepted(await new OpenXmlWorkbookReader().ReadAsync(path));
                 var repeated = await persistence.PersistAsync(new(accepted,accepted.Scope.PeriodEnd!.Value,accepted.Scope.StoreCode!,"Scoped outcome SQL test"));
                 Assert.Equal("Duplicate",repeated.Status);
                 Assert.Equal(0,repeated.PersistedRows);
@@ -59,7 +60,7 @@ public sealed class ScopedImportDuplicateSqlTests
                 """);
             foreach(var path in paths)
             {
-                var accepted = new MatchedImportEnvelopeFactory().RequireAccepted(await new OpenXmlWorkbookReader().ReadAsync(path));
+                var accepted = new MatchedImportEnvelopeFactory(knownStores).RequireAccepted(await new OpenXmlWorkbookReader().ReadAsync(path));
                 var outcome = await persistence.LoadOutcomeInScopeAsync(accepted.Workbook.Sha256,accepted.ProfileIdentity.ReportCode,
                     accepted.Scope.StoreCode!,accepted.Scope.PeriodStart!.Value,accepted.Scope.PeriodEnd!.Value);
                 var expectedConflicts = accepted.ProfileIdentity.ReportCode=="R022" ? 1 : 0;
@@ -96,7 +97,7 @@ public sealed class ScopedImportDuplicateSqlTests
             }
 
             var persistence = new SqlServerImportPersistenceUseCase(database.ConnectionString);
-            var service = new FolderImportService(persistence);
+            var service = new FolderImportService(persistence, knownStores: await new StoreCatalogRepository(database.ConnectionString).ActiveCodesAsync());
             var first = await service.RunFilesAsync(paths, new("Scoped duplicate SQL test"));
             Assert.Equal(8, first.Files.Count);
             Assert.All(first.Files, file => Assert.True(file.Status == "empty export", $"{file.FileName}: {file.Status}; {file.Message}"));

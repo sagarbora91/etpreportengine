@@ -13,6 +13,39 @@ namespace Etp.Reporting.Desktop.Tests;
 [Collection(WpfViewCollection.Name)]
 public sealed class EveningReportInteractionTests
 {
+    [Fact]
+    public void Cash_with_two_active_stores_requires_a_choice_before_querying()
+    {
+        RunSta(async () =>
+        {
+            var calls = 0;
+            var view = CreateView((_, store, _, _) =>
+            {
+                calls++;
+                return Task.FromResult<IReadOnlyList<CashBookDay>>(CashDays(store));
+            });
+            view.ApplyScope(new(2026, 8, 24), new(2026, 8, 25), StoreScopeCatalog.AllStores);
+            await view.RunReportAsync("cash");
+            Assert.Contains("Choose one store in the header.", ((TextBlock)view.FindName("ReportResult")).Text);
+            Assert.Equal(0, calls);
+            Assert.Equal(string.Empty, ((TextBox)view.FindName("StoreFilterInput")).Text);
+        });
+    }
+
+    [Fact]
+    public void Cash_header_and_focused_scope_do_not_choose_between_two_stores()
+    {
+        RunSta(() =>
+        {
+            var focused = new ReportWorkspaceControl(ReportWorkspaceDefinition.ForReport("cash"));
+            focused.SetStores(TestStoreCatalog.Create(), StoreScopeCatalog.AllStores);
+            Assert.Equal("Select one store", focused.ScopeSelector.SelectedItem);
+            Assert.Equal(2, ReportTaskScope.StoreIndexForReport("cash", 2, 2));
+            Assert.Equal(-1, ReportTaskScope.StoreIndexForReport("cash", -1, 2));
+            return Task.CompletedTask;
+        });
+    }
+
     [Theory]
     [InlineData("Expenses")]
     [InlineData("No matching cash entry")]
@@ -42,7 +75,7 @@ public sealed class EveningReportInteractionTests
                 .Where(header => header.Content is string).OrderBy(header => header.DisplayIndex).Select(header => header.Content));
             var row = grid.Items[0];
             Assert.Equal("24 Aug 2026", Assert.IsType<TextBlock>(grid.Columns[0].GetCellContent(row)).Text);
-            Assert.Equal("Titan World", Assert.IsType<TextBlock>(grid.Columns[1].GetCellContent(row)).Text);
+            Assert.Equal("WLMHW", Assert.IsType<TextBlock>(grid.Columns[1].GetCellContent(row)).Text);
             Assert.Equal("Expenses", Assert.IsType<TextBlock>(grid.Columns[2].GetCellContent(row)).Text);
             var amount = Assert.IsType<TextBlock>(grid.Columns[3].GetCellContent(row));
             Assert.Equal("12,34,567.13", amount.Text);
@@ -147,23 +180,27 @@ public sealed class EveningReportInteractionTests
     }
 
     [Theory]
-    [InlineData("Both stores", "WLMHW", "Titan World", 2, 0)]
+    [InlineData("Both stores", null, null, 2, 2)]
     [InlineData("Titan World", "WLMHW", "Titan World", 0, 0)]
     [InlineData("Helios", "HEMW", "Helios", 1, 1)]
-    public void Cash_opens_with_a_usable_store_and_preserves_an_explicit_store(string requested, string expectedCode, string expectedLabel, int headerBefore, int headerAfter)
+    public void Cash_requires_a_choice_or_preserves_an_explicit_store(string requested, string? expectedCode, string? expectedLabel, int headerBefore, int headerAfter)
     {
         RunSta(async () =>
         {
             string? loadedStore = null;
             var view = CreateView((_, store, _, _) => { loadedStore = store; return Task.FromResult<IReadOnlyList<CashBookDay>>(CashDays(store)); });
+            view.SetStores(TestStoreCatalog.Create());
             view.ApplyScope(new(2026, 8, 24), new(2026, 8, 25), requested);
             await view.RunReportAsync("cash");
             Assert.Equal(expectedCode, loadedStore);
-            Assert.DoesNotContain("Select a store", ((TextBlock)view.FindName("ReportResult")).Text);
+            if (expectedCode is null)
+                Assert.Contains("Choose one store in the header.", ((TextBlock)view.FindName("ReportResult")).Text);
+            else
+                Assert.DoesNotContain("Select a store", ((TextBlock)view.FindName("ReportResult")).Text);
             var focused = new ReportWorkspaceControl(ReportWorkspaceDefinition.ForReport("cash"));
-            focused.ConfigureTaskScope(requested);
-            Assert.Equal(expectedLabel, focused.ScopeSelector.SelectedItem);
-            Assert.Equal(headerAfter, ReportTaskScope.StoreIndexForReport("cash", headerBefore));
+            focused.SetStores(TestStoreCatalog.Create(),requested);
+            Assert.Equal(expectedCode is null ? "Select one store" : $"{expectedLabel} ({expectedCode})", focused.ScopeSelector.SelectedItem);
+            Assert.Equal(headerAfter, ReportTaskScope.StoreIndexForReport("cash", headerBefore,2));
         });
     }
 
@@ -185,6 +222,7 @@ public sealed class EveningReportInteractionTests
         var view = new ReportsWorkspaceView(() => "synthetic", _ => throw new NotSupportedException(), _ => query,
             _ => throw new NotSupportedException(), new ReportExportCoordinator(), new UnusedDiagnostic(),
             cash ?? ((_, store, _, _) => Task.FromResult<IReadOnlyList<CashBookDay>>(CashDays(store))));
+        view.SetStores(TestStoreCatalog.Create());
         view.ApplyScope(new(2026, 8, 24), new(2026, 8, 25), "Titan World");
         return view;
     }

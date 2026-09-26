@@ -56,8 +56,8 @@ public sealed class DailySalesReportPdfExporter
         };
         const double kpiY = 83, gap = 9, cardWidth = 126.815;
         for (var i = 0; i < cards.Length; i++) Kpi(g, 18 + i * (cardWidth + gap), kpiY, cardWidth, 60, cards[i]);
-        StoreCard(g, 18, 159, 398.445, 118, r.Stores[0], "#EAF2FF"); StoreCard(g, 425.445, 159, 398.445, 118, r.Stores[1], "#F2ECFF");
-        OperationalCard(g, 18, 289.276, 398.445, 126, r.Stores[0]); OperationalCard(g, 425.445, 289.276, 398.445, 126, r.Stores[1]);
+        var width=(PageWidth-36-9*Math.Max(0,r.Stores.Count-1))/Math.Max(1,r.Stores.Count);
+        for(var index=0;index<r.Stores.Count;index++) { StoreCard(g,18+index*(width+9),159,width,118,r.Stores[index],index%2==0?"#EAF2FF":"#F2ECFF"); OperationalCard(g,18+index*(width+9),289.276,width,126,r.Stores[index]); }
         ServiceCard(g, 18, 427.276, 398.445, 150, r.Service); TargetCard(g, 425.445, 427.276, 398.445, 150, r.Targets);
         Text(g, "All amounts in INR · FTD = For the Day · MTD = Month to Date · YTD = Year to Date", 5.3, false, muted, 200, 582, 442, 9, XParagraphAlignment.Center);
     }
@@ -123,8 +123,8 @@ public sealed class DailySalesReportPdfExporter
         }
     }
 
-    private static string StoreSplit(DailySalesReportDocument report, Func<DsrStoreCard, decimal?> selector) => $"Titan {DsrDisplay.Number(selector(report.Stores[0]), 0)} · Helios {DsrDisplay.Number(selector(report.Stores[1]), 0)}";
-    private static string StoreWalkInSplit(DailySalesReportDocument report) => $"Titan {DsrDisplay.Number(report.Stores[0].FtdWalkIns, 0)} · Helios {DsrDisplay.Number(report.Stores[1].FtdWalkIns, 0)}";
+    private static string StoreSplit(DailySalesReportDocument report, Func<DsrStoreCard, decimal?> selector) => string.Join(" · ",report.Stores.Select(x=>$"{x.DisplayName} {DsrDisplay.Number(selector(x),0)}"));
+    private static string StoreWalkInSplit(DailySalesReportDocument report) => string.Join(" · ",report.Stores.Select(x=>$"{x.DisplayName} {DsrDisplay.Number(x.FtdWalkIns,0)}"));
 
     private static void Card(XGraphics g, double x, double y, double w, double h, string fill, string stroke, double radius) => g.DrawRoundedRectangle(new XPen(Colour(stroke), .8), new XSolidBrush(Colour(fill)), x, y, w, h, radius, radius);
     private static void FillRounded(XGraphics g, string fill, double x, double y, double w, double h, double radius) => g.DrawRoundedRectangle(XPens.Transparent, new XSolidBrush(Colour(fill)), x, y, w, h, radius, radius);

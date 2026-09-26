@@ -12,16 +12,16 @@ internal static class EveningDsrPdf
         var stores=report.EveningSheets.Where(x=>x.StoreCode!="COMBINED").ToArray();
         for(var i=0;i<stores.Length;i++)
         {
-            var s=stores[i];var x=18+i*407d;
-            Write(g,s.StoreName,x,46,398,20,12,true);
-            Write(g,$"STORE TGT {Money(s.StoreTarget)}    DAY TGT {Money(s.DayTarget)}",x,69,398,16,8);
-            Write(g,$"MTD BLA {Money(s.Balance)}    REQ ADS {Money(s.RequiredAds)}",x,87,398,16,8);
-            Table(g,x,109,398,330,s.Rows);
+            var s=stores[i];var width=(806d-9*Math.Max(0,stores.Length-1))/Math.Max(1,stores.Length);var x=18+i*(width+9);
+            Write(g,s.StoreName,x,46,width,20,12,true);
+            Write(g,$"STORE TGT {Money(s.StoreTarget)}    DAY TGT {Money(s.DayTarget)}",x,69,width,16,8);
+            Write(g,$"MTD BLA {Money(s.Balance)}    REQ ADS {Money(s.RequiredAds)}",x,87,width,16,8);
+            Table(g,x,109,width,330,s.Rows);
         }
         var combined=report.EveningSheets.FirstOrDefault(x=>x.StoreCode=="COMBINED");
         if(combined is not null)
         {
-            Write(g,"WOT + HELIOS",18,448,806,15,10,true);
+            Write(g,combined.StoreName,18,448,806,15,10,true);
             Table(g,18,466,806,79,combined.Rows.Where(x=>x.Metric is "VOL" or "VALUE" or "INVOICE" or "CONVERSION %").ToArray());
         }
         Write(g,$"Service · WDC {Money(report.Service.Wdc)}  Cash {Money(report.Service.Cash)}  Card {Money(report.Service.Card)}  UPI {Money(report.Service.Upi)}  Total {Money(report.Service.Total)}",18,550,806,14,8);

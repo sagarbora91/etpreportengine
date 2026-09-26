@@ -18,7 +18,7 @@ public sealed class StockSqlImportOrchestrator(ITransactionalImportStore store)
 {
     public Task<StockImportPersistenceOutcome> PersistAsync(WorkbookSnapshot workbook,int? storeId=null,CancellationToken cancellationToken=default,DateOnly? expectedBusinessDate=null,string? expectedStoreCode=null,string? importedBy=null,ImportRestatementRequest? restatement=null)
     {
-        var inspection=new MatchedImportEnvelopeFactory().Inspect(workbook);
+        var inspection=new MatchedImportEnvelopeFactory(string.IsNullOrWhiteSpace(expectedStoreCode) ? [] : [expectedStoreCode]).Inspect(workbook);
         if(inspection.AcceptedImport is null) throw new StockImportBlockedException(inspection.Diagnostics);
         return PersistAsync(inspection.AcceptedImport,storeId,cancellationToken,expectedBusinessDate,expectedStoreCode,importedBy,restatement);
     }

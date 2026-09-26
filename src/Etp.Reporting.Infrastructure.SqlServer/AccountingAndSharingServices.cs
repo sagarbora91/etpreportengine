@@ -36,7 +36,12 @@ public sealed class TallyXmlExportService
         AccountingBatchDraft batch, CancellationToken cancellationToken = default)
     {
         if (!batch.IsBalanced || batch.DebitTotal != batch.CreditTotal) throw new InvalidOperationException("Only a balanced accounting batch with complete mappings can be exported.");
-        var full = Path.GetFullPath(path); Directory.CreateDirectory(Path.GetDirectoryName(full)!); var temporary = full + $".{Guid.NewGuid():N}.tmp";
+        var full = Path.GetFullPath(path);
+        for (var candidate = full; !string.IsNullOrEmpty(candidate); candidate = Path.GetDirectoryName(candidate))
+            if ((File.Exists(candidate) || Directory.Exists(candidate)) && (File.GetAttributes(candidate) & FileAttributes.ReparsePoint) != 0)
+                throw new InvalidOperationException("Accounting exports cannot use linked folders or files.");
+        Directory.CreateDirectory(Path.GetDirectoryName(full)!); var temporary = full + $".{Guid.NewGuid():N}.tmp";
+        var moved = false;
         try
         {
             var settings = new XmlWriterSettings { Async = true, Encoding = new UTF8Encoding(false), Indent = true };
@@ -64,7 +69,13 @@ public sealed class TallyXmlExportService
                 await writer.WriteEndElementAsync(); await writer.WriteEndElementAsync(); await writer.WriteEndElementAsync(); await writer.WriteEndElementAsync(); await writer.WriteEndElementAsync(); await writer.WriteEndElementAsync();
                 await writer.WriteEndDocumentAsync(); await writer.FlushAsync();
             }
-            File.Move(temporary, full, true); return await HashAsync(full, cancellationToken).ConfigureAwait(false);
+            File.Move(temporary, full, false); moved = true;
+            return await HashAsync(full, cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            if (moved) { try { File.Delete(full); } catch (IOException) { } catch (UnauthorizedAccessException) { } }
+            throw;
         }
         finally { try { if (File.Exists(temporary)) File.Delete(temporary); } catch (IOException) { } }
     }

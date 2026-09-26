@@ -18,9 +18,10 @@ public sealed class RegistersPresentationSession
     public async Task<IReadOnlyList<DigitalRegisterEntry>> RefreshAsync(
         string connectionString,
         string? search,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? registerType = null)
     {
-        Entries = await serviceFactory(connectionString).LoadAsync(search, cancellationToken: cancellationToken).ConfigureAwait(false);
+        Entries = await serviceFactory(connectionString).LoadAsync(search, cancellationToken: cancellationToken, registerType: registerType).ConfigureAwait(false);
         return Entries;
     }
 

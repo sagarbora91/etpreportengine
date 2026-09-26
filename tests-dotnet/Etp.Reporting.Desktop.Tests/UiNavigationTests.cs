@@ -12,8 +12,10 @@ public sealed class UiNavigationTests
     public void Viewer_can_read_import_history_and_reports_but_cannot_import_or_administer()
     {
         Assert.Contains(TaskNavigation.Find("import-history"), TaskNavigation.InSection("Import", ShellAccess.Viewer));
-        foreach (var id in new[] { "import-files", "conflicts" })
+        foreach (var id in new[] { "import-files" })
             Assert.False(new ShellNavigationService().Navigate(TaskNavigation.Find(id)!.Route, ShellAccess.Viewer).IsAllowed);
+        foreach (var id in new[] { "conflicts", "source-inbox" })
+            Assert.True(new ShellNavigationService().Navigate(TaskNavigation.Find(id)!.Route, ShellAccess.Viewer).IsAllowed);
         Assert.All(TaskNavigation.InSection("Settings",ShellAccess.Viewer), t => Assert.Contains(t.Tab,new[] {"Display","Help"}));
         Assert.NotEmpty(TaskNavigation.InSection("Reports",ShellAccess.Viewer));
     }

@@ -3,6 +3,7 @@ extern alias EtpApplication;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
+using InvestigationHit = EtpApplication::Etp.Reporting.Application.Distribution.InvestigationHit;
 using ApprovalRequest = EtpApplication::Etp.Reporting.Application.OperationsAdministration.ApprovalRequest;
 using DecideApproval = EtpApplication::Etp.Reporting.Application.OperationsAdministration.DecideApproval;
 using IInvestigationQuery = EtpApplication::Etp.Reporting.Application.Distribution.IInvestigationQuery;
@@ -32,6 +33,8 @@ public partial class InvestigationApprovalsWorkspaceView : UserControl
         this.operationsServiceFactory = operationsServiceFactory ?? throw new ArgumentNullException(nameof(operationsServiceFactory));
         this.investigationQueryFactory = investigationQueryFactory ?? throw new ArgumentNullException(nameof(investigationQueryFactory));
         InitializeComponent();
+        System.Windows.Automation.AutomationProperties.SetName(ApprovalStatusFilter, "Filter approval status");
+        InvestigationGrid.AutoGeneratingColumn += (_, e) => { if (e.PropertyName is "TargetTaskId" or "TargetId" or "NavigationHint") e.Cancel = true; };
         approvalReasons = new(ApprovalGrid, ApprovalReasonInput, row => (row as ApprovalRequest)?.Id);
         AdjustmentDateInput.SelectedDate = DateTime.Today.AddDays(-1);
     }
@@ -40,17 +43,24 @@ public partial class InvestigationApprovalsWorkspaceView : UserControl
     public string StatusText => InvestigationStatus.Text;
     public int ApprovalRowCount => ApprovalGrid.Items.Count;
 
-    public void UpdateAccess(OperationsAdministrationWorkspaceAccess value) => access = value;
+    public event EventHandler<InvestigationHit>? InvestigationNavigationRequested;
+    public string StoreCode { get => AdjustmentStoreInput.Text; set => AdjustmentStoreInput.Text = value; }
+    public void UpdateAccess(OperationsAdministrationWorkspaceAccess value)
+    {
+        access = value;
+        AdjustmentEditor.IsEnabled = ApprovalActions.IsEnabled = RefreshApprovalsButton.IsEnabled = value.CanAdminister;
+    }
     public void FocusSearch() { GlobalSearchInput.Focus(); GlobalSearchInput.SelectAll(); }
 
     public async Task RefreshApprovalsAsync()
     {
         try
         {
-            RequireViewAccess();
-            var rows = await OperationsService.LoadApprovalsAsync();
+            RequireOwnerAccess();
+            var filter = (ApprovalStatusFilter.SelectedItem as ComboBoxItem)?.Content?.ToString();
+            var rows = await OperationsService.LoadApprovalsAsync(filter == "All requests" ? null : filter?.ToUpperInvariant());
             ApprovalGrid.ItemsSource = rows;
-            InvestigationStatus.Text = $"{rows.Count:N0} approval(s) pending.";
+            InvestigationStatus.Text = $"{rows.Count:N0} request(s), {rows.Count(x => x.Status == "PENDING"):N0} pending. Select a pending request to decide.";
         }
         catch (Exception ex) { DesktopDiagnostics.Record(ex, "OperationsAdministration.Investigation", "APPROVAL_REFRESH_FAILED"); InvestigationStatus.Text = OperationsAdministrationWorkspaceErrors.Friendly(ex); }
     }
@@ -74,7 +84,7 @@ public partial class InvestigationApprovalsWorkspaceView : UserControl
         using var operation = operationGate.TryEnter(this); if (operation is null) return;
         try
         {
-            RequireImportAccess();
+            RequireOwnerAccess();
             if (AdjustmentDateInput.SelectedDate is null) throw new InvalidOperationException("Select the adjustment business date.");
             if (string.IsNullOrWhiteSpace(AdjustmentStoreInput.Text) || string.IsNullOrWhiteSpace(AdjustmentTypeInput.Text))
                 throw new InvalidOperationException("Enter the store and adjustment type.");
@@ -106,12 +116,27 @@ public partial class InvestigationApprovalsWorkspaceView : UserControl
         try
         {
             RequireOwnerAccess();
-            if (ApprovalGrid.SelectedItem is not ApprovalRequest row) throw new InvalidOperationException("Select one pending approval.");
+            if (ApprovalGrid.SelectedItem is not ApprovalRequest row || row.Status != "PENDING") throw new InvalidOperationException("Select one pending approval.");
             await OperationsService.DecideApprovalAsync(new DecideApproval(row.Id, approve, ApprovalReasonInput.Text));
             ApprovalReasonInput.Clear();
             await RefreshApprovalsAsync();
         }
         catch (Exception ex) { DesktopDiagnostics.Record(ex, "OperationsAdministration.Investigation", "APPROVAL_DECISION_FAILED"); InvestigationStatus.Text = OperationsAdministrationWorkspaceErrors.Friendly(ex); }
+    }
+
+    private async void ApprovalFilter_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (approvalReasons is not null && access.CanAdminister) await RefreshApprovalsAsync();
+    }
+    private void OpenInvestigation_Click(object sender, RoutedEventArgs e) => OpenSelectedInvestigation();
+    private void Investigation_DoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e) => OpenSelectedInvestigation();
+    public void OpenSelectedInvestigation()
+    {
+        if (!access.CanView || InvestigationGrid.SelectedItem is not InvestigationHit hit) return;
+        if (hit.TargetTaskId is null) { InvestigationStatus.Text = "This result has no available destination."; return; }
+        if (hit.TargetTaskId.StartsWith("register-", StringComparison.Ordinal) && !access.CanImport)
+        { InvestigationStatus.Text = "Owner or Store Manager permission is required to open registers."; return; }
+        InvestigationNavigationRequested?.Invoke(this, hit);
     }
 
     private void RequireViewAccess()

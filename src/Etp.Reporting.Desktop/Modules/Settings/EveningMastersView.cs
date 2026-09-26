@@ -9,7 +9,8 @@ namespace Etp.Reporting.Desktop.Modules.Settings;
 public sealed class EveningMastersView : UserControl
 {
     private readonly DataGrid brands=Grid(), targets=Grid(), evidence=Grid();
-    private readonly TextBox store=Input("Store"),label=Input("DSR row label"),order=Input("Order",true),codes=Input("Source codes, comma-separated"),amount=Input("Monthly target",true);
+    private readonly ComboBox store=new(){MinHeight=44,MinWidth=180,IsEditable=false};
+    private readonly TextBox label=Input("DSR row label"),order=Input("Order",true),codes=Input("Source codes, comma-separated"),amount=Input("Monthly target",true);
     private readonly DatePicker month=new(){SelectedDate=DateTime.Today,MinHeight=44};
     private readonly TextBlock status=new(){TextWrapping=TextWrapping.Wrap};
     private readonly TextBlock targetPermissionNote=new(){Text="Owner permission is required to change monthly targets.",TextWrapping=TextWrapping.Wrap};
@@ -17,11 +18,12 @@ public sealed class EveningMastersView : UserControl
     private readonly Func<string> connection;private readonly Func<bool> owner;private readonly Func<bool> canEditBrands;private int rowId;
     public EveningMastersView(Func<string> connection,Func<bool> owner,Func<bool>? canEditBrands=null)
     {
+        System.Windows.Automation.AutomationProperties.SetName(store,"Store");
         System.Windows.Automation.AutomationProperties.SetName(brands,"Saved brand rows");
         System.Windows.Automation.AutomationProperties.SetName(targets,"Saved monthly targets");
         System.Windows.Automation.AutomationProperties.SetName(evidence,"Source brand evidence");
         System.Windows.Automation.AutomationProperties.SetName(month,"Target month");
-        this.connection=connection;this.owner=owner;this.canEditBrands=canEditBrands??owner;store.Text="WLMHW";order.Text="10";
+        this.connection=connection;this.owner=owner;this.canEditBrands=canEditBrands??owner;order.Text="10";
         brands.SelectionChanged+=(_,_)=>{if(brands.SelectedItem is BrandRowDefinition r){rowId=r.Id;store.Text=r.StoreCode;label.Text=r.Label;order.Text=r.Order.ToString();codes.Text=r.SourceCodes;}};
         targets.SelectionChanged+=(_,_)=>{if(targets.SelectedItem is MonthlyTargetRow r){store.Text=r.StoreCode;month.SelectedDate=r.Month.ToDateTime(TimeOnly.MinValue);amount.Text=r.TargetSales.ToString(CultureInfo.CurrentCulture);}};
         var panel=new StackPanel();panel.Children.Add(new TextBlock{Text="Brand rows and monthly targets",FontSize=18,FontWeight=FontWeights.Bold});
@@ -45,7 +47,7 @@ public sealed class EveningMastersView : UserControl
         foreach(var (button,ownerOnly) in accessButtons)button.IsEnabled=ownerOnly?owner():canEditBrands();
         targetPermissionNote.Visibility=owner()?Visibility.Collapsed:Visibility.Visible;
     }
-    private async Task Refresh(){var r=new EveningMasterRepository(connection());brands.ItemsSource=await r.LoadBrandsAsync();targets.ItemsSource=await r.LoadTargetsAsync();evidence.ItemsSource=await r.LoadSourceBrandsAsync();status.Text="Saved rows are shown above.";}
+    private async Task Refresh(){var selected=store.Text;store.ItemsSource=(await new StoreCatalogRepository(connection()).LoadAsync()).Where(x=>x.IsActive).Select(x=>x.Code).ToArray();store.SelectedItem=selected; if(store.SelectedIndex<0&&store.Items.Count==1)store.SelectedIndex=0;var r=new EveningMasterRepository(connection());brands.ItemsSource=await r.LoadBrandsAsync();targets.ItemsSource=await r.LoadTargetsAsync();evidence.ItemsSource=await r.LoadSourceBrandsAsync();status.Text="Saved rows are shown above.";}
     private async Task Run(Func<Task> action,bool ownerOnly=false){try{if(ownerOnly?!owner():!canEditBrands())throw new UnauthorizedAccessException(ownerOnly?"Owner permission is required.":"Owner or Store Manager permission is required.");IsEnabled=false;await action();}catch(Exception ex){status.Text=DesktopFriendlyError.Describe(ex);}finally{IsEnabled=true;RefreshAccessState();}}
     private Button Button(string title,Func<Task> action,bool ownerOnly=false){var b=new Button{Content=title,MinHeight=44,Margin=new(4),Padding=new(12,4,12,4)};accessButtons.Add((b,ownerOnly));b.Click+=async(_,_)=>await Run(action,ownerOnly);return b;}
     private static DataGrid Grid()=>new(){AutoGenerateColumns=true,IsReadOnly=true,MaxHeight=210,MinHeight=88,RowHeight=44,Margin=new(0,6,0,6)};

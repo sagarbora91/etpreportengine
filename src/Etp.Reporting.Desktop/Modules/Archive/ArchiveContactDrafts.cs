@@ -39,6 +39,9 @@ public sealed partial class ArchiveWorkspaceView
     }
     private void ApplyContacts(IReadOnlyList<SharingContact> rows)
     {
+        var recipientId = (ShareContactPicker.SelectedItem as SharingContact)?.Id;
+        ShareContactPicker.ItemsSource = rows.Where(row => row.IsActive).ToArray();
+        ShareContactPicker.SelectedItem = rows.FirstOrDefault(row => row.IsActive && row.Id == recipientId);
         RememberContact(); var selected = editingContact;
         applyingContacts = true;
         try { SharingContactsGrid.ItemsSource = rows; SharingContactsGrid.SelectedItem = rows.FirstOrDefault(row => row.Id == selected); }

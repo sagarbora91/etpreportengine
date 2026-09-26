@@ -18,11 +18,11 @@
             <Expander x:Name="ImportOptionsExpander" Header="Source and restatement options" Margin="0,0,0,8" automation:AutomationProperties.Name="Source and restatement options">
                 <StackPanel>
             <TextBox x:Name="WorkbookPathInput" IsReadOnly="True" Padding="8" Margin="0,0,0,8" automation:AutomationProperties.Name="Selected import source"/>
-            <CheckBox x:Name="RestatementModeInput" Content="Override for restatement (Owner)" Checked="RestatementMode_Changed" Unchecked="RestatementMode_Changed" MinHeight="{DynamicResource ActiveTargetHeight}" automation:AutomationProperties.Name="Override for restatement"/>
+            <CheckBox x:Name="RestatementModeInput" Content="Request restatement approval" Checked="RestatementMode_Changed" Unchecked="RestatementMode_Changed" MinHeight="{DynamicResource ActiveTargetHeight}" automation:AutomationProperties.Name="Request restatement approval"/>
             <TextBlock Text="Overrides can fill a missing store or date. Values already detected in the file must match; a corrected file is required to change them." TextWrapping="Wrap" Margin="0,0,0,8"/>
             <WrapPanel x:Name="OverridePanel" Visibility="Collapsed" Margin="0,0,0,8">
                 <TextBlock Text="Store override" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                <ComboBox x:Name="ImportStoreInput" Width="120" SelectedIndex="-1" IsEnabled="False" automation:AutomationProperties.Name="Restatement store override"><ComboBoxItem Content="WLMHW"/><ComboBoxItem Content="HEMW"/></ComboBox>
+                <ComboBox x:Name="ImportStoreInput" Width="120" SelectedIndex="-1" IsEnabled="False" automation:AutomationProperties.Name="Restatement store override"></ComboBox>
                 <TextBlock Text="Date override" VerticalAlignment="Center" Margin="10,0,6,0"/>
                 <DatePicker x:Name="ImportBusinessDateInput" Width="145" IsEnabled="False" automation:AutomationProperties.Name="Restatement date override"/>
                 <TextBox x:Name="RestatementReasonInput" Width="260" Margin="8,0,0,0" Padding="6" automation:AutomationProperties.Name="Required restatement reason"/>

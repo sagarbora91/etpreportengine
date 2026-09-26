@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -35,7 +35,7 @@ public sealed partial class TaskNavigator(MainWindow window)
     /// the panel: the focused layout only gives a named tab to a direct child, and nested in
     /// a Border it landed in the unnamed catch-all tab instead.
     /// 13 ProductHealthGrid, 14 AdministrationStatus, 16 DatabaseRecoveryStatus,
-    /// 17 DatabaseRecoveryGrid, 18 the Support package button.
+    /// 17 DatabaseRecoveryGrid, 18 the retained empty recovery-action panel.
     /// <para>
     /// 14 is the only place any of these screens says why a save or a refresh failed, and
     /// until 25 September 2026 every layout but "health" left it out, so Settings &gt; Users
@@ -47,10 +47,10 @@ public sealed partial class TaskNavigator(MainWindow window)
     /// </summary>
     internal static (int[] Body, int[] Actions) AdministrationTaskLayout(string id) => id switch
     {
-        "users" => (new int[] {5,6,8,13,14}, new int[] {7}),
-        "kpi" or "profiles" => (new int[] {10,11,13,14}, new int[] {}),
-        "health" => (new int[] {16,17,13,14}, new int[] {18}),
-        _ => (new int[] {0,1,3,13,14}, new int[] {2})
+        "users" => (new int[] {5,6,8,12,13,14}, new int[] {7}),
+        "kpi" => (new int[] {10,11,12,13,14}, new int[] {}),
+        "health" => (new int[] {16,17,12,13,14}, new int[] {}),
+        _ => (new int[] {0,1,3,12,13,14}, new int[] {2})
     };
 
     private void RememberContext(WorkspaceRoute next)
@@ -74,8 +74,30 @@ public sealed partial class TaskNavigator(MainWindow window)
 
     private bool updatingScope;
     private DateTime appliedDate = InitialBusinessDate;
-    private int appliedStore = 2;
-    private string HeaderStore => appliedStore == 0 ? "WLMHW" : appliedStore == 1 ? "HEMW" : "";
+    private int appliedStore;
+    private string HeaderStore => appliedStore >= 0 && appliedStore < window.ShellStoreSelector.Items.Count
+        ? (window.ShellStoreSelector.Items[appliedStore] as ComboBoxItem)?.Tag?.ToString() ?? "" : "";
+
+    internal void SetStores(StoreScopeCatalog catalog)
+    {
+        var previous = HeaderStore;
+        updatingScope = true;
+        try
+        {
+            window.ShellStoreSelector.Items.Clear();
+            var labelFactory = new FrameworkElementFactory(typeof(TextBlock));
+            labelFactory.SetBinding(TextBlock.TextProperty, new System.Windows.Data.Binding());
+            labelFactory.SetValue(TextBlock.TextWrappingProperty, TextWrapping.NoWrap);
+            labelFactory.SetValue(TextBlock.TextTrimmingProperty, TextTrimming.CharacterEllipsis);
+            var labelTemplate = new DataTemplate { VisualTree = labelFactory };
+            foreach(var store in catalog.Stores) window.ShellStoreSelector.Items.Add(new ComboBoxItem { Content=StoreScopeCatalog.Label(store), Tag=store.Code, ToolTip=StoreScopeCatalog.Label(store), ContentTemplate=labelTemplate });
+            window.ShellStoreSelector.Items.Add(new ComboBoxItem { Content=StoreScopeCatalog.AllStores, Tag="" });
+            window.ShellStoreSelector.SelectedItem=window.ShellStoreSelector.Items.OfType<ComboBoxItem>().FirstOrDefault(x=>x.Tag?.ToString()==previous)
+                ?? window.ShellStoreSelector.Items[window.ShellStoreSelector.Items.Count-1];
+            appliedStore=window.ShellStoreSelector.SelectedIndex;
+        }
+        finally { updatingScope=false; }
+    }
 
     public void ShellStore_Changed(object sender, SelectionChangedEventArgs e) => RequestScopeChange();
 
@@ -101,7 +123,7 @@ public sealed partial class TaskNavigator(MainWindow window)
             ApplyBusinessDate(nextDate);
             RestoreHeader(nextDate, nextStore);
             window.reportsWorkspaceView.ApplyScope(window.reportsWorkspaceView.DateFrom, nextDate,
-                nextStore == 0 ? "Titan" : nextStore == 1 ? "Helios" : "Combined");
+                HeaderStore);
             window.dailyWorkflowWorkspace.StoreCode = HeaderStore;
             ApplyHiddenScope(window.registersWorkspaceView);
             ApplyHiddenScope(window.accountingWorkspaceView);
@@ -133,7 +155,7 @@ public sealed partial class TaskNavigator(MainWindow window)
         if (window.FocusedWorkspaceHost.Content is DailySalesReportWorkspace dsr) dsr.BusinessDatePicker.SelectedDate = selected;
         window.dailyWorkflowWorkspace.BusinessDate = selected;
         window.importWorkspaceView.BusinessDate = selected;
-        window.registersWorkspaceView.BusinessDate = selected;
+        window.registersWorkspaceView.ApplyHeaderScope(selected, HeaderStore);
         window.accountingWorkspaceView.BusinessDate = selected;
         window.sourceInboxWorkspaceView.BusinessDate = selected;
         window.archiveWorkspaceView.BusinessDate = selected;
@@ -366,27 +388,39 @@ public sealed partial class TaskNavigator(MainWindow window)
 
         window.UpdateSection(task);
         window.ShellStoreSelector.IsEnabled = true;
-        if (task.Section == "report-list") { window.FocusedWorkspaceHost.Content = new Modules.Reports.ReportListView(window.CurrentShellAccess, NavigateTask); window.focusedWorkspaceKind = "task"; return true; }
-        if (task.Section == "favourite-reports") { window.FocusedWorkspaceHost.Content = new Modules.Reports.FavouriteReportsView(UiPreferenceStore.Load(), window.CurrentShellAccess, NavigateTask); return true; }
+        if (task.Section is "report-list" or "favourite-reports")
+        {
+            window.FocusedWorkspaceHost.Content = task.Section == "report-list"
+                ? new Modules.Reports.ReportListView(window.CurrentShellAccess, NavigateTask)
+                : new Modules.Reports.FavouriteReportsView(UiPreferenceStore.Load(), window.CurrentShellAccess, NavigateTask);
+            window.focusedWorkspaceKind = "task";
+            window.FocusedWorkspaceLayer.Visibility = Visibility.Visible;
+            return true;
+        }
         if (task.Section == "help") { window.ShowHelpWorkspace(task.Id[5..]); return true; }
         if (task.Section == "profile") { window.OpenProfile_Click(window, new RoutedEventArgs()); return true; }
 
         if (task.Id != "settings" && task.Destination is not "Settings" and not "Dashboard") databaseContextStarted = true;
         window.UpdateSection(task);
-        window.ShellStoreSelector.IsEnabled = task.ReportCode is not ("dsr" or "sales-combined" or "sales-titan" or "sales-helios");
-        if (task.ReportCode is "dsr" or "sales-combined" or "sales-titan" or "sales-helios")
+        window.ShellStoreSelector.IsEnabled = task.ReportCode is not ("dsr" or "sales-combined");
+        if (task.ReportCode is "dsr" or "sales-combined")
         {
-            appliedStore = task.ReportCode == "sales-titan" ? 0 : task.ReportCode == "sales-helios" ? 1 : 2;
+            appliedStore = window.ShellStoreSelector.Items.Count - 1;
             RestoreHeader(appliedDate,appliedStore);
         }
-        var reportStore = Modules.Reports.ReportTaskScope.StoreIndexForReport(task.ReportCode, appliedStore);
+        var reportStore = Modules.Reports.ReportTaskScope.StoreIndexForReport(task.ReportCode, appliedStore, window.StoreScopes.Stores.Count);
         if (reportStore != appliedStore)
         {
             appliedStore = reportStore;
             RestoreHeader(appliedDate, appliedStore);
         }
-        window.reportsWorkspaceView.ApplyScope(window.reportsWorkspaceView.DateFrom,appliedDate,appliedStore == 0 ? "Titan" : appliedStore == 1 ? "Helios" : "Combined");
-        if (task.ReportCode is { } code) { _ = window.reportsWorkspaceView.RunReportAsync(code); return true; }
+        window.reportsWorkspaceView.ApplyScope(window.reportsWorkspaceView.DateFrom,appliedDate,HeaderStore);
+        if (task.ReportCode is { } code)
+        {
+            if (pendingInvestigation is { } reportHit) { pendingInvestigation = null; _ = OpenInvestigationReportAsync(code, reportHit.PrimaryReference); }
+            else _ = window.reportsWorkspaceView.RunReportAsync(code);
+            return true;
+        }
 
 
 
@@ -400,6 +434,7 @@ public sealed partial class TaskNavigator(MainWindow window)
 
         window.FocusedWorkspaceLayer.Visibility = Visibility.Visible;
         window.FocusedWorkspaceHost.Content = view; window.focusedWorkspaceKind = "task";
+        if (pendingInvestigation is { } hit) { pendingInvestigation = null; _ = SelectInvestigationAsync(hit); }
 
         return true;
     }
@@ -453,20 +488,30 @@ public sealed partial class TaskNavigator(MainWindow window)
                 // Indices are positions in DailyWorkflowWorkspaceView's root StackPanel.
                 // CashQuickFields was inserted at 7, so every child from 7 onward moved
                 // down by one and each entry below was corrected to match.
-                "manual" => (new int[] {8,3,6}, new int[] {8}), "stock-count" => (new int[] {2,12,3,11}, new int[] {12}),
+                "manual" => (new int[] {7,8,3,6}, new int[] {8}), "stock-count" => (new int[] {2,12,3,11}, new int[] {12}),
                 "staff-target" => (new int[] {2,14,3}, new int[] {14}), "finalisation" => (new int[] {2,15,3}, new int[] {15}),
-                "readiness" => (new int[] {3,15,17}, new int[] {15,16}), _ => (new int[] {2,3,17}, new int[] {16})
+                "readiness" => (new int[] {3,15,17,18}, new int[] {15,16}), _ => (new int[] {2,3,17}, new int[] {16})
             };
         }
         else if (task.Destination == "Registers") { view = window.registersWorkspaceView; body = new int[] {4,5,6,1,2}; actions = new int[] {0,1,5}; window.registersWorkspaceView.SelectTask(id); }
         else if (task.Destination == "Accounting")
         {
-            view = window.accountingWorkspaceView; window.accountingWorkspaceView.SelectTask(id);
-            (body, actions) = id == "accounting-approval" ? (new int[] {3,5,6,9}, new int[] {2}) : id is "ledger-mapping" or "mapping-review" ? (new int[] {3,7}, new int[] {8}) : id is "export-history" or "tally-export" ? (new int[] {3,5,6}, new int[] {2}) : (new int[] {3,4,5,6}, new int[] {2});
+            ApplyHiddenScope(window.accountingWorkspaceView);
+            window.accountingWorkspaceView.SelectTask("prepare-batch");
+            visited.Add(window.accountingWorkspaceView);
+            _ = window.accountingWorkspaceView.RefreshAsync();
+            return window.accountingWorkspaceView;
         }
-        else if (task.Destination == "Report Archive") { view = window.archiveWorkspaceView; window.archiveWorkspaceView.SelectTask(id); body = id == "sharing-contacts" ? new int[] {6,7,9} : id == "shared" ? new int[] {2,3,5,9,10} : new int[] {2,3,9,10}; actions = id == "sharing-contacts" ? new int[] {8} : new int[] {4}; }
-        else if (id is "connection" or "settings" or "sharing")
-        { view = window.settingsWorkspace; if (id == "sharing") window.settingsWorkspace.SelectIntegrationTask(id); body = id is "connection" or "settings" ? new int[] {0,1,3,7} : new int[] {3,5}; actions = id is "connection" or "settings" ? new int[] {2} : new int[] {}; }
+        else if (task.Destination == "Report Archive")
+        {
+            ApplyHiddenScope(window.archiveWorkspaceView);
+            window.archiveWorkspaceView.SelectTask(id);
+            view = window.archiveWorkspaceView;
+            body = id == "sharing-contacts" ? new int[] {6,7,8,9} : new int[] {0,1,2,3,5,9,10,11,12,13};
+            actions = id == "sharing-contacts" ? [] : [4];
+        }
+        else if (id is "connection" or "sharing")
+        { view = window.settingsWorkspace; if (id == "sharing") window.settingsWorkspace.SelectIntegrationTask(id); body = id == "connection" ? new int[] {0,1,3,7} : new int[] {3,5}; actions = id == "connection" ? new int[] {2} : new int[] {}; }
         else if (task.Destination == "Admin / Settings")
         {
             view = window.administrationWorkspaceView; window.administrationWorkspaceView.SelectTask(id);
@@ -475,20 +520,21 @@ public sealed partial class TaskNavigator(MainWindow window)
         else if (id is "approval-centre" or "adjustment" or "investigation")
         { view = window.investigationWorkspaceView; (body, actions) = id switch { "approval-centre" => (new int[] {3,7,8}, new int[] {9}), "adjustment" => (new int[] {3,5,6}, new int[] {}), _ => (new int[] {0,1,3,4}, new int[] {2}) }; }
         else if (id is "backups" or "support-package" or "recovery")
-        { view = window.operationsWorkspaceView; body = new int[] {29}; actions = new int[] {28}; window.operationsWorkspaceView.SelectMaintenanceTask(id); }
-        else if (id is "watch-folder" or "scheduler")
-        { view = window.operationsWorkspaceView; (body, actions) = id == "watch-folder" ? (new int[] {2,12,13,14,15,16,17,18,19}, new int[] {20}) : (new int[] {2,21,22,24,25}, new int[] {23}); }
-        else { view = window.operationsWorkspaceView; window.operationsWorkspaceView.SelectIssueTask(id); body = id is "trends" ? new int[] {1,2,3,4,5} : new int[] {1,2,8,7}; actions = id is "trends" ? new int[] {0} : new int[] {0,8}; }
+        { view = window.operationsWorkspaceView; body = new int[] {27,29}; actions = new int[] {28}; window.operationsWorkspaceView.SelectMaintenanceTask(id); }
+        else if (id == "watch-folder")
+        { view = window.operationsWorkspaceView; body = new int[] {2,11,12,13,14,15,16,17,18,19,21,22,24,25}; actions = [0,20,23]; }
+        else { view = window.operationsWorkspaceView; window.operationsWorkspaceView.SelectIssueTask(id); body = new int[] {1,2,8,7}; actions = new int[] {0,8}; }
         FocusedTaskLayout.Show(view, task.Title, body, actions);
+        ApplyHiddenScope(view);
         if (view == window.dailyWorkflowWorkspace) window.dailyWorkflowWorkspace.PrepareTouchTask(id);
         visited.Add(view);
-        if (prepared.Add(view) || view == window.dailyWorkflowWorkspace)
+        if (prepared.Add(view) || view == window.dailyWorkflowWorkspace || view == window.archiveWorkspaceView || view == window.investigationWorkspaceView)
         {
             if (view == window.dailyWorkflowWorkspace) { window.dailyWorkflowWorkspace.RefreshAccessState(); _ = window.dailyWorkflowWorkspace.RefreshAsync(); }
             if (view == window.accountingWorkspaceView) _ = window.accountingWorkspaceView.RefreshAsync();
             if (view == window.archiveWorkspaceView) _ = window.archiveWorkspaceView.RefreshAsync();
             if (view == window.operationsWorkspaceView) _ = window.operationsWorkspaceView.RefreshAsync();
-            if (view == window.investigationWorkspaceView) _ = window.investigationWorkspaceView.RefreshApprovalsAsync();
+            if (view == window.investigationWorkspaceView && id == "approval-centre") _ = window.investigationWorkspaceView.RefreshApprovalsAsync();
         }
         return view;
     }

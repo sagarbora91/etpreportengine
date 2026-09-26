@@ -9,7 +9,7 @@ public sealed partial class TaskNavigator
         var code = window.shell.CurrentRoute.FeatureCode;
         if (code is null) return;
         if (window.FocusedWorkspaceHost.Content is ReportWorkspaceControl report)
-            window.reportsWorkspaceView.ApplyReportPeriod(report.DateFromPicker.SelectedDate, report.DateToPicker.SelectedDate);
+            window.reportsWorkspaceView.ApplyScope(report.DateFromPicker.SelectedDate, report.DateToPicker.SelectedDate, report.ScopeSelector.SelectedItem?.ToString());
         if (window.FocusedWorkspaceHost.Content is DailySalesReportWorkspace dsr)
             window.reportsWorkspaceView.ApplyScope(dsr.BusinessDatePicker.SelectedDate, dsr.BusinessDatePicker.SelectedDate, dsr.ScopeSelector.SelectedItem?.ToString());
         _ = window.reportsWorkspaceView.RunReportAsync(code);
@@ -31,7 +31,7 @@ public sealed partial class TaskNavigator
             DailySalesReportWorkspace dsr => (dsr.BusinessDatePicker.SelectedDate, dsr.ScopeSelector.SelectedItem?.ToString()),
             _ => (window.ShellBusinessDateSelector.SelectedDate, (window.ShellStoreSelector.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Content?.ToString())
         };
-        if (date is { } selected) _ = GeneratePackAsync(selected, scope ?? "Combined (Titan + Helios)");
+        if (date is { } selected) _ = GeneratePackAsync(selected, scope ?? StoreScopeCatalog.AllStores);
     }
 
     public async Task GeneratePackAsync(DateTime date, string scope)
@@ -41,7 +41,7 @@ public sealed partial class TaskNavigator
         try
         {
             if (!await ResolveDraftsAsync()) return;
-            var store = scope is "Titan" or "Titan World" or "WLMHW" ? "WLMHW" : scope is "Helios" or "HEMW" ? "HEMW" : null;
+            var store = window.StoreScopes.Resolve(scope);
             var task = TaskNavigation.Find(store is null ? "combined-pack" : "store-daily-pack")!;
             var decision = window.shell.Navigate(task.Route, window.CurrentShellAccess);
             window.ApplyNavigationDecision(decision);

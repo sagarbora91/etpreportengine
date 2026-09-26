@@ -18,7 +18,7 @@
                      automation:AutomationProperties.Name="Register search"/>
             <Button Content="Search" Click="RefreshRegisters_Click" Style="{DynamicResource PrimaryButton}" Padding="14,7" Margin="8,0,0,0"/>
         </WrapPanel>
-        <DataGrid x:Name="RegisterGrid" AutoGenerateColumns="True" IsReadOnly="True" MaxHeight="280"
+        <DataGrid x:Name="RegisterGrid" AutoGenerateColumns="True" IsReadOnly="True" SelectionMode="Single" SelectionChanged="RegisterSelection_Changed" MaxHeight="280"
                   automation:AutomationProperties.Name="Digital register entries"/>
         <TextBlock Text="New or corrected register entry" FontWeight="SemiBold" Margin="0,14,0,6"/>
         <WrapPanel>
@@ -27,7 +27,7 @@
                 <ComboBoxItem Content="Inward"/><ComboBoxItem Content="Outward"/>
                 <ComboBoxItem Content="Credit Note"/><ComboBoxItem Content="Service Receipt"/>
                 <ComboBoxItem Content="Stock Transfer"/><ComboBoxItem Content="Expense"/>
-                <ComboBoxItem Content="Vendor Invoice"/>
+                <ComboBoxItem Content="Vendor Invoice"/><ComboBoxItem Content="Courier"/>
             </ComboBox>
             <TextBox x:Name="RegisterStoreInput" Width="100" Padding="6" Margin="8,0,0,0" ToolTip="Store code"
                      automation:AutomationProperties.Name="Register store code"/>
@@ -49,7 +49,7 @@
                      automation:AutomationProperties.Name="Register remarks"/>
             <TextBox x:Name="RegisterReasonInput" Width="200" Padding="6" Margin="8,0,0,0"
                      ToolTip="Required change reason" automation:AutomationProperties.Name="Register change reason"/>
-            <Button Content="Save draft" Click="SaveRegisterEntry_Click" Style="{DynamicResource PrimaryButton}" Padding="14,7" Margin="8,0,0,0"/>
+            <Button Content="New entry" Click="NewRegisterEntry_Click" Padding="14,7" Margin="8,0,0,0"/><Button x:Name="VerifyRegisterButton" Content="Verify selected" Click="VerifyRegisterEntry_Click" Padding="14,7" Margin="8,0,0,0"/><Button Content="Save draft" Click="SaveRegisterEntry_Click" Style="{DynamicResource PrimaryButton}" Padding="14,7" Margin="8,0,0,0"/>
         </WrapPanel>
         <TextBlock x:Name="RegisterStatus" Margin="0,8,0,0" TextWrapping="Wrap"
                    automation:AutomationProperties.Name="Register status"

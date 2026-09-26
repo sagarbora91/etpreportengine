@@ -37,7 +37,7 @@ public sealed class ProductisationPresentationSessionTests
     }
 
     [Fact]
-    public async Task Archive_search_and_comparison_clear_document_and_prepared_share_state()
+    public async Task Archive_search_clears_document_and_prepared_share_state()
     {
         var archive = new FakeArchiveQuery();
         var distribution = new FakeDistributionService();
@@ -47,7 +47,7 @@ public sealed class ProductisationPresentationSessionTests
         await session.OpenAsync("connection", first);
         await session.CreatePackageAsync("connection", first, "first.zip", "Owner");
 
-        await session.CompareAsync("connection", first, second);
+        await session.SearchAsync("connection", new ReportArchiveSearch());
 
         Assert.Null(session.CurrentDocument);
         Assert.Null(session.CurrentShareFile);
@@ -191,7 +191,7 @@ public sealed class ProductisationPresentationSessionTests
 
     private static AccountingBatchSummary Batch(string status) =>
         new(9, "WLMHW", new DateOnly(2026, 8, 25), 31, 2, 100, 100, status,
-            null, null, null, new DateTime(2026, 8, 25, 12, 0, 0, DateTimeKind.Utc));
+            null, null, new DateTime(2026, 8, 25, 12, 0, 0, DateTimeKind.Utc));
 
     private sealed class FakeArchiveQuery : IReportArchiveQuery<ReportPackDocument>
     {
@@ -262,7 +262,7 @@ public sealed class ProductisationPresentationSessionTests
         public string? LastReason { get; private set; }
 
         public Task<IReadOnlyList<DigitalRegisterEntry>> LoadAsync(
-            string? search = null, int limit = 500, CancellationToken cancellationToken = default)
+            string? search = null, int limit = 500, CancellationToken cancellationToken = default, string? registerType = null)
         {
             LastSearch = search;
             return Task.FromResult(rows);
@@ -279,6 +279,9 @@ public sealed class ProductisationPresentationSessionTests
 
     private sealed class FakeAccountingService : IAccountingService
     {
+        public Task<AccountingDestination> LoadDestinationAsync(CancellationToken token=default) => Task.FromResult(new AccountingDestination("Test company","TEST"));
+        public Task SaveDestinationAsync(SaveAccountingDestination command,CancellationToken token=default) => Task.CompletedTask;
+        public Task<IReadOnlyList<AccountingExportReceipt>> LoadExportHistoryAsync(CancellationToken token=default) => Task.FromResult<IReadOnlyList<AccountingExportReceipt>>([]);
         private readonly AccountingBatchDraft draft = new(
             [new AccountingEntry(1, "SALES", "Sales", 100, 0, "Sale", null, "R025"),
              new AccountingEntry(2, "SALES", "Cash", 0, 100, "Sale", null, "R025")],

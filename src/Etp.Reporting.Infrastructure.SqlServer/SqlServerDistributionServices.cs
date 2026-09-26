@@ -31,7 +31,7 @@ public sealed class SqlServerInvestigationQuery : App.IInvestigationQuery
         await RequireViewAsync(loadAccess, cancellationToken).ConfigureAwait(false);
         return (await gateway.SearchAsync(term, limit, cancellationToken).ConfigureAwait(false))
             .Select(row => new App.InvestigationHit(row.ResultType, row.PrimaryReference, row.Scope,
-                row.BusinessDate, row.Summary, row.NavigationHint))
+                row.BusinessDate, row.Summary, row.NavigationHint) { TargetTaskId = row.TargetTaskId, TargetId = row.TargetId, StoreCode = row.StoreCode })
             .ToArray();
     }
 
@@ -44,13 +44,15 @@ public sealed class SqlServerInvestigationQuery : App.IInvestigationQuery
     }
 }
 
-public sealed class SqlServerReportDistributionService : App.IReportDistributionService<ReportPackDocument>
+public sealed partial class SqlServerReportDistributionService : App.IReportDistributionService<ReportPackDocument>
 {
     private readonly IDistributionSqlGateway gateway;
     private readonly Func<CancellationToken, Task<ApplicationAccess>> loadAccess;
     private readonly Func<string, ReportPackDocument, int, string, bool, string, CancellationToken, Task<ReportPackageResult>> createPackage;
     private readonly Func<string, bool> fileExists;
     private readonly Func<string, long> fileLength;
+    private readonly IReportEmailTransport emailTransport;
+    private readonly Func<long, CancellationToken, Task<ReportPackDocument>> loadDocument;
 
     public SqlServerReportDistributionService(string connectionString)
     {
@@ -61,6 +63,8 @@ public sealed class SqlServerReportDistributionService : App.IReportDistribution
         createPackage = packages.CreateAsync;
         fileExists = File.Exists;
         fileLength = path => new FileInfo(path).Length;
+        emailTransport = new MailKitReportEmailTransport();
+        loadDocument = new SqlServerReportArchiveQuery(validated).OpenAsync;
     }
 
     internal SqlServerReportDistributionService(
@@ -68,13 +72,17 @@ public sealed class SqlServerReportDistributionService : App.IReportDistribution
         Func<CancellationToken, Task<ApplicationAccess>> loadAccess,
         Func<string, ReportPackDocument, int, string, bool, string, CancellationToken, Task<ReportPackageResult>> createPackage,
         Func<string, bool>? fileExists = null,
-        Func<string, long>? fileLength = null)
+        Func<string, long>? fileLength = null,
+        IReportEmailTransport? emailTransport = null,
+        Func<long, CancellationToken, Task<ReportPackDocument>>? loadDocument = null)
     {
         this.gateway = gateway ?? throw new ArgumentNullException(nameof(gateway));
         this.loadAccess = loadAccess ?? throw new ArgumentNullException(nameof(loadAccess));
         this.createPackage = createPackage ?? throw new ArgumentNullException(nameof(createPackage));
         this.fileExists = fileExists ?? File.Exists;
         this.fileLength = fileLength ?? (path => new FileInfo(path).Length);
+        this.emailTransport = emailTransport ?? new MailKitReportEmailTransport();
+        this.loadDocument = loadDocument ?? ((_, _) => throw new NotSupportedException("Archive loading is unavailable."));
     }
 
     public async Task<App.ReportPackageReceipt> CreatePackageAsync(
@@ -99,10 +107,20 @@ public sealed class SqlServerReportDistributionService : App.IReportDistribution
         CancellationToken cancellationToken = default)
     {
         await SqlServerInvestigationQuery.RequireViewAsync(loadAccess, cancellationToken).ConfigureAwait(false);
-        if (string.IsNullOrWhiteSpace(attachmentPath) || !fileExists(attachmentPath))
+        if (string.IsNullOrWhiteSpace(attachmentPath))
+            throw new FileNotFoundException("The report attachment was not found.", attachmentPath);
+        var fullPath = Path.GetFullPath(attachmentPath);
+        if (!fileExists(fullPath))
             throw new FileNotFoundException("The report attachment was not found.", attachmentPath);
         var settings = await gateway.LoadSettingsAsync(cancellationToken).ConfigureAwait(false);
-        if (fileLength(attachmentPath) > settings.MaximumAttachmentMb * 1024L * 1024L)
+        var folder = Path.GetFullPath(settings.ShareFolderPath);
+        var prefix = Path.EndsInDirectorySeparator(folder) ? folder : folder + Path.DirectorySeparatorChar;
+        if (!fullPath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            throw new UnauthorizedAccessException("Report attachments must be prepared in the sharing folder.");
+        for (var candidate = fullPath; !string.IsNullOrEmpty(candidate); candidate = Path.GetDirectoryName(candidate))
+            if ((File.Exists(candidate) || Directory.Exists(candidate)) && (File.GetAttributes(candidate) & FileAttributes.ReparsePoint) != 0)
+                throw new UnauthorizedAccessException("Report attachments must be prepared in the sharing folder.");
+        if (fileLength(fullPath) > settings.MaximumAttachmentMb * 1024L * 1024L)
             throw new InvalidOperationException($"The attachment exceeds the configured {settings.MaximumAttachmentMb} MB email limit.");
         return new(settings.ShareFolderPath, settings.MaximumAttachmentMb);
     }
@@ -115,7 +133,7 @@ public sealed class SqlServerReportDistributionService : App.IReportDistribution
         await SqlServerInvestigationQuery.RequireViewAsync(loadAccess, cancellationToken).ConfigureAwait(false);
         await gateway.RecordShareAttemptAsync(command.GenerationId, command.PackageId, command.Channel,
             command.DestinationSafe, command.AttachmentPath, command.Outcome, command.SafeMessage,
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken, command.AttemptKey).ConfigureAwait(false);
     }
 }
 
@@ -124,7 +142,8 @@ internal interface IDistributionSqlGateway
     Task<IReadOnlyList<InvestigationResult>> SearchAsync(string term, int limit, CancellationToken cancellationToken);
     Task<ProductSettings> LoadSettingsAsync(CancellationToken cancellationToken);
     Task RecordPackageAsync(long generationId, string packageType, string path, string manifestJson, string sha256, bool isFinal, CancellationToken cancellationToken);
-    Task RecordShareAttemptAsync(long generationId, long? packageId, string channel, string? destinationSafe, string attachmentName, string outcome, string message, CancellationToken cancellationToken);
+    Task RecordShareAttemptAsync(long generationId, long? packageId, string channel, string? destinationSafe, string attachmentName, string outcome, string message, CancellationToken cancellationToken, Guid? attemptKey = null);
+    Task<IReadOnlyList<App.ShareDeliveryHistory>> LoadHistoryAsync(long generationId, CancellationToken token) => Task.FromResult<IReadOnlyList<App.ShareDeliveryHistory>>([]);
 }
 
 internal sealed class ProductisationDistributionGateway(ProductisationRepository repository) : IDistributionSqlGateway
@@ -132,5 +151,6 @@ internal sealed class ProductisationDistributionGateway(ProductisationRepository
     public Task<IReadOnlyList<InvestigationResult>> SearchAsync(string term, int limit, CancellationToken token) => repository.SearchAsync(term, limit, token);
     public Task<ProductSettings> LoadSettingsAsync(CancellationToken token) => repository.LoadSettingsAsync(token);
     public Task RecordPackageAsync(long generationId, string packageType, string path, string manifestJson, string sha256, bool isFinal, CancellationToken token) => repository.RecordPackageAsync(generationId, packageType, path, manifestJson, sha256, isFinal, token);
-    public Task RecordShareAttemptAsync(long generationId, long? packageId, string channel, string? destinationSafe, string attachmentName, string outcome, string message, CancellationToken token) => repository.RecordShareAttemptAsync(generationId, packageId, channel, destinationSafe, attachmentName, outcome, message, token);
+    public Task RecordShareAttemptAsync(long generationId, long? packageId, string channel, string? destinationSafe, string attachmentName, string outcome, string message, CancellationToken token, Guid? attemptKey = null) => repository.RecordShareAttemptAsync(generationId, packageId, channel, destinationSafe, attachmentName, outcome, message, token, attemptKey);
+    public Task<IReadOnlyList<App.ShareDeliveryHistory>> LoadHistoryAsync(long generationId, CancellationToken token) => repository.LoadShareHistoryAsync(generationId, token);
 }

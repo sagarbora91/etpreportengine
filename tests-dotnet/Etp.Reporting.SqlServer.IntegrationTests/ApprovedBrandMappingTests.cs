@@ -70,7 +70,7 @@ public sealed class ApprovedBrandMappingTests(ITestOutputHelper output)
         using var fixture = LoadGolden();
         await ImportGolden(db.ConnectionString, fixture.RootElement);
         var document = await new OperationalReportRepository(db.ConnectionString).LoadDailySalesReportDocumentAsync(Day);
-        var path = Path.Combine(Path.GetTempPath(), $"EtpApprovedBrands_{Guid.NewGuid():N}.xlsx");
+        var path = Path.Combine(Path.GetTempPath(), $"EtpPhase0Test_ApprovedBrands_{Guid.NewGuid():N}.xlsx");
         const string scope = "Applied scope: Titan World + Helios; report date 25 Aug 2026";
         try
         {
@@ -218,7 +218,7 @@ public sealed class ApprovedBrandMappingTests(ITestOutputHelper output)
 
     private sealed class BrandDatabase : IAsyncDisposable
     {
-        private readonly string name = "EtpApprovedBrands_" + Guid.NewGuid().ToString("N");
+        private readonly string name = "EtpPhase0Test_ApprovedBrands_" + Guid.NewGuid().ToString("N");
         public string ConnectionString { get; }
         public BrandDatabase() => ConnectionString = TestSqlConnections.ForDatabase(name, pooling: false);
         public async Task<object?> ExecuteAsync(string sql)

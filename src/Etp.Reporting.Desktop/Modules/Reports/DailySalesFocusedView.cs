@@ -11,7 +11,7 @@ public sealed class DailySalesFocusedView : TabControl
         Background=System.Windows.Media.Brushes.White;
         if (report.EveningSheets.Count > 0) { var view=new EveningDsrView(report);while(view.Items.Count>0){var tab=view.Items[0];view.Items.RemoveAt(0);Items.Add(tab);} return; }
         var original = new DailySalesReportView(report);
-        var metrics = original.Children.OfType<UniformGrid>().Single(); original.Children.Remove(metrics); metrics.Columns=3;
+        var metrics = original.Children.OfType<UniformGrid>().Single(grid=>Grid.GetRow(grid)==1); original.Children.Remove(metrics); metrics.Columns=3;
         Add("Summary",metrics);
         foreach(var store in report.Stores)
         {

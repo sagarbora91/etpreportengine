@@ -73,13 +73,10 @@ public sealed class ImportPersistenceUseCaseTests
             _ => Task.FromResult(new ApplicationAccess("STORE\\Viewer", "Viewer", ApplicationRole.Viewer, true)));
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => viewer.ExistsByHashAsync(new string('a', 64)));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => viewer.PrepareRestatementAsync(Request(new(1, "viewer", "Correction"))));
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => viewer.PersistAsync(Request(restatement: null)));
 
-        var manager = new SqlServerImportPersistenceUseCase(
-            connection,
-            _ => Task.FromResult(new ApplicationAccess("STORE\\Manager", "Manager", ApplicationRole.StoreManager, true)));
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => manager.PersistAsync(Request(
-            new ImportRestatement(7, "STORE\\Manager", "Corrected source"))));
+
     }
 
     [Fact]

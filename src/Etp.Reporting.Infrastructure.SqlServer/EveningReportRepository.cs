@@ -56,9 +56,10 @@ public sealed partial class OperationalReportRepository
         var definitions = await new EveningMasterRepository(connectionString).LoadBrandsAsync(token);
         var targets = await new EveningMasterRepository(connectionString).LoadTargetsAsync(token);
         var engine = new ManagementMetricEngine(); var result = new List<EveningStoreSheet>();
-        foreach(var store in new[]{"WLMHW","HEMW","COMBINED"})
+        var stores = (await new StoreCatalogRepository(connectionString).LoadAsync(token)).Where(x=>x.IsActive).ToArray();
+        foreach(var store in stores.Select(x=>x.Code).Append("COMBINED"))
         {
-            bool Includes(string code) => store=="COMBINED" ? code is "WLMHW" or "HEMW" : code==store;
+            bool Includes(string code) => store=="COMBINED" ? stores.Any(x=>x.Code==code) : code==store;
             DsrManagementRow? Fact(string period) => facts.FirstOrDefault(x=>x.Store==store && x.Period==period);
             var f=Fact("FTD"); var m=Fact("MTD"); var y=Fact("YTD");
             decimal? Ratio(decimal? a,int? b)=> a is null || b is null or 0 ? null : a/b;
@@ -85,13 +86,13 @@ public sealed partial class OperationalReportRepository
             decimal? Conversion(int? n,DateRange period)
             {
                 var entered=manual.Count(x=>Includes(x.Store)&&x.Field=="WALK_INS"&&x.Date>=period.Start&&x.Date<=period.End);
-                return entered==period.InclusiveDayCount*(store=="COMBINED"?2:1)?engine.Conversion(n,Manual("WALK_INS",period)).Value:null;
+                return entered==period.InclusiveDayCount*(store=="COMBINED"?stores.Length:1)?engine.Conversion(n,Manual("WALK_INS",period)).Value:null;
             }
             rows.Insert(rows.FindIndex(x=>x.Metric=="WCC WALKIN"),Row("CONVERSION %",Conversion(f?.TyInvoices,fp.Current),Conversion(f?.LyInvoices,fp.LastYear),Conversion(m?.TyInvoices,mp.Current),Conversion(y?.TyInvoices,yp.Current),Conversion(y?.LyInvoices,yp.LastYear),"percent"));
             var ts=targets.Where(x=>Includes(x.StoreCode)&&x.Month==new DateOnly(date.Year,date.Month,1)).ToArray();
-            decimal? target=ts.Length==(store=="COMBINED"?2:1)?ts.Sum(x=>x.TargetSales):null;
+            decimal? target=ts.Length==(store=="COMBINED"?stores.Length:1)?ts.Sum(x=>x.TargetSales):null;
             var balance=target-m?.TySales; var days=DateTime.DaysInMonth(date.Year,date.Month);
-            result.Add(new(store,store=="WLMHW"?"Titan World":store=="HEMW"?"Helios":"WOT + Helios",target,target/days,balance,balance/(days-date.Day+1),rows));
+            result.Add(new(store,store=="COMBINED"?"All stores":stores.Single(x=>x.Code==store).Name,target,target/days,balance,balance/(days-date.Day+1),rows));
         }
         return result;
     }

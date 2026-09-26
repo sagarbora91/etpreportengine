@@ -4,7 +4,7 @@ using Microsoft.Data.SqlClient;
 
 namespace Etp.Reporting.Infrastructure.SqlServer;
 
-public sealed class ProductisationRepository(string connectionString)
+public sealed partial class ProductisationRepository(string connectionString)
 {
     internal const string SaveSharingContactSql = """
         SET XACT_ABORT ON;
@@ -138,20 +138,7 @@ public sealed class ProductisationRepository(string connectionString)
     public async Task<long> SaveRegisterEntryAsync(RegisterEntryRow entry, string reason, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(reason)) throw new ArgumentException("Enter a reason for the register entry.", nameof(reason));
-        const string sql = """
-            IF EXISTS(SELECT 1 FROM dbo.daily_reporting_days WHERE store_code=@store AND business_date=@date AND status='LOCKED')
-              THROW 51210,'This business day is finalised. Reopen it before changing the register.',1;
-            MERGE dbo.register_entries WITH(HOLDLOCK) target
-            USING(SELECT @type register_type,@store store_code,@date business_date,@number document_number) source
-              ON target.register_type=source.register_type AND target.store_code=source.store_code AND target.business_date=source.business_date AND target.document_number=source.document_number
-            WHEN MATCHED THEN UPDATE SET source_document_id=@document,document_date=@documentDate,counterparty=@counterparty,quantity=@quantity,amount=@amount,reference=@reference,
-              received_by=@received,verification_status=@verification,remarks=@remarks,modified_by=SUSER_SNAME(),modified_utc=SYSUTCDATETIME(),change_reason=@reason
-            WHEN NOT MATCHED THEN INSERT(register_type,source_document_id,store_code,business_date,document_number,document_date,counterparty,quantity,amount,reference,received_by,
-              verification_status,remarks,created_by,modified_by,change_reason)
-              VALUES(@type,@document,@store,@date,@number,@documentDate,@counterparty,@quantity,@amount,@reference,@received,@verification,@remarks,SUSER_SNAME(),SUSER_SNAME(),@reason);
-            DECLARE @id bigint=(SELECT register_entry_id FROM dbo.register_entries WHERE register_type=@type AND store_code=@store AND business_date=@date AND document_number=@number);
-            EXEC dbo.record_operational_audit 'RegisterEntry','Succeeded',N'Register entry saved',N'database'; SELECT @id;
-            """;
+        const string sql = "EXEC dbo.save_register_entry @type,@document,@store,@date,@number,@documentDate,@counterparty,@quantity,@amount,@reference,@received,@verification,@remarks,@reason";
         await using var connection = await OpenAsync(cancellationToken); await using var command = new SqlCommand(sql, connection);
         command.Parameters.AddWithValue("@type", entry.RegisterType.ToUpperInvariant()); Add(command, "@document", entry.SourceDocumentId);
         command.Parameters.AddWithValue("@store", entry.StoreCode.Trim().ToUpperInvariant()); command.Parameters.AddWithValue("@date", entry.BusinessDate);
@@ -162,16 +149,19 @@ public sealed class ProductisationRepository(string connectionString)
         return Convert.ToInt64(await command.ExecuteScalarAsync(cancellationToken));
     }
 
-    public async Task<IReadOnlyList<RegisterEntryRow>> LoadRegisterEntriesAsync(string? search = null, int limit = 500, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<RegisterEntryRow>> LoadRegisterEntriesAsync(string? search = null, int limit = 500, CancellationToken cancellationToken = default, string? storeCode = null, DateOnly? businessDate = null, string? registerType = null)
     {
         const string sql = """
             SELECT TOP(@limit) register_entry_id,register_type,source_document_id,store_code,business_date,document_number,document_date,counterparty,quantity,amount,
               reference,received_by,verification_status,remarks,modified_by,modified_utc
             FROM dbo.register_entries
-            WHERE @search IS NULL OR document_number LIKE @pattern OR counterparty LIKE @pattern OR reference LIKE @pattern OR store_code LIKE @pattern
+            WHERE (@search IS NULL OR document_number LIKE @pattern ESCAPE N'~' OR counterparty LIKE @pattern ESCAPE N'~' OR reference LIKE @pattern ESCAPE N'~' OR store_code LIKE @pattern ESCAPE N'~')
+              AND (@store IS NULL OR store_code=@store) AND (@date IS NULL OR business_date=@date)
+              AND (@type IS NULL OR register_type=@type)
             ORDER BY business_date DESC,register_entry_id DESC;
             """;
         await using var connection = await OpenAsync(cancellationToken); await using var command = new SqlCommand(sql, connection);
+        Add(command,"@store",Clean(storeCode)); Add(command,"@date",businessDate); Add(command,"@type",Clean(registerType)?.ToUpperInvariant());
         command.Parameters.AddWithValue("@limit", Math.Clamp(limit, 1, 2000)); Add(command, "@search", Clean(search)); Add(command, "@pattern", Clean(search) is null ? null : $"%{EscapeLike(search!.Trim())}%");
         await using var reader = await command.ExecuteReaderAsync(cancellationToken); var rows = new List<RegisterEntryRow>();
         while (await reader.ReadAsync(cancellationToken)) rows.Add(new(reader.GetInt64(0),reader.GetString(1),reader.IsDBNull(2)?null:reader.GetInt64(2),reader.GetString(3),DateOnly.FromDateTime(reader.GetDateTime(4)),reader.GetString(5),reader.IsDBNull(6)?null:DateOnly.FromDateTime(reader.GetDateTime(6)),OptionalString(reader,7),reader.IsDBNull(8)?null:reader.GetDecimal(8),reader.IsDBNull(9)?null:reader.GetDecimal(9),OptionalString(reader,10),OptionalString(reader,11),reader.GetString(12),OptionalString(reader,13),reader.GetString(14),reader.GetDateTime(15)));
@@ -201,8 +191,8 @@ public sealed class ProductisationRepository(string connectionString)
 
     public async Task<IReadOnlyList<ApprovalRequestRow>> LoadApprovalsAsync(string? status="PENDING",CancellationToken cancellationToken=default)
     {
-        const string sql="SELECT TOP(500) approval_request_id,approval_type,subject_type,subject_id,store_code,business_date,requested_by,requested_utc,status,decided_by,decided_utc,decision_reason FROM dbo.approval_requests WHERE @status IS NULL OR status=@status ORDER BY requested_utc DESC";
-        await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(sql,connection);Add(command,"@status",Clean(status)?.ToUpperInvariant());await using var reader=await command.ExecuteReaderAsync(cancellationToken);var rows=new List<ApprovalRequestRow>();while(await reader.ReadAsync(cancellationToken))rows.Add(new(reader.GetInt64(0),reader.GetString(1),reader.GetString(2),reader.GetString(3),OptionalString(reader,4),reader.IsDBNull(5)?null:DateOnly.FromDateTime(reader.GetDateTime(5)),reader.GetString(6),reader.GetDateTime(7),reader.GetString(8),OptionalString(reader,9),reader.IsDBNull(10)?null:reader.GetDateTime(10),OptionalString(reader,11)));return rows;
+        const string sql="SELECT TOP(500) approval_request_id,approval_type,subject_type,subject_id,store_code,business_date,requested_by,requested_utc,status,decided_by,decided_utc,decision_reason,JSON_VALUE(request_payload_json,'$.reason'),JSON_VALUE(request_payload_json,'$.replacementSha256') FROM dbo.approval_requests WHERE @status IS NULL OR status=@status ORDER BY CASE WHEN status='PENDING' THEN 0 ELSE 1 END,requested_utc DESC";
+        await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(sql,connection);Add(command,"@status",Clean(status)?.ToUpperInvariant());await using var reader=await command.ExecuteReaderAsync(cancellationToken);var rows=new List<ApprovalRequestRow>();while(await reader.ReadAsync(cancellationToken))rows.Add(new(reader.GetInt64(0),reader.GetString(1),reader.GetString(2),reader.GetString(3),OptionalString(reader,4),reader.IsDBNull(5)?null:DateOnly.FromDateTime(reader.GetDateTime(5)),reader.GetString(6),reader.GetDateTime(7),reader.GetString(8),OptionalString(reader,9),reader.IsDBNull(10)?null:reader.GetDateTime(10),OptionalString(reader,11),OptionalString(reader,12),OptionalString(reader,13)));return rows;
     }
 
     public async Task DecideApprovalAsync(long id,bool approve,string reason,CancellationToken cancellationToken=default)
@@ -224,17 +214,17 @@ public sealed class ProductisationRepository(string connectionString)
         var value=term?.Trim()??string.Empty;if(value.Length<2)throw new ArgumentException("Enter at least two characters to search.",nameof(term));
         const string sql="""
             DECLARE @pattern nvarchar(210)=N'%'+REPLACE(REPLACE(REPLACE(@term,N'~',N'~~'),N'%',N'~%'),N'_',N'~_')+N'%';
-            SELECT TOP(@limit) result_type,primary_reference,scope,business_date,summary,navigation_hint FROM
+            SELECT TOP(@limit) result_type,primary_reference,scope,business_date,summary,navigation_hint,target_task,target_id,target_store FROM
             (
-              SELECT N'Invoice' result_type,i.document_number primary_reference,i.store_code scope,i.transaction_date business_date,N'Canonical sales invoice' summary,N'Reports > Invoice drill-down' navigation_hint FROM dbo.sales_invoices i WHERE i.document_number LIKE @pattern ESCAPE N'~'
-              UNION ALL SELECT N'Product',l.product_code,CONCAT(i.store_code,N' / ',i.document_number),i.transaction_date,N'Canonical sales line',N'Reports > Item-wise sales' FROM dbo.sales_lines l JOIN dbo.sales_invoices i ON i.sales_invoice_id=l.sales_invoice_id WHERE l.product_code LIKE @pattern ESCAPE N'~'
-              UNION ALL SELECT N'Source file',f.original_file_name,COALESCE(f.store_code,N'Unassigned'),f.business_date,CONCAT(N'ETP ',COALESCE(f.report_code,N'unknown'),N' source'),N'Import > Source Inbox' FROM dbo.import_files f WHERE f.original_file_name LIKE @pattern ESCAPE N'~' OR f.source_sha256 LIKE @pattern ESCAPE N'~'
-              UNION ALL SELECT N'Report generation',CONCAT(N'Generation ',g.generation_number),g.store_code,g.business_date,CASE WHEN g.is_final=1 THEN N'Final immutable report' ELSE N'Draft immutable report' END,N'Archive' FROM dbo.daily_report_generations g WHERE CONVERT(nvarchar(30),g.daily_report_generation_id) LIKE @pattern ESCAPE N'~' OR g.content_sha256 LIKE @pattern ESCAPE N'~'
-              UNION ALL SELECT N'Register',r.document_number,CONCAT(r.store_code,N' / ',r.register_type),r.business_date,COALESCE(r.counterparty,N'Register entry'),N'Registers' FROM dbo.register_entries r WHERE r.document_number LIKE @pattern ESCAPE N'~' OR r.counterparty LIKE @pattern ESCAPE N'~' OR r.reference LIKE @pattern ESCAPE N'~'
-              UNION ALL SELECT N'Document',d.original_file_name,COALESCE(d.store_code,N'Unassigned'),d.business_date,CONCAT(COALESCE(d.document_type,d.source_type),N' / ',d.lifecycle_status),N'Import > Source Inbox' FROM dbo.source_documents d WHERE d.original_file_name LIKE @pattern ESCAPE N'~' OR d.source_sha256 LIKE @pattern ESCAPE N'~'
+              SELECT N'Invoice' result_type,i.document_number primary_reference,i.store_code scope,i.transaction_date business_date,N'Canonical sales invoice' summary,N'Reports > Invoice Source Drill-down' navigation_hint,N'invoice-lineage' target_task,i.sales_invoice_id target_id,i.store_code target_store FROM dbo.sales_invoices i WHERE i.document_number LIKE @pattern ESCAPE N'~'
+              UNION ALL SELECT N'Product',l.product_code,CONCAT(i.store_code,N' / ',i.document_number),i.transaction_date,N'Canonical sales line',N'Reports > Item-wise sales',N'sales-item',l.sales_line_id,i.store_code FROM dbo.sales_lines l JOIN dbo.sales_invoices i ON i.sales_invoice_id=l.sales_invoice_id WHERE l.product_code LIKE @pattern ESCAPE N'~'
+              UNION ALL SELECT N'Source file',f.original_file_name,COALESCE(f.store_code,N'Unassigned'),f.business_date,CONCAT(N'ETP ',COALESCE(f.report_code,N'unknown'),N' source'),N'Import > History',N'import-history',f.import_file_id,f.store_code FROM dbo.import_files f WHERE f.original_file_name LIKE @pattern ESCAPE N'~' OR f.source_sha256 LIKE @pattern ESCAPE N'~'
+              UNION ALL SELECT N'Report generation',CONCAT(N'Generation ',g.generation_number),g.store_code,g.business_date,CASE WHEN g.is_final=1 THEN N'Final immutable report' ELSE N'Draft immutable report' END,N'Reports > Archive',N'generations',g.daily_report_generation_id,g.store_code FROM dbo.daily_report_generations g WHERE CONVERT(nvarchar(30),g.daily_report_generation_id) LIKE @pattern ESCAPE N'~' OR g.content_sha256 LIKE @pattern ESCAPE N'~'
+              UNION ALL SELECT N'Register',r.document_number,CONCAT(r.store_code,N' / ',r.register_type),r.business_date,COALESCE(r.counterparty,N'Register entry'),N'Registers',CASE r.register_type WHEN 'INWARD' THEN 'register-inward' WHEN 'OUTWARD' THEN 'register-outward' WHEN 'CREDIT_NOTE' THEN 'register-credit' WHEN 'SERVICE_RECEIPT' THEN 'register-service' WHEN 'COURIER' THEN 'register-courier' WHEN 'STOCK_TRANSFER' THEN 'register-transfer' WHEN 'EXPENSE' THEN 'register-expense' WHEN 'VENDOR_INVOICE' THEN 'register-vendor' END,r.register_entry_id,r.store_code FROM dbo.register_entries r WHERE r.document_number LIKE @pattern ESCAPE N'~' OR r.counterparty LIKE @pattern ESCAPE N'~' OR r.reference LIKE @pattern ESCAPE N'~'
+              UNION ALL SELECT N'Document',d.original_file_name,COALESCE(d.store_code,N'Unassigned'),d.business_date,CONCAT(COALESCE(d.document_type,d.source_type),N' / ',d.lifecycle_status),N'Import > Received files',N'received-files',d.source_document_id,d.store_code FROM dbo.source_documents d WHERE d.original_file_name LIKE @pattern ESCAPE N'~' OR d.source_sha256 LIKE @pattern ESCAPE N'~'
             ) results ORDER BY business_date DESC,primary_reference;
             """;
-        await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(sql,connection);command.Parameters.AddWithValue("@term",value);command.Parameters.AddWithValue("@limit",Math.Clamp(limit,1,500));await using var reader=await command.ExecuteReaderAsync(cancellationToken);var rows=new List<InvestigationResult>();while(await reader.ReadAsync(cancellationToken))rows.Add(new(reader.GetString(0),reader.GetString(1),reader.GetString(2),reader.IsDBNull(3)?null:DateOnly.FromDateTime(reader.GetDateTime(3)),reader.GetString(4),reader.GetString(5)));return rows;
+        await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(sql,connection);command.Parameters.AddWithValue("@term",value);command.Parameters.AddWithValue("@limit",Math.Clamp(limit,1,500));await using var reader=await command.ExecuteReaderAsync(cancellationToken);var rows=new List<InvestigationResult>();while(await reader.ReadAsync(cancellationToken))rows.Add(new(reader.GetString(0),reader.GetString(1),reader.GetString(2),reader.IsDBNull(3)?null:DateOnly.FromDateTime(reader.GetDateTime(3)),reader.GetString(4),reader.GetString(5)) { TargetTaskId=OptionalString(reader,6),TargetId=reader.IsDBNull(7)?null:reader.GetInt64(7),StoreCode=OptionalString(reader,8) });return rows;
     }
 
     public async Task RecordPackageAsync(long generationId,string packageType,string path,string manifestJson,string sha256,bool isFinal,CancellationToken cancellationToken=default)
@@ -243,10 +233,10 @@ public sealed class ProductisationRepository(string connectionString)
         await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(sql,connection);command.Parameters.AddWithValue("@generation",generationId);command.Parameters.AddWithValue("@type",packageType);command.Parameters.AddWithValue("@path",Path.GetFullPath(path));command.Parameters.AddWithValue("@manifest",manifestJson);command.Parameters.AddWithValue("@hash",SqlServerImportFileRepository.NormalizeHash(sha256));command.Parameters.AddWithValue("@status",isFinal?"FINAL":"DRAFT");await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    public async Task RecordShareAttemptAsync(long generationId,long? packageId,string channel,string? destinationSafe,string attachmentName,string outcome,string message,CancellationToken cancellationToken=default)
+    public async Task RecordShareAttemptAsync(long generationId,long? packageId,string channel,string? destinationSafe,string attachmentName,string outcome,string message,CancellationToken cancellationToken=default,Guid? attemptKey=null)
     {
-        const string sql="INSERT dbo.share_attempts(daily_report_generation_id,report_package_id,channel,destination_safe,attachment_file_name,outcome,safe_message,initiated_by) VALUES(@generation,@package,@channel,@destination,@attachment,@outcome,@message,SUSER_SNAME()); EXEC dbo.record_operational_audit 'ShareInitiated',@auditOutcome,N'Report share action initiated',N'database';";
-        await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(sql,connection);command.Parameters.AddWithValue("@generation",generationId);Add(command,"@package",packageId);command.Parameters.AddWithValue("@channel",channel);Add(command,"@destination",Clean(destinationSafe));command.Parameters.AddWithValue("@attachment",Path.GetFileName(attachmentName));command.Parameters.AddWithValue("@outcome",outcome);command.Parameters.AddWithValue("@message",message);command.Parameters.AddWithValue("@auditOutcome",outcome=="FAILED"?"Failed":"Succeeded");await command.ExecuteNonQueryAsync(cancellationToken);
+        const string sql="INSERT dbo.share_attempts(daily_report_generation_id,report_package_id,channel,destination_safe,attachment_file_name,outcome,safe_message,initiated_by,attempt_key) VALUES(@generation,@package,@channel,@destination,@attachment,@outcome,@message,SUSER_SNAME(),@attemptKey); EXEC dbo.record_operational_audit 'ShareInitiated',@auditOutcome,N'Report share action initiated',N'database';";
+        await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(sql,connection);command.Parameters.AddWithValue("@generation",generationId);Add(command,"@package",packageId);command.Parameters.AddWithValue("@channel",channel);Add(command,"@destination",Clean(destinationSafe));command.Parameters.AddWithValue("@attachment",Path.GetFileName(attachmentName));command.Parameters.AddWithValue("@outcome",outcome);command.Parameters.AddWithValue("@message",message);command.Parameters.AddWithValue("@auditOutcome",outcome is "FAILED" or "UNKNOWN"?"Failed":"Succeeded");Add(command,"@attemptKey",attemptKey);await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyList<AccountingMapping>> LoadApprovedAccountingMappingsAsync(string storeCode,DateOnly businessDate,CancellationToken cancellationToken=default)
@@ -328,57 +318,6 @@ public sealed class ProductisationRepository(string connectionString)
         await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(sql,connection);command.Parameters.AddWithValue("@store",storeCode.Trim().ToUpperInvariant());command.Parameters.AddWithValue("@date",businessDate);await using var reader=await command.ExecuteReaderAsync(cancellationToken);if(!await reader.ReadAsync(cancellationToken))throw new InvalidOperationException("A final report generation was not found.");var generation=reader.GetInt64(0);await reader.NextResultAsync(cancellationToken);var events=new List<AccountingBusinessEvent>();while(await reader.ReadAsync(cancellationToken))events.Add(new(reader.GetString(0),reader.GetDecimal(1),reader.GetString(2),reader.GetString(3)));return(generation,events);
     }
 
-    public async Task<long> SaveAccountingBatchAsync(string storeCode,DateOnly businessDate,long reportGenerationId,AccountingBatchDraft batch,CancellationToken cancellationToken=default)
-    {
-        if(!batch.IsBalanced||batch.DebitTotal!=batch.CreditTotal||batch.MissingMappings.Count>0)throw new InvalidOperationException("The accounting batch must be balanced and fully mapped before it can be saved.");
-        const string sql="""
-            SET XACT_ABORT ON; BEGIN TRANSACTION;
-            DECLARE @number int=ISNULL((SELECT MAX(accounting_generation) FROM dbo.accounting_batches WITH(UPDLOCK,HOLDLOCK) WHERE store_code=@store AND business_date=@date),0)+1;
-            INSERT dbo.accounting_batches(store_code,business_date,daily_report_generation_id,accounting_generation,debit_total,credit_total,status,created_by)
-            VALUES(@store,@date,@report,@number,@debit,@credit,'REVIEW',SUSER_SNAME()); DECLARE @id bigint=SCOPE_IDENTITY();
-            INSERT dbo.accounting_entries(accounting_batch_id,line_number,business_event,ledger_name,debit_amount,credit_amount,narration,cost_centre,source_reference)
-            SELECT @id,line_number,business_event,ledger_name,debit_amount,credit_amount,narration,cost_centre,source_reference FROM OPENJSON(@entries)
-            WITH(line_number int '$.LineNumber',business_event varchar(50) '$.BusinessEvent',ledger_name nvarchar(200) '$.LedgerName',debit_amount decimal(19,4) '$.DebitAmount',credit_amount decimal(19,4) '$.CreditAmount',narration nvarchar(500) '$.Narration',cost_centre nvarchar(200) '$.CostCentre',source_reference nvarchar(200) '$.SourceReference');
-            EXEC dbo.record_operational_audit 'AccountingBatch','Succeeded',N'Balanced accounting batch prepared for review',N'database'; SELECT @id; COMMIT TRANSACTION;
-            """;
-        await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(sql,connection);command.Parameters.AddWithValue("@store",storeCode.Trim().ToUpperInvariant());command.Parameters.AddWithValue("@date",businessDate);command.Parameters.AddWithValue("@report",reportGenerationId);command.Parameters.AddWithValue("@debit",batch.DebitTotal);command.Parameters.AddWithValue("@credit",batch.CreditTotal);command.Parameters.AddWithValue("@entries",JsonSerializer.Serialize(batch.Entries));return Convert.ToInt64(await command.ExecuteScalarAsync(cancellationToken));
-    }
-
-    public async Task<IReadOnlyList<AccountingBatchRow>> LoadAccountingBatchesAsync(CancellationToken cancellationToken=default)
-    {
-        const string sql="SELECT TOP(500) accounting_batch_id,store_code,business_date,daily_report_generation_id,accounting_generation,debit_total,credit_total,status,approved_by,exported_utc,tally_reference,created_utc FROM dbo.accounting_batches ORDER BY business_date DESC,accounting_generation DESC";
-        await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(sql,connection);await using var reader=await command.ExecuteReaderAsync(cancellationToken);var rows=new List<AccountingBatchRow>();while(await reader.ReadAsync(cancellationToken))rows.Add(new(reader.GetInt64(0),reader.GetString(1),DateOnly.FromDateTime(reader.GetDateTime(2)),reader.GetInt64(3),reader.GetInt32(4),reader.GetDecimal(5),reader.GetDecimal(6),reader.GetString(7),OptionalString(reader,8),reader.IsDBNull(9)?null:reader.GetDateTime(9),OptionalString(reader,10),reader.GetDateTime(11)));return rows;
-    }
-
-    public async Task<IReadOnlyList<AccountingEntryDraft>> LoadAccountingEntriesAsync(long batchId,CancellationToken cancellationToken=default)
-    {
-        const string sql="SELECT line_number,business_event,ledger_name,debit_amount,credit_amount,narration,cost_centre,source_reference FROM dbo.accounting_entries WHERE accounting_batch_id=@id ORDER BY line_number";
-        await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(sql,connection);command.Parameters.AddWithValue("@id",batchId);await using var reader=await command.ExecuteReaderAsync(cancellationToken);var rows=new List<AccountingEntryDraft>();while(await reader.ReadAsync(cancellationToken))rows.Add(new(reader.GetInt32(0),reader.GetString(1),reader.GetString(2),reader.GetDecimal(3),reader.GetDecimal(4),reader.GetString(5),OptionalString(reader,6),reader.GetString(7)));return rows;
-    }
-
-    public async Task ApproveAccountingBatchAsync(long batchId,string reason,CancellationToken cancellationToken=default)
-    {
-        await EnsureOwnerAsync(cancellationToken);if(string.IsNullOrWhiteSpace(reason))throw new ArgumentException("Enter an accounting approval reason.",nameof(reason));
-        const string sql="UPDATE dbo.accounting_batches SET status='APPROVED',approval_reason=@reason,approved_by=SUSER_SNAME(),approved_utc=SYSUTCDATETIME() WHERE accounting_batch_id=@id AND status='REVIEW' AND debit_total=credit_total; IF @@ROWCOUNT<>1 THROW 51221,'The batch is not eligible for approval.',1; EXEC dbo.record_operational_audit 'AccountingBatch','Succeeded',N'Balanced accounting batch approved',N'database';";
-        await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(sql,connection);command.Parameters.AddWithValue("@id",batchId);command.Parameters.AddWithValue("@reason",reason.Trim());await command.ExecuteNonQueryAsync(cancellationToken);
-    }
-
-    public async Task RejectAccountingBatchAsync(long batchId,string reason,CancellationToken token=default)
-    {
-        await EnsureOwnerAsync(token);
-        if(string.IsNullOrWhiteSpace(reason)) throw new ArgumentException("Enter an accounting rejection reason.",nameof(reason));
-        await using var connection=await OpenAsync(token);
-        await using var command=new SqlCommand("EXEC dbo.reject_accounting_batch @id,@reason;",connection);
-        command.Parameters.AddWithValue("@id",batchId);command.Parameters.AddWithValue("@reason",reason.Trim());
-        await command.ExecuteNonQueryAsync(token);
-    }
-
-    public async Task RecordAccountingExportAsync(long batchId,string sha256,CancellationToken cancellationToken=default)
-    {
-        const string sql="UPDATE dbo.accounting_batches SET status='EXPORTED',exported_utc=SYSUTCDATETIME(),export_sha256=@hash WHERE accounting_batch_id=@id AND status='APPROVED'; IF @@ROWCOUNT<>1 THROW 51222,'Approve the accounting batch before export.',1; EXEC dbo.record_operational_audit 'AccountingExport','Succeeded',N'Approved accounting batch exported to Tally XML',N'database';";
-        await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(sql,connection);command.Parameters.AddWithValue("@id",batchId);command.Parameters.AddWithValue("@hash",SqlServerImportFileRepository.NormalizeHash(sha256));await command.ExecuteNonQueryAsync(cancellationToken);
-    }
-
     public async Task UpdateIssueWorkflowAsync(long issueId,string status,string reason,CancellationToken cancellationToken=default)
     {
         if(string.IsNullOrWhiteSpace(reason))throw new ArgumentException("Enter an issue workflow reason.",nameof(reason));
@@ -415,7 +354,7 @@ public sealed class ProductisationRepository(string connectionString)
     {
         var settings=await LoadSettingsAsync(cancellationToken);var items=new List<ProductHealthItem>();
         items.Add(PathHealth("Document repository",settings.DocumentRepositoryPath));items.Add(PathHealth("Share folder",settings.ShareFolderPath));
-        items.Add(string.IsNullOrWhiteSpace(settings.SmtpHost)?new("Email","Warning","Direct SMTP is not configured; use safe email drafts instead."):new("Email","Healthy","SMTP metadata is configured; credentials remain outside the database."));
+        items.Add(string.IsNullOrWhiteSpace(settings.SmtpHost)?new("Email","Warning","SMTP is not configured. Save host, port and sender, then use Send test email in Report archive."):new("Email","Healthy","SMTP settings are saved. Send a test email to verify the connection; credentials are protected per Windows user."));
         await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand("SELECT (SELECT COUNT_BIG(*) FROM dbo.import_conflicts WHERE status IN('OPEN','ACKNOWLEDGED')),(SELECT COUNT_BIG(*) FROM dbo.approval_requests WHERE status='PENDING')",connection);await using var reader=await command.ExecuteReaderAsync(cancellationToken);if(await reader.ReadAsync(cancellationToken)){items.Add(QueueHealth("Import conflicts",reader.GetInt64(0)));items.Add(QueueHealth("Pending approvals",reader.GetInt64(1)));}return items;
     }
 

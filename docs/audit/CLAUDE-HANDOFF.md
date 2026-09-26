@@ -1,8 +1,18 @@
 # Claude handoff — 25 September 2026
 
-> **16 Sep 2026 — plan v1.4.** `ETP-MASTER-AUDIT-AND-PHASED-PLAN.md` is now v1.4: Phase 7 (Tally transfer, Stage 2) and Phase 8 (Collections reconciliation, Stage 3) added after Phase 6; decisions D12–D21 recorded OPEN; Phase 2 tasks 12–15, Phase 4 task 6 (no certificate purchase) and the Phase 5 Accounting row amended; Section 8 crosswalk to the roadmap documents under `docs/roadmap/`. The auditor's procedure for the new phases is `docs/audit/OPUS-AUDIT-PLAN-PHASES-7-8.md`. Branch status for Phases 1–5 (Phase 1 CLOSED; 2, 3, 4 REOPENED; 5 started) is tracked in `SESSION-HANDOFF-2026-09-16.md` on `phase-1/data-truth`, not here.
+Last updated: 25 September 2026, Phase 5 audit remediation. This is the entry point for the current Phase 5 work; the dated handoffs below preserve earlier observations and branch states.
 
-Last updated: 15 September 2026, end of day. This is the one file a future Claude session reads first. It supersedes every earlier progress note.
+Phase 5 remediation is on **`phase-5/continuous-sprint`** in `C:/Codex/Reporting Manger/phase5-sprint`. The 24 September implementation was `99c1f2e`, documented in [PHASE-5-REPORT.md](PHASE-5-REPORT.md). The branch pulled audit commit `44b4934`, then merged `origin/main` at `e2156d4` before repairs. Read [PHASE-5-AUDIT-FINDINGS.md](PHASE-5-AUDIT-FINDINGS.md) for the work list and [PHASE-5-AUDIT-REMEDIATION.md](PHASE-5-AUDIT-REMEDIATION.md) for individual fixes, failing-then-passing evidence, qualifications and the final gate. The original report's 1,003 passed / 0 failed / 4 skipped counts are historical and were reproduced by the auditor; they are not the repaired candidate's gate.
+
+**A5.1 and A5.2 remain UNPROVEN.** They need the installed app run against a populated database as Owner, Store Manager and Viewer, covering every reachable destination and its status, distinct screen content, trend data and Viewer Archive share actions. The installed migrations and accounting DENYs also require checking; real SMTP TLS, certificate validation and authentication remain untested. Automated fixture walks do not close this acceptance work. No live `EtpReporting` migration or walkthrough is part of this remediation.
+
+The current repair rules are in the audit's section 3: preserve existing migrations, put schema changes in the new 0037 migration with plain-word preflights, and use only disposable `EtpPhase0Test_*` SQL fixtures. Phase 4 deployment observations below remain historical evidence; Phase 5 repair work does not close its outstanding acceptance items.
+
+---
+
+# Earlier handoff — 25 September 2026, Phase 4 (history; branch state superseded above)
+
+> **16 Sep 2026 — plan v1.4.** `ETP-MASTER-AUDIT-AND-PHASED-PLAN.md` is now v1.4: Phase 7 (Tally transfer, Stage 2) and Phase 8 (Collections reconciliation, Stage 3) added after Phase 6; decisions D12–D21 recorded OPEN; Phase 2 tasks 12–15, Phase 4 task 6 (no certificate purchase) and the Phase 5 Accounting row amended; Section 8 crosswalk to the roadmap documents under `docs/roadmap/`. The auditor's procedure for the new phases is `docs/audit/OPUS-AUDIT-PLAN-PHASES-7-8.md`. Branch status for Phases 1–5 (Phase 1 CLOSED; 2, 3, 4 REOPENED; 5 started) is tracked in `SESSION-HANDOFF-2026-09-16.md` on `phase-1/data-truth`, not here.
 
 **Read `docs/audit/PHASE-4-CLOSURE-2026-09-24.md` first**, then `docs/audit/WORKING-STATE-2026-09-22.md` ("Resume here", 25 September). The product line is `recovery/opus-r1-r4` in the worktree `C:/Codex/Reporting Manger/opus-recovery` (`38f5f04`); `main` is `acfdfcd` and current with it.
 
@@ -16,7 +26,7 @@ Closing waited on four things, set out in the closure record's section 8. **One 
 
 Boundaries unchanged: never write to live `EtpReporting` except through Sagar's elevated steps; never edit a committed migration; never touch Codex's worktrees; pushing to `main`, VM power state, elevated backups, account creation and passwords are Sagar's.
 
-Codex finished Phase 5 coding on 24 September; auditing it is separate work that starts after Phase 4 closes.
+The 24 September Phase 5 handoff reported coding complete. The independent audit on 25 September subsequently found defects; its remediation and still-open acceptance work are described at the top of this handoff.
 
 ---
 

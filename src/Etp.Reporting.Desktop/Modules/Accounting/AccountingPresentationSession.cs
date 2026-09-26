@@ -65,7 +65,6 @@ public sealed class AccountingPresentationSession
             throw new InvalidOperationException("Preview a balanced accounting batch first.");
         if (Current.Scope != expectedScope)
             throw new InvalidOperationException("The accounting scope changed. Preview this store and business date again before saving.");
-        AccountingBatchControls.EnsureBalancedAndComplete(Current.Draft);
         return serviceFactory(connectionString).SaveAsync(
             new SaveAccountingBatch(Current.Scope, Current.ReportGenerationId.Value, Current.Draft), cancellationToken);
     }
@@ -89,6 +88,10 @@ public sealed class AccountingPresentationSession
         CancellationToken cancellationToken = default) =>
         serviceFactory(connectionString).ApproveMappingAsync(command, cancellationToken);
 
+    public Task<IReadOnlyList<EtpApplication::Etp.Reporting.Application.Accounting.AccountingEntry>> LoadEntriesAsync(string connectionString, long id) => serviceFactory(connectionString).LoadEntriesAsync(id);
+    public Task<EtpApplication::Etp.Reporting.Application.Accounting.AccountingDestination> LoadDestinationAsync(string connectionString) => serviceFactory(connectionString).LoadDestinationAsync();
+    public Task<IReadOnlyList<AccountingExportReceipt>> LoadExportHistoryAsync(string connectionString) => serviceFactory(connectionString).LoadExportHistoryAsync();
+
     public Task<AccountingExportReceipt> ExportAsync(
         string connectionString,
         AccountingBatchSummary batch,
@@ -97,7 +100,7 @@ public sealed class AccountingPresentationSession
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(batch);
-        if (!string.Equals(batch.Status, "APPROVED", StringComparison.Ordinal))
+        if (!string.Equals(batch.Status, "APPROVED_READY", StringComparison.Ordinal))
             throw new InvalidOperationException("Approve the accounting batch before exporting it.");
         return serviceFactory(connectionString).ExportAsync(
             new ExportAccountingBatch(batch.Id, companyName, outputPath), cancellationToken);

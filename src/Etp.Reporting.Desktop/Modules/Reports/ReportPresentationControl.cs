@@ -69,6 +69,7 @@ public static class ReportVisualPresenter
         ArgumentNullException.ThrowIfNull(model);
         var root = new StackPanel();
         root.Children.Add(BuildKpiCards(model, "#FFFFFF", true));
+        if (model.Metadata.ReportName == "Management Trend") root.Children.Add(ManagementTrendChart.Create(model.Detail));
         foreach (var visual in model.Visuals.Take(2)) root.Children.Add(BuildVisual(visual));
         AddControl(model, root, new Thickness(0, 8, 0, 8));
         var grid = new DataGrid
