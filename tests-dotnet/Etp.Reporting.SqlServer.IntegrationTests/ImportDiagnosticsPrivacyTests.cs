@@ -87,4 +87,30 @@ public sealed class ImportDiagnosticsPrivacyTests
             Assert.All(Values, value => Assert.DoesNotContain(value, JsonSerializer.Serialize(entry)));
         });
     }
+
+    [Fact]
+    public async Task Failure_messages_keep_only_code_written_text_when_recorded_and_when_shown()
+    {
+        await WithDatabase(async database =>
+        {
+            var history = new SqlServerImportHistoryQuery(database.ConnectionString);
+            await history.RecordAttemptAsync(new("layout.xlsx", "R025", "HEMW", new(2026, 8, 25), new(2026, 8, 25), "Failed")
+                { Failure = new("IMPORT_LAYOUT_BLOCKED", FailureStage.Match, $"Workbook validation was blocked: {CustomerName}.") });
+            await history.RecordAttemptAsync(new("database.xlsx", "R025", "HEMW", new(2026, 8, 25), new(2026, 8, 25), "Failed")
+                { Failure = new("SQL_2627", FailureStage.Apply, $"Violation of key. The duplicate key value is ({CustomerPhone}).", "SqlException", 2627) });
+            var stored = (string)(await database.ExecuteAsync(
+                "SELECT STRING_AGG(failure_message,'#') WITHIN GROUP(ORDER BY file_name) FROM dbo.import_attempts"))!;
+            Assert.Equal($"The import failed with a database error.#{ImportDiagnosticCatalogue.Template("IMPORT_LAYOUT_BLOCKED")}", stored);
+
+            // A row written by something other than the recorder is cleaned when History shows it.
+            await database.ExecuteAsync($"""
+                UPDATE dbo.import_attempts SET failure_message=N'{CustomerName} {LoyaltyNumber}';
+                """);
+            var entries = await history.LoadAsync(new(new(2026, 8, 25), new(2026, 8, 25)));
+            Assert.Equal(2, entries.Count);
+            Assert.Contains(entries, entry => entry.Result.Failure!.SafeMessage == ImportDiagnosticCatalogue.Template("IMPORT_LAYOUT_BLOCKED"));
+            Assert.Contains(entries, entry => entry.Result.Failure!.SafeMessage == "The import failed with a database error.");
+            Assert.All(Values, value => Assert.DoesNotContain(value, JsonSerializer.Serialize(entries)));
+        });
+    }
 }

@@ -2,6 +2,7 @@ using System.Reflection;
 using Etp.Reporting.Application.Imports;
 using Etp.Reporting.Import.Preflight;
 using Etp.Reporting.Import.Profiles;
+using Etp.Reporting.Import.Stock;
 using Etp.Reporting.Import.Workbooks;
 
 namespace Etp.Reporting.Import.Tests;
@@ -73,5 +74,17 @@ public sealed class ImportDiagnosticCatalogueTests
             Assert.DoesNotContain("Synthetic Customer", issue.Message);
             Assert.Equal(1, issue.Occurrences);
         });
+    }
+
+    [Fact]
+    public void The_stock_parser_sheet_count_refusal_keeps_its_own_message()
+    {
+        var empty = new WorkbookSnapshot("stock_synthetic.xlsx", 1, new string('c', 64), []);
+
+        var issue = Assert.Single(new StockWorkbookParser().Parse(empty).Diagnostics).ToImportIssue();
+
+        Assert.Equal("WORKBOOK_SHEET_COUNT", issue.Code);
+        Assert.True(ImportDiagnosticCatalogue.IsKnown(issue.Code));
+        Assert.Equal(issue.Message, ImportDiagnosticCatalogue.SafeMessage(issue.Code, issue.Message));
     }
 }

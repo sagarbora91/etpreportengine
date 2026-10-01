@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 namespace Etp.Reporting.Application.Imports;
 
 /// <summary>
@@ -44,6 +46,7 @@ public static class ImportDiagnosticCatalogue
             "Unrecognised transaction type; this row was skipped.",
             "Unrecognised stock transaction type; this row was skipped."
         ],
+        ["WORKBOOK_SHEET_COUNT"] = ["A stock workbook must contain exactly one data worksheet."],
         ["UNKNOWN_STOCK_LAYOUT"] = ["The stock layout is not an approved exact-header profile."],
         ["STOCK_BALANCE_MISMATCH"] = ["Closing quantity does not equal opening plus source transaction quantity."],
         ["VALUE_REQUIRED"] = ["A required value is missing.", "A required date is missing.", "An identifier cannot be empty."],
@@ -90,6 +93,7 @@ public static class ImportDiagnosticCatalogue
         [ImportCodes.RestatementApprovalRequired] = ["This replacement and reason need unused Owner approval before import."],
         [ImportCodes.ImportTimeout] = ["The import timed out and can be retried."],
         [ImportCodes.CommitOutcomeUnknown] = ["The database did not confirm the commit; the import was checked again."],
+        ["ISSUES_TRUNCATED"] = ["More issue codes than an attempt keeps; their occurrences are counted together."],
         [ImportCodes.EvidenceNotRetained] = ["Data is present; the source file could not be kept as evidence."],
 
         // Consolidation contract (contract section 8).
@@ -135,6 +139,32 @@ public static class ImportDiagnosticCatalogue
     /// <summary>The code's own message, or <see cref="GenericMessage"/> for a code the catalogue does not know.</summary>
     public static string Template(string? code) =>
         code is not null && Templates.TryGetValue(code, out var messages) ? messages[0] : GenericMessage;
+
+    /// <summary>The message of an <c>IMPORT_CONFLICT</c> refusal: the count, never a row.</summary>
+    public static string ConflictCountMessage(int count) =>
+        $"{count:N0} conflicting rows. The complete file was rolled back. Review the source and use Restate.";
+
+    /// <summary>
+    /// The failure message an attempt may store and show (<c>import_attempts.failure_message</c>). Our own SQL
+    /// THROWs (50000-59999) keep their text; any other SQL error keeps only the "Database error" form; a code
+    /// the catalogue knows keeps only its own text or the conflict count; an importer refusal with a code of
+    /// its own keeps the text its code wrote.
+    /// </summary>
+    public static string SafeFailureMessage(string? code, string? message, int? sqlNumber)
+    {
+        if (string.IsNullOrWhiteSpace(message)) return Template(code);
+        if (sqlNumber is >= 50000 and <= 59999) return message;
+        if (sqlNumber is not null)
+            return DatabaseErrorPattern.IsMatch(message) ? message : "The import failed with a database error.";
+        if (code == ImportCodes.ImportConflict && ConflictCountPattern.IsMatch(message)) return message;
+        return IsKnown(code) ? SafeMessage(code, message) : message;
+    }
+
+    private static readonly Regex DatabaseErrorPattern =
+        new(@"^(The import timed out and can be retried\.|Database error -?\d+( in [A-Za-z0-9_.\[\]]+)?, line \d+\.)$");
+
+    private static readonly Regex ConflictCountPattern =
+        new(@"^\d[\d,]* conflicting rows\. The complete file was rolled back\. Review the source and use Restate\.$");
 
     /// <summary><paramref name="message"/> when the code writes exactly that text, otherwise <see cref="Template"/>.</summary>
     public static string SafeMessage(string? code, string? message) =>

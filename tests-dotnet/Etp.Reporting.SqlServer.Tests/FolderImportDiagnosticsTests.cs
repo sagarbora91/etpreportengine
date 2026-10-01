@@ -66,8 +66,19 @@ public sealed class FolderImportDiagnosticsTests
         Assert.Equal(ImportDiagnosticCatalogue.Template(result.Failure.Code), result.Failure.SafeMessage);
     }
 
+    [Fact]
+    public async Task Inspection_failure_keeps_the_match_stage()
+    {
+        var result = Assert.Single((await new FolderImportService(new RecordingPersistence(), new Reader(path =>
+            Sales(path, [20260825]) with { Sheets = null! })).RunFilesAsync(["broken.xlsx"], new("tester"))).Files);
+        Assert.Equal("Failed", result.Status);
+        Assert.Equal(FailureStage.Match, result.Failure!.Stage);
+    }
+
+    // A refusal thrown inside the import transaction names its own stage, but the transaction it was in
+    // rolled back all the same.
     [Theory]
-    [InlineData(true, FailureStage.Plan, null)]
+    [InlineData(true, FailureStage.Plan, CommitState.RolledBack)]
     [InlineData(false, FailureStage.Apply, CommitState.RolledBack)]
     public async Task Persistence_failure_keeps_code_stage_and_commit_state(bool refusal, FailureStage stage, CommitState? commit)
     {
@@ -97,6 +108,73 @@ public sealed class FolderImportDiagnosticsTests
         Assert.Equal(FailureStage.Apply, result.Failure.Stage);
         Assert.Equal(samples, result.Failure.Issues);
         Assert.Equal(CommitState.RolledBack, result.CommitState);
+        Assert.Equal(1, result.ConflictRows);
+    }
+
+    [Fact]
+    public async Task Conflict_keeps_its_full_count_beside_at_most_twenty_samples()
+    {
+        var samples = Enumerable.Range(2, 30).Select(row => new ImportIssue(ImportIssueSeverity.Blocker, ImportCodes.ImportConflict,
+            "Invoice date differs. Review and request a controlled restatement.", row)).ToArray();
+        var persistence = new RecordingPersistence { OnPersist = _ => throw new ImportConflictException(35, samples) };
+        var result = Assert.Single((await new FolderImportService(persistence, new Reader(path => Sales(path, [20260825])))
+            .RunFilesAsync(["sales.xlsx"], new("tester"))).Files);
+        Assert.Equal(35, result.ConflictRows);
+        Assert.Equal(ImportConflictException.MaximumSamples, result.Failure!.Issues.Count);
+    }
+
+    [Fact]
+    public async Task A_timeout_inside_the_transaction_does_not_claim_a_rollback()
+    {
+        var persistence = new RecordingPersistence { OnPersist = _ => throw new TimeoutException("Synthetic") };
+        var result = Assert.Single((await new FolderImportService(persistence, new Reader(path => Sales(path, [20260825])))
+            .RunFilesAsync(["sales.xlsx"], new("tester"))).Files);
+        Assert.Equal(ImportCodes.ImportTimeout, result.Failure!.Code);
+        Assert.Null(result.CommitState);
+    }
+
+    [Fact]
+    public async Task A_failure_after_the_commit_is_recorded_as_committed_with_its_batch()
+    {
+        var batch = Guid.NewGuid();
+        var persistence = new RecordingPersistence { BatchId = batch, FailOutcome = true };
+        var result = Assert.Single((await new FolderImportService(persistence, new Reader(path => Sales(path, [20260825])))
+            .RunFilesAsync(["sales.xlsx"], new("tester"))).Files);
+        Assert.Equal("Failed", result.Status);
+        Assert.Equal(CommitState.Committed, result.CommitState);
+        Assert.Equal(batch, result.BatchId);
+        Assert.Equal(FailureStage.Commit, result.Failure!.Stage);
+        Assert.Equal(CommitState.Committed, Assert.Single(persistence.Recorded).CommitState);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task A_failure_persistence_reports_after_its_commit_is_never_a_rollback(bool batchKnown)
+    {
+        var batch = Guid.NewGuid();
+        var persistence = new RecordingPersistence
+        {
+            OnPersist = _ => throw new ImportCommittedException(batchKnown ? batch : null, new InvalidOperationException("Synthetic"))
+        };
+        var result = Assert.Single((await new FolderImportService(persistence, new Reader(path => Sales(path, [20260825])))
+            .RunFilesAsync(["sales.xlsx"], new("tester"))).Files);
+        Assert.Equal(batchKnown ? CommitState.Committed : CommitState.Unknown, result.CommitState);
+        Assert.Equal(batchKnown ? batch : null, result.BatchId);
+        Assert.Equal("IMPORT_PROCESSING_FAILED", result.Failure!.Code);
+    }
+
+    [Fact]
+    public async Task Cancelling_after_the_commit_keeps_the_committed_batch()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var batch = Guid.NewGuid();
+        var persistence = new RecordingPersistence { BatchId = batch, OnOutcome = cancellation.Cancel };
+        var result = Assert.Single((await new FolderImportService(persistence, new Reader(path => Sales(path, [20260825])))
+            .RunFilesAsync(["sales.xlsx"], new("tester"), cancellationToken: cancellation.Token)).Files);
+        Assert.Equal("Cancelled", result.Status);
+        Assert.Equal(CommitState.Committed, result.CommitState);
+        Assert.Equal(batch, result.BatchId);
     }
 
     [Fact]
@@ -134,6 +212,8 @@ public sealed class FolderImportDiagnosticsTests
     {
         public Action<ImportPersistenceRequest<MatchedImportEnvelope>>? OnPersist { get; set; }
         public string? FailRecordingOf { get; init; }
+        public bool FailOutcome { get; init; }
+        public Action? OnOutcome { get; init; }
         public Guid? BatchId { get; init; }
         public int Requests { get; private set; }
         public List<FolderImportFileResult> Recorded { get; } = [];
@@ -157,6 +237,12 @@ public sealed class FolderImportDiagnosticsTests
             return Task.FromResult(new ImportPersistenceResult(request.AcceptedImport.ProfileIdentity.ReportCode, request.AcceptedImport.Staging.Rows.Count)
                 { Status = "Imported", BatchId = BatchId ?? Guid.NewGuid() });
         }
-        public Task<ImportRowOutcome> LoadOutcomeByHashAsync(string hash, CancellationToken cancellationToken = default) => Task.FromResult(new ImportRowOutcome(0, 0, 0, 0));
+        public Task<ImportRowOutcome> LoadOutcomeByHashAsync(string hash, CancellationToken cancellationToken = default)
+        {
+            OnOutcome?.Invoke();
+            cancellationToken.ThrowIfCancellationRequested();
+            if (FailOutcome) throw new InvalidOperationException("Synthetic outcome failure");
+            return Task.FromResult(new ImportRowOutcome(0, 0, 0, 0));
+        }
     }
 }

@@ -13,7 +13,7 @@ public sealed class ImportConflictException : Exception
     public const int MaximumSamples = 20;
 
     public ImportConflictException(int count, IReadOnlyList<ImportIssue> samples)
-        : base($"{count:N0} conflicting rows. The complete file was rolled back. Review the source and use Restate.")
+        : base(ImportDiagnosticCatalogue.ConflictCountMessage(count))
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(count);
         ArgumentNullException.ThrowIfNull(samples);

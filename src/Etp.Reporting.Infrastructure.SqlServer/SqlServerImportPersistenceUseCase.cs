@@ -94,8 +94,13 @@ public sealed partial class SqlServerImportPersistenceUseCase : IImportPersisten
             _ => await PersistSalesAsync(request, restatement, cancellationToken).ConfigureAwait(false)
         };
         if (result.Status == "Duplicate") return result;
-        var outcome = await files.LoadOutcomeInScopeAsync(accepted.Workbook.Sha256, accepted.ProfileIdentity.ReportCode,
-            scope.StoreCode!, periodStart, periodEnd, cancellationToken);
+        WorkbookImportOutcome outcome;
+        try
+        {
+            outcome = await files.LoadOutcomeInScopeAsync(accepted.Workbook.Sha256, accepted.ProfileIdentity.ReportCode,
+                scope.StoreCode!, periodStart, periodEnd, cancellationToken);
+        }
+        catch (Exception exception) { throw new ImportCommittedException(result.BatchId, exception); }
         return result with { PersistedRows=outcome.NewRows,
             Status=outcome.NewRows==0 && outcome.AlreadyPresentRows>0 ? "Duplicate content" : "Imported",
             AlreadyPresentRows=outcome.AlreadyPresentRows,ConflictRows=outcome.ConflictRows };
@@ -220,12 +225,19 @@ public sealed partial class SqlServerImportPersistenceUseCase : IImportPersisten
     {
         // The SQL import lock can return a file created by another concurrent attempt.
         // Its immutable batch identity distinguishes that no-op from our own committed import.
-        await using var connection = new SqlConnection(connectionString);
-        await connection.OpenAsync(token).ConfigureAwait(false);
-        await using var command = new SqlCommand("SELECT import_batch_id FROM dbo.import_files WHERE import_file_id=@file", connection);
-        command.Parameters.AddWithValue("@file", importFileId);
-        var savedBatch = await command.ExecuteScalarAsync(token).ConfigureAwait(false);
-        if (savedBatch is not Guid batchId) throw new InvalidOperationException("The committed import file could not be found.");
+        // The file is committed by now, so a failure here leaves the owning batch unknown, not rolled back.
+        object? savedBatch;
+        try
+        {
+            await using var connection = new SqlConnection(connectionString);
+            await connection.OpenAsync(token).ConfigureAwait(false);
+            await using var command = new SqlCommand("SELECT import_batch_id FROM dbo.import_files WHERE import_file_id=@file", connection);
+            command.Parameters.AddWithValue("@file", importFileId);
+            savedBatch = await command.ExecuteScalarAsync(token).ConfigureAwait(false);
+        }
+        catch (Exception exception) { throw new ImportCommittedException(null, exception); }
+        if (savedBatch is not Guid batchId)
+            throw new ImportCommittedException(null, new InvalidOperationException("The committed import file could not be found."));
         return batchId == attemptedBatchId ? result with { BatchId = batchId }
             : new(result.ReportCode, 0) { Status = "Duplicate", AlreadyPresentRows = sourceRows };
     }

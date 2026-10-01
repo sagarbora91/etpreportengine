@@ -20,34 +20,45 @@ public sealed class ImportDiagnosticsSqlTests
         await WithDatabase(async database =>
         {
             var sample = await Sample();
-            var first = Workbook(sample, "first.xlsx", [Row(sample, 2, "100000001", new(2026, 8, 25))]);
-            var moved = Workbook(sample, "moved.xlsx", [Row(sample, 2, "100000001", new(2026, 8, 26))]);
+            // 25 conflicting rows: more than the 20 samples an attempt keeps.
+            var invoices = Enumerable.Range(0, 25).Select(index => (Row: index + 2, Invoice: (100000001 + index).ToString())).ToArray();
+            var first = Workbook(sample, "first.xlsx", invoices.Select(item => Row(sample, item.Row, item.Invoice, new(2026, 8, 25))).ToArray());
+            var moved = Workbook(sample, "moved.xlsx", invoices.Select(item => Row(sample, item.Row, item.Invoice, new(2026, 8, 26))).ToArray());
             var service = Service(database, first, moved);
             Assert.Equal("Imported", Assert.Single((await service.RunFilesAsync(["first.xlsx"], new("Synthetic Owner"))).Files).Status);
 
             var failed = Assert.Single((await service.RunFilesAsync(["moved.xlsx"], new("Synthetic Owner"))).Files);
             Assert.Equal("Failed", failed.Status);
             Assert.Equal(ImportCodes.ImportConflict, failed.Failure!.Code);
+            Assert.Equal(25, failed.ConflictRows);
 
             var attempt = await Single(database, """
-                SELECT failure_code,failure_stage,commit_state,source_sha256,failure_message,exception_type,import_attempt_id
+                SELECT failure_code,failure_stage,commit_state,source_sha256,failure_message,exception_type,import_attempt_id,
+                  conflict_rows,JSON_VALUE(summary_json,'$.issues.IMPORT_CONFLICT'),JSON_VALUE(summary_json,'$.conflictRows')
                 FROM dbo.import_attempts WHERE file_name='moved.xlsx'
                 """);
             Assert.Equal(ImportCodes.ImportConflict, attempt[0]);
             Assert.Equal("APPLY", attempt[1]);
             Assert.Equal("ROLLED_BACK", attempt[2]);
             Assert.Equal(moved.Sha256, attempt[3]);
-            Assert.StartsWith("1 conflicting rows.", (string)attempt[4]!);
+            Assert.StartsWith("25 conflicting rows.", (string)attempt[4]!);
             Assert.Equal("ImportConflictException", attempt[5]);
+            Assert.Equal(25, attempt[7]);
+            Assert.Equal("25", attempt[8]);
+            Assert.Equal("25", attempt[9]);
+            Assert.Equal(20, await database.ExecuteAsync(
+                $"SELECT COUNT(*) FROM dbo.import_attempt_issues WHERE import_attempt_id={attempt[6]} AND code='IMPORT_CONFLICT' AND document_ref IS NOT NULL"));
             var sample1 = await Single(database, $"""
                 SELECT code,severity,message,document_ref,source_row_number,occurrences FROM dbo.import_attempt_issues
-                WHERE import_attempt_id={attempt[6]} AND code='IMPORT_CONFLICT'
+                WHERE import_attempt_id={attempt[6]} AND code='IMPORT_CONFLICT' AND source_row_number=(
+                  SELECT MIN(source_row_number) FROM dbo.import_attempt_issues WHERE import_attempt_id={attempt[6]} AND code='IMPORT_CONFLICT')
                 """);
             Assert.Equal("BLOCKER", sample1[1]);
             Assert.Equal("Invoice date differs. Review and request a controlled restatement.", sample1[2]);
-            Assert.Contains("100000001", (string)sample1[3]!);
+            var sampleRow = (int)sample1[4]!;
+            Assert.InRange(sampleRow, 2, 26);
+            Assert.Contains((100000001 + sampleRow - 2).ToString(), (string)sample1[3]!);
             Assert.Contains("2026-08-26", (string)sample1[3]!);
-            Assert.Equal(2, sample1[4]);
             Assert.Equal(1, sample1[5]);
 
             var history = Assert.Single(await new SqlServerImportHistoryQuery(database.ConnectionString)
@@ -55,6 +66,7 @@ public sealed class ImportDiagnosticsSqlTests
             Assert.Equal(ImportCodes.ImportConflict, history.Result.Failure!.Code);
             Assert.Equal(FailureStage.Apply, history.Result.Failure.Stage);
             Assert.Equal(CommitState.RolledBack, history.Result.CommitState);
+            Assert.Equal(25, history.Result.ConflictRows);
             Assert.Equal(attempt[4], history.Result.Message);
             Assert.Contains(history.Result.Diagnostics!, issue => issue.Code == ImportCodes.ImportConflict && issue.DocumentRef!.Contains("100000001"));
         });
@@ -194,16 +206,62 @@ public sealed class ImportDiagnosticsSqlTests
             await new SqlServerImportHistoryQuery(database.ConnectionString).RecordAttemptAsync(
                 new("many.xlsx", "R025", "HEMW", new(2026, 8, 25), new(2026, 8, 25), "Failed", Diagnostics: issues));
 
-            Assert.Equal(200, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.import_attempt_issues"));
+            // Blockers are sent first, so all 150 keep their rows; 48 warnings do too and the rest are counted.
+            Assert.Equal(199, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.import_attempt_issues"));
             Assert.Equal(450, await database.ExecuteAsync("SELECT SUM(occurrences) FROM dbo.import_attempt_issues"));
             Assert.Equal(198, await database.ExecuteAsync("SELECT MAX(seq) FROM dbo.import_attempt_issues WHERE occurrences=1 AND source_row_number IS NOT NULL"));
+            Assert.Equal(150, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.import_attempt_issues WHERE code='VALUE_INVALID' AND source_row_number IS NOT NULL"));
             var counted = await Single(database, """
                 SELECT STRING_AGG(CONCAT(code,':',occurrences,':',severity),',') WITHIN GROUP(ORDER BY seq)
                 FROM dbo.import_attempt_issues WHERE source_row_number IS NULL
                 """);
-            Assert.Equal("UNKNOWN_SALES_TRANSACTION_TYPE:102:WARNING,VALUE_INVALID:150:BLOCKER", counted[0]);
+            Assert.Equal("UNKNOWN_SALES_TRANSACTION_TYPE:252:WARNING", counted[0]);
             var summary = (string)(await database.ExecuteAsync("SELECT summary_json FROM dbo.import_attempts"))!;
             Assert.Contains("\"skippedRows\":300", summary);
+        });
+    }
+
+    [Fact]
+    public async Task Conflict_samples_keep_their_rows_and_documents_behind_many_warnings()
+    {
+        await WithDatabase(async database =>
+        {
+            var warnings = Enumerable.Range(1, 300).Select(row => new ImportIssue(ImportIssueSeverity.Warning, "UNKNOWN_SALES_TRANSACTION_TYPE",
+                "Unrecognised transaction type; this row was skipped.", row, "TRANS_TYPE")).ToArray();
+            var samples = Enumerable.Range(1, 20).Select(index => new ImportIssue(ImportIssueSeverity.Blocker, ImportCodes.ImportConflict,
+                "Invoice date differs. Review and request a controlled restatement.", 400 + index,
+                DocumentRef: $"R025 HEMW|2027|{100000000 + index} 2026-08-25")).ToArray();
+            await new SqlServerImportHistoryQuery(database.ConnectionString).RecordAttemptAsync(
+                new("conflicts.xlsx", "R025", "HEMW", new(2026, 8, 25), new(2026, 8, 25), "Failed", ConflictRows: 40, Diagnostics: warnings)
+                { Failure = new(ImportCodes.ImportConflict, FailureStage.Apply, ImportDiagnosticCatalogue.ConflictCountMessage(40)) { Issues = samples } });
+
+            Assert.Equal(20, await database.ExecuteAsync("""
+                SELECT COUNT(*) FROM dbo.import_attempt_issues
+                WHERE code='IMPORT_CONFLICT' AND document_ref IS NOT NULL AND source_row_number>400 AND occurrences=1
+                """));
+            Assert.Equal(320, await database.ExecuteAsync("SELECT SUM(occurrences) FROM dbo.import_attempt_issues"));
+            Assert.Equal("40", await database.ExecuteAsync("SELECT JSON_VALUE(summary_json,'$.issues.IMPORT_CONFLICT') FROM dbo.import_attempts"));
+            Assert.Equal(ImportDiagnosticCatalogue.ConflictCountMessage(40), await database.ExecuteAsync("SELECT failure_message FROM dbo.import_attempts"));
+        });
+    }
+
+    [Fact]
+    public async Task Codes_past_the_two_hundredth_are_counted_together_not_dropped()
+    {
+        await WithDatabase(async database =>
+        {
+            var issues = Enumerable.Range(1, 250).Select(index => new ImportIssue(ImportIssueSeverity.Warning, $"SYNTHETIC_CODE_{index:D3}",
+                "Synthetic.", index)).ToArray();
+            await new SqlServerImportHistoryQuery(database.ConnectionString).RecordAttemptAsync(
+                new("codes.xlsx", "R025", "HEMW", new(2026, 8, 25), new(2026, 8, 25), "Failed", Diagnostics: issues));
+
+            Assert.Equal(200, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.import_attempt_issues"));
+            Assert.Equal(250, await database.ExecuteAsync("SELECT SUM(occurrences) FROM dbo.import_attempt_issues"));
+            var last = await Single(database, "SELECT code,occurrences,severity FROM dbo.import_attempt_issues WHERE seq=200");
+            Assert.Equal("ISSUES_TRUNCATED", last[0]);
+            Assert.Equal(51, last[1]);
+            Assert.Equal("WARNING", last[2]);
+            Assert.Equal("SYNTHETIC_CODE_199", await database.ExecuteAsync("SELECT code FROM dbo.import_attempt_issues WHERE seq=199"));
         });
     }
 

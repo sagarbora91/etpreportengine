@@ -18,9 +18,10 @@ public sealed class SqlServerImportHistoryQuery(string connectionString) : IImpo
     private const int DocumentRefLength = 200;
     private const int ExceptionTypeLength = 120;
 
-    // The stager leaves these rows out of the import; they are counted in summary_json (IF-017).
+    // The stager leaves these rows out while the rest of the file imports; they are counted in summary_json
+    // (IF-017). ROW_EXTRA_COLUMNS is not one: it is a blocker, so the whole file fails.
     private static readonly HashSet<string> SkippedRowCodes = new(StringComparer.Ordinal)
-        { "ROW_EXTRA_COLUMNS", "UNKNOWN_SALES_TRANSACTION_TYPE", "UNKNOWN_STOCK_TRANSACTION_TYPE" };
+        { "UNKNOWN_SALES_TRANSACTION_TYPE", "UNKNOWN_STOCK_TRANSACTION_TYPE" };
 
     // Keeps location, code and severity, and a message only when the catalogue has it for that code.
     private static ImportIssue SafeIssue(ImportIssue issue) => issue with
@@ -35,8 +36,11 @@ public sealed class SqlServerImportHistoryQuery(string connectionString) : IImpo
     {
         var access = await new Phase2OperationsRepository(connectionString).LoadCurrentAccessAsync(cancellationToken);
         if (!access.CanImport) throw new UnauthorizedAccessException("Owner or Store Manager permission is required.");
-        // Retain location/code/severity, never source values, paths, SQL, or exception text.
-        var issues = (result.Diagnostics ?? []).Concat(result.Failure?.Issues ?? []).Select(SafeIssue).ToArray();
+        // Retain location/code/severity, never source values, paths, SQL, or exception text. The failure's own
+        // issues (e.g. conflict samples) come first, then blockers before warnings, so the procedure's 200-row
+        // cap folds the least important rows into per-code counts, never the samples.
+        var issues = (result.Failure?.Issues ?? []).Concat((result.Diagnostics ?? []).OrderBy(issue => SeverityRank(issue.Severity)))
+            .Select(SafeIssue).ToArray();
         var failure = result.Failure;
         await using var connection = new SqlConnection(LocalSqlConnectionPolicy.Validate(connectionString));
         await connection.OpenAsync(cancellationToken);
@@ -54,10 +58,11 @@ public sealed class SqlServerImportHistoryQuery(string connectionString) : IImpo
         Add("@rows", result.RowsProcessed); Add("@new", result.NewRows); Add("@present", result.AlreadyPresentRows);
         Add("@conflicts", result.ConflictRows); Add("@diagnostics", JsonSerializer.Serialize(issues.Take(MaximumIssueRows)));
         Add("@failure_code", failure?.Code); Add("@failure_stage", failure?.Stage.ToDatabaseCode());
-        Add("@failure_message", Truncate(failure?.SafeMessage, FailureMessageLength));
+        Add("@failure_message", failure is null ? null
+            : Truncate(ImportDiagnosticCatalogue.SafeFailureMessage(failure.Code, failure.SafeMessage, failure.SqlNumber), FailureMessageLength));
         Add("@sql_error", failure?.SqlNumber); Add("@exception_type", Truncate(failure?.ExceptionType, ExceptionTypeLength));
         Add("@batch", result.BatchId); Add("@commit_state", result.CommitState?.ToDatabaseCode());
-        Add("@evidence", result.Evidence?.ToDatabaseCode()); Add("@summary", Summary(issues));
+        Add("@evidence", result.Evidence?.ToDatabaseCode()); Add("@summary", Summary(issues, result.ConflictRows));
         Add("@issues", JsonSerializer.Serialize(issues.Select(issue => new StoredIssue(
             issue.Severity.ToDatabaseCode(), issue.Code, issue.BlockNo, issue.SourceRow, issue.SourceColumn, issue.DocumentRef,
             Truncate(issue.Message, IssueMessageLength)!, issue.Occurrences))));
@@ -65,12 +70,26 @@ public sealed class SqlServerImportHistoryQuery(string connectionString) : IImpo
         void Add(string name, object? value) => command.Parameters.AddWithValue(name, value ?? DBNull.Value);
     }
 
-    // Counts only: issues per code and the rows the stager skipped. Never a value.
-    private static string Summary(IReadOnlyList<ImportIssue> issues) => JsonSerializer.Serialize(new
+    // Counts only: issues per code, the rows the stager skipped and the conflicting rows. Never a value.
+    // A conflict keeps at most 20 samples, so its code counts every conflicting row, not the samples.
+    private static string Summary(IReadOnlyList<ImportIssue> issues, int conflictRows)
     {
-        issues = issues.GroupBy(issue => issue.Code, StringComparer.Ordinal).ToDictionary(group => group.Key, group => group.Sum(issue => issue.Occurrences)),
-        skippedRows = issues.Where(issue => SkippedRowCodes.Contains(issue.Code)).Sum(issue => issue.Occurrences)
-    });
+        var counts = issues.GroupBy(issue => issue.Code, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.Sum(issue => issue.Occurrences), StringComparer.Ordinal);
+        if (counts.TryGetValue(ImportCodes.ImportConflict, out var samples) && conflictRows > samples)
+            counts[ImportCodes.ImportConflict] = conflictRows;
+        return JsonSerializer.Serialize(new
+        {
+            issues = counts,
+            skippedRows = issues.Where(issue => SkippedRowCodes.Contains(issue.Code)).Sum(issue => issue.Occurrences),
+            conflictRows
+        });
+    }
+
+    private static int SeverityRank(ImportIssueSeverity severity) => severity switch
+    {
+        ImportIssueSeverity.Blocker => 0, ImportIssueSeverity.Warning => 1, _ => 2
+    };
 
     private static string? Truncate(string? text, int length) => text is null || text.Length <= length ? text : text[..length];
 
@@ -171,7 +190,8 @@ public sealed class SqlServerImportHistoryQuery(string connectionString) : IImpo
                 : JsonSerializer.Deserialize<ImportIssue[]>(reader.GetString(13)) ?? []).Select(SafeIssue).ToArray();
             var conflicts = reader.GetInt32(12);
             var failure = Text(14) is { } code && ImportDatabaseCodes.TryParseDatabaseCode<FailureStage>(Text(15), out var stage)
-                ? new ImportFailure(code, stage, Text(16) ?? ImportDiagnosticCatalogue.Template(code), Text(18),
+                ? new ImportFailure(code, stage,
+                    ImportDiagnosticCatalogue.SafeFailureMessage(code, Text(16), reader.IsDBNull(17) ? null : reader.GetInt32(17)), Text(18),
                     reader.IsDBNull(17) ? null : reader.GetInt32(17))
                 : null;
             var message = failure is not null ? failure.SafeMessage

@@ -54,16 +54,19 @@ public sealed class FolderImportService(
         {
             if (cancellationToken.IsCancellationRequested) break;
             progress?.Report(new(0, paths.Count, Path.GetFileName(path), "Reading folder", results.ToArray()));
+            var readStage = FailureStage.Read;
             try
             {
-                var inspection = envelopes.Inspect(await reader.ReadAsync(path, cancellationToken).ConfigureAwait(false));
+                var workbook = await reader.ReadAsync(path, cancellationToken).ConfigureAwait(false);
+                readStage = FailureStage.Match;
+                var inspection = envelopes.Inspect(workbook);
                 ready.Add((path, inspection));
                 if (inspection.AcceptedImport is { } accepted) detectedScopes[path] = accepted.Scope;
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { break; }
             catch (Exception exception)
             {
-                var failure = SqlImportFailures.Describe(exception, FailureStage.Read);
+                var failure = SqlImportFailures.Describe(exception, readStage);
                 var failed = new FolderImportFileResult(Path.GetFileName(path), null, null, null, null, "Failed", Message: failure.SafeMessage)
                     { SourcePath = path, Failure = failure };
                 results.Add(failed);
@@ -97,6 +100,7 @@ public sealed class FolderImportService(
                 continue;
             }
             var stage = FailureStage.Scope;
+            Guid? committedBatch = null;
             try
             {
                 // A retry re-reads only failed files. Preserve the original sibling scope for
@@ -138,6 +142,9 @@ public sealed class FolderImportService(
                     await persistence.PrepareRestatementAsync(request, cancellationToken).ConfigureAwait(false);
                 stage = FailureStage.Apply;
                 var saved = await persistence.PersistAsync(request, cancellationToken).ConfigureAwait(false);
+                // From here on the facts are committed: a later failure must not be recorded as a rollback.
+                committedBatch = saved.BatchId;
+                if (committedBatch is not null) stage = FailureStage.Commit;
                 var outcome = saved.Status == "Imported"
                     ? await persistence.LoadOutcomeInScopeAsync(accepted.Workbook.Sha256, accepted.ProfileIdentity.ReportCode,
                         persistedStore, periodStart, periodEnd, cancellationToken).ConfigureAwait(false)
@@ -149,17 +156,13 @@ public sealed class FolderImportService(
                     Evidence = saved.Evidence ?? result.Evidence, CommitState = saved.BatchId is null ? null : CommitState.Committed };
                 if (outcome.ConflictRows > 0) result = result with { Status = "Failed", Message = $"{outcome.ConflictRows:N0} conflicting rows. Review the source before retrying.",
                     Failure = new(ImportCodes.ImportConflict, FailureStage.Apply, ImportDiagnosticCatalogue.Template(ImportCodes.ImportConflict)) };
+                stage = FailureStage.Evidence;
                 if (result.Status is "Imported" or "empty export" or "Duplicate" or "Duplicate content" or "Already present")
                     result = await RetainEvidenceAsync(result, entry.Path, accepted, persistedStore, periodEnd, cancellationToken).ConfigureAwait(false);
             }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            { result = result with { Status = "Cancelled", Message = "Import cancelled." }; }
             catch (Exception exception)
             {
-                var failure = SqlImportFailures.Describe(exception, stage);
-                result = result with { Status = "Failed", Message = failure.SafeMessage, Failure = failure,
-                    CommitState = failure.Code == ImportCodes.CommitOutcomeUnknown ? CommitState.Unknown
-                        : failure.Stage is FailureStage.Apply or FailureStage.Commit ? CommitState.RolledBack : null };
+                result = Failed(result, exception, stage, committedBatch, cancellationToken.IsCancellationRequested);
             }
             results.Add(result);
             await recording.RecordAsync(result).ConfigureAwait(false);
@@ -176,6 +179,53 @@ public sealed class FolderImportService(
         recording.ThrowIfFailed();
         progress?.Report(new(results.Count, paths.Count, string.Empty, cancellationToken.IsCancellationRequested ? "Cancelled" : "Completed", results.ToArray()));
         return new(results);
+    }
+
+    /// <summary>
+    /// The result of a file whose import threw. The commit state follows what is known: committed once
+    /// persistence returned a batch (or said so through <see cref="ImportCommittedException"/>), rolled back
+    /// for a failure inside the import transaction, and not stated when the failure could have hit the
+    /// commit itself (a timeout or a broken connection).
+    /// </summary>
+    private static FolderImportFileResult Failed(FolderImportFileResult result, Exception exception, FailureStage stage,
+        Guid? committedBatch, bool cancelled)
+    {
+        var committed = exception as ImportCommittedException;
+        var cause = committed?.InnerException ?? exception;
+        if (committed is not null)
+        {
+            committedBatch ??= committed.BatchId;
+            stage = FailureStage.Commit;
+        }
+        var afterCommit = committedBatch is not null || committed is not null;
+        if (cancelled && cause is OperationCanceledException)
+            return afterCommit
+                ? result with { Status = "Cancelled", Message = "Import cancelled after its data was committed.", BatchId = committedBatch,
+                    CommitState = committedBatch is null ? CommitState.Unknown : CommitState.Committed }
+                : result with { Status = "Cancelled", Message = "Import cancelled." };
+        var failure = SqlImportFailures.Describe(cause, stage);
+        var commitState = afterCommit ? committedBatch is null ? CommitState.Unknown : CommitState.Committed
+            : failure.Code == ImportCodes.CommitOutcomeUnknown ? CommitState.Unknown
+            : stage == FailureStage.Apply && !MayHaveReachedCommit(cause) ? CommitState.RolledBack
+            : (CommitState?)null;
+        return result with
+        {
+            Status = "Failed", Failure = failure, CommitState = commitState, BatchId = committedBatch ?? result.BatchId,
+            Message = afterCommit ? $"The data was committed, but the import did not finish. {failure.SafeMessage}" : failure.SafeMessage,
+            // A conflict rolls back the whole file; its full count is kept beside the samples (spec 11.1).
+            ConflictRows = cause is ImportConflictException conflict ? conflict.Count : result.ConflictRows
+        };
+    }
+
+    // A client timeout or a broken connection can strike while COMMIT is in flight, so the outcome is unknown
+    // until it is checked again; any other failure inside the transaction rolls it back.
+    private static bool MayHaveReachedCommit(Exception exception)
+    {
+        for (var current = exception; current is not null; current = current.InnerException)
+            if (current is TimeoutException || current is Microsoft.Data.SqlClient.SqlException { Number: SqlImportFailures.ClientTimeout } ||
+                current is Microsoft.Data.SqlClient.SqlException { Class: >= 20 })
+                return true;
+        return false;
     }
 
     private async Task<FolderImportFileResult> RetainEvidenceAsync(FolderImportFileResult result, string path,

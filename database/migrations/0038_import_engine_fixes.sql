@@ -109,9 +109,16 @@ AS BEGIN
    AND f.period_start=@start AND f.period_end=@end AND f.data_truth_version=1
  ORDER BY f.import_file_id DESC;
  -- Above 200 issues the first ones are kept as they are and the rest become one row per code with
- -- its occurrences. A row is reserved for every code, so the total stays within 200.
+ -- its occurrences. A row is reserved for every code, so the total stays within 200. Above 200 codes
+ -- the codes past the 199th share the last row, ISSUES_TRUNCATED, which keeps their occurrences.
  DECLARE @total int=(SELECT COUNT(*) FROM @list),@codes int=(SELECT COUNT(DISTINCT code) FROM @list);
  DECLARE @kept int=CASE WHEN @total<=200 THEN @total WHEN @codes>=200 THEN 0 ELSE 200-@codes END;
+ DECLARE @agg TABLE(rk int PRIMARY KEY,code varchar(80),severity_rank int,first_n int,occurrences int);
+ INSERT @agg(rk,code,severity_rank,first_n,occurrences)
+ SELECT ROW_NUMBER() OVER(ORDER BY MIN(r.n)),r.code,
+   MAX(CASE r.severity WHEN ''BLOCKER'' THEN 3 WHEN ''WARNING'' THEN 2 ELSE 1 END),MIN(r.n),SUM(r.occurrences)
+ FROM @list r WHERE r.n>@kept GROUP BY r.code;
+ DECLARE @last int=CASE WHEN (SELECT COUNT(*) FROM @agg)>200-@kept THEN 199-@kept ELSE 200-@kept END;
  BEGIN TRANSACTION;
  INSERT dbo.import_attempts(import_file_id,file_name,report_code,store_code,period_start,period_end,outcome,
    rows_processed,new_rows,already_present_rows,conflict_rows,diagnostics_json,
@@ -124,13 +131,16 @@ AS BEGIN
  SELECT @attempt,n,severity,code,block_no,source_row_number,column_name,document_ref,message,occurrences
  FROM @list WHERE n<=@kept;
  INSERT dbo.import_attempt_issues(import_attempt_id,seq,severity,code,message,occurrences)
- SELECT TOP(200-@kept) @attempt,@kept+ROW_NUMBER() OVER(ORDER BY MIN(r.n)),
-   CASE MAX(CASE r.severity WHEN ''BLOCKER'' THEN 3 WHEN ''WARNING'' THEN 2 ELSE 1 END)
-     WHEN 3 THEN ''BLOCKER'' WHEN 2 THEN ''WARNING'' ELSE ''INFORMATION'' END,
-   r.code,(SELECT TOP(1) x.message FROM @list x WHERE x.code=r.code AND x.n>@kept ORDER BY x.n),SUM(r.occurrences)
- FROM @list r WHERE r.n>@kept
- GROUP BY r.code
- ORDER BY MIN(r.n);
+ SELECT @attempt,@kept+a.rk,
+   CASE a.severity_rank WHEN 3 THEN ''BLOCKER'' WHEN 2 THEN ''WARNING'' ELSE ''INFORMATION'' END,
+   a.code,(SELECT TOP(1) x.message FROM @list x WHERE x.code=a.code AND x.n>@kept ORDER BY x.n),a.occurrences
+ FROM @agg a WHERE a.rk<=@last;
+ INSERT dbo.import_attempt_issues(import_attempt_id,seq,severity,code,message,occurrences)
+ SELECT @attempt,200,
+   CASE MAX(a.severity_rank) WHEN 3 THEN ''BLOCKER'' WHEN 2 THEN ''WARNING'' ELSE ''INFORMATION'' END,
+   ''ISSUES_TRUNCATED'',N''More issue codes than an attempt keeps; their occurrences are counted together.'',SUM(a.occurrences)
+ FROM @agg a WHERE a.rk>@last
+ HAVING COUNT(*)>0;
  COMMIT TRANSACTION;
 END');
 GRANT SELECT ON dbo.import_attempt_issues TO etp_viewer,etp_store_manager,etp_owner;
