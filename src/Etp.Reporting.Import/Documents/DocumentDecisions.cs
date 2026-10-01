@@ -60,8 +60,9 @@ public sealed record DecisionPolicy(ProvisionalPolicy Provisional = ProvisionalP
 /// reads no database.
 /// </summary>
 /// <param name="Incoming">The authoritative observation per document (spec 6.7), holds included.</param>
-/// <param name="Stored">Stored documents by <see cref="DocumentKey.Hash"/>: the incoming documents, and the CURRENT
-/// documents within the incoming blocks' coverage (for MISSING_FROM_LATER retire items).</param>
+/// <param name="Stored">Stored documents by <see cref="DocumentKey.Hash"/>: the incoming documents, the CURRENT
+/// documents within the incoming blocks' coverage (for MISSING_FROM_LATER retire items) and the
+/// <see cref="EarlierReadingDocuments"/>.</param>
 /// <param name="Blocks">Registered blocks of the same store and report, and the incoming source's blocks (spec 8.4).</param>
 /// <param name="LockedDays">The store's LOCKED days within the documents' dates.</param>
 public sealed record DecisionRequest(
@@ -81,7 +82,10 @@ public sealed record DecisionRequest(
     public DecisionPolicy Policy { get; init; } = DecisionPolicy.Default;
 }
 
-/// <summary>A change the decision proposes: applied now (AUTO) or a review item, held on a locked day.</summary>
+/// <summary>
+/// A change the decision proposes: applied now (AUTO) or a review item. A held change (a locked day, or a source to
+/// fix) is always a review item and keeps its reason.
+/// </summary>
 /// <param name="NewVersionKind">The version the change creates; null for RETIRE and NONE.</param>
 public sealed record ChangeProposal(
     ChangeMode Mode,
@@ -96,7 +100,10 @@ public sealed record ChangeProposal(
 /// <summary>The engine's decision for one document (spec 8.2), with the side effects it asks for.</summary>
 public sealed record DocumentDecisionResult(DocumentKey Key, DocumentDecision Decision)
 {
-    /// <summary>The incoming block decided on; null for a retire item about a document the source does not hold.</summary>
+    /// <summary>
+    /// The incoming block decided on. For a <c>MISSING_FROM_LATER</c> retire item, the incoming block the document is
+    /// missing from; null for a <c>REINTERPRETATION</c> retire item, which is about the source as a whole.
+    /// </summary>
     public int? BlockNo { get; init; }
     public ChangeProposal? Change { get; init; }
     /// <summary>An information code that goes with the decision, e.g. <c>ATTRIBUTE_NOT_APPLIED</c>.</summary>
@@ -109,6 +116,11 @@ public sealed record DocumentDecisionResult(DocumentKey Key, DocumentDecision De
     public bool SettleProvisional { get; init; }
     /// <summary>Pending INSERT items of the document become OBSOLETE (rule 8).</summary>
     public bool ObsoletePendingInsert { get; init; }
+    /// <summary>
+    /// The version this decision creates or proposes is provisional (spec 8.3): every export that attests it has a
+    /// known date on or before the document's business day.
+    /// </summary>
+    public bool NewVersionProvisional { get; init; }
 }
 
 public sealed record DecisionOutcome(IReadOnlyList<DocumentDecisionResult> Decisions, IReadOnlyList<ImportDiagnostic> Diagnostics);

@@ -34,7 +34,11 @@ public sealed record StoredVersion(
     public IReadOnlyList<FactRow>? Rows { get; init; }
 }
 
-/// <summary>A stored document and its CURRENT version (spec 5.2 <c>fact_documents</c>).</summary>
+/// <summary>
+/// A stored document and its CURRENT version (spec 5.2 <c>fact_documents</c>). For a RETIRED document,
+/// <see cref="Current"/> is the version its retirement superseded: rule 6 compares an incoming export with that
+/// version's last attested time.
+/// </summary>
 public sealed record StoredDocument(
     DocumentKey Key,
     long DocumentId,
