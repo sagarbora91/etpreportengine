@@ -17,7 +17,7 @@
 
 **Privacy:** nothing here contains, or may require, a customer name, phone number, address or loyalty number. Test fixtures are synthetic.
 
-> **Owner decisions, 1 Oct 2026 (late evening):** OD-1, OD-2, OD-3, OD-4 and OD-5 are **accepted as recommended**. OD-6 and OD-7 are still open (needed by P8 and P4). **Implementer:** from 1 Oct 2026 the Owner no longer uses Codex; this spec is implemented by Claude agents. Read "Codex" and "Codex-days" below as "the implementer" and "implementer-days".
+> **Owner decisions, 1 Oct 2026 (late evening):** OD-1, OD-2, OD-3, OD-4 and OD-5 are **accepted as recommended**; OD-6 and OD-7 were **accepted as recommended** on 2 Oct 2026. All seven Owner decisions are settled. **Implementer:** from 1 Oct 2026 the Owner no longer uses Codex; this spec is implemented by Claude agents. Read "Codex" and "Codex-days" below as "the implementer" and "implementer-days".
 
 ---
 
@@ -1694,7 +1694,7 @@ Approving all five:
 
 ## 18. Open decisions for the Owner
 
-**Status 1 Oct 2026:** OD-1 to OD-5 accepted by the Owner as recommended; OD-6 and OD-7 open.
+**Status 2 Oct 2026:** all seven decisions accepted by the Owner as recommended (OD-1 to OD-5 on 1 Oct; OD-6 (a) consolidated Service workbooks only at first, (b) weekly refresh, (c) S001 reported as Not needed, and OD-7 (figure changes from the next day's export or a newer snapshot reading apply without approval only when the Owner runs the import) on 2 Oct).
 
 | # | Decision | Needed by | Recommendation |
 |---|---|---|---|
