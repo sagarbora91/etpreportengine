@@ -45,8 +45,6 @@ public sealed class AutomatedOperationsService(string connectionString)
             try
             {
                 var folderService=new FolderImportService(new SqlServerImportPersistenceUseCase(connectionString),
-                    retainEvidence: (path,accepted,store,businessDate,token)=>new ProductisationOperationsService(connectionString).IntakeEtpEvidenceAsync(
-                        path,accepted.Workbook.Sha256,accepted.ProfileIdentity.ReportCode,store,businessDate,token),
                     knownStores: knownStores);
                 var batch=await folderService.RunAsync(source,new(AutomationIdentity()),cancellationToken:cancellationToken);
                 duplicates+=batch.Duplicates;
@@ -117,14 +115,14 @@ public sealed class AutomatedOperationsService(string connectionString)
         var start = accepted.Scope.PeriodStart ?? end;
         var store = accepted.Scope.StoreCode ?? throw new ImportSourceException("SCOPE_NOT_DETECTED","Store could not be detected.");
         var files = new SqlServerImportFileRepository(connectionString);
+        var persistence = new SqlServerImportPersistenceUseCase(connectionString);
+        // IF-023: the import keeps the source bytes inside its transaction; a duplicate keeps missing bytes.
         if (await files.ExistsInScopeAsync(workbook.Sha256, report, store, start, end, cancellationToken))
         {
-            await new ProductisationOperationsService(connectionString).IntakeEtpEvidenceAsync(workbookPath,workbook.Sha256,report,store,end,cancellationToken);
+            await persistence.RetainImportedSourceAsync(workbook.Sha256, workbook.EvidenceBytes, cancellationToken);
             return new(report, store, end, true);
         }
-        var result = await new SqlServerImportPersistenceUseCase(connectionString).PersistAsync(
-            new(accepted, end, store, AutomationIdentity()), cancellationToken);
-        await new ProductisationOperationsService(connectionString).IntakeEtpEvidenceAsync(workbookPath,workbook.Sha256,report,store,end,cancellationToken);
+        var result = await persistence.PersistAsync(new(accepted, end, store, AutomationIdentity()), cancellationToken);
         return new(report, store, end, result.Status.StartsWith("Duplicate", StringComparison.Ordinal), result.ConflictRows);
     }
 

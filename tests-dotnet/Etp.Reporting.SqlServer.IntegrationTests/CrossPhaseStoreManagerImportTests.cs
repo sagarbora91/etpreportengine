@@ -166,15 +166,7 @@ public sealed class CrossPhaseStoreManagerImportTests
             await SeedRoles(database);
             using var session = new RestrictedConnections(database.Name, "crossphase_manager", "etp_store_manager");
             var persistence = new SqlServerImportPersistenceUseCase(session.ConnectionString);
-            var documents = new ProductisationRepository(session.ConnectionString);
-            var service = new FolderImportService(persistence, retainEvidence: async (path, accepted, store, date, token) =>
-            {
-                var document = await documents.RegisterDocumentAsync(accepted.Workbook.FileName, path,
-                    accepted.Workbook.Sha256, accepted.Workbook.FileSizeBytes, "ETP_WORKBOOK",
-                    accepted.ProfileIdentity.ReportCode, store, date, "VALIDATED", "Synthetic source", token);
-                await documents.LinkDocumentToImportAsync(document.Id, accepted.Workbook.Sha256,
-                    accepted.ProfileIdentity.ReportCode, store, date, token);
-            });
+            var service = new FolderImportService(persistence);
             Directory.CreateDirectory(folder);
             foreach (var path in Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "fixtures", "etp-sample"), "*.xlsx"))
                 File.Copy(path, Path.Combine(folder, Path.GetFileName(path)));
@@ -202,12 +194,15 @@ public sealed class CrossPhaseStoreManagerImportTests
             Assert.Equal(32, first.Files.Count);
             Assert.All(first.Files, f => Assert.True(f.Status is "Imported" or "empty export", $"{f.FileName}: {f.Status}; {f.Message}"));
             Assert.Equal(32, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.import_files"));
-            Assert.Equal(32, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.source_document_import_links"));
+            // The store manager's import transactions kept every source file inside the database (IF-023).
+            Assert.Equal(32, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.import_files f WHERE EXISTS(SELECT 1 FROM dbo.import_source_content c WHERE c.source_sha256=f.source_sha256)"));
+            Assert.All(first.Files, f => Assert.Equal(EvidenceState.Retained, f.Evidence));
             Assert.True(Convert.ToInt32(await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.sales_lines")) > 0);
             Assert.True(Convert.ToInt32(await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.sales_line_enrichments WHERE content_key IS NOT NULL AND source_gross_value IS NOT NULL")) > 0);
             Assert.True(Convert.ToInt32(await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.staff")) > 0);
             var repeat = await service.RunAsync(folder, new("Restricted folder test"));
             Assert.All(repeat.Files, f => Assert.Equal("Duplicate", f.Status));
+            Assert.All(repeat.Files, f => Assert.Equal(EvidenceState.AlreadyHeld, f.Evidence));
             Assert.Equal(0, repeat.NewRows);
             session.AssertCoverage(minimumConnections: 32 * 4);
         }

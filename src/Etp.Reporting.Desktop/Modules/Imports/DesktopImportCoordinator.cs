@@ -12,17 +12,10 @@ using ImportPersistenceRequest = EtpApplication::Etp.Reporting.Application.Impor
 using ImportPersistenceResult = EtpApplication::Etp.Reporting.Application.Imports.ImportPersistenceResult;
 using ImportPersistenceUseCase = EtpApplication::Etp.Reporting.Application.Imports.IImportPersistenceUseCase<Etp.Reporting.Import.Preflight.MatchedImportEnvelope>;
 using ImportRestatement = EtpApplication::Etp.Reporting.Application.Imports.ImportRestatement;
+using EvidenceState = EtpApplication::Etp.Reporting.Application.Imports.EvidenceState;
+using ImportEvidenceRetainer = EtpApplication::Etp.Reporting.Application.Imports.IImportEvidenceRetainer;
 
 namespace Etp.Reporting.Desktop.Modules.Imports;
-
-public delegate Task RetainEtpEvidence(
-    string connectionString,
-    string workbookPath,
-    string sourceSha256,
-    string reportCode,
-    string storeCode,
-    DateOnly businessDate,
-    CancellationToken cancellationToken);
 
 public sealed record DesktopImportRunContext(
     string StoreCode,
@@ -51,7 +44,6 @@ public sealed record DesktopImportPersistenceOutcome(
 public sealed class DesktopImportCoordinator : IAsyncDisposable
 {
     private readonly Func<string, ImportPersistenceUseCase> persistenceFactory;
-    private readonly RetainEtpEvidence retainEvidence;
     private readonly IWorkbookReader workbookReader;
     private MatchedImportEnvelopeFactory envelopeFactory;
     private IReadOnlyList<string> knownStores = [];
@@ -65,11 +57,9 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
 
     public DesktopImportCoordinator(
         Func<string, ImportPersistenceUseCase> persistenceFactory,
-        RetainEtpEvidence retainEvidence,
         IWorkbookReader? workbookReader = null)
     {
         this.persistenceFactory = persistenceFactory ?? throw new ArgumentNullException(nameof(persistenceFactory));
-        this.retainEvidence = retainEvidence ?? throw new ArgumentNullException(nameof(retainEvidence));
         this.workbookReader = workbookReader ?? new OpenXmlWorkbookReader();
         envelopeFactory = new MatchedImportEnvelopeFactory();
         failureClassifier = new SafeImportFailureClassifier();
@@ -116,7 +106,9 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
                     "RESTATEMENT_DUPLICATE_FILE",
                     "A restatement must use a corrected source file with a new hash.");
             var reportCode = current.Envelope.ProfileIdentity.ReportCode;
-            return new(reportCode, new ImportPersistenceResult(reportCode, 0), false, true);
+            return new(reportCode, new ImportPersistenceResult(reportCode, 0)
+                { Evidence = await RetainDuplicateEvidenceAsync(persistence, current.Envelope.Workbook, cancellationToken).ConfigureAwait(false) },
+                false, true);
         }
         var restatement = await ResolveRestatementAsync(
             persistence,
@@ -131,23 +123,13 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
         return new(current.Envelope.ProfileIdentity.ReportCode, result, restatement is not null);
     }
 
-    public Task RetainValidatedEvidenceAsync(
-        string connectionString,
-        DesktopImportRunContext context,
-        CancellationToken cancellationToken = default)
-    {
-        var current = validatedImport;
-        return current is null
-            ? Task.CompletedTask
-            : retainEvidence(
-                connectionString,
-                current.WorkbookPath,
-                current.Envelope.Workbook.Sha256,
-                current.Envelope.ProfileIdentity.ReportCode,
-                context.StoreCode,
-                context.BusinessDate,
-                cancellationToken);
-    }
+    // IF-023 (spec 11.2): an import keeps the source bytes inside its own transaction. A file whose rows are
+    // already stored keeps missing bytes in a small transaction of its own.
+    private static Task<EvidenceState> RetainDuplicateEvidenceAsync(ImportPersistenceUseCase persistence,
+        WorkbookSnapshot workbook, CancellationToken cancellationToken) =>
+        persistence is ImportEvidenceRetainer retainer
+            ? retainer.RetainImportedSourceAsync(workbook.Sha256, workbook.EvidenceBytes, cancellationToken)
+            : Task.FromResult(EvidenceState.NotAttempted);
 
     public void ClearValidatedImport() => validatedImport = null;
 
@@ -159,9 +141,7 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
         batchCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var paths = await OpenBatchSourceAsync(sourcePath, batchCancellation.Token).ConfigureAwait(false);
         folderImportOptions = options;
-        folderImportService = new FolderImportService(persistenceFactory(connectionString), workbookReader,
-            (path, envelope, store, end, token) => retainEvidence(connectionString, path, envelope.Workbook.Sha256,
-                envelope.ProfileIdentity.ReportCode, store, end, token), knownStores);
+        folderImportService = new FolderImportService(persistenceFactory(connectionString), workbookReader, knownStores);
         var result = await folderImportService.RunFilesAsync(paths, options, progress, batchCancellation.Token).ConfigureAwait(false);
         FailedBatchPaths = folderImportService.FailedPaths;
         return result;
@@ -263,9 +243,7 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
                 throw new ImportSourceException(
                     "RESTATEMENT_DUPLICATE_FILE",
                     "A restatement must use a corrected source file with a new hash.");
-            await retainEvidence(connectionString, workbookPath, snapshot.Sha256, accepted.ProfileIdentity.ReportCode,
-                accepted.Scope.StoreCode ?? context.StoreCode, accepted.Scope.PeriodEnd ?? context.BusinessDate,
-                cancellationToken).ConfigureAwait(false);
+            await RetainDuplicateEvidenceAsync(persistence, snapshot, cancellationToken).ConfigureAwait(false);
             return new(0, 0, 0, 0, true);
         }
 
@@ -280,14 +258,6 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
             await persistence.PrepareRestatementAsync(request, cancellationToken).ConfigureAwait(false);
         await persistence.PersistAsync(request, cancellationToken).ConfigureAwait(false);
         if (restatement is not null) await recordRestatementAudit(cancellationToken).ConfigureAwait(false);
-        await retainEvidence(
-            connectionString,
-            workbookPath,
-            snapshot.Sha256,
-            accepted.ProfileIdentity.ReportCode,
-            context.StoreCode,
-            context.BusinessDate,
-            cancellationToken).ConfigureAwait(false);
         var outcome = await persistence.LoadOutcomeInScopeAsync(snapshot.Sha256, accepted.ProfileIdentity.ReportCode,
             accepted.Scope.StoreCode ?? context.StoreCode, accepted.Scope.PeriodStart ?? context.BusinessDate,
             accepted.Scope.PeriodEnd ?? context.BusinessDate, cancellationToken).ConfigureAwait(false);

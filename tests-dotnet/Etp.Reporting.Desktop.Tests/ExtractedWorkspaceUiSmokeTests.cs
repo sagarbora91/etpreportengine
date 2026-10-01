@@ -73,8 +73,7 @@ public sealed partial class ExtractedWorkspaceUiSmokeTests
         const string connection = DesktopCompositionRoot.DefaultConnectionString;
         var operationsSession = new OperationsAdministrationPresentationSession();
         var importCoordinator = new DesktopImportCoordinator(
-            _ => Proxy<IImportPersistenceUseCase<Etp.Reporting.Import.Preflight.MatchedImportEnvelope>>(),
-            (_, _, _, _, _, _, _) => Task.CompletedTask);
+            _ => Proxy<IImportPersistenceUseCase<Etp.Reporting.Import.Preflight.MatchedImportEnvelope>>());
 
         return
         [

@@ -100,8 +100,7 @@ public sealed partial class PhaseFiveFullWindowCaptureTests
         var thread = new Thread(() =>
         {
             var coordinator = new DesktopImportCoordinator(
-                _ => throw new InvalidOperationException("The WPF lifecycle probe must not import data."),
-                (_, _, _, _, _, _, _) => Task.CompletedTask);
+                _ => throw new InvalidOperationException("The WPF lifecycle probe must not import data."));
             ImportWorkspaceView? view = null;
             try
             {

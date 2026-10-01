@@ -84,7 +84,8 @@ public sealed partial class SqlServerImportPersistenceUseCase : IImportPersisten
                 scope.StoreCode!, periodStart, periodEnd, cancellationToken).ConfigureAwait(false);
         if (await files.ExistsInScopeAsync(accepted.Workbook.Sha256, accepted.ProfileIdentity.ReportCode,
             scope.StoreCode!, periodStart, periodEnd, cancellationToken).ConfigureAwait(false))
-            return new(accepted.ProfileIdentity.ReportCode, 0) { Status = "Duplicate", AlreadyPresentRows = accepted.Staging.Rows.Count };
+            return new(accepted.ProfileIdentity.ReportCode, 0) { Status = "Duplicate", AlreadyPresentRows = accepted.Staging.Rows.Count,
+                Evidence = await DuplicateEvidenceAsync(accepted, cancellationToken).ConfigureAwait(false) };
         var result = SelectRoute(request.AcceptedImport.ProfileIdentity.ReportCode) switch
         {
             ImportPersistenceRoute.Revenue => await PersistRevenueAsync(request, restatement, cancellationToken).ConfigureAwait(false),
@@ -93,12 +94,14 @@ public sealed partial class SqlServerImportPersistenceUseCase : IImportPersisten
             ImportPersistenceRoute.Family => await PersistFamilyAsync(request, restatement, cancellationToken).ConfigureAwait(false),
             _ => await PersistSalesAsync(request, restatement, cancellationToken).ConfigureAwait(false)
         };
-        if (result.Status == "Duplicate") return result;
+        if (result.Status == "Duplicate")
+            return result with { Evidence = await DuplicateEvidenceAsync(accepted, cancellationToken).ConfigureAwait(false) };
         var outcome = await files.LoadOutcomeInScopeAsync(accepted.Workbook.Sha256, accepted.ProfileIdentity.ReportCode,
             scope.StoreCode!, periodStart, periodEnd, cancellationToken);
         return result with { PersistedRows=outcome.NewRows,
             Status=outcome.NewRows==0 && outcome.AlreadyPresentRows>0 ? "Duplicate content" : "Imported",
-            AlreadyPresentRows=outcome.AlreadyPresentRows,ConflictRows=outcome.ConflictRows };
+            AlreadyPresentRows=outcome.AlreadyPresentRows,ConflictRows=outcome.ConflictRows,
+            Evidence=await ImportEvidenceAsync(accepted, scope.StoreCode!, periodStart, periodEnd, cancellationToken).ConfigureAwait(false) };
     }
 
     public async Task<ImportRowOutcome> LoadOutcomeByHashAsync(string sourceSha256, CancellationToken cancellationToken = default)

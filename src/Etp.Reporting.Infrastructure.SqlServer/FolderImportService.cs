@@ -11,7 +11,6 @@ namespace Etp.Reporting.Infrastructure.SqlServer;
 public sealed class FolderImportService(
     IImportPersistenceUseCase<MatchedImportEnvelope> persistence,
     IWorkbookReader? workbookReader = null,
-    Func<string, MatchedImportEnvelope, string, DateOnly, CancellationToken, Task>? retainEvidence = null,
     IReadOnlyList<string>? knownStores = null) : IFolderImportService
 {
     private readonly IWorkbookReader reader = workbookReader ?? new OpenXmlWorkbookReader();
@@ -114,7 +113,7 @@ public sealed class FolderImportService(
                     result = result with { StoreCode = persistedStore, PeriodStart = periodStart, PeriodEnd = periodEnd,
                         Status = "Duplicate", RowsProcessed = accepted.Staging.Rows.Count,
                         AlreadyPresentRows = accepted.Staging.Rows.Count, Message = "This file was already imported for this store and date range; no new rows." };
-                    result = await RetainEvidenceAsync(result, entry.Path, accepted, persistedStore, periodEnd, cancellationToken).ConfigureAwait(false);
+                    result = await RetainDuplicateEvidenceAsync(result, accepted, cancellationToken).ConfigureAwait(false);
                     results.Add(result);
                     continue;
                 }
@@ -137,8 +136,7 @@ public sealed class FolderImportService(
                     RowsProcessed = Math.Max(accepted.Staging.Rows.Count, outcome.RowsProcessed), NewRows = Math.Max(saved.PersistedRows, outcome.NewRows),
                     AlreadyPresentRows = outcome.AlreadyPresentRows, ConflictRows = outcome.ConflictRows };
                 if (outcome.ConflictRows > 0) result = result with { Status = "Failed", Message = $"{outcome.ConflictRows:N0} conflicting rows. Review the source before retrying." };
-                if (result.Status is "Imported" or "empty export" or "Duplicate" or "Duplicate content" or "Already present")
-                    result = await RetainEvidenceAsync(result, entry.Path, accepted, persistedStore, periodEnd, cancellationToken).ConfigureAwait(false);
+                result = WithEvidence(result, saved.Evidence);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             { result = result with { Status = "Cancelled", Message = "Import cancelled." }; }
@@ -160,16 +158,32 @@ public sealed class FolderImportService(
         return new(results);
     }
 
-    private async Task<FolderImportFileResult> RetainEvidenceAsync(FolderImportFileResult result, string path,
-        MatchedImportEnvelope accepted, string store, DateOnly businessDate, CancellationToken cancellationToken)
+    // IF-023 (spec 11.2): a new import keeps the source bytes inside its own transaction and reports it in
+    // ImportPersistenceResult.Evidence. A file whose rows are already stored keeps missing bytes in a small
+    // transaction of its own. Either way a failure is recorded on the attempt, never swallowed.
+    private async Task<FolderImportFileResult> RetainDuplicateEvidenceAsync(FolderImportFileResult result,
+        MatchedImportEnvelope accepted, CancellationToken cancellationToken)
     {
-        if (retainEvidence is null) return result;
-        try { await retainEvidence(path, accepted, store, businessDate, cancellationToken).ConfigureAwait(false); }
-        catch (Exception exception) when (exception is not OperationCanceledException)
+        if (persistence is not IImportEvidenceRetainer retainer) return result;
+        EvidenceState evidence;
+        try
         {
-            return result with { Message = "Data is present; the original document could not be retained. Keep the source file and import it again to retry evidence retention." };
+            evidence = await retainer.RetainImportedSourceAsync(accepted.Workbook.Sha256, accepted.Workbook.EvidenceBytes,
+                cancellationToken).ConfigureAwait(false);
         }
-        return result;
+        catch (Exception exception) when (exception is not OperationCanceledException) { evidence = EvidenceState.NotRetained; }
+        return WithEvidence(result, evidence);
+    }
+
+    private static FolderImportFileResult WithEvidence(FolderImportFileResult result, EvidenceState? evidence)
+    {
+        if (evidence != EvidenceState.NotRetained) return result with { Evidence = evidence };
+        const string message = "The rows are stored, but the source file could not be kept in the database. Import the same file again to keep it.";
+        return result with
+        {
+            Evidence = evidence, Message = string.IsNullOrEmpty(result.Message) ? message : result.Message + " " + message,
+            Diagnostics = [.. result.Diagnostics ?? [], new(ImportIssueSeverity.Warning, ImportCodes.EvidenceNotRetained, message)]
+        };
     }
 
     private static int DependencyOrder(string? code) => code switch

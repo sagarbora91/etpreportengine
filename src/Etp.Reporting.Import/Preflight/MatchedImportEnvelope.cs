@@ -44,7 +44,9 @@ public sealed class MatchedImportEnvelope
         workbook.FileName,
         workbook.FileSizeBytes,
         workbook.Sha256,
-        ReadOnly(workbook.Sheets.Select(Snapshot)), workbook.SourcePath);
+        ReadOnly(workbook.Sheets.Select(Snapshot)), workbook.SourcePath)
+        // The evidence bytes are shared, not copied: nothing writes to the reader's snapshot (IF-023).
+        { Content = workbook.Content };
 
     private static WorkbookSheet Snapshot(WorkbookSheet sheet) => new(
         sheet.Name,
