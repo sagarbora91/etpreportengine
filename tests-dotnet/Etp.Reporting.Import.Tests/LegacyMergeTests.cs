@@ -141,8 +141,75 @@ public sealed class LegacyMergeTests
         var winner = Assert.Single(resolution.Authoritative);
         Assert.Equal(3, winner.BlockNo);
         Assert.Null(winner.HoldCode);
+        // Once the timed block wins, every legacy block is judged against it: both lack its P2 line.
+        Assert.Equal(
+            [new InSourceDecision(Invoice, 1, DocumentDecision.RestatedInSource), new InSourceDecision(Invoice, 2, DocumentDecision.RestatedInSource)],
+            resolution.EarlierBlocks.OrderBy(decision => decision.BlockNo));
+    }
+
+    [Fact]
+    public void Held_legacy_merge_outranked_by_a_timed_block_is_not_held()
+    {
+        // Blocks 1 and 2 are legacy and inconsistent (block 2 adds P3); block 3 is a timed export of a contract workbook.
+        var source = new SourceDescription(SourceKind.Consolidated,
+        [
+            Block(1, ExportTime.Unknown), Block(2, ExportTime.Unknown),
+            Block(3, Time(9, 29)) with { Completeness = BlockCompleteness.Complete, Origin = BlockOrigin.Contract }
+        ], [], []);
+        BlockProjection[] projections =
+        [
+            new(1, [Observation(1, ExportTime.Unknown, ("P1", 1), ("P2", 1))], [], []),
+            new(2, [Observation(2, ExportTime.Unknown, ("P1", 1), ("P3", 1))], [], []),
+            new(3, [Observation(3, Time(9, 29), ("P1", 1), ("P2", 1))], [], [])
+        ];
+
+        var resolution = new InSourceResolver(TestSources.Canonicalizer).Resolve(source, projections);
+
+        var winner = Assert.Single(resolution.Authoritative);
+        Assert.Equal(3, winner.BlockNo);
+        Assert.Null(winner.HoldCode);
+        Assert.Empty(resolution.Diagnostics);
+        Assert.DoesNotContain(resolution.EarlierBlocks, decision => decision.Decision == DocumentDecision.LegacyBlocksDiffer);
+        // Each legacy block is judged against the timed winner: block 1 says the same, block 2 does not.
         Assert.Contains(new InSourceDecision(Invoice, 1, DocumentDecision.AttestedInSource), resolution.EarlierBlocks);
         Assert.Contains(new InSourceDecision(Invoice, 2, DocumentDecision.RestatedInSource), resolution.EarlierBlocks);
+        Assert.Equal(2, resolution.EarlierBlocks.Count);
+    }
+
+    [Fact]
+    public void Snapshot_legacy_blocks_are_ranked_not_merged()
+    {
+        // Two tiling Info blocks of R010 dated the same day: two readings of one snapshot, never a union by maximum.
+        var snapshot = DocumentKey.ForSnapshot("R010", "WLMHW", new DateOnly(2026, 8, 7));
+        var source = new SourceDescription(SourceKind.ConsolidatedLegacy, [Block(1, Time(8, 7)), Block(2, Time(8, 7)) with { ExportTime = Late(8, 7) }], [], []);
+        BlockProjection[] projections =
+        [
+            new(1, [Observation(1, Time(8, 7), ("P1", 1), ("P2", 1)) with { Key = snapshot }], [], []),
+            new(2, [Observation(2, Late(8, 7), ("P1", 1), ("P3", 1)) with { Key = snapshot }], [], [])
+        ];
+        var undated = source with { Blocks = [Block(1, ExportTime.Unknown), Block(2, ExportTime.Unknown)] };
+        BlockProjection[] undatedProjections =
+        [
+            new(1, [Observation(1, ExportTime.Unknown, ("P1", 1), ("P2", 1)) with { Key = snapshot }], [], []),
+            new(2, [Observation(2, ExportTime.Unknown, ("P1", 1), ("P3", 1)) with { Key = snapshot }], [], [])
+        ];
+        var resolver = new InSourceResolver(TestSources.Canonicalizer);
+
+        var timed = resolver.Resolve(source, projections);
+        var unordered = resolver.Resolve(undated, undatedProjections);
+
+        var latest = Assert.Single(timed.Authoritative);
+        Assert.False(latest.IsLegacyMerge);
+        Assert.Equal(2, latest.BlockNo);
+        Assert.Equal(2, latest.RowCount);
+        Assert.Null(latest.HoldCode);
+        Assert.Empty(timed.Diagnostics);
+        Assert.Equal([new InSourceDecision(snapshot, 1, DocumentDecision.RestatedInSource)], timed.EarlierBlocks);
+        // Without export times the two readings cannot be ordered and differ: held as an in-source conflict.
+        var held = Assert.Single(unordered.Authoritative);
+        Assert.False(held.IsLegacyMerge);
+        Assert.Equal(ImportCodes.InSourceConflict, held.HoldCode);
+        Assert.Equal(ImportCodes.InSourceConflict, Assert.Single(unordered.Diagnostics).Code);
     }
 
     [Fact]
@@ -207,6 +274,37 @@ public sealed class LegacyMergeTests
     }
 
     [Fact]
+    public void Snapshot_history_rows_of_one_snapshot_split_by_other_rows_are_refused()
+    {
+        var book = ContractFixture.Load("s009-current-history.json").Workbook;
+        book.Sheets.Remove(book.Sheet("Info"));
+        book.Sheet("Snapshot History").Rows.Insert(2, ["AW330", "J-0009", "OPEN", "2", "2026-09-01", "PENDING REPAIR 01.09.2026.csv"]);
+        var history = book.ToSnapshot().Sheets.Single(sheet => sheet.Name == "Snapshot History");
+
+        var read = HistorySheetBlockReader.Read(history, 2);
+
+        Assert.Equal(3, read.Blocks.Count);
+        var split = Assert.Single(read.Diagnostics);
+        Assert.Equal(ImportCodes.SnapshotDateAmbiguous, split.Code);
+        Assert.Equal(ImportDiagnosticSeverity.Blocker, split.Severity);
+        Assert.Equal(4, split.RowNumber);
+    }
+
+    [Fact]
+    public void Reviewed_tick_comes_before_a_bare_snapshot_history_sheet()
+    {
+        var book = ContractFixture.Load("s009-current-history.json").Workbook;
+        book.Sheets.Remove(book.Sheet("Info"));
+        var workbook = book.ToSnapshot();
+        var data = workbook.Sheets.Single(sheet => sheet.Name == "Data");
+
+        var reviewed = TestSources.Reader().Describe(new SourceDescriptionRequest(workbook, ContractCatalogue.Family("S009"), data) { ImportAsReviewed = true });
+
+        Assert.Equal(SourceKind.Reviewed, reviewed.Kind);
+        Assert.Equal(BlockCompleteness.Complete, Assert.Single(reviewed.Blocks).Completeness);
+    }
+
+    [Fact]
     public void Raw_and_reviewed_sources_are_one_complete_block()
     {
         var family = ContractCatalogue.Family("R025");
@@ -247,6 +345,8 @@ public sealed class LegacyMergeTests
     }
 
     private static ExportTime Time(int month, int day) => ExportTime.AtMinute(new DateTime(2026, month, day, 12, 0, 0));
+
+    private static ExportTime Late(int month, int day) => ExportTime.AtMinute(new DateTime(2026, month, day, 18, 0, 0));
 
     private static SourceBlock Block(int blockNo, ExportTime time) =>
         new(blockNo, "Data", blockNo * 10, blockNo * 10 + 5, 6, BlockCompleteness.Legacy, BlockOrigin.InfoLegacy, time);

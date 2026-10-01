@@ -2,6 +2,7 @@ using System.Text.Json;
 using Etp.Reporting.Application.Imports;
 using Etp.Reporting.Import.Diagnostics;
 using Etp.Reporting.Import.Documents;
+using Etp.Reporting.Import.Profiles;
 using Etp.Reporting.Import.Sources;
 using Codes = Etp.Reporting.Application.Imports.ImportCodes.Contract;
 
@@ -13,6 +14,7 @@ public sealed class ConsolidationContractTests
     private const string R025 = "r025-transactional-delta.json";
     private const string R010 = "r010-snapshot-stacked.json";
     private const string S009 = "s009-current-history.json";
+    private const string R011 = "r011-snapshot-dated-rows.json";
 
     [Fact]
     public void Valid_workbook_round_trips_into_blocks_and_virtual_rows()
@@ -87,6 +89,8 @@ public sealed class ConsolidationContractTests
         { "period missing", Codes.PeriodMissing },
         { "R010 snapshot date missing", Codes.SnapshotDateMissing },
         { "R010 snapshot date duplicate", Codes.SnapshotDateDuplicate },
+        { "S009 history block of another export shares the Data date", Codes.SnapshotDateDuplicate },
+        { "R010 blocks out of block-number order", Codes.BlockOverlap },
         { "S009 Snapshot_As_Of disagrees", Codes.SnapshotDateDisagrees },
         { "S009 two Data blocks", Codes.CurrentShape },
         { "map row missing", Codes.ExcludedMapMissing },
@@ -136,6 +140,77 @@ public sealed class ConsolidationContractTests
         var result = Validate(book, "S009");
 
         Assert.Equal([2], result.Blocks.Select(block => block.BlockNo));
+    }
+
+    [Fact]
+    public void Another_export_with_the_Data_date_on_history_is_not_a_repeat()
+    {
+        var (book, _) = Changed("S009 history block of another export shares the Data date");
+
+        var result = Validate(book, "S009");
+
+        // Contract 5 counts only the same export once; a different export of the same date breaks rule 9 and stays a block.
+        Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Code == Codes.HistoryRepeatsData);
+        Assert.Equal([1, 2], result.Blocks.Select(block => block.BlockNo));
+        Assert.True(result.HasBlockers);
+    }
+
+    [Theory]
+    [InlineData("R010 Data sheet missing")]
+    [InlineData("S009 history sheet missing")]
+    [InlineData("S009 data_sheet names another sheet")]
+    public void A_missing_data_or_history_sheet_refuses_the_workbook(string change)
+    {
+        var (book, familyCode) = Changed(change);
+
+        var result = Validate(book, familyCode);
+
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == Codes.SheetMissing && diagnostic.Severity == ImportDiagnosticSeverity.Blocker);
+        Assert.True(result.HasBlockers);
+    }
+
+    [Fact]
+    public void Legacy_block_with_an_excluded_count_needs_no_map()
+    {
+        var book = ContractFixture.Load(R010).Workbook;
+        // A pre-contract block carried over with today's Info "Rows excluded" count: no map, checked for row_count only.
+        book.SetBlock(1, "completeness", "legacy");
+        book.SetBlock(1, "source_sha256", "");
+        book.SetBlock(1, "raw_rows", "");
+        book.SetBlock(1, "excluded_rows", "3");
+
+        var result = Validate(book, "R010");
+
+        Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Code == Codes.KeyMissing);
+        Assert.False(result.HasBlockers, Describe(result.Diagnostics));
+    }
+
+    [Fact]
+    public void R011_rows_are_checked_against_the_production_catalogue_and_their_Date_column()
+    {
+        var family = EtpReportFamilyRegistry.Families.Single(candidate => candidate.FamilyCode == "R011");
+        var book = ContractFixture.Load(R011).Workbook;
+
+        var valid = Validate(book, family);
+        book.Sheet("Data").Rows[3][7] = "2026-09-29";
+        var disagrees = Validate(book, family);
+
+        Assert.False(valid.HasBlockers, Describe(valid.Diagnostics));
+        Assert.Equal([new DateOnly(2026, 8, 31), new DateOnly(2026, 9, 30)], valid.Blocks.Select(block => block.SnapshotDate!.Value));
+        var diagnostic = Assert.Single(disagrees.Diagnostics, candidate => candidate.Code == Codes.SnapshotDateDisagrees);
+        Assert.Equal(ImportDiagnosticSeverity.Blocker, diagnostic.Severity);
+        Assert.Equal((2, 4, "Date"), (diagnostic.BlockNo!.Value, diagnostic.RowNumber!.Value, diagnostic.ColumnName));
+    }
+
+    [Fact]
+    public void Production_catalogue_allows_the_contract_rules_of_section_6()
+    {
+        ContractRule[] Allowed(string code) =>
+            [.. ConsolidationContractValidator.AllowedRules(EtpReportFamilyRegistry.Families.Single(family => family.FamilyCode == code))];
+
+        Assert.Equal([ContractRule.Transactional, ContractRule.Empty], Allowed("R025"));
+        Assert.Equal([ContractRule.Snapshot, ContractRule.Empty], Allowed("R010"));
+        Assert.Equal([ContractRule.Snapshot, ContractRule.Empty], Allowed("R011"));
     }
 
     [Fact]
@@ -231,30 +306,73 @@ public sealed class ConsolidationContractTests
     {
         var fixture = ContractFixture.Load(R025);
         var book = fixture.Workbook;
-        // A later build removed block 2's row 7 (re-stated by a later export) and recorded it.
-        book.Sheet("Data").Rows.RemoveAt(6);
+        // A later build removed row 3 (invoice 100001, line P2) from block 1, the 2 Jul export, because the 20 Jul export
+        // (block 3) re-stated invoice 100001 without it (contract rule 7: never from the latest block holding it). The
+        // rows below move up one, so the map's twins move with them.
+        book.Sheet("Data").Rows.RemoveAt(2);
         book.SetKey("data_rows", "6");
+        book.SetBlock(1, "last_row", "4");
+        book.SetBlock(1, "row_count", "3");
+        book.SetBlock(1, "superseded_rows", "1");
+        book.SetBlock(1, "completeness", "trimmed");
+        book.SetBlock(2, "first_row", "5");
         book.SetBlock(2, "last_row", "6");
-        book.SetBlock(2, "row_count", "1");
-        book.SetBlock(2, "superseded_rows", "1");
-        book.SetBlock(2, "completeness", "trimmed");
         book.SetBlock(3, "first_row", "7");
         book.SetBlock(3, "last_row", "7");
+        var map = book.Sheet("ETP_Excluded").Rows;
+        (map[1][2], map[2][2], map[3][2], map[4][2]) = ("3", "4", "2", "3");
         var family = ContractCatalogue.Family("R025");
         var workbook = book.ToSnapshot();
         var reader = TestSources.Reader();
 
         var validation = Validate(book, "R025", fixture.RawBySha());
         var source = reader.Describe(new SourceDescriptionRequest(workbook, family, workbook.Sheets.Single(sheet => sheet.Name == "Data")));
-        var trimmed = source.Blocks.Single(block => block.BlockNo == 2);
-        var rows = reader.RebuildBlockRows(source, trimmed, TestSources.Stage(workbook, family, "Data"));
+        var staged = TestSources.Stage(workbook, family, "Data");
+        var projections = source.Blocks.Select(block => TestSources.Project(family, "WLMHW", block, reader.RebuildBlockRows(source, block, staged))).ToArray();
+        var trimmed = source.Blocks.Single(block => block.BlockNo == 1);
+        var delta = source.Blocks.Single(block => block.BlockNo == 2);
+        var resolution = new InSourceResolver(TestSources.Canonicalizer).Resolve(source, projections);
+        var coverage = InSourceResolver.CoverageBlocks(source, projections);
 
         Assert.False(validation.HasBlockers, Describe(validation.Diagnostics));
         Assert.Equal(BlockCompleteness.Trimmed, trimmed.Completeness);
         Assert.False(trimmed.IsRebuildable);
-        Assert.Equal(3, rows.Count);
-        Assert.Equal(2, rows.Count(row => row.Locator.IsVirtual));
-        Assert.Null(ExportIdentity.ContentSha256(family, trimmed, rows, TestSources.Canonicalizer));
+        var trimmedRows = reader.RebuildBlockRows(source, trimmed, staged);
+        Assert.Equal(3, trimmedRows.Count);
+        Assert.Null(ExportIdentity.ContentSha256(family, trimmed, trimmedRows, TestSources.Canonicalizer));
+        // The delta block's mapped copies still find their (moved) twins in the trimmed block, and it rebuilds its export.
+        var deltaRows = reader.RebuildBlockRows(source, delta, staged);
+        Assert.Equal(2, deltaRows.Count(row => row.Locator.IsVirtual));
+        Assert.NotNull(ExportIdentity.ContentSha256(family, delta, deltaRows, TestSources.Canonicalizer));
+        // The trimmed block is marked trimmed for the absence check, which uses only complete and delta blocks...
+        Assert.Equal(BlockCompleteness.Trimmed, coverage.Single(block => block.BlockNo == 1).Completeness);
+        Assert.All(coverage.Where(block => block.BlockNo != 1), block => Assert.NotEqual(BlockCompleteness.Trimmed, block.Completeness));
+        // ...but is a normal observation of the documents it holds: invoice 100002 (both lines, kept in block 1) is
+        // attested by the 7 Aug export, and its reading of 100001 (P1 only) is attested by the 20 Jul export.
+        var invoice = resolution.Authoritative.Single(observation => observation.Key.KeyText == "2027|100002");
+        Assert.Equal(2, invoice.BlockNo);
+        Assert.Contains(new InSourceDecision(invoice.Key, 1, DocumentDecision.AttestedInSource), resolution.EarlierBlocks);
+        var restated = resolution.Authoritative.Single(observation => observation.Key.KeyText == "2027|100001");
+        Assert.Equal(3, restated.BlockNo);
+        Assert.Contains(new InSourceDecision(restated.Key, 1, DocumentDecision.AttestedInSource), resolution.EarlierBlocks);
+    }
+
+    [Fact]
+    public void Rebuild_without_every_twin_has_no_content_hash()
+    {
+        var fixture = ContractFixture.Load(R025);
+        var family = ContractCatalogue.Family("R025");
+        var workbook = fixture.Workbook.ToSnapshot();
+        var reader = TestSources.Reader();
+        var source = reader.Describe(new SourceDescriptionRequest(workbook, family, workbook.Sheets.Single(sheet => sheet.Name == "Data")));
+        var delta = source.Blocks.Single(block => block.BlockNo == 2);
+        // Only the block's own rows: its twins (rows 4 and 5, in block 1) are not among them.
+        var ownRows = TestSources.Stage(workbook, family, "Data").Where(row => delta.Contains(row.Locator.SheetName, row.Locator.SourceRowNumber)).ToArray();
+
+        var rows = reader.RebuildBlockRows(source, delta, ownRows);
+
+        Assert.Equal(2, rows.Count);
+        Assert.Null(ExportIdentity.ContentSha256(family, delta, rows, TestSources.Canonicalizer));
     }
 
     [Fact]
@@ -394,13 +512,17 @@ public sealed class ConsolidationContractTests
     }
 
     private static ContractValidationResult Validate(FixtureBook book, string familyCode,
+        IReadOnlyDictionary<string, Workbooks.WorkbookSnapshot>? raw = null) =>
+        Validate(book, ContractCatalogue.Family(familyCode), raw);
+
+    private static ContractValidationResult Validate(FixtureBook book, EtpReportFamily family,
         IReadOnlyDictionary<string, Workbooks.WorkbookSnapshot>? raw = null)
     {
         var workbook = book.ToSnapshot();
         var read = new TestContractReader().Read(workbook);
         Assert.True(read.IsContract);
         Assert.NotNull(read.Contract);
-        return new ConsolidationContractValidator().Validate(new ContractValidationRequest(workbook, read.Contract, ContractCatalogue.Family(familyCode))
+        return new ConsolidationContractValidator().Validate(new ContractValidationRequest(workbook, read.Contract, family)
         {
             RawExports = raw ?? new Dictionary<string, Workbooks.WorkbookSnapshot>()
         });
@@ -489,9 +611,24 @@ public sealed class ConsolidationContractTests
                 break;
             case "row outside period": book.SetBlock(1, "period_from", "2026-07-02"); break;
             case "S009 history repeats data":
+                // The same export as the Data block (same file, time and SHA-256), also written on Snapshot History.
+                foreach (var column in new[] { "snapshot_date", "source_file", "source_sha256", "export_time" })
+                    book.SetBlock(1, column, book.Block(2, column));
+                foreach (var row in book.Sheet("Snapshot History").Rows.Skip(1)) (row[4], row[5]) = ("2026-09-29", book.Block(2, "source_file"));
+                break;
+            case "S009 history block of another export shares the Data date":
                 book.SetBlock(1, "snapshot_date", "2026-09-29");
                 foreach (var row in book.Sheet("Snapshot History").Rows.Skip(1)) row[4] = "2026-09-29";
                 break;
+            case "R010 blocks out of block-number order":
+                book.SetBlock(1, "first_row", "4");
+                book.SetBlock(1, "last_row", "5");
+                book.SetBlock(2, "first_row", "2");
+                book.SetBlock(2, "last_row", "3");
+                break;
+            case "R010 Data sheet missing": book.Sheets.Remove(book.Sheet("Data")); break;
+            case "S009 history sheet missing": book.Sheets.Remove(book.Sheet("Snapshot History")); break;
+            case "S009 data_sheet names another sheet": book.SetKey("data_sheet", "Sheet1"); break;
             case "date-typed key cell": book.SetKey("coverage_from", new DateTime(2026, 7, 1)); break;
             default: throw new ArgumentOutOfRangeException(nameof(change), change, null);
         }

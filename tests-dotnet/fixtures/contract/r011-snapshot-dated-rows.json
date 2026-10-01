@@ -1,0 +1,41 @@
+{
+  "description": "Synthetic contract v1 workbook, rule snapshot, for R011 Closing Stock with the production catalogue's header: two stacked snapshots whose rows carry the snapshot date in the Date column (contract 3.3 snapshot_date rule). All values are invented.",
+  "workbook": {
+    "fileName": "R011_Closing_Stock_WLMHW.xlsx",
+    "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "sheets": [
+      {
+        "name": "Info",
+        "rows": [
+          ["etp_contract", "1"],
+          ["family_code", "R011"],
+          ["report_name", "Closing Stock"],
+          ["store_code", "WLMHW"],
+          ["business_unit", "RETAIL"],
+          ["rule", "snapshot"],
+          ["data_sheet", "Data"],
+          ["header_row", "1"],
+          ["data_rows", "4"],
+          ["block_count", "2"],
+          ["built_at", "2026-10-05T10:15:00+05:30"],
+          ["builder", "saagar-etp-consolidation 2.0"],
+          [],
+          ["block", "sheet", "first_row", "last_row", "row_count", "source_file", "source_format", "source_sha256", "export_time", "period_from", "period_to", "period_basis", "snapshot_date", "raw_rows", "excluded_rows", "superseded_rows", "completeness", "disposition"],
+          ["1", "Data", "2", "3", "2", "202608311900_Closing Stock.xlsx", "xlsx", "9999999999999999999999999999999999999999999999999999999999999999", "2026-08-31T19:00", "", "", "none", "2026-08-31", "2", "0", "0", "complete", "Snapshot 31-Aug retained"],
+          ["2", "Data", "4", "5", "2", "202609301900_Closing Stock.xlsx", "xlsx", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "2026-09-30T19:00", "", "", "none", "2026-09-30", "2", "0", "0", "complete", "Snapshot 30-Sep retained"]
+        ]
+      },
+      {
+        "name": "Data",
+        "rows": [
+          ["STORE CODE", "STORE NAME", "STORE TYPE", "CHANNEL", "REGION", "STATE", "CITY", "Date", "ITEMNUMBER", "HSN CODE", "ITEMDESCRIPTION", "EAN NO", "BRAND", "CLUSTER", "GENDER", "QTY", "UCP", "TOTALUCP", "BATCHNUMBER", "UID_ITEM"],
+          ["WLMHW", "Synthetic Store", "OWN", "RETAIL", "WEST", "STATE A", "CITY A", "2026-08-31", "I100", "91021100", "Synthetic item", "0000000000000", "B1", "C1", "U", "1", "100", "100", "BT1", "UID-I100"],
+          ["WLMHW", "Synthetic Store", "OWN", "RETAIL", "WEST", "STATE A", "CITY A", "2026-08-31", "I200", "91021100", "Synthetic item", "0000000000000", "B1", "C1", "U", "2", "100", "200", "BT1", "UID-I200"],
+          ["WLMHW", "Synthetic Store", "OWN", "RETAIL", "WEST", "STATE A", "CITY A", "2026-09-30", "I100", "91021100", "Synthetic item", "0000000000000", "B1", "C1", "U", "1", "100", "100", "BT1", "UID-I100"],
+          ["WLMHW", "Synthetic Store", "OWN", "RETAIL", "WEST", "STATE A", "CITY A", "2026-09-30", "I300", "91021100", "Synthetic item", "0000000000000", "B1", "C1", "U", "3", "100", "300", "BT1", "UID-I300"]
+        ]
+      }
+    ]
+  },
+  "raw": []
+}

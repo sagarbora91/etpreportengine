@@ -8,8 +8,9 @@ namespace Etp.Reporting.Import.Documents;
 /// <summary>
 /// Resolution inside one source (spec 6.6-6.7), pure and before the decision engine. Per document:
 /// <list type="number">
-/// <item>The legacy blocks that hold it are merged into one observation (<see cref="LegacyMerge"/>), held with
-/// <c>LEGACY_BLOCKS_DIFFER</c> when a later block holds a fact row no earlier block holds.</item>
+/// <item>For a transactional document (Document or Date scope), the legacy blocks that hold it are merged into one
+/// observation (<see cref="LegacyMerge"/>), held with <c>LEGACY_BLOCKS_DIFFER</c> when a later block holds a fact row no
+/// earlier block holds. A snapshot or period document's legacy blocks are not merged: each is one reading, ranked below.</item>
 /// <item>The authoritative observation is the one whose export time is greatest by <see cref="ExportOrder"/>; an
 /// unknown time ranks below every known one, so a legacy merge (always unknown) loses to any timed block.</item>
 /// <item>When the top observations cannot be ordered (the <c>SAME</c> time, or times <see cref="ExportOrder"/> cannot
@@ -40,21 +41,30 @@ public sealed class InSourceResolver(IFactCanonicalizer canonicalizer) : IInSour
         {
             var candidates = new List<DocumentObservation>();
             var legacy = group.Where(observation => IsLegacy(blockInfo, observation.BlockNo)).ToArray();
-            if (legacy.Length > 1)
+            LegacyMergeResult? merged = null;
+            // Spec 6.6, contract 3.3 and 11: only a transactional document is merged. A snapshot or period document's
+            // legacy blocks are readings of one snapshot or period and are ranked like any other block.
+            if (legacy.Length > 1 && IsTransactional(group.First().Key.Scope))
             {
-                var merged = legacyMerge.Merge(legacy);
+                merged = legacyMerge.Merge(legacy);
                 candidates.Add(merged.Observation);
-                earlier.AddRange(merged.Decisions);
-                if (merged.Observation.HoldCode == ImportCodes.LegacyBlocksDiffer) legacyHolds.Add(merged.Observation);
             }
             else candidates.AddRange(legacy);
             candidates.AddRange(group.Where(observation => !IsLegacy(blockInfo, observation.BlockNo)));
 
             var (winner, decisions) = Choose(candidates);
             authoritative.Add(winner);
+            if (merged is not null)
+                // The merge's own decisions stand only when the merge is authoritative. When a timed block outranks it,
+                // each legacy block is judged against that block instead, and the merge's hold does not apply.
+                earlier.AddRange(winner.IsLegacyMerge ? merged.Decisions
+                    : legacy.Where(observation => observation.BlockNo != merged.Observation.BlockNo)
+                        .Select(observation => new InSourceDecision(observation.Key, observation.BlockNo,
+                            SameFacts(observation, winner) ? DocumentDecision.AttestedInSource : DocumentDecision.RestatedInSource)));
             earlier.AddRange(decisions);
             if (winner.HoldCode == ImportCodes.InSourceConflict && decisions.Any(decision => decision.Decision == DocumentDecision.InSourceConflict))
                 conflicts.Add(winner);
+            if (winner.IsLegacyMerge && winner.HoldCode == ImportCodes.LegacyBlocksDiffer) legacyHolds.Add(winner);
         }
 
         var diagnostics = new List<ImportDiagnostic>();
@@ -84,6 +94,9 @@ public sealed class InSourceResolver(IFactCanonicalizer canonicalizer) : IInSour
                 block.PeriodFrom ?? block.SnapshotDate, block.PeriodTo ?? block.SnapshotDate, observed);
         }).ToArray();
     }
+
+    /// <summary>Document and Date scope: the families whose consolidation rule is <c>transactional</c> (contract 6).</summary>
+    private static bool IsTransactional(DocumentScope scope) => scope is DocumentScope.Document or DocumentScope.Date;
 
     private static bool IsLegacy(IReadOnlyDictionary<int, SourceBlock> blocks, int blockNo) =>
         blocks.TryGetValue(blockNo, out var block) && block.Completeness == BlockCompleteness.Legacy;
@@ -154,7 +167,8 @@ public sealed record LegacyMergeResult(DocumentObservation Observation, IReadOnl
 /// <item>Inconsistent: some later block holds a fact row no earlier block holds. The merged observation is still
 /// proposed, but held with <c>LEGACY_BLOCKS_DIFFER</c>; nothing is applied automatically.</item>
 /// </list>
-/// The merged observation's export time is unknown, so any difference from stored facts goes to review (spec 8).
+/// The merged observation's export time is unknown, so any difference from stored facts goes to review (spec 8). The merge
+/// is for transactional documents only; <see cref="InSourceResolver"/> never merges a snapshot or period document.
 /// Whether it equals the stored facts (decision PRESENT, step 5) is the decision engine's.
 /// </summary>
 public sealed class LegacyMerge(IFactCanonicalizer canonicalizer)

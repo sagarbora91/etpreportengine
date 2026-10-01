@@ -12,9 +12,10 @@ namespace Etp.Reporting.Import.Sources;
 /// <list type="number">
 /// <item><c>CONSOLIDATED</c>: <c>Info!A1</c> is <c>etp_contract</c>. The block table and the exclusion map, judged by
 /// <see cref="IConsolidationContractValidator"/>; any contract blocker refuses the workbook.</item>
-/// <item><c>CONSOLIDATED_LEGACY</c>: a pre-contract Info block table, or a <c>Snapshot History</c> sheet. Tiling Info
-/// blocks, or one whole-file block, plus one block per dated run of history rows. Every block is <c>LEGACY</c>.</item>
+/// <item><c>CONSOLIDATED_LEGACY</c>: a pre-contract Info block table. Tiling Info blocks, or one whole-file block, plus
+/// one block per dated run of history rows. Every block is <c>LEGACY</c>.</item>
 /// <item><c>REVIEWED</c>: the Owner ticked "Import as reviewed file". One complete block, export time unknown.</item>
+/// <item><c>CONSOLIDATED_LEGACY</c> again: a <c>Snapshot History</c> sheet without an Info block table (spec 6.4 tier 3).</item>
 /// <item><c>RAW</c>: one complete block over all rows, timed by the file name (spec 6.3).</item>
 /// </list>
 /// It reads no database. S027/S028 consolidation columns (<c>SourceColumnBlockReader</c>) arrive with P8.
@@ -41,11 +42,13 @@ public sealed class SourceDescriptionReader(
 
         var legacy = legacyInfoReader.Read(request.Workbook, request.DataSheet);
         var history = ContractSheetView.Find(request.Workbook, ConsolidationContractLayout.HistorySheet);
-        if (legacy.Found || history is not null) return DescribeLegacy(request, legacy, history);
-
-        return request.ImportAsReviewed
-            ? new SourceDescription(SourceKind.Reviewed, [WholeSheetBlock(request, BlockCompleteness.Complete, BlockOrigin.Raw, ExportTime.Unknown)], [], [])
-            : new SourceDescription(SourceKind.Raw, [RawBlock(request)], [], []);
+        if (legacy.Found) return DescribeLegacy(request, legacy, history);
+        if (request.ImportAsReviewed)
+            return new SourceDescription(SourceKind.Reviewed, [WholeSheetBlock(request, BlockCompleteness.Complete, BlockOrigin.Raw, ExportTime.Unknown)], [], []);
+        // Not in the spec 6.1 table, but its intent (spec 6.4 tier 3, contract 11): no raw ETP export has a Snapshot
+        // History sheet, so a workbook with one is a pre-contract consolidation. The Owner's "reviewed" tick comes first.
+        if (history is not null) return DescribeLegacy(request, legacy, history);
+        return new SourceDescription(SourceKind.Raw, [RawBlock(request)], [], []);
     }
 
     public IReadOnlyList<SourceRow> RebuildBlockRows(SourceDescription source, SourceBlock block, IReadOnlyList<SourceRow> stagedRows) =>
@@ -54,9 +57,11 @@ public sealed class SourceDescriptionReader(
     /// <summary>
     /// The rows of one block as its export held them (spec 6.5 rebuild): its physical rows, then, for a delta or
     /// trimmed block, one virtual row per <c>ETP_Excluded</c> map row with the twin's staged values (timestamps
-    /// included) and its own locator on <c>ETP_Excluded</c>. A legacy block is its physical rows only. A twin that
-    /// staging left out (an unrecognised transaction type) is left out of the rebuild too, exactly as the raw
-    /// export's own copy would have been.
+    /// included) and its own locator on <c>ETP_Excluded</c>. A legacy block is its physical rows only.
+    /// <paramref name="stagedRows"/> must be every staged row of the workbook, on every sheet (<c>Data</c> and
+    /// <c>Snapshot History</c>), because a twin lives in a lower-numbered block. A map row whose twin is not among them
+    /// (staging left it out, or the caller passed too few rows) gives no virtual row; the rebuild then has fewer virtual
+    /// rows than <see cref="SourceBlock.VirtualRowCount"/> and <see cref="ExportIdentity.ContentSha256"/> gives it no hash.
     /// </summary>
     public static IReadOnlyList<SourceRow> RebuildRows(SourceDescription source, SourceBlock block, IReadOnlyList<SourceRow> stagedRows)
     {

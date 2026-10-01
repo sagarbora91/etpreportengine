@@ -42,7 +42,9 @@ public static partial class ExportIdentity
     /// <c>content_sha256</c>: the multiset hash of the canonical row hash (every staged field except Ignored ones) of
     /// every row of the <b>rebuilt</b> block, physical and virtual. Null for trimmed and legacy blocks, which do not
     /// hold their export's full row multiset. An empty export hashes its empty multiset, so the raw and the contract
-    /// routes agree on it too.
+    /// routes agree on it too. A delta block rebuilt with fewer virtual rows than its map gives it (a twin that was not
+    /// among the staged rows) is not its full export either and has no hash, so it is never compared and never reported
+    /// as a content mismatch.
     /// </summary>
     public static string? ContentSha256(EtpReportFamily family, SourceBlock block, IReadOnlyList<SourceRow> rebuiltRows, IFactCanonicalizer canonicalizer)
     {
@@ -51,6 +53,7 @@ public static partial class ExportIdentity
         ArgumentNullException.ThrowIfNull(rebuiltRows);
         ArgumentNullException.ThrowIfNull(canonicalizer);
         if (block.Completeness is not (BlockCompleteness.Complete or BlockCompleteness.Delta or BlockCompleteness.Empty)) return null;
+        if (rebuiltRows.Count(row => row.Locator.IsVirtual) != block.VirtualRowCount) return null;
         return canonicalizer.MultisetHash(rebuiltRows.Select(row => canonicalizer.Canonicalize(family, row.Values).ContentHash));
     }
 

@@ -7,7 +7,8 @@ namespace Etp.Reporting.Import.Sources;
 
 /// <summary>The <c>Snapshot History</c> sheet ready for staging, and the dated blocks read from its rows.</summary>
 /// <param name="StagingSheet">The sheet with the trailing non-ETP columns removed, so it stages like <c>Data</c>.</param>
-/// <param name="Blocks">Without a contract: one block per run of rows with the same <c>Snapshot_As_Of</c> and <c>SourceFile</c>.</param>
+/// <param name="Blocks">Without a contract: one block per run of rows with the same <c>Snapshot_As_Of</c> and <c>SourceFile</c>
+/// (each pair must be one run, or the workbook is refused with <c>SNAPSHOT_DATE_AMBIGUOUS</c>).</param>
 public sealed record HistorySheetRead(WorkbookSheet StagingSheet, IReadOnlyList<SourceBlock> Blocks, IReadOnlyList<ImportDiagnostic> Diagnostics);
 
 /// <summary>
@@ -53,7 +54,9 @@ public static class HistorySheetBlockReader
     /// Without a contract (spec 6.4 tier 3): one <see cref="BlockCompleteness.Legacy"/> block per run of consecutive rows
     /// with the same <c>Snapshot_As_Of</c> date and <c>SourceFile</c>, dated by that column (<see cref="SnapshotDateBasis.HistoryRows"/>)
     /// and timed by the <c>SourceFile</c> name (spec 6.3). Rows without a readable <c>Snapshot_As_Of</c> date cannot be
-    /// dated and refuse the workbook with <c>SNAPSHOT_DATE_UNKNOWN</c>; nothing is guessed.
+    /// dated and refuse the workbook with <c>SNAPSHOT_DATE_UNKNOWN</c>; nothing is guessed. A pair that reappears after
+    /// other rows (spec 6.4 tier 3 groups by the pair) refuses it with <c>SNAPSHOT_DATE_AMBIGUOUS</c>, because a block is
+    /// one run of rows.
     /// </summary>
     /// <param name="firstBlockNo">The number of the first history block; the <c>Data</c> blocks come before it.</param>
     public static HistorySheetRead Read(WorkbookSheet history, int firstBlockNo, IReadOnlyList<string>? extraColumns = null)
@@ -75,6 +78,8 @@ public static class HistorySheetBlockReader
 
         var blocks = new List<SourceBlock>();
         var undated = new List<int>();
+        var keys = new HashSet<(DateOnly Date, string File)>();
+        var split = new List<int>();
         (DateOnly Date, string File, int First, int Last, int Count)? run = null;
         foreach (var row in view.Rows)
         {
@@ -91,6 +96,7 @@ public static class HistorySheetBlockReader
                 continue;
             }
             if (run is { } finished) blocks.Add(Block(firstBlockNo + blocks.Count, history.Name, finished));
+            if (!keys.Add((date, file.ToUpperInvariant()))) split.Add(row.RowNumber);
             run = (date, file, row.RowNumber, row.RowNumber, 1);
         }
         if (run is { } last) blocks.Add(Block(firstBlockNo + blocks.Count, history.Name, last));
@@ -98,6 +104,12 @@ public static class HistorySheetBlockReader
             diagnostics.Add(new(ImportCodes.SnapshotDateUnknown, ImportDiagnosticSeverity.Blocker,
                 $"{undated.Count} {history.Name} rows have no readable {SnapshotAsOfColumn} date (rows {DiagnosticLists.Of(undated)}).",
                 history.Name, undated[0], SnapshotAsOfColumn) { Occurrences = undated.Count });
+        if (split.Count > 0)
+            // A block is one run of sheet rows. A snapshot whose rows come back after other rows would become two
+            // partial readings of one snapshot date, and the importer would keep one of them; it refuses instead.
+            diagnostics.Add(new(ImportCodes.SnapshotDateAmbiguous, ImportDiagnosticSeverity.Blocker,
+                $"{split.Count} run(s) of {history.Name} rows repeat the {SnapshotAsOfColumn} and {SourceFileColumn} of an earlier run (runs starting at rows {DiagnosticLists.Of(split)}); keep each snapshot's rows together.",
+                history.Name, split[0], SnapshotAsOfColumn) { Occurrences = split.Count });
         return new(staging, blocks, diagnostics);
     }
 

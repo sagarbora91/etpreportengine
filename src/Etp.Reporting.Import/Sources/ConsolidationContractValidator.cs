@@ -150,7 +150,9 @@ public sealed class ConsolidationContractValidator : IConsolidationContractValid
             var historyUsed = header.HistorySheet is not null || contract.Blocks.Any(block =>
                 ContractSheetView.CanonicalBlockSheet(block.Sheet) == ConsolidationContractLayout.HistorySheet);
             if (historyUsed) required.AddRange([ContractKeys.HistorySheet, ContractKeys.HistoryExtraColumns, ContractKeys.HistoryRows]);
-            if (header.ExcludedSheet is not null || contract.Blocks.Any(block => block.ExcludedRows > 0))
+            // Contract 4: the map belongs to delta blocks (and trimmed ones that were delta). A legacy block carried over
+            // with today's Info "Rows excluded" count has no map and is checked for row_count only (contract 3.3).
+            if (header.ExcludedSheet is not null || contract.Blocks.Any(block => block.ExcludedRows > 0 && block.Completeness != BlockCompleteness.Legacy))
                 required.AddRange([ContractKeys.ExcludedSheet, ContractKeys.ExcludedRows]);
             foreach (var key in required.Distinct().Where(key => header.Value(key) is null))
                 Add(Codes.KeyMissing, $"The Info key '{key}' is missing or blank.", Info, column: "A");
@@ -480,8 +482,10 @@ public sealed class ConsolidationContractValidator : IConsolidationContractValid
                 var repeats = group.ToList();
                 if (dataBlock is not null && repeats.Contains(dataBlock))
                 {
-                    // Contract 5: the Data snapshot repeated on Snapshot History is counted once, with a warning.
-                    foreach (var repeat in repeats.Where(block => block != dataBlock && block.Sheet == ConsolidationContractLayout.HistorySheet))
+                    // Contract 5: the Data snapshot repeated on Snapshot History is counted once, with a warning. Only the
+                    // same export is a repeat; another export of the same date is a duplicate snapshot date (rule 9).
+                    foreach (var repeat in repeats.Where(block => block != dataBlock && block.Sheet == ConsolidationContractLayout.HistorySheet &&
+                                 SameExport(block, dataBlock)))
                     {
                         repeatedHistoryBlocks.Add(repeat.No);
                         Add(Codes.HistoryRepeatsData,
@@ -496,6 +500,13 @@ public sealed class ConsolidationContractValidator : IConsolidationContractValid
                         Info, repeats[1].Row.RowNumber, block: repeats[1].No);
             }
         }
+
+        /// <summary>The same raw export: equal <c>source_sha256</c>, or, when either has none, equal <c>source_file</c> and known <c>export_time</c>.</summary>
+        private static bool SameExport(ParsedBlock left, ParsedBlock right) =>
+            IsSha256(left.Row.SourceSha256) && IsSha256(right.Row.SourceSha256)
+                ? string.Equals(left.Row.SourceSha256, right.Row.SourceSha256, StringComparison.Ordinal)
+                : left.Time.IsKnown && left.Time == right.Time && left.Row.SourceFile.Length > 0 &&
+                  string.Equals(left.Row.SourceFile, right.Row.SourceFile, StringComparison.OrdinalIgnoreCase);
 
         private void CheckDuplicateExports()
         {
@@ -780,7 +791,8 @@ public sealed class ConsolidationContractValidator : IConsolidationContractValid
         private bool IsIgnored(string field)
         {
             var column = family.Columns.FirstOrDefault(candidate => candidate.CanonicalField == field);
-            return field.Contains("timestamp", StringComparison.OrdinalIgnoreCase) || column?.Role == ColumnRole.Ignored ||
+            // Contract 4 and 8: only the timestamp columns are ignored in the rebuild check, not every Ignored-role column.
+            return field.Contains("timestamp", StringComparison.OrdinalIgnoreCase) ||
                 column?.SourceHeader.Contains("TIMESTAMP", StringComparison.OrdinalIgnoreCase) == true;
         }
 
