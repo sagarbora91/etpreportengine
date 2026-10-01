@@ -5,7 +5,14 @@ public sealed record FolderImportOptions(
     bool RestatementEnabled = false,
     string RestatementReason = "",
     string? OverrideStoreCode = null,
-    DateOnly? OverrideBusinessDate = null);
+    DateOnly? OverrideBusinessDate = null)
+{
+    /// <summary>
+    /// Asks which current import a restatement replaces when its period overlaps several (IF-016); returns
+    /// one of the candidates, or null when none was chosen. Automation sets none, so it never picks.
+    /// </summary>
+    public Func<RestatementTargetChoice, CancellationToken, Task<RestatementCandidate?>>? ChooseRestatementTarget { get; init; }
+}
 
 public sealed record FolderImportFileResult(
     string FileName,

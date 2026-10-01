@@ -1,4 +1,5 @@
 using Etp.Reporting.Application.Imports;
+using Etp.Reporting.Import.Batch;
 using Etp.Reporting.Import.Preflight;
 using Etp.Reporting.Import.Profiles;
 using Microsoft.Data.SqlClient;
@@ -7,6 +8,18 @@ namespace Etp.Reporting.Infrastructure.SqlServer;
 
 public sealed partial class SqlServerImportPersistenceUseCase
 {
+    public async Task<IReadOnlyList<RestatementCandidate>> FindRestatementCandidatesAsync(string reportCode, string storeCode,
+        DateOnly periodStart, DateOnly periodEnd, CancellationToken cancellationToken = default)
+    {
+        await RequireImportAsync(cancellationToken).ConfigureAwait(false);
+        return await completion.FindRestatementCandidatesAsync(reportCode, storeCode, periodStart, periodEnd, cancellationToken).ConfigureAwait(false);
+    }
+
+    // A missing approval is the importer's own refusal, not an access failure. As UnauthorizedAccessException
+    // it was reported as "The workbook could not be accessed." (spec 11.1).
+    internal static ImportSourceException RestatementApprovalRequired() => new(ImportCodes.RestatementApprovalRequired,
+        "This exact replacement and reason require unused Owner approval before import. Current facts are unchanged.");
+
     // Requesting approval never writes import facts. Each caller must still pass
     // the independent check in PersistAsync and SQL's atomic approval consumption.
     public async Task PrepareRestatementAsync(ImportPersistenceRequest<MatchedImportEnvelope> request,
@@ -54,6 +67,6 @@ public sealed partial class SqlServerImportPersistenceUseCase
         command.Parameters.AddWithValue("@end", periodEnd);
         command.Parameters.AddWithValue("@reason", restatement.Reason.Trim());
         if (await command.ExecuteScalarAsync(token).ConfigureAwait(false) is null)
-            throw new UnauthorizedAccessException("This exact replacement and reason require unused Owner approval before import.");
+            throw RestatementApprovalRequired();
     }
 }

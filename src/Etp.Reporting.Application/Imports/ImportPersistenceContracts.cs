@@ -49,6 +49,15 @@ public interface IImportPersistenceUseCase<TAcceptedImport> where TAcceptedImpor
         string storeCode,
         DateOnly businessDate,
         CancellationToken cancellationToken = default);
+    /// <summary>
+    /// The current imports of this report and store whose declared period overlaps the replacement's (IF-016);
+    /// a planner-1 restatement replaces one of them. The default keeps the older lookup by the last day.
+    /// </summary>
+    async Task<IReadOnlyList<RestatementCandidate>> FindRestatementCandidatesAsync(string reportCode, string storeCode,
+        DateOnly periodStart, DateOnly periodEnd, CancellationToken cancellationToken = default) =>
+        await FindCurrentImportFileIdAsync(reportCode, storeCode, periodEnd, cancellationToken).ConfigureAwait(false) is { } id
+            ? [new(id, string.Empty, periodEnd, periodEnd, 0)]
+            : [];
     Task PrepareRestatementAsync(
         ImportPersistenceRequest<TAcceptedImport> request,
         CancellationToken cancellationToken = default);

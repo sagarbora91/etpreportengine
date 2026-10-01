@@ -38,7 +38,7 @@ public sealed class CrossPhaseStoreManagerImportTests
                 new(previous, "Synthetic manager", "  Correct synthetic contact  "));
             var pending = await Assert.ThrowsAsync<ImportSourceException>(() => service.PrepareRestatementAsync(request));
             Assert.Equal("RESTATEMENT_APPROVAL_PENDING", pending.Code);
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.PersistAsync(request));
+            await ApprovalRequired(() => service.PersistAsync(request));
             var approval = Convert.ToInt64(await database.ExecuteAsync("SELECT approval_request_id FROM dbo.import_restatement_approvals"));
             Assert.Equal(1, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.import_files"));
             await database.ExecuteAsync($"EXEC dbo.decide_approval_request {approval},1,N'Checked exact replacement';");
@@ -58,15 +58,15 @@ public sealed class CrossPhaseStoreManagerImportTests
             foreach (var (column, other, original) in bindings)
             {
                 await database.ExecuteAsync($"UPDATE dbo.import_restatement_approvals SET {column}={other} WHERE approval_request_id={approval}");
-                await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.PersistAsync(request));
+                await ApprovalRequired(() => service.PersistAsync(request));
                 await database.ExecuteAsync($"UPDATE dbo.import_restatement_approvals SET {column}={original} WHERE approval_request_id={approval}");
             }
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.PersistAsync(request with
+            await ApprovalRequired(() => service.PersistAsync(request with
             { Restatement = request.Restatement! with { PreviousImportFileId = previous + 10000 } }));
             foreach (var status in new[] { "PENDING", "REJECTED", "CANCELLED" })
             {
                 await database.ExecuteAsync($"UPDATE dbo.approval_requests SET status='{status}' WHERE approval_request_id={approval}");
-                await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.PersistAsync(request));
+                await ApprovalRequired(() => service.PersistAsync(request));
             }
             var rejected = await Assert.ThrowsAsync<ImportSourceException>(() => service.PrepareRestatementAsync(request));
             Assert.Equal("RESTATEMENT_APPROVAL_REJECTED", rejected.Code);
@@ -81,7 +81,7 @@ public sealed class CrossPhaseStoreManagerImportTests
             Assert.Equal(1, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.import_files WHERE is_superseded=1"));
             Assert.Equal("9876500123", await database.ExecuteAsync("SELECT r.customer_phone FROM dbo.etp_r025 r JOIN dbo.import_files f ON f.import_file_id=r.import_file_id WHERE f.is_superseded=0"));
             Assert.NotEqual(DBNull.Value, await database.ExecuteAsync($"SELECT applied_import_file_id FROM dbo.import_restatement_approvals WHERE approval_request_id={approval}"));
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.PersistAsync(request));
+            await ApprovalRequired(() => service.PersistAsync(request));
             session.AssertCoverage(12);
         }
         finally { await database.DisposeAsync(); }
@@ -114,7 +114,7 @@ public sealed class CrossPhaseStoreManagerImportTests
             Assert.Equal(before, await database.ExecuteAsync("SELECT CONCAT(sales_line_id,':',source_gross_amount,':',source_net_amount) FROM dbo.sales_lines"));
             Assert.Equal(0, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.import_files WHERE is_superseded=1"));
             Assert.Equal(0, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.import_restatements"));
-            Assert.IsType<UnauthorizedAccessException>(failure);
+            Assert.Equal(ImportCodes.RestatementApprovalRequired, Assert.IsType<ImportSourceException>(failure).Code);
             session.AssertCoverage(4);
         }
         finally { await database.DisposeAsync(); }
@@ -325,6 +325,10 @@ public sealed class CrossPhaseStoreManagerImportTests
         }
         finally { await database.DisposeAsync(); }
     }
+
+    // A missing or spent approval is the importer's refusal with its own code (spec 11.1), never an access failure.
+    private static async Task ApprovalRequired(Func<Task> persist) =>
+        Assert.Equal(ImportCodes.RestatementApprovalRequired, (await Assert.ThrowsAsync<ImportSourceException>(persist)).Code);
 
     private static Task<object?> SeedRoles(SqlDatabaseFixture database) => database.ExecuteAsync("""
         CREATE USER crossphase_manager WITHOUT LOGIN;
