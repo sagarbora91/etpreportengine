@@ -1,0 +1,42 @@
+[
+  {
+    "FamilyCode": "R025", "ReportCode": "R025", "Name": "SDB-VariantwiseSales", "IsTyped": true, "TableName": "etp_r025",
+    "PrimaryDateHeader": "TRANSACTIONDATE",
+    "Headers": ["TRANS_TYPE", "STORECODE", "INVOICENUMBER", "TRANSACTIONDATE", "PRODUCTCODE", "QUANTITY", "NETVALUE", "STORETIMESTAMP"],
+    "Columns": [
+      { "SourceHeader": "TRANS_TYPE", "CanonicalField": "source_transaction_type", "DataType": "Text", "IsRequired": true },
+      { "SourceHeader": "STORECODE", "CanonicalField": "store_code", "DataType": "Identifier", "IsRequired": true },
+      { "SourceHeader": "INVOICENUMBER", "CanonicalField": "invoice_number", "DataType": "Identifier", "IsRequired": true, "Role": "Key" },
+      { "SourceHeader": "TRANSACTIONDATE", "CanonicalField": "transaction_date", "DataType": "Date", "IsRequired": true },
+      { "SourceHeader": "PRODUCTCODE", "CanonicalField": "product_code", "DataType": "Identifier", "IsRequired": true },
+      { "SourceHeader": "QUANTITY", "CanonicalField": "source_quantity", "DataType": "Decimal", "IsRequired": true },
+      { "SourceHeader": "NETVALUE", "CanonicalField": "source_net_value", "DataType": "Decimal", "IsRequired": true },
+      { "SourceHeader": "STORETIMESTAMP", "CanonicalField": "source_store_timestamp", "DataType": "Text", "IsRequired": false, "Role": "Ignored" }
+    ],
+    "Identity": { "Scope": "Document", "DocumentKey": ["invoice_number"], "YearRule": "FinancialYearOfPrimaryDate", "RowRule": "Multiset", "Route": "Sales" }
+  },
+  {
+    "FamilyCode": "R010", "ReportCode": "R010", "Name": "BinWise Stock", "IsTyped": true, "TableName": "etp_landing_r010",
+    "PrimaryDateHeader": null,
+    "Headers": ["STORE CODE", "ITEMNUMBER", "UID", "CLOSINGBALANCE"],
+    "Columns": [
+      { "SourceHeader": "STORE CODE", "CanonicalField": "store_code", "DataType": "Identifier", "IsRequired": true },
+      { "SourceHeader": "ITEMNUMBER", "CanonicalField": "itemnumber", "DataType": "Identifier", "IsRequired": true },
+      { "SourceHeader": "UID", "CanonicalField": "uid", "DataType": "Identifier", "IsRequired": false },
+      { "SourceHeader": "CLOSINGBALANCE", "CanonicalField": "closingbalance", "DataType": "Decimal", "IsRequired": true }
+    ],
+    "Identity": { "Scope": "Snapshot", "SnapshotDate": "Block", "RowRule": "SnapshotItems", "RowKey": ["itemnumber", "uid"], "ChangePolicy": "LatestReadingWins", "Route": "StockSnapshot" }
+  },
+  {
+    "FamilyCode": "S009", "ReportCode": "S009", "Name": "Pending Repair", "IsTyped": false, "TableName": "etp_landing_s009",
+    "PrimaryDateHeader": null, "BusinessUnit": "Service",
+    "Headers": ["BRANCH CODE", "JOB NO", "STATUS", "AGE DAYS"],
+    "Columns": [
+      { "SourceHeader": "BRANCH CODE", "CanonicalField": "store_code", "DataType": "Identifier", "IsRequired": true },
+      { "SourceHeader": "JOB NO", "CanonicalField": "job_number", "DataType": "Identifier", "IsRequired": true },
+      { "SourceHeader": "STATUS", "CanonicalField": "status", "DataType": "Text", "IsRequired": false, "Role": "Attribute" },
+      { "SourceHeader": "AGE DAYS", "CanonicalField": "age_days", "DataType": "Integer", "IsRequired": false }
+    ],
+    "Identity": { "Scope": "Snapshot", "SnapshotDate": "Block", "RowRule": "SnapshotItems", "ChangePolicy": "LatestReadingWins" }
+  }
+]

@@ -17,6 +17,7 @@
   <ItemGroup>
     <Using Include="Xunit" />
     <Content Include="..\fixtures\etp-sample\*.xlsx" Link="fixtures\etp-sample\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\fixtures\contract\*.json" Link="fixtures\contract\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

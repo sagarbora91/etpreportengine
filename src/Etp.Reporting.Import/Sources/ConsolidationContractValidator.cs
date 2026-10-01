@@ -472,9 +472,9 @@ public sealed class ConsolidationContractValidator : IConsolidationContractValid
         private void CheckSnapshotDates()
         {
             if (rule is not (ContractRule.Snapshot or ContractRule.Current)) return;
-            var dataBlock = rule == ContractRule.Current
-                ? blocks.SingleOrDefault(block => block.Sheet == ConsolidationContractLayout.DataSheet && block.Row.SnapshotDate is not null)
-                : null;
+            // A current workbook with other than one Data block is CONTRACT_CURRENT_SHAPE; it then has no Data snapshot to repeat.
+            var dataBlocks = blocks.Where(block => block.Sheet == ConsolidationContractLayout.DataSheet && block.Row.SnapshotDate is not null).ToArray();
+            var dataBlock = rule == ContractRule.Current && dataBlocks.Length == 1 ? dataBlocks[0] : null;
             foreach (var group in blocks.Where(block => block.Row.SnapshotDate is not null).GroupBy(block => block.Row.SnapshotDate!.Value))
             {
                 var repeats = group.ToList();

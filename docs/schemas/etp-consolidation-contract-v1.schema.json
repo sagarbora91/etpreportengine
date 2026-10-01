@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/sagarbora91/etpreportengine/docs/schemas/etp-consolidation-contract-v1.schema.json",
+  "title": "ETP consolidation contract, version 1",
+  "description": "The logical object ConsolidationContractValidator builds from a contract workbook's Info machine section and ETP_Excluded sheet (docs/04a_CONSOLIDATION_CONTRACT.md sections 3-4). Section 3 of that document governs the sheet layout; this schema is for the builder's own tests. Every value is written as text on the sheet, so every value here is a string. It holds file names, counts, dates and hashes only: never a customer value.",
+  "type": "object",
+  "required": ["contract_version", "header", "blocks"],
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": { "description": "Info!B1.", "const": "1" },
+    "title": { "description": "Info!C1, a human title; ignored.", "type": "string" },
+    "header": { "$ref": "#/$defs/header" },
+    "blocks": {
+      "description": "The block table, one row per block, in block-number (append) order.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/block" }
+    },
+    "excluded": {
+      "description": "The ETP_Excluded map: one row per omitted row, each with a distinct twin within its block. Required when any block has excluded_rows > 0.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/excludedRow" }
+    }
+  },
+  "$defs": {
+    "count": { "type": "string", "pattern": "^[0-9]+$" },
+    "positive": { "type": "string", "pattern": "^[1-9][0-9]*$" },
+    "date": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+    "blankOrDate": { "anyOf": [{ "const": "" }, { "$ref": "#/$defs/date" }] },
+    "header": {
+      "description": "Info rows 2..k: lowercase keys, exact. Unknown keys are ignored with CONTRACT_KEY_UNKNOWN.",
+      "type": "object",
+      "required": ["family_code", "store_code", "business_unit", "rule", "data_sheet", "header_row", "data_rows", "block_count", "built_at", "builder"],
+      "additionalProperties": { "type": "string" },
+      "properties": {
+        "family_code": { "description": "Catalogue FamilyCode (R030, not STOCK_LEDGER).", "type": "string", "minLength": 1 },
+        "report_name": { "type": "string" },
+        "store_code": { "type": "string", "minLength": 1 },
+        "business_unit": { "enum": ["RETAIL", "SERVICE"] },
+        "rule": { "enum": ["transactional", "snapshot", "current", "period", "empty"] },
+        "data_sheet": { "const": "Data" },
+        "header_row": { "const": "1" },
+        "data_rows": { "$ref": "#/$defs/count" },
+        "history_sheet": { "enum": ["", "Snapshot History"] },
+        "history_extra_columns": { "description": "Comma-separated trailing non-ETP columns of Snapshot History, e.g. Snapshot_As_Of,SourceFile.", "type": "string" },
+        "history_rows": { "$ref": "#/$defs/count" },
+        "excluded_sheet": { "enum": ["", "ETP_Excluded"] },
+        "excluded_rows": { "$ref": "#/$defs/count" },
+        "block_count": { "$ref": "#/$defs/count" },
+        "coverage_from": { "$ref": "#/$defs/date" },
+        "coverage_to": { "$ref": "#/$defs/date" },
+        "built_at": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}[+-][0-9]{2}:[0-9]{2}$" },
+        "builder": { "type": "string", "minLength": 1 },
+        "package": { "type": "string" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "history_sheet": { "const": "Snapshot History" } }, "required": ["history_sheet"] },
+          "then": { "required": ["history_extra_columns", "history_rows"] }
+        },
+        {
+          "if": { "properties": { "excluded_sheet": { "const": "ETP_Excluded" } }, "required": ["excluded_sheet"] },
+          "then": { "required": ["excluded_rows"] }
+        }
+      ]
+    },
+    "block": {
+      "description": "One block-table row. The columns are exactly these, in this order; additive columns may only follow disposition.",
+      "type": "object",
+      "required": ["block", "sheet", "first_row", "last_row", "row_count", "source_file", "source_format", "source_sha256", "export_time",
+        "period_from", "period_to", "period_basis", "snapshot_date", "raw_rows", "excluded_rows", "superseded_rows", "completeness", "disposition"],
+      "properties": {
+        "block": { "description": "Append order: unique, 1..n, never renumbered.", "$ref": "#/$defs/positive" },
+        "sheet": { "enum": ["Data", "Snapshot History"] },
+        "first_row": { "description": "Inclusive sheet row; blank only when row_count is 0.", "anyOf": [{ "const": "" }, { "$ref": "#/$defs/positive" }] },
+        "last_row": { "anyOf": [{ "const": "" }, { "$ref": "#/$defs/positive" }] },
+        "row_count": { "$ref": "#/$defs/count" },
+        "source_file": { "description": "The raw export's file name, no folder.", "type": "string", "maxLength": 260 },
+        "source_format": { "enum": ["xlsx", "csv"] },
+        "source_sha256": { "description": "SHA-256 of the raw export's bytes, lowercase hex; blank only on a legacy block.", "type": "string", "pattern": "^([0-9a-f]{64})?$" },
+        "export_time": {
+          "description": "IST, no offset, from the file name; blank only on a legacy block. Never invented.",
+          "type": "string",
+          "pattern": "^([0-9]{4}-[0-9]{2}-[0-9]{2}(T[0-9]{2}:[0-9]{2}(:[0-9]{2})?)?)?$"
+        },
+        "period_from": { "$ref": "#/$defs/blankOrDate" },
+        "period_to": { "$ref": "#/$defs/blankOrDate" },
+        "period_basis": { "enum": ["declared", "observed", "none"] },
+        "snapshot_date": { "$ref": "#/$defs/blankOrDate" },
+        "raw_rows": { "description": "Blank only on a legacy block.", "anyOf": [{ "const": "" }, { "$ref": "#/$defs/count" }] },
+        "excluded_rows": { "$ref": "#/$defs/count" },
+        "superseded_rows": { "$ref": "#/$defs/count" },
+        "completeness": { "enum": ["complete", "delta", "trimmed", "empty", "legacy"] },
+        "disposition": { "description": "Human text; ignored by the importer.", "type": "string", "maxLength": 400 }
+      }
+    },
+    "excludedRow": {
+      "description": "One ETP_Excluded row: the block whose export contained the omitted row, and the physical twin it repeated in a lower-numbered block.",
+      "type": "object",
+      "required": ["block", "sheet", "row"],
+      "additionalProperties": false,
+      "properties": {
+        "block": { "$ref": "#/$defs/positive" },
+        "sheet": { "enum": ["Data", "Snapshot History"] },
+        "row": { "$ref": "#/$defs/positive" }
+      }
+    }
+  }
+}
