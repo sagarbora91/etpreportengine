@@ -16,6 +16,19 @@ public sealed record FolderImportFailure(string FileName, FailureStage Stage, st
 {
     /// <summary>What became of the import transaction, when the failure ended one (IF-014).</summary>
     public CommitState? CommitState { get; init; }
+
+    /// <summary>
+    /// The failure of one file as diagnostics record it. <paramref name="stage"/> is where the caller
+    /// was; a failed COMMIT, or a failure after the work committed, is reported at the COMMIT stage.
+    /// </summary>
+    public static FolderImportFailure Create(string fileName, FailureStage stage, string? reportCode, string? storeCode,
+        DateOnly? periodEnd, Exception exception)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+        return new(fileName, SqlTransactionGuard.StageOf(exception, stage), reportCode, storeCode, periodEnd,
+            SqlTransactionGuard.BatchIdOf(exception), SqlImportFailureClassifier.SqlErrorNumber(exception), exception)
+            { CommitState = SqlTransactionGuard.CommitStateOf(exception) };
+    }
 }
 
 /// <summary>The same folder workflow is used by the desktop and command-line import.</summary>
@@ -142,6 +155,9 @@ public sealed class FolderImportService(
                 if (restatement is not null)
                     await persistence.PrepareRestatementAsync(request, cancellationToken).ConfigureAwait(false);
                 var saved = await persistence.PersistAsync(request, cancellationToken).ConfigureAwait(false);
+                // Only a duplicate found before or under the import lock commits nothing of its own (IF-014).
+                // Anything after this point reads back a saved import, so a failure there is not a failed import.
+                if (saved.Status != "Duplicate") result = result with { CommitState = CommitState.Committed, BatchId = saved.BatchId };
                 var outcome = saved.Status == "Imported"
                     ? await persistence.LoadOutcomeInScopeAsync(accepted.Workbook.Sha256, accepted.ProfileIdentity.ReportCode,
                         persistedStore, periodStart, periodEnd, cancellationToken).ConfigureAwait(false)
@@ -150,8 +166,6 @@ public sealed class FolderImportService(
                     Status = accepted.Staging.Rows.Count == 0 && saved.Status == "Imported" ? "empty export" : saved.Status,
                     RowsProcessed = Math.Max(accepted.Staging.Rows.Count, outcome.RowsProcessed), NewRows = Math.Max(saved.PersistedRows, outcome.NewRows),
                     AlreadyPresentRows = outcome.AlreadyPresentRows, ConflictRows = outcome.ConflictRows };
-                // Only a duplicate found before or under the import lock commits nothing of its own (IF-014).
-                if (saved.Status != "Duplicate") result = result with { CommitState = CommitState.Committed };
                 if (outcome.ConflictRows > 0) result = result with { Status = "Failed", Message = $"{outcome.ConflictRows:N0} conflicting rows. Review the source before retrying." };
                 if (result.Status is "Imported" or "empty export" or "Duplicate" or "Duplicate content" or "Already present")
                     result = await RetainEvidenceAsync(result, entry.Path, accepted, persistedStore, periodEnd, cancellationToken).ConfigureAwait(false);
@@ -160,10 +174,10 @@ public sealed class FolderImportService(
             { result = result with { Status = "Cancelled", Message = "Import cancelled." }; }
             catch (Exception exception)
             {
+                if (result.CommitState == CommitState.Committed) SqlTransactionGuard.MarkCommitted(exception, result.BatchId);
                 result = result with { Status = "Failed", Message = classifier.Describe(exception).SafeMessage,
                     CommitState = SqlTransactionGuard.CommitStateOf(exception), BatchId = SqlTransactionGuard.BatchIdOf(exception) };
-                Report(result.FileName, SqlTransactionGuard.FailedAtCommit(exception) ? FailureStage.Commit : FailureStage.Apply,
-                    result.ReportCode, scope, exception);
+                Report(result.FileName, FailureStage.Apply, result.ReportCode, scope, exception);
             }
             results.Add(result);
             progress?.Report(new(results.Count, paths.Count, result.FileName, result.Status, results.ToArray()));
@@ -198,10 +212,7 @@ public sealed class FolderImportService(
         if (reportFailure is null || exception is ImportSourceException) return;
         try
         {
-            reportFailure(new(fileName, stage, reportCode, scope?.StoreCode, scope?.PeriodEnd,
-                SqlTransactionGuard.BatchIdOf(exception),
-                SqlImportFailureClassifier.SqlErrorNumber(exception), exception)
-                { CommitState = SqlTransactionGuard.CommitStateOf(exception) });
+            reportFailure(FolderImportFailure.Create(fileName, stage, reportCode, scope?.StoreCode, scope?.PeriodEnd, exception));
         }
         catch (Exception sinkFailure) when (sinkFailure is not OperationCanceledException)
         {

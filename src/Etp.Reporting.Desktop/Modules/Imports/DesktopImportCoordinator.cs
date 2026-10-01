@@ -5,6 +5,7 @@ using Etp.Reporting.Import.Diagnostics;
 using Etp.Reporting.Import.Preflight;
 using Etp.Reporting.Import.Workbooks;
 using Etp.Reporting.Infrastructure.SqlServer;
+using FailureStage = EtpApplication::Etp.Reporting.Application.Imports.FailureStage;
 using FolderImportOptions = EtpApplication::Etp.Reporting.Application.Imports.FolderImportOptions;
 using FolderImportProgress = EtpApplication::Etp.Reporting.Application.Imports.FolderImportProgress;
 using FolderImportSummary = EtpApplication::Etp.Reporting.Application.Imports.FolderImportSummary;
@@ -246,6 +247,9 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
         await DisposeBatchSourceAsync().ConfigureAwait(false);
     }
 
+    // The batch path reports its unexpected failures to diagnostics like the folder import does,
+    // and marks a failure after a committed import as saved, so it is neither retried nor
+    // described as a failed import (IF-014).
     private async Task<WorkbookImportOutcome> ProcessWorkbookAsync(
         string workbookPath,
         string connectionString,
@@ -254,10 +258,57 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
         Func<CancellationToken, Task> recordRestatementAudit,
         CancellationToken cancellationToken)
     {
+        var attempt = new BatchAttempt();
+        try
+        {
+            return await ProcessWorkbookCoreAsync(workbookPath, connectionString, restatementEnabled, contextFactory,
+                recordRestatementAudit, attempt, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            if (attempt.Saved is { Status: not "Duplicate" } saved) SqlImportFailureClassifier.MarkCommitted(exception, saved.BatchId);
+            if (reportImportFailure is not null && exception is not ImportSourceException)
+            {
+                try
+                {
+                    reportImportFailure(FolderImportFailure.Create(System.IO.Path.GetFileName(workbookPath), attempt.Stage, attempt.ReportCode,
+                        attempt.StoreCode, attempt.PeriodEnd, exception));
+                }
+                catch (Exception sinkFailure) when (sinkFailure is not OperationCanceledException)
+                {
+                    // Diagnostics are best effort; a failing log must not change the import outcome.
+                }
+            }
+            throw;
+        }
+    }
+
+    private sealed class BatchAttempt
+    {
+        public FailureStage Stage { get; set; } = FailureStage.Read;
+        public string? ReportCode { get; set; }
+        public string? StoreCode { get; set; }
+        public DateOnly? PeriodEnd { get; set; }
+        public ImportPersistenceResult? Saved { get; set; }
+    }
+
+    private async Task<WorkbookImportOutcome> ProcessWorkbookCoreAsync(
+        string workbookPath,
+        string connectionString,
+        Func<bool> restatementEnabled,
+        Func<DesktopImportRunContext> contextFactory,
+        Func<CancellationToken, Task> recordRestatementAudit,
+        BatchAttempt attempt,
+        CancellationToken cancellationToken)
+    {
         var snapshot = await workbookReader.ReadAsync(workbookPath, cancellationToken).ConfigureAwait(false);
         var persistence = persistenceFactory(connectionString);
         var accepted = envelopeFactory.RequireAccepted(snapshot);
         var context = contextFactory();
+        attempt.Stage = FailureStage.Apply;
+        attempt.ReportCode = accepted.ProfileIdentity.ReportCode;
+        attempt.StoreCode = accepted.Scope.StoreCode ?? context.StoreCode;
+        attempt.PeriodEnd = accepted.Scope.PeriodEnd ?? context.BusinessDate;
         if (await persistence.ExistsInScopeAsync(snapshot.Sha256, accepted.ProfileIdentity.ReportCode,
             accepted.Scope.StoreCode ?? context.StoreCode, accepted.Scope.PeriodStart ?? context.BusinessDate,
             accepted.Scope.PeriodEnd ?? context.BusinessDate, cancellationToken).ConfigureAwait(false))
@@ -281,7 +332,7 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
             context.StoreCode, context.ImportedBy, restatement);
         if (restatement is not null)
             await persistence.PrepareRestatementAsync(request, cancellationToken).ConfigureAwait(false);
-        await persistence.PersistAsync(request, cancellationToken).ConfigureAwait(false);
+        attempt.Saved = await persistence.PersistAsync(request, cancellationToken).ConfigureAwait(false);
         if (restatement is not null) await recordRestatementAudit(cancellationToken).ConfigureAwait(false);
         await retainEvidence(
             connectionString,

@@ -33,13 +33,16 @@ public sealed partial class SqlServerImportPersistenceUseCase : IImportPersisten
     internal SqlServerImportPersistenceUseCase(
         string connectionString,
         Func<CancellationToken, Task<ApplicationAccess>>? loadAccess,
-        Func<SqlTransaction, CancellationToken, Task>? commit = null)
+        Func<SqlTransaction, CancellationToken, Task>? commit = null,
+        string? commitCheckConnectionString = null)
     {
         var validated = SqlAdapterConnection.RequireWindowsIntegrated(connectionString, nameof(connectionString));
         this.connectionString = validated;
-        // Only tests replace the COMMIT, to reproduce a COMMIT whose reply never arrives.
-        store = commit is null ? new SqlServerTransactionalImportStore(validated)
-            : new SqlServerTransactionalImportStore(validated) { Commit = commit };
+        // Only tests replace the COMMIT, to reproduce a COMMIT whose reply never arrives, and the
+        // connection of the check that follows it, to make that check fail.
+        var transactional = new SqlServerTransactionalImportStore(validated) { CommitCheckConnectionString = commitCheckConnectionString };
+        store = commit is null ? transactional : new SqlServerTransactionalImportStore(validated)
+            { Commit = commit, CommitCheckConnectionString = commitCheckConnectionString };
         files = new SqlServerImportFileRepository(validated);
         completion = new OperationalCompletionRepository(validated);
         this.loadAccess = loadAccess ?? new Phase2OperationsRepository(validated).LoadCurrentAccessAsync;
@@ -88,20 +91,33 @@ public sealed partial class SqlServerImportPersistenceUseCase : IImportPersisten
         if (await files.ExistsInScopeAsync(accepted.Workbook.Sha256, accepted.ProfileIdentity.ReportCode,
             scope.StoreCode!, periodStart, periodEnd, cancellationToken).ConfigureAwait(false))
             return new(accepted.ProfileIdentity.ReportCode, 0) { Status = "Duplicate", AlreadyPresentRows = accepted.Staging.Rows.Count };
-        var result = SelectRoute(request.AcceptedImport.ProfileIdentity.ReportCode) switch
+        var attempt = new AttemptStore(store);
+        Guid? ownBatch = null;
+        try
         {
-            ImportPersistenceRoute.Revenue => await PersistRevenueAsync(request, restatement, cancellationToken).ConfigureAwait(false),
-            ImportPersistenceRoute.Stock => await PersistStockAsync(request, restatement, cancellationToken).ConfigureAwait(false),
-            ImportPersistenceRoute.Enrichment => await PersistEnrichmentAsync(request, restatement, cancellationToken).ConfigureAwait(false),
-            ImportPersistenceRoute.Family => await PersistFamilyAsync(request, restatement, cancellationToken).ConfigureAwait(false),
-            _ => await PersistSalesAsync(request, restatement, cancellationToken).ConfigureAwait(false)
-        };
-        if (result.Status == "Duplicate") return result;
-        var outcome = await files.LoadOutcomeInScopeAsync(accepted.Workbook.Sha256, accepted.ProfileIdentity.ReportCode,
-            scope.StoreCode!, periodStart, periodEnd, cancellationToken);
-        return result with { PersistedRows=outcome.NewRows,
-            Status=outcome.NewRows==0 && outcome.AlreadyPresentRows>0 ? "Duplicate content" : "Imported",
-            AlreadyPresentRows=outcome.AlreadyPresentRows,ConflictRows=outcome.ConflictRows };
+            var result = SelectRoute(request.AcceptedImport.ProfileIdentity.ReportCode) switch
+            {
+                ImportPersistenceRoute.Revenue => await PersistRevenueAsync(attempt, request, restatement, cancellationToken).ConfigureAwait(false),
+                ImportPersistenceRoute.Stock => await PersistStockAsync(attempt, request, restatement, cancellationToken).ConfigureAwait(false),
+                ImportPersistenceRoute.Enrichment => await PersistEnrichmentAsync(attempt, request, restatement, cancellationToken).ConfigureAwait(false),
+                ImportPersistenceRoute.Family => await PersistFamilyAsync(attempt, request, restatement, cancellationToken).ConfigureAwait(false),
+                _ => await PersistSalesAsync(attempt, request, restatement, cancellationToken).ConfigureAwait(false)
+            };
+            if (result.Status == "Duplicate") return result;
+            ownBatch = result.BatchId;
+            var outcome = await files.LoadOutcomeInScopeAsync(accepted.Workbook.Sha256, accepted.ProfileIdentity.ReportCode,
+                scope.StoreCode!, periodStart, periodEnd, cancellationToken);
+            return result with { PersistedRows=outcome.NewRows,
+                Status=outcome.NewRows==0 && outcome.AlreadyPresentRows>0 ? "Duplicate content" : "Imported",
+                AlreadyPresentRows=outcome.AlreadyPresentRows,ConflictRows=outcome.ConflictRows };
+        }
+        // IF-014: once the import transaction has committed, a failure reading its result back
+        // must not be reported as a failed import. The batch id goes with it only once it is known to be ours.
+        catch (Exception failure) when (attempt.Committed)
+        {
+            SqlTransactionGuard.MarkCommitted(failure, ownBatch);
+            throw;
+        }
     }
 
     public async Task<ImportRowOutcome> LoadOutcomeByHashAsync(string sourceSha256, CancellationToken cancellationToken = default)
@@ -126,10 +142,9 @@ public sealed partial class SqlServerImportPersistenceUseCase : IImportPersisten
         _ => ImportPersistenceRoute.Family
     };
 
-    private async Task<ImportPersistenceResult> PersistFamilyAsync(ImportPersistenceRequest<MatchedImportEnvelope> request,
+    private async Task<ImportPersistenceResult> PersistFamilyAsync(AttemptStore attempt,ImportPersistenceRequest<MatchedImportEnvelope> request,
         ImportRestatementRequest? restatement,CancellationToken token)
     {
-        var attempt = new AttemptStore(store);
         var fileId = await new EtpFamilySqlImportOrchestrator(attempt).PersistAsync(request.AcceptedImport,request.ExpectedBusinessDate,
             request.ExpectedStoreCode,request.ImportedBy,restatement,token);
         return await ClassifyAttemptAsync(new(request.AcceptedImport.ProfileIdentity.ReportCode,request.AcceptedImport.Staging.Rows.Count),
@@ -142,12 +157,11 @@ public sealed partial class SqlServerImportPersistenceUseCase : IImportPersisten
         return new(outcome.RowsProcessed, outcome.NewRows, outcome.AlreadyPresentRows, outcome.ConflictRows, outcome.ExactDuplicate);
     }
 
-    private async Task<ImportPersistenceResult> PersistRevenueAsync(
+    private async Task<ImportPersistenceResult> PersistRevenueAsync(AttemptStore attempt,
         ImportPersistenceRequest<MatchedImportEnvelope> request,
         ImportRestatementRequest? restatement,
         CancellationToken cancellationToken)
     {
-        var attempt = new AttemptStore(store);
         var fileId = await new R022SqlImportOrchestrator(attempt).PersistAsync(
             request.AcceptedImport,
             cancellationToken: cancellationToken,
@@ -165,12 +179,12 @@ public sealed partial class SqlServerImportPersistenceUseCase : IImportPersisten
             projection.QuarantinedTenders.Count), attempt.BatchId, fileId, request.AcceptedImport.Staging.Rows.Count, cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task<ImportPersistenceResult> PersistSalesAsync(
+    private async Task<ImportPersistenceResult> PersistSalesAsync(AttemptStore attempt,
         ImportPersistenceRequest<MatchedImportEnvelope> request,
         ImportRestatementRequest? restatement,
         CancellationToken cancellationToken)
     {
-        var outcome = await new R025SqlImportOrchestrator(store).PersistAsync(
+        var outcome = await new R025SqlImportOrchestrator(attempt).PersistAsync(
             request.AcceptedImport,
             cancellationToken: cancellationToken,
             expectedBusinessDate: request.ExpectedBusinessDate,
@@ -181,12 +195,12 @@ public sealed partial class SqlServerImportPersistenceUseCase : IImportPersisten
             request.AcceptedImport.Staging.Rows.Count, cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task<ImportPersistenceResult> PersistStockAsync(
+    private async Task<ImportPersistenceResult> PersistStockAsync(AttemptStore attempt,
         ImportPersistenceRequest<MatchedImportEnvelope> request,
         ImportRestatementRequest? restatement,
         CancellationToken cancellationToken)
     {
-        var outcome = await new StockSqlImportOrchestrator(store).PersistAsync(
+        var outcome = await new StockSqlImportOrchestrator(attempt).PersistAsync(
             request.AcceptedImport,
             cancellationToken: cancellationToken,
             expectedBusinessDate: request.ExpectedBusinessDate,
@@ -197,12 +211,12 @@ public sealed partial class SqlServerImportPersistenceUseCase : IImportPersisten
             request.AcceptedImport.Staging.Rows.Count, cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task<ImportPersistenceResult> PersistEnrichmentAsync(
+    private async Task<ImportPersistenceResult> PersistEnrichmentAsync(AttemptStore attempt,
         ImportPersistenceRequest<MatchedImportEnvelope> request,
         ImportRestatementRequest? restatement,
         CancellationToken cancellationToken)
     {
-        var outcome = await new RetailEnrichmentSqlImportOrchestrator(connectionString).PersistAsync(
+        var outcome = await new RetailEnrichmentSqlImportOrchestrator(connectionString, attempt).PersistAsync(
             request.AcceptedImport,
             request.ExpectedBusinessDate,
             request.ExpectedStoreCode,
@@ -229,17 +243,24 @@ public sealed partial class SqlServerImportPersistenceUseCase : IImportPersisten
         command.Parameters.AddWithValue("@file", importFileId);
         var savedBatch = await command.ExecuteScalarAsync(token).ConfigureAwait(false);
         if (savedBatch is not Guid batchId) throw new InvalidOperationException("The committed import file could not be found.");
-        return batchId == attemptedBatchId ? result
+        return batchId == attemptedBatchId ? result with { BatchId = batchId }
             : new(result.ReportCode, 0) { Status = "Duplicate", AlreadyPresentRows = sourceRows };
     }
 
+    /// <summary>
+    /// One import's view of the store: the batch it sent, and whether its transaction committed,
+    /// directly or as confirmed by the check after a failed COMMIT (IF-014).
+    /// </summary>
     private sealed class AttemptStore(ITransactionalImportStore inner) : ITransactionalImportStore
     {
         public Guid BatchId { get; private set; }
-        public Task<long> PersistAsync(ImportPersistencePackage package, CancellationToken cancellationToken = default)
+        public bool Committed { get; private set; }
+        public async Task<long> PersistAsync(ImportPersistencePackage package, CancellationToken cancellationToken = default)
         {
             BatchId = package.Batch.BatchId;
-            return inner.PersistAsync(package, cancellationToken);
+            var fileId = await inner.PersistAsync(package, cancellationToken).ConfigureAwait(false);
+            Committed = true;
+            return fileId;
         }
     }
 

@@ -15,7 +15,11 @@ internal static class SqlTransactionGuard
     /// <summary>Exception.Data key holding a failure of the post-commit check itself.</summary>
     internal const string CommitCheckFailureKey = "EtpCommitCheckFailure";
 
-    /// <summary>Exception.Data key holding the import batch whose transaction failed.</summary>
+    /// <summary>
+    /// Exception.Data key holding the import batch the failed attempt wrote, or tried to write. When
+    /// the commit state is <see cref="CommitState.RolledBack"/> its <c>import_batches</c> row is gone:
+    /// the id then only correlates the attempt with diagnostics and is not a reference to a row.
+    /// </summary>
     internal const string ImportBatchIdKey = "EtpImportBatchId";
 
     /// <summary>Exception.Data key holding the <see cref="CommitState"/> of the transaction the exception ended.</summary>
@@ -49,6 +53,24 @@ internal static class SqlTransactionGuard
     {
         if (!failure.Data.Contains(CommitStateKey)) failure.Data[CommitStateKey] = CommitState.RolledBack;
     }
+
+    /// <summary>
+    /// Records on a failure that followed a COMMIT which succeeded, or was confirmed by the check,
+    /// that the work is saved: only reading back its result failed. A state the failure already
+    /// carries is kept. <paramref name="batchId"/> is given only when the batch is known to be ours.
+    /// </summary>
+    internal static void MarkCommitted(Exception failure, Guid? batchId)
+    {
+        if (!failure.Data.Contains(CommitStateKey)) failure.Data[CommitStateKey] = CommitState.Committed;
+        if (batchId is { } id && !failure.Data.Contains(ImportBatchIdKey)) failure.Data[ImportBatchIdKey] = id;
+    }
+
+    /// <summary>
+    /// The stage a failure belongs to: <see cref="FailureStage.Commit"/> when the COMMIT failed or
+    /// when the work had committed before the failure, otherwise <paramref name="beforeCommit"/>.
+    /// </summary>
+    internal static FailureStage StageOf(Exception exception, FailureStage beforeCommit) =>
+        FailedAtCommit(exception) || CommitStateOf(exception) == CommitState.Committed ? FailureStage.Commit : beforeCommit;
 
     internal static Task CommitOrVerifyAsync(Func<Task> commit, Func<Task> release, Func<Task<bool>> committed) =>
         CommitOrVerifyAsync(true, commit, release, committed);

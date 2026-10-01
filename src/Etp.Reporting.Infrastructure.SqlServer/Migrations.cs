@@ -185,8 +185,7 @@ public sealed class SqlServerMigrationStore(string connectionString) : IMigratio
     public async Task ApplyAsync(MigrationScript migration, CancellationToken cancellationToken = default)
     {
         // The migration transaction has the commit budget as Connect Timeout, which SqlClient also applies to COMMIT.
-        await using var connection = new SqlConnection(LocalSqlConnectionPolicy.ValidateWithCommitBudget(connectionString));
-        await connection.OpenAsync(cancellationToken);
+        await using var connection = await LocalSqlConnectionPolicy.OpenWithCommitBudgetAsync(connectionString, cancellationToken);
         await EnsureJournalAsync(connection, cancellationToken);
         await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
         try
@@ -219,7 +218,10 @@ public sealed class SqlServerMigrationStore(string connectionString) : IMigratio
     /// <summary>Issues the migration COMMIT. Tests replace it to simulate a COMMIT whose reply is lost.</summary>
     internal Func<SqlTransaction, CancellationToken, Task> Commit { get; init; } = (transaction, token) => transaction.CommitAsync(token);
 
-    private Task<bool> JournaledAsync(MigrationScript migration) => SqlTransactionGuard.CheckAsync(connectionString,
+    /// <summary>Where the journal check after a failed COMMIT connects. Tests point it at a missing database to make the check fail.</summary>
+    internal string? CommitCheckConnectionString { get; init; }
+
+    private Task<bool> JournaledAsync(MigrationScript migration) => SqlTransactionGuard.CheckAsync(CommitCheckConnectionString ?? connectionString,
         "SELECT CONVERT(bit,CASE WHEN EXISTS(SELECT 1 FROM dbo.schema_migrations WITH(READCOMMITTEDLOCK) WHERE migration_id=@id AND checksum=@checksum) THEN 1 ELSE 0 END)",
         command =>
         {

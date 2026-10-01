@@ -135,10 +135,12 @@ public sealed partial class SqlServerTransactionalImportStore(string connectionS
         if (package.Restatement is not null) await RequireRestatementApprovalAsync(package, cancellationToken);
         var expectedRows=package.InvoiceControls.Count+package.SalesLines.Count+package.Tenders.Count+package.StockMovements.Count+package.StockSnapshots.Count+package.Enrichments.Count;
         // The import transaction has the commit budget as Connect Timeout, which SqlClient also applies to COMMIT.
-        await using var connection=new SqlConnection(LocalSqlConnectionPolicy.ValidateWithCommitBudget(connectionString)); await connection.OpenAsync(cancellationToken);
+        await using var connection=await LocalSqlConnectionPolicy.OpenWithCommitBudgetAsync(connectionString,cancellationToken);
         await using var transaction=(SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
         Task<long> CommitBatchAsync(long fileId)=>SqlTransactionGuard.CommitOrVerifyAsync(fileId,()=>Commit(transaction,cancellationToken),
             ()=>SqlTransactionGuard.ReleaseAsync(connection),()=>BatchCompletedAsync(package.Batch.BatchId));
+        // The batch id goes on a failure only once this transaction wrote its import_batches row.
+        var batchWritten=false;
         try
         {
             var plan=await PlanImportAsync(connection,transaction,package,cancellationToken);
@@ -147,6 +149,7 @@ public sealed partial class SqlServerTransactionalImportStore(string connectionS
                 return await SqlTransactionGuard.CommitOrVerifyAsync(existingId,()=>Commit(transaction,cancellationToken),
                     ()=>SqlTransactionGuard.ReleaseAsync(connection),()=>FileExistsAsync(existingId));
             await InsertBatch(connection,transaction,package.Batch,cancellationToken);
+            batchWritten=true;
             var profileId=await SqlServerImportProfileResolver.ResolveOrRegisterAsync(connection,transaction,package.File.Profile,cancellationToken);
             var fileId=await InsertFile(connection,transaction,package.File,profileId,cancellationToken);
             if(plan.DuplicateContent)
@@ -183,7 +186,7 @@ public sealed partial class SqlServerTransactionalImportStore(string connectionS
         }
         catch (Exception failure)
         {
-            failure.Data[SqlTransactionGuard.ImportBatchIdKey]=package.Batch.BatchId;
+            if(batchWritten) failure.Data[SqlTransactionGuard.ImportBatchIdKey]=package.Batch.BatchId;
             SqlTransactionGuard.MarkRolledBack(failure);
             await SqlTransactionGuard.RollBackAsync(failure,transaction);
             throw;
@@ -193,12 +196,15 @@ public sealed partial class SqlServerTransactionalImportStore(string connectionS
     /// <summary>Issues the import COMMIT. Tests replace it to simulate a COMMIT whose reply is lost.</summary>
     internal Func<SqlTransaction,CancellationToken,Task> Commit { get; init; }=(transaction,token)=>transaction.CommitAsync(token);
 
+    /// <summary>Where the check after a failed COMMIT connects. Tests point it at a missing database to make the check fail.</summary>
+    internal string? CommitCheckConnectionString { get; init; }
+
     // Both checks lock-read on a fresh, unpooled connection, so a COMMIT still finishing on the
     // server is waited for rather than read as missing. Only this transaction inserts the batch row.
-    private Task<bool> BatchCompletedAsync(Guid batchId)=>SqlTransactionGuard.CheckAsync(connectionString,
+    internal Task<bool> BatchCompletedAsync(Guid batchId)=>SqlTransactionGuard.CheckAsync(CommitCheckConnectionString ?? connectionString,
         "SELECT CONVERT(bit,CASE WHEN EXISTS(SELECT 1 FROM dbo.import_batches WITH(READCOMMITTEDLOCK) WHERE import_batch_id=@id AND status='Completed') THEN 1 ELSE 0 END)",
         command=>command.Parameters.AddWithValue("@id",batchId));
-    private Task<bool> FileExistsAsync(long fileId)=>SqlTransactionGuard.CheckAsync(connectionString,
+    private Task<bool> FileExistsAsync(long fileId)=>SqlTransactionGuard.CheckAsync(CommitCheckConnectionString ?? connectionString,
         "SELECT CONVERT(bit,CASE WHEN EXISTS(SELECT 1 FROM dbo.import_files WITH(READCOMMITTEDLOCK) WHERE import_file_id=@id) THEN 1 ELSE 0 END)",
         command=>command.Parameters.AddWithValue("@id",fileId));
 
