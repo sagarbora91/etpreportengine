@@ -15,5 +15,6 @@ public partial class SettingsWorkspaceView
     {
         DataTruthMastersHost.Children.Add(CreateDataTruthMastersView());
         DataTruthMastersHost.Children.Add(new EveningMastersView(() => session.ConnectionString, () => access.CanAdminister));
+        DataTruthMastersHost.Children.Add(new ImportEvidenceView(() => session.ConnectionString, () => access.CanAdminister));
     }
 }
