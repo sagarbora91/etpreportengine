@@ -15,6 +15,12 @@ public sealed class SqlDatabaseFixture : IAsyncLifetime
         try
         {
             await new SqlServerDatabaseBootstrapper(ConnectionString, new DirectoryMigrationSource(MigrationDirectory)).BootstrapAsync();
+            // On SQL Server 2025 over shared memory (1 October 2026) the first command after
+            // the bootstrap received a pooled connection that was already broken, and failed
+            // with "transport-level error ... The I/O operation has been aborted"; the same
+            // command on a new connection passed. Shared memory cannot detect a dead pooled
+            // session before reuse, so the bootstrap's connections are not handed on.
+            await using (var pooled = new SqlConnection(ConnectionString)) SqlConnection.ClearPool(pooled);
         }
         catch { await DisposeAsync(); throw; }
     }
