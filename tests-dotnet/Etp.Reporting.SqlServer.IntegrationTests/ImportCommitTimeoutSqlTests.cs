@@ -37,6 +37,7 @@ public sealed class ImportCommitTimeoutSqlTests
             if (serverCommitted)
             {
                 Assert.Equal("Imported", file.Status);
+                Assert.Equal(CommitState.Committed, file.CommitState);
                 Assert.True(file.NewRows > 0);
                 Assert.Equal("Imported", history.Result.Status);
                 Assert.Equal(1, Convert.ToInt32(await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.import_batches WHERE status='Completed'")));
@@ -47,6 +48,7 @@ public sealed class ImportCommitTimeoutSqlTests
             {
                 Assert.Equal("Failed", file.Status);
                 Assert.Equal("The import timed out and can be retried.", file.Message);
+                Assert.Equal(CommitState.RolledBack, file.CommitState);
                 Assert.Equal("Failed", history.Result.Status);
                 Assert.Equal(0, Convert.ToInt32(await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.import_files")));
                 Assert.Equal(0, Convert.ToInt32(await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.import_batches")));
@@ -54,6 +56,9 @@ public sealed class ImportCommitTimeoutSqlTests
                 Assert.IsType<SqlException>(failure.Exception);
                 Assert.Equal(-2, failure.SqlErrorNumber);
                 Assert.NotNull(failure.BatchId);
+                Assert.Equal(file.BatchId, failure.BatchId);
+                Assert.Equal(FailureStage.Commit, failure.Stage);
+                Assert.Equal(CommitState.RolledBack, failure.CommitState);
                 Assert.Equal(Path.GetFileName(path), failure.FileName);
             }
         }
@@ -61,7 +66,7 @@ public sealed class ImportCommitTimeoutSqlTests
     }
 
     // SqlException has no public constructor; build a client timeout through SqlClient's own factory.
-    private static SqlException SqlTimeout()
+    internal static SqlException SqlTimeout()
     {
         const BindingFlags Any = BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static;
         var errorConstructor = typeof(SqlError).GetConstructors(Any).OrderByDescending(c => c.GetParameters().Length).First();

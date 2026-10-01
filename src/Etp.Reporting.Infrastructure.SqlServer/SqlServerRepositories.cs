@@ -134,18 +134,18 @@ public sealed partial class SqlServerTransactionalImportStore(string connectionS
         PersistenceValidation.Validate(package);
         if (package.Restatement is not null) await RequireRestatementApprovalAsync(package, cancellationToken);
         var expectedRows=package.InvoiceControls.Count+package.SalesLines.Count+package.Tenders.Count+package.StockMovements.Count+package.StockSnapshots.Count+package.Enrichments.Count;
-        // The import transaction uses its own Connect Timeout, which SqlClient also applies to COMMIT.
-        await using var connection=new SqlConnection(LocalSqlConnectionPolicy.ValidateForImportTransaction(connectionString)); await connection.OpenAsync(cancellationToken);
+        // The import transaction has the commit budget as Connect Timeout, which SqlClient also applies to COMMIT.
+        await using var connection=new SqlConnection(LocalSqlConnectionPolicy.ValidateWithCommitBudget(connectionString)); await connection.OpenAsync(cancellationToken);
         await using var transaction=(SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
         Task<long> CommitBatchAsync(long fileId)=>SqlTransactionGuard.CommitOrVerifyAsync(fileId,()=>Commit(transaction,cancellationToken),
-            connection.CloseAsync,()=>BatchCompletedAsync(package.Batch.BatchId));
+            ()=>SqlTransactionGuard.ReleaseAsync(connection),()=>BatchCompletedAsync(package.Batch.BatchId));
         try
         {
             var plan=await PlanImportAsync(connection,transaction,package,cancellationToken);
             // Nothing was written for an exact duplicate; the earlier file only has to still be there.
             if(plan.ExistingHashFileId is { } existingId)
                 return await SqlTransactionGuard.CommitOrVerifyAsync(existingId,()=>Commit(transaction,cancellationToken),
-                    connection.CloseAsync,()=>FileExistsAsync(existingId));
+                    ()=>SqlTransactionGuard.ReleaseAsync(connection),()=>FileExistsAsync(existingId));
             await InsertBatch(connection,transaction,package.Batch,cancellationToken);
             var profileId=await SqlServerImportProfileResolver.ResolveOrRegisterAsync(connection,transaction,package.File.Profile,cancellationToken);
             var fileId=await InsertFile(connection,transaction,package.File,profileId,cancellationToken);
@@ -184,6 +184,7 @@ public sealed partial class SqlServerTransactionalImportStore(string connectionS
         catch (Exception failure)
         {
             failure.Data[SqlTransactionGuard.ImportBatchIdKey]=package.Batch.BatchId;
+            SqlTransactionGuard.MarkRolledBack(failure);
             await SqlTransactionGuard.RollBackAsync(failure,transaction);
             throw;
         }
@@ -192,20 +193,14 @@ public sealed partial class SqlServerTransactionalImportStore(string connectionS
     /// <summary>Issues the import COMMIT. Tests replace it to simulate a COMMIT whose reply is lost.</summary>
     internal Func<SqlTransaction,CancellationToken,Task> Commit { get; init; }=(transaction,token)=>transaction.CommitAsync(token);
 
-    // Both checks lock-read on a fresh connection, so a COMMIT still finishing on the server
-    // is waited for rather than read as missing.
-    private Task<bool> BatchCompletedAsync(Guid batchId)=>ExistsAfterCommitAsync(
-        "SELECT CONVERT(bit,CASE WHEN EXISTS(SELECT 1 FROM dbo.import_batches WITH(READCOMMITTEDLOCK) WHERE import_batch_id=@id AND status='Completed') THEN 1 ELSE 0 END)",batchId);
-    private Task<bool> FileExistsAsync(long fileId)=>ExistsAfterCommitAsync(
-        "SELECT CONVERT(bit,CASE WHEN EXISTS(SELECT 1 FROM dbo.import_files WITH(READCOMMITTEDLOCK) WHERE import_file_id=@id) THEN 1 ELSE 0 END)",fileId);
-    private async Task<bool> ExistsAfterCommitAsync(string sql,object id)
-    {
-        await using var connection=new SqlConnection(LocalSqlConnectionPolicy.ValidateForImportTransaction(connectionString));
-        await connection.OpenAsync(CancellationToken.None);
-        await using var command=new SqlCommand(sql,connection){CommandTimeout=LocalSqlConnectionPolicy.ImportTransactionTimeoutSeconds};
-        command.Parameters.AddWithValue("@id",id);
-        return (bool)(await command.ExecuteScalarAsync(CancellationToken.None))!;
-    }
+    // Both checks lock-read on a fresh, unpooled connection, so a COMMIT still finishing on the
+    // server is waited for rather than read as missing. Only this transaction inserts the batch row.
+    private Task<bool> BatchCompletedAsync(Guid batchId)=>SqlTransactionGuard.CheckAsync(connectionString,
+        "SELECT CONVERT(bit,CASE WHEN EXISTS(SELECT 1 FROM dbo.import_batches WITH(READCOMMITTEDLOCK) WHERE import_batch_id=@id AND status='Completed') THEN 1 ELSE 0 END)",
+        command=>command.Parameters.AddWithValue("@id",batchId));
+    private Task<bool> FileExistsAsync(long fileId)=>SqlTransactionGuard.CheckAsync(connectionString,
+        "SELECT CONVERT(bit,CASE WHEN EXISTS(SELECT 1 FROM dbo.import_files WITH(READCOMMITTEDLOCK) WHERE import_file_id=@id) THEN 1 ELSE 0 END)",
+        command=>command.Parameters.AddWithValue("@id",fileId));
 
     private static async Task InsertBatch(SqlConnection c,SqlTransaction t,ImportBatchRegistration x,CancellationToken token){await using var q=Cmd(c,t,"INSERT dbo.import_batches(import_batch_id,status,store_id,period_start,period_end,started_utc) VALUES(@id,'Processing',@store,@start,@end,@utc)");q.Parameters.AddWithValue("@id",x.BatchId);Add(q,"@store",x.StoreId);Add(q,"@start",x.PeriodStart);Add(q,"@end",x.PeriodEnd);q.Parameters.AddWithValue("@utc",x.StartedUtc.UtcDateTime);await q.ExecuteNonQueryAsync(token);}
     private static async Task<long> InsertFile(SqlConnection c,SqlTransaction t,ImportFileRegistration x,int profileId,CancellationToken token){var reportCode=PersistenceValidation.ResolveReportCode(x);await using var q=Cmd(c,t,"INSERT dbo.import_files(import_batch_id,import_profile_id,original_file_name,source_sha256,size_bytes,report_code,store_code,business_date,source_report_date,imported_by,period_start,period_end,data_truth_version) VALUES(@batch,@profile,@name,@hash,@size,@report,@store,@business,@sourceDate,@user,@periodStart,@periodEnd,1); SELECT CONVERT(bigint,SCOPE_IDENTITY());");q.Parameters.AddWithValue("@batch",x.BatchId);q.Parameters.AddWithValue("@profile",profileId);q.Parameters.AddWithValue("@name",x.OriginalFileName);q.Parameters.AddWithValue("@hash",SqlServerImportFileRepository.NormalizeHash(x.SourceSha256));q.Parameters.AddWithValue("@size",x.SizeBytes);q.Parameters.AddWithValue("@report",reportCode);Add(q,"@store",x.StoreCode);Add(q,"@business",x.BusinessDate);Add(q,"@sourceDate",x.SourceReportDate);Add(q,"@user",x.ImportedBy);Add(q,"@periodStart",x.PeriodStart??x.BusinessDate);Add(q,"@periodEnd",x.PeriodEnd??x.BusinessDate);return Convert.ToInt64(await q.ExecuteScalarAsync(token));}

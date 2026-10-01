@@ -9,18 +9,25 @@ public static class LocalSqlConnectionPolicy
 {
     /// <summary>
     /// SqlClient times COMMIT and ROLLBACK with Connect Timeout, not CommandTimeout. On a slow
-    /// disk an import COMMIT can outlast the 5 s connection cap and be reported as failed after
-    /// SQL Server has committed it, so import transactions get this budget instead.
+    /// disk an import or migration COMMIT can outlast the 5 s connection cap and be reported as
+    /// failed after SQL Server has committed it, so those transactions get this budget instead.
     /// </summary>
-    public const int ImportTransactionTimeoutSeconds = 120;
+    public const int CommitBudgetSeconds = 120;
 
-    public static string Validate(string connectionString) => Validate(connectionString, null);
+    public static string Validate(string connectionString) => Validate(connectionString, null, pooling: true);
 
-    /// <summary>The same local rules as <see cref="Validate(string)"/>, with the import transaction budget as Connect Timeout.</summary>
-    public static string ValidateForImportTransaction(string connectionString) =>
-        Validate(connectionString, ImportTransactionTimeoutSeconds);
+    /// <summary>The same local rules as <see cref="Validate(string)"/>, with the commit budget as Connect Timeout.</summary>
+    public static string ValidateWithCommitBudget(string connectionString) =>
+        Validate(connectionString, CommitBudgetSeconds, pooling: true);
 
-    private static string Validate(string connectionString, int? transactionTimeoutSeconds)
+    /// <summary>
+    /// The connection that asks, after a failed COMMIT, whether the work landed. It has the commit
+    /// budget and is never pooled, so the check cannot reuse the session whose reply was lost.
+    /// </summary>
+    public static string ValidateForCommitCheck(string connectionString) =>
+        Validate(connectionString, CommitBudgetSeconds, pooling: false);
+
+    private static string Validate(string connectionString, int? commitBudgetSeconds, bool pooling)
     {
         if (string.IsNullOrWhiteSpace(connectionString)) throw new ArgumentException("Enter local SQL Server connection settings.");
         SqlConnectionStringBuilder builder;
@@ -40,8 +47,9 @@ public static class LocalSqlConnectionPolicy
             !new[] { "optional", "mandatory", "strict", "true", "yes" }.Contains(encryption?.ToString()?.Trim().ToLowerInvariant()))
             throw new ArgumentException("Use Encrypt=Optional for local SQL, or Mandatory/Strict with a trusted certificate; Encrypt=False is not allowed.");
         if (!raw.ContainsKey("Encrypt")) builder.Encrypt = SqlConnectionEncryptOption.Optional;
-        if (transactionTimeoutSeconds is { } budget) builder.ConnectTimeout = budget;
+        if (commitBudgetSeconds is { } budget) builder.ConnectTimeout = budget;
         else if (builder.ConnectTimeout == 0 || builder.ConnectTimeout > 5) builder.ConnectTimeout = 5;
+        if (!pooling) builder.Pooling = false;
         // Older SqlClient versions serialize Optional as False. Keep the public
         // validated representation explicit and safe to validate again.
         if (builder.Encrypt == SqlConnectionEncryptOption.Optional)

@@ -20,11 +20,24 @@ public sealed class ImportCommitFailureTests
     {
         Assert.Equal(5, new SqlConnectionStringBuilder(LocalSqlConnectionPolicy.Validate(Local + ";Connect Timeout=0")).ConnectTimeout);
         Assert.Equal(5, new SqlConnectionStringBuilder(LocalSqlConnectionPolicy.Validate(Local + ";Connect Timeout=300")).ConnectTimeout);
-        var import = new SqlConnectionStringBuilder(LocalSqlConnectionPolicy.ValidateForImportTransaction(LocalSqlConnectionPolicy.Validate(Local)));
-        Assert.Equal(LocalSqlConnectionPolicy.ImportTransactionTimeoutSeconds, import.ConnectTimeout);
+        var import = new SqlConnectionStringBuilder(LocalSqlConnectionPolicy.ValidateWithCommitBudget(LocalSqlConnectionPolicy.Validate(Local)));
+        Assert.Equal(LocalSqlConnectionPolicy.CommitBudgetSeconds, import.ConnectTimeout);
         Assert.True(import.IntegratedSecurity);
+        Assert.True(import.Pooling);
         Assert.Equal(SqlConnectionEncryptOption.Optional, import.Encrypt);
         Assert.Equal("Test", import.InitialCatalog);
+        Assert.Equal(5, new SqlConnectionStringBuilder(LocalSqlConnectionPolicy.Validate(LocalSqlConnectionPolicy.ValidateWithCommitBudget(Local))).ConnectTimeout);
+    }
+
+    [Fact]
+    public void The_check_after_a_failed_commit_never_reuses_a_pooled_session()
+    {
+        var check = new SqlConnectionStringBuilder(LocalSqlConnectionPolicy.ValidateForCommitCheck(LocalSqlConnectionPolicy.ValidateWithCommitBudget(Local)));
+        Assert.False(check.Pooling);
+        Assert.Equal(LocalSqlConnectionPolicy.CommitBudgetSeconds, check.ConnectTimeout);
+        Assert.True(check.IntegratedSecurity);
+        Assert.Equal(SqlConnectionEncryptOption.Optional, check.Encrypt);
+        Assert.Equal("Test", check.InitialCatalog);
     }
 
     [Theory]
@@ -33,8 +46,11 @@ public sealed class ImportCommitFailureTests
     [InlineData("Server=localhost;Database=Test;Integrated Security=True;UID=secret")]
     [InlineData("Server=localhost;Database=Test;Integrated Security=False")]
     [InlineData("Server=localhost;Integrated Security=True")]
-    public void Import_transaction_budget_keeps_every_local_connection_rule(string value) =>
-        Assert.Throws<ArgumentException>(() => LocalSqlConnectionPolicy.ValidateForImportTransaction(value));
+    public void Import_transaction_budget_keeps_every_local_connection_rule(string value)
+    {
+        Assert.Throws<ArgumentException>(() => LocalSqlConnectionPolicy.ValidateWithCommitBudget(value));
+        Assert.Throws<ArgumentException>(() => LocalSqlConnectionPolicy.ValidateForCommitCheck(value));
+    }
 
     [Fact]
     public void Sql_client_timeout_is_described_as_a_retryable_timeout_even_when_wrapped()
@@ -47,6 +63,39 @@ public sealed class ImportCommitFailureTests
         Assert.Equal("IMPORT_PROCESSING_FAILED", classifier.Describe(SqlError(547)).Code);
         Assert.Equal("IMPORT_TIMEOUT", classifier.Describe(new TimeoutException()).Code);
         Assert.Equal("STORE_OVERRIDE_MISMATCH", classifier.Describe(new ImportSourceException("STORE_OVERRIDE_MISMATCH", "Mismatch.")).Code);
+    }
+
+    [Fact]
+    public void Commit_whose_outcome_could_not_be_checked_is_COMMIT_OUTCOME_UNKNOWN_at_the_commit_stage_and_not_retried()
+    {
+        var classifier = new SqlImportFailureClassifier();
+        var unknown = SqlError(-2);
+        unknown.Data[SqlTransactionGuard.CommitFailedKey] = true;
+        unknown.Data[SqlTransactionGuard.CommitStateKey] = CommitState.Unknown;
+
+        var (code, message) = classifier.Describe(unknown);
+        Assert.Equal(ImportCodes.CommitOutcomeUnknown, code);
+        Assert.Contains("did not confirm whether this import was saved", message);
+        Assert.Equal(code, classifier.Describe(new InvalidOperationException("Wrapped.", unknown)).Code);
+        Assert.False(classifier.IsTransient(unknown));
+        Assert.Equal(new ImportFailure(ImportCodes.CommitOutcomeUnknown, FailureStage.Commit, message, nameof(SqlException), -2),
+            classifier.DescribeDetailed(unknown, FailureStage.Apply));
+
+        // The check found nothing: the COMMIT failed, nothing landed, and the timeout may be retried.
+        var rolledBack = SqlError(-2);
+        rolledBack.Data[SqlTransactionGuard.CommitFailedKey] = true;
+        rolledBack.Data[SqlTransactionGuard.CommitStateKey] = CommitState.RolledBack;
+        Assert.Equal(ImportCodes.ImportTimeout, classifier.Describe(rolledBack).Code);
+        Assert.True(classifier.IsTransient(rolledBack));
+        Assert.Equal(FailureStage.Commit, classifier.DescribeDetailed(rolledBack, FailureStage.Apply).Stage);
+
+        // A failure before the COMMIT keeps the caller's stage.
+        var before = SqlError(547);
+        before.Data[SqlTransactionGuard.CommitStateKey] = CommitState.RolledBack;
+        Assert.Equal(new ImportFailure("IMPORT_PROCESSING_FAILED", FailureStage.Apply, classifier.Describe(before).SafeMessage, nameof(SqlException), 547),
+            classifier.DescribeDetailed(before, FailureStage.Apply));
+        var refusal = classifier.DescribeDetailed(new ImportSourceException("STORE_OVERRIDE_MISMATCH", "Mismatch."), FailureStage.Scope);
+        Assert.Equal(("STORE_OVERRIDE_MISMATCH", FailureStage.Scope, (int?)null), (refusal.Code, refusal.Stage, refusal.SqlNumber));
     }
 
     [Fact]
@@ -63,14 +112,54 @@ public sealed class ImportCommitFailureTests
         var file = Assert.Single(summary.Files);
         Assert.Equal("Failed", file.Status);
         Assert.Equal("The import timed out and can be retried.", file.Message);
+        Assert.Equal(batchId, file.BatchId);
+        Assert.Null(file.CommitState);
         var failure = Assert.Single(reported);
         Assert.Same(thrown, failure.Exception);
         Assert.Equal("R025 sales.xlsx", failure.FileName);
-        Assert.Equal("Persist", failure.Stage);
+        Assert.Equal(FailureStage.Apply, failure.Stage);
         Assert.Equal("R025", failure.ReportCode);
         Assert.Equal("HEMW", failure.StoreCode);
         Assert.Equal(batchId, failure.BatchId);
         Assert.Equal(-2, failure.SqlErrorNumber);
+        Assert.Null(failure.CommitState);
+    }
+
+    [Theory]
+    [InlineData(CommitState.Unknown, "The database did not confirm whether this import was saved. Import the file again: if it was saved, it is reported as already imported.")]
+    [InlineData(CommitState.RolledBack, "The import timed out and can be retried.")]
+    public async Task Failed_commit_is_reported_with_its_commit_state_at_the_commit_stage(CommitState state, string message)
+    {
+        var batchId = Guid.NewGuid();
+        var timeout = SqlError(-2);
+        timeout.Data[SqlTransactionGuard.ImportBatchIdKey] = batchId;
+        timeout.Data[SqlTransactionGuard.CommitFailedKey] = true;
+        timeout.Data[SqlTransactionGuard.CommitStateKey] = state;
+        var reported = new List<FolderImportFailure>();
+        var summary = await new FolderImportService(new ThrowingPersistence(timeout), new Reader(Sales), reportFailure: reported.Add)
+            .RunFilesAsync(["R025 sales.xlsx"], new("tester"));
+
+        var file = Assert.Single(summary.Files);
+        Assert.Equal("Failed", file.Status);
+        Assert.Equal(message, file.Message);
+        Assert.Equal(state, file.CommitState);
+        Assert.Equal(batchId, file.BatchId);
+        var failure = Assert.Single(reported);
+        Assert.Equal(FailureStage.Commit, failure.Stage);
+        Assert.Equal(state, failure.CommitState);
+        Assert.Equal(batchId, failure.BatchId);
+    }
+
+    [Theory]
+    [InlineData("Imported", CommitState.Committed)]
+    [InlineData("Duplicate content", CommitState.Committed)]
+    [InlineData("Duplicate", null)]
+    public async Task A_saved_import_is_committed_unless_an_earlier_import_already_held_the_file(string status, CommitState? state)
+    {
+        var summary = await new FolderImportService(new SavingPersistence(status), new Reader(Sales)).RunFilesAsync(["R025 sales.xlsx"], new("tester"));
+        var file = Assert.Single(summary.Files);
+        Assert.Equal(status, file.Status);
+        Assert.Equal(state, file.CommitState);
     }
 
     [Fact]
@@ -106,6 +195,9 @@ public sealed class ImportCommitFailureTests
         var missing = await Assert.ThrowsAsync<SqlException>(() => SqlTransactionGuard.CommitOrVerifyAsync(1L,
             () => throw original, () => Task.CompletedTask, () => Task.FromResult(false)));
         Assert.Same(original, missing);
+        Assert.Equal(CommitState.RolledBack, SqlTransactionGuard.CommitStateOf(missing));
+        Assert.True(SqlTransactionGuard.FailedAtCommit(missing));
+        Assert.False(missing.Data.Contains(SqlTransactionGuard.CommitCheckFailureKey));
 
         var unverified = SqlError(-2);
         var rethrown = await Assert.ThrowsAsync<SqlException>(() => SqlTransactionGuard.CommitOrVerifyAsync(1L,
@@ -114,6 +206,30 @@ public sealed class ImportCommitFailureTests
         Assert.Same(unverified, rethrown);
         Assert.Contains("Already closed.", (string)rethrown.Data[SqlTransactionGuard.RollbackFailureKey]!);
         Assert.Contains("Check timed out.", (string)rethrown.Data[SqlTransactionGuard.CommitCheckFailureKey]!);
+        Assert.Equal(CommitState.Unknown, SqlTransactionGuard.CommitStateOf(new InvalidOperationException("Wrapped.", rethrown)));
+        Assert.True(SqlTransactionGuard.FailedAtCommit(rethrown));
+    }
+
+    [Fact]
+    public async Task A_cancelled_commit_is_not_checked_and_a_failure_before_commit_is_rolled_back()
+    {
+        var checks = 0;
+        await Assert.ThrowsAsync<OperationCanceledException>(() => SqlTransactionGuard.CommitOrVerifyAsync(1L,
+            () => throw new OperationCanceledException(), () => { checks++; return Task.CompletedTask; },
+            () => { checks++; return Task.FromResult(true); }));
+        Assert.Equal(0, checks);
+
+        var before = SqlError(547);
+        SqlTransactionGuard.MarkRolledBack(before);
+        Assert.Equal(CommitState.RolledBack, SqlTransactionGuard.CommitStateOf(before));
+        Assert.False(SqlTransactionGuard.FailedAtCommit(before));
+
+        // A COMMIT whose outcome is unknown stays unknown when the caller then marks its failure.
+        var unknown = SqlError(-2);
+        unknown.Data[SqlTransactionGuard.CommitStateKey] = CommitState.Unknown;
+        SqlTransactionGuard.MarkRolledBack(unknown);
+        Assert.Equal(CommitState.Unknown, SqlTransactionGuard.CommitStateOf(unknown));
+        Assert.Null(SqlTransactionGuard.CommitStateOf(new InvalidOperationException("Never in a transaction.")));
     }
 
     [Fact]
@@ -174,6 +290,18 @@ public sealed class ImportCommitFailureTests
     private sealed class Reader(Func<string, WorkbookSnapshot> read) : IWorkbookReader
     {
         public Task<WorkbookSnapshot> ReadAsync(string path, CancellationToken cancellationToken = default) => Task.FromResult(read(path));
+    }
+
+    private sealed class SavingPersistence(string status) : IImportPersistenceUseCase<MatchedImportEnvelope>
+    {
+        public Task<bool> ExistsByHashAsync(string hash, CancellationToken cancellationToken = default) => Task.FromResult(false);
+        public Task<bool> ExistsInScopeAsync(string hash, string report, string store, DateOnly start, DateOnly end, CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
+        public Task<long?> FindCurrentImportFileIdAsync(string report, string store, DateOnly date, CancellationToken cancellationToken = default) => Task.FromResult<long?>(null);
+        public Task PrepareRestatementAsync(ImportPersistenceRequest<MatchedImportEnvelope> request, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<ImportPersistenceResult> PersistAsync(ImportPersistenceRequest<MatchedImportEnvelope> request, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ImportPersistenceResult("R025", status == "Imported" ? 1 : 0) { Status = status, AlreadyPresentRows = status == "Imported" ? 0 : 1 });
+        public Task<ImportRowOutcome> LoadOutcomeByHashAsync(string hash, CancellationToken cancellationToken = default) => Task.FromResult(new ImportRowOutcome(1, 1, 0, 0));
     }
 
     private sealed class ThrowingPersistence(Exception failure) : IImportPersistenceUseCase<MatchedImportEnvelope>

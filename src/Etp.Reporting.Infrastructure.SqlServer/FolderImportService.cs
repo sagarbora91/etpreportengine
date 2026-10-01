@@ -11,8 +11,12 @@ namespace Etp.Reporting.Infrastructure.SqlServer;
 /// An unexpected file failure for diagnostics. It carries the real exception, which the
 /// import result replaces with a safe message, and never any workbook row data.
 /// </summary>
-public sealed record FolderImportFailure(string FileName, string Stage, string? ReportCode, string? StoreCode,
-    DateOnly? PeriodEnd, Guid? BatchId, int? SqlErrorNumber, Exception Exception);
+public sealed record FolderImportFailure(string FileName, FailureStage Stage, string? ReportCode, string? StoreCode,
+    DateOnly? PeriodEnd, Guid? BatchId, int? SqlErrorNumber, Exception Exception)
+{
+    /// <summary>What became of the import transaction, when the failure ended one (IF-014).</summary>
+    public CommitState? CommitState { get; init; }
+}
 
 /// <summary>The same folder workflow is used by the desktop and command-line import.</summary>
 public sealed class FolderImportService(
@@ -71,7 +75,7 @@ public sealed class FolderImportService(
             catch (Exception exception)
             {
                 var message = classifier.Describe(exception).SafeMessage;
-                Report(Path.GetFileName(path), "Read", null, null, exception);
+                Report(Path.GetFileName(path), FailureStage.Read, null, null, exception);
                 results.Add(new(Path.GetFileName(path), null, null, null, null, "Failed", Message: message) { SourcePath = path });
                 handled.Add(path);
             }
@@ -146,6 +150,8 @@ public sealed class FolderImportService(
                     Status = accepted.Staging.Rows.Count == 0 && saved.Status == "Imported" ? "empty export" : saved.Status,
                     RowsProcessed = Math.Max(accepted.Staging.Rows.Count, outcome.RowsProcessed), NewRows = Math.Max(saved.PersistedRows, outcome.NewRows),
                     AlreadyPresentRows = outcome.AlreadyPresentRows, ConflictRows = outcome.ConflictRows };
+                // Only a duplicate found before or under the import lock commits nothing of its own (IF-014).
+                if (saved.Status != "Duplicate") result = result with { CommitState = CommitState.Committed };
                 if (outcome.ConflictRows > 0) result = result with { Status = "Failed", Message = $"{outcome.ConflictRows:N0} conflicting rows. Review the source before retrying." };
                 if (result.Status is "Imported" or "empty export" or "Duplicate" or "Duplicate content" or "Already present")
                     result = await RetainEvidenceAsync(result, entry.Path, accepted, persistedStore, periodEnd, cancellationToken).ConfigureAwait(false);
@@ -154,8 +160,10 @@ public sealed class FolderImportService(
             { result = result with { Status = "Cancelled", Message = "Import cancelled." }; }
             catch (Exception exception)
             {
-                result = result with { Status = "Failed", Message = classifier.Describe(exception).SafeMessage };
-                Report(result.FileName, "Persist", result.ReportCode, scope, exception);
+                result = result with { Status = "Failed", Message = classifier.Describe(exception).SafeMessage,
+                    CommitState = SqlTransactionGuard.CommitStateOf(exception), BatchId = SqlTransactionGuard.BatchIdOf(exception) };
+                Report(result.FileName, SqlTransactionGuard.FailedAtCommit(exception) ? FailureStage.Commit : FailureStage.Apply,
+                    result.ReportCode, scope, exception);
             }
             results.Add(result);
             progress?.Report(new(results.Count, paths.Count, result.FileName, result.Status, results.ToArray()));
@@ -185,26 +193,20 @@ public sealed class FolderImportService(
 
     // Refusals with their own code already explain themselves; anything else reaches the
     // operator only as a generic message, so the real exception goes to diagnostics.
-    private void Report(string fileName, string stage, string? reportCode, ImportScope? scope, Exception exception)
+    private void Report(string fileName, FailureStage stage, string? reportCode, ImportScope? scope, Exception exception)
     {
         if (reportFailure is null || exception is ImportSourceException) return;
         try
         {
             reportFailure(new(fileName, stage, reportCode, scope?.StoreCode, scope?.PeriodEnd,
-                BatchId(exception),
-                SqlImportFailureClassifier.SqlErrorNumber(exception), exception));
+                SqlTransactionGuard.BatchIdOf(exception),
+                SqlImportFailureClassifier.SqlErrorNumber(exception), exception)
+                { CommitState = SqlTransactionGuard.CommitStateOf(exception) });
         }
         catch (Exception sinkFailure) when (sinkFailure is not OperationCanceledException)
         {
             // Diagnostics are best effort; a failing log must not change the import outcome.
         }
-    }
-
-    private static Guid? BatchId(Exception? exception)
-    {
-        for (var current = exception; current is not null; current = current.InnerException)
-            if (current.Data[SqlTransactionGuard.ImportBatchIdKey] is Guid batchId) return batchId;
-        return null;
     }
 
     private static int DependencyOrder(string? code) => code switch
