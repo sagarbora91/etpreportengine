@@ -98,8 +98,9 @@ public sealed class DurableImportHistoryTests
             Assert.DoesNotContain("Secret", issue.Message); Assert.DoesNotContain("private", issue.Message);
             var savedDiagnostics = (string)(await database.ExecuteAsync("SELECT diagnostics_json FROM dbo.import_attempts"))!;
             Assert.DoesNotContain("Secret", savedDiagnostics); Assert.DoesNotContain("private", savedDiagnostics);
-            // Older or externally recorded receipts also pass the display sanitizer.
+            // Older or externally recorded receipts (no issue rows before 0038) also pass the display sanitizer.
             await database.ExecuteAsync("""
+                DELETE dbo.import_attempt_issues;
                 UPDATE dbo.import_attempts SET diagnostics_json=N'[{"Severity":1,"Code":"UNEXPECTED_COLUMN","Message":"Secret","SourceRow":1,"SourceColumn":"Secret path"}]';
                 """);
             var oldIssue = Assert.Single(Assert.Single(await reopened.LoadAsync(new(new(2026, 8, 25), new(2026, 8, 25)))).Result.Diagnostics!);

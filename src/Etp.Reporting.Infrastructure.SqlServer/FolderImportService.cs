@@ -2,6 +2,7 @@ using Etp.Reporting.Application.Imports;
 using Etp.Reporting.Import.Batch;
 using Etp.Reporting.Import.Preflight;
 using Etp.Reporting.Import.Profiles;
+using System.Runtime.ExceptionServices;
 using System.Text.RegularExpressions;
 using Etp.Reporting.Import.Workbooks;
 
@@ -46,6 +47,7 @@ public sealed class FolderImportService(
             throw new ImportSourceException("IMPORT_OVERRIDE_REQUIRES_RESTATEMENT", "Enable restatement before overriding the detected store or date.");
 
         var results = new List<FolderImportFileResult>();
+        var recording = new AttemptRecording(persistence as IImportAttemptRecorder);
         var ready = new List<(string Path, MatchedImportInspection Inspection)>();
         var handled = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var path in paths)
@@ -61,9 +63,12 @@ public sealed class FolderImportService(
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { break; }
             catch (Exception exception)
             {
-                var message = new SafeImportFailureClassifier().Describe(exception).SafeMessage;
-                results.Add(new(Path.GetFileName(path), null, null, null, null, "Failed", Message: message) { SourcePath = path });
+                var failure = SqlImportFailures.Describe(exception, FailureStage.Read);
+                var failed = new FolderImportFileResult(Path.GetFileName(path), null, null, null, null, "Failed", Message: failure.SafeMessage)
+                    { SourcePath = path, Failure = failure };
+                results.Add(failed);
                 handled.Add(path);
+                await recording.RecordAsync(failed).ConfigureAwait(false);
             }
         }
         foreach (var entry in ready.OrderBy(item => DependencyOrder(item.Inspection.MatchedProfile?.ReportCode)))
@@ -72,8 +77,7 @@ public sealed class FolderImportService(
             handled.Add(entry.Path);
             var accepted = entry.Inspection.AcceptedImport;
             var scope = accepted?.Scope;
-            var issues = entry.Inspection.Diagnostics.Select(issue => new ImportIssue(
-                (ImportIssueSeverity)(int)issue.Severity, issue.Code, issue.Message, issue.RowNumber, issue.ColumnName)).ToArray();
+            var issues = entry.Inspection.Diagnostics.Select(issue => issue.ToImportIssue()).ToArray();
             var result = new FolderImportFileResult(Path.GetFileName(entry.Path), entry.Inspection.MatchedProfile?.ReportCode,
                 scope?.StoreCode, scope?.PeriodStart, scope?.PeriodEnd, "Importing", Diagnostics: issues)
                 { SourcePath = entry.Path, SourceSha256 = accepted?.Workbook.Sha256 };
@@ -87,9 +91,12 @@ public sealed class FolderImportService(
                 var notNeeded = result.FileName.StartsWith("00_", StringComparison.OrdinalIgnoreCase) || unsupportedFamily;
                 result = result with { Status = notNeeded ? "Not needed" : unknown ? "Unknown layout" : "Failed",
                     Message = notNeeded ? unsupportedFamily ? "This ETP report type is not needed by the reporting engine; the other workbooks are processed." : "Consolidation control workbook; report workbooks are imported separately." : string.Join(" ", issues.Select(issue => issue.Message).Distinct()) };
+                if (!notNeeded) result = result with { Failure = MatchFailure(issues) };
                 results.Add(result);
+                await recording.RecordAsync(result).ConfigureAwait(false);
                 continue;
             }
+            var stage = FailureStage.Scope;
             try
             {
                 // A retry re-reads only failed files. Preserve the original sibling scope for
@@ -116,8 +123,10 @@ public sealed class FolderImportService(
                         AlreadyPresentRows = accepted.Staging.Rows.Count, Message = "This file was already imported for this store and date range; no new rows." };
                     result = await RetainEvidenceAsync(result, entry.Path, accepted, persistedStore, periodEnd, cancellationToken).ConfigureAwait(false);
                     results.Add(result);
+                    await recording.RecordAsync(result).ConfigureAwait(false);
                     continue;
                 }
+                stage = FailureStage.Plan;
                 ImportRestatement? restatement = null;
                 if (options.RestatementEnabled)
                 {
@@ -127,6 +136,7 @@ public sealed class FolderImportService(
                 var request = new ImportPersistenceRequest<MatchedImportEnvelope>(accepted, end.Value, store, options.ImportedBy, restatement);
                 if (restatement is not null)
                     await persistence.PrepareRestatementAsync(request, cancellationToken).ConfigureAwait(false);
+                stage = FailureStage.Apply;
                 var saved = await persistence.PersistAsync(request, cancellationToken).ConfigureAwait(false);
                 var outcome = saved.Status == "Imported"
                     ? await persistence.LoadOutcomeInScopeAsync(accepted.Workbook.Sha256, accepted.ProfileIdentity.ReportCode,
@@ -135,8 +145,10 @@ public sealed class FolderImportService(
                 result = result with { StoreCode = persistedStore, PeriodStart = periodStart, PeriodEnd = periodEnd,
                     Status = accepted.Staging.Rows.Count == 0 && saved.Status == "Imported" ? "empty export" : saved.Status,
                     RowsProcessed = Math.Max(accepted.Staging.Rows.Count, outcome.RowsProcessed), NewRows = Math.Max(saved.PersistedRows, outcome.NewRows),
-                    AlreadyPresentRows = outcome.AlreadyPresentRows, ConflictRows = outcome.ConflictRows };
-                if (outcome.ConflictRows > 0) result = result with { Status = "Failed", Message = $"{outcome.ConflictRows:N0} conflicting rows. Review the source before retrying." };
+                    AlreadyPresentRows = outcome.AlreadyPresentRows, ConflictRows = outcome.ConflictRows, BatchId = saved.BatchId,
+                    Evidence = saved.Evidence ?? result.Evidence, CommitState = saved.BatchId is null ? null : CommitState.Committed };
+                if (outcome.ConflictRows > 0) result = result with { Status = "Failed", Message = $"{outcome.ConflictRows:N0} conflicting rows. Review the source before retrying.",
+                    Failure = new(ImportCodes.ImportConflict, FailureStage.Apply, ImportDiagnosticCatalogue.Template(ImportCodes.ImportConflict)) };
                 if (result.Status is "Imported" or "empty export" or "Duplicate" or "Duplicate content" or "Already present")
                     result = await RetainEvidenceAsync(result, entry.Path, accepted, persistedStore, periodEnd, cancellationToken).ConfigureAwait(false);
             }
@@ -144,18 +156,24 @@ public sealed class FolderImportService(
             { result = result with { Status = "Cancelled", Message = "Import cancelled." }; }
             catch (Exception exception)
             {
-                result = result with { Status = "Failed", Message = new SafeImportFailureClassifier().Describe(exception).SafeMessage };
+                var failure = SqlImportFailures.Describe(exception, stage);
+                result = result with { Status = "Failed", Message = failure.SafeMessage, Failure = failure,
+                    CommitState = failure.Code == ImportCodes.CommitOutcomeUnknown ? CommitState.Unknown
+                        : failure.Stage is FailureStage.Apply or FailureStage.Commit ? CommitState.RolledBack : null };
             }
             results.Add(result);
+            await recording.RecordAsync(result).ConfigureAwait(false);
             progress?.Report(new(results.Count, paths.Count, result.FileName, result.Status, results.ToArray()));
         }
         if (cancellationToken.IsCancellationRequested)
             foreach (var path in paths.Where(path => !handled.Contains(path)))
-                results.Add(new(Path.GetFileName(path), null, null, null, null, "Cancelled") { SourcePath = path });
+            {
+                var cancelled = new FolderImportFileResult(Path.GetFileName(path), null, null, null, null, "Cancelled") { SourcePath = path };
+                results.Add(cancelled);
+                await recording.RecordAsync(cancelled).ConfigureAwait(false);
+            }
         FailedPaths = results.Where(result => result.Failed).Select(result => result.SourcePath!).ToArray();
-        if (persistence is IImportAttemptRecorder recorder)
-            foreach (var result in results)
-                await recorder.RecordAttemptAsync(result, CancellationToken.None).ConfigureAwait(false);
+        recording.ThrowIfFailed();
         progress?.Report(new(results.Count, paths.Count, string.Empty, cancellationToken.IsCancellationRequested ? "Cancelled" : "Completed", results.ToArray()));
         return new(results);
     }
@@ -170,6 +188,34 @@ public sealed class FolderImportService(
             return result with { Message = "Data is present; the original document could not be retained. Keep the source file and import it again to retry evidence retention." };
         }
         return result;
+    }
+
+    // A workbook no profile accepted: the first blocker names the failure. Its message comes from the
+    // catalogue, because a layout message can quote a header.
+    private static ImportFailure MatchFailure(IReadOnlyList<ImportIssue> issues)
+    {
+        var first = issues.FirstOrDefault(issue => issue.Severity == ImportIssueSeverity.Blocker) ?? issues.FirstOrDefault();
+        var code = first?.Code ?? "IMPORT_LAYOUT_BLOCKED";
+        return new(code, FailureStage.Match, ImportDiagnosticCatalogue.SafeMessage(code, first?.Message));
+    }
+
+    /// <summary>
+    /// Records each attempt as soon as its file is finished (IF-017), so a run that stops part way still
+    /// leaves the files it handled in History. A failed write does not stop the other files; the first
+    /// one is rethrown when the run ends, as before.
+    /// </summary>
+    private sealed class AttemptRecording(IImportAttemptRecorder? recorder)
+    {
+        private ExceptionDispatchInfo? failure;
+
+        public async Task RecordAsync(FolderImportFileResult result)
+        {
+            if (recorder is null) return;
+            try { await recorder.RecordAttemptAsync(result, CancellationToken.None).ConfigureAwait(false); }
+            catch (Exception exception) { failure ??= ExceptionDispatchInfo.Capture(exception); }
+        }
+
+        public void ThrowIfFailed() => failure?.Throw();
     }
 
     private static int DependencyOrder(string? code) => code switch
