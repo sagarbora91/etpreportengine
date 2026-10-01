@@ -1,4 +1,5 @@
 using Etp.Reporting.Import.Preflight;
+using Etp.Reporting.Import.Sources;
 using Etp.Reporting.Import.Staging;
 
 namespace Etp.Reporting.Infrastructure.SqlServer;
@@ -14,7 +15,9 @@ public sealed class EtpFamilySqlImportOrchestrator(ITransactionalImportStore sto
         var start=accepted.Scope.PeriodStart??scope.BusinessDate;
         var batch=Guid.NewGuid();
         // R010 rows carry no date of their own; each row is stamped with the date of its snapshot.
-        DateOnly SnapshotDate(StagedImportRow row)=>scope.BusinessDate!.Value;
+        // A file dated only by its sibling exports has no blocks and takes the business date.
+        DateOnly SnapshotDate(StagedImportRow row)=>SnapshotBlock.DateOf(accepted.Scope.SnapshotBlocks,accepted.MatchedSheet.Name,
+            row.SourceRowNumber)??scope.BusinessDate!.Value;
 
         var snapshots=accepted.ProfileIdentity.ReportCode=="R010"
             ? accepted.Staging.Rows.Select(row=>

@@ -102,7 +102,18 @@ public sealed class FolderImportService(
                 if (scope?.PeriodEnd is { } detectedDate && options.OverrideBusinessDate is { } overrideDate && detectedDate != overrideDate)
                     throw new ImportSourceException("DATE_OVERRIDE_MISMATCH", "The date override does not match the file. Use a corrected source file to change its date.");
                 var store = scope?.StoreCode ?? options.OverrideStoreCode ?? siblings.Select(item => item!.StoreCode).FirstOrDefault(value => value is not null);
-                var end = scope?.PeriodEnd ?? options.OverrideBusinessDate ?? siblings.Select(item => item!.PeriodEnd).Max();
+                // An undated snapshot takes its siblings' end date only when they agree on one (spec 6.4 tier 7); never a maximum.
+                var undated = EtpReportFamilyRegistry.Resolve(accepted.ProfileIdentity.ReportCode).PrimaryDateHeader is null;
+                var siblingEnds = siblings.Select(item => item!.PeriodEnd).OfType<DateOnly>().Distinct().ToArray();
+                var siblingEnd = !undated ? siblings.Select(item => item!.PeriodEnd).Max() : siblingEnds.Length == 1 ? siblingEnds[0] : (DateOnly?)null;
+                var end = scope?.PeriodEnd ?? options.OverrideBusinessDate ?? siblingEnd;
+                if (undated && end is null)
+                    throw siblingEnds.Length > 1
+                        ? new ImportSourceException(ImportCodes.SnapshotDateAmbiguous, "The snapshot date could not be found, and the other exports in this folder end on different dates. Import the ETP file under its original name.")
+                        : new ImportSourceException(ImportCodes.SnapshotDateUnknown, "The snapshot date could not be found. Import the ETP file under its original name, or keep it beside the other exports of its date.");
+                if (undated && scope?.PeriodEnd is null && options.OverrideBusinessDate is null)
+                    result = result with { Diagnostics = [.. result.Diagnostics ?? [], new ImportIssue(ImportIssueSeverity.Warning, ImportCodes.SnapshotDateFromFolder,
+                        $"The snapshot date {end:yyyy-MM-dd} was taken from the other exports in this folder.")] };
                 if (string.IsNullOrWhiteSpace(store) || end is null)
                     throw new ImportSourceException("SCOPE_NOT_DETECTED", "Store or date could not be detected. Keep this file beside the other exports for its store.");
                 var persistedStore = scope?.StoreCode ?? store;

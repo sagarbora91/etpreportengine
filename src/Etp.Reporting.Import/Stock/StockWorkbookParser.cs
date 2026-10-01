@@ -23,7 +23,7 @@ public sealed class StockWorkbookParser
     public StockWorkbookParseResult Parse(WorkbookSnapshot workbook)
     {
         ArgumentNullException.ThrowIfNull(workbook);
-        var dataSheets = workbook.Sheets.Where(sheet => !sheet.Name.Equals("Info", StringComparison.OrdinalIgnoreCase)).ToArray();
+        var dataSheets = workbook.Sheets.Where(sheet => !ImportPreflight.IsNonDataSheet(sheet.Name)).ToArray();
         if (dataSheets.Length != 1) return Blocked("WORKBOOK_SHEET_COUNT", "A stock workbook must contain exactly one data worksheet.");
         var normalized = WorkbookLayoutNormalizer.Normalize(dataSheets[0]);
         if (normalized.Sheet is null) return new("UNKNOWN", [], [], normalized.Diagnostics);

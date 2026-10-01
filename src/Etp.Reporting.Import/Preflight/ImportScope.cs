@@ -1,8 +1,11 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
+using Etp.Reporting.Application.Imports;
 using Etp.Reporting.Domain.Imports;
 using Etp.Reporting.Import.Conversion;
+using Etp.Reporting.Import.Diagnostics;
 using Etp.Reporting.Import.Profiles;
+using Etp.Reporting.Import.Sources;
 using Etp.Reporting.Import.Staging;
 using Etp.Reporting.Import.Workbooks;
 
@@ -10,8 +13,19 @@ namespace Etp.Reporting.Import.Preflight;
 
 public sealed record ImportScope(string? StoreCode, DateOnly? PeriodStart, DateOnly? PeriodEnd)
 {
-    public static ImportScope Detect(WorkbookSnapshot workbook, ImportProfile profile, ImportStagingResult staging, IReadOnlyList<string>? knownStores = null)
+    /// <summary>
+    /// For an undated family (R010, R023, SOR_AGEING), the snapshot date of each run of data rows (spec 6.4). The period is
+    /// min..max of these dates. Empty for dated families, and when the workbook itself does not state its date.
+    /// </summary>
+    public IReadOnlyList<SnapshotBlock> SnapshotBlocks { get; init; } = [];
+
+    /// <summary>Dating diagnostics: <c>SNAPSHOT_DATE_AMBIGUOUS</c>, <c>SNAPSHOT_MULTIPLE_DATES</c>, <c>SNAPSHOT_DATE_FROM_FOLDER</c>, <c>INFO_BLOCKS_UNUSABLE</c>.</summary>
+    public IReadOnlyList<ImportDiagnostic> Diagnostics { get; init; } = [];
+
+    public static ImportScope Detect(WorkbookSnapshot workbook, ImportProfile profile, ImportStagingResult staging, IReadOnlyList<string>? knownStores = null,
+        WorkbookSheet? dataSheet = null, ContractReadResult? contract = null)
     {
+        contract ??= new ConsolidationContractReader().Read(workbook);
         var stores = staging.Rows.Select(row => row.Values.GetValueOrDefault("store_code") as string)
             .Where(value => !string.IsNullOrWhiteSpace(value)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         var family = EtpReportFamilyRegistry.Resolve(profile.ReportCode);
@@ -22,18 +36,46 @@ public sealed record ImportScope(string? StoreCode, DateOnly? PeriodStart, DateO
             .SelectMany(sheet => sheet.Rows.SelectMany(row => row.Cells).Select(cell => cell.Value?.ToString() ?? ""))
             .Prepend(workbook.SourcePath ?? workbook.FileName).ToArray();
         var detectedStore = stores.Length == 1 ? stores[0] : null;
-        if (stores.Length == 0)
+        if (stores.Length == 0 && contract.Contract?.Header.StoreCode is { } contractStore)
+            detectedStore = contractStore.ToUpperInvariant();
+        else if (stores.Length == 0)
         {
             var contextual = (knownStores ?? []).Where(code => context.Any(value => Regex.IsMatch(value, @"(?<![A-Z0-9])" + Regex.Escape(code) + @"(?![A-Z0-9])", RegexOptions.IgnoreCase)))
                 .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
             if (contextual.Length == 1) detectedStore = contextual[0];
         }
-        if (dates.Length != 0) return new(detectedStore, dates.Min(), dates.Max());
+        if (dates.Length != 0)
+        {
+            // Planner 1 holds one closing-stock snapshot per file; P5 splits a multi-date file into one snapshot per date.
+            var snapshotDates = profile.ReportCode == "CLOSING_STOCK" ? dates.Distinct().Order().ToArray() : [];
+            return new(detectedStore, dates.Min(), dates.Max())
+            {
+                Diagnostics = snapshotDates.Length > 1
+                    ? [new(ImportCodes.SnapshotMultipleDates, ImportDiagnosticSeverity.Blocker,
+                        $"This closing-stock file holds {snapshotDates.Length} snapshot dates ({string.Join(", ", snapshotDates.Select(Text))}). " +
+                        "Import one ETP closing-stock export per date.", dataSheet?.Name, ColumnName: family.PrimaryDateHeader)]
+                    : []
+            };
+        }
 
+        if (dateField is null)
+        {
+            var sheet = dataSheet ?? workbook.Sheets.FirstOrDefault(candidate => !ConsolidationContractLayout.NonDataSheets
+                .Contains(candidate.Name.Trim(), StringComparer.OrdinalIgnoreCase));
+            if (sheet is null) return new(detectedStore, null, null);
+            var dating = new SnapshotDateResolver().Resolve(workbook, sheet, contract);
+            // Without a date of its own the folder import may still date the file from its siblings (tier 7).
+            var diagnostics = dating.Diagnostics.Where(diagnostic => diagnostic.Code != ImportCodes.SnapshotDateUnknown).ToArray();
+            return new(detectedStore, dating.From, dating.To) { SnapshotBlocks = dating.Blocks, Diagnostics = diagnostics };
+        }
+
+        // An empty export of a dated family keeps its legacy context date; it carries no rows to date.
         var contextualDates = context.SelectMany(FindDates).ToArray();
         var snapshotDate = contextualDates.Length == 0 ? (DateOnly?)null : contextualDates.Max();
         return new(detectedStore, snapshotDate, snapshotDate);
     }
+
+    private static string Text(DateOnly date) => date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
     private static IEnumerable<DateOnly> FindDates(string value)
     {

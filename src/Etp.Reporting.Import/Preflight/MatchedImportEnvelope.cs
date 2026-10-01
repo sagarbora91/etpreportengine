@@ -16,7 +16,7 @@ public sealed class MatchedImportEnvelope
         WorkbookSheet matchedSheet,
         ImportProfile profile,
         ImportStagingResult staging,
-        IReadOnlyList<ImportDiagnostic> diagnostics, IReadOnlyList<string>? knownStores = null)
+        IReadOnlyList<ImportDiagnostic> diagnostics, IReadOnlyList<string>? knownStores = null, ImportScope? scope = null)
     {
         ArgumentNullException.ThrowIfNull(workbook);
         ArgumentNullException.ThrowIfNull(matchedSheet);
@@ -29,7 +29,7 @@ public sealed class MatchedImportEnvelope
         Profile = profile;
         Staging = Snapshot(staging);
         Diagnostics = ReadOnly(diagnostics);
-        Scope = ImportScope.Detect(workbook, profile, staging, knownStores);
+        Scope = scope ?? ImportScope.Detect(workbook, profile, staging, knownStores, matchedSheet);
     }
 
     public WorkbookSnapshot Workbook { get; }
@@ -87,10 +87,13 @@ public sealed class MatchedImportEnvelopeFactory(IReadOnlyList<string>? knownSto
         var inspected = preflight.Inspect(workbook, ApprovedImportProfileRegistry.All);
         var diagnostics = inspected.Diagnostics.ToList();
         ImportStagingResult? staging = null;
+        ImportScope? scope = null;
         if (inspected.CanImport)
         {
             staging = stager.Stage(inspected.Sheet!, inspected.Profile!);
             diagnostics.AddRange(staging.Diagnostics);
+            scope = ImportScope.Detect(workbook, inspected.Profile!, staging, knownStores, inspected.Sheet, inspected.Contract);
+            diagnostics.AddRange(scope.Diagnostics);
             if (staging.Rows.Select(row => row.Values.GetValueOrDefault("store_code") as string)
                 .Where(value => !string.IsNullOrWhiteSpace(value)).Distinct(StringComparer.OrdinalIgnoreCase).Take(2).Count() > 1)
                 diagnostics.Add(new("WORKBOOK_MULTIPLE_STORES", ImportDiagnosticSeverity.Blocker,
@@ -105,7 +108,7 @@ public sealed class MatchedImportEnvelopeFactory(IReadOnlyList<string>? knownSto
                 inspected.Sheet!,
                 inspected.Profile,
                 staging,
-                diagnostics.AsReadOnly(), knownStores);
+                diagnostics.AsReadOnly(), knownStores, scope);
             diagnostics = new StockWorkbookParser().Parse(provisional).Diagnostics.ToList();
         }
 
@@ -118,7 +121,7 @@ public sealed class MatchedImportEnvelopeFactory(IReadOnlyList<string>? knownSto
                 inspected.Sheet!,
                 inspected.Profile!,
                 staging!,
-                diagnostics.AsReadOnly(), knownStores)
+                diagnostics.AsReadOnly(), knownStores, scope)
             : null;
         return new(envelope, inspected.Profile, staging?.Rows.Count ?? 0, diagnostics.AsReadOnly());
     }
