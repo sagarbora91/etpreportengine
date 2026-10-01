@@ -64,7 +64,7 @@ public static class SqlReportingQueries
         OUTER APPLY(SELECT TOP(1) m.opening_quantity FROM dbo.stock_movements m
           WHERE m.store_code=k.store_code AND m.product_code=k.product_code
             AND m.document_date>=@dateFrom AND m.document_date<=@dateTo
-          ORDER BY m.document_date,m.stock_movement_id) first_move
+          ORDER BY m.document_date,m.line_seq,m.stock_movement_id) first_move
         ORDER BY k.store_code,k.product_code;
         """;
 
