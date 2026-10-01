@@ -7,6 +7,7 @@
 Fixes the new-PC setup, which failed on its first real run:
 
 - With "Install Microsoft SQL Server 2025 Express" ticked, setup installed SQL Server and the protected folders, then stopped with "SQL Server preparation, database migration or health validation failed". SQL Server 2025's own setup installs an ODBC Driver 18 Sqlcmd; setup took it as Sqlcmd already installed, skipped the bundled one, and every query then failed because ODBC 18 encrypts by default and refuses the new instance's self-signed certificate. Setup now always installs the bundled Sqlcmd (on ODBC Driver 17), and ETP's scripts use it before an ODBC 18 one.
+- SQL Server Express setup no longer makes the account running ETP setup a SQL administrator of its own. Express does that by default; setup now turns it off, so only `Administrators` (and SQL Server's own service accounts) are SQL administrators, as intended. An instance 1.9.1 already installed keeps that login until it is removed by hand.
 - A PC left half-set-up by 1.9.1 is finished by running 1.9.2 setup: SQL Server, the protected folders, the EtpAutomation account and the configuration it already has are kept, and only the missing Sqlcmd is installed.
 
 Status: unsigned, like 1.9.1.

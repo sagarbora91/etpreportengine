@@ -72,8 +72,11 @@ function Get-EtpSqlEngineSetupArguments {
     # list, which takes the database's, and has no COLLATE clause: on such an instance a
     # restored Latin1_General_CI_AS database fails its drill with a collation conflict.
     # A new database simply inherits it. Only an instance setup installs is affected.
+    # Express setup also makes the account running it a SQL administrator unless told not
+    # to (ADDCURRENTUSERASSQLADMIN defaults to True for Express). On the first real new PC
+    # (1 October 2026) that left the Owner's own account in sysadmin, beside Administrators.
     return @('/ACTION=Install','/QUIET','/IACCEPTSQLSERVERLICENSETERMS','/FEATURES=SQLENGINE',
-        "/INSTANCENAME=$InstanceName",'/SQLSYSADMINACCOUNTS=BUILTIN\Administrators',
+        "/INSTANCENAME=$InstanceName",'/SQLSYSADMINACCOUNTS=BUILTIN\Administrators','/ADDCURRENTUSERASSQLADMIN=False',
         '/SQLCOLLATION=Latin1_General_CI_AS','/TCPENABLED=0','/NPENABLED=0','/UPDATEENABLED=0')
 }
 

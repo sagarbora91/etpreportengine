@@ -570,7 +570,7 @@ public sealed class BootstrapPrerequisiteTests
             . '{{script}}' -ApplicationDirectory 'C:\UnusedBootstrapTest'
             $setupArguments = @(Get-EtpSqlEngineSetupArguments 'SQLEXPRESS')
             $expected = @('/ACTION=Install', '/QUIET', '/IACCEPTSQLSERVERLICENSETERMS', '/FEATURES=SQLENGINE', '/INSTANCENAME=SQLEXPRESS',
-                '/SQLSYSADMINACCOUNTS=BUILTIN\Administrators', '/SQLCOLLATION=Latin1_General_CI_AS', '/TCPENABLED=0', '/NPENABLED=0', '/UPDATEENABLED=0')
+                '/SQLSYSADMINACCOUNTS=BUILTIN\Administrators', '/ADDCURRENTUSERASSQLADMIN=False', '/SQLCOLLATION=Latin1_General_CI_AS', '/TCPENABLED=0', '/NPENABLED=0', '/UPDATEENABLED=0')
             if ((@($setupArguments | Sort-Object) -join ' ') -cne (@($expected | Sort-Object) -join ' ')) { throw "SQL Server setup arguments changed: $($setupArguments -join ' ')" }
             if (@($setupArguments | Where-Object { $_ -match '^/(SECURITYMODE|SAPWD)' }).Count -ne 0) { throw 'SQL authentication was enabled.' }
             foreach ($instance in @('bad name;x', 'SQLEXPRESS /SECURITYMODE=SQL', 'NAMEWITHMORETHAN16')) {
