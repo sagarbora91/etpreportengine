@@ -66,9 +66,14 @@ internal static class ProjectorTestCatalogue
         attribute: ["hsn_code", "brand", "brandname", "cluster", "gender", "ean_category"],
         descriptive: ["store_name", "store_type", "channel", "region", "city"]);
 
-    /// <summary>A landing-only family (R001 columns) with the given scope; Date scope is the default of spec 7.4.</summary>
-    public static EtpReportFamily Landing(DocumentScope scope = DocumentScope.Date, string? snapshotDate = null) => Describe("R001",
-        new() { Scope = scope, SnapshotDate = snapshotDate, RowRule = scope == DocumentScope.Date ? RowRule.Multiset : RowRule.SnapshotItems },
+    /// <summary>
+    /// A landing-only family (R001 columns) with the given scope; Date scope is the default of spec 7.4. Without
+    /// <paramref name="numberIsFact"/> the invoice number is an attribute, as in a family whose facts hold no number.
+    /// </summary>
+    public static EtpReportFamily Landing(DocumentScope scope = DocumentScope.Date, string? snapshotDate = null,
+        string[]? rowKey = null, bool numberIsFact = true) => Describe("R001",
+        new() { Scope = scope, SnapshotDate = snapshotDate, RowRule = scope == DocumentScope.Date ? RowRule.Multiset : RowRule.SnapshotItems, RowKey = rowKey ?? [] },
+        attribute: numberIsFact ? [] : ["invnumber"],
         descriptive: ["store_name", "store_type", "channel", "region", "state", "city", "customer_name", "customer_phone", "encircle"],
         label: ["invoice_year", "referenceyear"],
         ignored: ["storetimestamp"]);

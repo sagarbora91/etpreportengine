@@ -49,6 +49,19 @@ public sealed class PlannerOneLabelParityTests
         Assert.All(rows, row => Assert.Equal(expected[row.SourceRowNumber], actual[row.SourceRowNumber]));
     }
 
+    [Fact]
+    public void Planner_one_content_hash_is_the_shared_canonicaliser_and_keeps_its_vectors()
+    {
+        // Vectors of the text rules planner 1 shipped in 1.9.2 (checked with sha256sum), before they moved into
+        // FactCanonicalizer.
+        Assert.Equal("ea5b0a576611dc22f6e3cb1cecb1057720a3ff29614b83b7cadb4eb02933f63d",
+            EtpInvoiceIdentity.ContentHash([new("b", 2m), new("a", "x")]));
+        Assert.Equal("b6161b131b62ec066b55cf8ddbad2faa673153998b3adda6f6fed9d230f9d966", EtpInvoiceIdentity.ContentHash(
+            [new("transaction_date", new DateOnly(2026, 8, 29)), new("source_quantity", 1.2500m), new("invoice_number", " INV-0001 ")]));
+        KeyValuePair<string, object?>[] values = [new("invoice_number", "INV-1"), new("source_net_value", 847.46m)];
+        Assert.Equal(Etp.Reporting.Import.Identity.FactCanonicalizer.Instance.Hash(values), EtpInvoiceIdentity.ContentHash(values));
+    }
+
     private static StagedImportRow Staged(EtpReportFamily family, int row, string invoice, string product, decimal quantity, string time)
     {
         var values = family.Columns.ToDictionary(column => column.CanonicalField, column => column.DataType switch

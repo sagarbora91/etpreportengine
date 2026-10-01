@@ -165,7 +165,8 @@ public sealed class DocumentProjectorTests
         Assert.Equal(2, held.RowCount);
         Assert.Null(Assert.Single(projection.Documents, document => document.Key.KeyText == "2027|INV-0901").HoldCode);
         var conflict = Assert.Single(projection.Diagnostics, diagnostic => diagnostic.Code == ImportCodes.InSourceConflict);
-        Assert.Equal(ImportDiagnosticSeverity.Blocker, conflict.Severity);
+        // A document hold holds the document, never the file.
+        Assert.Equal(ImportDiagnosticSeverity.Warning, conflict.Severity);
         Assert.Equal("INV-0900 2026-08-29", conflict.DocumentRef);
         Assert.Equal(2, conflict.Occurrences);
     }
@@ -179,11 +180,140 @@ public sealed class DocumentProjectorTests
             Row(R022, 3, ("reference_invoice_number", "REF-2"), ("invoice_year", 2027L), ("source_store_timestamp", "b"))
         };
 
-        var document = Assert.Single(Projector.Project(new(R022, Store, Block(2), rows)).Documents);
+        var projection = Projector.Project(new(R022, Store, Block(2), rows));
+        var document = Assert.Single(projection.Documents);
 
         Assert.Null(document.HoldCode);
         Assert.Equal(3, Assert.Single(document.Rows).Source.SourceRowNumber);
         Assert.Equal("REF-2", document.Rows[0].Canonical.Attributes["reference_invoice_number"]);
+        var collapsed = Assert.Single(projection.Diagnostics, diagnostic => diagnostic.Code == ImportCodes.StaleCopyCollapsed);
+        Assert.Contains("reference", collapsed.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("REF-", collapsed.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void An_invoice_whose_lines_carry_two_dates_is_held_for_sales_but_not_for_enrichments()
+    {
+        // One invoice number in one export with lines dated 29 and 30 Aug: a sales header holds one date.
+        SourceRow[] Lines(EtpReportFamily family) =>
+        [
+            Row(family, 2, ("invoice_number", "INV-X"), ("transaction_date", SaleDate)),
+            Row(family, 3, ("invoice_number", "INV-X"), ("transaction_date", new DateOnly(2026, 8, 30)), ("product_code", "ITEM-2")),
+            Row(family, 4, ("invoice_number", "INV-Y"))
+        ];
+
+        var sales = Projector.Project(new(R025, Store, Block(3), Lines(R025)));
+        var held = Assert.Single(sales.Documents, document => document.Key.KeyText == "2027|INV-X");
+        Assert.Equal(ImportCodes.InSourceConflict, held.HoldCode);
+        Assert.Equal(2, held.RowCount);
+        Assert.Null(Assert.Single(sales.Documents, document => document.Key.KeyText == "2027|INV-Y").HoldCode);
+        var conflict = Assert.Single(sales.Diagnostics, diagnostic => diagnostic.Code == ImportCodes.InSourceConflict);
+        Assert.Equal((ImportDiagnosticSeverity.Warning, 2), (conflict.Severity, conflict.Occurrences));
+
+        var enrichments = Projector.Project(new(R013, Store, Block(3), Lines(R013)));
+        Assert.All(enrichments.Documents, document => Assert.Null(document.HoldCode));
+        Assert.DoesNotContain(enrichments.Diagnostics, diagnostic => diagnostic.Code == ImportCodes.InSourceConflict);
+    }
+
+    [Fact]
+    public void Stock_chain_of_an_issue_runs_down_and_breaks_ties_on_the_reference()
+    {
+        // An STM Issue (transaction -1): openings 4/3/2/1 run downwards whatever the file order; two rows equal but for
+        // REF_DOCUMENTNUMBER take their order from it.
+        SourceRow Issue(int sheetRow, decimal opening, string product = "ITEM-1", string? reference = null) => Row(StockLedger, sheetRow,
+            ("document_number", "STM-0830"), ("document_date", SaleDate), ("source_transaction_type", "STM Issue"), ("product_code", product),
+            ("opening_quantity", opening), ("transaction_quantity", -1m), ("closing_quantity", opening - 1m), ("ref_documentnumber", reference));
+        SourceRow[] Rows(decimal[] openings, string[] references) =>
+        [
+            .. openings.Select((opening, i) => Issue(i + 2, opening)),
+            Issue(openings.Length + 2, 5m, "ITEM-9", references[0]), Issue(openings.Length + 3, 5m, "ITEM-9", references[1])
+        ];
+
+        foreach (var rows in new[] { Rows([2m, 4m, 1m, 3m], ["REF-B", "REF-A"]), Rows([1m, 3m, 4m, 2m], ["REF-A", "REF-B"]) })
+        {
+            var document = Assert.Single(Projector.Project(new(StockLedger, Store, Block(rows.Length), rows)).Documents);
+            var byRow = rows.ToDictionary(row => row.Locator, row => (Product: (string)row.Values["product_code"]!,
+                Opening: (decimal)row.Values["opening_quantity"]!, Reference: row.Values["ref_documentnumber"] as string));
+
+            Assert.Equal([(4m, 1), (3m, 2), (2m, 3), (1m, 4)], document.Rows.Where(row => byRow[row.Source].Product == "ITEM-1")
+                .OrderBy(row => row.LineSeq).Select(row => (byRow[row.Source].Opening, row.LineSeq)));
+            Assert.Equal([("REF-A", 1), ("REF-B", 2)], document.Rows.Where(row => byRow[row.Source].Product == "ITEM-9")
+                .OrderBy(row => row.LineSeq).Select(row => (byRow[row.Source].Reference, row.LineSeq)));
+        }
+    }
+
+    [Fact]
+    public void A_revenue_row_its_fact_tables_cannot_store_is_held_and_the_block_goes_ahead()
+    {
+        var rows = new[]
+        {
+            Row(R022, 2, ("invoice_number", "INV-0900")),
+            Row(R022, 3, ("invoice_number", "INV-0901"), ("source_net_value", null))
+        };
+
+        var projection = Projector.Project(new(R022, Store, Block(2), rows));
+
+        Assert.Equal("2027|INV-0900", Assert.Single(projection.Documents).Key.KeyText);
+        var held = Assert.Single(projection.HeldRows);
+        Assert.Equal((3, RowDisposition.Held), (held.Source.SourceRowNumber, held.Disposition));
+        var missing = Assert.Single(projection.Diagnostics, diagnostic => diagnostic.Code == ImportCodes.RowDateMissing);
+        Assert.Equal((ImportDiagnosticSeverity.Warning, 1, 3), (missing.Severity, missing.Occurrences, missing.RowNumber));
+    }
+
+    [Fact]
+    public void A_virtual_row_never_wins_a_tie_over_a_physical_row()
+    {
+        // One physical row and one virtual row, equal on facts but with different contacts: a tie the physical row wins,
+        // whatever the map row's number.
+        var physical = Row(R025, 2, ("customer_phone", "PHONE-A"));
+        var excluded = Row(R025, new RowLocator(1, ConsolidationContractLayout.ExcludedSheet, 1, IsVirtual: true), ("customer_phone", "PHONE-B"));
+
+        var document = Assert.Single(Projector.Project(new(R025, Store, Block(1), [excluded, physical])).Documents);
+        Assert.Equal([physical.Locator], document.Rows.Select(row => row.Source));
+        Assert.Equal([excluded.Locator], document.SetAside.Select(row => row.Source));
+
+        var revenue = Row(R022, 2, ("reference_invoice_number", "REF-1"));
+        var revenueCopy = Row(R022, new RowLocator(1, ConsolidationContractLayout.ExcludedSheet, 9, IsVirtual: true), ("reference_invoice_number", "REF-2"));
+        var invoice = Assert.Single(Projector.Project(new(R022, Store, Block(1), [revenueCopy, revenue])).Documents);
+        Assert.Equal(revenue.Locator, Assert.Single(invoice.Rows).Source);
+    }
+
+    [Fact]
+    public void Day_scope_rows_without_an_invoice_number_keep_rows_that_differ_only_in_a_customer()
+    {
+        // Two real rows of one day, equal on every fact, for two customers: with no invoice number among the facts
+        // they cannot be copies of one invoice, so both are kept.
+        var family = Landing(numberIsFact: false);
+        var rows = new[] { Row(family, 2, ("customer_phone", "PHONE-A")), Row(family, 3, ("customer_phone", "PHONE-B")) };
+
+        var projection = Projector.Project(new(family, Store, Block(2), rows));
+
+        var day = Assert.Single(projection.Documents);
+        Assert.Equal(2, day.RowCount);
+        Assert.Empty(day.SetAside);
+        Assert.DoesNotContain(projection.Diagnostics, diagnostic => diagnostic.Code == ImportCodes.StaleCopyCollapsed);
+
+        // With the invoice number among the facts the same rows are copies of one invoice, and the later one wins.
+        var numbered = Landing();
+        var copies = Assert.Single(Projector.Project(new(numbered, Store, Block(2),
+            new[] { Row(numbered, 2, ("customer_phone", "PHONE-A")), Row(numbered, 3, ("customer_phone", "PHONE-B")) })).Documents);
+        Assert.Equal([3], copies.Rows.Select(row => row.Source.SourceRowNumber));
+    }
+
+    [Fact]
+    public void Landing_snapshot_items_are_numbered_by_their_fact_values_in_any_order()
+    {
+        var family = Landing(DocumentScope.Snapshot, "Block", rowKey: ["invnumber"]);
+        var block = Block(3) with { SnapshotDate = new DateOnly(2026, 9, 7) };
+        SourceRow[] Rows(decimal[] values) => values.Select((value, i) => Row(family, i + 2, ("netvalue", value))).ToArray();
+
+        foreach (var rows in new[] { Rows([30m, 10m, 20m]), Rows([20m, 30m, 10m]) })
+        {
+            var document = Assert.Single(Projector.Project(new(family, Store, block, rows)).Documents);
+            var values = rows.ToDictionary(row => row.Locator, row => (decimal)row.Values["netvalue"]!);
+            Assert.Equal([(10m, 1), (20m, 2), (30m, 3)], document.Rows.OrderBy(row => row.LineSeq).Select(row => (values[row.Source], row.LineSeq)));
+            Assert.All(document.Rows, row => Assert.Equal("INV-0001", row.RowKey));
+        }
     }
 
     public static TheoryData<string> AllCoreFamilies => new() { "R025", "R022", "R003", "R013", "STOCK_LEDGER", "CLOSING_STOCK", "R010" };

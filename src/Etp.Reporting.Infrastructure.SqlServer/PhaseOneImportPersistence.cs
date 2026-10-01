@@ -89,13 +89,8 @@ public sealed partial class SqlServerTransactionalImportStore
         var occurrences=new Dictionary<string,int>(StringComparer.Ordinal);
         foreach(var row in accepted.Staging.Rows)
         {
-            string[] stockFields=["store_code","document_number","document_date","product_code","source_transaction_type",
-                "from_location","to_location","opening_quantity","transaction_quantity","closing_quantity"];
-            var hash=EtpInvoiceIdentity.ContentHash(row.Values.Where(x=> accepted.ProfileIdentity.ReportCode=="STOCK_LEDGER"
-                ? stockFields.Contains(x.Key,StringComparer.Ordinal)
-                : !x.Key.Contains("timestamp",StringComparison.OrdinalIgnoreCase)).Select(x=>
-                    x.Key.EndsWith("state_code",StringComparison.Ordinal) && int.TryParse(x.Value?.ToString(),out var state)
-                        ? new KeyValuePair<string,object?>(x.Key,state.ToString("D2",System.Globalization.CultureInfo.InvariantCulture)) : x));
+            // Field selection and the two-digit state code rule live in the shared canonicaliser (spec 7.1).
+            var hash=Etp.Reporting.Import.Identity.FactCanonicalizer.Instance.ContentKeyHash(accepted.ProfileIdentity.ReportCode,row.Values);
             occurrences.TryGetValue(hash,out var number);
             occurrences[hash]=++number;
             result[row.SourceRowNumber]=$"{hash}:{number}";

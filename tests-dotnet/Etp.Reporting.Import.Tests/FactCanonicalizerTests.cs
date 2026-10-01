@@ -110,9 +110,38 @@ public sealed class FactCanonicalizerTests
         Assert.DoesNotContain("customer_name", canonical.Facts.Keys);
         Assert.DoesNotContain("source_store_timestamp", canonical.Facts.Keys);
         Assert.Equal("Brand", canonical.Attributes["source_brand_name"]);
-        // Today's landing content key: every staged field except timestamps (PhaseOneImportPersistence.ContentKeys).
+        // R025's Ignored columns are exactly its timestamps, so here the row hash equals today's landing content key.
         Assert.Equal(Canonicalizer.Hash(row.Where(field => !field.Key.Contains("timestamp", StringComparison.OrdinalIgnoreCase))),
             canonical.ContentHash);
+        Assert.Equal(Canonicalizer.ContentKeyHash("R025", row), canonical.ContentHash);
+    }
+
+    [Fact]
+    public void Content_key_hash_is_planner_ones_landing_content_key()
+    {
+        // As PhaseOneImportPersistence.ContentKeys has always computed it, written out independently.
+        var sale = Values(Row(R025, 2));
+        Assert.Equal(Canonicalizer.Hash(sale.Where(field => !field.Key.Contains("timestamp", StringComparison.OrdinalIgnoreCase))),
+            Canonicalizer.ContentKeyHash("R025", sale));
+        Assert.Equal(Canonicalizer.ContentKeyHash("R025", sale),
+            Canonicalizer.ContentKeyHash("R025", With(sale, "source_store_timestamp", "2026-08-29 18:30:00")));
+
+        // STOCK_LEDGER: only the ten stock identity fields, so brand, references and store details never move it.
+        var stock = Values(Row(StockLedger, 2, ("document_number", "STM-1"), ("document_date", new DateOnly(2026, 8, 29))));
+        string[] stockFields = ["store_code", "document_number", "document_date", "product_code", "source_transaction_type",
+            "from_location", "to_location", "opening_quantity", "transaction_quantity", "closing_quantity"];
+        Assert.Equal(Canonicalizer.Hash(stock.Where(field => stockFields.Contains(field.Key))), Canonicalizer.ContentKeyHash("STOCK_LEDGER", stock));
+        foreach (var field in new[] { "brand", "hsn_code", "ref_documentnumber", "store_name", "city", "location" })
+            Assert.Equal(Canonicalizer.ContentKeyHash("STOCK_LEDGER", stock), Canonicalizer.ContentKeyHash("STOCK_LEDGER", With(stock, field, "CHANGED")));
+        Assert.NotEqual(Canonicalizer.ContentKeyHash("STOCK_LEDGER", stock),
+            Canonicalizer.ContentKeyHash("STOCK_LEDGER", With(stock, "closing_quantity", 7m)));
+        // The row hash covers every non-Ignored column, so for STOCK_LEDGER it is not the content key.
+        Assert.NotEqual(Canonicalizer.ContentKeyHash("STOCK_LEDGER", stock), Canonicalizer.Canonicalize(StockLedger, stock).ContentHash);
+
+        // The two-digit state code rule of ContentKeys.
+        Assert.Equal(Canonicalizer.ContentKeyHash("R018", [new("recipient_state_code", "07")]),
+            Canonicalizer.ContentKeyHash("R018", [new("recipient_state_code", 7L)]));
+        Assert.Equal(Sha256("20:recipient_state_code:2:07"), Canonicalizer.ContentKeyHash("R018", [new("recipient_state_code", "7")]));
     }
 
     [Fact]

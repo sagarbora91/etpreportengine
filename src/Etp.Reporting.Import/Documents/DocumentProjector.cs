@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.RegularExpressions;
 using Etp.Reporting.Application.Imports;
 using Etp.Reporting.Import.Diagnostics;
 using Etp.Reporting.Import.Identity;
@@ -15,10 +16,13 @@ namespace Etp.Reporting.Import.Documents;
 /// family's row rule (spec 7.2) decides which rows the observation keeps:
 /// <list type="bullet">
 /// <item><c>Multiset</c>: rows equal on Key and Fact fields are partitioned by their Descriptive values; the largest
-/// partition is kept (on a tie, the one holding the latest row) and the rest are stale copies (<c>C</c>,
-/// <c>STALE_COPY_COLLAPSED</c>). Ignored timestamps never split a partition, so genuine repeats keep their count.</item>
-/// <item><c>SingleRowPerDocument</c>: copies with equal Key and Fact fields collapse to the latest; copies that differ
-/// in a fact hold the document (<c>IN_SOURCE_CONFLICT</c>).</item>
+/// partition is kept (on a tie, the one holding the latest physical row) and the rest are stale copies (<c>C</c>,
+/// <c>STALE_COPY_COLLAPSED</c>). Ignored timestamps never split a partition, so genuine repeats keep their count.
+/// The collapse rests on customer fields being per invoice, so it runs only where rows equal on their facts belong to
+/// one invoice: Document scope, or a family whose facts hold its invoice or document number. Elsewhere (a Date-scope
+/// family with no such number) two rows that differ only in a customer are two rows, and both are kept.</item>
+/// <item><c>SingleRowPerDocument</c>: copies with equal Key and Fact fields collapse to the latest physical row;
+/// copies that differ in a fact hold the document (<c>IN_SOURCE_CONFLICT</c>).</item>
 /// <item><c>StockUnitChain</c>: every row is kept, <c>line_seq</c> from <see cref="StockUnitSequencer"/>, so the
 /// chain does not depend on row order and exact repeats stay (<c>STOCK_ROW_REPEATED</c>).</item>
 /// <item><c>SnapshotItems</c>: every row is kept, <c>line_seq</c> from <see cref="SnapshotItemSequencer"/> for stock
@@ -26,12 +30,19 @@ namespace Etp.Reporting.Import.Documents;
 /// </list>
 /// Rows are taken in sheet order, physical rows before virtual ones, whatever order they arrive in. Sales lines and
 /// enrichments are labelled as planner 1 labels them, over the kept rows (spec 7.1). A row with no usable date or
-/// document number belongs to no document and is held (<c>ROW_DATE_MISSING</c>). Pure: no SQL, no clock.
+/// document number belongs to no document and is held (<c>ROW_DATE_MISSING</c>), as is a typed family's row that
+/// lacks a value its fact table needs. An invoice whose kept rows in one export carry two dates is held
+/// (<c>IN_SOURCE_CONFLICT</c>), since its header holds one date. Document holds are warnings: they hold the document,
+/// never the file. Pure: no SQL, no clock.
 /// </summary>
 public sealed class DocumentProjector(IFactCanonicalizer canonicalizer) : IDocumentProjector
 {
     private const int ListedRows = 10;
     private const string InvoiceYearField = "invoice_year";
+
+    // The catalogue's names for an invoice or document number (invoice_number, invnumber, inv_number, docno, ...).
+    private static readonly Regex DocumentNumberField = new(@"^(etp_)?(inv|invoice|doc|document)_?(no|num|number)$|^doc_invoice_no$",
+        RegexOptions.CultureInvariant);
 
     public DocumentProjector() : this(FactCanonicalizer.Instance)
     {
@@ -57,6 +68,10 @@ public sealed class DocumentProjector(IFactCanonicalizer canonicalizer) : IDocum
         public CanonicalRow Canonical { get; } = canonical;
         public int Position { get; } = position;
         public DateOnly? Date { get; set; }
+        /// <summary>The rows the typed fact tables would store for this row (<c>canonical_sha256</c>).</summary>
+        public IReadOnlyList<IReadOnlyDictionary<string, object?>> FactRows { get; set; } = [];
+        /// <summary>How late the row is for "latest row" choices: any physical row beats every virtual one.</summary>
+        public (bool Physical, int Position) Recency => (!Locator.IsVirtual, Position);
     }
 
     private sealed class Document(DocumentKey key, DateOnly? periodTo, int firstPosition)
@@ -86,6 +101,7 @@ public sealed class DocumentProjector(IFactCanonicalizer canonicalizer) : IDocum
             var rows = Place(request.Rows);
             var documents = new Dictionary<string, Document>(StringComparer.Ordinal);
             var held = new List<Placed>();
+            var unusable = new List<Placed>();
             foreach (var row in rows)
             {
                 if (Locate(row) is not { } location)
@@ -93,9 +109,14 @@ public sealed class DocumentProjector(IFactCanonicalizer canonicalizer) : IDocum
                     held.Add(row);
                     continue;
                 }
+                row.Date = location.Date;
+                if (!TryProjectFacts(row, location.Key.Scope == DocumentScope.Snapshot ? location.Date : null))
+                {
+                    unusable.Add(row);
+                    continue;
+                }
                 if (!documents.TryGetValue(location.Key.Hash, out var document))
                     documents.Add(location.Key.Hash, document = new(location.Key, location.PeriodTo, row.Position));
-                row.Date = location.Date;
                 document.Rows.Add(row);
             }
 
@@ -105,6 +126,9 @@ public sealed class DocumentProjector(IFactCanonicalizer canonicalizer) : IDocum
             Label(ordered);
             InvoiceYears(ordered);
             Held(held);
+            Unusable(unusable);
+            held.AddRange(unusable);
+            held.Sort((a, b) => a.Position.CompareTo(b.Position));
             return new(block.BlockNo, ordered.Select(Observe).ToArray(),
                 held.Select(row => new FactRow(row.Locator, row.Canonical) { Disposition = RowDisposition.Held }).ToArray(),
                 diagnostics);
@@ -169,18 +193,47 @@ public sealed class DocumentProjector(IFactCanonicalizer canonicalizer) : IDocum
             return field;
         }
 
+        // A typed family's row must give the fact rows it would store; one that cannot (a value its fact table needs is
+        // missing, which the R022 projection refuses) is held, so one bad row never fails the whole block.
+        private bool TryProjectFacts(Placed row, DateOnly? snapshotDate)
+        {
+            if (!identity.HasTypedFacts) return true;
+            try
+            {
+                row.FactRows = CanonicalFactProjection.Rows(family, request.StoreCode, snapshotDate, row.Values);
+                return true;
+            }
+            catch (InvalidOperationException)
+            {
+                return false;
+            }
+        }
+
+        // Customer fields are per invoice (spec 7.2): only where rows equal on their facts belong to one invoice can
+        // two descriptive variants of them be copies of one line rather than two lines.
+        private bool DescriptiveIsPerInvoice() => identity.Scope == DocumentScope.Document ||
+            family.Columns.Any(column => column.Role is ColumnRole.Key or ColumnRole.Fact && DocumentNumberField.IsMatch(column.CanonicalField));
+
+        // The latest row of a set: its highest physical sheet row, or its highest virtual row when it has no physical
+        // one. A virtual row's position is its map row on ETP_Excluded, not its place in the export, so it never wins
+        // over a physical row.
+        private static (bool Physical, int Position) Latest(IEnumerable<Placed> rows) => rows.Max(row => row.Recency);
+
         private void ApplyRowRule(Document document)
         {
             switch (identity.RowRule)
             {
+                case RowRule.Multiset when !DescriptiveIsPerInvoice():
+                    document.Kept.AddRange(document.Rows);
+                    break;
                 case RowRule.Multiset:
                     foreach (var copies in document.Rows.GroupBy(row => row.Canonical.FactRowHash, StringComparer.Ordinal))
                     {
-                        // Customer fields are invoice-level, so one export never carries two of them in one document:
+                        // Customer fields are invoice-level, so one export never carries two of them in one invoice:
                         // the largest partition is the export's own count, the others are stale copies.
                         var partitions = copies.GroupBy(row => row.Canonical.DescriptiveHash, StringComparer.Ordinal)
                             .OrderByDescending(partition => partition.Count())
-                            .ThenByDescending(partition => partition.Max(row => row.Position))
+                            .ThenByDescending(Latest)
                             .ToArray();
                         document.Kept.AddRange(partitions[0]);
                         document.SetAside.AddRange(partitions.Skip(1).SelectMany(partition => partition));
@@ -189,7 +242,7 @@ public sealed class DocumentProjector(IFactCanonicalizer canonicalizer) : IDocum
                 case RowRule.SingleRowPerDocument:
                     foreach (var copies in document.Rows.GroupBy(row => row.Canonical.FactRowHash, StringComparer.Ordinal))
                     {
-                        var latest = copies.MaxBy(row => row.Position)!;
+                        var latest = copies.MaxBy(row => row.Recency)!;
                         document.Kept.Add(latest);
                         document.SetAside.AddRange(copies.Where(row => row != latest));
                     }
@@ -208,7 +261,10 @@ public sealed class DocumentProjector(IFactCanonicalizer canonicalizer) : IDocum
             document.SetAside.Sort((a, b) => a.Position.CompareTo(b.Position));
             if (document.SetAside.Count > 0)
                 Report(ImportCodes.StaleCopyCollapsed, document, document.SetAside,
-                    $"{document.SetAside.Count} {(document.SetAside.Count == 1 ? "row" : "rows")} of this document (rows {RowList(document.SetAside)}) repeat kept rows apart from customer, store or time details and were set aside as stale copies.");
+                    $"{document.SetAside.Count} {(document.SetAside.Count == 1 ? "row" : "rows")} of this document (rows {RowList(document.SetAside)}) " +
+                    (identity.RowRule == RowRule.SingleRowPerDocument
+                        ? "repeat the facts of the kept row, differing at most in reference, label, customer, store or time details, and were set aside; the last row is kept."
+                        : "repeat kept rows apart from customer, store or time details and were set aside as stale copies."));
 
             // An invoice header holds one date (spec 7.3): lines of one export that disagree on it are never merged.
             if (document.HoldCode is null && identity.Route is (FamilyRoute.Sales or FamilyRoute.Revenue) &&
@@ -240,16 +296,20 @@ public sealed class DocumentProjector(IFactCanonicalizer canonicalizer) : IDocum
                     break;
                 }
                 case RowRule.SnapshotItems:
-                    // Landing snapshots: rows paired by row key, numbered by fact content, then sheet order.
+                    // Landing snapshots: rows paired by row key, numbered by their Fact values, then sheet order (spec 7.2).
                     foreach (var group in rows.GroupBy(row => (row.Date, RowKey(row.Row))))
                     {
                         var position = 0;
-                        foreach (var row in group.OrderBy(row => row.Row.Canonical.FactRowHash, StringComparer.Ordinal).ThenBy(row => row.Row.Position))
+                        foreach (var row in group.OrderBy(row => FactsText(row.Row), StringComparer.Ordinal).ThenBy(row => row.Row.Position))
                             lineSeq[row.Row] = ++position;
                     }
                     break;
             }
         }
+
+        // The canonical Fact values in field order, compared as text.
+        private static string FactsText(Placed row) => string.Join('\n',
+            row.Canonical.Facts.OrderBy(fact => fact.Key, StringComparer.Ordinal).Select(fact => $"{fact.Key}:{fact.Value}"));
 
         private StockUnitRow StockUnit(Placed row)
         {
@@ -308,6 +368,13 @@ public sealed class DocumentProjector(IFactCanonicalizer canonicalizer) : IDocum
                     $"{held.Count} {(held.Count == 1 ? "row has" : "rows have")} no usable date or document number (rows {RowList(held)}). {(held.Count == 1 ? "It belongs" : "They belong")} to no document and {(held.Count == 1 ? "is" : "are")} held.");
         }
 
+        private void Unusable(IReadOnlyList<Placed> rows)
+        {
+            if (rows.Count == 0) return;
+            Add(ImportCodes.RowDateMissing, rows,
+                $"{rows.Count} {(rows.Count == 1 ? "row lacks" : "rows lack")} a value its fact table needs (rows {RowList(rows)}). {(rows.Count == 1 ? "It belongs" : "They belong")} to no document and {(rows.Count == 1 ? "is" : "are")} held.");
+        }
+
         private DocumentObservation Observe(Document document)
         {
             var kept = document.Kept.Select(row => new FactRow(row.Locator, row.Canonical)
@@ -317,15 +384,13 @@ public sealed class DocumentProjector(IFactCanonicalizer canonicalizer) : IDocum
                 LineLabel = labels.GetValueOrDefault(row)
             }).ToArray();
             var setAside = document.SetAside.Select(row => new FactRow(row.Locator, row.Canonical) { Disposition = RowDisposition.Collapsed }).ToArray();
-            var snapshotDate = document.Key.Scope == DocumentScope.Snapshot ? document.Date : null;
             return new(document.Key, block.BlockNo, block.ExportTime, document.Date, kept,
                 canonicalizer.MultisetHash(document.Kept.Select(row => row.Canonical.FactRowHash)),
                 canonicalizer.MultisetHash(document.Kept.Select(row => row.Canonical.AttributeHash)))
             {
                 PeriodTo = document.PeriodTo,
                 CanonicalSha256 = identity.HasTypedFacts
-                    ? canonicalizer.MultisetHash(document.Kept.SelectMany(row =>
-                        CanonicalFactProjection.Rows(family, request.StoreCode, snapshotDate, row.Values)).Select(canonicalizer.Hash))
+                    ? canonicalizer.MultisetHash(document.Kept.SelectMany(row => row.FactRows).Select(canonicalizer.Hash))
                     : null,
                 SetAside = setAside,
                 HoldCode = document.HoldCode
@@ -354,11 +419,18 @@ public sealed class DocumentProjector(IFactCanonicalizer canonicalizer) : IDocum
         private void Add(string code, IReadOnlyList<Placed> rows, string message) => diagnostics.Add(Diagnostic(code, rows, message));
 
         private ImportDiagnostic Diagnostic(string code, IReadOnlyList<Placed> rows, string message) =>
-            new(code, (ImportDiagnosticSeverity)(int)ImportCodes.DefaultSeverity(code), message, rows[0].Locator.SheetName, rows[0].Locator.SourceRowNumber)
+            new(code, Severity(code), message, rows[0].Locator.SheetName, rows[0].Locator.SourceRowNumber)
             {
                 BlockNo = block.BlockNo,
                 Occurrences = rows.Count
             };
+
+        // A document hold holds that document and the rest of the file goes ahead (spec 6.7, 7.2, Appendix B "document
+        // held"), so it is a warning here, where as a blocker it would refuse the whole file. The hold is HoldCode.
+        private static ImportDiagnosticSeverity Severity(string code) =>
+            code is ImportCodes.InSourceConflict or ImportCodes.LegacyBlocksDiffer or ImportCodes.HeaderDateMismatch
+                ? ImportDiagnosticSeverity.Warning
+                : (ImportDiagnosticSeverity)(int)ImportCodes.DefaultSeverity(code);
 
         // Document number and date only, never a customer value (spec 11.1).
         private string DocumentRef(Document document) =>

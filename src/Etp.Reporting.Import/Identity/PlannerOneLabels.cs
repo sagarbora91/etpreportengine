@@ -25,17 +25,26 @@ public static class PlannerOneLabels
     public static IReadOnlyList<string> LineKeys(
         IFactCanonicalizer canonicalizer, EtpReportFamily family, IEnumerable<IReadOnlyDictionary<string, object?>> rows)
     {
-        ArgumentNullException.ThrowIfNull(canonicalizer);
         ArgumentNullException.ThrowIfNull(family);
+        ArgumentNullException.ThrowIfNull(rows);
+        // Only the family's own columns, so a landing row's extra columns never take part.
+        return LineKeys(canonicalizer, rows.Select(values => (IEnumerable<KeyValuePair<string, object?>>)values
+            .Where(field => family.Columns.Any(column => column.CanonicalField == field.Key))));
+    }
+
+    /// <summary>
+    /// Planner 1's own computation (<c>EtpInvoiceIdentity.LineKeys</c> delegates here): the <see cref="LineFields"/>
+    /// each staged row holds, labelled in the order given.
+    /// </summary>
+    public static IReadOnlyList<string> LineKeys(IFactCanonicalizer canonicalizer, IEnumerable<IEnumerable<KeyValuePair<string, object?>>> rows)
+    {
+        ArgumentNullException.ThrowIfNull(canonicalizer);
         ArgumentNullException.ThrowIfNull(rows);
         var occurrences = new Dictionary<string, int>(StringComparer.Ordinal);
         var labels = new List<string>();
         foreach (var values in rows)
         {
-            // As planner 1: the line fields the row holds, of the family's own columns, so a landing row's extra
-            // columns never take part.
-            var hash = canonicalizer.Hash(values.Where(field => LineFields.Contains(field.Key, StringComparer.Ordinal) &&
-                family.Columns.Any(column => column.CanonicalField == field.Key)));
+            var hash = canonicalizer.Hash(values.Where(field => LineFields.Contains(field.Key, StringComparer.Ordinal)));
             occurrences[hash] = occurrences.GetValueOrDefault(hash) + 1;
             labels.Add($"{hash}:{occurrences[hash]}");
         }

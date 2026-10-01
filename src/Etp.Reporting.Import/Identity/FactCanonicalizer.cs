@@ -20,6 +20,13 @@ public sealed class FactCanonicalizer : IFactCanonicalizer
 
     public static FactCanonicalizer Instance { get; } = new();
 
+    /// <summary>The STOCK_LEDGER fields today's landing <c>content_key</c> hashes (<c>PhaseOneImportPersistence.ContentKeys</c>).</summary>
+    public static IReadOnlyList<string> StockLedgerContentKeyFields { get; } =
+    [
+        "store_code", "document_number", "document_date", "product_code", "source_transaction_type",
+        "from_location", "to_location", "opening_quantity", "transaction_quantity", "closing_quantity"
+    ];
+
     public int ContentHashVersion => CurrentContentHashVersion;
 
     public string Format(object? value) => value switch
@@ -53,6 +60,23 @@ public sealed class FactCanonicalizer : IFactCanonicalizer
             .Select(pair => (pair.Key, Text: FormatField(pair.Key, pair.Value)))
             .OrderBy(pair => pair.Key, StringComparer.Ordinal)
             .Select(pair => $"{pair.Key.Length}:{pair.Key}:{pair.Text.Length}:{pair.Text}")));
+    }
+
+    /// <summary>
+    /// Today's landing <c>content_key</c> before its <c>:n</c>, exactly as planner 1 computes it and keeps computing it
+    /// (spec 7.1): for STOCK_LEDGER the <see cref="StockLedgerContentKeyFields"/> the row holds, for every other report
+    /// every staged field whose name does not contain "timestamp". This is not <see cref="CanonicalRow.ContentHash"/>,
+    /// which hashes the family's non-Ignored columns; the two differ for STOCK_LEDGER, and for any family whose Ignored
+    /// columns are not exactly its timestamp columns.
+    /// </summary>
+    public string ContentKeyHash(string reportCode, IEnumerable<KeyValuePair<string, object?>> stagedValues)
+    {
+        ArgumentNullException.ThrowIfNull(reportCode);
+        ArgumentNullException.ThrowIfNull(stagedValues);
+        var stock = reportCode == "STOCK_LEDGER";
+        return Hash(stagedValues.Where(field => stock
+            ? StockLedgerContentKeyFields.Contains(field.Key, StringComparer.Ordinal)
+            : !field.Key.Contains("timestamp", StringComparison.OrdinalIgnoreCase)));
     }
 
     public CanonicalRow Canonicalize(EtpReportFamily family, IReadOnlyDictionary<string, object?> values)
