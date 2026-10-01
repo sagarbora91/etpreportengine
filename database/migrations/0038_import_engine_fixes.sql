@@ -8,6 +8,10 @@
 SET XACT_ABORT ON;
 
 -- >>> PRECHECK_FY begin
+-- Every invoice is keyed by the financial year of its own date (OD-1, IF-019); ETP's INVOICEYEAR is only a label.
+IF EXISTS(SELECT 1 FROM dbo.sales_invoices WITH(UPDLOCK,HOLDLOCK)
+  WHERE invoice_year<>YEAR(transaction_date)+CASE WHEN MONTH(transaction_date)>=4 THEN 1 ELSE 0 END)
+  THROW 51700,'Some invoices carry a year other than the financial year of their date. Run scripts/check-import-upgrade.sql and review before upgrading.',1;
 -- <<< PRECHECK_FY end
 
 -- >>> PRECHECK_CONTROLS_TENDERS begin

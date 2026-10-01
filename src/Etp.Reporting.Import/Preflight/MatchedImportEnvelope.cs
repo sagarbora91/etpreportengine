@@ -91,6 +91,7 @@ public sealed class MatchedImportEnvelopeFactory(IReadOnlyList<string>? knownSto
         {
             staging = stager.Stage(inspected.Sheet!, inspected.Profile!);
             diagnostics.AddRange(staging.Diagnostics);
+            diagnostics.AddRange(InvoiceYearLabels.Check(inspected.Profile!, inspected.Sheet!.Name, staging.Rows));
             if (staging.Rows.Select(row => row.Values.GetValueOrDefault("store_code") as string)
                 .Where(value => !string.IsNullOrWhiteSpace(value)).Distinct(StringComparer.OrdinalIgnoreCase).Take(2).Count() > 1)
                 diagnostics.Add(new("WORKBOOK_MULTIPLE_STORES", ImportDiagnosticSeverity.Blocker,
