@@ -15,7 +15,7 @@ public static class SqlReportingQueries
         OUTER APPLY
         (
           SELECT TOP(1) COALESCE(s.brand_name,s.brand_code) brand_name,s.cluster
-          FROM dbo.stock_snapshots s
+          FROM dbo.v_stock_snapshots_effective s
           WHERE s.store_code=i.store_code AND s.product_code=l.product_code
           ORDER BY s.snapshot_date DESC,s.stock_snapshot_id DESC
         ) p
@@ -53,12 +53,12 @@ public static class SqlReportingQueries
           WHERE m.document_date>=@dateFrom AND m.document_date<=@dateTo
             AND (@storesJson IS NULL OR store_code IN (SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@storesJson)))
             AND (@itemsJson IS NULL OR m.product_code IN (SELECT CONVERT(nvarchar(80),[value]) FROM OPENJSON(@itemsJson)))
-            AND EXISTS(SELECT 1 FROM dbo.stock_snapshots s WHERE s.store_code=m.store_code
+            AND EXISTS(SELECT 1 FROM dbo.v_stock_snapshots_effective s WHERE s.store_code=m.store_code
               AND s.product_code=m.product_code AND s.snapshot_date=@dateTo)
         )
         SELECT k.store_code,k.product_code,
                first_move.opening_quantity source_opening_quantity,
-               (SELECT SUM(s.quantity) FROM dbo.stock_snapshots s WHERE s.store_code=k.store_code
+               (SELECT SUM(s.quantity) FROM dbo.v_stock_snapshots_effective s WHERE s.store_code=k.store_code
                  AND s.product_code=k.product_code AND s.snapshot_date=@dateTo) source_closing_quantity
         FROM keys k
         OUTER APPLY(SELECT TOP(1) m.opening_quantity FROM dbo.stock_movements m
@@ -74,7 +74,7 @@ public static class SqlReportingQueries
         WHERE m.document_date>=@dateFrom AND m.document_date<=@dateTo
           AND (@storesJson IS NULL OR m.store_code IN (SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@storesJson)))
           AND (@itemsJson IS NULL OR m.product_code IN (SELECT CONVERT(nvarchar(80),[value]) FROM OPENJSON(@itemsJson)))
-          AND EXISTS(SELECT 1 FROM dbo.stock_snapshots s WHERE s.store_code=m.store_code
+          AND EXISTS(SELECT 1 FROM dbo.v_stock_snapshots_effective s WHERE s.store_code=m.store_code
             AND s.product_code=m.product_code AND s.snapshot_date=@dateTo)
         GROUP BY m.store_code,m.product_code,m.source_transaction_type
         ORDER BY m.store_code,m.product_code,m.source_transaction_type;
