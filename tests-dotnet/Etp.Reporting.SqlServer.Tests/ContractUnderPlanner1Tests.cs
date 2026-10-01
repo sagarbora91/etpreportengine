@@ -37,6 +37,43 @@ public sealed class ContractUnderPlanner1Tests
     }
 
     [Fact]
+    public async Task Stacked_R010_blocks_get_their_dates()
+    {
+        // IF-020: a WLMHW-shaped legacy stacked R010 (tier 2), kept in a folder named for the latest snapshot only.
+        var accepted = new MatchedImportEnvelopeFactory(["WLMHW"]).RequireAccepted(LegacyStackedBinWise());
+        var capture = new CaptureStore();
+
+        await new EtpFamilySqlImportOrchestrator(capture).PersistAsync(accepted, accepted.Scope.PeriodEnd, "WLMHW", "tester");
+
+        Assert.All(accepted.Scope.SnapshotBlocks, block => Assert.Equal(SnapshotDateBasis.InfoBlock, block.Basis));
+        var package = capture.Package!;
+        Assert.Equal(
+            [
+                (2, new DateOnly(2026, 7, 2)), (3, new DateOnly(2026, 7, 2)), (4, new DateOnly(2026, 7, 2)),
+                (5, new DateOnly(2026, 8, 7)), (6, new DateOnly(2026, 8, 7)), (7, new DateOnly(2026, 8, 7)),
+                (8, new DateOnly(2026, 9, 29)), (9, new DateOnly(2026, 9, 29))
+            ],
+            package.StockSnapshots.Select(snapshot => (snapshot.Lineage.SourceRowNumber, snapshot.SnapshotDate)));
+        Assert.Equal((new DateOnly(2026, 7, 2), new DateOnly(2026, 9, 29)), (package.Batch.PeriodStart, package.Batch.PeriodEnd));
+    }
+
+    [Fact]
+    public async Task Partly_dated_contract_R010_beside_a_dated_sibling_is_refused_not_given_the_sibling_date()
+    {
+        var persistence = new CapturePersistence();
+        var reader = new Reader(path => path.EndsWith("R010.xlsx")
+            ? ContractBinWise(secondBlockDate: "") with { FileName = path, SourcePath = path, Sha256 = new string('f', 64) }
+            : ClosingStock(new DateOnly(2026, 9, 29)) with { FileName = path });
+
+        var summary = await new FolderImportService(persistence, reader).RunFilesAsync([@"F:\pack\R010.xlsx", @"F:\pack\R011.xlsx"], new("tester"));
+
+        var refused = Assert.Single(summary.Files, file => file.ReportCode == "R010");
+        Assert.Equal("Failed", refused.Status);
+        Assert.Contains(refused.Diagnostics!, issue => issue.Code == ImportCodes.SnapshotDateUnknown && issue.SourceRow == 5);
+        Assert.DoesNotContain(persistence.Requests, request => request.AcceptedImport.ProfileIdentity.ReportCode == "R010");
+    }
+
+    [Fact]
     public async Task Folder_import_of_a_contract_R010_uses_the_contract_store_and_block_dates()
     {
         var persistence = new CapturePersistence();
@@ -115,9 +152,29 @@ public sealed class ContractUnderPlanner1Tests
 
     private static string[] Block(int block, int first, int last, string date) =>
         [block.ToString(), "Data", first.ToString(), last.ToString(), (last - first + 1).ToString(), $"20260{block}011200_BinWise-Stock.xlsx", "xlsx",
-         new string('a', 63) + block, $"{date}T12:00", "", "", "none", date, (last - first + 1).ToString(), "0", "0", "complete", "Snapshot retained"];
+         new string('a', 63) + block, date.Length == 0 ? "" : $"{date}T12:00", "", "", "none", date, (last - first + 1).ToString(), "0", "0", "complete", "Snapshot retained"];
 
-    private static WorkbookSnapshot ContractBinWise(string? dataStore = "WLMHW")
+    private static readonly string[] LegacyHeader =
+        ["Package", "Source file", "Raw rows", "Rows retained", "Rows excluded", "Period from", "Period to", "Data row block", "Disposition"];
+
+    private static string[] LegacyBlock(string sourceFile, int first, int last) =>
+        ["Synthetic pack", sourceFile, (last - first + 1).ToString(), (last - first + 1).ToString(), "0", "", "", $"{first}:{last}", "Snapshot retained"];
+
+    private static WorkbookSnapshot LegacyStackedBinWise() => new("R010_BinWise_Stock.xlsx", 1, Hash,
+    [
+        BinWiseData(8, "WLMHW"),
+        new("Info", 1, ["ETP Consolidation - R010 BinWise-Stock"],
+        [
+            Row(2, "Updated by pack 01/07-29/09/2026", "Rule: snapshot"), Row(4, "Family ID", "R010"), Row(5, "Coverage", "No dated rows"),
+            Row(7, LegacyHeader),
+            Row(8, LegacyBlock("202607021446_BinWise-Stock - BinWise-Stock.xlsx", 2, 4)),
+            Row(9, LegacyBlock("202608071848_BinWise-Stock - BinWise-Stock.xlsx", 5, 7)),
+            Row(10, LegacyBlock("202609291433_BinWise-Stock - BinWise-Stock.xlsx", 8, 9)),
+            Row(12, "Previous build 2026-12-31 noted by hand.")
+        ])
+    ], @"F:\Consolidated data import package (29 Sep 2026)\Retail\WLMHW\R010_BinWise_Stock.xlsx");
+
+    private static WorkbookSnapshot ContractBinWise(string? dataStore = "WLMHW", string secondBlockDate = "2026-08-07")
     {
         (string, string)[] keys =
         [
@@ -129,7 +186,7 @@ public sealed class ContractUnderPlanner1Tests
         var header = keys.Length + 3;
         rows.Add(Row(header, [.. ConsolidationContractLayout.BlockTableColumns]));
         rows.Add(Row(header + 1, Block(1, 2, 4, "2026-07-02")));
-        rows.Add(Row(header + 2, Block(2, 5, 7, "2026-08-07")));
+        rows.Add(Row(header + 2, Block(2, 5, 7, secondBlockDate)));
         rows.Add(Row(header + 3, Block(3, 8, 9, "2026-09-29")));
         rows.Add(Row(header + 5, "Notes: the 2026-12-31 build replaced 20261230."));
         var info = new WorkbookSheet("Info", 1, ["etp_contract", "1"], rows);

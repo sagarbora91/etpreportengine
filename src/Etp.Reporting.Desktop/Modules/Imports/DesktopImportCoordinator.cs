@@ -106,6 +106,8 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
         CancellationToken cancellationToken = default)
     {
         var current = validatedImport ?? throw new InvalidOperationException("Validate an import workbook before persisting it.");
+        // A single file has no folder siblings, and the selected business date is not a snapshot date (spec 6.4).
+        current.Envelope.Scope.RequireOwnSnapshotDate();
         var persistence = persistenceFactory(connectionString);
         if (await persistence.ExistsInScopeAsync(current.Envelope.Workbook.Sha256, current.Envelope.ProfileIdentity.ReportCode,
             current.Envelope.Scope.StoreCode ?? context.StoreCode, current.Envelope.Scope.PeriodStart ?? context.BusinessDate,
@@ -254,6 +256,7 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
         var snapshot = await workbookReader.ReadAsync(workbookPath, cancellationToken).ConfigureAwait(false);
         var persistence = persistenceFactory(connectionString);
         var accepted = envelopeFactory.RequireAccepted(snapshot);
+        accepted.Scope.RequireOwnSnapshotDate();
         var context = contextFactory();
         if (await persistence.ExistsInScopeAsync(snapshot.Sha256, accepted.ProfileIdentity.ReportCode,
             accepted.Scope.StoreCode ?? context.StoreCode, accepted.Scope.PeriodStart ?? context.BusinessDate,

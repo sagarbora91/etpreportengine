@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.RegularExpressions;
 using Etp.Reporting.Application.Imports;
 using Etp.Reporting.Domain.Imports;
+using Etp.Reporting.Import.Batch;
 using Etp.Reporting.Import.Conversion;
 using Etp.Reporting.Import.Diagnostics;
 using Etp.Reporting.Import.Profiles;
@@ -21,6 +22,20 @@ public sealed record ImportScope(string? StoreCode, DateOnly? PeriodStart, DateO
 
     /// <summary>Dating diagnostics: <c>SNAPSHOT_DATE_AMBIGUOUS</c>, <c>SNAPSHOT_MULTIPLE_DATES</c>, <c>SNAPSHOT_DATE_FROM_FOLDER</c>, <c>INFO_BLOCKS_UNUSABLE</c>.</summary>
     public IReadOnlyList<ImportDiagnostic> Diagnostics { get; init; } = [];
+
+    /// <summary>
+    /// True when an undated family's workbook states no snapshot date by any tier (spec 6.4). Only the folder import can
+    /// still date it, from siblings that agree (tier 7); every other route refuses it with <c>SNAPSHOT_DATE_UNKNOWN</c>.
+    /// </summary>
+    public bool AwaitsSiblingDate { get; init; }
+
+    /// <summary>Refuses a workbook whose snapshot date only its folder siblings could give; for routes that have no siblings.</summary>
+    public void RequireOwnSnapshotDate()
+    {
+        if (AwaitsSiblingDate)
+            throw new ImportSourceException(ImportCodes.SnapshotDateUnknown,
+                "The snapshot date of this stock or status report could not be found. Import the ETP file under its original name, or import its whole folder.");
+    }
 
     public static ImportScope Detect(WorkbookSnapshot workbook, ImportProfile profile, ImportStagingResult staging, IReadOnlyList<string>? knownStores = null,
         WorkbookSheet? dataSheet = null, ContractReadResult? contract = null)
@@ -64,9 +79,13 @@ public sealed record ImportScope(string? StoreCode, DateOnly? PeriodStart, DateO
                 .Contains(candidate.Name.Trim(), StringComparer.OrdinalIgnoreCase));
             if (sheet is null) return new(detectedStore, null, null);
             var dating = new SnapshotDateResolver().Resolve(workbook, sheet, contract);
-            // Without a date of its own the folder import may still date the file from its siblings (tier 7).
-            var diagnostics = dating.Diagnostics.Where(diagnostic => diagnostic.Code != ImportCodes.SnapshotDateUnknown).ToArray();
-            return new(detectedStore, dating.From, dating.To) { SnapshotBlocks = dating.Blocks, Diagnostics = diagnostics };
+            // Only a workbook no tier dated at all is left for the folder import to date from its siblings (tier 7). A row that
+            // a dating tier left uncovered stays a blocker: it must never fall through to a sibling or context date.
+            var diagnostics = dating.NoTierDated
+                ? dating.Diagnostics.Where(diagnostic => diagnostic.Code != ImportCodes.SnapshotDateUnknown).ToArray()
+                : dating.Diagnostics;
+            return new(detectedStore, dating.From, dating.To)
+                { SnapshotBlocks = dating.Blocks, Diagnostics = diagnostics, AwaitsSiblingDate = dating.NoTierDated };
         }
 
         // An empty export of a dated family keeps its legacy context date; it carries no rows to date.

@@ -230,6 +230,23 @@ public sealed class DesktopImportCoordinatorTests
     }
 
     [Fact]
+    public async Task Undated_R010_is_refused_with_SNAPSHOT_DATE_UNKNOWN_instead_of_taking_the_business_date()
+    {
+        var persistence = new FakePersistence();
+        await using var coordinator = Create(persistence, new FakeReader(_ => UndatedR010()));
+        var context = new DesktopImportRunContext("WLMHW", new(2026, 9, 29), "manager", false, string.Empty);
+
+        Assert.True((await coordinator.ValidateAsync("R010_BinWise_Stock.xlsx")).Accepted);
+        var refusal = await Assert.ThrowsAsync<ImportSourceException>(() => coordinator.PersistValidatedAsync("synthetic", context));
+        Assert.Equal("SNAPSHOT_DATE_UNKNOWN", refusal.Code);
+
+        var summary = await coordinator.RunBatchAsync(["R010_BinWise_Stock.xlsx"], "synthetic", () => false, () => context, _ => Task.CompletedTask);
+        var file = Assert.Single(summary.Files);
+        Assert.Equal((BatchImportFileStatus.Failed, "SNAPSHOT_DATE_UNKNOWN"), (file.Status, file.ErrorCode));
+        Assert.Equal(0, persistence.PersistenceCalls);
+    }
+
+    [Fact]
     public async Task Batch_retries_transient_reads_and_returns_row_outcomes_for_retry_ui()
     {
         var reads = 0;
@@ -329,6 +346,19 @@ public sealed class DesktopImportCoordinatorTests
             1,
             new string('a', 64),
             [new("Sales", 1, RetailSalesProfiles.R025Headers, [])]);
+
+    // A renamed raw R010 with no Info sheet and no dated folder: no tier states its snapshot date.
+    private static WorkbookSnapshot UndatedR010()
+    {
+        var headers = EtpReportFamilyRegistry.Resolve("R010").Headers;
+        return new("R010_BinWise_Stock.xlsx", 1, new string('c', 64),
+        [
+            new("Data", 1, headers, [new WorkbookRow(2, headers.Select(header => new WorkbookCell(header switch
+            {
+                "STORE CODE" => "WLMHW", "ITEMNUMBER" => "SYN-ITEM-0001", "CLOSINGBALANCE" => 1m, _ => null
+            })).ToArray())])
+        ]);
+    }
 
     private static WorkbookSnapshot InvalidWorkbook() =>
         new("invalid.xlsx", 1, new string('b', 64), []);

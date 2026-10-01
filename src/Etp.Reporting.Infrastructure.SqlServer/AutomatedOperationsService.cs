@@ -113,6 +113,7 @@ public sealed class AutomatedOperationsService(string connectionString)
         }
         var accepted = inspection.AcceptedImport;
         var report = accepted.ProfileIdentity.ReportCode;
+        accepted.Scope.RequireOwnSnapshotDate();
         var end = accepted.Scope.PeriodEnd ?? throw new ImportSourceException("SCOPE_NOT_DETECTED","Keep this file beside the other exports for its store.");
         var start = accepted.Scope.PeriodStart ?? end;
         var store = accepted.Scope.StoreCode ?? throw new ImportSourceException("SCOPE_NOT_DETECTED","Store could not be detected.");

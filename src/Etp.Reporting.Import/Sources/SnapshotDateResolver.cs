@@ -15,6 +15,12 @@ public sealed record SnapshotDating(IReadOnlyList<SnapshotBlock> Blocks, IReadOn
     public DateOnly? From => Blocks.Count == 0 ? null : Blocks.Min(block => block.SnapshotDate);
     public DateOnly? To => Blocks.Count == 0 ? null : Blocks.Max(block => block.SnapshotDate);
     public bool HasBlockers => Diagnostics.Any(diagnostic => diagnostic.Severity == ImportDiagnosticSeverity.Blocker);
+
+    /// <summary>
+    /// True only when no tier yielded any date: the workbook is silent about its date, and only the folder import may
+    /// still date it from its siblings (tier 7). A tier that dated some rows but not others is a refusal, never this.
+    /// </summary>
+    public bool NoTierDated { get; init; }
 }
 
 /// <summary>
@@ -27,11 +33,11 @@ public sealed record SnapshotDating(IReadOnlyList<SnapshotBlock> Blocks, IReadOn
 /// <item>the workbook's own export name (<see cref="SnapshotDateBasis.ExportName"/>);</item>
 /// <item>the Info <c>Coverage</c> value when it is one date, or the date in the disposition of a single legacy block
 /// (<see cref="SnapshotDateBasis.InfoCoverage"/>);</item>
-/// <item>the parent folder names (<see cref="SnapshotDateBasis.Folder"/>), with the warning <c>SNAPSHOT_DATE_FROM_FOLDER</c>.</item>
+/// <item>the nearest parent folder name that holds a date (<see cref="SnapshotDateBasis.Folder"/>), with the warning <c>SNAPSHOT_DATE_FROM_FOLDER</c>.</item>
 /// </list>
 /// A whole-file tier with more than one distinct date refuses <c>SNAPSHOT_DATE_AMBIGUOUS</c>; it never takes a maximum and
-/// never falls through. No date at all gives <c>SNAPSHOT_DATE_UNKNOWN</c>, which the folder import may still settle from its
-/// siblings (tier 7). Info titles and free-text notes are never read.
+/// never falls through. No date at all gives <c>SNAPSHOT_DATE_UNKNOWN</c> with <see cref="SnapshotDating.NoTierDated"/>,
+/// which only the folder import may still settle from its siblings (tier 7). Info titles and free-text notes are never read.
 /// </summary>
 public sealed class SnapshotDateResolver(
     IConsolidationContractReader? contractReader = null,
@@ -69,8 +75,11 @@ public sealed class SnapshotDateResolver(
         notes.AddRange(table.Diagnostics);
         if (table.Tiles)
         {
-            var dated = table.Blocks.Where(block => block.ExportTime.ExportDate is not null)
-                .Select((block, index) => (Range: ((int?)block.FirstRow, (int?)block.LastRow), Date: block.ExportTime.ExportDate!.Value, Block: (int?)(index + 1)))
+            // Blocks are numbered in sheet order before the undated ones are set aside, so a number names the same block.
+            var dated = table.Blocks.OrderBy(block => block.FirstRow)
+                .Select((block, index) => (Block: block, Number: index + 1))
+                .Where(item => item.Block.ExportTime.ExportDate is not null)
+                .Select(item => (Range: ((int?)item.Block.FirstRow, (int?)item.Block.LastRow), Date: item.Block.ExportTime.ExportDate!.Value, Block: (int?)item.Number))
                 .ToArray();
             if (dated.Length > 0) return PerBlock(dated, SnapshotDateBasis.InfoBlock, dataSheet, rows, notes);
         }
@@ -85,17 +94,21 @@ public sealed class SnapshotDateResolver(
         if (!contract.IsContract)
         {
             var stated = new List<DateOnly>();
-            if (SheetText.Find(workbook, ConsolidationContractLayout.InfoSheet) is { } info &&
-                SheetText.Lines(info).FirstOrDefault(line => string.Equals(line.Text(0), CoverageKey, StringComparison.OrdinalIgnoreCase)) is { } coverage &&
-                SheetText.Date(coverage.Cells.Count > 1 ? coverage.Cells[1] : null) is { } covered)
-                stated.Add(covered);
+            // Info is appended per update, so every Coverage row counts; two different values are ambiguous.
+            if (SheetText.Find(workbook, ConsolidationContractLayout.InfoSheet) is { } info)
+                stated.AddRange(SheetText.Lines(info)
+                    .Where(line => string.Equals(line.Text(0), CoverageKey, StringComparison.OrdinalIgnoreCase))
+                    .Select(line => SheetText.Date(line.Cells.Count > 1 ? line.Cells[1] : null))
+                    .OfType<DateOnly>());
             if (table.Blocks.Count == 1 && table.Blocks[0].Disposition is { } disposition)
                 stated.AddRange(SheetText.Dates(disposition).Select(found => found.Date));
             if (stated.Count > 0) return WholeFile(stated, SnapshotDateBasis.InfoCoverage, "the Info coverage", dataSheet, notes);
         }
 
-        // Tier 6: the parent folder names.
-        var folders = Folders(workbook.SourcePath).SelectMany(folder => SheetText.Dates(folder, compactDigits: true)).Select(found => found.Date).ToArray();
+        // Tier 6: the nearest parent folder that names a date; folders further up (an archive or work folder) are not read.
+        var folders = Folders(workbook.SourcePath).Reverse()
+            .Select(folder => SheetText.Dates(folder, compactDigits: true).Select(found => found.Date).ToArray())
+            .FirstOrDefault(dates => dates.Length > 0) ?? [];
         if (folders.Length > 0)
         {
             var dating = WholeFile(folders, SnapshotDateBasis.Folder, "its folder names", dataSheet, notes);
@@ -110,7 +123,7 @@ public sealed class SnapshotDateResolver(
 
         return new([], [.. notes, new ImportDiagnostic(ImportCodes.SnapshotDateUnknown, ImportDiagnosticSeverity.Blocker,
             "The snapshot date of this stock or status report could not be found. Import the ETP file under its original name, or keep it in a folder named for its date.",
-            dataSheet.Name)]);
+            dataSheet.Name)]) { NoTierDated = true };
     }
 
     /// <summary>The parent folder names of a source path, nearest last; the file name itself is never read here.</summary>
