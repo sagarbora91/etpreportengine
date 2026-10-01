@@ -7,7 +7,20 @@ namespace Etp.Reporting.Infrastructure.SqlServer;
 /// <summary>One boundary for settings, adapters and maintenance connection targets.</summary>
 public static class LocalSqlConnectionPolicy
 {
-    public static string Validate(string connectionString)
+    /// <summary>
+    /// SqlClient times COMMIT and ROLLBACK with Connect Timeout, not CommandTimeout. On a slow
+    /// disk an import COMMIT can outlast the 5 s connection cap and be reported as failed after
+    /// SQL Server has committed it, so import transactions get this budget instead.
+    /// </summary>
+    public const int ImportTransactionTimeoutSeconds = 120;
+
+    public static string Validate(string connectionString) => Validate(connectionString, null);
+
+    /// <summary>The same local rules as <see cref="Validate(string)"/>, with the import transaction budget as Connect Timeout.</summary>
+    public static string ValidateForImportTransaction(string connectionString) =>
+        Validate(connectionString, ImportTransactionTimeoutSeconds);
+
+    private static string Validate(string connectionString, int? transactionTimeoutSeconds)
     {
         if (string.IsNullOrWhiteSpace(connectionString)) throw new ArgumentException("Enter local SQL Server connection settings.");
         SqlConnectionStringBuilder builder;
@@ -27,7 +40,8 @@ public static class LocalSqlConnectionPolicy
             !new[] { "optional", "mandatory", "strict", "true", "yes" }.Contains(encryption?.ToString()?.Trim().ToLowerInvariant()))
             throw new ArgumentException("Use Encrypt=Optional for local SQL, or Mandatory/Strict with a trusted certificate; Encrypt=False is not allowed.");
         if (!raw.ContainsKey("Encrypt")) builder.Encrypt = SqlConnectionEncryptOption.Optional;
-        if (builder.ConnectTimeout == 0 || builder.ConnectTimeout > 5) builder.ConnectTimeout = 5;
+        if (transactionTimeoutSeconds is { } budget) builder.ConnectTimeout = budget;
+        else if (builder.ConnectTimeout == 0 || builder.ConnectTimeout > 5) builder.ConnectTimeout = 5;
         // Older SqlClient versions serialize Optional as False. Keep the public
         // validated representation explicit and safe to validate again.
         if (builder.Encrypt == SqlConnectionEncryptOption.Optional)

@@ -32,11 +32,14 @@ public sealed partial class SqlServerImportPersistenceUseCase : IImportPersisten
 
     internal SqlServerImportPersistenceUseCase(
         string connectionString,
-        Func<CancellationToken, Task<ApplicationAccess>>? loadAccess)
+        Func<CancellationToken, Task<ApplicationAccess>>? loadAccess,
+        Func<SqlTransaction, CancellationToken, Task>? commit = null)
     {
         var validated = SqlAdapterConnection.RequireWindowsIntegrated(connectionString, nameof(connectionString));
         this.connectionString = validated;
-        store = new SqlServerTransactionalImportStore(validated);
+        // Only tests replace the COMMIT, to reproduce a COMMIT whose reply never arrives.
+        store = commit is null ? new SqlServerTransactionalImportStore(validated)
+            : new SqlServerTransactionalImportStore(validated) { Commit = commit };
         files = new SqlServerImportFileRepository(validated);
         completion = new OperationalCompletionRepository(validated);
         this.loadAccess = loadAccess ?? new Phase2OperationsRepository(validated).LoadCurrentAccessAsync;

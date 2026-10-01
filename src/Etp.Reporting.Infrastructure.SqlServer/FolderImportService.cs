@@ -7,13 +7,22 @@ using Etp.Reporting.Import.Workbooks;
 
 namespace Etp.Reporting.Infrastructure.SqlServer;
 
+/// <summary>
+/// An unexpected file failure for diagnostics. It carries the real exception, which the
+/// import result replaces with a safe message, and never any workbook row data.
+/// </summary>
+public sealed record FolderImportFailure(string FileName, string Stage, string? ReportCode, string? StoreCode,
+    DateOnly? PeriodEnd, Guid? BatchId, int? SqlErrorNumber, Exception Exception);
+
 /// <summary>The same folder workflow is used by the desktop and command-line import.</summary>
 public sealed class FolderImportService(
     IImportPersistenceUseCase<MatchedImportEnvelope> persistence,
     IWorkbookReader? workbookReader = null,
     Func<string, MatchedImportEnvelope, string, DateOnly, CancellationToken, Task>? retainEvidence = null,
-    IReadOnlyList<string>? knownStores = null) : IFolderImportService
+    IReadOnlyList<string>? knownStores = null,
+    Action<FolderImportFailure>? reportFailure = null) : IFolderImportService
 {
+    private readonly IImportFailureClassifier classifier = new SqlImportFailureClassifier();
     private readonly IWorkbookReader reader = workbookReader ?? new OpenXmlWorkbookReader();
     private readonly MatchedImportEnvelopeFactory envelopes = new(knownStores);
     private readonly Dictionary<string, ImportScope> detectedScopes = new(StringComparer.OrdinalIgnoreCase);
@@ -61,7 +70,8 @@ public sealed class FolderImportService(
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { break; }
             catch (Exception exception)
             {
-                var message = new SafeImportFailureClassifier().Describe(exception).SafeMessage;
+                var message = classifier.Describe(exception).SafeMessage;
+                Report(Path.GetFileName(path), "Read", null, null, exception);
                 results.Add(new(Path.GetFileName(path), null, null, null, null, "Failed", Message: message) { SourcePath = path });
                 handled.Add(path);
             }
@@ -144,7 +154,8 @@ public sealed class FolderImportService(
             { result = result with { Status = "Cancelled", Message = "Import cancelled." }; }
             catch (Exception exception)
             {
-                result = result with { Status = "Failed", Message = new SafeImportFailureClassifier().Describe(exception).SafeMessage };
+                result = result with { Status = "Failed", Message = classifier.Describe(exception).SafeMessage };
+                Report(result.FileName, "Persist", result.ReportCode, scope, exception);
             }
             results.Add(result);
             progress?.Report(new(results.Count, paths.Count, result.FileName, result.Status, results.ToArray()));
@@ -170,6 +181,30 @@ public sealed class FolderImportService(
             return result with { Message = "Data is present; the original document could not be retained. Keep the source file and import it again to retry evidence retention." };
         }
         return result;
+    }
+
+    // Refusals with their own code already explain themselves; anything else reaches the
+    // operator only as a generic message, so the real exception goes to diagnostics.
+    private void Report(string fileName, string stage, string? reportCode, ImportScope? scope, Exception exception)
+    {
+        if (reportFailure is null || exception is ImportSourceException) return;
+        try
+        {
+            reportFailure(new(fileName, stage, reportCode, scope?.StoreCode, scope?.PeriodEnd,
+                BatchId(exception),
+                SqlImportFailureClassifier.SqlErrorNumber(exception), exception));
+        }
+        catch (Exception sinkFailure) when (sinkFailure is not OperationCanceledException)
+        {
+            // Diagnostics are best effort; a failing log must not change the import outcome.
+        }
+    }
+
+    private static Guid? BatchId(Exception? exception)
+    {
+        for (var current = exception; current is not null; current = current.InnerException)
+            if (current.Data[SqlTransactionGuard.ImportBatchIdKey] is Guid batchId) return batchId;
+        return null;
     }
 
     private static int DependencyOrder(string? code) => code switch

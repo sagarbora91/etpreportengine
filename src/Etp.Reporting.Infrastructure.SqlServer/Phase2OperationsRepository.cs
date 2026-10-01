@@ -90,7 +90,7 @@ public sealed class Phase2OperationsRepository(string connectionString)
             }
             await transaction.CommitAsync(cancellationToken);
         }
-        catch { await transaction.RollbackAsync(CancellationToken.None); throw; }
+        catch (Exception failure) { await SqlTransactionGuard.RollBackAsync(failure, transaction); throw; }
     }
 
     public async Task<IReadOnlyList<ControlledMasterRow>> LoadMasterValuesAsync(string masterType, CancellationToken cancellationToken = default)

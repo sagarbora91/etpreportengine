@@ -204,7 +204,7 @@ public sealed class SqlServerMigrationStore(string connectionString) : IMigratio
             await journal.ExecuteNonQueryAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         }
-        catch { await transaction.RollbackAsync(CancellationToken.None); throw; }
+        catch (Exception failure) { await SqlTransactionGuard.RollBackAsync(failure, transaction); throw; }
     }
 
     private static async Task<bool> PrepareRetiredExtractionGrantAsync(MigrationScript migration,
