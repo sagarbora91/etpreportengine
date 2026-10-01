@@ -11,6 +11,7 @@ using System.Windows.Threading;
 
 namespace Etp.Reporting.Desktop.Tests;
 
+[Collection(WpfViewCollection.Name)]
 public sealed class DesktopImportCoordinatorTests
 {
     [Theory]

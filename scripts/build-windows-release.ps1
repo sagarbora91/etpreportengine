@@ -41,14 +41,23 @@ if ($Version -notmatch '^\d+\.\d+\.\d+([-.][0-9A-Za-z.-]+)?$') { throw "Invalid 
 
 dotnet restore $solution
 Assert-NativeSuccess "Solution restore"
-dotnet build $solution -c $Configuration --no-restore -p:Version=$Version
+# One build process: on the 20-thread owner PC an unlimited build started 19 compiler
+# processes, and the PC powered off twice under that load on 1 October 2026.
+dotnet build $solution -c $Configuration --no-restore -p:Version=$Version -m:1 -nodeReuse:false
 Assert-NativeSuccess "Release build"
 # One test project at a time. Run together, the CPU-heavy UI and import suites slowed SQL
 # Server Express until its query-memory queue backed up: on 22 September 2026 the recovery
 # drill's DBCC CHECKDB waited 57 s on RESOURCE_SEMAPHORE behind ten other sessions and the
 # gate failed four runs out of four, while the same suite run project by project passed.
-dotnet test $solution -c $Configuration --no-build -m:1
-Assert-NativeSuccess "Release test suite"
+# `dotnet test` on the solution with -m:1 did not keep the test hosts apart, so each test
+# project listed in the solution is run on its own, in order.
+[xml]$solutionXml = Get-Content -LiteralPath $solution
+$testProjects = @($solutionXml.SelectNodes('//Project/@Path') | ForEach-Object Value | Where-Object { $_ -like 'tests-dotnet/*Tests.csproj' })
+if ($testProjects.Count -eq 0) { throw 'No test projects were found in the solution.' }
+foreach ($testProject in $testProjects) {
+    dotnet test (Join-Path $repoRoot $testProject) -c $Configuration --no-build -m:1
+    Assert-NativeSuccess "Release test suite ($([IO.Path]::GetFileNameWithoutExtension($testProject)))"
+}
 dotnet publish $desktopProject -c $Configuration -r $Runtime --self-contained true `
     -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:Version=$Version -o $output
 Assert-NativeSuccess "Self-contained desktop publish"

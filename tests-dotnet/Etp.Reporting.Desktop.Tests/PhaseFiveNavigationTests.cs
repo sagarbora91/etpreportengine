@@ -6,6 +6,7 @@ using Etp.Reporting.Application.Distribution;
 
 namespace Etp.Reporting.Desktop.Tests;
 
+[Collection(WpfViewCollection.Name)]
 public sealed class PhaseFiveNavigationTests
 {
     [Fact]

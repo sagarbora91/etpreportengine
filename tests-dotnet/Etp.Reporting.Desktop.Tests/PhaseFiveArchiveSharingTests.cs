@@ -4,6 +4,7 @@ using System.Windows.Controls;
 
 namespace Etp.Reporting.Desktop.Tests;
 
+[Collection(WpfViewCollection.Name)]
 public sealed class PhaseFiveArchiveSharingTests
 {
     [Fact]
