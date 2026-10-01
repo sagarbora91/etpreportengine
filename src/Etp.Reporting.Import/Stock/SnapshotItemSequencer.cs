@@ -12,9 +12,18 @@ public static class StockSnapshotSources
     /// <summary>The lineage record type of R010 snapshot facts.</summary>
     public const string BinWiseLineageRecordType = "R010_SNAPSHOT";
 
-    /// <summary>The source of a snapshot fact from its lineage record type, as the 0038 backfill derives it.</summary>
+    /// <summary>The source of a snapshot fact from its lineage record type, as the 0038 backfill derives it
+    /// (compared as the database's case-insensitive collation compares it).</summary>
     public static string FromLineageRecordType(string? recordType) =>
-        string.Equals(recordType, BinWiseLineageRecordType, StringComparison.Ordinal) ? BinWise : ClosingStock;
+        string.Equals(recordType, BinWiseLineageRecordType, StringComparison.OrdinalIgnoreCase) ? BinWise : ClosingStock;
+
+    /// <summary>The name the stock report shows for the snapshot source of a store-day.</summary>
+    public static string DisplayName(string sourceReportCode) => sourceReportCode.Trim().ToUpperInvariant() switch
+    {
+        ClosingStock => "Closing Stock",
+        BinWise => "BinWise",
+        var other => other
+    };
 }
 
 /// <summary>The identity and fact fields of one stock-snapshot row (R011 or R010), as the sequencer reads them.</summary>

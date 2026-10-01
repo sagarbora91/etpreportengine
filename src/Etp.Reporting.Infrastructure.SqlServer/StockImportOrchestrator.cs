@@ -40,6 +40,7 @@ public sealed class StockSqlImportOrchestrator(ITransactionalImportStore store)
         var movements=parsed.Movements.Select(x=>new StockMovementPersistence(x.StoreCode,x.DocumentNumber,EtpInvoiceIdentity.FinancialYearEnd(x.DocumentDate),x.DocumentDate,x.ProductCode,x.SourceTransactionType,x.FromLocation,x.ToLocation,x.OpeningQuantity,x.TransactionQuantity,x.ClosingQuantity,new(x.Lineage.SheetName,x.Lineage.SourceRowNumber,parsed.ReportCode))).ToArray();
 
         var snapshots=parsed.Snapshots.Select(x=>new StockSnapshotPersistence(x.StoreCode,x.SnapshotDate,x.ProductCode,x.Ean,x.BrandCode,null,x.Cluster,x.Gender,x.BatchNumber,x.SourceUid,x.Quantity,x.UnitCost,x.TotalCost,new(x.Lineage.SheetName,x.Lineage.SourceRowNumber,parsed.ReportCode))).ToArray();
+        snapshots=StockSnapshotLines.Assign(snapshots,StockSnapshotSources.ClosingStock);
         var id=await store.PersistAsync(new ImportPersistencePackage(batch,file,[],[],movements,snapshots){Restatement=restatement,AcceptedImport=accepted},cancellationToken);
         return new(batchId,id,parsed.ReportCode,movements.Length+snapshots.Length,parsed.Diagnostics);
     }
