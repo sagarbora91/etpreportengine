@@ -201,6 +201,31 @@ public sealed class PhaseOneImportSqlTests(ITestOutputHelper output)
         Assert.Equal(2,await db.Int("SELECT COUNT(*) FROM dbo.sales_invoice_controls"));
     }
 
+    [Fact]
+    public async Task Enrichment_reimport_reports_already_present()
+    {
+        // A later R013 export repeats an earlier row. The procedure skips its stored content key and now reports
+        // ALREADY_PRESENT, where the importer used to record every row as NEW (migration 0038, section E).
+        await using var db=new TestDatabase();await db.InitializeAsync();var cro=await FamilySample("R013");
+        var service=new SqlServerImportPersistenceUseCase(db.Fixture.ConnectionString);
+        var repeated=Cells(cro,2,("INVNUMBER","100000901"),("INVDATE",new DateOnly(2026,8,24)));
+        var first=await Save(service,Workbook(cro,[repeated]));
+        Assert.Equal((1,0),(first.PersistedRows,first.AlreadyPresentRows));
+
+        var later=await Save(service,Workbook(cro,[repeated,Cells(cro,3,("INVNUMBER","100000902"),("INVDATE",new DateOnly(2026,8,25)))]));
+
+        Assert.Equal("Imported",later.Status);
+        Assert.Equal(1,later.PersistedRows);
+        Assert.Equal(1,later.AlreadyPresentRows);
+        Assert.Equal(2,await db.Int("SELECT COUNT(*) FROM dbo.sales_line_enrichments"));
+        Assert.Equal("ALREADY_PRESENT 2,NEW 3",await db.Fixture.ExecuteAsync("""
+            SELECT STRING_AGG(CONCAT(o.outcome,' ',l.source_row_number),',') WITHIN GROUP(ORDER BY o.outcome)
+            FROM dbo.import_row_outcomes o JOIN dbo.import_files f ON f.import_file_id=o.import_file_id
+            JOIN dbo.source_lineage l ON l.source_lineage_id=o.source_lineage_id WHERE f.is_superseded=0
+            """));
+        Assert.Equal(1,await db.Int("SELECT COUNT(*) FROM dbo.import_files WHERE is_superseded=1"));
+    }
+
     private static async Task<WorkbookSnapshot> FamilySample(string family)=>await new OpenXmlWorkbookReader().ReadAsync(
         Directory.GetFiles(Path.Combine(AppContext.BaseDirectory,"fixtures","etp-sample"),$"{family}_*.xlsx").Single());
     private static WorkbookRow Cells(WorkbookSnapshot sample,int row,params (string Header,object Value)[] values)
