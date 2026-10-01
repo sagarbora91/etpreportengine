@@ -515,8 +515,8 @@ public sealed partial class PhaseFiveFullWindowCaptureTests(ITestOutputHelper ou
             INSERT dbo.source_lineage(import_file_id,sheet_name,source_row_number,source_record_type) VALUES(@file,'Demo',2,'TENDER'); SET @lineage=SCOPE_IDENTITY();
             INSERT dbo.sales_tenders(sales_invoice_id,tender_type,source_amount,currency_code,source_lineage_id) VALUES(@invoice,'CASH',1200,'INR',@lineage);
             INSERT dbo.source_lineage(import_file_id,sheet_name,source_row_number,source_record_type) VALUES(@file,'Demo',3,'STOCK'); SET @lineage=SCOPE_IDENTITY();
-            INSERT dbo.stock_snapshots(store_code,snapshot_date,product_code,brand_code,brand_name,quantity,unit_cost,total_cost,source_lineage_id)
-             VALUES('CAPTURE','20260825','DEMO-WATCH','DEMO',N'Demo brand',8,400,3200,@lineage);
+            INSERT dbo.stock_snapshots(store_code,snapshot_date,product_code,brand_code,brand_name,quantity,unit_cost,total_cost,source_lineage_id,source_report_code)
+             VALUES('CAPTURE','20260825','DEMO-WATCH','DEMO',N'Demo brand',8,400,3200,@lineage,'CLOSING_STOCK');
             EXEC dbo.save_register_entry @type='COURIER',@store='CAPTURE',@date='20260825',@number='DEMO-COURIER-001',@counterparty=N'Demo courier',@quantity=1,@amount=80,@verification='DRAFT',@reason=N'Synthetic example';
             EXEC dbo.save_register_entry @type='INWARD',@store='CAPTURE',@date='20260825',@number='DEMO-INWARD-001',@counterparty=N'Demo supplier',@quantity=8,@amount=3200,@verification='DRAFT',@reason=N'Synthetic example';
             EXEC dbo.save_register_entry @type='INWARD',@store='CAPTURE',@date='20260825',@number='DEMO-INWARD-001',@counterparty=N'Demo supplier',@quantity=8,@amount=3200,@verification='VERIFIED',@reason=N'Demo evidence checked';
