@@ -17,6 +17,8 @@
 
 **Privacy:** nothing here contains, or may require, a customer name, phone number, address or loyalty number. Test fixtures are synthetic.
 
+> **Owner decisions, 1 Oct 2026 (late evening):** OD-1, OD-2, OD-3, OD-4 and OD-5 are **accepted as recommended**. OD-6 and OD-7 are still open (needed by P8 and P4). **Implementer:** from 1 Oct 2026 the Owner no longer uses Codex; this spec is implemented by Claude agents. Read "Codex" and "Codex-days" below as "the implementer" and "implementer-days".
+
 ---
 
 ## 0. Reading guide and conventions
@@ -1691,6 +1693,8 @@ Approving all five:
 ---
 
 ## 18. Open decisions for the Owner
+
+**Status 1 Oct 2026:** OD-1 to OD-5 accepted by the Owner as recommended; OD-6 and OD-7 open.
 
 | # | Decision | Needed by | Recommendation |
 |---|---|---|---|
