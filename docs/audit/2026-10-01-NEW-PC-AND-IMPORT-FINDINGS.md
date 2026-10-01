@@ -44,3 +44,10 @@ Proposed shape, to be settled by a design review before the Service Centre impor
 - **Lineage keeps both sources**, so every figure can be traced to the export (raw or consolidated block) it came from.
 
 The consolidation tooling must emit the contract; `check_workbook.py`'s outdated heuristics (handoff, section 5 item 5) should be retired with it.
+
+**Design review outcome (1 Oct 2026, evening; proposed, awaiting the Owner).** A judge-panel design workflow compared three designs: minimal change, block-aware contract and row-centric fact ledger. The judges' totals were 19, 20 and 16. A completeness review followed, and all 34 of its findings were resolved in version 2. The proposal builds the block-aware model on today's pipeline, with a planner switch for each report code, no second engine, and the urgent fixes first in release 1.9.3. The full set is in `docs/roadmap/import-engine-2026-10-01/`:
+- `CONSOLIDATED-AND-RAW-IMPORT-SPEC.md`: the implementation spec for Codex, with phases P0–P9 and about 87–105 Codex-days;
+- `CONSOLIDATION-CONTRACT.md`: what the builder must emit;
+- `DESIGN-DECISION-RECORD.md`: why this design was chosen.
+
+The Owner's decisions OD-1 to OD-7 are in the spec, §18.
