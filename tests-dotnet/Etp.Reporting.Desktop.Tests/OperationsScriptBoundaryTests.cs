@@ -35,9 +35,15 @@ public sealed class OperationsScriptBoundaryTests
         using var process = Process.Start(start)!;
         var stdout = process.StandardOutput.ReadToEndAsync();
         var stderr = process.StandardError.ReadToEndAsync();
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+        // A busy CI runner can take well over 45 s to start Windows PowerShell and resolve
+        // account SIDs. On timeout, report what the script printed so the stalled step is visible.
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(120));
         try { await process.WaitForExitAsync(timeout.Token); }
-        catch (OperationCanceledException) { process.Kill(entireProcessTree: true); throw; }
+        catch (OperationCanceledException)
+        {
+            process.Kill(entireProcessTree: true);
+            throw new TimeoutException($"Operations boundary scenario {scenario} did not finish within 120 s.{Environment.NewLine}{await stdout}{await stderr}");
+        }
         var output = await stdout + await stderr;
         Assert.True(process.ExitCode == 0, output);
         Assert.Contains($"Operations boundary scenario succeeded: {scenario}", output, StringComparison.Ordinal);
