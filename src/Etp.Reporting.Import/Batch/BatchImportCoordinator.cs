@@ -1,3 +1,5 @@
+using Etp.Reporting.Application.Imports;
+
 namespace Etp.Reporting.Import.Batch;
 
 public enum BatchImportFileStatus { Succeeded, Failed, Cancelled }
@@ -48,6 +50,16 @@ public interface IImportFailureClassifier
 {
     bool IsTransient(Exception exception);
     (string Code, string SafeMessage) Describe(Exception exception);
+
+    /// <summary>
+    /// The failure as an attempt records it (spec 11.1). <paramref name="stage"/> is where the caller was; a
+    /// classifier may name a more precise stage, e.g. <see cref="FailureStage.Commit"/> for a commit timeout.
+    /// </summary>
+    ImportFailure DescribeDetailed(Exception exception, FailureStage stage)
+    {
+        var (code, message) = Describe(exception);
+        return new(code, stage, message, exception.GetType().Name);
+    }
 }
 
 public sealed class SafeImportFailureClassifier : IImportFailureClassifier

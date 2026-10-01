@@ -23,6 +23,13 @@ public sealed record FolderImportFileResult(
 {
     public string? SourcePath { get; init; }
     public string? SourceSha256 { get; init; }
+    /// <summary>Code, stage, safe message and issues of a failed attempt (IF-017); null when it did not fail.</summary>
+    public ImportFailure? Failure { get; init; }
+    /// <summary>Whether the import transaction committed, rolled back or could not be confirmed (IF-014).</summary>
+    public CommitState? CommitState { get; init; }
+    /// <summary>Whether the source bytes are held inside the database (IF-023); null when not determined.</summary>
+    public EvidenceState? Evidence { get; init; }
+    public Guid? BatchId { get; init; }
     public string Period => PeriodStart is null ? "—" : PeriodStart == PeriodEnd
         ? PeriodStart.Value.ToString("dd MMM yyyy")
         : $"{PeriodStart:dd MMM yyyy} – {PeriodEnd:dd MMM yyyy}";

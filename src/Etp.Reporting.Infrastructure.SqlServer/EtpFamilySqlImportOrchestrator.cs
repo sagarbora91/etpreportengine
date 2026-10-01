@@ -1,4 +1,5 @@
 using Etp.Reporting.Import.Preflight;
+using Etp.Reporting.Import.Staging;
 
 namespace Etp.Reporting.Infrastructure.SqlServer;
 
@@ -12,17 +13,21 @@ public sealed class EtpFamilySqlImportOrchestrator(ITransactionalImportStore sto
             expectedStoreCode,expectedBusinessDate);
         var start=accepted.Scope.PeriodStart??scope.BusinessDate;
         var batch=Guid.NewGuid();
+        // R010 rows carry no date of their own; each row is stamped with the date of its snapshot.
+        DateOnly SnapshotDate(StagedImportRow row)=>scope.BusinessDate!.Value;
+
         var snapshots=accepted.ProfileIdentity.ReportCode=="R010"
             ? accepted.Staging.Rows.Select(row=>
             {
                 var v=row.Values;
                 string? Text(string key)=>v.GetValueOrDefault(key) as string;
                 decimal? Number(string key)=>v.GetValueOrDefault(key) is decimal value?value:null;
-                return new StockSnapshotPersistence(scope.StoreCode!,scope.BusinessDate!.Value,Text("itemnumber")!,null,
+                return new StockSnapshotPersistence(scope.StoreCode!,SnapshotDate(row),Text("itemnumber")!,null,
                     Text("brand"),Text("brandname"),Text("cluster"),Text("gender"),Text("lotnumber"),Text("uid"),
                     Number("closingbalance")??0,Number("ucp"),Number("totalucp"),
                     new(accepted.MatchedSheet.Name,row.SourceRowNumber,"R010_SNAPSHOT"));
             }).ToArray() : [];
+
         return await store.PersistAsync(new ImportPersistencePackage(
             new(batch,null,start,scope.BusinessDate,DateTimeOffset.UtcNow),
             new(batch,accepted.ProfileIdentity,accepted.Workbook.FileName,accepted.Workbook.Sha256,accepted.Workbook.FileSizeBytes,

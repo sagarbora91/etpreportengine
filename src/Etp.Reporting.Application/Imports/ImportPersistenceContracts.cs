@@ -26,6 +26,9 @@ public sealed record ImportPersistenceResult(
     public string Status { get; init; } = "Imported";
     public int AlreadyPresentRows { get; init; }
     public int ConflictRows { get; init; }
+    /// <summary>Whether the import transaction stored the source bytes (IF-023); null when it did not say.</summary>
+    public EvidenceState? Evidence { get; init; }
+    public Guid? BatchId { get; init; }
 }
 
 public sealed record ImportRowOutcome(
