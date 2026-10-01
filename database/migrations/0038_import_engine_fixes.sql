@@ -34,9 +34,10 @@ IF EXISTS(SELECT 1 FROM dbo.sales_invoices WITH(UPDLOCK,HOLDLOCK)
 
 -- >>> E_ENRICHMENT begin
 -- E. Enrichment outcome. The procedure skipped a content key it already held while the importer recorded NEW.
--- It now reports NEW or ALREADY_PRESENT through @outcome, and planner 1 records that outcome. A CONFLICT cannot
--- arise from the key, because the key is derived from the content (EtpInvoiceIdentity.LineKeys). A caller that
--- does not pass @outcome behaves as before.
+-- It now reports NEW or ALREADY_PRESENT through @outcome, and planner 1 records that outcome. The key is derived
+-- from the keyed content (EtpInvoiceIdentity.LineKeys), so no CONFLICT is reported; a later export that changes
+-- only unkeyed values (gross value, other charges, staff name, activation or discount details) is reported
+-- ALREADY_PRESENT and keeps the stored values (known limitation). A caller that does not pass @outcome behaves as before.
 EXEC(N'CREATE OR ALTER PROCEDURE dbo.persist_phase_one_enrichment
  @file bigint,@report varchar(10),@store varchar(30),@doc nvarchar(80),@date date,@product nvarchar(80),@type nvarchar(80),
  @qty decimal(19,4),@net decimal(19,4),@gross decimal(19,4),@cro nvarchar(80),@name nvarchar(200),

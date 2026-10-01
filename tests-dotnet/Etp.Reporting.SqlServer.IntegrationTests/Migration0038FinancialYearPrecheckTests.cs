@@ -35,7 +35,20 @@ public sealed class Migration0038FinancialYearPrecheckTests
 
         Assert.Contains(await store.GetAppliedAsync(), migration => migration.Id.StartsWith("0038", StringComparison.Ordinal));
         Assert.Equal(1, await db.ExecuteAsync(OutcomeParameter));
+
+        // A second run of 0038 is a no-op: the pre-check passes and the procedure and its grant stay as they are.
+        var applied = await store.GetAppliedAsync();
+        var definition = await db.ExecuteAsync(Definition);
+        var script = (await source.DiscoverAsync()).Single(migration => migration.Id.StartsWith("0038", StringComparison.Ordinal));
+        await db.ExecuteInTransactionAsync(script.Sql);
+
+        Assert.Equal(applied, await store.GetAppliedAsync());
+        Assert.Equal(definition, await db.ExecuteAsync(Definition));
+        Assert.Equal(1, await db.ExecuteAsync(OutcomeParameter));
+        Assert.Equal(2027, await db.ExecuteAsync("SELECT invoice_year FROM dbo.sales_invoices WHERE store_code='FYCHECK'"));
     }
+
+    private const string Definition = "SELECT OBJECT_DEFINITION(OBJECT_ID(N'dbo.persist_phase_one_enrichment'))";
 
     private sealed class Before0038(IMigrationSource source) : IMigrationSource
     {
@@ -55,6 +68,17 @@ public sealed class Migration0038FinancialYearPrecheckTests
             await connection.OpenAsync();
             await using var command = new SqlCommand(sql, connection);
             return await command.ExecuteScalarAsync();
+        }
+
+        // As the migration runner applies a script: the whole body in one transaction.
+        public async Task ExecuteInTransactionAsync(string sql)
+        {
+            await using var connection = new SqlConnection(ConnectionString);
+            await connection.OpenAsync();
+            await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync();
+            await using var command = new SqlCommand(sql, connection, transaction);
+            await command.ExecuteNonQueryAsync();
+            await transaction.CommitAsync();
         }
 
         public async ValueTask DisposeAsync()

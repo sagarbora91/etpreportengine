@@ -177,11 +177,21 @@ public sealed class PhaseOneImportSqlTests(ITestOutputHelper output)
         var notice=Assert.Single(new MatchedImportEnvelopeFactory().RequireAccepted(controls).Diagnostics,d=>d.Code==ImportCodes.InvoiceYearDiffers);
         Assert.Equal((3,1),(notice.RowNumber!.Value,notice.Occurrences));
 
-        var saved=await Save(service,controls);
+        var saved=Assert.Single((await new FolderImportService(service,new SnapshotReader(controls))
+            .RunFilesAsync(["R022-april-return.xlsx"],new("SQL behavior test"))).Files);
 
         Assert.Equal("Imported",saved.Status);
-        Assert.Equal(2,saved.PersistedRows);
+        Assert.Equal(2,saved.NewRows);
         Assert.Equal(0,saved.ConflictRows);
+        // History keeps the notice's code, severity and row, never the label or date values (spec 7.3).
+        var history=await new SqlServerImportHistoryQuery(db.Fixture.ConnectionString)
+            .LoadAsync(new(saved.PeriodStart!.Value,saved.PeriodEnd!.Value,saved.StoreCode));
+        var recorded=Assert.Single(Assert.Single(history,entry=>entry.Result.ReportCode=="R022").Result.Diagnostics!,
+            d=>d.Code==ImportCodes.InvoiceYearDiffers);
+        Assert.Equal((ImportIssueSeverity.Information,(int?)3),(recorded.Severity,recorded.SourceRow));
+        var stored=(string)(await db.Fixture.ExecuteAsync("SELECT diagnostics_json FROM dbo.import_attempts WHERE report_code='R022'"))!;
+        Assert.Contains(ImportCodes.InvoiceYearDiffers,stored);
+        Assert.DoesNotContain("2026-04-01",stored);Assert.DoesNotContain("financial year",stored);
         Assert.Equal(0,await db.Int("SELECT COUNT(*) FROM dbo.import_row_outcomes WHERE outcome='CONFLICT'"));
         // One header per financial year, each holding its own R025 line, R022 control and tender.
         Assert.Equal("2026 2026-03-31 1/1/1,2027 2026-04-01 1/1/1",await db.Fixture.ExecuteAsync("""
@@ -361,6 +371,10 @@ public sealed class PhaseOneImportSqlTests(ITestOutputHelper output)
     {
         var accepted=new MatchedImportEnvelopeFactory().RequireAccepted(workbook);
         return service.PersistAsync(new(accepted,accepted.Scope.PeriodEnd!.Value,accepted.Scope.StoreCode!,"SQL behavior test"));
+    }
+    private sealed class SnapshotReader(WorkbookSnapshot workbook) : IWorkbookReader
+    {
+        public Task<WorkbookSnapshot> ReadAsync(string filePath,CancellationToken cancellationToken=default)=>Task.FromResult(workbook);
     }
     private sealed class TestDatabase : IAsyncDisposable
     {
