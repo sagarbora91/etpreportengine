@@ -278,7 +278,7 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
             context.StoreCode, context.ImportedBy, restatement);
         if (restatement is not null)
             await persistence.PrepareRestatementAsync(request, cancellationToken).ConfigureAwait(false);
-        await persistence.PersistAsync(request, cancellationToken).ConfigureAwait(false);
+        var saved = await persistence.PersistAsync(request, cancellationToken).ConfigureAwait(false);
         if (restatement is not null) await recordRestatementAudit(cancellationToken).ConfigureAwait(false);
         await retainEvidence(
             connectionString,
@@ -296,7 +296,7 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
             outcome.NewRows,
             outcome.AlreadyPresentRows,
             outcome.ConflictRows,
-            outcome.ExactDuplicate);
+            outcome.ExactDuplicate) { Issues = saved.Issues };
     }
 
     private static async Task<ImportRestatement?> ResolveRestatementAsync(

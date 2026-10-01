@@ -62,7 +62,58 @@ public sealed class Migration0038StockAndTenderTests
         var applied = await store.GetAppliedAsync();
         await new MigrationRunner(source, store).RunAsync();
         Assert.Equal(applied, await store.GetAppliedAsync());
+
+        // The runner skips an applied id, so run the sections' own guards a second time directly.
+        var schema = await db.ExecuteAsync(SchemaState);
+        var lines = await db.ExecuteAsync(LineSeqState);
+        await db.RunStockAndTenderSectionsAsync();
+        Assert.Equal(schema, await db.ExecuteAsync(SchemaState));
+        Assert.Equal(lines, await db.ExecuteAsync(LineSeqState));
+        Assert.Equal(0, await db.ExecuteAsync("SELECT COUNT(*) FROM sys.triggers WHERE name='trg_stock_movements_protect_locked' AND is_disabled=1"));
     }
+
+    [Fact]
+    public async Task Case_sensitive_tender_type_is_indexed_through_an_upper_case_key()
+    {
+        await using var db = new UpgradeDatabase();
+        var source = new DirectoryMigrationSource(Path.Combine(AppContext.BaseDirectory, "database", "migrations"));
+        await new SqlServerDatabaseBootstrapper(db.ConnectionString, new Before0038(source)).BootstrapAsync();
+        await db.ExecuteAsync("ALTER TABLE dbo.sales_tenders ALTER COLUMN tender_type nvarchar(80) COLLATE Latin1_General_CS_AS NOT NULL");
+        await db.ExecuteAsync(SeedInvoice);
+
+        await new MigrationRunner(source, new SqlServerMigrationStore(db.ConnectionString)).RunAsync();
+
+        Assert.Equal("tender_type_key", await db.ExecuteAsync("""
+            SELECT STRING_AGG(c.name,',') FROM sys.index_columns ic
+            JOIN sys.indexes i ON i.object_id=ic.object_id AND i.index_id=ic.index_id
+            JOIN sys.columns c ON c.object_id=ic.object_id AND c.column_id=ic.column_id
+            WHERE i.name='UX_sales_tenders_invoice_type' AND c.name<>'sales_invoice_id'
+            """));
+        Assert.Equal(1, await db.ExecuteAsync("SELECT COUNT(*) FROM sys.computed_columns WHERE object_id=OBJECT_ID(N'dbo.sales_tenders') AND name='tender_type_key' AND is_persisted=1"));
+        const string tender = "INSERT dbo.sales_tenders(sales_invoice_id,tender_type,source_amount,currency_code,source_lineage_id) SELECT i.sales_invoice_id,'{0}',50,'INR',{1}(l.source_lineage_id) FROM dbo.sales_invoices i CROSS JOIN dbo.source_lineage l WHERE i.store_code='UPGRADE' GROUP BY i.sales_invoice_id";
+        await db.ExecuteAsync(string.Format(tender, "cash", "MIN"));
+        var duplicate = await Assert.ThrowsAsync<SqlException>(() => db.ExecuteAsync(string.Format(tender, "CASH", "MAX")));
+        Assert.Equal(2601, duplicate.Number);
+
+        var schema = await db.ExecuteAsync(SchemaState);
+        await db.RunStockAndTenderSectionsAsync();
+        Assert.Equal(schema, await db.ExecuteAsync(SchemaState));
+    }
+
+    // The columns and indexes (with key columns) of the tables sections C and C2 change, as one comparable string.
+    private const string SchemaState = """
+        SELECT CONCAT(
+          (SELECT STRING_AGG(CONVERT(nvarchar(max),CONCAT(OBJECT_NAME(object_id),'.',name)),',') WITHIN GROUP(ORDER BY object_id,column_id)
+             FROM sys.columns WHERE object_id IN(OBJECT_ID(N'dbo.stock_movements'),OBJECT_ID(N'dbo.sales_tenders'),OBJECT_ID(N'dbo.sales_invoice_controls'))),
+          '|',
+          (SELECT STRING_AGG(CONVERT(nvarchar(max),CONCAT(i.name,':',c.name)),',') WITHIN GROUP(ORDER BY i.object_id,i.index_id,ic.key_ordinal,ic.column_id)
+             FROM sys.indexes i JOIN sys.index_columns ic ON ic.object_id=i.object_id AND ic.index_id=i.index_id
+             JOIN sys.columns c ON c.object_id=ic.object_id AND c.column_id=ic.column_id
+             WHERE i.object_id IN(OBJECT_ID(N'dbo.stock_movements'),OBJECT_ID(N'dbo.sales_tenders'),OBJECT_ID(N'dbo.sales_invoice_controls'))))
+        """;
+
+    private const string LineSeqState =
+        "SELECT STRING_AGG(CONCAT(stock_movement_id,':',line_seq),'|') WITHIN GROUP(ORDER BY stock_movement_id) FROM dbo.stock_movements";
 
     // An invoice whose year is the financial year of its date, and two lineage rows to hang facts on.
     private const string SeedInvoice = """
@@ -92,6 +143,23 @@ public sealed class Migration0038StockAndTenderTests
             await using var command = new SqlCommand(sql, connection);
             return await command.ExecuteScalarAsync();
         }
+        // Runs 0038 from the C_STOCK_MOVEMENT begin marker to the C2_CONTROL_TENDER end marker as the runner
+        // does: one transaction with XACT_ABORT on.
+        public async Task RunStockAndTenderSectionsAsync()
+        {
+            var script = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "database", "migrations", "0038_import_engine_fixes.sql"));
+            var start = script.IndexOf("-- >>> C_STOCK_MOVEMENT begin", StringComparison.Ordinal);
+            var end = script.IndexOf("-- <<< C2_CONTROL_TENDER end", StringComparison.Ordinal);
+            Assert.True(start >= 0 && end > start, "0038 section markers not found.");
+            await using var connection = new SqlConnection(ConnectionString);
+            await connection.OpenAsync();
+            await using (var abort = new SqlCommand("SET XACT_ABORT ON", connection)) await abort.ExecuteNonQueryAsync();
+            await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync();
+            await using var command = new SqlCommand(script[start..end], connection, transaction);
+            await command.ExecuteNonQueryAsync();
+            await transaction.CommitAsync();
+        }
+
         public async ValueTask DisposeAsync()
         {
             if (!name.StartsWith("EtpPhase0Test_", StringComparison.Ordinal)) throw new InvalidOperationException("Unsafe fixture name.");
