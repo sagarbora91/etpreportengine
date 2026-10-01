@@ -1,3 +1,4 @@
+using Etp.Reporting.Application.Imports;
 using Etp.Reporting.Import.Batch;
 using Etp.Reporting.Import.Diagnostics;
 using Etp.Reporting.Import.Preflight;
@@ -50,7 +51,7 @@ public sealed class AutomatedOperationsService(string connectionString)
                     knownStores: knownStores);
                 var batch=await folderService.RunAsync(source,new(AutomationIdentity()),cancellationToken:cancellationToken);
                 duplicates+=batch.Duplicates;
-                foreach(var file in batch.Files.Where(x=>x.Status=="Imported" && x.PeriodEnd is not null)) importedDates.Add(file.PeriodEnd!.Value);
+                importedDates.UnionWith(RetailPackDates(batch.Files));
                 if(batch.Failed>0 || batch.UnknownLayouts>0)
                 {
                     failed++;
@@ -100,6 +101,11 @@ public sealed class AutomatedOperationsService(string connectionString)
         }
         return new(processed, failed, duplicates, packs, $"Unattended run completed: {processed} source(s) processed, {failed} failed, {packs} report pack(s) generated.");
     }
+
+    // Automatic packs are Retail management packs; a Service Centre (AW330) import never asks for one.
+    internal static IEnumerable<DateOnly> RetailPackDates(IEnumerable<FolderImportFileResult> files) =>
+        files.Where(x=>x.Status=="Imported" && x.PeriodEnd is not null && (x.ReportCode is null || EtpReportFamilyRegistry.IsRetail(x.ReportCode)))
+            .Select(x=>x.PeriodEnd!.Value);
 
     public async Task<AutomatedWorkbookOutcome> ProcessWorkbookAsync(string workbookPath, CancellationToken cancellationToken = default)
     {

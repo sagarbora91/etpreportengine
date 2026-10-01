@@ -2,7 +2,6 @@ using Etp.Reporting.Application.Imports;
 using Etp.Reporting.Import.Batch;
 using Etp.Reporting.Import.Preflight;
 using Etp.Reporting.Import.Profiles;
-using System.Text.RegularExpressions;
 using Etp.Reporting.Import.Workbooks;
 
 namespace Etp.Reporting.Infrastructure.SqlServer;
@@ -78,15 +77,24 @@ public sealed class FolderImportService(
                 scope?.StoreCode, scope?.PeriodStart, scope?.PeriodEnd, "Importing", Diagnostics: issues)
                 { SourcePath = entry.Path, SourceSha256 = accepted?.Workbook.Sha256 };
             progress?.Report(new(results.Count, paths.Count, result.FileName, "Importing", results.Append(result).ToArray()));
+            // A file named for a report code the catalogue does not hold is not needed, even when its headers
+            // match a known family: the retired Service Centre S038 SRN Report repeats S011's layout and
+            // would otherwise be saved as a second, empty S011 import.
+            var sourceCode = EtpReportFamilyRegistry.FamilyCodePattern.Match(result.FileName);
+            var unsupportedFamily = sourceCode.Success && !EtpReportFamilyRegistry.Families.Any(family =>
+                family.FamilyCode.Equals(sourceCode.Groups[1].Value, StringComparison.OrdinalIgnoreCase));
+            var notNeeded = result.FileName.StartsWith("00_", StringComparison.OrdinalIgnoreCase) || unsupportedFamily;
+            if (notNeeded)
+            {
+                results.Add(result with { ReportCode = null, StoreCode = null, PeriodStart = null, PeriodEnd = null, Status = "Not needed",
+                    Message = unsupportedFamily ? "This ETP report type is not needed by the reporting engine; the other workbooks are processed." : "Consolidation control workbook; report workbooks are imported separately." });
+                continue;
+            }
             if (accepted is null)
             {
                 var unknown = issues.Any(issue => issue.Code is "LAYOUT_UNKNOWN" or "REQUIRED_COLUMN_MISSING" or "UNEXPECTED_COLUMN");
-                var sourceCode = Regex.Match(result.FileName, @"(?:^|[^A-Z0-9])(R\d{3})(?:[^A-Z0-9]|$)", RegexOptions.IgnoreCase);
-                var unsupportedFamily = sourceCode.Success && !EtpReportFamilyRegistry.Families.Any(family =>
-                    family.FamilyCode.Equals(sourceCode.Groups[1].Value, StringComparison.OrdinalIgnoreCase));
-                var notNeeded = result.FileName.StartsWith("00_", StringComparison.OrdinalIgnoreCase) || unsupportedFamily;
-                result = result with { Status = notNeeded ? "Not needed" : unknown ? "Unknown layout" : "Failed",
-                    Message = notNeeded ? unsupportedFamily ? "This ETP report type is not needed by the reporting engine; the other workbooks are processed." : "Consolidation control workbook; report workbooks are imported separately." : string.Join(" ", issues.Select(issue => issue.Message).Distinct()) };
+                result = result with { Status = unknown ? "Unknown layout" : "Failed",
+                    Message = string.Join(" ", issues.Select(issue => issue.Message).Distinct()) };
                 results.Add(result);
                 continue;
             }

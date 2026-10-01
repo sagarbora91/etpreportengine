@@ -12,7 +12,8 @@ public sealed record CellConversionResult(object? Value, string? ErrorCode = nul
 
 public sealed class TypedCellConverter
 {
-    private static readonly string[] DateFormats = ["yyyy-MM-dd", "yyyyMMdd", "dd/MM/yyyy", "dd-MM-yyyy", "yyyy/MM/dd", "d-MMM-yyyy", "dd MMM yyyy", "d MMM yy"];
+    // d-M-yyyy: Service Centre Delivery/Repair Report "Created Date" text such as 7-2-2026 (one- or two-digit day and month).
+    private static readonly string[] DateFormats = ["yyyy-MM-dd", "yyyyMMdd", "dd/MM/yyyy", "dd-MM-yyyy", "yyyy/MM/dd", "d-MMM-yyyy", "dd MMM yyyy", "d MMM yy", "d-M-yyyy"];
 
     public CellConversionResult Convert(object? source, CanonicalDataType target, bool isRequired)
     {

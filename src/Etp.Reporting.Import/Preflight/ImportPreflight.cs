@@ -15,6 +15,9 @@ public sealed record ImportPreflightResult(
 
 public sealed class ImportPreflight
 {
+    // Sheets the consolidation adds beside Data: Info (lineage) and, for the Service Centre
+    // current-snapshot families, Snapshot History (superseded snapshots). Neither is an export.
+    private static readonly HashSet<string> ConsolidationSheets = new(StringComparer.OrdinalIgnoreCase) { "Info", "Snapshot History" };
     private readonly ImportProfileMatcher matcher = new();
 
     public ImportPreflightResult Inspect(
@@ -38,7 +41,7 @@ public sealed class ImportPreflight
             diagnostics.Add(Blocker("WORKBOOK_NO_SHEETS", "The workbook contains no readable sheets."));
 
         var candidates = new List<(WorkbookSheet Sheet, ImportProfile Profile)>();
-        foreach (var originalSheet in workbook.Sheets.Where(sheet => !sheet.Name.Equals("Info", StringComparison.OrdinalIgnoreCase)))
+        foreach (var originalSheet in workbook.Sheets.Where(sheet => !ConsolidationSheets.Contains(sheet.Name)))
         {
             var sheet = originalSheet;
             if (sheet.Rows.Count == 0 && (sheet.Headers.Count == 0 || sheet.Headers.All(string.IsNullOrWhiteSpace)))

@@ -95,6 +95,40 @@ public sealed class ImportPreflightTests
         Assert.Contains(result.Diagnostics, x => x.Code == "REPEATED_LAYOUT_MISMATCH");
     }
 
+    [Fact]
+    public void Service_centre_snapshot_history_sheet_is_ignored_like_info()
+    {
+        var family = EtpReportFamilyRegistry.Resolve("S006");
+        var workbook = new WorkbookSnapshot("S006_ClosingStock.xlsx", 100, new string('a', 64),
+        [
+            new WorkbookSheet("Data", 1, family.Headers, []),
+            new WorkbookSheet("Info", 1, ["Family ID", "S006"], []),
+            new WorkbookSheet("Snapshot History", 1, [.. family.Headers, "Snapshot_As_Of", "SourceFile"], [])
+        ]);
+
+        var result = new ImportPreflight().Inspect(workbook, ApprovedImportProfileRegistry.All);
+
+        Assert.True(result.CanImport);
+        Assert.Equal("S006", result.Profile!.ReportCode);
+        Assert.DoesNotContain(result.Diagnostics, d => d.Code == "UNEXPECTED_COLUMN");
+    }
+
+    [Fact]
+    public void Another_extra_sheet_keeps_todays_closest_profile_warnings()
+    {
+        var family = EtpReportFamilyRegistry.Resolve("S006");
+        var workbook = new WorkbookSnapshot("S006_ClosingStock.xlsx", 100, new string('a', 64),
+        [
+            new WorkbookSheet("Data", 1, family.Headers, []),
+            new WorkbookSheet("History", 1, [.. family.Headers, "Snapshot_As_Of", "SourceFile"], [])
+        ]);
+
+        var result = new ImportPreflight().Inspect(workbook, ApprovedImportProfileRegistry.All);
+
+        Assert.True(result.CanImport);
+        Assert.Contains(result.Diagnostics, d => d.Code == "UNEXPECTED_COLUMN" && d.SheetName == "History");
+    }
+
     private static ImportProfile Profile(string[] headers) => new("SYNTHETIC", "1", "1",
         ImportProfileMatcher.CreateHeaderSignature(headers),
         headers.Select((header, index) => new ImportFieldMapping(header, $"field_{index}", CanonicalDataType.Text, true)));

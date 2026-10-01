@@ -38,7 +38,8 @@ public sealed class EtpCorpusGoldenTests(ITestOutputHelper output)
     // receives its catalogue from SQL rather than a global list of retail codes.
     private static readonly string[] FixtureStores = ["HEMW", "WLMHW"];
     public static IEnumerable<object[]> Families => Enumerable.Range(1, 31).Select(i => new object[] { $"R{i:000}" })
-        .Append(["SOR_AGEING"]);
+        .Append(["SOR_AGEING"])
+        .Concat(Enumerable.Range(1, 40).Where(i => i != 38).Select(i => new object[] { $"S{i:000}" }));
 
     [Theory]
     [MemberData(nameof(Families))]
@@ -51,11 +52,30 @@ public sealed class EtpCorpusGoldenTests(ITestOutputHelper output)
         var accepted = inspection.AcceptedImport!;
         var family = EtpReportFamilyRegistry.Resolve(accepted.Profile.ReportCode);
         Assert.Equal(familyCode, family.FamilyCode);
-        Assert.Equal("HEMW", accepted.Scope.StoreCode);
-        Assert.Equal(new DateOnly(2026, 8, 25), accepted.Scope.PeriodEnd);
         var row = Assert.Single(accepted.Staging.Rows);
         Assert.Equal(snapshot.Sheets[0].Headers.Count, row.Values.Count);
         Assert.DoesNotContain(accepted.Diagnostics, diagnostic => diagnostic.Severity == ImportDiagnosticSeverity.Blocker);
+        if (familyCode.StartsWith('S'))
+        {
+            // AW330 comes from the exporting-centre column; the fixture store list stays Retail-only.
+            // S011 and S013 have no such column and take their store from folder siblings.
+            Assert.Equal(familyCode is "S011" or "S013" ? null : "AW330", accepted.Scope.StoreCode);
+            // Row-date families from the cell, snapshot families from the Info "20260928" token.
+            Assert.Equal(new DateOnly(2026, 9, 28), accepted.Scope.PeriodEnd);
+            Assert.Equal(family.Headers.Count, row.Values.Count);
+            if (familyCode == "S003")
+            {
+                Assert.Equal(100m, row.Values["net_amount"]);
+                Assert.Equal(18m, row.Values["tax_amount"]);
+                Assert.Equal(new DateOnly(2026, 9, 28), row.Values["trans_date"]);
+            }
+            if (familyCode == "S036") Assert.Equal(new DateOnly(2026, 9, 28), row.Values["created_date"]);
+            if (familyCode == "S031") Assert.Equal(new DateOnly(2026, 9, 28), row.Values["jodate"]);
+            if (familyCode == "S028") Assert.Equal(new DateOnly(2026, 9, 28), row.Values["booking_date"]);
+            return;
+        }
+        Assert.Equal("HEMW", accepted.Scope.StoreCode);
+        Assert.Equal(new DateOnly(2026, 8, 25), accepted.Scope.PeriodEnd);
         if (familyCode == "R025")
         {
             Assert.Equal(118m, row.Values["source_net_amount"]);

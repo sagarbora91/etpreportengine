@@ -15,7 +15,9 @@ public sealed class ImportProfileMatcher
         var signature = CreateHeaderSignature(sourceHeaders);
         var matches = profiles.Where(x => x.HeaderSignatureSha256 == signature).ToArray();
         if (matches.Length <= 1) return matches.SingleOrDefault();
-        var named = EtpReportFamilyRegistry.IdentifyName(fileName) ?? EtpReportFamilyRegistry.IdentifyName(sheetName);
+        // Only the families that share this signature may be named; profiles outside the catalogue are never candidates.
+        var candidates = EtpReportFamilyRegistry.Families.Where(family => matches.Any(profile => profile.ReportCode == family.ReportCode)).ToArray();
+        var named = EtpReportFamilyRegistry.IdentifyName(fileName, candidates) ?? EtpReportFamilyRegistry.IdentifyName(sheetName, candidates);
         return named is null ? null : matches.SingleOrDefault(profile => profile.ReportCode == named.ReportCode);
     }
 
