@@ -131,4 +131,7 @@ public sealed class ImportSourceException : Exception
         : base(safeMessage, innerException) => Code = code;
 
     public string Code { get; }
+
+    /// <summary>Where the import refused, when the thrower knows better than its caller (e.g. a planner refusal).</summary>
+    public Etp.Reporting.Application.Imports.FailureStage? Stage { get; init; }
 }

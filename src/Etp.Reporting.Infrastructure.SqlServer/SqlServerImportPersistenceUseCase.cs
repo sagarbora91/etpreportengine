@@ -226,7 +226,7 @@ public sealed partial class SqlServerImportPersistenceUseCase : IImportPersisten
         command.Parameters.AddWithValue("@file", importFileId);
         var savedBatch = await command.ExecuteScalarAsync(token).ConfigureAwait(false);
         if (savedBatch is not Guid batchId) throw new InvalidOperationException("The committed import file could not be found.");
-        return batchId == attemptedBatchId ? result
+        return batchId == attemptedBatchId ? result with { BatchId = batchId }
             : new(result.ReportCode, 0) { Status = "Duplicate", AlreadyPresentRows = sourceRows };
     }
 

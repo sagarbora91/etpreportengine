@@ -40,7 +40,7 @@ public static class DesktopFriendlyError
         SqlException { Number: 51210 } => "This business day is finalised. Reopen it before making changes.",
         SqlException sql when DescribeBusinessFailure(sql) is { } message => message,
         SqlException sql when sql.Number >= 51000 => "The database rejected this change. Review the inputs and day status.",
-        ImportSourceException => exception.Message,
+        ImportSourceException or ImportConflictException => exception.Message,
         ArgumentException => System.Text.RegularExpressions.Regex.Replace(exception.Message, @"\s*\(Parameter .*?\)\s*$", ""),
         InvalidOperationException => exception.Message,
         _ => "The action could not be completed. Technical details are available in the support package."
