@@ -75,18 +75,26 @@ function New-EtpProtectedDirectory {
     return $full
 }
 
+function Get-EtpOdbc17SqlCmdPath {
+    # Where the bundled Sqlcmd (Command Line Utilities 15, on ODBC Driver 17) installs.
+    return (Join-Path $env:ProgramFiles 'Microsoft SQL Server\Client SDK\ODBC\170\Tools\Binn\SQLCMD.EXE')
+}
+
 function Resolve-EtpSqlCmd {
     param([string]$ExplicitPath)
     # The ODBC client reaches a local instance over shared memory, which SQL
     # Server Express and Developer enable by default. go-sqlcmd resolves a bare
     # ".\INSTANCE" over named pipes, which they disable by default, so it is
     # preferred only when the ODBC client is absent.
-    # ODBC 18 ships with SQL Server 2025 tooling, 17 with 2022. Look for the newer one
-    # first: pinning a single version meant a machine with only the current tools
-    # resolved nothing and fell through to go-sqlcmd.
+    # The ODBC 17 Sqlcmd comes first. The ODBC 18 one, which SQL Server 2025's own setup
+    # installs, encrypts by default and refuses the instance's self-signed certificate,
+    # so on a new PC (1 October 2026) every call setup made failed with "The certificate
+    # chain was issued by an authority that is not trusted". It stays as the fallback:
+    # pinning a single version meant a machine with only the current tools resolved
+    # nothing and fell through to go-sqlcmd.
     $candidates = @($ExplicitPath,
+        (Get-EtpOdbc17SqlCmdPath),
         (Join-Path $env:ProgramFiles 'Microsoft SQL Server\Client SDK\ODBC\180\Tools\Binn\SQLCMD.EXE'),
-        (Join-Path $env:ProgramFiles 'Microsoft SQL Server\Client SDK\ODBC\170\Tools\Binn\SQLCMD.EXE'),
         (Join-Path $env:ProgramFiles 'sqlcmd\sqlcmd.exe'))
     foreach ($candidate in $candidates) {
         if ($candidate -and (Test-Path -LiteralPath $candidate -PathType Leaf)) {

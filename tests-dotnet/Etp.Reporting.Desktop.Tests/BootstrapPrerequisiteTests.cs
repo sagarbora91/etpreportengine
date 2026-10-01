@@ -456,6 +456,44 @@ public sealed class BootstrapPrerequisiteTests
         finally { Directory.Delete(media, recursive: true); }
     }
 
+    // SQL Server 2025's own setup installs an ODBC 18 Sqlcmd, which encrypts by default and
+    // refuses the new instance's self-signed certificate. On the first real new PC (1 October
+    // 2026) setup counted it as "Sqlcmd installed", skipped the bundled Sqlcmd 15, resolved the
+    // ODBC 18 one and failed its first query. The ODBC 17 Sqlcmd must win, and only it counts.
+    [Fact]
+    public async Task Odbc17_sqlcmd_is_preferred_and_an_odbc18_sqlcmd_alone_does_not_count_as_installed()
+    {
+        var programFiles = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "EtpSqlCmdChoice", Guid.NewGuid().ToString("N"))).FullName;
+        try
+        {
+            var script = FindBootstrapScript().Replace("'", "''");
+            var command = $$"""
+                $ErrorActionPreference = 'Stop'
+                . '{{script}}' -ApplicationDirectory 'C:\UnusedBootstrapTest'
+                function Assert-EtpProtectedInstall { param($Path) }
+                $env:ProgramFiles = '{{programFiles.Replace("'", "''")}}'
+                function Add-SqlCmd([string]$Odbc) {
+                    $folder = Join-Path $env:ProgramFiles "Microsoft SQL Server\Client SDK\ODBC\$Odbc\Tools\Binn"
+                    $null = New-Item -ItemType Directory -Force -Path $folder
+                    Set-Content -LiteralPath (Join-Path $folder 'SQLCMD.EXE') -Value 'marker'
+                    return (Join-Path $folder 'SQLCMD.EXE')
+                }
+                $odbc18 = Add-SqlCmd '180'
+                if (Test-EtpSqlCmdInstalled) { throw 'The ODBC 18 Sqlcmd alone counted as installed.' }
+                if ((Resolve-EtpSqlCmd) -ne $odbc18) { throw 'The ODBC 18 Sqlcmd is no longer the fallback.' }
+                $odbc17 = Add-SqlCmd '170'
+                if (-not (Test-EtpSqlCmdInstalled)) { throw 'The ODBC 17 Sqlcmd did not count as installed.' }
+                $resolved = Resolve-EtpSqlCmd
+                if ($resolved -ne $odbc17) { throw "The ODBC 17 Sqlcmd was not preferred: $resolved" }
+                Write-Output 'Sqlcmd choice passed.'
+                """;
+            var result = await RunPowerShellAsync(["-Command", command]);
+            Assert.True(result.ExitCode == 0, result.Output);
+            Assert.Contains("Sqlcmd choice passed.", result.Output);
+        }
+        finally { Directory.Delete(programFiles, recursive: true); }
+    }
+
     [Fact]
     public async Task Bundled_media_installs_the_engine_then_odbc17_odbc18_and_sqlcmd_with_no_restart()
     {

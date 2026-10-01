@@ -151,7 +151,12 @@ function Get-EtpSqlClientInstallPlan {
 }
 
 function Test-EtpSqlCmdInstalled {
-    try { $null = Resolve-EtpSqlCmd; return $true } catch { return $false }
+    # Only the ODBC 17 Sqlcmd counts. SQL Server 2025's setup brings an ODBC 18 Sqlcmd that
+    # cannot connect to the instance it just installed (see Resolve-EtpSqlCmd); counting it
+    # made setup skip the bundled Sqlcmd and then fail its first query.
+    $path = Get-EtpOdbc17SqlCmdPath
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return $false }
+    try { Assert-EtpProtectedInstall $path; return $true } catch { return $false }
 }
 
 function Test-EtpSqlEngineInstalled {
@@ -278,7 +283,8 @@ function Install-EtpSqlPrerequisitesFromPayload {
         Write-Host 'Installing SQL Server Express from the media included with this installer.'
         Install-EtpSqlEngineFromPayload -PayloadDirectory $PayloadDirectory -ServiceName $ServiceName
     }
-    # SQL Server setup may have brought a Sqlcmd of its own; then nothing more is needed.
+    # SQL Server setup brings only an ODBC 18 Sqlcmd, which does not count, so the bundled
+    # one is still installed; the check stays in case a future media brings the ODBC 17 one.
     if ($clientPlan.Count -gt 0 -and -not (Test-EtpSqlCmdInstalled)) {
         foreach ($package in $clientPlan) {
             # /norestart: a driver that asks for a restart must not restart the PC under setup.
