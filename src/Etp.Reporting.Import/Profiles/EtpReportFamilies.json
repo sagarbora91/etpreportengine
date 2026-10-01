@@ -3983,7 +3983,7 @@
         "CanonicalField": "otp_number",
         "DataType": "Identifier",
         "IsRequired": false,
-        "Role": "Fact"
+        "Role": "Descriptive"
       },
       {
         "SourceHeader": "REFINVOICENUMBER",
@@ -4833,7 +4833,7 @@
         "CanonicalField": "creditcardno",
         "DataType": "Identifier",
         "IsRequired": false,
-        "Role": "Fact"
+        "Role": "Descriptive"
       },
       {
         "SourceHeader": "APPROVALNUMBER",
@@ -5086,7 +5086,7 @@
         "CanonicalField": "location",
         "DataType": "Text",
         "IsRequired": false,
-        "Role": "Fact"
+        "Role": "Descriptive"
       },
       {
         "SourceHeader": "FROM_REGION",
@@ -7817,14 +7817,14 @@
         "CanonicalField": "purchaseinvno",
         "DataType": "Identifier",
         "IsRequired": false,
-        "Role": "Fact"
+        "Role": "Attribute"
       },
       {
         "SourceHeader": "PURCHASEINVDT",
         "CanonicalField": "purchaseinvdt",
         "DataType": "Date",
         "IsRequired": false,
-        "Role": "Fact"
+        "Role": "Attribute"
       },
       {
         "SourceHeader": "AVAILABLE_STK",

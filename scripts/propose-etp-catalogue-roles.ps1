@@ -1,3 +1,5 @@
+#Requires -Version 7.5
+# JsonSerializerOptions.NewLine below needs .NET 9, so PowerShell 7.5 or later.
 <#
 .SYNOPSIS
     Proposes the column roles and document identity of the Retail families in EtpReportFamilies.json.
@@ -10,7 +12,7 @@
       2. Key          store_code, the DocumentKey fields, a Date family's business date, a snapshot date column
       3. Ignored      the canonical field contains "timestamp" (today's content_key already leaves these out)
       4. Label        ETP's own year labels: invoice_year, referenceyear
-      5. Descriptive  store, customer, loyalty and GST-number columns (spec 7.4 patterns)
+      5. Descriptive  store, customer, loyalty, GST-number and card/OTP columns (spec 7.4 patterns)
       6. Attribute    item master data and references to other documents (Owner decision OD-3)
       7. Fact         the default
 
@@ -20,7 +22,8 @@
 
     Without a switch the script prints the proposal and every difference from the catalogue. -Check exits 1 when
     they differ. -Write rewrites the catalogue in place, unchanged apart from the proposed fields.
-    EtpReportFamilyCatalogueTests pins the result. Families of another business unit are left untouched.
+    EtpReportFamilyCatalogueTests pins the result and runs -Check, so the catalogue and this script cannot drift apart:
+    change a decision here, run -Write, then re-pin the tests. Families of another business unit are left untouched.
 #>
 [CmdletBinding()]
 param(
@@ -69,6 +72,9 @@ $reviewed = @{
     R003 = @{ activation_details = 'Attribute'; user_discount_details = 'Attribute' }   # spec 7.3
     R011 = @{ itemdescription = 'Descriptive' }                                          # spec 7.3
     R030 = @{ location = 'Descriptive' }   # spec 7.3: describes the store; FROM/TO LOCATION stay facts
+    # As in R030, LOCATION sits with the receiving store's region, state and city and describes that store;
+    # the sending side is the FROM_* columns.
+    R021 = @{ location = 'Descriptive' }
     # Spec 7.4: credit-note status. ISSUETO names whom the note was issued to, like a customer column.
     R012 = @{ redeemed_date = 'Attribute'; redeemed_by = 'Attribute'; issued_cnno = 'Attribute'
               issued_cnamt = 'Attribute'; issueto = 'Descriptive' }
@@ -76,6 +82,15 @@ $reviewed = @{
     R004 = @{ purinvno = 'Attribute'; purinvdate = 'Attribute' }
     R007 = @{ purinvno = 'Attribute'; purinvdate = 'Attribute' }
     R028 = @{ purinvno = 'Attribute'; purinvdate = 'Attribute' }
+    # The purchase invoice a goods receipt came in on. Not part of the RowKey (itemnumber, gr_number).
+    SOR_AGEING = @{ purchaseinvno = 'Attribute'; purchaseinvdt = 'Attribute' }
+    # Payment instruments. Credit card numbers and OTPs are Descriptive by pattern (Test-Descriptive). The gift card
+    # number, the approval number of a card, gift-card or loyalty payment and R002's SIGNET_NO identify what was
+    # tendered or booked rather than who, so they stay facts; recorded here so the review is visible.
+    R020 = @{ approvalnumber = 'Fact' }
+    R016 = @{ approval_number = 'Fact' }
+    R017 = @{ giftcardno = 'Fact'; approvalnumber = 'Fact' }
+    R002 = @{ signet_no = 'Fact' }
     # Dispatch status, filled in after the issue was made.
     R005 = @{ couriername = 'Attribute'; couriernumber = 'Attribute'; courierdate = 'Attribute'
               airwaybillno = 'Attribute'; dispatchtype = 'Attribute' }
@@ -106,9 +121,11 @@ function Test-Descriptive([string]$field) {
     ($field -match '^(to|from)_(region|state|city)$') -or
     ($field -like 'customer*') -or
     # PHONEPE is a tender, not a phone number.
-    ($field -like '*phone*' -and $field -notlike '*phonepe*') -or
+    ($field -like '*phone*' -and $field -notlike '*phonepe*') -or ($field -like '*mobile*') -or
     ($field -like '*contact*') -or ($field -like 'ulp*') -or ($field -like '*gstin*') -or ($field -like '*gstn*') -or
-    ($field -like 'encircle*') -or ($field -like '*address*') -or ($field -like '*email*') -or ($field -eq 'cro_name')
+    ($field -like 'encircle*') -or ($field -like '*address*') -or ($field -like '*email*') -or ($field -eq 'cro_name') -or
+    # A customer's (masked) card number and a one-time password: ETP may re-mask them, and they are not figures.
+    ($field -like '*creditcardno*') -or ($field -like 'otp_*')
 }
 
 function Test-Attribute([string]$field) {

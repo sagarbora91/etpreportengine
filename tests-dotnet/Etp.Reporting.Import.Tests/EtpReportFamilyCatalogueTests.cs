@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -39,12 +40,12 @@ public sealed class EtpReportFamilyCatalogueTests
         ["R007"] = (1, "a78823d54b72"), ["R008"] = (1, "5ada244ef423"), ["R009"] = (1, "72f0ef55d195"),
         ["R010"] = (1, "4ff5452c46e8"), ["R011"] = (1, "27be9a0f6c5a"), ["R012"] = (1, "f5d3064afdb5"),
         ["R013"] = (1, "7a9fa2a2e7e5"), ["R014"] = (1, "bd8bd1d309d4"), ["R015"] = (1, "89b6d17ffd9a"),
-        ["R016"] = (1, "b53a77f2ce1a"), ["R017"] = (1, "4de9a576b823"), ["R018"] = (1, "d70de48f6059"),
-        ["R019"] = (1, "35764f892fdd"), ["R020"] = (1, "7c0f9dbbc7f8"), ["R021"] = (1, "a7e6f4f7e332"),
+        ["R016"] = (1, "e5365fed16ff"), ["R017"] = (1, "4de9a576b823"), ["R018"] = (1, "d70de48f6059"),
+        ["R019"] = (1, "35764f892fdd"), ["R020"] = (1, "e2b0f3a5043f"), ["R021"] = (1, "a2cb20433c37"),
         ["R022"] = (1, "833968e82ed8"), ["R023"] = (1, "6a840b558cf2"), ["R024"] = (1, "fc688cd37a45"),
         ["R025"] = (1, "cf5c4e94e59d"), ["R026"] = (1, "8e8ece5d1faf"), ["R027"] = (1, "8fc83ae621ce"),
         ["R028"] = (1, "c6921f63ccb6"), ["R029"] = (1, "831e81a473be"), ["R030"] = (1, "f4e6e5b71fed"),
-        ["R031"] = (1, "2d968d11caa4"), ["SOR_AGEING"] = (1, "b83ab2e0128e")
+        ["R031"] = (1, "2d968d11caa4"), ["SOR_AGEING"] = (1, "5e230c29d09b")
     };
 
     private static IEnumerable<EtpReportFamily> Retail =>
@@ -130,7 +131,7 @@ public sealed class EtpReportFamilyCatalogueTests
         "store_name channel region state city encircle_no encircle_enrol_date customernumber customer_name customer_phone",
         "", "")]
     [InlineData("R016", "store_code transaction_date", "refinvoicenumber",
-        "store_name store_type channel region state city encircle_number customer_name",
+        "store_name store_type channel region state city encircle_number customer_name otp_number",
         "", "")]
     [InlineData("R017", "store_code invdate", "",
         "store_name store_type channel region city",
@@ -142,10 +143,10 @@ public sealed class EtpReportFamilyCatalogueTests
         "store_name issue_state_name issue_gstn_no recipient_state_name recipient_gstn_no",
         "", "")]
     [InlineData("R020", "store_code invdate", "",
-        "channel region storename city state",
+        "channel region storename city state creditcardno",
         "", "")]
     [InlineData("R021", "store_code physc_recv_date", "ref_document_number ref_document_date",
-        "store_name region state city from_region from_state from_city",
+        "store_name region state city location from_region from_state from_city",
         "invoice_year", "")]
     [InlineData("R022", "store_code invoice_number", "reference_invoice_number",
         "store_name store_type channel region state city customer_name customer_phone encircle",
@@ -180,7 +181,7 @@ public sealed class EtpReportFamilyCatalogueTests
         "hsncode brand brandname cluster gender invrefno invrefdate etpadvorder etpadvdate ocshipmentno",
         "storename storetype channel region city customer_name customer_phone ulpnumber",
         "", "storetimestamp")]
-    [InlineData("SOR_AGEING", "store_code", "hsn_code brand brandname cluster gender",
+    [InlineData("SOR_AGEING", "store_code", "hsn_code brand brandname cluster gender purchaseinvno purchaseinvdt",
         "store_name",
         "", "")]
     public void Roles_are_pinned(string code, string key, string attribute, string descriptive, string label, string ignored)
@@ -315,6 +316,8 @@ public sealed class EtpReportFamilyCatalogueTests
                 column => Assert.Equal(ColumnRole.Descriptive, column.Role));
         });
         Assert.Contains("tender_phonepe", Fields(Family("R022"), ColumnRole.Fact));
+        Assert.Contains("creditcard", Fields(Family("R014"), ColumnRole.Fact));
+        Assert.True(IsCustomerColumn("customer_mobile_no") && IsCustomerColumn("mobile_no"));
 
         // The check is not vacuous: keying on a loyalty number, or giving a phone number the Key role, is caught.
         EtpSourceColumn[] columns =
@@ -366,6 +369,44 @@ public sealed class EtpReportFamilyCatalogueTests
     }
 
     [Fact]
+    public async Task Generator_proposes_the_catalogue_as_committed()
+    {
+        // The roles are proposed by the generator and reviewed there (spec 15, P2); a hand edit to the JSON that the
+        // generator would not propose, or a generator change not written back, fails here.
+        var root = RepositoryRoot();
+        var start = new ProcessStartInfo("pwsh")
+        {
+            RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true
+        };
+        foreach (var argument in new[]
+                 {
+                     "-NoLogo", "-NoProfile", "-NonInteractive", "-File",
+                     Path.Combine(root, "scripts", "propose-etp-catalogue-roles.ps1"), "-Check",
+                     "-CataloguePath", Path.Combine(root, "src", "Etp.Reporting.Import", "Profiles", "EtpReportFamilies.json")
+                 })
+            start.ArgumentList.Add(argument);
+
+        using var process = Process.Start(start) ?? throw new InvalidOperationException("Could not start PowerShell.");
+        var output = process.StandardOutput.ReadToEndAsync();
+        var error = process.StandardError.ReadToEndAsync();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+        try
+        {
+            await process.WaitForExitAsync(timeout.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            process.Kill(entireProcessTree: true);
+            throw new TimeoutException("The catalogue generator did not finish within 60 seconds.");
+        }
+
+        var (standardOutput, standardError) = (await output, await error);
+        Assert.True(process.ExitCode == 0,
+            $"propose-etp-catalogue-roles.ps1 -Check exited {process.ExitCode}: {standardOutput} {standardError}");
+        Assert.Contains("The catalogue matches the proposal.", standardOutput, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Row_key_entries_read_coalesce_alternatives_in_order()
     {
         Assert.Equal(["product_code"], EtpFamilyIdentityFields.RowKeyAlternatives("product_code"));
@@ -381,6 +422,16 @@ public sealed class EtpReportFamilyCatalogueTests
         Assert.Equal(["ITEM-1", ""], closingStock.RowKeyValues(new Dictionary<string, string> { ["product_code"] = "ITEM-1" }));
     }
 
+    private static string RepositoryRoot()
+    {
+        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "Etp.Reporting.slnx"))) return directory.FullName;
+        }
+
+        throw new DirectoryNotFoundException("Could not locate the repository root containing Etp.Reporting.slnx.");
+    }
+
     private static EtpReportFamily Family(string code) => EtpReportFamilyRegistry.Families.Single(family => family.FamilyCode == code);
 
     private static string[] Split(string text) => text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
@@ -388,10 +439,13 @@ public sealed class EtpReportFamilyCatalogueTests
     private static string[] Fields(EtpReportFamily family, ColumnRole role) =>
         family.ColumnsWithRole(role).Select(column => column.CanonicalField).ToArray();
 
-    // Spec 7.4 patterns for customer, loyalty and GST-number columns. PHONEPE is a tender, not a phone number.
+    // Spec 7.4 patterns for customer, loyalty and GST-number columns, plus a customer's card number and OTP. PHONEPE is
+    // a tender, not a phone number; CREDITCARD and GIFTCARD without NO are tender amounts.
     private static bool IsCustomerColumn(string field) =>
         field.StartsWith("customer", StringComparison.Ordinal) ||
         (field.Contains("phone", StringComparison.Ordinal) && !field.Contains("phonepe", StringComparison.Ordinal)) ||
+        field.Contains("mobile", StringComparison.Ordinal) || field.Contains("creditcardno", StringComparison.Ordinal) ||
+        field.StartsWith("otp_", StringComparison.Ordinal) ||
         field.Contains("contact", StringComparison.Ordinal) || field.StartsWith("ulp", StringComparison.Ordinal) ||
         field.Contains("gstin", StringComparison.Ordinal) || field.Contains("gstn", StringComparison.Ordinal) ||
         field.StartsWith("encircle", StringComparison.Ordinal) || field.Contains("address", StringComparison.Ordinal) ||
