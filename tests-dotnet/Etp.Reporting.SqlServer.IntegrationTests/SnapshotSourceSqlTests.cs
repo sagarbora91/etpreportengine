@@ -64,6 +64,42 @@ public sealed class SnapshotSourceSqlTests(SqlDatabaseFixture database) : IClass
     }
 
     [Fact]
+    public async Task Reordered_snapshot_file_matches_each_repeated_line_through_the_importer()
+    {
+        var store = new SqlServerTransactionalImportStore(database.ConnectionString);
+        var day = new DateOnly(2026, 8, 18);
+        await new StockSqlImportOrchestrator(store).PersistAsync(ClosingStock(day, "8888", ("SNAP-R", 1m), ("SNAP-S", 3m), ("SNAP-R", 1m)));
+        // Another file for the day with the same rows in another order and one more item: not a content duplicate,
+        // so every row reaches persist_stock_snapshot and each repeat is matched by its own line.
+        await new StockSqlImportOrchestrator(store).PersistAsync(ClosingStock(day, "9999", ("SNAP-S", 3m), ("SNAP-R", 1m), ("SNAP-T", 2m), ("SNAP-R", 1m)));
+
+        Assert.Equal("SNAP-R:1,SNAP-R:2,SNAP-S:1,SNAP-T:1", await database.ExecuteAsync(
+            "SELECT STRING_AGG(CONCAT(product_code,':',line_seq),',') WITHIN GROUP(ORDER BY product_code,line_seq) FROM dbo.stock_snapshots WHERE store_code='HEMW' AND snapshot_date='20260818'"));
+        Assert.Equal("ALREADY_PRESENT:3,NEW:1", await database.ExecuteAsync("""
+            SELECT STRING_AGG(CONCAT(outcome,':',n),',') WITHIN GROUP(ORDER BY outcome) FROM (
+             SELECT o.outcome,COUNT(*) n FROM dbo.import_row_outcomes o JOIN dbo.import_files f ON f.import_file_id=o.import_file_id
+             WHERE f.source_sha256 LIKE '9999%' AND o.business_identity LIKE N'HEMW/2026-08-18/%' GROUP BY o.outcome) x
+            """));
+        Assert.Equal(7m, await database.ExecuteAsync("SELECT SUM(quantity) FROM dbo.v_stock_snapshots_effective WHERE store_code='HEMW' AND snapshot_date='20260818'"));
+    }
+
+    [Fact]
+    public async Task Source_that_contradicts_the_lineage_is_refused()
+    {
+        var refused = await Assert.ThrowsAsync<SqlException>(() => database.ExecuteAsync("""
+            DECLARE @batch uniqueidentifier=NEWID(),@file bigint,@closing bigint;
+            INSERT dbo.import_batches(import_batch_id,status,started_utc,completed_utc,source_row_count) VALUES(@batch,'Completed',SYSUTCDATETIME(),SYSUTCDATETIME(),1);
+            INSERT dbo.import_files(import_batch_id,original_file_name,source_sha256,size_bytes,report_code,store_code,business_date,period_start,period_end,data_truth_version)
+             VALUES(@batch,'WRONG-SOURCE.xlsx',REPLICATE('4',64),2048,'CLOSING_STOCK','WRONGSRC','20260814','20260814','20260814',1);
+            SET @file=SCOPE_IDENTITY();
+            INSERT dbo.source_lineage(import_file_id,sheet_name,source_row_number,source_record_type) VALUES(@file,'Sheet0',2,'CLOSING_STOCK'); SET @closing=SCOPE_IDENTITY();
+            EXEC dbo.persist_stock_snapshot @store='WRONGSRC',@date='20260814',@product=N'SNAP-W',@batch=N'LOT-1',@qty=1,@lineage=@closing,@source='R010';
+            """));
+        Assert.Equal(51760, refused.Number);
+        Assert.Equal(0, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.stock_snapshots WHERE store_code='WRONGSRC'"));
+    }
+
+    [Fact]
     public async Task Caller_without_source_gets_it_from_lineage()
     {
         // An older caller passes neither @source nor @line_seq.
@@ -131,6 +167,55 @@ public sealed class SnapshotSourceSqlTests(SqlDatabaseFixture database) : IClass
             // The guard is back on: the locked day still refuses a change.
             var stillLocked = await Assert.ThrowsAsync<SqlException>(() => Execute(connectionString, "UPDATE dbo.stock_snapshots SET quantity=quantity WHERE store_code='LOCKSNAP'"));
             Assert.Equal(51034, stillLocked.Number);
+        }
+        finally { await Drop(connectionString, name); }
+    }
+
+    [Fact]
+    public async Task Legacy_day_with_R010_imported_first_keeps_its_R011_rows_after_backfill()
+    {
+        var name = "EtpPhase0Test_SnapshotLegacy_" + Guid.NewGuid().ToString("N");
+        var connectionString = TestSqlConnections.ForDatabase(name, pooling: false);
+        try
+        {
+            var source = new DirectoryMigrationSource(database.MigrationDirectory);
+            await new SqlServerDatabaseBootstrapper(connectionString, new BeforeImportEngine(source)).BootstrapAsync();
+            // The pre-0038 procedure: R010 first, then R011. The identical R011 rows were logged ALREADY_PRESENT
+            // against the R010 row and not stored; the differing one was a CONFLICT; SNAP-N was new.
+            await Execute(connectionString, """
+                DECLARE @batch uniqueidentifier=NEWID(),@r010 bigint,@r011 bigint,@lineage bigint;
+                INSERT dbo.import_batches(import_batch_id,status,started_utc,completed_utc,source_row_count) VALUES(@batch,'Completed',SYSUTCDATETIME(),SYSUTCDATETIME(),7);
+                INSERT dbo.import_files(import_batch_id,original_file_name,source_sha256,size_bytes,report_code,store_code,business_date,period_start,period_end,data_truth_version)
+                 VALUES(@batch,'LEGACY-R010.xlsx',REPLICATE('2',64),2048,'R010','MIXSNAP','20260805','20260805','20260805',1);
+                SET @r010=SCOPE_IDENTITY();
+                INSERT dbo.import_files(import_batch_id,original_file_name,source_sha256,size_bytes,report_code,store_code,business_date,period_start,period_end,data_truth_version)
+                 VALUES(@batch,'LEGACY-R011.xlsx',REPLICATE('3',64),2048,'CLOSING_STOCK','MIXSNAP','20260805','20260805','20260805',1);
+                SET @r011=SCOPE_IDENTITY();
+                INSERT dbo.source_lineage(import_file_id,sheet_name,source_row_number,source_record_type) VALUES(@r010,'Data',2,'R010_SNAPSHOT'); SET @lineage=SCOPE_IDENTITY();
+                EXEC dbo.persist_stock_snapshot @store='MIXSNAP',@date='20260805',@product=N'SNAP-M',@batch=N'LOT-1',@qty=2,@unit=10,@total=20,@lineage=@lineage;
+                INSERT dbo.source_lineage(import_file_id,sheet_name,source_row_number,source_record_type) VALUES(@r010,'Data',3,'R010_SNAPSHOT'); SET @lineage=SCOPE_IDENTITY();
+                EXEC dbo.persist_stock_snapshot @store='MIXSNAP',@date='20260805',@product=N'SNAP-P',@batch=N'LOT-1',@qty=5,@lineage=@lineage;
+                INSERT dbo.source_lineage(import_file_id,sheet_name,source_row_number,source_record_type) VALUES(@r011,'Sheet0',2,'CLOSING_STOCK'); SET @lineage=SCOPE_IDENTITY();
+                EXEC dbo.persist_stock_snapshot @store='MIXSNAP',@date='20260805',@product=N'SNAP-M',@batch=N'LOT-1',@qty=2,@unit=10,@total=20,@lineage=@lineage;
+                INSERT dbo.source_lineage(import_file_id,sheet_name,source_row_number,source_record_type) VALUES(@r011,'Sheet0',3,'CLOSING_STOCK'); SET @lineage=SCOPE_IDENTITY();
+                EXEC dbo.persist_stock_snapshot @store='MIXSNAP',@date='20260805',@product=N'SNAP-M',@batch=N'LOT-1',@qty=2,@unit=10,@total=20,@lineage=@lineage;
+                INSERT dbo.source_lineage(import_file_id,sheet_name,source_row_number,source_record_type) VALUES(@r011,'Sheet0',4,'CLOSING_STOCK'); SET @lineage=SCOPE_IDENTITY();
+                EXEC dbo.persist_stock_snapshot @store='MIXSNAP',@date='20260805',@product=N'SNAP-P',@batch=N'LOT-1',@qty=6,@lineage=@lineage;
+                INSERT dbo.source_lineage(import_file_id,sheet_name,source_row_number,source_record_type) VALUES(@r011,'Sheet0',5,'CLOSING_STOCK'); SET @lineage=SCOPE_IDENTITY();
+                EXEC dbo.persist_stock_snapshot @store='MIXSNAP',@date='20260805',@product=N'SNAP-N',@batch=N'LOT-1',@qty=3,@lineage=@lineage;
+                """);
+            Assert.Equal("ALREADY_PRESENT:2,CONFLICT:1,NEW:3", await Execute(connectionString,
+                "SELECT STRING_AGG(CONCAT(outcome,':',n),',') WITHIN GROUP(ORDER BY outcome) FROM (SELECT outcome,COUNT(*) n FROM dbo.import_row_outcomes WHERE business_identity LIKE N'MIXSNAP/%' GROUP BY outcome) x"));
+
+            await new MigrationRunner(source, new SqlServerMigrationStore(connectionString)).RunAsync();
+
+            // Both repeated SNAP-M lines of the R011 file are stored as Closing Stock; the R010 rows stay as they were.
+            Assert.Equal("CLOSING_STOCK:SNAP-M:2:1,CLOSING_STOCK:SNAP-M:2:2,CLOSING_STOCK:SNAP-N:3:1,R010:SNAP-M:2:1,R010:SNAP-P:5:1", await Execute(connectionString,
+                "SELECT STRING_AGG(CONCAT(source_report_code,':',product_code,':',CONVERT(int,quantity),':',line_seq),',') WITHIN GROUP(ORDER BY source_report_code,product_code,line_seq) FROM dbo.stock_snapshots WHERE store_code='MIXSNAP'"));
+            Assert.Equal(7m, await Execute(connectionString, "SELECT SUM(quantity) FROM dbo.v_stock_snapshots_effective WHERE store_code='MIXSNAP'"));
+            // The differing SNAP-P reading stays with the conflict review; only its hash was ever kept.
+            Assert.Equal(1, await Execute(connectionString, "SELECT COUNT(*) FROM dbo.import_conflicts WHERE store_code='MIXSNAP'"));
+            Assert.Equal(0, await Execute(connectionString, "SELECT COUNT(*) FROM sys.database_permissions WHERE major_id=OBJECT_ID(N'dbo.v_stock_snapshots_effective') AND state='D' AND USER_NAME(grantee_principal_id)='etp_owner'"));
         }
         finally { await Drop(connectionString, name); }
     }

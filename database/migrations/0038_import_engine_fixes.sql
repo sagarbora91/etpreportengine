@@ -45,6 +45,23 @@ BEGIN
  UPDATE s SET source_report_code=CASE WHEN l.source_record_type=''R010_SNAPSHOT'' THEN ''R010'' ELSE ''CLOSING_STOCK'' END
  FROM dbo.stock_snapshots s JOIN dbo.source_lineage l ON l.source_lineage_id=s.source_lineage_id
  WHERE s.source_report_code IS NULL;
+ -- Before 0038 the identity had no source, so on a store-day where R010 was imported first each identical
+ -- R011 row was logged ALREADY_PRESENT against the R010 row and never stored. The view reads R011 only
+ -- for such a day, so store those R011 rows now from the R010 row they matched, under their own lineage,
+ -- from the earliest current R011 file only, so a later re-import of the same rows is not counted twice.
+ -- (A differing R011 row was logged as a CONFLICT and stays with the conflict review: only its hash is kept.)
+ INSERT dbo.stock_snapshots(store_code,snapshot_date,product_code,ean,brand_code,brand_name,cluster,gender,batch_number,source_uid,quantity,unit_cost,total_cost,source_lineage_id,source_report_code)
+ SELECT r.store_code,r.snapshot_date,r.product_code,r.ean,r.brand_code,r.brand_name,r.cluster,r.gender,r.batch_number,r.source_uid,r.quantity,r.unit_cost,r.total_cost,o.source_lineage_id,''CLOSING_STOCK''
+ FROM (SELECT o.source_lineage_id,o.business_identity,DENSE_RANK() OVER(PARTITION BY o.business_identity ORDER BY o.import_file_id) file_rank
+       FROM dbo.import_row_outcomes o
+       JOIN dbo.source_lineage l ON l.source_lineage_id=o.source_lineage_id AND l.source_record_type=''CLOSING_STOCK''
+       JOIN dbo.import_files f ON f.import_file_id=o.import_file_id AND f.is_superseded=0
+       WHERE o.outcome=''ALREADY_PRESENT'') o
+ JOIN (SELECT x.*,CONCAT(x.store_code,N''/'',x.snapshot_date,N''/'',x.product_code,N''/'',x.item_discriminator) legacy_identity,
+         ROW_NUMBER() OVER(PARTITION BY x.store_code,x.snapshot_date,x.product_code,x.item_discriminator ORDER BY x.stock_snapshot_id) n
+       FROM dbo.stock_snapshots x WHERE x.source_report_code=''R010'') r ON r.legacy_identity=o.business_identity AND r.n=1
+ WHERE o.file_rank=1
+   AND NOT EXISTS(SELECT 1 FROM dbo.stock_snapshots c WHERE c.source_lineage_id=o.source_lineage_id);
  WITH s AS (SELECT line_seq,ROW_NUMBER() OVER(PARTITION BY store_code,snapshot_date,source_report_code,product_code,item_discriminator
    ORDER BY quantity,unit_cost,total_cost,stock_snapshot_id) n FROM dbo.stock_snapshots)
  UPDATE s SET line_seq=n WHERE n>1;
@@ -59,15 +76,18 @@ IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'dbo.stock_sn
  EXEC(N'CREATE INDEX IX_stock_snapshots_source ON dbo.stock_snapshots(store_code,snapshot_date,source_report_code)
   INCLUDE(product_code,quantity,total_cost)');
 
--- @source NULL (an older caller) is derived from the lineage record type, as the backfill above derives it,
--- so no caller can store a NULL or a wrong source. Conflicts are logged under the source, not R001.
+-- @source NULL (an older caller) is derived from the lineage record type, as the backfill above derives it.
+-- A given @source must agree with that record type (51760), so no caller can store a NULL or a wrong source. Conflicts are logged under the source, not R001.
 EXEC(N'CREATE OR ALTER PROCEDURE dbo.persist_stock_snapshot
  @store varchar(30),@date date,@product nvarchar(80),@ean nvarchar(80)=NULL,@brand nvarchar(80)=NULL,@brandname nvarchar(200)=NULL,@cluster nvarchar(100)=NULL,@gender nvarchar(50)=NULL,@batch nvarchar(80)=NULL,@uid nvarchar(100)=NULL,@qty decimal(19,4),@unit decimal(19,4)=NULL,@total decimal(19,4)=NULL,@lineage bigint,@source varchar(30)=NULL,@line_seq int=1
 AS
 BEGIN
  SET NOCOUNT ON; DECLARE @existing bigint,@file bigint,@record varchar(40),@identity nvarchar(400),@incoming char(64),@current char(64);
  SELECT @file=import_file_id,@record=source_record_type FROM dbo.source_lineage WHERE source_lineage_id=@lineage;
- SET @source=COALESCE(NULLIF(UPPER(LTRIM(RTRIM(@source))),''''),CASE WHEN @record=''R010_SNAPSHOT'' THEN ''R010'' ELSE ''CLOSING_STOCK'' END);
+ DECLARE @derived varchar(30)=CASE WHEN @record=''R010_SNAPSHOT'' THEN ''R010'' ELSE ''CLOSING_STOCK'' END;
+ SET @source=NULLIF(UPPER(LTRIM(RTRIM(@source))),'''');
+ IF @source IS NOT NULL AND @source<>@derived THROW 51760,''The stock snapshot source does not match the record type of its lineage.'',1;
+ SET @source=@derived;
  SET @identity=CONCAT(@store,N''/'',@date,N''/'',@source,N''/'',@product,N''/'',COALESCE(@uid,@batch,@ean,N''''),N''/#'',@line_seq);
  SET @incoming=LOWER(CONVERT(varchar(64),HASHBYTES(''SHA2_256'',CONCAT(ISNULL(@ean,N''''),N''|'',ISNULL(@brand,N''''),N''|'',ISNULL(@brandname,N''''),N''|'',ISNULL(@cluster,N''''),N''|'',ISNULL(@gender,N''''),N''|'',ISNULL(@batch,N''''),N''|'',ISNULL(@uid,N''''),N''|'',@qty,N''|'',ISNULL(@unit,0),N''|'',ISNULL(@total,0))),2));
  SELECT TOP(1) @existing=stock_snapshot_id,@current=LOWER(CONVERT(varchar(64),HASHBYTES(''SHA2_256'',CONCAT(ISNULL(ean,N''''),N''|'',ISNULL(brand_code,N''''),N''|'',ISNULL(brand_name,N''''),N''|'',ISNULL(cluster,N''''),N''|'',ISNULL(gender,N''''),N''|'',ISNULL(batch_number,N''''),N''|'',ISNULL(source_uid,N''''),N''|'',quantity,N''|'',ISNULL(unit_cost,0),N''|'',ISNULL(total_cost,0))),2)) FROM dbo.stock_snapshots WHERE store_code=@store AND snapshot_date=@date AND source_report_code=@source AND product_code=@product AND item_discriminator=COALESCE(@uid,@batch,@ean,N'''') AND line_seq=@line_seq ORDER BY stock_snapshot_id;
@@ -91,7 +111,7 @@ WHERE s.source_report_code=''CLOSING_STOCK''
             OR NOT EXISTS(SELECT 1 FROM dbo.stock_snapshots b WHERE b.store_code=s.store_code AND b.snapshot_date=s.snapshot_date
                           AND b.source_report_code=''R010'')))');
 GRANT SELECT ON dbo.v_stock_snapshots_effective TO etp_viewer,etp_store_manager,etp_owner;
-DENY INSERT,UPDATE,DELETE ON dbo.v_stock_snapshots_effective TO etp_viewer,etp_store_manager,etp_owner;
+DENY INSERT,UPDATE,DELETE ON dbo.v_stock_snapshots_effective TO etp_store_manager,etp_viewer;
 -- <<< D_SNAPSHOT end
 
 -- >>> E_ENRICHMENT begin
