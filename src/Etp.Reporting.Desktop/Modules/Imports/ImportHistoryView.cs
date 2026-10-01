@@ -40,12 +40,14 @@ public sealed class ImportHistoryView : UserControl
         foreach (var (title, path, width) in new[] {
             ("Recorded (UTC)", "RecordedUtc", 155d), ("File", "Result.FileName", 230d), ("Report", "Result.ReportCode", 80d),
             ("Store", "Result.StoreCode", 80d), ("Period", "Result.Period", 225d), ("Outcome", "Result.Status", 130d),
-            ("Rows", "Result.RowsProcessed", 75d), ("New", "Result.NewRows", 75d), ("Present", "Result.AlreadyPresentRows", 75d), ("Conflicts", "Result.ConflictRows", 75d) })
+            ("Rows", "Result.RowsProcessed", 75d), ("New", "Result.NewRows", 75d), ("Present", "Result.AlreadyPresentRows", 75d), ("Conflicts", "Result.ConflictRows", 75d),
+            ("Failure", "Result.Failure.Code", 190d), ("Stage", "Result.Failure.Stage", 80d) })
             rows.Columns.Add(new DataGridTextColumn { Header = title, Binding = new Binding(path) { StringFormat = path == "RecordedUtc" ? "dd MMM yyyy HH:mm" : null }, Width = width });
         TablePresentation.Configure(rows); AutomationProperties.SetName(rows, "Saved import outcomes");
         rows.SelectionChanged += (_, _) => ShowDetails(rows.SelectedItem as HistoryEntry);
         Grid.SetRow(rows, 1); root.Children.Add(rows);
-        foreach (var (title, path) in new[] { ("Issue", "Code"), ("Row", "SourceRow"), ("Column", "SourceColumn"), ("Guidance", "Message") })
+        foreach (var (title, path) in new[] { ("Severity", "Severity"), ("Issue", "Code"), ("Block", "BlockNo"), ("Row", "SourceRow"),
+            ("Column", "SourceColumn"), ("Document", "DocumentRef"), ("Count", "Occurrences"), ("Guidance", "Message") })
             diagnostics.Columns.Add(new DataGridTextColumn { Header = title, Binding = new Binding(path), Width = path == "Message" ? new DataGridLength(1, DataGridLengthUnitType.Star) : DataGridLength.Auto });
         var details = new StackPanel(); details.Children.Add(detail); details.Children.Add(diagnostics);
         Grid.SetRow(details, 2); root.Children.Add(details); Content = root;
@@ -84,8 +86,19 @@ public sealed class ImportHistoryView : UserControl
     public void SelectEntry(HistoryEntry entry) => rows.SelectedItem = entry;
     private void ShowDetails(HistoryEntry? entry)
     {
-        detail.Text = entry is null ? "Select an import to see its saved diagnostics." : $"{entry.Result.FileName}: {entry.Result.Status}. {entry.Result.Message}";
+        detail.Text = entry is null ? "Select an import to see its saved diagnostics." : Describe(entry.Result);
         diagnostics.ItemsSource = entry?.Result.Diagnostics;
         diagnostics.Visibility = entry?.Result.Diagnostics?.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    // Failure code, stage and message as the attempt recorded them (IF-017), then commit and evidence state.
+    private static string Describe(EtpApplication::Etp.Reporting.Application.Imports.FolderImportFileResult result)
+    {
+        var text = $"{result.FileName}: {result.Status}. {result.Message}";
+        if (result.Failure is { } failure)
+            text += $" Failure {failure.Code} at {failure.Stage}" + (failure.SqlNumber is { } number ? $" (SQL {number})." : ".");
+        if (result.CommitState is { } commit) text += $" Transaction: {commit}.";
+        if (result.Evidence is { } evidence) text += $" Evidence: {evidence}.";
+        return text;
     }
 }
