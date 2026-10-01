@@ -12,7 +12,11 @@ public sealed class StockImportBlockedException(IReadOnlyList<ImportDiagnostic> 
     public IReadOnlyList<ImportDiagnostic> Diagnostics { get; } = diagnostics;
 }
 
-public sealed record StockImportPersistenceOutcome(Guid BatchId,long ImportFileId,string ReportCode,int PersistedRows,IReadOnlyList<ImportDiagnostic> Diagnostics);
+public sealed record StockImportPersistenceOutcome(Guid BatchId,long ImportFileId,string ReportCode,int PersistedRows,IReadOnlyList<ImportDiagnostic> Diagnostics)
+{
+    /// <summary>Warnings the import itself raised, such as <c>STOCK_ROW_REPEATED</c>; not the inspection diagnostics.</summary>
+    public IReadOnlyList<ImportDiagnostic> Warnings { get; init; } = [];
+}
 
 public sealed class StockSqlImportOrchestrator(ITransactionalImportStore store)
 {
@@ -38,9 +42,12 @@ public sealed class StockSqlImportOrchestrator(ITransactionalImportStore store)
         var batch=new ImportBatchRegistration(batchId,storeId,dates.Length==0?null:dates.Min(),dates.Length==0?null:dates.Max(),DateTimeOffset.UtcNow);
         var file=new ImportFileRegistration(batchId,accepted.ProfileIdentity,accepted.Workbook.FileName,accepted.Workbook.Sha256,accepted.Workbook.FileSizeBytes,StoreCode:scope.StoreCode,BusinessDate:scope.BusinessDate,SourceReportDate:scope.BusinessDate,ImportedBy:importedBy??Environment.UserName,PeriodStart:accepted.Scope.PeriodStart??scope.BusinessDate,PeriodEnd:scope.BusinessDate);
         var movements=parsed.Movements.Select(x=>new StockMovementPersistence(x.StoreCode,x.DocumentNumber,EtpInvoiceIdentity.FinancialYearEnd(x.DocumentDate),x.DocumentDate,x.ProductCode,x.SourceTransactionType,x.FromLocation,x.ToLocation,x.OpeningQuantity,x.TransactionQuantity,x.ClosingQuantity,new(x.Lineage.SheetName,x.Lineage.SourceRowNumber,parsed.ReportCode))).ToArray();
+        // Per-unit ledger rows share every identity column; line_seq numbers them in running-balance order (IF-018).
+        var chain=StockUnitSequencer.Assign(parsed.Movements.Select((x,i)=>new StockUnitRow(movements[i].StoreCode,movements[i].InvoiceYear,x.DocumentNumber,x.DocumentDate,x.ProductCode,x.SourceTransactionType,x.FromLocation,x.ToLocation,x.OpeningQuantity,x.TransactionQuantity,x.ClosingQuantity,x.Lineage.SheetName,x.Lineage.SourceRowNumber){RefDocumentNumber=x.RefDocumentNumber,RefDocumentDate=x.RefDocumentDate}).ToArray());
+        movements=movements.Select((m,i)=>m with {LineSeq=chain.LineSeq[i]}).ToArray();
 
         var snapshots=parsed.Snapshots.Select(x=>new StockSnapshotPersistence(x.StoreCode,x.SnapshotDate,x.ProductCode,x.Ean,x.BrandCode,null,x.Cluster,x.Gender,x.BatchNumber,x.SourceUid,x.Quantity,x.UnitCost,x.TotalCost,new(x.Lineage.SheetName,x.Lineage.SourceRowNumber,parsed.ReportCode))).ToArray();
         var id=await store.PersistAsync(new ImportPersistencePackage(batch,file,[],[],movements,snapshots){Restatement=restatement,AcceptedImport=accepted},cancellationToken);
-        return new(batchId,id,parsed.ReportCode,movements.Length+snapshots.Length,parsed.Diagnostics);
+        return new(batchId,id,parsed.ReportCode,movements.Length+snapshots.Length,[..parsed.Diagnostics,..chain.Diagnostics]){Warnings=chain.Diagnostics};
     }
 }

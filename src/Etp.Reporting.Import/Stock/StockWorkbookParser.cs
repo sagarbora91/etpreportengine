@@ -8,7 +8,12 @@ using Etp.Reporting.Import.Workbooks;
 
 namespace Etp.Reporting.Import.Stock;
 
-public sealed record ParsedStockMovement(string StoreCode,string DocumentNumber,DateOnly DocumentDate,string ProductCode,string SourceTransactionType,string? FromLocation,string? ToLocation,decimal OpeningQuantity,decimal TransactionQuantity,decimal ClosingQuantity,SourceLineage Lineage);
+public sealed record ParsedStockMovement(string StoreCode,string DocumentNumber,DateOnly DocumentDate,string ProductCode,string SourceTransactionType,string? FromLocation,string? ToLocation,decimal OpeningQuantity,decimal TransactionQuantity,decimal ClosingQuantity,SourceLineage Lineage)
+{
+    /// <summary>REF_DOCUMENTNUMBER and REF_DOCUMENTDATE order identical per-unit rows (spec 7.2); they are not stored.</summary>
+    public string? RefDocumentNumber { get; init; }
+    public DateOnly? RefDocumentDate { get; init; }
+}
 public sealed record ParsedStockSnapshot(string StoreCode,DateOnly SnapshotDate,string ProductCode,string? Ean,string? BrandCode,string? Cluster,string? Gender,string? BatchNumber,string? SourceUid,decimal Quantity,decimal? UnitCost,decimal? TotalCost,SourceLineage Lineage);
 public sealed record StockWorkbookParseResult(string ReportCode,IReadOnlyList<ParsedStockMovement> Movements,IReadOnlyList<ParsedStockSnapshot> Snapshots,IReadOnlyList<ImportDiagnostic> Diagnostics)
 {
@@ -80,7 +85,11 @@ public sealed class StockWorkbookParser
                     opening,
                     transaction,
                     closing,
-                    new(accepted.Workbook.Sha256, accepted.MatchedSheet.Name, row.SourceRowNumber)));
+                    new(accepted.Workbook.Sha256, accepted.MatchedSheet.Name, row.SourceRowNumber))
+                {
+                    RefDocumentNumber = Optional<string>(values, "ref_documentnumber"),
+                    RefDocumentDate = OptionalValue<DateOnly>(values, "ref_documentdate")
+                });
             }
             return new(reportCode, movements, [], diagnostics);
         }
