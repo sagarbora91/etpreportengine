@@ -36,8 +36,8 @@ public enum ImporterRole { Owner, StoreManager, Automation }
 
 /// <summary>
 /// When a provisional-day update or a same-date snapshot reading of a typed family applies without review
-/// (spec 8.3, rules 13-14). Owner decision OD-7 is open; <see cref="OwnerImportOnly"/> is the recommendation and the default.
-/// Landing-only families apply automatically under every policy except <see cref="AlwaysReview"/>.
+/// (spec 8.3, rules 13-14). <see cref="OwnerImportOnly"/> is OD-7's recommendation and the default; the others are
+/// kept as a setting. Landing-only families apply automatically under every policy (spec 10.1).
 /// </summary>
 public enum ProvisionalPolicy
 {

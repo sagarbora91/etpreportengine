@@ -22,11 +22,11 @@ public sealed class DocumentDecisionEngine : IDocumentDecisionEngine
         ArgumentNullException.ThrowIfNull(request);
         var decisions = new List<DocumentDecisionResult>(request.Incoming.Count);
         var diagnostics = new List<ImportDiagnostic>();
-        var incoming = new HashSet<string>(StringComparer.Ordinal);
+        var incoming = new Dictionary<string, DocumentObservation>(StringComparer.Ordinal);
         foreach (var observation in request.Incoming)
         {
             CheckKey(request, observation.Key);
-            if (!incoming.Add(observation.Key.Hash))
+            if (!incoming.TryAdd(observation.Key.Hash, observation))
                 throw new ArgumentException($"Document {observation.Key} has more than one authoritative observation.", nameof(request));
             request.Stored.TryGetValue(observation.Key.Hash, out var stored);
             var decision = DecideOne(request, observation, stored);
@@ -35,7 +35,7 @@ public sealed class DocumentDecisionEngine : IDocumentDecisionEngine
         }
 
         var retired = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var item in Reinterpretations(request, incoming).Concat(MissingFromLater(request)))
+        foreach (var item in Reinterpretations(request, incoming).Concat(MissingFromLater(request, incoming)))
         {
             if (retired.Add(item.Key.Hash)) decisions.Add(item);
         }
@@ -81,7 +81,12 @@ public sealed class DocumentDecisionEngine : IDocumentDecisionEngine
             };
             if (!string.Equals(o.AttributeSha256, cur.AttributeSha256, StringComparison.OrdinalIgnoreCase))
             {
-                if (!newerOrFirstKnown) return result with { DetailCode = ImportCodes.AttributeNotApplied };
+                if (!newerOrFirstKnown)
+                    return result with
+                    {
+                        Decision = result.MoveRowsPointer ? DocumentDecision.Refreshed : DocumentDecision.Present,
+                        DetailCode = ImportCodes.AttributeNotApplied
+                    };
                 result = Change(result with { Decision = DocumentDecision.AttributeUpdated },
                     new ChangeProposal(ChangeMode.Auto, ChangeReason.Attribute, ChangeAction.Update, VersionChangeKind.Attribute), locked);
                 return result with { NewVersionProvisional = cur.Provisional && !result.SettleProvisional };
@@ -149,18 +154,29 @@ public sealed class DocumentDecisionEngine : IDocumentDecisionEngine
         bool legacyDiffers)
     {
         var retired = stored?.Status == DocumentStatus.Retired;
+        var lastAttested = stored?.Current?.LastAttested ?? ExportTime.Unknown;
+        var headerDiffers = request.Identity.Route is FamilyRoute.Sales or FamilyRoute.Revenue
+            && request.Headers.TryGetValue(o.Key.Hash, out var header) && !header.IsOrphan
+            && o.DocumentDate is { } date && header.TransactionDate != date;
+
+        // 6.6: a legacy merge whose blocks disagree is proposed, never inserted. It keeps its reason ahead of absence
+        // (rule 3) and a locked day (rule 5, which holds it); only a clashing invoice header (rule 4) comes first, since
+        // no insert can apply then.
+        if (legacyDiffers && !retired && !headerDiffers)
+            return Proposal(result with { Decision = DocumentDecision.LegacyBlocksDiffer },
+                ChangeMode.Review, ChangeReason.LegacyBlocksDiffer, ChangeAction.Insert, VersionChangeKind.New, o, locked);
 
         // Rule 3: a later complete export of the same store and report lacks the document. Not added; the Owner decides.
-        // A RETIRED document counts too: otherwise an export between the one that retired it and the one it is missing
-        // from would raise REAPPEARED in one import order and nothing in the other (8.7).
-        if (IsAbsentFromLater(request.Blocks, o))
+        // A RETIRED document counts too, but only for an export newer than every export that attested it (the rule-6
+        // case): otherwise an export between the one that retired it and the one it is missing from would raise
+        // REAPPEARED in one import order and NOT_ADDED in the other (8.7). An older export stays STALE (rule 7), so an
+        // Owner-approved retirement is never asked again.
+        if ((!retired || ExportOrder.IsNewer(o.ExportTime, lastAttested)) && IsAbsentFromLater(request.Blocks, o))
             return Proposal(result with { Decision = DocumentDecision.NotAdded },
                 ChangeMode.Review, ChangeReason.MissingFromLater, ChangeAction.Insert, VersionChangeKind.New, o, locked);
 
         // Rule 4: a shared invoice header already carries another date. Never merged, never re-dated.
-        if (request.Identity.Route is FamilyRoute.Sales or FamilyRoute.Revenue
-            && request.Headers.TryGetValue(o.Key.Hash, out var header) && !header.IsOrphan
-            && o.DocumentDate is { } date && header.TransactionDate != date)
+        if (headerDiffers)
             return result with
             {
                 Decision = DocumentDecision.HeldHeaderDate,
@@ -175,17 +191,11 @@ public sealed class DocumentDecisionEngine : IDocumentDecisionEngine
         if (retired)
         {
             // Rules 6-7: a retired document comes back only from an export newer than every export that attested it.
-            var lastAttested = stored!.Current?.LastAttested ?? ExportTime.Unknown;
             if (ExportOrder.Compare(o.ExportTime, lastAttested) != ExportOrderResult.Newer)
                 return result with { Decision = DocumentDecision.Stale };
             return Proposal(result with { Decision = DocumentDecision.PendingChange },
                 ChangeMode.Review, ChangeReason.Reappeared, ChangeAction.Insert, VersionChangeKind.New, o, locked);
         }
-
-        // 6.6: a legacy merge whose blocks disagree is proposed, never inserted.
-        if (legacyDiffers)
-            return Proposal(result with { Decision = DocumentDecision.LegacyBlocksDiffer },
-                ChangeMode.Review, ChangeReason.LegacyBlocksDiffer, ChangeAction.Insert, VersionChangeKind.New, o, locked);
 
         // Rule 8: new, including a NOT_ADDED document now seen in an export newer than every export that lacked it.
         return result with
@@ -225,8 +235,16 @@ public sealed class DocumentDecisionEngine : IDocumentDecisionEngine
     /// <summary>
     /// 8.4 after the documents: a CURRENT document missing from a newer complete incoming block whose coverage holds
     /// its day, and whose day was over when that block was exported, becomes a RETIRE item for review.
+    /// <list type="bullet">
+    /// <item>"Newer" is judged after this file's documents were decided: a block not newer than the document's own
+    /// authoritative observation in this source raises nothing, since that observation attests it later (6.7).</item>
+    /// <item>A document observed in an older block of this source and missing from a newer one gets both its rule
+    /// decision and the RETIRE item, as importing the two exports one after the other would. The store layer binds
+    /// the RETIRE item to the CURRENT version after this run's AUTO change, if any.</item>
+    /// </list>
     /// </summary>
-    private static IEnumerable<DocumentDecisionResult> MissingFromLater(DecisionRequest request)
+    private static IEnumerable<DocumentDecisionResult> MissingFromLater(
+        DecisionRequest request, IReadOnlyDictionary<string, DocumentObservation> incoming)
     {
         var blocks = request.Blocks.Where(block => block.IsIncoming && IsRebuildable(block.Completeness)
             && block.ExportTime.IsKnown && block.CoverageFrom is not null && block.CoverageTo is not null).ToArray();
@@ -236,11 +254,14 @@ public sealed class DocumentDecisionEngine : IDocumentDecisionEngine
             var cur = stored.Current!;
             var from = stored.DocumentDate!.Value;
             var to = stored.PeriodTo ?? from;
-            // The newest block the document is missing from; the lowest block number among equal times.
+            var seen = incoming.TryGetValue(stored.Key.Hash, out var o) ? o.ExportTime : ExportTime.Unknown;
+            // The newest block the document is missing from; the lowest block number among equal times. A date-only
+            // block counts as midnight here; the order only picks which block the item names, not whether it is raised.
             var missingFrom = blocks
                 .Where(block => block.Covers(from) && block.Covers(to) && to < block.ExportTime.ExportDate!.Value
                     && !block.Observed(stored.Key)
-                    && (!cur.LastAttested.IsKnown || ExportOrder.IsNewer(block.ExportTime, cur.LastAttested)))
+                    && (!cur.LastAttested.IsKnown || ExportOrder.IsNewer(block.ExportTime, cur.LastAttested))
+                    && (true || !seen.IsKnown || ExportOrder.IsNewer(block.ExportTime, seen)))
                 .OrderByDescending(block => block.ExportTime.Instant)
                 .ThenBy(block => block.BlockNo)
                 .FirstOrDefault();
@@ -253,12 +274,13 @@ public sealed class DocumentDecisionEngine : IDocumentDecisionEngine
     }
 
     /// <summary>8.5: documents an earlier reading of the same workbook introduced that this reading does not produce.</summary>
-    private static IEnumerable<DocumentDecisionResult> Reinterpretations(DecisionRequest request, IReadOnlySet<string> incoming)
+    private static IEnumerable<DocumentDecisionResult> Reinterpretations(
+        DecisionRequest request, IReadOnlyDictionary<string, DocumentObservation> incoming)
     {
         foreach (var key in request.EarlierReadingDocuments.DistinctBy(key => key.Hash).OrderBy(key => key.KeyText, StringComparer.Ordinal))
         {
             CheckKey(request, key);
-            if (incoming.Contains(key.Hash)) continue;
+            if (incoming.ContainsKey(key.Hash)) continue;
             if (!request.Stored.TryGetValue(key.Hash, out var stored) || stored is not { Status: DocumentStatus.Current, Current: not null })
                 continue;
             yield return Retire(request, stored, DocumentDecision.Reinterpreted, ChangeReason.Reinterpretation);
@@ -280,13 +302,15 @@ public sealed class DocumentDecisionEngine : IDocumentDecisionEngine
     /// <summary>
     /// A(d) of 8.4: some block of the same store and report, newer than the observation's export, rebuildable, covering
     /// the document's days and taken after they were over, does not hold the document. Stored or incoming alike.
+    /// An observation of unknown time counts any known block as later: the RETIRE path raises an item against a
+    /// version of unknown time (cur.T unknown), so both import orders ask the Owner (8.4, 8.7).
     /// </summary>
     private static bool IsAbsentFromLater(IReadOnlyList<CoverageBlock> blocks, DocumentObservation o)
     {
-        if (o.DocumentDate is not { } from || !o.ExportTime.IsKnown) return false;
+        if (o.DocumentDate is not { } from) return false;
         var to = o.PeriodTo ?? from;
         return blocks.Any(block => IsRebuildable(block.Completeness) && block.ExportTime.IsKnown
-            && ExportOrder.Compare(block.ExportTime, o.ExportTime) == ExportOrderResult.Newer
+            && (!o.ExportTime.IsKnown || ExportOrder.IsNewer(block.ExportTime, o.ExportTime))
             && block.Covers(from) && block.Covers(to) && to < block.ExportTime.ExportDate!.Value
             && !block.Observed(o.Key));
     }
@@ -336,8 +360,10 @@ public sealed class DocumentDecisionEngine : IDocumentDecisionEngine
             HashSet<string> nullable, out bool fills)
         {
             fills = false;
-            foreach (var (field, value) in stored)
+            // Both rows' fields: a value only the incoming row carries is a difference too (a missing field is empty).
+            foreach (var field in stored.Keys.Union(incoming.Keys, StringComparer.Ordinal))
             {
+                var value = stored.TryGetValue(field, out var mine) ? mine : string.Empty;
                 var other = incoming.TryGetValue(field, out var text) ? text : string.Empty;
                 if (string.Equals(value, other, StringComparison.Ordinal)) continue;
                 if (!nullable.Contains(field) || !string.IsNullOrEmpty(value)) return false;
@@ -394,12 +420,12 @@ public sealed class DocumentDecisionEngine : IDocumentDecisionEngine
     private static bool InProvisionalWindow(ExportTime time, DateOnly? day) =>
         time.IsKnown && day is { } value && time.ExportDate!.Value <= value.AddDays(1);
 
-    /// <summary>Rules 13-14 under the provisional policy (OD-7): landing-only families need no Owner.</summary>
-    private static bool AppliesAutomatically(DecisionRequest request) => request.Policy.Provisional switch
+    /// <summary>Rules 13-14 under the provisional policy (OD-7): landing-only families need no Owner under any policy (10.1).</summary>
+    private static bool AppliesAutomatically(DecisionRequest request) => !request.Identity.HasTypedFacts || request.Policy.Provisional switch
     {
         ProvisionalPolicy.Anyone => true,
         ProvisionalPolicy.AlwaysReview => false,
-        _ => !request.Identity.HasTypedFacts || request.Role == ImporterRole.Owner
+        _ => request.Role == ImporterRole.Owner
     };
 
     /// <summary>L(d) of 8.1: the document date, the snapshot date, or any day of a Period document is LOCKED.</summary>

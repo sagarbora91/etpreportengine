@@ -178,6 +178,112 @@ public sealed class DocumentDecisionEngineTests
         Assert.Equal(1, diagnostic.BlockNo);
     }
 
+    [Fact]
+    public void Attribute_not_applied_still_refreshes_when_the_rows_pointer_moves()
+    {
+        // Pointer and export both unknown: the pointer moves (9b), but an unknown export never applies attributes (9a).
+        var key = SalesKey();
+        var stored = Stored(key, Day, Version(T(StoredTime), Rows("p1")));
+
+        var result = Single(Request(Sales, [Obs(key, ExportTime.Unknown, Day, [Row("p1", "b2")])], [stored]));
+
+        Assert.Equal(DocumentDecision.Refreshed, result.Decision);
+        Assert.True(result.MoveRowsPointer);
+        Assert.Equal(ImportCodes.AttributeNotApplied, result.DetailCode);
+        Assert.Null(result.Change);
+    }
+
+    // Rule 13 by order and importer: only a NEWER export within the window qualifies; the rest fall to rules 11 and 15.
+    public static TheoryData<string, ImporterRole, DocumentDecision, ChangeReason?, ChangeMode?> ProvisionalByOrder()
+    {
+        var data = new TheoryData<string, ImporterRole, DocumentDecision, ChangeReason?, ChangeMode?>();
+        foreach (var role in Enum.GetValues<ImporterRole>())
+        {
+            var owner = role == ImporterRole.Owner;
+            var updated = owner ? DocumentDecision.ProvisionalUpdated : DocumentDecision.PendingChange;
+            var mode = owner ? ChangeMode.Auto : ChangeMode.Review;
+            data.Add("OLDER", role, DocumentDecision.Stale, null, null);
+            data.Add("SAME", role, DocumentDecision.PendingChange, ChangeReason.SameExportDiffers, ChangeMode.Review);
+            data.Add("NEWER", role, updated, ChangeReason.Provisional, mode);
+            data.Add("UNKNOWN", role, DocumentDecision.PendingChange, ChangeReason.UnknownProvenance, ChangeMode.Review);
+            data.Add("DATE_SAME", role, DocumentDecision.PendingChange, ChangeReason.UnknownProvenance, ChangeMode.Review);
+            data.Add("DATE_NEWER", role, updated, ChangeReason.Provisional, mode);
+            data.Add("STORED_UNKNOWN", role, DocumentDecision.PendingChange, ChangeReason.UnknownProvenance, ChangeMode.Review);
+        }
+        return data;
+    }
+
+    [Theory]
+    [MemberData(nameof(ProvisionalByOrder))]
+    public void Provisional_updates_follow_the_order_of_exports(
+        string order, ImporterRole role, DocumentDecision expected, ChangeReason? reason, ChangeMode? mode)
+    {
+        const string storedTime = "2026-09-01T14:49";
+        var key = SalesKey();
+        var attested = order == "STORED_UNKNOWN" ? ExportTime.Unknown : T(storedTime);
+        var incomingTime = order switch
+        {
+            "OLDER" => T("2026-09-01T10:00"),
+            "SAME" => T(storedTime),
+            "NEWER" or "STORED_UNKNOWN" => T("2026-09-02T09:00"),
+            "UNKNOWN" => ExportTime.Unknown,
+            "DATE_SAME" => T("2026-09-01"),
+            "DATE_NEWER" => T("2026-09-02"),
+            _ => throw new ArgumentOutOfRangeException(nameof(order))
+        };
+        var stored = Stored(key, Day, Version(attested, Rows("p1"), provisional: true));
+
+        var result = Single(Request(Sales, [Obs(key, incomingTime, Day, Rows("p2"))], [stored], role: role));
+
+        Assert.Equal(expected, result.Decision);
+        Assert.Equal(reason, result.Change?.Reason);
+        Assert.Equal(mode, result.Change?.Mode);
+    }
+
+    // Rules 12-15 against a version that was never verified against source rows (facts compared by canonical hash).
+    public static TheoryData<string, VersionBasis, DocumentDecision, ChangeReason> UnverifiedChanges()
+    {
+        var data = new TheoryData<string, VersionBasis, DocumentDecision, ChangeReason>();
+        foreach (var basis in new[] { VersionBasis.CanonicalOnly, VersionBasis.Unverified })
+        {
+            data.Add("grow", basis, DocumentDecision.Grown, ChangeReason.Grow);
+            data.Add("provisional", basis, DocumentDecision.ProvisionalUpdated, ChangeReason.Provisional);
+            data.Add("reading", basis, DocumentDecision.ReadingUpdated, ChangeReason.Reading);
+            data.Add("shrink", basis, DocumentDecision.PendingChange, ChangeReason.SnapshotShrink);
+            data.Add("later", basis, DocumentDecision.PendingChange, ChangeReason.LaterExport);
+            data.Add("unknown", basis, DocumentDecision.PendingChange, ChangeReason.UnknownProvenance);
+        }
+        return data;
+    }
+
+    [Theory]
+    [MemberData(nameof(UnverifiedChanges))]
+    public void Changes_to_unverified_versions_follow_the_same_rules(string change, VersionBasis basis, DocumentDecision expected, ChangeReason reason)
+    {
+        var newer = T("2026-09-29T14:49");
+        (EtpFamilyIdentity, DocumentKey, StoredVersion, DocumentObservation) setup = change switch
+        {
+            "grow" => (LandingDay, DayKey(), Version(T(StoredTime), Rows("p1"), basis: basis), Obs(DayKey(), newer, Day, Rows("p1", "p2"))),
+            "provisional" => (Sales, SalesKey(), Version(T("2026-09-01T14:49"), Rows("p1"), provisional: true, basis: basis), Obs(SalesKey(), T("2026-09-02T09:00"), Day, Rows("p2"))),
+            "reading" => (ClosingStock, SnapshotKey(), Version(T(StoredTime), Items(("k1", "q1")), basis: basis), Obs(SnapshotKey(), newer, Day, Items(("k1", "q2")))),
+            "shrink" => (ClosingStock, SnapshotKey(), Version(T(StoredTime), Items(("k1", "q1"), ("k2", "q1")), basis: basis), Obs(SnapshotKey(), newer, Day, Items(("k1", "q1")))),
+            "later" => (Sales, SalesKey(), Version(T(StoredTime), Rows("p1"), basis: basis), Obs(SalesKey(), newer, Day, Rows("p2"))),
+            "unknown" => (Sales, SalesKey(), Version(T(StoredTime), Rows("p1"), basis: basis), Obs(SalesKey(), ExportTime.Unknown, Day, Rows("p2"))),
+            _ => throw new ArgumentOutOfRangeException(nameof(change))
+        };
+        var (identity, key, version, incoming) = setup;
+        var stored = Stored(key, Day, version with { CanonicalSha256 = "c1" });
+
+        var result = Single(Request(identity, [incoming with { CanonicalSha256 = "c2" }], [stored], report: key.ReportCode));
+
+        Assert.Equal(expected, result.Decision);
+        Assert.Equal(reason, result.Change!.Reason);
+        // The same rows under the stored canonical hash are present, whatever the fact hashes say.
+        Assert.Equal(DocumentDecision.Present,
+            Single(Request(identity, [incoming with { CanonicalSha256 = "C1", ExportTime = T(StoredTime) }], [stored with { RowsPointerTime = T(StoredTime) }],
+                report: key.ReportCode)).Decision);
+    }
+
     // ------------------------------------------------------------------ rules 1-2
 
     [Fact]
@@ -309,6 +415,23 @@ public sealed class DocumentDecisionEngineTests
         Assert.Equal(ChangeReason.MissingFromLater, result.Change!.Reason);
     }
 
+    [Theory]
+    [InlineData("2026-09-06T21:07")]   // the export that attested it, processed again (6.9)
+    [InlineData("2026-08-25T10:00")]   // an older export
+    [InlineData("")]                   // a source of unknown time
+    public void A_retired_document_is_stale_in_an_export_not_newer_than_its_last_attestation(string time)
+    {
+        // The Owner retired it after the 29 Sep export lacked it: an older export holding it must not ask again (rule 7).
+        var key = SalesKey();
+        var retired = Stored(key, Day, Version(T("2026-09-06T21:07"), Rows("p1"))) with { Status = DocumentStatus.Retired };
+
+        var result = Single(Request(Sales, [Obs(key, T(time), Day, Rows("p1"))], [retired],
+            blocks: [Registered(T("2026-09-29T14:49"), Day, Day.AddDays(27))]));
+
+        Assert.Equal(DocumentDecision.Stale, result.Decision);
+        Assert.Null(result.Change);
+    }
+
     // ------------------------------------------------------------------ 8.4 absence
 
     [Fact]
@@ -356,6 +479,67 @@ public sealed class DocumentDecisionEngineTests
 
         Assert.Equal(DocumentDecision.NotAdded, Assert.Single(decisions, d => d.Key == key).Decision);
         Assert.Equal(DocumentDecision.New, Assert.Single(decisions, d => d.Key == other).Decision);
+    }
+
+    [Fact]
+    public void A_document_a_newer_block_of_the_same_source_holds_is_not_retired()
+    {
+        // Stored, attested 6 Sep. The source's 20 Sep block lacks it; its 29 Sep block holds it (6.7: the later block wins).
+        var key = SalesKey();
+        var other = SalesKey("100000099");
+        var stored = Stored(key, Day, Version(T(StoredTime), Rows("p1"))) with { RowsPointerTime = T(StoredTime) };
+        var late = T("2026-09-29T14:49");
+        var request = Request(Sales, [Obs(key, late, Day, Rows("p1")) with { BlockNo = 2 }], [stored],
+            blocks: [Incoming(T("2026-09-20T10:00"), Day, Day.AddDays(18), other), Incoming(late, Day, Day.AddDays(27), key) with { BlockNo = 2 }]);
+
+        var result = Assert.Single(Engine.Decide(request).Decisions);
+
+        Assert.Equal(DocumentDecision.Refreshed, result.Decision);
+        Assert.True(result.Attest);
+    }
+
+    [Fact]
+    public void A_document_an_older_block_holds_and_a_newer_block_lacks_gets_its_decision_and_a_retire_item()
+    {
+        // As importing the two exports one after the other: the 20 Sep block grows the day, the 29 Sep block lacks it.
+        var key = DayKey();
+        var stored = Stored(key, Day, Version(T(StoredTime), Rows("p1"))) with { RowsPointerTime = T(StoredTime) };
+        var early = T("2026-09-20T10:00");
+        var request = Request(LandingDay, [Obs(key, early, Day, Rows("p1", "p2"))], [stored],
+            blocks: [Incoming(early, Day, Day.AddDays(18), key), Incoming(T("2026-09-29T14:49"), Day, Day.AddDays(27)) with { BlockNo = 2 }]);
+
+        var decisions = Engine.Decide(request).Decisions;
+
+        Assert.Equal(2, decisions.Count);
+        Assert.Equal(DocumentDecision.Grown, decisions[0].Decision);
+        Assert.Equal(1, decisions[0].BlockNo);
+        Assert.Equal(DocumentDecision.MissingFromLater, decisions[1].Decision);
+        Assert.Equal(2, decisions[1].BlockNo);
+        Assert.Equal(ChangeAction.Retire, decisions[1].Change!.Action);
+    }
+
+    [Fact]
+    public void Absence_with_an_unknown_time_source_asks_the_owner_in_either_order()
+    {
+        // A renamed workbook (unknown time) holds the document; a known complete export of 29 Sep lacks it.
+        var key = SalesKey();
+        var other = SalesKey("100000099");
+        var known = T("2026-09-29T14:49");
+
+        // Unknown first: the document is stored with an unknown time, the known export raises a RETIRE item.
+        var stored = Stored(key, Day, Version(ExportTime.Unknown, Rows("p1")));
+        var retire = Assert.Single(Engine.Decide(Request(Sales, [], [stored], blocks: [Incoming(known, Day, Day.AddDays(27), other)])).Decisions);
+        Assert.Equal(DocumentDecision.MissingFromLater, retire.Decision);
+
+        // Known first: the unknown-time document is not added; an INSERT item asks the same question.
+        var notAdded = Single(Request(Sales, [Obs(key, ExportTime.Unknown, Day, Rows("p1"))], [],
+            blocks: [Registered(known, Day, Day.AddDays(27), other)]));
+        Assert.Equal(DocumentDecision.NotAdded, notAdded.Decision);
+        Assert.Equal(new ChangeProposal(ChangeMode.Review, ChangeReason.MissingFromLater, ChangeAction.Insert, VersionChangeKind.New), notAdded.Change);
+
+        // A block of unknown time never shows absence.
+        Assert.Equal(DocumentDecision.New, Single(Request(Sales, [Obs(key, ExportTime.Unknown, Day, Rows("p1"))], [],
+            blocks: [Registered(ExportTime.Unknown, Day, Day.AddDays(27), other)])).Decision);
     }
 
     public static TheoryData<string, bool> AbsenceConditions() => new()
@@ -524,11 +708,12 @@ public sealed class DocumentDecisionEngineTests
         foreach (var role in Enum.GetValues<ImporterRole>())
         foreach (var typed in new[] { true, false })
         {
-            var automatic = policy switch
+            // Landing-only families apply under every policy (spec 10.1); OD-7 is about typed families.
+            var automatic = !typed || policy switch
             {
                 ProvisionalPolicy.Anyone => true,
                 ProvisionalPolicy.AlwaysReview => false,
-                _ => !typed || role == ImporterRole.Owner
+                _ => role == ImporterRole.Owner
             };
             data.Add(policy, role, typed, automatic);
         }
@@ -643,6 +828,78 @@ public sealed class DocumentDecisionEngineTests
         }
     }
 
+    public static TheoryData<string, ProvisionalPolicy, ImporterRole, ChangeReason> LockedByImporter()
+    {
+        var data = new TheoryData<string, ProvisionalPolicy, ImporterRole, ChangeReason>();
+        foreach (var policy in Enum.GetValues<ProvisionalPolicy>())
+        foreach (var role in Enum.GetValues<ImporterRole>())
+        {
+            data.Add("provisional", policy, role, ChangeReason.Provisional);
+            data.Add("reading", policy, role, ChangeReason.Reading);
+            data.Add("landing-reading", policy, role, ChangeReason.Reading);
+            data.Add("shrink", policy, role, ChangeReason.SnapshotShrink);
+            data.Add("grow", policy, role, ChangeReason.Grow);
+            data.Add("later", policy, role, ChangeReason.LaterExport);
+        }
+        return data;
+    }
+
+    [Theory]
+    [MemberData(nameof(LockedByImporter))]
+    public void A_locked_day_holds_every_change_whoever_imports(string change, ProvisionalPolicy policy, ImporterRole role, ChangeReason reason)
+    {
+        var newer = T("2026-09-29T14:49");
+        (EtpFamilyIdentity, DocumentKey, StoredVersion, DocumentObservation) setup = change switch
+        {
+            "provisional" => (Sales, SalesKey(), Version(T("2026-09-01T14:49"), Rows("p1"), provisional: true), Obs(SalesKey(), T("2026-09-02T09:00"), Day, Rows("p2"))),
+            "reading" => (ClosingStock, SnapshotKey(), Version(T(StoredTime), Items(("k1", "q1"))), Obs(SnapshotKey(), newer, Day, Items(("k1", "q2")))),
+            "landing-reading" => (LandingSnapshot, DocumentKey.ForSnapshot("R023", Store, Day), Version(T(StoredTime), Items(("k1", "q1"))), Obs(DocumentKey.ForSnapshot("R023", Store, Day), newer, Day, Items(("k1", "q2")))),
+            "shrink" => (ClosingStock, SnapshotKey(), Version(T(StoredTime), Items(("k1", "q1"), ("k2", "q1"))), Obs(SnapshotKey(), newer, Day, Items(("k1", "q1")))),
+            "grow" => (LandingDay, DayKey(), Version(T(StoredTime), Rows("p1")), Obs(DayKey(), newer, Day, Rows("p1", "p2"))),
+            "later" => (Sales, SalesKey(), Version(T(StoredTime), Rows("p1")), Obs(SalesKey(), newer, Day, Rows("p2"))),
+            _ => throw new ArgumentOutOfRangeException(nameof(change))
+        };
+        var (identity, key, version, incoming) = setup;
+        var request = Request(identity, [incoming], [Stored(key, Day, version)], locked: [Day], role: role, report: key.ReportCode) with
+        {
+            Policy = new DecisionPolicy(policy)
+        };
+
+        var result = Single(request);
+
+        Assert.Equal(DocumentDecision.HeldLocked, result.Decision);
+        Assert.Equal(reason, result.Change!.Reason);
+        Assert.Equal(ChangeMode.Review, result.Change.Mode);
+        Assert.Equal(ChangeItemStatus.Held, result.Change.ItemStatus);
+        Assert.False(result.MoveRowsPointer);
+    }
+
+    [Fact]
+    public void A_legacy_merge_not_yet_stored_keeps_its_reason_on_a_locked_day_and_when_absent()
+    {
+        var key = SalesKey();
+        var merged = Obs(key, ExportTime.Unknown, Day, Rows("p1", "p2")) with { IsLegacyMerge = true, HoldCode = ImportCodes.LegacyBlocksDiffer };
+
+        var locked = Single(Request(Sales, [merged], [], locked: [Day]));
+        Assert.Equal(DocumentDecision.LegacyBlocksDiffer, locked.Decision);
+        Assert.Equal(new ChangeProposal(ChangeMode.Review, ChangeReason.LegacyBlocksDiffer, ChangeAction.Insert, VersionChangeKind.New, Held: true), locked.Change);
+
+        var absent = Single(Request(Sales, [merged], [], blocks: [Registered(T("2026-09-29T14:49"), Day, Day.AddDays(27))]));
+        Assert.Equal(DocumentDecision.LegacyBlocksDiffer, absent.Decision);
+        Assert.Equal(ChangeReason.LegacyBlocksDiffer, absent.Change!.Reason);
+
+        // A clashing invoice header still comes first: no insert could apply.
+        var header = Single(Request(Sales, [merged], []) with
+        {
+            Headers = new Dictionary<string, InvoiceHeaderState> { [key.Hash] = new(key, Day.AddDays(-3), false) }
+        });
+        Assert.Equal(DocumentDecision.HeldHeaderDate, header.Decision);
+
+        // A retired document is not re-proposed by a source of unknown time (rule 7).
+        var retired = Stored(key, Day, Version(T(StoredTime), Rows("p1"))) with { Status = DocumentStatus.Retired };
+        Assert.Equal(DocumentDecision.Stale, Single(Request(Sales, [merged], [retired])).Decision);
+    }
+
     [Fact]
     public void Present_refreshed_and_stale_are_allowed_on_a_locked_day()
     {
@@ -746,6 +1003,30 @@ public sealed class DocumentDecisionEngineTests
 
         Assert.Equal(DocumentDecision.Filled, Decide(Filled("p1", tax: "18"), Filled("p2", tax: "18"), Filled("p1", tax: "")).Decision);
         Assert.NotEqual(DocumentDecision.Filled, Decide(Filled("p1", tax: "18"), Filled("p1", tax: "18"), Filled("p1", tax: "18")).Decision);
+    }
+
+    [Fact]
+    public void Fill_checks_fields_only_the_incoming_row_carries()
+    {
+        // The v0 row lacks the net amount entirely; the incoming row carries one. That is not a NULL fill.
+        var key = SalesKey();
+        var storedRow = Row("v0", facts: new Dictionary<string, string> { ["product_code"] = "p1", ["source_tax_amount"] = "" });
+        var stored = Stored(key, Day, Version(T(StoredTime), [storedRow], basis: VersionBasis.CanonicalOnly));
+        var incomingRow = Row("v1", facts: new Dictionary<string, string>
+        {
+            ["product_code"] = "p1", ["source_tax_amount"] = "18", ["source_net_amount"] = "500"
+        });
+
+        var result = Single(Request(Sales, [Obs(key, T("2026-09-29T14:49"), Day, [incomingRow])], [stored]));
+
+        Assert.Equal(DocumentDecision.PendingChange, result.Decision);
+
+        // An incoming-only nullable field is a fill.
+        var nullableOnly = Row("v2", facts: new Dictionary<string, string>
+        {
+            ["product_code"] = "p1", ["source_tax_amount"] = "18", ["source_gross_amount"] = "590"
+        });
+        Assert.Equal(DocumentDecision.Filled, Single(Request(Sales, [Obs(key, T("2026-09-29T14:49"), Day, [nullableOnly])], [stored])).Decision);
     }
 
     // ------------------------------------------------------------------ holds from the source (6.6-6.7)
@@ -858,9 +1139,11 @@ public sealed class DocumentDecisionEngineTests
     }
 
     /// <summary>
-    /// Spec 8.7: with known export times, once the Owner has answered every item, each document holds the
-    /// observation of the latest export that contains it, or is absent when the latest export that covers its
-    /// finished day lacks it; whatever the import order, and with exports imported again.
+    /// Spec 8.7: with known export times, once the Owner has answered every item, the final state is the same whatever
+    /// the import order, with exports imported again and with several exports read from one source as its blocks.
+    /// The Owner's answer to "missing from a later export: is it real?" is drawn per document and given the same way
+    /// to the RETIRE item and to the NOT_ADDED insert item. A real document holds the observation of the latest
+    /// export that contains it; any other is absent when the latest export covering its finished day lacks it.
     /// </summary>
     [Theory]
     [MemberData(nameof(ConvergenceCases))]
@@ -874,15 +1157,26 @@ public sealed class DocumentDecisionEngineTests
             _ => (ClosingStock, "CLOSING_STOCK")
         };
         var exports = RandomExports(random, identity, report);
-        var expected = Expected(exports);
+        var real = exports.SelectMany(export => export.Documents).Select(o => o.Key.Hash).Distinct().Order(StringComparer.Ordinal)
+            .ToDictionary(hash => hash, _ => random.Next(2) == 0, StringComparer.Ordinal);
+        var expected = Expected(exports, real);
 
         for (var permutation = 0; permutation < 40; permutation++)
         {
             var order = exports.OrderBy(_ => random.Next()).ToList();
             // Some exports are imported twice: re-processing must not change the result.
             order.AddRange(exports.Where(_ => random.Next(3) == 0).OrderBy(_ => random.Next()));
-            var ledger = new Ledger(identity, report, role);
-            foreach (var export in order) ledger.Import(export);
+            // Some neighbours arrive together, as two blocks of one source (a consolidated workbook).
+            var sources = new List<List<Export>>();
+            foreach (var export in order)
+            {
+                if (sources.Count > 0 && sources[^1].Count < 3 && sources[^1].All(e => e.Id != export.Id) && random.Next(2) == 0)
+                    sources[^1].Add(export);
+                else
+                    sources.Add([export]);
+            }
+            var ledger = new Ledger(identity, report, role, real);
+            foreach (var source in sources) ledger.Import(source);
 
             Assert.Equal(expected, ledger.FinalState());
         }
@@ -908,8 +1202,11 @@ public sealed class DocumentDecisionEngineTests
         return minutes.Select((minute, index) =>
         {
             var time = ExportTime.AtMinute(Day.ToDateTime(TimeOnly.MinValue).AddMinutes(minute));
+            // A coverage window of one to four days; the export holds documents of its window only.
+            var first = random.Next(days.Length);
+            var last = random.Next(first, days.Length);
             var documents = keys
-                .Where(doc => doc.Day <= time.ExportDate && random.Next(5) != 0)
+                .Where(doc => doc.Day >= days[first] && doc.Day <= days[last] && doc.Day <= time.ExportDate && random.Next(5) != 0)
                 .Select(doc =>
                 {
                     var attribute = random.Next(2) == 0 ? "a1" : "a2";
@@ -920,20 +1217,20 @@ public sealed class DocumentDecisionEngineTests
                     return Obs(doc.Key, time, doc.Day, rows);
                 })
                 .ToList();
-            return new Export(index, time, days[0], days[^1], documents);
+            return new Export(index, time, days[first], days[last], documents);
         }).ToList();
     }
 
-    private static IReadOnlyDictionary<string, string> Expected(IReadOnlyList<Export> exports)
+    private static IReadOnlyDictionary<string, string> Expected(IReadOnlyList<Export> exports, IReadOnlyDictionary<string, bool> real)
     {
         var expected = new SortedDictionary<string, string>(StringComparer.Ordinal);
         var keys = exports.SelectMany(export => export.Documents).Select(o => (o.Key, Date: o.DocumentDate!.Value)).Distinct();
         foreach (var (key, date) in keys)
         {
-            // The latest export that either holds the document or covers its finished day.
+            // The latest export that holds the document, or (not real) that holds it or covers its finished day.
             var latest = exports
                 .Where(export => export.Documents.Any(o => o.Key == key)
-                    || export.CoverageFrom <= date && date <= export.CoverageTo && date < export.Time.ExportDate)
+                    || !real[key.Hash] && export.CoverageFrom <= date && date <= export.CoverageTo && date < export.Time.ExportDate)
                 .MaxBy(export => export.Time.Instant)!;
             var o = latest.Documents.SingleOrDefault(o => o.Key == key);
             expected[key.Hash] = o is null ? "absent" : State(o.FactSha256, o.AttributeSha256, latest.Time, o.ExportTime.ExportDate <= date);
@@ -946,29 +1243,34 @@ public sealed class DocumentDecisionEngineTests
 
     /// <summary>
     /// Applies decisions as the import and the Owner would: AUTO changes at once; review items answered at once,
-    /// approving every proposed version and every retire item, and keeping NOT_ADDED documents out.
+    /// approving every proposed version, and answering "is it real?" per document: a real document is kept current
+    /// (RETIRE item) or inserted (NOT_ADDED item); any other is retired or kept out.
     /// </summary>
-    private sealed class Ledger(EtpFamilyIdentity identity, string report, ImporterRole role)
+    private sealed class Ledger(EtpFamilyIdentity identity, string report, ImporterRole role, IReadOnlyDictionary<string, bool> real)
     {
         private readonly Dictionary<string, StoredDocument> _documents = new(StringComparer.Ordinal);
         private readonly Dictionary<string, DocumentObservation> _proposals = new(StringComparer.Ordinal);
         private readonly List<CoverageBlock> _blocks = [];
         private long _nextId = 1;
 
-        public void Import(Export export)
+        /// <summary>One source: each export is a block; a document's authoritative observation is its latest block (6.7).</summary>
+        public void Import(IReadOnlyList<Export> source)
         {
-            var block = new CoverageBlock(null, 1, export.Time, BlockCompleteness.Complete, export.CoverageFrom, export.CoverageTo,
-                export.Documents.Select(o => o.Key.Hash).ToHashSet(StringComparer.Ordinal));
-            var request = new DecisionRequest(Store, report, identity, export.Documents,
-                new Dictionary<string, StoredDocument>(_documents), [.. _blocks, block], new HashSet<DateOnly>(), role);
-            var observations = export.Documents.ToDictionary(o => o.Key.Hash);
+            var blocks = source.Select((export, index) => new CoverageBlock(null, index + 1, export.Time, BlockCompleteness.Complete,
+                export.CoverageFrom, export.CoverageTo, export.Documents.Select(o => o.Key.Hash).ToHashSet(StringComparer.Ordinal))).ToList();
+            var observations = source
+                .SelectMany((export, index) => export.Documents.Select(o => o with { BlockNo = index + 1 }))
+                .GroupBy(o => o.Key.Hash)
+                .ToDictionary(group => group.Key, group => group.MaxBy(o => o.ExportTime.Instant)!, StringComparer.Ordinal);
+            var request = new DecisionRequest(Store, report, identity, [.. observations.Values],
+                new Dictionary<string, StoredDocument>(_documents), [.. _blocks, .. blocks], new HashSet<DateOnly>(), role);
             foreach (var decision in Engine.Decide(request).Decisions)
             {
                 observations.TryGetValue(decision.Key.Hash, out var o);
                 _documents.TryGetValue(decision.Key.Hash, out var stored);
-                Apply(decision, o, stored);
+                Apply(decision, decision.Change?.Action == ChangeAction.Retire ? null : o, stored);
             }
-            _blocks.Add(block with { ImportFileId = _nextId++ });
+            foreach (var block in blocks) _blocks.Add(block with { ImportFileId = _nextId++ });
         }
 
         private void Apply(DocumentDecisionResult decision, DocumentObservation? o, StoredDocument? stored)
@@ -995,9 +1297,14 @@ public sealed class DocumentDecisionEngineTests
                     };
                     _documents[o.Key.Hash] = stored with { Current = version, RowsPointerTime = decision.MoveRowsPointer ? o.ExportTime : stored.RowsPointerTime };
                     break;
+                case DocumentDecision.NotAdded when real[decision.Key.Hash]:   // approved: inserted
+                    Replace(o!, decision.NewVersionProvisional);
+                    break;
                 case DocumentDecision.NotAdded:        // "Keep current": the document stays out (a retired one stays retired)
                     if (stored?.Status != DocumentStatus.Retired)
                         _documents[o!.Key.Hash] = new StoredDocument(o.Key, _nextId++, DocumentStatus.NotAdded, o.DocumentDate, null);
+                    break;
+                case DocumentDecision.MissingFromLater when real[decision.Key.Hash]:   // "Keep current": nothing changes
                     break;
                 case DocumentDecision.MissingFromLater: // approved: retired, its last version kept for rule 6
                     _documents[decision.Key.Hash] = stored! with { Status = DocumentStatus.Retired };
