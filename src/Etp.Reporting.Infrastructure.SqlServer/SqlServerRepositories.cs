@@ -61,7 +61,7 @@ public sealed class SqlServerImportFileRepository(string connectionString) : IIm
             await transaction.CommitAsync(cancellationToken);
             return fileId;
         }
-        catch { await transaction.RollbackAsync(CancellationToken.None); throw; }
+        catch (Exception failure) { await SqlTransactionGuard.RollBackAsync(failure, transaction); throw; }
     }
     public Task<Etp.Reporting.Import.Batch.WorkbookImportOutcome> LoadOutcomeByHashAsync(string sourceSha256,CancellationToken cancellationToken=default) =>
         LoadOutcomeAsync(sourceSha256,null,null,null,null,cancellationToken);
@@ -134,20 +134,25 @@ public sealed partial class SqlServerTransactionalImportStore(string connectionS
         PersistenceValidation.Validate(package);
         if (package.Restatement is not null) await RequireRestatementApprovalAsync(package, cancellationToken);
         var expectedRows=package.InvoiceControls.Count+package.SalesLines.Count+package.Tenders.Count+package.StockMovements.Count+package.StockSnapshots.Count+package.Enrichments.Count;
-        await using var connection=new SqlConnection(LocalSqlConnectionPolicy.Validate(connectionString)); await connection.OpenAsync(cancellationToken);
+        // The import transaction uses its own Connect Timeout, which SqlClient also applies to COMMIT.
+        await using var connection=new SqlConnection(LocalSqlConnectionPolicy.ValidateForImportTransaction(connectionString)); await connection.OpenAsync(cancellationToken);
         await using var transaction=(SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
+        Task<long> CommitBatchAsync(long fileId)=>SqlTransactionGuard.CommitOrVerifyAsync(fileId,()=>Commit(transaction,cancellationToken),
+            connection.CloseAsync,()=>BatchCompletedAsync(package.Batch.BatchId));
         try
         {
             var plan=await PlanImportAsync(connection,transaction,package,cancellationToken);
-            if(plan.ExistingHashFileId is { } existingId) { await transaction.CommitAsync(cancellationToken); return existingId; }
+            // Nothing was written for an exact duplicate; the earlier file only has to still be there.
+            if(plan.ExistingHashFileId is { } existingId)
+                return await SqlTransactionGuard.CommitOrVerifyAsync(existingId,()=>Commit(transaction,cancellationToken),
+                    connection.CloseAsync,()=>FileExistsAsync(existingId));
             await InsertBatch(connection,transaction,package.Batch,cancellationToken);
             var profileId=await SqlServerImportProfileResolver.ResolveOrRegisterAsync(connection,transaction,package.File.Profile,cancellationToken);
             var fileId=await InsertFile(connection,transaction,package.File,profileId,cancellationToken);
             if(plan.DuplicateContent)
             {
                 await RecordDuplicateAsync(connection,transaction,package,fileId,plan,cancellationToken);
-                await transaction.CommitAsync(cancellationToken);
-                return fileId;
+                return await CommitBatchAsync(fileId);
             }
             // The database checks superset content itself before it archives any current facts.
             await InsertFamilySourceAsync(connection,transaction,package,fileId,plan.Keys,cancellationToken);
@@ -174,9 +179,32 @@ public sealed partial class SqlServerTransactionalImportStore(string connectionS
             await ThrowOnConflictsAsync(connection,transaction,fileId,cancellationToken);
             if(package.SalesLines.Count>0) await RefreshEnrichmentMatches(connection,transaction,cancellationToken);
             await using var complete=Cmd(connection,transaction,"UPDATE dbo.import_batches SET status='Completed',source_row_count=@rows,completed_utc=SYSUTCDATETIME() WHERE import_batch_id=@id AND status='Processing'"); complete.Parameters.AddWithValue("@rows",package.AcceptedImport?.Staging.Rows.Count ?? expectedRows);complete.Parameters.AddWithValue("@id",package.Batch.BatchId);if(await complete.ExecuteNonQueryAsync(cancellationToken)!=1)throw new DBConcurrencyException("Import batch completion failed.");
-            await transaction.CommitAsync(cancellationToken); return fileId;
+            return await CommitBatchAsync(fileId);
         }
-        catch { await transaction.RollbackAsync(CancellationToken.None); throw; }
+        catch (Exception failure)
+        {
+            failure.Data[SqlTransactionGuard.ImportBatchIdKey]=package.Batch.BatchId;
+            await SqlTransactionGuard.RollBackAsync(failure,transaction);
+            throw;
+        }
+    }
+
+    /// <summary>Issues the import COMMIT. Tests replace it to simulate a COMMIT whose reply is lost.</summary>
+    internal Func<SqlTransaction,CancellationToken,Task> Commit { get; init; }=(transaction,token)=>transaction.CommitAsync(token);
+
+    // Both checks lock-read on a fresh connection, so a COMMIT still finishing on the server
+    // is waited for rather than read as missing.
+    private Task<bool> BatchCompletedAsync(Guid batchId)=>ExistsAfterCommitAsync(
+        "SELECT CONVERT(bit,CASE WHEN EXISTS(SELECT 1 FROM dbo.import_batches WITH(READCOMMITTEDLOCK) WHERE import_batch_id=@id AND status='Completed') THEN 1 ELSE 0 END)",batchId);
+    private Task<bool> FileExistsAsync(long fileId)=>ExistsAfterCommitAsync(
+        "SELECT CONVERT(bit,CASE WHEN EXISTS(SELECT 1 FROM dbo.import_files WITH(READCOMMITTEDLOCK) WHERE import_file_id=@id) THEN 1 ELSE 0 END)",fileId);
+    private async Task<bool> ExistsAfterCommitAsync(string sql,object id)
+    {
+        await using var connection=new SqlConnection(LocalSqlConnectionPolicy.ValidateForImportTransaction(connectionString));
+        await connection.OpenAsync(CancellationToken.None);
+        await using var command=new SqlCommand(sql,connection){CommandTimeout=LocalSqlConnectionPolicy.ImportTransactionTimeoutSeconds};
+        command.Parameters.AddWithValue("@id",id);
+        return (bool)(await command.ExecuteScalarAsync(CancellationToken.None))!;
     }
 
     private static async Task InsertBatch(SqlConnection c,SqlTransaction t,ImportBatchRegistration x,CancellationToken token){await using var q=Cmd(c,t,"INSERT dbo.import_batches(import_batch_id,status,store_id,period_start,period_end,started_utc) VALUES(@id,'Processing',@store,@start,@end,@utc)");q.Parameters.AddWithValue("@id",x.BatchId);Add(q,"@store",x.StoreId);Add(q,"@start",x.PeriodStart);Add(q,"@end",x.PeriodEnd);q.Parameters.AddWithValue("@utc",x.StartedUtc.UtcDateTime);await q.ExecuteNonQueryAsync(token);}

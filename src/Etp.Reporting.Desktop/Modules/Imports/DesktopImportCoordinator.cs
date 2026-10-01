@@ -57,6 +57,7 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
     private IReadOnlyList<string> knownStores = [];
     public void SetKnownStores(IReadOnlyList<string> stores) { knownStores=stores; envelopeFactory=new(stores); }
     private readonly IImportFailureClassifier failureClassifier;
+    private readonly Action<FolderImportFailure>? reportImportFailure;
     private BatchImportSource? activeBatchSource;
     private CancellationTokenSource? batchCancellation;
     private ValidatedImport? validatedImport;
@@ -66,13 +67,15 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
     public DesktopImportCoordinator(
         Func<string, ImportPersistenceUseCase> persistenceFactory,
         RetainEtpEvidence retainEvidence,
-        IWorkbookReader? workbookReader = null)
+        IWorkbookReader? workbookReader = null,
+        Action<FolderImportFailure>? reportImportFailure = null)
     {
         this.persistenceFactory = persistenceFactory ?? throw new ArgumentNullException(nameof(persistenceFactory));
         this.retainEvidence = retainEvidence ?? throw new ArgumentNullException(nameof(retainEvidence));
         this.workbookReader = workbookReader ?? new OpenXmlWorkbookReader();
+        this.reportImportFailure = reportImportFailure;
         envelopeFactory = new MatchedImportEnvelopeFactory();
-        failureClassifier = new SafeImportFailureClassifier();
+        failureClassifier = new SqlImportFailureClassifier();
     }
 
     public bool HasValidatedImport => validatedImport is not null;
@@ -161,7 +164,7 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
         folderImportOptions = options;
         folderImportService = new FolderImportService(persistenceFactory(connectionString), workbookReader,
             (path, envelope, store, end, token) => retainEvidence(connectionString, path, envelope.Workbook.Sha256,
-                envelope.ProfileIdentity.ReportCode, store, end, token), knownStores);
+                envelope.ProfileIdentity.ReportCode, store, end, token), knownStores, reportImportFailure);
         var result = await folderImportService.RunFilesAsync(paths, options, progress, batchCancellation.Token).ConfigureAwait(false);
         FailedBatchPaths = folderImportService.FailedPaths;
         return result;
