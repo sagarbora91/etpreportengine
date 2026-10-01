@@ -92,7 +92,8 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
             var restate = retry ? lastImportOptions?.RestatementEnabled == true : RestatementModeInput.IsChecked == true;
             var options = retry ? lastImportOptions! : new FolderImportOptions(Environment.UserName, restate, RestatementReasonInput.Text.Trim(),
                 restate ? (ImportStoreInput.SelectedItem as ComboBoxItem)?.Content?.ToString() : null,
-                restate && ImportBusinessDateInput.SelectedDate is { } date ? DateOnly.FromDateTime(date) : null);
+                restate && ImportBusinessDateInput.SelectedDate is { } date ? DateOnly.FromDateTime(date) : null)
+                { ChooseRestatementTarget = ChooseRestatementTargetAsync };
             lastImportOptions = options;
             var previousResults = latestResults;
             CancelBatchButton.IsEnabled = true;
