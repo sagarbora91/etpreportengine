@@ -12,6 +12,55 @@ public sealed class MigrationTests
         Assert.Equal(64, MigrationChecksum.Compute("SELECT 1").Length);
     }
 
+    // A migration's id is its whole file name, so two files with the same number both run, in
+    // file-name order. 1.9.3 nearly shipped 0038_import_engine_fixes beside Phase 7's
+    // 0038_tally_transfer_foundation: a database already at 0040 would have applied it out of
+    // order. Every shipped migration has its own 4-digit number, and they run 0001, 0002, ...
+    // with no gap.
+    [Fact]
+    public async Task Shipped_migrations_have_unique_contiguous_four_digit_numbers_from_0001()
+    {
+        var ids = (await new DirectoryMigrationSource(ShippedMigrationsDirectory()).DiscoverAsync()).Select(x => x.Id).ToArray();
+        Assert.NotEmpty(ids);
+        var problems = NumberingProblems(ids);
+        Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
+    }
+
+    [Fact]
+    public void Numbering_guard_reports_a_shared_number_a_gap_and_an_unnumbered_file()
+    {
+        Assert.Empty(NumberingProblems(["0002_b", "0001_a"]));
+        Assert.Contains("Migrations sharing a number: 0002_import and 0002_tally", NumberingProblems(["0001_a", "0002_import", "0002_tally"]));
+        Assert.Contains("Migration numbers must run from 0001 without a gap; found 0001, 0003", NumberingProblems(["0001_a", "0003_c"]));
+        Assert.Contains("Migration numbers must run from 0001 without a gap; found 0002", NumberingProblems(["0002_b"]));
+        Assert.Contains("Migrations without a 4-digit number and '_': 38_import", NumberingProblems(["0001_a", "38_import"]));
+    }
+
+    private static List<string> NumberingProblems(IReadOnlyList<string> ids)
+    {
+        var problems = new List<string>();
+        var unnumbered = ids.Where(id => !System.Text.RegularExpressions.Regex.IsMatch(id, "^[0-9]{4}_.+$")).ToArray();
+        if (unnumbered.Length > 0) problems.Add("Migrations without a 4-digit number and '_': " + string.Join(", ", unnumbered));
+        var numbered = ids.Except(unnumbered).ToArray();
+        foreach (var group in numbered.GroupBy(id => id[..4], StringComparer.Ordinal).Where(group => group.Count() > 1).OrderBy(group => group.Key, StringComparer.Ordinal))
+            problems.Add("Migrations sharing a number: " + string.Join(" and ", group.Order(StringComparer.Ordinal)));
+        var numbers = numbered.Select(id => int.Parse(id[..4], System.Globalization.CultureInfo.InvariantCulture)).Order().ToArray();
+        if (!numbers.SequenceEqual(Enumerable.Range(1, numbers.Length)))
+            problems.Add("Migration numbers must run from 0001 without a gap; found "
+                + string.Join(", ", numbers.Distinct().Select(n => n.ToString("0000", System.Globalization.CultureInfo.InvariantCulture))));
+        return problems;
+    }
+
+    private static string ShippedMigrationsDirectory()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Etp.Reporting.slnx"))) dir = dir.Parent;
+        Assert.NotNull(dir);
+        var migrations = Path.Combine(dir.FullName, "database", "migrations");
+        Assert.True(Directory.Exists(migrations), "database/migrations not found at " + migrations);
+        return migrations;
+    }
+
     [Fact]
     public void Planner_returns_only_pending_scripts_in_id_order()
     {

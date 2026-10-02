@@ -101,6 +101,79 @@ public sealed class ShippedScriptsTests
         Assert.Contains("'restore-etp-database.ps1'", release, StringComparison.Ordinal);
     }
 
+    // Workpc, 2 October 2026: setup created Backups, Documents, Share, SetupLogs and Operations
+    // but not the automatic-import folders dbo.watch_folder_settings points at by default. The
+    // automation account may only read the parent, so its task failed every run with access
+    // denied creating them. Setup now creates them itself with the same protection.
+    [Fact]
+    public async Task Setup_creates_the_default_watch_folders_the_database_points_at()
+    {
+        var root = RepositoryRoot();
+        var migration = File.ReadAllText(Path.Combine(root, "database", "migrations", "0011_phase2_operations.sql"));
+        var defaults = System.Text.RegularExpressions.Regex.Matches(migration, @"N'C:\\ProgramData\\EtpReporting\\([A-Za-z]+)'")
+            .Select(match => match.Groups[1].Value).ToArray();
+        Assert.Equal(["Inbound", "Processed", "Failed", "ReportPacks"], defaults);
+
+        var common = Path.Combine(root, "scripts", "etp-operations-common.ps1").Replace("'", "''");
+        var result = await RunPowerShellAsync($". '{common}'; 'NAMES=' + (@(Get-EtpWatchFolderNames) -join '|')");
+        Assert.True(result.ExitCode == 0, result.Output);
+        Assert.Contains("NAMES=" + string.Join('|', defaults), result.Output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Watch_folders_get_the_protected_folder_acl_unconditionally_and_no_named_user()
+    {
+        // Folder setup needs an elevated token, so the script itself is read: every watch
+        // folder goes through Set-PrivateDirectory with no switch (SYSTEM and Administrators
+        // Full, SQL service and automation account Modify, owner Administrators, inheritance
+        // removed, links refused), at the top level of the script, and Processed\Duplicate is
+        // made afterwards inside the protected Processed folder so that it inherits.
+        var script = Path.Combine(RepositoryRoot(), "scripts", "initialize-etp-operation-folders.ps1").Replace("'", "''");
+        var command = $$"""
+            $ErrorActionPreference = 'Stop'
+            $errors = $null
+            $ast = [Management.Automation.Language.Parser]::ParseFile('{{script}}', [ref]$null, [ref]$errors)
+            if ($errors.Count -gt 0) { throw 'The folder script does not parse.' }
+            $loops = @($ast.FindAll({ param($a) $a -is [Management.Automation.Language.ForEachStatementAst] -and $a.Condition.Extent.Text -match 'Get-EtpWatchFolderNames' }, $true))
+            if ($loops.Count -ne 1) { throw "Expected one loop over the watch folders, found $($loops.Count)." }
+            $loop = $loops[0]
+            if ($loop.Parent -isnot [Management.Automation.Language.NamedBlockAst]) { throw 'The watch folders are created only under a condition.' }
+            $calls = @($loop.Body.Statements | ForEach-Object { if ($_ -is [Management.Automation.Language.PipelineAst]) { $_.PipelineElements } else { $_ } })
+            if ($calls.Count -ne 1 -or $calls[0] -isnot [Management.Automation.Language.CommandAst] -or $calls[0].GetCommandName() -ne 'Set-PrivateDirectory') { throw 'Each watch folder must go through Set-PrivateDirectory and nothing else.' }
+            if (@($calls[0].CommandElements | Where-Object { $_ -is [Management.Automation.Language.CommandParameterAst] }).Count -ne 0) { throw 'Watch folders need Modify for the automation account: no -ReadOnlyAutomation or -ParentOnly.' }
+            $definition = $ast.Find({ param($a) $a -is [Management.Automation.Language.FunctionDefinitionAst] -and $a.Name -eq 'Set-PrivateDirectory' }, $true)
+            foreach ($needed in @('Assert-EtpNoLinks $full', 'SetAccessRuleProtection($true,$false)', "SetOwner([Security.Principal.SecurityIdentifier]::new('S-1-5-32-544'))", "@('S-1-5-18','S-1-5-32-544')")) {
+                if ($definition.Body.Extent.Text.IndexOf($needed, [StringComparison]::Ordinal) -lt 0) { throw "Set-PrivateDirectory lost: $needed" }
+            }
+            $duplicate = @($ast.FindAll({ param($a) $a -is [Management.Automation.Language.CommandAst] -and $a.GetCommandName() -eq 'New-Item' -and $a.Extent.Text -match "'Processed\\Duplicate'" }, $true))
+            if ($duplicate.Count -ne 1 -or $duplicate[0].Extent.StartOffset -lt $loop.Extent.EndOffset) { throw 'Processed\Duplicate must be made once, after Processed is protected.' }
+            # Setup must not grant the person running it, or any other named account.
+            $text = $ast.Extent.Text
+            foreach ($forbidden in @('UserName', 'GetCurrent().Name', 'WindowsIdentity]::GetCurrent().User')) {
+                if ($text.IndexOf($forbidden, [StringComparison]::OrdinalIgnoreCase) -ge 0) { throw "The folder script names the current user: $forbidden" }
+            }
+            Write-Output 'Watch folder protection passed.'
+            """;
+        var result = await RunPowerShellAsync(command);
+        Assert.True(result.ExitCode == 0, result.Output);
+        Assert.Contains("Watch folder protection passed.", result.Output, StringComparison.Ordinal);
+    }
+
+    private static async Task<(int ExitCode, string Output)> RunPowerShellAsync(string command)
+    {
+        var start = new System.Diagnostics.ProcessStartInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), @"WindowsPowerShell\v1.0\powershell.exe"))
+        { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
+        start.Environment.Remove("PSModulePath");
+        foreach (var argument in new[] { "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", command }) start.ArgumentList.Add(argument);
+        using var process = System.Diagnostics.Process.Start(start)!;
+        var output = process.StandardOutput.ReadToEndAsync();
+        var error = process.StandardError.ReadToEndAsync();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(120));
+        try { await process.WaitForExitAsync(timeout.Token); }
+        catch (OperationCanceledException) { process.Kill(entireProcessTree: true); throw new TimeoutException(await output + await error); }
+        return (process.ExitCode, await output + await error);
+    }
+
     private static string ScriptsDirectory => Path.Combine(AppContext.BaseDirectory, "scripts");
 
     private static string[] ShippedNames() =>

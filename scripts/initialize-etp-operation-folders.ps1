@@ -78,6 +78,12 @@ function Set-PrivateDirectory([string]$Path,[switch]$ReadOnlyAutomation,[switch]
 Set-PrivateDirectory $root -ReadOnlyAutomation -ParentOnly
 foreach ($folder in @('Backups','Documents','Share','SetupLogs')) { Set-PrivateDirectory (Join-Path $root $folder) }
 New-Item -ItemType Directory -Path (Join-Path $root 'Backups\RecoveryDrill') -Force | Out-Null
+# The automatic-import folders the database points at by default (dbo.watch_folder_settings).
+# The automation account may only read the parent, so when setup left them out its task
+# failed every run with access denied trying to create them (Workpc, 2 October 2026).
+# Same protection as the folders above; no named user is granted anything.
+foreach ($folder in @(Get-EtpWatchFolderNames)) { Set-PrivateDirectory (Join-Path $root $folder) }
+New-Item -ItemType Directory -Path (Join-Path $root 'Processed\Duplicate') -Force | Out-Null
 Set-PrivateDirectory (Join-Path $root 'Operations') -ReadOnlyAutomation
 if ($GrantAutomationFolderAccess) {
     Write-EtpJsonAtomically -Path (Join-Path $root 'Operations\operations.json') -Value @{

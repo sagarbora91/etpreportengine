@@ -473,6 +473,13 @@ function Get-EtpAutomationFailureMessage {
     return Get-EtpAutomationGrantGuidance -GrantState $state -ServerInstance $ServerInstance -Database $Database -AutomationPrincipal $AutomationPrincipal
 }
 
+function Get-EtpWatchFolderNames {
+    # The automatic-import folders under %ProgramData%\EtpReporting that
+    # dbo.watch_folder_settings names by default (migration 0011): inbound, processed,
+    # failed and report output. The service also files duplicates in Processed\Duplicate.
+    return @('Inbound','Processed','Failed','ReportPacks')
+}
+
 function Write-EtpJsonAtomically {
     param([string]$Path,[object]$Value,[switch]$Replace)
     Assert-EtpNoLinks $Path
