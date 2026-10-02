@@ -37,6 +37,8 @@ dotnet run --project tools/Etp.Reporting.ImportAudit -c Release -- --database Et
 - [Mapping register](docs/05_MAPPING_REGISTER.md)
 - [Approved rebuild plan](docs/audit/ETP-MASTER-AUDIT-AND-PHASED-PLAN.md)
 - [Security and operations setup](docs/OPERATIONS.md)
+- [Phase 5 acceptance walkthrough (printable)](docs/audit/PHASE-5-ACCEPTANCE-WALKTHROUGH.md)
+- [Phase 7 report (Tally transfer, in progress)](docs/audit/PHASE-7-REPORT.md)
 - [Phase 4 implementation and validation](docs/audit/claude-audit-2026-09/PHASE-4-REPORT.md)
 
 The Phase 5 sprint integrates the latest recovery fixes and current main branch. It implements unified accounting preparation/export receipts, report sharing and history, all eight registers, bound restatement approvals, investigation navigation, configured stores and honest automatic-import status. Read the [consolidated Phase 5 report](docs/audit/PHASE-5-REPORT.md) for validation and remaining acceptance, and the [current workflow guide](docs/USER-GUIDE.md). Production Tally integration and read-back belong to Phase 7; saving XML does not prove that Tally imported it. Deployment and formal phase acceptance follow the report's evidence.

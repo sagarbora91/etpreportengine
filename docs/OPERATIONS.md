@@ -195,3 +195,14 @@ The coding sprint used disposable databases and synthetic/loopback delivery test
 | Low backup space | Resolve capacity before the next backup. Default backup minimum is 5 GB; dashboard warnings start below 20 GB. Invalid or unknown backups are deliberately retained for review. |
 
 Use the aggregate support package and privacy-safe application diagnostics for ordinary support. Do not attach source workbooks, customer records, connection strings, recovery passwords/keys, raw receipts, or private setup/SQL logs. Restrict administrator investigation to the necessary local evidence and record an accurate outcome; never manufacture a successful backup/drill status to clear a warning.
+
+## When Tally and ETP disagree
+
+This applies once Tally batches are in use (Phase 7). ETP never deletes, changes or re-dates a voucher in Tally, and never sends a whole batch again.
+
+1. **Stop writing.** Do not write or import the same Tally file again, even if a voucher seems to be missing.
+2. **Find out what Tally holds.** In Tally, open the company named on the batch, export the Day Book for the batch's dates (all vouchers, not a filtered view), and load the file into ETP. Compare again. A read-back that does not name its company, or names another one, proves nothing.
+3. **Isolate.** Look only at the vouchers ETP lists as differences. Each row says what differs and what to do.
+4. **Get the plan approved.** ETP proposes one step per voucher: read back again, correct the voucher in Tally by hand with the accountant, reverse it with a Credit Note and issue a fresh one (needs separate approval), or accept a warning with a reason. The Owner approves the plan before anything is done.
+5. **Apply.** The accountant makes the approved corrections in Tally. ETP only prepares reversals as new batches.
+6. **Check again.** Export the Day Book again, load it, and compare. Earlier comparisons stay on record unchanged.

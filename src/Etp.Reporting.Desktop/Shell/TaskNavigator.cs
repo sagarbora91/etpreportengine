@@ -477,6 +477,7 @@ public sealed partial class TaskNavigator(MainWindow window)
             return window.sourceInboxWorkspaceView;
         }
         if (id == "masters") return new UserControl { Content = new ScrollViewer { Content = window.settingsWorkspace.CreateEveningMastersView(() => window.CurrentShellAccess.CanImport), VerticalScrollBarVisibility = ScrollBarVisibility.Auto } };
+        if (id == "tally-companies") return new UserControl { Content = new ScrollViewer { Content = window.settingsWorkspace.CreateTallyCompaniesView(), VerticalScrollBarVisibility = ScrollBarVisibility.Auto } };
         if (id == "tender-rules") return new UserControl { Content = new ScrollViewer { Content = window.settingsWorkspace.CreateDataTruthMastersView(), VerticalScrollBarVisibility = ScrollBarVisibility.Auto } };
         if (task.Destination is "Daily Workflow" or "Manual Entry")
         {

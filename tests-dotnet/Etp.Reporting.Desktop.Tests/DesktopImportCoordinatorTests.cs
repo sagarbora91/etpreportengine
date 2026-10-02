@@ -89,7 +89,9 @@ public sealed class DesktopImportCoordinatorTests
         {
             Assert.True(File.Exists(path));
             reads.Add(path);
-            if (path.Contains("bad") && !repaired) throw new InvalidDataException("Synthetic corrupt workbook");
+            // Match the entry name only: the zip is extracted below a random hex folder name,
+            // which can itself contain "bad" and would make the good entry fail too.
+            if (Path.GetFileName(path) == "WLMHW_bad_20260825.xlsx" && !repaired) throw new InvalidDataException("Synthetic corrupt workbook");
             return ValidR025() with { FileName = path };
         }));
         coordinator.SetKnownStores(["WLMHW","HEMW"]);
