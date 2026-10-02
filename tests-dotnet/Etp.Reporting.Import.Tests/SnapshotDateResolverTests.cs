@@ -78,6 +78,50 @@ public sealed class SnapshotDateResolverTests
     }
 
     [Fact]
+    public void Two_Info_blocks_of_one_snapshot_date_are_refused_with_SNAPSHOT_DATE_REPEATED()
+    {
+        // Two exports of 29 Sep (10:00 and 14:49) stacked under one table: planner 1 would store both readings and
+        // double the 29 Sep stock (review 1.9.3 contract-decision finding 2).
+        var workbook = new WorkbookSnapshot("R010_BinWise_Stock.xlsx", 1, Hash,
+        [
+            BinWiseData(6),
+            LegacyInfo("No dated rows",
+            [
+                new("202608071848_BinWise-Stock - BinWise-Stock.xlsx", "2:3", 2),
+                new("202609291000_BinWise-Stock - BinWise-Stock.xlsx", "4:5", 2),
+                new("202609291449_BinWise-Stock - BinWise-Stock.xlsx", "6:7", 2)
+            ])
+        ]);
+
+        var dating = Resolve(workbook);
+
+        Assert.Empty(dating.Blocks);
+        Assert.True(dating.HasBlockers);
+        var repeated = Assert.Single(dating.Diagnostics, diagnostic => diagnostic.Code == ImportCodes.SnapshotDateRepeated);
+        Assert.Equal((ImportDiagnosticSeverity.Blocker, 6), (repeated.Severity, repeated.RowNumber));
+        Assert.Contains("Blocks 2, 3", repeated.Message);
+        Assert.Contains("2026-09-29", repeated.Message);
+    }
+
+    [Fact]
+    public void Two_contract_blocks_of_one_snapshot_date_are_refused_under_planner_1()
+    {
+        // The contract validator's CONTRACT_SNAPSHOT_DATE_DUPLICATE does not run in 1.9.3; the dating tier refuses instead.
+        var info = ContractInfo(SnapshotKeys("R010", "WLMHW", 4, 2),
+        [
+            ContractBlock(1, "Data", 2, 3, "202609291000_BinWise-Stock - BinWise-Stock.xlsx", "2026-09-29T10:00", "2026-09-29"),
+            ContractBlock(2, "Data", 4, 5, "202609291449_BinWise-Stock - BinWise-Stock.xlsx", "2026-09-29T14:49", "2026-09-29")
+        ]);
+
+        var dating = Resolve(new WorkbookSnapshot("R010_BinWise_Stock.xlsx", 1, Hash, [BinWiseData(4), info]));
+
+        Assert.Empty(dating.Blocks);
+        var repeated = Assert.Single(dating.Diagnostics, diagnostic => diagnostic.Code == ImportCodes.SnapshotDateRepeated);
+        Assert.Equal((ImportDiagnosticSeverity.Blocker, 4), (repeated.Severity, repeated.RowNumber));
+        Assert.Contains("Blocks 1, 2", repeated.Message);
+    }
+
+    [Fact]
     public void Two_folder_tokens_give_SNAPSHOT_DATE_AMBIGUOUS()
     {
         var workbook = new WorkbookSnapshot("R010_BinWise_Stock.xlsx", 1, Hash, [BinWiseData(3)],

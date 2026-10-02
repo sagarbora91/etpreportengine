@@ -29,6 +29,23 @@ public sealed record ImportScope(string? StoreCode, DateOnly? PeriodStart, DateO
     /// </summary>
     public bool AwaitsSiblingDate { get; init; }
 
+    /// <summary>
+    /// True for a family whose rows hold no date of their own (R010, R023, SOR_AGEING): each row is a reading of the
+    /// snapshot date of its block, so that date is part of the row's identity (planner 1 content keys).
+    /// </summary>
+    public static bool IsUndatedFamily(string reportCode)
+    {
+        var family = EtpReportFamilyRegistry.Resolve(reportCode);
+        return family.Columns.All(column => column.SourceHeader != family.PrimaryDateHeader);
+    }
+
+    /// <summary>
+    /// The snapshot date of one data row of an undated family: the date of the block that holds it, else
+    /// <paramref name="businessDate"/> (a workbook dated as a whole by its siblings or the override has no blocks).
+    /// </summary>
+    public DateOnly? SnapshotDateOf(string sheetName, int sheetRow, DateOnly? businessDate) =>
+        SnapshotBlock.DateOf(SnapshotBlocks, sheetName, sheetRow) ?? businessDate;
+
     /// <summary>Refuses a workbook whose snapshot date only its folder siblings could give; for routes that have no siblings.</summary>
     public void RequireOwnSnapshotDate()
     {

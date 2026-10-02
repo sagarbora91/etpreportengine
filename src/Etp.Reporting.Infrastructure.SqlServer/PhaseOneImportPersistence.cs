@@ -1,4 +1,5 @@
 using System.Data;
+using System.Globalization;
 using Etp.Reporting.Import.Preflight;
 using Etp.Reporting.Import.Profiles;
 using Microsoft.Data.SqlClient;
@@ -7,8 +8,28 @@ namespace Etp.Reporting.Infrastructure.SqlServer;
 
 public sealed partial class SqlServerTransactionalImportStore
 {
-    private sealed record PreviousFile(long Id, string Hash, DateOnly? Start, DateOnly? End, DateTime Imported,
-        HashSet<string> Keys, int Version);
+    internal sealed record PreviousFile(long Id, string Hash, DateOnly? Start, DateOnly? End, DateTime Imported,
+        HashSet<string> Keys, int Version)
+    {
+        /// <summary>
+        /// The snapshot dates an undated family's rows were read for, from their content keys; null when the file has
+        /// no keys or any key carries no date (a dated family, or a snapshot imported before keys carried their date).
+        /// </summary>
+        public IReadOnlySet<DateOnly>? SnapshotDates
+        {
+            get
+            {
+                if (Keys.Count == 0) return null;
+                var dates = new HashSet<DateOnly>();
+                foreach (var key in Keys)
+                {
+                    if (SnapshotDateOfKey(key) is not { } date) return null;
+                    dates.Add(date);
+                }
+                return dates;
+            }
+        }
+    }
     private sealed record ImportPlan(long? ExistingHashFileId, bool DuplicateContent,
         IReadOnlyList<PreviousFile> PreviousFiles, IReadOnlyDictionary<int, string> Keys);
 
@@ -36,7 +57,7 @@ public sealed partial class SqlServerTransactionalImportStore
             if (await exact.ExecuteScalarAsync(token) is long id) return new(id, true, [], new Dictionary<int,string>());
         }
         if (package.AcceptedImport is not { } accepted) return new(null, false, [], new Dictionary<int,string>());
-        var keys = ContentKeys(accepted);
+        var keys = ContentKeys(accepted, file.BusinessDate);
         var previous = new List<PreviousFile>();
         const string sql = """
             SELECT f.import_file_id,f.source_sha256,f.period_start,f.period_end,b.started_utc,k.content_key,f.data_truth_version
@@ -65,6 +86,7 @@ public sealed partial class SqlServerTransactionalImportStore
                 if(!reader.IsDBNull(5)) row.Keys.Add(reader.GetString(5));
             }
         }
+        previous=SharingSnapshotDates(previous,keys.Values,package.Restatement?.PreviousImportFileId);
         var incoming=keys.Values.ToHashSet(StringComparer.Ordinal);
         var allExisting=previous.SelectMany(x=>x.Keys).ToHashSet(StringComparer.Ordinal);
         if(previous.Count>0 && incoming.IsSubsetOf(allExisting) && package.Restatement is null)
@@ -85,19 +107,52 @@ public sealed partial class SqlServerTransactionalImportStore
         return new(null,false,previous,keys);
     }
 
-    private static IReadOnlyDictionary<int,string> ContentKeys(MatchedImportEnvelope accepted)
+    /// <summary>
+    /// Each row's content key, <c>{hash}:{n}</c>, n counting identical rows. A row of an undated family (R010, R023,
+    /// SOR_AGEING) is a reading of its snapshot date, which no column holds, so its key is <c>{hash}@{yyyyMMdd}:{n}</c>:
+    /// an unchanged unit in the 2 Jul and 7 Aug blocks of a stacked R010 is two rows, each matched only by a row of
+    /// its own date when the plan looks for duplicates and promotes a covered file.
+    /// </summary>
+    internal static IReadOnlyDictionary<int,string> ContentKeys(MatchedImportEnvelope accepted,DateOnly? businessDate)
     {
         var result=new Dictionary<int,string>();
         var occurrences=new Dictionary<string,int>(StringComparer.Ordinal);
+        var undated=ImportScope.IsUndatedFamily(accepted.ProfileIdentity.ReportCode);
         foreach(var row in accepted.Staging.Rows)
         {
             // Field selection and the two-digit state code rule live in the shared canonicaliser (spec 7.1).
             var hash=Etp.Reporting.Import.Identity.FactCanonicalizer.Instance.ContentKeyHash(accepted.ProfileIdentity.ReportCode,row.Values);
+            if(undated && accepted.Scope.SnapshotDateOf(accepted.MatchedSheet.Name,row.SourceRowNumber,businessDate) is { } date)
+                hash=$"{hash}{SnapshotDateMark}{date.ToString(SnapshotDateFormat,CultureInfo.InvariantCulture)}";
             occurrences.TryGetValue(hash,out var number);
             occurrences[hash]=++number;
             result[row.SourceRowNumber]=$"{hash}:{number}";
         }
         return result;
+    }
+
+    private const char SnapshotDateMark='@';
+    private const string SnapshotDateFormat="yyyyMMdd";
+
+    /// <summary>The snapshot date a content key carries (<see cref="ContentKeys"/>), or null for a key without one.</summary>
+    internal static DateOnly? SnapshotDateOfKey(string key)=>
+        key.Length>=64+1+8 && key[64]==SnapshotDateMark &&
+        DateOnly.TryParseExact(key.AsSpan(65,8),SnapshotDateFormat,CultureInfo.InvariantCulture,DateTimeStyles.None,out var date)
+            ? date : null;
+
+    /// <summary>
+    /// For an undated family, the current files that hold one of the incoming snapshot dates. A stacked R010's period is
+    /// min..max of its blocks, but it holds only those dates: a single-date file inside that range is another snapshot,
+    /// never a duplicate of it, and a stacked file overlaps a single-date file only on its date. A file whose keys carry
+    /// no date is matched by its period, as before; an explicit restatement target is always kept.
+    /// </summary>
+    internal static List<PreviousFile> SharingSnapshotDates(IReadOnlyList<PreviousFile> previous,IEnumerable<string> incomingKeys,long? restatementTarget)
+    {
+        var dates=incomingKeys.Select(SnapshotDateOfKey).OfType<DateOnly>().ToHashSet();
+        if(dates.Count==0) return previous.ToList();
+        return previous.Where(old=>old.Id==restatementTarget || (old.SnapshotDates is { } held
+            ? held.Overlaps(dates)
+            : dates.Any(date=>(old.Start is null || old.Start<=date) && (old.End is null || date<=old.End)))).ToList();
     }
 
     private static async Task RecordDuplicateAsync(SqlConnection c,SqlTransaction t,ImportPersistencePackage p,

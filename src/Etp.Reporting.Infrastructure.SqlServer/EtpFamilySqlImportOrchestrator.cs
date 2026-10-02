@@ -17,8 +17,9 @@ public sealed class EtpFamilySqlImportOrchestrator(ITransactionalImportStore sto
         var batch=Guid.NewGuid();
         // R010 rows carry no date of their own; each row is stamped with the date of its snapshot.
         // A file dated only by its sibling exports has no blocks and takes the business date.
-        DateOnly SnapshotDate(StagedImportRow row)=>SnapshotBlock.DateOf(accepted.Scope.SnapshotBlocks,accepted.MatchedSheet.Name,
-            row.SourceRowNumber)??scope.BusinessDate!.Value;
+        // Planner 1's content keys take the same date (PhaseOneImportPersistence.ContentKeys).
+        DateOnly SnapshotDate(StagedImportRow row)=>accepted.Scope.SnapshotDateOf(accepted.MatchedSheet.Name,
+            row.SourceRowNumber,scope.BusinessDate)!.Value;
 
         var snapshots=accepted.ProfileIdentity.ReportCode=="R010"
             ? accepted.Staging.Rows.Select(row=>

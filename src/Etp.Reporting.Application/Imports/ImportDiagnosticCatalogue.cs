@@ -74,6 +74,7 @@ public static class ImportDiagnosticCatalogue
         [ImportCodes.ExportContentMismatch] = ["Two copies of one export hold different content."],
         [ImportCodes.SnapshotDateUnknown] = ["The snapshot date could not be determined."],
         [ImportCodes.SnapshotDateAmbiguous] = ["More than one snapshot date is possible for these rows."],
+        [ImportCodes.SnapshotDateRepeated] = ["Two blocks of the data sheet have the same snapshot date. Keep only the later export of that date."],
         [ImportCodes.SnapshotDateFromFolder] = ["The snapshot date was taken from the folder name."],
         [ImportCodes.SnapshotDateFromSiblings] = ["The snapshot date was taken from the other exports in this folder."],
         [ImportCodes.SnapshotDateFromOverride] = ["The snapshot date was taken from the date override; the file states no date of its own."],
