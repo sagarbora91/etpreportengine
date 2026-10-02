@@ -1,3 +1,4 @@
+using System.IO;
 using System.Security.AccessControl;
 
 namespace Etp.Reporting.Desktop.Tests;
@@ -78,5 +79,84 @@ public sealed class ProtectedOperationPathTests
         var problem = Problem(Plain + entry, Enum.Parse<ProtectedOperationPath.Role>(role));
         Assert.Equal(refused, problem is not null);
         if (refused) Assert.Contains("protected from non-administrator changes", problem!.Message, StringComparison.Ordinal);
+    }
+
+    // 1.9.3 review F1. A folder under C:\ProgramData inherits BUILTIN\Users (CI)(WD,AD,WEA,WA):
+    // they may create files in it, but not delete, rename or re-permission anything. That
+    // folder holding sqlcmd.exe lets a user plant a DLL the elevated setup or the automation
+    // account then loads.
+    private const string UnderProgramData = "O:BAG:SYD:AI(A;OICIID;FA;;;SY)(A;OICIID;FA;;;BA)(A;OICIID;0x1200a9;;;BU)(A;CIID;0x116;;;BU)";
+
+    [Theory]
+    [InlineData("(A;;0x2;;;BU)")]
+    [InlineData("(A;;0x4;;;BU)")]
+    [InlineData("(A;CIID;0x116;;;BU)")]
+    [InlineData("(A;;GW;;;BU)")]
+    public void The_folder_holding_a_file_target_must_not_let_others_create_items(string entry)
+    {
+        Assert.Null(Record.Exception(() => ProtectedOperationPath.Check(@"E:\Example", Folder(Plain + entry), ProtectedOperationPath.Role.Ancestor)));
+        var problem = Record.Exception(() => ProtectedOperationPath.Check(@"E:\Example", Folder(Plain + entry), ProtectedOperationPath.Role.Ancestor, holdsTarget: true));
+        Assert.IsType<InvalidOperationException>(problem);
+        Assert.Contains("S-1-5-32-545", problem.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_windows_formatted_data_drive_root_cannot_hold_a_file_target()
+        => Assert.NotNull(Record.Exception(() => ProtectedOperationPath.Check(@"E:\", Folder(FormattedRoot), ProtectedOperationPath.Role.Root, holdsTarget: true)));
+
+    private static FileSecurity FileAcl(string sddl)
+    {
+        var security = new FileSecurity();
+        security.SetSecurityDescriptorSddlForm(sddl);
+        return security;
+    }
+
+    private static Exception? Walk(string path, IReadOnlyDictionary<string, FileSystemSecurity> layout) =>
+        Record.Exception(() => ProtectedOperationPath.Walk(path, item => layout.TryGetValue(item, out var security)
+            ? security : throw new KeyNotFoundException($"The layout has no entry for {item}.")));
+
+    [Fact]
+    public void A_sqlcmd_in_a_folder_users_may_create_files_in_is_refused()
+    {
+        const string fileUnderProgramData = "O:BAG:SYD:AI(A;ID;FA;;;SY)(A;ID;FA;;;BA)(A;ID;0x1200a9;;;BU)";
+        var layout = new Dictionary<string, FileSystemSecurity>(StringComparer.OrdinalIgnoreCase)
+        {
+            [@"C:\"] = Folder("O:SYG:SYD:(A;;FA;;;SY)(A;;FA;;;BA)(A;;0x1200a9;;;BU)"),
+            [@"C:\ProgramData"] = Folder("O:SYG:SYD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;0x1200a9;;;BU)(A;CI;0x116;;;BU)"),
+            [@"C:\ProgramData\SqlTools"] = Folder(UnderProgramData),
+            [@"C:\ProgramData\SqlTools\Binn"] = Folder(UnderProgramData),
+            [@"C:\ProgramData\SqlTools\Binn\SQLCMD.EXE"] = FileAcl(fileUnderProgramData)
+        };
+        var problem = Walk(@"C:\ProgramData\SqlTools\Binn\SQLCMD.EXE", layout);
+        Assert.IsType<InvalidOperationException>(problem);
+        Assert.Contains(@"'C:\ProgramData\SqlTools\Binn' gives S-1-5-32-545", problem.Message, StringComparison.Ordinal);
+        // With the tools folder closed the same layout passes: users may still create items in
+        // the folders further up, which cannot replace any part of the path.
+        layout[@"C:\ProgramData\SqlTools\Binn"] = Folder(Plain);
+        Assert.Null(Walk(@"C:\ProgramData\SqlTools\Binn\SQLCMD.EXE", layout));
+        // A folder target is still judged by its own rights, not as the holder of a file.
+        Assert.Null(Walk(@"C:\ProgramData\SqlTools\Binn", layout));
+    }
+
+    [Theory]
+    [InlineData(@"C:\Tools\sqlcmd.exe", "Fixed", @"\Device\HarddiskVolume3", false)]
+    [InlineData(@"F:\Tools\sqlcmd.exe", "Removable", @"\Device\HarddiskVolume7", false)]
+    [InlineData(@"S:\Tools\sqlcmd.exe", "Fixed", @"\??\C:\Data\ETP", true)]
+    [InlineData(@"N:\Tools\sqlcmd.exe", "Network", @"\Device\LanmanRedirector\;N:0000000000012345\pc\share", true)]
+    [InlineData(@"C:\Tools\sqlcmd.exe", "Fixed", null, true)]
+    [InlineData(@"C:\Tools\sqlcmd.exe", null, @"\Device\HarddiskVolume3", true)]
+    [InlineData(@"\\pc\share\Tools\sqlcmd.exe", null, null, true)]
+    [InlineData(@"\\?\C:\Tools\sqlcmd.exe", "Fixed", @"\Device\HarddiskVolume3", true)]
+    public void Only_a_real_local_volume_has_a_root_that_cannot_be_renamed(string path, string? driveType, string? dosDevice, bool refused)
+    {
+        var problem = ProtectedOperationPath.VolumeProblem(path, driveType is null ? null : Enum.Parse<DriveType>(driveType), dosDevice);
+        Assert.Equal(refused, problem is not null);
+    }
+
+    [Fact]
+    public void The_system_drive_is_a_real_local_volume()
+    {
+        var path = Path.GetFullPath(Environment.SystemDirectory);
+        Assert.Null(ProtectedOperationPath.VolumeProblem(path, ProtectedOperationPath.DriveTypeOf(path), ProtectedOperationPath.DosDeviceOf(path)));
     }
 }
