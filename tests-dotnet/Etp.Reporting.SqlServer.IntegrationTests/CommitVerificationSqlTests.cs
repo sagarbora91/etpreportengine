@@ -156,6 +156,28 @@ public sealed class CommitVerificationSqlTests
             var detailed = classifier.DescribeDetailed(exception, FailureStage.Apply);
             Assert.Equal((ImportCodes.CommitOutcomeUnknown, FailureStage.Commit, (int?)-2), (detailed.Code, detailed.Stage, detailed.SqlNumber));
 
+            // History keeps the instruction, never "The import failed with a database error." (review 1.9.3). The
+            // desktop batch route records its attempt as the folder import does (IF-017), so both are there.
+            var stored = await ImportDiagnosticsSqlTests.Single(database, """
+                SELECT COUNT(*),COUNT(DISTINCT failure_message),MIN(failure_message),MIN(sql_error_number),MAX(sql_error_number),
+                  MIN(commit_state),MAX(commit_state)
+                FROM dbo.import_attempts WHERE failure_code='COMMIT_OUTCOME_UNKNOWN'
+                """);
+            Assert.Equal(2, stored[0]);
+            Assert.Equal(1, stored[1]);
+            Assert.Equal(file.Message, stored[2]);
+            Assert.Equal((-2, -2), ((int)stored[3]!, (int)stored[4]!));
+            Assert.Equal(("UNKNOWN", "UNKNOWN"), ((string)stored[5]!, (string)stored[6]!));
+            var unknownEntries = (await new SqlServerImportHistoryQuery(database.ConnectionString).LoadAsync(new(new(2000, 1, 1), new(2100, 12, 31))))
+                .Where(entry => entry.Result.Failure?.Code == ImportCodes.CommitOutcomeUnknown).ToArray();
+            Assert.Equal(2, unknownEntries.Length);
+            Assert.All(unknownEntries, entry =>
+            {
+                Assert.Equal(file.Message, entry.Result.Message);
+                Assert.Equal(file.Message, entry.Result.Failure!.SafeMessage);
+                Assert.Equal(CommitState.Unknown, entry.Result.CommitState);
+            });
+
             // As the message promises, importing the file again finds it already held.
             Assert.Equal(1, Convert.ToInt32(await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.import_batches WHERE status='Completed'")));
             var again = Assert.Single((await new FolderImportService(new SqlServerImportPersistenceUseCase(database.ConnectionString))

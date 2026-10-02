@@ -14,6 +14,21 @@ public static class ImportDiagnosticCatalogue
 
     private const string Restate = " Review and request a controlled restatement.";
 
+    /// <summary>
+    /// The message of an import whose COMMIT the check after it could not confirm (IF-014). It holds no value,
+    /// so it is kept for any code and SQL error number: the database error that hid the outcome must not
+    /// replace the instruction to import the file again.
+    /// </summary>
+    public const string CommitOutcomeUnknownMessage =
+        "The database did not confirm whether this import was saved. Import the file again: if it was saved, it is reported as already imported.";
+
+    /// <summary>
+    /// The message of an import that committed but whose result could not be read back (IF-014). Like
+    /// <see cref="CommitOutcomeUnknownMessage"/> it is kept for any code and SQL error number.
+    /// </summary>
+    public const string SavedNotReadBackMessage =
+        "The import was saved, but its result could not be read back. Import the file again to see it: it is reported as already imported.";
+
     private static readonly Dictionary<string, string[]> Templates = new(StringComparer.Ordinal)
     {
         // Reading and matching (ImportPreflight, WorkbookLayoutNormalizer, MatchedImportEnvelopeFactory).
@@ -95,7 +110,7 @@ public static class ImportDiagnosticCatalogue
         [ImportCodes.RestatementTargetNotCovered] = ["This file only partly overlaps a current import, so it cannot replace it. Import a file whose period covers it fully."],
         [ImportCodes.RestatementApprovalRequired] = ["This replacement and reason need unused Owner approval before import."],
         [ImportCodes.ImportTimeout] = ["The import timed out and can be retried."],
-        [ImportCodes.CommitOutcomeUnknown] = ["The database did not confirm the commit; the import was checked again."],
+        [ImportCodes.CommitOutcomeUnknown] = [CommitOutcomeUnknownMessage],
         ["ISSUES_TRUNCATED"] = ["More issue codes than an attempt keeps; their occurrences are counted together."],
         [ImportCodes.EvidenceNotRetained] = ["Data is present; the source file could not be kept as evidence."],
 
@@ -148,14 +163,16 @@ public static class ImportDiagnosticCatalogue
         $"{count:N0} conflicting rows. The complete file was rolled back. Review the source and use Restate.";
 
     /// <summary>
-    /// The failure message an attempt may store and show (<c>import_attempts.failure_message</c>). Our own SQL
-    /// THROWs (50000-59999) keep their text; any other SQL error keeps only the "Database error" form; a code
-    /// the catalogue knows keeps only its own text or the conflict count; an importer refusal with a code of
-    /// its own keeps the text its code wrote.
+    /// The failure message an attempt may store and show (<c>import_attempts.failure_message</c>). The two
+    /// commit-outcome messages are kept whatever the code and SQL number; our own SQL THROWs (50000-59999) keep
+    /// their text; any other SQL error keeps only the "Database error" form; a code the catalogue knows keeps
+    /// only its own text or the conflict count; an importer refusal with a code of its own keeps the text its
+    /// code wrote.
     /// </summary>
     public static string SafeFailureMessage(string? code, string? message, int? sqlNumber)
     {
         if (string.IsNullOrWhiteSpace(message)) return Template(code);
+        if (message is CommitOutcomeUnknownMessage or SavedNotReadBackMessage) return message;
         if (sqlNumber is >= 50000 and <= 59999) return message;
         if (sqlNumber is not null)
             return DatabaseErrorPattern.IsMatch(message) ? message : "The import failed with a database error.";

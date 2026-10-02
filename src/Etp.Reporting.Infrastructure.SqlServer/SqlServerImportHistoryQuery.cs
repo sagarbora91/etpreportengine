@@ -58,8 +58,7 @@ public sealed class SqlServerImportHistoryQuery(string connectionString) : IImpo
         Add("@rows", result.RowsProcessed); Add("@new", result.NewRows); Add("@present", result.AlreadyPresentRows);
         Add("@conflicts", result.ConflictRows); Add("@diagnostics", JsonSerializer.Serialize(issues.Take(MaximumIssueRows)));
         Add("@failure_code", failure?.Code); Add("@failure_stage", failure?.Stage.ToDatabaseCode());
-        Add("@failure_message", failure is null ? null
-            : Truncate(ImportDiagnosticCatalogue.SafeFailureMessage(failure.Code, failure.SafeMessage, failure.SqlNumber), FailureMessageLength));
+        Add("@failure_message", StoredFailureMessage(failure));
         Add("@sql_error", failure?.SqlNumber); Add("@exception_type", Truncate(failure?.ExceptionType, ExceptionTypeLength));
         Add("@batch", result.BatchId); Add("@commit_state", result.CommitState?.ToDatabaseCode());
         Add("@evidence", result.Evidence?.ToDatabaseCode()); Add("@summary", Summary(issues, result.ConflictRows));
@@ -69,6 +68,10 @@ public sealed class SqlServerImportHistoryQuery(string connectionString) : IImpo
         await command.ExecuteNonQueryAsync(cancellationToken);
         void Add(string name, object? value) => command.Parameters.AddWithValue(name, value ?? DBNull.Value);
     }
+
+    /// <summary>The text <c>import_attempts.failure_message</c> keeps for <paramref name="failure"/>; null when it did not fail.</summary>
+    internal static string? StoredFailureMessage(ImportFailure? failure) => failure is null ? null
+        : Truncate(ImportDiagnosticCatalogue.SafeFailureMessage(failure.Code, failure.SafeMessage, failure.SqlNumber), FailureMessageLength);
 
     // Counts only: issues per code, the rows the stager skipped and the conflicting rows. Never a value.
     // A conflict keeps at most 20 samples, so its code counts every conflicting row, not the samples.

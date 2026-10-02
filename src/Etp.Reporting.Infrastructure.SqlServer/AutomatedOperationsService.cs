@@ -16,6 +16,8 @@ public sealed record AutomatedWorkbookOutcome(string ReportCode, string? StoreCo
     public IReadOnlyList<ImportIssue> Issues { get; init; } = [];
 }
 
+internal enum AutomationSourceRoute { Processed, Duplicate, Failed, Inbound }
+
 public sealed class AutomatedOperationsService(string connectionString, Action<FolderImportFailure>? reportImportFailure = null)
 {
     public async Task<AutomatedOperationsSummary> RunOnceAsync(CancellationToken cancellationToken = default)
@@ -52,26 +54,36 @@ public sealed class AutomatedOperationsService(string connectionString, Action<F
                     knownStores: knownStores, reportFailure: reportImportFailure);
                 var batch=await folderService.RunAsync(source,new(AutomationIdentity()),cancellationToken:cancellationToken);
                 duplicates+=batch.Duplicates;
-                foreach(var file in batch.Files.Where(x=>x.Status=="Imported" && x.PeriodEnd is not null)) importedDates.Add(file.PeriodEnd!.Value);
-                if(batch.Failed>0 || batch.UnknownLayouts>0)
+                foreach(var date in ImportedDates(batch)) importedDates.Add(date);
+                var route=RouteOf(batch);
+                if(route==AutomationSourceRoute.Inbound)
+                {
+                    // Files the cancel left unhandled are imported by the next run; the source stays in Inbound.
+                    cancellationToken.ThrowIfCancellationRequested();
+                    continue;
+                }
+                var imported=batch.Imported+batch.Files.Count(IsSavedDespiteFailure);
+                if(route==AutomationSourceRoute.Failed)
                 {
                     failed++;
                     MoveCompletedSource(source,paths.FailedPath);
                     await repository.RecordAutomationRunAsync("WATCH_IMPORT",Path.GetFileName(source),null,null,"Failed",
-                        $"{batch.Imported} workbook(s) imported; {batch.Failed + batch.UnknownLayouts} file(s) need review. Other files were processed.",started,cancellationToken);
+                        $"{imported} workbook(s) imported; {NeedReview(batch)} file(s) need review. Other files were processed.",started,cancellationToken);
                     continue;
                 }
-                MoveCompletedSource(source,batch.Imported==0 && batch.Duplicates>0 ? duplicatePath : paths.ProcessedPath);
+                MoveCompletedSource(source,route==AutomationSourceRoute.Duplicate ? duplicatePath : paths.ProcessedPath);
                 processed++;
                 var stores=batch.Files.Select(x=>x.StoreCode).Where(x=>x is not null).Distinct().ToArray();
                 var dates=batch.Files.Select(x=>x.PeriodEnd).Where(x=>x is not null).Distinct().ToArray();
                 // Save warnings (e.g. STOCK_ROW_REPEATED) would otherwise stay in the in-memory file results.
                 var warnings=batch.Files.Sum(x=>x.Diagnostics?.Count(issue=>issue.Severity==ImportIssueSeverity.Warning) ?? 0);
+                var unread=batch.Files.Count(IsSavedDespiteFailure);
                 await repository.RecordAutomationRunAsync("WATCH_IMPORT",Path.GetFileName(source),stores.Length==1?stores[0]:null,
-                    dates.Length==1?dates[0]:null,batch.Imported==0?"Skipped":"Succeeded",
-                    $"{batch.Imported} workbook(s) imported; {batch.Duplicates} duplicate(s); {batch.Files.Count(file => file.Status == "Not needed")} not needed."+(warnings>0?$" {warnings} warning(s); review the file results.":""),started,cancellationToken);
+                    dates.Length==1?dates[0]:null,imported==0?"Skipped":"Succeeded",
+                    $"{imported} workbook(s) imported; {batch.Duplicates} duplicate(s); {batch.Files.Count(file => file.Status == "Not needed")} not needed."+(warnings>0?$" {warnings} warning(s); review the file results.":"")+
+                    (unread>0?$" {unread} saved but not read back; see Import History.":""),started,cancellationToken);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (!(ex is OperationCanceledException && cancellationToken.IsCancellationRequested))
             {
                 failed++;
                 var safe = new SqlImportFailureClassifier().Describe(ex).SafeMessage;
@@ -104,6 +116,34 @@ public sealed class AutomatedOperationsService(string connectionString, Action<F
         }
         return new(processed, failed, duplicates, packs, $"Unattended run completed: {processed} source(s) processed, {failed} failed, {packs} report pack(s) generated.");
     }
+
+    /// <summary>
+    /// A file whose import committed although the run reports it Failed or Cancelled: only reading its result
+    /// back failed, or the cancel came after the COMMIT (IF-014). Its data is live, so automation treats it as
+    /// imported. A file with conflicting rows still needs review.
+    /// </summary>
+    internal static bool IsSavedDespiteFailure(FolderImportFileResult file) =>
+        file.Status is "Failed" or "Cancelled" && file.CommitState == CommitState.Committed && file.ConflictRows == 0;
+
+    /// <summary>The business dates whose report pack a source's run makes due: those of its new or saved imports.</summary>
+    internal static IEnumerable<DateOnly> ImportedDates(FolderImportSummary batch) =>
+        batch.Files.Where(file => (file.Status == "Imported" || IsSavedDespiteFailure(file)) && file.PeriodEnd is not null)
+            .Select(file => file.PeriodEnd!.Value).Distinct();
+
+    /// <summary>
+    /// Where a watched source goes after its run. A file the cancel left unhandled keeps the source in Inbound,
+    /// so the next run imports it; a file that needs review moves it to Failed; a saved import counts as imported.
+    /// </summary>
+    internal static AutomationSourceRoute RouteOf(FolderImportSummary batch)
+    {
+        if (batch.Files.Any(file => file.Status == "Cancelled" && !IsSavedDespiteFailure(file))) return AutomationSourceRoute.Inbound;
+        if (NeedReview(batch) > 0) return AutomationSourceRoute.Failed;
+        return batch.Imported + batch.Files.Count(IsSavedDespiteFailure) == 0 && batch.Duplicates > 0
+            ? AutomationSourceRoute.Duplicate : AutomationSourceRoute.Processed;
+    }
+
+    private static int NeedReview(FolderImportSummary batch) =>
+        batch.Files.Count(file => file.Failed && !IsSavedDespiteFailure(file)) + batch.UnknownLayouts;
 
     public async Task<AutomatedWorkbookOutcome> ProcessWorkbookAsync(string workbookPath, CancellationToken cancellationToken = default)
     {
