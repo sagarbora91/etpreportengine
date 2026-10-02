@@ -33,7 +33,8 @@ public sealed record SnapshotDating(IReadOnlyList<SnapshotBlock> Blocks, IReadOn
 /// <item>the workbook's own export name (<see cref="SnapshotDateBasis.ExportName"/>);</item>
 /// <item>the Info <c>Coverage</c> value when it is one date, or the date in the disposition of a single legacy block
 /// (<see cref="SnapshotDateBasis.InfoCoverage"/>);</item>
-/// <item>the nearest parent folder name that holds a date (<see cref="SnapshotDateBasis.Folder"/>), with the warning <c>SNAPSHOT_DATE_FROM_FOLDER</c>.</item>
+/// <item>the name of the folder (or ZIP) that holds the file, when it states a date (<see cref="SnapshotDateBasis.Folder"/>), with the
+/// warning <c>SNAPSHOT_DATE_FROM_FOLDER</c>; folders further up are never read.</item>
 /// </list>
 /// A whole-file tier with more than one distinct date refuses <c>SNAPSHOT_DATE_AMBIGUOUS</c>; it never takes a maximum and
 /// never falls through. No date at all gives <c>SNAPSHOT_DATE_UNKNOWN</c> with <see cref="SnapshotDating.NoTierDated"/>,
@@ -105,10 +106,12 @@ public sealed class SnapshotDateResolver(
             if (stated.Count > 0) return WholeFile(stated, SnapshotDateBasis.InfoCoverage, "the Info coverage", dataSheet, notes);
         }
 
-        // Tier 6: the nearest parent folder that names a date; folders further up (an archive or work folder) are not read.
-        var folders = Folders(workbook.SourcePath).Reverse()
-            .Select(folder => SheetText.Dates(folder, compactDigits: true).Select(found => found.Date).ToArray())
-            .FirstOrDefault(dates => dates.Length > 0) ?? [];
+        // Tier 6: the name of the folder that holds the file (for a ZIP entry at the archive's root, the ZIP's name; see
+        // BatchImportSource). Only that one folder is read: when it states no date, a folder further up (an archive or
+        // work folder) is never consulted, and the folder import may still date the file from its siblings (tier 7).
+        var folders = Folders(workbook.SourcePath) is { Count: > 0 } names
+            ? SheetText.Dates(names[^1], compactDigits: true).Select(found => found.Date).ToArray()
+            : [];
         if (folders.Length > 0)
         {
             var dating = WholeFile(folders, SnapshotDateBasis.Folder, "its folder names", dataSheet, notes);

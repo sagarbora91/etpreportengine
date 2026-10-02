@@ -60,6 +60,14 @@ public interface IImportPersistenceUseCase<TAcceptedImport> where TAcceptedImpor
         await FindCurrentImportFileIdAsync(reportCode, storeCode, periodEnd, cancellationToken).ConfigureAwait(false) is { } id
             ? [new(id, string.Empty, periodEnd, periodEnd, 0)]
             : [];
+    /// <summary>
+    /// Of <paramref name="importFileIds"/>, current imports a restatement's period covers but that it does not replace,
+    /// those whose stored rows the replacement changes or drops. Planner 1 takes such an import over only when the
+    /// replacement holds every row it holds; one it does not hold makes the restatement fail whichever import was
+    /// picked, so the importer refuses before any approval is requested. The default finds none.
+    /// </summary>
+    Task<IReadOnlyList<long>> FindImportsChangedByAsync(TAcceptedImport accepted, IReadOnlyList<long> importFileIds,
+        CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<long>>([]);
     Task PrepareRestatementAsync(
         ImportPersistenceRequest<TAcceptedImport> request,
         CancellationToken cancellationToken = default);

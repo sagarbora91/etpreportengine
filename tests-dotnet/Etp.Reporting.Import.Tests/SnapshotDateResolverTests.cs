@@ -270,15 +270,49 @@ public sealed class SnapshotDateResolverTests
         Assert.Equal(ImportCodes.SnapshotDateAmbiguous, Assert.Single(dating.Diagnostics).Code);
     }
 
-    [Fact]
-    public void Folder_tier_reads_the_nearest_dated_folder_not_every_ancestor()
+    [Theory]
+    // The folder holding the file states no date; a dated work, archive or pack folder further up is never read.
+    [InlineData(@"V:\ETP\Work in progress 2026-10-01\till 29 sep 2026\HEMW\R010_BinWise_Stock.xlsx")]
+    [InlineData(@"F:\ETP\Reference\Work in progress 2026-10-01\HEMW pack\R010_BinWise_Stock.xlsx")]
+    [InlineData(@"F:\ETP\Migration 2026-10-02\review\R010_BinWise_Stock.xlsx")]
+    public void Folder_tier_reads_only_the_folder_that_holds_the_file(string path)
     {
-        var workbook = new WorkbookSnapshot("R010_BinWise_Stock.xlsx", 1, Hash, [BinWiseData(3)],
-            @"V:\ETP\Work in progress 2026-10-01\till 29 sep 2026\HEMW\R010_BinWise_Stock.xlsx");
+        var workbook = new WorkbookSnapshot("R010_BinWise_Stock.xlsx", 1, Hash, [BinWiseData(3)], path);
 
         var dating = Resolve(workbook);
 
-        Assert.Equal(new DateOnly(2026, 9, 29), Assert.Single(dating.Blocks).SnapshotDate);
-        Assert.Equal(ImportCodes.SnapshotDateFromFolder, Assert.Single(dating.Diagnostics).Code);
+        // Undated, so the folder import may still date it from its siblings (tier 7) and the override is not refused.
+        Assert.Empty(dating.Blocks);
+        Assert.True(dating.NoTierDated);
+        Assert.Equal(ImportCodes.SnapshotDateUnknown, Assert.Single(dating.Diagnostics).Code);
+    }
+
+    [Fact]
+    public async Task Folder_tier_reads_the_name_of_the_ZIP_a_root_entry_came_from()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "EtpImportTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var zipPath = Path.Combine(root, "HEMW stock 29 Sep 2026.zip");
+            using (var archive = System.IO.Compression.ZipFile.Open(zipPath, System.IO.Compression.ZipArchiveMode.Create))
+            {
+                using (var stream = archive.CreateEntry("R010_BinWise_Stock.xlsx").Open()) stream.WriteByte(1);
+                using (var stream = archive.CreateEntry("HEMW/R010_BinWise_Stock.xlsx").Open()) stream.WriteByte(1);
+            }
+            await using var source = await BatchImportSource.OpenAsync(zipPath);
+            var atRoot = source.WorkbookPaths.Single(path => Path.GetFileName(Path.GetDirectoryName(path)) != "HEMW");
+            var nested = source.WorkbookPaths.Single(path => Path.GetFileName(Path.GetDirectoryName(path)) == "HEMW");
+
+            var dated = Resolve(new WorkbookSnapshot("R010_BinWise_Stock.xlsx", 1, Hash, [BinWiseData(3)], atRoot));
+            var undated = Resolve(new WorkbookSnapshot("R010_BinWise_Stock.xlsx", 1, Hash, [BinWiseData(3)], nested));
+
+            var block = Assert.Single(dated.Blocks);
+            Assert.Equal((new DateOnly(2026, 9, 29), SnapshotDateBasis.Folder), (block.SnapshotDate, block.Basis));
+            Assert.Equal(ImportCodes.SnapshotDateFromFolder, Assert.Single(dated.Diagnostics).Code);
+            // An entry inside a folder of the ZIP is read by that folder alone, as in an unpacked folder.
+            Assert.True(undated.NoTierDated);
+        }
+        finally { Directory.Delete(root, true); }
     }
 }

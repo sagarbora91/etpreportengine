@@ -178,7 +178,8 @@ public sealed class FolderImportService(
                     var candidates = await persistence.FindRestatementCandidatesAsync(accepted.ProfileIdentity.ReportCode,
                         persistedStore, periodStart, periodEnd, cancellationToken).ConfigureAwait(false);
                     var target = await ChooseRestatementTargetAsync(new(result.FileName, accepted.ProfileIdentity.ReportCode,
-                        persistedStore, periodStart, periodEnd, candidates), options, cancellationToken).ConfigureAwait(false);
+                        persistedStore, periodStart, periodEnd, candidates), options,
+                        ids => persistence.FindImportsChangedByAsync(accepted, ids, cancellationToken), cancellationToken).ConfigureAwait(false);
                     if (target.Refusal is { } refusal)
                     {
                         // The file fails below with the refusal's code; its issues keep the candidates for the Owner.
@@ -347,9 +348,12 @@ public sealed class FolderImportService(
 
     // IF-016 interim (planner 1): a restatement replaces one current file whose declared period overlaps its own.
     // None is refused; one is used; several are put to whoever imports, and the others go through promotion as
-    // before. Several with no picker (automation) or no pick are refused with the candidates listed.
+    // before. Several with no picker (automation) or no pick are refused with the candidates listed. Promotion takes
+    // an unpicked file over only when this file holds every row it holds, so one this file changes is refused here,
+    // before any approval is requested, instead of failing in the planner with "Use Restate".
     private static async Task<RestatementTarget> ChooseRestatementTargetAsync(RestatementTargetChoice choice,
-        FolderImportOptions options, CancellationToken cancellationToken)
+        FolderImportOptions options, Func<IReadOnlyList<long>, Task<IReadOnlyList<long>>> findChanged,
+        CancellationToken cancellationToken)
     {
         var candidates = choice.Candidates;
         if (candidates.Count == 0)
@@ -371,15 +375,33 @@ public sealed class FolderImportService(
                     $"Partly overlapped current import {candidate.ImportFileId}: {candidate.FileName}, {candidate.Period}, {candidate.Rows:N0} rows.")).ToArray());
         }
         if (candidates.Count == 1) return new(candidates[0]);
+        var changedIds = (await findChanged(candidates.Select(candidate => candidate.ImportFileId).ToArray()).ConfigureAwait(false)).ToHashSet();
+        var changed = candidates.Where(candidate => changedIds.Contains(candidate.ImportFileId)).ToArray();
+        // Two or more changed files: whichever is picked, another blocks the run, so nothing is asked.
+        if (changed.Length > 1) return OtherImportChanged(choice, null, changed);
         var picker = options.ChooseRestatementTarget;
         var picked = picker is null ? null : await picker(choice, cancellationToken).ConfigureAwait(false);
-        if (candidates.FirstOrDefault(candidate => candidate.ImportFileId == picked?.ImportFileId) is { } target) return new(target);
+        if (candidates.FirstOrDefault(candidate => candidate.ImportFileId == picked?.ImportFileId) is { } target)
+            return changed.Length == 1 && changed[0].ImportFileId != target.ImportFileId ? OtherImportChanged(choice, target, changed) : new(target);
         var files = string.Join(", ", candidates.Select(candidate => candidate.ImportFileId));
         return new(null, new(ImportCodes.RestatementTargetAmbiguous, picker is null
                 ? $"This file's period overlaps {candidates.Count} current imports (files {files}). Restate it from the Import screen, which asks which one it replaces."
                 : $"No import to restate was chosen among the {candidates.Count} current imports this file's period overlaps (files {files}). Nothing was changed."),
             candidates.Select(candidate => new ImportIssue(ImportIssueSeverity.Blocker, ImportCodes.RestatementTargetAmbiguous,
                 $"Overlapping current import {candidate.ImportFileId}: {candidate.FileName}, {candidate.Period}, {candidate.Rows:N0} rows.")).ToArray());
+    }
+
+    private static RestatementTarget OtherImportChanged(RestatementTargetChoice choice, RestatementCandidate? picked,
+        IReadOnlyList<RestatementCandidate> changed)
+    {
+        var blocking = changed.Where(candidate => candidate.ImportFileId != picked?.ImportFileId).ToArray();
+        var message = $"This file's period {choice.Period} covers {choice.Candidates.Count} current {choice.ReportCode} imports, and it changes "
+            + $"or drops rows of {(blocking.Length == 1 ? "import" : "imports")} {string.Join(", ", blocking.Select(candidate => candidate.ImportFileId))}"
+            + (picked is null ? "" : $" besides import {picked.ImportFileId}, the one chosen") + ". A run restates only one import, and "
+            + "the others are taken over only when this file holds all their rows. Restate each import with a corrected file for its own period. Nothing was changed.";
+        return new(null, new(ImportCodes.RestatementOtherImportChanged, message),
+            blocking.Select(candidate => new ImportIssue(ImportIssueSeverity.Blocker, ImportCodes.RestatementOtherImportChanged,
+                $"Current import {candidate.ImportFileId}: {candidate.FileName}, {candidate.Period}, {candidate.Rows:N0} rows; this file changes it, and it is not the one restated.")).ToArray());
     }
 
     private sealed record RestatementTarget(RestatementCandidate? Candidate, ImportSourceException? Refusal = null,

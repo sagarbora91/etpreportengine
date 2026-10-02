@@ -77,6 +77,15 @@ public sealed partial class SqlServerTransactionalImportStore
                 throw new Etp.Reporting.Import.Batch.ImportSourceException("IMPORT_LEGACY_RESTATEMENT_REQUIRED",
                     "This period was imported before the data-truth upgrade. Re-import its original workbook first, or use Restate with a reviewed replacement. No data was changed.")
                     { Stage = Etp.Reporting.Application.Imports.FailureStage.Plan };
+            // During a restatement "Use Restate" sends the Owner in a circle: say which other import blocks it, and why.
+            if(package.Restatement is { } restating && !isExplicit && !coversRange)
+                throw new Etp.Reporting.Import.Batch.ImportSourceException(Etp.Reporting.Application.Imports.ImportCodes.RestatementTargetNotCovered,
+                    $"This restatement replaces import {restating.PreviousImportFileId}, but its period only partly overlaps current import {old.Id}, so it cannot replace that one too. Import a file whose period covers it fully. No data was changed.")
+                    { Stage = Etp.Reporting.Application.Imports.FailureStage.Plan };
+            if(package.Restatement is { } replacing && !isExplicit && !old.Keys.IsSubsetOf(incoming))
+                throw new Etp.Reporting.Import.Batch.ImportSourceException(Etp.Reporting.Application.Imports.ImportCodes.RestatementOtherImportChanged,
+                    $"This restatement replaces import {replacing.PreviousImportFileId}, but its period also covers current import {old.Id}, and it changes or drops {old.Keys.Except(incoming).Count():N0} of that import's rows. A run restates only one import: restate each import with a corrected file for its own period. No data was changed.")
+                    { Stage = Etp.Reporting.Application.Imports.FailureStage.Plan };
             if(!coversRange || (!isExplicit && !old.Keys.IsSubsetOf(incoming)))
                 throw new Etp.Reporting.Import.Batch.ImportSourceException("IMPORT_PERIOD_ALREADY_PRESENT",
                     $"Already imported on {old.Imported:dd MMM yyyy} (hash {old.Hash[..12]}). Use Restate. {old.Keys.Except(incoming).Count():N0} conflicting or missing rows; no data was changed.")
@@ -85,7 +94,7 @@ public sealed partial class SqlServerTransactionalImportStore
         return new(null,false,previous,keys);
     }
 
-    private static IReadOnlyDictionary<int,string> ContentKeys(MatchedImportEnvelope accepted)
+    internal static IReadOnlyDictionary<int,string> ContentKeys(MatchedImportEnvelope accepted)
     {
         var result=new Dictionary<int,string>();
         var occurrences=new Dictionary<string,int>(StringComparer.Ordinal);

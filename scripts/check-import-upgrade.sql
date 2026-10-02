@@ -95,7 +95,8 @@ EXEC sys.sp_executesql N'SELECT @n=COUNT_BIG(*) FROM (SELECT source_sha256 FROM 
   N'@n bigint OUTPUT', @shaScopes OUTPUT;
 
 -- 2. Summary. blocks_upgrade = 1 marks what a migration pre-check refuses (0041: 51700-51702;
--- the stock identity indexes cannot be built over a repeated identity).
+-- the stock identity indexes cannot be built over a repeated identity). Checks 3 and 16 are repaired by
+-- scripts/repair-invoice-financial-year.sql; read its header first.
 SELECT check_code, findings, blocks_upgrade, detail FROM (VALUES
  (1, 'CURRENT_V0_FILES', @v0Files, CONVERT(bit,0),
   N'Current files imported before data truth version 1; the upgrade keeps their facts as canonical-only versions.'),
@@ -103,7 +104,7 @@ SELECT check_code, findings, blocks_upgrade, detail FROM (VALUES
   N'Finalised store-days; planner 1 refuses any file whose period contains one.'),
  (3, 'INVOICE_YEAR_NOT_FINANCIAL_YEAR', (SELECT COUNT_BIG(*) FROM dbo.sales_invoices
     WHERE invoice_year<>YEAR(transaction_date)+CASE WHEN MONTH(transaction_date)>=4 THEN 1 ELSE 0 END), CONVERT(bit,1),
-  N'Invoices whose year is not the financial year of their date (0041 THROWs 51700).'),
+  N'Invoices whose year is not the financial year of their date (0041 THROWs 51700). Repair: scripts/repair-invoice-financial-year.sql.'),
  (4, 'MOVEMENT_YEAR_NOT_FINANCIAL_YEAR', (SELECT COUNT_BIG(*) FROM dbo.stock_movements
     WHERE invoice_year<>YEAR(document_date)+CASE WHEN MONTH(document_date)>=4 THEN 1 ELSE 0 END), CONVERT(bit,0),
   N'Stock movements whose year is not the financial year of their document date (information).'),
@@ -135,7 +136,12 @@ SELECT check_code, findings, blocks_upgrade, detail FROM (VALUES
   CASE WHEN @caseSensitive=1 THEN N'Tender types spelled in more than one case. The collation is case-sensitive: 0041 indexes UPPER(tender_type).'
        ELSE N'Tender types spelled in more than one case (information; the collation ignores case).' END),
  (15, 'SOURCE_ROWS_OF_SUPERSEDED_FILES', @familySuperseded, CONVERT(bit,0),
-  N'Family-table (etp_r*, etp_landing_*) rows of superseded files. Expected: promotion and restatement keep the source rows (information).')
+  N'Family-table (etp_r*, etp_landing_*) rows of superseded files. Expected: promotion and restatement keep the source rows (information).'),
+ (16, 'INVOICE_YEAR_TWIN_HEADERS', (SELECT COUNT_BIG(*) FROM dbo.sales_invoices i JOIN dbo.sales_invoices t
+    ON t.store_code=i.store_code AND t.document_number=i.document_number
+   AND t.invoice_year=YEAR(i.transaction_date)+CASE WHEN MONTH(i.transaction_date)>=4 THEN 1 ELSE 0 END
+    WHERE i.invoice_year<>YEAR(i.transaction_date)+CASE WHEN MONTH(i.transaction_date)>=4 THEN 1 ELSE 0 END), CONVERT(bit,1),
+  N'Invoices of check 3 whose financial year already has a header of its own (the unique invoice key forbids re-keying them); the repair script combines the two headers (0041 THROWs 51700).')
 ) c(n, check_code, findings, blocks_upgrade, detail)
 ORDER BY n;
 
@@ -167,10 +173,34 @@ IF EXISTS(SELECT 1 FROM dbo.daily_reporting_days WHERE status='LOCKED')
  FROM dbo.daily_reporting_days WHERE status='LOCKED' ORDER BY store_code, business_date;
 
 IF EXISTS(SELECT 1 FROM dbo.sales_invoices WHERE invoice_year<>YEAR(transaction_date)+CASE WHEN MONTH(transaction_date)>=4 THEN 1 ELSE 0 END)
- SELECT TOP (200) 'INVOICE_YEAR_NOT_FINANCIAL_YEAR' AS check_code, sales_invoice_id, store_code, document_number, invoice_year, transaction_date,
-        YEAR(transaction_date)+CASE WHEN MONTH(transaction_date)>=4 THEN 1 ELSE 0 END AS financial_year
- FROM dbo.sales_invoices WHERE invoice_year<>YEAR(transaction_date)+CASE WHEN MONTH(transaction_date)>=4 THEN 1 ELSE 0 END
- ORDER BY store_code, transaction_date, document_number;
+ SELECT TOP (200) 'INVOICE_YEAR_NOT_FINANCIAL_YEAR' AS check_code, i.sales_invoice_id, i.store_code, i.document_number, i.invoice_year, i.transaction_date,
+        YEAR(i.transaction_date)+CASE WHEN MONTH(i.transaction_date)>=4 THEN 1 ELSE 0 END AS financial_year,
+        t.sales_invoice_id AS twin_invoice_id,
+        CASE WHEN t.sales_invoice_id IS NULL THEN 'RE_KEY' ELSE 'COMBINE_WITH_TWIN' END AS repair
+ FROM dbo.sales_invoices i
+ LEFT JOIN dbo.sales_invoices t ON t.store_code=i.store_code AND t.document_number=i.document_number
+  AND t.invoice_year=YEAR(i.transaction_date)+CASE WHEN MONTH(i.transaction_date)>=4 THEN 1 ELSE 0 END
+ WHERE i.invoice_year<>YEAR(i.transaction_date)+CASE WHEN MONTH(i.transaction_date)>=4 THEN 1 ELSE 0 END
+ ORDER BY i.store_code, i.transaction_date, i.document_number;
+
+-- Both headers of each invoice the unique key keeps from being re-keyed, with what each holds.
+IF EXISTS(SELECT 1 FROM dbo.sales_invoices i JOIN dbo.sales_invoices t ON t.store_code=i.store_code AND t.document_number=i.document_number
+   AND t.invoice_year=YEAR(i.transaction_date)+CASE WHEN MONTH(i.transaction_date)>=4 THEN 1 ELSE 0 END
+   WHERE i.invoice_year<>YEAR(i.transaction_date)+CASE WHEN MONTH(i.transaction_date)>=4 THEN 1 ELSE 0 END)
+ SELECT TOP (200) 'INVOICE_YEAR_TWIN_HEADERS' AS check_code, i.store_code, i.document_number,
+        i.sales_invoice_id, i.invoice_year, i.transaction_date,
+        (SELECT COUNT(*) FROM dbo.sales_lines x WHERE x.sales_invoice_id=i.sales_invoice_id) AS lines,
+        (SELECT COUNT(*) FROM dbo.sales_invoice_controls x WHERE x.sales_invoice_id=i.sales_invoice_id) AS controls,
+        (SELECT COUNT(*) FROM dbo.sales_tenders x WHERE x.sales_invoice_id=i.sales_invoice_id) AS tenders,
+        t.sales_invoice_id AS twin_invoice_id, t.invoice_year AS twin_invoice_year, t.transaction_date AS twin_transaction_date,
+        (SELECT COUNT(*) FROM dbo.sales_lines x WHERE x.sales_invoice_id=t.sales_invoice_id) AS twin_lines,
+        (SELECT COUNT(*) FROM dbo.sales_invoice_controls x WHERE x.sales_invoice_id=t.sales_invoice_id) AS twin_controls,
+        (SELECT COUNT(*) FROM dbo.sales_tenders x WHERE x.sales_invoice_id=t.sales_invoice_id) AS twin_tenders
+ FROM dbo.sales_invoices i
+ JOIN dbo.sales_invoices t ON t.store_code=i.store_code AND t.document_number=i.document_number
+  AND t.invoice_year=YEAR(i.transaction_date)+CASE WHEN MONTH(i.transaction_date)>=4 THEN 1 ELSE 0 END
+ WHERE i.invoice_year<>YEAR(i.transaction_date)+CASE WHEN MONTH(i.transaction_date)>=4 THEN 1 ELSE 0 END
+ ORDER BY i.store_code, i.transaction_date, i.document_number;
 
 IF EXISTS(SELECT 1 FROM dbo.sales_invoice_controls GROUP BY sales_invoice_id HAVING COUNT(*)>1)
  SELECT TOP (200) 'DUPLICATE_CONTROLS' AS check_code, i.sales_invoice_id, i.store_code, i.invoice_year, i.document_number, COUNT(*) AS controls

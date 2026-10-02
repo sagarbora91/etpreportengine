@@ -9,9 +9,31 @@ SET XACT_ABORT ON;
 
 -- >>> PRECHECK_FY begin
 -- Every invoice is keyed by the financial year of its own date (OD-1, IF-019); ETP's INVOICEYEAR is only a label.
-IF EXISTS(SELECT 1 FROM dbo.sales_invoices WITH(UPDLOCK,HOLDLOCK)
-  WHERE invoice_year<>YEAR(transaction_date)+CASE WHEN MONTH(transaction_date)>=4 THEN 1 ELSE 0 END)
-  THROW 51700,'Some invoices carry a year other than the financial year of their date. Run scripts/check-import-upgrade.sql and review before upgrading.',1;
+-- The refusal names the first invoices and counts those whose financial year already has a header of its own (an
+-- R022 header keyed by the label beside the R025 header keyed by the financial year): UQ_sales_invoices_natural
+-- forbids re-keying those, so scripts/repair-invoice-financial-year.sql merges them instead (see its header).
+-- FOR XML PATH, not STRING_AGG, so the list compiles at any database compatibility level.
+DECLARE @fy_count int, @fy_twins int, @fy_list nvarchar(max), @fy_message nvarchar(2048);
+SELECT @fy_count=COUNT(*), @fy_twins=COUNT(t.sales_invoice_id)
+FROM dbo.sales_invoices i WITH(UPDLOCK,HOLDLOCK)
+LEFT JOIN dbo.sales_invoices t ON t.store_code=i.store_code AND t.document_number=i.document_number
+  AND t.invoice_year=YEAR(i.transaction_date)+CASE WHEN MONTH(i.transaction_date)>=4 THEN 1 ELSE 0 END
+WHERE i.invoice_year<>YEAR(i.transaction_date)+CASE WHEN MONTH(i.transaction_date)>=4 THEN 1 ELSE 0 END;
+IF @fy_count>0
+BEGIN
+  SET @fy_list=STUFF((SELECT TOP(5) N'; '+CONCAT(i.store_code,N' ',i.document_number,N' dated ',CONVERT(char(10),i.transaction_date,23),
+      N' keyed ',i.invoice_year,N' not ',YEAR(i.transaction_date)+CASE WHEN MONTH(i.transaction_date)>=4 THEN 1 ELSE 0 END)
+    FROM dbo.sales_invoices i
+    WHERE i.invoice_year<>YEAR(i.transaction_date)+CASE WHEN MONTH(i.transaction_date)>=4 THEN 1 ELSE 0 END
+    ORDER BY i.store_code,i.transaction_date,i.document_number
+    FOR XML PATH(''),TYPE).value('.','nvarchar(max)'),1,2,N'');
+  SET @fy_message=LEFT(CONCAT(N'Some invoices carry a year other than the financial year of their date. ',@fy_count,
+    CASE WHEN @fy_count=1 THEN N' invoice' ELSE N' invoices' END,
+    CASE WHEN @fy_twins>0 THEN CONCAT(N', ',@fy_twins,N' of them beside a header already keyed by that financial year') ELSE N'' END,
+    CASE WHEN @fy_count>5 THEN N'; the first five: ' ELSE N': ' END,@fy_list,
+    N'. Run scripts/check-import-upgrade.sql to list them all, then scripts/repair-invoice-financial-year.sql (read its header) before upgrading.'),2048);
+  THROW 51700,@fy_message,1;
+END;
 -- <<< PRECHECK_FY end
 
 -- >>> PRECHECK_CONTROLS_TENDERS begin
