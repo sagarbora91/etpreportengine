@@ -261,7 +261,7 @@ public sealed class DocumentDecisionEngine : IDocumentDecisionEngine
                 .Where(block => block.Covers(from) && block.Covers(to) && to < block.ExportTime.ExportDate!.Value
                     && !block.Observed(stored.Key)
                     && (!cur.LastAttested.IsKnown || ExportOrder.IsNewer(block.ExportTime, cur.LastAttested))
-                    && (true || !seen.IsKnown || ExportOrder.IsNewer(block.ExportTime, seen)))
+                    && (!seen.IsKnown || ExportOrder.IsNewer(block.ExportTime, seen)))
                 .OrderByDescending(block => block.ExportTime.Instant)
                 .ThenBy(block => block.BlockNo)
                 .FirstOrDefault();
