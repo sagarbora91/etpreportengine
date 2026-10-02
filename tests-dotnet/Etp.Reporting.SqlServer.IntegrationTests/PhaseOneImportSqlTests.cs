@@ -147,6 +147,36 @@ public sealed class PhaseOneImportSqlTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public async Task A_restatement_that_also_changes_an_unpicked_import_names_it_instead_of_saying_Use_Restate()
+    {
+        await using var db=new TestDatabase();await db.InitializeAsync();var sample=await Sample();
+        var a=Row(sample,2,"100000001",new(2026,7,1));var b=Row(sample,3,"100000002",new(2026,8,1));
+        var service=new SqlServerImportPersistenceUseCase(db.Fixture.ConnectionString);
+        await Save(service,Workbook(sample,[a]));await Save(service,Workbook(sample,[b]));
+        var first=Convert.ToInt64(await db.Fixture.ExecuteAsync("SELECT MIN(import_file_id) FROM dbo.import_files"));
+        var second=Convert.ToInt64(await db.Fixture.ExecuteAsync("SELECT MAX(import_file_id) FROM dbo.import_files"));
+        // A corrected file for 1 Jul - 1 Aug that changes a row of each current file.
+        var corrected=new MatchedImportEnvelopeFactory().RequireAccepted(Workbook(sample,
+            [Row(sample,2,"100000001",new(2026,7,1),236m),Row(sample,3,"100000002",new(2026,8,1),236m)]));
+        var keepsSecond=new MatchedImportEnvelopeFactory().RequireAccepted(Workbook(sample,[Row(sample,2,"100000001",new(2026,7,1),236m),b]));
+
+        // The importer's pre-check, before any approval is requested: the changed file is found, a taken-over one is not.
+        Assert.Equal([second],await service.FindImportsChangedByAsync(corrected,[second]));
+        Assert.Empty(await service.FindImportsChangedByAsync(keepsSecond,[second]));
+
+        var request=new ImportPersistenceRequest<MatchedImportEnvelope>(corrected,new(2026,8,1),"HEMW","SQL test",new(first,"SQL test","Correct both synthetic rows"));
+        await Assert.ThrowsAsync<Etp.Reporting.Import.Batch.ImportSourceException>(()=>service.PrepareRestatementAsync(request));
+        await db.Fixture.ExecuteAsync("DECLARE @id bigint=(SELECT approval_request_id FROM dbo.approval_requests WHERE approval_type='RESTATEMENT'); EXEC dbo.decide_approval_request @id,1,N'Checked exact replacement';");
+        var error=await Assert.ThrowsAsync<Etp.Reporting.Import.Batch.ImportSourceException>(()=>service.PersistAsync(request));
+
+        Assert.Equal(ImportCodes.RestatementOtherImportChanged,error.Code);
+        Assert.DoesNotContain("Use Restate",error.Message);
+        Assert.Contains($"current import {second}",error.Message);
+        Assert.Equal(2,await db.Int("SELECT COUNT(*) FROM dbo.import_files WHERE is_superseded=0"));
+        Assert.Equal(236m,Convert.ToDecimal(await db.Fixture.ExecuteAsync("SELECT SUM(source_gross_amount) FROM dbo.sales_lines")));
+    }
+
+    [Fact]
     public async Task A_locked_day_inside_the_range_prevents_the_whole_file()
     {
         await using var db=new TestDatabase();await db.InitializeAsync();var source=await Sample();

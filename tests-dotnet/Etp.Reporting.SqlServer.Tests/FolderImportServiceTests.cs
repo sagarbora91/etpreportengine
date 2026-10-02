@@ -381,6 +381,49 @@ public sealed class FolderImportServiceTests
         }
     }
 
+    [Fact]
+    public async Task Restatement_that_changes_an_unpicked_import_is_refused_before_prepare_with_a_restatement_code()
+    {
+        // A corrected 25-26 Aug file over two current files; it changes rows of both, and the Owner picks the first.
+        var persistence = new CapturePersistence { Candidates = [First, Second], Changed = [11, 12] };
+        var asked = 0;
+        var summary = await new FolderImportService(persistence, new Reader(path => Sales(path, "HEMW", [20260825, 20260826])))
+            .RunFilesAsync(["sales.xlsx"], Restate with { ChooseRestatementTarget = (choice, _) => { asked++; return Task.FromResult<RestatementCandidate?>(choice.Candidates[0]); } });
+
+        var file = Assert.Single(summary.Files);
+        Assert.Equal("Failed", file.Status);
+        Assert.Equal(ImportCodes.RestatementOtherImportChanged, file.Failure!.Code);
+        Assert.DoesNotContain("Use Restate", file.Message);
+        Assert.Contains("restates only one import", file.Message);
+        var issues = file.Diagnostics!.Where(issue => issue.Code == ImportCodes.RestatementOtherImportChanged).ToArray();
+        Assert.Equal(["Current import 11: R025_HEMW_25Aug.xlsx", "Current import 12: R025_HEMW_26Aug.xlsx"],
+            issues.Select(issue => issue.Message.Split(',')[0]));
+        // No pick can succeed, so nothing is asked, and no approval is requested.
+        Assert.Equal(0, asked);
+        Assert.Equal([11L, 12L], Assert.Single(persistence.ChangedLookups));
+        Assert.Empty(persistence.Prepared);
+        Assert.Empty(persistence.Requests);
+    }
+
+    [Fact]
+    public async Task Restatement_must_pick_the_one_import_it_changes_when_the_others_are_taken_over()
+    {
+        // Only file 12 holds rows this file changes; file 11's rows are all in it, so promotion takes 11 over.
+        var wrongPick = new CapturePersistence { Candidates = [First, Second], Changed = [12] };
+        var refused = await new FolderImportService(wrongPick, new Reader(path => Sales(path, "HEMW", [20260825, 20260826])))
+            .RunFilesAsync(["sales.xlsx"], Restate with { ChooseRestatementTarget = (choice, _) => Task.FromResult<RestatementCandidate?>(choice.Candidates[0]) });
+        var file = Assert.Single(refused.Files);
+        Assert.Equal(ImportCodes.RestatementOtherImportChanged, file.Failure!.Code);
+        Assert.StartsWith("Current import 12: R025_HEMW_26Aug.xlsx", Assert.Single(file.Diagnostics!, issue => issue.Code == ImportCodes.RestatementOtherImportChanged).Message);
+        Assert.Empty(wrongPick.Prepared);
+
+        var rightPick = new CapturePersistence { Candidates = [First, Second], Changed = [12] };
+        var imported = await new FolderImportService(rightPick, new Reader(path => Sales(path, "HEMW", [20260825, 20260826])))
+            .RunFilesAsync(["sales.xlsx"], Restate with { ChooseRestatementTarget = (choice, _) => Task.FromResult<RestatementCandidate?>(choice.Candidates[1]) });
+        Assert.Equal("Imported", Assert.Single(imported.Files).Status);
+        Assert.Equal(12, Assert.Single(rightPick.Prepared).Restatement!.PreviousImportFileId);
+    }
+
     private static WorkbookSnapshot Sales(string path, string store, int[] dates)
     {
         var rows = dates.Select((date, index) =>
@@ -434,6 +477,14 @@ public sealed class FolderImportServiceTests
         {
             CandidateLookups.Add((start, end));
             return Task.FromResult(Candidates);
+        }
+        public IReadOnlyList<long> Changed { get; init; } = [];
+        public List<long[]> ChangedLookups { get; } = [];
+        public Task<IReadOnlyList<long>> FindImportsChangedByAsync(MatchedImportEnvelope accepted, IReadOnlyList<long> importFileIds,
+            DateOnly? businessDate = null, CancellationToken cancellationToken = default)
+        {
+            ChangedLookups.Add(importFileIds.ToArray());
+            return Task.FromResult<IReadOnlyList<long>>(importFileIds.Where(Changed.Contains).ToArray());
         }
         public Task PrepareRestatementAsync(ImportPersistenceRequest<MatchedImportEnvelope> request, CancellationToken cancellationToken = default)
         {

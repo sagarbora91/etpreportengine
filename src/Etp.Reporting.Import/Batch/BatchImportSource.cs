@@ -38,7 +38,12 @@ public sealed class BatchImportSource : IAsyncDisposable
         Directory.CreateDirectory(temporaryDirectory);
         try
         {
-            var paths = await ExtractArchiveAsync(source, temporaryDirectory, policy, cancellationToken).ConfigureAwait(false);
+            // The entries go under a folder named for the ZIP, so a workbook at the archive's root sits in a folder that
+            // carries the ZIP's name, as it would in the unpacked folder. The tiers that read the folder holding a file
+            // (spec 6.2 declared period, 6.4 tier 6 snapshot date) then read the ZIP's name instead of a GUID.
+            var extractionRoot = Path.Combine(temporaryDirectory, ArchiveFolderName(source));
+            Directory.CreateDirectory(extractionRoot);
+            var paths = await ExtractArchiveAsync(source, extractionRoot, policy, cancellationToken).ConfigureAwait(false);
             if (paths.Count == 0)
                 throw new ImportSourceException("IMPORT_NO_WORKBOOKS", "No supported .xlsx workbooks were found.");
             return new BatchImportSource(paths, temporaryDirectory);
@@ -134,6 +139,14 @@ public sealed class BatchImportSource : IAsyncDisposable
             extracted.Add(destination);
         }
         return extracted;
+    }
+
+    /// <summary>The ZIP's file name without its extension, used as one folder name; "archive" when nothing usable is left.</summary>
+    internal static string ArchiveFolderName(string zipPath)
+    {
+        // Windows drops trailing dots and spaces from a folder name, so they are trimmed here to keep the path exact.
+        var name = Path.GetFileNameWithoutExtension(zipPath).Trim().TrimEnd('.', ' ');
+        return name.Length == 0 || name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ? "archive" : name;
     }
 
     private static void TryDeleteDirectory(string path)

@@ -159,6 +159,27 @@ public sealed class BatchImportTests : IDisposable
         Assert.False(Directory.Exists(Path.GetDirectoryName(extracted)));
     }
 
+    [Theory]
+    [InlineData("TITAN ALL REPORT 01 JULY 2026 TO 25 AUG 2026.zip", "TITAN ALL REPORT 01 JULY 2026 TO 25 AUG 2026", true)]
+    [InlineData("pack 29 sep 2026. .zip", "pack 29 sep 2026", false)]
+    public async Task Zip_root_entries_sit_in_a_folder_named_for_the_zip_and_all_of_it_is_deleted_on_dispose(string zipName, string folder, bool declaresPeriod)
+    {
+        var zipPath = Path.Combine(_root, zipName);
+        using (var archive = ZipFile.Open(zipPath, ZipArchiveMode.Create))
+        {
+            using var stream = archive.CreateEntry("R022.xlsx").Open(); stream.WriteByte(1);
+        }
+        var zip = await BatchImportSource.OpenAsync(zipPath);
+        var extracted = Assert.Single(zip.WorkbookPaths);
+        var holder = Path.GetDirectoryName(extracted)!;
+        Assert.Equal(folder, Path.GetFileName(holder));
+        // The tiers that read a file's folder (declared period, snapshot date) now see the ZIP's name.
+        var declared = Etp.Reporting.Import.Sources.DeclaredPeriod.FromPath(extracted);
+        Assert.Equal(declaresPeriod ? (new DateOnly(2026, 7, 1), new DateOnly(2026, 8, 25)) : ((DateOnly, DateOnly)?)null, declared);
+        await zip.DisposeAsync();
+        Assert.False(Directory.Exists(Path.GetDirectoryName(holder)));
+    }
+
     [Fact]
     public async Task Zip_inflated_bytes_are_capped_even_when_declared_size_is_forged()
     {

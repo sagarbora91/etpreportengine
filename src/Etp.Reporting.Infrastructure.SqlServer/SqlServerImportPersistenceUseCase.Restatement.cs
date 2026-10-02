@@ -15,6 +15,39 @@ public sealed partial class SqlServerImportPersistenceUseCase
         return await completion.FindRestatementCandidatesAsync(reportCode, storeCode, periodStart, periodEnd, cancellationToken).ConfigureAwait(false);
     }
 
+    // The same test planner 1 applies under its lock (PhaseOneImportPersistence): an import the replacement does not
+    // replace is taken over only when every content key it holds is among the replacement's.
+    public async Task<IReadOnlyList<long>> FindImportsChangedByAsync(MatchedImportEnvelope accepted, IReadOnlyList<long> importFileIds,
+        DateOnly? businessDate = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(accepted);
+        ArgumentNullException.ThrowIfNull(importFileIds);
+        if (importFileIds.Count == 0) return [];
+        await RequireImportAsync(cancellationToken).ConfigureAwait(false);
+        // Keyed as planner 1 keys them: an undated snapshot's rows carry the date the import is persisted with.
+        var incoming = SqlServerTransactionalImportStore.ContentKeys(accepted, businessDate ?? accepted.Scope.PeriodEnd).Values.ToHashSet(StringComparer.Ordinal);
+        var changed = new List<long>();
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+        foreach (var id in importFileIds.Distinct())
+        {
+            await using var command = new SqlCommand("""
+                SELECT k.content_key FROM dbo.import_files f
+                JOIN dbo.etp_import_content k ON k.import_file_id=f.import_file_id
+                WHERE f.import_file_id=@id AND f.is_superseded=0 AND k.content_key IS NOT NULL;
+                """, connection);
+            command.Parameters.AddWithValue("@id", id);
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                if (!incoming.Contains(reader.GetString(0)))
+                {
+                    changed.Add(id);
+                    break;
+                }
+        }
+        return changed;
+    }
+
     // A missing approval is the importer's own refusal, not an access failure. As UnauthorizedAccessException
     // it was reported as "The workbook could not be accessed." (spec 11.1).
     internal static ImportSourceException RestatementApprovalRequired() => new(ImportCodes.RestatementApprovalRequired,

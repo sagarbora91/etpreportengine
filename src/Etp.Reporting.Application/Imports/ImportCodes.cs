@@ -38,6 +38,12 @@ public static class ImportCodes
 
     /// <summary>A current import overlaps the replacement but is not inside its period; the database refuses to restate or promote over it (51555).</summary>
     public const string RestatementTargetNotCovered = "RESTATEMENT_TARGET_NOT_COVERED";
+
+    /// <summary>
+    /// A restatement replaces one current import per run, and its period also covers another current import whose rows
+    /// it changes or drops; promotion cannot take that one over, so no pick can succeed.
+    /// </summary>
+    public const string RestatementOtherImportChanged = "RESTATEMENT_OTHER_IMPORT_CHANGED";
     public const string ImportTimeout = "IMPORT_TIMEOUT";
     public const string CommitOutcomeUnknown = "COMMIT_OUTCOME_UNKNOWN";
     public const string EvidenceNotRetained = "EVIDENCE_NOT_RETAINED";

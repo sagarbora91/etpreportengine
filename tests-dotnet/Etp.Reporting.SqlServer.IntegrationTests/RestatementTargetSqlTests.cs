@@ -48,6 +48,8 @@ public sealed class RestatementTargetSqlTests(SqlDatabaseFixture database) : ICl
         // A financial-year mismatch that is also an orphan header, and a finalised day.
         await database.ExecuteAsync("""
             INSERT dbo.sales_invoices(store_code,document_number,invoice_year,transaction_date) VALUES('CHECKSTORE',N'SYN-0001',2026,'20260401');
+            -- The same document under the label year and under its financial year: the key forbids re-keying the first.
+            INSERT dbo.sales_invoices(store_code,document_number,invoice_year,transaction_date) VALUES('CHECKSTORE',N'SYN-0003',2026,'20260402'),('CHECKSTORE',N'SYN-0003',2027,'20260402');
             INSERT dbo.daily_reporting_days(store_code,business_date,status,finalised_by,finalised_utc) VALUES('CHECKSTORE','20260825','LOCKED',N'tester',SYSUTCDATETIME());
             -- A repeated movement identity, a repeated snapshot identity and one tender type twice in different case.
             INSERT dbo.import_batches(import_batch_id,status,started_utc,source_row_count) VALUES('6f2b0c1e-0000-4000-8000-00000000c4ec','Completed',SYSUTCDATETIME(),6);
@@ -82,10 +84,12 @@ public sealed class RestatementTargetSqlTests(SqlDatabaseFixture database) : ICl
         Assert.False(string.IsNullOrWhiteSpace(environment[Array.IndexOf(sets[0].Columns, "sql_server_version")] as string));
         Assert.Equal(["check_code", "findings", "blocks_upgrade", "detail"], sets[1].Columns);
         var summary = sets[1].Rows.ToDictionary(row => (string)row[0], row => (Findings: Convert.ToInt64(row[1]), Blocks: (bool)row[2]));
-        Assert.Equal(17, summary.Count);
+        Assert.Equal(18, summary.Count);
         Assert.Equal((1L, false), summary["OPEN_MOVEMENT_CONFLICTS_ON_STORED_ROWS"]);
-        Assert.Equal((1L, true), summary["INVOICE_YEAR_NOT_FINANCIAL_YEAR"]);
-        Assert.Equal((1L, false), summary["ORPHAN_INVOICE_HEADERS"]);
+        Assert.Equal((2L, true), summary["INVOICE_YEAR_NOT_FINANCIAL_YEAR"]);
+        Assert.Equal((1L, true), summary["INVOICE_YEAR_TWIN_HEADERS"]);
+        Assert.Contains("repair-invoice-financial-year.sql", (string)sets[1].Rows.Single(row => (string)row[0] == "INVOICE_YEAR_NOT_FINANCIAL_YEAR")[3]);
+        Assert.Equal((3L, false), summary["ORPHAN_INVOICE_HEADERS"]);
         Assert.Equal(1L, summary["LOCKED_DAYS"].Findings);
         Assert.Equal((0L, true), summary["DUPLICATE_CONTROLS"]);
         Assert.Equal((1L, true), summary["DUPLICATE_TENDERS"]);
@@ -103,6 +107,9 @@ public sealed class RestatementTargetSqlTests(SqlDatabaseFixture database) : ICl
         Assert.Equal(summary.Where(check => check.Value.Findings > 0 && check.Key is not ("TENDER_TYPE_CASE_VARIANTS" or "MOVEMENT_YEAR_NOT_FINANCIAL_YEAR" or "SOURCE_ROWS_OF_SUPERSEDED_FILES")).Select(check => check.Key).Order(),
             details.Order());
         Assert.Contains("INVOICE_YEAR_NOT_FINANCIAL_YEAR", details);
+        Assert.Contains("INVOICE_YEAR_TWIN_HEADERS", details);
+        var years = sets.Skip(3).Single(set => (string)set.Rows[0][0] == "INVOICE_YEAR_NOT_FINANCIAL_YEAR");
+        Assert.Equal(["COMBINE_WITH_TWIN", "RE_KEY"], years.Rows.Select(row => (string)row[Array.IndexOf(years.Columns, "repair")]).Order());
         Assert.Contains("ORPHAN_INVOICE_HEADERS", details);
         Assert.Contains("LOCKED_DAYS", details);
         Assert.DoesNotContain("DUPLICATE_CONTROLS", details);
