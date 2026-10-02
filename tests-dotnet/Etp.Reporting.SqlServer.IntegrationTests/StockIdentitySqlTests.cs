@@ -8,7 +8,7 @@ using Microsoft.Data.SqlClient;
 
 namespace Etp.Reporting.SqlServer.IntegrationTests;
 
-// Stock movement identity (IF-018, migration 0038 section C). Every test uses its own store, date and document
+// Stock movement identity (IF-018, migration 0041 section C). Every test uses its own store, date and document
 // numbers, so the shared database never lets one test's file overlap another's period.
 public sealed class StockIdentitySqlTests(SqlDatabaseFixture database) : IClassFixture<SqlDatabaseFixture>
 {

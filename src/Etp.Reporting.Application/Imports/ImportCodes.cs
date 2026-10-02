@@ -120,7 +120,7 @@ public static class ImportCodes
     }
 }
 
-/// <summary>The outcomes <c>dbo.record_import_attempt</c> accepts. The last four arrive with migration 0038.</summary>
+/// <summary>The outcomes <c>dbo.record_import_attempt</c> accepts. The last four arrive with migration 0041.</summary>
 public static class ImportAttemptOutcomes
 {
     public const string Imported = "Imported";

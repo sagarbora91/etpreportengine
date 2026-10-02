@@ -40,7 +40,7 @@ public sealed record SalesInvoiceControlPersistence(
     string? SourceTransactionType, decimal SourceInvoiceQuantity, decimal SourceNetValue,
     string CurrencyCode, SourceRowRegistration Lineage);
 
-// LineSeq: the movement's place in its identity, from StockUnitSequencer (migration 0038, section C).
+// LineSeq: the movement's place in its identity, from StockUnitSequencer (migration 0041, section C).
 public sealed record StockMovementPersistence(
     string StoreCode, string DocumentNumber, int InvoiceYear, DateOnly DocumentDate,
     string ProductCode, string SourceTransactionType, string? FromLocation, string? ToLocation,
@@ -48,7 +48,7 @@ public sealed record StockMovementPersistence(
     SourceRowRegistration Lineage, int LineSeq = 1);
 
 // SourceReportCode (CLOSING_STOCK or R010; null lets the database derive it from the lineage) and LineSeq
-// from SnapshotItemSequencer (migration 0038, section D).
+// from SnapshotItemSequencer (migration 0041, section D).
 public sealed record StockSnapshotPersistence(
     string StoreCode, DateOnly SnapshotDate, string ProductCode, string? Ean,
     string? BrandCode, string? BrandName, string? Cluster, string? Gender,

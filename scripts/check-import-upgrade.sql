@@ -14,7 +14,7 @@
 --   4. onwards: the first 200 rows behind each check that found something, labelled by check.
 --
 -- The checks read columns that later migrations add (line_seq, source_report_code) only when
--- they exist, so the same script runs before and after 0038. It needs migrations up to 0018;
+-- they exist, so the same script runs before and after 0041. It needs migrations up to 0018;
 -- columns that 0017 adds (data_truth_version) are read through sp_executesql so that an older
 -- database reaches the refusal below instead of failing to compile.
 SET NOCOUNT ON;
@@ -41,8 +41,8 @@ SELECT DB_NAME() AS database_name,
        (SELECT COUNT(*) FROM dbo.schema_migrations) AS applied_migrations,
        SYSUTCDATETIME() AS checked_utc;
 
--- Identity texts for the stock checks. Before 0038 the snapshot source is derived from the lineage
--- record type exactly as 0038's backfill does, and every row's line is 1.
+-- Identity texts for the stock checks. Before 0041 the snapshot source is derived from the lineage
+-- record type exactly as 0041's backfill does, and every row's line is 1.
 DECLARE @movementKey nvarchar(max) = N'm.store_code,m.invoice_year,m.document_number,m.document_date,m.product_code,
   m.source_transaction_type,ISNULL(m.from_location,N''''),ISNULL(m.to_location,N'''')'
   + CASE WHEN @movementLine = 1 THEN N',m.line_seq' ELSE N'' END;
@@ -94,7 +94,7 @@ EXEC sys.sp_executesql N'SELECT @n=COUNT_BIG(*) FROM (SELECT source_sha256 FROM 
     HAVING COUNT(DISTINCT CONCAT(report_code,''|'',store_code,''|'',COALESCE(period_start,business_date),''|'',COALESCE(period_end,business_date)))>1) d;',
   N'@n bigint OUTPUT', @shaScopes OUTPUT;
 
--- 2. Summary. blocks_upgrade = 1 marks what a migration pre-check refuses (0038: 51700-51702;
+-- 2. Summary. blocks_upgrade = 1 marks what a migration pre-check refuses (0041: 51700-51702;
 -- the stock identity indexes cannot be built over a repeated identity).
 SELECT check_code, findings, blocks_upgrade, detail FROM (VALUES
  (1, 'CURRENT_V0_FILES', @v0Files, CONVERT(bit,0),
@@ -103,20 +103,20 @@ SELECT check_code, findings, blocks_upgrade, detail FROM (VALUES
   N'Finalised store-days; planner 1 refuses any file whose period contains one.'),
  (3, 'INVOICE_YEAR_NOT_FINANCIAL_YEAR', (SELECT COUNT_BIG(*) FROM dbo.sales_invoices
     WHERE invoice_year<>YEAR(transaction_date)+CASE WHEN MONTH(transaction_date)>=4 THEN 1 ELSE 0 END), CONVERT(bit,1),
-  N'Invoices whose year is not the financial year of their date (0038 THROWs 51700).'),
+  N'Invoices whose year is not the financial year of their date (0041 THROWs 51700).'),
  (4, 'MOVEMENT_YEAR_NOT_FINANCIAL_YEAR', (SELECT COUNT_BIG(*) FROM dbo.stock_movements
     WHERE invoice_year<>YEAR(document_date)+CASE WHEN MONTH(document_date)>=4 THEN 1 ELSE 0 END), CONVERT(bit,0),
   N'Stock movements whose year is not the financial year of their document date (information).'),
  (5, 'DUPLICATE_CONTROLS', (SELECT COUNT_BIG(*) FROM (SELECT sales_invoice_id FROM dbo.sales_invoice_controls GROUP BY sales_invoice_id HAVING COUNT(*)>1) d), CONVERT(bit,1),
-  N'Invoices with more than one revenue control (0038 THROWs 51701).'),
+  N'Invoices with more than one revenue control (0041 THROWs 51701).'),
  (6, 'DUPLICATE_TENDERS', (SELECT COUNT_BIG(*) FROM (SELECT sales_invoice_id FROM dbo.sales_tenders GROUP BY sales_invoice_id,UPPER(tender_type) HAVING COUNT(*)>1) d), CONVERT(bit,1),
-  N'Invoices with the same tender type twice, case ignored (0038 THROWs 51702).'),
+  N'Invoices with the same tender type twice, case ignored (0041 THROWs 51702).'),
  (7, 'REPEATED_MOVEMENT_IDENTITY', @movementGroups, CONVERT(bit,@movementLine),
   CASE WHEN @movementLine=1 THEN N'Movements sharing store, year, document, date, product, type, locations and line.'
-       ELSE CONCAT(N'Movement identities held by more than one row (', @movementRows, N' rows); 0038 numbers them with line_seq.') END),
+       ELSE CONCAT(N'Movement identities held by more than one row (', @movementRows, N' rows); 0041 numbers them with line_seq.') END),
  (8, 'REPEATED_SNAPSHOT_IDENTITY', @snapshotGroups, CONVERT(bit,@snapshotLine),
   CASE WHEN @snapshotLine=1 THEN N'Snapshot rows sharing store, date, source, product, item and line.'
-       ELSE CONCAT(N'Snapshot identities held by more than one row (', @snapshotRows, N' rows); 0038 numbers them with line_seq.') END),
+       ELSE CONCAT(N'Snapshot identities held by more than one row (', @snapshotRows, N' rows); 0041 numbers them with line_seq.') END),
  (9, 'DUPLICATE_CONTENT_ROWS', (SELECT COUNT_BIG(*) FROM (SELECT import_file_id FROM dbo.etp_import_content GROUP BY import_file_id,source_row_number HAVING COUNT(*)>1) d), CONVERT(bit,0),
   N'Source rows of one file holding more than one content row (etp_import_content keeps no sheet name).'),
  (10, 'FILES_WITH_ROWS_ON_SEVERAL_SHEETS', (SELECT COUNT_BIG(*) FROM (SELECT import_file_id FROM dbo.source_lineage GROUP BY import_file_id HAVING COUNT(DISTINCT sheet_name)>1) d), CONVERT(bit,0),
@@ -132,7 +132,7 @@ SELECT check_code, findings, blocks_upgrade, detail FROM (VALUES
   N'Invoice headers with no line, control or tender.'),
  (14, 'TENDER_TYPE_CASE_VARIANTS', (SELECT COUNT_BIG(*) FROM (SELECT UPPER(tender_type) t FROM dbo.sales_tenders GROUP BY UPPER(tender_type)
     HAVING COUNT(DISTINCT tender_type COLLATE Latin1_General_100_BIN2)>1) d), CONVERT(bit,0),
-  CASE WHEN @caseSensitive=1 THEN N'Tender types spelled in more than one case. The collation is case-sensitive: 0038 indexes UPPER(tender_type).'
+  CASE WHEN @caseSensitive=1 THEN N'Tender types spelled in more than one case. The collation is case-sensitive: 0041 indexes UPPER(tender_type).'
        ELSE N'Tender types spelled in more than one case (information; the collation ignores case).' END),
  (15, 'SOURCE_ROWS_OF_SUPERSEDED_FILES', @familySuperseded, CONVERT(bit,0),
   N'Family-table (etp_r*, etp_landing_*) rows of superseded files. Expected: promotion and restatement keep the source rows (information).')

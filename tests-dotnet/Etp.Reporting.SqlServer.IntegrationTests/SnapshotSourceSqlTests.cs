@@ -8,7 +8,7 @@ using Microsoft.Data.SqlClient;
 
 namespace Etp.Reporting.SqlServer.IntegrationTests;
 
-// Migration 0038 section D (IF-020): snapshot facts carry their source and line, and readers use
+// Migration 0041 section D (IF-020): snapshot facts carry their source and line, and readers use
 // dbo.v_stock_snapshots_effective, so an R010 and an R011 reading of one store-day are never summed.
 public sealed class SnapshotSourceSqlTests(SqlDatabaseFixture database) : IClassFixture<SqlDatabaseFixture>
 {
@@ -180,7 +180,7 @@ public sealed class SnapshotSourceSqlTests(SqlDatabaseFixture database) : IClass
         {
             var source = new DirectoryMigrationSource(database.MigrationDirectory);
             await new SqlServerDatabaseBootstrapper(connectionString, new BeforeImportEngine(source)).BootstrapAsync();
-            // The pre-0038 procedure: R010 first, then R011. The identical R011 rows were logged ALREADY_PRESENT
+            // The pre-0041 procedure: R010 first, then R011. The identical R011 rows were logged ALREADY_PRESENT
             // against the R010 row and not stored; the differing one was a CONFLICT; SNAP-N was new.
             await Execute(connectionString, """
                 DECLARE @batch uniqueidentifier=NEWID(),@r010 bigint,@r011 bigint,@lineage bigint;
@@ -268,6 +268,6 @@ public sealed class SnapshotSourceSqlTests(SqlDatabaseFixture database) : IClass
     private sealed class BeforeImportEngine(IMigrationSource source) : IMigrationSource
     {
         public async Task<IReadOnlyList<MigrationScript>> DiscoverAsync(CancellationToken token = default) =>
-            (await source.DiscoverAsync(token)).Where(migration => string.CompareOrdinal(migration.Id, "0038") < 0).ToArray();
+            (await source.DiscoverAsync(token)).Where(migration => string.CompareOrdinal(migration.Id, "0041") < 0).ToArray();
     }
 }

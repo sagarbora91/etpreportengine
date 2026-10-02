@@ -295,7 +295,7 @@ BEGIN
  UPDATE s SET source_report_code=CASE WHEN l.source_record_type=''R010_SNAPSHOT'' THEN ''R010'' ELSE ''CLOSING_STOCK'' END
  FROM dbo.stock_snapshots s JOIN dbo.source_lineage l ON l.source_lineage_id=s.source_lineage_id
  WHERE s.source_report_code IS NULL;
- -- Before 0038 the identity had no source, so on a store-day where R010 was imported first each identical
+ -- Before 0041 the identity had no source, so on a store-day where R010 was imported first each identical
  -- R011 row was logged ALREADY_PRESENT against the R010 row and never stored. The view reads R011 only
  -- for such a day, so store those R011 rows now from the R010 row they matched, under their own lineage,
  -- from the earliest current R011 file only, so a later re-import of the same rows is not counted twice.

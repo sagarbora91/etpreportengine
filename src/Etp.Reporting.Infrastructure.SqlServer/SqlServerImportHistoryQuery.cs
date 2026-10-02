@@ -160,7 +160,7 @@ public sealed class SqlServerImportHistoryQuery(string connectionString) : IImpo
               FROM dbo.import_attempts a
               WHERE NOT EXISTS(SELECT 1 FROM represented f WHERE f.import_attempt_id=a.import_attempt_id)
             )
-            -- Columns 0-13 are today's; 14-23 are the attempt's diagnostics (0038), its issues as JSON.
+            -- Columns 0-13 are today's; 14-23 are the attempt's diagnostics (0041), its issues as JSON.
             SELECT h.entry_key,h.recorded_utc,h.import_file_id,h.file_name,h.report_code,h.store_code,h.period_start,h.period_end,
               h.outcome,h.rows_processed,h.new_rows,h.present_rows,h.conflicts,h.diagnostics_json,
               a.failure_code,a.failure_stage,a.failure_message,a.sql_error_number,a.exception_type,a.commit_state,a.evidence_state,
@@ -184,7 +184,7 @@ public sealed class SqlServerImportHistoryQuery(string connectionString) : IImpo
         while (await reader.ReadAsync(cancellationToken))
         {
             var status = reader.GetString(8);
-            // Attempts recorded since 0038 keep their issues in import_attempt_issues; older ones in diagnostics_json.
+            // Attempts recorded since 0041 keep their issues in import_attempt_issues; older ones in diagnostics_json.
             var stored = Text(23) is { } issuesJson ? JsonSerializer.Deserialize<StoredIssue[]>(issuesJson) ?? [] : [];
             var diagnostics = (stored.Length > 0 ? stored.Select(issue => issue.ToImportIssue())
                 : JsonSerializer.Deserialize<ImportIssue[]>(reader.GetString(13)) ?? []).Select(SafeIssue).ToArray();

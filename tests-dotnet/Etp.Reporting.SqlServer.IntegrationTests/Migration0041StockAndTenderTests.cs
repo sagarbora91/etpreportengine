@@ -4,9 +4,9 @@ using Microsoft.Data.SqlClient;
 
 namespace Etp.Reporting.SqlServer.IntegrationTests;
 
-// Migration 0038 pre-checks 51701/51702 and the stock movement backfill (sections C and C2), applied over a
+// Migration 0041 pre-checks 51701/51702 and the stock movement backfill (sections C and C2), applied over a
 // database that holds every earlier migration.
-public sealed class Migration0038StockAndTenderTests
+public sealed class Migration0041StockAndTenderTests
 {
     [Theory]
     [InlineData(false, ImportCodes.SqlErrors.DuplicateControlsPrecheck, "An invoice has more than one revenue control.")]
@@ -15,7 +15,7 @@ public sealed class Migration0038StockAndTenderTests
     {
         await using var db = new UpgradeDatabase();
         var source = new DirectoryMigrationSource(Path.Combine(AppContext.BaseDirectory, "database", "migrations"));
-        await new SqlServerDatabaseBootstrapper(db.ConnectionString, new Before0038(source)).BootstrapAsync();
+        await new SqlServerDatabaseBootstrapper(db.ConnectionString, new Before0041(source)).BootstrapAsync();
         await db.ExecuteAsync(SeedInvoice);
         await db.ExecuteAsync(tenders
             ? "INSERT dbo.sales_tenders(sales_invoice_id,tender_type,source_amount,currency_code,source_lineage_id) SELECT i.sales_invoice_id,CASE l.source_row_number WHEN 1 THEN 'CASH' ELSE 'Cash' END,50,'INR',l.source_lineage_id FROM dbo.sales_invoices i CROSS JOIN dbo.source_lineage l WHERE i.store_code='UPGRADE'"
@@ -38,7 +38,7 @@ public sealed class Migration0038StockAndTenderTests
     {
         await using var db = new UpgradeDatabase();
         var source = new DirectoryMigrationSource(Path.Combine(AppContext.BaseDirectory, "database", "migrations"));
-        await new SqlServerDatabaseBootstrapper(db.ConnectionString, new Before0038(source)).BootstrapAsync();
+        await new SqlServerDatabaseBootstrapper(db.ConnectionString, new Before0041(source)).BootstrapAsync();
         await db.ExecuteAsync(SeedInvoice);
         // Inserted against the chain (opening 1 first); one row has no FROM LOCATION and the other a blank one.
         await db.ExecuteAsync("""
@@ -77,7 +77,7 @@ public sealed class Migration0038StockAndTenderTests
     {
         await using var db = new UpgradeDatabase();
         var source = new DirectoryMigrationSource(Path.Combine(AppContext.BaseDirectory, "database", "migrations"));
-        await new SqlServerDatabaseBootstrapper(db.ConnectionString, new Before0038(source)).BootstrapAsync();
+        await new SqlServerDatabaseBootstrapper(db.ConnectionString, new Before0041(source)).BootstrapAsync();
         await db.ExecuteAsync(SeedInvoice);
         // Three rows equal on every column (the per-unit repeat) and one that differs only by document number case.
         await db.ExecuteAsync("""
@@ -98,7 +98,7 @@ public sealed class Migration0038StockAndTenderTests
     {
         await using var db = new UpgradeDatabase();
         var source = new DirectoryMigrationSource(Path.Combine(AppContext.BaseDirectory, "database", "migrations"));
-        await new SqlServerDatabaseBootstrapper(db.ConnectionString, new Before0038(source)).BootstrapAsync();
+        await new SqlServerDatabaseBootstrapper(db.ConnectionString, new Before0041(source)).BootstrapAsync();
         await db.ExecuteAsync("ALTER TABLE dbo.sales_tenders ALTER COLUMN tender_type nvarchar(80) COLLATE Latin1_General_CS_AS NOT NULL");
         await db.ExecuteAsync(SeedInvoice);
 
@@ -146,15 +146,15 @@ public sealed class Migration0038StockAndTenderTests
         INSERT dbo.sales_invoices(store_code,document_number,invoice_year,transaction_date) VALUES('UPGRADE','I1',2027,'20260825');
         """;
 
-    private sealed class Before0038(IMigrationSource source) : IMigrationSource
+    private sealed class Before0041(IMigrationSource source) : IMigrationSource
     {
         public async Task<IReadOnlyList<MigrationScript>> DiscoverAsync(CancellationToken token = default) =>
-            (await source.DiscoverAsync(token)).Where(migration => string.CompareOrdinal(migration.Id, "0038") < 0).ToArray();
+            (await source.DiscoverAsync(token)).Where(migration => string.CompareOrdinal(migration.Id, "0041") < 0).ToArray();
     }
 
     private sealed class UpgradeDatabase : IAsyncDisposable
     {
-        private readonly string name = "EtpPhase0Test_Migration0038_" + Guid.NewGuid().ToString("N");
+        private readonly string name = "EtpPhase0Test_Migration0041_" + Guid.NewGuid().ToString("N");
         public string ConnectionString { get; }
         public UpgradeDatabase() => ConnectionString = TestSqlConnections.ForDatabase(name, pooling: false);
         public async Task<object?> ExecuteAsync(string sql)
@@ -164,14 +164,14 @@ public sealed class Migration0038StockAndTenderTests
             await using var command = new SqlCommand(sql, connection);
             return await command.ExecuteScalarAsync();
         }
-        // Runs 0038 from the C_STOCK_MOVEMENT begin marker to the C2_CONTROL_TENDER end marker as the runner
+        // Runs 0041 from the C_STOCK_MOVEMENT begin marker to the C2_CONTROL_TENDER end marker as the runner
         // does: one transaction with XACT_ABORT on.
         public async Task RunStockAndTenderSectionsAsync()
         {
-            var script = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "database", "migrations", "0038_import_engine_fixes.sql"));
+            var script = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "database", "migrations", "0041_import_engine_fixes.sql"));
             var start = script.IndexOf("-- >>> C_STOCK_MOVEMENT begin", StringComparison.Ordinal);
             var end = script.IndexOf("-- <<< C2_CONTROL_TENDER end", StringComparison.Ordinal);
-            Assert.True(start >= 0 && end > start, "0038 section markers not found.");
+            Assert.True(start >= 0 && end > start, "0041 section markers not found.");
             await using var connection = new SqlConnection(ConnectionString);
             await connection.OpenAsync();
             await using (var abort = new SqlCommand("SET XACT_ABORT ON", connection)) await abort.ExecuteNonQueryAsync();

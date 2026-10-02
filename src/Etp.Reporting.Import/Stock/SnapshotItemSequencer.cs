@@ -2,7 +2,7 @@ using System.Globalization;
 
 namespace Etp.Reporting.Import.Stock;
 
-/// <summary>The report codes stored in <c>stock_snapshots.source_report_code</c> (migration 0038, section D).</summary>
+/// <summary>The report codes stored in <c>stock_snapshots.source_report_code</c> (migration 0041, section D).</summary>
 public static class StockSnapshotSources
 {
     /// <summary>R011 Closing Stock, the preferred source of a store-day.</summary>
@@ -12,7 +12,7 @@ public static class StockSnapshotSources
     /// <summary>The lineage record type of R010 snapshot facts.</summary>
     public const string BinWiseLineageRecordType = "R010_SNAPSHOT";
 
-    /// <summary>The source of a snapshot fact from its lineage record type, as the 0038 backfill derives it
+    /// <summary>The source of a snapshot fact from its lineage record type, as the 0041 backfill derives it
     /// (compared as the database's case-insensitive collation compares it).</summary>
     public static string FromLineageRecordType(string? recordType) =>
         string.Equals(recordType, BinWiseLineageRecordType, StringComparison.OrdinalIgnoreCase) ? BinWise : ClosingStock;

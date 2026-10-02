@@ -105,14 +105,14 @@ public sealed class RestatementTargetSqlTests(SqlDatabaseFixture database) : ICl
     }
 
     [Fact]
-    public async Task Upgrade_check_script_reads_the_line_and_source_columns_once_0038_adds_them()
+    public async Task Upgrade_check_script_reads_the_line_and_source_columns_once_0041_adds_them()
     {
         var script = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "scripts", "check-import-upgrade.sql"));
         var fresh = new SqlDatabaseFixture();
         await fresh.InitializeAsync();
         try
         {
-            // The shape 0038 gives the stock tables, added here only when the migration has not done so.
+            // The shape 0041 gives the stock tables, added here only when the migration has not done so.
             await fresh.ExecuteAsync("""
                 IF COL_LENGTH(N'dbo.stock_movements',N'line_seq') IS NULL ALTER TABLE dbo.stock_movements ADD line_seq int NOT NULL CONSTRAINT DF_check_movement_line DEFAULT(1);
                 IF COL_LENGTH(N'dbo.stock_snapshots',N'source_report_code') IS NULL ALTER TABLE dbo.stock_snapshots ADD source_report_code varchar(30) NULL;

@@ -4,17 +4,17 @@ using Microsoft.Data.SqlClient;
 
 namespace Etp.Reporting.SqlServer.IntegrationTests;
 
-public sealed class Migration0038FinancialYearPrecheckTests
+public sealed class Migration0041FinancialYearPrecheckTests
 {
     private const string OutcomeParameter =
         "SELECT COUNT(*) FROM sys.parameters WHERE object_id=OBJECT_ID(N'dbo.persist_phase_one_enrichment') AND name=N'@outcome' AND is_output=1";
 
     [Fact]
-    public async Task Invoice_keyed_by_a_year_other_than_its_financial_year_refuses_0038_with_51700_and_changes_nothing()
+    public async Task Invoice_keyed_by_a_year_other_than_its_financial_year_refuses_0041_with_51700_and_changes_nothing()
     {
         await using var db = new UpgradeDatabase();
         var source = new DirectoryMigrationSource(Path.Combine(AppContext.BaseDirectory, "database", "migrations"));
-        await new SqlServerDatabaseBootstrapper(db.ConnectionString, new Before0038(source)).BootstrapAsync();
+        await new SqlServerDatabaseBootstrapper(db.ConnectionString, new Before0041(source)).BootstrapAsync();
         // A 1-April return keyed by ETP's INVOICEYEAR label, the year before its date, as R022 stored it before OD-1.
         await db.ExecuteAsync("INSERT dbo.sales_invoices(store_code,document_number,invoice_year,transaction_date) VALUES('FYCHECK',N'100000777',2026,'20260401')");
         var store = new SqlServerMigrationStore(db.ConnectionString);
@@ -25,7 +25,7 @@ public sealed class Migration0038FinancialYearPrecheckTests
         Assert.Equal(ImportCodes.SqlErrors.FinancialYearPrecheck, refusal.Number);
         Assert.StartsWith("Some invoices carry a year other than the financial year of their date.", refusal.Message);
         Assert.Equal(before, await store.GetAppliedAsync());
-        Assert.DoesNotContain(before, migration => migration.Id.StartsWith("0038", StringComparison.Ordinal));
+        Assert.DoesNotContain(before, migration => migration.Id.StartsWith("0041", StringComparison.Ordinal));
         Assert.Equal(0, await db.ExecuteAsync(OutcomeParameter));
         Assert.Equal(2026, await db.ExecuteAsync("SELECT invoice_year FROM dbo.sales_invoices WHERE store_code='FYCHECK'"));
 
@@ -33,13 +33,13 @@ public sealed class Migration0038FinancialYearPrecheckTests
         await db.ExecuteAsync("UPDATE dbo.sales_invoices SET invoice_year=2027 WHERE store_code='FYCHECK'");
         await new MigrationRunner(source, store).RunAsync();
 
-        Assert.Contains(await store.GetAppliedAsync(), migration => migration.Id.StartsWith("0038", StringComparison.Ordinal));
+        Assert.Contains(await store.GetAppliedAsync(), migration => migration.Id.StartsWith("0041", StringComparison.Ordinal));
         Assert.Equal(1, await db.ExecuteAsync(OutcomeParameter));
 
-        // A second run of 0038 is a no-op: the pre-check passes and the procedure and its grant stay as they are.
+        // A second run of 0041 is a no-op: the pre-check passes and the procedure and its grant stay as they are.
         var applied = await store.GetAppliedAsync();
         var definition = await db.ExecuteAsync(Definition);
-        var script = (await source.DiscoverAsync()).Single(migration => migration.Id.StartsWith("0038", StringComparison.Ordinal));
+        var script = (await source.DiscoverAsync()).Single(migration => migration.Id.StartsWith("0041", StringComparison.Ordinal));
         await db.ExecuteInTransactionAsync(script.Sql);
 
         Assert.Equal(applied, await store.GetAppliedAsync());
@@ -50,10 +50,10 @@ public sealed class Migration0038FinancialYearPrecheckTests
 
     private const string Definition = "SELECT OBJECT_DEFINITION(OBJECT_ID(N'dbo.persist_phase_one_enrichment'))";
 
-    private sealed class Before0038(IMigrationSource source) : IMigrationSource
+    private sealed class Before0041(IMigrationSource source) : IMigrationSource
     {
         public async Task<IReadOnlyList<MigrationScript>> DiscoverAsync(CancellationToken token = default) =>
-            (await source.DiscoverAsync(token)).Where(migration => string.CompareOrdinal(migration.Id, "0038") < 0).ToArray();
+            (await source.DiscoverAsync(token)).Where(migration => string.CompareOrdinal(migration.Id, "0041") < 0).ToArray();
     }
 
     private sealed class UpgradeDatabase : IAsyncDisposable

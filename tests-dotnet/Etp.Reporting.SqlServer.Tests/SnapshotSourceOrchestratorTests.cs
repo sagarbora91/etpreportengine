@@ -6,7 +6,7 @@ using Etp.Reporting.Infrastructure.SqlServer;
 
 namespace Etp.Reporting.SqlServer.Tests;
 
-// Migration 0038 section D: every snapshot row reaches persist_stock_snapshot with its source and line_seq.
+// Migration 0041 section D: every snapshot row reaches persist_stock_snapshot with its source and line_seq.
 public sealed class SnapshotSourceOrchestratorTests
 {
     private const string Hash = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";

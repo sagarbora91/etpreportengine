@@ -2,7 +2,7 @@ using Microsoft.Data.SqlClient;
 
 namespace Etp.Reporting.SqlServer.IntegrationTests;
 
-// Control and tender identity (IF-006, migration 0038 section C2).
+// Control and tender identity (IF-006, migration 0041 section C2).
 public sealed class SalesIdentitySqlTests(SqlDatabaseFixture database) : IClassFixture<SqlDatabaseFixture>
 {
     [Fact]

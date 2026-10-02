@@ -8,7 +8,7 @@ public enum ImportIssueSeverity
 }
 
 /// <summary>
-/// One diagnostic of an import attempt (<c>dbo.import_attempt_issues</c> from migration 0038). Messages are
+/// One diagnostic of an import attempt (<c>dbo.import_attempt_issues</c> from migration 0041). Messages are
 /// written by the code; <see cref="DocumentRef"/> holds only a document number, date and product code.
 /// </summary>
 public sealed record ImportIssue(

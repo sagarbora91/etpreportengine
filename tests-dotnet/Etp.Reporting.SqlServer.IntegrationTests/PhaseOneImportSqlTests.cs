@@ -215,7 +215,7 @@ public sealed class PhaseOneImportSqlTests(ITestOutputHelper output)
     public async Task Enrichment_reimport_reports_already_present()
     {
         // A later R013 export repeats an earlier row. The procedure skips its stored content key and now reports
-        // ALREADY_PRESENT, where the importer used to record every row as NEW (migration 0038, section E).
+        // ALREADY_PRESENT, where the importer used to record every row as NEW (migration 0041, section E).
         await using var db=new TestDatabase();await db.InitializeAsync();var cro=await FamilySample("R013");
         var service=new SqlServerImportPersistenceUseCase(db.Fixture.ConnectionString);
         var repeated=Cells(cro,2,("INVNUMBER","100000901"),("INVDATE",new DateOnly(2026,8,24)));
