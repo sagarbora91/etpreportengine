@@ -191,7 +191,9 @@ public sealed record AdministrationDashboard(
     /// that every user access change ends with (ALTER ANY LOGIN needs sysadmin or the permission
     /// WITH GRANT OPTION). Since 1.9.2 the Owner is sysadmin only through BUILTIN\Administrators,
     /// which Windows removes from an unelevated token, so this means "start ETP with Run as
-    /// administrator". False when it is allowed or could not be determined.
+    /// administrator". Since migration 0043 Owners hold the grant option and this is false for
+    /// them, unless the Owner was the account setup ran as and no other SQL administrator has
+    /// granted it yet. False when it is allowed or could not be determined.
     /// </summary>
     public bool UserAccessChangesNeedElevation { get; init; }
 }

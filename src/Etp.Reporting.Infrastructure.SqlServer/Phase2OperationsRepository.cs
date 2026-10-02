@@ -45,7 +45,11 @@ public sealed class Phase2OperationsRepository(string connectionString)
     // dbo.configure_application_role ends every user change with GRANT or REVOKE ALTER ANY
     // LOGIN in master. SQL Server allows that only to sysadmin, to CONTROL SERVER, or to a
     // login holding ALTER ANY LOGIN WITH GRANT OPTION (state 'W'); plain ALTER ANY LOGIN,
-    // which the Owner holds, fails with error 4613 "Grantor does not have GRANT permission".
+    // which Owners held until 1.9.2, fails with error 4613 "Grantor does not have GRANT
+    // permission". Since migration 0043 every active Owner is given the grant option, so this
+    // answers yes for them - except for an Owner who was the account running setup or the
+    // restore helper, which SQL Server does not let grant a permission to itself (see
+    // docs\OPERATIONS.md, Owners and SQL Server logins); that Owner still needs an elevated ETP.
     // sys.login_token covers grants made to a Windows group the login belongs to, as far as
     // catalog visibility lets this login see them; anything it cannot see reads as "no",
     // which only means the Owner is asked to start ETP as administrator.

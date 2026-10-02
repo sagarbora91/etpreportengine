@@ -241,6 +241,10 @@ public sealed class RestoreDatabaseScriptTests
             "change_reason=@reason",
             "COMMIT TRANSACTION;",
             "ETP_OWNER:",
+            "sys.database_role_members",
+            "WHERE r.name=N'etp_owner' AND m.name=@principal",
+            "ETP_LOGIN_ADMIN:",
+            "permission_name=N'ALTER ANY LOGIN' AND state='W'",
         ];
         var position = -1;
         foreach (var fragment in ordered)
@@ -254,6 +258,40 @@ public sealed class RestoreDatabaseScriptTests
         Assert.DoesNotContain("ALTER AUTHORIZATION", sql, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("DELETE", sql, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("DISABLE TRIGGER", sql, StringComparison.OrdinalIgnoreCase);
+        // Workpc, 2 Oct 2026: ETP_OWNER said 0 with the row, user and role all in place.
+        // Membership is read from the catalog, not with IS_ROLEMEMBER.
+        Assert.DoesNotContain("IS_ROLEMEMBER", sql, StringComparison.OrdinalIgnoreCase);
+        // Migration 0043. The batch provisions the account running it, and SQL Server never
+        // lets a login grant itself a permission, so it does not try; it only reports.
+        Assert.DoesNotContain("GRANT ALTER ANY LOGIN", sql, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task An_owner_left_without_the_grant_option_is_told_how_to_get_it()
+    {
+        // Migration 0043: the restore helper cannot give the account running it ALTER ANY
+        // LOGIN WITH GRANT OPTION, so it says what that means and where the fix is. A missing
+        // or unexpected marker counts as missing; it never stops the restore.
+        var script = FindScript("restore-etp-database.ps1").Replace("'", "''");
+        var command = $$"""
+            $ErrorActionPreference = 'Stop'
+            $tokens = $null; $errors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile('{{script}}', [ref]$tokens, [ref]$errors)
+            if (@($errors).Count -ne 0) { throw 'restore-etp-database.ps1 does not parse.' }
+            $top = @($ast.EndBlock.Statements)
+            $marker = @($top | Where-Object { $_.Extent.Text -eq '$loginAdministration = @(Get-EtpRestoreMarkers $owner ''ETP_LOGIN_ADMIN'')' })
+            $owner = @($top | Where-Object { $_ -is [System.Management.Automation.Language.IfStatementAst] -and $_.Clauses[0].Item1.Extent.Text -match 'ownerResult' })
+            $note = @($top | Where-Object { $_ -is [System.Management.Automation.Language.IfStatementAst] -and $_.Clauses[0].Item1.Extent.Text -eq '$loginAdministration.Count -ne 1 -or $loginAdministration[0] -cne ''GRANT_OPTION''' })
+            if ($marker.Count -ne 1 -or $owner.Count -ne 1 -or $note.Count -ne 1) { throw "The grant-option report could not be found ($($marker.Count), $($owner.Count), $($note.Count))." }
+            if ($marker[0].Extent.StartOffset -lt $owner[0].Extent.EndOffset -or $note[0].Extent.StartOffset -lt $marker[0].Extent.EndOffset) { throw 'The report is not made after the Owner recovery succeeded.' }
+            $body = $note[0].Clauses[0].Item2
+            if (@($body.FindAll({ param($node) $node -is [System.Management.Automation.Language.ThrowStatementAst] }, $true)).Count -ne 0) { throw 'A missing grant option stops the restore.' }
+            if ($body.Extent.Text -notmatch 'Write-RestoreLog "NOTE: ' -or $body.Extent.Text -notmatch 'Owners and SQL Server logins' -or $body.Extent.Text -notmatch 'Run as administrator') { throw 'The NOTE does not say what to do.' }
+            Write-Output 'Grant-option report passed.'
+            """;
+        var result = await RunPowerShellAsync(["-Command", command]);
+        Assert.True(result.ExitCode == 0, result.Output);
+        Assert.Contains("Grant-option report passed.", result.Output);
     }
 
     [Fact]

@@ -338,10 +338,12 @@ function New-EtpSetupOwnerLoginSql {
     # removes from an unelevated token: opened normally from the Start menu, ETP could not sign
     # in to SQL Server at all, so the Owner never reached Settings > Users. When the account has
     # no login of its own it is given one the documented way - dbo.configure_application_role
-    # as OWNER, the same call Settings > Users and the restore helper's Owner recovery make,
-    # which also grants the ALTER ANY LOGIN that adding staff needs. SUSER_SNAME() is taken
-    # inside SQL Server, so no text from outside reaches this batch. An account that already
-    # has its own login (an administrator's own sysadmin login, for one) is left as it is.
+    # as OWNER, the same call Settings > Users and the restore helper's Owner recovery make.
+    # SUSER_SNAME() is taken inside SQL Server, so no text from outside reaches this batch. An
+    # account that already has its own login (an administrator's own sysadmin login, for one)
+    # is left as it is. The procedure gives every other Owner ALTER ANY LOGIN WITH GRANT
+    # OPTION (migration 0043), but not this one: SQL Server never lets a login grant a
+    # permission to itself. New-EtpOwnerLoginAdministrationSql reports that afterwards.
     return @'
 SET NOCOUNT ON; SET XACT_ABORT ON;
 DECLARE @identity nvarchar(200)=SUSER_SNAME();
@@ -353,6 +355,25 @@ BEGIN
   EXEC dbo.configure_application_role @identity=@identity,@role='OWNER',@active=1;
   COMMIT TRANSACTION;
 END;
+'@
+}
+
+function New-EtpOwnerLoginAdministrationSql {
+    # Read-only. 1.9.3, migration 0043: an Owner changes users in Settings > Users without
+    # "Run as administrator" only while its login holds ALTER ANY LOGIN WITH GRANT OPTION.
+    # Setup cannot give that to the account running it (SQL Server's error 4627: no login
+    # grants a permission to itself), and that account is usually the Owner, so setup says so
+    # instead of leaving the Owner to discover it at the first save. One word: NOT_AN_OWNER
+    # (no login of its own, or not an active Owner), GRANT_OPTION or MISSING.
+    return @'
+SET NOCOUNT ON;
+DECLARE @identity nvarchar(200)=SUSER_SNAME();
+SELECT CASE
+  WHEN SUSER_ID(@identity) IS NULL
+    OR NOT EXISTS(SELECT 1 FROM dbo.application_users WHERE windows_identity=@identity AND role_code='OWNER' AND is_active=1) THEN 'NOT_AN_OWNER'
+  WHEN EXISTS(SELECT 1 FROM sys.server_permissions WHERE class=100 AND grantee_principal_id=SUSER_ID(@identity)
+    AND permission_name=N'ALTER ANY LOGIN' AND state='W') THEN 'GRANT_OPTION'
+  ELSE 'MISSING' END;
 '@
 }
 
@@ -596,6 +617,15 @@ if ($databaseAction -ceq 'Create') {
         throw "The new database was created and checked, but setup could not give $($identity.Name), its Owner, a SQL Server login of its own, so ETP would open only when run as administrator. The database is complete and was left as it is: follow docs\OPERATIONS.md, Owner recovery and maintenance, for that account (a SQL administrator calls dbo.configure_application_role for it as OWNER), then run setup again."
     }
     Write-SetupLog "$($identity.Name) is the new database's Owner and has its own SQL Server login, so ETP opens for it without administrator rights."
+}
+
+# Only a report: whatever it finds, the database and the Owner's access are complete.
+$ownerLoginAdministration = try { Invoke-SqlScalar -TargetDatabase $Database -Query (New-EtpOwnerLoginAdministrationSql) } catch { 'UNKNOWN' }
+if ($ownerLoginAdministration -ceq 'MISSING') {
+    Write-SetupLog "NOTE: $($identity.Name) is an Owner but does not hold ALTER ANY LOGIN WITH GRANT OPTION, and SQL Server does not let setup grant a permission to the account running it. Until a different SQL administrator grants it (docs\OPERATIONS.md, Owners and SQL Server logins), adding or changing users in Settings > Users needs ETP started with 'Run as administrator'. Everything else works unelevated."
+}
+elseif ($ownerLoginAdministration -ceq 'UNKNOWN') {
+    Write-SetupLog 'NOTE: setup could not check whether the Owner running it can change users without "Run as administrator" (docs\OPERATIONS.md, Owners and SQL Server logins).'
 }
 
 & (Join-Path $scripts 'install-daily-backup-task.ps1')

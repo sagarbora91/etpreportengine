@@ -47,6 +47,33 @@ public sealed class UserAccessFailureTests
         Assert.DoesNotContain("TFRROWJLTULT009", described, StringComparison.Ordinal);
     }
 
+    // Migration 0043: the three refusals dbo.configure_application_role makes around the
+    // Owner's ALTER ANY LOGIN WITH GRANT OPTION. Without these the screen said "The database
+    // rejected this change. Review the inputs and day status."
+    [Theory]
+    [InlineData(51472, "You cannot take away your own Owner access. Ask another Owner to change your account.", "Ask another Owner")]
+    [InlineData(51473, "SQL Server kept the right of this account to manage logins (ALTER ANY LOGIN) because another account granted it. Nothing was changed. Start ETP with Run as administrator and save again.", "Run as administrator")]
+    [InlineData(51474, @"This account gave you your own right to manage logins, so taking away its Owner access would take yours too. Nothing was changed. See docs\OPERATIONS.md, Owners and SQL Server logins.", "would take yours too")]
+    public void The_owner_grant_option_refusals_say_what_happened_and_that_nothing_changed(int number, string message, string advice)
+    {
+        var described = DesktopFriendlyError.DescribeUserAccessFailure(SqlExceptionFactory.Create(new SqlExceptionFactory.Error(number, message, Procedure: "configure_application_role", Line: 140)));
+
+        Assert.Contains(advice, described, StringComparison.Ordinal);
+        Assert.EndsWith("Nothing was changed.", described.Split(" A SQL administrator")[0], StringComparison.Ordinal);
+        Assert.NotEqual("The database rejected this change. Review the inputs and day status.", described);
+        // Elsewhere these numbers are not about users.
+        Assert.Equal("The database rejected this change. Review the inputs and day status.",
+            DesktopFriendlyError.Describe(SqlExceptionFactory.Create(new SqlExceptionFactory.Error(number, message))));
+    }
+
+    [Fact]
+    public void A_procedure_older_than_0043_refusing_a_grant_option_holder_asks_for_setup()
+    {
+        var exception = SqlExceptionFactory.Create(new SqlExceptionFactory.Error(4611, "To revoke or deny grantable privileges, specify the CASCADE option.", Procedure: "configure_application_role", Line: 116));
+
+        Assert.Equal(DesktopFriendlyError.UserAccessNeedsUpdateMessage, DesktopFriendlyError.DescribeUserAccessFailure(exception));
+    }
+
     [Fact]
     public void Other_failures_keep_the_existing_wording()
     {

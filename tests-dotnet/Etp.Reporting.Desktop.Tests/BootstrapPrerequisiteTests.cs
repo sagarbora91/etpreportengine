@@ -296,6 +296,53 @@ public sealed class BootstrapPrerequisiteTests
     }
 
     [Fact]
+    public async Task Setup_reports_an_owner_it_could_not_give_the_grant_option_without_failing()
+    {
+        // Migration 0043 gives Owners ALTER ANY LOGIN WITH GRANT OPTION so they can change users
+        // unelevated, but SQL Server never lets the account running setup grant it to itself,
+        // and that account is usually the Owner. Setup says so; the check is read-only, runs
+        // after the migration and the new-database Owner step, and never stops setup.
+        var script = FindBootstrapScript().Replace("'", "''");
+        var command = $$"""
+            $ErrorActionPreference = 'Stop'
+            . '{{script}}' -ApplicationDirectory 'C:\UnusedBootstrapTest'
+            $own = @((Get-Command New-EtpOwnerLoginAdministrationSql).Parameters.Keys | Where-Object { $_ -notin [System.Management.Automation.PSCmdlet]::CommonParameters -and $_ -notin [System.Management.Automation.PSCmdlet]::OptionalCommonParameters })
+            if ($own.Count -ne 0) { throw "The grant-option check takes input: $($own -join ', ')" }
+            Write-Output '---SQL---'
+            New-EtpOwnerLoginAdministrationSql
+            Write-Output '---END---'
+            $tokens = $null; $errors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile('{{script}}', [ref]$tokens, [ref]$errors)
+            if (@($errors).Count -ne 0) { throw 'bootstrap-etp-prerequisites.ps1 does not parse.' }
+            $top = @($ast.EndBlock.Statements)
+            $create = @($top | Where-Object { $_ -is [System.Management.Automation.Language.IfStatementAst] -and $_.Clauses[0].Item1.Extent.Text -eq '$databaseAction -ceq ''Create''' })
+            $check = @($top | Where-Object { $_.Extent.Text -match '^\$ownerLoginAdministration = try \{ Invoke-SqlScalar -TargetDatabase \$Database -Query \(New-EtpOwnerLoginAdministrationSql\) \} catch \{ ''UNKNOWN'' \}$' })
+            $note = @($top | Where-Object { $_ -is [System.Management.Automation.Language.IfStatementAst] -and $_.Clauses[0].Item1.Extent.Text -eq '$ownerLoginAdministration -ceq ''MISSING''' })
+            $tasks = @($top | Where-Object { $_.Extent.Text -match 'install-daily-backup-task\.ps1' })
+            if ($create.Count -ne 1 -or $check.Count -ne 1 -or $note.Count -ne 1 -or $tasks.Count -ne 1) { throw "The grant-option check could not be found ($($create.Count), $($check.Count), $($note.Count), $($tasks.Count))." }
+            if ($check[0].Extent.StartOffset -lt $create[0].Extent.EndOffset -or $note[0].Extent.StartOffset -lt $check[0].Extent.EndOffset -or $note[0].Extent.EndOffset -gt $tasks[0].Extent.StartOffset) { throw 'The check is not made between the Owner step and the tasks.' }
+            if (@($note[0].FindAll({ param($node) $node -is [System.Management.Automation.Language.ThrowStatementAst] }, $true)).Count -ne 0) { throw 'A missing grant option stops setup.' }
+            if ($note[0].Clauses[0].Item2.Extent.Text -notmatch 'Write-SetupLog "NOTE: ' -or $note[0].Extent.Text -notmatch 'Owners and SQL Server logins') { throw 'The NOTE does not say where the fix is.' }
+            Write-Output 'Grant-option check placement passed.'
+            """;
+        var result = await RunPowerShellAsync(["-Command", command]);
+        Assert.True(result.ExitCode == 0, result.Output);
+        Assert.Contains("Grant-option check placement passed.", result.Output);
+        var start = result.Output.IndexOf("---SQL---", StringComparison.Ordinal);
+        var end = result.Output.IndexOf("---END---", StringComparison.Ordinal);
+        Assert.True(start >= 0 && end > start, result.Output);
+        var sql = result.Output[start..end];
+        Assert.Contains("DECLARE @identity nvarchar(200)=SUSER_SNAME();", sql, StringComparison.Ordinal);
+        Assert.Contains("role_code='OWNER' AND is_active=1", sql, StringComparison.Ordinal);
+        Assert.Contains("permission_name=N'ALTER ANY LOGIN' AND state='W'", sql, StringComparison.Ordinal);
+        foreach (var word in new[] { "'NOT_AN_OWNER'", "'GRANT_OPTION'", "'MISSING'" })
+            Assert.Contains(word, sql, StringComparison.Ordinal);
+        // Read-only.
+        foreach (var verb in new[] { "GRANT ", "REVOKE ", "DENY ", "CREATE ", "EXEC", "INSERT", "UPDATE", "DELETE", "MERGE" })
+            Assert.DoesNotContain(verb, sql.Replace("GRANT OPTION", "", StringComparison.Ordinal), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task Pre_migration_backup_installs_a_missing_broker_first_and_only_after_the_last_refusal()
     {
         // The backup goes through the master broker. A database restored by hand, or after the

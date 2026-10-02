@@ -33,6 +33,24 @@ public static class DesktopFriendlyError
     public const string UserAccountNotFoundMessage =
         @"SQL Server could not find that Windows account. Check it is typed as DOMAIN\User or COMPUTER\User and exists on this PC or domain. An account from a PC that no longer exists cannot be changed here. Nothing was changed.";
 
+    // Migration 0043. Owners hold ALTER ANY LOGIN WITH GRANT OPTION, so demoting one revokes
+    // it WITH CASCADE; dbo.configure_application_role refuses the three cases that would
+    // otherwise leave the server-level right wrong. Every message ends "Nothing was changed",
+    // which holds because Settings > Users runs the procedure in a transaction.
+    public const string OwnOwnerAccessMessage =
+        "You cannot take away your own Owner access. Ask another Owner to change your account. Nothing was changed.";
+
+    public const string LoginRightKeptMessage =
+        "SQL Server kept this account's right to manage logins because another account granted it. Close ETP, right-click it, choose Run as administrator, and save again. Nothing was changed.";
+
+    public const string LoginRightChainMessage =
+        @"This account gave you your own right to manage logins, so taking away its Owner access would take yours too. Nothing was changed. A SQL administrator can help: docs\OPERATIONS.md, Owners and SQL Server logins.";
+
+    // 4611 "To revoke or deny grantable privileges, specify the CASCADE option." comes only
+    // from a procedure older than 0043 meeting an Owner who holds the grant option.
+    public const string UserAccessNeedsUpdateMessage =
+        "This change needs ETP's latest database update. Run the ETP setup, then save again. Nothing was changed.";
+
     public static string DescribeUserAccessFailure(Exception exception)
     {
         ArgumentNullException.ThrowIfNull(exception);
@@ -49,6 +67,10 @@ public static class DesktopFriendlyError
                     case 4613 or 15247 or 15151: return UserAccessNeedsElevationMessage;
                     // 15401 "Windows NT user or group '...' not found." (Finding C).
                     case 15401: return UserAccountNotFoundMessage;
+                    case 4611: return UserAccessNeedsUpdateMessage;
+                    case 51472: return OwnOwnerAccessMessage;
+                    case 51473: return LoginRightKeptMessage;
+                    case 51474: return LoginRightChainMessage;
                 }
             }
         }
