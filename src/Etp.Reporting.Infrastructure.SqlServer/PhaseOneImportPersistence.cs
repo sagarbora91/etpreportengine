@@ -75,10 +75,12 @@ public sealed partial class SqlServerTransactionalImportStore
             var isExplicit=package.Restatement?.PreviousImportFileId==old.Id;
             if(old.Version==0 && old.Hash!=file.SourceSha256 && !isExplicit)
                 throw new Etp.Reporting.Import.Batch.ImportSourceException("IMPORT_LEGACY_RESTATEMENT_REQUIRED",
-                    "This period was imported before the data-truth upgrade. Re-import its original workbook first, or use Restate with a reviewed replacement. No data was changed.");
+                    "This period was imported before the data-truth upgrade. Re-import its original workbook first, or use Restate with a reviewed replacement. No data was changed.")
+                    { Stage = Etp.Reporting.Application.Imports.FailureStage.Plan };
             if(!coversRange || (!isExplicit && !old.Keys.IsSubsetOf(incoming)))
                 throw new Etp.Reporting.Import.Batch.ImportSourceException("IMPORT_PERIOD_ALREADY_PRESENT",
-                    $"Already imported on {old.Imported:dd MMM yyyy} (hash {old.Hash[..12]}). Use Restate. {old.Keys.Except(incoming).Count():N0} conflicting or missing rows; no data was changed.");
+                    $"Already imported on {old.Imported:dd MMM yyyy} (hash {old.Hash[..12]}). Use Restate. {old.Keys.Except(incoming).Count():N0} conflicting or missing rows; no data was changed.")
+                    { Stage = Etp.Reporting.Application.Imports.FailureStage.Plan };
         }
         return new(null,false,previous,keys);
     }
@@ -156,8 +158,7 @@ public sealed partial class SqlServerTransactionalImportStore
     {
         await using var q=Cmd(c,t,"SELECT COUNT(*) FROM dbo.import_row_outcomes WHERE import_file_id=@file AND outcome='CONFLICT'");
         q.Parameters.AddWithValue("@file",file); var count=Convert.ToInt32(await q.ExecuteScalarAsync(token));
-        if(count>0) throw new Etp.Reporting.Import.Batch.ImportSourceException("IMPORT_CONFLICT",
-            $"{count:N0} conflicting rows. The complete file was rolled back. Review the source and use Restate.");
+        if(count>0) throw await ConflictAsync(c,t,file,count,token);
     }
 
     private static async Task InsertEnrichmentAsync(SqlConnection c,SqlTransaction t,long file,EnrichmentPersistence row,CancellationToken token)

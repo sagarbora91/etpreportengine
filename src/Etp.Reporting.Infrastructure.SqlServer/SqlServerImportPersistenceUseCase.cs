@@ -111,12 +111,12 @@ public sealed partial class SqlServerImportPersistenceUseCase : IImportPersisten
                 Status=outcome.NewRows==0 && outcome.AlreadyPresentRows>0 ? "Duplicate content" : "Imported",
                 AlreadyPresentRows=outcome.AlreadyPresentRows,ConflictRows=outcome.ConflictRows };
         }
-        // IF-014: once the import transaction has committed, a failure reading its result back
-        // must not be reported as a failed import. The batch id goes with it only once it is known to be ours.
-        catch (Exception failure) when (attempt.Committed)
+        // IF-014/IF-017: once the import transaction has committed, a failure checking which batch owns the
+        // file or reading its result back is not a failed import, and never a rollback. The batch id goes
+        // with it only once it is known to be ours; until then the attempt's outcome is unknown.
+        catch (Exception failure) when (attempt.Committed && failure is not ImportCommittedException)
         {
-            SqlTransactionGuard.MarkCommitted(failure, ownBatch);
-            throw;
+            throw new ImportCommittedException(ownBatch, failure);
         }
     }
 

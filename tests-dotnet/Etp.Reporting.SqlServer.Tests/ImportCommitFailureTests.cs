@@ -61,7 +61,8 @@ public sealed class ImportCommitFailureTests
         var timeout = SqlError(-2);
         Assert.Equal(("IMPORT_TIMEOUT", "The import timed out and can be retried."), classifier.Describe(timeout));
         Assert.Equal("IMPORT_TIMEOUT", classifier.Describe(new InvalidOperationException("This SqlTransaction has completed.", timeout)).Code);
-        Assert.Equal("IMPORT_PROCESSING_FAILED", classifier.Describe(SqlError(547)).Code);
+        // Any other database error keeps its number (IF-017), never its text, and is not a timeout.
+        Assert.Equal(ImportCodes.Sql(547), classifier.Describe(SqlError(547)).Code);
         Assert.Equal("IMPORT_TIMEOUT", classifier.Describe(new TimeoutException()).Code);
         Assert.Equal("STORE_OVERRIDE_MISMATCH", classifier.Describe(new ImportSourceException("STORE_OVERRIDE_MISMATCH", "Mismatch.")).Code);
     }
@@ -173,7 +174,7 @@ public sealed class ImportCommitFailureTests
         // A failure before the COMMIT keeps the caller's stage.
         var before = SqlError(547);
         before.Data[SqlTransactionGuard.CommitStateKey] = CommitState.RolledBack;
-        Assert.Equal(new ImportFailure("IMPORT_PROCESSING_FAILED", FailureStage.Apply, classifier.Describe(before).SafeMessage, nameof(SqlException), 547),
+        Assert.Equal(new ImportFailure(ImportCodes.Sql(547), FailureStage.Apply, classifier.Describe(before).SafeMessage, nameof(SqlException), 547),
             classifier.DescribeDetailed(before, FailureStage.Apply));
         var refusal = classifier.DescribeDetailed(new ImportSourceException("STORE_OVERRIDE_MISMATCH", "Mismatch."), FailureStage.Scope);
         Assert.Equal(("STORE_OVERRIDE_MISMATCH", FailureStage.Scope, (int?)null), (refusal.Code, refusal.Stage, refusal.SqlNumber));

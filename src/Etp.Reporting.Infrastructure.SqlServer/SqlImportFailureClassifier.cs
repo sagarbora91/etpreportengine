@@ -27,19 +27,16 @@ public sealed class SqlImportFailureClassifier : IImportFailureClassifier
         _ => inner.IsTransient(exception)
     };
 
-    // IF-014 (spec 11.1, recorded deviation): a COMMIT timeout is checked on a fresh connection
-    // before it is coded. Found committed, the import succeeded; found missing, it is IMPORT_TIMEOUT
-    // with CommitState.RolledBack and can be retried; COMMIT_OUTCOME_UNKNOWN is only for a check that
-    // could not answer. A failure after the work committed keeps its code but says the data is saved.
-    public (string Code, string SafeMessage) Describe(Exception exception) => exception switch
+    private const string UnknownMessage =
+        "The database did not confirm whether this import was saved. Import the file again: if it was saved, it is reported as already imported.";
+    private const string SavedMessage =
+        "The import was saved, but its result could not be read back. Import the file again to see it: it is reported as already imported.";
+
+    public (string Code, string SafeMessage) Describe(Exception exception)
     {
-        ImportSourceException => inner.Describe(exception),
-        _ when CommitOutcomeUnknown(exception) => (ImportCodes.CommitOutcomeUnknown,
-            "The database did not confirm whether this import was saved. Import the file again: if it was saved, it is reported as already imported."),
-        _ when SqlTransactionGuard.CommitStateOf(exception) == CommitState.Committed => (DescribeUncommitted(exception).Code,
-            "The import was saved, but its result could not be read back. Import the file again to see it: it is reported as already imported."),
-        _ => DescribeUncommitted(exception)
-    };
+        var failure = DescribeDetailed(exception, FailureStage.Apply);
+        return (failure.Code, failure.SafeMessage);
+    }
 
     /// <summary>
     /// Records on a failure that followed a successful import COMMIT that the import is saved, so it
@@ -51,23 +48,29 @@ public sealed class SqlImportFailureClassifier : IImportFailureClassifier
         SqlTransactionGuard.MarkCommitted(exception, batchId);
     }
 
-    private (string Code, string SafeMessage) DescribeUncommitted(Exception exception) =>
-        SqlErrorNumber(exception) == TimeoutNumber
-            ? (ImportCodes.ImportTimeout, "The import timed out and can be retried.")
-            : inner.Describe(exception);
-
     /// <summary>
-    /// The failure as an attempt records it, with the SQL error number, and the COMMIT stage when
-    /// the COMMIT itself failed or the work had committed before the failure (IF-014).
+    /// The failure as an attempt records it (spec 11.1, IF-017), and the one classification path for import
+    /// failures. Database errors are coded by <see cref="SqlImportFailures"/>, the rest by
+    /// <see cref="SafeImportFailureClassifier"/>. Then the commit outcome (IF-014, recorded deviation): a COMMIT
+    /// whose check could not answer is COMMIT_OUTCOME_UNKNOWN; a COMMIT the check found missing keeps its code
+    /// (a timeout is IMPORT_TIMEOUT, retried); a failure after the work committed, or after a commit whose
+    /// owning batch could not be checked, keeps its code but says the data is saved. Either is at the COMMIT stage.
     /// </summary>
     public ImportFailure DescribeDetailed(Exception exception, FailureStage stage)
     {
-        var (code, message) = Describe(exception);
-        var described = ((IImportFailureClassifier)inner).DescribeDetailed(exception, stage);
+        ArgumentNullException.ThrowIfNull(exception);
+        var cause = exception is ImportCommittedException { InnerException: { } wrapped } ? wrapped : exception;
+        var described = SqlImportFailures.DescribeDatabaseError(cause, stage) ?? inner.DescribeDetailed(cause, stage);
+        if (cause is not ImportSourceException)
+            described = SqlTransactionGuard.CommitStateOf(exception) switch
+            {
+                CommitState.Unknown when SqlTransactionGuard.FailedAtCommit(exception) =>
+                    described with { Code = ImportCodes.CommitOutcomeUnknown, SafeMessage = UnknownMessage },
+                CommitState.Unknown or CommitState.Committed => described with { SafeMessage = SavedMessage },
+                _ => described
+            };
         return described with
         {
-            Code = code,
-            SafeMessage = message,
             Stage = SqlTransactionGuard.StageOf(exception, described.Stage),
             SqlNumber = SqlErrorNumber(exception) ?? described.SqlNumber
         };
@@ -80,7 +83,4 @@ public sealed class SqlImportFailureClassifier : IImportFailureClassifier
             if (current is SqlException sql) return sql.Number;
         return null;
     }
-
-    private static bool CommitOutcomeUnknown(Exception exception) =>
-        SqlTransactionGuard.CommitStateOf(exception) == CommitState.Unknown;
 }

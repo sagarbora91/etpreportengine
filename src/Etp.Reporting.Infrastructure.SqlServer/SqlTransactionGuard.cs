@@ -66,11 +66,12 @@ internal static class SqlTransactionGuard
     }
 
     /// <summary>
-    /// The stage a failure belongs to: <see cref="FailureStage.Commit"/> when the COMMIT failed or
-    /// when the work had committed before the failure, otherwise <paramref name="beforeCommit"/>.
+    /// The stage a failure belongs to: <see cref="FailureStage.Commit"/> when the COMMIT failed, or
+    /// when the work had committed (or may have) before the failure, otherwise <paramref name="beforeCommit"/>.
     /// </summary>
     internal static FailureStage StageOf(Exception exception, FailureStage beforeCommit) =>
-        FailedAtCommit(exception) || CommitStateOf(exception) == CommitState.Committed ? FailureStage.Commit : beforeCommit;
+        FailedAtCommit(exception) || CommitStateOf(exception) is CommitState.Committed or CommitState.Unknown
+            ? FailureStage.Commit : beforeCommit;
 
     internal static Task CommitOrVerifyAsync(Func<Task> commit, Func<Task> release, Func<Task<bool>> committed) =>
         CommitOrVerifyAsync(true, commit, release, committed);

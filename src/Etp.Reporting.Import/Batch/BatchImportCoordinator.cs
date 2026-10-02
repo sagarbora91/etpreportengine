@@ -69,11 +69,31 @@ public sealed class SafeImportFailureClassifier : IImportFailureClassifier
     public (string Code, string SafeMessage) Describe(Exception exception) => exception switch
     {
         ImportSourceException source => (source.Code, source.Message),
+        ImportConflictException conflict => (conflict.Code, conflict.Message),
         UnauthorizedAccessException => ("IMPORT_ACCESS_DENIED", "The workbook could not be accessed."),
         IOException => ("IMPORT_IO_FAILURE", "The workbook could not be read. Close other applications and retry."),
         TimeoutException => ("IMPORT_TIMEOUT", "The import timed out and can be retried."),
         _ => ("IMPORT_PROCESSING_FAILED", "The workbook could not be imported. Review the support package for diagnostics.")
     };
+
+    /// <summary>
+    /// The failure as an attempt records it (spec 11.1). Only an importer refusal keeps its own text; every
+    /// other message is fixed here, so no exception text reaches the attempt. A refusal that names its stage
+    /// overrides the caller's, and a conflict keeps its samples. Database errors are described by the
+    /// SQL Server layer, which can see SqlException.
+    /// </summary>
+    public ImportFailure DescribeDetailed(Exception exception, FailureStage stage)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+        var (code, message) = Describe(exception);
+        var type = exception.GetType().Name;
+        return exception switch
+        {
+            ImportConflictException conflict => new(code, FailureStage.Apply, message, type) { Issues = conflict.Samples },
+            ImportSourceException source => new(code, source.Stage ?? stage, message, type),
+            _ => new(code, stage, message, type)
+        };
+    }
 }
 
 public sealed class BatchImportCoordinator
