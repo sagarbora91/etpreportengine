@@ -138,3 +138,19 @@ Final nullability, unique keys, hierarchy and signs remain subject to real ETP s
 Migration 0029 adds nullable `accounting_batches.approval_reason nvarchar(1000)`; historical reasons are not fabricated. Approval persists the supplied reason with its status/actor/time. Mapping request, decision and replacement run in one transaction.
 
 Migration 0030 adds `rejection_reason nvarchar(1000)`, `rejected_by nvarchar(200)` and `rejected_utc datetime2`, plus Owner-only `dbo.reject_accounting_batch`. Rejection and audit are atomic; DRAFT/REVIEW/APPROVED are eligible, EXPORTED/REJECTED are not. The original approval fields remain intact. The planned status renaming and invoice/export-receipt tables are still pending.
+
+## Phase 7 Tally foundation — migration 0038
+
+Additive only: no existing status value, constraint, index or trigger changes. Every new table is Owner-only (DENY to `etp_store_manager` and `etp_viewer`). THROW numbers 51570–51579; see `docs/audit/PHASE-7-REPORT.md`.
+
+| Table | Purpose |
+|---|---|
+| `tally_profiles` | One Tally company: name, TEST/PRODUCTION, loopback-only endpoint, and the D13/D14/D16/D17 policy columns. CHECKs refuse a remote endpoint, named customer ledgers with tender inside the voucher, a single-ledger policy without its ledger, and live books enabled without who enabled them. |
+| `tally_profile_stores` | Which stores a profile covers; a store binds to at most one TEST and one PRODUCTION company. |
+| `accounting_vouchers` | One planned Tally voucher; its `correspondence_key` must equal `ETP:{store}:{invoice_year}:{document_number}:{component_role}:{revision}`. A number containing `:`, `|` or white space can be stored only as BLOCKED/EXCLUDED. Immutable once the batch leaves DRAFT/BLOCKED, except `voucher_status`/`blocked_reason`. |
+| `accounting_voucher_reservations` | One active reservation per (profile, store, year, document number, role, revision). Never deleted; released once, automatically when a batch is rejected or a voucher is blocked/excluded before any attempt. |
+| `accounting_status_history` | Append-only; one row per batch or voucher status change, written by trigger. Existing batches get one starting row at upgrade. |
+| `tally_artifacts` | Append-only register of evidence files (kind, relative path, SHA-256, length). |
+| `tally_attempts` | One file write or send; may only advance its outcome from RECORDED or SENT; never deleted. |
+
+`accounting_batches` gains `tally_profile_id`, `batch_kind` (`DAY_JOURNAL` for every existing row, or `SALES_VOUCHERS`, which needs a profile), `selection_json`, `selection_version`, `mapping_version_set_json` and `manifest_sha256`. `accounting_entries` gains `accounting_voucher_id` (same batch as the voucher), `tax_rate`, `quantity` and `stock_item`. `product_settings` gains `tally_evidence_root`.
