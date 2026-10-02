@@ -1,4 +1,5 @@
 using Etp.Reporting.Application.Imports;
+using Etp.Reporting.Import.Batch;
 using Etp.Reporting.Import.Preflight;
 using Etp.Reporting.Import.Profiles;
 using Etp.Reporting.Import.Workbooks;
@@ -54,6 +55,44 @@ public sealed class StockIdentitySqlTests(SqlDatabaseFixture database) : IClassF
             SELECT COUNT(*) FROM dbo.import_row_outcomes WHERE import_file_id={later.ImportFileId}
               AND business_identity LIKE N'%/RE-ITEM/%/#5' AND outcome='ALREADY_PRESENT'
             """));
+    }
+
+    [Fact]
+    public async Task Full_group_import_over_a_stored_row_that_is_not_the_chain_start_adds_the_missing_units()
+    {
+        // Before 0041 the identity kept the first row in file order (opening 1), and 0041 left it on line 1.
+        var stored = await Import([Unit("STM Receipt", "WLMHW", "AL-ITEM", "AL-DOC", Day(17), 1m, 1m)]);
+        Assert.Equal(1, await Scalar("SELECT line_seq FROM dbo.stock_movements WHERE document_number='AL-DOC'"));
+
+        // The whole group in the package's file order; its chain start (opening 0) belongs on line 1.
+        var full = await Import([.. new[] { 1m, 2m, 0m, 3m, 4m }.Select(opening => Unit("STM Receipt", "WLMHW", "AL-ITEM", "AL-DOC", Day(17), opening, 1m))]);
+
+        Assert.Equal("ALREADY_PRESENT:1,NEW:4", await database.ExecuteAsync($"""
+            SELECT STRING_AGG(CONCAT(outcome,':',n),',') WITHIN GROUP(ORDER BY outcome)
+            FROM (SELECT outcome,COUNT(*) n FROM dbo.import_row_outcomes WHERE import_file_id={full.ImportFileId} GROUP BY outcome) x
+            """));
+        Assert.Equal(0, await Scalar($"SELECT COUNT(*) FROM dbo.import_conflicts WHERE import_file_id={full.ImportFileId}"));
+        // Every unit once: the stored row keeps line 1, the others take lines 2-5 in chain order.
+        Assert.Equal([(0m, 2), (1m, 1), (2m, 3), (3m, 4), (4m, 5)], await LineSeqByOpening("WLMHW", "AL-DOC"));
+        Assert.NotEqual(stored.ImportFileId, full.ImportFileId);
+
+        // The same file again is all present.
+        var again = await Import([.. new[] { 4m, 3m, 2m, 1m, 0m }.Select(opening => Unit("STM Receipt", "WLMHW", "AL-ITEM", "AL-DOC", Day(17), opening, 1m)),
+            Unit("STM Receipt", "WLMHW", "AL-OTHER", "AL-DOC", Day(17), 0m, 1m)]);
+        Assert.Equal(5, await Scalar($"SELECT COUNT(*) FROM dbo.import_row_outcomes WHERE import_file_id={again.ImportFileId} AND outcome='ALREADY_PRESENT'"));
+        Assert.Equal(6, await Scalar("SELECT COUNT(*) FROM dbo.stock_movements WHERE document_number='AL-DOC'"));
+    }
+
+    [Fact]
+    public async Task Full_group_import_over_a_stored_row_with_other_values_still_conflicts()
+    {
+        await Import([Unit("STM Receipt", "HEMW", "AL-ITEM", "AL-DIFF", Day(18), 7m, 1m)]);
+
+        var refused = await Assert.ThrowsAsync<ImportConflictException>(() => Import(
+            [.. new[] { 1m, 2m, 0m }.Select(opening => Unit("STM Receipt", "HEMW", "AL-ITEM", "AL-DIFF", Day(18), opening, 1m))]));
+
+        Assert.Equal(1, refused.Count);
+        Assert.Equal(1, await Scalar("SELECT COUNT(*) FROM dbo.stock_movements WHERE document_number='AL-DIFF'"));
     }
 
     [Fact]

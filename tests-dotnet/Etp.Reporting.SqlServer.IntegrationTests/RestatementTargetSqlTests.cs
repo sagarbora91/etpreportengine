@@ -76,7 +76,7 @@ public sealed class RestatementTargetSqlTests(SqlDatabaseFixture database) : ICl
         Assert.False(string.IsNullOrWhiteSpace(environment[Array.IndexOf(sets[0].Columns, "sql_server_version")] as string));
         Assert.Equal(["check_code", "findings", "blocks_upgrade", "detail"], sets[1].Columns);
         var summary = sets[1].Rows.ToDictionary(row => (string)row[0], row => (Findings: Convert.ToInt64(row[1]), Blocks: (bool)row[2]));
-        Assert.Equal(15, summary.Count);
+        Assert.Equal(16, summary.Count);
         Assert.Equal((1L, true), summary["INVOICE_YEAR_NOT_FINANCIAL_YEAR"]);
         Assert.Equal((1L, false), summary["ORPHAN_INVOICE_HEADERS"]);
         Assert.Equal(1L, summary["LOCKED_DAYS"].Findings);
@@ -102,6 +102,54 @@ public sealed class RestatementTargetSqlTests(SqlDatabaseFixture database) : ICl
         Assert.Contains("DUPLICATE_TENDERS", details);
         Assert.Contains("REPEATED_MOVEMENT_IDENTITY", details);
         Assert.Contains("REPEATED_SNAPSHOT_IDENTITY", details);
+    }
+
+    [Fact]
+    public async Task Upgrade_check_script_lists_R011_rows_the_snapshot_backfill_rebuilds_or_cannot()
+    {
+        var script = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "scripts", "check-import-upgrade.sql"));
+        // Outcomes written by the pre-0041 procedure (legacy identity text): R011's SNAP-1
+        // was ALREADY_PRESENT against the R010 row, whose values still hash alike; SNAP-2 was a CONFLICT that kept
+        // only its hash. An outcome of the 0041 procedure (identity ending /#1) is not a legacy row.
+        await database.ExecuteAsync("""
+            DECLARE @batch uniqueidentifier=NEWID(),@r010 bigint,@r011 bigint,@lineage bigint,@hash char(64);
+            INSERT dbo.import_batches(import_batch_id,status,started_utc,source_row_count) VALUES(@batch,'Completed',SYSUTCDATETIME(),4);
+            INSERT dbo.import_files(import_batch_id,original_file_name,source_sha256,size_bytes,report_code,store_code,business_date,period_start,period_end)
+            VALUES(@batch,N'r011check_r010.xlsx',REPLICATE('e',64),10,'R010','R011CHECK','20260803','20260803','20260803');
+            SET @r010=SCOPE_IDENTITY();
+            INSERT dbo.import_files(import_batch_id,original_file_name,source_sha256,size_bytes,report_code,store_code,business_date,period_start,period_end)
+            VALUES(@batch,N'r011check_r011.xlsx',REPLICATE('f',64),10,'CLOSING_STOCK','R011CHECK','20260803','20260803','20260803');
+            SET @r011=SCOPE_IDENTITY();
+            INSERT dbo.source_lineage(import_file_id,sheet_name,source_row_number,source_record_type) VALUES(@r010,N'Data',2,'R010_SNAPSHOT'); SET @lineage=SCOPE_IDENTITY();
+            INSERT dbo.stock_snapshots(store_code,snapshot_date,product_code,batch_number,quantity,source_lineage_id,source_report_code)
+            VALUES('R011CHECK','20260803',N'SNAP-1',N'LOT-1',5,@lineage,'R010');
+            SELECT @hash=LOWER(CONVERT(varchar(64),HASHBYTES('SHA2_256',CONCAT(ISNULL(ean,N''),N'|',ISNULL(brand_code,N''),N'|',ISNULL(brand_name,N''),N'|',
+              ISNULL(cluster,N''),N'|',ISNULL(gender,N''),N'|',ISNULL(batch_number,N''),N'|',ISNULL(source_uid,N''),N'|',quantity,N'|',
+              ISNULL(unit_cost,0),N'|',ISNULL(total_cost,0))),2)) FROM dbo.stock_snapshots WHERE source_lineage_id=@lineage;
+            INSERT dbo.source_lineage(import_file_id,sheet_name,source_row_number,source_record_type) VALUES(@r011,N'Sheet0',2,'CLOSING_STOCK'); SET @lineage=SCOPE_IDENTITY();
+            INSERT dbo.import_row_outcomes(import_file_id,source_lineage_id,business_identity,outcome,content_sha256,safe_message)
+            VALUES(@r011,@lineage,N'R011CHECK/2026-08-03/SNAP-1/LOT-1','ALREADY_PRESENT',@hash,N'Identical stock snapshot row already exists.');
+            INSERT dbo.source_lineage(import_file_id,sheet_name,source_row_number,source_record_type) VALUES(@r011,N'Sheet0',3,'CLOSING_STOCK'); SET @lineage=SCOPE_IDENTITY();
+            INSERT dbo.import_row_outcomes(import_file_id,source_lineage_id,business_identity,outcome,content_sha256,safe_message)
+            VALUES(@r011,@lineage,N'R011CHECK/2026-08-03/SNAP-2/LOT-1','CONFLICT',REPLICATE('d',64),N'Stock snapshot identity exists with different content.');
+            INSERT dbo.source_lineage(import_file_id,sheet_name,source_row_number,source_record_type) VALUES(@r011,N'Sheet0',4,'CLOSING_STOCK'); SET @lineage=SCOPE_IDENTITY();
+            INSERT dbo.import_row_outcomes(import_file_id,source_lineage_id,business_identity,outcome,content_sha256,safe_message)
+            VALUES(@r011,@lineage,N'R011CHECK/2026-08-03/CLOSING_STOCK/SNAP-3/LOT-1/#1','ALREADY_PRESENT',REPLICATE('d',64),N'Identical stock snapshot row already exists.');
+            IF DATABASE_PRINCIPAL_ID(N'upgrade_checker') IS NULL
+            BEGIN CREATE USER upgrade_checker WITHOUT LOGIN; ALTER ROLE db_datareader ADD MEMBER upgrade_checker; END;
+            """);
+
+        var sets = await RunCheckAsync(database.ConnectionString, script);
+
+        var summary = sets[1].Rows.ToDictionary(row => (string)row[0], row => (Findings: Convert.ToInt64(row[1]), Blocks: (bool)row[2], Detail: (string)row[3]));
+        Assert.Equal((1L, false), (summary["SNAPSHOT_R011_BACKFILL"].Findings, summary["SNAPSHOT_R011_BACKFILL"].Blocks));
+        Assert.Contains("rebuilds 1 of them", summary["SNAPSHOT_R011_BACKFILL"].Detail);
+        Assert.Contains("; 1 keep their BinWise reading", summary["SNAPSHOT_R011_BACKFILL"].Detail);
+        var detail = Assert.Single(sets.Skip(3), set => (string)set.Rows[0][0] == "SNAPSHOT_R011_BACKFILL");
+        Assert.Equal(["check_code", "store_code", "snapshot_date", "day_locked", "rows_rebuilt", "rows_without_values"], detail.Columns);
+        var row = Assert.Single(detail.Rows);
+        Assert.Equal(("R011CHECK", new DateTime(2026, 8, 3), 0, 1, 1),
+            ((string)row[1], (DateTime)row[2], Convert.ToInt32(row[3]), Convert.ToInt32(row[4]), Convert.ToInt32(row[5])));
     }
 
     [Fact]
