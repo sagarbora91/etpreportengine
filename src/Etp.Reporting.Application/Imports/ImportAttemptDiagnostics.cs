@@ -8,8 +8,13 @@ public enum FailureStage { Read, Match, Source, Scope, Plan, Apply, Commit, Evid
 /// <summary>What became of the import transaction (<c>import_attempts.commit_state</c>, IF-014).</summary>
 public enum CommitState { RolledBack, Committed, Unknown }
 
-/// <summary>Whether the source bytes are held inside the database (<c>import_attempts.evidence_state</c>, IF-023).</summary>
-public enum EvidenceState { Retained, AlreadyHeld, NotRetained, NotAttempted }
+/// <summary>
+/// Whether the source bytes are held inside the database (<c>import_attempts.evidence_state</c>, IF-023). Every
+/// attempt records one: <see cref="NotAttempted"/> when nothing committed (a read, match or scope failure, a
+/// rollback, a file a cancel never reached), and <see cref="Unknown"/> when the import committed but what it
+/// kept could not be read back.
+/// </summary>
+public enum EvidenceState { Retained, AlreadyHeld, NotRetained, NotAttempted, Unknown }
 
 /// <summary>
 /// Why one attempt failed (spec 11.1). Messages are written by the code and never contain a cell value;

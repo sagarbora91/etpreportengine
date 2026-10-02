@@ -52,7 +52,12 @@ public static class TaskNavigation
     {
         var result = new List<TaskDestination>();
         void Add(string id, string title, string rail, string tab, string destination, string section, int role = 1)
-            => result.Add(new(id, title, rail, tab, destination, section, role, Aliases: id == "recovery" ? ["restore", "recovery drill"] : [id.Replace('-', ' ')]));
+            => result.Add(new(id, title, rail, tab, destination, section, role, Aliases: id switch
+            {
+                "recovery" => ["restore", "recovery drill"],
+                "keep-evidence" => ["keep source files", "source file evidence", "evidence", "earlier imports"],
+                _ => [id.Replace('-', ' ')]
+            }));
         Add("walk-ins", "Walk-ins", "Today", "Walk-ins", "Manual Entry", "manual", 2);
         Add("readiness", "Close day", "Today", "Close day", "Daily Workflow", "readiness", 1);
         Add("finalisation", "Finalise day", "Today", "Close day", "Daily Workflow", "finalisation", 2);
@@ -62,6 +67,8 @@ public static class TaskNavigation
         Add("cash-input", "Cash and service entries", "Today", "Cash", "Manual Entry", "manual", 2);
         Add("import-files", "Import folder", "Import", "Import", "Import ETP", "import", 2);
         Add("conflicts", "Problems", "Import", "Problems", "Import ETP", "import-results", 1);
+        // Spec 12: the Owner's evidence action sits on Imports → Problems as well as in Settings → Database.
+        Add("keep-evidence", "Keep source files for earlier imports…", "Import", "Problems", "Import ETP", "import-results", 3);
         Add("import-history", "Imports", "Import", "History", "Import History", "import-history", 1);
         Add("source-inbox", "Received files", "Import", "History", "Import ETP", "inbox", 1);
         Add("stock-count", "Physical count", "Stock", "Physical count", "Manual Entry", "stock-count", 2);

@@ -1,6 +1,8 @@
+using System.Diagnostics;
 using System.IO.Compression;
 using System.Security.Cryptography;
 using Etp.Reporting.Application.Imports;
+using Etp.Reporting.Import.Preflight;
 using Etp.Reporting.Import.Workbooks;
 using Etp.Reporting.Infrastructure.SqlServer;
 using Microsoft.Data.SqlClient;
@@ -229,6 +231,220 @@ public sealed class EvidenceSqlTests
         }
         finally { await database.DisposeAsync(); }
     }
+
+    // Review 1.9.3 finding 5: the rollback of the evidence is proven on every route, not only R025 (sales).
+    // The file under test runs beside R025 so a snapshot without its own date takes the folder's date.
+    [Theory]
+    [InlineData("R025")] // sales
+    [InlineData("R022")] // revenue
+    [InlineData("R013")] // enrichment
+    [InlineData("R030")] // stock
+    [InlineData("R020")] // family
+    public async Task A_failure_after_the_bytes_were_stored_rolls_them_back_on_every_route(string report)
+    {
+        var database = new SqlDatabaseFixture();
+        try
+        {
+            await database.InitializeAsync();
+            var path = Sample(report);
+            var bytes = await File.ReadAllBytesAsync(path);
+            var hash = Convert.ToHexStringLower(SHA256.HashData(bytes));
+            var paths = report == "R025" ? new[] { path } : [Sample("R025"), path];
+
+            // Fails the completion of this file's batch only, after its bytes were stored in the same transaction.
+            await database.ExecuteAsync($"""
+                CREATE TRIGGER dbo.evidence_test_fail_route ON dbo.import_batches AFTER UPDATE AS
+                IF EXISTS(SELECT 1 FROM inserted i JOIN dbo.import_files f ON f.import_batch_id=i.import_batch_id
+                          WHERE f.source_sha256='{hash}')
+                    THROW 50999,'Synthetic failure after the evidence was stored.',1;
+                """);
+            var first = await new FolderImportService(new SqlServerImportPersistenceUseCase(database.ConnectionString))
+                .RunFilesAsync(paths, new("Synthetic Owner"));
+            var failed = Assert.Single(first.Files, file => file.FileName == Path.GetFileName(path));
+            Assert.Equal("Failed", failed.Status);
+            Assert.Equal(EvidenceState.NotAttempted, failed.Evidence);
+            Assert.Equal(CommitState.RolledBack, failed.CommitState);
+            Assert.Equal(0, await database.ExecuteAsync($"SELECT COUNT(*) FROM dbo.import_files WHERE source_sha256='{hash}'"));
+            Assert.Equal(0, await database.ExecuteAsync($"SELECT COUNT(*) FROM dbo.import_source_content WHERE source_sha256='{hash}'"));
+            // The attempt still records its evidence state (IF-023), never NULL.
+            Assert.Equal(0, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.import_attempts WHERE evidence_state IS NULL"));
+            await database.ExecuteAsync("DROP TRIGGER dbo.evidence_test_fail_route");
+
+            var second = await new FolderImportService(new SqlServerImportPersistenceUseCase(database.ConnectionString))
+                .RunFilesAsync(paths, new("Synthetic Owner"));
+            var imported = Assert.Single(second.Files, file => file.FileName == Path.GetFileName(path));
+            Assert.True(imported.Status is "Imported" or "empty export", $"{imported.FileName}: {imported.Status}; {imported.Message}");
+            Assert.Equal(EvidenceState.Retained, imported.Evidence);
+            Assert.Equal(bytes, (byte[])(await database.ExecuteAsync(
+                $"SELECT content FROM dbo.import_source_content WHERE source_sha256='{hash}'"))!);
+        }
+        finally { await database.DisposeAsync(); }
+    }
+
+    // Review 1.9.3 finding 5: the use case's own duplicate check, before the import lock (ExistsInScope).
+    [Fact]
+    public async Task Use_case_duplicate_before_the_lock_keeps_missing_bytes()
+    {
+        var database = new SqlDatabaseFixture();
+        try
+        {
+            await database.InitializeAsync();
+            var path = Sample("R025");
+            var withBytes = await Accepted(path, keepContent: true);
+            var withoutBytes = await Accepted(path, keepContent: false);
+            var useCase = new SqlServerImportPersistenceUseCase(database.ConnectionString);
+
+            var imported = await useCase.PersistAsync(Request(withoutBytes));
+            Assert.Equal("Imported", imported.Status);
+            Assert.Equal(EvidenceState.NotAttempted, imported.Evidence);
+            Assert.Equal(0, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.import_source_content"));
+
+            var duplicate = await useCase.PersistAsync(Request(withBytes));
+            Assert.Equal("Duplicate", duplicate.Status);
+            Assert.Equal(EvidenceState.Retained, duplicate.Evidence);
+            Assert.Equal(await File.ReadAllBytesAsync(path), (byte[])(await database.ExecuteAsync("SELECT content FROM dbo.import_source_content"))!);
+            Assert.Equal(1, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.import_files"));
+
+            var again = await useCase.PersistAsync(Request(withBytes));
+            Assert.Equal("Duplicate", again.Status);
+            Assert.Equal(EvidenceState.AlreadyHeld, again.Evidence);
+            Assert.Equal(1, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.import_source_content"));
+        }
+        finally { await database.DisposeAsync(); }
+    }
+
+    // Review 1.9.3 finding 5: the duplicate the use case finds only under the import lock (a second import of the
+    // same file that waited on the first). Whichever wins, the bytes are held once and the states say who kept them.
+    [Fact]
+    public async Task Use_case_duplicate_found_under_the_import_lock_keeps_missing_bytes()
+    {
+        var database = new SqlDatabaseFixture();
+        try
+        {
+            await database.InitializeAsync();
+            var path = Sample("R025");
+            var withBytes = await Accepted(path, keepContent: true);
+            var withoutBytes = await Accepted(path, keepContent: false);
+            var builder = new SqlConnectionStringBuilder(database.ConnectionString)
+                { ApplicationName = "EvidenceUnderLock_" + Guid.NewGuid().ToString("N"), Pooling = false };
+            await using var gate = new SqlConnection(database.ConnectionString);
+            await gate.OpenAsync();
+            await using var transaction = (SqlTransaction)await gate.BeginTransactionAsync();
+            await using (var hold = new SqlCommand("""
+                DECLARE @lock int;
+                EXEC @lock=sys.sp_getapplock @Resource=@resource,@LockMode='Exclusive',@LockOwner='Transaction',@LockTimeout=10000;
+                IF @lock<0 THROW 51997,'Could not arrange the import lock fixture.',1;
+                """, gate, transaction))
+            {
+                hold.Parameters.AddWithValue("@resource", $"ETP_IMPORT:{withBytes.Scope.StoreCode}:{withBytes.ProfileIdentity.ReportCode}");
+                await hold.ExecuteNonQueryAsync();
+            }
+            var without = new SqlServerImportPersistenceUseCase(builder.ConnectionString).PersistAsync(Request(withoutBytes));
+            var with = new SqlServerImportPersistenceUseCase(builder.ConnectionString).PersistAsync(Request(withBytes));
+            try
+            {
+                var clock = Stopwatch.StartNew();
+                while (Convert.ToInt32(await database.ExecuteAsync($"SELECT COUNT(*) FROM sys.dm_exec_requests r JOIN sys.dm_exec_sessions s ON s.session_id=r.session_id WHERE s.program_name='{builder.ApplicationName}' AND r.wait_type LIKE 'LCK_M_%'")) < 2)
+                {
+                    Assert.False(without.IsCompleted || with.IsCompleted, "Both imports must pass the early duplicate check and wait on the import lock.");
+                    Assert.True(clock.Elapsed < TimeSpan.FromSeconds(15), "The imports did not reach the import lock.");
+                    await Task.Delay(25);
+                }
+            }
+            finally { await transaction.CommitAsync(); }
+            var results = await Task.WhenAll(without, with).WaitAsync(TimeSpan.FromSeconds(60));
+            Assert.Equal(new[] { "Duplicate", "Imported" }, results.Select(result => result.Status).Order());
+            var withoutWon = results[0].Status == "Imported";
+            var duplicate = withoutWon ? results[1] : results[0];
+            Assert.Equal(withoutWon ? EvidenceState.NotAttempted : EvidenceState.Retained, (withoutWon ? results[0] : results[1]).Evidence);
+            // The duplicate offered bytes only when it is the import that read them.
+            Assert.Equal(withoutWon ? EvidenceState.Retained : EvidenceState.NotAttempted, duplicate.Evidence);
+            Assert.Equal(1, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.import_files"));
+            Assert.Equal(1, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.import_source_content"));
+            Assert.Equal(await File.ReadAllBytesAsync(path), (byte[])(await database.ExecuteAsync("SELECT content FROM dbo.import_source_content"))!);
+        }
+        finally { await database.DisposeAsync(); }
+    }
+
+    // Review 1.9.3 finding 3: Settings → Database and the walk never wait on an import in progress.
+    [Fact]
+    public async Task Summary_and_walk_do_not_wait_on_an_import_in_progress()
+    {
+        var database = new SqlDatabaseFixture();
+        var folder = Path.Combine(Path.GetTempPath(), "EtpEvidenceFolder_" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            await database.InitializeAsync();
+            Assert.All((await new FolderImportService(new SqlServerImportPersistenceUseCase(database.ConnectionString),
+                new WithoutContentReader()).RunFilesAsync([Sample("R025"), Sample("R020")], new("Synthetic Owner"))).Files,
+                file => Assert.Equal("Imported", file.Status));
+            Directory.CreateDirectory(folder);
+            File.Copy(Sample("R025"), Path.Combine(folder, Path.GetFileName(Sample("R025"))));
+            File.Copy(Sample("R020"), Path.Combine(folder, Path.GetFileName(Sample("R020"))));
+            var held = await File.ReadAllBytesAsync(Sample("R025"));
+            var heldHash = Convert.ToHexStringLower(SHA256.HashData(held));
+            var heldId = Convert.ToInt64(await database.ExecuteAsync($"SELECT import_file_id FROM dbo.import_files WHERE source_sha256='{heldHash}'"));
+            var service = new SqlServerImportEvidenceService(database.ConnectionString, null, null, TimeSpan.FromMilliseconds(500));
+
+            // An import in progress holds R025's new evidence row, uncommitted.
+            await using (var open = new SqlConnection(database.ConnectionString))
+            {
+                await open.OpenAsync();
+                await using var transaction = (SqlTransaction)await open.BeginTransactionAsync();
+                Assert.Equal("RETAINED", await RetainIn(open, transaction, heldHash, held, heldId));
+
+                var clock = Stopwatch.StartNew();
+                var summary = await service.LoadSummaryAsync();
+                Assert.Equal(0, summary.FilesHeld); // the uncommitted row is read past, not waited on
+                Assert.Equal(2, summary.ImportedSourcesWithoutFile);
+                var walk = await service.RetainEarlierImportsAsync([folder]);
+                Assert.Equal(2, walk.Matched);
+                Assert.Equal(1, walk.Retained); // R020
+                Assert.Equal(1, walk.Busy);     // R025, held by the import
+                Assert.Equal(0, walk.DatabaseFailures);
+                Assert.Equal(0, walk.Skipped);
+                Assert.Equal(EarlierImportStop.None, walk.Stop);
+                Assert.True(clock.Elapsed < TimeSpan.FromSeconds(20), $"Waited {clock.Elapsed} on an import in progress.");
+                await transaction.RollbackAsync();
+            }
+            var again = await service.RetainEarlierImportsAsync([folder]);
+            Assert.Equal(1, again.Retained);
+            Assert.Equal(1, again.AlreadyHeld);
+            Assert.Equal(0, again.Busy);
+
+            // A table lock cannot be read past: the summary and the walk report busy instead of hanging.
+            await using (var locking = new SqlConnection(database.ConnectionString))
+            {
+                await locking.OpenAsync();
+                await using var transaction = (SqlTransaction)await locking.BeginTransactionAsync();
+                await using (var hold = new SqlCommand("SELECT COUNT(*) FROM dbo.import_files WITH (TABLOCKX, HOLDLOCK)", locking, transaction))
+                    await hold.ExecuteScalarAsync();
+                var clock = Stopwatch.StartNew();
+                await Assert.ThrowsAsync<ImportEvidenceBusyException>(() => service.LoadSummaryAsync());
+                await Assert.ThrowsAsync<ImportEvidenceBusyException>(() => service.RetainEarlierImportsAsync([folder]));
+                Assert.True(clock.Elapsed < TimeSpan.FromSeconds(20), $"Waited {clock.Elapsed} on a table lock.");
+                await transaction.RollbackAsync();
+            }
+            Assert.Equal(2, (await service.LoadSummaryAsync()).FilesHeld);
+        }
+        finally
+        {
+            await database.DisposeAsync();
+            if (!Path.GetFileName(folder).StartsWith("EtpEvidenceFolder_", StringComparison.Ordinal) ||
+                !Path.GetFullPath(folder).StartsWith(Path.GetFullPath(Path.GetTempPath()), StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Unsafe synthetic folder cleanup path.");
+            if (Directory.Exists(folder)) Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    private static async Task<MatchedImportEnvelope> Accepted(string path, bool keepContent)
+    {
+        var workbook = await new OpenXmlWorkbookReader().ReadAsync(path);
+        return new MatchedImportEnvelopeFactory().RequireAccepted(keepContent ? workbook : workbook with { Content = null });
+    }
+
+    private static ImportPersistenceRequest<MatchedImportEnvelope> Request(MatchedImportEnvelope accepted) =>
+        new(accepted, accepted.Scope.PeriodEnd!.Value, accepted.Scope.StoreCode!, "Synthetic Owner");
 
     private static async Task<string> RetainIn(SqlConnection connection, SqlTransaction transaction, string hash, byte[] content, long fileId)
     {

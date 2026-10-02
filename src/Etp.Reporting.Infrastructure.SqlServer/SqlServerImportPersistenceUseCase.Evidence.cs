@@ -27,8 +27,8 @@ public sealed partial class SqlServerImportPersistenceUseCase : IImportEvidenceR
         catch (Exception exception) when (exception is not OperationCanceledException) { return EvidenceState.NotRetained; }
     }
 
-    // Read after the commit. The import itself has succeeded, so a failed read leaves the state undetermined.
-    private async Task<EvidenceState?> ImportEvidenceAsync(MatchedImportEnvelope accepted, string storeCode,
+    // Read after the commit. The import itself has succeeded, so a failed read records the state as unknown.
+    private async Task<EvidenceState> ImportEvidenceAsync(MatchedImportEnvelope accepted, string storeCode,
         DateOnly periodStart, DateOnly periodEnd, CancellationToken token)
     {
         try
@@ -37,6 +37,6 @@ public sealed partial class SqlServerImportPersistenceUseCase : IImportEvidenceR
                 accepted.ProfileIdentity.ReportCode, storeCode, periodStart, periodEnd,
                 !accepted.Workbook.EvidenceBytes.IsEmpty, token).ConfigureAwait(false);
         }
-        catch (Exception exception) when (exception is not OperationCanceledException) { return null; }
+        catch (Exception exception) when (exception is not OperationCanceledException) { return EvidenceState.Unknown; }
     }
 }
