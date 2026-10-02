@@ -111,9 +111,14 @@ public sealed class FolderImportService(
                     throw siblingEnds.Length > 1
                         ? new ImportSourceException(ImportCodes.SnapshotDateAmbiguous, "The snapshot date could not be found, and the other exports in this folder end on different dates. Import the ETP file under its original name.")
                         : new ImportSourceException(ImportCodes.SnapshotDateUnknown, "The snapshot date could not be found. Import the ETP file under its original name, or keep it beside the other exports of its date.");
-                if (undated && scope?.PeriodEnd is null && options.OverrideBusinessDate is null)
-                    result = result with { Diagnostics = [.. result.Diagnostics ?? [], new ImportIssue(ImportIssueSeverity.Warning, ImportCodes.SnapshotDateFromFolder,
-                        $"The snapshot date {end:yyyy-MM-dd} was taken from the other exports in this folder.")] };
+                // Tier 7 has its own basis (SIBLING), so the audit can tell it from a folder-name date. The override is not a
+                // spec 6.4 tier; it stays an explicit Owner choice and is recorded as such.
+                if (undated && scope?.PeriodEnd is null)
+                    result = result with { Diagnostics = [.. result.Diagnostics ?? [], options.OverrideBusinessDate is not null
+                        ? new ImportIssue(ImportIssueSeverity.Warning, ImportCodes.SnapshotDateFromOverride,
+                            $"The snapshot date {end:yyyy-MM-dd} was taken from the date override; the file states no date of its own.")
+                        : new ImportIssue(ImportIssueSeverity.Warning, ImportCodes.SnapshotDateFromSiblings,
+                            $"The snapshot date {end:yyyy-MM-dd} was taken from the other exports in this folder.")] };
                 if (string.IsNullOrWhiteSpace(store) || end is null)
                     throw new ImportSourceException("SCOPE_NOT_DETECTED", "Store or date could not be detected. Keep this file beside the other exports for its store.");
                 var persistedStore = scope?.StoreCode ?? store;

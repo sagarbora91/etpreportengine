@@ -274,7 +274,7 @@ public sealed class SnapshotDateResolverTests
     public void Folder_tier_reads_the_nearest_dated_folder_not_every_ancestor()
     {
         var workbook = new WorkbookSnapshot("R010_BinWise_Stock.xlsx", 1, Hash, [BinWiseData(3)],
-            @"V:\ETP\Work in progress 2026-10-01	ill 29 sep 2026\HEMW\R010_BinWise_Stock.xlsx");
+            @"V:\ETP\Work in progress 2026-10-01\till 29 sep 2026\HEMW\R010_BinWise_Stock.xlsx");
 
         var dating = Resolve(workbook);
 

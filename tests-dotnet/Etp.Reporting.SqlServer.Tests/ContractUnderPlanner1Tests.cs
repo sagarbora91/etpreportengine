@@ -14,7 +14,8 @@ public sealed class ContractUnderPlanner1Tests
     [Fact]
     public async Task Contract_workbook_dates_R010_blocks_and_ignores_excluded_sheet()
     {
-        // Three stacked snapshots; ETP_Excluded maps two rows that planner 1 does not import.
+        // Three stacked snapshots; ETP_Excluded maps two rows, and Snapshot History carries R010-shaped rows, neither of which
+        // planner 1 imports: only the eight Data rows are packaged.
         var accepted = new MatchedImportEnvelopeFactory(["WLMHW"]).RequireAccepted(ContractBinWise());
         var capture = new CaptureStore();
 
@@ -121,7 +122,8 @@ public sealed class ContractUnderPlanner1Tests
         var dated = Assert.Single(agreed.Files, file => file.ReportCode == "R010");
         Assert.Equal("Imported", dated.Status);
         Assert.Equal(new DateOnly(2026, 9, 29), dated.PeriodEnd);
-        Assert.Contains(dated.Diagnostics!, issue => issue.Code == ImportCodes.SnapshotDateFromFolder && issue.Severity == ImportIssueSeverity.Warning);
+        Assert.Contains(dated.Diagnostics!, issue => issue.Code == ImportCodes.SnapshotDateFromSiblings && issue.Severity == ImportIssueSeverity.Warning);
+        Assert.DoesNotContain(dated.Diagnostics!, issue => issue.Code == ImportCodes.SnapshotDateFromFolder);
 
         var disagreeing = new Reader(path => path.EndsWith("R010.xlsx") ? BinWise(path)
             : ClosingStock(path.EndsWith("a.xlsx") ? new DateOnly(2026, 9, 28) : new DateOnly(2026, 9, 29)) with { FileName = path, Sha256 = path.EndsWith("a.xlsx") ? new string('e', 64) : Hash });
@@ -134,6 +136,19 @@ public sealed class ContractUnderPlanner1Tests
         var alone = await new FolderImportService(new CapturePersistence(), new Reader(BinWise)).RunFilesAsync([@"F:\pack\R010.xlsx"], new("tester"));
         Assert.Equal("Failed", Assert.Single(alone.Files).Status);
         Assert.Contains("snapshot date could not be found", alone.Files[0].Message);
+    }
+
+    [Fact]
+    public async Task Undated_R010_dated_only_by_the_override_records_that_basis()
+    {
+        var persistence = new CapturePersistence();
+        var summary = await new FolderImportService(persistence, new Reader(BinWise)).RunFilesAsync([@"F:\pack\R010.xlsx"],
+            new("tester", RestatementEnabled: true, RestatementReason: "Owner dated it", OverrideBusinessDate: new DateOnly(2026, 9, 29)));
+
+        var file = Assert.Single(summary.Files);
+        Assert.Equal("Imported", file.Status);
+        Assert.Contains(file.Diagnostics!, issue => issue.Code == ImportCodes.SnapshotDateFromOverride && issue.Severity == ImportIssueSeverity.Warning);
+        Assert.DoesNotContain(file.Diagnostics!, issue => issue.Code == ImportCodes.SnapshotDateFromSiblings);
     }
 
     private static WorkbookSnapshot BinWise(string path) => new(Path.GetFileName(path), 1, new string('f', 64),
@@ -191,7 +206,9 @@ public sealed class ContractUnderPlanner1Tests
         rows.Add(Row(header + 5, "Notes: the 2026-12-31 build replaced 20261230."));
         var info = new WorkbookSheet("Info", 1, ["etp_contract", "1"], rows);
         var excluded = new WorkbookSheet("ETP_Excluded", 1, ["block", "sheet", "row"], [Row(2, "2", "Data", "3"), Row(3, "3", "Data", "6")]);
-        return new("R010_BinWise_Stock.xlsx", 1, Hash, [BinWiseData(8, dataStore), info, excluded],
+        // Real data headers, so only the preflight skip (not a header mismatch) keeps planner 1 off this sheet.
+        var history = BinWiseData(3, "WLMHW") with { Name = ConsolidationContractLayout.HistorySheet };
+        return new("R010_BinWise_Stock.xlsx", 1, Hash, [history, BinWiseData(8, dataStore), info, excluded],
             @"F:\Consolidated data import package (31 Dec 2026)\R010_BinWise_Stock.xlsx");
     }
 
