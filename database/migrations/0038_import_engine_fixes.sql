@@ -56,14 +56,12 @@ AS BEGIN
   THROW 51751,''The source file bytes do not match their hash and size.'',1;
  IF NOT EXISTS(SELECT 1 FROM dbo.import_files WHERE import_file_id=@file AND source_sha256=@hash)
   THROW 51752,''Source files are kept only for an import of the same file.'',1;
- IF EXISTS(SELECT 1 FROM dbo.import_source_content WITH(UPDLOCK,HOLDLOCK) WHERE source_sha256=@hash)
-  SET @state=''ALREADY_HELD'';
- ELSE
- BEGIN
-  INSERT dbo.import_source_content(source_sha256,size_bytes,content,first_import_file_id)
-  VALUES(@hash,@size,@content,@file);
-  SET @state=''RETAINED'';
- END
+ -- No HOLDLOCK: a key-range probe for a new hash would lock the gap until the import commits and
+  -- serialise imports for other stores. The primary key still stops a second copy of the same bytes.
+ INSERT dbo.import_source_content(source_sha256,size_bytes,content,first_import_file_id)
+ SELECT @hash,@size,@content,@file
+ WHERE NOT EXISTS(SELECT 1 FROM dbo.import_source_content WHERE source_sha256=@hash);
+ SET @state=CASE WHEN @@ROWCOUNT=1 THEN ''RETAINED'' ELSE ''ALREADY_HELD'' END;
 END');
 GRANT EXECUTE ON dbo.retain_import_source TO etp_store_manager,etp_owner;
 DENY EXECUTE ON dbo.retain_import_source TO etp_viewer;

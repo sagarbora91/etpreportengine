@@ -172,8 +172,19 @@ public sealed class SqlServerImportEvidenceService : IImportEvidenceService
             matched++;
             if (import.Held) { alreadyHeld++; continue; }
             // One small transaction per file, so a stop or a power-off keeps the files already stored.
-            var state = await ImportSourceEvidence.RetainInOwnTransactionAsync(connection, source.Sha256!, bytes, import.FileId,
-                cancellationToken).ConfigureAwait(false);
+            EvidenceState state;
+            try
+            {
+                state = await ImportSourceEvidence.RetainInOwnTransactionAsync(connection, source.Sha256!, bytes, import.FileId,
+                    cancellationToken).ConfigureAwait(false);
+            }
+            catch (SqlException)
+            {
+                // One database error (a race with a live import, a lock timeout, a full data file) skips this file;
+                // the walk keeps its counts and the files already stored.
+                skipped++;
+                continue;
+            }
             if (state == EvidenceState.Retained) { retained++; bytesRetained += bytes.Length; }
             else alreadyHeld++;
         }

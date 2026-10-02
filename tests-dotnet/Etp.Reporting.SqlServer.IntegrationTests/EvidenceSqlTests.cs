@@ -28,6 +28,7 @@ public sealed class EvidenceSqlTests
                 """);
             var failed = Assert.Single((await Import(database, path)).Files);
             Assert.Equal("Failed", failed.Status);
+            Assert.Equal(EvidenceState.NotAttempted, failed.Evidence);
             Assert.Equal(0, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.import_files"));
             Assert.Equal(0, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.import_source_content"));
             await database.ExecuteAsync("DROP TRIGGER dbo.evidence_test_fail_completion");
@@ -193,6 +194,55 @@ public sealed class EvidenceSqlTests
         }
     }
 
+    [Fact]
+    public async Task Retaining_new_bytes_does_not_block_an_import_of_another_file()
+    {
+        var database = new SqlDatabaseFixture();
+        try
+        {
+            await database.InitializeAsync();
+            var paths = new[] { Sample("R025"), Sample("R020") };
+            Assert.All((await new FolderImportService(new SqlServerImportPersistenceUseCase(database.ConnectionString),
+                new WithoutContentReader()).RunFilesAsync(paths, new("Synthetic Owner"))).Files,
+                file => Assert.Equal("Imported", file.Status));
+            var first = await File.ReadAllBytesAsync(paths[0]);
+            var second = await File.ReadAllBytesAsync(paths[1]);
+            var firstHash = Convert.ToHexStringLower(SHA256.HashData(first));
+            var secondHash = Convert.ToHexStringLower(SHA256.HashData(second));
+            var firstId = Convert.ToInt64(await database.ExecuteAsync($"SELECT import_file_id FROM dbo.import_files WHERE source_sha256='{firstHash}'"));
+            var secondId = Convert.ToInt64(await database.ExecuteAsync($"SELECT import_file_id FROM dbo.import_files WHERE source_sha256='{secondHash}'"));
+
+            // An open import holds its new bytes uncommitted; a second import of a different file must not wait on it.
+            await using var open = new SqlConnection(database.ConnectionString);
+            await open.OpenAsync();
+            await using var transaction = (SqlTransaction)await open.BeginTransactionAsync();
+            Assert.Equal("RETAINED", await RetainIn(open, transaction, firstHash, first, firstId));
+
+            await using var other = new SqlConnection(database.ConnectionString);
+            await other.OpenAsync();
+            await using (var timeout = new SqlCommand("SET LOCK_TIMEOUT 3000", other)) await timeout.ExecuteNonQueryAsync();
+            await using var otherTransaction = (SqlTransaction)await other.BeginTransactionAsync();
+            Assert.Equal("RETAINED", await RetainIn(other, otherTransaction, secondHash, second, secondId));
+            await otherTransaction.CommitAsync();
+            await transaction.CommitAsync();
+            Assert.Equal(2, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.import_source_content"));
+        }
+        finally { await database.DisposeAsync(); }
+    }
+
+    private static async Task<string> RetainIn(SqlConnection connection, SqlTransaction transaction, string hash, byte[] content, long fileId)
+    {
+        await using var command = new SqlCommand("EXEC dbo.retain_import_source @hash,@size,@content,@file,@state OUTPUT",
+            connection, transaction);
+        command.Parameters.Add("@hash", System.Data.SqlDbType.Char, 64).Value = hash;
+        command.Parameters.Add("@size", System.Data.SqlDbType.BigInt).Value = (long)content.Length;
+        command.Parameters.Add("@content", System.Data.SqlDbType.VarBinary, -1).Value = content;
+        command.Parameters.Add("@file", System.Data.SqlDbType.BigInt).Value = fileId;
+        var state = command.Parameters.Add("@state", System.Data.SqlDbType.VarChar, 16);
+        state.Direction = System.Data.ParameterDirection.Output;
+        await command.ExecuteNonQueryAsync();
+        return (string)state.Value;
+    }
     private static string Sample(string report) =>
         Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "fixtures", "etp-sample"), report + "_*.xlsx").Single();
 

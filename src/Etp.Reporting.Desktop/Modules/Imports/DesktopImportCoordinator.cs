@@ -125,11 +125,21 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
 
     // IF-023 (spec 11.2): an import keeps the source bytes inside its own transaction. A file whose rows are
     // already stored keeps missing bytes in a small transaction of its own.
-    private static Task<EvidenceState> RetainDuplicateEvidenceAsync(ImportPersistenceUseCase persistence,
-        WorkbookSnapshot workbook, CancellationToken cancellationToken) =>
-        persistence is ImportEvidenceRetainer retainer
-            ? retainer.RetainImportedSourceAsync(workbook.Sha256, workbook.EvidenceBytes, cancellationToken)
-            : Task.FromResult(EvidenceState.NotAttempted);
+    // The rows are already stored, so a failed evidence write is recorded as NOT_RETAINED, never thrown.
+    private static async Task<EvidenceState> RetainDuplicateEvidenceAsync(ImportPersistenceUseCase persistence,
+        WorkbookSnapshot workbook, CancellationToken cancellationToken)
+    {
+        if (persistence is not ImportEvidenceRetainer retainer) return EvidenceState.NotAttempted;
+        try
+        {
+            return await retainer.RetainImportedSourceAsync(workbook.Sha256, workbook.EvidenceBytes, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            return EvidenceState.NotRetained;
+        }
+    }
 
     public void ClearValidatedImport() => validatedImport = null;
 

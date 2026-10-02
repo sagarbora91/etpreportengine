@@ -119,7 +119,9 @@ public sealed class AutomatedOperationsService(string connectionString)
         // IF-023: the import keeps the source bytes inside its transaction; a duplicate keeps missing bytes.
         if (await files.ExistsInScopeAsync(workbook.Sha256, report, store, start, end, cancellationToken))
         {
-            await persistence.RetainImportedSourceAsync(workbook.Sha256, workbook.EvidenceBytes, cancellationToken);
+            // Rows are already stored: a failed evidence write must not move the file to Failed.
+            try { await persistence.RetainImportedSourceAsync(workbook.Sha256, workbook.EvidenceBytes, cancellationToken); }
+            catch (Exception exception) when (exception is not OperationCanceledException) { }
             return new(report, store, end, true);
         }
         var result = await persistence.PersistAsync(new(accepted, end, store, AutomationIdentity()), cancellationToken);

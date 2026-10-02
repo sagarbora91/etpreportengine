@@ -84,7 +84,7 @@ public sealed class FolderImportService(
                 var unsupportedFamily = sourceCode.Success && !EtpReportFamilyRegistry.Families.Any(family =>
                     family.FamilyCode.Equals(sourceCode.Groups[1].Value, StringComparison.OrdinalIgnoreCase));
                 var notNeeded = result.FileName.StartsWith("00_", StringComparison.OrdinalIgnoreCase) || unsupportedFamily;
-                result = result with { Status = notNeeded ? "Not needed" : unknown ? "Unknown layout" : "Failed",
+                result = result with { Evidence = EvidenceState.NotAttempted, Status = notNeeded ? "Not needed" : unknown ? "Unknown layout" : "Failed",
                     Message = notNeeded ? unsupportedFamily ? "This ETP report type is not needed by the reporting engine; the other workbooks are processed." : "Consolidation control workbook; report workbooks are imported separately." : string.Join(" ", issues.Select(issue => issue.Message).Distinct()) };
                 results.Add(result);
                 continue;
@@ -139,10 +139,11 @@ public sealed class FolderImportService(
                 result = WithEvidence(result, saved.Evidence);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            { result = result with { Status = "Cancelled", Message = "Import cancelled." }; }
+            { result = result with { Evidence = EvidenceState.NotAttempted, Status = "Cancelled", Message = "Import cancelled." }; }
             catch (Exception exception)
             {
-                result = result with { Status = "Failed", Message = new SafeImportFailureClassifier().Describe(exception).SafeMessage };
+                // The import transaction rolled back, so no bytes were kept for this attempt.
+                result = result with { Evidence = EvidenceState.NotAttempted, Status = "Failed", Message = new SafeImportFailureClassifier().Describe(exception).SafeMessage };
             }
             results.Add(result);
             progress?.Report(new(results.Count, paths.Count, result.FileName, result.Status, results.ToArray()));
