@@ -472,8 +472,12 @@ public sealed class BootstrapPrerequisiteTests
                 . '{{script}}' -ApplicationDirectory 'C:\UnusedBootstrapTest'
                 function Assert-EtpProtectedInstall { param($Path) }
                 $env:ProgramFiles = '{{programFiles.Replace("'", "''")}}'
-                function Add-SqlCmd([string]$Odbc) {
-                    $folder = Join-Path $env:ProgramFiles "Microsoft SQL Server\Client SDK\ODBC\$Odbc\Tools\Binn"
+                # Only the test's folders: not this PC's own registered or other-drive Sqlcmd.
+                $global:registered = @()
+                function Get-EtpRegisteredSqlCmdFolders { @($global:registered) }
+                function Get-EtpProgramFilesFolders { @($env:ProgramFiles) }
+                function Add-SqlCmd([string]$Odbc,[string]$Root = $env:ProgramFiles) {
+                    $folder = Join-Path $Root "Microsoft SQL Server\Client SDK\ODBC\$Odbc\Tools\Binn"
                     $null = New-Item -ItemType Directory -Force -Path $folder
                     Set-Content -LiteralPath (Join-Path $folder 'SQLCMD.EXE') -Value 'marker'
                     return (Join-Path $folder 'SQLCMD.EXE')
@@ -481,6 +485,12 @@ public sealed class BootstrapPrerequisiteTests
                 $odbc18 = Add-SqlCmd '180'
                 if (Test-EtpSqlCmdInstalled) { throw 'The ODBC 18 Sqlcmd alone counted as installed.' }
                 if ((Resolve-EtpSqlCmd) -ne $odbc18) { throw 'The ODBC 18 Sqlcmd is no longer the fallback.' }
+                # An ODBC 17 Sqlcmd registered on another drive counts, and beats the ODBC 18 one.
+                $otherDrive = Add-SqlCmd '170' (Join-Path $env:ProgramFiles 'OtherDrive')
+                $global:registered = @([IO.Path]::GetDirectoryName($otherDrive))
+                if (-not (Test-EtpSqlCmdInstalled)) { throw 'The ODBC 17 Sqlcmd on another drive did not count as installed.' }
+                if ((Resolve-EtpSqlCmd) -ne $otherDrive) { throw 'The ODBC 17 Sqlcmd on another drive was not preferred.' }
+                $global:registered = @()
                 $odbc17 = Add-SqlCmd '170'
                 if (-not (Test-EtpSqlCmdInstalled)) { throw 'The ODBC 17 Sqlcmd did not count as installed.' }
                 $resolved = Resolve-EtpSqlCmd

@@ -75,13 +75,80 @@ function New-EtpProtectedDirectory {
     return $full
 }
 
-function Get-EtpOdbc17SqlCmdPath {
-    # Where the bundled Sqlcmd (Command Line Utilities 15, on ODBC Driver 17) installs.
-    return (Join-Path $env:ProgramFiles 'Microsoft SQL Server\Client SDK\ODBC\170\Tools\Binn\SQLCMD.EXE')
+function Test-EtpOdbc17SqlCmdPath {
+    # The Sqlcmd of Command Line Utilities 15, on ODBC Driver 17, wherever it was installed.
+    param([string]$Path)
+    return ($Path -match '(?i)\\Client SDK\\ODBC\\170\\Tools\\Binn\\SQLCMD\.EXE$')
+}
+
+function Get-EtpRegisteredSqlCmdFolders {
+    # Where the SQL Server client installers recorded their command-line tools. The Command
+    # Line Utilities MSI and SQL Server setup both write ODBCToolsPath under
+    # HKLM\SOFTWARE\Microsoft\Microsoft SQL Server\<version>\Tools\ClientSetup, wherever they
+    # were installed - which is not always %ProgramFiles%. On Workpc (2 October 2026) SQL
+    # Server and the bundled Sqlcmd went to E:\Program Files, and a resolver that looked only
+    # in %ProgramFiles% (C:) failed setup. Newest version first. Only administrators can write
+    # HKLM; every folder named here is still checked like any other before it is used.
+    $root = 'HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server'
+    if (-not (Test-Path -LiteralPath $root)) { return @() }
+    $folders = @()
+    $versions = @(Get-ChildItem -LiteralPath $root -ErrorAction SilentlyContinue | Where-Object { $_.PSChildName -match '^\d{2,4}$' } | Sort-Object { [int]$_.PSChildName } -Descending)
+    foreach ($version in $versions) {
+        $key = $null
+        try {
+            $key = $version.OpenSubKey('Tools\ClientSetup')
+            if ($null -eq $key) { continue }
+            $value = $key.GetValue('ODBCToolsPath')
+            if ($value -is [string] -and -not [string]::IsNullOrWhiteSpace($value)) { $folders += $value }
+        }
+        finally { if ($key) { $key.Close() } }
+    }
+    return $folders
+}
+
+function Get-EtpProgramFilesFolders {
+    # %ProgramFiles%, then the Program Files folder on the drive ETP itself is installed on
+    # (these scripts live in the application's scripts folder). A PC set up to install
+    # programs on another drive puts SQL Server's tools there too.
+    param([string]$ApplicationDirectory = $PSScriptRoot)
+    $folders = @()
+    if (-not [string]::IsNullOrWhiteSpace($env:ProgramFiles)) { $folders += $env:ProgramFiles }
+    if (-not [string]::IsNullOrWhiteSpace($ApplicationDirectory)) {
+        try { $drive = [IO.Path]::GetPathRoot([IO.Path]::GetFullPath($ApplicationDirectory)) } catch { $drive = $null }
+        if ($drive -match '^[A-Za-z]:\\$') { $folders += [IO.Path]::Combine($drive, 'Program Files') }
+    }
+    return $folders
+}
+
+function Get-EtpSqlCmdCandidatePaths {
+    # The places Resolve-EtpSqlCmd looks, in order. Pure, so it can be tested without the
+    # registry or a Program Files folder. Only absolute local paths (drive letter, no UNC)
+    # are ever considered. Every ODBC 17 Sqlcmd comes first, wherever it was found; then
+    # any other ODBC Sqlcmd (ODBC 18); go-sqlcmd last.
+    param([string[]]$RegisteredToolsFolders,[string[]]$ProgramFilesFolders)
+    $odbc = @(); $go = @()
+    foreach ($folder in @($RegisteredToolsFolders | Where-Object { $_ })) {
+        if ($folder -match '^[A-Za-z]:\\') { $odbc += [IO.Path]::Combine($folder, 'SQLCMD.EXE') }
+    }
+    foreach ($programFiles in @($ProgramFilesFolders | Where-Object { $_ })) {
+        if ($programFiles -notmatch '^[A-Za-z]:\\') { continue }
+        $odbc += [IO.Path]::Combine($programFiles, 'Microsoft SQL Server\Client SDK\ODBC\170\Tools\Binn\SQLCMD.EXE')
+        $odbc += [IO.Path]::Combine($programFiles, 'Microsoft SQL Server\Client SDK\ODBC\180\Tools\Binn\SQLCMD.EXE')
+        $go += [IO.Path]::Combine($programFiles, 'sqlcmd\sqlcmd.exe')
+    }
+    $seen = @{}
+    $ordered = @()
+    foreach ($candidate in @(@($odbc | Where-Object { Test-EtpOdbc17SqlCmdPath $_ }) + @($odbc | Where-Object { -not (Test-EtpOdbc17SqlCmdPath $_) }) + $go)) {
+        try { $full = [IO.Path]::GetFullPath($candidate) } catch { continue }
+        if ($seen.ContainsKey($full.ToUpperInvariant())) { continue }
+        $seen[$full.ToUpperInvariant()] = $true
+        $ordered += $full
+    }
+    return $ordered
 }
 
 function Resolve-EtpSqlCmd {
-    param([string]$ExplicitPath)
+    param([string]$ExplicitPath,[switch]$Odbc17Only)
     # The ODBC client reaches a local instance over shared memory, which SQL
     # Server Express and Developer enable by default. go-sqlcmd resolves a bare
     # ".\INSTANCE" over named pipes, which they disable by default, so it is
@@ -91,17 +158,28 @@ function Resolve-EtpSqlCmd {
     # so on a new PC (1 October 2026) every call setup made failed with "The certificate
     # chain was issued by an authority that is not trusted". It stays as the fallback:
     # pinning a single version meant a machine with only the current tools resolved
-    # nothing and fell through to go-sqlcmd.
-    $candidates = @($ExplicitPath,
-        (Get-EtpOdbc17SqlCmdPath),
-        (Join-Path $env:ProgramFiles 'Microsoft SQL Server\Client SDK\ODBC\180\Tools\Binn\SQLCMD.EXE'),
-        (Join-Path $env:ProgramFiles 'sqlcmd\sqlcmd.exe'))
+    # nothing and fell through to go-sqlcmd. -Odbc17Only is setup's "is the bundled
+    # Sqlcmd installed" question.
+    # A path the operator named is used only if it passes the protection check.
+    if ($ExplicitPath -and (Test-Path -LiteralPath $ExplicitPath -PathType Leaf)) {
+        Assert-EtpProtectedInstall $ExplicitPath
+        return [IO.Path]::GetFullPath($ExplicitPath)
+    }
+    # Found ones are tried in order, and only one in an Administrators/SYSTEM-protected
+    # folder is ever returned. One that fails the check is passed over for the next, and
+    # its refusal is what is reported if none passes.
+    $refusal = $null
+    $candidates = @(Get-EtpSqlCmdCandidatePaths -RegisteredToolsFolders @(Get-EtpRegisteredSqlCmdFolders) -ProgramFilesFolders @(Get-EtpProgramFilesFolders))
+    if ($Odbc17Only) { $candidates = @($candidates | Where-Object { Test-EtpOdbc17SqlCmdPath $_ }) }
     foreach ($candidate in $candidates) {
-        if ($candidate -and (Test-Path -LiteralPath $candidate -PathType Leaf)) {
+        if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
+        try {
             Assert-EtpProtectedInstall $candidate
             return [IO.Path]::GetFullPath($candidate)
         }
+        catch { if ($null -eq $refusal) { $refusal = $_.Exception.Message } }
     }
+    if ($null -ne $refusal) { throw $refusal }
     throw 'Install Microsoft Sqlcmd in a protected Program Files folder.'
 }
 

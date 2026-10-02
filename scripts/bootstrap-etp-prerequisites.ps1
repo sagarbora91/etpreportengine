@@ -156,10 +156,9 @@ function Get-EtpSqlClientInstallPlan {
 function Test-EtpSqlCmdInstalled {
     # Only the ODBC 17 Sqlcmd counts. SQL Server 2025's setup brings an ODBC 18 Sqlcmd that
     # cannot connect to the instance it just installed (see Resolve-EtpSqlCmd); counting it
-    # made setup skip the bundled Sqlcmd and then fail its first query.
-    $path = Get-EtpOdbc17SqlCmdPath
-    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return $false }
-    try { Assert-EtpProtectedInstall $path; return $true } catch { return $false }
+    # made setup skip the bundled Sqlcmd and then fail its first query. It counts wherever
+    # it was installed (Workpc, 2 October 2026: E:\Program Files), if it is protected.
+    try { $null = Resolve-EtpSqlCmd -Odbc17Only; return $true } catch { return $false }
 }
 
 function Test-EtpSqlEngineInstalled {
@@ -294,7 +293,13 @@ function Install-EtpSqlPrerequisitesFromPayload {
             Start-EtpProcess -FilePath "$env:SystemRoot\System32\msiexec.exe" -Description ('install ' + $package.What) `
                 -Arguments @('/i', $package.Path, '/qn', '/norestart', 'ADDLOCAL=ALL', $package.Terms)
         }
-        if (-not (Test-EtpSqlCmdInstalled)) { throw 'Sqlcmd was installed but was not found in its protected Program Files folder.' }
+        # Say why: "not found" and "found in a folder a non-administrator can change" send the
+        # operator to different places.
+        if (-not (Test-EtpSqlCmdInstalled)) {
+            $reason = 'the ODBC Driver 17 Sqlcmd was not found'
+            try { $null = Resolve-EtpSqlCmd -Odbc17Only } catch { $reason = $_.Exception.Message }
+            throw ('Sqlcmd was installed but cannot be used: ' + $reason)
+        }
     }
 }
 
