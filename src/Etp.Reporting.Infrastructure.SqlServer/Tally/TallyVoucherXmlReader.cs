@@ -8,7 +8,9 @@ using Etp.Reporting.Application.Accounting;
 namespace Etp.Reporting.Infrastructure.SqlServer.Tally;
 
 /// <param name="FailureReason">Null when vouchers were read; otherwise NOT_XML, TALLY_ERROR or TRUNCATED (plan task 9).</param>
-public sealed record TallyVoucherDocument(string? CompanyNameReported, IReadOnlyList<ParsedVoucher> Vouchers, string? FailureReason, string? TallyMessage = null);
+/// <param name="FromDateReported">The period the file says it covers (SVFROMDATE / SVTODATE), when it says so.</param>
+public sealed record TallyVoucherDocument(string? CompanyNameReported, IReadOnlyList<ParsedVoucher> Vouchers, string? FailureReason, string? TallyMessage = null,
+    DateOnly? FromDateReported = null, DateOnly? ToDateReported = null);
 
 /// <summary>Reads Tally voucher XML — the payload ETP writes (B) and a Day Book read-back (C) — with a hardened reader:
 /// no DTD, no external resolver, a size cap that fails instead of truncating. Tags follow TallyPrime's published XML
@@ -45,10 +47,11 @@ public static class TallyVoucherXmlReader
         if (root.Name.LocalName == "RESPONSE" || errors.Length > 0 && !hasVouchers || root.Name.LocalName != "ENVELOPE")
             return new(null, [], "TALLY_ERROR", Trim(string.Join(" ", errors.Select(error => error.Value.Trim())), 500) ?? Trim(root.Value.Trim(), 500));
 
-        var company = root.Descendants().Where(element => element.Name.LocalName == "REQUESTDESC")
-            .SelectMany(element => element.Descendants()).FirstOrDefault(element => element.Name.LocalName == "SVCURRENTCOMPANY")?.Value.Trim();
+        var request = root.Descendants().Where(element => element.Name.LocalName == "REQUESTDESC").SelectMany(element => element.Descendants()).ToArray();
+        string? Variable(string name) => request.FirstOrDefault(element => element.Name.LocalName == name)?.Value.Trim();
+        var company = Variable("SVCURRENTCOMPANY");
         var vouchers = root.Descendants().Where(element => element.Name.LocalName == "VOUCHER").Select(ReadVoucher).ToArray();
-        return new(string.IsNullOrEmpty(company) ? null : company, vouchers, null);
+        return new(string.IsNullOrEmpty(company) ? null : company, vouchers, null, null, TallyDate(Variable("SVFROMDATE")), TallyDate(Variable("SVTODATE")));
     }
 
     public static TallyVoucherDocument Read(byte[] content)
@@ -61,8 +64,15 @@ public static class TallyVoucherXmlReader
     {
         string? Child(string name) => voucher.Elements().FirstOrDefault(element => element.Name.LocalName == name)?.Value.Trim() is { Length: > 0 } value ? value : null;
         var type = Child("VOUCHERTYPENAME") ?? (voucher.Attribute("VCHTYPE")?.Value.Trim() is { Length: > 0 } attribute ? attribute : null);
+        // Ledger lists, plus the sales ledger lines an invoice-view voucher keeps inside each stock item's
+        // ACCOUNTINGALLOCATIONS.LIST (TallyPrime's published layout; the installed build is checked in plan task 5).
         var lines = voucher.Elements()
-            .Where(element => element.Name.LocalName is "ALLLEDGERENTRIES.LIST" or "LEDGERENTRIES.LIST")
+            .SelectMany(element => element.Name.LocalName switch
+            {
+                "ALLLEDGERENTRIES.LIST" or "LEDGERENTRIES.LIST" => new[] { element },
+                "ALLINVENTORYENTRIES.LIST" or "INVENTORYENTRIES.LIST" => element.Elements().Where(child => child.Name.LocalName == "ACCOUNTINGALLOCATIONS.LIST").ToArray(),
+                _ => Array.Empty<XElement>()
+            })
             .Select(element => new ParsedLedgerLine(
                 element.Elements().FirstOrDefault(e => e.Name.LocalName == "LEDGERNAME")?.Value.Trim() ?? "",
                 Amount(element.Elements().FirstOrDefault(e => e.Name.LocalName == "AMOUNT")?.Value),

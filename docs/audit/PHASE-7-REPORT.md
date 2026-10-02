@@ -110,6 +110,27 @@ Where this differs from the plan:
 - **Recovery plan file name.** Task 21's fixed file list has no name for a recovery plan; `recovery-plan-<n>.json` in the batch folder was added. The Owner's approval of a plan waits for the approval type widening.
 - **Manual file only.** The HTTP read-back gateway (task 9) waits for the task 5 probe to show which request returns full vouchers.
 
+## Increment 5 — fixes from a code review of increments 1–4 (migration 0040)
+
+A read-only review of the merged Phase 7 code found no high-severity defect. These were confirmed and fixed. Not yet verified in CI at the time of writing; the run label is added when it passes.
+
+| # | Defect | Fix | Where |
+|---|---|---|---|
+| 1 | The dates of a hand-exported Day Book are typed by the operator. With the wrong day, every voucher became MISSING (FAIL), a false "proven absence" that would later invite a resend. | A file that states its own period (SVFROMDATE/SVTODATE) must contain the dates entered, or it is stored incomplete (`PERIOD_MISMATCH`). A file with no voucher at all on a voucher's day never proves it missing: `NOT_VERIFIABLE`, RECO-COV-008. | `TallyVoucherXmlReader`, `SqlServerTallyReconciliationService`, `TallyReconciliationEngine`, 0040 |
+| 2 | A file written but not registered (crash between the two) blocked its name for good; `manifest.json` could then never be written. The file was also deleted after an INSERT whose outcome was unknown, leaving a row with no file. | A leftover unregistered file is renamed to `<name>.unregistered-<utc>` and the name is used. After a failed INSERT the file is deleted only when the row is certainly absent. | `TallyEvidenceStore` |
+| 3 | Manifest registered but `manifest_sha256` not recorded could never be completed. | A retry records the hash of the registered manifest. | `BuildManifestAsync` |
+| 4 | A batch with no registered written file (B) was compared as if B matched. | `NOT_VERIFIABLE`, RECO-INT-006; the voucher stays ACTUAL_LOCATED, not RECONCILED. | engine, service |
+| 5 | A Tally company's short code, company name or books could be changed after batches used it (splitting its evidence folders, or turning test batches into live ones). | Refused once any batch or read-back uses the company. | `SqlServerTallyProfileService` |
+| 6 | Accepting a failure, or a warning twice, showed "cannot be deleted" (51573): the guard triggers treated a zero-row UPDATE as a delete. | The triggers return when no row changed; the caller's 51579 is shown. | 0040 |
+| 7 | In a decided batch a BLOCKED voucher could be set back to PLANNED after its reservation was released. | Never back to PLANNED, BLOCKED or EXCLUDED, and BLOCKED/EXCLUDED stay so (51212). | 0040 |
+| 8 | A blocked, excluded or unsent voucher of the batch found in Tally produced no difference. | EXTRA (WARN) with RECO-COV-009, naming the voucher. | engine |
+| 9 | The written file was re-read after its hash check, by a path that skipped the link checks. | Read once through the checked path; the same bytes are hashed and parsed. | `TallyEvidenceFiles.ReadVerifiedAsync` |
+| 10 | A short code with ten or more digits, or a Windows device name (CON, NUL, COM1…), was saved but refused by every evidence write. | The same rules on save. | `TallyProfileRules.IsFolderSafeCode` |
+| 11 | Saving from the Tally companies screen reset the posting dates, delivery mode and file format. | Fields the screen does not show are kept. | `TallyCompaniesView` |
+| 12 | Invoice-view vouchers keep the sales ledger inside each stock item; the reader missed it, so every such voucher would show LEDGER_MISMATCH. | Those lines are read too. Still TallyPrime's published layout, not checked against the installed build (task 5). | `TallyVoucherXmlReader` |
+
+Migration 0040 replaces two 0039 triggers and one 0038 trigger with `CREATE OR ALTER` and widens `CK_tally_readbacks_reason`; 0038 and 0039 are unchanged.
+
 ## Not started
 
 Status widening, transition procedure and audit types (task 3 remainder), composer (6), sales voucher XML export (8), HTTP read-back gateway (9), screen steps 3–5 (11), golden fixtures (12), and everything in Slices 7b–7d.

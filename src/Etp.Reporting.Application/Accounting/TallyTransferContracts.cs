@@ -282,6 +282,8 @@ public static class TallyProfileOptions
 public static class TallyProfileRules
 {
     private static readonly Regex ProfileCodePattern = new("^[A-Z0-9][A-Z0-9_-]{0,29}$", RegexOptions.CultureInvariant);
+    private static readonly Regex LongDigitRun = new(@"\d{10,}", RegexOptions.CultureInvariant);
+    private static readonly Regex WindowsDeviceName = new("^(CON|PRN|AUX|NUL|COM[0-9]|LPT[0-9])$", RegexOptions.CultureInvariant);
     private static readonly Regex StoreCodePattern = new("^[A-Z0-9_-]{1,30}$", RegexOptions.CultureInvariant);
     private static readonly Regex LoopbackEndpoint = new(@"^http://(127\.0\.0\.1|localhost):[0-9]{1,5}/$", RegexOptions.CultureInvariant);
 
@@ -291,6 +293,11 @@ public static class TallyProfileRules
         endpointUrl is not null && LoopbackEndpoint.IsMatch(endpointUrl) &&
         int.TryParse(endpointUrl[(endpointUrl.LastIndexOf(':') + 1)..^1], NumberStyles.None, CultureInfo.InvariantCulture, out var port) &&
         port is > 0 and <= 65535;
+
+    /// <summary>True when an upper-case code can name an evidence folder: no run of ten or more digits
+    /// (it could be a phone number) and not a reserved Windows device name.</summary>
+    public static bool IsFolderSafeCode(string code) =>
+        !LongDigitRun.IsMatch(code) && !WindowsDeviceName.IsMatch(code);
 
     /// <summary>Returns the profile with codes trimmed and upper-cased, or throws <see cref="ArgumentException"/>.</summary>
     public static TallyProfile Normalise(TallyProfile profile, string reason)
@@ -302,6 +309,9 @@ public static class TallyProfileRules
         var code = (profile.ProfileCode ?? "").Trim().ToUpperInvariant();
         if (!ProfileCodePattern.IsMatch(code))
             throw new ArgumentException("The short code must be 1-30 capital letters, digits, '_' or '-', starting with a letter or digit.");
+        // The code names the evidence folder, so it follows the same rules as TallyEvidencePaths.
+        if (!IsFolderSafeCode(code))
+            throw new ArgumentException("The short code must not look like a phone number (ten or more digits in a row) or be a Windows device name such as CON or NUL.");
         var company = (profile.CompanyName ?? "").Trim();
         if (company.Length is 0 or > 200)
             throw new ArgumentException("Enter the Tally company name exactly as Tally shows it (at most 200 characters).");

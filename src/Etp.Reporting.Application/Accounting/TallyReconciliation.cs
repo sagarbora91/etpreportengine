@@ -65,13 +65,15 @@ public sealed record ToleranceSet(IReadOnlyDictionary<string, decimal> AbsoluteB
 }
 
 /// <param name="VoucherNumberVerifiable">D18: the TEST company's voucher type numbers vouchers manually, so Tally keeps ETP's number.</param>
+/// <param name="PayloadRecorded">A written Tally file (B) is registered for the batch. Without it A = B cannot be checked.</param>
 public sealed record ReconciliationInput(
     string CompanyName,
     IReadOnlyList<ExpectedVoucher> Expected,
     bool SourceUnchanged,
     bool PayloadUnchanged,
     bool VoucherNumberVerifiable,
-    bool HasHttpAttempt);
+    bool HasHttpAttempt,
+    bool PayloadRecorded = true);
 
 public sealed record ReconciliationDifference(
     int? VoucherSequence,
@@ -126,7 +128,7 @@ public static class TallyReconciliationEngine
         ["SOURCE_CHANGED"] = "ETP's source figures changed after the file was written. Do not import again; reject and prepare a corrected batch.",
         ["ACTUAL_CHANGED"] = "The voucher changed in Tally since the last check. Check who changed it, then compare again.",
         ["AMBIGUOUS_MATCH"] = "One Tally voucher carries two ETP keys. Correct its narration in Tally, then read back again.",
-        ["NOT_VERIFIABLE"] = "This could not be checked. Read back again from the right company; the batch stays incomplete until it is checked."
+        ["NOT_VERIFIABLE"] = "This could not be checked. Read back again from the right company and dates; the batch stays incomplete until it is checked."
     };
 
     public static TallyReconciliationResult Run(ReconciliationInput a, IReadOnlyList<ParsedVoucher>? b, ReadbackSnapshot c, ToleranceSet t)
@@ -168,10 +170,13 @@ public static class TallyReconciliationEngine
             var covered = usable && voucher.VoucherDate >= c.FromDate && voucher.VoucherDate <= c.ToDate;
             var before = differences.Count;
             int? located = null;
+            var absenceUnproven = false;
 
             if (!a.SourceUnchanged)
                 Add(seq, null, "INTEGRITY", "SOURCE_CHANGED", "FAIL", "changed", null, null, null, "RECO-INT-001", "The invoice's source facts no longer hash to the prepared value.");
-            if (!a.PayloadUnchanged)
+            if (!a.PayloadRecorded)
+                Add(seq, null, "INTEGRITY", "NOT_VERIFIABLE", "FAIL", null, "no file recorded", null, null, "RECO-INT-006", "No written Tally file is registered for this batch, so the file cannot be compared.");
+            else if (!a.PayloadUnchanged)
                 Add(seq, null, "INTEGRITY", "NOT_VERIFIABLE", "FAIL", null, "file changed", null, null, "RECO-INT-002", "The written Tally file no longer matches its recorded SHA-256.");
 
             if (!companyKnown)
@@ -186,7 +191,15 @@ public static class TallyReconciliationEngine
                     foreach (var actual in mixed)
                         Add(seq, actual.Index, "COVERAGE", "AMBIGUOUS_MATCH", "FAIL", voucher.CorrespondenceKey, null, string.Join(" ", actual.Keys), null, "RECO-COV-006", "This Tally voucher carries more than one ETP key.");
                 var matches = byKey.TryGetValue(voucher.CorrespondenceKey, out var found) ? found : new List<ParsedVoucher>();
-                if (matches.Count == 0)
+                if (matches.Count == 0 && !c.Vouchers.Any(actual => actual.VoucherDate == voucher.VoucherDate))
+                {
+                    // The dates of a hand-exported file are typed by the operator. A file with nothing at all on this day
+                    // may simply be the wrong day, so it never proves the voucher absent (a false MISSING invites a resend).
+                    absenceUnproven = true;
+                    Add(seq, null, "COVERAGE", "NOT_VERIFIABLE", "FAIL", Date(voucher.VoucherDate), null, "no vouchers on this date", null, "RECO-COV-008",
+                        "The read-back holds no voucher dated this day, so it may not cover it; absence is not proven.");
+                }
+                else if (matches.Count == 0)
                     Add(seq, null, "COVERAGE", "MISSING", "FAIL", voucher.CorrespondenceKey, null, null, null, "RECO-COV-001", "No actual voucher in the company carries this key.");
                 else if (matches.Count > 1)
                     Add(seq, null, "COVERAGE", "DUPLICATE", "FAIL", voucher.CorrespondenceKey, null, $"{matches.Count} vouchers", null, "RECO-COV-002", "More than one actual voucher carries this key; none is picked.");
@@ -202,18 +215,25 @@ public static class TallyReconciliationEngine
             }
 
             var mine = differences.Skip(before).ToArray();
-            var status = Status(voucher.Status, covered, located, mine);
-            outcomes.Add(new(seq, status, located, covered));
+            var status = Status(voucher.Status, covered && !absenceUnproven, located, mine);
+            outcomes.Add(new(seq, status, located, covered && !absenceUnproven));
         }
 
         // Coverage the other way: ETP keys in the company that this batch did not plan.
         if (usable)
         {
-            var planned = a.Expected.Select(voucher => voucher.CorrespondenceKey).ToHashSet(StringComparer.Ordinal);
+            // Only keys this batch sent are expected in Tally. A blocked, excluded or still planned voucher found there is reported too.
+            var sentKeys = sent.Select(voucher => voucher.CorrespondenceKey).ToHashSet(StringComparer.Ordinal);
+            var unsent = a.Expected.Where(voucher => !sentKeys.Contains(voucher.CorrespondenceKey))
+                .GroupBy(voucher => voucher.CorrespondenceKey, StringComparer.Ordinal).ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
             var stores = a.Expected.Select(voucher => StoreOf(voucher.CorrespondenceKey)).ToHashSet(StringComparer.Ordinal);
-            foreach (var (key, actuals) in byKey.Where(pair => !planned.Contains(pair.Key) && stores.Contains(StoreOf(pair.Key))).OrderBy(pair => pair.Key, StringComparer.Ordinal))
+            foreach (var (key, actuals) in byKey.Where(pair => !sentKeys.Contains(pair.Key) && stores.Contains(StoreOf(pair.Key))).OrderBy(pair => pair.Key, StringComparer.Ordinal))
                 foreach (var actual in actuals.Where(item => item.VoucherDate is { } date && date >= c.FromDate && date <= c.ToDate))
-                    Add(null, actual.Index, "COVERAGE", "EXTRA", "WARN", null, null, key, null, "RECO-COV-007", "An actual voucher carries an ETP key for this store that this batch did not plan.");
+                    if (unsent.TryGetValue(key, out var notSent))
+                        Add(notSent.Sequence, actual.Index, "COVERAGE", "EXTRA", "WARN", notSent.Status, null, key, null, "RECO-COV-009",
+                            $"Tally holds a voucher this batch did not send (it is {notSent.Status} here).");
+                    else
+                        Add(null, actual.Index, "COVERAGE", "EXTRA", "WARN", null, null, key, null, "RECO-COV-007", "An actual voucher carries an ETP key for this store that this batch did not plan.");
         }
 
         var states = a.Expected.Where(voucher => voucher.Status is TallyVoucherStatus.Excluded or TallyVoucherStatus.Cancelled)

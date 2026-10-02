@@ -204,6 +204,26 @@ public sealed class TallyFoundationSqlTests(SqlDatabaseFixture database) : IClas
 
         await database.ExecuteAsync($"UPDATE dbo.accounting_vouchers SET voucher_status='EXPORTED' WHERE accounting_voucher_id={voucher}");
         Assert.Equal("EXPORTED", await database.ExecuteAsync($"SELECT voucher_status FROM dbo.accounting_vouchers WHERE accounting_voucher_id={voucher}"));
+        // 0040: never back to planned, blocked or excluded once the batch is decided.
+        var back = await Assert.ThrowsAsync<SqlException>(() => database.ExecuteAsync($"UPDATE dbo.accounting_vouchers SET voucher_status='PLANNED' WHERE accounting_voucher_id={voucher}"));
+        Assert.Equal(51212, back.Number);
+    }
+
+    [Fact]
+    public async Task A_blocked_voucher_of_a_decided_batch_stays_blocked()
+    {
+        var profile = await database.ExecuteAsync(Profile("DECBLK"));
+        var batch = await database.ExecuteAsync(Day("TDBL") + Batch("TDBL", kind: "SALES_VOUCHERS", profile: profile));
+        var voucher = await database.ExecuteAsync(Voucher(batch!, "TDBL"));
+        await database.ExecuteAsync($"UPDATE dbo.accounting_vouchers SET voucher_status='BLOCKED',blocked_reason=N'NOT_IN_SCOPE_7A: split tender' WHERE accounting_voucher_id={voucher}");
+        await database.ExecuteAsync($"UPDATE dbo.accounting_batches SET status='APPROVED_READY',approval_reason=N'Checked synthetic vouchers' WHERE accounting_batch_id={batch}");
+
+        foreach (var status in new[] { "PLANNED", "EXPORTED" })
+        {
+            var refused = await Assert.ThrowsAsync<SqlException>(() => database.ExecuteAsync($"UPDATE dbo.accounting_vouchers SET voucher_status='{status}' WHERE accounting_voucher_id={voucher}"));
+            Assert.Equal(51212, refused.Number);
+        }
+        Assert.Equal("BLOCKED", await database.ExecuteAsync($"SELECT voucher_status FROM dbo.accounting_vouchers WHERE accounting_voucher_id={voucher}"));
     }
 
     [Fact]

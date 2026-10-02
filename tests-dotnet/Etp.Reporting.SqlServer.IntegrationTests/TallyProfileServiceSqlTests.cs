@@ -70,6 +70,30 @@ public sealed class TallyProfileServiceSqlTests(SqlDatabaseFixture database) : I
     }
 
     [Fact]
+    public async Task A_company_with_batches_keeps_its_code_name_and_books_but_other_settings_change()
+    {
+        await database.ExecuteAsync("INSERT dbo.stores(store_code,store_name) VALUES('TPUSED',N'Synthetic used store')");
+        var service = new SqlServerTallyProfileService(database.ConnectionString);
+        var profile = TallyProfile.NewTest("TPUSED", "TEST - Used", new[] { "TPUSED" });
+        var id = await service.SaveAsync(profile, "Created");
+        await database.ExecuteAsync($"""
+            INSERT dbo.daily_report_generations(store_code,business_date,generation_number,content_sha256,control_json,generated_by,is_final)
+            VALUES('TPUSED','20260825',1,REPLICATE('a',64),N'{"{}"}',SUSER_SNAME(),1);
+            INSERT dbo.accounting_batches(store_code,business_date,daily_report_generation_id,accounting_generation,debit_total,credit_total,status,created_by,batch_kind,tally_profile_id)
+            SELECT store_code,business_date,daily_report_generation_id,1,1,1,'DRAFT',SUSER_SNAME(),'SALES_VOUCHERS',{id} FROM dbo.daily_report_generations WHERE store_code='TPUSED';
+            """);
+
+        foreach (var changed in new[] { profile with { Id = id, ProfileCode = "TPUSED2" }, profile with { Id = id, CompanyName = "TEST - used" }, profile with { Id = id, Environment = "PRODUCTION" } })
+        {
+            var error = await Assert.ThrowsAsync<InvalidOperationException>(() => service.SaveAsync(changed, "Rename"));
+            Assert.Contains("Add a new Tally company instead", error.Message, StringComparison.Ordinal);
+        }
+        await service.SaveAsync(profile with { Id = id, TallyBuildLabel = "TallyPrime 6.1" }, "Build recorded");
+        var saved = Assert.Single(await service.LoadAsync(), item => item.Id == id);
+        Assert.Equal(("TPUSED", "TEST - Used", "TEST", (string?)"TallyPrime 6.1"), (saved.ProfileCode, saved.CompanyName, saved.Environment, saved.TallyBuildLabel));
+    }
+
+    [Fact]
     public async Task A_remote_Tally_address_is_refused_before_the_database_is_touched()
     {
         var service = new SqlServerTallyProfileService(database.ConnectionString);

@@ -17,8 +17,9 @@ public sealed class TallyCompaniesView : UserControl
     private readonly Func<bool> canAdminister;
     private readonly Func<string, TallyProfileService> serviceFactory;
     private IReadOnlyList<TallyProfile> loaded = [];
-    private int? editingId;
-    private DateTime? editingProductionEnabledUtc;
+    // The company being edited, so fields this screen does not show (delivery, format, posting dates,
+    // live-books approval) are saved unchanged instead of being reset.
+    private TallyProfile editing = TallyProfile.NewTest("", "", []);
     private bool busy;
 
     public DataGrid CompanyGrid { get; } = new() { AutoGenerateColumns = false, IsReadOnly = true, CanUserAddRows = false, Height = 190, MinHeight = 100, RowHeight = 44, Margin = new(0, 6, 0, 8) };
@@ -104,10 +105,13 @@ public sealed class TallyCompaniesView : UserControl
     public async Task SaveAsync()
     {
         var stores = StoresInput.Text.Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries);
-        var profile = new TallyProfile(editingId, CodeInput.Text, CompanyInput.Text, Selected(BooksInput), EndpointInput.Text,
-            "FILE", "XML", Selected(GranularityInput), Selected(PartyInput), LedgerInput.Text, Selected(TenderInput),
-            Selected(PostingInput), Selected(ViewInput), null, null, BuildInput.Text, EnabledInput.IsChecked == true, stores,
-            editingProductionEnabledUtc);
+        var profile = editing with
+        {
+            ProfileCode = CodeInput.Text, CompanyName = CompanyInput.Text, Environment = Selected(BooksInput), EndpointUrl = EndpointInput.Text,
+            VoucherGranularity = Selected(GranularityInput), PartyPolicy = Selected(PartyInput), SinglePartyLedger = LedgerInput.Text,
+            TenderModel = Selected(TenderInput), PostingModel = Selected(PostingInput), VoucherView = Selected(ViewInput),
+            TallyBuildLabel = BuildInput.Text, IsEnabled = EnabledInput.IsChecked == true, StoreCodes = stores
+        };
         var id = await serviceFactory(connectionString()).SaveAsync(profile, ReasonInput.Text);
         ReasonInput.Clear();
         await RefreshAsync();
@@ -118,7 +122,7 @@ public sealed class TallyCompaniesView : UserControl
 
     private void Show(TallyProfile profile)
     {
-        editingId = profile.Id; editingProductionEnabledUtc = profile.ProductionEnabledUtc;
+        editing = profile;
         CodeInput.Text = profile.ProfileCode; CompanyInput.Text = profile.CompanyName; BooksInput.SelectedItem = profile.Environment;
         StoresInput.Text = string.Join(", ", profile.StoreCodes); EndpointInput.Text = profile.EndpointUrl ?? "";
         GranularityInput.SelectedItem = profile.VoucherGranularity; PartyInput.SelectedItem = profile.PartyPolicy;

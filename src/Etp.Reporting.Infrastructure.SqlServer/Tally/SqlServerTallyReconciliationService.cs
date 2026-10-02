@@ -67,6 +67,9 @@ public sealed class SqlServerTallyReconciliationService(string connectionString,
         {
             null when document.CompanyNameReported is null => "COMPANY_NOT_REPORTED",
             null when !string.Equals(document.CompanyNameReported, batch.CompanyName.Trim(), StringComparison.Ordinal) => "WRONG_COMPANY",
+            // The dates entered here must lie within the period the file itself says it covers, when it says one.
+            null when document.FromDateReported is { } reportedFrom && document.ToDateReported is { } reportedTo
+                && (fromDate < reportedFrom || toDate > reportedTo) => "PERIOD_MISMATCH",
             null => null,
             "TALLY_ERROR" when document.TallyMessage?.Contains("company", StringComparison.OrdinalIgnoreCase) == true => "COMPANY_NOT_OPEN",
             var failure => failure
@@ -132,11 +135,11 @@ public sealed class SqlServerTallyReconciliationService(string connectionString,
         var batch = await LoadBatchAsync(batchId, cancellationToken);
         var expected = await LoadExpectedAsync(batchId, cancellationToken);
         var (snapshot, actualIds) = await LoadReadbackAsync(batchId, readbackId, cancellationToken);
-        var (payload, payloadUnchanged) = await LoadPayloadAsync(batchId, cancellationToken);
+        var (payload, payloadUnchanged, payloadRecorded) = await LoadPayloadAsync(batchId, cancellationToken);
         var hasHttp = Convert.ToInt32(await ScalarAsync("SELECT COUNT(*) FROM dbo.tally_attempts WHERE accounting_batch_id=@batch AND delivery_mode='HTTP'", batchId, cancellationToken), CultureInfo.InvariantCulture) > 0;
 
         var result = TallyReconciliationEngine.Run(
-            new ReconciliationInput(batch.CompanyName, expected.Select(e => e.Voucher).ToArray(), sourceUnchanged, payloadUnchanged, VoucherNumberVerifiable: false, hasHttp),
+            new ReconciliationInput(batch.CompanyName, expected.Select(e => e.Voucher).ToArray(), sourceUnchanged, payloadUnchanged, VoucherNumberVerifiable: false, hasHttp, payloadRecorded),
             payload, snapshot, ToleranceSet.None);
 
         var number = await NextNumberAsync(batchId, "RECONCILIATION", cancellationToken);
@@ -215,8 +218,12 @@ public sealed class SqlServerTallyReconciliationService(string connectionString,
         var files = await store.VerifyAsync(batchId, cancellationToken);
         if (files.FirstOrDefault(file => file.State != TallyEvidenceState.Ok) is { } bad)
             throw new InvalidOperationException($"Evidence file {bad.Artifact.RelativePath} is {bad.State.ToString().ToUpperInvariant()}; the package cannot be completed.");
-        if (files.Any(file => file.Artifact.Kind == "MANIFEST"))
-            throw new InvalidOperationException("This batch's evidence package already has its manifest.");
+        if (files.FirstOrDefault(file => file.Artifact.Kind == "MANIFEST") is { } written)
+        {
+            // Written and registered earlier, but the hash was not recorded (the step after it failed): record it now.
+            await RecordManifestAsync(batchId, written.Artifact.Sha256, cancellationToken);
+            return written.Artifact;
+        }
         var expected = await LoadExpectedAsync(batchId, cancellationToken);
         var counted = expected.Where(e => e.Voucher.Status is not (TallyVoucherStatus.Excluded or TallyVoucherStatus.Blocked or TallyVoucherStatus.Cancelled)).ToArray();
         decimal Total(Func<ExpectedLedgerLine, bool> which) => counted.SelectMany(e => e.Voucher.Lines).Where(which).Sum(line => line.Debit - line.Credit);
@@ -244,11 +251,24 @@ public sealed class SqlServerTallyReconciliationService(string connectionString,
             files = files.Select(file => new { path = file.Artifact.RelativePath, kind = file.Artifact.Kind, sha256 = file.Artifact.Sha256, bytes = file.Artifact.ByteLength }).ToArray()
         };
         var artifact = await store.WriteAsync(batchId, "MANIFEST", $@"{batch.Folder}\manifest.json", Encoding.UTF8.GetBytes(JsonSerializer.Serialize(manifest, Json)), cancellationToken);
-        await using var connection = await OpenAsync(cancellationToken);
-        await using var command = new SqlCommand("UPDATE dbo.accounting_batches SET manifest_sha256=@sha WHERE accounting_batch_id=@batch AND manifest_sha256 IS NULL; IF @@ROWCOUNT<>1 THROW 51579,'This batch already records a manifest.',1;", connection);
-        command.Parameters.AddWithValue("@sha", artifact.Sha256); command.Parameters.AddWithValue("@batch", batchId);
-        await command.ExecuteNonQueryAsync(cancellationToken);
+        await RecordManifestAsync(batchId, artifact.Sha256, cancellationToken);
         return artifact;
+    }
+
+    private async Task RecordManifestAsync(long batchId, string sha256, CancellationToken token)
+    {
+        const string sql = """
+            UPDATE dbo.accounting_batches SET manifest_sha256=@sha WHERE accounting_batch_id=@batch AND manifest_sha256 IS NULL;
+            IF @@ROWCOUNT<>1 THROW 51579,'This batch''s evidence package already has its manifest.',1;
+            """;
+        await using var connection = await OpenAsync(token);
+        await using var command = new SqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@sha", sha256); command.Parameters.AddWithValue("@batch", batchId);
+        try { await command.ExecuteNonQueryAsync(token); }
+        catch (SqlException exception) when (exception.Number == 51579)
+        {
+            throw new InvalidOperationException("This batch's evidence package already has its manifest.", exception);
+        }
     }
 
     private sealed record BatchFacts(long Id, int ProfileId, string ProfileCode, string CompanyName, string StoreCode, DateOnly BusinessDate,
@@ -349,15 +369,16 @@ public sealed class SqlServerTallyReconciliationService(string connectionString,
         return (head with { Vouchers = heads.Select(h => h with { Lines = lines[h.Index] }).ToArray() }, ids);
     }
 
-    private async Task<(IReadOnlyList<ParsedVoucher>? Payload, bool Unchanged)> LoadPayloadAsync(long batchId, CancellationToken token)
+    private async Task<(IReadOnlyList<ParsedVoucher>? Payload, bool Unchanged, bool Recorded)> LoadPayloadAsync(long batchId, CancellationToken token)
     {
-        var checks = await new TallyEvidenceStore(connectionString, evidenceRootOverride).VerifyAsync(batchId, token);
-        var payload = checks.Where(check => check.Artifact.Kind == "PAYLOAD_XML").OrderByDescending(check => check.Artifact.Id).FirstOrDefault();
-        if (payload is null) return (null, true);
-        if (payload.State != TallyEvidenceState.Ok) return (null, false);
-        var root = evidenceRootOverride ?? Convert.ToString(await ScalarAsync("SELECT TOP(1) tally_evidence_root FROM dbo.product_settings ORDER BY product_setting_id", null, token), CultureInfo.InvariantCulture)!;
-        var document = TallyVoucherXmlReader.Read(await File.ReadAllBytesAsync(Path.Combine(root, payload.Artifact.RelativePath.Replace('\\', Path.DirectorySeparatorChar)), token));
-        return document.FailureReason is null ? (document.Vouchers, true) : (null, false);
+        var store = new TallyEvidenceStore(connectionString, evidenceRootOverride);
+        var payload = (await store.VerifyAsync(batchId, token)).Where(check => check.Artifact.Kind == "PAYLOAD_XML").OrderByDescending(check => check.Artifact.Id).FirstOrDefault();
+        if (payload is null) return (null, true, false);
+        // Hash and parse the same bytes, so a file swapped after the check is never compared.
+        var content = await store.ReadVerifiedAsync(payload.Artifact, token);
+        if (content is null) return (null, false, true);
+        var document = TallyVoucherXmlReader.Read(content);
+        return document.FailureReason is null ? (document.Vouchers, true, true) : (null, false, true);
     }
 
     private async Task<int> NextNumberAsync(long batchId, string kind, CancellationToken token)

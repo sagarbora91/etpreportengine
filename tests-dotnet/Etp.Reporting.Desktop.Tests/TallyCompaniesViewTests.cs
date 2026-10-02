@@ -32,6 +32,10 @@ public sealed class TallyCompaniesViewTests
             Assert.Equal("TEST - Renamed", saved.CompanyName);
             Assert.Equal(new[] { "WLMHW", "HEMW" }, saved.StoreCodes);
             Assert.Equal("FILE", saved.DefaultDeliveryMode);
+            // Fields the screen does not show are kept, not reset (posting dates feed RULE-DAT-001).
+            Assert.Equal("JSON", saved.PayloadFormat);
+            Assert.Equal(new DateOnly(2026, 10, 1), saved.PostingFromDate);
+            Assert.Equal(new DateOnly(2027, 3, 31), saved.PostingToDate);
             Assert.Equal("Accountant named the test company", reason);
             Assert.Equal("", view.ReasonInput.Text);
             Assert.Equal("Tally company saved. Nothing has been sent to Tally.", view.StatusText.Text);
@@ -105,7 +109,11 @@ public sealed class TallyCompaniesViewTests
         public Task<IReadOnlyList<TallyProfile>> LoadAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<TallyProfile>>(
             [
-                TallyProfile.NewTest("GOLDEN", "TEST - ETP Golden", new[] { "WLMHW" }) with { Id = 1, ModifiedBy = "SHOP\\owner" },
+                TallyProfile.NewTest("GOLDEN", "TEST - ETP Golden", new[] { "WLMHW" }) with
+                {
+                    Id = 1, ModifiedBy = "SHOP\\owner", PayloadFormat = "JSON",
+                    PostingFromDate = new DateOnly(2026, 10, 1), PostingToDate = new DateOnly(2027, 3, 31)
+                },
                 TallyProfile.NewTest("LIVE", "Saagar Books", Array.Empty<string>()) with { Id = 2, Environment = "PRODUCTION" }
             ]);
 

@@ -52,6 +52,11 @@ public sealed class SqlServerTallyProfileService(string connectionString) : ITal
             END
             ELSE
             BEGIN
+              -- Evidence folders, reservations and read-backs are keyed by these three, so they are fixed once used.
+              IF EXISTS(SELECT 1 FROM dbo.tally_profiles p WHERE p.tally_profile_id=@saved
+                  AND (p.profile_code<>@code OR p.environment<>@environment OR CONVERT(varbinary(400),p.company_name)<>CONVERT(varbinary(400),@company)))
+                AND (EXISTS(SELECT 1 FROM dbo.accounting_batches WHERE tally_profile_id=@saved) OR EXISTS(SELECT 1 FROM dbo.tally_readbacks WHERE tally_profile_id=@saved))
+                THROW 51579,'This Tally company already has batches, so its short code, company name and books cannot change. Add a new Tally company instead.',1;
               DELETE dbo.tally_profile_stores WHERE tally_profile_id=@saved;
               UPDATE dbo.tally_profiles SET profile_code=@code,company_name=@company,environment=@environment,endpoint_url=@endpoint,
                 default_delivery_mode=@delivery,payload_format=@format,voucher_granularity=@granularity,party_policy=@party,single_party_ledger=@ledger,
@@ -107,6 +112,10 @@ public sealed class SqlServerTallyProfileService(string connectionString) : ITal
         catch (SqlException exception) when (exception.Number == 547 && exception.Message.Contains("CK_tally_profiles_production_environment", StringComparison.Ordinal))
         {
             throw new InvalidOperationException("This company has live books enabled, so it cannot be changed to test books.", exception);
+        }
+        catch (SqlException exception) when (exception.Number == 51579)
+        {
+            throw new InvalidOperationException(exception.Message, exception);
         }
     }
 

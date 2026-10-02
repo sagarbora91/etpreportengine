@@ -215,6 +215,8 @@ public sealed class TallyEvidencePathsTests
     [Theory]
     [InlineData(@"GOLDEN\Ramesh Kumar\2026-08\batch-12\payload.xml")]
     [InlineData(@"GOLDEN\9876543210\2026-08\batch-12\payload.xml")]
+    [InlineData(@"CON\WLMHW\2026-08\batch-12\payload.xml")]
+    [InlineData(@"GOLDEN\COM1\2026-08\batch-12\payload.xml")]
     [InlineData(@"GOLDEN\WLMHW\..\batch-12\payload.xml")]
     [InlineData(@"..\WLMHW\2026-08\batch-12\payload.xml")]
     [InlineData(@"GOLDEN\WLMHW\2026-13\batch-12\payload.xml")]
@@ -278,6 +280,18 @@ public sealed class TallyProfileRulesTests
         Assert.Equal(new[] { "HEMW", "WLMHW" }, value.StoreCodes);
         Assert.Equal("TEST", value.Environment);
         Assert.Equal("Cash Sales", value.SinglePartyLedger);
+    }
+
+    [Theory]
+    [InlineData("9876543210")]
+    [InlineData("SHOP9876543210")]
+    [InlineData("con")]
+    [InlineData("NUL")]
+    [InlineData("LPT1")]
+    public void A_short_code_that_cannot_name_an_evidence_folder_is_refused(string code)
+    {
+        var error = Assert.Throws<ArgumentException>(() => TallyProfileRules.Normalise(Valid() with { ProfileCode = code }, "Code"));
+        Assert.Contains("Windows device name", error.Message, StringComparison.Ordinal);
     }
 
     [Theory]
