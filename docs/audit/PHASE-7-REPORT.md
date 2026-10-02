@@ -81,7 +81,7 @@ Where this differs from plan task 1:
 
 ## Increment 4 — evidence, validation, read-back file and comparison (tasks 4, 7, 9, 10, 21)
 
-Everything here works without D12–D18 and without a Tally machine. Labels become UNIT_VERIFIED / SQL_VERIFIED when the CI runs for these commits are green.
+Everything here works without D12–D18 and without a Tally machine. UNIT_VERIFIED and SQL_VERIFIED on LocalDB in CI: evidence store run 148 (e2bb886), validation rules run 149 (c26a81f), engine and XML reader run 150 (818913b), migration 0039 and service run 151 (988883b), recovery plan and manifest run 152 (91de674). Not yet applied to the live database; nothing is WINDOWS_VERIFIED or LIVE_TALLY_7_1_VERIFIED.
 
 | Item | Plan task | Where |
 |---|---|---|
