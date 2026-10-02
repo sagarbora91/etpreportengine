@@ -66,9 +66,9 @@ The plan was written before Phase 5's remediation added invoice reservations, a 
 
 | Item | Where | Label |
 |---|---|---|
-| `TallyProfile`, `ITallyProfileService`, `TallyProfileRules` (plain-word checks before the database's own) | `src/Etp.Reporting.Application/Accounting/TallyTransferContracts.cs` | UNIT_VERIFIED when CI is green |
-| `SqlServerTallyProfileService` — Owner only, Windows sign-in only, one transaction per save, audited as `ConfigurationChange` | `src/Etp.Reporting.Infrastructure.SqlServer/Tally/` | SQL_VERIFIED when CI is green |
-| Settings → Integrations → **Tally companies** (`tally-companies`, Owner only) | `src/Etp.Reporting.Desktop/Modules/Accounting/TallyCompaniesView.cs` | UNIT_VERIFIED when CI is green; not yet seen on the installed app (WINDOWS_VERIFIED = NOT_RUN) |
+| `TallyProfile`, `ITallyProfileService`, `TallyProfileRules` (plain-word checks before the database's own) | `src/Etp.Reporting.Application/Accounting/TallyTransferContracts.cs` | UNIT_VERIFIED (CI run 147, commit b32a7b7) |
+| `SqlServerTallyProfileService` — Owner only, Windows sign-in only, one transaction per save, audited as `ConfigurationChange` | `src/Etp.Reporting.Infrastructure.SqlServer/Tally/` | SQL_VERIFIED (CI run 147) |
+| Settings → Integrations → **Tally companies** (`tally-companies`, Owner only) | `src/Etp.Reporting.Desktop/Modules/Accounting/TallyCompaniesView.cs` | UNIT_VERIFIED (CI run 147); not yet seen on the installed app (WINDOWS_VERIFIED = NOT_RUN) |
 
 Tests: `TallyProfileRulesTests` (SqlServer.Tests), `TallyProfileServiceSqlTests` (IntegrationTests), `TallyCompaniesViewTests` (Desktop.Tests). The Phase 5 role walk also opens the new screen as Owner.
 
@@ -79,6 +79,33 @@ Where this differs from plan task 1:
 - **Stricter than the database.** The screen refuses JSON files (task 24 not verified) and sending straight to Tally without a this-PC address. Delivery stays FILE; the screen never sets it to HTTP.
 - **The Phase 5 "Tally file destination"** on Settings → Integrations → Email, sharing and Tally is unchanged and still drives today's day-journal export. It will be replaced by these companies when the export moves to Tally batches (task 8).
 
+## Increment 4 — evidence, validation, read-back file and comparison (tasks 4, 7, 9, 10, 21)
+
+Everything here works without D12–D18 and without a Tally machine. Labels become UNIT_VERIFIED / SQL_VERIFIED when the CI runs for these commits are green.
+
+| Item | Plan task | Where |
+|---|---|---|
+| `TallyEvidenceFiles` / `TallyEvidenceStore`: write once, SHA-256, register in `tally_artifacts`, verify OK / CHANGED / MISSING | 4, 21 | `Infrastructure.SqlServer/Tally/TallyEvidenceStore.cs` |
+| `AccountingValidationRules`: every task 7 rule except RULE-PAY-001, the approval gate and blocked reasons | 7 | `Application/Accounting/AccountingValidationRules.cs` |
+| `TallyReconciliationEngine`: three-way comparison, fixed required actions, batch outcome via `Derive` | 10 | `Application/Accounting/TallyReconciliation.cs` |
+| `TallyVoucherXmlReader`: hardened reader for the written file and a Day Book read-back | 8 (re-parse), 9 | `Infrastructure.SqlServer/Tally/TallyVoucherXmlReader.cs` |
+| Migration 0039: findings, read-backs, actual vouchers and lines, runs, differences | 7, 9, 10 | `database/migrations/0039_tally_findings_readbacks_reconciliation.sql` |
+| `SqlServerTallyReconciliationService`: save findings, accept a WARN once, load a hand-exported Day Book file, compare and record a run | 7, 9, 10 | `Infrastructure.SqlServer/Tally/SqlServerTallyReconciliationService.cs` |
+
+Tests: `TallyEvidenceFilesTests`, `AccountingValidationRulesTests`, `TallyReconciliationEngineTests`, `TallyVoucherXmlReaderTests` (SqlServer.Tests); `TallyEvidenceStoreSqlTests`, `TallyReconciliationSqlTests` (IntegrationTests, including a G01 file round trip and a second compare that leaves the first run untouched).
+
+Not verified against Tally: the XML tags are TallyPrime's published format, not an export from the installed build (task 5 is NOT_RUN). The G01 fixtures are synthetic and have not been reviewed by the accountant.
+
+Where this differs from the plan:
+
+- **Nullable actual-voucher fields.** The plan makes `voucher_type`, `voucher_date` and `total_amount` NOT NULL in `tally_actual_vouchers`; they are nullable so a field Tally did not return is stored as missing and compared as NOT_VERIFIABLE, never as zero. `voucher_index` was added to tie differences to the voucher in the file.
+- **Header mismatches** (type, date, number, cancellation) are recorded as `STATUS_MISMATCH`, the nearest type in the plan's list, with the field named in the rationale.
+- **Voucher numbers** are compared only when D18 says Tally keeps ETP's number; otherwise they are not checked at all, rather than recorded as NOT_VERIFIABLE (which would hold every batch incomplete).
+- **No batch status change.** A comparison records the run and each voucher's outcome; the batch outcome is returned but not written, because the batch status list widens only with the file-export step (task 8).
+- **No tolerances table yet.** `tally_reconciliation_tolerances` needs its approval type; until then the engine uses none and money must match to the paisa.
+- **Source re-hash is the caller's.** `CompareAsync` takes `sourceUnchanged` from the caller, because recomputing the source hash belongs to the invoice composer (task 6, waiting on D13–D17).
+- **Manual file only.** The HTTP read-back gateway (task 9) waits for the task 5 probe to show which request returns full vouchers.
+
 ## Not started
 
-Status widening, transition procedure and audit types (task 3 remainder), evidence store (task 4 code), composer (6), validation rules (7), XML export (8), read-back gateway (9), reconciliation engine (10), screen (11), golden fixtures (12), and everything in Slices 7b–7d.
+Status widening, transition procedure and audit types (task 3 remainder), composer (6), sales voucher XML export (8), HTTP read-back gateway (9), screen steps 3–5 (11), golden fixtures (12), and everything in Slices 7b–7d.

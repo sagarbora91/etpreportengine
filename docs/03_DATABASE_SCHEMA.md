@@ -154,3 +154,15 @@ Additive only: no existing status value, constraint, index or trigger changes. E
 | `tally_attempts` | One file write or send; may only advance its outcome from RECORDED or SENT; never deleted. |
 
 `accounting_batches` gains `tally_profile_id`, `batch_kind` (`DAY_JOURNAL` for every existing row, or `SALES_VOUCHERS`, which needs a profile), `selection_json`, `selection_version`, `mapping_version_set_json` and `manifest_sha256`. `accounting_entries` gains `accounting_voucher_id` (same batch as the voucher), `tax_rate`, `quantity` and `stock_item`. `product_settings` gains `tally_evidence_root`.
+
+## Phase 7 findings, read-backs and reconciliation — migration 0039
+
+Additive and Owner-only, like 0038.
+
+| Table | Purpose |
+|---|---|
+| `accounting_validation_findings` | WARN and FAIL results of the validation rules for a batch or one of its vouchers. Never deleted; a WARN can be accepted once, with who, when and why. |
+| `tally_readbacks` | One read-back: Tally company as Tally reported it (never filled in from the request), date range, voucher count, complete or the reason it is not, and the stored file. Append-only. |
+| `tally_actual_vouchers`, `tally_actual_ledger_entries` | What the read-back says Tally holds, field by field. Fields Tally did not return stay NULL. Append-only. |
+| `tally_reconciliation_runs` | One comparison of a batch with a read-back, its outcome, a summary and its evidence file. Append-only; a later run never changes an earlier one. |
+| `tally_reconciliation_differences` | One row per failed or warning check, with values A/B/C, delta, rule, rationale and the fixed required action. Never deleted; a WARN can be accepted once. |

@@ -52,7 +52,7 @@ sqlcmd -S .\SQLEXPRESS -E -d EtpReporting -Q "SELECT migration_id, applied_utc F
 sqlcmd -S .\SQLEXPRESS -E -d EtpReporting -Q "SELECT pr.name AS role_name, o.name AS table_name, COUNT(*) AS denies FROM sys.database_permissions p JOIN sys.database_principals pr ON p.grantee_principal_id = pr.principal_id JOIN sys.objects o ON p.major_id = o.object_id WHERE p.state_desc = 'DENY' AND o.name LIKE 'accounting%' AND pr.name IN ('etp_store_manager','etp_viewer') GROUP BY pr.name, o.name ORDER BY 1, 2"
 ```
 
-☐ For **each** of `etp_store_manager` and `etp_viewer`, the tables `accounting_batch_invoices`, `accounting_batches`, `accounting_entries`, `accounting_export_receipts`, `accounting_mappings` appear, each with `denies` = **4** (SELECT, INSERT, UPDATE, DELETE). After database update 0038 (Phase 7) `accounting_status_history`, `accounting_voucher_reservations` and `accounting_vouchers` also appear with 4 each; that is expected.
+☐ For **each** of `etp_store_manager` and `etp_viewer`, the tables `accounting_batch_invoices`, `accounting_batches`, `accounting_entries`, `accounting_export_receipts`, `accounting_mappings` appear, each with `denies` = **4** (SELECT, INSERT, UPDATE, DELETE). After database updates 0038 and 0039 (Phase 7) `accounting_status_history`, `accounting_validation_findings`, `accounting_voucher_reservations` and `accounting_vouchers` also appear with 4 each; that is expected.
 
 ```bat
 sqlcmd -S .\SQLEXPRESS -E -d EtpReporting -Q "SELECT DISTINCT status FROM dbo.accounting_batches"
