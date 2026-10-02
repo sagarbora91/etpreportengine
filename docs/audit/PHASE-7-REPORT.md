@@ -112,7 +112,7 @@ Where this differs from the plan:
 
 ## Increment 5 — fixes from a code review of increments 1–4 (migration 0040)
 
-A read-only review of the merged Phase 7 code found no high-severity defect. These were confirmed and fixed. Not yet verified in CI at the time of writing; the run label is added when it passes.
+A read-only review of the merged Phase 7 code found no high-severity defect. These were confirmed and fixed. UNIT_VERIFIED and SQL_VERIFIED on LocalDB in CI: run 158 attempt 2 (687d853). Attempt 1 timed out with every WPF desktop test hanging from the first one, including screens this change does not touch; the re-run on another runner passed unchanged. Not yet applied to the live database.
 
 | # | Defect | Fix | Where |
 |---|---|---|---|
