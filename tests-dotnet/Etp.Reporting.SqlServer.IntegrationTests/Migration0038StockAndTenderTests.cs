@@ -73,6 +73,27 @@ public sealed class Migration0038StockAndTenderTests
     }
 
     [Fact]
+    public async Task Exact_repeat_movements_and_case_only_document_differences_get_distinct_line_seq()
+    {
+        await using var db = new UpgradeDatabase();
+        var source = new DirectoryMigrationSource(Path.Combine(AppContext.BaseDirectory, "database", "migrations"));
+        await new SqlServerDatabaseBootstrapper(db.ConnectionString, new Before0038(source)).BootstrapAsync();
+        await db.ExecuteAsync(SeedInvoice);
+        // Three rows equal on every column (the per-unit repeat) and one that differs only by document number case.
+        await db.ExecuteAsync("""
+            INSERT dbo.stock_movements(store_code,document_number,invoice_year,document_date,product_code,source_transaction_type,
+              from_location,to_location,opening_quantity,transaction_quantity,closing_quantity,source_lineage_id)
+            SELECT 'UPGRADE',v.doc,2027,'20260825','ITEM','STM Receipt',N'',N'UPGRADE',0,1,1,l.source_lineage_id
+            FROM (VALUES(N'D1'),(N'D1'),(N'D1'),(N'd1')) v(doc) CROSS JOIN (SELECT MIN(source_lineage_id) source_lineage_id FROM dbo.source_lineage) l;
+            """);
+
+        await new MigrationRunner(source, new SqlServerMigrationStore(db.ConnectionString)).RunAsync();
+
+        Assert.Equal(1, await db.ExecuteAsync("SELECT COUNT(*) FROM sys.indexes WHERE name='UX_stock_movements_identity'"));
+        Assert.Equal("1,2,3,4", await db.ExecuteAsync("SELECT STRING_AGG(line_seq,',') WITHIN GROUP(ORDER BY line_seq) FROM dbo.stock_movements"));
+    }
+
+    [Fact]
     public async Task Case_sensitive_tender_type_is_indexed_through_an_upper_case_key()
     {
         await using var db = new UpgradeDatabase();
