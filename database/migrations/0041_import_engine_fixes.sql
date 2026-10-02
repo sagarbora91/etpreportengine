@@ -293,6 +293,16 @@ IF COL_LENGTH('dbo.stock_snapshots','line_seq') IS NULL
 IF COL_LENGTH('dbo.stock_snapshots','item_discriminator') IS NULL
  ALTER TABLE dbo.stock_snapshots ADD item_discriminator AS COALESCE(source_uid,batch_number,ean,N'') PERSISTED;
 
+-- An R010 row standing in for an R011 row that the backfill below could not rebuild (review 1.9.3). The view
+-- shows it on a store-day read from R011 while its R011 file is current and no R011 row of the item is stored.
+-- Only this migration writes it; a restatement that deletes the R010 row deletes its entry.
+IF OBJECT_ID(N'dbo.stock_snapshot_r011_fallbacks',N'U') IS NULL
+ CREATE TABLE dbo.stock_snapshot_r011_fallbacks(
+  stock_snapshot_id bigint NOT NULL CONSTRAINT FK_stock_snapshot_r011_fallbacks_snapshot
+   REFERENCES dbo.stock_snapshots(stock_snapshot_id) ON DELETE CASCADE,
+  import_file_id bigint NOT NULL,
+  CONSTRAINT PK_stock_snapshot_r011_fallbacks PRIMARY KEY(stock_snapshot_id,import_file_id));
+
 -- The backfill must also work for finalised days. 0017 disabled every other fact guard but not this one
 -- (0009); DDL is transactional, so a failed migration rolls the trigger state back as well.
 -- The backfill runs once: until source_report_code is NOT NULL.
@@ -302,23 +312,72 @@ BEGIN
  UPDATE s SET source_report_code=CASE WHEN l.source_record_type=''R010_SNAPSHOT'' THEN ''R010'' ELSE ''CLOSING_STOCK'' END
  FROM dbo.stock_snapshots s JOIN dbo.source_lineage l ON l.source_lineage_id=s.source_lineage_id
  WHERE s.source_report_code IS NULL;
- -- Before 0041 the identity had no source, so on a store-day where R010 was imported first each identical
- -- R011 row was logged ALREADY_PRESENT against the R010 row and never stored. The view reads R011 only
- -- for such a day, so store those R011 rows now from the R010 row they matched, under their own lineage,
- -- from the earliest current R011 file only, so a later re-import of the same rows is not counted twice.
- -- (A differing R011 row was logged as a CONFLICT and stays with the conflict review: only its hash is kept.)
- INSERT dbo.stock_snapshots(store_code,snapshot_date,product_code,ean,brand_code,brand_name,cluster,gender,batch_number,source_uid,quantity,unit_cost,total_cost,source_lineage_id,source_report_code)
- SELECT r.store_code,r.snapshot_date,r.product_code,r.ean,r.brand_code,r.brand_name,r.cluster,r.gender,r.batch_number,r.source_uid,r.quantity,r.unit_cost,r.total_cost,o.source_lineage_id,''CLOSING_STOCK''
- FROM (SELECT o.source_lineage_id,o.business_identity,DENSE_RANK() OVER(PARTITION BY o.business_identity ORDER BY o.import_file_id) file_rank
-       FROM dbo.import_row_outcomes o
-       JOIN dbo.source_lineage l ON l.source_lineage_id=o.source_lineage_id AND l.source_record_type=''CLOSING_STOCK''
-       JOIN dbo.import_files f ON f.import_file_id=o.import_file_id AND f.is_superseded=0
-       WHERE o.outcome=''ALREADY_PRESENT'') o
- JOIN (SELECT x.*,CONCAT(x.store_code,N''/'',x.snapshot_date,N''/'',x.product_code,N''/'',x.item_discriminator) legacy_identity,
-         ROW_NUMBER() OVER(PARTITION BY x.store_code,x.snapshot_date,x.product_code,x.item_discriminator ORDER BY x.stock_snapshot_id) n
-       FROM dbo.stock_snapshots x WHERE x.source_report_code=''R010'') r ON r.legacy_identity=o.business_identity AND r.n=1
- WHERE o.file_rank=1
+ -- Before 0041 the identity had no source or line, so an R011 row could be logged against another row and not
+ -- stored: ALREADY_PRESENT or CONFLICT against the R010 row of a store-day where R010 was imported first, or
+ -- ALREADY_PRESENT against an earlier row of its own file (a repeated item). The view reads R011 only for a
+ -- store-day that has R011 rows, so those rows are stored now, as Closing Stock under their own lineage:
+ --  * from the earliest current R011 file that logged the item, and only while no row of the item was stored by
+ --    another file, so a later re-import of the same rows is not counted twice;
+ --  * with the values the R011 row had: its own landing row (dbo.etp_r011) or a stored row of the item, each
+ --    used only when it hashes exactly as persist_stock_snapshot hashed the R011 row (review 1.9.3);
+ --  * a row that cannot be rebuilt (a conflict committed before 15 Sep 2026 kept only its hash) is not lost: its
+ --    item keeps the R010 reading it had before the upgrade, through dbo.stock_snapshot_r011_fallbacks, until
+ --    an R011 row of the item is stored or its R011 file is superseded. The PRINT below counts these rows and
+ --    scripts\check-import-upgrade.sql (SNAPSHOT_R011_BACKFILL) lists them; restating that R011 file stores them.
+ SELECT o.source_lineage_id,o.import_file_id,o.business_identity,o.content_sha256,l.sheet_name,l.source_row_number,
+        CONVERT(varchar(30),LEFT(o.business_identity,CHARINDEX(N''/'',o.business_identity)-1)) store_code,
+        TRY_CONVERT(date,SUBSTRING(o.business_identity,CHARINDEX(N''/'',o.business_identity)+1,10),23) snapshot_date,
+        DENSE_RANK() OVER(PARTITION BY o.business_identity ORDER BY o.import_file_id) file_rank,
+        ROW_NUMBER() OVER(PARTITION BY o.source_lineage_id ORDER BY o.import_row_outcome_id) lineage_rank,
+        CONVERT(bigint,NULL) landing_row,CONVERT(bigint,NULL) matched_row
+ INTO #r011
+ FROM dbo.import_row_outcomes o
+ JOIN dbo.source_lineage l ON l.source_lineage_id=o.source_lineage_id AND l.source_record_type=''CLOSING_STOCK''
+ JOIN dbo.import_files f ON f.import_file_id=o.import_file_id AND f.is_superseded=0
+ WHERE o.outcome IN(''ALREADY_PRESENT'',''CONFLICT'') AND CHARINDEX(N''/'',o.business_identity)>1
    AND NOT EXISTS(SELECT 1 FROM dbo.stock_snapshots c WHERE c.source_lineage_id=o.source_lineage_id);
+ -- A Closing Stock row of the item that this file did not insert as NEW belongs to another file (a promotion
+ -- relinks an earlier file''s rows to the later file without a NEW outcome there).
+ DELETE r FROM #r011 r WHERE r.file_rank>1 OR r.lineage_rank>1 OR r.snapshot_date IS NULL
+   OR EXISTS(SELECT 1 FROM dbo.stock_snapshots x
+     WHERE x.store_code=r.store_code AND x.snapshot_date=r.snapshot_date AND x.source_report_code=''CLOSING_STOCK''
+       AND CONCAT(x.store_code,N''/'',x.snapshot_date,N''/'',x.product_code,N''/'',x.item_discriminator)=r.business_identity
+       AND NOT EXISTS(SELECT 1 FROM dbo.import_row_outcomes n WHERE n.import_file_id=r.import_file_id AND n.outcome=''NEW''
+                      AND n.source_lineage_id=x.source_lineage_id));
+ UPDATE r SET landing_row=(SELECT MIN(e.etp_row_id) FROM dbo.etp_r011 e
+   JOIN dbo.source_lineage el ON el.source_lineage_id=e.source_lineage_id
+   WHERE e.import_file_id=r.import_file_id AND el.sheet_name=r.sheet_name AND el.source_row_number=r.source_row_number
+     AND CONCAT(e.store_code,N''/'',e.snapshot_date,N''/'',e.product_code,N''/'',COALESCE(e.source_uid,e.batch_number,e.ean,N''''))
+         COLLATE Latin1_General_100_BIN2=r.business_identity COLLATE Latin1_General_100_BIN2
+     AND LOWER(CONVERT(varchar(64),HASHBYTES(''SHA2_256'',CONCAT(ISNULL(e.ean,N''''),N''|'',ISNULL(e.brand_code,N''''),N''||'',
+         ISNULL(e.cluster,N''''),N''|'',ISNULL(e.gender,N''''),N''|'',ISNULL(e.batch_number,N''''),N''|'',ISNULL(e.source_uid,N''''),N''|'',
+         e.quantity,N''|'',ISNULL(e.unit_cost,0),N''|'',ISNULL(e.total_cost,0))),2))=r.content_sha256)
+ FROM #r011 r;
+ UPDATE r SET matched_row=(SELECT MIN(x.stock_snapshot_id) FROM dbo.stock_snapshots x
+   WHERE x.store_code=r.store_code AND x.snapshot_date=r.snapshot_date
+     AND CONCAT(x.store_code,N''/'',x.snapshot_date,N''/'',x.product_code,N''/'',x.item_discriminator)=r.business_identity
+     AND LOWER(CONVERT(varchar(64),HASHBYTES(''SHA2_256'',CONCAT(ISNULL(x.ean,N''''),N''|'',ISNULL(x.brand_code,N''''),N''|'',
+         ISNULL(x.brand_name,N''''),N''|'',ISNULL(x.cluster,N''''),N''|'',ISNULL(x.gender,N''''),N''|'',ISNULL(x.batch_number,N''''),N''|'',
+         ISNULL(x.source_uid,N''''),N''|'',x.quantity,N''|'',ISNULL(x.unit_cost,0),N''|'',ISNULL(x.total_cost,0))),2))=r.content_sha256)
+ FROM #r011 r WHERE r.landing_row IS NULL;
+ -- A row that cannot be rebuilt keeps the R010 reading of its item visible (dbo.stock_snapshot_r011_fallbacks).
+ DECLARE @unrebuilt int=(SELECT COUNT(*) FROM #r011 WHERE landing_row IS NULL AND matched_row IS NULL),@rebuilt int;
+ INSERT dbo.stock_snapshot_r011_fallbacks(stock_snapshot_id,import_file_id)
+ SELECT DISTINCT x.stock_snapshot_id,r.import_file_id FROM #r011 r JOIN dbo.stock_snapshots x
+   ON x.store_code=r.store_code AND x.snapshot_date=r.snapshot_date AND x.source_report_code=''R010''
+  AND CONCAT(x.store_code,N''/'',x.snapshot_date,N''/'',x.product_code,N''/'',x.item_discriminator)=r.business_identity
+ WHERE r.landing_row IS NULL AND r.matched_row IS NULL
+   AND NOT EXISTS(SELECT 1 FROM dbo.stock_snapshot_r011_fallbacks k WHERE k.stock_snapshot_id=x.stock_snapshot_id AND k.import_file_id=r.import_file_id);
+ INSERT dbo.stock_snapshots(store_code,snapshot_date,product_code,ean,brand_code,brand_name,cluster,gender,batch_number,source_uid,quantity,unit_cost,total_cost,source_lineage_id,source_report_code)
+ SELECT r.store_code,r.snapshot_date,e.product_code,e.ean,e.brand_code,NULL,e.cluster,e.gender,e.batch_number,e.source_uid,e.quantity,e.unit_cost,e.total_cost,r.source_lineage_id,''CLOSING_STOCK''
+ FROM #r011 r JOIN dbo.etp_r011 e ON e.etp_row_id=r.landing_row
+ UNION ALL
+ SELECT x.store_code,x.snapshot_date,x.product_code,x.ean,x.brand_code,x.brand_name,x.cluster,x.gender,x.batch_number,x.source_uid,x.quantity,x.unit_cost,x.total_cost,r.source_lineage_id,''CLOSING_STOCK''
+ FROM #r011 r JOIN dbo.stock_snapshots x ON x.stock_snapshot_id=r.matched_row WHERE r.landing_row IS NULL;
+ SET @rebuilt=@@ROWCOUNT;
+ IF @rebuilt+@unrebuilt>0
+  PRINT CONCAT(N''0041: '',@rebuilt,N'' Closing Stock rows rebuilt from logged import outcomes; '',@unrebuilt,
+   N'' could not be rebuilt and keep their BinWise reading until the R011 file is restated. scripts\check-import-upgrade.sql (SNAPSHOT_R011_BACKFILL) lists them.'');
  WITH s AS (SELECT line_seq,ROW_NUMBER() OVER(PARTITION BY store_code,snapshot_date,source_report_code,product_code,item_discriminator
    ORDER BY quantity,unit_cost,total_cost,stock_snapshot_id) n FROM dbo.stock_snapshots)
  UPDATE s SET line_seq=n WHERE n>1;
@@ -356,6 +415,7 @@ END');
 -- The rows of the preferred source present for each (store, snapshot date): Closing Stock (R011) first,
 -- then BinWise (R010), then any other source. Same result as ranking the sources per store-day and
 -- keeping the best rank, written as seeks on IX_stock_snapshots_source so a per-row caller stays cheap.
+-- On a Closing Stock day an R010 row also shows when it stands in for an R011 row that 0041 could not rebuild.
 EXEC(N'CREATE OR ALTER VIEW dbo.v_stock_snapshots_effective AS
 SELECT s.stock_snapshot_id,s.store_code,s.snapshot_date,s.product_code,s.ean,s.brand_code,s.brand_name,s.cluster,s.gender,
        s.batch_number,s.source_uid,s.quantity,s.unit_cost,s.total_cost,s.source_lineage_id,s.source_report_code,s.line_seq,
@@ -366,7 +426,13 @@ WHERE s.source_report_code=''CLOSING_STOCK''
                   AND c.source_report_code=''CLOSING_STOCK'')
        AND (s.source_report_code=''R010''
             OR NOT EXISTS(SELECT 1 FROM dbo.stock_snapshots b WHERE b.store_code=s.store_code AND b.snapshot_date=s.snapshot_date
-                          AND b.source_report_code=''R010'')))');
+                          AND b.source_report_code=''R010'')))
+   OR (s.source_report_code=''R010''
+       AND EXISTS(SELECT 1 FROM dbo.stock_snapshot_r011_fallbacks k JOIN dbo.import_files f ON f.import_file_id=k.import_file_id
+                  WHERE k.stock_snapshot_id=s.stock_snapshot_id AND f.is_superseded=0)
+       AND NOT EXISTS(SELECT 1 FROM dbo.stock_snapshots c WHERE c.store_code=s.store_code AND c.snapshot_date=s.snapshot_date
+                      AND c.source_report_code=''CLOSING_STOCK'' AND c.product_code=s.product_code
+                      AND c.item_discriminator=s.item_discriminator))');
 GRANT SELECT ON dbo.v_stock_snapshots_effective TO etp_viewer,etp_store_manager,etp_owner;
 DENY INSERT,UPDATE,DELETE ON dbo.v_stock_snapshots_effective TO etp_store_manager,etp_viewer;
 -- <<< D_SNAPSHOT end

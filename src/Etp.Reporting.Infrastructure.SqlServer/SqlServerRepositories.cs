@@ -180,7 +180,7 @@ public sealed partial class SqlServerTransactionalImportStore(string connectionS
             foreach(var row in package.InvoiceControls) await InsertInvoiceControl(connection,transaction,fileId,row,cancellationToken);
             foreach(var row in package.SalesLines) await InsertSales(connection,transaction,fileId,row,cancellationToken);
             foreach(var row in package.Tenders) await InsertTender(connection,transaction,fileId,row,cancellationToken);
-            foreach(var row in package.StockMovements) await InsertMovement(connection,transaction,fileId,row,cancellationToken);
+            foreach(var row in await AlignMovementLinesAsync(connection,transaction,package.StockMovements,cancellationToken)) await InsertMovement(connection,transaction,fileId,row,cancellationToken);
             foreach(var row in package.StockSnapshots) await InsertSnapshot(connection,transaction,fileId,row,cancellationToken);
             foreach(var row in package.Enrichments) await InsertEnrichmentAsync(connection,transaction,fileId,row,cancellationToken);
             await ThrowOnConflictsAsync(connection,transaction,fileId,cancellationToken);

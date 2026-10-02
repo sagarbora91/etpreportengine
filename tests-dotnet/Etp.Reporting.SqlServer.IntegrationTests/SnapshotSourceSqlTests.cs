@@ -212,10 +212,92 @@ public sealed class SnapshotSourceSqlTests(SqlDatabaseFixture database) : IClass
             // Both repeated SNAP-M lines of the R011 file are stored as Closing Stock; the R010 rows stay as they were.
             Assert.Equal("CLOSING_STOCK:SNAP-M:2:1,CLOSING_STOCK:SNAP-M:2:2,CLOSING_STOCK:SNAP-N:3:1,R010:SNAP-M:2:1,R010:SNAP-P:5:1", await Execute(connectionString,
                 "SELECT STRING_AGG(CONCAT(source_report_code,':',product_code,':',CONVERT(int,quantity),':',line_seq),',') WITHIN GROUP(ORDER BY source_report_code,product_code,line_seq) FROM dbo.stock_snapshots WHERE store_code='MIXSNAP'"));
-            Assert.Equal(7m, await Execute(connectionString, "SELECT SUM(quantity) FROM dbo.v_stock_snapshots_effective WHERE store_code='MIXSNAP'"));
-            // The differing SNAP-P reading stays with the conflict review; only its hash was ever kept.
+            // The differing SNAP-P reading kept only its hash, so it cannot be rebuilt. SNAP-P does not drop out of the
+            // day (review 1.9.3): it keeps the BinWise reading the report showed before the upgrade.
+            Assert.Equal("CLOSING_STOCK:SNAP-M:4,CLOSING_STOCK:SNAP-N:3,R010:SNAP-P:5", await Execute(connectionString,
+                "SELECT STRING_AGG(CONCAT(source_report_code,':',product_code,':',CONVERT(int,quantity)),',') WITHIN GROUP(ORDER BY source_report_code,product_code) FROM (SELECT source_report_code,product_code,SUM(quantity) quantity FROM dbo.v_stock_snapshots_effective WHERE store_code='MIXSNAP' GROUP BY source_report_code,product_code) x"));
             Assert.Equal(1, await Execute(connectionString, "SELECT COUNT(*) FROM dbo.import_conflicts WHERE store_code='MIXSNAP'"));
+            // Once an R011 reading of SNAP-P is stored, the BinWise stand-in is no longer shown.
+            await Execute(connectionString, """
+                DECLARE @lineage bigint=(SELECT o.source_lineage_id FROM dbo.import_row_outcomes o WHERE o.outcome='CONFLICT' AND o.business_identity LIKE N'MIXSNAP/%');
+                INSERT dbo.stock_snapshots(store_code,snapshot_date,product_code,batch_number,quantity,source_lineage_id,source_report_code)
+                VALUES('MIXSNAP','20260805',N'SNAP-P',N'LOT-1',6,@lineage,'CLOSING_STOCK');
+                """);
+            Assert.Equal(13m, await Execute(connectionString, "SELECT SUM(quantity) FROM dbo.v_stock_snapshots_effective WHERE store_code='MIXSNAP'"));
             Assert.Equal(0, await Execute(connectionString, "SELECT COUNT(*) FROM sys.database_permissions WHERE major_id=OBJECT_ID(N'dbo.v_stock_snapshots_effective') AND state='D' AND USER_NAME(grantee_principal_id)='etp_owner'"));
+        }
+        finally { await Drop(connectionString, name); }
+    }
+
+    [Fact]
+    public async Task Legacy_backfill_rebuilds_only_values_the_R011_row_had_and_restores_repeats_of_its_own_file()
+    {
+        var name = "EtpPhase0Test_SnapshotRebuild_" + Guid.NewGuid().ToString("N");
+        var connectionString = TestSqlConnections.ForDatabase(name, pooling: false);
+        try
+        {
+            var source = new DirectoryMigrationSource(database.MigrationDirectory);
+            await new SqlServerDatabaseBootstrapper(connectionString, new BeforeImportEngine(source)).BootstrapAsync();
+            // The pre-0041 procedure, two store-days.
+            // 6 Aug: R010 first (SNAP-Q 5, SNAP-L 4), then R011, whose SNAP-Q 5 and SNAP-L 4 were ALREADY_PRESENT and
+            // SNAP-K new. The R010 file was then restated: SNAP-Q became 3 and SNAP-L 1. SNAP-L of the R011 file
+            // has its landing row; SNAP-Q has none.
+            // 7 Aug: an R011 file with SNAP-R twice (the second ALREADY_PRESENT against the first) and a later R011
+            // file whose SNAP-R was ALREADY_PRESENT against the first file's row.
+            await Execute(connectionString, """
+                DECLARE @batch uniqueidentifier=NEWID(),@r010 bigint,@r011 bigint,@a bigint,@b bigint,@lineage bigint,@landing bigint;
+                INSERT dbo.import_batches(import_batch_id,status,started_utc,completed_utc,source_row_count) VALUES(@batch,'Completed',SYSUTCDATETIME(),SYSUTCDATETIME(),9);
+                INSERT dbo.import_files(import_batch_id,original_file_name,source_sha256,size_bytes,report_code,store_code,business_date,period_start,period_end,data_truth_version)
+                 VALUES(@batch,'REBUILD-R010.xlsx',REPLICATE('8',64),2048,'R010','REBUILD','20260806','20260806','20260806',1);
+                SET @r010=SCOPE_IDENTITY();
+                INSERT dbo.import_files(import_batch_id,original_file_name,source_sha256,size_bytes,report_code,store_code,business_date,period_start,period_end,data_truth_version)
+                 VALUES(@batch,'REBUILD-R011.xlsx',REPLICATE('9',64),2048,'CLOSING_STOCK','REBUILD','20260806','20260806','20260806',1);
+                SET @r011=SCOPE_IDENTITY();
+                INSERT dbo.source_lineage(import_file_id,sheet_name,source_row_number,source_record_type) VALUES(@r010,'Data',2,'R010_SNAPSHOT'); SET @lineage=SCOPE_IDENTITY();
+                EXEC dbo.persist_stock_snapshot @store='REBUILD',@date='20260806',@product=N'SNAP-Q',@batch=N'LOT-1',@qty=5,@lineage=@lineage;
+                INSERT dbo.source_lineage(import_file_id,sheet_name,source_row_number,source_record_type) VALUES(@r010,'Data',3,'R010_SNAPSHOT'); SET @lineage=SCOPE_IDENTITY();
+                EXEC dbo.persist_stock_snapshot @store='REBUILD',@date='20260806',@product=N'SNAP-L',@batch=N'LOT-1',@qty=4,@lineage=@lineage;
+                INSERT dbo.source_lineage(import_file_id,sheet_name,source_row_number,source_record_type) VALUES(@r011,'Sheet0',2,'CLOSING_STOCK'); SET @lineage=SCOPE_IDENTITY();
+                EXEC dbo.persist_stock_snapshot @store='REBUILD',@date='20260806',@product=N'SNAP-Q',@batch=N'LOT-1',@qty=5,@lineage=@lineage;
+                INSERT dbo.source_lineage(import_file_id,sheet_name,source_row_number,source_record_type) VALUES(@r011,'Sheet0',3,'CLOSING_STOCK'); SET @lineage=SCOPE_IDENTITY();
+                EXEC dbo.persist_stock_snapshot @store='REBUILD',@date='20260806',@product=N'SNAP-L',@batch=N'LOT-1',@qty=4,@lineage=@lineage;
+                INSERT dbo.source_lineage(import_file_id,sheet_name,source_row_number,source_record_type) VALUES(@r011,'Sheet0',3,'R011_SOURCE'); SET @landing=SCOPE_IDENTITY();
+                INSERT dbo.etp_r011(import_file_id,source_lineage_id,content_key,store_code,snapshot_date,product_code,quantity,batch_number)
+                 VALUES(@r011,@landing,REPLICATE('a',64),N'REBUILD','20260806',N'SNAP-L',4,N'LOT-1');
+                INSERT dbo.source_lineage(import_file_id,sheet_name,source_row_number,source_record_type) VALUES(@r011,'Sheet0',4,'CLOSING_STOCK'); SET @lineage=SCOPE_IDENTITY();
+                EXEC dbo.persist_stock_snapshot @store='REBUILD',@date='20260806',@product=N'SNAP-K',@batch=N'LOT-1',@qty=1,@lineage=@lineage;
+                UPDATE s SET quantity=CASE s.product_code WHEN N'SNAP-Q' THEN 3 ELSE 1 END
+                 FROM dbo.stock_snapshots s JOIN dbo.source_lineage l ON l.source_lineage_id=s.source_lineage_id WHERE l.import_file_id=@r010;
+
+                INSERT dbo.import_files(import_batch_id,original_file_name,source_sha256,size_bytes,report_code,store_code,business_date,period_start,period_end,data_truth_version)
+                 VALUES(@batch,'REPEAT-A.xlsx',REPLICATE('a',64),2048,'CLOSING_STOCK','REBUILD','20260807','20260807','20260807',1);
+                SET @a=SCOPE_IDENTITY();
+                INSERT dbo.import_files(import_batch_id,original_file_name,source_sha256,size_bytes,report_code,store_code,business_date,period_start,period_end,data_truth_version)
+                 VALUES(@batch,'REPEAT-B.xlsx',REPLICATE('b',64),2048,'CLOSING_STOCK','REBUILD','20260807','20260807','20260807',1);
+                SET @b=SCOPE_IDENTITY();
+                INSERT dbo.source_lineage(import_file_id,sheet_name,source_row_number,source_record_type) VALUES(@a,'Sheet0',2,'CLOSING_STOCK'); SET @lineage=SCOPE_IDENTITY();
+                EXEC dbo.persist_stock_snapshot @store='REBUILD',@date='20260807',@product=N'SNAP-R',@batch=N'LOT-1',@qty=2,@lineage=@lineage;
+                INSERT dbo.source_lineage(import_file_id,sheet_name,source_row_number,source_record_type) VALUES(@a,'Sheet0',3,'CLOSING_STOCK'); SET @lineage=SCOPE_IDENTITY();
+                EXEC dbo.persist_stock_snapshot @store='REBUILD',@date='20260807',@product=N'SNAP-R',@batch=N'LOT-1',@qty=2,@lineage=@lineage;
+                INSERT dbo.source_lineage(import_file_id,sheet_name,source_row_number,source_record_type) VALUES(@b,'Sheet0',2,'CLOSING_STOCK'); SET @lineage=SCOPE_IDENTITY();
+                EXEC dbo.persist_stock_snapshot @store='REBUILD',@date='20260807',@product=N'SNAP-R',@batch=N'LOT-1',@qty=2,@lineage=@lineage;
+                """);
+            Assert.Equal("ALREADY_PRESENT:4,NEW:4", await Execute(connectionString,
+                "SELECT STRING_AGG(CONCAT(outcome,':',n),',') WITHIN GROUP(ORDER BY outcome) FROM (SELECT outcome,COUNT(*) n FROM dbo.import_row_outcomes WHERE business_identity LIKE N'REBUILD/%' GROUP BY outcome) x"));
+
+            await new MigrationRunner(source, new SqlServerMigrationStore(connectionString)).RunAsync();
+
+            // 6 Aug: SNAP-L is rebuilt from its landing row with the 4 the R011 file held, not the restated R010 1.
+            // SNAP-Q's matched R010 row now holds 3, which the R011 row never held: it is not copied, and SNAP-Q keeps
+            // its BinWise reading instead.
+            Assert.Equal("CLOSING_STOCK:SNAP-K:1,CLOSING_STOCK:SNAP-L:4,R010:SNAP-L:1,R010:SNAP-Q:3", await Execute(connectionString,
+                "SELECT STRING_AGG(CONCAT(source_report_code,':',product_code,':',CONVERT(int,quantity)),',') WITHIN GROUP(ORDER BY source_report_code,product_code) FROM dbo.stock_snapshots WHERE store_code='REBUILD' AND snapshot_date='20260806'"));
+            Assert.Equal("CLOSING_STOCK:SNAP-K:1,CLOSING_STOCK:SNAP-L:4,R010:SNAP-Q:3", await Execute(connectionString,
+                "SELECT STRING_AGG(CONCAT(source_report_code,':',product_code,':',CONVERT(int,quantity)),',') WITHIN GROUP(ORDER BY source_report_code,product_code) FROM dbo.v_stock_snapshots_effective WHERE store_code='REBUILD' AND snapshot_date='20260806'"));
+            // 7 Aug: the repeat that file A logged against its own row is stored; file B's row matched file A's and is not.
+            Assert.Equal("SNAP-R:2:1,SNAP-R:2:2", await Execute(connectionString,
+                "SELECT STRING_AGG(CONCAT(product_code,':',CONVERT(int,quantity),':',line_seq),',') WITHIN GROUP(ORDER BY line_seq) FROM dbo.stock_snapshots WHERE store_code='REBUILD' AND snapshot_date='20260807'"));
+            Assert.Equal(4m, await Execute(connectionString, "SELECT SUM(quantity) FROM dbo.v_stock_snapshots_effective WHERE store_code='REBUILD' AND snapshot_date='20260807'"));
         }
         finally { await Drop(connectionString, name); }
     }

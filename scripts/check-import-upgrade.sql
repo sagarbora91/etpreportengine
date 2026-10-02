@@ -106,6 +106,52 @@ EXEC sys.sp_executesql N'SELECT @n=COUNT_BIG(*) FROM (SELECT source_sha256 FROM 
     HAVING COUNT(DISTINCT CONCAT(report_code,''|'',store_code,''|'',COALESCE(period_start,business_date),''|'',COALESCE(period_end,business_date)))>1) d;',
   N'@n bigint OUTPUT', @shaScopes OUTPUT;
 
+-- R011 rows logged ALREADY_PRESENT or CONFLICT against another row before 0041 and never stored (review 1.9.3).
+-- The same selection as 0041's snapshot backfill: per store-day, the rows it rebuilds from values the database
+-- still holds (the row's landing row or a stored row that hashes as the R011 row did), and the rows it cannot
+-- rebuild, whose items keep their BinWise reading until the R011 file is restated. Read through sp_executesql
+-- twice (count and detail); the source is derived from the lineage record type, so it runs before 0041 as well.
+DECLARE @r011Rows nvarchar(max) = N'WITH candidate AS (
+ SELECT o.source_lineage_id,o.import_file_id,o.business_identity,o.content_sha256,l.sheet_name,l.source_row_number,
+   CONVERT(varchar(30),LEFT(o.business_identity,CHARINDEX(N''/'',o.business_identity)-1)) store_code,
+   TRY_CONVERT(date,SUBSTRING(o.business_identity,CHARINDEX(N''/'',o.business_identity)+1,10),23) snapshot_date,
+   DENSE_RANK() OVER(PARTITION BY o.business_identity ORDER BY o.import_file_id) file_rank,
+   ROW_NUMBER() OVER(PARTITION BY o.source_lineage_id ORDER BY o.import_row_outcome_id) lineage_rank
+ FROM dbo.import_row_outcomes o
+ JOIN dbo.source_lineage l ON l.source_lineage_id=o.source_lineage_id AND l.source_record_type=''CLOSING_STOCK''
+ JOIN dbo.import_files f ON f.import_file_id=o.import_file_id AND f.is_superseded=0
+ WHERE o.outcome IN(''ALREADY_PRESENT'',''CONFLICT'') AND CHARINDEX(N''/'',o.business_identity)>1
+   AND o.business_identity NOT LIKE N''%/''+NCHAR(35)+N''[0-9]%''
+   AND NOT EXISTS(SELECT 1 FROM dbo.stock_snapshots c WHERE c.source_lineage_id=o.source_lineage_id)),
+eligible AS (
+ SELECT r.* FROM candidate r WHERE r.file_rank=1 AND r.lineage_rank=1 AND r.snapshot_date IS NOT NULL
+   AND NOT EXISTS(SELECT 1 FROM dbo.stock_snapshots x JOIN dbo.source_lineage xl ON xl.source_lineage_id=x.source_lineage_id
+     WHERE x.store_code=r.store_code AND x.snapshot_date=r.snapshot_date AND ISNULL(xl.source_record_type,'''')<>''R010_SNAPSHOT''
+       AND CONCAT(x.store_code,N''/'',x.snapshot_date,N''/'',x.product_code,N''/'',COALESCE(x.source_uid,x.batch_number,x.ean,N''''))=r.business_identity
+       AND NOT EXISTS(SELECT 1 FROM dbo.import_row_outcomes n WHERE n.import_file_id=r.import_file_id AND n.outcome=''NEW''
+                      AND n.source_lineage_id=x.source_lineage_id))),
+valued AS (
+ SELECT r.store_code,r.snapshot_date,CASE WHEN EXISTS(SELECT 1 FROM dbo.etp_r011 e
+     JOIN dbo.source_lineage el ON el.source_lineage_id=e.source_lineage_id
+     WHERE e.import_file_id=r.import_file_id AND el.sheet_name=r.sheet_name AND el.source_row_number=r.source_row_number
+       AND CONCAT(e.store_code,N''/'',e.snapshot_date,N''/'',e.product_code,N''/'',COALESCE(e.source_uid,e.batch_number,e.ean,N''''))
+           COLLATE Latin1_General_100_BIN2=r.business_identity COLLATE Latin1_General_100_BIN2
+       AND LOWER(CONVERT(varchar(64),HASHBYTES(''SHA2_256'',CONCAT(ISNULL(e.ean,N''''),N''|'',ISNULL(e.brand_code,N''''),N''||'',
+           ISNULL(e.cluster,N''''),N''|'',ISNULL(e.gender,N''''),N''|'',ISNULL(e.batch_number,N''''),N''|'',ISNULL(e.source_uid,N''''),N''|'',
+           e.quantity,N''|'',ISNULL(e.unit_cost,0),N''|'',ISNULL(e.total_cost,0))),2))=r.content_sha256)
+   OR EXISTS(SELECT 1 FROM dbo.stock_snapshots x WHERE x.store_code=r.store_code AND x.snapshot_date=r.snapshot_date
+       AND CONCAT(x.store_code,N''/'',x.snapshot_date,N''/'',x.product_code,N''/'',COALESCE(x.source_uid,x.batch_number,x.ean,N''''))=r.business_identity
+       AND LOWER(CONVERT(varchar(64),HASHBYTES(''SHA2_256'',CONCAT(ISNULL(x.ean,N''''),N''|'',ISNULL(x.brand_code,N''''),N''|'',
+           ISNULL(x.brand_name,N''''),N''|'',ISNULL(x.cluster,N''''),N''|'',ISNULL(x.gender,N''''),N''|'',ISNULL(x.batch_number,N''''),N''|'',
+           ISNULL(x.source_uid,N''''),N''|'',x.quantity,N''|'',ISNULL(x.unit_cost,0),N''|'',ISNULL(x.total_cost,0))),2))=r.content_sha256)
+   THEN 1 ELSE 0 END has_values
+ FROM eligible r) ';
+DECLARE @r011Days bigint, @r011Rebuilt bigint, @r011Unrebuilt bigint;
+DECLARE @r011Count nvarchar(max) = @r011Rows + N'SELECT @days=COUNT_BIG(DISTINCT CONCAT(store_code,''|'',snapshot_date)),
+  @rebuilt=COALESCE(SUM(CONVERT(bigint,has_values)),0),@unrebuilt=COALESCE(SUM(CONVERT(bigint,1-has_values)),0) FROM valued;';
+EXEC sys.sp_executesql @r011Count, N'@days bigint OUTPUT,@rebuilt bigint OUTPUT,@unrebuilt bigint OUTPUT',
+  @r011Days OUTPUT, @r011Rebuilt OUTPUT, @r011Unrebuilt OUTPUT;
+
 -- 2. Summary. blocks_upgrade = 1 marks what a migration pre-check refuses (0041: 51700-51702;
 -- the stock identity indexes cannot be built over a repeated identity).
 SELECT check_code, findings, blocks_upgrade, detail FROM (VALUES
@@ -149,7 +195,10 @@ SELECT check_code, findings, blocks_upgrade, detail FROM (VALUES
  (15, 'SOURCE_ROWS_OF_SUPERSEDED_FILES', @familySuperseded, CONVERT(bit,0),
   N'Family-table (etp_r*, etp_landing_*) rows of superseded files. Expected: promotion and restatement keep the source rows (information).'),
  (16, 'OPEN_MOVEMENT_CONFLICTS_ON_STORED_ROWS', @movementConflicts, CONVERT(bit,0),
-  N'Open stock-ledger (R003) conflicts whose identity a stored movement holds. 1.9.2 kept the first unit row in file order; 0041 numbers it line 1, a re-import numbers the chain start 1, so an overlapping re-import is refused with IMPORT_CONFLICT. Plan an Owner restatement for these days before relying on re-imports.')
+  N'Open stock-ledger (R003) conflicts whose identity a stored movement holds. 1.9.2 kept the first unit row in file order; 0041 numbers it line 1, a re-import numbers the chain start 1, so an overlapping re-import is refused with IMPORT_CONFLICT. Plan an Owner restatement for these days before relying on re-imports.'),
+ (17, 'SNAPSHOT_R011_BACKFILL', @r011Days, CONVERT(bit,0),
+  CONCAT(N'Store-days with R011 rows logged against another row before 0041 and never stored. 0041 rebuilds ', @r011Rebuilt,
+   N' of them from values the database still holds; ', @r011Unrebuilt, N' keep their BinWise reading until their R011 file is restated.'))
 ) c(n, check_code, findings, blocks_upgrade, detail)
 ORDER BY n;
 
@@ -265,4 +314,15 @@ BEGIN
     AND EXISTS(SELECT 1 FROM dbo.stock_movements m WHERE m.store_code=c.store_code AND ' + @movementIdentity + N'=c.business_identity)
   ORDER BY c.store_code,c.business_date,c.import_conflict_id;';
  EXEC sys.sp_executesql @movementConflictDetail;
+END;
+
+IF @r011Days > 0
+BEGIN
+ DECLARE @r011Detail nvarchar(max) = @r011Rows + N'SELECT TOP (200) ''SNAPSHOT_R011_BACKFILL'' AS check_code,g.store_code,g.snapshot_date,
+   CASE WHEN EXISTS(SELECT 1 FROM dbo.daily_reporting_days d WHERE d.store_code=g.store_code AND d.business_date=g.snapshot_date
+     AND d.status=''LOCKED'') THEN 1 ELSE 0 END AS day_locked,g.rows_rebuilt,g.rows_without_values
+ FROM (SELECT store_code,snapshot_date,SUM(has_values) AS rows_rebuilt,SUM(1-has_values) AS rows_without_values
+       FROM valued GROUP BY store_code,snapshot_date) g
+ ORDER BY g.store_code,g.snapshot_date;';
+ EXEC sys.sp_executesql @r011Detail;
 END;
