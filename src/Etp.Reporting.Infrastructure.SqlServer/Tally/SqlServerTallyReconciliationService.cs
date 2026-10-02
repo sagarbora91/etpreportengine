@@ -191,7 +191,68 @@ public sealed class SqlServerTallyReconciliationService(string connectionString,
         return new(run, readbackId, result);
     }
 
-    private sealed record BatchFacts(long Id, int ProfileId, string ProfileCode, string CompanyName, string StoreCode, DateOnly BusinessDate)
+    /// <summary>Saves the proposed recovery steps for a run as a RECOVERY_PLAN evidence file (plan task 22).
+    /// The plan is a proposal: nothing is done until the Owner approves it.</summary>
+    public async Task<TallyArtifact> SaveRecoveryPlanAsync(long batchId, TallyComparison comparison, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(comparison);
+        await RequireOwnerAsync(cancellationToken);
+        var batch = await LoadBatchAsync(batchId, cancellationToken);
+        var plan = TallyRecoveryPlanBuilder.Build(comparison.Result, comparison.RunId);
+        var number = await NextNumberAsync(batchId, "RECOVERY_PLAN", cancellationToken);
+        return await new TallyEvidenceStore(connectionString, evidenceRootOverride).WriteAsync(batchId, "RECOVERY_PLAN",
+            $@"{batch.Folder}\recovery-plan-{number}.json", Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { comparison.ReadbackId, plan }, Json)), cancellationToken);
+    }
+
+    /// <summary>Completes the batch's evidence package with <c>manifest.json</c> (plan task 21): the intended company,
+    /// selection, control totals, versions and the SHA-256 of every other registered file. Refused while any file is
+    /// changed or missing. The manifest's own hash is stored in <c>accounting_batches.manifest_sha256</c>, not inside itself.</summary>
+    public async Task<TallyArtifact> BuildManifestAsync(long batchId, string applicationVersion, CancellationToken cancellationToken = default)
+    {
+        await RequireOwnerAsync(cancellationToken);
+        var batch = await LoadBatchAsync(batchId, cancellationToken);
+        var store = new TallyEvidenceStore(connectionString, evidenceRootOverride);
+        var files = await store.VerifyAsync(batchId, cancellationToken);
+        if (files.FirstOrDefault(file => file.State != TallyEvidenceState.Ok) is { } bad)
+            throw new InvalidOperationException($"Evidence file {bad.Artifact.RelativePath} is {bad.State.ToString().ToUpperInvariant()}; the package cannot be completed.");
+        if (files.Any(file => file.Artifact.Kind == "MANIFEST"))
+            throw new InvalidOperationException("This batch's evidence package already has its manifest.");
+        var expected = await LoadExpectedAsync(batchId, cancellationToken);
+        var counted = expected.Where(e => e.Voucher.Status is not (TallyVoucherStatus.Excluded or TallyVoucherStatus.Blocked or TallyVoucherStatus.Cancelled)).ToArray();
+        decimal Total(Func<ExpectedLedgerLine, bool> which) => counted.SelectMany(e => e.Voucher.Lines).Where(which).Sum(line => line.Debit - line.Credit);
+        var schema = Convert.ToString(await ScalarAsync("SELECT MAX(migration_id) FROM dbo.schema_migrations", null, cancellationToken), CultureInfo.InvariantCulture);
+        var manifest = new
+        {
+            intendedCompany = batch.CompanyName, environment = batch.Environment, profileCode = batch.ProfileCode,
+            store = batch.StoreCode, businessDate = batch.BusinessDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            deliveryMode = batch.DeliveryMode, payloadFormat = batch.PayloadFormat,
+            selection = batch.SelectionJson is null ? (JsonElement?)null : JsonDocument.Parse(batch.SelectionJson).RootElement.Clone(),
+            mappingVersionSet = batch.MappingVersionSetJson is null ? (JsonElement?)null : JsonDocument.Parse(batch.MappingVersionSetJson).RootElement.Clone(),
+            exclusions = expected.Where(e => e.Voucher.Status is TallyVoucherStatus.Excluded or TallyVoucherStatus.Blocked)
+                .Select(e => new { sequence = e.Voucher.Sequence, status = e.Voucher.Status }).ToArray(),
+            voucherCount = counted.Length,
+            controlTotals = new
+            {
+                debit = counted.SelectMany(e => e.Voucher.Lines).Sum(line => line.Debit),
+                tax = -Total(line => line.BusinessEvent.StartsWith("OUTPUT_", StringComparison.Ordinal)),
+                tender = Total(line => line.BusinessEvent.StartsWith("TENDER_", StringComparison.Ordinal) || line.BusinessEvent == "ROUND_OFF"),
+                taxable = -Total(line => line.BusinessEvent == "SALES_REVENUE")
+            },
+            ruleSetVersion = TallyReconciliationEngine.RuleSetVersion,
+            validationRuleVersion = AccountingValidationRules.RuleVersion,
+            schemaVersion = schema, applicationVersion,
+            files = files.Select(file => new { path = file.Artifact.RelativePath, kind = file.Artifact.Kind, sha256 = file.Artifact.Sha256, bytes = file.Artifact.ByteLength }).ToArray()
+        };
+        var artifact = await store.WriteAsync(batchId, "MANIFEST", $@"{batch.Folder}\manifest.json", Encoding.UTF8.GetBytes(JsonSerializer.Serialize(manifest, Json)), cancellationToken);
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var command = new SqlCommand("UPDATE dbo.accounting_batches SET manifest_sha256=@sha WHERE accounting_batch_id=@batch AND manifest_sha256 IS NULL; IF @@ROWCOUNT<>1 THROW 51579,'This batch already records a manifest.',1;", connection);
+        command.Parameters.AddWithValue("@sha", artifact.Sha256); command.Parameters.AddWithValue("@batch", batchId);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+        return artifact;
+    }
+
+    private sealed record BatchFacts(long Id, int ProfileId, string ProfileCode, string CompanyName, string StoreCode, DateOnly BusinessDate,
+        string Environment, string DeliveryMode, string PayloadFormat, string? SelectionJson, string? MappingVersionSetJson)
     {
         public string Folder => TallyEvidencePaths.BatchFolder(ProfileCode, StoreCode, BusinessDate, Id);
     }
@@ -199,7 +260,8 @@ public sealed class SqlServerTallyReconciliationService(string connectionString,
     private async Task<BatchFacts> LoadBatchAsync(long batchId, CancellationToken token)
     {
         const string sql = """
-            SELECT b.accounting_batch_id,p.tally_profile_id,p.profile_code,p.company_name,b.store_code,b.business_date
+            SELECT b.accounting_batch_id,p.tally_profile_id,p.profile_code,p.company_name,b.store_code,b.business_date,
+                   p.environment,p.default_delivery_mode,p.payload_format,b.selection_json,b.mapping_version_set_json
             FROM dbo.accounting_batches b JOIN dbo.tally_profiles p ON p.tally_profile_id=b.tally_profile_id WHERE b.accounting_batch_id=@batch;
             """;
         await using var connection = await OpenAsync(token);
@@ -207,7 +269,8 @@ public sealed class SqlServerTallyReconciliationService(string connectionString,
         command.Parameters.AddWithValue("@batch", batchId);
         await using var reader = await command.ExecuteReaderAsync(token);
         if (!await reader.ReadAsync(token)) throw new InvalidOperationException("This batch is not a Tally batch, or it no longer exists.");
-        return new(reader.GetInt64(0), reader.GetInt32(1), reader.GetString(2), reader.GetString(3), reader.GetString(4), DateOnly.FromDateTime(reader.GetDateTime(5)));
+        return new(reader.GetInt64(0), reader.GetInt32(1), reader.GetString(2), reader.GetString(3), reader.GetString(4), DateOnly.FromDateTime(reader.GetDateTime(5)),
+            reader.GetString(6), reader.GetString(7), reader.GetString(8), Text(reader, 9), Text(reader, 10));
     }
 
     private async Task<IReadOnlyList<(long Id, ExpectedVoucher Voucher)>> LoadExpectedAsync(long batchId, CancellationToken token)

@@ -258,3 +258,42 @@ public sealed class TallyVoucherXmlReaderTests
         Assert.Equal("Could not find Company", document.TallyMessage);
     }
 }
+
+public sealed class TallyRecoveryPlanBuilderTests
+{
+    private static ReconciliationDifference Difference(int sequence, string type, string severity = "FAIL") =>
+        new(sequence, null, "COVERAGE", type, severity, null, null, null, null, "RULE", "rationale", TallyReconciliationEngine.RequiredActions[type]);
+
+    [Fact]
+    public void Each_unreconciled_voucher_gets_one_proposal_and_the_batch_is_never_resent()
+    {
+        var result = new TallyReconciliationResult("7a.1", "FAILED_RECONCILIATION", "FAILED_RECONCILIATION",
+        [
+            new(1, "RECONCILED", 0, true),
+            new(2, "DIFFERENCE", null, true),
+            new(3, "DIFFERENCE", 4, true),
+            new(4, "DIFFERENCE", 5, true),
+            new(5, "RECONCILED_WITH_WARNINGS", 6, true),
+            new(6, "EXPORTED", null, false),
+            new(7, "ACTUAL_LOCATED", 7, true)
+        ],
+        [
+            Difference(2, "MISSING"), Difference(3, "DUPLICATE"), Difference(4, "SOURCE_CHANGED"), Difference(4, "AMOUNT_MISMATCH"),
+            Difference(5, "TAX_MISMATCH", "WARN"), Difference(7, "NOT_VERIFIABLE")
+        ]);
+
+        var plan = TallyRecoveryPlanBuilder.Build(result, runId: 9);
+
+        Assert.Equal(9, plan.RunId);
+        Assert.False(plan.ResendsWholeBatch);
+        Assert.Equal(new[] { (2, "READ_BACK_AGAIN"), (3, "MANUAL_CORRECTION_IN_TALLY"), (4, "REVERSE_AND_REISSUE"), (5, "ACCEPT_WITH_REASON"), (6, "READ_BACK_AGAIN"), (7, "READ_BACK_AGAIN") },
+            plan.Steps.Select(step => (step.VoucherSequence, step.Action)));
+        Assert.True(plan.Steps.Single(step => step.VoucherSequence == 4).NeedsSeparateApproval);
+        Assert.Equal(new[] { "AMOUNT_MISMATCH", "SOURCE_CHANGED" }, plan.Steps.Single(step => step.VoucherSequence == 4).DifferenceTypes);
+        Assert.DoesNotContain(plan.Steps, step => step.Action == "RESEND_VOUCHER");
+    }
+
+    [Fact]
+    public void Recovery_plan_files_have_a_fixed_numbered_name() =>
+        Assert.Equal(@"GOLDEN\WLMHW\2026-08\batch-12\recovery-plan-3.json", TallyEvidencePaths.Validate(@"GOLDEN\WLMHW\2026-08\batch-12\recovery-plan-3.json"));
+}

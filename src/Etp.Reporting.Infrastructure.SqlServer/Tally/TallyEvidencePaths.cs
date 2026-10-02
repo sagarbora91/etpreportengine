@@ -16,6 +16,7 @@ public static class TallyEvidencePaths
     private static readonly Regex AttemptFile = new(@"^attempt-[1-9]\d{0,18}-(request|response)\.xml$", RegexOptions.CultureInvariant);
     private static readonly Regex ReadbackFile = new(@"^readback-[1-9]\d{0,18}\.xml$", RegexOptions.CultureInvariant);
     private static readonly Regex RunFile = new(@"^run-[1-9]\d{0,18}\.json$", RegexOptions.CultureInvariant);
+    private static readonly Regex RecoveryPlanFile = new(@"^recovery-plan-[1-9]\d{0,18}\.json$", RegexOptions.CultureInvariant);
 
     /// <summary>The files that sit directly in a batch folder (plan task 21).</summary>
     public static IReadOnlyList<string> BatchFiles { get; } =
@@ -56,7 +57,7 @@ public static class TallyEvidencePaths
 
         if (segments.Length == 5)
         {
-            if (!BatchFiles.Contains(segments[4], StringComparer.Ordinal))
+            if (!BatchFiles.Contains(segments[4], StringComparer.Ordinal) && !RecoveryPlanFile.IsMatch(segments[4]))
                 throw Rejected("Only the fixed evidence file names may be written in a batch folder.");
             return;
         }

@@ -91,6 +91,9 @@ Everything here works without D12–D18 and without a Tally machine. Labels beco
 | `TallyVoucherXmlReader`: hardened reader for the written file and a Day Book read-back | 8 (re-parse), 9 | `Infrastructure.SqlServer/Tally/TallyVoucherXmlReader.cs` |
 | Migration 0039: findings, read-backs, actual vouchers and lines, runs, differences | 7, 9, 10 | `database/migrations/0039_tally_findings_readbacks_reconciliation.sql` |
 | `SqlServerTallyReconciliationService`: save findings, accept a WARN once, load a hand-exported Day Book file, compare and record a run | 7, 9, 10 | `Infrastructure.SqlServer/Tally/SqlServerTallyReconciliationService.cs` |
+| `TallyRecoveryPlanBuilder` and `SaveRecoveryPlanAsync`: one proposed step per unreconciled voucher, saved as `recovery-plan-<n>.json`; never resends the batch | 22 | `Application/Accounting/TallyRecoveryPlan.cs` |
+| `BuildManifestAsync`: `manifest.json` with company, selection, control totals, versions and every file's SHA-256; refused while a file is changed or missing; hash stored on the batch | 21 | same service |
+| `docs/OPERATIONS.md` "When Tally and ETP disagree" in staff words | 22 | docs |
 
 Tests: `TallyEvidenceFilesTests`, `AccountingValidationRulesTests`, `TallyReconciliationEngineTests`, `TallyVoucherXmlReaderTests` (SqlServer.Tests); `TallyEvidenceStoreSqlTests`, `TallyReconciliationSqlTests` (IntegrationTests, including a G01 file round trip and a second compare that leaves the first run untouched).
 
@@ -104,6 +107,7 @@ Where this differs from the plan:
 - **No batch status change.** A comparison records the run and each voucher's outcome; the batch outcome is returned but not written, because the batch status list widens only with the file-export step (task 8).
 - **No tolerances table yet.** `tally_reconciliation_tolerances` needs its approval type; until then the engine uses none and money must match to the paisa.
 - **Source re-hash is the caller's.** `CompareAsync` takes `sourceUnchanged` from the caller, because recomputing the source hash belongs to the invoice composer (task 6, waiting on D13–D17).
+- **Recovery plan file name.** Task 21's fixed file list has no name for a recovery plan; `recovery-plan-<n>.json` in the batch folder was added. The Owner's approval of a plan waits for the approval type widening.
 - **Manual file only.** The HTTP read-back gateway (task 9) waits for the task 5 probe to show which request returns full vouchers.
 
 ## Not started

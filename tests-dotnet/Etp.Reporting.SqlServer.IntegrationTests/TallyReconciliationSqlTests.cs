@@ -36,6 +36,25 @@ public sealed class TallyReconciliationSqlTests(SqlDatabaseFixture database) : I
         Assert.NotEqual(first.RunId, second.RunId);
         Assert.Equal(firstRun, await database.ExecuteAsync($"SELECT CONCAT(outcome,'|',summary_json,'|',evidence_artifact_id) FROM dbo.tally_reconciliation_runs WHERE run_id={first.RunId}"));
         Assert.Equal(2, await database.ExecuteAsync($"SELECT COUNT(*) FROM dbo.tally_reconciliation_runs WHERE accounting_batch_id={batch}"));
+
+        var manifest = await service.BuildManifestAsync(batch, "test-build");
+        Assert.Equal(manifest.Sha256, await database.ExecuteAsync($"SELECT manifest_sha256 FROM dbo.accounting_batches WHERE accounting_batch_id={batch}"));
+        var text = await File.ReadAllTextAsync(Path.Combine(root, "GTRA", "TRA", "2026-08", $"batch-{batch}", "manifest.json"));
+        foreach (var expected in new[] { "\"intendedCompany\": \"TEST - ETP TRA\"", "\"voucherCount\": 1", "\"tax\": 180", "\"tender\": 1180", "payload.xml", "readback-1.xml", "run-2.json" })
+            Assert.Contains(expected, text, StringComparison.Ordinal);
+        Assert.DoesNotContain("manifest.json", text, StringComparison.Ordinal);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.BuildManifestAsync(batch, "test-build"));
+    }
+
+    [Fact]
+    public async Task A_package_with_a_changed_file_gets_no_manifest()
+    {
+        var (batch, _) = await SeedAsync("TRE");
+        var service = new SqlServerTallyReconciliationService(database.ConnectionString, root);
+        await File.AppendAllTextAsync(Path.Combine(root, "GTRE", "TRE", "2026-08", $"batch-{batch}", "payload.xml"), " ");
+        var refused = await Assert.ThrowsAsync<InvalidOperationException>(() => service.BuildManifestAsync(batch, "test-build"));
+        Assert.Contains("CHANGED", refused.Message, StringComparison.Ordinal);
+        Assert.Equal(DBNull.Value, await database.ExecuteAsync($"SELECT manifest_sha256 FROM dbo.accounting_batches WHERE accounting_batch_id={batch}"));
     }
 
     [Fact]
@@ -58,6 +77,11 @@ public sealed class TallyReconciliationSqlTests(SqlDatabaseFixture database) : I
         Assert.Equal(51573, deleted.Number);
         var changed = await Assert.ThrowsAsync<SqlException>(() => database.ExecuteAsync($"UPDATE dbo.tally_readbacks SET is_complete=1,incomplete_reason=NULL WHERE tally_readback_id={readback.Id}"));
         Assert.Equal(51573, changed.Number);
+
+        var plan = await service.SaveRecoveryPlanAsync(batch, comparison);
+        Assert.Equal("RECOVERY_PLAN", plan.Kind);
+        var planText = await File.ReadAllTextAsync(Path.Combine(root, plan.RelativePath.Replace('\\', Path.DirectorySeparatorChar)));
+        Assert.Contains("READ_BACK_AGAIN", planText, StringComparison.Ordinal);
     }
 
     [Theory]
