@@ -24,7 +24,17 @@ public sealed record DesktopDiagnosticEntry(
     string CorrelationId,
     string ExceptionType,
     int HResult,
-    string ApplicationVersion);
+    string ApplicationVersion,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    IReadOnlyList<DesktopDiagnosticSqlError>? SqlErrors = null);
+
+/// <summary>
+/// The parts of a SQL Server error that say which statement failed and why, and nothing
+/// else. The message text is left out on purpose: SQL Server puts names into it (a Windows
+/// account, a value), and this log carries no identities or business values. The number is
+/// enough to look the message up; the procedure and line say where it was raised.
+/// </summary>
+public sealed record DesktopDiagnosticSqlError(int Number, byte State, byte Class, string Procedure, int LineNumber);
 
 public static class DesktopDiagnostics
 {
@@ -66,7 +76,8 @@ public static class DesktopDiagnostics
                 RequiredCorrelationId(correlationId),
                 exception?.GetType().FullName ?? "Unknown",
                 exception?.HResult ?? 0,
-                Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "unknown");
+                Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "unknown",
+                SqlErrorsOf(exception));
             var line = JsonSerializer.Serialize(entry, SerializerOptions) + Environment.NewLine;
 
             lock (WriteLock)
@@ -89,6 +100,31 @@ public static class DesktopDiagnostics
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "EtpReporting",
                 "Logs");
+
+    internal const int MaxSqlErrors = 8;
+
+    // Finding B, 2 Oct 2026: USER_ACCESS_SAVE_FAILED recorded only "SqlException" and an
+    // HResult, so two different refusals looked the same in the log. Any SqlException in the
+    // chain (a repository may wrap one) now adds its error numbers, states, classes,
+    // procedure names and line numbers.
+    internal static IReadOnlyList<DesktopDiagnosticSqlError>? SqlErrorsOf(Exception? exception)
+    {
+        for (var depth = 0; exception is not null && depth < 8; depth++, exception = exception.InnerException)
+        {
+            if (exception is not Microsoft.Data.SqlClient.SqlException sql) continue;
+            var errors = sql.Errors.Cast<Microsoft.Data.SqlClient.SqlError>()
+                .Take(MaxSqlErrors)
+                .Select(error => new DesktopDiagnosticSqlError(
+                    error.Number,
+                    error.State,
+                    error.Class,
+                    string.IsNullOrEmpty(error.Procedure) ? string.Empty : SafeToken(error.Procedure, "redacted"),
+                    error.LineNumber))
+                .ToArray();
+            return errors.Length == 0 ? null : errors;
+        }
+        return null;
+    }
 
     private static string RequiredCorrelationId(string? correlationId)
     {

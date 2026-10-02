@@ -36,13 +36,26 @@ public sealed class SqlServerAdministrationService : App.IAdministrationService
         var kpisTask = gateway.LoadKpisAsync(cancellationToken);
         var healthTask = gateway.LoadProductHealthAsync(cancellationToken);
         var settingsTask = gateway.LoadProductConfigurationAsync(cancellationToken);
-        await Task.WhenAll(mastersTask, usersTask, kpisTask, healthTask, settingsTask).ConfigureAwait(false);
+        var grantTask = UserAccessChangesNeedElevationAsync(cancellationToken);
+        await Task.WhenAll(mastersTask, usersTask, kpisTask, healthTask, settingsTask, grantTask).ConfigureAwait(false);
         return new(
             (await mastersTask.ConfigureAwait(false)).Select(Map).ToArray(),
             (await usersTask.ConfigureAwait(false)).Select(Map).ToArray(),
             (await kpisTask.ConfigureAwait(false)).Select(Map).ToArray(),
             (await healthTask.ConfigureAwait(false)).Select(Map).ToArray(),
-            Map(await settingsTask.ConfigureAwait(false)));
+            Map(await settingsTask.ConfigureAwait(false)))
+        {
+            UserAccessChangesNeedElevation = await grantTask.ConfigureAwait(false)
+        };
+    }
+
+    // Finding A, 2 Oct 2026. The probe only warns before a save; it must never stop the screen
+    // loading. If it cannot be read, the save itself still names the cause (SQL error 4613).
+    private async Task<bool> UserAccessChangesNeedElevationAsync(CancellationToken cancellationToken)
+    {
+        try { return !await gateway.CanGrantUserAccessAsync(cancellationToken).ConfigureAwait(false); }
+        catch (Microsoft.Data.SqlClient.SqlException) { return false; }
+        catch (InvalidOperationException) { return false; }
     }
 
     public async Task SaveMasterAsync(App.SaveControlledMaster command, CancellationToken cancellationToken = default)
@@ -115,6 +128,7 @@ internal interface IAdministrationSqlGateway
 {
     Task<IReadOnlyList<ControlledMasterRow>> LoadMastersAsync(string masterType, CancellationToken cancellationToken);
     Task<IReadOnlyList<ApplicationUserRow>> LoadUsersAsync(CancellationToken cancellationToken);
+    Task<bool> CanGrantUserAccessAsync(CancellationToken cancellationToken);
     Task<IReadOnlyList<KpiCatalogueRow>> LoadKpisAsync(CancellationToken cancellationToken);
     Task<IReadOnlyList<ProductHealthItem>> LoadProductHealthAsync(CancellationToken cancellationToken);
     Task<ProductSettings> LoadProductConfigurationAsync(CancellationToken cancellationToken);
@@ -129,6 +143,7 @@ internal sealed class AdministrationSqlGateway(
 {
     public Task<IReadOnlyList<ControlledMasterRow>> LoadMastersAsync(string masterType, CancellationToken token) => operations.LoadMasterValuesAsync(masterType, token);
     public Task<IReadOnlyList<ApplicationUserRow>> LoadUsersAsync(CancellationToken token) => operations.LoadUsersAsync(token);
+    public Task<bool> CanGrantUserAccessAsync(CancellationToken token) => operations.CanGrantUserAccessAsync(token);
     public Task<IReadOnlyList<KpiCatalogueRow>> LoadKpisAsync(CancellationToken token) => productisation.LoadKpiCatalogueAsync(token);
     public Task<IReadOnlyList<ProductHealthItem>> LoadProductHealthAsync(CancellationToken token) => productisation.LoadProductHealthAsync(token);
     public Task<ProductSettings> LoadProductConfigurationAsync(CancellationToken token) => productisation.LoadSettingsAsync(token);

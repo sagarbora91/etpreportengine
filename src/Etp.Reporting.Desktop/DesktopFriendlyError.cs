@@ -21,6 +21,40 @@ public static class DesktopFriendlyError
     public static string Describe(Exception exception, string safeUnauthorizedMessage) =>
         exception is UnauthorizedAccessException ? safeUnauthorizedMessage : Describe(exception);
 
+    /// <summary>
+    /// Settings > Users. Every user change ends with GRANT or REVOKE ALTER ANY LOGIN, which
+    /// since 1.9.2 an Owner can make only from an elevated ETP (sysadmin through
+    /// BUILTIN\Administrators). Findings A and B, 2 Oct 2026: the screen used to say only
+    /// "The action could not be completed".
+    /// </summary>
+    public const string UserAccessNeedsElevationMessage =
+        "User changes need ETP started as administrator. Close ETP, right-click it, choose Run as administrator, and save again. Nothing was changed.";
+
+    public const string UserAccountNotFoundMessage =
+        @"SQL Server could not find that Windows account. Check it is typed as DOMAIN\User or COMPUTER\User and exists on this PC or domain. An account from a PC that no longer exists cannot be changed here. Nothing was changed.";
+
+    public static string DescribeUserAccessFailure(Exception exception)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+        if (exception is SqlException sql)
+        {
+            foreach (SqlError error in sql.Errors)
+            {
+                switch (error.Number)
+                {
+                    // 4613 "Grantor does not have GRANT permission." is the one seen on Workpc.
+                    // 15247 "User does not have permission to perform this action." and 15151
+                    // "Cannot find the login ..., or you do not have permission." are the same
+                    // missing server right, met at CREATE LOGIN or at the GRANT itself.
+                    case 4613 or 15247 or 15151: return UserAccessNeedsElevationMessage;
+                    // 15401 "Windows NT user or group '...' not found." (Finding C).
+                    case 15401: return UserAccountNotFoundMessage;
+                }
+            }
+        }
+        return Describe(exception, "Owner permission is required.");
+    }
+
     internal static string? DescribeConnectionFailure(int number) => number switch
     {
         18456 or 18452 => "SQL Server login failed. Check your Windows account access.",

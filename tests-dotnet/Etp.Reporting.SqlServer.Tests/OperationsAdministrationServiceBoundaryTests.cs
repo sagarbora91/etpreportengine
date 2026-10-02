@@ -95,6 +95,57 @@ public sealed class OperationsAdministrationServiceBoundaryTests
             new(@"STORE\Unknown", "Unknown", AccessRole.None, true, "Invalid role")));
     }
 
+    // Finding A, Workpc, 2 Oct 2026. Every user change ends with GRANT or REVOKE ALTER ANY
+    // LOGIN, which an unelevated Owner (plain ALTER ANY LOGIN, not sysadmin) cannot make.
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task Dashboard_says_whether_user_changes_need_an_elevated_ETP(bool canGrant, bool needsElevation)
+    {
+        var gateway = new FakeAdministrationGateway { CanGrant = canGrant };
+
+        var dashboard = await Administration(gateway, ApplicationRole.Owner).LoadAsync("STORE");
+
+        Assert.Equal(needsElevation, dashboard.UserAccessChangesNeedElevation);
+        Assert.Contains("grant-probe", gateway.Calls);
+    }
+
+    [Fact]
+    public async Task A_grant_probe_that_fails_does_not_stop_the_screen_loading_or_block_saves()
+    {
+        var gateway = new FakeAdministrationGateway
+        {
+            ProbeFailure = Etp.Reporting.TestSupport.SqlExceptionFactory.Create(new Etp.Reporting.TestSupport.SqlExceptionFactory.Error(297, "The user does not have permission to perform this action."))
+        };
+
+        var dashboard = await Administration(gateway, ApplicationRole.Owner).LoadAsync("STORE");
+
+        Assert.False(dashboard.UserAccessChangesNeedElevation);
+        Assert.Single(dashboard.Users);
+    }
+
+    [Fact]
+    public async Task The_grant_probe_is_not_run_for_a_non_owner()
+    {
+        var gateway = new FakeAdministrationGateway();
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            Administration(gateway, ApplicationRole.Viewer).LoadAsync("STORE"));
+        Assert.DoesNotContain("grant-probe", gateway.Calls);
+    }
+
+    [Fact]
+    public void The_grant_probe_accepts_exactly_the_rights_that_let_a_server_permission_be_granted()
+    {
+        var sql = Phase2OperationsRepository.UserAccessGrantProbeSql;
+        Assert.Contains("IS_SRVROLEMEMBER('sysadmin')", sql, StringComparison.Ordinal);
+        Assert.Contains("HAS_PERMS_BY_NAME(NULL,NULL,'CONTROL SERVER')", sql, StringComparison.Ordinal);
+        Assert.Contains("p.permission_name=N'ALTER ANY LOGIN' AND p.state='W'", sql, StringComparison.Ordinal);
+        Assert.Contains("sys.login_token", sql, StringComparison.Ordinal);
+        // Read-only: nothing that changes a permission or a login.
+        foreach (var verb in new[] { "GRANT ", "REVOKE ", "DENY ", "ALTER ", "CREATE ", "EXEC" })
+            Assert.DoesNotContain(verb, sql.Replace("ALTER ANY LOGIN", "", StringComparison.Ordinal), StringComparison.OrdinalIgnoreCase);
+    }
+
     private static SqlServerOperationsAdministrationService Operations(
         FakeOperationsGateway gateway,
         ApplicationRole role) =>
@@ -200,6 +251,14 @@ public sealed class OperationsAdministrationServiceBoundaryTests
     private sealed class FakeAdministrationGateway : IAdministrationSqlGateway
     {
         public List<string> Calls { get; } = [];
+        public bool CanGrant { get; set; } = true;
+        public Exception? ProbeFailure { get; set; }
+
+        public Task<bool> CanGrantUserAccessAsync(CancellationToken token)
+        {
+            lock (Calls) Calls.Add("grant-probe");
+            return ProbeFailure is null ? Task.FromResult(CanGrant) : Task.FromException<bool>(ProbeFailure);
+        }
 
         public Task<IReadOnlyList<ControlledMasterRow>> LoadMastersAsync(string masterType, CancellationToken token)
         {

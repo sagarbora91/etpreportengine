@@ -23,6 +23,28 @@ public partial class AdministrationWorkspaceView : UserControl
         this.connectionStringProvider = connectionStringProvider ?? throw new ArgumentNullException(nameof(connectionStringProvider));
         this.serviceFactory = serviceFactory ?? throw new ArgumentNullException(nameof(serviceFactory));
         InitializeComponent();
+        userAccessGuidance = UserAccessGuidance.Text;
+    }
+
+    private readonly string userAccessGuidance;
+
+    /// <summary>
+    /// Finding A, 2 Oct 2026. True when the last refresh found that this Owner's SQL login
+    /// cannot finish a user change (it is not elevated), so Save is off and the Users task
+    /// says why before anything is typed.
+    /// </summary>
+    public bool UserAccessNeedsElevation { get; private set; }
+    public bool CanSaveUserAccess => SaveUserAccessButton.IsEnabled;
+    public string UserAccessGuidanceText => UserAccessGuidance.Text;
+
+    private void ApplyUserAccessReadiness(bool needsElevation)
+    {
+        UserAccessNeedsElevation = needsElevation;
+        SaveUserAccessButton.IsEnabled = !needsElevation;
+        SaveUserAccessButton.ToolTip = needsElevation ? DesktopFriendlyError.UserAccessNeedsElevationMessage : null;
+        UserAccessGuidance.Text = needsElevation
+            ? userAccessGuidance + " " + DesktopFriendlyError.UserAccessNeedsElevationMessage
+            : userAccessGuidance;
     }
 
     public Func<Task>? AccessChangedAsync { get; set; }
@@ -62,6 +84,7 @@ public partial class AdministrationWorkspaceView : UserControl
             KpiCatalogueGrid.ItemsSource = state.Kpis;
             ProductHealthGrid.ItemsSource = state.ProductHealth;
             AdministrationStatus.Text = state.Status;
+            ApplyUserAccessReadiness(state.UserAccessChangesNeedElevation);
             await RefreshDatabaseRecoveryAsync(revision);
         }
         catch (Exception ex) { if (revision != refreshRevision) return; DesktopDiagnostics.Record(ex, "OperationsAdministration.Administration", "ADMINISTRATION_REFRESH_FAILED"); AdministrationStatus.Text = $"Master administration could not be loaded: {DesktopFriendlyError.Describe(ex, "Owner permission is required.")}"; }
@@ -138,6 +161,13 @@ public partial class AdministrationWorkspaceView : UserControl
         try
         {
             RequireOwnerAccess();
+            // The unsaved-drafts prompt can reach here with the button off. Say why rather
+            // than send a change SQL Server is known to refuse; the draft stays as typed.
+            if (UserAccessNeedsElevation)
+            {
+                AdministrationStatus.Text = $"User access was not saved: {DesktopFriendlyError.UserAccessNeedsElevationMessage}";
+                return false;
+            }
             await Service.SaveUserAsync(OperationsAdministrationPresentationSession.CreateUserCommand(
                 UserIdentityInput.Text, UserDisplayNameInput.Text, SelectedContent(UserRoleInput),
                 UserActiveInput.IsChecked == true, UserReasonInput.Text));
@@ -151,7 +181,15 @@ public partial class AdministrationWorkspaceView : UserControl
             }
             return true;
         }
-        catch (Exception ex) { DesktopDiagnostics.Record(ex, "OperationsAdministration.Administration", "USER_ACCESS_SAVE_FAILED"); AdministrationStatus.Text = $"User access was not saved: {DesktopFriendlyError.Describe(ex, "Owner permission is required.")}"; return false; }
+        catch (Exception ex)
+        {
+            DesktopDiagnostics.Record(ex, "OperationsAdministration.Administration", "USER_ACCESS_SAVE_FAILED");
+            var reason = DesktopFriendlyError.DescribeUserAccessFailure(ex);
+            // The check on refresh could not see the refusal coming; keep the screen honest now.
+            if (reason == DesktopFriendlyError.UserAccessNeedsElevationMessage) ApplyUserAccessReadiness(true);
+            AdministrationStatus.Text = $"User access was not saved: {reason}";
+            return false;
+        }
         finally { EndSave(); }
     }
 

@@ -221,6 +221,86 @@ public sealed class OperationsAdministrationWorkspaceViewTests
         });
     }
 
+    // Finding A, Workpc, 2 Oct 2026: an unelevated Owner could type a whole user change and
+    // only then learn, as "The action could not be completed", that SQL Server refused it.
+    [Fact]
+    public void Users_task_says_before_any_typing_that_user_changes_need_ETP_run_as_administrator()
+    {
+        RunSta(async () =>
+        {
+            var service = new FakeAdministrationService { NeedsElevation = true };
+            var view = new AdministrationWorkspaceView(
+                new OperationsAdministrationPresentationSession(), () => "connection", _ => service);
+            view.UpdateAccess(new(true, true, true));
+            await view.RefreshAsync();
+
+            Assert.True(view.UserAccessNeedsElevation);
+            Assert.False(view.CanSaveUserAccess);
+            Assert.Contains("Run as administrator", view.UserAccessGuidanceText, StringComparison.Ordinal);
+            Assert.StartsWith(@"Use DOMAIN\User or COMPUTER\User.", view.UserAccessGuidanceText, StringComparison.Ordinal);
+
+            // The guidance is on the Users task itself, not only in a tooltip.
+            var (body, _) = TaskNavigator.AdministrationTaskLayout("users");
+            var root = Assert.IsAssignableFrom<Panel>(view.Content is Border border ? border.Child : view.Content);
+            Assert.Contains(body, index => (root.Children[index] as FrameworkElement)?.Name == "UserAccessGuidance");
+
+            // The unsaved-drafts prompt calls the save directly: it must not reach SQL Server.
+            ((TextBox)view.FindName("UserIdentityInput")).Text = @"WORKPC\Clerk";
+            Assert.False(await view.SaveUserDraftAsync());
+            Assert.Equal(0, service.UserSaves);
+            Assert.Equal($"User access was not saved: {DesktopFriendlyError.UserAccessNeedsElevationMessage}", view.StatusText);
+            Assert.Equal(@"WORKPC\Clerk", ((TextBox)view.FindName("UserIdentityInput")).Text);
+
+            // Elevated again (or a login that may grant): the warning goes away.
+            service.NeedsElevation = false;
+            await view.RefreshAsync();
+            Assert.True(view.CanSaveUserAccess);
+            Assert.DoesNotContain("Run as administrator", view.UserAccessGuidanceText, StringComparison.Ordinal);
+        });
+    }
+
+    [Fact]
+    public void A_user_save_refused_for_grant_permission_names_the_cause_and_logs_the_sql_error()
+    {
+        RunSta(async () =>
+        {
+            var service = new FakeAdministrationService
+            {
+                UserSaveFailure = Etp.Reporting.TestSupport.SqlExceptionFactory.Create(
+                    new Etp.Reporting.TestSupport.SqlExceptionFactory.Error(4613, "Grantor does not have GRANT permission.", State: 1, Class: 16, Procedure: "", Line: 1))
+            };
+            var view = new AdministrationWorkspaceView(
+                new OperationsAdministrationPresentationSession(), () => "connection", _ => service);
+            view.UpdateAccess(new(true, true, true));
+            await view.RefreshAsync();
+            Assert.True(view.CanSaveUserAccess);
+
+            Assert.False(await view.SaveUserDraftAsync());
+
+            Assert.Equal(1, service.UserSaves);
+            Assert.Equal($"User access was not saved: {DesktopFriendlyError.UserAccessNeedsElevationMessage}", view.StatusText);
+            Assert.False(view.CanSaveUserAccess);
+            Assert.Contains("Run as administrator", view.UserAccessGuidanceText, StringComparison.Ordinal);
+
+            // The run's own diagnostics folder (DiagnosticsIsolation), never the Owner's.
+            var logged = Directory.GetFiles(Etp.Reporting.TestSupport.DiagnosticsIsolation.LogDirectory, "diagnostics-*.jsonl")
+                .SelectMany(ReadLinesWhileOthersAppend)
+                .Select(line => System.Text.Json.JsonDocument.Parse(line).RootElement)
+                .Where(entry => entry.GetProperty("EventId").GetString() == "USER_ACCESS_SAVE_FAILED"
+                    && entry.TryGetProperty("SqlErrors", out var errors)
+                    && errors.EnumerateArray().Any(error => error.GetProperty("Number").GetInt32() == 4613))
+                .ToArray();
+            Assert.NotEmpty(logged);
+        });
+    }
+
+    private static IEnumerable<string> ReadLinesWhileOthersAppend(string path)
+    {
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        using var reader = new StreamReader(stream);
+        return reader.ReadToEnd().Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+    }
+
     /// <summary>Everything in the task's own tree, including the contents of unselected tabs.</summary>
     private static IEnumerable<DependencyObject> Displayed(UserControl view)
     {
@@ -290,6 +370,9 @@ public sealed class OperationsAdministrationWorkspaceViewTests
     {
         public bool FailMasterSave { get; set; }
         public bool FailUserSave { get; set; }
+        public Exception? UserSaveFailure { get; set; }
+        public bool NeedsElevation { get; set; }
+        public int UserSaves { get; private set; }
         public int Loads { get; private set; }
         public Task<AdministrationDashboard> LoadAsync(string masterType, CancellationToken cancellationToken = default)
         {
@@ -299,10 +382,16 @@ public sealed class OperationsAdministrationWorkspaceViewTests
                 [new ApplicationUser(1, @"DOMAIN\owner", "Owner", AccessRole.Owner, true, DateTime.UtcNow, "seed")],
                 [new KpiDefinition("SALES", "Sales", "Net sales", "SUM", "ETP", new DateOnly(2026, 4, 1), 1, "APPROVED", "owner", true)],
                 [new ProductHealth("Database", "Healthy", "Ready")],
-                new ProductConfiguration("docs", "share", null, null, true, null, 20, DateTime.UtcNow, "owner")));
+                new ProductConfiguration("docs", "share", null, null, true, null, 20, DateTime.UtcNow, "owner"))
+            { UserAccessChangesNeedElevation = NeedsElevation });
         }
         public Task SaveMasterAsync(SaveControlledMaster command, CancellationToken cancellationToken = default) => FailMasterSave ? Task.FromException(new InvalidOperationException("Synthetic failure")) : Task.CompletedTask;
-        public Task SaveUserAsync(SaveApplicationUser command, CancellationToken cancellationToken = default) => FailUserSave ? Task.FromException(new InvalidOperationException("Synthetic failure")) : Task.CompletedTask;
+        public Task SaveUserAsync(SaveApplicationUser command, CancellationToken cancellationToken = default)
+        {
+            UserSaves++;
+            if (UserSaveFailure is not null) return Task.FromException(UserSaveFailure);
+            return FailUserSave ? Task.FromException(new InvalidOperationException("Synthetic failure")) : Task.CompletedTask;
+        }
         public Task SaveProductConfigurationAsync(SaveProductConfiguration command, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 }
