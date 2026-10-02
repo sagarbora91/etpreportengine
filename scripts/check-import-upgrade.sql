@@ -14,7 +14,9 @@
 --   4. onwards: the first 200 rows behind each check that found something, labelled by check.
 --
 -- The checks read columns that later migrations add (line_seq, source_report_code) only when
--- they exist, so the same script runs before and after 0038. It needs migrations up to 0018.
+-- they exist, so the same script runs before and after 0038. It needs migrations up to 0018;
+-- columns that 0017 adds (data_truth_version) are read through sp_executesql so that an older
+-- database reaches the refusal below instead of failing to compile.
 SET NOCOUNT ON;
 
 IF OBJECT_ID(N'dbo.etp_import_content', N'U') IS NULL OR COL_LENGTH(N'dbo.import_files', N'data_truth_version') IS NULL
@@ -60,15 +62,14 @@ EXEC sys.sp_executesql @snapshotSql, N'@groups bigint OUTPUT,@rows bigint OUTPUT
 
 -- Facts of every family table (etp_r* and etp_landing_*) whose file is superseded, read through
 -- one UNION over the tables that exist in this database.
-DECLARE @familyUnion nvarchar(max) = N'';
-SELECT @familyUnion = @familyUnion + CASE WHEN @familyUnion = N'' THEN N'' ELSE N' UNION ALL ' END
-  + N'SELECT N''' + t.name + N''' table_name,import_file_id FROM dbo.' + QUOTENAME(t.name)
+DECLARE @familyUnion nvarchar(max);
+SELECT @familyUnion = STRING_AGG(CONVERT(nvarchar(max), N'SELECT N''' + t.name + N''' table_name,import_file_id FROM dbo.' + QUOTENAME(t.name)),
+  N' UNION ALL ') WITHIN GROUP (ORDER BY t.name)
 FROM sys.tables t
 WHERE SCHEMA_NAME(t.schema_id) = N'dbo' AND t.name LIKE N'etp[_]%' AND t.name <> N'etp_import_content'
-  AND COL_LENGTH(N'dbo.' + QUOTENAME(t.name), N'import_file_id') IS NOT NULL
-ORDER BY t.name;
+  AND COL_LENGTH(N'dbo.' + QUOTENAME(t.name), N'import_file_id') IS NOT NULL;
 DECLARE @familyRows bigint = 0, @familySuperseded bigint = 0;
-IF @familyUnion <> N''
+IF @familyUnion IS NOT NULL
 BEGIN
  DECLARE @familySql nvarchar(max) = N'SELECT @rows=COUNT(*),@superseded=COALESCE(SUM(CASE WHEN f.is_superseded=1 THEN 1 ELSE 0 END),0)
    FROM (' + @familyUnion + N') x JOIN dbo.import_files f ON f.import_file_id=x.import_file_id;';
@@ -83,10 +84,20 @@ DECLARE @lineageSuperseded bigint =
  + (SELECT COUNT(*) FROM dbo.stock_snapshots x JOIN dbo.source_lineage l ON l.source_lineage_id=x.source_lineage_id JOIN dbo.import_files f ON f.import_file_id=l.import_file_id WHERE f.is_superseded=1)
  + (SELECT COUNT(*) FROM dbo.sales_line_enrichments x JOIN dbo.source_lineage l ON l.source_lineage_id=x.source_lineage_id JOIN dbo.import_files f ON f.import_file_id=l.import_file_id WHERE f.is_superseded=1);
 
+-- Current files imported before data truth version 1 (column added by 0017, so read dynamically).
+DECLARE @v0Files bigint;
+EXEC sys.sp_executesql N'SELECT @n=COUNT_BIG(*) FROM dbo.import_files WHERE is_superseded=0 AND data_truth_version=0;',
+  N'@n bigint OUTPUT', @v0Files OUTPUT;
+-- Source hashes held by current files of different scopes (period columns added by 0017).
+DECLARE @shaScopes bigint;
+EXEC sys.sp_executesql N'SELECT @n=COUNT_BIG(*) FROM (SELECT source_sha256 FROM dbo.import_files WHERE is_superseded=0 GROUP BY source_sha256
+    HAVING COUNT(DISTINCT CONCAT(report_code,''|'',store_code,''|'',COALESCE(period_start,business_date),''|'',COALESCE(period_end,business_date)))>1) d;',
+  N'@n bigint OUTPUT', @shaScopes OUTPUT;
+
 -- 2. Summary. blocks_upgrade = 1 marks what a migration pre-check refuses (0038: 51700-51702;
 -- the stock identity indexes cannot be built over a repeated identity).
 SELECT check_code, findings, blocks_upgrade, detail FROM (VALUES
- (1, 'CURRENT_V0_FILES', (SELECT COUNT_BIG(*) FROM dbo.import_files WHERE is_superseded=0 AND data_truth_version=0), CONVERT(bit,0),
+ (1, 'CURRENT_V0_FILES', @v0Files, CONVERT(bit,0),
   N'Current files imported before data truth version 1; the upgrade keeps their facts as canonical-only versions.'),
  (2, 'LOCKED_DAYS', (SELECT COUNT_BIG(*) FROM dbo.daily_reporting_days WHERE status='LOCKED'), CONVERT(bit,0),
   N'Finalised store-days; planner 1 refuses any file whose period contains one.'),
@@ -110,10 +121,9 @@ SELECT check_code, findings, blocks_upgrade, detail FROM (VALUES
   N'Source rows of one file holding more than one content row (etp_import_content keeps no sheet name).'),
  (10, 'FILES_WITH_ROWS_ON_SEVERAL_SHEETS', (SELECT COUNT_BIG(*) FROM (SELECT import_file_id FROM dbo.source_lineage GROUP BY import_file_id HAVING COUNT(DISTINCT sheet_name)>1) d), CONVERT(bit,0),
   N'Planner-1 files whose lineage spans more than one sheet, so a row number alone does not identify a source row.'),
- (11, 'FACTS_OF_SUPERSEDED_FILES', @lineageSuperseded + @familySuperseded, CONVERT(bit,0),
-  N'Facts and family rows whose lineage file is superseded; a restatement should have archived them.'),
- (12, 'SHA_SHARED_ACROSS_SCOPES', (SELECT COUNT_BIG(*) FROM (SELECT source_sha256 FROM dbo.import_files WHERE is_superseded=0 GROUP BY source_sha256
-    HAVING COUNT(DISTINCT CONCAT(report_code,'|',store_code,'|',COALESCE(period_start,business_date),'|',COALESCE(period_end,business_date)))>1) d), CONVERT(bit,0),
+ (11, 'FACTS_OF_SUPERSEDED_FILES', @lineageSuperseded, CONVERT(bit,0),
+  N'Canonical facts (sales, stock, enrichments) whose lineage file is superseded; a restatement or promotion should have moved them.'),
+ (12, 'SHA_SHARED_ACROSS_SCOPES', @shaScopes, CONVERT(bit,0),
   N'Source hashes held by current files with different report, store or period.'),
  (13, 'ORPHAN_INVOICE_HEADERS', (SELECT COUNT_BIG(*) FROM dbo.sales_invoices i
     WHERE NOT EXISTS(SELECT 1 FROM dbo.sales_lines x WHERE x.sales_invoice_id=i.sales_invoice_id)
@@ -123,7 +133,9 @@ SELECT check_code, findings, blocks_upgrade, detail FROM (VALUES
  (14, 'TENDER_TYPE_CASE_VARIANTS', (SELECT COUNT_BIG(*) FROM (SELECT UPPER(tender_type) t FROM dbo.sales_tenders GROUP BY UPPER(tender_type)
     HAVING COUNT(DISTINCT tender_type COLLATE Latin1_General_100_BIN2)>1) d), CONVERT(bit,0),
   CASE WHEN @caseSensitive=1 THEN N'Tender types spelled in more than one case. The collation is case-sensitive: 0038 indexes UPPER(tender_type).'
-       ELSE N'Tender types spelled in more than one case (information; the collation ignores case).' END)
+       ELSE N'Tender types spelled in more than one case (information; the collation ignores case).' END),
+ (15, 'SOURCE_ROWS_OF_SUPERSEDED_FILES', @familySuperseded, CONVERT(bit,0),
+  N'Family-table (etp_r*, etp_landing_*) rows of superseded files. Expected: promotion and restatement keep the source rows (information).')
 ) c(n, check_code, findings, blocks_upgrade, detail)
 ORDER BY n;
 
@@ -145,10 +157,10 @@ SELECT table_name, row_count FROM (VALUES
 ORDER BY n;
 
 -- 4. Detail behind each check that found something (at most 200 rows each).
-IF EXISTS(SELECT 1 FROM dbo.import_files WHERE is_superseded=0 AND data_truth_version=0)
- SELECT TOP (200) 'CURRENT_V0_FILES' AS check_code, import_file_id, report_code, store_code,
+IF @v0Files > 0
+ EXEC sys.sp_executesql N'SELECT TOP (200) ''CURRENT_V0_FILES'' AS check_code, import_file_id, report_code, store_code,
         COALESCE(period_start,business_date) AS period_start, COALESCE(period_end,business_date) AS period_end, original_file_name
- FROM dbo.import_files WHERE is_superseded=0 AND data_truth_version=0 ORDER BY report_code, store_code, import_file_id;
+ FROM dbo.import_files WHERE is_superseded=0 AND data_truth_version=0 ORDER BY report_code, store_code, import_file_id;';
 
 IF EXISTS(SELECT 1 FROM dbo.daily_reporting_days WHERE status='LOCKED')
  SELECT TOP (200) 'LOCKED_DAYS' AS check_code, store_code, business_date, finalised_utc
@@ -198,7 +210,7 @@ IF EXISTS(SELECT 1 FROM dbo.source_lineage GROUP BY import_file_id HAVING COUNT(
  FROM dbo.source_lineage l JOIN dbo.import_files f ON f.import_file_id=l.import_file_id
  GROUP BY l.import_file_id, f.report_code, f.store_code, f.is_superseded HAVING COUNT(DISTINCT l.sheet_name)>1 ORDER BY l.import_file_id;
 
-IF @lineageSuperseded + @familySuperseded > 0
+IF @lineageSuperseded > 0
  SELECT TOP (200) 'FACTS_OF_SUPERSEDED_FILES' AS check_code, f.import_file_id, f.report_code, f.store_code, f.superseded_by_import_file_id,
         COUNT(*) AS lineage_rows
  FROM dbo.source_lineage l JOIN dbo.import_files f ON f.import_file_id=l.import_file_id
@@ -210,14 +222,13 @@ IF @lineageSuperseded + @familySuperseded > 0
    OR EXISTS(SELECT 1 FROM dbo.sales_line_enrichments x WHERE x.source_lineage_id=l.source_lineage_id))
  GROUP BY f.import_file_id, f.report_code, f.store_code, f.superseded_by_import_file_id ORDER BY f.import_file_id;
 
-IF EXISTS(SELECT 1 FROM dbo.import_files WHERE is_superseded=0 GROUP BY source_sha256
-   HAVING COUNT(DISTINCT CONCAT(report_code,'|',store_code,'|',COALESCE(period_start,business_date),'|',COALESCE(period_end,business_date)))>1)
- SELECT TOP (200) 'SHA_SHARED_ACROSS_SCOPES' AS check_code, f.source_sha256, f.import_file_id, f.report_code, f.store_code,
+IF @shaScopes > 0
+ EXEC sys.sp_executesql N' SELECT TOP (200) ''SHA_SHARED_ACROSS_SCOPES'' AS check_code, f.source_sha256, f.import_file_id, f.report_code, f.store_code,
         COALESCE(f.period_start,f.business_date) AS period_start, COALESCE(f.period_end,f.business_date) AS period_end
  FROM dbo.import_files f
  WHERE f.is_superseded=0 AND f.source_sha256 IN (SELECT source_sha256 FROM dbo.import_files WHERE is_superseded=0 GROUP BY source_sha256
-   HAVING COUNT(DISTINCT CONCAT(report_code,'|',store_code,'|',COALESCE(period_start,business_date),'|',COALESCE(period_end,business_date)))>1)
- ORDER BY f.source_sha256, f.import_file_id;
+   HAVING COUNT(DISTINCT CONCAT(report_code,''|'',store_code,''|'',COALESCE(period_start,business_date),''|'',COALESCE(period_end,business_date)))>1)
+ ORDER BY f.source_sha256, f.import_file_id;';
 
 IF EXISTS(SELECT 1 FROM dbo.sales_invoices i
    WHERE NOT EXISTS(SELECT 1 FROM dbo.sales_lines x WHERE x.sales_invoice_id=i.sales_invoice_id)

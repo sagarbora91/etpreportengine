@@ -17,6 +17,7 @@ public sealed class RestatementTargetDialog : Window
     public RestatementCandidate? SelectedCandidate { get; private set; }
     internal DataGrid CandidateGrid { get; }
     internal Button RestateButton { get; }
+    internal Button CancelButton { get; }
 
     public RestatementTargetDialog(Window? owner, RestatementTargetChoice choice)
     {
@@ -30,7 +31,7 @@ public sealed class RestatementTargetDialog : Window
 
         var root = new DockPanel { Margin = new Thickness(20) };
         var actions = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
-        var cancel = new Button { Content = "Do not import", IsCancel = true, MinHeight = 44, Padding = new Thickness(12, 8, 12, 8), Margin = new Thickness(0, 0, 8, 0) };
+        var cancel = CancelButton = new Button { Content = "Do not import", IsCancel = true, MinHeight = 44, Padding = new Thickness(12, 8, 12, 8), Margin = new Thickness(0, 0, 8, 0) };
         RestateButton = new Button { Content = "Restate selected import", IsDefault = true, IsEnabled = false, MinHeight = 44, Padding = new Thickness(12, 8, 12, 8) };
         RestateButton.SetResourceReference(StyleProperty, "PrimaryButton");
         AutomationProperties.SetName(cancel, "Do not import this file");

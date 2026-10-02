@@ -3,6 +3,8 @@ using Etp.Reporting.Desktop.Modules.Imports;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Automation.Peers;
+using System.Windows.Automation.Provider;
 using System.Windows.Threading;
 
 namespace Etp.Reporting.Desktop.Tests;
@@ -49,8 +51,13 @@ public sealed class RestatementTargetDialogTests
             var guard = new DispatcherTimer(TimeSpan.FromSeconds(20), DispatcherPriority.Normal, (_, _) => dialog.Close(), dialog.Dispatcher);
             dialog.Loaded += (_, _) => dialog.Dispatcher.BeginInvoke(() =>
             {
-                if (!pick) { dialog.Close(); return; }
                 dialog.CandidateGrid.SelectedIndex = 1;
+                if (!pick)
+                {
+                    // "Do not import" is the cancel button: it ends the dialog with no pick even after a selection.
+                    ((IInvokeProvider)new ButtonAutomationPeer(dialog.CancelButton).GetPattern(PatternInterface.Invoke)).Invoke();
+                    return;
+                }
                 dialog.RestateButton.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
             }, DispatcherPriority.Background);
 

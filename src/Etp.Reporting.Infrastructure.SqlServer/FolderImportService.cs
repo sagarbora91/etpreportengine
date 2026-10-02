@@ -194,6 +194,18 @@ public sealed class FolderImportService(
             return new(null, new(ImportCodes.RestatementMatchesNothing, message),
                 [new(ImportIssueSeverity.Blocker, ImportCodes.RestatementMatchesNothing, message)]);
         }
+        // The database restates (and the planner promotes over) only files wholly inside the replacement's period;
+        // any partly overlapped current file makes every pick fail, so refuse before asking.
+        var uncovered = candidates.Where(candidate => !candidate.IsCoveredBy(choice.PeriodStart, choice.PeriodEnd)).ToArray();
+        if (uncovered.Length > 0)
+        {
+            var message = $"This file's period {choice.Period} only partly overlaps current {choice.ReportCode} import(s) "
+                + $"{string.Join(", ", uncovered.Select(candidate => candidate.ImportFileId))}, so it cannot replace them. "
+                + "Import a file whose period covers them fully. Nothing was changed.";
+            return new(null, new(ImportCodes.RestatementTargetNotCovered, message),
+                uncovered.Select(candidate => new ImportIssue(ImportIssueSeverity.Blocker, ImportCodes.RestatementTargetNotCovered,
+                    $"Partly overlapped current import {candidate.ImportFileId}: {candidate.FileName}, {candidate.Period}, {candidate.Rows:N0} rows.")).ToArray());
+        }
         if (candidates.Count == 1) return new(candidates[0]);
         var picker = options.ChooseRestatementTarget;
         var picked = picker is null ? null : await picker(choice, cancellationToken).ConfigureAwait(false);

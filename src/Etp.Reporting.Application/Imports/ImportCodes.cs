@@ -29,6 +29,9 @@ public static class ImportCodes
     public const string RestatementMatchesNothing = "RESTATEMENT_MATCHES_NOTHING";
     public const string RestatementTargetAmbiguous = "RESTATEMENT_TARGET_AMBIGUOUS";
     public const string RestatementApprovalRequired = "RESTATEMENT_APPROVAL_REQUIRED";
+
+    /// <summary>A current import overlaps the replacement but is not inside its period; the database refuses to restate or promote over it (51555).</summary>
+    public const string RestatementTargetNotCovered = "RESTATEMENT_TARGET_NOT_COVERED";
     public const string ImportTimeout = "IMPORT_TIMEOUT";
     public const string CommitOutcomeUnknown = "COMMIT_OUTCOME_UNKNOWN";
     public const string EvidenceNotRetained = "EVIDENCE_NOT_RETAINED";

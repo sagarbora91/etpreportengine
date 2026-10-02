@@ -66,7 +66,7 @@ public sealed class DesktopImportCoordinatorTests
             var date = new DateOnly(2026, 8, 25);
             var persistence = new FakePersistence
             {
-                Candidates = [new(11, "R025_first.xlsx", date, date, 40), new(12, "R025_second.xlsx", date.AddDays(-1), date, 75)]
+                Candidates = [new(11, "R025_first.xlsx", date, date, 40), new(12, "R025_second.xlsx", date, date, 75)]
             };
             var coordinator = Create(persistence, new FakeReader(_ => ValidR025()));
             try
@@ -107,12 +107,13 @@ public sealed class DesktopImportCoordinatorTests
         var persistence = new FakePersistence
         {
             CurrentImportFileId = 42,
-            PrepareFailure = new UnauthorizedAccessException("Exact approval is absent.")
+            PrepareFailure = new ImportSourceException(ImportCodes.RestatementApprovalRequired, "Exact approval is absent.")
         };
         await using var coordinator = Create(persistence, new FakeReader(_ => ValidR025()));
         await coordinator.ValidateAsync("sales.xlsx");
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => coordinator.PersistValidatedAsync("synthetic",
+        var refusal = await Assert.ThrowsAsync<ImportSourceException>(() => coordinator.PersistValidatedAsync("synthetic",
             new("WLMHW", new(2026, 8, 25), "manager", true, "Corrected source")));
+        Assert.Equal(ImportCodes.RestatementApprovalRequired, refusal.Code);
         Assert.Equal(1, persistence.PrepareCalls);
         Assert.Equal(0, persistence.PersistenceCalls);
         Assert.Null(persistence.LastRequest);

@@ -11,6 +11,9 @@ public sealed record RestatementCandidate(
     DateOnly PeriodEnd,
     int Rows)
 {
+    /// <summary>True when this import's period lies wholly inside the replacement's: the only case SQL restates (51555).</summary>
+    public bool IsCoveredBy(DateOnly start, DateOnly end) => start <= PeriodStart && end >= PeriodEnd;
+
     public string Period => PeriodStart == PeriodEnd
         ? PeriodStart.ToString("dd MMM yyyy")
         : $"{PeriodStart:dd MMM yyyy} – {PeriodEnd:dd MMM yyyy}";

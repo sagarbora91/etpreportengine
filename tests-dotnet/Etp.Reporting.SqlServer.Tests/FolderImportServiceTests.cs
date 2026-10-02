@@ -334,18 +334,44 @@ public sealed class FolderImportServiceTests
     [Fact]
     public async Task Missing_approval_reports_RESTATEMENT_APPROVAL_REQUIRED()
     {
+        // SqlServerImportPersistenceUseCase raises this from PersistAsync's exact-approval check.
         var refusal = SqlServerImportPersistenceUseCase.RestatementApprovalRequired();
         Assert.Equal(ImportCodes.RestatementApprovalRequired, refusal.Code);
-        var persistence = new CapturePersistence { Candidates = [First], PrepareFailure = refusal };
+        var persistence = new CapturePersistence { Candidates = [First], PersistFailure = refusal };
         var summary = await new FolderImportService(persistence, new Reader(path => Sales(path, "HEMW", [20260825])))
             .RunFilesAsync(["sales.xlsx"], Restate);
         var file = Assert.Single(summary.Files);
         Assert.Equal("Failed", file.Status);
+        Assert.Equal(11, Assert.Single(persistence.Prepared).Restatement!.PreviousImportFileId);
+        Assert.Single(persistence.Requests);
+        // The result carries the approval message, not the generic access or processing text.
         Assert.Equal(refusal.Message, file.Message);
         Assert.DoesNotContain("could not be accessed", file.Message);
-        // The failure record (IF-017) carries the code once the diagnostics lane stores it on the result.
-        Assert.Equal(ImportCodes.RestatementApprovalRequired, file.Failure?.Code ?? new SafeImportFailureClassifier().Describe(refusal).Code);
-        Assert.Empty(persistence.Requests);
+        Assert.DoesNotContain("could not be imported", file.Message);
+        // The failure record (IF-017) is set by the diagnostics lane (p1-a); once it is, it must carry this code.
+        if (file.Failure is not null) Assert.Equal(ImportCodes.RestatementApprovalRequired, file.Failure.Code);
+    }
+
+    [Fact]
+    public async Task Restatement_over_a_partly_overlapped_import_is_refused_before_prepare()
+    {
+        // 1-31 Aug is the only overlap of a 25-26 Aug replacement; SQL would refuse it with 51555, so no auto-pick.
+        var month = new RestatementCandidate(13, "R025_HEMW_Aug.xlsx", new(2026, 8, 1), new(2026, 8, 31), 900);
+        foreach (var candidates in new[] { new[] { month }, new[] { First, month } })
+        {
+            var asked = 0;
+            var persistence = new CapturePersistence { Candidates = candidates };
+            var summary = await new FolderImportService(persistence, new Reader(path => Sales(path, "HEMW", [20260825, 20260826])))
+                .RunFilesAsync(["sales.xlsx"], Restate with { ChooseRestatementTarget = (choice, _) => { asked++; return Task.FromResult<RestatementCandidate?>(choice.Candidates[0]); } });
+            var file = Assert.Single(summary.Files);
+            Assert.Equal("Failed", file.Status);
+            Assert.Contains("only partly overlaps", file.Message);
+            var issue = Assert.Single(file.Diagnostics!, issue => issue.Code == ImportCodes.RestatementTargetNotCovered);
+            Assert.Contains("13: R025_HEMW_Aug.xlsx", issue.Message);
+            Assert.Equal(0, asked);
+            Assert.Empty(persistence.Prepared);
+            Assert.Empty(persistence.Requests);
+        }
     }
 
     private static WorkbookSnapshot Sales(string path, string store, int[] dates)
@@ -381,6 +407,7 @@ public sealed class FolderImportServiceTests
         public IReadOnlyList<RestatementCandidate> Candidates { get; init; } = [];
         public List<(DateOnly Start, DateOnly End)> CandidateLookups { get; } = [];
         public Exception? PrepareFailure { get; init; }
+        public Exception? PersistFailure { get; init; }
         public List<ImportPersistenceRequest<MatchedImportEnvelope>> Prepared { get; } = [];
         public Task<IReadOnlyList<RestatementCandidate>> FindRestatementCandidatesAsync(string report, string store, DateOnly start, DateOnly end,
             CancellationToken cancellationToken = default)
@@ -396,6 +423,7 @@ public sealed class FolderImportServiceTests
         public Task<ImportPersistenceResult> PersistAsync(ImportPersistenceRequest<MatchedImportEnvelope> request, CancellationToken cancellationToken = default)
         {
             Requests.Add(request);
+            if (PersistFailure is not null) return Task.FromException<ImportPersistenceResult>(PersistFailure);
             return Task.FromResult(new ImportPersistenceResult(request.AcceptedImport.ProfileIdentity.ReportCode, Status == "Imported" ? request.AcceptedImport.Staging.Rows.Count : 0)
             { Status = Status, AlreadyPresentRows = Status == "Imported" ? 0 : request.AcceptedImport.Staging.Rows.Count, ConflictRows = Conflicts });
         }
