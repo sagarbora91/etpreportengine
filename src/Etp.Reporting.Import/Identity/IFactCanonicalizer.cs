@@ -9,7 +9,9 @@ namespace Etp.Reporting.Import.Identity;
 /// <param name="FactRowHash"><c>fact_row_hash</c>: Key and Fact fields.</param>
 /// <param name="AttributeHash"><c>attribute_hash</c>: Attribute fields.</param>
 /// <param name="DescriptiveHash">Descriptive fields; in memory only, never stored.</param>
-/// <param name="ContentHash">Every staged field except Ignored ones: today's <c>content_key</c> before its <c>:n</c>.</param>
+/// <param name="ContentHash">Every column of the family except Ignored ones: the row hash of <c>content_sha256</c>
+/// (spec 6.8). It equals today's landing <c>content_key</c> hash only when the family's Ignored columns are exactly its
+/// timestamp columns, and not for STOCK_LEDGER; that key is <see cref="FactCanonicalizer.ContentKeyHash"/>.</param>
 /// <param name="Facts">Canonical text of the Key and Fact fields, for diffs, fills and row keys.</param>
 /// <param name="Attributes">Canonical text of the Attribute fields.</param>
 public sealed record CanonicalRow(
