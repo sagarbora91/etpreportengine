@@ -12,6 +12,10 @@ public static class ImportCodes
     public const string SnapshotDateUnknown = "SNAPSHOT_DATE_UNKNOWN";
     public const string SnapshotDateAmbiguous = "SNAPSHOT_DATE_AMBIGUOUS";
     public const string SnapshotDateFromFolder = "SNAPSHOT_DATE_FROM_FOLDER";
+    /// <summary>Tier 7 (spec 6.4, basis SIBLING): the date was taken from the other exports in the folder, which agree on one end date.</summary>
+    public const string SnapshotDateFromSiblings = "SNAPSHOT_DATE_FROM_SIBLINGS";
+    /// <summary>No tier dated the snapshot, and the Owner's folder-import date override supplied it (recorded deviation from spec 6.4).</summary>
+    public const string SnapshotDateFromOverride = "SNAPSHOT_DATE_FROM_OVERRIDE";
     public const string SnapshotMultipleDates = "SNAPSHOT_MULTIPLE_DATES";
     public const string InfoBlocksUnusable = "INFO_BLOCKS_UNUSABLE";
     public const string ContractUnreadable = Contract.Unreadable;
@@ -41,7 +45,7 @@ public static class ImportCodes
 
     public static ImportIssueSeverity DefaultSeverity(string code) => code switch
     {
-        SnapshotDateFromFolder or InfoBlocksUnusable or RowDateMissing or StockRowRepeated or InvoiceTotalMismatch
+        SnapshotDateFromFolder or SnapshotDateFromSiblings or SnapshotDateFromOverride or InfoBlocksUnusable or RowDateMissing or StockRowRepeated or InvoiceTotalMismatch
             or EvidenceNotRetained or Contract.RowOutsidePeriod or Contract.HistoryRepeatsData or Contract.CellNotText
             => ImportIssueSeverity.Warning,
         FamilyDerived or InvoiceYearDiffers or StaleCopyCollapsed or AttributeNotApplied or Contract.KeyUnknown

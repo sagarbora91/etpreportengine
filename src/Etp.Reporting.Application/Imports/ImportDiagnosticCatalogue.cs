@@ -75,6 +75,8 @@ public static class ImportDiagnosticCatalogue
         [ImportCodes.SnapshotDateUnknown] = ["The snapshot date could not be determined."],
         [ImportCodes.SnapshotDateAmbiguous] = ["More than one snapshot date is possible for these rows."],
         [ImportCodes.SnapshotDateFromFolder] = ["The snapshot date was taken from the folder name."],
+        [ImportCodes.SnapshotDateFromSiblings] = ["The snapshot date was taken from the other exports in this folder."],
+        [ImportCodes.SnapshotDateFromOverride] = ["The snapshot date was taken from the date override; the file states no date of its own."],
         [ImportCodes.SnapshotMultipleDates] = ["The workbook holds more than one snapshot date. Import one snapshot date per workbook."],
         [ImportCodes.InfoBlocksUnusable] = ["The Info sheet's block list could not be used."],
         [ImportCodes.PeriodOverlapUnresolved] = ["Two exports cover overlapping periods that could not be resolved."],
