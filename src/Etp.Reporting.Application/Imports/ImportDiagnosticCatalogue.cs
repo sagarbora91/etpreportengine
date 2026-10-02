@@ -92,6 +92,7 @@ public static class ImportDiagnosticCatalogue
         [ImportCodes.InvoiceTotalMismatch] = ["The invoice lines do not add up to the invoice total."],
         [ImportCodes.RestatementMatchesNothing] = ["The restatement matches no current import for this report, store and period."],
         [ImportCodes.RestatementTargetAmbiguous] = ["The restatement overlaps more than one current import. Pick the one to restate."],
+        [ImportCodes.RestatementTargetNotCovered] = ["This file only partly overlaps a current import, so it cannot replace it. Import a file whose period covers it fully."],
         [ImportCodes.RestatementApprovalRequired] = ["This replacement and reason need unused Owner approval before import."],
         [ImportCodes.ImportTimeout] = ["The import timed out and can be retried."],
         [ImportCodes.CommitOutcomeUnknown] = ["The database did not confirm the commit; the import was checked again."],

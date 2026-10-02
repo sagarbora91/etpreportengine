@@ -57,17 +57,63 @@ public sealed class DesktopImportCoordinatorTests
     }
 
     [Fact]
+    public void Import_screen_asks_which_overlapping_import_to_restate_and_restates_the_pick()
+    {
+        RunSta(() =>
+        {
+            var path = Path.Combine(Path.GetTempPath(), "EtpRestatementPick_" + Guid.NewGuid().ToString("N") + ".xlsx");
+            File.WriteAllText(path, "Synthetic workbook supplied by the fixture reader");
+            var date = new DateOnly(2026, 8, 25);
+            var persistence = new FakePersistence
+            {
+                Candidates = [new(11, "R025_first.xlsx", date, date, 40), new(12, "R025_second.xlsx", date, date, 75)]
+            };
+            var coordinator = Create(persistence, new FakeReader(_ => ValidR025()));
+            try
+            {
+                var view = new ImportWorkspaceView(coordinator, () => "synthetic");
+                view.AttachHost(() => new(true, false), (_, _, _) => Task.CompletedTask, () => Task.CompletedTask);
+                ((TextBox)view.FindName("WorkbookPathInput")).Text = path;
+                ((CheckBox)view.FindName("RestatementModeInput")).IsChecked = true;
+                ((TextBox)view.FindName("RestatementReasonInput")).Text = "Corrected source";
+                var store = (ComboBox)view.FindName("ImportStoreInput");
+                store.Items.Add(new ComboBoxItem { Content = "WLMHW" });
+                store.SelectedIndex = 0;
+                ((DatePicker)view.FindName("ImportBusinessDateInput")).SelectedDate = date.ToDateTime(TimeOnly.MinValue);
+                var asked = new List<RestatementTargetChoice>();
+                view.RestatementTargetChooser = choice =>
+                {
+                    // Wherever the folder import continues, the question is asked on the view's dispatcher.
+                    Assert.True(view.Dispatcher.CheckAccess());
+                    asked.Add(choice);
+                    return choice.Candidates.Single(candidate => candidate.ImportFileId == 12);
+                };
+
+                Await(view.ImportSelectedSourceAsync());
+
+                var choice = Assert.Single(asked);
+                Assert.Equal([11L, 12L], choice.Candidates.Select(candidate => candidate.ImportFileId));
+                Assert.Equal(("WLMHW", date, date), (choice.StoreCode, choice.PeriodStart, choice.PeriodEnd));
+                Assert.Equal(12, persistence.PreparedRequest!.Restatement!.PreviousImportFileId);
+                Assert.Equal(12, persistence.LastRequest!.Restatement!.PreviousImportFileId);
+            }
+            finally { Await(coordinator.DisposeAsync().AsTask()); File.Delete(path); }
+        });
+    }
+
+    [Fact]
     public async Task Restatement_preflight_refusal_stops_validated_persistence()
     {
         var persistence = new FakePersistence
         {
             CurrentImportFileId = 42,
-            PrepareFailure = new UnauthorizedAccessException("Exact approval is absent.")
+            PrepareFailure = new ImportSourceException(ImportCodes.RestatementApprovalRequired, "Exact approval is absent.")
         };
         await using var coordinator = Create(persistence, new FakeReader(_ => ValidR025()));
         await coordinator.ValidateAsync("sales.xlsx");
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => coordinator.PersistValidatedAsync("synthetic",
+        var refusal = await Assert.ThrowsAsync<ImportSourceException>(() => coordinator.PersistValidatedAsync("synthetic",
             new("WLMHW", new(2026, 8, 25), "manager", true, "Corrected source")));
+        Assert.Equal(ImportCodes.RestatementApprovalRequired, refusal.Code);
         Assert.Equal(1, persistence.PrepareCalls);
         Assert.Equal(0, persistence.PersistenceCalls);
         Assert.Null(persistence.LastRequest);
@@ -451,5 +497,12 @@ public sealed class DesktopImportCoordinatorTests
         public Task<ImportRowOutcome> LoadOutcomeByHashAsync(
             string sourceSha256,
             CancellationToken cancellationToken = default) => Task.FromResult(RowOutcome);
+
+        // IF-016: null keeps the single current file found by date, as before.
+        public IReadOnlyList<RestatementCandidate>? Candidates { get; set; }
+
+        public Task<IReadOnlyList<RestatementCandidate>> FindRestatementCandidatesAsync(string reportCode, string storeCode,
+            DateOnly periodStart, DateOnly periodEnd, CancellationToken cancellationToken = default) =>
+            Task.FromResult(Candidates ?? (CurrentImportFileId is { } id ? [new(id, "previous.xlsx", periodEnd, periodEnd, 1)] : []));
     }
 }

@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using Etp.Reporting.Application.Imports;
 using Etp.Reporting.Reporting;
 using Microsoft.Data.SqlClient;
 
@@ -76,6 +77,38 @@ public sealed class OperationalCompletionRepository(string connectionString)
             1 => values[0],
             _ => throw new InvalidOperationException("More than one current source file exists for this report scope. Review import history before restating it.")
         };
+    }
+
+    // IF-016: a restatement's target is chosen among the current files whose declared period overlaps the
+    // replacement, by the same overlap test as the planner-1 plan (PhaseOneImportPersistence.PlanImportAsync).
+    public async Task<IReadOnlyList<RestatementCandidate>> FindRestatementCandidatesAsync(
+        string reportCode,
+        string storeCode,
+        DateOnly periodStart,
+        DateOnly periodEnd,
+        CancellationToken cancellationToken = default)
+    {
+        reportCode = Required(reportCode, nameof(reportCode)).ToUpperInvariant();
+        storeCode = Required(storeCode, nameof(storeCode));
+        if (periodStart > periodEnd) throw new ArgumentException("The period start cannot follow its end.", nameof(periodStart));
+        const string sql = """
+            SELECT f.import_file_id,f.original_file_name,COALESCE(f.period_start,f.business_date),
+                   COALESCE(f.period_end,f.business_date),COALESCE(b.source_row_count,0)
+            FROM dbo.import_files f JOIN dbo.import_batches b ON b.import_batch_id=f.import_batch_id
+            WHERE f.report_code=@report AND f.store_code=@store AND f.is_superseded=0
+              AND COALESCE(f.period_start,f.business_date)<=@end AND COALESCE(f.period_end,f.business_date)>=@start
+            ORDER BY f.import_file_id;
+            """;
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var command = new SqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@report", reportCode); command.Parameters.AddWithValue("@store", storeCode);
+        command.Parameters.AddWithValue("@start", periodStart); command.Parameters.AddWithValue("@end", periodEnd);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        var candidates = new List<RestatementCandidate>();
+        while (await reader.ReadAsync(cancellationToken))
+            candidates.Add(new(reader.GetInt64(0), reader.GetString(1), reader.GetFieldValue<DateOnly>(2),
+                reader.GetFieldValue<DateOnly>(3), reader.GetInt32(4)));
+        return candidates;
     }
 
     public async Task SaveManualStockCountAsync(

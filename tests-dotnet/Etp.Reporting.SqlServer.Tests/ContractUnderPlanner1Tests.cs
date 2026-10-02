@@ -141,7 +141,8 @@ public sealed class ContractUnderPlanner1Tests
     [Fact]
     public async Task Undated_R010_dated_only_by_the_override_records_that_basis()
     {
-        var persistence = new CapturePersistence();
+        // The override needs restatement, and a restatement needs a current import to replace (p1-g).
+        var persistence = new CapturePersistence { CurrentImportFileId = 41 };
         var summary = await new FolderImportService(persistence, new Reader(BinWise)).RunFilesAsync([@"F:\pack\R010.xlsx"],
             new("tester", RestatementEnabled: true, RestatementReason: "Owner dated it", OverrideBusinessDate: new DateOnly(2026, 9, 29)));
 
@@ -238,7 +239,8 @@ public sealed class ContractUnderPlanner1Tests
     {
         public List<ImportPersistenceRequest<MatchedImportEnvelope>> Requests { get; } = [];
         public Task<bool> ExistsByHashAsync(string hash, CancellationToken cancellationToken = default) => Task.FromResult(false);
-        public Task<long?> FindCurrentImportFileIdAsync(string report, string store, DateOnly date, CancellationToken cancellationToken = default) => Task.FromResult<long?>(null);
+        public long? CurrentImportFileId { get; init; }
+        public Task<long?> FindCurrentImportFileIdAsync(string report, string store, DateOnly date, CancellationToken cancellationToken = default) => Task.FromResult(CurrentImportFileId);
         public Task PrepareRestatementAsync(ImportPersistenceRequest<MatchedImportEnvelope> request, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task<ImportPersistenceResult> PersistAsync(ImportPersistenceRequest<MatchedImportEnvelope> request, CancellationToken cancellationToken = default)
         {
