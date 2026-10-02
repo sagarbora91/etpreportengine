@@ -1,0 +1,109 @@
+{
+  "description": "Synthetic contract v1 workbook, rule transactional: one complete block, one delta block, and an older export appended later as block 3. All values are invented; no customer data.",
+  "workbook": {
+    "fileName": "R025_SDB-VariantwiseSales_WLMHW.xlsx",
+    "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "sheets": [
+      {
+        "name": "Info",
+        "rows": [
+          ["etp_contract", "1", "ETP Consolidation - R025 SDB VariantwiseSales (synthetic)"],
+          ["family_code", "R025"],
+          ["report_name", "SDB-VariantwiseSales"],
+          ["store_code", "WLMHW"],
+          ["business_unit", "RETAIL"],
+          ["rule", "transactional"],
+          ["data_sheet", "Data"],
+          ["header_row", "1"],
+          ["data_rows", "7"],
+          ["excluded_sheet", "ETP_Excluded"],
+          ["excluded_rows", "4"],
+          ["block_count", "3"],
+          ["coverage_from", "2026-07-01"],
+          ["coverage_to", "2026-08-07"],
+          ["built_at", "2026-10-05T10:15:00+05:30"],
+          ["builder", "saagar-etp-consolidation 2.0"],
+          [],
+          ["block", "sheet", "first_row", "last_row", "row_count", "source_file", "source_format", "source_sha256", "export_time", "period_from", "period_to", "period_basis", "snapshot_date", "raw_rows", "excluded_rows", "superseded_rows", "completeness", "disposition"],
+          ["1", "Data", "2", "5", "4", "202607021507_SDB-VariantwiseSales.xlsx", "xlsx", "1111111111111111111111111111111111111111111111111111111111111111", "2026-07-02T15:07", "2026-07-01", "2026-07-02", "observed", "", "4", "0", "0", "complete", "First export"],
+          ["2", "Data", "6", "7", "2", "202608071858_SDB-VariantwiseSales.xlsx", "xlsx", "2222222222222222222222222222222222222222222222222222222222222222", "2026-08-07T18:58", "2026-07-01", "2026-08-07", "declared", "", "4", "2", "0", "delta", "New unique rows retained"],
+          ["3", "Data", "8", "8", "1", "202607201000_SDB-VariantwiseSales.xlsx", "xlsx", "3333333333333333333333333333333333333333333333333333333333333333", "2026-07-20T10:00", "2026-07-01", "2026-07-20", "declared", "", "3", "2", "0", "delta", "Older export found later"],
+          [],
+          ["Notes: synthetic fixture for ConsolidationContractTests."]
+        ]
+      },
+      {
+        "name": "Data",
+        "rows": [
+          ["TRANS_TYPE", "STORECODE", "INVOICENUMBER", "TRANSACTIONDATE", "PRODUCTCODE", "QUANTITY", "NETVALUE", "STORETIMESTAMP"],
+          ["INV", "WLMHW", "100001", "20260701", "P1", "1", "100", "2026-07-01 10:00:00"],
+          ["INV", "WLMHW", "100001", "20260701", "P2", "1", "200", "2026-07-01 10:00:00"],
+          ["INV", "WLMHW", "100002", "20260701", "P1", "1", "100", "2026-07-01 11:00:00"],
+          ["INV", "WLMHW", "100002", "20260701", "P1", "1", "100", "2026-07-01 11:00:00"],
+          ["INV", "WLMHW", "100003", "20260805", "P3", "1", "300", "2026-08-05 12:00:00"],
+          ["INV", "WLMHW", "100004", "20260806", "P1", "1", "100", "2026-08-06 12:00:00"],
+          ["INV", "WLMHW", "100005", "20260715", "P2", "1", "200", "2026-07-15 12:00:00"]
+        ]
+      },
+      {
+        "name": "ETP_Excluded",
+        "rows": [
+          ["block", "sheet", "row"],
+          ["2", "Data", "4"],
+          ["2", "Data", "5"],
+          ["3", "Data", "2"],
+          ["3", "Data", "4"]
+        ]
+      }
+    ]
+  },
+  "raw": [
+    {
+      "fileName": "202607021507_SDB-VariantwiseSales.xlsx",
+      "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "sheets": [
+        {
+          "name": "SDB-VariantwiseSales",
+          "rows": [
+            ["TRANS_TYPE", "STORECODE", "INVOICENUMBER", "TRANSACTIONDATE", "PRODUCTCODE", "QUANTITY", "NETVALUE", "STORETIMESTAMP"],
+            ["INV", "WLMHW", "100001", "20260701", "P1", "1", "100", "2026-07-01 10:00:00"],
+            ["INV", "WLMHW", "100001", "20260701", "P2", "1", "200", "2026-07-01 10:00:00"],
+            ["INV", "WLMHW", "100002", "20260701", "P1", "1", "100", "2026-07-01 11:00:00"],
+            ["INV", "WLMHW", "100002", "20260701", "P1", "1", "100", "2026-07-01 11:00:00"]
+          ]
+        }
+      ]
+    },
+    {
+      "fileName": "202608071858_SDB-VariantwiseSales.xlsx",
+      "sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "sheets": [
+        {
+          "name": "SDB-VariantwiseSales",
+          "rows": [
+            ["TRANS_TYPE", "STORECODE", "INVOICENUMBER", "TRANSACTIONDATE", "PRODUCTCODE", "QUANTITY", "NETVALUE", "STORETIMESTAMP"],
+            ["INV", "WLMHW", "100002", "20260701", "P1", "1", "100", "2026-08-07 18:00:00"],
+            ["INV", "WLMHW", "100002", "20260701", "P1", "1", "100", "2026-08-07 18:00:00"],
+            ["INV", "WLMHW", "100003", "20260805", "P3", "1", "300", "2026-08-05 12:00:00"],
+            ["INV", "WLMHW", "100004", "20260806", "P1", "1", "100", "2026-08-06 12:00:00"]
+          ]
+        }
+      ]
+    },
+    {
+      "fileName": "202607201000_SDB-VariantwiseSales.xlsx",
+      "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+      "sheets": [
+        {
+          "name": "SDB-VariantwiseSales",
+          "rows": [
+            ["TRANS_TYPE", "STORECODE", "INVOICENUMBER", "TRANSACTIONDATE", "PRODUCTCODE", "QUANTITY", "NETVALUE", "STORETIMESTAMP"],
+            ["INV", "WLMHW", "100001", "20260701", "P1", "1", "100", "2026-07-20 09:00:00"],
+            ["INV", "WLMHW", "100002", "20260701", "P1", "1", "100", "2026-07-20 09:00:00"],
+            ["INV", "WLMHW", "100005", "20260715", "P2", "1", "200", "2026-07-15 12:00:00"]
+          ]
+        }
+      ]
+    }
+  ]
+}

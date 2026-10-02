@@ -1,0 +1,44 @@
+{
+  "description": "Synthetic contract v1 workbook, rule snapshot: three stacked snapshots, one block each (contract 10.2). All values are invented.",
+  "workbook": {
+    "fileName": "R010_BinWise_Stock_WLMHW.xlsx",
+    "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "sheets": [
+      {
+        "name": "Info",
+        "rows": [
+          ["etp_contract", "1"],
+          ["family_code", "R010"],
+          ["report_name", "BinWise Stock"],
+          ["store_code", "WLMHW"],
+          ["business_unit", "RETAIL"],
+          ["rule", "snapshot"],
+          ["data_sheet", "Data"],
+          ["header_row", "1"],
+          ["data_rows", "6"],
+          ["block_count", "3"],
+          ["built_at", "2026-10-05T10:15:00+05:30"],
+          ["builder", "saagar-etp-consolidation 2.0"],
+          [],
+          ["block", "sheet", "first_row", "last_row", "row_count", "source_file", "source_format", "source_sha256", "export_time", "period_from", "period_to", "period_basis", "snapshot_date", "raw_rows", "excluded_rows", "superseded_rows", "completeness", "disposition"],
+          ["1", "Data", "2", "3", "2", "202607021200_BinWise Stock.xlsx", "xlsx", "4444444444444444444444444444444444444444444444444444444444444444", "2026-07-02T12:00", "", "", "none", "2026-07-02", "2", "0", "0", "complete", "Snapshot 02-Jul retained"],
+          ["2", "Data", "4", "5", "2", "202608071300_BinWise Stock.xlsx", "xlsx", "5555555555555555555555555555555555555555555555555555555555555555", "2026-08-07T13:00", "", "", "none", "2026-08-07", "2", "0", "0", "complete", "Snapshot 07-Aug retained"],
+          ["3", "Data", "6", "7", "2", "202609291400_BinWise Stock.xlsx", "xlsx", "6666666666666666666666666666666666666666666666666666666666666666", "2026-09-29T14:00", "", "", "none", "2026-09-29", "2", "0", "0", "complete", "Snapshot 29-Sep retained"]
+        ]
+      },
+      {
+        "name": "Data",
+        "rows": [
+          ["STORE CODE", "ITEMNUMBER", "UID", "CLOSINGBALANCE"],
+          ["WLMHW", "I100", "U1", "1"],
+          ["WLMHW", "I200", "U2", "2"],
+          ["WLMHW", "I100", "U1", "1"],
+          ["WLMHW", "I300", "U3", "4"],
+          ["WLMHW", "I100", "U1", "1"],
+          ["WLMHW", "I300", "U3", "3"]
+        ]
+      }
+    ]
+  },
+  "raw": []
+}

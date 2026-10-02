@@ -1,0 +1,49 @@
+{
+  "description": "Synthetic contract v1 workbook, rule current: the latest snapshot on Data, an earlier one on Snapshot History (contract 10.3). Block numbers are append order. All values are invented.",
+  "workbook": {
+    "fileName": "S009_PendingRepair_AW330.xlsx",
+    "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "sheets": [
+      {
+        "name": "Info",
+        "rows": [
+          ["etp_contract", "1"],
+          ["family_code", "S009"],
+          ["store_code", "AW330"],
+          ["business_unit", "SERVICE"],
+          ["rule", "current"],
+          ["data_sheet", "Data"],
+          ["header_row", "1"],
+          ["data_rows", "2"],
+          ["history_sheet", "Snapshot History"],
+          ["history_extra_columns", "Snapshot_As_Of,SourceFile"],
+          ["history_rows", "2"],
+          ["block_count", "2"],
+          ["built_at", "2026-10-05T10:15:00+05:30"],
+          ["builder", "saagar-etp-consolidation 2.0"],
+          [],
+          ["block", "sheet", "first_row", "last_row", "row_count", "source_file", "source_format", "source_sha256", "export_time", "period_from", "period_to", "period_basis", "snapshot_date", "raw_rows", "excluded_rows", "superseded_rows", "completeness", "disposition"],
+          ["1", "Snapshot History", "2", "3", "2", "PENDING REPAIR 07.08.2026.csv", "csv", "7777777777777777777777777777777777777777777777777777777777777777", "2026-08-07", "", "", "none", "2026-08-07", "2", "0", "0", "complete", "Earlier snapshot"],
+          ["2", "Data", "2", "3", "2", "PENDING REPAIR 29.09.2026.csv", "csv", "8888888888888888888888888888888888888888888888888888888888888888", "2026-09-29", "", "", "none", "2026-09-29", "2", "0", "0", "complete", "Current snapshot"]
+        ]
+      },
+      {
+        "name": "Data",
+        "rows": [
+          ["BRANCH CODE", "JOB NO", "STATUS", "AGE DAYS"],
+          ["AW330", "J-0002", "AWAITING PART", "12"],
+          ["AW330", "J-0003", "OPEN", "3"]
+        ]
+      },
+      {
+        "name": "Snapshot History",
+        "rows": [
+          ["BRANCH CODE", "JOB NO", "STATUS", "AGE DAYS", "Snapshot_As_Of", "SourceFile"],
+          ["AW330", "J-0001", "OPEN", "20", "2026-08-07", "PENDING REPAIR 07.08.2026.csv"],
+          ["AW330", "J-0002", "OPEN", "1", "2026-08-07", "PENDING REPAIR 07.08.2026.csv"]
+        ]
+      }
+    ]
+  },
+  "raw": []
+}

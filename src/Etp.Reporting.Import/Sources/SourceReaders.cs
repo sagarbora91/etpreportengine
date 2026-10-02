@@ -21,7 +21,8 @@ public interface ISourceDescriptionReader
 
     /// <summary>
     /// The rows of one block as its export held them: the block's physical rows (staged, with locators) plus one
-    /// virtual row per map row, staged with its twin's values (spec 6.5 rebuild).
+    /// virtual row per map row, staged with its twin's values (spec 6.5 rebuild). <paramref name="stagedRows"/> must be
+    /// every staged row of the workbook across all its sheets, since a twin lives in a lower-numbered block.
     /// </summary>
     IReadOnlyList<SourceRow> RebuildBlockRows(SourceDescription source, SourceBlock block, IReadOnlyList<SourceRow> stagedRows);
 }
