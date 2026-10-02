@@ -189,8 +189,9 @@ public sealed class SqlServerImportHistoryQuery(string connectionString) : IImpo
             var diagnostics = (stored.Length > 0 ? stored.Select(issue => issue.ToImportIssue())
                 : JsonSerializer.Deserialize<ImportIssue[]>(reader.GetString(13)) ?? []).Select(SafeIssue).ToArray();
             var conflicts = reader.GetInt32(12);
-            var failure = Text(14) is { } code && ImportDatabaseCodes.TryParseDatabaseCode<FailureStage>(Text(15), out var stage)
-                ? new ImportFailure(code, stage,
+            // A failure stored without a stage (another writer) still shows its code; its stage reads as Record.
+            var failure = Text(14) is { } code
+                ? new ImportFailure(code, ImportDatabaseCodes.TryParseDatabaseCode<FailureStage>(Text(15), out var stage) ? stage : FailureStage.Record,
                     ImportDiagnosticCatalogue.SafeFailureMessage(code, Text(16), reader.IsDBNull(17) ? null : reader.GetInt32(17)), Text(18),
                     reader.IsDBNull(17) ? null : reader.GetInt32(17))
                 : null;
