@@ -285,7 +285,13 @@ function Install-EtpSqlPrerequisitesFromPayload {
             Start-EtpProcess -FilePath "$env:SystemRoot\System32\msiexec.exe" -Description ('install ' + $package.What) `
                 -Arguments @('/i', $package.Path, '/qn', '/norestart', 'ADDLOCAL=ALL', $package.Terms)
         }
-        if (-not (Test-EtpSqlCmdInstalled)) { throw 'Sqlcmd was installed but was not found in its protected Program Files folder.' }
+        # Say why: "not found" and "found in a folder a non-administrator can change" send the
+        # operator to different places.
+        if (-not (Test-EtpSqlCmdInstalled)) {
+            $reason = 'it was not found'
+            try { $null = Resolve-EtpSqlCmd } catch { $reason = $_.Exception.Message }
+            throw ('Sqlcmd was installed but cannot be used: ' + $reason)
+        }
     }
 }
 
