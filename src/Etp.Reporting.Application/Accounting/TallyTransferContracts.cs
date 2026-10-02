@@ -230,3 +230,134 @@ public static class TallyCorrespondenceKey
             ? Array.Empty<string>()
             : KeyPattern.Matches(text).Select(match => match.Value).Distinct(StringComparer.Ordinal).ToArray();
 }
+
+/// <summary>One Tally company that ETP may write vouchers for (plan task 1, <c>dbo.tally_profiles</c>).
+/// The policy fields carry decisions D13, D14, D16 and D17; until the owner and accountant freeze them,
+/// a profile records the assumption it was set up with. Live books are enabled only by a separate,
+/// later action, never by saving a profile.</summary>
+public sealed record TallyProfile(
+    int? Id,
+    string ProfileCode,
+    string CompanyName,
+    string Environment,
+    string? EndpointUrl,
+    string DefaultDeliveryMode,
+    string PayloadFormat,
+    string VoucherGranularity,
+    string PartyPolicy,
+    string? SinglePartyLedger,
+    string TenderModel,
+    string PostingModel,
+    string VoucherView,
+    DateOnly? PostingFromDate,
+    DateOnly? PostingToDate,
+    string? TallyBuildLabel,
+    bool IsEnabled,
+    IReadOnlyList<string> StoreCodes,
+    DateTime? ProductionEnabledUtc = null,
+    string? ModifiedBy = null,
+    DateTime? ModifiedUtc = null)
+{
+    /// <summary>A TEST profile with the Slice 7a assumptions: one voucher per invoice, one retail ledger,
+    /// tender inside the voucher, accounting only, file delivery.</summary>
+    public static TallyProfile NewTest(string profileCode, string companyName, IReadOnlyList<string> storeCodes) => new(
+        null, profileCode, companyName, "TEST", null, "FILE", "XML", "PER_INVOICE", "SINGLE_LEDGER", "Cash Sales",
+        "IN_VOUCHER", "ACCOUNTING_ONLY", "ACCOUNTING", null, null, null, true, storeCodes);
+}
+
+public static class TallyProfileOptions
+{
+    public static IReadOnlyList<string> Environments { get; } = ["TEST", "PRODUCTION"];
+    public static IReadOnlyList<string> DeliveryModes { get; } = ["FILE", "HTTP"];
+    public static IReadOnlyList<string> PayloadFormats { get; } = ["XML", "JSON"];
+    public static IReadOnlyList<string> VoucherGranularities { get; } = ["PER_INVOICE", "DAILY_SUMMARY"];
+    public static IReadOnlyList<string> PartyPolicies { get; } = ["SINGLE_LEDGER", "NAMED_LEDGERS"];
+    public static IReadOnlyList<string> TenderModels { get; } = ["IN_VOUCHER", "CLEARING_LEDGER"];
+    public static IReadOnlyList<string> PostingModels { get; } = ["ACCOUNTING_ONLY", "INVENTORY"];
+    public static IReadOnlyList<string> VoucherViews { get; } = ["ACCOUNTING", "INVOICE"];
+}
+
+/// <summary>The checks a profile must pass before it is saved. The database repeats them as CHECK
+/// constraints; these give the Owner a plain sentence first.</summary>
+public static class TallyProfileRules
+{
+    private static readonly Regex ProfileCodePattern = new("^[A-Z0-9][A-Z0-9_-]{0,29}$", RegexOptions.CultureInvariant);
+    private static readonly Regex StoreCodePattern = new("^[A-Z0-9_-]{1,30}$", RegexOptions.CultureInvariant);
+    private static readonly Regex LoopbackEndpoint = new(@"^http://(127\.0\.0\.1|localhost):[0-9]{1,5}/$", RegexOptions.CultureInvariant);
+
+    public const string OnlyThisPc = "Only this PC's Tally can be used. Enter http://127.0.0.1:<port>/ or http://localhost:<port>/, or leave it blank.";
+
+    public static bool IsLoopbackEndpoint(string? endpointUrl) =>
+        endpointUrl is not null && LoopbackEndpoint.IsMatch(endpointUrl) &&
+        int.TryParse(endpointUrl[(endpointUrl.LastIndexOf(':') + 1)..^1], NumberStyles.None, CultureInfo.InvariantCulture, out var port) &&
+        port is > 0 and <= 65535;
+
+    /// <summary>Returns the profile with codes trimmed and upper-cased, or throws <see cref="ArgumentException"/>.</summary>
+    public static TallyProfile Normalise(TallyProfile profile, string reason)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        if (string.IsNullOrWhiteSpace(reason) || reason.Trim().Length > 500)
+            throw new ArgumentException("Enter a change reason of at most 500 characters.");
+
+        var code = (profile.ProfileCode ?? "").Trim().ToUpperInvariant();
+        if (!ProfileCodePattern.IsMatch(code))
+            throw new ArgumentException("The short code must be 1-30 capital letters, digits, '_' or '-', starting with a letter or digit.");
+        var company = (profile.CompanyName ?? "").Trim();
+        if (company.Length is 0 or > 200)
+            throw new ArgumentException("Enter the Tally company name exactly as Tally shows it (at most 200 characters).");
+
+        Require(profile.Environment, TallyProfileOptions.Environments, "Choose test books or live books.");
+        Require(profile.DefaultDeliveryMode, TallyProfileOptions.DeliveryModes, "Choose how vouchers reach Tally.");
+        Require(profile.PayloadFormat, TallyProfileOptions.PayloadFormats, "Choose the file format.");
+        Require(profile.VoucherGranularity, TallyProfileOptions.VoucherGranularities, "Choose one voucher per invoice or one daily summary.");
+        Require(profile.PartyPolicy, TallyProfileOptions.PartyPolicies, "Choose how customers appear in Tally.");
+        Require(profile.TenderModel, TallyProfileOptions.TenderModels, "Choose how payments are recorded.");
+        Require(profile.PostingModel, TallyProfileOptions.PostingModels, "Choose accounting only or with stock items.");
+        Require(profile.VoucherView, TallyProfileOptions.VoucherViews, "Choose the voucher view the sample voucher was keyed in.");
+
+        var endpoint = string.IsNullOrWhiteSpace(profile.EndpointUrl) ? null : profile.EndpointUrl.Trim();
+        if (endpoint is not null && !IsLoopbackEndpoint(endpoint)) throw new ArgumentException(OnlyThisPc);
+        if (profile.DefaultDeliveryMode == "HTTP" && endpoint is null)
+            throw new ArgumentException("Sending straight to Tally needs the address where Tally answers on this PC.");
+        if (profile.PayloadFormat == "JSON")
+            throw new ArgumentException("JSON files stay unavailable until the installed Tally build has been checked (plan task 24). Choose XML.");
+
+        if (profile.PartyPolicy == "NAMED_LEDGERS" && profile.TenderModel == "IN_VOUCHER")
+            throw new ArgumentException("Named customer ledgers need a clearing ledger per tender mode.");
+        var ledger = string.IsNullOrWhiteSpace(profile.SinglePartyLedger) ? null : profile.SinglePartyLedger.Trim();
+        if (profile.PartyPolicy == "SINGLE_LEDGER" && ledger is null)
+            throw new ArgumentException("Enter the one Tally ledger that retail customers are posted to, for example \"Cash Sales\".");
+        if (ledger?.Length > 200) throw new ArgumentException("The customer ledger name can have at most 200 characters.");
+
+        if (profile.PostingFromDate is { } from && profile.PostingToDate is { } to && from > to)
+            throw new ArgumentException("The first allowed voucher date must not be after the last.");
+        var build = string.IsNullOrWhiteSpace(profile.TallyBuildLabel) ? null : profile.TallyBuildLabel.Trim();
+        if (build?.Length > 100) throw new ArgumentException("The Tally build label can have at most 100 characters.");
+
+        var stores = (profile.StoreCodes ?? []).Select(store => (store ?? "").Trim().ToUpperInvariant()).Where(store => store.Length > 0)
+            .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+        if (stores.FirstOrDefault(store => !StoreCodePattern.IsMatch(store)) is { } bad)
+            throw new ArgumentException($"'{bad}' is not a store code.");
+
+        return profile with
+        {
+            ProfileCode = code, CompanyName = company, EndpointUrl = endpoint, SinglePartyLedger = ledger,
+            TallyBuildLabel = build, StoreCodes = stores
+        };
+    }
+
+    private static void Require(string? value, IReadOnlyList<string> allowed, string message)
+    {
+        if (value is null || !allowed.Contains(value, StringComparer.Ordinal)) throw new ArgumentException(message);
+    }
+}
+
+public interface ITallyProfileService
+{
+    /// <summary>Every Tally company with the stores it covers. Owner only.</summary>
+    Task<IReadOnlyList<TallyProfile>> LoadAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Creates (Id null) or changes a Tally company and its stores with a reason; returns its id. Owner only.
+    /// Never enables live books.</summary>
+    Task<int> SaveAsync(TallyProfile profile, string reason, CancellationToken cancellationToken = default);
+}

@@ -136,12 +136,13 @@ The tables below were generated from the app's own navigation list and role rule
 | 38 | Settings → Automatic import | **Automatic import** | ☐ works | ☐ hidden | ☐ hidden | A "Refresh operations" button is present — F-05; shows Windows task state, last result, next run |
 | 39 | Settings → Integrations | **Email, sharing and Tally** | ☐ works | ☐ hidden | ☐ hidden |  |
 | 40 | Settings → Integrations | **Sharing contacts** | ☐ works | ☐ hidden | ☐ hidden |  |
-| 41 | Settings → Accounting | **Prepare → Review → Export** | ☐ works | ☐ hidden | ☐ hidden | Status names only DRAFT / BLOCKED / APPROVED_READY / EXPORTED_AWAITING_IMPORT / REJECTED |
-| 42 | Settings → Control centre | **Open items** | ☐ works | ☐ hidden | ☐ hidden |  |
-| 43 | Settings → Control centre | **Data quality** | ☐ works | ☐ hidden | ☐ hidden |  |
-| 44 | Settings → Control centre | **Approvals** | ☐ works | ☐ hidden | ☐ hidden | Shows pending and decided history |
-| 45 | Settings → Control centre | **Adjustment request** | ☐ works | ☐ hidden | ☐ hidden |  |
-| 46 | Settings → Help | **Current profile** | ☐ works | ☐ works | ☐ works |  |
+| 41 | Settings → Integrations | **Tally companies** | ☐ works | ☐ hidden | ☐ hidden |  |
+| 42 | Settings → Accounting | **Prepare → Review → Export** | ☐ works | ☐ hidden | ☐ hidden | Status names only DRAFT / BLOCKED / APPROVED_READY / EXPORTED_AWAITING_IMPORT / REJECTED |
+| 43 | Settings → Control centre | **Open items** | ☐ works | ☐ hidden | ☐ hidden |  |
+| 44 | Settings → Control centre | **Data quality** | ☐ works | ☐ hidden | ☐ hidden |  |
+| 45 | Settings → Control centre | **Approvals** | ☐ works | ☐ hidden | ☐ hidden | Shows pending and decided history |
+| 46 | Settings → Control centre | **Adjustment request** | ☐ works | ☐ hidden | ☐ hidden |  |
+| 47 | Settings → Help | **Current profile** | ☐ works | ☐ works | ☐ works |  |
 
 ### Reports (all three roles can open every report)
 
@@ -149,53 +150,53 @@ For each: set the date/store, **Run**, check rows appear, then **Excel** and **P
 
 | # | Path | Report | Owner | Store Manager | Viewer | Look for / notes |
 |---|---|---|---|---|---|---|
-| 47 | Today → Sales | **Sales** | ☐ works | ☐ works | ☐ works |  |
-| 48 | Reports → Sales | **Store Sales Summary** | ☐ works | ☐ works | ☐ works |  |
-| 49 | Reports → Sales | **Combined Sales Summary** | ☐ works | ☐ works | ☐ works |  |
-| 50 | Reports → Sales | **Customer-wise Invoices** | ☐ works | ☐ works | ☐ works |  |
-| 51 | Reports → Sales | **Returns** | ☐ works | ☐ works | ☐ works |  |
-| 52 | Reports → Sales | **Brand-wise Sales** | ☐ works | ☐ works | ☐ works |  |
-| 53 | Reports → Sales | **Brand-Segment Sales** | ☐ works | ☐ works | ☐ works |  |
-| 54 | Reports → Sales | **Item-wise Sales** | ☐ works | ☐ works | ☐ works |  |
-| 55 | Stock → Closing stock | **Closing Stock** | ☐ works | ☐ works | ☐ works |  |
-| 56 | Stock → Physical count | **Physical Stock** | ☐ works | ☐ works | ☐ works |  |
-| 57 | Stock → Variance | **Stock Variance** | ☐ works | ☐ works | ☐ works |  |
-| 58 | Stock → Movement | **Stock Movement** | ☐ works | ☐ works | ☐ works |  |
-| 59 | Stock → Brand stock | **Brand Stock** | ☐ works | ☐ works | ☐ works |  |
-| 60 | Stock → Slow stock | **Slow / Exception Stock** | ☐ works | ☐ works | ☐ works |  |
-| 61 | Reports → Staff | **Staff/CRO Performance** | ☐ works | ☐ works | ☐ works |  |
-| 62 | Reports → Tender & service | **Tender Reconciliation** | ☐ works | ☐ works | ☐ works |  |
-| 63 | Today → Cash | **Cash Book** | ☐ works | ☐ works | ☐ works |  |
-| 64 | Reports → Tender & service | **Tender Diagnostics** | ☐ works | ☐ works | ☐ works |  |
-| 65 | Reports → Tender & service | **Service Sales** | ☐ works | ☐ works | ☐ works |  |
-| 66 | Reports → Exceptions | **Daily Exception Report** | ☐ works | ☐ works | ☐ works |  |
-| 67 | Reports → Management | **Management Trend** | ☐ works | ☐ works | ☐ works | Rows, dates and chart filled for the chosen range — see section 6 |
-| 68 | Reports → Management | **Invoice Source Drill-down** | ☐ works | ☐ works | ☐ works |  |
+| 48 | Today → Sales | **Sales** | ☐ works | ☐ works | ☐ works |  |
+| 49 | Reports → Sales | **Store Sales Summary** | ☐ works | ☐ works | ☐ works |  |
+| 50 | Reports → Sales | **Combined Sales Summary** | ☐ works | ☐ works | ☐ works |  |
+| 51 | Reports → Sales | **Customer-wise Invoices** | ☐ works | ☐ works | ☐ works |  |
+| 52 | Reports → Sales | **Returns** | ☐ works | ☐ works | ☐ works |  |
+| 53 | Reports → Sales | **Brand-wise Sales** | ☐ works | ☐ works | ☐ works |  |
+| 54 | Reports → Sales | **Brand-Segment Sales** | ☐ works | ☐ works | ☐ works |  |
+| 55 | Reports → Sales | **Item-wise Sales** | ☐ works | ☐ works | ☐ works |  |
+| 56 | Stock → Closing stock | **Closing Stock** | ☐ works | ☐ works | ☐ works |  |
+| 57 | Stock → Physical count | **Physical Stock** | ☐ works | ☐ works | ☐ works |  |
+| 58 | Stock → Variance | **Stock Variance** | ☐ works | ☐ works | ☐ works |  |
+| 59 | Stock → Movement | **Stock Movement** | ☐ works | ☐ works | ☐ works |  |
+| 60 | Stock → Brand stock | **Brand Stock** | ☐ works | ☐ works | ☐ works |  |
+| 61 | Stock → Slow stock | **Slow / Exception Stock** | ☐ works | ☐ works | ☐ works |  |
+| 62 | Reports → Staff | **Staff/CRO Performance** | ☐ works | ☐ works | ☐ works |  |
+| 63 | Reports → Tender & service | **Tender Reconciliation** | ☐ works | ☐ works | ☐ works |  |
+| 64 | Today → Cash | **Cash Book** | ☐ works | ☐ works | ☐ works |  |
+| 65 | Reports → Tender & service | **Tender Diagnostics** | ☐ works | ☐ works | ☐ works |  |
+| 66 | Reports → Tender & service | **Service Sales** | ☐ works | ☐ works | ☐ works |  |
+| 67 | Reports → Exceptions | **Daily Exception Report** | ☐ works | ☐ works | ☐ works |  |
+| 68 | Reports → Management | **Management Trend** | ☐ works | ☐ works | ☐ works | Rows, dates and chart filled for the chosen range — see section 6 |
+| 69 | Reports → Management | **Invoice Source Drill-down** | ☐ works | ☐ works | ☐ works |  |
 
 ### Settings → Help topics (all roles)
 
 | # | Topic | Owner | Store Manager | Viewer |
 |---|---|---|---|---|
-| 69 | **Getting Started** | ☐ | ☐ | ☐ |
-| 70 | **Today** | ☐ | ☐ | ☐ |
-| 71 | **Business Day** | ☐ | ☐ | ☐ |
-| 72 | **Import ETP** | ☐ | ☐ | ☐ |
-| 73 | **Import History** | ☐ | ☐ | ☐ |
-| 74 | **Daily Sales Report** | ☐ | ☐ | ☐ |
-| 75 | **Sales Reports** | ☐ | ☐ | ☐ |
-| 76 | **Stock Reports** | ☐ | ☐ | ☐ |
-| 77 | **Tender, Cash & Service** | ☐ | ☐ | ☐ |
-| 78 | **Staff / CRO** | ☐ | ☐ | ☐ |
-| 79 | **Exception Centre** | ☐ | ☐ | ☐ |
-| 80 | **Management** | ☐ | ☐ | ☐ |
-| 81 | **Investigation** | ☐ | ☐ | ☐ |
-| 82 | **Digital Registers** | ☐ | ☐ | ☐ |
-| 83 | **Accounting** | ☐ | ☐ | ☐ |
-| 84 | **Operations & Support** | ☐ | ☐ | ☐ |
-| 85 | **Administration** | ☐ | ☐ | ☐ |
-| 86 | **Report Archive** | ☐ | ☐ | ☐ |
-| 87 | **Backup & Recovery** | ☐ | ☐ | ☐ |
-| 88 | **Troubleshooting** | ☐ | ☐ | ☐ |
+| 70 | **Getting Started** | ☐ | ☐ | ☐ |
+| 71 | **Today** | ☐ | ☐ | ☐ |
+| 72 | **Business Day** | ☐ | ☐ | ☐ |
+| 73 | **Import ETP** | ☐ | ☐ | ☐ |
+| 74 | **Import History** | ☐ | ☐ | ☐ |
+| 75 | **Daily Sales Report** | ☐ | ☐ | ☐ |
+| 76 | **Sales Reports** | ☐ | ☐ | ☐ |
+| 77 | **Stock Reports** | ☐ | ☐ | ☐ |
+| 78 | **Tender, Cash & Service** | ☐ | ☐ | ☐ |
+| 79 | **Staff / CRO** | ☐ | ☐ | ☐ |
+| 80 | **Exception Centre** | ☐ | ☐ | ☐ |
+| 81 | **Management** | ☐ | ☐ | ☐ |
+| 82 | **Investigation** | ☐ | ☐ | ☐ |
+| 83 | **Digital Registers** | ☐ | ☐ | ☐ |
+| 84 | **Accounting** | ☐ | ☐ | ☐ |
+| 85 | **Operations & Support** | ☐ | ☐ | ☐ |
+| 86 | **Administration** | ☐ | ☐ | ☐ |
+| 87 | **Report Archive** | ☐ | ☐ | ☐ |
+| 88 | **Backup & Recovery** | ☐ | ☐ | ☐ |
+| 89 | **Troubleshooting** | ☐ | ☐ | ☐ |
 
 ---
 

@@ -264,3 +264,72 @@ public sealed class TallyQuantityParserTests
         Assert.Null(quantity);
     }
 }
+
+public sealed class TallyProfileRulesTests
+{
+    private static TallyProfile Valid() => TallyProfile.NewTest(" golden ", "  TEST - ETP Golden ", new[] { "wlmhw", " HEMW", "WLMHW", "" });
+
+    [Fact]
+    public void A_new_test_profile_is_normalised()
+    {
+        var value = TallyProfileRules.Normalise(Valid(), "First test company");
+        Assert.Equal("GOLDEN", value.ProfileCode);
+        Assert.Equal("TEST - ETP Golden", value.CompanyName);
+        Assert.Equal(new[] { "HEMW", "WLMHW" }, value.StoreCodes);
+        Assert.Equal("TEST", value.Environment);
+        Assert.Equal("Cash Sales", value.SinglePartyLedger);
+    }
+
+    [Theory]
+    [InlineData("http://127.0.0.1:9000/")]
+    [InlineData("http://localhost:65535/")]
+    public void This_PCs_Tally_is_accepted(string endpoint) =>
+        Assert.Equal(endpoint, TallyProfileRules.Normalise(Valid() with { EndpointUrl = endpoint }, "Probe").EndpointUrl);
+
+    [Theory]
+    [InlineData("http://192.168.1.20:9000/")]
+    [InlineData("https://127.0.0.1:9000/")]
+    [InlineData("http://127.0.0.1:9000")]
+    [InlineData("http://127.0.0.1:65536/")]
+    [InlineData("http://127.0.0.1:0/")]
+    [InlineData("http://localhost.example.com:9000/")]
+    public void Any_other_Tally_address_is_refused(string endpoint)
+    {
+        var error = Assert.Throws<ArgumentException>(() => TallyProfileRules.Normalise(Valid() with { EndpointUrl = endpoint }, "Probe"));
+        Assert.Equal(TallyProfileRules.OnlyThisPc, error.Message);
+    }
+
+    [Theory]
+    [InlineData("party", "Named customer ledgers need a clearing ledger per tender mode.")]
+    [InlineData("ledger", "Enter the one Tally ledger")]
+    [InlineData("code", "short code")]
+    [InlineData("company", "Tally company name")]
+    [InlineData("http", "address where Tally answers")]
+    [InlineData("json", "JSON files stay unavailable")]
+    [InlineData("window", "first allowed voucher date")]
+    [InlineData("store", "is not a store code")]
+    [InlineData("environment", "test books or live books")]
+    public void Invalid_profiles_are_refused_in_plain_words(string fault, string message)
+    {
+        var profile = fault switch
+        {
+            "party" => Valid() with { PartyPolicy = "NAMED_LEDGERS" },
+            "ledger" => Valid() with { SinglePartyLedger = " " },
+            "code" => Valid() with { ProfileCode = "Ramesh Kumar" },
+            "company" => Valid() with { CompanyName = "  " },
+            "http" => Valid() with { DefaultDeliveryMode = "HTTP" },
+            "json" => Valid() with { PayloadFormat = "JSON" },
+            "window" => Valid() with { PostingFromDate = new DateOnly(2026, 9, 1), PostingToDate = new DateOnly(2026, 8, 1) },
+            "store" => Valid() with { StoreCodes = new[] { "WLM HW!" } },
+            _ => Valid() with { Environment = "LIVE" }
+        };
+        var error = Assert.Throws<ArgumentException>(() => TallyProfileRules.Normalise(profile, "Synthetic change"));
+        Assert.Contains(message, error.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void A_reason_is_required(string reason) =>
+        Assert.Throws<ArgumentException>(() => TallyProfileRules.Normalise(Valid(), reason));
+}

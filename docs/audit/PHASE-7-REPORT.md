@@ -32,7 +32,7 @@ These are decision-independent: they hold whatever D12–D18 say. Nothing calls 
 
 ## Increment 2 — migration 0038, schema foundation (tasks 1–4)
 
-`database/migrations/0038_tally_transfer_foundation.sql`, tests in `tests-dotnet/Etp.Reporting.SqlServer.IntegrationTests/TallyFoundationSqlTests.cs` (SQL_VERIFIED on LocalDB when CI is green; not yet applied to the live database). Tables and columns are listed in `docs/03_DATABASE_SCHEMA.md`.
+`database/migrations/0038_tally_transfer_foundation.sql`, tests in `tests-dotnet/Etp.Reporting.SqlServer.IntegrationTests/TallyFoundationSqlTests.cs` (SQL_VERIFIED on LocalDB, CI run 146, commit 9775eb8; not yet applied to the live database). Tables and columns are listed in `docs/03_DATABASE_SCHEMA.md`.
 
 ### THROW numbers
 
@@ -62,6 +62,23 @@ The plan was written before Phase 5's remediation added invoice reservations, a 
 - **No Store Manager grants.** The plan grants Store Managers SELECT/INSERT on the Tally tables; Phase 5 denies them all accounting tables, and the Phase 5 walkthrough checks those DENYs. 0038 denies the new tables to Store Managers and Viewers too; the read-back and compare increments will grant exactly what they need.
 - **Extra integrity:** a voucher's entries must be in the voucher's batch, an attempt's payload and response artifacts must belong to its batch, an attempt must use its batch's Tally company, and a reservation must match a PLANNED voucher of that company.
 
+## Increment 3 — Tally company service and screen (task 1 code)
+
+| Item | Where | Label |
+|---|---|---|
+| `TallyProfile`, `ITallyProfileService`, `TallyProfileRules` (plain-word checks before the database's own) | `src/Etp.Reporting.Application/Accounting/TallyTransferContracts.cs` | UNIT_VERIFIED when CI is green |
+| `SqlServerTallyProfileService` — Owner only, Windows sign-in only, one transaction per save, audited as `ConfigurationChange` | `src/Etp.Reporting.Infrastructure.SqlServer/Tally/` | SQL_VERIFIED when CI is green |
+| Settings → Integrations → **Tally companies** (`tally-companies`, Owner only) | `src/Etp.Reporting.Desktop/Modules/Accounting/TallyCompaniesView.cs` | UNIT_VERIFIED when CI is green; not yet seen on the installed app (WINDOWS_VERIFIED = NOT_RUN) |
+
+Tests: `TallyProfileRulesTests` (SqlServer.Tests), `TallyProfileServiceSqlTests` (IntegrationTests), `TallyCompaniesViewTests` (Desktop.Tests). The Phase 5 role walk also opens the new screen as Owner.
+
+Where this differs from plan task 1:
+
+- **No new shell destination.** The plan names a `TallySettings` destination with three tabs and five registry wirings. The screen is instead one task under the existing Settings → Integrations section, opened the same way as Settings → Stores & masters → Tender mapping. Ledger mappings (task 13) and masters (task 14) can join it as further tasks or tabs.
+- **Audit type.** Saves are audited as the existing `ConfigurationChange` type with a fixed sentence; the plan's `TallyProfileChange` type waits for the audit-type widening (task 3 remainder).
+- **Stricter than the database.** The screen refuses JSON files (task 24 not verified) and sending straight to Tally without a this-PC address. Delivery stays FILE; the screen never sets it to HTTP.
+- **The Phase 5 "Tally file destination"** on Settings → Integrations → Email, sharing and Tally is unchanged and still drives today's day-journal export. It will be replaced by these companies when the export moves to Tally batches (task 8).
+
 ## Not started
 
-Status widening and transition procedure (task 3 remainder), Tally profile service and Settings screen (task 1 code), evidence store (task 4 code), composer (6), validation rules (7), XML export (8), read-back gateway (9), reconciliation engine (10), screen (11), golden fixtures (12), and everything in Slices 7b–7d.
+Status widening, transition procedure and audit types (task 3 remainder), evidence store (task 4 code), composer (6), validation rules (7), XML export (8), read-back gateway (9), reconciliation engine (10), screen (11), golden fixtures (12), and everything in Slices 7b–7d.
