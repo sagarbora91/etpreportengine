@@ -64,6 +64,12 @@ public sealed class RestatementTargetSqlTests(SqlDatabaseFixture database) : ICl
             DECLARE @invoice bigint = SCOPE_IDENTITY();
             INSERT dbo.sales_tenders(sales_invoice_id,tender_type,source_amount,currency_code,source_lineage_id)
             SELECT @invoice,CASE source_row_number WHEN 6 THEN N'Cash' ELSE N'CASH' END,10,'INR',source_lineage_id FROM dbo.source_lineage WHERE import_file_id=@file AND source_record_type='TENDER';
+            -- An open stock-ledger conflict on the stored movement's identity (as 1.9.2 logged a later unit row),
+            -- and a resolved one that is not listed.
+            INSERT dbo.import_conflicts(import_file_id,store_code,business_date,report_code,business_identity,existing_content_sha256,incoming_content_sha256,safe_difference,status)
+            VALUES(@file,'CHECKSTORE','20260825','R003',N'CHECKSTORE/2027/MOV-1/2026-08-25/P-1/TRANSFER//',REPLICATE('a',64),REPLICATE('b',64),N'Stock movement values differ.','OPEN'),
+                  (@file,'CHECKSTORE','20260825','R003',N'CHECKSTORE/2027/MOV-1/2026-08-25/P-1/TRANSFER//',REPLICATE('a',64),REPLICATE('b',64),N'Stock movement values differ.','RESOLVED'),
+                  (@file,'CHECKSTORE','20260825','R003',N'CHECKSTORE/2027/MOV-2/2026-08-25/P-1/TRANSFER//',REPLICATE('a',64),REPLICATE('b',64),N'No stored movement.','OPEN');
             IF DATABASE_PRINCIPAL_ID(N'upgrade_checker') IS NULL
             BEGIN CREATE USER upgrade_checker WITHOUT LOGIN; ALTER ROLE db_datareader ADD MEMBER upgrade_checker; END;
             """);
@@ -76,7 +82,8 @@ public sealed class RestatementTargetSqlTests(SqlDatabaseFixture database) : ICl
         Assert.False(string.IsNullOrWhiteSpace(environment[Array.IndexOf(sets[0].Columns, "sql_server_version")] as string));
         Assert.Equal(["check_code", "findings", "blocks_upgrade", "detail"], sets[1].Columns);
         var summary = sets[1].Rows.ToDictionary(row => (string)row[0], row => (Findings: Convert.ToInt64(row[1]), Blocks: (bool)row[2]));
-        Assert.Equal(15, summary.Count);
+        Assert.Equal(16, summary.Count);
+        Assert.Equal((1L, false), summary["OPEN_MOVEMENT_CONFLICTS_ON_STORED_ROWS"]);
         Assert.Equal((1L, true), summary["INVOICE_YEAR_NOT_FINANCIAL_YEAR"]);
         Assert.Equal((1L, false), summary["ORPHAN_INVOICE_HEADERS"]);
         Assert.Equal(1L, summary["LOCKED_DAYS"].Findings);
@@ -102,6 +109,10 @@ public sealed class RestatementTargetSqlTests(SqlDatabaseFixture database) : ICl
         Assert.Contains("DUPLICATE_TENDERS", details);
         Assert.Contains("REPEATED_MOVEMENT_IDENTITY", details);
         Assert.Contains("REPEATED_SNAPSHOT_IDENTITY", details);
+        var conflicts = Assert.Single(sets.Skip(3), set => (string)set.Rows[0][0] == "OPEN_MOVEMENT_CONFLICTS_ON_STORED_ROWS");
+        var conflict = Assert.Single(conflicts.Rows);
+        Assert.Equal("OPEN", conflict[Array.IndexOf(conflicts.Columns, "status")]);
+        Assert.Equal(2, Convert.ToInt32(conflict[Array.IndexOf(conflicts.Columns, "stored_movements")]));
     }
 
     [Fact]
