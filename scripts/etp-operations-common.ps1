@@ -363,6 +363,116 @@ function Invoke-EtpSqlAsAutomationUser {
     return Invoke-EtpSql -SqlCmd $SqlCmd -Server $Server -Database $Database -Query $scoped
 }
 
+# 1.9.3. Setup installs the operations broker alone. The automation account gets its rights
+# (etp_automation, db_backupoperator, EXECUTE on the signed broker) only from a full
+# install-etp-sql-operations.ps1 run, which needs the account to be an active Store Manager
+# first. Until then the daily backup and the drill's recording failed with only the masked
+# "The database operation failed", as on Workpc on 2 October 2026. These functions say which
+# right is missing and what to run, without ever showing SQL Server's own error text.
+$EtpMaskedSqlFailure = 'The database operation failed. Check SQL permissions and operation prerequisites.'
+
+function Get-EtpAutomationGrantQuery {
+    param([Parameter(Mandatory)][string]$Database,[Parameter(Mandatory)][string]$AutomationPrincipal)
+    if ($AutomationPrincipal -notmatch '^[^\\/\[\];''"]+\\[^\\/\[\];''"]+$') { throw 'Configure a dedicated local automation account.' }
+    $identity = $AutomationPrincipal.Replace("'","''")
+    $databaseLiteral = $Database.Replace("'","''")
+    $procedure = Get-EtpOperationsProcedureName $Database
+    # Read-only. A SQL administrator (setup, the drill) sees everything. The automation
+    # account itself (the daily backup) sees only its own roles and its own EXECUTE right,
+    # so the signature is not judged from there. Anyone else gets UNKNOWN.
+    return @"
+SET NOCOUNT ON;
+DECLARE @identity sysname=N'$identity', @database sysname=N'$databaseLiteral', @procedure sysname=N'$procedure';
+DECLARE @admin bit=CASE WHEN IS_SRVROLEMEMBER(N'sysadmin')=1 THEN 1 ELSE 0 END;
+DECLARE @self bit=CASE WHEN SUSER_SID()=SUSER_SID(@identity) THEN 1 ELSE 0 END;
+DECLARE @found TABLE(item nvarchar(100));
+IF (@admin=0 AND @self=0) OR DB_ID(@database) IS NULL BEGIN SELECT N'ETP_AUTOMATION:UNKNOWN'; RETURN; END;
+INSERT @found VALUES(CASE WHEN @admin=1 THEN N'CALLER_ADMIN' ELSE N'CALLER_SELF' END);
+IF SUSER_ID(@identity) IS NOT NULL
+BEGIN
+    INSERT @found VALUES(N'LOGIN');
+    DECLARE @sql nvarchar(max)=N'USE '+QUOTENAME(@database)+N';
+        DECLARE @u sysname=(SELECT name FROM sys.database_principals WHERE sid=SUSER_SID(@identity));
+        SELECT N''USER'' WHERE @u IS NOT NULL
+        UNION ALL SELECT N''STORE_MANAGER'' WHERE IS_ROLEMEMBER(N''etp_store_manager'',@u)=1
+        UNION ALL SELECT N''ACTIVE'' WHERE EXISTS(SELECT 1 FROM dbo.application_users WHERE windows_identity=@identity AND role_code=''STORE_MANAGER'' AND is_active=1)
+        UNION ALL SELECT N''ROLE:etp_automation'' WHERE IS_ROLEMEMBER(N''etp_automation'',@u)=1
+        UNION ALL SELECT N''ROLE:db_backupoperator'' WHERE IS_ROLEMEMBER(N''db_backupoperator'',@u)=1;';
+    INSERT @found EXEC sys.sp_executesql @sql, N'@identity sysname', @identity=@identity;
+    IF @admin=1
+    BEGIN
+        IF OBJECT_ID(N'dbo.'+QUOTENAME(@procedure),N'P') IS NOT NULL INSERT @found VALUES(N'BROKER');
+        IF EXISTS(SELECT 1 FROM sys.database_permissions p JOIN sys.database_principals dp ON dp.principal_id=p.grantee_principal_id
+                  WHERE dp.sid=SUSER_SID(@identity) AND p.major_id=OBJECT_ID(N'dbo.'+QUOTENAME(@procedure))
+                    AND p.permission_name=N'EXECUTE' AND p.state IN ('G','W'))
+            INSERT @found VALUES(N'BROKER_EXECUTE');
+        IF EXISTS(SELECT 1 FROM sys.crypt_properties WHERE major_id=OBJECT_ID(N'dbo.'+QUOTENAME(@procedure)))
+            INSERT @found VALUES(N'BROKER_SIGNED');
+    END
+    ELSE IF HAS_PERMS_BY_NAME(N'dbo.'+QUOTENAME(@procedure),N'OBJECT',N'EXECUTE')=1
+        INSERT @found VALUES(N'BROKER_EXECUTE');
+END;
+SELECT N'ETP_AUTOMATION:'+item FROM @found;
+"@
+}
+
+function ConvertFrom-EtpAutomationGrantResult {
+    # Pure: turns the query's lines into a state. Kept apart from SQL so it can be tested.
+    param([AllowEmptyCollection()][string[]]$Lines)
+    $items = @($Lines | ForEach-Object { "$_".Trim() } | Where-Object { $_.StartsWith('ETP_AUTOMATION:') } | ForEach-Object { $_.Substring(15) })
+    if ($items.Count -eq 0 -or $items -ccontains 'UNKNOWN') { return [pscustomobject]@{ State = 'UNKNOWN'; Missing = @() } }
+    $admin = $items -ccontains 'CALLER_ADMIN'
+    if (-not ($items -ccontains 'LOGIN' -and $items -ccontains 'USER' -and $items -ccontains 'STORE_MANAGER' -and $items -ccontains 'ACTIVE')) {
+        return [pscustomobject]@{ State = 'NOT_STORE_MANAGER'; Missing = @() }
+    }
+    $missing = [Collections.Generic.List[string]]::new()
+    foreach ($role in @('etp_automation','db_backupoperator')) { if (-not ($items -ccontains "ROLE:$role")) { $missing.Add("the $role database role") } }
+    if ($admin -and -not ($items -ccontains 'BROKER')) { $missing.Add('the operations broker in master') }
+    if (-not ($items -ccontains 'BROKER_EXECUTE')) { $missing.Add('EXECUTE on the operations broker') }
+    if ($admin -and -not ($items -ccontains 'BROKER_SIGNED')) { $missing.Add('the broker''s module signature') }
+    if ($missing.Count -gt 0) { return [pscustomobject]@{ State = 'GRANTS_MISSING'; Missing = @($missing) } }
+    return [pscustomobject]@{ State = 'READY'; Missing = @() }
+}
+
+function Get-EtpAutomationGrantState {
+    param([string]$SqlCmd,[string]$Server,[string]$Database,[string]$AutomationPrincipal)
+    $lines = @(Invoke-EtpSql -SqlCmd $SqlCmd -Server $Server -Query (Get-EtpAutomationGrantQuery -Database $Database -AutomationPrincipal $AutomationPrincipal))
+    return ConvertFrom-EtpAutomationGrantResult -Lines $lines
+}
+
+function Get-EtpAutomationGrantCommand {
+    param([string]$ServerInstance,[string]$Database,[string]$AutomationPrincipal,[string]$ScriptsDirectory=$PSScriptRoot)
+    $script = Join-Path $ScriptsDirectory 'install-etp-sql-operations.ps1'
+    return "powershell.exe -ExecutionPolicy Bypass -File '$script' -ServerInstance '$ServerInstance' -Database '$Database' -AutomationPrincipal '$AutomationPrincipal'"
+}
+
+function Get-EtpAutomationGrantGuidance {
+    # The sentence an operator acts on, or $null when the account is ready or its state
+    # cannot be read (the caller then keeps its own message).
+    param([Parameter(Mandatory)]$GrantState,[string]$ServerInstance,[string]$Database,[string]$AutomationPrincipal,[string]$ScriptsDirectory=$PSScriptRoot)
+    $command = Get-EtpAutomationGrantCommand -ServerInstance $ServerInstance -Database $Database -AutomationPrincipal $AutomationPrincipal -ScriptsDirectory $ScriptsDirectory
+    switch ($GrantState.State) {
+        'NOT_STORE_MANAGER' {
+            return "The automation account $AutomationPrincipal is not an active Store Manager of $Database, so the scheduled backup and the recovery drill cannot run under it. In ETP as Owner, started with 'Run as administrator', add $AutomationPrincipal as an active Store Manager in Settings > Users. Then run ETP setup again, which completes its backup rights, or run this in an administrator PowerShell window: $command (docs\OPERATIONS.md, step 7)."
+        }
+        'GRANTS_MISSING' {
+            return "The automation account $AutomationPrincipal is an active Store Manager but does not yet have the operations module's rights (missing: $($GrantState.Missing -join ', ')). Run ETP setup again, which completes them, or run this in an administrator PowerShell window: $command (docs\OPERATIONS.md, step 7)."
+        }
+        default { return $null }
+    }
+}
+
+function Get-EtpAutomationFailureMessage {
+    # Called when a backup or drill step has failed. Only the masked failure is explained,
+    # and only when the account's rights really are incomplete; any other failure, or a
+    # failure to read the state, returns $null and the original error stands.
+    param([string]$Message,[string]$SqlCmd,[string]$Server,[string]$ServerInstance,[string]$Database,[string]$AutomationPrincipal)
+    if ($Message -cne $EtpMaskedSqlFailure -or [string]::IsNullOrWhiteSpace($SqlCmd) -or [string]::IsNullOrWhiteSpace($AutomationPrincipal)) { return $null }
+    try { $state = Get-EtpAutomationGrantState -SqlCmd $SqlCmd -Server $Server -Database $Database -AutomationPrincipal $AutomationPrincipal }
+    catch { return $null }
+    return Get-EtpAutomationGrantGuidance -GrantState $state -ServerInstance $ServerInstance -Database $Database -AutomationPrincipal $AutomationPrincipal
+}
+
 function Write-EtpJsonAtomically {
     param([string]$Path,[object]$Value,[switch]$Replace)
     Assert-EtpNoLinks $Path

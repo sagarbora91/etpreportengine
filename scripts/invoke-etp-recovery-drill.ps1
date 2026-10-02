@@ -13,6 +13,7 @@ if (-not $PSBoundParameters.ContainsKey('ServerInstance') -and -not $PSBoundPara
     $ServerInstance=$configuration.serverInstance; $Database=$configuration.database
 }
 Assert-EtpLocalSqlTarget $ServerInstance $Database
+$configuredServerInstance=$ServerInstance
 $sqlcmd=Resolve-EtpSqlCmd $SqlCmdPath
 $ServerInstance=Resolve-EtpSqlConnection -SqlCmd $sqlcmd -ServerInstance $ServerInstance
 $directory=[IO.Path]::GetFullPath($BackupDirectory)
@@ -30,10 +31,21 @@ $result=[ordered]@{ schemaVersion=1; succeeded=$true; backupSha256=$receipt.sha2
 Write-EtpJsonAtomically -Path (Join-Path $directory "$Database-latest-drill.json") -Value $result -Replace
 # The drill ran as a SQL administrator; what follows runs code in the application database,
 # so it runs with the automation account's database rights and nothing more.
-Invoke-EtpSqlAsAutomationUser -SqlCmd $sqlcmd -Server $ServerInstance -Database $Database -AutomationPrincipal $configuration.automationPrincipal -Query "EXEC dbo.record_verified_operation 'RestoreDrill','$($receipt.sha256)';" | Out-Null
-# The audit trail must describe the backup that was actually drilled. Claiming an
-# encrypted restore for an unencrypted backup would put a false statement into an
-# append-only compliance record, which is worse than recording nothing.
-$drillDetail = if ($receipt.encryption -ceq 'AES_256') { 'Isolated encrypted restore and backup metadata checks passed' } else { 'Isolated restore and backup metadata checks passed; the backup was not encrypted' }
-Invoke-EtpSqlAsAutomationUser -SqlCmd $sqlcmd -Server $ServerInstance -Database $Database -AutomationPrincipal $configuration.automationPrincipal -Query "EXEC dbo.record_operational_audit 'RestoreDrill','Succeeded',N'$drillDetail',N'operations';" | Out-Null
+# 1.9.3. Before the automation account has the operations module's rights (etp_automation),
+# this recording failed with only the masked "The database operation failed" - the drill's
+# first run on Workpc, 2 October 2026. The catch names the missing right and the command.
+try {
+    Invoke-EtpSqlAsAutomationUser -SqlCmd $sqlcmd -Server $ServerInstance -Database $Database -AutomationPrincipal $configuration.automationPrincipal -Query "EXEC dbo.record_verified_operation 'RestoreDrill','$($receipt.sha256)';" | Out-Null
+    # The audit trail must describe the backup that was actually drilled. Claiming an
+    # encrypted restore for an unencrypted backup would put a false statement into an
+    # append-only compliance record, which is worse than recording nothing.
+    $drillDetail = if ($receipt.encryption -ceq 'AES_256') { 'Isolated encrypted restore and backup metadata checks passed' } else { 'Isolated restore and backup metadata checks passed; the backup was not encrypted' }
+    Invoke-EtpSqlAsAutomationUser -SqlCmd $sqlcmd -Server $ServerInstance -Database $Database -AutomationPrincipal $configuration.automationPrincipal -Query "EXEC dbo.record_operational_audit 'RestoreDrill','Succeeded',N'$drillDetail',N'operations';" | Out-Null
+}
+catch {
+    $failure = $_
+    $explained = Get-EtpAutomationFailureMessage -Message $failure.Exception.Message -SqlCmd $sqlcmd -Server $ServerInstance -ServerInstance $configuredServerInstance -Database $Database -AutomationPrincipal $configuration.automationPrincipal
+    if ($explained) { throw "The isolated restore passed, but its result could not be recorded. $explained" }
+    throw $failure
+}
 Write-Output 'Receipt-verified recovery drill completed.'
