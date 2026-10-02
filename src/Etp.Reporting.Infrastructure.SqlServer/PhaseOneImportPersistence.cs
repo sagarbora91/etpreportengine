@@ -164,8 +164,10 @@ public sealed partial class SqlServerTransactionalImportStore
     private static async Task InsertEnrichmentAsync(SqlConnection c,SqlTransaction t,long file,EnrichmentPersistence row,CancellationToken token)
     {
         var lineage=await Lineage(c,t,file,row.Lineage,token);
-        const string sql="EXEC dbo.persist_phase_one_enrichment @file,@report,@store,@doc,@date,@product,@type,@qty,@net,@gross,@cro,@name,@scheme,@userDiscount,@pre,@other,@activation,@details,@lineage,@key";
+        const string sql="EXEC dbo.persist_phase_one_enrichment @file,@report,@store,@doc,@date,@product,@type,@qty,@net,@gross,@cro,@name,@scheme,@userDiscount,@pre,@other,@activation,@details,@lineage,@key,@outcome OUTPUT";
         await using var q=Cmd(c,t,sql);
+        // NEW, or ALREADY_PRESENT when the content key is already stored (migration 0038, section E).
+        var outcome=q.Parameters.Add("@outcome",SqlDbType.VarChar,16);outcome.Direction=ParameterDirection.Output;
         q.Parameters.AddWithValue("@file",file);
         q.Parameters.AddWithValue("@report",row.ReportCode);q.Parameters.AddWithValue("@store",row.StoreCode);q.Parameters.AddWithValue("@doc",row.DocumentNumber);
         q.Parameters.AddWithValue("@date",row.TransactionDate);q.Parameters.AddWithValue("@product",row.ProductCode);q.Parameters.AddWithValue("@type",row.TransactionType);
@@ -173,6 +175,7 @@ public sealed partial class SqlServerTransactionalImportStore
         Add(q,"@cro",row.CroNumber);Add(q,"@name",row.StaffName);Add(q,"@scheme",row.SchemeDiscount);Add(q,"@userDiscount",row.UserDiscount);
         Add(q,"@pre",row.PreDiscount);Add(q,"@other",row.OtherCharges);Add(q,"@activation",row.ActivationDetails);Add(q,"@details",row.UserDiscountDetails);
         q.Parameters.AddWithValue("@lineage",lineage);q.Parameters.AddWithValue("@key",row.ContentKey);await q.ExecuteNonQueryAsync(token);
-        await RecordOutcomeAsync(c,t,file,lineage,row.ContentKey,"NEW",token);
+        await RecordOutcomeAsync(c,t,file,lineage,row.ContentKey,outcome.Value as string
+            ?? throw new InvalidOperationException("The enrichment procedure did not report an outcome."),token);
     }
 }

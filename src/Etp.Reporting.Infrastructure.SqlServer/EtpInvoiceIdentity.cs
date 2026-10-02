@@ -6,15 +6,13 @@ namespace Etp.Reporting.Infrastructure.SqlServer;
 
 public static class EtpInvoiceIdentity
 {
-    public static int FinancialYearEnd(DateOnly date) => date.Month >= 4 ? date.Year + 1 : date.Year;
-
-    public static int FinancialYearEnd(DateOnly date, IReadOnlyDictionary<string, object?> values)
-    {
-        if (values.TryGetValue("invoice_year", out var value) && value is not null &&
-            int.TryParse(Convert.ToString(value, CultureInfo.InvariantCulture), out var year) && year > 1900)
-            return year;
-        return FinancialYearEnd(date);
-    }
+    /// <summary>
+    /// The financial year of an invoice or stock document's own date, the one year rule for every family (OD-1).
+    /// ETP's INVOICEYEAR is only a label: a return dated 1 April carries the year before, and keying by it split
+    /// R022 from R025's header (IF-019). <see cref="Etp.Reporting.Import.Staging.InvoiceYearLabels"/> reports the
+    /// rows whose label differs.
+    /// </summary>
+    public static int FinancialYearEnd(DateOnly date) => Etp.Reporting.Import.Documents.DocumentKey.FinancialYearEnd(date);
 
     public static string ContentHash(IEnumerable<KeyValuePair<string, object?>> values) =>
         Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join("\n",
