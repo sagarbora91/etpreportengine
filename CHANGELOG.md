@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+Phase 7 (Tally transfer) groundwork, and help for the Phase 5 acceptance run at the shop:
+
+- Migrations 0038 and 0039 add the Tally transfer tables: Tally companies and their stores, batch and voucher history, evidence files, validation findings, read-backs, reconciliation results and recovery plans. Only the Owner can see them. Existing accounting batches keep their five statuses.
+- New Settings screen "Tally companies" (Settings > Integrations). The Owner can add a test Tally company, link stores to it and record why it changed. A Tally address must be on this PC. Changing a company to live books records the intent only; nothing enables live posting yet.
+- Evidence files for a Tally batch are written once into the batch's own folder, registered with their checksum, and can be re-checked later (OK, changed or missing). Linked folders are refused.
+- Validation, reconciliation and recovery rules for a batch: ETP checks what it would send, reads a Tally Day Book export saved by hand, compares the two voucher by voucher, and writes a recovery plan and a manifest. Differences can be accepted only by the Owner, with a reason.
+- New `docs/audit/PHASE-7-DECISION-SHEET-D12-D18.md` for the Owner to tick the open Tally decisions, and a new section "When Tally and ETP disagree" in `docs/OPERATIONS.md`.
+- New `docs/audit/PHASE-5-ACCEPTANCE-WALKTHROUGH.md`: a printable A5.1/A5.2 checklist that goes through every screen as Owner, Store Manager and Viewer.
+- Test fixes: the operations boundary test now waits up to 120 s and prints the script output when it times out; the zip retry import test no longer fails when the random temp folder name happens to contain "bad".
+
+Status: not released. Migrations 0038 and 0039 have not been applied to the shop database. ETP does not send anything to Tally yet: no Tally PC has been tested (plan task 5), and decisions D12 to D18 are still open.
+
 ## [1.9.1] - 2026-09-27
 
 Setup can now prepare a new PC from the installer alone:
