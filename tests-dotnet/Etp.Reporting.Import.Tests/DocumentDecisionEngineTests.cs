@@ -14,11 +14,11 @@ public sealed class DocumentDecisionEngineTests
     private static readonly DateOnly Day = new(2026, 9, 1);
     private static readonly DocumentDecisionEngine Engine = new();
 
-    // Families of spec 7.3-7.4, reduced to what the engine reads.
+    // Families of spec 7.3-7.4, reduced to what the engine reads. Sales takes the shipped R025 LegacyNullable list.
     private static readonly EtpFamilyIdentity Sales = new()
     {
         Scope = DocumentScope.Document, YearRule = YearRule.FinancialYearOfPrimaryDate, Route = FamilyRoute.Sales,
-        LegacyNullable = ["source_gross_amount", "source_tax_amount"]
+        LegacyNullable = EtpReportFamilyRegistry.Resolve("R025").Identity!.LegacyNullable
     };
     private static readonly EtpFamilyIdentity Revenue = Sales with { Route = FamilyRoute.Revenue, LegacyNullable = [] };
     private static readonly EtpFamilyIdentity LandingDay = new() { Scope = DocumentScope.Date };
@@ -356,7 +356,10 @@ public sealed class DocumentDecisionEngineTests
             Assert.Equal(expected, result.Decision);
             if (expected != DocumentDecision.HeldHeaderDate) continue;
             Assert.Equal(new ChangeProposal(ChangeMode.Review, ChangeReason.HeaderDateMismatch, ChangeAction.None, null, Held: true), result.Change);
-            Assert.Equal(ImportCodes.HeaderDateMismatch, Assert.Single(outcome.Diagnostics).Code);
+            var diagnostic = Assert.Single(outcome.Diagnostics);
+            Assert.Equal(ImportCodes.HeaderDateMismatch, diagnostic.Code);
+            // A held document never refuses the file: a warning, as from the projector and the resolver.
+            Assert.Equal(Diagnostics.ImportDiagnosticSeverity.Warning, diagnostic.Severity);
         }
     }
 
@@ -1008,25 +1011,36 @@ public sealed class DocumentDecisionEngineTests
     [Fact]
     public void Fill_checks_fields_only_the_incoming_row_carries()
     {
-        // The v0 row lacks the net amount entirely; the incoming row carries one. That is not a NULL fill.
+        // The v0 row lacks the net amount column entirely; the incoming row carries one. That is not a NULL fill.
         var key = SalesKey();
-        var storedRow = Row("v0", facts: new Dictionary<string, string> { ["product_code"] = "p1", ["source_tax_amount"] = "" });
+        var storedRow = Line("v0", new() { ["product_code"] = "p1", ["source_tax_amount"] = "" });
         var stored = Stored(key, Day, Version(T(StoredTime), [storedRow], basis: VersionBasis.CanonicalOnly));
-        var incomingRow = Row("v1", facts: new Dictionary<string, string>
-        {
-            ["product_code"] = "p1", ["source_tax_amount"] = "18", ["source_net_amount"] = "500"
-        });
+        var incomingRow = Line("v1", new() { ["product_code"] = "p1", ["source_tax_amount"] = "18", ["source_net_amount"] = "500" });
 
         var result = Single(Request(Sales, [Obs(key, T("2026-09-29T14:49"), Day, [incomingRow])], [stored]));
 
         Assert.Equal(DocumentDecision.PendingChange, result.Decision);
 
-        // An incoming-only nullable field is a fill.
-        var nullableOnly = Row("v2", facts: new Dictionary<string, string>
-        {
-            ["product_code"] = "p1", ["source_tax_amount"] = "18", ["source_gross_amount"] = "590"
-        });
+        // An incoming-only nullable column is a fill.
+        var nullableOnly = Line("v2", new() { ["product_code"] = "p1", ["source_tax_amount"] = "18", ["source_gross_amount"] = "590" });
         Assert.Equal(DocumentDecision.Filled, Single(Request(Sales, [Obs(key, T("2026-09-29T14:49"), Day, [nullableOnly])], [stored])).Decision);
+    }
+
+    [Fact]
+    public void Fill_compares_fact_table_rows_not_staged_facts()
+    {
+        // Rule 10 reads the canonical rows the fact table stores. Staged facts no fact table keeps (here a UCP that
+        // differs) never block a fill, and a row without fact-table rows is never a fill.
+        var key = SalesKey();
+        var v0 = Line("v0", new() { ["product_code"] = "p1", ["source_net_amount"] = "500", ["source_tax_amount"] = "", ["source_gross_amount"] = "" })
+            with { Canonical = new CanonicalRow("v0", "a1", "d", "v0", new Dictionary<string, string> { ["source_ucp"] = "" }, new Dictionary<string, string>()) };
+        var stored = Stored(key, Day, Version(T(StoredTime), [v0], basis: VersionBasis.CanonicalOnly));
+        var incoming = Line("v1", new() { ["product_code"] = "p1", ["source_net_amount"] = "500", ["source_tax_amount"] = "18", ["source_gross_amount"] = "590" })
+            with { Canonical = new CanonicalRow("v1", "a1", "d", "v1", new Dictionary<string, string> { ["source_ucp"] = "1000" }, new Dictionary<string, string>()) };
+
+        Assert.Equal(DocumentDecision.Filled, Single(Request(Sales, [Obs(key, T("2026-09-29T14:49"), Day, [incoming])], [stored])).Decision);
+        Assert.Equal(DocumentDecision.PendingChange,
+            Single(Request(Sales, [Obs(key, T("2026-09-29T14:49"), Day, [incoming with { FactTableRows = [] }])], [stored])).Decision);
     }
 
     // ------------------------------------------------------------------ holds from the source (6.6-6.7)
@@ -1375,18 +1389,26 @@ public sealed class DocumentDecisionEngineTests
     private static FactRow[] Items(params (string Key, string Quantity)[] items) =>
         items.Select(item => Row($"{item.Key}:{item.Quantity}", rowKey: item.Key)).ToArray();
 
-    /// <summary>A sales row with the v0 nullable fields (spec 7.3 tax note).</summary>
-    private static FactRow Filled(string product, string tax, string? gross = null, string net = "500")
-    {
-        gross ??= tax;
-        var facts = new Dictionary<string, string>
+    /// <summary>
+    /// A sales row with the v0 nullable columns (spec 7.3 tax note), carrying the <c>sales_lines</c> row it stores by
+    /// fact-table column, as rule 10 reads it: <c>source_gross_amount</c> and <c>source_tax_amount</c> are the
+    /// legacy-nullable columns, <c>source_net_amount</c> (NETVALUE) is a plain fact.
+    /// </summary>
+    private static FactRow Filled(string product, string tax, string? gross = null, string net = "500") =>
+        Line(product, new()
         {
             ["product_code"] = product,
             ["source_net_amount"] = net,
             ["source_tax_amount"] = tax,
-            ["source_gross_amount"] = gross
-        };
-        return Row(Hash(string.Join('|', facts.OrderBy(pair => pair.Key, StringComparer.Ordinal))), facts: facts);
+            ["source_gross_amount"] = gross ?? tax
+        });
+
+    /// <summary>A row whose one <c>sales_lines</c> fact-table row has the given columns; the fact hash covers them.</summary>
+    private static FactRow Line(string name, Dictionary<string, string> columns)
+    {
+        columns[CanonicalFactProjection.FactTable] = "sales_lines";
+        var hash = Hash(string.Join('|', columns.OrderBy(pair => pair.Key, StringComparer.Ordinal)));
+        return Row(hash) with { FactTableRows = [new CanonicalFactRow(Hash(name + hash), columns)] };
     }
 
     private static DocumentObservation Obs(DocumentKey key, ExportTime time, DateOnly date, IReadOnlyList<FactRow> rows) =>

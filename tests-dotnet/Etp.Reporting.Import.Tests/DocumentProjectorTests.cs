@@ -258,6 +258,10 @@ public sealed class DocumentProjectorTests
         Assert.Equal((3, RowDisposition.Held), (held.Source.SourceRowNumber, held.Disposition));
         var missing = Assert.Single(projection.Diagnostics, diagnostic => diagnostic.Code == ImportCodes.RowDateMissing);
         Assert.Equal((ImportDiagnosticSeverity.Warning, 1, 3), (missing.Severity, missing.Occurrences, missing.RowNumber));
+        // The held row's invoice is still in the export: the absence check must count it as observed (spec 8.4).
+        Assert.Equal(["2027|INV-0901"], projection.HeldDocuments.Select(key => key.KeyText));
+        Assert.Empty(projection.HeldDates);
+        Assert.False(projection.HasUndatedHeldRows);
     }
 
     [Fact]
@@ -438,6 +442,10 @@ public sealed class DocumentProjectorTests
         Assert.All(projection.HeldRows, row => Assert.Equal(RowDisposition.Held, row.Disposition));
         var missing = Assert.Single(projection.Diagnostics, diagnostic => diagnostic.Code == ImportCodes.RowDateMissing);
         Assert.Equal((ImportDiagnosticSeverity.Warning, 2), (missing.Severity, missing.Occurrences));
+        // Row 4 names its day but no invoice; row 3 names no day at all (spec 8.4 cannot use the block for those).
+        Assert.Equal([SaleDate], projection.HeldDates);
+        Assert.True(projection.HasUndatedHeldRows);
+        Assert.Empty(projection.HeldDocuments);
 
         var undated = Projector.Project(new(R010, Store, Block(1), [Row(R010, 2)]));
         Assert.Empty(undated.Documents);

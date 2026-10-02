@@ -143,6 +143,44 @@ public sealed class ConsolidationContractTests
     }
 
     [Fact]
+    public void Every_staged_row_is_in_one_block_or_a_skipped_block()
+    {
+        // The repeated history block is not a block, but its rows stay on Snapshot History: the description says so,
+        // so an integrator landing every staged row knows each one's block or that it is counted from the Data block.
+        var (book, _) = Changed("S009 history repeats data");
+        var workbook = book.ToSnapshot();
+        var family = ContractCatalogue.Family("S009");
+
+        var source = TestSources.Reader().Describe(new SourceDescriptionRequest(workbook, family, workbook.Sheets.Single(sheet => sheet.Name == "Data")));
+        var staged = TestSources.Stage(workbook, family, "Data", "Snapshot History");
+
+        Assert.False(source.HasBlockers, Describe(source.Diagnostics));
+        var skipped = Assert.Single(source.SkippedBlocks);
+        Assert.Equal((1, ConsolidationContractLayout.HistorySheet, Codes.HistoryRepeatsData, 2),
+            (skipped.BlockNo, skipped.SheetName, skipped.Code, skipped.AttestedByBlockNo));
+        Assert.Contains(staged, row => row.Locator.SheetName == ConsolidationContractLayout.HistorySheet);
+        Assert.All(staged, row => Assert.Equal(1,
+            source.Blocks.Count(block => block.Contains(row.Locator.SheetName, row.Locator.SourceRowNumber)) +
+            source.SkippedBlocks.Count(block => block.Contains(row.Locator.SheetName, row.Locator.SourceRowNumber))));
+        Assert.Same(skipped, source.SkippedBlockOf(ConsolidationContractLayout.HistorySheet, skipped.FirstRow));
+    }
+
+    [Fact]
+    public void A_snapshot_block_never_passes_on_a_period()
+    {
+        // Contract 3.3: period_from and period_to are blank for snapshot blocks. A pack period written there anyway is
+        // not what the snapshot read, so the block carries none and the absence check never treats it as coverage.
+        var book = ContractFixture.Load(R010).Workbook;
+        book.SetBlock(1, "period_from", "2026-07-01");
+        book.SetBlock(1, "period_to", "2026-08-25");
+
+        var result = Validate(book, "R010");
+
+        Assert.False(result.HasBlockers, Describe(result.Diagnostics));
+        Assert.All(result.Blocks, block => Assert.Equal(((DateOnly?)null, (DateOnly?)null, PeriodBasis.None), (block.PeriodFrom, block.PeriodTo, block.PeriodBasis)));
+    }
+
+    [Fact]
     public void Another_export_with_the_Data_date_on_history_is_not_a_repeat()
     {
         var (book, _) = Changed("S009 history block of another export shares the Data date");
@@ -332,7 +370,7 @@ public sealed class ConsolidationContractTests
         var trimmed = source.Blocks.Single(block => block.BlockNo == 1);
         var delta = source.Blocks.Single(block => block.BlockNo == 2);
         var resolution = new InSourceResolver(TestSources.Canonicalizer).Resolve(source, projections);
-        var coverage = InSourceResolver.CoverageBlocks(source, projections);
+        var coverage = InSourceResolver.CoverageBlocks(source, projections, family.Identity!.Scope);
 
         Assert.False(validation.HasBlockers, Describe(validation.Diagnostics));
         Assert.Equal(BlockCompleteness.Trimmed, trimmed.Completeness);
@@ -443,7 +481,7 @@ public sealed class ConsolidationContractTests
         var staged = TestSources.Stage(workbook, family, "Data");
         var projections = source.Blocks.Select(block => TestSources.Project(family, "WLMHW", block, reader.RebuildBlockRows(source, block, staged))).ToArray();
 
-        var coverage = InSourceResolver.CoverageBlocks(source, projections);
+        var coverage = InSourceResolver.CoverageBlocks(source, projections, family.Identity!.Scope);
 
         var latest = coverage.Single(block => block.BlockNo == 2);
         Assert.True(latest.IsIncoming);

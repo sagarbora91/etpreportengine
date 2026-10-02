@@ -40,6 +40,9 @@ public sealed record ContractValidationResult(
     IReadOnlyList<VirtualRow> VirtualRows,
     IReadOnlyList<ImportDiagnostic> Diagnostics)
 {
+    /// <summary>Contract blocks left out of <see cref="Blocks"/> whose rows stay on the workbook (contract 5).</summary>
+    public IReadOnlyList<SkippedBlock> SkippedBlocks { get; init; } = [];
+
     public bool HasBlockers => Diagnostics.Any(diagnostic => diagnostic.Severity == ImportDiagnosticSeverity.Blocker);
 }
 

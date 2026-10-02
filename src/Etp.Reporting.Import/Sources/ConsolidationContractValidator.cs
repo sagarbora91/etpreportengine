@@ -80,7 +80,9 @@ public sealed class ConsolidationContractValidator : IConsolidationContractValid
         private readonly EtpReportFamily family = request.MatchedFamily;
         private readonly List<ImportDiagnostic> diagnostics = [];
         private readonly List<ParsedBlock> blocks = [];
-        private readonly HashSet<int> repeatedHistoryBlocks = [];
+        // Contract 5: a Snapshot History block that repeats the Data snapshot (same export), by its block number, with
+        // the Data block that counts it.
+        private readonly Dictionary<int, int> repeatedHistoryBlocks = [];
         private ContractRule? rule;
         private ContractSheetView? data;
         private ContractSheetView? history;
@@ -112,7 +114,7 @@ public sealed class ConsolidationContractValidator : IConsolidationContractValid
             if (legacy > 0)
                 Add(Codes.LegacyBlocks, $"{legacy} legacy block(s): imported for their rows, never used to infer that a document is missing.",
                     occurrences: legacy);
-            return new(SourceBlocks(virtualRows), virtualRows, diagnostics);
+            return new(SourceBlocks(virtualRows), virtualRows, diagnostics) { SkippedBlocks = SkippedBlocks() };
         }
 
         private bool CheckVersion()
@@ -487,12 +489,12 @@ public sealed class ConsolidationContractValidator : IConsolidationContractValid
                     foreach (var repeat in repeats.Where(block => block != dataBlock && block.Sheet == ConsolidationContractLayout.HistorySheet &&
                                  SameExport(block, dataBlock)))
                     {
-                        repeatedHistoryBlocks.Add(repeat.No);
+                        repeatedHistoryBlocks[repeat.No] = dataBlock.No;
                         Add(Codes.HistoryRepeatsData,
                             $"{repeat.Label} on {ConsolidationContractLayout.HistorySheet} repeats the {ConsolidationContractLayout.DataSheet} snapshot of {group.Key:yyyy-MM-dd}; it is counted once, from {ConsolidationContractLayout.DataSheet}.",
                             Info, repeat.Row.RowNumber, block: repeat.No);
                     }
-                    repeats.RemoveAll(block => repeatedHistoryBlocks.Contains(block.No));
+                    repeats.RemoveAll(block => repeatedHistoryBlocks.ContainsKey(block.No));
                 }
                 if (repeats.Count > 1)
                     Add(Codes.SnapshotDateDuplicate,
@@ -510,7 +512,7 @@ public sealed class ConsolidationContractValidator : IConsolidationContractValid
 
         private void CheckDuplicateExports()
         {
-            var live = blocks.Where(block => !repeatedHistoryBlocks.Contains(block.No)).ToArray();
+            var live = blocks.Where(block => !repeatedHistoryBlocks.ContainsKey(block.No)).ToArray();
             foreach (var group in live.Where(block => IsSha256(block.Row.SourceSha256)).GroupBy(block => block.Row.SourceSha256).Where(group => group.Count() > 1))
                 Add(Codes.DuplicateExport, $"Blocks {string.Join(", ", group.Select(block => block.No))} have the same source_sha256: one export is one block.",
                     Info, group.ElementAt(1).Row.RowNumber, block: group.ElementAt(1).No);
@@ -737,7 +739,7 @@ public sealed class ConsolidationContractValidator : IConsolidationContractValid
         {
             if (request.RawExports.Count == 0) return;
             var checkable = blocks.Where(block => block.Completeness != BlockCompleteness.Legacy &&
-                !repeatedHistoryBlocks.Contains(block.No) && IsSha256(block.Row.SourceSha256) &&
+                !repeatedHistoryBlocks.ContainsKey(block.No) && IsSha256(block.Row.SourceSha256) &&
                 request.RawExports.ContainsKey(block.Row.SourceSha256)).ToArray();
             if (checkable.Length == 0) return;
 
@@ -808,10 +810,13 @@ public sealed class ConsolidationContractValidator : IConsolidationContractValid
         };
 
         private IReadOnlyList<SourceBlock> SourceBlocks(IReadOnlyList<VirtualRow> virtualRows) => blocks
-            .Where(block => !repeatedHistoryBlocks.Contains(block.No))
+            .Where(block => !repeatedHistoryBlocks.ContainsKey(block.No))
             .Select(block =>
             {
                 var row = block.Row;
+                // Contract 3.3: period_from and period_to are blank for snapshot and current blocks. A period a builder
+                // wrote there anyway (a pack's dates) is not what the snapshot read, so it is never passed on.
+                var dated = rule is not (ContractRule.Snapshot or ContractRule.Current);
                 return new SourceBlock(block.No, block.Sheet, block.First, block.Last, row.RowCount ?? 0, block.Completeness,
                     BlockOrigin.Contract, block.Time)
                 {
@@ -819,9 +824,9 @@ public sealed class ConsolidationContractValidator : IConsolidationContractValid
                     SourceFileName = row.SourceFile.Length == 0 ? null : row.SourceFile,
                     SourceFormat = row.SourceFormat.Length == 0 ? null : row.SourceFormat,
                     SourceSha256 = IsSha256(row.SourceSha256) ? row.SourceSha256 : null,
-                    PeriodFrom = row.PeriodFrom,
-                    PeriodTo = row.PeriodTo,
-                    PeriodBasis = row.PeriodBasis ?? PeriodBasis.None,
+                    PeriodFrom = dated ? row.PeriodFrom : null,
+                    PeriodTo = dated ? row.PeriodTo : null,
+                    PeriodBasis = dated ? row.PeriodBasis ?? PeriodBasis.None : PeriodBasis.None,
                     SnapshotDate = row.SnapshotDate,
                     SnapshotDateBasis = row.SnapshotDate is null ? null : SnapshotDateBasis.Contract,
                     RawRows = row.RawRows,
@@ -830,6 +835,13 @@ public sealed class ConsolidationContractValidator : IConsolidationContractValid
                     Disposition = row.Disposition.Length == 0 ? null : row.Disposition
                 };
             })
+            .ToArray();
+
+        /// <summary>The rows of each repeated history block: on the workbook, but read only through the Data block.</summary>
+        private IReadOnlyList<SkippedBlock> SkippedBlocks() => blocks
+            .Where(block => repeatedHistoryBlocks.ContainsKey(block.No) && block.HasRange)
+            .Select(block => new SkippedBlock(block.No, block.Sheet, block.First!.Value, block.Last!.Value, Codes.HistoryRepeatsData,
+                repeatedHistoryBlocks[block.No]))
             .ToArray();
 
         private int? KeyRow(string key) =>

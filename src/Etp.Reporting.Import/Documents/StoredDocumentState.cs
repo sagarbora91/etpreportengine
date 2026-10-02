@@ -62,7 +62,9 @@ public sealed record InvoiceHeaderState(DocumentKey Key, DateOnly TransactionDat
 
 /// <summary>
 /// A block that may show a document missing from a later export (spec 8.4): a registered block of the same
-/// store and report, or a block of the incoming source (<see cref="ImportFileId"/> null).
+/// store and report, or a block of the incoming source (<see cref="ImportFileId"/> null). Its coverage is the day range
+/// <see cref="CoverageFrom"/>..<see cref="CoverageTo"/>, or, for snapshot documents, exactly the snapshot dates in
+/// <see cref="CoveredDates"/>; days in <see cref="UncertainDates"/> are never covered.
 /// </summary>
 public sealed record CoverageBlock(
     long? ImportFileId,
@@ -73,9 +75,36 @@ public sealed record CoverageBlock(
     DateOnly? CoverageTo,
     IReadOnlySet<string> ObservedDocuments)
 {
+    /// <summary>
+    /// Snapshot documents: the snapshot dates the block read (its own snapshot date and every snapshot it observes). A
+    /// snapshot block covers only these, never a declared or observed period (a pack folder's dates are not readings).
+    /// </summary>
+    public IReadOnlySet<DateOnly>? CoveredDates { get; init; }
+
+    /// <summary>
+    /// Days on which the block holds rows it could not place in a document (spec 7.4 held rows): it cannot show that a
+    /// document of such a day is missing.
+    /// </summary>
+    public IReadOnlySet<DateOnly> UncertainDates { get; init; } = new HashSet<DateOnly>();
+
     public bool IsIncoming => ImportFileId is null;
 
-    public bool Covers(DateOnly date) => CoverageFrom is { } from && CoverageTo is { } to && date >= from && date <= to;
+    /// <summary>The block covers at least one day, so it takes part in the absence check.</summary>
+    public bool HasCoverage => CoveredDates is { Count: > 0 } || (CoveredDates is null && CoverageFrom is not null && CoverageTo is not null);
+
+    public bool Covers(DateOnly date) => !UncertainDates.Contains(date) && (CoveredDates is { } dates
+        ? dates.Contains(date)
+        : CoverageFrom is { } from && CoverageTo is { } to && date >= from && date <= to);
+
+    /// <summary>The block covers every day of <paramref name="from"/>..<paramref name="to"/> (a document's day or period).</summary>
+    public bool CoversDays(DateOnly from, DateOnly to)
+    {
+        if (to < from || !Covers(from) || !Covers(to) || UncertainDates.Any(day => day >= from && day <= to)) return false;
+        if (CoveredDates is not { } dates) return true;
+        for (var day = from; day <= to; day = day.AddDays(1))
+            if (!dates.Contains(day)) return false;
+        return true;
+    }
 
     /// <summary>True when the block observed the document (by <see cref="DocumentKey.Hash"/>).</summary>
     public bool Observed(DocumentKey key) => ObservedDocuments.Contains(key.Hash);

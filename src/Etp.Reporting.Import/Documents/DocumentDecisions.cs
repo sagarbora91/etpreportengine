@@ -110,7 +110,13 @@ public sealed record DocumentDecisionResult(DocumentKey Key, DocumentDecision De
     public string? DetailCode { get; init; }
     /// <summary>Attest the current or pending version and raise <c>last_attested_time</c>.</summary>
     public bool Attest { get; init; }
-    /// <summary>Move the landing-rows pointer to the incoming block (rule 9b).</summary>
+    /// <summary>
+    /// The blocks of the incoming source whose kept rows are the document's rows (<see cref="DocumentObservation.RowsBlockNos"/>):
+    /// <see cref="BlockNo"/> alone, or every block a legacy merge keeps rows from. The landing-rows pointer set by a NEW
+    /// document or moved by <see cref="MoveRowsPointer"/> names all of them, never only <see cref="BlockNo"/>.
+    /// </summary>
+    public IReadOnlyList<int>? RowsBlockNos { get; init; }
+    /// <summary>Move the landing-rows pointer to the incoming document's kept rows, in <see cref="RowsBlockNos"/> (rules 9b, 12).</summary>
     public bool MoveRowsPointer { get; init; }
     /// <summary>Clear the provisional flag (rule 9c).</summary>
     public bool SettleProvisional { get; init; }

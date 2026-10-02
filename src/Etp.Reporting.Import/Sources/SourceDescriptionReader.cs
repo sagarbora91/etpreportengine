@@ -95,7 +95,8 @@ public sealed class SourceDescriptionReader(
         return new SourceDescription(SourceKind.Consolidated, result.Blocks, result.VirtualRows, diagnostics)
         {
             ContractVersion = contract.Header.Version,
-            Contract = contract
+            Contract = contract,
+            SkippedBlocks = result.SkippedBlocks
         };
     }
 

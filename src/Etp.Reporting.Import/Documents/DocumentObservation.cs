@@ -28,6 +28,12 @@ public sealed record FactRow(RowLocator Source, CanonicalRow Canonical)
     public string? RowKey { get; init; }
     /// <summary>The planner-1 label of the typed fact the row becomes (<c>line_identifier</c>, enrichment <c>content_key</c>), over kept rows.</summary>
     public string? LineLabel { get; init; }
+    /// <summary>
+    /// Typed families: the rows the fact tables store for this row (<see cref="CanonicalFactProjection"/>), by fact-table
+    /// column. <c>canonical_sha256</c> is the multiset hash of their hashes, and rule 10 compares them (spec 8.1-8.2).
+    /// Empty for a landing-only family.
+    /// </summary>
+    public IReadOnlyList<CanonicalFactRow> FactTableRows { get; init; } = [];
 }
 
 /// <summary>
@@ -56,6 +62,20 @@ public sealed record DocumentObservation(
     /// <summary><c>IN_SOURCE_CONFLICT</c> or <c>LEGACY_BLOCKS_DIFFER</c> when the source itself holds the document (spec 6.6-6.7).</summary>
     public string? HoldCode { get; init; }
 
+    private readonly IReadOnlyList<int>? rowsBlockNos;
+
+    /// <summary>
+    /// The blocks whose kept rows (<c>K</c>) make up the observation: <see cref="BlockNo"/> alone, or, for a legacy merge
+    /// whose kept copies come from several blocks (spec 6.6 step 3), every one of them in ascending order. The landing-rows
+    /// pointer of a decision (<see cref="DocumentDecisionResult.RowsBlockNos"/>) names all of them, so the document's
+    /// current rows are its <c>K</c> rows in these blocks and none is lost.
+    /// </summary>
+    public IReadOnlyList<int> RowsBlockNos
+    {
+        get => rowsBlockNos ?? [BlockNo];
+        init => rowsBlockNos = value;
+    }
+
     public int RowCount => Rows.Count;
 }
 
@@ -67,7 +87,18 @@ public sealed record BlockProjection(
     int BlockNo,
     IReadOnlyList<DocumentObservation> Documents,
     IReadOnlyList<FactRow> HeldRows,
-    IReadOnlyList<ImportDiagnostic> Diagnostics);
+    IReadOnlyList<ImportDiagnostic> Diagnostics)
+{
+    /// <summary>
+    /// Documents the block holds rows of that were held (a value the fact table needs is missing): the key is known, so
+    /// the block observed the document even though it projects no observation of it (spec 8.4).
+    /// </summary>
+    public IReadOnlyList<DocumentKey> HeldDocuments { get; init; } = [];
+    /// <summary>The dates of held rows whose document is unknown (a dated row without a document number).</summary>
+    public IReadOnlyList<DateOnly> HeldDates { get; init; } = [];
+    /// <summary>The block holds a row with no usable date: it could belong to any document of the block's coverage.</summary>
+    public bool HasUndatedHeldRows { get; init; }
+}
 
 /// <summary>
 /// Turns a block's rows into documents and observations per family (spec 7): scope and key, the row rule,

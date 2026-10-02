@@ -33,11 +33,7 @@ public static class CanonicalFactProjection
         {
             FamilyRoute.Sales =>
             [
-                Row("sales_lines", ("store_code", Store()), ("document_number", V("invoice_number")),
-                    ("transaction_date", V("transaction_date")), ("product_code", V("product_code")),
-                    ("source_transaction_type", V("source_transaction_type")), ("source_quantity", V("source_quantity")),
-                    ("source_gross_amount", V("source_net_amount")), ("source_net_amount", V("source_net_value")),
-                    ("source_tax_amount", V("source_tax_amount")))
+                Row("sales_lines", [("store_code", Store()), .. SalesLineColumns.Select(column => (column.Column, V(column.Field)))])
             ],
             FamilyRoute.Revenue => Revenue(values),
             FamilyRoute.Enrichment => [Enrichment(family.ReportCode, values, Store())],
@@ -89,11 +85,54 @@ public static class CanonicalFactProjection
             ("pre_discount", V("pre_discount")), ("other_charges", V("other_charges")));
     }
 
+    /// <summary>
+    /// The fact-table columns of a family's <c>LegacyNullable</c> fields (spec 8.2 rule 10). The catalogue names them as
+    /// staged Key or Fact fields; rule 10 compares canonical rows, so each is named here by the column it is stored in.
+    /// R025 <c>source_net_amount</c> (NETAMOUNT) is <c>sales_lines.source_gross_amount</c>, the gross amount spec 7.3 calls
+    /// legacy-nullable. A field the family's fact table does not store maps to nothing.
+    /// </summary>
+    public static IReadOnlySet<string> LegacyNullableColumns(EtpFamilyIdentity identity)
+    {
+        ArgumentNullException.ThrowIfNull(identity);
+        var fields = identity.LegacyNullable.ToHashSet(StringComparer.Ordinal);
+        return identity.Route switch
+        {
+            FamilyRoute.Sales => SalesLineColumns.Where(column => fields.Contains(column.Field)).Select(column => column.Column)
+                .ToHashSet(StringComparer.Ordinal),
+            FamilyRoute.Landing => new HashSet<string>(StringComparer.Ordinal),
+            _ => fields
+        };
+    }
+
+    // sales_lines column <- staged R025 field, as R025SqlImportOrchestrator persists them (store_code aside).
+    private static readonly (string Column, string Field)[] SalesLineColumns =
+    [
+        ("document_number", "invoice_number"), ("transaction_date", "transaction_date"), ("product_code", "product_code"),
+        ("source_transaction_type", "source_transaction_type"), ("source_quantity", "source_quantity"),
+        ("source_gross_amount", "source_net_amount"), ("source_net_amount", "source_net_value"), ("source_tax_amount", "source_tax_amount")
+    ];
+
     private static IReadOnlyDictionary<string, object?> Row(string table, params (string Column, object? Value)[] columns)
     {
         var row = new Dictionary<string, object?>(StringComparer.Ordinal) { [FactTable] = table };
         foreach (var (column, value) in columns) row[column] = value;
         return row;
+    }
+}
+
+/// <summary>
+/// One row a typed fact table stores, in canonical form: its hash (a member of <c>canonical_sha256</c>) and the canonical
+/// text of each column, by fact-table column name (<see cref="CanonicalFactProjection"/>). An import builds it from a
+/// staged row; the upgrade and re-decide build it from the typed row they read, so rule 10 (spec 8.2) and the canonical
+/// hash compare the same thing on both sides.
+/// </summary>
+public sealed record CanonicalFactRow(string Hash, IReadOnlyDictionary<string, string> Values)
+{
+    public static CanonicalFactRow Create(IFactCanonicalizer canonicalizer, IReadOnlyDictionary<string, object?> row)
+    {
+        ArgumentNullException.ThrowIfNull(canonicalizer);
+        ArgumentNullException.ThrowIfNull(row);
+        return new(canonicalizer.Hash(row), row.ToDictionary(pair => pair.Key, pair => canonicalizer.Format(pair.Value), StringComparer.Ordinal));
     }
 }
 

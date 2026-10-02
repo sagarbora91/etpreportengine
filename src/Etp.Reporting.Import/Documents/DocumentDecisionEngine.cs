@@ -1,5 +1,6 @@
 using Etp.Reporting.Application.Imports;
 using Etp.Reporting.Import.Diagnostics;
+using Etp.Reporting.Import.Identity;
 using Etp.Reporting.Import.Profiles;
 using Etp.Reporting.Import.Sources;
 
@@ -45,7 +46,7 @@ public sealed class DocumentDecisionEngine : IDocumentDecisionEngine
     private static DocumentDecisionResult DecideOne(DecisionRequest request, DocumentObservation o, StoredDocument? stored)
     {
         var locked = IsLocked(request.LockedDays, o.DocumentDate, o.PeriodTo);
-        var result = new DocumentDecisionResult(o.Key, DocumentDecision.Present) { BlockNo = o.BlockNo };
+        var result = new DocumentDecisionResult(o.Key, DocumentDecision.Present) { BlockNo = o.BlockNo, RowsBlockNos = o.RowsBlockNos };
 
         // 6.7: two blocks of the same export time disagree. Nothing can be applied until the source is fixed.
         if (o.HoldCode == ImportCodes.InSourceConflict)
@@ -100,7 +101,7 @@ public sealed class DocumentDecisionEngine : IDocumentDecisionEngine
                 ChangeMode.Review, ChangeReason.LegacyBlocksDiffer, ChangeAction.Replace, VersionChangeKind.Replace, o, locked);
 
         // Rule 10: a v0 document gains values it never had (gross, tax). Archived, then updated in place.
-        if (cur.Basis == VersionBasis.CanonicalOnly && OnlyFillsLegacyNulls(o, cur, request.Identity.LegacyNullable))
+        if (cur.Basis == VersionBasis.CanonicalOnly && OnlyFillsLegacyNulls(o, cur, CanonicalFactProjection.LegacyNullableColumns(request.Identity)))
         {
             result = Change(result with { Decision = DocumentDecision.Filled },
                 new ChangeProposal(ChangeMode.Auto, ChangeReason.Fill, ChangeAction.Update, VersionChangeKind.Fill), locked);
@@ -247,7 +248,7 @@ public sealed class DocumentDecisionEngine : IDocumentDecisionEngine
         DecisionRequest request, IReadOnlyDictionary<string, DocumentObservation> incoming)
     {
         var blocks = request.Blocks.Where(block => block.IsIncoming && IsRebuildable(block.Completeness)
-            && block.ExportTime.IsKnown && block.CoverageFrom is not null && block.CoverageTo is not null).ToArray();
+            && block.ExportTime.IsKnown && block.HasCoverage).ToArray();
         if (blocks.Length == 0) yield break;
         foreach (var stored in CurrentDocuments(request))
         {
@@ -258,7 +259,7 @@ public sealed class DocumentDecisionEngine : IDocumentDecisionEngine
             // The newest block the document is missing from; the lowest block number among equal times. A date-only
             // block counts as midnight here; the order only picks which block the item names, not whether it is raised.
             var missingFrom = blocks
-                .Where(block => block.Covers(from) && block.Covers(to) && to < block.ExportTime.ExportDate!.Value
+                .Where(block => block.CoversDays(from, to) && to < block.ExportTime.ExportDate!.Value
                     && !block.Observed(stored.Key)
                     && (!cur.LastAttested.IsKnown || ExportOrder.IsNewer(block.ExportTime, cur.LastAttested))
                     && (!seen.IsKnown || ExportOrder.IsNewer(block.ExportTime, seen)))
@@ -311,7 +312,7 @@ public sealed class DocumentDecisionEngine : IDocumentDecisionEngine
         var to = o.PeriodTo ?? from;
         return blocks.Any(block => IsRebuildable(block.Completeness) && block.ExportTime.IsKnown
             && (!o.ExportTime.IsKnown || ExportOrder.IsNewer(block.ExportTime, o.ExportTime))
-            && block.Covers(from) && block.Covers(to) && to < block.ExportTime.ExportDate!.Value
+            && block.CoversDays(from, to) && to < block.ExportTime.ExportDate!.Value
             && !block.Observed(o.Key));
     }
 
@@ -330,18 +331,23 @@ public sealed class DocumentDecisionEngine : IDocumentDecisionEngine
     }
 
     /// <summary>
-    /// Rule 10: the rows pair one to one, and every difference is a <c>LegacyNullable</c> field that is NULL in the
-    /// stored version; at least one such field gains a value. Needs the stored rows (rowset 3).
+    /// Rule 10, on canonical rows (spec 8.1 "projecting O to canonical rows"): the fact-table rows of the stored v0
+    /// version and of the incoming observation pair one to one, and every difference is a <c>LegacyNullable</c> column
+    /// that is NULL in the stored version; at least one such column gains a value. A v0 version holds only what its fact
+    /// table stores, so the staged facts no fact table keeps never take part. Needs the stored rows (rowset 3), read
+    /// from the typed tables as <see cref="FactRow.FactTableRows"/>.
     /// </summary>
-    private static bool OnlyFillsLegacyNulls(DocumentObservation o, StoredVersion cur, IReadOnlyList<string> legacyNullable)
+    private static bool OnlyFillsLegacyNulls(DocumentObservation o, StoredVersion cur, IReadOnlySet<string> legacyNullable)
     {
-        if (legacyNullable.Count == 0 || cur.Rows is not { } storedRows || storedRows.Count != o.Rows.Count) return false;
+        if (legacyNullable.Count == 0 || cur.Rows is not { } storedFactRows) return false;
+        var storedRows = storedFactRows.SelectMany(row => row.FactTableRows).Select(row => row.Values).ToList();
+        var unmatched = o.Rows.SelectMany(row => row.FactTableRows).Select(row => row.Values).ToList();
+        if (storedRows.Count == 0 || storedRows.Count != unmatched.Count) return false;
         var nullable = new HashSet<string>(legacyNullable, StringComparer.OrdinalIgnoreCase);
-        var unmatched = o.Rows.Select(row => row.Canonical.Facts).ToList();
         var filled = false;
         // Exact pairs first, so a fill never takes a row another stored row matches exactly.
         var pending = new List<IReadOnlyDictionary<string, string>>();
-        foreach (var storedRow in storedRows.Select(row => row.Canonical.Facts))
+        foreach (var storedRow in storedRows)
         {
             var exact = unmatched.FindIndex(candidate => Pairs(storedRow, candidate, nullable, out var fills) && !fills);
             if (exact >= 0) unmatched.RemoveAt(exact);
