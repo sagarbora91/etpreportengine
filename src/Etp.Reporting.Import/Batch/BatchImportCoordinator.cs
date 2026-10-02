@@ -16,7 +16,8 @@ public sealed record BatchImportFileResult(
     int NewRows = 0,
     int AlreadyPresentRows = 0,
     int ConflictRows = 0,
-    bool ExactDuplicate = false);
+    bool ExactDuplicate = false,
+    IReadOnlyList<ImportIssue>? Issues = null);
 
 public sealed record BatchImportSummary(IReadOnlyList<BatchImportFileResult> Files)
 {
@@ -28,11 +29,15 @@ public sealed record BatchImportSummary(IReadOnlyList<BatchImportFileResult> Fil
     public int AlreadyPresentRows => Files.Sum(x => x.AlreadyPresentRows);
     public int Conflicts => Files.Sum(x => x.ConflictRows);
     public int ExactDuplicates => Files.Count(x => x.ExactDuplicate);
+    public int Warnings => Files.Sum(x => x.Issues?.Count(issue => issue.Severity == ImportIssueSeverity.Warning) ?? 0);
     public bool CanRetry => Failed > 0;
 }
 
 public sealed record WorkbookImportOutcome(int RowsProcessed, int NewRows, int AlreadyPresentRows, int ConflictRows, bool ExactDuplicate = false)
 {
+    /// <summary>Warnings the save raised, e.g. STOCK_ROW_REPEATED for exact ledger repeats that were kept.</summary>
+    public IReadOnlyList<ImportIssue> Issues { get; init; } = [];
+
     public static WorkbookImportOutcome Imported { get; } = new(0, 0, 0, 0);
 }
 
@@ -140,7 +145,7 @@ public sealed class BatchImportCoordinator
                         : await ProcessWithoutOutcomeAsync(_processor, workbookPaths[index], cancellationToken).ConfigureAwait(false);
                     results.Add(new(safeName, BatchImportFileStatus.Succeeded, attempts, RowsProcessed: outcome.RowsProcessed,
                         NewRows: outcome.NewRows, AlreadyPresentRows: outcome.AlreadyPresentRows, ConflictRows: outcome.ConflictRows,
-                        ExactDuplicate: outcome.ExactDuplicate));
+                        ExactDuplicate: outcome.ExactDuplicate, Issues: outcome.Issues.Count > 0 ? outcome.Issues : null));
                     break;
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

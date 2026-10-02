@@ -216,8 +216,9 @@ public sealed partial class SqlServerImportPersistenceUseCase : IImportPersisten
             expectedStoreCode: request.ExpectedStoreCode,
             importedBy: request.ImportedBy,
             restatement: restatement).ConfigureAwait(false);
-        return await ClassifyAttemptAsync(new(outcome.ReportCode, outcome.PersistedRows), outcome.BatchId, outcome.ImportFileId,
+        var result = await ClassifyAttemptAsync(new(outcome.ReportCode, outcome.PersistedRows), outcome.BatchId, outcome.ImportFileId,
             request.AcceptedImport.Staging.Rows.Count, cancellationToken).ConfigureAwait(false);
+        return result with { Issues = outcome.Warnings.Select(warning => warning.ToImportIssue()).ToArray() };
     }
 
     private async Task<ImportPersistenceResult> PersistEnrichmentAsync(AttemptStore attempt,

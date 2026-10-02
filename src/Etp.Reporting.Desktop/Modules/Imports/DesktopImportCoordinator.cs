@@ -320,7 +320,7 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
             context.StoreCode, context.ImportedBy, restatement);
         if (restatement is not null)
             await persistence.PrepareRestatementAsync(request, cancellationToken).ConfigureAwait(false);
-        attempt.Saved = await persistence.PersistAsync(request, cancellationToken).ConfigureAwait(false);
+        var saved = attempt.Saved = await persistence.PersistAsync(request, cancellationToken).ConfigureAwait(false);
         if (restatement is not null) await recordRestatementAudit(cancellationToken).ConfigureAwait(false);
         var outcome = await persistence.LoadOutcomeInScopeAsync(snapshot.Sha256, accepted.ProfileIdentity.ReportCode,
             accepted.Scope.StoreCode ?? context.StoreCode, accepted.Scope.PeriodStart ?? context.BusinessDate,
@@ -330,7 +330,7 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
             outcome.NewRows,
             outcome.AlreadyPresentRows,
             outcome.ConflictRows,
-            outcome.ExactDuplicate);
+            outcome.ExactDuplicate) { Issues = saved.Issues };
     }
 
     private static async Task<ImportRestatement?> ResolveRestatementAsync(

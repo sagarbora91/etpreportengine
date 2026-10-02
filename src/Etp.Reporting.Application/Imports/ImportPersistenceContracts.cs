@@ -29,6 +29,8 @@ public sealed record ImportPersistenceResult(
     /// <summary>Whether the import transaction stored the source bytes (IF-023); null when it did not say.</summary>
     public EvidenceState? Evidence { get; init; }
     public Guid? BatchId { get; init; }
+    /// <summary>Warnings the import raised while persisting, such as <c>STOCK_ROW_REPEATED</c>.</summary>
+    public IReadOnlyList<ImportIssue> Issues { get; init; } = [];
 }
 
 public sealed record ImportRowOutcome(

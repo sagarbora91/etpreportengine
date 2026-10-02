@@ -296,6 +296,28 @@ public sealed class DesktopImportCoordinatorTests
         Assert.Null(persistence.LastRequest);
     }
 
+    [Fact]
+    public async Task Save_warnings_reach_the_single_file_and_batch_results()
+    {
+        var repeated = new ImportIssue(ImportIssueSeverity.Warning, "STOCK_ROW_REPEATED", "Synthetic repeated ledger row kept.");
+        var persistence = new FakePersistence
+        {
+            PersistenceResult = new ImportPersistenceResult("R025", 3) { Issues = [repeated] },
+            RowOutcome = new(3, 3, 0, 0)
+        };
+        await using var coordinator = Create(persistence, new FakeReader(_ => ValidR025()));
+        var context = new DesktopImportRunContext("WLMHW", new(2026, 8, 25), "tester", false, "");
+        await coordinator.ValidateAsync("sales.xlsx");
+
+        var single = await coordinator.PersistValidatedAsync("integrated", context);
+        var batch = await coordinator.RunBatchAsync(["sales.xlsx"], "integrated", () => false, () => context,
+            _ => Task.CompletedTask);
+
+        Assert.Equal([repeated], single.Result.Issues);
+        Assert.Equal([repeated], Assert.Single(batch.Files).Issues!);
+        Assert.Equal(1, batch.Warnings);
+    }
+
     private static DesktopImportCoordinator Create(
         FakePersistence persistence,
         IWorkbookReader reader) =>

@@ -1,3 +1,4 @@
+using Etp.Reporting.Application.Imports;
 using Etp.Reporting.Import.Batch;
 using Etp.Reporting.Import.Diagnostics;
 using Etp.Reporting.Import.Preflight;
@@ -10,7 +11,10 @@ using Microsoft.Data.SqlClient;
 namespace Etp.Reporting.Infrastructure.SqlServer;
 
 public sealed record AutomatedOperationsSummary(int SourcesProcessed, int SourcesFailed, int DuplicateWorkbooks, int PacksGenerated, string Message);
-public sealed record AutomatedWorkbookOutcome(string ReportCode, string? StoreCode, DateOnly? BusinessDate, bool Duplicate, int ConflictRows = 0);
+public sealed record AutomatedWorkbookOutcome(string ReportCode, string? StoreCode, DateOnly? BusinessDate, bool Duplicate, int ConflictRows = 0)
+{
+    public IReadOnlyList<ImportIssue> Issues { get; init; } = [];
+}
 
 public sealed class AutomatedOperationsService(string connectionString, Action<FolderImportFailure>? reportImportFailure = null)
 {
@@ -61,9 +65,11 @@ public sealed class AutomatedOperationsService(string connectionString, Action<F
                 processed++;
                 var stores=batch.Files.Select(x=>x.StoreCode).Where(x=>x is not null).Distinct().ToArray();
                 var dates=batch.Files.Select(x=>x.PeriodEnd).Where(x=>x is not null).Distinct().ToArray();
+                // Save warnings (e.g. STOCK_ROW_REPEATED) would otherwise stay in the in-memory file results.
+                var warnings=batch.Files.Sum(x=>x.Diagnostics?.Count(issue=>issue.Severity==ImportIssueSeverity.Warning) ?? 0);
                 await repository.RecordAutomationRunAsync("WATCH_IMPORT",Path.GetFileName(source),stores.Length==1?stores[0]:null,
                     dates.Length==1?dates[0]:null,batch.Imported==0?"Skipped":"Succeeded",
-                    $"{batch.Imported} workbook(s) imported; {batch.Duplicates} duplicate(s); {batch.Files.Count(file => file.Status == "Not needed")} not needed.",started,cancellationToken);
+                    $"{batch.Imported} workbook(s) imported; {batch.Duplicates} duplicate(s); {batch.Files.Count(file => file.Status == "Not needed")} not needed."+(warnings>0?$" {warnings} warning(s); review the file results.":""),started,cancellationToken);
             }
             catch (Exception ex)
             {
@@ -125,7 +131,7 @@ public sealed class AutomatedOperationsService(string connectionString, Action<F
             return new(report, store, end, true);
         }
         var result = await persistence.PersistAsync(new(accepted, end, store, AutomationIdentity()), cancellationToken);
-        return new(report, store, end, result.Status.StartsWith("Duplicate", StringComparison.Ordinal), result.ConflictRows);
+        return new(report, store, end, result.Status.StartsWith("Duplicate", StringComparison.Ordinal), result.ConflictRows) { Issues = result.Issues };
     }
 
     private async Task<bool> GenerateAndExportAsync(DateOnly date, string label, bool excel, bool pdf, string outputPath,
