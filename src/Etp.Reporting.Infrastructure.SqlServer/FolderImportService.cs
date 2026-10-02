@@ -7,13 +7,39 @@ using Etp.Reporting.Import.Workbooks;
 
 namespace Etp.Reporting.Infrastructure.SqlServer;
 
+/// <summary>
+/// An unexpected file failure for diagnostics. It carries the real exception, which the
+/// import result replaces with a safe message, and never any workbook row data.
+/// </summary>
+public sealed record FolderImportFailure(string FileName, FailureStage Stage, string? ReportCode, string? StoreCode,
+    DateOnly? PeriodEnd, Guid? BatchId, int? SqlErrorNumber, Exception Exception)
+{
+    /// <summary>What became of the import transaction, when the failure ended one (IF-014).</summary>
+    public CommitState? CommitState { get; init; }
+
+    /// <summary>
+    /// The failure of one file as diagnostics record it. <paramref name="stage"/> is where the caller
+    /// was; a failed COMMIT, or a failure after the work committed, is reported at the COMMIT stage.
+    /// </summary>
+    public static FolderImportFailure Create(string fileName, FailureStage stage, string? reportCode, string? storeCode,
+        DateOnly? periodEnd, Exception exception)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+        return new(fileName, SqlTransactionGuard.StageOf(exception, stage), reportCode, storeCode, periodEnd,
+            SqlTransactionGuard.BatchIdOf(exception), SqlImportFailureClassifier.SqlErrorNumber(exception), exception)
+            { CommitState = SqlTransactionGuard.CommitStateOf(exception) };
+    }
+}
+
 /// <summary>The same folder workflow is used by the desktop and command-line import.</summary>
 public sealed class FolderImportService(
     IImportPersistenceUseCase<MatchedImportEnvelope> persistence,
     IWorkbookReader? workbookReader = null,
     Func<string, MatchedImportEnvelope, string, DateOnly, CancellationToken, Task>? retainEvidence = null,
-    IReadOnlyList<string>? knownStores = null) : IFolderImportService
+    IReadOnlyList<string>? knownStores = null,
+    Action<FolderImportFailure>? reportFailure = null) : IFolderImportService
 {
+    private readonly IImportFailureClassifier classifier = new SqlImportFailureClassifier();
     private readonly IWorkbookReader reader = workbookReader ?? new OpenXmlWorkbookReader();
     private readonly MatchedImportEnvelopeFactory envelopes = new(knownStores);
     private readonly Dictionary<string, ImportScope> detectedScopes = new(StringComparer.OrdinalIgnoreCase);
@@ -61,7 +87,8 @@ public sealed class FolderImportService(
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { break; }
             catch (Exception exception)
             {
-                var message = new SafeImportFailureClassifier().Describe(exception).SafeMessage;
+                var message = classifier.Describe(exception).SafeMessage;
+                Report(Path.GetFileName(path), FailureStage.Read, null, null, exception);
                 results.Add(new(Path.GetFileName(path), null, null, null, null, "Failed", Message: message) { SourcePath = path });
                 handled.Add(path);
             }
@@ -128,6 +155,9 @@ public sealed class FolderImportService(
                 if (restatement is not null)
                     await persistence.PrepareRestatementAsync(request, cancellationToken).ConfigureAwait(false);
                 var saved = await persistence.PersistAsync(request, cancellationToken).ConfigureAwait(false);
+                // Only a duplicate found before or under the import lock commits nothing of its own (IF-014).
+                // Anything after this point reads back a saved import, so a failure there is not a failed import.
+                if (saved.Status != "Duplicate") result = result with { CommitState = CommitState.Committed, BatchId = saved.BatchId };
                 var outcome = saved.Status == "Imported"
                     ? await persistence.LoadOutcomeInScopeAsync(accepted.Workbook.Sha256, accepted.ProfileIdentity.ReportCode,
                         persistedStore, periodStart, periodEnd, cancellationToken).ConfigureAwait(false)
@@ -144,7 +174,10 @@ public sealed class FolderImportService(
             { result = result with { Status = "Cancelled", Message = "Import cancelled." }; }
             catch (Exception exception)
             {
-                result = result with { Status = "Failed", Message = new SafeImportFailureClassifier().Describe(exception).SafeMessage };
+                if (result.CommitState == CommitState.Committed) SqlTransactionGuard.MarkCommitted(exception, result.BatchId);
+                result = result with { Status = "Failed", Message = classifier.Describe(exception).SafeMessage,
+                    CommitState = SqlTransactionGuard.CommitStateOf(exception), BatchId = SqlTransactionGuard.BatchIdOf(exception) };
+                Report(result.FileName, FailureStage.Apply, result.ReportCode, scope, exception);
             }
             results.Add(result);
             progress?.Report(new(results.Count, paths.Count, result.FileName, result.Status, results.ToArray()));
@@ -170,6 +203,21 @@ public sealed class FolderImportService(
             return result with { Message = "Data is present; the original document could not be retained. Keep the source file and import it again to retry evidence retention." };
         }
         return result;
+    }
+
+    // Refusals with their own code already explain themselves; anything else reaches the
+    // operator only as a generic message, so the real exception goes to diagnostics.
+    private void Report(string fileName, FailureStage stage, string? reportCode, ImportScope? scope, Exception exception)
+    {
+        if (reportFailure is null || exception is ImportSourceException) return;
+        try
+        {
+            reportFailure(FolderImportFailure.Create(fileName, stage, reportCode, scope?.StoreCode, scope?.PeriodEnd, exception));
+        }
+        catch (Exception sinkFailure) when (sinkFailure is not OperationCanceledException)
+        {
+            // Diagnostics are best effort; a failing log must not change the import outcome.
+        }
     }
 
     private static int DependencyOrder(string? code) => code switch

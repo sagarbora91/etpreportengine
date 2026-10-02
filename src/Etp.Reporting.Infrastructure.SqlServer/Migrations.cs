@@ -184,8 +184,8 @@ public sealed class SqlServerMigrationStore(string connectionString) : IMigratio
 
     public async Task ApplyAsync(MigrationScript migration, CancellationToken cancellationToken = default)
     {
-        await using var connection = new SqlConnection(LocalSqlConnectionPolicy.Validate(connectionString));
-        await connection.OpenAsync(cancellationToken);
+        // The migration transaction has the commit budget as Connect Timeout, which SqlClient also applies to COMMIT.
+        await using var connection = await LocalSqlConnectionPolicy.OpenWithCommitBudgetAsync(connectionString, cancellationToken);
         await EnsureJournalAsync(connection, cancellationToken);
         await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
         try
@@ -202,10 +202,32 @@ public sealed class SqlServerMigrationStore(string connectionString) : IMigratio
             journal.Parameters.AddWithValue("@id", migration.Id);
             journal.Parameters.AddWithValue("@checksum", migration.Checksum);
             await journal.ExecuteNonQueryAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
+            // A COMMIT whose reply is lost is judged by the journal: the script and its journal
+            // row commit together, so a journalled migration is applied.
+            await SqlTransactionGuard.CommitOrVerifyAsync(() => Commit(transaction, cancellationToken),
+                () => SqlTransactionGuard.ReleaseAsync(connection), () => JournaledAsync(migration));
         }
-        catch { await transaction.RollbackAsync(CancellationToken.None); throw; }
+        catch (Exception failure)
+        {
+            SqlTransactionGuard.MarkRolledBack(failure);
+            await SqlTransactionGuard.RollBackAsync(failure, transaction);
+            throw;
+        }
     }
+
+    /// <summary>Issues the migration COMMIT. Tests replace it to simulate a COMMIT whose reply is lost.</summary>
+    internal Func<SqlTransaction, CancellationToken, Task> Commit { get; init; } = (transaction, token) => transaction.CommitAsync(token);
+
+    /// <summary>Where the journal check after a failed COMMIT connects. Tests point it at a missing database to make the check fail.</summary>
+    internal string? CommitCheckConnectionString { get; init; }
+
+    private Task<bool> JournaledAsync(MigrationScript migration) => SqlTransactionGuard.CheckAsync(CommitCheckConnectionString ?? connectionString,
+        "SELECT CONVERT(bit,CASE WHEN EXISTS(SELECT 1 FROM dbo.schema_migrations WITH(READCOMMITTEDLOCK) WHERE migration_id=@id AND checksum=@checksum) THEN 1 ELSE 0 END)",
+        command =>
+        {
+            command.Parameters.AddWithValue("@id", migration.Id);
+            command.Parameters.AddWithValue("@checksum", migration.Checksum);
+        });
 
     private static async Task<bool> PrepareRetiredExtractionGrantAsync(MigrationScript migration,
         SqlConnection connection, SqlTransaction transaction, CancellationToken token)

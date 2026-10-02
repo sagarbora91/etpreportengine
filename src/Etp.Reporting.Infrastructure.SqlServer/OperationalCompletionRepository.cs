@@ -243,7 +243,7 @@ public sealed class OperationalCompletionRepository(string connectionString)
             await transaction.CommitAsync(cancellationToken);
             return result;
         }
-        catch { await transaction.RollbackAsync(CancellationToken.None); throw; }
+        catch (Exception failure) { await SqlTransactionGuard.RollBackAsync(failure, transaction); throw; }
     }
 
     private async Task<SqlConnection> OpenAsync(CancellationToken token)

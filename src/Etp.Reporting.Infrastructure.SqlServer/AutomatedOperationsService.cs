@@ -12,7 +12,7 @@ namespace Etp.Reporting.Infrastructure.SqlServer;
 public sealed record AutomatedOperationsSummary(int SourcesProcessed, int SourcesFailed, int DuplicateWorkbooks, int PacksGenerated, string Message);
 public sealed record AutomatedWorkbookOutcome(string ReportCode, string? StoreCode, DateOnly? BusinessDate, bool Duplicate, int ConflictRows = 0);
 
-public sealed class AutomatedOperationsService(string connectionString)
+public sealed class AutomatedOperationsService(string connectionString, Action<FolderImportFailure>? reportImportFailure = null)
 {
     public async Task<AutomatedOperationsSummary> RunOnceAsync(CancellationToken cancellationToken = default)
     {
@@ -47,7 +47,7 @@ public sealed class AutomatedOperationsService(string connectionString)
                 var folderService=new FolderImportService(new SqlServerImportPersistenceUseCase(connectionString),
                     retainEvidence: (path,accepted,store,businessDate,token)=>new ProductisationOperationsService(connectionString).IntakeEtpEvidenceAsync(
                         path,accepted.Workbook.Sha256,accepted.ProfileIdentity.ReportCode,store,businessDate,token),
-                    knownStores: knownStores);
+                    knownStores: knownStores, reportFailure: reportImportFailure);
                 var batch=await folderService.RunAsync(source,new(AutomationIdentity()),cancellationToken:cancellationToken);
                 duplicates+=batch.Duplicates;
                 foreach(var file in batch.Files.Where(x=>x.Status=="Imported" && x.PeriodEnd is not null)) importedDates.Add(file.PeriodEnd!.Value);
@@ -70,7 +70,7 @@ public sealed class AutomatedOperationsService(string connectionString)
             catch (Exception ex)
             {
                 failed++;
-                var safe = new SafeImportFailureClassifier().Describe(ex).SafeMessage;
+                var safe = new SqlImportFailureClassifier().Describe(ex).SafeMessage;
                 try { MoveCompletedSource(source, paths.FailedPath); }
                 catch (Exception moveException) when (moveException is IOException or UnauthorizedAccessException)
                 { safe = $"{safe} The source could not be moved to Failed and remains available for the next run."; }
