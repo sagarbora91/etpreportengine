@@ -34,21 +34,126 @@ function Assert-EtpNoLinks {
     }
 }
 
+function Get-EtpProtectedPathFindings {
+    # One step of Assert-EtpProtectedInstall: what on this one path would let somebody who is
+    # not an administrator change what runs. Role is Target for the file or folder being
+    # checked, Ancestor for each folder above it and Root for the volume root at the top.
+    # Returns one line per problem naming the path, the identity, the rights and the fix;
+    # nothing when the path is safe. Kept in step with ProtectedOperationPath in the desktop
+    # application.
+    #
+    # Why the rights differ by role (2 Oct 2026, a second drive on Workpc, where the old
+    # all-or-nothing rule refused a sound installation until E:\ was re-permissioned by hand):
+    # - Target: anything that changes it. Write (create, change or append), Delete,
+    #   delete-child, change permissions, take ownership.
+    # - Ancestor: anything that can swap the path out from under the target. Renaming a
+    #   folder needs Delete on it or delete-child on its parent; change permissions and take
+    #   ownership lead to either. Write on an ancestor only creates NEW names beside the path,
+    #   which cannot replace or redirect any existing component of it.
+    # - Root: the same, less Delete, because a volume root cannot be renamed or deleted. This
+    #   is the only right relaxed. A Windows-formatted data drive gives Authenticated Users
+    #   Modify (which includes Delete, but not delete-child or change permissions) on its root.
+    #   Inheritable copies of root rights still reach folders under it, and are checked there.
+    # Ignored, as before: Deny entries, and inherit-only entries, which apply only to children
+    # and are checked on them. Also ignored: application package and capability SIDs
+    # (S-1-15-2-*, S-1-15-3-*, e.g. ALL APPLICATION PACKAGES). Windows only consults them in a
+    # second access check for an AppContainer process, whose access is the intersection of
+    # both checks and which runs at low integrity, so they never give anyone more than that
+    # user already has. Installers often grant them Full Control on a data drive's Program Files.
+    # Owner: an owner can always rewrite the permissions, so it must be Administrators, SYSTEM
+    # or TrustedInstaller at every level. That stays, including for an administrator's own
+    # account: its unelevated programs would then be able to change what setup runs elevated.
+    param([Parameter(Mandatory)][string]$Path,
+          [Parameter(Mandatory)][Security.AccessControl.FileSystemSecurity]$Security,
+          [Parameter(Mandatory)][ValidateSet('Target','Ancestor','Root')][string]$Role)
+    $trusted = @('S-1-5-18','S-1-5-32-544','S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464')
+    $isFolder = $Security -is [Security.AccessControl.DirectorySecurity]
+    $describeSid = {
+        param([Security.Principal.SecurityIdentifier]$Sid)
+        try { return '{0} ({1})' -f $Sid.Translate([Security.Principal.NTAccount]).Value, $Sid.Value } catch { return $Sid.Value }
+    }
+    $findings = @()
+    $owner = $Security.GetOwner([Security.Principal.SecurityIdentifier])
+    if ($null -eq $owner -or $owner.Value -notin $trusted) {
+        $ownerText = if ($owner) { & $describeSid $owner } else { 'nobody' }
+        $findings += "'$Path' is owned by $ownerText, and an owner can always change its permissions. Install operations in a folder owned by Administrators or SYSTEM. Fix: icacls `"$Path`" /setowner `"*S-1-5-32-544`""
+    }
+    # Raw access-mask bits, so generic rights (which FileSystemRights does not name) are seen too.
+    $write = 0x116; $delete = 0x10000; $deleteChild = 0x40; $changePermissions = 0x40000; $takeOwnership = 0x80000
+    $mask = $deleteChild -bor $changePermissions -bor $takeOwnership
+    if ($Role -ne 'Root') { $mask = $mask -bor $delete }
+    if ($Role -eq 'Target') { $mask = $mask -bor $write }
+    $names = @(
+        @($write, $(if ($isFolder) { 'write (create or change items in it)' } else { 'write (change it)' })),
+        @($delete, 'delete (rename or delete it)'),
+        @($deleteChild, 'delete subfolders and files (rename or delete anything in it)'),
+        @($changePermissions, 'change permissions'),
+        @($takeOwnership, 'take ownership'))
+    foreach ($rule in $Security.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier])) {
+        if ($rule.AccessControlType -ne [Security.AccessControl.AccessControlType]::Allow) { continue }
+        if ($rule.PropagationFlags -band [Security.AccessControl.PropagationFlags]::InheritOnly) { continue }
+        $sid = $rule.IdentityReference.Value
+        if ($sid -in $trusted -or $sid -like 'S-1-15-2-*' -or $sid -like 'S-1-15-3-*') { continue }
+        $rights = [int64][int]$rule.FileSystemRights
+        if ($rights -lt 0) { $rights += 4294967296 }
+        # GENERIC_ALL and MAXIMUM_ALLOWED as everything, GENERIC_WRITE as FILE_GENERIC_WRITE.
+        if ($rights -band 0x12000000) { $rights = $rights -bor 0x1F01FF }
+        if ($rights -band 0x40000000) { $rights = $rights -bor $write }
+        $granted = $rights -band $mask
+        if (-not $granted) { continue }
+        $what = @($names | Where-Object { $granted -band $_[0] } | ForEach-Object { $_[1] }) -join ', '
+        $readOnly = if ($isFolder) { '(OI)(CI)RX' } else { 'RX' }
+        $fix = "icacls `"$Path`" /grant:r `"*${sid}:$readOnly`""
+        if ($rule.IsInherited) { $fix = "icacls `"$Path`" /inheritance:d, then $fix" }
+        $source = if ($rule.IsInherited) { ', inherited from the folder above' } else { '' }
+        $findings += "'$Path' gives $(& $describeSid $rule.IdentityReference) $what$source. Fix (keeps read access only): $fix"
+    }
+    return $findings
+}
+
+function Get-EtpProtectedInstallFindings {
+    # Every problem on the way from Path up to its root, so one message lists all there is to
+    # fix. ReadSecurity is replaceable so tests can describe a whole drive layout without
+    # touching real permissions.
+    param([Parameter(Mandatory)][string]$Path,[scriptblock]$ReadSecurity = { param($Item) Get-Acl -LiteralPath $Item })
+    $findings = @()
+    $current = [IO.Path]::GetFullPath($Path)
+    $role = 'Target'
+    while ($current) {
+        $parent = [IO.Path]::GetDirectoryName($current)
+        if (-not $parent -and $role -eq 'Ancestor') { $role = 'Root' }
+        $findings += @(Get-EtpProtectedPathFindings -Path $current -Security (& $ReadSecurity $current) -Role $role)
+        $current = $parent
+        $role = 'Ancestor'
+    }
+    return $findings
+}
+
+function Format-EtpProtectedInstallRefusal {
+    # Setup does not repair these itself. Re-permissioning the folder after its files were
+    # copied would also bless anything a non-administrator changed in them meanwhile, and the
+    # folders above belong to Windows and other software. Say exactly what to change instead,
+    # except inside a user profile or the Windows folder, where following that advice would
+    # lock a user out of their own files or loosen Windows; there the answer is to move.
+    param([Parameter(Mandatory)][string]$Path,[Parameter(Mandatory)][string[]]$Findings,[string[]]$UnfixableRoots = @())
+    $headline = if (@($Findings | Where-Object { $_ -notmatch 'Install operations in a folder owned by' }).Count -gt 0) { 'The installation folder can be changed by a non-administrator.' } else { 'Install operations in a folder owned by Administrators or SYSTEM.' }
+    $full = [IO.Path]::GetFullPath($Path)
+    foreach ($root in @($UnfixableRoots | Where-Object { $_ })) {
+        if ($full.StartsWith($root.TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase)) {
+            return "$headline '$full' is inside '$root', whose permissions ETP will not ask you to change. Install it under Program Files instead, in a folder owned by Administrators or SYSTEM."
+        }
+    }
+    return ($headline + ' Nothing was changed. Fix each item below from an administrator PowerShell window, then try again:' + [Environment]::NewLine + (($Findings | ForEach-Object { '- ' + $_ }) -join [Environment]::NewLine))
+}
+
 function Assert-EtpProtectedInstall {
     param([Parameter(Mandatory)][string]$Path)
     Assert-EtpNoLinks $Path
-    $trusted = @('S-1-5-18','S-1-5-32-544','S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464')
-    $danger = [Security.AccessControl.FileSystemRights]::Write -bor [Security.AccessControl.FileSystemRights]::Delete -bor [Security.AccessControl.FileSystemRights]::DeleteSubdirectoriesAndFiles -bor [Security.AccessControl.FileSystemRights]::ChangePermissions -bor [Security.AccessControl.FileSystemRights]::TakeOwnership
-    $current = [IO.Path]::GetFullPath($Path)
-    while ($current) {
-        $acl = Get-Acl -LiteralPath $current
-        if ($acl.GetOwner([Security.Principal.SecurityIdentifier]).Value -notin $trusted) { throw 'Install operations in a folder owned by Administrators or SYSTEM.' }
-        foreach ($rule in $acl.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier])) {
-            if (-not ($rule.PropagationFlags -band [Security.AccessControl.PropagationFlags]::InheritOnly) -and $rule.AccessControlType -eq 'Allow' -and ($rule.FileSystemRights -band $danger) -and $rule.IdentityReference.Value -notin $trusted) { throw 'The installation folder can be changed by a non-administrator.' }
-        }
-        $current = [IO.Path]::GetDirectoryName($current)
-        $danger = [Security.AccessControl.FileSystemRights]::Delete -bor [Security.AccessControl.FileSystemRights]::DeleteSubdirectoriesAndFiles -bor [Security.AccessControl.FileSystemRights]::ChangePermissions -bor [Security.AccessControl.FileSystemRights]::TakeOwnership
-    }
+    $findings = @(Get-EtpProtectedInstallFindings $Path)
+    if ($findings.Count -eq 0) { return }
+    $profiles = $null
+    try { $profiles = [Environment]::ExpandEnvironmentVariables((Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList' -Name ProfilesDirectory -ErrorAction Stop).ProfilesDirectory) } catch { $profiles = $null }
+    throw (Format-EtpProtectedInstallRefusal -Path $Path -Findings $findings -UnfixableRoots @($profiles, $env:SystemRoot))
 }
 
 function New-EtpProtectedDirectory {

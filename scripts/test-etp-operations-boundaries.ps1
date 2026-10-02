@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory)]
-    [ValidateSet('TargetAliases','BackupReceipts','CertificateCustody','CertificateBinding','Retention','Paths','ProtectedInstall','AtomicReceipts')]
+    [ValidateSet('TargetAliases','BackupReceipts','CertificateCustody','CertificateBinding','Retention','Paths','ProtectedInstall','ProtectedInstallLayouts','AtomicReceipts')]
     [string]$Scenario
 )
 $ErrorActionPreference = 'Stop'
@@ -403,6 +403,138 @@ try {
             Assert-Rejected { Assert-EtpProtectedInstall $scriptPath } 'owned by Administrators or SYSTEM'
             Assert-Rejected { Resolve-EtpSqlCmd $scriptPath } 'owned by Administrators or SYSTEM'
             Assert-True ([IO.File]::ReadAllText($scriptPath) -eq '# disposable test file') 'Install validation changed the rejected script.'
+            # The findings name the path and the exact fix, not just the rule.
+            $found = @(Get-EtpProtectedInstallFindings $scriptPath)
+            Assert-True (@($found | Where-Object { $_.StartsWith("'$scriptPath' is owned by ") -and $_.Contains($currentUser.Value) }).Count -eq 1) "The owner finding does not name the path and owner: $($found -join ' | ')"
+            Assert-True (@($found | Where-Object { $_.Contains("icacls `"$scriptPath`" /setowner `"*S-1-5-32-544`"") }).Count -eq 1) "The owner fix is missing: $($found -join ' | ')"
+            # But this file is in the user's own Temp folder, where re-permissioning would lock
+            # the user out of their profile: the refusal says to move instead, with no icacls.
+            $message = $null
+            try { Assert-EtpProtectedInstall $scriptPath } catch { $message = $_.Exception.Message }
+            if ($scriptPath.StartsWith([Environment]::GetFolderPath('UserProfile') + '\', [StringComparison]::OrdinalIgnoreCase)) {
+                Assert-True ($message.Contains('Install it under Program Files instead') -and -not $message.Contains('icacls')) "A profile path was given permission fixes: $message"
+            }
+        }
+        ProtectedInstallLayouts {
+            # Whole drive layouts described as security descriptors and handed to the check in
+            # place of Get-Acl, so no real drive root or permission is touched. The E: layouts
+            # are Workpc's on 2 Oct 2026, from icacls /save of E:\ and E:\Program Files before
+            # they were changed by hand (Migration 2026-10-02\acl-backup-*.txt).
+            $trustedInstaller = 'S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464'
+            $installingUser = 'S-1-5-21-1000000001-2000000002-3000000003-1001'
+            $formattedRoot = 'O:SYG:SYD:(A;;FA;;;BA)(A;OICIIO;GA;;;BA)(A;;FA;;;SY)(A;OICIIO;GA;;;SY)(A;;0x1301bf;;;AU)(A;OICIIO;SDGXGWGR;;;AU)(A;;0x1200a9;;;BU)(A;OICIIO;GXGR;;;BU)'
+            $programFilesDacl = "D:PAI(A;OICI;FA;;;S-1-15-2-1)(A;OICI;0x1200a9;;;S-1-15-2-2)(A;OICIIO;FA;;;CO)(A;OICIIO;FA;;;SY)(A;;0x1301bf;;;SY)(A;OICIIO;FA;;;BA)(A;;0x1301bf;;;BA)(A;OICI;0x1200a9;;;BU)(A;CI;FA;;;$trustedInstaller)"
+            $underProgramFiles = "O:BAG:SYD:AI(A;OICIID;FA;;;S-1-15-2-1)(A;OICIID;0x1200a9;;;S-1-15-2-2)(A;OICIIOID;GA;;;CO)(A;OICIIOID;GA;;;SY)(A;ID;FA;;;SY)(A;OICIIOID;GA;;;BA)(A;ID;FA;;;BA)(A;OICIID;0x1200a9;;;BU)(A;CIID;FA;;;$trustedInstaller)"
+            $fileUnderProgramFiles = 'O:BAG:SYD:AI(A;ID;FA;;;S-1-15-2-1)(A;ID;0x1200a9;;;S-1-15-2-2)(A;ID;FA;;;SY)(A;ID;FA;;;BA)(A;ID;0x1200a9;;;BU)'
+            # A folder an elevated installer creates directly under that root inherits this.
+            $underFormattedRoot = 'O:BAG:SYD:AI(A;ID;FA;;;BA)(A;OICIIOID;GA;;;BA)(A;ID;FA;;;SY)(A;OICIIOID;GA;;;SY)(A;ID;0x1301bf;;;AU)(A;OICIIOID;SDGXGWGR;;;AU)(A;ID;0x1200a9;;;BU)(A;OICIIOID;GXGR;;;BU)'
+            $script = 'E:\Program Files\Saagar Traders\ETP Reporting Engine\scripts\backup-etp-database.ps1'
+            function Get-LayoutFindings {
+                param([string]$Path,[hashtable]$Layout)
+                $reader = {
+                    param($Item)
+                    $security = if ($Item -like '*.ps1') { [Security.AccessControl.FileSecurity]::new() } else { [Security.AccessControl.DirectorySecurity]::new() }
+                    if (-not $Layout.ContainsKey($Item)) { throw "The layout has no entry for $Item." }
+                    $security.SetSecurityDescriptorSddlForm($Layout[$Item])
+                    return $security
+                }.GetNewClosure()
+                return @(Get-EtpProtectedInstallFindings -Path $Path -ReadSecurity $reader)
+            }
+            function New-ProgramFilesLayout {
+                param([string]$Root,[string]$ProgramFilesOwner)
+                return @{
+                    'E:\' = $Root
+                    'E:\Program Files' = "O:${ProgramFilesOwner}G:SY$programFilesDacl"
+                    'E:\Program Files\Saagar Traders' = $underProgramFiles
+                    'E:\Program Files\Saagar Traders\ETP Reporting Engine' = $underProgramFiles
+                    'E:\Program Files\Saagar Traders\ETP Reporting Engine\scripts' = $underProgramFiles
+                    $script = $fileUnderProgramFiles
+                }
+            }
+
+            # Workpc as found: the only real problem was E:\Program Files belonging to the user who
+            # installed the first program there. Authenticated Users' Modify on E:\ (no
+            # delete-child, no change permissions) and ALL APPLICATION PACKAGES' Full Control on
+            # E:\Program Files no longer count.
+            $found = @(Get-LayoutFindings $script (New-ProgramFilesLayout $formattedRoot $installingUser))
+            Assert-True ($found.Count -eq 1) "Workpc as found should have one problem, not $($found.Count): $($found -join ' | ')"
+            Assert-True ($found[0].StartsWith("'E:\Program Files' is owned by $installingUser")) "Unexpected problem: $($found[0])"
+            Assert-True ($found[0].Contains('icacls "E:\Program Files" /setowner "*S-1-5-32-544"')) "The owner fix is missing: $($found[0])"
+            # Once Administrators own it, the layout passes with E:\ left as Windows made it.
+            $found = @(Get-LayoutFindings $script (New-ProgramFilesLayout $formattedRoot 'BA'))
+            Assert-True ($found.Count -eq 0) "A Windows-default data drive with an administrator-owned Program Files was refused: $($found -join ' | ')"
+
+            # An installation directly under that root inherits Authenticated Users' Modify, so any
+            # signed-in user could rename E:\Apps or edit the scripts. Still refused, with both
+            # places named and the inherited-permission fix.
+            $apps = @{ 'E:\' = $formattedRoot; 'E:\Apps' = $underFormattedRoot; 'E:\Apps\ETP' = $underFormattedRoot }
+            $found = @(Get-LayoutFindings 'E:\Apps\ETP' $apps)
+            Assert-True ($found.Count -eq 2) "A folder under a writable root should have two problems, not $($found.Count): $($found -join ' | ')"
+            Assert-True ($found[0].StartsWith("'E:\Apps\ETP' gives ") -and $found[0].Contains('S-1-5-11') -and $found[0].Contains('write (create or change items in it)') -and $found[0].Contains('delete (rename or delete it)')) "Unexpected target problem: $($found[0])"
+            Assert-True ($found[1].StartsWith("'E:\Apps' gives ") -and $found[1].Contains('delete (rename or delete it), inherited from the folder above') -and -not $found[1].Contains('write')) "Unexpected ancestor problem: $($found[1])"
+            Assert-True ($found[1].Contains('icacls "E:\Apps" /inheritance:d, then icacls "E:\Apps" /grant:r "*S-1-5-11:(OI)(CI)RX"')) "The inherited-permission fix is missing: $($found[1])"
+
+            # The root is checked too, for what can still reach the path from there.
+            $rootRights = @{
+                '(A;;FA;;;AU)' = 'delete subfolders and files (rename or delete anything in it), change permissions, take ownership'
+                '(A;;WD;;;AU)' = 'change permissions'
+                '(A;;GA;;;AU)' = 'delete subfolders and files (rename or delete anything in it), change permissions, take ownership'
+            }
+            foreach ($ace in $rootRights.Keys) {
+                $found = @(Get-LayoutFindings 'E:\Program Files' @{ 'E:\Program Files' = "O:BAG:SY$programFilesDacl"; 'E:\' = "O:SYG:SYD:(A;;FA;;;SY)$ace" })
+                Assert-True ($found.Count -eq 1 -and $found[0].StartsWith("'E:\' gives ") -and $found[0].Contains($rootRights[$ace] + '. Fix')) "Root entry $ace was not refused as expected: $($found -join ' | ')"
+            }
+            $found = @(Get-LayoutFindings 'E:\Program Files' @{ 'E:\Program Files' = "O:BAG:SY$programFilesDacl"; 'E:\' = 'O:S-1-5-21-1000000001-2000000002-3000000003-1001G:SYD:(A;;FA;;;SY)' })
+            Assert-True ($found.Count -eq 1 -and $found[0].StartsWith("'E:\' is owned by")) "A user-owned root was accepted: $($found -join ' | ')"
+
+            # Ancestors and the target, entry by entry. Each case: where the entry is, the entry,
+            # and whether it must be refused.
+            $cases = @(
+                @('ancestor', '(A;;0x4;;;BU)', $false),          # create subfolders only: cannot replace the path
+                @('target', '(A;;0x4;;;BU)', $true),             # but in the install folder it plants files
+                @('ancestor', '(A;;0x2;;;BU)', $false),          # create files only
+                @('ancestor', '(A;;SD;;;BU)', $true),            # delete = rename the folder
+                @('ancestor', '(A;;0x40;;;BU)', $true),          # delete child = rename the next folder down
+                @('ancestor', '(A;;WD;;;BU)', $true),
+                @('ancestor', '(A;;WO;;;BU)', $true),
+                @('ancestor', '(A;;GA;;;BU)', $true),            # generic rights are mapped
+                @('target', '(A;;GW;;;BU)', $true),
+                @('ancestor', '(A;OICIIO;FA;;;BU)', $false),     # inherit-only: checked on the children instead
+                @('target', '(A;OICIIO;FA;;;BU)', $false),
+                @('ancestor', '(D;;FA;;;BU)', $false),           # deny never grants
+                @('target', '(A;;FA;;;S-1-15-2-1)', $false),     # ALL APPLICATION PACKAGES
+                @('target', '(A;;FA;;;S-1-15-3-1)', $false),     # a capability SID
+                @('target', '(A;;FA;;;S-1-15-2-2)', $false),     # ALL RESTRICTED APPLICATION PACKAGES
+                @('target', "(A;;FA;;;$installingUser)", $true),
+                @('ancestor', '(A;;FA;;;WD)', $true),            # Everyone
+                @('target', '(A;;FA;;;CO)', $true)               # not inherit-only, so not excused
+            )
+            foreach ($case in $cases) {
+                $plain = 'O:BAG:SYD:PAI(A;OICI;FA;;;BA)(A;OICI;FA;;;SY)(A;OICI;0x1200a9;;;BU)'
+                $layout = @{ 'E:\' = 'O:SYG:SYD:(A;;FA;;;SY)'; 'E:\Parent' = $plain; 'E:\Parent\Install' = $plain }
+                $at = if ($case[0] -eq 'target') { 'E:\Parent\Install' } else { 'E:\Parent' }
+                $layout[$at] = $plain + $case[1]
+                $found = @(Get-LayoutFindings 'E:\Parent\Install' $layout)
+                Assert-True (($found.Count -gt 0) -eq $case[2]) "$($case[1]) on the $($case[0]) gave $($found.Count) problem(s): $($found -join ' | ')"
+                if ($case[2]) { Assert-True ($found.Count -eq 1 -and $found[0].StartsWith("'$at' gives ")) "$($case[1]) was reported against the wrong path: $($found -join ' | ')" }
+            }
+
+            # The refusal: every finding with its fix, under the headline the older messages used,
+            # except inside a user profile or the Windows folder.
+            $found = @(Get-LayoutFindings 'E:\Apps\ETP' $apps)
+            $message = Format-EtpProtectedInstallRefusal -Path 'E:\Apps\ETP' -Findings $found -UnfixableRoots @('C:\Users','C:\Windows')
+            Assert-True ($message.StartsWith('The installation folder can be changed by a non-administrator. Nothing was changed.')) "Unexpected headline: $message"
+            Assert-True (@($message -split [Environment]::NewLine | Where-Object { $_.StartsWith("- 'E:\Apps") -and $_.Contains('icacls') }).Count -eq 2) "Not every finding is listed with its fix: $message"
+            $message = Format-EtpProtectedInstallRefusal -Path 'E:\Program Files' -Findings @(Get-LayoutFindings $script (New-ProgramFilesLayout $formattedRoot $installingUser)) -UnfixableRoots @('C:\Users')
+            Assert-True ($message.StartsWith('Install operations in a folder owned by Administrators or SYSTEM. Nothing was changed.')) "An owner-only refusal has the wrong headline: $message"
+            $message = Format-EtpProtectedInstallRefusal -Path 'C:\Users\Someone\Tools\ETP' -Findings $found -UnfixableRoots @($null,'C:\Users\','C:\Windows')
+            Assert-True ($message.Contains("'C:\Users\Someone\Tools\ETP' is inside 'C:\Users\'") -and $message.Contains('owned by Administrators or SYSTEM') -and -not $message.Contains('icacls')) "A profile path was given permission fixes: $message"
+            $message = Format-EtpProtectedInstallRefusal -Path 'C:\UsersData\ETP' -Findings $found -UnfixableRoots @('C:\Users')
+            Assert-True ($message.Contains('icacls')) "A folder that only starts like the profiles folder was treated as inside it: $message"
+
+            # A user-owned target is refused even when its permissions are clean.
+            $found = @(Get-LayoutFindings 'E:\Parent\Install' @{ 'E:\' = 'O:SYG:SYD:(A;;FA;;;SY)'; 'E:\Parent' = 'O:BAG:SYD:(A;;FA;;;BA)'; 'E:\Parent\Install' = "O:${installingUser}G:SYD:(A;;FA;;;BA)" })
+            Assert-True ($found.Count -eq 1 -and $found[0].Contains('Install operations in a folder owned by Administrators or SYSTEM.')) "A user-owned install folder was accepted: $($found -join ' | ')"
         }
         AtomicReceipts {
             $path = Join-Path $temporaryRoot 'atomic-receipt.json'
