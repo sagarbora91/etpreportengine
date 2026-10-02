@@ -82,6 +82,7 @@ public static class TaskNavigation
         Add("watch-folder", "Automatic import", "Settings", "Automatic import", "Operations Center", "watch-folder", 3);
         Add("sharing", "Email, sharing and Tally", "Settings", "Integrations", "Settings", "sharing", 3);
         Add("sharing-contacts", "Sharing contacts", "Settings", "Integrations", "Report Archive", "sharing-contacts", 3);
+        Add("tally-companies", "Tally companies", "Settings", "Integrations", "Settings", "tally-companies", 3);
         Add("prepare-batch", "Prepare → Review → Export", "Settings", "Accounting", "Accounting", "prepare-batch", 3);
         Add("open-items", "Open items", "Settings", "Control centre", "Operations Center", "open-items", 3);
         Add("data-quality", "Data quality", "Settings", "Control centre", "Operations Center", "data-quality", 3);
