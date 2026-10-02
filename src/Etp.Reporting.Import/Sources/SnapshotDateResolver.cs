@@ -136,12 +136,20 @@ public sealed class SnapshotDateResolver(
     }
 
     // Every data row must sit in exactly one dated block. A row no block holds cannot be dated, and a row two blocks of
-    // different dates hold is ambiguous; neither falls through to a later tier.
+    // different dates hold is ambiguous; neither falls through to a later tier. Two blocks holding rows of one snapshot
+    // date are two readings of that day: planner 1 would store both and double the stock, so the sheet is refused
+    // (the contract validator's CONTRACT_SNAPSHOT_DATE_DUPLICATE does not run under planner 1).
     private static SnapshotDating PerBlock(IReadOnlyList<((int? First, int? Last) Range, DateOnly Date, int? Block)> dated,
         SnapshotDateBasis basis, WorkbookSheet sheet, IReadOnlyList<int> rows, List<ImportDiagnostic> notes)
     {
         var blocks = dated.Select(block => new SnapshotBlock(sheet.Name, block.Range.First ?? sheet.HeaderRowNumber + 1,
             block.Range.Last ?? sheet.HeaderRowNumber, block.Date, basis) { BlockNo = block.Block }).ToArray();
+        var repeated = blocks.Where(block => rows.Any(block.Contains)).GroupBy(block => block.SnapshotDate)
+            .FirstOrDefault(group => group.Count() > 1)?.ToArray();
+        if (repeated is not null)
+            return new([], [.. notes, new ImportDiagnostic(ImportCodes.SnapshotDateRepeated, ImportDiagnosticSeverity.Blocker,
+                $"Blocks {string.Join(", ", repeated.Select(BlockLabel))} of the {Source(basis)} share the snapshot date {Text(repeated[0].SnapshotDate)}. " +
+                "Keep only the later export of that date.", sheet.Name, repeated[1].FirstRow)]);
         foreach (var row in rows)
         {
             var holding = blocks.Where(block => block.Contains(row)).Select(block => block.SnapshotDate).Distinct().ToArray();
@@ -170,6 +178,9 @@ public sealed class SnapshotDateResolver(
         new(ImportCodes.SnapshotDateAmbiguous, ImportDiagnosticSeverity.Blocker,
             $"More than one snapshot date was found in {source} ({string.Join(", ", dates.Order().Select(Text))}); the importer never guesses between them.",
             sheet, row);
+
+    private static string BlockLabel(SnapshotBlock block) =>
+        block.BlockNo is { } number ? number.ToString(CultureInfo.InvariantCulture) : $"{block.FirstRow}:{block.LastRow}";
 
     private static string Source(SnapshotDateBasis basis) =>
         basis == SnapshotDateBasis.Contract ? "contract block table" : "Info block table";

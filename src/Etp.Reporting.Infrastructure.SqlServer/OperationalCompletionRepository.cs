@@ -81,6 +81,8 @@ public sealed class OperationalCompletionRepository(string connectionString)
 
     // IF-016: a restatement's target is chosen among the current files whose declared period overlaps the
     // replacement, by the same overlap test as the planner-1 plan (PhaseOneImportPersistence.PlanImportAsync).
+    // For an undated family the plan then keeps only files holding one of the replacement's snapshot dates, plus the
+    // chosen target, so this list may name a stacked file that the replacement does not cover.
     public async Task<IReadOnlyList<RestatementCandidate>> FindRestatementCandidatesAsync(
         string reportCode,
         string storeCode,

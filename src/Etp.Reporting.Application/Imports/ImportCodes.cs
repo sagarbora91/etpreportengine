@@ -11,6 +11,8 @@ public static class ImportCodes
     public const string ExportContentMismatch = "EXPORT_CONTENT_MISMATCH";
     public const string SnapshotDateUnknown = "SNAPSHOT_DATE_UNKNOWN";
     public const string SnapshotDateAmbiguous = "SNAPSHOT_DATE_AMBIGUOUS";
+    /// <summary>Two dated blocks of one data sheet are readings of the same snapshot date; importing both would double the stock.</summary>
+    public const string SnapshotDateRepeated = "SNAPSHOT_DATE_REPEATED";
     public const string SnapshotDateFromFolder = "SNAPSHOT_DATE_FROM_FOLDER";
     /// <summary>Tier 7 (spec 6.4, basis SIBLING): the date was taken from the other exports in the folder, which agree on one end date.</summary>
     public const string SnapshotDateFromSiblings = "SNAPSHOT_DATE_FROM_SIBLINGS";
