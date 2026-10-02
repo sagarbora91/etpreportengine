@@ -381,6 +381,42 @@ function Assert-EtpBootstrapPayloads {
     }
 }
 
+function Complete-EtpAutomationGrants {
+    # 1.9.3. Setup used to install the operations broker alone and leave the automation
+    # account's rights to a separate install-etp-sql-operations.ps1 run (docs\OPERATIONS.md,
+    # step 7), which nothing prompted. On Workpc, 2 October 2026, the recovery drill's first
+    # run failed with only "The database operation failed" because of it. Now every setup run
+    # ends here: an automation account that is already an active Store Manager but lacks the
+    # module's rights gets them, by the same script and checks as the manual step; one that is
+    # not a Store Manager yet gets a NEXT STEP line saying exactly what to do. Returns the log
+    # lines; a failure here is reported, never fatal, because the database is complete.
+    param([Parameter(Mandatory)][scriptblock]$GetState,[Parameter(Mandatory)][scriptblock]$InstallModule,
+          [string]$ServerInstance,[string]$Database,[string]$AutomationPrincipal,[string]$ScriptsDirectory)
+    $command = Get-EtpAutomationGrantCommand -ServerInstance $ServerInstance -Database $Database -AutomationPrincipal $AutomationPrincipal -ScriptsDirectory $ScriptsDirectory
+    try { $state = & $GetState }
+    catch { return @("WARNING: setup could not check whether $AutomationPrincipal has the operations module's rights ($($_.Exception.Message)). If the daily backup or the recovery drill fails, run this in an administrator PowerShell window: $command") }
+    if ($state.State -ceq 'READY') { return @("$AutomationPrincipal is an active Store Manager with the operations module's rights; the daily backup and the recovery drill can run.") }
+    if ($state.State -ceq 'GRANTS_MISSING') {
+        $lines = [Collections.Generic.List[string]]::new()
+        $lines.Add("$AutomationPrincipal is an active Store Manager but lacks $($state.Missing -join ', '). Setup is installing the restricted SQL operations module for it now (docs\OPERATIONS.md, step 7).")
+        try { foreach ($line in @(& $InstallModule)) { $lines.Add("$line") } }
+        catch {
+            $lines.Add("WARNING: the operations module could not be installed for ${AutomationPrincipal}: $($_.Exception.Message) The daily backup and the recovery drill cannot run under that account until it is. Then run this in an administrator PowerShell window: $command")
+            return $lines.ToArray()
+        }
+        try { $after = & $GetState } catch { $after = $null }
+        if ($null -ne $after -and $after.State -ceq 'READY') { $lines.Add("$AutomationPrincipal now has the operations module's rights.") }
+        else {
+            $still = if ($null -ne $after -and @($after.Missing).Count -gt 0) { " (missing: $($after.Missing -join ', '))" } else { '' }
+            $lines.Add("WARNING: after the operations module was installed, $AutomationPrincipal still does not have all of its rights$still. Run this in an administrator PowerShell window: $command")
+        }
+        return $lines.ToArray()
+    }
+    $guidance = Get-EtpAutomationGrantGuidance -GrantState $state -ServerInstance $ServerInstance -Database $Database -AutomationPrincipal $AutomationPrincipal -ScriptsDirectory $ScriptsDirectory
+    if ($guidance) { return @("NEXT STEP: $guidance") }
+    return @("WARNING: setup could not tell whether $AutomationPrincipal has the operations module's rights. If the daily backup or the recovery drill fails, run this in an administrator PowerShell window: $command")
+}
+
 # Dot-sourcing exposes only the pure preflight functions for behavioral tests.
 if ($MyInvocation.InvocationName -eq '.') { return }
 
@@ -602,6 +638,10 @@ if ($databaseAction -ceq 'Create') {
 & (Join-Path $scripts 'install-monthly-recovery-drill-task.ps1')
 & (Join-Path $scripts 'install-etp-automation-task.ps1')
 Write-SetupLog 'Daily backup, monthly recovery-drill and five-minute ETP automation tasks are installed.'
+# The tasks are useless until the automation account has the operations module's rights.
+foreach ($line in @(Complete-EtpAutomationGrants -ServerInstance $ServerInstance -Database $Database -AutomationPrincipal $operationConfiguration.automationPrincipal -ScriptsDirectory $scripts `
+        -GetState { Get-EtpAutomationGrantState -SqlCmd $sqlcmdPath -Server (Resolve-EtpSqlConnection -SqlCmd $sqlcmdPath -ServerInstance $ServerInstance) -Database $Database -AutomationPrincipal $operationConfiguration.automationPrincipal } `
+        -InstallModule { & (Join-Path $scripts 'install-etp-sql-operations.ps1') -ServerInstance $ServerInstance -Database $Database -AutomationPrincipal $operationConfiguration.automationPrincipal -SqlCmdPath $sqlcmdPath })) { Write-SetupLog $line }
 # A clean install on an encrypting edition gets this far with no recovery keys, and then
 # every nightly backup refuses. Say it now, while somebody is still at the machine.
 if ($editionEncryptsBackups -and -not (Test-Path -LiteralPath (Join-Path $backupDirectory 'certificate-custody.json') -PathType Leaf)) {

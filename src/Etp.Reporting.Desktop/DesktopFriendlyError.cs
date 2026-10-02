@@ -70,12 +70,22 @@ public static class DesktopFriendlyError
                 51458 => "Invoice reservations are controlled by the accounting batch status.",
                 51459 => "Accounting export receipts cannot be changed or deleted.",
                 51460 => "Set the intended TEST Tally company in Settings and refresh before approving or exporting (D12/D18).",
-                _ => null
+                _ => DescribeUserAccessFailure(error.Number)
             };
             if (message is not null) return message;
         }
         return null;
     }
+
+    // Settings > Users. 51230 is the last-Owner guard (trigger and, since migration 0042, the
+    // procedure). 51471 is 0042's refusal to give access to an account Windows cannot find;
+    // 15401 is SQL Server's own wording of the same thing, from a database before 0042.
+    internal static string? DescribeUserAccessFailure(int number) => number switch
+    {
+        51230 => "Keep at least one active Owner. Add another Owner before changing this account.",
+        51471 or 15401 => "Windows cannot find this account. Check the name. An account of a PC that no longer exists can only be deactivated: untick Active and save.",
+        _ => null
+    };
 
     private static string DescribeDuplicateBatch(string detail)
     {
