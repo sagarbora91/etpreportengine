@@ -333,3 +333,57 @@ public sealed class TallyProfileRulesTests
     public void A_reason_is_required(string reason) =>
         Assert.Throws<ArgumentException>(() => TallyProfileRules.Normalise(Valid(), reason));
 }
+
+public sealed class TallyEvidenceFilesTests : IDisposable
+{
+    private readonly string root = Path.Combine(Path.GetTempPath(), "EtpTallyEvidence", Guid.NewGuid().ToString("N"));
+    private const string Payload = @"GOLDEN\WLMHW\2026-08\batch-12\payload.xml";
+
+    [Fact]
+    public async Task A_file_is_written_once_hashed_and_never_replaced()
+    {
+        var (full, sha, length) = await TallyEvidenceFiles.WriteOnceAsync(root, Payload, "<ENVELOPE/>"u8.ToArray());
+        Assert.True(File.Exists(full));
+        Assert.Equal(11, length);
+        Assert.Equal(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData("<ENVELOPE/>"u8.ToArray())).ToLowerInvariant(), sha);
+
+        var again = await Assert.ThrowsAsync<InvalidOperationException>(() => TallyEvidenceFiles.WriteOnceAsync(root, Payload, "<OTHER/>"u8.ToArray()));
+        Assert.Contains("written once", again.Message, StringComparison.Ordinal);
+        Assert.Equal("<ENVELOPE/>", await File.ReadAllTextAsync(full));
+    }
+
+    [Fact]
+    public async Task Identical_bytes_in_two_batches_are_both_kept()
+    {
+        var bytes = "{\"findings\":[]}"u8.ToArray();
+        var first = await TallyEvidenceFiles.WriteOnceAsync(root, @"GOLDEN\WLMHW\2026-08\batch-1\validation.json", bytes);
+        var second = await TallyEvidenceFiles.WriteOnceAsync(root, @"GOLDEN\WLMHW\2026-08\batch-2\validation.json", bytes);
+        Assert.Equal(first.Sha256, second.Sha256);
+        Assert.NotEqual(first.FullPath, second.FullPath);
+    }
+
+    [Fact]
+    public async Task A_changed_or_missing_file_is_reported()
+    {
+        var (full, sha, _) = await TallyEvidenceFiles.WriteOnceAsync(root, Payload, "<ENVELOPE/>"u8.ToArray());
+        Assert.Equal(TallyEvidenceState.Ok, await TallyEvidenceFiles.CheckAsync(root, Payload, sha));
+        var bytes = await File.ReadAllBytesAsync(full); bytes[1] ^= 0x20; await File.WriteAllBytesAsync(full, bytes);
+        Assert.Equal(TallyEvidenceState.Changed, await TallyEvidenceFiles.CheckAsync(root, Payload, sha));
+        File.Delete(full);
+        Assert.Equal(TallyEvidenceState.Missing, await TallyEvidenceFiles.CheckAsync(root, Payload, sha));
+    }
+
+    [Fact]
+    public async Task Empty_files_and_unsafe_names_are_refused()
+    {
+        await Assert.ThrowsAsync<ArgumentException>(() => TallyEvidenceFiles.WriteOnceAsync(root, Payload, ReadOnlyMemory<byte>.Empty));
+        await Assert.ThrowsAsync<ArgumentException>(() => TallyEvidenceFiles.WriteOnceAsync(root, @"GOLDEN\Ramesh Kumar\2026-08\batch-12\payload.xml", "x"u8.ToArray()));
+        await Assert.ThrowsAsync<ArgumentException>(() => TallyEvidenceFiles.WriteOnceAsync("relative-root", Payload, "x"u8.ToArray()));
+        Assert.False(Directory.Exists(Path.Combine(root, "GOLDEN")));
+    }
+
+    public void Dispose()
+    {
+        if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+    }
+}
