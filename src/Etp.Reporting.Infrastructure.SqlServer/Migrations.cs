@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Runtime.ExceptionServices;
 using System.Text;
+using System.Text.RegularExpressions;
 using Microsoft.Data.SqlClient;
 
 namespace Etp.Reporting.Infrastructure.SqlServer;
@@ -17,6 +18,15 @@ public interface IMigrationStore
 {
     Task<IAsyncDisposable> AcquireMigrationLockAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<AppliedMigration>> GetAppliedAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Runs the pre-check sections (<see cref="MigrationPrechecks"/>) of every migration in
+    /// <paramref name="plan"/> against the database as it is now, before any of them applies, and
+    /// changes nothing. A refusal throws, so a later migration's refusal cannot leave the earlier
+    /// pending ones committed.
+    /// </summary>
+    Task PrecheckAsync(IReadOnlyList<MigrationScript> plan, CancellationToken cancellationToken = default);
+
     Task ApplyAsync(MigrationScript migration, CancellationToken cancellationToken = default);
 }
 
@@ -55,6 +65,36 @@ public sealed class DirectoryMigrationSource(string directory) : IMigrationSourc
     }
 }
 
+/// <summary>
+/// A migration's pre-checks are the sections between a line <c>-- &gt;&gt;&gt; PRECHECK&lt;name&gt; begin</c>
+/// and its line <c>-- &lt;&lt;&lt; PRECHECK&lt;name&gt; end</c>. They stay part of the script, which runs
+/// them again inside its own transaction, and the runner also runs them on their own before any pending
+/// migration applies. There they see the schema from before every pending migration, so they must only
+/// read, and guard each object they read with OBJECT_ID.
+/// </summary>
+public static partial class MigrationPrechecks
+{
+    public static IReadOnlyList<string> Extract(string sql)
+    {
+        var sections = new List<string>();
+        var ends = EndMarker().Matches(sql);
+        foreach (Match begin in BeginMarker().Matches(sql))
+        {
+            var name = begin.Groups["name"].Value;
+            var end = ends.FirstOrDefault(match => match.Index > begin.Index && string.Equals(match.Groups["name"].Value, name, StringComparison.Ordinal))
+                ?? throw new MigrationIntegrityException($"Pre-check section '{name}' has no end marker.");
+            sections.Add(sql[(begin.Index + begin.Length)..end.Index].Trim('\r', '\n'));
+        }
+        return sections;
+    }
+
+    [GeneratedRegex(@"^--[ \t]*>>>[ \t]*(?<name>PRECHECK[A-Za-z0-9_]*)[ \t]+begin[ \t]*\r?$", RegexOptions.Multiline | RegexOptions.CultureInvariant)]
+    private static partial Regex BeginMarker();
+
+    [GeneratedRegex(@"^--[ \t]*<<<[ \t]*(?<name>PRECHECK[A-Za-z0-9_]*)[ \t]+end[ \t]*\r?$", RegexOptions.Multiline | RegexOptions.CultureInvariant)]
+    private static partial Regex EndMarker();
+}
+
 public static class MigrationPlanner
 {
     public static IReadOnlyList<MigrationScript> Plan(IReadOnlyList<MigrationScript> discovered, IReadOnlyList<AppliedMigration> applied)
@@ -63,6 +103,14 @@ public static class MigrationPlanner
         if (duplicate is not null) throw new MigrationIntegrityException($"Duplicate migration id '{duplicate.Key}'.");
 
         var known = discovered.ToDictionary(x => x.Id, StringComparer.OrdinalIgnoreCase);
+        var newestKnown = discovered.Select(x => x.Id).Max(StringComparer.Ordinal);
+        var newer = applied.Select(x => x.Id).Where(id => !known.ContainsKey(id) && (newestKnown is null || string.CompareOrdinal(id, newestKnown) > 0))
+            .Order(StringComparer.Ordinal).ToArray();
+        if (newer.Length > 0)
+            throw new MigrationIntegrityException(
+                $"This database was upgraded by a newer release of ETP: it holds migration '{newer[^1]}', and this release knows migrations "
+                + $"only up to '{newestKnown ?? "(none)"}'. Nothing was changed. Install the release that upgraded it (or a later one), "
+                + "or restore the backup taken before that upgrade.");
         foreach (var item in applied)
         {
             if (!known.TryGetValue(item.Id, out var script))
@@ -87,6 +135,10 @@ public sealed class MigrationRunner(IMigrationSource source, IMigrationStore sto
             var discovered = await source.DiscoverAsync(cancellationToken);
             var applied = await store.GetAppliedAsync(cancellationToken);
             var plan = MigrationPlanner.Plan(discovered, applied);
+            // Every pending migration's pre-checks run before the first of them applies: each script
+            // commits on its own, so a refusal found only when its script ran would leave the
+            // database between releases (1.9.3: Tally 0038-0040 committed, then 0041 refused).
+            if (plan.Count > 0) await store.PrecheckAsync(plan, cancellationToken);
             foreach (var migration in plan) await store.ApplyAsync(migration, cancellationToken);
             result = plan.Select(x => x.Id).ToArray();
         }
@@ -180,6 +232,31 @@ public sealed class SqlServerMigrationStore(string connectionString) : IMigratio
         while (await reader.ReadAsync(cancellationToken))
             result.Add(new(reader.GetString(0), reader.GetString(1), new DateTimeOffset(DateTime.SpecifyKind(reader.GetDateTime(2), DateTimeKind.Utc))));
         return result;
+    }
+
+    public async Task PrecheckAsync(IReadOnlyList<MigrationScript> plan, CancellationToken cancellationToken = default)
+    {
+        var checks = plan.SelectMany(migration => MigrationPrechecks.Extract(migration.Sql)).ToArray();
+        if (checks.Length == 0) return;
+        await using var connection = new SqlConnection(LocalSqlConnectionPolicy.Validate(connectionString));
+        await connection.OpenAsync(cancellationToken);
+        // One transaction that is always rolled back: a pre-check only reads, and if one wrote by
+        // mistake, nothing of it would stay.
+        await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            foreach (var check in checks)
+            {
+                await using var command = new SqlCommand(check, connection, transaction) { CommandTimeout = 0 };
+                await command.ExecuteNonQueryAsync(cancellationToken);
+            }
+        }
+        catch (Exception failure)
+        {
+            await SqlTransactionGuard.RollBackAsync(failure, transaction);
+            throw;
+        }
+        await transaction.RollbackAsync(CancellationToken.None);
     }
 
     public async Task ApplyAsync(MigrationScript migration, CancellationToken cancellationToken = default)

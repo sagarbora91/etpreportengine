@@ -84,6 +84,18 @@ DECLARE @lineageSuperseded bigint =
  + (SELECT COUNT(*) FROM dbo.stock_snapshots x JOIN dbo.source_lineage l ON l.source_lineage_id=x.source_lineage_id JOIN dbo.import_files f ON f.import_file_id=l.import_file_id WHERE f.is_superseded=1)
  + (SELECT COUNT(*) FROM dbo.sales_line_enrichments x JOIN dbo.source_lineage l ON l.source_lineage_id=x.source_lineage_id JOIN dbo.import_files f ON f.import_file_id=l.import_file_id WHERE f.is_superseded=1);
 
+-- Open stock-ledger (R003) conflicts on an identity a stored movement holds. 1.9.2 stored the first
+-- row of a per-unit group in file order and logged the later unit rows as CONFLICT; 0041 numbers the
+-- stored row line 1, while a re-import numbers the running-balance chain start 1. Built exactly as
+-- 1.9.2's persist_stock_movement built business_identity (nvarchar(400)).
+DECLARE @movementIdentity nvarchar(max) = N'LEFT(CONCAT(m.store_code,N''/'',m.invoice_year,N''/'',m.document_number,N''/'',m.document_date,N''/'',
+  m.product_code,N''/'',UPPER(m.source_transaction_type),N''/'',ISNULL(m.from_location,N),N/,ISNULL(m.to_location,N)),400)';
+DECLARE @movementConflicts bigint;
+DECLARE @movementConflictSql nvarchar(max) = N'SELECT @n=COUNT_BIG(*) FROM dbo.import_conflicts c
+  WHERE c.report_code=''R003'' AND c.status IN(''OPEN'',''ACKNOWLEDGED'',''RESTATEMENT_REQUESTED'')
+    AND EXISTS(SELECT 1 FROM dbo.stock_movements m WHERE m.store_code=c.store_code AND ' + @movementIdentity + N'=c.business_identity);';
+EXEC sys.sp_executesql @movementConflictSql, N'@n bigint OUTPUT', @movementConflicts OUTPUT;
+
 -- Current files imported before data truth version 1 (column added by 0017, so read dynamically).
 DECLARE @v0Files bigint;
 EXEC sys.sp_executesql N'SELECT @n=COUNT_BIG(*) FROM dbo.import_files WHERE is_superseded=0 AND data_truth_version=0;',
@@ -135,7 +147,9 @@ SELECT check_code, findings, blocks_upgrade, detail FROM (VALUES
   CASE WHEN @caseSensitive=1 THEN N'Tender types spelled in more than one case. The collation is case-sensitive: 0041 indexes UPPER(tender_type).'
        ELSE N'Tender types spelled in more than one case (information; the collation ignores case).' END),
  (15, 'SOURCE_ROWS_OF_SUPERSEDED_FILES', @familySuperseded, CONVERT(bit,0),
-  N'Family-table (etp_r*, etp_landing_*) rows of superseded files. Expected: promotion and restatement keep the source rows (information).')
+  N'Family-table (etp_r*, etp_landing_*) rows of superseded files. Expected: promotion and restatement keep the source rows (information).'),
+ (16, 'OPEN_MOVEMENT_CONFLICTS_ON_STORED_ROWS', @movementConflicts, CONVERT(bit,0),
+  N'Open stock-ledger (R003) conflicts whose identity a stored movement holds. 1.9.2 kept the first unit row in file order; 0041 numbers it line 1, a re-import numbers the chain start 1, so an overlapping re-import is refused with IMPORT_CONFLICT. Plan an Owner restatement for these days before relying on re-imports.')
 ) c(n, check_code, findings, blocks_upgrade, detail)
 ORDER BY n;
 
@@ -240,3 +254,15 @@ IF EXISTS(SELECT 1 FROM dbo.sales_invoices i
    AND NOT EXISTS(SELECT 1 FROM dbo.sales_invoice_controls x WHERE x.sales_invoice_id=i.sales_invoice_id)
    AND NOT EXISTS(SELECT 1 FROM dbo.sales_tenders x WHERE x.sales_invoice_id=i.sales_invoice_id)
  ORDER BY i.store_code, i.transaction_date, i.document_number;
+
+IF @movementConflicts > 0
+BEGIN
+ DECLARE @movementConflictDetail nvarchar(max) = N'SELECT TOP (200) ''OPEN_MOVEMENT_CONFLICTS_ON_STORED_ROWS'' AS check_code,c.import_conflict_id,c.import_file_id,
+   c.store_code,c.business_date,c.status,c.business_identity,
+   (SELECT COUNT(*) FROM dbo.stock_movements m WHERE m.store_code=c.store_code AND ' + @movementIdentity + N'=c.business_identity) AS stored_movements
+  FROM dbo.import_conflicts c
+  WHERE c.report_code=''R003'' AND c.status IN(''OPEN'',''ACKNOWLEDGED'',''RESTATEMENT_REQUESTED'')
+    AND EXISTS(SELECT 1 FROM dbo.stock_movements m WHERE m.store_code=c.store_code AND ' + @movementIdentity + N'=c.business_identity)
+  ORDER BY c.store_code,c.business_date,c.import_conflict_id;';
+ EXEC sys.sp_executesql @movementConflictDetail;
+END;

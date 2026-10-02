@@ -4,24 +4,31 @@
 -- (COL_LENGTH/OBJECT_ID guards, CREATE OR ALTER). A statement that uses a column added earlier in
 -- this script, and every CREATE PROCEDURE, VIEW or TRIGGER, runs through EXEC(N'...').
 -- New error numbers are 51700-51799.
+-- The PRECHECK_* sections also run on their own before ANY pending migration applies (the runner's
+-- pre-flight, MigrationRunner), so a refusal leaves a 0037 database at 0037 rather than at Tally's
+-- 0040, where 1.9.2 could no longer open it. There they read the schema as it is before every pending
+-- migration, which may predate the sales tables: each check is guarded by OBJECT_ID and only reads.
 -- Each section changes only what lies between its own begin and end markers.
 SET XACT_ABORT ON;
 
 -- >>> PRECHECK_FY begin
 -- Every invoice is keyed by the financial year of its own date (OD-1, IF-019); ETP's INVOICEYEAR is only a label.
-IF EXISTS(SELECT 1 FROM dbo.sales_invoices WITH(UPDLOCK,HOLDLOCK)
-  WHERE invoice_year<>YEAR(transaction_date)+CASE WHEN MONTH(transaction_date)>=4 THEN 1 ELSE 0 END)
-  THROW 51700,'Some invoices carry a year other than the financial year of their date. Run scripts/check-import-upgrade.sql and review before upgrading.',1;
+IF OBJECT_ID(N'dbo.sales_invoices',N'U') IS NOT NULL
+ IF EXISTS(SELECT 1 FROM dbo.sales_invoices WITH(UPDLOCK,HOLDLOCK)
+   WHERE invoice_year<>YEAR(transaction_date)+CASE WHEN MONTH(transaction_date)>=4 THEN 1 ELSE 0 END)
+   THROW 51700,'Some invoices carry a year other than the financial year of their date. Run scripts/check-import-upgrade.sql and review before upgrading.',1;
 -- <<< PRECHECK_FY end
 
 -- >>> PRECHECK_CONTROLS_TENDERS begin
 -- Section C2 makes one revenue control per invoice and one tender per invoice and type unique (IF-006).
-IF EXISTS(SELECT 1 FROM dbo.sales_invoice_controls WITH(UPDLOCK,HOLDLOCK)
- GROUP BY sales_invoice_id HAVING COUNT(*)>1)
- THROW 51701,'An invoice has more than one revenue control. Review before upgrading.',1;
-IF EXISTS(SELECT 1 FROM dbo.sales_tenders WITH(UPDLOCK,HOLDLOCK)
- GROUP BY sales_invoice_id,UPPER(tender_type) HAVING COUNT(*)>1)
- THROW 51702,'An invoice has the same tender type twice. Review before upgrading.',1;
+IF OBJECT_ID(N'dbo.sales_invoice_controls',N'U') IS NOT NULL
+ IF EXISTS(SELECT 1 FROM dbo.sales_invoice_controls WITH(UPDLOCK,HOLDLOCK)
+  GROUP BY sales_invoice_id HAVING COUNT(*)>1)
+  THROW 51701,'An invoice has more than one revenue control. Review before upgrading.',1;
+IF OBJECT_ID(N'dbo.sales_tenders',N'U') IS NOT NULL
+ IF EXISTS(SELECT 1 FROM dbo.sales_tenders WITH(UPDLOCK,HOLDLOCK)
+  GROUP BY sales_invoice_id,UPPER(tender_type) HAVING COUNT(*)>1)
+  THROW 51702,'An invoice has the same tender type twice. Review before upgrading.',1;
 -- <<< PRECHECK_CONTROLS_TENDERS end
 
 -- >>> A_DIAGNOSTICS begin

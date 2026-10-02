@@ -82,6 +82,25 @@ public sealed class MigrationTests
     public void Planner_rejects_missing_applied_script()
     {
         Assert.Throws<MigrationIntegrityException>(() => MigrationPlanner.Plan([], [new("0001", "abc", DateTimeOffset.UtcNow)]));
+        // An unknown id older than the newest known one is a missing (for example renamed) script.
+        var two = Script("0002_b", "b");
+        var missing = Assert.Throws<MigrationIntegrityException>(() => MigrationPlanner.Plan([two], [new("0001_renamed", "abc", DateTimeOffset.UtcNow)]));
+        Assert.Contains("'0001_renamed' is missing from the migration source", missing.Message, StringComparison.Ordinal);
+    }
+
+    // An older release opening a database a newer one upgraded says so, instead of "missing".
+    [Fact]
+    public void Planner_names_a_database_upgraded_by_a_newer_release()
+    {
+        var one = Script("0001_a", "a");
+        var error = Assert.Throws<MigrationIntegrityException>(() => MigrationPlanner.Plan([one],
+            [new(one.Id, one.Checksum, DateTimeOffset.UtcNow), new("0002_b", "abc", DateTimeOffset.UtcNow), new("0003_c", "abc", DateTimeOffset.UtcNow)]));
+
+        Assert.Contains("upgraded by a newer release of ETP", error.Message, StringComparison.Ordinal);
+        Assert.Contains("'0003_c'", error.Message, StringComparison.Ordinal);
+        Assert.Contains("up to '0001_a'", error.Message, StringComparison.Ordinal);
+        Assert.Contains("Nothing was changed", error.Message, StringComparison.Ordinal);
+        Assert.Contains("restore the backup taken before that upgrade", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -109,10 +128,73 @@ public sealed class MigrationTests
             "lock-acquired",
             "discover",
             "get-applied",
+            "precheck-0001,0002",
             "apply-0001",
             "apply-0002",
             "lock-released",
         ], events);
+    }
+
+    // Review 1.9.3 finding 2: each script commits on its own, so 0041's pre-check refusal used to
+    // come after Tally 0038-0040 had committed, leaving a database neither 1.9.2 nor 1.9.3 opens.
+    [Fact]
+    public async Task Runner_refuses_before_applying_anything_when_a_later_pending_precheck_refuses()
+    {
+        var events = new List<string>();
+        var store = new RecordingStore(events) { FailOnPrecheck = true };
+        var runner = new MigrationRunner(new RecordingSource([Script("0001", "one"), Script("0002", "two")], events), store);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => runner.RunAsync());
+
+        Assert.Equal(["lock-acquired", "discover", "get-applied", "precheck-0001,0002", "lock-released"], events);
+    }
+
+    [Fact]
+    public async Task Runner_runs_no_precheck_when_nothing_is_pending()
+    {
+        var store = new MemoryStore();
+        var runner = new MigrationRunner(new MemorySource([Script("0001", "one")]), store);
+        await runner.RunAsync();
+        Assert.Equal(["0001"], store.Prechecks);
+        store.Prechecks.Clear();
+
+        Assert.Empty(await runner.RunAsync());
+        Assert.Empty(store.Prechecks);
+    }
+
+    [Fact]
+    public void Prechecks_are_the_named_precheck_sections_in_script_order()
+    {
+        const string sql = "SET XACT_ABORT ON;\r\n-- >>> PRECHECK_A begin\r\nIF 1=0 THROW 50001,'a',1;\r\n-- <<< PRECHECK_A end\r\n"
+            + "-- >>> B_CHANGE begin\nALTER TABLE x ADD y int;\n-- <<< B_CHANGE end\n"
+            + "-- >>> PRECHECK_C begin\nIF 1=0 THROW 50002,'c',1;\n-- <<< PRECHECK_C end\n";
+
+        Assert.Equal(["IF 1=0 THROW 50001,'a',1;", "IF 1=0 THROW 50002,'c',1;"], MigrationPrechecks.Extract(sql));
+        Assert.Empty(MigrationPrechecks.Extract("SELECT 1; -- >>> PRECHECK_X begin is not a marker line"));
+        var error = Assert.Throws<MigrationIntegrityException>(() => MigrationPrechecks.Extract("-- >>> PRECHECK_X begin\nSELECT 1;\n-- <<< PRECHECK_Y end\n"));
+        Assert.Contains("PRECHECK_X", error.Message, StringComparison.Ordinal);
+    }
+
+    // The runner runs pre-checks against the schema from before every pending migration (a new
+    // database has no tables at all), so each one only reads and guards each table it reads.
+    [Fact]
+    public async Task Shipped_prechecks_only_read_and_guard_every_table_they_read()
+    {
+        var scripts = await new DirectoryMigrationSource(ShippedMigrationsDirectory()).DiscoverAsync();
+        var prechecks = scripts.SelectMany(script => MigrationPrechecks.Extract(script.Sql).Select(sql => (script.Id, Sql: sql))).ToArray();
+        var import = prechecks.Where(check => check.Id.StartsWith("0041_", StringComparison.Ordinal)).Select(check => check.Sql).ToArray();
+        Assert.Equal(2, import.Length);
+        foreach (var number in new[] { "51700", "51701", "51702" })
+            Assert.Contains(import, sql => sql.Contains("THROW " + number, StringComparison.Ordinal));
+        foreach (var (id, sql) in prechecks)
+        {
+            var code = string.Join('\n', sql.Split('\n').Select(line => line.Split("--")[0]));
+            Assert.DoesNotMatch(new System.Text.RegularExpressions.Regex(@"\b(INSERT|UPDATE|DELETE|MERGE|TRUNCATE|CREATE|ALTER|DROP|GRANT|DENY|REVOKE|EXEC|EXECUTE|DISABLE|ENABLE)\b",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase), code);
+            foreach (System.Text.RegularExpressions.Match table in System.Text.RegularExpressions.Regex.Matches(code, @"\bFROM\s+(dbo\.\w+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+                Assert.True(code.Contains($"OBJECT_ID(N'{table.Groups[1].Value}',N'U') IS NOT NULL", StringComparison.OrdinalIgnoreCase),
+                    $"{id}: the pre-check reads {table.Groups[1].Value} without an OBJECT_ID guard.");
+        }
     }
 
     [Fact]
@@ -125,7 +207,7 @@ public sealed class MigrationTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => runner.RunAsync());
 
         Assert.Equal("lock-released", events[^1]);
-        Assert.Equal(["lock-acquired", "discover", "get-applied", "apply-0001", "lock-released"], events);
+        Assert.Equal(["lock-acquired", "discover", "get-applied", "precheck-0001", "apply-0001", "lock-released"], events);
     }
 
     [Fact]
@@ -138,7 +220,7 @@ public sealed class MigrationTests
         var error = await Assert.ThrowsAsync<MigrationIntegrityException>(() => runner.RunAsync());
 
         Assert.Contains("Synthetic lock release failure", error.Message, StringComparison.Ordinal);
-        Assert.Equal(["lock-acquired", "discover", "get-applied", "apply-0001", "lock-released"], events);
+        Assert.Equal(["lock-acquired", "discover", "get-applied", "precheck-0001", "apply-0001", "lock-released"], events);
     }
 
     [Fact]
@@ -293,7 +375,13 @@ public sealed class MigrationTests
         public List<AppliedMigration> Applied { get; } = [];
         public Task<IAsyncDisposable> AcquireMigrationLockAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult<IAsyncDisposable>(NoOpAsyncDisposable.Instance);
+        public List<string> Prechecks { get; } = [];
         public Task<IReadOnlyList<AppliedMigration>> GetAppliedAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<AppliedMigration>>(Applied);
+        public Task PrecheckAsync(IReadOnlyList<MigrationScript> plan, CancellationToken cancellationToken = default)
+        {
+            Prechecks.AddRange(plan.Select(migration => migration.Id));
+            return Task.CompletedTask;
+        }
         public Task ApplyAsync(MigrationScript migration, CancellationToken cancellationToken = default)
         {
             Applied.Add(new(migration.Id, migration.Checksum, DateTimeOffset.UtcNow));
@@ -313,7 +401,16 @@ public sealed class MigrationTests
     private sealed class RecordingStore(List<string> events) : IMigrationStore
     {
         public bool FailOnApply { get; init; }
+        public bool FailOnPrecheck { get; init; }
         public bool FailOnRelease { get; init; }
+
+        public Task PrecheckAsync(IReadOnlyList<MigrationScript> plan, CancellationToken cancellationToken = default)
+        {
+            events.Add("precheck-" + string.Join(',', plan.Select(migration => migration.Id)));
+            return FailOnPrecheck
+                ? Task.FromException(new InvalidOperationException("Synthetic pre-check refusal."))
+                : Task.CompletedTask;
+        }
 
         public Task<IAsyncDisposable> AcquireMigrationLockAsync(CancellationToken cancellationToken = default)
         {
