@@ -83,7 +83,12 @@ public static class ImportDiagnosticCatalogue
         [ImportCodes.InSourceConflict] = ["Exports inside this workbook disagree about a document; the document is held."],
         [ImportCodes.LegacyBlocksDiffer] = ["Blocks of a legacy consolidated workbook differ for a document; the document is held."],
         [ImportCodes.HeaderDateMismatch] = ["The document's date differs from its invoice header; the document is held."],
-        [ImportCodes.RowDateMissing] = ["The row has no usable date; it is held and belongs to no document."],
+        [ImportCodes.RowDateMissing] =
+        [
+            "The row has no usable date or document number; it is held and belongs to no document.",
+            "The row has no usable date; it is held and belongs to no document."
+        ],
+        [ImportCodes.RowFactValueMissing] = ["The row lacks a value its fact table needs; it is held, and so is any document it belongs to."],
         [ImportCodes.FamilyDerived] = ["This report is derived from other reports."],
         [ImportCodes.InvoiceYearDiffers] = ["ETP's invoice year differs from the financial year of the invoice date; the financial year of the date is used."],
         [ImportCodes.StaleCopyCollapsed] = ["An older copy of a row was collapsed into the newer export's row."],

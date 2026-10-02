@@ -52,7 +52,14 @@ public sealed record EtpFamilyIdentity
     public ChangePolicy ChangePolicy { get; init; } = ChangePolicy.Review;
     /// <summary><c>Column:&lt;field&gt;</c> or <c>Block</c> for snapshot families; null otherwise.</summary>
     public string? SnapshotDate { get; init; }
-    /// <summary>Canonical fields that may be NULL on v0 facts and are filled without review (spec 8.2 rule 10).</summary>
+    /// <summary>
+    /// Canonical fields that may be NULL on v0 facts and are filled without review (spec 8.2 rule 10). These are the
+    /// family's staged field names, which rule 10 reads from <c>CanonicalRow.Facts</c>, not the typed fact table's
+    /// columns: R025's <c>source_net_amount</c> is NETAMOUNT, stored as <c>sales_lines.source_gross_amount</c> (spec
+    /// 7.3's name), while <c>sales_lines.source_net_amount</c> holds staged <c>source_net_value</c> (NETVALUE). Stored
+    /// rows rebuilt from typed columns must be put back under staged names (<c>CanonicalFactProjection</c> maps one way)
+    /// before rule 10 compares them.
+    /// </summary>
     public IReadOnlyList<string> LegacyNullable { get; init; } = [];
     public FamilyRoute Route { get; init; } = FamilyRoute.Landing;
     public int RulesetVersion { get; init; } = 1;
