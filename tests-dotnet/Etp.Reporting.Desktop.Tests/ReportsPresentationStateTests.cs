@@ -111,4 +111,16 @@ public sealed class ReportsPresentationStateTests
         new DateTimeOffset(2026, 8, 25, 12, 0, 0, TimeSpan.Zero),
         []);
 
+    [Fact]
+    public void Stock_report_states_the_snapshot_source_per_store_day()
+    {
+        var day = new DateOnly(2026, 8, 25);
+        var text = ReportsWorkspaceView.SnapshotSourceText(
+        [
+            ("WLMHW", day, "BinWise"), ("HEMW", day, "Closing Stock"), ("HEMW", day, "Closing Stock"), ("HEMW", day.AddDays(-1), "BinWise")
+        ]);
+
+        Assert.Equal(" Snapshot source: HEMW 24-Aug-2026 BinWise; HEMW 25-Aug-2026 Closing Stock; WLMHW 25-Aug-2026 BinWise.", text);
+        Assert.Equal("", ReportsWorkspaceView.SnapshotSourceText([]));
+    }
 }

@@ -1,5 +1,6 @@
 using Etp.Reporting.Import.Preflight;
 using Etp.Reporting.Import.Staging;
+using Etp.Reporting.Import.Stock;
 
 namespace Etp.Reporting.Infrastructure.SqlServer;
 
@@ -27,6 +28,7 @@ public sealed class EtpFamilySqlImportOrchestrator(ITransactionalImportStore sto
                     Number("closingbalance")??0,Number("ucp"),Number("totalucp"),
                     new(accepted.MatchedSheet.Name,row.SourceRowNumber,"R010_SNAPSHOT"));
             }).ToArray() : [];
+        snapshots=StockSnapshotLines.Assign(snapshots,StockSnapshotSources.BinWise);
 
         return await store.PersistAsync(new ImportPersistencePackage(
             new(batch,null,start,scope.BusinessDate,DateTimeOffset.UtcNow),
