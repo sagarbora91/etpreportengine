@@ -30,6 +30,14 @@ public static class DesktopFriendlyError
     public const string UserAccessNeedsElevationMessage =
         "User changes need ETP started as administrator. Close ETP, right-click it, choose Run as administrator, and save again. Nothing was changed.";
 
+    /// <summary>
+    /// Security review 1.9.3, F5. Deactivating an account that has no SQL Server login (one from
+    /// a retired PC, which the restore helper asks the Owner to deactivate) changes nothing at
+    /// server level, so it works unelevated; Settings > Users keeps Save on for it.
+    /// </summary>
+    public const string UserDeactivationWorksUnelevatedMessage =
+        "Deactivating an account that has no SQL Server login, such as one from a retired PC (untick Active), works without it.";
+
     public const string UserAccountNotFoundMessage =
         @"SQL Server could not find that Windows account. Check it is typed as DOMAIN\User or COMPUTER\User and exists on this PC or domain. An account from a PC that no longer exists cannot be changed here. Nothing was changed.";
 

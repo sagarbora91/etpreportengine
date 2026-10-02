@@ -52,6 +52,12 @@
 --     [WORKPC\Shop]; deactivating the stale WORKPC\Shop row used to strip that live user's
 --     roles and deny it CONNECT. Now the stale row is deactivated by the caller as usual
 --     and the live user is left alone (security review 1.9.3, F2).
+--   * The last-Owner guard (51230) counts only other Owners that can still sign in: a login
+--     exists for them, or Windows can resolve the account. After a restore the old PC's Owner
+--     rows stay active until the Owner deactivates them, and they used to count, so the only
+--     usable Owner could demote or deactivate itself and leave nobody able to administer ETP
+--     (security review 1.9.3, F4). The table trigger from 0016 keeps its own, looser guard;
+--     every ETP save passes this one first.
 -- Every ETP caller (Settings > Users, setup, the restore helper) runs the procedure in a
 -- transaction, so a refusal after the REVOKE leaves nothing changed. A SQL administrator
 -- calling it by hand must do the same.
@@ -72,7 +78,8 @@ AS BEGIN
 IF (@active=0 OR @role<>''OWNER'')
    AND EXISTS(SELECT 1 FROM dbo.application_users WHERE windows_identity=@identity AND role_code=''OWNER'' AND is_active=1)
    AND NOT EXISTS(SELECT 1 FROM dbo.application_users WITH(UPDLOCK,HOLDLOCK)
-                  WHERE role_code=''OWNER'' AND is_active=1 AND windows_identity<>@identity)
+                  WHERE role_code=''OWNER'' AND is_active=1 AND windows_identity<>@identity
+                    AND (SUSER_ID(windows_identity) IS NOT NULL OR SUSER_SID(windows_identity) IS NOT NULL))
   THROW 51230,''Keep at least one active Owner. Add another Owner before changing this account.'',1;
 IF (@active=0 OR @role<>''OWNER'') AND SUSER_SID(@identity)=SUSER_SID()
    AND EXISTS(SELECT 1 FROM sys.server_permissions WHERE class=100 AND grantee_principal_id=SUSER_ID(@identity) AND permission_name=N''ALTER ANY LOGIN'')

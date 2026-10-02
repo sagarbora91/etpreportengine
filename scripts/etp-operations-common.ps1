@@ -539,3 +539,312 @@ function Invoke-EtpOperationsBroker {
     if ($metadata.Count -ne 1) { throw 'The restricted SQL operation did not return verified backup metadata.' }
     return @($metadata[0].Substring(13) | ConvertFrom-Json)
 }
+
+# ---------------------------------------------------------------------------------------------
+# 1.9.3, Sagar's decision of 2 October 2026: setup gives the Owner ALTER ANY LOGIN WITH GRANT
+# OPTION itself, so Settings > Users works without "Run as administrator" right after install.
+# Migration 0043 gives it to every active Owner except the account running the migration, and
+# SQL Server never lets a login grant a permission to itself (error 4627): setup and the
+# restore helper run as the very Owner they provision. So the grant is made by a different SQL
+# administrator, NT AUTHORITY\SYSTEM, which on an instance ETP's setup installed is one through
+# BUILTIN\Administrators: a one-off scheduled task, registered under a unique name, started,
+# waited for with a timeout, read, and always unregistered - the method proven by hand on
+# Workpc (Migration 2026-10-02\grant-alter-any-login.cmd). Its files live in a new folder only
+# SYSTEM and Administrators can change, which is deleted afterwards. Nothing here ever stops
+# setup or the restore: every outcome is returned for the caller to log, and the caller
+# re-checks with its own read-only probe.
+
+function New-EtpOwnerGrantOptionSql {
+    # Fixed text with no parameters, run by the SYSTEM task connected to the ETP database. The
+    # logins that get the grant are chosen inside SQL Server from dbo.application_users - every
+    # active OWNER that has a login and does not hold the grant option yet, as migration 0043
+    # upgrades - so no name from setup, a command line or a user reaches it, and every login
+    # name goes through QUOTENAME. Narrower than 0043, because the restore helper runs it
+    # against rows that came from another PC: Windows user logins only, never a group (an
+    # Owner row naming BUILTIN\Users must not hand the right to every user of the PC), and
+    # never SYSTEM, LOCAL SERVICE, NETWORK SERVICE or an NT SERVICE\ account (S-1-5-80-).
+    # Nothing is granted unless the connection is a SQL administrator, and a login that
+    # already holds the right is skipped, so running it again changes nothing. Only ALTER ANY
+    # LOGIN is ever granted.
+    return @'
+SET NOCOUNT ON; SET XACT_ABORT ON;
+IF COALESCE(IS_SRVROLEMEMBER(N'sysadmin'),0)<>1
+BEGIN
+  SELECT N'ETP_GRANT_SYSADMIN:0';
+  RETURN;
+END;
+SELECT N'ETP_GRANT_SYSADMIN:1';
+IF OBJECT_ID(N'dbo.application_users',N'U') IS NULL
+BEGIN
+  SELECT N'ETP_GRANT_USERS_TABLE:0';
+  RETURN;
+END;
+DECLARE @owners TABLE(login_name sysname NOT NULL PRIMARY KEY);
+INSERT @owners(login_name)
+SELECT sp.name FROM sys.server_principals sp
+WHERE sp.type='U' AND sp.sid<>SUSER_SID()
+  AND sp.sid NOT IN(SID_BINARY(N'S-1-5-18'),SID_BINARY(N'S-1-5-19'),SID_BINARY(N'S-1-5-20'))
+  AND SUBSTRING(sp.sid,3,10)<>SUBSTRING(SID_BINARY(N'S-1-5-80-0'),3,10)
+  AND sp.principal_id IN(SELECT SUSER_ID(u.windows_identity) FROM dbo.application_users u WHERE u.role_code='OWNER' AND u.is_active=1)
+  AND NOT EXISTS(SELECT 1 FROM sys.server_permissions p WHERE p.class=100 AND p.grantee_principal_id=sp.principal_id
+                 AND p.permission_name=N'ALTER ANY LOGIN' AND p.state='W');
+DECLARE @grants nvarchar(max)=N'';
+SELECT @grants+=N'GRANT ALTER ANY LOGIN TO '+QUOTENAME(login_name)+N' WITH GRANT OPTION;' FROM @owners;
+IF LEN(@grants)>0
+BEGIN
+  SET @grants=N'USE [master]; '+@grants;
+  EXEC(@grants);
+END;
+SELECT N'ETP_GRANT_GRANTED:'+CONVERT(nvarchar(10),COUNT(*)) FROM @owners;
+SELECT N'ETP_GRANT_MISSING:'+CONVERT(nvarchar(10),COUNT(*)) FROM sys.server_principals sp
+WHERE sp.type='U' AND sp.sid<>SUSER_SID()
+  AND sp.sid NOT IN(SID_BINARY(N'S-1-5-18'),SID_BINARY(N'S-1-5-19'),SID_BINARY(N'S-1-5-20'))
+  AND SUBSTRING(sp.sid,3,10)<>SUBSTRING(SID_BINARY(N'S-1-5-80-0'),3,10)
+  AND sp.principal_id IN(SELECT SUSER_ID(u.windows_identity) FROM dbo.application_users u WHERE u.role_code='OWNER' AND u.is_active=1)
+  AND NOT EXISTS(SELECT 1 FROM sys.server_permissions p WHERE p.class=100 AND p.grantee_principal_id=sp.principal_id
+                 AND p.permission_name=N'ALTER ANY LOGIN' AND p.state='W');
+'@
+}
+
+function New-EtpOwnersWithoutGrantOptionSql {
+    # Read-only, run in the ETP database by the account running setup: how many of the logins
+    # the SYSTEM task would grant to (see New-EtpOwnerGrantOptionSql) still lack the grant
+    # option. Anything but 0 is a reason to run the task.
+    return @'
+SET NOCOUNT ON;
+SELECT COUNT(*) FROM sys.server_principals sp
+WHERE sp.type='U'
+  AND sp.sid NOT IN(SID_BINARY(N'S-1-5-18'),SID_BINARY(N'S-1-5-19'),SID_BINARY(N'S-1-5-20'))
+  AND SUBSTRING(sp.sid,3,10)<>SUBSTRING(SID_BINARY(N'S-1-5-80-0'),3,10)
+  AND sp.principal_id IN(SELECT SUSER_ID(u.windows_identity) FROM dbo.application_users u WHERE u.role_code='OWNER' AND u.is_active=1)
+  AND NOT EXISTS(SELECT 1 FROM sys.server_permissions p WHERE p.class=100 AND p.grantee_principal_id=sp.principal_id
+                 AND p.permission_name=N'ALTER ANY LOGIN' AND p.state='W');
+'@
+}
+
+function New-EtpSystemSqlAdministratorCheckSql {
+    # Read-only, before any task is registered: is NT AUTHORITY\SYSTEM a SQL administrator,
+    # directly or through BUILTIN\Administrators (how setup installs SQL Server Express)? YES
+    # or NO. The task's own batch checks again, as SYSTEM, before it grants anything.
+    return @'
+SET NOCOUNT ON;
+SELECT CASE WHEN EXISTS(SELECT 1 FROM sys.server_role_members rm
+  JOIN sys.server_principals r ON r.principal_id=rm.role_principal_id
+  JOIN sys.server_principals m ON m.principal_id=rm.member_principal_id
+  WHERE r.name=N'sysadmin' AND m.is_disabled=0 AND m.sid IN(SID_BINARY(N'S-1-5-18'),SID_BINARY(N'S-1-5-32-544')))
+  THEN 'YES' ELSE 'NO' END;
+'@
+}
+
+function Test-EtpRunningElevated {
+    $principal = [Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent())
+    return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+function Invoke-EtpOwnerGrantPreflight {
+    # The one SQL call made as the account running setup; YES, NO or UNKNOWN.
+    param([Parameter(Mandatory)][string]$SqlCmdPath,[Parameter(Mandatory)][string]$ServerInstance)
+    Assert-EtpLocalSqlTarget $ServerInstance 'master'
+    $previousPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        $lines = @(& $SqlCmdPath -x -S $ServerInstance -E -b -h -1 -W -d master -Q (New-EtpSystemSqlAdministratorCheckSql) 2>$null)
+        $exitCode = $LASTEXITCODE
+    }
+    catch { return 'UNKNOWN' }
+    finally { $ErrorActionPreference = $previousPreference }
+    $values = @($lines | ForEach-Object { "$_".Trim() } | Where-Object { $_ })
+    if ($exitCode -ne 0 -or $values.Count -ne 1 -or $values[0] -cnotin @('YES','NO')) { return 'UNKNOWN' }
+    return $values[0]
+}
+
+function Assert-EtpOwnerGrantPlainPath {
+    # Every path the task's command file names: a full local path in printable ASCII, with none
+    # of the characters cmd.exe treats specially inside or around quotes.
+    param([Parameter(Mandatory)][string]$Path)
+    if ($Path -cnotmatch '^[A-Za-z]:\\[\x20-\x7E]+$' -or $Path -match '["%!^&|<>]') {
+        throw 'The one-off grant task needs plain local folder and program paths.'
+    }
+}
+
+function New-EtpOwnerGrantCommandScript {
+    # The command file the SYSTEM task runs: sqlcmd with the fixed batch above, its output and
+    # exit code into a file the caller reads. Every value is checked first, so nothing in it
+    # can turn into a second command.
+    param([Parameter(Mandatory)][string]$SqlCmdPath,[Parameter(Mandatory)][string]$ServerInstance,[Parameter(Mandatory)][string]$Database,
+          [Parameter(Mandatory)][string]$SqlPath,[Parameter(Mandatory)][string]$OutputPath)
+    Assert-EtpLocalSqlTarget $ServerInstance $Database
+    if ($ServerInstance -match '["%!^&|<>\s]') { throw 'Choose a SQL Server instance on this computer.' }
+    foreach ($path in @($SqlCmdPath, $SqlPath, $OutputPath)) { Assert-EtpOwnerGrantPlainPath $path }
+    $lines = @(
+        '@echo off',
+        ('"{0}" -x -S "{1}" -E -b -h -1 -W -d {2} -i "{3}" > "{4}" 2>&1' -f $SqlCmdPath, $ServerInstance, $Database, $SqlPath, $OutputPath),
+        'set ETPEXIT=%ERRORLEVEL%',
+        # Redirection first: in "echo ...:0>> file" cmd.exe reads the 0 as a handle number.
+        ('>> "{0}" echo ETP_GRANT_EXIT:%ETPEXIT%' -f $OutputPath),
+        'exit /b %ETPEXIT%')
+    return ($lines -join "`r`n") + "`r`n"
+}
+
+function ConvertFrom-EtpOwnerGrantOutput {
+    # What the task's output file says. Outcome: Granted, AlreadyHeld, Incomplete, NotSysadmin
+    # or Failed. Only the ETP_GRANT_ markers are read; sqlcmd's own messages, which can name
+    # accounts, are never returned. A marker that appears twice counts as unreadable.
+    param([AllowEmptyCollection()][AllowNull()][string[]]$Lines)
+    $values = @{}
+    foreach ($line in @($Lines | ForEach-Object { "$_".Trim() })) {
+        if ($line -cmatch '^ETP_GRANT_([A-Z_]+):(-?\d{1,10})$') {
+            if ($values.ContainsKey($Matches[1])) { $values[$Matches[1]] = $null } else { $values[$Matches[1]] = [long]$Matches[2] }
+        }
+    }
+    $result = [pscustomobject]@{ Outcome = 'Failed'; Granted = 0; Missing = -1; ExitCode = $null; Detail = '' }
+    if (-not $values.ContainsKey('EXIT') -or $null -eq $values['EXIT']) { $result.Detail = 'the task did not report an exit code'; return $result }
+    $result.ExitCode = $values['EXIT']
+    if ($values.ContainsKey('SYSADMIN') -and $values['SYSADMIN'] -eq 0) { $result.Outcome = 'NotSysadmin'; return $result }
+    if ($result.ExitCode -ne 0) { $result.Detail = "sqlcmd ended with exit code $($result.ExitCode)"; return $result }
+    if (-not $values.ContainsKey('SYSADMIN') -or $values['SYSADMIN'] -ne 1) { $result.Detail = 'SQL Server did not confirm that SYSTEM is a SQL administrator'; return $result }
+    if ($values.ContainsKey('USERS_TABLE')) { $result.Detail = 'the database has no ETP user administration'; return $result }
+    if (-not $values.ContainsKey('GRANTED') -or -not $values.ContainsKey('MISSING') -or $null -eq $values['GRANTED'] -or $null -eq $values['MISSING']) {
+        $result.Detail = 'SQL Server did not report the result'; return $result
+    }
+    $result.Granted = [int]$values['GRANTED']
+    $result.Missing = [int]$values['MISSING']
+    $result.Outcome = if ($result.Missing -gt 0) { 'Incomplete' } elseif ($result.Granted -gt 0) { 'Granted' } else { 'AlreadyHeld' }
+    return $result
+}
+
+function Get-EtpOwnerGrantManualCommand {
+    # The documented fallback (docs\OPERATIONS.md, Owners and SQL Server logins) as one line for
+    # an elevated PowerShell, for exactly this Owner and instance; $null when a value is not one
+    # the line can carry safely, and the log then points at the document instead.
+    param([string]$Identity,[string]$ServerInstance,[string]$SqlCmdPath)
+    if ([string]::IsNullOrWhiteSpace($Identity) -or $Identity.Length -gt 128 -or $Identity -notmatch '^[^\\/\[\];''"%`$]+\\[^\\/\[\];''"%`$]+$') { return $null }
+    if ([string]::IsNullOrWhiteSpace($ServerInstance) -or $ServerInstance -notmatch '^[A-Za-z0-9_.:()\\-]+$') { return $null }
+    if ([string]::IsNullOrWhiteSpace($SqlCmdPath) -or $SqlCmdPath.Contains("'")) { return $null }
+    try { Assert-EtpOwnerGrantPlainPath $SqlCmdPath } catch { return $null }
+    $grant = "GRANT ALTER ANY LOGIN TO [$Identity] WITH GRANT OPTION"
+    return ("`$a = New-ScheduledTaskAction -Execute '{0}' -Argument '-S {1} -E -b -d master -Q ""{2}""'; " +
+        "Register-ScheduledTask -TaskName EtpOneOffOwnerGrant -Action `$a -User 'NT AUTHORITY\SYSTEM' -RunLevel Highest -Force | Out-Null; " +
+        "Start-ScheduledTask -TaskName EtpOneOffOwnerGrant; Start-Sleep -Seconds 15; (Get-ScheduledTaskInfo -TaskName EtpOneOffOwnerGrant).LastTaskResult; " +
+        "Unregister-ScheduledTask -TaskName EtpOneOffOwnerGrant -Confirm:`$false") -f $SqlCmdPath, $ServerInstance, $grant
+}
+
+function Test-EtpOwnerGrantTaskFinished {
+    # Finished when the command file wrote its last line, or when the task is no longer running
+    # and has a result (cmd.exe ended before it could write one).
+    param([Parameter(Mandatory)][string]$TaskName,[Parameter(Mandatory)][string]$OutputPath)
+    if (Test-Path -LiteralPath $OutputPath -PathType Leaf) {
+        try {
+            $done = @(Get-Content -LiteralPath $OutputPath -ErrorAction Stop | Where-Object { "$_".Trim() -cmatch '^ETP_GRANT_EXIT:-?\d+$' })
+            if ($done.Count -gt 0) { return $true }
+        }
+        catch { }
+    }
+    $task = Get-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction Stop
+    if ("$($task.State)" -in @('Running', 'Queued')) { return $false }
+    $info = Get-ScheduledTaskInfo -TaskName $TaskName -TaskPath '\' -ErrorAction Stop
+    # 0x41301 is "currently running", 0x41303 "has not yet run".
+    return ([long]$info.LastTaskResult -notin @(267009, 267011))
+}
+
+function Remove-EtpOwnerGrantWorkFolder {
+    # Only the folder this run created, recognised by its exact name inside the work root.
+    param([Parameter(Mandatory)][string]$Folder,[Parameter(Mandatory)][string]$WorkRoot)
+    $root = [IO.Path]::GetFullPath($WorkRoot).TrimEnd('\')
+    $full = [IO.Path]::GetFullPath($Folder)
+    if ([IO.Path]::GetDirectoryName($full) -ine $root -or [IO.Path]::GetFileName($full) -cnotmatch '^OwnerGrant-[a-f0-9]{32}$') { throw 'Not a one-off grant work folder.' }
+    if (-not (Test-Path -LiteralPath $full -PathType Container)) { return }
+    Assert-EtpNoLinks $full
+    Remove-Item -LiteralPath $full -Recurse -Force
+}
+
+function Format-EtpOwnerGrantMessage {
+    # One log line for the attempt. The caller's read-only re-check decides whether the NOTE
+    # with the manual command follows.
+    param([Parameter(Mandatory)][object]$Result)
+    $task = 'a one-off scheduled task run as SYSTEM'
+    $message = switch -CaseSensitive ($Result.Outcome) {
+        'Granted' { "$($Result.Granted) active Owner login(s) were given ALTER ANY LOGIN WITH GRANT OPTION through $task, so Owners can change users in Settings > Users without 'Run as administrator'." }
+        'AlreadyHeld' { "Every active Owner with a SQL Server login already holds ALTER ANY LOGIN WITH GRANT OPTION; $task found nothing to grant." }
+        'NotSysadmin' { "NOTE: SYSTEM is not a SQL Server administrator on this instance, so ALTER ANY LOGIN WITH GRANT OPTION could not be given to the Owner through $task. Nothing was changed." }
+        'Skipped' { "NOTE: ALTER ANY LOGIN WITH GRANT OPTION was not given to the Owner: $($Result.Detail). Nothing was changed." }
+        'Incomplete' { "WARNING: $task gave ALTER ANY LOGIN WITH GRANT OPTION to $($Result.Granted) Owner login(s), but $($Result.Missing) active Owner login(s) still lack it." }
+        'TimedOut' { "WARNING: $task meant to give the Owner ALTER ANY LOGIN WITH GRANT OPTION did not finish in time and was stopped. Nothing else depends on it." }
+        default { "WARNING: $task could not give the Owner ALTER ANY LOGIN WITH GRANT OPTION ($($Result.Detail)). Nothing else depends on it." }
+    }
+    if ($Result.PSObject.Properties['Leftovers']) {
+        foreach ($leftover in @($Result.Leftovers)) { if ($leftover) { $message += " WARNING: $leftover" } }
+    }
+    return $message
+}
+
+function Invoke-EtpOwnerGrantOptionAsSystem {
+    # Never throws: the result says what happened (Outcome, Granted, Missing, Detail, Message).
+    param([Parameter(Mandatory)][string]$SqlCmdPath,[Parameter(Mandatory)][string]$ServerInstance,[Parameter(Mandatory)][string]$Database,
+          [string]$WorkRoot,[ValidateRange(1, 3600)][int]$TimeoutSeconds = 120)
+    $result = [pscustomobject]@{ Outcome = 'Failed'; Granted = 0; Missing = -1; ExitCode = $null; Detail = ''; TaskName = $null; Leftovers = @(); Message = '' }
+    $taskName = $null
+    $registered = $false
+    $work = $null
+    try {
+        if ([string]::IsNullOrWhiteSpace($WorkRoot)) { $WorkRoot = Join-Path $env:ProgramData 'EtpReporting' }
+        if (-not (Test-EtpRunningElevated)) { $result.Outcome = 'Skipped'; $result.Detail = 'this was not run as administrator' }
+        else {
+            $preflight = Invoke-EtpOwnerGrantPreflight -SqlCmdPath $SqlCmdPath -ServerInstance $ServerInstance
+            if ($preflight -ceq 'NO') { $result.Outcome = 'NotSysadmin' }
+            else {
+                # UNKNOWN goes on: the batch checks again, as SYSTEM, before it grants anything.
+                $work = New-EtpProtectedDirectory -Path (Join-Path $WorkRoot ('OwnerGrant-' + [Guid]::NewGuid().ToString('N')))
+                $sqlPath = Join-Path $work 'grant-owner-option.sql'
+                $commandPath = Join-Path $work 'grant-owner-option.cmd'
+                $outputPath = Join-Path $work 'grant-owner-option.out'
+                $commandText = New-EtpOwnerGrantCommandScript -SqlCmdPath $SqlCmdPath -ServerInstance $ServerInstance -Database $Database -SqlPath $sqlPath -OutputPath $outputPath
+                [IO.File]::WriteAllText($sqlPath, (New-EtpOwnerGrantOptionSql), [Text.Encoding]::ASCII)
+                [IO.File]::WriteAllText($commandPath, $commandText, [Text.Encoding]::ASCII)
+                $taskName = 'ETP Reporting Owner Grant ' + [Guid]::NewGuid().ToString('N')
+                $result.TaskName = $taskName
+                $action = New-ScheduledTaskAction -Execute (Join-Path $env:SystemRoot 'System32\cmd.exe') -Argument ('/d /v:off /s /c ""' + $commandPath + '""')
+                $principal = New-ScheduledTaskPrincipal -UserId 'S-1-5-18' -LogonType ServiceAccount -RunLevel Highest
+                $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 10) -MultipleInstances IgnoreNew -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+                Register-ScheduledTask -TaskName $taskName -TaskPath '\' -Action $action -Principal $principal -Settings $settings `
+                    -Description 'One-off: gives active ETP Owners ALTER ANY LOGIN WITH GRANT OPTION. ETP setup removes it when it ends.' -ErrorAction Stop | Out-Null
+                $registered = $true
+                Start-ScheduledTask -TaskName $taskName -TaskPath '\' -ErrorAction Stop
+                $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+                $finished = $false
+                while (-not $finished) {
+                    Start-Sleep -Milliseconds 250
+                    $finished = [bool](Test-EtpOwnerGrantTaskFinished -TaskName $taskName -OutputPath $outputPath)
+                    if (-not $finished -and [DateTime]::UtcNow -ge $deadline) { break }
+                }
+                if (-not $finished) {
+                    try { Stop-ScheduledTask -TaskName $taskName -TaskPath '\' -ErrorAction Stop } catch { }
+                    $result.Outcome = 'TimedOut'
+                }
+                else {
+                    $lines = @()
+                    if (Test-Path -LiteralPath $outputPath -PathType Leaf) { $lines = @(Get-Content -LiteralPath $outputPath -ErrorAction Stop) }
+                    $parsed = ConvertFrom-EtpOwnerGrantOutput -Lines $lines
+                    foreach ($name in @('Outcome', 'Granted', 'Missing', 'ExitCode', 'Detail')) { $result.$name = $parsed.$name }
+                }
+            }
+        }
+    }
+    catch {
+        $result.Outcome = 'Failed'
+        $result.Detail = ($_.Exception.Message -replace '[\x00-\x1F\x7F]', ' ').Trim()
+    }
+    finally {
+        # Always, whatever happened above: no task and no file outlives this call.
+        if ($taskName) {
+            try { Unregister-ScheduledTask -TaskName $taskName -TaskPath '\' -Confirm:$false -ErrorAction Stop }
+            catch { if ($registered) { $result.Leftovers += "the scheduled task '$taskName' could not be removed; delete it in Task Scheduler." } }
+        }
+        if ($work) {
+            try { Remove-EtpOwnerGrantWorkFolder -Folder $work -WorkRoot $WorkRoot }
+            catch { $result.Leftovers += "the folder $work could not be removed; delete it by hand." }
+        }
+    }
+    $result.Message = Format-EtpOwnerGrantMessage -Result $result
+    return $result
+}

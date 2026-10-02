@@ -171,8 +171,8 @@ function New-EtpOwnerRecoverySql {
     # without "Run as administrator", and the procedure grants it to every active Owner - but
     # not here. This batch always provisions the account running it, and SQL Server never lets
     # a login grant a permission to itself (4627, a warning: the GRANT is skipped). So nothing
-    # here tries; ETP_LOGIN_ADMIN reports whether the account holds it, and the helper says
-    # what to do when it does not (docs\OPERATIONS.md, Owners and SQL Server logins).
+    # here tries; ETP_LOGIN_ADMIN reports whether the account holds it, and when it does not
+    # the helper has SYSTEM grant it (Invoke-EtpOwnerGrantOptionAsSystem), then checks again.
     return @'
 SET NOCOUNT ON; SET XACT_ABORT ON;
 DECLARE @identity nvarchar(200)=SUSER_SNAME();
@@ -194,6 +194,16 @@ SELECT N'ETP_OWNER:'+CASE WHEN EXISTS(SELECT 1 FROM dbo.application_users WHERE 
     JOIN sys.database_principals m ON m.principal_id=rm.member_principal_id
     WHERE r.name=N'etp_owner' AND m.name=@principal)) THEN N'1' ELSE N'0' END;
 SELECT N'ETP_LOGIN_ADMIN:'+CASE WHEN EXISTS(SELECT 1 FROM sys.server_permissions WHERE class=100 AND grantee_principal_id=SUSER_ID(@identity)
+  AND permission_name=N'ALTER ANY LOGIN' AND state='W') THEN N'GRANT_OPTION' ELSE N'MISSING' END;
+'@
+}
+
+function New-EtpLoginAdministrationCheckSql {
+    # Read-only: the ETP_LOGIN_ADMIN line of New-EtpOwnerRecoverySql on its own, for the check
+    # made after the one-off SYSTEM grant.
+    return @'
+SET NOCOUNT ON;
+SELECT N'ETP_LOGIN_ADMIN:'+CASE WHEN EXISTS(SELECT 1 FROM sys.server_permissions WHERE class=100 AND grantee_principal_id=SUSER_ID(SUSER_SNAME())
   AND permission_name=N'ALTER ANY LOGIN' AND state='W') THEN N'GRANT_OPTION' ELSE N'MISSING' END;
 '@
 }
@@ -443,8 +453,21 @@ if ($ownerResult.Count -ne 1 -or $ownerResult[0] -cne '1') {
 }
 Write-RestoreLog "$sqlIdentity is now an active Owner of $Database, with the reason recorded in its user history."
 $loginAdministration = @(Get-EtpRestoreMarkers $owner 'ETP_LOGIN_ADMIN')
+# 1.9.3 (Sagar's decision, 2 October 2026): this account cannot give itself ALTER ANY LOGIN
+# WITH GRANT OPTION, so SYSTEM gives it through the same one-off task setup uses (this
+# helper runs elevated, step 1). It never stops the restore; the read-only check after it
+# decides whether the NOTE is needed. Setup checks again, and tries again, when it runs next.
 if ($loginAdministration.Count -ne 1 -or $loginAdministration[0] -cne 'GRANT_OPTION') {
-    Write-RestoreLog "NOTE: $sqlIdentity does not hold ALTER ANY LOGIN WITH GRANT OPTION, and SQL Server does not let an account grant a permission to itself, so this helper cannot give it. Until a different SQL administrator grants it (docs\OPERATIONS.md, Owners and SQL Server logins), adding or changing users in Settings > Users needs ETP started with 'Run as administrator'. Everything else works unelevated."
+    $ownerGrant = try { Invoke-EtpOwnerGrantOptionAsSystem -SqlCmdPath $sqlcmd -ServerInstance $ServerInstance -Database $Database } catch { $null }
+    if ($ownerGrant) { Write-RestoreLog $ownerGrant.Message }
+    $loginAdministration = @()
+    try { $loginAdministration = @(Get-EtpRestoreMarkers @(Invoke-EtpSql -SqlCmd $sqlcmd -Server $ServerInstance -Database $Database -Query (New-EtpLoginAdministrationCheckSql)) 'ETP_LOGIN_ADMIN') }
+    catch { $loginAdministration = @() }
+}
+if ($loginAdministration.Count -ne 1 -or $loginAdministration[0] -cne 'GRANT_OPTION') {
+    $manualGrant = Get-EtpOwnerGrantManualCommand -Identity $sqlIdentity -ServerInstance $ServerInstance -SqlCmdPath $sqlcmd
+    $manualText = if ($manualGrant) { " To do it by hand, run this once in this administrator PowerShell window (it runs as SYSTEM, which must be a SQL administrator; 0 means granted): $manualGrant" } else { '' }
+    Write-RestoreLog "NOTE: $sqlIdentity does not hold ALTER ANY LOGIN WITH GRANT OPTION, and SQL Server does not let an account grant a permission to itself, so this helper could not give it directly. Until a different SQL administrator grants it (docs\OPERATIONS.md, Owners and SQL Server logins), adding or changing users in Settings > Users needs ETP started with 'Run as administrator'. Everything else works unelevated.$manualText"
 }
 
 # 15. The broker setup's safety backup goes through. Left alone if it is already there.

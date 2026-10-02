@@ -294,6 +294,84 @@ public sealed class OperationsAdministrationWorkspaceViewTests
         });
     }
 
+    // Security review 1.9.3, F5: the elevation check turned Save off for every change, so an
+    // Owner who opened ETP normally could not deactivate the retired-PC accounts the restore
+    // helper lists, although that deactivation makes no server-level change and would succeed.
+    [Fact]
+    public void An_unelevated_owner_can_deactivate_an_account_but_not_add_or_reactivate_one()
+    {
+        RunSta(async () =>
+        {
+            var service = new FakeAdministrationService { NeedsElevation = true };
+            var view = new AdministrationWorkspaceView(
+                new OperationsAdministrationPresentationSession(), () => "connection", _ => service);
+            view.UpdateAccess(new(true, true, true));
+            await view.RefreshAsync();
+            var active = (CheckBox)view.FindName("UserActiveInput");
+
+            // Active is ticked by default: a new or reactivated user needs the server-level grant.
+            Assert.True(active.IsChecked);
+            Assert.False(view.CanSaveUserAccess);
+            Assert.Contains("Run as administrator", view.UserAccessGuidanceText, StringComparison.Ordinal);
+            Assert.Contains(DesktopFriendlyError.UserDeactivationWorksUnelevatedMessage, view.UserAccessGuidanceText, StringComparison.Ordinal);
+
+            ((TextBox)view.FindName("UserIdentityInput")).Text = @"OLDPC\Sagar";
+            ((TextBox)view.FindName("UserDisplayNameInput")).Text = "Sagar (old PC)";
+            ((TextBox)view.FindName("UserReasonInput")).Text = "Retired PC after the move";
+            active.IsChecked = false;
+            Assert.True(view.CanSaveUserAccess);
+            Assert.Null(((Button)view.FindName("SaveUserAccessButton")).ToolTip);
+
+            Assert.True(await view.SaveUserDraftAsync());
+            Assert.Equal(1, service.UserSaves);
+            var saved = Assert.IsType<SaveApplicationUser>(service.LastUserSave);
+            Assert.Equal(@"OLDPC\Sagar", saved.WindowsIdentity);
+            Assert.False(saved.IsActive);
+            // Still unelevated after the refresh that follows the save; a deactivation draft stays savable.
+            Assert.True(view.UserAccessNeedsElevation);
+            Assert.True(view.CanSaveUserAccess);
+
+            // Ticking Active again turns Save off, and the drafts prompt cannot get past it either.
+            active.IsChecked = true;
+            Assert.False(view.CanSaveUserAccess);
+            Assert.Equal(DesktopFriendlyError.UserAccessNeedsElevationMessage, ((Button)view.FindName("SaveUserAccessButton")).ToolTip);
+            ((TextBox)view.FindName("UserIdentityInput")).Text = @"WORKPC\Clerk";
+            Assert.False(await view.SaveUserDraftAsync());
+            Assert.Equal(1, service.UserSaves);
+            Assert.Equal($"User access was not saved: {DesktopFriendlyError.UserAccessNeedsElevationMessage}", view.StatusText);
+        });
+    }
+
+    [Fact]
+    public void A_deactivation_sql_server_refuses_unelevated_says_why_and_leaves_save_on_for_deactivations()
+    {
+        // An account that does have a login is revoked ALTER ANY LOGIN on deactivation, which
+        // needs the grant: SQL Server refuses it (4613), nothing is changed, and the screen says
+        // why without turning Save off for the next deactivation.
+        RunSta(async () =>
+        {
+            var service = new FakeAdministrationService
+            {
+                NeedsElevation = true,
+                UserSaveFailure = Etp.Reporting.TestSupport.SqlExceptionFactory.Create(
+                    new Etp.Reporting.TestSupport.SqlExceptionFactory.Error(4613, "Grantor does not have GRANT permission.", State: 1, Class: 16, Procedure: "", Line: 1))
+            };
+            var view = new AdministrationWorkspaceView(
+                new OperationsAdministrationPresentationSession(), () => "connection", _ => service);
+            view.UpdateAccess(new(true, true, true));
+            await view.RefreshAsync();
+            ((TextBox)view.FindName("UserIdentityInput")).Text = @"WORKPC\Clerk";
+            ((CheckBox)view.FindName("UserActiveInput")).IsChecked = false;
+
+            Assert.False(await view.SaveUserDraftAsync());
+
+            Assert.Equal(1, service.UserSaves);
+            Assert.Equal($"User access was not saved: {DesktopFriendlyError.UserAccessNeedsElevationMessage}", view.StatusText);
+            Assert.Equal(@"WORKPC\Clerk", ((TextBox)view.FindName("UserIdentityInput")).Text);
+            Assert.True(view.CanSaveUserAccess);
+        });
+    }
+
     private static IEnumerable<string> ReadLinesWhileOthersAppend(string path)
     {
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
@@ -373,6 +451,7 @@ public sealed class OperationsAdministrationWorkspaceViewTests
         public Exception? UserSaveFailure { get; set; }
         public bool NeedsElevation { get; set; }
         public int UserSaves { get; private set; }
+        public SaveApplicationUser? LastUserSave { get; private set; }
         public int Loads { get; private set; }
         public Task<AdministrationDashboard> LoadAsync(string masterType, CancellationToken cancellationToken = default)
         {
@@ -389,6 +468,7 @@ public sealed class OperationsAdministrationWorkspaceViewTests
         public Task SaveUserAsync(SaveApplicationUser command, CancellationToken cancellationToken = default)
         {
             UserSaves++;
+            LastUserSave = command;
             if (UserSaveFailure is not null) return Task.FromException(UserSaveFailure);
             return FailUserSave ? Task.FromException(new InvalidOperationException("Synthetic failure")) : Task.CompletedTask;
         }

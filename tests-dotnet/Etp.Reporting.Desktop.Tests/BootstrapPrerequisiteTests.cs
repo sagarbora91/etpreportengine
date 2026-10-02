@@ -319,10 +319,20 @@ public sealed class BootstrapPrerequisiteTests
             $check = @($top | Where-Object { $_.Extent.Text -match '^\$ownerLoginAdministration = try \{ Invoke-SqlScalar -TargetDatabase \$Database -Query \(New-EtpOwnerLoginAdministrationSql\) \} catch \{ ''UNKNOWN'' \}$' })
             $note = @($top | Where-Object { $_ -is [System.Management.Automation.Language.IfStatementAst] -and $_.Clauses[0].Item1.Extent.Text -eq '$ownerLoginAdministration -ceq ''MISSING''' })
             $tasks = @($top | Where-Object { $_.Extent.Text -match 'install-daily-backup-task\.ps1' })
-            if ($create.Count -ne 1 -or $check.Count -ne 1 -or $note.Count -ne 1 -or $tasks.Count -ne 1) { throw "The grant-option check could not be found ($($create.Count), $($check.Count), $($note.Count), $($tasks.Count))." }
+            # Sagar's decision, 2 October 2026: before the check, setup has SYSTEM give the grant
+            # option to every active Owner that lacks it, and that never stops setup either.
+            $count = @($top | Where-Object { $_.Extent.Text -match '^\$ownersWithoutGrantOption = try \{ Invoke-SqlScalar -TargetDatabase \$Database -Query \(New-EtpOwnersWithoutGrantOptionSql\) \} catch \{ ''UNKNOWN'' \}$' })
+            $grant = @($top | Where-Object { $_ -is [System.Management.Automation.Language.IfStatementAst] -and $_.Clauses[0].Item1.Extent.Text -eq '$ownersWithoutGrantOption -cne ''0''' })
+            if ($create.Count -ne 1 -or $count.Count -ne 1 -or $grant.Count -ne 1 -or $check.Count -ne 1 -or $note.Count -ne 1 -or $tasks.Count -ne 1) { throw "The grant-option steps could not be found ($($create.Count), $($count.Count), $($grant.Count), $($check.Count), $($note.Count), $($tasks.Count))." }
+            if ($count[0].Extent.StartOffset -lt $create[0].Extent.EndOffset -or $grant[0].Extent.StartOffset -lt $count[0].Extent.EndOffset -or $check[0].Extent.StartOffset -lt $grant[0].Extent.EndOffset) { throw 'The SYSTEM grant is not made between the Owner step and the check.' }
             if ($check[0].Extent.StartOffset -lt $create[0].Extent.EndOffset -or $note[0].Extent.StartOffset -lt $check[0].Extent.EndOffset -or $note[0].Extent.EndOffset -gt $tasks[0].Extent.StartOffset) { throw 'The check is not made between the Owner step and the tasks.' }
-            if (@($note[0].FindAll({ param($node) $node -is [System.Management.Automation.Language.ThrowStatementAst] }, $true)).Count -ne 0) { throw 'A missing grant option stops setup.' }
+            foreach ($step in @($grant[0], $note[0])) {
+                if (@($step.FindAll({ param($node) $node -is [System.Management.Automation.Language.ThrowStatementAst] }, $true)).Count -ne 0) { throw 'A missing grant option stops setup.' }
+            }
+            $attempt = $grant[0].Clauses[0].Item2.Extent.Text
+            if ($attempt -notmatch 'try \{ Invoke-EtpOwnerGrantOptionAsSystem -SqlCmdPath \$sqlcmdPath -ServerInstance \$ServerInstance -Database \$Database \} catch \{ \$null \}' -or $attempt -notmatch 'Write-SetupLog \$ownerGrant\.Message') { throw 'The SYSTEM grant is not attempted, guarded and logged.' }
             if ($note[0].Clauses[0].Item2.Extent.Text -notmatch 'Write-SetupLog "NOTE: ' -or $note[0].Extent.Text -notmatch 'Owners and SQL Server logins') { throw 'The NOTE does not say where the fix is.' }
+            if ($note[0].Extent.Text -notmatch 'Get-EtpOwnerGrantManualCommand -Identity \$identity\.Name -ServerInstance \$ServerInstance -SqlCmdPath \$sqlcmdPath') { throw 'The NOTE does not give the manual command.' }
             Write-Output 'Grant-option check placement passed.'
             """;
         var result = await RunPowerShellAsync(["-Command", command]);

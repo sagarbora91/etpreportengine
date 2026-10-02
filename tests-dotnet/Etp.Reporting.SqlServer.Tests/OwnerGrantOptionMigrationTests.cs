@@ -153,6 +153,18 @@ public sealed class OwnerGrantOptionMigrationTests
     }
 
     [Fact]
+    public void The_last_owner_guard_counts_only_owners_that_can_still_sign_in()
+    {
+        // Security review 1.9.3, F4: after a restore the old PC's Owner rows are still active.
+        // Counting them let the only usable Owner demote or deactivate itself.
+        var body = ProcedureBody(Read(MigrationName));
+        var guard = At(body, "THROW 51230,");
+        var others = body[At(body, "AND NOT EXISTS(SELECT 1 FROM dbo.application_users WITH(UPDLOCK,HOLDLOCK)")..guard];
+        Assert.Contains("WHERE role_code=''OWNER'' AND is_active=1 AND windows_identity<>@identity", others, StringComparison.Ordinal);
+        Assert.Contains("AND (SUSER_ID(windows_identity) IS NOT NULL OR SUSER_SID(windows_identity) IS NOT NULL))", others, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Taking_away_your_own_owner_access_is_refused_before_anything_changes()
     {
         var body = ProcedureBody(Read(MigrationName));

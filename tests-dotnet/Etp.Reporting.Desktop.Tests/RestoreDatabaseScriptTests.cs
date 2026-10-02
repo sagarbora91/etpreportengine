@@ -267,11 +267,13 @@ public sealed class RestoreDatabaseScriptTests
     }
 
     [Fact]
-    public async Task An_owner_left_without_the_grant_option_is_told_how_to_get_it()
+    public async Task An_owner_left_without_the_grant_option_is_given_it_by_system_or_told_how_to_get_it()
     {
         // Migration 0043: the restore helper cannot give the account running it ALTER ANY
-        // LOGIN WITH GRANT OPTION, so it says what that means and where the fix is. A missing
-        // or unexpected marker counts as missing; it never stops the restore.
+        // LOGIN WITH GRANT OPTION itself. Since Sagar's decision of 2 October 2026 it has SYSTEM
+        // give it through the one-off task setup uses (the helper runs elevated), checks again,
+        // and only then says what that means and where the fix is. A missing or unexpected
+        // marker counts as missing; neither step ever stops the restore.
         var script = FindScript("restore-etp-database.ps1").Replace("'", "''");
         var command = $$"""
             $ErrorActionPreference = 'Stop'
@@ -279,19 +281,53 @@ public sealed class RestoreDatabaseScriptTests
             $ast = [System.Management.Automation.Language.Parser]::ParseFile('{{script}}', [ref]$tokens, [ref]$errors)
             if (@($errors).Count -ne 0) { throw 'restore-etp-database.ps1 does not parse.' }
             $top = @($ast.EndBlock.Statements)
+            $elevated = @($top | Where-Object { $_ -is [System.Management.Automation.Language.IfStatementAst] -and $_.Clauses[0].Item1.Extent.Text -match 'BuiltInRole\]::Administrator' })
             $marker = @($top | Where-Object { $_.Extent.Text -eq '$loginAdministration = @(Get-EtpRestoreMarkers $owner ''ETP_LOGIN_ADMIN'')' })
             $owner = @($top | Where-Object { $_ -is [System.Management.Automation.Language.IfStatementAst] -and $_.Clauses[0].Item1.Extent.Text -match 'ownerResult' })
-            $note = @($top | Where-Object { $_ -is [System.Management.Automation.Language.IfStatementAst] -and $_.Clauses[0].Item1.Extent.Text -eq '$loginAdministration.Count -ne 1 -or $loginAdministration[0] -cne ''GRANT_OPTION''' })
-            if ($marker.Count -ne 1 -or $owner.Count -ne 1 -or $note.Count -ne 1) { throw "The grant-option report could not be found ($($marker.Count), $($owner.Count), $($note.Count))." }
-            if ($marker[0].Extent.StartOffset -lt $owner[0].Extent.EndOffset -or $note[0].Extent.StartOffset -lt $marker[0].Extent.EndOffset) { throw 'The report is not made after the Owner recovery succeeded.' }
-            $body = $note[0].Clauses[0].Item2
-            if (@($body.FindAll({ param($node) $node -is [System.Management.Automation.Language.ThrowStatementAst] }, $true)).Count -ne 0) { throw 'A missing grant option stops the restore.' }
+            $missing = @($top | Where-Object { $_ -is [System.Management.Automation.Language.IfStatementAst] -and $_.Clauses[0].Item1.Extent.Text -eq '$loginAdministration.Count -ne 1 -or $loginAdministration[0] -cne ''GRANT_OPTION''' })
+            if ($elevated.Count -ne 1 -or $marker.Count -ne 1 -or $owner.Count -ne 1 -or $missing.Count -ne 2) { throw "The grant-option steps could not be found ($($elevated.Count), $($marker.Count), $($owner.Count), $($missing.Count))." }
+            $attempt = $missing[0]; $note = $missing[1]
+            if ($elevated[0].Extent.EndOffset -gt $owner[0].Extent.StartOffset) { throw 'The helper does not refuse an unelevated run before the Owner step.' }
+            if ($marker[0].Extent.StartOffset -lt $owner[0].Extent.EndOffset -or $attempt.Extent.StartOffset -lt $marker[0].Extent.EndOffset -or $note.Extent.StartOffset -lt $attempt.Extent.EndOffset) { throw 'The grant and the report are not made after the Owner recovery succeeded.' }
+            foreach ($step in @($attempt, $note)) {
+                if (@($step.FindAll({ param($node) $node -is [System.Management.Automation.Language.ThrowStatementAst] }, $true)).Count -ne 0) { throw 'A missing grant option stops the restore.' }
+            }
+            $grant = $attempt.Clauses[0].Item2.Extent.Text
+            if ($grant -notmatch 'try \{ Invoke-EtpOwnerGrantOptionAsSystem -SqlCmdPath \$sqlcmd -ServerInstance \$ServerInstance -Database \$Database \} catch \{ \$null \}') { throw 'The SYSTEM grant is not attempted, or not guarded.' }
+            if ($grant -notmatch 'Write-RestoreLog \$ownerGrant\.Message') { throw 'The outcome of the SYSTEM grant is not logged.' }
+            if ($grant -notmatch '(?s)Invoke-EtpOwnerGrantOptionAsSystem.*New-EtpLoginAdministrationCheckSql') { throw 'The grant option is not checked again after the SYSTEM grant.' }
+            $body = $note.Clauses[0].Item2
             if ($body.Extent.Text -notmatch 'Write-RestoreLog "NOTE: ' -or $body.Extent.Text -notmatch 'Owners and SQL Server logins' -or $body.Extent.Text -notmatch 'Run as administrator') { throw 'The NOTE does not say what to do.' }
+            if ($body.Extent.Text -notmatch 'Get-EtpOwnerGrantManualCommand -Identity \$sqlIdentity -ServerInstance \$ServerInstance -SqlCmdPath \$sqlcmd') { throw 'The NOTE does not give the manual command.' }
             Write-Output 'Grant-option report passed.'
             """;
         var result = await RunPowerShellAsync(["-Command", command]);
         Assert.True(result.ExitCode == 0, result.Output);
         Assert.Contains("Grant-option report passed.", result.Output);
+    }
+
+    [Fact]
+    public async Task The_check_after_the_system_grant_is_read_only_and_reads_the_restoring_account()
+    {
+        var command = $$"""
+            {{Preamble()}}
+            $own = @((Get-Command New-EtpLoginAdministrationCheckSql).Parameters.Keys | Where-Object { $_ -notin [System.Management.Automation.PSCmdlet]::CommonParameters -and $_ -notin [System.Management.Automation.PSCmdlet]::OptionalCommonParameters })
+            if ($own.Count -ne 0) { throw "The check takes input: $($own -join ', ')" }
+            Write-Output '---SQL---'
+            New-EtpLoginAdministrationCheckSql
+            Write-Output '---END---'
+            """;
+        var result = await RunPowerShellAsync(["-Command", command]);
+        Assert.True(result.ExitCode == 0, result.Output);
+        var start = result.Output.IndexOf("---SQL---", StringComparison.Ordinal);
+        var end = result.Output.IndexOf("---END---", StringComparison.Ordinal);
+        Assert.True(start >= 0 && end > start, result.Output);
+        var sql = result.Output[start..end];
+        Assert.Contains("SELECT N'ETP_LOGIN_ADMIN:'", sql, StringComparison.Ordinal);
+        Assert.Contains("grantee_principal_id=SUSER_ID(SUSER_SNAME())", sql, StringComparison.Ordinal);
+        Assert.Contains("permission_name=N'ALTER ANY LOGIN' AND state='W'", sql, StringComparison.Ordinal);
+        foreach (var verb in new[] { "GRANT ", "REVOKE ", "DENY ", "CREATE ", "EXEC", "INSERT", "UPDATE", "DELETE", "MERGE" })
+            Assert.DoesNotContain(verb, sql.Replace("GRANT_OPTION", "", StringComparison.Ordinal), StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
