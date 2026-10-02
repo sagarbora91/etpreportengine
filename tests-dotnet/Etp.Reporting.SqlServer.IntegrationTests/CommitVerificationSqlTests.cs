@@ -122,7 +122,7 @@ public sealed class CommitVerificationSqlTests
             var batchReported = new List<FolderImportFailure>();
             await using (var desktop = new Etp.Reporting.Desktop.Modules.Imports.DesktopImportCoordinator(
                 _ => new SqlServerImportPersistenceUseCase(database.ConnectionString, null, LostReply(false), unreachable),
-                (_, _, _, _, _, _, _) => Task.CompletedTask, reportImportFailure: batchReported.Add))
+                reportImportFailure: batchReported.Add))
             {
                 var summary = await desktop.RunBatchAsync([path], database.ConnectionString, () => false,
                     () => new(scope.StoreCode!, scope.PeriodEnd!.Value, "Synthetic Owner", false, ""), _ => Task.CompletedTask);

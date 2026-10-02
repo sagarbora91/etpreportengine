@@ -174,11 +174,7 @@ public sealed class DesktopCompositionRoot
             operationsAdministrationSession,
             () => connectionState.ConnectionString,
             administrationServiceFactory);
-        var importCoordinator = new DesktopImportCoordinator(
-            importPersistenceUseCaseFactory,
-            async (value, path, sha256, reportCode, storeCode, businessDate, cancellationToken) =>
-                _ = await new ProductisationOperationsService(value).IntakeEtpEvidenceAsync(
-                    path, sha256, reportCode, storeCode, businessDate, cancellationToken).ConfigureAwait(false),
+        var importCoordinator = new DesktopImportCoordinator(importPersistenceUseCaseFactory,
             reportImportFailure: ImportFailureDiagnostics.Record);
         var importWorkspaceView = new ImportWorkspaceView(
             importCoordinator,

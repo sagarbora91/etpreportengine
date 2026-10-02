@@ -103,7 +103,7 @@ public sealed class WorkspaceStateProtectionTests
     {
         RunSta(() =>
         {
-            var coordinator = new Etp.Reporting.Desktop.Modules.Imports.DesktopImportCoordinator(_ => throw new InvalidOperationException("No persistence"), (_,_,_,_,_,_,_) => Task.CompletedTask);
+            var coordinator = new Etp.Reporting.Desktop.Modules.Imports.DesktopImportCoordinator(_ => throw new InvalidOperationException("No persistence"));
             var view = new Etp.Reporting.Desktop.Modules.Imports.ImportWorkspaceView(coordinator, () => "synthetic");
             var date = (DatePicker)view.FindName("ImportBusinessDateInput"); var store = (ComboBox)view.FindName("ImportStoreInput");
             var cancel = (Button)view.FindName("CancelBatchButton"); var begin = view.GetType().GetMethod("BeginImportOperation", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;

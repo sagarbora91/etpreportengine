@@ -192,50 +192,57 @@ public sealed class FolderImportServiceTests
         Assert.Equal(new DateOnly(2026, 8, 25), empty.PeriodEnd);
     }
 
-    [Fact]
-    public async Task Empty_export_evidence_uses_the_detected_sibling_scope()
-    {
-        var retained = new List<(string Path, string Store, DateOnly Date)>();
-        var service = new FolderImportService(new CapturePersistence(), new Reader(path => Sales(path, "HEMW", path == "empty.xlsx" ? [] : [20260825])),
-            (path, _, store, date, _) => { retained.Add((path, store, date)); return Task.CompletedTask; });
-        await service.RunFilesAsync(["empty.xlsx", "sales.xlsx"], new("tester"));
-        Assert.Contains(retained, value => value.Path == "empty.xlsx" && value.Store == "HEMW" && value.Date == new DateOnly(2026, 8, 25));
-    }
-
-    [Fact]
-    public async Task Duplicate_retry_repairs_a_failed_original_document_copy_without_new_data()
-    {
-        var attempts = 0;
-        Task Retain(string path, MatchedImportEnvelope envelope, string store, DateOnly date, CancellationToken token)
-        {
-            if (++attempts == 1) throw new IOException("Temporary copy failure.");
-            return Task.CompletedTask;
-        }
-        var reader = new Reader(path => Sales(path, "HEMW", [20260825]));
-        var first = await new FolderImportService(new CapturePersistence(), reader, Retain).RunFilesAsync(["sales.xlsx"], new("tester"));
-        Assert.Contains("could not be retained", Assert.Single(first.Files).Message);
-        Assert.Equal("Imported", first.Files[0].Status);
-        var duplicatePersistence = new CapturePersistence { Exists = true };
-        var second = await new FolderImportService(duplicatePersistence, reader, Retain).RunFilesAsync(["sales.xlsx"], new("tester"));
-        Assert.Equal(2, attempts);
-        Assert.Equal("Duplicate", Assert.Single(second.Files).Status);
-        Assert.DoesNotContain("could not be retained", second.Files[0].Message);
-        Assert.Empty(duplicatePersistence.Requests);
-        Assert.Equal(0, second.NewRows);
-    }
-
     [Theory]
-    [InlineData("Duplicate content")]
-    [InlineData("Already present")]
-    public async Task Content_duplicates_and_subsets_retain_their_original_document(string status)
+    [InlineData("Imported", EvidenceState.Retained)]
+    [InlineData("Duplicate content", EvidenceState.AlreadyHeld)]
+    [InlineData("Already present", EvidenceState.AlreadyHeld)]
+    public async Task Imported_and_content_duplicate_files_record_the_evidence_of_their_import_transaction(string status,
+        EvidenceState evidence)
     {
-        var retained = 0;
-        var summary = await new FolderImportService(new CapturePersistence { Status = status },
-            new Reader(path => Sales(path, "HEMW", [20260825])),
-            (_, _, _, _, _) => { retained++; return Task.CompletedTask; }).RunFilesAsync(["sales.xlsx"], new("tester"));
-        Assert.Equal(status, Assert.Single(summary.Files).Status);
-        Assert.Equal(1, retained);
-        Assert.Equal(0, summary.NewRows);
+        var persistence = new CapturePersistence { Status = status, Evidence = evidence };
+        var summary = await new FolderImportService(persistence, new Reader(path => Sales(path, "HEMW", [20260825])))
+            .RunFilesAsync(["sales.xlsx"], new("tester"));
+        var file = Assert.Single(summary.Files);
+        Assert.Equal(status, file.Status);
+        Assert.Equal(evidence, file.Evidence);
+        // The import transaction kept the bytes; nothing is retained after it (IF-023).
+        Assert.Empty(persistence.Retained);
+        Assert.DoesNotContain(file.Diagnostics ?? [], issue => issue.Code == ImportCodes.EvidenceNotRetained);
+    }
+
+    [Fact]
+    public async Task Evidence_not_retained_by_the_import_is_a_recorded_warning()
+    {
+        var summary = await new FolderImportService(new CapturePersistence { Evidence = EvidenceState.NotRetained },
+            new Reader(path => Sales(path, "HEMW", [20260825]))).RunFilesAsync(["sales.xlsx"], new("tester"));
+        var file = Assert.Single(summary.Files);
+        Assert.Equal("Imported", file.Status);
+        Assert.Equal(EvidenceState.NotRetained, file.Evidence);
+        var issue = Assert.Single(file.Diagnostics!, issue => issue.Code == ImportCodes.EvidenceNotRetained);
+        Assert.Equal(ImportIssueSeverity.Warning, issue.Severity);
+    }
+
+    [Fact]
+    public async Task Duplicate_retains_missing_bytes_in_its_own_transaction_and_records_a_failure()
+    {
+        var reader = new Reader(path => Sales(path, "HEMW", [20260825]) with { Content = new(SourceBytes, Sha) });
+        var failing = new CapturePersistence { Exists = true, RetainFailure = new IOException("Synthetic database failure.") };
+        var first = Assert.Single((await new FolderImportService(failing, reader).RunFilesAsync(["sales.xlsx"], new("tester"))).Files);
+        Assert.Equal("Duplicate", first.Status);
+        Assert.Equal(EvidenceState.NotRetained, first.Evidence);
+        Assert.Contains(first.Diagnostics!, issue => issue.Code == ImportCodes.EvidenceNotRetained);
+
+        var duplicate = new CapturePersistence { Exists = true };
+        var second = await new FolderImportService(duplicate, reader).RunFilesAsync(["sales.xlsx"], new("tester"));
+        var file = Assert.Single(second.Files);
+        Assert.Equal("Duplicate", file.Status);
+        Assert.Equal(EvidenceState.Retained, file.Evidence);
+        Assert.DoesNotContain(file.Diagnostics ?? [], issue => issue.Code == ImportCodes.EvidenceNotRetained);
+        var retained = Assert.Single(duplicate.Retained);
+        Assert.Equal(Sha, retained.Sha256);
+        Assert.Equal(SourceBytes, retained.Content);
+        Assert.Empty(duplicate.Requests);
+        Assert.Equal(0, second.NewRows);
     }
 
     [Fact]
@@ -270,9 +277,22 @@ public sealed class FolderImportServiceTests
     }
     private sealed class InlineProgress(Action<FolderImportProgress> report) : IProgress<FolderImportProgress>
     { public void Report(FolderImportProgress value) => report(value); }
-    private sealed class CapturePersistence : IImportPersistenceUseCase<MatchedImportEnvelope>
+    private static readonly byte[] SourceBytes = [7, 8, 9];
+    private static readonly string Sha = new('b', 64); // Sales() hashes every non-titan file name as b…b.
+
+    private sealed class CapturePersistence : IImportPersistenceUseCase<MatchedImportEnvelope>, IImportEvidenceRetainer
     {
         public string Status { get; init; } = "Imported";
+        public EvidenceState? Evidence { get; init; }
+        public Exception? RetainFailure { get; init; }
+        public List<(string Sha256, byte[] Content)> Retained { get; } = [];
+        public Task<EvidenceState> RetainImportedSourceAsync(string sourceSha256, ReadOnlyMemory<byte> content,
+            CancellationToken cancellationToken = default)
+        {
+            if (RetainFailure is not null) return Task.FromException<EvidenceState>(RetainFailure);
+            Retained.Add((sourceSha256, content.ToArray()));
+            return Task.FromResult(EvidenceState.Retained);
+        }
         public bool Exists { get; init; }
         public int Conflicts { get; init; }
         public (string Store, DateOnly Start, DateOnly End)? ExactScope { get; init; }
@@ -286,7 +306,8 @@ public sealed class FolderImportServiceTests
         {
             Requests.Add(request);
             return Task.FromResult(new ImportPersistenceResult(request.AcceptedImport.ProfileIdentity.ReportCode, Status == "Imported" ? request.AcceptedImport.Staging.Rows.Count : 0)
-            { Status = Status, AlreadyPresentRows = Status == "Imported" ? 0 : request.AcceptedImport.Staging.Rows.Count, ConflictRows = Conflicts });
+            { Status = Status, AlreadyPresentRows = Status == "Imported" ? 0 : request.AcceptedImport.Staging.Rows.Count, ConflictRows = Conflicts,
+              Evidence = Evidence });
         }
         public Task<ImportRowOutcome> LoadOutcomeByHashAsync(string hash, CancellationToken cancellationToken = default) => Task.FromResult(new ImportRowOutcome(0, 0, 0, 0));
     }

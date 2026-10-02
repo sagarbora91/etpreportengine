@@ -18,7 +18,8 @@ public sealed class OpenXmlWorkbookReader : IWorkbookReader
         if (!info.Exists) throw new FileNotFoundException("Workbook not found.", filePath);
 
         // Excel commonly keeps an export open. Take one in-memory snapshot through a shared-read
-        // handle so hashing and parsing see identical bytes without requiring the user to close Excel.
+        // handle so hashing, parsing and the evidence the import keeps see identical bytes without
+        // requiring the user to close Excel.
         await using var source = new FileStream(filePath, FileMode.Open, FileAccess.Read,
             FileShare.ReadWrite | FileShare.Delete, 81920, FileOptions.Asynchronous | FileOptions.SequentialScan);
         using var snapshot = new MemoryStream(checked((int)Math.Min(source.Length, int.MaxValue)));
@@ -76,7 +77,7 @@ public sealed class OpenXmlWorkbookReader : IWorkbookReader
             var rows = materialized.Where(r => r.RowNumber > header.RowNumber && r.Cells.Any(c => c.Value is not null)).ToArray();
             sheets.Add(new WorkbookSheet(sheet.Name?.Value ?? string.Empty, header.RowNumber, headers, rows));
         }
-        return new WorkbookSnapshot(fileName, fileSizeBytes, hash, sheets);
+        return new WorkbookSnapshot(fileName, fileSizeBytes, hash, sheets) { Content = new(bytes, hash) };
     }
 
     private static WorkbookRow ReadRow(

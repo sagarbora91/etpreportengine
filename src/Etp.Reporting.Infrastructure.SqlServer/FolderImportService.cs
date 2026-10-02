@@ -36,7 +36,6 @@ public sealed record FolderImportFailure(string FileName, FailureStage Stage, st
 public sealed class FolderImportService(
     IImportPersistenceUseCase<MatchedImportEnvelope> persistence,
     IWorkbookReader? workbookReader = null,
-    Func<string, MatchedImportEnvelope, string, DateOnly, CancellationToken, Task>? retainEvidence = null,
     IReadOnlyList<string>? knownStores = null,
     Action<FolderImportFailure>? reportFailure = null) : IFolderImportService
 {
@@ -119,7 +118,7 @@ public sealed class FolderImportService(
                 var unsupportedFamily = sourceCode.Success && !EtpReportFamilyRegistry.Families.Any(family =>
                     family.FamilyCode.Equals(sourceCode.Groups[1].Value, StringComparison.OrdinalIgnoreCase));
                 var notNeeded = result.FileName.StartsWith("00_", StringComparison.OrdinalIgnoreCase) || unsupportedFamily;
-                result = result with { Status = notNeeded ? "Not needed" : unknown ? "Unknown layout" : "Failed",
+                result = result with { Evidence = EvidenceState.NotAttempted, Status = notNeeded ? "Not needed" : unknown ? "Unknown layout" : "Failed",
                     Message = notNeeded ? unsupportedFamily ? "This ETP report type is not needed by the reporting engine; the other workbooks are processed." : "Consolidation control workbook; report workbooks are imported separately." : string.Join(" ", issues.Select(issue => issue.Message).Distinct()) };
                 if (!notNeeded) result = result with { Failure = MatchFailure(issues) };
                 results.Add(result);
@@ -151,7 +150,7 @@ public sealed class FolderImportService(
                     result = result with { StoreCode = persistedStore, PeriodStart = periodStart, PeriodEnd = periodEnd,
                         Status = "Duplicate", RowsProcessed = accepted.Staging.Rows.Count,
                         AlreadyPresentRows = accepted.Staging.Rows.Count, Message = "This file was already imported for this store and date range; no new rows." };
-                    result = await RetainEvidenceAsync(result, entry.Path, accepted, persistedStore, periodEnd, cancellationToken).ConfigureAwait(false);
+                    result = await RetainDuplicateEvidenceAsync(result, accepted, cancellationToken).ConfigureAwait(false);
                     results.Add(result);
                     await recording.RecordAsync(result).ConfigureAwait(false);
                     continue;
@@ -182,13 +181,10 @@ public sealed class FolderImportService(
                 result = result with { StoreCode = persistedStore, PeriodStart = periodStart, PeriodEnd = periodEnd,
                     Status = accepted.Staging.Rows.Count == 0 && saved.Status == "Imported" ? "empty export" : saved.Status,
                     RowsProcessed = Math.Max(accepted.Staging.Rows.Count, outcome.RowsProcessed), NewRows = Math.Max(saved.PersistedRows, outcome.NewRows),
-                    AlreadyPresentRows = outcome.AlreadyPresentRows, ConflictRows = outcome.ConflictRows,
-                    Evidence = saved.Evidence ?? result.Evidence };
+                    AlreadyPresentRows = outcome.AlreadyPresentRows, ConflictRows = outcome.ConflictRows };
                 if (outcome.ConflictRows > 0) result = result with { Status = "Failed", Message = $"{outcome.ConflictRows:N0} conflicting rows. Review the source before retrying.",
                     Failure = new(ImportCodes.ImportConflict, FailureStage.Apply, ImportDiagnosticCatalogue.Template(ImportCodes.ImportConflict)) };
-                stage = FailureStage.Evidence;
-                if (result.Status is "Imported" or "empty export" or "Duplicate" or "Duplicate content" or "Already present")
-                    result = await RetainEvidenceAsync(result, entry.Path, accepted, persistedStore, periodEnd, cancellationToken).ConfigureAwait(false);
+                result = WithEvidence(result, saved.Evidence);
             }
             catch (Exception exception)
             {
@@ -217,7 +213,8 @@ public sealed class FolderImportService(
     /// The result of a file whose import threw. The commit state is the one the failure carries (IF-014:
     /// a checked COMMIT, a failure after the commit, or <see cref="ImportCommittedException"/>); without
     /// one, a failure inside the import transaction rolled it back, and one that could have struck the
-    /// COMMIT itself (a timeout or a broken connection) states none.
+    /// COMMIT itself (a timeout or a broken connection) states none. Source bytes are kept only inside a
+    /// committed import (IF-023), so a file that did not commit records its evidence as not attempted.
     /// </summary>
     private FolderImportFileResult Failed(FolderImportFileResult result, Exception exception, FailureStage stage, bool cancelled)
     {
@@ -228,12 +225,13 @@ public sealed class FolderImportService(
         if (cancelled && cause is OperationCanceledException)
             return afterCommit
                 ? result with { Status = "Cancelled", Message = "Import cancelled after its data was committed.", BatchId = batchId, CommitState = known }
-                : result with { Status = "Cancelled", Message = "Import cancelled." };
+                : result with { Evidence = EvidenceState.NotAttempted, Status = "Cancelled", Message = "Import cancelled." };
         var failure = classifier.DescribeDetailed(exception, stage);
         var commitState = known ?? (stage == FailureStage.Apply && !MayHaveReachedCommit(cause) ? CommitState.RolledBack : null);
         return result with
         {
             Status = "Failed", Failure = failure, Message = failure.SafeMessage, CommitState = commitState, BatchId = batchId,
+            Evidence = afterCommit ? result.Evidence : EvidenceState.NotAttempted,
             // A conflict rolls back the whole file; its full count is kept beside the samples (spec 11.1).
             ConflictRows = cause is ImportConflictException conflict ? conflict.Count : result.ConflictRows
         };
@@ -250,16 +248,32 @@ public sealed class FolderImportService(
         return false;
     }
 
-    private async Task<FolderImportFileResult> RetainEvidenceAsync(FolderImportFileResult result, string path,
-        MatchedImportEnvelope accepted, string store, DateOnly businessDate, CancellationToken cancellationToken)
+    // IF-023 (spec 11.2): a new import keeps the source bytes inside its own transaction and reports it in
+    // ImportPersistenceResult.Evidence. A file whose rows are already stored keeps missing bytes in a small
+    // transaction of its own. Either way a failure is recorded on the attempt, never swallowed.
+    private async Task<FolderImportFileResult> RetainDuplicateEvidenceAsync(FolderImportFileResult result,
+        MatchedImportEnvelope accepted, CancellationToken cancellationToken)
     {
-        if (retainEvidence is null) return result;
-        try { await retainEvidence(path, accepted, store, businessDate, cancellationToken).ConfigureAwait(false); }
-        catch (Exception exception) when (exception is not OperationCanceledException)
+        if (persistence is not IImportEvidenceRetainer retainer) return result;
+        EvidenceState evidence;
+        try
         {
-            return result with { Message = "Data is present; the original document could not be retained. Keep the source file and import it again to retry evidence retention." };
+            evidence = await retainer.RetainImportedSourceAsync(accepted.Workbook.Sha256, accepted.Workbook.EvidenceBytes,
+                cancellationToken).ConfigureAwait(false);
         }
-        return result;
+        catch (Exception exception) when (exception is not OperationCanceledException) { evidence = EvidenceState.NotRetained; }
+        return WithEvidence(result, evidence);
+    }
+
+    private static FolderImportFileResult WithEvidence(FolderImportFileResult result, EvidenceState? evidence)
+    {
+        if (evidence != EvidenceState.NotRetained) return result with { Evidence = evidence };
+        const string message = "The rows are stored, but the source file could not be kept in the database. Import the same file again to keep it.";
+        return result with
+        {
+            Evidence = evidence, Message = string.IsNullOrEmpty(result.Message) ? message : result.Message + " " + message,
+            Diagnostics = [.. result.Diagnostics ?? [], new(ImportIssueSeverity.Warning, ImportCodes.EvidenceNotRetained, message)]
+        };
     }
 
     // Refusals with their own code already explain themselves; anything else reaches the

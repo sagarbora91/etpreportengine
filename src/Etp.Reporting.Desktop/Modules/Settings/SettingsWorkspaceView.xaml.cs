@@ -115,6 +115,7 @@ public partial class SettingsWorkspaceView : UserControl
         ExportRecoveryKeysButton.IsEnabled = access.CanAdminister;
         ProductSettingsPanel.IsEnabled = access.CanAdminister && integrationsLoaded && !productBusy;
         foreach (var masters in DataTruthMastersHost.Children.OfType<EveningMastersView>()) masters.RefreshAccessState();
+        foreach (var evidence in DataTruthMastersHost.Children.OfType<ImportEvidenceView>()) evidence.RefreshAccessState();
     }
 
     public async Task PrepareForDisplayAsync(bool loadProductConfiguration)

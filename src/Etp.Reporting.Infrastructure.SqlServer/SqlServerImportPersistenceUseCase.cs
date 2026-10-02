@@ -90,9 +90,11 @@ public sealed partial class SqlServerImportPersistenceUseCase : IImportPersisten
                 scope.StoreCode!, periodStart, periodEnd, cancellationToken).ConfigureAwait(false);
         if (await files.ExistsInScopeAsync(accepted.Workbook.Sha256, accepted.ProfileIdentity.ReportCode,
             scope.StoreCode!, periodStart, periodEnd, cancellationToken).ConfigureAwait(false))
-            return new(accepted.ProfileIdentity.ReportCode, 0) { Status = "Duplicate", AlreadyPresentRows = accepted.Staging.Rows.Count };
+            return new(accepted.ProfileIdentity.ReportCode, 0) { Status = "Duplicate", AlreadyPresentRows = accepted.Staging.Rows.Count,
+                Evidence = await DuplicateEvidenceAsync(accepted, cancellationToken).ConfigureAwait(false) };
         var attempt = new AttemptStore(store);
         Guid? ownBatch = null;
+        ImportPersistenceResult duplicate;
         try
         {
             var result = SelectRoute(request.AcceptedImport.ProfileIdentity.ReportCode) switch
@@ -103,13 +105,17 @@ public sealed partial class SqlServerImportPersistenceUseCase : IImportPersisten
                 ImportPersistenceRoute.Family => await PersistFamilyAsync(attempt, request, restatement, cancellationToken).ConfigureAwait(false),
                 _ => await PersistSalesAsync(attempt, request, restatement, cancellationToken).ConfigureAwait(false)
             };
-            if (result.Status == "Duplicate") return result;
-            ownBatch = result.BatchId;
-            var outcome = await files.LoadOutcomeInScopeAsync(accepted.Workbook.Sha256, accepted.ProfileIdentity.ReportCode,
-                scope.StoreCode!, periodStart, periodEnd, cancellationToken);
-            return result with { PersistedRows=outcome.NewRows,
-                Status=outcome.NewRows==0 && outcome.AlreadyPresentRows>0 ? "Duplicate content" : "Imported",
-                AlreadyPresentRows=outcome.AlreadyPresentRows,ConflictRows=outcome.ConflictRows };
+            if (result.Status != "Duplicate")
+            {
+                ownBatch = result.BatchId;
+                var outcome = await files.LoadOutcomeInScopeAsync(accepted.Workbook.Sha256, accepted.ProfileIdentity.ReportCode,
+                    scope.StoreCode!, periodStart, periodEnd, cancellationToken);
+                return result with { PersistedRows=outcome.NewRows,
+                    Status=outcome.NewRows==0 && outcome.AlreadyPresentRows>0 ? "Duplicate content" : "Imported",
+                    AlreadyPresentRows=outcome.AlreadyPresentRows,ConflictRows=outcome.ConflictRows,
+                    Evidence=await ImportEvidenceAsync(accepted, scope.StoreCode!, periodStart, periodEnd, cancellationToken).ConfigureAwait(false) };
+            }
+            duplicate = result;
         }
         // IF-014/IF-017: once the import transaction has committed, a failure checking which batch owns the
         // file or reading its result back is not a failed import, and never a rollback. The batch id goes
@@ -118,6 +124,9 @@ public sealed partial class SqlServerImportPersistenceUseCase : IImportPersisten
         {
             throw new ImportCommittedException(ownBatch, failure);
         }
+        // A duplicate found under the import lock committed nothing of its own (IF-014); its missing
+        // source bytes are kept in a transaction of their own (IF-023).
+        return duplicate with { Evidence = await DuplicateEvidenceAsync(accepted, cancellationToken).ConfigureAwait(false) };
     }
 
     public async Task<ImportRowOutcome> LoadOutcomeByHashAsync(string sourceSha256, CancellationToken cancellationToken = default)

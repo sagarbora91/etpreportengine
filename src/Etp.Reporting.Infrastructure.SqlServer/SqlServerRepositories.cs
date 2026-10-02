@@ -152,6 +152,10 @@ public sealed partial class SqlServerTransactionalImportStore(string connectionS
             batchWritten=true;
             var profileId=await SqlServerImportProfileResolver.ResolveOrRegisterAsync(connection,transaction,package.File.Profile,cancellationToken);
             var fileId=await InsertFile(connection,transaction,package.File,profileId,cancellationToken);
+            // IF-023: the source bytes commit or roll back with the import (spec 11.2).
+            if(package.AcceptedImport?.Workbook is { EvidenceBytes.IsEmpty: false } workbook &&
+               string.Equals(workbook.Sha256,package.File.SourceSha256,StringComparison.OrdinalIgnoreCase))
+                await ImportSourceEvidence.RetainAsync(connection,transaction,package.File.SourceSha256,workbook.EvidenceBytes,fileId,cancellationToken);
             if(plan.DuplicateContent)
             {
                 await RecordDuplicateAsync(connection,transaction,package,fileId,plan,cancellationToken);
