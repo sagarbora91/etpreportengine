@@ -205,14 +205,14 @@ public partial class ReportsWorkspaceView : UserControl
             if (mode == "SLOW") rows = rows.Where(x => x.Quantity != 0 && x.MovementStatus != "ACTIVE").ToArray();
             if (mode == "BRAND")
             {
-                var grouped = rows.GroupBy(x => new { x.StoreCode, Brand = x.Brand ?? "Unmapped", Group = x.InventoryGroup ?? "Unmapped" }).Select(x => new { x.Key.StoreCode, x.Key.Brand, InventoryGroup = x.Key.Group, Quantity = x.Sum(y => y.Quantity), TotalCost = x.Any(y => y.TotalCost is not null) ? (decimal?)x.Sum(y => y.TotalCost ?? 0) : null, Items = x.Select(y => y.ProductCode).Distinct().Count(), SlowItems = x.Count(y => y.Quantity != 0 && y.MovementStatus != "ACTIVE") }).OrderBy(x => x.StoreCode).ThenBy(x => x.InventoryGroup).ThenBy(x => x.Brand).ToArray();
+                var grouped = rows.GroupBy(x => new { x.StoreCode, Brand = x.Brand ?? "Unmapped", Group = x.InventoryGroup ?? "Unmapped" }).Select(x => new { x.Key.StoreCode, x.Key.Brand, InventoryGroup = x.Key.Group, Quantity = x.Sum(y => y.Quantity), MrpValue = x.Any(y => y.TotalCost is not null) ? (decimal?)x.Sum(y => y.TotalCost ?? 0) : null, Items = x.Select(y => y.ProductCode).Distinct().Count(), SlowItems = x.Count(y => y.Quantity != 0 && y.MovementStatus != "ACTIVE") }).OrderBy(x => x.StoreCode).ThenBy(x => x.InventoryGroup).ThenBy(x => x.Brand).ToArray();
                 var status = grouped.Length == 0 ? ReconciliationStatus.Blocked : ReconciliationStatus.Passed; if (revision != reportRevision) return; ReportGrid.ItemsSource = grouped; ReportResult.Text = $"{status}: {grouped.Length:N0} store/brand/inventory-group row(s).{sources}";
-                SetExport("Brand Stock", status, RetailReportingPolicy.Version, "Closing stock grouped from the saved ETP snapshot; quantity and cost are never inferred." + sources, [new("Store"),new("Brand"),new("Inventory Group"),new("Quantity","#,##0.00"),new("Total Cost","#,##0.00"),new("Items","#,##0"),new("Slow Items","#,##0")], grouped.Select(x => (IReadOnlyList<object?>)[x.StoreCode,x.Brand,x.InventoryGroup,x.Quantity,x.TotalCost,x.Items,x.SlowItems]).ToArray(), ["Total","","",grouped.Sum(x=>x.Quantity),grouped.Sum(x=>x.TotalCost),grouped.Sum(x=>x.Items),grouped.Sum(x=>x.SlowItems)]);
+                SetExport("Brand Stock", status, RetailReportingPolicy.Version, "Closing stock grouped from the saved ETP snapshot; quantity and MRP are never inferred. " + StockMrpNote + sources, [new("Store"),new("Brand"),new("Inventory Group"),new("Quantity","#,##0.00"),new(MrpValueHeader,"#,##0.00"),new("Items","#,##0"),new("Slow Items","#,##0")], grouped.Select(x => (IReadOnlyList<object?>)[x.StoreCode,x.Brand,x.InventoryGroup,x.Quantity,x.MrpValue,x.Items,x.SlowItems]).ToArray(), ["Total","","",grouped.Sum(x=>x.Quantity),grouped.Sum(x=>x.MrpValue),grouped.Sum(x=>x.Items),grouped.Sum(x=>x.SlowItems)]);
             }
             else
             {
                 var status = rows.Count == 0 ? ReconciliationStatus.Blocked : ReconciliationStatus.Passed; var name = mode == "SLOW" ? "Slow / Exception Stock" : "Closing Stock"; if (revision != reportRevision) return; ReportGrid.ItemsSource = rows; ReportResult.Text = $"{status}: {rows.Count:N0} item(s).{sources} Slow stock uses 60-day watch and 90-day exception bands.";
-                SetExport(name, status, RetailReportingPolicy.Version, "Closing quantities and costs come from the selected-date ETP stock snapshot. Last sale is the latest positive source-signed sale on or before that date." + sources, [new("Date"),new("Store"),new("Item"),new("Brand"),new("Inventory Group"),new("Quantity","#,##0.00"),new("Unit Cost","#,##0.00"),new("Total Cost","#,##0.00"),new("Last Sale"),new("Days Since Sale","#,##0"),new("Movement Status"),new("Snapshot Source")], rows.Select(x => (IReadOnlyList<object?>)[x.SnapshotDate,x.StoreCode,x.ProductCode,x.Brand,x.InventoryGroup,x.Quantity,x.UnitCost,x.TotalCost,x.LastSaleDate,x.DaysSinceLastSale,x.MovementStatus,x.SnapshotSource]).ToArray(), ["Total","","","","",rows.Sum(x=>x.Quantity),"",rows.Sum(x=>x.TotalCost),"","","",""]);
+                SetExport(name, status, RetailReportingPolicy.Version, "Closing quantities and MRP come from the selected-date ETP stock snapshot. " + StockMrpNote + " Last sale is the latest positive source-signed sale on or before that date." + sources, [new("Date"),new("Store"),new("Item"),new("Brand"),new("Inventory Group"),new("Quantity","#,##0.00"),new(UnitMrpHeader,"#,##0.00"),new(MrpValueHeader,"#,##0.00"),new("Last Sale"),new("Days Since Sale","#,##0"),new("Movement Status"),new("Snapshot Source")], rows.Select(x => (IReadOnlyList<object?>)[x.SnapshotDate,x.StoreCode,x.ProductCode,x.Brand,x.InventoryGroup,x.Quantity,x.UnitCost,x.TotalCost,x.LastSaleDate,x.DaysSinceLastSale,x.MovementStatus,x.SnapshotSource]).ToArray(), ["Total","","","","",rows.Sum(x=>x.Quantity),"",rows.Sum(x=>x.TotalCost),"","","",""]);
             }
             ApplyReportFilter(); await auditRecorder("ReportRun", ToAuditOutcome(rows.Count == 0 ? ReconciliationStatus.Blocked : ReconciliationStatus.Passed), mode == "BRAND" ? "Brand stock" : mode == "SLOW" ? "Slow stock" : "Closing stock");
         }
@@ -238,8 +238,40 @@ public partial class ReportsWorkspaceView : UserControl
     private async Task RunManagementTrendReportAsync()
     {
         var revision = reportRevision;
-        try { var rows = await managementTrendQueryFactory(connectionStringProvider()).LoadAsync(ReportScope()); var status = rows.Count == 0 ? ReconciliationStatus.Blocked : ReconciliationStatus.Passed; if (revision != reportRevision) return; ReportGrid.ItemsSource=rows; ReportResult.Text=$"{status}: {rows.Count:N0} daily management trend row(s)."; SetExport("Management Trend",status,RetailReportingPolicy.Version,"Daily recorded sales, units, invoices and unchanged control variances.",[new("Date"),new("Store"),new("Net Sales","#,##0.00"),new("Units","#,##0.00"),new("Invoices","#,##0"),new("Tender Variance","#,##0.00"),new("Unmatched Staff Rows","#,##0")],rows.Select(x=>(IReadOnlyList<object?>)[x.BusinessDate,x.StoreCode,x.NetSales,x.Units,x.Invoices,x.TenderVariance,x.UnmatchedEnrichmentRows]).ToArray(),["Total","",rows.Sum(x=>x.NetSales),rows.Sum(x=>x.Units),rows.Sum(x=>x.Invoices),rows.Sum(x=>x.TenderVariance),rows.Sum(x=>x.UnmatchedEnrichmentRows)]); ApplyReportFilter(); await auditRecorder("ReportRun",ToAuditOutcome(status),"Management trend"); }
+        try { var rows = await managementTrendQueryFactory(connectionStringProvider()).LoadAsync(ReportScope()); var status = rows.Count == 0 ? ReconciliationStatus.Blocked : ReconciliationStatus.Passed; if (revision != reportRevision) return; ReportGrid.ItemsSource=rows; ReportResult.Text=$"{status}: {rows.Count:N0} daily management trend row(s)."; SetExport("Management Trend",status,RetailReportingPolicy.Version,"Daily recorded GST-inclusive sales (R025 NETAMOUNT), units, documents and unchanged control variances. " + DocumentsNote,[new("Date"),new("Store"),new("Net Sales","#,##0.00"),new("Units","#,##0.00"),new(DocumentsHeader,"#,##0"),new("Tender Variance","#,##0.00"),new("Unmatched Staff Rows","#,##0")],rows.Select(x=>(IReadOnlyList<object?>)[x.BusinessDate,x.StoreCode,x.NetSales,x.Units,x.Invoices,x.TenderVariance,x.UnmatchedEnrichmentRows]).ToArray(),["Total","",rows.Sum(x=>x.NetSales),rows.Sum(x=>x.Units),rows.Sum(x=>x.Invoices),rows.Sum(x=>x.TenderVariance),rows.Sum(x=>x.UnmatchedEnrichmentRows)]); ApplyReportFilter(); await auditRecorder("ReportRun",ToAuditOutcome(status),"Management trend"); }
         catch (Exception ex) { if (revision != reportRevision) return; HandleFailure(ex, "MANAGEMENT_TREND_REPORT_FAILED", "Management trend failed"); }
+    }
+
+    // Report audit of 3 Oct 2026 (fix lists FIX-04, FIX-05, FIX-08, FIX-11, FIX-12): wording only, no figure changes.
+    // Stock UCP/TOTALUCP are MRP (GST-inclusive retail value), not cost. The Sales Summary and Management Trend
+    // count every document (INV, SR and BC); the DSR INVOICE count is INV only (G5). Q6 and Q7 wait for Sagar.
+    internal const string UnitMrpHeader = "Unit MRP";
+    internal const string MrpValueHeader = "MRP value (GST incl.)";
+    internal const string StockMrpNote = "MRP value is UCP × quantity, the GST-inclusive retail value, not cost.";
+    internal const string DocumentsHeader = "Documents (incl. returns)";
+    internal const string DocumentsNote = "Documents counts every invoice (INV), sales return (SR) and bill cancellation (BC) document; the Daily Sales Report INVOICE count includes INV documents only.";
+
+    private static readonly (string Code, string Name)[] SalesDocumentTypes = [("INV", "invoice"), ("SR", "sales return"), ("BC", "bill cancellation")];
+
+    /// <summary>
+    /// The Sales Summary counts only the documents its view keeps: View by = Returns keeps SR and BC (both are
+    /// returns in RetailReportingPolicy), and the Transaction types filter narrows the set further. The header and
+    /// note name the types actually counted, so "INV, SR and BC" is said only when all three are counted.
+    /// </summary>
+    internal static (string Header, string Note) SalesDocumentsLabel(string dimension, IReadOnlyList<string>? transactionTypes)
+    {
+        var counted = SalesDocumentTypes
+            .Where(type => transactionTypes is not { Count: > 0 } || transactionTypes.Contains(type.Code, StringComparer.OrdinalIgnoreCase))
+            .Where(type => dimension != nameof(ApplicationSalesDimension.Returns) || type.Code != "INV")
+            .ToArray();
+        if (counted.Length == SalesDocumentTypes.Length) return (DocumentsHeader, DocumentsNote);
+        const string dsr = "the Daily Sales Report INVOICE count includes INV documents only.";
+        if (counted.Length == 0) return ("Documents", "No invoice (INV), sales return (SR) or bill cancellation (BC) documents match this view and its Transaction types filter; " + dsr);
+        var names = counted.Select(type => $"{type.Name} ({type.Code})").ToArray();
+        var list = names.Length == 1 ? names[0] : string.Join(", ", names[..^1]) + " and " + names[^1];
+        var excluded = SalesDocumentTypes.Except(counted).Select(type => type.Code).ToArray();
+        return ($"Documents ({string.Join(", ", counted.Select(type => type.Code))})",
+            $"Documents counts only the {list} documents this view and its Transaction types filter keep; {string.Join(" and ", excluded)} documents are not counted; " + dsr);
     }
 
     private async Task RunSalesReportAsync()
@@ -248,14 +280,17 @@ public partial class ReportsWorkspaceView : UserControl
         try
         {
             var name = ((ComboBoxItem)SalesDimensionInput.SelectedItem).Content!.ToString()!;
-            var result = await controlledReportQueryFactory(connectionStringProvider()).RunSalesSummaryAsync(ReportScope(), Enum.Parse<ApplicationSalesDimension>(name));
+            var scope = ReportScope();
+            var result = await controlledReportQueryFactory(connectionStringProvider()).RunSalesSummaryAsync(scope, Enum.Parse<ApplicationSalesDimension>(name));
             if (revision != reportRevision) return;
+            var documents = SalesDocumentsLabel(name, scope.TransactionTypes);
+            TablePresentation.SetDocumentsHeader(ReportGrid, documents.Header);
             var sales = result.Rows.Sum(row => row.SourceSignedNetAmount);
             var units = result.Rows.Sum(row => row.SourceSignedQuantity);
             ReportGrid.ItemsSource = result.Rows;
             ReportResult.Text = $"{result.Status}: Sales incl. GST {sales:N2}; units {units:N2}. {result.Message}";
-            SetExport($"{name} Sales", ToReportingStatus(result.Status), result.PolicyVersion, result.Message,
-                [new("Group"), new("Units", "#,##0.00"), new("Net Sales", "#,##0.00"), new("Bills", "#,##0")],
+            SetExport($"{name} Sales", ToReportingStatus(result.Status), result.PolicyVersion, result.Message + " " + documents.Note,
+                [new("Group"), new("Units", "#,##0.00"), new("Net Sales", "#,##0.00"), new(documents.Header, "#,##0")],
                 result.Rows.Select(row => (IReadOnlyList<object?>)[row.Key, row.SourceSignedQuantity, row.SourceSignedNetAmount, row.DistinctInvoices]).ToArray(),
                 ["Total", units, sales, result.Rows.Sum(row => row.DistinctInvoices)]);
             ApplyReportFilter();
@@ -271,7 +306,7 @@ public partial class ReportsWorkspaceView : UserControl
             var rows=await operationalReportQueryFactory(connectionStringProvider()).LoadInvoiceSummaryAsync(ReportScope());
             if(revision!=reportRevision)return; ReportGrid.ItemsSource=rows;
             var status=rows.Count==0?ReconciliationStatus.Blocked:ReconciliationStatus.Passed;
-            ReportResult.Text=$"{rows.Count} invoices; {rows.Count(x=>string.IsNullOrWhiteSpace(x.CustomerName))} missing customer names.";
+            ReportResult.Text=$"{rows.Count} documents (invoices, returns and cancellations); {rows.Count(x=>string.IsNullOrWhiteSpace(x.CustomerName))} missing customer names.";
             SetExport("Customer-wise Invoices",status,RetailReportingPolicy.Version,ReportResult.Text,
                 [new("Date","date"),new("Store"),new("Invoice"),new("Customer name"),new("Invoice quantity","#,##0.00"),new("Value incl. GST","#,##0.00")],
                 rows.Select(x=>(IReadOnlyList<object?>)[x.BusinessDate,x.StoreCode,x.DocumentNumber,x.CustomerName??"Name unavailable",x.Quantity,x.NetValue]).ToArray(),
@@ -284,7 +319,7 @@ public partial class ReportsWorkspaceView : UserControl
     private async Task RunInvoiceLineageAsync()
     {
         var revision = reportRevision;
-        try { var rows=await operationalReportQueryFactory(connectionStringProvider()).LoadInvoiceLineageAsync(ReportScope()); var status=rows.Count==0?ReconciliationStatus.Blocked:ReconciliationStatus.Passed; const string message="Invoice and item drill-down is traceable to its source workbook, sheet and row. Sales values include GST."; if (revision != reportRevision) return; ReportGrid.ItemsSource=rows; ReportResult.Text=$"{status}: {rows.Count:N0} recorded line(s)."; SetExport("Invoice Sales source history",status,RetailReportingPolicy.Version,message,[new("Business Date"),new("Store"),new("Document"),new("Line"),new("Item"),new("Brand"),new("Segment"),new("Transaction Type"),new("Quantity","#,##0.00"),new("Net Value","#,##0.00"),new("CRO"),new("Workbook"),new("Sheet"),new("Source Row","#,##0")],rows.Select(x=>(IReadOnlyList<object?>)[x.BusinessDate,x.StoreCode,x.DocumentNumber,x.LineIdentifier,x.ProductCode,x.Brand,x.BrandSegment,x.TransactionType,x.Quantity,x.NetValue,x.CroNumber,x.SourceWorkbook,x.SourceSheet,x.SourceRow]).ToArray(),["Total","","","","","","","",rows.Sum(x=>x.Quantity),rows.Sum(x=>x.NetValue),"","","",rows.Count]); ApplyReportFilter(); await auditRecorder("ReportRun",status==ReconciliationStatus.Passed?"Succeeded":"Blocked","Invoice source history report"); }
+        try { var rows=await operationalReportQueryFactory(connectionStringProvider()).LoadInvoiceLineageAsync(ReportScope()); var status=rows.Count==0?ReconciliationStatus.Blocked:ReconciliationStatus.Passed; const string message="Invoice and item drill-down is traceable to its source workbook, sheet and row. Sales values include GST."; if (revision != reportRevision) return; ReportGrid.ItemsSource=rows; ReportResult.Text=$"{status}: {rows.Count:N0} recorded line(s)."; SetExport("Invoice Sales source history",status,RetailReportingPolicy.Version,message,[new("Business Date"),new("Store"),new("Document"),new("Line"),new("Item"),new("Brand"),new("Segment"),new("Transaction Type"),new("Quantity","#,##0.00"),new("Value incl. GST","#,##0.00"),new("CRO"),new("Workbook"),new("Sheet"),new("Source Row","#,##0")],rows.Select(x=>(IReadOnlyList<object?>)[x.BusinessDate,x.StoreCode,x.DocumentNumber,x.LineIdentifier,x.ProductCode,x.Brand,x.BrandSegment,x.TransactionType,x.Quantity,x.NetValue,x.CroNumber,x.SourceWorkbook,x.SourceSheet,x.SourceRow]).ToArray(),["Total","","","","","","","",rows.Sum(x=>x.Quantity),rows.Sum(x=>x.NetValue),"","","",rows.Count]); ApplyReportFilter(); await auditRecorder("ReportRun",status==ReconciliationStatus.Passed?"Succeeded":"Blocked","Invoice source history report"); }
         catch (Exception ex) { if (revision != reportRevision) return; HandleFailure(ex, "INVOICE_DRILLDOWN_FAILED", "Invoice drill-down failed"); }
     }
 

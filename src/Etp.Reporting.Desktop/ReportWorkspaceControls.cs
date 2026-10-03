@@ -444,9 +444,10 @@ public sealed class DailySalesReportWorkspace : Grid
         periodText.Text = ReportingPeriodLabels.ForDate(date);
     }
 
-    private static IReadOnlyList<ReportDataAvailability> DefaultAvailability(DailySalesReportDocument report) =>
+    // Sales are R025 NETAMOUNT, GST-inclusive (decision D1); NETVALUE is the ex-GST amount (report audit 3 Oct 2026, FIX-05/FIX-11).
+    internal static IReadOnlyList<ReportDataAvailability> DefaultAvailability(DailySalesReportDocument report) =>
     [
-        new("Sales", report.CombinedFtd is not null, report.CombinedFtd is null ? "No recorded sales were available." : "recorded NETVALUE sales are available."),
+        new("Sales", report.CombinedFtd is not null, report.CombinedFtd is null ? "No recorded sales were available." : "recorded GST-inclusive sales (R025 NETAMOUNT) are available."),
         new("Walk-ins", report.WalkIns is not null, report.WalkIns is null ? "Enter combined walk-ins in Manual Entry." : "Combined walk-ins are available."),
         new("LY comparison", report.Stores.All(store => store.Periods.All(period => period.MissingSourceNote is null)), "Missing prior-year periods remain visibly unavailable."),
         new("Service", report.Service.Total is not null, report.Service.Total is null ? "Service source or manual input is required." : "Service values are available."),
