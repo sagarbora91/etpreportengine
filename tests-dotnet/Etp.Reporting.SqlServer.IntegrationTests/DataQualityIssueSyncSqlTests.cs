@@ -61,6 +61,33 @@ public sealed class DataQualityIssueSyncSqlTests
         }
     }
 
+    // Review of FIX-10: on a clean database every check passes, so a sync wrote no row and the as-of line
+    // said "never" after it. The sync now stamps a marker row, which the grid does not show.
+    [Fact]
+    public async Task A_sync_that_finds_nothing_still_records_when_it_ran()
+    {
+        var database = new SqlDatabaseFixture();
+        try
+        {
+            await database.InitializeAsync();
+            var productisation = new ProductisationRepository(database.ConnectionString);
+            Assert.Null(await productisation.LoadDataQualityIssuesSyncedUtcAsync());
+
+            await productisation.SyncDataQualityIssuesAsync([]);
+            var first = await productisation.LoadDataQualityIssuesSyncedUtcAsync();
+            Assert.NotNull(first);
+            Assert.DoesNotContain(await productisation.LoadDataQualityIssuesAsync(), row => row.Category == "LIVE_CHECKS_SYNC");
+
+            await database.ExecuteAsync("UPDATE dbo.data_quality_issues SET modified_utc=DATEADD(day,-2,modified_utc)");
+            await productisation.SyncDataQualityIssuesAsync([]);
+            Assert.True(await productisation.LoadDataQualityIssuesSyncedUtcAsync() > first!.Value.AddDays(-1));
+        }
+        finally
+        {
+            await database.DisposeAsync();
+        }
+    }
+
     private static WorkbookRow Row(WorkbookSheet sheet, string family, int rowNumber, string invoice, string staffCode, string staffName)
     {
         var columns = EtpReportFamilyRegistry.Resolve(family).Columns;

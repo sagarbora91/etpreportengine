@@ -46,12 +46,40 @@ public sealed class ImportProblemsHistoryTests
     }
 
     [Fact]
-    public void A_failure_that_never_learned_its_store_is_cleared_by_the_retry_that_did()
+    public void A_failure_that_never_learned_its_store_is_cleared_by_the_retry_of_the_same_bytes()
     {
         Assert.Empty(ImportProblems.FromHistory(
         [
+            (Failed, Result("R022_Revenue_Report.xlsx", null, null, "Failed") with { SourceSha256 = "ABC123" }),
+            (Failed.AddHours(1), Result("R022_Revenue_Report.xlsx", "R022", "WLMHW", "Imported") with { SourceSha256 = "abc123" })
+        ]));
+    }
+
+    // Review of FIX-09: a failure with no store shows in every store scope, but another store's clean
+    // row shows only in that store's scope and All stores, so it must not clear the failure.
+    [Fact]
+    public void Another_stores_clean_file_does_not_clear_a_failure_that_never_learned_its_store()
+    {
+        var history = new (DateTime, FolderImportFileResult)[]
+        {
+            (Failed, Result("R022_Revenue_Report.xlsx", null, null, "Failed") with { SourceSha256 = "wlmhw-bytes" }),
+            (Failed.AddHours(1), Result("R022_Revenue_Report.xlsx", "R022", "HEMW", "Imported") with { SourceSha256 = "hemw-bytes" })
+        };
+        var allStores = ImportProblems.FromHistory(history);
+        // The store-scoped history (WLMHW selected) keeps the null-store failure and drops HEMW's row.
+        var wlmhwScope = ImportProblems.FromHistory(history.Where(entry => entry.Item2.StoreCode is null or "WLMHW"));
+
+        Assert.Single(allStores);
+        Assert.Equal(wlmhwScope.Count, allStores.Count);
+    }
+
+    [Fact]
+    public void A_failure_that_never_learned_its_store_and_has_no_hash_is_not_cleared_by_a_stores_clean_file()
+    {
+        Assert.Single(ImportProblems.FromHistory(
+        [
             (Failed, Result("R022_Revenue_Report.xlsx", null, null, "Failed")),
-            (Failed.AddHours(1), Result("R022_Revenue_Report.xlsx", "R022", "WLMHW", "Imported"))
+            (Failed.AddHours(1), Result("R022_Revenue_Report.xlsx", "R022", "HEMW", "Imported"))
         ]));
     }
 

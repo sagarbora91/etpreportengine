@@ -61,8 +61,22 @@ public sealed class OperationsAdministrationServiceBoundaryTests
         // A PASS row kept "(259 current)" from its last failing sync; it now says "(0 current)".
         Assert.Contains("N'(0 current)'", ProductisationRepository.SyncDataQualityIssuesSql, StringComparison.Ordinal);
         Assert.Contains("modified_by,modified_utc)", ProductisationRepository.SyncDataQualityIssuesSql, StringComparison.Ordinal);
-        Assert.Equal("SELECT MIN(modified_utc) FROM dbo.data_quality_issues WHERE issue_key LIKE N'COMPUTED/%'",
-            ProductisationRepository.DataQualityIssuesSyncedSql);
+        Assert.Contains("SELECT MIN(modified_utc) FROM dbo.data_quality_issues WHERE issue_key LIKE N'COMPUTED/%'",
+            ProductisationRepository.DataQualityIssuesSyncedSql, StringComparison.Ordinal);
+    }
+
+    // Review of FIX-10: a sync that found nothing on a database with no computed rows wrote nothing, so the
+    // as-of line said "never" after it. Every sync now stamps a marker row, which the synced time reads first
+    // and the Open items grid never shows.
+    [Fact]
+    public void Every_sync_stamps_a_marker_row_that_the_grid_does_not_show()
+    {
+        var marker = $"N'{ProductisationRepository.SyncMarkerKey}'";
+        Assert.Contains($"USING(SELECT {marker} IssueKey) source", ProductisationRepository.SyncDataQualityIssuesSql, StringComparison.Ordinal);
+        Assert.Contains("WHEN MATCHED THEN UPDATE SET modified_by=SUSER_SNAME(),modified_utc=@now", ProductisationRepository.SyncDataQualityIssuesSql, StringComparison.Ordinal);
+        Assert.StartsWith($"SELECT COALESCE((SELECT modified_utc FROM dbo.data_quality_issues WHERE issue_key={marker})",
+            ProductisationRepository.DataQualityIssuesSyncedSql, StringComparison.Ordinal);
+        Assert.Contains($"WHERE issue_key<>{marker}", ProductisationRepository.DataQualityIssuesSql, StringComparison.Ordinal);
     }
 
     [Fact]

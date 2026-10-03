@@ -48,9 +48,15 @@ public static class ImportProblems
     /// A clean import clears a failure only for the same store, report and file name
     /// (Titan store report audit item R-09, 3 Oct 2026): exports carry the same file name in every store, so
     /// in All stores one store's clean R022_Revenue_Report.xlsx used to hide another
-    /// store's failed one. A store or report the failed attempt never learned (it
-    /// failed before the file was recognised) cannot be told apart, so it does not
-    /// stop the match.
+    /// store's failed one. A report the failed attempt never learned does not stop
+    /// the match (its store still decides it). A store it never learned (it failed
+    /// before the file was recognised) is different: the history keeps such a row in
+    /// every store scope but drops other stores' clean rows, so letting any store's
+    /// clean file clear it would again show more problems with a store selected than
+    /// in All stores. Such a failure is cleared only by a clean import of the same
+    /// bytes (same source hash) or by a clean row that also has no store. Accepted gap:
+    /// a failure recorded with neither store nor hash (the file could not be read)
+    /// stays listed after a successful retry until it leaves the date range.
     /// </summary>
     public static IReadOnlyList<ImportProblem> FromHistory(
         IEnumerable<(DateTime RecordedUtc, FolderImportFileResult Result)>? entries)
@@ -65,10 +71,17 @@ public static class ImportProblems
             .ToArray();
     }
 
-    private static bool SameSource(FolderImportFileResult failed, FolderImportFileResult clean) =>
-        string.Equals(failed.FileName, clean.FileName, StringComparison.OrdinalIgnoreCase)
-        && SameOrUnknown(failed.StoreCode, clean.StoreCode)
-        && SameOrUnknown(failed.ReportCode, clean.ReportCode);
+    private static bool SameSource(FolderImportFileResult failed, FolderImportFileResult clean)
+    {
+        if (!string.Equals(failed.FileName, clean.FileName, StringComparison.OrdinalIgnoreCase)) return false;
+        if (string.IsNullOrWhiteSpace(failed.StoreCode) && !string.IsNullOrWhiteSpace(clean.StoreCode))
+            return SameBytes(failed.SourceSha256, clean.SourceSha256);
+        return SameOrUnknown(failed.StoreCode, clean.StoreCode) && SameOrUnknown(failed.ReportCode, clean.ReportCode);
+    }
+
+    private static bool SameBytes(string? failed, string? clean) =>
+        !string.IsNullOrWhiteSpace(failed) && !string.IsNullOrWhiteSpace(clean)
+        && string.Equals(failed.Trim(), clean.Trim(), StringComparison.OrdinalIgnoreCase);
 
     private static bool SameOrUnknown(string? first, string? second) =>
         string.IsNullOrWhiteSpace(first) || string.IsNullOrWhiteSpace(second)

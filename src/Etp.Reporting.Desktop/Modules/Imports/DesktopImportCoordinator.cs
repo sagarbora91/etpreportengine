@@ -266,6 +266,8 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(recordRestatementAudit);
         batchCancellation?.Dispose();
         batchCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        // Open items sync once for the whole batch, after its last file (review of FIX-10).
+        await using var qualitySync = SqlServerImportPersistenceUseCase.DeferDataQualitySync();
         var recording = new BatchAttemptRecording(persistenceFactory(connectionString) as ImportAttemptRecorder);
         var processor = new CoordinatorWorkbookImportOutcomeProcessor((path, token) => ProcessWorkbookAsync(
             path,

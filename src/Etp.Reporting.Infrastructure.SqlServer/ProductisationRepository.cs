@@ -331,9 +331,10 @@ public sealed partial class ProductisationRepository(string connectionString)
         await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(SyncDataQualityIssuesSql,connection);command.Parameters.AddWithValue("@json",JsonSerializer.Serialize(payload));await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    // Every sync stamps every computed row with the same @now, so the earliest computed row's time is the
-    // last sync (a later workflow change only moves its own row later). A check that no longer finds
-    // anything is PASS and says "(0 current)": audit item R-10 (Titan store) found a PASS row still saying "(259 current)".
+    // A check that no longer finds anything is PASS and says "(0 current)": audit item R-10 (Titan store)
+    // found a PASS row still saying "(259 current)". Every sync also stamps one marker row with its time
+    // (review of FIX-10): a sync that found nothing and had no earlier computed rows wrote nothing, so
+    // the as-of line said "never" after it. The marker never shows in the Open items grid.
     internal const string SyncDataQualityIssuesSql = """
         DECLARE @now datetime2(3)=SYSUTCDATETIME();
         MERGE dbo.data_quality_issues WITH(HOLDLOCK) target
@@ -348,7 +349,14 @@ public sealed partial class ProductisationRepository(string connectionString)
           safe_summary=CASE WHEN safe_summary LIKE N'% (% current)'
             THEN CONCAT(LEFT(safe_summary,LEN(safe_summary)-CHARINDEX(N'(',REVERSE(safe_summary))),N'(0 current)') ELSE safe_summary END
         WHERE issue_key LIKE N'COMPUTED/%' AND NOT EXISTS(SELECT 1 FROM OPENJSON(@json) WITH(IssueKey nvarchar(300)) currentRows WHERE currentRows.IssueKey=dbo.data_quality_issues.issue_key);
+        MERGE dbo.data_quality_issues WITH(HOLDLOCK) target
+        USING(SELECT N'SYNC/LIVE_CHECKS' IssueKey) source ON target.issue_key=source.IssueKey
+        WHEN MATCHED THEN UPDATE SET modified_by=SUSER_SNAME(),modified_utc=@now
+        WHEN NOT MATCHED THEN INSERT(issue_key,category,severity,technical_control_status,workflow_status,safe_summary,modified_by,modified_utc)
+          VALUES(source.IssueKey,'LIVE_CHECKS_SYNC','INFO','PASS','RESOLVED',N'Time of the last sync of Open items from the live checks.',SUSER_SNAME(),@now);
         """;
+
+    internal const string SyncMarkerKey = "SYNC/LIVE_CHECKS";
 
     /// <summary>When the computed issues were last synced from the live checks; null when they never were.</summary>
     public async Task<DateTime?> LoadDataQualityIssuesSyncedUtcAsync(CancellationToken cancellationToken=default)
@@ -359,7 +367,9 @@ public sealed partial class ProductisationRepository(string connectionString)
         return value is DateTime synced?DateTime.SpecifyKind(synced,DateTimeKind.Utc):null;
     }
 
-    internal const string DataQualityIssuesSyncedSql="SELECT MIN(modified_utc) FROM dbo.data_quality_issues WHERE issue_key LIKE N'COMPUTED/%'";
+    // The marker row's time; a database last synced before the marker existed falls back to the earliest
+    // computed row (every sync stamped them all with the same time).
+    internal const string DataQualityIssuesSyncedSql="SELECT COALESCE((SELECT modified_utc FROM dbo.data_quality_issues WHERE issue_key=N'SYNC/LIVE_CHECKS'),(SELECT MIN(modified_utc) FROM dbo.data_quality_issues WHERE issue_key LIKE N'COMPUTED/%'))";
 
     /// <summary>
     /// Brings the saved issues up to the live checks (audit item R-10 (Titan store)). Runs after every committed import, so the
@@ -371,9 +381,12 @@ public sealed partial class ProductisationRepository(string connectionString)
         await new ProductisationRepository(connectionString).SyncDataQualityIssuesAsync(findings,cancellationToken);
     }
 
+    // The Open items grid: every saved issue except the sync marker.
+    internal const string DataQualityIssuesSql="SELECT TOP(500) data_quality_issue_id,category,severity,store_code,business_date,technical_control_status,workflow_status,safe_summary,assigned_to,modified_utc,resolution_reason FROM dbo.data_quality_issues WHERE issue_key<>N'SYNC/LIVE_CHECKS' ORDER BY CASE severity WHEN 'CRITICAL' THEN 0 WHEN 'WARNING' THEN 1 ELSE 2 END,modified_utc DESC";
+
     public async Task<IReadOnlyList<DataQualityIssueRow>> LoadDataQualityIssuesAsync(CancellationToken cancellationToken=default)
     {
-        const string sql="SELECT TOP(500) data_quality_issue_id,category,severity,store_code,business_date,technical_control_status,workflow_status,safe_summary,assigned_to,modified_utc,resolution_reason FROM dbo.data_quality_issues ORDER BY CASE severity WHEN 'CRITICAL' THEN 0 WHEN 'WARNING' THEN 1 ELSE 2 END,modified_utc DESC";
+        const string sql=DataQualityIssuesSql;
         await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(sql,connection);await using var reader=await command.ExecuteReaderAsync(cancellationToken);var rows=new List<DataQualityIssueRow>();while(await reader.ReadAsync(cancellationToken))rows.Add(new(reader.GetInt64(0),reader.GetString(1),reader.GetString(2),OptionalString(reader,3),reader.IsDBNull(4)?null:DateOnly.FromDateTime(reader.GetDateTime(4)),reader.GetString(5),reader.GetString(6),reader.GetString(7),OptionalString(reader,8),reader.GetDateTime(9),OptionalString(reader,10)));return rows;
     }
 

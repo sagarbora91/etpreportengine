@@ -70,6 +70,8 @@ public sealed class FolderImportService(
             throw new ImportSourceException("RESTATEMENT_REASON_REQUIRED", "Enter the reason for the restatement.");
         if (!options.RestatementEnabled && (options.OverrideStoreCode is not null || options.OverrideBusinessDate is not null))
             throw new ImportSourceException("IMPORT_OVERRIDE_REQUIRES_RESTATEMENT", "Enable restatement before overriding the detected store or date.");
+        // Open items sync once for the whole folder, after its last file (review of FIX-10).
+        await using var qualitySync = SqlServerImportPersistenceUseCase.DeferDataQualitySync();
 
         var results = new List<FolderImportFileResult>();
         var recording = new AttemptRecording(persistence as IImportAttemptRecorder);

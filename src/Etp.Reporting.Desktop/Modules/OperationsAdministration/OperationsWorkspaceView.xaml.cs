@@ -54,6 +54,8 @@ public partial class OperationsWorkspaceView : UserControl
     public int IssueRowCount => DataQualityGrid.Items.Count;
     /// <summary>The as-of line beside the Open items grid (audit item R-10 (Titan store)).</summary>
     public string IssuesSyncedStatus => IssuesSyncedText.Text;
+    /// <summary>How many refreshes have started, so a test can tell that opening a task reloaded the view.</summary>
+    internal int RefreshesStarted => refreshRevision;
 
     public void UpdateAccess(OperationsAdministrationWorkspaceAccess value) { access = value; ApplyActionAccess(); }
 
