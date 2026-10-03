@@ -64,6 +64,20 @@ public sealed class RawCsvFolderImportTests : IDisposable
         Assert.Equal(0, summary.Failed);
     }
 
+    [Fact]
+    public async Task An_undated_csv_that_matches_nothing_is_skipped_not_an_unknown_layout()
+    {
+        // The shape of F:/ETP/ETP Source Data/HEMW/golden-monthly-HEMW-R025.csv: a check file in a Retail folder, not an export.
+        await File.WriteAllTextAsync(Path.Combine(folder, "golden-monthly-HEMW-R025.csv"),
+            "store,year,month,invoices\r\nHEMW,2026,8,12\r\n");
+
+        var summary = await new FolderImportService(new CapturePersistence()).RunAsync(folder, new("raw-csv-test"));
+
+        Assert.Equal("Not needed", Assert.Single(summary.Files).Status);
+        Assert.Equal(0, summary.UnknownLayouts);
+        Assert.Equal(0, summary.Failed);
+    }
+
     private sealed class CapturePersistence : IImportPersistenceUseCase<MatchedImportEnvelope>
     {
         public List<ImportPersistenceRequest<MatchedImportEnvelope>> Requests { get; } = [];

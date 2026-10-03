@@ -43,7 +43,7 @@ public static partial class ExportNameParser
 
     /// <summary>
     /// The window a raw Service export names, <c>dd.MM.yyyy TO dd.MM.yyyy</c> (any spacing and case around <c>TO</c>, a
-    /// trailing space before the extension allowed): its start, kept as information, and its end, which is the export
+    /// stray dot before it as in "26.08.2026. TO 06.09.2026", a trailing space before the extension allowed): its start, kept as information, and its end, which is the export
     /// date. Null when the name states no such window, or a date is not real, or the end is before the start.
     /// </summary>
     public static ExportWindow? ParseWindow(string? fileName) =>
@@ -72,7 +72,7 @@ public static partial class ExportNameParser
     [GeneratedRegex(@"(?<!\d)\d{2}\.\d{2}\.\d{4}(?!\d)", RegexOptions.CultureInvariant)]
     private static partial Regex DottedDate();
 
-    [GeneratedRegex(@"(?<!\d)(\d{2}\.\d{2}\.\d{4})\s*TO\s*(\d{2}\.\d{2}\.\d{4})(?!\d)", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"(?<!\d)(\d{2}\.\d{2}\.\d{4})[.\s]*TO\s*(\d{2}\.\d{2}\.\d{4})(?!\d)", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]
     private static partial Regex DottedRange();
 }
 

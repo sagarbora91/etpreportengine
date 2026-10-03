@@ -28,6 +28,18 @@ public sealed class RawExportNameTests
         Assert.Equal(new ExportWindow(new DateOnly(2026, 9, 30), new DateOnly(2026, 10, 3)), window);
     }
 
+    [Theory]
+    // The real S004 source "TENDER COLLECTION 26.08.2026. TO 06.09.2026.csv": a stray dot before TO must not drop the
+    // window and date the file by its START (11 days early).
+    [InlineData("TENDER COLLECTION 26.08.2026. TO 06.09.2026.csv")]
+    [InlineData("TENDER COLLECTION 26.08.2026.TO 06.09.2026.csv")]
+    [InlineData("TENDER COLLECTION 26.08.2026 . TO 06.09.2026 .csv")]
+    public void A_stray_dot_before_TO_still_gives_the_window_end(string name)
+    {
+        Assert.Equal(new DateOnly(2026, 9, 6), ExportNameParser.Parse(name).ExportDate);
+        Assert.Equal(new ExportWindow(new DateOnly(2026, 8, 26), new DateOnly(2026, 9, 6)), ExportNameParser.ParseWindow(name));
+    }
+
     [Fact]
     public void A_month_long_window_gives_its_end_date()
     {
