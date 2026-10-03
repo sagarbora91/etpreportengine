@@ -161,7 +161,18 @@ function New-EtpOwnerRecoverySql {
     # history trigger audits it and keeps its last-Owner guard. The old PC's rows are left as
     # they are. ALTER AUTHORIZATION is not used: a login that restores a backup becomes its
     # server-level owner without becoming the dbo inside it, so the procedure gives the
-    # account its own user, db_owner and etp_owner. The last line proves the result either way.
+    # account its own user, db_owner and etp_owner. The ETP_OWNER line proves the result
+    # either way, from the catalog. On Workpc (2 October 2026) it came back 0 although the row,
+    # the user and its etp_owner membership were all in place; IS_ROLEMEMBER, asked about the
+    # restoring account's own user while that account is a sysadmin (dbo in the database), is
+    # the only part that could have said no, and the catalog cannot.
+    #
+    # 1.9.3 (migration 0043): an Owner needs ALTER ANY LOGIN WITH GRANT OPTION to change users
+    # without "Run as administrator", and the procedure grants it to every active Owner - but
+    # not here. This batch always provisions the account running it, and SQL Server never lets
+    # a login grant a permission to itself (4627, a warning: the GRANT is skipped). So nothing
+    # here tries; ETP_LOGIN_ADMIN reports whether the account holds it, and when it does not
+    # the helper has SYSTEM grant it (Invoke-EtpOwnerGrantOptionAsSystem), then checks again.
     return @'
 SET NOCOUNT ON; SET XACT_ABORT ON;
 DECLARE @identity nvarchar(200)=SUSER_SNAME();
@@ -178,7 +189,22 @@ WHEN NOT MATCHED THEN INSERT(windows_identity,display_name,role_code,is_active,m
 COMMIT TRANSACTION;
 DECLARE @principal sysname=(SELECT TOP(1) name FROM sys.database_principals WHERE sid=SUSER_SID(@identity));
 SELECT N'ETP_OWNER:'+CASE WHEN EXISTS(SELECT 1 FROM dbo.application_users WHERE windows_identity=@identity AND role_code='OWNER' AND is_active=1)
-  AND (@principal=N'dbo' OR IS_ROLEMEMBER(N'etp_owner',@principal)=1) THEN N'1' ELSE N'0' END;
+  AND (@principal=N'dbo' OR EXISTS(SELECT 1 FROM sys.database_role_members rm
+    JOIN sys.database_principals r ON r.principal_id=rm.role_principal_id
+    JOIN sys.database_principals m ON m.principal_id=rm.member_principal_id
+    WHERE r.name=N'etp_owner' AND m.name=@principal)) THEN N'1' ELSE N'0' END;
+SELECT N'ETP_LOGIN_ADMIN:'+CASE WHEN EXISTS(SELECT 1 FROM sys.server_permissions WHERE class=100 AND grantee_principal_id=SUSER_ID(@identity)
+  AND permission_name=N'ALTER ANY LOGIN' AND state='W') THEN N'GRANT_OPTION' ELSE N'MISSING' END;
+'@
+}
+
+function New-EtpLoginAdministrationCheckSql {
+    # Read-only: the ETP_LOGIN_ADMIN line of New-EtpOwnerRecoverySql on its own, for the check
+    # made after the one-off SYSTEM grant.
+    return @'
+SET NOCOUNT ON;
+SELECT N'ETP_LOGIN_ADMIN:'+CASE WHEN EXISTS(SELECT 1 FROM sys.server_permissions WHERE class=100 AND grantee_principal_id=SUSER_ID(SUSER_SNAME())
+  AND permission_name=N'ALTER ANY LOGIN' AND state='W') THEN N'GRANT_OPTION' ELSE N'MISSING' END;
 '@
 }
 
@@ -426,6 +452,23 @@ if ($ownerResult.Count -ne 1 -or $ownerResult[0] -cne '1') {
     throw 'The database was restored and checked, but making you its Owner failed. Follow docs\OPERATIONS.md, Owner recovery and maintenance, by hand, then run setup again.'
 }
 Write-RestoreLog "$sqlIdentity is now an active Owner of $Database, with the reason recorded in its user history."
+$loginAdministration = @(Get-EtpRestoreMarkers $owner 'ETP_LOGIN_ADMIN')
+# 1.9.3 (Sagar's decision, 2 October 2026): this account cannot give itself ALTER ANY LOGIN
+# WITH GRANT OPTION, so SYSTEM gives it through the same one-off task setup uses (this
+# helper runs elevated, step 1). It never stops the restore; the read-only check after it
+# decides whether the NOTE is needed. Setup checks again, and tries again, when it runs next.
+if ($loginAdministration.Count -ne 1 -or $loginAdministration[0] -cne 'GRANT_OPTION') {
+    $ownerGrant = try { Invoke-EtpOwnerGrantOptionAsSystem -SqlCmdPath $sqlcmd -ServerInstance $ServerInstance -Database $Database } catch { $null }
+    if ($ownerGrant) { Write-RestoreLog $ownerGrant.Message }
+    $loginAdministration = @()
+    try { $loginAdministration = @(Get-EtpRestoreMarkers @(Invoke-EtpSql -SqlCmd $sqlcmd -Server $ServerInstance -Database $Database -Query (New-EtpLoginAdministrationCheckSql)) 'ETP_LOGIN_ADMIN') }
+    catch { $loginAdministration = @() }
+}
+if ($loginAdministration.Count -ne 1 -or $loginAdministration[0] -cne 'GRANT_OPTION') {
+    $manualGrant = Get-EtpOwnerGrantManualCommand -Identity $sqlIdentity -ServerInstance $ServerInstance -SqlCmdPath $sqlcmd
+    $manualText = if ($manualGrant) { " To do it by hand, run this once in this administrator PowerShell window (it runs as SYSTEM, which must be a SQL administrator; 0 means granted): $manualGrant" } else { '' }
+    Write-RestoreLog "NOTE: $sqlIdentity does not hold ALTER ANY LOGIN WITH GRANT OPTION, and SQL Server does not let an account grant a permission to itself, so this helper could not give it directly. Until a different SQL administrator grants it (docs\OPERATIONS.md, Owners and SQL Server logins), adding or changing users in Settings > Users needs ETP started with 'Run as administrator'. Everything else works unelevated.$manualText"
+}
 
 # 15. The broker setup's safety backup goes through. Left alone if it is already there.
 try {
@@ -442,6 +485,7 @@ $waiting = if ($bundled.Count -eq 0) { 'The waiting database updates could not b
 Write-RestoreLog "$Database was restored from $source, verified and checked, and $sqlIdentity is its Owner. $waiting"
 Write-RestoreLog 'Next:'
 Write-RestoreLog '1. Run the ETP setup again (you can leave "Install SQL Server" unticked). It takes a verified safety backup of this data before it applies the waiting updates.'
-Write-RestoreLog "2. Then, in ETP as Owner, add $($configuration.automationPrincipal) as an active Store Manager in Settings > Users and run install-etp-sql-operations.ps1 (docs\OPERATIONS.md, step 7)."
-Write-RestoreLog "The old PC's accounts stay listed in Settings > Users; they cannot sign in here. A database restored onto a newer SQL Server than the one it was backed up on is upgraded, and its backups can no longer be restored onto the older version."
+Write-RestoreLog "2. Then start ETP with 'Run as administrator', and as Owner add $($configuration.automationPrincipal) as an active Store Manager in Settings > Users."
+Write-RestoreLog "3. Run the ETP setup once more. It gives $($configuration.automationPrincipal) the backup and recovery-drill rights (the restricted SQL operations module, docs\OPERATIONS.md step 7); until then the daily backup and the monthly drill cannot run."
+Write-RestoreLog "The old PC's accounts stay listed in Settings > Users; they cannot sign in here. Once setup has applied database update 0042, deactivate them there (Active unticked, with a reason): an account of a PC that no longer exists can be deactivated, though it can never be given access again. A database restored onto a newer SQL Server than the one it was backed up on is upgraded, and its backups can no longer be restored onto the older version."
 exit 0

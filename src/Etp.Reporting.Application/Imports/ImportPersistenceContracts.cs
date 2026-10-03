@@ -26,6 +26,11 @@ public sealed record ImportPersistenceResult(
     public string Status { get; init; } = "Imported";
     public int AlreadyPresentRows { get; init; }
     public int ConflictRows { get; init; }
+    /// <summary>Whether the import transaction stored the source bytes (IF-023); null when it did not say.</summary>
+    public EvidenceState? Evidence { get; init; }
+    public Guid? BatchId { get; init; }
+    /// <summary>Warnings the import raised while persisting, such as <c>STOCK_ROW_REPEATED</c>.</summary>
+    public IReadOnlyList<ImportIssue> Issues { get; init; } = [];
 }
 
 public sealed record ImportRowOutcome(
@@ -46,6 +51,24 @@ public interface IImportPersistenceUseCase<TAcceptedImport> where TAcceptedImpor
         string storeCode,
         DateOnly businessDate,
         CancellationToken cancellationToken = default);
+    /// <summary>
+    /// The current imports of this report and store whose declared period overlaps the replacement's (IF-016);
+    /// a planner-1 restatement replaces one of them. The default keeps the older lookup by the last day.
+    /// </summary>
+    async Task<IReadOnlyList<RestatementCandidate>> FindRestatementCandidatesAsync(string reportCode, string storeCode,
+        DateOnly periodStart, DateOnly periodEnd, CancellationToken cancellationToken = default) =>
+        await FindCurrentImportFileIdAsync(reportCode, storeCode, periodEnd, cancellationToken).ConfigureAwait(false) is { } id
+            ? [new(id, string.Empty, periodEnd, periodEnd, 0)]
+            : [];
+    /// <summary>
+    /// Of <paramref name="importFileIds"/>, current imports a restatement's period covers but that it does not replace,
+    /// those whose stored rows the replacement changes or drops. Planner 1 takes such an import over only when the
+    /// replacement holds every row it holds; one it does not hold makes the restatement fail whichever import was
+    /// picked, so the importer refuses before any approval is requested. <paramref name="businessDate"/> is the date
+    /// the import will be persisted with (an undated snapshot's rows are keyed by it). The default finds none.
+    /// </summary>
+    Task<IReadOnlyList<long>> FindImportsChangedByAsync(TAcceptedImport accepted, IReadOnlyList<long> importFileIds,
+        DateOnly? businessDate = null, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<long>>([]);
     Task PrepareRestatementAsync(
         ImportPersistenceRequest<TAcceptedImport> request,
         CancellationToken cancellationToken = default);

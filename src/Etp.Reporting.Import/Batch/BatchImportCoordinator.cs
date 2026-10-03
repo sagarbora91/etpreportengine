@@ -1,3 +1,5 @@
+using Etp.Reporting.Application.Imports;
+
 namespace Etp.Reporting.Import.Batch;
 
 public enum BatchImportFileStatus { Succeeded, Failed, Cancelled }
@@ -14,7 +16,8 @@ public sealed record BatchImportFileResult(
     int NewRows = 0,
     int AlreadyPresentRows = 0,
     int ConflictRows = 0,
-    bool ExactDuplicate = false);
+    bool ExactDuplicate = false,
+    IReadOnlyList<ImportIssue>? Issues = null);
 
 public sealed record BatchImportSummary(IReadOnlyList<BatchImportFileResult> Files)
 {
@@ -26,11 +29,15 @@ public sealed record BatchImportSummary(IReadOnlyList<BatchImportFileResult> Fil
     public int AlreadyPresentRows => Files.Sum(x => x.AlreadyPresentRows);
     public int Conflicts => Files.Sum(x => x.ConflictRows);
     public int ExactDuplicates => Files.Count(x => x.ExactDuplicate);
+    public int Warnings => Files.Sum(x => x.Issues?.Count(issue => issue.Severity == ImportIssueSeverity.Warning) ?? 0);
     public bool CanRetry => Failed > 0;
 }
 
 public sealed record WorkbookImportOutcome(int RowsProcessed, int NewRows, int AlreadyPresentRows, int ConflictRows, bool ExactDuplicate = false)
 {
+    /// <summary>Warnings the save raised, e.g. STOCK_ROW_REPEATED for exact ledger repeats that were kept.</summary>
+    public IReadOnlyList<ImportIssue> Issues { get; init; } = [];
+
     public static WorkbookImportOutcome Imported { get; } = new(0, 0, 0, 0);
 }
 
@@ -48,6 +55,16 @@ public interface IImportFailureClassifier
 {
     bool IsTransient(Exception exception);
     (string Code, string SafeMessage) Describe(Exception exception);
+
+    /// <summary>
+    /// The failure as an attempt records it (spec 11.1). <paramref name="stage"/> is where the caller was; a
+    /// classifier may name a more precise stage, e.g. <see cref="FailureStage.Commit"/> for a commit timeout.
+    /// </summary>
+    ImportFailure DescribeDetailed(Exception exception, FailureStage stage)
+    {
+        var (code, message) = Describe(exception);
+        return new(code, stage, message, exception.GetType().Name);
+    }
 }
 
 public sealed class SafeImportFailureClassifier : IImportFailureClassifier
@@ -57,11 +74,31 @@ public sealed class SafeImportFailureClassifier : IImportFailureClassifier
     public (string Code, string SafeMessage) Describe(Exception exception) => exception switch
     {
         ImportSourceException source => (source.Code, source.Message),
+        ImportConflictException conflict => (conflict.Code, conflict.Message),
         UnauthorizedAccessException => ("IMPORT_ACCESS_DENIED", "The workbook could not be accessed."),
         IOException => ("IMPORT_IO_FAILURE", "The workbook could not be read. Close other applications and retry."),
         TimeoutException => ("IMPORT_TIMEOUT", "The import timed out and can be retried."),
         _ => ("IMPORT_PROCESSING_FAILED", "The workbook could not be imported. Review the support package for diagnostics.")
     };
+
+    /// <summary>
+    /// The failure as an attempt records it (spec 11.1). Only an importer refusal keeps its own text; every
+    /// other message is fixed here, so no exception text reaches the attempt. A refusal that names its stage
+    /// overrides the caller's, and a conflict keeps its samples. Database errors are described by the
+    /// SQL Server layer, which can see SqlException.
+    /// </summary>
+    public ImportFailure DescribeDetailed(Exception exception, FailureStage stage)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+        var (code, message) = Describe(exception);
+        var type = exception.GetType().Name;
+        return exception switch
+        {
+            ImportConflictException conflict => new(code, FailureStage.Apply, message, type) { Issues = conflict.Samples },
+            ImportSourceException source => new(code, source.Stage ?? stage, message, type),
+            _ => new(code, stage, message, type)
+        };
+    }
 }
 
 public sealed class BatchImportCoordinator
@@ -108,7 +145,7 @@ public sealed class BatchImportCoordinator
                         : await ProcessWithoutOutcomeAsync(_processor, workbookPaths[index], cancellationToken).ConfigureAwait(false);
                     results.Add(new(safeName, BatchImportFileStatus.Succeeded, attempts, RowsProcessed: outcome.RowsProcessed,
                         NewRows: outcome.NewRows, AlreadyPresentRows: outcome.AlreadyPresentRows, ConflictRows: outcome.ConflictRows,
-                        ExactDuplicate: outcome.ExactDuplicate));
+                        ExactDuplicate: outcome.ExactDuplicate, Issues: outcome.Issues.Count > 0 ? outcome.Issues : null));
                     break;
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

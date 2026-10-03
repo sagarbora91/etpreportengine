@@ -34,21 +34,191 @@ function Assert-EtpNoLinks {
     }
 }
 
+function Get-EtpProtectedPathFindings {
+    # One step of Assert-EtpProtectedInstall: what on this one path would let somebody who is
+    # not an administrator change what runs. Role is Target for the file or folder being
+    # checked, Ancestor for each folder above it and Root for the volume root at the top.
+    # Returns one line per problem naming the path, the identity, the rights and the fix;
+    # nothing when the path is safe. Kept in step with ProtectedOperationPath in the desktop
+    # application.
+    #
+    # Why the rights differ by role (2 Oct 2026, a second drive on Workpc, where the old
+    # all-or-nothing rule refused a sound installation until E:\ was re-permissioned by hand):
+    # - Target: anything that changes it. Write (create, change or append), Delete,
+    #   delete-child, change permissions, take ownership.
+    # - Ancestor: anything that can swap the path out from under the target. Renaming a
+    #   folder needs Delete on it or delete-child on its parent; change permissions and take
+    #   ownership lead to either. Write on an ancestor only creates NEW names beside the path,
+    #   which cannot replace or redirect any existing component of it - with one exception:
+    # - The folder that holds a FILE target (-HoldsTarget) must not let anyone else create
+    #   files or subfolders in it either. A program loads DLLs from its own folder before
+    #   System32 (and .NET probes culture subfolders), so a new name beside sqlcmd.exe or the
+    #   application is code that runs with the elevated or automation token (1.9.3 review F1:
+    #   a registry-located sqlcmd in a folder under ProgramData, where Users may create files).
+    #   Nothing loads a new file beside a script or operations.json by name today, but the
+    #   same rule costs nothing there: every folder ETP installs into or creates is closed.
+    # - Root: the same, less Delete, because a volume root cannot be renamed or deleted. This
+    #   is the only right relaxed. A Windows-formatted data drive gives Authenticated Users
+    #   Modify (which includes Delete, but not delete-child or change permissions) on its root.
+    #   Inheritable copies of root rights still reach folders under it, and are checked there.
+    # Ignored, as before: Deny entries, and inherit-only entries, which apply only to children
+    # and are checked on them. Also ignored: application package and capability SIDs
+    # (S-1-15-2-*, S-1-15-3-*, e.g. ALL APPLICATION PACKAGES). Windows only consults them in a
+    # second access check for an AppContainer process, whose access is the intersection of
+    # both checks and which runs at low integrity, so they never give anyone more than that
+    # user already has. Installers often grant them Full Control on a data drive's Program Files.
+    # Owner: an owner can always rewrite the permissions, so it must be Administrators, SYSTEM
+    # or TrustedInstaller at every level. That stays, including for an administrator's own
+    # account: its unelevated programs would then be able to change what setup runs elevated.
+    param([Parameter(Mandatory)][string]$Path,
+          [Parameter(Mandatory)][Security.AccessControl.FileSystemSecurity]$Security,
+          [Parameter(Mandatory)][ValidateSet('Target','Ancestor','Root')][string]$Role,
+          [switch]$HoldsTarget)
+    $trusted = @('S-1-5-18','S-1-5-32-544','S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464')
+    $isFolder = $Security -is [Security.AccessControl.DirectorySecurity]
+    $describeSid = {
+        param([Security.Principal.SecurityIdentifier]$Sid)
+        try { return '{0} ({1})' -f $Sid.Translate([Security.Principal.NTAccount]).Value, $Sid.Value } catch { return $Sid.Value }
+    }
+    $findings = @()
+    $owner = $Security.GetOwner([Security.Principal.SecurityIdentifier])
+    if ($null -eq $owner -or $owner.Value -notin $trusted) {
+        $ownerText = if ($owner) { & $describeSid $owner } else { 'nobody' }
+        $findings += "'$Path' is owned by $ownerText, and an owner can always change its permissions. Install operations in a folder owned by Administrators or SYSTEM. Fix: icacls `"$Path`" /setowner `"*S-1-5-32-544`""
+    }
+    # Raw access-mask bits, so generic rights (which FileSystemRights does not name) are seen too.
+    # createItems is FILE_ADD_FILE and FILE_ADD_SUBDIRECTORY.
+    $write = 0x116; $createItems = 0x6; $delete = 0x10000; $deleteChild = 0x40; $changePermissions = 0x40000; $takeOwnership = 0x80000
+    $mask = $deleteChild -bor $changePermissions -bor $takeOwnership
+    if ($Role -ne 'Root') { $mask = $mask -bor $delete }
+    if ($Role -eq 'Target') { $mask = $mask -bor $write }
+    elseif ($HoldsTarget) { $mask = $mask -bor $createItems }
+    $writeName = if ($Role -ne 'Target') { 'create files or subfolders in it (DLLs planted there load into the program beside them)' } elseif ($isFolder) { 'write (create or change items in it)' } else { 'write (change it)' }
+    $names = @(
+        @($write, $writeName),
+        @($delete, 'delete (rename or delete it)'),
+        @($deleteChild, 'delete subfolders and files (rename or delete anything in it)'),
+        @($changePermissions, 'change permissions'),
+        @($takeOwnership, 'take ownership'))
+    foreach ($rule in $Security.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier])) {
+        if ($rule.AccessControlType -ne [Security.AccessControl.AccessControlType]::Allow) { continue }
+        if ($rule.PropagationFlags -band [Security.AccessControl.PropagationFlags]::InheritOnly) { continue }
+        $sid = $rule.IdentityReference.Value
+        if ($sid -in $trusted -or $sid -like 'S-1-15-2-*' -or $sid -like 'S-1-15-3-*') { continue }
+        $rights = [int64][int]$rule.FileSystemRights
+        if ($rights -lt 0) { $rights += 4294967296 }
+        # GENERIC_ALL and MAXIMUM_ALLOWED as everything, GENERIC_WRITE as FILE_GENERIC_WRITE.
+        if ($rights -band 0x12000000) { $rights = $rights -bor 0x1F01FF }
+        if ($rights -band 0x40000000) { $rights = $rights -bor $write }
+        $granted = $rights -band $mask
+        if (-not $granted) { continue }
+        $what = @($names | Where-Object { $granted -band $_[0] } | ForEach-Object { $_[1] }) -join ', '
+        $readOnly = if ($isFolder) { '(OI)(CI)RX' } else { 'RX' }
+        $fix = "icacls `"$Path`" /grant:r `"*${sid}:$readOnly`""
+        if ($rule.IsInherited) { $fix = "icacls `"$Path`" /inheritance:d, then $fix" }
+        $source = if ($rule.IsInherited) { ', inherited from the folder above' } else { '' }
+        $findings += "'$Path' gives $(& $describeSid $rule.IdentityReference) $what$source. Fix (keeps read access only): $fix"
+    }
+    return $findings
+}
+
+function Get-EtpProtectedInstallFindings {
+    # Every problem on the way from Path up to its root, so one message lists all there is to
+    # fix. ReadSecurity is replaceable so tests can describe a whole drive layout without
+    # touching real permissions.
+    param([Parameter(Mandatory)][string]$Path,[scriptblock]$ReadSecurity = { param($Item) Get-Acl -LiteralPath $Item })
+    $findings = @()
+    $current = [IO.Path]::GetFullPath($Path)
+    $role = 'Target'
+    $holdsTarget = $false
+    while ($current) {
+        $parent = [IO.Path]::GetDirectoryName($current)
+        if (-not $parent -and $role -eq 'Ancestor') { $role = 'Root' }
+        $security = & $ReadSecurity $current
+        $findings += @(Get-EtpProtectedPathFindings -Path $current -Security $security -Role $role -HoldsTarget:$holdsTarget)
+        # The folder directly above a file target is where its DLLs would be planted.
+        $holdsTarget = ($role -eq 'Target' -and -not ($security -is [Security.AccessControl.DirectorySecurity]))
+        $current = $parent
+        $role = 'Ancestor'
+    }
+    return $findings
+}
+
+function Format-EtpProtectedInstallRefusal {
+    # Setup does not repair these itself. Re-permissioning the folder after its files were
+    # copied would also bless anything a non-administrator changed in them meanwhile, and the
+    # folders above belong to Windows and other software. Say exactly what to change instead,
+    # except inside a user profile or the Windows folder, where following that advice would
+    # lock a user out of their own files or loosen Windows; there the answer is to move.
+    param([Parameter(Mandatory)][string]$Path,[Parameter(Mandatory)][string[]]$Findings,[string[]]$UnfixableRoots = @())
+    $headline = if (@($Findings | Where-Object { $_ -notmatch 'Install operations in a folder owned by' }).Count -gt 0) { 'The installation folder can be changed by a non-administrator.' } else { 'Install operations in a folder owned by Administrators or SYSTEM.' }
+    $full = [IO.Path]::GetFullPath($Path)
+    foreach ($root in @($UnfixableRoots | Where-Object { $_ })) {
+        if ($full.StartsWith($root.TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase)) {
+            return "$headline '$full' is inside '$root', whose permissions ETP will not ask you to change. Install it under Program Files instead, in a folder owned by Administrators or SYSTEM."
+        }
+    }
+    return ($headline + ' Nothing was changed. Fix each item below from an administrator PowerShell window, then try again:' + [Environment]::NewLine + (($Findings | ForEach-Object { '- ' + $_ }) -join [Environment]::NewLine))
+}
+
+function Get-EtpOperationVolumeProblem {
+    # Whether Path is on a real local volume, so that the text root of the path ('E:\') really
+    # is a volume root, which cannot be renamed: the Root role relaxes Delete for that alone.
+    # A share (\\pc\share), a mapped network drive or a SUBST drive (S: standing for
+    # C:\Data\ETP) has a "root" that is an ordinary folder, and the folders above it would
+    # never be checked (1.9.3 review F6). Pure, so it can be tested without such drives:
+    # DriveType is an [IO.DriveType] name, DosDevice what QueryDosDevice says the drive letter
+    # stands for (\Device\HarddiskVolume3 for a volume, \??\C:\Data\ETP for SUBST).
+    param([Parameter(Mandatory)][string]$Path,[string]$DriveType,[string]$DosDevice)
+    # Windows PowerShell's .NET refuses some device paths (the long-path prefix) outright: those are refused too.
+    try { $full = [IO.Path]::GetFullPath($Path) } catch { $full = $Path }
+    $refusal = "'$full' is not on a local drive of this computer. Install operations under Program Files on a local drive, not on a network share, a mapped drive or a SUBST drive."
+    if ($full -notmatch '^[A-Za-z]:\\') { return $refusal }
+    if ($DriveType -notin @('Fixed','Removable')) { return $refusal }
+    if ([string]::IsNullOrEmpty($DosDevice) -or -not $DosDevice.StartsWith('\Device\',[StringComparison]::OrdinalIgnoreCase)) { return $refusal }
+    return $null
+}
+
+function Get-EtpDosDeviceTarget {
+    # What a drive letter stands for in this logon session, or $null when it stands for nothing.
+    param([Parameter(Mandatory)][ValidatePattern('^[A-Za-z]:$')][string]$Drive)
+    if (-not ('Etp.DosDevices' -as [type])) {
+        Add-Type -Namespace Etp -Name DosDevices -UsingNamespace System.Text -MemberDefinition @'
+[DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+private static extern uint QueryDosDeviceW(string deviceName, StringBuilder targetPath, int length);
+public static string Target(string drive)
+{
+    StringBuilder target = new StringBuilder(1024);
+    // The first of what may be several NUL-separated names is the current one.
+    return QueryDosDeviceW(drive, target, target.Capacity) == 0 ? null : target.ToString();
+}
+'@
+    }
+    return [Etp.DosDevices]::Target($Drive.ToUpperInvariant())
+}
+
+function Assert-EtpLocalVolume {
+    param([Parameter(Mandatory)][string]$Path)
+    try { $full = [IO.Path]::GetFullPath($Path) } catch { $full = $Path }
+    $driveType = $null; $dosDevice = $null
+    if ($full -match '^([A-Za-z]:)\\') {
+        $drive = $Matches[1]
+        try { $driveType = ([IO.DriveInfo]::new($drive)).DriveType.ToString() } catch { $driveType = $null }
+        $dosDevice = Get-EtpDosDeviceTarget $drive
+    }
+    $problem = Get-EtpOperationVolumeProblem -Path $full -DriveType $driveType -DosDevice $dosDevice
+    if ($problem) { throw $problem }
+}
+
 function Assert-EtpProtectedInstall {
     param([Parameter(Mandatory)][string]$Path)
+    Assert-EtpLocalVolume $Path
     Assert-EtpNoLinks $Path
-    $trusted = @('S-1-5-18','S-1-5-32-544','S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464')
-    $danger = [Security.AccessControl.FileSystemRights]::Write -bor [Security.AccessControl.FileSystemRights]::Delete -bor [Security.AccessControl.FileSystemRights]::DeleteSubdirectoriesAndFiles -bor [Security.AccessControl.FileSystemRights]::ChangePermissions -bor [Security.AccessControl.FileSystemRights]::TakeOwnership
-    $current = [IO.Path]::GetFullPath($Path)
-    while ($current) {
-        $acl = Get-Acl -LiteralPath $current
-        if ($acl.GetOwner([Security.Principal.SecurityIdentifier]).Value -notin $trusted) { throw 'Install operations in a folder owned by Administrators or SYSTEM.' }
-        foreach ($rule in $acl.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier])) {
-            if (-not ($rule.PropagationFlags -band [Security.AccessControl.PropagationFlags]::InheritOnly) -and $rule.AccessControlType -eq 'Allow' -and ($rule.FileSystemRights -band $danger) -and $rule.IdentityReference.Value -notin $trusted) { throw 'The installation folder can be changed by a non-administrator.' }
-        }
-        $current = [IO.Path]::GetDirectoryName($current)
-        $danger = [Security.AccessControl.FileSystemRights]::Delete -bor [Security.AccessControl.FileSystemRights]::DeleteSubdirectoriesAndFiles -bor [Security.AccessControl.FileSystemRights]::ChangePermissions -bor [Security.AccessControl.FileSystemRights]::TakeOwnership
-    }
+    $findings = @(Get-EtpProtectedInstallFindings $Path)
+    if ($findings.Count -eq 0) { return }
+    $profiles = $null
+    try { $profiles = [Environment]::ExpandEnvironmentVariables((Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList' -Name ProfilesDirectory -ErrorAction Stop).ProfilesDirectory) } catch { $profiles = $null }
+    throw (Format-EtpProtectedInstallRefusal -Path $Path -Findings $findings -UnfixableRoots @($profiles, $env:SystemRoot))
 }
 
 function New-EtpProtectedDirectory {
@@ -75,25 +245,111 @@ function New-EtpProtectedDirectory {
     return $full
 }
 
+function Test-EtpOdbc17SqlCmdPath {
+    # The Sqlcmd of Command Line Utilities 15, on ODBC Driver 17, wherever it was installed.
+    param([string]$Path)
+    return ($Path -match '(?i)\\Client SDK\\ODBC\\170\\Tools\\Binn\\SQLCMD\.EXE$')
+}
+
+function Get-EtpRegisteredSqlCmdFolders {
+    # Where the SQL Server client installers recorded their command-line tools. The Command
+    # Line Utilities MSI and SQL Server setup both write ODBCToolsPath under
+    # HKLM\SOFTWARE\Microsoft\Microsoft SQL Server\<version>\Tools\ClientSetup, wherever they
+    # were installed - which is not always %ProgramFiles%. On Workpc (2 October 2026) SQL
+    # Server and the bundled Sqlcmd went to E:\Program Files, and a resolver that looked only
+    # in %ProgramFiles% (C:) failed setup. Newest version first. Only administrators can write
+    # HKLM; every folder named here is still checked like any other before it is used.
+    $root = 'HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server'
+    if (-not (Test-Path -LiteralPath $root)) { return @() }
+    $folders = @()
+    $versions = @(Get-ChildItem -LiteralPath $root -ErrorAction SilentlyContinue | Where-Object { $_.PSChildName -match '^\d{2,4}$' } | Sort-Object { [int]$_.PSChildName } -Descending)
+    foreach ($version in $versions) {
+        $key = $null
+        try {
+            $key = $version.OpenSubKey('Tools\ClientSetup')
+            if ($null -eq $key) { continue }
+            $value = $key.GetValue('ODBCToolsPath')
+            if ($value -is [string] -and -not [string]::IsNullOrWhiteSpace($value)) { $folders += $value }
+        }
+        finally { if ($key) { $key.Close() } }
+    }
+    return $folders
+}
+
+function Get-EtpProgramFilesFolders {
+    # %ProgramFiles%, then the Program Files folder on the drive ETP itself is installed on
+    # (these scripts live in the application's scripts folder). A PC set up to install
+    # programs on another drive puts SQL Server's tools there too.
+    param([string]$ApplicationDirectory = $PSScriptRoot)
+    $folders = @()
+    if (-not [string]::IsNullOrWhiteSpace($env:ProgramFiles)) { $folders += $env:ProgramFiles }
+    if (-not [string]::IsNullOrWhiteSpace($ApplicationDirectory)) {
+        try { $drive = [IO.Path]::GetPathRoot([IO.Path]::GetFullPath($ApplicationDirectory)) } catch { $drive = $null }
+        if ($drive -match '^[A-Za-z]:\\$') { $folders += [IO.Path]::Combine($drive, 'Program Files') }
+    }
+    return $folders
+}
+
+function Get-EtpSqlCmdCandidatePaths {
+    # The places Resolve-EtpSqlCmd looks, in order. Pure, so it can be tested without the
+    # registry or a Program Files folder. Only absolute local paths (drive letter, no UNC)
+    # are ever considered. Every ODBC 17 Sqlcmd comes first, wherever it was found; then
+    # any other ODBC Sqlcmd (ODBC 18); go-sqlcmd last.
+    param([string[]]$RegisteredToolsFolders,[string[]]$ProgramFilesFolders)
+    $odbc = @(); $go = @()
+    foreach ($folder in @($RegisteredToolsFolders | Where-Object { $_ })) {
+        if ($folder -match '^[A-Za-z]:\\') { $odbc += [IO.Path]::Combine($folder, 'SQLCMD.EXE') }
+    }
+    foreach ($programFiles in @($ProgramFilesFolders | Where-Object { $_ })) {
+        if ($programFiles -notmatch '^[A-Za-z]:\\') { continue }
+        $odbc += [IO.Path]::Combine($programFiles, 'Microsoft SQL Server\Client SDK\ODBC\170\Tools\Binn\SQLCMD.EXE')
+        $odbc += [IO.Path]::Combine($programFiles, 'Microsoft SQL Server\Client SDK\ODBC\180\Tools\Binn\SQLCMD.EXE')
+        $go += [IO.Path]::Combine($programFiles, 'sqlcmd\sqlcmd.exe')
+    }
+    $seen = @{}
+    $ordered = @()
+    foreach ($candidate in @(@($odbc | Where-Object { Test-EtpOdbc17SqlCmdPath $_ }) + @($odbc | Where-Object { -not (Test-EtpOdbc17SqlCmdPath $_) }) + $go)) {
+        try { $full = [IO.Path]::GetFullPath($candidate) } catch { continue }
+        if ($seen.ContainsKey($full.ToUpperInvariant())) { continue }
+        $seen[$full.ToUpperInvariant()] = $true
+        $ordered += $full
+    }
+    return $ordered
+}
+
 function Resolve-EtpSqlCmd {
-    param([string]$ExplicitPath)
+    param([string]$ExplicitPath,[switch]$Odbc17Only)
     # The ODBC client reaches a local instance over shared memory, which SQL
     # Server Express and Developer enable by default. go-sqlcmd resolves a bare
     # ".\INSTANCE" over named pipes, which they disable by default, so it is
     # preferred only when the ODBC client is absent.
-    # ODBC 18 ships with SQL Server 2025 tooling, 17 with 2022. Look for the newer one
-    # first: pinning a single version meant a machine with only the current tools
-    # resolved nothing and fell through to go-sqlcmd.
-    $candidates = @($ExplicitPath,
-        (Join-Path $env:ProgramFiles 'Microsoft SQL Server\Client SDK\ODBC\180\Tools\Binn\SQLCMD.EXE'),
-        (Join-Path $env:ProgramFiles 'Microsoft SQL Server\Client SDK\ODBC\170\Tools\Binn\SQLCMD.EXE'),
-        (Join-Path $env:ProgramFiles 'sqlcmd\sqlcmd.exe'))
+    # The ODBC 17 Sqlcmd comes first. The ODBC 18 one, which SQL Server 2025's own setup
+    # installs, encrypts by default and refuses the instance's self-signed certificate,
+    # so on a new PC (1 October 2026) every call setup made failed with "The certificate
+    # chain was issued by an authority that is not trusted". It stays as the fallback:
+    # pinning a single version meant a machine with only the current tools resolved
+    # nothing and fell through to go-sqlcmd. -Odbc17Only is setup's "is the bundled
+    # Sqlcmd installed" question.
+    # A path the operator named is used only if it passes the protection check.
+    if ($ExplicitPath -and (Test-Path -LiteralPath $ExplicitPath -PathType Leaf)) {
+        Assert-EtpProtectedInstall $ExplicitPath
+        return [IO.Path]::GetFullPath($ExplicitPath)
+    }
+    # Found ones are tried in order, and only one in an Administrators/SYSTEM-protected
+    # folder is ever returned. One that fails the check is passed over for the next, and
+    # its refusal is what is reported if none passes.
+    $refusal = $null
+    $candidates = @(Get-EtpSqlCmdCandidatePaths -RegisteredToolsFolders @(Get-EtpRegisteredSqlCmdFolders) -ProgramFilesFolders @(Get-EtpProgramFilesFolders))
+    if ($Odbc17Only) { $candidates = @($candidates | Where-Object { Test-EtpOdbc17SqlCmdPath $_ }) }
     foreach ($candidate in $candidates) {
-        if ($candidate -and (Test-Path -LiteralPath $candidate -PathType Leaf)) {
+        if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
+        try {
             Assert-EtpProtectedInstall $candidate
             return [IO.Path]::GetFullPath($candidate)
         }
+        catch { if ($null -eq $refusal) { $refusal = $_.Exception.Message } }
     }
+    if ($null -ne $refusal) { throw $refusal }
     throw 'Install Microsoft Sqlcmd in a protected Program Files folder.'
 }
 
@@ -170,6 +426,156 @@ function Invoke-EtpSqlAsAutomationUser {
         "IF @etpAutomationUser IS NULL THROW 51335,'The automation account has no user in this database.',1; " +
         "EXECUTE AS USER=@etpAutomationUser WITH NO REVERT; " + $Query
     return Invoke-EtpSql -SqlCmd $SqlCmd -Server $Server -Database $Database -Query $scoped
+}
+
+# 1.9.3, A4.4. The broker revision this build ships. etp-operations-broker.sql carries the same
+# text inside the procedure body, where OBJECT_DEFINITION can find it; change both together.
+$EtpOperationsBrokerRevision = '[ETP_BROKER_REVISION:2]'
+
+function Get-EtpBrokerOnlyAction {
+    # -BrokerOnly (setup, restore helper). Pure: turns the state query's one line into what
+    # to do. A signed broker is never replaced here, current or not: CREATE OR ALTER discards
+    # the signature the automation account's backups depend on, and only the full install
+    # (which needs that account to be an active Store Manager) signs again. Setup ends with
+    # that full install whenever the broker is out of date (Complete-EtpAutomationGrants).
+    param([AllowNull()][AllowEmptyCollection()][string[]]$Lines)
+    $states = @(@($Lines) | Where-Object { $null -ne $_ } | ForEach-Object { "$_".Trim() } | Where-Object { $_.StartsWith('ETP_BROKER:') })
+    if ($states.Count -ne 1) { throw 'Could not tell whether the operations broker is installed.' }
+    switch -CaseSensitive ($states[0]) {
+        'ETP_BROKER:MISSING' { return 'Install' }
+        'ETP_BROKER:CURRENT' { return 'Keep' }
+        'ETP_BROKER:OUTDATED_UNSIGNED' { return 'Replace' }
+        'ETP_BROKER:OUTDATED_SIGNED' { return 'KeepSigned' }
+    }
+    throw 'Could not tell whether the operations broker is installed.'
+}
+
+function Get-EtpBrokerStateQuery {
+    param([Parameter(Mandatory)][string]$Procedure)
+    if ($Procedure -notmatch '^etp_operations_[0-9a-f]{16}$') { throw 'The operations broker name is invalid.' }
+    return "SET NOCOUNT ON; DECLARE @id int=OBJECT_ID(N'dbo.[$Procedure]',N'P'); SELECT CASE WHEN @id IS NULL THEN 'ETP_BROKER:MISSING' WHEN CHARINDEX(N'$EtpOperationsBrokerRevision',COALESCE(OBJECT_DEFINITION(@id),N''))>0 THEN 'ETP_BROKER:CURRENT' WHEN EXISTS(SELECT 1 FROM sys.crypt_properties WHERE major_id=@id) THEN 'ETP_BROKER:OUTDATED_SIGNED' ELSE 'ETP_BROKER:OUTDATED_UNSIGNED' END;"
+}
+
+# 1.9.3. Setup installs the operations broker alone. The automation account gets its rights
+# (etp_automation, db_backupoperator, EXECUTE on the signed broker) only from a full
+# install-etp-sql-operations.ps1 run, which needs the account to be an active Store Manager
+# first. Until then the daily backup and the drill's recording failed with only the masked
+# "The database operation failed", as on Workpc on 2 October 2026. These functions say which
+# right is missing and what to run, without ever showing SQL Server's own error text.
+$EtpMaskedSqlFailure = 'The database operation failed. Check SQL permissions and operation prerequisites.'
+
+function Get-EtpAutomationGrantQuery {
+    param([Parameter(Mandatory)][string]$Database,[Parameter(Mandatory)][string]$AutomationPrincipal)
+    if ($AutomationPrincipal -notmatch '^[^\\/\[\];''"]+\\[^\\/\[\];''"]+$') { throw 'Configure a dedicated local automation account.' }
+    $identity = $AutomationPrincipal.Replace("'","''")
+    $databaseLiteral = $Database.Replace("'","''")
+    $procedure = Get-EtpOperationsProcedureName $Database
+    # Read-only. A SQL administrator (setup, the drill) sees everything. The automation
+    # account itself (the daily backup) sees only its own roles and its own EXECUTE right,
+    # so the signature is not judged from there. Anyone else gets UNKNOWN.
+    return @"
+SET NOCOUNT ON;
+DECLARE @identity sysname=N'$identity', @database sysname=N'$databaseLiteral', @procedure sysname=N'$procedure';
+DECLARE @admin bit=CASE WHEN IS_SRVROLEMEMBER(N'sysadmin')=1 THEN 1 ELSE 0 END;
+DECLARE @self bit=CASE WHEN SUSER_SID()=SUSER_SID(@identity) THEN 1 ELSE 0 END;
+DECLARE @found TABLE(item nvarchar(100));
+IF (@admin=0 AND @self=0) OR DB_ID(@database) IS NULL BEGIN SELECT N'ETP_AUTOMATION:UNKNOWN'; RETURN; END;
+INSERT @found VALUES(CASE WHEN @admin=1 THEN N'CALLER_ADMIN' ELSE N'CALLER_SELF' END);
+IF SUSER_ID(@identity) IS NOT NULL
+BEGIN
+    INSERT @found VALUES(N'LOGIN');
+    DECLARE @sql nvarchar(max)=N'USE '+QUOTENAME(@database)+N';
+        DECLARE @u sysname=(SELECT name FROM sys.database_principals WHERE sid=SUSER_SID(@identity));
+        SELECT N''USER'' WHERE @u IS NOT NULL
+        UNION ALL SELECT N''STORE_MANAGER'' WHERE IS_ROLEMEMBER(N''etp_store_manager'',@u)=1
+        UNION ALL SELECT N''ACTIVE'' WHERE EXISTS(SELECT 1 FROM dbo.application_users WHERE windows_identity=@identity AND role_code=''STORE_MANAGER'' AND is_active=1)
+        UNION ALL SELECT N''ROLE:etp_automation'' WHERE IS_ROLEMEMBER(N''etp_automation'',@u)=1
+        UNION ALL SELECT N''ROLE:db_backupoperator'' WHERE IS_ROLEMEMBER(N''db_backupoperator'',@u)=1;';
+    INSERT @found EXEC sys.sp_executesql @sql, N'@identity sysname', @identity=@identity;
+    IF @admin=1
+    BEGIN
+        IF OBJECT_ID(N'dbo.'+QUOTENAME(@procedure),N'P') IS NOT NULL INSERT @found VALUES(N'BROKER');
+        IF EXISTS(SELECT 1 FROM sys.database_permissions p JOIN sys.database_principals dp ON dp.principal_id=p.grantee_principal_id
+                  WHERE dp.sid=SUSER_SID(@identity) AND p.major_id=OBJECT_ID(N'dbo.'+QUOTENAME(@procedure))
+                    AND p.permission_name=N'EXECUTE' AND p.state IN ('G','W'))
+            INSERT @found VALUES(N'BROKER_EXECUTE');
+        IF EXISTS(SELECT 1 FROM sys.crypt_properties WHERE major_id=OBJECT_ID(N'dbo.'+QUOTENAME(@procedure)))
+            INSERT @found VALUES(N'BROKER_SIGNED');
+        IF CHARINDEX(N'$EtpOperationsBrokerRevision',COALESCE(OBJECT_DEFINITION(OBJECT_ID(N'dbo.'+QUOTENAME(@procedure))),N''))>0
+            INSERT @found VALUES(N'BROKER_CURRENT');
+    END
+    ELSE IF HAS_PERMS_BY_NAME(N'dbo.'+QUOTENAME(@procedure),N'OBJECT',N'EXECUTE')=1
+        INSERT @found VALUES(N'BROKER_EXECUTE');
+END;
+SELECT N'ETP_AUTOMATION:'+item FROM @found;
+"@
+}
+
+function ConvertFrom-EtpAutomationGrantResult {
+    # Pure: turns the query's lines into a state. Kept apart from SQL so it can be tested.
+    param([AllowEmptyCollection()][string[]]$Lines)
+    $items = @($Lines | ForEach-Object { "$_".Trim() } | Where-Object { $_.StartsWith('ETP_AUTOMATION:') } | ForEach-Object { $_.Substring(15) })
+    if ($items.Count -eq 0 -or $items -ccontains 'UNKNOWN') { return [pscustomobject]@{ State = 'UNKNOWN'; Missing = @() } }
+    $admin = $items -ccontains 'CALLER_ADMIN'
+    if (-not ($items -ccontains 'LOGIN' -and $items -ccontains 'USER' -and $items -ccontains 'STORE_MANAGER' -and $items -ccontains 'ACTIVE')) {
+        return [pscustomobject]@{ State = 'NOT_STORE_MANAGER'; Missing = @() }
+    }
+    $missing = [Collections.Generic.List[string]]::new()
+    foreach ($role in @('etp_automation','db_backupoperator')) { if (-not ($items -ccontains "ROLE:$role")) { $missing.Add("the $role database role") } }
+    if ($admin -and -not ($items -ccontains 'BROKER')) { $missing.Add('the operations broker in master') }
+    if (-not ($items -ccontains 'BROKER_EXECUTE')) { $missing.Add('EXECUTE on the operations broker') }
+    if ($admin -and -not ($items -ccontains 'BROKER_SIGNED')) { $missing.Add('the broker''s module signature') }
+    # 1.9.3, A4.4. A broker from an earlier build works but records no row counts, and setup
+    # used to leave it in place for good. The full install replaces and re-signs it.
+    if ($admin -and $items -ccontains 'BROKER' -and -not ($items -ccontains 'BROKER_CURRENT')) { $missing.Add('the current operations broker, which records row counts for the recovery drill') }
+    if ($missing.Count -gt 0) { return [pscustomobject]@{ State = 'GRANTS_MISSING'; Missing = @($missing) } }
+    return [pscustomobject]@{ State = 'READY'; Missing = @() }
+}
+
+function Get-EtpAutomationGrantState {
+    param([string]$SqlCmd,[string]$Server,[string]$Database,[string]$AutomationPrincipal)
+    $lines = @(Invoke-EtpSql -SqlCmd $SqlCmd -Server $Server -Query (Get-EtpAutomationGrantQuery -Database $Database -AutomationPrincipal $AutomationPrincipal))
+    return ConvertFrom-EtpAutomationGrantResult -Lines $lines
+}
+
+function Get-EtpAutomationGrantCommand {
+    param([string]$ServerInstance,[string]$Database,[string]$AutomationPrincipal,[string]$ScriptsDirectory=$PSScriptRoot)
+    $script = Join-Path $ScriptsDirectory 'install-etp-sql-operations.ps1'
+    return "powershell.exe -ExecutionPolicy Bypass -File '$script' -ServerInstance '$ServerInstance' -Database '$Database' -AutomationPrincipal '$AutomationPrincipal'"
+}
+
+function Get-EtpAutomationGrantGuidance {
+    # The sentence an operator acts on, or $null when the account is ready or its state
+    # cannot be read (the caller then keeps its own message).
+    param([Parameter(Mandatory)]$GrantState,[string]$ServerInstance,[string]$Database,[string]$AutomationPrincipal,[string]$ScriptsDirectory=$PSScriptRoot)
+    $command = Get-EtpAutomationGrantCommand -ServerInstance $ServerInstance -Database $Database -AutomationPrincipal $AutomationPrincipal -ScriptsDirectory $ScriptsDirectory
+    switch ($GrantState.State) {
+        'NOT_STORE_MANAGER' {
+            return "The automation account $AutomationPrincipal is not an active Store Manager of $Database, so the scheduled backup and the recovery drill cannot run under it. In ETP as Owner, started with 'Run as administrator', add $AutomationPrincipal as an active Store Manager in Settings > Users. Then run ETP setup again, which completes its backup rights, or run this in an administrator PowerShell window: $command (docs\OPERATIONS.md, step 7)."
+        }
+        'GRANTS_MISSING' {
+            return "The automation account $AutomationPrincipal is an active Store Manager but does not yet have the operations module's rights (missing: $($GrantState.Missing -join ', ')). Run ETP setup again, which completes them, or run this in an administrator PowerShell window: $command (docs\OPERATIONS.md, step 7)."
+        }
+        default { return $null }
+    }
+}
+
+function Get-EtpAutomationFailureMessage {
+    # Called when a backup or drill step has failed. Only the masked failure is explained,
+    # and only when the account's rights really are incomplete; any other failure, or a
+    # failure to read the state, returns $null and the original error stands.
+    param([string]$Message,[string]$SqlCmd,[string]$Server,[string]$ServerInstance,[string]$Database,[string]$AutomationPrincipal)
+    if ($Message -cne $EtpMaskedSqlFailure -or [string]::IsNullOrWhiteSpace($SqlCmd) -or [string]::IsNullOrWhiteSpace($AutomationPrincipal)) { return $null }
+    try { $state = Get-EtpAutomationGrantState -SqlCmd $SqlCmd -Server $Server -Database $Database -AutomationPrincipal $AutomationPrincipal }
+    catch { return $null }
+    return Get-EtpAutomationGrantGuidance -GrantState $state -ServerInstance $ServerInstance -Database $Database -AutomationPrincipal $AutomationPrincipal
+}
+
+function Get-EtpWatchFolderNames {
+    # The automatic-import folders under %ProgramData%\EtpReporting that
+    # dbo.watch_folder_settings names by default (migration 0011): inbound, processed,
+    # failed and report output. The service also files duplicates in Processed\Duplicate.
+    return @('Inbound','Processed','Failed','ReportPacks')
 }
 
 function Write-EtpJsonAtomically {
@@ -533,9 +939,552 @@ function Invoke-EtpOperationsBroker {
     Assert-EtpLocalSqlTarget $Server $Database
     $file=[IO.Path]::GetFileName($BackupPath)
     if ($file -notmatch '^[A-Za-z0-9_.-]+\.bak$' -or $file.Contains('..') -or -not $file.StartsWith($Database+'-',[StringComparison]::OrdinalIgnoreCase)) { throw 'Choose a backup belonging to the configured database.' }
+    return (Invoke-EtpOperationsBrokerCall -SqlCmd $SqlCmd -Server $Server -Database $Database -BackupPath $BackupPath -Operation $Operation).Files
+}
+
+function Invoke-EtpOperationsBrokerCall {
+    # The same call, keeping the broker's other output lines (ETP_ROWCOUNTS, A4.4) beside
+    # the verified metadata.
+    param([string]$SqlCmd,[string]$Server,[string]$Database,[string]$BackupPath,[ValidateSet('BACKUP','METADATA','DRILL')][string]$Operation)
+    Assert-EtpLocalSqlTarget $Server $Database
+    $file=[IO.Path]::GetFileName($BackupPath)
+    if ($file -notmatch '^[A-Za-z0-9_.-]+\.bak$' -or $file.Contains('..') -or -not $file.StartsWith($Database+'-',[StringComparison]::OrdinalIgnoreCase)) { throw 'Choose a backup belonging to the configured database.' }
     $procedure=Get-EtpOperationsProcedureName $Database
     $output=@(Invoke-EtpSql -SqlCmd $SqlCmd -Server $Server -Query "EXEC dbo.[$procedure] '$Operation',N'$file';")
     $metadata=@($output | Where-Object { $_.StartsWith('ETP_METADATA:') })
     if ($metadata.Count -ne 1) { throw 'The restricted SQL operation did not return verified backup metadata.' }
-    return @($metadata[0].Substring(13) | ConvertFrom-Json)
+    return [pscustomobject]@{ Files=@($metadata[0].Substring(13) | ConvertFrom-Json); Lines=@($output | ForEach-Object { "$_" }) }
+}
+
+# ------------------------------------------------------------------ A4.4 row counts
+# 1.9.3, Phase 4 A4.4 and A4.4a (decided by Sagar, 2 October 2026). The backup receipt records
+# COUNT_BIG(*) of four tables, taken by the broker immediately before and after BACKUP; the
+# recovery drill counts the same tables in the restored, integrity-checked copy and fails,
+# naming the table and both numbers, when they differ. A receipt that records no counts
+# passes with its reason shown everywhere the result is shown, never silently.
+
+$EtpRowCountTables = @('sales_invoices','sales_lines','import_files','daily_reporting_days')
+
+# Why a receipt has no row counts. Written by backup-etp-database.ps1; anything else in a
+# receipt is not trusted.
+$EtpRowCountReceiptReasons = [ordered]@{
+    CHANGED_DURING_BACKUP = 'the counted tables changed while the backup was being taken (an import was running)'
+    OPERATIONS_MODULE_OUTDATED = 'the backup was taken through an operations module older than 1.9.3, which does not count rows'
+    COUNT_FAILED = 'the tables could not be counted when the backup was taken'
+}
+
+function ConvertTo-EtpRowCountSet {
+    # Exactly the four tables, each a whole number of zero or more, or $null.
+    param([AllowNull()]$Value)
+    if ($null -eq $Value -or -not ($Value -is [Management.Automation.PSCustomObject])) { return $null }
+    $names = @($Value.PSObject.Properties | ForEach-Object { $_.Name })
+    if ($names.Count -ne $EtpRowCountTables.Count) { return $null }
+    $set = [ordered]@{}
+    foreach ($table in $EtpRowCountTables) {
+        if (-not ($names -ccontains $table)) { return $null }
+        $number = $Value.PSObject.Properties[$table].Value
+        if (-not ($number -is [int] -or $number -is [long]) -or $number -lt 0) { return $null }
+        $set[$table] = [long]$number
+    }
+    return $set
+}
+
+function ConvertFrom-EtpBrokerRowCounts {
+    # The broker's ETP_ROWCOUNTS line as an object, or $null when it sent none (a broker from
+    # before 1.9.3). More than one line, or one that is not a JSON object, is refused.
+    param([AllowNull()][AllowEmptyCollection()][string[]]$Lines)
+    $found = @(@($Lines) | Where-Object { $null -ne $_ } | ForEach-Object { "$_".Trim() } | Where-Object { $_.StartsWith('ETP_ROWCOUNTS:') })
+    if ($found.Count -eq 0) { return $null }
+    if ($found.Count -gt 1) { throw 'The restricted SQL operation returned more than one set of row counts.' }
+    try { $parsed = $found[0].Substring(14) | ConvertFrom-Json }
+    catch { throw 'The restricted SQL operation returned unreadable row counts.' }
+    if (-not ($parsed -is [Management.Automation.PSCustomObject])) { throw 'The restricted SQL operation returned unreadable row counts.' }
+    return $parsed
+}
+
+function Get-EtpRowCountMember {
+    # A property of a parsed JSON object, or $null; safe under Set-StrictMode. The name must
+    # match exactly: PowerShell's own property lookup ignores case.
+    param([AllowNull()]$Object,[string]$Name)
+    if ($null -eq $Object -or -not ($Object -is [Management.Automation.PSCustomObject])) { return $null }
+    $property = $Object.PSObject.Properties[$Name]
+    if ($null -eq $property -or $property.Name -cne $Name) { return $null }
+    # The comma keeps an array (even an empty one) from being unrolled into nothing.
+    return ,$property.Value
+}
+
+function Get-EtpBackupRowCountRecord {
+    # What backup-etp-database.ps1 adds to its receipt: rowCounts, or rowCountsNotRecorded
+    # with the reason. Never throws: counting must never fail a backup.
+    param([AllowNull()][AllowEmptyCollection()][string[]]$BrokerLines)
+    try { $counts = ConvertFrom-EtpBrokerRowCounts -Lines $BrokerLines }
+    catch { return [ordered]@{ rowCountsNotRecorded = 'COUNT_FAILED' } }
+    if ($null -eq $counts) { return [ordered]@{ rowCountsNotRecorded = 'OPERATIONS_MODULE_OUTDATED' } }
+    $before = ConvertTo-EtpRowCountSet (Get-EtpRowCountMember $counts 'before')
+    $after = ConvertTo-EtpRowCountSet (Get-EtpRowCountMember $counts 'after')
+    if ($null -eq $before -or $null -eq $after) { return [ordered]@{ rowCountsNotRecorded = 'COUNT_FAILED' } }
+    foreach ($table in $EtpRowCountTables) {
+        if ($before[$table] -ne $after[$table]) { return [ordered]@{ rowCountsNotRecorded = 'CHANGED_DURING_BACKUP' } }
+    }
+    return [ordered]@{ rowCounts = $after }
+}
+
+function Get-EtpReceiptRowCountState {
+    # The receipt's side of the comparison: Counts (the four numbers) or Reason. A receipt
+    # with neither field was written before 1.9.3. Anything malformed is RECEIPT_COUNTS_UNREADABLE.
+    param([Parameter(Mandatory)]$Receipt)
+    $unreadable = [pscustomobject]@{ Counts = $null; Reason = 'RECEIPT_COUNTS_UNREADABLE' }
+    $counts = Get-EtpRowCountMember $Receipt 'rowCounts'
+    $reason = Get-EtpRowCountMember $Receipt 'rowCountsNotRecorded'
+    if ($null -ne $counts -and $null -ne $reason) { return $unreadable }
+    if ($null -ne $counts) {
+        $set = ConvertTo-EtpRowCountSet $counts
+        if ($null -eq $set) { return $unreadable }
+        return [pscustomobject]@{ Counts = $set; Reason = $null }
+    }
+    if ($null -ne $reason) {
+        if ($reason -is [string] -and @($EtpRowCountReceiptReasons.Keys) -ccontains $reason) { return [pscustomobject]@{ Counts = $null; Reason = $reason } }
+        return $unreadable
+    }
+    return [pscustomobject]@{ Counts = $null; Reason = 'RECEIPT_WITHOUT_COUNTS' }
+}
+
+function Get-EtpDrillRowCountVerdict {
+    # Compares the receipt's counts with the broker's count of the restored copy. Pure: the
+    # drill script records and throws on what this returns.
+    #   Succeeded  Status       Reason
+    #   true       Matched      -                      all four equal
+    #   true       NotRecorded  the receipt's reason   the backup recorded no counts
+    #   false      Mismatch     -                      a table differs (named in Message)
+    #   false      NotRecorded  OPERATIONS_MODULE_OUTDATED, RESTORED_COPY_NOT_COUNTED or
+    #                           RECEIPT_COUNTS_UNREADABLE
+    param([Parameter(Mandatory)]$Receipt,[AllowNull()][AllowEmptyCollection()][string[]]$BrokerLines)
+    $receiptState = Get-EtpReceiptRowCountState -Receipt $Receipt
+    if ($receiptState.Reason -ceq 'RECEIPT_COUNTS_UNREADABLE') {
+        return [pscustomobject]@{ Succeeded = $false; Status = 'NotRecorded'; Reason = 'RECEIPT_COUNTS_UNREADABLE'; Pairs = @()
+            Message = 'Recovery drill failed: the row counts in the backup receipt are unreadable, so the restored copy cannot be checked against them. Take a new backup and drill that one.' }
+    }
+    if ($null -eq $receiptState.Counts) {
+        $why = if ($receiptState.Reason -ceq 'RECEIPT_WITHOUT_COUNTS') { 'its receipt was written before 1.9.3' } else { $EtpRowCountReceiptReasons[$receiptState.Reason] }
+        return [pscustomobject]@{ Succeeded = $true; Status = 'NotRecorded'; Reason = $receiptState.Reason; Pairs = @()
+            Message = "Row counts were not recorded by this backup: $why. The restore and integrity checks passed, but the restored copy was not compared with row counts. The next backup taken with this version records them." }
+    }
+    $brokerUnreadable = $false
+    try { $restoredLine = ConvertFrom-EtpBrokerRowCounts -Lines $BrokerLines }
+    catch { $restoredLine = $null; $brokerUnreadable = $true }
+    if ($null -eq $restoredLine -and -not $brokerUnreadable) {
+        return [pscustomobject]@{ Succeeded = $false; Status = 'NotRecorded'; Reason = 'OPERATIONS_MODULE_OUTDATED'; Pairs = @()
+            Message = 'Recovery drill failed: the backup receipt records row counts, but the operations module did not count the restored copy, so it is older than this version of ETP. Reinstall the operations module - run ETP setup again, or install-etp-sql-operations.ps1 in an administrator PowerShell window (docs\OPERATIONS.md, step 7) - and run the drill again.' }
+    }
+    $restored = ConvertTo-EtpRowCountSet (Get-EtpRowCountMember $restoredLine 'restored')
+    if ($null -eq $restored) {
+        return [pscustomobject]@{ Succeeded = $false; Status = 'NotRecorded'; Reason = 'RESTORED_COPY_NOT_COUNTED'; Pairs = @()
+            Message = 'Recovery drill failed: the restored copy could not be counted, so it cannot be checked against the row counts in its backup receipt.' }
+    }
+    $pairs = @(foreach ($table in $EtpRowCountTables) { [pscustomobject][ordered]@{ table = $table; receipt = $receiptState.Counts[$table]; restored = $restored[$table] } })
+    $different = @($pairs | Where-Object { $_.receipt -ne $_.restored })
+    if ($different.Count -gt 0) {
+        $named = ($different | ForEach-Object { "$($_.table): receipt $($_.receipt), restored copy $($_.restored)" }) -join '; '
+        return [pscustomobject]@{ Succeeded = $false; Status = 'Mismatch'; Reason = $null; Pairs = $pairs
+            Message = "Recovery drill failed: the restored copy does not match its backup receipt. $named." }
+    }
+    return [pscustomobject]@{ Succeeded = $true; Status = 'Matched'; Reason = $null; Pairs = $pairs
+        Message = 'Row counts in the restored copy match the backup receipt for sales_invoices, sales_lines, import_files and daily_reporting_days.' }
+}
+
+function New-EtpRecoveryDrillResultDocument {
+    # <database>-latest-drill.json. schemaVersion stays 1: the fields are additions, as
+    # purpose was for receipts. Written for a failed comparison too, with succeeded false.
+    param([Parameter(Mandatory)]$Verdict,[Parameter(Mandatory)][string]$BackupSha256)
+    $pairs = $null
+    if (@($Verdict.Pairs).Count -gt 0) { $pairs = @($Verdict.Pairs) }
+    return [ordered]@{
+        schemaVersion = 1; succeeded = [bool]$Verdict.Succeeded; backupSha256 = $BackupSha256; completedAtUtc = [DateTime]::UtcNow.ToString('o')
+        rowCounts = $pairs; rowCountsNotRecorded = $Verdict.Reason; rowCountsNote = $Verdict.Message
+    }
+}
+
+function Get-EtpRecoveryDrillRecordQueries {
+    # The statements that record a drill, in order. Pure; values are validated here and are
+    # never text from a receipt: the hash is checked hex, counts are whole numbers and the
+    # reason is one of a fixed set. Audit details may not contain digits or colons
+    # (dbo.record_operational_audit), so the numbers go to dbo.recovery_drill_results.
+    param([Parameter(Mandatory)]$Verdict,[Parameter(Mandatory)][string]$BackupSha256,[string]$Encryption)
+    if ($BackupSha256 -notmatch '^[A-Fa-f0-9]{64}$') { throw 'A complete backup verification hash is required.' }
+    $status = [string]$Verdict.Status
+    if ($status -cnotin @('Matched','Mismatch','NotRecorded')) { throw 'The recovery drill verdict is not recognised.' }
+    $reason = 'NULL'
+    if ($null -ne $Verdict.Reason) {
+        if ($Verdict.Reason -cnotin @(@($EtpRowCountReceiptReasons.Keys) + @('RECEIPT_WITHOUT_COUNTS','RESTORED_COPY_NOT_COUNTED','RECEIPT_COUNTS_UNREADABLE'))) { throw 'The recovery drill verdict is not recognised.' }
+        $reason = "'$($Verdict.Reason)'"
+    }
+    $outcome = if ($Verdict.Succeeded) { 'Succeeded' } else { 'Failed' }
+    $counts = @()
+    foreach ($table in $EtpRowCountTables) {
+        $pair = @(@($Verdict.Pairs) | Where-Object { $null -ne $_ -and $_.table -ceq $table })
+        foreach ($side in @('receipt','restored')) {
+            $value = 'NULL'
+            if ($pair.Count -eq 1) {
+                $number = $pair[0].$side
+                if (-not ($number -is [int] -or $number -is [long]) -or $number -lt 0) { throw 'The recovery drill row counts are not whole numbers.' }
+                $value = ([long]$number).ToString([Globalization.CultureInfo]::InvariantCulture)
+            }
+            $counts += "@${table}_$side=$value"
+        }
+    }
+    $queries = @("EXEC dbo.record_recovery_drill_result @outcome='$outcome',@backup_sha256='$BackupSha256',@row_counts_status='$status',@not_recorded_reason=$reason,$($counts -join ',');")
+    $encrypted = $Encryption -ceq 'AES_256'
+    if ($Verdict.Succeeded) {
+        $queries += "EXEC dbo.record_verified_operation 'RestoreDrill','$BackupSha256';"
+        # The audit trail must describe the backup that was actually drilled. Claiming an
+        # encrypted restore for an unencrypted backup would put a false statement into an
+        # append-only compliance record, which is worse than recording nothing.
+        $detail = if ($status -ceq 'Matched') {
+            if ($encrypted) { 'Isolated encrypted restore, backup metadata and row count checks passed' } else { 'Isolated restore, backup metadata and row count checks passed; the backup was not encrypted' }
+        } else {
+            if ($encrypted) { 'Isolated encrypted restore and backup metadata checks passed; row counts were not recorded by this backup' } else { 'Isolated restore and backup metadata checks passed; row counts were not recorded by this backup, which was not encrypted' }
+        }
+        $queries += "EXEC dbo.record_operational_audit 'RestoreDrill','Succeeded',N'$detail',N'operations';"
+    }
+    else {
+        $detail = switch -CaseSensitive ([string]$Verdict.Reason) {
+            'OPERATIONS_MODULE_OUTDATED' { 'Recovery drill failed; the operations module did not count the restored copy and must be reinstalled' }
+            'RESTORED_COPY_NOT_COUNTED' { 'Recovery drill failed; the restored copy could not be counted' }
+            'RECEIPT_COUNTS_UNREADABLE' { 'Recovery drill failed; the row counts in the backup receipt are unreadable' }
+            default { 'Recovery drill failed; row counts in the restored copy differ from the backup receipt' }
+        }
+        $queries += "EXEC dbo.record_operational_audit 'RestoreDrill','Failed',N'$detail',N'operations';"
+    }
+    return $queries
+}
+
+function Publish-EtpRecoveryDrillResult {
+    # Runs the recording statements through -Invoke (in the drill: as the automation account's
+    # database user, see Invoke-EtpSqlAsAutomationUser).
+    param([Parameter(Mandatory)]$Verdict,[Parameter(Mandatory)][string]$BackupSha256,[string]$Encryption,[Parameter(Mandatory)][scriptblock]$Invoke)
+    foreach ($query in @(Get-EtpRecoveryDrillRecordQueries -Verdict $Verdict -BackupSha256 $BackupSha256 -Encryption $Encryption)) { & $Invoke $query | Out-Null }
+}
+
+function Resolve-EtpDrillReceiptPath {
+    # A4.4a. The drill reads <database>-latest-verified.json unless -ReceiptPath names another
+    # receipt, which must be a .json file directly in the backup folder and is then verified
+    # exactly like the latest one (Read-EtpVerifiedReceipt).
+    param([Parameter(Mandatory)][string]$BackupDirectory,[Parameter(Mandatory)][string]$Database,[string]$ReceiptPath)
+    $root = [IO.Path]::GetFullPath($BackupDirectory).TrimEnd('\')
+    if ([string]::IsNullOrWhiteSpace($ReceiptPath)) { return (Join-Path $root "$Database-latest-verified.json") }
+    if ($ReceiptPath.StartsWith('\\')) { throw 'Choose a backup receipt in the backup folder.' }
+    $full = [IO.Path]::GetFullPath($ReceiptPath)
+    if ([IO.Path]::GetDirectoryName($full) -ine $root -or [IO.Path]::GetExtension($full) -ine '.json') { throw 'Choose a backup receipt in the backup folder.' }
+    Assert-EtpNoLinks $full
+    if (-not (Test-Path -LiteralPath $full -PathType Leaf)) { throw 'The backup receipt was not found.' }
+    return $full
+}
+
+# ---------------------------------------------------------------------------------------------
+# 1.9.3, Sagar's decision of 2 October 2026: setup gives the Owner ALTER ANY LOGIN WITH GRANT
+# OPTION itself, so Settings > Users works without "Run as administrator" right after install.
+# Migration 0043 gives it to every active Owner except the account running the migration, and
+# SQL Server never lets a login grant a permission to itself (error 4627): setup and the
+# restore helper run as the very Owner they provision. So the grant is made by a different SQL
+# administrator, NT AUTHORITY\SYSTEM, which on an instance ETP's setup installed is one through
+# BUILTIN\Administrators: a one-off scheduled task, registered under a unique name, started,
+# waited for with a timeout, read, and always unregistered - the method proven by hand on
+# Workpc (Migration 2026-10-02\grant-alter-any-login.cmd). Its files live in a new folder only
+# SYSTEM and Administrators can change, which is deleted afterwards. Nothing here ever stops
+# setup or the restore: every outcome is returned for the caller to log, and the caller
+# re-checks with its own read-only probe.
+
+function New-EtpOwnerGrantOptionSql {
+    # Fixed text with no parameters, run by the SYSTEM task connected to the ETP database. The
+    # logins that get the grant are chosen inside SQL Server from dbo.application_users - every
+    # active OWNER that has a login and does not hold the grant option yet, as migration 0043
+    # upgrades - so no name from setup, a command line or a user reaches it, and every login
+    # name goes through QUOTENAME. Narrower than 0043, because the restore helper runs it
+    # against rows that came from another PC: Windows user logins only, never a group (an
+    # Owner row naming BUILTIN\Users must not hand the right to every user of the PC), and
+    # never SYSTEM, LOCAL SERVICE, NETWORK SERVICE or an NT SERVICE\ account (S-1-5-80-).
+    # Nothing is granted unless the connection is a SQL administrator, and a login that
+    # already holds the right is skipped, so running it again changes nothing. Only ALTER ANY
+    # LOGIN is ever granted.
+    return @'
+SET NOCOUNT ON; SET XACT_ABORT ON;
+IF COALESCE(IS_SRVROLEMEMBER(N'sysadmin'),0)<>1
+BEGIN
+  SELECT N'ETP_GRANT_SYSADMIN:0';
+  RETURN;
+END;
+SELECT N'ETP_GRANT_SYSADMIN:1';
+IF OBJECT_ID(N'dbo.application_users',N'U') IS NULL
+BEGIN
+  SELECT N'ETP_GRANT_USERS_TABLE:0';
+  RETURN;
+END;
+DECLARE @owners TABLE(login_name sysname NOT NULL PRIMARY KEY);
+INSERT @owners(login_name)
+SELECT sp.name FROM sys.server_principals sp
+WHERE sp.type='U' AND sp.sid<>SUSER_SID()
+  AND sp.sid NOT IN(SID_BINARY(N'S-1-5-18'),SID_BINARY(N'S-1-5-19'),SID_BINARY(N'S-1-5-20'))
+  AND SUBSTRING(sp.sid,3,10)<>SUBSTRING(SID_BINARY(N'S-1-5-80-0'),3,10)
+  AND sp.principal_id IN(SELECT SUSER_ID(u.windows_identity) FROM dbo.application_users u WHERE u.role_code='OWNER' AND u.is_active=1)
+  AND NOT EXISTS(SELECT 1 FROM sys.server_permissions p WHERE p.class=100 AND p.grantee_principal_id=sp.principal_id
+                 AND p.permission_name=N'ALTER ANY LOGIN' AND p.state='W');
+DECLARE @grants nvarchar(max)=N'';
+SELECT @grants+=N'GRANT ALTER ANY LOGIN TO '+QUOTENAME(login_name)+N' WITH GRANT OPTION;' FROM @owners;
+IF LEN(@grants)>0
+BEGIN
+  SET @grants=N'USE [master]; '+@grants;
+  EXEC(@grants);
+END;
+SELECT N'ETP_GRANT_GRANTED:'+CONVERT(nvarchar(10),COUNT(*)) FROM @owners;
+SELECT N'ETP_GRANT_MISSING:'+CONVERT(nvarchar(10),COUNT(*)) FROM sys.server_principals sp
+WHERE sp.type='U' AND sp.sid<>SUSER_SID()
+  AND sp.sid NOT IN(SID_BINARY(N'S-1-5-18'),SID_BINARY(N'S-1-5-19'),SID_BINARY(N'S-1-5-20'))
+  AND SUBSTRING(sp.sid,3,10)<>SUBSTRING(SID_BINARY(N'S-1-5-80-0'),3,10)
+  AND sp.principal_id IN(SELECT SUSER_ID(u.windows_identity) FROM dbo.application_users u WHERE u.role_code='OWNER' AND u.is_active=1)
+  AND NOT EXISTS(SELECT 1 FROM sys.server_permissions p WHERE p.class=100 AND p.grantee_principal_id=sp.principal_id
+                 AND p.permission_name=N'ALTER ANY LOGIN' AND p.state='W');
+'@
+}
+
+function New-EtpOwnersWithoutGrantOptionSql {
+    # Read-only, run in the ETP database by the account running setup: how many of the logins
+    # the SYSTEM task would grant to (see New-EtpOwnerGrantOptionSql) still lack the grant
+    # option. Anything but 0 is a reason to run the task.
+    return @'
+SET NOCOUNT ON;
+SELECT COUNT(*) FROM sys.server_principals sp
+WHERE sp.type='U'
+  AND sp.sid NOT IN(SID_BINARY(N'S-1-5-18'),SID_BINARY(N'S-1-5-19'),SID_BINARY(N'S-1-5-20'))
+  AND SUBSTRING(sp.sid,3,10)<>SUBSTRING(SID_BINARY(N'S-1-5-80-0'),3,10)
+  AND sp.principal_id IN(SELECT SUSER_ID(u.windows_identity) FROM dbo.application_users u WHERE u.role_code='OWNER' AND u.is_active=1)
+  AND NOT EXISTS(SELECT 1 FROM sys.server_permissions p WHERE p.class=100 AND p.grantee_principal_id=sp.principal_id
+                 AND p.permission_name=N'ALTER ANY LOGIN' AND p.state='W');
+'@
+}
+
+function New-EtpSystemSqlAdministratorCheckSql {
+    # Read-only, before any task is registered: is NT AUTHORITY\SYSTEM a SQL administrator,
+    # directly or through BUILTIN\Administrators (how setup installs SQL Server Express)? YES
+    # or NO. The task's own batch checks again, as SYSTEM, before it grants anything.
+    return @'
+SET NOCOUNT ON;
+SELECT CASE WHEN EXISTS(SELECT 1 FROM sys.server_role_members rm
+  JOIN sys.server_principals r ON r.principal_id=rm.role_principal_id
+  JOIN sys.server_principals m ON m.principal_id=rm.member_principal_id
+  WHERE r.name=N'sysadmin' AND m.is_disabled=0 AND m.sid IN(SID_BINARY(N'S-1-5-18'),SID_BINARY(N'S-1-5-32-544')))
+  THEN 'YES' ELSE 'NO' END;
+'@
+}
+
+function Test-EtpRunningElevated {
+    $principal = [Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent())
+    return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+function Invoke-EtpOwnerGrantPreflight {
+    # The one SQL call made as the account running setup; YES, NO or UNKNOWN.
+    param([Parameter(Mandatory)][string]$SqlCmdPath,[Parameter(Mandatory)][string]$ServerInstance)
+    Assert-EtpLocalSqlTarget $ServerInstance 'master'
+    $previousPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        $lines = @(& $SqlCmdPath -x -S $ServerInstance -E -b -h -1 -W -d master -Q (New-EtpSystemSqlAdministratorCheckSql) 2>$null)
+        $exitCode = $LASTEXITCODE
+    }
+    catch { return 'UNKNOWN' }
+    finally { $ErrorActionPreference = $previousPreference }
+    $values = @($lines | ForEach-Object { "$_".Trim() } | Where-Object { $_ })
+    if ($exitCode -ne 0 -or $values.Count -ne 1 -or $values[0] -cnotin @('YES','NO')) { return 'UNKNOWN' }
+    return $values[0]
+}
+
+function Assert-EtpOwnerGrantPlainPath {
+    # Every path the task's command file names: a full local path in printable ASCII, with none
+    # of the characters cmd.exe treats specially inside or around quotes.
+    param([Parameter(Mandatory)][string]$Path)
+    if ($Path -cnotmatch '^[A-Za-z]:\\[\x20-\x7E]+$' -or $Path -match '["%!^&|<>]') {
+        throw 'The one-off grant task needs plain local folder and program paths.'
+    }
+}
+
+function New-EtpOwnerGrantCommandScript {
+    # The command file the SYSTEM task runs: sqlcmd with the fixed batch above, its output and
+    # exit code into a file the caller reads. Every value is checked first, so nothing in it
+    # can turn into a second command.
+    param([Parameter(Mandatory)][string]$SqlCmdPath,[Parameter(Mandatory)][string]$ServerInstance,[Parameter(Mandatory)][string]$Database,
+          [Parameter(Mandatory)][string]$SqlPath,[Parameter(Mandatory)][string]$OutputPath)
+    Assert-EtpLocalSqlTarget $ServerInstance $Database
+    if ($ServerInstance -match '["%!^&|<>\s]') { throw 'Choose a SQL Server instance on this computer.' }
+    foreach ($path in @($SqlCmdPath, $SqlPath, $OutputPath)) { Assert-EtpOwnerGrantPlainPath $path }
+    $lines = @(
+        '@echo off',
+        ('"{0}" -x -S "{1}" -E -b -h -1 -W -d {2} -i "{3}" > "{4}" 2>&1' -f $SqlCmdPath, $ServerInstance, $Database, $SqlPath, $OutputPath),
+        'set ETPEXIT=%ERRORLEVEL%',
+        # Redirection first: in "echo ...:0>> file" cmd.exe reads the 0 as a handle number.
+        ('>> "{0}" echo ETP_GRANT_EXIT:%ETPEXIT%' -f $OutputPath),
+        'exit /b %ETPEXIT%')
+    return ($lines -join "`r`n") + "`r`n"
+}
+
+function ConvertFrom-EtpOwnerGrantOutput {
+    # What the task's output file says. Outcome: Granted, AlreadyHeld, Incomplete, NotSysadmin
+    # or Failed. Only the ETP_GRANT_ markers are read; sqlcmd's own messages, which can name
+    # accounts, are never returned. A marker that appears twice counts as unreadable.
+    param([AllowEmptyCollection()][AllowNull()][string[]]$Lines)
+    $values = @{}
+    foreach ($line in @($Lines | ForEach-Object { "$_".Trim() })) {
+        if ($line -cmatch '^ETP_GRANT_([A-Z_]+):(-?\d{1,10})$') {
+            if ($values.ContainsKey($Matches[1])) { $values[$Matches[1]] = $null } else { $values[$Matches[1]] = [long]$Matches[2] }
+        }
+    }
+    $result = [pscustomobject]@{ Outcome = 'Failed'; Granted = 0; Missing = -1; ExitCode = $null; Detail = '' }
+    if (-not $values.ContainsKey('EXIT') -or $null -eq $values['EXIT']) { $result.Detail = 'the task did not report an exit code'; return $result }
+    $result.ExitCode = $values['EXIT']
+    if ($values.ContainsKey('SYSADMIN') -and $values['SYSADMIN'] -eq 0) { $result.Outcome = 'NotSysadmin'; return $result }
+    if ($result.ExitCode -ne 0) { $result.Detail = "sqlcmd ended with exit code $($result.ExitCode)"; return $result }
+    if (-not $values.ContainsKey('SYSADMIN') -or $values['SYSADMIN'] -ne 1) { $result.Detail = 'SQL Server did not confirm that SYSTEM is a SQL administrator'; return $result }
+    if ($values.ContainsKey('USERS_TABLE')) { $result.Detail = 'the database has no ETP user administration'; return $result }
+    if (-not $values.ContainsKey('GRANTED') -or -not $values.ContainsKey('MISSING') -or $null -eq $values['GRANTED'] -or $null -eq $values['MISSING']) {
+        $result.Detail = 'SQL Server did not report the result'; return $result
+    }
+    $result.Granted = [int]$values['GRANTED']
+    $result.Missing = [int]$values['MISSING']
+    $result.Outcome = if ($result.Missing -gt 0) { 'Incomplete' } elseif ($result.Granted -gt 0) { 'Granted' } else { 'AlreadyHeld' }
+    return $result
+}
+
+function Get-EtpOwnerGrantManualCommand {
+    # The documented fallback (docs\OPERATIONS.md, Owners and SQL Server logins) as one line for
+    # an elevated PowerShell, for exactly this Owner and instance; $null when a value is not one
+    # the line can carry safely, and the log then points at the document instead.
+    param([string]$Identity,[string]$ServerInstance,[string]$SqlCmdPath)
+    if ([string]::IsNullOrWhiteSpace($Identity) -or $Identity.Length -gt 128 -or $Identity -notmatch '^[^\\/\[\];''"%`$]+\\[^\\/\[\];''"%`$]+$') { return $null }
+    if ([string]::IsNullOrWhiteSpace($ServerInstance) -or $ServerInstance -notmatch '^[A-Za-z0-9_.:()\\-]+$') { return $null }
+    if ([string]::IsNullOrWhiteSpace($SqlCmdPath) -or $SqlCmdPath.Contains("'")) { return $null }
+    try { Assert-EtpOwnerGrantPlainPath $SqlCmdPath } catch { return $null }
+    $grant = "GRANT ALTER ANY LOGIN TO [$Identity] WITH GRANT OPTION"
+    return ("`$a = New-ScheduledTaskAction -Execute '{0}' -Argument '-S {1} -E -b -d master -Q ""{2}""'; " +
+        "Register-ScheduledTask -TaskName EtpOneOffOwnerGrant -Action `$a -User 'NT AUTHORITY\SYSTEM' -RunLevel Highest -Force | Out-Null; " +
+        "Start-ScheduledTask -TaskName EtpOneOffOwnerGrant; Start-Sleep -Seconds 15; (Get-ScheduledTaskInfo -TaskName EtpOneOffOwnerGrant).LastTaskResult; " +
+        "Unregister-ScheduledTask -TaskName EtpOneOffOwnerGrant -Confirm:`$false") -f $SqlCmdPath, $ServerInstance, $grant
+}
+
+function Test-EtpOwnerGrantTaskFinished {
+    # Finished when the command file wrote its last line, or when the task is no longer running
+    # and has a result (cmd.exe ended before it could write one).
+    param([Parameter(Mandatory)][string]$TaskName,[Parameter(Mandatory)][string]$OutputPath)
+    if (Test-Path -LiteralPath $OutputPath -PathType Leaf) {
+        try {
+            $done = @(Get-Content -LiteralPath $OutputPath -ErrorAction Stop | Where-Object { "$_".Trim() -cmatch '^ETP_GRANT_EXIT:-?\d+$' })
+            if ($done.Count -gt 0) { return $true }
+        }
+        catch { }
+    }
+    $task = Get-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction Stop
+    if ("$($task.State)" -in @('Running', 'Queued')) { return $false }
+    $info = Get-ScheduledTaskInfo -TaskName $TaskName -TaskPath '\' -ErrorAction Stop
+    # 0x41301 is "currently running", 0x41303 "has not yet run".
+    return ([long]$info.LastTaskResult -notin @(267009, 267011))
+}
+
+function Remove-EtpOwnerGrantWorkFolder {
+    # Only the folder this run created, recognised by its exact name inside the work root.
+    param([Parameter(Mandatory)][string]$Folder,[Parameter(Mandatory)][string]$WorkRoot)
+    $root = [IO.Path]::GetFullPath($WorkRoot).TrimEnd('\')
+    $full = [IO.Path]::GetFullPath($Folder)
+    if ([IO.Path]::GetDirectoryName($full) -ine $root -or [IO.Path]::GetFileName($full) -cnotmatch '^OwnerGrant-[a-f0-9]{32}$') { throw 'Not a one-off grant work folder.' }
+    if (-not (Test-Path -LiteralPath $full -PathType Container)) { return }
+    Assert-EtpNoLinks $full
+    Remove-Item -LiteralPath $full -Recurse -Force
+}
+
+function Format-EtpOwnerGrantMessage {
+    # One log line for the attempt. The caller's read-only re-check decides whether the NOTE
+    # with the manual command follows.
+    param([Parameter(Mandatory)][object]$Result)
+    $task = 'a one-off scheduled task run as SYSTEM'
+    $message = switch -CaseSensitive ($Result.Outcome) {
+        'Granted' { "$($Result.Granted) active Owner login(s) were given ALTER ANY LOGIN WITH GRANT OPTION through $task, so Owners can change users in Settings > Users without 'Run as administrator'." }
+        'AlreadyHeld' { "Every active Owner with a SQL Server login already holds ALTER ANY LOGIN WITH GRANT OPTION; $task found nothing to grant." }
+        'NotSysadmin' { "NOTE: SYSTEM is not a SQL Server administrator on this instance, so ALTER ANY LOGIN WITH GRANT OPTION could not be given to the Owner through $task. Nothing was changed." }
+        'Skipped' { "NOTE: ALTER ANY LOGIN WITH GRANT OPTION was not given to the Owner: $($Result.Detail). Nothing was changed." }
+        'Incomplete' { "WARNING: $task gave ALTER ANY LOGIN WITH GRANT OPTION to $($Result.Granted) Owner login(s), but $($Result.Missing) active Owner login(s) still lack it." }
+        'TimedOut' { "WARNING: $task meant to give the Owner ALTER ANY LOGIN WITH GRANT OPTION did not finish in time and was stopped. Nothing else depends on it." }
+        default { "WARNING: $task could not give the Owner ALTER ANY LOGIN WITH GRANT OPTION ($($Result.Detail)). Nothing else depends on it." }
+    }
+    if ($Result.PSObject.Properties['Leftovers']) {
+        foreach ($leftover in @($Result.Leftovers)) { if ($leftover) { $message += " WARNING: $leftover" } }
+    }
+    return $message
+}
+
+function Invoke-EtpOwnerGrantOptionAsSystem {
+    # Never throws: the result says what happened (Outcome, Granted, Missing, Detail, Message).
+    param([Parameter(Mandatory)][string]$SqlCmdPath,[Parameter(Mandatory)][string]$ServerInstance,[Parameter(Mandatory)][string]$Database,
+          [string]$WorkRoot,[ValidateRange(1, 3600)][int]$TimeoutSeconds = 120)
+    $result = [pscustomobject]@{ Outcome = 'Failed'; Granted = 0; Missing = -1; ExitCode = $null; Detail = ''; TaskName = $null; Leftovers = @(); Message = '' }
+    $taskName = $null
+    $registered = $false
+    $work = $null
+    try {
+        if ([string]::IsNullOrWhiteSpace($WorkRoot)) { $WorkRoot = Join-Path $env:ProgramData 'EtpReporting' }
+        if (-not (Test-EtpRunningElevated)) { $result.Outcome = 'Skipped'; $result.Detail = 'this was not run as administrator' }
+        else {
+            $preflight = Invoke-EtpOwnerGrantPreflight -SqlCmdPath $SqlCmdPath -ServerInstance $ServerInstance
+            if ($preflight -ceq 'NO') { $result.Outcome = 'NotSysadmin' }
+            else {
+                # UNKNOWN goes on: the batch checks again, as SYSTEM, before it grants anything.
+                $work = New-EtpProtectedDirectory -Path (Join-Path $WorkRoot ('OwnerGrant-' + [Guid]::NewGuid().ToString('N')))
+                $sqlPath = Join-Path $work 'grant-owner-option.sql'
+                $commandPath = Join-Path $work 'grant-owner-option.cmd'
+                $outputPath = Join-Path $work 'grant-owner-option.out'
+                $commandText = New-EtpOwnerGrantCommandScript -SqlCmdPath $SqlCmdPath -ServerInstance $ServerInstance -Database $Database -SqlPath $sqlPath -OutputPath $outputPath
+                [IO.File]::WriteAllText($sqlPath, (New-EtpOwnerGrantOptionSql), [Text.Encoding]::ASCII)
+                [IO.File]::WriteAllText($commandPath, $commandText, [Text.Encoding]::ASCII)
+                $taskName = 'ETP Reporting Owner Grant ' + [Guid]::NewGuid().ToString('N')
+                $result.TaskName = $taskName
+                $action = New-ScheduledTaskAction -Execute (Join-Path $env:SystemRoot 'System32\cmd.exe') -Argument ('/d /v:off /s /c ""' + $commandPath + '""')
+                $principal = New-ScheduledTaskPrincipal -UserId 'S-1-5-18' -LogonType ServiceAccount -RunLevel Highest
+                $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 10) -MultipleInstances IgnoreNew -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+                Register-ScheduledTask -TaskName $taskName -TaskPath '\' -Action $action -Principal $principal -Settings $settings `
+                    -Description 'One-off: gives active ETP Owners ALTER ANY LOGIN WITH GRANT OPTION. ETP setup removes it when it ends.' -ErrorAction Stop | Out-Null
+                $registered = $true
+                Start-ScheduledTask -TaskName $taskName -TaskPath '\' -ErrorAction Stop
+                $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+                $finished = $false
+                while (-not $finished) {
+                    Start-Sleep -Milliseconds 250
+                    $finished = [bool](Test-EtpOwnerGrantTaskFinished -TaskName $taskName -OutputPath $outputPath)
+                    if (-not $finished -and [DateTime]::UtcNow -ge $deadline) { break }
+                }
+                if (-not $finished) {
+                    try { Stop-ScheduledTask -TaskName $taskName -TaskPath '\' -ErrorAction Stop } catch { }
+                    $result.Outcome = 'TimedOut'
+                }
+                else {
+                    $lines = @()
+                    if (Test-Path -LiteralPath $outputPath -PathType Leaf) { $lines = @(Get-Content -LiteralPath $outputPath -ErrorAction Stop) }
+                    $parsed = ConvertFrom-EtpOwnerGrantOutput -Lines $lines
+                    foreach ($name in @('Outcome', 'Granted', 'Missing', 'ExitCode', 'Detail')) { $result.$name = $parsed.$name }
+                }
+            }
+        }
+    }
+    catch {
+        $result.Outcome = 'Failed'
+        $result.Detail = ($_.Exception.Message -replace '[\x00-\x1F\x7F]', ' ').Trim()
+    }
+    finally {
+        # Always, whatever happened above: no task and no file outlives this call.
+        if ($taskName) {
+            try { Unregister-ScheduledTask -TaskName $taskName -TaskPath '\' -Confirm:$false -ErrorAction Stop }
+            catch { if ($registered) { $result.Leftovers += "the scheduled task '$taskName' could not be removed; delete it in Task Scheduler." } }
+        }
+        if ($work) {
+            try { Remove-EtpOwnerGrantWorkFolder -Folder $work -WorkRoot $WorkRoot }
+            catch { $result.Leftovers += "the folder $work could not be removed; delete it by hand." }
+        }
+    }
+    $result.Message = Format-EtpOwnerGrantMessage -Result $result
+    return $result
 }

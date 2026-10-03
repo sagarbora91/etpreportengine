@@ -18,16 +18,21 @@ public sealed class DashboardViewTests
             {
                 LastSuccessfulBackupSha256 = new string('b', 64),
                 LastSuccessfulRecoveryDrillUtc = new DateTime(2026, 9, 1, 8, 15, 0, DateTimeKind.Utc),
-                LastSuccessfulRecoveryDrillSha256 = new string('a', 64)
+                LastSuccessfulRecoveryDrillSha256 = new string('a', 64),
+                LatestRecoveryDrillSummary = "Failed. Row counts in the restored copy differ from the backup receipt: sales_lines receipt 1,235, restored copy 1,234."
             };
             var view = new DashboardView();
             view.Show(DashboardViewState.Create(0, 0, 0, null, [], health, []));
+            // A4.4a. The latest drill's result, failed here, is on the status screen with the table and both numbers.
+            Assert.Equal("Failed. Row counts in the restored copy differ from the backup receipt: sales_lines receipt 1,235, restored copy 1,234.",
+                FindStatusText(view, "Latest recovery drill result"));
             Assert.Equal("15 Sep 2026 10:30", FindStatusText(view, "Last verified backup UTC"));
             Assert.Equal("01 Sep 2026 08:15", FindStatusText(view, "Last recovery drill UTC"));
             Assert.Equal(new string('B', 64), FindStatusText(view, "Verified backup fingerprint"));
             Assert.Equal(new string('A', 64), FindStatusText(view, "Recovery drill backup fingerprint"));
             view.ShowError("Refresh failed");
             Assert.Equal("Unavailable", FindStatusText(view, "Last recovery drill UTC"));
+            Assert.Equal("Unavailable", FindStatusText(view, "Latest recovery drill result"));
             Assert.Equal("Unavailable", FindStatusText(view, "Verified backup fingerprint"));
         });
     }

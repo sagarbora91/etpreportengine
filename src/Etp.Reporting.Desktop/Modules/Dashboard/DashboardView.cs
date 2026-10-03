@@ -39,6 +39,7 @@ public sealed class DashboardView : UserControl
     private readonly TextBlock recoveryDrillMetric = MetricValue();
     private readonly TextBlock backupHashMetric = new() { TextWrapping = TextWrapping.Wrap, FontSize = 12 };
     private readonly TextBlock recoveryDrillHashMetric = new() { TextWrapping = TextWrapping.Wrap, FontSize = 12 };
+    private readonly TextBlock recoveryDrillResultMetric = new() { TextWrapping = TextWrapping.Wrap, FontSize = 12 };
     private readonly TextBlock backupSpaceMetric = MetricValue();
     private readonly TextBlock failedImportsMetric = MetricValue(21, Brushes.White);
     private readonly ItemsControl healthWarningsList = new();
@@ -75,6 +76,7 @@ public sealed class DashboardView : UserControl
         AutomationProperties.SetName(recoveryDrillMetric, "Last recovery drill UTC");
         AutomationProperties.SetName(backupHashMetric, "Verified backup fingerprint");
         AutomationProperties.SetName(recoveryDrillHashMetric, "Recovery drill backup fingerprint");
+        AutomationProperties.SetName(recoveryDrillResultMetric, "Latest recovery drill result");
     }
 
     public Func<DateOnly>? ExportDateFrom { get; set; }
@@ -112,6 +114,7 @@ public sealed class DashboardView : UserControl
         recoveryDrillMetric.Text = state.LatestRecoveryDrill;
         backupHashMetric.Text = state.LatestBackupSha256;
         recoveryDrillHashMetric.Text = state.LatestRecoveryDrillSha256;
+        recoveryDrillResultMetric.Text = state.LatestRecoveryDrillResult;
         backupSpaceMetric.Text = state.BackupFreeSpace;
         failedImportsMetric.Text = state.FailedImports;
         healthWarningsList.ItemsSource = state.HealthWarnings;
@@ -166,6 +169,10 @@ public sealed class DashboardView : UserControl
         status.Children.Add(MiniMetric("LAST VERIFIED BACKUP (UTC)", backupAgeMetric));
         status.Children.Add(MiniMetric("LAST RECOVERY DRILL (UTC)", recoveryDrillMetric));
         content.Children.Add(status);
+        // A4.4. The latest drill, passed or failed, with its row counts or why there are none.
+        content.Children.Add(new TextBlock { Text = "LATEST RECOVERY DRILL RESULT", FontSize = 11, Margin = new Thickness(0, 0, 0, 2) });
+        recoveryDrillResultMetric.Margin = new Thickness(0, 0, 0, 8);
+        content.Children.Add(recoveryDrillResultMetric);
         var fingerprints = new StackPanel();
         fingerprints.Children.Add(new TextBlock { Text = "Verified backup", Margin = new Thickness(0, 6, 0, 2) });
         fingerprints.Children.Add(backupHashMetric);

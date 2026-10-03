@@ -122,6 +122,12 @@ public partial class MainWindow : Window
 
         importWorkspaceView.AttachHost(
             () => new(currentAccess.CanImport, currentAccess.CanAdminister),
+            async () =>
+            {
+                // A database failure surfaces as itself instead of a silent "no role".
+                await RefreshAccessAsync(propagateFailure: true);
+                return new(currentAccess.CanImport, currentAccess.CanAdminister);
+            },
             RecordAuditAsync,
             RefreshDashboardAsync);
         importWorkspaceView.NotificationRequested += (_, message) => ApplicationStatus.Text = message;

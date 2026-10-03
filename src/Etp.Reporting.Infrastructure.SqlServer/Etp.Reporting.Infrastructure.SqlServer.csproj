@@ -7,6 +7,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- ImportAudit baseline runs the pre-upgrade check byte for byte (BaselineScriptEmbeddingTests). -->
+    <EmbeddedResource Include="..\..\scripts\check-import-upgrade.sql" LogicalName="Etp.Reporting.Infrastructure.SqlServer.Audit.check-import-upgrade.sql" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="MailKit" Version="4.18.0" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="6.1.1" />
     <ProjectReference Include="..\Etp.Reporting.Application\Etp.Reporting.Application.csproj" />

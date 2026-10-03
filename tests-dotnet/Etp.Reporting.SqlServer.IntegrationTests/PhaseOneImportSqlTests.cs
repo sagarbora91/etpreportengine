@@ -88,7 +88,7 @@ public sealed class PhaseOneImportSqlTests(ITestOutputHelper output)
         var accepted=new MatchedImportEnvelopeFactory().RequireAccepted(corrected);
         var pending = await Assert.ThrowsAsync<Etp.Reporting.Import.Batch.ImportSourceException>(() => service.PrepareRestatementAsync(new(accepted,new(2026,8,25),"HEMW","SQL test",new(oldId,"SQL test","Correct synthetic contact"))));
         Assert.Equal("RESTATEMENT_APPROVAL_PENDING", pending.Code);
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.PersistAsync(new(accepted,new(2026,8,25),"HEMW","SQL test",new(oldId,"SQL test","Correct synthetic contact"))));
+        Assert.Equal(ImportCodes.RestatementApprovalRequired,(await Assert.ThrowsAsync<Etp.Reporting.Import.Batch.ImportSourceException>(() => service.PersistAsync(new(accepted,new(2026,8,25),"HEMW","SQL test",new(oldId,"SQL test","Correct synthetic contact"))))).Code);
         Assert.Equal(1,await db.Int("SELECT COUNT(*) FROM dbo.import_files"));
         await db.Fixture.ExecuteAsync("DECLARE @id bigint=(SELECT approval_request_id FROM dbo.approval_requests WHERE approval_type='RESTATEMENT'); EXEC dbo.decide_approval_request @id,1,N'Checked exact replacement';");
         await service.PersistAsync(new(accepted,new(2026,8,25),"HEMW","SQL test",new(oldId,"SQL test","Correct synthetic contact")));
@@ -147,6 +147,36 @@ public sealed class PhaseOneImportSqlTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public async Task A_restatement_that_also_changes_an_unpicked_import_names_it_instead_of_saying_Use_Restate()
+    {
+        await using var db=new TestDatabase();await db.InitializeAsync();var sample=await Sample();
+        var a=Row(sample,2,"100000001",new(2026,7,1));var b=Row(sample,3,"100000002",new(2026,8,1));
+        var service=new SqlServerImportPersistenceUseCase(db.Fixture.ConnectionString);
+        await Save(service,Workbook(sample,[a]));await Save(service,Workbook(sample,[b]));
+        var first=Convert.ToInt64(await db.Fixture.ExecuteAsync("SELECT MIN(import_file_id) FROM dbo.import_files"));
+        var second=Convert.ToInt64(await db.Fixture.ExecuteAsync("SELECT MAX(import_file_id) FROM dbo.import_files"));
+        // A corrected file for 1 Jul - 1 Aug that changes a row of each current file.
+        var corrected=new MatchedImportEnvelopeFactory().RequireAccepted(Workbook(sample,
+            [Row(sample,2,"100000001",new(2026,7,1),236m),Row(sample,3,"100000002",new(2026,8,1),236m)]));
+        var keepsSecond=new MatchedImportEnvelopeFactory().RequireAccepted(Workbook(sample,[Row(sample,2,"100000001",new(2026,7,1),236m),b]));
+
+        // The importer's pre-check, before any approval is requested: the changed file is found, a taken-over one is not.
+        Assert.Equal([second],await service.FindImportsChangedByAsync(corrected,[second]));
+        Assert.Empty(await service.FindImportsChangedByAsync(keepsSecond,[second]));
+
+        var request=new ImportPersistenceRequest<MatchedImportEnvelope>(corrected,new(2026,8,1),"HEMW","SQL test",new(first,"SQL test","Correct both synthetic rows"));
+        await Assert.ThrowsAsync<Etp.Reporting.Import.Batch.ImportSourceException>(()=>service.PrepareRestatementAsync(request));
+        await db.Fixture.ExecuteAsync("DECLARE @id bigint=(SELECT approval_request_id FROM dbo.approval_requests WHERE approval_type='RESTATEMENT'); EXEC dbo.decide_approval_request @id,1,N'Checked exact replacement';");
+        var error=await Assert.ThrowsAsync<Etp.Reporting.Import.Batch.ImportSourceException>(()=>service.PersistAsync(request));
+
+        Assert.Equal(ImportCodes.RestatementOtherImportChanged,error.Code);
+        Assert.DoesNotContain("Use Restate",error.Message);
+        Assert.Contains($"current import {second}",error.Message);
+        Assert.Equal(2,await db.Int("SELECT COUNT(*) FROM dbo.import_files WHERE is_superseded=0"));
+        Assert.Equal(236m,Convert.ToDecimal(await db.Fixture.ExecuteAsync("SELECT SUM(source_gross_amount) FROM dbo.sales_lines")));
+    }
+
+    [Fact]
     public async Task A_locked_day_inside_the_range_prevents_the_whole_file()
     {
         await using var db=new TestDatabase();await db.InitializeAsync();var source=await Sample();
@@ -156,6 +186,102 @@ public sealed class PhaseOneImportSqlTests(ITestOutputHelper output)
         Assert.Contains("finalised",error.Message);
         Assert.Equal(0,await db.Int("SELECT COUNT(*) FROM dbo.sales_lines"));
         Assert.Equal(0,await db.Int("SELECT COUNT(*) FROM dbo.import_files"));
+    }
+
+    [Fact]
+    public async Task April_first_return_joins_R025_header()
+    {
+        // ETP labels a return dated 1 April 2026 with INVOICEYEAR 2026, the year before (IF-019). Keyed by that label,
+        // R022 met the earlier-year return with the same number and conflicted on its date; keyed by the financial
+        // year of its date (OD-1) it joins the header R025 created.
+        await using var db=new TestDatabase();await db.InitializeAsync();
+        var sales=await FamilySample("R025");var revenue=await FamilySample("R022");
+        var service=new SqlServerImportPersistenceUseCase(db.Fixture.ConnectionString);
+        var lines=await Save(service,Workbook(sales,[
+            Cells(sales,2,("TRANS_TYPE","SR"),("INVNUMBER","100000777"),("INVDATE",new DateOnly(2026,3,31))),
+            Cells(sales,3,("TRANS_TYPE","SR"),("INVNUMBER","100000777"),("INVDATE",new DateOnly(2026,4,1)))]));
+        Assert.Equal(2,lines.PersistedRows);
+        var controls=Workbook(revenue,[
+            Cells(revenue,2,("TRANS_TYPE","SR"),("INVNUMBER","100000777"),("INVOICEDATE",new DateOnly(2026,3,31)),("INVOICEYEAR",2026)),
+            Cells(revenue,3,("TRANS_TYPE","SR"),("INVNUMBER","100000777"),("INVOICEDATE",new DateOnly(2026,4,1)),("INVOICEYEAR",2026))]);
+        var notice=Assert.Single(new MatchedImportEnvelopeFactory().RequireAccepted(controls).Diagnostics,d=>d.Code==ImportCodes.InvoiceYearDiffers);
+        Assert.Equal((3,1),(notice.RowNumber!.Value,notice.Occurrences));
+
+        var saved=Assert.Single((await new FolderImportService(service,new SnapshotReader(controls))
+            .RunFilesAsync(["R022-april-return.xlsx"],new("SQL behavior test"))).Files);
+
+        Assert.Equal("Imported",saved.Status);
+        Assert.Equal(2,saved.NewRows);
+        Assert.Equal(0,saved.ConflictRows);
+        // History keeps the notice's code, severity and row, never the label or date values (spec 7.3).
+        var history=await new SqlServerImportHistoryQuery(db.Fixture.ConnectionString)
+            .LoadAsync(new(saved.PeriodStart!.Value,saved.PeriodEnd!.Value,saved.StoreCode));
+        var recorded=Assert.Single(Assert.Single(history,entry=>entry.Result.ReportCode=="R022").Result.Diagnostics!,
+            d=>d.Code==ImportCodes.InvoiceYearDiffers);
+        Assert.Equal((ImportIssueSeverity.Information,(int?)3),(recorded.Severity,recorded.SourceRow));
+        var stored=(string)(await db.Fixture.ExecuteAsync("SELECT diagnostics_json FROM dbo.import_attempts WHERE report_code='R022'"))!;
+        Assert.Contains(ImportCodes.InvoiceYearDiffers,stored);
+        // The stored message is the catalogue's value-free template for the code (spec 11.1), which itself says
+        // "financial year"; the importer's own sentence (with its row list) and the label/date values are not kept.
+        Assert.DoesNotContain("2026-04-01",stored);Assert.DoesNotContain("other than the financial year",stored);
+        using(var json=System.Text.Json.JsonDocument.Parse(stored))
+            Assert.Equal(ImportDiagnosticCatalogue.Template(ImportCodes.InvoiceYearDiffers),Assert.Single(json.RootElement.EnumerateArray(),
+                issue=>issue.GetProperty("Code").GetString()==ImportCodes.InvoiceYearDiffers).GetProperty("Message").GetString());
+        Assert.Equal(0,await db.Int("SELECT COUNT(*) FROM dbo.import_row_outcomes WHERE outcome='CONFLICT'"));
+        // One header per financial year, each holding its own R025 line, R022 control and tender.
+        Assert.Equal("2026 2026-03-31 1/1/1,2027 2026-04-01 1/1/1",await db.Fixture.ExecuteAsync("""
+            SELECT STRING_AGG(CONCAT(invoice_year,' ',CONVERT(char(10),transaction_date,23),' ',lines,'/',controls,'/',tenders),',')
+              WITHIN GROUP(ORDER BY invoice_year)
+            FROM (SELECT i.invoice_year,i.transaction_date,
+                (SELECT COUNT(*) FROM dbo.sales_lines x WHERE x.sales_invoice_id=i.sales_invoice_id) lines,
+                (SELECT COUNT(*) FROM dbo.sales_invoice_controls x WHERE x.sales_invoice_id=i.sales_invoice_id) controls,
+                (SELECT COUNT(*) FROM dbo.sales_tenders x WHERE x.sales_invoice_id=i.sales_invoice_id) tenders
+              FROM dbo.sales_invoices i WHERE i.store_code='HEMW' AND i.document_number='100000777') headers
+            """));
+        // Another date under the same financial year and number is never merged or re-dated: the file rolls back.
+        // Since IF-017 (2d91839) a conflict is an ImportConflictException, code IMPORT_CONFLICT, carrying the count and
+        // samples read before the rollback; it replaced the ImportSourceException("IMPORT_CONFLICT") this test was written for.
+        var clash=await Assert.ThrowsAsync<Etp.Reporting.Import.Batch.ImportConflictException>(()=>Save(service,Workbook(revenue,[
+            Cells(revenue,2,("TRANS_TYPE","SR"),("INVNUMBER","100000777"),("INVOICEDATE",new DateOnly(2026,4,5)),("INVOICEYEAR",2027))])));
+        Assert.Equal("IMPORT_CONFLICT",clash.Code);
+        Assert.True(clash.Count>0);
+        Assert.NotEmpty(clash.Samples);
+        Assert.Equal(2,await db.Int("SELECT COUNT(*) FROM dbo.sales_invoices"));
+        Assert.Equal(2,await db.Int("SELECT COUNT(*) FROM dbo.sales_invoice_controls"));
+    }
+
+    [Fact]
+    public async Task Enrichment_reimport_reports_already_present()
+    {
+        // A later R013 export repeats an earlier row. The procedure skips its stored content key and now reports
+        // ALREADY_PRESENT, where the importer used to record every row as NEW (migration 0041, section E).
+        await using var db=new TestDatabase();await db.InitializeAsync();var cro=await FamilySample("R013");
+        var service=new SqlServerImportPersistenceUseCase(db.Fixture.ConnectionString);
+        var repeated=Cells(cro,2,("INVNUMBER","100000901"),("INVDATE",new DateOnly(2026,8,24)));
+        var first=await Save(service,Workbook(cro,[repeated]));
+        Assert.Equal((1,0),(first.PersistedRows,first.AlreadyPresentRows));
+
+        var later=await Save(service,Workbook(cro,[repeated,Cells(cro,3,("INVNUMBER","100000902"),("INVDATE",new DateOnly(2026,8,25)))]));
+
+        Assert.Equal("Imported",later.Status);
+        Assert.Equal(1,later.PersistedRows);
+        Assert.Equal(1,later.AlreadyPresentRows);
+        Assert.Equal(2,await db.Int("SELECT COUNT(*) FROM dbo.sales_line_enrichments"));
+        Assert.Equal("ALREADY_PRESENT 2,NEW 3",await db.Fixture.ExecuteAsync("""
+            SELECT STRING_AGG(CONCAT(o.outcome,' ',l.source_row_number),',') WITHIN GROUP(ORDER BY o.outcome)
+            FROM dbo.import_row_outcomes o JOIN dbo.import_files f ON f.import_file_id=o.import_file_id
+            JOIN dbo.source_lineage l ON l.source_lineage_id=o.source_lineage_id WHERE f.is_superseded=0
+            """));
+        Assert.Equal(1,await db.Int("SELECT COUNT(*) FROM dbo.import_files WHERE is_superseded=1"));
+    }
+
+    private static async Task<WorkbookSnapshot> FamilySample(string family)=>await new OpenXmlWorkbookReader().ReadAsync(
+        Directory.GetFiles(Path.Combine(AppContext.BaseDirectory,"fixtures","etp-sample"),$"{family}_*.xlsx").Single());
+    private static WorkbookRow Cells(WorkbookSnapshot sample,int row,params (string Header,object Value)[] values)
+    {
+        var sheet=sample.Sheets[0];var cells=sheet.Rows[0].Cells.ToArray();
+        foreach(var (header,value) in values) cells[sheet.Headers.ToList().FindIndex(x=>x==header)]=new(value);
+        return new(row,cells);
     }
 
     [PrivatePhaseOneCorpus]
@@ -284,6 +410,10 @@ public sealed class PhaseOneImportSqlTests(ITestOutputHelper output)
     {
         var accepted=new MatchedImportEnvelopeFactory().RequireAccepted(workbook);
         return service.PersistAsync(new(accepted,accepted.Scope.PeriodEnd!.Value,accepted.Scope.StoreCode!,"SQL behavior test"));
+    }
+    private sealed class SnapshotReader(WorkbookSnapshot workbook) : IWorkbookReader
+    {
+        public Task<WorkbookSnapshot> ReadAsync(string filePath,CancellationToken cancellationToken=default)=>Task.FromResult(workbook);
     }
     private sealed class TestDatabase : IAsyncDisposable
     {

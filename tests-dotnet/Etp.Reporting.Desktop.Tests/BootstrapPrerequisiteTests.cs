@@ -296,6 +296,63 @@ public sealed class BootstrapPrerequisiteTests
     }
 
     [Fact]
+    public async Task Setup_reports_an_owner_it_could_not_give_the_grant_option_without_failing()
+    {
+        // Migration 0043 gives Owners ALTER ANY LOGIN WITH GRANT OPTION so they can change users
+        // unelevated, but SQL Server never lets the account running setup grant it to itself,
+        // and that account is usually the Owner. Setup says so; the check is read-only, runs
+        // after the migration and the new-database Owner step, and never stops setup.
+        var script = FindBootstrapScript().Replace("'", "''");
+        var command = $$"""
+            $ErrorActionPreference = 'Stop'
+            . '{{script}}' -ApplicationDirectory 'C:\UnusedBootstrapTest'
+            $own = @((Get-Command New-EtpOwnerLoginAdministrationSql).Parameters.Keys | Where-Object { $_ -notin [System.Management.Automation.PSCmdlet]::CommonParameters -and $_ -notin [System.Management.Automation.PSCmdlet]::OptionalCommonParameters })
+            if ($own.Count -ne 0) { throw "The grant-option check takes input: $($own -join ', ')" }
+            Write-Output '---SQL---'
+            New-EtpOwnerLoginAdministrationSql
+            Write-Output '---END---'
+            $tokens = $null; $errors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile('{{script}}', [ref]$tokens, [ref]$errors)
+            if (@($errors).Count -ne 0) { throw 'bootstrap-etp-prerequisites.ps1 does not parse.' }
+            $top = @($ast.EndBlock.Statements)
+            $create = @($top | Where-Object { $_ -is [System.Management.Automation.Language.IfStatementAst] -and $_.Clauses[0].Item1.Extent.Text -eq '$databaseAction -ceq ''Create''' })
+            $check = @($top | Where-Object { $_.Extent.Text -match '^\$ownerLoginAdministration = try \{ Invoke-SqlScalar -TargetDatabase \$Database -Query \(New-EtpOwnerLoginAdministrationSql\) \} catch \{ ''UNKNOWN'' \}$' })
+            $note = @($top | Where-Object { $_ -is [System.Management.Automation.Language.IfStatementAst] -and $_.Clauses[0].Item1.Extent.Text -eq '$ownerLoginAdministration -ceq ''MISSING''' })
+            $tasks = @($top | Where-Object { $_.Extent.Text -match 'install-daily-backup-task\.ps1' })
+            # Sagar's decision, 2 October 2026: before the check, setup has SYSTEM give the grant
+            # option to every active Owner that lacks it, and that never stops setup either.
+            $count = @($top | Where-Object { $_.Extent.Text -match '^\$ownersWithoutGrantOption = try \{ Invoke-SqlScalar -TargetDatabase \$Database -Query \(New-EtpOwnersWithoutGrantOptionSql\) \} catch \{ ''UNKNOWN'' \}$' })
+            $grant = @($top | Where-Object { $_ -is [System.Management.Automation.Language.IfStatementAst] -and $_.Clauses[0].Item1.Extent.Text -eq '$ownersWithoutGrantOption -cne ''0''' })
+            if ($create.Count -ne 1 -or $count.Count -ne 1 -or $grant.Count -ne 1 -or $check.Count -ne 1 -or $note.Count -ne 1 -or $tasks.Count -ne 1) { throw "The grant-option steps could not be found ($($create.Count), $($count.Count), $($grant.Count), $($check.Count), $($note.Count), $($tasks.Count))." }
+            if ($count[0].Extent.StartOffset -lt $create[0].Extent.EndOffset -or $grant[0].Extent.StartOffset -lt $count[0].Extent.EndOffset -or $check[0].Extent.StartOffset -lt $grant[0].Extent.EndOffset) { throw 'The SYSTEM grant is not made between the Owner step and the check.' }
+            if ($check[0].Extent.StartOffset -lt $create[0].Extent.EndOffset -or $note[0].Extent.StartOffset -lt $check[0].Extent.EndOffset -or $note[0].Extent.EndOffset -gt $tasks[0].Extent.StartOffset) { throw 'The check is not made between the Owner step and the tasks.' }
+            foreach ($step in @($grant[0], $note[0])) {
+                if (@($step.FindAll({ param($node) $node -is [System.Management.Automation.Language.ThrowStatementAst] }, $true)).Count -ne 0) { throw 'A missing grant option stops setup.' }
+            }
+            $attempt = $grant[0].Clauses[0].Item2.Extent.Text
+            if ($attempt -notmatch 'try \{ Invoke-EtpOwnerGrantOptionAsSystem -SqlCmdPath \$sqlcmdPath -ServerInstance \$ServerInstance -Database \$Database \} catch \{ \$null \}' -or $attempt -notmatch 'Write-SetupLog \$ownerGrant\.Message') { throw 'The SYSTEM grant is not attempted, guarded and logged.' }
+            if ($note[0].Clauses[0].Item2.Extent.Text -notmatch 'Write-SetupLog "NOTE: ' -or $note[0].Extent.Text -notmatch 'Owners and SQL Server logins') { throw 'The NOTE does not say where the fix is.' }
+            if ($note[0].Extent.Text -notmatch 'Get-EtpOwnerGrantManualCommand -Identity \$identity\.Name -ServerInstance \$ServerInstance -SqlCmdPath \$sqlcmdPath') { throw 'The NOTE does not give the manual command.' }
+            Write-Output 'Grant-option check placement passed.'
+            """;
+        var result = await RunPowerShellAsync(["-Command", command]);
+        Assert.True(result.ExitCode == 0, result.Output);
+        Assert.Contains("Grant-option check placement passed.", result.Output);
+        var start = result.Output.IndexOf("---SQL---", StringComparison.Ordinal);
+        var end = result.Output.IndexOf("---END---", StringComparison.Ordinal);
+        Assert.True(start >= 0 && end > start, result.Output);
+        var sql = result.Output[start..end];
+        Assert.Contains("DECLARE @identity nvarchar(200)=SUSER_SNAME();", sql, StringComparison.Ordinal);
+        Assert.Contains("role_code='OWNER' AND is_active=1", sql, StringComparison.Ordinal);
+        Assert.Contains("permission_name=N'ALTER ANY LOGIN' AND state='W'", sql, StringComparison.Ordinal);
+        foreach (var word in new[] { "'NOT_AN_OWNER'", "'GRANT_OPTION'", "'MISSING'" })
+            Assert.Contains(word, sql, StringComparison.Ordinal);
+        // Read-only.
+        foreach (var verb in new[] { "GRANT ", "REVOKE ", "DENY ", "CREATE ", "EXEC", "INSERT", "UPDATE", "DELETE", "MERGE" })
+            Assert.DoesNotContain(verb, sql.Replace("GRANT OPTION", "", StringComparison.Ordinal), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task Pre_migration_backup_installs_a_missing_broker_first_and_only_after_the_last_refusal()
     {
         // The backup goes through the master broker. A database restored by hand, or after the
@@ -456,6 +513,54 @@ public sealed class BootstrapPrerequisiteTests
         finally { Directory.Delete(media, recursive: true); }
     }
 
+    // SQL Server 2025's own setup installs an ODBC 18 Sqlcmd, which encrypts by default and
+    // refuses the new instance's self-signed certificate. On the first real new PC (1 October
+    // 2026) setup counted it as "Sqlcmd installed", skipped the bundled Sqlcmd 15, resolved the
+    // ODBC 18 one and failed its first query. The ODBC 17 Sqlcmd must win, and only it counts.
+    [Fact]
+    public async Task Odbc17_sqlcmd_is_preferred_and_an_odbc18_sqlcmd_alone_does_not_count_as_installed()
+    {
+        var programFiles = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "EtpSqlCmdChoice", Guid.NewGuid().ToString("N"))).FullName;
+        try
+        {
+            var script = FindBootstrapScript().Replace("'", "''");
+            var command = $$"""
+                $ErrorActionPreference = 'Stop'
+                . '{{script}}' -ApplicationDirectory 'C:\UnusedBootstrapTest'
+                function Assert-EtpProtectedInstall { param($Path) }
+                $env:ProgramFiles = '{{programFiles.Replace("'", "''")}}'
+                # Only the test's folders: not this PC's own registered or other-drive Sqlcmd.
+                $global:registered = @()
+                function Get-EtpRegisteredSqlCmdFolders { @($global:registered) }
+                function Get-EtpProgramFilesFolders { @($env:ProgramFiles) }
+                function Add-SqlCmd([string]$Odbc,[string]$Root = $env:ProgramFiles) {
+                    $folder = Join-Path $Root "Microsoft SQL Server\Client SDK\ODBC\$Odbc\Tools\Binn"
+                    $null = New-Item -ItemType Directory -Force -Path $folder
+                    Set-Content -LiteralPath (Join-Path $folder 'SQLCMD.EXE') -Value 'marker'
+                    return (Join-Path $folder 'SQLCMD.EXE')
+                }
+                $odbc18 = Add-SqlCmd '180'
+                if (Test-EtpSqlCmdInstalled) { throw 'The ODBC 18 Sqlcmd alone counted as installed.' }
+                if ((Resolve-EtpSqlCmd) -ne $odbc18) { throw 'The ODBC 18 Sqlcmd is no longer the fallback.' }
+                # An ODBC 17 Sqlcmd registered on another drive counts, and beats the ODBC 18 one.
+                $otherDrive = Add-SqlCmd '170' (Join-Path $env:ProgramFiles 'OtherDrive')
+                $global:registered = @([IO.Path]::GetDirectoryName($otherDrive))
+                if (-not (Test-EtpSqlCmdInstalled)) { throw 'The ODBC 17 Sqlcmd on another drive did not count as installed.' }
+                if ((Resolve-EtpSqlCmd) -ne $otherDrive) { throw 'The ODBC 17 Sqlcmd on another drive was not preferred.' }
+                $global:registered = @()
+                $odbc17 = Add-SqlCmd '170'
+                if (-not (Test-EtpSqlCmdInstalled)) { throw 'The ODBC 17 Sqlcmd did not count as installed.' }
+                $resolved = Resolve-EtpSqlCmd
+                if ($resolved -ne $odbc17) { throw "The ODBC 17 Sqlcmd was not preferred: $resolved" }
+                Write-Output 'Sqlcmd choice passed.'
+                """;
+            var result = await RunPowerShellAsync(["-Command", command]);
+            Assert.True(result.ExitCode == 0, result.Output);
+            Assert.Contains("Sqlcmd choice passed.", result.Output);
+        }
+        finally { Directory.Delete(programFiles, recursive: true); }
+    }
+
     [Fact]
     public async Task Bundled_media_installs_the_engine_then_odbc17_odbc18_and_sqlcmd_with_no_restart()
     {
@@ -532,7 +637,7 @@ public sealed class BootstrapPrerequisiteTests
             . '{{script}}' -ApplicationDirectory 'C:\UnusedBootstrapTest'
             $setupArguments = @(Get-EtpSqlEngineSetupArguments 'SQLEXPRESS')
             $expected = @('/ACTION=Install', '/QUIET', '/IACCEPTSQLSERVERLICENSETERMS', '/FEATURES=SQLENGINE', '/INSTANCENAME=SQLEXPRESS',
-                '/SQLSYSADMINACCOUNTS=BUILTIN\Administrators', '/SQLCOLLATION=Latin1_General_CI_AS', '/TCPENABLED=0', '/NPENABLED=0', '/UPDATEENABLED=0')
+                '/SQLSYSADMINACCOUNTS=BUILTIN\Administrators', '/ADDCURRENTUSERASSQLADMIN=False', '/SQLCOLLATION=Latin1_General_CI_AS', '/TCPENABLED=0', '/NPENABLED=0', '/UPDATEENABLED=0')
             if ((@($setupArguments | Sort-Object) -join ' ') -cne (@($expected | Sort-Object) -join ' ')) { throw "SQL Server setup arguments changed: $($setupArguments -join ' ')" }
             if (@($setupArguments | Where-Object { $_ -match '^/(SECURITYMODE|SAPWD)' }).Count -ne 0) { throw 'SQL authentication was enabled.' }
             foreach ($instance in @('bad name;x', 'SQLEXPRESS /SECURITYMODE=SQL', 'NAMEWITHMORETHAN16')) {

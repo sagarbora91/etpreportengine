@@ -11,13 +11,16 @@ using System.Windows.Threading;
 
 namespace Etp.Reporting.Desktop.Tests;
 
+[Collection(WpfViewCollection.Name)]
 public sealed class DesktopImportCoordinatorTests
 {
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Restatement_handler_rechecks_revoked_import_role_before_start_and_retry(bool retry)
+    public void Restatement_reloads_the_role_from_the_database_and_stops_when_it_was_revoked(bool retry)
     {
+        // The host's cached role still says "may import": it was loaded before the Owner
+        // revoked it. Only the database reload knows, and the restatement must obey it.
         RunSta(() =>
         {
             var path = Path.Combine(Path.GetTempPath(), "EtpRestatementRole_" + Guid.NewGuid().ToString("N") + ".xlsx");
@@ -35,8 +38,9 @@ public sealed class DesktopImportCoordinatorTests
                     persistence.PersistenceFailure = null;
                 }
                 var view = new ImportWorkspaceView(coordinator, () => "synthetic");
-                var checks = 0;
-                view.AttachHost(() => new(++checks <= (retry ? 2 : 1), false),
+                var reloads = 0;
+                view.AttachHost(() => new(true, false),
+                    () => { reloads++; return Task.FromResult(new ImportWorkspaceAccess(false, false)); },
                     (_, _, _) => Task.CompletedTask, () => Task.CompletedTask);
                 ((TextBox)view.FindName("WorkbookPathInput")).Text = path;
                 ((CheckBox)view.FindName("RestatementModeInput")).IsChecked = true;
@@ -47,9 +51,59 @@ public sealed class DesktopImportCoordinatorTests
 
                 Await(retry ? view.RetryFailedBatchAsync() : view.ImportSelectedSourceAsync());
 
+                Assert.Equal(1, reloads);
                 Assert.Equal(writes, persistence.PersistenceCalls);
                 Assert.Equal(preparations, persistence.PrepareCalls);
                 Assert.Contains("does not have permission", ((TextBlock)view.FindName("ValidationResult")).Text);
+            }
+            finally { Await(coordinator.DisposeAsync().AsTask()); File.Delete(path); }
+        });
+    }
+
+    [Fact]
+    public void Import_screen_asks_which_overlapping_import_to_restate_and_restates_the_pick()
+    {
+        RunSta(() =>
+        {
+            var path = Path.Combine(Path.GetTempPath(), "EtpRestatementPick_" + Guid.NewGuid().ToString("N") + ".xlsx");
+            File.WriteAllText(path, "Synthetic workbook supplied by the fixture reader");
+            var date = new DateOnly(2026, 8, 25);
+            var persistence = new FakePersistence
+            {
+                Candidates = [new(11, "R025_first.xlsx", date, date, 40), new(12, "R025_second.xlsx", date, date, 75)]
+            };
+            var coordinator = Create(persistence, new FakeReader(_ => ValidR025()));
+            try
+            {
+                var view = new ImportWorkspaceView(coordinator, () => "synthetic");
+                var reloads = 0;
+                view.AttachHost(() => new(true, false), () => { reloads++; return Task.FromResult(new ImportWorkspaceAccess(true, false)); },
+                    (_, _, _) => Task.CompletedTask, () => Task.CompletedTask);
+                ((TextBox)view.FindName("WorkbookPathInput")).Text = path;
+                ((CheckBox)view.FindName("RestatementModeInput")).IsChecked = true;
+                ((TextBox)view.FindName("RestatementReasonInput")).Text = "Corrected source";
+                var store = (ComboBox)view.FindName("ImportStoreInput");
+                store.Items.Add(new ComboBoxItem { Content = "WLMHW" });
+                store.SelectedIndex = 0;
+                ((DatePicker)view.FindName("ImportBusinessDateInput")).SelectedDate = date.ToDateTime(TimeOnly.MinValue);
+                var asked = new List<RestatementTargetChoice>();
+                view.RestatementTargetChooser = choice =>
+                {
+                    // Wherever the folder import continues, the question is asked on the view's dispatcher.
+                    Assert.True(view.Dispatcher.CheckAccess());
+                    asked.Add(choice);
+                    return choice.Candidates.Single(candidate => candidate.ImportFileId == 12);
+                };
+
+                Await(view.ImportSelectedSourceAsync());
+
+                // A restatement the database still allows goes ahead after one reload.
+                Assert.Equal(1, reloads);
+                var choice = Assert.Single(asked);
+                Assert.Equal([11L, 12L], choice.Candidates.Select(candidate => candidate.ImportFileId));
+                Assert.Equal(("WLMHW", date, date), (choice.StoreCode, choice.PeriodStart, choice.PeriodEnd));
+                Assert.Equal(12, persistence.PreparedRequest!.Restatement!.PreviousImportFileId);
+                Assert.Equal(12, persistence.LastRequest!.Restatement!.PreviousImportFileId);
             }
             finally { Await(coordinator.DisposeAsync().AsTask()); File.Delete(path); }
         });
@@ -61,12 +115,13 @@ public sealed class DesktopImportCoordinatorTests
         var persistence = new FakePersistence
         {
             CurrentImportFileId = 42,
-            PrepareFailure = new UnauthorizedAccessException("Exact approval is absent.")
+            PrepareFailure = new ImportSourceException(ImportCodes.RestatementApprovalRequired, "Exact approval is absent.")
         };
         await using var coordinator = Create(persistence, new FakeReader(_ => ValidR025()));
         await coordinator.ValidateAsync("sales.xlsx");
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => coordinator.PersistValidatedAsync("synthetic",
+        var refusal = await Assert.ThrowsAsync<ImportSourceException>(() => coordinator.PersistValidatedAsync("synthetic",
             new("WLMHW", new(2026, 8, 25), "manager", true, "Corrected source")));
+        Assert.Equal(ImportCodes.RestatementApprovalRequired, refusal.Code);
         Assert.Equal(1, persistence.PrepareCalls);
         Assert.Equal(0, persistence.PersistenceCalls);
         Assert.Null(persistence.LastRequest);
@@ -200,23 +255,16 @@ public sealed class DesktopImportCoordinatorTests
         var persistence = new FakePersistence
         {
             CurrentImportFileId = 41,
-            PersistenceResult = new("R025", 7)
+            PersistenceResult = new("R025", 7) { Evidence = EvidenceState.Retained }
         };
-        var evidence = new List<string>();
         await using var coordinator = Create(
             persistence,
-            new FakeReader(_ => ValidR025()),
-            (_, path, sha256, report, store, date, _) =>
-            {
-                evidence.Add($"{path}|{sha256}|{report}|{store}|{date:yyyy-MM-dd}");
-                return Task.CompletedTask;
-            });
+            new FakeReader(_ => ValidR025()));
         await coordinator.ValidateAsync("sales.xlsx");
         var context = new DesktopImportRunContext(
             "WLMHW", new(2026, 8, 25), "STORE\\Owner", true, "Corrected source");
 
         var outcome = await coordinator.PersistValidatedAsync("integrated", context);
-        await coordinator.RetainValidatedEvidenceAsync("integrated", context);
 
         Assert.True(outcome.RestatementApplied);
         Assert.Same(persistence.PreparedRequest, persistence.LastRequest);
@@ -227,7 +275,26 @@ public sealed class DesktopImportCoordinatorTests
         Assert.Equal(new DateOnly(2026, 8, 25), persistence.LastRequest.ExpectedBusinessDate);
         Assert.Equal(RetailSalesProfiles.R025.Identity, persistence.LastRequest.AcceptedImport.ProfileIdentity);
         Assert.Equal("Sales", persistence.LastRequest.AcceptedImport.MatchedSheet.Name);
-        Assert.Equal([$"sales.xlsx|{new string('a', 64)}|R025|WLMHW|2026-08-25"], evidence);
+        // The import transaction keeps the bytes itself; nothing is retained afterwards (IF-023).
+        Assert.Equal(EvidenceState.Retained, outcome.Result.Evidence);
+        Assert.Empty(persistence.Retained);
+    }
+
+    [Fact]
+    public async Task Undated_R010_is_refused_with_SNAPSHOT_DATE_UNKNOWN_instead_of_taking_the_business_date()
+    {
+        var persistence = new FakePersistence();
+        await using var coordinator = Create(persistence, new FakeReader(_ => UndatedR010()));
+        var context = new DesktopImportRunContext("WLMHW", new(2026, 9, 29), "manager", false, string.Empty);
+
+        Assert.True((await coordinator.ValidateAsync("R010_BinWise_Stock.xlsx")).Accepted);
+        var refusal = await Assert.ThrowsAsync<ImportSourceException>(() => coordinator.PersistValidatedAsync("synthetic", context));
+        Assert.Equal("SNAPSHOT_DATE_UNKNOWN", refusal.Code);
+
+        var summary = await coordinator.RunBatchAsync(["R010_BinWise_Stock.xlsx"], "synthetic", () => false, () => context, _ => Task.CompletedTask);
+        var file = Assert.Single(summary.Files);
+        Assert.Equal((BatchImportFileStatus.Failed, "SNAPSHOT_DATE_UNKNOWN"), (file.Status, file.ErrorCode));
+        Assert.Equal(0, persistence.PersistenceCalls);
     }
 
     [Fact]
@@ -238,15 +305,9 @@ public sealed class DesktopImportCoordinatorTests
         {
             RowOutcome = new(10, 7, 2, 1)
         };
-        var evidenceCalls = 0;
         await using var coordinator = Create(
             persistence,
-            new FakeReader(_ => ++reads == 1 ? throw new IOException("locked") : ValidR025()),
-            (_, _, _, _, _, _, _) =>
-            {
-                evidenceCalls++;
-                return Task.CompletedTask;
-            });
+            new FakeReader(_ => ++reads == 1 ? throw new IOException("locked") : ValidR025()));
 
         var summary = await coordinator.RunBatchAsync(
             ["sales.xlsx"],
@@ -262,7 +323,7 @@ public sealed class DesktopImportCoordinatorTests
         Assert.Equal(7, file.NewRows);
         Assert.Equal(2, file.AlreadyPresentRows);
         Assert.Equal(1, file.ConflictRows);
-        Assert.Equal(1, evidenceCalls);
+        Assert.Empty(persistence.Retained);
         Assert.Empty(coordinator.FailedBatchPaths);
     }
 
@@ -270,15 +331,9 @@ public sealed class DesktopImportCoordinatorTests
     public async Task Batch_duplicate_in_restatement_mode_keeps_the_exact_block_code_and_never_retains_evidence()
     {
         var persistence = new FakePersistence { Exists = true };
-        var evidenceCalls = 0;
         await using var coordinator = Create(
             persistence,
-            new FakeReader(_ => ValidR025()),
-            (_, _, _, _, _, _, _) =>
-            {
-                evidenceCalls++;
-                return Task.CompletedTask;
-            });
+            new FakeReader(_ => ValidR025()));
 
         var summary = await coordinator.RunBatchAsync(
             ["sales.xlsx"],
@@ -292,44 +347,165 @@ public sealed class DesktopImportCoordinatorTests
         Assert.Equal("RESTATEMENT_DUPLICATE_FILE", file.ErrorCode);
         Assert.Equal("A restatement must use a corrected source file with a new hash.", file.SafeErrorMessage);
         Assert.Equal(["sales.xlsx"], coordinator.FailedBatchPaths);
-        Assert.Equal(0, evidenceCalls);
+        Assert.Empty(persistence.Retained);
     }
 
     [Fact]
     public async Task Batch_duplicate_retains_the_original_without_persisting_new_data()
     {
         var persistence = new FakePersistence { Exists = true };
-        var retained = new List<(string Path, string Report, string Store, DateOnly Date)>();
-        await using var coordinator = Create(persistence, new FakeReader(_ => ValidR025()),
-            (_, path, _, report, store, date, _) =>
-            {
-                retained.Add((path, report, store, date));
-                return Task.CompletedTask;
-            });
+        await using var coordinator = Create(persistence, new FakeReader(_ => ValidR025()));
         var summary = await coordinator.RunBatchAsync(["sales.xlsx"], "integrated", () => false,
             () => new("WLMHW", new(2026, 8, 25), "tester", false, ""), _ => Task.CompletedTask);
         Assert.Equal(BatchImportFileStatus.Succeeded, Assert.Single(summary.Files).Status);
         Assert.True(summary.Files[0].ExactDuplicate);
         Assert.Equal(0, summary.Files[0].NewRows);
-        Assert.Equal(("sales.xlsx", "R025", "WLMHW", new DateOnly(2026, 8, 25)), Assert.Single(retained));
+        // A duplicate keeps the reader's bytes when the database does not hold them yet (IF-023).
+        var retained = Assert.Single(persistence.Retained);
+        Assert.Equal(new string('a', 64), retained.Sha256);
+        Assert.Equal(EvidenceBytes, retained.Content);
         Assert.Null(persistence.LastRequest);
+    }
+
+    [Fact]
+    public async Task Save_warnings_reach_the_single_file_and_batch_results()
+    {
+        var repeated = new ImportIssue(ImportIssueSeverity.Warning, "STOCK_ROW_REPEATED", "Synthetic repeated ledger row kept.");
+        var persistence = new FakePersistence
+        {
+            PersistenceResult = new ImportPersistenceResult("R025", 3) { Issues = [repeated] },
+            RowOutcome = new(3, 3, 0, 0)
+        };
+        await using var coordinator = Create(persistence, new FakeReader(_ => ValidR025()));
+        var context = new DesktopImportRunContext("WLMHW", new(2026, 8, 25), "tester", false, "");
+        await coordinator.ValidateAsync("sales.xlsx");
+
+        var single = await coordinator.PersistValidatedAsync("integrated", context);
+        var batch = await coordinator.RunBatchAsync(["sales.xlsx"], "integrated", () => false, () => context,
+            _ => Task.CompletedTask);
+
+        Assert.Equal([repeated], single.Result.Issues);
+        Assert.Equal([repeated], Assert.Single(batch.Files).Issues!);
+        Assert.Equal(1, batch.Warnings);
+    }
+
+    // IF-017: the desktop single-file and batch routes record every attempt in import_attempts, as the folder import does.
+    [Fact]
+    public async Task Single_file_route_records_its_saved_duplicate_and_failed_attempts()
+    {
+        var batch = Guid.NewGuid();
+        var persistence = new FakePersistence { PersistenceResult = new ImportPersistenceResult("R025", 0) { BatchId = batch, Evidence = EvidenceState.Retained } };
+        await using var coordinator = Create(persistence, new FakeReader(_ => ValidR025()));
+        var context = new DesktopImportRunContext("WLMHW", new(2026, 8, 25), "tester", false, "");
+        await coordinator.ValidateAsync("sales.xlsx");
+
+        await coordinator.PersistValidatedAsync("integrated", context);
+        var saved = Assert.Single(persistence.Recorded);
+        Assert.Equal(("sales.xlsx", "R025", "WLMHW", new DateOnly(2026, 8, 25)), (saved.FileName, saved.ReportCode, saved.StoreCode, saved.PeriodEnd!.Value));
+        Assert.Equal("empty export", saved.Status);
+        Assert.Equal((CommitState.Committed, batch, EvidenceState.Retained), (saved.CommitState!.Value, saved.BatchId!.Value, saved.Evidence!.Value));
+        Assert.Equal(new string('a', 64), saved.SourceSha256);
+        Assert.Null(saved.Failure);
+
+        persistence.Exists = true;
+        await coordinator.PersistValidatedAsync("integrated", context);
+        var duplicate = persistence.Recorded[1];
+        Assert.Equal("Duplicate", duplicate.Status);
+        Assert.Null(duplicate.CommitState);
+        Assert.Equal(EvidenceState.Retained, duplicate.Evidence);
+
+        persistence.Exists = false;
+        persistence.PersistenceFailure = new InvalidOperationException("Synthetic Customer secret");
+        await Assert.ThrowsAsync<InvalidOperationException>(() => coordinator.PersistValidatedAsync("integrated", context));
+        var failed = persistence.Recorded[2];
+        Assert.Equal("Failed", failed.Status);
+        Assert.Equal(("IMPORT_PROCESSING_FAILED", FailureStage.Apply), (failed.Failure!.Code, failed.Failure.Stage));
+        Assert.Null(failed.CommitState);
+        Assert.Equal(EvidenceState.NotAttempted, failed.Evidence);
+        Assert.DoesNotContain("Synthetic", failed.Message);
+        Assert.Equal(3, persistence.Recorded.Count);
+    }
+
+    [Fact]
+    public async Task Single_file_route_records_a_failure_after_the_commit_as_committed()
+    {
+        var batch = Guid.NewGuid();
+        var persistence = new FakePersistence { PersistenceFailure = new Etp.Reporting.Infrastructure.SqlServer.ImportCommittedException(batch, new TimeoutException()) };
+        await using var coordinator = Create(persistence, new FakeReader(_ => ValidR025()));
+        await coordinator.ValidateAsync("sales.xlsx");
+        await Assert.ThrowsAsync<Etp.Reporting.Infrastructure.SqlServer.ImportCommittedException>(() => coordinator.PersistValidatedAsync(
+            "integrated", new("WLMHW", new(2026, 8, 25), "tester", false, "")));
+        var failed = Assert.Single(persistence.Recorded);
+        Assert.Equal(("Failed", CommitState.Committed, batch, FailureStage.Commit),
+            (failed.Status, failed.CommitState!.Value, failed.BatchId!.Value, failed.Failure!.Stage));
+    }
+
+    [Fact]
+    public async Task Batch_route_records_every_attempt_including_retries()
+    {
+        var persistence = new FakePersistence { PersistenceResult = new ImportPersistenceResult("R025", 0) { BatchId = Guid.NewGuid() } };
+        await using var coordinator = Create(persistence,
+            new FakeReader(path => path == "locked.xlsx" ? throw new IOException("C:\\private\\locked.xlsx") : ValidR025()));
+
+        var summary = await coordinator.RunBatchAsync(["locked.xlsx", "sales.xlsx"], "integrated", () => false,
+            () => new("WLMHW", new(2026, 8, 25), "tester", false, ""), _ => Task.CompletedTask);
+
+        Assert.Equal(2, summary.Files[0].Attempts);
+        Assert.Equal(new[] { ("locked.xlsx", "Failed"), ("locked.xlsx", "Failed"), ("sales.xlsx", "empty export") },
+            persistence.Recorded.Select(result => (result.FileName, result.Status)));
+        Assert.All(persistence.Recorded.Take(2), result =>
+            Assert.Equal(("IMPORT_IO_FAILURE", FailureStage.Read), (result.Failure!.Code, result.Failure.Stage)));
+        Assert.DoesNotContain("private", persistence.Recorded[0].Message);
+        Assert.Equal(CommitState.Committed, persistence.Recorded[2].CommitState);
+    }
+
+    [Fact]
+    public async Task Batch_route_records_files_the_cancel_reached_before_they_started()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var persistence = new FakePersistence();
+        await using var coordinator = Create(persistence, new FakeReader(_ =>
+        {
+            cancellation.Cancel();
+            return ValidR025();
+        }));
+
+        var summary = await coordinator.RunBatchAsync(["sales.xlsx", "second.xlsx"], "integrated", () => false,
+            () => new("WLMHW", new(2026, 8, 25), "tester", false, ""), _ => Task.CompletedTask, cancellationToken: cancellation.Token);
+
+        Assert.Equal(BatchImportFileStatus.Cancelled, summary.Files[1].Status);
+        Assert.Equal(new[] { ("sales.xlsx", "empty export"), ("second.xlsx", "Cancelled") },
+            persistence.Recorded.Select(result => (result.FileName, result.Status)));
     }
 
     private static DesktopImportCoordinator Create(
         FakePersistence persistence,
-        IWorkbookReader reader,
-        RetainEtpEvidence? evidence = null) =>
+        IWorkbookReader reader) =>
         new(
             _ => persistence,
-            evidence ?? ((_, _, _, _, _, _, _) => Task.CompletedTask),
             reader);
+
+    private static readonly byte[] EvidenceBytes = [1, 2, 3];
 
     private static WorkbookSnapshot ValidR025() =>
         new(
             "sales.xlsx",
             1,
             new string('a', 64),
-            [new("Sales", 1, RetailSalesProfiles.R025Headers, [])]);
+            [new("Sales", 1, RetailSalesProfiles.R025Headers, [])]) { Content = new(EvidenceBytes, new string('a', 64)) };
+
+    // A renamed raw R010 with no Info sheet and no dated folder: no tier states its snapshot date.
+    private static WorkbookSnapshot UndatedR010()
+    {
+        var headers = EtpReportFamilyRegistry.Resolve("R010").Headers;
+        return new("R010_BinWise_Stock.xlsx", 1, new string('c', 64),
+        [
+            new("Data", 1, headers, [new WorkbookRow(2, headers.Select(header => new WorkbookCell(header switch
+            {
+                "STORE CODE" => "WLMHW", "ITEMNUMBER" => "SYN-ITEM-0001", "CLOSINGBALANCE" => 1m, _ => null
+            })).ToArray())])
+        ]);
+    }
 
     private static WorkbookSnapshot InvalidWorkbook() =>
         new("invalid.xlsx", 1, new string('b', 64), []);
@@ -366,8 +542,24 @@ public sealed class DesktopImportCoordinatorTests
         if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
     }
 
-    private sealed class FakePersistence : IImportPersistenceUseCase<MatchedImportEnvelope>
+    private sealed class FakePersistence : IImportPersistenceUseCase<MatchedImportEnvelope>, IImportEvidenceRetainer, IImportAttemptRecorder
     {
+        public List<(string Sha256, byte[] Content)> Retained { get; } = [];
+        public List<FolderImportFileResult> Recorded { get; } = [];
+
+        public Task RecordAttemptAsync(FolderImportFileResult result, CancellationToken cancellationToken = default)
+        {
+            Recorded.Add(result);
+            return Task.CompletedTask;
+        }
+
+        public Task<EvidenceState> RetainImportedSourceAsync(string sourceSha256, ReadOnlyMemory<byte> content,
+            CancellationToken cancellationToken = default)
+        {
+            Retained.Add((sourceSha256, content.ToArray()));
+            return Task.FromResult(EvidenceState.Retained);
+        }
+
         public bool Exists { get; set; }
         public long? CurrentImportFileId { get; set; }
         public ImportPersistenceResult PersistenceResult { get; set; } = new("R025", 0);
@@ -409,5 +601,12 @@ public sealed class DesktopImportCoordinatorTests
         public Task<ImportRowOutcome> LoadOutcomeByHashAsync(
             string sourceSha256,
             CancellationToken cancellationToken = default) => Task.FromResult(RowOutcome);
+
+        // IF-016: null keeps the single current file found by date, as before.
+        public IReadOnlyList<RestatementCandidate>? Candidates { get; set; }
+
+        public Task<IReadOnlyList<RestatementCandidate>> FindRestatementCandidatesAsync(string reportCode, string storeCode,
+            DateOnly periodStart, DateOnly periodEnd, CancellationToken cancellationToken = default) =>
+            Task.FromResult(Candidates ?? (CurrentImportFileId is { } id ? [new(id, "previous.xlsx", periodEnd, periodEnd, 1)] : []));
     }
 }

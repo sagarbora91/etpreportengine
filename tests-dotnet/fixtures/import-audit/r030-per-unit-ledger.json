@@ -1,0 +1,123 @@
+{
+ "fileName": "202608271200_Variant-Stock-Ledger.xlsx",
+ "sheets": [
+  {
+   "name": "Data",
+   "family": "STOCK_LEDGER",
+   "rows": [
+    {
+     "TRANS_TYPE": "Purchase Receipt",
+     "STORE CODE": "WLMHW",
+     "STORE NAME": "SYNTHETIC STORE",
+     "ITEMNUMBER": "SYN-W-01",
+     "DOCUMENTNUMBER": "SYN900001",
+     "DOCUMENTDATE": "2026-08-25",
+     "FROM LOCATION": "WLMHW",
+     "TO LOCATION": "",
+     "OPENING_QTY": 3,
+     "TRANS_QTY": 1,
+     "CLOSING_QTY": 4,
+     "CITY": "SYNTHETIC CITY"
+    },
+    {
+     "TRANS_TYPE": "Purchase Receipt",
+     "STORE CODE": "WLMHW",
+     "STORE NAME": "SYNTHETIC STORE",
+     "ITEMNUMBER": "SYN-W-01",
+     "DOCUMENTNUMBER": "SYN900001",
+     "DOCUMENTDATE": "2026-08-25",
+     "FROM LOCATION": "WLMHW",
+     "TO LOCATION": "",
+     "OPENING_QTY": 0,
+     "TRANS_QTY": 1,
+     "CLOSING_QTY": 1,
+     "CITY": "SYNTHETIC CITY"
+    },
+    {
+     "TRANS_TYPE": "Purchase Receipt",
+     "STORE CODE": "WLMHW",
+     "STORE NAME": "SYNTHETIC STORE",
+     "ITEMNUMBER": "SYN-W-01",
+     "DOCUMENTNUMBER": "SYN900001",
+     "DOCUMENTDATE": "2026-08-25",
+     "FROM LOCATION": "WLMHW",
+     "TO LOCATION": "",
+     "OPENING_QTY": 4,
+     "TRANS_QTY": 1,
+     "CLOSING_QTY": 5,
+     "CITY": "SYNTHETIC CITY"
+    },
+    {
+     "TRANS_TYPE": "Purchase Receipt",
+     "STORE CODE": "WLMHW",
+     "STORE NAME": "SYNTHETIC STORE",
+     "ITEMNUMBER": "SYN-W-01",
+     "DOCUMENTNUMBER": "SYN900001",
+     "DOCUMENTDATE": "2026-08-25",
+     "FROM LOCATION": "WLMHW",
+     "TO LOCATION": "",
+     "OPENING_QTY": 1,
+     "TRANS_QTY": 1,
+     "CLOSING_QTY": 2,
+     "CITY": "SYNTHETIC CITY"
+    },
+    {
+     "TRANS_TYPE": "Purchase Receipt",
+     "STORE CODE": "WLMHW",
+     "STORE NAME": "SYNTHETIC STORE",
+     "ITEMNUMBER": "SYN-W-01",
+     "DOCUMENTNUMBER": "SYN900001",
+     "DOCUMENTDATE": "2026-08-25",
+     "FROM LOCATION": "WLMHW",
+     "TO LOCATION": "",
+     "OPENING_QTY": 2,
+     "TRANS_QTY": 1,
+     "CLOSING_QTY": 3,
+     "CITY": "SYNTHETIC CITY"
+    },
+    {
+     "TRANS_TYPE": "INV",
+     "STORE CODE": "WLMHW",
+     "STORE NAME": "SYNTHETIC STORE",
+     "ITEMNUMBER": "SYN-W-02",
+     "DOCUMENTNUMBER": "SYN900002",
+     "DOCUMENTDATE": "2026-08-26",
+     "FROM LOCATION": "WLMHW",
+     "TO LOCATION": "",
+     "OPENING_QTY": 1,
+     "TRANS_QTY": -1,
+     "CLOSING_QTY": 0,
+     "CITY": "SYNTHETIC CITY"
+    },
+    {
+     "TRANS_TYPE": "INV",
+     "STORE CODE": "WLMHW",
+     "STORE NAME": "SYNTHETIC STORE",
+     "ITEMNUMBER": "SYN-W-02",
+     "DOCUMENTNUMBER": "SYN900002",
+     "DOCUMENTDATE": "2026-08-26",
+     "FROM LOCATION": "WLMHW",
+     "TO LOCATION": "",
+     "OPENING_QTY": 1,
+     "TRANS_QTY": -1,
+     "CLOSING_QTY": 0,
+     "CITY": "SYNTHETIC CITY"
+    },
+    {
+     "TRANS_TYPE": "Purchase Receipt",
+     "STORE CODE": "WLMHW",
+     "STORE NAME": "SYNTHETIC STORE",
+     "ITEMNUMBER": "SYN-W-03",
+     "DOCUMENTNUMBER": "SYN900003",
+     "DOCUMENTDATE": "2026-08-27",
+     "FROM LOCATION": "WLMHW",
+     "TO LOCATION": "",
+     "OPENING_QTY": 0,
+     "TRANS_QTY": 2,
+     "CLOSING_QTY": 2,
+     "CITY": "SYNTHETIC CITY"
+    }
+   ]
+  }
+ ]
+}

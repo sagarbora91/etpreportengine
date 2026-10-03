@@ -1,4 +1,5 @@
 using Etp.Reporting.Application.Imports;
+using Etp.Reporting.Import.Batch;
 using Etp.Reporting.Import.Preflight;
 using Etp.Reporting.Import.Profiles;
 using Microsoft.Data.SqlClient;
@@ -7,6 +8,51 @@ namespace Etp.Reporting.Infrastructure.SqlServer;
 
 public sealed partial class SqlServerImportPersistenceUseCase
 {
+    public async Task<IReadOnlyList<RestatementCandidate>> FindRestatementCandidatesAsync(string reportCode, string storeCode,
+        DateOnly periodStart, DateOnly periodEnd, CancellationToken cancellationToken = default)
+    {
+        await RequireImportAsync(cancellationToken).ConfigureAwait(false);
+        return await completion.FindRestatementCandidatesAsync(reportCode, storeCode, periodStart, periodEnd, cancellationToken).ConfigureAwait(false);
+    }
+
+    // The same test planner 1 applies under its lock (PhaseOneImportPersistence): an import the replacement does not
+    // replace is taken over only when every content key it holds is among the replacement's.
+    public async Task<IReadOnlyList<long>> FindImportsChangedByAsync(MatchedImportEnvelope accepted, IReadOnlyList<long> importFileIds,
+        DateOnly? businessDate = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(accepted);
+        ArgumentNullException.ThrowIfNull(importFileIds);
+        if (importFileIds.Count == 0) return [];
+        await RequireImportAsync(cancellationToken).ConfigureAwait(false);
+        // Keyed as planner 1 keys them: an undated snapshot's rows carry the date the import is persisted with.
+        var incoming = SqlServerTransactionalImportStore.ContentKeys(accepted, businessDate ?? accepted.Scope.PeriodEnd).Values.ToHashSet(StringComparer.Ordinal);
+        var changed = new List<long>();
+        await using var connection = LocalConnection();
+        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+        foreach (var id in importFileIds.Distinct())
+        {
+            await using var command = new SqlCommand("""
+                SELECT k.content_key FROM dbo.import_files f
+                JOIN dbo.etp_import_content k ON k.import_file_id=f.import_file_id
+                WHERE f.import_file_id=@id AND f.is_superseded=0 AND k.content_key IS NOT NULL;
+                """, connection);
+            command.Parameters.AddWithValue("@id", id);
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                if (!incoming.Contains(reader.GetString(0)))
+                {
+                    changed.Add(id);
+                    break;
+                }
+        }
+        return changed;
+    }
+
+    // A missing approval is the importer's own refusal, not an access failure. As UnauthorizedAccessException
+    // it was reported as "The workbook could not be accessed." (spec 11.1).
+    internal static ImportSourceException RestatementApprovalRequired() => new(ImportCodes.RestatementApprovalRequired,
+        "This exact replacement and reason require unused Owner approval before import. Current facts are unchanged.");
+
     // Requesting approval never writes import facts. Each caller must still pass
     // the independent check in PersistAsync and SQL's atomic approval consumption.
     public async Task PrepareRestatementAsync(ImportPersistenceRequest<MatchedImportEnvelope> request,
@@ -33,7 +79,7 @@ public sealed partial class SqlServerImportPersistenceUseCase
     private async Task RequireApprovedRestatementAsync(ImportRestatementRequest restatement, string sourceSha256,
         string reportCode, string storeCode, DateOnly periodStart, DateOnly periodEnd, CancellationToken token)
     {
-        await using var connection = new SqlConnection(connectionString);
+        await using var connection = LocalConnection();
         await connection.OpenAsync(token).ConfigureAwait(false);
         await using var command = new SqlCommand("""
             SELECT TOP (1) 1
@@ -54,6 +100,6 @@ public sealed partial class SqlServerImportPersistenceUseCase
         command.Parameters.AddWithValue("@end", periodEnd);
         command.Parameters.AddWithValue("@reason", restatement.Reason.Trim());
         if (await command.ExecuteScalarAsync(token).ConfigureAwait(false) is null)
-            throw new UnauthorizedAccessException("This exact replacement and reason require unused Owner approval before import.");
+            throw RestatementApprovalRequired();
     }
 }

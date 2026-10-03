@@ -64,6 +64,17 @@ public sealed class ImportPersistenceUseCaseTests
         Assert.Throws<ArgumentException>(() => new SqlServerImportPersistenceUseCase(
             "Server=localhost;Database=EtpReporting;User ID=reporter;Password=secret"));
 
+    // Phase 5 re-audit (26 Sep 2026): the restatement approval query opened the use case's stored connection
+    // string directly. Every connection the use case opens obeys the local SQL policy; one that is not local
+    // is refused when the use case is made, before any query can run.
+    [Theory]
+    [InlineData("Server=remotehost;Database=EtpReporting;Integrated Security=True")]
+    [InlineData("Server=tcp:localhost,1433;Database=EtpReporting;Integrated Security=True")]
+    [InlineData(@"Server=.\SQLEXPRESS;Database=EtpReporting;Integrated Security=True;Encrypt=False")]
+    [InlineData(@"Server=.\SQLEXPRESS;Database=EtpReporting;Integrated Security=True;Failover Partner=remotehost")]
+    public void A_connection_the_local_SQL_policy_refuses_is_refused_by_the_import_use_case(string connection) =>
+        Assert.Throws<ArgumentException>(() => new SqlServerImportPersistenceUseCase(connection));
+
     [Fact]
     public async Task Import_queries_and_persistence_fail_closed_before_SQL_for_unauthorized_accounts()
     {

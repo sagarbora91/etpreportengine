@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory)]
-    [ValidateSet('TargetAliases','BackupReceipts','CertificateCustody','CertificateBinding','Retention','Paths','ProtectedInstall','AtomicReceipts')]
+    [ValidateSet('TargetAliases','BackupReceipts','CertificateCustody','CertificateBinding','Retention','Paths','ProtectedInstall','ProtectedInstallLayouts','AtomicReceipts','RowCountReceipts')]
     [string]$Scenario
 )
 $ErrorActionPreference = 'Stop'
@@ -403,6 +403,190 @@ try {
             Assert-Rejected { Assert-EtpProtectedInstall $scriptPath } 'owned by Administrators or SYSTEM'
             Assert-Rejected { Resolve-EtpSqlCmd $scriptPath } 'owned by Administrators or SYSTEM'
             Assert-True ([IO.File]::ReadAllText($scriptPath) -eq '# disposable test file') 'Install validation changed the rejected script.'
+            # The findings name the path and the exact fix, not just the rule.
+            $found = @(Get-EtpProtectedInstallFindings $scriptPath)
+            Assert-True (@($found | Where-Object { $_.StartsWith("'$scriptPath' is owned by ") -and $_.Contains($currentUser.Value) }).Count -eq 1) "The owner finding does not name the path and owner: $($found -join ' | ')"
+            Assert-True (@($found | Where-Object { $_.Contains("icacls `"$scriptPath`" /setowner `"*S-1-5-32-544`"") }).Count -eq 1) "The owner fix is missing: $($found -join ' | ')"
+            # But this file is in the user's own Temp folder, where re-permissioning would lock
+            # the user out of their profile: the refusal says to move instead, with no icacls.
+            $message = $null
+            try { Assert-EtpProtectedInstall $scriptPath } catch { $message = $_.Exception.Message }
+            if ($scriptPath.StartsWith([Environment]::GetFolderPath('UserProfile') + '\', [StringComparison]::OrdinalIgnoreCase)) {
+                Assert-True ($message.Contains('Install it under Program Files instead') -and -not $message.Contains('icacls')) "A profile path was given permission fixes: $message"
+            }
+        }
+        ProtectedInstallLayouts {
+            # Whole drive layouts described as security descriptors and handed to the check in
+            # place of Get-Acl, so no real drive root or permission is touched. The E: layouts
+            # are Workpc's on 2 Oct 2026, from icacls /save of E:\ and E:\Program Files before
+            # they were changed by hand (Migration 2026-10-02\acl-backup-*.txt).
+            $trustedInstaller = 'S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464'
+            $installingUser = 'S-1-5-21-1000000001-2000000002-3000000003-1001'
+            $formattedRoot = 'O:SYG:SYD:(A;;FA;;;BA)(A;OICIIO;GA;;;BA)(A;;FA;;;SY)(A;OICIIO;GA;;;SY)(A;;0x1301bf;;;AU)(A;OICIIO;SDGXGWGR;;;AU)(A;;0x1200a9;;;BU)(A;OICIIO;GXGR;;;BU)'
+            $programFilesDacl = "D:PAI(A;OICI;FA;;;S-1-15-2-1)(A;OICI;0x1200a9;;;S-1-15-2-2)(A;OICIIO;FA;;;CO)(A;OICIIO;FA;;;SY)(A;;0x1301bf;;;SY)(A;OICIIO;FA;;;BA)(A;;0x1301bf;;;BA)(A;OICI;0x1200a9;;;BU)(A;CI;FA;;;$trustedInstaller)"
+            $underProgramFiles = "O:BAG:SYD:AI(A;OICIID;FA;;;S-1-15-2-1)(A;OICIID;0x1200a9;;;S-1-15-2-2)(A;OICIIOID;GA;;;CO)(A;OICIIOID;GA;;;SY)(A;ID;FA;;;SY)(A;OICIIOID;GA;;;BA)(A;ID;FA;;;BA)(A;OICIID;0x1200a9;;;BU)(A;CIID;FA;;;$trustedInstaller)"
+            $fileUnderProgramFiles = 'O:BAG:SYD:AI(A;ID;FA;;;S-1-15-2-1)(A;ID;0x1200a9;;;S-1-15-2-2)(A;ID;FA;;;SY)(A;ID;FA;;;BA)(A;ID;0x1200a9;;;BU)'
+            # A folder an elevated installer creates directly under that root inherits this.
+            $underFormattedRoot = 'O:BAG:SYD:AI(A;ID;FA;;;BA)(A;OICIIOID;GA;;;BA)(A;ID;FA;;;SY)(A;OICIIOID;GA;;;SY)(A;ID;0x1301bf;;;AU)(A;OICIIOID;SDGXGWGR;;;AU)(A;ID;0x1200a9;;;BU)(A;OICIIOID;GXGR;;;BU)'
+            $script = 'E:\Program Files\Saagar Traders\ETP Reporting Engine\scripts\backup-etp-database.ps1'
+            function Get-LayoutFindings {
+                param([string]$Path,[hashtable]$Layout)
+                $reader = {
+                    param($Item)
+                    $security = if ($Item -like '*.ps1' -or $Item -like '*.exe') { [Security.AccessControl.FileSecurity]::new() } else { [Security.AccessControl.DirectorySecurity]::new() }
+                    if (-not $Layout.ContainsKey($Item)) { throw "The layout has no entry for $Item." }
+                    $security.SetSecurityDescriptorSddlForm($Layout[$Item])
+                    return $security
+                }.GetNewClosure()
+                return @(Get-EtpProtectedInstallFindings -Path $Path -ReadSecurity $reader)
+            }
+            function New-ProgramFilesLayout {
+                param([string]$Root,[string]$ProgramFilesOwner)
+                return @{
+                    'E:\' = $Root
+                    'E:\Program Files' = "O:${ProgramFilesOwner}G:SY$programFilesDacl"
+                    'E:\Program Files\Saagar Traders' = $underProgramFiles
+                    'E:\Program Files\Saagar Traders\ETP Reporting Engine' = $underProgramFiles
+                    'E:\Program Files\Saagar Traders\ETP Reporting Engine\scripts' = $underProgramFiles
+                    $script = $fileUnderProgramFiles
+                }
+            }
+
+            # Workpc as found: the only real problem was E:\Program Files belonging to the user who
+            # installed the first program there. Authenticated Users' Modify on E:\ (no
+            # delete-child, no change permissions) and ALL APPLICATION PACKAGES' Full Control on
+            # E:\Program Files no longer count.
+            $found = @(Get-LayoutFindings $script (New-ProgramFilesLayout $formattedRoot $installingUser))
+            Assert-True ($found.Count -eq 1) "Workpc as found should have one problem, not $($found.Count): $($found -join ' | ')"
+            Assert-True ($found[0].StartsWith("'E:\Program Files' is owned by $installingUser")) "Unexpected problem: $($found[0])"
+            Assert-True ($found[0].Contains('icacls "E:\Program Files" /setowner "*S-1-5-32-544"')) "The owner fix is missing: $($found[0])"
+            # Once Administrators own it, the layout passes with E:\ left as Windows made it.
+            $found = @(Get-LayoutFindings $script (New-ProgramFilesLayout $formattedRoot 'BA'))
+            Assert-True ($found.Count -eq 0) "A Windows-default data drive with an administrator-owned Program Files was refused: $($found -join ' | ')"
+
+            # An installation directly under that root inherits Authenticated Users' Modify, so any
+            # signed-in user could rename E:\Apps or edit the scripts. Still refused, with both
+            # places named and the inherited-permission fix.
+            $apps = @{ 'E:\' = $formattedRoot; 'E:\Apps' = $underFormattedRoot; 'E:\Apps\ETP' = $underFormattedRoot }
+            $found = @(Get-LayoutFindings 'E:\Apps\ETP' $apps)
+            Assert-True ($found.Count -eq 2) "A folder under a writable root should have two problems, not $($found.Count): $($found -join ' | ')"
+            Assert-True ($found[0].StartsWith("'E:\Apps\ETP' gives ") -and $found[0].Contains('S-1-5-11') -and $found[0].Contains('write (create or change items in it)') -and $found[0].Contains('delete (rename or delete it)')) "Unexpected target problem: $($found[0])"
+            Assert-True ($found[1].StartsWith("'E:\Apps' gives ") -and $found[1].Contains('delete (rename or delete it), inherited from the folder above') -and -not $found[1].Contains('write')) "Unexpected ancestor problem: $($found[1])"
+            Assert-True ($found[1].Contains('icacls "E:\Apps" /inheritance:d, then icacls "E:\Apps" /grant:r "*S-1-5-11:(OI)(CI)RX"')) "The inherited-permission fix is missing: $($found[1])"
+
+            # The root is checked too, for what can still reach the path from there.
+            $rootRights = @{
+                '(A;;FA;;;AU)' = 'delete subfolders and files (rename or delete anything in it), change permissions, take ownership'
+                '(A;;WD;;;AU)' = 'change permissions'
+                '(A;;GA;;;AU)' = 'delete subfolders and files (rename or delete anything in it), change permissions, take ownership'
+            }
+            foreach ($ace in $rootRights.Keys) {
+                $found = @(Get-LayoutFindings 'E:\Program Files' @{ 'E:\Program Files' = "O:BAG:SY$programFilesDacl"; 'E:\' = "O:SYG:SYD:(A;;FA;;;SY)$ace" })
+                Assert-True ($found.Count -eq 1 -and $found[0].StartsWith("'E:\' gives ") -and $found[0].Contains($rootRights[$ace] + '. Fix')) "Root entry $ace was not refused as expected: $($found -join ' | ')"
+            }
+            $found = @(Get-LayoutFindings 'E:\Program Files' @{ 'E:\Program Files' = "O:BAG:SY$programFilesDacl"; 'E:\' = 'O:S-1-5-21-1000000001-2000000002-3000000003-1001G:SYD:(A;;FA;;;SY)' })
+            Assert-True ($found.Count -eq 1 -and $found[0].StartsWith("'E:\' is owned by")) "A user-owned root was accepted: $($found -join ' | ')"
+
+            # Ancestors and the target, entry by entry. Each case: where the entry is, the entry,
+            # and whether it must be refused.
+            $cases = @(
+                @('ancestor', '(A;;0x4;;;BU)', $false),          # create subfolders only: cannot replace the path
+                @('target', '(A;;0x4;;;BU)', $true),             # but in the install folder it plants files
+                @('ancestor', '(A;;0x2;;;BU)', $false),          # create files only
+                @('ancestor', '(A;;SD;;;BU)', $true),            # delete = rename the folder
+                @('ancestor', '(A;;0x40;;;BU)', $true),          # delete child = rename the next folder down
+                @('ancestor', '(A;;WD;;;BU)', $true),
+                @('ancestor', '(A;;WO;;;BU)', $true),
+                @('ancestor', '(A;;GA;;;BU)', $true),            # generic rights are mapped
+                @('target', '(A;;GW;;;BU)', $true),
+                @('ancestor', '(A;OICIIO;FA;;;BU)', $false),     # inherit-only: checked on the children instead
+                @('target', '(A;OICIIO;FA;;;BU)', $false),
+                @('ancestor', '(D;;FA;;;BU)', $false),           # deny never grants
+                @('target', '(A;;FA;;;S-1-15-2-1)', $false),     # ALL APPLICATION PACKAGES
+                @('target', '(A;;FA;;;S-1-15-3-1)', $false),     # a capability SID
+                @('target', '(A;;FA;;;S-1-15-2-2)', $false),     # ALL RESTRICTED APPLICATION PACKAGES
+                @('target', "(A;;FA;;;$installingUser)", $true),
+                @('ancestor', '(A;;FA;;;WD)', $true),            # Everyone
+                @('target', '(A;;FA;;;CO)', $true)               # not inherit-only, so not excused
+            )
+            foreach ($case in $cases) {
+                $plain = 'O:BAG:SYD:PAI(A;OICI;FA;;;BA)(A;OICI;FA;;;SY)(A;OICI;0x1200a9;;;BU)'
+                $layout = @{ 'E:\' = 'O:SYG:SYD:(A;;FA;;;SY)'; 'E:\Parent' = $plain; 'E:\Parent\Install' = $plain }
+                $at = if ($case[0] -eq 'target') { 'E:\Parent\Install' } else { 'E:\Parent' }
+                $layout[$at] = $plain + $case[1]
+                $found = @(Get-LayoutFindings 'E:\Parent\Install' $layout)
+                Assert-True (($found.Count -gt 0) -eq $case[2]) "$($case[1]) on the $($case[0]) gave $($found.Count) problem(s): $($found -join ' | ')"
+                if ($case[2]) { Assert-True ($found.Count -eq 1 -and $found[0].StartsWith("'$at' gives ")) "$($case[1]) was reported against the wrong path: $($found -join ' | ')" }
+            }
+
+            # The refusal: every finding with its fix, under the headline the older messages used,
+            # except inside a user profile or the Windows folder.
+            $found = @(Get-LayoutFindings 'E:\Apps\ETP' $apps)
+            $message = Format-EtpProtectedInstallRefusal -Path 'E:\Apps\ETP' -Findings $found -UnfixableRoots @('C:\Users','C:\Windows')
+            Assert-True ($message.StartsWith('The installation folder can be changed by a non-administrator. Nothing was changed.')) "Unexpected headline: $message"
+            Assert-True (@($message -split [Environment]::NewLine | Where-Object { $_.StartsWith("- 'E:\Apps") -and $_.Contains('icacls') }).Count -eq 2) "Not every finding is listed with its fix: $message"
+            $message = Format-EtpProtectedInstallRefusal -Path 'E:\Program Files' -Findings @(Get-LayoutFindings $script (New-ProgramFilesLayout $formattedRoot $installingUser)) -UnfixableRoots @('C:\Users')
+            Assert-True ($message.StartsWith('Install operations in a folder owned by Administrators or SYSTEM. Nothing was changed.')) "An owner-only refusal has the wrong headline: $message"
+            $message = Format-EtpProtectedInstallRefusal -Path 'C:\Users\Someone\Tools\ETP' -Findings $found -UnfixableRoots @($null,'C:\Users\','C:\Windows')
+            Assert-True ($message.Contains("'C:\Users\Someone\Tools\ETP' is inside 'C:\Users\'") -and $message.Contains('owned by Administrators or SYSTEM') -and -not $message.Contains('icacls')) "A profile path was given permission fixes: $message"
+            $message = Format-EtpProtectedInstallRefusal -Path 'C:\UsersData\ETP' -Findings $found -UnfixableRoots @('C:\Users')
+            Assert-True ($message.Contains('icacls')) "A folder that only starts like the profiles folder was treated as inside it: $message"
+
+            # A user-owned target is refused even when its permissions are clean.
+            $found = @(Get-LayoutFindings 'E:\Parent\Install' @{ 'E:\' = 'O:SYG:SYD:(A;;FA;;;SY)'; 'E:\Parent' = 'O:BAG:SYD:(A;;FA;;;BA)'; 'E:\Parent\Install' = "O:${installingUser}G:SYD:(A;;FA;;;BA)" })
+            Assert-True ($found.Count -eq 1 -and $found[0].Contains('Install operations in a folder owned by Administrators or SYSTEM.')) "A user-owned install folder was accepted: $($found -join ' | ')"
+
+            # 1.9.3 review F1: the folder that holds an executable is where its DLLs are planted.
+            # Under C:\ProgramData, BUILTIN\Users inherit (CI)(WD,AD,WEA,WA): create files in any
+            # subfolder, nothing else. A registry-located sqlcmd there passed before; now the
+            # Binn folder is refused, and only it.
+            $underProgramData = 'O:BAG:SYD:AI(A;OICIID;FA;;;SY)(A;OICIID;FA;;;BA)(A;OICIID;0x1200a9;;;BU)(A;CIID;0x116;;;BU)'
+            $sqlCmd = 'C:\ProgramData\SqlTools\Binn\SQLCMD.EXE'
+            $programData = @{
+                'C:\' = 'O:SYG:SYD:(A;;FA;;;SY)(A;;FA;;;BA)(A;;0x1200a9;;;BU)'
+                'C:\ProgramData' = 'O:SYG:SYD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;0x1200a9;;;BU)(A;CI;0x116;;;BU)'
+                'C:\ProgramData\SqlTools' = $underProgramData
+                'C:\ProgramData\SqlTools\Binn' = $underProgramData
+                $sqlCmd = 'O:BAG:SYD:AI(A;ID;FA;;;SY)(A;ID;FA;;;BA)(A;ID;0x1200a9;;;BU)'
+            }
+            $found = @(Get-LayoutFindings $sqlCmd $programData)
+            Assert-True ($found.Count -eq 1 -and $found[0].StartsWith("'C:\ProgramData\SqlTools\Binn' gives ") -and $found[0].Contains('S-1-5-32-545') -and $found[0].Contains('create files or subfolders in it')) "A sqlcmd folder users may create files in was not refused as expected: $($found -join ' | ')"
+            # A folder target there is judged by its own rights only, as before: its parent may
+            # still let users create items beside it.
+            $programData['C:\ProgramData\SqlTools\Binn'] = 'O:BAG:SYD:PAI(A;OICI;FA;;;BA)(A;OICI;FA;;;SY)(A;OICI;0x1200a9;;;BU)'
+            $found = @(Get-LayoutFindings 'C:\ProgramData\SqlTools\Binn' $programData)
+            Assert-True ($found.Count -eq 0) "A closed folder under ProgramData was refused: $($found -join ' | ')"
+            $found = @(Get-LayoutFindings $sqlCmd $programData)
+            Assert-True ($found.Count -eq 0) "A sqlcmd in a closed folder was refused: $($found -join ' | ')"
+            # Each create right alone is enough beside a file, and a file at a volume root is
+            # judged the same way at the root.
+            foreach ($ace in @('(A;;0x2;;;BU)', '(A;;0x4;;;BU)', '(A;;GW;;;BU)')) {
+                $plain = 'O:BAG:SYD:PAI(A;OICI;FA;;;BA)(A;OICI;FA;;;SY)(A;OICI;0x1200a9;;;BU)'
+                $found = @(Get-LayoutFindings 'E:\Tools\sqlcmd.exe' @{ 'E:\' = 'O:SYG:SYD:(A;;FA;;;SY)'; 'E:\Tools' = $plain + $ace; 'E:\Tools\sqlcmd.exe' = 'O:BAG:SYD:(A;;FA;;;BA)' })
+                Assert-True ($found.Count -eq 1 -and $found[0].StartsWith("'E:\Tools' gives ")) "$ace on the folder holding the executable gave: $($found -join ' | ')"
+            }
+            $found = @(Get-LayoutFindings 'E:\sqlcmd.exe' @{ 'E:\' = $formattedRoot; 'E:\sqlcmd.exe' = 'O:BAG:SYD:(A;;FA;;;BA)' })
+            Assert-True ($found.Count -eq 1 -and $found[0].StartsWith("'E:\' gives ") -and $found[0].Contains('S-1-5-11')) "An executable at the root of a user-writable drive was accepted: $($found -join ' | ')"
+
+            # 1.9.3 review F6: only a real local volume has a root that cannot be renamed.
+            $volumeCases = @(
+                @('C:\Tools\sqlcmd.exe', 'Fixed', '\Device\HarddiskVolume3', $false),
+                @('F:\Tools\sqlcmd.exe', 'Removable', '\Device\HarddiskVolume7', $false),
+                @('S:\Tools\sqlcmd.exe', 'Fixed', '\??\C:\Data\ETP', $true),                       # SUBST
+                @('N:\Tools\sqlcmd.exe', 'Network', '\Device\LanmanRedirector\;N:0000000000012345\pc\share', $true),
+                @('C:\Tools\sqlcmd.exe', 'Fixed', $null, $true),
+                @('C:\Tools\sqlcmd.exe', $null, '\Device\HarddiskVolume3', $true),
+                @('\\pc\share\Tools\sqlcmd.exe', $null, $null, $true),
+                @('\\?\C:\Tools\sqlcmd.exe', 'Fixed', '\Device\HarddiskVolume3', $true)
+            )
+            foreach ($case in $volumeCases) {
+                $problem = Get-EtpOperationVolumeProblem -Path $case[0] -DriveType $case[1] -DosDevice $case[2]
+                Assert-True ([bool]$problem -eq $case[3]) "$($case[0]) on a $($case[1]) drive standing for $($case[2]) gave: $problem"
+            }
+            Assert-Rejected { Assert-EtpProtectedInstall '\\localhost\C$\Windows\System32\cmd.exe' } 'not on a local drive'
+            # The system drive itself passes, which exercises the QueryDosDevice call.
+            Assert-EtpLocalVolume ([Environment]::SystemDirectory)
+            $script:checks++
         }
         AtomicReceipts {
             $path = Join-Path $temporaryRoot 'atomic-receipt.json'
@@ -412,6 +596,63 @@ try {
             Write-EtpJsonAtomically $path @{ generation='replacement' } -Replace
             Assert-True ((Get-Content -LiteralPath $path -Raw | ConvertFrom-Json).generation -eq 'replacement') 'Atomic receipt replacement failed.'
             Assert-True (@(Get-ChildItem -LiteralPath $temporaryRoot -Filter '*.tmp').Count -eq 0) 'A temporary receipt was left behind.'
+        }
+        RowCountReceipts {
+            # A4.4 / A4.4a (1.9.3). A real receipt with row counts, written the way the backup
+            # writes it; a copy with sales_lines changed by one, drilled through -ReceiptPath.
+            $backupDirectory = Join-Path $temporaryRoot 'Backups'
+            $null = New-Item -ItemType Directory -Path $backupDirectory
+            $backupPath = Join-Path $backupDirectory 'DisposableDatabase-20261003-090000-rowcounts.bak'
+            [IO.File]::WriteAllText($backupPath, 'Disposable unencrypted-backup stand-in; no SQL data.')
+            $counted = '{"sales_invoices":1200,"sales_lines":5400,"import_files":30,"daily_reporting_days":61}'
+            $record = Get-EtpBackupRowCountRecord -BrokerLines @("ETP_ROWCOUNTS:{`"before`":$counted,`"after`":$counted}")
+            Assert-True ($record.Contains('rowCounts')) 'The backup did not record its row counts.'
+            $receipt = [ordered]@{
+                schemaVersion=2; verified=$true; serverInstance='.\DisposableInstance'; database='DisposableDatabase'
+                backupPath=$backupPath; sha256=(Get-FileHash -LiteralPath $backupPath -Algorithm SHA256).Hash
+                lengthBytes=(Get-Item -LiteralPath $backupPath).Length; verifiedAtUtc='2026-10-03T09:00:00.0000000Z'
+                encryption='NONE'; purpose='SCHEDULED'; certificateReceipt=$null; certificateThumbprint=$null; files=@()
+            }
+            foreach ($key in @($record.Keys)) { $receipt[$key] = $record[$key] }
+            $receiptPath = "$backupPath.receipt.json"
+            Write-EtpJsonAtomically -Path $receiptPath -Value $receipt
+            Write-EtpJsonAtomically -Path (Join-Path $backupDirectory 'DisposableDatabase-latest-verified.json') -Value $receipt
+            $restored = @("ETP_ROWCOUNTS:{`"restored`":$counted}")
+
+            # The latest receipt is the default and passes.
+            $latest = Resolve-EtpDrillReceiptPath -BackupDirectory $backupDirectory -Database 'DisposableDatabase'
+            Assert-True ($latest -ceq (Join-Path $backupDirectory 'DisposableDatabase-latest-verified.json')) "Default receipt: $latest"
+            $read = Read-EtpVerifiedReceipt -ReceiptPath $latest -BackupDirectory $backupDirectory -Database 'DisposableDatabase'
+            $verdict = Get-EtpDrillRowCountVerdict -Receipt $read -BrokerLines $restored
+            Assert-True ($verdict.Succeeded -and $verdict.Status -ceq 'Matched') "The original receipt did not pass: $($verdict.Message)"
+
+            # A4.4a: a copy of the receipt with rowCounts.sales_lines changed by one.
+            $altered = Get-Content -Raw -LiteralPath $receiptPath | ConvertFrom-Json
+            $altered.rowCounts.sales_lines = $altered.rowCounts.sales_lines + 1
+            $alteredPath = Join-Path $backupDirectory 'rowcount-check-copy.json'
+            $altered | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $alteredPath -Encoding UTF8
+            $chosen = Resolve-EtpDrillReceiptPath -BackupDirectory $backupDirectory -Database 'DisposableDatabase' -ReceiptPath $alteredPath
+            Assert-True ($chosen -ceq $alteredPath) "The copy was not chosen: $chosen"
+            $read = Read-EtpVerifiedReceipt -ReceiptPath $chosen -BackupDirectory $backupDirectory -Database 'DisposableDatabase'
+            $verdict = Get-EtpDrillRowCountVerdict -Receipt $read -BrokerLines $restored
+            Assert-True (-not $verdict.Succeeded -and $verdict.Status -ceq 'Mismatch') 'The altered receipt passed the drill.'
+            Assert-True ($verdict.Message.Contains('sales_lines: receipt 5401, restored copy 5400')) "The failure does not name sales_lines and both numbers: $($verdict.Message)"
+            # The original still passes after the copy was drilled.
+            $verdict = Get-EtpDrillRowCountVerdict -Receipt (Read-EtpVerifiedReceipt -ReceiptPath $receiptPath -BackupDirectory $backupDirectory -Database 'DisposableDatabase') -BrokerLines $restored
+            Assert-True $verdict.Succeeded 'The original receipt stopped passing.'
+
+            # -ReceiptPath is confined to the backup folder.
+            $outside = Join-Path $temporaryRoot 'outside-receipt.json'
+            Copy-Item -LiteralPath $alteredPath -Destination $outside
+            Assert-Rejected { Resolve-EtpDrillReceiptPath -BackupDirectory $backupDirectory -Database 'DisposableDatabase' -ReceiptPath $outside } 'in the backup folder'
+            $nested = Join-Path $backupDirectory 'Nested'
+            $null = New-Item -ItemType Directory -Path $nested
+            Copy-Item -LiteralPath $alteredPath -Destination (Join-Path $nested 'copy.json')
+            Assert-Rejected { Resolve-EtpDrillReceiptPath -BackupDirectory $backupDirectory -Database 'DisposableDatabase' -ReceiptPath (Join-Path $nested 'copy.json') } 'in the backup folder'
+            Assert-Rejected { Resolve-EtpDrillReceiptPath -BackupDirectory $backupDirectory -Database 'DisposableDatabase' -ReceiptPath (Join-Path $nested '..\..\outside-receipt.json') } 'in the backup folder'
+            Assert-Rejected { Resolve-EtpDrillReceiptPath -BackupDirectory $backupDirectory -Database 'DisposableDatabase' -ReceiptPath $backupPath } 'in the backup folder'
+            Assert-Rejected { Resolve-EtpDrillReceiptPath -BackupDirectory $backupDirectory -Database 'DisposableDatabase' -ReceiptPath '\remote\share\receipt.json' } 'in the backup folder'
+            Assert-Rejected { Resolve-EtpDrillReceiptPath -BackupDirectory $backupDirectory -Database 'DisposableDatabase' -ReceiptPath (Join-Path $backupDirectory 'missing.json') } 'not found'
         }
     }
     Write-Output "Operations boundary scenario succeeded: $Scenario ($script:checks checks)."

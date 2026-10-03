@@ -108,7 +108,7 @@ public sealed class DesktopCompositionRoot
         Func<string, OperationalReportQuery> operationalReportQueryFactory = value => new SqlServerApplicationReportQuery(value);
         Func<string, ManagementTrendQuery> managementTrendQueryFactory = value => new SqlServerApplicationReportQuery(value);
         Func<string, AccountingService> accountingServiceFactory = value => new SqlServerAccountingService(value);
-        Func<string, OperationsAdministrationService> operationsAdministrationServiceFactory = value => new SqlServerOperationsAdministrationService(value);
+        Func<string, OperationsAdministrationService> operationsAdministrationServiceFactory = value => new SqlServerOperationsAdministrationService(value, ImportFailureDiagnostics.Record);
         Func<string, AdministrationService> administrationServiceFactory = value => new SqlServerAdministrationService(value);
         Func<string, ImportPersistenceUseCase> importPersistenceUseCaseFactory = value => new SqlServerImportPersistenceUseCase(value);
         Func<string, DatabaseLifecycleService> databaseLifecycleServiceFactory = value => new SqlServerDatabaseLifecycleService(value);
@@ -174,11 +174,8 @@ public sealed class DesktopCompositionRoot
             operationsAdministrationSession,
             () => connectionState.ConnectionString,
             administrationServiceFactory);
-        var importCoordinator = new DesktopImportCoordinator(
-            importPersistenceUseCaseFactory,
-            async (value, path, sha256, reportCode, storeCode, businessDate, cancellationToken) =>
-                _ = await new ProductisationOperationsService(value).IntakeEtpEvidenceAsync(
-                    path, sha256, reportCode, storeCode, businessDate, cancellationToken).ConfigureAwait(false));
+        var importCoordinator = new DesktopImportCoordinator(importPersistenceUseCaseFactory,
+            reportImportFailure: ImportFailureDiagnostics.Record);
         var importWorkspaceView = new ImportWorkspaceView(
             importCoordinator,
             () => connectionState.ConnectionString);
@@ -250,7 +247,7 @@ public sealed class DesktopCompositionRoot
 
     public async Task<int> RunAutomationOnceAsync(CancellationToken cancellationToken = default)
     {
-        var result = await new SqlServerOperationsAdministrationService(LoadAutomationConnectionString())
+        var result = await new SqlServerOperationsAdministrationService(LoadAutomationConnectionString(), ImportFailureDiagnostics.Record)
             .RunAutomationOnceAsync(cancellationToken)
             .ConfigureAwait(false);
         return result.SourcesFailed == 0 ? 0 : 1;

@@ -88,6 +88,84 @@ public sealed class InstallerBuildInputTests
         Assert.Contains("Media variable passed.", result.Output);
     }
 
+    [Fact]
+    public async Task A_named_compiler_that_does_not_exist_is_refused_before_anything_is_built()
+    {
+        // No -SkipReleaseBuild: the compiler is now found before the release build and its test
+        // gate, so a wrong path stops the build at once instead of after the whole gate has run.
+        var root = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "EtpInstallerInputs", Guid.NewGuid().ToString("N"))).FullName;
+        try
+        {
+            var missing = Path.Combine(root, "no-inno", "ISCC.exe");
+            var output = Path.Combine(root, "installer-output");
+            var release = Path.Combine(root, "release");
+            var result = await RunBuildAsync(output, release, " -InnoSetupCompiler " + Quote(missing), skipReleaseBuild: false);
+            Assert.NotEqual(0, result.ExitCode);
+            Assert.Contains("The Inno Setup compiler was not found at: " + missing, result.Output, StringComparison.Ordinal);
+            Assert.False(Directory.Exists(output));
+            Assert.False(Directory.Exists(release), "The release build started although the compiler was missing.");
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Fact]
+    public async Task A_named_compiler_folder_is_used()
+    {
+        var root = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "EtpInstallerInputs", Guid.NewGuid().ToString("N"))).FullName;
+        try
+        {
+            var inno = Directory.CreateDirectory(Path.Combine(root, "Some Tools", "Inno Setup 6")).FullName;
+            File.WriteAllText(Path.Combine(inno, "ISCC.exe"), "Disposable compiler marker");
+            var output = Path.Combine(root, "installer-output");
+            var result = await RunBuildAsync(output, Path.Combine(root, "no-release"), " -InnoSetupCompiler " + Quote(inno), skipReleaseBuild: true);
+            Assert.NotEqual(0, result.ExitCode);
+            Assert.Contains("Using Inno Setup compiler: " + Path.Combine(inno, "ISCC.exe"), result.Output, StringComparison.Ordinal);
+            Assert.Contains("Release executable is missing", result.Output, StringComparison.Ordinal);
+            Assert.False(Directory.Exists(output));
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Fact]
+    public async Task A_compiler_on_path_is_found_wherever_it_is_installed()
+    {
+        // Workpc keeps Inno Setup in E:\Tools\Inno Setup 6, none of the folders the build used to
+        // know, so the build refused a PC that had the compiler on PATH.
+        var root = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "EtpInstallerInputs", Guid.NewGuid().ToString("N"))).FullName;
+        try
+        {
+            var inno = Directory.CreateDirectory(Path.Combine(root, "portable-inno")).FullName;
+            File.WriteAllText(Path.Combine(inno, "ISCC.exe"), "Disposable compiler marker");
+            var output = Path.Combine(root, "installer-output");
+            var result = await RunBuildAsync(output, Path.Combine(root, "no-release"), "", skipReleaseBuild: true, prependToPath: inno);
+            Assert.NotEqual(0, result.ExitCode);
+            Assert.Contains("Using Inno Setup compiler: " + Path.Combine(inno, "ISCC.exe"), result.Output, StringComparison.Ordinal);
+            Assert.Contains("Release executable is missing", result.Output, StringComparison.Ordinal);
+            Assert.False(Directory.Exists(output));
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Fact]
+    public async Task The_installer_build_names_no_machine_specific_folder()
+    {
+        // Tool locations come from parameters, PATH, the registry and environment variables,
+        // never from a drive letter written into the script.
+        var script = Path.Combine(RepositoryRoot(), "scripts", "build-windows-installer.ps1").Replace("'", "''");
+        var command = $$"""
+            $ErrorActionPreference = 'Stop'
+            $tokens = $null; $errors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile('{{script}}', [ref]$tokens, [ref]$errors)
+            if (@($errors).Count -ne 0) { throw 'build-windows-installer.ps1 does not parse.' }
+            $literals = @($ast.FindAll({ param($node) ($node -is [System.Management.Automation.Language.StringConstantExpressionAst] -or $node -is [System.Management.Automation.Language.ExpandableStringExpressionAst]) -and $node.Value -match '^[A-Za-z]:[\\/]' }, $true))
+            if ($literals.Count -ne 0) { throw ('Machine-specific paths: ' + (($literals | ForEach-Object { $_.Extent.Text }) -join ', ')) }
+            Write-Output 'No machine-specific paths.'
+            """;
+        var result = await RunPowerShellAsync(["-Command", command]);
+        Assert.True(result.ExitCode == 0, result.Output);
+        Assert.Contains("No machine-specific paths.", result.Output);
+    }
+
     private static string RepositoryRoot()
     {
         var root = new DirectoryInfo(AppContext.BaseDirectory);
@@ -111,7 +189,12 @@ public sealed class InstallerBuildInputTests
         return (process.ExitCode, await stdout + await stderr);
     }
 
-    private static async Task<(int ExitCode, string Output)> RunBuildAsync(string media, string output, string release)
+    private static Task<(int ExitCode, string Output)> RunBuildAsync(string media, string output, string release)
+        => RunBuildAsync(output, release, " -SqlPayloadDirectory " + Quote(media), skipReleaseBuild: true);
+
+    private static string Quote(string value) => "'" + value.Replace("'", "''") + "'";
+
+    private static async Task<(int ExitCode, string Output)> RunBuildAsync(string output, string release, string extraArguments, bool skipReleaseBuild, string? prependToPath = null)
     {
         var root = new DirectoryInfo(AppContext.BaseDirectory);
         while (root is not null && !File.Exists(Path.Combine(root.FullName, "Etp.Reporting.slnx"))) root = root.Parent;
@@ -122,9 +205,9 @@ public sealed class InstallerBuildInputTests
         // -SkipReleaseBuild and a release folder that does not exist: nothing here can build,
         // sign or compile, whatever the checks decide. The refusal is printed on one line,
         // because PowerShell's own error view wraps long messages at the console width.
-        static string Quote(string value) => "'" + value.Replace("'", "''") + "'";
+        if (prependToPath is not null) start.Environment["PATH"] = prependToPath + Path.PathSeparator + start.Environment["PATH"];
         var command = "$ErrorActionPreference = 'Stop'; try { & " + Quote(Path.Combine(root.FullName, "scripts", "build-windows-installer.ps1")) +
-            " -SkipReleaseBuild -ReleaseDirectory " + Quote(release) + " -OutputDirectory " + Quote(output) + " -SqlPayloadDirectory " + Quote(media) +
+            (skipReleaseBuild ? " -SkipReleaseBuild" : "") + " -ReleaseDirectory " + Quote(release) + " -OutputDirectory " + Quote(output) + extraArguments +
             " } catch { Write-Output ('REFUSED: ' + $_.Exception.Message); exit 1 }";
         foreach (var argument in new[] { "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", command })
             start.ArgumentList.Add(argument);

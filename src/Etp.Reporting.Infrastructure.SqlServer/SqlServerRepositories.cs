@@ -61,7 +61,7 @@ public sealed class SqlServerImportFileRepository(string connectionString) : IIm
             await transaction.CommitAsync(cancellationToken);
             return fileId;
         }
-        catch { await transaction.RollbackAsync(CancellationToken.None); throw; }
+        catch (Exception failure) { await SqlTransactionGuard.RollBackAsync(failure, transaction); throw; }
     }
     public Task<Etp.Reporting.Import.Batch.WorkbookImportOutcome> LoadOutcomeByHashAsync(string sourceSha256,CancellationToken cancellationToken=default) =>
         LoadOutcomeAsync(sourceSha256,null,null,null,null,cancellationToken);
@@ -134,20 +134,32 @@ public sealed partial class SqlServerTransactionalImportStore(string connectionS
         PersistenceValidation.Validate(package);
         if (package.Restatement is not null) await RequireRestatementApprovalAsync(package, cancellationToken);
         var expectedRows=package.InvoiceControls.Count+package.SalesLines.Count+package.Tenders.Count+package.StockMovements.Count+package.StockSnapshots.Count+package.Enrichments.Count;
-        await using var connection=new SqlConnection(LocalSqlConnectionPolicy.Validate(connectionString)); await connection.OpenAsync(cancellationToken);
+        // The import transaction has the commit budget as Connect Timeout, which SqlClient also applies to COMMIT.
+        await using var connection=await LocalSqlConnectionPolicy.OpenWithCommitBudgetAsync(connectionString,cancellationToken);
         await using var transaction=(SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
+        Task<long> CommitBatchAsync(long fileId)=>SqlTransactionGuard.CommitOrVerifyAsync(fileId,()=>Commit(transaction,cancellationToken),
+            ()=>SqlTransactionGuard.ReleaseAsync(connection),()=>BatchCompletedAsync(package.Batch.BatchId));
+        // The batch id goes on a failure only once this transaction wrote its import_batches row.
+        var batchWritten=false;
         try
         {
             var plan=await PlanImportAsync(connection,transaction,package,cancellationToken);
-            if(plan.ExistingHashFileId is { } existingId) { await transaction.CommitAsync(cancellationToken); return existingId; }
+            // Nothing was written for an exact duplicate; the earlier file only has to still be there.
+            if(plan.ExistingHashFileId is { } existingId)
+                return await SqlTransactionGuard.CommitOrVerifyAsync(existingId,()=>Commit(transaction,cancellationToken),
+                    ()=>SqlTransactionGuard.ReleaseAsync(connection),()=>FileExistsAsync(existingId));
             await InsertBatch(connection,transaction,package.Batch,cancellationToken);
+            batchWritten=true;
             var profileId=await SqlServerImportProfileResolver.ResolveOrRegisterAsync(connection,transaction,package.File.Profile,cancellationToken);
             var fileId=await InsertFile(connection,transaction,package.File,profileId,cancellationToken);
+            // IF-023: the source bytes commit or roll back with the import (spec 11.2).
+            if(package.AcceptedImport?.Workbook is { EvidenceBytes.IsEmpty: false } workbook &&
+               string.Equals(workbook.Sha256,package.File.SourceSha256,StringComparison.OrdinalIgnoreCase))
+                await ImportSourceEvidence.RetainAsync(connection,transaction,package.File.SourceSha256,workbook.EvidenceBytes,fileId,cancellationToken);
             if(plan.DuplicateContent)
             {
                 await RecordDuplicateAsync(connection,transaction,package,fileId,plan,cancellationToken);
-                await transaction.CommitAsync(cancellationToken);
-                return fileId;
+                return await CommitBatchAsync(fileId);
             }
             // The database checks superset content itself before it archives any current facts.
             await InsertFamilySourceAsync(connection,transaction,package,fileId,plan.Keys,cancellationToken);
@@ -168,16 +180,37 @@ public sealed partial class SqlServerTransactionalImportStore(string connectionS
             foreach(var row in package.InvoiceControls) await InsertInvoiceControl(connection,transaction,fileId,row,cancellationToken);
             foreach(var row in package.SalesLines) await InsertSales(connection,transaction,fileId,row,cancellationToken);
             foreach(var row in package.Tenders) await InsertTender(connection,transaction,fileId,row,cancellationToken);
-            foreach(var row in package.StockMovements) await InsertMovement(connection,transaction,fileId,row,cancellationToken);
+            foreach(var row in await AlignMovementLinesAsync(connection,transaction,package.StockMovements,cancellationToken)) await InsertMovement(connection,transaction,fileId,row,cancellationToken);
             foreach(var row in package.StockSnapshots) await InsertSnapshot(connection,transaction,fileId,row,cancellationToken);
             foreach(var row in package.Enrichments) await InsertEnrichmentAsync(connection,transaction,fileId,row,cancellationToken);
             await ThrowOnConflictsAsync(connection,transaction,fileId,cancellationToken);
             if(package.SalesLines.Count>0) await RefreshEnrichmentMatches(connection,transaction,cancellationToken);
             await using var complete=Cmd(connection,transaction,"UPDATE dbo.import_batches SET status='Completed',source_row_count=@rows,completed_utc=SYSUTCDATETIME() WHERE import_batch_id=@id AND status='Processing'"); complete.Parameters.AddWithValue("@rows",package.AcceptedImport?.Staging.Rows.Count ?? expectedRows);complete.Parameters.AddWithValue("@id",package.Batch.BatchId);if(await complete.ExecuteNonQueryAsync(cancellationToken)!=1)throw new DBConcurrencyException("Import batch completion failed.");
-            await transaction.CommitAsync(cancellationToken); return fileId;
+            return await CommitBatchAsync(fileId);
         }
-        catch { await transaction.RollbackAsync(CancellationToken.None); throw; }
+        catch (Exception failure)
+        {
+            if(batchWritten) failure.Data[SqlTransactionGuard.ImportBatchIdKey]=package.Batch.BatchId;
+            SqlTransactionGuard.MarkRolledBack(failure);
+            await SqlTransactionGuard.RollBackAsync(failure,transaction);
+            throw;
+        }
     }
+
+    /// <summary>Issues the import COMMIT. Tests replace it to simulate a COMMIT whose reply is lost.</summary>
+    internal Func<SqlTransaction,CancellationToken,Task> Commit { get; init; }=(transaction,token)=>transaction.CommitAsync(token);
+
+    /// <summary>Where the check after a failed COMMIT connects. Tests point it at a missing database to make the check fail.</summary>
+    internal string? CommitCheckConnectionString { get; init; }
+
+    // Both checks lock-read on a fresh, unpooled connection, so a COMMIT still finishing on the
+    // server is waited for rather than read as missing. Only this transaction inserts the batch row.
+    internal Task<bool> BatchCompletedAsync(Guid batchId)=>SqlTransactionGuard.CheckAsync(CommitCheckConnectionString ?? connectionString,
+        "SELECT CONVERT(bit,CASE WHEN EXISTS(SELECT 1 FROM dbo.import_batches WITH(READCOMMITTEDLOCK) WHERE import_batch_id=@id AND status='Completed') THEN 1 ELSE 0 END)",
+        command=>command.Parameters.AddWithValue("@id",batchId));
+    private Task<bool> FileExistsAsync(long fileId)=>SqlTransactionGuard.CheckAsync(CommitCheckConnectionString ?? connectionString,
+        "SELECT CONVERT(bit,CASE WHEN EXISTS(SELECT 1 FROM dbo.import_files WITH(READCOMMITTEDLOCK) WHERE import_file_id=@id) THEN 1 ELSE 0 END)",
+        command=>command.Parameters.AddWithValue("@id",fileId));
 
     private static async Task InsertBatch(SqlConnection c,SqlTransaction t,ImportBatchRegistration x,CancellationToken token){await using var q=Cmd(c,t,"INSERT dbo.import_batches(import_batch_id,status,store_id,period_start,period_end,started_utc) VALUES(@id,'Processing',@store,@start,@end,@utc)");q.Parameters.AddWithValue("@id",x.BatchId);Add(q,"@store",x.StoreId);Add(q,"@start",x.PeriodStart);Add(q,"@end",x.PeriodEnd);q.Parameters.AddWithValue("@utc",x.StartedUtc.UtcDateTime);await q.ExecuteNonQueryAsync(token);}
     private static async Task<long> InsertFile(SqlConnection c,SqlTransaction t,ImportFileRegistration x,int profileId,CancellationToken token){var reportCode=PersistenceValidation.ResolveReportCode(x);await using var q=Cmd(c,t,"INSERT dbo.import_files(import_batch_id,import_profile_id,original_file_name,source_sha256,size_bytes,report_code,store_code,business_date,source_report_date,imported_by,period_start,period_end,data_truth_version) VALUES(@batch,@profile,@name,@hash,@size,@report,@store,@business,@sourceDate,@user,@periodStart,@periodEnd,1); SELECT CONVERT(bigint,SCOPE_IDENTITY());");q.Parameters.AddWithValue("@batch",x.BatchId);q.Parameters.AddWithValue("@profile",profileId);q.Parameters.AddWithValue("@name",x.OriginalFileName);q.Parameters.AddWithValue("@hash",SqlServerImportFileRepository.NormalizeHash(x.SourceSha256));q.Parameters.AddWithValue("@size",x.SizeBytes);q.Parameters.AddWithValue("@report",reportCode);Add(q,"@store",x.StoreCode);Add(q,"@business",x.BusinessDate);Add(q,"@sourceDate",x.SourceReportDate);Add(q,"@user",x.ImportedBy);Add(q,"@periodStart",x.PeriodStart??x.BusinessDate);Add(q,"@periodEnd",x.PeriodEnd??x.BusinessDate);return Convert.ToInt64(await q.ExecuteScalarAsync(token));}
@@ -192,8 +225,9 @@ public sealed partial class SqlServerTransactionalImportStore(string connectionS
     private static async Task InsertSales(SqlConnection c,SqlTransaction t,long f,SalesLinePersistence x,CancellationToken token){var l=await Lineage(c,t,f,x.Lineage,token);await using var q=Cmd(c,t,"EXEC dbo.persist_sales_line @store,@doc,@year,@date,@line,@product,@type,@qty,@gross,@net,@brandcode,@brandname,@segment,@currency,@lineage,@tax");Add(q,"@tax",x.SourceTaxAmount);Bind(q,x.StoreCode,x.DocumentNumber,x.InvoiceYear,x.TransactionDate,x.LineIdentifier,x.ProductCode,x.SourceTransactionType,x.SourceQuantity,x.SourceGrossAmount,x.SourceNetAmount,x.SourceBrandCode,x.SourceBrandName,x.BrandSegment,x.CurrencyCode,l);await q.ExecuteNonQueryAsync(token);}
     private static async Task InsertInvoiceControl(SqlConnection c,SqlTransaction t,long f,SalesInvoiceControlPersistence x,CancellationToken token){var l=await Lineage(c,t,f,x.Lineage,token);await using var q=Cmd(c,t,"EXEC dbo.persist_sales_invoice_control @store,@doc,@year,@date,@type,@qty,@net,@currency,@lineage");q.Parameters.AddWithValue("@store",x.StoreCode);q.Parameters.AddWithValue("@doc",x.DocumentNumber);q.Parameters.AddWithValue("@year",x.InvoiceYear);q.Parameters.AddWithValue("@date",x.TransactionDate);Add(q,"@type",x.SourceTransactionType);q.Parameters.AddWithValue("@qty",x.SourceInvoiceQuantity);q.Parameters.AddWithValue("@net",x.SourceNetValue);q.Parameters.AddWithValue("@currency",x.CurrencyCode);q.Parameters.AddWithValue("@lineage",l);await q.ExecuteNonQueryAsync(token);}
     private static async Task InsertTender(SqlConnection c,SqlTransaction t,long f,TenderPersistence x,CancellationToken token){var l=await Lineage(c,t,f,x.Lineage,token);await using var q=Cmd(c,t,"EXEC dbo.persist_sales_tender @store,@doc,@year,@date,@type,@amount,@currency,@lineage,@eligible,@reason");q.Parameters.AddWithValue("@store",x.StoreCode);q.Parameters.AddWithValue("@doc",x.DocumentNumber);q.Parameters.AddWithValue("@year",x.InvoiceYear);q.Parameters.AddWithValue("@date",x.TransactionDate);q.Parameters.AddWithValue("@type",x.TenderType);q.Parameters.AddWithValue("@amount",x.SourceAmount);q.Parameters.AddWithValue("@currency",x.CurrencyCode);q.Parameters.AddWithValue("@lineage",l);q.Parameters.AddWithValue("@eligible",x.IsReportingEligible);Add(q,"@reason",x.ExclusionReason);await q.ExecuteNonQueryAsync(token);}
-    private static async Task InsertMovement(SqlConnection c,SqlTransaction t,long f,StockMovementPersistence x,CancellationToken token){var l=await Lineage(c,t,f,x.Lineage,token);await using var q=Cmd(c,t,"EXEC dbo.persist_stock_movement @store,@doc,@year,@date,@product,@type,@from,@to,@opening,@transaction,@closing,@lineage");q.Parameters.AddWithValue("@store",x.StoreCode);q.Parameters.AddWithValue("@doc",x.DocumentNumber);q.Parameters.AddWithValue("@year",x.InvoiceYear);q.Parameters.AddWithValue("@date",x.DocumentDate);q.Parameters.AddWithValue("@product",x.ProductCode);q.Parameters.AddWithValue("@type",x.SourceTransactionType);Add(q,"@from",x.FromLocation);Add(q,"@to",x.ToLocation);q.Parameters.AddWithValue("@opening",x.OpeningQuantity);q.Parameters.AddWithValue("@transaction",x.TransactionQuantity);q.Parameters.AddWithValue("@closing",x.ClosingQuantity);q.Parameters.AddWithValue("@lineage",l);await q.ExecuteNonQueryAsync(token);}
-    private static async Task InsertSnapshot(SqlConnection c,SqlTransaction t,long f,StockSnapshotPersistence x,CancellationToken token){var l=await Lineage(c,t,f,x.Lineage,token);await using var q=Cmd(c,t,"EXEC dbo.persist_stock_snapshot @store,@date,@product,@ean,@brand,@brandname,@cluster,@gender,@batch,@uid,@qty,@unit,@total,@lineage");q.Parameters.AddWithValue("@store",x.StoreCode);q.Parameters.AddWithValue("@date",x.SnapshotDate);q.Parameters.AddWithValue("@product",x.ProductCode);Add(q,"@ean",x.Ean);Add(q,"@brand",x.BrandCode);Add(q,"@brandname",x.BrandName);Add(q,"@cluster",x.Cluster);Add(q,"@gender",x.Gender);Add(q,"@batch",x.BatchNumber);Add(q,"@uid",x.SourceUid);q.Parameters.AddWithValue("@qty",x.Quantity);Add(q,"@unit",x.UnitCost);Add(q,"@total",x.TotalCost);q.Parameters.AddWithValue("@lineage",l);await q.ExecuteNonQueryAsync(token);}
+    private static async Task InsertMovement(SqlConnection c,SqlTransaction t,long f,StockMovementPersistence x,CancellationToken token){var l=await Lineage(c,t,f,x.Lineage,token);await using var q=Cmd(c,t,"EXEC dbo.persist_stock_movement @store,@doc,@year,@date,@product,@type,@from,@to,@opening,@transaction,@closing,@lineage,@line_seq");q.Parameters.AddWithValue("@store",x.StoreCode);q.Parameters.AddWithValue("@doc",x.DocumentNumber);q.Parameters.AddWithValue("@year",x.InvoiceYear);q.Parameters.AddWithValue("@date",x.DocumentDate);q.Parameters.AddWithValue("@product",x.ProductCode);q.Parameters.AddWithValue("@type",x.SourceTransactionType);Add(q,"@from",x.FromLocation);Add(q,"@to",x.ToLocation);q.Parameters.AddWithValue("@opening",x.OpeningQuantity);q.Parameters.AddWithValue("@transaction",x.TransactionQuantity);q.Parameters.AddWithValue("@closing",x.ClosingQuantity);q.Parameters.AddWithValue("@lineage",l);q.Parameters.AddWithValue("@line_seq",x.LineSeq);await q.ExecuteNonQueryAsync(token);}
+
+    private static async Task InsertSnapshot(SqlConnection c,SqlTransaction t,long f,StockSnapshotPersistence x,CancellationToken token){var l=await Lineage(c,t,f,x.Lineage,token);await using var q=Cmd(c,t,"EXEC dbo.persist_stock_snapshot @store,@date,@product,@ean,@brand,@brandname,@cluster,@gender,@batch,@uid,@qty,@unit,@total,@lineage,@source=@source,@line_seq=@line_seq");Add(q,"@source",x.SourceReportCode);q.Parameters.AddWithValue("@line_seq",x.LineSeq);q.Parameters.AddWithValue("@store",x.StoreCode);q.Parameters.AddWithValue("@date",x.SnapshotDate);q.Parameters.AddWithValue("@product",x.ProductCode);Add(q,"@ean",x.Ean);Add(q,"@brand",x.BrandCode);Add(q,"@brandname",x.BrandName);Add(q,"@cluster",x.Cluster);Add(q,"@gender",x.Gender);Add(q,"@batch",x.BatchNumber);Add(q,"@uid",x.SourceUid);q.Parameters.AddWithValue("@qty",x.Quantity);Add(q,"@unit",x.UnitCost);Add(q,"@total",x.TotalCost);q.Parameters.AddWithValue("@lineage",l);await q.ExecuteNonQueryAsync(token);}
     private static async Task RefreshEnrichmentMatches(SqlConnection c,SqlTransaction t,CancellationToken token)
     {
         const string sql="EXEC dbo.refresh_enrichment_matches";

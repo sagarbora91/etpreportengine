@@ -184,7 +184,19 @@ public sealed record AdministrationDashboard(
     IReadOnlyList<ApplicationUser> Users,
     IReadOnlyList<KpiDefinition> Kpis,
     IReadOnlyList<ProductHealth> ProductHealth,
-    ProductConfiguration ProductConfiguration);
+    ProductConfiguration ProductConfiguration)
+{
+    /// <summary>
+    /// True when the signed-in Owner's SQL login cannot grant or revoke the server permission
+    /// that every user access change ends with (ALTER ANY LOGIN needs sysadmin or the permission
+    /// WITH GRANT OPTION). Since 1.9.2 the Owner is sysadmin only through BUILTIN\Administrators,
+    /// which Windows removes from an unelevated token, so this means "start ETP with Run as
+    /// administrator". Since migration 0043 Owners hold the grant option and this is false for
+    /// them, unless the Owner was the account setup ran as and no other SQL administrator has
+    /// granted it yet. False when it is allowed or could not be determined.
+    /// </summary>
+    public bool UserAccessChangesNeedElevation { get; init; }
+}
 
 public sealed record SaveControlledMaster(
     string MasterType,

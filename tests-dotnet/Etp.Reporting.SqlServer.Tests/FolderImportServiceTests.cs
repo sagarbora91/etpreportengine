@@ -1,4 +1,5 @@
 using Etp.Reporting.Application.Imports;
+using Etp.Reporting.Import.Batch;
 using Etp.Reporting.Import.Preflight;
 using Etp.Reporting.Import.Profiles;
 using Etp.Reporting.Import.Workbooks;
@@ -192,50 +193,57 @@ public sealed class FolderImportServiceTests
         Assert.Equal(new DateOnly(2026, 8, 25), empty.PeriodEnd);
     }
 
-    [Fact]
-    public async Task Empty_export_evidence_uses_the_detected_sibling_scope()
-    {
-        var retained = new List<(string Path, string Store, DateOnly Date)>();
-        var service = new FolderImportService(new CapturePersistence(), new Reader(path => Sales(path, "HEMW", path == "empty.xlsx" ? [] : [20260825])),
-            (path, _, store, date, _) => { retained.Add((path, store, date)); return Task.CompletedTask; });
-        await service.RunFilesAsync(["empty.xlsx", "sales.xlsx"], new("tester"));
-        Assert.Contains(retained, value => value.Path == "empty.xlsx" && value.Store == "HEMW" && value.Date == new DateOnly(2026, 8, 25));
-    }
-
-    [Fact]
-    public async Task Duplicate_retry_repairs_a_failed_original_document_copy_without_new_data()
-    {
-        var attempts = 0;
-        Task Retain(string path, MatchedImportEnvelope envelope, string store, DateOnly date, CancellationToken token)
-        {
-            if (++attempts == 1) throw new IOException("Temporary copy failure.");
-            return Task.CompletedTask;
-        }
-        var reader = new Reader(path => Sales(path, "HEMW", [20260825]));
-        var first = await new FolderImportService(new CapturePersistence(), reader, Retain).RunFilesAsync(["sales.xlsx"], new("tester"));
-        Assert.Contains("could not be retained", Assert.Single(first.Files).Message);
-        Assert.Equal("Imported", first.Files[0].Status);
-        var duplicatePersistence = new CapturePersistence { Exists = true };
-        var second = await new FolderImportService(duplicatePersistence, reader, Retain).RunFilesAsync(["sales.xlsx"], new("tester"));
-        Assert.Equal(2, attempts);
-        Assert.Equal("Duplicate", Assert.Single(second.Files).Status);
-        Assert.DoesNotContain("could not be retained", second.Files[0].Message);
-        Assert.Empty(duplicatePersistence.Requests);
-        Assert.Equal(0, second.NewRows);
-    }
-
     [Theory]
-    [InlineData("Duplicate content")]
-    [InlineData("Already present")]
-    public async Task Content_duplicates_and_subsets_retain_their_original_document(string status)
+    [InlineData("Imported", EvidenceState.Retained)]
+    [InlineData("Duplicate content", EvidenceState.AlreadyHeld)]
+    [InlineData("Already present", EvidenceState.AlreadyHeld)]
+    public async Task Imported_and_content_duplicate_files_record_the_evidence_of_their_import_transaction(string status,
+        EvidenceState evidence)
     {
-        var retained = 0;
-        var summary = await new FolderImportService(new CapturePersistence { Status = status },
-            new Reader(path => Sales(path, "HEMW", [20260825])),
-            (_, _, _, _, _) => { retained++; return Task.CompletedTask; }).RunFilesAsync(["sales.xlsx"], new("tester"));
-        Assert.Equal(status, Assert.Single(summary.Files).Status);
-        Assert.Equal(1, retained);
-        Assert.Equal(0, summary.NewRows);
+        var persistence = new CapturePersistence { Status = status, Evidence = evidence };
+        var summary = await new FolderImportService(persistence, new Reader(path => Sales(path, "HEMW", [20260825])))
+            .RunFilesAsync(["sales.xlsx"], new("tester"));
+        var file = Assert.Single(summary.Files);
+        Assert.Equal(status, file.Status);
+        Assert.Equal(evidence, file.Evidence);
+        // The import transaction kept the bytes; nothing is retained after it (IF-023).
+        Assert.Empty(persistence.Retained);
+        Assert.DoesNotContain(file.Diagnostics ?? [], issue => issue.Code == ImportCodes.EvidenceNotRetained);
+    }
+
+    [Fact]
+    public async Task Evidence_not_retained_by_the_import_is_a_recorded_warning()
+    {
+        var summary = await new FolderImportService(new CapturePersistence { Evidence = EvidenceState.NotRetained },
+            new Reader(path => Sales(path, "HEMW", [20260825]))).RunFilesAsync(["sales.xlsx"], new("tester"));
+        var file = Assert.Single(summary.Files);
+        Assert.Equal("Imported", file.Status);
+        Assert.Equal(EvidenceState.NotRetained, file.Evidence);
+        var issue = Assert.Single(file.Diagnostics!, issue => issue.Code == ImportCodes.EvidenceNotRetained);
+        Assert.Equal(ImportIssueSeverity.Warning, issue.Severity);
+    }
+
+    [Fact]
+    public async Task Duplicate_retains_missing_bytes_in_its_own_transaction_and_records_a_failure()
+    {
+        var reader = new Reader(path => Sales(path, "HEMW", [20260825]) with { Content = new(SourceBytes, Sha) });
+        var failing = new CapturePersistence { Exists = true, RetainFailure = new IOException("Synthetic database failure.") };
+        var first = Assert.Single((await new FolderImportService(failing, reader).RunFilesAsync(["sales.xlsx"], new("tester"))).Files);
+        Assert.Equal("Duplicate", first.Status);
+        Assert.Equal(EvidenceState.NotRetained, first.Evidence);
+        Assert.Contains(first.Diagnostics!, issue => issue.Code == ImportCodes.EvidenceNotRetained);
+
+        var duplicate = new CapturePersistence { Exists = true };
+        var second = await new FolderImportService(duplicate, reader).RunFilesAsync(["sales.xlsx"], new("tester"));
+        var file = Assert.Single(second.Files);
+        Assert.Equal("Duplicate", file.Status);
+        Assert.Equal(EvidenceState.Retained, file.Evidence);
+        Assert.DoesNotContain(file.Diagnostics ?? [], issue => issue.Code == ImportCodes.EvidenceNotRetained);
+        var retained = Assert.Single(duplicate.Retained);
+        Assert.Equal(Sha, retained.Sha256);
+        Assert.Equal(SourceBytes, retained.Content);
+        Assert.Empty(duplicate.Requests);
+        Assert.Equal(0, second.NewRows);
     }
 
     [Fact]
@@ -249,6 +257,235 @@ public sealed class FolderImportServiceTests
         Assert.Single(persistence.Requests);
         Assert.Equal("Imported", summary.Files[0].Status);
         Assert.Equal("Cancelled", summary.Files[1].Status);
+    }
+
+    // IF-016 interim (planner 1): the target is chosen by overlap with the replacement's declared period.
+    private static readonly FolderImportOptions Restate = new("tester", true, "Corrected source");
+    private static readonly RestatementCandidate First = new(11, "R025_HEMW_25Aug.xlsx", new(2026, 8, 25), new(2026, 8, 25), 40);
+    private static readonly RestatementCandidate Second = new(12, "R025_HEMW_26Aug.xlsx", new(2026, 8, 26), new(2026, 8, 26), 35);
+
+    [Fact]
+    public async Task Restatement_with_no_overlapping_target_is_rejected()
+    {
+        var persistence = new CapturePersistence();
+        var summary = await new FolderImportService(persistence, new Reader(path => Sales(path, "HEMW", [20260825, 20260826])))
+            .RunFilesAsync(["sales.xlsx"], Restate);
+        var file = Assert.Single(summary.Files);
+        Assert.Equal("Failed", file.Status);
+        Assert.Contains("nothing can be restated", file.Message);
+        Assert.Equal(ImportCodes.RestatementMatchesNothing, Assert.Single(file.Diagnostics!, issue => issue.Severity == ImportIssueSeverity.Blocker).Code);
+        Assert.Equal((new DateOnly(2026, 8, 25), new DateOnly(2026, 8, 26)), Assert.Single(persistence.CandidateLookups));
+        Assert.Empty(persistence.Prepared);
+        Assert.Empty(persistence.Requests);
+    }
+
+    [Fact]
+    public async Task Restatement_with_one_overlapping_target_uses_it_without_asking()
+    {
+        var persistence = new CapturePersistence { Candidates = [Second] };
+        var asked = 0;
+        var summary = await new FolderImportService(persistence, new Reader(path => Sales(path, "HEMW", [20260825, 20260826])))
+            .RunFilesAsync(["sales.xlsx"], Restate with { ChooseRestatementTarget = (_, _) => { asked++; return Task.FromResult<RestatementCandidate?>(null); } });
+        Assert.Equal("Imported", Assert.Single(summary.Files).Status);
+        Assert.Equal(0, asked);
+        Assert.Equal(12, Assert.Single(persistence.Prepared).Restatement!.PreviousImportFileId);
+        Assert.Equal(12, Assert.Single(persistence.Requests).Restatement!.PreviousImportFileId);
+    }
+
+    [Fact]
+    public async Task Restatement_with_two_targets_uses_the_picked_one()
+    {
+        var persistence = new CapturePersistence { Candidates = [First, Second] };
+        var choices = new List<RestatementTargetChoice>();
+        var summary = await new FolderImportService(persistence, new Reader(path => Sales(path, "HEMW", [20260825, 20260826])))
+            .RunFilesAsync(["sales.xlsx"], Restate with { ChooseRestatementTarget = (choice, _) =>
+            {
+                choices.Add(choice);
+                // A copy proves the pick is matched by file id, not by reference.
+                return Task.FromResult<RestatementCandidate?>(choice.Candidates[1] with { });
+            } });
+        Assert.Equal("Imported", Assert.Single(summary.Files).Status);
+        var choice = Assert.Single(choices);
+        Assert.Equal(("sales.xlsx", "R025", "HEMW"), (choice.FileName, choice.ReportCode, choice.StoreCode));
+        Assert.Equal((new DateOnly(2026, 8, 25), new DateOnly(2026, 8, 26)), (choice.PeriodStart, choice.PeriodEnd));
+        Assert.Equal([11L, 12L], choice.Candidates.Select(candidate => candidate.ImportFileId));
+        var request = Assert.Single(persistence.Requests);
+        Assert.Equal(12, request.Restatement!.PreviousImportFileId);
+        Assert.Equal("Corrected source", request.Restatement.Reason);
+        Assert.Same(request, Assert.Single(persistence.Prepared));
+    }
+
+    [Fact]
+    public async Task Restatement_with_two_targets_and_no_pick_is_refused_with_candidates()
+    {
+        // Automation passes no picker; the Owner may also close the dialog, and a pick outside the list counts as none.
+        foreach (var options in new[] { Restate, Restate with { ChooseRestatementTarget = (_, _) => Task.FromResult<RestatementCandidate?>(null) },
+                     Restate with { ChooseRestatementTarget = (_, _) => Task.FromResult<RestatementCandidate?>(First with { ImportFileId = 99 }) } })
+        {
+            var persistence = new CapturePersistence { Candidates = [First, Second] };
+            var summary = await new FolderImportService(persistence, new Reader(path => Sales(path, "HEMW", [20260825, 20260826])))
+                .RunFilesAsync(["sales.xlsx"], options);
+            var file = Assert.Single(summary.Files);
+            Assert.Equal("Failed", file.Status);
+            Assert.Contains("files 11, 12", file.Message);
+            var issues = file.Diagnostics!.Where(issue => issue.Code == ImportCodes.RestatementTargetAmbiguous).ToArray();
+            Assert.Equal(2, issues.Length);
+            Assert.All(issues, issue => Assert.Equal(ImportIssueSeverity.Blocker, issue.Severity));
+            Assert.Contains("11: R025_HEMW_25Aug.xlsx, 25 Aug 2026, 40 rows", issues[0].Message);
+            Assert.Contains("12: R025_HEMW_26Aug.xlsx, 26 Aug 2026, 35 rows", issues[1].Message);
+            Assert.Empty(persistence.Prepared);
+            Assert.Empty(persistence.Requests);
+        }
+    }
+
+    [Fact]
+    public async Task Missing_approval_reports_RESTATEMENT_APPROVAL_REQUIRED()
+    {
+        // SqlServerImportPersistenceUseCase raises this from PersistAsync's exact-approval check.
+        var refusal = SqlServerImportPersistenceUseCase.RestatementApprovalRequired();
+        Assert.Equal(ImportCodes.RestatementApprovalRequired, refusal.Code);
+        var persistence = new CapturePersistence { Candidates = [First], PersistFailure = refusal };
+        var summary = await new FolderImportService(persistence, new Reader(path => Sales(path, "HEMW", [20260825])))
+            .RunFilesAsync(["sales.xlsx"], Restate);
+        var file = Assert.Single(summary.Files);
+        Assert.Equal("Failed", file.Status);
+        Assert.Equal(11, Assert.Single(persistence.Prepared).Restatement!.PreviousImportFileId);
+        Assert.Single(persistence.Requests);
+        // The result carries the approval message, not the generic access or processing text.
+        Assert.Equal(refusal.Message, file.Message);
+        Assert.DoesNotContain("could not be accessed", file.Message);
+        Assert.DoesNotContain("could not be imported", file.Message);
+        // The failure record (IF-017) is set by the diagnostics lane (p1-a); once it is, it must carry this code.
+        if (file.Failure is not null) Assert.Equal(ImportCodes.RestatementApprovalRequired, file.Failure.Code);
+    }
+
+    [Fact]
+    public async Task Restatement_over_a_partly_overlapped_import_is_refused_before_prepare()
+    {
+        // 1-31 Aug is the only overlap of a 25-26 Aug replacement; SQL would refuse it with 51555, so no auto-pick.
+        var month = new RestatementCandidate(13, "R025_HEMW_Aug.xlsx", new(2026, 8, 1), new(2026, 8, 31), 900);
+        foreach (var candidates in new[] { new[] { month }, new[] { First, month } })
+        {
+            var asked = 0;
+            var persistence = new CapturePersistence { Candidates = candidates };
+            var summary = await new FolderImportService(persistence, new Reader(path => Sales(path, "HEMW", [20260825, 20260826])))
+                .RunFilesAsync(["sales.xlsx"], Restate with { ChooseRestatementTarget = (choice, _) => { asked++; return Task.FromResult<RestatementCandidate?>(choice.Candidates[0]); } });
+            var file = Assert.Single(summary.Files);
+            Assert.Equal("Failed", file.Status);
+            Assert.Contains("only partly overlaps", file.Message);
+            var issue = Assert.Single(file.Diagnostics!, issue => issue.Code == ImportCodes.RestatementTargetNotCovered);
+            Assert.Contains("13: R025_HEMW_Aug.xlsx", issue.Message);
+            Assert.Equal(0, asked);
+            Assert.Empty(persistence.Prepared);
+            Assert.Empty(persistence.Requests);
+        }
+    }
+
+    [Fact]
+    public async Task Restatement_that_changes_an_unpicked_import_is_refused_before_prepare_with_a_restatement_code()
+    {
+        // A corrected 25-26 Aug file over two current files; it changes rows of both, and the Owner picks the first.
+        var persistence = new CapturePersistence { Candidates = [First, Second], Changed = [11, 12] };
+        var asked = 0;
+        var summary = await new FolderImportService(persistence, new Reader(path => Sales(path, "HEMW", [20260825, 20260826])))
+            .RunFilesAsync(["sales.xlsx"], Restate with { ChooseRestatementTarget = (choice, _) => { asked++; return Task.FromResult<RestatementCandidate?>(choice.Candidates[0]); } });
+
+        var file = Assert.Single(summary.Files);
+        Assert.Equal("Failed", file.Status);
+        Assert.Equal(ImportCodes.RestatementOtherImportChanged, file.Failure!.Code);
+        Assert.DoesNotContain("Use Restate", file.Message);
+        Assert.Contains("restates only one import", file.Message);
+        var issues = file.Diagnostics!.Where(issue => issue.Code == ImportCodes.RestatementOtherImportChanged).ToArray();
+        Assert.Equal(["Current import 11: R025_HEMW_25Aug.xlsx", "Current import 12: R025_HEMW_26Aug.xlsx"],
+            issues.Select(issue => issue.Message.Split(',')[0]));
+        // No pick can succeed, so nothing is asked, and no approval is requested.
+        Assert.Equal(0, asked);
+        Assert.Equal([11L, 12L], Assert.Single(persistence.ChangedLookups));
+        Assert.Empty(persistence.Prepared);
+        Assert.Empty(persistence.Requests);
+    }
+
+    [Fact]
+    public async Task Restatement_must_pick_the_one_import_it_changes_when_the_others_are_taken_over()
+    {
+        // Only file 12 holds rows this file changes; file 11's rows are all in it, so promotion takes 11 over.
+        var wrongPick = new CapturePersistence { Candidates = [First, Second], Changed = [12] };
+        var refused = await new FolderImportService(wrongPick, new Reader(path => Sales(path, "HEMW", [20260825, 20260826])))
+            .RunFilesAsync(["sales.xlsx"], Restate with { ChooseRestatementTarget = (choice, _) => Task.FromResult<RestatementCandidate?>(choice.Candidates[0]) });
+        var file = Assert.Single(refused.Files);
+        Assert.Equal(ImportCodes.RestatementOtherImportChanged, file.Failure!.Code);
+        Assert.StartsWith("Current import 12: R025_HEMW_26Aug.xlsx", Assert.Single(file.Diagnostics!, issue => issue.Code == ImportCodes.RestatementOtherImportChanged).Message);
+        Assert.Empty(wrongPick.Prepared);
+
+        var rightPick = new CapturePersistence { Candidates = [First, Second], Changed = [12] };
+        var imported = await new FolderImportService(rightPick, new Reader(path => Sales(path, "HEMW", [20260825, 20260826])))
+            .RunFilesAsync(["sales.xlsx"], Restate with { ChooseRestatementTarget = (choice, _) => Task.FromResult<RestatementCandidate?>(choice.Candidates[1]) });
+        Assert.Equal("Imported", Assert.Single(imported.Files).Status);
+        Assert.Equal(12, Assert.Single(rightPick.Prepared).Restatement!.PreviousImportFileId);
+        // The lookup keys the incoming rows by the date the import is persisted with, as planner 1 does under its lock.
+        Assert.Equal(Assert.Single(rightPick.Requests).ExpectedBusinessDate, Assert.Single(rightPick.ChangedDates));
+    }
+
+    // Review 1.9.3 finding 2 (IF-023): every attempt records an evidence state, never NULL.
+    [Fact]
+    public async Task A_file_that_was_never_read_or_never_reached_records_evidence_not_attempted()
+    {
+        var unreadable = await new FolderImportService(new CapturePersistence(),
+            new Reader(_ => throw new IOException("Synthetic unreadable workbook."))).RunFilesAsync(["broken.xlsx"], new("tester"));
+        var failed = Assert.Single(unreadable.Files);
+        Assert.Equal("Failed", failed.Status);
+        Assert.Equal(EvidenceState.NotAttempted, failed.Evidence);
+
+        using var cancellation = new CancellationTokenSource();
+        var progress = new InlineProgress(value => { if (value.Completed == 1) cancellation.Cancel(); });
+        var summary = await new FolderImportService(new CapturePersistence(), new Reader(path => Sales(path, "HEMW", [20260825])))
+            .RunFilesAsync(["one.xlsx", "two.xlsx"], new("tester"), progress, cancellation.Token);
+        var cancelled = Assert.Single(summary.Files, file => file.Status == "Cancelled");
+        Assert.Equal(EvidenceState.NotAttempted, cancelled.Evidence);
+    }
+
+    [Fact]
+    public async Task A_committed_import_whose_later_step_failed_records_its_evidence_state()
+    {
+        // The import kept its bytes and committed; reading its result back failed afterwards.
+        var persistence = new CapturePersistence { Evidence = EvidenceState.Retained, OutcomeFailure = new InvalidOperationException("Synthetic read-back failure.") };
+        var file = Assert.Single((await new FolderImportService(persistence, new Reader(path => Sales(path, "HEMW", [20260825])))
+            .RunFilesAsync(["sales.xlsx"], new("tester"))).Files);
+        Assert.Equal(CommitState.Committed, file.CommitState);
+        Assert.Equal(EvidenceState.Retained, file.Evidence);
+
+        // A failure after the commit inside the store reports no evidence; the state is unknown, not missing.
+        var committed = new CapturePersistence { PersistFailure = new ImportCommittedException(Guid.NewGuid(), new TimeoutException("Synthetic.")) };
+        var unknown = Assert.Single((await new FolderImportService(committed, new Reader(path => Sales(path, "HEMW", [20260825])))
+            .RunFilesAsync(["sales.xlsx"], new("tester"))).Files);
+        Assert.Equal(CommitState.Committed, unknown.CommitState);
+        Assert.Equal(EvidenceState.Unknown, unknown.Evidence);
+        Assert.Equal("UNKNOWN", EvidenceState.Unknown.ToDatabaseCode());
+    }
+
+    [Fact]
+    public async Task A_duplicate_without_an_evidence_retainer_records_evidence_not_attempted()
+    {
+        var file = Assert.Single((await new FolderImportService(new PlainPersistence(),
+            new Reader(path => Sales(path, "HEMW", [20260825]))).RunFilesAsync(["sales.xlsx"], new("tester"))).Files);
+        Assert.Equal("Duplicate", file.Status);
+        Assert.Equal(EvidenceState.NotAttempted, file.Evidence);
+    }
+
+    // A persistence that keeps no evidence: every file is already imported.
+    private sealed class PlainPersistence : IImportPersistenceUseCase<MatchedImportEnvelope>
+    {
+        public Task<bool> ExistsByHashAsync(string hash, CancellationToken cancellationToken = default) => Task.FromResult(true);
+        public Task<bool> ExistsInScopeAsync(string hash, string report, string store, DateOnly start, DateOnly end, CancellationToken cancellationToken = default) =>
+            Task.FromResult(true);
+        public Task<long?> FindCurrentImportFileIdAsync(string report, string store, DateOnly date, CancellationToken cancellationToken = default) => Task.FromResult<long?>(null);
+        public Task<IReadOnlyList<RestatementCandidate>> FindRestatementCandidatesAsync(string report, string store, DateOnly start, DateOnly end,
+            CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<RestatementCandidate>>([]);
+        public Task PrepareRestatementAsync(ImportPersistenceRequest<MatchedImportEnvelope> request, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<ImportPersistenceResult> PersistAsync(ImportPersistenceRequest<MatchedImportEnvelope> request, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("A duplicate is never persisted.");
+        public Task<ImportRowOutcome> LoadOutcomeByHashAsync(string hash, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ImportRowOutcome(0, 0, 0, 0));
     }
 
     private static WorkbookSnapshot Sales(string path, string store, int[] dates)
@@ -270,9 +507,22 @@ public sealed class FolderImportServiceTests
     }
     private sealed class InlineProgress(Action<FolderImportProgress> report) : IProgress<FolderImportProgress>
     { public void Report(FolderImportProgress value) => report(value); }
-    private sealed class CapturePersistence : IImportPersistenceUseCase<MatchedImportEnvelope>
+    private static readonly byte[] SourceBytes = [7, 8, 9];
+    private static readonly string Sha = new('b', 64); // Sales() hashes every non-titan file name as b…b.
+
+    private sealed class CapturePersistence : IImportPersistenceUseCase<MatchedImportEnvelope>, IImportEvidenceRetainer
     {
         public string Status { get; init; } = "Imported";
+        public EvidenceState? Evidence { get; init; }
+        public Exception? RetainFailure { get; init; }
+        public List<(string Sha256, byte[] Content)> Retained { get; } = [];
+        public Task<EvidenceState> RetainImportedSourceAsync(string sourceSha256, ReadOnlyMemory<byte> content,
+            CancellationToken cancellationToken = default)
+        {
+            if (RetainFailure is not null) return Task.FromException<EvidenceState>(RetainFailure);
+            Retained.Add((sourceSha256, content.ToArray()));
+            return Task.FromResult(EvidenceState.Retained);
+        }
         public bool Exists { get; init; }
         public int Conflicts { get; init; }
         public (string Store, DateOnly Start, DateOnly End)? ExactScope { get; init; }
@@ -281,13 +531,42 @@ public sealed class FolderImportServiceTests
         public Task<bool> ExistsInScopeAsync(string hash, string report, string store, DateOnly start, DateOnly end, CancellationToken cancellationToken = default) =>
             Task.FromResult(Exists && (ExactScope is null || ExactScope == (store, start, end)));
         public Task<long?> FindCurrentImportFileIdAsync(string report, string store, DateOnly date, CancellationToken cancellationToken = default) => Task.FromResult<long?>(null);
-        public Task PrepareRestatementAsync(ImportPersistenceRequest<MatchedImportEnvelope> request, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public IReadOnlyList<RestatementCandidate> Candidates { get; init; } = [];
+        public List<(DateOnly Start, DateOnly End)> CandidateLookups { get; } = [];
+        public Exception? PrepareFailure { get; init; }
+        public Exception? PersistFailure { get; init; }
+        public List<ImportPersistenceRequest<MatchedImportEnvelope>> Prepared { get; } = [];
+        public Task<IReadOnlyList<RestatementCandidate>> FindRestatementCandidatesAsync(string report, string store, DateOnly start, DateOnly end,
+            CancellationToken cancellationToken = default)
+        {
+            CandidateLookups.Add((start, end));
+            return Task.FromResult(Candidates);
+        }
+        public IReadOnlyList<long> Changed { get; init; } = [];
+        public List<long[]> ChangedLookups { get; } = [];
+        public List<DateOnly?> ChangedDates { get; } = [];
+        public Task<IReadOnlyList<long>> FindImportsChangedByAsync(MatchedImportEnvelope accepted, IReadOnlyList<long> importFileIds,
+            DateOnly? businessDate = null, CancellationToken cancellationToken = default)
+        {
+            ChangedLookups.Add(importFileIds.ToArray());
+            ChangedDates.Add(businessDate);
+            return Task.FromResult<IReadOnlyList<long>>(importFileIds.Where(Changed.Contains).ToArray());
+        }
+        public Task PrepareRestatementAsync(ImportPersistenceRequest<MatchedImportEnvelope> request, CancellationToken cancellationToken = default)
+        {
+            Prepared.Add(request);
+            return PrepareFailure is null ? Task.CompletedTask : Task.FromException(PrepareFailure);
+        }
         public Task<ImportPersistenceResult> PersistAsync(ImportPersistenceRequest<MatchedImportEnvelope> request, CancellationToken cancellationToken = default)
         {
             Requests.Add(request);
+            if (PersistFailure is not null) return Task.FromException<ImportPersistenceResult>(PersistFailure);
             return Task.FromResult(new ImportPersistenceResult(request.AcceptedImport.ProfileIdentity.ReportCode, Status == "Imported" ? request.AcceptedImport.Staging.Rows.Count : 0)
-            { Status = Status, AlreadyPresentRows = Status == "Imported" ? 0 : request.AcceptedImport.Staging.Rows.Count, ConflictRows = Conflicts });
+            { Status = Status, AlreadyPresentRows = Status == "Imported" ? 0 : request.AcceptedImport.Staging.Rows.Count, ConflictRows = Conflicts,
+              Evidence = Evidence });
         }
-        public Task<ImportRowOutcome> LoadOutcomeByHashAsync(string hash, CancellationToken cancellationToken = default) => Task.FromResult(new ImportRowOutcome(0, 0, 0, 0));
+        public Exception? OutcomeFailure { get; init; }
+        public Task<ImportRowOutcome> LoadOutcomeByHashAsync(string hash, CancellationToken cancellationToken = default) =>
+            OutcomeFailure is null ? Task.FromResult(new ImportRowOutcome(0, 0, 0, 0)) : Task.FromException<ImportRowOutcome>(OutcomeFailure);
     }
 }

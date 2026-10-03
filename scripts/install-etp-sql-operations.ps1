@@ -7,8 +7,11 @@ param(
     # Used by setup's restore mode and by restore-etp-database.ps1. Creates the broker only
     # where it is missing: a SQL administrator - and so setup's pre-migration backup - can use
     # it unsigned. Signing and the automation account's grants follow later, once that account
-    # is an active Store Manager. An existing broker is left untouched, because re-creating it
-    # discards the signature the dedicated account's backups rely on.
+    # is an active Store Manager. A signed broker is left untouched, because re-creating it
+    # discards the signature the dedicated account's backups rely on. 1.9.3: an unsigned one
+    # from an earlier build is replaced (it has no signature to lose), so setup's pre-migration
+    # backup records row counts; a signed out-of-date one is replaced and re-signed by the full
+    # install that ends every setup run (Get-EtpBrokerOnlyAction).
     [switch]$BrokerOnly
 )
 $ErrorActionPreference='Stop'
@@ -40,15 +43,15 @@ $grants=$grants.Replace('__IDENTITY_LITERAL__',$AutomationPrincipal.Replace("'",
 $sqlcmd=Resolve-EtpSqlCmd $SqlCmdPath
 $ServerInstance=Resolve-EtpSqlConnection -SqlCmd $sqlcmd -ServerInstance $ServerInstance
 if ($BrokerOnly) {
-    $state=@(Invoke-EtpSql -SqlCmd $sqlcmd -Server $ServerInstance -Query "SET NOCOUNT ON; SELECT CASE WHEN OBJECT_ID(N'dbo.[$procedure]',N'P') IS NULL THEN 'ETP_BROKER:MISSING' ELSE 'ETP_BROKER:PRESENT' END;")
-    $missing=@($state | Where-Object { "$_".Trim() -ceq 'ETP_BROKER:MISSING' }).Count
-    $present=@($state | Where-Object { "$_".Trim() -ceq 'ETP_BROKER:PRESENT' }).Count
-    if ($missing + $present -ne 1) { throw 'Could not tell whether the operations broker is installed.' }
-    if ($missing -eq 1) {
+    $brokerAction=Get-EtpBrokerOnlyAction -Lines @(Invoke-EtpSql -SqlCmd $sqlcmd -Server $ServerInstance -Query (Get-EtpBrokerStateQuery -Procedure $procedure))
+    # Only a missing broker, or an unsigned one from an earlier build, is (re)created here.
+    if ($brokerAction -ceq 'Install' -or $brokerAction -ceq 'Replace') {
         Invoke-EtpSql -SqlCmd $sqlcmd -Server $ServerInstance -Query $query | Out-Null
-        Write-Output "Operations broker installed for $Database. Its signing and the automation account's grants follow once $AutomationPrincipal is an active Store Manager (docs\OPERATIONS.md, step 7)."
+        if ($brokerAction -ceq 'Install') { Write-Output "Operations broker installed for $Database. Its signing and the automation account's grants follow once $AutomationPrincipal is an active Store Manager (docs\OPERATIONS.md, step 7)." }
+        else { Write-Output "The unsigned operations broker for $Database was from an earlier build and has been replaced by the current one, which records row counts. Its signing and the automation account's grants follow once $AutomationPrincipal is an active Store Manager (docs\OPERATIONS.md, step 7)." }
     }
-    else { Write-Output "The operations broker for $Database is already installed; it was left unchanged." }
+    elseif ($brokerAction -ceq 'KeepSigned') { Write-Output "The operations broker for $Database is signed but from an earlier build, which records no row counts. It was left unchanged here so that the automation account's backups keep working; the full module install at the end of setup replaces and re-signs it (docs\OPERATIONS.md, step 7)." }
+    else { Write-Output "The operations broker for $Database is already installed and current; it was left unchanged." }
     return
 }
 Invoke-EtpSql -SqlCmd $sqlcmd -Server $ServerInstance -Query $query | Out-Null

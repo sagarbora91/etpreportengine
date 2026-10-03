@@ -50,7 +50,7 @@ public sealed class R025SqlImportOrchestrator(ITransactionalImportStore store)
             var date = Required<DateOnly>(values, "transaction_date");
             return new SalesLinePersistence(
                 Required<string>(values, "store_code"), Required<string>(values, "invoice_number"),
-                EtpInvoiceIdentity.FinancialYearEnd(date, values), date, lineKeys[row.SourceRowNumber],
+                EtpInvoiceIdentity.FinancialYearEnd(date), date, lineKeys[row.SourceRowNumber],
                 Required<string>(values, "product_code"), Required<string>(values, "source_transaction_type"),
                 Required<decimal>(values, "source_quantity"), Required<decimal>(values, "source_net_amount"), Required<decimal>(values, "source_net_value"),
                 Optional<string>(values, "source_brand_code"), Optional<string>(values, "source_brand_name"), Optional<string>(values, "brand_segment_code"),

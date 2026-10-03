@@ -1,0 +1,143 @@
+{
+ "fileName": "R025_SDB-VariantwiseSales_WLMHW.xlsx",
+ "sheets": [
+  {
+   "name": "Data",
+   "family": "R025",
+   "rows": [
+    {
+     "TRANS_TYPE": "INV",
+     "STORE CODE": "WLMHW",
+     "STORENAME": "SYNTHETIC STORE",
+     "ITEMNUMBER": "SYN-ITEM-A",
+     "BRAND": "SYN",
+     "INVNUMBER": "SYN300001",
+     "INVDATE": "2026-09-20",
+     "QTY": 1,
+     "NETAMOUNT": 118.0,
+     "TAX": 18.0,
+     "NETVALUE": 100
+    },
+    {
+     "TRANS_TYPE": "INV",
+     "STORE CODE": "WLMHW",
+     "STORENAME": "SYNTHETIC STORE",
+     "ITEMNUMBER": "SYN-ITEM-B",
+     "BRAND": "SYN",
+     "INVNUMBER": "SYN300001",
+     "INVDATE": "2026-09-20",
+     "QTY": 1,
+     "NETAMOUNT": 236.0,
+     "TAX": 36.0,
+     "NETVALUE": 200
+    },
+    {
+     "TRANS_TYPE": "INV",
+     "STORE CODE": "WLMHW",
+     "STORENAME": "SYNTHETIC STORE",
+     "ITEMNUMBER": "SYN-ITEM-A",
+     "BRAND": "SYN",
+     "INVNUMBER": "SYN300001",
+     "INVDATE": "2026-09-20",
+     "QTY": 1,
+     "NETAMOUNT": 118.0,
+     "TAX": 18.0,
+     "NETVALUE": 100
+    },
+    {
+     "TRANS_TYPE": "INV",
+     "STORE CODE": "WLMHW",
+     "STORENAME": "SYNTHETIC STORE",
+     "ITEMNUMBER": "SYN-ITEM-B",
+     "BRAND": "SYN",
+     "INVNUMBER": "SYN300001",
+     "INVDATE": "2026-09-20",
+     "QTY": 1,
+     "NETAMOUNT": 236.0,
+     "TAX": 36.0,
+     "NETVALUE": 200
+    },
+    {
+     "TRANS_TYPE": "INV",
+     "STORE CODE": "WLMHW",
+     "STORENAME": "SYNTHETIC STORE",
+     "ITEMNUMBER": "SYN-ITEM-C",
+     "BRAND": "SYN",
+     "INVNUMBER": "SYN300001",
+     "INVDATE": "2026-09-20",
+     "QTY": 1,
+     "NETAMOUNT": 354.0,
+     "TAX": 54.0,
+     "NETVALUE": 300
+    }
+   ]
+  },
+  {
+   "name": "Info",
+   "cells": [
+    [
+     "ETP Consolidation - R025 SDB-VariantwiseSales"
+    ],
+    [
+     "Updated by pack 20/09/2026 (synthetic)",
+     "Rule: transactional"
+    ],
+    [],
+    [
+     "Family ID",
+     "R025"
+    ],
+    [
+     "Consolidation rule",
+     "transactional"
+    ],
+    [
+     "Coverage",
+     "2026-09-20 to 2026-09-20"
+    ],
+    [
+     "Status",
+     "PASS - consolidated"
+    ],
+    [],
+    [
+     "Package",
+     "Source file",
+     "Raw rows",
+     "Rows retained",
+     "Rows excluded",
+     "Period from",
+     "Period to",
+     "Data row block",
+     "Disposition"
+    ],
+    [
+     "Synthetic pack",
+     "202609201200_SDB-VariantwiseSales.xlsx",
+     2,
+     2,
+     0,
+     "2026-09-20",
+     "2026-09-20",
+     "2:3",
+     "Rows retained"
+    ],
+    [
+     "Synthetic pack",
+     "202609201800_SDB-VariantwiseSales.xlsx",
+     3,
+     3,
+     0,
+     "2026-09-20",
+     "2026-09-20",
+     "4:6",
+     "Rows retained"
+    ],
+    [],
+    [
+     "Raw headers and values are preserved in Data."
+    ]
+   ]
+  }
+ ]
+}

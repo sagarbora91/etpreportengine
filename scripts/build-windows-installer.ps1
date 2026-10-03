@@ -8,9 +8,46 @@ param(
     # P4-11. Supply the Microsoft SQL Server Express media to build an installer that
     # can install it. Omit it and setup shows no database option at all, rather than
     # offering one it cannot honour.
-    [string]$SqlPayloadDirectory
+    [string]$SqlPayloadDirectory,
+    # The Inno Setup 6 compiler: ISCC.exe itself or the folder that holds it. Omit it and the
+    # build looks on PATH, then in Inno Setup's own uninstall registration (which records a
+    # custom install folder), then in Inno Setup's default install folders. Nothing
+    # machine-specific is written here; a PC with Inno Setup somewhere unusual passes it.
+    [string]$InnoSetupCompiler
 )
 $ErrorActionPreference = "Stop"
+
+# Returns the full path of the ISCC.exe to use, or throws naming every place it looked.
+function Resolve-EtpInnoSetupCompiler {
+    param([string]$Requested)
+    if ($Requested) {
+        $candidate = [IO.Path]::GetFullPath($Requested)
+        if (Test-Path -LiteralPath $candidate -PathType Container) { $candidate = Join-Path $candidate 'ISCC.exe' }
+        if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) { throw "The Inno Setup compiler was not found at: $candidate" }
+        return $candidate
+    }
+    $searched = New-Object System.Collections.Generic.List[string]
+    $searched.Add('PATH (ISCC.exe)')
+    $onPath = Get-Command -Name 'ISCC.exe' -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($onPath) { return $onPath.Source }
+    $folders = New-Object System.Collections.Generic.List[string]
+    foreach ($key in @(
+        'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Inno Setup 6_is1',
+        'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Inno Setup 6_is1',
+        'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Inno Setup 6_is1')) {
+        $location = (Get-ItemProperty -LiteralPath $key -Name 'InstallLocation' -ErrorAction SilentlyContinue).InstallLocation
+        if ($location) { $folders.Add($location) }
+    }
+    # Inno Setup's default folders: per-user install, then the two machine-wide ones.
+    if ($env:LOCALAPPDATA) { $folders.Add((Join-Path $env:LOCALAPPDATA 'Programs\Inno Setup 6')) }
+    foreach ($base in @(${env:ProgramFiles(x86)}, $env:ProgramFiles)) { if ($base) { $folders.Add((Join-Path $base 'Inno Setup 6')) } }
+    foreach ($folder in $folders) {
+        $candidate = Join-Path $folder 'ISCC.exe'
+        $searched.Add($candidate)
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) { return $candidate }
+    }
+    throw ("Inno Setup 6 is required and was not found. Pass -InnoSetupCompiler with the path of ISCC.exe or its folder, put that folder on PATH, or install it with: winget install JRSoftware.InnoSetup. Searched: " + ($searched -join '; '))
+}
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $release = [IO.Path]::GetFullPath($(if ([IO.Path]::IsPathRooted($ReleaseDirectory)) { $ReleaseDirectory } else { Join-Path $repoRoot $ReleaseDirectory }))
 $output = [IO.Path]::GetFullPath($(if ([IO.Path]::IsPathRooted($OutputDirectory)) { $OutputDirectory } else { Join-Path $repoRoot $OutputDirectory }))
@@ -37,14 +74,11 @@ if ($SqlPayloadDirectory) {
     if (-not (Test-Path -LiteralPath (Join-Path $sqlMedia 'MsSqlCmdLnUtils.msi') -PathType Leaf)) { throw "No Sqlcmd package (MsSqlCmdLnUtils.msi) was found in: $sqlMedia" }
     if (-not (Test-Path -LiteralPath (Join-Path $sqlMedia 'msodbcsql17.msi') -PathType Leaf)) { throw "No ODBC Driver 17 package (msodbcsql17.msi) was found in: $sqlMedia. The bundled Sqlcmd (Command Line Utilities 15) cannot install without it; copy MSODBCSQL.MSI from the SQL Server 2022 media and name it msodbcsql17.msi." }
 }
+# Find the compiler before the release build too: a missing compiler used to surface only
+# after the whole build and test gate had run.
+$compiler = Resolve-EtpInnoSetupCompiler -Requested $InnoSetupCompiler
+Write-Host "Using Inno Setup compiler: $compiler"
 if (-not $SkipReleaseBuild) { & (Join-Path $PSScriptRoot "build-windows-release.ps1") -Configuration $Configuration -OutputDirectory $ReleaseDirectory -CertificateThumbprint $CertificateThumbprint -TimestampServer $TimestampServer }
-$compilerCandidates = @(
-    (Join-Path $env:LOCALAPPDATA "Programs\Inno Setup 6\ISCC.exe"),
-    "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
-    "C:\Program Files\Inno Setup 6\ISCC.exe"
-)
-$compiler = $compilerCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
-if (-not $compiler) { throw "Inno Setup 6 is required. Install it with: winget install JRSoftware.InnoSetup" }
 [xml]$props = Get-Content -LiteralPath (Join-Path $repoRoot "Directory.Build.props")
 $version = $props.SelectSingleNode('/Project/PropertyGroup/VersionPrefix').InnerText
 $executable = Join-Path $release "Etp.Reporting.Desktop.exe"

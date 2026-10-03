@@ -12,7 +12,9 @@ public sealed class OperationsScriptBoundaryTests
     [InlineData("Retention")]
     [InlineData("Paths")]
     [InlineData("ProtectedInstall")]
+    [InlineData("ProtectedInstallLayouts")]
     [InlineData("AtomicReceipts")]
+    [InlineData("RowCountReceipts")]
     public async Task Operation_helpers_enforce_boundaries_using_disposable_files(string scenario)
     {
         var root = new DirectoryInfo(AppContext.BaseDirectory);

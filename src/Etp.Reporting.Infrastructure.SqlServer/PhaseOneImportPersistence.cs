@@ -1,4 +1,5 @@
 using System.Data;
+using System.Globalization;
 using Etp.Reporting.Import.Preflight;
 using Etp.Reporting.Import.Profiles;
 using Microsoft.Data.SqlClient;
@@ -7,8 +8,28 @@ namespace Etp.Reporting.Infrastructure.SqlServer;
 
 public sealed partial class SqlServerTransactionalImportStore
 {
-    private sealed record PreviousFile(long Id, string Hash, DateOnly? Start, DateOnly? End, DateTime Imported,
-        HashSet<string> Keys, int Version);
+    internal sealed record PreviousFile(long Id, string Hash, DateOnly? Start, DateOnly? End, DateTime Imported,
+        HashSet<string> Keys, int Version)
+    {
+        /// <summary>
+        /// The snapshot dates an undated family's rows were read for, from their content keys; null when the file has
+        /// no keys or any key carries no date (a dated family, or a snapshot imported before keys carried their date).
+        /// </summary>
+        public IReadOnlySet<DateOnly>? SnapshotDates
+        {
+            get
+            {
+                if (Keys.Count == 0) return null;
+                var dates = new HashSet<DateOnly>();
+                foreach (var key in Keys)
+                {
+                    if (SnapshotDateOfKey(key) is not { } date) return null;
+                    dates.Add(date);
+                }
+                return dates;
+            }
+        }
+    }
     private sealed record ImportPlan(long? ExistingHashFileId, bool DuplicateContent,
         IReadOnlyList<PreviousFile> PreviousFiles, IReadOnlyDictionary<int, string> Keys);
 
@@ -36,7 +57,7 @@ public sealed partial class SqlServerTransactionalImportStore
             if (await exact.ExecuteScalarAsync(token) is long id) return new(id, true, [], new Dictionary<int,string>());
         }
         if (package.AcceptedImport is not { } accepted) return new(null, false, [], new Dictionary<int,string>());
-        var keys = ContentKeys(accepted);
+        var keys = ContentKeys(accepted, file.BusinessDate);
         var previous = new List<PreviousFile>();
         const string sql = """
             SELECT f.import_file_id,f.source_sha256,f.period_start,f.period_end,b.started_utc,k.content_key,f.data_truth_version
@@ -65,6 +86,8 @@ public sealed partial class SqlServerTransactionalImportStore
                 if(!reader.IsDBNull(5)) row.Keys.Add(reader.GetString(5));
             }
         }
+        previous=SharingSnapshotDates(previous,keys.Values,package.Restatement?.PreviousImportFileId);
+        // ImportAudit holds a copy of this decision in PlannerOnePlanRules.Decide; change both (PlannerOnePlanRulesAgreementTests).
         var incoming=keys.Values.ToHashSet(StringComparer.Ordinal);
         var allExisting=previous.SelectMany(x=>x.Keys).ToHashSet(StringComparer.Ordinal);
         if(previous.Count>0 && incoming.IsSubsetOf(allExisting) && package.Restatement is null)
@@ -75,32 +98,71 @@ public sealed partial class SqlServerTransactionalImportStore
             var isExplicit=package.Restatement?.PreviousImportFileId==old.Id;
             if(old.Version==0 && old.Hash!=file.SourceSha256 && !isExplicit)
                 throw new Etp.Reporting.Import.Batch.ImportSourceException("IMPORT_LEGACY_RESTATEMENT_REQUIRED",
-                    "This period was imported before the data-truth upgrade. Re-import its original workbook first, or use Restate with a reviewed replacement. No data was changed.");
+                    "This period was imported before the data-truth upgrade. Re-import its original workbook first, or use Restate with a reviewed replacement. No data was changed.")
+                    { Stage = Etp.Reporting.Application.Imports.FailureStage.Plan };
+            // During a restatement "Use Restate" sends the Owner in a circle: say which other import blocks it, and why.
+            if(package.Restatement is { } restating && !isExplicit && !coversRange)
+                throw new Etp.Reporting.Import.Batch.ImportSourceException(Etp.Reporting.Application.Imports.ImportCodes.RestatementTargetNotCovered,
+                    $"This restatement replaces import {restating.PreviousImportFileId}, but its period only partly overlaps current import {old.Id}, so it cannot replace that one too. Import a file whose period covers it fully. No data was changed.")
+                    { Stage = Etp.Reporting.Application.Imports.FailureStage.Plan };
+            if(package.Restatement is { } replacing && !isExplicit && !old.Keys.IsSubsetOf(incoming))
+                throw new Etp.Reporting.Import.Batch.ImportSourceException(Etp.Reporting.Application.Imports.ImportCodes.RestatementOtherImportChanged,
+                    $"This restatement replaces import {replacing.PreviousImportFileId}, but its period also covers current import {old.Id}, and it changes or drops {old.Keys.Except(incoming).Count():N0} of that import's rows. A run restates only one import: restate each import with a corrected file for its own period. No data was changed.")
+                    { Stage = Etp.Reporting.Application.Imports.FailureStage.Plan };
             if(!coversRange || (!isExplicit && !old.Keys.IsSubsetOf(incoming)))
                 throw new Etp.Reporting.Import.Batch.ImportSourceException("IMPORT_PERIOD_ALREADY_PRESENT",
-                    $"Already imported on {old.Imported:dd MMM yyyy} (hash {old.Hash[..12]}). Use Restate. {old.Keys.Except(incoming).Count():N0} conflicting or missing rows; no data was changed.");
+                    $"Already imported on {old.Imported:dd MMM yyyy} (hash {old.Hash[..12]}). Use Restate. {old.Keys.Except(incoming).Count():N0} conflicting or missing rows; no data was changed.")
+                    { Stage = Etp.Reporting.Application.Imports.FailureStage.Plan };
         }
         return new(null,false,previous,keys);
     }
 
-    private static IReadOnlyDictionary<int,string> ContentKeys(MatchedImportEnvelope accepted)
+    /// <summary>
+    /// Each row's content key, <c>{hash}:{n}</c>, n counting identical rows. A row of an undated family (R010, R023,
+    /// SOR_AGEING) is a reading of its snapshot date, which no column holds, so its key is <c>{hash}@{yyyyMMdd}:{n}</c>:
+    /// an unchanged unit in the 2 Jul and 7 Aug blocks of a stacked R010 is two rows, each matched only by a row of
+    /// its own date when the plan looks for duplicates and promotes a covered file.
+    /// </summary>
+    internal static IReadOnlyDictionary<int,string> ContentKeys(MatchedImportEnvelope accepted,DateOnly? businessDate)
     {
         var result=new Dictionary<int,string>();
         var occurrences=new Dictionary<string,int>(StringComparer.Ordinal);
+        var undated=ImportScope.IsUndatedFamily(accepted.ProfileIdentity.ReportCode);
         foreach(var row in accepted.Staging.Rows)
         {
-            string[] stockFields=["store_code","document_number","document_date","product_code","source_transaction_type",
-                "from_location","to_location","opening_quantity","transaction_quantity","closing_quantity"];
-            var hash=EtpInvoiceIdentity.ContentHash(row.Values.Where(x=> accepted.ProfileIdentity.ReportCode=="STOCK_LEDGER"
-                ? stockFields.Contains(x.Key,StringComparer.Ordinal)
-                : !x.Key.Contains("timestamp",StringComparison.OrdinalIgnoreCase)).Select(x=>
-                    x.Key.EndsWith("state_code",StringComparison.Ordinal) && int.TryParse(x.Value?.ToString(),out var state)
-                        ? new KeyValuePair<string,object?>(x.Key,state.ToString("D2",System.Globalization.CultureInfo.InvariantCulture)) : x));
+            // Field selection and the two-digit state code rule live in the shared canonicaliser (spec 7.1).
+            var hash=Etp.Reporting.Import.Identity.FactCanonicalizer.Instance.ContentKeyHash(accepted.ProfileIdentity.ReportCode,row.Values);
+            if(undated && accepted.Scope.SnapshotDateOf(accepted.MatchedSheet.Name,row.SourceRowNumber,businessDate) is { } date)
+                hash=$"{hash}{SnapshotDateMark}{date.ToString(SnapshotDateFormat,CultureInfo.InvariantCulture)}";
             occurrences.TryGetValue(hash,out var number);
             occurrences[hash]=++number;
             result[row.SourceRowNumber]=$"{hash}:{number}";
         }
         return result;
+    }
+
+    private const char SnapshotDateMark='@';
+    private const string SnapshotDateFormat="yyyyMMdd";
+
+    /// <summary>The snapshot date a content key carries (<see cref="ContentKeys"/>), or null for a key without one.</summary>
+    internal static DateOnly? SnapshotDateOfKey(string key)=>
+        key.Length>=64+1+8 && key[64]==SnapshotDateMark &&
+        DateOnly.TryParseExact(key.AsSpan(65,8),SnapshotDateFormat,CultureInfo.InvariantCulture,DateTimeStyles.None,out var date)
+            ? date : null;
+
+    /// <summary>
+    /// For an undated family, the current files that hold one of the incoming snapshot dates. A stacked R010's period is
+    /// min..max of its blocks, but it holds only those dates: a single-date file inside that range is another snapshot,
+    /// never a duplicate of it, and a stacked file overlaps a single-date file only on its date. A file whose keys carry
+    /// no date is matched by its period, as before; an explicit restatement target is always kept.
+    /// </summary>
+    internal static List<PreviousFile> SharingSnapshotDates(IReadOnlyList<PreviousFile> previous,IEnumerable<string> incomingKeys,long? restatementTarget)
+    {
+        var dates=incomingKeys.Select(SnapshotDateOfKey).OfType<DateOnly>().ToHashSet();
+        if(dates.Count==0) return previous.ToList();
+        return previous.Where(old=>old.Id==restatementTarget || (old.SnapshotDates is { } held
+            ? held.Overlaps(dates)
+            : dates.Any(date=>(old.Start is null || old.Start<=date) && (old.End is null || date<=old.End)))).ToList();
     }
 
     private static async Task RecordDuplicateAsync(SqlConnection c,SqlTransaction t,ImportPersistencePackage p,
@@ -156,15 +218,16 @@ public sealed partial class SqlServerTransactionalImportStore
     {
         await using var q=Cmd(c,t,"SELECT COUNT(*) FROM dbo.import_row_outcomes WHERE import_file_id=@file AND outcome='CONFLICT'");
         q.Parameters.AddWithValue("@file",file); var count=Convert.ToInt32(await q.ExecuteScalarAsync(token));
-        if(count>0) throw new Etp.Reporting.Import.Batch.ImportSourceException("IMPORT_CONFLICT",
-            $"{count:N0} conflicting rows. The complete file was rolled back. Review the source and use Restate.");
+        if(count>0) throw await ConflictAsync(c,t,file,count,token);
     }
 
     private static async Task InsertEnrichmentAsync(SqlConnection c,SqlTransaction t,long file,EnrichmentPersistence row,CancellationToken token)
     {
         var lineage=await Lineage(c,t,file,row.Lineage,token);
-        const string sql="EXEC dbo.persist_phase_one_enrichment @file,@report,@store,@doc,@date,@product,@type,@qty,@net,@gross,@cro,@name,@scheme,@userDiscount,@pre,@other,@activation,@details,@lineage,@key";
+        const string sql="EXEC dbo.persist_phase_one_enrichment @file,@report,@store,@doc,@date,@product,@type,@qty,@net,@gross,@cro,@name,@scheme,@userDiscount,@pre,@other,@activation,@details,@lineage,@key,@outcome OUTPUT";
         await using var q=Cmd(c,t,sql);
+        // NEW, or ALREADY_PRESENT when the content key is already stored (migration 0041, section E).
+        var outcome=q.Parameters.Add("@outcome",SqlDbType.VarChar,16);outcome.Direction=ParameterDirection.Output;
         q.Parameters.AddWithValue("@file",file);
         q.Parameters.AddWithValue("@report",row.ReportCode);q.Parameters.AddWithValue("@store",row.StoreCode);q.Parameters.AddWithValue("@doc",row.DocumentNumber);
         q.Parameters.AddWithValue("@date",row.TransactionDate);q.Parameters.AddWithValue("@product",row.ProductCode);q.Parameters.AddWithValue("@type",row.TransactionType);
@@ -172,6 +235,7 @@ public sealed partial class SqlServerTransactionalImportStore
         Add(q,"@cro",row.CroNumber);Add(q,"@name",row.StaffName);Add(q,"@scheme",row.SchemeDiscount);Add(q,"@userDiscount",row.UserDiscount);
         Add(q,"@pre",row.PreDiscount);Add(q,"@other",row.OtherCharges);Add(q,"@activation",row.ActivationDetails);Add(q,"@details",row.UserDiscountDetails);
         q.Parameters.AddWithValue("@lineage",lineage);q.Parameters.AddWithValue("@key",row.ContentKey);await q.ExecuteNonQueryAsync(token);
-        await RecordOutcomeAsync(c,t,file,lineage,row.ContentKey,"NEW",token);
+        await RecordOutcomeAsync(c,t,file,lineage,row.ContentKey,outcome.Value as string
+            ?? throw new InvalidOperationException("The enrichment procedure did not report an outcome."),token);
     }
 }

@@ -63,7 +63,11 @@ public sealed record AdministrationPresentationState(
     IReadOnlyList<KpiDefinition> Kpis,
     IReadOnlyList<ProductHealth> ProductHealth,
     ProductSettingsPresentation ProductSettings,
-    string Status);
+    string Status)
+{
+    /// <summary>See AdministrationDashboard.UserAccessChangesNeedElevation.</summary>
+    public bool UserAccessChangesNeedElevation { get; init; }
+}
 
 public sealed class OperationsAdministrationPresentationSession
 {
@@ -137,7 +141,10 @@ public sealed class OperationsAdministrationPresentationSession
             dashboard.Kpis,
             dashboard.ProductHealth,
             PresentProductSettings(dashboard.ProductConfiguration),
-            "Controlled masters and Windows-integrated access are ready for Owner administration.");
+            "Controlled masters and Windows-integrated access are ready for Owner administration.")
+        {
+            UserAccessChangesNeedElevation = dashboard.UserAccessChangesNeedElevation
+        };
         return Administration;
     }
 

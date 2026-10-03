@@ -12,6 +12,10 @@ public partial class SettingsWorkspaceView
     public System.Windows.Controls.UserControl CreateEveningMastersView(Func<bool> canEditBrands) =>
         new EveningMastersView(() => session.ConnectionString, () => access.CanAdminister, canEditBrands);
 
+    /// <summary>The evidence section for Imports → Problems (spec 12); the same view Settings → Database hosts.</summary>
+    public ImportEvidenceView CreateImportEvidenceView(Func<bool> canAdminister) =>
+        new(() => session.ConnectionString, canAdminister);
+
     private void InitializeDataTruthMasters() =>
         InitializeEveningMasters();
 
@@ -19,5 +23,6 @@ public partial class SettingsWorkspaceView
     {
         DataTruthMastersHost.Children.Add(CreateDataTruthMastersView());
         DataTruthMastersHost.Children.Add(new EveningMastersView(() => session.ConnectionString, () => access.CanAdminister));
+        DataTruthMastersHost.Children.Add(new ImportEvidenceView(() => session.ConnectionString, () => access.CanAdminister));
     }
 }

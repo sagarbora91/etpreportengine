@@ -1,0 +1,358 @@
+-- Pre-upgrade check for the import engine (CONSOLIDATED-AND-RAW-IMPORT-SPEC.md section 13.1).
+--
+-- Run it SELECT-only against the database to be upgraded: the live database, a shop-PC backup
+-- or an older backup restored under another name. It reads and reports; it writes nothing,
+-- not even a temporary table, and is safe for a db_datareader account. One batch, no GO:
+--   sqlcmd -S .\SQLEXPRESS -d EtpReporting -E -i scripts\check-import-upgrade.sql -W -s "|"
+--
+-- Result sets, in order:
+--   1. environment: database, collation (and whether it is case-sensitive), SQL Server version,
+--      edition, latest applied migration;
+--   2. summary: one row per check with its finding count and whether it blocks the upgrade
+--      (every blocking item is repeated by a migration pre-check that THROWs);
+--   3. fact counts per table (the baseline that the P3 upgrade verifies against);
+--   4. onwards: the first 200 rows behind each check that found something, labelled by check.
+--
+-- The checks read columns that later migrations add (line_seq, source_report_code) only when
+-- they exist, so the same script runs before and after 0041. It needs migrations up to 0018;
+-- columns that 0017 adds (data_truth_version) are read through sp_executesql so that an older
+-- database reaches the refusal below instead of failing to compile.
+SET NOCOUNT ON;
+
+IF OBJECT_ID(N'dbo.etp_import_content', N'U') IS NULL OR COL_LENGTH(N'dbo.import_files', N'data_truth_version') IS NULL
+BEGIN
+ SELECT N'This database predates migration 0018. Upgrade it to release 1.8 or later before checking.' AS refused;
+ RETURN;
+END;
+
+DECLARE @collation sysname = CONVERT(sysname, DATABASEPROPERTYEX(DB_NAME(), 'Collation'));
+DECLARE @caseSensitive bit = CASE WHEN @collation LIKE N'%[_]CS[_]%' OR @collation LIKE N'%[_]CS' OR @collation LIKE N'%[_]BIN%' THEN 1 ELSE 0 END;
+DECLARE @movementLine bit = CASE WHEN COL_LENGTH(N'dbo.stock_movements', N'line_seq') IS NULL THEN 0 ELSE 1 END;
+DECLARE @snapshotSource bit = CASE WHEN COL_LENGTH(N'dbo.stock_snapshots', N'source_report_code') IS NULL THEN 0 ELSE 1 END;
+DECLARE @snapshotLine bit = CASE WHEN COL_LENGTH(N'dbo.stock_snapshots', N'line_seq') IS NULL THEN 0 ELSE 1 END;
+
+-- 1. Environment
+SELECT DB_NAME() AS database_name,
+       @collation AS database_collation,
+       @caseSensitive AS collation_case_sensitive,
+       CONVERT(nvarchar(128), SERVERPROPERTY('ProductVersion')) AS sql_server_version,
+       CONVERT(nvarchar(128), SERVERPROPERTY('Edition')) AS sql_server_edition,
+       (SELECT MAX(migration_id) FROM dbo.schema_migrations) AS latest_migration,
+       (SELECT COUNT(*) FROM dbo.schema_migrations) AS applied_migrations,
+       SYSUTCDATETIME() AS checked_utc;
+
+-- Identity texts for the stock checks. Before 0041 the snapshot source is derived from the lineage
+-- record type exactly as 0041's backfill does, and every row's line is 1.
+DECLARE @movementKey nvarchar(max) = N'm.store_code,m.invoice_year,m.document_number,m.document_date,m.product_code,
+  m.source_transaction_type,ISNULL(m.from_location,N''''),ISNULL(m.to_location,N'''')'
+  + CASE WHEN @movementLine = 1 THEN N',m.line_seq' ELSE N'' END;
+DECLARE @snapshotSourceText nvarchar(max) = CASE WHEN @snapshotSource = 1
+  THEN N'COALESCE(s.source_report_code,CASE WHEN l.source_record_type=''R010_SNAPSHOT'' THEN ''R010'' ELSE ''CLOSING_STOCK'' END)'
+  ELSE N'CASE WHEN l.source_record_type=''R010_SNAPSHOT'' THEN ''R010'' ELSE ''CLOSING_STOCK'' END' END;
+DECLARE @snapshotKey nvarchar(max) = N's.store_code,s.snapshot_date,' + @snapshotSourceText
+  + N',s.product_code,COALESCE(s.source_uid,s.batch_number,s.ean,N'''')'
+  + CASE WHEN @snapshotLine = 1 THEN N',s.line_seq' ELSE N'' END;
+DECLARE @movementSql nvarchar(max) = N'SELECT @groups=COUNT(*),@rows=COALESCE(SUM(n),0) FROM (SELECT COUNT(*) n FROM dbo.stock_movements m
+  GROUP BY ' + @movementKey + N' HAVING COUNT(*)>1) d;';
+DECLARE @snapshotSql nvarchar(max) = N'SELECT @groups=COUNT(*),@rows=COALESCE(SUM(n),0) FROM (SELECT COUNT(*) n FROM dbo.stock_snapshots s
+  JOIN dbo.source_lineage l ON l.source_lineage_id=s.source_lineage_id GROUP BY ' + @snapshotKey + N' HAVING COUNT(*)>1) d;';
+DECLARE @movementGroups bigint, @movementRows bigint, @snapshotGroups bigint, @snapshotRows bigint;
+EXEC sys.sp_executesql @movementSql, N'@groups bigint OUTPUT,@rows bigint OUTPUT', @movementGroups OUTPUT, @movementRows OUTPUT;
+EXEC sys.sp_executesql @snapshotSql, N'@groups bigint OUTPUT,@rows bigint OUTPUT', @snapshotGroups OUTPUT, @snapshotRows OUTPUT;
+
+-- Facts of every family table (etp_r* and etp_landing_*) whose file is superseded, read through
+-- one UNION over the tables that exist in this database.
+DECLARE @familyUnion nvarchar(max);
+SELECT @familyUnion = STRING_AGG(CONVERT(nvarchar(max), N'SELECT N''' + t.name + N''' table_name,import_file_id FROM dbo.' + QUOTENAME(t.name)),
+  N' UNION ALL ') WITHIN GROUP (ORDER BY t.name)
+FROM sys.tables t
+WHERE SCHEMA_NAME(t.schema_id) = N'dbo' AND t.name LIKE N'etp[_]%' AND t.name <> N'etp_import_content'
+  AND COL_LENGTH(N'dbo.' + QUOTENAME(t.name), N'import_file_id') IS NOT NULL;
+DECLARE @familyRows bigint = 0, @familySuperseded bigint = 0;
+IF @familyUnion IS NOT NULL
+BEGIN
+ DECLARE @familySql nvarchar(max) = N'SELECT @rows=COUNT(*),@superseded=COALESCE(SUM(CASE WHEN f.is_superseded=1 THEN 1 ELSE 0 END),0)
+   FROM (' + @familyUnion + N') x JOIN dbo.import_files f ON f.import_file_id=x.import_file_id;';
+ EXEC sys.sp_executesql @familySql, N'@rows bigint OUTPUT,@superseded bigint OUTPUT', @familyRows OUTPUT, @familySuperseded OUTPUT;
+END;
+
+DECLARE @lineageSuperseded bigint =
+   (SELECT COUNT(*) FROM dbo.sales_lines x JOIN dbo.source_lineage l ON l.source_lineage_id=x.source_lineage_id JOIN dbo.import_files f ON f.import_file_id=l.import_file_id WHERE f.is_superseded=1)
+ + (SELECT COUNT(*) FROM dbo.sales_invoice_controls x JOIN dbo.source_lineage l ON l.source_lineage_id=x.source_lineage_id JOIN dbo.import_files f ON f.import_file_id=l.import_file_id WHERE f.is_superseded=1)
+ + (SELECT COUNT(*) FROM dbo.sales_tenders x JOIN dbo.source_lineage l ON l.source_lineage_id=x.source_lineage_id JOIN dbo.import_files f ON f.import_file_id=l.import_file_id WHERE f.is_superseded=1)
+ + (SELECT COUNT(*) FROM dbo.stock_movements x JOIN dbo.source_lineage l ON l.source_lineage_id=x.source_lineage_id JOIN dbo.import_files f ON f.import_file_id=l.import_file_id WHERE f.is_superseded=1)
+ + (SELECT COUNT(*) FROM dbo.stock_snapshots x JOIN dbo.source_lineage l ON l.source_lineage_id=x.source_lineage_id JOIN dbo.import_files f ON f.import_file_id=l.import_file_id WHERE f.is_superseded=1)
+ + (SELECT COUNT(*) FROM dbo.sales_line_enrichments x JOIN dbo.source_lineage l ON l.source_lineage_id=x.source_lineage_id JOIN dbo.import_files f ON f.import_file_id=l.import_file_id WHERE f.is_superseded=1);
+
+-- Open stock-ledger (R003) conflicts on an identity a stored movement holds. 1.9.2 stored the first
+-- row of a per-unit group in file order and logged the later unit rows as CONFLICT; 0041 numbers the
+-- stored row line 1, while a re-import numbers the running-balance chain start 1. Built exactly as
+-- 1.9.2's persist_stock_movement built business_identity (nvarchar(400)).
+DECLARE @movementIdentity nvarchar(max) = N'LEFT(CONCAT(m.store_code,N''/'',m.invoice_year,N''/'',m.document_number,N''/'',m.document_date,N''/'',
+  m.product_code,N''/'',UPPER(m.source_transaction_type),N''/'',ISNULL(m.from_location,N''''),N''/'',ISNULL(m.to_location,N'''')),400)';
+DECLARE @movementConflicts bigint;
+DECLARE @movementConflictSql nvarchar(max) = N'SELECT @n=COUNT_BIG(*) FROM dbo.import_conflicts c
+  WHERE c.report_code=''R003'' AND c.status IN(''OPEN'',''ACKNOWLEDGED'',''RESTATEMENT_REQUESTED'')
+    AND EXISTS(SELECT 1 FROM dbo.stock_movements m WHERE m.store_code=c.store_code AND ' + @movementIdentity + N'=c.business_identity);';
+EXEC sys.sp_executesql @movementConflictSql, N'@n bigint OUTPUT', @movementConflicts OUTPUT;
+
+-- Current files imported before data truth version 1 (column added by 0017, so read dynamically).
+DECLARE @v0Files bigint;
+EXEC sys.sp_executesql N'SELECT @n=COUNT_BIG(*) FROM dbo.import_files WHERE is_superseded=0 AND data_truth_version=0;',
+  N'@n bigint OUTPUT', @v0Files OUTPUT;
+-- Source hashes held by current files of different scopes (period columns added by 0017).
+DECLARE @shaScopes bigint;
+EXEC sys.sp_executesql N'SELECT @n=COUNT_BIG(*) FROM (SELECT source_sha256 FROM dbo.import_files WHERE is_superseded=0 GROUP BY source_sha256
+    HAVING COUNT(DISTINCT CONCAT(report_code,''|'',store_code,''|'',COALESCE(period_start,business_date),''|'',COALESCE(period_end,business_date)))>1) d;',
+  N'@n bigint OUTPUT', @shaScopes OUTPUT;
+
+-- R011 rows logged ALREADY_PRESENT or CONFLICT against another row before 0041 and never stored (review 1.9.3).
+-- The same selection as 0041's snapshot backfill: per store-day, the rows it rebuilds from values the database
+-- still holds (the row's landing row or a stored row that hashes as the R011 row did), and the rows it cannot
+-- rebuild, whose items keep their BinWise reading until the R011 file is restated. Read through sp_executesql
+-- twice (count and detail); the source is derived from the lineage record type, so it runs before 0041 as well.
+DECLARE @r011Rows nvarchar(max) = N'WITH candidate AS (
+ SELECT o.source_lineage_id,o.import_file_id,o.business_identity,o.content_sha256,l.sheet_name,l.source_row_number,
+   CONVERT(varchar(30),LEFT(o.business_identity,CHARINDEX(N''/'',o.business_identity)-1)) store_code,
+   TRY_CONVERT(date,SUBSTRING(o.business_identity,CHARINDEX(N''/'',o.business_identity)+1,10),23) snapshot_date,
+   DENSE_RANK() OVER(PARTITION BY o.business_identity ORDER BY o.import_file_id) file_rank,
+   ROW_NUMBER() OVER(PARTITION BY o.source_lineage_id ORDER BY o.import_row_outcome_id) lineage_rank
+ FROM dbo.import_row_outcomes o
+ JOIN dbo.source_lineage l ON l.source_lineage_id=o.source_lineage_id AND l.source_record_type=''CLOSING_STOCK''
+ JOIN dbo.import_files f ON f.import_file_id=o.import_file_id AND f.is_superseded=0
+ WHERE o.outcome IN(''ALREADY_PRESENT'',''CONFLICT'') AND CHARINDEX(N''/'',o.business_identity)>1
+   AND o.business_identity NOT LIKE N''%/''+NCHAR(35)+N''[0-9]%''
+   AND NOT EXISTS(SELECT 1 FROM dbo.stock_snapshots c WHERE c.source_lineage_id=o.source_lineage_id)),
+eligible AS (
+ SELECT r.* FROM candidate r WHERE r.file_rank=1 AND r.lineage_rank=1 AND r.snapshot_date IS NOT NULL
+   AND NOT EXISTS(SELECT 1 FROM dbo.stock_snapshots x JOIN dbo.source_lineage xl ON xl.source_lineage_id=x.source_lineage_id
+     WHERE x.store_code=r.store_code AND x.snapshot_date=r.snapshot_date AND ISNULL(xl.source_record_type,'''')<>''R010_SNAPSHOT''
+       AND CONCAT(x.store_code,N''/'',x.snapshot_date,N''/'',x.product_code,N''/'',COALESCE(x.source_uid,x.batch_number,x.ean,N''''))=r.business_identity
+       AND NOT EXISTS(SELECT 1 FROM dbo.import_row_outcomes n WHERE n.import_file_id=r.import_file_id AND n.outcome=''NEW''
+                      AND n.source_lineage_id=x.source_lineage_id))),
+valued AS (
+ SELECT r.store_code,r.snapshot_date,CASE WHEN EXISTS(SELECT 1 FROM dbo.etp_r011 e
+     JOIN dbo.source_lineage el ON el.source_lineage_id=e.source_lineage_id
+     WHERE e.import_file_id=r.import_file_id AND el.sheet_name=r.sheet_name AND el.source_row_number=r.source_row_number
+       AND CONCAT(e.store_code,N''/'',e.snapshot_date,N''/'',e.product_code,N''/'',COALESCE(e.source_uid,e.batch_number,e.ean,N''''))
+           COLLATE Latin1_General_100_BIN2=r.business_identity COLLATE Latin1_General_100_BIN2
+       AND LOWER(CONVERT(varchar(64),HASHBYTES(''SHA2_256'',CONCAT(ISNULL(e.ean,N''''),N''|'',ISNULL(e.brand_code,N''''),N''||'',
+           ISNULL(e.cluster,N''''),N''|'',ISNULL(e.gender,N''''),N''|'',ISNULL(e.batch_number,N''''),N''|'',ISNULL(e.source_uid,N''''),N''|'',
+           e.quantity,N''|'',ISNULL(e.unit_cost,0),N''|'',ISNULL(e.total_cost,0))),2))=r.content_sha256)
+   OR EXISTS(SELECT 1 FROM dbo.stock_snapshots x WHERE x.store_code=r.store_code AND x.snapshot_date=r.snapshot_date
+       AND CONCAT(x.store_code,N''/'',x.snapshot_date,N''/'',x.product_code,N''/'',COALESCE(x.source_uid,x.batch_number,x.ean,N''''))=r.business_identity
+       AND LOWER(CONVERT(varchar(64),HASHBYTES(''SHA2_256'',CONCAT(ISNULL(x.ean,N''''),N''|'',ISNULL(x.brand_code,N''''),N''|'',
+           ISNULL(x.brand_name,N''''),N''|'',ISNULL(x.cluster,N''''),N''|'',ISNULL(x.gender,N''''),N''|'',ISNULL(x.batch_number,N''''),N''|'',
+           ISNULL(x.source_uid,N''''),N''|'',x.quantity,N''|'',ISNULL(x.unit_cost,0),N''|'',ISNULL(x.total_cost,0))),2))=r.content_sha256)
+   THEN 1 ELSE 0 END has_values
+ FROM eligible r) ';
+DECLARE @r011Days bigint, @r011Rebuilt bigint, @r011Unrebuilt bigint;
+DECLARE @r011Count nvarchar(max) = @r011Rows + N'SELECT @days=COUNT_BIG(DISTINCT CONCAT(store_code,''|'',snapshot_date)),
+  @rebuilt=COALESCE(SUM(CONVERT(bigint,has_values)),0),@unrebuilt=COALESCE(SUM(CONVERT(bigint,1-has_values)),0) FROM valued;';
+EXEC sys.sp_executesql @r011Count, N'@days bigint OUTPUT,@rebuilt bigint OUTPUT,@unrebuilt bigint OUTPUT',
+  @r011Days OUTPUT, @r011Rebuilt OUTPUT, @r011Unrebuilt OUTPUT;
+
+-- 2. Summary. blocks_upgrade = 1 marks what a migration pre-check refuses (0041: 51700-51702;
+-- the stock identity indexes cannot be built over a repeated identity). Checks 3 and 18 are repaired by
+-- scripts/repair-invoice-financial-year.sql; read its header first.
+SELECT check_code, findings, blocks_upgrade, detail FROM (VALUES
+ (1, 'CURRENT_V0_FILES', @v0Files, CONVERT(bit,0),
+  N'Current files imported before data truth version 1; the upgrade keeps their facts as canonical-only versions.'),
+ (2, 'LOCKED_DAYS', (SELECT COUNT_BIG(*) FROM dbo.daily_reporting_days WHERE status='LOCKED'), CONVERT(bit,0),
+  N'Finalised store-days; planner 1 refuses any file whose period contains one.'),
+ (3, 'INVOICE_YEAR_NOT_FINANCIAL_YEAR', (SELECT COUNT_BIG(*) FROM dbo.sales_invoices
+    WHERE invoice_year<>YEAR(transaction_date)+CASE WHEN MONTH(transaction_date)>=4 THEN 1 ELSE 0 END), CONVERT(bit,1),
+  N'Invoices whose year is not the financial year of their date (0041 THROWs 51700). Repair: scripts/repair-invoice-financial-year.sql.'),
+ (4, 'MOVEMENT_YEAR_NOT_FINANCIAL_YEAR', (SELECT COUNT_BIG(*) FROM dbo.stock_movements
+    WHERE invoice_year<>YEAR(document_date)+CASE WHEN MONTH(document_date)>=4 THEN 1 ELSE 0 END), CONVERT(bit,0),
+  N'Stock movements whose year is not the financial year of their document date (information).'),
+ (5, 'DUPLICATE_CONTROLS', (SELECT COUNT_BIG(*) FROM (SELECT sales_invoice_id FROM dbo.sales_invoice_controls GROUP BY sales_invoice_id HAVING COUNT(*)>1) d), CONVERT(bit,1),
+  N'Invoices with more than one revenue control (0041 THROWs 51701).'),
+ (6, 'DUPLICATE_TENDERS', (SELECT COUNT_BIG(*) FROM (SELECT sales_invoice_id FROM dbo.sales_tenders GROUP BY sales_invoice_id,UPPER(tender_type) HAVING COUNT(*)>1) d), CONVERT(bit,1),
+  N'Invoices with the same tender type twice, case ignored (0041 THROWs 51702).'),
+ (7, 'REPEATED_MOVEMENT_IDENTITY', @movementGroups, CONVERT(bit,@movementLine),
+  CASE WHEN @movementLine=1 THEN N'Movements sharing store, year, document, date, product, type, locations and line.'
+       ELSE CONCAT(N'Movement identities held by more than one row (', @movementRows, N' rows); 0041 numbers them with line_seq.') END),
+ (8, 'REPEATED_SNAPSHOT_IDENTITY', @snapshotGroups, CONVERT(bit,@snapshotLine),
+  CASE WHEN @snapshotLine=1 THEN N'Snapshot rows sharing store, date, source, product, item and line.'
+       ELSE CONCAT(N'Snapshot identities held by more than one row (', @snapshotRows, N' rows); 0041 numbers them with line_seq.') END),
+ (9, 'DUPLICATE_CONTENT_ROWS', (SELECT COUNT_BIG(*) FROM (SELECT import_file_id FROM dbo.etp_import_content GROUP BY import_file_id,source_row_number HAVING COUNT(*)>1) d), CONVERT(bit,0),
+  N'Source rows of one file holding more than one content row (etp_import_content keeps no sheet name).'),
+ (10, 'FILES_WITH_ROWS_ON_SEVERAL_SHEETS', (SELECT COUNT_BIG(*) FROM (SELECT import_file_id FROM dbo.source_lineage GROUP BY import_file_id HAVING COUNT(DISTINCT sheet_name)>1) d), CONVERT(bit,0),
+  N'Planner-1 files whose lineage spans more than one sheet, so a row number alone does not identify a source row.'),
+ (11, 'FACTS_OF_SUPERSEDED_FILES', @lineageSuperseded, CONVERT(bit,0),
+  N'Canonical facts (sales, stock, enrichments) whose lineage file is superseded; a restatement or promotion should have moved them.'),
+ (12, 'SHA_SHARED_ACROSS_SCOPES', @shaScopes, CONVERT(bit,0),
+  N'Source hashes held by current files with different report, store or period.'),
+ (13, 'ORPHAN_INVOICE_HEADERS', (SELECT COUNT_BIG(*) FROM dbo.sales_invoices i
+    WHERE NOT EXISTS(SELECT 1 FROM dbo.sales_lines x WHERE x.sales_invoice_id=i.sales_invoice_id)
+      AND NOT EXISTS(SELECT 1 FROM dbo.sales_invoice_controls x WHERE x.sales_invoice_id=i.sales_invoice_id)
+      AND NOT EXISTS(SELECT 1 FROM dbo.sales_tenders x WHERE x.sales_invoice_id=i.sales_invoice_id)), CONVERT(bit,0),
+  N'Invoice headers with no line, control or tender.'),
+ (14, 'TENDER_TYPE_CASE_VARIANTS', (SELECT COUNT_BIG(*) FROM (SELECT UPPER(tender_type) t FROM dbo.sales_tenders GROUP BY UPPER(tender_type)
+    HAVING COUNT(DISTINCT tender_type COLLATE Latin1_General_100_BIN2)>1) d), CONVERT(bit,0),
+  CASE WHEN @caseSensitive=1 THEN N'Tender types spelled in more than one case. The collation is case-sensitive: 0041 indexes UPPER(tender_type).'
+       ELSE N'Tender types spelled in more than one case (information; the collation ignores case).' END),
+ (15, 'SOURCE_ROWS_OF_SUPERSEDED_FILES', @familySuperseded, CONVERT(bit,0),
+  N'Family-table (etp_r*, etp_landing_*) rows of superseded files. Expected: promotion and restatement keep the source rows (information).'),
+ (16, 'OPEN_MOVEMENT_CONFLICTS_ON_STORED_ROWS', @movementConflicts, CONVERT(bit,0),
+  N'Open stock-ledger (R003) conflicts whose identity a stored movement holds. 1.9.2 kept the first unit row in file order; 0041 numbers it line 1, a re-import numbers the chain start 1, so an overlapping re-import is refused with IMPORT_CONFLICT. Plan an Owner restatement for these days before relying on re-imports.'),
+ (17, 'SNAPSHOT_R011_BACKFILL', @r011Days, CONVERT(bit,0),
+  CONCAT(N'Store-days with R011 rows logged against another row before 0041 and never stored. 0041 rebuilds ', @r011Rebuilt,
+   N' of them from values the database still holds; ', @r011Unrebuilt, N' keep their BinWise reading until their R011 file is restated.')),
+ (18, 'INVOICE_YEAR_TWIN_HEADERS', (SELECT COUNT_BIG(*) FROM dbo.sales_invoices i JOIN dbo.sales_invoices t
+    ON t.store_code=i.store_code AND t.document_number=i.document_number
+   AND t.invoice_year=YEAR(i.transaction_date)+CASE WHEN MONTH(i.transaction_date)>=4 THEN 1 ELSE 0 END
+    WHERE i.invoice_year<>YEAR(i.transaction_date)+CASE WHEN MONTH(i.transaction_date)>=4 THEN 1 ELSE 0 END), CONVERT(bit,1),
+  N'Invoices of check 3 whose financial year already has a header of its own (the unique invoice key forbids re-keying them); the repair script combines the two headers (0041 THROWs 51700).')
+) c(n, check_code, findings, blocks_upgrade, detail)
+ORDER BY n;
+
+-- 3. Fact counts (the baseline for the P3 verification).
+SELECT table_name, row_count FROM (VALUES
+ (1, 'import_files (current)', (SELECT COUNT_BIG(*) FROM dbo.import_files WHERE is_superseded=0)),
+ (2, 'import_files (superseded)', (SELECT COUNT_BIG(*) FROM dbo.import_files WHERE is_superseded=1)),
+ (3, 'sales_invoices', (SELECT COUNT_BIG(*) FROM dbo.sales_invoices)),
+ (4, 'sales_lines', (SELECT COUNT_BIG(*) FROM dbo.sales_lines)),
+ (5, 'sales_invoice_controls', (SELECT COUNT_BIG(*) FROM dbo.sales_invoice_controls)),
+ (6, 'sales_tenders', (SELECT COUNT_BIG(*) FROM dbo.sales_tenders)),
+ (7, 'stock_movements', (SELECT COUNT_BIG(*) FROM dbo.stock_movements)),
+ (8, 'stock_snapshots', (SELECT COUNT_BIG(*) FROM dbo.stock_snapshots)),
+ (9, 'stock_snapshots (R010)', (SELECT COUNT_BIG(*) FROM dbo.stock_snapshots s JOIN dbo.source_lineage l ON l.source_lineage_id=s.source_lineage_id WHERE l.source_record_type='R010_SNAPSHOT')),
+ (10, 'sales_line_enrichments', (SELECT COUNT_BIG(*) FROM dbo.sales_line_enrichments)),
+ (11, 'etp_import_content', (SELECT COUNT_BIG(*) FROM dbo.etp_import_content)),
+ (12, 'family tables (etp_r*, etp_landing_*)', @familyRows)
+) c(n, table_name, row_count)
+ORDER BY n;
+
+-- 4. Detail behind each check that found something (at most 200 rows each).
+IF @v0Files > 0
+ EXEC sys.sp_executesql N'SELECT TOP (200) ''CURRENT_V0_FILES'' AS check_code, import_file_id, report_code, store_code,
+        COALESCE(period_start,business_date) AS period_start, COALESCE(period_end,business_date) AS period_end, original_file_name
+ FROM dbo.import_files WHERE is_superseded=0 AND data_truth_version=0 ORDER BY report_code, store_code, import_file_id;';
+
+IF EXISTS(SELECT 1 FROM dbo.daily_reporting_days WHERE status='LOCKED')
+ SELECT TOP (200) 'LOCKED_DAYS' AS check_code, store_code, business_date, finalised_utc
+ FROM dbo.daily_reporting_days WHERE status='LOCKED' ORDER BY store_code, business_date;
+
+IF EXISTS(SELECT 1 FROM dbo.sales_invoices WHERE invoice_year<>YEAR(transaction_date)+CASE WHEN MONTH(transaction_date)>=4 THEN 1 ELSE 0 END)
+ SELECT TOP (200) 'INVOICE_YEAR_NOT_FINANCIAL_YEAR' AS check_code, i.sales_invoice_id, i.store_code, i.document_number, i.invoice_year, i.transaction_date,
+        YEAR(i.transaction_date)+CASE WHEN MONTH(i.transaction_date)>=4 THEN 1 ELSE 0 END AS financial_year,
+        t.sales_invoice_id AS twin_invoice_id,
+        CASE WHEN t.sales_invoice_id IS NULL THEN 'RE_KEY' ELSE 'COMBINE_WITH_TWIN' END AS repair
+ FROM dbo.sales_invoices i
+ LEFT JOIN dbo.sales_invoices t ON t.store_code=i.store_code AND t.document_number=i.document_number
+  AND t.invoice_year=YEAR(i.transaction_date)+CASE WHEN MONTH(i.transaction_date)>=4 THEN 1 ELSE 0 END
+ WHERE i.invoice_year<>YEAR(i.transaction_date)+CASE WHEN MONTH(i.transaction_date)>=4 THEN 1 ELSE 0 END
+ ORDER BY i.store_code, i.transaction_date, i.document_number;
+
+-- Both headers of each invoice the unique key keeps from being re-keyed, with what each holds.
+IF EXISTS(SELECT 1 FROM dbo.sales_invoices i JOIN dbo.sales_invoices t ON t.store_code=i.store_code AND t.document_number=i.document_number
+   AND t.invoice_year=YEAR(i.transaction_date)+CASE WHEN MONTH(i.transaction_date)>=4 THEN 1 ELSE 0 END
+   WHERE i.invoice_year<>YEAR(i.transaction_date)+CASE WHEN MONTH(i.transaction_date)>=4 THEN 1 ELSE 0 END)
+ SELECT TOP (200) 'INVOICE_YEAR_TWIN_HEADERS' AS check_code, i.store_code, i.document_number,
+        i.sales_invoice_id, i.invoice_year, i.transaction_date,
+        (SELECT COUNT(*) FROM dbo.sales_lines x WHERE x.sales_invoice_id=i.sales_invoice_id) AS lines,
+        (SELECT COUNT(*) FROM dbo.sales_invoice_controls x WHERE x.sales_invoice_id=i.sales_invoice_id) AS controls,
+        (SELECT COUNT(*) FROM dbo.sales_tenders x WHERE x.sales_invoice_id=i.sales_invoice_id) AS tenders,
+        t.sales_invoice_id AS twin_invoice_id, t.invoice_year AS twin_invoice_year, t.transaction_date AS twin_transaction_date,
+        (SELECT COUNT(*) FROM dbo.sales_lines x WHERE x.sales_invoice_id=t.sales_invoice_id) AS twin_lines,
+        (SELECT COUNT(*) FROM dbo.sales_invoice_controls x WHERE x.sales_invoice_id=t.sales_invoice_id) AS twin_controls,
+        (SELECT COUNT(*) FROM dbo.sales_tenders x WHERE x.sales_invoice_id=t.sales_invoice_id) AS twin_tenders
+ FROM dbo.sales_invoices i
+ JOIN dbo.sales_invoices t ON t.store_code=i.store_code AND t.document_number=i.document_number
+  AND t.invoice_year=YEAR(i.transaction_date)+CASE WHEN MONTH(i.transaction_date)>=4 THEN 1 ELSE 0 END
+ WHERE i.invoice_year<>YEAR(i.transaction_date)+CASE WHEN MONTH(i.transaction_date)>=4 THEN 1 ELSE 0 END
+ ORDER BY i.store_code, i.transaction_date, i.document_number;
+
+IF EXISTS(SELECT 1 FROM dbo.sales_invoice_controls GROUP BY sales_invoice_id HAVING COUNT(*)>1)
+ SELECT TOP (200) 'DUPLICATE_CONTROLS' AS check_code, i.sales_invoice_id, i.store_code, i.invoice_year, i.document_number, COUNT(*) AS controls
+ FROM dbo.sales_invoice_controls c JOIN dbo.sales_invoices i ON i.sales_invoice_id=c.sales_invoice_id
+ GROUP BY i.sales_invoice_id, i.store_code, i.invoice_year, i.document_number HAVING COUNT(*)>1 ORDER BY i.sales_invoice_id;
+
+IF EXISTS(SELECT 1 FROM dbo.sales_tenders GROUP BY sales_invoice_id,UPPER(tender_type) HAVING COUNT(*)>1)
+ SELECT TOP (200) 'DUPLICATE_TENDERS' AS check_code, i.sales_invoice_id, i.store_code, i.invoice_year, i.document_number, UPPER(t.tender_type) AS tender_type, COUNT(*) AS tenders
+ FROM dbo.sales_tenders t JOIN dbo.sales_invoices i ON i.sales_invoice_id=t.sales_invoice_id
+ GROUP BY i.sales_invoice_id, i.store_code, i.invoice_year, i.document_number, UPPER(t.tender_type) HAVING COUNT(*)>1 ORDER BY i.sales_invoice_id;
+
+IF @movementGroups > 0
+BEGIN
+ DECLARE @movementDetail nvarchar(max) = N'SELECT TOP (200) ''REPEATED_MOVEMENT_IDENTITY'' AS check_code,m.store_code,m.invoice_year,m.document_number,
+   m.document_date,m.product_code,m.source_transaction_type,COUNT(*) AS movement_rows FROM dbo.stock_movements m
+   GROUP BY ' + @movementKey + N' HAVING COUNT(*)>1 ORDER BY m.store_code,m.document_date,m.document_number;';
+ EXEC sys.sp_executesql @movementDetail;
+END;
+
+IF @snapshotGroups > 0
+BEGIN
+ DECLARE @snapshotDetail nvarchar(max) = N'SELECT TOP (200) ''REPEATED_SNAPSHOT_IDENTITY'' AS check_code,s.store_code,s.snapshot_date,'
+   + @snapshotSourceText + N' AS source_report_code,s.product_code,COUNT(*) AS snapshot_rows FROM dbo.stock_snapshots s
+   JOIN dbo.source_lineage l ON l.source_lineage_id=s.source_lineage_id
+   GROUP BY ' + @snapshotKey + N' HAVING COUNT(*)>1 ORDER BY s.store_code,s.snapshot_date,s.product_code;';
+ EXEC sys.sp_executesql @snapshotDetail;
+END;
+
+IF EXISTS(SELECT 1 FROM dbo.etp_import_content GROUP BY import_file_id,source_row_number HAVING COUNT(*)>1)
+ SELECT TOP (200) 'DUPLICATE_CONTENT_ROWS' AS check_code, c.import_file_id, f.report_code, f.store_code, c.source_row_number, COUNT(*) AS content_rows
+ FROM dbo.etp_import_content c JOIN dbo.import_files f ON f.import_file_id=c.import_file_id
+ GROUP BY c.import_file_id, f.report_code, f.store_code, c.source_row_number HAVING COUNT(*)>1 ORDER BY c.import_file_id, c.source_row_number;
+
+IF EXISTS(SELECT 1 FROM dbo.source_lineage GROUP BY import_file_id HAVING COUNT(DISTINCT sheet_name)>1)
+ SELECT TOP (200) 'FILES_WITH_ROWS_ON_SEVERAL_SHEETS' AS check_code, l.import_file_id, f.report_code, f.store_code, f.is_superseded,
+        COUNT(DISTINCT l.sheet_name) AS sheets, COUNT(*) AS lineage_rows
+ FROM dbo.source_lineage l JOIN dbo.import_files f ON f.import_file_id=l.import_file_id
+ GROUP BY l.import_file_id, f.report_code, f.store_code, f.is_superseded HAVING COUNT(DISTINCT l.sheet_name)>1 ORDER BY l.import_file_id;
+
+IF @lineageSuperseded > 0
+ SELECT TOP (200) 'FACTS_OF_SUPERSEDED_FILES' AS check_code, f.import_file_id, f.report_code, f.store_code, f.superseded_by_import_file_id,
+        COUNT(*) AS lineage_rows
+ FROM dbo.source_lineage l JOIN dbo.import_files f ON f.import_file_id=l.import_file_id
+ WHERE f.is_superseded=1 AND (EXISTS(SELECT 1 FROM dbo.sales_lines x WHERE x.source_lineage_id=l.source_lineage_id)
+   OR EXISTS(SELECT 1 FROM dbo.sales_invoice_controls x WHERE x.source_lineage_id=l.source_lineage_id)
+   OR EXISTS(SELECT 1 FROM dbo.sales_tenders x WHERE x.source_lineage_id=l.source_lineage_id)
+   OR EXISTS(SELECT 1 FROM dbo.stock_movements x WHERE x.source_lineage_id=l.source_lineage_id)
+   OR EXISTS(SELECT 1 FROM dbo.stock_snapshots x WHERE x.source_lineage_id=l.source_lineage_id)
+   OR EXISTS(SELECT 1 FROM dbo.sales_line_enrichments x WHERE x.source_lineage_id=l.source_lineage_id))
+ GROUP BY f.import_file_id, f.report_code, f.store_code, f.superseded_by_import_file_id ORDER BY f.import_file_id;
+
+IF @shaScopes > 0
+ EXEC sys.sp_executesql N' SELECT TOP (200) ''SHA_SHARED_ACROSS_SCOPES'' AS check_code, f.source_sha256, f.import_file_id, f.report_code, f.store_code,
+        COALESCE(f.period_start,f.business_date) AS period_start, COALESCE(f.period_end,f.business_date) AS period_end
+ FROM dbo.import_files f
+ WHERE f.is_superseded=0 AND f.source_sha256 IN (SELECT source_sha256 FROM dbo.import_files WHERE is_superseded=0 GROUP BY source_sha256
+   HAVING COUNT(DISTINCT CONCAT(report_code,''|'',store_code,''|'',COALESCE(period_start,business_date),''|'',COALESCE(period_end,business_date)))>1)
+ ORDER BY f.source_sha256, f.import_file_id;';
+
+IF EXISTS(SELECT 1 FROM dbo.sales_invoices i
+   WHERE NOT EXISTS(SELECT 1 FROM dbo.sales_lines x WHERE x.sales_invoice_id=i.sales_invoice_id)
+     AND NOT EXISTS(SELECT 1 FROM dbo.sales_invoice_controls x WHERE x.sales_invoice_id=i.sales_invoice_id)
+     AND NOT EXISTS(SELECT 1 FROM dbo.sales_tenders x WHERE x.sales_invoice_id=i.sales_invoice_id))
+ SELECT TOP (200) 'ORPHAN_INVOICE_HEADERS' AS check_code, i.sales_invoice_id, i.store_code, i.invoice_year, i.document_number, i.transaction_date
+ FROM dbo.sales_invoices i
+ WHERE NOT EXISTS(SELECT 1 FROM dbo.sales_lines x WHERE x.sales_invoice_id=i.sales_invoice_id)
+   AND NOT EXISTS(SELECT 1 FROM dbo.sales_invoice_controls x WHERE x.sales_invoice_id=i.sales_invoice_id)
+   AND NOT EXISTS(SELECT 1 FROM dbo.sales_tenders x WHERE x.sales_invoice_id=i.sales_invoice_id)
+ ORDER BY i.store_code, i.transaction_date, i.document_number;
+
+IF @movementConflicts > 0
+BEGIN
+ DECLARE @movementConflictDetail nvarchar(max) = N'SELECT TOP (200) ''OPEN_MOVEMENT_CONFLICTS_ON_STORED_ROWS'' AS check_code,c.import_conflict_id,c.import_file_id,
+   c.store_code,c.business_date,c.status,c.business_identity,
+   (SELECT COUNT(*) FROM dbo.stock_movements m WHERE m.store_code=c.store_code AND ' + @movementIdentity + N'=c.business_identity) AS stored_movements
+  FROM dbo.import_conflicts c
+  WHERE c.report_code=''R003'' AND c.status IN(''OPEN'',''ACKNOWLEDGED'',''RESTATEMENT_REQUESTED'')
+    AND EXISTS(SELECT 1 FROM dbo.stock_movements m WHERE m.store_code=c.store_code AND ' + @movementIdentity + N'=c.business_identity)
+  ORDER BY c.store_code,c.business_date,c.import_conflict_id;';
+ EXEC sys.sp_executesql @movementConflictDetail;
+END;
+
+IF @r011Days > 0
+BEGIN
+ DECLARE @r011Detail nvarchar(max) = @r011Rows + N'SELECT TOP (200) ''SNAPSHOT_R011_BACKFILL'' AS check_code,g.store_code,g.snapshot_date,
+   CASE WHEN EXISTS(SELECT 1 FROM dbo.daily_reporting_days d WHERE d.store_code=g.store_code AND d.business_date=g.snapshot_date
+     AND d.status=''LOCKED'') THEN 1 ELSE 0 END AS day_locked,g.rows_rebuilt,g.rows_without_values
+ FROM (SELECT store_code,snapshot_date,SUM(has_values) AS rows_rebuilt,SUM(1-has_values) AS rows_without_values
+       FROM valued GROUP BY store_code,snapshot_date) g
+ ORDER BY g.store_code,g.snapshot_date;';
+ EXEC sys.sp_executesql @r011Detail;
+END;

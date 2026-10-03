@@ -75,7 +75,8 @@ public sealed class R022SqlImportOrchestrator(ITransactionalImportStore store)
         var controls = projection.InvoiceControls.Select(x => new SalesInvoiceControlPersistence(
             x.StoreCode,
             x.InvoiceNumber,
-            EtpInvoiceIdentity.FinancialYearEnd(x.TransactionDate, accepted.Staging.Rows.Single(r => r.SourceRowNumber == x.SourceRowNumber).Values),
+            // The financial year of the invoice date, never INVOICEYEAR (OD-1), so a 1-April return joins R025's header.
+            EtpInvoiceIdentity.FinancialYearEnd(x.TransactionDate),
             x.TransactionDate,
             x.TransactionTypeRaw,
             x.InvoiceQuantity,
@@ -86,7 +87,7 @@ public sealed class R022SqlImportOrchestrator(ITransactionalImportStore store)
             new TenderPersistence(
                 x.StoreCode,
                 x.InvoiceNumber,
-                EtpInvoiceIdentity.FinancialYearEnd(x.TransactionDate, accepted.Staging.Rows.Single(r => r.SourceRowNumber == x.SourceRowNumber).Values),
+                EtpInvoiceIdentity.FinancialYearEnd(x.TransactionDate),
                 x.TransactionDate,
                 x.TenderCode,
                 x.SourceAmount,

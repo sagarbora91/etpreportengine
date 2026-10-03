@@ -15,6 +15,9 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
     private readonly DesktopImportCoordinator coordinator;
     private readonly Func<string> connectionStringProvider;
     private Func<ImportWorkspaceAccess> accessProvider = static () => new(false, false);
+    // Reloads the role from the database. accessProvider returns the host's cached copy,
+    // which cannot notice a role the Owner revoked after this window loaded it.
+    private Func<Task<ImportWorkspaceAccess>> currentAccessLoader = static () => Task.FromResult(new ImportWorkspaceAccess(false, false));
     private Func<string, string, string, Task> auditRecorder = static (_, _, _) => Task.CompletedTask;
     private Func<Task> dashboardRefresher = static () => Task.CompletedTask;
     private IReadOnlyList<FolderImportFileResult> latestResults = [];
@@ -43,9 +46,11 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
     // running, or because nothing failed. Only the first deserves an explanation
     // beside the button; the other two are obvious from the screen.
     public bool CanRetryByRole => accessProvider().CanImport;
-    public void AttachHost(Func<ImportWorkspaceAccess> accessProvider, Func<string, string, string, Task> auditRecorder, Func<Task> dashboardRefresher)
+    public void AttachHost(Func<ImportWorkspaceAccess> accessProvider, Func<Task<ImportWorkspaceAccess>> currentAccessLoader,
+        Func<string, string, string, Task> auditRecorder, Func<Task> dashboardRefresher)
     {
         this.accessProvider = accessProvider;
+        this.currentAccessLoader = currentAccessLoader ?? throw new ArgumentNullException(nameof(currentAccessLoader));
         this.auditRecorder = auditRecorder;
         this.dashboardRefresher = dashboardRefresher;
         RetryAvailabilityChanged?.Invoke(this, EventArgs.Empty);
@@ -90,9 +95,16 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
             if (!accessProvider().CanImport) throw new UnauthorizedAccessException("Owner or Store Manager permission is required.");
             if (!retry && string.IsNullOrWhiteSpace(WorkbookPathInput.Text)) throw new InvalidOperationException("Choose a folder, workbook or ZIP first.");
             var restate = retry ? lastImportOptions?.RestatementEnabled == true : RestatementModeInput.IsChecked == true;
+            // A manager may request and apply an Owner-approved replacement, but a role
+            // revoked since this window loaded it must stop before the approval flow starts.
+            // The cached check above cannot see that, so reload the role from the database.
+            // The SQL layer still reloads access itself before it replaces any facts.
+            if (restate && !(await currentAccessLoader()).CanImport)
+                throw new UnauthorizedAccessException("Owner or Store Manager permission is required for a restatement.");
             var options = retry ? lastImportOptions! : new FolderImportOptions(Environment.UserName, restate, RestatementReasonInput.Text.Trim(),
                 restate ? (ImportStoreInput.SelectedItem as ComboBoxItem)?.Content?.ToString() : null,
-                restate && ImportBusinessDateInput.SelectedDate is { } date ? DateOnly.FromDateTime(date) : null);
+                restate && ImportBusinessDateInput.SelectedDate is { } date ? DateOnly.FromDateTime(date) : null)
+                { ChooseRestatementTarget = ChooseRestatementTargetAsync };
             lastImportOptions = options;
             var previousResults = latestResults;
             CancelBatchButton.IsEnabled = true;
@@ -113,10 +125,6 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
                 ShowScope();
                 ProgressChanged?.Invoke(this, value);
             });
-            // A manager may request and apply an Owner-approved replacement, but
-            // a revoked import role must stop before entering that approval flow.
-            if (restate && !accessProvider().CanImport)
-                throw new UnauthorizedAccessException("Owner or Store Manager permission is required for a restatement.");
             var summary = retry
                 ? await coordinator.RetryFailedFolderAsync(progress)
                 : await coordinator.ImportFolderAsync(WorkbookPathInput.Text, connectionStringProvider(), options, progress);

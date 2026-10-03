@@ -72,8 +72,11 @@ function Get-EtpSqlEngineSetupArguments {
     # list, which takes the database's, and has no COLLATE clause: on such an instance a
     # restored Latin1_General_CI_AS database fails its drill with a collation conflict.
     # A new database simply inherits it. Only an instance setup installs is affected.
+    # Express setup also makes the account running it a SQL administrator unless told not
+    # to (ADDCURRENTUSERASSQLADMIN defaults to True for Express). On the first real new PC
+    # (1 October 2026) that left the Owner's own account in sysadmin, beside Administrators.
     return @('/ACTION=Install','/QUIET','/IACCEPTSQLSERVERLICENSETERMS','/FEATURES=SQLENGINE',
-        "/INSTANCENAME=$InstanceName",'/SQLSYSADMINACCOUNTS=BUILTIN\Administrators',
+        "/INSTANCENAME=$InstanceName",'/SQLSYSADMINACCOUNTS=BUILTIN\Administrators','/ADDCURRENTUSERASSQLADMIN=False',
         '/SQLCOLLATION=Latin1_General_CI_AS','/TCPENABLED=0','/NPENABLED=0','/UPDATEENABLED=0')
 }
 
@@ -151,7 +154,11 @@ function Get-EtpSqlClientInstallPlan {
 }
 
 function Test-EtpSqlCmdInstalled {
-    try { $null = Resolve-EtpSqlCmd; return $true } catch { return $false }
+    # Only the ODBC 17 Sqlcmd counts. SQL Server 2025's setup brings an ODBC 18 Sqlcmd that
+    # cannot connect to the instance it just installed (see Resolve-EtpSqlCmd); counting it
+    # made setup skip the bundled Sqlcmd and then fail its first query. It counts wherever
+    # it was installed (Workpc, 2 October 2026: E:\Program Files), if it is protected.
+    try { $null = Resolve-EtpSqlCmd -Odbc17Only; return $true } catch { return $false }
 }
 
 function Test-EtpSqlEngineInstalled {
@@ -278,14 +285,21 @@ function Install-EtpSqlPrerequisitesFromPayload {
         Write-Host 'Installing SQL Server Express from the media included with this installer.'
         Install-EtpSqlEngineFromPayload -PayloadDirectory $PayloadDirectory -ServiceName $ServiceName
     }
-    # SQL Server setup may have brought a Sqlcmd of its own; then nothing more is needed.
+    # SQL Server setup brings only an ODBC 18 Sqlcmd, which does not count, so the bundled
+    # one is still installed; the check stays in case a future media brings the ODBC 17 one.
     if ($clientPlan.Count -gt 0 -and -not (Test-EtpSqlCmdInstalled)) {
         foreach ($package in $clientPlan) {
             # /norestart: a driver that asks for a restart must not restart the PC under setup.
             Start-EtpProcess -FilePath "$env:SystemRoot\System32\msiexec.exe" -Description ('install ' + $package.What) `
                 -Arguments @('/i', $package.Path, '/qn', '/norestart', 'ADDLOCAL=ALL', $package.Terms)
         }
-        if (-not (Test-EtpSqlCmdInstalled)) { throw 'Sqlcmd was installed but was not found in its protected Program Files folder.' }
+        # Say why: "not found" and "found in a folder a non-administrator can change" send the
+        # operator to different places.
+        if (-not (Test-EtpSqlCmdInstalled)) {
+            $reason = 'the ODBC Driver 17 Sqlcmd was not found'
+            try { $null = Resolve-EtpSqlCmd -Odbc17Only } catch { $reason = $_.Exception.Message }
+            throw ('Sqlcmd was installed but cannot be used: ' + $reason)
+        }
     }
 }
 
@@ -338,10 +352,13 @@ function New-EtpSetupOwnerLoginSql {
     # removes from an unelevated token: opened normally from the Start menu, ETP could not sign
     # in to SQL Server at all, so the Owner never reached Settings > Users. When the account has
     # no login of its own it is given one the documented way - dbo.configure_application_role
-    # as OWNER, the same call Settings > Users and the restore helper's Owner recovery make,
-    # which also grants the ALTER ANY LOGIN that adding staff needs. SUSER_SNAME() is taken
-    # inside SQL Server, so no text from outside reaches this batch. An account that already
-    # has its own login (an administrator's own sysadmin login, for one) is left as it is.
+    # as OWNER, the same call Settings > Users and the restore helper's Owner recovery make.
+    # SUSER_SNAME() is taken inside SQL Server, so no text from outside reaches this batch. An
+    # account that already has its own login (an administrator's own sysadmin login, for one)
+    # is left as it is. The procedure gives every other Owner ALTER ANY LOGIN WITH GRANT
+    # OPTION (migration 0043), but not this one: SQL Server never lets a login grant a
+    # permission to itself. Setup's one-off SYSTEM task gives it afterwards
+    # (Invoke-EtpOwnerGrantOptionAsSystem), and New-EtpOwnerLoginAdministrationSql checks.
     return @'
 SET NOCOUNT ON; SET XACT_ABORT ON;
 DECLARE @identity nvarchar(200)=SUSER_SNAME();
@@ -353,6 +370,26 @@ BEGIN
   EXEC dbo.configure_application_role @identity=@identity,@role='OWNER',@active=1;
   COMMIT TRANSACTION;
 END;
+'@
+}
+
+function New-EtpOwnerLoginAdministrationSql {
+    # Read-only. 1.9.3, migration 0043: an Owner changes users in Settings > Users without
+    # "Run as administrator" only while its login holds ALTER ANY LOGIN WITH GRANT OPTION.
+    # The account running setup, usually the Owner, cannot give that to itself (SQL Server's
+    # error 4627), so setup has SYSTEM give it first (Invoke-EtpOwnerGrantOptionAsSystem);
+    # this check, made afterwards, says whether that worked, instead of leaving the Owner to
+    # discover it at the first save. One word: NOT_AN_OWNER (no login of its own, or not an
+    # active Owner), GRANT_OPTION or MISSING.
+    return @'
+SET NOCOUNT ON;
+DECLARE @identity nvarchar(200)=SUSER_SNAME();
+SELECT CASE
+  WHEN SUSER_ID(@identity) IS NULL
+    OR NOT EXISTS(SELECT 1 FROM dbo.application_users WHERE windows_identity=@identity AND role_code='OWNER' AND is_active=1) THEN 'NOT_AN_OWNER'
+  WHEN EXISTS(SELECT 1 FROM sys.server_permissions WHERE class=100 AND grantee_principal_id=SUSER_ID(@identity)
+    AND permission_name=N'ALTER ANY LOGIN' AND state='W') THEN 'GRANT_OPTION'
+  ELSE 'MISSING' END;
 '@
 }
 
@@ -379,6 +416,42 @@ function Assert-EtpBootstrapPayloads {
             foreach ($child in Get-ChildItem -LiteralPath $item -Force) { $pending.Enqueue($child.FullName) }
         }
     }
+}
+
+function Complete-EtpAutomationGrants {
+    # 1.9.3. Setup used to install the operations broker alone and leave the automation
+    # account's rights to a separate install-etp-sql-operations.ps1 run (docs\OPERATIONS.md,
+    # step 7), which nothing prompted. On Workpc, 2 October 2026, the recovery drill's first
+    # run failed with only "The database operation failed" because of it. Now every setup run
+    # ends here: an automation account that is already an active Store Manager but lacks the
+    # module's rights gets them, by the same script and checks as the manual step; one that is
+    # not a Store Manager yet gets a NEXT STEP line saying exactly what to do. Returns the log
+    # lines; a failure here is reported, never fatal, because the database is complete.
+    param([Parameter(Mandatory)][scriptblock]$GetState,[Parameter(Mandatory)][scriptblock]$InstallModule,
+          [string]$ServerInstance,[string]$Database,[string]$AutomationPrincipal,[string]$ScriptsDirectory)
+    $command = Get-EtpAutomationGrantCommand -ServerInstance $ServerInstance -Database $Database -AutomationPrincipal $AutomationPrincipal -ScriptsDirectory $ScriptsDirectory
+    try { $state = & $GetState }
+    catch { return @("WARNING: setup could not check whether $AutomationPrincipal has the operations module's rights ($($_.Exception.Message)). If the daily backup or the recovery drill fails, run this in an administrator PowerShell window: $command") }
+    if ($state.State -ceq 'READY') { return @("$AutomationPrincipal is an active Store Manager with the operations module's rights; the daily backup and the recovery drill can run.") }
+    if ($state.State -ceq 'GRANTS_MISSING') {
+        $lines = [Collections.Generic.List[string]]::new()
+        $lines.Add("$AutomationPrincipal is an active Store Manager but lacks $($state.Missing -join ', '). Setup is installing the restricted SQL operations module for it now (docs\OPERATIONS.md, step 7).")
+        try { foreach ($line in @(& $InstallModule)) { $lines.Add("$line") } }
+        catch {
+            $lines.Add("WARNING: the operations module could not be installed for ${AutomationPrincipal}: $($_.Exception.Message) The daily backup and the recovery drill cannot run under that account until it is. Then run this in an administrator PowerShell window: $command")
+            return $lines.ToArray()
+        }
+        try { $after = & $GetState } catch { $after = $null }
+        if ($null -ne $after -and $after.State -ceq 'READY') { $lines.Add("$AutomationPrincipal now has the operations module's rights.") }
+        else {
+            $still = if ($null -ne $after -and @($after.Missing).Count -gt 0) { " (missing: $($after.Missing -join ', '))" } else { '' }
+            $lines.Add("WARNING: after the operations module was installed, $AutomationPrincipal still does not have all of its rights$still. Run this in an administrator PowerShell window: $command")
+        }
+        return $lines.ToArray()
+    }
+    $guidance = Get-EtpAutomationGrantGuidance -GrantState $state -ServerInstance $ServerInstance -Database $Database -AutomationPrincipal $AutomationPrincipal -ScriptsDirectory $ScriptsDirectory
+    if ($guidance) { return @("NEXT STEP: $guidance") }
+    return @("WARNING: setup could not tell whether $AutomationPrincipal has the operations module's rights. If the daily backup or the recovery drill fails, run this in an administrator PowerShell window: $command")
 }
 
 # Dot-sourcing exposes only the pure preflight functions for behavioral tests.
@@ -598,10 +671,36 @@ if ($databaseAction -ceq 'Create') {
     Write-SetupLog "$($identity.Name) is the new database's Owner and has its own SQL Server login, so ETP opens for it without administrator rights."
 }
 
+# 1.9.3 (Sagar's decision, 2 October 2026): Settings > Users works unelevated right after
+# install. Active Owners need ALTER ANY LOGIN WITH GRANT OPTION, which SQL Server does not let
+# the account running setup give itself, so a different SQL administrator - SYSTEM, through a
+# one-off scheduled task - gives it (Invoke-EtpOwnerGrantOptionAsSystem, in
+# etp-operations-common.ps1). Whatever happens here, the database and the Owner's access are
+# complete: nothing in this step stops setup, and the read-only check after it says what is left.
+$ownersWithoutGrantOption = try { Invoke-SqlScalar -TargetDatabase $Database -Query (New-EtpOwnersWithoutGrantOptionSql) } catch { 'UNKNOWN' }
+if ($ownersWithoutGrantOption -cne '0') {
+    $ownerGrant = try { Invoke-EtpOwnerGrantOptionAsSystem -SqlCmdPath $sqlcmdPath -ServerInstance $ServerInstance -Database $Database } catch { $null }
+    if ($ownerGrant) { Write-SetupLog $ownerGrant.Message }
+    else { Write-SetupLog 'WARNING: setup could not run its one-off task that gives Owners ALTER ANY LOGIN WITH GRANT OPTION. Nothing else depends on it.' }
+}
+$ownerLoginAdministration = try { Invoke-SqlScalar -TargetDatabase $Database -Query (New-EtpOwnerLoginAdministrationSql) } catch { 'UNKNOWN' }
+if ($ownerLoginAdministration -ceq 'MISSING') {
+    $manualGrant = Get-EtpOwnerGrantManualCommand -Identity $identity.Name -ServerInstance $ServerInstance -SqlCmdPath $sqlcmdPath
+    $manualText = if ($manualGrant) { " To do it by hand, run this once in an administrator PowerShell window (it runs as SYSTEM, which must be a SQL administrator; 0 means granted): $manualGrant" } else { '' }
+    Write-SetupLog "NOTE: $($identity.Name) is an Owner but still does not hold ALTER ANY LOGIN WITH GRANT OPTION, and SQL Server does not let setup grant a permission to the account running it. Until a different SQL administrator grants it (docs\OPERATIONS.md, Owners and SQL Server logins), adding or changing users in Settings > Users needs ETP started with 'Run as administrator'. Everything else works unelevated.$manualText"
+}
+elseif ($ownerLoginAdministration -ceq 'UNKNOWN') {
+    Write-SetupLog 'NOTE: setup could not check whether the Owner running it can change users without "Run as administrator" (docs\OPERATIONS.md, Owners and SQL Server logins).'
+}
+
 & (Join-Path $scripts 'install-daily-backup-task.ps1')
 & (Join-Path $scripts 'install-monthly-recovery-drill-task.ps1')
 & (Join-Path $scripts 'install-etp-automation-task.ps1')
 Write-SetupLog 'Daily backup, monthly recovery-drill and five-minute ETP automation tasks are installed.'
+# The tasks are useless until the automation account has the operations module's rights.
+foreach ($line in @(Complete-EtpAutomationGrants -ServerInstance $ServerInstance -Database $Database -AutomationPrincipal $operationConfiguration.automationPrincipal -ScriptsDirectory $scripts `
+        -GetState { Get-EtpAutomationGrantState -SqlCmd $sqlcmdPath -Server (Resolve-EtpSqlConnection -SqlCmd $sqlcmdPath -ServerInstance $ServerInstance) -Database $Database -AutomationPrincipal $operationConfiguration.automationPrincipal } `
+        -InstallModule { & (Join-Path $scripts 'install-etp-sql-operations.ps1') -ServerInstance $ServerInstance -Database $Database -AutomationPrincipal $operationConfiguration.automationPrincipal -SqlCmdPath $sqlcmdPath })) { Write-SetupLog $line }
 # A clean install on an encrypting edition gets this far with no recovery keys, and then
 # every nightly backup refuses. Say it now, while somebody is still at the machine.
 if ($editionEncryptsBackups -and -not (Test-Path -LiteralPath (Join-Path $backupDirectory 'certificate-custody.json') -PathType Leaf)) {

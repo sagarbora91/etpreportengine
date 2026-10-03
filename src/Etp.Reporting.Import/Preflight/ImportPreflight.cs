@@ -1,6 +1,7 @@
 using Etp.Reporting.Domain.Imports;
 using Etp.Reporting.Import.Diagnostics;
 using Etp.Reporting.Import.Profiles;
+using Etp.Reporting.Import.Sources;
 using Etp.Reporting.Import.Workbooks;
 
 namespace Etp.Reporting.Import.Preflight;
@@ -11,11 +12,15 @@ public sealed record ImportPreflightResult(
     IReadOnlyList<ImportDiagnostic> Diagnostics)
 {
     public bool CanImport => Profile is not null && Diagnostics.All(x => x.Severity != ImportDiagnosticSeverity.Blocker);
+
+    /// <summary>The consolidation contract of a workbook whose <c>Info!A1</c> is <c>etp_contract</c> (layout only).</summary>
+    public ContractReadResult Contract { get; init; } = ContractReadResult.NotAContract;
 }
 
 public sealed class ImportPreflight
 {
     private readonly ImportProfileMatcher matcher = new();
+    private readonly ConsolidationContractReader contracts = new();
 
     public ImportPreflightResult Inspect(
         WorkbookSnapshot workbook,
@@ -37,8 +42,12 @@ public sealed class ImportPreflight
         if (workbook.Sheets.Count == 0)
             diagnostics.Add(Blocker("WORKBOOK_NO_SHEETS", "The workbook contains no readable sheets."));
 
+        // A contract workbook is read for its family, store and block dates (spec 6.1); one that cannot be read is refused.
+        var contract = contracts.Read(workbook);
+        diagnostics.AddRange(contract.Diagnostics);
+
         var candidates = new List<(WorkbookSheet Sheet, ImportProfile Profile)>();
-        foreach (var originalSheet in workbook.Sheets.Where(sheet => !sheet.Name.Equals("Info", StringComparison.OrdinalIgnoreCase)))
+        foreach (var originalSheet in workbook.Sheets.Where(sheet => !IsNonDataSheet(sheet.Name)))
         {
             var sheet = originalSheet;
             if (sheet.Rows.Count == 0 && (sheet.Headers.Count == 0 || sheet.Headers.All(string.IsNullOrWhiteSpace)))
@@ -72,7 +81,8 @@ public sealed class ImportPreflight
                 continue;
             }
 
-            var match = matcher.Match(normalizedSheet.Headers, materializedProfiles, workbook.FileName, sheet.Name);
+            var match = matcher.Match(normalizedSheet.Headers, materializedProfiles, workbook.FileName, sheet.Name,
+                contract.Contract?.Header.FamilyCode);
             if (match is not null) candidates.Add((normalizedSheet, match));
             else AddSchemaDifferenceDiagnostics(normalizedSheet, materializedProfiles, diagnostics);
         }
@@ -87,8 +97,12 @@ public sealed class ImportPreflight
         return new(
             candidates.Count == 1 ? candidates[0].Profile : null,
             candidates.Count == 1 ? candidates[0].Sheet : null,
-            diagnostics);
+            diagnostics) { Contract = contract };
     }
+
+    /// <summary>Info, ETP_Excluded and Snapshot History describe a consolidated workbook; they are never data sheets.</summary>
+    public static bool IsNonDataSheet(string? sheetName) =>
+        ConsolidationContractLayout.NonDataSheets.Contains(sheetName?.Trim() ?? "", StringComparer.OrdinalIgnoreCase);
 
     private static ImportDiagnostic Blocker(string code, string message, string? sheet = null) =>
         new(code, ImportDiagnosticSeverity.Blocker, message, sheet);

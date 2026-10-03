@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Etp.Reporting.Domain.Periods;
+using Etp.Reporting.Import.Stock;
 using Etp.Reporting.Reporting;
 using Microsoft.Data.SqlClient;
 
@@ -104,7 +105,8 @@ public sealed record StockInventoryReportRow(
     decimal? TotalCost,
     DateOnly? LastSaleDate,
     int? DaysSinceLastSale,
-    string MovementStatus);
+    string MovementStatus,
+    string? SnapshotSource = null);
 
 public sealed record DailyExceptionRow(
     string Severity,
@@ -162,8 +164,9 @@ public sealed partial class OperationalReportRepository(string connectionString)
                CASE WHEN COUNT(s.unit_cost)=0 THEN NULL ELSE MAX(s.unit_cost) END,
                CASE WHEN COUNT(s.total_cost)=0 THEN NULL ELSE SUM(s.total_cost) END,
                sale.last_sale_date,
-               CASE WHEN sale.last_sale_date IS NULL THEN NULL ELSE DATEDIFF(day,sale.last_sale_date,s.snapshot_date) END
-        FROM dbo.stock_snapshots s
+               CASE WHEN sale.last_sale_date IS NULL THEN NULL ELSE DATEDIFF(day,sale.last_sale_date,s.snapshot_date) END,
+               s.source_report_code
+        FROM dbo.v_stock_snapshots_effective s
         OUTER APPLY
         (
           SELECT MAX(i.transaction_date) last_sale_date
@@ -177,7 +180,7 @@ public sealed partial class OperationalReportRepository(string connectionString)
           AND (@items IS NULL OR s.product_code IN(SELECT CONVERT(nvarchar(80),[value]) FROM OPENJSON(@items)))
         GROUP BY s.snapshot_date,s.store_code,s.product_code,
                  COALESCE(NULLIF(LTRIM(RTRIM(s.brand_name)),''),NULLIF(LTRIM(RTRIM(s.brand_code)),'')),
-                 NULLIF(LTRIM(RTRIM(s.cluster)),''),sale.last_sale_date
+                 NULLIF(LTRIM(RTRIM(s.cluster)),''),sale.last_sale_date,s.source_report_code
         ORDER BY 2,5,4,3;
         """;
 
@@ -460,7 +463,7 @@ public sealed partial class OperationalReportRepository(string connectionString)
               SELECT store_code,snapshot_date,
                      COALESCE(NULLIF(LTRIM(RTRIM(cluster)),''),NULLIF(LTRIM(RTRIM(brand_name)),''),NULLIF(LTRIM(RTRIM(brand_code)),''),product_code) inventory_group_code,
                      SUM(quantity) system_quantity
-              FROM dbo.stock_snapshots
+              FROM dbo.v_stock_snapshots_effective
               WHERE store_code=@store AND snapshot_date=@date
               GROUP BY store_code,snapshot_date,COALESCE(NULLIF(LTRIM(RTRIM(cluster)),''),NULLIF(LTRIM(RTRIM(brand_name)),''),NULLIF(LTRIM(RTRIM(brand_code)),''),product_code)
             )
@@ -508,7 +511,7 @@ public sealed partial class OperationalReportRepository(string connectionString)
         {
             var quantity=reader.GetDecimal(5);DateOnly? last=reader.IsDBNull(8)?null:reader.GetFieldValue<DateOnly>(8);int? days=reader.IsDBNull(9)?null:reader.GetInt32(9);
             var status=quantity==0?"ZERO STOCK":last is null?"NEVER SOLD":days>=90?"SLOW - 90+ DAYS":days>=60?"WATCH - 60+ DAYS":"ACTIVE";
-            rows.Add(new(reader.GetFieldValue<DateOnly>(0),reader.GetString(1),reader.GetString(2),reader.IsDBNull(3)?null:reader.GetString(3),reader.IsDBNull(4)?null:reader.GetString(4),quantity,NullableDecimal(reader,6),NullableDecimal(reader,7),last,days,status));
+            rows.Add(new(reader.GetFieldValue<DateOnly>(0),reader.GetString(1),reader.GetString(2),reader.IsDBNull(3)?null:reader.GetString(3),reader.IsDBNull(4)?null:reader.GetString(4),quantity,NullableDecimal(reader,6),NullableDecimal(reader,7),last,days,status,StockSnapshotSources.DisplayName(reader.GetString(10))));
         }
         return rows;
     }
