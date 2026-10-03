@@ -59,7 +59,7 @@ public sealed class ReportWorkspaceControl : Grid
     private ReportPreviewScope? loadedScope;
     private Func<string>? queryFilterSignature;
 
-    /// <summary>Whether the current role may generate a report pack (Owner or Store Manager); see WLMHW FIX-17.</summary>
+    /// <summary>Whether the current role may generate a report pack (Owner or Store Manager); see Titan FIX-17.</summary>
     public Func<bool> CanGeneratePack { get; set; } = static () => true;
     private readonly Expander queryFilters = new() { Header = "Filters", Visibility = Visibility.Collapsed, Margin = new Thickness(0, 8, 0, 0) };
     private readonly TextBlock appliedScope = new() { TextWrapping = TextWrapping.Wrap, Visibility = Visibility.Collapsed, Margin = new Thickness(0, 6, 0, 0) };

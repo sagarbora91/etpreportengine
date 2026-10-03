@@ -1,7 +1,7 @@
 namespace Etp.Reporting.Infrastructure.SqlServer;
 
 /// <summary>
-/// R-WLMHW-01 (1.9.4). The stored <c>match_status</c> of an R013 staff row is decided when the row is imported, by
+/// Titan report audit R-01 (1.9.4). The stored <c>match_status</c> of an R013 staff row is decided when the row is imported, by
 /// counting the R025 lines with the same store, date, document and item: two lines make every R013 row for that key
 /// Ambiguous (dropped from the Staff/CRO report), and nothing stops two R013 rows from both taking a single line (the
 /// stale duplicate counted twice). Reports therefore pair R013 rows with sales lines here, live, by occurrence: the

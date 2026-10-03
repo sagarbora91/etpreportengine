@@ -36,7 +36,7 @@ public sealed partial class TaskNavigator
 
     public async Task GeneratePackAsync(DateTime date, string scope)
     {
-        // WLMHW FIX-17: the Actions menu and Ctrl+Shift+P both land here. A Viewer may not save a report generation
+        // Titan FIX-17: the Actions menu and Ctrl+Shift+P both land here. A Viewer may not save a report generation
         // (SQL grants it to the Owner and Store Managers), so say so and stay put instead of failing on Close day.
         if (!window.CurrentShellAccess.CanImport)
         {

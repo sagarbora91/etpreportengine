@@ -7,7 +7,7 @@ namespace Etp.Reporting.Reporting;
 public sealed record StockLedgerRow(DateOnly DocumentDate, int LineSeq, long SequenceId, decimal OpeningQuantity, decimal ClosingQuantity, string? Location = null);
 
 /// <summary>
-/// The ledger balance of one store and item at the start of a date (report audit 3 Oct 2026, R-HEMW-02 / R-WLMHW-05).
+/// The ledger balance of one store and item at the start of a date (report audit 3 Oct 2026, Helios report audit R-02 / Titan report audit R-05).
 /// <para>
 /// The rows of one day are not stored in time order: the export lists a later movement first on some days (an SR at
 /// 17:39 before the INV at 12:21, a BC before the INV rows of another document). So the opening is never "the first row
@@ -51,7 +51,7 @@ public static class StockLedgerOpening
     }
 
     /// <summary>
-    /// The item's balance at the start of <paramref name="from"/> over all its bins (WLMHW report audit FIX-14, migration 0047).
+    /// The item's balance at the start of <paramref name="from"/> over all its bins (Titan report audit FIX-14, migration 0047).
     /// Each bin keeps its own running balance, so each bin's chain is resolved on its own and the bins' openings are added
     /// together. A movement with no stored bin belongs to some unknown bin, not to a bin of its own: when any movement of
     /// the period [<paramref name="from"/>, <paramref name="to"/>] has no bin, or the item has only one bin, every row is

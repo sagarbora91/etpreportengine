@@ -7,7 +7,7 @@ namespace Etp.Reporting.Desktop;
 internal static class ReportActionMenu
 {
     /// <param name="canGeneratePack">
-    /// WLMHW FIX-17: whether the current role may generate a pack (Owner or Store Manager). It is read each time the
+    /// Titan FIX-17: whether the current role may generate a pack (Owner or Store Manager). It is read each time the
     /// menu opens, so a Viewer sees "Generate report pack" disabled with the reason instead of a refusal later.
     /// </param>
     public static Button Create(Action<ReportWorkspaceAction> invoke, List<Control> exports, bool manualEntry, Func<bool>? canGeneratePack = null)

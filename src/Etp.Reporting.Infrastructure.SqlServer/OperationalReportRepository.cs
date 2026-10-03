@@ -335,7 +335,7 @@ public sealed partial class OperationalReportRepository(string connectionString)
         CancellationToken cancellationToken = default)
     {
         scope.Validate();
-        // R-WLMHW-01: R013 rows count when paired with an R025 line by occurrence, not by their import-time status.
+        // Titan report audit R-01: R013 rows count when paired with an R025 line by occurrence, not by their import-time status.
         const string staffSql = $"""
             SELECT e.store_code,e.source_cro_number,COALESCE(SUM(e.source_gross_value),0),COALESCE(SUM(e.source_quantity),0),
                    SUM(COALESCE(e.scheme_discount,0)+COALESCE(e.user_discount,0)+COALESCE(e.pre_discount,0)),

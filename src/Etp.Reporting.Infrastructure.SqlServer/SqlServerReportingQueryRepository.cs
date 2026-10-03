@@ -103,7 +103,7 @@ public static class SqlReportingQueries
         ORDER BY d.store_code,d.transaction_date;
         """;
 
-    // Stock keys (report audit 3 Oct 2026, R-WLMHW-04): every item with a ledger movement in the period, including items
+    // Stock keys (report audit 3 Oct 2026, Titan report audit R-04): every item with a ledger movement in the period, including items
     // that sold out and so have no row in the To-date snapshot. Their closing is 0 when the store has a snapshot that day,
     // and null (the reconciliation is Blocked) when the store has none at all.
     private const string StockKeys = """
@@ -126,7 +126,7 @@ public static class SqlReportingQueries
         """;
 
     // Every ledger row of each key, of any date: StockLedgerOpening finds the balance at the start of the period from the
-    // chain of each day (R-HEMW-02, R-WLMHW-05), so the opening never depends on the order the rows were stored in.
+    // chain of each day (Helios report audit R-02, Titan report audit R-05), so the opening never depends on the order the rows were stored in.
     public const string StockLedgerRows = StockKeys + "\n" + """
         SELECT m.store_code,m.product_code,m.document_date,m.line_seq,m.stock_movement_id,m.opening_quantity,m.closing_quantity,m.location
         FROM dbo.stock_movements m
@@ -148,7 +148,7 @@ public static class SqlReportingQueries
         ORDER BY m.store_code,m.product_code,m.location,m.source_transaction_type;
         """;
 
-    // R-WLMHW-13: how far each store's ledger goes, for the stores the stock check covers (movements in the period or a
+    // Titan report audit R-13: how far each store's ledger goes, for the stores the stock check covers (movements in the period or a
     // snapshot on the To date). The import of a dated family stores the last row date as its period end (ImportScope), so
     // ledger_covers_to is in practice the last stored movement: a ledger exported to the To date ends earlier when the
     // last days had no stock movement. first_sale_after_ledger is the evidence that tells the two apart: the first sale

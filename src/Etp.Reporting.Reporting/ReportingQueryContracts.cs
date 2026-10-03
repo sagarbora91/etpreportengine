@@ -39,7 +39,7 @@ public sealed record StockMovementQueryRow(
 /// The last date the store's stock ledger covers (the current ledger imports' period end, or its last movement; null when
 /// none is stored), and the store's first sale after that date up to the To date (null when there is none). The import
 /// stores a ledger's last row date as its period end, so a ledger exported to the To date "ends" on its last movement;
-/// only a sale after that end shows the ledger is really short (R-WLMHW-13).
+/// only a sale after that end shows the ledger is really short (Titan report audit R-13).
 /// </summary>
 public sealed record StockLedgerCoverageRow(string StoreCode, DateOnly? LedgerCoversTo, DateOnly? FirstSaleAfterLedger = null);
 public sealed record StockQueryData(

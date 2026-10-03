@@ -86,7 +86,7 @@ public sealed class SqlBackedReportingExecutor(
         var movements = data.Movements.Select(x => new StockMovementValue(x.StoreCode, x.ItemCode,
             x.SourceMovementType, x.SourceSignedQuantity, Contains(mapping.StockMovementTypes, x.SourceMovementType))).ToArray();
         var result = new StockReconciliationService().Reconcile(positions, movements, stockRule);
-        // R-WLMHW-13: a ledger that stops before the To date misses the last movements, so every variance is suspect.
+        // Titan report audit R-13: a ledger that stops before the To date misses the last movements, so every variance is suspect.
         // The items stay listed for review; the result is Blocked and says how far the ledger goes.
         if (coverage is not null) return result with { Status = ReconciliationStatus.Blocked, Message = Join(coverage, result.Message) };
         var quiet = QuietDaysNote(data.LedgerCoverage, scope.DateTo);

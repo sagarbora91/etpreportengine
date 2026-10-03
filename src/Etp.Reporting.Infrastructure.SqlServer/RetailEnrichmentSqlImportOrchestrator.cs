@@ -76,7 +76,7 @@ public sealed class RetailEnrichmentSqlImportOrchestrator(string connectionStrin
         var id = await (store ?? new SqlServerTransactionalImportStore(connectionString)).PersistAsync(package,cancellationToken);
         await using var connection=new SqlConnection(LocalSqlConnectionPolicy.Validate(connectionString));
         await connection.OpenAsync(cancellationToken);
-        // R013 counts follow the occurrence pairing the reports use (R-WLMHW-01); R003 keeps its stored status.
+        // R013 counts follow the occurrence pairing the reports use (Titan report audit R-01); R003 keeps its stored status.
         await using var query=new SqlCommand($"SELECT e.effective_match_status,COUNT(*) FROM {EnrichmentOccurrencePairing.EffectiveEnrichments} e JOIN dbo.source_lineage s ON s.source_lineage_id=e.source_lineage_id WHERE s.import_file_id=@file GROUP BY e.effective_match_status",connection);
         query.Parameters.AddWithValue("@file",id);
         var counts=new Dictionary<string,int>();
