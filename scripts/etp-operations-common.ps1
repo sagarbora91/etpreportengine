@@ -49,7 +49,14 @@ function Get-EtpProtectedPathFindings {
     # - Ancestor: anything that can swap the path out from under the target. Renaming a
     #   folder needs Delete on it or delete-child on its parent; change permissions and take
     #   ownership lead to either. Write on an ancestor only creates NEW names beside the path,
-    #   which cannot replace or redirect any existing component of it.
+    #   which cannot replace or redirect any existing component of it - with one exception:
+    # - The folder that holds a FILE target (-HoldsTarget) must not let anyone else create
+    #   files or subfolders in it either. A program loads DLLs from its own folder before
+    #   System32 (and .NET probes culture subfolders), so a new name beside sqlcmd.exe or the
+    #   application is code that runs with the elevated or automation token (1.9.3 review F1:
+    #   a registry-located sqlcmd in a folder under ProgramData, where Users may create files).
+    #   Nothing loads a new file beside a script or operations.json by name today, but the
+    #   same rule costs nothing there: every folder ETP installs into or creates is closed.
     # - Root: the same, less Delete, because a volume root cannot be renamed or deleted. This
     #   is the only right relaxed. A Windows-formatted data drive gives Authenticated Users
     #   Modify (which includes Delete, but not delete-child or change permissions) on its root.
@@ -65,7 +72,8 @@ function Get-EtpProtectedPathFindings {
     # account: its unelevated programs would then be able to change what setup runs elevated.
     param([Parameter(Mandatory)][string]$Path,
           [Parameter(Mandatory)][Security.AccessControl.FileSystemSecurity]$Security,
-          [Parameter(Mandatory)][ValidateSet('Target','Ancestor','Root')][string]$Role)
+          [Parameter(Mandatory)][ValidateSet('Target','Ancestor','Root')][string]$Role,
+          [switch]$HoldsTarget)
     $trusted = @('S-1-5-18','S-1-5-32-544','S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464')
     $isFolder = $Security -is [Security.AccessControl.DirectorySecurity]
     $describeSid = {
@@ -79,12 +87,15 @@ function Get-EtpProtectedPathFindings {
         $findings += "'$Path' is owned by $ownerText, and an owner can always change its permissions. Install operations in a folder owned by Administrators or SYSTEM. Fix: icacls `"$Path`" /setowner `"*S-1-5-32-544`""
     }
     # Raw access-mask bits, so generic rights (which FileSystemRights does not name) are seen too.
-    $write = 0x116; $delete = 0x10000; $deleteChild = 0x40; $changePermissions = 0x40000; $takeOwnership = 0x80000
+    # createItems is FILE_ADD_FILE and FILE_ADD_SUBDIRECTORY.
+    $write = 0x116; $createItems = 0x6; $delete = 0x10000; $deleteChild = 0x40; $changePermissions = 0x40000; $takeOwnership = 0x80000
     $mask = $deleteChild -bor $changePermissions -bor $takeOwnership
     if ($Role -ne 'Root') { $mask = $mask -bor $delete }
     if ($Role -eq 'Target') { $mask = $mask -bor $write }
+    elseif ($HoldsTarget) { $mask = $mask -bor $createItems }
+    $writeName = if ($Role -ne 'Target') { 'create files or subfolders in it (DLLs planted there load into the program beside them)' } elseif ($isFolder) { 'write (create or change items in it)' } else { 'write (change it)' }
     $names = @(
-        @($write, $(if ($isFolder) { 'write (create or change items in it)' } else { 'write (change it)' })),
+        @($write, $writeName),
         @($delete, 'delete (rename or delete it)'),
         @($deleteChild, 'delete subfolders and files (rename or delete anything in it)'),
         @($changePermissions, 'change permissions'),
@@ -119,10 +130,14 @@ function Get-EtpProtectedInstallFindings {
     $findings = @()
     $current = [IO.Path]::GetFullPath($Path)
     $role = 'Target'
+    $holdsTarget = $false
     while ($current) {
         $parent = [IO.Path]::GetDirectoryName($current)
         if (-not $parent -and $role -eq 'Ancestor') { $role = 'Root' }
-        $findings += @(Get-EtpProtectedPathFindings -Path $current -Security (& $ReadSecurity $current) -Role $role)
+        $security = & $ReadSecurity $current
+        $findings += @(Get-EtpProtectedPathFindings -Path $current -Security $security -Role $role -HoldsTarget:$holdsTarget)
+        # The folder directly above a file target is where its DLLs would be planted.
+        $holdsTarget = ($role -eq 'Target' -and -not ($security -is [Security.AccessControl.DirectorySecurity]))
         $current = $parent
         $role = 'Ancestor'
     }
@@ -146,8 +161,58 @@ function Format-EtpProtectedInstallRefusal {
     return ($headline + ' Nothing was changed. Fix each item below from an administrator PowerShell window, then try again:' + [Environment]::NewLine + (($Findings | ForEach-Object { '- ' + $_ }) -join [Environment]::NewLine))
 }
 
+function Get-EtpOperationVolumeProblem {
+    # Whether Path is on a real local volume, so that the text root of the path ('E:\') really
+    # is a volume root, which cannot be renamed: the Root role relaxes Delete for that alone.
+    # A share (\\pc\share), a mapped network drive or a SUBST drive (S: standing for
+    # C:\Data\ETP) has a "root" that is an ordinary folder, and the folders above it would
+    # never be checked (1.9.3 review F6). Pure, so it can be tested without such drives:
+    # DriveType is an [IO.DriveType] name, DosDevice what QueryDosDevice says the drive letter
+    # stands for (\Device\HarddiskVolume3 for a volume, \??\C:\Data\ETP for SUBST).
+    param([Parameter(Mandatory)][string]$Path,[string]$DriveType,[string]$DosDevice)
+    # Windows PowerShell's .NET refuses some device paths (the long-path prefix) outright: those are refused too.
+    try { $full = [IO.Path]::GetFullPath($Path) } catch { $full = $Path }
+    $refusal = "'$full' is not on a local drive of this computer. Install operations under Program Files on a local drive, not on a network share, a mapped drive or a SUBST drive."
+    if ($full -notmatch '^[A-Za-z]:\\') { return $refusal }
+    if ($DriveType -notin @('Fixed','Removable')) { return $refusal }
+    if ([string]::IsNullOrEmpty($DosDevice) -or -not $DosDevice.StartsWith('\Device\',[StringComparison]::OrdinalIgnoreCase)) { return $refusal }
+    return $null
+}
+
+function Get-EtpDosDeviceTarget {
+    # What a drive letter stands for in this logon session, or $null when it stands for nothing.
+    param([Parameter(Mandatory)][ValidatePattern('^[A-Za-z]:$')][string]$Drive)
+    if (-not ('Etp.DosDevices' -as [type])) {
+        Add-Type -Namespace Etp -Name DosDevices -UsingNamespace System.Text -MemberDefinition @'
+[DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+private static extern uint QueryDosDeviceW(string deviceName, StringBuilder targetPath, int length);
+public static string Target(string drive)
+{
+    StringBuilder target = new StringBuilder(1024);
+    // The first of what may be several NUL-separated names is the current one.
+    return QueryDosDeviceW(drive, target, target.Capacity) == 0 ? null : target.ToString();
+}
+'@
+    }
+    return [Etp.DosDevices]::Target($Drive.ToUpperInvariant())
+}
+
+function Assert-EtpLocalVolume {
+    param([Parameter(Mandatory)][string]$Path)
+    try { $full = [IO.Path]::GetFullPath($Path) } catch { $full = $Path }
+    $driveType = $null; $dosDevice = $null
+    if ($full -match '^([A-Za-z]:)\\') {
+        $drive = $Matches[1]
+        try { $driveType = ([IO.DriveInfo]::new($drive)).DriveType.ToString() } catch { $driveType = $null }
+        $dosDevice = Get-EtpDosDeviceTarget $drive
+    }
+    $problem = Get-EtpOperationVolumeProblem -Path $full -DriveType $driveType -DosDevice $dosDevice
+    if ($problem) { throw $problem }
+}
+
 function Assert-EtpProtectedInstall {
     param([Parameter(Mandatory)][string]$Path)
+    Assert-EtpLocalVolume $Path
     Assert-EtpNoLinks $Path
     $findings = @(Get-EtpProtectedInstallFindings $Path)
     if ($findings.Count -eq 0) { return }

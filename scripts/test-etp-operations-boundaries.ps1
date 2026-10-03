@@ -433,7 +433,7 @@ try {
                 param([string]$Path,[hashtable]$Layout)
                 $reader = {
                     param($Item)
-                    $security = if ($Item -like '*.ps1') { [Security.AccessControl.FileSecurity]::new() } else { [Security.AccessControl.DirectorySecurity]::new() }
+                    $security = if ($Item -like '*.ps1' -or $Item -like '*.exe') { [Security.AccessControl.FileSecurity]::new() } else { [Security.AccessControl.DirectorySecurity]::new() }
                     if (-not $Layout.ContainsKey($Item)) { throw "The layout has no entry for $Item." }
                     $security.SetSecurityDescriptorSddlForm($Layout[$Item])
                     return $security
@@ -535,6 +535,58 @@ try {
             # A user-owned target is refused even when its permissions are clean.
             $found = @(Get-LayoutFindings 'E:\Parent\Install' @{ 'E:\' = 'O:SYG:SYD:(A;;FA;;;SY)'; 'E:\Parent' = 'O:BAG:SYD:(A;;FA;;;BA)'; 'E:\Parent\Install' = "O:${installingUser}G:SYD:(A;;FA;;;BA)" })
             Assert-True ($found.Count -eq 1 -and $found[0].Contains('Install operations in a folder owned by Administrators or SYSTEM.')) "A user-owned install folder was accepted: $($found -join ' | ')"
+
+            # 1.9.3 review F1: the folder that holds an executable is where its DLLs are planted.
+            # Under C:\ProgramData, BUILTIN\Users inherit (CI)(WD,AD,WEA,WA): create files in any
+            # subfolder, nothing else. A registry-located sqlcmd there passed before; now the
+            # Binn folder is refused, and only it.
+            $underProgramData = 'O:BAG:SYD:AI(A;OICIID;FA;;;SY)(A;OICIID;FA;;;BA)(A;OICIID;0x1200a9;;;BU)(A;CIID;0x116;;;BU)'
+            $sqlCmd = 'C:\ProgramData\SqlTools\Binn\SQLCMD.EXE'
+            $programData = @{
+                'C:\' = 'O:SYG:SYD:(A;;FA;;;SY)(A;;FA;;;BA)(A;;0x1200a9;;;BU)'
+                'C:\ProgramData' = 'O:SYG:SYD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;0x1200a9;;;BU)(A;CI;0x116;;;BU)'
+                'C:\ProgramData\SqlTools' = $underProgramData
+                'C:\ProgramData\SqlTools\Binn' = $underProgramData
+                $sqlCmd = 'O:BAG:SYD:AI(A;ID;FA;;;SY)(A;ID;FA;;;BA)(A;ID;0x1200a9;;;BU)'
+            }
+            $found = @(Get-LayoutFindings $sqlCmd $programData)
+            Assert-True ($found.Count -eq 1 -and $found[0].StartsWith("'C:\ProgramData\SqlTools\Binn' gives ") -and $found[0].Contains('S-1-5-32-545') -and $found[0].Contains('create files or subfolders in it')) "A sqlcmd folder users may create files in was not refused as expected: $($found -join ' | ')"
+            # A folder target there is judged by its own rights only, as before: its parent may
+            # still let users create items beside it.
+            $programData['C:\ProgramData\SqlTools\Binn'] = 'O:BAG:SYD:PAI(A;OICI;FA;;;BA)(A;OICI;FA;;;SY)(A;OICI;0x1200a9;;;BU)'
+            $found = @(Get-LayoutFindings 'C:\ProgramData\SqlTools\Binn' $programData)
+            Assert-True ($found.Count -eq 0) "A closed folder under ProgramData was refused: $($found -join ' | ')"
+            $found = @(Get-LayoutFindings $sqlCmd $programData)
+            Assert-True ($found.Count -eq 0) "A sqlcmd in a closed folder was refused: $($found -join ' | ')"
+            # Each create right alone is enough beside a file, and a file at a volume root is
+            # judged the same way at the root.
+            foreach ($ace in @('(A;;0x2;;;BU)', '(A;;0x4;;;BU)', '(A;;GW;;;BU)')) {
+                $plain = 'O:BAG:SYD:PAI(A;OICI;FA;;;BA)(A;OICI;FA;;;SY)(A;OICI;0x1200a9;;;BU)'
+                $found = @(Get-LayoutFindings 'E:\Tools\sqlcmd.exe' @{ 'E:\' = 'O:SYG:SYD:(A;;FA;;;SY)'; 'E:\Tools' = $plain + $ace; 'E:\Tools\sqlcmd.exe' = 'O:BAG:SYD:(A;;FA;;;BA)' })
+                Assert-True ($found.Count -eq 1 -and $found[0].StartsWith("'E:\Tools' gives ")) "$ace on the folder holding the executable gave: $($found -join ' | ')"
+            }
+            $found = @(Get-LayoutFindings 'E:\sqlcmd.exe' @{ 'E:\' = $formattedRoot; 'E:\sqlcmd.exe' = 'O:BAG:SYD:(A;;FA;;;BA)' })
+            Assert-True ($found.Count -eq 1 -and $found[0].StartsWith("'E:\' gives ") -and $found[0].Contains('S-1-5-11')) "An executable at the root of a user-writable drive was accepted: $($found -join ' | ')"
+
+            # 1.9.3 review F6: only a real local volume has a root that cannot be renamed.
+            $volumeCases = @(
+                @('C:\Tools\sqlcmd.exe', 'Fixed', '\Device\HarddiskVolume3', $false),
+                @('F:\Tools\sqlcmd.exe', 'Removable', '\Device\HarddiskVolume7', $false),
+                @('S:\Tools\sqlcmd.exe', 'Fixed', '\??\C:\Data\ETP', $true),                       # SUBST
+                @('N:\Tools\sqlcmd.exe', 'Network', '\Device\LanmanRedirector\;N:0000000000012345\pc\share', $true),
+                @('C:\Tools\sqlcmd.exe', 'Fixed', $null, $true),
+                @('C:\Tools\sqlcmd.exe', $null, '\Device\HarddiskVolume3', $true),
+                @('\\pc\share\Tools\sqlcmd.exe', $null, $null, $true),
+                @('\\?\C:\Tools\sqlcmd.exe', 'Fixed', '\Device\HarddiskVolume3', $true)
+            )
+            foreach ($case in $volumeCases) {
+                $problem = Get-EtpOperationVolumeProblem -Path $case[0] -DriveType $case[1] -DosDevice $case[2]
+                Assert-True ([bool]$problem -eq $case[3]) "$($case[0]) on a $($case[1]) drive standing for $($case[2]) gave: $problem"
+            }
+            Assert-Rejected { Assert-EtpProtectedInstall '\\localhost\C$\Windows\System32\cmd.exe' } 'not on a local drive'
+            # The system drive itself passes, which exercises the QueryDosDevice call.
+            Assert-EtpLocalVolume ([Environment]::SystemDirectory)
+            $script:checks++
         }
         AtomicReceipts {
             $path = Join-Path $temporaryRoot 'atomic-receipt.json'
