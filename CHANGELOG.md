@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## [1.9.4] - 2026-10-04
+
+The report-audit release (HEMW and WLMHW report audits of 3 October 2026), with the fix for the 1.9.3 upgrade stopping at the pre-migration backup:
+
+- Report labels corrected (migration 0046): stock MRP is no longer called cost, document counts say they include returns, NET_SALES and INVOICE_COUNT descriptions corrected.
+- Stock ledger bin (migration 0047): the R030 LOCATION is stored on each movement; Stock Variance opens each bin on its own chain and Stock Movement shows the bin.
+- Stock Variance, cash book and tender, CRO pairing, DSR walk-ins, import problems / data quality and smaller report-screen fixes (lanes L1-L8).
+
+In detail:
+
 - Fixed: upgrading from 1.9.2 stopped at the pre-migration backup with only "The database operation failed" (VM rehearsal, 3 Oct 2026; setup exit 1603, nothing migrated). The 1.9.3 operations broker had two double quotes in the JSON text of its row-count line, and the scripts send each SQL statement to Sqlcmd as one command-line argument, which cannot carry a double quote: the broker's `CREATE OR ALTER` never reached SQL Server. So every install of the 1.9.3 broker failed: setup's refresh of an unsigned 1.9.2 broker before the backup (fatal), the full module install at the end of setup (a WARNING), the restore helper and "restore first" setup (a missing broker), and step 7 run by hand. The broker now builds that line with `FOR JSON` and contains no double quote; the scripts refuse any statement with one before starting Sqlcmd, and check both broker templates before changing anything.
 - Setup's pre-migration backup no longer stops when the broker cannot be brought up to date: the failure is logged as a WARNING and the backup goes ahead through the broker already installed (one from 1.9.2 records `rowCountsNotRecorded` `OPERATIONS_MODULE_OUTDATED`). Without any broker the backup itself fails and setup stops before migrating, as before.
 - The setup log now says what SQL Server or Sqlcmd reported when a SQL step fails (error number, level, state and message, without the server name), on a line after the FAILED line, and the steps of the pre-migration backup are logged as they start. The application and the scheduled tasks keep the fixed masked message.
