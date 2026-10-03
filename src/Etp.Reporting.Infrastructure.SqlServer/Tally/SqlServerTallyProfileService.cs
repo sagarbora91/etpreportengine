@@ -15,7 +15,9 @@ public sealed class SqlServerTallyProfileService(string connectionString) : ITal
             SELECT p.tally_profile_id,p.profile_code,p.company_name,p.environment,p.endpoint_url,p.default_delivery_mode,p.payload_format,
                    p.voucher_granularity,p.party_policy,p.single_party_ledger,p.tender_model,p.posting_model,p.voucher_view,
                    p.posting_from_date,p.posting_to_date,p.tally_build_label,p.is_enabled,p.production_enabled_utc,p.modified_by,p.modified_utc,
-                   (SELECT STRING_AGG(s.store_code,',') WITHIN GROUP(ORDER BY s.store_code) FROM dbo.tally_profile_stores s WHERE s.tally_profile_id=p.tally_profile_id)
+                   (SELECT STRING_AGG(s.store_code,',') WITHIN GROUP(ORDER BY s.store_code) FROM dbo.tally_profile_stores s WHERE s.tally_profile_id=p.tally_profile_id),
+                   (SELECT s.store_code AS store,s.cost_centre AS centre FROM dbo.tally_profile_stores s
+                    WHERE s.tally_profile_id=p.tally_profile_id AND s.cost_centre IS NOT NULL ORDER BY s.store_code FOR JSON PATH)
             FROM dbo.tally_profiles p ORDER BY p.environment DESC,p.profile_code;
             """;
         await using var connection = await OpenAsync(cancellationToken);
@@ -29,7 +31,7 @@ public sealed class SqlServerTallyProfileService(string connectionString) : ITal
                 reader.GetString(5), reader.GetString(6), reader.GetString(7), reader.GetString(8), Optional(reader, 9),
                 reader.GetString(10), reader.GetString(11), reader.GetString(12), OptionalDate(reader, 13), OptionalDate(reader, 14),
                 Optional(reader, 15), reader.GetBoolean(16), stores,
-                reader.IsDBNull(17) ? null : reader.GetDateTime(17), reader.GetString(18), reader.GetDateTime(19)));
+                reader.IsDBNull(17) ? null : reader.GetDateTime(17), reader.GetString(18), reader.GetDateTime(19), CostCentres(reader, 21)));
         }
         return result;
     }
@@ -65,8 +67,8 @@ public sealed class SqlServerTallyProfileService(string connectionString) : ITal
               WHERE tally_profile_id=@saved;
               IF @@ROWCOUNT<>1 THROW 51579,'This Tally company no longer exists. Refresh the list.',1;
             END;
-            INSERT dbo.tally_profile_stores(tally_profile_id,environment,store_code)
-            SELECT @saved,@environment,value FROM OPENJSON(@stores) WITH(value varchar(30) '$');
+            INSERT dbo.tally_profile_stores(tally_profile_id,environment,store_code,cost_centre)
+            SELECT @saved,@environment,store,centre FROM OPENJSON(@stores) WITH(store varchar(30) '$.store',centre nvarchar(100) '$.centre');
             EXEC dbo.record_operational_audit 'ConfigurationChange','Succeeded',N'Tally company settings changed',N'database';
             COMMIT TRANSACTION;
             SELECT @saved;
@@ -91,7 +93,8 @@ public sealed class SqlServerTallyProfileService(string connectionString) : ITal
         Add(command, "@build", SqlDbType.NVarChar, value.TallyBuildLabel, 100);
         Add(command, "@enabled", SqlDbType.Bit, value.IsEnabled);
         Add(command, "@reason", SqlDbType.NVarChar, reason.Trim(), 500);
-        Add(command, "@stores", SqlDbType.NVarChar, System.Text.Json.JsonSerializer.Serialize(value.StoreCodes), -1);
+        Add(command, "@stores", SqlDbType.NVarChar, System.Text.Json.JsonSerializer.Serialize(
+            value.StoreCodes.Select(store => new { store, centre = value.CostCentreFor(store) })), -1);
         try
         {
             return Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken), System.Globalization.CultureInfo.InvariantCulture);
@@ -138,6 +141,14 @@ public sealed class SqlServerTallyProfileService(string connectionString) : ITal
         if (size != 0) parameter.Size = size;
         parameter.Value = value ?? DBNull.Value;
     }
+
+    private sealed record StoreCostCentre(string Store, string Centre);
+
+    private static IReadOnlyDictionary<string, string> CostCentres(SqlDataReader reader, int ordinal) =>
+        reader.IsDBNull(ordinal)
+            ? new Dictionary<string, string>(StringComparer.Ordinal)
+            : (System.Text.Json.JsonSerializer.Deserialize<StoreCostCentre[]>(reader.GetString(ordinal), new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? [])
+                .ToDictionary(item => item.Store, item => item.Centre, StringComparer.Ordinal);
 
     private static string? Optional(SqlDataReader reader, int ordinal) => reader.IsDBNull(ordinal) ? null : reader.GetString(ordinal);
     private static DateOnly? OptionalDate(SqlDataReader reader, int ordinal) => reader.IsDBNull(ordinal) ? null : DateOnly.FromDateTime(reader.GetDateTime(ordinal));

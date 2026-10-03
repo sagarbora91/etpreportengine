@@ -256,8 +256,13 @@ public sealed record TallyProfile(
     IReadOnlyList<string> StoreCodes,
     DateTime? ProductionEnabledUtc = null,
     string? ModifiedBy = null,
-    DateTime? ModifiedUtc = null)
+    DateTime? ModifiedUtc = null,
+    IReadOnlyDictionary<string, string>? StoreCostCentres = null)
 {
+    /// <summary>D12: the Tally cost centre each store's vouchers carry when one company holds several stores.</summary>
+    public string? CostCentreFor(string storeCode) =>
+        StoreCostCentres is not null && StoreCostCentres.TryGetValue(storeCode, out var name) ? name : null;
+
     /// <summary>A TEST profile with the Slice 7a assumptions: one voucher per invoice, one retail ledger,
     /// tender inside the voucher, accounting only, file delivery.</summary>
     public static TallyProfile NewTest(string profileCode, string companyName, IReadOnlyList<string> storeCodes) => new(
@@ -349,10 +354,23 @@ public static class TallyProfileRules
         if (stores.FirstOrDefault(store => !StoreCodePattern.IsMatch(store)) is { } bad)
             throw new ArgumentException($"'{bad}' is not a store code.");
 
+        var costCentres = new SortedDictionary<string, string>(StringComparer.Ordinal);
+        foreach (var (store, name) in profile.StoreCostCentres ?? new Dictionary<string, string>())
+        {
+            var storeCode = (store ?? "").Trim().ToUpperInvariant();
+            var centre = (name ?? "").Trim();
+            if (centre.Length == 0) continue;
+            if (!stores.Contains(storeCode, StringComparer.Ordinal))
+                throw new ArgumentException($"A cost centre is given for {storeCode}, which is not one of this company's stores.");
+            if (centre.Length > 100 || centre.Any(char.IsControl))
+                throw new ArgumentException("A cost centre name can have at most 100 characters, written exactly as in Tally.");
+            costCentres[storeCode] = centre;
+        }
+
         return profile with
         {
             ProfileCode = code, CompanyName = company, EndpointUrl = endpoint, SinglePartyLedger = ledger,
-            TallyBuildLabel = build, StoreCodes = stores
+            TallyBuildLabel = build, StoreCodes = stores, StoreCostCentres = costCentres
         };
     }
 
