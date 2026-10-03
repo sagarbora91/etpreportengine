@@ -91,19 +91,41 @@ public sealed class StockVarianceSqlTests(SqlDatabaseFixture database) : IClassF
     {
         const string store = "SV-SHORT";
         var sep29 = new DateOnly(2026, 9, 29);
-        await Seed(store, [new("ITEM", new(2026, 8, 20), "Purchase Receipt", 0m, 1m)], [new("ITEM", sep29, 1m)], ledgerCoversTo: Aug25);
+        // A sale on 3 Sep (after the ledger, before the To date) shows the ledger is short.
+        await Seed(store, [new("ITEM", new(2026, 8, 20), "Purchase Receipt", 0m, 1m)], [new("ITEM", sep29, 1m)], ledgerCoversTo: Aug25,
+            saleDates: [new(2026, 8, 20), new(2026, 9, 3), new(2026, 9, 30)]);
 
         var result = await Executor().ExecuteStockReconciliationAsync(new(new(2026, 8, 1), sep29, [store]));
 
         Assert.Equal(ReconciliationStatus.Blocked, result.Status);
-        Assert.StartsWith("Ledger covers to 25 Aug 2026 for SV-SHORT, before the To date 29 Sep 2026.", result.Message);
+        Assert.StartsWith("Ledger covers to 25 Aug 2026 for SV-SHORT (sales on 03 Sep 2026 are not in it), before the To date 29 Sep 2026.", result.Message);
         Assert.Equal(ReconciliationStatus.Passed, Assert.Single(result.Items).Status);
+    }
+
+    [Fact]
+    public async Task Ledger_whose_last_days_had_no_movement_and_no_sale_is_not_blocked()
+    {
+        // The import stores a ledger's last row date as its period end. A ledger exported to 25 Aug from a store that
+        // had no stock movement on 25 Aug (closed or quiet) ends on 24 Aug; with no sale after 24 Aug it is complete.
+        const string store = "SV-QUIET";
+        var aug24 = new DateOnly(2026, 8, 24);
+        await Seed(store, [new("ITEM", new(2026, 8, 20), "Purchase Receipt", 0m, 1m), new("ITEM", aug24, "INV", 1m, 0m)],
+            [new("ITEM", Aug25, 0m)], ledgerCoversTo: aug24, saleDates: [aug24]);
+
+        var result = await Executor().ExecuteStockReconciliationAsync(new(new(2026, 8, 1), Aug25, [store]));
+
+        Assert.Equal(ReconciliationStatus.Passed, result.Status);
+        Assert.DoesNotContain("Ledger covers", result.Message);
+        Assert.EndsWith("Last ledger movement 24 Aug 2026 for SV-QUIET; no sales after it to 25 Aug 2026, so those days are taken as days without stock movement.", result.Message);
     }
 
     [Fact]
     public async Task BinWise_reading_of_a_Closing_Stock_day_is_never_added_to_any_stock_report()
     {
         // HEMW FIX-01: on 29 Sep 2026 the R010 BinWise file (really 7 Sep) was stored beside the R011 Closing Stock.
+        // FIX-01 step 2 names six reports: Closing, Brand, Slow, Physical, Variance and Movement. Brand and Slow stock are
+        // built in the Reports workspace from the Closing Stock rows (grouped by brand; filtered to non-zero, not ACTIVE),
+        // so they are checked here the same way, with the Brand Stock Entry window's own query beside them.
         const string store = "SV-R010";
         await Seed(store,
         [
@@ -116,11 +138,22 @@ public sealed class StockVarianceSqlTests(SqlDatabaseFixture database) : IClassF
         ], ledgerCoversTo: Aug25);
         var scope = new ReportingQueryScope(new(2026, 8, 1), Aug25, [store]);
 
-        var closing = await new OperationalReportRepository(database.ConnectionString).LoadStockInventoryAsync(new(Aug25, Aug25, [store]));
+        var operational = new OperationalReportRepository(database.ConnectionString);
+        var closing = await operational.LoadStockInventoryAsync(new(Aug25, Aug25, [store]));
+        var brandEntry = await operational.LoadBrandStockEntryAsync(store, Aug25);
+        var physical = await operational.LoadPhysicalStockAsync(store, Aug25);
         var variance = await Executor().ExecuteStockReconciliationAsync(scope);
         var movements = await Repository().LoadStockMovementsAsync(scope);
 
         Assert.Equal([("BOTH-A", 1m), ("BOTH-B", 1m)], closing.OrderBy(x => x.ProductCode).Select(x => (x.ProductCode, x.Quantity)));
+        Assert.All(closing, x => Assert.Equal("Closing Stock", x.SnapshotSource));
+        // Brand stock: one brand, 2 units (not 4 doubled, not -2 with the R010-only row).
+        Assert.Equal([("BRAND-X", 2m)], closing.GroupBy(x => x.Brand ?? "Unmapped").Select(x => (x.Key, x.Sum(y => y.Quantity))));
+        Assert.Equal([("BRAND-X", 2m)], brandEntry.Select(x => (x.Brand, x.System)));
+        // Slow stock: never-sold, non-zero items only, and no R010-only -4 row.
+        Assert.Equal(["BOTH-A", "BOTH-B"], closing.Where(x => x.Quantity != 0 && x.MovementStatus != "ACTIVE").Select(x => x.ProductCode).Order());
+        // Physical stock: the system quantity of the brand is 2.
+        Assert.Equal([("BRAND-X", 2m)], physical.Select(x => (x.InventoryGroupCode, x.SystemQuantity)));
         Assert.Equal(ReconciliationStatus.Passed, variance.Status);
         Assert.Equal([("BOTH-A", 1m), ("BOTH-B", 1m)], variance.Items.Select(x => (x.ItemCode, x.ReportedClosing)));
         Assert.Equal(["BOTH-A", "BOTH-B"], movements.Select(x => x.ItemCode));
@@ -135,7 +168,8 @@ public sealed class StockVarianceSqlTests(SqlDatabaseFixture database) : IClassF
     private sealed record Snap(string Item, DateOnly Date, decimal Quantity, bool BinWise = false);
 
     // Rows are inserted in the order given, so stock_movement_id follows that order, as an import in file order does.
-    private async Task Seed(string store, IReadOnlyList<Move> moves, IReadOnlyList<Snap> snapshots, DateOnly ledgerCoversTo)
+    private async Task Seed(string store, IReadOnlyList<Move> moves, IReadOnlyList<Snap> snapshots, DateOnly ledgerCoversTo,
+        IReadOnlyList<DateOnly>? saleDates = null)
     {
         static string D(DateOnly date) => date.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
         static string N(decimal value) => value.ToString(CultureInfo.InvariantCulture);
@@ -164,11 +198,15 @@ public sealed class StockVarianceSqlTests(SqlDatabaseFixture database) : IClassF
             var (record, source) = snapshot.BinWise ? ("R010_SNAPSHOT", "R010") : ("CLOSING_STOCK", "CLOSING_STOCK");
             sql.AppendLine($"INSERT dbo.source_lineage(import_file_id,sheet_name,source_row_number,source_record_type) VALUES(@file,'Snapshot',{row},'{record}'); SET @lineage=SCOPE_IDENTITY();");
             sql.AppendLine($"""
-                INSERT dbo.stock_snapshots(store_code,snapshot_date,product_code,batch_number,quantity,unit_cost,total_cost,source_lineage_id,source_report_code)
-                 VALUES('{store}','{D(snapshot.Date)}',N'{snapshot.Item}',N'LOT-1',{N(snapshot.Quantity)},10,{N(snapshot.Quantity * 10m)},@lineage,'{source}');
+                INSERT dbo.stock_snapshots(store_code,snapshot_date,product_code,batch_number,quantity,unit_cost,total_cost,source_lineage_id,source_report_code,brand_name)
+                 VALUES('{store}','{D(snapshot.Date)}',N'{snapshot.Item}',N'LOT-1',{N(snapshot.Quantity)},10,{N(snapshot.Quantity * 10m)},@lineage,'{source}',N'BRAND-X');
                 """);
             row++;
         }
+        // Invoice headers only: the ledger coverage check looks for a sale of the store after the ledger's last day.
+        var invoice = 1;
+        foreach (var sale in saleDates ?? [])
+            sql.AppendLine($"INSERT dbo.sales_invoices(store_code,document_number,invoice_year,transaction_date) VALUES('{store}',N'INV-{invoice++}',2027,'{D(sale)}');");
         await database.ExecuteAsync(sql.ToString());
     }
 }

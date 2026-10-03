@@ -34,8 +34,13 @@ public sealed record StockPositionQueryRow(
     string StoreCode, string ItemCode, decimal? SourceOpeningQuantity, decimal? SourceClosingQuantity);
 public sealed record StockMovementQueryRow(
     string StoreCode, string ItemCode, string SourceMovementType, decimal SourceSignedQuantity);
-/// <summary>The last date the store's stock ledger covers: the current ledger imports' period end, or its last movement. Null when none is stored.</summary>
-public sealed record StockLedgerCoverageRow(string StoreCode, DateOnly? LedgerCoversTo);
+/// <summary>
+/// The last date the store's stock ledger covers (the current ledger imports' period end, or its last movement; null when
+/// none is stored), and the store's first sale after that date up to the To date (null when there is none). The import
+/// stores a ledger's last row date as its period end, so a ledger exported to the To date "ends" on its last movement;
+/// only a sale after that end shows the ledger is really short (R-WLMHW-13).
+/// </summary>
+public sealed record StockLedgerCoverageRow(string StoreCode, DateOnly? LedgerCoversTo, DateOnly? FirstSaleAfterLedger = null);
 public sealed record StockQueryData(
     IReadOnlyList<StockPositionQueryRow> Positions, IReadOnlyList<StockMovementQueryRow> Movements,
     IReadOnlyList<StockLedgerCoverageRow>? LedgerCoverage = null);

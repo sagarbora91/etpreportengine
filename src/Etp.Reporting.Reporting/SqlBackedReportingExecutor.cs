@@ -65,18 +65,34 @@ public sealed class SqlBackedReportingExecutor(
         var result = new StockReconciliationService().Reconcile(positions, movements, stockRule);
         // R-WLMHW-13: a ledger that stops before the To date misses the last movements, so every variance is suspect.
         // The items stay listed for review; the result is Blocked and says how far the ledger goes.
-        return coverage is null ? result : result with { Status = ReconciliationStatus.Blocked, Message = Join(coverage, result.Message) };
+        if (coverage is not null) return result with { Status = ReconciliationStatus.Blocked, Message = Join(coverage, result.Message) };
+        var quiet = QuietDaysNote(data.LedgerCoverage, scope.DateTo);
+        return quiet is null ? result : result with { Message = $"{result.Message} {quiet}" };
     }
+
+    // A ledger's stored end is its last movement (the import dates a ledger by its rows), so a gap before the To date
+    // blocks only when it is shown to be short: no ledger at all, or a sale of the store after the ledger's last day.
+    // A gap with no sale is taken as days without stock movement (a closed or quiet day) and only noted.
+    private static bool IsShort(StockLedgerCoverageRow row, DateOnly dateTo) =>
+        row.LedgerCoversTo is null || (row.LedgerCoversTo < dateTo && row.FirstSaleAfterLedger is not null);
 
     private static string? LedgerCoverageWarning(IReadOnlyList<StockLedgerCoverageRow>? coverage, DateOnly dateTo)
     {
-        var uncovered = (coverage ?? []).Where(x => x.LedgerCoversTo is null || x.LedgerCoversTo < dateTo)
+        var uncovered = (coverage ?? []).Where(x => IsShort(x, dateTo))
             .OrderBy(x => x.StoreCode, StringComparer.OrdinalIgnoreCase).ToArray();
         if (uncovered.Length == 0) return null;
         var parts = uncovered.Select(x => x.LedgerCoversTo is { } covered
-            ? $"Ledger covers to {Day(covered)} for {x.StoreCode}"
+            ? $"Ledger covers to {Day(covered)} for {x.StoreCode}" + (x.FirstSaleAfterLedger is { } sale ? $" (sales on {Day(sale)} are not in it)" : "")
             : $"No stock ledger is imported for {x.StoreCode}");
         return $"{string.Join("; ", parts)}, before the To date {Day(dateTo)}. Movements after that are not in this check, so variances can be false. Import the stock ledger up to {Day(dateTo)}.";
+    }
+
+    private static string? QuietDaysNote(IReadOnlyList<StockLedgerCoverageRow>? coverage, DateOnly dateTo)
+    {
+        var quiet = (coverage ?? []).Where(x => x.LedgerCoversTo < dateTo && !IsShort(x, dateTo))
+            .OrderBy(x => x.StoreCode, StringComparer.OrdinalIgnoreCase).ToArray();
+        if (quiet.Length == 0) return null;
+        return $"Last ledger movement {string.Join("; ", quiet.Select(x => $"{Day(x.LedgerCoversTo!.Value)} for {x.StoreCode}"))}; no sales after it to {Day(dateTo)}, so those days are taken as days without stock movement.";
     }
 
     private static string Join(string? warning, string message) => warning is null ? message : $"{warning} {message}";

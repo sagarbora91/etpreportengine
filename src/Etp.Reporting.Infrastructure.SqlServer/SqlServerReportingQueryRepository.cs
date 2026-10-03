@@ -92,7 +92,11 @@ public static class SqlReportingQueries
         """;
 
     // R-WLMHW-13: how far each store's ledger goes, for the stores the stock check covers (movements in the period or a
-    // snapshot on the To date). The later of the current ledger imports' period end and the last stored movement.
+    // snapshot on the To date). The import of a dated family stores the last row date as its period end (ImportScope), so
+    // ledger_covers_to is in practice the last stored movement: a ledger exported to the To date ends earlier when the
+    // last days had no stock movement. first_sale_after_ledger is the evidence that tells the two apart: the first sale
+    // of the store after the ledger's end, up to the To date. A sale moves stock, so a sale there means the ledger is
+    // short; no sale means the days after the ledger's end are taken as quiet days.
     public const string StockLedgerCoverage = """
         WITH stores AS
         (
@@ -104,12 +108,15 @@ public static class SqlReportingQueries
           WHERE s.snapshot_date=@dateTo
             AND (@storesJson IS NULL OR s.store_code IN (SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@storesJson)))
         )
-        SELECT st.store_code,
-               (SELECT MAX(v.covered) FROM (VALUES
+        SELECT st.store_code,c.covered ledger_covers_to,
+               (SELECT MIN(i.transaction_date) FROM dbo.sales_invoices i
+                 WHERE i.store_code=st.store_code AND i.transaction_date<=@dateTo
+                   AND (c.covered IS NULL OR i.transaction_date>c.covered)) first_sale_after_ledger
+        FROM stores st
+        CROSS APPLY(SELECT MAX(v.covered) covered FROM (VALUES
                  ((SELECT MAX(COALESCE(f.period_end,f.business_date)) FROM dbo.import_files f
                    WHERE f.store_code=st.store_code AND f.report_code='STOCK_LEDGER' AND f.is_superseded=0 AND f.data_truth_version=1)),
-                 ((SELECT MAX(m.document_date) FROM dbo.stock_movements m WHERE m.store_code=st.store_code))) v(covered)) ledger_covers_to
-        FROM stores st
+                 ((SELECT MAX(m.document_date) FROM dbo.stock_movements m WHERE m.store_code=st.store_code))) v(covered)) c
         ORDER BY st.store_code;
         """;
 }
@@ -181,7 +188,8 @@ public sealed class SqlServerReportingQueryRepository(string connectionString) :
         await using (var command = Command(connection, SqlReportingQueries.StockLedgerCoverage, scope))
         await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
             while (await reader.ReadAsync(cancellationToken))
-                coverage.Add(new(reader.GetString(0), reader.IsDBNull(1) ? null : reader.GetFieldValue<DateOnly>(1)));
+                coverage.Add(new(reader.GetString(0), reader.IsDBNull(1) ? null : reader.GetFieldValue<DateOnly>(1),
+                    reader.IsDBNull(2) ? null : reader.GetFieldValue<DateOnly>(2)));
         return new(positions, movements, coverage);
     }
 
