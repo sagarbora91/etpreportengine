@@ -5,7 +5,8 @@ namespace Etp.Reporting.SqlServer.Tests.Service;
 /// <summary>
 /// Service interim (S-2, decision 15): migration 0048 is one file with three owned sections, A_SERVICE_STORE (L0),
 /// B_SERVICE_LANDING (L2) and C_SERVICE_READ (L4), in that order. These tests read the shipped script; the SQL
-/// behaviour (AW330 inactive, 51900, a second run is a no-op) is covered in the SQL integration suite.
+/// behaviour (AW330 inactive, 51900 and 51904, a second run is a no-op, WLMHW/HEMW untouched) is covered by
+/// <c>Etp.Reporting.SqlServer.IntegrationTests.Service.ServiceStoreMigrationTests</c>.
 /// </summary>
 public sealed class ServiceMigrationSkeletonTests
 {

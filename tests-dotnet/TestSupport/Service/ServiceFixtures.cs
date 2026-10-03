@@ -8,7 +8,7 @@ namespace Etp.Reporting.TestSupport.Service;
 /// <para>
 /// week2 differs from week1 in exactly these ways: jobs JOAW330SYN0001 and 0002 leave S009 and appear in S018 DELIVERED;
 /// job 0012 leaves S015 (IR) and appears in S017 (RWR); jobs 0026-0028 enter S009; the S004 card amount of 27 Sep 2026
-/// is restated (2150 to 2200); S003 gains one row dated 3 Oct 2026.
+/// is restated (2100 to 2150); S003 gains one row dated 3 Oct 2026.
 /// </para>
 /// </summary>
 internal static partial class ServiceFixtures

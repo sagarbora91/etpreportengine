@@ -41,7 +41,8 @@ BEGIN
 END;
 
 -- A store of the SERVICE unit can never be active, and cannot be moved out of the SERVICE unit
--- (which would make it a Retail shop store). Settings > Stores maps 51900 to a friendly message.
+-- (which would make it a Retail shop store): 51900 refuses activation, 51904 refuses the move.
+-- Lane L6 maps both numbers to a friendly message in Settings > Stores; until it does, they reach the caller raw.
 EXEC(N'CREATE OR ALTER TRIGGER dbo.trg_stores_service_unit_inactive ON dbo.stores
 AFTER INSERT, UPDATE AS
 BEGIN
@@ -52,7 +53,7 @@ BEGIN
  IF EXISTS(SELECT 1 FROM deleted d JOIN dbo.business_units b ON b.business_unit_id=d.business_unit_id
    JOIN inserted i ON i.store_id=d.store_id
    WHERE b.business_unit_code=''SERVICE'' AND (i.business_unit_id IS NULL OR i.business_unit_id<>d.business_unit_id))
-  THROW 51900,''A Service Centre store cannot be made an active shop store.'',1;
+  THROW 51904,''A Service Centre store cannot be moved out of the Service Centre business unit.'',1;
 END');
 -- <<< A_SERVICE_STORE end
 
