@@ -59,6 +59,12 @@ public sealed class PhaseOneImportSqlTests(ITestOutputHelper output)
         Assert.Equal("Duplicate content",reordered.Status);Assert.Equal(0,reordered.PersistedRows);
         Assert.Equal(3,await db.Int("SELECT COUNT(*) FROM dbo.sales_lines"));
         var subset=await Save(usecase,Workbook(original,[b]));Assert.Equal("Duplicate content",subset.Status);
+        // HEMW FIX-08: Imports > History classifies both saved files "Duplicate content" and shows them as already
+        // imported, not the generic "Persisted import outcome" text the query gave before.
+        var history=await new SqlServerImportHistoryQuery(db.Fixture.ConnectionString).LoadAsync(new(new(2000,1,1),new(2100,1,1)));
+        var duplicates=history.Where(entry=>entry.Result.Status==ImportAttemptOutcomes.DuplicateContent).ToList();
+        Assert.Equal(2,duplicates.Count);
+        Assert.All(duplicates,entry=>Assert.Equal(ImportHistoryMessages.AlreadyImported,entry.Result.Message));
         var changed=Row(original,4,"100000068",new(2026,7,1),236m);
         var error=await Assert.ThrowsAsync<Etp.Reporting.Import.Batch.ImportSourceException>(()=>Save(usecase,Workbook(original,[a,b,changed])));
         Assert.Contains("Use Restate",error.Message);

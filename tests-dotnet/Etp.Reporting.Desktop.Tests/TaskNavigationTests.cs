@@ -14,7 +14,7 @@ public sealed class TaskNavigationTests
         "connection", "health", "backups", "recovery", "support-package", "audit", "users", "profiles",
         "stores", "kpi", "tender-rules", "staff-target", "watch-folder", "sharing", "sharing-contacts",
         "tally-companies", "prepare-batch", "open-items", "data-quality", "approval-centre", "adjustment",
-        "keep-evidence"
+        "keep-evidence", "dashboard-overview"
     ];
     private static readonly string[] ImportRoleTasks =
     [
@@ -23,11 +23,12 @@ public sealed class TaskNavigationTests
         "register-transfer", "register-vendor", "register-courier"
     ];
 
-    // 48 fixed tasks (11 for every role, 15 that need the import role, 22 Owner-only),
+    // 49 fixed tasks (11 for every role, 15 that need the import role, 23 Owner-only),
     // 22 catalogue reports and 21 Help topics. 89/69/54 on 26 Sep; Phase 7 added
-    // "tally-companies" and the 1.9.3 evidence fixes "keep-evidence" for the Owner.
+    // "tally-companies", the 1.9.3 evidence fixes "keep-evidence" and 1.9.4 (FIX-15)
+    // "dashboard-overview" for the Owner.
     [Theory]
-    [InlineData("OWNER", 91)]
+    [InlineData("OWNER", 92)]
     [InlineData("STORE_MANAGER", 69)]
     [InlineData("VIEWER", 54)]
     public void Each_role_reaches_exactly_its_written_out_destinations(string role, int expectedCount)
@@ -35,13 +36,32 @@ public sealed class TaskNavigationTests
         var access = role switch { "OWNER" => ShellAccess.Owner, "STORE_MANAGER" => ShellAccess.StoreManager, _ => ShellAccess.Viewer };
         Assert.Equal(22, TaskNavigation.All.Count(task => task.ReportCode is not null));
         Assert.Equal(21, TaskNavigation.All.Count(task => task.Id.StartsWith("help:", StringComparison.Ordinal)));
-        Assert.Equal(48, TaskNavigation.All.Count(task => task.ReportCode is null && !task.Id.StartsWith("help:", StringComparison.Ordinal)));
+        Assert.Equal(49, TaskNavigation.All.Count(task => task.ReportCode is null && !task.Id.StartsWith("help:", StringComparison.Ordinal)));
         string[] excluded = role switch { "OWNER" => [], "STORE_MANAGER" => OwnerOnlyTasks, _ => OwnerOnlyTasks.Concat(ImportRoleTasks).ToArray() };
         Assert.All(OwnerOnlyTasks.Concat(ImportRoleTasks), id => Assert.NotNull(TaskNavigation.Find(id)));
         var expected = TaskNavigation.All.Select(task => task.Id).Except(excluded).Order().ToArray();
         var reachable = TaskNavigation.All.Where(task => task.IsAllowed(access)).Select(task => task.Id).Order().ToArray();
         Assert.Equal(expectedCount, expected.Length);
         Assert.Equal(expected, reachable);
+    }
+
+    // FIX-15 (R-WLMHW-15): the dashboard overview had no menu entry, so nothing could open it.
+    [Fact]
+    public void Dashboard_overview_is_reachable_from_navigation_for_the_owner_only()
+    {
+        var overview = TaskNavigation.Find("dashboard-overview");
+        Assert.NotNull(overview);
+        Assert.Equal("Dashboard", overview.Destination);
+        Assert.Equal("Settings → Database → Dashboard overview", overview.Path);
+        Assert.Contains(overview, TaskNavigation.InSection("Settings", ShellAccess.Owner));
+        Assert.Equal("dashboard-overview", TaskNavigation.Search("dashboard", ShellAccess.Owner).First().Id);
+        Assert.True(new ShellNavigationService().Navigate(overview.Route, ShellAccess.Owner).IsAllowed);
+        foreach (var access in new[] { ShellAccess.StoreManager, ShellAccess.Viewer })
+        {
+            Assert.DoesNotContain(overview, TaskNavigation.InSection("Settings", access));
+            Assert.DoesNotContain(TaskNavigation.Search("dashboard", access), task => task.Id == "dashboard-overview");
+            Assert.False(new ShellNavigationService().Navigate(overview.Route, access).IsAllowed);
+        }
     }
 
     [Fact]

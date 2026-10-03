@@ -198,11 +198,8 @@ public sealed class SqlServerImportHistoryQuery(string connectionString) : IImpo
                     ImportDiagnosticCatalogue.SafeFailureMessage(code, Text(16), reader.IsDBNull(17) ? null : reader.GetInt32(17)), Text(18),
                     reader.IsDBNull(17) ? null : reader.GetInt32(17))
                 : null;
-            var message = failure is not null ? failure.SafeMessage
-                : conflicts > 0 ? $"{conflicts:N0} source rows conflict with existing data. Review the source before retrying."
-                : status == "Duplicate" ? "This source was already imported. No facts were added by this attempt."
-                : status == "Failed" ? "Import failed. Review the selected diagnostics and correct the source before retrying."
-                : "Persisted import outcome. Counts describe source rows; a source row can produce multiple database facts.";
+            // "Duplicate content" (classified above) and pre-0041 "Duplicate" both read as already imported.
+            var message = ImportHistoryMessages.ForSavedOutcome(status, conflicts, failure);
             if (diagnostics.Length == 0 && (conflicts > 0 || status == "Failed"))
                 diagnostics = [new(ImportIssueSeverity.Blocker, failure?.Code ?? (conflicts > 0 ? "ROW_CONFLICT" : "IMPORT_FAILED"), message)];
             entries.Add(new(reader.GetString(0), reader.GetDateTime(1), reader.IsDBNull(2) ? null : reader.GetInt64(2),

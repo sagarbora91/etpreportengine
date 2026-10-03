@@ -134,6 +134,38 @@ public sealed class DashboardViewTests
         });
     }
 
+    // FIX-15: the overview's own route shows the import totals, and does not repeat the
+    // Audit trail's activity grid (two destinations with one grid fail the role walk).
+    [Fact]
+    public void Overview_route_shows_import_totals_and_leaves_activity_to_the_audit_trail()
+    {
+        RunSta(() =>
+        {
+            var view = new DashboardView();
+            view.Show(DashboardViewState.Create(80, 80, 760, new DateTime(2026, 9, 29, 18, 5, 0, DateTimeKind.Utc), [],
+                new("Healthy", 1m, null, 0, null, []), [new { Action = "ReportRun" }]));
+
+            view.SelectTask("dashboard-overview");
+            Assert.Equal("80", FindStatusText(view, "Imported files"));
+            Assert.Equal("80", FindStatusText(view, "Completed batches"));
+            Assert.Equal("760", FindStatusText(view, "Imported source rows"));
+            Assert.Equal("29 Sep 2026 18:05", FindStatusText(view, "Latest import UTC"));
+            Assert.Empty(Descendants<DataGrid>((DependencyObject)view.Content));
+
+            view.SelectTask("audit");
+            Assert.Single(Descendants<DataGrid>((DependencyObject)view.Content));
+        });
+    }
+
+    private static IEnumerable<T> Descendants<T>(DependencyObject root) where T : DependencyObject
+    {
+        foreach (var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>())
+        {
+            if (child is T match) yield return match;
+            foreach (var nested in Descendants<T>(child)) yield return nested;
+        }
+    }
+
     private static Button FindButton(DependencyObject root, string automationName)
     {
         if (root is Button button && AutomationProperties.GetName(button) == automationName) return button;

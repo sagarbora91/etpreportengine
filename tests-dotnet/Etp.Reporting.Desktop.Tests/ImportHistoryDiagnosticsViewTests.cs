@@ -48,6 +48,35 @@ public sealed class ImportHistoryDiagnosticsViewTests
         });
     }
 
+    [Theory]
+    [InlineData("Duplicate content")]
+    [InlineData("Duplicate")]
+    public void Repeat_file_shows_the_already_imported_message(string status)
+    {
+        RunSta(() =>
+        {
+            var repeat = new FolderImportFileResult("again.xlsx", "R025", "HEMW", new(2026, 8, 26), new(2026, 8, 26), status,
+                RowsProcessed: 12, AlreadyPresentRows: 12,
+                Message: "Persisted import outcome. Counts describe source rows; a source row can produce multiple database facts.");
+            var view = new ImportHistoryView(_ => Task.FromResult<IReadOnlyList<ImportHistoryEntry>>(
+                [new("file:7", new DateTime(2026, 8, 27, 10, 0, 0, DateTimeKind.Utc), 7, repeat)]));
+
+            view.ActivateAsync(new(new(2026, 8, 26), new(2026, 8, 26))).GetAwaiter().GetResult();
+
+            Assert.Contains("This source was already imported. No facts were added by this attempt.", view.DetailText);
+            Assert.DoesNotContain("Persisted import outcome", view.DetailText);
+        });
+    }
+
+    [Fact]
+    public void Saved_outcome_message_reads_duplicate_content_as_already_imported()
+    {
+        Assert.Equal(ImportHistoryMessages.AlreadyImported, ImportHistoryMessages.ForSavedOutcome(ImportAttemptOutcomes.DuplicateContent, 0, null));
+        Assert.Equal(ImportHistoryMessages.AlreadyImported, ImportHistoryMessages.ForSavedOutcome(ImportAttemptOutcomes.Duplicate, 0, null));
+        Assert.Equal(ImportHistoryMessages.Persisted, ImportHistoryMessages.ForSavedOutcome(ImportAttemptOutcomes.Imported, 0, null));
+        Assert.StartsWith("3 source rows conflict", ImportHistoryMessages.ForSavedOutcome(ImportAttemptOutcomes.DuplicateContent, 3, null));
+    }
+
     private static IEnumerable<T> Descendants<T>(System.Windows.DependencyObject root) where T : System.Windows.DependencyObject
     {
         foreach (var child in System.Windows.LogicalTreeHelper.GetChildren(root).OfType<System.Windows.DependencyObject>())

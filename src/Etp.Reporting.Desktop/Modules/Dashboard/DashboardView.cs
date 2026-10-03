@@ -27,8 +27,8 @@ public sealed class DashboardView : UserControl
     private static readonly Brush SurfaceSecondary = Brush("SurfaceSecondary");
 
     private readonly TextBlock importedFilesMetric = MetricValue(21);
-    private readonly TextBlock completedBatchesMetric = MetricValue(21, Brushes.White);
-    private readonly TextBlock sourceRowsMetric = MetricValue(26, Brushes.White);
+    private readonly TextBlock completedBatchesMetric = MetricValue(21);
+    private readonly TextBlock sourceRowsMetric = MetricValue(21);
     private readonly TextBlock latestImportMetric = MetricValue(14);
     private readonly DataGrid importHistoryGrid = ReadOnlyGrid(260);
     private readonly StackPanel dashboardChartPanel = new();
@@ -44,7 +44,6 @@ public sealed class DashboardView : UserControl
     private readonly TextBlock failedImportsMetric = MetricValue(21, Brushes.White);
     private readonly ItemsControl healthWarningsList = new();
     private readonly DataGrid operationalAuditGrid = ReadOnlyGrid(230);
-    private readonly DataGrid overviewAuditGrid = ReadOnlyGrid(230);
     private readonly ProgressBar readinessProgress = new() { Minimum = 0, Maximum = 100, Height = 8 };
     private readonly TextBlock readinessPercent = new() { FontWeight = FontWeights.SemiBold, Foreground = Accent };
     private readonly TextBlock dailyCloseMessage = new() { Foreground = SecondaryText, TextWrapping = TextWrapping.Wrap };
@@ -71,7 +70,10 @@ public sealed class DashboardView : UserControl
         AutomationProperties.SetName(dashboardChartPanel, "Imported rows by report chart");
         AutomationProperties.SetName(healthWarningsList, "Database health warnings");
         AutomationProperties.SetName(operationalAuditGrid, "Recent operational activity");
-        AutomationProperties.SetName(overviewAuditGrid, "Dashboard operational activity");
+        AutomationProperties.SetName(importedFilesMetric, "Imported files");
+        AutomationProperties.SetName(completedBatchesMetric, "Completed batches");
+        AutomationProperties.SetName(sourceRowsMetric, "Imported source rows");
+        AutomationProperties.SetName(latestImportMetric, "Latest import UTC");
         AutomationProperties.SetName(backupAgeMetric, "Last verified backup UTC");
         AutomationProperties.SetName(recoveryDrillMetric, "Last recovery drill UTC");
         AutomationProperties.SetName(backupHashMetric, "Verified backup fingerprint");
@@ -119,7 +121,6 @@ public sealed class DashboardView : UserControl
         failedImportsMetric.Text = state.FailedImports;
         healthWarningsList.ItemsSource = state.HealthWarnings;
         operationalAuditGrid.ItemsSource = state.RecentAuditEvents;
-        overviewAuditGrid.ItemsSource = state.RecentAuditEvents;
         errorMessage.Text = state.ErrorMessage ?? string.Empty;
         errorBanner.Visibility = string.IsNullOrWhiteSpace(state.ErrorMessage) ? Visibility.Collapsed : Visibility.Visible;
 
@@ -179,9 +180,14 @@ public sealed class DashboardView : UserControl
         fingerprints.Children.Add(new TextBlock { Text = "Backup used by recovery drill", Margin = new Thickness(0, 6, 0, 2) });
         fingerprints.Children.Add(recoveryDrillHashMetric);
         content.Children.Add(new Expander { Header = "Verification fingerprints", Content = fingerprints, Margin = new Thickness(0, 0, 0, 8) });
-        content.Children.Add(Title("Recent privacy-safe activity"));
-        overviewAuditGrid.Margin = new Thickness(0, 12, 0, 0);
-        content.Children.Add(overviewAuditGrid);
+        // FIX-15: the overview has its own route (Settings > Database > Dashboard overview). It shows the
+        // import totals; recent activity stays on Audit trail so the two destinations do not repeat one grid.
+        var imports = new WrapPanel { Margin = new Thickness(0, 0, 0, 8) };
+        imports.Children.Add(MiniMetric("IMPORTED FILES", importedFilesMetric));
+        imports.Children.Add(MiniMetric("COMPLETED BATCHES", completedBatchesMetric));
+        imports.Children.Add(MiniMetric("SOURCE ROWS", sourceRowsMetric));
+        imports.Children.Add(MiniMetric("LATEST IMPORT (UTC)", latestImportMetric));
+        content.Children.Add(imports);
         root.Children.Add(new ScrollViewer { Content = content, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled });
         overviewContent = root; return root;

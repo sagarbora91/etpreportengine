@@ -130,8 +130,12 @@ public partial class DailyWorkflowWorkspaceView : UserControl
         FinaliseDayButton.IsEnabled = current.CanImport && stateAllowsFinalise;
         ReopenDayButton.IsEnabled = current.CanAdminister;
         ReopenReasonInput.IsEnabled = current.CanAdminister;
-        GenerateStorePackButton.IsEnabled = current.CanView;
-        GenerateCombinedPackButton.IsEnabled = current.CanView;
+        // FIX-17: generating a pack saves a report generation, which SQL allows only the Owner and Store Managers
+        // (daily_report_generations INSERT); a Viewer sees the buttons disabled with the reason instead of a refusal.
+        GenerateStorePackButton.IsEnabled = current.CanImport;
+        GenerateCombinedPackButton.IsEnabled = current.CanImport;
+        GenerateStorePackButton.ToolTip = current.CanImport ? null : PackGenerationNeedsManagerMessage;
+        GenerateCombinedPackButton.ToolTip = current.CanImport ? null : PackGenerationNeedsManagerMessage;
         ExportPackExcelButton.IsEnabled = current.CanView && currentPack is not null && !packExportInProgress;
         ExportPackPdfButton.IsEnabled = current.CanView && currentPack is not null && !packExportInProgress;
         if (Content is UIElement content) content.IsEnabled = !operationInProgress;
@@ -287,7 +291,7 @@ public partial class DailyWorkflowWorkspaceView : UserControl
         using var progress = new OperationProgress(this, "Preparing daily report pack");
         try
         {
-            RequireViewAccess();
+            RequireImportAccess();
             var scope = SelectedScope();
             var pack = await packGeneratorFactory(connectionString()).GenerateAsync(scope, Environment.UserName, progress.Token);
             ShowPack(pack.Document, pack.Sections, new(scope.BusinessDate, scope.StoreCode));
@@ -295,7 +299,7 @@ public partial class DailyWorkflowWorkspaceView : UserControl
             await recordAuditAsync("ReportPack", pack.Status == DailyControlStatus.Passed ? "Succeeded" : "Failed", "Daily report pack");
         }
         catch (OperationCanceledException) { Publish("Cancellation requested. Refresh day status before retrying."); }
-        catch (Exception exception) { PublishFailure(exception, "DAILY_PACK_GENERATION_FAILED", "Daily report pack failed", "This Windows account does not have application access."); }
+        catch (Exception exception) { PublishFailure(exception, "DAILY_PACK_GENERATION_FAILED", "Daily report pack failed", PackGenerationNeedsManagerMessage); }
         finally { EndOperation(); }
     }
 
@@ -305,7 +309,7 @@ public partial class DailyWorkflowWorkspaceView : UserControl
         using var progress = new OperationProgress(this, "Preparing daily report pack");
         try
         {
-            RequireViewAccess();
+            RequireImportAccess();
             if (BusinessDateInput.SelectedDate is null) throw new InvalidOperationException("Select the ETP business date.");
             var date = DateOnly.FromDateTime(BusinessDateInput.SelectedDate.Value);
             var document = await packGeneratorFactory(connectionString()).GenerateCombinedAsync(date, Environment.UserName, progress.Token);
@@ -317,7 +321,7 @@ public partial class DailyWorkflowWorkspaceView : UserControl
                 "Combined daily report pack");
         }
         catch (OperationCanceledException) { Publish("Cancellation requested. Refresh day status before retrying."); }
-        catch (Exception exception) { PublishFailure(exception, "COMBINED_PACK_GENERATION_FAILED", "Combined daily report pack failed", "This Windows account does not have application access."); }
+        catch (Exception exception) { PublishFailure(exception, "COMBINED_PACK_GENERATION_FAILED", "Combined daily report pack failed", PackGenerationNeedsManagerMessage); }
         finally { EndOperation(); }
     }
 
@@ -391,6 +395,9 @@ public partial class DailyWorkflowWorkspaceView : UserControl
     {
         if (!access().CanView) throw new UnauthorizedAccessException("This Windows account does not have application access.");
     }
+
+    public const string PackGenerationNeedsManagerMessage =
+        "Owner or Store Manager permission is required to generate a pack. Saved packs are in Reports → Archive.";
 
     private void RequireImportAccess()
     {

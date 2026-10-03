@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using HistoryEntry = EtpApplication::Etp.Reporting.Application.Imports.ImportHistoryEntry;
 using HistoryScope = EtpApplication::Etp.Reporting.Application.Imports.ImportHistoryScope;
+using ImportHistoryMessages = EtpApplication::Etp.Reporting.Application.Imports.ImportHistoryMessages;
 
 namespace Etp.Reporting.Desktop.Modules.Imports;
 
@@ -94,7 +95,10 @@ public sealed class ImportHistoryView : UserControl
     // Failure code, stage and message as the attempt recorded them (IF-017), then commit and evidence state.
     private static string Describe(EtpApplication::Etp.Reporting.Application.Imports.FolderImportFileResult result)
     {
-        var text = $"{result.FileName}: {result.Status}. {result.Message}";
+        // A repeat file says "already imported" whichever duplicate outcome text it was saved with (FIX-08).
+        var message = result.Failure is null && result.ConflictRows == 0 && ImportHistoryMessages.IsDuplicate(result.Status)
+            ? ImportHistoryMessages.AlreadyImported : result.Message;
+        var text = $"{result.FileName}: {result.Status}. {message}";
         if (result.Failure is { } failure)
             text += $" Failure {failure.Code} at {failure.Stage}" + (failure.SqlNumber is { } number ? $" (SQL {number})." : ".");
         if (result.CommitState is { } commit) text += $" Transaction: {commit}.";

@@ -205,10 +205,38 @@ public sealed class DailyWorkflowWorkspaceViewTests
         });
     }
 
-    private static DailyWorkflowWorkspaceView CreateView(IDailyWorkflowQuery query, FakeCommands commands) => new(
+    // FIX-17 (R-WLMHW-17): SQL lets only the Owner and Store Managers save a pack generation,
+    // so a Viewer must not be offered Generate and then refused by the database.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Pack_generate_is_disabled_with_the_reason_for_a_viewer_and_enabled_for_a_store_manager(bool storeManager)
+    {
+        RunSta(async () =>
+        {
+            var generator = new FakePackGenerator(DateOnly.FromDateTime(DateTime.Today.AddDays(-1)));
+            var view = CreateView(new DeferredQuery(), new FakeCommands(), new(true, storeManager, false), generator);
+            view.RefreshAccessState();
+            foreach (var name in new[] { "Generate selected store daily reporting pack", "Generate combined daily reporting pack for all active stores" })
+            {
+                var button = FindButton(view, name);
+                Assert.Equal(storeManager, button.IsEnabled);
+                Assert.Equal(storeManager ? null : DailyWorkflowWorkspaceView.PackGenerationNeedsManagerMessage, button.ToolTip);
+                Assert.True(ToolTipService.GetShowOnDisabled(button));
+            }
+
+            await view.GenerateDailyPackAsync();
+            await view.GenerateCombinedDailyPackAsync();
+            Assert.Equal(storeManager ? 2 : 0, generator.Calls);
+            if (!storeManager) Assert.Contains("Owner or Store Manager permission is required", view.StatusText);
+        });
+    }
+
+    private static DailyWorkflowWorkspaceView CreateView(IDailyWorkflowQuery query, FakeCommands commands,
+        DailyWorkflowWorkspaceAccess? access = null, FakePackGenerator? generator = null) => new(
         new DailyWorkflowPresentationSession(), () => "Integrated Security=True", _ => query,
-        _ => commands, _ => new FakePackGenerator(DateOnly.FromDateTime(DateTime.Today.AddDays(-1))),
-        () => new(true, true, true), (_, _, _) => Task.CompletedTask,
+        _ => commands, _ => generator ?? new FakePackGenerator(DateOnly.FromDateTime(DateTime.Today.AddDays(-1))),
+        () => access ?? new(true, true, true), (_, _, _) => Task.CompletedTask,
         (_, _) => Task.CompletedTask, (_, _) => Task.CompletedTask)
         { StoreCode = "WLMHW", BusinessDate = DateTime.Today.AddDays(-1) };
 
@@ -295,15 +323,23 @@ public sealed class DailyWorkflowWorkspaceViewTests
         private readonly ReportPackDocument document = new(
             "Daily pack", businessDate, businessDate, "Passed", "test", "Passed", DateTimeOffset.UtcNow, []);
 
+        public int Calls { get; private set; }
+
         public Task<DailyPackGeneration<ReportPackDocument>> GenerateAsync(
-            DailyWorkflowScope scope, string? generatedBy = null, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new DailyPackGeneration<ReportPackDocument>(
+            DailyWorkflowScope scope, string? generatedBy = null, CancellationToken cancellationToken = default)
+        {
+            Calls++;
+            return Task.FromResult(new DailyPackGeneration<ReportPackDocument>(
                 scope.StoreCode, scope.BusinessDate, DailyControlStatus.Passed,
                 [new("Sales", DailyControlStatus.Passed, 10m, 0m, "Passed")],
                 "Passed", DateTimeOffset.UtcNow, document, 1, new string('a', 64)));
+        }
 
         public Task<ReportPackDocument> GenerateCombinedAsync(
-            DateOnly businessDate, string? generatedBy = null, CancellationToken cancellationToken = default) =>
-            Task.FromResult(document with { DateFrom = businessDate, DateTo = businessDate });
+            DateOnly businessDate, string? generatedBy = null, CancellationToken cancellationToken = default)
+        {
+            Calls++;
+            return Task.FromResult(document with { DateFrom = businessDate, DateTo = businessDate });
+        }
     }
 }
