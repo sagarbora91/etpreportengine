@@ -1,0 +1,231 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/sagarbora91/etpreportengine/docs/schemas/etp-import-audit-report-v1.schema.json",
+  "title": "ETP ImportAudit report, version 1",
+  "description": "report.json written by Etp.Reporting.ImportAudit (IMPORTAUDIT-CLI-DESIGN.md section 7.2). Field names are camelCase; enums are their C# names; a field with no value is left out. At the default detail (summary) a report holds counts, codes, catalogue messages, file names, block structure and hashes only. Document key texts appear only at detail 'documents' or 'rows'; sheet and row locators and conflict samples only at 'rows'. Never a customer value, at any detail. Paths are relative to the input root; arguments are reduced to their last name.",
+  "type": "object",
+  "required": ["schema", "command", "arguments", "tool", "detail", "startedUtc", "elapsedMs", "files", "summary"],
+  "properties": {
+    "schema": { "const": "etp-import-audit-report/1" },
+    "command": { "enum": ["inspect", "validate-contract", "check-import", "baseline"] },
+    "arguments": { "type": "array", "items": { "type": "string" } },
+    "tool": {
+      "type": "object",
+      "required": ["version", "catalogueSha256", "contentHashVersion", "rulesets"],
+      "properties": {
+        "version": { "type": "string" },
+        "commit": { "type": "string", "description": "The build's commit; compare it with the installed release before trusting a prediction." },
+        "catalogueSha256": { "type": "string", "description": "SHA-256 of EtpReportFamilies.json." },
+        "contentHashVersion": { "type": "integer" },
+        "rulesets": { "type": "object", "additionalProperties": { "type": "integer" } }
+      }
+    },
+    "database": {
+      "type": "object",
+      "description": "The database read, SELECT-only (check-import and baseline).",
+      "required": ["server", "name"],
+      "properties": {
+        "server": { "type": "string" },
+        "name": { "type": "string" },
+        "latestMigration": { "type": "string" },
+        "emulated0041": { "type": "boolean", "description": "The database predates 0041; line_seq and the snapshot source were emulated." },
+        "loginCouldWrite": { "type": "boolean", "description": "Information only: the audit never wrote." },
+        "notes": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "detail": { "enum": ["Summary", "Documents", "Rows"] },
+    "startedUtc": { "type": "string", "format": "date-time" },
+    "elapsedMs": { "type": "integer" },
+    "orderNote": { "type": "string" },
+    "files": { "type": "array", "items": { "$ref": "#/$defs/file" } },
+    "runDiagnostics": { "type": "array", "items": { "$ref": "#/$defs/diagnostic" } },
+    "summary": {
+      "type": "object",
+      "required": ["files", "pass", "findings", "blocked", "error", "unexpectedBlockers", "legacyHolds", "skippedCsvFiles", "exitCode"],
+      "properties": {
+        "files": { "type": "integer" },
+        "pass": { "type": "integer" },
+        "findings": { "type": "integer" },
+        "blocked": { "type": "integer" },
+        "error": { "type": "integer" },
+        "unexpectedBlockers": { "type": "integer" },
+        "legacyHolds": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["file", "code", "occurrences"],
+            "properties": { "file": { "type": "string" }, "code": { "type": "string" }, "occurrences": { "type": "integer" } }
+          }
+        },
+        "skippedCsvFiles": { "type": "integer" },
+        "exitCode": { "enum": [0, 1, 2, 3, 4, 5, 130] }
+      }
+    },
+    "baseline": {
+      "type": "object",
+      "description": "baseline: the result sets of scripts/check-import-upgrade.sql. Samples only at detail 'rows'.",
+      "required": ["resultSets"],
+      "properties": {
+        "resultSets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "columns", "rows"],
+            "properties": {
+              "name": { "type": "string" },
+              "columns": { "type": "array", "items": { "type": "string" } },
+              "rows": { "type": "array", "items": { "type": "array", "items": { "type": ["string", "null"] } } }
+            }
+          }
+        },
+        "differences": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  },
+  "$defs": {
+    "date": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "diagnostic": {
+      "type": "object",
+      "required": ["code", "severity", "message", "occurrences"],
+      "properties": {
+        "code": { "type": "string" },
+        "severity": { "enum": ["Information", "Warning", "Blocker"] },
+        "message": { "type": "string", "description": "A catalogue template (ImportDiagnosticCatalogue.SafeMessage) or the audit's own fixed text; never workbook text." },
+        "block": { "type": "integer" },
+        "sheet": { "type": "string", "description": "Detail 'rows' only." },
+        "row": { "type": "integer", "description": "Detail 'rows' only." },
+        "column": { "type": "string", "description": "Detail 'rows' only, and only a catalogue header." },
+        "documentRef": { "type": "string", "description": "Detail 'documents' or 'rows' only: document number and FY, or a date." },
+        "occurrences": { "type": "integer" }
+      }
+    },
+    "file": {
+      "type": "object",
+      "required": ["file", "bytes", "elapsedMs", "outcome", "stagedRows", "blocks", "snapshotDates", "virtualRows", "diagnostics", "verdict"],
+      "properties": {
+        "file": { "type": "string", "description": "Relative to the input root (a ZIP's name plus the entry path)." },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "bytes": { "type": "integer" },
+        "elapsedMs": { "type": "integer" },
+        "reportCode": { "type": "string" },
+        "familyCode": { "type": "string" },
+        "store": { "type": "string" },
+        "layout": { "type": "string" },
+        "outcome": { "enum": ["Ready", "EmptyExport", "NotNeeded", "UnknownLayout", "Failed"] },
+        "failureCode": { "type": "string" },
+        "periodStart": { "$ref": "#/$defs/date" },
+        "periodEnd": { "$ref": "#/$defs/date" },
+        "sourceKind": { "enum": ["Raw", "Consolidated", "ConsolidatedLegacy", "Reviewed"] },
+        "contractVersion": { "type": "integer" },
+        "stagedRows": { "type": "integer" },
+        "blocks": { "type": "array", "items": { "$ref": "#/$defs/block" } },
+        "snapshotDates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["date", "rows", "basis"],
+            "properties": { "date": { "$ref": "#/$defs/date" }, "rows": { "type": "integer" }, "basis": { "type": "string" } }
+          }
+        },
+        "virtualRows": { "type": "integer" },
+        "documents": {
+          "type": "object",
+          "required": ["total", "byScope", "heldRows", "holds", "projected"],
+          "properties": {
+            "total": { "type": "integer" },
+            "byScope": { "type": "object", "additionalProperties": { "type": "integer" } },
+            "heldRows": { "type": "integer" },
+            "holds": { "type": "object", "additionalProperties": { "type": "integer" } },
+            "projected": { "type": "boolean" }
+          }
+        },
+        "contract": {
+          "type": "object",
+          "required": ["kind", "rebuildChecked", "rebuildNotChecked", "matchedByName", "blockers"],
+          "properties": {
+            "kind": { "type": "string" },
+            "contractVersion": { "type": "integer" },
+            "legacyInfoTiles": { "type": "boolean" },
+            "rebuildChecked": { "type": "integer" },
+            "rebuildNotChecked": { "type": "integer", "description": "Information, not a finding." },
+            "matchedByName": { "type": "integer", "description": "Legacy blocks matched to a raw export by file name (OQ-5); information only." },
+            "blockers": { "type": "integer" }
+          }
+        },
+        "planner1": {
+          "type": "object",
+          "description": "What 1.9.3 (planner 1) will do with the file.",
+          "required": ["result", "rows", "promotesOver"],
+          "properties": {
+            "result": { "enum": ["Imported", "Duplicate content", "Duplicate", "empty export", "Failed", "Not needed", "Unknown layout", "Not predicted"] },
+            "code": { "type": "string" },
+            "message": { "type": "string" },
+            "rows": {
+              "type": "object",
+              "required": ["new", "present", "conflict"],
+              "properties": { "new": { "type": "integer" }, "present": { "type": "integer" }, "conflict": { "type": "integer" } }
+            },
+            "promotesOver": { "type": "array", "items": { "type": "integer" } },
+            "snapshotRows": { "type": "object", "additionalProperties": { "type": "integer" } },
+            "conflictSamples": { "type": "array", "maxItems": 20, "items": { "type": "string" }, "description": "Detail 'rows' only: business identity, never a value." }
+          }
+        },
+        "diagnostics": { "type": "array", "items": { "$ref": "#/$defs/diagnostic" } },
+        "documentList": {
+          "type": "array",
+          "description": "Detail 'documents' or 'rows' only.",
+          "items": {
+            "type": "object",
+            "required": ["keyHash", "keyText", "block", "rowCount", "factSha256"],
+            "properties": {
+              "keyHash": { "$ref": "#/$defs/sha256" },
+              "keyText": { "type": "string" },
+              "date": { "$ref": "#/$defs/date" },
+              "block": { "type": "integer" },
+              "rowCount": { "type": "integer" },
+              "factSha256": { "$ref": "#/$defs/sha256" },
+              "hold": { "type": "string" }
+            }
+          }
+        },
+        "expectation": {
+          "type": "object",
+          "required": ["pass", "mismatches"],
+          "properties": { "pass": { "type": "boolean" }, "mismatches": { "type": "array", "items": { "type": "string" } } }
+        },
+        "verdict": { "enum": ["Pass", "Findings", "Blocked", "Error"] }
+      }
+    },
+    "block": {
+      "type": "object",
+      "required": ["blockNo", "sheet", "rows", "completeness", "origin", "virtualRows", "rebuiltRows"],
+      "properties": {
+        "blockNo": { "type": "integer" },
+        "sheet": { "type": "string" },
+        "firstRow": { "type": "integer" },
+        "lastRow": { "type": "integer" },
+        "rows": { "type": "integer" },
+        "completeness": { "enum": ["Complete", "Delta", "Trimmed", "Empty", "Legacy"] },
+        "origin": { "enum": ["Raw", "Contract", "InfoLegacy", "HistoryRows", "SourceColumns", "WholeFile", "Backfill"] },
+        "exportTime": { "type": "string" },
+        "exportTimeBasis": { "enum": ["Unknown", "Minute", "Second", "Date"] },
+        "periodFrom": { "$ref": "#/$defs/date" },
+        "periodTo": { "$ref": "#/$defs/date" },
+        "periodBasis": { "enum": ["None", "Declared", "Observed"] },
+        "snapshotDate": { "$ref": "#/$defs/date" },
+        "snapshotDateBasis": { "type": "string" },
+        "rawRows": { "type": "integer" },
+        "excludedRows": { "type": "integer" },
+        "supersededRows": { "type": "integer" },
+        "virtualRows": { "type": "integer" },
+        "rebuiltRows": { "type": "integer" },
+        "sourceFileName": { "type": "string" },
+        "sourceSha256": { "$ref": "#/$defs/sha256" },
+        "contentSha256": { "$ref": "#/$defs/sha256" },
+        "contentHashVersion": { "type": "integer" },
+        "exportKey": { "$ref": "#/$defs/sha256" }
+      }
+    }
+  }
+}

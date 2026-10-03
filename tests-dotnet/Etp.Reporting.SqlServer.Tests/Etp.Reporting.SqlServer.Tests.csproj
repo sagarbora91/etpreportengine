@@ -13,6 +13,13 @@
   <ItemGroup><Using Include="Xunit" /></ItemGroup>
   <ItemGroup><Compile Include="..\TestSupport\StackedBinWiseWorkbooks.cs" Link="TestSupport\StackedBinWiseWorkbooks.cs" /></ItemGroup>
   <ItemGroup>
+    <Compile Include="..\TestSupport\AuditFixtureWorkbooks.cs" Link="TestSupport\AuditFixtureWorkbooks.cs" />
+    <Compile Include="..\Etp.Reporting.Import.Tests\SyntheticConsolidatedWorkbooks.cs" Link="TestSupport\SyntheticConsolidatedWorkbooks.cs" />
+    <Content Include="..\fixtures\import-audit\*.json" Link="fixtures\import-audit\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\fixtures\etp-sample\*.xlsx" Link="fixtures\etp-sample\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\scripts\check-import-upgrade.sql" Link="scripts\check-import-upgrade.sql" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Etp.Reporting.Application\Etp.Reporting.Application.csproj" />
     <ProjectReference Include="..\..\src\Etp.Reporting.Infrastructure.SqlServer\Etp.Reporting.Infrastructure.SqlServer.csproj" />
     <ProjectReference Include="..\..\src\Etp.Reporting.Import\Etp.Reporting.Import.csproj" />

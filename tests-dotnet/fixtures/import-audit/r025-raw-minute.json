@@ -1,0 +1,56 @@
+{
+ "fileName": "202609291449_SDB-VariantwiseSales.xlsx",
+ "sheets": [
+  {
+   "name": "Data",
+   "family": "R025",
+   "rows": [
+    {
+     "TRANS_TYPE": "INV",
+     "STORE CODE": "WLMHW",
+     "STORENAME": "SYNTHETIC STORE",
+     "ITEMNUMBER": "SYN-ITEM-01",
+     "BRAND": "SYN",
+     "INVNUMBER": "SYN100001",
+     "INVDATE": "2026-09-28",
+     "QTY": 1,
+     "NETAMOUNT": 118.0,
+     "TAX": 18.0,
+     "NETVALUE": 100,
+     "CUSTOMERNAME": "SYNTHETIC CUSTOMER",
+     "CONTACTNO": "9000000000"
+    },
+    {
+     "TRANS_TYPE": "INV",
+     "STORE CODE": "WLMHW",
+     "STORENAME": "SYNTHETIC STORE",
+     "ITEMNUMBER": "SYN-ITEM-02",
+     "BRAND": "SYN",
+     "INVNUMBER": "SYN100001",
+     "INVDATE": "2026-09-28",
+     "QTY": 2,
+     "NETAMOUNT": 295.0,
+     "TAX": 45.0,
+     "NETVALUE": 250,
+     "CUSTOMERNAME": "SYNTHETIC CUSTOMER",
+     "CONTACTNO": "9000000000"
+    },
+    {
+     "TRANS_TYPE": "INV",
+     "STORE CODE": "WLMHW",
+     "STORENAME": "SYNTHETIC STORE",
+     "ITEMNUMBER": "SYN-ITEM-01",
+     "BRAND": "SYN",
+     "INVNUMBER": "SYN100002",
+     "INVDATE": "2026-09-29",
+     "QTY": 1,
+     "NETAMOUNT": 118.0,
+     "TAX": 18.0,
+     "NETVALUE": 100,
+     "CUSTOMERNAME": "SYNTHETIC CUSTOMER",
+     "CONTACTNO": "9000000000"
+    }
+   ]
+  }
+ ]
+}
