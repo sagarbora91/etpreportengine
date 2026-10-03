@@ -133,7 +133,7 @@ Migration 0040 replaces two 0039 triggers and one 0038 trigger with `CREATE OR A
 
 ## Increment 6 — Tally batch creation, one voucher per invoice (task 6, migration 0041)
 
-Built on the decision sheet's recommendations, accepted by the owner on 3 Oct 2026 for building: D13 one voucher per invoice, D14 one retail ledger, D15 one GST ledger per tax and rate, D16 payment inside the voucher, D17 accounting only; and D12 one company for the firm with each store as a cost centre. The ledger names stay settings (approved mappings) until the accountant fills in the sheet. If the accountant decides differently, the composer refuses the company in plain words rather than guessing. Not yet verified in CI at the time of writing.
+Built on the decision sheet's recommendations, accepted by the owner on 3 Oct 2026 for building: D13 one voucher per invoice, D14 one retail ledger, D15 one GST ledger per tax and rate, D16 payment inside the voucher, D17 accounting only; and D12 one company for the firm with each store as a cost centre. The ledger names stay settings (approved mappings) until the accountant fills in the sheet. If the accountant decides differently, the composer refuses the company in plain words rather than guessing. UNIT_VERIFIED and SQL_VERIFIED on LocalDB in CI: run 161 (a0f89b2). Run 160 (b7e886b) failed on three test-setup and text faults, fixed in a0f89b2. Not yet applied to the live database.
 
 | Item | Where |
 |---|---|
