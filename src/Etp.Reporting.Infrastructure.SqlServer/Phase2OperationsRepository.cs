@@ -345,7 +345,7 @@ public sealed class Phase2OperationsRepository(string connectionString)
     public async Task<IReadOnlyList<ManagementTrendRow>> LoadManagementTrendAsync(DateOnly from, DateOnly to, CancellationToken cancellationToken = default)
     {
         if (to < from || to.DayNumber - from.DayNumber > 366) throw new ArgumentException("Select a valid trend period of at most 366 days.");
-        var sql = """
+        var sql = $"""
             WITH sales AS
             (
               SELECT i.transaction_date,i.store_code,SUM(l.source_gross_amount) net_sales,SUM(l.source_quantity) units,COUNT(DISTINCT i.sales_invoice_id) invoices
@@ -367,7 +367,7 @@ public sealed class Phase2OperationsRepository(string connectionString)
             ), unmatched AS
             (
               SELECT transaction_date,store_code,COUNT_BIG(*) unmatched
-              FROM dbo.sales_line_enrichments WHERE transaction_date BETWEEN @from AND @to AND match_status<>'Matched' GROUP BY transaction_date,store_code
+              FROM {EnrichmentOccurrencePairing.EffectiveEnrichments} e WHERE transaction_date BETWEEN @from AND @to AND effective_match_status<>'Matched' GROUP BY transaction_date,store_code
             )
             SELECT s.transaction_date,s.store_code,s.net_sales,s.units,s.invoices,COALESCE(c.revenue,0)-COALESCE(t.tender,0),CONVERT(int,COALESCE(u.unmatched,0))
             FROM sales s LEFT JOIN controls c ON c.transaction_date=s.transaction_date AND c.store_code=s.store_code
@@ -385,12 +385,12 @@ public sealed class Phase2OperationsRepository(string connectionString)
 
     public async Task<IReadOnlyList<DataQualitySummaryRow>> LoadDataQualitySummaryAsync(CancellationToken cancellationToken = default)
     {
-        const string sql = """
+        const string sql = $"""
             SELECT severity,area,code,item_count,latest_utc,message FROM
             (
               SELECT 'FAIL' severity,'Import' area,'FAILED_IMPORT_BATCH' code,COUNT_BIG(*) item_count,MAX(COALESCE(completed_utc,started_utc)) latest_utc,N'Failed import batches require correction or an approved retry.' message FROM dbo.import_batches WHERE status='Failed'
               UNION ALL SELECT 'WARNING','Tender','QUARANTINED_TENDER',COUNT_BIG(*),MAX(b.completed_utc),N'Unapproved tender values remain excluded from reporting controls.' FROM dbo.sales_tenders t JOIN dbo.source_lineage l ON l.source_lineage_id=t.source_lineage_id JOIN dbo.import_files f ON f.import_file_id=l.import_file_id JOIN dbo.import_batches b ON b.import_batch_id=f.import_batch_id WHERE t.is_reporting_eligible=0 AND f.is_superseded=0
-              UNION ALL SELECT 'FAIL','Staff','UNMATCHED_ENRICHMENT',COUNT_BIG(*),MAX(b.completed_utc),N'R003/R013 enrichment rows could not be matched uniquely to canonical sales.' FROM dbo.sales_line_enrichments e JOIN dbo.source_lineage l ON l.source_lineage_id=e.source_lineage_id JOIN dbo.import_files f ON f.import_file_id=l.import_file_id JOIN dbo.import_batches b ON b.import_batch_id=f.import_batch_id WHERE e.match_status<>'Matched' AND f.is_superseded=0
+              UNION ALL SELECT 'FAIL','Staff','UNMATCHED_ENRICHMENT',COUNT_BIG(*),MAX(b.completed_utc),N'R003/R013 enrichment rows could not be matched uniquely to canonical sales.' FROM {EnrichmentOccurrencePairing.EffectiveEnrichments} e JOIN dbo.source_lineage l ON l.source_lineage_id=e.source_lineage_id JOIN dbo.import_files f ON f.import_file_id=l.import_file_id JOIN dbo.import_batches b ON b.import_batch_id=f.import_batch_id WHERE e.effective_match_status<>'Matched' AND f.is_superseded=0
               UNION ALL SELECT 'WARNING','Workflow','UNFINALISED_DAY',COUNT_BIG(*),MAX(CONVERT(datetime2,business_date)),N'Business dates have been opened but are not finalised.' FROM dbo.daily_reporting_days WHERE status<>'LOCKED'
               UNION ALL SELECT 'INFORMATION','Restatement','RESTATED_SOURCE',COUNT_BIG(*),MAX(requested_utc),N'Controlled restatements are retained with immutable archived facts.' FROM dbo.import_restatements
             ) q WHERE item_count>0 ORDER BY CASE severity WHEN 'FAIL' THEN 1 WHEN 'WARNING' THEN 2 ELSE 3 END,area;

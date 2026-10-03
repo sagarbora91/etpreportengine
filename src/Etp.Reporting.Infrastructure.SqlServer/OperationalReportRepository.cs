@@ -221,7 +221,8 @@ public sealed partial class OperationalReportRepository(string connectionString)
         CancellationToken cancellationToken = default)
     {
         scope.Validate();
-        const string sql = """
+        // R013 rows are paired with lines by occurrence (EnrichmentOccurrencePairing), so a line has at most one.
+        const string sql = $"""
             SELECT i.transaction_date,i.store_code,i.document_number,l.line_identifier,l.product_code,
                    COALESCE(l.source_brand_name,l.source_brand_code),l.brand_segment,l.source_transaction_type,
                    l.source_quantity,l.source_gross_amount,cro.source_cro_number,f.original_file_name,s.sheet_name,s.source_row_number
@@ -232,9 +233,10 @@ public sealed partial class OperationalReportRepository(string connectionString)
             OUTER APPLY
             (
               SELECT TOP(1) e.source_cro_number
-              FROM dbo.sales_line_enrichments e
-              WHERE e.matched_sales_line_id=l.sales_line_id AND e.enrichment_type='R013' AND e.match_status='Matched'
-              ORDER BY e.sales_line_enrichment_id
+              FROM {EnrichmentOccurrencePairing.EffectiveEnrichments} e
+              WHERE e.enrichment_type='R013' AND e.store_code=i.store_code AND e.transaction_date=i.transaction_date
+                AND e.document_number=i.document_number AND e.product_code=l.product_code
+                AND e.effective_match_status='Matched' AND e.effective_sales_line_id=l.sales_line_id
             ) cro
             WHERE i.transaction_date BETWEEN @from AND @to
               AND (@stores IS NULL OR i.store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores)))
@@ -319,22 +321,23 @@ public sealed partial class OperationalReportRepository(string connectionString)
         CancellationToken cancellationToken = default)
     {
         scope.Validate();
-        const string staffSql = """
+        // R-WLMHW-01: R013 rows count when paired with an R025 line by occurrence, not by their import-time status.
+        const string staffSql = $"""
             SELECT e.store_code,e.source_cro_number,COALESCE(SUM(e.source_gross_value),0),COALESCE(SUM(e.source_quantity),0),
                    SUM(COALESCE(e.scheme_discount,0)+COALESCE(e.user_discount,0)+COALESCE(e.pre_discount,0)),
                    COUNT(DISTINCT CASE WHEN UPPER(e.source_transaction_type)='INV' THEN CONCAT(e.invoice_year,'|',e.document_number) END),
                    MAX(COALESCE(s.staff_name,e.staff_name,e.source_cro_number))
-            FROM dbo.sales_line_enrichments e
+            FROM {EnrichmentOccurrencePairing.EffectiveEnrichments} e
             LEFT JOIN dbo.staff s ON s.store_code=e.store_code AND s.staff_code=e.source_cro_number
-            WHERE e.enrichment_type='R013' AND e.match_status='Matched' AND UPPER(e.source_transaction_type) IN('INV','SR','BC') AND e.transaction_date BETWEEN @from AND @to
+            WHERE e.enrichment_type='R013' AND e.effective_match_status='Matched' AND UPPER(e.source_transaction_type) IN('INV','SR','BC') AND e.transaction_date BETWEEN @from AND @to
               AND (@stores IS NULL OR e.store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores)))
               AND e.source_cro_number IS NOT NULL
             GROUP BY e.store_code,e.source_cro_number ORDER BY e.store_code,SUM(e.source_gross_value) DESC;
             """;
-        const string lastYearSql = """
+        const string lastYearSql = $"""
             SELECT e.store_code,e.source_cro_number,COALESCE(SUM(e.source_gross_value),0)
-            FROM dbo.sales_line_enrichments e
-            WHERE e.enrichment_type='R013' AND e.match_status='Matched' AND UPPER(e.source_transaction_type) IN('INV','SR','BC') AND e.transaction_date BETWEEN @from AND @to
+            FROM {EnrichmentOccurrencePairing.EffectiveEnrichments} e
+            WHERE e.enrichment_type='R013' AND e.effective_match_status='Matched' AND UPPER(e.source_transaction_type) IN('INV','SR','BC') AND e.transaction_date BETWEEN @from AND @to
               AND (@stores IS NULL OR e.store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores)))
               AND e.source_cro_number IS NOT NULL
             GROUP BY e.store_code,e.source_cro_number;
@@ -541,11 +544,11 @@ public sealed partial class OperationalReportRepository(string connectionString)
                 $"Revenue control and reporting-eligible tenders differ by {document.Variance:N2}.", "Review missing, excess or quarantined tender rows; do not change the control total."));
         }
 
-        const string enrichmentSql = """
-            SELECT e.store_code,e.transaction_date,e.document_number,e.product_code,e.match_status,f.original_file_name,s.sheet_name,s.source_row_number
-            FROM dbo.sales_line_enrichments e JOIN dbo.source_lineage s ON s.source_lineage_id=e.source_lineage_id
+        const string enrichmentSql = $"""
+            SELECT e.store_code,e.transaction_date,e.document_number,e.product_code,e.effective_match_status,f.original_file_name,s.sheet_name,s.source_row_number
+            FROM {EnrichmentOccurrencePairing.EffectiveEnrichments} e JOIN dbo.source_lineage s ON s.source_lineage_id=e.source_lineage_id
             JOIN dbo.import_files f ON f.import_file_id=s.import_file_id
-            WHERE e.store_code=@store AND e.transaction_date=@date AND e.match_status<>'Matched'
+            WHERE e.store_code=@store AND e.transaction_date=@date AND e.effective_match_status<>'Matched'
             ORDER BY e.document_number,e.product_code,s.source_row_number;
             """;
         await using (var connection = await OpenAsync(cancellationToken))
