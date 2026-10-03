@@ -40,6 +40,11 @@ $query=$template.Replace('__PROCEDURE__',$procedure).Replace('__DATABASE_LITERAL
 $signer='EtpOperationsModuleSigner_'+$procedure.Substring('etp_operations_'.Length)
 $grants=$grants.Replace('__PROCEDURE__',$procedure).Replace('__SIGNER__',$signer)
 $grants=$grants.Replace('__IDENTITY_LITERAL__',$AutomationPrincipal.Replace("'","''")).Replace('__DATABASE_LITERAL__',$Database.Replace("'","''"))
+# Both go to Sqlcmd as one -Q argument each, which cannot carry a double quote (see
+# Assert-EtpSqlCmdQueryText). Checked for both before either runs: the broker's CREATE OR ALTER
+# discards its signature, so a grants batch refused only afterwards would leave it unsigned.
+Assert-EtpSqlCmdQueryText $query
+Assert-EtpSqlCmdQueryText $grants
 $sqlcmd=Resolve-EtpSqlCmd $SqlCmdPath
 $ServerInstance=Resolve-EtpSqlConnection -SqlCmd $sqlcmd -ServerInstance $ServerInstance
 if ($BrokerOnly) {

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Fixed: upgrading from 1.9.2 stopped at the pre-migration backup with only "The database operation failed" (VM rehearsal, 3 Oct 2026; setup exit 1603, nothing migrated). The 1.9.3 operations broker had two double quotes in the JSON text of its row-count line, and the scripts send each SQL statement to Sqlcmd as one command-line argument, which cannot carry a double quote: the broker's `CREATE OR ALTER` never reached SQL Server. So every install of the 1.9.3 broker failed: setup's refresh of an unsigned 1.9.2 broker before the backup (fatal), the full module install at the end of setup (a WARNING), the restore helper and "restore first" setup (a missing broker), and step 7 run by hand. The broker now builds that line with `FOR JSON` and contains no double quote; the scripts refuse any statement with one before starting Sqlcmd, and check both broker templates before changing anything.
+- Setup's pre-migration backup no longer stops when the broker cannot be brought up to date: the failure is logged as a WARNING and the backup goes ahead through the broker already installed (one from 1.9.2 records `rowCountsNotRecorded` `OPERATIONS_MODULE_OUTDATED`). Without any broker the backup itself fails and setup stops before migrating, as before.
+- The setup log now says what SQL Server or Sqlcmd reported when a SQL step fails (error number, level, state and message, without the server name), on a line after the FAILED line, and the steps of the pre-migration backup are logged as they start. The application and the scheduled tasks keep the fixed masked message.
+
 ## [1.9.3] - 2026-10-03
 
 The import engine release, with the fixes from the move to Workpc:

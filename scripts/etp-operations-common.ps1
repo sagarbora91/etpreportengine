@@ -376,20 +376,85 @@ function Resolve-EtpSqlConnection {
     throw 'Could not reach the SQL Server instance with the installed command-line client. Check the instance name and that the client can connect to it.'
 }
 
+function Assert-EtpSqlCmdQueryText {
+    # Every statement goes to Sqlcmd as one -Q argument, and a double quote cannot survive that
+    # command line: Sqlcmd's own parser ends the argument at it ("Unexpected argument") and
+    # Windows PowerShell 5.1, which setup runs, strips it silently. The 1.9.3 broker carried
+    # two in a JSON literal, and every attempt to install it failed with only the masked
+    # message (VM rehearsal, 3 October 2026). Refused before anything starts, by name.
+    param([AllowNull()][string]$Query)
+    if ($null -ne $Query -and $Query.Contains([string][char]34)) {
+        throw 'Internal error: this SQL statement contains a double quote, which cannot be passed to Sqlcmd on its command line. Nothing was sent to SQL Server.'
+    }
+}
+
+function Get-EtpSqlFailureDetail {
+    # Pure. What Sqlcmd wrote to its error stream, reduced to SQL Server's error number, level,
+    # state and message (or Sqlcmd's own complaint), for a log only an administrator reads.
+    # The server name is dropped, control characters are replaced and every part is cut short,
+    # so a log line stays one line. $null when there is nothing recognisable.
+    param([AllowNull()][AllowEmptyCollection()][string[]]$Lines)
+    $clean = @(@($Lines) | Where-Object { $null -ne $_ } | ForEach-Object { ("$_" -replace '[\x00-\x1F\x7F]', ' ').Trim() } | Where-Object { $_ })
+    $parts = [Collections.Generic.List[string]]::new()
+    for ($i = 0; $i -lt $clean.Count -and $parts.Count -lt 3; $i++) {
+        $line = $clean[$i]
+        if ($line -cmatch '^Msg (\d+), Level (\d+), State (\d+)(?:, Server [^,]*)?(?:, Procedure ([^,]+))?(?:, Line (\d+))?') {
+            $where = ''
+            if ($Matches[4]) { $where += ", procedure $($Matches[4].Trim())" }
+            if ($Matches[5]) { $where += ", line $($Matches[5])" }
+            $header = "SQL Server error $($Matches[1]) (level $($Matches[2]), state $($Matches[3])$where)"
+            $message = ''
+            if ($i + 1 -lt $clean.Count -and $clean[$i + 1] -cnotmatch '^(Msg \d+, Level|Sqlcmd:)') { $message = $clean[$i + 1]; $i++ }
+            if ($message.Length -gt 300) { $message = $message.Substring(0, 300) + '...' }
+            $parts.Add($(if ($message) { "${header}: $message" } else { $header }))
+        }
+        elseif ($line.StartsWith('Sqlcmd:', [StringComparison]::Ordinal)) {
+            $parts.Add($(if ($line.Length -gt 300) { $line.Substring(0, 300) + '...' } else { $line }))
+        }
+    }
+    if ($parts.Count -eq 0) { return $null }
+    return ($parts -join ' | ')
+}
+
+function Get-EtpExceptionSqlDetail {
+    # The detail Invoke-EtpSql attached to its masked failure, or $null.
+    param([AllowNull()]$Exception)
+    if ($null -eq $Exception -or $null -eq $Exception.Data) { return $null }
+    try { if ($Exception.Data.Contains('EtpSqlDetail')) { return [string]$Exception.Data['EtpSqlDetail'] } } catch { }
+    return $null
+}
+
+function Format-EtpFailureForLog {
+    # An exception's message, followed by what SQL Server reported when Invoke-EtpSql attached
+    # it. Only for logs an administrator reads, never for a message shown in the application.
+    param([AllowNull()]$Exception)
+    if ($null -eq $Exception) { return '' }
+    $text = [string]$Exception.Message
+    $detail = Get-EtpExceptionSqlDetail $Exception
+    if ($detail) { $text += " (SQL Server reported: $detail)" }
+    return $text
+}
+
 function Invoke-EtpSql {
     param([string]$SqlCmd,[string]$Server,[string]$Database='master',[string]$Query)
     Assert-EtpLocalSqlTarget $Server $Database
+    Assert-EtpSqlCmdQueryText $Query
     # -x disables SQLCMD variable substitution in user-selected paths and values.
     # SQL sends informational RESTORE messages to stderr too. Let -b and the
-    # process exit code distinguish failure; never expose stderr contents.
+    # process exit code distinguish failure. The message stays the fixed masked text, because
+    # callers show it to people who must not see SQL Server's own words; what SQL Server said
+    # travels only in the exception's Data['EtpSqlDetail'], for logs an administrator reads
+    # (setup's bootstrap log). Before 1.9.3's fix it was thrown away, and the VM upgrade of
+    # 3 October 2026 failed with nothing but the masked line to go on.
     $previousPreference = $ErrorActionPreference
     try {
         $ErrorActionPreference = 'Continue'
-        $result = @(& $SqlCmd -x -S $Server -E -b -r 1 -d $Database -y 0 -s '|' -Q $Query 2>$null)
+        $output = @(& $SqlCmd -x -S $Server -E -b -r 1 -d $Database -y 0 -s '|' -Q $Query 2>&1)
         $sqlExitCode = $LASTEXITCODE
     }
     catch { throw 'The database operation failed. Check SQL permissions and operation prerequisites.' }
     finally { $ErrorActionPreference = $previousPreference }
+    $result = @($output | Where-Object { $_ -isnot [Management.Automation.ErrorRecord] })
     if ($sqlExitCode -ne 0) {
         # Say which of the two it was without ever exposing stderr: an operator
         # sent to SQL permissions for an unreachable instance looks in the
@@ -403,7 +468,11 @@ function Invoke-EtpSql {
         catch { $probeExitCode = 1 }
         finally { $ErrorActionPreference = $previousPreference }
         if ($probeExitCode -ne 0) { throw 'Could not reach the SQL Server instance with the installed command-line client. Check the instance name and that the client can connect to it.' }
-        throw 'The database operation failed. Check SQL permissions and operation prerequisites.'
+        $failure = [Management.Automation.RuntimeException]::new('The database operation failed. Check SQL permissions and operation prerequisites.')
+        # -r 1 sends every message, errors included, to stderr; -b ends with the first error.
+        $detail = Get-EtpSqlFailureDetail -Lines @($output | ForEach-Object { "$_" })
+        if ($detail) { $failure.Data['EtpSqlDetail'] = $detail }
+        throw $failure
     }
     return $result
 }

@@ -475,7 +475,7 @@ try {
     foreach ($line in @(& (Join-Path $PSScriptRoot 'install-etp-sql-operations.ps1') -ServerInstance $ServerInstance -Database $Database -AutomationPrincipal $configuration.automationPrincipal -SqlCmdPath $sqlcmd -BrokerOnly)) { Write-RestoreLog "$line" }
 }
 catch {
-    throw "The database was restored and checked, and you are its Owner, but the operations broker could not be installed ($($_.Exception.Message)). Setup's safety backup needs it: run install-etp-sql-operations.ps1 with -BrokerOnly from an elevated window, then run setup again."
+    throw "The database was restored and checked, and you are its Owner, but the operations broker could not be installed ($(Format-EtpFailureForLog $_.Exception)). Setup's safety backup needs it: run install-etp-sql-operations.ps1 with -BrokerOnly from an elevated window, then run setup again."
 }
 
 # 16. What happens next.

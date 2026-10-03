@@ -114,8 +114,15 @@ BEGIN
  SELECT N'ETP_METADATA:'+ (SELECT LogicalName logicalName,Type type,FileId fileId,Size sizeBytes,UniqueId uniqueId FROM #files ORDER BY FileId FOR JSON PATH);
  -- After the metadata, so a caller reading only the first result still gets the metadata.
  -- The counts are integers formatted by FOR JSON, or null where counting failed.
+ -- No double quote may appear anywhere in this file: the scripts install it as one Sqlcmd -Q
+ -- argument, and Sqlcmd's command line cannot carry one (it ends the argument there, so the
+ -- 1.9.3 VM upgrade of 3 October 2026 failed at this procedure's CREATE OR ALTER, and Windows
+ -- PowerShell 5.1 strips them silently). FOR JSON writes the quotes of the JSON instead.
+ IF ISJSON(@countsBefore)<>1 SET @countsBefore=NULL;
+ IF ISJSON(@countsAfter)<>1 SET @countsAfter=NULL;
+ IF ISJSON(@countsRestored)<>1 SET @countsRestored=NULL;
  IF @operation='BACKUP'
-  SELECT N'ETP_ROWCOUNTS:{"before":'+COALESCE(@countsBefore,N'null')+N',"after":'+COALESCE(@countsAfter,N'null')+N'}';
+  SELECT N'ETP_ROWCOUNTS:'+(SELECT JSON_QUERY(@countsBefore) AS [before],JSON_QUERY(@countsAfter) AS [after] FOR JSON PATH,WITHOUT_ARRAY_WRAPPER,INCLUDE_NULL_VALUES);
  IF @operation='DRILL'
-  SELECT N'ETP_ROWCOUNTS:{"restored":'+COALESCE(@countsRestored,N'null')+N'}';
+  SELECT N'ETP_ROWCOUNTS:'+(SELECT JSON_QUERY(@countsRestored) AS [restored] FOR JSON PATH,WITHOUT_ARRAY_WRAPPER,INCLUDE_NULL_VALUES);
 END;
