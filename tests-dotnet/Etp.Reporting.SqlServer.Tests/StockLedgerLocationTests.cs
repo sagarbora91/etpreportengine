@@ -70,10 +70,20 @@ public sealed class StockLedgerLocationTests
         var sql = SqlReportingQueries.StockPositions;
         // 1.9.3 took one TOP(1) opening over every bin, so a DEFECTIVEBIN chain could supply the item's opening.
         Assert.DoesNotContain("SELECT TOP(1) m.opening_quantity", sql, StringComparison.Ordinal);
-        Assert.Contains("SUM(b.opening_quantity)", sql, StringComparison.Ordinal);
-        Assert.Contains("PARTITION BY ISNULL(m.location,N'')", sql, StringComparison.Ordinal);
-        Assert.Contains("ORDER BY m.document_date,m.line_seq,m.stock_movement_id) bin_row", sql, StringComparison.Ordinal);
-        Assert.Contains("WHERE b.bin_row=1", sql, StringComparison.Ordinal);
+        Assert.Contains("ELSE SUM(CASE WHEN b.bin_row=1 THEN b.opening_quantity END) END opening_quantity", sql, StringComparison.Ordinal);
+        Assert.Contains("ROW_NUMBER() OVER(PARTITION BY m.location ORDER BY m.document_date,m.line_seq,m.stock_movement_id) bin_row", sql, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Stock_variance_opening_falls_back_to_the_first_movement_when_any_bin_is_unknown()
+    {
+        // A movement with no stored bin is a RETAILBIN or DEFECTIVEBIN movement whose bin is unknown, not a bin of its own,
+        // so its chain start must not be added to the real bins' (review of FIX-14).
+        var sql = SqlReportingQueries.StockPositions;
+        Assert.DoesNotContain("ISNULL(m.location,N'')", sql, StringComparison.Ordinal);
+        Assert.Contains("CASE WHEN MAX(CASE WHEN b.location IS NULL THEN 1 ELSE 0 END)=1", sql, StringComparison.Ordinal);
+        Assert.Contains("THEN MAX(CASE WHEN b.item_row=1 THEN b.opening_quantity END)", sql, StringComparison.Ordinal);
+        Assert.Contains("ROW_NUMBER() OVER(ORDER BY m.document_date,m.line_seq,m.stock_movement_id) item_row", sql, StringComparison.Ordinal);
     }
 
     [Fact]

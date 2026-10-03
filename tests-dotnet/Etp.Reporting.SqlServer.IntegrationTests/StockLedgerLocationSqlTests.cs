@@ -36,6 +36,26 @@ public sealed class StockLedgerLocationSqlTests(SqlDatabaseFixture database) : I
     }
 
     [Fact]
+    public async Task A_movement_with_no_bin_is_not_a_chain_of_its_own_so_its_opening_is_not_counted_twice()
+    {
+        // 1 Sep: a RETAILBIN sale (5 -> 4) whose bin stayed unknown (no typed row, an ambiguous backfill or a locked day).
+        // 2 Sep: the next RETAILBIN sale (4 -> 3) with its bin. Summing a NULL chain (5) and a RETAILBIN chain (4) would open
+        // at 9 and report a false variance of -4; the item opened with 5.
+        await Import([
+            Unit("INV", "WLMHW", "NUL-ITEM", "NUL-DOC-1", Day(8), 5m, -1m, "RETAILBIN"),
+            Unit("INV", "WLMHW", "NUL-ITEM", "NUL-DOC-2", Day(9), 4m, -1m, "RETAILBIN")]);
+        await database.ExecuteAsync("UPDATE dbo.stock_movements SET location=NULL WHERE document_number='NUL-DOC-1'");
+        await new StockSqlImportOrchestrator(new SqlServerTransactionalImportStore(database.ConnectionString)).PersistAsync(Book(
+            "closing.xlsx", StockImportProfiles.ClosingStockHeaders, [Closing("WLMHW", "NUL-ITEM", Day(9), 3m)]));
+
+        var stock = await new SqlServerReportingQueryRepository(database.ConnectionString)
+            .LoadStockAsync(new ReportingQueryScope(Day(8), Day(9), ["WLMHW"], ItemCodes: ["NUL-ITEM"]));
+        var position = Assert.Single(stock.Positions);
+        Assert.Equal(5m, position.SourceOpeningQuantity);
+        Assert.Equal(-2m, stock.Movements.Sum(movement => movement.SourceSignedQuantity));
+    }
+
+    [Fact]
     public async Task Migration_backfills_the_bin_of_existing_rows_from_the_typed_ledger_and_is_idempotent()
     {
         await Import([

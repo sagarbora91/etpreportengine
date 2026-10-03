@@ -63,14 +63,17 @@ public static class SqlReportingQueries
         FROM keys k
         -- Each bin (LOCATION, migration 0047) keeps its own running balance, so each bin's chain starts at its own first
         -- movement and the item's opening is the sum of the bins' openings (store ledger audit FIX-14). A movement with no stored
-        -- bin belongs to one chain of its own, as every movement did before 0047.
-        OUTER APPLY(SELECT SUM(b.opening_quantity) opening_quantity FROM
-          (SELECT m.opening_quantity,ROW_NUMBER() OVER(PARTITION BY ISNULL(m.location,N'')
-             ORDER BY m.document_date,m.line_seq,m.stock_movement_id) bin_row
+        -- bin is a movement of some unknown bin, not a bin of its own: adding its chain start to the real bins' would count the
+        -- same units twice. So an item with any bin-less movement in the period keeps the 1.9.3 opening, the first movement's.
+        OUTER APPLY(SELECT CASE WHEN MAX(CASE WHEN b.location IS NULL THEN 1 ELSE 0 END)=1
+                       THEN MAX(CASE WHEN b.item_row=1 THEN b.opening_quantity END)
+                       ELSE SUM(CASE WHEN b.bin_row=1 THEN b.opening_quantity END) END opening_quantity FROM
+          (SELECT m.opening_quantity,m.location,
+             ROW_NUMBER() OVER(PARTITION BY m.location ORDER BY m.document_date,m.line_seq,m.stock_movement_id) bin_row,
+             ROW_NUMBER() OVER(ORDER BY m.document_date,m.line_seq,m.stock_movement_id) item_row
            FROM dbo.stock_movements m
            WHERE m.store_code=k.store_code AND m.product_code=k.product_code
-             AND m.document_date>=@dateFrom AND m.document_date<=@dateTo) b
-          WHERE b.bin_row=1) first_move
+             AND m.document_date>=@dateFrom AND m.document_date<=@dateTo) b) first_move
         ORDER BY k.store_code,k.product_code;
         """;
 
