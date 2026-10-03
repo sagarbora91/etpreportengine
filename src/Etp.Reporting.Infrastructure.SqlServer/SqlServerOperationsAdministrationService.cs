@@ -52,13 +52,18 @@ public sealed class SqlServerOperationsAdministrationService : App.IOperationsAd
         if (access.CanEnterOperations)
             await gateway.SyncIssuesAsync(quality, cancellationToken).ConfigureAwait(false);
         var issues = await gateway.LoadIssuesAsync(cancellationToken).ConfigureAwait(false);
+        // audit item R-10 (Titan store): every role sees when the saved issues were last brought up to the live checks.
+        var synced = await gateway.LoadIssuesSyncedUtcAsync(cancellationToken).ConfigureAwait(false);
         return new(
             Map(await settingsTask.ConfigureAwait(false)),
             (await trendTask.ConfigureAwait(false)).Select(Map).ToArray(),
             quality.Select(Map).ToArray(),
             issues.Select(Map).ToArray(),
             (await schedulesTask.ConfigureAwait(false)).Select(Map).ToArray(),
-            (await runsTask.ConfigureAwait(false)).Select(Map).ToArray());
+            (await runsTask.ConfigureAwait(false)).Select(Map).ToArray())
+        {
+            IssuesSyncedUtc = synced
+        };
     }
 
     public async Task<IReadOnlyList<App.ApprovalRequest>> LoadApprovalsAsync(
@@ -180,6 +185,7 @@ internal interface IOperationsAdministrationSqlGateway
     Task<IReadOnlyList<AutomationRunRow>> LoadAutomationRunsAsync(int limit, CancellationToken cancellationToken);
     Task SyncIssuesAsync(IReadOnlyList<DataQualitySummaryRow> findings, CancellationToken cancellationToken);
     Task<IReadOnlyList<DataQualityIssueRow>> LoadIssuesAsync(CancellationToken cancellationToken);
+    Task<DateTime?> LoadIssuesSyncedUtcAsync(CancellationToken cancellationToken);
     Task<IReadOnlyList<ApprovalRequestRow>> LoadApprovalsAsync(string? status, CancellationToken cancellationToken);
     Task<AutomatedOperationsSummary> RunAutomationOnceAsync(CancellationToken cancellationToken);
     Task SaveWatchFoldersAsync(WatchFolderSettings settings, string reason, CancellationToken cancellationToken);
@@ -201,6 +207,7 @@ internal sealed class OperationsAdministrationSqlGateway(
     public Task<IReadOnlyList<AutomationRunRow>> LoadAutomationRunsAsync(int limit, CancellationToken token) => operations.LoadAutomationRunsAsync(limit, token);
     public Task SyncIssuesAsync(IReadOnlyList<DataQualitySummaryRow> findings, CancellationToken token) => productisation.SyncDataQualityIssuesAsync(findings, token);
     public Task<IReadOnlyList<DataQualityIssueRow>> LoadIssuesAsync(CancellationToken token) => productisation.LoadDataQualityIssuesAsync(token);
+    public Task<DateTime?> LoadIssuesSyncedUtcAsync(CancellationToken token) => productisation.LoadDataQualityIssuesSyncedUtcAsync(token);
     public Task<IReadOnlyList<ApprovalRequestRow>> LoadApprovalsAsync(string? status, CancellationToken token) => productisation.LoadApprovalsAsync(status, token);
     public Task<AutomatedOperationsSummary> RunAutomationOnceAsync(CancellationToken token) => automation.RunOnceAsync(token);
     public Task SaveWatchFoldersAsync(WatchFolderSettings settings, string reason, CancellationToken token) => operations.SaveWatchFolderSettingsAsync(settings, reason, token);

@@ -328,20 +328,47 @@ public sealed partial class ProductisationRepository(string connectionString)
     public async Task SyncDataQualityIssuesAsync(IReadOnlyList<DataQualitySummaryRow> findings,CancellationToken cancellationToken=default)
     {
         var payload=findings.Where(x=>x.Count>0).Select(x=>new{IssueKey=$"COMPUTED/{x.Area}/{x.Code}",x.Area,x.Code,Severity=x.Severity.ToUpperInvariant() switch { "FAIL" => "CRITICAL", "INFORMATION" => "INFO", "INFO" => "INFO", "WARNING" => "WARNING", "CRITICAL" => "CRITICAL", _ => throw new ArgumentException("Unknown data-quality severity.", nameof(findings)) },x.Count,x.Message}).ToArray();
-        const string sql="""
-            DECLARE @now datetime2(3)=SYSUTCDATETIME();
-            MERGE dbo.data_quality_issues WITH(HOLDLOCK) target
-            USING(SELECT IssueKey,Area,Code,Severity,[Count],[Message] FROM OPENJSON(@json)
-              WITH(IssueKey nvarchar(300),Area varchar(50),Code varchar(50),Severity varchar(10),[Count] bigint,[Message] nvarchar(500))) source
-              ON target.issue_key=source.IssueKey
-            WHEN MATCHED THEN UPDATE SET category=source.Code,severity=UPPER(source.Severity),technical_control_status=CASE UPPER(source.Severity) WHEN 'CRITICAL' THEN 'FAIL' ELSE 'WARNING' END,
-              safe_summary=CONCAT(source.[Message],N' (',source.[Count],N' current)'),modified_by=SUSER_SNAME(),modified_utc=@now
-            WHEN NOT MATCHED THEN INSERT(issue_key,category,severity,technical_control_status,workflow_status,safe_summary,modified_by)
-              VALUES(source.IssueKey,source.Code,UPPER(source.Severity),CASE UPPER(source.Severity) WHEN 'CRITICAL' THEN 'FAIL' ELSE 'WARNING' END,'OPEN',CONCAT(source.[Message],N' (',source.[Count],N' current)'),SUSER_SNAME());
-            UPDATE dbo.data_quality_issues SET technical_control_status='PASS',modified_by=SUSER_SNAME(),modified_utc=@now
-            WHERE issue_key LIKE N'COMPUTED/%' AND NOT EXISTS(SELECT 1 FROM OPENJSON(@json) WITH(IssueKey nvarchar(300)) currentRows WHERE currentRows.IssueKey=dbo.data_quality_issues.issue_key);
-            """;
-        await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(sql,connection);command.Parameters.AddWithValue("@json",JsonSerializer.Serialize(payload));await command.ExecuteNonQueryAsync(cancellationToken);
+        await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(SyncDataQualityIssuesSql,connection);command.Parameters.AddWithValue("@json",JsonSerializer.Serialize(payload));await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    // Every sync stamps every computed row with the same @now, so the earliest computed row's time is the
+    // last sync (a later workflow change only moves its own row later). A check that no longer finds
+    // anything is PASS and says "(0 current)": audit item R-10 (Titan store) found a PASS row still saying "(259 current)".
+    internal const string SyncDataQualityIssuesSql = """
+        DECLARE @now datetime2(3)=SYSUTCDATETIME();
+        MERGE dbo.data_quality_issues WITH(HOLDLOCK) target
+        USING(SELECT IssueKey,Area,Code,Severity,[Count],[Message] FROM OPENJSON(@json)
+          WITH(IssueKey nvarchar(300),Area varchar(50),Code varchar(50),Severity varchar(10),[Count] bigint,[Message] nvarchar(500))) source
+          ON target.issue_key=source.IssueKey
+        WHEN MATCHED THEN UPDATE SET category=source.Code,severity=UPPER(source.Severity),technical_control_status=CASE UPPER(source.Severity) WHEN 'CRITICAL' THEN 'FAIL' ELSE 'WARNING' END,
+          safe_summary=CONCAT(source.[Message],N' (',source.[Count],N' current)'),modified_by=SUSER_SNAME(),modified_utc=@now
+        WHEN NOT MATCHED THEN INSERT(issue_key,category,severity,technical_control_status,workflow_status,safe_summary,modified_by,modified_utc)
+          VALUES(source.IssueKey,source.Code,UPPER(source.Severity),CASE UPPER(source.Severity) WHEN 'CRITICAL' THEN 'FAIL' ELSE 'WARNING' END,'OPEN',CONCAT(source.[Message],N' (',source.[Count],N' current)'),SUSER_SNAME(),@now);
+        UPDATE dbo.data_quality_issues SET technical_control_status='PASS',modified_by=SUSER_SNAME(),modified_utc=@now,
+          safe_summary=CASE WHEN safe_summary LIKE N'% (% current)'
+            THEN CONCAT(LEFT(safe_summary,LEN(safe_summary)-CHARINDEX(N'(',REVERSE(safe_summary))),N'(0 current)') ELSE safe_summary END
+        WHERE issue_key LIKE N'COMPUTED/%' AND NOT EXISTS(SELECT 1 FROM OPENJSON(@json) WITH(IssueKey nvarchar(300)) currentRows WHERE currentRows.IssueKey=dbo.data_quality_issues.issue_key);
+        """;
+
+    /// <summary>When the computed issues were last synced from the live checks; null when they never were.</summary>
+    public async Task<DateTime?> LoadDataQualityIssuesSyncedUtcAsync(CancellationToken cancellationToken=default)
+    {
+        await using var connection=await OpenAsync(cancellationToken);
+        await using var command=new SqlCommand(DataQualityIssuesSyncedSql,connection);
+        var value=await command.ExecuteScalarAsync(cancellationToken);
+        return value is DateTime synced?DateTime.SpecifyKind(synced,DateTimeKind.Utc):null;
+    }
+
+    internal const string DataQualityIssuesSyncedSql="SELECT MIN(modified_utc) FROM dbo.data_quality_issues WHERE issue_key LIKE N'COMPUTED/%'";
+
+    /// <summary>
+    /// Brings the saved issues up to the live checks (audit item R-10 (Titan store)). Runs after every committed import, so the
+    /// Open items grid is current for every role, including a Viewer, who cannot sync it.
+    /// </summary>
+    public static async Task SyncDataQualityIssuesFromLiveChecksAsync(string connectionString,CancellationToken cancellationToken=default)
+    {
+        var findings=await new Phase2OperationsRepository(connectionString).LoadDataQualitySummaryAsync(cancellationToken);
+        await new ProductisationRepository(connectionString).SyncDataQualityIssuesAsync(findings,cancellationToken);
     }
 
     public async Task<IReadOnlyList<DataQualityIssueRow>> LoadDataQualityIssuesAsync(CancellationToken cancellationToken=default)

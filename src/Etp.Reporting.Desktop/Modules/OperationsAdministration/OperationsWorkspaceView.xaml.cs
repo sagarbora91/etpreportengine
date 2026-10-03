@@ -52,6 +52,8 @@ public partial class OperationsWorkspaceView : UserControl
     public string StatusText => OperationsStatus.Text;
     public int TrendRowCount => ManagementTrendGrid.Items.Count;
     public int IssueRowCount => DataQualityGrid.Items.Count;
+    /// <summary>The as-of line beside the Open items grid (audit item R-10 (Titan store)).</summary>
+    public string IssuesSyncedStatus => IssuesSyncedText.Text;
 
     public void UpdateAccess(OperationsAdministrationWorkspaceAccess value) { access = value; ApplyActionAccess(); }
 
@@ -75,6 +77,7 @@ public partial class OperationsWorkspaceView : UserControl
             var state = session.Capture(dashboard);
             ManagementTrendGrid.ItemsSource = state.Trend;
             issueRows = state.Issues; ApplyIssueFilter();
+            IssuesSyncedText.Text = state.IssuesSynced;
             ApplySchedules(state.Schedules);
             AutomationRunsGrid.ItemsSource = state.AutomationRuns;
             ApplyWatchSettings(state, beforeLoad);

@@ -115,10 +115,12 @@ public sealed partial class SqlServerImportPersistenceUseCase : IImportPersisten
                 ownBatch = result.BatchId;
                 var outcome = await files.LoadOutcomeInScopeAsync(accepted.Workbook.Sha256, accepted.ProfileIdentity.ReportCode,
                     scope.StoreCode!, periodStart, periodEnd, cancellationToken);
-                return result with { PersistedRows=outcome.NewRows,
+                var imported = result with { PersistedRows=outcome.NewRows,
                     Status=outcome.NewRows==0 && outcome.AlreadyPresentRows>0 ? "Duplicate content" : "Imported",
                     AlreadyPresentRows=outcome.AlreadyPresentRows,ConflictRows=outcome.ConflictRows,
                     Evidence=await ImportEvidenceAsync(accepted, scope.StoreCode!, periodStart, periodEnd, cancellationToken).ConfigureAwait(false) };
+                await SyncDataQualityIssuesAsync().ConfigureAwait(false);
+                return imported;
             }
             duplicate = result;
         }
@@ -285,6 +287,26 @@ public sealed partial class SqlServerImportPersistenceUseCase : IImportPersisten
         if (source.PreviousImportFileId <= 0 || string.IsNullOrWhiteSpace(source.RequestedBy) || string.IsNullOrWhiteSpace(source.Reason))
             throw new ArgumentException("A restatement requires the previous file, requesting user and reason.", nameof(source));
         return new(source.PreviousImportFileId, source.RequestedBy, source.Reason);
+    }
+
+    /// <summary>
+    /// Titan store report audit item R-10 (3 Oct 2026): Open items read the saved data-quality issues, which were synced
+    /// only when an Owner or Store Manager opened that screen, so a Viewer, or anyone before the next open, saw
+    /// counts from before the latest imports. Only an Owner or Store Manager imports, and both may sync.
+    /// The import has committed by now: a failed sync never turns it into a failed import, and the screen
+    /// still syncs when an Owner or Store Manager opens it. Its own token, so a cancel after the commit does
+    /// not leave the issues half-way.
+    /// </summary>
+    private async Task SyncDataQualityIssuesAsync()
+    {
+        try
+        {
+            await ProductisationRepository.SyncDataQualityIssuesFromLiveChecksAsync(connectionString, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is SqlException or InvalidOperationException or TimeoutException)
+        {
+            // Best effort; see above.
+        }
     }
 
     private async Task RequireImportAsync(CancellationToken cancellationToken)
