@@ -62,4 +62,442 @@ END');
 
 -- >>> C_SERVICE_READ begin
 -- Owner: lane L4. Read-rule views over the Service landing tables (design section 4).
+-- Every view reads only live readings: import_files with is_superseded = 0, data_truth_version = 1, a Completed
+-- batch, and a report_code of the 35 importable Service families. A reading is one import file; its snapshot date is
+-- period_end (the folder date of a consolidated workbook, the window end in a raw export's name). Rows are chosen by
+-- the family's read rule (ServiceInterimFamilies.ReadRule), never by the import order:
+--   StateSnapshot (S006, S009, S010): rows of the reading with the greatest snapshot date.
+--   DateLog(column): for each business date D, rows dated D of the reading with the greatest snapshot date whose
+--     window [least row date, snapshot date] contains D. A restated row therefore replaces its old version.
+--   JobList(job column): per family and job, the rows of the reading with the greatest snapshot date holding the job.
+-- Ties at the same snapshot date: a reading that holds rows beats one that holds none (an "Already present" import
+-- keeps an import_files row but lands no rows), then the greater import_file_id.
+-- No view exposes a phone, e-mail or address column; a customer name only where the read contract has CustomerName.
+-- Nothing here writes: a job leaving a list is history (v_service_job_list_events), never a review item.
+-- Indexes: the landing tables already carry IX_etp_landing_snnn_file on (import_file_id); no other index is added.
+-- Each view is CREATE OR ALTER through EXEC, granted SELECT to the three roles and denied writes, as 0041 does.
+
+-- The read rule, list label, pending-list key (ServicePendingLists) and status-view constants per importable family
+-- (ServiceInterimFamilies, L0).
+-- Lifecycle rank breaks a same-date tie between status views only: PR < IR < SRN < SRNINV < DC < RA < REPAIRED < RWR
+-- < PD < DELIVERED.
+EXEC(N'CREATE OR ALTER VIEW dbo.v_service_families AS
+SELECT v.report_code,v.read_rule,v.date_column,v.list_label,v.pending_list,v.status_label,v.lifecycle_rank
+FROM (VALUES
+ (''S002'',''JobList'',NULL,''Job booking'',NULL,NULL,NULL),
+ (''S003'',''DateLog'',''trans_date'',''RevenueReport'',NULL,NULL,NULL),
+ (''S004'',''DateLog'',''billingdate'',''TenderCollectionDetailed'',NULL,NULL,NULL),
+ (''S006'',''StateSnapshot'',NULL,''Closing stock'',NULL,NULL,NULL),
+ (''S007'',''DateLog'',''grn_date'',''PurchaseRegister_CREATED'',NULL,NULL,NULL),
+ (''S008'',''DateLog'',''grn_date'',''PurchaseRegister_RECCIVED'',NULL,NULL,NULL),
+ (''S009'',''StateSnapshot'',NULL,''Pending repair'',''PENDING_REPAIR'',NULL,NULL),
+ (''S010'',''StateSnapshot'',NULL,''Pending delivery'',''PENDING_DELIVERY'',NULL,NULL),
+ (''S011'',''JobList'',NULL,''SRN status'',''SRN_STATUS'',NULL,NULL),
+ (''S012'',''JobList'',NULL,''SRN history'',NULL,NULL,NULL),
+ (''S013'',''DateLog'',''stm_date'',''GIT'',NULL,NULL,NULL),
+ (''S014'',''JobList'',NULL,''Status DC'',NULL,''DC'',5),
+ (''S015'',''JobList'',NULL,''Status IR'',NULL,''IR'',2),
+ (''S016'',''JobList'',NULL,''Status RA'',NULL,''RA'',6),
+ (''S017'',''JobList'',NULL,''Status RWR'',NULL,''RWR'',8),
+ (''S018'',''JobList'',NULL,''Status DELIVERED'',NULL,''DELIVERED'',10),
+ (''S019'',''DateLog'',''repairdate'',''RepeatReturn'',NULL,NULL,NULL),
+ (''S020'',''JobList'',NULL,''Replacement'',NULL,NULL,NULL),
+ (''S021'',''JobList'',NULL,''Depreciation'',NULL,NULL,NULL),
+ (''S022'',''DateLog'',''invoice_date'',''EmpowermentReport'',NULL,NULL,NULL),
+ (''S023'',''DateLog'',''transdate'',''GPRC_Report'',NULL,NULL,NULL),
+ (''S024'',''DateLog'',''transdate'',''GPRC_MB_Report'',NULL,NULL,NULL),
+ (''S025'',''DateLog'',''transdate'',''GPRC_WDC'',NULL,NULL,NULL),
+ (''S026'',''DateLog'',''transdate'',''GPRC_WRA_Report'',NULL,NULL,NULL),
+ (''S029'',''DateLog'',''repair_date'',''DeftranReport'',NULL,NULL,NULL),
+ (''S030'',''JobList'',NULL,''Running tests'',NULL,NULL,NULL),
+ (''S031'',''JobList'',NULL,''Status PD'',NULL,''PD'',9),
+ (''S032'',''JobList'',NULL,''Status PR'',NULL,''PR'',1),
+ (''S033'',''JobList'',NULL,''Status SRN'',NULL,''SRN'',3),
+ (''S034'',''JobList'',NULL,''Status REPAIRED'',NULL,''REPAIRED'',7),
+ (''S035'',''JobList'',NULL,''Status SRNINV'',NULL,''SRNINV'',4),
+ (''S036'',''JobList'',NULL,''Delivery report'',NULL,NULL,NULL),
+ (''S037'',''JobList'',NULL,''Repair report'',NULL,NULL,NULL),
+ (''S039'',''DateLog'',''transaction_date'',''WD_Claim'',NULL,NULL,NULL),
+ (''S040'',''DateLog'',''transaction_date'',''WRA_Claim'',NULL,NULL,NULL)
+) v(report_code,read_rule,date_column,list_label,pending_list,status_label,lifecycle_rank)');
+
+-- One row per live Service reading: its snapshot date, row count and, for a DateLog family, its window
+-- [window_from, window_to]. window_from is the least row date; window_to is the snapshot date, or a later row date
+-- when a reading holds rows dated after its snapshot date (so such rows are never hidden).
+EXEC(N'CREATE OR ALTER VIEW dbo.v_service_reading_windows AS
+WITH live AS (
+  SELECT f.import_file_id,f.report_code,COALESCE(f.period_end,f.business_date) snapshot_date
+  FROM dbo.import_files f JOIN dbo.import_batches b ON b.import_batch_id=f.import_batch_id
+  WHERE f.is_superseded=0 AND f.data_truth_version=1 AND b.status=''Completed''
+    AND f.report_code IN(''S002'',''S003'',''S004'',''S006'',''S007'',''S008'',''S009'',''S010'',''S011'',''S012'',''S013'',''S014'',''S015'',''S016'',''S017'',''S018'',''S019'',''S020'',''S021'',''S022'',''S023'',''S024'',''S025'',''S026'',''S029'',''S030'',''S031'',''S032'',''S033'',''S034'',''S035'',''S036'',''S037'',''S039'',''S040'')
+), stats AS (
+  SELECT ''S002'' report_code,import_file_id,COUNT_BIG(*) row_count,CONVERT(date,NULL) least_date,CONVERT(date,NULL) greatest_date FROM dbo.etp_landing_s002 GROUP BY import_file_id
+  UNION ALL SELECT ''S003'',import_file_id,COUNT_BIG(*),MIN(trans_date),MAX(trans_date) FROM dbo.etp_landing_s003 GROUP BY import_file_id
+  UNION ALL SELECT ''S004'',import_file_id,COUNT_BIG(*),MIN(billingdate),MAX(billingdate) FROM dbo.etp_landing_s004 GROUP BY import_file_id
+  UNION ALL SELECT ''S006'',import_file_id,COUNT_BIG(*),CONVERT(date,NULL),CONVERT(date,NULL) FROM dbo.etp_landing_s006 GROUP BY import_file_id
+  UNION ALL SELECT ''S007'',import_file_id,COUNT_BIG(*),MIN(grn_date),MAX(grn_date) FROM dbo.etp_landing_s007 GROUP BY import_file_id
+  UNION ALL SELECT ''S008'',import_file_id,COUNT_BIG(*),MIN(grn_date),MAX(grn_date) FROM dbo.etp_landing_s008 GROUP BY import_file_id
+  UNION ALL SELECT ''S009'',import_file_id,COUNT_BIG(*),CONVERT(date,NULL),CONVERT(date,NULL) FROM dbo.etp_landing_s009 GROUP BY import_file_id
+  UNION ALL SELECT ''S010'',import_file_id,COUNT_BIG(*),CONVERT(date,NULL),CONVERT(date,NULL) FROM dbo.etp_landing_s010 GROUP BY import_file_id
+  UNION ALL SELECT ''S011'',import_file_id,COUNT_BIG(*),CONVERT(date,NULL),CONVERT(date,NULL) FROM dbo.etp_landing_s011 GROUP BY import_file_id
+  UNION ALL SELECT ''S012'',import_file_id,COUNT_BIG(*),CONVERT(date,NULL),CONVERT(date,NULL) FROM dbo.etp_landing_s012 GROUP BY import_file_id
+  UNION ALL SELECT ''S013'',import_file_id,COUNT_BIG(*),MIN(stm_date),MAX(stm_date) FROM dbo.etp_landing_s013 GROUP BY import_file_id
+  UNION ALL SELECT ''S014'',import_file_id,COUNT_BIG(*),CONVERT(date,NULL),CONVERT(date,NULL) FROM dbo.etp_landing_s014 GROUP BY import_file_id
+  UNION ALL SELECT ''S015'',import_file_id,COUNT_BIG(*),CONVERT(date,NULL),CONVERT(date,NULL) FROM dbo.etp_landing_s015 GROUP BY import_file_id
+  UNION ALL SELECT ''S016'',import_file_id,COUNT_BIG(*),CONVERT(date,NULL),CONVERT(date,NULL) FROM dbo.etp_landing_s016 GROUP BY import_file_id
+  UNION ALL SELECT ''S017'',import_file_id,COUNT_BIG(*),CONVERT(date,NULL),CONVERT(date,NULL) FROM dbo.etp_landing_s017 GROUP BY import_file_id
+  UNION ALL SELECT ''S018'',import_file_id,COUNT_BIG(*),CONVERT(date,NULL),CONVERT(date,NULL) FROM dbo.etp_landing_s018 GROUP BY import_file_id
+  UNION ALL SELECT ''S019'',import_file_id,COUNT_BIG(*),MIN(repairdate),MAX(repairdate) FROM dbo.etp_landing_s019 GROUP BY import_file_id
+  UNION ALL SELECT ''S020'',import_file_id,COUNT_BIG(*),CONVERT(date,NULL),CONVERT(date,NULL) FROM dbo.etp_landing_s020 GROUP BY import_file_id
+  UNION ALL SELECT ''S021'',import_file_id,COUNT_BIG(*),CONVERT(date,NULL),CONVERT(date,NULL) FROM dbo.etp_landing_s021 GROUP BY import_file_id
+  UNION ALL SELECT ''S022'',import_file_id,COUNT_BIG(*),MIN(invoice_date),MAX(invoice_date) FROM dbo.etp_landing_s022 GROUP BY import_file_id
+  UNION ALL SELECT ''S023'',import_file_id,COUNT_BIG(*),MIN(transdate),MAX(transdate) FROM dbo.etp_landing_s023 GROUP BY import_file_id
+  UNION ALL SELECT ''S024'',import_file_id,COUNT_BIG(*),MIN(transdate),MAX(transdate) FROM dbo.etp_landing_s024 GROUP BY import_file_id
+  UNION ALL SELECT ''S025'',import_file_id,COUNT_BIG(*),MIN(transdate),MAX(transdate) FROM dbo.etp_landing_s025 GROUP BY import_file_id
+  UNION ALL SELECT ''S026'',import_file_id,COUNT_BIG(*),MIN(transdate),MAX(transdate) FROM dbo.etp_landing_s026 GROUP BY import_file_id
+  UNION ALL SELECT ''S029'',import_file_id,COUNT_BIG(*),MIN(repair_date),MAX(repair_date) FROM dbo.etp_landing_s029 GROUP BY import_file_id
+  UNION ALL SELECT ''S030'',import_file_id,COUNT_BIG(*),CONVERT(date,NULL),CONVERT(date,NULL) FROM dbo.etp_landing_s030 GROUP BY import_file_id
+  UNION ALL SELECT ''S031'',import_file_id,COUNT_BIG(*),CONVERT(date,NULL),CONVERT(date,NULL) FROM dbo.etp_landing_s031 GROUP BY import_file_id
+  UNION ALL SELECT ''S032'',import_file_id,COUNT_BIG(*),CONVERT(date,NULL),CONVERT(date,NULL) FROM dbo.etp_landing_s032 GROUP BY import_file_id
+  UNION ALL SELECT ''S033'',import_file_id,COUNT_BIG(*),CONVERT(date,NULL),CONVERT(date,NULL) FROM dbo.etp_landing_s033 GROUP BY import_file_id
+  UNION ALL SELECT ''S034'',import_file_id,COUNT_BIG(*),CONVERT(date,NULL),CONVERT(date,NULL) FROM dbo.etp_landing_s034 GROUP BY import_file_id
+  UNION ALL SELECT ''S035'',import_file_id,COUNT_BIG(*),CONVERT(date,NULL),CONVERT(date,NULL) FROM dbo.etp_landing_s035 GROUP BY import_file_id
+  UNION ALL SELECT ''S036'',import_file_id,COUNT_BIG(*),CONVERT(date,NULL),CONVERT(date,NULL) FROM dbo.etp_landing_s036 GROUP BY import_file_id
+  UNION ALL SELECT ''S037'',import_file_id,COUNT_BIG(*),CONVERT(date,NULL),CONVERT(date,NULL) FROM dbo.etp_landing_s037 GROUP BY import_file_id
+  UNION ALL SELECT ''S039'',import_file_id,COUNT_BIG(*),MIN(transaction_date),MAX(transaction_date) FROM dbo.etp_landing_s039 GROUP BY import_file_id
+  UNION ALL SELECT ''S040'',import_file_id,COUNT_BIG(*),MIN(transaction_date),MAX(transaction_date) FROM dbo.etp_landing_s040 GROUP BY import_file_id
+)
+SELECT l.import_file_id,l.report_code,r.read_rule,l.snapshot_date,COALESCE(s.row_count,0) row_count,
+  s.least_date window_from,
+  CASE WHEN s.least_date IS NULL THEN NULL WHEN s.greatest_date>l.snapshot_date THEN s.greatest_date ELSE l.snapshot_date END window_to
+FROM live l JOIN dbo.v_service_families r ON r.report_code=l.report_code
+LEFT JOIN stats s ON s.import_file_id=l.import_file_id AND s.report_code=l.report_code
+WHERE l.snapshot_date IS NOT NULL');
+
+-- 1. The refresh log: every live Service reading, with is_latest = 1 for the latest reading of each family. It is
+-- also the StateSnapshot rule (the is_latest reading) and the base of the growth measurement. source_kind is
+-- CONSOLIDATED for a builder workbook named after its code (S009_PendingRepair.xlsx), otherwise RAW.
+EXEC(N'CREATE OR ALTER VIEW dbo.v_service_readings AS
+SELECT w.report_code,w.read_rule,w.snapshot_date,w.window_from,w.window_to,w.import_file_id,w.row_count,
+  COALESCE(b.completed_utc,b.started_utc) imported_utc,
+  CONVERT(varchar(12),CASE WHEN f.original_file_name LIKE ''S[0-9][0-9][0-9][^0-9]%'' THEN ''CONSOLIDATED'' ELSE ''RAW'' END) source_kind,
+  CONVERT(bit,CASE WHEN ROW_NUMBER() OVER(PARTITION BY w.report_code
+    ORDER BY w.snapshot_date DESC,CASE WHEN w.row_count>0 THEN 1 ELSE 0 END DESC,w.import_file_id DESC)=1 THEN 1 ELSE 0 END) is_latest
+FROM dbo.v_service_reading_windows w
+JOIN dbo.import_files f ON f.import_file_id=w.import_file_id
+JOIN dbo.import_batches b ON b.import_batch_id=f.import_batch_id');
+
+-- The DateLog rule: for each family and business date D that any live reading holds, every live reading whose window
+-- contains D, ranked by snapshot date (reading_rank 1 wins, 2 is the next-best covering reading).
+EXEC(N'CREATE OR ALTER VIEW dbo.v_service_datelog_readings AS
+WITH dated AS (
+  SELECT ''S003'' report_code,import_file_id,trans_date business_date FROM dbo.etp_landing_s003 WHERE trans_date IS NOT NULL GROUP BY import_file_id,trans_date
+  UNION ALL SELECT ''S004'',import_file_id,billingdate FROM dbo.etp_landing_s004 WHERE billingdate IS NOT NULL GROUP BY import_file_id,billingdate
+  UNION ALL SELECT ''S007'',import_file_id,grn_date FROM dbo.etp_landing_s007 WHERE grn_date IS NOT NULL GROUP BY import_file_id,grn_date
+  UNION ALL SELECT ''S008'',import_file_id,grn_date FROM dbo.etp_landing_s008 WHERE grn_date IS NOT NULL GROUP BY import_file_id,grn_date
+  UNION ALL SELECT ''S013'',import_file_id,stm_date FROM dbo.etp_landing_s013 WHERE stm_date IS NOT NULL GROUP BY import_file_id,stm_date
+  UNION ALL SELECT ''S019'',import_file_id,repairdate FROM dbo.etp_landing_s019 WHERE repairdate IS NOT NULL GROUP BY import_file_id,repairdate
+  UNION ALL SELECT ''S022'',import_file_id,invoice_date FROM dbo.etp_landing_s022 WHERE invoice_date IS NOT NULL GROUP BY import_file_id,invoice_date
+  UNION ALL SELECT ''S023'',import_file_id,transdate FROM dbo.etp_landing_s023 WHERE transdate IS NOT NULL GROUP BY import_file_id,transdate
+  UNION ALL SELECT ''S024'',import_file_id,transdate FROM dbo.etp_landing_s024 WHERE transdate IS NOT NULL GROUP BY import_file_id,transdate
+  UNION ALL SELECT ''S025'',import_file_id,transdate FROM dbo.etp_landing_s025 WHERE transdate IS NOT NULL GROUP BY import_file_id,transdate
+  UNION ALL SELECT ''S026'',import_file_id,transdate FROM dbo.etp_landing_s026 WHERE transdate IS NOT NULL GROUP BY import_file_id,transdate
+  UNION ALL SELECT ''S029'',import_file_id,repair_date FROM dbo.etp_landing_s029 WHERE repair_date IS NOT NULL GROUP BY import_file_id,repair_date
+  UNION ALL SELECT ''S039'',import_file_id,transaction_date FROM dbo.etp_landing_s039 WHERE transaction_date IS NOT NULL GROUP BY import_file_id,transaction_date
+  UNION ALL SELECT ''S040'',import_file_id,transaction_date FROM dbo.etp_landing_s040 WHERE transaction_date IS NOT NULL GROUP BY import_file_id,transaction_date
+), held AS (
+  SELECT DISTINCT d.report_code,d.business_date
+  FROM dated d JOIN dbo.v_service_reading_windows w ON w.import_file_id=d.import_file_id AND w.report_code=d.report_code
+)
+SELECT h.report_code,h.business_date,w.import_file_id,w.snapshot_date,
+  ROW_NUMBER() OVER(PARTITION BY h.report_code,h.business_date ORDER BY w.snapshot_date DESC,w.import_file_id DESC) reading_rank
+FROM held h JOIN dbo.v_service_reading_windows w ON w.report_code=h.report_code AND w.read_rule=''DateLog''
+  AND h.business_date BETWEEN w.window_from AND w.window_to');
+
+-- Line rows of the ten status views (S014-S018, S031-S035) with the columns the screens use. status_date is the
+-- row's own date for that status (information only): DC wdcdate, IR indentdate, RA wradate, RWR normalrwrdate,
+-- DELIVERED deliverydate, PD and REPAIRED jorepairdate, PR jodate, SRN srnissueddate, SRNINV srnreturndate.
+-- Model is the variant number and product category the cluster id (the status views carry no other model column).
+EXEC(N'CREATE OR ALTER VIEW dbo.v_service_status_view_rows AS
+SELECT ''S014'' report_code,import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),jobordernumber))),N'''') job_order_number,wdcdate status_date,jodate job_date,edd,
+  CONVERT(nvarchar(200),brandname) brand,CONVERT(nvarchar(200),variantnumber) model,CONVERT(nvarchar(200),clusterid) product_category,CONVERT(nvarchar(200),customername) customer_name,sparevalue spare_value,labourcharge labour_charge
+FROM dbo.etp_landing_s014
+UNION ALL SELECT ''S015'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),jobordernumber))),N''''),indentdate,jodate,edd,
+  CONVERT(nvarchar(200),brandname),CONVERT(nvarchar(200),variantnumber),CONVERT(nvarchar(200),clusterid),CONVERT(nvarchar(200),customername),sparevalue,labourcharge
+FROM dbo.etp_landing_s015
+UNION ALL SELECT ''S016'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),jobordernumber))),N''''),wradate,jodate,edd,
+  CONVERT(nvarchar(200),brandname),CONVERT(nvarchar(200),variantnumber),CONVERT(nvarchar(200),clusterid),CONVERT(nvarchar(200),customername),sparevalue,labourcharge
+FROM dbo.etp_landing_s016
+UNION ALL SELECT ''S017'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),jobordernumber))),N''''),normalrwrdate,jodate,edd,
+  CONVERT(nvarchar(200),brandname),CONVERT(nvarchar(200),variantnumber),CONVERT(nvarchar(200),clusterid),CONVERT(nvarchar(200),customername),sparevalue,labourcharge
+FROM dbo.etp_landing_s017
+UNION ALL SELECT ''S018'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),jobordernumber))),N''''),deliverydate,jodate,edd,
+  CONVERT(nvarchar(200),brandname),CONVERT(nvarchar(200),variantnumber),CONVERT(nvarchar(200),clusterid),CONVERT(nvarchar(200),customername),sparevalue,labourcharge
+FROM dbo.etp_landing_s018
+UNION ALL SELECT ''S031'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),jobordernumber))),N''''),jorepairdate,jodate,edd,
+  CONVERT(nvarchar(200),brandname),CONVERT(nvarchar(200),variantnumber),CONVERT(nvarchar(200),clusterid),CONVERT(nvarchar(200),customername),sparevalue,labourcharge
+FROM dbo.etp_landing_s031
+UNION ALL SELECT ''S032'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),jobordernumber))),N''''),jodate,jodate,edd,
+  CONVERT(nvarchar(200),brandname),CONVERT(nvarchar(200),variantnumber),CONVERT(nvarchar(200),clusterid),CONVERT(nvarchar(200),customername),sparevalue,labourcharge
+FROM dbo.etp_landing_s032
+UNION ALL SELECT ''S033'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),jobordernumber))),N''''),srnissueddate,jodate,edd,
+  CONVERT(nvarchar(200),brandname),CONVERT(nvarchar(200),variantnumber),CONVERT(nvarchar(200),clusterid),CONVERT(nvarchar(200),customername),sparevalue,labourcharge
+FROM dbo.etp_landing_s033
+UNION ALL SELECT ''S034'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),jobordernumber))),N''''),jorepairdate,jodate,edd,
+  CONVERT(nvarchar(200),brandname),CONVERT(nvarchar(200),variantnumber),CONVERT(nvarchar(200),clusterid),CONVERT(nvarchar(200),customername),sparevalue,labourcharge
+FROM dbo.etp_landing_s034
+UNION ALL SELECT ''S035'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),jobordernumber))),N''''),srnreturndate,jodate,edd,
+  CONVERT(nvarchar(200),brandname),CONVERT(nvarchar(200),variantnumber),CONVERT(nvarchar(200),clusterid),CONVERT(nvarchar(200),customername),sparevalue,labourcharge
+FROM dbo.etp_landing_s035');
+
+-- 2. One row per (job, family, reading) for every JobList family and for S009/S010, mapping each family's own job
+-- column; the base of the job status, pending and event views. status_date is the family's own date for the job
+-- (S002/S036/S037 created_date, S011 srn_date, S012 srnrepaireddate, S020 radate, S021 dcdate, S030
+-- running_test_date, S009/S010 jodate, the status views as above); line_count counts its line rows.
+EXEC(N'CREATE OR ALTER VIEW dbo.v_service_job_readings AS
+WITH job_rows AS (
+  SELECT report_code,import_file_id,job_order_number,status_date FROM dbo.v_service_status_view_rows
+  UNION ALL SELECT ''S002'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),job_order_no))),N''''),created_date FROM dbo.etp_landing_s002
+  UNION ALL SELECT ''S009'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),jonumber))),N''''),jodate FROM dbo.etp_landing_s009
+  UNION ALL SELECT ''S010'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),jonumber))),N''''),jodate FROM dbo.etp_landing_s010
+  UNION ALL SELECT ''S011'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),joborder_number))),N''''),srn_date FROM dbo.etp_landing_s011
+  UNION ALL SELECT ''S012'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),jonumber))),N''''),srnrepaireddate FROM dbo.etp_landing_s012
+  UNION ALL SELECT ''S020'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),jobordernumber))),N''''),radate FROM dbo.etp_landing_s020
+  UNION ALL SELECT ''S021'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),jobordernumber))),N''''),dcdate FROM dbo.etp_landing_s021
+  UNION ALL SELECT ''S030'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),job_order_number))),N''''),running_test_date FROM dbo.etp_landing_s030
+  UNION ALL SELECT ''S036'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),job_order_no))),N''''),created_date FROM dbo.etp_landing_s036
+  UNION ALL SELECT ''S037'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),job_order_no))),N''''),created_date FROM dbo.etp_landing_s037
+)
+SELECT j.job_order_number,j.report_code,w.snapshot_date,j.import_file_id,
+  MIN(j.status_date) first_status_date,MAX(j.status_date) status_date,COUNT_BIG(*) line_count
+FROM job_rows j JOIN dbo.v_service_reading_windows w ON w.import_file_id=j.import_file_id AND w.report_code=j.report_code
+WHERE j.job_order_number IS NOT NULL
+GROUP BY j.job_order_number,j.report_code,w.snapshot_date,j.import_file_id');
+
+-- 3. One row per job: its current status among the ten status views under the JobList rule. Per view, the job's
+-- winning reading is the latest reading that holds it; the current status is the view whose winning reading is
+-- latest, a tie broken by the lifecycle rank (the later stage wins). Raw status exports are period-filtered event
+-- lists and consolidated views their accumulated union; both mean "the job reached this status", so the latest wins.
+-- Money is summed over the job's line rows in the winning reading; other_lists counts the other status views that
+-- ever held the job.
+EXEC(N'CREATE OR ALTER VIEW dbo.v_service_job_status_current AS
+WITH per_view AS (
+  SELECT r.job_order_number,r.report_code,r.snapshot_date,r.import_file_id,r.status_date,
+    ROW_NUMBER() OVER(PARTITION BY r.job_order_number,r.report_code ORDER BY r.snapshot_date DESC,r.import_file_id DESC) view_rank
+  FROM dbo.v_service_job_readings r JOIN dbo.v_service_families c ON c.report_code=r.report_code AND c.status_label IS NOT NULL
+), winners AS (
+  SELECT p.job_order_number,p.report_code,p.snapshot_date,p.import_file_id,p.status_date,c.status_label,c.lifecycle_rank,
+    COUNT(*) OVER(PARTITION BY p.job_order_number) views_held,
+    ROW_NUMBER() OVER(PARTITION BY p.job_order_number ORDER BY p.snapshot_date DESC,c.lifecycle_rank DESC,p.import_file_id DESC) job_rank
+  FROM per_view p JOIN dbo.v_service_families c ON c.report_code=p.report_code
+  WHERE p.view_rank=1
+), details AS (
+  SELECT s.report_code,s.import_file_id,s.job_order_number,MIN(s.job_date) job_date,MAX(s.edd) edd,MAX(s.brand) brand,
+    MAX(s.model) model,MAX(s.product_category) product_category,MAX(s.customer_name) customer_name,
+    SUM(s.spare_value) spare_value,SUM(s.labour_charge) labour_charge,COUNT_BIG(*) line_count
+  FROM dbo.v_service_status_view_rows s
+  WHERE s.job_order_number IS NOT NULL
+  GROUP BY s.report_code,s.import_file_id,s.job_order_number
+)
+SELECT w.job_order_number,w.report_code status_view,w.status_label,w.lifecycle_rank,w.status_date,
+  d.job_date,d.edd,d.brand,d.model,d.product_category,d.customer_name,d.spare_value,d.labour_charge,
+  CONVERT(int,d.line_count) lines,w.snapshot_date,w.import_file_id,CONVERT(int,w.views_held-1) other_lists
+FROM winners w JOIN details d ON d.report_code=w.report_code AND d.import_file_id=w.import_file_id
+  AND d.job_order_number=w.job_order_number
+WHERE w.job_rank=1');
+
+-- 4. Pending lists: S009 (Pending repair) and S010 (Pending delivery) under the StateSnapshot rule (the is_latest
+-- reading), plus S011 (SRN status) under the JobList rule. One row per job; age_days = snapshot date - job date.
+-- S011 has no model column, and its pending store is to_store (where the SRN went).
+-- S011 keeps the JobList rule (ServicePendingLists.SrnStatus: latest reading per job) because S011 is a period
+-- export: a raw S011 lists only the SRNs of its own window, so restricting it to the latest reading would drop open
+-- SRNs of earlier windows. An SRN that a later reading no longer holds therefore stays listed with its own snapshot
+-- date. Reading closure from the row itself (to_status, srn_received_date) needs a decided rule; it is open to the
+-- coordinator.
+EXEC(N'CREATE OR ALTER VIEW dbo.v_service_pending_current AS
+WITH state_rows AS (
+  SELECT ''S009'' report_code,import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),jonumber))),N'''') job_order_number,jodate job_date,CONVERT(nvarchar(200),brand) brand,
+    CONVERT(nvarchar(200),variantnumber) model,CONVERT(nvarchar(200),customername) customer_name,CONVERT(nvarchar(200),pendingstore) pending_store
+  FROM dbo.etp_landing_s009
+  UNION ALL SELECT ''S010'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),jonumber))),N''''),jodate,CONVERT(nvarchar(200),brand),
+    CONVERT(nvarchar(200),variantnumber),CONVERT(nvarchar(200),customername),CONVERT(nvarchar(200),pendingstore)
+  FROM dbo.etp_landing_s010
+), state_lists AS (
+  SELECT s.report_code,s.job_order_number,MIN(s.job_date) job_date,MAX(s.brand) brand,MAX(s.model) model,
+    MAX(s.customer_name) customer_name,MAX(s.pending_store) pending_store,r.snapshot_date,r.import_file_id
+  FROM state_rows s JOIN dbo.v_service_readings r ON r.import_file_id=s.import_file_id AND r.report_code=s.report_code AND r.is_latest=1
+  WHERE s.job_order_number IS NOT NULL
+  GROUP BY s.report_code,s.job_order_number,r.snapshot_date,r.import_file_id
+), srn_winners AS (
+  SELECT job_order_number,snapshot_date,import_file_id,
+    ROW_NUMBER() OVER(PARTITION BY job_order_number ORDER BY snapshot_date DESC,import_file_id DESC) job_rank
+  FROM dbo.v_service_job_readings WHERE report_code=''S011''
+), srn_lists AS (
+  SELECT ''S011'' report_code,w.job_order_number,MIN(s.joborder_date) job_date,MAX(CONVERT(nvarchar(200),s.brand)) brand,
+    CONVERT(nvarchar(200),NULL) model,MAX(CONVERT(nvarchar(200),s.customer_name)) customer_name,MAX(CONVERT(nvarchar(200),s.to_store)) pending_store,
+    w.snapshot_date,w.import_file_id
+  FROM srn_winners w JOIN dbo.etp_landing_s011 s ON s.import_file_id=w.import_file_id
+    AND NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),s.joborder_number))),N'''')=w.job_order_number
+  WHERE w.job_rank=1
+  GROUP BY w.job_order_number,w.snapshot_date,w.import_file_id
+), lists AS (
+  SELECT * FROM state_lists UNION ALL SELECT * FROM srn_lists
+)
+SELECT f.pending_list [list],l.report_code,f.list_label,l.job_order_number,l.job_date,
+  CASE WHEN l.job_date IS NULL THEN NULL ELSE DATEDIFF(day,l.job_date,l.snapshot_date) END age_days,
+  l.brand,l.model,l.customer_name,l.pending_store,l.snapshot_date,l.import_file_id
+FROM lists l JOIN dbo.v_service_families f ON f.report_code=l.report_code');
+
+-- 5. Job list events, information only (nothing is written). State lists S009/S010: each reading is compared with the
+-- previous reading of the same list (every live reading date counts, an empty one too): FirstSeen, Reappeared,
+-- LeftList (dated at the first reading without the job; previous_snapshot_date keeps the last reading with it) and
+-- StillListed (held by the latest reading). JobList families, per (job, family), with the family's own status dates:
+-- FirstSeen at the first reading holding the job; then StillListed when the family's latest reading still holds it
+-- (and an earlier one did), or LeftList dated at the family's first reading after the last one holding it
+-- (previous_snapshot_date keeps that last reading). A raw status export lists only its own window, so LeftList there
+-- means "no later reading of the family holds the job", never that the job is still on the list.
+-- This is the rule "a job leaving a list is history".
+EXEC(N'CREATE OR ALTER VIEW dbo.v_service_job_list_events AS
+WITH state_dates AS (
+  SELECT d.report_code,d.snapshot_date,
+    DENSE_RANK() OVER(PARTITION BY d.report_code ORDER BY d.snapshot_date) reading_seq,
+    COUNT(*) OVER(PARTITION BY d.report_code) reading_count
+  FROM (SELECT DISTINCT report_code,snapshot_date FROM dbo.v_service_reading_windows WHERE report_code IN(''S009'',''S010'')) d
+), presence AS (
+  SELECT r.report_code,r.job_order_number,d.reading_seq,d.reading_count,d.snapshot_date,MAX(r.status_date) status_date
+  FROM dbo.v_service_job_readings r JOIN state_dates d ON d.report_code=r.report_code AND d.snapshot_date=r.snapshot_date
+  GROUP BY r.report_code,r.job_order_number,d.reading_seq,d.reading_count,d.snapshot_date
+), sequenced AS (
+  SELECT p.*,
+    LAG(p.reading_seq) OVER(PARTITION BY p.report_code,p.job_order_number ORDER BY p.reading_seq) previous_seq,
+    LAG(p.snapshot_date) OVER(PARTITION BY p.report_code,p.job_order_number ORDER BY p.reading_seq) previous_seen,
+    LEAD(p.reading_seq) OVER(PARTITION BY p.report_code,p.job_order_number ORDER BY p.reading_seq) next_seq
+  FROM presence p
+), state_events AS (
+  SELECT s.job_order_number,s.report_code,CONVERT(varchar(12),CASE WHEN s.previous_seq IS NULL THEN ''FirstSeen'' ELSE ''Reappeared'' END) event_kind,
+    s.snapshot_date,s.previous_seen previous_snapshot_date,s.status_date
+  FROM sequenced s WHERE s.previous_seq IS NULL OR s.previous_seq<s.reading_seq-1
+  UNION ALL
+  SELECT s.job_order_number,s.report_code,''LeftList'',n.snapshot_date,s.snapshot_date,s.status_date
+  FROM sequenced s JOIN state_dates n ON n.report_code=s.report_code AND n.reading_seq=s.reading_seq+1
+  WHERE s.next_seq IS NULL OR s.next_seq>s.reading_seq+1
+  UNION ALL
+  SELECT s.job_order_number,s.report_code,''StillListed'',s.snapshot_date,s.previous_seen,s.status_date
+  FROM sequenced s WHERE s.reading_seq=s.reading_count AND s.previous_seq=s.reading_seq-1
+), job_spans AS (
+  SELECT r.job_order_number,r.report_code,MIN(r.snapshot_date) first_seen,MAX(r.snapshot_date) last_seen,
+    MIN(r.first_status_date) first_status_date,MAX(r.status_date) last_status_date
+  FROM dbo.v_service_job_readings r JOIN dbo.v_service_families f ON f.report_code=r.report_code AND f.read_rule=''JobList''
+  GROUP BY r.job_order_number,r.report_code
+), list_dates AS (
+  SELECT w.report_code,MAX(w.snapshot_date) latest_date
+  FROM dbo.v_service_reading_windows w WHERE w.read_rule=''JobList''
+  GROUP BY w.report_code
+), events AS (
+  SELECT * FROM state_events
+  UNION ALL
+  SELECT job_order_number,report_code,''FirstSeen'',first_seen,CONVERT(date,NULL),first_status_date FROM job_spans
+  UNION ALL
+  SELECT j.job_order_number,j.report_code,''StillListed'',j.last_seen,j.first_seen,j.last_status_date
+  FROM job_spans j JOIN list_dates d ON d.report_code=j.report_code
+  WHERE j.last_seen=d.latest_date AND j.last_seen>j.first_seen
+  UNION ALL
+  SELECT j.job_order_number,j.report_code,''LeftList'',n.next_date,j.last_seen,j.last_status_date
+  FROM job_spans j CROSS APPLY (SELECT MIN(w.snapshot_date) next_date FROM dbo.v_service_reading_windows w
+    WHERE w.report_code=j.report_code AND w.snapshot_date>j.last_seen) n
+  WHERE n.next_date IS NOT NULL
+)
+SELECT e.job_order_number,e.report_code,f.list_label,e.event_kind,e.snapshot_date,e.previous_snapshot_date,e.status_date
+FROM events e JOIN dbo.v_service_families f ON f.report_code=e.report_code');
+
+-- 6. S004 tender collection under the DateLog rule (BillingDate): the amount per date and tender of the winning
+-- reading. Tenders: CASH cashamount, CARD cardamount, UPI upi + bharatpe + phonepe (UPI apps; phonepe is typed
+-- Identifier in the spec, so it is read with TRY_CONVERT), CHEQUE chequeamount, RTGS rtgsamount, ADVANCE advanceamount.
+-- totalamount is not a tender; v_service_money_changes uses it.
+EXEC(N'CREATE OR ALTER VIEW dbo.v_service_s004_daily AS
+WITH winning AS (
+  SELECT r.billingdate business_date,w.snapshot_date,w.import_file_id,r.cashamount,r.cardamount,r.upi,r.bharatpe,
+    TRY_CONVERT(decimal(19,4),REPLACE(CONVERT(nvarchar(60),r.phonepe),N'','',N'''')) phonepe,
+    r.chequeamount,r.rtgsamount,r.advanceamount
+  FROM dbo.etp_landing_s004 r JOIN dbo.v_service_datelog_readings w ON w.report_code=''S004'' AND w.reading_rank=1
+    AND w.import_file_id=r.import_file_id AND w.business_date=r.billingdate
+)
+SELECT x.business_date,t.tender,SUM(t.amount) amount,CONVERT(int,COUNT_BIG(*)) row_count,MAX(x.snapshot_date) snapshot_date,MAX(x.import_file_id) import_file_id
+FROM winning x CROSS APPLY (VALUES
+  (''CASH'',x.cashamount),(''CARD'',x.cardamount),
+  (''UPI'',CASE WHEN x.upi IS NULL AND x.bharatpe IS NULL AND x.phonepe IS NULL THEN NULL ELSE COALESCE(x.upi,0)+COALESCE(x.bharatpe,0)+COALESCE(x.phonepe,0) END),
+  (''CHEQUE'',x.chequeamount),(''RTGS'',x.rtgsamount),(''ADVANCE'',x.advanceamount)
+) t(tender,amount)
+GROUP BY x.business_date,t.tender');
+
+-- 7. Money changes, S003 and S004: per business date, the total of the winning reading against the total of the
+-- previous one. The previous reading is the one the winning reading restated (Restate at the same snapshot date: the
+-- superseded import file, whose landing rows are kept) when its window covers the date, otherwise the next-best
+-- covering live reading. Only dates whose total changed are listed; this is how a restated money row reaches the
+-- Owner in the interim (the Service money screen), never as a review item.
+-- Totals: S003 netamount_incl_tax (GST inclusive, as decision D1 for Retail), S004 totalamount. A covering reading
+-- with no row on the date counts as 0.
+EXEC(N'CREATE OR ALTER VIEW dbo.v_service_money_changes AS
+WITH ranked AS (
+  SELECT report_code,business_date,import_file_id,snapshot_date,reading_rank
+  FROM dbo.v_service_datelog_readings WHERE report_code IN(''S003'',''S004'') AND reading_rank<=2
+), amounts AS (
+  SELECT ''S003'' report_code,import_file_id,trans_date business_date,SUM(netamount_incl_tax) amount
+  FROM dbo.etp_landing_s003 WHERE trans_date IS NOT NULL GROUP BY import_file_id,trans_date
+  UNION ALL
+  SELECT ''S004'',import_file_id,billingdate,SUM(totalamount)
+  FROM dbo.etp_landing_s004 WHERE billingdate IS NOT NULL GROUP BY import_file_id,billingdate
+), restated AS (
+  SELECT f.superseded_by_import_file_id current_import_file_id,f.import_file_id,f.report_code,
+    COALESCE(f.period_end,f.business_date) snapshot_date,MIN(a.business_date) window_from,MAX(a.business_date) greatest_date
+  FROM dbo.import_files f JOIN dbo.import_batches b ON b.import_batch_id=f.import_batch_id
+  JOIN amounts a ON a.report_code=f.report_code AND a.import_file_id=f.import_file_id
+  WHERE f.is_superseded=1 AND f.data_truth_version=1 AND b.status=''Completed'' AND f.report_code IN(''S003'',''S004'')
+    AND COALESCE(f.period_end,f.business_date) IS NOT NULL
+  GROUP BY f.superseded_by_import_file_id,f.import_file_id,f.report_code,COALESCE(f.period_end,f.business_date)
+), previous AS (
+  SELECT c.report_code,c.business_date,c.import_file_id current_import_file_id,c.snapshot_date current_snapshot_date,
+    COALESCE(x.import_file_id,p.import_file_id) import_file_id,COALESCE(x.snapshot_date,p.snapshot_date) snapshot_date
+  FROM ranked c
+  LEFT JOIN ranked p ON p.report_code=c.report_code AND p.business_date=c.business_date AND p.reading_rank=2
+  OUTER APPLY (SELECT TOP (1) r.import_file_id,r.snapshot_date FROM restated r
+    WHERE r.current_import_file_id=c.import_file_id AND r.report_code=c.report_code
+      AND c.business_date BETWEEN r.window_from AND CASE WHEN r.greatest_date>r.snapshot_date THEN r.greatest_date ELSE r.snapshot_date END
+    ORDER BY r.import_file_id DESC) x
+  WHERE c.reading_rank=1 AND (x.import_file_id IS NOT NULL OR p.import_file_id IS NOT NULL)
+), pairs AS (
+  SELECT v.report_code,v.business_date,v.snapshot_date previous_snapshot_date,v.import_file_id previous_import_file_id,
+    COALESCE(pa.amount,0) previous_amount,v.current_snapshot_date,v.current_import_file_id,
+    COALESCE(ca.amount,0) current_amount
+  FROM previous v
+  LEFT JOIN amounts ca ON ca.report_code=v.report_code AND ca.import_file_id=v.current_import_file_id AND ca.business_date=v.business_date
+  LEFT JOIN amounts pa ON pa.report_code=v.report_code AND pa.import_file_id=v.import_file_id AND pa.business_date=v.business_date
+)
+SELECT report_code,business_date,previous_snapshot_date,previous_import_file_id,previous_amount,
+  current_snapshot_date,current_import_file_id,current_amount,current_amount-previous_amount difference
+FROM pairs WHERE current_amount<>previous_amount');
+
+-- Read access as 0041 grants it (0022 already grants SELECT ON SCHEMA::dbo); no role may write through a view.
+GRANT SELECT ON dbo.v_service_families TO etp_viewer,etp_store_manager,etp_owner;
+DENY INSERT,UPDATE,DELETE ON dbo.v_service_families TO etp_store_manager,etp_viewer;
+GRANT SELECT ON dbo.v_service_reading_windows TO etp_viewer,etp_store_manager,etp_owner;
+DENY INSERT,UPDATE,DELETE ON dbo.v_service_reading_windows TO etp_store_manager,etp_viewer;
+GRANT SELECT ON dbo.v_service_readings TO etp_viewer,etp_store_manager,etp_owner;
+DENY INSERT,UPDATE,DELETE ON dbo.v_service_readings TO etp_store_manager,etp_viewer;
+GRANT SELECT ON dbo.v_service_datelog_readings TO etp_viewer,etp_store_manager,etp_owner;
+DENY INSERT,UPDATE,DELETE ON dbo.v_service_datelog_readings TO etp_store_manager,etp_viewer;
+GRANT SELECT ON dbo.v_service_status_view_rows TO etp_viewer,etp_store_manager,etp_owner;
+DENY INSERT,UPDATE,DELETE ON dbo.v_service_status_view_rows TO etp_store_manager,etp_viewer;
+GRANT SELECT ON dbo.v_service_job_readings TO etp_viewer,etp_store_manager,etp_owner;
+DENY INSERT,UPDATE,DELETE ON dbo.v_service_job_readings TO etp_store_manager,etp_viewer;
+GRANT SELECT ON dbo.v_service_job_status_current TO etp_viewer,etp_store_manager,etp_owner;
+DENY INSERT,UPDATE,DELETE ON dbo.v_service_job_status_current TO etp_store_manager,etp_viewer;
+GRANT SELECT ON dbo.v_service_pending_current TO etp_viewer,etp_store_manager,etp_owner;
+DENY INSERT,UPDATE,DELETE ON dbo.v_service_pending_current TO etp_store_manager,etp_viewer;
+GRANT SELECT ON dbo.v_service_job_list_events TO etp_viewer,etp_store_manager,etp_owner;
+DENY INSERT,UPDATE,DELETE ON dbo.v_service_job_list_events TO etp_store_manager,etp_viewer;
+GRANT SELECT ON dbo.v_service_s004_daily TO etp_viewer,etp_store_manager,etp_owner;
+DENY INSERT,UPDATE,DELETE ON dbo.v_service_s004_daily TO etp_store_manager,etp_viewer;
+GRANT SELECT ON dbo.v_service_money_changes TO etp_viewer,etp_store_manager,etp_owner;
+DENY INSERT,UPDATE,DELETE ON dbo.v_service_money_changes TO etp_store_manager,etp_viewer;
 -- <<< C_SERVICE_READ end
