@@ -67,11 +67,27 @@ public static class DatabaseRecoveryPresentation
             new("Last verified recovery drill",
                 Describe(health.LastSuccessfulRecoveryDrillUtc, thresholds.MaximumRecoveryDrillAge, utcNow),
                 Fingerprint(health.LastSuccessfulRecoveryDrillSha256, "No verified recovery drill has been recorded.")),
-
-            new("Failed imports, last 24 hours",
-                health.FailedImportsLast24Hours.ToString("N0", CultureInfo.CurrentCulture),
-                health.FailedImportsLast24Hours == 0 ? "None" : "Open Import, then Problems, to see them.")
         };
+
+        // A4.4. The latest drill, passed or failed, and its four row-count pairs. A drill that
+        // passed without counts says why in its detail; it is never shown as a plain pass.
+        var drill = health.LatestRecoveryDrillResult;
+        lines.Add(new("Latest recovery drill result",
+            RecoveryDrillResultText.Status(drill),
+            drill is null
+                ? RecoveryDrillResultText.Summary(null)
+                : drill.CompletedUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm", CultureInfo.CurrentCulture) + ". " + RecoveryDrillResultText.Summary(drill)));
+        if (drill is not null)
+        {
+            foreach (var count in drill.RowCounts)
+                lines.Add(new($"Drill row count, {count.Table}",
+                    count.Matches ? "Matched" : "Differs",
+                    $"Backup receipt {RecoveryDrillResultText.Number(count.Receipt)}; restored copy {RecoveryDrillResultText.Number(count.Restored)}"));
+        }
+
+        lines.Add(new("Failed imports, last 24 hours",
+            health.FailedImportsLast24Hours.ToString("N0", CultureInfo.CurrentCulture),
+            health.FailedImportsLast24Hours == 0 ? "None" : "Open Import, then Problems, to see them."));
 
         foreach (var warning in health.Warnings)
             lines.Add(new("Warning", warning.Severity.ToString(), warning.Message));

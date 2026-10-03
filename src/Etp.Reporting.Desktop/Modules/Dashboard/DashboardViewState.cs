@@ -23,6 +23,7 @@ public sealed record DashboardHealthSnapshot(
     public string? LastSuccessfulBackupSha256 { get; init; }
     public DateTime? LastSuccessfulRecoveryDrillUtc { get; init; }
     public string? LastSuccessfulRecoveryDrillSha256 { get; init; }
+    public string? LatestRecoveryDrillSummary { get; init; }
 }
 
 public sealed record DashboardChartItem(string ReportCode, long SourceRows);
@@ -54,6 +55,8 @@ public sealed record DashboardViewState(
     public string LatestBackupSha256 { get; init; } = "Unavailable";
     public string LatestRecoveryDrill { get; init; } = "Missing";
     public string LatestRecoveryDrillSha256 { get; init; } = "Unavailable";
+    // A4.4. Passed or failed, with the four row-count pairs or the reason there are none.
+    public string LatestRecoveryDrillResult { get; init; } = "No recovery drill result has been recorded.";
 
     public static DashboardViewState FromSnapshot(EtpApplication::Etp.Reporting.Application.Dashboard.DashboardSnapshot snapshot)
     {
@@ -70,7 +73,8 @@ public sealed record DashboardViewState(
         {
             LastSuccessfulBackupSha256 = snapshot.Health.LastSuccessfulBackupSha256,
             LastSuccessfulRecoveryDrillUtc = snapshot.Health.LastSuccessfulRecoveryDrillUtc,
-            LastSuccessfulRecoveryDrillSha256 = snapshot.Health.LastSuccessfulRecoveryDrillSha256
+            LastSuccessfulRecoveryDrillSha256 = snapshot.Health.LastSuccessfulRecoveryDrillSha256,
+            LatestRecoveryDrillSummary = snapshot.Health.LatestRecoveryDrillSummary
         };
         return Create(
             snapshot.ImportedFiles,
@@ -125,14 +129,17 @@ public sealed record DashboardViewState(
         {
             LatestBackupSha256 = FormatVerificationHash(health.LastSuccessfulBackupSha256),
             LatestRecoveryDrill = health.LastSuccessfulRecoveryDrillUtc?.ToString("dd MMM yyyy HH:mm") ?? "Missing",
-            LatestRecoveryDrillSha256 = FormatVerificationHash(health.LastSuccessfulRecoveryDrillSha256)
+            LatestRecoveryDrillSha256 = FormatVerificationHash(health.LastSuccessfulRecoveryDrillSha256),
+            LatestRecoveryDrillResult = string.IsNullOrWhiteSpace(health.LatestRecoveryDrillSummary)
+                ? "No recovery drill result has been recorded."
+                : health.LatestRecoveryDrillSummary
         };
     }
 
     public static DashboardViewState Error(string message, DashboardViewState? previous = null) => new(
         "-", "-", "-", "Unavailable", previous?.RecentImports ?? [], previous?.ImportedRowsByReport ?? [],
         "Unavailable", DashboardHealthTone.Critical, "Unavailable", "Unavailable", "Unavailable", "Unavailable",
-        [], [], message) { LatestRecoveryDrill = "Unavailable" };
+        [], [], message) { LatestRecoveryDrill = "Unavailable", LatestRecoveryDrillResult = "Unavailable" };
 
     private static string FormatVerificationHash(string? hash) =>
         hash is { Length: 64 } && hash.All(char.IsAsciiHexDigit) ? hash.ToUpperInvariant() : "Unavailable";

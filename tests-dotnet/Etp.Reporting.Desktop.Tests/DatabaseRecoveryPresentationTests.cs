@@ -97,4 +97,56 @@ public sealed class DatabaseRecoveryPresentationTests
     [Fact]
     public void Free_space_reads_Missing_when_the_backup_folder_cannot_be_read()
         => Assert.Equal("Missing", StatusOf(Health(freeSpace: null), "Backup folder free space"));
+
+    // ------------------------------------------------------------ A4.4 drill row counts
+
+    private static RecoveryDrillResult Drill(bool succeeded, string status, string? reason, params RecoveryDrillRowCount[] counts) =>
+        new(Now.AddHours(-1), succeeded, new string('a', 64), status, reason, counts);
+
+    private static IReadOnlyList<DatabaseRecoveryLine> LinesWith(RecoveryDrillResult? drill) =>
+        DatabaseRecoveryPresentation.Lines(Health() with { LatestRecoveryDrillResult = drill }, Thresholds, Now);
+
+    [Fact]
+    public void No_drill_result_reads_Missing()
+    {
+        var line = LinesWith(null).Single(x => x.Item == "Latest recovery drill result");
+        Assert.Equal("Missing", line.Status);
+        Assert.DoesNotContain(LinesWith(null), x => x.Item.StartsWith("Drill row count", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void A_passed_drill_shows_the_four_row_count_pairs()
+    {
+        var lines = LinesWith(Drill(true, "Matched", null,
+            new("sales_invoices", 1200, 1200), new("sales_lines", 5400, 5400), new("import_files", 30, 30), new("daily_reporting_days", 61, 61)));
+        Assert.Equal("Passed", lines.Single(x => x.Item == "Latest recovery drill result").Status);
+        var pairs = lines.Where(x => x.Item.StartsWith("Drill row count, ", StringComparison.Ordinal)).ToArray();
+        Assert.Equal(["Drill row count, sales_invoices", "Drill row count, sales_lines", "Drill row count, import_files", "Drill row count, daily_reporting_days"],
+            pairs.Select(x => x.Item));
+        Assert.All(pairs, x => Assert.Equal("Matched", x.Status));
+        Assert.Equal("Backup receipt 5,400; restored copy 5,400", pairs[1].Detail);
+    }
+
+    [Fact]
+    public void A_failed_drill_shows_Failed_and_marks_the_table_that_differs()
+    {
+        var lines = LinesWith(Drill(false, "Mismatch", null,
+            new("sales_invoices", 1200, 1200), new("sales_lines", 5401, 5400), new("import_files", 30, 30), new("daily_reporting_days", 61, 61)));
+        var result = lines.Single(x => x.Item == "Latest recovery drill result");
+        Assert.Equal("Failed", result.Status);
+        Assert.Contains("sales_lines receipt 5,401, restored copy 5,400", result.Detail, StringComparison.Ordinal);
+        var salesLines = lines.Single(x => x.Item == "Drill row count, sales_lines");
+        Assert.Equal("Differs", salesLines.Status);
+        Assert.Equal("Backup receipt 5,401; restored copy 5,400", salesLines.Detail);
+        Assert.Equal("Matched", lines.Single(x => x.Item == "Drill row count, sales_invoices").Status);
+    }
+
+    [Fact]
+    public void A_drill_that_had_no_counts_to_compare_says_why()
+    {
+        var line = LinesWith(Drill(true, "NotRecorded", "OPERATIONS_MODULE_OUTDATED")).Single(x => x.Item == "Latest recovery drill result");
+        Assert.Equal("Passed", line.Status);
+        Assert.Contains("row counts were not recorded by this backup", line.Detail, StringComparison.Ordinal);
+        Assert.Contains("older than 1.9.3", line.Detail, StringComparison.Ordinal);
+    }
 }

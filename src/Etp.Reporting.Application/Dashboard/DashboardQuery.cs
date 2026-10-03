@@ -30,6 +30,9 @@ public sealed record DashboardHealth(
     public string? LastSuccessfulBackupSha256 { get; init; }
     public DateTime? LastSuccessfulRecoveryDrillUtc { get; init; }
     public string? LastSuccessfulRecoveryDrillSha256 { get; init; }
+
+    /// <summary>A4.4. The latest recovery drill result in words, passed or failed, with its row counts; null when none is recorded.</summary>
+    public string? LatestRecoveryDrillSummary { get; init; }
 }
 
 public sealed record DashboardAuditEvent(

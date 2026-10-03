@@ -369,8 +369,10 @@ public sealed class RestoreDatabaseScriptTests
     public async Task Broker_only_install_never_alters_an_existing_broker()
     {
         // CREATE OR ALTER on a signed broker would silently drop the signature the automation
-        // account's backups depend on. -BrokerOnly must create it only where it is missing,
-        // and never go on to the grants.
+        // account's backups depend on. -BrokerOnly must create it only where it is missing -
+        // or, since 1.9.3, replace an unsigned one from an earlier build, which has no
+        // signature to lose (Get-EtpBrokerOnlyAction never answers Replace for a signed one;
+        // RecoveryDrillRowCountScriptTests) - and never go on to the grants.
         var script = FindScript("install-etp-sql-operations.ps1").Replace("'", "''");
         var command = $$"""
             $ErrorActionPreference = 'Stop'
@@ -385,10 +387,11 @@ public sealed class RestoreDatabaseScriptTests
             $guarded = $false
             $parent = $creates[0].Parent
             while ($null -ne $parent -and -not [object]::ReferenceEquals($parent, $clause)) {
-                if ($parent -is [System.Management.Automation.Language.IfStatementAst] -and $parent.Clauses[0].Item1.Extent.Text -match '\$missing') { $guarded = $true }
+                if ($parent -is [System.Management.Automation.Language.IfStatementAst] -and $parent.Clauses[0].Item1.Extent.Text -ceq '$brokerAction -ceq ''Install'' -or $brokerAction -ceq ''Replace''') { $guarded = $true }
                 $parent = $parent.Parent
             }
-            if (-not $guarded) { throw 'The broker is created without first finding it missing.' }
+            if (-not $guarded) { throw 'The broker is created without first finding it missing or unsigned and outdated.' }
+            if (@($clause.FindAll({ param($node) $node -is [System.Management.Automation.Language.CommandAst] -and $node.GetCommandName() -eq 'Get-EtpBrokerOnlyAction' }, $true)).Count -ne 1) { throw 'The -BrokerOnly branch does not decide with Get-EtpBrokerOnlyAction.' }
             $grantsInBranch = @($clause.FindAll({ param($node) $node -is [System.Management.Automation.Language.VariableExpressionAst] -and $node.VariablePath.UserPath -eq 'grants' }, $true))
             if ($grantsInBranch.Count -ne 0) { throw 'The -BrokerOnly branch reaches the grants.' }
             $last = $clause.Statements[$clause.Statements.Count - 1]

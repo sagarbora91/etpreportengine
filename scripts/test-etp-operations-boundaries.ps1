@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory)]
-    [ValidateSet('TargetAliases','BackupReceipts','CertificateCustody','CertificateBinding','Retention','Paths','ProtectedInstall','ProtectedInstallLayouts','AtomicReceipts')]
+    [ValidateSet('TargetAliases','BackupReceipts','CertificateCustody','CertificateBinding','Retention','Paths','ProtectedInstall','ProtectedInstallLayouts','AtomicReceipts','RowCountReceipts')]
     [string]$Scenario
 )
 $ErrorActionPreference = 'Stop'
@@ -596,6 +596,63 @@ try {
             Write-EtpJsonAtomically $path @{ generation='replacement' } -Replace
             Assert-True ((Get-Content -LiteralPath $path -Raw | ConvertFrom-Json).generation -eq 'replacement') 'Atomic receipt replacement failed.'
             Assert-True (@(Get-ChildItem -LiteralPath $temporaryRoot -Filter '*.tmp').Count -eq 0) 'A temporary receipt was left behind.'
+        }
+        RowCountReceipts {
+            # A4.4 / A4.4a (1.9.3). A real receipt with row counts, written the way the backup
+            # writes it; a copy with sales_lines changed by one, drilled through -ReceiptPath.
+            $backupDirectory = Join-Path $temporaryRoot 'Backups'
+            $null = New-Item -ItemType Directory -Path $backupDirectory
+            $backupPath = Join-Path $backupDirectory 'DisposableDatabase-20261003-090000-rowcounts.bak'
+            [IO.File]::WriteAllText($backupPath, 'Disposable unencrypted-backup stand-in; no SQL data.')
+            $counted = '{"sales_invoices":1200,"sales_lines":5400,"import_files":30,"daily_reporting_days":61}'
+            $record = Get-EtpBackupRowCountRecord -BrokerLines @("ETP_ROWCOUNTS:{`"before`":$counted,`"after`":$counted}")
+            Assert-True ($record.Contains('rowCounts')) 'The backup did not record its row counts.'
+            $receipt = [ordered]@{
+                schemaVersion=2; verified=$true; serverInstance='.\DisposableInstance'; database='DisposableDatabase'
+                backupPath=$backupPath; sha256=(Get-FileHash -LiteralPath $backupPath -Algorithm SHA256).Hash
+                lengthBytes=(Get-Item -LiteralPath $backupPath).Length; verifiedAtUtc='2026-10-03T09:00:00.0000000Z'
+                encryption='NONE'; purpose='SCHEDULED'; certificateReceipt=$null; certificateThumbprint=$null; files=@()
+            }
+            foreach ($key in @($record.Keys)) { $receipt[$key] = $record[$key] }
+            $receiptPath = "$backupPath.receipt.json"
+            Write-EtpJsonAtomically -Path $receiptPath -Value $receipt
+            Write-EtpJsonAtomically -Path (Join-Path $backupDirectory 'DisposableDatabase-latest-verified.json') -Value $receipt
+            $restored = @("ETP_ROWCOUNTS:{`"restored`":$counted}")
+
+            # The latest receipt is the default and passes.
+            $latest = Resolve-EtpDrillReceiptPath -BackupDirectory $backupDirectory -Database 'DisposableDatabase'
+            Assert-True ($latest -ceq (Join-Path $backupDirectory 'DisposableDatabase-latest-verified.json')) "Default receipt: $latest"
+            $read = Read-EtpVerifiedReceipt -ReceiptPath $latest -BackupDirectory $backupDirectory -Database 'DisposableDatabase'
+            $verdict = Get-EtpDrillRowCountVerdict -Receipt $read -BrokerLines $restored
+            Assert-True ($verdict.Succeeded -and $verdict.Status -ceq 'Matched') "The original receipt did not pass: $($verdict.Message)"
+
+            # A4.4a: a copy of the receipt with rowCounts.sales_lines changed by one.
+            $altered = Get-Content -Raw -LiteralPath $receiptPath | ConvertFrom-Json
+            $altered.rowCounts.sales_lines = $altered.rowCounts.sales_lines + 1
+            $alteredPath = Join-Path $backupDirectory 'rowcount-check-copy.json'
+            $altered | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $alteredPath -Encoding UTF8
+            $chosen = Resolve-EtpDrillReceiptPath -BackupDirectory $backupDirectory -Database 'DisposableDatabase' -ReceiptPath $alteredPath
+            Assert-True ($chosen -ceq $alteredPath) "The copy was not chosen: $chosen"
+            $read = Read-EtpVerifiedReceipt -ReceiptPath $chosen -BackupDirectory $backupDirectory -Database 'DisposableDatabase'
+            $verdict = Get-EtpDrillRowCountVerdict -Receipt $read -BrokerLines $restored
+            Assert-True (-not $verdict.Succeeded -and $verdict.Status -ceq 'Mismatch') 'The altered receipt passed the drill.'
+            Assert-True ($verdict.Message.Contains('sales_lines: receipt 5401, restored copy 5400')) "The failure does not name sales_lines and both numbers: $($verdict.Message)"
+            # The original still passes after the copy was drilled.
+            $verdict = Get-EtpDrillRowCountVerdict -Receipt (Read-EtpVerifiedReceipt -ReceiptPath $receiptPath -BackupDirectory $backupDirectory -Database 'DisposableDatabase') -BrokerLines $restored
+            Assert-True $verdict.Succeeded 'The original receipt stopped passing.'
+
+            # -ReceiptPath is confined to the backup folder.
+            $outside = Join-Path $temporaryRoot 'outside-receipt.json'
+            Copy-Item -LiteralPath $alteredPath -Destination $outside
+            Assert-Rejected { Resolve-EtpDrillReceiptPath -BackupDirectory $backupDirectory -Database 'DisposableDatabase' -ReceiptPath $outside } 'in the backup folder'
+            $nested = Join-Path $backupDirectory 'Nested'
+            $null = New-Item -ItemType Directory -Path $nested
+            Copy-Item -LiteralPath $alteredPath -Destination (Join-Path $nested 'copy.json')
+            Assert-Rejected { Resolve-EtpDrillReceiptPath -BackupDirectory $backupDirectory -Database 'DisposableDatabase' -ReceiptPath (Join-Path $nested 'copy.json') } 'in the backup folder'
+            Assert-Rejected { Resolve-EtpDrillReceiptPath -BackupDirectory $backupDirectory -Database 'DisposableDatabase' -ReceiptPath (Join-Path $nested '..\..\outside-receipt.json') } 'in the backup folder'
+            Assert-Rejected { Resolve-EtpDrillReceiptPath -BackupDirectory $backupDirectory -Database 'DisposableDatabase' -ReceiptPath $backupPath } 'in the backup folder'
+            Assert-Rejected { Resolve-EtpDrillReceiptPath -BackupDirectory $backupDirectory -Database 'DisposableDatabase' -ReceiptPath '\remote\share\receipt.json' } 'in the backup folder'
+            Assert-Rejected { Resolve-EtpDrillReceiptPath -BackupDirectory $backupDirectory -Database 'DisposableDatabase' -ReceiptPath (Join-Path $backupDirectory 'missing.json') } 'not found'
         }
     }
     Write-Output "Operations boundary scenario succeeded: $Scenario ($script:checks checks)."

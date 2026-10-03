@@ -90,7 +90,12 @@ try {
         Write-Warning "Backup storage was below the required free-space limit; removing expired backups reclaimed $([math]::Round($reclaimedBytes / 1GB, 2)) GB. Review how much this drive has left."
     }
     $backupPath = Join-Path $directory "$Database-$([DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss'))-$([Guid]::NewGuid().ToString('N')).bak"
-    $files = @(Invoke-EtpOperationsBroker -SqlCmd $sqlcmd -Server $ServerInstance -Database $Database -BackupPath $backupPath -Operation BACKUP)
+    $brokerCall = Invoke-EtpOperationsBrokerCall -SqlCmd $sqlcmd -Server $ServerInstance -Database $Database -BackupPath $backupPath -Operation BACKUP
+    $files = @($brokerCall.Files)
+    # A4.4. The broker counted four tables just before and just after BACKUP. Equal counts go
+    # into the receipt for the recovery drill to compare; otherwise the receipt says why there
+    # are none. Counting never fails a backup.
+    $rowCountRecord = Get-EtpBackupRowCountRecord -BrokerLines $brokerCall.Lines
     if ($encrypts) { Invoke-EtpSql -SqlCmd $sqlcmd -Server $ServerInstance -Query "IF NOT EXISTS(SELECT 1 FROM master.sys.certificates WHERE name='EtpBackupCert' AND thumbprint=0x$certificateThumbprint) THROW 51321,'The backup certificate changed during backup; verify the encryption key before publishing a receipt.',1;" | Out-Null }
     $file = Get-Item -LiteralPath $backupPath
     $receipt = [ordered]@{
@@ -105,6 +110,9 @@ try {
         certificateReceipt=$certificateReceipt; certificateThumbprint=$certificateThumbprint
         files=$files
     }
+    # Also not a schema bump, for the same reason as purpose: rowCounts, or rowCountsNotRecorded.
+    foreach ($key in @($rowCountRecord.Keys)) { $receipt[$key] = $rowCountRecord[$key] }
+    if ($rowCountRecord.Contains('rowCountsNotRecorded')) { Write-Warning "Row counts were not recorded in this backup's receipt ($($rowCountRecord['rowCountsNotRecorded'])); the recovery drill of this backup will say so." }
     $receiptPath = "$backupPath.receipt.json"
     Write-EtpJsonAtomically -Path $receiptPath -Value $receipt
     $null = Read-EtpVerifiedReceipt -ReceiptPath $receiptPath -BackupDirectory $directory -Database $Database -SkipCertificateCheck

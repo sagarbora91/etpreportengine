@@ -57,7 +57,8 @@ public sealed class SqlServerDashboardQuery : IDashboardQuery
             {
                 LastSuccessfulBackupSha256 = health.LastSuccessfulBackupSha256,
                 LastSuccessfulRecoveryDrillUtc = health.LastSuccessfulRecoveryDrillUtc,
-                LastSuccessfulRecoveryDrillSha256 = health.LastSuccessfulRecoveryDrillSha256
+                LastSuccessfulRecoveryDrillSha256 = health.LastSuccessfulRecoveryDrillSha256,
+                LatestRecoveryDrillSummary = health.LatestRecoveryDrillResult is { } drill ? RecoveryDrillResultText.Summary(drill) : null
             },
             audit.Select(Map).ToArray(),
             summary.LatestBusinessDate);
