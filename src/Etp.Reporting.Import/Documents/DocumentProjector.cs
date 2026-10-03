@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text.RegularExpressions;
 using Etp.Reporting.Application.Imports;
 using Etp.Reporting.Import.Diagnostics;
 using Etp.Reporting.Import.Identity;
@@ -18,9 +17,10 @@ namespace Etp.Reporting.Import.Documents;
 /// <item><c>Multiset</c>: rows equal on Key and Fact fields are partitioned by their Descriptive values; the largest
 /// partition is kept (on a tie, the one holding the latest physical row) and the rest are stale copies (<c>C</c>,
 /// <c>STALE_COPY_COLLAPSED</c>). Ignored timestamps never split a partition, so genuine repeats keep their count.
-/// The collapse rests on customer fields being per invoice, so it runs only where rows equal on their facts belong to
-/// one invoice: Document scope, or a family whose facts hold its invoice or document number. Elsewhere (a Date-scope
-/// family with no such number) two rows that differ only in a customer are two rows, and both are kept.</item>
+/// The collapse runs for every Multiset family, as spec 7.2 says: it rests on Descriptive values never differing
+/// between rows of one export that are equal on their facts, which the catalogue keeps true (a family with customer
+/// columns has its invoice number among its facts, <c>EtpReportFamilyCatalogueTests</c>), so it is not decided here
+/// from field names, outside the catalogue and its <c>RulesetVersion</c>.</item>
 /// <item><c>SingleRowPerDocument</c>: copies with equal Key and Fact fields collapse to the latest physical row;
 /// copies that differ in a fact hold the document (<c>IN_SOURCE_CONFLICT</c>).</item>
 /// <item><c>StockUnitChain</c>: every row is kept, <c>line_seq</c> from <see cref="StockUnitSequencer"/>, so the
@@ -30,8 +30,9 @@ namespace Etp.Reporting.Import.Documents;
 /// </list>
 /// Rows are taken in sheet order, physical rows before virtual ones, whatever order they arrive in. Sales lines and
 /// enrichments are labelled as planner 1 labels them, over the kept rows (spec 7.1). A row with no usable date or
-/// document number belongs to no document and is held (<c>ROW_DATE_MISSING</c>), as is a typed family's row that
-/// lacks a value its fact table needs. An invoice whose kept rows in one export carry two dates is held
+/// document number belongs to no document and is held (<c>ROW_DATE_MISSING</c>). A typed family's row that lacks a
+/// value its fact table needs is held too (<c>ROW_FACT_VALUE_MISSING</c>), and so is the document it belongs to
+/// (<c>IN_SOURCE_CONFLICT</c>), which is never applied without one of its rows. An invoice whose kept rows in one export carry two dates is held
 /// (<c>IN_SOURCE_CONFLICT</c>), since its header holds one date. Document holds are warnings: they hold the document,
 /// never the file. Pure: no SQL, no clock.
 /// </summary>
@@ -39,10 +40,6 @@ public sealed class DocumentProjector(IFactCanonicalizer canonicalizer) : IDocum
 {
     private const int ListedRows = 10;
     private const string InvoiceYearField = "invoice_year";
-
-    // The catalogue's names for an invoice or document number (invoice_number, invnumber, inv_number, docno, ...).
-    private static readonly Regex DocumentNumberField = new(@"^(etp_)?(inv|invoice|doc|document)_?(no|num|number)$|^doc_invoice_no$",
-        RegexOptions.CultureInvariant);
 
     public DocumentProjector() : this(FactCanonicalizer.Instance)
     {
@@ -107,6 +104,7 @@ public sealed class DocumentProjector(IFactCanonicalizer canonicalizer) : IDocum
             var heldDocuments = new Dictionary<string, DocumentKey>(StringComparer.Ordinal);
             var heldDates = new SortedSet<DateOnly>();
             var undated = false;
+            var unusableByDocument = new Dictionary<string, List<Placed>>(StringComparer.Ordinal);
             foreach (var row in rows)
             {
                 if (Locate(row) is not { } location)
@@ -121,6 +119,9 @@ public sealed class DocumentProjector(IFactCanonicalizer canonicalizer) : IDocum
                 {
                     unusable.Add(row);
                     heldDocuments.TryAdd(location.Key.Hash, location.Key);
+                    if (!unusableByDocument.TryGetValue(location.Key.Hash, out var missing))
+                        unusableByDocument.Add(location.Key.Hash, missing = []);
+                    missing.Add(row);
                     continue;
                 }
                 if (!documents.TryGetValue(location.Key.Hash, out var document))
@@ -129,7 +130,11 @@ public sealed class DocumentProjector(IFactCanonicalizer canonicalizer) : IDocum
             }
 
             var ordered = documents.Values.OrderBy(document => document.FirstPosition).ToArray();
-            foreach (var document in ordered) ApplyRowRule(document);
+            foreach (var document in ordered)
+            {
+                ApplyRowRule(document);
+                if (unusableByDocument.TryGetValue(document.Key.Hash, out var missing)) HoldIncomplete(document, missing);
+            }
             Sequence(ordered);
             Label(ordered);
             InvoiceYears(ordered);
@@ -231,10 +236,15 @@ public sealed class DocumentProjector(IFactCanonicalizer canonicalizer) : IDocum
             }
         }
 
-        // Customer fields are per invoice (spec 7.2): only where rows equal on their facts belong to one invoice can
-        // two descriptive variants of them be copies of one line rather than two lines.
-        private bool DescriptiveIsPerInvoice() => identity.Scope == DocumentScope.Document ||
-            family.Columns.Any(column => column.Role is ColumnRole.Key or ColumnRole.Fact && DocumentNumberField.IsMatch(column.CanonicalField));
+        // A document one of whose rows its fact tables cannot store would be applied without that row (a missing line,
+        // or a revenue copy that differs in a fact passing as the whole invoice), so it is held instead.
+        private void HoldIncomplete(Document document, IReadOnlyList<Placed> missing)
+        {
+            if (document.HoldCode is not null) return;
+            document.HoldCode = ImportCodes.InSourceConflict;
+            Report(ImportCodes.InSourceConflict, document, missing,
+                $"{missing.Count} {(missing.Count == 1 ? "row" : "rows")} of this document (rows {RowList(missing)}) {(missing.Count == 1 ? "lacks" : "lack")} a value its fact table needs, so the document cannot be applied whole. It is held for review and nothing from it is applied.");
+        }
 
         // The latest row of a set: its highest physical sheet row, or its highest virtual row when it has no physical
         // one. A virtual row's position is its map row on ETP_Excluded, not its place in the export, so it never wins
@@ -245,9 +255,6 @@ public sealed class DocumentProjector(IFactCanonicalizer canonicalizer) : IDocum
         {
             switch (identity.RowRule)
             {
-                case RowRule.Multiset when !DescriptiveIsPerInvoice():
-                    document.Kept.AddRange(document.Rows);
-                    break;
                 case RowRule.Multiset:
                     foreach (var copies in document.Rows.GroupBy(row => row.Canonical.FactRowHash, StringComparer.Ordinal))
                     {
@@ -393,8 +400,8 @@ public sealed class DocumentProjector(IFactCanonicalizer canonicalizer) : IDocum
         private void Unusable(IReadOnlyList<Placed> rows)
         {
             if (rows.Count == 0) return;
-            Add(ImportCodes.RowDateMissing, rows,
-                $"{rows.Count} {(rows.Count == 1 ? "row lacks" : "rows lack")} a value its fact table needs (rows {RowList(rows)}). {(rows.Count == 1 ? "It belongs" : "They belong")} to no document and {(rows.Count == 1 ? "is" : "are")} held.");
+            Add(ImportCodes.RowFactValueMissing, rows,
+                $"{rows.Count} {(rows.Count == 1 ? "row lacks" : "rows lack")} a value its fact table needs (rows {RowList(rows)}). {(rows.Count == 1 ? "It is" : "They are")} held, and so is any document {(rows.Count == 1 ? "it belongs" : "they belong")} to.");
         }
 
         private DocumentObservation Observe(Document document)
@@ -427,21 +434,11 @@ public sealed class DocumentProjector(IFactCanonicalizer canonicalizer) : IDocum
         private IReadOnlyList<CanonicalFactRow> FactTableRows(Placed row) =>
             row.FactRows.Select(factRow => CanonicalFactRow.Create(canonicalizer, factRow)).ToArray();
 
-        // The fields that pair rows between two readings of a snapshot, as the database's case-insensitive collation
-        // compares them; COALESCE(a,b,...) takes the first non-blank. Without a row key every fact pairs (spec 7.5).
+        // The fields that pair rows between two readings of a snapshot, in the one row-key text every reader uses
+        // (EtpFamilyIdentityFields.RowKeyText). Without a row key every fact pairs (spec 7.5).
         private string RowKey(Placed row) => identity.RowKey.Count == 0
             ? row.Canonical.FactRowHash
-            : string.Join('|', identity.RowKey.Select(entry => RowKeyPart(row, entry))).ToUpperInvariant();
-
-        private string RowKeyPart(Placed row, string entry)
-        {
-            var text = entry.Trim();
-            if (!text.StartsWith("COALESCE(", StringComparison.OrdinalIgnoreCase) || !text.EndsWith(')'))
-                return canonicalizer.Format(row.Values.GetValueOrDefault(text));
-            return text["COALESCE(".Length..^1].Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
-                .Select(field => canonicalizer.Format(row.Values.GetValueOrDefault(field)))
-                .FirstOrDefault(value => value.Length > 0) ?? "";
-        }
+            : identity.RowKeyText(row.Canonical.Facts);
 
         private void Report(string code, Document document, IReadOnlyList<Placed> rows, string message) =>
             diagnostics.Add(Diagnostic(code, rows, message) with { DocumentRef = DocumentRef(document) });

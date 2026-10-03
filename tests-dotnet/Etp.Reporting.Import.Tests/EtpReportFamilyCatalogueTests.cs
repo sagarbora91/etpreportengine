@@ -2,8 +2,10 @@ using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Etp.Reporting.Domain.Imports;
 using Etp.Reporting.Import.Documents;
+using Etp.Reporting.Import.Identity;
 using Etp.Reporting.Import.Profiles;
 
 namespace Etp.Reporting.Import.Tests;
@@ -342,6 +344,43 @@ public sealed class EtpReportFamilyCatalogueTests
         // stay unchanged when it is computed from roles (spec 7.1).
         Assert.All(Retail.SelectMany(family => family.Columns), column => Assert.Equal(
             column.CanonicalField.Contains("timestamp", StringComparison.OrdinalIgnoreCase), column.Role == ColumnRole.Ignored));
+    }
+
+    [Fact]
+    public void Multiset_families_with_customer_columns_hold_their_invoice_number_among_their_facts()
+    {
+        // The Multiset collapse (spec 7.2) takes rows equal on their facts that differ only in Descriptive values for
+        // copies of one row. Store descriptions never vary inside one export, so that always holds for them; customer
+        // fields vary per invoice, so it holds only where the facts carry the invoice number. The projector collapses
+        // every Multiset family alike, so the catalogue must keep this true: a family that breaks it needs its own row
+        // rule (and a RulesetVersion), not a rule guessed from field names.
+        var number = new Regex(@"^(etp_)?(inv|invoice|doc|document)_?(no|num|number)$|^doc_invoice_no$", RegexOptions.CultureInvariant);
+        var withCustomers = Retail.Where(family => family.Identity!.RowRule == RowRule.Multiset &&
+            family.Columns.Any(column => column.Role == ColumnRole.Descriptive && IsCustomerColumn(column.CanonicalField))).ToArray();
+        Assert.Contains(withCustomers, family => family.Identity!.Scope == DocumentScope.Date);
+        Assert.All(withCustomers, family => Assert.True(family.Identity!.Scope == DocumentScope.Document ||
+                family.Columns.Any(column => column.Role is ColumnRole.Key or ColumnRole.Fact && number.IsMatch(column.CanonicalField)),
+            $"{family.FamilyCode} has customer columns but no invoice or document number among its facts."));
+    }
+
+    [Fact]
+    public void R025_legacy_nullable_fields_are_the_staged_names_of_the_gross_and_tax_amounts()
+    {
+        // LegacyNullable holds staged names; spec 7.3 names the sales_lines columns. NETAMOUNT is staged
+        // source_net_amount and stored as sales_lines.source_gross_amount, while sales_lines.source_net_amount holds
+        // staged source_net_value (NETVALUE). Rule 10 compares fact-table rows through LegacyNullableColumns, which
+        // must map through the same pairs as the projection.
+        var family = Family("R025");
+        var stored = family.Identity!.LegacyNullable.Select(field =>
+        {
+            var values = family.Columns.ToDictionary(column => column.CanonicalField, _ => (object?)null, StringComparer.Ordinal);
+            values[field] = 12.3456m;
+            var line = Assert.Single(CanonicalFactProjection.Rows(family, "TST01", null, values));
+            Assert.Equal("sales_lines", line[CanonicalFactProjection.FactTable]);
+            return Assert.Single(line, pair => pair.Value is 12.3456m).Key;
+        }).Order(StringComparer.Ordinal);
+        Assert.Equal(["source_gross_amount", "source_tax_amount"], stored);
+        Assert.Equal(stored, CanonicalFactProjection.LegacyNullableColumns(family.Identity!).Order(StringComparer.Ordinal));
     }
 
     [Fact]

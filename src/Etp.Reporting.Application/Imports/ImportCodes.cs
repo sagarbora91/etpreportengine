@@ -26,6 +26,8 @@ public static class ImportCodes
     public const string LegacyBlocksDiffer = "LEGACY_BLOCKS_DIFFER";
     public const string HeaderDateMismatch = "HEADER_DATE_MISMATCH";
     public const string RowDateMissing = "ROW_DATE_MISSING";
+    /// <summary>A typed family's row lacks a value its fact table needs (R022's projection refuses it); the row is held, and so is its document.</summary>
+    public const string RowFactValueMissing = "ROW_FACT_VALUE_MISSING";
     public const string FamilyDerived = "FAMILY_DERIVED";
     public const string InvoiceYearDiffers = "INVOICE_YEAR_DIFFERS";
     public const string StaleCopyCollapsed = "STALE_COPY_COLLAPSED";
@@ -61,6 +63,7 @@ public static class ImportCodes
             // Document holds (spec Appendix B "document held", 6.6-6.7, 7.3): the document waits for the Owner and the rest
             // of the file goes ahead, so the projector, the resolver and the decision engine all report them as warnings.
             or InSourceConflict or LegacyBlocksDiffer or HeaderDateMismatch
+            or RowFactValueMissing
             => ImportIssueSeverity.Warning,
         FamilyDerived or InvoiceYearDiffers or StaleCopyCollapsed or AttributeNotApplied or Contract.KeyUnknown
             or Contract.BlocksNotInTimeOrder or Contract.LegacyBlocks

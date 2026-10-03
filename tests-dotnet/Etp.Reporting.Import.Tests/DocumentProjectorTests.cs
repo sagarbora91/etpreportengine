@@ -1,4 +1,5 @@
 using Etp.Reporting.Application.Imports;
+using Etp.Reporting.Domain.Imports;
 using Etp.Reporting.Import.Diagnostics;
 using Etp.Reporting.Import.Documents;
 using Etp.Reporting.Import.Identity;
@@ -256,12 +257,41 @@ public sealed class DocumentProjectorTests
         Assert.Equal("2027|INV-0900", Assert.Single(projection.Documents).Key.KeyText);
         var held = Assert.Single(projection.HeldRows);
         Assert.Equal((3, RowDisposition.Held), (held.Source.SourceRowNumber, held.Disposition));
-        var missing = Assert.Single(projection.Diagnostics, diagnostic => diagnostic.Code == ImportCodes.RowDateMissing);
+        // Its own code: the row has a date, so ROW_DATE_MISSING ("no usable date") would tell the Owner the wrong reason.
+        Assert.DoesNotContain(projection.Diagnostics, diagnostic => diagnostic.Code == ImportCodes.RowDateMissing);
+        var missing = Assert.Single(projection.Diagnostics, diagnostic => diagnostic.Code == ImportCodes.RowFactValueMissing);
         Assert.Equal((ImportDiagnosticSeverity.Warning, 1, 3), (missing.Severity, missing.Occurrences, missing.RowNumber));
         // The held row's invoice is still in the export: the absence check must count it as observed (spec 8.4).
         Assert.Equal(["2027|INV-0901"], projection.HeldDocuments.Select(key => key.KeyText));
         Assert.Empty(projection.HeldDates);
         Assert.False(projection.HasUndatedHeldRows);
+        Assert.Equal(ImportIssueSeverity.Warning, ImportCodes.DefaultSeverity(ImportCodes.RowFactValueMissing));
+        Assert.DoesNotContain("date", ImportDiagnosticCatalogue.Template(ImportCodes.RowFactValueMissing), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void A_document_with_a_row_its_fact_tables_cannot_store_is_held_not_applied_without_it()
+    {
+        // INV-0900's second row differs in a fact and lacks its invoice quantity. Projected without it, the first row
+        // would pass as the whole invoice and no conflict would be raised.
+        var rows = new[]
+        {
+            Row(R022, 2, ("invoice_number", "INV-0900")),
+            Row(R022, 3, ("invoice_number", "INV-0900"), ("tender_cash", 0m), ("tender_card", 1000m), ("source_invoice_quantity", null)),
+            Row(R022, 4, ("invoice_number", "INV-0901"))
+        };
+
+        var projection = Projector.Project(new(R022, Store, Block(3), rows));
+
+        var held = Assert.Single(projection.Documents, document => document.Key.KeyText == "2027|INV-0900");
+        Assert.Equal(ImportCodes.InSourceConflict, held.HoldCode);
+        Assert.Equal([2], held.Rows.Select(row => row.Source.SourceRowNumber));
+        Assert.Null(Assert.Single(projection.Documents, document => document.Key.KeyText == "2027|INV-0901").HoldCode);
+        Assert.Equal([3], projection.HeldRows.Select(row => row.Source.SourceRowNumber));
+        var conflict = Assert.Single(projection.Diagnostics, diagnostic => diagnostic.Code == ImportCodes.InSourceConflict);
+        Assert.Equal((ImportDiagnosticSeverity.Warning, "INV-0900 2026-08-29", 1, 3),
+            (conflict.Severity, conflict.DocumentRef, conflict.Occurrences, conflict.RowNumber));
+        Assert.Single(projection.Diagnostics, diagnostic => diagnostic.Code == ImportCodes.RowFactValueMissing);
     }
 
     [Fact]
@@ -283,25 +313,95 @@ public sealed class DocumentProjectorTests
     }
 
     [Fact]
-    public void Day_scope_rows_without_an_invoice_number_keep_rows_that_differ_only_in_a_customer()
+    public void Day_scope_copies_that_differ_only_in_a_descriptive_value_collapse_whatever_the_field_names()
     {
-        // Two real rows of one day, equal on every fact, for two customers: with no invoice number among the facts
-        // they cannot be copies of one invoice, so both are kept.
-        var family = Landing(numberIsFact: false);
-        var rows = new[] { Row(family, 2, ("customer_phone", "PHONE-A")), Row(family, 3, ("customer_phone", "PHONE-B")) };
+        // Spec 7.2: every Multiset family partitions by its Descriptive values. Which families collapse is the
+        // catalogue's decision (roles, under RulesetVersion), never a guess from field names: R009, R014, R026 and R027
+        // hold no invoice number among their facts, and a store renamed between two exports is still a stale copy.
+        var r009 = EtpReportFamilyRegistry.Resolve("R009");
+        foreach (var (family, date) in new[] { (Landing(numberIsFact: false), "invoicedate"), (Landing(), "invoicedate"), (r009, "transactiondate") })
+        {
+            var rows = new[]
+            {
+                Row(family, 2, (date, SaleDate), ("store_name", "Old store name")),
+                Row(family, 3, (date, SaleDate), ("store_name", "New store name"))
+            };
 
-        var projection = Projector.Project(new(family, Store, Block(2), rows));
+            var projection = Projector.Project(new(family, Store, Block(2), rows));
 
-        var day = Assert.Single(projection.Documents);
-        Assert.Equal(2, day.RowCount);
-        Assert.Empty(day.SetAside);
-        Assert.DoesNotContain(projection.Diagnostics, diagnostic => diagnostic.Code == ImportCodes.StaleCopyCollapsed);
+            var day = Assert.Single(projection.Documents);
+            Assert.Equal([3], day.Rows.Select(row => row.Source.SourceRowNumber));
+            Assert.Equal([2], day.SetAside.Select(row => row.Source.SourceRowNumber));
+            Assert.Single(projection.Diagnostics, diagnostic => diagnostic.Code == ImportCodes.StaleCopyCollapsed);
+        }
+    }
 
-        // With the invoice number among the facts the same rows are copies of one invoice, and the later one wins.
-        var numbered = Landing();
-        var copies = Assert.Single(Projector.Project(new(numbered, Store, Block(2),
-            new[] { Row(numbered, 2, ("customer_phone", "PHONE-A")), Row(numbered, 3, ("customer_phone", "PHONE-B")) })).Documents);
-        Assert.Equal([3], copies.Rows.Select(row => row.Source.SourceRowNumber));
+    [Fact]
+    public void Snapshot_row_keys_are_the_catalogue_row_key_text()
+    {
+        // One implementation (EtpFamilyIdentityFields.RowKeyText) for incoming and stored rows, or rule 14 never pairs them.
+        var rows = new[]
+        {
+            Row(ClosingStock, 2, ("batch_number", "lot-1")),
+            Row(ClosingStock, 3, ("source_uid", "uid-9"), ("batch_number", "lot-1")),
+            Row(ClosingStock, 4, ("ean", "EAN-1"))
+        };
+
+        var document = Assert.Single(Projector.Project(new(ClosingStock, Store, Block(3), rows)).Documents);
+
+        Assert.Equal(["ITEM-1|LOT-1", "ITEM-1|UID-9", "ITEM-1|EAN-1"],
+            document.Rows.OrderBy(row => row.Source.SourceRowNumber).Select(row => row.RowKey));
+        Assert.All(document.Rows, row => Assert.Equal(ClosingStock.Identity!.RowKeyText(row.Canonical.Facts), row.RowKey));
+
+        // The COALESCE spelling is read the same way everywhere, in any case.
+        Assert.Equal(["source_uid", "batch_number", "ean"], EtpFamilyIdentityFields.RowKeyAlternatives("coalesce(source_uid,batch_number,ean)"));
+        var lower = ClosingStock with { Identity = ClosingStock.Identity! with { RowKey = ["product_code", "coalesce(source_uid,batch_number,ean)"] } };
+        Assert.Equal(document.Rows.Select(row => row.RowKey),
+            Assert.Single(Projector.Project(new(lower, Store, Block(3), rows)).Documents).Rows.Select(row => row.RowKey));
+    }
+
+    public static TheoryData<string> ShippedRetailFamilies
+    {
+        get
+        {
+            var codes = new TheoryData<string>();
+            foreach (var family in EtpReportFamilyRegistry.Families.Where(family => family.BusinessUnit == BusinessUnit.Retail))
+                codes.Add(family.ReportCode);
+            return codes;
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(ShippedRetailFamilies))]
+    public void Every_shipped_retail_family_projects_with_its_own_roles_and_identity(string reportCode)
+    {
+        // The catalogue as shipped, not ProjectorTestCatalogue's overrides: its scopes, keys and dates must project.
+        var family = EtpReportFamilyRegistry.Resolve(reportCode);
+        var date = new DateOnly(2026, 8, 29);
+        var block = Block(2) with { SnapshotDate = date, PeriodFrom = date, PeriodTo = date, PeriodBasis = PeriodBasis.Declared };
+        SourceRow[] Rows(Func<EtpSourceColumn, object?> value) => [.. Enumerable.Range(2, 2).Select(sheetRow => new SourceRow(
+            new RowLocator(1, Sheet, sheetRow), family.Columns.ToDictionary(column => column.CanonicalField, value, StringComparer.Ordinal)))];
+        object? Synthetic(EtpSourceColumn column, bool changed) => column.DataType switch
+        {
+            CanonicalDataType.Decimal => changed ? 2m : 1m,
+            CanonicalDataType.Date => changed ? date.AddDays(-3) : date,
+            CanonicalDataType.Integer => changed ? 2031L : 2027L,
+            CanonicalDataType.Boolean => !changed,
+            _ => column.CanonicalField == "store_code" ? Store : changed ? "CHANGED" : "X"
+        };
+        bool Unseen(EtpSourceColumn column) => column.Role is ColumnRole.Descriptive or ColumnRole.Ignored;
+
+        var projection = Projector.Project(new(family, Store, block, Rows(column => Synthetic(column, false))));
+        var changed = Projector.Project(new(family, Store, block, Rows(column => Synthetic(column, Unseen(column)))));
+
+        Assert.Empty(projection.HeldRows);
+        var document = Assert.Single(projection.Documents);
+        Assert.Equal(family.Identity!.Scope, document.Key.Scope);
+        Assert.Null(document.HoldCode);
+        Assert.Equal(2, document.RowCount + document.SetAside.Count);
+        Assert.Equal(family.Identity.HasTypedFacts, document.CanonicalSha256 is not null);
+        var same = Assert.Single(changed.Documents);
+        Assert.Equal((document.Key, document.FactSha256, document.CanonicalSha256), (same.Key, same.FactSha256, same.CanonicalSha256));
     }
 
     [Fact]

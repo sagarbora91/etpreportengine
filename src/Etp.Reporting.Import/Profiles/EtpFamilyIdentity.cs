@@ -54,9 +54,10 @@ public sealed record EtpFamilyIdentity
     public string? SnapshotDate { get; init; }
     /// <summary>
     /// Canonical (staged) Key or Fact fields that may be NULL on v0 facts and are filled without review (spec 8.2 rule 10).
-    /// Rule 10 compares fact-table rows, so it reads them by the column each is stored in
-    /// (<see cref="Identity.CanonicalFactProjection.LegacyNullableColumns"/>): R025 <c>source_net_amount</c> is
-    /// <c>sales_lines.source_gross_amount</c>.
+    /// These are the family's staged field names. Rule 10 compares fact-table rows, so it reads them by the column each
+    /// is stored in (<see cref="Identity.CanonicalFactProjection.LegacyNullableColumns"/>): R025's staged
+    /// <c>source_net_amount</c> is NETAMOUNT, stored as <c>sales_lines.source_gross_amount</c> (spec 7.3's name), while
+    /// <c>sales_lines.source_net_amount</c> holds staged <c>source_net_value</c> (NETVALUE).
     /// </summary>
     public IReadOnlyList<string> LegacyNullable { get; init; } = [];
     public FamilyRoute Route { get; init; } = FamilyRoute.Landing;
