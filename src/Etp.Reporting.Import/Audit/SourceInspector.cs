@@ -397,6 +397,7 @@ public static class AuditCodes
     public const string ContractRequiredMessage = "This workbook is not a contract v1 workbook (--require-contract).";
     public const string ExpectationMismatch = "AUDIT_EXPECTATION_MISMATCH";
     public const string Forbidden = "AUDIT_FORBIDDEN_FILE";
+    public const string BlockingCheck = "AUDIT_BLOCKING_CHECK";
 
     /// <summary>Audit codes and their fixed messages; the report writer prints these, or the import catalogue's.</summary>
     public static IReadOnlyDictionary<string, string> Messages { get; } = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -406,6 +407,7 @@ public static class AuditCodes
         [ContractRequired] = ContractRequiredMessage,
         [RawNotChecked] = "Rebuildable blocks whose raw export is not in the --raw folder were not checked.",
         [ExpectationMismatch] = "The prediction does not match the expectation file.",
-        [Forbidden] = "The expectation file forbids importing this file."
+        [Forbidden] = "The expectation file forbids importing this file.",
+        [BlockingCheck] = "A check that blocks the upgrade found rows:"
     };
 }

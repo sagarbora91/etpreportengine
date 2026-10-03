@@ -8,6 +8,9 @@
     <Using Include="Xunit" />
     <Compile Include="../TestSupport/DiagnosticsIsolation.cs" Link="TestSupport/DiagnosticsIsolation.cs" />
     <Compile Include="../TestSupport/StackedBinWiseWorkbooks.cs" Link="TestSupport/StackedBinWiseWorkbooks.cs" />
+    <Compile Include="../TestSupport/AuditFixtureWorkbooks.cs" Link="TestSupport/AuditFixtureWorkbooks.cs" />
+    <Compile Include="../Etp.Reporting.Import.Tests/SyntheticConsolidatedWorkbooks.cs" Link="TestSupport/SyntheticConsolidatedWorkbooks.cs" />
+    <Content Include="../fixtures/import-audit/*.json" Link="fixtures/import-audit/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <ProjectReference Include="../../src/Etp.Reporting.Desktop/Etp.Reporting.Desktop.csproj" />
     <ProjectReference Include="../../src/Etp.Reporting.Application/Etp.Reporting.Application.csproj" />
     <Content Include="../../database/migrations/*.sql" Link="database/migrations/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />

@@ -3,6 +3,7 @@ using Etp.Reporting.Application.Imports;
 using Etp.Reporting.Import.Audit;
 using Etp.Reporting.Import.Batch;
 using Etp.Reporting.Import.Workbooks;
+using Microsoft.Data.SqlClient;
 
 namespace Etp.Reporting.Infrastructure.SqlServer.Audit;
 
@@ -50,13 +51,33 @@ public sealed class AuditRunner(TextWriter output, TextWriter error)
                 AuditCommandKind.Seed => await SeedCommand.RunAsync(command, MigrationsDirectory, output, error, cancellationToken).ConfigureAwait(false),
                 AuditCommandKind.Inspect or AuditCommandKind.ValidateContract =>
                     await InspectAsync(command, args, folder, cancellationToken).ConfigureAwait(false),
-                _ => await NotYetAsync(command).ConfigureAwait(false)
+                AuditCommandKind.CheckImport => await CheckImportAsync(command, args, folder, cancellationToken).ConfigureAwait(false),
+                _ => await BaselineAsync(command, args, folder, cancellationToken).ConfigureAwait(false)
             };
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             await error.WriteLineAsync("ImportAudit: cancelled. Temporary folders were removed.").ConfigureAwait(false);
             return AuditExitCodes.Cancelled;
+        }
+        catch (AuditDatabaseException refused)
+        {
+            await error.WriteLineAsync("ImportAudit: " + refused.Message).ConfigureAwait(false);
+            return AuditExitCodes.Database;
+        }
+        catch (SqlException database)
+        {
+            // The number only: a SQL message can quote a value.
+            await error.WriteLineAsync(database.Number == LockTimeoutNumber
+                ? "ImportAudit: a read waited more than 5 seconds for a lock (an import is running). Rerun while ETP is idle."
+                : $"ImportAudit: database error {database.Number}.").ConfigureAwait(false);
+            await WriteDebugAsync(command, folder, database).ConfigureAwait(false);
+            return AuditExitCodes.Database;
+        }
+        catch (AuditInputException refused)
+        {
+            await error.WriteLineAsync("ImportAudit: input refused: " + refused.Message).ConfigureAwait(false);
+            return AuditExitCodes.Input;
         }
         catch (ImportSourceException refused)
         {
@@ -152,11 +173,160 @@ public sealed class AuditRunner(TextWriter output, TextWriter error)
         }
     }
 
-    private async Task<int> NotYetAsync(AuditCommand command)
+    private const int LockTimeoutNumber = 1222;
+
+    /// <summary>
+    /// <c>check-import --planner 1</c> (design 3.4, 5.3): inspect, then predict each file against the database,
+    /// SELECT-only, in the app's order. A change to the import tables while reading is <c>STATE_CHANGED_DURING_READ</c>.
+    /// </summary>
+    private async Task<int> CheckImportAsync(AuditCommand command, IReadOnlyList<string> args, string? folder, CancellationToken cancellationToken)
     {
-        await error.WriteLineAsync($"ImportAudit: {AuditCommandLine.Name(command.Kind)} is not available in this build.").ConfigureAwait(false);
-        return AuditExitCodes.Internal;
+        var started = Clock();
+        var clock = Stopwatch.StartNew();
+        // Read the expectation file first: a bad one is an input error before any database work.
+        var expectations = command.ExpectFile is { } expect ? AuditExpectations.Load(expect) : null;
+        await using var connection = await OpenAsync(command, cancellationToken).ConfigureAwait(false);
+        var schema = await SqlSchemaFacts.ReadAsync(connection, cancellationToken).ConfigureAwait(false);
+        if (!schema.Supported)
+            throw new AuditDatabaseException("This database predates migration 0018. Upgrade it to release 1.8 or later before checking.");
+        var before = await SqlStateMark.ReadAsync(connection, cancellationToken).ConfigureAwait(false);
+        var stores = (await connection.QueryAsync(AuditQueries.ActiveStores, cancellationToken: cancellationToken).ConfigureAwait(false))
+            .Select(row => (string)row[0]!).Concat(command.KnownStores).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        var inspector = new SourceInspector(WorkbookReader, stores) { Families = command.Families, Store = command.Store };
+        var run = await inspector.InspectAsync(command.Paths, Progress(command), cancellationToken).ConfigureAwait(false);
+        var predictor = new PlannerOnePredictor(new SqlPlannerOneState(connection, schema), ReadOnlyAuditConnection.ConnectionString(command.Server, command.Database!));
+        var files = new List<AuditFileReport>();
+        foreach (var inspected in run.Files)
+        {
+            var file = AuditReportBuilder.File(inspected, command.Detail);
+            var planner = await predictor.PredictAsync(inspected, command.Detail == AuditDetail.Rows, cancellationToken).ConfigureAwait(false);
+            file = file with { Planner1 = planner };
+            files.Add(file);
+            if (!command.Quiet) await error.WriteLineAsync($"predicted {file.File}: {planner.Result}{(planner.Code is null ? "" : " " + planner.Code)}").ConfigureAwait(false);
+        }
+        var after = await SqlStateMark.ReadAsync(connection, cancellationToken).ConfigureAwait(false);
+        return await FinishCheckAsync(command, args, folder, started, clock, schema, files, run.SkippedCsvFiles, expectations, before != after).ConfigureAwait(false);
     }
+
+    /// <summary>Expectations, verdicts, summary and report of a <c>check-import</c> run.</summary>
+    internal async Task<int> FinishCheckAsync(AuditCommand command, IReadOnlyList<string> args, string? folder, DateTimeOffset started, Stopwatch clock,
+        SqlSchemaFacts? schema, IReadOnlyList<AuditFileReport> predicted, int skippedCsv, AuditExpectations? expectations, bool stateChanged)
+    {
+        var files = predicted.ToList();
+        var runDiagnostics = new List<AuditDiagnosticReport>();
+        var runFinding = false;
+        if (stateChanged)
+        {
+            runDiagnostics.Add(new(AuditCodes.StateChangedDuringRead, "Blocker", AuditCodes.StateChangedDuringReadMessage));
+            runFinding = true;
+        }
+        if (expectations is not null)
+        {
+            var (expected, missing) = expectations.Apply(files);
+            files = expected.ToList();
+            foreach (var mismatch in missing)
+                runDiagnostics.Add(new(AuditCodes.ExpectationMismatch, "Blocker", AuditCodes.Messages[AuditCodes.ExpectationMismatch] + " " + mismatch));
+            runFinding |= missing.Count > 0;
+        }
+        files = files.Select(file => file with
+        {
+            Verdict = AuditReportBuilder.Verdict(file, file.Planner1?.Result is "Failed" or "Unknown layout", command.Strict)
+        }).ToList();
+        var summary = AuditReportBuilder.Summary(files, skippedCsv, runFinding, expectations is null ? null : expectations.AllowsBlocker);
+        if (expectations?.UnexpectedBlockers is { } allowed && summary.UnexpectedBlockers > allowed)
+            summary = summary with { ExitCode = AuditExitCodes.Findings };
+        var report = new AuditReport
+        {
+            Command = AuditCommandLine.Name(command.Kind),
+            Arguments = AuditReportBuilder.EchoArguments(args),
+            Tool = AuditToolStamp.Current(files.Select(file => file.FamilyCode).OfType<string>()),
+            Database = schema is null ? null : Stamp(command, schema),
+            Detail = command.Detail,
+            StartedUtc = started,
+            ElapsedMs = clock.ElapsedMilliseconds,
+            OrderNote = PlannerOnePredictor.OrderNote,
+            Files = files,
+            RunDiagnostics = runDiagnostics,
+            Summary = summary
+        };
+        await WriteAsync(command, report, folder).ConfigureAwait(false);
+        return report.Summary.ExitCode;
+    }
+
+    /// <summary><c>baseline</c> (design 3.5): the pre-upgrade check script, SELECT-only, as JSON.</summary>
+    private async Task<int> BaselineAsync(AuditCommand command, IReadOnlyList<string> args, string? folder, CancellationToken cancellationToken)
+    {
+        var started = Clock();
+        var clock = Stopwatch.StartNew();
+        await using var connection = await OpenAsync(command, cancellationToken).ConfigureAwait(false);
+        var schema = await SqlSchemaFacts.ReadAsync(connection, cancellationToken).ConfigureAwait(false);
+        var sets = await BaselineQuery.RunAsync(connection, command.Detail == AuditDetail.Rows, cancellationToken).ConfigureAwait(false)
+            ?? throw new AuditDatabaseException("This database predates migration 0018. Upgrade it to release 1.8 or later before checking.");
+        var differences = command.CompareFile is { } earlier ? BaselineQuery.Compare(sets, earlier) : null;
+        var blocking = BaselineQuery.Blocking(sets);
+        var runDiagnostics = blocking.Select(check => new AuditDiagnosticReport(AuditCodes.BlockingCheck, "Blocker",
+            AuditCodes.Messages[AuditCodes.BlockingCheck] + " " + check + ".")).ToList();
+        var exit = blocking.Count > 0 || differences is { Count: > 0 } ? AuditExitCodes.Findings : AuditExitCodes.Clean;
+        var report = new AuditReport
+        {
+            Command = AuditCommandLine.Name(command.Kind),
+            Arguments = AuditReportBuilder.EchoArguments(args),
+            Tool = AuditToolStamp.Current([]),
+            Database = Stamp(command, schema),
+            Detail = command.Detail,
+            StartedUtc = started,
+            ElapsedMs = clock.ElapsedMilliseconds,
+            RunDiagnostics = runDiagnostics,
+            Baseline = new AuditBaselineReport(sets) { Differences = differences },
+            Summary = new AuditSummary { ExitCode = exit }
+        };
+        await WriteAsync(command, report, folder).ConfigureAwait(false);
+        return exit;
+    }
+
+    private static async Task<ReadOnlyAuditConnection> OpenAsync(AuditCommand command, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await ReadOnlyAuditConnection.OpenAsync(command.Server, command.Database!, cancellationToken).ConfigureAwait(false);
+        }
+        catch (ArgumentException)
+        {
+            throw new AuditDatabaseException("The connection was refused: ImportAudit reads only a SQL Server on this computer, with Windows authentication.");
+        }
+        catch (SqlException sql)
+        {
+            throw new AuditDatabaseException($"The database could not be reached (SQL error {sql.Number}).");
+        }
+    }
+
+    private AuditDatabaseStamp Stamp(AuditCommand command, SqlSchemaFacts schema)
+    {
+        var notes = new List<string>();
+        if (schema.Emulated0041)
+            notes.Add("The database predates 0041: stock line numbers and the snapshot source were emulated as 0041 sets them. The Closing Stock rows 0041 rebuilds from logged outcomes are not emulated.");
+        var tool = ToolLatestMigration();
+        if (tool is not null && schema.LatestMigration is { } database && string.CompareOrdinal(database, tool) > 0)
+            notes.Add($"The database ({database}) is newer than this tool ({tool}); run the audit from the installed release.");
+        return new AuditDatabaseStamp(command.Server, command.Database!)
+        {
+            LatestMigration = schema.LatestMigration, Emulated0041 = schema.Emulated0041, LoginCouldWrite = schema.LoginCouldWrite, Notes = notes
+        };
+    }
+
+    private string? ToolLatestMigration()
+    {
+        try
+        {
+            return Directory.Exists(MigrationsDirectory)
+                ? Directory.EnumerateFiles(MigrationsDirectory, "*.sql").Select(Path.GetFileNameWithoutExtension).OfType<string>().Max(StringComparer.Ordinal)
+                : null;
+        }
+        catch (IOException) { return null; }
+    }
+
+    /// <summary>A database refusal or an unreachable database (exit 4); the message is the audit's own.</summary>
+    private sealed class AuditDatabaseException(string message) : Exception(message);
 
     /// <summary>Progress lines written at once, in order (<see cref="Progress{T}"/> would post them to the thread pool).</summary>
     private sealed class LineProgress(TextWriter writer) : IProgress<string>
