@@ -10,6 +10,9 @@ public sealed class ReportWorkspaceSession
     private readonly Dictionary<string, ReportWorkspaceControl> workspaces = new(StringComparer.OrdinalIgnoreCase);
     private DailySalesReportWorkspace? dailySalesWorkspace;
 
+    /// <summary>Whether the current role may generate a report pack; passed to every focused report's Actions menu.</summary>
+    public Func<bool> CanGeneratePack { get; set; } = static () => true;
+
     public FrameworkElement Activate(
         string reportCode,
         DateTime? dateFrom,
@@ -45,6 +48,7 @@ public sealed class ReportWorkspaceSession
             workspace.ActionRequested += actionRequested;
             workspaces.Add(definition.Id, workspace);
         }
+        workspace.CanGeneratePack = () => CanGeneratePack();
         workspace.DateFromPicker.SelectedDate = dateFrom;
         workspace.DateToPicker.SelectedDate = dateTo;
         workspace.ScopeSelector.IsEnabled = reportCode is not ("sales-combined");

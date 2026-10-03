@@ -58,6 +58,9 @@ public sealed class ReportWorkspaceControl : Grid
     private ReportPreviewScope? loadingScope;
     private ReportPreviewScope? loadedScope;
     private Func<string>? queryFilterSignature;
+
+    /// <summary>Whether the current role may generate a report pack (Owner or Store Manager); see WLMHW FIX-17.</summary>
+    public Func<bool> CanGeneratePack { get; set; } = static () => true;
     private readonly Expander queryFilters = new() { Header = "Filters", Visibility = Visibility.Collapsed, Margin = new Thickness(0, 8, 0, 0) };
     private readonly TextBlock appliedScope = new() { TextWrapping = TextWrapping.Wrap, Visibility = Visibility.Collapsed, Margin = new Thickness(0, 6, 0, 0) };
     private ReportPreviewScope CurrentScope => new(DateFromPicker.SelectedDate, DateToPicker.SelectedDate, ScopeSelector.SelectedItem?.ToString(), SelectedReport?.Code, queryFilterSignature?.Invoke());
@@ -225,7 +228,7 @@ public sealed class ReportWorkspaceControl : Grid
         actions.Children.Add(ActionButton("Refresh", ReportWorkspaceAction.Refresh, true));
         var pdf = ActionButton("Export PDF", ReportWorkspaceAction.ExportPdf);
         var excel = ActionButton("Export Excel", ReportWorkspaceAction.ExportExcel);
-        var actionMenu = ReportActionMenu.Create(RaiseAction, exportActions, false);
+        var actionMenu = ReportActionMenu.Create(RaiseAction, exportActions, false, () => CanGeneratePack());
         actions.Children.Add(pdf); actions.Children.Add(excel); actions.Children.Add(actionMenu);
         root.Children.Add(actions);
         statusText = DsrUi.Text(definition.Description, 12, colour: "SecondaryText"); statusText.Name = "ReportTaskStatus";

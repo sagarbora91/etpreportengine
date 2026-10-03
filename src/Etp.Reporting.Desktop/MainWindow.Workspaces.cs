@@ -35,6 +35,7 @@ public partial class MainWindow
         focusedWorkspaceKind = "report";
         FocusedWorkspaceLayer.Visibility = Visibility.Visible;
 
+        reportWorkspaceSession.CanGeneratePack = () => CurrentShellAccess.CanImport;
         var workspace = reportWorkspaceSession.Activate(
             reportCode,
             reportsWorkspaceView.DateFrom,
