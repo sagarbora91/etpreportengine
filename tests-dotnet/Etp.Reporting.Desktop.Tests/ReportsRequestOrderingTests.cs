@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Threading;
 using System.Windows.Controls;
 using Etp.Reporting.Application.Reports;
@@ -193,9 +194,24 @@ public sealed class ReportsRequestOrderingTests
         public Task ExportManagementSummaryPdfAsync(string path, Etp.Reporting.Reporting.ExcelReportMetadata metadata, Etp.Reporting.Reporting.ExcelReportData data, CancellationToken token = default) => throw new NotSupportedException();
     }
 
-    private static ReportsWorkspaceView CreateView(DeferredTrendQuery query, List<ReportPresentationSnapshot> previews, IReportExportCoordinator? exporter = null)
+    [Fact]
+    public void Sales_summary_status_line_uses_indian_digit_grouping_whatever_the_thread_culture()
     {
-        var view = new ReportsWorkspaceView(() => "synthetic", _ => new SalesQuery(),
+        RunSta(async () =>
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("en-US");
+            var previews = new List<ReportPresentationSnapshot>();
+            var view = CreateView(new DeferredTrendQuery(), previews, salesAmount: 1015259.10m);
+            await view.RunReportAsync("sales-store");
+            var status = ((TextBlock)view.FindName("ReportResult")).Text;
+            Assert.Contains("Sales incl. GST 10,15,259.10", status);
+            Assert.DoesNotContain("1,015,259.10", status);
+        });
+    }
+
+    private static ReportsWorkspaceView CreateView(DeferredTrendQuery query, List<ReportPresentationSnapshot> previews, IReportExportCoordinator? exporter = null, decimal salesAmount = 42m)
+    {
+        var view = new ReportsWorkspaceView(() => "synthetic", _ => new SalesQuery(salesAmount),
             _ => throw new InvalidOperationException("Unexpected operational query"), _ => query,
             exporter ?? new ReportExportCoordinator(), new UnusedDiagnostic());
         view.SetStores(TestStoreCatalog.Create());
@@ -211,10 +227,10 @@ public sealed class ReportsRequestOrderingTests
         public Task<IReadOnlyList<ManagementTrendRecord>> LoadAsync(ReportScope scope, CancellationToken cancellationToken = default) => Completion.Task;
     }
 
-    private sealed class SalesQuery : IControlledReportQuery
+    private sealed class SalesQuery(decimal salesAmount = 42m) : IControlledReportQuery
     {
         public Task<SalesSummaryReport> RunSalesSummaryAsync(ReportScope scope, ReportSalesDimension dimension, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new SalesSummaryReport(dimension, ReportStatus.Passed, [new("Synthetic", 1m, 42m, 1)], "test", "Synthetic sales"));
+            Task.FromResult(new SalesSummaryReport(dimension, ReportStatus.Passed, [new("Synthetic", 1m, salesAmount, 1)], "test", "Synthetic sales"));
         public Task<TenderReconciliationReport> RunTenderReconciliationAsync(ReportScope scope, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<StockReconciliationReport> RunStockReconciliationAsync(ReportScope scope, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<StockMovementRecord>> LoadStockMovementsAsync(ReportScope scope, CancellationToken cancellationToken = default) => throw new NotSupportedException();

@@ -41,6 +41,9 @@ public sealed class DurableImportHistoryTests
             Assert.Equal(repeated.Select(x => x.Key).Order(), final.Select(x => x.Key).Order());
             Assert.All(final.Where(x => x.Result.Status == "Duplicate"), row =>
             { Assert.Equal(0, row.Result.NewRows); Assert.Equal(row.Result.RowsProcessed, row.Result.AlreadyPresentRows); });
+            // FIX-08: a file whose saved outcome is classified "Duplicate content" carries the already-imported message.
+            Assert.All(final.Where(x => x.Result.Status == ImportAttemptOutcomes.DuplicateContent), row =>
+                Assert.Equal(ImportHistoryMessages.AlreadyImported, row.Result.Message));
             foreach (var row in final.Where(x => x.Key.StartsWith("file:", StringComparison.Ordinal)))
             {
                 Assert.Equal(Convert.ToInt32(await database.ExecuteAsync($"SELECT COUNT(*) FROM dbo.import_row_outcomes WHERE import_file_id={row.ImportFileId} AND outcome='NEW'")), row.Result.NewRows);

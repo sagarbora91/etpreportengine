@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+Report audit of 3 Oct 2026, small UI fixes (lane L7):
+
+- Sales Summary (Store and Combined) status line now uses Indian digit grouping, like the grid and tiles: "Sales incl. GST 10,15,259.10", not "1,015,259.10". The other report status lines (stock, staff, tender, management trend, exceptions) use the same format (HEMW FIX-07).
+- Imports > History shows "This source was already imported. No facts were added by this attempt." for a repeat file again. The message only matched the old outcome text "Duplicate"; the history now classifies repeats as "Duplicate content". Both texts now give the message, in the history query and on the History screen (HEMW FIX-08, WLMHW FIX-16).
+- The dashboard overview can be opened again: Settings > Database > Dashboard overview (search "dashboard"). It is Owner-only, like Backups, Recovery drill and Audit trail. It shows system status, the last backup and recovery drill, and the import totals (files, batches, source rows, latest import); recent activity stays on Audit trail. Owner destinations: 92 (Store Manager 69, Viewer 54 unchanged) (WLMHW FIX-15).
+- Close day > Store pack / All stores pack: "Generate" is disabled for a Viewer, with the reason on the button ("Owner or Store Manager permission is required..."), instead of failing with a database refusal. SQL already allowed only the Owner and Store Managers to save a pack (WLMHW FIX-17).
+
 ## [1.9.3] - 2026-10-03
 
 The import engine release, with the fixes from the move to Workpc:
