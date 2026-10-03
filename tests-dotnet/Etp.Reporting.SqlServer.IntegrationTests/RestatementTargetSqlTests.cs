@@ -45,12 +45,15 @@ public sealed class RestatementTargetSqlTests(SqlDatabaseFixture database) : ICl
         Assert.DoesNotContain("#", code);
         Assert.DoesNotMatch(new Regex(@"\bEXEC(UTE)?\b(?!\s+sys\.sp_executesql\b)", RegexOptions.IgnoreCase), code);
 
-        // A financial-year mismatch that is also an orphan header, and a finalised day.
-        await database.ExecuteAsync("""
+        // The script checks a database before 0041 is applied: on a migrated one the 0041 indexes and NOT NULL
+        // columns refuse the repeated identities and tender case variants seeded below.
+        await using var upgrade = new Before0041Database();
+        await upgrade.CreateAsync();
+        // A financial-year mismatch that is also an orphan header, and (at the end) a finalised day.
+        await upgrade.ExecuteAsync("""
             INSERT dbo.sales_invoices(store_code,document_number,invoice_year,transaction_date) VALUES('CHECKSTORE',N'SYN-0001',2026,'20260401');
             -- The same document under the label year and under its financial year: the key forbids re-keying the first.
             INSERT dbo.sales_invoices(store_code,document_number,invoice_year,transaction_date) VALUES('CHECKSTORE',N'SYN-0003',2026,'20260402'),('CHECKSTORE',N'SYN-0003',2027,'20260402');
-            INSERT dbo.daily_reporting_days(store_code,business_date,status,finalised_by,finalised_utc) VALUES('CHECKSTORE','20260825','LOCKED',N'tester',SYSUTCDATETIME());
             -- A repeated movement identity, a repeated snapshot identity and one tender type twice in different case.
             INSERT dbo.import_batches(import_batch_id,status,started_utc,source_row_count) VALUES('6f2b0c1e-0000-4000-8000-00000000c4ec','Completed',SYSUTCDATETIME(),6);
             INSERT dbo.import_files(import_batch_id,original_file_name,source_sha256,size_bytes,report_code,store_code,business_date,period_start,period_end)
@@ -72,14 +75,16 @@ public sealed class RestatementTargetSqlTests(SqlDatabaseFixture database) : ICl
             VALUES(@file,'CHECKSTORE','20260825','R003',N'CHECKSTORE/2027/MOV-1/2026-08-25/P-1/TRANSFER//',REPLICATE('a',64),REPLICATE('b',64),N'Stock movement values differ.','OPEN'),
                   (@file,'CHECKSTORE','20260825','R003',N'CHECKSTORE/2027/MOV-1/2026-08-25/P-1/TRANSFER//',REPLICATE('a',64),REPLICATE('b',64),N'Stock movement values differ.','RESOLVED'),
                   (@file,'CHECKSTORE','20260825','R003',N'CHECKSTORE/2027/MOV-2/2026-08-25/P-1/TRANSFER//',REPLICATE('a',64),REPLICATE('b',64),N'No stored movement.','OPEN');
+            -- Finalised after its facts: trg_import_files_protect_locked (0017) refuses a file for a LOCKED day (51021).
+            INSERT dbo.daily_reporting_days(store_code,business_date,status,finalised_by,finalised_utc) VALUES('CHECKSTORE','20260825','LOCKED',N'tester',SYSUTCDATETIME());
             IF DATABASE_PRINCIPAL_ID(N'upgrade_checker') IS NULL
             BEGIN CREATE USER upgrade_checker WITHOUT LOGIN; ALTER ROLE db_datareader ADD MEMBER upgrade_checker; END;
             """);
 
-        var sets = await RunCheckAsync(database.ConnectionString, script);
+        var sets = await RunCheckAsync(upgrade.ConnectionString, script);
 
         var environment = Assert.Single(sets[0].Rows);
-        Assert.Equal(await database.ExecuteAsync("SELECT CONVERT(sysname,DATABASEPROPERTYEX(DB_NAME(),'Collation'))"),
+        Assert.Equal(await upgrade.ExecuteAsync("SELECT CONVERT(sysname,DATABASEPROPERTYEX(DB_NAME(),'Collation'))"),
             environment[Array.IndexOf(sets[0].Columns, "database_collation")]);
         Assert.False(string.IsNullOrWhiteSpace(environment[Array.IndexOf(sets[0].Columns, "sql_server_version")] as string));
         Assert.Equal(["check_code", "findings", "blocks_upgrade", "detail"], sets[1].Columns);
@@ -229,6 +234,45 @@ public sealed class RestatementTargetSqlTests(SqlDatabaseFixture database) : ICl
         }
     }
 
+    // A database that holds every migration before 0041, as the shop database does before the 1.9.3 upgrade
+    // (the same bootstrap as the Migration0041* tests).
+    private sealed class Before0041Database : IAsyncDisposable
+    {
+        private readonly string name = "EtpPhase0Test_UpgradeCheck_" + Guid.NewGuid().ToString("N");
+        public string ConnectionString { get; }
+        public Before0041Database() => ConnectionString = TestSqlConnections.ForDatabase(name, pooling: false);
+
+        public async Task CreateAsync()
+        {
+            var source = new DirectoryMigrationSource(Path.Combine(AppContext.BaseDirectory, "database", "migrations"));
+            await new SqlServerDatabaseBootstrapper(ConnectionString, new Before0041(source)).BootstrapAsync();
+        }
+
+        public async Task<object?> ExecuteAsync(string sql)
+        {
+            await using var connection = new SqlConnection(ConnectionString);
+            await connection.OpenAsync();
+            await using var command = new SqlCommand(sql, connection) { CommandTimeout = 120 };
+            return await command.ExecuteScalarAsync();
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            if (!name.StartsWith("EtpPhase0Test_", StringComparison.Ordinal)) throw new InvalidOperationException("Unsafe fixture name.");
+            var master = new SqlConnectionStringBuilder(ConnectionString) { InitialCatalog = "master" };
+            await using var connection = new SqlConnection(master.ConnectionString);
+            await connection.OpenAsync();
+            await using var command = new SqlCommand($"IF DB_ID(N'{name}') IS NOT NULL BEGIN ALTER DATABASE [{name}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{name}]; END", connection);
+            await command.ExecuteNonQueryAsync();
+        }
+
+        private sealed class Before0041(IMigrationSource source) : IMigrationSource
+        {
+            public async Task<IReadOnlyList<MigrationScript>> DiscoverAsync(CancellationToken token = default) =>
+                (await source.DiscoverAsync(token)).Where(migration => string.CompareOrdinal(migration.Id, "0041") < 0).ToArray();
+        }
+    }
+
     // Runs the script as a db_datareader-only user, which the caller has created.
     private static async Task<List<(string[] Columns, List<object[]> Rows)>> RunCheckAsync(string connectionString, string script)
     {
@@ -236,31 +280,42 @@ public sealed class RestatementTargetSqlTests(SqlDatabaseFixture database) : ICl
         await using (var connection = new SqlConnection(connectionString))
         {
             await connection.OpenAsync();
-            await using (var impersonate = new SqlCommand("EXECUTE AS USER = N'upgrade_checker';", connection)) await impersonate.ExecuteNonQueryAsync();
-            // The reader account cannot write, so the script cannot have written either.
-            var write = await Assert.ThrowsAsync<SqlException>(async () =>
+            var reverted = false;
+            try
             {
-                await using var insert = new SqlCommand("INSERT dbo.sales_invoices(store_code,document_number,invoice_year,transaction_date) VALUES('X',N'X',2027,'20260401');", connection);
-                await insert.ExecuteNonQueryAsync();
-            });
-            Assert.Equal(229, write.Number);
-            await using (var command = new SqlCommand(script, connection) { CommandTimeout = 120 })
-            await using (var reader = await command.ExecuteReaderAsync())
-            {
-                do
+                await using (var impersonate = new SqlCommand("EXECUTE AS USER = N'upgrade_checker';", connection)) await impersonate.ExecuteNonQueryAsync();
+                // The reader account cannot write, so the script cannot have written either.
+                var write = await Assert.ThrowsAsync<SqlException>(async () =>
                 {
-                    var columns = Enumerable.Range(0, reader.FieldCount).Select(reader.GetName).ToArray();
-                    var rows = new List<object[]>();
-                    while (await reader.ReadAsync())
+                    await using var insert = new SqlCommand("INSERT dbo.sales_invoices(store_code,document_number,invoice_year,transaction_date) VALUES('X',N'X',2027,'20260401');", connection);
+                    await insert.ExecuteNonQueryAsync();
+                });
+                Assert.Equal(229, write.Number);
+                await using (var command = new SqlCommand(script, connection) { CommandTimeout = 120 })
+                await using (var reader = await command.ExecuteReaderAsync())
+                {
+                    do
                     {
-                        var values = new object[reader.FieldCount];
-                        reader.GetValues(values);
-                        rows.Add(values);
-                    }
-                    sets.Add((columns, rows));
-                } while (await reader.NextResultAsync());
+                        var columns = Enumerable.Range(0, reader.FieldCount).Select(reader.GetName).ToArray();
+                        var rows = new List<object[]>();
+                        while (await reader.ReadAsync())
+                        {
+                            var values = new object[reader.FieldCount];
+                            reader.GetValues(values);
+                            rows.Add(values);
+                        }
+                        sets.Add((columns, rows));
+                    } while (await reader.NextResultAsync());
+                }
+                await using (var revert = new SqlCommand("REVERT;", connection)) await revert.ExecuteNonQueryAsync();
+                reverted = true;
             }
-            await using (var revert = new SqlCommand("REVERT;", connection)) await revert.ExecuteNonQueryAsync();
+            finally
+            {
+                // A failed assertion or script skips the REVERT: never return a still-impersonating session to the
+                // pool, where the next reset of it would break the connection of another test.
+                if (!reverted) SqlConnection.ClearPool(connection);
+            }
         }
 
         return sets;

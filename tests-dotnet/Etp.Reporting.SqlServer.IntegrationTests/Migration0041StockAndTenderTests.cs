@@ -80,11 +80,16 @@ public sealed class Migration0041StockAndTenderTests
         await new SqlServerDatabaseBootstrapper(db.ConnectionString, new Before0041(source)).BootstrapAsync();
         await db.ExecuteAsync(SeedInvoice);
         // Three rows equal on every column (the per-unit repeat) and one that differs only by document number case.
+        // Each row has its own source row: UQ_stock_movements_lineage (0002) allows one movement per lineage row.
         await db.ExecuteAsync("""
+            DECLARE @file bigint=(SELECT MIN(import_file_id) FROM dbo.source_lineage);
+            INSERT dbo.source_lineage(import_file_id,sheet_name,source_row_number,source_record_type)
+            VALUES(@file,'Movements',1,'fact'),(@file,'Movements',2,'fact'),(@file,'Movements',3,'fact'),(@file,'Movements',4,'fact');
             INSERT dbo.stock_movements(store_code,document_number,invoice_year,document_date,product_code,source_transaction_type,
               from_location,to_location,opening_quantity,transaction_quantity,closing_quantity,source_lineage_id)
             SELECT 'UPGRADE',v.doc,2027,'20260825','ITEM','STM Receipt',N'',N'UPGRADE',0,1,1,l.source_lineage_id
-            FROM (VALUES(N'D1'),(N'D1'),(N'D1'),(N'd1')) v(doc) CROSS JOIN (SELECT MIN(source_lineage_id) source_lineage_id FROM dbo.source_lineage) l;
+            FROM (VALUES(1,N'D1'),(2,N'D1'),(3,N'D1'),(4,N'd1')) v(n,doc)
+            JOIN dbo.source_lineage l ON l.import_file_id=@file AND l.sheet_name='Movements' AND l.source_row_number=v.n;
             """);
 
         await new MigrationRunner(source, new SqlServerMigrationStore(db.ConnectionString)).RunAsync();
