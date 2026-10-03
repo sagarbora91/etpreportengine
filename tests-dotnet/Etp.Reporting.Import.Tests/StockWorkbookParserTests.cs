@@ -51,6 +51,27 @@ public sealed class StockWorkbookParserTests
     }
 
     [Fact]
+    public void Ledger_location_bin_is_read_on_both_parse_paths()
+    {
+        // WLMHW FIX-14: R030 LOCATION is the bin; RETAILBIN and DEFECTIVEBIN keep separate running balances.
+        object?[] Row(string bin, decimal opening) => ["Stock Receipt", "STORE", "Store", "ITEM", "HSN", "BR", "Brand", "Cluster", "U",
+            "DOC", new DateTime(2026, 9, 7), null, null, null, null, opening, 1m, opening + 1m, "City", "State", bin];
+        var book = new WorkbookSnapshot("sanitized.xlsx", 10, Hash, [new("Sheet0", 1, StockImportProfiles.VariantStockLedgerHeaders,
+            [new(2, Row("RETAILBIN", 5m).Select(x => new WorkbookCell(x)).ToArray()),
+             new(3, Row(" DEFECTIVEBIN ", 0m).Select(x => new WorkbookCell(x)).ToArray()),
+             new(4, Row("", 6m).Select(x => new WorkbookCell(x)).ToArray())])]);
+
+        var direct = new StockWorkbookParser().Parse(book);
+        var staged = new StockWorkbookParser().Parse(new MatchedImportEnvelopeFactory().RequireAccepted(book));
+
+        foreach (var result in new[] { direct, staged })
+        {
+            Assert.False(result.HasBlockers);
+            Assert.Equal("RETAILBIN|DEFECTIVEBIN|<null>", string.Join("|", result.Movements.Select(movement => movement.Location ?? "<null>")));
+        }
+    }
+
+    [Fact]
     public void Unknown_ledger_transaction_type_warns_and_skips_the_row()
     {
         var values = new object?[] { "NEW TYPE", "STORE", "Store", "ITEM", "HSN", "BR", "Brand", "Cluster", "U", "DOC", new DateTime(2026,8,25), null, "STORE", null, null, 1m, -1m, 0m, "City", "State", "Location" };

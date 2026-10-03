@@ -41,11 +41,12 @@ public sealed record SalesInvoiceControlPersistence(
     string CurrencyCode, SourceRowRegistration Lineage);
 
 // LineSeq: the movement's place in its identity, from StockUnitSequencer (migration 0041, section C).
+// Location: the ledger's LOCATION (bin) column (migration 0047); stored, never part of the identity or the line_seq.
 public sealed record StockMovementPersistence(
     string StoreCode, string DocumentNumber, int InvoiceYear, DateOnly DocumentDate,
     string ProductCode, string SourceTransactionType, string? FromLocation, string? ToLocation,
     decimal OpeningQuantity, decimal TransactionQuantity, decimal ClosingQuantity,
-    SourceRowRegistration Lineage, int LineSeq = 1);
+    SourceRowRegistration Lineage, int LineSeq = 1, string? Location = null);
 
 // SourceReportCode (CLOSING_STOCK or R010; null lets the database derive it from the lineage) and LineSeq
 // from SnapshotItemSequencer (migration 0041, section D).

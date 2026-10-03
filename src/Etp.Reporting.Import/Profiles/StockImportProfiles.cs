@@ -29,7 +29,9 @@ public static class StockImportProfiles
         new("TO LOCATION", "to_location", CanonicalDataType.Identifier, false),
         new("OPENING_QTY", "opening_quantity", CanonicalDataType.Decimal, true),
         new("TRANS_QTY", "transaction_quantity", CanonicalDataType.Decimal, true),
-        new("CLOSING_QTY", "closing_quantity", CanonicalDataType.Decimal, true));
+        new("CLOSING_QTY", "closing_quantity", CanonicalDataType.Decimal, true),
+        // The bin (RETAILBIN, DEFECTIVEBIN, ...): stored on dbo.stock_movements since 0047, never part of the identity.
+        new("LOCATION", "location", CanonicalDataType.Text, false));
 
     public static ImportProfile ClosingStock { get; } = Create("CLOSING_STOCK", ClosingStockHeaders,
         new("STORE CODE", "store_code", CanonicalDataType.Identifier, true),
