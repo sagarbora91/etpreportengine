@@ -35,6 +35,7 @@ public partial class AdministrationWorkspaceView : UserControl
     private IReadOnlySet<string> serviceStoreCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     private object? masterActiveToolTip;
     private bool masterActiveToolTipCaptured;
+    private bool masterActiveBeforeLock = true;
 
     /// <summary>True when the Active toggle is off because the typed code is a Service Centre store.</summary>
     public bool MasterActiveLockedForServiceStore { get; private set; }
@@ -50,8 +51,13 @@ public partial class AdministrationWorkspaceView : UserControl
     {
         if (!masterActiveToolTipCaptured) { masterActiveToolTip = MasterActiveInput.ToolTip; masterActiveToolTipCaptured = true; }
         var locked = serviceStoreCodes.Contains(MasterCodeInput.Text.Trim());
+        var wasLocked = MasterActiveLockedForServiceStore;
         MasterActiveLockedForServiceStore = locked;
+        // Remember the Owner's tick when AW330 locks the box and give it back when the code
+        // stops being AW330, so the Retail store saved next is never switched off by accident.
+        if (locked && !wasLocked) masterActiveBeforeLock = MasterActiveInput.IsChecked == true;
         if (locked) MasterActiveInput.IsChecked = false;
+        else if (wasLocked) MasterActiveInput.IsChecked = masterActiveBeforeLock;
         MasterActiveInput.IsEnabled = !locked;
         MasterActiveInput.ToolTip = locked ? Etp.Reporting.Infrastructure.SqlServer.ServiceCentreStores.ActiveToggleLockedToolTip : masterActiveToolTip;
     }

@@ -14,8 +14,12 @@ public partial class AdministrationWorkspaceView
     private static MasterDraft EmptyMaster => new("", "", "", 0, true);
     private void ApplyMaster(MasterDraft value)
     {
+        // The draft's tick goes in first and is what the AW330 lock gives back on unlock, so a
+        // draft never leaves the box ticked under the lock or unticked for a Retail code.
+        MasterActiveInput.IsChecked = value.Active; masterActiveBeforeLock = value.Active;
         MasterCodeInput.Text = value.Code; MasterNameInput.Text = value.Name; MasterReasonInput.Text = value.Reason;
-        MasterApprovalInput.SelectedIndex = value.Approval; MasterActiveInput.IsChecked = value.Active;
+        MasterApprovalInput.SelectedIndex = value.Approval;
+        UpdateMasterActiveState();
     }
     private void RetainMasterType()
     {

@@ -105,6 +105,14 @@ public sealed class StoreDisplayTests
             view.TypeMasterCode("WLMHW");
             Assert.True(view.CanToggleMasterActive);
             Assert.False(view.MasterActiveLockedForServiceStore);
+            // The Owner's tick comes back once the code is no longer AW330 ...
+            Assert.True(view.MasterActiveChecked);
+
+            // ... so the Retail store saved next stays active.
+            Assert.True(await view.SaveMasterDraftAsync());
+            Assert.True(service.LastSaved?.IsActive);
+            Assert.Equal("WLMHW", service.LastSaved?.Code);
+            Assert.True(view.MasterActiveChecked);
 
             // The database refusal (51900, mapped by the repository) reaches the Owner as plain words.
             service.SaveFailure = new InvalidOperationException(ServiceCentreStores.ActivationRefusedMessage);
@@ -169,8 +177,14 @@ public sealed class StoreDisplayTests
                 [],
                 new ProductConfiguration("docs", "share", null, null, true, null, 20, DateTime.UtcNow, "owner")));
 
-        public Task SaveMasterAsync(SaveControlledMaster command, CancellationToken cancellationToken = default) =>
-            SaveFailure is null ? Task.CompletedTask : Task.FromException(SaveFailure);
+        public SaveControlledMaster? LastSaved { get; private set; }
+
+        public Task SaveMasterAsync(SaveControlledMaster command, CancellationToken cancellationToken = default)
+        {
+            if (SaveFailure is not null) return Task.FromException(SaveFailure);
+            LastSaved = command;
+            return Task.CompletedTask;
+        }
         public Task SaveUserAsync(SaveApplicationUser command, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task SaveProductConfigurationAsync(SaveProductConfiguration command, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
