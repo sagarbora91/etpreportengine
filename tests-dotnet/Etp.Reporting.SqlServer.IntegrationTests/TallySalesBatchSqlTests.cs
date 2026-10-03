@@ -113,7 +113,7 @@ public sealed class TallySalesBatchSqlTests(SqlDatabaseFixture database) : IClas
         await database.ExecuteAsync($"""
             DECLARE @batch uniqueidentifier=NEWID(),@file bigint;
             INSERT dbo.import_batches(import_batch_id,status,started_utc) VALUES(@batch,'Completed',SYSUTCDATETIME());
-            INSERT dbo.import_files(import_batch_id,original_file_name,source_sha256,size_bytes) VALUES(@batch,'synthetic-{store}.xlsx',REPLICATE('c',64),1);
+            INSERT dbo.import_files(import_batch_id,original_file_name,source_sha256,size_bytes) VALUES(@batch,'synthetic-{store}.xlsx',LOWER(CONVERT(char(64),HASHBYTES('SHA2_256',N'synthetic-{store}'),2)),1);
             SET @file=SCOPE_IDENTITY();
             INSERT dbo.source_lineage(import_file_id,sheet_name,source_row_number,source_record_type)
             VALUES(@file,'Sales',1,'sale'),(@file,'Sales',2,'sale'),(@file,'Tender',1,'tender'),(@file,'Tender',2,'tender'),(@file,'Tender',3,'tender'),(@file,'Gst',1,'gst'),(@file,'Gst',2,'gst');

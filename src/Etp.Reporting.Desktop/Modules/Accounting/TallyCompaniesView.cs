@@ -61,7 +61,7 @@ public sealed class TallyCompaniesView : UserControl
         identity.Children.Add(Field("Tally company name, exactly as Tally shows it", CompanyInput));
         identity.Children.Add(Field("Test books or live books", BooksInput));
         identity.Children.Add(Field("Stores covered (codes, separated by commas)", StoresInput));
-        identity.Children.Add(Field("Cost centre per store, as in Tally (D12), e.g. WLMHW=Titan World; HEMW=Helios", CostCentresInput));
+        identity.Children.Add(Field("Cost centre per store, as in Tally (D12): STORE=Name; STORE=Name", CostCentresInput));
         identity.Children.Add(Field("Where Tally answers on this PC (optional)", EndpointInput));
         identity.Children.Add(Field("Tally build, as Tally shows it (optional)", BuildInput));
         identity.Children.Add(EnabledInput);
@@ -167,7 +167,7 @@ public sealed class TallyCompaniesView : UserControl
     private void Column(string header, string binding, double width) =>
         CompanyGrid.Columns.Add(new DataGridTextColumn { Header = header, Binding = new Binding(binding), Width = width });
 
-    /// <summary>Reads "WLMHW=Titan World; HEMW=Helios". Store codes are checked against the stores covered when saving.</summary>
+    /// <summary>Reads "STORE=Name; STORE=Name". Store codes are checked against the stores covered when saving.</summary>
     public static IReadOnlyDictionary<string, string> ParseCostCentres(string text)
     {
         var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -175,7 +175,7 @@ public sealed class TallyCompaniesView : UserControl
         {
             var pair = part.Split('=', 2, StringSplitOptions.TrimEntries);
             if (pair.Length != 2 || pair[0].Length == 0 || pair[1].Length == 0)
-                throw new ArgumentException("Write each cost centre as STORE=Name, separated by semicolons, for example WLMHW=Titan World; HEMW=Helios.");
+                throw new ArgumentException("Write each cost centre as STORE=Name, separated by semicolons, with the store code before '=' and the Tally cost centre after it.");
             if (!result.TryAdd(pair[0], pair[1]))
                 throw new ArgumentException($"Store {pair[0].ToUpperInvariant()} has more than one cost centre.");
         }
