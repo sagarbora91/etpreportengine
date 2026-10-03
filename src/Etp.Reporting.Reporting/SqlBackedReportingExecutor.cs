@@ -49,15 +49,55 @@ public sealed class SqlBackedReportingExecutor(
     {
         Validate(scope);
         var data = await repository.LoadStockAsync(scope, cancellationToken);
-        if (data.Positions.Any(x => x.SourceOpeningQuantity is null || x.SourceClosingQuantity is null))
-            return new(ReconciliationStatus.Blocked, [], stockRule.Version,
-                "Both opening and closing snapshots are required for each stock key.");
+        var coverage = LedgerCoverageWarning(data.LedgerCoverage, scope.DateTo);
+        var missingClosing = data.Positions.Where(x => x.SourceClosingQuantity is null).Select(x => x.StoreCode)
+            .Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase).ToArray();
+        if (missingClosing.Length > 0)
+            return new(ReconciliationStatus.Blocked, [], stockRule.Version, Join(coverage,
+                $"Closing stock missing for {Day(scope.DateTo)} ({string.Join(", ", missingClosing)}). Import the Closing Stock export of that date to check stock variance."));
+        if (data.Positions.Any(x => x.SourceOpeningQuantity is null))
+            return new(ReconciliationStatus.Blocked, [], stockRule.Version, Join(coverage,
+                "The ledger opening could not be found for every stock key."));
         var positions = data.Positions.Select(x => new StockPositionValue(x.StoreCode, x.ItemCode,
             x.SourceOpeningQuantity!.Value, x.SourceClosingQuantity!.Value)).ToArray();
         var movements = data.Movements.Select(x => new StockMovementValue(x.StoreCode, x.ItemCode,
             x.SourceMovementType, x.SourceSignedQuantity, Contains(mapping.StockMovementTypes, x.SourceMovementType))).ToArray();
-        return new StockReconciliationService().Reconcile(positions, movements, stockRule);
+        var result = new StockReconciliationService().Reconcile(positions, movements, stockRule);
+        // R-WLMHW-13: a ledger that stops before the To date misses the last movements, so every variance is suspect.
+        // The items stay listed for review; the result is Blocked and says how far the ledger goes.
+        if (coverage is not null) return result with { Status = ReconciliationStatus.Blocked, Message = Join(coverage, result.Message) };
+        var quiet = QuietDaysNote(data.LedgerCoverage, scope.DateTo);
+        return quiet is null ? result : result with { Message = $"{result.Message} {quiet}" };
     }
+
+    // A ledger's stored end is its last movement (the import dates a ledger by its rows), so a gap before the To date
+    // blocks only when it is shown to be short: no ledger at all, or a sale of the store after the ledger's last day.
+    // A gap with no sale is taken as days without stock movement (a closed or quiet day) and only noted.
+    private static bool IsShort(StockLedgerCoverageRow row, DateOnly dateTo) =>
+        row.LedgerCoversTo is null || (row.LedgerCoversTo < dateTo && row.FirstSaleAfterLedger is not null);
+
+    private static string? LedgerCoverageWarning(IReadOnlyList<StockLedgerCoverageRow>? coverage, DateOnly dateTo)
+    {
+        var uncovered = (coverage ?? []).Where(x => IsShort(x, dateTo))
+            .OrderBy(x => x.StoreCode, StringComparer.OrdinalIgnoreCase).ToArray();
+        if (uncovered.Length == 0) return null;
+        var parts = uncovered.Select(x => x.LedgerCoversTo is { } covered
+            ? $"Ledger covers to {Day(covered)} for {x.StoreCode}" + (x.FirstSaleAfterLedger is { } sale ? $" (sales on {Day(sale)} are not in it)" : "")
+            : $"No stock ledger is imported for {x.StoreCode}");
+        return $"{string.Join("; ", parts)}, before the To date {Day(dateTo)}. Movements after that are not in this check, so variances can be false. Import the stock ledger up to {Day(dateTo)}.";
+    }
+
+    private static string? QuietDaysNote(IReadOnlyList<StockLedgerCoverageRow>? coverage, DateOnly dateTo)
+    {
+        var quiet = (coverage ?? []).Where(x => x.LedgerCoversTo < dateTo && !IsShort(x, dateTo))
+            .OrderBy(x => x.StoreCode, StringComparer.OrdinalIgnoreCase).ToArray();
+        if (quiet.Length == 0) return null;
+        return $"Last ledger movement {string.Join("; ", quiet.Select(x => $"{Day(x.LedgerCoversTo!.Value)} for {x.StoreCode}"))}; no sales after it to {Day(dateTo)}, so those days are taken as days without stock movement.";
+    }
+
+    private static string Join(string? warning, string message) => warning is null ? message : $"{warning} {message}";
+
+    private static string Day(DateOnly date) => date.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture);
 
     private void Validate(ReportingQueryScope scope)
     {

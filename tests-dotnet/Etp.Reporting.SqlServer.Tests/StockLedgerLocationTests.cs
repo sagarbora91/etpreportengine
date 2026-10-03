@@ -67,24 +67,27 @@ public sealed class StockLedgerLocationTests
     [Fact]
     public void Stock_variance_opening_is_the_sum_of_each_bins_chain_start()
     {
-        var sql = SqlReportingQueries.StockPositions;
-        // 1.9.3 took one TOP(1) opening over every bin, so a DEFECTIVEBIN chain could supply the item's opening.
-        Assert.DoesNotContain("SELECT TOP(1) m.opening_quantity", sql, StringComparison.Ordinal);
-        Assert.Contains("ELSE SUM(CASE WHEN b.bin_row=1 THEN b.opening_quantity END) END opening_quantity", sql, StringComparison.Ordinal);
-        Assert.Contains("ROW_NUMBER() OVER(PARTITION BY m.location ORDER BY m.document_date,m.line_seq,m.stock_movement_id) bin_row", sql, StringComparison.Ordinal);
+        // 1.9.4 merge: the opening is resolved in C# (StockLedgerOpening, report audit R-HEMW-02 / R-WLMHW-05) from every
+        // ledger row of the key, so the query carries each row's bin and ResolveAcrossBins chains each bin on its own.
+        Assert.Contains("m.opening_quantity,m.closing_quantity,m.location", SqlReportingQueries.StockLedgerRows, StringComparison.Ordinal);
+        Assert.DoesNotContain("SELECT TOP(1) m.opening_quantity", SqlReportingQueries.StockPositions, StringComparison.Ordinal);
+        // 1 Sep: DEFECTIVEBIN 0 -> 1. 2 Sep: RETAILBIN 5 -> 4. 1.9.3 opened at 0 (the DEFECTIVEBIN chain); the item opened with 5.
+        Assert.Equal(5m, Etp.Reporting.Reporting.StockLedgerOpening.ResolveAcrossBins([
+            new(Day(1), 1, 1, 0m, 1m, "DEFECTIVEBIN"),
+            new(Day(2), 1, 2, 5m, 4m, "RETAILBIN")], Day(1), Day(2), 5m));
     }
 
     [Fact]
     public void Stock_variance_opening_falls_back_to_the_first_movement_when_any_bin_is_unknown()
     {
         // A movement with no stored bin is a RETAILBIN or DEFECTIVEBIN movement whose bin is unknown, not a bin of its own,
-        // so its chain start must not be added to the real bins' (review of FIX-14).
-        var sql = SqlReportingQueries.StockPositions;
-        Assert.DoesNotContain("ISNULL(m.location,N'')", sql, StringComparison.Ordinal);
-        Assert.Contains("CASE WHEN MAX(CASE WHEN b.location IS NULL THEN 1 ELSE 0 END)=1", sql, StringComparison.Ordinal);
-        Assert.Contains("THEN MAX(CASE WHEN b.item_row=1 THEN b.opening_quantity END)", sql, StringComparison.Ordinal);
-        Assert.Contains("ROW_NUMBER() OVER(ORDER BY m.document_date,m.line_seq,m.stock_movement_id) item_row", sql, StringComparison.Ordinal);
+        // so its chain start must not be added to the real bins' (review of FIX-14): 5 + 4 would open at 9.
+        Assert.Equal(5m, Etp.Reporting.Reporting.StockLedgerOpening.ResolveAcrossBins([
+            new(Day(8), 1, 1, 5m, 4m, null),
+            new(Day(9), 1, 2, 4m, 3m, "RETAILBIN")], Day(8), Day(9), 3m));
     }
+
+    private static DateOnly Day(int day) => new(2026, 9, day);
 
     [Fact]
     public void Stock_movement_report_shows_the_bin()

@@ -46,47 +46,78 @@ public static class SqlReportingQueries
         ORDER BY i.store_code,i.document_number,c.sales_invoice_control_id;
         """;
 
-    public const string StockPositions = """
+    // Stock keys (report audit 3 Oct 2026, R-WLMHW-04): every item with a ledger movement in the period, including items
+    // that sold out and so have no row in the To-date snapshot. Their closing is 0 when the store has a snapshot that day,
+    // and null (the reconciliation is Blocked) when the store has none at all.
+    private const string StockKeys = """
         WITH keys AS
         (
           SELECT DISTINCT m.store_code,m.product_code FROM dbo.stock_movements m
           WHERE m.document_date>=@dateFrom AND m.document_date<=@dateTo
-            AND (@storesJson IS NULL OR store_code IN (SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@storesJson)))
+            AND (@storesJson IS NULL OR m.store_code IN (SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@storesJson)))
             AND (@itemsJson IS NULL OR m.product_code IN (SELECT CONVERT(nvarchar(80),[value]) FROM OPENJSON(@itemsJson)))
-            AND EXISTS(SELECT 1 FROM dbo.v_stock_snapshots_effective s WHERE s.store_code=m.store_code
-              AND s.product_code=m.product_code AND s.snapshot_date=@dateTo)
         )
+        """;
+
+    public const string StockPositions = StockKeys + "\n" + """
         SELECT k.store_code,k.product_code,
-               first_move.opening_quantity source_opening_quantity,
-               (SELECT SUM(s.quantity) FROM dbo.v_stock_snapshots_effective s WHERE s.store_code=k.store_code
-                 AND s.product_code=k.product_code AND s.snapshot_date=@dateTo) source_closing_quantity
+               CASE WHEN EXISTS(SELECT 1 FROM dbo.v_stock_snapshots_effective s WHERE s.store_code=k.store_code AND s.snapshot_date=@dateTo)
+                    THEN COALESCE((SELECT SUM(s.quantity) FROM dbo.v_stock_snapshots_effective s WHERE s.store_code=k.store_code
+                      AND s.product_code=k.product_code AND s.snapshot_date=@dateTo),0) END source_closing_quantity
         FROM keys k
-        -- Each bin (LOCATION, migration 0047) keeps its own running balance, so each bin's chain starts at its own first
-        -- movement and the item's opening is the sum of the bins' openings (store ledger audit FIX-14). A movement with no stored
-        -- bin is a movement of some unknown bin, not a bin of its own: adding its chain start to the real bins' would count the
-        -- same units twice. So an item with any bin-less movement in the period keeps the 1.9.3 opening, the first movement's.
-        OUTER APPLY(SELECT CASE WHEN MAX(CASE WHEN b.location IS NULL THEN 1 ELSE 0 END)=1
-                       THEN MAX(CASE WHEN b.item_row=1 THEN b.opening_quantity END)
-                       ELSE SUM(CASE WHEN b.bin_row=1 THEN b.opening_quantity END) END opening_quantity FROM
-          (SELECT m.opening_quantity,m.location,
-             ROW_NUMBER() OVER(PARTITION BY m.location ORDER BY m.document_date,m.line_seq,m.stock_movement_id) bin_row,
-             ROW_NUMBER() OVER(ORDER BY m.document_date,m.line_seq,m.stock_movement_id) item_row
-           FROM dbo.stock_movements m
-           WHERE m.store_code=k.store_code AND m.product_code=k.product_code
-             AND m.document_date>=@dateFrom AND m.document_date<=@dateTo) b) first_move
         ORDER BY k.store_code,k.product_code;
         """;
 
+    // Every ledger row of each key, of any date: StockLedgerOpening finds the balance at the start of the period from the
+    // chain of each day (R-HEMW-02, R-WLMHW-05), so the opening never depends on the order the rows were stored in.
+    public const string StockLedgerRows = StockKeys + "\n" + """
+        SELECT m.store_code,m.product_code,m.document_date,m.line_seq,m.stock_movement_id,m.opening_quantity,m.closing_quantity,m.location
+        FROM dbo.stock_movements m
+        JOIN keys k ON k.store_code=m.store_code AND k.product_code=m.product_code
+        ORDER BY m.store_code,m.product_code,m.document_date,m.line_seq,m.stock_movement_id;
+        """;
+
+    // Movements of every item, sold-out ones included, for each store that has a closing-stock snapshot on the To date.
+    // A store without one gives no movement rows (Stock Movement stays Blocked for that day; showing movements on days
+    // without a snapshot waits for Q9).
     public const string StockMovements = """
         SELECT m.store_code,m.product_code,m.source_transaction_type,SUM(m.transaction_quantity) source_signed_quantity,m.location
         FROM dbo.stock_movements m
         WHERE m.document_date>=@dateFrom AND m.document_date<=@dateTo
           AND (@storesJson IS NULL OR m.store_code IN (SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@storesJson)))
           AND (@itemsJson IS NULL OR m.product_code IN (SELECT CONVERT(nvarchar(80),[value]) FROM OPENJSON(@itemsJson)))
-          AND EXISTS(SELECT 1 FROM dbo.v_stock_snapshots_effective s WHERE s.store_code=m.store_code
-            AND s.product_code=m.product_code AND s.snapshot_date=@dateTo)
+          AND EXISTS(SELECT 1 FROM dbo.v_stock_snapshots_effective s WHERE s.store_code=m.store_code AND s.snapshot_date=@dateTo)
         GROUP BY m.store_code,m.product_code,m.location,m.source_transaction_type
         ORDER BY m.store_code,m.product_code,m.location,m.source_transaction_type;
+        """;
+
+    // R-WLMHW-13: how far each store's ledger goes, for the stores the stock check covers (movements in the period or a
+    // snapshot on the To date). The import of a dated family stores the last row date as its period end (ImportScope), so
+    // ledger_covers_to is in practice the last stored movement: a ledger exported to the To date ends earlier when the
+    // last days had no stock movement. first_sale_after_ledger is the evidence that tells the two apart: the first sale
+    // of the store after the ledger's end, up to the To date. A sale moves stock, so a sale there means the ledger is
+    // short; no sale means the days after the ledger's end are taken as quiet days.
+    public const string StockLedgerCoverage = """
+        WITH stores AS
+        (
+          SELECT m.store_code FROM dbo.stock_movements m
+          WHERE m.document_date>=@dateFrom AND m.document_date<=@dateTo
+            AND (@storesJson IS NULL OR m.store_code IN (SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@storesJson)))
+          UNION
+          SELECT s.store_code FROM dbo.v_stock_snapshots_effective s
+          WHERE s.snapshot_date=@dateTo
+            AND (@storesJson IS NULL OR s.store_code IN (SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@storesJson)))
+        )
+        SELECT st.store_code,c.covered ledger_covers_to,
+               (SELECT MIN(i.transaction_date) FROM dbo.sales_invoices i
+                 WHERE i.store_code=st.store_code AND i.transaction_date<=@dateTo
+                   AND (c.covered IS NULL OR i.transaction_date>c.covered)) first_sale_after_ledger
+        FROM stores st
+        CROSS APPLY(SELECT MAX(v.covered) covered FROM (VALUES
+                 ((SELECT MAX(COALESCE(f.period_end,f.business_date)) FROM dbo.import_files f
+                   WHERE f.store_code=st.store_code AND f.report_code='STOCK_LEDGER' AND f.is_superseded=0 AND f.data_truth_version=1)),
+                 ((SELECT MAX(m.document_date) FROM dbo.stock_movements m WHERE m.store_code=st.store_code))) v(covered)) c
+        ORDER BY st.store_code;
         """;
 }
 
@@ -134,18 +165,53 @@ public sealed class SqlServerReportingQueryRepository(string connectionString) :
     {
         scope.Validate();
         await using var connection = await Open(cancellationToken);
-        var positions = new List<StockPositionQueryRow>();
+        var closings = new List<(string Store, string Item, decimal? Closing)>();
         await using (var command = Command(connection, SqlReportingQueries.StockPositions, scope))
         await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
             while (await reader.ReadAsync(cancellationToken))
-                positions.Add(new(reader.GetString(0), reader.GetString(1), NullableDecimal(reader, 2), NullableDecimal(reader, 3)));
-        var movements = new List<StockMovementQueryRow>();
-        await using (var command = Command(connection, SqlReportingQueries.StockMovements, scope))
+                closings.Add((reader.GetString(0), reader.GetString(1), NullableDecimal(reader, 2)));
+        // The database compares store and item codes without case, so the keys here do too.
+        var ledger = new Dictionary<string, List<StockLedgerRow>>(StringComparer.OrdinalIgnoreCase);
+        await using (var command = Command(connection, SqlReportingQueries.StockLedgerRows, scope))
         await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
             while (await reader.ReadAsync(cancellationToken))
-                movements.Add(new(reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetDecimal(3), NullableString(reader, 4)));
-        return new(positions, movements);
+            {
+                var key = LedgerKey(reader.GetString(0), reader.GetString(1));
+                if (!ledger.TryGetValue(key, out var rows)) ledger[key] = rows = [];
+                rows.Add(new(reader.GetFieldValue<DateOnly>(2), reader.GetInt32(3), reader.GetInt64(4), reader.GetDecimal(5), reader.GetDecimal(6), NullableString(reader, 7)));
+            }
+        var positions = closings.Select(x => new StockPositionQueryRow(x.Store, x.Item,
+            ledger.TryGetValue(LedgerKey(x.Store, x.Item), out var rows) ? StockLedgerOpening.ResolveAcrossBins(rows, scope.DateFrom, scope.DateTo, x.Closing) : null,
+            x.Closing)).ToList();
+        var movements = await ReadMovementsAsync(connection, scope, cancellationToken);
+        var coverage = new List<StockLedgerCoverageRow>();
+        await using (var command = Command(connection, SqlReportingQueries.StockLedgerCoverage, scope))
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+            while (await reader.ReadAsync(cancellationToken))
+                coverage.Add(new(reader.GetString(0), reader.IsDBNull(1) ? null : reader.GetFieldValue<DateOnly>(1),
+                    reader.IsDBNull(2) ? null : reader.GetFieldValue<DateOnly>(2)));
+        return new(positions, movements, coverage);
     }
+
+    /// <summary>The Stock Movement report's rows only, without the reconciliation's ledger and coverage reads.</summary>
+    public async Task<IReadOnlyList<StockMovementQueryRow>> LoadStockMovementsAsync(ReportingQueryScope scope, CancellationToken cancellationToken = default)
+    {
+        scope.Validate();
+        await using var connection = await Open(cancellationToken);
+        return await ReadMovementsAsync(connection, scope, cancellationToken);
+    }
+
+    private static async Task<List<StockMovementQueryRow>> ReadMovementsAsync(SqlConnection connection, ReportingQueryScope scope, CancellationToken cancellationToken)
+    {
+        var movements = new List<StockMovementQueryRow>();
+        await using var command = Command(connection, SqlReportingQueries.StockMovements, scope);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+            movements.Add(new(reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetDecimal(3), NullableString(reader, 4)));
+        return movements;
+    }
+
+    private static string LedgerKey(string store, string item) => store + "|" + item;
 
     private async Task<SqlConnection> Open(CancellationToken token)
     {

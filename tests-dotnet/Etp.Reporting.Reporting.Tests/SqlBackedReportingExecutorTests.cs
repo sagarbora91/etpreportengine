@@ -93,6 +93,104 @@ public sealed class SqlBackedReportingExecutorTests
         Assert.Empty(result.Items);
     }
 
+    [Fact]
+    public async Task Store_without_a_closing_snapshot_on_the_to_date_is_blocked_with_the_date()
+    {
+        // WLMHW FIX-04: a sold-out item's closing is 0 only when the store has a snapshot that day; with none, it is null.
+        var repository = new FakeRepository
+        {
+            Stock = new([new("S1", "P1", 1m, null)], [new("S1", "P1", "ISSUE", -1m)], [new("S1", new DateOnly(2026, 8, 25))])
+        };
+
+        var result = await Executor(repository).ExecuteStockReconciliationAsync(Scope());
+
+        Assert.Equal(ReconciliationStatus.Blocked, result.Status);
+        Assert.Empty(result.Items);
+        Assert.StartsWith("Closing stock missing for 25 Aug 2026 (S1).", result.Message);
+    }
+
+    [Fact]
+    public async Task Sold_out_item_with_a_zero_closing_is_checked()
+    {
+        var repository = new FakeRepository
+        {
+            Stock = new([new("S1", "SOLD", 1m, 0m), new("S1", "GAP", 0m, 0m)],
+                [new("S1", "SOLD", "ISSUE", -1m), new("S1", "GAP", "RECEIPT", 1m)], [new("S1", new DateOnly(2026, 8, 25))])
+        };
+
+        var result = await Executor(repository).ExecuteStockReconciliationAsync(Scope());
+
+        Assert.Equal(ReconciliationStatus.Failed, result.Status);
+        Assert.Equal(ReconciliationStatus.Passed, result.Items.Single(x => x.ItemCode == "SOLD").Status);
+        Assert.Equal(1m, result.Items.Single(x => x.ItemCode == "GAP").Variance);
+    }
+
+    [Fact]
+    public async Task Ledger_ending_before_the_to_date_blocks_and_says_how_far_it_goes()
+    {
+        // WLMHW FIX-13: the ledger ends 25 Aug, the check runs to 29 Sep, and S1 has sales on 26 Aug the ledger lacks.
+        var repository = new FakeRepository
+        {
+            Stock = new([new("S1", "P1", 1m, 1m), new("S2", "P2", 2m, 1m)],
+                [new("S2", "P2", "ISSUE", -1m)],
+                [new("S1", new DateOnly(2026, 8, 25), new DateOnly(2026, 8, 26)), new("S2", new DateOnly(2026, 9, 29))])
+        };
+
+        var result = await Executor(repository).ExecuteStockReconciliationAsync(new(new(2026, 7, 1), new(2026, 9, 29)));
+
+        Assert.Equal(ReconciliationStatus.Blocked, result.Status);
+        Assert.StartsWith("Ledger covers to 25 Aug 2026 for S1 (sales on 26 Aug 2026 are not in it), before the To date 29 Sep 2026.", result.Message);
+        Assert.DoesNotContain("S2", result.Message);
+        // The items stay listed for review.
+        Assert.Equal(2, result.Items.Count);
+        Assert.All(result.Items, item => Assert.Equal(ReconciliationStatus.Passed, item.Status));
+    }
+
+    [Fact]
+    public async Task Store_with_no_ledger_at_all_is_named()
+    {
+        var repository = new FakeRepository
+        {
+            Stock = new([], [], [new("S1", null)])
+        };
+
+        var result = await Executor(repository).ExecuteStockReconciliationAsync(Scope());
+
+        Assert.Equal(ReconciliationStatus.Blocked, result.Status);
+        Assert.StartsWith("No stock ledger is imported for S1, before the To date 25 Aug 2026.", result.Message);
+    }
+
+    [Fact]
+    public async Task Ledger_covering_the_to_date_keeps_the_result()
+    {
+        var repository = new FakeRepository
+        {
+            Stock = new([new("S1", "P1", 1m, 1m)], [], [new("S1", new DateOnly(2026, 8, 25))])
+        };
+
+        var result = await Executor(repository).ExecuteStockReconciliationAsync(Scope());
+
+        Assert.Equal(ReconciliationStatus.Passed, result.Status);
+        Assert.DoesNotContain("Ledger covers", result.Message);
+    }
+
+    [Fact]
+    public async Task Ledger_ending_before_the_to_date_with_no_sales_after_it_is_a_quiet_gap_not_a_block()
+    {
+        // The import stores a ledger's last movement as its end: a ledger exported to 25 Aug whose store had no stock
+        // movement on 25 Aug ends on 24 Aug. With no sale after 24 Aug the result stands, with a note.
+        var repository = new FakeRepository
+        {
+            Stock = new([new("S1", "P1", 1m, 1m)], [], [new("S1", new DateOnly(2026, 8, 24), null)])
+        };
+
+        var result = await Executor(repository).ExecuteStockReconciliationAsync(Scope());
+
+        Assert.Equal(ReconciliationStatus.Passed, result.Status);
+        Assert.DoesNotContain("Ledger covers", result.Message);
+        Assert.EndsWith("Last ledger movement 24 Aug 2026 for S1; no sales after it to 25 Aug 2026, so those days are taken as days without stock movement.", result.Message);
+    }
+
     private static ReportingQueryScope Scope() => new(new(2026, 7, 1), new(2026, 8, 25), ["S1"]);
 
     private static SqlBackedReportingExecutor Executor(IReportingQueryRepository repository)
