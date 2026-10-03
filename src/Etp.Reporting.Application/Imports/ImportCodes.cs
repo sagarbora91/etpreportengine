@@ -58,6 +58,9 @@ public static class ImportCodes
     {
         SnapshotDateFromFolder or SnapshotDateFromSiblings or SnapshotDateFromOverride or InfoBlocksUnusable or RowDateMissing or StockRowRepeated or InvoiceTotalMismatch
             or EvidenceNotRetained or Contract.RowOutsidePeriod or Contract.HistoryRepeatsData or Contract.CellNotText
+            // Document holds (spec Appendix B "document held", 6.6-6.7, 7.3): the document waits for the Owner and the rest
+            // of the file goes ahead, so the projector, the resolver and the decision engine all report them as warnings.
+            or InSourceConflict or LegacyBlocksDiffer or HeaderDateMismatch
             => ImportIssueSeverity.Warning,
         FamilyDerived or InvoiceYearDiffers or StaleCopyCollapsed or AttributeNotApplied or Contract.KeyUnknown
             or Contract.BlocksNotInTimeOrder or Contract.LegacyBlocks

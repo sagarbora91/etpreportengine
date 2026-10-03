@@ -102,17 +102,25 @@ public sealed class DocumentProjector(IFactCanonicalizer canonicalizer) : IDocum
             var documents = new Dictionary<string, Document>(StringComparer.Ordinal);
             var held = new List<Placed>();
             var unusable = new List<Placed>();
+            // What the held rows still tell the absence check (spec 8.4): the documents they belong to, the days of rows
+            // whose document is unknown, and whether some row has no usable date at all.
+            var heldDocuments = new Dictionary<string, DocumentKey>(StringComparer.Ordinal);
+            var heldDates = new SortedSet<DateOnly>();
+            var undated = false;
             foreach (var row in rows)
             {
                 if (Locate(row) is not { } location)
                 {
                     held.Add(row);
+                    if (HeldDate(row) is { } day) heldDates.Add(day);
+                    else undated = true;
                     continue;
                 }
                 row.Date = location.Date;
                 if (!TryProjectFacts(row, location.Key.Scope == DocumentScope.Snapshot ? location.Date : null))
                 {
                     unusable.Add(row);
+                    heldDocuments.TryAdd(location.Key.Hash, location.Key);
                     continue;
                 }
                 if (!documents.TryGetValue(location.Key.Hash, out var document))
@@ -131,8 +139,22 @@ public sealed class DocumentProjector(IFactCanonicalizer canonicalizer) : IDocum
             held.Sort((a, b) => a.Position.CompareTo(b.Position));
             return new(block.BlockNo, ordered.Select(Observe).ToArray(),
                 held.Select(row => new FactRow(row.Locator, row.Canonical) { Disposition = RowDisposition.Held }).ToArray(),
-                diagnostics);
+                diagnostics)
+            {
+                HeldDocuments = heldDocuments.Values.ToArray(),
+                HeldDates = heldDates.ToArray(),
+                HasUndatedHeldRows = undated
+            };
         }
+
+        // The day a row that belongs to no document still names: a dated row without a document number. A Period
+        // document's rows take the block's period, so a held Period row has no day of its own.
+        private DateOnly? HeldDate(Placed row) => identity.Scope switch
+        {
+            DocumentScope.Document or DocumentScope.Date => PrimaryDate(row),
+            DocumentScope.Snapshot => SnapshotDate(row),
+            _ => null
+        };
 
         private List<Placed> Place(IReadOnlyList<SourceRow> rows) => rows
             .Select(row => (row.Locator, Values: StagedValues.Normalize(family, row.Values)))
@@ -381,21 +403,29 @@ public sealed class DocumentProjector(IFactCanonicalizer canonicalizer) : IDocum
             {
                 LineSeq = lineSeq.GetValueOrDefault(row, 1),
                 RowKey = identity.RowRule == RowRule.SnapshotItems ? RowKey(row) : null,
-                LineLabel = labels.GetValueOrDefault(row)
+                LineLabel = labels.GetValueOrDefault(row),
+                FactTableRows = FactTableRows(row)
             }).ToArray();
-            var setAside = document.SetAside.Select(row => new FactRow(row.Locator, row.Canonical) { Disposition = RowDisposition.Collapsed }).ToArray();
+            var setAside = document.SetAside.Select(row => new FactRow(row.Locator, row.Canonical)
+            {
+                Disposition = RowDisposition.Collapsed,
+                FactTableRows = FactTableRows(row)
+            }).ToArray();
             return new(document.Key, block.BlockNo, block.ExportTime, document.Date, kept,
                 canonicalizer.MultisetHash(document.Kept.Select(row => row.Canonical.FactRowHash)),
                 canonicalizer.MultisetHash(document.Kept.Select(row => row.Canonical.AttributeHash)))
             {
                 PeriodTo = document.PeriodTo,
                 CanonicalSha256 = identity.HasTypedFacts
-                    ? canonicalizer.MultisetHash(document.Kept.SelectMany(row => row.FactRows).Select(canonicalizer.Hash))
+                    ? canonicalizer.MultisetHash(kept.SelectMany(row => row.FactTableRows).Select(row => row.Hash))
                     : null,
                 SetAside = setAside,
                 HoldCode = document.HoldCode
             };
         }
+
+        private IReadOnlyList<CanonicalFactRow> FactTableRows(Placed row) =>
+            row.FactRows.Select(factRow => CanonicalFactRow.Create(canonicalizer, factRow)).ToArray();
 
         // The fields that pair rows between two readings of a snapshot, as the database's case-insensitive collation
         // compares them; COALESCE(a,b,...) takes the first non-blank. Without a row key every fact pairs (spec 7.5).
@@ -418,19 +448,14 @@ public sealed class DocumentProjector(IFactCanonicalizer canonicalizer) : IDocum
 
         private void Add(string code, IReadOnlyList<Placed> rows, string message) => diagnostics.Add(Diagnostic(code, rows, message));
 
+        // A document hold (IN_SOURCE_CONFLICT) holds that document and the rest of the file goes ahead (spec 6.7, 7.2,
+        // Appendix B "document held"): ImportCodes makes it a warning, as for the resolver and the decision engine.
         private ImportDiagnostic Diagnostic(string code, IReadOnlyList<Placed> rows, string message) =>
-            new(code, Severity(code), message, rows[0].Locator.SheetName, rows[0].Locator.SourceRowNumber)
+            new(code, (ImportDiagnosticSeverity)(int)ImportCodes.DefaultSeverity(code), message, rows[0].Locator.SheetName, rows[0].Locator.SourceRowNumber)
             {
                 BlockNo = block.BlockNo,
                 Occurrences = rows.Count
             };
-
-        // A document hold holds that document and the rest of the file goes ahead (spec 6.7, 7.2, Appendix B "document
-        // held"), so it is a warning here, where as a blocker it would refuse the whole file. The hold is HoldCode.
-        private static ImportDiagnosticSeverity Severity(string code) =>
-            code is ImportCodes.InSourceConflict or ImportCodes.LegacyBlocksDiffer or ImportCodes.HeaderDateMismatch
-                ? ImportDiagnosticSeverity.Warning
-                : (ImportDiagnosticSeverity)(int)ImportCodes.DefaultSeverity(code);
 
         // Document number and date only, never a customer value (spec 11.1).
         private string DocumentRef(Document document) =>

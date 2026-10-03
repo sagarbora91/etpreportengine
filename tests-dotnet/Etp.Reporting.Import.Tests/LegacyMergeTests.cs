@@ -1,6 +1,7 @@
 using Etp.Reporting.Application.Imports;
 using Etp.Reporting.Import.Diagnostics;
 using Etp.Reporting.Import.Documents;
+using Etp.Reporting.Import.Identity;
 using Etp.Reporting.Import.Sources;
 using Etp.Reporting.Import.Workbooks;
 
@@ -174,6 +175,126 @@ public sealed class LegacyMergeTests
         Assert.Contains(new InSourceDecision(Invoice, 1, DocumentDecision.AttestedInSource), resolution.EarlierBlocks);
         Assert.Contains(new InSourceDecision(Invoice, 2, DocumentDecision.RestatedInSource), resolution.EarlierBlocks);
         Assert.Equal(2, resolution.EarlierBlocks.Count);
+    }
+
+    [Theory]
+    [InlineData(7, 15, true)]    // the raw 15 Jul export appended later (contract rule 10) is older than both legacy blocks
+    [InlineData(8, 10, true)]    // newer than the 7 Aug block, older than the 25 Aug block
+    [InlineData(8, 30, false)]   // newer than every merged block: it outranks the merge
+    public void A_timed_block_outranks_a_legacy_merge_only_when_newer_than_every_merged_block(int month, int day, bool mergeStands)
+    {
+        // A contract R025 workbook: legacy blocks 2 (7 Aug) and 3 (25 Aug) both hold the invoice, block 3 with a line
+        // block 2 lacks (inconsistent, held). Block 5 is a complete raw export.
+        var source = new SourceDescription(SourceKind.Consolidated,
+        [
+            Block(2, Time(8, 7)), Block(3, Time(8, 25)),
+            Block(5, Time(month, day)) with { Completeness = BlockCompleteness.Complete, Origin = BlockOrigin.Contract }
+        ], [], []);
+        BlockProjection[] projections =
+        [
+            new(2, [Observation(2, Time(8, 7), ("P1", 1))], [], []),
+            new(3, [Observation(3, Time(8, 25), ("P1", 1), ("P3", 1))], [], []),
+            new(5, [Observation(5, Time(month, day), ("P1", 1), ("P2", 1))], [], [])
+        ];
+
+        var resolution = new InSourceResolver(TestSources.Canonicalizer).Resolve(source, projections);
+
+        var winner = Assert.Single(resolution.Authoritative);
+        if (mergeStands)
+        {
+            // The merge's hold stands and the older export is a restatement of it, never the new content.
+            Assert.True(winner.IsLegacyMerge);
+            Assert.Equal(ImportCodes.LegacyBlocksDiffer, winner.HoldCode);
+            Assert.Equal(ImportCodes.LegacyBlocksDiffer, Assert.Single(resolution.Diagnostics).Code);
+            Assert.Contains(new InSourceDecision(Invoice, 2, DocumentDecision.LegacyBlocksDiffer), resolution.EarlierBlocks);
+            Assert.Contains(new InSourceDecision(Invoice, 5, DocumentDecision.RestatedInSource), resolution.EarlierBlocks);
+            var family = ContractCatalogue.Family("R025");
+            var decision = Assert.Single(new DocumentDecisionEngine().Decide(new DecisionRequest("WLMHW", "R025", family.Identity!, [winner],
+                new Dictionary<string, StoredDocument>(), [], new HashSet<DateOnly>(), ImporterRole.Owner)).Decisions);
+            Assert.Equal(DocumentDecision.LegacyBlocksDiffer, decision.Decision);
+        }
+        else
+        {
+            Assert.Equal(5, winner.BlockNo);
+            Assert.Null(winner.HoldCode);
+            Assert.Empty(resolution.Diagnostics);
+        }
+    }
+
+    [Fact]
+    public void A_consistent_legacy_merge_of_newer_blocks_outranks_an_older_timed_block()
+    {
+        var source = new SourceDescription(SourceKind.Consolidated,
+        [
+            Block(2, Time(8, 7)), Block(3, Time(8, 25)),
+            Block(5, Time(7, 15)) with { Completeness = BlockCompleteness.Complete, Origin = BlockOrigin.Contract }
+        ], [], []);
+        BlockProjection[] projections =
+        [
+            new(2, [Observation(2, Time(8, 7), ("P1", 1), ("P3", 1))], [], []),
+            new(3, [Observation(3, Time(8, 25), ("P1", 1))], [], []),
+            new(5, [Observation(5, Time(7, 15), ("P1", 1), ("P2", 1))], [], [])
+        ];
+
+        var resolution = new InSourceResolver(TestSources.Canonicalizer).Resolve(source, projections);
+
+        var winner = Assert.Single(resolution.Authoritative);
+        Assert.True(winner.IsLegacyMerge);
+        Assert.Null(winner.HoldCode);
+        Assert.Equal(2, winner.RowCount);
+        Assert.Contains(new InSourceDecision(Invoice, 5, DocumentDecision.RestatedInSource), resolution.EarlierBlocks);
+    }
+
+    [Fact]
+    public void A_merge_whose_rows_come_from_several_blocks_points_at_all_of_them()
+    {
+        // Block 1 holds lines A, B, C; block 2 re-sent A with a new timestamp (an Ignored column), so the merge is
+        // consistent and keeps A from block 2 and B, C from block 1. The document's rows are its K rows in both blocks.
+        var first = Observation(1, Time(8, 5), ("A", 1), ("B", 1), ("C", 1));
+        var second = Observation(2, Time(8, 7), ("A", 1));
+
+        var merged = new LegacyMerge(TestSources.Canonicalizer).Merge([first, second]).Observation;
+
+        Assert.Equal(2, merged.BlockNo);
+        Assert.Equal([1, 2], merged.RowsBlockNos);
+        Assert.Equal(merged.Rows.Select(row => row.Source.BlockNo).Distinct().Order(), merged.RowsBlockNos);
+        Assert.Equal([2], second.RowsBlockNos);
+        var family = ContractCatalogue.Family("R025");
+        var decision = Assert.Single(new DocumentDecisionEngine().Decide(new DecisionRequest("WLMHW", "R025", family.Identity!, [merged],
+            new Dictionary<string, StoredDocument>(), [], new HashSet<DateOnly>(), ImporterRole.Owner)).Decisions);
+        Assert.Equal(DocumentDecision.New, decision.Decision);
+        Assert.Equal(2, decision.BlockNo);
+        Assert.Equal([1, 2], decision.RowsBlockNos);
+    }
+
+    [Fact]
+    public void A_typed_merge_keeps_a_canonical_hash_over_rows_from_several_blocks()
+    {
+        // Spec 6.6 step 5: a merged observation equal to the stored facts is PRESENT. Against a version whose basis is
+        // not SOURCE_ROWS that needs the merge's canonical hash, also when its kept rows come from two blocks.
+        var family = ProjectorTestCatalogue.R025;
+        var projector = new DocumentProjector(FactCanonicalizer.Instance);
+        DocumentObservation Project(int blockNo, ExportTime time, params string[] products) =>
+            Assert.Single(projector.Project(new(family, ProjectorTestCatalogue.Store, ProjectorTestCatalogue.Block(products.Length, time, blockNo),
+                products.Select((product, index) => ProjectorTestCatalogue.Row(family, new RowLocator(blockNo, ProjectorTestCatalogue.Sheet, index + 2),
+                    ("product_code", product), ("source_store_timestamp", $"2026-08-0{blockNo} 10:00:00"))).ToArray())).Documents);
+        var whole = Project(1, Time(8, 5), "ITEM-1", "ITEM-2");
+        var partial = Project(2, Time(8, 7), "ITEM-1");
+
+        var merged = new LegacyMerge(FactCanonicalizer.Instance).Merge([whole, partial]).Observation;
+
+        Assert.Equal([1, 2], merged.RowsBlockNos);
+        Assert.NotNull(whole.CanonicalSha256);
+        Assert.Equal(whole.CanonicalSha256, merged.CanonicalSha256);
+        foreach (var basis in new[] { VersionBasis.CanonicalOnly, VersionBasis.Unverified })
+        {
+            var version = new StoredVersion(1, 1, basis, new string('0', 64), whole.CanonicalSha256, merged.AttributeSha256, 2, ExportTime.Unknown, false);
+            var stored = new StoredDocument(merged.Key, 7, DocumentStatus.Current, merged.DocumentDate, version);
+            var decision = Assert.Single(new DocumentDecisionEngine().Decide(new DecisionRequest(ProjectorTestCatalogue.Store, "R025", family.Identity!,
+                [merged], new Dictionary<string, StoredDocument> { [stored.Key.Hash] = stored }, [], new HashSet<DateOnly>(), ImporterRole.Owner)).Decisions);
+            Assert.True(decision.Attest);
+            Assert.Null(decision.Change);
+        }
     }
 
     [Fact]

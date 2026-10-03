@@ -209,6 +209,10 @@ public sealed class ImportEngineContractTests
         Assert.Equal(ImportIssueSeverity.Information, ImportCodes.DefaultSeverity(ImportCodes.Contract.KeyUnknown));
         Assert.Equal(ImportIssueSeverity.Blocker, ImportCodes.DefaultSeverity(ImportCodes.ContractUnreadable));
         Assert.Equal(ImportIssueSeverity.Blocker, ImportCodes.DefaultSeverity(ImportCodes.SnapshotMultipleDates));
+        // Document holds (Appendix B "document held"): the document waits for the Owner, the file goes ahead.
+        Assert.Equal(ImportIssueSeverity.Warning, ImportCodes.DefaultSeverity(ImportCodes.InSourceConflict));
+        Assert.Equal(ImportIssueSeverity.Warning, ImportCodes.DefaultSeverity(ImportCodes.LegacyBlocksDiffer));
+        Assert.Equal(ImportIssueSeverity.Warning, ImportCodes.DefaultSeverity(ImportCodes.HeaderDateMismatch));
         Assert.Equal("SQL_51700", ImportCodes.Sql(ImportCodes.SqlErrors.FinancialYearPrecheck));
 
         var numbers = typeof(ImportCodes.SqlErrors).GetFields(BindingFlags.Public | BindingFlags.Static)

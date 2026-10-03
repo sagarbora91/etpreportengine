@@ -89,7 +89,27 @@ public sealed record SourceDescription(
     /// <summary>The contract version of a <see cref="SourceKind.Consolidated"/> workbook.</summary>
     public int? ContractVersion { get; init; }
     public ConsolidationContract? Contract { get; init; }
+    /// <summary>
+    /// Sheet rows that belong to no block, and why. Every staged row of the workbook is in exactly one block or in one
+    /// of these; an integrator landing every staged row gives these their own disposition and decides nothing from them.
+    /// </summary>
+    public IReadOnlyList<SkippedBlock> SkippedBlocks { get; init; } = [];
     public bool HasBlockers => Diagnostics.Any(diagnostic => diagnostic.Severity == ImportDiagnosticSeverity.Blocker);
+
+    /// <summary>The skipped block holding a sheet row, or null when a block (or nothing) holds it.</summary>
+    public SkippedBlock? SkippedBlockOf(string sheetName, int sheetRow) =>
+        SkippedBlocks.FirstOrDefault(skipped => skipped.Contains(sheetName, sheetRow));
+}
+
+/// <summary>
+/// A contract block that is not a block of the source: a <c>Snapshot History</c> block repeating the same export as the
+/// <c>Data</c> block (contract 5, <c>CONTRACT_HISTORY_REPEATS_DATA</c>). Its rows are counted once, from
+/// <see cref="AttestedByBlockNo"/>; they are landed for lineage only and observe nothing.
+/// </summary>
+public sealed record SkippedBlock(int BlockNo, string SheetName, int FirstRow, int LastRow, string Code, int AttestedByBlockNo)
+{
+    public bool Contains(string sheetName, int sheetRow) =>
+        sheetRow >= FirstRow && sheetRow <= LastRow && string.Equals(SheetName, sheetName, StringComparison.OrdinalIgnoreCase);
 }
 
 /// <summary>
