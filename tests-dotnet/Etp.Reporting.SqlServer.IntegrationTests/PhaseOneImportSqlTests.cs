@@ -239,9 +239,13 @@ public sealed class PhaseOneImportSqlTests(ITestOutputHelper output)
               FROM dbo.sales_invoices i WHERE i.store_code='HEMW' AND i.document_number='100000777') headers
             """));
         // Another date under the same financial year and number is never merged or re-dated: the file rolls back.
-        var clash=await Assert.ThrowsAsync<Etp.Reporting.Import.Batch.ImportSourceException>(()=>Save(service,Workbook(revenue,[
+        // Since IF-017 (2d91839) a conflict is an ImportConflictException, code IMPORT_CONFLICT, carrying the count and
+        // samples read before the rollback; it replaced the ImportSourceException("IMPORT_CONFLICT") this test was written for.
+        var clash=await Assert.ThrowsAsync<Etp.Reporting.Import.Batch.ImportConflictException>(()=>Save(service,Workbook(revenue,[
             Cells(revenue,2,("TRANS_TYPE","SR"),("INVNUMBER","100000777"),("INVOICEDATE",new DateOnly(2026,4,5)),("INVOICEYEAR",2027))])));
         Assert.Equal("IMPORT_CONFLICT",clash.Code);
+        Assert.True(clash.Count>0);
+        Assert.NotEmpty(clash.Samples);
         Assert.Equal(2,await db.Int("SELECT COUNT(*) FROM dbo.sales_invoices"));
         Assert.Equal(2,await db.Int("SELECT COUNT(*) FROM dbo.sales_invoice_controls"));
     }

@@ -164,16 +164,21 @@ public sealed class OwnerGrantOptionTests(SqlDatabaseFixture database) : IClassF
     {
         // Security review 1.9.3, F2: WORKPC\Shop renamed to WORKPC\Sagar keeps its SID, and the
         // database user can keep the old name while it maps to the live login.
+        // SQL Server refuses a backslash name on a database user unless Windows resolves it to that
+        // user's own SID, so the stale names here have none (RetiredAccountDeactivationTests explains
+        // the fixture). Each user is a Windows user (type U) whose name Windows cannot resolve.
         await using var session = await Session.OpenAsync(database.ConnectionString);
-        await session.RequireAbsentAsync(OwnerA);
-        var renamed = RetiredIdentity();
-        var orphaned = RetiredIdentity();
-        var dropped = RetiredIdentity();
+        await session.RequireAbsentAsync(OwnerA, OwnerB);
+        var renamed = StaleUserName();
+        var orphaned = StaleUserName();
+        var dropped = StaleUserName();
         await session.ScalarAsync($"""
             CREATE LOGIN [{OwnerA}] FROM WINDOWS;
             CREATE USER [{renamed}] FOR LOGIN [{OwnerA}];
             ALTER ROLE etp_viewer ADD MEMBER [{renamed}];
-            CREATE USER [{orphaned}] WITHOUT LOGIN;
+            CREATE LOGIN [{OwnerB}] FROM WINDOWS;
+            CREATE USER [{orphaned}] FOR LOGIN [{OwnerB}];
+            DROP LOGIN [{OwnerB}];
             ALTER ROLE etp_viewer ADD MEMBER [{orphaned}];
             INSERT dbo.application_users(windows_identity,display_name,role_code,is_active,modified_by,change_reason)
             VALUES(N'{renamed}',N'Old name','VIEWER',1,SUSER_SNAME(),N'Integration test'),
@@ -205,7 +210,7 @@ public sealed class OwnerGrantOptionTests(SqlDatabaseFixture database) : IClassF
         Assert.Equal("NONE", await session.ConnectStateAsync(dropped));
     }
 
-    private static string RetiredIdentity() => $"ETPGONE{Guid.NewGuid():N}"[..15] + @"\Sagar";
+    private static string StaleUserName() => $"ETPGONE{Guid.NewGuid():N}"[..19];
 
     // ---------------------------------------------------------------- plumbing
 
