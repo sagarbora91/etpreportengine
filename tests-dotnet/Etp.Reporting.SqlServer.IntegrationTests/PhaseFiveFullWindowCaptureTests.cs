@@ -27,7 +27,44 @@ public sealed partial class PhaseFiveFullWindowCaptureTests(ITestOutputHelper ou
 {
     private static readonly DateOnly Day = new(2026, 8, 25);
     private sealed record Capture(string Role, string Task, int Width, int Height, string File, int DistinctSampleColours);
-    private sealed record RoleWalk(IReadOnlyList<Capture> Captures, IReadOnlyDictionary<string, int> Destinations, IReadOnlyList<string> Failures);
+    private sealed record RoleWalk(IReadOnlyList<Capture> Captures, IReadOnlyDictionary<string, int> Destinations, IReadOnlyList<string> Failures, IReadOnlyList<string> Notes);
+
+    // F-20. Written out by hand, never derived from TaskDestination.IsAllowed, so a
+    // destination that disappears (or a role rule that changes) fails the walk instead of
+    // shrinking it. 48 fixed tasks (11 for every role, 15 needing the import role, 22
+    // Owner-only) + 22 reports + 21 Help topics. 89/69/54 when re-audited on 26 Sep 2026;
+    // Phase 7 added the Owner's "tally-companies" and the 1.9.3 evidence fixes the Owner's
+    // "keep-evidence". TaskNavigationTests holds the same lists.
+    private static readonly IReadOnlyDictionary<string, int> ExpectedDestinationCounts =
+        new Dictionary<string, int> { ["OWNER"] = 91, ["STORE_MANAGER"] = 69, ["VIEWER"] = 54 };
+    private static readonly string[] OwnerOnlyTasks =
+    [
+        "connection", "health", "backups", "recovery", "support-package", "audit", "users", "profiles",
+        "stores", "kpi", "tender-rules", "staff-target", "watch-folder", "sharing", "sharing-contacts",
+        "tally-companies", "prepare-batch", "open-items", "data-quality", "approval-centre", "adjustment",
+        "keep-evidence"
+    ];
+    private static readonly string[] ImportRoleTasks =
+    [
+        "walk-ins", "finalisation", "register-expense", "cash-input", "import-files", "stock-count", "masters",
+        "investigation", "register-inward", "register-outward", "register-credit", "register-service",
+        "register-transfer", "register-vendor", "register-courier"
+    ];
+
+    private static string[] ExpectedDestinations(string role)
+    {
+        string[] excluded = role switch
+        {
+            "OWNER" => [],
+            "STORE_MANAGER" => OwnerOnlyTasks,
+            "VIEWER" => [.. OwnerOnlyTasks, .. ImportRoleTasks],
+            _ => throw new ArgumentOutOfRangeException(nameof(role))
+        };
+        var expected = TaskNavigation.All.Select(task => task.Id).Except(excluded).Order(StringComparer.Ordinal).ToArray();
+        Assert.True(expected.Length == ExpectedDestinationCounts[role],
+            $"{role}: the catalogue now offers {expected.Length} destinations, not {ExpectedDestinationCounts[role]}. Update the written-out counts only for a deliberate change.");
+        return expected;
+    }
 
     [Fact]
     public async Task Every_role_reachable_destination_loads_with_disposable_data_and_optional_captures()
@@ -47,8 +84,11 @@ public sealed partial class PhaseFiveFullWindowCaptureTests(ITestOutputHelper ou
         var realSettings = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "EtpReporting", "settings.json");
         var settingsHash = HashIfPresent(realSettings);
         var preferencesHash = HashIfPresent(UiPreferenceStore.FilePath);
-        var database = new SqlDatabaseFixture();
-        try
+        // The parent names the database, so it can still drop it if it has to kill this process.
+        var database = Environment.GetEnvironmentVariable(RoleWalkDatabaseVariable) is { Length: > 0 } name
+            ? new SqlDatabaseFixture(name) : new SqlDatabaseFixture();
+        // Cleanup runs every step and never hides the walk's own failure (re-audit 26 Sep).
+        await TestCleanup.RunAsync(async () =>
         {
             await database.InitializeAsync();
             await SeedAsync(database);
@@ -56,7 +96,10 @@ public sealed partial class PhaseFiveFullWindowCaptureTests(ITestOutputHelper ou
             var result = await WalkOnStaAsync(database, settings, evidence, help);
             foreach (var (role, count) in result.Destinations)
                 output.WriteLine($"Walked every available destination for {role}: {count}.");
+            foreach (var note in result.Notes) output.WriteLine(note);
             Assert.True(result.Failures.Count == 0, string.Join(Environment.NewLine, result.Failures));
+            Assert.Equal(ExpectedDestinationCounts.OrderBy(pair => pair.Key, StringComparer.Ordinal),
+                result.Destinations.OrderBy(pair => pair.Key, StringComparer.Ordinal));
             var captures = result.Captures;
             if (evidence is not null)
             {
@@ -73,17 +116,11 @@ public sealed partial class PhaseFiveFullWindowCaptureTests(ITestOutputHelper ou
                 output.WriteLine($"Captured {captures.Count} synthetic Phase 5 screens: {evidence}");
             }
             else Assert.Empty(captures);
-        }
-        finally
-        {
-            try { await database.DisposeAsync(); }
-            finally
-            {
-                Directory.Delete(settings, recursive: true);
-                Assert.Equal(settingsHash, HashIfPresent(realSettings));
-                Assert.Equal(preferencesHash, HashIfPresent(UiPreferenceStore.FilePath));
-            }
-        }
+        },
+        TestCleanup.StepAsync("drop the fixture database", database.DisposeAsync),
+        TestCleanup.Step("delete the temporary settings folder", () => Directory.Delete(settings, recursive: true)),
+        TestCleanup.Step("leave the real connection settings unchanged", () => Assert.Equal(settingsHash, HashIfPresent(realSettings))),
+        TestCleanup.Step("leave the real display preferences unchanged", () => Assert.Equal(preferencesHash, HashIfPresent(UiPreferenceStore.FilePath))));
     }
 
     private static async Task<RoleWalk> WalkOnStaAsync(SqlDatabaseFixture database, string settings, string? evidence, string? help)
@@ -110,6 +147,7 @@ public sealed partial class PhaseFiveFullWindowCaptureTests(ITestOutputHelper ou
                         var captures = new List<Capture>();
                         var destinations = new Dictionary<string, int>();
                         var failures = new List<string>();
+                        var notes = new List<string>();
                         foreach (var role in new[] { "OWNER", "STORE_MANAGER", "VIEWER" })
                         {
                             if (evidence is not null) File.AppendAllText(Path.Combine(evidence, "capture-progress.txt"), $"{DateTimeOffset.UtcNow:O} Starting {role}\n");
@@ -147,7 +185,11 @@ public sealed partial class PhaseFiveFullWindowCaptureTests(ITestOutputHelper ou
                             Assert.False(TaskNavigation.Find("import-files")!.IsAllowed(window.CurrentShellAccess) && role == "VIEWER");
 
                             var screenshots = ScreenshotTasks(role);
+                            var expectedIds = ExpectedDestinations(role);
                             var tasks = TaskNavigation.All.Where(task => task.Available && task.IsAllowed(window.CurrentShellAccess)).ToArray();
+                            // The product rule picks what the walk visits; the written-out
+                            // lists decide whether that is right.
+                            Assert.Equal(expectedIds, tasks.Select(task => task.Id).Order(StringComparer.Ordinal));
                             var walked = new List<string>();
                             var fingerprints = new List<DestinationFingerprint>();
                             foreach (var destination in tasks)
@@ -177,7 +219,7 @@ public sealed partial class PhaseFiveFullWindowCaptureTests(ITestOutputHelper ou
                                 Assert.Null(dispatcherFailure);
                                 walked.Add(id);
                                 CheckTaskContent(window, destination, role, integrationHealthHeading, failures);
-                                if (role == "OWNER") fingerprints.Add(Fingerprint(window, id));
+                                fingerprints.Add(Fingerprint(window, id));
                                 if (evidence is null || !screenshots.TryGetValue(id, out var name)) continue;
                                 foreach (var (width, height) in new[] { (1366, 768), (816, 480) })
                                 {
@@ -197,8 +239,11 @@ public sealed partial class PhaseFiveFullWindowCaptureTests(ITestOutputHelper ou
                                         SavePng(bitmap, Path.Combine(help, name + ".png"));
                                 }
                             }
-                            Assert.Equal(tasks.Select(task => task.Id).Order(), walked.Order());
-                            if (role == "OWNER") failures.AddRange(DuplicateDestinations(fingerprints));
+                            Assert.Equal(expectedIds, walked.Order(StringComparer.Ordinal));
+                            // Every role, not only the Owner: a role-filtered screen can turn
+                            // into a copy of another for one role alone.
+                            failures.AddRange(DuplicateDestinations(role, fingerprints));
+                            notes.Add($"{role}: destinations whose grids were all empty, so their data could not be compared: {string.Join(", ", DestinationsWithOnlyEmptyGrids(fingerprints))}");
                             destinations.Add(role, walked.Count);
                             // No UI operation can outlive the fixture database.
                             var drafts = UnexpectedDrafts(window);
@@ -210,13 +255,16 @@ public sealed partial class PhaseFiveFullWindowCaptureTests(ITestOutputHelper ou
                             await application.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
                             Assert.Null(dispatcherFailure);
                         }
-                        completion.TrySetResult(new(captures, destinations, failures));
+                        completion.TrySetResult(new(captures, destinations, failures, notes));
                     }
                     catch (Exception exception) { completion.TrySetException(exception); }
                     finally
                     {
-                        if (window is not null) { DiscardFixtureDrafts(window); window.Close(); }
-                        application.Shutdown();
+                        // The walk has already failed when a window is left here; the
+                        // dispatcher must still shut down so the thread can be joined.
+                        try { if (window is not null) { DiscardFixtureDrafts(window); window.Close(); } }
+                        catch (Exception exception) { completion.TrySetException(exception); }
+                        finally { application.Shutdown(); }
                     }
                 });
                 application.Run();
@@ -225,8 +273,11 @@ public sealed partial class PhaseFiveFullWindowCaptureTests(ITestOutputHelper ou
         }) { IsBackground = true };
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
-        try { return await completion.Task.WaitAsync(TimeSpan.FromMinutes(8)); }
-        finally { Assert.True(thread.Join(TimeSpan.FromSeconds(5)), "Capture dispatcher did not close."); }
+        RoleWalk? walk = null;
+        // A dispatcher that fails to close must not replace the walk's own failure.
+        await TestCleanup.RunAsync(async () => walk = await completion.Task.WaitAsync(TimeSpan.FromMinutes(8)),
+            TestCleanup.Step("close the capture dispatcher", () => Assert.True(thread.Join(TimeSpan.FromSeconds(5)), "Capture dispatcher did not close.")));
+        return walk!;
     }
 
     private static async Task RefreshTaskAsync(MainWindow window, TaskDestination task)

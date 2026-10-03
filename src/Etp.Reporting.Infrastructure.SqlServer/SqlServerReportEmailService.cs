@@ -33,16 +33,20 @@ public sealed partial class SqlServerReportDistributionService
         if (command.GenerationId <= 0) throw new ArgumentOutOfRangeException(nameof(command.GenerationId));
         var attachmentPath = string.IsNullOrWhiteSpace(command.AttachmentPath) ? command.AttachmentPath : Path.GetFullPath(command.AttachmentPath);
         await ValidateEmailAttachmentAsync(attachmentPath, cancellationToken).ConfigureAwait(false);
-        var settings = SmtpSettings(await gateway.LoadSettingsAsync(cancellationToken).ConfigureAwait(false));
+        var productSettings = await gateway.LoadSettingsAsync(cancellationToken).ConfigureAwait(false);
+        var settings = SmtpSettings(productSettings);
         _ = MailKitReportEmailTransport.ParseRecipients(command.To);
         if (!string.IsNullOrWhiteSpace(command.Cc)) _ = MailKitReportEmailTransport.ParseRecipients(command.Cc);
+        // The path check above can be outrun by a swap in the sharing folder. What is sent is
+        // read now from one held handle that is itself proved to be inside the folder (S-02).
+        var attachment = HeldReportAttachment.Read(attachmentPath!, productSettings.ShareFolderPath, productSettings.MaximumAttachmentMb);
         var key = Guid.NewGuid();
         await Record("INITIATED", "SMTP submission started. If no final outcome follows, check the mail server before retrying.");
         SmtpTransportResult result;
         try
         {
             result = await emailTransport.SendAsync(settings, new(command.To, command.Cc,
-                $"ETP report pack - generation {command.GenerationId}", "Please find the saved ETP report pack attached.", attachmentPath), cancellationToken).ConfigureAwait(false);
+                $"ETP report pack - generation {command.GenerationId}", "Please find the saved ETP report pack attached.", attachment), cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         { result = new("UNKNOWN", "SMTP outcome could not be confirmed. Check the mail server before retrying."); }

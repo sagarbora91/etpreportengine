@@ -1,6 +1,7 @@
 using App = Etp.Reporting.Application.Distribution;
 using Etp.Reporting.Reporting;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 
 namespace Etp.Reporting.Infrastructure.SqlServer.Tests;
 
@@ -23,7 +24,8 @@ public sealed class ReportEmailServiceTests
         Assert.Equal("smtp.example.invalid", transport.Connection!.Host);
         Assert.Equal(587, transport.Connection.Port); Assert.True(transport.Connection.UseTls);
         Assert.Equal("sender@example.invalid", transport.Connection.FromAddress);
-        Assert.Equal(gateway.AttachmentPath, transport.Email!.AttachmentPath);
+        Assert.Equal("pack.pdf", transport.Email!.Attachment!.FileName);
+        Assert.Equal("prepared report"u8.ToArray(), transport.Email.Attachment.Content);
         Assert.Equal("reviewer@example.invalid", transport.Email.Cc);
         Assert.DoesNotContain(gateway.Attempts, row => row.SafeMessage.Contains("owner@example.invalid"));
     }
@@ -83,17 +85,7 @@ public sealed class ReportEmailServiceTests
         var outside = Directory.CreateDirectory(Path.Combine(gateway.Root, "private")).FullName;
         await File.WriteAllTextAsync(Path.Combine(outside, "pack.pdf"), "private file");
         var link = Path.Combine(gateway.ShareFolderPath, "linked");
-        var start = new ProcessStartInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), @"WindowsPowerShell\v1.0\powershell.exe"))
-        {
-            UseShellExecute = false, CreateNoWindow = true, RedirectStandardError = true, RedirectStandardOutput = true
-        };
-        start.ArgumentList.Add("-NoProfile"); start.ArgumentList.Add("-NonInteractive"); start.ArgumentList.Add("-Command");
-        start.ArgumentList.Add($"$ErrorActionPreference = 'Stop'; New-Item -ItemType Junction -Path '{link.Replace("'", "''")}' -Target '{outside.Replace("'", "''")}' | Out-Null");
-        using (var process = Process.Start(start)!)
-        {
-            Assert.True(process.WaitForExit(15000), "Temporary junction creation timed out.");
-            Assert.Equal(0, process.ExitCode);
-        }
+        CreateJunction(link, outside);
         try
         {
             var error = await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
@@ -105,6 +97,62 @@ public sealed class ReportEmailServiceTests
         finally { Directory.Delete(link); }
     }
 
+    // S-02 check-then-reopen gap (re-audit 26 Sep 2026). Someone who can write to the sharing
+    // folder swaps a folder for a junction after the path check has passed. The old service
+    // handed the transport the path to open again, and the file outside the folder was sent.
+    [Fact]
+    public async Task Folder_swapped_for_a_junction_after_the_path_check_never_sends_the_outside_file()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        using var gateway = new Gateway(); var transport = new Transport("SMTP_ACCEPTED");
+        var nested = Directory.CreateDirectory(Path.Combine(gateway.ShareFolderPath, "nested")).FullName;
+        var path = Path.Combine(nested, "pack.pdf");
+        await File.WriteAllTextAsync(path, "prepared report");
+        var outside = Directory.CreateDirectory(Path.Combine(gateway.Root, "private")).FullName;
+        await File.WriteAllTextAsync(Path.Combine(outside, "pack.pdf"), "private file outside the sharing folder");
+        var swapped = false;
+        // The size is the path check's last question, so the swap lands after every path test.
+        long SwapThenMeasure(string checkedPath)
+        {
+            if (!swapped)
+            {
+                swapped = true;
+                Directory.Move(nested, nested + "-moved");
+                CreateJunction(nested, outside);
+            }
+            return 5;
+        }
+        try
+        {
+            var error = await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+                Service(gateway, transport, fileLength: SwapThenMeasure).SendEmailAsync(new(1, path, "owner@example.invalid")));
+            Assert.True(swapped);
+            Assert.Equal("Report attachments must be prepared in the sharing folder.", error.Message);
+            Assert.Equal(0, transport.Calls);
+            Assert.Empty(gateway.Attempts);
+        }
+        finally { if (Directory.Exists(nested)) Directory.Delete(nested); }
+    }
+
+    // A hard link carries no reparse point and the sharing folder's own path.
+    [Fact]
+    public async Task Hard_link_to_a_file_outside_the_sharing_folder_never_reaches_transport_or_history()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        using var gateway = new Gateway(); var transport = new Transport("SMTP_ACCEPTED");
+        var outside = Path.Combine(Directory.CreateDirectory(Path.Combine(gateway.Root, "private")).FullName, "secret.pdf");
+        await File.WriteAllTextAsync(outside, "private file outside the sharing folder");
+        var link = Path.Combine(gateway.ShareFolderPath, "linked.pdf");
+        Assert.True(CreateHardLink(link, outside, IntPtr.Zero), $"Temporary hard link was not created: {Marshal.GetLastWin32Error()}.");
+
+        var error = await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            Service(gateway, transport).SendEmailAsync(new(1, link, "owner@example.invalid")));
+
+        Assert.Equal("Report attachments must be prepared in the sharing folder.", error.Message);
+        Assert.Equal(0, transport.Calls);
+        Assert.Empty(gateway.Attempts);
+    }
+
     [Fact]
     public async Task Prepared_attachment_is_sent_using_its_canonical_path()
     {
@@ -113,7 +161,8 @@ public sealed class ReportEmailServiceTests
         var path = Path.Combine(gateway.ShareFolderPath, "nested", "..", "pack.pdf");
         await Service(gateway, transport).SendEmailAsync(new(1, path, "owner@example.invalid"));
         Assert.Equal(1, transport.Calls);
-        Assert.Equal(gateway.AttachmentPath, transport.Email!.AttachmentPath);
+        Assert.Equal("pack.pdf", transport.Email!.Attachment!.FileName);
+        Assert.Equal("prepared report"u8.ToArray(), transport.Email.Attachment.Content);
     }
 
     [Fact]
@@ -122,12 +171,30 @@ public sealed class ReportEmailServiceTests
         using var gateway = new Gateway(); var transport = new Transport("SMTP_ACCEPTED");
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Service(gateway, transport).TestEmailAsync("owner@example.invalid"));
         await Service(gateway, transport, ApplicationRole.Owner).TestEmailAsync("owner@example.invalid");
-        Assert.Equal(1, transport.Calls); Assert.Null(transport.Email!.AttachmentPath); Assert.Empty(gateway.Attempts);
+        Assert.Equal(1, transport.Calls); Assert.Null(transport.Email!.Attachment); Assert.Empty(gateway.Attempts);
     }
 
-    private static SqlServerReportDistributionService Service(Gateway gateway, Transport transport, ApplicationRole role = ApplicationRole.Viewer, long size = 5) =>
+    private static SqlServerReportDistributionService Service(Gateway gateway, Transport transport, ApplicationRole role = ApplicationRole.Viewer, long size = 5,
+        Func<string, long>? fileLength = null) =>
         new(gateway, _ => Task.FromResult(new ApplicationAccess("test", "test", role, true)),
-            (_, _, _, _, _, _, _) => throw new NotSupportedException(), _ => true, _ => size, transport);
+            (_, _, _, _, _, _, _) => throw new NotSupportedException(), _ => true, fileLength ?? (_ => size), transport);
+
+    private static void CreateJunction(string link, string target)
+    {
+        var start = new ProcessStartInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), @"WindowsPowerShell\v1.0\powershell.exe"))
+        {
+            UseShellExecute = false, CreateNoWindow = true, RedirectStandardError = true, RedirectStandardOutput = true
+        };
+        start.ArgumentList.Add("-NoProfile"); start.ArgumentList.Add("-NonInteractive"); start.ArgumentList.Add("-Command");
+        start.ArgumentList.Add($"$ErrorActionPreference = 'Stop'; New-Item -ItemType Junction -Path '{link.Replace("'", "''")}' -Target '{target.Replace("'", "''")}' | Out-Null");
+        using var process = Process.Start(start)!;
+        Assert.True(process.WaitForExit(15000), "Temporary junction creation timed out.");
+        Assert.Equal(0, process.ExitCode);
+    }
+
+    [DllImport("kernel32.dll", EntryPoint = "CreateHardLinkW", CharSet = CharSet.Unicode, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool CreateHardLink(string fileName, string existingFileName, IntPtr securityAttributes);
     private sealed class Transport(string outcome) : IReportEmailTransport
     {
         public int Calls; public bool Throw; public SmtpConnection? Connection; public ReportEmail? Email;
