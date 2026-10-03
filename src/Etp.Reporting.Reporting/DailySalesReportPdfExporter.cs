@@ -45,15 +45,8 @@ public sealed class DailySalesReportPdfExporter
         Text(g, r.BusinessDate.ToString("dd MMM yyyy"), 12, true, navy, 697, 29, 125, 18, XParagraphAlignment.Center);
         Text(g, r.Weekday(), 8, false, muted, 697, 49, 125, 12, XParagraphAlignment.Center);
 
-        var cards = new[]
-        {
-            ("COMBINED FTD", DsrDisplay.Currency(r.CombinedFtd), $"{DsrDisplay.Percent(r.CombinedFtdGrowth)} vs LY", "#2269E8"),
-            ("UNITS", DsrDisplay.Number(r.Units, 0), r.Units is null ? "Data not available" : StoreSplit(r, x => x.Periods[0].TyQuantity), "#08A9DE"),
-            ("WALK-INS", DsrDisplay.Number(r.WalkIns, 0), r.WalkIns is null ? "Data not available" : StoreWalkInSplit(r), "#7137D4"),
-            ("CONVERSION", DsrDisplay.Percent(r.Conversion).TrimStart('+'), r.Conversion.Value is null ? "Data not available" : $"{DsrDisplay.Number(r.CombinedInvoices, 0)} invoices / {DsrDisplay.Number(r.WalkIns, 0)} walk-ins", "#07965C"),
-            ("MTD SALES", DsrDisplay.CompactCurrency(r.MtdSales), $"{DsrDisplay.Percent(r.MtdTargetAchievement).TrimStart('+')} of target", "#2269E8"),
-            ("YTD SALES", DsrDisplay.CompactCurrency(r.YtdSales), $"{DsrDisplay.Percent(r.YtdGrowth)} vs LY YTD", "#07965C")
-        };
+        var accents = new[] { "#2269E8", "#08A9DE", "#7137D4", "#07965C", "#2269E8", "#07965C" };
+        var cards = DsrKpiCards.For(r).Select((card, index) => (card.Label, card.Value, card.Secondary, accents[index])).ToArray();
         const double kpiY = 83, gap = 9, cardWidth = 126.815;
         for (var i = 0; i < cards.Length; i++) Kpi(g, 18 + i * (cardWidth + gap), kpiY, cardWidth, 60, cards[i]);
         var width=(PageWidth-36-9*Math.Max(0,r.Stores.Count-1))/Math.Max(1,r.Stores.Count);
@@ -122,9 +115,6 @@ public sealed class DailySalesReportPdfExporter
             Text(g, DsrDisplay.Percent(target.Achievement).TrimStart('+'), 6.5, true, Colour(target.Accent), trackX, top, trackW, 11, XParagraphAlignment.Right);
         }
     }
-
-    private static string StoreSplit(DailySalesReportDocument report, Func<DsrStoreCard, decimal?> selector) => string.Join(" · ",report.Stores.Select(x=>$"{x.DisplayName} {DsrDisplay.Number(selector(x),0)}"));
-    private static string StoreWalkInSplit(DailySalesReportDocument report) => string.Join(" · ",report.Stores.Select(x=>$"{x.DisplayName} {DsrDisplay.Number(x.FtdWalkIns,0)}"));
 
     private static void Card(XGraphics g, double x, double y, double w, double h, string fill, string stroke, double radius) => g.DrawRoundedRectangle(new XPen(Colour(stroke), .8), new XSolidBrush(Colour(fill)), x, y, w, h, radius, radius);
     private static void FillRounded(XGraphics g, string fill, double x, double y, double w, double h, double radius) => g.DrawRoundedRectangle(XPens.Transparent, new XSolidBrush(Colour(fill)), x, y, w, h, radius, radius);

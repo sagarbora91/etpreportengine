@@ -62,10 +62,13 @@ public static class DailySalesReportBuilder
         var combinedTarget = SumIfComplete(targets.Select(x => x.MonthlyTarget));
         targets.Add(BuildTarget("COMBINED", ("Combined", "#162034"), combinedMtd?.TySales, combinedTarget, engine));
         var serviceSummary = BuildService(service, serviceWdc);
-        var conversion = engine.Conversion(combinedFtd?.TyInvoices, combinedFtd?.WalkIns);
+        // Missing is not zero: combined walk-ins (and the conversion built on them) stay unavailable
+        // unless every store has an entered FTD walk-in figure.
+        var combinedWalkIns = storeCards.All(x => x.FtdWalkIns is not null) ? combinedFtd?.WalkIns : null;
+        var conversion = engine.Conversion(combinedFtd?.TyInvoices, combinedWalkIns);
         return new(businessDate, "Daily Sales Report (DSR)", "Executive summary · " + string.Join(" + ", definitions.Select(x=>x.Name)),
             combinedFtd?.TySales, engine.Growth(combinedFtd?.TySales, combinedFtd?.LySales), combinedFtd?.TyUnits,
-            combinedFtd?.WalkIns, combinedFtd?.TyInvoices, conversion, combinedMtd?.TySales,
+            combinedWalkIns, combinedFtd?.TyInvoices, conversion, combinedMtd?.TySales,
             Achievement(combinedMtd?.TySales, combinedTarget), combinedYtd?.TySales,
             engine.Growth(combinedYtd?.TySales, combinedYtd?.LySales), storeCards, serviceSummary, targets, metricPolicy);
     }
@@ -119,6 +122,31 @@ public static class DailySalesReportBuilder
     private static decimal? SafeDivide(decimal? numerator, int? denominator) => numerator is null || denominator is null or 0 ? null : numerator / denominator.Value;
     private static decimal? SumIfComplete(IEnumerable<decimal?> values) { var a = values.ToArray(); return a.Length > 0 && a.All(x => x is not null) ? a.Sum(x => x!.Value) : null; }
     private static decimal? SumIfAny(IEnumerable<decimal?> values) { var a = values.ToArray(); return a.Any(x => x is not null) ? a.Sum(x => x ?? 0m) : null; }
+}
+
+public sealed record DsrKpiCard(string Label, string Value, string Secondary);
+
+/// <summary>The six DSR KPI cards, shared by the desktop visual summary and the fallback PDF.</summary>
+public static class DsrKpiCards
+{
+    public const string NotAvailable = "Data not available";
+
+    public static IReadOnlyList<DsrKpiCard> For(DailySalesReportDocument report)
+    {
+        ArgumentNullException.ThrowIfNull(report);
+        return
+        [
+            new("COMBINED FTD", DsrDisplay.Currency(report.CombinedFtd), $"{DsrDisplay.Percent(report.CombinedFtdGrowth)} vs LY"),
+            new("UNITS", DsrDisplay.Number(report.Units, 0), report.Units is null ? NotAvailable : StoreSplit(report, x => x.Periods[0].TyQuantity)),
+            new("WALK-INS", DsrDisplay.Number(report.WalkIns, 0), report.WalkIns is null ? NotAvailable : StoreSplit(report, x => x.FtdWalkIns)),
+            new("CONVERSION", DsrDisplay.Percent(report.Conversion).TrimStart('+'), report.Conversion.Value is null || report.WalkIns is null ? NotAvailable : $"{DsrDisplay.Number(report.CombinedInvoices, 0)} invoices / {DsrDisplay.Number(report.WalkIns, 0)} walk-ins"),
+            new("MTD SALES", DsrDisplay.CompactCurrency(report.MtdSales), $"{DsrDisplay.Percent(report.MtdTargetAchievement).TrimStart('+')} of target"),
+            new("YTD SALES", DsrDisplay.CompactCurrency(report.YtdSales), $"{DsrDisplay.Percent(report.YtdGrowth)} vs LY YTD")
+        ];
+    }
+
+    private static string StoreSplit(DailySalesReportDocument report, Func<DsrStoreCard, decimal?> selector) =>
+        string.Join(" · ", report.Stores.Select(x => $"{x.DisplayName} {DsrDisplay.Number(selector(x), 0)}"));
 }
 
 public static class DsrDisplay
