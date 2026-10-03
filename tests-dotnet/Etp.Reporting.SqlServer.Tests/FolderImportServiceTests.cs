@@ -422,6 +422,8 @@ public sealed class FolderImportServiceTests
             .RunFilesAsync(["sales.xlsx"], Restate with { ChooseRestatementTarget = (choice, _) => Task.FromResult<RestatementCandidate?>(choice.Candidates[1]) });
         Assert.Equal("Imported", Assert.Single(imported.Files).Status);
         Assert.Equal(12, Assert.Single(rightPick.Prepared).Restatement!.PreviousImportFileId);
+        // The lookup keys the incoming rows by the date the import is persisted with, as planner 1 does under its lock.
+        Assert.Equal(Assert.Single(rightPick.Requests).ExpectedBusinessDate, Assert.Single(rightPick.ChangedDates));
     }
 
     // Review 1.9.3 finding 2 (IF-023): every attempt records an evidence state, never NULL.
@@ -542,10 +544,12 @@ public sealed class FolderImportServiceTests
         }
         public IReadOnlyList<long> Changed { get; init; } = [];
         public List<long[]> ChangedLookups { get; } = [];
+        public List<DateOnly?> ChangedDates { get; } = [];
         public Task<IReadOnlyList<long>> FindImportsChangedByAsync(MatchedImportEnvelope accepted, IReadOnlyList<long> importFileIds,
             DateOnly? businessDate = null, CancellationToken cancellationToken = default)
         {
             ChangedLookups.Add(importFileIds.ToArray());
+            ChangedDates.Add(businessDate);
             return Task.FromResult<IReadOnlyList<long>>(importFileIds.Where(Changed.Contains).ToArray());
         }
         public Task PrepareRestatementAsync(ImportPersistenceRequest<MatchedImportEnvelope> request, CancellationToken cancellationToken = default)
