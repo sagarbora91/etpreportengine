@@ -95,6 +95,14 @@ public sealed class OperationsModuleSigningTests(SqlDatabaseFixture database) : 
             Assert.StartsWith("ETP_METADATA:", backup.Result);
             Assert.Contains("ETP_ENCRYPTION:" + (encrypts ? "AES_256" : "NONE"), backup.Messages);
             Assert.True(File.Exists(Path.Combine(root, file)), "The backup file was not written.");
+            // A4.4 (1.9.3). The automation account's own backup counts the four tables, just
+            // before and just after BACKUP, with its Store Manager rights in the database.
+            var backupCounts = ParseRowCounts(backup.Rows);
+            foreach (var table in new[] { "sales_invoices", "sales_lines", "import_files", "daily_reporting_days" })
+            {
+                Assert.Equal(System.Text.Json.JsonValueKind.Number, backupCounts.RootElement.GetProperty("before").GetProperty(table).ValueKind);
+                Assert.Equal(backupCounts.RootElement.GetProperty("before").GetProperty(table).GetInt64(), backupCounts.RootElement.GetProperty("after").GetProperty(table).GetInt64());
+            }
 
             // Metadata checks are the automation account's to run as well.
             var metadata = await RunAsPrincipalAsync($"EXEC dbo.[{procedure}] 'METADATA',N'{file}';");
@@ -113,6 +121,10 @@ public sealed class OperationsModuleSigningTests(SqlDatabaseFixture database) : 
             // integrity check included, against the very backup the automation account took.
             var drill = await ExecuteMasterAsync($"EXEC dbo.[{procedure}] 'DRILL',N'{file}';");
             Assert.Equal(backup.Result, Assert.Single(drill, row => row.StartsWith("ETP_METADATA:", StringComparison.Ordinal)));
+            // The restored copy, counted before it was dropped, matches the counts of the backup.
+            var restoredCounts = ParseRowCounts(drill);
+            foreach (var table in new[] { "sales_invoices", "sales_lines", "import_files", "daily_reporting_days" })
+                Assert.Equal(backupCounts.RootElement.GetProperty("after").GetProperty(table).GetInt64(), restoredCounts.RootElement.GetProperty("restored").GetProperty(table).GetInt64());
         }
         catch (Exception failure)
         {
@@ -251,16 +263,25 @@ public sealed class OperationsModuleSigningTests(SqlDatabaseFixture database) : 
         return rows;
     }
 
-    private async Task<(string Result, string Messages)> RunAsPrincipalAsync(string statement)
+    private async Task<(string Result, string Messages, List<string> Rows)> RunAsPrincipalAsync(string statement)
     {
         await using var connection = new SqlConnection(MasterConnectionString);
         var messages = new System.Text.StringBuilder();
         connection.InfoMessage += (_, e) => messages.AppendLine(e.Message);
         await connection.OpenAsync();
         await using var command = new SqlCommand($"EXECUTE AS LOGIN=N'{Principal}'; {statement} REVERT;", connection) { CommandTimeout = 300 };
-        var result = Convert.ToString(await command.ExecuteScalarAsync()) ?? "";
-        return (result, messages.ToString());
+        // Every result, not only the first: the broker sends its row counts after the metadata.
+        var rows = new List<string>();
+        await using (var reader = await command.ExecuteReaderAsync())
+        {
+            do { while (await reader.ReadAsync()) if (!reader.IsDBNull(0)) rows.Add(Convert.ToString(reader.GetValue(0))!); }
+            while (await reader.NextResultAsync());
+        }
+        return (rows.FirstOrDefault() ?? "", messages.ToString(), rows);
     }
+
+    private static JsonDocument ParseRowCounts(IEnumerable<string> rows) =>
+        JsonDocument.Parse(Assert.Single(rows, row => row.StartsWith("ETP_ROWCOUNTS:", StringComparison.Ordinal))["ETP_ROWCOUNTS:".Length..]);
 
     private async Task<T> ScalarAsync<T>(string sql, params (string Name, object Value)[] parameters)
     {

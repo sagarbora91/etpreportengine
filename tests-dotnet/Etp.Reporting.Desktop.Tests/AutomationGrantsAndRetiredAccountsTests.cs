@@ -44,11 +44,16 @@ public sealed class AutomationGrantsAndRetiredAccountsTests
             Check @(($p+'CALLER_ADMIN'),($p+'LOGIN'),($p+'USER')) 'NOT_STORE_MANAGER' 0
             # Store Manager role but the row is inactive: not ready to be granted anything.
             Check @(($p+'CALLER_ADMIN'),($p+'LOGIN'),($p+'USER'),($p+'STORE_MANAGER')) 'NOT_STORE_MANAGER' 0
-            # Workpc at 16:44 on 2 October: an active Store Manager and nothing else.
-            Check @(($p+'CALLER_ADMIN'),($p+'LOGIN'),($p+'USER'),($p+'STORE_MANAGER'),($p+'ACTIVE'),($p+'BROKER')) 'GRANTS_MISSING' 4
+            # Workpc at 16:44 on 2 October: an active Store Manager and nothing else (and the
+            # 1.9.2 broker, which records no row counts).
+            Check @(($p+'CALLER_ADMIN'),($p+'LOGIN'),($p+'USER'),($p+'STORE_MANAGER'),($p+'ACTIVE'),($p+'BROKER')) 'GRANTS_MISSING' 5
             Check @(($p+'CALLER_ADMIN'),($p+'LOGIN'),($p+'USER'),($p+'STORE_MANAGER'),($p+'ACTIVE')) 'GRANTS_MISSING' 5
-            Check @(($p+'CALLER_ADMIN'),($p+'LOGIN'),($p+'USER'),($p+'STORE_MANAGER'),($p+'ACTIVE'),($p+'ROLE:etp_automation'),($p+'ROLE:db_backupoperator'),($p+'BROKER'),($p+'BROKER_EXECUTE')) 'GRANTS_MISSING' 1
-            Check @(($p+'CALLER_ADMIN'),($p+'LOGIN'),($p+'USER'),($p+'STORE_MANAGER'),($p+'ACTIVE'),($p+'ROLE:etp_automation'),($p+'ROLE:db_backupoperator'),($p+'BROKER'),($p+'BROKER_EXECUTE'),($p+'BROKER_SIGNED')) 'READY' 0
+            Check @(($p+'CALLER_ADMIN'),($p+'LOGIN'),($p+'USER'),($p+'STORE_MANAGER'),($p+'ACTIVE'),($p+'ROLE:etp_automation'),($p+'ROLE:db_backupoperator'),($p+'BROKER'),($p+'BROKER_EXECUTE'),($p+'BROKER_CURRENT')) 'GRANTS_MISSING' 1
+            Check @(($p+'CALLER_ADMIN'),($p+'LOGIN'),($p+'USER'),($p+'STORE_MANAGER'),($p+'ACTIVE'),($p+'ROLE:etp_automation'),($p+'ROLE:db_backupoperator'),($p+'BROKER'),($p+'BROKER_EXECUTE'),($p+'BROKER_SIGNED'),($p+'BROKER_CURRENT')) 'READY' 0
+            # 1.9.3, A4.4: every right in place, but the broker is from an earlier build. Setup
+            # then runs the full install, which replaces and re-signs it.
+            $r = ConvertFrom-EtpAutomationGrantResult -Lines @(($p+'CALLER_ADMIN'),($p+'LOGIN'),($p+'USER'),($p+'STORE_MANAGER'),($p+'ACTIVE'),($p+'ROLE:etp_automation'),($p+'ROLE:db_backupoperator'),($p+'BROKER'),($p+'BROKER_EXECUTE'),($p+'BROKER_SIGNED'))
+            if ($r.State -cne 'GRANTS_MISSING' -or @($r.Missing).Count -ne 1 -or -not $r.Missing[0].Contains('current operations broker')) { throw "Outdated broker: $($r.State) $($r.Missing -join '; ')" }
             # The account itself cannot see the signature, so it is not judged from there.
             Check @(($p+'CALLER_SELF'),($p+'LOGIN'),($p+'USER'),($p+'STORE_MANAGER'),($p+'ACTIVE'),($p+'ROLE:etp_automation'),($p+'ROLE:db_backupoperator'),($p+'BROKER_EXECUTE')) 'READY' 0
             Check @(($p+'CALLER_SELF'),($p+'LOGIN'),($p+'USER'),($p+'STORE_MANAGER'),($p+'ACTIVE'),($p+'ROLE:etp_automation')) 'GRANTS_MISSING' 2
@@ -207,7 +212,7 @@ public sealed class AutomationGrantsAndRetiredAccountsTests
 
     [Theory]
     [InlineData("backup-etp-database.ps1", "BACKUP", true)]
-    [InlineData("invoke-etp-recovery-drill.ps1", "record_verified_operation", false)]
+    [InlineData("invoke-etp-recovery-drill.ps1", "Publish-EtpRecoveryDrillResult", false)]
     public async Task Backup_and_drill_explain_a_masked_failure_through_the_grant_check(string script, string guarded, bool onlyForTheAutomationAccount)
     {
         var path = Path.Combine(RepositoryRoot(), "scripts", script).Replace("'", "''");

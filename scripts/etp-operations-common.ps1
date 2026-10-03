@@ -363,6 +363,34 @@ function Invoke-EtpSqlAsAutomationUser {
     return Invoke-EtpSql -SqlCmd $SqlCmd -Server $Server -Database $Database -Query $scoped
 }
 
+# 1.9.3, A4.4. The broker revision this build ships. etp-operations-broker.sql carries the same
+# text inside the procedure body, where OBJECT_DEFINITION can find it; change both together.
+$EtpOperationsBrokerRevision = '[ETP_BROKER_REVISION:2]'
+
+function Get-EtpBrokerOnlyAction {
+    # -BrokerOnly (setup, restore helper). Pure: turns the state query's one line into what
+    # to do. A signed broker is never replaced here, current or not: CREATE OR ALTER discards
+    # the signature the automation account's backups depend on, and only the full install
+    # (which needs that account to be an active Store Manager) signs again. Setup ends with
+    # that full install whenever the broker is out of date (Complete-EtpAutomationGrants).
+    param([AllowNull()][AllowEmptyCollection()][string[]]$Lines)
+    $states = @(@($Lines) | Where-Object { $null -ne $_ } | ForEach-Object { "$_".Trim() } | Where-Object { $_.StartsWith('ETP_BROKER:') })
+    if ($states.Count -ne 1) { throw 'Could not tell whether the operations broker is installed.' }
+    switch -CaseSensitive ($states[0]) {
+        'ETP_BROKER:MISSING' { return 'Install' }
+        'ETP_BROKER:CURRENT' { return 'Keep' }
+        'ETP_BROKER:OUTDATED_UNSIGNED' { return 'Replace' }
+        'ETP_BROKER:OUTDATED_SIGNED' { return 'KeepSigned' }
+    }
+    throw 'Could not tell whether the operations broker is installed.'
+}
+
+function Get-EtpBrokerStateQuery {
+    param([Parameter(Mandatory)][string]$Procedure)
+    if ($Procedure -notmatch '^etp_operations_[0-9a-f]{16}$') { throw 'The operations broker name is invalid.' }
+    return "SET NOCOUNT ON; DECLARE @id int=OBJECT_ID(N'dbo.[$Procedure]',N'P'); SELECT CASE WHEN @id IS NULL THEN 'ETP_BROKER:MISSING' WHEN CHARINDEX(N'$EtpOperationsBrokerRevision',COALESCE(OBJECT_DEFINITION(@id),N''))>0 THEN 'ETP_BROKER:CURRENT' WHEN EXISTS(SELECT 1 FROM sys.crypt_properties WHERE major_id=@id) THEN 'ETP_BROKER:OUTDATED_SIGNED' ELSE 'ETP_BROKER:OUTDATED_UNSIGNED' END;"
+}
+
 # 1.9.3. Setup installs the operations broker alone. The automation account gets its rights
 # (etp_automation, db_backupoperator, EXECUTE on the signed broker) only from a full
 # install-etp-sql-operations.ps1 run, which needs the account to be an active Store Manager
@@ -408,6 +436,8 @@ BEGIN
             INSERT @found VALUES(N'BROKER_EXECUTE');
         IF EXISTS(SELECT 1 FROM sys.crypt_properties WHERE major_id=OBJECT_ID(N'dbo.'+QUOTENAME(@procedure)))
             INSERT @found VALUES(N'BROKER_SIGNED');
+        IF CHARINDEX(N'$EtpOperationsBrokerRevision',COALESCE(OBJECT_DEFINITION(OBJECT_ID(N'dbo.'+QUOTENAME(@procedure))),N''))>0
+            INSERT @found VALUES(N'BROKER_CURRENT');
     END
     ELSE IF HAS_PERMS_BY_NAME(N'dbo.'+QUOTENAME(@procedure),N'OBJECT',N'EXECUTE')=1
         INSERT @found VALUES(N'BROKER_EXECUTE');
@@ -430,6 +460,9 @@ function ConvertFrom-EtpAutomationGrantResult {
     if ($admin -and -not ($items -ccontains 'BROKER')) { $missing.Add('the operations broker in master') }
     if (-not ($items -ccontains 'BROKER_EXECUTE')) { $missing.Add('EXECUTE on the operations broker') }
     if ($admin -and -not ($items -ccontains 'BROKER_SIGNED')) { $missing.Add('the broker''s module signature') }
+    # 1.9.3, A4.4. A broker from an earlier build works but records no row counts, and setup
+    # used to leave it in place for good. The full install replaces and re-signs it.
+    if ($admin -and $items -ccontains 'BROKER' -and -not ($items -ccontains 'BROKER_CURRENT')) { $missing.Add('the current operations broker, which records row counts for the recovery drill') }
     if ($missing.Count -gt 0) { return [pscustomobject]@{ State = 'GRANTS_MISSING'; Missing = @($missing) } }
     return [pscustomobject]@{ State = 'READY'; Missing = @() }
 }
@@ -841,9 +874,243 @@ function Invoke-EtpOperationsBroker {
     Assert-EtpLocalSqlTarget $Server $Database
     $file=[IO.Path]::GetFileName($BackupPath)
     if ($file -notmatch '^[A-Za-z0-9_.-]+\.bak$' -or $file.Contains('..') -or -not $file.StartsWith($Database+'-',[StringComparison]::OrdinalIgnoreCase)) { throw 'Choose a backup belonging to the configured database.' }
+    return (Invoke-EtpOperationsBrokerCall -SqlCmd $SqlCmd -Server $Server -Database $Database -BackupPath $BackupPath -Operation $Operation).Files
+}
+
+function Invoke-EtpOperationsBrokerCall {
+    # The same call, keeping the broker's other output lines (ETP_ROWCOUNTS, A4.4) beside
+    # the verified metadata.
+    param([string]$SqlCmd,[string]$Server,[string]$Database,[string]$BackupPath,[ValidateSet('BACKUP','METADATA','DRILL')][string]$Operation)
+    Assert-EtpLocalSqlTarget $Server $Database
+    $file=[IO.Path]::GetFileName($BackupPath)
+    if ($file -notmatch '^[A-Za-z0-9_.-]+\.bak$' -or $file.Contains('..') -or -not $file.StartsWith($Database+'-',[StringComparison]::OrdinalIgnoreCase)) { throw 'Choose a backup belonging to the configured database.' }
     $procedure=Get-EtpOperationsProcedureName $Database
     $output=@(Invoke-EtpSql -SqlCmd $SqlCmd -Server $Server -Query "EXEC dbo.[$procedure] '$Operation',N'$file';")
     $metadata=@($output | Where-Object { $_.StartsWith('ETP_METADATA:') })
     if ($metadata.Count -ne 1) { throw 'The restricted SQL operation did not return verified backup metadata.' }
-    return @($metadata[0].Substring(13) | ConvertFrom-Json)
+    return [pscustomobject]@{ Files=@($metadata[0].Substring(13) | ConvertFrom-Json); Lines=@($output | ForEach-Object { "$_" }) }
+}
+
+# ------------------------------------------------------------------ A4.4 row counts
+# 1.9.3, Phase 4 A4.4 and A4.4a (decided by Sagar, 2 October 2026). The backup receipt records
+# COUNT_BIG(*) of four tables, taken by the broker immediately before and after BACKUP; the
+# recovery drill counts the same tables in the restored, integrity-checked copy and fails,
+# naming the table and both numbers, when they differ. A receipt that records no counts
+# passes with its reason shown everywhere the result is shown, never silently.
+
+$EtpRowCountTables = @('sales_invoices','sales_lines','import_files','daily_reporting_days')
+
+# Why a receipt has no row counts. Written by backup-etp-database.ps1; anything else in a
+# receipt is not trusted.
+$EtpRowCountReceiptReasons = [ordered]@{
+    CHANGED_DURING_BACKUP = 'the counted tables changed while the backup was being taken (an import was running)'
+    OPERATIONS_MODULE_OUTDATED = 'the backup was taken through an operations module older than 1.9.3, which does not count rows'
+    COUNT_FAILED = 'the tables could not be counted when the backup was taken'
+}
+
+function ConvertTo-EtpRowCountSet {
+    # Exactly the four tables, each a whole number of zero or more, or $null.
+    param([AllowNull()]$Value)
+    if ($null -eq $Value -or -not ($Value -is [Management.Automation.PSCustomObject])) { return $null }
+    $names = @($Value.PSObject.Properties | ForEach-Object { $_.Name })
+    if ($names.Count -ne $EtpRowCountTables.Count) { return $null }
+    $set = [ordered]@{}
+    foreach ($table in $EtpRowCountTables) {
+        if (-not ($names -ccontains $table)) { return $null }
+        $number = $Value.PSObject.Properties[$table].Value
+        if (-not ($number -is [int] -or $number -is [long]) -or $number -lt 0) { return $null }
+        $set[$table] = [long]$number
+    }
+    return $set
+}
+
+function ConvertFrom-EtpBrokerRowCounts {
+    # The broker's ETP_ROWCOUNTS line as an object, or $null when it sent none (a broker from
+    # before 1.9.3). More than one line, or one that is not a JSON object, is refused.
+    param([AllowNull()][AllowEmptyCollection()][string[]]$Lines)
+    $found = @(@($Lines) | Where-Object { $null -ne $_ } | ForEach-Object { "$_".Trim() } | Where-Object { $_.StartsWith('ETP_ROWCOUNTS:') })
+    if ($found.Count -eq 0) { return $null }
+    if ($found.Count -gt 1) { throw 'The restricted SQL operation returned more than one set of row counts.' }
+    try { $parsed = $found[0].Substring(14) | ConvertFrom-Json }
+    catch { throw 'The restricted SQL operation returned unreadable row counts.' }
+    if (-not ($parsed -is [Management.Automation.PSCustomObject])) { throw 'The restricted SQL operation returned unreadable row counts.' }
+    return $parsed
+}
+
+function Get-EtpRowCountMember {
+    # A property of a parsed JSON object, or $null; safe under Set-StrictMode. The name must
+    # match exactly: PowerShell's own property lookup ignores case.
+    param([AllowNull()]$Object,[string]$Name)
+    if ($null -eq $Object -or -not ($Object -is [Management.Automation.PSCustomObject])) { return $null }
+    $property = $Object.PSObject.Properties[$Name]
+    if ($null -eq $property -or $property.Name -cne $Name) { return $null }
+    # The comma keeps an array (even an empty one) from being unrolled into nothing.
+    return ,$property.Value
+}
+
+function Get-EtpBackupRowCountRecord {
+    # What backup-etp-database.ps1 adds to its receipt: rowCounts, or rowCountsNotRecorded
+    # with the reason. Never throws: counting must never fail a backup.
+    param([AllowNull()][AllowEmptyCollection()][string[]]$BrokerLines)
+    try { $counts = ConvertFrom-EtpBrokerRowCounts -Lines $BrokerLines }
+    catch { return [ordered]@{ rowCountsNotRecorded = 'COUNT_FAILED' } }
+    if ($null -eq $counts) { return [ordered]@{ rowCountsNotRecorded = 'OPERATIONS_MODULE_OUTDATED' } }
+    $before = ConvertTo-EtpRowCountSet (Get-EtpRowCountMember $counts 'before')
+    $after = ConvertTo-EtpRowCountSet (Get-EtpRowCountMember $counts 'after')
+    if ($null -eq $before -or $null -eq $after) { return [ordered]@{ rowCountsNotRecorded = 'COUNT_FAILED' } }
+    foreach ($table in $EtpRowCountTables) {
+        if ($before[$table] -ne $after[$table]) { return [ordered]@{ rowCountsNotRecorded = 'CHANGED_DURING_BACKUP' } }
+    }
+    return [ordered]@{ rowCounts = $after }
+}
+
+function Get-EtpReceiptRowCountState {
+    # The receipt's side of the comparison: Counts (the four numbers) or Reason. A receipt
+    # with neither field was written before 1.9.3. Anything malformed is RECEIPT_COUNTS_UNREADABLE.
+    param([Parameter(Mandatory)]$Receipt)
+    $unreadable = [pscustomobject]@{ Counts = $null; Reason = 'RECEIPT_COUNTS_UNREADABLE' }
+    $counts = Get-EtpRowCountMember $Receipt 'rowCounts'
+    $reason = Get-EtpRowCountMember $Receipt 'rowCountsNotRecorded'
+    if ($null -ne $counts -and $null -ne $reason) { return $unreadable }
+    if ($null -ne $counts) {
+        $set = ConvertTo-EtpRowCountSet $counts
+        if ($null -eq $set) { return $unreadable }
+        return [pscustomobject]@{ Counts = $set; Reason = $null }
+    }
+    if ($null -ne $reason) {
+        if ($reason -is [string] -and @($EtpRowCountReceiptReasons.Keys) -ccontains $reason) { return [pscustomobject]@{ Counts = $null; Reason = $reason } }
+        return $unreadable
+    }
+    return [pscustomobject]@{ Counts = $null; Reason = 'RECEIPT_WITHOUT_COUNTS' }
+}
+
+function Get-EtpDrillRowCountVerdict {
+    # Compares the receipt's counts with the broker's count of the restored copy. Pure: the
+    # drill script records and throws on what this returns.
+    #   Succeeded  Status       Reason
+    #   true       Matched      -                      all four equal
+    #   true       NotRecorded  the receipt's reason   the backup recorded no counts
+    #   false      Mismatch     -                      a table differs (named in Message)
+    #   false      NotRecorded  OPERATIONS_MODULE_OUTDATED, RESTORED_COPY_NOT_COUNTED or
+    #                           RECEIPT_COUNTS_UNREADABLE
+    param([Parameter(Mandatory)]$Receipt,[AllowNull()][AllowEmptyCollection()][string[]]$BrokerLines)
+    $receiptState = Get-EtpReceiptRowCountState -Receipt $Receipt
+    if ($receiptState.Reason -ceq 'RECEIPT_COUNTS_UNREADABLE') {
+        return [pscustomobject]@{ Succeeded = $false; Status = 'NotRecorded'; Reason = 'RECEIPT_COUNTS_UNREADABLE'; Pairs = @()
+            Message = 'Recovery drill failed: the row counts in the backup receipt are unreadable, so the restored copy cannot be checked against them. Take a new backup and drill that one.' }
+    }
+    if ($null -eq $receiptState.Counts) {
+        $why = if ($receiptState.Reason -ceq 'RECEIPT_WITHOUT_COUNTS') { 'its receipt was written before 1.9.3' } else { $EtpRowCountReceiptReasons[$receiptState.Reason] }
+        return [pscustomobject]@{ Succeeded = $true; Status = 'NotRecorded'; Reason = $receiptState.Reason; Pairs = @()
+            Message = "Row counts were not recorded by this backup: $why. The restore and integrity checks passed, but the restored copy was not compared with row counts. The next backup taken with this version records them." }
+    }
+    $brokerUnreadable = $false
+    try { $restoredLine = ConvertFrom-EtpBrokerRowCounts -Lines $BrokerLines }
+    catch { $restoredLine = $null; $brokerUnreadable = $true }
+    if ($null -eq $restoredLine -and -not $brokerUnreadable) {
+        return [pscustomobject]@{ Succeeded = $false; Status = 'NotRecorded'; Reason = 'OPERATIONS_MODULE_OUTDATED'; Pairs = @()
+            Message = 'Recovery drill failed: the backup receipt records row counts, but the operations module did not count the restored copy, so it is older than this version of ETP. Reinstall the operations module - run ETP setup again, or install-etp-sql-operations.ps1 in an administrator PowerShell window (docs\OPERATIONS.md, step 7) - and run the drill again.' }
+    }
+    $restored = ConvertTo-EtpRowCountSet (Get-EtpRowCountMember $restoredLine 'restored')
+    if ($null -eq $restored) {
+        return [pscustomobject]@{ Succeeded = $false; Status = 'NotRecorded'; Reason = 'RESTORED_COPY_NOT_COUNTED'; Pairs = @()
+            Message = 'Recovery drill failed: the restored copy could not be counted, so it cannot be checked against the row counts in its backup receipt.' }
+    }
+    $pairs = @(foreach ($table in $EtpRowCountTables) { [pscustomobject][ordered]@{ table = $table; receipt = $receiptState.Counts[$table]; restored = $restored[$table] } })
+    $different = @($pairs | Where-Object { $_.receipt -ne $_.restored })
+    if ($different.Count -gt 0) {
+        $named = ($different | ForEach-Object { "$($_.table): receipt $($_.receipt), restored copy $($_.restored)" }) -join '; '
+        return [pscustomobject]@{ Succeeded = $false; Status = 'Mismatch'; Reason = $null; Pairs = $pairs
+            Message = "Recovery drill failed: the restored copy does not match its backup receipt. $named." }
+    }
+    return [pscustomobject]@{ Succeeded = $true; Status = 'Matched'; Reason = $null; Pairs = $pairs
+        Message = 'Row counts in the restored copy match the backup receipt for sales_invoices, sales_lines, import_files and daily_reporting_days.' }
+}
+
+function New-EtpRecoveryDrillResultDocument {
+    # <database>-latest-drill.json. schemaVersion stays 1: the fields are additions, as
+    # purpose was for receipts. Written for a failed comparison too, with succeeded false.
+    param([Parameter(Mandatory)]$Verdict,[Parameter(Mandatory)][string]$BackupSha256)
+    $pairs = $null
+    if (@($Verdict.Pairs).Count -gt 0) { $pairs = @($Verdict.Pairs) }
+    return [ordered]@{
+        schemaVersion = 1; succeeded = [bool]$Verdict.Succeeded; backupSha256 = $BackupSha256; completedAtUtc = [DateTime]::UtcNow.ToString('o')
+        rowCounts = $pairs; rowCountsNotRecorded = $Verdict.Reason; rowCountsNote = $Verdict.Message
+    }
+}
+
+function Get-EtpRecoveryDrillRecordQueries {
+    # The statements that record a drill, in order. Pure; values are validated here and are
+    # never text from a receipt: the hash is checked hex, counts are whole numbers and the
+    # reason is one of a fixed set. Audit details may not contain digits or colons
+    # (dbo.record_operational_audit), so the numbers go to dbo.recovery_drill_results.
+    param([Parameter(Mandatory)]$Verdict,[Parameter(Mandatory)][string]$BackupSha256,[string]$Encryption)
+    if ($BackupSha256 -notmatch '^[A-Fa-f0-9]{64}$') { throw 'A complete backup verification hash is required.' }
+    $status = [string]$Verdict.Status
+    if ($status -cnotin @('Matched','Mismatch','NotRecorded')) { throw 'The recovery drill verdict is not recognised.' }
+    $reason = 'NULL'
+    if ($null -ne $Verdict.Reason) {
+        if ($Verdict.Reason -cnotin @(@($EtpRowCountReceiptReasons.Keys) + @('RECEIPT_WITHOUT_COUNTS','RESTORED_COPY_NOT_COUNTED','RECEIPT_COUNTS_UNREADABLE'))) { throw 'The recovery drill verdict is not recognised.' }
+        $reason = "'$($Verdict.Reason)'"
+    }
+    $outcome = if ($Verdict.Succeeded) { 'Succeeded' } else { 'Failed' }
+    $counts = @()
+    foreach ($table in $EtpRowCountTables) {
+        $pair = @(@($Verdict.Pairs) | Where-Object { $null -ne $_ -and $_.table -ceq $table })
+        foreach ($side in @('receipt','restored')) {
+            $value = 'NULL'
+            if ($pair.Count -eq 1) {
+                $number = $pair[0].$side
+                if (-not ($number -is [int] -or $number -is [long]) -or $number -lt 0) { throw 'The recovery drill row counts are not whole numbers.' }
+                $value = ([long]$number).ToString([Globalization.CultureInfo]::InvariantCulture)
+            }
+            $counts += "@${table}_$side=$value"
+        }
+    }
+    $queries = @("EXEC dbo.record_recovery_drill_result @outcome='$outcome',@backup_sha256='$BackupSha256',@row_counts_status='$status',@not_recorded_reason=$reason,$($counts -join ',');")
+    $encrypted = $Encryption -ceq 'AES_256'
+    if ($Verdict.Succeeded) {
+        $queries += "EXEC dbo.record_verified_operation 'RestoreDrill','$BackupSha256';"
+        # The audit trail must describe the backup that was actually drilled. Claiming an
+        # encrypted restore for an unencrypted backup would put a false statement into an
+        # append-only compliance record, which is worse than recording nothing.
+        $detail = if ($status -ceq 'Matched') {
+            if ($encrypted) { 'Isolated encrypted restore, backup metadata and row count checks passed' } else { 'Isolated restore, backup metadata and row count checks passed; the backup was not encrypted' }
+        } else {
+            if ($encrypted) { 'Isolated encrypted restore and backup metadata checks passed; row counts were not recorded by this backup' } else { 'Isolated restore and backup metadata checks passed; row counts were not recorded by this backup, which was not encrypted' }
+        }
+        $queries += "EXEC dbo.record_operational_audit 'RestoreDrill','Succeeded',N'$detail',N'operations';"
+    }
+    else {
+        $detail = switch -CaseSensitive ([string]$Verdict.Reason) {
+            'OPERATIONS_MODULE_OUTDATED' { 'Recovery drill failed; the operations module did not count the restored copy and must be reinstalled' }
+            'RESTORED_COPY_NOT_COUNTED' { 'Recovery drill failed; the restored copy could not be counted' }
+            'RECEIPT_COUNTS_UNREADABLE' { 'Recovery drill failed; the row counts in the backup receipt are unreadable' }
+            default { 'Recovery drill failed; row counts in the restored copy differ from the backup receipt' }
+        }
+        $queries += "EXEC dbo.record_operational_audit 'RestoreDrill','Failed',N'$detail',N'operations';"
+    }
+    return $queries
+}
+
+function Publish-EtpRecoveryDrillResult {
+    # Runs the recording statements through -Invoke (in the drill: as the automation account's
+    # database user, see Invoke-EtpSqlAsAutomationUser).
+    param([Parameter(Mandatory)]$Verdict,[Parameter(Mandatory)][string]$BackupSha256,[string]$Encryption,[Parameter(Mandatory)][scriptblock]$Invoke)
+    foreach ($query in @(Get-EtpRecoveryDrillRecordQueries -Verdict $Verdict -BackupSha256 $BackupSha256 -Encryption $Encryption)) { & $Invoke $query | Out-Null }
+}
+
+function Resolve-EtpDrillReceiptPath {
+    # A4.4a. The drill reads <database>-latest-verified.json unless -ReceiptPath names another
+    # receipt, which must be a .json file directly in the backup folder and is then verified
+    # exactly like the latest one (Read-EtpVerifiedReceipt).
+    param([Parameter(Mandatory)][string]$BackupDirectory,[Parameter(Mandatory)][string]$Database,[string]$ReceiptPath)
+    $root = [IO.Path]::GetFullPath($BackupDirectory).TrimEnd('\')
+    if ([string]::IsNullOrWhiteSpace($ReceiptPath)) { return (Join-Path $root "$Database-latest-verified.json") }
+    if ($ReceiptPath.StartsWith('\\')) { throw 'Choose a backup receipt in the backup folder.' }
+    $full = [IO.Path]::GetFullPath($ReceiptPath)
+    if ([IO.Path]::GetDirectoryName($full) -ine $root -or [IO.Path]::GetExtension($full) -ine '.json') { throw 'Choose a backup receipt in the backup folder.' }
+    Assert-EtpNoLinks $full
+    if (-not (Test-Path -LiteralPath $full -PathType Leaf)) { throw 'The backup receipt was not found.' }
+    return $full
 }

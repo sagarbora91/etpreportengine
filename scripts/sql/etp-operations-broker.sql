@@ -4,6 +4,10 @@ CREATE OR ALTER PROCEDURE dbo.[__PROCEDURE__] @operation varchar(12), @file nvar
 AS
 BEGIN
  SET NOCOUNT ON; SET XACT_ABORT ON;
+ -- [ETP_BROKER_REVISION:2] Revision 2 (1.9.3, Phase 4 A4.4) counts sales_invoices, sales_lines,
+ -- import_files and daily_reporting_days around a backup and in the drill's restored copy.
+ -- Setup reads this marker to tell a broker that needs replacing and re-signing; change it
+ -- together with $EtpOperationsBrokerRevision in etp-operations-common.ps1.
  IF COALESCE(IS_SRVROLEMEMBER('sysadmin'),0)<>1
  BEGIN
   DECLARE @allowed bit=0;
@@ -31,6 +35,14 @@ BEGIN
  -- procedure's literal only, so a folder with an apostrophe broke the drill's restore.
  DECLARE @restoreDirectory nvarchar(260)=N'__RESTORE_DIRECTORY__';
  DECLARE @sql nvarchar(max),@drill sysname=N'EtpRecovery_'+REPLACE(CONVERT(nvarchar(36),NEWID()),N'-',N'');
+ -- A4.4 row counts. Counted here because nothing outside this procedure can see the drill's
+ -- restored copy: it is dropped before the caller regains control. A count that fails is
+ -- recorded as missing (null), never as a failed backup; the scripts decide what it means.
+ -- No extra locks: BACKUP cannot run inside a transaction, and holding the automation lease
+ -- would skip a cycle and still miss manual imports. A backup whose counts moved while it
+ -- ran is reported as such by comparing the two counts, not prevented.
+ DECLARE @countTemplate nvarchar(max)=N'SELECT @counts=(SELECT (SELECT COUNT_BIG(*) FROM #db#.dbo.sales_invoices) AS sales_invoices,(SELECT COUNT_BIG(*) FROM #db#.dbo.sales_lines) AS sales_lines,(SELECT COUNT_BIG(*) FROM #db#.dbo.import_files) AS import_files,(SELECT COUNT_BIG(*) FROM #db#.dbo.daily_reporting_days) AS daily_reporting_days FOR JSON PATH,WITHOUT_ARRAY_WRAPPER);';
+ DECLARE @countsBefore nvarchar(max),@countsAfter nvarchar(max),@countsRestored nvarchar(max);
  IF @operation='BACKUP'
  BEGIN
   -- D9 revised: Express and Web cannot encrypt a backup at all, so on those editions
@@ -44,7 +56,12 @@ BEGIN
    SET @sql=N'BACKUP DATABASE [__DATABASE_IDENTIFIER__] TO DISK=N'''+REPLACE(@path,'''','''''')+N''' WITH COPY_ONLY,CHECKSUM,ENCRYPTION(ALGORITHM=AES_256,SERVER CERTIFICATE=EtpBackupCert);';
   ELSE
    SET @sql=N'BACKUP DATABASE [__DATABASE_IDENTIFIER__] TO DISK=N'''+REPLACE(@path,'''','''''')+N''' WITH COPY_ONLY,CHECKSUM;';
+  SET @countTemplate=REPLACE(@countTemplate,N'#db#',N'[__DATABASE_IDENTIFIER__]');
+  BEGIN TRY EXEC sys.sp_executesql @countTemplate,N'@counts nvarchar(max) OUTPUT',@counts=@countsBefore OUTPUT; END TRY
+  BEGIN CATCH SET @countsBefore=NULL; END CATCH;
   EXEC sys.sp_executesql @sql;
+  BEGIN TRY EXEC sys.sp_executesql @countTemplate,N'@counts nvarchar(max) OUTPUT',@counts=@countsAfter OUTPUT; END TRY
+  BEGIN CATCH SET @countsAfter=NULL; END CATCH;
   PRINT 'ETP_ENCRYPTION:'+CASE WHEN @encrypted=1 THEN 'AES_256' ELSE 'NONE' END;
  END;
  SET @sql=N'RESTORE VERIFYONLY FROM DISK=N'''+REPLACE(@path,'''','''''')+N''' WITH CHECKSUM;';
@@ -77,6 +94,11 @@ BEGIN
    EXEC sys.sp_executesql @sql;
    SET @sql=N'IF EXISTS(SELECT FileId,LogicalName FROM #files EXCEPT SELECT file_id,name FROM '+QUOTENAME(@drill)+N'.sys.database_files) OR EXISTS(SELECT file_id,name FROM '+QUOTENAME(@drill)+N'.sys.database_files EXCEPT SELECT FileId,LogicalName FROM #files) THROW 51331,''Restored file metadata differs from its backup.'',1;';
    EXEC sys.sp_executesql @sql;
+   -- The integrity-checked copy, counted before it is dropped. The drill script compares
+   -- these with the counts its backup receipt recorded.
+   SET @countTemplate=REPLACE(@countTemplate,N'#db#',QUOTENAME(@drill));
+   BEGIN TRY EXEC sys.sp_executesql @countTemplate,N'@counts nvarchar(max) OUTPUT',@counts=@countsRestored OUTPUT; END TRY
+   BEGIN CATCH SET @countsRestored=NULL; END CATCH;
    SET @sql=N'ALTER DATABASE '+QUOTENAME(@drill)+N' SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE '+QUOTENAME(@drill)+N';';
    EXEC sys.sp_executesql @sql;
   END TRY
@@ -90,4 +112,10 @@ BEGIN
   END CATCH;
  END;
  SELECT N'ETP_METADATA:'+ (SELECT LogicalName logicalName,Type type,FileId fileId,Size sizeBytes,UniqueId uniqueId FROM #files ORDER BY FileId FOR JSON PATH);
+ -- After the metadata, so a caller reading only the first result still gets the metadata.
+ -- The counts are integers formatted by FOR JSON, or null where counting failed.
+ IF @operation='BACKUP'
+  SELECT N'ETP_ROWCOUNTS:{"before":'+COALESCE(@countsBefore,N'null')+N',"after":'+COALESCE(@countsAfter,N'null')+N'}';
+ IF @operation='DRILL'
+  SELECT N'ETP_ROWCOUNTS:{"restored":'+COALESCE(@countsRestored,N'null')+N'}';
 END;
