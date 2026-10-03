@@ -78,7 +78,11 @@ public sealed record OperationsDashboard(
     IReadOnlyList<DataQualityFinding> Quality,
     IReadOnlyList<DataQualityIssue> Issues,
     IReadOnlyList<ReportSchedule> Schedules,
-    IReadOnlyList<AutomationRun> AutomationRuns);
+    IReadOnlyList<AutomationRun> AutomationRuns)
+{
+    /// <summary>When the saved issues were last synced from the live checks (UTC); null when never.</summary>
+    public DateTime? IssuesSyncedUtc { get; init; }
+}
 
 public sealed record AutomationExecution(
     int SourcesProcessed,

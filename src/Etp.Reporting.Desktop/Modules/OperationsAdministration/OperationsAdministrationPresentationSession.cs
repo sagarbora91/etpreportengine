@@ -31,7 +31,11 @@ public sealed record OperationsPresentationState(
     IReadOnlyList<DataQualityIssue> Issues,
     IReadOnlyList<ReportSchedule> Schedules,
     IReadOnlyList<AutomationRun> AutomationRuns,
-    string Status);
+    string Status)
+{
+    /// <summary>When the Open items grid was last brought up to the live checks, for every role (audit item R-10 (Titan store)).</summary>
+    public string IssuesSynced { get; init; } = OperationsAdministrationPresentationSession.DescribeIssuesSynced(null);
+}
 
 public sealed record ScheduleEditorState(
     int Id,
@@ -94,9 +98,21 @@ public sealed class OperationsAdministrationPresentationSession
             dashboard.Issues,
             dashboard.Schedules,
             dashboard.AutomationRuns,
-            $"Loaded {dashboard.Trend.Count:N0} daily store result(s), {dashboard.Issues.Count:N0} approved quality issue(s), and {dashboard.AutomationRuns.Count:N0} recent unattended run(s).");
+            $"Loaded {dashboard.Trend.Count:N0} daily store result(s), {dashboard.Issues.Count:N0} approved quality issue(s), and {dashboard.AutomationRuns.Count:N0} recent unattended run(s).")
+        {
+            IssuesSynced = DescribeIssuesSynced(dashboard.IssuesSyncedUtc)
+        };
         return Operations;
     }
+
+    /// <summary>
+    /// The as-of line beside the Open items grid. The saved issues are synced after every import (failed ones too; once per folder or batch run) and
+    /// whenever an Owner or Store Manager opens this screen; a Viewer cannot sync them, so the time tells
+    /// them how current the list is.
+    /// </summary>
+    public static string DescribeIssuesSynced(DateTime? syncedUtc) => syncedUtc is { } utc
+        ? $"Open items last updated from the live checks: {DateTime.SpecifyKind(utc, DateTimeKind.Utc).ToLocalTime().ToString("dd MMM yyyy HH:mm", CultureInfo.InvariantCulture)}. They update after every import, failed ones included (a folder import once, after its last file), and when an Owner or Store Manager opens this screen."
+        : "Open items have not been updated from the live checks yet. They update after every import, failed ones included (a folder import once, after its last file), and when an Owner or Store Manager opens this screen.";
 
     public ScheduleEditorState? SelectSchedule(ReportSchedule? schedule)
     {
