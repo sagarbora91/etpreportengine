@@ -47,6 +47,7 @@ public partial class MainWindow : Window
     internal ImportHistoryView? importHistoryView;
     // Service centre screens (Service interim). The composition root wires the SQL read model and
     // the report exporter; until it does, the screens say the read model is not available.
+    // See the INTEGRATION STEP in DesktopCompositionRoot (pinned by ServiceCompositionPinTests).
     internal Func<ServiceReportQuery> serviceReportQuery = Modules.Service.ServiceScreens.Unavailable;
     internal Modules.Service.ServiceExcelExport serviceExcelExport = static (path, metadata, data) =>
         new ReportExportCoordinator().ExportReportExcelAsync(path, metadata, data, null);

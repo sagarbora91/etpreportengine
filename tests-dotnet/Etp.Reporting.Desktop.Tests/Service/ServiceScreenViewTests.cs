@@ -113,11 +113,11 @@ public sealed class ServiceScreenViewTests
         {
             var query = new FakeServiceQuery();
             var view = new ServicePendingView(() => query, NoExport);
-            view.SelectedList = ServiceScreens.PendingLists.Single(choice => choice.Code == "S010");
+            view.SelectedList = ServiceScreens.PendingLists.Single(choice => choice.Code == ServicePendingLists.PendingDelivery);
 
             view.ActivateAsync().GetAwaiter().GetResult();
 
-            Assert.Equal("S010", query.LastPendingList);
+            Assert.Equal(ServicePendingLists.PendingDelivery, query.LastPendingList);
             Assert.Equal(["JOAW330SYN0003", "JOAW330SYN0001", "JOAW330SYN0002"], view.Rows.Select(row => (string)row.Cells[0]!));
             Assert.Equal("3 jobs · Pending delivery (S010) · oldest first.", view.StatusText);
         });
@@ -142,6 +142,8 @@ public sealed class ServiceScreenViewTests
             Assert.Equal("Left the list on or before 05 Oct 2026", pending.Cells[4]);
             var delivered = view.Rows.Single(row => (string?)row.Cells[1] == "S018");
             Assert.Equal(new DateOnly(2026, 10, 5), delivered.Cells[2]);
+            Assert.Equal(ServiceJobHistoryView.StillListedText, delivered.Cells[3]);
+            Assert.Equal("", delivered.Cells[4]);
             Assert.Equal("Job JOAW330SYN0007 was in 2 lists.", view.StatusText);
             Assert.DoesNotContain(view.Rows.SelectMany(row => row.Cells).OfType<string>(),
                 text => text.Contains("problem", StringComparison.OrdinalIgnoreCase) || text.Contains("error", StringComparison.OrdinalIgnoreCase));
@@ -162,6 +164,41 @@ public sealed class ServiceScreenViewTests
     }
 
     [Fact]
+    public void Every_pending_list_choice_is_a_contract_list_key()
+    {
+        Assert.Equal(ServicePendingLists.All, ServiceScreens.PendingLists.Select(choice => choice.Code));
+        Assert.Equal(["Pending repair (S009)", "Pending delivery (S010)", "SRN status (S011)"], ServiceScreens.PendingLists.Select(choice => choice.Label));
+    }
+
+    [Fact]
+    public void Job_history_last_listed_uses_the_last_reading_that_held_the_job()
+    {
+        // A snapshot list emits no StillListed per reading: listed 21 Sep, 28 Sep and 5 Oct, gone on 12 Oct.
+        var events = new ServiceJobEvent[]
+        {
+            new("JOAW330SYN0011", "S009", "Pending repair", ServiceJobEventKind.FirstSeen, new(2026, 9, 21), null),
+            new("JOAW330SYN0011", "S009", "Pending repair", ServiceJobEventKind.LeftList, new(2026, 10, 12), new(2026, 10, 5))
+        };
+        var row = Assert.Single(ServiceJobHistoryView.SummariseEvents(events));
+        Assert.Equal(new DateOnly(2026, 9, 21), row.Cells[2]);
+        Assert.Equal(new DateOnly(2026, 10, 5), row.Cells[3]);
+        Assert.Equal("Left the list on or before 12 Oct 2026", row.Cells[4]);
+    }
+
+    [Fact]
+    public void Job_history_shows_a_job_still_on_a_list_as_current()
+    {
+        var events = new ServiceJobEvent[]
+        {
+            new("JOAW330SYN0012", "S010", "Pending delivery", ServiceJobEventKind.FirstSeen, new(2026, 9, 21), null)
+        };
+        var row = Assert.Single(ServiceJobHistoryView.SummariseEvents(events));
+        Assert.Equal(new DateOnly(2026, 9, 21), row.Cells[2]);
+        Assert.Equal(ServiceJobHistoryView.StillListedText, row.Cells[3]);
+        Assert.Equal("", row.Cells[4]);
+    }
+
+    [Fact]
     public void Reappearing_job_shows_left_and_back_on_the_list()
     {
         var events = new ServiceJobEvent[]
@@ -172,7 +209,7 @@ public sealed class ServiceScreenViewTests
         };
         var row = Assert.Single(ServiceJobHistoryView.SummariseEvents(events));
         Assert.Equal(new DateOnly(2026, 9, 21), row.Cells[2]);
-        Assert.Equal(new DateOnly(2026, 10, 5), row.Cells[3]);
+        Assert.Equal(ServiceJobHistoryView.StillListedText, row.Cells[3]);
         Assert.Equal("Left the list on or before 28 Sep 2026", row.Cells[4]);
         Assert.Equal("Back on 05 Oct 2026", row.Cells[5]);
     }
@@ -358,6 +395,8 @@ public sealed class ServiceScreenViewTests
         public Task<IReadOnlyList<ServicePendingRow>> LoadPendingAsync(string list, CancellationToken cancellationToken = default)
         {
             BodyCalls++; LastPendingList = list;
+            if (!ServicePendingLists.All.Contains(list))
+                throw new ArgumentOutOfRangeException(nameof(list), list, "Not a ServicePendingLists key.");
             IReadOnlyList<ServicePendingRow> rows =
             [
                 new(list, "JOAW330SYN0002", null, null, "Sample Brand", "Model 2", "Sample Customer 02", "AW330", new(2026, 10, 5)),

@@ -101,7 +101,7 @@ public sealed class ServiceMoneyView : ServiceScreenView
             .Select(change => new ServiceGridRow(change,
             [
                 change.BusinessDate, change.ReportCode, change.PreviousSnapshotDate, change.PreviousAmount,
-                change.CurrentSnapshotDate, change.CurrentAmount, (change.CurrentAmount ?? 0m) - (change.PreviousAmount ?? 0m)
+                change.CurrentSnapshotDate, change.CurrentAmount, change.CurrentAmount - change.PreviousAmount
             ])).ToArray();
         Changes.ItemsSource = ChangeRows;
         changesStatus.Text = ChangeRows.Count == 0

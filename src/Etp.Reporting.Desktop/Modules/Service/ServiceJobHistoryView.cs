@@ -52,15 +52,28 @@ public sealed class ServiceJobHistoryView : ServiceScreenView
     protected override async Task<IReadOnlyList<ServiceGridRow>> LoadRowsAsync(ServiceReportQuery source) =>
         SummariseEvents(await source.LoadJobHistoryAsync(searched));
 
-    /// <summary>One row per list the job was in, in the order the job first reached each list.</summary>
+    public const string StillListedText = "Still on the list";
+
+    /// <summary>
+    /// One row per list the job was in, in the order the job first reached each list. "Last listed" is the
+    /// last reading known to hold the job: a LeftList event carries it in PreviousSnapshotDate, because
+    /// snapshot lists emit no StillListed event per reading. A job whose latest event is not LeftList is
+    /// still on the list, and the cell says so instead of showing an older date.
+    /// </summary>
     public static IReadOnlyList<ServiceGridRow> SummariseEvents(IReadOnlyList<ServiceJobEvent> events) =>
         events.GroupBy(item => (item.ReportCode, item.ListLabel))
             .Select(group =>
             {
-                var ordered = group.OrderBy(item => item.SnapshotDate).ToArray();
+                var ordered = group.OrderBy(item => item.SnapshotDate).ThenBy(item => item.EventKind == ServiceJobEventKind.LeftList ? 1 : 0).ToArray();
                 var listed = ordered.Where(item => item.EventKind != ServiceJobEventKind.LeftList).ToArray();
                 DateOnly? firstSeen = listed.Length == 0 ? null : listed.Min(item => item.SnapshotDate);
-                DateOnly? lastListed = listed.Length == 0 ? null : listed.Max(item => item.SnapshotDate);
+                var heldDates = listed.Select(item => item.SnapshotDate)
+                    .Concat(ordered.Where(item => item.EventKind == ServiceJobEventKind.LeftList && item.PreviousSnapshotDate.HasValue)
+                        .Select(item => item.PreviousSnapshotDate!.Value))
+                    .ToArray();
+                object? lastListed = ordered[^1].EventKind != ServiceJobEventKind.LeftList
+                    ? StillListedText
+                    : heldDates.Length == 0 ? null : heldDates.Max();
                 var left = string.Join("; ", ordered.Where(item => item.EventKind == ServiceJobEventKind.LeftList)
                     .Select(item => $"Left the list on or before {item.SnapshotDate:dd MMM yyyy}"));
                 var back = string.Join("; ", ordered.Where(item => item.EventKind == ServiceJobEventKind.Reappeared)

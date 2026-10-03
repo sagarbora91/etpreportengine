@@ -1,6 +1,7 @@
 extern alias EtpApplication;
 
 using System.Windows.Controls;
+using ServicePendingLists = EtpApplication::Etp.Reporting.Application.Service.ServicePendingLists;
 using ServiceReportQuery = EtpApplication::Etp.Reporting.Application.Service.IServiceReportQuery;
 
 namespace Etp.Reporting.Desktop.Modules.Service;
@@ -32,10 +33,16 @@ public static class ServiceScreens
         new("S031", "PD (S031)"), new("S018", "DELIVERED (S018)")
     ];
 
-    /// <summary>The pending lists, by report code, as IServiceReportQuery.LoadPendingAsync takes them.</summary>
+    /// <summary>
+    /// The pending lists. The code is the contract list key (ServicePendingLists, as
+    /// ServiceInterimFamilies.PendingLists maps S009/S010/S011), which is what
+    /// IServiceReportQuery.LoadPendingAsync takes; the report code stays in the label only.
+    /// </summary>
     public static IReadOnlyList<ServiceListChoice> PendingLists { get; } =
     [
-        new("S009", "Pending repair (S009)"), new("S010", "Pending delivery (S010)"), new("S011", "SRN status (S011)")
+        new(ServicePendingLists.PendingRepair, "Pending repair (S009)"),
+        new(ServicePendingLists.PendingDelivery, "Pending delivery (S010)"),
+        new(ServicePendingLists.SrnStatus, "SRN status (S011)")
     ];
 
     /// <summary>

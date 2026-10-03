@@ -7,7 +7,7 @@ public static class HelpTaskRoutes
         "dashboard" or "getting-started" => "report-dsr", "business-day" => "readiness", "import-etp" => "import-files",
         "import-history" => "import-history",
         "daily-sales-report" => "report-dsr", "sales-reports" => "report-sales-combined", "stock-reports" => "report-stock-closing",
-        "tender-cash-service" => "report-tender", "staff-cro" => "report-staff", "management" => "report-management-trend",
+        "tender-cash-service" => "report-tender", "service-centre" => "service-jobs", "staff-cro" => "report-staff", "management" => "report-management-trend",
         "exception-centre" => "open-items", "investigation" => "investigation", "digital-registers" => "register-inward",
         "accounting" => "prepare-batch", "operations-support" or "troubleshooting" => "support-package", "administration" => "users",
         "report-archive" => "generations", "backup-recovery" => "backups", _ => ""
