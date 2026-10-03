@@ -162,8 +162,24 @@ public sealed class EveningReportsSqlTests(SqlDatabaseFixture db, ITestOutputHel
         Assert.Equal(0m,zero.TySales);Assert.Equal(0,zero.TyInvoices);Assert.Null(zero.LySales);Assert.Null(zero.Upt);Assert.Null(zero.ConversionPercent);
         Assert.Null(rows.Single(x=>x.Store=="MISSING"&&x.Period=="FTD").TyInvoices);
         Assert.Null(rows.Single(x=>x.Store=="COMBINED"&&x.Period=="FTD").TySales);
+        Assert.All(rows,x=>Assert.Null(x.WalkIns));
         var service=await new OperationalReportRepository(db.ConnectionString).LoadServiceSalesAsync(new(2031,7,25),["MISSING"]);
         Assert.All(service,x=>Assert.Null(x.Total));
     }
 
+    // HEMW FIX-03 / WLMHW FIX-06 (report audit 3 Oct 2026): missing walk-ins are null through SQL, never 0.
+    [Fact]
+    public async Task Dsr_walk_ins_stay_null_for_a_store_without_entries_and_combined_needs_every_store()
+    {
+        await db.ExecuteAsync("""
+            INSERT dbo.manual_operational_inputs(store_code,business_date,field_code,numeric_value,entered_by,modified_by,change_reason) VALUES
+            ('WIENTER','20310725','WALK_INS',12,'test','test','Walk-ins entered for one store only');
+            """);
+        var repository=new OperationalReportRepository(db.ConnectionString);
+        var rows=await repository.LoadDsrAsync(new(2031,7,25),["WIENTER","WINONE"]);
+        Assert.Equal(12m,rows.Single(x=>x.Store=="WIENTER"&&x.Period=="FTD").WalkIns);
+        Assert.All(rows.Where(x=>x.Store=="WINONE"),x=>{Assert.Null(x.WalkIns);Assert.Null(x.ConversionPercent);});
+        Assert.All(rows.Where(x=>x.Store=="COMBINED"),x=>{Assert.Null(x.WalkIns);Assert.Null(x.ConversionPercent);});
+        Assert.All(await repository.LoadDsrAsync(new(2031,7,25),["WINONE"]),x=>Assert.Null(x.WalkIns));
+    }
 }

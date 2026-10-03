@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- DSR walk-ins not entered are no longer shown as 0 (report audit 3 Oct 2026, HEMW FIX-03 / WLMHW FIX-06). A store with no walk-in entry in the period now has walk-ins "not entered" instead of 0, and the combined figure is the sum only when every store has an entry. The WALK-INS and CONVERSION KPI cards in the Reports visual summary and in the DSR PDF without evening sheets show "—" with "Data not available", and conversion is no longer worked out from a partial combined total. An entered 0 still shows as 0. The evening matrix and the Today tiles already showed "—" and are unchanged.
+
 ## [1.9.3] - 2026-10-03
 
 The import engine release, with the fixes from the move to Workpc:

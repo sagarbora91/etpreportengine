@@ -275,16 +275,30 @@ public sealed partial class OperationalReportRepository(string connectionString)
             var period = periodPolicy.Resolve(businessDate, kind);
             var facts = await LoadDsrFactsAsync(connection, period, stores, cancellationToken);
             var walkIns = await LoadWalkInsAsync(connection, period.Current, stores, cancellationToken);
-            foreach (var store in stores)
-                rows.Add(BuildDsrRow(kind.ToString().ToUpperInvariant(), store, period, facts.GetValueOrDefault(store) ?? new(),
-                    walkIns.GetValueOrDefault(store) ?? new(0m, period.Current.InclusiveDayCount), metricEngine));
-
-            var combinedFacts = Combine(stores.Select(store=>facts.GetValueOrDefault(store)??new()));
-            decimal combinedWalkIns = walkIns.Values.Sum(x => x.Value);
-            var combinedMissingDays = stores.Sum(store => walkIns.TryGetValue(store, out var value) ? value.MissingDays : period.Current.InclusiveDayCount);
-            rows.Add(BuildDsrRow(kind.ToString().ToUpperInvariant(), "COMBINED", period, combinedFacts,
-                new(combinedWalkIns, combinedMissingDays), metricEngine));
+            rows.AddRange(BuildDsrPeriodRows(kind.ToString().ToUpperInvariant(), stores, period, facts, walkIns, metricEngine));
         }
+        return rows;
+    }
+
+    /// <summary>
+    /// One DSR period: a row per store plus COMBINED. A store with no WALK_INS entry in the period has
+    /// walk-ins null (not entered), never 0; COMBINED walk-ins are the sum only when every store has a value.
+    /// </summary>
+    internal static IReadOnlyList<DsrManagementRow> BuildDsrPeriodRows(
+        string periodName,
+        IReadOnlyList<string> stores,
+        BusinessReportingPeriod period,
+        IReadOnlyDictionary<string, DsrFacts> facts,
+        IReadOnlyDictionary<string, WalkInFacts> walkIns,
+        ManagementMetricEngine engine)
+    {
+        var days = period.Current.InclusiveDayCount;
+        var storeWalkIns = stores.Select(store => walkIns.GetValueOrDefault(store) ?? WalkInFacts.NotEntered(days)).ToArray();
+        var rows = new List<DsrManagementRow>(stores.Count + 1);
+        for (var index = 0; index < stores.Count; index++)
+            rows.Add(BuildDsrRow(periodName, stores[index], period, facts.GetValueOrDefault(stores[index]) ?? new(), storeWalkIns[index], engine));
+        var combinedFacts = Combine(stores.Select(store => facts.GetValueOrDefault(store) ?? new()));
+        rows.Add(BuildDsrRow(periodName, "COMBINED", period, combinedFacts, WalkInFacts.Combine(storeWalkIns), engine));
         return rows;
     }
 
@@ -675,7 +689,7 @@ public sealed partial class OperationalReportRepository(string connectionString)
         var result = new Dictionary<string, WalkInFacts>(StringComparer.OrdinalIgnoreCase);
         while (await reader.ReadAsync(token))
         {
-            result[reader.GetString(0)] = new(reader.IsDBNull(1) ? 0m : reader.GetDecimal(1), period.InclusiveDayCount - reader.GetInt32(2));
+            result[reader.GetString(0)] = new(NullableDecimal(reader, 1), period.InclusiveDayCount - reader.GetInt32(2));
         }
         return result;
     }
@@ -803,8 +817,17 @@ public sealed partial class OperationalReportRepository(string connectionString)
 
     private static decimal? NullableDecimal(SqlDataReader reader, int ordinal) => reader.IsDBNull(ordinal) ? null : reader.GetDecimal(ordinal);
     private static decimal? Value(IReadOnlyDictionary<string, decimal?> values, string key) => values.GetValueOrDefault(key);
-    private sealed record DsrFacts(decimal? TySales = null, decimal? LySales = null, decimal? TyUnits = null, decimal? LyUnits = null, int? TyInvoices = null, int? LyInvoices = null);
-    private sealed record WalkInFacts(decimal Value = 0m, int MissingDays = 0);
+    internal sealed record DsrFacts(decimal? TySales = null, decimal? LySales = null, decimal? TyUnits = null, decimal? LyUnits = null, int? TyInvoices = null, int? LyInvoices = null);
+
+    /// <summary>Entered walk-ins for a period; <see cref="Value"/> is null when nothing was entered (missing is not zero).</summary>
+    internal sealed record WalkInFacts(decimal? Value, int MissingDays)
+    {
+        public static WalkInFacts NotEntered(int days) => new(null, days);
+
+        /// <summary>The sum only when every store has a value, as the evening matrix rule for combined figures.</summary>
+        public static WalkInFacts Combine(IReadOnlyList<WalkInFacts> stores) =>
+            new(stores.Count > 0 && stores.All(x => x.Value is not null) ? stores.Sum(x => x.Value!.Value) : null, stores.Sum(x => x.MissingDays));
+    }
     private sealed record DsrSupplementaryFacts(IReadOnlyDictionary<string, decimal?> Targets, decimal? ServiceWdc);
     private sealed record ServiceFacts(decimal? Cash = null, decimal? Card = null, decimal? Upi = null, decimal? LastYearTotal = null, int CurrentCount = 0, int LastYearCount = 0, decimal? Wdc = null);
     private sealed record SourcePointer(string FileName, string SheetName, int SourceRow);
