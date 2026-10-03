@@ -31,12 +31,13 @@ public sealed partial class PhaseFiveFullWindowCaptureTests(ITestOutputHelper ou
 
     // F-20. Written out by hand, never derived from TaskDestination.IsAllowed, so a
     // destination that disappears (or a role rule that changes) fails the walk instead of
-    // shrinking it. 48 fixed tasks (11 for every role, 15 needing the import role, 22
+    // shrinking it. 52 fixed tasks (15 for every role, 15 needing the import role, 22
     // Owner-only) + 22 reports + 21 Help topics. 89/69/54 when re-audited on 26 Sep 2026;
-    // Phase 7 added the Owner's "tally-companies" and the 1.9.3 evidence fixes the Owner's
-    // "keep-evidence". TaskNavigationTests holds the same lists.
+    // Phase 7 added the Owner's "tally-companies", the 1.9.3 evidence fixes the Owner's
+    // "keep-evidence", and the Service interim added four Service centre screens for every
+    // role. TaskNavigationTests holds the same lists.
     private static readonly IReadOnlyDictionary<string, int> ExpectedDestinationCounts =
-        new Dictionary<string, int> { ["OWNER"] = 91, ["STORE_MANAGER"] = 69, ["VIEWER"] = 54 };
+        new Dictionary<string, int> { ["OWNER"] = 95, ["STORE_MANAGER"] = 73, ["VIEWER"] = 58 };
     private static readonly string[] OwnerOnlyTasks =
     [
         "connection", "health", "backups", "recovery", "support-package", "audit", "users", "profiles",

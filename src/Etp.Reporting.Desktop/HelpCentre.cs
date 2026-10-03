@@ -224,6 +224,7 @@ public static class ContextHelpRouter
         ["Import History"] = "import-history",
         ["Sales Reports"] = "sales-reports",
         ["Report Archive"] = "report-archive",
+        ["Service Centre"] = "tender-cash-service",
         ["Registers"] = "digital-registers",
         ["Accounting"] = "accounting",
         ["Operations Center"] = "exception-centre",

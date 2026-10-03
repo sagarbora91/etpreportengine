@@ -402,7 +402,8 @@ public sealed partial class TaskNavigator(MainWindow window)
 
         if (task.Id != "settings" && task.Destination is not "Settings" and not "Dashboard") databaseContextStarted = true;
         window.UpdateSection(task);
-        window.ShellStoreSelector.IsEnabled = task.ReportCode is not ("dsr" or "sales-combined");
+        // Service has no store picker: its screens are the Service Centre's (AW330) whatever the header store.
+        window.ShellStoreSelector.IsEnabled = task.ReportCode is not ("dsr" or "sales-combined") && task.Destination != Modules.Service.ServiceScreens.Destination;
         if (task.ReportCode is "dsr" or "sales-combined")
         {
             appliedStore = window.ShellStoreSelector.Items.Count - 1;
@@ -445,6 +446,8 @@ public sealed partial class TaskNavigator(MainWindow window)
         UserControl view;
         int[] body; int[] actions;
         var id = task.Id;
+        if (task.Destination == Modules.Service.ServiceScreens.Destination)
+            return Modules.Service.ServiceScreens.Create(id, window.serviceReportQuery, window.serviceExcelExport);
         if (id == "import-history")
         {
             var history = window.importHistoryView ?? throw new InvalidOperationException("Import history is not configured.");
