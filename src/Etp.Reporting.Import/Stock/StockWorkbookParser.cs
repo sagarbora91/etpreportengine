@@ -13,6 +13,8 @@ public sealed record ParsedStockMovement(string StoreCode,string DocumentNumber,
     /// <summary>REF_DOCUMENTNUMBER and REF_DOCUMENTDATE order identical per-unit rows (spec 7.2); they are not stored.</summary>
     public string? RefDocumentNumber { get; init; }
     public DateOnly? RefDocumentDate { get; init; }
+    /// <summary>LOCATION, the bin (RETAILBIN, DEFECTIVEBIN, ...): stored on the movement (migration 0047), never part of its identity.</summary>
+    public string? Location { get; init; }
 }
 public sealed record ParsedStockSnapshot(string StoreCode,DateOnly SnapshotDate,string ProductCode,string? Ean,string? BrandCode,string? Cluster,string? Gender,string? BatchNumber,string? SourceUid,decimal Quantity,decimal? UnitCost,decimal? TotalCost,SourceLineage Lineage);
 public sealed record StockWorkbookParseResult(string ReportCode,IReadOnlyList<ParsedStockMovement> Movements,IReadOnlyList<ParsedStockSnapshot> Snapshots,IReadOnlyList<ImportDiagnostic> Diagnostics)
@@ -88,7 +90,8 @@ public sealed class StockWorkbookParser
                     new(accepted.Workbook.Sha256, accepted.MatchedSheet.Name, row.SourceRowNumber))
                 {
                     RefDocumentNumber = Optional<string>(values, "ref_documentnumber"),
-                    RefDocumentDate = OptionalValue<DateOnly>(values, "ref_documentdate")
+                    RefDocumentDate = OptionalValue<DateOnly>(values, "ref_documentdate"),
+                    Location = Optional<string>(values, "location")
                 });
             }
             return new(reportCode, movements, [], diagnostics);
@@ -124,7 +127,8 @@ public sealed class StockWorkbookParser
             if(!KnownTypes.Contains(type!)) { diagnostics.Add(new("UNKNOWN_STOCK_TRANSACTION_TYPE",ImportDiagnosticSeverity.Warning,"Unrecognised stock transaction type; this row was skipped.",sheet.Name,row.RowNumber,"TRANS_TYPE")); continue; }
             if(opening+trans!=closing) diagnostics.Add(new("STOCK_BALANCE_MISMATCH",ImportDiagnosticSeverity.Blocker,"Closing quantity does not equal opening plus source transaction quantity.",sheet.Name,row.RowNumber));
             Try(row,h,"FROM LOCATION",CanonicalDataType.Identifier,false,out string? from,diagnostics,sheet.Name);Try(row,h,"TO LOCATION",CanonicalDataType.Identifier,false,out string? to,diagnostics,sheet.Name);
-            rows.Add(new(store!,doc!,date,product!,type!,from,to,opening,trans,closing,new(hash,sheet.Name,row.RowNumber)));
+            Try(row,h,"LOCATION",CanonicalDataType.Text,false,out string? location,diagnostics,sheet.Name);
+            rows.Add(new(store!,doc!,date,product!,type!,from,to,opening,trans,closing,new(hash,sheet.Name,row.RowNumber)){Location=location});
         }
         return new("STOCK_LEDGER",rows,[],diagnostics);
     }

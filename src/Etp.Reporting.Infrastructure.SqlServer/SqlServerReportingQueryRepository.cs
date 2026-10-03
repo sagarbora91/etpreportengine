@@ -61,23 +61,32 @@ public static class SqlReportingQueries
                (SELECT SUM(s.quantity) FROM dbo.v_stock_snapshots_effective s WHERE s.store_code=k.store_code
                  AND s.product_code=k.product_code AND s.snapshot_date=@dateTo) source_closing_quantity
         FROM keys k
-        OUTER APPLY(SELECT TOP(1) m.opening_quantity FROM dbo.stock_movements m
-          WHERE m.store_code=k.store_code AND m.product_code=k.product_code
-            AND m.document_date>=@dateFrom AND m.document_date<=@dateTo
-          ORDER BY m.document_date,m.line_seq,m.stock_movement_id) first_move
+        -- Each bin (LOCATION, migration 0047) keeps its own running balance, so each bin's chain starts at its own first
+        -- movement and the item's opening is the sum of the bins' openings (store ledger audit FIX-14). A movement with no stored
+        -- bin is a movement of some unknown bin, not a bin of its own: adding its chain start to the real bins' would count the
+        -- same units twice. So an item with any bin-less movement in the period keeps the 1.9.3 opening, the first movement's.
+        OUTER APPLY(SELECT CASE WHEN MAX(CASE WHEN b.location IS NULL THEN 1 ELSE 0 END)=1
+                       THEN MAX(CASE WHEN b.item_row=1 THEN b.opening_quantity END)
+                       ELSE SUM(CASE WHEN b.bin_row=1 THEN b.opening_quantity END) END opening_quantity FROM
+          (SELECT m.opening_quantity,m.location,
+             ROW_NUMBER() OVER(PARTITION BY m.location ORDER BY m.document_date,m.line_seq,m.stock_movement_id) bin_row,
+             ROW_NUMBER() OVER(ORDER BY m.document_date,m.line_seq,m.stock_movement_id) item_row
+           FROM dbo.stock_movements m
+           WHERE m.store_code=k.store_code AND m.product_code=k.product_code
+             AND m.document_date>=@dateFrom AND m.document_date<=@dateTo) b) first_move
         ORDER BY k.store_code,k.product_code;
         """;
 
     public const string StockMovements = """
-        SELECT m.store_code,m.product_code,m.source_transaction_type,SUM(m.transaction_quantity) source_signed_quantity
+        SELECT m.store_code,m.product_code,m.source_transaction_type,SUM(m.transaction_quantity) source_signed_quantity,m.location
         FROM dbo.stock_movements m
         WHERE m.document_date>=@dateFrom AND m.document_date<=@dateTo
           AND (@storesJson IS NULL OR m.store_code IN (SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@storesJson)))
           AND (@itemsJson IS NULL OR m.product_code IN (SELECT CONVERT(nvarchar(80),[value]) FROM OPENJSON(@itemsJson)))
           AND EXISTS(SELECT 1 FROM dbo.v_stock_snapshots_effective s WHERE s.store_code=m.store_code
             AND s.product_code=m.product_code AND s.snapshot_date=@dateTo)
-        GROUP BY m.store_code,m.product_code,m.source_transaction_type
-        ORDER BY m.store_code,m.product_code,m.source_transaction_type;
+        GROUP BY m.store_code,m.product_code,m.location,m.source_transaction_type
+        ORDER BY m.store_code,m.product_code,m.location,m.source_transaction_type;
         """;
 }
 
@@ -134,7 +143,7 @@ public sealed class SqlServerReportingQueryRepository(string connectionString) :
         await using (var command = Command(connection, SqlReportingQueries.StockMovements, scope))
         await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
             while (await reader.ReadAsync(cancellationToken))
-                movements.Add(new(reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetDecimal(3)));
+                movements.Add(new(reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetDecimal(3), NullableString(reader, 4)));
         return new(positions, movements);
     }
 

@@ -17,7 +17,7 @@ public sealed record TenderDocumentRecord(string StoreCode, string DocumentNumbe
 public sealed record TenderReconciliationReport(ReportStatus Status, IReadOnlyList<TenderDocumentRecord> Documents, decimal InvoiceTotal, decimal TenderTotal, decimal Variance, string RuleVersion, string Message);
 public sealed record StockControlRecord(string StoreCode, string ItemCode, decimal Opening, decimal SourceSignedMovements, decimal ExpectedClosing, decimal ReportedClosing, decimal Variance, ReportStatus Status);
 public sealed record StockReconciliationReport(ReportStatus Status, IReadOnlyList<StockControlRecord> Items, string RuleVersion, string Message);
-public sealed record StockMovementRecord(string StoreCode, string ItemCode, string SourceMovementType, decimal SourceSignedQuantity);
+public sealed record StockMovementRecord(string StoreCode, string ItemCode, string SourceMovementType, decimal SourceSignedQuantity, string? Location = null);
 
 public sealed record InvoiceSummaryRecord(DateOnly BusinessDate, string StoreCode, string DocumentNumber, string TransactionTypes, decimal Quantity, decimal NetValue, int SourceRows, string? CustomerName = null);
 public sealed record InvoiceLineageRecord(DateOnly BusinessDate, string StoreCode, string DocumentNumber, string LineIdentifier, string ProductCode, string? Brand, string? BrandSegment, string? TransactionType, decimal Quantity, decimal? NetValue, string? CroNumber, string SourceWorkbook, string SourceSheet, int SourceRow);

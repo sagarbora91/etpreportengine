@@ -34,7 +34,7 @@ public sealed class SqlServerApplicationReportQuery :
     public async Task<IReadOnlyList<StockMovementRecord>> LoadStockMovementsAsync(ReportScope scope, CancellationToken cancellationToken = default)
     {
         var data = await raw.LoadStockAsync(ToScope(scope), cancellationToken).ConfigureAwait(false);
-        return data.Movements.Select(row => new StockMovementRecord(row.StoreCode, row.ItemCode, row.SourceMovementType, row.SourceSignedQuantity)).ToArray();
+        return data.Movements.Select(row => new StockMovementRecord(row.StoreCode, row.ItemCode, row.SourceMovementType, row.SourceSignedQuantity, row.Location)).ToArray();
     }
 
     public async Task<IReadOnlyList<InvoiceSummaryRecord>> LoadInvoiceSummaryAsync(ReportScope scope, CancellationToken cancellationToken = default) =>

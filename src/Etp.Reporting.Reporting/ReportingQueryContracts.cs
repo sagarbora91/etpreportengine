@@ -28,8 +28,9 @@ public sealed record InvoiceControlQueryRow(
     string StoreCode, string DocumentNumber, decimal SourceNetValue, int? InvoiceYear = null);
 public sealed record StockPositionQueryRow(
     string StoreCode, string ItemCode, decimal? SourceOpeningQuantity, decimal? SourceClosingQuantity);
+// Location: the ledger bin the movements belong to (migration 0047); null for movements stored without one.
 public sealed record StockMovementQueryRow(
-    string StoreCode, string ItemCode, string SourceMovementType, decimal SourceSignedQuantity);
+    string StoreCode, string ItemCode, string SourceMovementType, decimal SourceSignedQuantity, string? Location = null);
 public sealed record StockQueryData(
     IReadOnlyList<StockPositionQueryRow> Positions, IReadOnlyList<StockMovementQueryRow> Movements);
 
