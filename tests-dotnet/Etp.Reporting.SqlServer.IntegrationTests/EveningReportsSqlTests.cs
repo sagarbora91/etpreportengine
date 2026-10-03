@@ -139,6 +139,12 @@ public sealed class EveningReportsSqlTests(SqlDatabaseFixture db, ITestOutputHel
 
         var trend=Assert.Single(await new Phase2OperationsRepository(db.ConnectionString).LoadManagementTrendAsync(new(2030,11,1),new(2030,11,1)),x=>x.StoreCode=="TCR020");
         Assert.Equal(0m,trend.TenderVariance);
+
+        // The accounting source counts the same tenders as the reports, so TENDER_TOTAL includes the R020 TC.
+        await db.ExecuteAsync("INSERT dbo.daily_report_generations(store_code,business_date,generation_number,content_sha256,control_json,generated_by,is_final) VALUES('TCR020','20301101',1,REPLICATE('4',64),'{}','test',1)");
+        var accounting=await new ProductisationRepository(db.ConnectionString).LoadAccountingSourceAsync("TCR020",new(2030,11,1));
+        Assert.Equal(1929m,Assert.Single(accounting.Events,x=>x.EventCode=="TENDER_TOTAL").Amount);
+        Assert.Equal(1929m,Assert.Single(accounting.Events,x=>x.EventCode=="NET_SALES").Amount);
     }
 
     [Fact]

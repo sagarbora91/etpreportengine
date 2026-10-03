@@ -35,6 +35,49 @@ public sealed class ReportsRequestOrderingTests
     }
 
     [Fact]
+    public void Management_trend_export_shows_r022_missing_with_a_blank_variance_and_a_blank_total()
+    {
+        // WLMHW FIX-07: a store-day without R022 exports a blank variance and a Tender Source note, and the total is blank, not 0.00.
+        RunSta(async () =>
+        {
+            var query = new DeferredTrendQuery();
+            var previews = new List<ReportPresentationSnapshot>();
+            var view = CreateView(query, previews);
+            query.Completion.SetResult([new(new(2026, 9, 9), "WLMHW", 500m, 2m, 1, null, 0), new(new(2026, 9, 10), "WLMHW", 999m, 1m, 1, 3m, 0)]);
+            await view.RunReportAsync("management-trend");
+
+            var data = Assert.Single(previews).ExportData!;
+            Assert.Equal(["Date", "Store", "Net Sales", "Units", "Invoices", "Tender Variance", "Tender Source", "Unmatched Staff Rows"], data.Columns.Select(x => x.Header));
+            Assert.Null(data.Rows[0][5]);
+            Assert.Equal(ManagementTrendTenderSource.Missing, data.Rows[0][6]);
+            Assert.Equal(3m, data.Rows[1][5]);
+            Assert.Equal(ManagementTrendTenderSource.Imported, data.Rows[1][6]);
+            Assert.Null(data.Totals![5]);
+            Assert.Equal("1 missing", data.Totals[6]);
+            Assert.Equal(1499m, data.Totals[2]);
+            Assert.Contains("1 store-day(s) show R022 missing / not imported; their tender variance is blank, not zero.", ((TextBlock)view.FindName("ReportResult")).Text);
+        });
+    }
+
+    [Fact]
+    public void Management_trend_export_totals_the_variance_when_every_day_has_r022()
+    {
+        RunSta(async () =>
+        {
+            var query = new DeferredTrendQuery();
+            var previews = new List<ReportPresentationSnapshot>();
+            var view = CreateView(query, previews);
+            query.Completion.SetResult([new(new(2026, 9, 9), "WLMHW", 500m, 2m, 1, 2m, 0), new(new(2026, 9, 10), "WLMHW", 999m, 1m, 1, 3m, 0)]);
+            await view.RunReportAsync("management-trend");
+
+            var data = Assert.Single(previews).ExportData!;
+            Assert.Equal(5m, data.Totals![5]);
+            Assert.Equal("", data.Totals[6]);
+            Assert.DoesNotContain("R022 missing", ((TextBlock)view.FindName("ReportResult")).Text);
+        });
+    }
+
+    [Fact]
     public void Date_change_invalidates_export_and_pending_results_until_report_is_rerun()
     {
         RunSta(async () =>

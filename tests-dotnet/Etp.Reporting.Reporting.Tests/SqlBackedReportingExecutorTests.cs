@@ -96,6 +96,29 @@ public sealed class SqlBackedReportingExecutorTests
         Assert.Contains("R022 missing / not imported", result.Message);
         Assert.Contains("S1: 16 Sep 2024, 17 Sep 2024", result.Message);
         Assert.Equal(80m, result.InvoiceTotal);
+        Assert.Contains("Compared source-signed invoice and tender values", result.Message);
+        Assert.DoesNotContain("failed", result.Message);
+    }
+
+    [Fact]
+    public async Task Blocked_tender_reconciliation_keeps_the_failed_documents_and_the_reconciliation_message()
+    {
+        // A missing R022 day must not hide that documents on other days failed (review of 1.9.4 L3).
+        var repository = new FakeRepository
+        {
+            InvoiceControls = [new("S1", "I1", 1000m), new("S1", "I2", 500m)],
+            Tenders = [new("S1", "I1", "CARD", 500m), new("S1", "I2", "CARD", 500m)],
+            Gaps = [new("S1", new(2024, 8, 5))]
+        };
+
+        var result = await Executor(repository).ExecuteTenderReconciliationAsync(Scope());
+
+        Assert.Equal(ReconciliationStatus.Blocked, result.Status);
+        Assert.StartsWith("R022 missing / not imported for 1 store-day(s)", result.Message);
+        Assert.Contains("1 document(s) failed; variance 500.00.", result.Message);
+        Assert.Contains("Compared source-signed invoice and tender values", result.Message);
+        Assert.Contains("Tender modes: CARD: 1,000.00", result.Message);
+        Assert.Single(result.Documents, x => x.Status == ReconciliationStatus.Failed);
     }
 
     [Fact]

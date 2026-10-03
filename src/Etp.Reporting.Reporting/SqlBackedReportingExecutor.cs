@@ -43,7 +43,14 @@ public sealed class SqlBackedReportingExecutor(
             .Select(x => $"{x.Mode}: {x.Total:N2}"));
         var gaps = await repository.LoadTenderCoverageGapsAsync(scope, cancellationToken);
         if (gaps.Count > 0)
-            return result with { Status = ReconciliationStatus.Blocked, Message = $"{DescribeTenderGaps(gaps)} Tender modes: {modes}" };
+        {
+            // Blocked because the period is incomplete, but what the covered days showed is kept after the gap text:
+            // the reconciliation's own message and, when it had failed, the failed-document count and variance.
+            var failed = result.Status == ReconciliationStatus.Failed
+                ? $" On the days that were reconciled, {result.Documents.Count(x => x.Status == ReconciliationStatus.Failed):N0} document(s) failed; variance {result.Variance:N2}."
+                : string.Empty;
+            return result with { Status = ReconciliationStatus.Blocked, Message = $"{DescribeTenderGaps(gaps)}{failed} {result.Message} Tender modes: {modes}" };
+        }
         return result with { Message = $"{result.Message} Tender modes: {modes}" };
     }
 
