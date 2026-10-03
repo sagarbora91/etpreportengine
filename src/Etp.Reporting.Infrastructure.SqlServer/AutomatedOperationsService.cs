@@ -125,9 +125,12 @@ public sealed class AutomatedOperationsService(string connectionString, Action<F
     internal static bool IsSavedDespiteFailure(FolderImportFileResult file) =>
         file.Status is "Failed" or "Cancelled" && file.CommitState == CommitState.Committed && file.ConflictRows == 0;
 
-    /// <summary>The business dates whose report pack a source's run makes due: those of its new or saved imports.</summary>
+    /// <summary>The business dates whose report pack a source's run makes due: those of its new or saved imports.
+    /// A Service Centre import never makes a pack due: the packs are Retail management packs (Service interim, decision 15),
+    /// so a Service-only batch queues none and a mixed batch only its Retail dates.</summary>
     internal static IEnumerable<DateOnly> ImportedDates(FolderImportSummary batch) =>
-        batch.Files.Where(file => (file.Status == "Imported" || IsSavedDespiteFailure(file)) && file.PeriodEnd is not null)
+        batch.Files.Where(file => (file.Status == "Imported" || IsSavedDespiteFailure(file)) && file.PeriodEnd is not null
+                && !ServiceRouting.IsService(file.ReportCode))
             .Select(file => file.PeriodEnd!.Value).Distinct();
 
     /// <summary>
@@ -157,10 +160,13 @@ public sealed class AutomatedOperationsService(string connectionString, Action<F
         }
         var accepted = inspection.AcceptedImport;
         var report = accepted.ProfileIdentity.ReportCode;
+        // A Service family the interim does not land has no table to persist into.
+        if (ServiceRouting.NotNeeded(workbook.FileName, report) is { } skipped) throw new ImportSourceException(skipped.Code, skipped.Message);
         accepted.Scope.RequireOwnSnapshotDate();
         var end = accepted.Scope.PeriodEnd ?? throw new ImportSourceException("SCOPE_NOT_DETECTED","Keep this file beside the other exports for its store.");
         var start = accepted.Scope.PeriodStart ?? end;
-        var store = accepted.Scope.StoreCode ?? throw new ImportSourceException("SCOPE_NOT_DETECTED","Store could not be detected.");
+        var store = accepted.Scope.StoreCode ?? ImportScope.ServiceStoreFallback(report)
+            ?? throw new ImportSourceException("SCOPE_NOT_DETECTED","Store could not be detected.");
         var files = new SqlServerImportFileRepository(connectionString);
         var persistence = new SqlServerImportPersistenceUseCase(connectionString);
         // IF-023: the import keeps the source bytes inside its transaction; a duplicate keeps missing bytes.
