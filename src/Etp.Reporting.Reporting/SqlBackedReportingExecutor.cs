@@ -41,7 +41,30 @@ public sealed class SqlBackedReportingExecutor(
         var modes = string.Join(" / ", tenderRows.GroupBy(x => x.TenderType, StringComparer.OrdinalIgnoreCase)
             .Select(x => new { Mode = x.Key, Total = x.Sum(t => t.SourceAmount) }).OrderByDescending(x => x.Total)
             .Select(x => $"{x.Mode}: {x.Total:N2}"));
+        var gaps = await repository.LoadTenderCoverageGapsAsync(scope, cancellationToken);
+        if (gaps.Count > 0)
+        {
+            // Blocked because the period is incomplete, but what the covered days showed is kept after the gap text:
+            // the reconciliation's own message and, when it had failed, the failed-document count and variance.
+            var failed = result.Status == ReconciliationStatus.Failed
+                ? $" On the days that were reconciled, {result.Documents.Count(x => x.Status == ReconciliationStatus.Failed):N0} document(s) failed; variance {result.Variance:N2}."
+                : string.Empty;
+            return result with { Status = ReconciliationStatus.Blocked, Message = $"{DescribeTenderGaps(gaps)}{failed} {result.Message} Tender modes: {modes}" };
+        }
         return result with { Message = $"{result.Message} Tender modes: {modes}" };
+    }
+
+    /// <summary>Names the uncovered dates so a missing R022 never passes as 0 against 0 (Titan audit FIX-07).</summary>
+    public static string DescribeTenderGaps(IReadOnlyList<TenderCoverageGapRow> gaps)
+    {
+        const int shown = 10;
+        var stores = gaps.GroupBy(x => x.StoreCode, StringComparer.OrdinalIgnoreCase).OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase).Select(store =>
+        {
+            var dates = store.Select(x => x.BusinessDate).Distinct().Order().ToArray();
+            var listed = string.Join(", ", dates.Take(shown).Select(x => x.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)));
+            return dates.Length > shown ? $"{store.Key}: {listed} and {dates.Length - shown:N0} more" : $"{store.Key}: {listed}";
+        });
+        return $"R022 missing / not imported for {gaps.Count:N0} store-day(s) with sales ({string.Join("; ", stores)}). Import the Revenue Report (R022) for these dates; tenders are not treated as zero.";
     }
 
     public async Task<StockReconciliationResult> ExecuteStockReconciliationAsync(

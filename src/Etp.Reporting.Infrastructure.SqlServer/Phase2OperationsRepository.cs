@@ -23,7 +23,7 @@ public sealed record ReportPackSchedule(int Id, string Name, TimeOnly LocalRunTi
 public sealed record AutomationRunRow(long Id, string RunType, string? SourceFileName, string? StoreCode, DateOnly? BusinessDate, string Outcome, string SafeMessage, DateTime StartedUtc, DateTime CompletedUtc, string RunBy);
 public sealed record ArchivedReportGeneration(long Id, string StoreCode, DateOnly BusinessDate, int GenerationNumber, string ControlSha256, string? DocumentSha256, DateTime GeneratedUtc, string GeneratedBy, bool IsFinal, long? SupersedesGenerationId, bool CanReExport);
 public sealed record ReportGenerationComparisonRow(string Table, int FirstRows, int SecondRows, string FirstStatus, string SecondStatus, bool Changed);
-public sealed record ManagementTrendRow(DateOnly BusinessDate, string StoreCode, decimal NetSales, decimal Units, int Invoices, decimal TenderVariance, int UnmatchedEnrichmentRows);
+public sealed record ManagementTrendRow(DateOnly BusinessDate, string StoreCode, decimal NetSales, decimal Units, int Invoices, decimal? TenderVariance, int UnmatchedEnrichmentRows);
 public sealed record DataQualitySummaryRow(string Severity, string Area, string Code, long Count, DateTime? LatestUtc, string Message);
 
 public sealed class Phase2OperationsRepository(string connectionString)
@@ -364,14 +364,27 @@ public sealed class Phase2OperationsRepository(string connectionString)
               FROM dbo.sales_tenders t JOIN dbo.sales_invoices i ON i.sales_invoice_id=t.sales_invoice_id
               JOIN dbo.source_lineage sl ON sl.source_lineage_id=t.source_lineage_id JOIN dbo.import_files f ON f.import_file_id=sl.import_file_id AND f.is_superseded=0
               WHERE i.transaction_date BETWEEN @from AND @to GROUP BY i.transaction_date,i.store_code
+            ), r020_tc AS
+            (
+              SELECT i.transaction_date,i.store_code,SUM(x.source_amount) tender
+              FROM (
+            """ + SqlReportingQueries.R020TcTenders + """
+              ) x JOIN dbo.sales_invoices i ON i.sales_invoice_id=x.sales_invoice_id
+              WHERE i.transaction_date BETWEEN @from AND @to GROUP BY i.transaction_date,i.store_code
             ), unmatched AS
             (
               SELECT transaction_date,store_code,COUNT_BIG(*) unmatched
               FROM {EnrichmentOccurrencePairing.EffectiveEnrichments} e WHERE transaction_date BETWEEN @from AND @to AND effective_match_status<>'Matched' GROUP BY transaction_date,store_code
             )
-            SELECT s.transaction_date,s.store_code,s.net_sales,s.units,s.invoices,COALESCE(c.revenue,0)-COALESCE(t.tender,0),CONVERT(int,COALESCE(u.unmatched,0))
+            SELECT s.transaction_date,s.store_code,s.net_sales,s.units,s.invoices,
+                   CASE WHEN EXISTS(SELECT 1 FROM dbo.import_files f WHERE f.store_code=s.store_code AND f.report_code='R022'
+                     AND f.is_superseded=0 AND f.data_truth_version=1
+                     AND s.transaction_date BETWEEN COALESCE(f.period_start,f.business_date) AND COALESCE(f.period_end,f.business_date))
+                   THEN COALESCE(c.revenue,0)-COALESCE(t.tender,0)-COALESCE(tc.tender,0) END,
+                   CONVERT(int,COALESCE(u.unmatched,0))
             FROM sales s LEFT JOIN controls c ON c.transaction_date=s.transaction_date AND c.store_code=s.store_code
             LEFT JOIN tenders t ON t.transaction_date=s.transaction_date AND t.store_code=s.store_code
+            LEFT JOIN r020_tc tc ON tc.transaction_date=s.transaction_date AND tc.store_code=s.store_code
             LEFT JOIN unmatched u ON u.transaction_date=s.transaction_date AND u.store_code=s.store_code
             ORDER BY s.transaction_date,s.store_code;
             """;
@@ -379,7 +392,7 @@ public sealed class Phase2OperationsRepository(string connectionString)
         await using var command = new SqlCommand(sql, connection); command.Parameters.AddWithValue("@from", from); command.Parameters.AddWithValue("@to", to);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         var rows = new List<ManagementTrendRow>();
-        while (await reader.ReadAsync(cancellationToken)) rows.Add(new(reader.GetFieldValue<DateOnly>(0), reader.GetString(1), reader.GetDecimal(2), reader.GetDecimal(3), reader.GetInt32(4), reader.GetDecimal(5), reader.GetInt32(6)));
+        while (await reader.ReadAsync(cancellationToken)) rows.Add(new(reader.GetFieldValue<DateOnly>(0), reader.GetString(1), reader.GetDecimal(2), reader.GetDecimal(3), reader.GetInt32(4), reader.IsDBNull(5) ? null : reader.GetDecimal(5), reader.GetInt32(6)));
         return rows;
     }
 

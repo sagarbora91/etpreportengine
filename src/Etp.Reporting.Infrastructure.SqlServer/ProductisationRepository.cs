@@ -305,8 +305,11 @@ public sealed partial class ProductisationRepository(string connectionString)
               SELECT 'NET_SALES' event_code,COALESCE(SUM(l.source_gross_amount),0) amount,CONCAT(@store,'/',CONVERT(varchar(10),@date,23)) source_reference,'ETP net sales including GST' description
               FROM dbo.sales_lines l JOIN dbo.sales_invoices i ON i.sales_invoice_id=l.sales_invoice_id WHERE i.store_code=@store AND i.transaction_date=@date
               UNION ALL
+              -- Same tenders as the cash book and tender reconciliation, including the R020 TC (decision 13 Q3).
               SELECT 'TENDER_TOTAL',COALESCE(SUM(t.source_amount),0),CONCAT(@store,'/',CONVERT(varchar(10),@date,23)),'Eligible ETP tender total'
-              FROM dbo.reporting_sales_tenders t JOIN dbo.sales_invoices i ON i.sales_invoice_id=t.sales_invoice_id WHERE i.store_code=@store AND i.transaction_date=@date
+              FROM (
+            """+SqlReportingQueries.EffectiveTenders+"""
+              ) t JOIN dbo.sales_invoices i ON i.sales_invoice_id=t.sales_invoice_id WHERE i.store_code=@store AND i.transaction_date=@date
               UNION ALL
               SELECT 'SERVICE_SALES',COALESCE(SUM(CASE WHEN field_code IN('SERVICE_CASH','SERVICE_CARD','SERVICE_UPI') THEN numeric_value ELSE 0 END),0),CONCAT(@store,'/',CONVERT(varchar(10),@date,23)),'Approved service collections'
               FROM dbo.manual_operational_inputs WHERE store_code=@store AND business_date=@date

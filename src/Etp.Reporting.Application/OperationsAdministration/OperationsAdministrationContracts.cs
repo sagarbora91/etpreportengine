@@ -19,8 +19,13 @@ public sealed record ManagementTrendPoint(
     decimal NetSales,
     decimal Units,
     int Invoices,
-    decimal TenderVariance,
-    int UnmatchedEnrichmentRows);
+    decimal? TenderVariance,
+    int UnmatchedEnrichmentRows)
+{
+    public string TenderSource => TenderVariance is null
+        ? Etp.Reporting.Application.Reports.ManagementTrendTenderSource.Missing
+        : Etp.Reporting.Application.Reports.ManagementTrendTenderSource.Imported;
+}
 
 public sealed record DataQualityFinding(
     string Severity,
