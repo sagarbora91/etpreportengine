@@ -389,6 +389,89 @@ public sealed class BootstrapPrerequisiteTests
     }
 
     [Fact]
+    public async Task Pre_migration_steps_run_in_order_and_only_the_backup_can_stop_setup()
+    {
+        // VM rehearsal, 3 October 2026 (1.9.2 with real data to 1.9.3): the broker refresh
+        // before the pre-migration backup failed, and setup stopped there with two log lines
+        // although the 1.9.2 broker could still take the backup. The order is: say what is
+        // happening, refresh the broker (logged, never fatal), take the backup (fatal: nothing
+        // may migrate without it), verify its receipt, log where it is.
+        var script = FindBootstrapScript().Replace("'", "''");
+        var command = $$"""
+            $ErrorActionPreference = 'Stop'
+            $tokens = $null; $errors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile('{{script}}', [ref]$tokens, [ref]$errors)
+            if (@($errors).Count -ne 0) { throw 'bootstrap-etp-prerequisites.ps1 does not parse.' }
+            $top = @($ast.EndBlock.Statements)
+            $upgrade = @($top | Where-Object { $_ -is [System.Management.Automation.Language.IfStatementAst] -and $_.Clauses[0].Item1.Extent.Text -eq '$databaseExistedBeforeMigration' })
+            $pending = @($upgrade[0].Clauses[0].Item2.Statements | Where-Object { $_ -is [System.Management.Automation.Language.IfStatementAst] -and $_.Clauses[0].Item1.Extent.Text -match '\$appliedMigrationCount -lt' })
+            if ($pending.Count -ne 1) { throw 'There is no single pending-migrations branch.' }
+            $statements = @($pending[0].Clauses[0].Item2.Statements)
+            function At($pattern) {
+                $found = @(for ($i = 0; $i -lt $statements.Count; $i++) { if ($statements[$i].Extent.Text -match $pattern) { $i } })
+                if ($found.Count -ne 1) { throw "Expected one statement matching $pattern, found $($found.Count)." }
+                return $found[0]
+            }
+            $announce = At "Write-SetupLog 'Existing database has pending bundled migrations"
+            $refresh = At '^foreach \(\$line in @\(Invoke-EtpPreMigrationBrokerRefresh -Refresh \{ & \(Join-Path \$scripts ''install-etp-sql-operations\.ps1''\) .* -BrokerOnly \}\)\) \{ Write-SetupLog "\$line" \}$'
+            $backup = At '^& \$backupScript .*-Purpose PreMigration$'
+            $verify = At '^Assert-VerifiedBackupReceipt -ReceiptPath \$receiptPath$'
+            $retained = At 'Write-SetupLog "Verified pre-migration backup is retained at'
+            if (-not ($announce -lt $refresh -and $refresh -lt $backup -and $backup -lt $verify -and $verify -lt $retained)) { throw "Out of order: $announce $refresh $backup $verify $retained" }
+            # The backup is a statement of the branch itself, inside no try: its failure stops setup.
+            if (@($pending[0].Clauses[0].Item2.FindAll({ param($n) $n -is [System.Management.Automation.Language.TryStatementAst] }, $true)).Count -ne 0) { throw 'Something in the pending-migrations branch is caught.' }
+            # The trap puts what SQL Server reported on its own line after the FAILED line.
+            $trap = @($ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.TrapStatementAst] }, $true))
+            if ($trap.Count -ne 1) { throw 'There is no single trap.' }
+            $body = $trap[0].Body.Extent.Text
+            $failed = $body.IndexOf('Write-SetupLog "FAILED:'); $detail = $body.IndexOf('Get-EtpExceptionSqlDetail $_.Exception'); $reported = $body.IndexOf('Write-SetupLog "SQL Server reported: $sqlDetail"')
+            if (-not ($failed -ge 0 -and $detail -gt $failed -and $reported -gt $detail)) { throw 'The trap does not log the SQL detail after the FAILED line.' }
+            Write-Output 'Pre-migration order passed.'
+            """;
+        var result = await RunPowerShellAsync(["-Command", command]);
+        Assert.True(result.ExitCode == 0, result.Output);
+        Assert.Contains("Pre-migration order passed.", result.Output);
+    }
+
+    [Fact]
+    public async Task A_broker_refresh_that_fails_is_logged_with_what_sql_server_said_and_the_backup_goes_ahead()
+    {
+        // Case (a) of the VM rehearsal: an unsigned 1.9.2 broker that setup tries to replace.
+        // The stand-in refresh fails exactly as install-etp-sql-operations.ps1 did there: the
+        // masked message, with Sqlcmd's own complaint attached by Invoke-EtpSql.
+        var script = FindBootstrapScript().Replace("'", "''");
+        var command = $$"""
+            $ErrorActionPreference = 'Stop'
+            . '{{script}}' -ApplicationDirectory 'C:\UnusedBootstrapTest'
+            # A refresh that works: its lines pass through unchanged.
+            $ok = @(Invoke-EtpPreMigrationBrokerRefresh -Refresh { 'The unsigned operations broker for EtpReporting was from an earlier build and has been replaced by the current one.' })
+            if ($ok.Count -ne 1 -or $ok[0] -cne 'The unsigned operations broker for EtpReporting was from an earlier build and has been replaced by the current one.') { throw "Success: $($ok -join ' / ')" }
+            # A signed 1.9.2 broker (case b) is kept by -BrokerOnly; its line passes through too.
+            $kept = @(Invoke-EtpPreMigrationBrokerRefresh -Refresh { 'The operations broker for EtpReporting is signed but from an earlier build, which records no row counts.' })
+            if ($kept.Count -ne 1 -or $kept[0] -notlike '*signed but from an earlier build*') { throw "Kept: $($kept -join ' / ')" }
+            # The failure of 3 October 2026: logged, with the detail, and not thrown.
+            $sqlcmdSaid = "Sqlcmd: 'before" + [char]34 + ":'+COALESCE(@countsBefore,N'null')': Unexpected argument. Enter '-?' for help."
+            $lines = @(Invoke-EtpPreMigrationBrokerRefresh -Refresh {
+                $failure = [Management.Automation.RuntimeException]::new($EtpMaskedSqlFailure)
+                $failure.Data['EtpSqlDetail'] = $sqlcmdSaid
+                throw $failure
+            })
+            if ($lines.Count -ne 1) { throw "Lines: $($lines.Count)" }
+            $line = $lines[0]
+            if (-not $line.StartsWith('WARNING: the operations broker could not be checked or brought up to date before the pre-migration backup: ')) { throw "Line: $line" }
+            if (-not $line.Contains("$EtpMaskedSqlFailure (SQL Server reported: $sqlcmdSaid)")) { throw "No SQL detail: $line" }
+            if (-not $line.Contains('The backup goes ahead through the broker already installed')) { throw "Line: $line" }
+            # Any other failure (a refused template, say) is logged the same way, without a detail.
+            $other = @(Invoke-EtpPreMigrationBrokerRefresh -Refresh { throw 'Complete protected recovery-folder setup first.' })
+            if ($other.Count -ne 1 -or -not $other[0].Contains('Complete protected recovery-folder setup first.') -or $other[0].Contains('SQL Server reported')) { throw "Other: $($other -join ' / ')" }
+            Write-Output 'Broker refresh failure handling passed.'
+            """;
+        var result = await RunPowerShellAsync(["-Command", command]);
+        Assert.True(result.ExitCode == 0, result.Output);
+        Assert.Contains("Broker refresh failure handling passed.", result.Output);
+    }
+
+    [Fact]
     public async Task Fresh_machine_without_bundled_media_refuses_before_changing_anything()
     {
         var script = FindBootstrapScript().Replace("'", "''");

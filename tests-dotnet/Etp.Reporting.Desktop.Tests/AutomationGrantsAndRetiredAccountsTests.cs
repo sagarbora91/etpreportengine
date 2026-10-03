@@ -131,7 +131,10 @@ public sealed class AutomationGrantsAndRetiredAccountsTests
         var common = File.ReadAllText(Common());
         const string masked = "The database operation failed. Check SQL permissions and operation prerequisites.";
         Assert.Contains($"$EtpMaskedSqlFailure = '{masked}'", common, StringComparison.Ordinal);
-        Assert.Equal(2, common.Split($"throw '{masked}'").Length - 1);
+        // Invoke-EtpSql: the native call failing outright, and SQL Server failing the statement
+        // (that one is built as an exception, to carry what SQL Server said in its Data).
+        Assert.Equal(1, common.Split($"throw '{masked}'").Length - 1);
+        Assert.Equal(1, common.Split($"[Management.Automation.RuntimeException]::new('{masked}')").Length - 1);
     }
 
     // ------------------------------------------------------------ setup completes the grants
