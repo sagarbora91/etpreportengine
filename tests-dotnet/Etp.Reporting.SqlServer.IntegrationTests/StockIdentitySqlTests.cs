@@ -98,24 +98,8 @@ public sealed class StockIdentitySqlTests(SqlDatabaseFixture database) : IClassF
         Assert.Contains(" 1 conflicting or missing rows;", planned.Message, StringComparison.Ordinal);
         Assert.Equal(1, await Scalar("SELECT COUNT(*) FROM dbo.stock_movements WHERE document_number='AL-DIFF'"));
 
-        // A stored row no current import's content keys hold (written by the procedure under another row's file) passes
-        // the planner. StockLineAlignment finds no incoming row with its quantities, leaves the lines as they are, and
-        // persist_stock_movement logs the chain start on line 1 as a CONFLICT: the file rolls back.
-        var holder = await Import([Unit("STM Receipt", "HEMW", "AL-BASE", "AL-HID", Day(19), 0m, 1m)]);
-        await database.ExecuteAsync($"""
-            INSERT dbo.source_lineage(import_file_id,sheet_name,source_row_number,source_record_type) VALUES({holder.ImportFileId},'Direct',99,'STOCK_MOVEMENT');
-            DECLARE @lineage bigint=SCOPE_IDENTITY();
-            EXEC dbo.persist_stock_movement 'HEMW',N'AL-HID',2027,'20260819',N'AL-ITEM',N'STM Receipt',NULL,N'HEMW',7,1,8,@lineage;
-            """);
-        Assert.Equal(1, await Scalar("SELECT line_seq FROM dbo.stock_movements WHERE document_number='AL-HID' AND product_code='AL-ITEM'"));
-
-        var refused = await Assert.ThrowsAsync<ImportConflictException>(() => Import([
-            Unit("STM Receipt", "HEMW", "AL-BASE", "AL-HID", Day(19), 0m, 1m),
-            .. new[] { 1m, 2m, 0m }.Select(opening => Unit("STM Receipt", "HEMW", "AL-ITEM", "AL-HID", Day(19), opening, 1m))]));
-
-        Assert.Equal(1, refused.Count);
-        Assert.Equal(1, await Scalar("SELECT COUNT(*) FROM dbo.stock_movements WHERE document_number='AL-HID' AND product_code='AL-ITEM'"));
-        Assert.Equal(7m, await database.ExecuteAsync("SELECT opening_quantity FROM dbo.stock_movements WHERE document_number='AL-HID' AND product_code='AL-ITEM'"));
+        // The alignment-conflict path (a stored row no current import's content keys hold) cannot be seeded here: the database
+        // refuses canonical facts written outside an import manifest. StockLineAlignmentTests covers it at unit level.
     }
 
     [Fact]
