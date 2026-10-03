@@ -424,6 +424,68 @@ public sealed class FolderImportServiceTests
         Assert.Equal(12, Assert.Single(rightPick.Prepared).Restatement!.PreviousImportFileId);
     }
 
+    // Review 1.9.3 finding 2 (IF-023): every attempt records an evidence state, never NULL.
+    [Fact]
+    public async Task A_file_that_was_never_read_or_never_reached_records_evidence_not_attempted()
+    {
+        var unreadable = await new FolderImportService(new CapturePersistence(),
+            new Reader(_ => throw new IOException("Synthetic unreadable workbook."))).RunFilesAsync(["broken.xlsx"], new("tester"));
+        var failed = Assert.Single(unreadable.Files);
+        Assert.Equal("Failed", failed.Status);
+        Assert.Equal(EvidenceState.NotAttempted, failed.Evidence);
+
+        using var cancellation = new CancellationTokenSource();
+        var progress = new InlineProgress(value => { if (value.Completed == 1) cancellation.Cancel(); });
+        var summary = await new FolderImportService(new CapturePersistence(), new Reader(path => Sales(path, "HEMW", [20260825])))
+            .RunFilesAsync(["one.xlsx", "two.xlsx"], new("tester"), progress, cancellation.Token);
+        var cancelled = Assert.Single(summary.Files, file => file.Status == "Cancelled");
+        Assert.Equal(EvidenceState.NotAttempted, cancelled.Evidence);
+    }
+
+    [Fact]
+    public async Task A_committed_import_whose_later_step_failed_records_its_evidence_state()
+    {
+        // The import kept its bytes and committed; reading its result back failed afterwards.
+        var persistence = new CapturePersistence { Evidence = EvidenceState.Retained, OutcomeFailure = new InvalidOperationException("Synthetic read-back failure.") };
+        var file = Assert.Single((await new FolderImportService(persistence, new Reader(path => Sales(path, "HEMW", [20260825])))
+            .RunFilesAsync(["sales.xlsx"], new("tester"))).Files);
+        Assert.Equal(CommitState.Committed, file.CommitState);
+        Assert.Equal(EvidenceState.Retained, file.Evidence);
+
+        // A failure after the commit inside the store reports no evidence; the state is unknown, not missing.
+        var committed = new CapturePersistence { PersistFailure = new ImportCommittedException(Guid.NewGuid(), new TimeoutException("Synthetic.")) };
+        var unknown = Assert.Single((await new FolderImportService(committed, new Reader(path => Sales(path, "HEMW", [20260825])))
+            .RunFilesAsync(["sales.xlsx"], new("tester"))).Files);
+        Assert.Equal(CommitState.Committed, unknown.CommitState);
+        Assert.Equal(EvidenceState.Unknown, unknown.Evidence);
+        Assert.Equal("UNKNOWN", EvidenceState.Unknown.ToDatabaseCode());
+    }
+
+    [Fact]
+    public async Task A_duplicate_without_an_evidence_retainer_records_evidence_not_attempted()
+    {
+        var file = Assert.Single((await new FolderImportService(new PlainPersistence(),
+            new Reader(path => Sales(path, "HEMW", [20260825]))).RunFilesAsync(["sales.xlsx"], new("tester"))).Files);
+        Assert.Equal("Duplicate", file.Status);
+        Assert.Equal(EvidenceState.NotAttempted, file.Evidence);
+    }
+
+    // A persistence that keeps no evidence: every file is already imported.
+    private sealed class PlainPersistence : IImportPersistenceUseCase<MatchedImportEnvelope>
+    {
+        public Task<bool> ExistsByHashAsync(string hash, CancellationToken cancellationToken = default) => Task.FromResult(true);
+        public Task<bool> ExistsInScopeAsync(string hash, string report, string store, DateOnly start, DateOnly end, CancellationToken cancellationToken = default) =>
+            Task.FromResult(true);
+        public Task<long?> FindCurrentImportFileIdAsync(string report, string store, DateOnly date, CancellationToken cancellationToken = default) => Task.FromResult<long?>(null);
+        public Task<IReadOnlyList<RestatementCandidate>> FindRestatementCandidatesAsync(string report, string store, DateOnly start, DateOnly end,
+            CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<RestatementCandidate>>([]);
+        public Task PrepareRestatementAsync(ImportPersistenceRequest<MatchedImportEnvelope> request, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<ImportPersistenceResult> PersistAsync(ImportPersistenceRequest<MatchedImportEnvelope> request, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("A duplicate is never persisted.");
+        public Task<ImportRowOutcome> LoadOutcomeByHashAsync(string hash, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ImportRowOutcome(0, 0, 0, 0));
+    }
+
     private static WorkbookSnapshot Sales(string path, string store, int[] dates)
     {
         var rows = dates.Select((date, index) =>
@@ -499,6 +561,8 @@ public sealed class FolderImportServiceTests
             { Status = Status, AlreadyPresentRows = Status == "Imported" ? 0 : request.AcceptedImport.Staging.Rows.Count, ConflictRows = Conflicts,
               Evidence = Evidence });
         }
-        public Task<ImportRowOutcome> LoadOutcomeByHashAsync(string hash, CancellationToken cancellationToken = default) => Task.FromResult(new ImportRowOutcome(0, 0, 0, 0));
+        public Exception? OutcomeFailure { get; init; }
+        public Task<ImportRowOutcome> LoadOutcomeByHashAsync(string hash, CancellationToken cancellationToken = default) =>
+            OutcomeFailure is null ? Task.FromResult(new ImportRowOutcome(0, 0, 0, 0)) : Task.FromException<ImportRowOutcome>(OutcomeFailure);
     }
 }

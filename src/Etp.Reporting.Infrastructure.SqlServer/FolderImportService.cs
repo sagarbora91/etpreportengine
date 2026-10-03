@@ -94,7 +94,7 @@ public sealed class FolderImportService(
                 var failure = Classifier.DescribeDetailed(exception, readStage);
                 Report(Path.GetFileName(path), readStage, null, null, exception);
                 var failed = new FolderImportFileResult(Path.GetFileName(path), null, null, null, null, "Failed", Message: failure.SafeMessage)
-                    { SourcePath = path, Failure = failure };
+                    { SourcePath = path, Failure = failure, Evidence = EvidenceState.NotAttempted };
                 results.Add(failed);
                 handled.Add(path);
                 await recording.RecordAsync(failed).ConfigureAwait(false);
@@ -224,7 +224,8 @@ public sealed class FolderImportService(
         if (cancellationToken.IsCancellationRequested)
             foreach (var path in paths.Where(path => !handled.Contains(path)))
             {
-                var cancelled = new FolderImportFileResult(Path.GetFileName(path), null, null, null, null, "Cancelled") { SourcePath = path };
+                var cancelled = new FolderImportFileResult(Path.GetFileName(path), null, null, null, null, "Cancelled")
+                    { SourcePath = path, Evidence = EvidenceState.NotAttempted };
                 results.Add(cancelled);
                 await recording.RecordAsync(cancelled).ConfigureAwait(false);
             }
@@ -253,13 +254,15 @@ public sealed class FolderImportService(
         var cause = exception is ImportCommittedException { InnerException: { } inner } ? inner : exception;
         if (cancelled && IsCancellation(cause))
             return afterCommit
-                ? result with { Status = "Cancelled", Message = "Import cancelled after its data was committed.", BatchId = batchId, CommitState = known }
+                ? result with { Status = "Cancelled", Message = "Import cancelled after its data was committed.", BatchId = batchId, CommitState = known,
+                    Evidence = result.Evidence ?? EvidenceState.Unknown }
                 : result with { Evidence = EvidenceState.NotAttempted, Status = "Cancelled", Message = "Import cancelled.", CommitState = known };
         var failure = Classifier.DescribeDetailed(exception, stage);
         return result with
         {
             Status = "Failed", Failure = failure, Message = failure.SafeMessage, CommitState = known, BatchId = batchId,
-            Evidence = afterCommit ? result.Evidence : EvidenceState.NotAttempted,
+            // A committed import kept its bytes in its own transaction; when what it kept was never read back, say so.
+            Evidence = afterCommit ? result.Evidence ?? EvidenceState.Unknown : EvidenceState.NotAttempted,
             // A conflict rolls back the whole file; its full count is kept beside the samples (spec 11.1).
             ConflictRows = cause is ImportConflictException conflict ? conflict.Count : result.ConflictRows
         };
@@ -302,7 +305,7 @@ public sealed class FolderImportService(
     private async Task<FolderImportFileResult> RetainDuplicateEvidenceAsync(FolderImportFileResult result,
         MatchedImportEnvelope accepted, CancellationToken cancellationToken)
     {
-        if (persistence is not IImportEvidenceRetainer retainer) return result;
+        if (persistence is not IImportEvidenceRetainer retainer) return result with { Evidence = EvidenceState.NotAttempted };
         EvidenceState evidence;
         try
         {

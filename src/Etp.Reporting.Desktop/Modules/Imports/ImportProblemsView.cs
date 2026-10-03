@@ -3,6 +3,7 @@ extern alias EtpApplication;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using Etp.Reporting.Desktop.Modules.Settings;
 using FolderImportFileResult = EtpApplication::Etp.Reporting.Application.Imports.FolderImportFileResult;
 
 namespace Etp.Reporting.Desktop.Modules.Imports;
@@ -81,7 +82,14 @@ public sealed class ImportProblemsView : UserControl
     /// <summary>Whether the Viewer explanation beside Retry failed is on screen.</summary>
     public bool RetryDeniedNoticeVisible => retryDeniedText?.Visibility == Visibility.Visible;
 
-    public ImportProblemsView(ImportWorkspaceView imports, Func<Task<IReadOnlyList<ImportProblem>>> load)
+    /// <summary>The Owner's "Keep source files for earlier imports…" on this tab (spec 12), when it is hosted.</summary>
+    public ImportEvidenceView? Evidence { get; }
+    private Button? keepEarlierSources;
+    /// <summary>Whether the Owner's "Keep source files for earlier imports…" button is on screen.</summary>
+    public bool KeepEarlierSourcesVisible => keepEarlierSources?.Visibility == Visibility.Visible;
+
+    public ImportProblemsView(ImportWorkspaceView imports, Func<Task<IReadOnlyList<ImportProblem>>> load,
+        ImportEvidenceView? evidence = null, bool revealEvidence = false)
     {
         var root = new DockPanel { Margin = new Thickness(8) };
         var actions = new WrapPanel();
@@ -98,8 +106,22 @@ public sealed class ImportProblemsView : UserControl
         };
         AutomationProperties.SetName(retryDenied, "Owner or store manager can retry");
         actions.Children.Add(status); actions.Children.Add(retry); actions.Children.Add(retryDenied); actions.Children.Add(refresh);
+        Evidence = evidence;
+        if (evidence is not null)
+        {
+            // Spec 12: the Owner keeps the source files of earlier imports from here as well as from Settings.
+            var keep = new Button { Content = ImportEvidenceView.KeepEarlierSourcesText, MinHeight = 44, Margin = new Thickness(8,0,0,0) };
+            AutomationProperties.SetName(keep, ImportEvidenceView.KeepEarlierSourcesText);
+            AutomationProperties.SetHelpText(keep, "Owner only. Keeps the source files of earlier imports from the folders you choose. Nothing is imported.");
+            keep.Click += async (_,_) => { evidence.Reveal(); await evidence.KeepEarlierSourcesAsync(); };
+            actions.Children.Add(keep);
+            keepEarlierSources = keep;
+            UpdateEvidenceAccess();
+        }
         DockPanel.SetDock(actions,Dock.Top);root.Children.Add(actions);
-        DockPanel.SetDock(message,Dock.Top);root.Children.Add(message);root.Children.Add(rows);Content=root;
+        DockPanel.SetDock(message,Dock.Top);root.Children.Add(message);
+        if (evidence is not null) { DockPanel.SetDock(evidence,Dock.Top);root.Children.Add(evidence); }
+        root.Children.Add(rows);Content=root;
         AutomationProperties.SetName(status,"Problem status filter");
         AutomationProperties.SetName(rows,"Import problems");
         AutomationProperties.SetName(retry,"Retry failed imports");
@@ -125,8 +147,23 @@ public sealed class ImportProblemsView : UserControl
             await imports.RetryFailedBatchAsync();
             await Refresh();
         };
-        Loaded += async (_,_) => { imports.RetryAvailabilityChanged += UpdateRetry; await Refresh(); };
+        Loaded += async (_,_) =>
+        {
+            imports.RetryAvailabilityChanged += UpdateRetry;
+            UpdateEvidenceAccess();
+            if (revealEvidence && evidence is { IsOwner: true }) evidence.Reveal();
+            await Refresh();
+        };
         Unloaded += (_,_) => imports.RetryAvailabilityChanged -= UpdateRetry;
+    }
+    // Only the Owner sees the evidence action and section here; Settings still shows the size to every role.
+    private void UpdateEvidenceAccess()
+    {
+        if (Evidence is null || keepEarlierSources is null) return;
+        var owner = Evidence.IsOwner;
+        keepEarlierSources.Visibility = Evidence.Visibility = owner ? Visibility.Visible : Visibility.Collapsed;
+        keepEarlierSources.IsEnabled = owner;
+        Evidence.RefreshAccessState();
     }
     private void ApplyFilter() => rows.ItemsSource = problems.Where(p => status.SelectedIndex == 0 || p.Status.Contains(status.SelectedItem?.ToString() ?? "", StringComparison.OrdinalIgnoreCase)).ToArray();
 }

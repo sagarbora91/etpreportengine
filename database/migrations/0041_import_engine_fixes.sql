@@ -85,9 +85,14 @@ IF OBJECT_ID(N'dbo.CK_import_attempts_failure_stage',N'C') IS NULL
 IF OBJECT_ID(N'dbo.CK_import_attempts_commit_state',N'C') IS NULL
  EXEC(N'ALTER TABLE dbo.import_attempts ADD CONSTRAINT CK_import_attempts_commit_state
   CHECK(commit_state IN(''ROLLED_BACK'',''COMMITTED'',''UNKNOWN''))');
+-- UNKNOWN: the import committed, but what it kept could not be read back. A test database built from an
+-- earlier draft of this migration has the constraint without it; it is replaced.
+IF EXISTS(SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'dbo.import_attempts')
+  AND name=N'CK_import_attempts_evidence_state' AND definition NOT LIKE N'%UNKNOWN%')
+ ALTER TABLE dbo.import_attempts DROP CONSTRAINT CK_import_attempts_evidence_state;
 IF OBJECT_ID(N'dbo.CK_import_attempts_evidence_state',N'C') IS NULL
  EXEC(N'ALTER TABLE dbo.import_attempts ADD CONSTRAINT CK_import_attempts_evidence_state
-  CHECK(evidence_state IN(''RETAINED'',''ALREADY_HELD'',''NOT_RETAINED'',''NOT_ATTEMPTED''))');
+  CHECK(evidence_state IN(''RETAINED'',''ALREADY_HELD'',''NOT_RETAINED'',''NOT_ATTEMPTED'',''UNKNOWN''))');
 IF OBJECT_ID(N'dbo.CK_import_attempts_summary_json',N'C') IS NULL
  EXEC(N'ALTER TABLE dbo.import_attempts ADD CONSTRAINT CK_import_attempts_summary_json CHECK(ISJSON(summary_json)=1)');
 
