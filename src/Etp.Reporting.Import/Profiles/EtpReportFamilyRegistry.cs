@@ -41,14 +41,42 @@ public static class EtpReportFamilyRegistry
     public static EtpReportFamily Resolve(string reportCode) => Families.Single(family =>
         family.ReportCode == reportCode || family.FamilyCode == reportCode);
 
-    public static EtpReportFamily? IdentifyName(string? name)
+    /// <summary>Retail R### and Service Centre S### family codes as they appear in file and sheet names.</summary>
+    public static Regex FamilyCodePattern { get; } =
+        new(@"(?:^|[^A-Z0-9])([RS]\d{3})(?:[^A-Z0-9]|$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// Names a family from a file or sheet name: a family code in the name decides; then, only when <paramref name="among"/>
+    /// is given, the longest <see cref="EtpReportFamily.RawNamePatterns"/> entry the name contains (raw Service exports carry
+    /// no code); then the longest catalogue <see cref="EtpReportFamily.Name"/> the name contains. <paramref name="among"/>
+    /// limits the answer to the families whose header signature already matched, so a Service name such as RevenueReport
+    /// cannot take a Retail Revenue Report file (or the reverse) by catalogue order.
+    /// </summary>
+    public static EtpReportFamily? IdentifyName(string? name, IEnumerable<EtpReportFamily>? among = null)
     {
         if (string.IsNullOrWhiteSpace(name)) return null;
-        var code = Regex.Match(name, @"(?:^|[^A-Z0-9])(R\d{3})(?:[^A-Z0-9]|$)", RegexOptions.IgnoreCase);
-        if (code.Success) return Families.FirstOrDefault(f => f.FamilyCode.Equals(code.Groups[1].Value, StringComparison.OrdinalIgnoreCase));
+        var pool = (among ?? Families).ToArray();
+        var code = FamilyCodePattern.Match(name);
+        // A code outside the pool names no family rather than falling back to the words.
+        if (code.Success) return pool.FirstOrDefault(f => f.FamilyCode.Equals(code.Groups[1].Value, StringComparison.OrdinalIgnoreCase));
         var normalized = NormalizeName(name);
-        // Longest first prevents the OMNI variant matching ordinary variant sales.
-        return Families.OrderByDescending(f => NormalizeName(f.Name).Length)
+        if (among is not null)
+        {
+            // Raw export names are tried only among header-matched families: "PENDING DELIVERY" (S010) is contained in
+            // "R R PENDING DELIVERY" (S031), and Sagar's export spellings ("RENVENUE REPORT") sit beside the correct ones.
+            var raw = pool.SelectMany(f => f.RawNamePatterns.Select(pattern => (Family: f, Pattern: NormalizeName(pattern))))
+                .Where(entry => entry.Pattern.Length > 0 && normalized.Contains(entry.Pattern, StringComparison.Ordinal))
+                .GroupBy(entry => entry.Pattern.Length).OrderByDescending(group => group.Key).FirstOrDefault();
+            if (raw is not null)
+            {
+                // Two families tied on the longest matching pattern are not guessed.
+                var families = raw.Select(entry => entry.Family).Distinct().ToArray();
+                return families.Length == 1 ? families[0] : null;
+            }
+        }
+        // Longest first prevents the OMNI variant matching ordinary variant sales and RepairRegister taking the
+        // RepairRegister_SRNINV view.
+        return pool.OrderByDescending(f => NormalizeName(f.Name).Length)
             .FirstOrDefault(f => normalized.Contains(NormalizeName(f.Name), StringComparison.Ordinal));
     }
 

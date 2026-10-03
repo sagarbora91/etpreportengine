@@ -2,7 +2,7 @@
 # JsonSerializerOptions.NewLine below needs .NET 9, so PowerShell 7.5 or later.
 <#
 .SYNOPSIS
-    Proposes the column roles and document identity of the Retail families in EtpReportFamilies.json.
+    Proposes the column roles and document identity of the Retail and Service families in EtpReportFamilies.json.
 
 .DESCRIPTION
     Import specification sections 7.1, 7.3 and 7.4 (phase P2). For every column of R001-R031 and SOR_AGEING the
@@ -23,7 +23,27 @@
     Without a switch the script prints the proposal and every difference from the catalogue. -Check exits 1 when
     they differ. -Write rewrites the catalogue in place, unchanged apart from the proposed fields.
     EtpReportFamilyCatalogueTests pins the result and runs -Check, so the catalogue and this script cannot drift apart:
-    change a decision here, run -Write, then re-pin the tests. Families of another business unit are left untouched.
+    change a decision here, run -Write, then re-pin the tests.
+
+    Service Centre families (S001-S040, BusinessUnit Service; Service interim S-2, decision 15, 3 Oct 2026) follow the
+    review's section 5 rules. The first matching rule decides:
+
+      1. Reviewed     a per-family decision recorded in $serviceReviewed
+      2. Key          store_code (the exporting centre, AW330); no other key in the interim
+      3. Ignored      the canonical field contains "timestamp"
+      4. Descriptive  the Retail patterns, plus *customer*, cust_*, *landline*, staff and dealer names, customer
+                      account and GST numbers, and store-description columns (centre name, type, channel, region)
+      5. Attribute    master data, references (dealer, courier), endpoint locations, job status, free-text remarks, and every
+                      job-progress date (a Date column other than the family's read-rule date and the booking date)
+      6. Fact         the default, which covers every money column
+
+    Every Service family is a dated snapshot in the interim (PrimaryDateHeader null): Scope Snapshot, SnapshotDate
+    Block, RowRule Multiset (SnapshotItems for S006), no DocumentKey or RowKey, LatestReadingWins, Route Landing. The
+    P8 targets are in docs/service-centre/P8-IDENTITY-TARGETS.md. S001 is Derived; S027 and S028 carry the raw header
+    and list the consolidation's SourcePeriodFrom, SourcePeriodTo and SourceFile as ConsolidationColumns. Headers,
+    canonical names, types and RawNamePatterns are not proposed here: they are frozen to
+    scripts/service-centre/families.spec.json and the raw export names. Families of another business unit, or codes
+    outside R001-R031, SOR_AGEING and S001-S040, are left untouched.
 #>
 [CmdletBinding()]
 param(
@@ -189,6 +209,109 @@ function Get-Roles($family, [string]$code, $identity) {
     return $roles
 }
 
+# --- Service Centre families (review section 5; SERVICE-INTERIM-DESIGN.md sections 3 and 4) ---
+
+# The consolidation adds these block-metadata columns after the raw header of S027 and S028 (review M2).
+$serviceConsolidationColumns = @{
+    S027 = @('SourcePeriodFrom', 'SourcePeriodTo', 'SourceFile')
+    S028 = @('SourcePeriodFrom', 'SourcePeriodTo', 'SourceFile')
+}
+
+# The date a DateLog family's rows are read by (design section 4, ServiceInterimFamilies ReadRule). It stays a Fact,
+# so a re-dated row is a change; the other dates of these logs are progress dates.
+$serviceDateLogColumn = @{
+    S003 = 'trans_date'; S004 = 'billingdate'; S007 = 'grn_date'; S008 = 'grn_date'; S013 = 'stm_date'
+    S019 = 'repairdate'; S022 = 'invoice_date'; S023 = 'transdate'; S024 = 'transdate'; S025 = 'transdate'
+    S026 = 'transdate'; S029 = 'repair_date'; S039 = 'transaction_date'; S040 = 'transaction_date'
+}
+
+# The date a job was booked never moves as the job progresses, so it is a Fact in every family that has it.
+$serviceBookingDates = @('jodate', 'joborder_date', 'created_date', 'bookingdate', 'booking_date')
+
+# Per-family decisions after the column review.
+$serviceReviewed = @{
+    S003 = @{ name = 'Descriptive' }   # the billed party's name, beside cust_name
+    S019 = @{ name = 'Descriptive' }   # the customer of the repeat return
+    S013 = @{ name = 'Attribute' }     # goods in transit: the item's name, beside item_id
+}
+
+# Store-description columns of the exporting centre (Retail's store_name, region and city counterparts).
+$serviceStoreColumns = @('scname', 'sc_name', 'servicecentername', 'storenumber', 'store_channel', 'storechannel',
+    'storestatus', 'sc_type', 'territory', 'area', 'regionname', 'franchisename', 'franchiseename')
+
+# People other than the customer (technicians, staff, dealers) and the customer's account and GST identifiers.
+$servicePersonColumns = @('full_name', 'technician_name', 'mechanic_name', 'mechanicresponsible', 'repairedby', 'raisedby',
+    'jo_booked_by', 'jo_delivered_by', 'd2ddealername', 'identification_number', 'accountnum', 'account_number',
+    'gst_number', 'custname')
+
+# Master data of the watch, spare or product, beyond the Retail list.
+$serviceMasterData = @('brandcode', 'brandid', 'brand_id', 'clusterid', 'cluster_id', 'vartype', 'vartype1', 'vartype2',
+    'var_type', 'sparegroup', 'sparename', 'description', 'productdescription', 'product_description', 'producttype',
+    'product_type', 'product_type_id', 'products', 'watchcategory', 'watch_category', 'helios_product_description', 'grade',
+    'channeltype', 'channel_type', 'label')
+
+# Other places a job or a document points to (endpoints, never the exporting centre).
+$serviceEndpoints = @('location', 'place', 'tolocation', 'to_location', 'from_location', 'purchase_location',
+    'repair_location', 'pendingstore', 'srnstorecode', 'tostorecode', 'srnrepairstore', 'fromstore', 'tostore', 'from_store',
+    'to_store', 'brandstore', 'invent_location_id_from', 'invent_location_id_to')
+
+# The dealer a job came through, and the courier dispatch filled in later (as R005's dispatch columns).
+$serviceReferences = @('sapcode', 'sap_code', 'storesapcode', 'dealersapcode', 'dealerchannel', 'dealercafnumber',
+    'dealercafdate', 'dealer_booking_date', 'd2duniquenumber', 'couriername', 'courierdetails', 'docketno', 'docketnumber',
+    'cancellationdate', 'cancelled_date')
+
+# Free text written as the job progresses.
+$serviceRemarks = @('remarks', 'comment', 'reason', 'reasonforpending', 'complaint', 'complaintdetails',
+    'complaintdescription', 'complaint_details', 'complaint_description', 'rwr_reason', 'repeatreturnreason', 'faileddueto',
+    'cancellationreason', 'empowermentreason', 'empowerment_reason', 'invoice_empowerment_reason', 'radcempowermentreason')
+
+function Test-ServiceDescriptive([string]$field) {
+    (Test-Descriptive $field) -or ($serviceStoreColumns -contains $field) -or ($servicePersonColumns -contains $field) -or
+    ($field -like '*customer*') -or ($field -like 'cust_*') -or ($field -like '*landline*')
+}
+
+function Test-ServiceAttribute([string]$field, [string]$dataType, [string]$code) {
+    if ($dataType -eq 'Date') {
+        return ($serviceDateLogColumn[$code] -ne $field) -and ($serviceBookingDates -notcontains $field)
+    }
+    (Test-Attribute $field) -or ($serviceMasterData -contains $field) -or ($serviceEndpoints -contains $field) -or
+    ($serviceRemarks -contains $field) -or ($serviceReferences -contains $field) -or ($field -like '*status*') -or
+    ($field -eq 'result')
+}
+
+function Get-ServiceIdentity($family, [string]$code) {
+    if ($null -ne $family['PrimaryDateHeader']) { throw "$code must have no PrimaryDateHeader in the Service interim." }
+    $identity = [ordered]@{ Scope = 'Snapshot'; DocumentKey = @(); YearRule = 'None'
+        RowRule = $(if ($code -eq 'S006') { 'SnapshotItems' } else { 'Multiset' }); RowKey = @()
+        ChangePolicy = 'LatestReadingWins'; SnapshotDate = 'Block'; LegacyNullable = @(); Route = 'Landing'; RulesetVersion = 1 }
+    $existing = $family['Identity']
+    if ($null -ne $existing -and $null -ne $existing['RulesetVersion']) {
+        $identity.RulesetVersion = $existing['RulesetVersion'].GetValue[int]()
+    }
+    return $identity
+}
+
+function Get-ServiceRoles($family, [string]$code) {
+    $columns = @($family['Columns'] | ForEach-Object { $_['CanonicalField'].GetValue[string]() })
+    $review = if ($serviceReviewed.ContainsKey($code)) { $serviceReviewed[$code] } else { @{} }
+    foreach ($field in @($review.Keys) + @($serviceDateLogColumn[$code] | Where-Object { $_ })) {
+        if ($columns -notcontains $field) { throw "$code names '$field', which is not one of its columns." }
+    }
+    $roles = [ordered]@{}
+    foreach ($column in $family['Columns']) {
+        $field = $column['CanonicalField'].GetValue[string]()
+        $dataType = $column['DataType'].GetValue[string]()
+        $roles[$field] =
+            if ($review.ContainsKey($field)) { $review[$field] }
+            elseif ($field -eq 'store_code') { 'Key' }
+            elseif ($field -like '*timestamp*') { 'Ignored' }
+            elseif (Test-ServiceDescriptive $field) { 'Descriptive' }
+            elseif (Test-ServiceAttribute $field $dataType $code) { 'Attribute' }
+            else { 'Fact' }
+    }
+    return $roles
+}
+
 # JSON arrays and objects are enumerable, so they are returned with the unary comma to stop PowerShell unrolling them.
 function ConvertTo-Node($value) {
     if ($null -eq $value) { return $null }
@@ -217,12 +340,22 @@ $differences = [System.Collections.Generic.List[string]]::new()
 
 foreach ($family in $catalogue.AsArray()) {
     $code = $family['FamilyCode'].GetValue[string]()
-    $unit = $family['BusinessUnit']
-    if ($code -notmatch '^(R\d{3}|SOR_AGEING)$' -or ($null -ne $unit -and $unit.GetValue[string]() -ne 'Retail')) { continue }
-
-    $identity = Get-Identity $family $code
-    $roles = Get-Roles $family $code $identity
-    $proposed = [ordered]@{ BusinessUnit = 'Retail'; Derived = $false; ConsolidationColumns = @(); Identity = $identity }
+    $unit = if ($null -eq $family['BusinessUnit']) { 'Retail' } else { $family['BusinessUnit'].GetValue[string]() }
+    if ($unit -eq 'Service' -and $code -match '^S\d{3}$') {
+        $identity = Get-ServiceIdentity $family $code
+        $roles = Get-ServiceRoles $family $code
+        # Assigned, not an if expression, which would unroll an empty array to $null.
+        $consolidation = @()
+        if ($serviceConsolidationColumns.ContainsKey($code)) { $consolidation = $serviceConsolidationColumns[$code] }
+        $proposed = [ordered]@{ BusinessUnit = 'Service'; Derived = ($code -eq 'S001'); ConsolidationColumns = $consolidation
+            Identity = $identity }
+    }
+    elseif ($unit -eq 'Retail' -and $code -match '^(R\d{3}|SOR_AGEING)$') {
+        $identity = Get-Identity $family $code
+        $roles = Get-Roles $family $code $identity
+        $proposed = [ordered]@{ BusinessUnit = 'Retail'; Derived = $false; ConsolidationColumns = @(); Identity = $identity }
+    }
+    else { continue }
 
     Write-Host "$code $($identity.Scope) key [$((@($roles.Keys | Where-Object { $roles[$_] -eq 'Key' })) -join ', ')]; $($identity.RowRule), $($identity.ChangePolicy), $($identity.Route), ruleset $($identity.RulesetVersion)"
     foreach ($role in 'Attribute', 'Descriptive', 'Label', 'Ignored') {
