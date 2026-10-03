@@ -63,7 +63,7 @@ public sealed class StockReconciliationService
         var status = items.All(x => x.Status == ReconciliationStatus.Passed)
             ? ReconciliationStatus.Passed : ReconciliationStatus.Failed;
         return new(status, items, rule.Version,
-            "For products present in both the ledger period and closing snapshot, expected closing equals the first ledger opening plus source-signed movements.");
+            "For every product with ledger movements in the period, expected closing equals the ledger balance at the start of the period plus source-signed movements; a product missing from the closing snapshot counts as 0.");
     }
 
     private static (string StoreCode, string ItemCode) Key(StockPositionValue x) => (x.StoreCode, x.ItemCode);

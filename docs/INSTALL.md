@@ -54,7 +54,7 @@ Exact duplicate files are rejected. Unknown layouts, mismatched repeated halves,
 
 ## Reports
 
-Open **Sales Reports** or **Stock Reports**, select an inclusive date range, and run the required report. Sales reports use source-signed `NETVALUE`: `INV` is an invoice and negative `SR` values remain negative. Tender reconciliation uses Revenue Report invoice controls. Stock reconciliation compares the first ledger opening plus source-signed period movements with the closing snapshot for products present in both sources. After running a report, select **Export Excel…** to save the same result grid, totals, period, rule version and control status as a fixed-format `.xlsx` workbook.
+Open **Sales Reports** or **Stock Reports**, select an inclusive date range, and run the required report. Sales reports use source-signed `NETVALUE`: `INV` is an invoice and negative `SR` values remain negative. Tender reconciliation uses Revenue Report invoice controls. Stock reconciliation checks every product with ledger movements in the period: the ledger balance at the start of the period plus source-signed period movements is compared with the To-date closing snapshot, where a product missing from the snapshot counts as 0. It is Blocked when the store has no closing snapshot on the To date, or when the stock ledger ends before the To date (the message gives the ledger's last date). After running a report, select **Export Excel…** to save the same result grid, totals, period, rule version and control status as a fixed-format `.xlsx` workbook.
 
 ## Build a release
 

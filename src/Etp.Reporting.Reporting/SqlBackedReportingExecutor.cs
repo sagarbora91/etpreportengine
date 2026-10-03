@@ -49,15 +49,39 @@ public sealed class SqlBackedReportingExecutor(
     {
         Validate(scope);
         var data = await repository.LoadStockAsync(scope, cancellationToken);
-        if (data.Positions.Any(x => x.SourceOpeningQuantity is null || x.SourceClosingQuantity is null))
-            return new(ReconciliationStatus.Blocked, [], stockRule.Version,
-                "Both opening and closing snapshots are required for each stock key.");
+        var coverage = LedgerCoverageWarning(data.LedgerCoverage, scope.DateTo);
+        var missingClosing = data.Positions.Where(x => x.SourceClosingQuantity is null).Select(x => x.StoreCode)
+            .Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase).ToArray();
+        if (missingClosing.Length > 0)
+            return new(ReconciliationStatus.Blocked, [], stockRule.Version, Join(coverage,
+                $"Closing stock missing for {Day(scope.DateTo)} ({string.Join(", ", missingClosing)}). Import the Closing Stock export of that date to check stock variance."));
+        if (data.Positions.Any(x => x.SourceOpeningQuantity is null))
+            return new(ReconciliationStatus.Blocked, [], stockRule.Version, Join(coverage,
+                "The ledger opening could not be found for every stock key."));
         var positions = data.Positions.Select(x => new StockPositionValue(x.StoreCode, x.ItemCode,
             x.SourceOpeningQuantity!.Value, x.SourceClosingQuantity!.Value)).ToArray();
         var movements = data.Movements.Select(x => new StockMovementValue(x.StoreCode, x.ItemCode,
             x.SourceMovementType, x.SourceSignedQuantity, Contains(mapping.StockMovementTypes, x.SourceMovementType))).ToArray();
-        return new StockReconciliationService().Reconcile(positions, movements, stockRule);
+        var result = new StockReconciliationService().Reconcile(positions, movements, stockRule);
+        // R-WLMHW-13: a ledger that stops before the To date misses the last movements, so every variance is suspect.
+        // The items stay listed for review; the result is Blocked and says how far the ledger goes.
+        return coverage is null ? result : result with { Status = ReconciliationStatus.Blocked, Message = Join(coverage, result.Message) };
     }
+
+    private static string? LedgerCoverageWarning(IReadOnlyList<StockLedgerCoverageRow>? coverage, DateOnly dateTo)
+    {
+        var uncovered = (coverage ?? []).Where(x => x.LedgerCoversTo is null || x.LedgerCoversTo < dateTo)
+            .OrderBy(x => x.StoreCode, StringComparer.OrdinalIgnoreCase).ToArray();
+        if (uncovered.Length == 0) return null;
+        var parts = uncovered.Select(x => x.LedgerCoversTo is { } covered
+            ? $"Ledger covers to {Day(covered)} for {x.StoreCode}"
+            : $"No stock ledger is imported for {x.StoreCode}");
+        return $"{string.Join("; ", parts)}, before the To date {Day(dateTo)}. Movements after that are not in this check, so variances can be false. Import the stock ledger up to {Day(dateTo)}.";
+    }
+
+    private static string Join(string? warning, string message) => warning is null ? message : $"{warning} {message}";
+
+    private static string Day(DateOnly date) => date.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture);
 
     private void Validate(ReportingQueryScope scope)
     {

@@ -26,12 +26,19 @@ public sealed record TenderQueryRow(
     string StoreCode, string DocumentNumber, string TenderType, decimal SourceAmount, int? InvoiceYear = null);
 public sealed record InvoiceControlQueryRow(
     string StoreCode, string DocumentNumber, decimal SourceNetValue, int? InvoiceYear = null);
+/// <summary>
+/// One stock key: every item with a ledger movement in the period. The closing is null when the store has no closing-stock
+/// snapshot on the To date at all; it is 0 when the store has one and the item is not in it (sold out).
+/// </summary>
 public sealed record StockPositionQueryRow(
     string StoreCode, string ItemCode, decimal? SourceOpeningQuantity, decimal? SourceClosingQuantity);
 public sealed record StockMovementQueryRow(
     string StoreCode, string ItemCode, string SourceMovementType, decimal SourceSignedQuantity);
+/// <summary>The last date the store's stock ledger covers: the current ledger imports' period end, or its last movement. Null when none is stored.</summary>
+public sealed record StockLedgerCoverageRow(string StoreCode, DateOnly? LedgerCoversTo);
 public sealed record StockQueryData(
-    IReadOnlyList<StockPositionQueryRow> Positions, IReadOnlyList<StockMovementQueryRow> Movements);
+    IReadOnlyList<StockPositionQueryRow> Positions, IReadOnlyList<StockMovementQueryRow> Movements,
+    IReadOnlyList<StockLedgerCoverageRow>? LedgerCoverage = null);
 
 public interface IReportingQueryRepository
 {
