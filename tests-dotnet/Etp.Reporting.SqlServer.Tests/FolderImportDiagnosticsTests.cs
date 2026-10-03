@@ -76,15 +76,18 @@ public sealed class FolderImportDiagnosticsTests
     }
 
     // A refusal thrown inside the import transaction names its own stage, but the transaction it was in
-    // rolled back all the same.
+    // rolled back all the same. The import store marks that rollback; a failure before any import
+    // transaction existed (access, approval, validation) carries no mark and claims no rollback.
     [Theory]
-    [InlineData(true, FailureStage.Plan, CommitState.RolledBack)]
-    [InlineData(false, FailureStage.Apply, CommitState.RolledBack)]
-    public async Task Persistence_failure_keeps_code_stage_and_commit_state(bool refusal, FailureStage stage, CommitState? commit)
+    [InlineData(true, true, FailureStage.Plan, CommitState.RolledBack)]
+    [InlineData(false, true, FailureStage.Apply, CommitState.RolledBack)]
+    [InlineData(false, false, FailureStage.Apply, null)]
+    public async Task Persistence_failure_keeps_code_stage_and_commit_state(bool refusal, bool inTransaction, FailureStage stage, CommitState? commit)
     {
         Exception thrown = refusal
             ? new ImportSourceException("IMPORT_PERIOD_ALREADY_PRESENT", "Already imported. Use Restate.") { Stage = FailureStage.Plan }
             : new InvalidOperationException("Synthetic Customer secret");
+        if (inTransaction) SqlTransactionGuard.MarkRolledBack(thrown);
         var persistence = new RecordingPersistence { OnPersist = _ => throw thrown };
         var result = Assert.Single((await new FolderImportService(persistence, new Reader(path => Sales(path, [20260825])))
             .RunFilesAsync(["sales.xlsx"], new("tester"))).Files);
@@ -92,6 +95,7 @@ public sealed class FolderImportDiagnosticsTests
         Assert.Equal(refusal ? "IMPORT_PERIOD_ALREADY_PRESENT" : "IMPORT_PROCESSING_FAILED", result.Failure!.Code);
         Assert.Equal(stage, result.Failure.Stage);
         Assert.Equal(commit, result.CommitState);
+        Assert.Equal(commit, Assert.Single(persistence.Recorded).CommitState);
         Assert.DoesNotContain("Synthetic", result.Message);
         Assert.Equal(new string('b', 64), Assert.Single(persistence.Recorded).SourceSha256);
     }
@@ -101,7 +105,10 @@ public sealed class FolderImportDiagnosticsTests
     {
         var samples = new[] { new ImportIssue(ImportIssueSeverity.Blocker, ImportCodes.ImportConflict,
             "Invoice date differs. Review and request a controlled restatement.", 2, DocumentRef: "R025 HEMW|2027|100000001 2026-08-25") };
-        var persistence = new RecordingPersistence { OnPersist = _ => throw new ImportConflictException(1, samples) };
+        // The import store marks a failure inside its transaction as rolled back, as it does for a conflict.
+        var conflict = new ImportConflictException(1, samples);
+        SqlTransactionGuard.MarkRolledBack(conflict);
+        var persistence = new RecordingPersistence { OnPersist = _ => throw conflict };
         var result = Assert.Single((await new FolderImportService(persistence, new Reader(path => Sales(path, [20260825])))
             .RunFilesAsync(["sales.xlsx"], new("tester"))).Files);
         Assert.Equal(ImportCodes.ImportConflict, result.Failure!.Code);
@@ -121,6 +128,72 @@ public sealed class FolderImportDiagnosticsTests
             .RunFilesAsync(["sales.xlsx"], new("tester"))).Files);
         Assert.Equal(35, result.ConflictRows);
         Assert.Equal(ImportConflictException.MaximumSamples, result.Failure!.Issues.Count);
+    }
+
+    [Fact]
+    public async Task A_failure_before_the_import_transaction_claims_no_rollback()
+    {
+        // Access revoked between runs: PersistAsync refuses before any import transaction exists.
+        var persistence = new RecordingPersistence { OnPersist = _ => throw new UnauthorizedAccessException("Owner or Store Manager permission is required.") };
+        var result = Assert.Single((await new FolderImportService(persistence, new Reader(path => Sales(path, [20260825])))
+            .RunFilesAsync(["sales.xlsx"], new("tester"))).Files);
+        Assert.Equal("Failed", result.Status);
+        Assert.Equal(FailureStage.Apply, result.Failure!.Stage);
+        Assert.Null(result.CommitState);
+        Assert.Null(Assert.Single(persistence.Recorded).CommitState);
+    }
+
+    [Fact]
+    public async Task A_failed_read_back_keeps_the_saved_counts_and_evidence()
+    {
+        var batch = Guid.NewGuid();
+        var persistence = new RecordingPersistence { BatchId = batch, FailOutcome = true, Evidence = EvidenceState.Retained };
+        var result = Assert.Single((await new FolderImportService(persistence, new Reader(path => Sales(path, [20260825])))
+            .RunFilesAsync(["sales.xlsx"], new("tester"))).Files);
+        Assert.Equal("Failed", result.Status);
+        Assert.Equal(CommitState.Committed, result.CommitState);
+        // The save committed the row and the source bytes; the failed read-back must not record zeros and no evidence.
+        Assert.Equal(EvidenceState.Retained, result.Evidence);
+        Assert.Equal(1, result.RowsProcessed);
+        Assert.Equal(1, result.NewRows);
+        Assert.Equal(("HEMW", new DateOnly(2026, 8, 25)), (result.StoreCode, result.PeriodEnd!.Value));
+        var recorded = Assert.Single(persistence.Recorded);
+        Assert.Equal((EvidenceState.Retained, 1, 1), (recorded.Evidence!.Value, recorded.RowsProcessed, recorded.NewRows));
+    }
+
+    [Fact]
+    public async Task Cancelling_during_the_apply_is_a_cancellation_not_SQL_0()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var reported = new List<FolderImportFailure>();
+        var persistence = new RecordingPersistence
+        {
+            OnPersist = _ =>
+            {
+                cancellation.Cancel();
+                // SqlClient reports a command cancelled by its token as SqlException 0; the store marks the rollback.
+                var cancelled = ImportCommitFailureTests.SqlError(0);
+                SqlTransactionGuard.MarkRolledBack(cancelled);
+                throw cancelled;
+            }
+        };
+        var service = new FolderImportService(persistence, new Reader(path => Sales(path, [20260825])), reportFailure: reported.Add);
+        var result = Assert.Single((await service.RunFilesAsync(["sales.xlsx"], new("tester"), cancellationToken: cancellation.Token)).Files);
+        Assert.Equal("Cancelled", result.Status);
+        Assert.Equal("Import cancelled.", result.Message);
+        Assert.Null(result.Failure);
+        Assert.Equal(CommitState.RolledBack, result.CommitState);
+        Assert.Equal(EvidenceState.NotAttempted, result.Evidence);
+        Assert.Empty(reported);
+        Assert.Empty(service.FailedPaths);
+        Assert.Equal("Cancelled", Assert.Single(persistence.Recorded).Status);
+
+        // Without a cancel, SQL error 0 stays a database failure.
+        var failing = new RecordingPersistence { OnPersist = _ => throw ImportCommitFailureTests.SqlError(0) };
+        var failed = Assert.Single((await new FolderImportService(failing, new Reader(path => Sales(path, [20260825])))
+            .RunFilesAsync(["sales.xlsx"], new("tester"))).Files);
+        Assert.Equal("Failed", failed.Status);
+        Assert.Equal(ImportCodes.Sql(0), failed.Failure!.Code);
     }
 
     [Fact]
@@ -215,6 +288,7 @@ public sealed class FolderImportDiagnosticsTests
         public bool FailOutcome { get; init; }
         public Action? OnOutcome { get; init; }
         public Guid? BatchId { get; init; }
+        public EvidenceState? Evidence { get; init; }
         public int Requests { get; private set; }
         public List<FolderImportFileResult> Recorded { get; } = [];
 
@@ -235,7 +309,7 @@ public sealed class FolderImportDiagnosticsTests
             Requests++;
             OnPersist?.Invoke(request);
             return Task.FromResult(new ImportPersistenceResult(request.AcceptedImport.ProfileIdentity.ReportCode, request.AcceptedImport.Staging.Rows.Count)
-                { Status = "Imported", BatchId = BatchId ?? Guid.NewGuid() });
+                { Status = "Imported", BatchId = BatchId ?? Guid.NewGuid(), Evidence = Evidence });
         }
         public Task<ImportRowOutcome> LoadOutcomeByHashAsync(string hash, CancellationToken cancellationToken = default)
         {

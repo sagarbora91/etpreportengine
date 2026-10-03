@@ -39,7 +39,7 @@ public sealed class FolderImportService(
     IReadOnlyList<string>? knownStores = null,
     Action<FolderImportFailure>? reportFailure = null) : IFolderImportService
 {
-    private readonly SqlImportFailureClassifier classifier = new();
+    private static readonly SqlImportFailureClassifier Classifier = new();
     private readonly IWorkbookReader reader = workbookReader ?? new OpenXmlWorkbookReader();
     private readonly MatchedImportEnvelopeFactory envelopes = new(knownStores);
     private readonly Dictionary<string, ImportScope> detectedScopes = new(StringComparer.OrdinalIgnoreCase);
@@ -91,7 +91,7 @@ public sealed class FolderImportService(
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { break; }
             catch (Exception exception)
             {
-                var failure = classifier.DescribeDetailed(exception, readStage);
+                var failure = Classifier.DescribeDetailed(exception, readStage);
                 Report(Path.GetFileName(path), readStage, null, null, exception);
                 var failed = new FolderImportFileResult(Path.GetFileName(path), null, null, null, null, "Failed", Message: failure.SafeMessage)
                     { SourcePath = path, Failure = failure };
@@ -200,23 +200,21 @@ public sealed class FolderImportService(
                     result = result with { CommitState = CommitState.Committed, BatchId = saved.BatchId };
                     stage = FailureStage.Commit;
                 }
+                // What the save itself reported is kept before the result is read back, so a failed read-back still
+                // records the saved import's scope, counts and evidence (IF-017, IF-023), not zeros and no evidence.
+                result = result with { StoreCode = persistedStore, PeriodStart = periodStart, PeriodEnd = periodEnd,
+                    RowsProcessed = accepted.Staging.Rows.Count, NewRows = saved.PersistedRows,
+                    AlreadyPresentRows = saved.AlreadyPresentRows, ConflictRows = saved.ConflictRows, Evidence = saved.Evidence };
                 var outcome = saved.Status == "Imported"
                     ? await persistence.LoadOutcomeInScopeAsync(accepted.Workbook.Sha256, accepted.ProfileIdentity.ReportCode,
                         persistedStore, periodStart, periodEnd, cancellationToken).ConfigureAwait(false)
                     : new ImportRowOutcome(accepted.Staging.Rows.Count, saved.PersistedRows, saved.AlreadyPresentRows, saved.ConflictRows);
-                result = result with { StoreCode = persistedStore, PeriodStart = periodStart, PeriodEnd = periodEnd,
-                    Status = accepted.Staging.Rows.Count == 0 && saved.Status == "Imported" ? "empty export" : saved.Status,
-                    RowsProcessed = Math.Max(accepted.Staging.Rows.Count, outcome.RowsProcessed), NewRows = Math.Max(saved.PersistedRows, outcome.NewRows),
-                    AlreadyPresentRows = outcome.AlreadyPresentRows, ConflictRows = outcome.ConflictRows };
-                if (saved.Issues.Count > 0) result = result with { Diagnostics = [.. result.Diagnostics ?? [], .. saved.Issues] };
-                if (outcome.ConflictRows > 0) result = result with { Status = "Failed", Message = $"{outcome.ConflictRows:N0} conflicting rows. Review the source before retrying.",
-                    Failure = new(ImportCodes.ImportConflict, FailureStage.Apply, ImportDiagnosticCatalogue.Template(ImportCodes.ImportConflict)) };
-                result = WithEvidence(result, saved.Evidence);
+                result = SavedAttempt(result, saved, accepted.Staging.Rows.Count, outcome);
             }
             catch (Exception exception)
             {
                 if (result.CommitState == CommitState.Committed) SqlTransactionGuard.MarkCommitted(exception, result.BatchId);
-                result = Failed(result, exception, stage, cancellationToken.IsCancellationRequested);
+                result = FailedAttempt(result, exception, stage, cancellationToken.IsCancellationRequested);
                 if (result.Status == "Failed") Report(result.FileName, stage, result.ReportCode, scope, exception);
             }
             results.Add(result);
@@ -237,40 +235,63 @@ public sealed class FolderImportService(
     }
 
     /// <summary>
-    /// The result of a file whose import threw. The commit state is the one the failure carries (IF-014:
-    /// a checked COMMIT, a failure after the commit, or <see cref="ImportCommittedException"/>); without
-    /// one, a failure inside the import transaction rolled it back, and one that could have struck the
-    /// COMMIT itself (a timeout or a broken connection) states none. Source bytes are kept only inside a
-    /// committed import (IF-023), so a file that did not commit records its evidence as not attempted.
+    /// The result of a file whose import threw. The commit state is only the one the failure carries (IF-014:
+    /// the import store marks a failure inside its transaction as rolled back, a checked COMMIT, a failure
+    /// after the commit, or <see cref="ImportCommittedException"/>); a failure before any import transaction
+    /// existed (access, approval, validation, opening the connection) states none. Source bytes are kept only
+    /// inside a committed import (IF-023), so a file that did not commit records its evidence as not attempted.
+    /// Used by the folder import and by the desktop single-file and batch routes, so every route records the
+    /// same attempt for the same failure (IF-017).
     /// </summary>
-    private FolderImportFileResult Failed(FolderImportFileResult result, Exception exception, FailureStage stage, bool cancelled)
+    public static FolderImportFileResult FailedAttempt(FolderImportFileResult result, Exception exception, FailureStage stage, bool cancelled)
     {
+        ArgumentNullException.ThrowIfNull(result);
+        ArgumentNullException.ThrowIfNull(exception);
         var known = SqlTransactionGuard.CommitStateOf(exception);
         var afterCommit = known is CommitState.Committed or CommitState.Unknown;
         var batchId = SqlTransactionGuard.BatchIdOf(exception);
         var cause = exception is ImportCommittedException { InnerException: { } inner } ? inner : exception;
-        if (cancelled && cause is OperationCanceledException)
+        if (cancelled && IsCancellation(cause))
             return afterCommit
                 ? result with { Status = "Cancelled", Message = "Import cancelled after its data was committed.", BatchId = batchId, CommitState = known }
-                : result with { Evidence = EvidenceState.NotAttempted, Status = "Cancelled", Message = "Import cancelled." };
-        var failure = classifier.DescribeDetailed(exception, stage);
-        var commitState = known ?? (stage == FailureStage.Apply && !MayHaveReachedCommit(cause) ? CommitState.RolledBack : null);
+                : result with { Evidence = EvidenceState.NotAttempted, Status = "Cancelled", Message = "Import cancelled.", CommitState = known };
+        var failure = Classifier.DescribeDetailed(exception, stage);
         return result with
         {
-            Status = "Failed", Failure = failure, Message = failure.SafeMessage, CommitState = commitState, BatchId = batchId,
+            Status = "Failed", Failure = failure, Message = failure.SafeMessage, CommitState = known, BatchId = batchId,
             Evidence = afterCommit ? result.Evidence : EvidenceState.NotAttempted,
             // A conflict rolls back the whole file; its full count is kept beside the samples (spec 11.1).
             ConflictRows = cause is ImportConflictException conflict ? conflict.Count : result.ConflictRows
         };
     }
 
-    // A client timeout or a broken connection can strike while COMMIT is in flight, so the outcome is unknown
-    // until it is checked again; any other failure inside the transaction rolls it back.
-    private static bool MayHaveReachedCommit(Exception exception)
+    /// <summary>
+    /// The result of a file the import saved, or found already held under the import lock: its status, the
+    /// counts read back in <paramref name="outcome"/>, the save's warnings, and its evidence (IF-023). Rows that
+    /// conflict make it a failure. The caller sets the commit state and batch. Used by the folder import and by
+    /// the desktop single-file and batch routes (IF-017).
+    /// </summary>
+    public static FolderImportFileResult SavedAttempt(FolderImportFileResult result, ImportPersistenceResult saved, int stagedRows,
+        ImportRowOutcome outcome)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        ArgumentNullException.ThrowIfNull(saved);
+        ArgumentNullException.ThrowIfNull(outcome);
+        result = result with { Status = stagedRows == 0 && saved.Status == "Imported" ? "empty export" : saved.Status,
+            RowsProcessed = Math.Max(stagedRows, outcome.RowsProcessed), NewRows = Math.Max(saved.PersistedRows, outcome.NewRows),
+            AlreadyPresentRows = outcome.AlreadyPresentRows, ConflictRows = outcome.ConflictRows };
+        if (saved.Issues.Count > 0) result = result with { Diagnostics = [.. result.Diagnostics ?? [], .. saved.Issues] };
+        if (outcome.ConflictRows > 0) result = result with { Status = "Failed", Message = $"{outcome.ConflictRows:N0} conflicting rows. Review the source before retrying.",
+            Failure = new(ImportCodes.ImportConflict, FailureStage.Apply, ImportDiagnosticCatalogue.Template(ImportCodes.ImportConflict)) };
+        return WithEvidence(result, saved.Evidence);
+    }
+
+    // SqlClient reports a token cancelled while a command runs as SqlException number 0 ("Operation cancelled
+    // by user"), not as OperationCanceledException; both are the Owner's cancel when the run was cancelled.
+    private static bool IsCancellation(Exception exception)
     {
         for (var current = exception; current is not null; current = current.InnerException)
-            if (current is TimeoutException || current is Microsoft.Data.SqlClient.SqlException { Number: SqlImportFailures.ClientTimeout } ||
-                current is Microsoft.Data.SqlClient.SqlException { Class: >= 20 })
+            if (current is OperationCanceledException || current is Microsoft.Data.SqlClient.SqlException { Number: 0 })
                 return true;
         return false;
     }

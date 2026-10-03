@@ -381,6 +381,95 @@ public sealed class DesktopImportCoordinatorTests
         Assert.Equal(1, batch.Warnings);
     }
 
+    // IF-017: the desktop single-file and batch routes record every attempt in import_attempts, as the folder import does.
+    [Fact]
+    public async Task Single_file_route_records_its_saved_duplicate_and_failed_attempts()
+    {
+        var batch = Guid.NewGuid();
+        var persistence = new FakePersistence { PersistenceResult = new ImportPersistenceResult("R025", 0) { BatchId = batch, Evidence = EvidenceState.Retained } };
+        await using var coordinator = Create(persistence, new FakeReader(_ => ValidR025()));
+        var context = new DesktopImportRunContext("WLMHW", new(2026, 8, 25), "tester", false, "");
+        await coordinator.ValidateAsync("sales.xlsx");
+
+        await coordinator.PersistValidatedAsync("integrated", context);
+        var saved = Assert.Single(persistence.Recorded);
+        Assert.Equal(("sales.xlsx", "R025", "WLMHW", new DateOnly(2026, 8, 25)), (saved.FileName, saved.ReportCode, saved.StoreCode, saved.PeriodEnd!.Value));
+        Assert.Equal("empty export", saved.Status);
+        Assert.Equal((CommitState.Committed, batch, EvidenceState.Retained), (saved.CommitState!.Value, saved.BatchId!.Value, saved.Evidence!.Value));
+        Assert.Equal(new string('a', 64), saved.SourceSha256);
+        Assert.Null(saved.Failure);
+
+        persistence.Exists = true;
+        await coordinator.PersistValidatedAsync("integrated", context);
+        var duplicate = persistence.Recorded[1];
+        Assert.Equal("Duplicate", duplicate.Status);
+        Assert.Null(duplicate.CommitState);
+        Assert.Equal(EvidenceState.Retained, duplicate.Evidence);
+
+        persistence.Exists = false;
+        persistence.PersistenceFailure = new InvalidOperationException("Synthetic Customer secret");
+        await Assert.ThrowsAsync<InvalidOperationException>(() => coordinator.PersistValidatedAsync("integrated", context));
+        var failed = persistence.Recorded[2];
+        Assert.Equal("Failed", failed.Status);
+        Assert.Equal(("IMPORT_PROCESSING_FAILED", FailureStage.Apply), (failed.Failure!.Code, failed.Failure.Stage));
+        Assert.Null(failed.CommitState);
+        Assert.Equal(EvidenceState.NotAttempted, failed.Evidence);
+        Assert.DoesNotContain("Synthetic", failed.Message);
+        Assert.Equal(3, persistence.Recorded.Count);
+    }
+
+    [Fact]
+    public async Task Single_file_route_records_a_failure_after_the_commit_as_committed()
+    {
+        var batch = Guid.NewGuid();
+        var persistence = new FakePersistence { PersistenceFailure = new Etp.Reporting.Infrastructure.SqlServer.ImportCommittedException(batch, new TimeoutException()) };
+        await using var coordinator = Create(persistence, new FakeReader(_ => ValidR025()));
+        await coordinator.ValidateAsync("sales.xlsx");
+        await Assert.ThrowsAsync<Etp.Reporting.Infrastructure.SqlServer.ImportCommittedException>(() => coordinator.PersistValidatedAsync(
+            "integrated", new("WLMHW", new(2026, 8, 25), "tester", false, "")));
+        var failed = Assert.Single(persistence.Recorded);
+        Assert.Equal(("Failed", CommitState.Committed, batch, FailureStage.Commit),
+            (failed.Status, failed.CommitState!.Value, failed.BatchId!.Value, failed.Failure!.Stage));
+    }
+
+    [Fact]
+    public async Task Batch_route_records_every_attempt_including_retries()
+    {
+        var persistence = new FakePersistence { PersistenceResult = new ImportPersistenceResult("R025", 0) { BatchId = Guid.NewGuid() } };
+        await using var coordinator = Create(persistence,
+            new FakeReader(path => path == "locked.xlsx" ? throw new IOException("C:\\private\\locked.xlsx") : ValidR025()));
+
+        var summary = await coordinator.RunBatchAsync(["locked.xlsx", "sales.xlsx"], "integrated", () => false,
+            () => new("WLMHW", new(2026, 8, 25), "tester", false, ""), _ => Task.CompletedTask);
+
+        Assert.Equal(2, summary.Files[0].Attempts);
+        Assert.Equal(new[] { ("locked.xlsx", "Failed"), ("locked.xlsx", "Failed"), ("sales.xlsx", "empty export") },
+            persistence.Recorded.Select(result => (result.FileName, result.Status)));
+        Assert.All(persistence.Recorded.Take(2), result =>
+            Assert.Equal(("IMPORT_IO_FAILURE", FailureStage.Read), (result.Failure!.Code, result.Failure.Stage)));
+        Assert.DoesNotContain("private", persistence.Recorded[0].Message);
+        Assert.Equal(CommitState.Committed, persistence.Recorded[2].CommitState);
+    }
+
+    [Fact]
+    public async Task Batch_route_records_files_the_cancel_reached_before_they_started()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var persistence = new FakePersistence();
+        await using var coordinator = Create(persistence, new FakeReader(_ =>
+        {
+            cancellation.Cancel();
+            return ValidR025();
+        }));
+
+        var summary = await coordinator.RunBatchAsync(["sales.xlsx", "second.xlsx"], "integrated", () => false,
+            () => new("WLMHW", new(2026, 8, 25), "tester", false, ""), _ => Task.CompletedTask, cancellationToken: cancellation.Token);
+
+        Assert.Equal(BatchImportFileStatus.Cancelled, summary.Files[1].Status);
+        Assert.Equal(new[] { ("sales.xlsx", "empty export"), ("second.xlsx", "Cancelled") },
+            persistence.Recorded.Select(result => (result.FileName, result.Status)));
+    }
+
     private static DesktopImportCoordinator Create(
         FakePersistence persistence,
         IWorkbookReader reader) =>
@@ -445,9 +534,16 @@ public sealed class DesktopImportCoordinatorTests
         if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
     }
 
-    private sealed class FakePersistence : IImportPersistenceUseCase<MatchedImportEnvelope>, IImportEvidenceRetainer
+    private sealed class FakePersistence : IImportPersistenceUseCase<MatchedImportEnvelope>, IImportEvidenceRetainer, IImportAttemptRecorder
     {
         public List<(string Sha256, byte[] Content)> Retained { get; } = [];
+        public List<FolderImportFileResult> Recorded { get; } = [];
+
+        public Task RecordAttemptAsync(FolderImportFileResult result, CancellationToken cancellationToken = default)
+        {
+            Recorded.Add(result);
+            return Task.CompletedTask;
+        }
 
         public Task<EvidenceState> RetainImportedSourceAsync(string sourceSha256, ReadOnlyMemory<byte> content,
             CancellationToken cancellationToken = default)

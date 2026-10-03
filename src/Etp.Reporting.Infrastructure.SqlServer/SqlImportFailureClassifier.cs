@@ -27,10 +27,9 @@ public sealed class SqlImportFailureClassifier : IImportFailureClassifier
         _ => inner.IsTransient(exception)
     };
 
-    private const string UnknownMessage =
-        "The database did not confirm whether this import was saved. Import the file again: if it was saved, it is reported as already imported.";
-    private const string SavedMessage =
-        "The import was saved, but its result could not be read back. Import the file again to see it: it is reported as already imported.";
+    // History keeps both whatever the SQL number (ImportDiagnosticCatalogue.SafeFailureMessage).
+    private const string UnknownMessage = ImportDiagnosticCatalogue.CommitOutcomeUnknownMessage;
+    private const string SavedMessage = ImportDiagnosticCatalogue.SavedNotReadBackMessage;
 
     public (string Code, string SafeMessage) Describe(Exception exception)
     {

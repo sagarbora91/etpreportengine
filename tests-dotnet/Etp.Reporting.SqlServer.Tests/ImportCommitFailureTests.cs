@@ -180,6 +180,43 @@ public sealed class ImportCommitFailureTests
         Assert.Equal(("STORE_OVERRIDE_MISMATCH", FailureStage.Scope, (int?)null), (refusal.Code, refusal.Stage, refusal.SqlNumber));
     }
 
+    // History must keep the commit-outcome messages, whatever SQL error hid the outcome: the generic
+    // "failed with a database error" would tell the Owner a possibly saved import failed.
+    [Theory]
+    [InlineData(-2)]
+    [InlineData(4060)]
+    [InlineData(10054)]
+    public void History_stores_and_shows_the_commit_outcome_messages_whatever_the_sql_number(int number)
+    {
+        var classifier = new SqlImportFailureClassifier();
+        var unknown = SqlError(number);
+        unknown.Data[SqlTransactionGuard.CommitFailedKey] = true;
+        unknown.Data[SqlTransactionGuard.CommitStateKey] = CommitState.Unknown;
+        var committed = SqlError(number);
+        SqlTransactionGuard.MarkCommitted(committed, Guid.NewGuid());
+        foreach (var (exception, expected) in new[]
+        {
+            (unknown, ImportDiagnosticCatalogue.CommitOutcomeUnknownMessage),
+            (committed, ImportDiagnosticCatalogue.SavedNotReadBackMessage)
+        })
+        {
+            var failure = classifier.DescribeDetailed(exception, FailureStage.Apply);
+            Assert.Equal(number, failure.SqlNumber);
+            Assert.Equal(expected, failure.SafeMessage);
+            // import_attempts.failure_message, and History reading it back through the same filter.
+            var stored = SqlServerImportHistoryQuery.StoredFailureMessage(failure);
+            Assert.Equal(expected, stored);
+            Assert.Equal(expected, ImportDiagnosticCatalogue.SafeFailureMessage(failure.Code, stored, failure.SqlNumber));
+        }
+        // A stored COMMIT_OUTCOME_UNKNOWN without text still says to import the file again.
+        Assert.Equal(ImportDiagnosticCatalogue.CommitOutcomeUnknownMessage,
+            ImportDiagnosticCatalogue.SafeFailureMessage(ImportCodes.CommitOutcomeUnknown, null, null));
+        // Any other text of a non-THROW database error still becomes the generic form.
+        Assert.Equal("The import failed with a database error.",
+            ImportDiagnosticCatalogue.SafeFailureMessage(ImportCodes.Sql(number), "Synthetic SQL error.", number));
+        Assert.Null(SqlServerImportHistoryQuery.StoredFailureMessage(null));
+    }
+
     [Fact]
     public async Task Failed_persistence_reports_the_real_exception_with_file_and_batch_but_shows_a_safe_message()
     {
