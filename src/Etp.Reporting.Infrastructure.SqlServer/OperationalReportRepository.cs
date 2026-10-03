@@ -230,9 +230,14 @@ public sealed partial class OperationalReportRepository(string connectionString)
             JOIN dbo.sales_invoices i ON i.sales_invoice_id=l.sales_invoice_id
             JOIN dbo.source_lineage s ON s.source_lineage_id=l.source_lineage_id
             JOIN dbo.import_files f ON f.import_file_id=s.import_file_id
-            LEFT JOIN {EnrichmentOccurrencePairing.EffectiveEnrichments} cro
-              ON cro.enrichment_type='R013' AND cro.effective_match_status='Matched' AND cro.effective_sales_line_id=l.sales_line_id
-             AND cro.store_code=i.store_code AND cro.transaction_date=i.transaction_date
+            OUTER APPLY
+            (
+              SELECT TOP(1) e.source_cro_number
+              FROM {EnrichmentOccurrencePairing.EffectiveEnrichments} e
+              WHERE e.enrichment_type='R013' AND e.store_code=i.store_code AND e.transaction_date=i.transaction_date
+                AND e.document_number=i.document_number AND e.product_code=l.product_code
+                AND e.effective_match_status='Matched' AND e.effective_sales_line_id=l.sales_line_id
+            ) cro
             WHERE i.transaction_date BETWEEN @from AND @to
               AND (@stores IS NULL OR i.store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores)))
               AND (@segments IS NULL OR l.brand_segment IN(SELECT CONVERT(nvarchar(100),[value]) FROM OPENJSON(@segments)))

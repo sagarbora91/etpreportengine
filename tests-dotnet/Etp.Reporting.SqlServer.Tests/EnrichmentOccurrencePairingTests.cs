@@ -51,14 +51,26 @@ public sealed partial class EnrichmentOccurrencePairingTests
     {
         var sql = Squash(EnrichmentOccurrencePairing.EffectiveEnrichments);
         Assert.Contains("ROW_NUMBER() OVER(PARTITION BY x.enrichment_type,x.store_code,x.transaction_date,x.document_number,x.product_code ORDER BY x.source_lineage_id,x.sales_line_enrichment_id) occurrence", sql);
-        Assert.Contains("ROW_NUMBER() OVER(PARTITION BY si.store_code,si.transaction_date,si.document_number,sl.product_code ORDER BY sl.source_lineage_id,sl.sales_line_id) occurrence", sql);
+        // The sales-line side numbers only the R013 row's own invoice lines for its item (correlated OUTER APPLY),
+        // in source order, so a report call never sorts the whole sales_lines table.
+        Assert.Contains("OUTER APPLY (SELECT q.sales_line_id FROM (SELECT sl.sales_line_id,ROW_NUMBER() OVER(ORDER BY sl.source_lineage_id,sl.sales_line_id) occurrence", sql);
+        Assert.Contains("WHERE pe.enrichment_type='R013' AND si.store_code=pe.store_code AND si.transaction_date=pe.transaction_date AND si.document_number=pe.document_number AND sl.product_code=pe.product_code) q", sql);
+        Assert.DoesNotContain("LEFT JOIN", sql);
         // The nth R013 row takes the nth line, so a line takes at most one R013 row and a surplus row reads Missing.
-        Assert.Contains("AND pl.occurrence=pe.occurrence", sql);
+        Assert.Contains("WHERE q.occurrence=pe.occurrence) pl", sql);
         Assert.Contains("WHEN pl.sales_line_id IS NULL THEN 'Missing' ELSE 'Matched' END effective_match_status", sql);
         // R003 carries one row per discount on a line, so it is never capped at one row per line.
-        Assert.Contains("ON pe.enrichment_type='R013' AND", sql);
         Assert.Contains("CASE WHEN pe.enrichment_type<>'R013' THEN pe.match_status", sql);
         Assert.Contains("CASE WHEN pe.enrichment_type='R013' THEN pl.sales_line_id ELSE pe.matched_sales_line_id END effective_sales_line_id", sql);
+    }
+
+    [Fact]
+    public void Invoice_lineage_looks_up_the_paired_staff_row_by_the_line_key()
+    {
+        // The lineage export filters its lines by date and store; the CRO lookup is correlated on that line's key so
+        // the pairing is evaluated per invoice item, not over every enrichment row.
+        var text = Squash(File.ReadAllText(Path.Combine(SourceDirectory(), "OperationalReportRepository.cs")));
+        Assert.Contains("WHERE e.enrichment_type='R013' AND e.store_code=i.store_code AND e.transaction_date=i.transaction_date AND e.document_number=i.document_number AND e.product_code=l.product_code AND e.effective_match_status='Matched' AND e.effective_sales_line_id=l.sales_line_id ) cro", text);
     }
 
     // e.match_status / match_status compared with 'Matched' (the 1.9.3 reads), but not effective_match_status.
