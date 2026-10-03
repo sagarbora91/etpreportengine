@@ -11,7 +11,8 @@ namespace Etp.Reporting.Infrastructure.SqlServer;
 /// <para>
 /// It is, statement for statement, the decision at the end of <c>PlanImportAsync</c> (PhaseOneImportPersistence.cs).
 /// The design wants <c>PlanImportAsync</c> to call this method instead of holding its own copy, so the two cannot drift;
-/// that one-line change to the import path is left to the integration (see <c>PlannerOnePlanRulesTests</c>, which pins
+/// that one-line change to the import path waits for the SQL integration suite to run on 1.9.3. PlannerOnePlanRulesAgreementTests
+/// proves the two copies are the same statements (see also <c>PlannerOnePlanRulesTests</c>, which pins
 /// the same cases, and the integration test <c>Prediction_matches_real_import</c>). Until then, a change to either copy
 /// must be made to both.
 /// </para>

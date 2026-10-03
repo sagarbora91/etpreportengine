@@ -87,6 +87,7 @@ public sealed partial class SqlServerTransactionalImportStore
             }
         }
         previous=SharingSnapshotDates(previous,keys.Values,package.Restatement?.PreviousImportFileId);
+        // ImportAudit holds a copy of this decision in PlannerOnePlanRules.Decide; change both (PlannerOnePlanRulesAgreementTests).
         var incoming=keys.Values.ToHashSet(StringComparer.Ordinal);
         var allExisting=previous.SelectMany(x=>x.Keys).ToHashSet(StringComparer.Ordinal);
         if(previous.Count>0 && incoming.IsSubsetOf(allExisting) && package.Restatement is null)
