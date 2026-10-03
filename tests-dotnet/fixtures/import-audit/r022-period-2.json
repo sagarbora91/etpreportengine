@@ -1,0 +1,35 @@
+{
+ "fileName": "202604031800_Revenue-Report.xlsx",
+ "sheets": [
+  {
+   "name": "Data",
+   "family": "R022",
+   "rows": [
+    {
+     "TRANS_TYPE": "INV",
+     "STORE CODE": "WLMHW",
+     "STORE NAME": "SYNTHETIC STORE",
+     "INVNUMBER": "SYN400004",
+     "InvoiceQuantity": 1,
+     "INVOICEDATE": "2026-04-02",
+     "NetValue": 700,
+     "CUSTOMERNAME": "SYNTHETIC CUSTOMER",
+     "INVOICEYEAR": 2027,
+     "CASH": 700
+    },
+    {
+     "TRANS_TYPE": "INV",
+     "STORE CODE": "WLMHW",
+     "STORE NAME": "SYNTHETIC STORE",
+     "INVNUMBER": "SYN400005",
+     "InvoiceQuantity": 1,
+     "INVOICEDATE": "2026-04-03",
+     "NetValue": 900,
+     "CUSTOMERNAME": "SYNTHETIC CUSTOMER",
+     "INVOICEYEAR": 2027,
+     "CARD": 900
+    }
+   ]
+  }
+ ]
+}

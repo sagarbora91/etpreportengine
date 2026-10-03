@@ -154,6 +154,35 @@ public sealed class SourceInspectorTests : IDisposable
     }
 
     [Fact]
+    public async Task A_one_April_return_whose_invoice_year_differs_is_reported_as_information()
+    {
+        AuditFixtureWorkbooks.Write("r022-period-1.json", folder);
+
+        var file = Assert.Single((await new SourceInspector().InspectAsync([folder])).Files);
+
+        Assert.Equal(InspectionOutcome.Ready, file.Outcome);
+        // The preflight and the projector each say so, for the one row.
+        var differs = file.Diagnostics.Where(diagnostic => diagnostic.Code == ImportCodes.InvoiceYearDiffers).ToArray();
+        Assert.NotEmpty(differs);
+        Assert.All(differs, diagnostic => Assert.Equal(1, diagnostic.Occurrences));
+        // Keyed by the financial year of its own date (OD-1): 1 Apr 2026 belongs to FY 2027.
+        Assert.Contains(file.Documents, document => document.Key.KeyText == "2027|SYN400003");
+    }
+
+    [Fact]
+    public async Task Legacy_blocks_that_differ_hold_the_document()
+    {
+        AuditFixtureWorkbooks.Write("r025-legacy-blocks-differ.json", folder);
+
+        var file = Assert.Single((await new SourceInspector().InspectAsync([folder])).Files);
+
+        Assert.Equal(SourceKind.ConsolidatedLegacy, file.SourceKind);
+        Assert.Equal(2, file.Blocks.Count);
+        Assert.Equal(1, file.HoldsByCode[ImportCodes.LegacyBlocksDiffer]);
+        Assert.Contains(file.Diagnostics, diagnostic => diagnostic.Code == ImportCodes.LegacyBlocksDiffer);
+    }
+
+    [Fact]
     public async Task An_unreadable_workbook_fails_with_a_code_and_no_exception_text()
     {
         var path = Path.Combine(folder, "202609291449_SDB-VariantwiseSales.xlsx");

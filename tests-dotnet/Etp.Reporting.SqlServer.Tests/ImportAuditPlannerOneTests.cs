@@ -271,6 +271,43 @@ public sealed class PlannerOnePredictorTests : IDisposable
     }
 
     [Fact]
+    public async Task A_superset_promotes_over_the_stored_period_files()
+    {
+        AuditFixtureWorkbooks.Write("r022-period-1.json", Path.Combine(folder, "a"));
+        AuditFixtureWorkbooks.Write("r022-period-2.json", Path.Combine(folder, "b"));
+        AuditFixtureWorkbooks.Write("r022-superset.json", Path.Combine(folder, "c"));
+        var files = await InspectAsync();
+        var state = new FakePlannerOneState();
+        // The two period files are current imports 10077 and 10078, holding exactly their own content keys.
+        foreach (var (file, id) in new[] { (files[0], 10077L), (files[1], 10078L) })
+            state.Files.Add(("WLMHW", "R022", new StoredFile(id, file.Sha256!, file.PeriodStart, file.PeriodEnd, new DateTime(2026, 4, 5),
+                Store.ContentKeys(file.Accepted!, file.BusinessDate).Values.ToArray(), 1)));
+
+        var prediction = await new PlannerOnePredictor(state, LocalOnly).PredictAsync(files[2], false, CancellationToken.None);
+
+        Assert.Equal("Imported", prediction.Result);
+        Assert.Equal([10077L, 10078L], prediction.PromotesOver);
+        Assert.Equal(0, prediction.Rows.Conflict);
+    }
+
+    [Fact]
+    public async Task Period_files_and_their_superset_in_one_run_are_predicted_in_order()
+    {
+        AuditFixtureWorkbooks.Write("r022-period-1.json", Path.Combine(folder, "a"));
+        AuditFixtureWorkbooks.Write("r022-period-2.json", Path.Combine(folder, "b"));
+        AuditFixtureWorkbooks.Write("r022-superset.json", Path.Combine(folder, "c"));
+        var files = await InspectAsync();
+        var predictor = new PlannerOnePredictor(new FakePlannerOneState(), LocalOnly);
+
+        var results = new List<AuditPlannerOneReport>();
+        foreach (var file in files) results.Add(await predictor.PredictAsync(file, false, CancellationToken.None));
+
+        Assert.Equal(["Imported", "Imported", "Imported"], results.Select(result => result.Result));
+        // The superset holds the five invoices the run already imported and one new one.
+        Assert.Equal(new AuditRowCounts(1, 5, 0), results[2].Rows);
+    }
+
+    [Fact]
     public async Task Stacked_R010_predicts_its_snapshot_rows_per_date()
     {
         AuditFixtureWorkbooks.WriteSnapshot(Etp.Reporting.Import.Tests.SyntheticConsolidatedWorkbooks.LegacyStackedBinWise(), folder);

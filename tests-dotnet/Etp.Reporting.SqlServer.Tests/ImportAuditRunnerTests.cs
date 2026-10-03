@@ -150,6 +150,21 @@ public sealed class ImportAuditRunnerTests : IDisposable
     }
 
     [Fact]
+    public async Task A_legacy_hold_is_listed_and_exits_0_unless_strict()
+    {
+        AuditFixtureWorkbooks.Write("r025-legacy-blocks-differ.json", input);
+
+        var relaxed = await AuditRun.RunAsync(Path.Combine(reports, "relaxed"), "inspect", input);
+        var strict = await AuditRun.RunAsync(Path.Combine(reports, "strict"), "inspect", input, "--strict");
+
+        Assert.Equal(AuditExitCodes.Clean, relaxed.ExitCode);
+        var hold = Assert.Single(relaxed.Report.GetProperty("summary").GetProperty("legacyHolds").EnumerateArray());
+        Assert.Equal(ImportCodes.LegacyBlocksDiffer, hold.GetProperty("code").GetString());
+        Assert.Contains("legacy hold", relaxed.Output);
+        Assert.Equal(AuditExitCodes.Findings, strict.ExitCode);
+    }
+
+    [Fact]
     public async Task Paths_in_reports_are_relative_and_arguments_are_reduced_to_names()
     {
         AuditFixtureWorkbooks.Write("r025-raw-minute.json", Path.Combine(input, "Retail", "WLMHW"));
