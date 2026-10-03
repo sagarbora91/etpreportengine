@@ -4,7 +4,7 @@
 
 Service Centre interim import (Service review step S-2, decision 15, 3 Oct 2026), with migration 0048 (`0048_service_centre_interim.sql`). It must ship after 1.9.4, whose migrations are 0046 and 0047; the proposed version is 1.9.5. Retail imports, reports and packs do not change.
 
-- Service Centre (AW330) exports can now be imported, both the weekly consolidated workbooks and the daily raw ETP exports (CSV or XLSX). Each file is kept as a dated snapshot: a consolidated workbook takes the date at the end of its folder name ("Service Centre till 05 oct 2026"), a raw export takes the end date of the window in its file name ("JOB REPORT 30.09.2026 TO 03.10.2026.csv"). The snapshot date set on the Import screen also works.
+- Service Centre (AW330) exports can now be imported, both the weekly consolidated workbooks and the daily raw ETP exports (CSV or XLSX). Each file is kept as a dated snapshot: a consolidated workbook takes the date at the end of its folder name ("Service Centre till 05 oct 2026"), a raw export takes the end date of the window in its file name ("JOB REPORT 30.09.2026 TO 03.10.2026.csv"). The date box on the Import screen is used only for a restatement (Restate ticked, with a reason), so a first import of an undated folder needs the dated folder.
 - 35 Service families are imported, each into its own table: S002-S004, S006-S026, S029-S037, S039 and S040.
 - Reported Not needed instead of failing:
   - S001 (Repair register): it is the union of the ten status lists, built by the consolidation tool, so importing it would count every job twice (`FAMILY_DERIVED`).
@@ -12,7 +12,7 @@ Service Centre interim import (Service review step S-2, decision 15, 3 Oct 2026)
   - S038 (SRN report): a retired name; its columns are the same as S011's (`SERVICE_FAMILY_NOT_NEEDED`).
   - S027 (TAT) and S028 (Technician productivity): deferred to the full Service import in 1.10.0 (`SERVICE_FAMILY_DEFERRED`).
   - The `00_` consolidation control file, as before.
-- A raw GPRC CLAIM file (a new 34-column claims layout) is not imported yet and shows as an unknown layout.
+- A raw GPRC CLAIM file (a new 34-column claims layout) and a raw TATA REPORT file (S027 TAT as ETP exports it: a title row first, then the raw header) are not imported yet and show as an unknown layout, never as Failed. A consolidated S027 file is Not needed, as above.
 - Four read-only screens on a new "Service centre" tab of the Reports rail, for Viewers and up: Service jobs by status, Service pending lists, Service job history and Service money check. Each can export to Excel and shows "Service data as at <date>". They never show a customer phone number, e-mail or address.
 - The screens read SQL views that pick the latest reading per business date, per job or per list, never the latest file. A rolling 4-day raw window and a weekly consolidated workbook therefore combine correctly, and importing an older file after a newer one changes nothing.
 - A job that leaves a list (for example Pending repair) is shown as history on Service job history. It is not a problem and creates no review item.

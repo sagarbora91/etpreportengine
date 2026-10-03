@@ -8,7 +8,9 @@
 --
 -- Result sets, in order:
 --   1. environment: database, latest migration, how many Service landing tables exist, data file
---      size and space used, and the share of the SQL Server Express 10 GB data limit in use;
+--      size and space used, and the share of the SQL Server Express 10 GB data limit in use. Express
+--      caps the allocated data file size, not the space used inside it, so percent_of_express_limit
+--      is computed from data_file_mb; percent_used_of_express_limit (from data_used_mb) is beside it;
 --   2. per Service landing table (dbo.etp_landing_snnn): rows and sizes in KB (reserved, data,
 --      index, unused), from sys.dm_db_partition_stats, as sp_spaceused reports them;
 --   3. per reading (one Service import file): report code, file name, snapshot date (period_end),
@@ -42,7 +44,8 @@ SELECT DB_NAME() AS database_name,
        (SELECT CAST(SUM(CAST(f.size AS bigint)) * 8 / 1024.0 AS decimal(19,1)) FROM sys.database_files AS f WHERE f.type = 0) AS data_file_mb,
        (SELECT CAST(SUM(CAST(FILEPROPERTY(f.name, 'SpaceUsed') AS bigint)) * 8 / 1024.0 AS decimal(19,1)) FROM sys.database_files AS f WHERE f.type = 0) AS data_used_mb,
        10240 AS express_data_limit_mb,
-       (SELECT CAST(SUM(CAST(FILEPROPERTY(f.name, 'SpaceUsed') AS bigint)) * 8 / 1024.0 * 100 / 10240 AS decimal(9,2)) FROM sys.database_files AS f WHERE f.type = 0) AS percent_of_express_limit,
+       (SELECT CAST(SUM(CAST(f.size AS bigint)) * 8 / 1024.0 * 100 / 10240 AS decimal(9,2)) FROM sys.database_files AS f WHERE f.type = 0) AS percent_of_express_limit,
+       (SELECT CAST(SUM(CAST(FILEPROPERTY(f.name, 'SpaceUsed') AS bigint)) * 8 / 1024.0 * 100 / 10240 AS decimal(9,2)) FROM sys.database_files AS f WHERE f.type = 0) AS percent_used_of_express_limit,
        @canSize AS sizes_available,
        SYSUTCDATETIME() AS measured_utc;
 

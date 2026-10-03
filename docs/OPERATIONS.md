@@ -273,7 +273,7 @@ This applies once Tally batches are in use (Phase 7). ETP never deletes, changes
 
 Service Centre (AW330) files land in 35 tables `dbo.etp_landing_snnn`, one dated reading per file, and the Service screens read the views of 0048 (`docs/03_DATABASE_SCHEMA.md`). Nothing is ever updated or deleted, so every weekly consolidated refresh adds a full copy (about 35k rows) and every daily raw export a small one. That is expected for the interim: the full Service import in 1.10.0 replaces the copies with one history. AW330 is an inactive store and must stay so; making it active is refused with error 51900.
 
-**Growth check.** `scripts/service-centre/measure-service-growth.sql` is SELECT-only and writes nothing. It reports the latest migration, the data file size and its share of the SQL Server Express 10 GB data limit, the rows and KB of each Service table, the rows of each reading (landing table, `etp_import_content`, `source_lineage`) and totals. Sizes need VIEW DATABASE STATE (db_owner has it); without it the KB columns are empty. Run it on a scratch copy (for example a restored `EtpAccept_SVC`) before and after a refresh and keep both outputs:
+**Growth check.** `scripts/service-centre/measure-service-growth.sql` is SELECT-only and writes nothing. It reports the latest migration, the allocated data file size and its share of the SQL Server Express 10 GB data limit (Express caps the allocated size, so watch that figure; the share of space used inside the file is shown beside it), the rows and KB of each Service table, the rows of each reading (landing table, `etp_import_content`, `source_lineage`) and totals. Sizes need VIEW DATABASE STATE (db_owner has it); without it the KB columns are empty. Run it on a scratch copy (for example a restored `EtpAccept_SVC`) before and after a refresh and keep both outputs:
 
 ```
 sqlcmd -S .\SQLEXPRESS -d EtpAccept_SVC -E -i scripts\service-centre\measure-service-growth.sql -W -s "|" -o before.txt
@@ -285,7 +285,7 @@ The difference between the two outputs is what one refresh costs. Record counts 
 
 | Symptom | Action |
 | --- | --- |
-| Every Service file fails with `SERVICE_SNAPSHOT_DATE_NEEDED` | The folder name has no date. Copy the files into a folder whose name ends with the date, or set the snapshot date on the Import screen. |
+| Every Service file fails with `SERVICE_SNAPSHOT_DATE_NEEDED` | The folder name has no date. Copy the files into a folder whose name ends with the date. The snapshot date on the Import screen is used only with Restate ticked and a reason (a restatement for approval), so it is not the fix for a first import. |
 | A Service file is refused with `IMPORT_PERIOD_ALREADY_PRESENT` | A different file for the same family and date is already imported. Use a new dated folder or request a restatement; never delete Service rows by hand. |
 | Settings > Stores refuses to activate AW330 (51900) | Expected: AW330 is the Service Centre, not a shop store. |
-| The data file approaches the Express limit | Run the growth check, keep the output and tell the Owner before the next refresh. Do not delete readings. |
+| The data file approaches the Express limit (`percent_of_express_limit`, which is the allocated file size) | Run the growth check, keep the output and tell the Owner before the next refresh. Do not delete readings. |

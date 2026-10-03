@@ -50,9 +50,9 @@ ETP imports the Service Centre (AW330) exports and shows them on four read-only 
 
 ### Weekly refresh (consolidated workbooks)
 
-Copy the consolidated Service folder into a folder whose name ends with the date, for example `Service Centre till 05 oct 2026`, and import that folder (Import → choose the folder). ETP dates every file in it with the folder date. If the folder has no date, set the snapshot date on the Import screen instead.
+Copy the consolidated Service folder into a folder whose name ends with the date, for example `Service Centre till 05 oct 2026`, and import that folder (Import → choose the folder). ETP dates every file in it with the folder date. If the folder has no date, rename it or copy the files into a dated folder. The snapshot date box on the Import screen is used only when Restate is ticked and a reason is entered, which starts a restatement for approval; it is not a shortcut for a first import.
 
-A folder without a date is refused with "Put the Service files in a folder whose name ends with the date, e.g. 'Service Centre till 05 oct 2026', or set the snapshot date on the Import screen." The package folder `Service Centre (no importer profile)` has no date, so copy its files into a dated folder first.
+A folder without a date is refused with "Put the Service files in a folder whose name ends with the date, e.g. 'Service Centre till 05 oct 2026', or set the snapshot date on the Import screen." For a normal import, follow the first half of that message: use a dated folder (the Import-screen date needs Restate, as above). The package folder `Service Centre (no importer profile)` has no date, so copy its files into a dated folder first.
 
 Expect 35 files Imported. These are reported Not needed, which is correct:
 
@@ -70,7 +70,7 @@ Drop the ETP Service export files as they come, CSV or XLSX, into the import (or
 
 The raw files cover a few days each. The screens combine them with the weekly workbook: for each day, job and list, the latest file that covers it wins, so a raw file never hides older weeks and importing in a different order gives the same result.
 
-Not imported yet: TAT (TATA REPORT), technician productivity, the tender collection summary (reported Not needed), and the new GPRC CLAIM layout (shown as an unknown layout).
+Not imported yet: technician productivity and the tender collection summary (both reported Not needed), and TAT (TATA REPORT) and the new GPRC CLAIM layout (both shown as an unknown layout). None of them is shown as Failed.
 
 ### The four screens (Reports → Service centre)
 
