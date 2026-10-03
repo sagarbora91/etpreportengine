@@ -39,13 +39,18 @@ public sealed class RetiredAccountDeactivationMigrationTests
     }
 
     [Fact]
-    public void The_migration_ships_and_is_the_only_one_after_0036_to_redefine_the_procedure()
+    public void The_migration_ships_and_only_0043_redefines_the_procedure_after_it()
     {
         var names = Directory.GetFiles(MigrationsDirectory(), "*.sql").Select(Path.GetFileName).OrderBy(x => x, StringComparer.Ordinal).ToArray();
         Assert.Contains(MigrationName, names);
         var later = names.Where(x => string.CompareOrdinal(x, "0037") > 0 && string.CompareOrdinal(x, MigrationName) != 0)
             .Where(x => Read(x!).Contains("PROCEDURE dbo.configure_application_role", StringComparison.Ordinal)).ToArray();
-        Assert.Empty(later);
+        // 0043 (Owner grant option) redefines it on top of 0042 and carries 0042's changes; OwnerGrantOptionMigrationTests
+        // pins that. Any other later redefinition must carry them too, so it has to be added here on purpose.
+        Assert.Equal(["0043_owner_grant_option.sql"], later.Select(x => x!));
+        var latest = ProcedureBody(Read(later[^1]!));
+        Assert.True(At(latest, "IF @loginExists=0 AND @active=1") < At(latest, "CREATE LOGIN ''+QUOTENAME(@identity)+N'' FROM WINDOWS"));
+        Assert.Contains("IF @principal IS NULL AND @active=0", latest, StringComparison.Ordinal);
     }
 
     [Fact]

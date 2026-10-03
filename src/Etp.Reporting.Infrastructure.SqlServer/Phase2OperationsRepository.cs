@@ -42,6 +42,37 @@ public sealed class Phase2OperationsRepository(string connectionString)
         return new(reader.GetString(0), reader.GetString(1), ParseRole(reader.GetString(2)), reader.GetBoolean(3));
     }
 
+    // dbo.configure_application_role ends every user change with GRANT or REVOKE ALTER ANY
+    // LOGIN in master. SQL Server allows that only to sysadmin, to CONTROL SERVER, or to a
+    // login holding ALTER ANY LOGIN WITH GRANT OPTION (state 'W'); plain ALTER ANY LOGIN,
+    // which Owners held until 1.9.2, fails with error 4613 "Grantor does not have GRANT
+    // permission". Since migration 0043 every active Owner is given the grant option, so this
+    // answers yes for them - except for an Owner who was the account running setup or the
+    // restore helper, which SQL Server does not let grant a permission to itself (see
+    // docs\OPERATIONS.md, Owners and SQL Server logins); that Owner still needs an elevated ETP.
+    // sys.login_token covers grants made to a Windows group the login belongs to, as far as
+    // catalog visibility lets this login see them; anything it cannot see reads as "no",
+    // which only means the Owner is asked to start ETP as administrator.
+    internal const string UserAccessGrantProbeSql = """
+        SELECT CONVERT(bit,CASE WHEN COALESCE(IS_SRVROLEMEMBER('sysadmin'),0)=1
+          OR COALESCE(HAS_PERMS_BY_NAME(NULL,NULL,'CONTROL SERVER'),0)=1
+          OR EXISTS(SELECT 1 FROM sys.server_permissions p
+                    JOIN sys.login_token t ON t.principal_id=p.grantee_principal_id
+                    WHERE p.class=100 AND p.permission_name=N'ALTER ANY LOGIN' AND p.state='W')
+          THEN 1 ELSE 0 END);
+        """;
+
+    /// <summary>
+    /// Whether this login can carry a user access change through to its last, server-level
+    /// statement. Read-only: it changes nothing and needs no Owner check of its own.
+    /// </summary>
+    public async Task<bool> CanGrantUserAccessAsync(CancellationToken cancellationToken = default)
+    {
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var command = new SqlCommand(UserAccessGrantProbeSql, connection);
+        return await command.ExecuteScalarAsync(cancellationToken) is true;
+    }
+
     public async Task<IReadOnlyList<ApplicationUserRow>> LoadUsersAsync(CancellationToken cancellationToken = default)
     {
         await using var connection = await OpenAsync(cancellationToken);

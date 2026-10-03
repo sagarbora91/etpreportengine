@@ -23,6 +23,47 @@ public partial class AdministrationWorkspaceView : UserControl
         this.connectionStringProvider = connectionStringProvider ?? throw new ArgumentNullException(nameof(connectionStringProvider));
         this.serviceFactory = serviceFactory ?? throw new ArgumentNullException(nameof(serviceFactory));
         InitializeComponent();
+        userAccessGuidance = UserAccessGuidance.Text;
+        UserActiveInput.Checked += (_, _) => UpdateSaveUserAccessState();
+        UserActiveInput.Unchecked += (_, _) => UpdateSaveUserAccessState();
+    }
+
+    private readonly string userAccessGuidance;
+
+    /// <summary>
+    /// Finding A, 2 Oct 2026. True when the last refresh found that this Owner's SQL login
+    /// cannot finish a user change (it is not elevated), so the Users task says why before
+    /// anything is typed and Save is off for any change that needs the server-level grant.
+    /// </summary>
+    public bool UserAccessNeedsElevation { get; private set; }
+    public bool CanSaveUserAccess => SaveUserAccessButton.IsEnabled;
+    public string UserAccessGuidanceText => UserAccessGuidance.Text;
+
+    /// <summary>
+    /// Security review 1.9.3, F5. Only a change that leaves the account active - adding,
+    /// reactivating, promoting or changing the role of a user - ends with a GRANT or REVOKE of
+    /// ALTER ANY LOGIN that SQL Server is known to refuse unelevated. A deactivation of an
+    /// account without a login (the retired-PC accounts the restore helper asks the Owner to
+    /// deactivate) makes no server-level change at all, so it is never blocked here. A
+    /// deactivation of an account that does have a login still needs the grant; SQL Server then
+    /// refuses it, nothing is changed, and the save says why.
+    /// </summary>
+    private bool DraftNeedsServerGrant => UserActiveInput.IsChecked == true;
+
+    private void ApplyUserAccessReadiness(bool needsElevation)
+    {
+        UserAccessNeedsElevation = needsElevation;
+        UserAccessGuidance.Text = needsElevation
+            ? userAccessGuidance + " " + DesktopFriendlyError.UserAccessNeedsElevationMessage + " " + DesktopFriendlyError.UserDeactivationWorksUnelevatedMessage
+            : userAccessGuidance;
+        UpdateSaveUserAccessState();
+    }
+
+    private void UpdateSaveUserAccessState()
+    {
+        var blocked = UserAccessNeedsElevation && DraftNeedsServerGrant;
+        SaveUserAccessButton.IsEnabled = !blocked;
+        SaveUserAccessButton.ToolTip = blocked ? DesktopFriendlyError.UserAccessNeedsElevationMessage : null;
     }
 
     public Func<Task>? AccessChangedAsync { get; set; }
@@ -62,6 +103,7 @@ public partial class AdministrationWorkspaceView : UserControl
             KpiCatalogueGrid.ItemsSource = state.Kpis;
             ProductHealthGrid.ItemsSource = state.ProductHealth;
             AdministrationStatus.Text = state.Status;
+            ApplyUserAccessReadiness(state.UserAccessChangesNeedElevation);
             await RefreshDatabaseRecoveryAsync(revision);
         }
         catch (Exception ex) { if (revision != refreshRevision) return; DesktopDiagnostics.Record(ex, "OperationsAdministration.Administration", "ADMINISTRATION_REFRESH_FAILED"); AdministrationStatus.Text = $"Master administration could not be loaded: {DesktopFriendlyError.Describe(ex, "Owner permission is required.")}"; }
@@ -138,6 +180,14 @@ public partial class AdministrationWorkspaceView : UserControl
         try
         {
             RequireOwnerAccess();
+            // The unsaved-drafts prompt can reach here with the button off. Say why rather
+            // than send a change SQL Server is known to refuse; the draft stays as typed. A
+            // deactivation goes on (F5): see DraftNeedsServerGrant.
+            if (UserAccessNeedsElevation && DraftNeedsServerGrant)
+            {
+                AdministrationStatus.Text = $"User access was not saved: {DesktopFriendlyError.UserAccessNeedsElevationMessage}";
+                return false;
+            }
             await Service.SaveUserAsync(OperationsAdministrationPresentationSession.CreateUserCommand(
                 UserIdentityInput.Text, UserDisplayNameInput.Text, SelectedContent(UserRoleInput),
                 UserActiveInput.IsChecked == true, UserReasonInput.Text));
@@ -151,7 +201,15 @@ public partial class AdministrationWorkspaceView : UserControl
             }
             return true;
         }
-        catch (Exception ex) { DesktopDiagnostics.Record(ex, "OperationsAdministration.Administration", "USER_ACCESS_SAVE_FAILED"); AdministrationStatus.Text = $"User access was not saved: {DesktopFriendlyError.Describe(ex, "Owner permission is required.")}"; return false; }
+        catch (Exception ex)
+        {
+            DesktopDiagnostics.Record(ex, "OperationsAdministration.Administration", "USER_ACCESS_SAVE_FAILED");
+            var reason = DesktopFriendlyError.DescribeUserAccessFailure(ex);
+            // The check on refresh could not see the refusal coming; keep the screen honest now.
+            if (reason == DesktopFriendlyError.UserAccessNeedsElevationMessage) ApplyUserAccessReadiness(true);
+            AdministrationStatus.Text = $"User access was not saved: {reason}";
+            return false;
+        }
         finally { EndSave(); }
     }
 
