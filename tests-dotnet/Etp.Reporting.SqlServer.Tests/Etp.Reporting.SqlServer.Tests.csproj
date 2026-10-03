@@ -15,6 +15,8 @@
   <ItemGroup><Compile Include="..\TestSupport\SqlExceptionFactory.cs" Link="TestSupport\SqlExceptionFactory.cs" /></ItemGroup>
   <ItemGroup>
     <Compile Include="..\TestSupport\AuditFixtureWorkbooks.cs" Link="TestSupport\AuditFixtureWorkbooks.cs" />
+    <Compile Include="..\TestSupport\Service\*.cs" Link="TestSupport\Service\%(Filename)%(Extension)" />
+    <Content Include="..\fixtures\service-interim\**\*.xlsx" Link="fixtures\service-interim\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Compile Include="..\Etp.Reporting.Import.Tests\SyntheticConsolidatedWorkbooks.cs" Link="TestSupport\SyntheticConsolidatedWorkbooks.cs" />
     <Content Include="..\fixtures\import-audit\*.json" Link="fixtures\import-audit\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\fixtures\etp-sample\*.xlsx" Link="fixtures\etp-sample\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
