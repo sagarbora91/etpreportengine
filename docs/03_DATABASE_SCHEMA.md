@@ -170,3 +170,58 @@ Additive and Owner-only, like 0038.
 ## Phase 7 review fixes — migration 0040
 
 No new tables. The finding and difference guards no longer treat an UPDATE that changed no row as a delete. A voucher of a decided batch can no longer go back to PLANNED, BLOCKED or EXCLUDED, and a BLOCKED or EXCLUDED one stays so (51212). `tally_readbacks.incomplete_reason` also allows `PERIOD_MISMATCH`: the file's own period does not contain the dates entered for it.
+
+## Service Centre interim — migration 0048
+
+`0048_service_centre_interim.sql` (Service review step S-2, decision 15, 3 Oct 2026). Additive and idempotent, in one transaction; it must apply after 1.9.4's 0046/0047, and 1.10.0 numbers from 0049. The design is `SERVICE-INTERIM-DESIGN.md` (`Reference\Work in progress 2026-10-03\service\`). The script has three sections, each with one owner, in this order:
+
+**A_SERVICE_STORE.** `business_units` row `SERVICE` ("Service Centre"); `stores` row `AW330` ("Service Centre AW330") with that business unit and `is_active = 0`, inserted only when missing (an existing AW330 row is never updated). Trigger `trg_stores_service_unit_inactive` (AFTER INSERT, UPDATE on `dbo.stores`) THROWs 51900 when a SERVICE-unit store is made active. AW330 stays inactive because an active store would need an R025 import for the combined Retail date, get its own daily pack and join the DSR and evening store lists. Retail stores keep a NULL business unit. `import_files.store_code` has no foreign key, so Service files need no other store change; there is no `daily_reporting_days` row for AW330, so the landing triggers' day lock never applies to Service (no Service day locking).
+
+**B_SERVICE_LANDING.** Generated from the catalogue by `scripts/service-centre/generate_landing_sql.py`; never edit it by hand. 35 tables `dbo.etp_landing_snnn` in the 0018 shape: `etp_row_id bigint IDENTITY` primary key, `import_file_id` (FK `import_files`), `source_lineage_id` (unique, FK `source_lineage`), `content_key varchar(80)`, then one column per catalogue column (Text and Identifier `nvarchar(max)`, Decimal `decimal(19,4)`, Date `date`, Integer `int`), with the canonical names of `scripts/service-centre/families.spec.json`. Each table has `IX_etp_landing_snnn_file`, the 0018 locked-day trigger and `append_etp_landing_snnn` with the 0025 guards (role 51420; transaction, file and report-code checks 51422, `report_code = 'Snnn'`), which also writes `dbo.etp_import_content`. DENY INSERT, UPDATE, DELETE to `etp_store_manager` and `etp_viewer`; GRANT EXECUTE on the procedure to `etp_store_manager` and `etp_owner`. `promote_import_superset` needs no Service block: its content-key check covers untyped families.
+
+Every Service file is one dated snapshot ("reading"): `import_files.period_end` is the folder date of a consolidated workbook or the window end in a raw export's name. Rows are never updated or deleted; a new refresh adds a new reading beside the old ones.
+
+| Table | Family | Read rule |
+|---|---|---|
+| `etp_landing_s002` | Job report (booking) | job list |
+| `etp_landing_s003` | Revenue report | date log (Trans Date) |
+| `etp_landing_s004` | Tender collection (detailed) | date log (BillingDate) |
+| `etp_landing_s006` | Closing stock (spares) | state snapshot |
+| `etp_landing_s007`, `etp_landing_s008` | Purchase register, created / received | date log (GRN_DATE) |
+| `etp_landing_s009` | Pending repair | state snapshot |
+| `etp_landing_s010` | Pending delivery | state snapshot |
+| `etp_landing_s011` | SRN status report | job list |
+| `etp_landing_s012` | SRN history | job list |
+| `etp_landing_s013` | Goods in transit | date log (STM Date) |
+| `etp_landing_s014` to `etp_landing_s018` | Repair register DC, IR, RA, RWR, DELIVERED | job list |
+| `etp_landing_s019` | Repeat return | date log (RepairDate) |
+| `etp_landing_s020`, `etp_landing_s021` | Replacement, depreciation | job list |
+| `etp_landing_s022` | Empowerment report | date log (INVOICE DATE) |
+| `etp_landing_s023` to `etp_landing_s026` | GPRC, MB, WDC, WRA claims (old format) | date log (TransDate) |
+| `etp_landing_s029` | Deftran report | date log (Repair Date) |
+| `etp_landing_s030` | MIS export grid | job list |
+| `etp_landing_s031` to `etp_landing_s035` | Repair register PD, PR, SRN, REPAIRED, SRNINV | job list |
+| `etp_landing_s036`, `etp_landing_s037` | Delivery report, repair report | job list |
+| `etp_landing_s039`, `etp_landing_s040` | WD claim, WRA claim | date log (Transaction Date) |
+
+No table exists for S001 (derived), S005 and S038 (not needed) or S027 and S028 (deferred to the full Service import, P8).
+
+**C_SERVICE_READ.** Read-only views; each has GRANT SELECT to `etp_viewer`, `etp_store_manager` and `etp_owner`, and none exposes a customer phone, e-mail or address column. They read only live Service files (`is_superseded = 0`, `data_truth_version = 1`) and choose rows by each family's read rule, never by import order:
+
+- *state snapshot* (S006, S009, S010): the rows of the reading with the latest snapshot date;
+- *date log*: for each business date, the rows of the latest reading whose window (earliest row date to snapshot date) contains that date, so a 4-day raw export replaces only its 4 days and a restated row replaces its old version;
+- *job list*: per family and job, the rows of the latest reading that holds the job.
+
+| View | What it holds |
+|---|---|
+| `v_service_readings` | One row per Service import file: report code, snapshot date, window start, import file, rows, import time, source kind (CONSOLIDATED or RAW) and `is_latest` per family. The refresh log, and the base of the growth check. |
+| `v_service_job_readings` | Job, report code, snapshot date, import file and status date for every job list and for S009/S010. The base of the next three views. |
+| `v_service_job_status_current` | One row per job: the current status (the status list whose winning reading is latest, ties broken by the lifecycle rank), money summed over the line rows (spare value, labour), line count and how many other lists held the job. |
+| `v_service_pending_current` | Pending repair (S009) and pending delivery (S010) from the latest snapshot with age in days, plus SRN status (S011). |
+| `v_service_job_list_events` | History of jobs in lists: FirstSeen, LeftList and Reappeared for S009/S010, FirstSeen and LastSeen for job lists. Information only; it writes nothing and creates no review item. |
+| `v_service_s004_daily` | S004 tender amount per business date and tender. |
+| `v_service_money_changes` | For S003 and S004, each business date whose total differs between the winning reading and the previous covering reading, with both snapshots and amounts. |
+
+`SqlServerServiceReportQuery` reads these views for the four Service screens. The money check adds the manual `SERVICE_CASH`, `SERVICE_CARD` and `SERVICE_UPI` entries of `dbo.manual_operational_inputs`, summed over all stores, and names the stores that had entries (which shop's entries belong to AW330 is open, design question Q2).
+
+SQL error numbers 51900–51929 are the Service block (`docs/service-centre/SERVICE-INTERIM-NUMBERS.md`). Storage: about 35k landing rows per weekly consolidated reading plus small daily raw readings; measure it with `scripts/service-centre/measure-service-growth.sql` (`docs/OPERATIONS.md`).

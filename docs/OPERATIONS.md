@@ -268,3 +268,24 @@ This applies once Tally batches are in use (Phase 7). ETP never deletes, changes
 4. **Get the plan approved.** ETP proposes one step per voucher: read back again, correct the voucher in Tally by hand with the accountant, reverse it with a Credit Note and issue a fresh one (needs separate approval), or accept a warning with a reason. The Owner approves the plan before anything is done.
 5. **Apply.** The accountant makes the approved corrections in Tally. ETP only prepares reversals as new batches.
 6. **Check again.** Export the Day Book again, load it, and compare. Earlier comparisons stay on record unchanged.
+
+## Service Centre data (interim, migration 0048)
+
+Service Centre (AW330) files land in 35 tables `dbo.etp_landing_snnn`, one dated reading per file, and the Service screens read the views of 0048 (`docs/03_DATABASE_SCHEMA.md`). Nothing is ever updated or deleted, so every weekly consolidated refresh adds a full copy (about 35k rows) and every daily raw export a small one. That is expected for the interim: the full Service import in 1.10.0 replaces the copies with one history. AW330 is an inactive store and must stay so; making it active is refused with error 51900.
+
+**Growth check.** `scripts/service-centre/measure-service-growth.sql` is SELECT-only and writes nothing. It reports the latest migration, the data file size and its share of the SQL Server Express 10 GB data limit, the rows and KB of each Service table, the rows of each reading (landing table, `etp_import_content`, `source_lineage`) and totals. Sizes need VIEW DATABASE STATE (db_owner has it); without it the KB columns are empty. Run it on a scratch copy (for example a restored `EtpAccept_SVC`) before and after a refresh and keep both outputs:
+
+```
+sqlcmd -S .\SQLEXPRESS -d EtpAccept_SVC -E -i scripts\service-centre\measure-service-growth.sql -W -s "|" -o before.txt
+```
+
+The difference between the two outputs is what one refresh costs. Record counts and sizes only; the script prints no cell value of any Service table. Run it on the live database only when the Owner asks, and after the pre-install backup.
+
+**Rehearsal and install.** A release with 0048 installs after 1.9.4 (0046/0047). Rehearse on a scratch copy restored from the newest live backup: import the Service folder copied into a dated folder ("Service Centre till 29 sep 2026"), expect 35 Imported and Not needed for S001, S005, S038, S027, S028 and `00_`, import the same folder again (all Duplicate), and check that the combined Retail date and a Retail pack are unchanged. Live: take the pre-install backup, install, import the latest Service folder and run the growth check.
+
+| Symptom | Action |
+| --- | --- |
+| Every Service file fails with `SERVICE_SNAPSHOT_DATE_NEEDED` | The folder name has no date. Copy the files into a folder whose name ends with the date, or set the snapshot date on the Import screen. |
+| A Service file is refused with `IMPORT_PERIOD_ALREADY_PRESENT` | A different file for the same family and date is already imported. Use a new dated folder or request a restatement; never delete Service rows by hand. |
+| Settings > Stores refuses to activate AW330 (51900) | Expected: AW330 is the Service Centre, not a shop store. |
+| The data file approaches the Express limit | Run the growth check, keep the output and tell the Owner before the next refresh. Do not delete readings. |

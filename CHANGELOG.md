@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+Service Centre interim import (Service review step S-2, decision 15, 3 Oct 2026), with migration 0048 (`0048_service_centre_interim.sql`). It must ship after 1.9.4, whose migrations are 0046 and 0047; the proposed version is 1.9.5. Retail imports, reports and packs do not change.
+
+- Service Centre (AW330) exports can now be imported, both the weekly consolidated workbooks and the daily raw ETP exports (CSV or XLSX). Each file is kept as a dated snapshot: a consolidated workbook takes the date at the end of its folder name ("Service Centre till 05 oct 2026"), a raw export takes the end date of the window in its file name ("JOB REPORT 30.09.2026 TO 03.10.2026.csv"). The snapshot date set on the Import screen also works.
+- 35 Service families are imported, each into its own table: S002-S004, S006-S026, S029-S037, S039 and S040.
+- Reported Not needed instead of failing:
+  - S001 (Repair register): it is the union of the ten status lists, built by the consolidation tool, so importing it would count every job twice (`FAMILY_DERIVED`).
+  - S005 (Tender collection summary): a summary with no date; the Owner decided it is not needed, and S004 is imported in detail (`SERVICE_FAMILY_NOT_NEEDED`).
+  - S038 (SRN report): a retired name; its columns are the same as S011's (`SERVICE_FAMILY_NOT_NEEDED`).
+  - S027 (TAT) and S028 (Technician productivity): deferred to the full Service import in 1.10.0 (`SERVICE_FAMILY_DEFERRED`).
+  - The `00_` consolidation control file, as before.
+- A raw GPRC CLAIM file (a new 34-column claims layout) is not imported yet and shows as an unknown layout.
+- Four read-only screens on a new "Service centre" tab of the Reports rail, for Viewers and up: Service jobs by status, Service pending lists, Service job history and Service money check. Each can export to Excel and shows "Service data as at <date>". They never show a customer phone number, e-mail or address.
+- The screens read SQL views that pick the latest reading per business date, per job or per list, never the latest file. A rolling 4-day raw window and a weekly consolidated workbook therefore combine correctly, and importing an older file after a newer one changes nothing.
+- A job that leaves a list (for example Pending repair) is shown as history on Service job history. It is not a problem and creates no review item.
+- A day whose Service money changed between two refreshes is listed under "Money changed since the previous refresh" on Service money check, beside the manual Service cash/card/UPI entries, which stay the cash-book source.
+- AW330 is added to the store list as an inactive Service Centre store (business unit SERVICE). A trigger refuses to make it active (error 51900), because an active store would stop the combined Retail date and the daily packs, and would join the DSR and evening store lists. Settings > Stores shows it as a Service centre that is not a shop, and Import History shows its files as "Service Centre (AW330)" under "All stores".
+- Service files never start an automatic report pack, there is no Service day locking, and a Service file with no store column takes AW330 (`SERVICE_STORE_DEFAULTED`).
+- A Service file in a folder without a date is refused with `SERVICE_SNAPSHOT_DATE_NEEDED` and a message saying how to fix it. When the folder date differs from the latest date on the "Snapshot History" sheet of S006, S009 or S010, the import adds a warning (`SERVICE_SNAPSHOT_DATE_DIFFERS_FROM_HISTORY`) and still imports.
+- New `scripts/service-centre/measure-service-growth.sql` (SELECT-only) reports the rows and the space the Service tables use, per table and per reading, to run before and after a refresh.
+- Documentation: a new "Service Centre (interim)" section in `docs/USER-GUIDE.md`, the Service tables and views in `docs/03_DATABASE_SCHEMA.md`, the growth check in `docs/OPERATIONS.md`, and the import failure register row IF-024 marked fixed on `feature/service-interim`, awaiting acceptance.
+
 ## [1.9.3] - 2026-10-03
 
 The import engine release, with the fixes from the move to Workpc:
