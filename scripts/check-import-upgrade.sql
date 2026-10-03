@@ -89,7 +89,7 @@ DECLARE @lineageSuperseded bigint =
 -- stored row line 1, while a re-import numbers the running-balance chain start 1. Built exactly as
 -- 1.9.2's persist_stock_movement built business_identity (nvarchar(400)).
 DECLARE @movementIdentity nvarchar(max) = N'LEFT(CONCAT(m.store_code,N''/'',m.invoice_year,N''/'',m.document_number,N''/'',m.document_date,N''/'',
-  m.product_code,N''/'',UPPER(m.source_transaction_type),N''/'',ISNULL(m.from_location,N),N/,ISNULL(m.to_location,N)),400)';
+  m.product_code,N''/'',UPPER(m.source_transaction_type),N''/'',ISNULL(m.from_location,N''''),N''/'',ISNULL(m.to_location,N'''')),400)';
 DECLARE @movementConflicts bigint;
 DECLARE @movementConflictSql nvarchar(max) = N'SELECT @n=COUNT_BIG(*) FROM dbo.import_conflicts c
   WHERE c.report_code=''R003'' AND c.status IN(''OPEN'',''ACKNOWLEDGED'',''RESTATEMENT_REQUESTED'')
