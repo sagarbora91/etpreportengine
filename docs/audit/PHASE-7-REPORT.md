@@ -6,7 +6,7 @@ Working record for Phase 7 of [the master plan](ETP-MASTER-AUDIT-AND-PHASED-PLAN
 
 - Decisions **D12–D18 are OPEN.** Until the owner and accountant freeze them, decision-dependent tasks build validation, fixtures and `BLOCKED` states only (plan rule 7). The printable [decision sheet](PHASE-7-DECISION-SHEET-D12-D18.md) is ready for the owner and accountant.
 - Phase 5 acceptance (A5.1, A5.2) and the Phase 6 release are not closed. See [the Phase 5 walkthrough](PHASE-5-ACCEPTANCE-WALKTHROUGH.md).
-- No TallyPrime machine has been probed (task 5): every live item is `NOT_RUN`.
+- No TallyPrime machine has been probed (task 5): every live item is `NOT_RUN`. The printable [probe check sheet](PHASE-7-TALLY-PROBE-CHECK-SHEET.md) is ready for one visit to the Tally PC; it is read-only and uses the TEST company only.
 
 ## Increment 1 — pure Slice 7a rules (no schema, no screen, no Tally)
 
