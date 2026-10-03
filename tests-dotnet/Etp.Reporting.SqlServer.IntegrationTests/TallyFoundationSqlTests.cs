@@ -51,14 +51,14 @@ public sealed class TallyFoundationSqlTests(SqlDatabaseFixture database) : IClas
         var first = await database.ExecuteAsync(Profile("BINDA"));
         var second = await database.ExecuteAsync(Profile("BINDB"));
         var live = await database.ExecuteAsync(Profile("BINDLIVE", environment: "PRODUCTION"));
-        await database.ExecuteAsync($"INSERT dbo.tally_profile_stores VALUES({first},'TEST','TBIND')");
-        var duplicate = await Assert.ThrowsAsync<SqlException>(() => database.ExecuteAsync($"INSERT dbo.tally_profile_stores VALUES({second},'TEST','TBIND')"));
+        await database.ExecuteAsync($"INSERT dbo.tally_profile_stores(tally_profile_id,environment,store_code) VALUES({first},'TEST','TBIND')");
+        var duplicate = await Assert.ThrowsAsync<SqlException>(() => database.ExecuteAsync($"INSERT dbo.tally_profile_stores(tally_profile_id,environment,store_code) VALUES({second},'TEST','TBIND')"));
         Assert.Equal(2627, duplicate.Number);
         Assert.Contains("UQ_tally_profile_stores_store", duplicate.Message);
-        var mismatched = await Assert.ThrowsAsync<SqlException>(() => database.ExecuteAsync($"INSERT dbo.tally_profile_stores VALUES({second},'PRODUCTION','TBIND')"));
+        var mismatched = await Assert.ThrowsAsync<SqlException>(() => database.ExecuteAsync($"INSERT dbo.tally_profile_stores(tally_profile_id,environment,store_code) VALUES({second},'PRODUCTION','TBIND')"));
         Assert.Equal(547, mismatched.Number);
         Assert.Contains("FK_tally_profile_stores_profile", mismatched.Message);
-        await database.ExecuteAsync($"INSERT dbo.tally_profile_stores VALUES({live},'PRODUCTION','TBIND')");
+        await database.ExecuteAsync($"INSERT dbo.tally_profile_stores(tally_profile_id,environment,store_code) VALUES({live},'PRODUCTION','TBIND')");
         Assert.Equal(2, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.tally_profile_stores WHERE store_code='TBIND'"));
     }
 
@@ -204,6 +204,26 @@ public sealed class TallyFoundationSqlTests(SqlDatabaseFixture database) : IClas
 
         await database.ExecuteAsync($"UPDATE dbo.accounting_vouchers SET voucher_status='EXPORTED' WHERE accounting_voucher_id={voucher}");
         Assert.Equal("EXPORTED", await database.ExecuteAsync($"SELECT voucher_status FROM dbo.accounting_vouchers WHERE accounting_voucher_id={voucher}"));
+        // 0040: never back to planned, blocked or excluded once the batch is decided.
+        var back = await Assert.ThrowsAsync<SqlException>(() => database.ExecuteAsync($"UPDATE dbo.accounting_vouchers SET voucher_status='PLANNED' WHERE accounting_voucher_id={voucher}"));
+        Assert.Equal(51212, back.Number);
+    }
+
+    [Fact]
+    public async Task A_blocked_voucher_of_a_decided_batch_stays_blocked()
+    {
+        var profile = await database.ExecuteAsync(Profile("DECBLK"));
+        var batch = await database.ExecuteAsync(Day("TDBL") + Batch("TDBL", kind: "SALES_VOUCHERS", profile: profile));
+        var voucher = await database.ExecuteAsync(Voucher(batch!, "TDBL"));
+        await database.ExecuteAsync($"UPDATE dbo.accounting_vouchers SET voucher_status='BLOCKED',blocked_reason=N'NOT_IN_SCOPE_7A: split tender' WHERE accounting_voucher_id={voucher}");
+        await database.ExecuteAsync($"UPDATE dbo.accounting_batches SET status='APPROVED_READY',approval_reason=N'Checked synthetic vouchers' WHERE accounting_batch_id={batch}");
+
+        foreach (var status in new[] { "PLANNED", "EXPORTED" })
+        {
+            var refused = await Assert.ThrowsAsync<SqlException>(() => database.ExecuteAsync($"UPDATE dbo.accounting_vouchers SET voucher_status='{status}' WHERE accounting_voucher_id={voucher}"));
+            Assert.Equal(51212, refused.Number);
+        }
+        Assert.Equal("BLOCKED", await database.ExecuteAsync($"SELECT voucher_status FROM dbo.accounting_vouchers WHERE accounting_voucher_id={voucher}"));
     }
 
     [Fact]

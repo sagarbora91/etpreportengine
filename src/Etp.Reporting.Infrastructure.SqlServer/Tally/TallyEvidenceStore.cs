@@ -58,6 +58,30 @@ public static class TallyEvidenceFiles
         return string.Equals(await HashAsync(full, cancellationToken), sha256, StringComparison.Ordinal) ? TallyEvidenceState.Ok : TallyEvidenceState.Changed;
     }
 
+    /// <summary>Reads a registered file once, through the same path and link checks as writing, and returns its bytes
+    /// only when those bytes hash to <paramref name="sha256"/>. The caller hashes and parses the same bytes, so a file
+    /// swapped after the check is never read as evidence.</summary>
+    public static async Task<byte[]?> ReadVerifiedAsync(string evidenceRoot, string relativePath, string sha256, CancellationToken cancellationToken = default)
+    {
+        var full = Resolve(evidenceRoot, relativePath);
+        if (!File.Exists(full)) return null;
+        RejectLinks(evidenceRoot, full);
+        var content = await File.ReadAllBytesAsync(full, cancellationToken);
+        return string.Equals(Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant(), sha256, StringComparison.Ordinal) ? content : null;
+    }
+
+    /// <summary>Renames a file that is on disk but was never registered (a crash between writing and registering),
+    /// so its name can be used again. Such a file is not evidence; it is kept beside the name for inspection.</summary>
+    public static string? SetAsideUnregistered(string evidenceRoot, string relativePath)
+    {
+        var full = Resolve(evidenceRoot, relativePath);
+        if (!File.Exists(full)) return null;
+        RejectLinks(evidenceRoot, full);
+        var aside = full + ".unregistered-" + DateTime.UtcNow.ToString("yyyyMMddHHmmssfff", System.Globalization.CultureInfo.InvariantCulture);
+        File.Move(full, aside);
+        return aside;
+    }
+
     public static async Task<string> HashAsync(string fullPath, CancellationToken cancellationToken = default)
     {
         await using var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read);
@@ -97,6 +121,10 @@ public sealed class TallyEvidenceStore(string connectionString, string? evidence
             throw new ArgumentException("An evidence file must be written in its own batch folder.", nameof(relativePath));
         await RequireOwnerAsync(cancellationToken);
         var root = await LoadRootAsync(cancellationToken);
+        if (await FindAsync(batchId, relative, cancellationToken) is not null)
+            throw new InvalidOperationException("This evidence file already exists. Evidence is written once and never replaced.");
+        // On disk but not registered: left by a crash before registration, so it is not evidence and must not block the name.
+        TallyEvidenceFiles.SetAsideUnregistered(root, relative);
         var (full, sha256, length) = await TallyEvidenceFiles.WriteOnceAsync(root, relative, content, cancellationToken);
         try
         {
@@ -116,12 +144,45 @@ public sealed class TallyEvidenceStore(string connectionString, string? evidence
             await reader.ReadAsync(cancellationToken);
             return new(reader.GetInt64(0), batchId, kind, relative, sha256, length, reader.GetDateTime(1));
         }
-        catch
+        catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            // Not registered, so not evidence: remove the file so the same path can be written again.
-            File.Delete(full);
+            // The INSERT may have committed although its answer was lost (a dropped connection). Delete the file only when
+            // the row is certainly absent; a file kept without a row is set aside by the next write of the same name.
+            TallyArtifact? registered = null;
+            var known = false;
+            try
+            {
+                registered = await FindAsync(batchId, relative, CancellationToken.None);
+                known = true;
+            }
+            catch (Exception lookupFailure) when (lookupFailure is SqlException or InvalidOperationException)
+            {
+                // Still unknown: keep the file.
+            }
+            if (registered is not null && string.Equals(registered.Sha256, sha256, StringComparison.Ordinal)) return registered;
+            if (known && registered is null) File.Delete(full);
             throw;
         }
+    }
+
+    private async Task<TallyArtifact?> FindAsync(long batchId, string relative, CancellationToken token)
+    {
+        await using var connection = await OpenAsync(token);
+        await using var command = new SqlCommand("SELECT tally_artifact_id,artifact_kind,sha256,byte_length,created_utc FROM dbo.tally_artifacts WHERE accounting_batch_id=@batch AND relative_path=@path", connection);
+        command.Parameters.AddWithValue("@batch", batchId);
+        command.Parameters.AddWithValue("@path", relative);
+        await using var reader = await command.ExecuteReaderAsync(token);
+        return await reader.ReadAsync(token)
+            ? new(reader.GetInt64(0), batchId, reader.GetString(1), relative, reader.GetString(2), reader.GetInt64(3), reader.GetDateTime(4))
+            : null;
+    }
+
+    /// <summary>The registered file's bytes, read once and checked against its recorded SHA-256; null when it is changed or missing.</summary>
+    public async Task<byte[]?> ReadVerifiedAsync(TallyArtifact artifact, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(artifact);
+        await RequireOwnerAsync(cancellationToken);
+        return await TallyEvidenceFiles.ReadVerifiedAsync(await LoadRootAsync(cancellationToken), artifact.RelativePath, artifact.Sha256, cancellationToken);
     }
 
     public async Task<IReadOnlyList<TallyEvidenceCheck>> VerifyAsync(long batchId, CancellationToken cancellationToken = default)

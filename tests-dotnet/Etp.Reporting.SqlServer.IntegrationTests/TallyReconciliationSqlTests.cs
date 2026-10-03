@@ -44,6 +44,11 @@ public sealed class TallyReconciliationSqlTests(SqlDatabaseFixture database) : I
             Assert.Contains(expected, text, StringComparison.Ordinal);
         Assert.DoesNotContain("manifest.json", text, StringComparison.Ordinal);
         await Assert.ThrowsAsync<InvalidOperationException>(() => service.BuildManifestAsync(batch, "test-build"));
+
+        // The manifest was registered but its hash was never recorded on the batch: a retry records it.
+        await database.ExecuteAsync($"UPDATE dbo.accounting_batches SET manifest_sha256=NULL WHERE accounting_batch_id={batch}");
+        Assert.Equal(manifest.Id, (await service.BuildManifestAsync(batch, "test-build")).Id);
+        Assert.Equal(manifest.Sha256, await database.ExecuteAsync($"SELECT manifest_sha256 FROM dbo.accounting_batches WHERE accounting_batch_id={batch}"));
     }
 
     [Fact]
@@ -72,7 +77,8 @@ public sealed class TallyReconciliationSqlTests(SqlDatabaseFixture database) : I
         Assert.Equal("DIFFERENCE", await database.ExecuteAsync($"SELECT voucher_status FROM dbo.accounting_vouchers WHERE accounting_voucher_id={voucher}"));
 
         var failure = await database.ExecuteAsync($"SELECT difference_id FROM dbo.tally_reconciliation_differences WHERE run_id={comparison.RunId}");
-        await Assert.ThrowsAsync<SqlException>(() => service.AcceptDifferenceAsync((long)failure!, "Failures cannot be waved through"));
+        var waved = await Assert.ThrowsAsync<SqlException>(() => service.AcceptDifferenceAsync((long)failure!, "Failures cannot be waved through"));
+        Assert.Equal(51579, waved.Number);
         var deleted = await Assert.ThrowsAsync<SqlException>(() => database.ExecuteAsync($"DELETE dbo.tally_reconciliation_differences WHERE run_id={comparison.RunId}"));
         Assert.Equal(51573, deleted.Number);
         var changed = await Assert.ThrowsAsync<SqlException>(() => database.ExecuteAsync($"UPDATE dbo.tally_readbacks SET is_complete=1,incomplete_reason=NULL WHERE tally_readback_id={readback.Id}"));
@@ -82,6 +88,24 @@ public sealed class TallyReconciliationSqlTests(SqlDatabaseFixture database) : I
         Assert.Equal("RECOVERY_PLAN", plan.Kind);
         var planText = await File.ReadAllTextAsync(Path.Combine(root, plan.RelativePath.Replace('\\', Path.DirectorySeparatorChar)));
         Assert.Contains("READ_BACK_AGAIN", planText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_file_whose_own_period_does_not_contain_the_entered_dates_is_incomplete()
+    {
+        var (batch, voucher) = await SeedAsync("TRP");
+        var service = new SqlServerTallyReconciliationService(database.ConnectionString, root);
+        // The operator typed 25 Aug, but the file says it is the Day Book of 26 Aug.
+        var readback = await service.LoadManualReadbackAsync(batch, Day, Day, Xml("TEST - ETP TRP", "TRP", period: "20260826"));
+        Assert.Equal("PERIOD_MISMATCH", readback.IncompleteReason);
+
+        var comparison = await service.CompareAsync(batch, readback.Id, sourceUnchanged: true);
+        Assert.Equal("RECONCILIATION_INCOMPLETE", comparison.Result.RunOutcome);
+        Assert.Equal("RECO-COV-005", Assert.Single(comparison.Result.Differences).RuleId);
+        Assert.Equal("EXPORTED", await database.ExecuteAsync($"SELECT voucher_status FROM dbo.accounting_vouchers WHERE accounting_voucher_id={voucher}"));
+
+        var matching = await service.LoadManualReadbackAsync(batch, Day, Day, Xml("TEST - ETP TRP", "TRP", period: "20260825"));
+        Assert.True(matching.IsComplete);
     }
 
     [Theory]
@@ -114,8 +138,8 @@ public sealed class TallyReconciliationSqlTests(SqlDatabaseFixture database) : I
 
         await service.AcceptWarningAsync(warning, "Owner confirmed the wedding order");
         Assert.Equal("Owner confirmed the wedding order", await database.ExecuteAsync($"SELECT waiver_reason FROM dbo.accounting_validation_findings WHERE finding_id={warning}"));
-        await Assert.ThrowsAsync<SqlException>(() => service.AcceptWarningAsync(warning, "Again"));
-        await Assert.ThrowsAsync<SqlException>(() => service.AcceptWarningAsync(fail, "Failures cannot be accepted"));
+        Assert.Equal(51579, (await Assert.ThrowsAsync<SqlException>(() => service.AcceptWarningAsync(warning, "Again"))).Number);
+        Assert.Equal(51579, (await Assert.ThrowsAsync<SqlException>(() => service.AcceptWarningAsync(fail, "Failures cannot be accepted"))).Number);
         await Assert.ThrowsAsync<ArgumentException>(() => service.AcceptWarningAsync(warning, " "));
         var deleted = await Assert.ThrowsAsync<SqlException>(() => database.ExecuteAsync($"DELETE dbo.accounting_validation_findings WHERE finding_id={fail}"));
         Assert.Equal(51573, deleted.Number);
@@ -167,8 +191,9 @@ public sealed class TallyReconciliationSqlTests(SqlDatabaseFixture database) : I
         return (batch, voucher);
     }
 
-    private static byte[] Xml(string company, string store) => Encoding.UTF8.GetBytes(
+    private static byte[] Xml(string company, string store, string? period = null) => Encoding.UTF8.GetBytes(
         "<ENVELOPE><HEADER><TALLYREQUEST>Export Data</TALLYREQUEST></HEADER><BODY><EXPORTDATA><REQUESTDESC><REPORTNAME>Day Book</REPORTNAME><STATICVARIABLES>"
+        + (period is null ? "" : $"<SVFROMDATE>{period}</SVFROMDATE><SVTODATE>{period}</SVTODATE>")
         + $"<SVCURRENTCOMPANY>{company}</SVCURRENTCOMPANY></STATICVARIABLES></REQUESTDESC><REQUESTDATA><TALLYMESSAGE>"
         + $"<VOUCHER VCHTYPE=\"Sales\" ACTION=\"Create\"><DATE>20260825</DATE><VOUCHERTYPENAME>Sales</VOUCHERTYPENAME><NARRATION>ETP:{store}:2027:INV-1:SALES:1 | ETP {store} invoice INV-1 dated 25-Aug-2026</NARRATION>"
         + "<ALLLEDGERENTRIES.LIST><LEDGERNAME>Cash</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>-1180.00</AMOUNT></ALLLEDGERENTRIES.LIST>"

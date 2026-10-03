@@ -10,7 +10,6 @@ namespace Etp.Reporting.Infrastructure.SqlServer.Tally;
 public static class TallyEvidencePaths
 {
     private static readonly Regex CodeSegment = new("^[A-Z0-9][A-Z0-9_-]{0,29}$", RegexOptions.CultureInvariant);
-    private static readonly Regex LongDigitRun = new(@"\d{10,}", RegexOptions.CultureInvariant);
     private static readonly Regex MonthSegment = new(@"^\d{4}-(0[1-9]|1[0-2])$", RegexOptions.CultureInvariant);
     private static readonly Regex BatchSegment = new(@"^batch-[1-9]\d{0,18}$", RegexOptions.CultureInvariant);
     private static readonly Regex AttemptFile = new(@"^attempt-[1-9]\d{0,18}-(request|response)\.xml$", RegexOptions.CultureInvariant);
@@ -74,8 +73,8 @@ public static class TallyEvidencePaths
 
     private static void RequireCode(string segment, string label)
     {
-        if (!CodeSegment.IsMatch(segment) || LongDigitRun.IsMatch(segment))
-            throw Rejected($"The {label} folder must be 1-30 upper-case letters, digits, '_' or '-', and must not look like a phone number.");
+        if (!CodeSegment.IsMatch(segment) || !Etp.Reporting.Application.Accounting.TallyProfileRules.IsFolderSafeCode(segment))
+            throw Rejected($"The {label} folder must be 1-30 upper-case letters, digits, '_' or '-', must not look like a phone number and must not be a Windows device name.");
     }
 
     private static ArgumentException Rejected(string message) => new(message);

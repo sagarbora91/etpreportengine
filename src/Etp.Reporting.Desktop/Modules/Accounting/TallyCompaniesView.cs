@@ -17,8 +17,9 @@ public sealed class TallyCompaniesView : UserControl
     private readonly Func<bool> canAdminister;
     private readonly Func<string, TallyProfileService> serviceFactory;
     private IReadOnlyList<TallyProfile> loaded = [];
-    private int? editingId;
-    private DateTime? editingProductionEnabledUtc;
+    // The company being edited, so fields this screen does not show (delivery, format, posting dates,
+    // live-books approval) are saved unchanged instead of being reset.
+    private TallyProfile editing = TallyProfile.NewTest("", "", []);
     private bool busy;
 
     public DataGrid CompanyGrid { get; } = new() { AutoGenerateColumns = false, IsReadOnly = true, CanUserAddRows = false, Height = 190, MinHeight = 100, RowHeight = 44, Margin = new(0, 6, 0, 8) };
@@ -26,6 +27,7 @@ public sealed class TallyCompaniesView : UserControl
     public TextBox CompanyInput { get; } = Input(320);
     public ComboBox BooksInput { get; } = Choice(TallyProfileOptions.Environments, 160);
     public TextBox StoresInput { get; } = Input(220);
+    public TextBox CostCentresInput { get; } = Input(320);
     public TextBox EndpointInput { get; } = Input(220);
     public ComboBox GranularityInput { get; } = Choice(TallyProfileOptions.VoucherGranularities, 200);
     public ComboBox PartyInput { get; } = Choice(TallyProfileOptions.PartyPolicies, 200);
@@ -59,6 +61,7 @@ public sealed class TallyCompaniesView : UserControl
         identity.Children.Add(Field("Tally company name, exactly as Tally shows it", CompanyInput));
         identity.Children.Add(Field("Test books or live books", BooksInput));
         identity.Children.Add(Field("Stores covered (codes, separated by commas)", StoresInput));
+        identity.Children.Add(Field("Cost centre per store, as in Tally (D12): STORE=Name; STORE=Name", CostCentresInput));
         identity.Children.Add(Field("Where Tally answers on this PC (optional)", EndpointInput));
         identity.Children.Add(Field("Tally build, as Tally shows it (optional)", BuildInput));
         identity.Children.Add(EnabledInput);
@@ -104,10 +107,14 @@ public sealed class TallyCompaniesView : UserControl
     public async Task SaveAsync()
     {
         var stores = StoresInput.Text.Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries);
-        var profile = new TallyProfile(editingId, CodeInput.Text, CompanyInput.Text, Selected(BooksInput), EndpointInput.Text,
-            "FILE", "XML", Selected(GranularityInput), Selected(PartyInput), LedgerInput.Text, Selected(TenderInput),
-            Selected(PostingInput), Selected(ViewInput), null, null, BuildInput.Text, EnabledInput.IsChecked == true, stores,
-            editingProductionEnabledUtc);
+        var profile = editing with
+        {
+            ProfileCode = CodeInput.Text, CompanyName = CompanyInput.Text, Environment = Selected(BooksInput), EndpointUrl = EndpointInput.Text,
+            VoucherGranularity = Selected(GranularityInput), PartyPolicy = Selected(PartyInput), SinglePartyLedger = LedgerInput.Text,
+            TenderModel = Selected(TenderInput), PostingModel = Selected(PostingInput), VoucherView = Selected(ViewInput),
+            TallyBuildLabel = BuildInput.Text, IsEnabled = EnabledInput.IsChecked == true, StoreCodes = stores,
+            StoreCostCentres = ParseCostCentres(CostCentresInput.Text)
+        };
         var id = await serviceFactory(connectionString()).SaveAsync(profile, ReasonInput.Text);
         ReasonInput.Clear();
         await RefreshAsync();
@@ -118,9 +125,11 @@ public sealed class TallyCompaniesView : UserControl
 
     private void Show(TallyProfile profile)
     {
-        editingId = profile.Id; editingProductionEnabledUtc = profile.ProductionEnabledUtc;
+        editing = profile;
         CodeInput.Text = profile.ProfileCode; CompanyInput.Text = profile.CompanyName; BooksInput.SelectedItem = profile.Environment;
-        StoresInput.Text = string.Join(", ", profile.StoreCodes); EndpointInput.Text = profile.EndpointUrl ?? "";
+        StoresInput.Text = string.Join(", ", profile.StoreCodes);
+        CostCentresInput.Text = string.Join("; ", (profile.StoreCostCentres ?? new Dictionary<string, string>()).Select(pair => $"{pair.Key}={pair.Value}"));
+        EndpointInput.Text = profile.EndpointUrl ?? "";
         GranularityInput.SelectedItem = profile.VoucherGranularity; PartyInput.SelectedItem = profile.PartyPolicy;
         LedgerInput.Text = profile.SinglePartyLedger ?? ""; TenderInput.SelectedItem = profile.TenderModel;
         PostingInput.SelectedItem = profile.PostingModel; ViewInput.SelectedItem = profile.VoucherView;
@@ -157,6 +166,21 @@ public sealed class TallyCompaniesView : UserControl
 
     private void Column(string header, string binding, double width) =>
         CompanyGrid.Columns.Add(new DataGridTextColumn { Header = header, Binding = new Binding(binding), Width = width });
+
+    /// <summary>Reads "STORE=Name; STORE=Name". Store codes are checked against the stores covered when saving.</summary>
+    public static IReadOnlyDictionary<string, string> ParseCostCentres(string text)
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var part in (text ?? "").Split(new[] { ';', '\n' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var pair = part.Split('=', 2, StringSplitOptions.TrimEntries);
+            if (pair.Length != 2 || pair[0].Length == 0 || pair[1].Length == 0)
+                throw new ArgumentException("Write each cost centre as STORE=Name, separated by semicolons, with the store code before '=' and the Tally cost centre after it.");
+            if (!result.TryAdd(pair[0], pair[1]))
+                throw new ArgumentException($"Store {pair[0].ToUpperInvariant()} has more than one cost centre.");
+        }
+        return result;
+    }
 
     private static string Selected(ComboBox box) => box.SelectedItem?.ToString() ?? "";
     private static TextBox Input(double width) => new() { Width = width, MinHeight = 44, Padding = new(6) };

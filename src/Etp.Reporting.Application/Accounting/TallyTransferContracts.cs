@@ -256,8 +256,13 @@ public sealed record TallyProfile(
     IReadOnlyList<string> StoreCodes,
     DateTime? ProductionEnabledUtc = null,
     string? ModifiedBy = null,
-    DateTime? ModifiedUtc = null)
+    DateTime? ModifiedUtc = null,
+    IReadOnlyDictionary<string, string>? StoreCostCentres = null)
 {
+    /// <summary>D12: the Tally cost centre each store's vouchers carry when one company holds several stores.</summary>
+    public string? CostCentreFor(string storeCode) =>
+        StoreCostCentres is not null && StoreCostCentres.TryGetValue(storeCode, out var name) ? name : null;
+
     /// <summary>A TEST profile with the Slice 7a assumptions: one voucher per invoice, one retail ledger,
     /// tender inside the voucher, accounting only, file delivery.</summary>
     public static TallyProfile NewTest(string profileCode, string companyName, IReadOnlyList<string> storeCodes) => new(
@@ -282,6 +287,8 @@ public static class TallyProfileOptions
 public static class TallyProfileRules
 {
     private static readonly Regex ProfileCodePattern = new("^[A-Z0-9][A-Z0-9_-]{0,29}$", RegexOptions.CultureInvariant);
+    private static readonly Regex LongDigitRun = new(@"\d{10,}", RegexOptions.CultureInvariant);
+    private static readonly Regex WindowsDeviceName = new("^(CON|PRN|AUX|NUL|COM[0-9]|LPT[0-9])$", RegexOptions.CultureInvariant);
     private static readonly Regex StoreCodePattern = new("^[A-Z0-9_-]{1,30}$", RegexOptions.CultureInvariant);
     private static readonly Regex LoopbackEndpoint = new(@"^http://(127\.0\.0\.1|localhost):[0-9]{1,5}/$", RegexOptions.CultureInvariant);
 
@@ -291,6 +298,11 @@ public static class TallyProfileRules
         endpointUrl is not null && LoopbackEndpoint.IsMatch(endpointUrl) &&
         int.TryParse(endpointUrl[(endpointUrl.LastIndexOf(':') + 1)..^1], NumberStyles.None, CultureInfo.InvariantCulture, out var port) &&
         port is > 0 and <= 65535;
+
+    /// <summary>True when an upper-case code can name an evidence folder: no run of ten or more digits
+    /// (it could be a phone number) and not a reserved Windows device name.</summary>
+    public static bool IsFolderSafeCode(string code) =>
+        !LongDigitRun.IsMatch(code) && !WindowsDeviceName.IsMatch(code);
 
     /// <summary>Returns the profile with codes trimmed and upper-cased, or throws <see cref="ArgumentException"/>.</summary>
     public static TallyProfile Normalise(TallyProfile profile, string reason)
@@ -302,6 +314,9 @@ public static class TallyProfileRules
         var code = (profile.ProfileCode ?? "").Trim().ToUpperInvariant();
         if (!ProfileCodePattern.IsMatch(code))
             throw new ArgumentException("The short code must be 1-30 capital letters, digits, '_' or '-', starting with a letter or digit.");
+        // The code names the evidence folder, so it follows the same rules as TallyEvidencePaths.
+        if (!IsFolderSafeCode(code))
+            throw new ArgumentException("The short code must not look like a phone number (ten or more digits in a row) or be a Windows device name such as CON or NUL.");
         var company = (profile.CompanyName ?? "").Trim();
         if (company.Length is 0 or > 200)
             throw new ArgumentException("Enter the Tally company name exactly as Tally shows it (at most 200 characters).");
@@ -339,10 +354,23 @@ public static class TallyProfileRules
         if (stores.FirstOrDefault(store => !StoreCodePattern.IsMatch(store)) is { } bad)
             throw new ArgumentException($"'{bad}' is not a store code.");
 
+        var costCentres = new SortedDictionary<string, string>(StringComparer.Ordinal);
+        foreach (var (store, name) in profile.StoreCostCentres ?? new Dictionary<string, string>())
+        {
+            var storeCode = (store ?? "").Trim().ToUpperInvariant();
+            var centre = (name ?? "").Trim();
+            if (centre.Length == 0) continue;
+            if (!stores.Contains(storeCode, StringComparer.Ordinal))
+                throw new ArgumentException($"A cost centre is given for {storeCode}, which is not one of this company's stores.");
+            if (centre.Length > 100 || centre.Any(char.IsControl))
+                throw new ArgumentException("A cost centre name can have at most 100 characters, written exactly as in Tally.");
+            costCentres[storeCode] = centre;
+        }
+
         return profile with
         {
             ProfileCode = code, CompanyName = company, EndpointUrl = endpoint, SinglePartyLedger = ledger,
-            TallyBuildLabel = build, StoreCodes = stores
+            TallyBuildLabel = build, StoreCodes = stores, StoreCostCentres = costCentres
         };
     }
 

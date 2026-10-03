@@ -6,7 +6,7 @@ Working record for Phase 7 of [the master plan](ETP-MASTER-AUDIT-AND-PHASED-PLAN
 
 - Decisions **D12–D18 are OPEN.** Until the owner and accountant freeze them, decision-dependent tasks build validation, fixtures and `BLOCKED` states only (plan rule 7). The printable [decision sheet](PHASE-7-DECISION-SHEET-D12-D18.md) is ready for the owner and accountant.
 - Phase 5 acceptance (A5.1, A5.2) and the Phase 6 release are not closed. See [the Phase 5 walkthrough](PHASE-5-ACCEPTANCE-WALKTHROUGH.md).
-- No TallyPrime machine has been probed (task 5): every live item is `NOT_RUN`.
+- No TallyPrime machine has been probed (task 5): every live item is `NOT_RUN`. The printable [probe check sheet](PHASE-7-TALLY-PROBE-CHECK-SHEET.md) is ready for one visit to the Tally PC; it is read-only and uses the TEST company only.
 
 ## Increment 1 — pure Slice 7a rules (no schema, no screen, no Tally)
 
@@ -21,7 +21,7 @@ Working record for Phase 7 of [the master plan](ETP-MASTER-AUDIT-AND-PHASED-PLAN
 
 Tests: `tests-dotnet/Etp.Reporting.SqlServer.Tests/TallyTransferRulesTests.cs`.
 
-These are decision-independent: they hold whatever D12–D18 say. Nothing calls them yet; the migration (tasks 1–4), composer (6), validation (7), export (8), read-back (9), comparison (10) and screen (11) will.
+These are decision-independent: they hold whatever D12–D18 say. Nothing calls them yet; the migration (tasks 1–4), validation (7), export (8), read-back (9), comparison (10) and screen (11) will.
 
 ### Choices made where the plan was silent
 
@@ -110,6 +110,54 @@ Where this differs from the plan:
 - **Recovery plan file name.** Task 21's fixed file list has no name for a recovery plan; `recovery-plan-<n>.json` in the batch folder was added. The Owner's approval of a plan waits for the approval type widening.
 - **Manual file only.** The HTTP read-back gateway (task 9) waits for the task 5 probe to show which request returns full vouchers.
 
+## Increment 5 — fixes from a code review of increments 1–4 (migration 0040)
+
+A read-only review of the merged Phase 7 code found no high-severity defect. These were confirmed and fixed. UNIT_VERIFIED and SQL_VERIFIED on LocalDB in CI: run 158 attempt 2 (687d853). Attempt 1 timed out with every WPF desktop test hanging from the first one, including screens this change does not touch; the re-run on another runner passed unchanged. Not yet applied to the live database.
+
+| # | Defect | Fix | Where |
+|---|---|---|---|
+| 1 | The dates of a hand-exported Day Book are typed by the operator. With the wrong day, every voucher became MISSING (FAIL), a false "proven absence" that would later invite a resend. | A file that states its own period (SVFROMDATE/SVTODATE) must contain the dates entered, or it is stored incomplete (`PERIOD_MISMATCH`). A file with no voucher at all on a voucher's day never proves it missing: `NOT_VERIFIABLE`, RECO-COV-008. | `TallyVoucherXmlReader`, `SqlServerTallyReconciliationService`, `TallyReconciliationEngine`, 0040 |
+| 2 | A file written but not registered (crash between the two) blocked its name for good; `manifest.json` could then never be written. The file was also deleted after an INSERT whose outcome was unknown, leaving a row with no file. | A leftover unregistered file is renamed to `<name>.unregistered-<utc>` and the name is used. After a failed INSERT the file is deleted only when the row is certainly absent. | `TallyEvidenceStore` |
+| 3 | Manifest registered but `manifest_sha256` not recorded could never be completed. | A retry records the hash of the registered manifest. | `BuildManifestAsync` |
+| 4 | A batch with no registered written file (B) was compared as if B matched. | `NOT_VERIFIABLE`, RECO-INT-006; the voucher stays ACTUAL_LOCATED, not RECONCILED. | engine, service |
+| 5 | A Tally company's short code, company name or books could be changed after batches used it (splitting its evidence folders, or turning test batches into live ones). | Refused once any batch or read-back uses the company. | `SqlServerTallyProfileService` |
+| 6 | Accepting a failure, or a warning twice, showed "cannot be deleted" (51573): the guard triggers treated a zero-row UPDATE as a delete. | The triggers return when no row changed; the caller's 51579 is shown. | 0040 |
+| 7 | In a decided batch a BLOCKED voucher could be set back to PLANNED after its reservation was released. | Never back to PLANNED, BLOCKED or EXCLUDED, and BLOCKED/EXCLUDED stay so (51212). | 0040 |
+| 8 | A blocked, excluded or unsent voucher of the batch found in Tally produced no difference. | EXTRA (WARN) with RECO-COV-009, naming the voucher. | engine |
+| 9 | The written file was re-read after its hash check, by a path that skipped the link checks. | Read once through the checked path; the same bytes are hashed and parsed. | `TallyEvidenceFiles.ReadVerifiedAsync` |
+| 10 | A short code with ten or more digits, or a Windows device name (CON, NUL, COM1…), was saved but refused by every evidence write. | The same rules on save. | `TallyProfileRules.IsFolderSafeCode` |
+| 11 | Saving from the Tally companies screen reset the posting dates, delivery mode and file format. | Fields the screen does not show are kept. | `TallyCompaniesView` |
+| 12 | Invoice-view vouchers keep the sales ledger inside each stock item; the reader missed it, so every such voucher would show LEDGER_MISMATCH. | Those lines are read too. Still TallyPrime's published layout, not checked against the installed build (task 5). | `TallyVoucherXmlReader` |
+
+Migration 0040 replaces two 0039 triggers and one 0038 trigger with `CREATE OR ALTER` and widens `CK_tally_readbacks_reason`; 0038 and 0039 are unchanged.
+
+## Increment 6 — Tally batch creation, one voucher per invoice (task 6, migration 0041)
+
+Built on the decision sheet's recommendations, accepted by the owner on 3 Oct 2026 for building: D13 one voucher per invoice, D14 one retail ledger, D15 one GST ledger per tax and rate, D16 payment inside the voucher, D17 accounting only; and D12 one company for the firm with each store as a cost centre. The ledger names stay settings (approved mappings) until the accountant fills in the sheet. If the accountant decides differently, the composer refuses the company in plain words rather than guessing. UNIT_VERIFIED and SQL_VERIFIED on LocalDB in CI: run 161 (a0f89b2). Run 160 (b7e886b) failed on three test-setup and text faults, fixed in a0f89b2. Not yet applied to the live database.
+
+| Item | Where |
+|---|---|
+| `TallySalesVoucherComposer`: pure; per invoice a tender debit, round-off line, sales revenue credit and one credit per GST component and rate; never derives tax, never adds a balancing line; canonical-JSON `source_sha256` and `plan_sha256` | `Application/Accounting/TallySalesVoucherComposer.cs` |
+| `SqlServerTallySalesBatchService`: reads the day (latest final generation, lines, GST rows from one current R018 import per invoice, tenders with their mode), previews, and saves a `SALES_VOUCHERS` batch with vouchers, entries, reservations for planned vouchers and the Phase 5 invoice reservations, in one transaction; a preview that no longer matches the database is refused | `Infrastructure.SqlServer/Tally/SqlServerTallySalesBatchService.cs` |
+| Migration 0041: `tally_profile_stores.cost_centre` (D12); edited on Settings → Tally companies as `STORE=Name; STORE=Name` | `database/migrations/0041_tally_store_cost_centres.sql`, `TallyCompaniesView` |
+
+**Blocked invoices.** Every invoice the composer cannot plan exactly is stored as a BLOCKED voucher with a reason. Two kinds:
+
+- *Left out by this step's limits* (`NOT_IN_SCOPE_7A`: returns, refund tenders, split payments, mixed GST rates, zero or negative amounts; `CESS_NOT_SUPPORTED`; `KEY_UNSAFE`): the rest of the day can still be approved. These invoices need a later step, and because a day has one active batch they cannot be sent until that one-batch-per-day rule is narrowed.
+- *Faults to fix* (`MAPPING_MISSING`, `TENDER_MODE_UNKNOWN`, `TAX_ROW_MISSING`, `TAX_AMOUNT_MISSING`, `TAX_SPLIT_MISMATCH`, `SOURCE_AMOUNT_MISSING`, `UNBALANCED`, `COST_CENTRE_MISSING`): the batch is saved BLOCKED with the list, so nothing from the day is approved until they are fixed, the batch rejected and the day prepared again.
+
+Where this differs from the plan:
+
+- **Composer in Application, service in Tally.** The plan puts the composer in Infrastructure and routes it through `SqlServerAccountingService.PreviewAsync`. It is pure, so it sits next to the other Phase 7 rules, and a separate service keeps the Phase 5 day-journal path untouched.
+- **GST per invoice, not per line.** `etp_r018` rows are matched to the invoice and summed per component and rate; every product on the invoice must have a GST row and the components must equal the lines' tax to the paisa. Matching a row to one line by product code would double-count an invoice with the same product twice.
+- **One R018 import per invoice.** Only rows from the latest non-superseded import that has rows for the invoice are read, so a day imported twice never doubles its tax.
+- **The day-journal and invoice-voucher kinds exclude each other.** A day already in an unrejected day-journal batch is refused with 51571 (`E-KIND-CLASH`).
+- **Cost centre on every line.** The store's cost centre is recorded on each entry; which ledgers carry it in the Tally file is decided by the file export (task 8), because Tally accepts cost centres only on ledgers set up for them.
+- **No fixture folder yet.** The G01 and round-off cases are written in the test code; `tests-dotnet/fixtures/tally-golden/` with accountant-reviewed `expected-postings.json` comes with task 12.
+- **Validation findings are not saved at preparation yet.** The task 7 rules exist; running them at save and blocking approval on FAIL comes with the approval step.
+
+Tests: `TallySalesVoucherComposerTests` (SqlServer.Tests); `TallySalesBatchSqlTests`, cost-centre cases in `TallyProfileServiceSqlTests` (IntegrationTests); cost-centre parsing in `TallyCompaniesViewTests`.
+
 ## Not started
 
-Status widening, transition procedure and audit types (task 3 remainder), composer (6), sales voucher XML export (8), HTTP read-back gateway (9), screen steps 3–5 (11), golden fixtures (12), and everything in Slices 7b–7d.
+Status widening, transition procedure and audit types (task 3 remainder), sales voucher XML export (8), HTTP read-back gateway (9), screen steps 3–5 (11), golden fixtures (12), and everything in Slices 7b–7d.

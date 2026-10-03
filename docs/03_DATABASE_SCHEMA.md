@@ -166,3 +166,11 @@ Additive and Owner-only, like 0038.
 | `tally_actual_vouchers`, `tally_actual_ledger_entries` | What the read-back says Tally holds, field by field. Fields Tally did not return stay NULL. Append-only. |
 | `tally_reconciliation_runs` | One comparison of a batch with a read-back, its outcome, a summary and its evidence file. Append-only; a later run never changes an earlier one. |
 | `tally_reconciliation_differences` | One row per failed or warning check, with values A/B/C, delta, rule, rationale and the fixed required action. Never deleted; a WARN can be accepted once. |
+
+## Phase 7 review fixes — migration 0040
+
+No new tables. The finding and difference guards no longer treat an UPDATE that changed no row as a delete. A voucher of a decided batch can no longer go back to PLANNED, BLOCKED or EXCLUDED, and a BLOCKED or EXCLUDED one stays so (51212). `tally_readbacks.incomplete_reason` also allows `PERIOD_MISMATCH`: the file's own period does not contain the dates entered for it.
+
+## Phase 7 store cost centres — migration 0041
+
+`tally_profile_stores.cost_centre nvarchar(100) NULL`: D12, one Tally company for the firm with each store as a cost centre. The name must match the cost centre in Tally exactly. When a company holds more than one store, an invoice of a store without a cost centre is blocked (`COST_CENTRE_MISSING`) when its vouchers are prepared.

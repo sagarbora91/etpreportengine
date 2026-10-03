@@ -68,12 +68,58 @@ public sealed class TallyReconciliationEngineTests
     [Fact]
     public void A_missing_voucher_fails_with_the_fixed_action()
     {
-        var result = Run(Envelope(Company));
+        // Another voucher of the same day (keyed by hand, no ETP key) shows the file covers the day.
+        var result = Run(Envelope(Company, Voucher("Shop rent paid in cash", G01)));
         var difference = Assert.Single(result.Differences);
         Assert.Equal(("COVERAGE", "MISSING", "FAIL"), (difference.CheckLevel, difference.DifferenceType, difference.Severity));
         Assert.StartsWith("Voucher not found in Tally. Do not write the file again", difference.RequiredAction, StringComparison.Ordinal);
         Assert.Equal("FAILED_RECONCILIATION", result.BatchStatus);
         Assert.Equal("DIFFERENCE", Assert.Single(result.Vouchers).Status);
+    }
+
+    [Fact]
+    public void An_invoice_view_voucher_is_read_with_the_sales_ledger_inside_its_stock_item()
+    {
+        var inventory = Voucher(Key, G01.Where(line => line.Ledger != "Sales").ToArray())
+            .Replace("</VOUCHER>", "<ALLINVENTORYENTRIES.LIST><STOCKITEMNAME>Saree</STOCKITEMNAME><ACTUALQTY>1 Nos</ACTUALQTY>"
+                + "<ACCOUNTINGALLOCATIONS.LIST><LEDGERNAME>Sales</LEDGERNAME><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE><AMOUNT>1000.00</AMOUNT></ACCOUNTINGALLOCATIONS.LIST>"
+                + "</ALLINVENTORYENTRIES.LIST></VOUCHER>", StringComparison.Ordinal);
+        var result = Run(Envelope(Company, inventory));
+        Assert.Empty(result.Differences);
+        Assert.Equal("RECONCILED", Assert.Single(result.Vouchers).Status);
+    }
+
+    [Fact]
+    public void A_file_with_nothing_on_the_vouchers_day_never_proves_it_missing()
+    {
+        var result = Run(Envelope(Company, Voucher("Shop rent paid in cash", G01, date: "20260824")));
+        var difference = Assert.Single(result.Differences);
+        Assert.Equal(("NOT_VERIFIABLE", "RECO-COV-008"), (difference.DifferenceType, difference.RuleId));
+        var voucher = Assert.Single(result.Vouchers);
+        Assert.Equal("EXPORTED", voucher.Status);
+        Assert.False(voucher.CoveredByReadback);
+        Assert.Equal("RECONCILIATION_INCOMPLETE", result.BatchStatus);
+    }
+
+    [Fact]
+    public void Without_a_registered_written_file_a_located_voucher_is_not_reconciled()
+    {
+        var input = Input() with { PayloadRecorded = false };
+        var result = TallyReconciliationEngine.Run(input, null, Readback(Envelope(Company, Voucher(Key, G01))), ToleranceSet.None);
+        Assert.Equal("RECO-INT-006", Assert.Single(result.Differences).RuleId);
+        Assert.Equal("ACTUAL_LOCATED", Assert.Single(result.Vouchers).Status);
+        Assert.Equal("RECONCILIATION_INCOMPLETE", result.BatchStatus);
+    }
+
+    [Fact]
+    public void A_blocked_voucher_found_in_Tally_is_reported()
+    {
+        const string blockedKey = "ETP:WLMHW:2027:INV-2:SALES:1";
+        var input = Input(expected: [Expected(), Expected("BLOCKED") with { Sequence = 2, CorrespondenceKey = blockedKey, DocumentNumber = "INV-2" }]);
+        var result = TallyReconciliationEngine.Run(input, Payload(), Readback(Envelope(Company, Voucher(Key, G01), Voucher(blockedKey, G01))), ToleranceSet.None);
+        var extra = Assert.Single(result.Differences);
+        Assert.Equal(("EXTRA", "RECO-COV-009", (int?)2, (string?)"BLOCKED"), (extra.DifferenceType, extra.RuleId, extra.VoucherSequence, extra.ValueA));
+        Assert.Equal("RECONCILED", Assert.Single(result.Vouchers).Status);
     }
 
     [Fact]
