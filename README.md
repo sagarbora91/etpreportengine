@@ -21,13 +21,19 @@ SQL integration tests create and drop their own uniquely named database. They ne
 
 Open **Import today's folder**, choose the export folder or ZIP, and start. Store and date range come from the workbook; keep its Info sheet. Each file shows its result and source-row counts. Identical files and content subsets add no reporting facts. Changed overlapping periods require an explicit restatement.
 
-The audit tool can create a disposable database and run the same folder service:
+The ImportAudit tool answers "what would ETP do with these files, and why?" without changing anything. Run it with no arguments for usage. `inspect` and `validate-contract [--raw <folder>]` need no database; `check-import --database <name>` predicts what 1.9.3 does with each file, and `baseline --database <name>` runs `scripts/check-import-upgrade.sql`, both SELECT-only. Reports go to `%LOCALAPPDATA%\EtpReporting\ImportAudit\` unless `--out` names another folder outside the repository.
 
 ```powershell
-dotnet run --project tools/Etp.Reporting.ImportAudit -c Release -- --database EtpReportingHelios --rebuild --folder "C:\Codex\Reporting Manger\ETP Source Data\HEMW\till 6 sep 26"
+dotnet run --project tools/Etp.Reporting.ImportAudit -c Release -- inspect "D:\Exports\HEMW\till 6 sep 26"
 ```
 
-`--rebuild` deletes only the named audit database. The tool refuses the live `EtpReporting` database. Only `EtpReportingHelios` and names beginning `EtpPhase1Test_` are allowed. Repeat `--folder` to import both stores in one action. Private corpus tests run when the supplied folders exist; CI uses the artificial samples under `tests-dotnet/fixtures/etp-sample/`.
+Its `seed` command creates a disposable database and runs the same folder service:
+
+```powershell
+dotnet run --project tools/Etp.Reporting.ImportAudit -c Release -- seed --database EtpReportingHelios --rebuild --folder "C:\Codex\Reporting Manger\ETP Source Data\HEMW\till 6 sep 26"
+```
+
+`--rebuild` deletes only the named audit database. `seed` refuses the live `EtpReporting` database: only `EtpReportingHelios` and names beginning `EtpPhase1Test_` or `EtpAccept_` are allowed. `--migrate-only` upgrades a scratch restore and imports nothing. Repeat `--folder` to import both stores in one action. The old form without `seed` still works and prints a deprecation notice. Private corpus tests run when the supplied folders exist; CI uses the artificial samples under `tests-dotnet/fixtures/etp-sample/`.
 
 ## Reference
 

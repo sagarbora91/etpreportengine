@@ -1,0 +1,16 @@
+{
+  "schema": "etp-import-audit-expect/1",
+  "name": "held-titan-synthetic",
+  "unexpectedBlockers": 0,
+  "legacyHoldsAllowed": ["IMPORT_LEGACY_RESTATEMENT_REQUIRED"],
+  "files": [
+    { "match": { "store": "WLMHW", "report": "STOCK_LEDGER" },
+      "planner1": { "result": "Imported", "new": 1, "present": 7, "conflict": 0 } },
+    { "match": { "store": "WLMHW", "report": "R022" },
+      "planner1": { "result": "Imported", "conflict": 0, "promotesOver": [10078] } },
+    { "match": { "store": "WLMHW", "report": "R010" },
+      "planner1": { "result": "Imported" },
+      "snapshots": { "2026-07-02": 3, "2026-08-07": 3, "2026-09-29": 2 } },
+    { "match": { "store": "HEMW", "report": "R010" }, "forbid": "Do not re-import HEMW R010 under 1.9.3 (spec 15 P1)" }
+  ]
+}

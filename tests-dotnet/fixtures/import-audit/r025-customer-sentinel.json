@@ -1,0 +1,47 @@
+{
+ "fileName": "202609291500_SDB-VariantwiseSales.xlsx",
+ "sheets": [
+  {
+   "name": "Data",
+   "family": "R025",
+   "rows": [
+    {
+     "TRANS_TYPE": "INV",
+     "STORE CODE": "WLMHW",
+     "STORENAME": "ZZSENTINEL-STORE",
+     "ITEMNUMBER": "SYN-ITEM-01",
+     "BRAND": "SYN",
+     "INVNUMBER": "SYN200001",
+     "INVDATE": "2026-09-28",
+     "QTY": 1,
+     "NETAMOUNT": 118.0,
+     "TAX": 18.0,
+     "NETVALUE": 100,
+     "CUSTOMERNAME": "ZZSENTINEL-NAME",
+     "CONTACTNO": "9999900000",
+     "CITY": "ZZSENTINEL-ADDR",
+     "ULPNUMBER": "ZZSENTINEL-ULP",
+     "REGION": "ZZSENTINEL-ADDR"
+    },
+    {
+     "TRANS_TYPE": "INV",
+     "STORE CODE": "WLMHW",
+     "STORENAME": "ZZSENTINEL-STORE",
+     "ITEMNUMBER": "SYN-ITEM-03",
+     "BRAND": "SYN",
+     "INVNUMBER": "SYN200002",
+     "INVDATE": "2026-09-28",
+     "QTY": 1,
+     "NETAMOUNT": 354.0,
+     "TAX": 54.0,
+     "NETVALUE": 300,
+     "CUSTOMERNAME": "ZZSENTINEL-NAME",
+     "CONTACTNO": "9999900000",
+     "CITY": "ZZSENTINEL-ADDR",
+     "ULPNUMBER": "ZZSENTINEL-ULP",
+     "REGION": "ZZSENTINEL-ADDR"
+    }
+   ]
+  }
+ ]
+}

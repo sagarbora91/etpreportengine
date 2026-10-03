@@ -1,0 +1,84 @@
+{
+ "fileName": "202604041800_Revenue-Report.xlsx",
+ "sheets": [
+  {
+   "name": "Data",
+   "family": "R022",
+   "rows": [
+    {
+     "TRANS_TYPE": "INV",
+     "STORE CODE": "WLMHW",
+     "STORE NAME": "SYNTHETIC STORE",
+     "INVNUMBER": "SYN400001",
+     "InvoiceQuantity": 1,
+     "INVOICEDATE": "2026-03-30",
+     "NetValue": 1000,
+     "CUSTOMERNAME": "SYNTHETIC CUSTOMER",
+     "INVOICEYEAR": 2026,
+     "CASH": 1000
+    },
+    {
+     "TRANS_TYPE": "INV",
+     "STORE CODE": "WLMHW",
+     "STORE NAME": "SYNTHETIC STORE",
+     "INVNUMBER": "SYN400002",
+     "InvoiceQuantity": 2,
+     "INVOICEDATE": "2026-03-31",
+     "NetValue": 2500,
+     "CUSTOMERNAME": "SYNTHETIC CUSTOMER",
+     "INVOICEYEAR": 2026,
+     "CARD": 2500
+    },
+    {
+     "TRANS_TYPE": "SR",
+     "STORE CODE": "WLMHW",
+     "STORE NAME": "SYNTHETIC STORE",
+     "INVNUMBER": "SYN400003",
+     "InvoiceQuantity": -1,
+     "INVOICEDATE": "2026-04-01",
+     "NetValue": -1000,
+     "CUSTOMERNAME": "SYNTHETIC CUSTOMER",
+     "INVOICEYEAR": 2026,
+     "CASH": -1000
+    },
+    {
+     "TRANS_TYPE": "INV",
+     "STORE CODE": "WLMHW",
+     "STORE NAME": "SYNTHETIC STORE",
+     "INVNUMBER": "SYN400004",
+     "InvoiceQuantity": 1,
+     "INVOICEDATE": "2026-04-02",
+     "NetValue": 700,
+     "CUSTOMERNAME": "SYNTHETIC CUSTOMER",
+     "INVOICEYEAR": 2027,
+     "CASH": 700
+    },
+    {
+     "TRANS_TYPE": "INV",
+     "STORE CODE": "WLMHW",
+     "STORE NAME": "SYNTHETIC STORE",
+     "INVNUMBER": "SYN400005",
+     "InvoiceQuantity": 1,
+     "INVOICEDATE": "2026-04-03",
+     "NetValue": 900,
+     "CUSTOMERNAME": "SYNTHETIC CUSTOMER",
+     "INVOICEYEAR": 2027,
+     "CARD": 900
+    },
+    {
+     "TRANS_TYPE": "INV",
+     "STORE CODE": "WLMHW",
+     "STORE NAME": "SYNTHETIC STORE",
+     "INVNUMBER": "SYN400006",
+     "InvoiceQuantity": 3,
+     "INVOICEDATE": "2026-04-04",
+     "NetValue": 3000,
+     "CUSTOMERNAME": "SYNTHETIC CUSTOMER",
+     "INVOICEYEAR": 2027,
+     "CASH": 1000,
+     "CARD": 2000
+    }
+   ]
+  }
+ ]
+}
