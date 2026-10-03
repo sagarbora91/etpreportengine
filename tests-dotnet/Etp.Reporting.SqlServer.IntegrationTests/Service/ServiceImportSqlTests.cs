@@ -116,6 +116,41 @@ public sealed class ServiceImportSqlTests
         finally { await database.DisposeAsync(); }
     }
 
+    [Fact]
+    public async Task The_watch_folder_imports_a_service_zip_and_queues_no_report_pack()
+    {
+        var database = new SqlDatabaseFixture();
+        var root = Path.Combine(Path.GetTempPath(), "EtpServiceWatch-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            await database.InitializeAsync();
+            var repository = new Phase2OperationsRepository(database.ConnectionString);
+            await repository.SaveWatchFolderSettingsAsync(new WatchFolderSettings(Path.Combine(root, "In"), Path.Combine(root, "Done"),
+                Path.Combine(root, "Failed"), Path.Combine(root, "Reports"), true, DateTime.MinValue, "test"), "Synthetic Service watch-folder test");
+            Directory.CreateDirectory(Path.Combine(root, "In"));
+            // The ZIP's name dates its root entries (tier 6), as the dated folder does for a folder import.
+            var zip = Path.Combine(root, "In", "Service Centre till 28 sep 2026.zip");
+            System.IO.Compression.ZipFile.CreateFromDirectory(Folders.Week1, zip, System.IO.Compression.CompressionLevel.Fastest, includeBaseDirectory: false);
+            File.SetLastWriteTimeUtc(zip, DateTime.UtcNow.AddMinutes(-5)); // past the watch folder's stability wait
+
+            var run = await new AutomatedOperationsService(database.ConnectionString).RunOnceAsync();
+
+            Assert.Equal(1, run.SourcesProcessed);
+            Assert.Equal(0, run.SourcesFailed);
+            Assert.Equal(0, run.PacksGenerated);
+            Assert.Equal(35, await database.ExecuteAsync(
+                "SELECT COUNT(*) FROM dbo.import_files WHERE report_code LIKE 'S[0-9][0-9][0-9]' AND store_code='AW330' AND period_end='20260928'"));
+            Assert.Equal(1, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.automation_runs WHERE run_type='WATCH_IMPORT' AND outcome='Succeeded'"));
+            Assert.Equal(0, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.automation_runs WHERE run_type='AUTO_REPORT_PACK'"));
+            Assert.Empty(Directory.EnumerateFiles(Path.Combine(root, "Reports"), "*", SearchOption.AllDirectories));
+        }
+        finally
+        {
+            await database.DisposeAsync();
+            try { Directory.Delete(root, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+        }
+    }
+
     private static Task<object?> SeedRoles(SqlDatabaseFixture database) => database.ExecuteAsync("""
         CREATE USER service_manager WITHOUT LOGIN;
         ALTER ROLE etp_store_manager ADD MEMBER service_manager;

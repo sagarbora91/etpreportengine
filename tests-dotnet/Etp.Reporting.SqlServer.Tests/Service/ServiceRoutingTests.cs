@@ -161,10 +161,40 @@ public sealed class ServiceRoutingTests
     [Fact]
     public void Automation_packs_only_the_dates_of_retail_imports()
     {
-        var day = new DateOnly(2026, 8, 25);
-        var batch = new FolderImportSummary([new("R025.xlsx", "R025", "HEMW", day, day, "Imported"),
-            new("unknown.xlsx", null, null, day.AddDays(1), day.AddDays(1), "Imported")]);
-        Assert.Equal(new[] { day, day.AddDays(1) }, AutomatedOperationsService.ImportedDates(batch));
+        // A synthetic catalogue stands in for L1's S entries: S009 and S002 are Service, R025 is the shipped Retail family.
+        EtpReportFamily[] families = [ServiceFamily("S009"), ServiceFamily("S002"), EtpReportFamilyRegistry.Resolve("R025")];
+        var retail = new DateOnly(2026, 9, 27);
+        var service = new DateOnly(2026, 9, 28);
+        var batch = new FolderImportSummary([new("R025.xlsx", "R025", "HEMW", retail, retail, "Imported"),
+            new("unknown.xlsx", null, null, retail.AddDays(-1), retail.AddDays(-1), "Imported"),
+            new("S009_PendingRepair.xlsx", "S009", "AW330", service, service, "Imported"),
+            new("S002_JobReportBooking.xlsx", "S002", "AW330", service, service, "Imported")]);
+
+        Assert.Equal(new[] { retail, retail.AddDays(-1) }, AutomatedOperationsService.ImportedDates(batch, families));
+        Assert.Empty(AutomatedOperationsService.ImportedDates(new FolderImportSummary(batch.Files.Skip(2).ToArray()), families));
+        Assert.True(ServiceRouting.IsService("S009", families));
+        Assert.False(ServiceRouting.IsService("R025", families));
+    }
+
+    [Fact]
+    public void Siblings_lend_a_store_or_date_only_within_their_business_unit()
+    {
+        var day = new DateOnly(2026, 9, 28);
+        var folder = Path.Combine("In", "Mixed till 28 sep 2026");
+        var detected = new Dictionary<string, (ImportScope Scope, bool Service)>(StringComparer.OrdinalIgnoreCase)
+        {
+            [Path.Combine(folder, "HEMW_R025.xlsx")] = (new ImportScope("HEMW", day.AddDays(-1), day.AddDays(-1)), false),
+            [Path.Combine(folder, "S002_JobReportBooking.xlsx")] = (new ImportScope("AW330", day, day), true),
+            [Path.Combine("In", "Other", "S009_PendingRepair.xlsx")] = (new ImportScope("AW330", day.AddDays(7), day.AddDays(7)), true)
+        };
+
+        var retail = ServiceRouting.Siblings(detected, Path.Combine(folder, "R023_Stock.xlsx"), service: false);
+        Assert.Equal("HEMW", Assert.Single(retail).StoreCode);
+        var service = ServiceRouting.Siblings(detected, Path.Combine(folder, "S011_Undated.xlsx"), service: true);
+        var lent = Assert.Single(service);
+        Assert.Equal("AW330", lent.StoreCode);
+        Assert.Equal(day, lent.PeriodEnd);
+        Assert.Empty(ServiceRouting.Siblings(detected, Path.Combine("In", "Retail only", "R023_Stock.xlsx"), service: true));
     }
 
     private static EtpReportFamily ServiceFamily(string code) =>

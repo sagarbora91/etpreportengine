@@ -128,9 +128,10 @@ public sealed class AutomatedOperationsService(string connectionString, Action<F
     /// <summary>The business dates whose report pack a source's run makes due: those of its new or saved imports.
     /// A Service Centre import never makes a pack due: the packs are Retail management packs (Service interim, decision 15),
     /// so a Service-only batch queues none and a mixed batch only its Retail dates.</summary>
-    internal static IEnumerable<DateOnly> ImportedDates(FolderImportSummary batch) =>
+    /// <param name="families">The family catalogue; the shipped registry when null (a test passes a synthetic one).</param>
+    internal static IEnumerable<DateOnly> ImportedDates(FolderImportSummary batch, IEnumerable<EtpReportFamily>? families = null) =>
         batch.Files.Where(file => (file.Status == "Imported" || IsSavedDespiteFailure(file)) && file.PeriodEnd is not null
-                && !ServiceRouting.IsService(file.ReportCode))
+                && !ServiceRouting.IsService(file.ReportCode, families))
             .Select(file => file.PeriodEnd!.Value).Distinct();
 
     /// <summary>

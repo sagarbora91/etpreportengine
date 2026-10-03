@@ -1,6 +1,8 @@
 using Etp.Reporting.Application.Imports;
 using Etp.Reporting.Import.Preflight;
+using Etp.Reporting.Import.Profiles;
 using Etp.Reporting.Import.Service;
+using Etp.Reporting.Import.Workbooks;
 using Etp.Reporting.Infrastructure.SqlServer;
 
 namespace Etp.Reporting.SqlServer.Tests.Service;
@@ -89,6 +91,40 @@ public sealed class ServiceFolderImportTests
     }
 
     [Fact(Skip = WaitsForL0bAndL1)]
+    public async Task A_service_file_refused_by_its_own_coverage_keeps_the_real_reason()
+    {
+        // S009 in a dated folder whose Info sheet states two Coverage dates: tier 5 refuses before the folder is read, so
+        // neither a dated folder nor the date override can help, and the Coverage conflict must stay the message.
+        var path = Path.Combine("Service Centre till 28 sep 2026", "S009_PendingRepair.xlsx");
+        var persistence = new ServicePersistence();
+        var file = Assert.Single((await new FolderImportService(persistence, new Reader(_ => S009(path, coverage: ["21-Sep-2026", "28-Sep-2026"])))
+            .RunFilesAsync([path], new("tester"))).Files);
+        Assert.Equal("Failed", file.Status);
+        Assert.NotEqual(ServiceInterimFamilies.Codes.ServiceSnapshotDateNeeded, file.Failure!.Code);
+        Assert.DoesNotContain("folder whose name ends with the date", file.Message);
+        Assert.Contains(file.Diagnostics!, issue => issue.Code == ImportCodes.SnapshotDateAmbiguous);
+        Assert.Empty(persistence.Requests);
+    }
+
+    [Fact(Skip = WaitsForL0bAndL1)]
+    public async Task An_undated_service_file_never_takes_a_retail_siblings_date()
+    {
+        var folder = "Mixed exports";
+        var retail = Path.Combine(folder, "HEMW_R025_20260825.xlsx");
+        var service = Path.Combine(folder, "S009_PendingRepair.xlsx");
+        var persistence = new ServicePersistence();
+        var summary = await new FolderImportService(persistence, new Reader(path => path == retail ? Sales(path) : S009(path, coverage: [])))
+            .RunFilesAsync([retail, service], new("tester"));
+
+        Assert.Equal("Imported", Assert.Single(summary.Files, file => file.ReportCode == "R025").Status);
+        var undated = Assert.Single(summary.Files, file => file.FileName == Path.GetFileName(service));
+        Assert.Equal("Failed", undated.Status);
+        Assert.Equal(ServiceInterimFamilies.Codes.ServiceSnapshotDateNeeded, undated.Failure!.Code);
+        Assert.DoesNotContain(undated.Diagnostics ?? [], issue => issue.Code == ImportCodes.SnapshotDateFromSiblings);
+        Assert.Single(persistence.Requests);
+    }
+
+    [Fact(Skip = WaitsForL0bAndL1)]
     public void Automation_packs_only_the_retail_dates_of_a_mixed_batch()
     {
         var retail = new DateOnly(2026, 9, 27);
@@ -99,6 +135,32 @@ public sealed class ServiceFolderImportTests
         Assert.Equal(new[] { retail }, AutomatedOperationsService.ImportedDates(batch));
         var serviceOnly = new FolderImportSummary(batch.Files.Skip(1).ToArray());
         Assert.Empty(AutomatedOperationsService.ImportedDates(serviceOnly));
+    }
+
+    private static WorkbookSnapshot S009(string path, string[] coverage)
+    {
+        var family = EtpReportFamilyRegistry.Resolve("S009");
+        var data = new WorkbookSheet("Data", 1, family.Headers,
+            [new(2, family.Headers.Select((_, index) => new WorkbookCell(index == 0 ? "JOAW330SYN0001" : null)).ToArray())]);
+        var info = new WorkbookSheet("Info", 1, ["Key", "Value"],
+            coverage.Select((value, index) => new WorkbookRow(index + 2, [new WorkbookCell("Coverage"), new WorkbookCell(value)])).ToArray());
+        return new(Path.GetFileName(path), 1, new string('e', 64), [data, info], path);
+    }
+
+    private static WorkbookSnapshot Sales(string path)
+    {
+        var values = new Dictionary<string, object?>
+        {
+            ["TRANS_TYPE"] = "INV", ["STORE CODE"] = "HEMW", ["ITEMNUMBER"] = "TEST-001", ["INVNUMBER"] = "100000001",
+            ["INVDATE"] = 20260825, ["QTY"] = 1m, ["NETAMOUNT"] = 118m, ["NETVALUE"] = 100m, ["TAX"] = 18m
+        };
+        return new(Path.GetFileName(path), 1, new string('f', 64), [new("SDB VariantwiseSales", 1, RetailSalesProfiles.R025Headers,
+            [new(2, RetailSalesProfiles.R025Headers.Select(header => new WorkbookCell(values.GetValueOrDefault(header))).ToArray())])], path);
+    }
+
+    private sealed class Reader(Func<string, WorkbookSnapshot> read) : IWorkbookReader
+    {
+        public Task<WorkbookSnapshot> ReadAsync(string path, CancellationToken cancellationToken = default) => Task.FromResult(read(path));
     }
 
     private static string? Reason(IEnumerable<FolderImportFileResult> files, string code) =>
