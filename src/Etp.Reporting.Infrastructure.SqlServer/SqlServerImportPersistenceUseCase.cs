@@ -23,6 +23,11 @@ public sealed partial class SqlServerImportPersistenceUseCase : IImportPersisten
     private readonly string connectionString;
     private readonly Func<CancellationToken, Task<ApplicationAccess>> loadAccess;
 
+    // Every connection this use case opens goes through the local SQL policy at the call, as the restatement
+    // request does (Phase 5 re-audit, 26 Sep 2026: the approval query opened the stored string directly). The
+    // constructor already stores the policy's own output, so this is the same string, checked where it is used.
+    private SqlConnection LocalConnection() => new(LocalSqlConnectionPolicy.Validate(connectionString));
+
     public Task RecordAttemptAsync(FolderImportFileResult result, CancellationToken cancellationToken = default) =>
         new SqlServerImportHistoryQuery(connectionString).RecordAttemptAsync(result, cancellationToken);
 
@@ -247,7 +252,7 @@ public sealed partial class SqlServerImportPersistenceUseCase : IImportPersisten
     {
         // The SQL import lock can return a file created by another concurrent attempt.
         // Its immutable batch identity distinguishes that no-op from our own committed import.
-        await using var connection = new SqlConnection(connectionString);
+        await using var connection = LocalConnection();
         await connection.OpenAsync(token).ConfigureAwait(false);
         await using var command = new SqlCommand("SELECT import_batch_id FROM dbo.import_files WHERE import_file_id=@file", connection);
         command.Parameters.AddWithValue("@file", importFileId);

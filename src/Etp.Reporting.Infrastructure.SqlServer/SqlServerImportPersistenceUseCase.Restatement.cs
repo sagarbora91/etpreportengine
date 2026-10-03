@@ -27,7 +27,7 @@ public sealed partial class SqlServerImportPersistenceUseCase
         // Keyed as planner 1 keys them: an undated snapshot's rows carry the date the import is persisted with.
         var incoming = SqlServerTransactionalImportStore.ContentKeys(accepted, businessDate ?? accepted.Scope.PeriodEnd).Values.ToHashSet(StringComparer.Ordinal);
         var changed = new List<long>();
-        await using var connection = new SqlConnection(connectionString);
+        await using var connection = LocalConnection();
         await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
         foreach (var id in importFileIds.Distinct())
         {
@@ -79,7 +79,7 @@ public sealed partial class SqlServerImportPersistenceUseCase
     private async Task RequireApprovedRestatementAsync(ImportRestatementRequest restatement, string sourceSha256,
         string reportCode, string storeCode, DateOnly periodStart, DateOnly periodEnd, CancellationToken token)
     {
-        await using var connection = new SqlConnection(connectionString);
+        await using var connection = LocalConnection();
         await connection.OpenAsync(token).ConfigureAwait(false);
         await using var command = new SqlCommand("""
             SELECT TOP (1) 1
