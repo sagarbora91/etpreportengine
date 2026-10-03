@@ -1,4 +1,5 @@
 using System.Windows.Controls;
+using Etp.Reporting.Application.OperationsAdministration;
 using Etp.Reporting.Application.Reports;
 using Etp.Reporting.Desktop;
 using Etp.Reporting.Desktop.Modules.Reports;
@@ -114,6 +115,84 @@ public sealed class ReportLabelCorrectionTests
             Assert.Contains("Documents (incl. returns)", gridHeaders);
             Assert.DoesNotContain("Invoices", gridHeaders);
         });
+    }
+
+    [Fact]
+    public void Operations_sales_and_control_trend_labels_its_all_document_count_documents()
+    {
+        // Operations > Sales and control trend binds ManagementTrendPoint, from the same COUNT(DISTINCT sales_invoice_id)
+        // over INV, SR and BC lines as the Management Trend report (HEMW Aug 2026: 48 here against DSR INVOICE 47).
+        Assert.Equal("Documents (incl. returns)", TablePresentation.ReportHeader(typeof(ManagementTrendPoint), "Invoices"));
+        RunSta(() =>
+        {
+            var grid = new DataGrid { AutoGenerateColumns = true, ItemsSource = new List<ManagementTrendPoint> { new(new(2026, 8, 25), "HEMW", 236m, 2m, 48, 0m, 0) } };
+            TablePresentation.Configure(grid);
+            var headers = grid.Columns.Select(column => (string)column.Header).ToArray();
+            Assert.Contains("Documents (incl. returns)", headers);
+            Assert.DoesNotContain("Invoices", headers);
+            return Task.CompletedTask;
+        });
+    }
+
+    [Fact]
+    public void Sales_returns_view_says_it_counts_only_return_and_cancellation_documents()
+    {
+        RunSta(async () =>
+        {
+            var view = CreateView(out var latest);
+            await view.RunReportAsync("sales-returns");
+            var export = latest();
+            var headers = export.ExportData!.Columns.Select(column => column.Header).ToArray();
+            Assert.Equal(["Group", "Units", "Net Sales", "Documents (SR, BC)"], headers);
+            Assert.Contains("only the sales return (SR) and bill cancellation (BC) documents", export.ExportMetadata!.Message, StringComparison.Ordinal);
+            Assert.Contains("INV documents are not counted", export.ExportMetadata.Message, StringComparison.Ordinal);
+            Assert.DoesNotContain("every invoice (INV)", export.ExportMetadata.Message, StringComparison.Ordinal);
+            Assert.Equal(3, export.ExportData.Totals![3]);
+
+            var grid = (DataGrid)view.FindName("ReportGrid");
+            TablePresentation.Configure(grid);
+            Assert.Contains("Documents (SR, BC)", grid.Columns.Select(column => (string)column.Header));
+
+            // Back to a view that counts all three types: the default header and note return.
+            await view.RunReportAsync("sales-brand");
+            Assert.Contains("Documents (incl. returns)", latest().ExportData!.Columns.Select(column => column.Header));
+            TablePresentation.Configure(grid);
+            Assert.Contains("Documents (incl. returns)", grid.Columns.Select(column => (string)column.Header));
+        });
+    }
+
+    [Fact]
+    public void Sales_summary_filtered_to_INV_says_it_counts_only_invoices()
+    {
+        RunSta(async () =>
+        {
+            var view = CreateView(out var latest);
+            ((TextBox)view.FindName("TransactionTypeFilterInput")).Text = "INV";
+            await view.RunReportAsync("sales-brand");
+            var export = latest();
+            var headers = export.ExportData!.Columns.Select(column => column.Header).ToArray();
+            Assert.Contains("Documents (INV)", headers);
+            Assert.DoesNotContain("Documents (incl. returns)", headers);
+            Assert.Contains("only the invoice (INV) documents", export.ExportMetadata!.Message, StringComparison.Ordinal);
+            Assert.Contains("SR and BC documents are not counted", export.ExportMetadata.Message, StringComparison.Ordinal);
+
+            var grid = (DataGrid)view.FindName("ReportGrid");
+            TablePresentation.Configure(grid);
+            Assert.Contains("Documents (INV)", grid.Columns.Select(column => (string)column.Header));
+        });
+    }
+
+    [Theory]
+    [InlineData("Brand", null, "Documents (incl. returns)")]
+    [InlineData("Daily", "inv,sr,bc", "Documents (incl. returns)")]
+    [InlineData("Store", "SR", "Documents (SR)")]
+    [InlineData("Returns", "INV,SR", "Documents (SR)")]
+    [InlineData("Returns", "INV", "Documents")]
+    public void Sales_document_label_names_the_types_counted(string dimension, string? types, string header)
+    {
+        var label = ReportsWorkspaceView.SalesDocumentsLabel(dimension, types?.Split(','));
+        Assert.Equal(header, label.Header);
+        Assert.Contains("INVOICE count includes INV documents only", label.Note, StringComparison.Ordinal);
     }
 
     [Fact]

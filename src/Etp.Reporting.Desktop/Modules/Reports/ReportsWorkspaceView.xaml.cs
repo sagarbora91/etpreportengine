@@ -251,20 +251,46 @@ public partial class ReportsWorkspaceView : UserControl
     internal const string DocumentsHeader = "Documents (incl. returns)";
     internal const string DocumentsNote = "Documents counts every invoice (INV), sales return (SR) and bill cancellation (BC) document; the Daily Sales Report INVOICE count includes INV documents only.";
 
+    private static readonly (string Code, string Name)[] SalesDocumentTypes = [("INV", "invoice"), ("SR", "sales return"), ("BC", "bill cancellation")];
+
+    /// <summary>
+    /// The Sales Summary counts only the documents its view keeps: View by = Returns keeps SR and BC (both are
+    /// returns in RetailReportingPolicy), and the Transaction types filter narrows the set further. The header and
+    /// note name the types actually counted, so "INV, SR and BC" is said only when all three are counted.
+    /// </summary>
+    internal static (string Header, string Note) SalesDocumentsLabel(string dimension, IReadOnlyList<string>? transactionTypes)
+    {
+        var counted = SalesDocumentTypes
+            .Where(type => transactionTypes is not { Count: > 0 } || transactionTypes.Contains(type.Code, StringComparer.OrdinalIgnoreCase))
+            .Where(type => dimension != nameof(ApplicationSalesDimension.Returns) || type.Code != "INV")
+            .ToArray();
+        if (counted.Length == SalesDocumentTypes.Length) return (DocumentsHeader, DocumentsNote);
+        const string dsr = "the Daily Sales Report INVOICE count includes INV documents only.";
+        if (counted.Length == 0) return ("Documents", "No invoice (INV), sales return (SR) or bill cancellation (BC) documents match this view and its Transaction types filter; " + dsr);
+        var names = counted.Select(type => $"{type.Name} ({type.Code})").ToArray();
+        var list = names.Length == 1 ? names[0] : string.Join(", ", names[..^1]) + " and " + names[^1];
+        var excluded = SalesDocumentTypes.Except(counted).Select(type => type.Code).ToArray();
+        return ($"Documents ({string.Join(", ", counted.Select(type => type.Code))})",
+            $"Documents counts only the {list} documents this view and its Transaction types filter keep; {string.Join(" and ", excluded)} documents are not counted; " + dsr);
+    }
+
     private async Task RunSalesReportAsync()
     {
         var revision = reportRevision;
         try
         {
             var name = ((ComboBoxItem)SalesDimensionInput.SelectedItem).Content!.ToString()!;
-            var result = await controlledReportQueryFactory(connectionStringProvider()).RunSalesSummaryAsync(ReportScope(), Enum.Parse<ApplicationSalesDimension>(name));
+            var scope = ReportScope();
+            var result = await controlledReportQueryFactory(connectionStringProvider()).RunSalesSummaryAsync(scope, Enum.Parse<ApplicationSalesDimension>(name));
             if (revision != reportRevision) return;
+            var documents = SalesDocumentsLabel(name, scope.TransactionTypes);
+            TablePresentation.SetDocumentsHeader(ReportGrid, documents.Header);
             var sales = result.Rows.Sum(row => row.SourceSignedNetAmount);
             var units = result.Rows.Sum(row => row.SourceSignedQuantity);
             ReportGrid.ItemsSource = result.Rows;
             ReportResult.Text = $"{result.Status}: Sales incl. GST {sales:N2}; units {units:N2}. {result.Message}";
-            SetExport($"{name} Sales", ToReportingStatus(result.Status), result.PolicyVersion, result.Message + " " + DocumentsNote,
-                [new("Group"), new("Units", "#,##0.00"), new("Net Sales", "#,##0.00"), new(DocumentsHeader, "#,##0")],
+            SetExport($"{name} Sales", ToReportingStatus(result.Status), result.PolicyVersion, result.Message + " " + documents.Note,
+                [new("Group"), new("Units", "#,##0.00"), new("Net Sales", "#,##0.00"), new(documents.Header, "#,##0")],
                 result.Rows.Select(row => (IReadOnlyList<object?>)[row.Key, row.SourceSignedQuantity, row.SourceSignedNetAmount, row.DistinctInvoices]).ToArray(),
                 ["Total", units, sales, result.Rows.Sum(row => row.DistinctInvoices)]);
             ApplyReportFilter();

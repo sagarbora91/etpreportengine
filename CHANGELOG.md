@@ -7,6 +7,9 @@
   - Sales Summary "Bills" and Management Trend "Invoices" are now "Documents (incl. returns)" on screen and in the exports, with a note that they count every INV, SR and BC document while the Daily Sales Report INVOICE count includes INV documents only. Customer-wise Invoices says "N documents (invoices, returns and cancellations)". Which count every screen should use waits for Sagar (Q6).
   - The Daily Sales Report availability line says "recorded GST-inclusive sales (R025 NETAMOUNT) are available" instead of NETVALUE. Customer-wise Invoices and Invoice Sales source history show their value column as "Value incl. GST".
   - Migration 0046 corrects Settings > Calculations: NET_SALES is `SUM(R025.NETAMOUNT)`, "Canonical sales lines from R025 NETAMOUNT (GST-inclusive)"; INVOICE_COUNT is "Distinct INV documents (store + financial year + document number)", with returns and bill cancellations kept in value but not counted. Each corrected row's version goes up by one; running the script again changes nothing.
+  - Operations > Sales and control trend labels its all-document count "Documents (incl. returns)" like the Management Trend report; it still said "Invoices" (HEMW August 2026: 48 there against the Daily Sales Report INVOICE count of 47).
+  - The Sales Summary names the documents it actually counts. View by Returns counts sales returns (SR) and bill cancellations (BC) only and is headed "Documents (SR, BC)"; a Transaction types filter narrows the header and note the same way (for example "Documents (INV)"). The note says "INV, SR and BC" only when all three are counted.
+  - The daily reporting pack's Invoice Summary and Invoice Lineage sheets head the GST-inclusive value (R025 NETAMOUNT) "Value incl. GST" instead of "Net Value", matching the workspace exports.
 
 ## [1.9.3] - 2026-10-03
 
