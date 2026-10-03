@@ -24,6 +24,13 @@ public sealed class ImportHistoryView : UserControl
     public string DetailText => detail.Text;
     public bool IsLoading { get; private set; }
 
+    // Service interim (0048). Service rows carry store AW330, an inactive Service Centre store;
+    // the Store column names it "Service Centre (AW330)". Retail codes are shown unchanged.
+    private Func<string?, string?> storeLabel = code => code;
+    public void SetStoreLabels(Func<string?, string?> label) { storeLabel = label ?? (code => code); rows.Items.Refresh(); }
+    /// <summary>The text the Store column shows for a stored store code.</summary>
+    public string? StoreText(string? code) => storeLabel(code);
+
     public ImportHistoryView(Func<HistoryScope, Task<IReadOnlyList<HistoryEntry>>> load)
     {
         this.load = load;
@@ -42,7 +49,8 @@ public sealed class ImportHistoryView : UserControl
             ("Store", "Result.StoreCode", 80d), ("Period", "Result.Period", 225d), ("Outcome", "Result.Status", 130d),
             ("Rows", "Result.RowsProcessed", 75d), ("New", "Result.NewRows", 75d), ("Present", "Result.AlreadyPresentRows", 75d), ("Conflicts", "Result.ConflictRows", 75d),
             ("Failure", "Result.Failure.Code", 190d), ("Stage", "Result.Failure.Stage", 80d) })
-            rows.Columns.Add(new DataGridTextColumn { Header = title, Binding = new Binding(path) { StringFormat = path == "RecordedUtc" ? "dd MMM yyyy HH:mm" : null }, Width = width });
+            rows.Columns.Add(new DataGridTextColumn { Header = title, Binding = new Binding(path) { StringFormat = path == "RecordedUtc" ? "dd MMM yyyy HH:mm" : null,
+                Converter = path == "Result.StoreCode" ? new StoreLabelConverter(this) : null }, Width = width });
         TablePresentation.Configure(rows); AutomationProperties.SetName(rows, "Saved import outcomes");
         rows.SelectionChanged += (_, _) => ShowDetails(rows.SelectedItem as HistoryEntry);
         Grid.SetRow(rows, 1); root.Children.Add(rows);
@@ -84,6 +92,12 @@ public sealed class ImportHistoryView : UserControl
     }
 
     public void SelectEntry(HistoryEntry entry) => rows.SelectedItem = entry;
+
+    private sealed class StoreLabelConverter(ImportHistoryView view) : IValueConverter
+    {
+        public object? Convert(object? value, Type targetType, object? parameter, System.Globalization.CultureInfo culture) => view.StoreText(value as string);
+        public object? ConvertBack(object? value, Type targetType, object? parameter, System.Globalization.CultureInfo culture) => Binding.DoNothing;
+    }
     private void ShowDetails(HistoryEntry? entry)
     {
         detail.Text = entry is null ? "Select an import to see its saved diagnostics." : Describe(entry.Result);

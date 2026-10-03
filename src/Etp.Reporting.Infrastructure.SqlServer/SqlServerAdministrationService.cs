@@ -111,7 +111,7 @@ public sealed class SqlServerAdministrationService : App.IAdministrationService
     };
 
     private static App.ControlledMaster Map(ControlledMasterRow row) =>
-        new(row.MasterType, row.Code, row.DisplayName, row.ApprovalStatus, row.IsActive, row.ModifiedUtc, row.ModifiedBy);
+        new(row.MasterType, row.Code, row.DisplayName, row.ApprovalStatus, row.IsActive, row.ModifiedUtc, row.ModifiedBy, row.BusinessUnitCode);
     private static App.ApplicationUser Map(ApplicationUserRow row) =>
         new(row.Id, row.WindowsIdentity, row.DisplayName, MapRole(row.RoleCode), row.IsActive, row.ModifiedUtc, row.ModifiedBy);
     private static App.KpiDefinition Map(KpiCatalogueRow row) =>

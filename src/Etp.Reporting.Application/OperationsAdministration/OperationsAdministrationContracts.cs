@@ -136,6 +136,7 @@ public interface IOperationsAdministrationService
     Task DecideApprovalAsync(DecideApproval command, CancellationToken cancellationToken = default);
 }
 
+/// <param name="BusinessUnitCode">NULL for a Retail shop; "SERVICE" for the Service Centre store (0048).</param>
 public sealed record ControlledMaster(
     string MasterType,
     string Code,
@@ -143,7 +144,8 @@ public sealed record ControlledMaster(
     string ApprovalStatus,
     bool IsActive,
     DateTime? ModifiedUtc,
-    string? ModifiedBy);
+    string? ModifiedBy,
+    string? BusinessUnitCode = null);
 
 public sealed record ApplicationUser(
     int Id,

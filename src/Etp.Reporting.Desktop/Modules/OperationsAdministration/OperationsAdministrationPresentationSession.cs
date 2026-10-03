@@ -20,6 +20,7 @@ using SaveControlledMaster = EtpApplication::Etp.Reporting.Application.Operation
 using SaveProductConfiguration = EtpApplication::Etp.Reporting.Application.OperationsAdministration.SaveProductConfiguration;
 using SaveReportSchedule = EtpApplication::Etp.Reporting.Application.OperationsAdministration.SaveReportSchedule;
 using SaveWatchFolderConfiguration = EtpApplication::Etp.Reporting.Application.OperationsAdministration.SaveWatchFolderConfiguration;
+using ServiceCentreStores = Etp.Reporting.Infrastructure.SqlServer.ServiceCentreStores;
 using WatchFolderConfiguration = EtpApplication::Etp.Reporting.Application.OperationsAdministration.WatchFolderConfiguration;
 
 namespace Etp.Reporting.Desktop.Modules.OperationsAdministration;
@@ -57,6 +58,31 @@ public sealed record ProductSettingsPresentation(
     string SmtpFromAddress,
     string MaximumAttachmentMb);
 
+/// <summary>
+/// One row of the Settings > Stores grid. Its columns are those of ControlledMaster, so Retail
+/// rows look exactly as before; a Service Centre store (0048) reads
+/// "Service Centre (AW330), Service, not a shop store" (the 0048 trigger keeps it inactive).
+/// </summary>
+public sealed record ControlledMasterPresentation(
+    string MasterType,
+    string Code,
+    string DisplayName,
+    string ApprovalStatus,
+    bool IsActive,
+    DateTime? ModifiedUtc,
+    string? ModifiedBy)
+{
+    public static ControlledMasterPresentation From(ControlledMaster master)
+    {
+        ArgumentNullException.ThrowIfNull(master);
+        return ServiceCentreStores.IsServiceUnit(master.BusinessUnitCode)
+            ? new(master.MasterType, master.Code,
+                $"{ServiceCentreStores.Label(master.Code)}, {ServiceCentreStores.KindLabel}",
+                master.ApprovalStatus, master.IsActive, master.ModifiedUtc, master.ModifiedBy)
+            : new(master.MasterType, master.Code, master.DisplayName, master.ApprovalStatus, master.IsActive, master.ModifiedUtc, master.ModifiedBy);
+    }
+}
+
 public sealed record AdministrationPresentationState(
     IReadOnlyList<ControlledMaster> Masters,
     IReadOnlyList<AdministrationUserPresentation> Users,
@@ -67,6 +93,14 @@ public sealed record AdministrationPresentationState(
 {
     /// <summary>See AdministrationDashboard.UserAccessChangesNeedElevation.</summary>
     public bool UserAccessChangesNeedElevation { get; init; }
+
+    /// <summary>The grid rows for Masters, with Service Centre stores labelled.</summary>
+    public IReadOnlyList<ControlledMasterPresentation> MasterRows => Masters.Select(ControlledMasterPresentation.From).ToArray();
+
+    /// <summary>Codes of Service Centre stores: Settings > Stores never lets them be made active.</summary>
+    public IReadOnlySet<string> ServiceStoreCodes => Masters
+        .Where(master => ServiceCentreStores.IsServiceUnit(master.BusinessUnitCode))
+        .Select(master => master.Code).ToHashSet(StringComparer.OrdinalIgnoreCase);
 }
 
 public sealed class OperationsAdministrationPresentationSession

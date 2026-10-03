@@ -136,6 +136,8 @@ public static class DesktopFriendlyError
                 51458 => "Invoice reservations are controlled by the accounting batch status.",
                 51459 => "Accounting export receipts cannot be changed or deleted.",
                 51460 => "Set the intended TEST Tally company in Settings and refresh before approving or exporting (D12/D18).",
+                // Migration 0048: trg_stores_service_unit_inactive refuses an active Service Centre store.
+                Etp.Reporting.Infrastructure.SqlServer.ServiceCentreStores.ActivationRefusedSqlError => Etp.Reporting.Infrastructure.SqlServer.ServiceCentreStores.ActivationRefusedMessage,
                 _ => DescribeUserAccessFailure(error.Number)
             };
             if (message is not null) return message;

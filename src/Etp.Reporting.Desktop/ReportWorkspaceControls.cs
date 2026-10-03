@@ -163,7 +163,7 @@ public sealed class ReportWorkspaceControl : Grid
     {
         ScopeSelector.ItemsSource = Modules.Reports.ReportTaskScope.RequiresSingleStore(SelectedReport?.Code)
             ? new[] { "Select one store" }.Concat(storeScopes.Labels).ToArray() : new[] { StoreScopeCatalog.AllStores }.Concat(storeScopes.Labels).ToArray();
-        if (scope?.StartsWith("Custom: ", StringComparison.Ordinal) == true)
+        if (scope?.StartsWith("Custom: ", StringComparison.Ordinal) == true || storeScopes.IsServiceLabel(scope))
             ScopeSelector.ItemsSource = ScopeSelector.Items.Cast<string>().Append(scope).ToArray();
         SetStoreScope(scope ?? StoreScopeCatalog.AllStores);
         var snapshot = Modules.Reports.ReportTaskScope.IsSnapshot(SelectedReport?.Code);
@@ -174,7 +174,7 @@ public sealed class ReportWorkspaceControl : Grid
     }
     public void SetStoreScope(string scope)
     {
-        if (scope.StartsWith("Custom: ", StringComparison.Ordinal)) { ScopeSelector.SelectedItem = scope; return; }
+        if (scope.StartsWith("Custom: ", StringComparison.Ordinal) || storeScopes.IsServiceLabel(scope)) { ScopeSelector.SelectedItem = scope; return; }
         var code = storeScopes.Resolve(scope);
         if (code is null && SelectedReport?.Code == "cash" && storeScopes.Stores.Count == 1) code = storeScopes.Stores[0].Code;
         ScopeSelector.SelectedItem = code is null && Modules.Reports.ReportTaskScope.RequiresSingleStore(SelectedReport?.Code) ? "Select one store" : storeScopes.Display(code);
