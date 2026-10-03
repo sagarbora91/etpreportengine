@@ -40,7 +40,7 @@ public sealed class FolderImportService(
     Action<FolderImportFailure>? reportFailure = null) : IFolderImportService
 {
     private static readonly SqlImportFailureClassifier Classifier = new();
-    private readonly IWorkbookReader reader = workbookReader ?? new OpenXmlWorkbookReader();
+    private readonly IWorkbookReader reader = workbookReader ?? new SourceFileReader();
     private readonly MatchedImportEnvelopeFactory envelopes = new(knownStores);
     private readonly Dictionary<string, ImportScope> detectedScopes = new(StringComparer.OrdinalIgnoreCase);
     public IReadOnlyList<string> FailedPaths { get; private set; } = [];

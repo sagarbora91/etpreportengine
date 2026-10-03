@@ -25,7 +25,7 @@ public sealed class BatchImportSource : IAsyncDisposable
         {
             var discovered = DiscoverFolder(source, policy, cancellationToken);
             if (discovered.Count == 0)
-                throw new ImportSourceException("IMPORT_NO_WORKBOOKS", "No supported .xlsx workbooks were found.");
+                throw new ImportSourceException("IMPORT_NO_WORKBOOKS", "No supported .xlsx workbooks or .csv exports were found.");
             return new BatchImportSource(discovered, null);
         }
         if (!Path.GetExtension(source).Equals(".zip", StringComparison.OrdinalIgnoreCase))
@@ -45,7 +45,7 @@ public sealed class BatchImportSource : IAsyncDisposable
             Directory.CreateDirectory(extractionRoot);
             var paths = await ExtractArchiveAsync(source, extractionRoot, policy, cancellationToken).ConfigureAwait(false);
             if (paths.Count == 0)
-                throw new ImportSourceException("IMPORT_NO_WORKBOOKS", "No supported .xlsx workbooks were found.");
+                throw new ImportSourceException("IMPORT_NO_WORKBOOKS", "No supported .xlsx workbooks or .csv exports were found.");
             return new BatchImportSource(paths, temporaryDirectory);
         }
         catch
@@ -76,8 +76,7 @@ public sealed class BatchImportSource : IAsyncDisposable
             {
                 token.ThrowIfCancellationRequested();
                 ImportPathPolicy.RejectReparsePoint(file);
-                if (Path.GetFileName(file).StartsWith("~$", StringComparison.Ordinal) ||
-                    !Path.GetExtension(file).Equals(".xlsx", StringComparison.OrdinalIgnoreCase))
+                if (Path.GetFileName(file).StartsWith("~$", StringComparison.Ordinal) || !policy.IsSupportedSource(file))
                     continue;
                 policy.ValidateWorkbook(file);
                 workbooks.Add(file);
@@ -107,8 +106,8 @@ public sealed class BatchImportSource : IAsyncDisposable
             policy.ValidateRelativeArchivePath(destinationRoot, entry);
             if (string.IsNullOrEmpty(entry.Name) || entry.Name.StartsWith("~$", StringComparison.Ordinal))
                 continue;
-            if (!Path.GetExtension(entry.Name).Equals(".xlsx", StringComparison.OrdinalIgnoreCase))
-                throw new ImportSourceException("IMPORT_ARCHIVE_LAYOUT", "ZIP archives may contain folders and .xlsx workbooks only.");
+            if (!policy.IsSupportedSource(entry.Name))
+                throw new ImportSourceException("IMPORT_ARCHIVE_LAYOUT", "ZIP archives may contain folders, .xlsx workbooks and .csv exports only.");
             var destination = Path.GetFullPath(Path.Combine(destinationRoot, entry.FullName.Replace('/', Path.DirectorySeparatorChar)));
             Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
             await using var input = entry.Open();

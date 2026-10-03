@@ -51,6 +51,7 @@ public static class ImportDiagnosticCatalogue
         ],
         ["REPEATED_LAYOUT_MISMATCH"] = ["The worksheet repeats its header layout horizontally, but the corresponding row values differ."],
         ["REPEATED_LAYOUT_COLLAPSED"] = ["An exact duplicated horizontal layout was validated and collapsed."],
+        ["HEADER_BELOW_TITLE_ROWS"] = ["The header row was found below title rows; the title rows are not imported."],
         ["WORKBOOK_MULTIPLE_STORES"] = ["This workbook contains more than one store. Export one workbook per store."],
         ["IMPORT_LAYOUT_BLOCKED"] = ["Workbook validation was blocked."],
 

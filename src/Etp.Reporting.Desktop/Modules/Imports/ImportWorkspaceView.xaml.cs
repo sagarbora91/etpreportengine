@@ -71,7 +71,7 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
     public bool BrowseWorkbook()
     {
         if (IsBusy) return false;
-        var dialog = new OpenFileDialog { Filter = "ETP sources (*.xlsx;*.zip)|*.xlsx;*.zip", CheckFileExists = true };
+        var dialog = new OpenFileDialog { Filter = "ETP sources (*.xlsx;*.csv;*.zip)|*.xlsx;*.csv;*.zip", CheckFileExists = true };
         if (dialog.ShowDialog(Window.GetWindow(this)) != true) return false;
         WorkbookPathInput.Text = dialog.FileName;
         return true;
