@@ -1,4 +1,5 @@
 using System.Data;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -71,10 +72,41 @@ public sealed partial class PhaseFiveFullWindowCaptureTests
         {
             expression.UpdateTarget();
             if (expression.Status != BindingStatus.Active || expression.HasError)
+            {
+                // WPF reports a path through a null object as a path error, although the grid shows
+                // an empty cell: Imports > History binds Result.Failure.Code, and a successful import
+                // has no Failure (gate 3 Oct 2026). Only that case is read as null.
+                if (PassesThroughNull(row, path)) return null;
                 throw new InvalidOperationException($"Cannot read bound grid value '{path}' from {row.GetType().FullName}; fingerprinting cannot substitute null.");
+            }
             return probe.Tag;
         }
         finally { BindingOperations.ClearBinding(probe, FrameworkElement.TagProperty); }
+    }
+
+    /// <summary>
+    /// Whether a dotted property path stops at a null object before its last property. Every name in
+    /// the path must still be a public property of the type it is read from (the declared type once
+    /// the value is null), so a misspelt path is never mistaken for an empty cell.
+    /// </summary>
+    private static bool PassesThroughNull(object row, string path)
+    {
+        var names = path.Split('.');
+        if (names.Length < 2 || names.Any(name => name.Length == 0 || name.IndexOfAny(['[', ']', '(', ')', '/']) >= 0)) return false;
+        object? value = row;
+        var type = row.GetType();
+        var reachedNull = false;
+        for (var index = 0; index < names.Length; index++)
+        {
+            var property = type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                .FirstOrDefault(candidate => candidate.Name == names[index] && candidate.GetIndexParameters().Length == 0);
+            if (property is null) return false;
+            if (index == names.Length - 1) break;
+            if (!reachedNull) value = property.GetValue(value);
+            reachedNull = reachedNull || value is null;
+            type = reachedNull ? property.PropertyType : value!.GetType();
+        }
+        return reachedNull;
     }
 
     [Theory]
@@ -162,6 +194,31 @@ public sealed partial class PhaseFiveFullWindowCaptureTests
         {
             var error = Assert.Throws<InvalidOperationException>(() => BoundGridValue(new { Amount = 120m }, "MissingAmount"));
             Assert.Contains("cannot substitute null", error.Message, StringComparison.Ordinal);
+        });
+    }
+
+    private sealed record FingerprintFailure(string Code);
+    private sealed record FingerprintResult(string FileName, FingerprintFailure? Failure);
+    private sealed record FingerprintEntry(FingerprintResult Result);
+
+    // Imports > History binds Result.Failure.Code; a successful import has no Failure, and the grid
+    // shows an empty cell. The role walk stopped there on 3 Oct 2026.
+    [Fact]
+    public void Grid_fingerprinting_reads_a_path_through_a_null_object_as_an_empty_cell_but_still_refuses_a_misspelt_one()
+    {
+        FingerprintSta(() =>
+        {
+            var succeeded = new FingerprintEntry(new("a.xlsx", null));
+            var failed = new FingerprintEntry(new("b.xlsx", new("SQL_51700")));
+            Assert.Null(BoundGridValue(succeeded, "Result.Failure.Code"));
+            Assert.Equal("SQL_51700", BoundGridValue(failed, "Result.Failure.Code"));
+            Assert.Equal("a.xlsx", BoundGridValue(succeeded, "Result.FileName"));
+            Assert.Throws<InvalidOperationException>(() => BoundGridValue(succeeded, "Result.Failure.Missing"));
+            Assert.Throws<InvalidOperationException>(() => BoundGridValue(succeeded, "Result.Missing.Code"));
+            Assert.Throws<InvalidOperationException>(() => BoundGridValue(failed, "Result.Failure.Missing"));
+            var grid = new DataGrid { AutoGenerateColumns = false, ItemsSource = new[] { succeeded, failed } };
+            grid.Columns.Add(new DataGridTextColumn { Binding = new Binding("Result.Failure.Code") });
+            Assert.NotNull(GridData(grid));
         });
     }
 

@@ -325,8 +325,10 @@ public sealed class EvidenceSqlTests
             var path = Sample("R025");
             var withBytes = await Accepted(path, keepContent: true);
             var withoutBytes = await Accepted(path, keepContent: false);
-            var builder = new SqlConnectionStringBuilder(database.ConnectionString)
-                { ApplicationName = "EvidenceUnderLock_" + Guid.NewGuid().ToString("N"), Pooling = false };
+            // Not a SqlConnectionStringBuilder copy of the fixture's string: it writes Encrypt=Optional back as
+            // Encrypt=False, which the use case's LocalSqlConnectionPolicy refuses (gate 3 Oct 2026).
+            var applicationName = "EvidenceUnderLock_" + Guid.NewGuid().ToString("N");
+            var importConnection = TestSqlConnections.ForDatabase(database.Name, pooling: false, applicationName);
             await using var gate = new SqlConnection(database.ConnectionString);
             await gate.OpenAsync();
             await using var transaction = (SqlTransaction)await gate.BeginTransactionAsync();
@@ -339,12 +341,12 @@ public sealed class EvidenceSqlTests
                 hold.Parameters.AddWithValue("@resource", $"ETP_IMPORT:{withBytes.Scope.StoreCode}:{withBytes.ProfileIdentity.ReportCode}");
                 await hold.ExecuteNonQueryAsync();
             }
-            var without = new SqlServerImportPersistenceUseCase(builder.ConnectionString).PersistAsync(Request(withoutBytes));
-            var with = new SqlServerImportPersistenceUseCase(builder.ConnectionString).PersistAsync(Request(withBytes));
+            var without = new SqlServerImportPersistenceUseCase(importConnection).PersistAsync(Request(withoutBytes));
+            var with = new SqlServerImportPersistenceUseCase(importConnection).PersistAsync(Request(withBytes));
             try
             {
                 var clock = Stopwatch.StartNew();
-                while (Convert.ToInt32(await database.ExecuteAsync($"SELECT COUNT(*) FROM sys.dm_exec_requests r JOIN sys.dm_exec_sessions s ON s.session_id=r.session_id WHERE s.program_name='{builder.ApplicationName}' AND r.wait_type LIKE 'LCK_M_%'")) < 2)
+                while (Convert.ToInt32(await database.ExecuteAsync($"SELECT COUNT(*) FROM sys.dm_exec_requests r JOIN sys.dm_exec_sessions s ON s.session_id=r.session_id WHERE s.program_name='{applicationName}' AND r.wait_type LIKE 'LCK_M_%'")) < 2)
                 {
                     Assert.False(without.IsCompleted || with.IsCompleted, "Both imports must pass the early duplicate check and wait on the import lock.");
                     Assert.True(clock.Elapsed < TimeSpan.FromSeconds(15), "The imports did not reach the import lock.");

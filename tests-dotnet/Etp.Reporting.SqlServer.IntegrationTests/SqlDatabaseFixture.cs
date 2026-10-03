@@ -13,7 +13,10 @@ public sealed class SqlDatabaseFixture : IAsyncLifetime
 
     // The role walk's parent process chooses the name its child process will use, so that
     // it can drop the database itself if it has to kill the child (which then cannot).
-    public SqlDatabaseFixture(string name) => Name = RequireTestName(name);
+    // Internal, not public: xunit refuses a class fixture with more than one public
+    // constructor ("may only define a single public constructor"), and every
+    // IClassFixture<SqlDatabaseFixture> test class then fails before it runs.
+    internal SqlDatabaseFixture(string name) => Name = RequireTestName(name);
 
     public string Name { get; }
     public string ConnectionString { get; private set; } = "";

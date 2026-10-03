@@ -10,7 +10,7 @@ public sealed class PhaseOneUpgradeSqlTests
     {
         await using var database = new UpgradeDatabase();
         var source = new DirectoryMigrationSource(Path.Combine(AppContext.BaseDirectory, "database", "migrations"));
-        await new SqlServerDatabaseBootstrapper(database.ConnectionString, new ThroughPhaseZeroSource(source)).BootstrapAsync();
+        await new SqlServerDatabaseBootstrapper(database.ConnectionString, new ThroughSource(source, "0017")).BootstrapAsync();
         var store = new SqlServerMigrationStore(database.ConnectionString);
         var before = await store.GetAppliedAsync();
         Assert.Contains(before, x => x.Id == "0016_reporting_indexes");
@@ -49,9 +49,23 @@ public sealed class PhaseOneUpgradeSqlTests
             VALUES('UPGRADE','20250101','LOCKED','Prior owner',SYSUTCDATETIME()),('UPGRADE','20260701','LOCKED','Prior owner',SYSUTCDATETIME());
             """);
 
-        var applied = await new MigrationRunner(source, store).RunAsync();
+        // 0041's PRECHECK_FY runs before ANY pending migration applies (MigrationRunner), so it reads
+        // these calendar-year keys before 0017 can re-key them, and refuses a one-step upgrade from
+        // 0016 by design: nothing is applied and the database stays at 0016.
+        var refused = await Assert.ThrowsAsync<SqlException>(() => new MigrationRunner(source, store).RunAsync());
+        Assert.Equal(51700, refused.Number);
+        Assert.Equal(before, await store.GetAppliedAsync());
+        Assert.Equal("2025,2026", await database.ExecuteAsync("SELECT STRING_AGG(CONVERT(varchar(4),invoice_year),',') WITHIN GROUP(ORDER BY invoice_year) FROM dbo.sales_invoices WHERE store_code='UPGRADE' AND document_number='100000068'"));
+
+        // Through 1.9.2's last migration (0040), where 0017 re-keys every invoice by the financial year
+        // of its date; then the rest, whose pre-checks now find nothing to refuse.
+        var applied = await new MigrationRunner(new ThroughSource(source, "0041"), store).RunAsync();
         Assert.Contains("0017_sales_value_columns", applied);
-        Assert.DoesNotContain(applied, id => string.CompareOrdinal(id, "0017") < 0);
+        Assert.DoesNotContain(applied, id => string.CompareOrdinal(id, "0017") < 0 || string.CompareOrdinal(id, "0041") >= 0);
+        Assert.Equal("2025,2027", await database.ExecuteAsync("SELECT STRING_AGG(CONVERT(varchar(4),invoice_year),',') WITHIN GROUP(ORDER BY invoice_year) FROM dbo.sales_invoices WHERE store_code='UPGRADE' AND document_number='100000068'"));
+        var rest = await new MigrationRunner(source, store).RunAsync();
+        Assert.Contains("0041_import_engine_fixes", rest);
+        Assert.DoesNotContain(rest, id => string.CompareOrdinal(id, "0041") < 0);
         Assert.Equal("2025,2027", await database.ExecuteAsync("SELECT STRING_AGG(CONVERT(varchar(4),invoice_year),',') WITHIN GROUP(ORDER BY invoice_year) FROM dbo.sales_invoices WHERE store_code='UPGRADE' AND document_number='100000068'"));
         Assert.Equal(3, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.sales_lines"));
         Assert.Equal(236m, await database.ExecuteAsync("SELECT source_gross_amount FROM dbo.sales_lines WHERE line_identifier='1'"));
@@ -84,10 +98,11 @@ public sealed class PhaseOneUpgradeSqlTests
         Assert.Empty(await new MigrationRunner(source, store).RunAsync());
     }
 
-    private sealed class ThroughPhaseZeroSource(IMigrationSource all) : IMigrationSource
+    /// <summary>The migrations whose ids sort before <paramref name="firstExcluded"/>.</summary>
+    private sealed class ThroughSource(IMigrationSource all, string firstExcluded) : IMigrationSource
     {
         public async Task<IReadOnlyList<MigrationScript>> DiscoverAsync(CancellationToken cancellationToken = default) =>
-            (await all.DiscoverAsync(cancellationToken)).Where(x => string.CompareOrdinal(x.Id, "0017") < 0).ToArray();
+            (await all.DiscoverAsync(cancellationToken)).Where(x => string.CompareOrdinal(x.Id, firstExcluded) < 0).ToArray();
     }
 
     private sealed class UpgradeDatabase : IAsyncDisposable

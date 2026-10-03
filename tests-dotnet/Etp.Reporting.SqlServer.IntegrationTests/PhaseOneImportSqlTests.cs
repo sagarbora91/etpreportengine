@@ -221,7 +221,12 @@ public sealed class PhaseOneImportSqlTests(ITestOutputHelper output)
         Assert.Equal((ImportIssueSeverity.Information,(int?)3),(recorded.Severity,recorded.SourceRow));
         var stored=(string)(await db.Fixture.ExecuteAsync("SELECT diagnostics_json FROM dbo.import_attempts WHERE report_code='R022'"))!;
         Assert.Contains(ImportCodes.InvoiceYearDiffers,stored);
-        Assert.DoesNotContain("2026-04-01",stored);Assert.DoesNotContain("financial year",stored);
+        // The stored message is the catalogue's value-free template for the code (spec 11.1), which itself says
+        // "financial year"; the importer's own sentence (with its row list) and the label/date values are not kept.
+        Assert.DoesNotContain("2026-04-01",stored);Assert.DoesNotContain("other than the financial year",stored);
+        using(var json=System.Text.Json.JsonDocument.Parse(stored))
+            Assert.Equal(ImportDiagnosticCatalogue.Template(ImportCodes.InvoiceYearDiffers),Assert.Single(json.RootElement.EnumerateArray(),
+                issue=>issue.GetProperty("Code").GetString()==ImportCodes.InvoiceYearDiffers).GetProperty("Message").GetString());
         Assert.Equal(0,await db.Int("SELECT COUNT(*) FROM dbo.import_row_outcomes WHERE outcome='CONFLICT'"));
         // One header per financial year, each holding its own R025 line, R022 control and tender.
         Assert.Equal("2026 2026-03-31 1/1/1,2027 2026-04-01 1/1/1",await db.Fixture.ExecuteAsync("""
