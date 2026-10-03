@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Report labels corrected after the report audit of 3 October 2026 (HEMW FIX-04/FIX-05, WLMHW FIX-08/FIX-11/FIX-12). Wording only: no figure, rule or count changes.
+  - Closing, Slow / Exception and Brand Stock: the "Unit Cost" and "Total Cost" columns hold the snapshot's UCP and TOTALUCP, the GST-inclusive MRP value, not a cost. They are now "Unit MRP" and "MRP value (GST incl.)" on screen and in the Excel and PDF exports, and the export note says the MRP value is UCP × quantity. A real cost column waits for Sagar (Q7).
+  - Sales Summary "Bills" and Management Trend "Invoices" are now "Documents (incl. returns)" on screen and in the exports, with a note that they count every INV, SR and BC document while the Daily Sales Report INVOICE count includes INV documents only. Customer-wise Invoices says "N documents (invoices, returns and cancellations)". Which count every screen should use waits for Sagar (Q6).
+  - The Daily Sales Report availability line says "recorded GST-inclusive sales (R025 NETAMOUNT) are available" instead of NETVALUE. Customer-wise Invoices and Invoice Sales source history show their value column as "Value incl. GST".
+  - Migration 0046 corrects Settings > Calculations: NET_SALES is `SUM(R025.NETAMOUNT)`, "Canonical sales lines from R025 NETAMOUNT (GST-inclusive)"; INVOICE_COUNT is "Distinct INV documents (store + financial year + document number)", with returns and bill cancellations kept in value but not counted. Each corrected row's version goes up by one; running the script again changes nothing.
+
 ## [1.9.3] - 2026-10-03
 
 The import engine release, with the fixes from the move to Workpc:

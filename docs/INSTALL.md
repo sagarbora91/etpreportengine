@@ -45,7 +45,7 @@ Express is supported and is the usual choice for a single shop PC. Note one cons
 
 Use **Import ETP** to validate and import each workbook. Import these four exports for each store:
 
-1. `SDB-VariantwiseSales` — item-level sales (`NETVALUE`, including GST).
+1. `SDB-VariantwiseSales` — item-level sales (`NETAMOUNT`, including GST; `NETVALUE` is the ex-GST amount).
 2. `Revenue Report` — authoritative invoice and tender control.
 3. `Variant Stock ledger` — source-signed stock movements.
 4. `Closing Stock` — authoritative closing snapshot and product/brand-segment attributes.
@@ -54,7 +54,7 @@ Exact duplicate files are rejected. Unknown layouts, mismatched repeated halves,
 
 ## Reports
 
-Open **Sales Reports** or **Stock Reports**, select an inclusive date range, and run the required report. Sales reports use source-signed `NETVALUE`: `INV` is an invoice and negative `SR` values remain negative. Tender reconciliation uses Revenue Report invoice controls. Stock reconciliation compares the first ledger opening plus source-signed period movements with the closing snapshot for products present in both sources. After running a report, select **Export Excel…** to save the same result grid, totals, period, rule version and control status as a fixed-format `.xlsx` workbook.
+Open **Sales Reports** or **Stock Reports**, select an inclusive date range, and run the required report. Sales reports use source-signed `NETAMOUNT`, the GST-inclusive value: `INV` is an invoice and negative `SR` values remain negative. Closing, Slow and Brand Stock show the snapshot's MRP (UCP), not cost. Tender reconciliation uses Revenue Report invoice controls. Stock reconciliation compares the first ledger opening plus source-signed period movements with the closing snapshot for products present in both sources. After running a report, select **Export Excel…** to save the same result grid, totals, period, rule version and control status as a fixed-format `.xlsx` workbook.
 
 ## Build a release
 
