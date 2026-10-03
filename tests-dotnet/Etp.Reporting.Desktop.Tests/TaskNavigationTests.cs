@@ -6,6 +6,43 @@ namespace Etp.Reporting.Desktop.Tests;
 
 public sealed class TaskNavigationTests
 {
+    // Written out by hand, not taken from TaskDestination.IsAllowed: a role rule that
+    // drops or adds a destination has to disagree with these lists to be noticed.
+    // The SQL role walk (PhaseFiveFullWindowCaptureTests) holds the same lists.
+    private static readonly string[] OwnerOnlyTasks =
+    [
+        "connection", "health", "backups", "recovery", "support-package", "audit", "users", "profiles",
+        "stores", "kpi", "tender-rules", "staff-target", "watch-folder", "sharing", "sharing-contacts",
+        "tally-companies", "prepare-batch", "open-items", "data-quality", "approval-centre", "adjustment"
+    ];
+    private static readonly string[] ImportRoleTasks =
+    [
+        "walk-ins", "finalisation", "register-expense", "cash-input", "import-files", "stock-count", "masters",
+        "investigation", "register-inward", "register-outward", "register-credit", "register-service",
+        "register-transfer", "register-vendor", "register-courier"
+    ];
+
+    // 47 fixed tasks (11 for every role, 15 that need the import role, 21 Owner-only),
+    // 22 catalogue reports and 21 Help topics. 89/69/54 on 26 Sep; Phase 7 added
+    // "tally-companies" for the Owner.
+    [Theory]
+    [InlineData("OWNER", 90)]
+    [InlineData("STORE_MANAGER", 69)]
+    [InlineData("VIEWER", 54)]
+    public void Each_role_reaches_exactly_its_written_out_destinations(string role, int expectedCount)
+    {
+        var access = role switch { "OWNER" => ShellAccess.Owner, "STORE_MANAGER" => ShellAccess.StoreManager, _ => ShellAccess.Viewer };
+        Assert.Equal(22, TaskNavigation.All.Count(task => task.ReportCode is not null));
+        Assert.Equal(21, TaskNavigation.All.Count(task => task.Id.StartsWith("help:", StringComparison.Ordinal)));
+        Assert.Equal(47, TaskNavigation.All.Count(task => task.ReportCode is null && !task.Id.StartsWith("help:", StringComparison.Ordinal)));
+        string[] excluded = role switch { "OWNER" => [], "STORE_MANAGER" => OwnerOnlyTasks, _ => OwnerOnlyTasks.Concat(ImportRoleTasks).ToArray() };
+        Assert.All(OwnerOnlyTasks.Concat(ImportRoleTasks), id => Assert.NotNull(TaskNavigation.Find(id)));
+        var expected = TaskNavigation.All.Select(task => task.Id).Except(excluded).Order().ToArray();
+        var reachable = TaskNavigation.All.Where(task => task.IsAllowed(access)).Select(task => task.Id).Order().ToArray();
+        Assert.Equal(expectedCount, expected.Length);
+        Assert.Equal(expected, reachable);
+    }
+
     [Fact]
     public void Store_manager_can_open_brand_editor_without_other_administration_access()
     {

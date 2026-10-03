@@ -12,7 +12,10 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 
 public sealed partial class PhaseFiveFullWindowCaptureTests
 {
-    private sealed record DestinationFingerprint(string Id, string Structure, string? PopulatedData);
+    // GridData is null only for a destination without a bound grid. Empty grids keep their
+    // column fingerprint (re-audit 26 Sep): skipping them let two destinations that show the
+    // same result pass whenever the fixture happened to have no rows for it.
+    private sealed record DestinationFingerprint(string Id, string Workspace, string Structure, string? GridData, bool GridsEmpty);
 
     private static DestinationFingerprint Fingerprint(MainWindow window, string id)
     {
@@ -28,9 +31,13 @@ public sealed partial class PhaseFiveFullWindowCaptureTests
         var structure = JsonSerializer.Serialize(new { Workspace = host.GetType().FullName, Headings = headings, Controls = controls, Actions = actions });
         // Different workspace classes and labels can still expose precisely the same
         // result. Compare populated grid values as well, independent of task IDs/titles.
-        var grids = visible.OfType<DataGrid>().Select(GridData).Where(data => data is not null).Order().ToArray();
-        return new(id, structure, grids.Length == 0 ? null : string.Join("|", grids));
+        var grids = visible.OfType<DataGrid>().Select(grid => (Data: GridData(grid), Rows: GridRows(grid).Length)).Where(grid => grid.Data is not null).ToArray();
+        return new(id, host.GetType().FullName!, structure,
+            grids.Length == 0 ? null : string.Join("|", grids.Select(grid => grid.Data).Order()),
+            grids.Length > 0 && grids.All(grid => grid.Rows == 0));
     }
+
+    private static object[] GridRows(DataGrid grid) => grid.Items.Cast<object>().Where(row => row != CollectionView.NewItemPlaceholder).ToArray();
 
     private static string ControlName(FrameworkElement element) => element.Name.Length > 0 ? element.Name : AutomationProperties.GetName(element);
 
@@ -41,8 +48,8 @@ public sealed partial class PhaseFiveFullWindowCaptureTests
     private static string? GridData(DataGrid grid)
     {
         var paths = ColumnPaths(grid);
-        var rows = grid.Items.Cast<object>().Where(row => row != CollectionView.NewItemPlaceholder).ToArray();
-        if (paths.Length == 0 || rows.Length == 0) return null;
+        var rows = GridRows(grid);
+        if (paths.Length == 0) return null;
         var values = rows.Select(row => JsonSerializer.Serialize(paths.Select(path => BoundGridValue(row, path)).ToArray())).Order().ToArray();
         var serialised = JsonSerializer.Serialize(new { Columns = paths, Rows = values });
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(serialised)));
@@ -158,6 +165,49 @@ public sealed partial class PhaseFiveFullWindowCaptureTests
         });
     }
 
+    [Fact]
+    public void Empty_grids_keep_a_column_fingerprint_instead_of_dropping_out_of_the_comparison()
+    {
+        FingerprintSta(() =>
+        {
+            DataGrid Grid(string path)
+            {
+                var grid = new DataGrid { AutoGenerateColumns = false, ItemsSource = Array.Empty<object>() };
+                grid.Columns.Add(new DataGridTextColumn { Binding = new Binding(path) });
+                return grid;
+            }
+            Assert.NotNull(GridData(Grid("Amount")));
+            Assert.Equal(GridData(Grid("Amount")), GridData(Grid("Amount")));
+            Assert.NotEqual(GridData(Grid("Amount")), GridData(Grid("Quantity")));
+            Assert.Null(GridData(new DataGrid { AutoGenerateColumns = false, ItemsSource = Array.Empty<object>() }));
+        });
+    }
+
+    [Fact]
+    public void Same_empty_grid_in_two_different_workspaces_is_reported_for_any_role()
+    {
+        const string data = "same-columns-no-rows";
+        var crossWorkspace = DuplicateDestinations("VIEWER",
+        [
+            new("trend-a", "Etp.Dashboard", "structure-a", data, GridsEmpty: true),
+            new("trend-b", "Etp.Reports", "structure-b", data, GridsEmpty: true)
+        ]).ToArray();
+        Assert.Equal("VIEWER: destinations trend-a and trend-b have identical grid data fingerprints (both grids empty). Give each a distinct purpose or document this exact intentional pair.",
+            Assert.Single(crossWorkspace));
+        // One workspace showing a task filter with no rows yet is the shared template, not an alias.
+        Assert.Empty(DuplicateDestinations("OWNER",
+        [
+            new("import-files", "Etp.Imports", "structure-a", data, GridsEmpty: true),
+            new("conflicts", "Etp.Imports", "structure-b", data, GridsEmpty: true)
+        ]));
+        // Equal populated rows are an alias wherever they appear.
+        Assert.Single(DuplicateDestinations("STORE_MANAGER",
+        [
+            new("import-files", "Etp.Imports", "structure-a", "rows", GridsEmpty: false),
+            new("conflicts", "Etp.Imports", "structure-b", "rows", GridsEmpty: false)
+        ]));
+    }
+
     private static void FingerprintSta(Action action)
     {
         Exception? failure = null;
@@ -167,7 +217,7 @@ public sealed partial class PhaseFiveFullWindowCaptureTests
         if (failure is not null) throw new InvalidOperationException("Destination fingerprint proof failed.", failure);
     }
 
-    private static IEnumerable<string> DuplicateDestinations(IReadOnlyList<DestinationFingerprint> fingerprints)
+    private static IEnumerable<string> DuplicateDestinations(string role, IReadOnlyList<DestinationFingerprint> fingerprints)
     {
         // Add a pair only with an explanation of the distinct operation or query it
         // intentionally represents. IDs never participate in either fingerprint.
@@ -187,19 +237,30 @@ public sealed partial class PhaseFiveFullWindowCaptureTests
             "report-stock-closing", "report-stock-slow");
         PermitSharedTemplate("OperationsTaskState.ApplyIssueFilter excludes RESOLVED/WAIVED issues only for open-items; data-quality retains history.",
             "data-quality", "open-items");
-        foreach (var kind in new[] { "structure", "populated data" })
+        foreach (var kind in new[] { "structure", "grid data" })
         {
-            foreach (var group in fingerprints.GroupBy(fingerprint => kind == "structure" ? fingerprint.Structure : fingerprint.PopulatedData).Where(group => group.Key is not null && group.Count() > 1))
+            foreach (var group in fingerprints.GroupBy(fingerprint => kind == "structure" ? fingerprint.Structure : fingerprint.GridData).Where(group => group.Key is not null && group.Count() > 1))
             {
-                var matches = group.OrderBy(fingerprint => fingerprint.Id).ToArray();
+                var matches = group.OrderBy(fingerprint => fingerprint.Id, StringComparer.Ordinal).ToArray();
                 for (var first = 0; first < matches.Length; first++)
                     for (var second = first + 1; second < matches.Length; second++)
                     {
-                        var pair = matches[first].Id + "|" + matches[second].Id;
-                        if (kind != "structure" || !allowedStructurePairs.ContainsKey(pair))
-                            yield return $"OWNER: destinations {matches[first].Id} and {matches[second].Id} have identical {kind} fingerprints. Give each a distinct purpose or document this exact intentional pair.";
+                        var (a, b) = (matches[first], matches[second]);
+                        var pair = a.Id + "|" + b.Id;
+                        if (kind == "structure" && allowedStructurePairs.ContainsKey(pair)) continue;
+                        // Equal empty grids prove less than equal rows: inside one workspace they
+                        // are the same template with no rows yet (a documented pair or a task
+                        // filter). Across two workspaces, the same columns with the same (no) rows
+                        // is exactly the shape of the original trend alias, so it is reported.
+                        if (kind == "grid data" && a.GridsEmpty && b.GridsEmpty && (a.Workspace == b.Workspace || allowedStructurePairs.ContainsKey(pair))) continue;
+                        yield return $"{role}: destinations {a.Id} and {b.Id} have identical {kind} fingerprints{(kind == "grid data" && a.GridsEmpty ? " (both grids empty)" : "")}. Give each a distinct purpose or document this exact intentional pair.";
                     }
             }
         }
     }
+
+    // A destination whose grids are all empty cannot show an alias of populated data. The
+    // walk prints them so the limit of this check is in the log, not hidden.
+    private static IEnumerable<string> DestinationsWithOnlyEmptyGrids(IReadOnlyList<DestinationFingerprint> fingerprints) =>
+        fingerprints.Where(fingerprint => fingerprint.GridsEmpty).Select(fingerprint => fingerprint.Id).Order(StringComparer.Ordinal);
 }

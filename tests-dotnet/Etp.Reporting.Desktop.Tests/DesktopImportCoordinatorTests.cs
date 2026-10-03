@@ -17,8 +17,10 @@ public sealed class DesktopImportCoordinatorTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void Restatement_handler_rechecks_revoked_import_role_before_start_and_retry(bool retry)
+    public void Restatement_reloads_the_role_from_the_database_and_stops_when_it_was_revoked(bool retry)
     {
+        // The host's cached role still says "may import": it was loaded before the Owner
+        // revoked it. Only the database reload knows, and the restatement must obey it.
         RunSta(() =>
         {
             var path = Path.Combine(Path.GetTempPath(), "EtpRestatementRole_" + Guid.NewGuid().ToString("N") + ".xlsx");
@@ -36,8 +38,9 @@ public sealed class DesktopImportCoordinatorTests
                     persistence.PersistenceFailure = null;
                 }
                 var view = new ImportWorkspaceView(coordinator, () => "synthetic");
-                var checks = 0;
-                view.AttachHost(() => new(++checks <= (retry ? 2 : 1), false),
+                var reloads = 0;
+                view.AttachHost(() => new(true, false),
+                    () => { reloads++; return Task.FromResult(new ImportWorkspaceAccess(false, false)); },
                     (_, _, _) => Task.CompletedTask, () => Task.CompletedTask);
                 ((TextBox)view.FindName("WorkbookPathInput")).Text = path;
                 ((CheckBox)view.FindName("RestatementModeInput")).IsChecked = true;
@@ -48,6 +51,7 @@ public sealed class DesktopImportCoordinatorTests
 
                 Await(retry ? view.RetryFailedBatchAsync() : view.ImportSelectedSourceAsync());
 
+                Assert.Equal(1, reloads);
                 Assert.Equal(writes, persistence.PersistenceCalls);
                 Assert.Equal(preparations, persistence.PrepareCalls);
                 Assert.Contains("does not have permission", ((TextBlock)view.FindName("ValidationResult")).Text);
@@ -72,7 +76,9 @@ public sealed class DesktopImportCoordinatorTests
             try
             {
                 var view = new ImportWorkspaceView(coordinator, () => "synthetic");
-                view.AttachHost(() => new(true, false), (_, _, _) => Task.CompletedTask, () => Task.CompletedTask);
+                var reloads = 0;
+                view.AttachHost(() => new(true, false), () => { reloads++; return Task.FromResult(new ImportWorkspaceAccess(true, false)); },
+                    (_, _, _) => Task.CompletedTask, () => Task.CompletedTask);
                 ((TextBox)view.FindName("WorkbookPathInput")).Text = path;
                 ((CheckBox)view.FindName("RestatementModeInput")).IsChecked = true;
                 ((TextBox)view.FindName("RestatementReasonInput")).Text = "Corrected source";
@@ -91,6 +97,8 @@ public sealed class DesktopImportCoordinatorTests
 
                 Await(view.ImportSelectedSourceAsync());
 
+                // A restatement the database still allows goes ahead after one reload.
+                Assert.Equal(1, reloads);
                 var choice = Assert.Single(asked);
                 Assert.Equal([11L, 12L], choice.Candidates.Select(candidate => candidate.ImportFileId));
                 Assert.Equal(("WLMHW", date, date), (choice.StoreCode, choice.PeriodStart, choice.PeriodEnd));

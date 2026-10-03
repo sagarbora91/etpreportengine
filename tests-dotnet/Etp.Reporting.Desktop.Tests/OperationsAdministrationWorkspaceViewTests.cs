@@ -182,9 +182,16 @@ public sealed class OperationsAdministrationWorkspaceViewTests
     [Fact]
     public void Every_administration_task_keeps_the_line_that_says_why_a_save_failed()
     {
-        // "stores" stands for the default branch; "masters" and "tender-rules" never reach
-        // this view, so they are deliberately not here.
-        foreach (var id in new[] { "users", "profiles", "kpi", "health", "stores" })
+        // These four are every task the navigator lays out on the administration view;
+        // "stores" is also the default branch. "profiles" (ApprovedProfilesView), "masters"
+        // and "tender-rules" open their own views before reaching AdministrationTaskLayout,
+        // so naming any of them here would only re-test the default branch under another id.
+        var administrationTasks = new[] { "users", "kpi", "health", "stores" };
+        var openTheirOwnView = new[] { "profiles", "masters", "tender-rules" };
+        Assert.Equal(
+            administrationTasks.Concat(openTheirOwnView).Order(),
+            TaskNavigation.All.Where(task => task.Destination == "Admin / Settings").Select(task => task.Id).Order());
+        foreach (var id in administrationTasks)
         {
             var (body, actions) = TaskNavigator.AdministrationTaskLayout(id);
             Assert.Contains(14, body.Concat(actions));

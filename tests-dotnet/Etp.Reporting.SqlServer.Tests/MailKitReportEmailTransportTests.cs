@@ -21,7 +21,8 @@ public sealed class MailKitReportEmailTransportTests
         {
             var server = ServeAsync(listener, behavior, timeout.Token);
             var result = await new MailKitReportEmailTransport(_ => null).SendAsync(new("127.0.0.1", port, false, "sender@example.invalid"),
-                new("recipient@example.invalid", null, "Synthetic test", "No customer data", attachment), timeout.Token);
+                new("recipient@example.invalid", null, "Synthetic test", "No customer data",
+                    new ReportEmailAttachment(Path.GetFileName(attachment), await File.ReadAllBytesAsync(attachment, timeout.Token))), timeout.Token);
             Assert.Equal(expected, result.Outcome);
             var mime = await server;
             if (behavior != "REFUSE") { Assert.Contains("application/pdf", mime); Assert.Contains("Content-Transfer-Encoding: base64", mime); }

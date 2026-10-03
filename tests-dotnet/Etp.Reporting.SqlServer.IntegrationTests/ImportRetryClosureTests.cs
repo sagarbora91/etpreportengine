@@ -38,7 +38,9 @@ public sealed class ImportRetryClosureTests
                 var coordinator = new DesktopImportCoordinator(connection => new SqlServerImportPersistenceUseCase(connection), reader);
                 var imports = new ImportWorkspaceView(coordinator, () => database.ConnectionString);
                 var access = new AccessSession("synthetic", "Synthetic Owner", AccessRole.Owner, true);
-                imports.AttachHost(() => new(access.CanImport, access.CanAdminister), (_, _, _) => Task.CompletedTask, () => Task.CompletedTask);
+                imports.AttachHost(() => new(access.CanImport, access.CanAdminister),
+                    () => Task.FromResult(new ImportWorkspaceAccess(access.CanImport, access.CanAdminister)),
+                    (_, _, _) => Task.CompletedTask, () => Task.CompletedTask);
                 try
                 {
                     ((TextBox)imports.FindName("WorkbookPathInput")).Text = folder;
