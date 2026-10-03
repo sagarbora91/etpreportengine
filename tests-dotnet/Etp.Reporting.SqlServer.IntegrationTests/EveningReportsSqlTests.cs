@@ -36,6 +36,112 @@ public sealed class EveningReportsSqlTests(SqlDatabaseFixture db, ITestOutputHel
     }
 
     [Fact]
+    public async Task Day_with_sales_and_r020_but_no_r022_shows_r022_missing_in_cash_book_trend_and_tender_control()
+    {
+        // WLMHW FIX-02 and FIX-07: R020 never feeds tenders, so only R022 counts as tender coverage.
+        await db.ExecuteAsync("""
+            DECLARE @batch uniqueidentifier=NEWID(),@sales bigint;
+            INSERT dbo.import_batches(import_batch_id,status,started_utc) VALUES(@batch,'Completed',SYSUTCDATETIME());
+            INSERT dbo.import_files(import_batch_id,original_file_name,source_sha256,size_bytes,store_code,report_code,business_date,period_start,period_end,data_truth_version)
+            VALUES(@batch,'r020-only.xlsx',REPLICATE('e',64),1,'NOR022','R020','20301002','20301001','20301002',1),
+                  (@batch,'r022-day-two.xlsx',REPLICATE('f',64),1,'NOR022','R022','20301002','20301002','20301002',1);
+            INSERT dbo.import_files(import_batch_id,original_file_name,source_sha256,size_bytes,store_code,report_code,business_date,period_start,period_end,data_truth_version)
+            VALUES(@batch,'r025.xlsx',REPLICATE('9',64),1,'NOR022','R025','20301002','20301001','20301002',1);
+            SET @sales=SCOPE_IDENTITY();
+            INSERT dbo.source_lineage(import_file_id,sheet_name,source_row_number,source_record_type) VALUES(@sales,'Sales',1,'sale'),(@sales,'Sales',2,'sale');
+            INSERT dbo.sales_invoices(store_code,document_number,invoice_year,transaction_date) VALUES('NOR022','N1',2031,'20301001'),('NOR022','N2',2031,'20301002');
+            INSERT dbo.sales_lines(sales_invoice_id,line_identifier,product_code,source_transaction_type,source_quantity,source_gross_amount,source_net_amount,source_tax_amount,currency_code,source_lineage_id)
+            SELECT i.sales_invoice_id,'1','ITEM','INV',1,118,100,18,'INR',s.source_lineage_id
+            FROM dbo.sales_invoices i JOIN dbo.source_lineage s ON s.import_file_id=@sales AND s.source_row_number=CASE i.document_number WHEN 'N1' THEN 1 ELSE 2 END
+            WHERE i.store_code='NOR022';
+            """);
+        var inputs=new DailyReportingWorkflowRepository(db.ConnectionString);
+        foreach(var day in new[]{1,2})foreach(var field in new[]{"SERVICE_CASH","SERVICE_CARD","SERVICE_UPI","EXPENSES","CASH_DEPOSIT"})
+            await inputs.SaveManualInputAsync("NOR022",new(2030,10,day),field,0,null,"test","Synthetic evening entry");
+        await inputs.SaveManualInputAsync("NOR022",new(2030,10,1),"OPENING_CASH",100,null,"test","Verified opening");
+        var r=new OperationalReportRepository(db.ConnectionString);
+        var days=await r.LoadCashBookAsync("NOR022",new(2030,10,1),new(2030,10,2));
+        Assert.False(days[0].TenderSourceImported);
+        Assert.Equal("R022 missing / not imported",days[0].Status);
+        Assert.Null(days[0].Closing);
+        Assert.Null(days[0].RetailTotal);
+        Assert.Null(days[0].TotalSale);
+        Assert.All(CashBookTables.Create([days[0]]).Rows.Where(x=>Equals(x[4],"Cash")||Equals(x[4],"Card")||Equals(x[4],"UPI")),x=>Assert.Null(x[5]));
+        Assert.True(days[1].TenderSourceImported);
+        Assert.Equal(0m,days[1].RetailTotal);
+        Assert.Null((await r.LoadCashReconciliationAsync("NOR022",new(2030,10,1))).RetailCash);
+
+        var trend=(await new Phase2OperationsRepository(db.ConnectionString).LoadManagementTrendAsync(new(2030,10,1),new(2030,10,2))).Where(x=>x.StoreCode=="NOR022").ToArray();
+        Assert.Equal(2,trend.Length);
+        Assert.Null(trend[0].TenderVariance);
+        Assert.Equal(0m,trend[1].TenderVariance);
+
+        var executor=new SqlBackedReportingExecutor(new SqlServerReportingQueryRepository(db.ConnectionString),RetailReportingPolicy.Mapping,RetailReportingPolicy.Sales,RetailReportingPolicy.Tender,RetailReportingPolicy.Stock);
+        var tender=await executor.ExecuteTenderReconciliationAsync(new(new(2030,10,1),new(2030,10,2),["NOR022"]));
+        Assert.Equal(ReconciliationStatus.Blocked,tender.Status);
+        Assert.Contains("NOR022: 01 Oct 2030",tender.Message);
+        Assert.DoesNotContain("02 Oct 2030",tender.Message);
+        Assert.Empty(await new SqlServerReportingQueryRepository(db.ConnectionString).LoadTenderCoverageGapsAsync(new(new(2030,10,2),new(2030,10,2),["NOR022"])));
+    }
+
+    [Fact]
+    public async Task R020_blank_agency_cheque_fills_the_tc_tender_r022_lacks_and_is_never_counted_twice()
+    {
+        // Decision 13 Q3 (WLMHW FIX-03): T1 NetValue 1,129 has R022 CASH 1,000 and an R020 blank-agency CHEQUEAMOUNT 129 -> TC 129.
+        // T2 NetValue 500 already has R022 CHEQUE 500 with the same R020 row -> no extra tender. T3's R020 cheque has an agency -> ignored.
+        await db.ExecuteAsync("""
+            DECLARE @batch uniqueidentifier=NEWID(),@r022 bigint,@r020 bigint,@r025 bigint;
+            INSERT dbo.import_batches(import_batch_id,status,started_utc) VALUES(@batch,'Completed',SYSUTCDATETIME());
+            INSERT dbo.import_files(import_batch_id,original_file_name,source_sha256,size_bytes,store_code,report_code,business_date,period_start,period_end,data_truth_version)
+            VALUES(@batch,'tc-r022.xlsx',REPLICATE('1',64),1,'TCR020','R022','20301101','20301101','20301101',1);SET @r022=SCOPE_IDENTITY();
+            INSERT dbo.import_files(import_batch_id,original_file_name,source_sha256,size_bytes,store_code,report_code,business_date,period_start,period_end,data_truth_version)
+            VALUES(@batch,'tc-r020.xlsx',REPLICATE('2',64),1,'TCR020','R020','20301101','20301101','20301101',1);SET @r020=SCOPE_IDENTITY();
+            INSERT dbo.import_files(import_batch_id,original_file_name,source_sha256,size_bytes,store_code,report_code,business_date,period_start,period_end,data_truth_version)
+            VALUES(@batch,'tc-r025.xlsx',REPLICATE('3',64),1,'TCR020','R025','20301101','20301101','20301101',1);SET @r025=SCOPE_IDENTITY();
+            INSERT dbo.source_lineage(import_file_id,sheet_name,source_row_number,source_record_type)
+            VALUES(@r025,'Sales',1,'sale'),(@r025,'Sales',2,'sale'),(@r025,'Sales',3,'sale'),(@r022,'Revenue',1,'revenue'),(@r022,'Revenue',2,'revenue'),(@r022,'Revenue',3,'revenue'),
+                  (@r020,'Payment',1,'payment'),(@r020,'Payment',2,'payment'),(@r020,'Payment',3,'payment');
+            INSERT dbo.sales_invoices(store_code,document_number,invoice_year,transaction_date) VALUES('TCR020','T1',2031,'20301101'),('TCR020','T2',2031,'20301101'),('TCR020','T3',2031,'20301101');
+            INSERT dbo.sales_lines(sales_invoice_id,line_identifier,product_code,source_transaction_type,source_quantity,source_gross_amount,source_net_amount,source_tax_amount,currency_code,source_lineage_id)
+            SELECT i.sales_invoice_id,'1','ITEM','INV',1,v.net,v.net,0,'INR',s.source_lineage_id
+            FROM (VALUES('T1',1,1129),('T2',2,500),('T3',3,300)) v(doc,rowNo,net) JOIN dbo.sales_invoices i ON i.store_code='TCR020' AND i.document_number=v.doc
+            JOIN dbo.source_lineage s ON s.import_file_id=@r025 AND s.source_row_number=v.rowNo;
+            INSERT dbo.sales_invoice_controls(sales_invoice_id,source_transaction_type,source_invoice_quantity,source_net_value,currency_code,source_lineage_id)
+            SELECT i.sales_invoice_id,'INV',1,v.net,'INR',s.source_lineage_id
+            FROM (VALUES('T1',1,1129),('T2',2,500),('T3',3,300)) v(doc,rowNo,net) JOIN dbo.sales_invoices i ON i.store_code='TCR020' AND i.document_number=v.doc
+            JOIN dbo.source_lineage s ON s.import_file_id=@r022 AND s.source_row_number=v.rowNo;
+            INSERT dbo.sales_tenders(sales_invoice_id,tender_type,source_amount,currency_code,source_lineage_id)
+            SELECT i.sales_invoice_id,v.tender,v.amount,'INR',s.source_lineage_id
+            FROM (VALUES('T1',1,'CASH',1000),('T2',2,'CHEQUE',500),('T3',3,'CASH',300)) v(doc,rowNo,tender,amount) JOIN dbo.sales_invoices i ON i.store_code='TCR020' AND i.document_number=v.doc
+            JOIN dbo.source_lineage s ON s.import_file_id=@r022 AND s.source_row_number=v.rowNo;
+            INSERT dbo.etp_r020(import_file_id,source_lineage_id,content_key,store_code,invnumber,invdate,agencyname,chequeamount)
+            SELECT @r020,s.source_lineage_id,CONCAT('tc-',v.doc),'TCR020',v.doc,'20301101',v.agency,v.amount
+            FROM (VALUES('T1',1,CONVERT(nvarchar(20),NULL),129),('T2',2,N' ',500),('T3',3,N'HDFC',300)) v(doc,rowNo,agency,amount)
+            JOIN dbo.source_lineage s ON s.import_file_id=@r020 AND s.source_row_number=v.rowNo;
+            """);
+        var inputs=new DailyReportingWorkflowRepository(db.ConnectionString);
+        foreach(var field in new[]{"SERVICE_CASH","SERVICE_CARD","SERVICE_UPI","EXPENSES","CASH_DEPOSIT"})
+            await inputs.SaveManualInputAsync("TCR020",new(2030,11,1),field,0,null,"test","Synthetic evening entry");
+        await inputs.SaveManualInputAsync("TCR020",new(2030,11,1),"OPENING_CASH",100,null,"test","Verified opening");
+
+        var day=Assert.Single(await new OperationalReportRepository(db.ConnectionString).LoadCashBookAsync("TCR020",new(2030,11,1),new(2030,11,1)));
+        Assert.Equal(129m,day.Modes["TC"]);
+        Assert.Equal(500m,day.Modes["Bank"]);
+        Assert.Equal(1300m,day.Modes["Cash"]);
+        Assert.Equal(1929m,day.RetailTotal);
+        Assert.Equal(1800m,day.TotalSale);
+        Assert.Equal("Complete",day.Status);
+
+        var executor=new SqlBackedReportingExecutor(new SqlServerReportingQueryRepository(db.ConnectionString),RetailReportingPolicy.Mapping,RetailReportingPolicy.Sales,RetailReportingPolicy.Tender,RetailReportingPolicy.Stock);
+        var tender=await executor.ExecuteTenderReconciliationAsync(new(new(2030,11,1),new(2030,11,1),["TCR020"]));
+        Assert.Equal(ReconciliationStatus.Passed,tender.Status);
+        Assert.Equal(tender.InvoiceTotal,tender.TenderTotal);
+
+        var trend=Assert.Single(await new Phase2OperationsRepository(db.ConnectionString).LoadManagementTrendAsync(new(2030,11,1),new(2030,11,1)),x=>x.StoreCode=="TCR020");
+        Assert.Equal(0m,trend.TenderVariance);
+    }
+
+    [Fact]
     public async Task Brand_master_edit_is_atomic_and_monthly_targets_are_not_halved()
     {
         var masters=new EveningMasterRepository(db.ConnectionString);

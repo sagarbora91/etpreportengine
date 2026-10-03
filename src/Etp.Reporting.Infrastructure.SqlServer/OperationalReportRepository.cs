@@ -142,7 +142,7 @@ public sealed record CashReconciliationResult(
     string StoreCode,
     DateOnly BusinessDate,
     decimal? OpeningCash,
-    decimal RetailCash,
+    decimal? RetailCash,
     decimal? ServiceCash,
     decimal? Expenses,
     decimal? CashDeposit,
@@ -448,7 +448,7 @@ public sealed partial class OperationalReportRepository(string connectionString)
         var day=(await LoadCashBookAsync(storeCode,businessDate,businessDate,cancellationToken)).Single();
         var variance=day.Counted-day.Closing;
         var status=day.Closing is null?ReconciliationStatus.Blocked:variance is not null and not 0?ReconciliationStatus.Failed:ReconciliationStatus.Passed;
-        return new(storeCode,businessDate,day.Opening,day.Modes.GetValueOrDefault("Cash"),day.ServiceCash,day.Expenses,day.Deposit,day.Adjustment,day.Closing,day.Counted,variance,status,day.OpeningSource+"; "+day.Status);
+        return new(storeCode,businessDate,day.Opening,day.TenderSourceImported?day.Modes.GetValueOrDefault("Cash"):null,day.ServiceCash,day.Expenses,day.Deposit,day.Adjustment,day.Closing,day.Counted,variance,status,day.OpeningSource+"; "+day.Status);
     }
 
     public async Task<IReadOnlyList<PhysicalStockReportRow>> LoadPhysicalStockAsync(

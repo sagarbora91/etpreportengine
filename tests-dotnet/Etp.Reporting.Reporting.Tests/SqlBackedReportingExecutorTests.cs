@@ -80,6 +80,34 @@ public sealed class SqlBackedReportingExecutorTests
     }
 
     [Fact]
+    public async Task Tender_reconciliation_is_blocked_and_names_dates_when_r022_is_missing_for_a_sales_day()
+    {
+        // WLMHW FIX-07: no R022 means no controls and no tenders; 0 against 0 must not pass.
+        var repository = new FakeRepository
+        {
+            InvoiceControls = [new("S1", "I1", 80m)],
+            Tenders = [new("S1", "I1", "CARD", 80m)],
+            Gaps = [new("S1", new(2024, 9, 16)), new("S1", new(2024, 9, 17))]
+        };
+
+        var result = await Executor(repository).ExecuteTenderReconciliationAsync(Scope());
+
+        Assert.Equal(ReconciliationStatus.Blocked, result.Status);
+        Assert.Contains("R022 missing / not imported", result.Message);
+        Assert.Contains("S1: 16 Sep 2024, 17 Sep 2024", result.Message);
+        Assert.Equal(80m, result.InvoiceTotal);
+    }
+
+    [Fact]
+    public void Tender_gap_message_lists_ten_dates_then_counts_the_rest()
+    {
+        var gaps = Enumerable.Range(1, 12).Select(day => new TenderCoverageGapRow("S1", new(2024, 10, day))).ToArray();
+        var message = SqlBackedReportingExecutor.DescribeTenderGaps(gaps);
+        Assert.Contains("10 Oct 2024 and 2 more", message);
+        Assert.DoesNotContain("11 Oct 2024", message);
+    }
+
+    [Fact]
     public async Task Executor_requires_both_stock_snapshots()
     {
         var repository = new FakeRepository
@@ -114,6 +142,8 @@ public sealed class SqlBackedReportingExecutorTests
         public IReadOnlyList<TenderQueryRow> Tenders { get; init; } = [];
         public IReadOnlyList<InvoiceControlQueryRow> InvoiceControls { get; init; } = [];
         public StockQueryData Stock { get; init; } = new([], []);
+        public IReadOnlyList<TenderCoverageGapRow> Gaps { get; init; } = [];
+        public Task<IReadOnlyList<TenderCoverageGapRow>> LoadTenderCoverageGapsAsync(ReportingQueryScope scope, CancellationToken cancellationToken = default) => Task.FromResult(Gaps);
         public Task<IReadOnlyList<SalesQueryRow>> LoadSalesAsync(ReportingQueryScope scope, CancellationToken cancellationToken = default) => Task.FromResult(Sales);
         public Task<IReadOnlyList<InvoiceControlQueryRow>> LoadInvoiceControlsAsync(ReportingQueryScope scope, CancellationToken cancellationToken = default) => Task.FromResult(InvoiceControls);
         public Task<IReadOnlyList<TenderQueryRow>> LoadTendersAsync(ReportingQueryScope scope, CancellationToken cancellationToken = default) => Task.FromResult(Tenders);

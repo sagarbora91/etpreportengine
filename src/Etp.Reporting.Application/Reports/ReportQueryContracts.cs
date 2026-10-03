@@ -28,8 +28,18 @@ public sealed record PhysicalStockRecord(string StoreCode, DateOnly BusinessDate
 public sealed record StockInventoryRecord(DateOnly SnapshotDate, string StoreCode, string ProductCode, string? Brand, string? InventoryGroup, decimal Quantity, decimal? UnitCost, decimal? TotalCost, DateOnly? LastSaleDate, int? DaysSinceLastSale, string MovementStatus, string? SnapshotSource = null);
 public sealed record DailyExceptionRecord(string Severity, string Area, string Code, string StoreCode, DateOnly BusinessDate, string? DocumentNumber, string? ItemCode, decimal? Variance, string? SourceWorkbook, string? SourceSheet, int? SourceRow, string Message, string RecommendedAction);
 public sealed record ServiceSalesRecord(string Period, string StoreCode, DateOnly PeriodStart, DateOnly PeriodEnd, decimal? Cash, decimal? Card, decimal? Upi, decimal? Total, decimal? LastYearTotal, decimal? GrowthPercent, string Availability, int MissingDays = 0, int LastYearMissingDays = 0, decimal? Wdc = null);
-public sealed record CashReconciliationReport(string StoreCode, DateOnly BusinessDate, decimal? OpeningCash, decimal RetailCash, decimal? ServiceCash, decimal? Expenses, decimal? CashDeposit, decimal? Adjustment, decimal? CalculatedClosing, decimal? CountedClosing, decimal? Variance, ReportStatus Status, string Message);
-public sealed record ManagementTrendRecord(DateOnly BusinessDate, string StoreCode, decimal NetSales, decimal Units, int Invoices, decimal TenderVariance, int UnmatchedEnrichmentRows);
+public sealed record CashReconciliationReport(string StoreCode, DateOnly BusinessDate, decimal? OpeningCash, decimal? RetailCash, decimal? ServiceCash, decimal? Expenses, decimal? CashDeposit, decimal? Adjustment, decimal? CalculatedClosing, decimal? CountedClosing, decimal? Variance, ReportStatus Status, string Message);
+public sealed record ManagementTrendRecord(DateOnly BusinessDate, string StoreCode, decimal NetSales, decimal Units, int Invoices, decimal? TenderVariance, int UnmatchedEnrichmentRows)
+{
+    /// <summary>Shown beside a null variance so a missing R022 never reads as a zero variance.</summary>
+    public string TenderSource => TenderVariance is null ? ManagementTrendTenderSource.Missing : ManagementTrendTenderSource.Imported;
+}
+
+public static class ManagementTrendTenderSource
+{
+    public const string Missing = "R022 missing / not imported";
+    public const string Imported = "R022 imported";
+}
 public enum TenderVarianceCause { Matched, MissingTender, PartialTender, ExcessTender, TenderWithoutInvoice }
 public sealed record TenderVarianceDiagnosticRecord(string StoreCode, string DocumentNumber, decimal InvoiceAmount, decimal TenderAmount, decimal Variance, TenderVarianceCause LikelyCause, string RecommendedCheck);
 public sealed record TenderVarianceDiagnosticReport(ReportStatus Status, IReadOnlyList<TenderVarianceDiagnosticRecord> Rows, int FailedDocuments, decimal AbsoluteVariance, string RuleVersion, string Message);

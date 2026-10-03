@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Cash Book: only a current R022 (Revenue Report) now counts as tender coverage. A day covered by R020 alone used to show 0.00 in every tender mode and a closing of opening + 0 cash; it now shows "R022 missing / not imported", blank tender modes and retail total, and no closing (WLMHW audit R-WLMHW-02). Daily cash reconciliation shows retail cash as blank on such a day.
+- Management Trend: the tender variance is blank, with a "Tender Source" column saying "R022 missing / not imported", for a store-day that has sales but no current R022 file. It used to show 0.00. The export total is blank while any day is missing (R-WLMHW-07).
+- TC tender: Titan's R022 does not carry TC, so ETP now reads it from R020 (CHEQUEAMOUNT with a blank AGENCYNAME), only for an invoice whose R022 tenders fall short of its NetValue by exactly that amount, so it is never counted twice. It shows as TC in the Cash Book, Tender Reconciliation and the Management Trend variance (decision 13 Q3; WLMHW audit R-WLMHW-03). Cash Book "Total sale" now leaves TC out (Cash + Card + UPI + CN + service, as the owner's sheet does); the book's Total line still includes it, so it balances.
+- Tender Reconciliation is Blocked, naming the store and dates without R022, when any sales day in the period has no current R022 file. It used to pass with 0 against 0 (R-WLMHW-07).
+
 ## [1.9.3] - 2026-10-03
 
 The import engine release, with the fixes from the move to Workpc:

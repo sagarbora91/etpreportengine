@@ -32,6 +32,8 @@ public sealed record StockMovementQueryRow(
     string StoreCode, string ItemCode, string SourceMovementType, decimal SourceSignedQuantity);
 public sealed record StockQueryData(
     IReadOnlyList<StockPositionQueryRow> Positions, IReadOnlyList<StockMovementQueryRow> Movements);
+/// <summary>A store-day with sales but no current R022 (Revenue Report) file covering it.</summary>
+public sealed record TenderCoverageGapRow(string StoreCode, DateOnly BusinessDate);
 
 public interface IReportingQueryRepository
 {
@@ -39,6 +41,13 @@ public interface IReportingQueryRepository
     Task<IReadOnlyList<InvoiceControlQueryRow>> LoadInvoiceControlsAsync(ReportingQueryScope scope, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<TenderQueryRow>> LoadTendersAsync(ReportingQueryScope scope, CancellationToken cancellationToken = default);
     Task<StockQueryData> LoadStockAsync(ReportingQueryScope scope, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Store-days in scope that have sales but no current R022 file. Tender controls and tenders both come from R022,
+    /// so on these days the reconciliation would compare 0 with 0. The default reports no gaps for sources that have no import files.
+    /// </summary>
+    Task<IReadOnlyList<TenderCoverageGapRow>> LoadTenderCoverageGapsAsync(ReportingQueryScope scope, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<TenderCoverageGapRow>>([]);
 }
 
 public enum ApprovedSalesAmountSource { Gross, Net }
