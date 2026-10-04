@@ -371,7 +371,7 @@ public sealed class Phase2OperationsRepository(string connectionString)
             (
               SELECT i.transaction_date,i.store_code,SUM(x.source_amount) tender
               FROM (
-            """ + SqlReportingQueries.R020TcTenders("@from", "@to", "1=1") + """
+            """ + SqlReportingQueries.R020TcTenders("@from", "@to", "1=1") + $"""
               ) x JOIN dbo.sales_invoices i ON i.sales_invoice_id=x.sales_invoice_id
               WHERE i.transaction_date BETWEEN @from AND @to GROUP BY i.transaction_date,i.store_code
             ), unmatched AS
