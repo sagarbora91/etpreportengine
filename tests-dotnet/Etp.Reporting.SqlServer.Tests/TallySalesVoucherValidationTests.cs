@@ -63,7 +63,7 @@ public sealed class TallySalesVoucherValidationTests
     [Fact]
     public void Invoices_the_composer_left_out_are_not_judged_again()
     {
-        var (plan, findings) = Run(Day.AddDays(1), Profile, Sale("INV-1"), Sale("INV-2", new("CASH", "Cash", 500m), new("PHONEPE", "UPI", 680m)));
+        var (plan, findings) = Run(Day.AddDays(1), Profile, Sale("INV-1"), Sale("INV-2", new InvoiceSourceTender("CASH", "Cash", 500m), new InvoiceSourceTender("PHONEPE", "UPI", 680m)));
         Assert.Empty(findings);
         Assert.Equal(new[] { "PLANNED", "BLOCKED" }, plan.Vouchers.Select(voucher => voucher.Status));
         Assert.Null(plan.BlockingReason);
@@ -85,7 +85,7 @@ public sealed class TallySalesVoucherValidationTests
     [Fact]
     public void The_day_is_described_in_one_sentence()
     {
-        var (plan, _) = Run(Day.AddDays(1), Profile, Sale("INV-1"), Sale("INV-2", new("CASH", "Cash", 500m), new("PHONEPE", "UPI", 680m)), Sale("INV-3", new("CARD", "Card", 1180m)));
+        var (plan, _) = Run(Day.AddDays(1), Profile, Sale("INV-1"), Sale("INV-2", new InvoiceSourceTender("CASH", "Cash", 500m), new InvoiceSourceTender("PHONEPE", "UPI", 680m)), Sale("INV-3", new InvoiceSourceTender("CARD", "Card", 1180m)));
         Assert.Equal("3 invoice(s): 1 ready, 1 left out for a later step, 1 need fixing. Vouchers total 1180.00.", TallySalesVoucherValidation.Describe(plan));
     }
 }

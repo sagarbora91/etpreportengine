@@ -138,7 +138,7 @@ public sealed class TallyVouchersViewTests
             [
                 new("TENDER_CASH", 1, 1, "Cash", "Cash"), new("SALES_REVENUE", 2, 1, "Sales", "Sales"),
                 new("OUTPUT_CGST_9", 3, 1, "Output CGST 9%", "Output CGST 9%"), new("OUTPUT_SGST_9", 4, 1, "Output SGST 9%", "Output SGST 9%")
-            ]), [Sale("INV-1", new("CASH", "Cash", 1180m)), Sale("INV-2", new("CASH", "Cash", 500m), new("PHONEPE", "UPI", 680m))]);
+            ]), [Sale("INV-1", new InvoiceSourceTender("CASH", "Cash", 1180m)), Sale("INV-2", new InvoiceSourceTender("CASH", "Cash", 500m), new InvoiceSourceTender("PHONEPE", "UPI", 680m))]);
             ValidationFinding warning = new("RULE-DAT-002", 1, "WARN", 1, "Invoice INV-1", "25-Aug-2026", "within 30 days", "This voucher is more than 30 days old.", null);
             return Task.FromResult(new SalesVoucherPreview(9, profile, storeCode, businessDate, plan, [warning]));
         }
