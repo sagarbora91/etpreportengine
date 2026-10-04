@@ -9,6 +9,8 @@
     <Compile Include="../TestSupport/DiagnosticsIsolation.cs" Link="TestSupport/DiagnosticsIsolation.cs" />
     <Compile Include="../TestSupport/StackedBinWiseWorkbooks.cs" Link="TestSupport/StackedBinWiseWorkbooks.cs" />
     <Compile Include="../TestSupport/AuditFixtureWorkbooks.cs" Link="TestSupport/AuditFixtureWorkbooks.cs" />
+    <Compile Include="../TestSupport/Service/*.cs" Link="TestSupport/Service/%(Filename)%(Extension)" />
+    <Content Include="../fixtures/service-interim/**/*.xlsx" Link="fixtures/service-interim/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Compile Include="../Etp.Reporting.Import.Tests/SyntheticConsolidatedWorkbooks.cs" Link="TestSupport/SyntheticConsolidatedWorkbooks.cs" />
     <Content Include="../fixtures/import-audit/*.json" Link="fixtures/import-audit/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <ProjectReference Include="../../src/Etp.Reporting.Desktop/Etp.Reporting.Desktop.csproj" />
