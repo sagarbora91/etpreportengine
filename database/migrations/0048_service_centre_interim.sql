@@ -5,7 +5,7 @@
 --
 -- Numbering: this file must ship after 0046/0047 of 1.9.4. Until release/1.9.4 is merged into
 -- feature/service-interim, the migration contiguity test fails on this branch; that is expected.
--- 1.10.0 numbers from 0049.
+-- 0049 is reserved for the Tally cost-centre migration from PR #3; 1.10.0 numbers from 0050.
 --
 -- The migration runner applies this entire script in one transaction, so it has no BEGIN or COMMIT.
 -- Every statement is idempotent (OBJECT_ID/COL_LENGTH guards, insert-if-missing, CREATE OR ALTER),
