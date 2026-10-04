@@ -17,7 +17,7 @@ public sealed record ApplicationAccess(string WindowsIdentity, string DisplayNam
 }
 
 public sealed record ApplicationUserRow(int Id, string WindowsIdentity, string DisplayName, string RoleCode, bool IsActive, DateTime ModifiedUtc, string ModifiedBy);
-public sealed record ControlledMasterRow(string MasterType, string Code, string DisplayName, string ApprovalStatus, bool IsActive, DateTime? ModifiedUtc, string? ModifiedBy);
+public sealed record ControlledMasterRow(string MasterType, string Code, string DisplayName, string ApprovalStatus, bool IsActive, DateTime? ModifiedUtc, string? ModifiedBy, string? BusinessUnitCode = null);
 public sealed record WatchFolderSettings(string InboundPath, string ProcessedPath, string FailedPath, string ReportOutputPath, bool IsEnabled, DateTime ModifiedUtc, string ModifiedBy);
 public sealed record ReportPackSchedule(int Id, string Name, TimeOnly LocalRunTime, bool IsEnabled, bool ExportExcel, bool ExportPdf, DateOnly? LastBusinessDate, DateTime? LastRunUtc, string? LastStatus, string? LastMessage);
 public sealed record AutomationRunRow(long Id, string RunType, string? SourceFileName, string? StoreCode, DateOnly? BusinessDate, string Outcome, string SafeMessage, DateTime StartedUtc, DateTime CompletedUtc, string RunBy);
@@ -129,12 +129,18 @@ public sealed class Phase2OperationsRepository(string connectionString)
         masterType = NormalizeMasterType(masterType);
         await using var connection = await OpenAsync(cancellationToken);
         var rows = new List<ControlledMasterRow>();
-        const string sql = "SELECT 'STORE',store_code,store_name,'APPROVED',is_active,modified_utc,modified_by FROM dbo.stores ORDER BY store_code";
+        // Service interim (0048): the business unit tells Settings > Stores that AW330 is the
+        // Service Centre, not a shop. A NULL unit is Retail, as on every database before 0048.
+        const string sql = """
+            SELECT 'STORE',s.store_code,s.store_name,'APPROVED',s.is_active,s.modified_utc,s.modified_by,u.business_unit_code
+            FROM dbo.stores s LEFT JOIN dbo.business_units u ON u.business_unit_id=s.business_unit_id ORDER BY s.store_code
+            """;
         await using var command = new SqlCommand(sql, connection);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
             rows.Add(new(reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetBoolean(4),
-                reader.IsDBNull(5) ? null : reader.GetDateTime(5), reader.IsDBNull(6) ? null : reader.GetString(6)));
+                reader.IsDBNull(5) ? null : reader.GetDateTime(5), reader.IsDBNull(6) ? null : reader.GetString(6),
+                reader.IsDBNull(7) ? null : reader.GetString(7)));
         return rows;
     }
 
@@ -159,7 +165,16 @@ public sealed class Phase2OperationsRepository(string connectionString)
         await using var command = new SqlCommand(sql, connection);
         command.Parameters.AddWithValue("@type", masterType); command.Parameters.AddWithValue("@code", code); command.Parameters.AddWithValue("@name", displayName);
         command.Parameters.AddWithValue("@approval", approvalStatus); command.Parameters.AddWithValue("@active", isActive); command.Parameters.AddWithValue("@reason", reason);
-        await command.ExecuteNonQueryAsync(cancellationToken);
+        // The MERGE never names business_unit_id, so a save keeps a store's unit (AW330 stays
+        // SERVICE). Activating a SERVICE-unit store is refused by the 0048 trigger (51900); the
+        // statement is one batch, so nothing was written, and the Owner gets a plain message.
+        // 51904 (a move out of the SERVICE unit) cannot come from this MERGE today; it is mapped
+        // defensively in case the statement ever names business_unit_id.
+        try { await command.ExecuteNonQueryAsync(cancellationToken); }
+        catch (SqlException exception) when (ServiceCentreStores.DescribeRefusal(exception) is { } refusal)
+        {
+            throw new InvalidOperationException(refusal, exception);
+        }
     }
 
     public async Task<WatchFolderSettings> LoadWatchFolderSettingsAsync(CancellationToken cancellationToken = default)
