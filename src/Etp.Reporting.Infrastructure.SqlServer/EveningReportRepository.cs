@@ -51,7 +51,7 @@ public sealed partial class OperationalReportRepository
             -- Gift cards are not in VALUE (owner decision 13), so they are not in a brand row or Other / unmapped either;
             -- the DSR shows them on their own GIFT CARD line from the DSR facts.
             WHERE i.transaction_date BETWEEN @start AND @end AND UPPER(l.source_transaction_type) IN('INV','SR','BC')
-              AND NOT {GiftCardSql.SalesLine("l")}
+              AND NOT {NonMerchandiseSql.SalesLine("l")}
             GROUP BY i.store_code,i.transaction_date,mapped.row_label;
             """,c))
         {
@@ -88,7 +88,7 @@ public sealed partial class OperationalReportRepository
             }
             // Brand rows plus Other / unmapped add up to VALUE; gift cards sit outside VALUE on their own line,
             // after Other / unmapped for a store and after AVPT for COMBINED (which has no brand rows).
-            rows.Add(Row(GiftCardSql.RowLabel,f?.TyGiftCards,f?.LyGiftCards,m?.TyGiftCards,y?.TyGiftCards,y?.LyGiftCards,"currency",GiftCardSql.DsrNote));
+            rows.Add(Row(OperationalReportRepository.GiftCardRowLabel,f?.TyGiftCards,f?.LyGiftCards,m?.TyGiftCards,y?.TyGiftCards,y?.LyGiftCards,"currency",OperationalReportRepository.GiftCardDsrNote));
             foreach(var (label,field) in new[]{("RETAIL WALKIN","WALK_INS"),("WCC WALKIN","WCC_WALKIN"),("WCC SALES","WCC_SALES"),("WDC BILLS","WDC_BILLS")})
                 rows.Add(Row(label,Manual(field,fp.Current),Manual(field,fp.LastYear),Manual(field,mp.Current),Manual(field,yp.Current),Manual(field,yp.LastYear),field=="WCC_SALES"?"currency":"number","Available entries; missing days are not zero entries"));
             rows.Insert(rows.FindIndex(x=>x.Metric=="WCC WALKIN"),Row("INVOICE",f?.TyInvoices,f?.LyInvoices,m?.TyInvoices,y?.TyInvoices,y?.LyInvoices));

@@ -25,7 +25,7 @@ public sealed class EveningMasterRepository(string connectionString)
     }
 
     /// <summary>DSR row labels the evening sheet calculates itself; a brand row may not use them.</summary>
-    internal static readonly string[] ReservedLabels = ["Other / unmapped","VOL","VALUE","AUPT","AVPT","RETAIL WALKIN","INVOICE","CONVERSION %","WCC WALKIN","WCC SALES","WDC BILLS",GiftCardSql.RowLabel];
+    internal static readonly string[] ReservedLabels = ["Other / unmapped","VOL","VALUE","AUPT","AVPT","RETAIL WALKIN","INVOICE","CONVERSION %","WCC WALKIN","WCC SALES","WDC BILLS",OperationalReportRepository.GiftCardRowLabel];
 
     internal static bool IsReservedLabel(string label) => ReservedLabels.Contains(label.Trim(), StringComparer.OrdinalIgnoreCase);
 

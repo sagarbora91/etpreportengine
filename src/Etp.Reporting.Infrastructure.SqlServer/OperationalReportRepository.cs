@@ -675,14 +675,14 @@ public sealed partial class OperationalReportRepository(string connectionString)
     /// </summary>
     internal static readonly string DsrFactsSql = $"""
         SELECT i.store_code,
-          SUM(CASE WHEN i.transaction_date BETWEEN @currentFrom AND @currentTo THEN CASE WHEN {GiftCardSql.SalesLine("l")} THEN 0 ELSE l.source_gross_amount END END),
-          SUM(CASE WHEN i.transaction_date BETWEEN @lastFrom AND @lastTo THEN CASE WHEN {GiftCardSql.SalesLine("l")} THEN 0 ELSE l.source_gross_amount END END),
-          SUM(CASE WHEN i.transaction_date BETWEEN @currentFrom AND @currentTo THEN CASE WHEN {GiftCardSql.SalesLine("l")} THEN 0 ELSE l.source_quantity END END),
-          SUM(CASE WHEN i.transaction_date BETWEEN @lastFrom AND @lastTo THEN CASE WHEN {GiftCardSql.SalesLine("l")} THEN 0 ELSE l.source_quantity END END),
-          COUNT(DISTINCT CASE WHEN i.transaction_date BETWEEN @currentFrom AND @currentTo AND UPPER(l.source_transaction_type)='INV' AND NOT {GiftCardSql.SalesLine("l")} THEN i.sales_invoice_id END),
-          COUNT(DISTINCT CASE WHEN i.transaction_date BETWEEN @lastFrom AND @lastTo AND UPPER(l.source_transaction_type)='INV' AND NOT {GiftCardSql.SalesLine("l")} THEN i.sales_invoice_id END),
-          SUM(CASE WHEN i.transaction_date BETWEEN @currentFrom AND @currentTo AND {GiftCardSql.SalesLine("l")} THEN l.source_gross_amount END),
-          SUM(CASE WHEN i.transaction_date BETWEEN @lastFrom AND @lastTo AND {GiftCardSql.SalesLine("l")} THEN l.source_gross_amount END)
+          SUM(CASE WHEN i.transaction_date BETWEEN @currentFrom AND @currentTo THEN CASE WHEN {NonMerchandiseSql.SalesLine("l")} THEN 0 ELSE l.source_gross_amount END END),
+          SUM(CASE WHEN i.transaction_date BETWEEN @lastFrom AND @lastTo THEN CASE WHEN {NonMerchandiseSql.SalesLine("l")} THEN 0 ELSE l.source_gross_amount END END),
+          SUM(CASE WHEN i.transaction_date BETWEEN @currentFrom AND @currentTo THEN CASE WHEN {NonMerchandiseSql.SalesLine("l")} THEN 0 ELSE l.source_quantity END END),
+          SUM(CASE WHEN i.transaction_date BETWEEN @lastFrom AND @lastTo THEN CASE WHEN {NonMerchandiseSql.SalesLine("l")} THEN 0 ELSE l.source_quantity END END),
+          COUNT(DISTINCT CASE WHEN i.transaction_date BETWEEN @currentFrom AND @currentTo AND UPPER(l.source_transaction_type)='INV' AND NOT {NonMerchandiseSql.SalesLine("l")} THEN i.sales_invoice_id END),
+          COUNT(DISTINCT CASE WHEN i.transaction_date BETWEEN @lastFrom AND @lastTo AND UPPER(l.source_transaction_type)='INV' AND NOT {NonMerchandiseSql.SalesLine("l")} THEN i.sales_invoice_id END),
+          SUM(CASE WHEN i.transaction_date BETWEEN @currentFrom AND @currentTo AND {NonMerchandiseSql.SalesLine("l")} THEN l.source_gross_amount END),
+          SUM(CASE WHEN i.transaction_date BETWEEN @lastFrom AND @lastTo AND {NonMerchandiseSql.SalesLine("l")} THEN l.source_gross_amount END)
         FROM dbo.sales_invoices i JOIN dbo.sales_lines l ON l.sales_invoice_id=i.sales_invoice_id
         WHERE (i.transaction_date BETWEEN @currentFrom AND @currentTo OR i.transaction_date BETWEEN @lastFrom AND @lastTo)
           AND i.store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores))
@@ -875,6 +875,9 @@ public sealed partial class OperationalReportRepository(string connectionString)
 
     private static decimal? NullableDecimal(SqlDataReader reader, int ordinal) => reader.IsDBNull(ordinal) ? null : reader.GetDecimal(ordinal);
     private static decimal? Value(IReadOnlyDictionary<string, decimal?> values, string key) => values.GetValueOrDefault(key);
+    /// <summary>The DSR line for gift-card sales, kept out of VALUE, VOL and INVOICE (owner decision 13 Q2); a reserved brand-row label.</summary>
+    internal const string GiftCardRowLabel = "GIFT CARD";
+    internal const string GiftCardDsrNote = "Gift-card sales (GIFT CARD / BRAND GC); not in VALUE, VOL or INVOICE";
     internal sealed record DsrFacts(decimal? TySales = null, decimal? LySales = null, decimal? TyUnits = null, decimal? LyUnits = null, int? TyInvoices = null, int? LyInvoices = null, decimal? TyGiftCards = null, decimal? LyGiftCards = null);
 
     /// <summary>Entered walk-ins for a period; <see cref="Value"/> is null when nothing was entered (missing is not zero).</summary>

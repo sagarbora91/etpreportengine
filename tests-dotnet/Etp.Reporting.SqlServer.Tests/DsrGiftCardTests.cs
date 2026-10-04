@@ -53,7 +53,7 @@ public sealed class DsrGiftCardTests
     public void Dsr_facts_sql_leaves_gift_cards_out_of_value_units_and_invoices_and_returns_them_separately()
     {
         var sql = OperationalReportRepository.DsrFactsSql;
-        var predicate = GiftCardSql.SalesLine("l");
+        var predicate = NonMerchandiseSql.SalesLine("l");
 
         Assert.Contains("N'GIFT CARD'", predicate);
         Assert.Contains("N'GC'", predicate);
