@@ -6,6 +6,7 @@ using Etp.Reporting.Import.Batch;
 using Etp.Reporting.Import.Conversion;
 using Etp.Reporting.Import.Diagnostics;
 using Etp.Reporting.Import.Profiles;
+using Etp.Reporting.Import.Service;
 using Etp.Reporting.Import.Sources;
 using Etp.Reporting.Import.Staging;
 using Etp.Reporting.Import.Workbooks;
@@ -53,6 +54,19 @@ public sealed record ImportScope(string? StoreCode, DateOnly? PeriodStart, DateO
             throw new ImportSourceException(ImportCodes.SnapshotDateUnknown,
                 "The snapshot date of this stock or status report could not be found. Import the ETP file under its original name, or import its whole folder.");
     }
+
+    /// <summary>
+    /// The store a Service Centre file is imported under when neither the file nor its siblings name one (Service interim,
+    /// decision 15): the Service Centre AW330, an inactive store of the SERVICE unit. S011 and S013 carry no store column.
+    /// Null for every Retail family, which keeps <c>SCOPE_NOT_DETECTED</c>.
+    /// </summary>
+    public static string? ServiceStoreFallback(string? reportCode) =>
+        reportCode is null ? null : ServiceStoreFallback(EtpReportFamilyRegistry.Families.FirstOrDefault(family =>
+            family.ReportCode == reportCode || family.FamilyCode == reportCode));
+
+    /// <inheritdoc cref="ServiceStoreFallback(string?)"/>
+    public static string? ServiceStoreFallback(EtpReportFamily? family) =>
+        family?.BusinessUnit == BusinessUnit.Service ? ServiceInterimFamilies.ServiceStoreCode : null;
 
     public static ImportScope Detect(WorkbookSnapshot workbook, ImportProfile profile, ImportStagingResult staging, IReadOnlyList<string>? knownStores = null,
         WorkbookSheet? dataSheet = null, ContractReadResult? contract = null)

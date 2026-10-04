@@ -105,7 +105,7 @@ public static class ImportDiagnosticCatalogue
             "The row has no usable date; it is held and belongs to no document."
         ],
         [ImportCodes.RowFactValueMissing] = ["The row lacks a value its fact table needs; it is held, and so is any document it belongs to."],
-        [ImportCodes.FamilyDerived] = ["This report is derived from other reports."],
+        [ImportCodes.FamilyDerived] = ["This report is derived from other reports.", "This Service report is built from the other Service reports, so it is not imported."],
         [ImportCodes.InvoiceYearDiffers] = ["ETP's invoice year differs from the financial year of the invoice date; the financial year of the date is used."],
         [ImportCodes.StaleCopyCollapsed] = ["An older copy of a row was collapsed into the newer export's row."],
         [ImportCodes.StockRowRepeated] = ["A stock ledger row repeats an earlier row exactly; both are kept, each with its own line."],
@@ -120,6 +120,15 @@ public static class ImportDiagnosticCatalogue
         [ImportCodes.CommitOutcomeUnknown] = [CommitOutcomeUnknownMessage],
         ["ISSUES_TRUNCATED"] = ["More issue codes than an attempt keeps; their occurrences are counted together."],
         [ImportCodes.EvidenceNotRetained] = ["Data is present; the source file could not be kept as evidence."],
+
+        // Service Centre interim (decision 15; the folder import's ServiceRouting writes these exact texts).
+        // SERVICE_SNAPSHOT_DATE_NEEDED is deliberately absent: its fix text names an example folder with a year, which a
+        // template may not hold, and an importer refusal whose code the catalogue does not know keeps its own text.
+        ["SERVICE_FAMILY_NOT_NEEDED"] = ["This Service report is not needed; the other files are processed."],
+        ["SERVICE_FAMILY_DEFERRED"] = ["This Service report is not imported yet; it waits for the full Service import."],
+        ["SERVICE_STORE_DEFAULTED"] = ["This Service Centre file names no store and no file beside it does, so it is imported under the Service Centre (AW330)."],
+        ["SERVICE_SNAPSHOT_DATE_DIFFERS_FROM_HISTORY"] =
+            ["The latest date on the Snapshot History sheet differs from the snapshot date this file is imported under. Check the folder date."],
 
         // Consolidation contract (contract section 8).
         [ImportCodes.Contract.Unreadable] = ["The consolidation contract in the Info sheet could not be read."],
