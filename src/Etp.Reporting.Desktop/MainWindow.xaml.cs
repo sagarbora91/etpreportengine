@@ -23,6 +23,7 @@ using AccessRole = EtpApplication::Etp.Reporting.Application.Access.AccessRole;
 using AccessSessionQuery = EtpApplication::Etp.Reporting.Application.Access.IAccessSessionQuery;
 using RecordOperationalAudit = EtpApplication::Etp.Reporting.Application.DatabaseLifecycle.RecordOperationalAudit;
 using DatabaseLifecycleService = EtpApplication::Etp.Reporting.Application.DatabaseLifecycle.IDatabaseLifecycleService;
+using ServiceReportQuery = EtpApplication::Etp.Reporting.Application.Service.IServiceReportQuery;
 
 public partial class MainWindow : Window
 {
@@ -44,6 +45,12 @@ public partial class MainWindow : Window
     private readonly Func<string, DatabaseLifecycleService> databaseLifecycleServiceFactory;
     internal readonly ImportWorkspaceView importWorkspaceView;
     internal ImportHistoryView? importHistoryView;
+    // Service centre screens (Service interim). The composition root wires the SQL read model and
+    // the report exporter; until it does, the screens say the read model is not available.
+    // See the INTEGRATION STEP in DesktopCompositionRoot (pinned by ServiceCompositionPinTests).
+    internal Func<ServiceReportQuery> serviceReportQuery = Modules.Service.ServiceScreens.Unavailable;
+    internal Modules.Service.ServiceExcelExport serviceExcelExport = static (path, metadata, data) =>
+        new ReportExportCoordinator().ExportReportExcelAsync(path, metadata, data, null);
     private AccessSession currentAccess = new("unknown", "Unknown user", AccessRole.None, false);
 
     public MainWindow(

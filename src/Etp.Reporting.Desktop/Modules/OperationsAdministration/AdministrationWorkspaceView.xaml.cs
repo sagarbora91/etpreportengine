@@ -26,6 +26,40 @@ public partial class AdministrationWorkspaceView : UserControl
         userAccessGuidance = UserAccessGuidance.Text;
         UserActiveInput.Checked += (_, _) => UpdateSaveUserAccessState();
         UserActiveInput.Unchecked += (_, _) => UpdateSaveUserAccessState();
+        MasterCodeInput.TextChanged += (_, _) => UpdateMasterActiveState();
+    }
+
+    // Service interim (0048). AW330 is the Service Centre, not a shop: the database refuses to
+    // make it active (51900), so Settings > Stores turns the Active toggle off for it before
+    // the Owner can try. Retail codes keep the toggle exactly as before.
+    private IReadOnlySet<string> serviceStoreCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    private object? masterActiveToolTip;
+    private bool masterActiveToolTipCaptured;
+    private bool masterActiveBeforeLock = true;
+
+    /// <summary>True when the Active toggle is off because the typed code is a Service Centre store.</summary>
+    public bool MasterActiveLockedForServiceStore { get; private set; }
+    public bool CanToggleMasterActive => MasterActiveInput.IsEnabled;
+    public bool MasterActiveChecked => MasterActiveInput.IsChecked == true;
+    public IReadOnlyList<string> MasterDisplayNames =>
+        ControlledMastersGrid.Items.OfType<ControlledMasterPresentation>().Select(row => row.DisplayName).ToArray();
+
+    /// <summary>Types a store code into the editor, as the Owner would (tests use it).</summary>
+    public void TypeMasterCode(string code) => MasterCodeInput.Text = code;
+
+    private void UpdateMasterActiveState()
+    {
+        if (!masterActiveToolTipCaptured) { masterActiveToolTip = MasterActiveInput.ToolTip; masterActiveToolTipCaptured = true; }
+        var locked = serviceStoreCodes.Contains(MasterCodeInput.Text.Trim());
+        var wasLocked = MasterActiveLockedForServiceStore;
+        MasterActiveLockedForServiceStore = locked;
+        // Remember the Owner's tick when AW330 locks the box and give it back when the code
+        // stops being AW330, so the Retail store saved next is never switched off by accident.
+        if (locked && !wasLocked) masterActiveBeforeLock = MasterActiveInput.IsChecked == true;
+        if (locked) MasterActiveInput.IsChecked = false;
+        else if (wasLocked) MasterActiveInput.IsChecked = masterActiveBeforeLock;
+        MasterActiveInput.IsEnabled = !locked;
+        MasterActiveInput.ToolTip = locked ? Etp.Reporting.Infrastructure.SqlServer.ServiceCentreStores.ActiveToggleLockedToolTip : masterActiveToolTip;
     }
 
     private readonly string userAccessGuidance;
@@ -98,7 +132,9 @@ public partial class AdministrationWorkspaceView : UserControl
             var dashboard = await Service.LoadAsync(type);
             if (revision != refreshRevision || type != SelectedContent(MasterTypeInput)) return;
             var state = session.Capture(dashboard);
-            ControlledMastersGrid.ItemsSource = state.Masters;
+            ControlledMastersGrid.ItemsSource = state.MasterRows;
+            serviceStoreCodes = state.ServiceStoreCodes;
+            UpdateMasterActiveState();
             ApplicationUsersGrid.ItemsSource = state.Users;
             KpiCatalogueGrid.ItemsSource = state.Kpis;
             ProductHealthGrid.ItemsSource = state.ProductHealth;

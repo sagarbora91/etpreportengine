@@ -2,6 +2,8 @@ using Etp.Reporting.Application.Imports;
 using Etp.Reporting.Import.Batch;
 using Etp.Reporting.Import.Preflight;
 using Etp.Reporting.Import.Profiles;
+using Etp.Reporting.Import.Service;
+using Etp.Reporting.Import.Sources;
 using System.Runtime.ExceptionServices;
 using System.Text.RegularExpressions;
 using Etp.Reporting.Import.Workbooks;
@@ -40,9 +42,9 @@ public sealed class FolderImportService(
     Action<FolderImportFailure>? reportFailure = null) : IFolderImportService
 {
     private static readonly SqlImportFailureClassifier Classifier = new();
-    private readonly IWorkbookReader reader = workbookReader ?? new OpenXmlWorkbookReader();
+    private readonly IWorkbookReader reader = workbookReader ?? new SourceFileReader();
     private readonly MatchedImportEnvelopeFactory envelopes = new(knownStores);
-    private readonly Dictionary<string, ImportScope> detectedScopes = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, (ImportScope Scope, bool Service)> detectedScopes = new(StringComparer.OrdinalIgnoreCase);
     public IReadOnlyList<string> FailedPaths { get; private set; } = [];
 
     public async Task<FolderImportSummary> RunAsync(string sourcePath, FolderImportOptions options,
@@ -86,7 +88,8 @@ public sealed class FolderImportService(
                 readStage = FailureStage.Match;
                 var inspection = envelopes.Inspect(workbook);
                 ready.Add((path, inspection));
-                if (inspection.AcceptedImport is { } accepted) detectedScopes[path] = accepted.Scope;
+                if (inspection.AcceptedImport is { } accepted)
+                    detectedScopes[path] = (accepted.Scope, ServiceRouting.IsService(accepted.ProfileIdentity.ReportCode));
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { break; }
             catch (Exception exception)
@@ -111,15 +114,38 @@ public sealed class FolderImportService(
                 scope?.StoreCode, scope?.PeriodStart, scope?.PeriodEnd, "Importing", Diagnostics: issues)
                 { SourcePath = entry.Path, SourceSha256 = accepted?.Workbook.Sha256 };
             progress?.Report(new(results.Count, paths.Count, result.FileName, "Importing", results.Append(result).ToArray()));
+            // Service interim (decision 15): a Service report the interim does not land is Not needed, by the code in its
+            // name before matching (S038 repeats S011's header) and by its matched family after (raw files carry no code).
+            // Either way before any persist call, because these families have no landing table.
+            if (ServiceRouting.NotNeeded(result.FileName, entry.Inspection.MatchedProfile?.ReportCode) is { } skipped)
+            {
+                result = result with { ReportCode = skipped.ReportCode, StoreCode = null, PeriodStart = null, PeriodEnd = null,
+                    Status = "Not needed", Message = skipped.Message, Evidence = EvidenceState.NotAttempted,
+                    Diagnostics = [new ImportIssue(ImportIssueSeverity.Information, skipped.Code, skipped.Message)] };
+                results.Add(result);
+                await recording.RecordAsync(result).ConfigureAwait(false);
+                continue;
+            }
+            // A Service file that matching refused for its date keeps the generic refusal and the dating tier's own text. Only a
+            // workbook no tier dated reaches the accepted branch (AwaitsSiblingDate), where SERVICE_SNAPSHOT_DATE_NEEDED applies:
+            // a refusal here came from a contract, legacy block, Coverage or folder-name conflict, which neither a dated folder
+            // nor the date override (read only for accepted files) can settle.
             if (accepted is null)
             {
                 var unknown = issues.Any(issue => issue.Code is "LAYOUT_UNKNOWN" or "REQUIRED_COLUMN_MISSING" or "UNEXPECTED_COLUMN");
                 var sourceCode = Regex.Match(result.FileName, @"(?:^|[^A-Z0-9])(R\d{3})(?:[^A-Z0-9]|$)", RegexOptions.IgnoreCase);
                 var unsupportedFamily = sourceCode.Success && !EtpReportFamilyRegistry.Families.Any(family =>
                     family.FamilyCode.Equals(sourceCode.Groups[1].Value, StringComparison.OrdinalIgnoreCase));
-                var notNeeded = result.FileName.StartsWith("00_", StringComparison.OrdinalIgnoreCase) || unsupportedFamily;
+                // .csv is admitted for the raw Service pack only; a CSV that matches no layout and whose name carries no
+                // export date (e.g. a golden-monthly-*.csv check file in a Retail folder) is not an ETP export, so it is
+                // skipped like the audit's SkippedCsvFiles rather than reported as an unknown layout. A dated raw name
+                // ("JOB REPORT 06.10.2026 TO 09.10.2026.csv") that matches nothing is still an unknown layout (drift).
+                var strayCsv = entry.Inspection.MatchedProfile is null &&
+                    Path.GetExtension(entry.Path).Equals(".csv", StringComparison.OrdinalIgnoreCase) &&
+                    !ExportNameParser.Parse(result.FileName).IsKnown;
+                var notNeeded = result.FileName.StartsWith("00_", StringComparison.OrdinalIgnoreCase) || unsupportedFamily || strayCsv;
                 result = result with { Evidence = EvidenceState.NotAttempted, Status = notNeeded ? "Not needed" : unknown ? "Unknown layout" : "Failed",
-                    Message = notNeeded ? unsupportedFamily ? "This ETP report type is not needed by the reporting engine; the other workbooks are processed." : "Consolidation control workbook; report workbooks are imported separately." : string.Join(" ", issues.Select(issue => issue.Message).Distinct()) };
+                    Message = notNeeded ? strayCsv ? "This CSV file is not an ETP export; it was skipped and the other files are processed." : unsupportedFamily ?"This ETP report type is not needed by the reporting engine; the other workbooks are processed." : "Consolidation control workbook; report workbooks are imported separately." : string.Join(" ", issues.Select(issue => issue.Message).Distinct()) };
                 if (!notNeeded) result = result with { Failure = MatchFailure(issues) };
                 results.Add(result);
                 await recording.RecordAsync(result).ConfigureAwait(false);
@@ -130,19 +156,29 @@ public sealed class FolderImportService(
             {
                 // A retry re-reads only failed files. Preserve the original sibling scope for
                 // empty exports that depend on the other successful exports in their folder.
-                var siblings = detectedScopes.Where(item => string.Equals(Path.GetDirectoryName(item.Key), Path.GetDirectoryName(entry.Path), StringComparison.OrdinalIgnoreCase))
-                    .Select(item => item.Value).ToArray();
+                var service = ServiceRouting.IsService(accepted.ProfileIdentity.ReportCode);
+                var siblings = ServiceRouting.Siblings(detectedScopes, entry.Path, service);
                 if (scope?.StoreCode is { } detectedStore && options.OverrideStoreCode is { } overrideStore &&
                     !string.Equals(detectedStore, overrideStore, StringComparison.OrdinalIgnoreCase))
                     throw new ImportSourceException("STORE_OVERRIDE_MISMATCH", "The store override does not match the file. Use a corrected source file to change its store.");
                 if (scope?.PeriodEnd is { } detectedDate && options.OverrideBusinessDate is { } overrideDate && detectedDate != overrideDate)
                     throw new ImportSourceException("DATE_OVERRIDE_MISMATCH", "The date override does not match the file. Use a corrected source file to change its date.");
                 var store = scope?.StoreCode ?? options.OverrideStoreCode ?? siblings.Select(item => item!.StoreCode).FirstOrDefault(value => value is not null);
+                // Service interim: a Service file with no store of its own or beside it (S011, S013, a lone file) is the
+                // Service Centre's. Retail has no fallback and keeps SCOPE_NOT_DETECTED below.
+                if (string.IsNullOrWhiteSpace(store) && ImportScope.ServiceStoreFallback(accepted.ProfileIdentity.ReportCode) is { } serviceStore)
+                {
+                    store = serviceStore;
+                    result = result with { Diagnostics = [.. result.Diagnostics ?? [], new ImportIssue(ImportIssueSeverity.Information,
+                        ServiceInterimFamilies.Codes.ServiceStoreDefaulted, ServiceRouting.StoreDefaultedMessage)] };
+                }
                 // An undated snapshot takes its siblings' end date only when they agree on one (spec 6.4 tier 7); never a maximum.
                 var undated = EtpReportFamilyRegistry.Resolve(accepted.ProfileIdentity.ReportCode).PrimaryDateHeader is null;
                 var siblingEnds = siblings.Select(item => item!.PeriodEnd).OfType<DateOnly>().Distinct().ToArray();
                 var siblingEnd = !undated ? siblings.Select(item => item!.PeriodEnd).Max() : siblingEnds.Length == 1 ? siblingEnds[0] : (DateOnly?)null;
                 var end = scope?.PeriodEnd ?? options.OverrideBusinessDate ?? siblingEnd;
+                if (undated && end is null && service)
+                    throw new ImportSourceException(ServiceInterimFamilies.Codes.ServiceSnapshotDateNeeded, ServiceRouting.DateNeededMessage);
                 if (undated && end is null)
                     throw siblingEnds.Length > 1
                         ? new ImportSourceException(ImportCodes.SnapshotDateAmbiguous, "The snapshot date could not be found, and the other exports in this folder end on different dates. Import the ETP file under its original name.")
@@ -157,6 +193,8 @@ public sealed class FolderImportService(
                             $"The snapshot date {end:yyyy-MM-dd} was taken from the other exports in this folder.")] };
                 if (string.IsNullOrWhiteSpace(store) || end is null)
                     throw new ImportSourceException("SCOPE_NOT_DETECTED", "Store or date could not be detected. Keep this file beside the other exports for its store.");
+                if (service && ServiceRouting.HistoryDateDiffers(accepted.Workbook, end.Value) is { } historyIssue)
+                    result = result with { Diagnostics = [.. result.Diagnostics ?? [], historyIssue] };
                 var persistedStore = scope?.StoreCode ?? store;
                 var periodStart = scope?.PeriodStart ?? end.Value;
                 var periodEnd = scope?.PeriodEnd ?? end.Value;
@@ -436,4 +474,87 @@ public sealed class FolderImportService(
         "R025" => 0, "R020" => 1, "R022" => 2, "R024" => 3, "R013" => 4, "R003" => 5,
         "STOCK_LEDGER" or "R030" => 6, "R011" or "CLOSING_STOCK" => 7, _ => 10
     };
+}
+
+/// <summary>
+/// The Service Centre rules of the folder import in the interim (decision 15, SERVICE-INTERIM-DESIGN.md sections 4 and 7):
+/// which Service files are Not needed, the store fallback's note and the dating messages. Retail files never reach a
+/// Service rule: every rule first asks for a Service family or an S code.
+/// </summary>
+internal static class ServiceRouting
+{
+    /// <summary>The Owner's fix for an undated Service file (lane L3, step 3).</summary>
+    internal const string DateNeededMessage =
+        "Put the Service files in a folder whose name ends with the date, e.g. 'Service Centre till 05 oct 2026'. The Import screen's date is only for a restatement.";
+
+    internal const string StoreDefaultedMessage =
+        "This Service Centre file names no store and no file beside it does, so it is imported under the Service Centre (AW330).";
+
+    internal const string DerivedMessage = "This Service report is built from the other Service reports, so it is not imported.";
+    internal const string NotNeededMessage = "This Service report is not needed; the other files are processed.";
+    internal const string DeferredMessage = "This Service report is not imported yet; it waits for the full Service import.";
+    internal const string HistoryDiffersTemplate =
+        "The latest date on the Snapshot History sheet differs from the snapshot date this file is imported under. Check the folder date.";
+
+    private static readonly Regex FamilyCodeInName = new(@"(?:^|[^A-Z0-9])([RS]\d{3})(?:[^A-Z0-9]|$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+    /// <summary>Why a Service file is not imported: the family code it is recorded under, the reason code and the message.</summary>
+    internal sealed record Skip(string ReportCode, string Code, string Message);
+
+    /// <summary>True for a catalogued family of the Service business unit.</summary>
+    /// <param name="families">The catalogue to look in; the shipped registry when null (a test passes a synthetic one).</param>
+    internal static bool IsService(string? reportCode, IEnumerable<EtpReportFamily>? families = null) =>
+        Family(reportCode, families)?.BusinessUnit == BusinessUnit.Service;
+
+    /// <summary>
+    /// A Service file the interim does not land, or null. First by the S code in the file name (before matching, so the
+    /// retired S038 is Not needed although its header equals S011's; an R code in the name leaves the file to the Retail
+    /// rules), then by the family its headers matched (raw files name no code: tender summary S005, TAT S027,
+    /// technician productivity S028).
+    /// </summary>
+    internal static Skip? NotNeeded(string fileName, string? matchedReportCode) => NotNeeded(fileName, Family(matchedReportCode));
+
+    /// <inheritdoc cref="NotNeeded(string, string?)"/>
+    internal static Skip? NotNeeded(string fileName, EtpReportFamily? matched)
+    {
+        var codes = FamilyCodeInName.Matches(fileName).Select(match => match.Groups[1].Value.ToUpperInvariant()).ToArray();
+        if (codes.Length > 0 && codes.All(code => code[0] == 'S'))
+            return ServiceInterimFamilies.Importable.Contains(codes[0]) ? null : For(codes[0]);
+        return matched is { BusinessUnit: BusinessUnit.Service } && !ServiceInterimFamilies.Importable.Contains(matched.FamilyCode)
+            ? For(matched.FamilyCode) : null;
+    }
+
+    /// <summary>
+    /// The warning for a Service workbook whose latest <c>Snapshot_As_Of</c> (S006, S009, S010) differs from the date it is
+    /// imported under; information only, never a refusal. Null when there is no readable Snapshot History sheet.
+    /// </summary>
+    internal static ImportIssue? HistoryDateDiffers(WorkbookSnapshot workbook, DateOnly snapshotDate)
+    {
+        var sheet = workbook.Sheets.FirstOrDefault(candidate =>
+            string.Equals(candidate.Name.Trim(), ConsolidationContractLayout.HistorySheet, StringComparison.OrdinalIgnoreCase));
+        if (sheet is null) return null;
+        var latest = HistorySheetBlockReader.Read(sheet, 1).Blocks.Select(block => block.SnapshotDate).Max();
+        return latest is { } asOf && asOf != snapshotDate
+            ? new(ImportIssueSeverity.Warning, ServiceInterimFamilies.Codes.ServiceSnapshotDateDiffersFromHistory,
+                $"The latest Snapshot History date is {asOf:yyyy-MM-dd}, but this file is imported under {snapshotDate:yyyy-MM-dd}. Check the folder date.")
+            : null;
+    }
+
+    private static Skip For(string code) =>
+        ServiceInterimFamilies.Derived.Contains(code) ? new(code, ServiceInterimFamilies.Codes.FamilyDerived, DerivedMessage)
+        : ServiceInterimFamilies.Deferred.Contains(code) ? new(code, ServiceInterimFamilies.Codes.ServiceFamilyDeferred, DeferredMessage)
+        : new(code, ServiceInterimFamilies.Codes.ServiceFamilyNotNeeded, NotNeededMessage);
+
+    /// <summary>
+    /// The scopes detected beside <paramref name="path"/> (same folder or ZIP folder) that may lend it a store or a date:
+    /// only those of its own business unit. A Retail export never takes AW330 or a Service folder date, and an undated
+    /// Service snapshot never takes a Retail sibling's date (it fails SERVICE_SNAPSHOT_DATE_NEEDED instead).
+    /// </summary>
+    internal static ImportScope[] Siblings(IEnumerable<KeyValuePair<string, (ImportScope Scope, bool Service)>> detected, string path, bool service) =>
+        detected.Where(item => item.Value.Service == service &&
+                string.Equals(Path.GetDirectoryName(item.Key), Path.GetDirectoryName(path), StringComparison.OrdinalIgnoreCase))
+            .Select(item => item.Value.Scope).ToArray();
+
+    private static EtpReportFamily? Family(string? reportCode, IEnumerable<EtpReportFamily>? families = null) => reportCode is null ? null :
+        (families ?? EtpReportFamilyRegistry.Families).FirstOrDefault(family => family.ReportCode == reportCode || family.FamilyCode == reportCode);
 }

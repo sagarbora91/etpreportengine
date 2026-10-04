@@ -103,8 +103,11 @@ public sealed class SourceInspector(IWorkbookReader? workbookReader = null, IRea
     public IReadOnlyList<string> Families { get; init; } = [];
     /// <summary>Only this store (<c>--store</c>).</summary>
     public string? Store { get; init; }
-    /// <summary>Paths kept as given, never resolved through a ZIP's temporary folder (design 4).</summary>
-    public ImportPathPolicy PathPolicy { get; init; } = new();
+    /// <summary>
+    /// Paths kept as given, never resolved through a ZIP's temporary folder (design 4). The audit reads workbooks only:
+    /// CSV exports are counted (<see cref="InspectionRun.SkippedCsvFiles"/>), never read, so the policy excludes them.
+    /// </summary>
+    public ImportPathPolicy PathPolicy { get; init; } = new(ImportPathPolicyOptions.Default with { AdmitCsv = false });
 
     public async Task<InspectionRun> InspectAsync(IReadOnlyList<string> inputs, IProgress<string>? progress = null,
         CancellationToken cancellationToken = default)
