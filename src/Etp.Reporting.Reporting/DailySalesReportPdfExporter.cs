@@ -52,7 +52,7 @@ public sealed class DailySalesReportPdfExporter
         var width=(PageWidth-36-9*Math.Max(0,r.Stores.Count-1))/Math.Max(1,r.Stores.Count);
         for(var index=0;index<r.Stores.Count;index++) { StoreCard(g,18+index*(width+9),159,width,118,r.Stores[index],index%2==0?"#EAF2FF":"#F2ECFF"); OperationalCard(g,18+index*(width+9),289.276,width,126,r.Stores[index]); }
         ServiceCard(g, 18, 427.276, 398.445, 150, r.Service); TargetCard(g, 425.445, 427.276, 398.445, 150, r.Targets);
-        Text(g, "All amounts in INR · FTD = For the Day · MTD = Month to Date · YTD = Year to Date", 5.3, false, muted, 200, 582, 442, 9, XParagraphAlignment.Center);
+        Text(g, $"All amounts in INR · FTD = For the Day · MTD = Month to Date · YTD = Year to Date · Gift cards (FTD {DsrDisplay.Currency(r.CombinedFtdGiftCards)}) are not in value, units or invoices", 5.3, false, muted, 120, 582, 602, 9, XParagraphAlignment.Center);
     }
 
     private static void Kpi(XGraphics g, double x, double y, double w, double h, (string Label, string Value, string Secondary, string Accent) card)

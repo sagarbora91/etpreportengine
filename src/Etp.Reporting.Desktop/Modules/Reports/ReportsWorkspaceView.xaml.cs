@@ -331,7 +331,7 @@ public partial class ReportsWorkspaceView : UserControl
             var rows=await repo.LoadDsrAsync(scope.DateTo,[]);var document=await repo.ComposeDsrDocumentAsync(scope.DateTo,rows);
             if(revision!=reportRevision)return;ReportGrid.ItemsSource=rows;
             var status=rows.Any(x=>x.TySales is not null)?ReconciliationStatus.Passed:ReconciliationStatus.Blocked;
-            ReportResult.Text="GST-inclusive sales; invoice counts exclude returns. Manual totals use available entries. Check Other / unmapped brands in Settings.";
+            ReportResult.Text="GST-inclusive sales; invoice counts exclude returns. Gift cards are on their own GIFT CARD line, not in VALUE, VOL or INVOICE. Manual totals use available entries. Check Other / unmapped brands in Settings.";
             var data=EveningReportTables.Dsr(document.EveningSheets);
             SetExport("Daily Sales Report",status,RetailReportingPolicy.Version,ReportResult.Text,data.Columns,data.Rows,data.Totals,document,scope.DateTo);
             ApplyReportFilter();

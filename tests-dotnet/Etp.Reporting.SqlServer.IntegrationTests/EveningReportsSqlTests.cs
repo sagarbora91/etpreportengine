@@ -228,7 +228,7 @@ public sealed class EveningReportsSqlTests(SqlDatabaseFixture db, ITestOutputHel
         Assert.Equal(63505m,doc.EveningSheets.Single(x=>x.StoreCode=="COMBINED").Rows.Single(x=>x.Metric=="VALUE").Ftd);
         foreach(var sheet in new[]{titan,helios})
         {
-            Assert.Equal(sheet.Rows.Single(x=>x.Metric=="VALUE").Ftd,sheet.Rows.Where(x=>x.Format=="currency"&&x.Metric is not ("VALUE" or "AVPT" or "WCC SALES")).Sum(x=>x.Ftd));
+            Assert.Equal(sheet.Rows.Single(x=>x.Metric=="VALUE").Ftd,sheet.Rows.Where(x=>x.Format=="currency"&&x.Metric is not ("VALUE" or "AVPT" or "WCC SALES" or "GIFT CARD")).Sum(x=>x.Ftd));
             output.WriteLine($"{sheet.StoreCode}: INV-only MTD {sheet.Rows.Single(x=>x.Metric=="INVOICE").Mtd}; LY {sheet.Rows.Single(x=>x.Metric=="VALUE").Ly}");
         }
         var review=Path.Combine(Path.GetTempPath(),"EtpPhase2Review",db.Name);
@@ -239,11 +239,60 @@ public sealed class EveningReportsSqlTests(SqlDatabaseFixture db, ITestOutputHel
         Assert.Equal("Imported",Assert.Single(historical.Files).Status);
         var historicalDsr=await r.LoadDailySalesReportDocumentAsync(date);
         var valueRow=historicalDsr.EveningSheets.Single(x=>x.StoreCode=="HEMW").Rows.Single(x=>x.Metric=="VALUE");
-        Assert.Equal(46797m,valueRow.Ly);Assert.Equal(2186215.10m,valueRow.LyYtd);
+        // Owner decision 13 / A2: the 50,000 gift card sold on 29 Jul 2025 leaves LY YTD VALUE (2,186,215.10 before) for the GIFT CARD line.
+        Assert.Equal(46797m,valueRow.Ly);Assert.Equal(2136215.10m,valueRow.LyYtd);
+        Assert.Equal(50000m,historicalDsr.EveningSheets.Single(x=>x.StoreCode=="HEMW").Rows.Single(x=>x.Metric=="GIFT CARD").LyYtd);
         Assert.NotNull(valueRow.Growth);
         Assert.Null(historicalDsr.EveningSheets.Single(x=>x.StoreCode=="WLMHW").Rows.Single(x=>x.Metric=="VALUE").Ly);
         new DailySalesReportPdfExporter().Export(Path.Combine(review,"Evening-DSR-with-Helios-history.pdf"),historicalDsr);
         Assert.Equal(0,Convert.ToInt32(await db.ExecuteAsync("SELECT COUNT(*) FROM dbo.sales_tenders WHERE is_reporting_eligible=0")));
+    }
+
+    // Owner decision 13 / A2, A-Q2 confirmed 4 Oct 2026: gift cards leave DSR VALUE, VOL and INVOICE, have their own
+    // GIFT CARD line, and are not in a brand row or Other / unmapped. Synthetic store and amounts.
+    [Fact]
+    public async Task Gift_cards_leave_dsr_value_units_and_invoices_and_show_on_their_own_line()
+    {
+        await db.ExecuteAsync("""
+            DECLARE @batch uniqueidentifier=NEWID(),@sales bigint;
+            INSERT dbo.stores(store_code,store_name,is_active) VALUES('GCDSR',N'Synthetic gift-card store',1);
+            INSERT dbo.import_batches(import_batch_id,status,started_utc) VALUES(@batch,'Completed',SYSUTCDATETIME());
+            INSERT dbo.import_files(import_batch_id,original_file_name,source_sha256,size_bytes,store_code,report_code,business_date,period_start,period_end,data_truth_version)
+            VALUES(@batch,'gc-r025.xlsx',REPLICATE('7',64),1,'GCDSR','R025','20320810','20320810','20320810',1);
+            SET @sales=SCOPE_IDENTITY();
+            INSERT dbo.source_lineage(import_file_id,sheet_name,source_row_number,source_record_type) VALUES(@sales,'Sales',1,'sale'),(@sales,'Sales',2,'sale'),(@sales,'Sales',3,'sale');
+            INSERT dbo.sales_invoices(store_code,document_number,invoice_year,transaction_date) VALUES('GCDSR','G1',2033,'20320810'),('GCDSR','G2',2033,'20320810');
+            -- G1: one watch line and one gift card (BRAND GC). G2: a gift-card-only bill (product code GIFT CARD).
+            INSERT dbo.sales_lines(sales_invoice_id,line_identifier,product_code,source_transaction_type,source_quantity,source_gross_amount,source_net_amount,source_tax_amount,source_brand_code,currency_code,source_lineage_id)
+            SELECT i.sales_invoice_id,v.line,v.item,'INV',1,v.amount,v.amount,0,v.brand,'INR',s.source_lineage_id
+            FROM (VALUES('G1','1','WATCH1','WB',1,4000),('G1','2','GCX','GC',2,1000),('G2','1','GIFT CARD','GC',3,2000)) v(doc,line,item,brand,rowNo,amount)
+            JOIN dbo.sales_invoices i ON i.store_code='GCDSR' AND i.document_number=v.doc
+            JOIN dbo.source_lineage s ON s.import_file_id=@sales AND s.source_row_number=v.rowNo;
+            """);
+        try
+        {
+            var r=new OperationalReportRepository(db.ConnectionString);
+            var date=new DateOnly(2032,8,10);
+            var dsr=await r.LoadDsrAsync(date,["GCDSR"]);
+            var ftd=dsr.Single(x=>x.Store=="GCDSR"&&x.Period=="FTD");
+            Assert.Equal(4000m,ftd.TySales);
+            Assert.Equal(1m,ftd.TyUnits);
+            Assert.Equal(1,ftd.TyInvoices);
+            Assert.Equal(3000m,ftd.TyGiftCards);
+            Assert.Equal(4000m,ftd.Atv);
+            var sheet=(await r.LoadEveningSheetsAsync(date,dsr)).Single(x=>x.StoreCode=="GCDSR");
+            Assert.Equal(4000m,sheet.Rows.Single(x=>x.Metric=="VALUE").Ftd);
+            Assert.Equal(4000m,sheet.Rows.Single(x=>x.Metric=="Other / unmapped").Ftd);
+            var gift=sheet.Rows.Single(x=>x.Metric=="GIFT CARD");
+            Assert.Equal(3000m,gift.Ftd);
+            Assert.Equal(sheet.Rows.ToList().FindIndex(x=>x.Metric=="Other / unmapped")+1,sheet.Rows.ToList().FindIndex(x=>x.Metric=="GIFT CARD"));
+            Assert.Equal(1m,sheet.Rows.Single(x=>x.Metric=="INVOICE").Ftd);
+            await Assert.ThrowsAsync<ArgumentException>(()=>new EveningMasterRepository(db.ConnectionString).SaveBrandAsync(new(0,"GCDSR","Gift card",10,"GC")));
+        }
+        finally
+        {
+            await db.ExecuteAsync("UPDATE dbo.stores SET is_active=0 WHERE store_code='GCDSR'");
+        }
     }
 
     [Fact]

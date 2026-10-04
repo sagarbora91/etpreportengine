@@ -6,7 +6,8 @@ namespace Etp.Reporting.SqlServer.IntegrationTests;
 /// <summary>
 /// 1.9.4, migration 0046. Report audit of 3 October 2026 (HEMW FIX-05, WLMHW FIX-11 and FIX-12): after the
 /// upgrade from 0045, Settings > Calculations says NET_SALES is GST-inclusive R025 NETAMOUNT and INVOICE_COUNT
-/// counts INV documents only. Wording only; running the script again changes nothing.
+/// counts INV documents only as "Invoices" with a separate "Returns" count, and the DSR VALUE leaves gift cards out
+/// (0046 amended in place, decision 17 D-L9-3). Wording only; running the script again changes nothing.
 /// </summary>
 public sealed class ReportLabelCorrectionSqlTests
 {
@@ -28,10 +29,13 @@ public sealed class ReportLabelCorrectionSqlTests
         Assert.Contains("0046_report_label_corrections", applied);
         Assert.Equal("SUM(R025.NETAMOUNT)|Canonical sales lines from R025 NETAMOUNT (GST-inclusive)|2|APPROVED|1",
             await db.ExecuteAsync("SELECT CONCAT(formula,'|',data_source,'|',version,'|',approval_status,'|',is_active) FROM dbo.kpi_catalogue WHERE kpi_code='NET_SALES'"));
-        Assert.Equal("Primary sales value including GST, with sales returns retaining their negative signs.",
-            await db.ExecuteAsync("SELECT definition FROM dbo.kpi_catalogue WHERE kpi_code='NET_SALES'"));
+        var netSales = (string)(await db.ExecuteAsync("SELECT definition FROM dbo.kpi_catalogue WHERE kpi_code='NET_SALES'"))!;
+        Assert.StartsWith("Primary sales value including GST, with sales returns retaining their negative signs.", netSales, StringComparison.Ordinal);
+        Assert.Contains("leaves gift-card lines (item GIFT CARD or BRAND GC) out and shows them on their own GIFT CARD line", netSales, StringComparison.Ordinal);
         var invoice = (string)(await db.ExecuteAsync("SELECT CONCAT(definition,'|',formula,'|',version) FROM dbo.kpi_catalogue WHERE kpi_code='INVOICE_COUNT'"))!;
         Assert.StartsWith("Distinct INV documents (store + financial year + document number)", invoice, StringComparison.Ordinal);
+        Assert.Contains("a separate \"Returns\" count of distinct SR or BC documents", invoice, StringComparison.Ordinal);
+        Assert.DoesNotContain("Documents (incl. returns)", invoice, StringComparison.Ordinal);
         Assert.EndsWith("|COUNT(DISTINCT store + financial year + document) over documents with an INV line|2", invoice, StringComparison.Ordinal);
         Assert.Equal(0, await db.ExecuteAsync("SELECT COUNT(*) FROM dbo.kpi_catalogue WHERE CONCAT(formula,data_source,definition) LIKE N'%R025.NETVALUE%' OR CONCAT(formula,data_source,definition) LIKE N'%sourced from R025 NETVALUE%'"));
         Assert.Equal(untouched, await db.ExecuteAsync(Catalogue.Replace("FROM dbo.kpi_catalogue", "FROM dbo.kpi_catalogue WHERE kpi_code NOT IN('NET_SALES','INVOICE_COUNT')", StringComparison.Ordinal)));
