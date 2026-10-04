@@ -620,7 +620,7 @@ function Get-EtpAutomationGrantGuidance {
     $command = Get-EtpAutomationGrantCommand -ServerInstance $ServerInstance -Database $Database -AutomationPrincipal $AutomationPrincipal -ScriptsDirectory $ScriptsDirectory
     switch ($GrantState.State) {
         'NOT_STORE_MANAGER' {
-            return "The automation account $AutomationPrincipal is not an active Store Manager of $Database, so the scheduled backup and the recovery drill cannot run under it. In ETP as Owner, started with 'Run as administrator', add $AutomationPrincipal as an active Store Manager in Settings > Users. Then run ETP setup again, which completes its backup rights, or run this in an administrator PowerShell window: $command (docs\OPERATIONS.md, step 7)."
+            return "The automation account $AutomationPrincipal is not an active Store Manager of $Database, so the scheduled backup and the recovery drill cannot run under it. In ETP, signed in as an Owner, add $AutomationPrincipal as an active Store Manager in Settings > Users (no 'Run as administrator' is needed: setup gives every active Owner the right to change users). Then run ETP setup again, which completes its backup rights, or run this in an administrator PowerShell window: $command (docs\OPERATIONS.md, step 7)."
         }
         'GRANTS_MISSING' {
             return "The automation account $AutomationPrincipal is an active Store Manager but does not yet have the operations module's rights (missing: $($GrantState.Missing -join ', ')). Run ETP setup again, which completes them, or run this in an administrator PowerShell window: $command (docs\OPERATIONS.md, step 7)."

@@ -485,7 +485,7 @@ $waiting = if ($bundled.Count -eq 0) { 'The waiting database updates could not b
 Write-RestoreLog "$Database was restored from $source, verified and checked, and $sqlIdentity is its Owner. $waiting"
 Write-RestoreLog 'Next:'
 Write-RestoreLog '1. Run the ETP setup again (you can leave "Install SQL Server" unticked). It takes a verified safety backup of this data before it applies the waiting updates.'
-Write-RestoreLog "2. Then start ETP with 'Run as administrator', and as Owner add $($configuration.automationPrincipal) as an active Store Manager in Settings > Users."
+Write-RestoreLog "2. Then, in ETP signed in as an Owner (no 'Run as administrator' needed unless the NOTE above says the grant is missing), add $($configuration.automationPrincipal) as an active Store Manager in Settings > Users."
 Write-RestoreLog "3. Run the ETP setup once more. It gives $($configuration.automationPrincipal) the backup and recovery-drill rights (the restricted SQL operations module, docs\OPERATIONS.md step 7); until then the daily backup and the monthly drill cannot run."
 Write-RestoreLog "The old PC's accounts stay listed in Settings > Users; they cannot sign in here. Once setup has applied database update 0042, deactivate them there (Active unticked, with a reason): an account of a PC that no longer exists can be deactivated, though it can never be given access again. A database restored onto a newer SQL Server than the one it was backed up on is upgraded, and its backups can no longer be restored onto the older version."
 exit 0
