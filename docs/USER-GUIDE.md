@@ -52,9 +52,9 @@ ETP imports the Service Centre (AW330) exports and shows them on four read-only 
 
 Copy the consolidated Service folder into a folder whose name ends with the date, for example `Service Centre till 05 oct 2026`, and import that folder (Import → choose the folder). ETP dates every file in it with the folder date. If the folder has no date, rename it or copy the files into a dated folder. The snapshot date box on the Import screen is used only when Restate is ticked and a reason is entered, which starts a restatement for approval; it is not a shortcut for a first import.
 
-A folder without a date is refused with "Put the Service files in a folder whose name ends with the date, e.g. 'Service Centre till 05 oct 2026', or set the snapshot date on the Import screen." For a normal import, follow the first half of that message: use a dated folder (the Import-screen date needs Restate, as above). The package folder `Service Centre (no importer profile)` has no date, so copy its files into a dated folder first.
+A folder without a date is refused with "Put the Service files in a folder whose name ends with the date, e.g. 'Service Centre till 05 oct 2026'. The Import screen's date is only for a restatement." Rename the folder or copy the files into a dated folder and import again. The package folder `Service Centre (no importer profile)` has no date, so copy its files into a dated folder first.
 
-Expect 35 files Imported. These are reported Not needed, which is correct:
+Expect 35 files Imported (ETP imports 36 Service families; the 36th, GPRC CLAIM, comes only as a raw export, below). These are reported Not needed, which is correct:
 
 - S001 Repair register: it repeats the ten status lists, so it would count every job twice.
 - S005 Tender collection summary: not needed; S004 has the tender detail.
@@ -70,7 +70,9 @@ Drop the ETP Service export files as they come, CSV or XLSX, into the import (or
 
 The raw files cover a few days each. The screens combine them with the weekly workbook: for each day, job and list, the latest file that covers it wins, so a raw file never hides older weeks and importing in a different order gives the same result.
 
-Not imported yet: technician productivity and the tender collection summary (both reported Not needed), and TAT (TATA REPORT) and the new GPRC CLAIM layout (both shown as an unknown layout). None of them is shown as Failed.
+GPRC CLAIM (`GPRC CLAIM 01.08.2026 TO 07.08.2026.xlsx`) is imported as its own family, S041. The consolidated GPRC report (S023) holds the claims up to 5 Aug 2026 and GPRC CLAIM the claims after; where both hold the same claim document, GPRC CLAIM is used, so no claim is counted twice.
+
+Not imported yet: technician productivity and the tender collection summary (both reported Not needed), and TAT (TATA REPORT, shown as an unknown layout). None of them is shown as Failed. In the automatic-import watch folder an unknown layout counts as a failed source, so a TATA REPORT dropped there goes to the Failed folder; import it by hand or leave it out until 1.10.0.
 
 ### The four screens (Reports → Service centre)
 
@@ -79,13 +81,13 @@ Every screen shows "Service data as at <date> (refreshed <date>)", or "No Servic
 - **Service jobs by status.** One row per job with its current status (one of the ten status lists), job date, EDD, brand, model, customer name, spare value, labour, line count and whether the job is also in other lists. Filter by status; Export.
 - **Service pending lists.** Pending repair, Pending delivery and SRN status, oldest first, with the age in days. Export.
 - **Service job history.** Type a job number. Shows each list the job was in, when it was first seen and when it left ("Left the list on or before <date>"). A job leaving a list is history, not a problem: nothing needs to be approved.
-- **Service money check.** Choose a date range. Shows the S004 tender amount per day and tender beside the manual Service cash/card/UPI entries, the difference, and which shops' manual entries were added up ("Manual entries from: ..."). Below it, "Money changed since the previous refresh" lists each day whose total changed between two refreshes, with both amounts.
+- **Service money check.** Choose a date range. For each bill date it shows the S004 Cash, Card and UPI amounts beside the manual Service cash, card and UPI entries of the Titan World shop, where all Service money is entered, and the difference (S004 minus manual). Differences are shown, never corrected. Service WDC is not compared, and there are no job advances to deduct; an S004 advance, cheque or RTGS amount that is not zero is still shown, with no manual side. A Service entry made at any other shop (for example Helios) is listed under "Service entries at other shops (not added)" with a note, and is never added in. Below, "Money changed since the previous refresh" lists each day whose total changed between two refreshes, with both amounts.
 
 ### Good to know
 
 - Service files appear in Import → History under "All stores", named "Service Centre (AW330)".
 - Service has no day locking, so nothing stops a later file from correcting earlier days.
-- AW330 is listed in Settings → Stores & masters → Stores as a Service centre. It is not a shop store and cannot be switched on, so it never appears in the shop store lists, the DSR, evening reports or daily packs.
+- AW330 is listed in Settings → Stores & masters → Stores as a Service centre. It is not a shop store and cannot be switched on (error 51900) or moved to another business unit (error 51904), so it never appears in the shop store lists, the DSR, evening reports or daily packs.
 - Importing the same week again changes nothing (Duplicate or Already present). A changed file for a date already imported is refused: use a new date (a new dated folder), or request a restatement as for any changed import (see Registers, investigation and approvals).
 - Service files in the watch folder are imported but never start an automatic report pack.
 - The manual Service cash/card/UPI entries, the Service Sales report, the DSR service card and the cash book stay exactly as they are.

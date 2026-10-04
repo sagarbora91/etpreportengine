@@ -71,6 +71,6 @@ Constants in `src/Etp.Reporting.Import/Service/ServiceInterimFamilies.cs` (`Serv
 | `FAMILY_DERIVED` | Not needed | S001 RepairRegister is the builder's union of the ten status views; it is not imported | L3 |
 | `SERVICE_FAMILY_NOT_NEEDED` | Not needed | S005 (tender summary) and S038 (retired SRN report name) are not needed (Owner) | L3 |
 | `SERVICE_FAMILY_DEFERRED` | Not needed | S027 (TAT) and S028 (technician productivity) are deferred to P8 | L3 |
-| `SERVICE_SNAPSHOT_DATE_NEEDED` | Refusal | a Service file could not be dated; put it in a folder whose name ends with the date, or set the snapshot date | L3 |
+| `SERVICE_SNAPSHOT_DATE_NEEDED` | Refusal | a Service file could not be dated. Message: "Put the Service files in a folder whose name ends with the date, e.g. 'Service Centre till 05 oct 2026'. The Import screen's date is only for a restatement." (`ServiceRouting.DateNeededMessage`) | L3 |
 | `SERVICE_SNAPSHOT_DATE_DIFFERS_FROM_HISTORY` | Information | the folder date differs from the latest `Snapshot_As_Of` (S006, S009, S010); never refuses | L3 |
 | `SERVICE_STORE_DEFAULTED` | Information | no store column and no sibling store: the Service store AW330 was used | L3 |
