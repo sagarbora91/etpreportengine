@@ -101,6 +101,55 @@ public sealed class TallySalesBatchSqlTests(SqlDatabaseFixture database) : IClas
         Assert.Equal(51220, notFinal.Number);
     }
 
+    [Fact]
+    public async Task Warnings_are_saved_with_the_batch_and_must_be_accepted_before_approval()
+    {
+        var (profile, _) = await SeedAsync("TSVI", "TSVJ");
+        var service = new SqlServerTallySalesBatchService(database.ConnectionString, () => Day.AddDays(40));
+
+        var preview = await service.PreviewAsync(profile, "TSVI", Day);
+        Assert.Equal("RULE-DAT-002", Assert.Single(preview.Findings).RuleId);
+        var batch = await service.SaveAsync(preview);
+        var saved = Assert.Single(await service.LoadFindingsAsync(batch));
+        Assert.Equal(("RULE-DAT-002", "WARN", (int?)1), (saved.RuleId, saved.Severity, saved.VoucherSequence));
+        Assert.Null(saved.WaivedBy);
+
+        var accounting = new SqlServerAccountingService(database.ConnectionString);
+        var refused = await Assert.ThrowsAsync<SqlException>(() => accounting.ApproveAsync(new ApproveAccountingBatch(batch, "Checked synthetic vouchers")));
+        Assert.Equal(51221, refused.Number);
+
+        await service.AcceptWarningAsync(saved.Id, "Owner confirmed the late day");
+        Assert.Equal("Owner confirmed the late day", Assert.Single(await service.LoadFindingsAsync(batch)).WaiverReason);
+        await accounting.ApproveAsync(new ApproveAccountingBatch(batch, "Checked synthetic vouchers"));
+        Assert.Equal("APPROVED_READY", await database.ExecuteAsync($"SELECT status FROM dbo.accounting_batches WHERE accounting_batch_id={batch}"));
+
+        // The Phase 5 day-journal export must never write invoice vouchers as one journal.
+        var path = Path.Combine(Path.GetTempPath(), "EtpTallyVouchers_" + Guid.NewGuid().ToString("N") + ".xml");
+        var export = await Assert.ThrowsAsync<SqlException>(() => new ProductisationRepository(database.ConnectionString).ExportAccountingBatchAsync(
+            batch, path, new AccountingDestination("TEST - ETP TSVI", "TEST"), _ => Task.FromResult(new string('a', 64))));
+        Assert.Equal(51571, export.Number);
+        Assert.False(File.Exists(path));
+    }
+
+    [Fact]
+    public async Task Ledger_mappings_list_versions_and_name_what_a_store_still_needs()
+    {
+        await SeedAsync("TSVK", "TSVL", mapTax: false);
+        var ledgers = new SqlServerTallyLedgerMappingService(database.ConnectionString);
+
+        var needed = await ledgers.LoadNeededEventsAsync("TSVK");
+        foreach (var code in new[] { "TENDER_CASH", "TENDER_UPI", "ROUND_OFF", "SALES_REVENUE", "OUTPUT_CGST_9", "OUTPUT_SGST_9" })
+            Assert.Contains(code, needed);
+
+        await ledgers.SaveAsync("TSVK", "OUTPUT_CGST_9", "Output CGST 9%", Day, "Accountant named the CGST ledger");
+        await ledgers.SaveAsync("TSVK", "OUTPUT_CGST_9", "Output CGST @ 9%", Day.AddDays(1), "Renamed in Tally");
+        var versions = (await ledgers.LoadAsync()).Where(row => row.StoreCode == "TSVK" && row.BusinessEvent == "OUTPUT_CGST_9").ToArray();
+        Assert.Equal(new[] { "2:Output CGST @ 9%:True", "1:Output CGST 9%:False" }, versions.Select(row => $"{row.Version}:{row.DebitLedger}:{row.IsActive}"));
+
+        var refused = await Assert.ThrowsAsync<ArgumentException>(() => ledgers.SaveAsync("TSVK", "SOMETHING_ELSE", "Ledger", Day, "Wrong event"));
+        Assert.Contains("Choose a business event", refused.Message, StringComparison.Ordinal);
+    }
+
     // A TEST company holding both stores (D12 = one company, store as cost centre), one G01 cash sale INV-1 and one
     // split-payment sale INV-2 on the first store, their R018 GST rows, approved mappings and a final generation.
     private async Task<(int Profile, long Generation)> SeedAsync(string store, string otherStore, bool mapTax = true)

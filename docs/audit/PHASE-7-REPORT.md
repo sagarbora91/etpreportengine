@@ -158,6 +158,24 @@ Where this differs from the plan:
 
 Tests: `TallySalesVoucherComposerTests` (SqlServer.Tests); `TallySalesBatchSqlTests`, cost-centre cases in `TallyProfileServiceSqlTests` (IntegrationTests); cost-centre parsing in `TallyCompaniesViewTests`.
 
+## Increment 7 — Tally vouchers and Tally ledgers screens, validation gate (tasks 7, 11 part, 13)
+
+Makes batch creation usable from the app. Not yet verified in CI at the time of writing.
+
+| Item | Where |
+|---|---|
+| **Settings → Accounting → Tally vouchers** (Owner): choose a test company in use, a store and a business day; *Prepare vouchers* shows each invoice as Ready, Left out or Fix needed with its reason, and the validation findings; *Save batch* stores the batch with its findings; a warning is accepted with a reason | `Desktop/Modules/Accounting/TallyVouchersView.cs` |
+| **Settings → Integrations → Tally ledgers** (Owner): every version of the ledger names for Tally business events per store; the events a store still needs (one per active payment mode, round-off, sales, and each GST component and rate seen in its R018 imports); a new version from a date with a reason, through the existing mapping approval | `Desktop/Modules/Accounting/TallyLedgersView.cs`, `Infrastructure.SqlServer/Tally/SqlServerTallyLedgerMappingService.cs` |
+| Validation at preparation (task 7): the rules run over the planned vouchers; a FAIL blocks the voucher (`VALIDATION_FAILED: <rules>`) and the day; findings are saved with the batch in the same transaction | `Application/Accounting/TallySalesBatchContracts.cs`, `SqlServerTallySalesBatchService` |
+| Approval gate: a `SALES_VOUCHERS` batch is approved only when its Tally company is a test company in use and every finding is cleared (failures fixed, warnings accepted); 51221 otherwise | `ProductisationRepository.ApproveAccountingBatchAsync` |
+| The Phase 5 day-journal export refuses a `SALES_VOUCHERS` batch (51571), so approved invoice vouchers can never be written as one journal | `ProductisationRepository.ExportAccountingBatchAsync` |
+
+Where this differs from the plan:
+
+- **Own screen, not the accounting workspace steps.** Task 11 extends the Phase 5 accounting screen with five steps. Preparation and warnings sit on their own Settings screen for now; approval and rejection stay on the accounting screen, which already lists every batch. Steps for the Tally file and read-back join when tasks 8 and 9 are built.
+- **Ledger mappings stay per store.** The existing approval path records a mapping for one store from a date; the screen keeps that. An all-stores mapping is still honoured when one exists.
+- **Validation is not repeated for left-out invoices.** The composer already holds them back with a reason; judging them again would only repeat it as a failure and stop the rest of the day.
+
 ## Not started
 
-Status widening, transition procedure and audit types (task 3 remainder), sales voucher XML export (8), HTTP read-back gateway (9), screen steps 3–5 (11), golden fixtures (12), and everything in Slices 7b–7d.
+Status widening, transition procedure and audit types (task 3 remainder), sales voucher XML export (8), HTTP read-back gateway (9), screen steps for the Tally file and read-back (11), golden fixtures (12), and everything in Slices 7b–7d.

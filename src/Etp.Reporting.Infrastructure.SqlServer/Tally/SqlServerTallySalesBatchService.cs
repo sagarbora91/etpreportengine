@@ -6,13 +6,13 @@ using Microsoft.Data.SqlClient;
 
 namespace Etp.Reporting.Infrastructure.SqlServer.Tally;
 
-/// <summary>A prepared, unsaved set of Tally Sales vouchers for one store and business day.</summary>
-public sealed record SalesVoucherPreview(long ReportGenerationId, TallyProfile Profile, string StoreCode, DateOnly BusinessDate, SalesVoucherPlan Plan);
-
 /// <summary>Plan task 6: reads one day's invoices, composes one Sales voucher per invoice and saves them as a
-/// <c>SALES_VOUCHERS</c> batch with its vouchers, entries and invoice reservations. Owner only. Nothing is sent to Tally.</summary>
-public sealed class SqlServerTallySalesBatchService(string connectionString)
+/// <c>SALES_VOUCHERS</c> batch with its vouchers, entries, invoice reservations and the plan task 7 validation findings.
+/// Owner only. Nothing is sent to Tally.</summary>
+public sealed class SqlServerTallySalesBatchService(string connectionString, Func<DateOnly>? today = null) : ITallySalesBatchService
 {
+    private DateOnly Today => today?.Invoke() ?? DateOnly.FromDateTime(DateTime.Now);
+
     public async Task<SalesVoucherPreview> PreviewAsync(int tallyProfileId, string storeCode, DateOnly businessDate, CancellationToken cancellationToken = default)
     {
         await RequireOwnerAsync(cancellationToken);
@@ -27,8 +27,9 @@ public sealed class SqlServerTallySalesBatchService(string connectionString)
 
         var (generation, invoices) = await LoadSourceAsync(store, businessDate, cancellationToken);
         var mappings = await LoadMappingsAsync(store, businessDate, cancellationToken);
-        var plan = TallySalesVoucherComposer.Compose(new(profile, profile.CostCentreFor(store), profile.StoreCodes.Count > 1, mappings), invoices);
-        return new(generation, profile, store, businessDate, plan);
+        var composed = TallySalesVoucherComposer.Compose(new(profile, profile.CostCentreFor(store), profile.StoreCodes.Count > 1, mappings), invoices);
+        var (plan, findings) = TallySalesVoucherValidation.Apply(composed, invoices, profile, Today);
+        return new(generation, profile, store, businessDate, plan, findings);
     }
 
     /// <summary>Saves the preview after composing it again from the database: if any invoice, mapping or setting changed
@@ -103,6 +104,12 @@ public sealed class SqlServerTallySalesBatchService(string connectionString)
             FROM dbo.accounting_vouchers WHERE accounting_batch_id=@id AND voucher_status='PLANNED';
             INSERT dbo.accounting_batch_invoices(accounting_batch_id,store_code,invoice_year,document_number,is_active)
             SELECT @id,store_code,invoice_year,document_number,1 FROM dbo.sales_invoices WHERE store_code=@store AND transaction_date=@date;
+            INSERT dbo.accounting_validation_findings(accounting_batch_id,accounting_voucher_id,rule_id,rule_version,severity,subject,observed,expected,explanation,corrective_action)
+            SELECT @id,v.accounting_voucher_id,f.rule_id,f.rule_version,f.severity,f.subject,f.observed,f.expected,f.explanation,f.corrective_action
+            FROM OPENJSON(@findings) WITH(sequence int '$.VoucherSequence',rule_id varchar(30) '$.RuleId',rule_version int '$.RuleVersion',severity varchar(5) '$.Severity',
+              subject nvarchar(200) '$.Subject',observed nvarchar(500) '$.Observed',expected nvarchar(500) '$.Expected',explanation nvarchar(1000) '$.Explanation',
+              corrective_action nvarchar(500) '$.CorrectiveAction') f
+            LEFT JOIN dbo.accounting_vouchers v ON v.accounting_batch_id=@id AND v.voucher_sequence=f.sequence;
             EXEC dbo.record_operational_audit 'AccountingBatch','Succeeded',N'Tally sales vouchers prepared; nothing sent to Tally',N'database';
             COMMIT TRANSACTION; SELECT @id;
             """;
@@ -118,6 +125,7 @@ public sealed class SqlServerTallySalesBatchService(string connectionString)
         command.Parameters.Add("@mappings", SqlDbType.NVarChar, -1).Value = JsonSerializer.Serialize(mappingSet);
         command.Parameters.Add("@vouchers", SqlDbType.NVarChar, -1).Value = JsonSerializer.Serialize(vouchers);
         command.Parameters.Add("@entries", SqlDbType.NVarChar, -1).Value = JsonSerializer.Serialize(entries);
+        command.Parameters.Add("@findings", SqlDbType.NVarChar, -1).Value = JsonSerializer.Serialize(fresh.Findings);
         try
         {
             return Convert.ToInt64(await command.ExecuteScalarAsync(cancellationToken), CultureInfo.InvariantCulture);
@@ -127,6 +135,28 @@ public sealed class SqlServerTallySalesBatchService(string connectionString)
             throw new InvalidOperationException("An invoice of this day is already reserved for this Tally company by another batch, so it could be posted twice. Check the earlier batch before preparing again.", exception);
         }
     }
+
+    public async Task<IReadOnlyList<SavedValidationFinding>> LoadFindingsAsync(long batchId, CancellationToken cancellationToken = default)
+    {
+        await RequireOwnerAsync(cancellationToken);
+        const string sql = """
+            SELECT f.finding_id,v.voucher_sequence,f.rule_id,f.severity,f.subject,f.explanation,f.corrective_action,f.waived_by,f.waiver_reason
+            FROM dbo.accounting_validation_findings f LEFT JOIN dbo.accounting_vouchers v ON v.accounting_voucher_id=f.accounting_voucher_id
+            WHERE f.accounting_batch_id=@batch ORDER BY CASE f.severity WHEN 'FAIL' THEN 0 ELSE 1 END,v.voucher_sequence,f.finding_id;
+            """;
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var command = new SqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@batch", batchId);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        var result = new List<SavedValidationFinding>();
+        while (await reader.ReadAsync(cancellationToken))
+            result.Add(new(reader.GetInt64(0), reader.IsDBNull(1) ? null : reader.GetInt32(1), reader.GetString(2), reader.GetString(3), Text(reader, 4),
+                reader.GetString(5), Text(reader, 6), Text(reader, 7), Text(reader, 8)));
+        return result;
+    }
+
+    public Task AcceptWarningAsync(long findingId, string reason, CancellationToken cancellationToken = default) =>
+        new SqlServerTallyReconciliationService(connectionString).AcceptWarningAsync(findingId, reason, cancellationToken);
 
     /// <summary>The day's invoices as task 6 reads them, with the latest final report generation. Tax rows come from one
     /// current R018 import per invoice, so a second import of the same day never doubles the tax.</summary>

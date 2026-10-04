@@ -139,6 +139,14 @@ public static class TallySalesVoucherComposer
         foreach (var invoice in invoices.OrderBy(item => item.InvoiceYear).ThenBy(item => item.DocumentNumber, StringComparer.Ordinal))
             vouchers.Add(ComposeOne(++sequence, invoice, context, mappings, used));
 
+        return Summarise(vouchers, used.Values.ToArray());
+    }
+
+    /// <summary>Totals and the batch blocking reason for a list of vouchers: faults block the day, scope limits do not.</summary>
+    public static SalesVoucherPlan Summarise(IReadOnlyList<PlannedVoucher> vouchers, IReadOnlyList<TallyLedgerMapping> mappingsUsed)
+    {
+        ArgumentNullException.ThrowIfNull(vouchers);
+        ArgumentNullException.ThrowIfNull(mappingsUsed);
         var planned = vouchers.Where(voucher => voucher.Status == TallyVoucherStatus.Planned).ToArray();
         var faults = vouchers.Where(voucher => voucher.Status == TallyVoucherStatus.Blocked && !voucher.LeftOutByScope).ToArray();
         string? blocking = null;
@@ -150,7 +158,7 @@ public static class TallySalesVoucherComposer
             blocking = vouchers.Count == 0 ? "No invoices exist for this day." : "No invoice of this day can be sent yet; every invoice is left out.";
 
         return new(vouchers, planned.SelectMany(voucher => voucher.Entries).Sum(entry => entry.Debit),
-            planned.SelectMany(voucher => voucher.Entries).Sum(entry => entry.Credit), blocking, used.Values.ToArray());
+            planned.SelectMany(voucher => voucher.Entries).Sum(entry => entry.Credit), blocking, mappingsUsed);
     }
 
     private static PlannedVoucher ComposeOne(int sequence, InvoiceAccountingSource invoice, SalesVoucherContext context,

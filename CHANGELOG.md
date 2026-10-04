@@ -4,6 +4,7 @@
 
 Phase 7 (Tally transfer) groundwork, and help for the Phase 5 acceptance run at the shop:
 
+- New Settings screens for the Owner: **Tally vouchers** prepares a store's day as Tally vouchers, shows each invoice as ready, left out or to be fixed, saves the batch and accepts its warnings with a reason; **Tally ledgers** lists the ledger names Tally vouchers use, shows which ones a store still needs, and saves a new version with a reason. A batch of Tally vouchers can be approved only when its warnings are accepted, and the old day-journal export refuses it.
 - Migrations 0038 and 0039 add the Tally transfer tables: Tally companies and their stores, batch and voucher history, evidence files, validation findings, read-backs, reconciliation results and recovery plans. Only the Owner can see them. Existing accounting batches keep their five statuses.
 - New Settings screen "Tally companies" (Settings > Integrations). The Owner can add a test Tally company, link stores to it and record why it changed. A Tally address must be on this PC. Changing a company to live books records the intent only; nothing enables live posting yet.
 - Evidence files for a Tally batch are written once into the batch's own folder, registered with their checksum, and can be re-checked later (OK, changed or missing). Linked folders are refused.
