@@ -85,6 +85,25 @@ public sealed class PhaseFiveNavigationTests
         });
     }
 
+    [Fact]
+    public void A_viewer_generating_a_report_pack_from_the_actions_menu_or_shortcut_is_told_why_and_stays_put()
+    {
+        // WLMHW FIX-17: Actions > Generate report pack and Ctrl+Shift+P both call GeneratePackAsync. A Viewer must not
+        // be sent to Close day to fail there (and log DAILY_PACK_GENERATION_FAILED).
+        Sta(() =>
+        {
+            var window=Phase3ShellTests.CreateWindow(); var navigator=(TaskNavigator)typeof(MainWindow).GetField("taskNavigator",BindingFlags.NonPublic|BindingFlags.Instance)!.GetValue(window)!;
+            typeof(MainWindow).GetField("currentAccess",BindingFlags.NonPublic|BindingFlags.Instance)!.SetValue(window,new AccessSession("viewer","Viewer",AccessRole.Viewer,true));
+            var before=window.shell.CurrentRoute.TaskId;
+            var generation=navigator.GeneratePackAsync(new DateTime(2026,8,25),StoreScopeCatalog.AllStores);
+            Assert.True(generation.IsCompleted);
+            Assert.Equal(Etp.Reporting.Desktop.Modules.DailyWorkflow.DailyWorkflowWorkspaceView.PackGenerationNeedsManagerMessage,window.ApplicationStatus.Text);
+            Assert.Equal(before,window.shell.CurrentRoute.TaskId);
+            Assert.NotEqual("combined-pack",window.shell.CurrentRoute.TaskId);
+            window.importWorkspaceView.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        });
+    }
+
     private static IEnumerable<DependencyObject> Descendants(DependencyObject root)
     { foreach(var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>()) { yield return child; foreach(var descendant in Descendants(child)) yield return descendant; } }
     private static void Sta(Action action)

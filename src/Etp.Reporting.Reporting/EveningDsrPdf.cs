@@ -22,10 +22,10 @@ internal static class EveningDsrPdf
         if(combined is not null)
         {
             Write(g,combined.StoreName,18,448,806,15,10,true);
-            Table(g,18,466,806,79,combined.Rows.Where(x=>x.Metric is "VOL" or "VALUE" or "INVOICE" or "CONVERSION %").ToArray());
+            Table(g,18,466,806,79,combined.Rows.Where(x=>x.Metric is "VOL" or "VALUE" or "GIFT CARD" or "INVOICE" or "CONVERSION %").ToArray());
         }
         Write(g,$"Service · WDC {Money(report.Service.Wdc)}  Cash {Money(report.Service.Cash)}  Card {Money(report.Service.Card)}  UPI {Money(report.Service.Upi)}  Total {Money(report.Service.Total)}",18,550,806,14,8);
-        Write(g,"Values include GST. INV-only invoice counts. — = unavailable. Manual totals use available entries. Required daily sales includes today.",18,571,806,12,6.7);
+        Write(g,"Values include GST. INV-only invoice counts. VALUE, VOL and INVOICE exclude gift cards (GIFT CARD line). — = unavailable. Manual totals use available entries. Required daily sales includes today.",18,571,806,12,6.7);
     }
     private static void Table(XGraphics g,double x,double y,double width,double height,IReadOnlyList<EveningMetricRow> rows)
     {

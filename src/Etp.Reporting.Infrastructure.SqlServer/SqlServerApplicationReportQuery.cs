@@ -33,8 +33,8 @@ public sealed class SqlServerApplicationReportQuery :
 
     public async Task<IReadOnlyList<StockMovementRecord>> LoadStockMovementsAsync(ReportScope scope, CancellationToken cancellationToken = default)
     {
-        var data = await raw.LoadStockAsync(ToScope(scope), cancellationToken).ConfigureAwait(false);
-        return data.Movements.Select(row => new StockMovementRecord(row.StoreCode, row.ItemCode, row.SourceMovementType, row.SourceSignedQuantity)).ToArray();
+        var movements = await raw.LoadStockMovementsAsync(ToScope(scope), cancellationToken).ConfigureAwait(false);
+        return movements.Select(row => new StockMovementRecord(row.StoreCode, row.ItemCode, row.SourceMovementType, row.SourceSignedQuantity, row.Location, row.HasSnapshot)).ToArray();
     }
 
     public async Task<IReadOnlyList<InvoiceSummaryRecord>> LoadInvoiceSummaryAsync(ReportScope scope, CancellationToken cancellationToken = default) =>
@@ -93,21 +93,21 @@ public sealed class SqlServerApplicationReportQuery :
         _ => ReportStatus.NotRun
     };
 
-    public static SalesSummaryReport Map(SalesSummaryResult source) => new(ToDimension(source.Dimension), Map(source.Status), source.Rows.Select(row => new SalesSummaryRecord(row.Key, row.SourceSignedQuantity, row.SourceSignedNetAmount, row.DistinctInvoices)).ToArray(), source.PolicyVersion, source.Message);
+    public static SalesSummaryReport Map(SalesSummaryResult source) => new(ToDimension(source.Dimension), Map(source.Status), source.Rows.Select(row => new SalesSummaryRecord(row.Key, row.SourceSignedQuantity, row.SourceSignedNetAmount, row.Invoices, row.Returns)).ToArray(), source.PolicyVersion, source.Message);
     public static TenderReconciliationReport Map(InvoiceTenderReconciliation source) => new(Map(source.Status), source.Documents.Select(row => new TenderDocumentRecord(row.StoreCode, row.DocumentNumber, row.InvoiceAmount, row.TenderAmount, row.Variance, Map(row.Status), row.InvoiceYear)).ToArray(), source.InvoiceTotal, source.TenderTotal, source.Variance, source.RuleVersion, source.Message);
     public static StockReconciliationReport Map(StockReconciliationResult source) => new(Map(source.Status), source.Items.Select(row => new StockControlRecord(row.StoreCode, row.ItemCode, row.Opening, row.SourceSignedMovements, row.ExpectedClosing, row.ReportedClosing, row.Variance, Map(row.Status))).ToArray(), source.RuleVersion, source.Message);
     public static InvoiceSummaryRecord Map(InvoiceSalesSummaryRow row) => new(row.BusinessDate, row.StoreCode, row.DocumentNumber, row.TransactionTypes, row.Quantity, row.NetValue, row.SourceRows, row.CustomerName);
     public static InvoiceLineageRecord Map(InvoiceSalesLineageRow row) => new(row.BusinessDate, row.StoreCode, row.DocumentNumber, row.LineIdentifier, row.ProductCode, row.Brand, row.BrandSegment, row.TransactionType, row.Quantity, row.NetValue, row.CroNumber, row.SourceWorkbook, row.SourceSheet, row.SourceRow);
-    public static DsrManagementRecord Map(DsrManagementRow row) => new(row.Period, row.Store, row.PeriodStart, row.PeriodEnd, row.TySales, row.LySales, row.GrowthPercent, row.GrowthStatus, row.TyUnits, row.LyUnits, row.TyInvoices, row.LyInvoices, row.Upt, row.Atv, row.WalkIns, row.ConversionPercent, row.MetricPolicy, row.WalkInMissingDays);
+    public static DsrManagementRecord Map(DsrManagementRow row) => new(row.Period, row.Store, row.PeriodStart, row.PeriodEnd, row.TySales, row.LySales, row.GrowthPercent, row.GrowthStatus, row.TyUnits, row.LyUnits, row.TyInvoices, row.LyInvoices, row.Upt, row.Atv, row.WalkIns, row.ConversionPercent, row.MetricPolicy, row.WalkInMissingDays, row.TyGiftCards, row.LyGiftCards);
     public static StaffPerformanceReport Map(StaffPerformanceResult source) => new(source.Rows.Select(row => new StaffPerformanceRecord(row.StoreCode, row.CroNumber, row.NetSales, row.LastYearSales, row.GrowthPercent, row.GrowthStatus, row.NetQuantity, row.Discount, row.Transactions, row.Upt, row.Atv, row.ContributionPercent, row.TargetSales, row.TargetAchievementPercent, row.Rank, row.CroName)).ToArray(), source.CanonicalSales, source.AttributedSales, source.Variance, Map(source.Status), source.Message, source.MetricPolicy);
     public static ServiceSalesRecord Map(ServiceSalesRow row) => new(row.Period, row.StoreCode, row.PeriodStart, row.PeriodEnd, row.Cash, row.Card, row.Upi, row.Total, row.LastYearTotal, row.GrowthPercent, row.Availability, row.MissingDays, row.LastYearMissingDays, row.Wdc);
     public static CashReconciliationReport Map(CashReconciliationResult row) => new(row.StoreCode, row.BusinessDate, row.OpeningCash, row.RetailCash, row.ServiceCash, row.Expenses, row.CashDeposit, row.Adjustment, row.CalculatedClosing, row.CountedClosing, row.Variance, Map(row.Status), row.Message);
     public static PhysicalStockRecord Map(PhysicalStockReportRow row) => new(row.StoreCode, row.BusinessDate, row.InventoryGroupCode, row.DisplayQuantity, row.BackstockQuantity, row.DefectiveQuantity, row.YLocationQuantity, row.ComponentTotal, row.CountedPhysicalQuantity, row.CompositionVariance, row.SystemQuantity, row.SystemVariance, row.Remarks, row.Status);
-    public static StockInventoryRecord Map(StockInventoryReportRow row) => new(row.SnapshotDate, row.StoreCode, row.ProductCode, row.Brand, row.InventoryGroup, row.Quantity, row.UnitCost, row.TotalCost, row.LastSaleDate, row.DaysSinceLastSale, row.MovementStatus, row.SnapshotSource);
+    public static StockInventoryRecord Map(StockInventoryReportRow row) => new(row.SnapshotDate, row.StoreCode, row.ProductCode, row.Brand, row.InventoryGroup, row.Quantity, row.UnitCost, row.TotalCost, row.LastSaleDate, row.DaysSinceLastSale, row.MovementStatus, row.SnapshotSource, row.LastReceiptDate, row.DaysSinceReceipt, row.BrandRow);
     public static DailyExceptionRecord Map(DailyExceptionRow row) => new(row.Severity, row.Area, row.Code, row.StoreCode, row.BusinessDate, row.DocumentNumber, row.ItemCode, row.Variance, row.SourceWorkbook, row.SourceSheet, row.SourceRow, row.Message, row.RecommendedAction);
-    public static ManagementTrendRecord Map(ManagementTrendRow row) => new(row.BusinessDate, row.StoreCode, row.NetSales, row.Units, row.Invoices, row.TenderVariance, row.UnmatchedEnrichmentRows);
+    public static ManagementTrendRecord Map(ManagementTrendRow row) => new(row.BusinessDate, row.StoreCode, row.NetSales, row.Units, row.Invoices, row.Returns, row.TenderVariance, row.UnmatchedEnrichmentRows);
 
-    private static DsrManagementRow ToInfrastructure(DsrManagementRecord row) => new(row.Period, row.Store, row.PeriodStart, row.PeriodEnd, row.TySales, row.LySales, row.GrowthPercent, row.GrowthStatus, row.TyUnits, row.LyUnits, row.TyInvoices, row.LyInvoices, row.Upt, row.Atv, row.WalkIns, row.ConversionPercent, row.MetricPolicy, row.WalkInMissingDays);
+    private static DsrManagementRow ToInfrastructure(DsrManagementRecord row) => new(row.Period, row.Store, row.PeriodStart, row.PeriodEnd, row.TySales, row.LySales, row.GrowthPercent, row.GrowthStatus, row.TyUnits, row.LyUnits, row.TyInvoices, row.LyInvoices, row.Upt, row.Atv, row.WalkIns, row.ConversionPercent, row.MetricPolicy, row.WalkInMissingDays, row.TyGiftCards, row.LyGiftCards);
     private static SalesSummaryDimension ToDimension(ReportSalesDimension dimension) => dimension switch
     {
         ReportSalesDimension.Daily => SalesSummaryDimension.Daily,

@@ -41,6 +41,35 @@ public sealed class OperationsAdministrationWorkspaceViewTests
         });
     }
 
+    // R-WLMHW-10 (report audit, 3 Oct 2026): a Viewer's Open items grid showed counts synced before the latest
+    // imports with nothing saying so. Every role now sees when the list was last updated from the live checks.
+    [Fact]
+    public void Open_items_show_when_they_were_last_updated_for_a_viewer()
+    {
+        RunSta(async () =>
+        {
+            var synced = new DateTime(2026, 10, 1, 15, 23, 0, DateTimeKind.Utc);
+            var service = new FakeOperationsService { IssuesSyncedUtc = synced };
+            var view = new OperationsWorkspaceView(
+                new OperationsAdministrationPresentationSession(),
+                () => "connection",
+                _ => service,
+                (_, _) => Task.FromResult(new MaintenanceOperationResult(true, "done")),
+                _ => Task.FromResult<IReadOnlyList<Etp.Reporting.Desktop.AutomaticImportTaskStatus>>([]));
+            view.UpdateAccess(new(true, false, false));
+
+            await view.RefreshAsync();
+
+            Assert.Contains(synced.ToLocalTime().ToString("dd MMM yyyy HH:mm", System.Globalization.CultureInfo.InvariantCulture), view.IssuesSyncedStatus, StringComparison.Ordinal);
+            Assert.StartsWith("Open items last updated from the live checks: ", view.IssuesSyncedStatus, StringComparison.Ordinal);
+            Assert.Equal("Open items last updated", AutomationProperties.GetName((TextBlock)view.FindName("IssuesSyncedText")));
+
+            service.IssuesSyncedUtc = null;
+            await view.RefreshAsync();
+            Assert.StartsWith("Open items have not been updated from the live checks yet.", view.IssuesSyncedStatus, StringComparison.Ordinal);
+        });
+    }
+
     [Fact]
     public void Investigation_and_administration_views_preserve_viewer_and_owner_gates()
     {
@@ -433,13 +462,15 @@ public sealed class OperationsAdministrationWorkspaceViewTests
             DashboardLoads++;
             return Task.FromResult(new OperationsDashboard(
                 new WatchFolderConfiguration("in", "done", "failed", "reports", true, DateTime.UtcNow, "owner"),
-                [new ManagementTrendPoint(new DateOnly(2026, 8, 27), "WLMHW", 100m, 2m, 1, 0m, 0)],
+                [new ManagementTrendPoint(new DateOnly(2026, 8, 27), "WLMHW", 100m, 2m, 1, 0, 0m, 0)],
                 [new DataQualityFinding("Warning", "Sales", "Q1", 1, null, "Review")],
                 [new DataQualityIssue(1, "Sales", "Warning", "WLMHW", new DateOnly(2026, 8, 27), "Passed", "OPEN", "Review", null, DateTime.UtcNow, null)],
                 [new ReportSchedule(1, "Morning", new TimeOnly(8, 0), true, true, true, null, null, null, null),
                  new ReportSchedule(2, "Evening", new TimeOnly(18, 0), true, true, true, null, null, null, null)],
-                [new AutomationRun(1, "Scheduled", null, "WLMHW", new DateOnly(2026, 8, 27), "Succeeded", "Done", DateTime.UtcNow, DateTime.UtcNow, "system")]));
+                [new AutomationRun(1, "Scheduled", null, "WLMHW", new DateOnly(2026, 8, 27), "Succeeded", "Done", DateTime.UtcNow, DateTime.UtcNow, "system")])
+            { IssuesSyncedUtc = IssuesSyncedUtc });
         }
+        public DateTime? IssuesSyncedUtc { get; set; }
 
         public Task<IReadOnlyList<ApprovalRequest>> LoadApprovalsAsync(string? status = "PENDING", CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<ApprovalRequest>>([new(1, "Adjustment", "StoreDay", "1", "WLMHW", new DateOnly(2026, 8, 27), "manager", DateTime.UtcNow, "PENDING", null, null, null)]);

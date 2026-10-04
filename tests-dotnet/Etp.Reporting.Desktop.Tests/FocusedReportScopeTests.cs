@@ -105,6 +105,30 @@ public sealed class FocusedReportScopeTests
         });
     }
 
+    [Fact]
+    public void A_viewer_is_not_offered_report_pack_generation_from_the_report_actions_menu()
+    {
+        // WLMHW FIX-17: the Actions menu's "Generate report pack" follows the role the session reports each time it opens.
+        RunSta(() =>
+        {
+            var allowed = false; var requested = new List<ReportWorkspaceAction>();
+            var session = new Etp.Reporting.Desktop.Modules.Reports.ReportWorkspaceSession { CanGeneratePack = () => allowed };
+            var view = Assert.IsType<ReportWorkspaceControl>(session.Activate("cash",DateTime.Today,DateTime.Today,DateTime.Today,(_,request)=>requested.Add(request.Action),(_,_)=>{},"Titan"));
+            var menu = Children(view).OfType<Button>().Single(x => x.Content?.ToString()?.StartsWith("Actions") == true).ContextMenu!;
+            var pack = menu.Items.OfType<MenuItem>().Single(x => Equals(x.Header, "Generate report pack"));
+            menu.RaiseEvent(new RoutedEventArgs(ContextMenu.OpenedEvent, menu));
+            Assert.False(pack.IsEnabled);
+            Assert.Equal(Etp.Reporting.Desktop.Modules.DailyWorkflow.DailyWorkflowWorkspaceView.PackGenerationNeedsManagerMessage, pack.ToolTip);
+            pack.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent, pack));
+            Assert.Empty(requested);
+            allowed = true;
+            menu.RaiseEvent(new RoutedEventArgs(ContextMenu.OpenedEvent, menu));
+            Assert.True(pack.IsEnabled); Assert.Null(pack.ToolTip);
+            pack.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent, pack));
+            Assert.Equal([ReportWorkspaceAction.GenerateReportPack], requested);
+        });
+    }
+
     private static IEnumerable<DependencyObject> Children(DependencyObject root)
     {
         foreach (var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>()) { yield return child; foreach (var nested in Children(child)) yield return nested; }

@@ -56,6 +56,7 @@ public static class TaskNavigation
             {
                 "recovery" => ["restore", "recovery drill"],
                 "keep-evidence" => ["keep source files", "source file evidence", "evidence", "earlier imports"],
+                "dashboard-overview" => ["dashboard", "overview", "system status"],
                 _ => [id.Replace('-', ' ')]
             }));
         Add("walk-ins", "Walk-ins", "Today", "Walk-ins", "Manual Entry", "manual", 2);
@@ -78,6 +79,9 @@ public static class TaskNavigation
         Add("backups", "Backups", "Settings", "Database", "Operations Center", "backups", 3);
         Add("recovery", "Recovery drill", "Settings", "Database", "Operations Center", "recovery", 3);
         Add("support-package", "Support package", "Settings", "Database", "Operations Center", "support-package", 3);
+        // FIX-15: the dashboard overview (system status, backup, recovery drill, import totals) had no route.
+        // Owner-only, like the backup, recovery and audit destinations it summarises.
+        Add("dashboard-overview", "Dashboard overview", "Settings", "Database", "Dashboard", "overview", 3);
         Add("audit", "Audit trail", "Settings", "Database", "Dashboard", "audit", 3);
         Add("users", "Users", "Settings", "Users", "Admin / Settings", "users", 3);
         Add("profiles", "Import profiles", "Settings", "Users", "Admin / Settings", "profiles", 3);

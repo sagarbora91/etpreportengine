@@ -26,7 +26,10 @@ public sealed class OperationsAdministrationServiceBoundaryTests
         var viewerDashboard = await Operations(gateway, ApplicationRole.Viewer).LoadDashboardAsync(period);
 
         Assert.Equal("inbound", viewerDashboard.WatchFolders.InboundPath);
-        Assert.Equal("WLMHW", Assert.Single(viewerDashboard.Trend).StoreCode);
+        var trend = Assert.Single(viewerDashboard.Trend);
+        Assert.Equal("WLMHW", trend.StoreCode);
+        // Owner decision 13 Q6: the trend carries INV-only Invoices and a separate Returns count.
+        Assert.Equal((1, 1), (trend.Invoices, trend.Returns));
         Assert.Equal("MISSING_SOURCE", Assert.Single(viewerDashboard.Quality).Code);
         Assert.Equal("OPEN", Assert.Single(viewerDashboard.Issues).WorkflowStatus);
         Assert.Equal(25, gateway.LastRunLimit);
@@ -36,6 +39,47 @@ public sealed class OperationsAdministrationServiceBoundaryTests
         await Operations(gateway, ApplicationRole.StoreManager).LoadDashboardAsync(period);
         Assert.True(gateway.Calls.IndexOf("quality") < gateway.Calls.IndexOf("sync"));
         Assert.True(gateway.Calls.IndexOf("sync") < gateway.Calls.IndexOf("issues"));
+    }
+
+    // R-WLMHW-10 (report audit, 3 Oct 2026): the Open items grid gave no as-of time, so a Viewer could not tell
+    // that its counts predated the latest imports. Every role gets the time of the last sync, read after it.
+    [Theory]
+    [InlineData(ApplicationRole.Viewer)]
+    [InlineData(ApplicationRole.StoreManager)]
+    [InlineData(ApplicationRole.Owner)]
+    public async Task Dashboard_says_when_the_saved_issues_were_last_synced_for_every_role(ApplicationRole role)
+    {
+        var synced = new DateTime(2026, 10, 1, 15, 23, 26, DateTimeKind.Utc);
+        var gateway = new FakeOperationsGateway { SyncedUtc = synced };
+
+        var dashboard = await Operations(gateway, role).LoadDashboardAsync(new App.OperationsPeriod(new(2026, 8, 1), new(2026, 8, 28), 25));
+
+        Assert.Equal(synced, dashboard.IssuesSyncedUtc);
+        if (gateway.Calls.Contains("sync")) Assert.True(gateway.Calls.IndexOf("sync") < gateway.Calls.IndexOf("synced"));
+    }
+
+    [Fact]
+    public void The_sync_marks_a_cleared_check_as_none_current_and_the_synced_time_reads_only_computed_rows()
+    {
+        // A PASS row kept "(259 current)" from its last failing sync; it now says "(0 current)".
+        Assert.Contains("N'(0 current)'", ProductisationRepository.SyncDataQualityIssuesSql, StringComparison.Ordinal);
+        Assert.Contains("modified_by,modified_utc)", ProductisationRepository.SyncDataQualityIssuesSql, StringComparison.Ordinal);
+        Assert.Contains("SELECT MIN(modified_utc) FROM dbo.data_quality_issues WHERE issue_key LIKE N'COMPUTED/%'",
+            ProductisationRepository.DataQualityIssuesSyncedSql, StringComparison.Ordinal);
+    }
+
+    // Review of FIX-10: a sync that found nothing on a database with no computed rows wrote nothing, so the
+    // as-of line said "never" after it. Every sync now stamps a marker row, which the synced time reads first
+    // and the Open items grid never shows.
+    [Fact]
+    public void Every_sync_stamps_a_marker_row_that_the_grid_does_not_show()
+    {
+        var marker = $"N'{ProductisationRepository.SyncMarkerKey}'";
+        Assert.Contains($"USING(SELECT {marker} IssueKey) source", ProductisationRepository.SyncDataQualityIssuesSql, StringComparison.Ordinal);
+        Assert.Contains("WHEN MATCHED THEN UPDATE SET modified_by=SUSER_SNAME(),modified_utc=@now", ProductisationRepository.SyncDataQualityIssuesSql, StringComparison.Ordinal);
+        Assert.StartsWith($"SELECT COALESCE((SELECT modified_utc FROM dbo.data_quality_issues WHERE issue_key={marker})",
+            ProductisationRepository.DataQualityIssuesSyncedSql, StringComparison.Ordinal);
+        Assert.Contains($"WHERE issue_key<>{marker}", ProductisationRepository.DataQualityIssuesSql, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -171,7 +215,7 @@ public sealed class OperationsAdministrationServiceBoundaryTests
         {
             Calls.Add("trend");
             return Task.FromResult<IReadOnlyList<ManagementTrendRow>>(
-                [new(new(2026, 8, 28), "WLMHW", 100m, 2m, 1, 0m, 0)]);
+                [new(new(2026, 8, 28), "WLMHW", 100m, 2m, 1, 1, 0m, 0)]);
         }
 
         public Task<IReadOnlyList<DataQualitySummaryRow>> LoadQualityAsync(CancellationToken token)
@@ -206,6 +250,13 @@ public sealed class OperationsAdministrationServiceBoundaryTests
             Calls.Add("issues");
             return Task.FromResult<IReadOnlyList<DataQualityIssueRow>>(
                 [new(8, "MISSING_SOURCE", "CRITICAL", "WLMHW", new(2026, 8, 28), "FAIL", "OPEN", "Missing source", null, DateTime.MinValue, null)]);
+        }
+
+        public DateTime? SyncedUtc { get; set; }
+        public Task<DateTime?> LoadIssuesSyncedUtcAsync(CancellationToken token)
+        {
+            Calls.Add("synced");
+            return Task.FromResult(SyncedUtc);
         }
 
         public Task<IReadOnlyList<ApprovalRequestRow>> LoadApprovalsAsync(string? status, CancellationToken token) =>

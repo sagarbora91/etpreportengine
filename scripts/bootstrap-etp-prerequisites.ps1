@@ -431,14 +431,14 @@ function Complete-EtpAutomationGrants {
           [string]$ServerInstance,[string]$Database,[string]$AutomationPrincipal,[string]$ScriptsDirectory)
     $command = Get-EtpAutomationGrantCommand -ServerInstance $ServerInstance -Database $Database -AutomationPrincipal $AutomationPrincipal -ScriptsDirectory $ScriptsDirectory
     try { $state = & $GetState }
-    catch { return @("WARNING: setup could not check whether $AutomationPrincipal has the operations module's rights ($($_.Exception.Message)). If the daily backup or the recovery drill fails, run this in an administrator PowerShell window: $command") }
+    catch { return @("WARNING: setup could not check whether $AutomationPrincipal has the operations module's rights ($(Format-EtpFailureForLog $_.Exception)). If the daily backup or the recovery drill fails, run this in an administrator PowerShell window: $command") }
     if ($state.State -ceq 'READY') { return @("$AutomationPrincipal is an active Store Manager with the operations module's rights; the daily backup and the recovery drill can run.") }
     if ($state.State -ceq 'GRANTS_MISSING') {
         $lines = [Collections.Generic.List[string]]::new()
         $lines.Add("$AutomationPrincipal is an active Store Manager but lacks $($state.Missing -join ', '). Setup is installing the restricted SQL operations module for it now (docs\OPERATIONS.md, step 7).")
         try { foreach ($line in @(& $InstallModule)) { $lines.Add("$line") } }
         catch {
-            $lines.Add("WARNING: the operations module could not be installed for ${AutomationPrincipal}: $($_.Exception.Message) The daily backup and the recovery drill cannot run under that account until it is. Then run this in an administrator PowerShell window: $command")
+            $lines.Add("WARNING: the operations module could not be installed for ${AutomationPrincipal}: $(Format-EtpFailureForLog $_.Exception) The daily backup and the recovery drill cannot run under that account until it is. Then run this in an administrator PowerShell window: $command")
             return $lines.ToArray()
         }
         try { $after = & $GetState } catch { $after = $null }
@@ -452,6 +452,27 @@ function Complete-EtpAutomationGrants {
     $guidance = Get-EtpAutomationGrantGuidance -GrantState $state -ServerInstance $ServerInstance -Database $Database -AutomationPrincipal $AutomationPrincipal -ScriptsDirectory $ScriptsDirectory
     if ($guidance) { return @("NEXT STEP: $guidance") }
     return @("WARNING: setup could not tell whether $AutomationPrincipal has the operations module's rights. If the daily backup or the recovery drill fails, run this in an administrator PowerShell window: $command")
+}
+
+function Invoke-EtpPreMigrationBrokerRefresh {
+    # Before the pre-migration backup: make sure the master operations broker is there and, if
+    # it is unsigned and from an earlier build, current (install-etp-sql-operations.ps1
+    # -BrokerOnly; a signed one is never touched here). Returns the log lines and never throws.
+    # The broker is only the means; the backup is what protects the data. A broker that could
+    # not be brought up to date is not a reason to migrate without a backup, and not a reason
+    # to stop either while the one already installed can still take it: the backup goes ahead
+    # through that one, records no row counts (rowCountsNotRecorded OPERATIONS_MODULE_OUTDATED)
+    # and is verified as always. Without any broker the backup itself fails, and setup stops
+    # there with nothing migrated. On the VM rehearsal of 3 October 2026 this step failed
+    # (a defect in the 1.9.3 broker's SQL) and stopped setup although the 1.9.2 broker was
+    # still in place and could have taken the backup.
+    param([Parameter(Mandatory)][scriptblock]$Refresh)
+    $lines = [Collections.Generic.List[string]]::new()
+    try { foreach ($line in @(& $Refresh)) { $lines.Add("$line") } }
+    catch {
+        $lines.Add("WARNING: the operations broker could not be checked or brought up to date before the pre-migration backup: $(Format-EtpFailureForLog $_.Exception) The backup goes ahead through the broker already installed; if it is from an earlier build, its receipt records no row counts.")
+    }
+    return $lines.ToArray()
 }
 
 # Dot-sourcing exposes only the pure preflight functions for behavioral tests.
@@ -480,6 +501,11 @@ function Write-SetupLog([string]$message) {
 
 trap {
     Write-SetupLog "FAILED: $($_.Exception.GetType().Name): $($_.Exception.Message)"
+    # The masked "The database operation failed" alone said nothing on the VM rehearsal of
+    # 3 October 2026. What SQL Server (or Sqlcmd) reported goes into this administrator-only
+    # log on a line of its own, so the FAILED line keeps the form tools look for.
+    $sqlDetail = Get-EtpExceptionSqlDetail $_.Exception
+    if ($sqlDetail) { Write-SetupLog "SQL Server reported: $sqlDetail" }
     if ($migrationPhaseStarted -and -not $migrationPhaseCompleted) {
         if ($databaseExistedBeforeMigration -and -not [string]::IsNullOrWhiteSpace($preMigrationBackupPath)) {
             Write-SetupLog "No automatic restore or reverse migration was attempted. The verified pre-migration backup remains at $preMigrationBackupPath. Diagnose the failure before using the documented manual restore procedure."
@@ -629,11 +655,15 @@ if ($databaseExistedBeforeMigration) {
         # The backup goes through the master operations broker. A database that reached this
         # instance by a restore rather than through setup - by hand, or after the restore
         # helper's own broker step failed - can be here without one, and the backup then
-        # stopped with only "The database operation failed". -BrokerOnly creates it only where
-        # it is missing and never alters one, so a machine that has it is left as it was.
-        foreach ($line in @(& (Join-Path $scripts 'install-etp-sql-operations.ps1') -ServerInstance $ServerInstance -Database $Database -AutomationPrincipal $operationConfiguration.automationPrincipal -SqlCmdPath $sqlcmdPath -BrokerOnly)) { Write-SetupLog "$line" }
+        # stopped with only "The database operation failed". -BrokerOnly creates it where it is
+        # missing and replaces an unsigned one from an earlier build; a signed one is left as it
+        # was (Get-EtpBrokerOnlyAction). A failure here is logged and the backup still runs
+        # through whatever broker is installed (Invoke-EtpPreMigrationBrokerRefresh).
+        Write-SetupLog 'Checking the master operations broker that takes the pre-migration backup.'
+        foreach ($line in @(Invoke-EtpPreMigrationBrokerRefresh -Refresh { & (Join-Path $scripts 'install-etp-sql-operations.ps1') -ServerInstance $ServerInstance -Database $Database -AutomationPrincipal $operationConfiguration.automationPrincipal -SqlCmdPath $sqlcmdPath -BrokerOnly })) { Write-SetupLog "$line" }
         # -Purpose PreMigration marks the receipt so the next daily backup's rotation keeps
         # this file. Without it the upgrade's own safety copy was deleted the same day.
+        Write-SetupLog 'Taking the pre-migration backup.'
         & $backupScript -ServerInstance $ServerInstance -Database $Database -BackupDirectory $backupDirectory -MinimumFreeSpaceGb $requiredFreeSpaceGb -ResultPath $receiptPath -SqlCmdPath $sqlcmdPath -Purpose PreMigration
         Assert-VerifiedBackupReceipt -ReceiptPath $receiptPath
         Write-SetupLog "Verified pre-migration backup is retained at $preMigrationBackupPath."

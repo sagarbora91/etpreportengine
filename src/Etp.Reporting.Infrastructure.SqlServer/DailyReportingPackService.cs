@@ -160,6 +160,22 @@ public sealed class DailyReportingPackService(string connectionString)
         return new(storeCode, businessDate, status, sections, message, generatedAt, document, generation.GenerationNumber, generation.ContentSha256);
     }
 
+    // Report audit of 3 Oct 2026 (FIX-05/FIX-11, decision D1): these values are source_gross_amount, R025 NETAMOUNT,
+    // GST-inclusive. "Net Value" read as the ex-GST NETVALUE, so the pack now uses the workspace exports' wording.
+    internal const string InvoiceValueHeader = "Value incl. GST";
+
+    internal static ReportPackTable InvoiceSummaryTable(DailyReportPackSection section, IReadOnlyList<InvoiceSalesSummaryRow> invoice) =>
+        new("Invoice Summary", section.Status.ToString(), section.Message,
+            new([new("Date"),new("Store"),new("Document"),new("Customer"),new("Transaction Type"),new("Quantity","#,##0.00"),new(InvoiceValueHeader,"#,##0.00"),new("Source Rows","#,##0")],
+                invoice.Select(x => (IReadOnlyList<object?>)[x.BusinessDate,x.StoreCode,x.DocumentNumber,x.CustomerName,x.TransactionTypes,x.Quantity,x.NetValue,x.SourceRows]).ToArray(),
+                ["Total","","","","",invoice.Sum(x=>x.Quantity),invoice.Sum(x=>x.NetValue),invoice.Sum(x=>x.SourceRows)]));
+
+    internal static ReportPackTable InvoiceLineageTable(DailyReportPackSection section, IReadOnlyList<InvoiceSalesLineageRow> invoiceLineage) =>
+        new("Invoice Lineage", section.Status.ToString(), "Canonical line detail with source workbook, sheet and row; customer PII remains excluded.",
+            new([new("Date"),new("Store"),new("Document"),new("Line"),new("Item"),new("Brand"),new("Segment"),new("Type"),new("Quantity","#,##0.00"),new(InvoiceValueHeader,"#,##0.00"),new("CRO"),new("Workbook"),new("Sheet"),new("Source Row","#,##0")],
+                invoiceLineage.Select(x => (IReadOnlyList<object?>)[x.BusinessDate,x.StoreCode,x.DocumentNumber,x.LineIdentifier,x.ProductCode,x.Brand,x.BrandSegment,x.TransactionType,x.Quantity,x.NetValue,x.CroNumber,x.SourceWorkbook,x.SourceSheet,x.SourceRow]).ToArray(),
+                ["Total","","","","","","","",invoiceLineage.Sum(x=>x.Quantity),invoiceLineage.Sum(x=>x.NetValue),"","","",invoiceLineage.Count]));
+
     private static ReportPackDocument BuildDocument(
         string storeCode,
         DateOnly businessDate,
@@ -186,14 +202,8 @@ public sealed class DailyReportingPackService(string connectionString)
                 new([new("Report"),new("Status"),new("Control Total","#,##0.00"),new("Variance","#,##0.00"),new("Message")],
                     sections.Select(x => (IReadOnlyList<object?>)[x.Report,x.Status.ToString(),x.ControlTotal,x.Variance,x.Message]).ToArray(),
                     ["Overall",status.ToString(),null,null,message])),
-            new("Invoice Summary", sections[0].Status.ToString(), sections[0].Message,
-                new([new("Date"),new("Store"),new("Document"),new("Customer"),new("Transaction Type"),new("Quantity","#,##0.00"),new("Net Value","#,##0.00"),new("Source Rows","#,##0")],
-                    invoice.Select(x => (IReadOnlyList<object?>)[x.BusinessDate,x.StoreCode,x.DocumentNumber,x.CustomerName,x.TransactionTypes,x.Quantity,x.NetValue,x.SourceRows]).ToArray(),
-                    ["Total","","","","",invoice.Sum(x=>x.Quantity),invoice.Sum(x=>x.NetValue),invoice.Sum(x=>x.SourceRows)])),
-            new("Invoice Lineage", sections[0].Status.ToString(), "Canonical line detail with source workbook, sheet and row; customer PII remains excluded.",
-                new([new("Date"),new("Store"),new("Document"),new("Line"),new("Item"),new("Brand"),new("Segment"),new("Type"),new("Quantity","#,##0.00"),new("Net Value","#,##0.00"),new("CRO"),new("Workbook"),new("Sheet"),new("Source Row","#,##0")],
-                    invoiceLineage.Select(x => (IReadOnlyList<object?>)[x.BusinessDate,x.StoreCode,x.DocumentNumber,x.LineIdentifier,x.ProductCode,x.Brand,x.BrandSegment,x.TransactionType,x.Quantity,x.NetValue,x.CroNumber,x.SourceWorkbook,x.SourceSheet,x.SourceRow]).ToArray(),
-                    ["Total","","","","","","","",invoiceLineage.Sum(x=>x.Quantity),invoiceLineage.Sum(x=>x.NetValue),"","","",invoiceLineage.Count])),
+            InvoiceSummaryTable(sections[0], invoice),
+            InvoiceLineageTable(sections[0], invoiceLineage),
             new("DSR", sections[1].Status.ToString(), sections[1].Message,EveningReportTables.Dsr(evening.Where(x=>x.StoreCode==storeCode).ToArray())),
             new("Service Sales", sections[2].Status.ToString(), sections[2].Message,
                 new([new("Period"),new("Store"),new("From"),new("To"),new("WDC","#,##0.00"),new("Cash","#,##0.00"),new("Card","#,##0.00"),new("UPI","#,##0.00"),new("Total","#,##0.00"),new("LY Total","#,##0.00"),new("Growth %","0.00%"),new("Availability"),new("Missing days","#,##0"),new("LY missing days","#,##0")],

@@ -25,7 +25,7 @@ Reports can be exported to fixed-format Excel or PDF. PDF output is landscape, p
 
    It verifies, restores and checks the backup, and makes the Windows account running it the database's Owner (`docs/OPERATIONS.md`, Moving the live database to a new PC). Restore only your own ETP backup: the helper and the next setup run execute the database's own code as a SQL administrator.
 3. Run setup again. It takes a verified safety backup of the restored data before it applies the newer database updates, installing the operations broker that backup needs if it is missing.
-4. Start ETP with **Run as administrator** and, as Owner, add `<PC>\EtpAutomation` as an active Store Manager in Settings > Users. Deactivate the old PC's accounts there too (untick Active, give a reason).
+4. Start ETP (no Run as administrator needed; see *Owners and SQL Server logins* in `docs/OPERATIONS.md`) and, as Owner, add `<PC>\EtpAutomation` as an active Store Manager in Settings > Users. Deactivate the old PC's accounts there too (untick Active, give a reason).
 5. Run setup once more. It installs the SQL operations module for `<PC>\EtpAutomation` (`docs/OPERATIONS.md`, deployment step 7), without which the daily backup and the monthly recovery drill cannot run. Its log says when that is done, or what is still missing.
 
 ## Prerequisite
@@ -45,7 +45,7 @@ Express is supported and is the usual choice for a single shop PC. Note one cons
 
 Use **Import ETP** to validate and import each workbook. Import these four exports for each store:
 
-1. `SDB-VariantwiseSales` — item-level sales (`NETVALUE`, including GST).
+1. `SDB-VariantwiseSales` — item-level sales (`NETAMOUNT`, including GST; `NETVALUE` is the ex-GST amount).
 2. `Revenue Report` — authoritative invoice and tender control.
 3. `Variant Stock ledger` — source-signed stock movements.
 4. `Closing Stock` — authoritative closing snapshot and product/brand-segment attributes.
@@ -54,7 +54,7 @@ Exact duplicate files are rejected. Unknown layouts, mismatched repeated halves,
 
 ## Reports
 
-Open **Sales Reports** or **Stock Reports**, select an inclusive date range, and run the required report. Sales reports use source-signed `NETVALUE`: `INV` is an invoice and negative `SR` values remain negative. Tender reconciliation uses Revenue Report invoice controls. Stock reconciliation compares the first ledger opening plus source-signed period movements with the closing snapshot for products present in both sources. After running a report, select **Export Excel…** to save the same result grid, totals, period, rule version and control status as a fixed-format `.xlsx` workbook.
+Open **Sales Reports** or **Stock Reports**, select an inclusive date range, and run the required report. Sales reports use source-signed `NETAMOUNT`, the GST-inclusive value: `INV` is an invoice and negative `SR` values remain negative. Closing, Slow and Brand Stock show the snapshot's MRP (UCP), not cost. Tender reconciliation uses Revenue Report invoice controls. Stock reconciliation checks every product with ledger movements in the period: the ledger balance at the start of the period (each ledger bin's own balance, added together) plus source-signed period movements is compared with the To-date closing snapshot, where a product missing from the snapshot counts as 0. It is Blocked when the store has no closing snapshot on the To date, or when the stock ledger ends before the To date (the message gives the ledger's last date). After running a report, select **Export Excel…** to save the same result grid, totals, period, rule version and control status as a fixed-format `.xlsx` workbook.
 
 ## Build a release
 

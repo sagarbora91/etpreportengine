@@ -82,6 +82,75 @@ public sealed class DailySalesReportTests
         Assert.Equal(["Titan World", "Helios", "Combined"], document.Targets.Select(x => x.DisplayName));
         Assert.Equal(11, document.CombinedInvoices);
         Assert.Equal(14m, document.WalkIns);
+        Assert.Equal(78.6m, decimal.Round(document.Conversion.Value!.Value, 1));
+        var cards = DsrKpiCards.For(document);
+        Assert.Equal(["COMBINED FTD", "UNITS", "WALK-INS", "CONVERSION", "MTD SALES", "YTD SALES"], cards.Select(x => x.Label));
+        Assert.Equal(new DsrKpiCard("WALK-INS", "14", "Titan World 10 · Helios 4"), cards[2]);
+        Assert.Equal(new DsrKpiCard("CONVERSION", "78.6%", "11 invoices / 14 walk-ins"), cards[3]);
+    }
+
+    // HEMW FIX-03 / WLMHW FIX-06 (report audit 3 Oct 2026): walk-ins not entered are "Data not available", never 0.
+    [Fact]
+    public void Walk_ins_not_entered_show_data_not_available_on_the_kpi_cards()
+    {
+        var facts = SalesFacts().Select(x => x with { WalkIns = null, ConversionPercent = null }).ToArray();
+        var document = DailySalesReportBuilder.Build(new DateOnly(2026, 9, 28), facts, [],
+            new Dictionary<string, decimal?>(), stores: [new("WLMHW", "Titan World"), new("HEMW", "Helios")]);
+
+        Assert.Null(document.WalkIns);
+        Assert.All(document.Stores, x => Assert.Null(x.FtdWalkIns));
+        Assert.Null(document.Conversion.Value);
+        Assert.Equal(MetricAvailability.MissingInput, document.Conversion.Availability);
+        var cards = DsrKpiCards.For(document);
+        Assert.Equal(new DsrKpiCard("WALK-INS", "—", "Data not available"), cards[2]);
+        Assert.Equal(new DsrKpiCard("CONVERSION", "—", "Data not available"), cards[3]);
+    }
+
+    [Fact]
+    public void One_store_without_walk_ins_makes_combined_walk_ins_and_conversion_unavailable()
+    {
+        // COMBINED carries the 1.9.3 plain sum (Titan 10 + Helios nothing = 10); the document must not show it.
+        var facts = SalesFacts().Select(x => x.Period == "FTD" && x.StoreCode == "HEMW" ? x with { WalkIns = null }
+            : x.Period == "FTD" && x.StoreCode == "COMBINED" ? x with { WalkIns = 10m } : x).ToArray();
+        var document = DailySalesReportBuilder.Build(new DateOnly(2026, 9, 28), facts, [],
+            new Dictionary<string, decimal?>(), stores: [new("WLMHW", "Titan World"), new("HEMW", "Helios")]);
+
+        Assert.Null(document.WalkIns);
+        Assert.Equal(10m, document.Stores.Single(x => x.StoreCode == "WLMHW").FtdWalkIns);
+        Assert.Null(document.Conversion.Value);
+        var cards = DsrKpiCards.For(document);
+        Assert.Equal(new DsrKpiCard("WALK-INS", "—", "Data not available"), cards[2]);
+        Assert.Equal(new DsrKpiCard("CONVERSION", "—", "Data not available"), cards[3]);
+    }
+
+    // Owner decision 13 / A2: gift cards are shown on their own, never inside the combined FTD value.
+    [Fact]
+    public void Combined_gift_cards_are_carried_beside_the_ftd_value_not_inside_it()
+    {
+        var facts = SalesFacts().Select(x => x.Period == "FTD" && x.StoreCode == "COMBINED" ? x with { TyGiftCards = 2_000m, LyGiftCards = 0m } : x).ToArray();
+        var document = DailySalesReportBuilder.Build(new DateOnly(2026, 9, 28), facts, [],
+            new Dictionary<string, decimal?>(), stores: [new("WLMHW", "Titan World"), new("HEMW", "Helios")]);
+
+        Assert.Equal(145_970m, document.CombinedFtd);
+        Assert.Equal(2_000m, document.CombinedFtdGiftCards);
+    }
+
+    [Fact]
+    public void Evening_dsr_excel_rows_keep_the_gift_card_line_with_its_note()
+    {
+        var sheet = new EveningStoreSheet("HEMW", "Helios", null, null, null, null,
+        [
+            new("VALUE", 4_000m, 3_000m, 33.3m, 40_000m, 400_000m, 300_000m, "currency"),
+            new("Other / unmapped", 4_000m, 3_000m, 33.3m, 40_000m, 400_000m, 300_000m, "currency"),
+            new("GIFT CARD", 1_000m, 0m, null, 1_000m, 5_000m, 0m, "currency", "Gift-card sales (GIFT CARD / BRAND GC); not in VALUE, VOL or INVOICE")
+        ]);
+        var data = EveningReportTables.Dsr([sheet]);
+
+        var gift = data.Rows.Single(x => Equals(x[1], "GIFT CARD"));
+        Assert.Equal(1_000m, gift[2]);
+        Assert.Equal(5_000m, gift[6]);
+        Assert.Contains("not in VALUE", (string)gift[8]!);
+        Assert.Equal(4_000m, data.Rows.Single(x => Equals(x[1], "VALUE"))[2]);
     }
 
     private static DailySalesReportDocument EmptyDocument(DateOnly date) => new(date, "Daily Sales Report (DSR)", "",

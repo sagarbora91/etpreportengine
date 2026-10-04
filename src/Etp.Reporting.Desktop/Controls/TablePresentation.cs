@@ -51,6 +51,7 @@ public static class TablePresentation
                 var header = table?.Columns[property.Name]?.Caption ?? Regex.Replace(property.Name, "(?<=[a-z0-9])(?=[A-Z])", " ");
                 if (type == typeof(EtpApplication::Etp.Reporting.Application.Reports.StaffPerformanceRecord))
                     header = property.Name switch { "Transactions" => "Unique invoices", "Upt" => "AUPT", "Atv" => "ATV", _ => header };
+                header = ReportHeader(type, property.Name) ?? header;
                 if (property.Name == "StoreCode") header = "Store";
                 if (money && table is null) header += " ₹";
                 var binding = new Binding(property.Name) { Converter = new CellFormat(valueType,numeric,property.Name), Mode = BindingMode.OneWay };
@@ -63,6 +64,23 @@ public static class TablePresentation
         PropertyChangeWatcher.Watch(grid,ItemsControl.ItemsSourceProperty,Rebuild);
         Rebuild();
     }
+    /// <summary>
+    /// Report audit of 3 Oct 2026 (fix lists FIX-04, FIX-05, FIX-08, FIX-12): on-screen headers say what a column holds.
+    /// Stock UCP/TOTALUCP are MRP, not cost; sales values are GST-inclusive NETAMOUNT. Wording only: the values are unchanged.
+    /// </summary>
+    internal static string? ReportHeader(Type? type, string property)
+    {
+        if (property == "MrpValue") return Modules.Reports.ReportsWorkspaceView.MrpValueHeader;
+        if (type == typeof(EtpApplication::Etp.Reporting.Application.Reports.StockInventoryRecord))
+            return property switch { "UnitCost" => Modules.Reports.ReportsWorkspaceView.UnitMrpHeader, "TotalCost" => Modules.Reports.ReportsWorkspaceView.MrpValueHeader, _ => null };
+        // Sales Summary, Management Trend and Operations > Sales and control trend name their counts by property:
+        // Invoices (INV documents only) and Returns (SR or BC documents), owner decision 13 Q6.
+        if (property == "NetValue" && (type == typeof(EtpApplication::Etp.Reporting.Application.Reports.InvoiceSummaryRecord)
+            || type == typeof(EtpApplication::Etp.Reporting.Application.Reports.InvoiceLineageRecord)))
+            return "Value incl. GST";
+        return null;
+    }
+
     private sealed class CellFormat(Type type,bool numeric,string name) : IValueConverter
     {
         public object Convert(object value,Type targetType,object parameter,CultureInfo culture) => value switch

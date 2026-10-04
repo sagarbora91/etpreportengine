@@ -90,6 +90,8 @@ public sealed class PhaseZeroSqlTests(SqlDatabaseFixture database) : IClassFixtu
         Assert.Equal("FAIL", await database.ExecuteAsync("SELECT technical_control_status FROM dbo.data_quality_issues WHERE category='RESTATEMENT'"));
         await repository.SyncDataQualityIssuesAsync([]);
         Assert.Equal("PASS", await database.ExecuteAsync("SELECT technical_control_status FROM dbo.data_quality_issues WHERE category='RESTATEMENT'"));
+        // R-WLMHW-10: a cleared check no longer reports its last failing count.
+        Assert.Equal("Test failure (0 current)", await database.ExecuteAsync("SELECT safe_summary FROM dbo.data_quality_issues WHERE category='RESTATEMENT'"));
     }
 
     [Fact]

@@ -164,7 +164,7 @@ public sealed class ApprovedBrandMappingTests(ITestOutputHelper output)
         foreach (var store in expected.EnumerateObject())
         {
             var sheet = document.EveningSheets.Single(x => x.StoreCode == store.Name);
-            var brands = sheet.Rows.Where(x => x.Format == "currency" && x.Metric is not ("VALUE" or "AVPT" or "WCC SALES")).ToArray();
+            var brands = sheet.Rows.Where(x => x.Format == "currency" && x.Metric is not ("VALUE" or "AVPT" or "WCC SALES" or "GIFT CARD")).ToArray();
             Assert.Equal(store.Value.EnumerateObject().Select(x => x.Name), brands.Select(x => x.Metric));
             foreach (var row in brands)
             {

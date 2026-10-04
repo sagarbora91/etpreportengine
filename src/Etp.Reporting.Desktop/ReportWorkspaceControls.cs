@@ -58,6 +58,9 @@ public sealed class ReportWorkspaceControl : Grid
     private ReportPreviewScope? loadingScope;
     private ReportPreviewScope? loadedScope;
     private Func<string>? queryFilterSignature;
+
+    /// <summary>Whether the current role may generate a report pack (Owner or Store Manager); see Titan FIX-17.</summary>
+    public Func<bool> CanGeneratePack { get; set; } = static () => true;
     private readonly Expander queryFilters = new() { Header = "Filters", Visibility = Visibility.Collapsed, Margin = new Thickness(0, 8, 0, 0) };
     private readonly TextBlock appliedScope = new() { TextWrapping = TextWrapping.Wrap, Visibility = Visibility.Collapsed, Margin = new Thickness(0, 6, 0, 0) };
     private ReportPreviewScope CurrentScope => new(DateFromPicker.SelectedDate, DateToPicker.SelectedDate, ScopeSelector.SelectedItem?.ToString(), SelectedReport?.Code, queryFilterSignature?.Invoke());
@@ -225,7 +228,7 @@ public sealed class ReportWorkspaceControl : Grid
         actions.Children.Add(ActionButton("Refresh", ReportWorkspaceAction.Refresh, true));
         var pdf = ActionButton("Export PDF", ReportWorkspaceAction.ExportPdf);
         var excel = ActionButton("Export Excel", ReportWorkspaceAction.ExportExcel);
-        var actionMenu = ReportActionMenu.Create(RaiseAction, exportActions, false);
+        var actionMenu = ReportActionMenu.Create(RaiseAction, exportActions, false, () => CanGeneratePack());
         actions.Children.Add(pdf); actions.Children.Add(excel); actions.Children.Add(actionMenu);
         root.Children.Add(actions);
         statusText = DsrUi.Text(definition.Description, 12, colour: "SecondaryText"); statusText.Name = "ReportTaskStatus";
@@ -444,9 +447,10 @@ public sealed class DailySalesReportWorkspace : Grid
         periodText.Text = ReportingPeriodLabels.ForDate(date);
     }
 
-    private static IReadOnlyList<ReportDataAvailability> DefaultAvailability(DailySalesReportDocument report) =>
+    // Sales are R025 NETAMOUNT, GST-inclusive (decision D1); NETVALUE is the ex-GST amount (report audit 3 Oct 2026, FIX-05/FIX-11).
+    internal static IReadOnlyList<ReportDataAvailability> DefaultAvailability(DailySalesReportDocument report) =>
     [
-        new("Sales", report.CombinedFtd is not null, report.CombinedFtd is null ? "No recorded sales were available." : "recorded NETVALUE sales are available."),
+        new("Sales", report.CombinedFtd is not null, report.CombinedFtd is null ? "No recorded sales were available." : "recorded GST-inclusive sales (R025 NETAMOUNT) are available."),
         new("Walk-ins", report.WalkIns is not null, report.WalkIns is null ? "Enter combined walk-ins in Manual Entry." : "Combined walk-ins are available."),
         new("LY comparison", report.Stores.All(store => store.Periods.All(period => period.MissingSourceNote is null)), "Missing prior-year periods remain visibly unavailable."),
         new("Service", report.Service.Total is not null, report.Service.Total is null ? "Service source or manual input is required." : "Service values are available."),

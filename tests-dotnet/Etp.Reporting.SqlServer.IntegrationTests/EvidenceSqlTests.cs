@@ -358,7 +358,11 @@ public sealed class EvidenceSqlTests
             Assert.Equal(new[] { "Duplicate", "Imported" }, results.Select(result => result.Status).Order());
             var withoutWon = results[0].Status == "Imported";
             var duplicate = withoutWon ? results[1] : results[0];
-            Assert.Equal(withoutWon ? EvidenceState.NotAttempted : EvidenceState.Retained, (withoutWon ? results[0] : results[1]).Evidence);
+            // When the bytes-less import wins, the duplicate may attach the missing bytes before the winner reads its
+            // evidence back, so the winner reports Retained or NotAttempted depending on timing (both correct).
+            var winnerEvidence = (withoutWon ? results[0] : results[1]).Evidence;
+            if (withoutWon) Assert.True(winnerEvidence is EvidenceState.NotAttempted or EvidenceState.Retained, $"Winner evidence was {winnerEvidence}.");
+            else Assert.Equal(EvidenceState.Retained, winnerEvidence);
             // The duplicate offered bytes only when it is the import that read them.
             Assert.Equal(withoutWon ? EvidenceState.Retained : EvidenceState.NotAttempted, duplicate.Evidence);
             Assert.Equal(1, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.import_files"));

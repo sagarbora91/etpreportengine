@@ -24,13 +24,18 @@ public sealed class EveningMasterRepository(string connectionString)
         return rows;
     }
 
+    /// <summary>DSR row labels the evening sheet calculates itself; a brand row may not use them.</summary>
+    internal static readonly string[] ReservedLabels = ["Other / unmapped","VOL","VALUE","AUPT","AVPT","RETAIL WALKIN","INVOICE","CONVERSION %","WCC WALKIN","WCC SALES","WDC BILLS",OperationalReportRepository.GiftCardRowLabel];
+
+    internal static bool IsReservedLabel(string label) => ReservedLabels.Contains(label.Trim(), StringComparer.OrdinalIgnoreCase);
+
     public async Task SaveBrandAsync(BrandRowDefinition row, CancellationToken token = default)
     {
         if (!(await new Phase2OperationsRepository(connectionString).LoadCurrentAccessAsync(token)).CanImport)
             throw new UnauthorizedAccessException("Owner or Store Manager permission is required.");
         if (string.IsNullOrWhiteSpace(row.StoreCode) || row.StoreCode.Length > 30 || string.IsNullOrWhiteSpace(row.Label) || row.Label.Length > 100)
             throw new ArgumentException("Enter a store and brand row label.");
-        if(new[]{"Other / unmapped","VOL","VALUE","AUPT","AVPT","RETAIL WALKIN","INVOICE","CONVERSION %","WCC WALKIN","WCC SALES","WDC BILLS"}.Contains(row.Label.Trim(),StringComparer.OrdinalIgnoreCase))
+        if(IsReservedLabel(row.Label))
             throw new ArgumentException("This label is reserved for a calculated DSR row. Choose a brand label.");
         var codes = row.SourceCodes.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         if (codes.Any(x => x.Length > 100)) throw new ArgumentException("Each source brand code must be at most 100 characters.");

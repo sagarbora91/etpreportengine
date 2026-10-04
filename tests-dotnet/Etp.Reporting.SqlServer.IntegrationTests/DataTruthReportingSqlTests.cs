@@ -85,6 +85,9 @@ public sealed class DataTruthReportingSqlTests(SqlDatabaseFixture database) : IC
             INSERT dbo.import_batches(import_batch_id,status,started_utc) VALUES(@batch,'Completed',SYSUTCDATETIME());
             INSERT dbo.import_files(import_batch_id,original_file_name,source_sha256,size_bytes) VALUES(@batch,'synthetic.xlsx',REPLICATE('a',64),1);
             SET @file=SCOPE_IDENTITY();
+            -- Tender control needs a current R022 covering the sales day (WLMHW FIX-07); facts above stay on the synthetic file.
+            INSERT dbo.import_files(import_batch_id,original_file_name,source_sha256,size_bytes,store_code,report_code,business_date,period_start,period_end,data_truth_version)
+            VALUES(@batch,'synthetic-r022.xlsx',REPLICATE('c',64),1,'REPORT','R022','20260825','20260825','20260825',1);
             INSERT dbo.source_lineage(import_file_id,sheet_name,source_row_number,source_record_type)
             VALUES(@file,'Sales',1,'sale'),(@file,'Sales',2,'sale'),(@file,'Staff',1,'staff'),(@file,'Staff',2,'staff'),(@file,'Tender',1,'tender'),(@file,'Tender',2,'tender'),(@file,'Revenue',1,'control'),(@file,'Revenue',2,'control');
             INSERT dbo.sales_invoices(store_code,document_number,invoice_year,transaction_date) VALUES('REPORT','I1',2027,'20260825'),('REPORT','BC1',2027,'20260825');

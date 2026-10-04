@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Threading;
 using System.Windows.Controls;
 using Etp.Reporting.Application.Reports;
@@ -25,12 +26,59 @@ public sealed class ReportsRequestOrderingTests
             Assert.Equal(42m, previews[0].ExportData!.Rows[0][2]);
             var currentStatus = ((TextBlock)view.FindName("ReportResult")).Text;
             if (failOlderRequest) query.Completion.SetException(new InvalidOperationException("Old query failed"));
-            else query.Completion.SetResult([new(new(2026, 9, 10), "WLMHW", 999m, 1m, 1, 0m, 0)]);
+            else query.Completion.SetResult([new(new(2026, 9, 10), "WLMHW", 999m, 1m, 1, 0, 0m, 0)]);
             await older;
             Assert.Single(previews);
             Assert.Equal(currentStatus, ((TextBlock)view.FindName("ReportResult")).Text);
             Assert.Equal("sales-store", view.CurrentReportCode);
             Assert.True(((Button)view.FindName("ExportExcelButton")).IsEnabled);
+        });
+    }
+
+    [Fact]
+    public void Management_trend_export_shows_r022_missing_with_a_blank_variance_and_a_blank_total()
+    {
+        // WLMHW FIX-07: a store-day without R022 exports a blank variance and a Tender Source note, and the total is blank, not 0.00.
+        RunSta(async () =>
+        {
+            var query = new DeferredTrendQuery();
+            var previews = new List<ReportPresentationSnapshot>();
+            var view = CreateView(query, previews);
+            query.Completion.SetResult([new(new(2026, 9, 9), "WLMHW", 500m, 2m, 1, 1, null, 0), new(new(2026, 9, 10), "WLMHW", 999m, 1m, 1, 0, 3m, 0)]);
+            await view.RunReportAsync("management-trend");
+
+            var data = Assert.Single(previews).ExportData!;
+            // Owner decision 13 Q6 (L9): INV-only Invoices plus a separate Returns count replace L5's interim "Documents (incl. returns)".
+            Assert.Equal(["Date", "Store", "Net Sales", "Units", "Invoices", "Returns", "Tender Variance", "Tender Source", "Unmatched Staff Rows"], data.Columns.Select(x => x.Header));
+            Assert.Equal(1, data.Rows[0][5]);
+            Assert.Null(data.Rows[0][6]);
+            Assert.Equal(ManagementTrendTenderSource.Missing, data.Rows[0][7]);
+            Assert.Equal(3m, data.Rows[1][6]);
+            Assert.Equal(ManagementTrendTenderSource.Imported, data.Rows[1][7]);
+            Assert.Equal(2, data.Totals![4]);
+            Assert.Equal(1, data.Totals[5]);
+            Assert.Null(data.Totals[6]);
+            Assert.Equal("1 missing", data.Totals[7]);
+            Assert.Equal(1499m, data.Totals[2]);
+            Assert.Contains("1 store-day(s) show R022 missing / not imported; their tender variance is blank, not zero.", ((TextBlock)view.FindName("ReportResult")).Text);
+        });
+    }
+
+    [Fact]
+    public void Management_trend_export_totals_the_variance_when_every_day_has_r022()
+    {
+        RunSta(async () =>
+        {
+            var query = new DeferredTrendQuery();
+            var previews = new List<ReportPresentationSnapshot>();
+            var view = CreateView(query, previews);
+            query.Completion.SetResult([new(new(2026, 9, 9), "WLMHW", 500m, 2m, 1, 0, 2m, 0), new(new(2026, 9, 10), "WLMHW", 999m, 1m, 1, 0, 3m, 0)]);
+            await view.RunReportAsync("management-trend");
+
+            var data = Assert.Single(previews).ExportData!;
+            Assert.Equal(5m, data.Totals![6]);
+            Assert.Equal("", data.Totals[7]);
+            Assert.DoesNotContain("R022 missing", ((TextBlock)view.FindName("ReportResult")).Text);
         });
     }
 
@@ -46,7 +94,7 @@ public sealed class ReportsRequestOrderingTests
             Assert.True(((Button)view.FindName("ExportExcelButton")).IsEnabled);
             var older = view.RunReportAsync("management-trend");
             view.SetBusinessDate(new(2026, 9, 9));
-            query.Completion.SetResult([new(new(2026, 9, 10), "WLMHW", 999m, 1m, 1, 0m, 0)]);
+            query.Completion.SetResult([new(new(2026, 9, 10), "WLMHW", 999m, 1m, 1, 0, 0m, 0)]);
             await older;
             Assert.Single(previews);
             Assert.False(((Button)view.FindName("ExportExcelButton")).IsEnabled);
@@ -193,9 +241,24 @@ public sealed class ReportsRequestOrderingTests
         public Task ExportManagementSummaryPdfAsync(string path, Etp.Reporting.Reporting.ExcelReportMetadata metadata, Etp.Reporting.Reporting.ExcelReportData data, CancellationToken token = default) => throw new NotSupportedException();
     }
 
-    private static ReportsWorkspaceView CreateView(DeferredTrendQuery query, List<ReportPresentationSnapshot> previews, IReportExportCoordinator? exporter = null)
+    [Fact]
+    public void Sales_summary_status_line_uses_indian_digit_grouping_whatever_the_thread_culture()
     {
-        var view = new ReportsWorkspaceView(() => "synthetic", _ => new SalesQuery(),
+        RunSta(async () =>
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("en-US");
+            var previews = new List<ReportPresentationSnapshot>();
+            var view = CreateView(new DeferredTrendQuery(), previews, salesAmount: 1015259.10m);
+            await view.RunReportAsync("sales-store");
+            var status = ((TextBlock)view.FindName("ReportResult")).Text;
+            Assert.Contains("Sales incl. GST 10,15,259.10", status);
+            Assert.DoesNotContain("1,015,259.10", status);
+        });
+    }
+
+    private static ReportsWorkspaceView CreateView(DeferredTrendQuery query, List<ReportPresentationSnapshot> previews, IReportExportCoordinator? exporter = null, decimal salesAmount = 42m)
+    {
+        var view = new ReportsWorkspaceView(() => "synthetic", _ => new SalesQuery(salesAmount),
             _ => throw new InvalidOperationException("Unexpected operational query"), _ => query,
             exporter ?? new ReportExportCoordinator(), new UnusedDiagnostic());
         view.SetStores(TestStoreCatalog.Create());
@@ -211,10 +274,10 @@ public sealed class ReportsRequestOrderingTests
         public Task<IReadOnlyList<ManagementTrendRecord>> LoadAsync(ReportScope scope, CancellationToken cancellationToken = default) => Completion.Task;
     }
 
-    private sealed class SalesQuery : IControlledReportQuery
+    private sealed class SalesQuery(decimal salesAmount = 42m) : IControlledReportQuery
     {
         public Task<SalesSummaryReport> RunSalesSummaryAsync(ReportScope scope, ReportSalesDimension dimension, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new SalesSummaryReport(dimension, ReportStatus.Passed, [new("Synthetic", 1m, 42m, 1)], "test", "Synthetic sales"));
+            Task.FromResult(new SalesSummaryReport(dimension, ReportStatus.Passed, [new("Synthetic", 1m, salesAmount, 1, 0)], "test", "Synthetic sales"));
         public Task<TenderReconciliationReport> RunTenderReconciliationAsync(ReportScope scope, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<StockReconciliationReport> RunStockReconciliationAsync(ReportScope scope, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<StockMovementRecord>> LoadStockMovementsAsync(ReportScope scope, CancellationToken cancellationToken = default) => throw new NotSupportedException();

@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory)]
-    [ValidateSet('TargetAliases','BackupReceipts','CertificateCustody','CertificateBinding','Retention','Paths','ProtectedInstall','ProtectedInstallLayouts','AtomicReceipts','RowCountReceipts')]
+    [ValidateSet('TargetAliases','BackupReceipts','CertificateCustody','CertificateBinding','Retention','Paths','ProtectedInstall','ProtectedInstallLayouts','AtomicReceipts','RowCountReceipts','SqlCmdCommandLine')]
     [string]$Scenario
 )
 $ErrorActionPreference = 'Stop'
@@ -653,6 +653,92 @@ try {
             Assert-Rejected { Resolve-EtpDrillReceiptPath -BackupDirectory $backupDirectory -Database 'DisposableDatabase' -ReceiptPath $backupPath } 'in the backup folder'
             Assert-Rejected { Resolve-EtpDrillReceiptPath -BackupDirectory $backupDirectory -Database 'DisposableDatabase' -ReceiptPath '\remote\share\receipt.json' } 'in the backup folder'
             Assert-Rejected { Resolve-EtpDrillReceiptPath -BackupDirectory $backupDirectory -Database 'DisposableDatabase' -ReceiptPath (Join-Path $backupDirectory 'missing.json') } 'not found'
+        }
+        SqlCmdCommandLine {
+            # 1.9.3 VM rehearsal, 3 October 2026: the revision-2 broker carried two double quotes
+            # in a JSON literal. Every statement goes to Sqlcmd as one -Q argument, which cannot
+            # carry one, so the broker's CREATE OR ALTER failed before reaching SQL Server, behind
+            # the masked message alone, and setup stopped at its pre-migration backup. A stand-in
+            # Sqlcmd (compiled here, never SQL Server) records the statement it was given.
+            $stubSource = @'
+using System; using System.IO; using System.Text;
+public static class EtpSqlCmdStub {
+    public static int Main(string[] a) {
+        int q = Array.IndexOf(a, "-Q");
+        if (q < 0 || q != a.Length - 2) { Console.Error.WriteLine("Sqlcmd: '" + (a.Length > 0 ? a[a.Length - 1] : "") + "': Unexpected argument. Enter '-?' for help."); return 1; }
+        string query = a[a.Length - 1];
+        if (query == "SET NOCOUNT ON; SELECT 1;") { Console.WriteLine("1"); return 0; }
+        string capture = Environment.GetEnvironmentVariable("ETP_STUB_CAPTURE");
+        if (!String.IsNullOrEmpty(capture)) File.WriteAllText(capture, query, new UTF8Encoding(false));
+        if (Environment.GetEnvironmentVariable("ETP_STUB_MODE") == "fail") {
+            Console.Error.WriteLine("Msg 2812, Level 16, State 62, Server STUBPC\\SQLEXPRESS, Line 1");
+            Console.Error.WriteLine("Could not find stored procedure 'dbo.etp_operations_0000000000000000'.");
+            return 1;
+        }
+        Console.Error.WriteLine("ETP_ENCRYPTION:NONE");
+        Console.WriteLine("ETP_STUB:OK");
+        return 0;
+    }
+}
+'@
+            $stub = Join-Path $temporaryRoot 'sqlcmd-stub.exe'
+            Add-Type -TypeDefinition $stubSource -Language CSharp -OutputAssembly $stub -OutputType ConsoleApplication
+            $capture = Join-Path $temporaryRoot 'received.sql'
+            $env:ETP_STUB_CAPTURE = $capture
+            $env:ETP_STUB_MODE = 'ok'
+            try {
+                # The shipped templates reach Sqlcmd exactly as written, through the Windows
+                # PowerShell 5.1 that setup runs (it drops double quotes from native arguments).
+                foreach ($name in @('etp-operations-broker.sql', 'etp-operations-grants.sql')) {
+                    $template = [IO.File]::ReadAllText((Join-Path $PSScriptRoot "sql\$name"))
+                    Assert-True (-not $template.Contains([string][char]34)) "$name contains a double quote, which Sqlcmd's command line cannot carry."
+                    if (Test-Path -LiteralPath $capture) { Remove-Item -LiteralPath $capture }
+                    $result = @(Invoke-EtpSql -SqlCmd $stub -Server '.\SQLEXPRESS' -Query $template)
+                    Assert-True (Test-Path -LiteralPath $capture) "$name never reached Sqlcmd."
+                    Assert-True ([IO.File]::ReadAllText($capture) -ceq $template) "$name did not reach Sqlcmd unchanged."
+                    # Standard output only: messages on the error stream are not result rows.
+                    Assert-True ($result.Count -eq 1 -and $result[0] -ceq 'ETP_STUB:OK') "Unexpected result rows: $($result -join ' / ')"
+                }
+                # A statement with a double quote is refused by name, before Sqlcmd starts.
+                Remove-Item -LiteralPath $capture
+                $quoted = "SELECT N'ETP_ROWCOUNTS:{" + [char]34 + 'before' + [char]34 + ":null}';"
+                Assert-Rejected { Invoke-EtpSql -SqlCmd $stub -Server '.\SQLEXPRESS' -Query $quoted } 'double quote'
+                Assert-True (-not (Test-Path -LiteralPath $capture)) 'Sqlcmd was started for a statement it cannot receive.'
+
+                # A failed statement keeps the masked message, and carries what SQL Server said
+                # for setup's administrator-only log - without the server name.
+                $env:ETP_STUB_MODE = 'fail'
+                $caught = $null
+                try { Invoke-EtpSql -SqlCmd $stub -Server '.\SQLEXPRESS' -Query 'SELECT 1 AS x;' | Out-Null } catch { $caught = $_ }
+                Assert-True ($null -ne $caught) 'A failed statement was accepted.'
+                Assert-True ($caught.Exception.Message -ceq $EtpMaskedSqlFailure) "The message changed: $($caught.Exception.Message)"
+                $detail = Get-EtpExceptionSqlDetail $caught.Exception
+                Assert-True ($detail -ceq "SQL Server error 2812 (level 16, state 62, line 1): Could not find stored procedure 'dbo.etp_operations_0000000000000000'.") "Detail: $detail"
+                Assert-True ((Format-EtpFailureForLog $caught.Exception) -ceq "$EtpMaskedSqlFailure (SQL Server reported: $detail)") 'The log text does not carry the detail.'
+                # It survives the script boundary, as from install-etp-sql-operations.ps1 to setup.
+                $child = Join-Path $temporaryRoot 'child.ps1'
+                [IO.File]::WriteAllText($child, "param(`$Common,`$Stub)`r`n. `$Common`r`nInvoke-EtpSql -SqlCmd `$Stub -Server '.\SQLEXPRESS' -Query 'SELECT 2 AS y;'`r`n")
+                $caught = $null
+                try { & $child -Common (Join-Path $PSScriptRoot 'etp-operations-common.ps1') -Stub $stub | Out-Null } catch { $caught = $_ }
+                Assert-True ($null -ne $caught -and $caught.Exception.Message -ceq $EtpMaskedSqlFailure) 'The child script did not fail with the masked message.'
+                Assert-True ((Get-EtpExceptionSqlDetail $caught.Exception) -like 'SQL Server error 2812 *') 'The detail was lost at the script boundary.'
+            }
+            finally {
+                Remove-Item Env:\ETP_STUB_CAPTURE -ErrorAction SilentlyContinue
+                Remove-Item Env:\ETP_STUB_MODE -ErrorAction SilentlyContinue
+            }
+
+            # The detail itself: SQL Server's messages and Sqlcmd's own, one line, cut short.
+            $unexpected = "Sqlcmd: 'before" + [char]34 + ":'+COALESCE(@countsBefore,N'null')': Unexpected argument. Enter '-?' for help."
+            Assert-True ((Get-EtpSqlFailureDetail @($unexpected)) -ceq $unexpected) 'Sqlcmd''s own complaint was not kept.'
+            $two = Get-EtpSqlFailureDetail @('Msg 51333, Level 16, State 1, Server PC\SQLEXPRESS, Procedure dbo.etp_operations_x, Line 18', 'The configured application role is inactive or unavailable.', '', 'Msg 3013, Level 16, State 1, Server PC\SQLEXPRESS, Line 1', 'BACKUP DATABASE is terminating abnormally.')
+            Assert-True ($two -ceq 'SQL Server error 51333 (level 16, state 1, procedure dbo.etp_operations_x, line 18): The configured application role is inactive or unavailable. | SQL Server error 3013 (level 16, state 1, line 1): BACKUP DATABASE is terminating abnormally.') "Two errors: $two"
+            Assert-True (-not $two.Contains('PC\SQLEXPRESS')) 'The server name was kept.'
+            $long = Get-EtpSqlFailureDetail @('Msg 50000, Level 16, State 1, Line 1', ('x' * 1000 + "`tend"))
+            Assert-True ($long.Length -lt 400 -and $long.EndsWith('...')) 'A long message was not cut short.'
+            Assert-True ($null -eq (Get-EtpSqlFailureDetail @('Processed 400 pages.', 'ETP_ENCRYPTION:NONE', ''))) 'Informational output was reported as a failure.'
+            Assert-True ($null -eq (Get-EtpSqlFailureDetail @())) 'Nothing was reported as something.'
+            Assert-True ($null -eq (Get-EtpExceptionSqlDetail ([Exception]::new('plain')))) 'A plain exception has a detail.'
         }
     }
     Write-Output "Operations boundary scenario succeeded: $Scenario ($script:checks checks)."

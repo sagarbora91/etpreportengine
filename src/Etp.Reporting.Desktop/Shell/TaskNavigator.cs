@@ -445,6 +445,7 @@ public sealed partial class TaskNavigator(MainWindow window)
         // Each layout selects the existing module's controls; no business operation is invoked here.
         UserControl view;
         int[] body; int[] actions;
+        var openItems = false;
         var id = task.Id;
         if (task.Destination == Modules.Service.ServiceScreens.Destination)
             return Modules.Service.ServiceScreens.Create(id, window.serviceReportQuery, window.serviceExcelExport);
@@ -528,12 +529,14 @@ public sealed partial class TaskNavigator(MainWindow window)
         { view = window.operationsWorkspaceView; body = new int[] {27,29}; actions = new int[] {28}; window.operationsWorkspaceView.SelectMaintenanceTask(id); }
         else if (id == "watch-folder")
         { view = window.operationsWorkspaceView; body = new int[] {2,11,12,13,14,15,16,17,18,19,21,22,24,25}; actions = [0,20,23]; }
-        else { view = window.operationsWorkspaceView; window.operationsWorkspaceView.SelectIssueTask(id); body = new int[] {1,2,8,7}; actions = new int[] {0,8}; }
+        else { view = window.operationsWorkspaceView; window.operationsWorkspaceView.SelectIssueTask(id); body = new int[] {1,2,8,7}; actions = new int[] {0,8}; openItems = true; }
         FocusedTaskLayout.Show(view, task.Title, body, actions);
         ApplyHiddenScope(view);
         if (view == window.dailyWorkflowWorkspace) window.dailyWorkflowWorkspace.PrepareTouchTask(id);
         visited.Add(view);
-        if (prepared.Add(view) || view == window.dailyWorkflowWorkspace || view == window.archiveWorkspaceView || view == window.investigationWorkspaceView)
+        // audit item R-10 (Titan store): Open items reload every time they are opened, not only the first time in a session, so an
+        // import made since then shows (an Owner's or Store Manager's open also syncs the saved issues).
+        if (prepared.Add(view) || openItems || view == window.dailyWorkflowWorkspace || view == window.archiveWorkspaceView || view == window.investigationWorkspaceView)
         {
             if (view == window.dailyWorkflowWorkspace) { window.dailyWorkflowWorkspace.RefreshAccessState(); _ = window.dailyWorkflowWorkspace.RefreshAsync(); }
             if (view == window.accountingWorkspaceView) _ = window.accountingWorkspaceView.RefreshAsync();

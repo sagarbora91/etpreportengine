@@ -115,10 +115,12 @@ public sealed partial class SqlServerImportPersistenceUseCase : IImportPersisten
                 ownBatch = result.BatchId;
                 var outcome = await files.LoadOutcomeInScopeAsync(accepted.Workbook.Sha256, accepted.ProfileIdentity.ReportCode,
                     scope.StoreCode!, periodStart, periodEnd, cancellationToken);
-                return result with { PersistedRows=outcome.NewRows,
+                var imported = result with { PersistedRows=outcome.NewRows,
                     Status=outcome.NewRows==0 && outcome.AlreadyPresentRows>0 ? "Duplicate content" : "Imported",
                     AlreadyPresentRows=outcome.AlreadyPresentRows,ConflictRows=outcome.ConflictRows,
                     Evidence=await ImportEvidenceAsync(accepted, scope.StoreCode!, periodStart, periodEnd, cancellationToken).ConfigureAwait(false) };
+                await RequestDataQualitySyncAsync().ConfigureAwait(false);
+                return imported;
             }
             duplicate = result;
         }
@@ -127,7 +129,14 @@ public sealed partial class SqlServerImportPersistenceUseCase : IImportPersisten
         // with it only once it is known to be ours; until then the attempt's outcome is unknown.
         catch (Exception failure) when (attempt.Committed && failure is not ImportCommittedException)
         {
+            await RequestDataQualitySyncAsync().ConfigureAwait(false);
             throw new ImportCommittedException(ownBatch, failure);
+        }
+        // A failed import can leave a Failed batch, which the FAILED_IMPORT_BATCH check counts.
+        catch (Exception)
+        {
+            await RequestDataQualitySyncAsync().ConfigureAwait(false);
+            throw;
         }
         // A duplicate found under the import lock committed nothing of its own (IF-014); its missing
         // source bytes are kept in a transaction of their own (IF-023).
@@ -285,6 +294,90 @@ public sealed partial class SqlServerImportPersistenceUseCase : IImportPersisten
         if (source.PreviousImportFileId <= 0 || string.IsNullOrWhiteSpace(source.RequestedBy) || string.IsNullOrWhiteSpace(source.Reason))
             throw new ArgumentException("A restatement requires the previous file, requesting user and reason.", nameof(source));
         return new(source.PreviousImportFileId, source.RequestedBy, source.Reason);
+    }
+
+    /// <summary>
+    /// Titan store report audit item R-10 (3 Oct 2026): Open items read the saved data-quality issues, which were synced
+    /// only when an Owner or Store Manager opened that screen, so a Viewer, or anyone before the next open, saw
+    /// counts from before the latest imports. Only an Owner or Store Manager imports, and both may sync.
+    /// A failed import syncs too: the FAILED_IMPORT_BATCH check counts failed batches.
+    /// A failed sync never turns an import into a failed one, and the screen still syncs when an Owner or
+    /// Store Manager opens it. Its own token, so a cancel after the commit does not leave the issues half-way.
+    /// Inside a run opened by <see cref="DeferDataQualitySync"/> (a folder or batch import) the sync waits
+    /// for the end of the run and happens once (review of FIX-10: the live checks scan every import, and a
+    /// folder of a few hundred files ran them a few hundred times on a PC that powers off under heavy load).
+    /// </summary>
+    private Task RequestDataQualitySyncAsync()
+    {
+        if (deferredSync.Value is { } run)
+        {
+            run.Request(connectionString);
+            return Task.CompletedTask;
+        }
+        return SyncDataQualityIssuesAsync(connectionString);
+    }
+
+    private static async Task SyncDataQualityIssuesAsync(string connectionString)
+    {
+        try
+        {
+            await ProductisationRepository.SyncDataQualityIssuesFromLiveChecksAsync(connectionString, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is SqlException or InvalidOperationException or TimeoutException)
+        {
+            // Best effort; see above.
+        }
+    }
+
+    private static readonly AsyncLocal<DataQualitySyncRun?> deferredSync = new();
+
+    /// <summary>
+    /// Opens an import run: imports made inside it (in this async flow, by any instance of this use case)
+    /// sync the saved data-quality issues once, when the run is disposed, instead of after every file.
+    /// Runs nest; only the outermost one syncs.
+    /// </summary>
+    public static DataQualitySyncRun DeferDataQualitySync() => DeferDataQualitySync(SyncDataQualityIssuesAsync);
+
+    // Tests replace the sync itself, to count the syncs a run makes without a database.
+    internal static DataQualitySyncRun DeferDataQualitySync(Func<string, Task> sync)
+    {
+        var run = new DataQualitySyncRun(deferredSync.Value, sync);
+        deferredSync.Value = run;
+        return run;
+    }
+
+    /// <summary>The run the current async flow is in, if any.</summary>
+    internal static DataQualitySyncRun? CurrentDataQualitySyncRun => deferredSync.Value;
+
+    public sealed class DataQualitySyncRun : IAsyncDisposable
+    {
+        private readonly DataQualitySyncRun? outer;
+        private readonly Func<string, Task> sync;
+        private string? pendingConnectionString;
+        private bool disposed;
+
+        internal DataQualitySyncRun(DataQualitySyncRun? outer, Func<string, Task> sync)
+        {
+            this.outer = outer;
+            this.sync = sync;
+        }
+
+        /// <summary>Whether an import inside this run asked for a sync that has not happened yet.</summary>
+        public bool SyncPending => Volatile.Read(ref pendingConnectionString) is not null;
+
+        internal void Request(string connectionString) => Volatile.Write(ref pendingConnectionString, connectionString);
+
+        // Not async: the restore of the AsyncLocal must reach the caller's flow.
+        public ValueTask DisposeAsync()
+        {
+            if (disposed) return ValueTask.CompletedTask;
+            disposed = true;
+            deferredSync.Value = outer;
+            var pending = Interlocked.Exchange(ref pendingConnectionString, null);
+            if (pending is null) return ValueTask.CompletedTask;
+            if (outer is not null) { outer.Request(pending); return ValueTask.CompletedTask; }
+            return new ValueTask(sync(pending));
+        }
     }
 
     private async Task RequireImportAsync(CancellationToken cancellationToken)

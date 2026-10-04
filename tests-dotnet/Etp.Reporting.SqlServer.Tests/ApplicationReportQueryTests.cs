@@ -46,7 +46,7 @@ public sealed class ApplicationReportQueryTests
         var source = new SalesSummaryResult(
             SalesSummaryDimension.BrandSegment,
             ReconciliationStatus.Passed,
-            [new SalesSummaryRow("GAUTO", -2m, -12_345.67m, 1)],
+            [new SalesSummaryRow("GAUTO", -2m, -12_345.67m, 1, 2)],
             "SALES-V1",
             "Source-signed values.");
 
@@ -60,7 +60,8 @@ public sealed class ApplicationReportQueryTests
         Assert.Equal("GAUTO", row.Key);
         Assert.Equal(-2m, row.SourceSignedQuantity);
         Assert.Equal(-12_345.67m, row.SourceSignedNetAmount);
-        Assert.Equal(1, row.DistinctInvoices);
+        Assert.Equal(1, row.Invoices);
+        Assert.Equal(2, row.Returns);
     }
 
     [Fact]
