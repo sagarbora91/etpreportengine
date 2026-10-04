@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## [Unreleased]
+
+1.9.5 (in progress).
+
+- Changed: the R020 TC tender for an invoice with more than one blank-agency cheque row (decision 21, the "two-cheque" rule). ETP now adds up all of the invoice's blank-agency R020 CHEQUEAMOUNT rows and fills the R022 shortfall when that total equals it exactly (for example 100 + 29 against a shortfall of 129 fills 129). Otherwise a single row that equals the shortfall exactly fills it, as before; otherwise nothing is filled and the tender difference stays visible (100 + 50 against 129 fills nothing). The amount filled is always the shortfall, once per invoice, so an invoice is never over-filled and R022 cover is never counted twice. Invoices with one matching row are unchanged. In 1.9.4 only the largest row counted, so an invoice whose two rows together made the shortfall showed a tender difference. The R020 scan keeps the 1.9.4 scoping (caller's store and dates, current files only).
 
 ## [1.9.4] - 2026-10-04
 

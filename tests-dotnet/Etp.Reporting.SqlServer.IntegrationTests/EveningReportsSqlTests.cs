@@ -148,6 +148,67 @@ public sealed class EveningReportsSqlTests(SqlDatabaseFixture db, ITestOutputHel
     }
 
     [Fact]
+    public async Task R020_two_cheque_rule_sums_blank_agency_rows_or_takes_one_exact_row_and_never_over_fills()
+    {
+        // Decision 21: each invoice's R022 shortfall is filled by the total of its blank-agency R020 cheque rows when that total
+        // is exact, or else by a single exact row; otherwise nothing is filled and the tender difference stays visible.
+        // S1 100 + 29 vs 129 -> 129. S2 100 + 50 (+ 29 with an agency, ignored) vs 129 -> nothing. S3 129 among 50 and 70 -> 129.
+        // S4 one exact row 129 -> 129 (unchanged). S5 already covered by R022 CHEQUE 500, R020 300 + 200 -> nothing.
+        // S6 the same 129 row twice -> 129 once, never 258.
+        await db.ExecuteAsync("""
+            DECLARE @batch uniqueidentifier=NEWID(),@r022 bigint,@r020 bigint,@r025 bigint;
+            INSERT dbo.import_batches(import_batch_id,status,started_utc) VALUES(@batch,'Completed',SYSUTCDATETIME());
+            INSERT dbo.import_files(import_batch_id,original_file_name,source_sha256,size_bytes,store_code,report_code,business_date,period_start,period_end,data_truth_version)
+            VALUES(@batch,'tcsum-r022.xlsx',REPLICATE('5',64),1,'TCSUM','R022','20301201','20301201','20301201',1);SET @r022=SCOPE_IDENTITY();
+            INSERT dbo.import_files(import_batch_id,original_file_name,source_sha256,size_bytes,store_code,report_code,business_date,period_start,period_end,data_truth_version)
+            VALUES(@batch,'tcsum-r020.xlsx',REPLICATE('6',64),1,'TCSUM','R020','20301201','20301201','20301201',1);SET @r020=SCOPE_IDENTITY();
+            INSERT dbo.import_files(import_batch_id,original_file_name,source_sha256,size_bytes,store_code,report_code,business_date,period_start,period_end,data_truth_version)
+            VALUES(@batch,'tcsum-r025.xlsx',REPLICATE('7',64),1,'TCSUM','R025','20301201','20301201','20301201',1);SET @r025=SCOPE_IDENTITY();
+            INSERT dbo.source_lineage(import_file_id,sheet_name,source_row_number,source_record_type)
+            SELECT f.id,f.sheet,n.n,f.kind
+            FROM (VALUES(@r025,'Sales','sale',6),(@r022,'Revenue','revenue',6),(@r020,'Payment','payment',13)) f(id,sheet,kind,rows)
+            JOIN (VALUES(1),(2),(3),(4),(5),(6),(7),(8),(9),(10),(11),(12),(13)) n(n) ON n.n<=f.rows;
+            DECLARE @inv TABLE(doc varchar(10),rowNo int,net decimal(18,2),tender nvarchar(20),paid decimal(18,2));
+            INSERT @inv VALUES('S1',1,1129,'CASH',1000),('S2',2,1129,'CASH',1000),('S3',3,1129,'CASH',1000),('S4',4,1129,'CASH',1000),('S5',5,500,'CHEQUE',500),('S6',6,1129,'CASH',1000);
+            INSERT dbo.sales_invoices(store_code,document_number,invoice_year,transaction_date) SELECT 'TCSUM',doc,2031,'20301201' FROM @inv;
+            INSERT dbo.sales_lines(sales_invoice_id,line_identifier,product_code,source_transaction_type,source_quantity,source_gross_amount,source_net_amount,source_tax_amount,currency_code,source_lineage_id)
+            SELECT i.sales_invoice_id,'1','ITEM','INV',1,v.net,v.net,0,'INR',s.source_lineage_id
+            FROM @inv v JOIN dbo.sales_invoices i ON i.store_code='TCSUM' AND i.document_number=v.doc
+            JOIN dbo.source_lineage s ON s.import_file_id=@r025 AND s.source_row_number=v.rowNo;
+            INSERT dbo.sales_invoice_controls(sales_invoice_id,source_transaction_type,source_invoice_quantity,source_net_value,currency_code,source_lineage_id)
+            SELECT i.sales_invoice_id,'INV',1,v.net,'INR',s.source_lineage_id
+            FROM @inv v JOIN dbo.sales_invoices i ON i.store_code='TCSUM' AND i.document_number=v.doc
+            JOIN dbo.source_lineage s ON s.import_file_id=@r022 AND s.source_row_number=v.rowNo;
+            INSERT dbo.sales_tenders(sales_invoice_id,tender_type,source_amount,currency_code,source_lineage_id)
+            SELECT i.sales_invoice_id,v.tender,v.paid,'INR',s.source_lineage_id
+            FROM @inv v JOIN dbo.sales_invoices i ON i.store_code='TCSUM' AND i.document_number=v.doc
+            JOIN dbo.source_lineage s ON s.import_file_id=@r022 AND s.source_row_number=v.rowNo;
+            INSERT dbo.etp_r020(import_file_id,source_lineage_id,content_key,store_code,invnumber,invdate,agencyname,chequeamount)
+            SELECT @r020,s.source_lineage_id,CONCAT('tcsum-',v.rowNo),'TCSUM',v.doc,'20301201',v.agency,v.amount
+            FROM (VALUES(1,'S1',CONVERT(nvarchar(20),NULL),100),(2,'S1',NULL,29),
+                        (3,'S2',NULL,100),(4,'S2',N' ',50),(5,'S2',N'HDFC',29),
+                        (6,'S3',NULL,129),(7,'S3',NULL,50),(8,'S3',NULL,70),
+                        (9,'S4',NULL,129),
+                        (10,'S5',NULL,300),(11,'S5',NULL,200),
+                        (12,'S6',NULL,129),(13,'S6',NULL,129)) v(rowNo,doc,agency,amount)
+            JOIN dbo.source_lineage s ON s.import_file_id=@r020 AND s.source_row_number=v.rowNo;
+            """);
+
+        var filled=await db.ExecuteAsync($"""
+            SELECT STRING_AGG(CONCAT(i.document_number,'=',CONVERT(varchar(30),CONVERT(decimal(18,2),t.source_amount))),';') WITHIN GROUP (ORDER BY i.document_number)
+            FROM ({SqlReportingQueries.R020TcTenders("'20301201'","'20301201'","rf.store_code='TCSUM'")}) t JOIN dbo.sales_invoices i ON i.sales_invoice_id=t.sales_invoice_id
+            """);
+        Assert.Equal("S1=129.00;S3=129.00;S4=129.00;S6=129.00",filled);
+
+        // The reports see the same tenders: only S2's 129 stays as a tender difference.
+        var executor=new SqlBackedReportingExecutor(new SqlServerReportingQueryRepository(db.ConnectionString),RetailReportingPolicy.Mapping,RetailReportingPolicy.Sales,RetailReportingPolicy.Tender,RetailReportingPolicy.Stock);
+        var tender=await executor.ExecuteTenderReconciliationAsync(new(new(2030,12,1),new(2030,12,1),["TCSUM"]));
+        Assert.Equal(129m,tender.InvoiceTotal-tender.TenderTotal);
+        var trend=Assert.Single(await new Phase2OperationsRepository(db.ConnectionString).LoadManagementTrendAsync(new(2030,12,1),new(2030,12,1)),x=>x.StoreCode=="TCSUM");
+        Assert.Equal(129m,trend.TenderVariance);
+    }
+
+    [Fact]
     public async Task Brand_master_edit_is_atomic_and_monthly_targets_are_not_halved()
     {
         var masters=new EveningMasterRepository(db.ConnectionString);
