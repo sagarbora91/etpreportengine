@@ -19,7 +19,11 @@ public sealed class ImportProfileMatcher
         var declared = string.IsNullOrWhiteSpace(familyCode) ? null : EtpReportFamilyRegistry.Families.FirstOrDefault(family =>
             family.FamilyCode.Equals(familyCode.Trim(), StringComparison.OrdinalIgnoreCase));
         if (declared is not null && matches.SingleOrDefault(profile => profile.ReportCode == declared.ReportCode) is { } chosen) return chosen;
-        var named = EtpReportFamilyRegistry.IdentifyName(fileName) ?? EtpReportFamilyRegistry.IdentifyName(sheetName);
+        // Only the families that share this signature may be named; profiles outside the catalogue are never candidates.
+        // A shared layout whose names carry neither a code nor a known name is not guessed.
+        var candidates = EtpReportFamilyRegistry.Families
+            .Where(family => matches.Any(profile => profile.ReportCode == family.ReportCode)).ToArray();
+        var named = EtpReportFamilyRegistry.IdentifyName(fileName, candidates) ?? EtpReportFamilyRegistry.IdentifyName(sheetName, candidates);
         return named is null ? null : matches.SingleOrDefault(profile => profile.ReportCode == named.ReportCode);
     }
 

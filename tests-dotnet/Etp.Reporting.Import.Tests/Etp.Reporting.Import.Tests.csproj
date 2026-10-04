@@ -20,6 +20,8 @@
     <Content Include="..\fixtures\contract\*.json" Link="fixtures\contract\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\fixtures\import-audit\*.json" Link="fixtures\import-audit\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Compile Include="..\TestSupport\AuditFixtureWorkbooks.cs" Link="TestSupport\AuditFixtureWorkbooks.cs" />
+    <Compile Include="..\TestSupport\Service\*.cs" Link="TestSupport\Service\%(Filename)%(Extension)" />
+    <Content Include="..\fixtures\service-interim\**\*.xlsx" Link="fixtures\service-interim\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

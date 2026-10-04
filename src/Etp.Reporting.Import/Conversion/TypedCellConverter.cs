@@ -12,7 +12,10 @@ public sealed record CellConversionResult(object? Value, string? ErrorCode = nul
 
 public sealed class TypedCellConverter
 {
-    private static readonly string[] DateFormats = ["yyyy-MM-dd", "yyyyMMdd", "dd/MM/yyyy", "dd-MM-yyyy", "yyyy/MM/dd", "d-MMM-yyyy", "dd MMM yyyy", "d MMM yy"];
+    // d-M-yyyy: Service Centre Delivery/Repair Report (S036/S037) Created Date text such as 7-2-2026; S031's dd-MM-yyyy
+    // text was already accepted. The list is global because the converter has no family: Retail dates arrive as numbers or
+    // DateTime cells, and a Retail text date that d-M-yyyy now reads used to fail the row (TypedCellConverterTests pins it).
+    private static readonly string[] DateFormats = ["yyyy-MM-dd", "yyyyMMdd", "dd/MM/yyyy", "dd-MM-yyyy", "yyyy/MM/dd", "d-MMM-yyyy", "dd MMM yyyy", "d MMM yy", "d-M-yyyy"];
 
     public CellConversionResult Convert(object? source, CanonicalDataType target, bool isRequired)
     {
