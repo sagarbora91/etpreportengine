@@ -14,7 +14,10 @@ public sealed partial class OperationalReportRepository
         var current=await r.LoadManualStockCountsAsync(store,date,token);
         var previous=await r.LoadManualStockCountsAsync(store,date.AddDays(-1),token);
         var system=await LoadStockInventoryAsync(new(date,date,[store]),token);
-        var quantities=system.GroupBy(x=>x.Brand??"Unmapped",StringComparer.OrdinalIgnoreCase).ToDictionary(x=>x.Key,x=>x.Sum(v=>v.Quantity),StringComparer.OrdinalIgnoreCase);
+        // Owner answer Q3/Q5: the owner's rows, unless today's counts were saved under a brand the rows split (StockGrouping).
+        var grouping=StockGrouping.For(system,current.Select(x=>x.InventoryGroupCode));
+        if(!grouping.Legacy) previous=previous.Where(x=>!grouping.SplitBrands.Contains(x.InventoryGroupCode)).ToArray();
+        var quantities=system.GroupBy(grouping.Key,StringComparer.OrdinalIgnoreCase).ToDictionary(x=>x.Key,x=>x.Sum(v=>v.Quantity),StringComparer.OrdinalIgnoreCase);
         return quantities.Keys.Union(current.Select(x=>x.InventoryGroupCode),StringComparer.OrdinalIgnoreCase).Union(previous.Select(x=>x.InventoryGroupCode),StringComparer.OrdinalIgnoreCase).OrderBy(x=>x).Select(brand=>
         {
             var today=current.FirstOrDefault(x=>x.InventoryGroupCode.Equals(brand,StringComparison.OrdinalIgnoreCase));
@@ -101,7 +104,7 @@ public sealed partial class OperationalReportRepository
     {
         var system=await LoadStockInventoryAsync(new(date,date,[store]),token);
         var counts=await new OperationalCompletionRepository(connectionString).LoadManualStockCountsAsync(store,date,token);
-        var groups=system.GroupBy(x=>x.Brand??"Unmapped").ToDictionary(x=>x.Key,x=>x.Sum(v=>v.Quantity),StringComparer.OrdinalIgnoreCase);
+        var groups=system.GroupBy(StockGrouping.For(system,counts.Select(x=>x.InventoryGroupCode)).Key,StringComparer.OrdinalIgnoreCase).ToDictionary(x=>x.Key,x=>x.Sum(v=>v.Quantity),StringComparer.OrdinalIgnoreCase);
         var map=counts.ToDictionary(x=>x.InventoryGroupCode,StringComparer.OrdinalIgnoreCase);
         return groups.Keys.Union(map.Keys,StringComparer.OrdinalIgnoreCase).OrderBy(x=>x).Select(brand=>
         {
@@ -110,5 +113,29 @@ public sealed partial class OperationalReportRepository
             return new PhysicalStockReportRow(store,date,brand,count?.DisplayQuantity,count?.BackstockQuantity,count?.DefectiveQuantity,count?.YLocationQuantity,
                 physical,physical,null,quantity,variance,count?.Remarks,system.Count==0?"SYSTEM SOURCE MISSING":physical is null?"MANUAL INPUT MISSING":variance==0?"PASS":"FAIL");
         }).ToArray();
+    }
+}
+
+/// <summary>
+/// Owner answer Q3/Q5 (decision 14): Brand Stock Entry and Brand Physical Stock group by the owner's rows
+/// (<see cref="StockInventoryReportRow.StockGroup"/>: the cluster-mapped DSR brand row, else the brand). Counts saved before the
+/// rows existed are keyed by the old brand (for example HELIOS). When a store-date's saved counts hold a brand that the rows
+/// split, that date keeps the old brand grouping, so past physical sheets still reconcile; the new layout starts on the first
+/// day counted with it.
+/// </summary>
+internal static class StockGrouping
+{
+    internal sealed record Choice(bool Legacy, IReadOnlySet<string> SplitBrands, Func<StockInventoryReportRow, string> Key);
+
+    /// <summary>Brands with at least one item mapped to a brand row of another name.</summary>
+    public static IReadOnlySet<string> SplitBrands(IEnumerable<StockInventoryReportRow> system) =>
+        system.Where(x => x.BrandRow is not null && x.Brand is not null && !string.Equals(x.BrandRow, x.Brand, StringComparison.OrdinalIgnoreCase))
+            .Select(x => x.Brand!).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+    public static Choice For(IEnumerable<StockInventoryReportRow> system, IEnumerable<string> savedKeys)
+    {
+        var split = SplitBrands(system);
+        var legacy = savedKeys.Any(split.Contains);
+        return new(legacy, split, legacy ? x => x.Brand ?? "Unmapped" : x => x.StockGroup);
     }
 }

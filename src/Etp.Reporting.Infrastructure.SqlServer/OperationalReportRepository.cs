@@ -109,7 +109,13 @@ public sealed record StockInventoryReportRow(
     string? SnapshotSource = null,
     // Owner answer Q8: the latest ledger receipt on or before the snapshot date, and its age in days (null without one).
     DateOnly? LastReceiptDate = null,
-    int? DaysSinceReceipt = null);
+    int? DaysSinceReceipt = null,
+    // Owner answer Q3/Q5: the DSR brand row mapped to the item's cluster, null when none is.
+    string? BrandRow = null)
+{
+    /// <summary>The owner's stock row: the cluster-mapped brand row, else the brand.</summary>
+    public string StockGroup => BrandRow ?? Brand ?? "Unmapped";
+}
 
 public sealed record DailyExceptionRow(
     string Severity,
@@ -162,6 +168,9 @@ public sealed partial class OperationalReportRepository(string connectionString)
     public const string StaffMetricPolicy = "R013_NET_SALES_AND_QUANTITY_PER_UNIQUE_INV_V2";
     // Owner answer Q2: gift cards (NonMerchandiseSql) are left out of stock. This one query feeds Closing, Slow, Brand Stock,
     // Brand Stock Entry, Brand Physical Stock, the daily pack's physical sheet and the daily exceptions' physical check.
+    // Owner answer Q3/Q5 (decision 14): brand_row is the DSR brand row (Settings > Evening masters) whose source code is the item's
+    // cluster. Only a cluster match counts, so a brand-name mapping (WLMHW's rows) never pulls in a whole brand, and Helios
+    // house-brand items split into the owner's hybrid rows (G SHOCK, CITIZEN, FOSSIL, GUESS, SEIKO, AMAZEFIT, FIT BIT).
     // Owner answer Q8: last_receipt_date is the latest inward ledger movement (StockAgeing.ReceiptTypes) on or before the
     // date, so a recently received item shows as NEW (StockAgeing.Status), aged by its receipt, not "never sold".
     public const string StockInventorySql = $"""
@@ -182,9 +191,16 @@ public sealed partial class OperationalReportRepository(string connectionString)
                sale.last_sale_date,
                CASE WHEN sale.last_sale_date IS NULL THEN NULL ELSE DATEDIFF(day,sale.last_sale_date,s.snapshot_date) END,
                s.source_report_code,
-               r.last_receipt_date
+               r.last_receipt_date,
+               br.row_label brand_row
         FROM dbo.v_stock_snapshots_effective s
         LEFT JOIN receipt r ON r.store_code=s.store_code AND r.product_code=s.product_code
+        OUTER APPLY
+        (
+          SELECT TOP(1) rw.row_label FROM dbo.brand_row_codes b JOIN dbo.brand_rows rw ON rw.brand_row_id=b.brand_row_id AND rw.store_code=b.store_code
+          WHERE b.store_code=s.store_code AND b.source_brand=NULLIF(LTRIM(RTRIM(s.cluster)),'')
+          ORDER BY rw.sort_order,rw.brand_row_id
+        ) br
         OUTER APPLY
         (
           SELECT MAX(i.transaction_date) last_sale_date
@@ -199,7 +215,7 @@ public sealed partial class OperationalReportRepository(string connectionString)
           AND NOT {NonMerchandiseSql.StockItemOfS}
         GROUP BY s.snapshot_date,s.store_code,s.product_code,
                  COALESCE(NULLIF(LTRIM(RTRIM(s.brand_name)),''),NULLIF(LTRIM(RTRIM(s.brand_code)),'')),
-                 NULLIF(LTRIM(RTRIM(s.cluster)),''),sale.last_sale_date,s.source_report_code,r.last_receipt_date
+                 NULLIF(LTRIM(RTRIM(s.cluster)),''),sale.last_sale_date,s.source_report_code,r.last_receipt_date,br.row_label
         ORDER BY 2,5,4,3;
         """;
 
@@ -549,7 +565,7 @@ public sealed partial class OperationalReportRepository(string connectionString)
             var quantity=reader.GetDecimal(5);DateOnly? last=reader.IsDBNull(8)?null:reader.GetFieldValue<DateOnly>(8);int? days=reader.IsDBNull(9)?null:reader.GetInt32(9);
             var asOf=reader.GetFieldValue<DateOnly>(0);DateOnly? receipt=reader.IsDBNull(11)?null:reader.GetFieldValue<DateOnly>(11);
             var status=StockAgeing.Status(quantity,last,receipt,asOf);
-            rows.Add(new(asOf,reader.GetString(1),reader.GetString(2),reader.IsDBNull(3)?null:reader.GetString(3),reader.IsDBNull(4)?null:reader.GetString(4),quantity,NullableDecimal(reader,6),NullableDecimal(reader,7),last,days,status,StockSnapshotSources.DisplayName(reader.GetString(10)),receipt,StockAgeing.DaysSince(receipt,asOf)));
+            rows.Add(new(asOf,reader.GetString(1),reader.GetString(2),reader.IsDBNull(3)?null:reader.GetString(3),reader.IsDBNull(4)?null:reader.GetString(4),quantity,NullableDecimal(reader,6),NullableDecimal(reader,7),last,days,status,StockSnapshotSources.DisplayName(reader.GetString(10)),receipt,StockAgeing.DaysSince(receipt,asOf),reader.IsDBNull(12)?null:reader.GetString(12)));
         }
         return rows;
     }
