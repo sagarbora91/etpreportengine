@@ -238,41 +238,19 @@ public partial class ReportsWorkspaceView : UserControl
     private async Task RunManagementTrendReportAsync()
     {
         var revision = reportRevision;
-        try { var rows = await managementTrendQueryFactory(connectionStringProvider()).LoadAsync(ReportScope()); var status = rows.Count == 0 ? ReconciliationStatus.Blocked : ReconciliationStatus.Passed; if (revision != reportRevision) return; ReportGrid.ItemsSource=rows; var missingTender = rows.Count(x => x.TenderVariance is null); ReportResult.Text=IndianText($"{status}: {rows.Count:N0} daily management trend row(s).") + (missingTender == 0 ? "" : IndianText($" {missingTender:N0} store-day(s) show R022 missing / not imported; their tender variance is blank, not zero.")); SetExport("Management Trend",status,RetailReportingPolicy.Version,"Daily recorded GST-inclusive sales (R025 NETAMOUNT), units, documents and unchanged control variances. " + DocumentsNote,[new("Date"),new("Store"),new("Net Sales","#,##0.00"),new("Units","#,##0.00"),new(DocumentsHeader,"#,##0"),new("Tender Variance","#,##0.00"),new("Tender Source"),new("Unmatched Staff Rows","#,##0")],rows.Select(x=>(IReadOnlyList<object?>)[x.BusinessDate,x.StoreCode,x.NetSales,x.Units,x.Invoices,x.TenderVariance,x.TenderSource,x.UnmatchedEnrichmentRows]).ToArray(),["Total","",rows.Sum(x=>x.NetSales),rows.Sum(x=>x.Units),rows.Sum(x=>x.Invoices),missingTender == 0 ? rows.Sum(x=>x.TenderVariance) : null,missingTender == 0 ? "" : $"{missingTender:N0} missing",rows.Sum(x=>x.UnmatchedEnrichmentRows)]); ApplyReportFilter(); await auditRecorder("ReportRun",ToAuditOutcome(status),"Management trend"); }
+        try { var rows = await managementTrendQueryFactory(connectionStringProvider()).LoadAsync(ReportScope()); var status = rows.Count == 0 ? ReconciliationStatus.Blocked : ReconciliationStatus.Passed; if (revision != reportRevision) return; ReportGrid.ItemsSource=rows; var missingTender = rows.Count(x => x.TenderVariance is null); ReportResult.Text=IndianText($"{status}: {rows.Count:N0} daily management trend row(s).") + (missingTender == 0 ? "" : IndianText($" {missingTender:N0} store-day(s) show R022 missing / not imported; their tender variance is blank, not zero.")); SetExport("Management Trend",status,RetailReportingPolicy.Version,"Daily recorded GST-inclusive sales (R025 NETAMOUNT), units, invoice and return counts and unchanged control variances. " + InvoicesNote,[new("Date"),new("Store"),new("Net Sales","#,##0.00"),new("Units","#,##0.00"),new(InvoicesHeader,"#,##0"),new(ReturnsHeader,"#,##0"),new("Tender Variance","#,##0.00"),new("Tender Source"),new("Unmatched Staff Rows","#,##0")],rows.Select(x=>(IReadOnlyList<object?>)[x.BusinessDate,x.StoreCode,x.NetSales,x.Units,x.Invoices,x.Returns,x.TenderVariance,x.TenderSource,x.UnmatchedEnrichmentRows]).ToArray(),["Total","",rows.Sum(x=>x.NetSales),rows.Sum(x=>x.Units),rows.Sum(x=>x.Invoices),rows.Sum(x=>x.Returns),missingTender == 0 ? rows.Sum(x=>x.TenderVariance) : null,missingTender == 0 ? "" : $"{missingTender:N0} missing",rows.Sum(x=>x.UnmatchedEnrichmentRows)]); ApplyReportFilter(); await auditRecorder("ReportRun",ToAuditOutcome(status),"Management trend"); }
         catch (Exception ex) { if (revision != reportRevision) return; HandleFailure(ex, "MANAGEMENT_TREND_REPORT_FAILED", "Management trend failed"); }
     }
 
     // Report audit of 3 Oct 2026 (fix lists FIX-04, FIX-05, FIX-08, FIX-11, FIX-12): wording only, no figure changes.
-    // Stock UCP/TOTALUCP are MRP (GST-inclusive retail value), not cost. The Sales Summary and Management Trend
-    // count every document (INV, SR and BC); the DSR INVOICE count is INV only (G5). Q6 and Q7 wait for Sagar.
+    // Stock UCP/TOTALUCP are MRP (GST-inclusive retail value), not cost. Owner decision 13 Q6: every screen counts INV
+    // documents only as "Invoices", like the DSR INVOICE count (G5), and shows SR and BC documents as "Returns".
     internal const string UnitMrpHeader = "Unit MRP";
     internal const string MrpValueHeader = "MRP value (GST incl.)";
     internal const string StockMrpNote = "MRP value is UCP × quantity, the GST-inclusive retail value, not cost.";
-    internal const string DocumentsHeader = "Documents (incl. returns)";
-    internal const string DocumentsNote = "Documents counts every invoice (INV), sales return (SR) and bill cancellation (BC) document; the Daily Sales Report INVOICE count includes INV documents only.";
-
-    private static readonly (string Code, string Name)[] SalesDocumentTypes = [("INV", "invoice"), ("SR", "sales return"), ("BC", "bill cancellation")];
-
-    /// <summary>
-    /// The Sales Summary counts only the documents its view keeps: View by = Returns keeps SR and BC (both are
-    /// returns in RetailReportingPolicy), and the Transaction types filter narrows the set further. The header and
-    /// note name the types actually counted, so "INV, SR and BC" is said only when all three are counted.
-    /// </summary>
-    internal static (string Header, string Note) SalesDocumentsLabel(string dimension, IReadOnlyList<string>? transactionTypes)
-    {
-        var counted = SalesDocumentTypes
-            .Where(type => transactionTypes is not { Count: > 0 } || transactionTypes.Contains(type.Code, StringComparer.OrdinalIgnoreCase))
-            .Where(type => dimension != nameof(ApplicationSalesDimension.Returns) || type.Code != "INV")
-            .ToArray();
-        if (counted.Length == SalesDocumentTypes.Length) return (DocumentsHeader, DocumentsNote);
-        const string dsr = "the Daily Sales Report INVOICE count includes INV documents only.";
-        if (counted.Length == 0) return ("Documents", "No invoice (INV), sales return (SR) or bill cancellation (BC) documents match this view and its Transaction types filter; " + dsr);
-        var names = counted.Select(type => $"{type.Name} ({type.Code})").ToArray();
-        var list = names.Length == 1 ? names[0] : string.Join(", ", names[..^1]) + " and " + names[^1];
-        var excluded = SalesDocumentTypes.Except(counted).Select(type => type.Code).ToArray();
-        return ($"Documents ({string.Join(", ", counted.Select(type => type.Code))})",
-            $"Documents counts only the {list} documents this view and its Transaction types filter keep; {string.Join(" and ", excluded)} documents are not counted; " + dsr);
-    }
+    internal const string InvoicesHeader = "Invoices";
+    internal const string ReturnsHeader = "Returns";
+    internal const string InvoicesNote = "Invoices counts INV documents only, like the Daily Sales Report; Returns counts sales returns (SR) and bill cancellations (BC).";
 
     private async Task RunSalesReportAsync()
     {
@@ -283,20 +261,29 @@ public partial class ReportsWorkspaceView : UserControl
             var scope = ReportScope();
             var result = await controlledReportQueryFactory(connectionStringProvider()).RunSalesSummaryAsync(scope, Enum.Parse<ApplicationSalesDimension>(name));
             if (revision != reportRevision) return;
-            var documents = SalesDocumentsLabel(name, scope.TransactionTypes);
-            TablePresentation.SetDocumentsHeader(ReportGrid, documents.Header);
             var sales = result.Rows.Sum(row => row.SourceSignedNetAmount);
             var units = result.Rows.Sum(row => row.SourceSignedQuantity);
             ReportGrid.ItemsSource = result.Rows;
             ReportResult.Text = IndianText($"{result.Status}: Sales incl. GST {sales:N2}; units {units:N2}. {result.Message}");
-            SetExport($"{name} Sales", ToReportingStatus(result.Status), result.PolicyVersion, result.Message + " " + documents.Note,
-                [new("Group"), new("Units", "#,##0.00"), new("Net Sales", "#,##0.00"), new(documents.Header, "#,##0")],
-                result.Rows.Select(row => (IReadOnlyList<object?>)[row.Key, row.SourceSignedQuantity, row.SourceSignedNetAmount, row.DistinctInvoices]).ToArray(),
-                ["Total", units, sales, result.Rows.Sum(row => row.DistinctInvoices)]);
+            SetExport($"{name} Sales", ToReportingStatus(result.Status), result.PolicyVersion, result.Message + " " + InvoicesNote,
+                [new("Group"), new("Units", "#,##0.00"), new("Net Sales", "#,##0.00"), new(InvoicesHeader, "#,##0"), new(ReturnsHeader, "#,##0")],
+                result.Rows.Select(row => (IReadOnlyList<object?>)[row.Key, row.SourceSignedQuantity, row.SourceSignedNetAmount, row.Invoices, row.Returns]).ToArray(),
+                ["Total", units, sales, result.Rows.Sum(row => row.Invoices), result.Rows.Sum(row => row.Returns)]);
             ApplyReportFilter();
             await auditRecorder("ReportRun", ToAuditOutcome(result.Status), "Sales report");
         }
         catch (Exception ex) { if (revision != reportRevision) return; HandleFailure(ex, "SALES_REPORT_FAILED", "Sales report failed"); }
+    }
+
+    /// <summary>
+    /// Owner decision 13 Q6: a document counts as an invoice when it has an INV line and as a return when it has an
+    /// SR or BC line (the row's transaction types, for example INV+BC for a cancelled bill), like the DSR.
+    /// </summary>
+    internal static string CustomerWiseCounts(IReadOnlyList<EtpApplication::Etp.Reporting.Application.Reports.InvoiceSummaryRecord> rows)
+    {
+        static bool Has(EtpApplication::Etp.Reporting.Application.Reports.InvoiceSummaryRecord row, params string[] types) =>
+            row.TransactionTypes.Split('+', StringSplitOptions.TrimEntries).Any(type => types.Contains(type, StringComparer.OrdinalIgnoreCase));
+        return $"{rows.Count(x => Has(x, "INV")):N0} invoices, {rows.Count(x => Has(x, "SR", "BC")):N0} returns; {rows.Count(x => string.IsNullOrWhiteSpace(x.CustomerName)):N0} missing customer names.";
     }
 
     private async Task RunInvoiceSummaryAsync()
@@ -306,7 +293,7 @@ public partial class ReportsWorkspaceView : UserControl
             var rows=await operationalReportQueryFactory(connectionStringProvider()).LoadInvoiceSummaryAsync(ReportScope());
             if(revision!=reportRevision)return; ReportGrid.ItemsSource=rows;
             var status=rows.Count==0?ReconciliationStatus.Blocked:ReconciliationStatus.Passed;
-            ReportResult.Text=$"{rows.Count} documents (invoices, returns and cancellations); {rows.Count(x=>string.IsNullOrWhiteSpace(x.CustomerName))} missing customer names.";
+            ReportResult.Text=CustomerWiseCounts(rows);
             SetExport("Customer-wise Invoices",status,RetailReportingPolicy.Version,ReportResult.Text,
                 [new("Date","date"),new("Store"),new("Invoice"),new("Customer name"),new("Invoice quantity","#,##0.00"),new("Value incl. GST","#,##0.00")],
                 rows.Select(x=>(IReadOnlyList<object?>)[x.BusinessDate,x.StoreCode,x.DocumentNumber,x.CustomerName??"Name unavailable",x.Quantity,x.NetValue]).ToArray(),

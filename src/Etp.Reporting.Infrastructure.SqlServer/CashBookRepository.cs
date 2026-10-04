@@ -26,7 +26,7 @@ public sealed partial class OperationalReportRepository
             """+SqlReportingQueries.TenderModeExpression+"""
             ,t.tender_type,COALESCE(SUM(t.source_amount),0)
             FROM (
-            """+SqlReportingQueries.EffectiveTenders+"""
+            """+SqlReportingQueries.EffectiveTenders("@from","@to","rf.store_code=@store")+"""
             ) t JOIN dbo.sales_invoices i ON i.sales_invoice_id=t.sales_invoice_id
             LEFT JOIN dbo.tender_modes m ON m.source_tender_code=t.tender_type AND m.active=1
             WHERE i.store_code=@store AND i.transaction_date BETWEEN @from AND @to GROUP BY i.transaction_date,m.mode,t.tender_type;

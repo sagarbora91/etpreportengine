@@ -295,6 +295,42 @@ public sealed class EveningReportsSqlTests(SqlDatabaseFixture db, ITestOutputHel
         }
     }
 
+    // Owner decision 13 Q6: every screen counts INV documents only as Invoices, like the DSR INVOICE row, and shows
+    // SR/BC documents as Returns. A cancelled bill (INV + BC on one document) is 1 invoice and 1 return. Synthetic data.
+    [Fact]
+    public async Task Trend_sales_summary_and_customer_wise_count_invoices_like_the_dsr_and_returns_separately()
+    {
+        await db.ExecuteAsync("""
+            DECLARE @batch uniqueidentifier=NEWID(),@sales bigint;
+            INSERT dbo.import_batches(import_batch_id,status,started_utc) VALUES(@batch,'Completed',SYSUTCDATETIME());
+            INSERT dbo.import_files(import_batch_id,original_file_name,source_sha256,size_bytes,store_code,report_code,business_date,period_start,period_end,data_truth_version)
+            VALUES(@batch,'inv-ret-r025.xlsx',REPLICATE('8',64),1,'INVRET','R025','20320912','20320912','20320912',1);
+            SET @sales=SCOPE_IDENTITY();
+            INSERT dbo.source_lineage(import_file_id,sheet_name,source_row_number,source_record_type) VALUES(@sales,'Sales',1,'sale'),(@sales,'Sales',2,'sale'),(@sales,'Sales',3,'sale'),(@sales,'Sales',4,'sale'),(@sales,'Sales',5,'sale');
+            INSERT dbo.sales_invoices(store_code,document_number,invoice_year,transaction_date) VALUES('INVRET','A1',2033,'20320912'),('INVRET','A2',2033,'20320912'),('INVRET','R1',2033,'20320912'),('INVRET','C1',2033,'20320912');
+            INSERT dbo.sales_lines(sales_invoice_id,line_identifier,product_code,source_transaction_type,source_quantity,source_gross_amount,source_net_amount,source_tax_amount,currency_code,source_lineage_id)
+            SELECT i.sales_invoice_id,v.line,'ITEM',v.type,v.qty,v.amount,v.amount,0,'INR',s.source_lineage_id
+            FROM (VALUES('A1','1','INV',1,1000,1),('A2','1','INV',1,500,2),('R1','1','SR',-1,-300,3),('C1','1','INV',1,700,4),('C1','2','BC',-1,-700,5)) v(doc,line,type,qty,amount,rowNo)
+            JOIN dbo.sales_invoices i ON i.store_code='INVRET' AND i.document_number=v.doc
+            JOIN dbo.source_lineage s ON s.import_file_id=@sales AND s.source_row_number=v.rowNo;
+            """);
+        var date=new DateOnly(2032,9,12);
+        var trend=Assert.Single(await new Phase2OperationsRepository(db.ConnectionString).LoadManagementTrendAsync(date,date),x=>x.StoreCode=="INVRET");
+        Assert.Equal(3,trend.Invoices);
+        Assert.Equal(2,trend.Returns);
+        Assert.Equal(1200m,trend.NetSales);
+        var dsr=await new OperationalReportRepository(db.ConnectionString).LoadDsrAsync(date,["INVRET"]);
+        Assert.Equal(trend.Invoices,dsr.Single(x=>x.Store=="INVRET"&&x.Period=="FTD").TyInvoices);
+
+        var executor=new SqlBackedReportingExecutor(new SqlServerReportingQueryRepository(db.ConnectionString),RetailReportingPolicy.Mapping,RetailReportingPolicy.Sales,RetailReportingPolicy.Tender,RetailReportingPolicy.Stock);
+        var summary=Assert.Single((await executor.ExecuteSalesSummaryAsync(new(date,date,["INVRET"]),SalesSummaryDimension.Store)).Rows);
+        Assert.Equal((3,2),(summary.Invoices,summary.Returns));
+
+        var customer=await new OperationalReportRepository(db.ConnectionString).LoadInvoiceSummaryAsync(new(date,date,["INVRET"]));
+        Assert.Equal("INV+BC",customer.Single(x=>x.DocumentNumber=="C1").TransactionTypes);
+        Assert.Equal("SR",customer.Single(x=>x.DocumentNumber=="R1").TransactionTypes);
+    }
+
     [Fact]
     public async Task Brand_entry_prefills_only_yesterday_and_partial_components_do_not_become_zero()
     {

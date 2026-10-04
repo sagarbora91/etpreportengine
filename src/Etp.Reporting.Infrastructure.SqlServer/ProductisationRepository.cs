@@ -296,7 +296,7 @@ public sealed partial class ProductisationRepository(string connectionString)
 
     public async Task<(long GenerationId,IReadOnlyList<AccountingBusinessEvent> Events)> LoadAccountingSourceAsync(string storeCode,DateOnly businessDate,CancellationToken cancellationToken=default)
     {
-        const string sql="""
+        var sql="""
             DECLARE @generation bigint=(SELECT TOP(1) daily_report_generation_id FROM dbo.daily_report_generations WHERE store_code=@store AND business_date=@date AND is_final=1 ORDER BY generation_number DESC);
             IF @generation IS NULL THROW 51220,'Finalise the report generation before preparing accounting.',1;
             SELECT @generation;
@@ -308,7 +308,7 @@ public sealed partial class ProductisationRepository(string connectionString)
               -- Same tenders as the cash book and tender reconciliation, including the R020 TC (decision 13 Q3).
               SELECT 'TENDER_TOTAL',COALESCE(SUM(t.source_amount),0),CONCAT(@store,'/',CONVERT(varchar(10),@date,23)),'Eligible ETP tender total'
               FROM (
-            """+SqlReportingQueries.EffectiveTenders+"""
+            """+SqlReportingQueries.EffectiveTenders("@date","@date","rf.store_code=@store")+"""
               ) t JOIN dbo.sales_invoices i ON i.sales_invoice_id=t.sales_invoice_id WHERE i.store_code=@store AND i.transaction_date=@date
               UNION ALL
               SELECT 'SERVICE_SALES',COALESCE(SUM(CASE WHEN field_code IN('SERVICE_CASH','SERVICE_CARD','SERVICE_UPI') THEN numeric_value ELSE 0 END),0),CONCAT(@store,'/',CONVERT(varchar(10),@date,23)),'Approved service collections'

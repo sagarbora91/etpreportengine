@@ -26,7 +26,10 @@ public sealed class OperationsAdministrationServiceBoundaryTests
         var viewerDashboard = await Operations(gateway, ApplicationRole.Viewer).LoadDashboardAsync(period);
 
         Assert.Equal("inbound", viewerDashboard.WatchFolders.InboundPath);
-        Assert.Equal("WLMHW", Assert.Single(viewerDashboard.Trend).StoreCode);
+        var trend = Assert.Single(viewerDashboard.Trend);
+        Assert.Equal("WLMHW", trend.StoreCode);
+        // Owner decision 13 Q6: the trend carries INV-only Invoices and a separate Returns count.
+        Assert.Equal((1, 1), (trend.Invoices, trend.Returns));
         Assert.Equal("MISSING_SOURCE", Assert.Single(viewerDashboard.Quality).Code);
         Assert.Equal("OPEN", Assert.Single(viewerDashboard.Issues).WorkflowStatus);
         Assert.Equal(25, gateway.LastRunLimit);
@@ -212,7 +215,7 @@ public sealed class OperationsAdministrationServiceBoundaryTests
         {
             Calls.Add("trend");
             return Task.FromResult<IReadOnlyList<ManagementTrendRow>>(
-                [new(new(2026, 8, 28), "WLMHW", 100m, 2m, 1, 0m, 0)]);
+                [new(new(2026, 8, 28), "WLMHW", 100m, 2m, 1, 1, 0m, 0)]);
         }
 
         public Task<IReadOnlyList<DataQualitySummaryRow>> LoadQualityAsync(CancellationToken token)

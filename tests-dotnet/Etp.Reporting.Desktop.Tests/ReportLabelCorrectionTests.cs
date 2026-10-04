@@ -9,9 +9,8 @@ namespace Etp.Reporting.Desktop.Tests;
 
 /// <summary>
 /// 1.9.4, report audit of 3 October 2026 (HEMW FIX-04/FIX-05, WLMHW FIX-08/FIX-11/FIX-12). Wording only:
-/// stock UCP/TOTALUCP are MRP, not cost; sales are GST-inclusive NETAMOUNT, not NETVALUE; the Sales Summary
-/// and Management Trend count every document, including returns, while the DSR INVOICE count is INV only.
-/// The values themselves must not change.
+/// stock UCP/TOTALUCP are MRP, not cost; sales are GST-inclusive NETAMOUNT, not NETVALUE. Owner decision 13 Q6
+/// (lane L9): every screen counts INV documents only as "Invoices", like the DSR, plus a separate "Returns" count.
 /// </summary>
 [Collection(WpfViewCollection.Name)]
 public sealed class ReportLabelCorrectionTests
@@ -71,31 +70,50 @@ public sealed class ReportLabelCorrectionTests
         });
     }
 
-    [Fact]
-    public void Sales_summary_names_its_document_count_and_says_what_it_counts()
+    // Owner decision 13 Q6: every screen counts INV documents only as "Invoices" and shows SR/BC documents as "Returns".
+    [Theory]
+    [InlineData("sales-brand")]
+    [InlineData("sales-returns")]
+    public void Sales_summary_shows_invoices_and_returns_and_says_what_each_counts(string code)
     {
         RunSta(async () =>
         {
             var view = CreateView(out var latest);
-            await view.RunReportAsync("sales-brand");
+            await view.RunReportAsync(code);
             var export = latest();
             var headers = export.ExportData!.Columns.Select(column => column.Header).ToArray();
-            Assert.Equal(["Group", "Units", "Net Sales", "Documents (incl. returns)"], headers);
-            Assert.Contains("sales return (SR)", export.ExportMetadata!.Message, StringComparison.Ordinal);
-            Assert.Contains("INVOICE count includes INV documents only", export.ExportMetadata.Message, StringComparison.Ordinal);
-            // The count is the service's own, unchanged: 2 INV + 1 SR documents = 3.
-            Assert.Equal(3, export.ExportData.Totals![3]);
+            Assert.Equal(["Group", "Units", "Net Sales", "Invoices", "Returns"], headers);
+            Assert.Contains("Invoices counts INV documents only, like the Daily Sales Report", export.ExportMetadata!.Message, StringComparison.Ordinal);
+            Assert.Contains("Returns counts sales returns (SR) and bill cancellations (BC)", export.ExportMetadata.Message, StringComparison.Ordinal);
+            Assert.DoesNotContain("Documents", export.ExportMetadata.Message, StringComparison.Ordinal);
+            // The counts are the service's own: 2 INV documents and 1 SR document.
+            Assert.Equal(2, export.ExportData.Totals![3]);
+            Assert.Equal(1, export.ExportData.Totals[4]);
 
             var grid = (DataGrid)view.FindName("ReportGrid");
             TablePresentation.Configure(grid);
             var gridHeaders = grid.Columns.Select(column => (string)column.Header).ToArray();
-            Assert.Contains("Documents (incl. returns)", gridHeaders);
-            Assert.DoesNotContain(gridHeaders, header => header.Contains("Invoice", StringComparison.OrdinalIgnoreCase) || header.Contains("Bills", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains("Invoices", gridHeaders);
+            Assert.Contains("Returns", gridHeaders);
+            Assert.DoesNotContain(gridHeaders, header => header.Contains("Documents", StringComparison.Ordinal));
         });
     }
 
     [Fact]
-    public void Management_trend_names_its_document_count_and_its_sales_value()
+    public void Sales_summary_filtered_to_INV_keeps_the_same_columns()
+    {
+        RunSta(async () =>
+        {
+            var view = CreateView(out var latest);
+            ((TextBox)view.FindName("TransactionTypeFilterInput")).Text = "INV";
+            await view.RunReportAsync("sales-brand");
+            var headers = latest().ExportData!.Columns.Select(column => column.Header).ToArray();
+            Assert.Equal(["Group", "Units", "Net Sales", "Invoices", "Returns"], headers);
+        });
+    }
+
+    [Fact]
+    public void Management_trend_shows_invoices_and_returns_and_names_its_sales_value()
     {
         RunSta(async () =>
         {
@@ -103,96 +121,54 @@ public sealed class ReportLabelCorrectionTests
             await view.RunReportAsync("management-trend");
             var export = latest();
             var headers = export.ExportData!.Columns.Select(column => column.Header).ToArray();
-            Assert.Contains("Documents (incl. returns)", headers);
-            Assert.DoesNotContain("Invoices", headers);
+            Assert.Equal(["Date", "Store", "Net Sales", "Units", "Invoices", "Returns", "Tender Variance", "Tender Source", "Unmatched Staff Rows"], headers);
             Assert.Contains("GST-inclusive sales (R025 NETAMOUNT)", export.ExportMetadata!.Message, StringComparison.Ordinal);
-            Assert.Contains("bill cancellation (BC)", export.ExportMetadata.Message, StringComparison.Ordinal);
-            Assert.Equal(3, export.ExportData.Rows.Single()[Array.IndexOf(headers, "Documents (incl. returns)")]);
+            Assert.Contains("bill cancellations (BC)", export.ExportMetadata.Message, StringComparison.Ordinal);
+            Assert.DoesNotContain("Documents", export.ExportMetadata.Message, StringComparison.Ordinal);
+            var row = export.ExportData.Rows.Single();
+            Assert.Equal(2, row[Array.IndexOf(headers, "Invoices")]);
+            Assert.Equal(1, row[Array.IndexOf(headers, "Returns")]);
+            Assert.Equal(1, export.ExportData.Totals![Array.IndexOf(headers, "Returns")]);
 
             var grid = (DataGrid)view.FindName("ReportGrid");
             TablePresentation.Configure(grid);
             var gridHeaders = grid.Columns.Select(column => (string)column.Header).ToArray();
-            Assert.Contains("Documents (incl. returns)", gridHeaders);
-            Assert.DoesNotContain("Invoices", gridHeaders);
+            Assert.Contains("Invoices", gridHeaders);
+            Assert.Contains("Returns", gridHeaders);
+            Assert.DoesNotContain(gridHeaders, header => header.Contains("Documents", StringComparison.Ordinal));
         });
     }
 
     [Fact]
-    public void Operations_sales_and_control_trend_labels_its_all_document_count_documents()
+    public void Operations_sales_and_control_trend_shows_invoices_and_returns()
     {
-        // Operations > Sales and control trend binds ManagementTrendPoint, from the same COUNT(DISTINCT sales_invoice_id)
-        // over INV, SR and BC lines as the Management Trend report (HEMW Aug 2026: 48 here against DSR INVOICE 47).
-        Assert.Equal("Documents (incl. returns)", TablePresentation.ReportHeader(typeof(ManagementTrendPoint), "Invoices"));
+        // Operations > Sales and control trend binds ManagementTrendPoint, from the same INV-only and SR/BC counts
+        // as the Management Trend report.
+        Assert.Null(TablePresentation.ReportHeader(typeof(ManagementTrendPoint), "Invoices"));
         RunSta(() =>
         {
-            var grid = new DataGrid { AutoGenerateColumns = true, ItemsSource = new List<ManagementTrendPoint> { new(new(2026, 8, 25), "HEMW", 236m, 2m, 48, 0m, 0) } };
+            var grid = new DataGrid { AutoGenerateColumns = true, ItemsSource = new List<ManagementTrendPoint> { new(new(2026, 8, 25), "HEMW", 236m, 2m, 47, 1, 0m, 0) } };
             TablePresentation.Configure(grid);
             var headers = grid.Columns.Select(column => (string)column.Header).ToArray();
-            Assert.Contains("Documents (incl. returns)", headers);
-            Assert.DoesNotContain("Invoices", headers);
+            Assert.Contains("Invoices", headers);
+            Assert.Contains("Returns", headers);
+            Assert.Equal(Array.IndexOf(headers, "Invoices") + 1, Array.IndexOf(headers, "Returns"));
+            Assert.DoesNotContain(headers, header => header.Contains("Documents", StringComparison.Ordinal));
             return Task.CompletedTask;
         });
     }
 
     [Fact]
-    public void Sales_returns_view_says_it_counts_only_return_and_cancellation_documents()
+    public void Customer_wise_counts_a_cancelled_bill_as_an_invoice_and_a_return()
     {
-        RunSta(async () =>
-        {
-            var view = CreateView(out var latest);
-            await view.RunReportAsync("sales-returns");
-            var export = latest();
-            var headers = export.ExportData!.Columns.Select(column => column.Header).ToArray();
-            Assert.Equal(["Group", "Units", "Net Sales", "Documents (SR, BC)"], headers);
-            Assert.Contains("only the sales return (SR) and bill cancellation (BC) documents", export.ExportMetadata!.Message, StringComparison.Ordinal);
-            Assert.Contains("INV documents are not counted", export.ExportMetadata.Message, StringComparison.Ordinal);
-            Assert.DoesNotContain("every invoice (INV)", export.ExportMetadata.Message, StringComparison.Ordinal);
-            Assert.Equal(3, export.ExportData.Totals![3]);
-
-            var grid = (DataGrid)view.FindName("ReportGrid");
-            TablePresentation.Configure(grid);
-            Assert.Contains("Documents (SR, BC)", grid.Columns.Select(column => (string)column.Header));
-
-            // Back to a view that counts all three types: the default header and note return.
-            await view.RunReportAsync("sales-brand");
-            Assert.Contains("Documents (incl. returns)", latest().ExportData!.Columns.Select(column => column.Header));
-            TablePresentation.Configure(grid);
-            Assert.Contains("Documents (incl. returns)", grid.Columns.Select(column => (string)column.Header));
-        });
-    }
-
-    [Fact]
-    public void Sales_summary_filtered_to_INV_says_it_counts_only_invoices()
-    {
-        RunSta(async () =>
-        {
-            var view = CreateView(out var latest);
-            ((TextBox)view.FindName("TransactionTypeFilterInput")).Text = "INV";
-            await view.RunReportAsync("sales-brand");
-            var export = latest();
-            var headers = export.ExportData!.Columns.Select(column => column.Header).ToArray();
-            Assert.Contains("Documents (INV)", headers);
-            Assert.DoesNotContain("Documents (incl. returns)", headers);
-            Assert.Contains("only the invoice (INV) documents", export.ExportMetadata!.Message, StringComparison.Ordinal);
-            Assert.Contains("SR and BC documents are not counted", export.ExportMetadata.Message, StringComparison.Ordinal);
-
-            var grid = (DataGrid)view.FindName("ReportGrid");
-            TablePresentation.Configure(grid);
-            Assert.Contains("Documents (INV)", grid.Columns.Select(column => (string)column.Header));
-        });
-    }
-
-    [Theory]
-    [InlineData("Brand", null, "Documents (incl. returns)")]
-    [InlineData("Daily", "inv,sr,bc", "Documents (incl. returns)")]
-    [InlineData("Store", "SR", "Documents (SR)")]
-    [InlineData("Returns", "INV,SR", "Documents (SR)")]
-    [InlineData("Returns", "INV", "Documents")]
-    public void Sales_document_label_names_the_types_counted(string dimension, string? types, string header)
-    {
-        var label = ReportsWorkspaceView.SalesDocumentsLabel(dimension, types?.Split(','));
-        Assert.Equal(header, label.Header);
-        Assert.Contains("INVOICE count includes INV documents only", label.Note, StringComparison.Ordinal);
+        var text = ReportsWorkspaceView.CustomerWiseCounts(
+        [
+            new(new(2026, 8, 25), "WLMHW", "A", "INV", 1m, 118m, 1, "Name"),
+            new(new(2026, 8, 25), "WLMHW", "B", "INV+BC", 0m, 0m, 2, null),
+            new(new(2026, 8, 25), "WLMHW", "C", "SR", -1m, -118m, 1, "Name"),
+            new(new(2026, 8, 25), "WLMHW", "D", "inv", 1m, 50m, 1, "Name")
+        ]);
+        Assert.Equal("3 invoices, 2 returns; 1 missing customer names.", text);
     }
 
     [Fact]
@@ -202,7 +178,7 @@ public sealed class ReportLabelCorrectionTests
         {
             var view = CreateView(out var latest);
             await view.RunReportAsync("invoice");
-            Assert.StartsWith("2 documents (invoices, returns and cancellations);", ((TextBlock)view.FindName("ReportResult")).Text, StringComparison.Ordinal);
+            Assert.StartsWith("1 invoices, 1 returns;", ((TextBlock)view.FindName("ReportResult")).Text, StringComparison.Ordinal);
             var grid = (DataGrid)view.FindName("ReportGrid");
             TablePresentation.Configure(grid);
             Assert.Contains("Value incl. GST ₹", grid.Columns.Select(column => (string)column.Header));
@@ -233,6 +209,8 @@ public sealed class ReportLabelCorrectionTests
         Assert.Null(TablePresentation.ReportHeader(typeof(StockMovementRecord), "TotalCost"));
         Assert.Null(TablePresentation.ReportHeader(typeof(StaffPerformanceRecord), "Invoices"));
         Assert.Null(TablePresentation.ReportHeader(typeof(SalesSummaryRecord), "SourceSignedNetAmount"));
+        Assert.Null(TablePresentation.ReportHeader(typeof(SalesSummaryRecord), "Invoices"));
+        Assert.Null(TablePresentation.ReportHeader(typeof(ManagementTrendRecord), "Returns"));
         Assert.Equal("Unit MRP", TablePresentation.ReportHeader(typeof(StockInventoryRecord), "UnitCost"));
     }
 
@@ -253,7 +231,7 @@ public sealed class ReportLabelCorrectionTests
     private sealed class ControlledQuery : IControlledReportQuery
     {
         public Task<SalesSummaryReport> RunSalesSummaryAsync(ReportScope scope, ReportSalesDimension dimension, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new SalesSummaryReport(dimension, ReportStatus.Passed, [new("TITAN", 2m, 236m, 3)], "test", "Aggregated source-signed values without sign transformation."));
+            Task.FromResult(new SalesSummaryReport(dimension, ReportStatus.Passed, [new("TITAN", 2m, 236m, 2, 1)], "test", "Aggregated source-signed values without sign transformation."));
         public Task<TenderReconciliationReport> RunTenderReconciliationAsync(ReportScope scope, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<StockReconciliationReport> RunStockReconciliationAsync(ReportScope scope, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<StockMovementRecord>> LoadStockMovementsAsync(ReportScope scope, CancellationToken cancellationToken = default) => throw new NotSupportedException();
@@ -262,7 +240,7 @@ public sealed class ReportLabelCorrectionTests
     private sealed class TrendQuery : IManagementTrendQuery
     {
         public Task<IReadOnlyList<ManagementTrendRecord>> LoadAsync(ReportScope scope, CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<ManagementTrendRecord>>([new(new(2026, 8, 25), "WLMHW", 236m, 2m, 3, 0m, 0)]);
+            Task.FromResult<IReadOnlyList<ManagementTrendRecord>>([new(new(2026, 8, 25), "WLMHW", 236m, 2m, 2, 1, 0m, 0)]);
     }
 
     private sealed class OperationalQuery : IOperationalReportQuery<DailySalesReportDocument>

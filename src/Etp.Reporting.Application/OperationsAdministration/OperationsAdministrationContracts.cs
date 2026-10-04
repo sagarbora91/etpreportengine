@@ -19,6 +19,7 @@ public sealed record ManagementTrendPoint(
     decimal NetSales,
     decimal Units,
     int Invoices,
+    int Returns,
     decimal? TenderVariance,
     int UnmatchedEnrichmentRows)
 {

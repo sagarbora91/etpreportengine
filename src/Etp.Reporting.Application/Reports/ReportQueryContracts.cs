@@ -11,7 +11,7 @@ public sealed record ReportScope(
     IReadOnlyList<string>? TransactionTypes = null,
     IReadOnlyList<string>? ItemCodes = null);
 
-public sealed record SalesSummaryRecord(string Key, decimal SourceSignedQuantity, decimal SourceSignedNetAmount, int DistinctInvoices);
+public sealed record SalesSummaryRecord(string Key, decimal SourceSignedQuantity, decimal SourceSignedNetAmount, int Invoices, int Returns);
 public sealed record SalesSummaryReport(ReportSalesDimension Dimension, ReportStatus Status, IReadOnlyList<SalesSummaryRecord> Rows, string PolicyVersion, string Message);
 public sealed record TenderDocumentRecord(string StoreCode, string DocumentNumber, decimal InvoiceAmount, decimal TenderAmount, decimal Variance, ReportStatus Status, int? InvoiceYear = null);
 public sealed record TenderReconciliationReport(ReportStatus Status, IReadOnlyList<TenderDocumentRecord> Documents, decimal InvoiceTotal, decimal TenderTotal, decimal Variance, string RuleVersion, string Message);
@@ -29,7 +29,7 @@ public sealed record StockInventoryRecord(DateOnly SnapshotDate, string StoreCod
 public sealed record DailyExceptionRecord(string Severity, string Area, string Code, string StoreCode, DateOnly BusinessDate, string? DocumentNumber, string? ItemCode, decimal? Variance, string? SourceWorkbook, string? SourceSheet, int? SourceRow, string Message, string RecommendedAction);
 public sealed record ServiceSalesRecord(string Period, string StoreCode, DateOnly PeriodStart, DateOnly PeriodEnd, decimal? Cash, decimal? Card, decimal? Upi, decimal? Total, decimal? LastYearTotal, decimal? GrowthPercent, string Availability, int MissingDays = 0, int LastYearMissingDays = 0, decimal? Wdc = null);
 public sealed record CashReconciliationReport(string StoreCode, DateOnly BusinessDate, decimal? OpeningCash, decimal? RetailCash, decimal? ServiceCash, decimal? Expenses, decimal? CashDeposit, decimal? Adjustment, decimal? CalculatedClosing, decimal? CountedClosing, decimal? Variance, ReportStatus Status, string Message);
-public sealed record ManagementTrendRecord(DateOnly BusinessDate, string StoreCode, decimal NetSales, decimal Units, int Invoices, decimal? TenderVariance, int UnmatchedEnrichmentRows)
+public sealed record ManagementTrendRecord(DateOnly BusinessDate, string StoreCode, decimal NetSales, decimal Units, int Invoices, int Returns, decimal? TenderVariance, int UnmatchedEnrichmentRows)
 {
     /// <summary>Shown beside a null variance so a missing R022 never reads as a zero variance.</summary>
     public string TenderSource => TenderVariance is null ? ManagementTrendTenderSource.Missing : ManagementTrendTenderSource.Imported;

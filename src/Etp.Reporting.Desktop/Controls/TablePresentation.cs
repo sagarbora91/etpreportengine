@@ -52,8 +52,6 @@ public static class TablePresentation
                 if (type == typeof(EtpApplication::Etp.Reporting.Application.Reports.StaffPerformanceRecord))
                     header = property.Name switch { "Transactions" => "Unique invoices", "Upt" => "AUPT", "Atv" => "ATV", _ => header };
                 header = ReportHeader(type, property.Name) ?? header;
-                if (type == typeof(EtpApplication::Etp.Reporting.Application.Reports.SalesSummaryRecord) && property.Name == "DistinctInvoices"
-                    && GetDocumentsHeader(grid) is { Length: > 0 } documents) header = documents;
                 if (property.Name == "StoreCode") header = "Store";
                 if (money && table is null) header += " ₹";
                 var binding = new Binding(property.Name) { Converter = new CellFormat(valueType,numeric,property.Name), Mode = BindingMode.OneWay };
@@ -68,33 +66,20 @@ public static class TablePresentation
     }
     /// <summary>
     /// Report audit of 3 Oct 2026 (fix lists FIX-04, FIX-05, FIX-08, FIX-12): on-screen headers say what a column holds.
-    /// Stock UCP/TOTALUCP are MRP, not cost; Sales Summary and Management Trend count every document, including
-    /// returns; sales values are GST-inclusive NETAMOUNT. Wording only: the values are unchanged.
+    /// Stock UCP/TOTALUCP are MRP, not cost; sales values are GST-inclusive NETAMOUNT. Wording only: the values are unchanged.
     /// </summary>
     internal static string? ReportHeader(Type? type, string property)
     {
         if (property == "MrpValue") return Modules.Reports.ReportsWorkspaceView.MrpValueHeader;
         if (type == typeof(EtpApplication::Etp.Reporting.Application.Reports.StockInventoryRecord))
             return property switch { "UnitCost" => Modules.Reports.ReportsWorkspaceView.UnitMrpHeader, "TotalCost" => Modules.Reports.ReportsWorkspaceView.MrpValueHeader, _ => null };
-        // Operations > Sales and control trend binds ManagementTrendPoint, built from the same all-document count.
-        if (type == typeof(EtpApplication::Etp.Reporting.Application.Reports.SalesSummaryRecord) && property == "DistinctInvoices"
-            || (type == typeof(EtpApplication::Etp.Reporting.Application.Reports.ManagementTrendRecord)
-                || type == typeof(EtpApplication::Etp.Reporting.Application.OperationsAdministration.ManagementTrendPoint)) && property == "Invoices")
-            return Modules.Reports.ReportsWorkspaceView.DocumentsHeader;
+        // Sales Summary, Management Trend and Operations > Sales and control trend name their counts by property:
+        // Invoices (INV documents only) and Returns (SR or BC documents), owner decision 13 Q6.
         if (property == "NetValue" && (type == typeof(EtpApplication::Etp.Reporting.Application.Reports.InvoiceSummaryRecord)
             || type == typeof(EtpApplication::Etp.Reporting.Application.Reports.InvoiceLineageRecord)))
             return "Value incl. GST";
         return null;
     }
-
-    /// <summary>
-    /// The Sales Summary's document-count header for the current run (view by and Transaction types filter);
-    /// empty keeps <see cref="Modules.Reports.ReportsWorkspaceView.DocumentsHeader"/>.
-    /// </summary>
-    public static readonly DependencyProperty DocumentsHeaderProperty = DependencyProperty.RegisterAttached(
-        "DocumentsHeader", typeof(string), typeof(TablePresentation), new PropertyMetadata(null));
-    public static string? GetDocumentsHeader(DependencyObject element) => (string?)element.GetValue(DocumentsHeaderProperty);
-    public static void SetDocumentsHeader(DependencyObject element, string? value) => element.SetValue(DocumentsHeaderProperty, value);
 
     private sealed class CellFormat(Type type,bool numeric,string name) : IValueConverter
     {

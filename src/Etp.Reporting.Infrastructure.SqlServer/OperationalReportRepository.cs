@@ -194,7 +194,12 @@ public sealed partial class OperationalReportRepository(string connectionString)
         const string sql = """
             SELECT i.transaction_date,i.store_code,i.document_number,
                    CASE WHEN COUNT(DISTINCT COALESCE(l.source_transaction_type,'UNMAPPED'))=1
-                        THEN MIN(COALESCE(l.source_transaction_type,'UNMAPPED')) ELSE 'MIXED' END,
+                        THEN MIN(COALESCE(l.source_transaction_type,'UNMAPPED'))
+                        -- A mixed document names its types (for example INV+BC for a cancelled bill), so Customer-wise
+                        -- can count it as an invoice and as a return (owner decision 13 Q6).
+                        ELSE CONCAT_WS('+',MAX(CASE WHEN UPPER(l.source_transaction_type)='INV' THEN 'INV' END),
+                          MAX(CASE WHEN UPPER(l.source_transaction_type)='SR' THEN 'SR' END),MAX(CASE WHEN UPPER(l.source_transaction_type)='BC' THEN 'BC' END),
+                          MAX(CASE WHEN UPPER(COALESCE(l.source_transaction_type,'')) NOT IN('INV','SR','BC') THEN 'UNMAPPED' END)) END,
                    COALESCE(SUM(l.source_quantity),0),COALESCE(SUM(l.source_gross_amount),0),COUNT_BIG(*),MAX(customer.customer_name)
             FROM dbo.sales_invoices i JOIN dbo.sales_lines l ON l.sales_invoice_id=i.sales_invoice_id
             OUTER APPLY (SELECT TOP(1) d.customer_name FROM dbo.etp_r024 d JOIN dbo.import_files f ON f.import_file_id=d.import_file_id

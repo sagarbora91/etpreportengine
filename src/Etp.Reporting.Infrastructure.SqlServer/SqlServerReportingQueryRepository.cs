@@ -34,14 +34,21 @@ public static class SqlReportingQueries
     /// TC tenders Titan's R022 does not carry: R020 CHEQUEAMOUNT with a blank AGENCYNAME, taken only for an invoice whose
     /// R022 tenders fall short of its NetValue by exactly that amount, so R022 cover is never counted twice (decision 13 Q3, Titan audit FIX-03).
     /// Columns: sales_invoice_id, tender_type, source_amount.
+    /// <para>
+    /// The caller passes the SQL for its own date range and a store condition on <c>rf.store_code</c>. They only narrow
+    /// the R020 scan: the R020 row joins its invoice on the same store and on invdate = transaction_date, and every caller
+    /// filters that invoice by the same store and date range, so the rows returned do not change. Only current R020
+    /// files count (not superseded, data-truth version 1), as for the R022 and R025 coverage checks.
+    /// </para>
     /// </summary>
-    public const string R020TcTenders = """
+    public static string R020TcTenders(string dateFrom, string dateTo, string storeCondition) => $"""
         SELECT i.sales_invoice_id,CONVERT(nvarchar(80),N'TC_R020') tender_type,tc.amount source_amount
         FROM
         (
           SELECT rf.store_code,CONVERT(nvarchar(80),LTRIM(RTRIM(r.invnumber))) invnumber,r.invdate,MAX(r.chequeamount) amount
-          FROM dbo.etp_r020 r JOIN dbo.import_files rf ON rf.import_file_id=r.import_file_id AND rf.report_code='R020' AND rf.is_superseded=0
+          FROM dbo.etp_r020 r JOIN dbo.import_files rf ON rf.import_file_id=r.import_file_id AND rf.report_code='R020' AND rf.is_superseded=0 AND rf.data_truth_version=1
           WHERE NULLIF(LTRIM(RTRIM(r.agencyname)),N'') IS NULL AND r.chequeamount<>0 AND r.invdate IS NOT NULL AND r.invnumber IS NOT NULL
+            AND r.invdate>={dateFrom} AND r.invdate<={dateTo} AND ({storeCondition})
           GROUP BY rf.store_code,CONVERT(nvarchar(80),LTRIM(RTRIM(r.invnumber))),r.invdate
         ) tc
         JOIN dbo.sales_invoices i ON i.store_code=tc.store_code AND i.document_number=tc.invnumber AND i.transaction_date=tc.invdate
@@ -49,24 +56,30 @@ public static class SqlReportingQueries
                        -COALESCE((SELECT SUM(x.source_amount) FROM dbo.reporting_sales_tenders x WHERE x.sales_invoice_id=i.sales_invoice_id),0)
         """;
 
-    /// <summary>Reporting tenders plus the R020 TC tenders. Columns: sales_tender_id (null for R020), sales_invoice_id, tender_type, source_amount.</summary>
-    public const string EffectiveTenders = """
+    /// <summary>
+    /// Reporting tenders plus the R020 TC tenders for the caller's date range and store condition (see <see cref="R020TcTenders"/>).
+    /// Columns: sales_tender_id (null for R020), sales_invoice_id, tender_type, source_amount.
+    /// </summary>
+    public static string EffectiveTenders(string dateFrom, string dateTo, string storeCondition) => """
         SELECT sales_tender_id,sales_invoice_id,tender_type,source_amount FROM dbo.reporting_sales_tenders
         UNION ALL
         SELECT CONVERT(bigint,NULL),tc.sales_invoice_id,tc.tender_type,tc.source_amount FROM (
-        """ + R020TcTenders + """
+        """ + R020TcTenders(dateFrom, dateTo, storeCondition) + """
         ) tc
         """;
+
+    /// <summary>The store condition for a query with a nullable @storesJson list.</summary>
+    internal const string R020StoresJsonCondition = "@storesJson IS NULL OR rf.store_code IN (SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@storesJson))";
 
     /// <summary>Maps a source tender code to its cash book mode; TC_R020 is TC unless tender_modes says otherwise.</summary>
     public const string TenderModeExpression = "COALESCE(m.mode,CASE WHEN t.tender_type=N'TC_R020' THEN 'TC' END,CONCAT('Unmapped: ',t.tender_type))";
 
-    public const string Tenders = """
+    public static readonly string Tenders = """
         SELECT i.store_code,i.document_number,
         """ + TenderModeExpression + """
         ,t.source_amount,i.invoice_year
         FROM (
-        """ + EffectiveTenders + """
+        """ + EffectiveTenders("@dateFrom", "@dateTo", R020StoresJsonCondition) + """
         ) t
         JOIN dbo.sales_invoices i ON i.sales_invoice_id=t.sales_invoice_id
         LEFT JOIN dbo.tender_modes m ON m.source_tender_code=t.tender_type AND m.active=1
