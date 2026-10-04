@@ -107,7 +107,7 @@ public sealed class AutomationGrantsAndRetiredAccountsTests
 
             $global:answer = @(($p+'CALLER_ADMIN'),($p+'LOGIN'))
             $m = Get-EtpAutomationFailureMessage -Message $EtpMaskedSqlFailure @args0
-            if (-not $m -or -not $m.Contains('not an active Store Manager') -or -not $m.Contains('Settings > Users') -or -not $m.Contains('Run as administrator')) { throw "Store Manager guidance missing: $m" }
+            if (-not $m -or -not $m.Contains('not an active Store Manager') -or -not $m.Contains('Settings > Users') -or -not $m.Contains('signed in as an Owner') -or $m.Contains("started with 'Run as administrator'")) { throw "Store Manager guidance missing: $m" }
 
             # Ready, unreadable, or another failure: the original error stands.
             $global:answer = @(($p+'CALLER_SELF'),($p+'LOGIN'),($p+'USER'),($p+'STORE_MANAGER'),($p+'ACTIVE'),($p+'ROLE:etp_automation'),($p+'ROLE:db_backupoperator'),($p+'BROKER_EXECUTE'))

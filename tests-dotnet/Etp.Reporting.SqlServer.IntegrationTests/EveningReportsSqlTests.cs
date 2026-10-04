@@ -168,6 +168,65 @@ public sealed class EveningReportsSqlTests(SqlDatabaseFixture db, ITestOutputHel
         Assert.Equal("Bank",await db.ExecuteAsync("SELECT mode FROM dbo.tender_modes WHERE source_tender_code='CHEQUE'"));
     }
 
+    // Owner answers 3 Oct 2026 (HEMW Q1, Q5; D-L9-1, D-L9-2): Citizen ladies (CTZNL) count under
+    // CITIZEN, and G SHOCK, GUESS, AMAZEFIT and FIT BIT are DSR rows. They are entered through
+    // Settings > Evening masters (SaveBrandAsync), not a migration, and apply when the report runs.
+    [Fact]
+    public async Task Brand_rows_saved_in_settings_move_citizen_ladies_g_shock_and_guess_out_of_other()
+    {
+        await db.ExecuteAsync("""
+            DECLARE @batch uniqueidentifier=NEWID(),@sales bigint;
+            INSERT dbo.import_batches(import_batch_id,status,started_utc) VALUES(@batch,'Completed',SYSUTCDATETIME());
+            INSERT dbo.import_files(import_batch_id,original_file_name,source_sha256,size_bytes,store_code,report_code,business_date,period_start,period_end,data_truth_version)
+            VALUES(@batch,'brand-rows-r025.xlsx',REPLICATE('7',64),1,'HEMW','R025','20320310','20320310','20320310',1);
+            SET @sales=SCOPE_IDENTITY();
+            INSERT dbo.source_lineage(import_file_id,sheet_name,source_row_number,source_record_type)
+            SELECT @sales,'Sales',n,'sale' FROM (VALUES(1),(2),(3),(4),(5),(6),(7),(8)) v(n);
+            INSERT dbo.sales_invoices(store_code,document_number,invoice_year,transaction_date) VALUES
+              ('HEMW','L9BR1',2032,'20320310'),('HEMW','L9BR2',2032,'20320310'),('HEMW','L9BR3',2032,'20320310'),('HEMW','L9BR4',2032,'20320310');
+            INSERT dbo.sales_lines(sales_invoice_id,line_identifier,product_code,source_transaction_type,source_quantity,source_gross_amount,source_net_amount,source_tax_amount,currency_code,source_lineage_id,source_brand_code,source_brand_name,brand_segment)
+            SELECT i.sales_invoice_id,CONVERT(varchar(10),x.n),x.item,'INV',1,x.amount,x.amount,0,'INR',s.source_lineage_id,'HEL','HELIOS',x.cluster
+            FROM (VALUES(1,'L9BR1','ITEM-G',N'CTZNG',1000),(2,'L9BR1','ITEM-L',N'CTZNL',2000),(3,'L9BR2','ITEM-S',N'CGSHG',3000),
+                        (4,'L9BR3','ITEM-U',N'GUSSG',4000),(5,'L9BR3','ITEM-V',N'GUSSL',500),(6,'L9BR4','ITEM-A',N'AMZTG',700),
+                        (7,'L9BR4','ITEM-F',N'FBWBU',800),(8,'L9BR4','ITEM-Z',N'ZZOTHER',600)) x(n,doc,item,cluster,amount)
+            JOIN dbo.sales_invoices i ON i.store_code='HEMW' AND i.document_number=x.doc
+            JOIN dbo.source_lineage s ON s.import_file_id=@sales AND s.source_row_number=x.n;
+            """);
+        var date=new DateOnly(2032,3,10);
+        var reports=new OperationalReportRepository(db.ConnectionString);
+        async Task<EveningStoreSheet> Helios()=>(await reports.LoadEveningSheetsAsync(date,await reports.LoadDsrAsync(date,["WLMHW","HEMW"]))).Single(x=>x.StoreCode=="HEMW");
+        decimal? Ftd(EveningStoreSheet sheet,string metric)=>sheet.Rows.Single(x=>x.Metric==metric).Ftd;
+
+        // As migration 0027 seeds it, CITIZEN maps CTZNG only: everything else is Other / unmapped.
+        var before=await Helios();
+        Assert.Equal(12600m,Ftd(before,"VALUE"));
+        Assert.Equal(1000m,Ftd(before,"CITIZEN"));
+        Assert.Equal(11600m,Ftd(before,"Other / unmapped"));
+        Assert.DoesNotContain(before.Rows,x=>x.Metric is "G SHOCK" or "GUESS");
+
+        var masters=new EveningMasterRepository(db.ConnectionString);
+        var citizen=(await masters.LoadBrandsAsync()).Single(x=>x.StoreCode=="HEMW"&&x.Label=="CITIZEN");
+        await masters.SaveBrandAsync(citizen with{SourceCodes="CTZNG, CTZNL"});
+        await masters.SaveBrandAsync(new(0,"HEMW","G SHOCK",90,"CGSHG"));
+        await masters.SaveBrandAsync(new(0,"HEMW","GUESS",100,"GUSSG, GUSSL"));
+        await masters.SaveBrandAsync(new(0,"HEMW","AMAZEFIT",110,"AMZTG"));
+        await masters.SaveBrandAsync(new(0,"HEMW","FIT BIT",120,"FBWBU"));
+
+        var after=await Helios();
+        Assert.Equal(12600m,Ftd(after,"VALUE"));
+        Assert.Equal(3000m,Ftd(after,"CITIZEN"));
+        Assert.Equal(3000m,Ftd(after,"G SHOCK"));
+        Assert.Equal(4500m,Ftd(after,"GUESS"));
+        Assert.Equal(700m,Ftd(after,"AMAZEFIT"));
+        Assert.Equal(800m,Ftd(after,"FIT BIT"));
+        Assert.Equal(600m,Ftd(after,"Other / unmapped"));
+        var labels=after.Rows.Select(x=>x.Metric).ToList();
+        Assert.True(labels.IndexOf("ANNE KLEIN")<labels.IndexOf("G SHOCK")&&labels.IndexOf("G SHOCK")<labels.IndexOf("GUESS")&&labels.IndexOf("GUESS")<labels.IndexOf("AMAZEFIT")&&labels.IndexOf("AMAZEFIT")<labels.IndexOf("FIT BIT")&&labels.IndexOf("FIT BIT")<labels.IndexOf("Other / unmapped"),string.Join(", ",labels));
+        var brandRows=(await masters.LoadBrandsAsync()).Where(x=>x.StoreCode=="HEMW").Select(x=>x.Label).Append("Other / unmapped").ToHashSet();
+        Assert.Equal(Ftd(after,"VALUE"),after.Rows.Where(x=>brandRows.Contains(x.Metric)).Sum(x=>x.Ftd));
+        Assert.Contains("CTZNL",(await masters.LoadBrandsAsync()).Single(x=>x.Id==citizen.Id).SourceCodes);
+    }
+
     [PrivatePhaseOneCorpus]
     public async Task Six_evening_reports_use_real_25_Aug_sources_and_export_without_changing_source_facts()
     {
