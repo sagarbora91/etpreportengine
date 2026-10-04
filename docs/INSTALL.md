@@ -25,7 +25,7 @@ Reports can be exported to fixed-format Excel or PDF. PDF output is landscape, p
 
    It verifies, restores and checks the backup, and makes the Windows account running it the database's Owner (`docs/OPERATIONS.md`, Moving the live database to a new PC). Restore only your own ETP backup: the helper and the next setup run execute the database's own code as a SQL administrator.
 3. Run setup again. It takes a verified safety backup of the restored data before it applies the newer database updates, installing the operations broker that backup needs if it is missing.
-4. Start ETP with **Run as administrator** and, as Owner, add `<PC>\EtpAutomation` as an active Store Manager in Settings > Users. Deactivate the old PC's accounts there too (untick Active, give a reason).
+4. Start ETP (no Run as administrator needed; see *Owners and SQL Server logins* in `docs/OPERATIONS.md`) and, as Owner, add `<PC>\EtpAutomation` as an active Store Manager in Settings > Users. Deactivate the old PC's accounts there too (untick Active, give a reason).
 5. Run setup once more. It installs the SQL operations module for `<PC>\EtpAutomation` (`docs/OPERATIONS.md`, deployment step 7), without which the daily backup and the monthly recovery drill cannot run. Its log says when that is done, or what is still missing.
 
 ## Prerequisite

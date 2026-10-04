@@ -97,6 +97,17 @@ public sealed class StockLedgerLocationTests
         Assert.Contains("GROUP BY m.store_code,m.product_code,m.location,m.source_transaction_type", sql, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Stock_movement_report_marks_a_store_without_a_snapshot_instead_of_hiding_it()
+    {
+        // Owner answer Q9: the store-level snapshot test is a column now, not a filter, and never per product.
+        var sql = SqlReportingQueries.StockMovements;
+        Assert.Contains("s.store_code=m.store_code AND s.snapshot_date=@dateTo)", sql, StringComparison.Ordinal);
+        Assert.Contains("END has_snapshot", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("AND EXISTS(", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("s.product_code=m.product_code", sql, StringComparison.Ordinal);
+    }
+
     private static string Migration(string name)
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);

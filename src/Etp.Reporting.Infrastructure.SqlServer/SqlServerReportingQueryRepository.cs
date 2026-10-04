@@ -119,13 +119,15 @@ public static class SqlReportingQueries
     // Stock keys (report audit 3 Oct 2026, Titan report audit R-04): every item with a ledger movement in the period, including items
     // that sold out and so have no row in the To-date snapshot. Their closing is 0 when the store has a snapshot that day,
     // and null (the reconciliation is Blocked) when the store has none at all.
-    private const string StockKeys = """
+    // Owner answer Q2: gift cards are not stock, so they are no stock key (and so not in Stock Variance).
+    private const string StockKeys = $"""
         WITH keys AS
         (
           SELECT DISTINCT m.store_code,m.product_code FROM dbo.stock_movements m
           WHERE m.document_date>=@dateFrom AND m.document_date<=@dateTo
             AND (@storesJson IS NULL OR m.store_code IN (SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@storesJson)))
             AND (@itemsJson IS NULL OR m.product_code IN (SELECT CONVERT(nvarchar(80),[value]) FROM OPENJSON(@itemsJson)))
+            AND NOT {NonMerchandiseSql.LedgerItemOfM}
         )
         """;
 
@@ -147,16 +149,18 @@ public static class SqlReportingQueries
         ORDER BY m.store_code,m.product_code,m.document_date,m.line_seq,m.stock_movement_id;
         """;
 
-    // Movements of every item, sold-out ones included, for each store that has a closing-stock snapshot on the To date.
-    // A store without one gives no movement rows (Stock Movement stays Blocked for that day; showing movements on days
-    // without a snapshot waits for Q9).
-    public const string StockMovements = """
-        SELECT m.store_code,m.product_code,m.source_transaction_type,SUM(m.transaction_quantity) source_signed_quantity,m.location
+    // Movements of every item, sold-out ones included. has_snapshot tells whether the store has a closing-stock snapshot on
+    // the To date, judged per store, never per product (a sold-out item is in no snapshot). Owner answer Q9: a store without
+    // one still lists its movements, marked "no snapshot", instead of hiding them.
+    public const string StockMovements = $"""
+        SELECT m.store_code,m.product_code,m.source_transaction_type,SUM(m.transaction_quantity) source_signed_quantity,m.location,
+               CASE WHEN EXISTS(SELECT 1 FROM dbo.v_stock_snapshots_effective s WHERE s.store_code=m.store_code AND s.snapshot_date=@dateTo)
+                    THEN CAST(1 AS bit) ELSE CAST(0 AS bit) END has_snapshot
         FROM dbo.stock_movements m
         WHERE m.document_date>=@dateFrom AND m.document_date<=@dateTo
           AND (@storesJson IS NULL OR m.store_code IN (SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@storesJson)))
           AND (@itemsJson IS NULL OR m.product_code IN (SELECT CONVERT(nvarchar(80),[value]) FROM OPENJSON(@itemsJson)))
-          AND EXISTS(SELECT 1 FROM dbo.v_stock_snapshots_effective s WHERE s.store_code=m.store_code AND s.snapshot_date=@dateTo)
+          AND NOT {NonMerchandiseSql.LedgerItemOfM}
         GROUP BY m.store_code,m.product_code,m.location,m.source_transaction_type
         ORDER BY m.store_code,m.product_code,m.location,m.source_transaction_type;
         """;
@@ -289,7 +293,7 @@ public sealed class SqlServerReportingQueryRepository(string connectionString) :
         await using var command = Command(connection, SqlReportingQueries.StockMovements, scope);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
-            movements.Add(new(reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetDecimal(3), NullableString(reader, 4)));
+            movements.Add(new(reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetDecimal(3), NullableString(reader, 4), reader.GetBoolean(5)));
         return movements;
     }
 
