@@ -4778,7 +4778,8 @@ FROM (VALUES
  (''S036'',''JobList'',NULL,''Delivery report'',NULL,NULL,NULL),
  (''S037'',''JobList'',NULL,''Repair report'',NULL,NULL,NULL),
  (''S039'',''DateLog'',''transaction_date'',''WD_Claim'',NULL,NULL,NULL),
- (''S040'',''DateLog'',''transaction_date'',''WRA_Claim'',NULL,NULL,NULL)
+ (''S040'',''DateLog'',''transaction_date'',''WRA_Claim'',NULL,NULL,NULL),
+ (''S041'',''DateLog'',''transaction_date'',''GPRC_Claim'',NULL,NULL,NULL)
 ) v(report_code,read_rule,date_column,list_label,pending_list,status_label,lifecycle_rank)');
 
 -- One row per live Service reading: its snapshot date, row count and, for a DateLog family, its window
@@ -4789,7 +4790,7 @@ WITH live AS (
   SELECT f.import_file_id,f.report_code,COALESCE(f.period_end,f.business_date) snapshot_date
   FROM dbo.import_files f JOIN dbo.import_batches b ON b.import_batch_id=f.import_batch_id
   WHERE f.is_superseded=0 AND f.data_truth_version=1 AND b.status=''Completed''
-    AND f.report_code IN(''S002'',''S003'',''S004'',''S006'',''S007'',''S008'',''S009'',''S010'',''S011'',''S012'',''S013'',''S014'',''S015'',''S016'',''S017'',''S018'',''S019'',''S020'',''S021'',''S022'',''S023'',''S024'',''S025'',''S026'',''S029'',''S030'',''S031'',''S032'',''S033'',''S034'',''S035'',''S036'',''S037'',''S039'',''S040'')
+    AND f.report_code IN(''S002'',''S003'',''S004'',''S006'',''S007'',''S008'',''S009'',''S010'',''S011'',''S012'',''S013'',''S014'',''S015'',''S016'',''S017'',''S018'',''S019'',''S020'',''S021'',''S022'',''S023'',''S024'',''S025'',''S026'',''S029'',''S030'',''S031'',''S032'',''S033'',''S034'',''S035'',''S036'',''S037'',''S039'',''S040'',''S041'')
 ), stats AS (
   SELECT ''S002'' report_code,import_file_id,COUNT_BIG(*) row_count,CONVERT(date,NULL) least_date,CONVERT(date,NULL) greatest_date FROM dbo.etp_landing_s002 GROUP BY import_file_id
   UNION ALL SELECT ''S003'',import_file_id,COUNT_BIG(*),MIN(trans_date),MAX(trans_date) FROM dbo.etp_landing_s003 GROUP BY import_file_id
@@ -4826,6 +4827,7 @@ WITH live AS (
   UNION ALL SELECT ''S037'',import_file_id,COUNT_BIG(*),CONVERT(date,NULL),CONVERT(date,NULL) FROM dbo.etp_landing_s037 GROUP BY import_file_id
   UNION ALL SELECT ''S039'',import_file_id,COUNT_BIG(*),MIN(transaction_date),MAX(transaction_date) FROM dbo.etp_landing_s039 GROUP BY import_file_id
   UNION ALL SELECT ''S040'',import_file_id,COUNT_BIG(*),MIN(transaction_date),MAX(transaction_date) FROM dbo.etp_landing_s040 GROUP BY import_file_id
+  UNION ALL SELECT ''S041'',import_file_id,COUNT_BIG(*),MIN(transaction_date),MAX(transaction_date) FROM dbo.etp_landing_s041 GROUP BY import_file_id
 )
 SELECT l.import_file_id,l.report_code,r.read_rule,l.snapshot_date,COALESCE(s.row_count,0) row_count,
   s.least_date window_from,
@@ -4865,6 +4867,7 @@ WITH dated AS (
   UNION ALL SELECT ''S029'',import_file_id,repair_date FROM dbo.etp_landing_s029 WHERE repair_date IS NOT NULL GROUP BY import_file_id,repair_date
   UNION ALL SELECT ''S039'',import_file_id,transaction_date FROM dbo.etp_landing_s039 WHERE transaction_date IS NOT NULL GROUP BY import_file_id,transaction_date
   UNION ALL SELECT ''S040'',import_file_id,transaction_date FROM dbo.etp_landing_s040 WHERE transaction_date IS NOT NULL GROUP BY import_file_id,transaction_date
+  UNION ALL SELECT ''S041'',import_file_id,transaction_date FROM dbo.etp_landing_s041 WHERE transaction_date IS NOT NULL GROUP BY import_file_id,transaction_date
 ), held AS (
   SELECT DISTINCT d.report_code,d.business_date
   FROM dated d JOIN dbo.v_service_reading_windows w ON w.import_file_id=d.import_file_id AND w.report_code=d.report_code
@@ -5137,6 +5140,53 @@ SELECT report_code,business_date,previous_snapshot_date,previous_import_file_id,
   current_snapshot_date,current_import_file_id,current_amount,current_amount-previous_amount difference
 FROM pairs WHERE current_amount<>previous_amount');
 
+-- 8. GPRC claim lines from both GPRC families (decision 16, Q6/Q8). S023 GPRC_Report is the consolidated history (up to
+-- 5 Aug 2026); S041 GPRC CLAIM is the raw export (from 1 Aug 2026). Each family's rows are first chosen by its own
+-- DateLog rule (v_service_datelog_readings, reading_rank 1: S023 by TransDate, S041 by the date part of Transaction Date).
+-- Then the union rule: S041 wins per claim document. An S023 line is read only when no winning S041 line has the same
+-- document number; an S023 line without a document number is read only on a date that has no winning S041 line. So a
+-- claim in both families (the 1-5 Aug overlap) is counted once, from S041, and a claim only S023 holds is kept.
+-- No customer column: the counterparty is not needed by any screen.
+EXEC(N'CREATE OR ALTER VIEW dbo.v_service_gprc_claims AS
+WITH claims AS (
+  SELECT r.import_file_id,w.snapshot_date,r.transaction_date business_date,
+    NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),r.document_number))),N'''') document_number,
+    NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),r.job_order_number))),N'''') job_order_number,
+    CONVERT(nvarchar(100),r.item_id) item_id,r.quantity,CONVERT(nvarchar(100),r.account_number) account_number,
+    r.price,r.net_amount,r.tax_amount,r.gross_amount,r.taxable,r.total_tax,r.igst_value,r.net_amount_inc_tax,r.value,r.ucp_value
+  FROM dbo.etp_landing_s041 r JOIN dbo.v_service_datelog_readings w ON w.report_code=''S041'' AND w.reading_rank=1
+    AND w.import_file_id=r.import_file_id AND w.business_date=r.transaction_date
+), history AS (
+  SELECT r.import_file_id,w.snapshot_date,r.transdate business_date,
+    NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),r.documentnum))),N'''') document_number,
+    NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),r.jonumber))),N'''') job_order_number,
+    CONVERT(nvarchar(100),r.itemid) item_id,r.quantity,CONVERT(nvarchar(100),r.accountnum) account_number,
+    r.price,r.netamount net_amount,r.taxamount tax_amount,r.grossamount gross_amount,r.taxable,r.totaltax total_tax,
+    r.igstvalue igst_value,r.netamountinctax net_amount_inc_tax,r.value,r.ucpvalue ucp_value
+  FROM dbo.etp_landing_s023 r JOIN dbo.v_service_datelog_readings w ON w.report_code=''S023'' AND w.reading_rank=1
+    AND w.import_file_id=r.import_file_id AND w.business_date=r.transdate
+)
+SELECT ''S041'' report_code,business_date,document_number,job_order_number,item_id,quantity,account_number,price,net_amount,
+  tax_amount,gross_amount,taxable,total_tax,igst_value,net_amount_inc_tax,value,ucp_value,snapshot_date,import_file_id
+FROM claims
+UNION ALL
+SELECT ''S023'',h.business_date,h.document_number,h.job_order_number,h.item_id,h.quantity,h.account_number,h.price,h.net_amount,
+  h.tax_amount,h.gross_amount,h.taxable,h.total_tax,h.igst_value,h.net_amount_inc_tax,h.value,h.ucp_value,h.snapshot_date,h.import_file_id
+FROM history h
+WHERE NOT EXISTS(SELECT 1 FROM claims c WHERE c.document_number=h.document_number)
+  AND (h.document_number IS NOT NULL OR NOT EXISTS(SELECT 1 FROM claims c WHERE c.business_date=h.business_date))');
+
+-- 9. Manual Service entries for the money check (decision 16, Q1-Q4). One row per shop, date and SERVICE_* field.
+-- tender is CASH, CARD or UPI for the three compared fields and NULL for SERVICE_WDC, which stays out of the comparison.
+-- is_service_money_shop marks the one shop that enters all of the Service centre's money (Q1, the Titan World shop);
+-- an entry at any other shop is listed separately by the money screen and never added in (ServiceMoneyCheck).
+-- The store code is written here, in SQL, because runtime C# holds no store-code literal.
+EXEC(N'CREATE OR ALTER VIEW dbo.v_service_manual_money AS
+SELECT m.business_date,m.store_code,s.store_name,m.field_code,m.numeric_value amount,
+  CASE m.field_code WHEN ''SERVICE_CASH'' THEN ''CASH'' WHEN ''SERVICE_CARD'' THEN ''CARD'' WHEN ''SERVICE_UPI'' THEN ''UPI'' END tender,
+  CONVERT(bit,CASE WHEN m.store_code=''WLMHW'' THEN 1 ELSE 0 END) is_service_money_shop
+FROM dbo.manual_operational_inputs m LEFT JOIN dbo.stores s ON s.store_code=m.store_code
+WHERE m.field_code LIKE ''SERVICE[_]%'' AND m.numeric_value IS NOT NULL');
 -- Read access as 0041 grants it (0022 already grants SELECT ON SCHEMA::dbo); no role may write through a view.
 GRANT SELECT ON dbo.v_service_families TO etp_viewer,etp_store_manager,etp_owner;
 DENY INSERT,UPDATE,DELETE ON dbo.v_service_families TO etp_store_manager,etp_viewer;
@@ -5160,4 +5210,8 @@ GRANT SELECT ON dbo.v_service_s004_daily TO etp_viewer,etp_store_manager,etp_own
 DENY INSERT,UPDATE,DELETE ON dbo.v_service_s004_daily TO etp_store_manager,etp_viewer;
 GRANT SELECT ON dbo.v_service_money_changes TO etp_viewer,etp_store_manager,etp_owner;
 DENY INSERT,UPDATE,DELETE ON dbo.v_service_money_changes TO etp_store_manager,etp_viewer;
+GRANT SELECT ON dbo.v_service_gprc_claims TO etp_viewer,etp_store_manager,etp_owner;
+DENY INSERT,UPDATE,DELETE ON dbo.v_service_gprc_claims TO etp_store_manager,etp_viewer;
+GRANT SELECT ON dbo.v_service_manual_money TO etp_viewer,etp_store_manager,etp_owner;
+DENY INSERT,UPDATE,DELETE ON dbo.v_service_manual_money TO etp_store_manager,etp_viewer;
 -- <<< C_SERVICE_READ end

@@ -2,10 +2,12 @@
 
 Service interim (S-2), decision 15, 3 Oct 2026. Lane L4.
 
-Writes the eleven views (dbo.v_service_families, v_service_reading_windows, v_service_readings,
+Writes the thirteen views (dbo.v_service_families, v_service_reading_windows, v_service_readings,
 v_service_datelog_readings, v_service_status_view_rows, v_service_job_readings, v_service_job_status_current,
-v_service_pending_current, v_service_job_list_events, v_service_s004_daily, v_service_money_changes), each
-CREATE OR ALTER through EXEC, then GRANT SELECT to the three roles and DENY writes. The read rules mirror
+v_service_pending_current, v_service_job_list_events, v_service_s004_daily, v_service_money_changes, and lane L10's
+v_service_gprc_claims and v_service_manual_money, taken verbatim from the "L10 block" of
+scripts/service-centre/c_service_read_gprc_and_money.sql), each CREATE OR ALTER through EXEC, then GRANT SELECT to
+the three roles and DENY writes. The read rules mirror
 ServiceInterimFamilies.ReadRules (L0); every column name is checked against the frozen
 scripts/service-centre/families.spec.json before anything is written.
 
@@ -25,6 +27,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SPEC = ROOT / "scripts" / "service-centre" / "families.spec.json"
+L10_SQL = ROOT / "scripts" / "service-centre" / "c_service_read_gprc_and_money.sql"
+L10_BEGIN = "-- >>> L10 block begin"
+L10_END = "-- <<< L10 block end"
 MIGRATION = ROOT / "database" / "migrations" / "0048_service_centre_interim.sql"
 SECTION = "C_SERVICE_READ"
 BEGIN_MARKER = f"-- >>> {SECTION} begin"
@@ -38,12 +43,13 @@ parser.add_argument("--check", action="store_true", help="exit 1 if the section 
 ARGS = parser.parse_args()
 spec = {f["FamilyCode"]: f for f in json.load(open(ARGS.spec, encoding="utf-8"))}
 
-IMPORTABLE = ["S002", "S003", "S004"] + [f"S{n:03d}" for n in range(6, 27)] + [f"S{n:03d}" for n in range(29, 38)] + ["S039", "S040"]
-assert len(IMPORTABLE) == 35
+IMPORTABLE = ["S002", "S003", "S004"] + [f"S{n:03d}" for n in range(6, 27)] + [f"S{n:03d}" for n in range(29, 38)] + ["S039", "S040", "S041"]
+assert len(IMPORTABLE) == 36
 
 DATELOG = {"S003": "trans_date", "S004": "billingdate", "S007": "grn_date", "S008": "grn_date", "S013": "stm_date",
            "S019": "repairdate", "S022": "invoice_date", "S023": "transdate", "S024": "transdate", "S025": "transdate",
-           "S026": "transdate", "S029": "repair_date", "S039": "transaction_date", "S040": "transaction_date"}
+           "S026": "transdate", "S029": "repair_date", "S039": "transaction_date", "S040": "transaction_date",
+           "S041": "transaction_date"}
 STATE = ["S006", "S009", "S010"]
 STATUS = {  # code: (label, lifecycle rank, status date column)
     "S032": ("PR", 1, "jodate"), "S015": ("IR", 2, "indentdate"), "S033": ("SRN", 3, "srnissueddate"),
@@ -57,7 +63,7 @@ JOBLIST_OTHER = {  # code: (job column, status date column, list label)
     "S036": ("job_order_no", "created_date", "Delivery report"), "S037": ("job_order_no", "created_date", "Repair report")}
 STATE_JOB = {"S009": ("jonumber", "jodate", "Pending repair"), "S010": ("jonumber", "jodate", "Pending delivery")}
 JOBLIST = sorted(list(STATUS) + list(JOBLIST_OTHER))
-assert len(DATELOG) + len(STATE) + len(JOBLIST) == 35
+assert len(DATELOG) + len(STATE) + len(JOBLIST) == 36
 assert sorted(list(DATELOG) + STATE + JOBLIST) == IMPORTABLE
 
 def col(code, name):
@@ -438,9 +444,23 @@ SELECT report_code,business_date,previous_snapshot_date,previous_import_file_id,
 FROM pairs WHERE current_amount<>previous_amount');
 """)
 
+# 12-13. Lane L10 (decision 16): the GPRC claim union and the manual Service money, verbatim from its SQL file.
+def l10_block():
+    lines = L10_SQL.read_text(encoding="utf-8").replace("\r\n", "\n").split("\n")
+    if lines.count(L10_BEGIN) != 1 or lines.count(L10_END) != 1:
+        sys.exit(f"{L10_SQL.name} must hold exactly one '{L10_BEGIN}' line and one '{L10_END}' line.")
+    begin, end = lines.index(L10_BEGIN), lines.index(L10_END)
+    if end <= begin + 1:
+        sys.exit(f"{L10_SQL.name}: the L10 block is empty or its markers are out of order.")
+    return "\n".join(lines[begin + 1:end])
+
+
+emit(l10_block())
+
 views = ["v_service_families", "v_service_reading_windows", "v_service_readings", "v_service_datelog_readings",
          "v_service_status_view_rows", "v_service_job_readings", "v_service_job_status_current",
-         "v_service_pending_current", "v_service_job_list_events", "v_service_s004_daily", "v_service_money_changes"]
+         "v_service_pending_current", "v_service_job_list_events", "v_service_s004_daily", "v_service_money_changes",
+         "v_service_gprc_claims", "v_service_manual_money"]
 emit("-- Read access as 0041 grants it (0022 already grants SELECT ON SCHEMA::dbo); no role may write through a view.")
 for v in views:
     emit(f"GRANT SELECT ON dbo.{v} TO etp_viewer,etp_store_manager,etp_owner;")
