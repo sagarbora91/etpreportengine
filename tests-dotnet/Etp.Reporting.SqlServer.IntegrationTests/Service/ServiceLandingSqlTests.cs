@@ -30,7 +30,7 @@ public sealed class ServiceLandingSqlTests
         {
             await database.InitializeAsync();
             var families = LandingFamilies();
-            Assert.Equal(35, families.Count);
+            Assert.Equal(36, families.Count);
             foreach (var family in families)
             {
                 var table = family.TableName;
@@ -44,7 +44,7 @@ public sealed class ServiceLandingSqlTests
                 Assert.Equal(family.Columns[^1].CanonicalField, await database.ExecuteAsync(
                     $"SELECT TOP(1) name FROM sys.columns WHERE object_id=OBJECT_ID(N'dbo.{table}') ORDER BY column_id DESC"));
             }
-            Assert.Equal(35, await database.ExecuteAsync("SELECT COUNT(*) FROM sys.tables WHERE name LIKE N'etp[_]landing[_]s[0-9][0-9][0-9]'"));
+            Assert.Equal(36, await database.ExecuteAsync("SELECT COUNT(*) FROM sys.tables WHERE name LIKE N'etp[_]landing[_]s[0-9][0-9][0-9]'"));
             foreach (var code in new[] { "s001", "s005", "s027", "s028", "s038" })
                 Assert.Null(await database.ExecuteAsync($"SELECT OBJECT_ID(N'dbo.etp_landing_{code}')"));
 
@@ -122,13 +122,13 @@ public sealed class ServiceLandingSqlTests
                     $"EXECUTE AS USER='service_landing_viewer'; EXEC dbo.[append_{family.TableName}] 1,1,'x',{string.Join(',', family.Columns.Select(_ => "NULL"))}; REVERT;"));
                 Assert.Equal(229, execute.Number);
             }
-            Assert.Equal(35, await database.ExecuteAsync("""
+            Assert.Equal(36, await database.ExecuteAsync("""
                 SELECT COUNT(DISTINCT p.major_id) FROM sys.database_permissions p
                 JOIN sys.database_principals r ON r.principal_id=p.grantee_principal_id
                 WHERE r.name='etp_store_manager' AND p.permission_name='EXECUTE' AND p.state='G'
                   AND OBJECT_NAME(p.major_id) LIKE N'append[_]etp[_]landing[_]s[0-9][0-9][0-9]'
                 """));
-            Assert.Equal(35, await database.ExecuteAsync("""
+            Assert.Equal(36, await database.ExecuteAsync("""
                 SELECT COUNT(DISTINCT p.major_id) FROM sys.database_permissions p
                 JOIN sys.database_principals r ON r.principal_id=p.grantee_principal_id
                 WHERE r.name='etp_owner' AND p.permission_name='EXECUTE' AND p.state='G'
