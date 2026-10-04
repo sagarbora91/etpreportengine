@@ -11,15 +11,6 @@ namespace Etp.Reporting.Infrastructure.SqlServer;
 /// </summary>
 public sealed class SqlServerServiceReportQuery(string connectionString) : IServiceReportQuery
 {
-    // The manual Service entries the money check compares with S004, by the S004 tender they match.
-    internal static readonly IReadOnlyDictionary<string, string> ManualTenders = new Dictionary<string, string>(StringComparer.Ordinal)
-    {
-        ["SERVICE_CASH"] = "CASH", ["SERVICE_CARD"] = "CARD", ["SERVICE_UPI"] = "UPI",
-    };
-
-    // The order the money check lists tenders in; v_service_s004_daily names them.
-    internal static readonly IReadOnlyList<string> TenderOrder = ["CASH", "CARD", "UPI", "CHEQUE", "RTGS", "ADVANCE"];
-
     internal const string RefreshesSql = """
         SELECT report_code,snapshot_date,row_count,import_file_id,imported_utc
         FROM dbo.v_service_readings
@@ -49,18 +40,20 @@ public sealed class SqlServerServiceReportQuery(string connectionString) : IServ
           CASE event_kind WHEN 'FirstSeen' THEN 0 WHEN 'Reappeared' THEN 1 WHEN 'StillListed' THEN 2 WHEN 'LeftList' THEN 3 ELSE 4 END;
         """;
 
-    // Two result sets: S004 per date and tender (DateLog rule), then the manual SERVICE_CASH/CARD/UPI entries per date,
-    // field and store, over ALL stores (design question Q2: which shop's entries belong to AW330 is not decided).
+    // Every manual SERVICE_* entry by date, shop and field (dbo.v_service_manual_money). The view marks the Service-money
+    // shop (decision 16, Q1) from the store catalogue; ServiceMoneyCheck decides what is compared and what is listed apart.
+    internal const string ManualMoneySql = """
+        SELECT business_date,store_code,store_name,field_code,amount,is_service_money_shop
+        FROM dbo.v_service_manual_money
+        WHERE business_date BETWEEN @from AND @to;
+        """;
+
+    // Two result sets: S004 per date and tender (DateLog rule), then the manual Service entries (ManualMoneySql).
     internal const string MoneyCheckSql = """
         SELECT business_date,tender,amount
         FROM dbo.v_service_s004_daily
         WHERE business_date BETWEEN @from AND @to;
-        SELECT business_date,field_code,store_code,SUM(numeric_value)
-        FROM dbo.manual_operational_inputs
-        WHERE field_code IN('SERVICE_CASH','SERVICE_CARD','SERVICE_UPI') AND numeric_value IS NOT NULL
-          AND business_date BETWEEN @from AND @to
-        GROUP BY business_date,field_code,store_code;
-        """;
+        """ + "\n" + ManualMoneySql;
 
     internal const string MoneyChangesSql = """
         SELECT business_date,report_code,previous_snapshot_date,previous_amount,current_snapshot_date,current_amount
@@ -110,48 +103,32 @@ public sealed class SqlServerServiceReportQuery(string connectionString) : IServ
         command.Parameters.Add("@from", System.Data.SqlDbType.Date).Value = from.ToDateTime(TimeOnly.MinValue);
         command.Parameters.Add("@to", System.Data.SqlDbType.Date).Value = to.ToDateTime(TimeOnly.MinValue);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        var s004 = new List<(DateOnly Date, string Tender, decimal? Amount)>();
+        var s004 = new List<ServiceS004TenderAmount>();
         while (await reader.ReadAsync(cancellationToken))
-            s004.Add((reader.GetFieldValue<DateOnly>(0), reader.GetString(1), Money(reader, 2)));
+            s004.Add(new ServiceS004TenderAmount(reader.GetFieldValue<DateOnly>(0), reader.GetString(1), Money(reader, 2)));
         await reader.NextResultAsync(cancellationToken);
-        var manual = new List<(DateOnly Date, string Field, string Store, decimal Amount)>();
-        while (await reader.ReadAsync(cancellationToken))
-            manual.Add((reader.GetFieldValue<DateOnly>(0), reader.GetString(1), reader.GetString(2), reader.GetDecimal(3)));
-        return CombineMoney(s004, manual);
+        var manual = new List<ServiceManualMoneyEntry>();
+        while (await reader.ReadAsync(cancellationToken)) manual.Add(ManualEntry(reader));
+        return ServiceMoneyCheck.Compare(s004, manual);
+    }
+
+    /// <summary>Manual Service entries made at a shop other than the Service-money shop: listed apart, never added to the
+    /// money check (decision 16, Q1).</summary>
+    public async Task<IReadOnlyList<ServiceUnmatchedMoneyEntry>> LoadUnmatchedServiceEntriesAsync(DateOnly from, DateOnly to,
+        CancellationToken cancellationToken = default)
+    {
+        if (from > to) throw new ArgumentException("Start date must not follow end date.", nameof(from));
+        var manual = await ReadAsync(ManualMoneySql, command =>
+        {
+            command.Parameters.Add("@from", System.Data.SqlDbType.Date).Value = from.ToDateTime(TimeOnly.MinValue);
+            command.Parameters.Add("@to", System.Data.SqlDbType.Date).Value = to.ToDateTime(TimeOnly.MinValue);
+        }, ManualEntry, cancellationToken);
+        return ServiceMoneyCheck.Unmatched(manual);
     }
 
     public async Task<IReadOnlyList<ServiceMoneyChange>> LoadMoneyChangesAsync(CancellationToken cancellationToken = default) =>
         await ReadAsync(MoneyChangesSql, _ => { }, reader => new ServiceMoneyChange(reader.GetFieldValue<DateOnly>(0), reader.GetString(1),
             reader.GetFieldValue<DateOnly>(2), reader.GetDecimal(3), reader.GetFieldValue<DateOnly>(4), reader.GetDecimal(5)), cancellationToken);
-
-    /// <summary>
-    /// One row per business date and tender: the S004 amount beside the manual entries summed over every store that has
-    /// one. Difference is S004 - manual, and only when both are present (a missing side is not read as zero). A manual
-    /// entry on a date or tender S004 does not hold still shows, with a null S004 amount.
-    /// </summary>
-    internal static IReadOnlyList<ServiceMoneyDay> CombineMoney(
-        IEnumerable<(DateOnly Date, string Tender, decimal? Amount)> s004,
-        IEnumerable<(DateOnly Date, string Field, string Store, decimal Amount)> manual)
-    {
-        var s004ByKey = s004.GroupBy(row => (row.Date, row.Tender))
-            .ToDictionary(group => group.Key, group => group.Any(row => row.Amount.HasValue) ? group.Sum(row => row.Amount ?? 0m) : (decimal?)null);
-        var manualByKey = manual.Where(row => ManualTenders.ContainsKey(row.Field))
-            .GroupBy(row => (row.Date, Tender: ManualTenders[row.Field]))
-            .ToDictionary(group => group.Key, group => (Amount: group.Sum(row => row.Amount),
-                Stores: (IReadOnlyList<string>)group.Select(row => row.Store.Trim()).Distinct(StringComparer.OrdinalIgnoreCase)
-                    .Order(StringComparer.OrdinalIgnoreCase).ToArray()));
-        return s004ByKey.Keys.Union(manualByKey.Keys)
-            .OrderBy(key => key.Date).ThenBy(key => TenderRank(key.Tender)).ThenBy(key => key.Tender, StringComparer.Ordinal)
-            .Select(key =>
-            {
-                var amount = s004ByKey.TryGetValue(key, out var value) ? value : null;
-                var hasManual = manualByKey.TryGetValue(key, out var entered);
-                decimal? manualAmount = hasManual ? entered.Amount : null;
-                return new ServiceMoneyDay(key.Date, key.Tender, amount, manualAmount,
-                    amount.HasValue && manualAmount.HasValue ? amount.Value - manualAmount.Value : null,
-                    hasManual ? entered.Stores : []);
-            }).ToArray();
-    }
 
     /// <summary>The view's event kinds are the contract's: a job-list family emits StillListed only when its latest reading
     /// holds the job, otherwise LeftList (v_service_job_list_events).</summary>
@@ -164,11 +141,8 @@ public sealed class SqlServerServiceReportQuery(string connectionString) : IServ
         _ => throw new InvalidOperationException("Unknown Service job event kind."),
     };
 
-    private static int TenderRank(string tender)
-    {
-        for (var index = 0; index < TenderOrder.Count; index++) if (TenderOrder[index] == tender) return index;
-        return TenderOrder.Count;
-    }
+    private static ServiceManualMoneyEntry ManualEntry(SqlDataReader reader) =>
+        new(reader.GetFieldValue<DateOnly>(0), reader.GetString(1), Text(reader, 2), reader.GetString(3), reader.GetDecimal(4), reader.GetBoolean(5));
 
     private async Task<IReadOnlyList<T>> ReadAsync<T>(string sql, Action<SqlCommand> bind, Func<SqlDataReader, T> map,
         CancellationToken cancellationToken)

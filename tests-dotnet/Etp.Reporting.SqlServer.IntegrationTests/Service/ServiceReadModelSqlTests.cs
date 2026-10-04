@@ -38,6 +38,7 @@ public sealed class ServiceReadModelSqlTests
         "v_service_families", "v_service_reading_windows", "v_service_readings", "v_service_datelog_readings",
         "v_service_status_view_rows", "v_service_job_readings", "v_service_job_status_current", "v_service_pending_current",
         "v_service_job_list_events", "v_service_s004_daily", "v_service_money_changes",
+        "v_service_gprc_claims", "v_service_manual_money",
     ];
 
     [Fact]
@@ -160,7 +161,7 @@ public sealed class ServiceReadModelSqlTests
             Assert.Contains(await query.LoadMoneyChangesAsync(), change => change.ReportCode == "S004" && change.CurrentSnapshotDate == Week2);
             var money = await query.LoadMoneyCheckAsync(new DateOnly(2024, 1, 1), Week2);
             Assert.NotEmpty(money);
-            Assert.All(money, day => Assert.Contains(day.Tender, SqlServerServiceReportQuery.TenderOrder));
+            Assert.All(money, day => Assert.Contains(day.Tender, (string[])["CASH", "CARD", "UPI", "CHEQUE", "RTGS", "ADVANCE"]));
 
             // A viewer can read every view.
             await database.ExecuteAsync("CREATE USER service_views_viewer WITHOUT LOGIN; ALTER ROLE etp_viewer ADD MEMBER service_views_viewer;");

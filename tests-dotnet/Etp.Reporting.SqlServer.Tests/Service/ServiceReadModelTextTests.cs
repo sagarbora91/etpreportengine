@@ -25,6 +25,8 @@ public sealed partial class ServiceReadModelTextTests
     ];
     private static readonly string[] HelperViews =
         ["v_service_families", "v_service_reading_windows", "v_service_datelog_readings", "v_service_status_view_rows"];
+    // Lane L10's views (decision 16), emitted verbatim from c_service_read_gprc_and_money.sql.
+    private static readonly string[] L10Views = ["v_service_gprc_claims", "v_service_manual_money"];
 
     private static readonly string[] Roles = ["etp_viewer", "etp_store_manager", "etp_owner"];
 
@@ -66,7 +68,7 @@ public sealed partial class ServiceReadModelTextTests
         foreach (var line in Remainder(section))
             Assert.Matches(PermissionStatement(), line);
         var views = Views(section);
-        Assert.Equal(ContractViews.Concat(HelperViews).Order(StringComparer.Ordinal), views.Select(view => view.Name).Order(StringComparer.Ordinal));
+        Assert.Equal(ContractViews.Concat(HelperViews).Concat(L10Views).Order(StringComparer.Ordinal), views.Select(view => view.Name).Order(StringComparer.Ordinal));
         Assert.Equal(views.Count, views.Select(view => view.Name).Distinct(StringComparer.Ordinal).Count());
         // Nothing but views: no table, procedure, trigger, index or data change inside a block or around it.
         Assert.DoesNotMatch(new Regex(@"\b(CREATE|ALTER|DROP)\s+(TABLE|PROC|PROCEDURE|TRIGGER|INDEX|FUNCTION)\b", RegexOptions.IgnoreCase), section);
@@ -176,8 +178,10 @@ public sealed partial class ServiceReadModelTextTests
         {
             SqlServerServiceReportQuery.RefreshesSql, SqlServerServiceReportQuery.JobsSql, SqlServerServiceReportQuery.PendingSql,
             SqlServerServiceReportQuery.JobHistorySql, SqlServerServiceReportQuery.MoneyCheckSql, SqlServerServiceReportQuery.MoneyChangesSql,
+            SqlServerServiceReportQuery.ManualMoneySql,
         };
-        var allowed = ContractViews.Append("manual_operational_inputs").ToHashSet(StringComparer.Ordinal);
+        // The manual Service entries are read only through v_service_manual_money (decision 16), never from the table.
+        var allowed = ContractViews.Append("v_service_manual_money").ToHashSet(StringComparer.Ordinal);
         foreach (var sql in queries)
         {
             foreach (Match used in Regex.Matches(sql, @"\bdbo\.(\w+)"))
@@ -202,32 +206,25 @@ public sealed partial class ServiceReadModelTextTests
         Assert.True(string.IsNullOrWhiteSpace(after), "Nothing may follow the C_SERVICE_READ section.");
     }
 
+    // Decision 16 (Q1): only the Service-money shop's entries are compared; another shop's entry is listed apart and
+    // never summed in. ServiceMoneyCheckTests covers the rules; this pins that the repository goes through them.
     [Fact]
-    public void The_money_check_puts_S004_beside_the_manual_entries_of_every_store()
+    public void The_money_check_compares_only_the_service_money_shop_and_lists_other_shops_apart()
     {
         var day = new DateOnly(2026, 9, 21);
-        var next = day.AddDays(1);
-        var rows = SqlServerServiceReportQuery.CombineMoney(
-            [(day, "CASH", 100m), (day, "CARD", 50m), (day, "RTGS", 10m), (next, "UPI", null)],
-            [(day, "SERVICE_CASH", "SYN02", 60m), (day, "SERVICE_CASH", "SYN01", 30m), (day, "SERVICE_UPI", "SYN01", 5m),
-             (day, "SERVICE_WDC", "SYN01", 99m), (next, "SERVICE_CARD", "SYN01", 7m)]);
-        Assert.Equal(
-            [(day, "CASH"), (day, "CARD"), (day, "UPI"), (day, "RTGS"), (next, "CARD"), (next, "UPI")],
-            rows.Select(row => (row.BusinessDate, row.Tender)));
-        var cash = rows[0];
-        Assert.Equal((100m, 90m, 10m), (cash.S004Amount!.Value, cash.ManualAmount!.Value, cash.Difference!.Value));
-        Assert.Equal(["SYN01", "SYN02"], cash.ManualStores);
-        var card = rows[1];
-        Assert.Null(card.ManualAmount);
-        Assert.Null(card.Difference);
-        Assert.Empty(card.ManualStores);
-        var upi = rows[2];
-        Assert.Null(upi.S004Amount);
-        Assert.Null(upi.Difference);
-        Assert.Equal(5m, upi.ManualAmount);
-        Assert.Null(rows[3].ManualAmount);
-        Assert.Null(rows[5].S004Amount);
-        Assert.Null(rows[5].ManualAmount);
+        var manual = new[]
+        {
+            new ServiceManualMoneyEntry(day, "SYN01", "Synthetic shop", "SERVICE_CASH", 60m, IsServiceMoneyShop: true),
+            new ServiceManualMoneyEntry(day, "SYN02", "Other shop", "SERVICE_CASH", 30m, IsServiceMoneyShop: false),
+        };
+        var rows = ServiceMoneyCheck.Compare([new ServiceS004TenderAmount(day, "CASH", 100m)], manual);
+        var cash = Assert.Single(rows);
+        Assert.Equal((100m, 60m, 40m), (cash.S004Amount!.Value, cash.ManualAmount!.Value, cash.Difference!.Value));
+        Assert.Equal(["SYN01"], cash.ManualStores);
+        var apart = Assert.Single(ServiceMoneyCheck.Unmatched(manual));
+        Assert.Equal(("SYN02", 30m), (apart.StoreCode, apart.Amount));
+        Assert.Contains("FROM dbo.v_service_manual_money", SqlServerServiceReportQuery.MoneyCheckSql, StringComparison.Ordinal);
+        Assert.DoesNotContain("manual_operational_inputs", SqlServerServiceReportQuery.MoneyCheckSql, StringComparison.Ordinal);
     }
 
     [Theory]
