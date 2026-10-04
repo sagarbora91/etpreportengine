@@ -208,7 +208,8 @@ public sealed class RestoreDatabaseScriptTests
             $ast = [System.Management.Automation.Language.Parser]::ParseFile('{{script}}', [ref]$tokens, [ref]$errors)
             if (@($errors).Count -ne 0) { throw 'restore-etp-database.ps1 does not parse.' }
             $top = @($ast.EndBlock.Statements)
-            function Find-Top([string]$Pattern) { @($top | Where-Object { $_ -isnot [System.Management.Automation.Language.FunctionDefinitionAst] -and $_.Extent.Text -match $Pattern }) }
+            # The leading comma keeps a one-element result an array (StrictMode has no .Count on a scalar).
+            function Find-Top([string]$Pattern) { ,@($top | Where-Object { $_ -isnot [System.Management.Automation.Language.FunctionDefinitionAst] -and $_.Extent.Text -match $Pattern }) }
             $receiptBlock = Find-Top '^if \(-not \[string\]::IsNullOrWhiteSpace\(\$ReceiptPath\)\)'
             $header = Find-Top '^\$header = ConvertFrom-EtpRestoreHeader -Database \$Database '
             $match = Find-Top '^Assert-EtpRestoreReceiptMatchesHeader -ReceiptDatabase \$receiptDatabase -HeaderDatabase \$header\.DatabaseName$'
