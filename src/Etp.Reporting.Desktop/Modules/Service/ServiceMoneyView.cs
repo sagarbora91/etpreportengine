@@ -6,13 +6,15 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using ServiceMoneyDay = EtpApplication::Etp.Reporting.Application.Service.ServiceMoneyDay;
 using ServiceReportQuery = EtpApplication::Etp.Reporting.Application.Service.IServiceReportQuery;
+using ServiceUnmatchedMoneyEntry = EtpApplication::Etp.Reporting.Application.Service.ServiceUnmatchedMoneyEntry;
 
 namespace Etp.Reporting.Desktop.Modules.Service;
 
 /// <summary>
 /// Service money check: the Service centre's S004 tender collection per date and tender beside the
-/// manual Service cash, card and UPI entries, which stay the cash-book source. Below it, the dates
-/// whose money total changed since the previous refresh (information, never an approval item).
+/// manual Service cash, card and UPI entries of the Service-money shop, which stay the cash-book source
+/// (decision 16). Below it, the Service entries made at other shops (listed, never added in), then the
+/// dates whose money total changed since the previous refresh (information, never an approval item).
 /// </summary>
 public sealed class ServiceMoneyView : ServiceScreenView
 {
@@ -20,6 +22,10 @@ public sealed class ServiceMoneyView : ServiceScreenView
     private readonly DatePicker toDate = new() { MinHeight = 44, MinWidth = 140 };
     private readonly TextBlock manualSources = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) };
     private readonly TextBlock changesStatus = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 4) };
+    private readonly TextBlock unmatchedStatus = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 4) };
+
+    /// <summary>The title of the grid of Service entries made at other shops.</summary>
+    public const string UnmatchedTitle = "Service entries at other shops (not added)";
 
     public ServiceMoneyView(Func<ServiceReportQuery> query, ServiceExcelExport export)
         : base("Service money check",
@@ -45,6 +51,19 @@ public sealed class ServiceMoneyView : ServiceScreenView
         ]);
 
         Footer.Children.Add(manualSources);
+        Footer.Children.Add(new TextBlock { Text = UnmatchedTitle, FontSize = 15, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 10, 0, 0) });
+        Footer.Children.Add(unmatchedStatus);
+        string[] unmatchedHeaders = ["Date", "Shop", "Field", "Amount", "Note"];
+        for (var index = 0; index < unmatchedHeaders.Length; index++)
+            Unmatched.Columns.Add(new DataGridTextColumn
+            {
+                Header = unmatchedHeaders[index],
+                Binding = new Binding($"Cells[{index}]") { StringFormat = index == 0 ? "dd MMM yyyy" : index == 3 ? "N2" : null },
+                Width = index == 4 ? 320 : 130
+            });
+        TablePresentation.Configure(Unmatched);
+        AutomationProperties.SetName(Unmatched, UnmatchedTitle);
+        Footer.Children.Add(Unmatched);
         Footer.Children.Add(new TextBlock { Text = "Money changed since the previous refresh", FontSize = 15, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 10, 0, 0) });
         Footer.Children.Add(new TextBlock { Text = "A date is listed when a newer Service file gives it a different total. It is information for checking, not an error.", TextWrapping = TextWrapping.Wrap });
         Footer.Children.Add(changesStatus);
@@ -63,6 +82,9 @@ public sealed class ServiceMoneyView : ServiceScreenView
 
     public DataGrid Changes { get; } = new() { AutoGenerateColumns = false, IsReadOnly = true, MaxHeight = 220 };
     public IReadOnlyList<ServiceGridRow> ChangeRows { get; private set; } = [];
+    public DataGrid Unmatched { get; } = new() { AutoGenerateColumns = false, IsReadOnly = true, MaxHeight = 180 };
+    public IReadOnlyList<ServiceGridRow> UnmatchedRows { get; private set; } = [];
+    public string UnmatchedStatusText => unmatchedStatus.Text;
     public string ManualSourcesText => manualSources.Text;
     public string ChangesStatusText => changesStatus.Text;
 
@@ -84,7 +106,9 @@ public sealed class ServiceMoneyView : ServiceScreenView
     protected override async Task<IReadOnlyList<ServiceGridRow>> LoadRowsAsync(ServiceReportQuery source)
     {
         var days = await source.LoadMoneyCheckAsync(From, To);
+        var unmatched = await source.LoadUnmatchedServiceEntriesAsync(From, To);
         manualSources.Text = DescribeManualSources(days);
+        ShowUnmatched(unmatched);
         return days.OrderBy(day => day.BusinessDate).ThenBy(day => day.Tender, StringComparer.OrdinalIgnoreCase)
             .Select(day => new ServiceGridRow(day,
             [
@@ -112,15 +136,27 @@ public sealed class ServiceMoneyView : ServiceScreenView
     protected override void ClearExtras()
     {
         ChangeRows = []; Changes.ItemsSource = null; changesStatus.Text = ""; manualSources.Text = "";
+        UnmatchedRows = []; Unmatched.ItemsSource = null; unmatchedStatus.Text = "";
     }
 
-    /// <summary>Which shops' manual Service entries were summed (design question Q2: all shops until Sagar decides).</summary>
+    private void ShowUnmatched(IReadOnlyList<ServiceUnmatchedMoneyEntry> entries)
+    {
+        UnmatchedRows = entries.OrderBy(entry => entry.BusinessDate).ThenBy(entry => entry.StoreCode, StringComparer.OrdinalIgnoreCase)
+            .Select(entry => new ServiceGridRow(entry, [entry.BusinessDate, entry.StoreCode, entry.FieldCode, entry.Amount, entry.Note])).ToArray();
+        Unmatched.ItemsSource = UnmatchedRows;
+        unmatchedStatus.Text = UnmatchedRows.Count == 0
+            ? "No Service entries at other shops in this range."
+            : $"{UnmatchedRows.Count:N0} Service entr{(UnmatchedRows.Count == 1 ? "y" : "ies")} at other shops. They are shown for checking and are not added to the money check.";
+    }
+
+    /// <summary>Whose manual Service entries were compared (decision 16, Q1 and Q3).</summary>
     public static string DescribeManualSources(IReadOnlyList<ServiceMoneyDay> days)
     {
         var stores = Joined(days.SelectMany(day => day.ManualStores ?? []).Order(StringComparer.OrdinalIgnoreCase));
+        const string rule = "Only the Titan World shop's Service cash, card and UPI entries are compared (decision 16); Service WDC is not compared.";
         return stores.Length == 0
-            ? "Manual entries from: none in this range."
-            : $"Manual entries from: {stores}. Every shop's manual Service entries are summed until the Owner names the Service centre's shop.";
+            ? $"Manual entries from: none in this range. {rule}"
+            : $"Manual entries from: {stores}. {rule}";
     }
 
     protected override string EmptyRowsText => "No Service money in this date range.";

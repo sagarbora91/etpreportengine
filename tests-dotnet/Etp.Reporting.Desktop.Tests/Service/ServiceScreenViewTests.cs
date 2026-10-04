@@ -228,8 +228,18 @@ public sealed class ServiceScreenViewTests
             Assert.Contains("Difference", view.ColumnHeaders);
             var cash = view.Rows.Single(row => (string?)row.Cells[1] == "CASH" && (DateOnly?)row.Cells[0] == new DateOnly(2026, 9, 27));
             Assert.Equal(-150m, cash.Cells[4]);
-            Assert.Equal("HEMW, WLMHW", cash.Cells[5]);
-            Assert.StartsWith("Manual entries from: HEMW, WLMHW.", view.ManualSourcesText, StringComparison.Ordinal);
+            Assert.Equal("WLMHW", cash.Cells[5]);
+            Assert.Equal("Manual entries from: WLMHW. Only the Titan World shop's Service cash, card and UPI entries are compared (decision 16); Service WDC is not compared.",
+                view.ManualSourcesText);
+            // Decision 16: another shop's Service entry is listed in its own grid and never reaches a money-check row.
+            Assert.Equal((new DateOnly(2026, 9, 26), new DateOnly(2026, 9, 28)), query.LastUnmatchedRange);
+            var apart = Assert.Single(view.UnmatchedRows);
+            Assert.Equal([new DateOnly(2026, 9, 27), "HEMW", "SERVICE_CASH", 150m, "Service entry at Helios: not matched to AW330."], apart.Cells);
+            Assert.Same(view.UnmatchedRows, view.Unmatched.ItemsSource);
+            Assert.All(view.Rows, row => Assert.DoesNotContain("HEMW", (string?)row.Cells[5] ?? "", StringComparison.Ordinal));
+            Assert.Contains(Descendants<TextBlock>(view), block => block.Text == ServiceMoneyView.UnmatchedTitle);
+            Assert.Equal("Service entries at other shops (not added)", ServiceMoneyView.UnmatchedTitle);
+            Assert.StartsWith("1 Service entry at other shops.", view.UnmatchedStatusText, StringComparison.Ordinal);
             var change = Assert.Single(view.ChangeRows);
             Assert.Equal(new DateOnly(2026, 9, 27), change.Cells[0]);
             Assert.Equal(250m, change.Cells[6]);
@@ -307,7 +317,7 @@ public sealed class ServiceScreenViewTests
     [Fact]
     public void No_contract_record_carries_a_phone_email_or_address_field()
     {
-        var types = new[] { typeof(ServiceRefresh), typeof(ServiceJobRow), typeof(ServicePendingRow), typeof(ServiceJobEvent), typeof(ServiceMoneyDay), typeof(ServiceMoneyChange) };
+        var types = new[] { typeof(ServiceRefresh), typeof(ServiceJobRow), typeof(ServicePendingRow), typeof(ServiceJobEvent), typeof(ServiceMoneyDay), typeof(ServiceMoneyChange), typeof(ServiceUnmatchedMoneyEntry) };
         Assert.All(types.SelectMany(type => type.GetProperties()), property =>
             Assert.DoesNotContain(ForbiddenHeaderWords, word => property.Name.Contains(word.Replace("-", ""), StringComparison.OrdinalIgnoreCase)));
     }
@@ -376,6 +386,7 @@ public sealed class ServiceScreenViewTests
         public string? LastPendingList { get; private set; }
         public string? LastJob { get; private set; }
         public (DateOnly From, DateOnly To)? LastMoneyRange { get; private set; }
+        public (DateOnly From, DateOnly To)? LastUnmatchedRange { get; private set; }
         public int BodyCalls { get; private set; }
 
         public Task<IReadOnlyList<ServiceRefresh>> LoadRefreshesAsync(CancellationToken cancellationToken = default) =>
@@ -424,9 +435,16 @@ public sealed class ServiceScreenViewTests
             IReadOnlyList<ServiceMoneyDay> rows =
             [
                 new(new(2026, 9, 27), "UPI", 300m, 300m, 0m, ["WLMHW"]),
-                new(new(2026, 9, 27), "CASH", 850m, 1000m, -150m, ["WLMHW", "HEMW"]),
+                new(new(2026, 9, 27), "CASH", 850m, 1000m, -150m, ["WLMHW"]),
                 new(new(2026, 9, 26), "CARD", 400m, null, 400m, [])
             ];
+            return Task.FromResult(rows);
+        }
+
+        public Task<IReadOnlyList<ServiceUnmatchedMoneyEntry>> LoadUnmatchedServiceEntriesAsync(DateOnly from, DateOnly to, CancellationToken cancellationToken = default)
+        {
+            LastUnmatchedRange = (from, to);
+            IReadOnlyList<ServiceUnmatchedMoneyEntry> rows = [new(new(2026, 9, 27), "HEMW", "SERVICE_CASH", 150m, "Service entry at Helios: not matched to AW330.")];
             return Task.FromResult(rows);
         }
 
