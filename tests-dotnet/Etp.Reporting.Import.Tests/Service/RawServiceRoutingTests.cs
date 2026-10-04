@@ -59,12 +59,13 @@ public sealed class RawServiceRoutingTests
     }
 
     [Fact]
-    public async Task The_new_GPRC_claim_layout_is_an_unknown_layout_not_a_failure()
+    public async Task The_GPRC_claim_export_is_recognised_as_S041()
     {
+        // Lane L10 (decision 16): GPRC CLAIM is its own family, S041; the fixture carries its 34 real headers.
         var inspection = await Inspect("GPRC CLAIM 06.10.2026 TO 09.10.2026.xlsx");
 
-        Assert.Null(inspection.MatchedProfile);
-        Assert.Contains(inspection.Diagnostics, diagnostic => diagnostic.Code == "LAYOUT_UNKNOWN");
+        Assert.Equal("S041", inspection.MatchedProfile?.ReportCode);
+        Assert.DoesNotContain(inspection.Diagnostics, diagnostic => diagnostic.Code == "LAYOUT_UNKNOWN");
     }
 
     [Fact]

@@ -19,7 +19,7 @@ Output (byte-stable; re-running over an unchanged spec rewrites the same bytes):
     TENDER COLLECTIN SUMMARY 06.10.2026 TO 09.10.2026.csv        S005 -> Not needed
     TECHNICIAN PRODUCIVITY REPORT 06.10.2026 TO 09.10.2026.xlsx  S028 raw header -> Not needed (deferred)
     EMPOWERMENT REPORT 06.10.2026 TO 09.10.2026.xlsx             S022 header on row 12, under 11 title rows
-    GPRC CLAIM 06.10.2026 TO 09.10.2026.xlsx                     new claims layout -> Unknown layout
+    GPRC CLAIM 06.10.2026 TO 09.10.2026.xlsx                     S041 GPRC CLAIM (lane L10, decision 16)
 
 Synthetic vocabulary (L0's rules): jobs JOAW330SYN01nn, bills BIAW330SYN00nn, phones 9XXXXXX000,
 e-mails @example.invalid, names "Sample Customer NN". Spellings in the file names are ETP's own.

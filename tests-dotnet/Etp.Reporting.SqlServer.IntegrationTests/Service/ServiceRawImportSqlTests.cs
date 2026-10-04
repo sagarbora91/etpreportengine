@@ -17,13 +17,11 @@ public sealed class ServiceRawImportSqlTests
         "JOB REPORT 06.10.2026 TO 09.10.2026.csv", "TENDER COLLECTION 05.10.2026 TO 09.10.2026.csv",
         "PENDING REPORT 09.10.2026.csv", "PENDING DELIVERY 09.10.2026.csv", "R R DELIVERD 06.10.2026 TO 09.10.2026.csv",
         "R R PENDING DELIVERY 06.10.2026 TO 09.10.2026.csv", "RENVENUE REPORT 06.10.2026 TO 09.10.2026.csv",
-        "EMPOWERMENT REPORT 06.10.2026 TO 09.10.2026.xlsx"
+        "EMPOWERMENT REPORT 06.10.2026 TO 09.10.2026.xlsx", "GPRC CLAIM 06.10.2026 TO 09.10.2026.xlsx"
     ];
 
     private static readonly string[] RawNotNeeded =
         ["TENDER COLLECTIN SUMMARY 06.10.2026 TO 09.10.2026.csv", "TECHNICIAN PRODUCIVITY REPORT 06.10.2026 TO 09.10.2026.xlsx"];
-
-    private const string RawUnknown = "GPRC CLAIM 06.10.2026 TO 09.10.2026.xlsx";
 
     private static string Fixtures(params string[] parts)
     {
@@ -69,7 +67,6 @@ public sealed class ServiceRawImportSqlTests
             }
             foreach (var name in RawNotNeeded)
                 Assert.Equal("Not needed", Assert.Single(raw.Files, file => file.FileName == name).Status);
-            Assert.Equal("Unknown layout", Assert.Single(raw.Files, file => file.FileName == RawUnknown).Status);
 
             // Each raw file is one more reading, dated by its window end; nothing older is superseded.
             Assert.Equal((decimal)RawImported.Length, await Scalar(database,
