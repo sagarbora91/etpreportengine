@@ -23,19 +23,20 @@ public sealed class TaskNavigationTests
         "register-transfer", "register-vendor", "register-courier"
     ];
 
-    // 48 fixed tasks (11 for every role, 15 that need the import role, 22 Owner-only),
+    // 52 fixed tasks (15 for every role, 15 that need the import role, 22 Owner-only),
     // 22 catalogue reports and 21 Help topics. 89/69/54 on 26 Sep; Phase 7 added
-    // "tally-companies" and the 1.9.3 evidence fixes "keep-evidence" for the Owner.
+    // "tally-companies" and the 1.9.3 evidence fixes "keep-evidence" for the Owner;
+    // the Service interim (decision 15) added four Service centre screens for every role.
     [Theory]
-    [InlineData("OWNER", 91)]
-    [InlineData("STORE_MANAGER", 69)]
-    [InlineData("VIEWER", 54)]
+    [InlineData("OWNER", 95)]
+    [InlineData("STORE_MANAGER", 73)]
+    [InlineData("VIEWER", 58)]
     public void Each_role_reaches_exactly_its_written_out_destinations(string role, int expectedCount)
     {
         var access = role switch { "OWNER" => ShellAccess.Owner, "STORE_MANAGER" => ShellAccess.StoreManager, _ => ShellAccess.Viewer };
         Assert.Equal(22, TaskNavigation.All.Count(task => task.ReportCode is not null));
         Assert.Equal(21, TaskNavigation.All.Count(task => task.Id.StartsWith("help:", StringComparison.Ordinal)));
-        Assert.Equal(48, TaskNavigation.All.Count(task => task.ReportCode is null && !task.Id.StartsWith("help:", StringComparison.Ordinal)));
+        Assert.Equal(52, TaskNavigation.All.Count(task => task.ReportCode is null && !task.Id.StartsWith("help:", StringComparison.Ordinal)));
         string[] excluded = role switch { "OWNER" => [], "STORE_MANAGER" => OwnerOnlyTasks, _ => OwnerOnlyTasks.Concat(ImportRoleTasks).ToArray() };
         Assert.All(OwnerOnlyTasks.Concat(ImportRoleTasks), id => Assert.NotNull(TaskNavigation.Find(id)));
         var expected = TaskNavigation.All.Select(task => task.Id).Except(excluded).Order().ToArray();

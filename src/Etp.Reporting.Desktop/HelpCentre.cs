@@ -50,7 +50,7 @@ public static class HelpCentreRegistry
     {
         "getting-started" or "dashboard" or "keyboard-shortcuts" => "Getting Started",
         "business-day" or "import-etp" or "import-history" or "digital-registers" => "Daily Work",
-        "daily-sales-report" or "sales-reports" or "stock-reports" or "tender-cash-service" or "staff-cro" or "management" => "Reports",
+        "daily-sales-report" or "sales-reports" or "stock-reports" or "tender-cash-service" or "service-centre" or "staff-cro" or "management" => "Reports",
         "exception-centre" or "investigation" or "accounting" or "report-archive" => "Review & Records",
         _ => "Settings & Support"
     };
@@ -84,6 +84,9 @@ public static class HelpCentreRegistry
         Topic("tender-cash-service", "Tender, Cash & Service", "Review reconciliation, diagnostics and service results.", "IconAccounting", 80,
             Guide("Open the tender, cash or service report for one store and business date.", "Compare R022 invoice/tender controls with the displayed diagnostic and review manual service or cash inputs separately.", "Investigate unknown tender codes and variances; never force a diagnostic difference to zero or approve an unmapped code.", "Correct the authoritative source or approved manual entry, refresh, and retain unresolved findings in the exported result."),
             ["tender", "cash", "service", "upi", "card", "reconciliation"], "Sales Reports", "tender"),
+        Topic("service-centre", "Service Centre", "Read the Service Centre job lists, job history and money check.", "IconReports", 85,
+            Guide("Open Reports → Service centre. The screens show Service Centre AW330 only, so the header store picker does not apply; the line under the title says how old the Service data is.", "Service jobs by status shows each job's current list; Service pending lists shows Pending repair, Pending delivery and SRN status, oldest first.", "Service job history shows every list a job was in. A job leaving a list is normal history, not a problem: it left on or before the date shown, and Still on the list means the latest reading holds it.", "Service money check compares the S004 tender collection with the manual Service cash, card and UPI entries, which stay the cash-book figures. Import newer Service files on Import → Import folder, then Refresh; Export to Excel writes the visible columns."),
+            ["service", "service centre", "job", "job history", "pending repair", "pending delivery", "srn", "left the list", "aw330"], "Service Centre"),
         Topic("staff-cro", "Staff / CRO", "Review performance, targets and attribution exceptions.", "IconUser", 90,
             Guide("Open the Staff / CRO report and choose the date range and store.", "Review net sales, net quantity and unique invoices attributed to each CRO.", "ATV is CRO net sales divided by CRO unique invoices; AUPT is CRO net quantity divided by CRO unique invoices. Missing or zero denominators remain unavailable.", "Owner-maintained targets appear with the report. Inspect unassigned transactions before exporting."),
             ["staff", "cro", "target", "ranking", "unassigned", "performance"], "Sales Reports", "staff"),
@@ -199,7 +202,7 @@ public static class HelpCentreRegistry
         "getting-started" or "dashboard" or "business-day" or "daily-sales-report" or "tender-cash-service" => "Today",
         "import-etp" or "import-history" => "Import",
         "stock-reports" or "digital-registers" => "Stock",
-        "sales-reports" or "staff-cro" or "exception-centre" or "investigation" or "management" or "report-archive" => "Reports",
+        "sales-reports" or "service-centre" or "staff-cro" or "exception-centre" or "investigation" or "management" or "report-archive" => "Reports",
         _ => "Settings"
     };
 
@@ -224,6 +227,7 @@ public static class ContextHelpRouter
         ["Import History"] = "import-history",
         ["Sales Reports"] = "sales-reports",
         ["Report Archive"] = "report-archive",
+        ["Service Centre"] = "service-centre",
         ["Registers"] = "digital-registers",
         ["Accounting"] = "accounting",
         ["Operations Center"] = "exception-centre",

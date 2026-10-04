@@ -22,7 +22,7 @@ public sealed class HelpCentreTests
         foreach (var expected in new[]
         {
             "getting-started", "dashboard", "business-day", "import-etp", "daily-sales-report",
-            "sales-reports", "stock-reports", "tender-cash-service", "staff-cro", "exception-centre",
+            "sales-reports", "stock-reports", "tender-cash-service", "service-centre", "staff-cro", "exception-centre",
             "management", "investigation", "digital-registers", "accounting", "operations-support", "administration", "report-archive", "backup-recovery",
             "troubleshooting", "keyboard-shortcuts"
         }) Assert.Contains(expected, ids);
@@ -95,6 +95,7 @@ public sealed class HelpCentreTests
     [InlineData("Manual Entry", null, "business-day")]
     [InlineData("Import ETP", null, "import-etp")]
     [InlineData("Import History", null, "import-history")]
+    [InlineData("Service Centre", null, "service-centre")]
     [InlineData("Admin / Settings", null, "administration")]
     [InlineData("Unknown", null, HelpCentreRegistry.HomeTopicId)]
     public void Context_help_routes_to_the_most_specific_available_topic(string destination, string? featureCode, string expected)
