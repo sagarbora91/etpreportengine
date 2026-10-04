@@ -168,10 +168,12 @@ public sealed class Phase2OperationsRepository(string connectionString)
         // The MERGE never names business_unit_id, so a save keeps a store's unit (AW330 stays
         // SERVICE). Activating a SERVICE-unit store is refused by the 0048 trigger (51900); the
         // statement is one batch, so nothing was written, and the Owner gets a plain message.
+        // 51904 (a move out of the SERVICE unit) cannot come from this MERGE today; it is mapped
+        // defensively in case the statement ever names business_unit_id.
         try { await command.ExecuteNonQueryAsync(cancellationToken); }
-        catch (SqlException exception) when (ServiceCentreStores.IsActivationRefusal(exception))
+        catch (SqlException exception) when (ServiceCentreStores.DescribeRefusal(exception) is { } refusal)
         {
-            throw new InvalidOperationException(ServiceCentreStores.ActivationRefusedMessage, exception);
+            throw new InvalidOperationException(refusal, exception);
         }
     }
 

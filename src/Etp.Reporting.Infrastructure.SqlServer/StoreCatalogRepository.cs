@@ -3,7 +3,7 @@ using Microsoft.Data.SqlClient;
 namespace Etp.Reporting.Infrastructure.SqlServer;
 
 /// <summary>
-/// A store row. <paramref name="BusinessUnitCode"/> is NULL for every Retail shop (WLMHW, HEMW and
+/// A store row. <paramref name="BusinessUnitCode"/> is NULL for every Retail shop (the two seeded shops and
 /// any shop the Owner adds); the Service Centre store AW330 belongs to the SERVICE unit (0048).
 /// </summary>
 public sealed record StoreCatalogEntry(string Code, string Name, bool IsActive, string? BusinessUnitCode = null)
@@ -15,18 +15,22 @@ public sealed record StoreCatalogEntry(string Code, string Name, bool IsActive, 
 /// <summary>
 /// Service interim (decision 15, 3 Oct 2026). Migration 0048 section A seeds AW330 inactive under
 /// the SERVICE business unit, and trigger trg_stores_service_unit_inactive refuses making any
-/// SERVICE-unit store active (SQL error 51900). An active Service store would break the combined
+/// SERVICE-unit store active (SQL error 51900) or moving it out of the SERVICE unit, which would make
+/// it a Retail shop store (SQL error 51904). An active Service store would break the combined
 /// pack date, the combined pack and the DSR/evening store lists, which all read is_active = 1.
 /// </summary>
 public static class ServiceCentreStores
 {
     public const string ServiceBusinessUnitCode = "SERVICE";
     public const int ActivationRefusedSqlError = 51900;
+    public const int UnitMoveRefusedSqlError = 51904;
     public const string KindLabel = "Service, not a shop store";
     public const string ActiveToggleLockedToolTip =
         "This is the Service Centre store. It is not a shop store, so it stays inactive.";
     public const string ActivationRefusedMessage =
         "A Service Centre store is not a shop store and cannot be made active. Nothing was changed.";
+    public const string UnitMoveRefusedMessage =
+        "A Service Centre store must stay in the Service Centre business unit and cannot become a shop store. Nothing was changed.";
 
     public static bool IsServiceUnit(string? businessUnitCode) =>
         string.Equals(businessUnitCode?.Trim(), ServiceBusinessUnitCode, StringComparison.OrdinalIgnoreCase);
@@ -35,12 +39,23 @@ public static class ServiceCentreStores
     public static string Label(string code) => $"Service Centre ({code})";
 
     /// <summary>True when the SQL failure is the 0048 trigger refusing to activate a Service store.</summary>
-    public static bool IsActivationRefusal(SqlException exception)
+    public static bool IsActivationRefusal(SqlException exception) => HasError(exception, ActivationRefusedSqlError);
+
+    /// <summary>True when the SQL failure is the 0048 trigger refusing to move a Service store out of the SERVICE unit.</summary>
+    public static bool IsUnitMoveRefusal(SqlException exception) => HasError(exception, UnitMoveRefusedSqlError);
+
+    /// <summary>The Owner-facing message for a 0048 trigger refusal (51900 or 51904), or null for any other failure.</summary>
+    public static string? DescribeRefusal(SqlException exception) =>
+        IsActivationRefusal(exception) ? ActivationRefusedMessage
+        : IsUnitMoveRefusal(exception) ? UnitMoveRefusedMessage
+        : null;
+
+    private static bool HasError(SqlException exception, int number)
     {
         ArgumentNullException.ThrowIfNull(exception);
         foreach (SqlError error in exception.Errors)
-            if (error.Number == ActivationRefusedSqlError) return true;
-        return exception.Number == ActivationRefusedSqlError;
+            if (error.Number == number) return true;
+        return exception.Number == number;
     }
 }
 

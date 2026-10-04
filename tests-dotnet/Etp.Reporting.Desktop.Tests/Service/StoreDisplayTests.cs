@@ -6,6 +6,7 @@ using Etp.Reporting.Application.OperationsAdministration;
 using Etp.Reporting.Desktop.Modules.Imports;
 using Etp.Reporting.Desktop.Modules.OperationsAdministration;
 using Etp.Reporting.Infrastructure.SqlServer;
+using Etp.Reporting.TestSupport;
 
 namespace Etp.Reporting.Desktop.Tests.Service;
 
@@ -120,6 +121,19 @@ public sealed class StoreDisplayTests
             Assert.False(await view.SaveMasterDraftAsync());
             Assert.Equal("Master value was not saved: " + ServiceCentreStores.ActivationRefusedMessage, view.StatusText);
         });
+    }
+
+    // Lane L0 added 51904 to trg_stores_service_unit_inactive: a Service store moved out of the
+    // SERVICE unit. Both trigger refusals reach the Owner as plain words, not the generic text.
+    [Theory]
+    [InlineData(51900, "A Service Centre store cannot be made an active shop store.", ServiceCentreStores.ActivationRefusedMessage)]
+    [InlineData(51904, "A Service Centre store cannot be moved out of the Service Centre business unit.", ServiceCentreStores.UnitMoveRefusedMessage)]
+    public void Service_store_trigger_refusals_are_described_in_plain_words(int number, string sqlMessage, string expected)
+    {
+        var exception = SqlExceptionFactory.Create(new SqlExceptionFactory.Error(number, sqlMessage, Procedure: "trg_stores_service_unit_inactive", Line: 9));
+
+        Assert.Equal(expected, DesktopFriendlyError.Describe(exception));
+        Assert.Equal(expected, ServiceCentreStores.DescribeRefusal(exception));
     }
 
     [Fact]
