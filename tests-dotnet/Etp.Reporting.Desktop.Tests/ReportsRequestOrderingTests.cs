@@ -72,12 +72,12 @@ public sealed class ReportsRequestOrderingTests
             var query = new DeferredTrendQuery();
             var previews = new List<ReportPresentationSnapshot>();
             var view = CreateView(query, previews);
-            query.Completion.SetResult([new(new(2026, 9, 9), "WLMHW", 500m, 2m, 1, 2m, 0), new(new(2026, 9, 10), "WLMHW", 999m, 1m, 1, 3m, 0)]);
+            query.Completion.SetResult([new(new(2026, 9, 9), "WLMHW", 500m, 2m, 1, 0, 2m, 0), new(new(2026, 9, 10), "WLMHW", 999m, 1m, 1, 0, 3m, 0)]);
             await view.RunReportAsync("management-trend");
 
             var data = Assert.Single(previews).ExportData!;
-            Assert.Equal(5m, data.Totals![5]);
-            Assert.Equal("", data.Totals[6]);
+            Assert.Equal(5m, data.Totals![6]);
+            Assert.Equal("", data.Totals[7]);
             Assert.DoesNotContain("R022 missing", ((TextBlock)view.FindName("ReportResult")).Text);
         });
     }
@@ -94,7 +94,7 @@ public sealed class ReportsRequestOrderingTests
             Assert.True(((Button)view.FindName("ExportExcelButton")).IsEnabled);
             var older = view.RunReportAsync("management-trend");
             view.SetBusinessDate(new(2026, 9, 9));
-            query.Completion.SetResult([new(new(2026, 9, 10), "WLMHW", 999m, 1m, 1, 0m, 0)]);
+            query.Completion.SetResult([new(new(2026, 9, 10), "WLMHW", 999m, 1m, 1, 0, 0m, 0)]);
             await older;
             Assert.Single(previews);
             Assert.False(((Button)view.FindName("ExportExcelButton")).IsEnabled);
