@@ -157,7 +157,7 @@ public sealed class SqlServerOperationsAdministrationService : App.IOperationsAd
         new(row.InboundPath, row.ProcessedPath, row.FailedPath, row.ReportOutputPath,
             row.IsEnabled, row.ModifiedUtc, row.ModifiedBy);
     private static App.ManagementTrendPoint Map(ManagementTrendRow row) =>
-        new(row.BusinessDate, row.StoreCode, row.NetSales, row.Units, row.Invoices,
+        new(row.BusinessDate, row.StoreCode, row.NetSales, row.Units, row.Invoices, row.Returns,
             row.TenderVariance, row.UnmatchedEnrichmentRows);
     private static App.DataQualityFinding Map(DataQualitySummaryRow row) =>
         new(row.Severity, row.Area, row.Code, row.Count, row.LatestUtc, row.Message);

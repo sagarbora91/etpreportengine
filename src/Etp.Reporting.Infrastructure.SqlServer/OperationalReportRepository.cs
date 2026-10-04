@@ -49,7 +49,9 @@ public sealed record DsrManagementRow(
     decimal? WalkIns,
     decimal? ConversionPercent,
     string MetricPolicy,
-    int WalkInMissingDays = 0);
+    int WalkInMissingDays = 0,
+    decimal? TyGiftCards = null,
+    decimal? LyGiftCards = null);
 
 public sealed record StaffPerformanceRow(
     string StoreCode,
@@ -227,7 +229,12 @@ public sealed partial class OperationalReportRepository(string connectionString)
         const string sql = """
             SELECT i.transaction_date,i.store_code,i.document_number,
                    CASE WHEN COUNT(DISTINCT COALESCE(l.source_transaction_type,'UNMAPPED'))=1
-                        THEN MIN(COALESCE(l.source_transaction_type,'UNMAPPED')) ELSE 'MIXED' END,
+                        THEN MIN(COALESCE(l.source_transaction_type,'UNMAPPED'))
+                        -- A mixed document names its types (for example INV+BC for a cancelled bill), so Customer-wise
+                        -- can count it as an invoice and as a return (owner decision 13 Q6).
+                        ELSE CONCAT_WS('+',MAX(CASE WHEN UPPER(l.source_transaction_type)='INV' THEN 'INV' END),
+                          MAX(CASE WHEN UPPER(l.source_transaction_type)='SR' THEN 'SR' END),MAX(CASE WHEN UPPER(l.source_transaction_type)='BC' THEN 'BC' END),
+                          MAX(CASE WHEN UPPER(COALESCE(l.source_transaction_type,'')) NOT IN('INV','SR','BC') THEN 'UNMAPPED' END)) END,
                    COALESCE(SUM(l.source_quantity),0),COALESCE(SUM(l.source_gross_amount),0),COUNT_BIG(*),MAX(customer.customer_name)
             FROM dbo.sales_invoices i JOIN dbo.sales_lines l ON l.sales_invoice_id=i.sales_invoice_id
             OUTER APPLY (SELECT TOP(1) d.customer_name FROM dbo.etp_r024 d JOIN dbo.import_files f ON f.import_file_id=d.import_file_id
@@ -357,7 +364,7 @@ public sealed partial class OperationalReportRepository(string connectionString)
         var supplementary = await LoadDsrSupplementaryAsync(businessDate, cancellationToken);
         var document = DailySalesReportBuilder.Build(businessDate,
             dsr.Select(x => new DsrPeriodFact(x.Period, x.Store, x.TySales, x.LySales, x.TyUnits, x.LyUnits,
-                x.TyInvoices, x.LyInvoices, x.Upt, x.Atv, x.WalkIns, x.ConversionPercent)).ToArray(),
+                x.TyInvoices, x.LyInvoices, x.Upt, x.Atv, x.WalkIns, x.ConversionPercent, x.TyGiftCards, x.LyGiftCards)).ToArray(),
             service.Select(x => new DsrServiceFact(x.Period, x.StoreCode, x.Cash, x.Card, x.Upi, x.MissingDays==0?x.Total:null, x.LastYearMissingDays==0?x.LastYearTotal:null)).ToArray(),
             supplementary.Targets, supplementary.ServiceWdc, DsrMetricPolicy,
             (await new StoreCatalogRepository(connectionString).LoadAsync(cancellationToken)).Where(x=>x.IsActive)
@@ -660,27 +667,36 @@ public sealed partial class OperationalReportRepository(string connectionString)
         return result;
     }
 
+    /// <summary>
+    /// DSR VALUE, VOL and INVOICE leave gift-card lines out (owner decision 13, A-Q2 confirmed 4 Oct): a gift-card
+    /// line adds 0 to value and units, and a document counts as an invoice only when it has a merchandise INV line.
+    /// Gift-card value is returned separately (columns 7 and 8) for the DSR GIFT CARD line. A period whose only
+    /// lines are gift cards still reads 0, not missing.
+    /// </summary>
+    internal static readonly string DsrFactsSql = $"""
+        SELECT i.store_code,
+          SUM(CASE WHEN i.transaction_date BETWEEN @currentFrom AND @currentTo THEN CASE WHEN {NonMerchandiseSql.SalesLine("l")} THEN 0 ELSE l.source_gross_amount END END),
+          SUM(CASE WHEN i.transaction_date BETWEEN @lastFrom AND @lastTo THEN CASE WHEN {NonMerchandiseSql.SalesLine("l")} THEN 0 ELSE l.source_gross_amount END END),
+          SUM(CASE WHEN i.transaction_date BETWEEN @currentFrom AND @currentTo THEN CASE WHEN {NonMerchandiseSql.SalesLine("l")} THEN 0 ELSE l.source_quantity END END),
+          SUM(CASE WHEN i.transaction_date BETWEEN @lastFrom AND @lastTo THEN CASE WHEN {NonMerchandiseSql.SalesLine("l")} THEN 0 ELSE l.source_quantity END END),
+          COUNT(DISTINCT CASE WHEN i.transaction_date BETWEEN @currentFrom AND @currentTo AND UPPER(l.source_transaction_type)='INV' AND NOT {NonMerchandiseSql.SalesLine("l")} THEN i.sales_invoice_id END),
+          COUNT(DISTINCT CASE WHEN i.transaction_date BETWEEN @lastFrom AND @lastTo AND UPPER(l.source_transaction_type)='INV' AND NOT {NonMerchandiseSql.SalesLine("l")} THEN i.sales_invoice_id END),
+          SUM(CASE WHEN i.transaction_date BETWEEN @currentFrom AND @currentTo AND {NonMerchandiseSql.SalesLine("l")} THEN l.source_gross_amount END),
+          SUM(CASE WHEN i.transaction_date BETWEEN @lastFrom AND @lastTo AND {NonMerchandiseSql.SalesLine("l")} THEN l.source_gross_amount END)
+        FROM dbo.sales_invoices i JOIN dbo.sales_lines l ON l.sales_invoice_id=i.sales_invoice_id
+        WHERE (i.transaction_date BETWEEN @currentFrom AND @currentTo OR i.transaction_date BETWEEN @lastFrom AND @lastTo)
+          AND i.store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores))
+          AND UPPER(COALESCE(l.source_transaction_type,'')) IN('INV','SR','BC')
+        GROUP BY i.store_code;
+        """;
+
     private static async Task<Dictionary<string, DsrFacts>> LoadDsrFactsAsync(
         SqlConnection connection,
         BusinessReportingPeriod period,
         IReadOnlyList<string> stores,
         CancellationToken token)
     {
-        const string sql = """
-            SELECT i.store_code,
-              SUM(CASE WHEN i.transaction_date BETWEEN @currentFrom AND @currentTo THEN l.source_gross_amount END),
-              SUM(CASE WHEN i.transaction_date BETWEEN @lastFrom AND @lastTo THEN l.source_gross_amount END),
-              SUM(CASE WHEN i.transaction_date BETWEEN @currentFrom AND @currentTo THEN l.source_quantity END),
-              SUM(CASE WHEN i.transaction_date BETWEEN @lastFrom AND @lastTo THEN l.source_quantity END),
-              COUNT(DISTINCT CASE WHEN i.transaction_date BETWEEN @currentFrom AND @currentTo AND UPPER(l.source_transaction_type)='INV' THEN i.sales_invoice_id END),
-              COUNT(DISTINCT CASE WHEN i.transaction_date BETWEEN @lastFrom AND @lastTo AND UPPER(l.source_transaction_type)='INV' THEN i.sales_invoice_id END)
-            FROM dbo.sales_invoices i JOIN dbo.sales_lines l ON l.sales_invoice_id=i.sales_invoice_id
-            WHERE (i.transaction_date BETWEEN @currentFrom AND @currentTo OR i.transaction_date BETWEEN @lastFrom AND @lastTo)
-              AND i.store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores))
-              AND UPPER(COALESCE(l.source_transaction_type,'')) IN('INV','SR','BC')
-            GROUP BY i.store_code;
-            """;
-        await using var command = new SqlCommand(sql, connection);
+        await using var command = new SqlCommand(DsrFactsSql, connection);
         command.Parameters.AddWithValue("@currentFrom", period.Current.Start);
         command.Parameters.AddWithValue("@currentTo", period.Current.End);
         command.Parameters.AddWithValue("@lastFrom", period.LastYear.Start);
@@ -691,7 +707,8 @@ public sealed partial class OperationalReportRepository(string connectionString)
         while (await reader.ReadAsync(token))
             result[reader.GetString(0)] = new(
                 NullableDecimal(reader, 1), NullableDecimal(reader, 2), NullableDecimal(reader, 3), NullableDecimal(reader, 4),
-                reader.IsDBNull(1) ? null : reader.GetInt32(5), reader.IsDBNull(2) ? null : reader.GetInt32(6));
+                reader.IsDBNull(1) ? null : reader.GetInt32(5), reader.IsDBNull(2) ? null : reader.GetInt32(6),
+                reader.IsDBNull(1) ? null : NullableDecimal(reader, 7) ?? 0m, reader.IsDBNull(2) ? null : NullableDecimal(reader, 8) ?? 0m);
         await reader.DisposeAsync();
         await using var coverage=new SqlCommand("SELECT store_code,COALESCE(period_start,business_date),COALESCE(period_end,business_date) FROM dbo.import_files WHERE report_code='R025' AND data_truth_version=1 AND is_superseded=0 AND store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores))",connection);
         coverage.Parameters.AddWithValue("@stores",JsonSerializer.Serialize(stores));
@@ -701,8 +718,8 @@ public sealed partial class OperationalReportRepository(string connectionString)
         {
             bool Covered(DateRange range)=>Enumerable.Range(0,range.InclusiveDayCount).All(offset=>ranges.Any(r=>r.Store==store&&range.Start.AddDays(offset)>=r.From&&range.Start.AddDays(offset)<=r.To));
             var fact=result.GetValueOrDefault(store)??new();
-            if(fact.TySales is null&&Covered(period.Current))fact=fact with{TySales=0,TyUnits=0,TyInvoices=0};
-            if(fact.LySales is null&&Covered(period.LastYear))fact=fact with{LySales=0,LyUnits=0,LyInvoices=0};
+            if(fact.TySales is null&&Covered(period.Current))fact=fact with{TySales=0,TyUnits=0,TyInvoices=0,TyGiftCards=0};
+            if(fact.LySales is null&&Covered(period.LastYear))fact=fact with{LySales=0,LyUnits=0,LyInvoices=0,LyGiftCards=0};
             result[store]=fact;
         }
         return result;
@@ -818,7 +835,7 @@ public sealed partial class OperationalReportRepository(string connectionString)
         var conversion = engine.Conversion(facts.TyInvoices, walkIns.MissingDays==0?walkIns.Value:null);
         return new(periodName, store, period.Current.Start, period.Current.End, facts.TySales, facts.LySales,
             growth.Value, growth.Availability.ToString(), facts.TyUnits, facts.LyUnits, facts.TyInvoices, facts.LyInvoices,
-            upt.Value, atv.Value, walkIns.Value, conversion.Value, DsrMetricPolicy, walkIns.MissingDays);
+            upt.Value, atv.Value, walkIns.Value, conversion.Value, DsrMetricPolicy, walkIns.MissingDays, facts.TyGiftCards, facts.LyGiftCards);
     }
 
     private static DsrFacts Combine(IEnumerable<DsrFacts> facts)
@@ -827,7 +844,8 @@ public sealed partial class OperationalReportRepository(string connectionString)
         decimal? Complete(IEnumerable<decimal?> items){var a=items.ToArray();return a.Length>0&&a.All(x=>x!=null)?a.Sum(x=>x!.Value):null;}
         return new(Complete(values.Select(x => x.TySales)), Complete(values.Select(x => x.LySales)),
             Complete(values.Select(x => x.TyUnits)), Complete(values.Select(x => x.LyUnits)),
-            values.Length>0&&values.All(x => x.TyInvoices is not null) ? values.Sum(x => x.TyInvoices!.Value) : null, values.Length>0&&values.All(x => x.LyInvoices is not null) ? values.Sum(x => x.LyInvoices!.Value) : null);
+            values.Length>0&&values.All(x => x.TyInvoices is not null) ? values.Sum(x => x.TyInvoices!.Value) : null, values.Length>0&&values.All(x => x.LyInvoices is not null) ? values.Sum(x => x.LyInvoices!.Value) : null,
+            Complete(values.Select(x => x.TyGiftCards)), Complete(values.Select(x => x.LyGiftCards)));
     }
 
     private static decimal? SumNullable(IEnumerable<decimal?> values)
@@ -857,7 +875,10 @@ public sealed partial class OperationalReportRepository(string connectionString)
 
     private static decimal? NullableDecimal(SqlDataReader reader, int ordinal) => reader.IsDBNull(ordinal) ? null : reader.GetDecimal(ordinal);
     private static decimal? Value(IReadOnlyDictionary<string, decimal?> values, string key) => values.GetValueOrDefault(key);
-    internal sealed record DsrFacts(decimal? TySales = null, decimal? LySales = null, decimal? TyUnits = null, decimal? LyUnits = null, int? TyInvoices = null, int? LyInvoices = null);
+    /// <summary>The DSR line for gift-card sales, kept out of VALUE, VOL and INVOICE (owner decision 13 Q2); a reserved brand-row label.</summary>
+    internal const string GiftCardRowLabel = "GIFT CARD";
+    internal const string GiftCardDsrNote = "Gift-card sales (GIFT CARD / BRAND GC); not in VALUE, VOL or INVOICE";
+    internal sealed record DsrFacts(decimal? TySales = null, decimal? LySales = null, decimal? TyUnits = null, decimal? LyUnits = null, int? TyInvoices = null, int? LyInvoices = null, decimal? TyGiftCards = null, decimal? LyGiftCards = null);
 
     /// <summary>Entered walk-ins for a period; <see cref="Value"/> is null when nothing was entered (missing is not zero).</summary>
     internal sealed record WalkInFacts(decimal? Value, int MissingDays)

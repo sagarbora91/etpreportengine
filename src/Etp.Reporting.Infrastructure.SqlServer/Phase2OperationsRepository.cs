@@ -23,7 +23,8 @@ public sealed record ReportPackSchedule(int Id, string Name, TimeOnly LocalRunTi
 public sealed record AutomationRunRow(long Id, string RunType, string? SourceFileName, string? StoreCode, DateOnly? BusinessDate, string Outcome, string SafeMessage, DateTime StartedUtc, DateTime CompletedUtc, string RunBy);
 public sealed record ArchivedReportGeneration(long Id, string StoreCode, DateOnly BusinessDate, int GenerationNumber, string ControlSha256, string? DocumentSha256, DateTime GeneratedUtc, string GeneratedBy, bool IsFinal, long? SupersedesGenerationId, bool CanReExport);
 public sealed record ReportGenerationComparisonRow(string Table, int FirstRows, int SecondRows, string FirstStatus, string SecondStatus, bool Changed);
-public sealed record ManagementTrendRow(DateOnly BusinessDate, string StoreCode, decimal NetSales, decimal Units, int Invoices, decimal? TenderVariance, int UnmatchedEnrichmentRows);
+/// <summary>A trend day. Invoices counts INV documents only and Returns SR or BC documents (owner decision 13 Q6).</summary>
+public sealed record ManagementTrendRow(DateOnly BusinessDate, string StoreCode, decimal NetSales, decimal Units, int Invoices, int Returns, decimal? TenderVariance, int UnmatchedEnrichmentRows);
 public sealed record DataQualitySummaryRow(string Severity, string Area, string Code, long Count, DateTime? LatestUtc, string Message);
 
 public sealed class Phase2OperationsRepository(string connectionString)
@@ -348,7 +349,9 @@ public sealed class Phase2OperationsRepository(string connectionString)
         var sql = $"""
             WITH sales AS
             (
-              SELECT i.transaction_date,i.store_code,SUM(l.source_gross_amount) net_sales,SUM(l.source_quantity) units,COUNT(DISTINCT i.sales_invoice_id) invoices
+              SELECT i.transaction_date,i.store_code,SUM(l.source_gross_amount) net_sales,SUM(l.source_quantity) units,
+                COUNT(DISTINCT CASE WHEN UPPER(l.source_transaction_type)='INV' THEN i.sales_invoice_id END) invoices,
+                COUNT(DISTINCT CASE WHEN UPPER(l.source_transaction_type) IN('SR','BC') THEN i.sales_invoice_id END) returns
               FROM dbo.sales_lines l JOIN dbo.sales_invoices i ON i.sales_invoice_id=l.sales_invoice_id
               JOIN dbo.source_lineage sl ON sl.source_lineage_id=l.source_lineage_id JOIN dbo.import_files f ON f.import_file_id=sl.import_file_id AND f.is_superseded=0
               WHERE i.transaction_date BETWEEN @from AND @to GROUP BY i.transaction_date,i.store_code
@@ -368,7 +371,7 @@ public sealed class Phase2OperationsRepository(string connectionString)
             (
               SELECT i.transaction_date,i.store_code,SUM(x.source_amount) tender
               FROM (
-            """ + SqlReportingQueries.R020TcTenders + """
+            """ + SqlReportingQueries.R020TcTenders("@from", "@to", "1=1") + """
               ) x JOIN dbo.sales_invoices i ON i.sales_invoice_id=x.sales_invoice_id
               WHERE i.transaction_date BETWEEN @from AND @to GROUP BY i.transaction_date,i.store_code
             ), unmatched AS
@@ -376,7 +379,7 @@ public sealed class Phase2OperationsRepository(string connectionString)
               SELECT transaction_date,store_code,COUNT_BIG(*) unmatched
               FROM {EnrichmentOccurrencePairing.EffectiveEnrichments} e WHERE transaction_date BETWEEN @from AND @to AND effective_match_status<>'Matched' GROUP BY transaction_date,store_code
             )
-            SELECT s.transaction_date,s.store_code,s.net_sales,s.units,s.invoices,
+            SELECT s.transaction_date,s.store_code,s.net_sales,s.units,s.invoices,s.returns,
                    CASE WHEN EXISTS(SELECT 1 FROM dbo.import_files f WHERE f.store_code=s.store_code AND f.report_code='R022'
                      AND f.is_superseded=0 AND f.data_truth_version=1
                      AND s.transaction_date BETWEEN COALESCE(f.period_start,f.business_date) AND COALESCE(f.period_end,f.business_date))
@@ -392,7 +395,7 @@ public sealed class Phase2OperationsRepository(string connectionString)
         await using var command = new SqlCommand(sql, connection); command.Parameters.AddWithValue("@from", from); command.Parameters.AddWithValue("@to", to);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         var rows = new List<ManagementTrendRow>();
-        while (await reader.ReadAsync(cancellationToken)) rows.Add(new(reader.GetFieldValue<DateOnly>(0), reader.GetString(1), reader.GetDecimal(2), reader.GetDecimal(3), reader.GetInt32(4), reader.IsDBNull(5) ? null : reader.GetDecimal(5), reader.GetInt32(6)));
+        while (await reader.ReadAsync(cancellationToken)) rows.Add(new(reader.GetFieldValue<DateOnly>(0), reader.GetString(1), reader.GetDecimal(2), reader.GetDecimal(3), reader.GetInt32(4), reader.GetInt32(5), reader.IsDBNull(6) ? null : reader.GetDecimal(6), reader.GetInt32(7)));
         return rows;
     }
 

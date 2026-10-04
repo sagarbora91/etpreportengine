@@ -28,7 +28,43 @@ public sealed class ReportingServicesTests
         Assert.Equal(expectedKey, row.Key);
         Assert.Equal(1m, row.SourceSignedQuantity);
         Assert.Equal(125m, row.SourceSignedNetAmount);
-        Assert.Equal(2, row.DistinctInvoices);
+        Assert.Equal(1, row.Invoices);
+        Assert.Equal(1, row.Returns);
+    }
+
+    // Owner decision 13 Q6: Invoices counts INV documents only (like the DSR) and Returns counts SR and BC documents.
+    [Fact]
+    public void Sales_summary_counts_invoices_and_returns_separately()
+    {
+        var lines = new[]
+        {
+            Line("INV-1", "1", ReportingTransactionType.Sale, 1m, 100m),
+            Line("INV-1", "2", ReportingTransactionType.Sale, 1m, 50m),
+            Line("INV-2", "1", ReportingTransactionType.Sale, 1m, 80m),
+            Line("SR-1", "1", ReportingTransactionType.Return, -1m, -100m),
+            Line("BC-1", "1", ReportingTransactionType.Return, -1m, -80m)
+        };
+
+        var row = Assert.Single(new SalesReportingService().Summarize(lines, SalesSummaryDimension.Store, SalesPolicy).Rows);
+
+        Assert.Equal(2, row.Invoices);
+        Assert.Equal(2, row.Returns);
+        Assert.Equal(50m, row.SourceSignedNetAmount);
+    }
+
+    [Fact]
+    public void A_cancelled_bill_is_one_invoice_and_one_return()
+    {
+        var lines = new[]
+        {
+            Line("INV-9", "1", ReportingTransactionType.Sale, 1m, 100m),
+            Line("INV-9", "2", ReportingTransactionType.Return, -1m, -100m)
+        };
+
+        var row = Assert.Single(new SalesReportingService().Summarize(lines, SalesSummaryDimension.Daily, SalesPolicy).Rows);
+
+        Assert.Equal(1, row.Invoices);
+        Assert.Equal(1, row.Returns);
     }
 
     [Fact]
@@ -42,6 +78,8 @@ public sealed class ReportingServicesTests
         var row = Assert.Single(result.Rows);
         Assert.Equal(-1m, row.SourceSignedQuantity);
         Assert.Equal(-75m, row.SourceSignedNetAmount);
+        Assert.Equal(0, row.Invoices);
+        Assert.Equal(1, row.Returns);
     }
 
     [Fact]

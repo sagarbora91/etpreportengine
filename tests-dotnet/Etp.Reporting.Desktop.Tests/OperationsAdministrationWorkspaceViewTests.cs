@@ -462,7 +462,7 @@ public sealed class OperationsAdministrationWorkspaceViewTests
             DashboardLoads++;
             return Task.FromResult(new OperationsDashboard(
                 new WatchFolderConfiguration("in", "done", "failed", "reports", true, DateTime.UtcNow, "owner"),
-                [new ManagementTrendPoint(new DateOnly(2026, 8, 27), "WLMHW", 100m, 2m, 1, 0m, 0)],
+                [new ManagementTrendPoint(new DateOnly(2026, 8, 27), "WLMHW", 100m, 2m, 1, 0, 0m, 0)],
                 [new DataQualityFinding("Warning", "Sales", "Q1", 1, null, "Review")],
                 [new DataQualityIssue(1, "Sales", "Warning", "WLMHW", new DateOnly(2026, 8, 27), "Passed", "OPEN", "Review", null, DateTime.UtcNow, null)],
                 [new ReportSchedule(1, "Morning", new TimeOnly(8, 0), true, true, true, null, null, null, null),

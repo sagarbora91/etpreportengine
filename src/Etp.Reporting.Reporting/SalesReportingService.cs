@@ -28,11 +28,17 @@ public sealed record ApprovedSalesReportingPolicy(
     }
 }
 
+/// <summary>
+/// One Sales Summary group. Owner decision 13 Q6: <see cref="Invoices"/> counts distinct documents with a sale (INV)
+/// line, as the Daily Sales Report does; <see cref="Returns"/> counts distinct documents with a return (SR) or bill
+/// cancellation (BC) line, so a cancelled bill (INV + BC) is 1 invoice and 1 return.
+/// </summary>
 public sealed record SalesSummaryRow(
     string Key,
     decimal SourceSignedQuantity,
     decimal SourceSignedNetAmount,
-    int DistinctInvoices);
+    int Invoices,
+    int Returns);
 
 public sealed record SalesSummaryResult(
     SalesSummaryDimension Dimension,
@@ -69,12 +75,17 @@ public sealed class SalesReportingService
                 group.Key,
                 group.Sum(x => x.SourceSignedQuantity),
                 group.Sum(x => x.SourceSignedNetAmount),
-                group.Select(x => $"{x.StoreCode}\u001f{x.InvoiceYear ?? (x.TransactionDate.Month >= 4 ? x.TransactionDate.Year + 1 : x.TransactionDate.Year)}\u001f{x.DocumentNumber}").Distinct(StringComparer.Ordinal).Count()))
+                DistinctDocuments(group.Where(x => x.TransactionType == ReportingTransactionType.Sale)),
+                DistinctDocuments(group.Where(x => x.TransactionType is ReportingTransactionType.Return or ReportingTransactionType.Cancellation))))
             .ToArray();
 
         return new(dimension, ReconciliationStatus.Passed, rows, policy.Version,
             "Aggregated source-signed values without sign transformation.");
     }
+
+    private static int DistinctDocuments(IEnumerable<SalesReportingLine> lines) =>
+        lines.Select(x => $"{x.StoreCode}\u001f{x.InvoiceYear ?? (x.TransactionDate.Month >= 4 ? x.TransactionDate.Year + 1 : x.TransactionDate.Year)}\u001f{x.DocumentNumber}")
+            .Distinct(StringComparer.Ordinal).Count();
 
     private static bool HasMissingRequiredDimension(SalesReportingLine line, SalesSummaryDimension dimension) =>
         string.IsNullOrWhiteSpace(line.StoreCode) || string.IsNullOrWhiteSpace(line.DocumentNumber) ||

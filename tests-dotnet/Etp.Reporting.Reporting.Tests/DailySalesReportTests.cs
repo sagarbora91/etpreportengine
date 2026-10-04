@@ -123,6 +123,36 @@ public sealed class DailySalesReportTests
         Assert.Equal(new DsrKpiCard("CONVERSION", "—", "Data not available"), cards[3]);
     }
 
+    // Owner decision 13 / A2: gift cards are shown on their own, never inside the combined FTD value.
+    [Fact]
+    public void Combined_gift_cards_are_carried_beside_the_ftd_value_not_inside_it()
+    {
+        var facts = SalesFacts().Select(x => x.Period == "FTD" && x.StoreCode == "COMBINED" ? x with { TyGiftCards = 2_000m, LyGiftCards = 0m } : x).ToArray();
+        var document = DailySalesReportBuilder.Build(new DateOnly(2026, 9, 28), facts, [],
+            new Dictionary<string, decimal?>(), stores: [new("WLMHW", "Titan World"), new("HEMW", "Helios")]);
+
+        Assert.Equal(145_970m, document.CombinedFtd);
+        Assert.Equal(2_000m, document.CombinedFtdGiftCards);
+    }
+
+    [Fact]
+    public void Evening_dsr_excel_rows_keep_the_gift_card_line_with_its_note()
+    {
+        var sheet = new EveningStoreSheet("HEMW", "Helios", null, null, null, null,
+        [
+            new("VALUE", 4_000m, 3_000m, 33.3m, 40_000m, 400_000m, 300_000m, "currency"),
+            new("Other / unmapped", 4_000m, 3_000m, 33.3m, 40_000m, 400_000m, 300_000m, "currency"),
+            new("GIFT CARD", 1_000m, 0m, null, 1_000m, 5_000m, 0m, "currency", "Gift-card sales (GIFT CARD / BRAND GC); not in VALUE, VOL or INVOICE")
+        ]);
+        var data = EveningReportTables.Dsr([sheet]);
+
+        var gift = data.Rows.Single(x => Equals(x[1], "GIFT CARD"));
+        Assert.Equal(1_000m, gift[2]);
+        Assert.Equal(5_000m, gift[6]);
+        Assert.Contains("not in VALUE", (string)gift[8]!);
+        Assert.Equal(4_000m, data.Rows.Single(x => Equals(x[1], "VALUE"))[2]);
+    }
+
     private static DailySalesReportDocument EmptyDocument(DateOnly date) => new(date, "Daily Sales Report (DSR)", "",
         null, new(null, MetricAvailability.MissingSource, ""), null, null, null,
         new(null, MetricAvailability.MissingSource, ""), null, new(null, MetricAvailability.MissingSource, ""), null,

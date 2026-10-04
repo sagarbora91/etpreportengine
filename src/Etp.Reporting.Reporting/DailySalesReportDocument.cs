@@ -4,7 +4,7 @@ namespace Etp.Reporting.Reporting;
 
 public sealed record DsrPeriodFact(string Period, string StoreCode, decimal? TySales, decimal? LySales,
     decimal? TyUnits, decimal? LyUnits, int? TyInvoices, int? LyInvoices, decimal? Upt, decimal? Atv,
-    decimal? WalkIns, decimal? ConversionPercent);
+    decimal? WalkIns, decimal? ConversionPercent, decimal? TyGiftCards = null, decimal? LyGiftCards = null);
 
 public sealed record DsrServiceFact(string Period, string StoreCode, decimal? Cash, decimal? Card,
     decimal? Upi, decimal? Total, decimal? LastYearTotal);
@@ -36,6 +36,8 @@ public sealed record DailySalesReportDocument(DateOnly BusinessDate, string Titl
     DsrServiceSummary Service, IReadOnlyList<DsrTargetProgress> Targets, string MetricPolicy)
 {
     public IReadOnlyList<EveningStoreSheet> EveningSheets { get; init; } = [];
+    /// <summary>Combined FTD gift-card sales, shown on their own line; never part of VALUE, VOL or INVOICE (owner decision 13).</summary>
+    public decimal? CombinedFtdGiftCards { get; init; }
     public string Weekday(CultureInfo? culture = null) => BusinessDate.ToString("dddd", culture ?? CultureInfo.GetCultureInfo("en-IN"));
 }
 
@@ -70,7 +72,8 @@ public static class DailySalesReportBuilder
             combinedFtd?.TySales, engine.Growth(combinedFtd?.TySales, combinedFtd?.LySales), combinedFtd?.TyUnits,
             combinedWalkIns, combinedFtd?.TyInvoices, conversion, combinedMtd?.TySales,
             Achievement(combinedMtd?.TySales, combinedTarget), combinedYtd?.TySales,
-            engine.Growth(combinedYtd?.TySales, combinedYtd?.LySales), storeCards, serviceSummary, targets, metricPolicy);
+            engine.Growth(combinedYtd?.TySales, combinedYtd?.LySales), storeCards, serviceSummary, targets, metricPolicy)
+        { CombinedFtdGiftCards = combinedFtd?.TyGiftCards };
     }
 
     public static CalculatedMetric Achievement(decimal? actual, decimal? target)

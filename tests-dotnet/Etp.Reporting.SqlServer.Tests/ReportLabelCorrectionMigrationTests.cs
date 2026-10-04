@@ -3,7 +3,8 @@ namespace Etp.Reporting.SqlServer.Tests;
 /// <summary>
 /// 1.9.4, migration 0046. Report audit of 3 October 2026 (HEMW FIX-05, WLMHW FIX-11 and FIX-12): the KPI
 /// catalogue said NET_SALES = SUM(R025.NETVALUE) and described INVOICE_COUNT as every document, while the
-/// reports sum GST-inclusive NETAMOUNT (D1) and the DSR counts INV documents only (G5). Wording only.
+/// reports sum GST-inclusive NETAMOUNT (D1) and the DSR counts INV documents only (G5). Amended in place for the
+/// owner's answers (decision 13 Q2 gift cards, Q6 Invoices + Returns; decision 17 D-L9-3). Wording only.
 /// These tests read the shipped scripts; ReportLabelCorrectionSqlTests in the SQL integration suite runs
 /// the upgrade from 0045.
 /// </summary>
@@ -44,13 +45,30 @@ public sealed class ReportLabelCorrectionMigrationTests
     }
 
     [Fact]
+    public void Net_sales_says_the_dsr_value_leaves_gift_cards_out()
+    {
+        // Decision 13 Q2 / decision 17 (D-L9-3: 0046 amended in place).
+        var definition = Value(Code(Read(MigrationName)), "@net_sales_definition");
+        Assert.StartsWith("Primary sales value including GST, with sales returns retaining their negative signs.", definition, StringComparison.Ordinal);
+        Assert.Contains("leaves gift-card lines (item GIFT CARD or BRAND GC) out and shows them on their own GIFT CARD line", definition, StringComparison.Ordinal);
+        Assert.Contains("the other sales reports include them", definition, StringComparison.Ordinal);
+        Assert.True(definition.Length <= 1000, "kpi_catalogue.definition is nvarchar(1000).");
+    }
+
+    [Fact]
     public void Invoice_count_says_exactly_what_it_counts()
     {
         var code = Code(Read(MigrationName));
         var definition = Value(code, "@invoice_definition");
         Assert.StartsWith("Distinct INV documents (store + financial year + document number)", definition, StringComparison.Ordinal);
-        Assert.Contains("Sales returns (SR) and bill cancellations (BC) keep their value and quantity but are not counted", definition, StringComparison.Ordinal);
-        Assert.Contains("\"Documents (incl. returns)\" columns count every document, including SR and BC", definition, StringComparison.Ordinal);
+        Assert.Contains("Sales returns (SR) and bill cancellations (BC) keep their value and quantity but are not counted as invoices", definition, StringComparison.Ordinal);
+        // Decision 13 Q6: every screen says "Invoices" for INV documents and shows a separate "Returns" count.
+        Assert.Contains("shown as \"Invoices\" on every screen", definition, StringComparison.Ordinal);
+        Assert.Contains("a separate \"Returns\" count of distinct SR or BC documents", definition, StringComparison.Ordinal);
+        foreach (var screen in new[] { "Sales Summary", "Management Trend", "Operations sales and control trend", "Customer-wise" })
+            Assert.Contains(screen, definition, StringComparison.Ordinal);
+        Assert.DoesNotContain("Documents (incl. returns)", definition, StringComparison.Ordinal);
+        Assert.Contains("a bill whose only INV lines are gift cards is not counted", definition, StringComparison.Ordinal);
         Assert.DoesNotContain("Distinct business documents", definition, StringComparison.Ordinal);
         Assert.Contains("over documents with an INV line", Value(code, "@invoice_formula"), StringComparison.Ordinal);
         Assert.True(definition.Length <= 1000, "kpi_catalogue.definition is nvarchar(1000).");
@@ -65,7 +83,8 @@ public sealed class ReportLabelCorrectionMigrationTests
         Assert.Contains("IF OBJECT_ID(N'dbo.kpi_catalogue',N'U') IS NOT NULL", code, StringComparison.Ordinal);
         // Each row changes only while it still differs, so a second run changes nothing and the version goes up once.
         Assert.Equal(2, code.Split("version=version+1").Length - 1);
-        Assert.Contains("AND (formula COLLATE Latin1_General_100_BIN2<>@net_sales_formula OR data_source COLLATE Latin1_General_100_BIN2<>@net_sales_source)", code, StringComparison.Ordinal);
+        Assert.Contains("AND (definition COLLATE Latin1_General_100_BIN2<>@net_sales_definition OR formula COLLATE Latin1_General_100_BIN2<>@net_sales_formula", code, StringComparison.Ordinal);
+        Assert.Contains("OR data_source COLLATE Latin1_General_100_BIN2<>@net_sales_source)", code, StringComparison.Ordinal);
         Assert.Contains("AND (definition COLLATE Latin1_General_100_BIN2<>@invoice_definition", code, StringComparison.Ordinal);
         foreach (var kept in new[] { "effective_date", "approval_status", "approved_by", "is_active", "business_name" })
             Assert.DoesNotContain(kept, code, StringComparison.Ordinal);
