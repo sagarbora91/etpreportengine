@@ -1,5 +1,8 @@
+using System.Globalization;
 using Etp.Reporting.Domain.Imports;
 using Etp.Reporting.Import.Conversion;
+using Etp.Reporting.Import.Profiles;
+using Etp.Reporting.Import.Workbooks;
 
 namespace Etp.Reporting.Import.Tests;
 
@@ -27,6 +30,9 @@ public sealed class TypedCellConverterTests
     [InlineData("2026-08-25", 2026, 8, 25)]
     [InlineData("20260825", 2026, 8, 25)]
     [InlineData("25/08/2026", 2026, 8, 25)]
+    [InlineData("28-09-2026", 2026, 9, 28)]
+    [InlineData("25-4-2026", 2026, 4, 25)]
+    [InlineData("7-2-2026", 2026, 2, 7)]
     public void Date_conversion_uses_explicit_formats(string source, int year, int month, int day)
     {
         var result = converter.Convert(source, CanonicalDataType.Date, true);
@@ -69,5 +75,48 @@ public sealed class TypedCellConverterTests
         var result = converter.Convert("not-a-number", CanonicalDataType.Decimal, true);
         Assert.False(result.IsSuccess);
         Assert.Equal("VALUE_INVALID", result.ErrorCode);
+    }
+
+    [Fact]
+    public void Service_d_M_yyyy_text_dates_do_not_admit_a_text_date_with_a_time()
+    {
+        // S036/S037 Created Date text needs d-M-yyyy (review L1); a timestamp written as text still fails safely.
+        Assert.Equal("VALUE_INVALID", converter.Convert("2026-09-28 14:55:37", CanonicalDataType.Date, false).ErrorCode);
+        Assert.Equal("VALUE_INVALID", converter.Convert("31-2-2026", CanonicalDataType.Date, false).ErrorCode);
+        Assert.Equal(new DateOnly(2026, 9, 28), converter.Convert(new DateTime(2026, 9, 28).ToOADate(), CanonicalDataType.Date, true).Value);
+    }
+
+    [Fact]
+    public async Task Retail_fixture_dates_convert_exactly_as_with_the_v1_9_3_formats()
+    {
+        // Review L1: d-M-yyyy is global, so every Date cell of every Retail golden fixture must convert to the value the
+        // v1.9.3 list gave. Only a text date can reach the new format; numbers and DateTime cells take the same path.
+        string[] v193 = ["yyyy-MM-dd", "yyyyMMdd", "dd/MM/yyyy", "dd-MM-yyyy", "yyyy/MM/dd", "d-MMM-yyyy", "dd MMM yyyy", "d MMM yy"];
+        var folder = Path.Combine(AppContext.BaseDirectory, "fixtures", "etp-sample");
+        var checkedCells = 0;
+        foreach (var family in EtpReportFamilyRegistry.Families.Where(family => family.BusinessUnit == BusinessUnit.Retail))
+        {
+            var path = Directory.GetFiles(folder, family.FamilyCode + "_*.xlsx").Single();
+            var sheet = (await new OpenXmlWorkbookReader().ReadAsync(path)).Sheets[0];
+            var indexes = sheet.Headers.Select((header, index) => (Header: ImportProfile.NormalizeHeader(header), index))
+                .ToDictionary(pair => pair.Header, pair => pair.index, StringComparer.OrdinalIgnoreCase);
+            foreach (var column in family.Columns.Where(column => column.DataType == CanonicalDataType.Date))
+            {
+                if (!indexes.TryGetValue(ImportProfile.NormalizeHeader(column.SourceHeader), out var index)) continue;
+                foreach (var row in sheet.Rows.Where(row => index < row.Cells.Count))
+                {
+                    var source = row.Cells[index].Value;
+                    var now = converter.Convert(source, CanonicalDataType.Date, false);
+                    if (source is string text && !string.IsNullOrWhiteSpace(text) && text.Trim() != "0")
+                    {
+                        var before = DateOnly.TryParseExact(text.Trim(), v193, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed)
+                            ? parsed : (DateOnly?)null;
+                        Assert.Equal(before, now.Value as DateOnly?);
+                    }
+                    checkedCells++;
+                }
+            }
+        }
+        Assert.True(checkedCells > 0, "The Retail fixtures hold no Date cell to check.");
     }
 }
