@@ -24,14 +24,14 @@
 
 | Range | Owner | Used |
 |---|---|---|
-| 51900-51904 | L0 | 51900 `trg_stores_service_unit_inactive`: "A Service Centre store cannot be made an active shop store." |
+| 51900-51904 | L0 | `trg_stores_service_unit_inactive`: 51900 "A Service Centre store cannot be made an active shop store." (insert or update with is_active=1); 51904 "A Service Centre store cannot be moved out of the Service Centre business unit." (business_unit_id changed or set to NULL). Lane L6 maps both in Settings > Stores. |
 | 51905-51914 | L2 | none yet |
 | 51915-51924 | L4 | none yet |
 | 51925-51929 | spare | |
 
 **Numbers in the block already taken outside the database (do not use):** 51901, 51902, 51903, 51910, 51920. See the check below. They are thrown by setup and restore scripts, not by migrations, so they cannot meet a migration error at run time, but C# code and runbooks that name a number must stay unambiguous. Lanes skip them:
 
-- L0 uses only 51900 (51901-51903 are taken).
+- L0 uses only 51900 and 51904 (51901-51903 are taken; L0 has no number left).
 - L2 has 51905-51909 and 51911-51914 (51910 is taken).
 - L4 has 51915-51919 and 51921-51924 (51920 is taken).
 
@@ -47,7 +47,7 @@
 | 51910 | `scripts/restore-etp-database.ps1` | Windows could not resolve the account running the restore |
 | 51920 | `scripts/bootstrap-etp-prerequisites.ps1` | the setup account is not the new database's Owner |
 
-The tests `RestoreDatabaseScriptTests` (51901) and `BootstrapPrerequisiteTests` (51920) pin two of them. 51900 is unused everywhere.
+The tests `RestoreDatabaseScriptTests` (51901) and `BootstrapPrerequisiteTests` (51920) pin two of them. 51900 and 51904 were unused everywhere when L0 took them.
 
 The 1.10.0 launch kit (`Reference/Work in progress 2026-10-03/1.10.0-LAUNCH-KIT.md`) reserves numbers only in 51700-51799; it names nothing in 519xx.
 

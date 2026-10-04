@@ -5,7 +5,8 @@ namespace Etp.Reporting.SqlServer.Tests.Service;
 /// <summary>
 /// Service interim (S-2, decision 15): migration 0048 is one file with three owned sections, A_SERVICE_STORE (L0),
 /// B_SERVICE_LANDING (L2) and C_SERVICE_READ (L4), in that order. These tests read the shipped script; the SQL
-/// behaviour (AW330 inactive, 51900, a second run is a no-op) is covered in the SQL integration suite.
+/// behaviour (AW330 inactive, 51900 and 51904, a second run is a no-op, WLMHW/HEMW untouched) is covered by
+/// <c>Etp.Reporting.SqlServer.IntegrationTests.Service.ServiceStoreMigrationTests</c>.
 /// </summary>
 public sealed class ServiceMigrationSkeletonTests
 {
@@ -109,13 +110,14 @@ public sealed class ServiceMigrationSkeletonTests
     }
 
     [Fact]
-    public void Section_A_trigger_refuses_an_active_Service_store_with_51900()
+    public void Section_A_trigger_refuses_an_active_Service_store_with_51900_and_a_move_out_with_51904()
     {
         var section = Section(Script(), "A_SERVICE_STORE");
         Assert.Contains("EXEC(N'CREATE OR ALTER TRIGGER dbo.trg_stores_service_unit_inactive ON dbo.stores\nAFTER INSERT, UPDATE AS", section, StringComparison.Ordinal);
         Assert.Contains("THROW 51900,''A Service Centre store cannot be made an active shop store.'',1;", section, StringComparison.Ordinal);
         Assert.Contains("business_unit_code=''SERVICE'' AND i.is_active=1", section, StringComparison.Ordinal);
+        Assert.Contains("THROW 51904,''A Service Centre store cannot be moved out of the Service Centre business unit.'',1;", section, StringComparison.Ordinal);
         var numbers = Regex.Matches(section, @"THROW\s+(\d+)").Select(match => match.Groups[1].Value).Distinct().ToArray();
-        Assert.Equal(["51900"], numbers);
+        Assert.Equal(["51900", "51904"], numbers);
     }
 }

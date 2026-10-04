@@ -57,7 +57,7 @@ internal static partial class ServiceFixtures
         ["S001"] = 4,
         ["S002"] = 6,
         ["S003"] = 5,
-        ["S004"] = 9,
+        ["S004"] = 12,
         ["S005"] = 3,
         ["S006"] = 4,
         ["S007"] = 3,

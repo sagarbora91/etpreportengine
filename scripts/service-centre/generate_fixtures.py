@@ -140,6 +140,8 @@ def week2_plan():
     - job 12 leaves S015 (IR) and appears in S017 (RWR);
     - jobs 26, 27 and 28 enter S009;
     - S004: the 27 Sep card amount is restated (a changed money row);
+    - S004: three rows are added for 5 Oct (cash 400, card 450, upi 125 = 975). The raw-CSV lane (L9) restates
+      5 Oct with different money (raw 250 cash + 275 card = 525), so these amounts must stay different from those;
     - S003: one row is added (3 Oct).
     """
     plan = week1_plan()
@@ -150,6 +152,8 @@ def week2_plan():
     for row in plan["S004"]:
         if row["date"] == d(9, 27) and row["tender"] == "cardamount":
             row["amount"] += 50
+    plan["S004"] = plan["S004"] + [{"date": d(10, 5), "tender": tender, "amount": amount}
+                                   for tender, amount in zip(TENDERS, (400, 450, 125))]
     plan["S003"] = plan["S003"] + [{"date": d(10, 3), "job": 23, "amount": 410}]
     for code in ("S006", "S027", "S028"):
         for row in plan[code]:
