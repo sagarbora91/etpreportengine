@@ -25,7 +25,7 @@ public sealed class ServiceFolderImportTests
         var imported = summary.Files.Where(file => file.Status == "Imported").ToArray();
         Assert.Equal(35, imported.Length);
         Assert.Equal(ServiceFixtures.ExpectedImported, imported.Select(file => file.ReportCode!).Order(StringComparer.Ordinal));
-        Assert.Equal(ServiceInterimFamilies.Importable.Order(StringComparer.Ordinal), ServiceFixtures.ExpectedImported);
+        Assert.Equal(ServiceInterimFamilies.Importable.Except(["S041"]).Order(StringComparer.Ordinal), ServiceFixtures.ExpectedImported); // S041 GPRC CLAIM is raw only
         Assert.All(imported, file =>
         {
             Assert.Equal("AW330", file.StoreCode);
