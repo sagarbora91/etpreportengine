@@ -201,10 +201,7 @@ public sealed class DesktopCompositionRoot
             new SqlServerImportHistoryQuery(connectionState.ConnectionString).LoadAsync(scope));
         window.serviceExcelExport = (path, metadata, data) =>
             reportExportCoordinator.ExportReportExcelAsync(path, metadata, data, null);
-        // INTEGRATION STEP (Service interim, lane L4 + L5): when SqlServerServiceReportQuery lands, replace this
-        // comment with the line below. Until then the Service screens say the read model is not available.
-        // ServiceCompositionPinTests fails once the class exists and this wiring is still missing.
-        //   window.serviceReportQuery = () => new SqlServerServiceReportQuery(connectionState.ConnectionString);
+        window.serviceReportQuery = () => new SqlServerServiceReportQuery(connectionState.ConnectionString);
         dailyWorkflowWorkspaceView.AttachRegisters((store, date, token) =>
             SqlServerDigitalRegisterService.LoadDayAsync(connectionState.ConnectionString, store, date, token));
         return window;
