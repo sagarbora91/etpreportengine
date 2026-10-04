@@ -155,7 +155,8 @@ public sealed class ServiceRoutingTests
         Assert.Equal(ServiceRouting.DateNeededMessage,
             ImportDiagnosticCatalogue.SafeFailureMessage(ServiceInterimFamilies.Codes.ServiceSnapshotDateNeeded, ServiceRouting.DateNeededMessage, null));
         Assert.Contains("folder whose name ends with the date", ServiceRouting.DateNeededMessage);
-        Assert.Contains("set the snapshot date on the Import screen", ServiceRouting.DateNeededMessage);
+        Assert.Contains("The Import screen's date is only for a restatement.", ServiceRouting.DateNeededMessage);
+        Assert.DoesNotContain("set the snapshot date on the Import screen", ServiceRouting.DateNeededMessage);
     }
 
     [Fact]

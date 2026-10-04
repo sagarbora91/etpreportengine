@@ -478,7 +478,7 @@ internal static class ServiceRouting
 {
     /// <summary>The Owner's fix for an undated Service file (lane L3, step 3).</summary>
     internal const string DateNeededMessage =
-        "Put the Service files in a folder whose name ends with the date, e.g. 'Service Centre till 05 oct 2026', or set the snapshot date on the Import screen.";
+        "Put the Service files in a folder whose name ends with the date, e.g. 'Service Centre till 05 oct 2026'. The Import screen's date is only for a restatement.";
 
     internal const string StoreDefaultedMessage =
         "This Service Centre file names no store and no file beside it does, so it is imported under the Service Centre (AW330).";

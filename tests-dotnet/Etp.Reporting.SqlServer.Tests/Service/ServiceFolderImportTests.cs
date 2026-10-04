@@ -4,29 +4,28 @@ using Etp.Reporting.Import.Profiles;
 using Etp.Reporting.Import.Service;
 using Etp.Reporting.Import.Workbooks;
 using Etp.Reporting.Infrastructure.SqlServer;
+using Etp.Reporting.TestSupport.Service;
 
 namespace Etp.Reporting.SqlServer.Tests.Service;
 
 /// <summary>
-/// The Service folder import end to end on L0's synthetic fixtures (tests-dotnet/fixtures/service-interim), with a fake
-/// persistence and the real Open XML reader. These need L0's fixtures (L0b) and L1's S catalogue entries, which are not
-/// on this branch yet (SERVICE-LANES.md section 2: L3 "finishes after L1 merges"); remove the Skip when pulling them.
+/// The Service folder import end to end on L0's synthetic fixtures (tests-dotnet/fixtures/service-interim, through
+/// TestSupport/Service/ServiceFixtures), with a fake persistence and the real Open XML reader and L1's S catalogue.
 /// </summary>
 public sealed class ServiceFolderImportTests
 {
-    private const string WaitsForL0bAndL1 = "Waits for L0b fixtures and L1 S catalogue on feature/service-interim; remove on pull.";
-    private static readonly DateOnly Week1 = new(2026, 9, 28);
-    private static readonly string[] NotNeededCodes = ["S001", "S005", "S027", "S028", "S038"];
+    private static readonly DateOnly Week1 = ServiceFixtures.Week1SnapshotDate;
 
-    [Fact(Skip = WaitsForL0bAndL1)]
+    [Fact]
     public async Task Week1_lands_35_families_under_AW330_dated_by_the_folder_and_reports_the_rest_not_needed()
     {
         var persistence = new ServicePersistence();
-        var summary = await new FolderImportService(persistence).RunAsync(ServiceFixtureFolders.Week1, new("tester"));
+        var summary = await new FolderImportService(persistence).RunAsync(ServiceFixtures.Week1Folder, new("tester"));
 
         var imported = summary.Files.Where(file => file.Status == "Imported").ToArray();
         Assert.Equal(35, imported.Length);
-        Assert.Equal(ServiceInterimFamilies.Importable.Order(), imported.Select(file => file.ReportCode!).Order());
+        Assert.Equal(ServiceFixtures.ExpectedImported, imported.Select(file => file.ReportCode!).Order(StringComparer.Ordinal));
+        Assert.Equal(ServiceInterimFamilies.Importable.Order(StringComparer.Ordinal), ServiceFixtures.ExpectedImported);
         Assert.All(imported, file =>
         {
             Assert.Equal("AW330", file.StoreCode);
@@ -38,9 +37,11 @@ public sealed class ServiceFolderImportTests
         Assert.All(persistence.Requests, request => Assert.Equal("AW330", request.ExpectedStoreCode));
 
         var notNeeded = summary.Files.Where(file => file.Status == "Not needed").ToArray();
-        Assert.Equal(6, notNeeded.Length);
-        Assert.Equal(NotNeededCodes, notNeeded.Where(file => file.ReportCode is not null).Select(file => file.ReportCode!).Order());
-        Assert.Single(notNeeded, file => file.FileName.StartsWith("00_", StringComparison.Ordinal));
+        Assert.Equal(ServiceFixtures.ExpectedNotNeeded.Select(item => item.File).Order(StringComparer.Ordinal),
+            notNeeded.Select(file => file.FileName).Order(StringComparer.Ordinal));
+        foreach (var (name, code) in ServiceFixtures.ExpectedNotNeeded.Where(item => item.Code is not null))
+            Assert.Equal(code, Assert.Single(Assert.Single(notNeeded, file => file.FileName == name).Diagnostics!).Code);
+        Assert.Equal(ServiceFixtures.ControlFileName, Assert.Single(notNeeded, file => file.FileName.StartsWith("00_", StringComparison.Ordinal)).FileName);
         Assert.Equal(ImportCodes.FamilyDerived, Reason(notNeeded, "S001"));
         Assert.Equal(ServiceInterimFamilies.Codes.ServiceFamilyNotNeeded, Reason(notNeeded, "S005"));
         Assert.Equal(ServiceInterimFamilies.Codes.ServiceFamilyNotNeeded, Reason(notNeeded, "S038"));
@@ -51,10 +52,38 @@ public sealed class ServiceFolderImportTests
         Assert.Empty(AutomatedOperationsService.ImportedDates(summary));
     }
 
-    [Fact(Skip = WaitsForL0bAndL1)]
+    [Fact]
+    public async Task Week1_as_a_watch_folder_zip_has_no_unknown_layout_and_routes_as_processed()
+    {
+        // Review item 6: AutomatedOperationsService counts Unknown layouts as failures, so the week1 ZIP (S038 header
+        // only, the 00_ control file) must come out Not needed by name, never Unknown layout.
+        var root = Path.Combine(Path.GetTempPath(), "EtpServiceZip-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var zip = Path.Combine(root, ServiceFixtures.Week1FolderName + ".zip");
+            System.IO.Compression.ZipFile.CreateFromDirectory(ServiceFixtures.Week1Folder, zip, System.IO.Compression.CompressionLevel.Fastest, includeBaseDirectory: false);
+            var persistence = new ServicePersistence();
+            var summary = await new FolderImportService(persistence).RunAsync(zip, new("tester"));
+
+            Assert.Equal(0, summary.UnknownLayouts);
+            Assert.Equal(0, summary.Failed);
+            Assert.Equal(35, summary.Imported);
+            Assert.Equal(ServiceFixtures.ExpectedNotNeeded.Count, summary.Files.Count(file => file.Status == "Not needed"));
+            Assert.All(summary.Files.Where(file => file.Status == "Imported"), file => Assert.Equal(Week1, file.PeriodEnd));
+            Assert.Equal(AutomationSourceRoute.Processed, AutomatedOperationsService.RouteOf(summary));
+            Assert.Empty(AutomatedOperationsService.ImportedDates(summary));
+        }
+        finally
+        {
+            try { Directory.Delete(root, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+        }
+    }
+
+    [Fact]
     public async Task S011_and_S013_take_AW330_from_their_siblings()
     {
-        var summary = await new FolderImportService(new ServicePersistence()).RunAsync(ServiceFixtureFolders.Week1, new("tester"));
+        var summary = await new FolderImportService(new ServicePersistence()).RunAsync(ServiceFixtures.Week1Folder, new("tester"));
         foreach (var code in new[] { "S011", "S013" })
         {
             var file = Assert.Single(summary.Files, file => file.ReportCode == code);
@@ -64,10 +93,10 @@ public sealed class ServiceFolderImportTests
         }
     }
 
-    [Fact(Skip = WaitsForL0bAndL1)]
+    [Fact]
     public async Task A_lone_S011_defaults_to_AW330_with_a_note()
     {
-        var path = Directory.GetFiles(ServiceFixtureFolders.Week1, "S011_*.xlsx").Single();
+        var path = Directory.GetFiles(ServiceFixtures.Week1Folder, "S011_*.xlsx").Single();
         var file = Assert.Single((await new FolderImportService(new ServicePersistence()).RunFilesAsync([path], new("tester"))).Files);
         Assert.Equal("Imported", file.Status);
         Assert.Equal("AW330", file.StoreCode);
@@ -75,11 +104,11 @@ public sealed class ServiceFolderImportTests
         Assert.Equal(ImportIssueSeverity.Information, note.Severity);
     }
 
-    [Fact(Skip = WaitsForL0bAndL1)]
+    [Fact]
     public async Task An_undated_service_folder_says_how_to_date_it()
     {
         var persistence = new ServicePersistence();
-        var summary = await new FolderImportService(persistence).RunAsync(ServiceFixtureFolders.Undated, new("tester"));
+        var summary = await new FolderImportService(persistence).RunAsync(ServiceFixtures.UndatedFolder, new("tester"));
         Assert.Equal(2, summary.Files.Count);
         Assert.All(summary.Files, file =>
         {
@@ -90,7 +119,7 @@ public sealed class ServiceFolderImportTests
         Assert.Empty(persistence.Requests);
     }
 
-    [Fact(Skip = WaitsForL0bAndL1)]
+    [Fact]
     public async Task A_service_file_refused_by_its_own_coverage_keeps_the_real_reason()
     {
         // S009 in a dated folder whose Info sheet states two Coverage dates: tier 5 refuses before the folder is read, so
@@ -106,7 +135,7 @@ public sealed class ServiceFolderImportTests
         Assert.Empty(persistence.Requests);
     }
 
-    [Fact(Skip = WaitsForL0bAndL1)]
+    [Fact]
     public async Task An_undated_service_file_never_takes_a_retail_siblings_date()
     {
         var folder = "Mixed exports";
@@ -124,7 +153,7 @@ public sealed class ServiceFolderImportTests
         Assert.Single(persistence.Requests);
     }
 
-    [Fact(Skip = WaitsForL0bAndL1)]
+    [Fact]
     public void Automation_packs_only_the_retail_dates_of_a_mixed_batch()
     {
         var retail = new DateOnly(2026, 9, 27);
@@ -183,28 +212,5 @@ public sealed class ServiceFolderImportTests
         }
         public Task<ImportRowOutcome> LoadOutcomeByHashAsync(string hash, CancellationToken cancellationToken = default) =>
             Task.FromResult(new ImportRowOutcome(0, 0, 0, 0));
-    }
-}
-
-/// <summary>
-/// The L0 fixture folders (SERVICE-LANES.md 4.1 step 9), found from the test output folder up to the repository. L0's
-/// TestSupport/Service/ServiceFixtures.cs replaces this when it lands.
-/// </summary>
-internal static class ServiceFixtureFolders
-{
-    public static string Root => Find(Path.Combine("tests-dotnet", "fixtures", "service-interim"));
-    public static string Week1 => Path.Combine(Root, "week1", "Service Centre till 28 sep 2026");
-    public static string Week2 => Path.Combine(Root, "week2", "Service Centre till 05 oct 2026");
-    public static string Undated => Path.Combine(Root, "undated", "Service Centre");
-    public static string SameDateChanged => Path.Combine(Root, "samedate-changed", "Service Centre till 28 sep 2026");
-
-    private static string Find(string relative)
-    {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-        {
-            var candidate = Path.Combine(directory.FullName, relative);
-            if (Directory.Exists(candidate)) return candidate;
-        }
-        throw new DirectoryNotFoundException($"The Service fixtures ({relative}) were not found above the test output folder.");
     }
 }

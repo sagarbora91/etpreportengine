@@ -4,6 +4,7 @@ using System.Diagnostics;
 using Etp.Reporting.Application.Imports;
 using Etp.Reporting.Import.Service;
 using Etp.Reporting.Infrastructure.SqlServer;
+using Etp.Reporting.TestSupport.Service;
 using Microsoft.Data.SqlClient;
 
 namespace Etp.Reporting.SqlServer.IntegrationTests.Service;
@@ -26,7 +27,7 @@ public sealed class ServiceImportSqlTests
             await database.InitializeAsync();
             var service = new FolderImportService(new SqlServerImportPersistenceUseCase(database.ConnectionString));
 
-            var week1 = await service.RunAsync(Folders.Week1, new("Synthetic Owner"));
+            var week1 = await service.RunAsync(ServiceFixtures.Week1Folder, new("Synthetic Owner"));
             Assert.Equal(35, week1.Imported + week1.Files.Count(file => file.Status == "empty export"));
             Assert.Equal(0, week1.Failed);
             Assert.Equal(0, week1.UnknownLayouts);
@@ -42,12 +43,12 @@ public sealed class ServiceImportSqlTests
                 "SELECT COUNT(*) FROM dbo.import_files WHERE report_code LIKE 'S[0-9][0-9][0-9]' AND store_code='AW330' AND period_end='20260928'"));
             Assert.Empty(AutomatedOperationsService.ImportedDates(week1));
 
-            var again = await service.RunAsync(Folders.Week1, new("Synthetic Owner"));
+            var again = await service.RunAsync(ServiceFixtures.Week1Folder, new("Synthetic Owner"));
             Assert.Equal(35, again.Duplicates);
             Assert.Equal(0, again.Imported);
             Assert.Equal(35, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.import_files WHERE report_code LIKE 'S[0-9][0-9][0-9]'"));
 
-            var week2 = await service.RunAsync(Folders.Week2, new("Synthetic Owner"));
+            var week2 = await service.RunAsync(ServiceFixtures.Week2Folder, new("Synthetic Owner"));
             Assert.Equal(35, week2.Imported + week2.Files.Count(file => file.Status == "empty export"));
             Assert.Equal(0, week2.Failed);
             Assert.Equal(70, await database.ExecuteAsync(
@@ -69,9 +70,9 @@ public sealed class ServiceImportSqlTests
         {
             await database.InitializeAsync();
             var service = new FolderImportService(new SqlServerImportPersistenceUseCase(database.ConnectionString));
-            await service.RunAsync(Folders.Week1, new("Synthetic Owner"));
+            await service.RunAsync(ServiceFixtures.Week1Folder, new("Synthetic Owner"));
 
-            var changed = await service.RunAsync(Folders.SameDateChanged, new("Synthetic Owner"));
+            var changed = await service.RunAsync(ServiceFixtures.SameDateChangedFolder, new("Synthetic Owner"));
             var file = Assert.Single(changed.Files);
             Assert.Equal("S009", file.ReportCode);
             Assert.Equal("Failed", file.Status);
@@ -93,7 +94,7 @@ public sealed class ServiceImportSqlTests
             using (var manager = new RestrictedConnections(database.Name, "service_manager", "etp_store_manager"))
             {
                 var summary = await new FolderImportService(new SqlServerImportPersistenceUseCase(manager.ConnectionString))
-                    .RunAsync(Folders.Week1, new("Synthetic manager"));
+                    .RunAsync(ServiceFixtures.Week1Folder, new("Synthetic manager"));
                 Assert.Equal(35, summary.Imported + summary.Files.Count(file => file.Status == "empty export"));
                 Assert.Equal(0, summary.Failed);
                 manager.AssertCoverage(35);
@@ -105,7 +106,7 @@ public sealed class ServiceImportSqlTests
                 IReadOnlyList<FolderImportFileResult> seen = [];
                 var progress = new InlineProgress(value => seen = value.Files);
                 await Record.ExceptionAsync(() => new FolderImportService(new SqlServerImportPersistenceUseCase(viewer.ConnectionString))
-                    .RunAsync(Folders.Week2, new("Synthetic viewer"), progress));
+                    .RunAsync(ServiceFixtures.Week2Folder, new("Synthetic viewer"), progress));
                 Assert.DoesNotContain(seen, file => file.Status is "Imported" or "empty export");
                 var failed = seen.Where(file => file.Status == "Failed").ToArray();
                 Assert.Equal(35, failed.Length);
@@ -130,7 +131,7 @@ public sealed class ServiceImportSqlTests
             Directory.CreateDirectory(Path.Combine(root, "In"));
             // The ZIP's name dates its root entries (tier 6), as the dated folder does for a folder import.
             var zip = Path.Combine(root, "In", "Service Centre till 28 sep 2026.zip");
-            System.IO.Compression.ZipFile.CreateFromDirectory(Folders.Week1, zip, System.IO.Compression.CompressionLevel.Fastest, includeBaseDirectory: false);
+            System.IO.Compression.ZipFile.CreateFromDirectory(ServiceFixtures.Week1Folder, zip, System.IO.Compression.CompressionLevel.Fastest, includeBaseDirectory: false);
             File.SetLastWriteTimeUtc(zip, DateTime.UtcNow.AddMinutes(-5)); // past the watch folder's stability wait
 
             var run = await new AutomatedOperationsService(database.ConnectionString).RunOnceAsync();
@@ -167,25 +168,6 @@ public sealed class ServiceImportSqlTests
     private sealed class InlineProgress(Action<FolderImportProgress> report) : IProgress<FolderImportProgress>
     {
         public void Report(FolderImportProgress value) => report(value);
-    }
-
-    /// <summary>L0's fixture folders, found above the test output folder; L0's ServiceFixtures replaces this when it lands.</summary>
-    private static class Folders
-    {
-        private static string Root => Find(Path.Combine("tests-dotnet", "fixtures", "service-interim"));
-        public static string Week1 => Path.Combine(Root, "week1", "Service Centre till 28 sep 2026");
-        public static string Week2 => Path.Combine(Root, "week2", "Service Centre till 05 oct 2026");
-        public static string SameDateChanged => Path.Combine(Root, "samedate-changed", "Service Centre till 28 sep 2026");
-
-        private static string Find(string relative)
-        {
-            for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-            {
-                var candidate = Path.Combine(directory.FullName, relative);
-                if (Directory.Exists(candidate)) return candidate;
-            }
-            throw new DirectoryNotFoundException($"The Service fixtures ({relative}) were not found above the test output folder.");
-        }
     }
 
     // A copy of CrossPhaseStoreManagerImportTests.RestrictedConnections: every command of the repository runs as the
