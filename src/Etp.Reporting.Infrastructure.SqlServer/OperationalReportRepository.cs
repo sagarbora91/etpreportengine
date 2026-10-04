@@ -169,7 +169,7 @@ public sealed partial class OperationalReportRepository(string connectionString)
     // Owner answer Q2: gift cards (NonMerchandiseSql) are left out of stock. This one query feeds Closing, Slow, Brand Stock,
     // Brand Stock Entry, Brand Physical Stock, the daily pack's physical sheet and the daily exceptions' physical check.
     // Owner answer Q3/Q5 (decision 14): brand_row is the DSR brand row (Settings > Evening masters) whose source code is the item's
-    // cluster. Only a cluster match counts, so a brand-name mapping (WLMHW's rows) never pulls in a whole brand, and Helios
+    // cluster. Only a cluster match counts, so a brand-name mapping (the Titan store's rows) never pulls in a whole brand, and Helios
     // house-brand items split into the owner's hybrid rows (G SHOCK, CITIZEN, FOSSIL, GUESS, SEIKO, AMAZEFIT, FIT BIT).
     // Owner answer Q8: last_receipt_date is the latest inward ledger movement (StockAgeing.ReceiptTypes) on or before the
     // date, so a recently received item shows as NEW (StockAgeing.Status), aged by its receipt, not "never sold".
