@@ -97,7 +97,7 @@ public sealed class PhaseThreeLiveCaptureTests
             catch (Exception exception) { failure = exception; }
             finally { if (window is not null) Wait(window.importWorkspaceView.DisposeAsync().AsTask()); }
         });
-        thread.SetApartmentState(ApartmentState.STA); thread.Start();
+        thread.IsBackground = true; thread.SetApartmentState(ApartmentState.STA); thread.Start();
         Assert.True(thread.Join(TimeSpan.FromMinutes(2)), "Live capture timed out.");
         if (failure is not null) throw new InvalidOperationException("Live fixture capture failed.", failure);
     }

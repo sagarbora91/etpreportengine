@@ -105,7 +105,7 @@ public sealed class PhaseFourFullWindowSmokeTests(ITestOutputHelper output)
             }
             catch (Exception exception) { completion.TrySetException(exception); application?.Shutdown(); }
         }) { IsBackground = true };
-        thread.SetApartmentState(ApartmentState.STA);
+        thread.IsBackground = true; thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
         await completion.Task.WaitAsync(TimeSpan.FromSeconds(90));
         Assert.True(thread.Join(TimeSpan.FromSeconds(5)), "The full-window test dispatcher did not close.");

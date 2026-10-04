@@ -59,7 +59,7 @@ public sealed class PropertyChangeWatcherTests
             }
             catch (Exception exception) { lock (failures) failures.Add(exception); }
         })).ToList();
-        foreach (var thread in threads) thread.SetApartmentState(ApartmentState.STA);
+        foreach (var thread in threads) { thread.IsBackground = true; thread.SetApartmentState(ApartmentState.STA); }
         threads.ForEach(thread => thread.Start());
         Assert.All(threads, thread => Assert.True(thread.Join(TimeSpan.FromSeconds(60))));
         Assert.Empty(failures);
@@ -86,7 +86,7 @@ public sealed class PropertyChangeWatcherTests
             try { action(); }
             catch (Exception exception) { failure = exception; }
         });
-        thread.SetApartmentState(ApartmentState.STA);
+        thread.IsBackground = true; thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
         Assert.True(thread.Join(TimeSpan.FromSeconds(45)));
         if (failure is not null) throw failure;

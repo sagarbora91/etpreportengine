@@ -119,7 +119,7 @@ public sealed class SettingsSmtpTlsTests
     {
         Exception? failure = null;
         var thread = new Thread(() => { try { action().GetAwaiter().GetResult(); } catch (Exception exception) { failure = exception; } });
-        thread.SetApartmentState(ApartmentState.STA);
+        thread.IsBackground = true; thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
         Assert.True(thread.Join(TimeSpan.FromSeconds(20)));
         if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();

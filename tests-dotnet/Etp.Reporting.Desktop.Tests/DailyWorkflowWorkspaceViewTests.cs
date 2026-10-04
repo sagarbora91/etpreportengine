@@ -251,7 +251,7 @@ public sealed class DailyWorkflowWorkspaceViewTests
             try { action().GetAwaiter().GetResult(); }
             catch (Exception exception) { failure = exception; }
         });
-        thread.SetApartmentState(ApartmentState.STA);
+        thread.IsBackground = true; thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
         thread.Join();
         if (failure is not null) throw new InvalidOperationException("STA test failed.", failure);

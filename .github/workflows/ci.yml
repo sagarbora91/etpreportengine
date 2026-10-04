@@ -46,7 +46,8 @@ jobs:
       - name: Run .NET connection, permissions and recovery boundary tests
         run: dotnet test Etp.Reporting.slnx --configuration Release --no-build --filter "FullyQualifiedName~PhaseFourBoundaryTests|FullyQualifiedName~PhaseFourSecurityTests|FullyQualifiedName~PhaseFourOperationsStatusTests|FullyQualifiedName~PhaseFourRecoveryTests|FullyQualifiedName~OperationsScriptBoundaryTests"
       - name: Run full .NET test suite
-        run: dotnet test Etp.Reporting.slnx --configuration Release --no-build
+        # A test that runs more than 10 minutes is stopped and named in the log, instead of holding the job to its limit.
+        run: dotnet test Etp.Reporting.slnx --configuration Release --no-build --blame-hang-timeout 10m --blame-hang-dump-type none
       - name: Check changed lines for whitespace errors
         shell: pwsh
         env:

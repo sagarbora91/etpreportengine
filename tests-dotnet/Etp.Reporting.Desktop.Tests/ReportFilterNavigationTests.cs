@@ -48,7 +48,7 @@ public sealed class ReportFilterNavigationTests
             catch (Exception error) { failure = error; }
             finally { window.importWorkspaceView.DisposeAsync().AsTask().GetAwaiter().GetResult(); }
         });
-        thread.SetApartmentState(ApartmentState.STA); thread.Start();
+        thread.IsBackground = true; thread.SetApartmentState(ApartmentState.STA); thread.Start();
         Assert.True(thread.Join(TimeSpan.FromSeconds(45)));
         if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
     }

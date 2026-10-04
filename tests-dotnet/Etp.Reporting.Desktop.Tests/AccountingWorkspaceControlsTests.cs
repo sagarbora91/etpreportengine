@@ -81,7 +81,7 @@ public sealed class AccountingWorkspaceControlsTests
     private static void RunSta(Action action)
     {
         Exception? error=null; var thread=new Thread(()=>{try { action(); } catch(Exception exception) { error=exception; }});
-        thread.SetApartmentState(ApartmentState.STA); thread.Start(); Assert.True(thread.Join(TimeSpan.FromSeconds(20)));
+        thread.IsBackground = true; thread.SetApartmentState(ApartmentState.STA); thread.Start(); Assert.True(thread.Join(TimeSpan.FromSeconds(20)));
         if(error is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(error).Throw();
     }
 }

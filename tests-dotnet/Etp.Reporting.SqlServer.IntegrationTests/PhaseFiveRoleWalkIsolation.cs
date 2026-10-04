@@ -116,7 +116,7 @@ public sealed partial class PhaseFiveFullWindowCaptureTests
                 Dispatcher.CurrentDispatcher.InvokeShutdown();
             }
         }) { IsBackground = true };
-        thread.SetApartmentState(ApartmentState.STA);
+        thread.IsBackground = true; thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
         Assert.True(thread.Join(TimeSpan.FromSeconds(30)), "The post-role-walk XAML dispatcher did not close.");
         if (failure is not null) ExceptionDispatchInfo.Capture(failure).Throw();

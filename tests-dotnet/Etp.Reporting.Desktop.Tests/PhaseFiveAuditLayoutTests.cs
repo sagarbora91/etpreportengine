@@ -107,7 +107,7 @@ public sealed class PhaseFiveAuditLayoutTests
                 window?.Close();
             }
         });
-        thread.SetApartmentState(ApartmentState.STA);
+        thread.IsBackground = true; thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
         Assert.True(thread.Join(TimeSpan.FromSeconds(45)), "Focused task layout dispatcher did not close.");
         if (failure is not null) throw new InvalidOperationException("Phase 5 audit layout regression.", failure);

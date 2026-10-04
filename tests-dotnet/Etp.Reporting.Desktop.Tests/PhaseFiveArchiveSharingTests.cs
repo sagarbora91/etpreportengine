@@ -42,7 +42,7 @@ public sealed class PhaseFiveArchiveSharingTests
             }
             catch (Exception exception) { failure = exception; }
         });
-        thread.SetApartmentState(ApartmentState.STA);
+        thread.IsBackground = true; thread.SetApartmentState(ApartmentState.STA);
         thread.Start(); thread.Join();
         if (failure is not null) throw new InvalidOperationException("SMTP role presentation failed.", failure);
     }

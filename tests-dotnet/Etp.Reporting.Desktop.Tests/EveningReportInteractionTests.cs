@@ -258,7 +258,7 @@ public sealed class EveningReportInteractionTests
     {
         Exception? failure = null;
         var thread = new Thread(() => { try { action().GetAwaiter().GetResult(); } catch (Exception ex) { failure = ex; } });
-        thread.SetApartmentState(ApartmentState.STA);
+        thread.IsBackground = true; thread.SetApartmentState(ApartmentState.STA);
         thread.Start(); thread.Join();
         if (failure is not null) throw new InvalidOperationException("Evening report interaction failed", failure);
     }

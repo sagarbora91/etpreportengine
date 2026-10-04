@@ -93,7 +93,7 @@ public sealed class EveningMastersAccessTests
     {
         Exception? failure = null;
         var thread = new Thread(() => { try { action(); } catch (Exception exception) { failure = exception; } });
-        thread.SetApartmentState(ApartmentState.STA);
+        thread.IsBackground = true; thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
         Assert.True(thread.Join(TimeSpan.FromSeconds(30)), "STA test did not complete.");
         if (failure is not null) ExceptionDispatchInfo.Capture(failure).Throw();

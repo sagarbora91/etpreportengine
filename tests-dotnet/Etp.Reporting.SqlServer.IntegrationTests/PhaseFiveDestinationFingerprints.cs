@@ -162,7 +162,7 @@ public sealed partial class PhaseFiveFullWindowCaptureTests
     {
         Exception? failure = null;
         var thread = new Thread(() => { try { action(); } catch (Exception exception) { failure = exception; } });
-        thread.SetApartmentState(ApartmentState.STA); thread.Start();
+        thread.IsBackground = true; thread.SetApartmentState(ApartmentState.STA); thread.Start();
         Assert.True(thread.Join(TimeSpan.FromSeconds(30)), "Fingerprint dispatcher did not close.");
         if (failure is not null) throw new InvalidOperationException("Destination fingerprint proof failed.", failure);
     }

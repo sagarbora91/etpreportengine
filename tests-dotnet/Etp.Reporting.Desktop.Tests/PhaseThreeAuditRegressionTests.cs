@@ -215,7 +215,7 @@ public sealed class PhaseThreeAuditRegressionTests
             }
             catch (Exception exception) { error = exception; }
         });
-        thread.SetApartmentState(ApartmentState.STA);
+        thread.IsBackground = true; thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
         Assert.True(thread.Join(TimeSpan.FromSeconds(45)), "UI regression test timed out.");
         if (error is not null) throw new InvalidOperationException("Phase 3 audit regression failed.", error);

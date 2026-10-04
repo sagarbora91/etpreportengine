@@ -37,7 +37,7 @@ public sealed class FocusedTaskLayoutTests
             }
             catch (Exception ex) { failure = ex; }
         });
-        thread.SetApartmentState(ApartmentState.STA); thread.Start(); thread.Join();
+        thread.IsBackground = true; thread.SetApartmentState(ApartmentState.STA); thread.Start(); thread.Join();
         if (failure is not null) throw new InvalidOperationException("Retained task transition failed", failure);
     }
 }

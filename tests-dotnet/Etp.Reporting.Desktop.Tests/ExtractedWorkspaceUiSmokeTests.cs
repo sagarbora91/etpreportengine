@@ -242,7 +242,7 @@ public sealed partial class ExtractedWorkspaceUiSmokeTests
             try { action(); }
             catch (Exception exception) { failure = exception; }
         });
-        thread.SetApartmentState(ApartmentState.STA);
+        thread.IsBackground = true; thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
         thread.Join();
         if (failure is not null) throw new InvalidOperationException("STA UI smoke test failed.", failure);

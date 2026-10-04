@@ -41,7 +41,7 @@ public sealed class EveningDsrViewTests
             }
             catch(Exception e){failure=e;}
         });
-        thread.SetApartmentState(ApartmentState.STA);thread.Start();Assert.True(thread.Join(TimeSpan.FromSeconds(30)));
+        thread.IsBackground = true; thread.SetApartmentState(ApartmentState.STA);thread.Start();Assert.True(thread.Join(TimeSpan.FromSeconds(30)));
         if(failure is not null)throw new InvalidOperationException("Evening report layout failed",failure);
     }
 }

@@ -223,7 +223,7 @@ public sealed partial class PhaseFiveFullWindowCaptureTests(ITestOutputHelper ou
             }
             catch (Exception exception) { completion.TrySetException(exception); application?.Shutdown(); }
         }) { IsBackground = true };
-        thread.SetApartmentState(ApartmentState.STA);
+        thread.IsBackground = true; thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
         try { return await completion.Task.WaitAsync(TimeSpan.FromMinutes(8)); }
         finally { Assert.True(thread.Join(TimeSpan.FromSeconds(5)), "Capture dispatcher did not close."); }

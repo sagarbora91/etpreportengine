@@ -156,7 +156,7 @@ public sealed class RegisterDraftTests
     private static void RunSta(Action action)
     {
         Exception? failure = null; var thread = new Thread(() => { try { action(); } catch(Exception ex) { failure = ex; } });
-        thread.SetApartmentState(ApartmentState.STA); thread.Start(); thread.Join();
+        thread.IsBackground = true; thread.SetApartmentState(ApartmentState.STA); thread.Start(); thread.Join();
         if (failure is not null) throw new InvalidOperationException("Draft test failed", failure);
     }
     private sealed class RegistersStub : IDigitalRegisterService

@@ -89,7 +89,7 @@ public sealed class PhaseFiveNavigationTests
     private static void Sta(Action action)
     {
         Exception? error=null; var thread=new Thread(()=> { try { action(); } catch(Exception ex) { error=ex; } });
-        thread.SetApartmentState(ApartmentState.STA); thread.Start(); Assert.True(thread.Join(TimeSpan.FromSeconds(45)));
+        thread.IsBackground = true; thread.SetApartmentState(ApartmentState.STA); thread.Start(); Assert.True(thread.Join(TimeSpan.FromSeconds(45)));
         if(error is not null) throw new InvalidOperationException("Phase 5 navigation failed",error);
     }
 }

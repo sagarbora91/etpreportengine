@@ -360,7 +360,7 @@ public sealed class DesktopImportCoordinatorTests
             SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext());
             try { action(); } catch (Exception exception) { failure = exception; }
         });
-        thread.SetApartmentState(ApartmentState.STA);
+        thread.IsBackground = true; thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
         Assert.True(thread.Join(TimeSpan.FromMinutes(1)), "Restatement UI test timed out.");
         if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();

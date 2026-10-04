@@ -74,7 +74,7 @@ public sealed class PhaseFiveNavigationStateTests
     {
         Exception? failure = null;
         var thread = new Thread(() => { try { action(); } catch (Exception exception) { failure = exception; } });
-        thread.SetApartmentState(ApartmentState.STA); thread.Start();
+        thread.IsBackground = true; thread.SetApartmentState(ApartmentState.STA); thread.Start();
         Assert.True(thread.Join(TimeSpan.FromSeconds(45)));
         if (failure is not null) throw new InvalidOperationException("Phase 5 navigation state regression.", failure);
     }

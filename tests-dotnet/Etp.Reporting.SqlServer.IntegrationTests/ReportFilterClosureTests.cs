@@ -189,7 +189,7 @@ public sealed class ReportFilterClosureTests(SqlDatabaseFixture database) : ICla
             SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext());
             try { action(); } catch (Exception error) { failure = error; }
         });
-        thread.SetApartmentState(ApartmentState.STA); thread.Start();
+        thread.IsBackground = true; thread.SetApartmentState(ApartmentState.STA); thread.Start();
         Assert.True(thread.Join(TimeSpan.FromMinutes(2)), "Report filter test timed out.");
         if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
     }
