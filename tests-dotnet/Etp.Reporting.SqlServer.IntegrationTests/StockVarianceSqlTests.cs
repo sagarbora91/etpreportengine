@@ -31,9 +31,9 @@ public sealed class StockVarianceSqlTests(SqlDatabaseFixture database) : IClassF
         Assert.Equal(ReconciliationStatus.Failed, result.Status);
         Assert.Equal(["MISSING", "ON-HAND", "SOLD-OUT"], result.Items.Select(x => x.ItemCode));
         var soldOut = result.Items.Single(x => x.ItemCode == "SOLD-OUT");
-        Assert.Equal((0m, 0m, ReconciliationStatus.Passed), (soldOut.ReportedClosing, soldOut.Variance, soldOut.Status));
+        Assert.Equal(((decimal?)0m, (decimal?)0m, ReconciliationStatus.Passed), (soldOut.ReportedClosing, soldOut.Variance, soldOut.Status));
         var missing = result.Items.Single(x => x.ItemCode == "MISSING");
-        Assert.Equal((0m, 1m, ReconciliationStatus.Failed), (missing.ReportedClosing, missing.Variance, missing.Status));
+        Assert.Equal(((decimal?)0m, (decimal?)1m, ReconciliationStatus.Failed), (missing.ReportedClosing, missing.Variance, missing.Status));
 
         var movements = await Repository().LoadStockMovementsAsync(new(new(2026, 8, 1), Aug25, [store]));
         Assert.Equal(4, movements.Count);
@@ -42,16 +42,35 @@ public sealed class StockVarianceSqlTests(SqlDatabaseFixture database) : IClassF
     }
 
     [Fact]
-    public async Task Store_without_a_snapshot_on_the_to_date_is_blocked_and_shows_no_movements()
+    public async Task Store_without_a_snapshot_on_the_to_date_is_blocked_and_its_items_are_marked_not_hidden()
     {
+        // Owner answer Q9 (decision 13): movements and items of a day with no snapshot are listed, marked "no snapshot".
         const string store = "SV-NOSNAP";
         await Seed(store, [new("ITEM", new(2026, 8, 10), "Purchase Receipt", 0m, 1m)], [new("ITEM", new(2026, 8, 24), 1m)], ledgerCoversTo: Aug25);
 
         var result = await Executor().ExecuteStockReconciliationAsync(new(new(2026, 8, 1), Aug25, [store]));
 
         Assert.Equal(ReconciliationStatus.Blocked, result.Status);
-        Assert.StartsWith("Closing stock missing for 25 Aug 2026 (SV-NOSNAP).", result.Message);
-        Assert.Empty(await Repository().LoadStockMovementsAsync(new(new(2026, 8, 1), Aug25, [store])));
+        Assert.StartsWith("Closing stock missing for 25 Aug 2026 (SV-NOSNAP); items are listed without a closing figure (no snapshot).", result.Message);
+        var item = Assert.Single(result.Items);
+        Assert.Equal(("ITEM", 0m, 1m, 1m), (item.ItemCode, item.Opening, item.SourceSignedMovements, item.ExpectedClosing));
+        Assert.Null(item.ReportedClosing);
+        Assert.Null(item.Variance);
+        Assert.Equal(ReconciliationStatus.Blocked, item.Status);
+        var movement = Assert.Single(await Repository().LoadStockMovementsAsync(new(new(2026, 8, 1), Aug25, [store])));
+        Assert.Equal(("ITEM", 1m, false), (movement.ItemCode, movement.SourceSignedQuantity, movement.HasSnapshot));
+    }
+
+    [Fact]
+    public async Task Store_with_a_snapshot_marks_its_movements_as_having_one()
+    {
+        const string store = "SV-HASSNAP";
+        await Seed(store, [new("ITEM", new(2026, 8, 10), "Purchase Receipt", 0m, 1m)], [new("OTHER", Aug25, 1m)], ledgerCoversTo: Aug25);
+
+        var movement = Assert.Single(await Repository().LoadStockMovementsAsync(new(new(2026, 8, 1), Aug25, [store])));
+
+        // ITEM is in no snapshot row (sold out or missing), but the store has a snapshot that day: judged per store.
+        Assert.True(movement.HasSnapshot);
     }
 
     [Fact]
@@ -155,8 +174,81 @@ public sealed class StockVarianceSqlTests(SqlDatabaseFixture database) : IClassF
         // Physical stock: the system quantity of the brand is 2.
         Assert.Equal([("BRAND-X", 2m)], physical.Select(x => (x.InventoryGroupCode, x.SystemQuantity)));
         Assert.Equal(ReconciliationStatus.Passed, variance.Status);
-        Assert.Equal([("BOTH-A", 1m), ("BOTH-B", 1m)], variance.Items.Select(x => (x.ItemCode, x.ReportedClosing)));
+        Assert.Equal([("BOTH-A", (decimal?)1m), ("BOTH-B", (decimal?)1m)], variance.Items.Select(x => (x.ItemCode, x.ReportedClosing)));
         Assert.Equal(["BOTH-A", "BOTH-B"], movements.Select(x => x.ItemCode));
+    }
+
+    [Fact]
+    public async Task Gift_cards_are_left_out_of_every_stock_report()
+    {
+        // Owner answer Q2 (decision 13), Helios report audit R-10: the GIFT CARD item sits at -4 in the ledger and the snapshot;
+        // it is not stock, so Closing, Brand, Brand Stock Entry, Physical, Slow, Variance and Movement all leave it out.
+        const string store = "SV-GIFT";
+        await Seed(store,
+        [
+            new("WATCH-1", new(2026, 8, 10), "Purchase Receipt", 0m, 1m),
+            new("GIFT CARD", new(2026, 8, 12), "INV", -3m, -4m)
+        ],
+        [new("WATCH-1", Aug25, 1m), new("GIFT CARD", Aug25, -4m)], ledgerCoversTo: Aug25);
+        var scope = new ReportingQueryScope(new(2026, 8, 1), Aug25, [store]);
+
+        var operational = new OperationalReportRepository(database.ConnectionString);
+        var closing = await operational.LoadStockInventoryAsync(new(Aug25, Aug25, [store]));
+        var brandEntry = await operational.LoadBrandStockEntryAsync(store, Aug25);
+        var physical = await operational.LoadPhysicalStockAsync(store, Aug25);
+        var brandPhysical = await operational.LoadBrandPhysicalStockAsync(store, Aug25);
+        var variance = await Executor().ExecuteStockReconciliationAsync(scope);
+        var movements = await Repository().LoadStockMovementsAsync(scope);
+
+        Assert.Equal(["WATCH-1"], closing.Select(x => x.ProductCode));
+        Assert.Equal([("BRAND-X", 1m)], brandEntry.Select(x => (x.Brand, x.System)));
+        Assert.Equal([("BRAND-X", 1m)], physical.Select(x => (x.InventoryGroupCode, x.SystemQuantity)));
+        Assert.Equal([("BRAND-X", 1m)], brandPhysical.Select(x => (x.InventoryGroupCode, x.SystemQuantity)));
+        Assert.Equal(ReconciliationStatus.Passed, variance.Status);
+        Assert.Equal(["WATCH-1"], variance.Items.Select(x => x.ItemCode));
+        Assert.Equal(["WATCH-1"], movements.Select(x => x.ItemCode));
+    }
+
+    [Fact]
+    public async Task A_snapshot_row_with_brand_code_GC_is_a_gift_card_and_a_blank_brand_code_is_kept()
+    {
+        const string store = "SV-GC";
+        await Seed(store, [new("WATCH-2", new(2026, 8, 10), "Purchase Receipt", 0m, 1m)], [new("WATCH-2", Aug25, 1m)], ledgerCoversTo: Aug25);
+        await database.ExecuteAsync($"""
+            DECLARE @file bigint=(SELECT TOP 1 l.import_file_id FROM dbo.source_lineage l JOIN dbo.stock_snapshots s ON s.source_lineage_id=l.source_lineage_id WHERE s.store_code='{store}');
+            INSERT dbo.source_lineage(import_file_id,sheet_name,source_row_number,source_record_type) VALUES(@file,'Snapshot',99,'CLOSING_STOCK');
+            DECLARE @lineage bigint=SCOPE_IDENTITY();
+            INSERT dbo.stock_snapshots(store_code,snapshot_date,product_code,batch_number,quantity,unit_cost,total_cost,source_lineage_id,source_report_code,brand_code,brand_name)
+             VALUES('{store}','20260825',N'GCV-500',N'LOT-2',2,0,0,@lineage,'CLOSING_STOCK',N'GC',N'GIFT VOUCHER');
+            """);
+
+        var closing = await new OperationalReportRepository(database.ConnectionString).LoadStockInventoryAsync(new(Aug25, Aug25, [store]));
+
+        // WATCH-2 has no brand_code (NULL): NOT (gift card) must still keep it.
+        Assert.Equal(["WATCH-2"], closing.Select(x => x.ProductCode));
+    }
+
+    [Fact]
+    public async Task Slow_stock_ages_by_receipt_date_and_shows_recent_receipts_as_new()
+    {
+        // Owner answer Q8 (decision 14): an item received 5 days ago and not sold is NEW; one received 120 days ago is NEVER
+        // SOLD aged 120 days; an item with no ledger receipt stays NEVER SOLD with no age.
+        const string store = "SV-AGE";
+        await Seed(store,
+        [
+            new("RECEIVED-OLD", Aug25.AddDays(-120), "Purchase Receipt", 0m, 1m),
+            new("RECEIVED-NEW", Aug25.AddDays(-5), "STM Receipt", 0m, 1m),
+            // An outward movement is not a receipt.
+            new("RECEIVED-NEW", Aug25.AddDays(-2), "STM Issue", 1m, 1m)
+        ],
+        [new("RECEIVED-NEW", Aug25, 1m), new("RECEIVED-OLD", Aug25, 1m), new("NO-LEDGER", Aug25, 1m)], ledgerCoversTo: Aug25);
+
+        var rows = (await new OperationalReportRepository(database.ConnectionString).LoadStockInventoryAsync(new(Aug25, Aug25, [store])))
+            .ToDictionary(x => x.ProductCode);
+
+        Assert.Equal((StockAgeing.New, (DateOnly?)Aug25.AddDays(-5), (int?)5), (rows["RECEIVED-NEW"].MovementStatus, rows["RECEIVED-NEW"].LastReceiptDate, rows["RECEIVED-NEW"].DaysSinceReceipt));
+        Assert.Equal((StockAgeing.NeverSold, (int?)120), (rows["RECEIVED-OLD"].MovementStatus, rows["RECEIVED-OLD"].DaysSinceReceipt));
+        Assert.Equal((StockAgeing.NeverSold, (DateOnly?)null, (int?)null), (rows["NO-LEDGER"].MovementStatus, rows["NO-LEDGER"].LastReceiptDate, rows["NO-LEDGER"].DaysSinceReceipt));
     }
 
     private SqlServerReportingQueryRepository Repository() => new(database.ConnectionString);
