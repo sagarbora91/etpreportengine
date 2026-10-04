@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+## [1.9.5] - (date after the 1.9.5 gate)
+
+Service Centre interim import (Service review step S-2, decisions 15 and 16, 3-4 Oct 2026), with migration 0048 (`0048_service_centre_interim.sql`). It ships after 1.9.4, whose migrations are 0046 and 0047; 0049 is reserved for the Tally cost-centre migration of GitHub PR #3 (decision 18), and 1.10.0 numbers its own migrations from 0050. Retail imports, reports and packs do not change.
+
+- Service Centre (AW330) exports can now be imported, both the weekly consolidated workbooks and the daily raw ETP exports (CSV or XLSX). Each file is kept as a dated snapshot: a consolidated workbook takes the date at the end of its folder name ("Service Centre till 05 oct 2026"), a raw export takes the end date of the window in its file name ("JOB REPORT 30.09.2026 TO 03.10.2026.csv"). The date box on the Import screen is used only for a restatement (Restate ticked, with a reason), so a first import of an undated folder needs the dated folder.
+- 36 Service families are imported, each into its own table: S002-S004, S006-S026, S029-S037, S039, S040 and S041.
+- **GPRC CLAIM is a new family, S041** (decision 16, Q6/Q7): the raw ETP export `GPRC CLAIM <from> TO <to>` (sheet "GPRC Claims Report", 34 columns) lands in its own table `etp_landing_s041`, in 0048 like the other Service tables (no new migration number). GPRC history is read from S023 (consolidated, up to 5 Aug 2026) and from S041 after; where both hold a claim, S041 wins per claim document, so a claim is never counted twice.
+- Reported Not needed instead of failing:
+  - S001 (Repair register): it is the union of the ten status lists, built by the consolidation tool, so importing it would count every job twice (`FAMILY_DERIVED`).
+  - S005 (Tender collection summary): a summary with no date; the Owner decided it is not needed, and S004 is imported in detail (`SERVICE_FAMILY_NOT_NEEDED`).
+  - S038 (SRN report): a retired name; its columns are the same as S011's (`SERVICE_FAMILY_NOT_NEEDED`).
+  - S027 (TAT) and S028 (Technician productivity): deferred to the full Service import in 1.10.0 (`SERVICE_FAMILY_DEFERRED`).
+  - The `00_` consolidation control file, as before.
+- A raw TATA REPORT file (S027 TAT as ETP exports it: a title row first, then the raw header) is not imported yet and shows as an unknown layout, never as Failed. A consolidated S027 file is Not needed, as above.
+- Four read-only screens on a new "Service centre" tab of the Reports rail, for Viewers and up: Service jobs by status, Service pending lists, Service job history and Service money check. Each can export to Excel and shows "Service data as at <date>". They never show a customer phone number, e-mail or address.
+- The screens read SQL views that pick the latest reading per business date, per job or per list, never the latest file. A rolling 4-day raw window and a weekly consolidated workbook therefore combine correctly, and importing an older file after a newer one changes nothing.
+- A job that leaves a list (for example Pending repair) is shown as history on Service job history. It is not a problem and creates no review item.
+- **Service money check** (decision 16, Q1-Q4): S004 Cash, Card and UPI are compared, by bill date and per tender, with the manual `SERVICE_CASH`, `SERVICE_CARD` and `SERVICE_UPI` entries of the Titan World shop only, where all of the Service centre's money is entered. Differences are shown (S004 minus manual) and never corrected on either side. A Service entry made at any other shop is listed under "Service entries at other shops (not added)" and never added in. `SERVICE_WDC` stays out of the comparison, and no job advance is deducted (advances are 0; a non-zero S004 advance, cheque or RTGS amount is still shown, with no manual side). A day whose Service money changed between two refreshes is listed under "Money changed since the previous refresh". The manual entries stay the cash-book source.
+- AW330 is added to the store list as an inactive Service Centre store (business unit SERVICE). A trigger refuses to make it active (error 51900), because an active store would stop the combined Retail date and the daily packs, and would join the DSR and evening store lists; the same trigger refuses to move a Service store out of the Service business unit (error 51904). Settings > Stores shows it as a Service centre that is not a shop, explains either refusal in plain words, and Import History shows its files as "Service Centre (AW330)" under "All stores".
+- Service files never start an automatic report pack, there is no Service day locking, and a Service file with no store column takes AW330 (`SERVICE_STORE_DEFAULTED`).
+- A Service file in a folder without a date is refused with `SERVICE_SNAPSHOT_DATE_NEEDED`: "Put the Service files in a folder whose name ends with the date, e.g. 'Service Centre till 05 oct 2026'. The Import screen's date is only for a restatement." When the folder date differs from the latest date on the "Snapshot History" sheet of S006, S009 or S010, the import adds a warning (`SERVICE_SNAPSHOT_DATE_DIFFERS_FROM_HISTORY`) and still imports.
+- New `scripts/service-centre/measure-service-growth.sql` (SELECT-only) reports the rows and the space the Service tables use, per table and per reading, to run before and after a refresh.
+- Documentation: a new "Service Centre (interim)" section in `docs/USER-GUIDE.md`, the Service tables and views in `docs/03_DATABASE_SCHEMA.md`, the growth check in `docs/OPERATIONS.md`, the number register `docs/service-centre/SERVICE-INTERIM-NUMBERS.md`, and the import failure register row IF-024 marked fixed on `feature/service-interim`, awaiting acceptance.
+- Gate: (after the 1.9.5 gate) — build, unit and SQL integration test counts. Scratch rehearsal on a restored copy: (after the 1.9.5 gate) — outcome counts of the consolidated folder, the re-import and the raw pack, and the growth figures.
+
 ## [1.9.4] - 2026-10-04
 
 The report-audit release (HEMW and WLMHW report audits of 3 October 2026), with the fix for the 1.9.3 upgrade stopping at the pre-migration backup:
