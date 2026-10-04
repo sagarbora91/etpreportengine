@@ -162,8 +162,8 @@ public sealed partial class ServiceLandingMigrationTests
     public void Landing_objects_live_only_inside_the_section_markers()
     {
         var script = Script();
-        Assert.Equal(1, Regex.Matches(script, Regex.Escape(BeginMarker) + "$", RegexOptions.Multiline).Count);
-        Assert.Equal(1, Regex.Matches(script, Regex.Escape(EndMarker) + "$", RegexOptions.Multiline).Count);
+        Assert.Single(Regex.Matches(script, Regex.Escape(BeginMarker) + "$", RegexOptions.Multiline));
+        Assert.Single(Regex.Matches(script, Regex.Escape(EndMarker) + "$", RegexOptions.Multiline));
         var begin = script.IndexOf(BeginMarker + "\n", StringComparison.Ordinal);
         var end = script.IndexOf("\n" + EndMarker, StringComparison.Ordinal);
         Assert.True(begin >= 0 && end > begin);
