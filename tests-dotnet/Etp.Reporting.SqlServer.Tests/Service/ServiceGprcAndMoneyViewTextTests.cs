@@ -26,8 +26,8 @@ public sealed partial class ServiceGprcAndMoneyViewTextTests
         var begin = text.IndexOf(BlockBegin + "\n", StringComparison.Ordinal);
         var end = text.IndexOf("\n" + BlockEnd, StringComparison.Ordinal);
         Assert.True(begin >= 0 && end > begin, "The script must hold one L10 block between its marker lines.");
-        Assert.Equal(1, Regex.Matches(text, Regex.Escape(BlockBegin)).Count);
-        Assert.Equal(1, Regex.Matches(text, Regex.Escape(BlockEnd)).Count);
+        Assert.Single(Regex.Matches(text, Regex.Escape(BlockBegin)));
+        Assert.Single(Regex.Matches(text, Regex.Escape(BlockEnd)));
         return text[(begin + BlockBegin.Length + 1)..end];
     }
 
@@ -70,7 +70,7 @@ public sealed partial class ServiceGprcAndMoneyViewTextTests
         // The union rule.
         Assert.Contains("WHERE NOT EXISTS(SELECT 1 FROM claims c WHERE c.document_number=h.document_number)", view, StringComparison.Ordinal);
         Assert.Contains("AND (h.document_number IS NOT NULL OR NOT EXISTS(SELECT 1 FROM claims c WHERE c.business_date=h.business_date))", view, StringComparison.Ordinal);
-        Assert.Equal(1, Regex.Matches(view, @"\bUNION ALL\b").Count);
+        Assert.Single(Regex.Matches(view, @"\bUNION ALL\b"));
         Assert.DoesNotMatch(@"\bUNION\s+SELECT\b", view);
         // The two SELECTs give the same columns in the same order.
         Assert.Contains("SELECT ''S041'' report_code,business_date,document_number,job_order_number,item_id,quantity,account_number,price,net_amount,", view, StringComparison.Ordinal);

@@ -17,8 +17,18 @@
 | Section | Owner | Content |
 |---|---|---|
 | `A_SERVICE_STORE` | L0 | SERVICE business unit, store AW330 (inactive), trigger `trg_stores_service_unit_inactive` |
-| `B_SERVICE_LANDING` | L2 | 35 landing tables, indexes, locked-day triggers, `append_*` procedures, grants (generated) |
-| `C_SERVICE_READ` | L4 | read-rule views and grants |
+| `B_SERVICE_LANDING` | L2 | 36 landing tables (35 + S041 GPRC CLAIM, L10), indexes, locked-day triggers, `append_*` procedures, grants (generated) |
+| `C_SERVICE_READ` | L4 | read-rule views and grants; plus L10's `v_service_gprc_claims` and `v_service_manual_money` from `scripts/service-centre/c_service_read_gprc_and_money.sql` (emitted by L4's generator at integration) |
+
+## Service family codes (S-codes)
+
+S001-S040 come from the consolidation builder (`docs/04a_CONSOLIDATION_CONTRACT.md`); S038 is a retired report name
+(Not needed). A new Service family takes the next free code, and lanes add a row here.
+
+| Code | Family | Since | Owner | Notes |
+|---|---|---|---|---|
+| **S041** | `GPRC_Claim`: raw ETP export `GPRC CLAIM*` (sheet "GPRC Claims Report", 34 columns, header row 1) | 4 Oct 2026, decision 16 (Q6) | L10 | Its own family, not a second layout of S023 (Sagar's choice). Landing table `etp_landing_s041` in 0048 section B (no new migration number). Read rule DateLog on `transaction_date` (the date part of Transaction Date). Raw export only: the consolidated set has no S041 workbook, so the week fixture folders do not hold one. GPRC history is S023 up to 5 Aug 2026 and S041 afterwards; `dbo.v_service_gprc_claims` reads both, S041 winning per claim document. |
+| S042 onwards | | | | free |
 
 ## SQL error numbers: block 51900-51929
 

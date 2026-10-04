@@ -25,7 +25,7 @@ Common rules, already applied to the interim roles:
 
 | Group | Families | P8 scope and key | Row rule | Change policy | Evidence and caveats |
 |---|---|---|---|---|---|
-| Money logs (row date) | S003, S004, S019, S023-S026, S039, S040 | `Date` on the primary date: S003 `Trans Date`, S004 `BillingDate`, S019 `RepairDate`, S023-S026 `TransDate`, S039/S040 `Transaction Date` | Multiset | Review | (`DocumentNum`, `Line Num`) repeats on S003 rows and `BillingNumber` on S004 rows, so there is no natural key until a raw-corpus test proves one. |
+| Money logs (row date) | S003, S004, S019, S023-S026, S039-S041 | `Date` on the primary date: S003 `Trans Date`, S004 `BillingDate`, S019 `RepairDate`, S023-S026 `TransDate`, S039-S041 `Transaction Date` (S041 carries a time; the date part) | Multiset | Review | (`DocumentNum`, `Line Num`) repeats on S003 rows and `BillingNumber` on S004 rows, so there is no natural key until a raw-corpus test proves one. S023 and S041 hold the same GPRC claims (S041 from 1 Aug 2026): a P8 key must keep the interim union rule, S041 wins per claim document (`DocumentNum` / `Document Number`). |
 | Snapshots, contract rule `current` | S006, S009, S010 | `Snapshot`, dated by block (contract, then Snapshot History rows, then the folder) | SnapshotItems (S006 RowKey candidate: `store_code`, `itemid`; not proven) | LatestReadingWins, with membership for S009/S010 | Shrinking is normal for the pending lists (review H3). |
 | Job lists | S002, S020, S021, S022, S029, S030, S036, S037 | Candidate `Document` keyed by job order number, with no year; fallback `Period` | Multiset (rows are repair lines or test runs) | LatestReadingWins; status and progress columns are Attribute | The job number is never blank; rows of one job differ only in line columns (review H4). S029 `CaseNo` is blank on part of the rows: keep S029 on `Period`, or a month scope from `Month`/`Year`. |
 | Status views (membership) | S011, S014-S018, S031-S035 | As job lists, plus membership | Multiset | LatestReadingWins, with membership | Jobs move between views. |
@@ -82,6 +82,7 @@ When P8 flips a family, it sets `PrimaryDateHeader` and `Identity`, re-runs `scr
 | S037 | REPAIR REPORT | yes |
 | S039 | WDC CLAIM | yes |
 | S040 | WRA CLAIM | yes |
+| S041 | GPRC CLAIM | yes (added 4 Oct 2026, decision 16: its own family, not a second layout of S023) |
 
 "Assumed" patterns follow the naming of the exports that were seen. They decide only between families that share a header layout, so a wrong guess leaves a file unnamed ("not guessed"); it never routes the file to a family with different headers. Correct them when a raw export of that family arrives.
 
