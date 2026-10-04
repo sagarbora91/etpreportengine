@@ -131,6 +131,11 @@ public sealed class AuditCommandLineTests
     [InlineData("EtpAccept_")]
     [InlineData("etpaccept_p1")]
     [InlineData("master")]
+    [InlineData("EtpStaging_")]
+    [InlineData("EtpStagingX")]
+    [InlineData("etpstaging_20261004")]
+    [InlineData("EtpStaging_2026-10-04")]
+    [InlineData("OtherDb")]
     public void Seed_refuses_every_non_scratch_name(string database)
     {
         Assert.False(AuditCommandLine.IsScratchDatabase(database));
@@ -142,6 +147,8 @@ public sealed class AuditCommandLineTests
     [InlineData("EtpAccept_P1")]
     [InlineData("EtpPhase1Test_X")]
     [InlineData("EtpReportingHelios")]
+    [InlineData("EtpStaging_20261004")] // decision 24: the shop PC staging copy
+    [InlineData("EtpAccept_Staging_20261004")]
     public void Seed_accepts_scratch_names(string database)
     {
         Assert.True(AuditCommandLine.IsScratchDatabase(database));

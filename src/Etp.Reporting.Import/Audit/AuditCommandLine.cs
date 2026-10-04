@@ -84,7 +84,7 @@ public static partial class AuditCommandLine
           baseline --database <name> [--compare <baseline.json>]
                                                 Run scripts/check-import-upgrade.sql (SELECT-only) and save its results.
 
-        Writing command (scratch databases only: EtpReportingHelios, EtpPhase1Test_*, EtpAccept_*):
+        Writing command (scratch databases only: EtpReportingHelios, EtpPhase1Test_*, EtpAccept_*, EtpStaging_*):
           seed --database <scratch> [--rebuild] [--migrate-only] [--folder <path>]...
 
         Options:
@@ -208,12 +208,12 @@ public static partial class AuditCommandLine
     }
 
     /// <summary>
-    /// A database <c>seed</c> may write: <c>EtpReportingHelios</c>, <c>EtpPhase1Test_*</c> or <c>EtpAccept_*</c>, the
+    /// A database <c>seed</c> may write: <c>EtpReportingHelios</c>, <c>EtpPhase1Test_*</c>, <c>EtpAccept_*</c> or <c>EtpStaging_*</c> (the shop PC staging copy, decision 24), the
     /// suffix letters, digits and underscores only. Live <c>EtpReporting</c> never qualifies.
     /// </summary>
     public static bool IsScratchDatabase(string? name) => name is not null && ScratchName().IsMatch(name);
 
-    [GeneratedRegex(@"^(EtpReportingHelios|EtpPhase1Test_[A-Za-z0-9_]+|EtpAccept_[A-Za-z0-9_]+)$", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"^(EtpReportingHelios|EtpPhase1Test_[A-Za-z0-9_]+|EtpAccept_[A-Za-z0-9_]+|EtpStaging_[A-Za-z0-9_]+)$", RegexOptions.CultureInvariant)]
     private static partial Regex ScratchName();
 
     public static string Name(AuditCommandKind kind) => kind switch
@@ -242,9 +242,9 @@ public static partial class AuditCommandLine
                 break;
             case AuditCommandKind.Seed:
                 if (string.IsNullOrWhiteSpace(command.Database))
-                    return Fail("seed needs --database <scratch name>: EtpReportingHelios, EtpPhase1Test_* or EtpAccept_*.");
+                    return Fail("seed needs --database <scratch name>: EtpReportingHelios, EtpPhase1Test_*, EtpAccept_* or EtpStaging_*.");
                 if (!IsScratchDatabase(command.Database))
-                    return Fail("seed writes only to a scratch database: EtpReportingHelios, EtpPhase1Test_* or EtpAccept_*.");
+                    return Fail("seed writes only to a scratch database: EtpReportingHelios, EtpPhase1Test_*, EtpAccept_* or EtpStaging_*.");
                 if (command.MigrateOnly && command.Folders.Count > 0) return Fail("--migrate-only imports nothing; leave out --folder.");
                 break;
         }

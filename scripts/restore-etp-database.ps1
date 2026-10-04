@@ -47,10 +47,21 @@ function Assert-EtpRestoreBackupPath {
     return $full
 }
 
+function Test-EtpRestoreStagingSource {
+    # Decision 24 (4 October 2026): the shop PC is set up from a copy of the database prepared
+    # on another PC under a staging name (EtpStaging_yyyyMMdd, or an EtpAccept_* acceptance
+    # copy). A backup of such a copy is restored under the configured name; any other name
+    # that is not the configured one is still refused. Case-sensitive, like ImportAudit's guard.
+    param([AllowNull()][AllowEmptyString()][string]$Name)
+    return ($null -ne $Name -and $Name.Length -le 128 -and $Name -cmatch '^(EtpStaging|EtpAccept)_[A-Za-z0-9_]+$')
+}
+
 function Assert-EtpRestoreReceipt {
     # Read-EtpVerifiedReceipt is not used: it requires the backup to sit in this PC's backup
     # folder, and a receipt from another PC names that PC's folder. Only what identifies the
-    # file is checked here; SQL Server's own verification follows.
+    # file is checked here; SQL Server's own verification follows. The database the receipt
+    # names (the configured one, or a staging copy's, decision 24) is returned, and must later
+    # be the database the backup header names (Assert-EtpRestoreReceiptMatchesHeader).
     param([Parameter(Mandatory)][string]$ReceiptPath,[Parameter(Mandatory)][string]$Database,
           [Parameter(Mandatory)][string]$Sha256,[Parameter(Mandatory)][long]$LengthBytes)
     try { $full = [IO.Path]::GetFullPath($ReceiptPath) } catch { throw 'Give the full path of the receipt file.' }
@@ -64,7 +75,7 @@ function Assert-EtpRestoreReceipt {
     $verified = Get-EtpRestoreJsonValue $receipt 'verified'
     if ($null -ne $verified -and -not ($verified -is [bool] -and $verified)) { throw 'The receipt does not record a verified backup.' }
     $receiptDatabase = Get-EtpRestoreJsonValue $receipt 'database'
-    if ($null -ne $receiptDatabase -and [string]$receiptDatabase -cne $Database) { throw "The receipt is for another database, not $Database." }
+    if ($null -ne $receiptDatabase -and [string]$receiptDatabase -cne $Database -and -not (Test-EtpRestoreStagingSource ([string]$receiptDatabase))) { throw "The receipt is for another database, not $Database." }
     if ([string](Get-EtpRestoreJsonValue $receipt 'encryption') -ceq 'AES_256') {
         throw 'This backup is encrypted. This helper restores unencrypted backups only (SQL Server Express and Web take no other kind); import its recovery certificate and restore it by hand, following docs\OPERATIONS.md, Second-machine recovery exercise, step 2 onwards.'
     }
@@ -74,6 +85,16 @@ function Assert-EtpRestoreReceipt {
         $expected = [long]0
         if (-not [long]::TryParse([string]$recordedLength, [ref]$expected) -or $expected -ne $LengthBytes) { throw 'The backup file does not match its receipt (its size differs). Nothing was restored.' }
     }
+    if ($null -eq $receiptDatabase) { return $null }
+    return [string]$receiptDatabase
+}
+
+function Assert-EtpRestoreReceiptMatchesHeader {
+    # A receipt that names a database must name the one the backup holds: a staging copy's
+    # receipt cannot vouch for a backup of another database, nor the reverse.
+    param([AllowNull()][AllowEmptyString()][string]$ReceiptDatabase,[Parameter(Mandatory)][string]$HeaderDatabase)
+    if ([string]::IsNullOrEmpty($ReceiptDatabase)) { return }
+    if ($ReceiptDatabase -cne $HeaderDatabase) { throw "The receipt is for database '$ReceiptDatabase', but this file is a backup of database '$HeaderDatabase'. Nothing was restored." }
 }
 
 function ConvertFrom-EtpRestoreHeader {
@@ -89,8 +110,10 @@ function ConvertFrom-EtpRestoreHeader {
     if ($fields[2].Trim() -cne '1') { throw 'This file is not a full database backup. Nothing was restored.' }
     if ($fields[5].Trim() -cne '1') { throw 'This file holds more than one backup. Restore it by hand as described in docs\OPERATIONS.md. Nothing was restored.' }
     $name = $fields[9].Trim()
-    if ($name -ine $Database) { throw "This file is a backup of database '$name', not $Database. Nothing was restored." }
-    return [pscustomobject]@{ DatabaseName = $name }
+    if ($name -ieq $Database) { return [pscustomobject]@{ DatabaseName = $name; IsStagingSource = $false } }
+    # Decision 24: a staging copy prepared on another PC is restored as the configured database.
+    if (Test-EtpRestoreStagingSource $name) { return [pscustomobject]@{ DatabaseName = $name; IsStagingSource = $true } }
+    throw "This file is a backup of database '$name', not $Database. Nothing was restored."
 }
 
 function ConvertFrom-EtpRestoreFileList {
@@ -314,8 +337,9 @@ $source = Assert-EtpRestoreBackupPath $BackupPath
 $length = [long](Get-Item -LiteralPath $source).Length
 $sourceHash = (Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash
 Write-RestoreLog "Backup file: $source ($length bytes, SHA-256 $sourceHash)."
+$receiptDatabase = $null
 if (-not [string]::IsNullOrWhiteSpace($ReceiptPath)) {
-    Assert-EtpRestoreReceipt -ReceiptPath $ReceiptPath -Database $Database -Sha256 $sourceHash -LengthBytes $length
+    $receiptDatabase = Assert-EtpRestoreReceipt -ReceiptPath $ReceiptPath -Database $Database -Sha256 $sourceHash -LengthBytes $length
     Write-RestoreLog 'The backup matches its receipt.'
 }
 else { Write-RestoreLog 'No receipt was given. Compare the SHA-256 above with any hash recorded when the backup was taken.' }
@@ -369,11 +393,13 @@ $stagedLiteral = $staged.Replace("'","''")
 $unreadable = 'SQL Server could not verify this backup (RESTORE VERIFYONLY WITH CHECKSUM). It may be damaged, encrypted, taken without CHECKSUM, from a newer SQL Server, or not a database backup. Nothing was changed.'
 
 # 7-9. What the file holds, whether SQL Server can read all of it, and where it will go.
-$null = ConvertFrom-EtpRestoreHeader -Database $Database -Lines (Invoke-EtpRestoreRows -SqlCmd $sqlcmd -Server $ServerInstance -Failure $unreadable -Query "SET NOCOUNT ON; RESTORE HEADERONLY FROM DISK=N'$stagedLiteral';")
+$header = ConvertFrom-EtpRestoreHeader -Database $Database -Lines (Invoke-EtpRestoreRows -SqlCmd $sqlcmd -Server $ServerInstance -Failure $unreadable -Query "SET NOCOUNT ON; RESTORE HEADERONLY FROM DISK=N'$stagedLiteral';")
+Assert-EtpRestoreReceiptMatchesHeader -ReceiptDatabase $receiptDatabase -HeaderDatabase $header.DatabaseName
+if ($header.IsStagingSource) { Write-RestoreLog "Backup of staging database $($header.DatabaseName); restoring as $Database." }
 try { Invoke-EtpSql -SqlCmd $sqlcmd -Server $ServerInstance -Query "RESTORE VERIFYONLY FROM DISK=N'$stagedLiteral' WITH CHECKSUM;" | Out-Null }
 catch { throw $unreadable }
 $files = ConvertFrom-EtpRestoreFileList -Database $Database -Lines (Invoke-EtpRestoreRows -SqlCmd $sqlcmd -Server $ServerInstance -Failure $unreadable -Query "SET NOCOUNT ON; RESTORE FILELISTONLY FROM DISK=N'$stagedLiteral';")
-Write-RestoreLog 'SQL Server verified the backup: one full backup of the configured database, with one data file and one log file.'
+Write-RestoreLog "SQL Server verified the backup: one full backup of database $($header.DatabaseName), with one data file ($($files.DataLogicalName)) and one log file ($($files.LogLogicalName)). They become $Database's own files in SQL Server's data and log folders; the logical names are kept."
 $folders = @(Invoke-EtpSql -SqlCmd $sqlcmd -Server $ServerInstance -Query "SET NOCOUNT ON; SELECT N'ETP_DATA_PATH:'+CONVERT(nvarchar(260),SERVERPROPERTY('InstanceDefaultDataPath')); SELECT N'ETP_LOG_PATH:'+CONVERT(nvarchar(260),SERVERPROPERTY('InstanceDefaultLogPath'));")
 $needed = @{}
 foreach ($target in @([pscustomobject]@{ Folder = (Get-EtpRestoreMarker $folders 'ETP_DATA_PATH'); Bytes = $files.DataBytes },
