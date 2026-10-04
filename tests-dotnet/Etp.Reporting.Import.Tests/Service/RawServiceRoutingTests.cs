@@ -6,7 +6,7 @@ namespace Etp.Reporting.Import.Tests.Service;
 /// <summary>
 /// Lane L9: each synthetic raw export (tests-dotnet/fixtures/service-interim/raw) matches its Service family, is dated by
 /// the end of the window in its name (2026-10-09) and carries store AW330. The S catalogue entries and RawNamePatterns are
-/// lane L1's, so these run once fixsvc/svc1-catalogue is merged into feature/service-interim and pulled here.
+/// lane L1's (merged through feature/service-interim).
 /// "Not needed" for S005/S028 is lane L3's folder gate; ServiceRawImportSqlTests checks it through the folder import.
 /// </summary>
 public sealed class RawServiceRoutingTests
@@ -19,7 +19,7 @@ public sealed class RawServiceRoutingTests
     private static async Task<MatchedImportInspection> Inspect(string fileName) =>
         new MatchedImportEnvelopeFactory(["WLMHW", "HEMW", "AW330"]).Inspect(await new SourceFileReader().ReadAsync(RawServiceFixtures.Path(fileName)));
 
-    [Theory(Skip = WaitsForL1)]
+    [Theory]
     [InlineData("JOB REPORT 06.10.2026 TO 09.10.2026.csv", "S002")]
     [InlineData("TENDER COLLECTION 05.10.2026 TO 09.10.2026.csv", "S004")]
     [InlineData("PENDING REPORT 09.10.2026.csv", "S009")]
@@ -40,7 +40,7 @@ public sealed class RawServiceRoutingTests
         Assert.True(inspection.StagedRows > 0);
     }
 
-    [Theory(Skip = WaitsForL1)]
+    [Theory]
     [InlineData("TENDER COLLECTIN SUMMARY 06.10.2026 TO 09.10.2026.csv", "S005")]
     [InlineData("TECHNICIAN PRODUCIVITY REPORT 06.10.2026 TO 09.10.2026.xlsx", "S028")]
     public async Task A_raw_export_of_a_family_the_interim_does_not_import_is_still_recognised(string fileName, string family)
@@ -49,7 +49,7 @@ public sealed class RawServiceRoutingTests
         Assert.Equal(family, (await Inspect(fileName)).MatchedProfile?.ReportCode);
     }
 
-    [Fact(Skip = WaitsForL1)]
+    [Fact]
     public async Task The_empowerment_export_matches_below_its_title_rows()
     {
         var inspection = await Inspect("EMPOWERMENT REPORT 06.10.2026 TO 09.10.2026.xlsx");

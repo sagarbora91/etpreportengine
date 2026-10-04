@@ -85,14 +85,14 @@ public sealed class ServiceRawImportSqlTests
             Assert.Equal(new DateTime(2026, 10, 9), Convert.ToDateTime(await database.ExecuteAsync(
                 "SELECT snapshot_date FROM dbo.v_service_readings WHERE report_code='S004' AND is_latest=1")));
             Assert.Equal(625m, await Scalar(database,
-                "SELECT SUM(s004_amount) FROM dbo.v_service_s004_daily WHERE business_date='2026-10-06'"));
+                "SELECT SUM(amount) FROM dbo.v_service_s004_daily WHERE business_date='2026-10-06'"));
             var olderFromWeek2 = await Scalar(database, """
                 SELECT SUM(l.totalamount) FROM dbo.etp_landing_s004 AS l JOIN dbo.import_files AS f ON f.import_file_id=l.import_file_id
                 WHERE f.period_end='2026-10-05' AND l.billingdate<'2026-10-05'
                 """);
             Assert.True(olderFromWeek2 > 0, "week2 holds S004 billing dates before 2026-10-05");
             Assert.Equal(olderFromWeek2, await Scalar(database,
-                "SELECT SUM(s004_amount) FROM dbo.v_service_s004_daily WHERE business_date<'2026-10-05' AND business_date>=" +
+                "SELECT SUM(amount) FROM dbo.v_service_s004_daily WHERE business_date<'2026-10-05' AND business_date>=" +
                 "(SELECT MIN(l.billingdate) FROM dbo.etp_landing_s004 AS l JOIN dbo.import_files AS f ON f.import_file_id=l.import_file_id WHERE f.period_end='2026-10-05')"));
 
             // 05 Oct is in week2 and in the raw window: the raw amount wins and the change is listed for the Owner.
@@ -100,11 +100,14 @@ public sealed class ServiceRawImportSqlTests
                 SELECT SUM(l.totalamount) FROM dbo.etp_landing_s004 AS l JOIN dbo.import_files AS f ON f.import_file_id=l.import_file_id
                 WHERE f.period_end='2026-10-05' AND l.billingdate='2026-10-05'
                 """);
-            Assert.True(week2On05 > 0, "L0's week2 S004 must hold billing date 2026-10-05 for the raw restatement to show");
+            // L0's week2 holds three tender rows on 05 Oct (400 + 450 + 125); the raw window holds two (250 + 275).
+            Assert.Equal(975m, week2On05);
             Assert.Equal(525m, await Scalar(database,
-                "SELECT SUM(s004_amount) FROM dbo.v_service_s004_daily WHERE business_date='2026-10-05'"));
+                "SELECT SUM(amount) FROM dbo.v_service_s004_daily WHERE business_date='2026-10-05'"));
             Assert.Equal(1m, await Scalar(database,
                 "SELECT COUNT(*) FROM dbo.v_service_money_changes WHERE report_code='S004' AND business_date='2026-10-05'"));
+            Assert.Equal(-450m, await Scalar(database,
+                "SELECT difference FROM dbo.v_service_money_changes WHERE report_code='S004' AND business_date='2026-10-05'"));
 
             // A second import of the same raw pack changes nothing.
             var rows = await Scalar(database, "SELECT COUNT(*) FROM dbo.etp_import_content");
