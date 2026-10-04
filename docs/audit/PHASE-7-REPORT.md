@@ -160,7 +160,7 @@ Tests: `TallySalesVoucherComposerTests` (SqlServer.Tests); `TallySalesBatchSqlTe
 
 ## Increment 7 — Tally vouchers and Tally ledgers screens, validation gate (tasks 7, 11 part, 13)
 
-Makes batch creation usable from the app. Not yet verified in CI at the time of writing.
+Makes batch creation usable from the app. UNIT_VERIFIED and SQL_VERIFIED on LocalDB in CI: run 221 (aea9ff0), which also carries the CI change that makes every screen-test thread a background thread and stops any test running over 10 minutes. Runs 219 and 220 failed to compile on two test calls (CS8752), fixed in aea9ff0. The screens have not been opened on the shop PC.
 
 | Item | Where |
 |---|---|
