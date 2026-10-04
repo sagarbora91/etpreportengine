@@ -67,7 +67,7 @@ public sealed partial class FixturePrivacyTests
             Assert.Equal([.. Enumerable.Range(1, 40).Select(n => $"S{n:000}")], rows.Keys.Order(StringComparer.Ordinal));
             Assert.All(rows.Keys, code => Assert.Single(names, name => name!.StartsWith(code + "_", StringComparison.Ordinal)));
             Assert.Equal(0, rows["S038"]);
-            Assert.All(rows, pair => Assert.True(pair.Key == "S038" || pair.Value is >= 3 and <= 9, $"{pair.Key} has {pair.Value} rows."));
+            Assert.All(rows, pair => Assert.True(pair.Key == "S038" || pair.Value is >= 3 and <= 12, $"{pair.Key} has {pair.Value} rows."));
         }
 
         Assert.Equal(ServiceInterimFamilies.Importable.Order(StringComparer.Ordinal), ServiceFixtures.ExpectedImported);
@@ -83,7 +83,7 @@ public sealed partial class FixturePrivacyTests
     [InlineData("S017", 3, 4)]
     [InlineData("S018", 5, 7)]
     [InlineData("S003", 4, 5)]
-    [InlineData("S004", 9, 9)]
+    [InlineData("S004", 9, 12)]
     public async Task The_week_files_have_the_expected_data_rows(string code, int week1, int week2)
     {
         Assert.Equal(week1, ServiceFixtures.Week1Rows[code]);

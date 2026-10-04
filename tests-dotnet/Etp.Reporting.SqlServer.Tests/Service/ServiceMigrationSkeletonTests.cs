@@ -110,13 +110,14 @@ public sealed class ServiceMigrationSkeletonTests
     }
 
     [Fact]
-    public void Section_A_trigger_refuses_an_active_Service_store_with_51900()
+    public void Section_A_trigger_refuses_an_active_Service_store_with_51900_and_a_move_out_with_51904()
     {
         var section = Section(Script(), "A_SERVICE_STORE");
         Assert.Contains("EXEC(N'CREATE OR ALTER TRIGGER dbo.trg_stores_service_unit_inactive ON dbo.stores\nAFTER INSERT, UPDATE AS", section, StringComparison.Ordinal);
         Assert.Contains("THROW 51900,''A Service Centre store cannot be made an active shop store.'',1;", section, StringComparison.Ordinal);
         Assert.Contains("business_unit_code=''SERVICE'' AND i.is_active=1", section, StringComparison.Ordinal);
+        Assert.Contains("THROW 51904,''A Service Centre store cannot be moved out of the Service Centre business unit.'',1;", section, StringComparison.Ordinal);
         var numbers = Regex.Matches(section, @"THROW\s+(\d+)").Select(match => match.Groups[1].Value).Distinct().ToArray();
-        Assert.Equal(["51900"], numbers);
+        Assert.Equal(["51900", "51904"], numbers);
     }
 }
