@@ -70,7 +70,10 @@ public sealed partial class FixturePrivacyTests
             Assert.All(rows, pair => Assert.True(pair.Key == "S038" || pair.Value is >= 3 and <= 12, $"{pair.Key} has {pair.Value} rows."));
         }
 
-        Assert.Equal(ServiceInterimFamilies.Importable.Order(StringComparer.Ordinal), ServiceFixtures.ExpectedImported);
+        // S041 GPRC CLAIM is raw-only: never in a week folder, only under gprc/.
+        Assert.Equal(ServiceInterimFamilies.Importable.Except(["S041"]).Order(StringComparer.Ordinal), ServiceFixtures.ExpectedImported);
+        Assert.Equal(["S023_GPRC_Report.xlsx"], Directory.GetFiles(ServiceFixtures.GprcHistoryFolder, "*.xlsx").Select(Path.GetFileName));
+        Assert.Equal([ServiceFixtures.GprcClaimFileName], Directory.GetFiles(ServiceFixtures.GprcClaimFolder, "*.xlsx").Select(Path.GetFileName));
         Assert.Equal(6, ServiceFixtures.ExpectedNotNeeded.Count);
         Assert.Equal(["S002_JobReportBooking.xlsx", "S009_PendingRepair.xlsx"],
             Directory.GetFiles(ServiceFixtures.UndatedFolder, "*.xlsx").Select(Path.GetFileName).Order(StringComparer.Ordinal));

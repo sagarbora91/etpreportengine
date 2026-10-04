@@ -22,7 +22,7 @@ internal static partial class ServiceFixtures
 
     public static string Root => Path.Combine(AppContext.BaseDirectory, "fixtures", "service-interim");
 
-    /// <summary>S001-S040 (S038 header only) and the 00_ control workbook, dated 28 Sep 2026 by the folder name.</summary>
+    /// <summary>S001-S040 (S038 header only; no S041) and the 00_ control workbook, dated 28 Sep 2026 by the folder name.</summary>
     public static string Week1Folder => Path.Combine(Root, "week1", Week1FolderName);
 
     /// <summary>The same families a week later (05 Oct 2026).</summary>
@@ -36,7 +36,32 @@ internal static partial class ServiceFixtures
 
     public const string ControlFileName = "00_Service_Centre_Consolidation_Control.xlsx";
 
-    /// <summary>The 35 families a week folder imports (ServiceInterimFamilies.Importable).</summary>
+    /// <summary>
+    /// GPRC history (lane L10, decision 16): S023 rows of 1, 3 and 5 Aug 2026 (claim documents GPAW330SYN0001-0003),
+    /// dated 05 Aug 2026 by the folder name.
+    /// </summary>
+    public static string GprcHistoryFolder => Path.Combine(Root, "gprc", "Service Centre till 05 aug 2026");
+
+    /// <summary>
+    /// Raw GPRC CLAIM (S041) in ETP's export layout (sheet <see cref="GprcClaimSheet"/>, header row 1, Transaction Date
+    /// with a time of day): documents GPAW330SYN0002-0005 dated 3-7 Aug 2026, folder date 07 Aug 2026. Documents 0002 and
+    /// 0003 are also in <see cref="GprcHistoryFolder"/>; the union read takes them from S041 only.
+    /// </summary>
+    public static string GprcClaimFolder => Path.Combine(Root, "gprc", "Service Centre till 07 aug 2026");
+
+    public const string GprcClaimFileName = "GPRC CLAIM 01.08.2026 TO 07.08.2026.xlsx";
+    public const string GprcClaimSheet = "GPRC Claims Report";
+
+    /// <summary>Lines in the S023 history file and in the S041 claim file.</summary>
+    public const int GprcHistoryLines = 4, GprcClaimLines = 6;
+
+    /// <summary>The union read of both files: 5 claim documents, 8 lines (2 from S023, 6 from S041), not 10.</summary>
+    public const int GprcUnionDocuments = 5, GprcUnionLines = 8, GprcUnionLinesFromHistory = 2;
+
+    /// <summary>
+    /// The 35 families a week folder imports: ServiceInterimFamilies.Importable without S041 GPRC CLAIM, which is a raw
+    /// export only (no consolidated workbook) and has its own fixtures (<see cref="GprcClaimFolder"/>).
+    /// </summary>
     public static IReadOnlyList<string> ExpectedImported { get; } =
     [
         "S002", "S003", "S004", "S006", "S007", "S008", "S009", "S010", "S011", "S012", "S013", "S014", "S015", "S016",

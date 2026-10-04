@@ -12699,5 +12699,256 @@
         "IsRequired": false
       }
     ]
+  },
+  {
+    "FamilyCode": "S041",
+    "ReportCode": "S041",
+    "Name": "GPRC_Claim",
+    "IsTyped": false,
+    "TableName": "etp_landing_s041",
+    "PrimaryDateHeader": "Transaction Date",
+    "BusinessUnit": "SERVICE",
+    "Headers": [
+      "Job Order Number",
+      "Item ID",
+      "Quantity",
+      "Store Name",
+      "Store Code",
+      "Location",
+      "Customer Name",
+      "Document Type",
+      "GST Number",
+      "To GSTIN",
+      "To Location",
+      "HSN Code",
+      "Cluster ID",
+      "Brand ID",
+      "Variant ID",
+      "Account Number",
+      "Transaction Date",
+      "Document Number",
+      "Price",
+      "Net Amount",
+      "Tax Amount",
+      "Gross Amount",
+      "Taxable",
+      "CGST Rate",
+      "CGST Value",
+      "SGST Rate",
+      "SGST Value",
+      "Total Tax",
+      "IGST Rate",
+      "IGST Value",
+      "Net Amount INC Tax",
+      "IRN Number",
+      "Value",
+      "UCP Value"
+    ],
+    "Columns": [
+      {
+        "SourceHeader": "Job Order Number",
+        "CanonicalField": "job_order_number",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "Item ID",
+        "CanonicalField": "item_id",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "Quantity",
+        "CanonicalField": "quantity",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "Store Name",
+        "CanonicalField": "store_name",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "Store Code",
+        "CanonicalField": "store_code",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "Location",
+        "CanonicalField": "location",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "Customer Name",
+        "CanonicalField": "customer_name",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "Document Type",
+        "CanonicalField": "document_type",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "GST Number",
+        "CanonicalField": "gst_number",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "To GSTIN",
+        "CanonicalField": "to_gstin",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "To Location",
+        "CanonicalField": "to_location",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "HSN Code",
+        "CanonicalField": "hsn_code",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "Cluster ID",
+        "CanonicalField": "cluster_id",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "Brand ID",
+        "CanonicalField": "brand_id",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "Variant ID",
+        "CanonicalField": "variant_id",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "Account Number",
+        "CanonicalField": "account_number",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "Transaction Date",
+        "CanonicalField": "transaction_date",
+        "DataType": "Date",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "Document Number",
+        "CanonicalField": "document_number",
+        "DataType": "Identifier",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "Price",
+        "CanonicalField": "price",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "Net Amount",
+        "CanonicalField": "net_amount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "Tax Amount",
+        "CanonicalField": "tax_amount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "Gross Amount",
+        "CanonicalField": "gross_amount",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "Taxable",
+        "CanonicalField": "taxable",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CGST Rate",
+        "CanonicalField": "cgst_rate",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "CGST Value",
+        "CanonicalField": "cgst_value",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "SGST Rate",
+        "CanonicalField": "sgst_rate",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "SGST Value",
+        "CanonicalField": "sgst_value",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "Total Tax",
+        "CanonicalField": "total_tax",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "IGST Rate",
+        "CanonicalField": "igst_rate",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "IGST Value",
+        "CanonicalField": "igst_value",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "Net Amount INC Tax",
+        "CanonicalField": "net_amount_inc_tax",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "IRN Number",
+        "CanonicalField": "irn_number",
+        "DataType": "Text",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "Value",
+        "CanonicalField": "value",
+        "DataType": "Decimal",
+        "IsRequired": false
+      },
+      {
+        "SourceHeader": "UCP Value",
+        "CanonicalField": "ucp_value",
+        "DataType": "Decimal",
+        "IsRequired": false
+      }
+    ]
   }
 ]

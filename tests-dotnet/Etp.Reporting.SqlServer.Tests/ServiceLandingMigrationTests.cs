@@ -47,9 +47,9 @@ public sealed partial class ServiceLandingMigrationTests
     public void Section_has_exactly_one_table_per_importable_family_and_none_for_the_others()
     {
         var importable = ServiceInterimFamilies.Importable.ToHashSet(StringComparer.Ordinal);
-        Assert.Equal(35, importable.Count);
+        Assert.Equal(36, importable.Count);
         var tables = TableRegex().Matches(Section()).Select(match => match.Groups[1].Value.ToUpperInvariant()).ToArray();
-        Assert.Equal(35, tables.Length);
+        Assert.Equal(36, tables.Length);
         Assert.Equal(tables.Length, tables.Distinct().Count());
         Assert.Equal(importable.Order(StringComparer.Ordinal), tables.Order(StringComparer.Ordinal));
         foreach (var code in NoTable)
@@ -145,12 +145,12 @@ public sealed partial class ServiceLandingMigrationTests
     public void Section_is_idempotent_and_holds_nothing_but_landing_objects()
     {
         var section = Section();
-        Assert.Equal(35, Regex.Matches(section, @"^IF OBJECT_ID\(N'dbo\.etp_landing_s\d{3}', N'U'\) IS NULL\nCREATE TABLE ", RegexOptions.Multiline).Count);
-        Assert.Equal(35, Regex.Matches(section, @"^CREATE TABLE ", RegexOptions.Multiline).Count);
-        Assert.Equal(35, Regex.Matches(section, @"^IF NOT EXISTS \(SELECT 1 FROM sys\.indexes ", RegexOptions.Multiline).Count);
-        Assert.Equal(35, Regex.Matches(section, @"CREATE INDEX ").Count);
-        Assert.Equal(35, Regex.Matches(section, @"^EXEC\(N'CREATE OR ALTER TRIGGER ", RegexOptions.Multiline).Count);
-        Assert.Equal(35, Regex.Matches(section, @"^EXEC\(N'CREATE OR ALTER PROCEDURE ", RegexOptions.Multiline).Count);
+        Assert.Equal(36, Regex.Matches(section, @"^IF OBJECT_ID\(N'dbo\.etp_landing_s\d{3}', N'U'\) IS NULL\nCREATE TABLE ", RegexOptions.Multiline).Count);
+        Assert.Equal(36, Regex.Matches(section, @"^CREATE TABLE ", RegexOptions.Multiline).Count);
+        Assert.Equal(36, Regex.Matches(section, @"^IF NOT EXISTS \(SELECT 1 FROM sys\.indexes ", RegexOptions.Multiline).Count);
+        Assert.Equal(36, Regex.Matches(section, @"CREATE INDEX ").Count);
+        Assert.Equal(36, Regex.Matches(section, @"^EXEC\(N'CREATE OR ALTER TRIGGER ", RegexOptions.Multiline).Count);
+        Assert.Equal(36, Regex.Matches(section, @"^EXEC\(N'CREATE OR ALTER PROCEDURE ", RegexOptions.Multiline).Count);
         Assert.DoesNotMatch(@"(?i)\b(BEGIN\s+TRAN|COMMIT|ROLLBACK)\b", section);
         Assert.DoesNotMatch(@"(?i)\bCREATE\s+(VIEW|FUNCTION|SCHEMA|ROLE|USER)\b", section);
         Assert.DoesNotMatch(@"(?i)\bdbo\.(stores|business_units|import_profiles)\b", section);

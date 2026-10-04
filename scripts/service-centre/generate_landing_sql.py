@@ -2,7 +2,7 @@
 
 Service interim (S-2), decision 15, 3 Oct 2026. Lane L2.
 
-For each of the 35 importable Service families (ServiceInterimFamilies.Importable) this writes, in the
+For each of the 36 importable Service families (ServiceInterimFamilies.Importable) this writes, in the
 1.9.3 shape of a landing family:
   - table dbo.etp_landing_snnn (0018 shape: etp_row_id, import_file_id, source_lineage_id, content_key,
     then one column per catalogue Columns entry, in catalogue order);
@@ -37,9 +37,10 @@ END_MARKER = f"-- <<< {SECTION} end"
 
 # Mirror of ServiceInterimFamilies.Importable (src/Etp.Reporting.Import/Service/ServiceInterimFamilies.cs).
 # ServiceLandingMigrationTests checks that the committed section holds a table for exactly that set.
+# S041 GPRC CLAIM joined on 4 Oct 2026 (decision 16, Q6: a new family with its own table, still inside 0048; lane L10).
 IMPORTABLE = (["S002", "S003", "S004"] + [f"S{n:03d}" for n in range(6, 27)]
-              + [f"S{n:03d}" for n in range(29, 38)] + ["S039", "S040"])
-assert len(IMPORTABLE) == 35 and len(set(IMPORTABLE)) == 35
+              + [f"S{n:03d}" for n in range(29, 38)] + ["S039", "S040", "S041"])
+assert len(IMPORTABLE) == 36 and len(set(IMPORTABLE)) == 36
 
 SQL_TYPES = {"Text": "nvarchar(max)", "Identifier": "nvarchar(max)", "Decimal": "decimal(19,4)", "Date": "date", "Integer": "int"}
 

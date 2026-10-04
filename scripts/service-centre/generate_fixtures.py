@@ -12,7 +12,13 @@ Output (byte-stable; re-running over an unchanged spec rewrites the same bytes):
     week2/Service Centre till 05 oct 2026/         the same families, a week later (see WEEK2 below)
     undated/Service Centre/                        week1 S009 and S002 in a folder with no date (H1 failure)
     samedate-changed/Service Centre till 28 sep 2026/  week1 S009 with one row changed (IMPORT_PERIOD_ALREADY_PRESENT)
+    gprc/Service Centre till 05 aug 2026/          S023 GPRC history, 1-5 Aug 2026 (lane L10, decision 16)
+    gprc/Service Centre till 07 aug 2026/          raw GPRC CLAIM (S041), 3-7 Aug 2026, overlapping S023 on 3 and 5 Aug
   tests-dotnet/TestSupport/Service/ServiceFixtureExpectations.g.cs   Data rows per family per week
+
+S041 GPRC CLAIM is a raw export only (the consolidated set never had it), so the week folders stay as they were and
+S041 appears only under gprc/, in ETP's raw layout: sheet "GPRC Claims Report", header row 1, no Info sheet, and a
+Transaction Date with a time of day.
 
 Requires Python 3 and openpyxl. Every workbook is re-read after writing to assert its headers.
 """
@@ -45,7 +51,14 @@ BUSINESS_DATE = {
     "S003": "trans_date", "S004": "billingdate", "S007": "grn_date", "S008": "grn_date", "S013": "stm_date",
     "S019": "repairdate", "S022": "invoice_date", "S023": "transdate", "S024": "transdate", "S025": "transdate",
     "S026": "transdate", "S029": "repair_date", "S039": "transaction_date", "S040": "transaction_date",
+    "S041": "transaction_date",
 }
+# Families with no consolidated workbook: never written to the week folders (S041 GPRC CLAIM, lane L10).
+RAW_ONLY = {"S041"}
+GPRC_HISTORY_FOLDER = "Service Centre till 05 aug 2026"
+GPRC_CLAIM_FOLDER = "Service Centre till 07 aug 2026"
+GPRC_CLAIM_FILE = "GPRC CLAIM 01.08.2026 TO 07.08.2026.xlsx"
+GPRC_CLAIM_SHEET = "GPRC Claims Report"
 STATUS_LABEL = {
     "S014": "DC", "S015": "IR", "S016": "RA", "S017": "RWR", "S018": "DELIVERED",
     "S031": "PD", "S032": "PR", "S033": "SRN", "S034": "REPAIRED", "S035": "SRNINV",
@@ -171,6 +184,8 @@ def is_name(c):
 
 def fill(code, column, row, index):
     c, kind = column["CanonicalField"], column["DataType"]
+    if c in row.get("cells", {}):
+        return row["cells"][c]
     job = row.get("job")
     nn = job if job is not None else index + 1
     day = row.get("date") or WEEK1_DATE
@@ -198,6 +213,8 @@ def fill(code, column, row, index):
             return value.strftime("%d-%m-%Y")  # S031 dates are text dd-MM-yyyy
         if code in ("S036", "S037") and c == "created_date":
             return f"{value.day}-{value.month}-{value.year}"  # text d-M-yyyy
+        if c == BUSINESS_DATE.get(code) and row.get("time"):
+            return dt.datetime.combine(value, row["time"])  # S041 Transaction Date keeps the time of day
         return dt.datetime(value.year, value.month, value.day)
     if kind == "Integer":
         return {"month": day.month, "year": day.year}.get(c, index + 1)
@@ -278,7 +295,8 @@ def append_rows(sheet, rows):
         sheet.append(row)
         for cell in sheet[sheet.max_row]:
             if isinstance(cell.value, dt.datetime):
-                cell.number_format = "yyyy-mm-dd"
+                has_time = cell.value.time() != dt.time()
+                cell.number_format = "yyyy-mm-dd hh:mm:ss.000" if has_time else "yyyy-mm-dd"
 
 
 def save(workbook, path, expected_sheets):
@@ -350,6 +368,7 @@ def load_spec():
 
 def write_week(families, plan, folder, snapshot, histories):
     counts = {}
+    families = [family for family in families if family["FamilyCode"] not in RAW_ONLY]
     for family in families:
         code = family["FamilyCode"]
         workbook, expected, count = family_workbook(family, plan[code], snapshot, histories.get(code, []))
@@ -358,6 +377,60 @@ def write_week(families, plan, folder, snapshot, histories):
     workbook, expected = control_workbook(families, counts, snapshot)
     save(workbook, folder / "00_Service_Centre_Consolidation_Control.xlsx", expected)
     return counts
+
+
+def gprc_line(doc, day, job, value, ucp, time=None):
+    """One GPRC claim line; the same cells fill S023 (technical headers) and S041 (readable headers)."""
+    cells = {"documentnum": doc, "document_number": doc, "value": value, "ucpvalue": ucp, "ucp_value": ucp,
+             "price": value, "netamountinctax": value, "net_amount_inc_tax": value, "accountnum": "GPRCCell",
+             "account_number": "GPRCCell", "custname": "Sample Claim Party", "customer_name": "Sample Claim Party"}
+    return {"date": day, "job": job, "time": time, "cells": cells}
+
+
+def gprc_plans():
+    """S023 history 1-5 Aug and S041 GPRC CLAIM 3-7 Aug 2026 (lane L10, decision 16 Q6/Q8).
+
+    The union read takes S041 for every claim document it holds and S023 for the others:
+    - GPAW330SYN0001 (1 Aug, 2 lines) is only in S023: read from S023;
+    - GPAW330SYN0002 (3 Aug) is in both with the same line: read once, from S041;
+    - GPAW330SYN0003 (5 Aug) is in both; S041 adds a second line: read from S041 (2 lines);
+    - GPAW330SYN0004 (6 Aug, 1 line) and GPAW330SYN0005 (7 Aug, 2 lines) are only in S041.
+    Union: 5 documents, 8 lines (2 from S023, 6 from S041); a plain UNION ALL would give 10 lines.
+    """
+    doc = lambda n: f"GPAW330SYN{n:04d}"
+    history = [
+        gprc_line(doc(1), d(8, 1), 10, 2, 150), gprc_line(doc(1), d(8, 1), 10, 10, 1570),
+        gprc_line(doc(2), d(8, 3), 11, 2, 45),
+        gprc_line(doc(3), d(8, 5), 14, 10, 450),
+    ]
+    claims = [
+        gprc_line(doc(2), d(8, 3), 11, 2, 45, dt.time(11, 5, 12, 250000)),
+        gprc_line(doc(3), d(8, 5), 14, 10, 450, dt.time(15, 35, 43, 146000)),
+        gprc_line(doc(3), d(8, 5), 14, 2, 30, dt.time(15, 35, 43, 146000)),
+        gprc_line(doc(4), d(8, 6), 12, 2, 25, dt.time(9, 0, 1, 5000)),
+        gprc_line(doc(5), d(8, 7), 13, 10, 3465, dt.time(18, 20, 0)),
+        gprc_line(doc(5), d(8, 7), 13, 2, 60, dt.time(18, 20, 0)),
+    ]
+    return history, claims
+
+
+def raw_workbook(family, rows, sheet_name):
+    """A workbook in ETP's raw export layout: one sheet, header row 1, no Info sheet."""
+    code, headers = family["FamilyCode"], family["Headers"]
+    workbook = new_workbook()
+    data = workbook.active
+    data.title = sheet_name
+    data.append(headers)
+    append_rows(data, [[fill(code, column, row, index) for column in family["Columns"]] for index, row in enumerate(rows)])
+    return workbook, {sheet_name: headers}
+
+
+def write_gprc(by_code):
+    history, claims = gprc_plans()
+    workbook, expected, _ = family_workbook(by_code["S023"], history, d(8, 5), [])
+    save(workbook, OUT / "gprc" / GPRC_HISTORY_FOLDER / f"S023_{by_code['S023']['Name']}.xlsx", expected)
+    workbook, expected = raw_workbook(by_code["S041"], claims, GPRC_CLAIM_SHEET)
+    save(workbook, OUT / "gprc" / GPRC_CLAIM_FOLDER / GPRC_CLAIM_FILE, expected)
 
 
 def write_expectations(week1, week2):
@@ -403,8 +476,9 @@ def main():
     workbook, expected, _ = family_workbook(by_code["S009"], changed, WEEK1_DATE, histories1["S009"])
     save(workbook, OUT / "samedate-changed" / WEEK1_FOLDER / "S009_PendingRepair.xlsx", expected)
 
+    write_gprc(by_code)
     write_expectations(week1, week2)
-    print(f"{OUT.relative_to(ROOT)}: {len(families)} families x 2 weeks + undated + samedate-changed; "
+    print(f"{OUT.relative_to(ROOT)}: {len(families) - len(RAW_ONLY)} families x 2 weeks + undated + samedate-changed + gprc; "
           f"{EXPECTATIONS.relative_to(ROOT)}")
 
 
