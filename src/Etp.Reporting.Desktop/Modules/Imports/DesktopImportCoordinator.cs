@@ -68,7 +68,7 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
         Action<FolderImportFailure>? reportImportFailure = null)
     {
         this.persistenceFactory = persistenceFactory ?? throw new ArgumentNullException(nameof(persistenceFactory));
-        this.workbookReader = workbookReader ?? new OpenXmlWorkbookReader();
+        this.workbookReader = workbookReader ?? new SourceFileReader();
         this.reportImportFailure = reportImportFailure;
         envelopeFactory = new MatchedImportEnvelopeFactory();
         failureClassifier = new SqlImportFailureClassifier();

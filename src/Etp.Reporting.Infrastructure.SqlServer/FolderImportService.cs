@@ -42,7 +42,7 @@ public sealed class FolderImportService(
     Action<FolderImportFailure>? reportFailure = null) : IFolderImportService
 {
     private static readonly SqlImportFailureClassifier Classifier = new();
-    private readonly IWorkbookReader reader = workbookReader ?? new OpenXmlWorkbookReader();
+    private readonly IWorkbookReader reader = workbookReader ?? new SourceFileReader();
     private readonly MatchedImportEnvelopeFactory envelopes = new(knownStores);
     private readonly Dictionary<string, (ImportScope Scope, bool Service)> detectedScopes = new(StringComparer.OrdinalIgnoreCase);
     public IReadOnlyList<string> FailedPaths { get; private set; } = [];
@@ -136,9 +136,16 @@ public sealed class FolderImportService(
                 var sourceCode = Regex.Match(result.FileName, @"(?:^|[^A-Z0-9])(R\d{3})(?:[^A-Z0-9]|$)", RegexOptions.IgnoreCase);
                 var unsupportedFamily = sourceCode.Success && !EtpReportFamilyRegistry.Families.Any(family =>
                     family.FamilyCode.Equals(sourceCode.Groups[1].Value, StringComparison.OrdinalIgnoreCase));
-                var notNeeded = result.FileName.StartsWith("00_", StringComparison.OrdinalIgnoreCase) || unsupportedFamily;
+                // .csv is admitted for the raw Service pack only; a CSV that matches no layout and whose name carries no
+                // export date (e.g. a golden-monthly-*.csv check file in a Retail folder) is not an ETP export, so it is
+                // skipped like the audit's SkippedCsvFiles rather than reported as an unknown layout. A dated raw name
+                // ("JOB REPORT 06.10.2026 TO 09.10.2026.csv") that matches nothing is still an unknown layout (drift).
+                var strayCsv = entry.Inspection.MatchedProfile is null &&
+                    Path.GetExtension(entry.Path).Equals(".csv", StringComparison.OrdinalIgnoreCase) &&
+                    !ExportNameParser.Parse(result.FileName).IsKnown;
+                var notNeeded = result.FileName.StartsWith("00_", StringComparison.OrdinalIgnoreCase) || unsupportedFamily || strayCsv;
                 result = result with { Evidence = EvidenceState.NotAttempted, Status = notNeeded ? "Not needed" : unknown ? "Unknown layout" : "Failed",
-                    Message = notNeeded ? unsupportedFamily ? "This ETP report type is not needed by the reporting engine; the other workbooks are processed." : "Consolidation control workbook; report workbooks are imported separately." : string.Join(" ", issues.Select(issue => issue.Message).Distinct()) };
+                    Message = notNeeded ? strayCsv ? "This CSV file is not an ETP export; it was skipped and the other files are processed." : unsupportedFamily ?"This ETP report type is not needed by the reporting engine; the other workbooks are processed." : "Consolidation control workbook; report workbooks are imported separately." : string.Join(" ", issues.Select(issue => issue.Message).Distinct()) };
                 if (!notNeeded) result = result with { Failure = MatchFailure(issues) };
                 results.Add(result);
                 await recording.RecordAsync(result).ConfigureAwait(false);

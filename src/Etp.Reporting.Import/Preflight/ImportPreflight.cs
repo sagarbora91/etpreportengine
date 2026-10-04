@@ -61,6 +61,12 @@ public sealed class ImportPreflight
                     infoValues.Any(value => value.StartsWith("EMPTY", StringComparison.OrdinalIgnoreCase)))
                     sheet = sheet with { Headers = named.Headers, HeaderRowNumber = 1 };
             }
+            if (BelowTitleRows(sheet, materializedProfiles, workbook.FileName, contract.Contract?.Header.FamilyCode) is { } titled)
+            {
+                sheet = titled;
+                diagnostics.Add(new(HeaderBelowTitleRows, ImportDiagnosticSeverity.Information,
+                    "The header row was found below title rows; the title rows are not imported.", sheet.Name, sheet.HeaderRowNumber));
+            }
             if (string.IsNullOrWhiteSpace(sheet.Name))
                 diagnostics.Add(Blocker("SHEET_NAME_MISSING", "A worksheet has no name."));
             if (sheet.HeaderRowNumber < 1 || sheet.Headers.Count == 0 || sheet.Headers.Any(string.IsNullOrWhiteSpace))
@@ -98,6 +104,36 @@ public sealed class ImportPreflight
             candidates.Count == 1 ? candidates[0].Profile : null,
             candidates.Count == 1 ? candidates[0].Sheet : null,
             diagnostics) { Contract = contract };
+    }
+
+    /// <summary>Information code: a raw export's header was found below title rows (<see cref="BelowTitleRows"/>).</summary>
+    public const string HeaderBelowTitleRows = "HEADER_BELOW_TITLE_ROWS";
+
+    // Title rows above a raw export's header are few (EMPOWERMENT REPORT: 11, TATA REPORT: 15); a header further down is not looked for.
+    private const int TitleRowSearchDepth = 30;
+
+    /// <summary>
+    /// Some raw ETP exports (EMPOWERMENT REPORT, TATA REPORT) put title and filter rows above the real header, so the
+    /// reader's first non-blank row is a title. When the sheet's own header matches no profile, the first of the next
+    /// <see cref="TitleRowSearchDepth"/> rows whose cells exactly match a profile's header signature becomes the header,
+    /// and only the rows below it are data. A sheet whose header already matches is never changed, so every layout that
+    /// matched before matches the same way; nothing is guessed, because the match is the same exact signature match.
+    /// </summary>
+    private WorkbookSheet? BelowTitleRows(WorkbookSheet sheet, IReadOnlyList<ImportProfile> profiles, string fileName, string? familyCode)
+    {
+        if (profiles.Count == 0 || sheet.Rows.Count == 0) return null;
+        if (sheet.HeaderRowNumber >= 1 && sheet.Headers.Count > 0 && !sheet.Headers.Any(string.IsNullOrWhiteSpace) &&
+            matcher.Match(sheet.Headers, profiles, fileName, sheet.Name, familyCode) is not null)
+            return null;
+        foreach (var row in sheet.Rows.Where(row => row.RowNumber > sheet.HeaderRowNumber).OrderBy(row => row.RowNumber).Take(TitleRowSearchDepth))
+        {
+            var texts = row.Cells.Select(cell => cell.DisplayText?.Trim() ?? string.Empty).ToList();
+            while (texts.Count > 0 && texts[^1].Length == 0) texts.RemoveAt(texts.Count - 1);
+            if (texts.Count < 2 || texts.Any(text => text.Length == 0)) continue;
+            if (matcher.Match(texts, profiles, fileName, sheet.Name, familyCode) is null) continue;
+            return new WorkbookSheet(sheet.Name, row.RowNumber, texts, sheet.Rows.Where(below => below.RowNumber > row.RowNumber).ToArray());
+        }
+        return null;
     }
 
     /// <summary>Info, ETP_Excluded and Snapshot History describe a consolidated workbook; they are never data sheets.</summary>

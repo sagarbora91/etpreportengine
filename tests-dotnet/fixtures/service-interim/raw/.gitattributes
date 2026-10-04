@@ -1,0 +1,2 @@
+# Raw export fixtures are byte-exact (line endings and Windows-1252 bytes are part of what the tests read).
+* -text

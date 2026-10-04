@@ -7,20 +7,28 @@ public sealed record ImportPathPolicyOptions(
     long MaximumEntryBytes = 100 * 1024 * 1024,
     long MaximumExpandedBytes = 500 * 1024 * 1024,
     double MaximumCompressionRatio = 200d,
-    int MaximumFolderDepth = 8)
+    int MaximumFolderDepth = 8,
+    bool AdmitCsv = true)
 {
     public static ImportPathPolicyOptions Default { get; } = new();
 }
 
 public sealed class ImportPathPolicy
 {
-    private static readonly HashSet<string> SupportedExtensions =
+    private static readonly HashSet<string> WorkbookExtensions =
         new(StringComparer.OrdinalIgnoreCase) { ".xlsx" };
+    // Raw ETP Service exports arrive as CSV (design section 2); CsvWorkbookReader reads them into the same sheet model.
+    private static readonly HashSet<string> WorkbookAndCsvExtensions =
+        new(StringComparer.OrdinalIgnoreCase) { ".xlsx", ".csv" };
 
     private readonly ImportPathPolicyOptions _options;
     internal int MaximumFolderDepth => _options.MaximumFolderDepth;
     internal long MaximumEntryBytes => _options.MaximumEntryBytes;
     internal long MaximumExpandedBytes => _options.MaximumExpandedBytes;
+    private HashSet<string> SupportedExtensions => _options.AdmitCsv ? WorkbookAndCsvExtensions : WorkbookExtensions;
+
+    /// <summary>True when <paramref name="path"/> has an extension this policy imports (.xlsx, and .csv unless excluded).</summary>
+    public bool IsSupportedSource(string path) => SupportedExtensions.Contains(Path.GetExtension(path));
 
     public ImportPathPolicy(ImportPathPolicyOptions? options = null)
     {
@@ -53,7 +61,9 @@ public sealed class ImportPathPolicy
         {
             var extension = Path.GetExtension(fullPath);
             if (!SupportedExtensions.Contains(extension) && !extension.Equals(".zip", StringComparison.OrdinalIgnoreCase))
-                throw new ImportSourceException("IMPORT_TYPE_UNSUPPORTED", "Only .xlsx workbooks and .zip archives are supported.");
+                throw new ImportSourceException("IMPORT_TYPE_UNSUPPORTED", _options.AdmitCsv
+                    ? "Only .xlsx workbooks, .csv exports and .zip archives are supported."
+                    : "Only .xlsx workbooks and .zip archives are supported.");
         }
 
         return fullPath;
@@ -63,7 +73,9 @@ public sealed class ImportPathPolicy
     {
         RejectReparsePoint(path);
         if (!SupportedExtensions.Contains(Path.GetExtension(path)))
-            throw new ImportSourceException("IMPORT_TYPE_UNSUPPORTED", "Only .xlsx workbooks are supported.");
+            throw new ImportSourceException("IMPORT_TYPE_UNSUPPORTED", _options.AdmitCsv
+                ? "Only .xlsx workbooks and .csv exports are supported."
+                : "Only .xlsx workbooks are supported.");
         var size = new FileInfo(path).Length;
         if (size <= 0 || size > _options.MaximumEntryBytes)
             throw new ImportSourceException("IMPORT_FILE_SIZE_INVALID", "A workbook is empty or exceeds the configured safety limit.");

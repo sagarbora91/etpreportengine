@@ -38,7 +38,7 @@ public sealed class AutomatedOperationsService(string connectionString, Action<F
         }
 
         var sources = Directory.EnumerateFiles(paths.InboundPath, "*", SearchOption.TopDirectoryOnly)
-            .Where(path => new[] { ".xlsx", ".zip" }.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase))
+            .Where(path => new[] { ".xlsx", ".csv", ".zip" }.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase))
             .Where(path => !Path.GetFileName(path).StartsWith("~$", StringComparison.Ordinal))
             .Where(IsStableAndReadable)
             .Order(StringComparer.OrdinalIgnoreCase).Take(200).ToArray();
@@ -151,7 +151,7 @@ public sealed class AutomatedOperationsService(string connectionString, Action<F
 
     public async Task<AutomatedWorkbookOutcome> ProcessWorkbookAsync(string workbookPath, CancellationToken cancellationToken = default)
     {
-        var workbook = await new OpenXmlWorkbookReader().ReadAsync(workbookPath, cancellationToken);
+        var workbook = await new SourceFileReader().ReadAsync(workbookPath, cancellationToken);
         var knownStores = await new StoreCatalogRepository(connectionString).ActiveCodesAsync(cancellationToken);
         var inspection = new MatchedImportEnvelopeFactory(knownStores).Inspect(workbook);
         if (inspection.AcceptedImport is null)
