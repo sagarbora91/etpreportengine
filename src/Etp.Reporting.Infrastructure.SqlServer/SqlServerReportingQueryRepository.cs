@@ -31,8 +31,11 @@ public static class SqlReportingQueries
     public const string R020TcTenderCode = "TC_R020";
 
     /// <summary>
-    /// TC tenders Titan's R022 does not carry: R020 CHEQUEAMOUNT with a blank AGENCYNAME, taken only for an invoice whose
-    /// R022 tenders fall short of its NetValue by exactly that amount, so R022 cover is never counted twice (decision 13 Q3, Titan audit FIX-03).
+    /// TC tenders Titan's R022 does not carry, from R020 CHEQUEAMOUNT rows with a blank AGENCYNAME (decision 13 Q3, Titan
+    /// audit FIX-03; two-cheque rule, decision 21). For an invoice whose R022 tenders fall short of its NetValue, all of its
+    /// blank-agency R020 cheque rows are added up: the shortfall is filled when that total equals it exactly, or else when a
+    /// single row equals it exactly; otherwise nothing is filled and the tender difference stays visible. The amount filled
+    /// is always the shortfall itself, once per invoice, so R022 cover is never counted twice and an invoice is never over-filled.
     /// Columns: sales_invoice_id, tender_type, source_amount.
     /// <para>
     /// The caller passes the SQL for its own date range and a store condition on <c>rf.store_code</c>. They only narrow
@@ -42,18 +45,23 @@ public static class SqlReportingQueries
     /// </para>
     /// </summary>
     public static string R020TcTenders(string dateFrom, string dateTo, string storeCondition) => $"""
-        SELECT i.sales_invoice_id,CONVERT(nvarchar(80),N'TC_R020') tender_type,tc.amount source_amount
+        SELECT i.sales_invoice_id,CONVERT(nvarchar(80),N'TC_R020') tender_type,s.shortfall source_amount
         FROM
         (
-          SELECT rf.store_code,CONVERT(nvarchar(80),LTRIM(RTRIM(r.invnumber))) invnumber,r.invdate,MAX(r.chequeamount) amount
+          SELECT rf.store_code,CONVERT(nvarchar(80),LTRIM(RTRIM(r.invnumber))) invnumber,r.invdate,r.chequeamount amount
           FROM dbo.etp_r020 r JOIN dbo.import_files rf ON rf.import_file_id=r.import_file_id AND rf.report_code='R020' AND rf.is_superseded=0 AND rf.data_truth_version=1
           WHERE NULLIF(LTRIM(RTRIM(r.agencyname)),N'') IS NULL AND r.chequeamount<>0 AND r.invdate IS NOT NULL AND r.invnumber IS NOT NULL
             AND r.invdate>={dateFrom} AND r.invdate<={dateTo} AND ({storeCondition})
-          GROUP BY rf.store_code,CONVERT(nvarchar(80),LTRIM(RTRIM(r.invnumber))),r.invdate
         ) tc
         JOIN dbo.sales_invoices i ON i.store_code=tc.store_code AND i.document_number=tc.invnumber AND i.transaction_date=tc.invdate
-        WHERE tc.amount=(SELECT SUM(c.source_net_value) FROM dbo.sales_invoice_controls c WHERE c.sales_invoice_id=i.sales_invoice_id)
-                       -COALESCE((SELECT SUM(x.source_amount) FROM dbo.reporting_sales_tenders x WHERE x.sales_invoice_id=i.sales_invoice_id),0)
+        CROSS APPLY
+        (
+          SELECT (SELECT SUM(c.source_net_value) FROM dbo.sales_invoice_controls c WHERE c.sales_invoice_id=i.sales_invoice_id)
+                -COALESCE((SELECT SUM(x.source_amount) FROM dbo.reporting_sales_tenders x WHERE x.sales_invoice_id=i.sales_invoice_id),0) shortfall
+        ) s
+        WHERE s.shortfall<>0
+        GROUP BY i.sales_invoice_id,s.shortfall
+        HAVING SUM(tc.amount)=s.shortfall OR MAX(CASE WHEN tc.amount=s.shortfall THEN 1 ELSE 0 END)=1
         """;
 
     /// <summary>
