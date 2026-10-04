@@ -64,13 +64,16 @@ public static class ServiceInterimFamilies
         public const string ServiceStoreDefaulted = "SERVICE_STORE_DEFAULTED";
     }
 
-    /// <summary>The 35 families that land in an etp_landing_snnn table.</summary>
+    /// <summary>
+    /// The 36 families that land in an etp_landing_snnn table: the 35 of decision 15 and S041 GPRC CLAIM (decision 16,
+    /// 4 Oct 2026: a new family, not a second layout of S023; raw export only).
+    /// </summary>
     public static IReadOnlySet<string> Importable { get; } = Set(
         "S002", "S003", "S004",
         "S006", "S007", "S008", "S009", "S010", "S011", "S012", "S013", "S014", "S015", "S016", "S017", "S018",
         "S019", "S020", "S021", "S022", "S023", "S024", "S025", "S026",
         "S029", "S030", "S031", "S032", "S033", "S034", "S035", "S036", "S037",
-        "S039", "S040");
+        "S039", "S040", "S041");
 
     /// <summary>S001: derived by the consolidation builder; reported Not needed with <see cref="Codes.FamilyDerived"/>.</summary>
     public static IReadOnlySet<string> Derived { get; } = Set("S001");
@@ -104,7 +107,16 @@ public static class ServiceInterimFamilies
     ];
 
     /// <summary>Money and claim logs (the money check and money-change list read S003 and S004).</summary>
-    public static IReadOnlySet<string> MoneyLogs { get; } = Set("S003", "S004", "S019", "S023", "S024", "S025", "S026", "S039", "S040");
+    public static IReadOnlySet<string> MoneyLogs { get; } = Set("S003", "S004", "S019", "S023", "S024", "S025", "S026", "S039", "S040", "S041");
+
+    /// <summary>
+    /// GPRC claim lines come from two families (decision 16, Q6 and Q8): S023 GPRC_Report (the consolidated history, old
+    /// technical headers, up to 5 Aug 2026) and S041 GPRC CLAIM (the raw export, new readable headers, from 1 Aug 2026).
+    /// The union read (scripts/service-centre/c_service_read_gprc_and_money.sql, view dbo.v_service_gprc_claims) takes
+    /// S041 for every claim document it holds and S023 only for the other documents, so the 1-5 Aug overlap is never
+    /// counted twice.
+    /// </summary>
+    public static IReadOnlyList<string> GprcClaimFamilies { get; } = ["S023", "S041"];
 
     private static readonly ServiceColumn JobOrderNumber = new("JobOrderNumber", "jobordernumber");
     private static readonly ServiceColumn JoNumber = new("JONumber", "jonumber");
@@ -142,6 +154,8 @@ public static class ServiceInterimFamilies
         new ServiceReadRule("S029", ServiceReadRuleKind.DateLog, new("Repair Date", "repair_date")),
         new ServiceReadRule("S039", ServiceReadRuleKind.DateLog, TransactionDate),
         new ServiceReadRule("S040", ServiceReadRuleKind.DateLog, TransactionDate),
+        // S041 GPRC CLAIM: Transaction Date carries a time of day; the landing column is a date, so the date part.
+        new ServiceReadRule("S041", ServiceReadRuleKind.DateLog, TransactionDate),
 
         // JobList: job and status lists, by job order number (the column name differs per family).
         new ServiceReadRule("S002", ServiceReadRuleKind.JobList, JobColumn: JobOrderNo),

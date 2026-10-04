@@ -25,7 +25,8 @@
     EtpReportFamilyCatalogueTests pins the result and runs -Check, so the catalogue and this script cannot drift apart:
     change a decision here, run -Write, then re-pin the tests.
 
-    Service Centre families (S001-S040, BusinessUnit Service; Service interim S-2, decision 15, 3 Oct 2026) follow the
+    Service Centre families (S001-S041, BusinessUnit Service; Service interim S-2, decision 15, 3 Oct 2026; S041 GPRC CLAIM
+    added by decision 16, 4 Oct 2026) follow the
     review's section 5 rules. The first matching rule decides:
 
       1. Reviewed     a per-family decision recorded in $serviceReviewed
@@ -43,7 +44,7 @@
     and list the consolidation's SourcePeriodFrom, SourcePeriodTo and SourceFile as ConsolidationColumns. Headers,
     canonical names, types and RawNamePatterns are not proposed here: they are frozen to
     scripts/service-centre/families.spec.json and the raw export names. Families of another business unit, or codes
-    outside R001-R031, SOR_AGEING and S001-S040, are left untouched.
+    outside R001-R031, SOR_AGEING and S001-S041, are left untouched.
 #>
 [CmdletBinding()]
 param(
@@ -223,6 +224,7 @@ $serviceDateLogColumn = @{
     S003 = 'trans_date'; S004 = 'billingdate'; S007 = 'grn_date'; S008 = 'grn_date'; S013 = 'stm_date'
     S019 = 'repairdate'; S022 = 'invoice_date'; S023 = 'transdate'; S024 = 'transdate'; S025 = 'transdate'
     S026 = 'transdate'; S029 = 'repair_date'; S039 = 'transaction_date'; S040 = 'transaction_date'
+    S041 = 'transaction_date'   # GPRC CLAIM (decision 16, Q6): the date part of Transaction Date
 }
 
 # The date a job was booked never moves as the job progresses, so it is a Fact in every family that has it.

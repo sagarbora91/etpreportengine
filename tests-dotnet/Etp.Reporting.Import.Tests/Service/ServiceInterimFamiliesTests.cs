@@ -6,15 +6,15 @@ namespace Etp.Reporting.Import.Tests.Service;
 
 /// <summary>
 /// Service interim (S-2, decision 15): the family sets every Service lane builds against. They must be disjoint,
-/// cover S001-S040, and give each importable family exactly one read rule whose column exists in the frozen
+/// cover S001-S041 (S041 GPRC CLAIM: decision 16), and give each importable family exactly one read rule whose column exists in the frozen
 /// scripts/service-centre/families.spec.json (lane L4 builds its views on those names).
 /// </summary>
 public sealed class ServiceInterimFamiliesTests
 {
-    private static readonly string[] AllCodes = [.. Enumerable.Range(1, 40).Select(n => $"S{n:000}")];
+    private static readonly string[] AllCodes = [.. Enumerable.Range(1, 41).Select(n => $"S{n:000}")];
 
     [Fact]
-    public void The_sets_are_disjoint_and_cover_S001_to_S040()
+    public void The_sets_are_disjoint_and_cover_S001_to_S041()
     {
         IReadOnlySet<string>[] sets = [ServiceInterimFamilies.Importable, ServiceInterimFamilies.Derived,
             ServiceInterimFamilies.NotNeeded, ServiceInterimFamilies.Deferred];
@@ -22,7 +22,8 @@ public sealed class ServiceInterimFamiliesTests
 
         Assert.Equal(all.Length, all.Distinct(StringComparer.Ordinal).Count());
         Assert.Equal(AllCodes, all.Order(StringComparer.Ordinal));
-        Assert.Equal(35, ServiceInterimFamilies.Importable.Count);
+        Assert.Equal(36, ServiceInterimFamilies.Importable.Count);
+        Assert.Contains("S041", ServiceInterimFamilies.Importable);
         Assert.Equal(["S001"], ServiceInterimFamilies.Derived);
         Assert.Equal(["S005", "S038"], ServiceInterimFamilies.NotNeeded.Order(StringComparer.Ordinal));
         Assert.Equal(["S027", "S028"], ServiceInterimFamilies.Deferred.Order(StringComparer.Ordinal));
@@ -73,7 +74,7 @@ public sealed class ServiceInterimFamiliesTests
         }
 
         Assert.Equal(["S006", "S009", "S010"], RulesOf(ServiceReadRuleKind.StateSnapshot));
-        Assert.Equal(["S003", "S004", "S007", "S008", "S013", "S019", "S022", "S023", "S024", "S025", "S026", "S029", "S039", "S040"],
+        Assert.Equal(["S003", "S004", "S007", "S008", "S013", "S019", "S022", "S023", "S024", "S025", "S026", "S029", "S039", "S040", "S041"],
             RulesOf(ServiceReadRuleKind.DateLog));
         Assert.Equal(["S002", "S011", "S012", "S014", "S015", "S016", "S017", "S018", "S020", "S021", "S030",
             "S031", "S032", "S033", "S034", "S035", "S036", "S037"], RulesOf(ServiceReadRuleKind.JobList));
@@ -93,10 +94,27 @@ public sealed class ServiceInterimFamiliesTests
         Assert.Equal(["S009", "S010", "S011"], ServiceInterimFamilies.PendingLists.Select(list => list.ReportCode));
         Assert.Equal(ServicePendingLists.All, ServiceInterimFamilies.PendingLists.Select(list => list.ListKey));
 
-        Assert.Equal(["S003", "S004", "S019", "S023", "S024", "S025", "S026", "S039", "S040"],
+        Assert.Equal(["S003", "S004", "S019", "S023", "S024", "S025", "S026", "S039", "S040", "S041"],
             ServiceInterimFamilies.MoneyLogs.Order(StringComparer.Ordinal));
         Assert.All(ServiceInterimFamilies.MoneyLogs, code => Assert.Contains(code, ServiceInterimFamilies.Importable));
         Assert.Equal("AW330", ServiceInterimFamilies.ServiceStoreCode);
+    }
+
+    [Fact]
+    public void Gprc_claims_are_read_from_S023_and_S041_both_dated_logs_of_the_same_claim_documents()
+    {
+        // Decision 16 (Q6, Q8): S023 holds GPRC history up to 5 Aug 2026, S041 GPRC CLAIM from 1 Aug 2026.
+        Assert.Equal(["S023", "S041"], ServiceInterimFamilies.GprcClaimFamilies);
+        var spec = LoadSpec();
+        Assert.All(ServiceInterimFamilies.GprcClaimFamilies, code =>
+        {
+            Assert.Equal(ServiceReadRuleKind.DateLog, ServiceInterimFamilies.ReadRules[code].Kind);
+            Assert.Contains(code, ServiceInterimFamilies.MoneyLogs);
+        });
+        // The union view matches claim documents by these two columns (S023 DocumentNum, S041 Document Number).
+        Assert.Contains(spec["S023"], column => column is { Header: "DocumentNum", Canonical: "documentnum" });
+        Assert.Contains(spec["S041"], column => column is { Header: "Document Number", Canonical: "document_number" });
+        Assert.Equal(new ServiceColumn("Transaction Date", "transaction_date"), ServiceInterimFamilies.ReadRules["S041"].DateColumn);
     }
 
     private static string[] RulesOf(ServiceReadRuleKind kind) =>

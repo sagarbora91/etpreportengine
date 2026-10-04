@@ -14,9 +14,10 @@ namespace Etp.Reporting.Import.Tests.Service;
 /// </summary>
 public sealed class ServiceCatalogueTests
 {
-    private static readonly string[] ServiceCodes = [.. Enumerable.Range(1, 40).Where(n => n != 38).Select(n => $"S{n:000}")];
+    private static readonly string[] ServiceCodes = [.. Enumerable.Range(1, 41).Where(n => n != 38).Select(n => $"S{n:000}")];
 
-    // Mirrors ServiceInterimFamilies.Importable (lane L0): the 35 families with a landing table in 0048.
+    // Mirrors ServiceInterimFamilies.Importable (lane L0; S041 GPRC CLAIM added by decision 16): the 36 families with a
+    // landing table in 0048.
     private static readonly string[] Importable = [.. ServiceCodes.Except(["S001", "S005", "S027", "S028"])];
 
     private static readonly string[] ConsolidationColumns = ["SourcePeriodFrom", "SourcePeriodTo", "SourceFile"];
@@ -44,7 +45,8 @@ public sealed class ServiceCatalogueTests
         ["S028"] = (1, "cd7a9e13b661"), ["S029"] = (1, "d2a05582a588"), ["S030"] = (1, "e0c6464ed6d1"),
         ["S031"] = (1, "091c5461d487"), ["S032"] = (1, "091c5461d487"), ["S033"] = (1, "091c5461d487"),
         ["S034"] = (1, "091c5461d487"), ["S035"] = (1, "091c5461d487"), ["S036"] = (1, "1feac6ec9629"),
-        ["S037"] = (1, "25bf70cb0989"), ["S039"] = (1, "f55f619a335d"), ["S040"] = (1, "f55f619a335d")
+        ["S037"] = (1, "25bf70cb0989"), ["S039"] = (1, "f55f619a335d"), ["S040"] = (1, "f55f619a335d"),
+        ["S041"] = (1, "92659efbc1d8")
     };
 
     // SHA-256 of EtpReportFamilies.json at v1.9.3 (6a55913) up to the end of the SOR_AGEING entry, its last Retail entry.
@@ -54,7 +56,7 @@ public sealed class ServiceCatalogueTests
         EtpReportFamilyRegistry.Families.Where(family => family.BusinessUnit == BusinessUnit.Service).ToArray();
 
     [Fact]
-    public void The_catalogue_holds_39_service_entries_appended_after_the_retail_ones()
+    public void The_catalogue_holds_40_service_entries_appended_after_the_retail_ones()
     {
         Assert.Equal(ServiceCodes, Service.Select(family => family.FamilyCode));
         Assert.DoesNotContain(EtpReportFamilyRegistry.Families, family => family.FamilyCode == "S038");
@@ -62,7 +64,7 @@ public sealed class ServiceCatalogueTests
         var units = EtpReportFamilyRegistry.Families.Select(family => family.BusinessUnit).ToArray();
         Assert.Equal(units.Order(), units);
         Assert.Equal(["S001"], Service.Where(family => family.Derived).Select(family => family.FamilyCode).ToArray());
-        Assert.Equal(35, Importable.Length);
+        Assert.Equal(36, Importable.Length);
         Assert.All(Importable, code => Assert.False(EtpReportFamilyRegistry.Resolve(code).Derived));
         Assert.All(Service, family =>
         {
@@ -231,7 +233,8 @@ public sealed class ServiceCatalogueTests
         string[][] dateLogs =
         [
             ["S003", "trans_date"], ["S004", "billingdate"], ["S007", "grn_date"], ["S008", "grn_date"], ["S013", "stm_date"],
-            ["S019", "repairdate"], ["S022", "invoice_date"], ["S023", "transdate"], ["S029", "repair_date"], ["S039", "transaction_date"]
+            ["S019", "repairdate"], ["S022", "invoice_date"], ["S023", "transdate"], ["S029", "repair_date"], ["S039", "transaction_date"],
+            ["S041", "transaction_date"]
         ];
         foreach (var pair in dateLogs) Assert.Equal(ColumnRole.Fact, Role(EtpReportFamilyRegistry.Resolve(pair[0]), pair[1]));
         Assert.Equal(ColumnRole.Fact, Role(EtpReportFamilyRegistry.Resolve("S009"), "jodate"));
@@ -303,6 +306,7 @@ public sealed class ServiceCatalogueTests
     [InlineData("REPAIR REPORT 30.09.2026 TO 03.10.2026 .csv", "S037")]
     [InlineData("WDC CLAIM REPORT 30.09.2026 TO 03.10.2026.xlsx", "S039")]
     [InlineData("WRA CLAIM REPORT 30.09.2026 TO 03.10.2026.xlsx", "S040")]
+    [InlineData("GPRC CLAIM 30.09.2026 TO 03.10.2026.xlsx", "S041")]
     [InlineData("TECHNICIAN PRODUCIVITY REPORT 30.09.2026 TO 03.10.2026.xlsx", "S028")]
     [InlineData("TATA REPORT 03.09.2026 TO 03.10.2026 .xlsx", "S027")]
     // The correct spellings are accepted beside Sagar's export spellings.
