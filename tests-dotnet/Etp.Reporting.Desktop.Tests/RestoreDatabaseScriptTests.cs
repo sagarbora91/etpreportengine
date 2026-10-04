@@ -110,6 +110,16 @@ public sealed class RestoreDatabaseScriptTests
                 Assert-Refused { Test-Receipt (New-TestReceipt @{ lengthBytes = $length + 1 }) } 'size differs'
                 Assert-Refused { Test-Receipt (New-TestReceipt @{ database = 'Other' }) } 'another database'
                 Assert-Refused { Test-Receipt (New-TestReceipt @{ database = 'etpreporting' }) } 'another database'
+                # Decision 24: a staging copy's receipt names the staging database, and is returned
+                # so the main flow can hold it against the backup header.
+                if ((Test-Receipt (New-TestReceipt)) -cne 'EtpReporting') { throw 'The receipt database was not returned.' }
+                if ((Test-Receipt (New-TestReceipt @{ database = 'EtpStaging_20261004' })) -cne 'EtpStaging_20261004') { throw 'A staging receipt was not accepted.' }
+                if ((Test-Receipt (New-TestReceipt @{ database = 'EtpAccept_Staging_20261004' })) -cne 'EtpAccept_Staging_20261004') { throw 'An EtpAccept_ receipt was not accepted.' }
+                if ($null -ne (Test-Receipt (New-TestReceipt -Remove @('database')))) { throw 'A receipt without a database named one.' }
+                Assert-Refused { Test-Receipt (New-TestReceipt @{ database = 'OtherDb' }) } 'another database'
+                Assert-Refused { Test-Receipt (New-TestReceipt @{ database = 'etpstaging_20261004' }) } 'another database'
+                Assert-Refused { Test-Receipt (New-TestReceipt @{ database = 'EtpStaging_' }) } 'another database'
+                Assert-Refused { Test-Receipt (New-TestReceipt @{ database = 'EtpReportingHelios' }) } 'another database'
                 Assert-Refused { Test-Receipt (New-TestReceipt @{ verified = $false }) } 'verified backup'
                 Assert-Refused { Test-Receipt (New-TestReceipt @{ verified = 'true' }) } 'verified backup'
                 Assert-Refused { Test-Receipt (New-TestReceipt @{ encryption = 'AES_256' }) } 'encrypted'
@@ -136,7 +146,20 @@ public sealed class RestoreDatabaseScriptTests
                 @('NULL', 'NULL', $Type, 'NULL', '0', $Position, '2', 'OLDPC\Owner', 'OLDPC\SQLEXPRESS', $Name, '957', '2026-09-26 18:47:26.000') -join '|'
             }
             $header = ConvertFrom-EtpRestoreHeader -Lines @('', (Header), '') -Database 'EtpReporting'
-            if ($header.DatabaseName -cne 'EtpReporting') { throw 'The configured database was not recognised.' }
+            if ($header.DatabaseName -cne 'EtpReporting' -or $header.IsStagingSource) { throw 'The configured database was not recognised.' }
+            # Decision 24: a staging copy prepared on another PC is accepted, and marked as one.
+            foreach ($staging in @('EtpStaging_20261004', 'EtpAccept_Staging_20261004', 'EtpAccept_P3')) {
+                $header = ConvertFrom-EtpRestoreHeader -Lines @((Header -Name $staging)) -Database 'EtpReporting'
+                if ($header.DatabaseName -cne $staging -or -not $header.IsStagingSource) { throw "The staging backup $staging was not accepted as one." }
+            }
+            Assert-Refused { ConvertFrom-EtpRestoreHeader -Lines @((Header -Name 'OtherDb')) -Database 'EtpReporting' } "database 'OtherDb', not EtpReporting"
+            Assert-Refused { ConvertFrom-EtpRestoreHeader -Lines @((Header -Name 'EtpStaging_')) -Database 'EtpReporting' } "database 'EtpStaging_', not EtpReporting"
+            Assert-Refused { ConvertFrom-EtpRestoreHeader -Lines @((Header -Name 'etpstaging_20261004')) -Database 'EtpReporting' } 'not EtpReporting'
+            Assert-Refused { ConvertFrom-EtpRestoreHeader -Lines @((Header -Name 'EtpStaging_2026-10-04')) -Database 'EtpReporting' } 'not EtpReporting'
+            Assert-Refused { ConvertFrom-EtpRestoreHeader -Lines @((Header -Name ('EtpStaging_' + ('x' * 120)))) -Database 'EtpReporting' } 'not EtpReporting'
+            # The staging allowance never loosens the single-full-backup checks.
+            Assert-Refused { ConvertFrom-EtpRestoreHeader -Lines @((Header -Type '2' -Name 'EtpStaging_20261004')) -Database 'EtpReporting' } 'not a full database backup'
+            Assert-Refused { ConvertFrom-EtpRestoreHeader -Lines @((Header -Position '2' -Name 'EtpStaging_20261004')) -Database 'EtpReporting' } 'more than one backup'
             Assert-Refused { ConvertFrom-EtpRestoreHeader -Lines @((Header), (Header -Position '2')) -Database 'EtpReporting' } 'more than one backup'
             Assert-Refused { ConvertFrom-EtpRestoreHeader -Lines @((Header -Position '2')) -Database 'EtpReporting' } 'more than one backup'
             Assert-Refused { ConvertFrom-EtpRestoreHeader -Lines @((Header -Type '2')) -Database 'EtpReporting' } 'not a full database backup'
@@ -149,6 +172,75 @@ public sealed class RestoreDatabaseScriptTests
         var result = await RunPowerShellAsync(["-Command", command]);
         Assert.True(result.ExitCode == 0, result.Output);
         Assert.Contains("Backup header checks passed.", result.Output);
+    }
+
+    [Fact]
+    public async Task A_staging_backup_is_restored_as_the_configured_database()
+    {
+        // Decision 24 (4 October 2026): the shop PC restores a backup of EtpStaging_yyyyMMdd (or
+        // EtpAccept_*) taken on Workpc as EtpReporting. The restore SQL always names the
+        // configured database and its own data and log files; the logical names come from the
+        // backup, whichever database they were first created as.
+        var script = FindScript("restore-etp-database.ps1").Replace("'", "''");
+        var command = $$"""
+            {{Preamble()}}
+            foreach ($name in @('EtpStaging_20261004', 'EtpAccept_Staging_20261004')) { if (-not (Test-EtpRestoreStagingSource $name)) { throw "$name is not a staging source." } }
+            foreach ($name in @('EtpReporting', 'OtherDb', 'EtpReportingHelios', 'EtpPhase1Test_X', 'EtpStaging_', 'etpstaging_x', 'EtpStaging_a;b', '', $null)) { if (Test-EtpRestoreStagingSource $name) { throw "'$name' was taken for a staging source." } }
+
+            Assert-EtpRestoreReceiptMatchesHeader -ReceiptDatabase 'EtpStaging_20261004' -HeaderDatabase 'EtpStaging_20261004'
+            Assert-EtpRestoreReceiptMatchesHeader -ReceiptDatabase 'EtpReporting' -HeaderDatabase 'EtpReporting'
+            Assert-EtpRestoreReceiptMatchesHeader -ReceiptDatabase $null -HeaderDatabase 'EtpStaging_20261004'
+            Assert-Refused { Assert-EtpRestoreReceiptMatchesHeader -ReceiptDatabase 'EtpStaging_20261003' -HeaderDatabase 'EtpStaging_20261004' } "receipt is for database 'EtpStaging_20261003', but this file is a backup of database 'EtpStaging_20261004'"
+            Assert-Refused { Assert-EtpRestoreReceiptMatchesHeader -ReceiptDatabase 'EtpReporting' -HeaderDatabase 'EtpStaging_20261004' } 'Nothing was restored'
+            Assert-Refused { Assert-EtpRestoreReceiptMatchesHeader -ReceiptDatabase 'EtpStaging_20261004' -HeaderDatabase 'EtpReporting' } 'Nothing was restored'
+
+            # Logical names kept from EtpReporting (the staging copy was itself restored from an
+            # EtpReporting backup), and logical names of a database created under the staging name.
+            foreach ($pair in @(@('EtpReporting', 'EtpReporting_log'), @('EtpStaging_20261004', 'EtpStaging_20261004_log'))) {
+                Write-Output '---SQL---'
+                New-EtpRestoreDatabaseSql -Database 'EtpReporting' -BackupFile 'C:\PD\restore-source.bak' -DataLogicalName $pair[0] -LogLogicalName $pair[1]
+                Write-Output '---END---'
+            }
+
+            # The main flow: the header (not the configuration) decides staging, the receipt is held
+            # against it, the staging line is logged, and the restore names the configured database.
+            $tokens = $null; $errors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile('{{script}}', [ref]$tokens, [ref]$errors)
+            if (@($errors).Count -ne 0) { throw 'restore-etp-database.ps1 does not parse.' }
+            $top = @($ast.EndBlock.Statements)
+            function Find-Top([string]$Pattern) { @($top | Where-Object { $_ -isnot [System.Management.Automation.Language.FunctionDefinitionAst] -and $_.Extent.Text -match $Pattern }) }
+            $receiptBlock = Find-Top '^if \(-not \[string\]::IsNullOrWhiteSpace\(\$ReceiptPath\)\)'
+            $header = Find-Top '^\$header = ConvertFrom-EtpRestoreHeader -Database \$Database '
+            $match = Find-Top '^Assert-EtpRestoreReceiptMatchesHeader -ReceiptDatabase \$receiptDatabase -HeaderDatabase \$header\.DatabaseName$'
+            $log = Find-Top '^if \(\$header\.IsStagingSource\) \{ Write-RestoreLog "Backup of staging database \$\(\$header\.DatabaseName\); restoring as \$Database\." \}$'
+            $verify = Find-Top '^try \{ Invoke-EtpSql .*RESTORE VERIFYONLY'
+            $restore = Find-Top 'New-EtpRestoreDatabaseSql -Database \$Database -BackupFile \$staged '
+            if ($receiptBlock.Count -ne 1 -or $header.Count -ne 1 -or $match.Count -ne 1 -or $log.Count -ne 1 -or $verify.Count -ne 1 -or $restore.Count -ne 1) {
+                throw "The staging steps could not be found ($($receiptBlock.Count), $($header.Count), $($match.Count), $($log.Count), $($verify.Count), $($restore.Count))."
+            }
+            if ($receiptBlock[0].Extent.Text -notmatch '\$receiptDatabase = Assert-EtpRestoreReceipt ') { throw 'The receipt database is not kept.' }
+            if ($match[0].Extent.StartOffset -lt $header[0].Extent.EndOffset -or $log[0].Extent.StartOffset -lt $match[0].Extent.EndOffset -or $verify[0].Extent.StartOffset -lt $log[0].Extent.EndOffset -or $restore[0].Extent.StartOffset -lt $verify[0].Extent.EndOffset) {
+                throw 'The receipt is not held against the header, and the staging line logged, before the backup is verified and restored.'
+            }
+            if ($restore[0].Extent.Text -match 'header\.DatabaseName') { throw 'The restore names the backup''s database rather than the configured one.' }
+            Write-Output 'Staging restore checks passed.'
+            """;
+        var result = await RunPowerShellAsync(["-Command", command]);
+        Assert.True(result.ExitCode == 0, result.Output);
+        Assert.Contains("Staging restore checks passed.", result.Output);
+        var blocks = result.Output.Split("---SQL---")[1..].Select(b => b[..b.IndexOf("---END---", StringComparison.Ordinal)]).ToArray();
+        Assert.Equal(2, blocks.Length);
+        foreach (var (sql, dataName, logName) in new[] { (blocks[0], "EtpReporting", "EtpReporting_log"), (blocks[1], "EtpStaging_20261004", "EtpStaging_20261004_log") })
+        {
+            Assert.Contains("IF DB_ID(N'EtpReporting') IS NOT NULL THROW 51901", sql, StringComparison.Ordinal);
+            Assert.Contains("RESTORE DATABASE [EtpReporting] FROM DISK=@disk WITH MOVE @dataName TO @dataFile, MOVE @logName TO @logFile, CHECKSUM, RECOVERY", sql, StringComparison.Ordinal);
+            Assert.Contains("DECLARE @dataFile nvarchar(520)=@dataFolder+N'EtpReporting.mdf';", sql, StringComparison.Ordinal);
+            Assert.Contains("DECLARE @logFile nvarchar(520)=@logFolder+N'EtpReporting_log.ldf';", sql, StringComparison.Ordinal);
+            Assert.Contains($"DECLARE @dataName nvarchar(128)=N'{dataName}';", sql, StringComparison.Ordinal);
+            Assert.Contains($"DECLARE @logName nvarchar(128)=N'{logName}';", sql, StringComparison.Ordinal);
+            Assert.DoesNotContain("[EtpStaging", sql, StringComparison.Ordinal);
+            Assert.DoesNotMatch(@"(?i)\bREPLACE\b(?!\s*\()", sql);
+        }
     }
 
     [Fact]
