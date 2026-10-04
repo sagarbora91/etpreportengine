@@ -74,7 +74,9 @@ public sealed record ServiceJobEvent(
 
 /// <summary>
 /// S004 tender amount for one business date and tender beside the manual SERVICE_CASH/CARD/UPI entry.
-/// <c>ManualStores</c> lists the store codes whose manual entries were summed (design question Q2).
+/// <c>ManualStores</c> lists the store codes whose manual entries were compared: since decision 16 (Q1) only the shop
+/// that enters the Service centre's money; entries at other shops are <see cref="ServiceUnmatchedMoneyEntry"/> rows.
+/// The rules are <see cref="ServiceMoneyCheck"/>.
 /// </summary>
 public sealed record ServiceMoneyDay(
     DateOnly BusinessDate,
@@ -106,7 +108,16 @@ public interface IServiceReportQuery
 
     Task<IReadOnlyList<ServiceJobEvent>> LoadJobHistoryAsync(string jobOrderNumber, CancellationToken cancellationToken = default);
 
+    /// <summary>The decision-16 money check (<see cref="ServiceMoneyCheck.Compare"/>) for billing dates in the range.</summary>
     Task<IReadOnlyList<ServiceMoneyDay>> LoadMoneyCheckAsync(DateOnly from, DateOnly to, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Manual Service entries made at a shop other than the Service-money shop, listed separately and never added to the
+    /// check (<see cref="ServiceMoneyCheck.Unmatched"/>, decision 16 Q1). The default lists none, so an implementation
+    /// written before decision 16 still compiles; lane L4's query overrides it.
+    /// </summary>
+    Task<IReadOnlyList<ServiceUnmatchedMoneyEntry>> LoadUnmatchedServiceEntriesAsync(DateOnly from, DateOnly to, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<ServiceUnmatchedMoneyEntry>>([]);
 
     Task<IReadOnlyList<ServiceMoneyChange>> LoadMoneyChangesAsync(CancellationToken cancellationToken = default);
 }
