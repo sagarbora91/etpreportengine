@@ -46,7 +46,7 @@ public sealed class ServiceLandingSqlTests
             }
             Assert.Equal(36, await database.ExecuteAsync("SELECT COUNT(*) FROM sys.tables WHERE name LIKE N'etp[_]landing[_]s[0-9][0-9][0-9]'"));
             foreach (var code in new[] { "s001", "s005", "s027", "s028", "s038" })
-                Assert.Null(await database.ExecuteAsync($"SELECT OBJECT_ID(N'dbo.etp_landing_{code}')"));
+                Assert.Equal(0, await database.ExecuteAsync($"SELECT COUNT(*) FROM sys.tables WHERE name=N'etp_landing_{code}'"));
 
             Assert.Equal(1, await database.ExecuteAsync("""
                 SELECT COUNT(*) FROM dbo.stores s JOIN dbo.business_units b ON b.business_unit_id=s.business_unit_id
