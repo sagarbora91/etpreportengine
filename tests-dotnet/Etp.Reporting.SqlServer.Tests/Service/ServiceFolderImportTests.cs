@@ -187,6 +187,42 @@ public sealed class ServiceFolderImportTests
             [new(2, RetailSalesProfiles.R025Headers.Select(header => new WorkbookCell(values.GetValueOrDefault(header))).ToArray())])], path);
     }
 
+    [Fact]
+    public async Task The_raw_pack_imports_its_eight_families_and_reports_S005_and_S028_not_needed()
+    {
+        // Lane L9: the synthetic raw exports (CSV and xlsx, dated by the window end in each name) through the real folder
+        // import. The raw S005 and S028 are recognised by header, so L3's gate reports them Not needed, not Unknown layout.
+        var persistence = new ServicePersistence();
+        var summary = await new FolderImportService(persistence).RunAsync(RawFolder(), new("tester"));
+
+        var imported = summary.Files.Where(file => file.Status == "Imported").ToArray();
+        Assert.Equal(["S002", "S003", "S004", "S009", "S010", "S018", "S022", "S031"],
+            imported.Select(file => file.ReportCode!).Order(StringComparer.Ordinal));
+        Assert.All(imported, file =>
+        {
+            Assert.Equal("AW330", file.StoreCode);
+            Assert.Equal(new DateOnly(2026, 10, 9), file.PeriodEnd);
+        });
+        var notNeeded = summary.Files.Where(file => file.Status == "Not needed").ToArray();
+        Assert.Equal(["S005", "S028"], notNeeded.Select(file => file.ReportCode!).Order(StringComparer.Ordinal));
+        Assert.Equal(ServiceInterimFamilies.Codes.ServiceFamilyNotNeeded, Reason(notNeeded, "S005"));
+        Assert.Equal(ServiceInterimFamilies.Codes.ServiceFamilyDeferred, Reason(notNeeded, "S028"));
+        Assert.Equal("Unknown layout", Assert.Single(summary.Files, file => file.FileName.StartsWith("GPRC CLAIM", StringComparison.Ordinal)).Status);
+        Assert.Equal(11, summary.Files.Count);
+        Assert.Equal(0, summary.Failed);
+        Assert.Equal(8, persistence.Requests.Count);
+    }
+
+    private static string RawFolder()
+    {
+        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
+        {
+            var candidate = Path.Combine(directory.FullName, "tests-dotnet", "fixtures", "service-interim", "raw");
+            if (Directory.Exists(candidate)) return candidate;
+        }
+        throw new DirectoryNotFoundException("tests-dotnet/fixtures/service-interim/raw was not found above the test output folder.");
+    }
+
     private sealed class Reader(Func<string, WorkbookSnapshot> read) : IWorkbookReader
     {
         public Task<WorkbookSnapshot> ReadAsync(string path, CancellationToken cancellationToken = default) => Task.FromResult(read(path));
