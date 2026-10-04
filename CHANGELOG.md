@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Restore accepts a database prepared on another PC (staging copy) and restores it as EtpReporting (shop PC set-up, decision 24). `restore-etp-database.ps1` takes a backup whose source database is `EtpStaging_*` or `EtpAccept_*`, logs "Backup of staging database <name>; restoring as <configured>", and keeps every other check; any other foreign name is still refused, and a receipt must name the database in the backup. ImportAudit `seed` also writes to `EtpStaging_*` databases (never `EtpReporting`).
+
 ## [1.9.4] - 2026-10-04
 
 The report-audit release (HEMW and WLMHW report audits of 3 October 2026), with the fix for the 1.9.3 upgrade stopping at the pre-migration backup:

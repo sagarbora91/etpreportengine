@@ -18,7 +18,7 @@ internal static class SeedCommand
         var database = command.Database;
         if (!AuditCommandLine.IsScratchDatabase(database))
         {
-            await error.WriteLineAsync("seed writes only to a scratch database: EtpReportingHelios, EtpPhase1Test_* or EtpAccept_*.").ConfigureAwait(false);
+            await error.WriteLineAsync("seed writes only to a scratch database: EtpReportingHelios, EtpPhase1Test_*, EtpAccept_* or EtpStaging_*.").ConfigureAwait(false);
             return AuditExitCodes.Usage;
         }
         // The same boundary as the application: a SQL Server on this computer, Windows authentication, Encrypt=Optional.
