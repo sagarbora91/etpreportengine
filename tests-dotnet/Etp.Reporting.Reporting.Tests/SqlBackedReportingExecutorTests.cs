@@ -141,13 +141,16 @@ public sealed class SqlBackedReportingExecutorTests
         var result = await Executor(repository).ExecuteStockReconciliationAsync(Scope());
 
         Assert.Equal(ReconciliationStatus.Blocked, result.Status);
-        Assert.Empty(result.Items);
+        var item = Assert.Single(result.Items);
+        Assert.Null(item.ReportedClosing);
+        Assert.Equal(ReconciliationStatus.Blocked, item.Status);
     }
 
     [Fact]
-    public async Task Store_without_a_closing_snapshot_on_the_to_date_is_blocked_with_the_date()
+    public async Task Store_without_a_closing_snapshot_on_the_to_date_is_blocked_with_the_date_and_its_items_kept()
     {
-        // WLMHW FIX-04: a sold-out item's closing is 0 only when the store has a snapshot that day; with none, it is null.
+        // Titan report audit R-04: a sold-out item's closing is 0 only when the store has a snapshot that day; with none, it
+        // is null. Owner answer Q9: those items are listed, marked "no snapshot", not hidden.
         var repository = new FakeRepository
         {
             Stock = new([new("S1", "P1", 1m, null)], [new("S1", "P1", "ISSUE", -1m)], [new("S1", new DateOnly(2026, 8, 25))])
@@ -156,8 +159,32 @@ public sealed class SqlBackedReportingExecutorTests
         var result = await Executor(repository).ExecuteStockReconciliationAsync(Scope());
 
         Assert.Equal(ReconciliationStatus.Blocked, result.Status);
-        Assert.Empty(result.Items);
-        Assert.StartsWith("Closing stock missing for 25 Aug 2026 (S1).", result.Message);
+        Assert.StartsWith("Closing stock missing for 25 Aug 2026 (S1); items are listed without a closing figure (no snapshot).", result.Message);
+        var item = Assert.Single(result.Items);
+        Assert.Equal((1m, -1m, 0m), (item.Opening, item.SourceSignedMovements, item.ExpectedClosing));
+        Assert.Null(item.ReportedClosing);
+        Assert.Null(item.Variance);
+        Assert.Equal(ReconciliationStatus.Blocked, item.Status);
+    }
+
+    [Fact]
+    public async Task Stores_with_a_snapshot_keep_their_check_beside_a_store_without_one()
+    {
+        var repository = new FakeRepository
+        {
+            Stock = new([new("S1", "P1", 1m, null), new("S2", "P2", 2m, 1m), new("S2", "P3", 1m, 0m)],
+                [new("S1", "P1", "ISSUE", -1m), new("S2", "P2", "ISSUE", -1m)],
+                [new("S1", new DateOnly(2026, 8, 25)), new("S2", new DateOnly(2026, 8, 25))])
+        };
+
+        var result = await Executor(repository).ExecuteStockReconciliationAsync(new(new(2026, 7, 1), new(2026, 8, 25)));
+
+        Assert.Equal(ReconciliationStatus.Blocked, result.Status);
+        Assert.StartsWith("Closing stock missing for 25 Aug 2026 (S1);", result.Message);
+        Assert.DoesNotContain("S2", result.Message.Split(';')[0]);
+        Assert.Equal([("S1", "P1", ReconciliationStatus.Blocked), ("S2", "P2", ReconciliationStatus.Passed), ("S2", "P3", ReconciliationStatus.Failed)],
+            result.Items.Select(x => (x.StoreCode, x.ItemCode, x.Status)));
+        Assert.Equal((decimal?)1m, result.Items.Single(x => x.ItemCode == "P3").Variance);
     }
 
     [Fact]

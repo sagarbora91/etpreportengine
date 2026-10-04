@@ -75,22 +75,48 @@ public sealed class SqlBackedReportingExecutor(
         var coverage = LedgerCoverageWarning(data.LedgerCoverage, scope.DateTo);
         var missingClosing = data.Positions.Where(x => x.SourceClosingQuantity is null).Select(x => x.StoreCode)
             .Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase).ToArray();
-        if (missingClosing.Length > 0)
-            return new(ReconciliationStatus.Blocked, [], stockRule.Version, Join(coverage,
-                $"Closing stock missing for {Day(scope.DateTo)} ({string.Join(", ", missingClosing)}). Import the Closing Stock export of that date to check stock variance."));
+        var missingNote = missingClosing.Length == 0 ? null
+            : $"Closing stock missing for {Day(scope.DateTo)} ({string.Join(", ", missingClosing)}); items are listed without a closing figure (no snapshot). Import the Closing Stock export of that date to check stock variance.";
         if (data.Positions.Any(x => x.SourceOpeningQuantity is null))
-            return new(ReconciliationStatus.Blocked, [], stockRule.Version, Join(coverage,
-                "The ledger opening could not be found for every stock key."));
-        var positions = data.Positions.Select(x => new StockPositionValue(x.StoreCode, x.ItemCode,
-            x.SourceOpeningQuantity!.Value, x.SourceClosingQuantity!.Value)).ToArray();
-        var movements = data.Movements.Select(x => new StockMovementValue(x.StoreCode, x.ItemCode,
-            x.SourceMovementType, x.SourceSignedQuantity, Contains(mapping.StockMovementTypes, x.SourceMovementType))).ToArray();
-        var result = new StockReconciliationService().Reconcile(positions, movements, stockRule);
+            return new(ReconciliationStatus.Blocked, [], stockRule.Version, Join(coverage, Join(missingNote,
+                "The ledger opening could not be found for every stock key.")));
+        if (missingNote is not null) return WithoutClosing(data, missingClosing, Join(coverage, missingNote));
+        var result = Reconcile(data.Positions, data.Movements);
         // Titan report audit R-13: a ledger that stops before the To date misses the last movements, so every variance is suspect.
         // The items stay listed for review; the result is Blocked and says how far the ledger goes.
         if (coverage is not null) return result with { Status = ReconciliationStatus.Blocked, Message = Join(coverage, result.Message) };
         var quiet = QuietDaysNote(data.LedgerCoverage, scope.DateTo);
         return quiet is null ? result : result with { Message = $"{result.Message} {quiet}" };
+    }
+
+    private StockReconciliationResult Reconcile(IEnumerable<StockPositionQueryRow> positions, IEnumerable<StockMovementQueryRow> movements) =>
+        new StockReconciliationService().Reconcile(
+            positions.Select(x => new StockPositionValue(x.StoreCode, x.ItemCode, x.SourceOpeningQuantity!.Value, x.SourceClosingQuantity!.Value)),
+            movements.Select(x => new StockMovementValue(x.StoreCode, x.ItemCode, x.SourceMovementType, x.SourceSignedQuantity,
+                Contains(mapping.StockMovementTypes, x.SourceMovementType))),
+            stockRule);
+
+    // Owner answer Q9 (decision 13): a store with no closing-stock snapshot on the To date is marked, not hidden. Its items
+    // are listed with opening, movements and expected closing, a blank ("no snapshot") reported closing and variance, and
+    // status Blocked; stores that have a snapshot keep their PASS/FAIL check. The whole result is Blocked.
+    private StockReconciliationResult WithoutClosing(StockQueryData data, IReadOnlyCollection<string> missingStores, string message)
+    {
+        var missing = missingStores.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var unmarked = data.Positions.Where(x => !missing.Contains(x.StoreCode)).ToArray();
+        var checkedPart = unmarked.Length == 0 ? null
+            : Reconcile(unmarked, data.Movements.Where(x => !missing.Contains(x.StoreCode)));
+        var movementTotals = data.Movements.Where(x => missing.Contains(x.StoreCode))
+            .GroupBy(x => (Store: x.StoreCode.ToUpperInvariant(), Item: x.ItemCode.ToUpperInvariant()))
+            .ToDictionary(x => x.Key, x => x.Sum(m => m.SourceSignedQuantity));
+        var marked = data.Positions.Where(x => missing.Contains(x.StoreCode)).Select(x =>
+        {
+            var moved = movementTotals.GetValueOrDefault((x.StoreCode.ToUpperInvariant(), x.ItemCode.ToUpperInvariant()));
+            var opening = x.SourceOpeningQuantity!.Value;
+            return new StockControlResult(x.StoreCode, x.ItemCode, opening, moved, opening + moved, null, null, ReconciliationStatus.Blocked);
+        });
+        var items = (checkedPart?.Items ?? []).Concat(marked)
+            .OrderBy(x => x.StoreCode, StringComparer.OrdinalIgnoreCase).ThenBy(x => x.ItemCode, StringComparer.OrdinalIgnoreCase).ToArray();
+        return new(ReconciliationStatus.Blocked, items, stockRule.Version, checkedPart is null ? message : $"{message} {checkedPart.Message}");
     }
 
     // A ledger's stored end is its last movement (the import dates a ledger by its rows), so a gap before the To date
@@ -119,7 +145,6 @@ public sealed class SqlBackedReportingExecutor(
     }
 
     private static string Join(string? warning, string message) => warning is null ? message : $"{warning} {message}";
-
     private static string Day(DateOnly date) => date.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture);
 
     private void Validate(ReportingQueryScope scope)

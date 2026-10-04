@@ -30,6 +30,9 @@ public sealed class ReportLabelCorrectionTests
             var headers = export.ExportData!.Columns.Select(column => column.Header).ToArray();
             Assert.Contains("Unit MRP", headers);
             Assert.Contains("MRP value (GST incl.)", headers);
+            // Owner answer Q8: the receipt date and its age sit after the last sale.
+            Assert.Equal(["Last Sale", "Days Since Sale", "Last Receipt", "Days Since Receipt", "Movement Status"],
+                headers.SkipWhile(header => header != "Last Sale").Take(5).ToArray());
             Assert.DoesNotContain(headers, header => header.Contains("Cost", StringComparison.OrdinalIgnoreCase));
             Assert.Contains("UCP × quantity", export.ExportMetadata.Message, StringComparison.Ordinal);
             Assert.DoesNotContain("cost", export.ExportMetadata.Message.Replace("not cost", string.Empty, StringComparison.Ordinal), StringComparison.OrdinalIgnoreCase);
@@ -58,6 +61,9 @@ public sealed class ReportLabelCorrectionTests
             var export = latest();
             var headers = export.ExportData!.Columns.Select(column => column.Header).ToArray();
             Assert.Contains("MRP value (GST incl.)", headers);
+            // Owner answer Q3/Q5: the owner's brand row comes first; with no cluster mapping it is the brand.
+            Assert.Equal(["Store", "Brand row", "Brand", "Inventory Group"], headers.Take(4).ToArray());
+            Assert.Equal(new object?[] { "WLMHW", "TITAN", "TITAN", "WATCHES" }, export.ExportData.Rows.Single().Take(4).ToArray());
             Assert.DoesNotContain(headers, header => header.Contains("Cost", StringComparison.OrdinalIgnoreCase));
             Assert.Contains("UCP × quantity", export.ExportMetadata!.Message, StringComparison.Ordinal);
             Assert.DoesNotContain("quantity and cost are never inferred", export.ExportMetadata.Message, StringComparison.Ordinal);

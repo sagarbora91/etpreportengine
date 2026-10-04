@@ -33,8 +33,10 @@ public sealed record InvoiceControlQueryRow(
 public sealed record StockPositionQueryRow(
     string StoreCode, string ItemCode, decimal? SourceOpeningQuantity, decimal? SourceClosingQuantity);
 // Location: the ledger bin the movements belong to (migration 0047); null for movements stored without one.
+// HasSnapshot: whether the store has a closing-stock snapshot on the To date (owner answer Q9: movements of a store
+// without one are listed and marked, not hidden).
 public sealed record StockMovementQueryRow(
-    string StoreCode, string ItemCode, string SourceMovementType, decimal SourceSignedQuantity, string? Location = null);
+    string StoreCode, string ItemCode, string SourceMovementType, decimal SourceSignedQuantity, string? Location = null, bool HasSnapshot = true);
 /// <summary>
 /// The last date the store's stock ledger covers (the current ledger imports' period end, or its last movement; null when
 /// none is stored), and the store's first sale after that date up to the To date (null when there is none). The import

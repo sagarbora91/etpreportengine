@@ -200,23 +200,36 @@ public partial class ReportsWorkspaceView : UserControl
         var revision = reportRevision;
         try
         {
-            var rows = await operationalReportQueryFactory(connectionStringProvider()).LoadStockInventoryAsync(ReportScope());
-            var sources = SnapshotSourceText(rows.Select(x => (x.StoreCode, x.SnapshotDate, x.SnapshotSource)));
+            var stockScope = ReportScope();
+            var rows = await operationalReportQueryFactory(connectionStringProvider()).LoadStockInventoryAsync(stockScope);
+            var sources = SnapshotSourceText(rows.Select(x => (x.StoreCode, x.SnapshotDate, x.SnapshotSource))) + MissingSnapshotText(stockScope.StoreCodes, rows.Select(x => x.StoreCode), stockScope.DateTo);
             if (mode == "SLOW") rows = rows.Where(x => x.Quantity != 0 && x.MovementStatus != "ACTIVE").ToArray();
             if (mode == "BRAND")
             {
-                var grouped = rows.GroupBy(x => new { x.StoreCode, Brand = x.Brand ?? "Unmapped", Group = x.InventoryGroup ?? "Unmapped" }).Select(x => new { x.Key.StoreCode, x.Key.Brand, InventoryGroup = x.Key.Group, Quantity = x.Sum(y => y.Quantity), MrpValue = x.Any(y => y.TotalCost is not null) ? (decimal?)x.Sum(y => y.TotalCost ?? 0) : null, Items = x.Select(y => y.ProductCode).Distinct().Count(), SlowItems = x.Count(y => y.Quantity != 0 && y.MovementStatus != "ACTIVE") }).OrderBy(x => x.StoreCode).ThenBy(x => x.InventoryGroup).ThenBy(x => x.Brand).ToArray();
+                var grouped = rows.GroupBy(x => new { x.StoreCode, BrandRow = x.StockGroup, Brand = x.Brand ?? "Unmapped", Group = x.InventoryGroup ?? "Unmapped" }).Select(x => new { x.Key.StoreCode, x.Key.BrandRow, x.Key.Brand, InventoryGroup = x.Key.Group, Quantity = x.Sum(y => y.Quantity), MrpValue = x.Any(y => y.TotalCost is not null) ? (decimal?)x.Sum(y => y.TotalCost ?? 0) : null, Items = x.Select(y => y.ProductCode).Distinct().Count(), SlowItems = x.Count(y => StockAgeing.IsSlow(y.Quantity, y.MovementStatus)) }).OrderBy(x => x.StoreCode).ThenBy(x => x.BrandRow).ThenBy(x => x.InventoryGroup).ThenBy(x => x.Brand).ToArray();
                 var status = grouped.Length == 0 ? ReconciliationStatus.Blocked : ReconciliationStatus.Passed; if (revision != reportRevision) return; ReportGrid.ItemsSource = grouped; ReportResult.Text = IndianText($"{status}: {grouped.Length:N0} store/brand/inventory-group row(s).{sources}");
-                SetExport("Brand Stock", status, RetailReportingPolicy.Version, "Closing stock grouped from the saved ETP snapshot; quantity and MRP are never inferred. " + StockMrpNote + sources, [new("Store"),new("Brand"),new("Inventory Group"),new("Quantity","#,##0.00"),new(MrpValueHeader,"#,##0.00"),new("Items","#,##0"),new("Slow Items","#,##0")], grouped.Select(x => (IReadOnlyList<object?>)[x.StoreCode,x.Brand,x.InventoryGroup,x.Quantity,x.MrpValue,x.Items,x.SlowItems]).ToArray(), ["Total","","",grouped.Sum(x=>x.Quantity),grouped.Sum(x=>x.MrpValue),grouped.Sum(x=>x.Items),grouped.Sum(x=>x.SlowItems)]);
+                SetExport("Brand Stock", status, RetailReportingPolicy.Version, "Closing stock grouped from the saved ETP snapshot; quantity and MRP are never inferred. " + StockMrpNote + BrandRowNote + sources, [new("Store"),new("Brand row"),new("Brand"),new("Inventory Group"),new("Quantity","#,##0.00"),new(MrpValueHeader,"#,##0.00"),new("Items","#,##0"),new("Slow Items","#,##0")], grouped.Select(x => (IReadOnlyList<object?>)[x.StoreCode,x.BrandRow,x.Brand,x.InventoryGroup,x.Quantity,x.MrpValue,x.Items,x.SlowItems]).ToArray(), ["Total","","","",grouped.Sum(x=>x.Quantity),grouped.Sum(x=>x.MrpValue),grouped.Sum(x=>x.Items),grouped.Sum(x=>x.SlowItems)]);
             }
             else
             {
-                var status = rows.Count == 0 ? ReconciliationStatus.Blocked : ReconciliationStatus.Passed; var name = mode == "SLOW" ? "Slow / Exception Stock" : "Closing Stock"; if (revision != reportRevision) return; ReportGrid.ItemsSource = rows; ReportResult.Text = IndianText($"{status}: {rows.Count:N0} item(s).{sources} Slow stock uses 60-day watch and 90-day exception bands.");
-                SetExport(name, status, RetailReportingPolicy.Version, "Closing quantities and MRP come from the selected-date ETP stock snapshot. " + StockMrpNote + " Last sale is the latest positive source-signed sale on or before that date." + sources, [new("Date"),new("Store"),new("Item"),new("Brand"),new("Inventory Group"),new("Quantity","#,##0.00"),new(UnitMrpHeader,"#,##0.00"),new(MrpValueHeader,"#,##0.00"),new("Last Sale"),new("Days Since Sale","#,##0"),new("Movement Status"),new("Snapshot Source")], rows.Select(x => (IReadOnlyList<object?>)[x.SnapshotDate,x.StoreCode,x.ProductCode,x.Brand,x.InventoryGroup,x.Quantity,x.UnitCost,x.TotalCost,x.LastSaleDate,x.DaysSinceLastSale,x.MovementStatus,x.SnapshotSource]).ToArray(), ["Total","","","","",rows.Sum(x=>x.Quantity),"",rows.Sum(x=>x.TotalCost),"","","",""]);
+                var status = rows.Count == 0 ? ReconciliationStatus.Blocked : ReconciliationStatus.Passed; var name = mode == "SLOW" ? "Slow / Exception Stock" : "Closing Stock"; if (revision != reportRevision) return; ReportGrid.ItemsSource = rows; ReportResult.Text = IndianText($"{status}: {rows.Count:N0} item(s).{sources} Slow stock uses 60-day watch and 90-day exception bands.{NewStockText(rows)}");
+                SetExport(name, status, RetailReportingPolicy.Version, "Closing quantities and MRP come from the selected-date ETP stock snapshot. " + StockMrpNote + " Last sale is the latest positive source-signed sale on or before that date." + ReceiptNote + sources, [new("Date"),new("Store"),new("Item"),new("Brand"),new("Inventory Group"),new("Quantity","#,##0.00"),new(UnitMrpHeader,"#,##0.00"),new(MrpValueHeader,"#,##0.00"),new("Last Sale"),new("Days Since Sale","#,##0"),new("Last Receipt"),new("Days Since Receipt","#,##0"),new("Movement Status"),new("Snapshot Source")], rows.Select(x => (IReadOnlyList<object?>)[x.SnapshotDate,x.StoreCode,x.ProductCode,x.Brand,x.InventoryGroup,x.Quantity,x.UnitCost,x.TotalCost,x.LastSaleDate,x.DaysSinceLastSale,x.LastReceiptDate,x.DaysSinceReceipt,x.MovementStatus,x.SnapshotSource]).ToArray(), ["Total","","","","",rows.Sum(x=>x.Quantity),"",rows.Sum(x=>x.TotalCost),"","","","","",""]);
             }
             ApplyReportFilter(); await auditRecorder("ReportRun", ToAuditOutcome(rows.Count == 0 ? ReconciliationStatus.Blocked : ReconciliationStatus.Passed), mode == "BRAND" ? "Brand stock" : mode == "SLOW" ? "Slow stock" : "Closing stock");
         }
         catch (Exception ex) { if (revision != reportRevision) return; HandleFailure(ex, "STOCK_REPORT_FAILED", "Stock report failed"); }
+    }
+
+    // Owner answer Q3/Q5: the owner's brand rows (Settings > Evening masters) mapped by cluster.
+    internal const string BrandRowNote = " Brand row is the Daily Sales Report brand row mapped to the item's cluster in Settings > Evening masters, else the brand.";
+
+    // Owner answer Q8: recently received items show as NEW, aged by their receipt date.
+    internal const string ReceiptNote = " Last receipt is the latest Purchase, STM or Stock Receipt in the stock ledger on or before that date; an item received in the last 60 days and not sold since is NEW, not never sold.";
+
+    internal static string NewStockText(IEnumerable<EtpApplication::Etp.Reporting.Application.Reports.StockInventoryRecord> rows)
+    {
+        var count = rows.Count(x => x.MovementStatus == StockAgeing.New);
+        return count == 0 ? "" : $" {count:N0} NEW (received in the last {StockAgeing.NewWindowDays} days).";
     }
 
     // Spec 12: the stock report states the snapshot source used per store-day (Closing Stock or BinWise).
@@ -228,11 +241,28 @@ public partial class ReportsWorkspaceView : UserControl
         return days.Length == 0 ? "" : " Snapshot source: " + string.Join("; ", days) + ".";
     }
 
+    // Owner answer Q9: a store with no snapshot on the date is named, instead of a bare "Blocked: 0 item(s)".
+    internal static string MissingSnapshotText(IReadOnlyList<string>? requestedStores, IEnumerable<string> storesWithRows, DateOnly date)
+    {
+        var present = storesWithRows.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var day = date.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture);
+        if (requestedStores is not { Count: > 0 }) return present.Count == 0 ? $" No closing-stock snapshot for any store on {day}." : "";
+        var missing = requestedStores.Where(x => !present.Contains(x)).Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase).ToArray();
+        return missing.Length == 0 ? "" : $" No closing-stock snapshot for {string.Join(", ", missing)} on {day}.";
+    }
+
     private async Task RunStockMovementAsync()
     {
         var revision = reportRevision;
-        try { var rows = await controlledReportQueryFactory(connectionStringProvider()).LoadStockMovementsAsync(ReportScope()); var status = rows.Count == 0 ? ReconciliationStatus.Blocked : ReconciliationStatus.Passed; if (revision != reportRevision) return; ReportGrid.ItemsSource = rows; ReportResult.Text = IndianText($"{status}: {rows.Count:N0} source movement group(s)."); SetExport("Stock Movement", status, RetailReportingPolicy.Version, "Movement quantities retain the ETP source transaction type and source-signed quantity.", [new("Store"),new("Item"),new("Location"),new("Movement Type"),new("Signed Quantity","#,##0.00")], rows.Select(x => (IReadOnlyList<object?>)[x.StoreCode,x.ItemCode,x.Location,x.SourceMovementType,x.SourceSignedQuantity]).ToArray(), ["Total","","","",rows.Sum(x=>x.SourceSignedQuantity)]); ApplyReportFilter(); await auditRecorder("ReportRun", ToAuditOutcome(status), "Stock movement"); }
+        try { var scope = ReportScope(); var rows = await controlledReportQueryFactory(connectionStringProvider()).LoadStockMovementsAsync(scope); var snapshotNote = StockMovementSnapshotNote(rows, scope.DateTo); var status = rows.Count == 0 || snapshotNote.Length > 0 ? ReconciliationStatus.Blocked : ReconciliationStatus.Passed; if (revision != reportRevision) return; ReportGrid.ItemsSource = rows; ReportResult.Text = IndianText($"{status}: {rows.Count:N0} source movement group(s).") + snapshotNote; SetExport("Stock Movement", status, RetailReportingPolicy.Version, "Movement quantities retain the ETP source transaction type and source-signed quantity." + snapshotNote, [new("Store"),new("Item"),new("Location"),new("Movement Type"),new("Signed Quantity","#,##0.00"),new("Snapshot")], rows.Select(x => (IReadOnlyList<object?>)[x.StoreCode,x.ItemCode,x.Location,x.SourceMovementType,x.SourceSignedQuantity,x.Snapshot]).ToArray(), ["Total","","","",rows.Sum(x=>x.SourceSignedQuantity),""]); ApplyReportFilter(); await auditRecorder("ReportRun", ToAuditOutcome(status), "Stock movement"); }
         catch (Exception ex) { if (revision != reportRevision) return; HandleFailure(ex, "STOCK_MOVEMENT_REPORT_FAILED", "Stock movement report failed"); }
+    }
+
+    // Owner answer Q9: movements of a store with no closing-stock snapshot on the To date are listed, marked "no snapshot".
+    internal static string StockMovementSnapshotNote(IEnumerable<EtpApplication::Etp.Reporting.Application.Reports.StockMovementRecord> rows, DateOnly dateTo)
+    {
+        var stores = rows.Where(x => !x.HasSnapshot).Select(x => x.StoreCode).Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase).ToArray();
+        return stores.Length == 0 ? "" : $" No closing-stock snapshot for {string.Join(", ", stores)} on {dateTo.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)}; movements are shown, closing stock cannot be checked.";
     }
 
     private async Task RunManagementTrendReportAsync()
@@ -402,7 +432,7 @@ public partial class ReportsWorkspaceView : UserControl
     private async Task RunStockReportAsync()
     {
         var revision = reportRevision;
-        try { var r=await controlledReportQueryFactory(connectionStringProvider()).RunStockReconciliationAsync(ReportScope()); if (revision != reportRevision) return; ReportGrid.ItemsSource=r.Items; ReportResult.Text=$"{r.Status}: {r.Message}"; SetExport("Stock Reconciliation",ToReportingStatus(r.Status),r.RuleVersion,r.Message,[new("Store"),new("Item"),new("Opening","#,##0.00"),new("Movements","#,##0.00"),new("Expected Closing","#,##0.00"),new("Reported Closing","#,##0.00"),new("Variance","#,##0.00"),new("Status")],r.Items.Select(x=>(IReadOnlyList<object?>)[x.StoreCode,x.ItemCode,x.Opening,x.SourceSignedMovements,x.ExpectedClosing,x.ReportedClosing,x.Variance,x.Status.ToString()]).ToArray(),["Total","",r.Items.Sum(x=>x.Opening),r.Items.Sum(x=>x.SourceSignedMovements),r.Items.Sum(x=>x.ExpectedClosing),r.Items.Sum(x=>x.ReportedClosing),r.Items.Sum(x=>x.Variance),r.Status.ToString()]); ApplyReportFilter(); await auditRecorder("ReportRun",r.Status==ApplicationReportStatus.Passed?"Succeeded":r.Status.ToString(),"Stock control"); }
+        try { var r=await controlledReportQueryFactory(connectionStringProvider()).RunStockReconciliationAsync(ReportScope()); if (revision != reportRevision) return; ReportGrid.ItemsSource=r.Items; ReportResult.Text=$"{r.Status}: {r.Message}"; SetExport("Stock Reconciliation",ToReportingStatus(r.Status),r.RuleVersion,r.Message,[new("Store"),new("Item"),new("Opening","#,##0.00"),new("Movements","#,##0.00"),new("Expected Closing","#,##0.00"),new("Reported Closing","#,##0.00"),new("Variance","#,##0.00"),new("Status"),new("Snapshot")],r.Items.Select(x=>(IReadOnlyList<object?>)[x.StoreCode,x.ItemCode,x.Opening,x.SourceSignedMovements,x.ExpectedClosing,x.ReportedClosing,x.Variance,x.Status.ToString(),x.Snapshot]).ToArray(),["Total","",r.Items.Sum(x=>x.Opening),r.Items.Sum(x=>x.SourceSignedMovements),r.Items.Sum(x=>x.ExpectedClosing),r.Items.Sum(x=>x.ReportedClosing),r.Items.Sum(x=>x.Variance),r.Status.ToString(),""]); ApplyReportFilter(); await auditRecorder("ReportRun",r.Status==ApplicationReportStatus.Passed?"Succeeded":r.Status.ToString(),"Stock control"); }
         catch (Exception ex) { if (revision != reportRevision) return; HandleFailure(ex, "STOCK_RECONCILIATION_FAILED", "Stock reconciliation failed"); }
     }
 

@@ -12,9 +12,13 @@ public sealed record ApprovedStockControlRule(string Version, decimal AbsoluteQu
         if (AbsoluteQuantityTolerance < 0) throw new ArgumentOutOfRangeException(nameof(AbsoluteQuantityTolerance));
     }
 }
+/// <summary>
+/// One checked item. ReportedClosing and Variance are null ("no snapshot") when the store has no closing-stock snapshot on
+/// the To date; such an item is Blocked, listed rather than hidden (owner answer Q9).
+/// </summary>
 public sealed record StockControlResult(
     string StoreCode, string ItemCode, decimal Opening, decimal SourceSignedMovements,
-    decimal ExpectedClosing, decimal ReportedClosing, decimal Variance, ReconciliationStatus Status);
+    decimal ExpectedClosing, decimal? ReportedClosing, decimal? Variance, ReconciliationStatus Status);
 public sealed record StockReconciliationResult(
     ReconciliationStatus Status, IReadOnlyList<StockControlResult> Items, string RuleVersion, string Message);
 
