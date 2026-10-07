@@ -60,10 +60,13 @@ public sealed class TypedCellConverter
             : CellConversionResult.Success(value);
     }
 
+    // AllowExponent: the Service purchase registers (S007/S008) write zero as scientific notation, 0E-8 (IF-026, 7 Oct 2026).
+    private const NumberStyles DecimalStyles = NumberStyles.Number | NumberStyles.AllowLeadingSign | NumberStyles.AllowExponent;
+
     private static CellConversionResult ParseDecimal(object source) => source switch
     {
         decimal d => CellConversionResult.Success(d),
-        _ => CellConversionResult.Success(decimal.Parse(source.ToString()!.Trim(), NumberStyles.Number | NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture))
+        _ => CellConversionResult.Success(decimal.Parse(source.ToString()!.Trim(), DecimalStyles, CultureInfo.InvariantCulture))
     };
 
     private static CellConversionResult ParseInteger(object source) => source switch

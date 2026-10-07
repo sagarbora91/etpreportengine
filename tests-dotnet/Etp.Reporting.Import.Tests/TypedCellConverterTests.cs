@@ -61,6 +61,32 @@ public sealed class TypedCellConverterTests
         Assert.Equal(1234.50m, result.Value);
     }
 
+    // IF-026: the Service purchase registers (S007/S008) write zero tax as 0E-8; plain and signed values must keep working.
+    [Theory]
+    [InlineData("0E-8", "0")]
+    [InlineData("0E-8 ", "0")]
+    [InlineData("1.5E2", "150")]
+    [InlineData("-1.25E-1", "-0.125")]
+    [InlineData("18.00000000", "18")]
+    [InlineData("-5", "-5")]
+    public void Decimal_conversion_reads_scientific_notation(string text, string expected)
+    {
+        var result = converter.Convert(text, CanonicalDataType.Decimal, true);
+        Assert.True(result.IsSuccess);
+        Assert.Equal(decimal.Parse(expected, CultureInfo.InvariantCulture), result.Value);
+    }
+
+    [Theory]
+    [InlineData("E5")]
+    [InlineData("1E")]
+    [InlineData("1E999")]
+    public void Decimal_conversion_still_rejects_malformed_exponents(string text)
+    {
+        var result = converter.Convert(text, CanonicalDataType.Decimal, true);
+        Assert.False(result.IsSuccess);
+        Assert.Equal("VALUE_INVALID", result.ErrorCode);
+    }
+
     [Fact]
     public void Missing_required_value_returns_structured_failure()
     {
