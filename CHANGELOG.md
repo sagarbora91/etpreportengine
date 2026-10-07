@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [1.9.6] - (date after the 1.9.6 gate)
+
+One importer fix on top of 1.9.5; no migration.
+
+- Fixed (IF-026): the Service purchase registers (S007 "created date" and S008 "received date") imported nothing, because the export writes zero tax as `0E-8` and the decimal reader did not accept scientific notation (`VALUE_INVALID` on the SGST, CGST and UGST columns of every row). Decimals such as `0E-8`, `1.5E2` and `-1.25E-1` are now read; plain, signed and thousands-separated values are unchanged, and malformed exponents (`E5`, `1E`, `1E999`) still fail as `VALUE_INVALID`. After installing 1.9.6, import the Service raw pack again: the two purchase registers load and every other file shows as Duplicate.
+- Gate: (after the 1.9.6 gate) - build, unit and SQL integration test counts.
+
 ## [1.9.5] - (date after the 1.9.5 gate)
 
 Service Centre interim import (Service review step S-2, decisions 15 and 16, 3-4 Oct 2026), with migration 0048 (`0048_service_centre_interim.sql`). It ships after 1.9.4, whose migrations are 0046 and 0047; 0049 is reserved for the Tally cost-centre migration of GitHub PR #3 (decision 18), and 1.10.0 numbers its own migrations from 0050. Apart from the R020 TC two-cheque rule (decision 21, below), Retail imports, reports and packs do not change.
