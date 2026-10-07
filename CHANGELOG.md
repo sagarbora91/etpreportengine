@@ -2,12 +2,12 @@
 
 ## [Unreleased]
 
-## [1.9.6] - (date after the 1.9.6 gate)
+## [1.9.6] - 2026-10-07
 
 One importer fix on top of 1.9.5; no migration.
 
 - Fixed (IF-026): the Service purchase registers (S007 "created date" and S008 "received date") imported nothing, because the export writes zero tax as `0E-8` and the decimal reader did not accept scientific notation (`VALUE_INVALID` on the SGST, CGST and UGST columns of every row). Decimals such as `0E-8`, `1.5E2` and `-1.25E-1` are now read; plain, signed and thousands-separated values are unchanged, and malformed exponents (`E5`, `1E`, `1E999`) still fail as `VALUE_INVALID`. After installing 1.9.6, import the Service raw pack again: the two purchase registers load and every other file shows as Duplicate.
-- Gate: (after the 1.9.6 gate) - build, unit and SQL integration test counts.
+- Gate (7 Oct 2026, elevated, on 7687873): Release build 0 warnings 0 errors; 3,334 tests, 0 failed, 3 skipped (Desktop 736, Domain 12, Import 1,073, Reporting 103, SQL integration 397, SQL 1,013); pre- and after-checks clean. Installer SHA-256 16FCEEBCB343B36ED03BDE1A50E6CA67BF35E2C0A259D928F86B0E2D35F28CC6 (`Installers\ETP Reporting Engine 1.9.6\`).
 
 ## [1.9.5] - (date after the 1.9.5 gate)
 
