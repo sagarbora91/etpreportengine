@@ -60,7 +60,7 @@ public sealed class SqlBackedReportingExecutorTests
         var result = await Executor(repository).ExecuteTenderReconciliationAsync(Scope());
         Assert.Equal(ReconciliationStatus.Failed, result.Status);
         Assert.Equal(2, result.Documents.Count);
-        Assert.All(result.Documents, row => Assert.Equal(100m, Math.Abs(row.Variance)));
+        Assert.All(result.Documents, row => Assert.Equal(100m, Math.Abs(row.Variance!.Value)));
         Assert.Equal(0m, result.Variance);
     }
 
