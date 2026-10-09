@@ -6,12 +6,14 @@ namespace Etp.Reporting.Infrastructure.SqlServer;
 
 public static class SqlReportingQueries
 {
-    public const string Sales = """
+    // Column 12 (1.9.8, RA-SALES-03/04): the owner's brand row for the line by the DSR rule (BrandRowSql), NULL when unmapped.
+    public const string Sales = $"""
         SELECT i.transaction_date,i.store_code,i.document_number,l.line_identifier,l.product_code,
                COALESCE(l.source_brand_name,l.source_brand_code,p.brand_name),COALESCE(l.brand_segment,p.cluster),l.source_transaction_type,l.source_quantity,
-               l.source_gross_amount,l.source_net_amount,i.invoice_year
+               l.source_gross_amount,l.source_net_amount,i.invoice_year,mapped.row_label
         FROM dbo.sales_lines l
         JOIN dbo.sales_invoices i ON i.sales_invoice_id=l.sales_invoice_id
+        {BrandRowSql.MappedRowOfL}
         OUTER APPLY
         (
           SELECT TOP(1) COALESCE(s.brand_name,s.brand_code) brand_name,s.cluster
@@ -242,7 +244,7 @@ public sealed class SqlServerReportingQueryRepository(string connectionString) :
         while (await reader.ReadAsync(cancellationToken))
             rows.Add(new(reader.GetFieldValue<DateOnly>(0), reader.GetString(1), reader.GetString(2), reader.GetString(3),
                 reader.GetString(4), NullableString(reader, 5), NullableString(reader, 6), NullableString(reader, 7),
-                reader.GetDecimal(8), NullableDecimal(reader, 9), NullableDecimal(reader, 10), reader.GetInt32(11)));
+                reader.GetDecimal(8), NullableDecimal(reader, 9), NullableDecimal(reader, 10), reader.GetInt32(11), NullableString(reader, 12)));
         return rows;
     }
 
