@@ -101,7 +101,7 @@ public sealed class ReportExportPathTests
             var exporter = new CountingExporter();
             var view = SyntheticReportView.Create(out _, exporter: exporter);
             await view.RunReportAsync("sales-brand");
-            view.saveFileChooser = (_, fileName) => { view.SetBusinessDate(new DateTime(2026, 8, 24)); return Path.Combine(OutputFolder(), fileName); };
+            view.saveFileChooser = (_, fileName) => { view.SetBusinessDate(new DateTime(2026, 8, 24)); return Path.Combine(AppContext.BaseDirectory, "export-path-tests", fileName); };
 
             await view.ExportObservedAsync(pdf: false);
 

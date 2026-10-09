@@ -11,6 +11,8 @@ namespace Etp.Reporting.Reporting.Tests;
 /// </summary>
 public sealed class ReportWorksheetWriterTests
 {
+    // The lakh money format the writer registers as numFmt 164 (ReportWorksheetWriter.IndianMoney).
+    private const string IndianMoney = "[>=10000000]##\,##\,##\,##0.00;[>=100000]##\,##\,##0.00;##,##0.00";
     private static readonly ExcelReportColumn[] Columns =
     [
         new("Store"), new("Units", "#,##0"), new("Net Sales", "#,##0.00"), new("Quantity", "#,##0.00"), new("Growth %", "0.00%"), new("Date"), new("Stamp")
@@ -35,7 +37,7 @@ public sealed class ReportWorksheetWriterTests
             var byRow = worksheet.Descendants<Row>().ToDictionary(row => row.RowIndex!.Value, row => row.Elements<Cell>().ToArray());
             var formats = book.WorkbookStylesPart!.Stylesheet.CellFormats!.Elements<CellFormat>().ToArray();
             var numbering = book.WorkbookStylesPart.Stylesheet.NumberingFormats!.Elements<NumberingFormat>().ToDictionary(x => x.NumberFormatId!.Value, x => x.FormatCode!.Value);
-            string FormatOf(Cell cell) => numbering.TryGetValue(formats[(int)cell.StyleIndex!.Value].NumberFormatId!.Value, out var code) ? code! : "General";
+            string FormatOf(Cell cell) => formats[(int)(cell.StyleIndex?.Value ?? 0)].NumberFormatId?.Value is { } id && numbering.TryGetValue(id, out var code) ? code! : "General";
 
             Assert.Equal("Brand Sales", byRow[1][0].InnerText);
             Assert.Equal("Stores: WLMHW", byRow[7][0].InnerText);
@@ -49,8 +51,8 @@ public sealed class ReportWorksheetWriterTests
             Assert.Equal(CellValues.Number, second[1].DataType!.Value); Assert.Equal("2", second[1].CellValue!.Text);
             Assert.Equal("[>=10000000]##\\,##\\,##\\,##0;[>=100000]##\\,##\\,##0;##,##0", FormatOf(second[1]));
             Assert.Equal("2469135.782", second[2].CellValue!.Text);
-            Assert.Equal(ReportWorksheetWriter.IndianMoney, FormatOf(second[2]));
-            Assert.Equal(ReportWorksheetWriter.IndianMoney, FormatOf(second[3]));
+            Assert.Equal(IndianMoney, FormatOf(second[2]));
+            Assert.Equal(IndianMoney, FormatOf(second[3]));
             Assert.Equal("—", second[4].InnerText);
             Assert.Equal(new DateTime(2026, 7, 2).ToOADate().ToString(System.Globalization.CultureInfo.InvariantCulture), second[5].CellValue!.Text);
             Assert.Equal("dd mmm yyyy", FormatOf(second[5]));
@@ -67,7 +69,7 @@ public sealed class ReportWorksheetWriterTests
             var totals = byRow[59];
             Assert.Equal("Total", totals[0].InnerText);
             Assert.Equal("1275", totals[1].CellValue!.Text);
-            Assert.Equal(ReportWorksheetWriter.IndianMoney, FormatOf(totals[2]));
+            Assert.Equal(IndianMoney, FormatOf(totals[2]));
             Assert.Equal("—", totals[4].InnerText);
             Assert.Empty(worksheet.Descendants<CellFormula>());
         }
@@ -77,7 +79,6 @@ public sealed class ReportWorksheetWriterTests
     [Fact]
     public void Money_uses_two_decimal_lakh_grouping_and_counts_use_none()
     {
-        Assert.Equal("[>=10000000]##\\,##\\,##\\,##0.00;[>=100000]##\\,##\\,##0.00;##,##0.00", ReportWorksheetWriter.IndianMoney);
         var path = OutputPath("formats.xlsx");
         try
         {

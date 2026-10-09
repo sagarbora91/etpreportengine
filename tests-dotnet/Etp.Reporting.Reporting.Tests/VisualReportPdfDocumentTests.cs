@@ -41,9 +41,9 @@ public sealed class VisualReportPdfDocumentTests
                 Assert.Contains("2026-07-01 to 2026-08-25", text, StringComparison.Ordinal);
                 Assert.Contains("Stores: WLMHW, HEMW", text, StringComparison.Ordinal);
                 Assert.Contains($"Page {i + 1} of {pdf.PageCount}", text, StringComparison.Ordinal);
-                var start = text.IndexOf("Detailed Data - section", StringComparison.Ordinal);
-                Assert.True(start >= 0, $"Page {i + 1} names no column section.");
-                sections.Add(text.Substring(start, 32));
+                var section = System.Text.RegularExpressions.Regex.Match(text, @"Detailed Data - section \d+ of \d+");
+                Assert.True(section.Success, $"Page {i + 1} names no column section.");
+                sections.Add(section.Value);
             }
             Assert.Equal(pdf.PageCount, sections.Count);
             Assert.Contains("Measure 40", PageText(pdf.Pages[pdf.PageCount - 1]), StringComparison.Ordinal);
