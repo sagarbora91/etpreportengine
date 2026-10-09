@@ -18,6 +18,22 @@ public sealed class SqlBackedReportingExecutorTests
         Assert.Equal(200m, Assert.Single(result.Rows).SourceSignedNetAmount);
     }
 
+    // 1.9.8 (RA-SALES-04): the query's brand-row column reaches the Brand key; a null row becomes an Unmapped row.
+    [Fact]
+    public async Task Executor_keys_the_brand_dimension_on_the_query_rows_brand_row()
+    {
+        var repository = new FakeRepository
+        {
+            Sales = [new(new(2026, 7, 1), "S1", "I1", "1", "P1", "HELIOS", "CTZNG", "SALE", 1m, 118m, 100m, 2027, "CITIZEN"),
+                new(new(2026, 7, 1), "S1", "I2", "1", "P1", "HELIOS", "CGSHG", "SALE", 1m, 59m, 50m, 2027, null)]
+        };
+
+        var result = await Executor(repository).ExecuteSalesSummaryAsync(Scope(), SalesSummaryDimension.Brand);
+
+        Assert.Equal(["CITIZEN", "Unmapped: HELIOS / CGSHG"], result.Rows.Select(x => x.Key));
+        Assert.Contains("S1 HELIOS / CGSHG 50.00", result.Message);
+    }
+
     [Fact]
     public async Task Executor_warns_and_skips_unmapped_source_transaction_without_blocking_period()
     {
