@@ -122,6 +122,11 @@ public static class ImportDiagnosticCatalogue
         ["ISSUES_TRUNCATED"] = ["More issue codes than an attempt keeps; their occurrences are counted together."],
         [ImportCodes.EvidenceNotRetained] = ["Data is present; the source file could not be kept as evidence."],
 
+        // Not-needed files of the folder import (IF-027; FolderImportService writes these exact texts).
+        [ImportCodes.ControlWorkbookNotNeeded] = ["Consolidation control workbook; report workbooks are imported separately."],
+        [ImportCodes.ReportFamilyNotNeeded] = ["This ETP report type is not needed by the reporting engine; the other workbooks are processed."],
+        [ImportCodes.NotAnEtpExport] = ["This CSV file is not an ETP export; it was skipped and the other files are processed."],
+
         // Service Centre interim (decision 15; the folder import's ServiceRouting writes these exact texts).
         // SERVICE_SNAPSHOT_DATE_NEEDED is deliberately absent: its fix text names an example folder with a year, which a
         // template may not hold, and an importer refusal whose code the catalogue does not know keeps its own text.

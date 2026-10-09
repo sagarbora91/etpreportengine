@@ -41,6 +41,11 @@ public sealed class FolderImportService(
     IReadOnlyList<string>? knownStores = null,
     Action<FolderImportFailure>? reportFailure = null) : IFolderImportService
 {
+    // The Not-needed messages of the no-match branch (IF-027); ImportDiagnosticCatalogue holds the same texts.
+    internal const string ControlWorkbookMessage = "Consolidation control workbook; report workbooks are imported separately.";
+    internal const string UnsupportedFamilyMessage = "This ETP report type is not needed by the reporting engine; the other workbooks are processed.";
+    internal const string StrayCsvMessage = "This CSV file is not an ETP export; it was skipped and the other files are processed.";
+
     private static readonly SqlImportFailureClassifier Classifier = new();
     private readonly IWorkbookReader reader = workbookReader ?? new SourceFileReader();
     private readonly MatchedImportEnvelopeFactory envelopes = new(knownStores);
@@ -146,9 +151,20 @@ public sealed class FolderImportService(
                     Path.GetExtension(entry.Path).Equals(".csv", StringComparison.OrdinalIgnoreCase) &&
                     !ExportNameParser.Parse(result.FileName).IsKnown;
                 var notNeeded = result.FileName.StartsWith("00_", StringComparison.OrdinalIgnoreCase) || unsupportedFamily || strayCsv;
-                result = result with { Evidence = EvidenceState.NotAttempted, Status = notNeeded ? "Not needed" : unknown ? "Unknown layout" : "Failed",
-                    Message = notNeeded ? strayCsv ? "This CSV file is not an ETP export; it was skipped and the other files are processed." : unsupportedFamily ?"This ETP report type is not needed by the reporting engine; the other workbooks are processed." : "Consolidation control workbook; report workbooks are imported separately." : string.Join(" ", issues.Select(issue => issue.Message).Distinct()) };
-                if (!notNeeded) result = result with { Failure = MatchFailure(issues) };
+                if (notNeeded)
+                {
+                    // IF-027: a Not-needed file keeps one Information row, as the Service branch above does. The matcher's
+                    // diagnostics describe the closest layout the file never was (33 blockers for the control workbook),
+                    // and an attempt whose outcome is "Not needed" must not store or show them.
+                    var (code, message) = strayCsv ? (ImportCodes.NotAnEtpExport, StrayCsvMessage)
+                        : unsupportedFamily ? (ImportCodes.ReportFamilyNotNeeded, UnsupportedFamilyMessage)
+                        : (ImportCodes.ControlWorkbookNotNeeded, ControlWorkbookMessage);
+                    result = result with { Evidence = EvidenceState.NotAttempted, Status = "Not needed", Message = message,
+                        Diagnostics = [new ImportIssue(ImportIssueSeverity.Information, code, message)] };
+                }
+                else
+                    result = result with { Evidence = EvidenceState.NotAttempted, Status = unknown ? "Unknown layout" : "Failed",
+                        Message = string.Join(" ", issues.Select(issue => issue.Message).Distinct()), Failure = MatchFailure(issues) };
                 results.Add(result);
                 await recording.RecordAsync(result).ConfigureAwait(false);
                 continue;
