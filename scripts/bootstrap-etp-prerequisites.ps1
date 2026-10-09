@@ -475,10 +475,64 @@ function Invoke-EtpPreMigrationBrokerRefresh {
     return $lines.ToArray()
 }
 
+function Import-EtpSecurityModule {
+    # Workpc, 9 October 2026 (1.9.6): every setup run failed within a second of copying its
+    # files, with "The 'Get-Acl' command was found in the module 'Microsoft.PowerShell.Security',
+    # but the module could not be loaded", and the same command run by hand a minute later
+    # succeeded every time (6 of 6). Get-Acl is the first thing the preflight needs
+    # (Get-EtpOperationsConfiguration -> Assert-EtpProtectedInstall), and Windows PowerShell
+    # loads the module on first use with no retry. So the module is loaded here on purpose,
+    # before anything is checked or changed, and given up to TimeoutSeconds (DelaySeconds
+    # apart) to become loadable. Every failed attempt is logged; the final failure names the
+    # last error. Import, Log and Wait are replaceable so the retry can be tested without
+    # the real module or real waiting.
+    param([scriptblock]$Import = { Import-Module Microsoft.PowerShell.Security -ErrorAction Stop; $null = Get-Command Get-Acl -ErrorAction Stop },
+          [scriptblock]$Log = { param([string]$Message) },
+          [scriptblock]$Wait = { param([int]$Seconds) Start-Sleep -Seconds $Seconds },
+          [ValidateRange(0, 3600)][int]$TimeoutSeconds = 60,
+          [ValidateRange(1, 3600)][int]$DelaySeconds = 5)
+    $attempts = [int][math]::Floor($TimeoutSeconds / $DelaySeconds) + 1
+    $reason = ''
+    for ($attempt = 1; $attempt -le $attempts; $attempt++) {
+        $loaded = $false
+        try { & $Import; $loaded = $true }
+        catch {
+            $reason = [string]$_.Exception.Message
+            & $Log "Attempt $attempt of $attempts to load the PowerShell security module (Microsoft.PowerShell.Security, needed for Get-Acl) failed: $reason"
+        }
+        if ($loaded) {
+            if ($attempt -gt 1) { & $Log "The PowerShell security module loaded on attempt $attempt of $attempts." }
+            return
+        }
+        if ($attempt -lt $attempts) { & $Wait $DelaySeconds }
+    }
+    throw "The PowerShell security module (Microsoft.PowerShell.Security, needed for Get-Acl) could not be loaded in $attempts attempts over $(($attempts - 1) * $DelaySeconds) seconds. Last error: $reason Nothing was checked or changed. Wait a minute and run setup again; if it keeps failing, check whether antivirus is scanning or blocking $(Join-Path $PSHOME 'Modules\Microsoft.PowerShell.Security')."
+}
+
+function Test-EtpSetupLogDirectoryTrusted {
+    # Whether the bootstrap log may be written into an existing SetupLogs folder before this
+    # run has protected the folders itself. Until 1.9.7 nothing was written there before
+    # initialize-etp-operation-folders.ps1 had run, so a failure anywhere in the preflight -
+    # the Get-Acl failure of 9 October 2026 among them - left no bootstrap log at all, only
+    # text on a hidden console. The folder is trusted when it exists and passes the same
+    # ownership and permission check as everything else setup runs elevated, read through
+    # .NET rather than Get-Acl so that the check itself does not depend on the module whose
+    # loading is what Import-EtpSecurityModule is there to retry. Anything unreadable or
+    # unprotected means no log, as before; setup's own log in %TEMP% still has the exit code.
+    param([Parameter(Mandatory)][string]$LogDirectory)
+    try {
+        if (-not (Test-Path -LiteralPath $LogDirectory -PathType Container)) { return $false }
+        Assert-EtpLocalVolume $LogDirectory
+        Assert-EtpNoLinks $LogDirectory
+        $findings = @(Get-EtpProtectedInstallFindings -Path $LogDirectory -ReadSecurity { param($Item) (Get-Item -LiteralPath $Item -Force).GetAccessControl() })
+        return ($findings.Count -eq 0)
+    }
+    catch { return $false }
+}
+
 # Dot-sourcing exposes only the pure preflight functions for behavioral tests.
 if ($MyInvocation.InvocationName -eq '.') { return }
 
-$setupPreflightValidated = $false
 $applicationRoot = [System.IO.Path]::GetFullPath($ApplicationDirectory)
 $application = Join-Path $applicationRoot 'Etp.Reporting.Desktop.exe'
 $scripts = Join-Path $applicationRoot 'scripts'
@@ -492,10 +546,14 @@ $migrationPhaseCompleted = $false
 $preMigrationBackupPath = $null
 
 $logPath = Join-Path $logDirectory "bootstrap-$(Get-Date -Format 'yyyyMMdd-HHmmss-fff').log"
+# The log is written only into a SetupLogs folder that is known to be protected: one that
+# passes the check below already, or the one initialize-etp-operation-folders.ps1 protects
+# later in this run. Nothing is created here; a new PC has no such folder until then.
+$setupLogDirectoryTrusted = Test-EtpSetupLogDirectoryTrusted -LogDirectory $logDirectory
 
 function Write-SetupLog([string]$message) {
     $line = "$(Get-Date -Format o) $message"
-    if ($setupPreflightValidated -and (Test-Path -LiteralPath $logDirectory -PathType Container)) { Add-Content -LiteralPath $logPath -Value $line -Encoding utf8 }
+    if ($setupLogDirectoryTrusted -and (Test-Path -LiteralPath $logDirectory -PathType Container)) { Add-Content -LiteralPath $logPath -Value $line -Encoding utf8 }
     Write-Host $message
 }
 
@@ -519,6 +577,11 @@ trap {
     }
     exit 1
 }
+
+# Before the preflight: Get-Acl is its first need, and on Workpc (9 October 2026) its module
+# was not loadable in the second after setup copied its files. Each failed attempt goes into
+# the log above; if it never loads, the trap logs the FAILED line and setup reports 1603.
+Import-EtpSecurityModule -Log { param([string]$Message) Write-SetupLog $Message }
 
 function Resolve-SqlCmdPath {
     try { return Resolve-EtpSqlCmd } catch { return $null }
@@ -612,7 +675,7 @@ $editionEncryptsBackups = -not ($serverParts[2] -like '*Express*' -or $serverPar
 
 Set-Service -Name $serviceName -StartupType Automatic
 & (Join-Path $PSScriptRoot 'initialize-etp-operation-folders.ps1') -SqlServiceIdentity ('NT SERVICE\'+$serviceName) -ServerInstance $ServerInstance -Database $Database -AutomationPrincipal $operationConfiguration.automationPrincipal -GrantAutomationFolderAccess
-$setupPreflightValidated = $true
+$setupLogDirectoryTrusted = $true
 if ($freshMachine) {
     Write-SetupLog 'This PC had no ETP machine configuration. Setup installed whatever was missing of SQL Server Express, ODBC Driver 17 and Sqlcmd from the included media (an SQLEXPRESS instance that was already here was checked, not reconfigured), and created the protected folders, the EtpAutomation account and the configuration for .\SQLEXPRESS / EtpReporting.'
 }
