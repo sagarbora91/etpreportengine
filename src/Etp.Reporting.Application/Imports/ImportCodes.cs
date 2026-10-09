@@ -50,6 +50,17 @@ public static class ImportCodes
     public const string CommitOutcomeUnknown = "COMMIT_OUTCOME_UNKNOWN";
     public const string EvidenceNotRetained = "EVIDENCE_NOT_RETAINED";
 
+    /// <summary>
+    /// A file the folder import reports "Not needed" without matching it (IF-027): the consolidation control workbook
+    /// (<c>00_</c>), an ETP report family the engine does not import (an R code not in the catalogue) and a CSV that is
+    /// not an ETP export. Information only: the attempt keeps this one row, never the matcher's blockers.
+    /// </summary>
+    public const string ControlWorkbookNotNeeded = "CONTROL_WORKBOOK_NOT_NEEDED";
+    /// <inheritdoc cref="ControlWorkbookNotNeeded"/>
+    public const string ReportFamilyNotNeeded = "REPORT_FAMILY_NOT_NEEDED";
+    /// <inheritdoc cref="ControlWorkbookNotNeeded"/>
+    public const string NotAnEtpExport = "NOT_AN_ETP_EXPORT";
+
     /// <summary>A persist procedure reported CONFLICT, or ALREADY_PRESENT for a document decided NEW (spec 9, step 12).</summary>
     public const string ImportConflict = "IMPORT_CONFLICT";
 
@@ -67,6 +78,7 @@ public static class ImportCodes
             => ImportIssueSeverity.Warning,
         FamilyDerived or InvoiceYearDiffers or StaleCopyCollapsed or AttributeNotApplied or Contract.KeyUnknown
             or Contract.BlocksNotInTimeOrder or Contract.LegacyBlocks
+            or ControlWorkbookNotNeeded or ReportFamilyNotNeeded or NotAnEtpExport
             => ImportIssueSeverity.Information,
         _ => ImportIssueSeverity.Blocker
     };

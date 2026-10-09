@@ -141,7 +141,7 @@ public partial class ReportsWorkspaceView : UserControl
     {
         var report = presentation.Current;
         if (!report.CanExportReport || exportInProgress) return;
-        var dialog = new SaveFileDialog { Filter = "Excel workbook (*.xlsx)|*.xlsx", FileName = $"{report.ExportMetadata!.ReportName.Replace(' ', '_')}_{report.ExportMetadata.DateFrom:yyyyMMdd}_{report.ExportMetadata.DateTo:yyyyMMdd}.xlsx", AddExtension = true };
+        var dialog = new SaveFileDialog { Filter = "Excel workbook (*.xlsx)|*.xlsx", FileName = $"{SafeFileName(report.ExportMetadata!.ReportName)}_{report.ExportMetadata.DateFrom:yyyyMMdd}_{report.ExportMetadata.DateTo:yyyyMMdd}.xlsx", AddExtension = true };
         if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
         if (ReferenceEquals(report, presentation.Current)) await ExportReportToPathAsync(dialog.FileName, pdf: false);
     }
@@ -505,5 +505,7 @@ public partial class ReportsWorkspaceView : UserControl
     internal static string IndianText(FormattableString text) => text.ToString(PresentationCulture.Indian);
     private static ReconciliationStatus ToReportingStatus(ApplicationReportStatus status) => status switch { ApplicationReportStatus.Passed=>ReconciliationStatus.Passed,ApplicationReportStatus.Failed=>ReconciliationStatus.Failed,ApplicationReportStatus.Blocked=>ReconciliationStatus.Blocked,_=>ReconciliationStatus.NotRun };
     private static IReadOnlyList<string>? Csv(string value) { var values=value.Split(',',StringSplitOptions.TrimEntries|StringSplitOptions.RemoveEmptyEntries).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();return values.Length==0?null:values; }
-    private static string SafeFileName(string value) => string.Concat(value.Select(c=>Path.GetInvalidFileNameChars().Contains(c)?'_':c)).Replace(' ','_');
+    // The proposed export file name for a report name (RA-EXPORT-03): "Slow / Exception Stock" holds a '/', which Windows
+    // rejects in a file name, so every invalid character and every space becomes '_'. Excel and PDF exports share it.
+    internal static string SafeFileName(string value) => string.Concat(value.Select(c=>Path.GetInvalidFileNameChars().Contains(c)?'_':c)).Replace(' ','_');
 }

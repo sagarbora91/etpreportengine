@@ -57,6 +57,36 @@ public sealed class FolderImportServiceTests
         finally { Directory.Delete(folder, true); }
     }
 
+    // IF-027: the control workbook matched no profile and kept the matcher's 33 blockers (purchase-register columns) on an
+    // attempt whose outcome was "Not needed"; History showed them and the verify script failed them.
+    [Theory]
+    [InlineData("00_Service_Centre_Consolidation_Control.xlsx", ImportCodes.ControlWorkbookNotNeeded, FolderImportService.ControlWorkbookMessage)]
+    [InlineData("R099_UnsupportedReport.xlsx", ImportCodes.ReportFamilyNotNeeded, FolderImportService.UnsupportedFamilyMessage)]
+    [InlineData("golden-monthly-check.csv", ImportCodes.NotAnEtpExport, FolderImportService.StrayCsvMessage)]
+    public async Task A_not_needed_file_keeps_one_information_row_and_no_blocker(string fileName, string code, string message)
+    {
+        var persistence = new CapturePersistence();
+        var summary = await new FolderImportService(persistence, new Reader(path =>
+        {
+            var snapshot = Sales(path, "HEMW", [20260825]);
+            // A header the matcher reports against its closest layout: REQUIRED_COLUMN_MISSING, UNEXPECTED_COLUMN, LAYOUT_UNKNOWN.
+            return snapshot with { Sheets = [snapshot.Sheets[0] with { Headers = ["CONTROL_COLUMN"] }] };
+        })).RunFilesAsync([fileName, "sales.xlsx"], new("tester"));
+
+        var file = Assert.Single(summary.Files, file => file.FileName == fileName);
+        Assert.Equal("Not needed", file.Status);
+        Assert.Null(file.Failure);
+        Assert.Equal(message, file.Message);
+        var issue = Assert.Single(file.Diagnostics!);
+        Assert.Equal((ImportIssueSeverity.Information, code, message), (issue.Severity, issue.Code, issue.Message));
+        Assert.Equal(ImportIssueSeverity.Information, ImportCodes.DefaultSeverity(code));
+        // The row is stored as written: the catalogue knows the code and its exact text (spec 11.1).
+        Assert.Equal(message, ImportDiagnosticCatalogue.SafeMessage(code, message));
+        Assert.Equal(0, summary.Failed);
+        Assert.Equal(0, summary.UnknownLayouts);
+        Assert.Equal("Imported", Assert.Single(summary.Files, file => file.FileName == "sales.xlsx").Status);
+    }
+
     [Fact]
     public async Task Retry_reads_only_failed_files_and_preserves_successful_sibling_scope()
     {

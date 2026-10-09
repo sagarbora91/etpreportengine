@@ -33,6 +33,20 @@ public sealed class ImportDiagnosticCatalogueTests
         Assert.Equal(ImportDiagnosticCatalogue.GenericMessage, ImportDiagnosticCatalogue.SafeMessage(null, null));
     }
 
+    // IF-027: the folder import's Not-needed reasons are catalogued Information codes, so the one row an attempt keeps
+    // is stored with its own text and never as a blocker.
+    [Theory]
+    [InlineData(ImportCodes.ControlWorkbookNotNeeded, "Consolidation control workbook; report workbooks are imported separately.")]
+    [InlineData(ImportCodes.ReportFamilyNotNeeded, "This ETP report type is not needed by the reporting engine; the other workbooks are processed.")]
+    [InlineData(ImportCodes.NotAnEtpExport, "This CSV file is not an ETP export; it was skipped and the other files are processed.")]
+    public void Not_needed_codes_are_information_with_their_own_message(string code, string message)
+    {
+        Assert.True(ImportDiagnosticCatalogue.IsKnown(code));
+        Assert.Equal(ImportIssueSeverity.Information, ImportCodes.DefaultSeverity(code));
+        Assert.Equal(message, ImportDiagnosticCatalogue.Template(code));
+        Assert.Equal(message, ImportDiagnosticCatalogue.SafeMessage(code, message));
+    }
+
     [Fact]
     public void Templates_hold_no_values()
     {
