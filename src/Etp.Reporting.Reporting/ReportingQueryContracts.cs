@@ -49,6 +49,11 @@ public sealed record StockQueryData(
     IReadOnlyList<StockLedgerCoverageRow>? LedgerCoverage = null);
 /// <summary>A store-day with sales but no current R022 (Revenue Report) file covering it.</summary>
 public sealed record TenderCoverageGapRow(string StoreCode, DateOnly BusinessDate);
+/// <summary>
+/// An invoice on such a store-day: its GST-inclusive value from the sales lines (R025), since R022 holds neither its
+/// control nor its tenders. Listed by Tender Reconciliation with a blank tender so the store's sales are not hidden (RA-TENDER-02).
+/// </summary>
+public sealed record TenderGapInvoiceRow(string StoreCode, string DocumentNumber, decimal GrossAmount, int? InvoiceYear = null);
 
 public interface IReportingQueryRepository
 {
@@ -63,6 +68,10 @@ public interface IReportingQueryRepository
     /// </summary>
     Task<IReadOnlyList<TenderCoverageGapRow>> LoadTenderCoverageGapsAsync(ReportingQueryScope scope, CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<TenderCoverageGapRow>>([]);
+
+    /// <summary>The invoices of the store-days <see cref="LoadTenderCoverageGapsAsync"/> reports, valued from their sales lines.</summary>
+    Task<IReadOnlyList<TenderGapInvoiceRow>> LoadTenderGapInvoicesAsync(ReportingQueryScope scope, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<TenderGapInvoiceRow>>([]);
 }
 
 public enum ApprovedSalesAmountSource { Gross, Net }

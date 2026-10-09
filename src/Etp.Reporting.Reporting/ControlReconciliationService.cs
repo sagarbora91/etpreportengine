@@ -16,9 +16,11 @@ public sealed record ApprovedControlRule(string Version, decimal AbsoluteToleran
         if (AbsoluteTolerance < 0) throw new ArgumentOutOfRangeException(nameof(AbsoluteTolerance));
     }
 }
+// TenderAmount and Variance are null for an invoice on a store-day with no R022 (RA-TENDER-02): the invoice is listed
+// from its sales lines with status Blocked, never compared against a tender of 0.
 public sealed record DocumentControlResult(
-    string StoreCode, string DocumentNumber, decimal InvoiceAmount, decimal TenderAmount,
-    decimal Variance, ReconciliationStatus Status, int? InvoiceYear = null);
+    string StoreCode, string DocumentNumber, decimal InvoiceAmount, decimal? TenderAmount,
+    decimal? Variance, ReconciliationStatus Status, int? InvoiceYear = null);
 public sealed record InvoiceTenderReconciliation(
     ReconciliationStatus Status, IReadOnlyList<DocumentControlResult> Documents,
     decimal InvoiceTotal, decimal TenderTotal, decimal Variance, string RuleVersion, string Message);

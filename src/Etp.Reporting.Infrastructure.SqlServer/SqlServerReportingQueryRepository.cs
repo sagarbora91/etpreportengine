@@ -105,7 +105,8 @@ public static class SqlReportingQueries
         ORDER BY i.store_code,i.document_number,c.sales_invoice_control_id;
         """;
 
-    public const string TenderCoverageGaps = """
+    // Store-days in scope with sales lines from a current file and no current R022 covering them (Titan audit FIX-07).
+    private const string TenderGapDays = """
         WITH sales_days AS
         (
           SELECT DISTINCT i.store_code,i.transaction_date
@@ -115,13 +116,32 @@ public static class SqlReportingQueries
           JOIN dbo.import_files sf ON sf.import_file_id=sl.import_file_id AND sf.is_superseded=0
           WHERE i.transaction_date>=@dateFrom AND i.transaction_date<=@dateTo
             AND (@storesJson IS NULL OR i.store_code IN (SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@storesJson)))
+        ),
+        gap_days AS
+        (
+          SELECT d.store_code,d.transaction_date
+          FROM sales_days d
+          WHERE NOT EXISTS(SELECT 1 FROM dbo.import_files f WHERE f.store_code=d.store_code AND f.report_code='R022'
+            AND f.is_superseded=0 AND f.data_truth_version=1
+            AND d.transaction_date BETWEEN COALESCE(f.period_start,f.business_date) AND COALESCE(f.period_end,f.business_date))
         )
+        """;
+
+    public const string TenderCoverageGaps = TenderGapDays + "\n" + """
         SELECT d.store_code,d.transaction_date
-        FROM sales_days d
-        WHERE NOT EXISTS(SELECT 1 FROM dbo.import_files f WHERE f.store_code=d.store_code AND f.report_code='R022'
-          AND f.is_superseded=0 AND f.data_truth_version=1
-          AND d.transaction_date BETWEEN COALESCE(f.period_start,f.business_date) AND COALESCE(f.period_end,f.business_date))
+        FROM gap_days d
         ORDER BY d.store_code,d.transaction_date;
+        """;
+
+    // RA-TENDER-02: the invoices of those store-days, valued as the Sales report values them (GST-inclusive line gross, D1),
+    // so Tender Reconciliation can list them with a blank tender instead of dropping the store.
+    public const string TenderGapInvoices = TenderGapDays + "\n" + """
+        SELECT i.store_code,i.document_number,i.invoice_year,SUM(l.source_gross_amount)
+        FROM gap_days d
+        JOIN dbo.sales_invoices i ON i.store_code=d.store_code AND i.transaction_date=d.transaction_date
+        JOIN dbo.sales_lines l ON l.sales_invoice_id=i.sales_invoice_id
+        GROUP BY i.store_code,i.document_number,i.invoice_year
+        ORDER BY i.store_code,i.document_number,i.invoice_year;
         """;
 
     // Stock keys (report audit 3 Oct 2026, Titan report audit R-04): every item with a ledger movement in the period, including items
@@ -173,8 +193,10 @@ public static class SqlReportingQueries
         ORDER BY m.store_code,m.product_code,m.location,m.source_transaction_type;
         """;
 
-    // Titan report audit R-13: how far each store's ledger goes, for the stores the stock check covers (movements in the period or a
-    // snapshot on the To date). The import of a dated family stores the last row date as its period end (ImportScope), so
+    // Titan report audit R-13: how far each store's ledger goes, for every store the stock check is asked about: the requested
+    // stores, or every active shop store when none is requested (RA-STOCK-03: a store with no movement in the period and no
+    // snapshot on the To date must still get a coverage row, or it vanishes from the report without a word), plus any store
+    // with movements in the period or a snapshot on the To date. The import of a dated family stores the last row date as its period end (ImportScope), so
     // ledger_covers_to is in practice the last stored movement: a ledger exported to the To date ends earlier when the
     // last days had no stock movement. first_sale_after_ledger is the evidence that tells the two apart: the first sale
     // of the store after the ledger's end, up to the To date. A sale moves stock, so a sale there means the ledger is
@@ -182,6 +204,11 @@ public static class SqlReportingQueries
     public const string StockLedgerCoverage = """
         WITH stores AS
         (
+          SELECT CONVERT(varchar(30),[value]) store_code FROM OPENJSON(COALESCE(@storesJson,'[]'))
+          UNION
+          SELECT s.store_code FROM dbo.stores s LEFT JOIN dbo.business_units u ON u.business_unit_id=s.business_unit_id
+          WHERE @storesJson IS NULL AND s.is_active=1 AND COALESCE(u.business_unit_code,'RETAIL')<>'SERVICE'
+          UNION
           SELECT m.store_code FROM dbo.stock_movements m
           WHERE m.document_date>=@dateFrom AND m.document_date<=@dateTo
             AND (@storesJson IS NULL OR m.store_code IN (SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@storesJson)))
@@ -240,6 +267,18 @@ public sealed class SqlServerReportingQueryRepository(string connectionString) :
         var rows = new List<TenderCoverageGapRow>();
         while (await reader.ReadAsync(cancellationToken))
             rows.Add(new(reader.GetString(0), reader.GetFieldValue<DateOnly>(1)));
+        return rows;
+    }
+
+    public async Task<IReadOnlyList<TenderGapInvoiceRow>> LoadTenderGapInvoicesAsync(ReportingQueryScope scope, CancellationToken cancellationToken = default)
+    {
+        scope.Validate();
+        await using var connection = await Open(cancellationToken);
+        await using var command = Command(connection, SqlReportingQueries.TenderGapInvoices, scope);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        var rows = new List<TenderGapInvoiceRow>();
+        while (await reader.ReadAsync(cancellationToken))
+            rows.Add(new(reader.GetString(0), reader.GetString(1), NullableDecimal(reader, 3) ?? 0m, reader.GetInt32(2)));
         return rows;
     }
 
