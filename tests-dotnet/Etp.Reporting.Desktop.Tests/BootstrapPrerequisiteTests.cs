@@ -839,6 +839,126 @@ public sealed class BootstrapPrerequisiteTests
         }
     }
 
+    [Fact]
+    public async Task Security_module_is_retried_with_every_attempt_logged_and_gives_up_with_a_clear_reason()
+    {
+        // Workpc, 9 October 2026 (1.9.6): every setup run failed within a second of copying
+        // its files with "The 'Get-Acl' command was found in the module
+        // 'Microsoft.PowerShell.Security', but the module could not be loaded", and the same
+        // script run by hand a minute later passed 6 times out of 6. The module is now loaded
+        // on purpose before the preflight, with retries; Import, Log and Wait are replaceable.
+        var script = FindBootstrapScript().Replace("'", "''");
+        var command = $$"""
+            $ErrorActionPreference = 'Stop'
+            . '{{script}}' -ApplicationDirectory 'C:\UnusedBootstrapTest'
+            # The real import, one attempt: the module loads on a healthy PC and Get-Acl is there.
+            Import-EtpSecurityModule -TimeoutSeconds 0
+            if ((Get-Command Get-Acl -ErrorAction Stop).Source -ne 'Microsoft.PowerShell.Security') { throw 'Get-Acl did not come from the security module.' }
+            # Locked twice, loadable on the third attempt: two waits of five seconds, every attempt logged, no throw.
+            $global:tries = 0; $global:log = [Collections.Generic.List[string]]::new(); $global:waits = [Collections.Generic.List[int]]::new()
+            Import-EtpSecurityModule -Import { $global:tries++; if ($global:tries -lt 3) { throw "locked $global:tries" } } -Log { param($Message) $global:log.Add($Message) } -Wait { param($Seconds) $global:waits.Add($Seconds) }
+            if ($global:tries -ne 3 -or ($global:waits -join ',') -ne '5,5') { throw "Recovered: tries $global:tries, waits $($global:waits -join ',')" }
+            if ($global:log.Count -ne 3 -or $global:log[0] -notlike 'Attempt 1 of 13 *Microsoft.PowerShell.Security*failed: locked 1' -or $global:log[1] -notlike 'Attempt 2 of 13 *failed: locked 2' -or $global:log[2] -ne 'The PowerShell security module loaded on attempt 3 of 13.') { throw "Recovered log: $($global:log -join ' / ')" }
+            # Never loadable: 10 seconds, 5 apart = 3 attempts, then one failure naming the last error and the retry advice.
+            $global:log.Clear(); $global:waits.Clear()
+            $failure = $null
+            try { Import-EtpSecurityModule -Import { throw 'still locked' } -Log { param($Message) $global:log.Add($Message) } -Wait { param($Seconds) $global:waits.Add($Seconds) } -TimeoutSeconds 10 -DelaySeconds 5 } catch { $failure = $_.Exception.Message }
+            if (-not $failure) { throw 'A module that never loads did not stop setup.' }
+            if ($failure -notlike '*could not be loaded in 3 attempts over 10 seconds. Last error: still locked*Nothing was checked or changed.*run setup again*') { throw "Failure: $failure" }
+            if ($global:log.Count -ne 3 -or ($global:waits -join ',') -ne '5,5') { throw "Given up: log $($global:log.Count), waits $($global:waits -join ',')" }
+            # Loaded first time: nothing logged, nothing waited.
+            $global:log.Clear(); $global:waits.Clear()
+            Import-EtpSecurityModule -Import { } -Log { param($Message) $global:log.Add($Message) } -Wait { param($Seconds) $global:waits.Add($Seconds) }
+            if ($global:log.Count -ne 0 -or $global:waits.Count -ne 0) { throw 'A module that loads first time was logged or waited for.' }
+            Write-Output 'Security module retry passed.'
+            """;
+        var result = await RunPowerShellAsync(["-Command", command]);
+        Assert.True(result.ExitCode == 0, result.Output);
+        Assert.Contains("Security module retry passed.", result.Output);
+    }
+
+    [Fact]
+    public async Task Security_module_is_loaded_after_the_log_is_open_and_before_anything_is_checked()
+    {
+        // The retry has to come after the trap and the log, so that a module that never loads
+        // leaves a FAILED line in the bootstrap log (the failure of 9 October 2026 left none),
+        // and before the first thing that needs Get-Acl: the new-PC decision and the protected
+        // configuration. Checked structurally; the real flow needs SQL Server and elevation.
+        var script = FindBootstrapScript().Replace("'", "''");
+        var command = $$"""
+            $ErrorActionPreference = 'Stop'
+            $tokens = $null; $errors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile('{{script}}', [ref]$tokens, [ref]$errors)
+            if (@($errors).Count -ne 0) { throw 'bootstrap-etp-prerequisites.ps1 does not parse.' }
+            $top = @($ast.EndBlock.Statements)
+            function One([scriptblock]$Where, [string]$What) { $found = @($top | Where-Object $Where); if ($found.Count -ne 1) { throw "Expected one $What, found $($found.Count)." }; $found[0] }
+            $trusted = One { $_ -is [System.Management.Automation.Language.AssignmentStatementAst] -and $_.Left.Extent.Text -eq '$setupLogDirectoryTrusted' -and $_.Right.Extent.Text -match '^Test-EtpSetupLogDirectoryTrusted -LogDirectory \$logDirectory$' } 'early log-folder trust'
+            $log = One { $_ -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $_.Name -eq 'Write-SetupLog' } 'Write-SetupLog'
+            # A trap is kept in the block's Traps, not among its statements.
+            $traps = @($ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.TrapStatementAst] }, $true))
+            if ($traps.Count -ne 1) { throw "Expected one trap, found $($traps.Count)." }
+            $trap = $traps[0]
+            $import = One { $_.Extent.Text -match '^Import-EtpSecurityModule -Log \{ param\(\[string\]\$Message\) Write-SetupLog \$Message \}$' } 'security module load'
+            $fresh = One { $_ -is [System.Management.Automation.Language.IfStatementAst] -and $_.Clauses[0].Item1.Extent.Text -match '^Test-EtpNewMachine ' } 'new-PC branch'
+            $reads = One { $_ -is [System.Management.Automation.Language.AssignmentStatementAst] -and $_.Left.Extent.Text -eq '$operationConfiguration' } 'configuration read'
+            $order = @($trusted, $log, $trap, $import, $fresh, $reads)
+            for ($i = 1; $i -lt $order.Count; $i++) { if ($order[$i].Extent.StartOffset -lt $order[$i - 1].Extent.EndOffset) { throw "Out of order at step $i : $($order[$i].Extent.Text.Split([char[]]"`n")[0])" } }
+            # The log is written only into a trusted folder: the one checked early, or the one this run protected.
+            if ($log.Extent.Text -notmatch 'if \(\$setupLogDirectoryTrusted -and \(Test-Path -LiteralPath \$logDirectory -PathType Container\)\) \{ Add-Content ') { throw 'Write-SetupLog does not gate on the trusted folder.' }
+            $later = One { $_ -is [System.Management.Automation.Language.AssignmentStatementAst] -and $_.Left.Extent.Text -eq '$setupLogDirectoryTrusted' -and $_.Right.Extent.Text -eq '$true' } 'trust after folder setup'
+            $folders = One { $_.Extent.Text -match "^& \(Join-Path \`$PSScriptRoot 'initialize-etp-operation-folders\.ps1'\)" } 'folder setup'
+            if ($later.Extent.StartOffset -lt $folders.Extent.EndOffset) { throw 'The folder is trusted before this run protected it.' }
+            # Nothing in the script calls Get-Acl, Set-Acl or any other security cmdlet before the module is loaded.
+            $early = @($ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.CommandAst] -and $node.GetCommandName() -in @('Get-Acl', 'Set-Acl') -and $node.Extent.StartOffset -lt $import.Extent.StartOffset -and $node.Extent.StartOffset -gt $trap.Extent.EndOffset }, $true))
+            if ($early.Count -ne 0) { throw 'A security cmdlet runs before the module is loaded.' }
+            Write-Output 'Security module placement passed.'
+            """;
+        var result = await RunPowerShellAsync(["-Command", command]);
+        Assert.True(result.ExitCode == 0, result.Output);
+        Assert.Contains("Security module placement passed.", result.Output);
+    }
+
+    [Fact]
+    public async Task Setup_log_folder_is_trusted_only_when_it_exists_and_is_protected_and_without_the_security_module()
+    {
+        // A missing folder, or one a non-administrator owns (the test's own Temp folder), is
+        // never written to; a protected one is read through .NET, not Get-Acl, because the
+        // check runs before the module that Get-Acl needs has been loaded. Compared with the
+        // Get-Acl reader on the same protected folder so the two cannot disagree.
+        var root = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "EtpSetupLogTrust", Guid.NewGuid().ToString("N"))).FullName;
+        try
+        {
+            var script = FindBootstrapScript().Replace("'", "''");
+            var command = $$"""
+                $ErrorActionPreference = 'Stop'
+                . '{{script}}' -ApplicationDirectory 'C:\UnusedBootstrapTest'
+                $own = @((Get-Command Test-EtpSetupLogDirectoryTrusted).Parameters.Keys | Where-Object { $_ -notin [System.Management.Automation.PSCmdlet]::CommonParameters -and $_ -notin [System.Management.Automation.PSCmdlet]::OptionalCommonParameters })
+                if (($own -join ',') -ne 'LogDirectory') { throw "Unexpected parameters: $($own -join ',')" }
+                if (Test-EtpSetupLogDirectoryTrusted -LogDirectory (Join-Path '{{root.Replace("'", "''")}}' 'NoSuchSetupLogs')) { throw 'A missing folder was trusted.' }
+                if (Test-EtpSetupLogDirectoryTrusted -LogDirectory '{{root.Replace("'", "''")}}') { throw 'A user-owned folder was trusted.' }
+                # The .NET reader sees what Get-Acl sees: the same findings on the user-owned folder and on Windows' own System32.
+                foreach ($path in @('{{root.Replace("'", "''")}}', (Join-Path $env:SystemRoot 'System32'))) {
+                    $viaCmdlet = @(Get-EtpProtectedInstallFindings -Path $path)
+                    $viaNet = @(Get-EtpProtectedInstallFindings -Path $path -ReadSecurity { param($Item) (Get-Item -LiteralPath $Item -Force).GetAccessControl() })
+                    if (($viaCmdlet -join "`n") -cne ($viaNet -join "`n")) { throw "The readers disagree on ${path}: $($viaCmdlet.Count) vs $($viaNet.Count) findings." }
+                }
+                if (@(Get-EtpProtectedInstallFindings -Path '{{root.Replace("'", "''")}}').Count -eq 0) { throw 'The user-owned folder had no findings, so the refusal was not exercised.' }
+                # Only the function itself, with no security cmdlet in it.
+                $tokens = $null; $errors = $null
+                $ast = [System.Management.Automation.Language.Parser]::ParseFile('{{script}}', [ref]$tokens, [ref]$errors)
+                $function = @($ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Test-EtpSetupLogDirectoryTrusted' }, $true))
+                if ($function.Count -ne 1) { throw 'The trust function is missing.' }
+                $cmdlets = @($function[0].FindAll({ param($node) $node -is [System.Management.Automation.Language.CommandAst] -and $node.GetCommandName() -in @('Get-Acl', 'Set-Acl', 'Import-Module', 'Import-EtpSecurityModule') }, $true))
+                if ($cmdlets.Count -ne 0) { throw 'The trust check depends on the security module.' }
+                Write-Output 'Setup log folder trust passed.'
+                """;
+            var result = await RunPowerShellAsync(["-Command", command]);
+            Assert.True(result.ExitCode == 0, result.Output);
+            Assert.Contains("Setup log folder trust passed.", result.Output);
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
     private static readonly string[] FullMedia = ["SQLEXPR_x64_ENU.exe", "msodbcsql.msi", "msodbcsql17.msi", "MsSqlCmdLnUtils.msi", "SqlLocalDB.msi"];
 
     private static string NewPayload(string[] names)
