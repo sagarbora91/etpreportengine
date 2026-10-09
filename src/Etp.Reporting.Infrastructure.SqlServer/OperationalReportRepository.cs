@@ -368,7 +368,8 @@ public sealed partial class OperationalReportRepository(string connectionString)
             service.Select(x => new DsrServiceFact(x.Period, x.StoreCode, x.Cash, x.Card, x.Upi, x.MissingDays==0?x.Total:null, x.LastYearMissingDays==0?x.LastYearTotal:null)).ToArray(),
             supplementary.Targets, supplementary.ServiceWdc, DsrMetricPolicy,
             (await new StoreCatalogRepository(connectionString).LoadAsync(cancellationToken)).Where(x=>x.IsActive)
-                .Select(x=>new DsrStoreDefinition(x.Code,x.Name)).ToArray());
+                .Select(x=>new DsrStoreDefinition(x.Code,x.Name)).ToArray(),
+            supplementary.ServiceMoneyStores);
         return document with { EveningSheets = await LoadEveningSheetsAsync(businessDate, dsr, cancellationToken) };
     }
 
@@ -758,7 +759,8 @@ public sealed partial class OperationalReportRepository(string connectionString)
             FROM dbo.manual_operational_inputs
             WHERE business_date=@date AND field_code='SERVICE_WDC' AND store_code IN(SELECT store_code FROM dbo.stores WHERE is_active=1)
             UNION ALL SELECT store_code,'SALES_TARGET',target_sales FROM dbo.monthly_targets
-            WHERE target_month=DATEFROMPARTS(YEAR(@date),MONTH(@date),1) AND store_code IN(SELECT store_code FROM dbo.stores WHERE is_active=1);
+            WHERE target_month=DATEFROMPARTS(YEAR(@date),MONTH(@date),1) AND store_code IN(SELECT store_code FROM dbo.stores WHERE is_active=1)
+            UNION ALL SELECT DISTINCT store_code,'SERVICE_MONEY_SHOP',NULL FROM dbo.v_service_manual_money WHERE is_service_money_shop=1;
             """;
         await using var connection = await OpenAsync(token);
         await using var command = new SqlCommand(sql, connection);
@@ -766,13 +768,19 @@ public sealed partial class OperationalReportRepository(string connectionString)
         await using var reader = await command.ExecuteReaderAsync(token);
         var targets = new Dictionary<string, decimal?>(StringComparer.OrdinalIgnoreCase);
         var wdc = new List<decimal>();
+        // Decision 16 / RA-OPS-08: the DSR Service card sums only the shop(s) that enter Service money. The view decides the
+        // shop (no store code in C#); it lists a shop only once it holds an entry, so with no Titan World entry the set is
+        // empty and the Service total stays "—" whatever another shop keyed.
+        var serviceMoneyStores = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         while (await reader.ReadAsync(token))
         {
+            var field = reader.GetString(1);
+            if (field.Equals("SERVICE_MONEY_SHOP", StringComparison.OrdinalIgnoreCase)) { serviceMoneyStores.Add(reader.GetString(0).Trim()); continue; }
             if (reader.IsDBNull(2)) continue;
-            if (reader.GetString(1).Equals("SALES_TARGET", StringComparison.OrdinalIgnoreCase)) targets[reader.GetString(0)] = reader.GetDecimal(2);
+            if (field.Equals("SALES_TARGET", StringComparison.OrdinalIgnoreCase)) targets[reader.GetString(0)] = reader.GetDecimal(2);
             else wdc.Add(reader.GetDecimal(2));
         }
-        return new(targets, wdc.Count == 0 ? null : wdc.Sum());
+        return new(targets, wdc.Count == 0 ? null : wdc.Sum(), serviceMoneyStores);
     }
 
     private static async Task<Dictionary<string, ServiceFacts>> LoadServiceFactsAsync(
@@ -889,7 +897,8 @@ public sealed partial class OperationalReportRepository(string connectionString)
         public static WalkInFacts Combine(IReadOnlyList<WalkInFacts> stores) =>
             new(stores.Count > 0 && stores.All(x => x.Value is not null) ? stores.Sum(x => x.Value!.Value) : null, stores.Sum(x => x.MissingDays));
     }
-    private sealed record DsrSupplementaryFacts(IReadOnlyDictionary<string, decimal?> Targets, decimal? ServiceWdc);
+    private sealed record DsrSupplementaryFacts(IReadOnlyDictionary<string, decimal?> Targets, decimal? ServiceWdc,
+        IReadOnlyCollection<string> ServiceMoneyStores);
     private sealed record ServiceFacts(decimal? Cash = null, decimal? Card = null, decimal? Upi = null, decimal? LastYearTotal = null, int CurrentCount = 0, int LastYearCount = 0, decimal? Wdc = null);
     private sealed record SourcePointer(string FileName, string SheetName, int SourceRow);
 }

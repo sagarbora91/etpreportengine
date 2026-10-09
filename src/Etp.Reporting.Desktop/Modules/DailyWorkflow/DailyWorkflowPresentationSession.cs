@@ -1,6 +1,7 @@
 extern alias EtpApplication;
 
 using System.Globalization;
+using Etp.Reporting.Infrastructure.SqlServer;
 
 namespace Etp.Reporting.Desktop.Modules.DailyWorkflow;
 
@@ -139,14 +140,37 @@ public sealed class DailyWorkflowPresentationSession
         return new(storeCode, croNumber, DateOnly.FromDateTime(periodStart.Value), DateOnly.FromDateTime(periodEnd.Value), target, user, reason);
     }
 
+    /// <summary>
+    /// RA-OPS-09: only a Blocked section (a missing source report or a missing required manual input) refuses finalisation.
+    /// A Failed section (a staff, tender, DSR or cash variance, or exception rows) and a NotRun one (Service cash/card/UPI
+    /// not entered, physical stock not counted) are warnings; see <see cref="Finalised"/>.
+    /// </summary>
     public static FinaliseDailyWorkflow CreateFinalise(
         DailyWorkflowScope scope,
         string user,
         IReadOnlyList<DailyPackSection> sections)
     {
         ArgumentNullException.ThrowIfNull(sections);
-        var hasBlockers = sections.Any(x => x.Status is DailyControlStatus.Blocked or DailyControlStatus.Failed);
+        var hasBlockers = sections.Any(x => x.Status is DailyControlStatus.Blocked);
         return new(scope, user, hasBlockers);
+    }
+
+    /// <summary>The pack sections that did not pass but did not block finalisation, in pack order.</summary>
+    public static IReadOnlyList<DailyPackSection> FinaliseWarnings(IReadOnlyList<DailyPackSection> sections)
+    {
+        ArgumentNullException.ThrowIfNull(sections);
+        return sections.Where(x => x.Status is DailyControlStatus.Failed
+                || x.Status is DailyControlStatus.NotRun && !x.Report.Equals(DailyReportingPackService.FinalisationSectionName, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+    }
+
+    /// <summary>The finalise message: plain when every section passed, otherwise naming each warning section.</summary>
+    public static string Finalised(IReadOnlyList<DailyPackSection> sections)
+    {
+        const string finalised = "Business day finalised and dashboard readiness refreshed.";
+        var warnings = FinaliseWarnings(sections);
+        return warnings.Count == 0 ? finalised
+            : $"{finalised} Finalised with {warnings.Count:N0} warning(s): {string.Join("; ", warnings.Select(x => $"{x.Report} ({(x.Status == DailyControlStatus.Failed ? "variance" : "not entered")})"))}.";
     }
 
     public static ReopenDailyWorkflow CreateReopen(
