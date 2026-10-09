@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [1.9.7] - (date after the 1.9.7 gate)
+
+Setup reliability fix plus the first fixes from the 9 Oct 2026 report audit (`Reference\Work in progress 2026-10-09\REPORT-AUDIT\`); no migration. Lane details are filled in at merge time.
+
+- Setup: the post-install bootstrap imports `Microsoft.PowerShell.Security` explicitly with a retry (up to ~60 s) before its preflight, and writes every preflight failure to `%ProgramData%\EtpReporting\SetupLogs`. On Workpc the 1.9.6 bootstrap failed within a second of setup copying its files ("Get-Acl ... module could not be loaded", exit 1603) while the same command run a minute later succeeded.
+- Fixed (IF-027): a Not-needed file in a folder import (the `00_` Service consolidation control file) no longer produces BLOCKER diagnostics in Import history.
+- Reports: Tender Reconciliation and Tender Diagnostics state the missing R022 and keep the store's invoice totals instead of dropping them; a store with no stock ledger in the period is listed as Blocked in Stock Variance and Stock Movement instead of vanishing; the DSR is Blocked, naming the store and the last imported date, when R025 does not cover the business date.
+- Reports (screen): grid headers match the export headers (no C# property names, no ₹ on quantities, no thousands separator on years), enums read as words, internal columns hidden; 0-row results say "No data" and disable export; Today > Cash no longer opens with From after To; "Select a store" is a status line, not an error; the Slow / Exception Stock Excel file name no longer contains "/"; Availability text points to Settings > Brands and targets > Monthly targets, the Cash Book to Today > Cash.
+- Daily workflow: "Service today" counts only the shop that enters Service money (Titan World, decision 16); Finalise day is refused only for required inputs and missing source reports, other sections become warnings.
+
 ## [1.9.6] - 2026-10-07
 
 One importer fix on top of 1.9.5; no migration.
