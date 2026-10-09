@@ -51,7 +51,8 @@ public sealed record DsrManagementRow(
     string MetricPolicy,
     int WalkInMissingDays = 0,
     decimal? TyGiftCards = null,
-    decimal? LyGiftCards = null);
+    decimal? LyGiftCards = null,
+    DateOnly? SourceCoversTo = null);
 
 public sealed record StaffPerformanceRow(
     string StoreCode,
@@ -714,13 +715,23 @@ public sealed partial class OperationalReportRepository(string connectionString)
         coverage.Parameters.AddWithValue("@stores",JsonSerializer.Serialize(stores));
         var ranges=new List<(string Store,DateOnly From,DateOnly To)>();
         await using(var cr=await coverage.ExecuteReaderAsync(token))while(await cr.ReadAsync(token))if(!cr.IsDBNull(1)&&!cr.IsDBNull(2))ranges.Add((cr.GetString(0),cr.GetFieldValue<DateOnly>(1),cr.GetFieldValue<DateOnly>(2)));
+        return ApplySourceCoverage(result,ranges,stores,period);
+    }
+
+    /// <summary>
+    /// A period with no sales reads 0 only when a current R025 file covers every day of it; otherwise it stays null
+    /// (not imported, never zero). Every store carries the last day its R025 covers so the DSR can say so (RA-SALES-01).
+    /// </summary>
+    internal static Dictionary<string, DsrFacts> ApplySourceCoverage(Dictionary<string, DsrFacts> result,IReadOnlyList<(string Store,DateOnly From,DateOnly To)> ranges,IReadOnlyList<string> stores,BusinessReportingPeriod period)
+    {
         foreach(var store in stores)
         {
-            bool Covered(DateRange range)=>Enumerable.Range(0,range.InclusiveDayCount).All(offset=>ranges.Any(r=>r.Store==store&&range.Start.AddDays(offset)>=r.From&&range.Start.AddDays(offset)<=r.To));
+            bool Covered(DateRange range)=>Enumerable.Range(0,range.InclusiveDayCount).All(offset=>ranges.Any(r=>string.Equals(r.Store,store,StringComparison.OrdinalIgnoreCase)&&range.Start.AddDays(offset)>=r.From&&range.Start.AddDays(offset)<=r.To));
             var fact=result.GetValueOrDefault(store)??new();
             if(fact.TySales is null&&Covered(period.Current))fact=fact with{TySales=0,TyUnits=0,TyInvoices=0,TyGiftCards=0};
             if(fact.LySales is null&&Covered(period.LastYear))fact=fact with{LySales=0,LyUnits=0,LyInvoices=0,LyGiftCards=0};
-            result[store]=fact;
+            var covered=ranges.Where(r=>string.Equals(r.Store,store,StringComparison.OrdinalIgnoreCase)).Select(r=>(DateOnly?)r.To).ToArray();
+            result[store]=fact with{SourceCoversTo=covered.Length==0?null:covered.Max()};
         }
         return result;
     }
@@ -835,7 +846,7 @@ public sealed partial class OperationalReportRepository(string connectionString)
         var conversion = engine.Conversion(facts.TyInvoices, walkIns.MissingDays==0?walkIns.Value:null);
         return new(periodName, store, period.Current.Start, period.Current.End, facts.TySales, facts.LySales,
             growth.Value, growth.Availability.ToString(), facts.TyUnits, facts.LyUnits, facts.TyInvoices, facts.LyInvoices,
-            upt.Value, atv.Value, walkIns.Value, conversion.Value, DsrMetricPolicy, walkIns.MissingDays, facts.TyGiftCards, facts.LyGiftCards);
+            upt.Value, atv.Value, walkIns.Value, conversion.Value, DsrMetricPolicy, walkIns.MissingDays, facts.TyGiftCards, facts.LyGiftCards, facts.SourceCoversTo);
     }
 
     private static DsrFacts Combine(IEnumerable<DsrFacts> facts)
@@ -878,7 +889,8 @@ public sealed partial class OperationalReportRepository(string connectionString)
     /// <summary>The DSR line for gift-card sales, kept out of VALUE, VOL and INVOICE (owner decision 13 Q2); a reserved brand-row label.</summary>
     internal const string GiftCardRowLabel = "GIFT CARD";
     internal const string GiftCardDsrNote = "Gift-card sales (GIFT CARD / BRAND GC); not in VALUE, VOL or INVOICE";
-    internal sealed record DsrFacts(decimal? TySales = null, decimal? LySales = null, decimal? TyUnits = null, decimal? LyUnits = null, int? TyInvoices = null, int? LyInvoices = null, decimal? TyGiftCards = null, decimal? LyGiftCards = null);
+    /// <summary>SourceCoversTo: the last day a current R025 file covers for the store (null when none), named when the period is not covered (RA-SALES-01).</summary>
+    internal sealed record DsrFacts(decimal? TySales = null, decimal? LySales = null, decimal? TyUnits = null, decimal? LyUnits = null, int? TyInvoices = null, int? LyInvoices = null, decimal? TyGiftCards = null, decimal? LyGiftCards = null, DateOnly? SourceCoversTo = null);
 
     /// <summary>Entered walk-ins for a period; <see cref="Value"/> is null when nothing was entered (missing is not zero).</summary>
     internal sealed record WalkInFacts(decimal? Value, int MissingDays)

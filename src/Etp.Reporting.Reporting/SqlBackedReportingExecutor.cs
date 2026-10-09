@@ -38,7 +38,8 @@ public sealed class SqlBackedReportingExecutor(
         var tenders = tenderRows.Select(x => new TenderControlValue(x.StoreCode, x.DocumentNumber,
             x.TenderType, x.SourceAmount, Contains(mapping.TenderTypes, x.TenderType), x.InvoiceYear)).ToArray();
         var result = new InvoiceTenderReconciliationService().Reconcile(invoices, tenders, tenderRule);
-        var modes = string.Join(" / ", tenderRows.GroupBy(x => x.TenderType, StringComparer.OrdinalIgnoreCase)
+        // RA-UI-02: no "Tender modes:" suffix when there is no tender at all.
+        var modes = tenderRows.Count == 0 ? string.Empty : " Tender modes: " + string.Join(" / ", tenderRows.GroupBy(x => x.TenderType, StringComparer.OrdinalIgnoreCase)
             .Select(x => new { Mode = x.Key, Total = x.Sum(t => t.SourceAmount) }).OrderByDescending(x => x.Total)
             .Select(x => $"{x.Mode}: {x.Total:N2}"));
         var gaps = await repository.LoadTenderCoverageGapsAsync(scope, cancellationToken);
@@ -49,9 +50,33 @@ public sealed class SqlBackedReportingExecutor(
             var failed = result.Status == ReconciliationStatus.Failed
                 ? $" On the days that were reconciled, {result.Documents.Count(x => x.Status == ReconciliationStatus.Failed):N0} document(s) failed; variance {result.Variance:N2}."
                 : string.Empty;
-            return result with { Status = ReconciliationStatus.Blocked, Message = $"{DescribeTenderGaps(gaps)}{failed} {result.Message} Tender modes: {modes}" };
+            // RA-TENDER-02 / RA-UI-01: the invoices of the uncovered store-days are listed from their sales lines with a
+            // blank tender and status Blocked, and counted in the invoice total, so a store without R022 is not dropped
+            // from the grid and the headline. The variance stays that of the reconciled documents.
+            var unreconciled = await repository.LoadTenderGapInvoicesAsync(scope, cancellationToken);
+            var listed = unreconciled.Select(x => new DocumentControlResult(x.StoreCode, x.DocumentNumber, x.GrossAmount, null, null, ReconciliationStatus.Blocked, x.InvoiceYear));
+            var documents = result.Documents.Concat(listed)
+                .OrderBy(x => x.StoreCode, StringComparer.Ordinal).ThenBy(x => x.DocumentNumber, StringComparer.Ordinal).ToArray();
+            // "No invoice or tender evidence" is only true when nothing at all was found, listed invoices included.
+            var reconciled = result.Documents.Count > 0 || unreconciled.Count == 0 ? $" {result.Message}" : string.Empty;
+            return result with
+            {
+                Status = ReconciliationStatus.Blocked,
+                Documents = documents,
+                InvoiceTotal = result.InvoiceTotal + unreconciled.Sum(x => x.GrossAmount),
+                Message = $"{DescribeTenderGaps(gaps)}{DescribeUnreconciled(unreconciled)}{failed}{reconciled}{modes}"
+            };
         }
-        return result with { Message = $"{result.Message} Tender modes: {modes}" };
+        return result with { Message = $"{result.Message}{modes}" };
+    }
+
+    /// <summary>Per store, how many invoices are listed without a tender and their value, so the headline reads honestly.</summary>
+    public static string DescribeUnreconciled(IReadOnlyList<TenderGapInvoiceRow> invoices)
+    {
+        if (invoices.Count == 0) return string.Empty;
+        var stores = invoices.GroupBy(x => x.StoreCode, StringComparer.OrdinalIgnoreCase).OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(x => $"{x.Key} {x.Count():N0} invoice(s) {x.Sum(i => i.GrossAmount):N2}");
+        return $" Listed with a blank tender, not reconciled: {string.Join("; ", stores)}. The invoice total includes them; the variance covers the reconciled documents only.";
     }
 
     /// <summary>Names the uncovered dates so a missing R022 never passes as 0 against 0 (Titan audit FIX-07).</summary>

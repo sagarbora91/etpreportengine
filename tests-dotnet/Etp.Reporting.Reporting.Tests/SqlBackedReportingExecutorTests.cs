@@ -122,6 +122,69 @@ public sealed class SqlBackedReportingExecutorTests
     }
 
     [Fact]
+    public async Task Invoices_of_a_store_without_r022_are_listed_with_a_blank_tender_and_counted_in_the_invoice_total()
+    {
+        // RA-TENDER-02 / RA-UI-01: S2 has sales but no R022, so it has neither controls nor tenders. Its invoices come from
+        // the sales lines, are listed Blocked with no tender, and the headline invoice total includes them.
+        var repository = new FakeRepository
+        {
+            InvoiceControls = [new("S1", "I1", 80m)],
+            Tenders = [new("S1", "I1", "CARD", 80m)],
+            Gaps = [new("S2", new(2026, 9, 1))],
+            GapInvoices = [new("S2", "T1", 500m, 2027), new("S2", "T2", -20m, 2027)]
+        };
+
+        var result = await Executor(repository).ExecuteTenderReconciliationAsync(new(new(2026, 9, 1), new(2026, 9, 28)));
+
+        Assert.Equal(ReconciliationStatus.Blocked, result.Status);
+        Assert.Equal(560m, result.InvoiceTotal);
+        Assert.Equal(80m, result.TenderTotal);
+        Assert.Equal(0m, result.Variance);
+        Assert.Equal([("S1", "I1", ReconciliationStatus.Passed), ("S2", "T1", ReconciliationStatus.Blocked), ("S2", "T2", ReconciliationStatus.Blocked)],
+            result.Documents.Select(x => (x.StoreCode, x.DocumentNumber, x.Status)));
+        var listed = result.Documents.Single(x => x.DocumentNumber == "T1");
+        Assert.Equal(500m, listed.InvoiceAmount);
+        Assert.Null(listed.TenderAmount);
+        Assert.Null(listed.Variance);
+        Assert.Equal(2027, listed.InvoiceYear);
+        Assert.Contains("Listed with a blank tender, not reconciled: S2 2 invoice(s) 480.00.", result.Message);
+        Assert.Contains("Compared source-signed invoice and tender values", result.Message);
+        Assert.EndsWith("Tender modes: CARD: 80.00", result.Message);
+    }
+
+    [Fact]
+    public async Task Store_without_any_r022_lists_its_invoices_instead_of_no_evidence_and_an_empty_tender_modes_line()
+    {
+        // RA-UI-02: WLMHW alone for September read "invoice 0.00, tender 0.00 ... No invoice or tender evidence ... Tender modes: ".
+        var repository = new FakeRepository
+        {
+            Gaps = [new("S2", new(2026, 9, 1)), new("S2", new(2026, 9, 2))],
+            GapInvoices = [new("S2", "T1", 500m), new("S2", "T2", 300m)]
+        };
+
+        var result = await Executor(repository).ExecuteTenderReconciliationAsync(new(new(2026, 9, 1), new(2026, 9, 28), ["S2"]));
+
+        Assert.Equal(ReconciliationStatus.Blocked, result.Status);
+        Assert.Equal(800m, result.InvoiceTotal);
+        Assert.Equal(0m, result.TenderTotal);
+        Assert.Equal(2, result.Documents.Count);
+        Assert.All(result.Documents, x => Assert.Null(x.TenderAmount));
+        Assert.StartsWith("R022 missing / not imported for 2 store-day(s) with sales (S2: 01 Sep 2026, 02 Sep 2026).", result.Message);
+        Assert.Contains("S2 2 invoice(s) 800.00", result.Message);
+        Assert.DoesNotContain("No invoice or tender evidence", result.Message);
+        Assert.DoesNotContain("Tender modes:", result.Message);
+    }
+
+    [Fact]
+    public async Task No_evidence_at_all_keeps_the_no_evidence_message_without_a_tender_modes_suffix()
+    {
+        var result = await Executor(new FakeRepository()).ExecuteTenderReconciliationAsync(Scope());
+
+        Assert.Equal(ReconciliationStatus.Blocked, result.Status);
+        Assert.Equal("No invoice or tender evidence is available for reconciliation.", result.Message);
+    }
+
+    [Fact]
     public void Tender_gap_message_lists_ten_dates_then_counts_the_rest()
     {
         var gaps = Enumerable.Range(1, 12).Select(day => new TenderCoverageGapRow("S1", new(2024, 10, day))).ToArray();
@@ -239,6 +302,26 @@ public sealed class SqlBackedReportingExecutorTests
     }
 
     [Fact]
+    public async Task Store_in_scope_with_no_movement_in_the_period_is_named_beside_the_store_with_rows()
+    {
+        // RA-STOCK-03: WLMHW for 1-28 Sep had no ledger row in the period (its ledger ends 25 Aug) and no snapshot on 28 Sep,
+        // so it had no position, and the coverage read only looked at stores with rows. Now the coverage row is seeded
+        // from the scoped stores, so the short ledger is reported next to HEMW's missing snapshot.
+        var repository = new FakeRepository
+        {
+            Stock = new([new("S2", "P1", 1m, null)], [new("S2", "P1", "ISSUE", -1m)],
+                [new("S1", new DateOnly(2026, 8, 25), new DateOnly(2026, 8, 26)), new("S2", new DateOnly(2026, 9, 28))])
+        };
+
+        var result = await Executor(repository).ExecuteStockReconciliationAsync(new(new(2026, 9, 1), new(2026, 9, 28)));
+
+        Assert.Equal(ReconciliationStatus.Blocked, result.Status);
+        Assert.StartsWith("Ledger covers to 25 Aug 2026 for S1 (sales on 26 Aug 2026 are not in it), before the To date 28 Sep 2026.", result.Message);
+        Assert.Contains("Closing stock missing for 28 Sep 2026 (S2)", result.Message);
+        Assert.Equal("S2", Assert.Single(result.Items).StoreCode);
+    }
+
+    [Fact]
     public async Task Ledger_covering_the_to_date_keeps_the_result()
     {
         var repository = new FakeRepository
@@ -291,7 +374,9 @@ public sealed class SqlBackedReportingExecutorTests
         public IReadOnlyList<InvoiceControlQueryRow> InvoiceControls { get; init; } = [];
         public StockQueryData Stock { get; init; } = new([], []);
         public IReadOnlyList<TenderCoverageGapRow> Gaps { get; init; } = [];
+        public IReadOnlyList<TenderGapInvoiceRow> GapInvoices { get; init; } = [];
         public Task<IReadOnlyList<TenderCoverageGapRow>> LoadTenderCoverageGapsAsync(ReportingQueryScope scope, CancellationToken cancellationToken = default) => Task.FromResult(Gaps);
+        public Task<IReadOnlyList<TenderGapInvoiceRow>> LoadTenderGapInvoicesAsync(ReportingQueryScope scope, CancellationToken cancellationToken = default) => Task.FromResult(GapInvoices);
         public Task<IReadOnlyList<SalesQueryRow>> LoadSalesAsync(ReportingQueryScope scope, CancellationToken cancellationToken = default) => Task.FromResult(Sales);
         public Task<IReadOnlyList<InvoiceControlQueryRow>> LoadInvoiceControlsAsync(ReportingQueryScope scope, CancellationToken cancellationToken = default) => Task.FromResult(InvoiceControls);
         public Task<IReadOnlyList<TenderQueryRow>> LoadTendersAsync(ReportingQueryScope scope, CancellationToken cancellationToken = default) => Task.FromResult(Tenders);
