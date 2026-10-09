@@ -95,7 +95,7 @@ public sealed record ServiceMoneyChange(
     DateOnly CurrentSnapshotDate,
     decimal CurrentAmount);
 
-public interface IServiceReportQuery
+public partial interface IServiceReportQuery
 {
     /// <summary>Every Service reading, newest first.</summary>
     Task<IReadOnlyList<ServiceRefresh>> LoadRefreshesAsync(CancellationToken cancellationToken = default);
