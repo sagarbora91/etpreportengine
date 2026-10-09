@@ -70,7 +70,7 @@ public sealed class FolderImportServiceTests
         {
             var snapshot = Sales(path, "HEMW", [20260825]);
             // A header the matcher reports against its closest layout: REQUIRED_COLUMN_MISSING, UNEXPECTED_COLUMN, LAYOUT_UNKNOWN.
-            return snapshot with { Sheets = [snapshot.Sheets[0] with { Headers = ["CONTROL_COLUMN"] }] };
+            return path == fileName ? snapshot with { Sheets = [snapshot.Sheets[0] with { Headers = ["CONTROL_COLUMN"] }] } : snapshot;
         })).RunFilesAsync([fileName, "sales.xlsx"], new("tester"));
 
         var file = Assert.Single(summary.Files, file => file.FileName == fileName);
