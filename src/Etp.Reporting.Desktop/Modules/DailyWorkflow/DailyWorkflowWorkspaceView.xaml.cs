@@ -255,7 +255,7 @@ public partial class DailyWorkflowWorkspaceView : UserControl
                 DailyWorkflowPresentationSession.CreateFinalise(scope, Environment.UserName, pack.Sections), progress.Token);
             InvalidatePack();
             await recordAuditAsync("DayFinalised", "Succeeded", "Business day finalised");
-            Publish("Business day finalised and dashboard readiness refreshed.");
+            Publish(DailyWorkflowPresentationSession.Finalised(pack.Sections));
             await RefreshAsync();
             await RelayDashboardRefreshAsync();
         }

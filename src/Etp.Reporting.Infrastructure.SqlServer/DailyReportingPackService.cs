@@ -23,6 +23,11 @@ public sealed record DailyReportPackResult(
 
 public sealed class DailyReportingPackService(string connectionString)
 {
+    /// <summary>The pack section for the manual Service cash/card/UPI entries (not required to finalise, RA-OPS-09).</summary>
+    public const string ServiceSectionName = "Service Sale Report";
+    /// <summary>The pack section that is NotRun until the day is finalised; never a finalise warning.</summary>
+    public const string FinalisationSectionName = "Business Date Finalisation";
+
     public async Task<ReportPackDocument> GenerateCombinedAsync(
         DateOnly businessDate,
         string? generatedBy = null,
@@ -109,9 +114,11 @@ public sealed class DailyReportingPackService(string connectionString)
                 !hasR025 ? "R025 source is missing for this business date." : $"{invoice.Count:N0} invoices; zero sales remains distinct from a missing source. Customer names use active R024; unavailable names remain blank."),
             new("Daily Sales Report", dsrStatus, dsrFtd?.TySales, dsrVariance,
                 "FTD DSR uses R025 and is compared independently with imported Revenue Report controls (R022). MTD/YTD use the selected business date."),
-            new("Service Sale Report", serviceFtd?.Total is null ? ReconciliationStatus.Blocked : ReconciliationStatus.Passed,
+            // RA-OPS-09: SERVICE_CASH/CARD/UPI are not required to finalise, so a day without them is NotRun (like an uncounted
+            // physical stock), never Blocked; missing values are still never read as zero.
+            new(ServiceSectionName, serviceFtd?.Total is null ? ReconciliationStatus.NotRun : ReconciliationStatus.Passed,
                 serviceFtd?.Total, null, serviceFtd?.Total is null
-                    ? "Enter separate service cash, card and UPI values; missing values are not converted to zero."
+                    ? "Service cash, card and UPI are not entered (not required to finalise); missing values are not converted to zero. Enter them on Today > Cash > Cash and service entries."
                     : "Service tender values are controlled operational facts and remain separate from retail sales."),
             new("Tender Reconciliation", tender.Status, tender.TenderTotal, tender.Variance, tender.Message),
             new("Daily Cash Reconciliation", cash.Status, cash.CalculatedClosing, cash.Variance, cash.Message),
@@ -131,7 +138,7 @@ public sealed class DailyReportingPackService(string connectionString)
             new("Exception / Reconciliation Report", exceptions.Any(x => x.Severity is "BLOCKER" or "FAIL") ? ReconciliationStatus.Failed : ReconciliationStatus.Passed,
                 exceptions.Count, exceptions.Count(x => x.Variance is not null),
                 exceptions.Count == 0 ? "No daily exceptions were found." : $"{exceptions.Count:N0} traceable exception(s) remain visible."),
-            new("Business Date Finalisation", workflow.Status == DailyReadinessStatus.Locked ? ReconciliationStatus.Passed : ReconciliationStatus.NotRun,
+            new(FinalisationSectionName, workflow.Status == DailyReadinessStatus.Locked ? ReconciliationStatus.Passed : ReconciliationStatus.NotRun,
                 null, null, workflow.StatusMessage)
         };
         var status = sections.Any(x => x.Status is ReconciliationStatus.Blocked or ReconciliationStatus.Failed)

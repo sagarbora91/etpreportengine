@@ -135,6 +135,65 @@ public sealed class DailySalesReportTests
         Assert.Equal(2_000m, document.CombinedFtdGiftCards);
     }
 
+    // RA-OPS-08 / decision 16: only the Titan World shop enters Service money, so the Service card sums that shop alone;
+    // Helios having no Service entry is not applicable, not missing.
+    [Fact]
+    public void Service_total_counts_only_the_service_money_shop_when_titan_has_entered()
+    {
+        DsrServiceFact[] service =
+        [
+            new("FTD", "WLMHW", 700m, 1_807m, 577m, 3_084m, 0m),
+            new("FTD", "HEMW", null, null, null, null, null),
+            new("MTD", "WLMHW", null, null, null, 77_128m, 51_385m),
+            new("MTD", "HEMW", null, null, null, null, null)
+        ];
+        var document = DailySalesReportBuilder.Build(new DateOnly(2026, 9, 28), SalesFacts(), service,
+            new Dictionary<string, decimal?>(), stores: [new("WLMHW", "Titan World"), new("HEMW", "Helios")], serviceMoneyStores: ["WLMHW"]);
+
+        Assert.Equal(3_084m, document.Service.Total);
+        Assert.Equal(700m, document.Service.Cash);
+        Assert.Equal(1_807m, document.Service.Card);
+        Assert.Equal(577m, document.Service.Upi);
+        Assert.Equal(77_128m, document.Service.PeriodTotals["MTD"]);
+        Assert.Equal(51_385m, document.Service.PeriodTotals["LY MTD"]);
+        Assert.Equal("₹3,084", DsrDisplay.Currency(document.Service.Total));
+    }
+
+    [Fact]
+    public void Service_total_stays_missing_when_the_service_money_shop_has_no_entry()
+    {
+        DsrServiceFact[] service =
+        [
+            new("FTD", "WLMHW", null, null, null, null, null),
+            new("FTD", "HEMW", 100m, 200m, 300m, 600m, null)
+        ];
+        // The view lists the Service-money shop only once it holds an entry, so a Helios-only day gives an empty set.
+        foreach (var shops in new IReadOnlyCollection<string>[] { ["WLMHW"], [] })
+        {
+            var document = DailySalesReportBuilder.Build(new DateOnly(2026, 9, 28), SalesFacts(), service,
+                new Dictionary<string, decimal?>(), stores: [new("WLMHW", "Titan World"), new("HEMW", "Helios")], serviceMoneyStores: shops);
+
+            Assert.Null(document.Service.Total);
+            Assert.Null(document.Service.Cash);
+            Assert.Null(document.Service.PeriodTotals["FTD"]);
+            Assert.Equal("—", DsrDisplay.Currency(document.Service.Total));
+        }
+    }
+
+    [Fact]
+    public void Service_total_without_a_service_money_shop_list_still_needs_every_store()
+    {
+        DsrServiceFact[] service =
+        [
+            new("FTD", "WLMHW", 700m, 1_807m, 577m, 3_084m, 0m),
+            new("FTD", "HEMW", null, null, null, null, null)
+        ];
+        var document = DailySalesReportBuilder.Build(new DateOnly(2026, 9, 28), SalesFacts(), service,
+            new Dictionary<string, decimal?>(), stores: [new("WLMHW", "Titan World"), new("HEMW", "Helios")]);
+
+        Assert.Null(document.Service.Total);
+    }
+
     [Fact]
     public void Evening_dsr_excel_rows_keep_the_gift_card_line_with_its_note()
     {

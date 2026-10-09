@@ -46,12 +46,19 @@ public sealed record DsrStoreDefinition(string Code, string Name);
 public static class DailySalesReportBuilder
 {
 
+    /// <param name="serviceMoneyStores">
+    /// The store codes expected to enter Service money (decision 16: the Titan World shop only, as dbo.v_service_manual_money
+    /// marks it). When given, the Service card sums only those stores' facts; every other store is not applicable, not missing
+    /// (RA-OPS-08). When null, every store's fact counts, as before.
+    /// </param>
     public static DailySalesReportDocument Build(DateOnly businessDate, IReadOnlyList<DsrPeriodFact> sales,
         IReadOnlyList<DsrServiceFact> service, IReadOnlyDictionary<string, decimal?> monthlyTargets,
         decimal? serviceWdc = null, string metricPolicy = "DSR_INVOICE_DENOMINATOR_SOURCE_EVIDENCE_V1",
-        IReadOnlyList<DsrStoreDefinition>? stores = null)
+        IReadOnlyList<DsrStoreDefinition>? stores = null, IReadOnlyCollection<string>? serviceMoneyStores = null)
     {
         ArgumentNullException.ThrowIfNull(sales); ArgumentNullException.ThrowIfNull(service); ArgumentNullException.ThrowIfNull(monthlyTargets);
+        if (serviceMoneyStores is not null)
+            service = service.Where(x => serviceMoneyStores.Contains(x.StoreCode, StringComparer.OrdinalIgnoreCase)).ToArray();
         var engine = new ManagementMetricEngine();
         var definitions = stores ?? sales.Where(x=>x.StoreCode!="COMBINED").Select(x=>x.StoreCode).Distinct(StringComparer.OrdinalIgnoreCase).Select(x=>new DsrStoreDefinition(x,x)).ToArray();
         var storePresentation = definitions.Select((store,index)=>new { Key=store.Code, Value=(Name:store.Name,Accent:index%2==0?"#2269E8":"#7137D4") }).ToArray();
