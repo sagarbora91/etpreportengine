@@ -44,7 +44,7 @@ public sealed class ReportLabelCorrectionTests
             var grid = (DataGrid)view.FindName("ReportGrid");
             TablePresentation.Configure(grid);
             var gridHeaders = grid.Columns.Select(column => (string)column.Header).ToArray();
-            Assert.Contains("Unit MRP", gridHeaders);
+            Assert.Contains("Unit MRP ₹", gridHeaders);
             Assert.Contains("MRP value (GST incl.) ₹", gridHeaders);
             Assert.DoesNotContain(gridHeaders, header => header.Contains("Cost", StringComparison.OrdinalIgnoreCase));
         });
@@ -210,13 +210,16 @@ public sealed class ReportLabelCorrectionTests
     }
 
     [Fact]
-    public void Only_the_named_report_columns_are_renamed()
+    public void Report_row_types_take_their_export_headers_and_other_types_are_untouched()
     {
+        // 9 Oct 2026 (RA-EXPORT-06): the mapped report row types answer with the export header; a property the
+        // export does not have, and any type without a map, still answers null.
         Assert.Null(TablePresentation.ReportHeader(typeof(StockMovementRecord), "TotalCost"));
         Assert.Null(TablePresentation.ReportHeader(typeof(StaffPerformanceRecord), "Invoices"));
-        Assert.Null(TablePresentation.ReportHeader(typeof(SalesSummaryRecord), "SourceSignedNetAmount"));
-        Assert.Null(TablePresentation.ReportHeader(typeof(SalesSummaryRecord), "Invoices"));
-        Assert.Null(TablePresentation.ReportHeader(typeof(ManagementTrendRecord), "Returns"));
+        Assert.Null(TablePresentation.ReportHeader(typeof(ManagementTrendPoint), "NetSales"));
+        Assert.Equal("Net Sales", TablePresentation.ReportHeader(typeof(SalesSummaryRecord), "SourceSignedNetAmount"));
+        Assert.Equal("Invoices", TablePresentation.ReportHeader(typeof(SalesSummaryRecord), "Invoices"));
+        Assert.Equal("Returns", TablePresentation.ReportHeader(typeof(ManagementTrendRecord), "Returns"));
         Assert.Equal("Unit MRP", TablePresentation.ReportHeader(typeof(StockInventoryRecord), "UnitCost"));
     }
 

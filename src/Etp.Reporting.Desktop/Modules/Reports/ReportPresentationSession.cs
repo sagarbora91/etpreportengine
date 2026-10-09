@@ -10,7 +10,9 @@ public sealed record ReportPresentationSnapshot(
     DailySalesReportDocument? DailySalesReport,
     ReportPackDocument? DailyPackDocument)
 {
-    public bool CanExportReport => ExportMetadata is not null && ExportData is not null;
+    // RA-UI-15/16 (9 Oct 2026): a report with no rows has nothing to export; the DSR is a document and exports whatever
+    // its matrix holds, even without evening sheets.
+    public bool CanExportReport => ExportMetadata is not null && ExportData is not null && (DailySalesReport is not null || ExportData.Rows.Count > 0);
 }
 
 /// <summary>
