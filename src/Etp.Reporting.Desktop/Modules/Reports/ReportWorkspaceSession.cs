@@ -76,7 +76,7 @@ public sealed class ReportWorkspaceSession
         if (snapshot.ReportCode is null || snapshot.VisualReport is null) return;
         var definition = ReportWorkspaceDefinition.ForReport(snapshot.ReportCode);
         if (!workspaces.TryGetValue(definition.Id, out var workspace)) return;
-        workspace.SetPreview(ReportVisualPresenter.BuildFocusedPreview(snapshot.VisualReport, rows, showDetails), status, snapshot.ExportMetadata.AppliedScope);
+        workspace.SetPreview(ReportVisualPresenter.BuildFocusedPreview(snapshot.VisualReport, rows, showDetails), status, snapshot.ExportMetadata.AppliedScope, snapshot.CanExportReport);
     }
 
     public void ShowDailySalesFailure(string message) => dailySalesWorkspace?.ShowFailure(message);

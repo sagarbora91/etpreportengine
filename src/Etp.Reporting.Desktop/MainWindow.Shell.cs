@@ -218,21 +218,33 @@ public partial class MainWindow
         panel.Children.Add(new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap, Foreground = (Brush)FindResource("SecondaryText"), Margin = new Thickness(0, 0, 0, 18) });
         if (detail is not null)
         {
-            var properties = TypeDescriptor.GetProperties(detail).Cast<PropertyDescriptor>().Where(x => x.IsBrowsable).Take(18);
-            foreach (var property in properties)
+            // RA-UI-19 (9 Oct 2026): the same headers and formats as the grid, internal columns left out.
+            foreach (var (label, value) in TablePresentation.DescribeRow(detail))
             {
-                panel.Children.Add(new TextBlock { Text = property.DisplayName, FontSize = 12, Foreground = (Brush)FindResource("SecondaryText"), Margin = new Thickness(0, 8, 0, 2) });
-                panel.Children.Add(new TextBlock { Text = property.GetValue(detail)?.ToString() ?? "—", TextWrapping = TextWrapping.Wrap, FontWeight = FontWeights.SemiBold, Foreground = (Brush)FindResource("PrimaryText") });
+                panel.Children.Add(new TextBlock { Text = label, FontSize = 12, Foreground = (Brush)FindResource("SecondaryText"), Margin = new Thickness(0, 8, 0, 2) });
+                panel.Children.Add(new TextBlock { Text = value, TextWrapping = TextWrapping.Wrap, FontWeight = FontWeights.SemiBold, Foreground = (Brush)FindResource("PrimaryText") });
             }
         }
         return new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
     }
 
+    private Window? reportDetailsWindow;
+
+    // RA-UI-19 (9 Oct 2026): one details window, reused for every row; a second request replaces its content
+    // instead of stacking another window.
     private void ShowReportDetails(string title, string message, object? detail)
     {
+        var content = DetailContent(title, message, detail);
+        if (reportDetailsWindow is { } open)
+        {
+            open.Title = title; open.Content = content; open.Activate();
+            return;
+        }
         var dialog = new Window { Owner = this, Title = title, Width = 620, Height = 520,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = DetailContent(title, message, detail) };
-        dialog.ShowDialog();
+            WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = content };
+        dialog.Closed += (_, _) => reportDetailsWindow = null;
+        reportDetailsWindow = dialog;
+        dialog.Show();
     }
 
     private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)

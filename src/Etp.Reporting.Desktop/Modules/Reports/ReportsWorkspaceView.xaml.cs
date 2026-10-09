@@ -87,14 +87,28 @@ public partial class ReportsWorkspaceView : UserControl
         this.detailPresenter = detailPresenter ?? throw new ArgumentNullException(nameof(detailPresenter));
     }
 
+    // RA-UI-04 (9 Oct 2026): the shell header writes the business date into To only; when it moves To before the
+    // retained From (or From is unset), From follows it, so a task never opens on an inverted range.
     public void ApplyScope(DateTime? from, DateTime? to, string? scope)
     {
-        ReportFrom.SelectedDate = from ?? DateTime.Today;
-        ReportTo.SelectedDate = to ?? from ?? DateTime.Today;
+        var (start, end) = ClampedRange(from, to);
+        ReportFrom.SelectedDate = start;
+        ReportTo.SelectedDate = end;
         StoreFilterInput.Text = stores.Resolve(scope) ?? string.Empty;
     }
 
-    public void SetBusinessDate(DateTime date) => ReportTo.SelectedDate = date;
+    internal static (DateTime From, DateTime To) ClampedRange(DateTime? from, DateTime? to)
+    {
+        var end = to ?? from ?? DateTime.Today;
+        var start = from ?? end;
+        return (start > end ? end : start, end);
+    }
+
+    public void SetBusinessDate(DateTime date)
+    {
+        ReportTo.SelectedDate = date;
+        if (ReportFrom.SelectedDate is null || ReportFrom.SelectedDate > date) ReportFrom.SelectedDate = date;
+    }
     public void ApplyTaskScope(string report, DateTime? from, DateTime? to, string? scope) => ApplyScope(ReportTaskScope.IsSnapshot(report) ? ReportFrom.SelectedDate : from,to,scope);
     public void FocusSearch() { ReportSearchInput.Focus(); ReportSearchInput.SelectAll(); }
     public void ShowRowDetails(object row) => detailPresenter(row);
@@ -106,8 +120,9 @@ public partial class ReportsWorkspaceView : UserControl
         if (report == "cash" && Csv(StoreFilterInput.Text) is not { Count: 1 } && stores.Stores.Count == 1)
             StoreFilterInput.Text = stores.Stores[0].Code;
         if (!BeginReportLoad(report)) return;
+        // RA-UI-19 (9 Oct 2026): a missing store choice is a prompt, not a failure: no exception, no diagnostics entry.
         if (ReportTaskScope.RequiresSingleStore(report) && Csv(StoreFilterInput.Text) is not { Count: 1 })
-        { HandleFailure(new InvalidOperationException("Choose one store in the header."), "REPORT_STORE_REQUIRED", "Select a store"); return; }
+        { ShowPrompt(StoreRequiredPrompt); return; }
         switch (report)
         {
             case "dsr": await RunDsrAsync(); break;
@@ -418,7 +433,7 @@ public partial class ReportsWorkspaceView : UserControl
             foreach(var row in data.Rows)table.Rows.Add(row.Select(x=>x??DBNull.Value).ToArray());
             ReportGrid.ItemsSource=table.DefaultView;
             var status=days.All(x=>x.Status=="Complete")?ReconciliationStatus.Passed:ReconciliationStatus.Blocked;
-            ReportResult.Text=$"{days.Count} days. Opening carries forward from the previous calculated closing. Enter opening overrides with a reason in Daily inputs.";
+            ReportResult.Text=$"{days.Count} days. Opening carries forward from the previous calculated closing. {CashBookEntryHint}";
             SetExport("Cash Book",status,RetailReportingPolicy.Version,ReportResult.Text,data.Columns,data.Rows,data.Totals);
             ApplyReportFilter();
             await auditRecorder("ReportRun",ToAuditOutcome(status),"Cash book");
@@ -462,7 +477,40 @@ public partial class ReportsWorkspaceView : UserControl
 
     private void SetExport(string name, ReconciliationStatus status, string ruleVersion, string message, IReadOnlyList<ExcelReportColumn> columns, IReadOnlyList<IReadOnlyList<object?>> rows, IReadOnlyList<object?>? totals, DailySalesReportDocument? dsrReport = null, DateOnly? businessDate = null)
     {
-        var scope=ReportScope(); var snapshot=presentation.SetReport(new(name,businessDate??scope.DateFrom,businessDate??scope.DateTo,status.ToString(),ruleVersion,message,DateTimeOffset.UtcNow,AppliedQueryScope()),new(columns,rows,totals),dsrReport); var renderFailure=ReportPresentationHost.Show(snapshot); if(renderFailure is not null)_=auditRecorder("VisualRender","Failed","Visual summary could not be rendered; detailed report remained available"); previewUpdater(snapshot,ReportGrid.ItemsSource,ReportResult.Text); RefreshExportAvailability();
+        var scope=ReportScope();
+        // RA-UI-15/16 (9 Oct 2026): an empty window reads the same on every report and is never "Passed".
+        if (dsrReport is null && NoDataStatus(presentation.Current.ReportCode, rows.Count, scope.DateFrom, scope.DateTo, StoreScope, ReportResult.Text) is { } noData)
+        { ReportResult.Text = noData; if (status == ReconciliationStatus.Passed) status = ReconciliationStatus.Blocked; }
+        var snapshot=presentation.SetReport(new(name,businessDate??scope.DateFrom,businessDate??scope.DateTo,status.ToString(),ruleVersion,message,DateTimeOffset.UtcNow,AppliedQueryScope()),new(columns,rows,totals),dsrReport); var renderFailure=ReportPresentationHost.Show(snapshot); if(renderFailure is not null)_=auditRecorder("VisualRender","Failed","Visual summary could not be rendered; detailed report remained available"); previewUpdater(snapshot,ReportGrid.ItemsSource,ReportResult.Text); RefreshExportAvailability();
+    }
+
+    /// <summary>
+    /// The status line for a report that returned no rows: "No data for 01 Mar 2024 – 31 Mar 2024, All stores." plus any
+    /// explanation the report already gave (a missing snapshot, a missing R022), minus its "Passed:"/"Blocked:" prefix.
+    /// Null when the report has rows, or when an empty result is the finding itself (no exceptions, no documents to review).
+    /// </summary>
+    internal static string? NoDataStatus(string? reportCode, int rowCount, DateOnly from, DateOnly to, string storeScope, string current)
+    {
+        if (rowCount > 0 || reportCode is "exceptions" or "tender-diagnostic") return null;
+        var window = from == to ? from.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)
+            : $"{from.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)} – {to.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture)}";
+        var headline = $"No data for {window}, {storeScope}.";
+        var match = System.Text.RegularExpressions.Regex.Match(current, @"^(?<status>Passed|Blocked|Failed|NotRun): ?(?<rest>.*)$", System.Text.RegularExpressions.RegexOptions.Singleline);
+        // A Passed line over zero rows only restates zeros ("Sales incl. GST 0.00; units 0.00"); a Blocked line may name
+        // the missing source, which stays. A leading zero count ("0 item(s).", "0 days.") is dropped either way.
+        if (match.Success && match.Groups["status"].Value == "Passed") return headline;
+        var rest = System.Text.RegularExpressions.Regex.Replace((match.Success ? match.Groups["rest"].Value : current).Trim(), @"^0 [^.]*\.\s*", "");
+        return rest.Length == 0 ? headline : $"{headline} {rest}";
+    }
+
+    // RA-UI-19 / RA-OPS-02 (9 Oct 2026): prompts name the screen where the value is entered.
+    internal const string StoreRequiredPrompt = "Select a store: Choose one store in the header.";
+    internal const string CashBookEntryHint = "Enter opening cash, expenses and deposits with a reason in Today > Cash > Cash and service entries.";
+
+    private void ShowPrompt(string message)
+    {
+        ReportResult.Text = message;
+        previewUpdater(presentation.Current, ReportGrid.ItemsSource, message);
     }
 
     private void RefreshExportAvailability()

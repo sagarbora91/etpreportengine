@@ -137,7 +137,8 @@ public sealed class ReportWorkspaceControl : Grid
 
     public void InvalidateQueryFilters() => InvalidatePreview();
 
-    public void SetPreview(UIElement content, string status, string? scope = null)
+    /// <param name="canExport">False when the result has nothing to export (no rows, RA-UI-15/16); the export actions stay disabled.</param>
+    public void SetPreview(UIElement content, string status, string? scope = null, bool canExport = true)
     {
         ArgumentNullException.ThrowIfNull(content);
         if (loadingScope is not null && loadingScope != CurrentScope) { InvalidatePreview(); return; }
@@ -146,7 +147,7 @@ public sealed class ReportWorkspaceControl : Grid
         appliedScope.Text = scope ?? string.Empty;
         appliedScope.Visibility = string.IsNullOrEmpty(scope) ? Visibility.Collapsed : Visibility.Visible;
         updateToolbar();
-        loadedScope = CurrentScope; foreach (var button in exportActions) button.IsEnabled = true;
+        loadedScope = CurrentScope; foreach (var button in exportActions) button.IsEnabled = canExport;
     }
 
     public void SelectReport(string reportCode, bool notify = false)
@@ -448,12 +449,17 @@ public sealed class DailySalesReportWorkspace : Grid
     }
 
     // Sales are R025 NETAMOUNT, GST-inclusive (decision D1); NETVALUE is the ex-GST amount (report audit 3 Oct 2026, FIX-05/FIX-11).
+    // RA-OPS-02/03 (9 Oct 2026): each missing input names the screen where it is entered; "Manual Entry" is not a rail,
+    // and monthly targets are a Settings master, not a manual input.
+    internal const string WalkInsEntryHint = "Enter walk-ins in Today > Walk-ins.";
+    internal const string ServiceEntryHint = "Enter service cash, card and UPI in Today > Cash > Cash and service entries.";
+    internal const string TargetsEntryHint = "Enter monthly targets in Settings > Stores & masters > Brands and targets > Monthly targets (Owner).";
     internal static IReadOnlyList<ReportDataAvailability> DefaultAvailability(DailySalesReportDocument report) =>
     [
         new("Sales", report.CombinedFtd is not null, report.CombinedFtd is null ? "No recorded sales were available." : "recorded GST-inclusive sales (R025 NETAMOUNT) are available."),
-        new("Walk-ins", report.WalkIns is not null, report.WalkIns is null ? "Enter combined walk-ins in Manual Entry." : "Combined walk-ins are available."),
+        new("Walk-ins", report.WalkIns is not null, report.WalkIns is null ? WalkInsEntryHint : "Combined walk-ins are available."),
         new("LY comparison", report.Stores.All(store => store.Periods.All(period => period.MissingSourceNote is null)), "Missing prior-year periods remain visibly unavailable."),
-        new("Service", report.Service.Total is not null, report.Service.Total is null ? "Service source or manual input is required." : "Service values are available."),
-        new("Targets", report.Targets.Any(target => target.MonthlyTarget is not null), report.Targets.Any(target => target.MonthlyTarget is not null) ? "At least one monthly target is available." : "Monthly targets require Manual Entry.")
+        new("Service", report.Service.Total is not null, report.Service.Total is null ? ServiceEntryHint : "Service values are available."),
+        new("Targets", report.Targets.Any(target => target.MonthlyTarget is not null), report.Targets.Any(target => target.MonthlyTarget is not null) ? "At least one monthly target is available." : TargetsEntryHint)
     ];
 }
