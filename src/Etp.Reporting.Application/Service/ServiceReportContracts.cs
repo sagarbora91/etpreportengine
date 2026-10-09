@@ -120,4 +120,12 @@ public interface IServiceReportQuery
         Task.FromResult<IReadOnlyList<ServiceUnmatchedMoneyEntry>>([]);
 
     Task<IReadOnlyList<ServiceMoneyChange>> LoadMoneyChangesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The Parts and purchases screen (1.10.0, design 3.6): purchase invoices with their lines, the jobs waiting for
+    /// parts, the GIT lines and the latest closing stock reading. The default says the read model does not carry it yet
+    /// (lane sql's SqlServerServiceReportQuery overrides it), so the screen shows that instead of failing to open.
+    /// </summary>
+    Task<ServiceParts> LoadPartsAsync(CancellationToken cancellationToken = default) =>
+        Task.FromException<ServiceParts>(new NotSupportedException("The Service parts read model is not available in this build."));
 }

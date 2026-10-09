@@ -5,6 +5,7 @@ using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Data;
 using ServiceMoneyDay = EtpApplication::Etp.Reporting.Application.Service.ServiceMoneyDay;
+using ServiceRefresh = EtpApplication::Etp.Reporting.Application.Service.ServiceRefresh;
 using ServiceReportQuery = EtpApplication::Etp.Reporting.Application.Service.IServiceReportQuery;
 using ServiceUnmatchedMoneyEntry = EtpApplication::Etp.Reporting.Application.Service.ServiceUnmatchedMoneyEntry;
 
@@ -15,6 +16,8 @@ namespace Etp.Reporting.Desktop.Modules.Service;
 /// manual Service cash, card and UPI entries of the Service-money shop, which stay the cash-book source
 /// (decision 16). Below it, the Service entries made at other shops (listed, never added in), then the
 /// dates whose money total changed since the previous refresh (information, never an approval item).
+/// 1.10.0 (design 3.7): the manual side loads even before any Service file is imported (SD-08), and the date range
+/// defaults to the latest S004 snapshot date minus 30 days until the user chooses one.
 /// </summary>
 public sealed class ServiceMoneyView : ServiceScreenView
 {
@@ -23,6 +26,8 @@ public sealed class ServiceMoneyView : ServiceScreenView
     private readonly TextBlock manualSources = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) };
     private readonly TextBlock changesStatus = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 4) };
     private readonly TextBlock unmatchedStatus = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 4) };
+    private bool rangeChosen;
+    private bool applyingDefault;
 
     /// <summary>The title of the grid of Service entries made at other shops.</summary>
     public const string UnmatchedTitle = "Service entries at other shops (not added)";
@@ -35,6 +40,8 @@ public sealed class ServiceMoneyView : ServiceScreenView
         var today = DateTime.Today;
         toDate.SelectedDate = today;
         fromDate.SelectedDate = today.AddDays(-30);
+        fromDate.SelectedDateChanged += (_, _) => { if (!applyingDefault) rangeChosen = true; };
+        toDate.SelectedDateChanged += (_, _) => { if (!applyingDefault) rangeChosen = true; };
         AutomationProperties.SetName(fromDate, "From date");
         AutomationProperties.SetName(toDate, "To date");
         FilterBar.Children.Add(new TextBlock { Text = "From", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
@@ -100,8 +107,38 @@ public sealed class ServiceMoneyView : ServiceScreenView
         set => toDate.SelectedDate = value.ToDateTime(TimeOnly.MinValue);
     }
 
-    protected override string? PrepareLoad() =>
-        From > To ? "The From date is after the To date. Choose a valid range." : null;
+    /// <summary>True once the user (or a caller) has set a date; until then each refresh applies <see cref="DefaultRange"/>.</summary>
+    public bool RangeChosen => rangeChosen;
+
+    /// <summary>
+    /// The default range: the latest S004 snapshot date and the 30 days before it, so the screen opens on the days the
+    /// Service centre last reported rather than on a weekend with no rows (design 3.7, Q15). Today when no S004
+    /// reading exists yet.
+    /// </summary>
+    public static (DateOnly From, DateOnly To) DefaultRange(IReadOnlyList<ServiceRefresh> refreshes, DateOnly today)
+    {
+        var s004 = refreshes.Where(refresh => string.Equals(refresh.ReportCode, "S004", StringComparison.OrdinalIgnoreCase)).ToArray();
+        var to = s004.Length == 0 ? today : s004.Max(refresh => refresh.SnapshotDate);
+        return (to.AddDays(-30), to);
+    }
+
+    /// <summary>SD-08: the manual Service entries are worth checking before the first Service import, so the screen loads without readings.</summary>
+    protected override bool LoadsWithoutReadings => true;
+
+    protected override string? PrepareLoad()
+    {
+        if (!rangeChosen)
+        {
+            var (from, to) = DefaultRange(Refreshes, DateOnly.FromDateTime(DateTime.Today));
+            applyingDefault = true;
+            try { From = from; To = to; }
+            finally { applyingDefault = false; }
+        }
+        return From > To ? "The From date is after the To date. Choose a valid range." : null;
+    }
+
+    private bool HasS004Reading => Refreshes.Any(refresh => string.Equals(refresh.ReportCode, "S004", StringComparison.OrdinalIgnoreCase));
+    private string S004Note => HasS004Reading ? "" : " No S004 reading is imported yet, so only the manual entries are shown.";
 
     protected override async Task<IReadOnlyList<ServiceGridRow>> LoadRowsAsync(ServiceReportQuery source)
     {
@@ -159,8 +196,8 @@ public sealed class ServiceMoneyView : ServiceScreenView
             : $"Manual entries from: {stores}. {rule}";
     }
 
-    protected override string EmptyRowsText => "No Service money in this date range.";
-    protected override string Summarise(int count) => $"{count:N0} date and tender rows · {From:dd MMM yyyy} – {To:dd MMM yyyy}.";
+    protected override string EmptyRowsText => "No Service money in this date range." + S004Note;
+    protected override string Summarise(int count) => $"{count:N0} date and tender rows · {From:dd MMM yyyy} – {To:dd MMM yyyy}." + S004Note;
     protected override string ExportName => "Service money check";
     protected override (DateOnly From, DateOnly To) ExportPeriod => (From, To);
 }

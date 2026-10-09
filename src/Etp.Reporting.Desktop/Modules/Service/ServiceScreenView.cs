@@ -71,6 +71,8 @@ public abstract class ServiceScreenView : UserControl
         actions.Children.Add(exportButton);
         heading.Children.Add(actions);
         heading.Children.Add(status);
+        Numbers = new WrapPanel { Orientation = Orientation.Horizontal };
+        heading.Children.Add(Numbers);
         root.Children.Add(heading);
 
         TablePresentation.Configure(Table);
@@ -86,12 +88,18 @@ public abstract class ServiceScreenView : UserControl
     }
 
     protected WrapPanel FilterBar { get; }
+    /// <summary>The numbers strip above the grid (KpiCard per number, design 6.4); empty on the interim screens.</summary>
+    protected WrapPanel Numbers { get; }
     protected StackPanel Footer { get; }
     public DataGrid Table { get; } = new() { AutoGenerateColumns = false, IsReadOnly = true, SelectionMode = DataGridSelectionMode.Single };
     public IReadOnlyList<ServiceGridRow> Rows { get; private set; } = [];
     public IReadOnlyList<string> ColumnHeaders => columns.Select(column => column.Header).ToArray();
     public string AsAtText => asAt.Text;
-    public string StatusText => status.Text;
+    /// <summary>The screen's own status line. Each change is raised as <see cref="StatusChanged"/> so the shell can show it in the application status line instead of the previous workspace's text (SD-10).</summary>
+    public string StatusText { get => status.Text; private set { status.Text = value; StatusChanged?.Invoke(this, value); } }
+    public event EventHandler<string>? StatusChanged;
+    /// <summary>The refresh log of the last activation (every Service reading, newest first).</summary>
+    protected IReadOnlyList<ServiceRefresh> Refreshes { get; private set; } = [];
     public bool IsLoading { get; private set; }
     public bool HasData { get; private set; }
     protected string Title => title;
@@ -114,29 +122,30 @@ public abstract class ServiceScreenView : UserControl
     {
         var current = ++revision;
         IsLoading = true;
-        status.Text = "Loading Service data…";
+        StatusText = "Loading Service data…";
         Rows = []; Table.ItemsSource = null; exportButton.IsEnabled = false;
         try
         {
             var source = query();
             var refreshes = await source.LoadRefreshesAsync();
             if (current != revision) return;
+            Refreshes = refreshes;
             HasData = refreshes.Count > 0;
             asAt.Text = DescribeRefreshes(refreshes);
-            if (!HasData) { status.Text = NoDataText + ". Import the Service Centre files on Import → Import folder."; ClearExtras(); return; }
+            if (!HasData && !LoadsWithoutReadings) { StatusText = NoDataText + ". Import the Service Centre files on Import → Import folder."; ClearExtras(); return; }
             var request = PrepareLoad();
-            if (request is not null) { status.Text = request; ClearExtras(); return; }
+            if (request is not null) { StatusText = request; ClearExtras(); return; }
             var loaded = await LoadRowsAsync(source);
             if (current != revision) return;
             Rows = loaded; Table.ItemsSource = loaded; exportButton.IsEnabled = loaded.Count > 0;
-            status.Text = loaded.Count == 0 ? EmptyRowsText : Summarise(loaded.Count);
+            StatusText = loaded.Count == 0 ? EmptyRowsText : Summarise(loaded.Count);
             await LoadExtrasAsync(source, () => current == revision);
         }
         catch (Exception exception)
         {
             if (current != revision) return;
             DesktopDiagnostics.Record(exception, diagnosticsSource, diagnosticsEvent);
-            status.Text = $"{title} could not be loaded. " + DesktopFriendlyError.Describe(exception);
+            StatusText = $"{title} could not be loaded. " + DesktopFriendlyError.Describe(exception);
         }
         finally { if (current == revision) IsLoading = false; }
     }
@@ -154,6 +163,8 @@ public abstract class ServiceScreenView : UserControl
 
     /// <summary>Returns a message instead of loading when the screen still needs input (job history).</summary>
     protected virtual string? PrepareLoad() => null;
+    /// <summary>True for a screen that has something to show before the first Service import (the money check's manual side, SD-08).</summary>
+    protected virtual bool LoadsWithoutReadings => false;
     protected abstract Task<IReadOnlyList<ServiceGridRow>> LoadRowsAsync(ServiceReportQuery source);
     protected virtual Task LoadExtrasAsync(ServiceReportQuery source, Func<bool> isCurrent) => Task.CompletedTask;
     protected virtual void ClearExtras() { }
@@ -188,12 +199,12 @@ public abstract class ServiceScreenView : UserControl
         try
         {
             await ExportToPathAsync(dialog.FileName);
-            status.Text = $"Exported {Rows.Count:N0} rows to {System.IO.Path.GetFileName(dialog.FileName)}.";
+            StatusText = $"Exported {Rows.Count:N0} rows to {System.IO.Path.GetFileName(dialog.FileName)}.";
         }
         catch (Exception exception)
         {
             DesktopDiagnostics.Record(exception, diagnosticsSource, "SERVICE_EXPORT_FAILED");
-            status.Text = "The export could not be saved. " + DesktopFriendlyError.Describe(exception);
+            StatusText = "The export could not be saved. " + DesktopFriendlyError.Describe(exception);
         }
     }
 

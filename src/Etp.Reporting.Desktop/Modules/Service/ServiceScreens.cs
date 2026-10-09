@@ -11,7 +11,14 @@ public sealed record ServiceListChoice(string? Code, string Label)
     public override string ToString() => Label;
 }
 
-/// <summary>The Service centre tab on the Reports rail: its four task ids and the lists the screens offer.</summary>
+/// <summary>
+/// Opens another Service screen by task id. <paramref name="jobOrderNumber"/> is the job to show when the task is
+/// <see cref="ServiceScreens.JobHistoryTask"/> (drill-down from any grid, design 3.4); null otherwise.
+/// The shell (TaskNavigator) implements it; tests pass a recording fake.
+/// </summary>
+public delegate void ServiceNavigate(string taskId, string? jobOrderNumber);
+
+/// <summary>The Service centre screens: their task ids and the lists the screens offer.</summary>
 public static class ServiceScreens
 {
     public const string Destination = "Service Centre";
@@ -19,6 +26,8 @@ public static class ServiceScreens
     public const string PendingTask = "service-pending";
     public const string JobHistoryTask = "service-job-history";
     public const string MoneyTask = "service-money";
+    /// <summary>Parts and purchases (1.10.0, design 3.6). Lane shell-today registers the task in TaskNavigation.</summary>
+    public const string PartsTask = "service-parts";
 
     /// <summary>
     /// The ten status lists (Service interim design section 3). The code is the status view's report
@@ -52,14 +61,21 @@ public static class ServiceScreens
     public static ServiceReportQuery Unavailable() =>
         throw new InvalidOperationException("The Service read model is not available in this build.");
 
-    public static UserControl Create(string taskId, Func<ServiceReportQuery> query, ServiceExcelExport export)
+    /// <summary>
+    /// Creates the screen of a Service task and starts its first load. <paramref name="navigate"/> lets a grid open
+    /// another Service screen (jobs waiting for parts -> Job history); <paramref name="jobOrderNumber"/> pre-fills
+    /// Job history when the navigation carried a job, so the history loads at once.
+    /// </summary>
+    public static ServiceScreenView Create(string taskId, Func<ServiceReportQuery> query, ServiceExcelExport export,
+        ServiceNavigate? navigate = null, string? jobOrderNumber = null)
     {
         ServiceScreenView view = taskId switch
         {
             JobsTask => new ServiceJobsView(query, export),
             PendingTask => new ServicePendingView(query, export),
-            JobHistoryTask => new ServiceJobHistoryView(query, export),
+            JobHistoryTask => new ServiceJobHistoryView(query, export) { JobNumber = jobOrderNumber ?? "" },
             MoneyTask => new ServiceMoneyView(query, export),
+            PartsTask => new ServicePartsView(query, export, navigate),
             _ => throw new ArgumentOutOfRangeException(nameof(taskId), taskId, "Not a Service centre task.")
         };
         _ = view.ActivateAsync();

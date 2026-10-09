@@ -440,6 +440,16 @@ public sealed partial class TaskNavigator(MainWindow window)
         return true;
     }
 
+    private string? pendingServiceJob;
+
+    /// <summary>Opens another Service screen; the job number (if any) reaches the new screen through ResolveTaskView.</summary>
+    private void NavigateServiceTask(string taskId, string? jobOrderNumber)
+    {
+        if (TaskNavigation.Find(taskId) is not { } target) return;
+        pendingServiceJob = jobOrderNumber;
+        NavigateTask(target);
+    }
+
     private UserControl ResolveTaskView(TaskDestination task)
     {
         // Each layout selects the existing module's controls; no business operation is invoked here.
@@ -448,7 +458,14 @@ public sealed partial class TaskNavigator(MainWindow window)
         var openItems = false;
         var id = task.Id;
         if (task.Destination == Modules.Service.ServiceScreens.Destination)
-            return Modules.Service.ServiceScreens.Create(id, window.serviceReportQuery, window.serviceExcelExport);
+        {
+            // Lane parts (1.10.0): a Service grid can open Job history with its job; the screen's own status line
+            // replaces the previous workspace's text in the application status line (SD-10).
+            var service = Modules.Service.ServiceScreens.Create(id, window.serviceReportQuery, window.serviceExcelExport, NavigateServiceTask, pendingServiceJob);
+            pendingServiceJob = null;
+            service.StatusChanged += (_, text) => window.ApplicationStatus.Text = text;
+            return service;
+        }
         if (id == "import-history")
         {
             var history = window.importHistoryView ?? throw new InvalidOperationException("Import history is not configured.");
