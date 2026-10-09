@@ -95,6 +95,62 @@ public sealed record ServiceMoneyChange(
     DateOnly CurrentSnapshotDate,
     decimal CurrentAmount);
 
+/// <summary>
+/// The four claim types of <c>v_service_claims</c> (1.10.0 design 3.5). The code is what the Claims screen filters
+/// on; the label is what it shows. GPRC cell = S023 + S041, Module Bank = S024, WDC = S025 + S039, WRA = S026 + S040;
+/// where an old and a new header family hold the same document number the new-header family wins (Q12).
+/// </summary>
+public static class ServiceClaimTypes
+{
+    public const string GprcCell = "GPRC";
+    public const string ModuleBank = "MODULE_BANK";
+    public const string Wdc = "WDC";
+    public const string Wra = "WRA";
+
+    public static IReadOnlyList<string> All { get; } = [GprcCell, ModuleBank, Wdc, Wra];
+
+    public static string Label(string code) => code switch
+    {
+        GprcCell => "GPRC cell", ModuleBank => "Module Bank", Wdc => "WDC", Wra => "WRA", _ => code
+    };
+}
+
+/// <summary>
+/// One claim line from <c>v_service_claims</c>: a line of a claim document raised with Titan. <c>ClaimDate</c> is the
+/// document's transaction date, <c>ReportCode</c> the family the line came from after the union, <c>SnapshotDate</c>
+/// that family's reading date. Claims are "raised" only: no export carries settlement (design 1.7, Q9 = A).
+/// </summary>
+public sealed record ServiceClaimLine(
+    string ClaimType,
+    DateOnly ClaimDate,
+    string DocumentNumber,
+    string? JobOrderNumber,
+    string? ItemId,
+    decimal? Quantity,
+    decimal? NetAmountIncTax,
+    decimal? UcpValue,
+    string ReportCode,
+    DateOnly SnapshotDate);
+
+/// <summary>
+/// A DC (S014) or RA (S016) job with no claim document in any claim family: a claim not yet raised. <c>ClaimType</c>
+/// is the type due (WDC for a DC job, WRA for an RA job); <c>IssuedDate</c> and <c>IssuedReference</c> are the job's
+/// DC/RA date and number; <c>SnapshotDate</c> is the status view's reading date, from which "days since" is counted.
+/// </summary>
+public sealed record ServiceUnclaimedJob(
+    string JobOrderNumber,
+    string StatusView,
+    string StatusLabel,
+    string ClaimType,
+    DateOnly? IssuedDate,
+    string? IssuedReference,
+    string? Brand,
+    string? Model,
+    DateOnly SnapshotDate);
+
+/// <summary>The Claims screen's read: every claim line after the union rule and the DC/RA jobs not yet claimed.</summary>
+public sealed record ServiceClaims(IReadOnlyList<ServiceClaimLine> Lines, IReadOnlyList<ServiceUnclaimedJob> NotYetClaimed);
+
 public interface IServiceReportQuery
 {
     /// <summary>Every Service reading, newest first.</summary>
@@ -120,4 +176,12 @@ public interface IServiceReportQuery
         Task.FromResult<IReadOnlyList<ServiceUnmatchedMoneyEntry>>([]);
 
     Task<IReadOnlyList<ServiceMoneyChange>> LoadMoneyChangesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Claims raised with Titan (<c>v_service_claims</c>, union by document number) and the DC/RA jobs without a claim
+    /// document (1.10.0 design 3.5). The default refuses so a build whose query predates 1.10.0 says so on the screen;
+    /// lane sql's query overrides it.
+    /// </summary>
+    Task<ServiceClaims> LoadClaimsAsync(CancellationToken cancellationToken = default) =>
+        Task.FromException<ServiceClaims>(new InvalidOperationException("The Service claims read is not available in this build."));
 }
