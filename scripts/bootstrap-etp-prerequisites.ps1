@@ -530,6 +530,121 @@ function Test-EtpSetupLogDirectoryTrusted {
     catch { return $false }
 }
 
+function New-EtpAutoCloseOffSql {
+    # 1.9.9, IE-RT-11. SQL Server Express creates every database with AUTO_CLOSE ON, and no ETP
+    # script cleared it: on Workpc EtpReporting was closed and started again 1,112 times in 30
+    # days, each start-up a line in the Application log and a slower first query after every
+    # idle spell. Turns it off only when it is on, says which, and changes nothing else.
+    # NO_WAIT: setup never queues behind someone's open connection for this; it reports instead.
+    param([Parameter(Mandatory)][string]$Database)
+    $literal = $Database.Replace("'", "''")
+    $identifier = '[' + $Database.Replace(']', ']]') + ']'
+    return @"
+SET NOCOUNT ON;
+IF DB_ID(N'$literal') IS NULL SELECT 'MISSING';
+ELSE IF EXISTS(SELECT 1 FROM sys.databases WHERE name=N'$literal' AND is_auto_close_on=1)
+BEGIN
+    ALTER DATABASE $identifier SET AUTO_CLOSE OFF WITH NO_WAIT;
+    SELECT CASE WHEN EXISTS(SELECT 1 FROM sys.databases WHERE name=N'$literal' AND is_auto_close_on=0) THEN 'TURNED_OFF' ELSE 'STILL_ON' END;
+END
+ELSE SELECT 'ALREADY_OFF';
+"@
+}
+
+function Set-EtpDatabaseAutoCloseOff {
+    # Runs New-EtpAutoCloseOffSql through Invoke (a scriptblock taking the query and returning
+    # the one result word) and returns the setup log line. Never throws: the database is
+    # complete and works with AUTO_CLOSE on, only slower after an idle spell, so a failure here
+    # is a WARNING with the command to run by hand, not a reason to fail setup.
+    param([Parameter(Mandatory)][string]$Database,[Parameter(Mandatory)][scriptblock]$Invoke,[string]$ServerInstance='.\SQLEXPRESS')
+    $manual = "sqlcmd -S `"$ServerInstance`" -E -Q `"ALTER DATABASE [$($Database.Replace(']', ']]'))] SET AUTO_CLOSE OFF`""
+    try { $result = "$(& $Invoke (New-EtpAutoCloseOffSql -Database $Database))".Trim() }
+    catch { return "WARNING: setup could not check or turn off AUTO_CLOSE for $Database ($(Format-EtpFailureForLog $_.Exception)). ETP works with it on; the first query after an idle spell is slower and SQL Server logs a start-up each time. To turn it off by hand, run this in an administrator PowerShell window: $manual" }
+    switch -CaseSensitive ($result) {
+        'TURNED_OFF' { return "AUTO_CLOSE was ON for $Database (SQL Server Express sets it on a new database); setup turned it OFF, so the database stays open between uses and SQL Server no longer logs a start-up after every idle spell." }
+        'ALREADY_OFF' { return "AUTO_CLOSE is already OFF for $Database; nothing was changed." }
+        default { return "WARNING: setup could not turn off AUTO_CLOSE for $Database (SQL Server answered '$result'). ETP works with it on; the first query after an idle spell is slower. To turn it off by hand, run this in an administrator PowerShell window: $manual" }
+    }
+}
+
+function Get-EtpAutomationTaskPlan {
+    # 1.9.9, IE-RT-08. The five-minute automation task runs ETP as the automation account, which
+    # can open the database only once an Owner has added it as an active Store Manager in
+    # Settings > Users. The 1.9.2 setup on Workpc (2 October 2026) registered it enabled before
+    # that, and SQL Server logged "Login failed for user ...\EtpAutomation" every five minutes
+    # until the account was added. The task is now registered disabled while the account
+    # cannot open the database (NOT_STORE_MANAGER), and enabled as before when it can (READY,
+    # or GRANTS_MISSING: it can sign in; the missing rights only affect backup and drill).
+    # A state that could not be read (UNKNOWN, or none) keeps the earlier behaviour - enabled -
+    # so a failed check can never switch automation off unnoticed. Returns Enabled and the log line.
+    param($GrantState,[string]$AutomationPrincipal,[string]$Database,[string]$TaskName='ETP Reporting Automated Operations')
+    $state = if ($null -ne $GrantState -and -not [string]::IsNullOrWhiteSpace([string]$GrantState.State)) { [string]$GrantState.State } else { 'UNKNOWN' }
+    switch -CaseSensitive ($state) {
+        'NOT_STORE_MANAGER' {
+            return [pscustomobject]@{ Enabled = $false; Line = "The five-minute ETP automation task is installed but DISABLED, because $AutomationPrincipal cannot open $Database yet (it is not an active Store Manager), and every run would only fail to sign in. Next: in ETP, signed in as an Owner, add $AutomationPrincipal as an active Store Manager in Settings > Users, then run ETP setup again, which enables the task; or enable it yourself in an administrator PowerShell window: Enable-ScheduledTask -TaskName '$TaskName'" }
+        }
+        { $_ -ceq 'READY' -or $_ -ceq 'GRANTS_MISSING' } {
+            return [pscustomobject]@{ Enabled = $true; Line = "The five-minute ETP automation task is installed and enabled; $AutomationPrincipal can open $Database." }
+        }
+        default {
+            return [pscustomobject]@{ Enabled = $true; Line = "The five-minute ETP automation task is installed and enabled. Setup could not tell whether $AutomationPrincipal can open $Database; if SQL Server logs 'Login failed' for it every five minutes, add it as an active Store Manager in Settings > Users." }
+        }
+    }
+}
+
+function Invoke-EtpHeadlessApplication {
+    # Runs the application in one of its headless modes, hidden, and returns its exit code and
+    # what it wrote to stderr. Until 1.9.9 setup started it with Start-Process -WindowStyle
+    # Hidden, which keeps no stream, so a refused upgrade left only "failed with exit code 1"
+    # in the setup log and the reason in a diagnostics file of the installing account
+    # (IE-CODE-05). stdout is not redirected (it goes where the bootstrap's own output goes);
+    # stderr is read to the end while the process runs, so a long report cannot block it.
+    param([Parameter(Mandatory)][string]$FilePath,[Parameter(Mandatory)][string]$Argument)
+    $start = New-Object System.Diagnostics.ProcessStartInfo
+    $start.FileName = $FilePath
+    $start.Arguments = $Argument
+    $start.UseShellExecute = $false
+    $start.CreateNoWindow = $true
+    $start.RedirectStandardError = $true
+    $process = [System.Diagnostics.Process]::Start($start)
+    try {
+        $errorText = $process.StandardError.ReadToEndAsync()
+        $process.WaitForExit()
+        return [pscustomobject]@{ ExitCode = $process.ExitCode; ErrorText = [string]$errorText.Result }
+    }
+    finally { $process.Dispose() }
+}
+
+function ConvertTo-EtpApplicationReportLines {
+    # Pure: the application's stderr as setup log lines, verbatim apart from blank lines being
+    # dropped and an unbounded report being cut (MaxLines lines of at most MaxLength characters).
+    # The headless modes write only their privacy-safe reason and SQL error numbers there.
+    param([AllowEmptyString()][AllowNull()][string]$Text,[ValidateRange(1, 1000)][int]$MaxLines = 40,[ValidateRange(20, 100000)][int]$MaxLength = 2000)
+    if ([string]::IsNullOrWhiteSpace($Text)) { return @() }
+    $lines = @($Text -split "\r?\n" | ForEach-Object { $_.TrimEnd() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    $result = [Collections.Generic.List[string]]::new()
+    foreach ($line in @($lines | Select-Object -First $MaxLines)) {
+        if ($line.Length -gt $MaxLength) { $line = $line.Substring(0, $MaxLength) + ' (cut)' }
+        $result.Add("The application reported: $line")
+    }
+    if ($lines.Count -gt $MaxLines) { $result.Add("The application reported $($lines.Count - $MaxLines) more line(s), not logged.") }
+    return $result.ToArray()
+}
+
+function Assert-EtpHeadlessStepSucceeded {
+    # Writes whatever the application reported to the setup log (on success too: a warning there
+    # is worth keeping) and throws, naming the reason, when it exited non-zero. The trap then
+    # logs the FAILED line with that reason and setup reports 1603 as before.
+    param([Parameter(Mandatory)]$Result,[Parameter(Mandatory)][string]$Step,[Parameter(Mandatory)][scriptblock]$Log)
+    $lines = @(ConvertTo-EtpApplicationReportLines -Text $Result.ErrorText)
+    foreach ($line in $lines) { & $Log $line }
+    if ([int]$Result.ExitCode -eq 0) { return }
+    if ($lines.Count -gt 0) {
+        throw "$Step failed with exit code $($Result.ExitCode). $($lines[0]) (Everything it reported is in the lines above.)"
+    }
+    throw "$Step failed with exit code $($Result.ExitCode), and the application reported no reason. Its diagnostics entry is in %LOCALAPPDATA%\EtpReporting\Logs of the account that ran setup."
+}
+
 # Dot-sourcing exposes only the pure preflight functions for behavioral tests.
 if ($MyInvocation.InvocationName -eq '.') { return }
 
@@ -740,8 +855,9 @@ else {
 }
 
 $migrationPhaseStarted = $true
-$process = Start-Process -FilePath $application -ArgumentList '--initialize-configured-database' -Wait -PassThru -WindowStyle Hidden
-if ($process.ExitCode -ne 0) { throw "Configured database migration failed with exit code $($process.ExitCode). Review the privacy-safe setup log." }
+# The application's stderr (its privacy-safe reason and SQL error numbers) goes into this log.
+$migrationRun = Invoke-EtpHeadlessApplication -FilePath $application -Argument '--initialize-configured-database'
+Assert-EtpHeadlessStepSucceeded -Result $migrationRun -Step 'Configured database migration' -Log { param([string]$Message) Write-SetupLog $Message }
 
 $postState = Invoke-SqlScalar -Query "SET NOCOUNT ON; SELECT state_desc + '|' + CONVERT(varchar(5),is_read_only) FROM sys.databases WHERE name=N'$Database';"
 if ($postState -cne 'ONLINE|0') { throw "Post-migration health verification requires the database to be ONLINE and read-write." }
@@ -750,6 +866,8 @@ if ($postMigrationCount -ne $migrationFiles.Count) { throw "Post-migration healt
 Invoke-SqlHealthCommand -Query "SET NOCOUNT ON; DBCC CHECKDB ([$Database]) WITH NO_INFOMSGS;"
 $migrationPhaseCompleted = $true
 Write-SetupLog 'EtpReporting migration completed and post-migration state, journal count, and DBCC integrity checks passed.'
+# IE-RT-11: every run, so a database restored or created with AUTO_CLOSE ON is corrected too.
+Write-SetupLog (Set-EtpDatabaseAutoCloseOff -Database $Database -ServerInstance $ServerInstance -Invoke { param([string]$Query) Invoke-SqlScalar -Query $Query })
 
 if ($databaseAction -ceq 'Create') {
     # See New-EtpSetupOwnerLoginSql: without a login of its own the new Owner can open ETP
@@ -788,12 +906,19 @@ elseif ($ownerLoginAdministration -ceq 'UNKNOWN') {
 
 & (Join-Path $scripts 'install-daily-backup-task.ps1')
 & (Join-Path $scripts 'install-monthly-recovery-drill-task.ps1')
-& (Join-Path $scripts 'install-etp-automation-task.ps1')
-Write-SetupLog 'Daily backup, monthly recovery-drill and five-minute ETP automation tasks are installed.'
+Write-SetupLog 'Daily backup and monthly recovery-drill tasks are installed.'
 # The tasks are useless until the automation account has the operations module's rights.
+$getAutomationGrantState = { Get-EtpAutomationGrantState -SqlCmd $sqlcmdPath -Server (Resolve-EtpSqlConnection -SqlCmd $sqlcmdPath -ServerInstance $ServerInstance) -Database $Database -AutomationPrincipal $operationConfiguration.automationPrincipal }
 foreach ($line in @(Complete-EtpAutomationGrants -ServerInstance $ServerInstance -Database $Database -AutomationPrincipal $operationConfiguration.automationPrincipal -ScriptsDirectory $scripts `
-        -GetState { Get-EtpAutomationGrantState -SqlCmd $sqlcmdPath -Server (Resolve-EtpSqlConnection -SqlCmd $sqlcmdPath -ServerInstance $ServerInstance) -Database $Database -AutomationPrincipal $operationConfiguration.automationPrincipal } `
+        -GetState $getAutomationGrantState `
         -InstallModule { & (Join-Path $scripts 'install-etp-sql-operations.ps1') -ServerInstance $ServerInstance -Database $Database -AutomationPrincipal $operationConfiguration.automationPrincipal -SqlCmdPath $sqlcmdPath })) { Write-SetupLog $line }
+# IE-RT-08: the five-minute task is registered disabled while the automation account cannot
+# open the database, so a new PC does not fill the SQL Server log with failed sign-ins; the
+# next setup run after Settings > Users enables it (Get-EtpAutomationTaskPlan).
+$automationGrantState = try { & $getAutomationGrantState } catch { $null }
+$automationTaskPlan = Get-EtpAutomationTaskPlan -GrantState $automationGrantState -AutomationPrincipal $operationConfiguration.automationPrincipal -Database $Database
+& (Join-Path $scripts 'install-etp-automation-task.ps1') -Disabled:(-not $automationTaskPlan.Enabled)
+Write-SetupLog $automationTaskPlan.Line
 # A clean install on an encrypting edition gets this far with no recovery keys, and then
 # every nightly backup refuses. Say it now, while somebody is still at the machine.
 if ($editionEncryptsBackups -and -not (Test-Path -LiteralPath (Join-Path $backupDirectory 'certificate-custody.json') -PathType Leaf)) {
