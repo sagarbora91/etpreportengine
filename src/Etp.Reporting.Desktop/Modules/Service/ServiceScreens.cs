@@ -11,12 +11,6 @@ public sealed record ServiceListChoice(string? Code, string Label)
     public override string ToString() => Label;
 }
 
-/// <summary>
-/// Opens another Service task from a grid (1.10.0: a claim or pending row -> Service job history). The argument is the
-/// job number for <see cref="ServiceScreens.JobHistoryTask"/>; the shell sets <see cref="ServiceScreens.Navigate"/>.
-/// </summary>
-public delegate void ServiceTaskNavigation(string taskId, string argument);
-
 /// <summary>The Service centre tab on the Reports rail: its four task ids and the lists the screens offer.</summary>
 public static class ServiceScreens
 {
@@ -26,12 +20,6 @@ public static class ServiceScreens
     public const string JobHistoryTask = "service-job-history";
     public const string MoneyTask = "service-money";
     public const string ClaimsTask = "service-claims";
-
-    /// <summary>
-    /// How a Service screen opens another Service task with an argument (drill-down). Null until the shell wires it; a
-    /// screen then tells the user which task to open instead of failing.
-    /// </summary>
-    public static ServiceTaskNavigation? Navigate { get; set; }
 
     /// <summary>
     /// The ten status lists (Service interim design section 3). The code is the status view's report
@@ -65,7 +53,13 @@ public static class ServiceScreens
     public static ServiceReportQuery Unavailable() =>
         throw new InvalidOperationException("The Service read model is not available in this build.");
 
-    public static UserControl Create(string taskId, Func<ServiceReportQuery> query, ServiceExcelExport export)
+    /// <summary>
+    /// <paramref name="argument"/> is the route argument (a job number for <see cref="JobHistoryTask"/>; lane history
+    /// defines it); <paramref name="openJob"/> is what a grid calls to open a job's history (the shell passes its
+    /// job-history navigation; null makes the row action say which job to look up instead).
+    /// </summary>
+    public static UserControl Create(string taskId, Func<ServiceReportQuery> query, ServiceExcelExport export,
+        string? argument = null, Action<string>? openJob = null)
     {
         ServiceScreenView view = taskId switch
         {
@@ -73,7 +67,7 @@ public static class ServiceScreens
             PendingTask => new ServicePendingView(query, export),
             JobHistoryTask => new ServiceJobHistoryView(query, export),
             MoneyTask => new ServiceMoneyView(query, export),
-            ClaimsTask => new ServiceClaimsView(query, export, Navigate),
+            ClaimsTask => new ServiceClaimsView(query, export, openJob),
             _ => throw new ArgumentOutOfRangeException(nameof(taskId), taskId, "Not a Service centre task.")
         };
         _ = view.ActivateAsync();
