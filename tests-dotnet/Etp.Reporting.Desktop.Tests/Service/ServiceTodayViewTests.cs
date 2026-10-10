@@ -109,19 +109,19 @@ public sealed class ServiceTodayViewTests
         RunSta(() =>
         {
             var query = new FakeTodayQuery();
-            var pending = (ServicePendingView)ServiceScreens.Create(ServiceScreens.PendingTask, () => query, NoExport, null, ServiceStages.ReadyForDelivery);
+            var pending = (ServicePendingView)ServiceScreens.Create(ServiceScreens.PendingTask, () => query, NoExport, ServiceStages.ReadyForDelivery);
             Assert.Equal(ServicePendingLists.PendingDelivery, pending.SelectedList.Code);
-            var srn = (ServicePendingView)ServiceScreens.Create(ServiceScreens.PendingTask, () => query, NoExport, null, ServiceStages.SrnOut);
+            var srn = (ServicePendingView)ServiceScreens.Create(ServiceScreens.PendingTask, () => query, NoExport, ServiceStages.SrnOut);
             Assert.Equal(ServicePendingLists.SrnStatus, srn.SelectedList.Code);
-            var jobs = (ServiceJobsView)ServiceScreens.Create(ServiceScreens.JobsTask, () => query, NoExport, null, ServiceStages.Delivered);
+            var jobs = (ServiceJobsView)ServiceScreens.Create(ServiceScreens.JobsTask, () => query, NoExport, ServiceStages.Delivered);
             Assert.Equal("S018", jobs.SelectedStatus.Code);
-            var all = (ServiceJobsView)ServiceScreens.Create(ServiceScreens.JobsTask, () => query, NoExport, null, ServiceStages.Booked);
+            var all = (ServiceJobsView)ServiceScreens.Create(ServiceScreens.JobsTask, () => query, NoExport, ServiceStages.Booked);
             Assert.Null(all.SelectedStatus.Code);
-            var money = (ServiceMoneyView)ServiceScreens.Create(ServiceScreens.MoneyTask, () => query, NoExport, null, "2026-10-05");
+            var money = (ServiceMoneyView)ServiceScreens.Create(ServiceScreens.MoneyTask, () => query, NoExport, "2026-10-05");
             Assert.Equal((new DateOnly(2026, 10, 5), new DateOnly(2026, 10, 5)), (money.From, money.To));
-            var history = (ServiceJobHistoryView)ServiceScreens.Create(ServiceScreens.JobHistoryTask, () => query, NoExport, null, "JOAW330SYN0007");
+            var history = (ServiceJobHistoryView)ServiceScreens.Create(ServiceScreens.JobHistoryTask, () => query, NoExport, "JOAW330SYN0007");
             Assert.Equal("JOAW330SYN0007", history.JobNumber);
-            var today = (ServiceTodayView)ServiceScreens.Create(ServiceScreens.TodayTask, () => query, NoExport, null, "2026-10-01");
+            var today = (ServiceTodayView)ServiceScreens.Create(ServiceScreens.TodayTask, () => query, NoExport, "2026-10-01");
             Assert.Equal(new DateOnly(2026, 10, 1), today.BusinessDate);
             foreach (var view in new ServiceScreenView[] { pending, srn, jobs, all, money, history, today }) SpinUntil(() => !view.IsLoading);
             Assert.Equal(new DateOnly(2026, 10, 1), query.LastDate);

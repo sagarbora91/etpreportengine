@@ -22,7 +22,7 @@ public sealed class ServiceNavigationTests
         Assert.Equal(ServiceScreens.Tabs, service.Select(task => task.Tab).Distinct());
         Assert.Equal(ServiceScreens.Tasks, service.Select(task => task.Id));
         Assert.Equal(["Today", "Pending", "Jobs", "Jobs", "Claims", "Parts", "Money"], service.Select(task => task.Tab));
-        Assert.Equal(["Service today", "Service pending lists", "Service job history", "Service jobs by status", "Service claims", "Service parts and purchases", "Service money check"],
+        Assert.Equal(["Service today", "Service pending jobs", "Service job history", "Service jobs", "Service claims", "Service parts and purchases", "Service money check"],
             service.Select(task => task.Title));
         Assert.Equal("Service → Today → Service today", TaskNavigation.Find(ServiceScreens.TodayTask)!.Path);
     }
@@ -54,6 +54,26 @@ public sealed class ServiceNavigationTests
             }
         Assert.Equal(7, TaskNavigation.InSection("Service", ShellAccess.Viewer).Count);
         Assert.False(new ShellNavigationService().Navigate(TaskNavigation.Find(ServiceScreens.TodayTask)!.Route, ShellAccess.DatabaseSetup).IsAllowed);
+    }
+
+    [Fact]
+    public void A_drill_down_travels_as_the_route_argument_and_every_role_may_follow_it()
+    {
+        var today = TaskNavigation.Find(ServiceScreens.TodayTask)!;
+        Assert.Equal(today.Route, today.RouteWith("  "));
+        var pending = TaskNavigation.Find(ServiceScreens.PendingTask)!.RouteWith(" ON_BENCH ");
+        Assert.Equal("ON_BENCH", pending.Argument);
+        Assert.Equal(ServiceScreens.PendingTask, pending.TaskId);
+        Assert.NotEqual(pending, TaskNavigation.Find(ServiceScreens.PendingTask)!.RouteWith("READY_FOR_DELIVERY"));
+        var job = ServiceScreens.JobHistoryRoute("JOAW330SYN0007");
+        Assert.Equal((ServiceScreens.JobHistoryTask, "JOAW330SYN0007"), (job.TaskId, job.Argument));
+        foreach (var access in new[] { ShellAccess.Viewer, ShellAccess.StoreManager, ShellAccess.Owner })
+        {
+            var navigation = new ShellNavigationService();
+            Assert.True(navigation.Navigate(pending, access).IsAllowed);
+            Assert.True(navigation.Navigate(job, access).IsAllowed);
+            Assert.Equal(pending, navigation.GoBack(access).RequestedRoute);
+        }
     }
 
     [Fact]

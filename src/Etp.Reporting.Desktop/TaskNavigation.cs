@@ -12,6 +12,8 @@ public sealed record TaskDestination(string Id, string Title, string Module, str
     public string Path => $"{Module} → {Category} → {Title}";
     public string Purpose => ReportCode is null ? $"Open {Title.ToLowerInvariant()} in {Module}." : ProductReportCatalogue.All.Single(x => x.Code == ReportCode).Description;
     public WorkspaceRoute Route => new(Destination, ReportCode, Id);
+    /// <summary>The route with a task argument (1.10.0): a blank argument is the plain route.</summary>
+    public WorkspaceRoute RouteWith(string? argument) => string.IsNullOrWhiteSpace(argument) ? Route : Route with { Argument = argument.Trim() };
     // The shell binds this record straight into a ComboBox. A record's generated ToString
     // prints every field, so a screen reader announced the whole object - id, destination,
     // role, route - instead of the task name a sighted user sees through DisplayMemberPath.
@@ -107,9 +109,9 @@ public static class TaskNavigation
         // Viewer and up. The four interim screens keep their task ids (favourites and the Help topic keep working);
         // "Jobs" holds the job history and the jobs list; Claims and Parts arrive with their lanes.
         Add("service-today", "Service today", "Service", "Today", "Service Centre", "service-today", 1);
-        Add("service-pending", "Service pending lists", "Service", "Pending", "Service Centre", "service-pending", 1);
+        Add("service-pending", "Service pending jobs", "Service", "Pending", "Service Centre", "service-pending", 1);
         Add("service-job-history", "Service job history", "Service", "Jobs", "Service Centre", "service-job-history", 1);
-        Add("service-jobs", "Service jobs by status", "Service", "Jobs", "Service Centre", "service-jobs", 1);
+        Add("service-jobs", "Service jobs", "Service", "Jobs", "Service Centre", "service-jobs", 1);
         Add("service-claims", "Service claims", "Service", "Claims", "Service Centre", "service-claims", 1);
         Add("service-parts", "Service parts and purchases", "Service", "Parts", "Service Centre", "service-parts", 1);
         Add("service-money", "Service money check", "Service", "Money", "Service Centre", "service-money", 1);

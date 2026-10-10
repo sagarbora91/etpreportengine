@@ -76,12 +76,22 @@ public static class ServiceScreens
         throw new InvalidOperationException("The Service read model is not available in this build.");
 
     /// <summary>
-    /// Creates the screen of a Service task and starts its first load. <paramref name="navigate"/> opens another
-    /// Service task (drill-down); null leaves the drill-down cards and links inert. <paramref name="argument"/> is the
-    /// drill-down argument for this screen, applied before the load.
+    /// The route that opens Service job history for one job (1.10.0 "open from any grid", design 3.4). The job number
+    /// travels as the route's <see cref="WorkspaceRoute.Argument"/>; <see cref="Create"/> receives it as <c>argument</c>.
+    /// </summary>
+    public static WorkspaceRoute JobHistoryRoute(string jobOrderNumber) =>
+        TaskNavigation.Find(JobHistoryTask)!.RouteWith(jobOrderNumber);
+
+    /// <summary>
+    /// Creates the screen of a Service task and starts its first load. <paramref name="argument"/> is the route argument
+    /// (a job number for job history, a stage for Pending and Jobs, a yyyy-MM-dd date for Today and Money), applied
+    /// before the load. <paramref name="openJob"/> is what a grid calls to open a job's history (the shell passes
+    /// <c>TaskNavigator.NavigateServiceJob</c>; lane history's grids take it). <paramref name="navigate"/> opens another
+    /// Service screen with an argument (the shell passes <c>TaskNavigator.NavigateService</c>); null openers leave the
+    /// cards, links and row actions inert.
     /// </summary>
     public static UserControl Create(string taskId, Func<ServiceReportQuery> query, ServiceExcelExport export,
-        Action<ServiceDrillDown>? navigate = null, string? argument = null)
+        string? argument = null, Action<string>? openJob = null, Action<ServiceDrillDown>? navigate = null)
     {
         ServiceScreenView view = taskId switch
         {
