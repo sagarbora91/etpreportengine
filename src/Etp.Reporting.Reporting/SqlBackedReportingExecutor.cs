@@ -115,9 +115,9 @@ public sealed class SqlBackedReportingExecutor(
     }
 
     /// <summary>
-    /// RA-STOCK-05 (1.9.9): with more than one store, one headline ("Blocked: Ledger covers to 25 Aug 2026 for WLMHW ...")
+    /// RA-STOCK-05 (1.9.9): with more than one store, one headline ("Blocked: Ledger covers to 25 Aug 2026 for <store B> ...")
     /// hid that the other store passed. The message now starts with each store's own result, e.g.
-    /// "HEMW: Passed (84 item(s)); WLMHW: Blocked - ledger ends 25 Aug 2026." The overall status and the detail text after
+    /// "<store A>: Passed (84 item(s)); <store B>: Blocked - ledger ends 25 Aug 2026." The overall status and the detail text after
     /// it are unchanged; with one store the status word already says it, so nothing is added.
     /// </summary>
     private static StockReconciliationResult ByStore(StockReconciliationResult result, StockQueryData data, IReadOnlyCollection<string> missingClosing, DateOnly dateTo)

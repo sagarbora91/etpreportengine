@@ -30,7 +30,7 @@ internal static class SyntheticReportView
     private sealed class ControlledQuery(bool empty) : IControlledReportQuery
     {
         public Task<SalesSummaryReport> RunSalesSummaryAsync(ReportScope scope, ReportSalesDimension dimension, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new SalesSummaryReport(dimension, ReportStatus.Passed, empty ? [] : [new("TITAN", 2m, 236m, 2, 1)], "test", "Aggregated source-signed values without sign transformation."));
+            Task.FromResult(new SalesSummaryReport(dimension, ReportStatus.Passed, empty ? [] : [new("TITAN", 2m, 236m, 2, 1)], "test", "2 invoice(s), 1 return(s); returns and bill cancellations are already taken off the totals."));
         public Task<TenderReconciliationReport> RunTenderReconciliationAsync(ReportScope scope, CancellationToken cancellationToken = default) =>
             Task.FromResult(new TenderReconciliationReport(ReportStatus.Failed, empty ? [] : [new("WLMHW", "D1", 118m, 0m, 118m, ReportStatus.Failed, 2027)], 118m, 0m, 118m, "test", "Compared invoice and tender values."));
         public Task<StockReconciliationReport> RunStockReconciliationAsync(ReportScope scope, CancellationToken cancellationToken = default) =>

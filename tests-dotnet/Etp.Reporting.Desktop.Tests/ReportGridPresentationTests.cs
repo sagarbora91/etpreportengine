@@ -204,7 +204,7 @@ public sealed class ReportGridPresentationTests
         Assert.Null(ReportsWorkspaceView.NoDataStatus("sales-brand", 3, from, to, "All stores", "Passed: Sales incl. GST 1.00"));
         Assert.Null(ReportsWorkspaceView.NoDataStatus("tender-diagnostic", 0, from, to, "All stores", "Blocked: 0 documents require review"));
         Assert.Equal("No data for 01 Mar 2024 – 31 Mar 2024, All stores.",
-            ReportsWorkspaceView.NoDataStatus("sales-brand", 0, from, to, "All stores", "Passed: Sales incl. GST 0.00; units 0.00. Aggregated source-signed values."));
+            ReportsWorkspaceView.NoDataStatus("sales-brand", 0, from, to, "All stores", "Passed: Sales incl. GST 0.00; units 0.00. 0 invoice(s), 0 return(s); returns and bill cancellations are already taken off the totals."));
         Assert.Equal("No data for 01 Mar 2024 – 31 Mar 2024, All stores.",
             ReportsWorkspaceView.NoDataStatus("invoice", 0, from, to, "All stores", "0 invoices, 0 returns; 0 missing customer names."));
         Assert.Equal("No data for 01 Mar 2024 – 31 Mar 2024, All stores.",

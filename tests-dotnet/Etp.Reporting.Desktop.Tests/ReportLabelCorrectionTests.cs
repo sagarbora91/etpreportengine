@@ -246,7 +246,7 @@ public sealed class ReportLabelCorrectionTests
     private sealed class ControlledQuery : IControlledReportQuery
     {
         public Task<SalesSummaryReport> RunSalesSummaryAsync(ReportScope scope, ReportSalesDimension dimension, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new SalesSummaryReport(dimension, ReportStatus.Passed, [new("TITAN", 2m, 236m, 2, 1)], "test", "Aggregated source-signed values without sign transformation."));
+            Task.FromResult(new SalesSummaryReport(dimension, ReportStatus.Passed, [new("TITAN", 2m, 236m, 2, 1)], "test", "2 invoice(s), 1 return(s); returns and bill cancellations are already taken off the totals."));
         public Task<TenderReconciliationReport> RunTenderReconciliationAsync(ReportScope scope, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<StockReconciliationReport> RunStockReconciliationAsync(ReportScope scope, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<StockMovementRecord>> LoadStockMovementsAsync(ReportScope scope, CancellationToken cancellationToken = default) => throw new NotSupportedException();
