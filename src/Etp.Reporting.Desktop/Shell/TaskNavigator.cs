@@ -432,6 +432,8 @@ public sealed partial class TaskNavigator(MainWindow window)
         else view = ResolveTaskView(task, route.Argument);
         ApplyHiddenScope(view);
         if (view.Parent is ContentControl host) host.Content = null;
+        // SD-10 (lane parts): a Service screen's own status replaces the previous workspace's text in the status line.
+        if (view is Modules.Service.ServiceScreenView serviceScreen) serviceScreen.StatusChanged += (_, text) => window.ApplicationStatus.Text = text;
 
         window.FocusedWorkspaceLayer.Visibility = Visibility.Visible;
         window.FocusedWorkspaceHost.Content = view; window.focusedWorkspaceKind = "task";
@@ -445,7 +447,7 @@ public sealed partial class TaskNavigator(MainWindow window)
         NavigateSafely(() => window.shell.Navigate(Modules.Service.ServiceScreens.JobHistoryRoute(jobOrderNumber), window.CurrentShellAccess));
 
     /// <summary>
-    /// Opens another Service screen with a drill-down argument (Service Today cards, placeholder links; design 3.2). The
+    /// Opens another Service screen with a drill-down argument (Service Today cards; design 3.2). The
     /// argument travels as the route's Argument, exactly as a job number does for job history, so Back returns to the card.
     /// </summary>
     public void NavigateService(Modules.Service.ServiceDrillDown target)

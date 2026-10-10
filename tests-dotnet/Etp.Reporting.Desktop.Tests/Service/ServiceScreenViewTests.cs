@@ -101,30 +101,6 @@ public sealed class ServiceScreenViewTests
         });
     }
 
-    [Theory]
-    [InlineData("claims")]
-    [InlineData("parts")]
-    public void A_placeholder_screen_keeps_the_frame_and_points_at_the_interim_lists(string screen)
-    {
-        RunSta(() =>
-        {
-            var opened = new List<ServiceDrillDown>();
-            var definition = screen == "claims" ? ServicePlaceholderView.Claims : ServicePlaceholderView.Parts;
-            var view = new ServicePlaceholderView(definition, () => new FakeServiceQuery(), NoExport, opened.Add);
-
-            view.ActivateAsync().GetAwaiter().GetResult();
-
-            Assert.StartsWith(ServicePlaceholderView.NotYetText, view.StatusText, StringComparison.Ordinal);
-            Assert.Empty(view.Rows);
-            Assert.NotEmpty(view.Freshness);
-            var buttons = Descendants<Button>(view).Where(button => definition.Links.Any(link => link.Label == (string)button.Content)).ToArray();
-            Assert.Equal(definition.Links.Count, buttons.Length);
-            foreach (var button in buttons) button.RaiseEvent(new System.Windows.RoutedEventArgs(Button.ClickEvent));
-            Assert.Equal(definition.Links.Select(link => link.Target), opened);
-            Assert.All(opened, target => Assert.Contains(target.TaskId, ServiceScreens.Tasks));
-        });
-    }
-
     [Fact]
     public void Jobs_show_all_lists_every_job_and_open_jobs_lists_the_open_ones()
     {
@@ -209,7 +185,6 @@ public sealed class ServiceScreenViewTests
     [InlineData("jobs")]
     [InlineData("pending")]
     [InlineData("history")]
-    [InlineData("money")]
     [InlineData("today")]
     [InlineData("claims")]
     [InlineData("parts")]
@@ -426,6 +401,81 @@ public sealed class ServiceScreenViewTests
     }
 
     [Fact]
+    public void Money_screen_defaults_to_the_latest_S004_snapshot_minus_30_days_until_a_range_is_chosen()
+    {
+        RunSta(() =>
+        {
+            var query = new FakeServiceQuery();
+            var view = new ServiceMoneyView(() => query, NoExport);
+            Assert.False(view.RangeChosen);
+
+            view.ActivateAsync().GetAwaiter().GetResult();
+
+            // The fake's latest S004 reading is 5 Oct 2026, not today.
+            Assert.Equal((new DateOnly(2026, 9, 5), new DateOnly(2026, 10, 5)), query.LastMoneyRange);
+            Assert.Equal((new DateOnly(2026, 9, 5), new DateOnly(2026, 10, 5)), (view.From, view.To));
+            Assert.False(view.RangeChosen);
+            Assert.Equal("3 date and tender rows · 05 Sep 2026 – 05 Oct 2026.", view.StatusText);
+
+            view.To = new(2026, 9, 30);
+            Assert.True(view.RangeChosen);
+            view.ActivateAsync().GetAwaiter().GetResult();
+            Assert.Equal((new DateOnly(2026, 9, 5), new DateOnly(2026, 9, 30)), query.LastMoneyRange);
+        });
+    }
+
+    [Fact]
+    public void Money_default_range_falls_back_to_today_without_an_S004_reading()
+    {
+        var today = new DateOnly(2026, 10, 10);
+        IReadOnlyList<ServiceRefresh> noS004 = [new("S009", new(2026, 10, 5), 7, 140, FakeServiceQuery.ImportedUtc)];
+        Assert.Equal((today.AddDays(-30), today), ServiceMoneyView.DefaultRange(noS004, today));
+        Assert.Equal((today.AddDays(-30), today), ServiceMoneyView.DefaultRange([], today));
+        IReadOnlyList<ServiceRefresh> two = [new("S004", new(2026, 9, 28), 9, 120, FakeServiceQuery.ImportedUtc), new("S004", new(2026, 10, 5), 9, 141, FakeServiceQuery.ImportedUtc)];
+        Assert.Equal((new DateOnly(2026, 9, 5), new DateOnly(2026, 10, 5)), ServiceMoneyView.DefaultRange(two, today));
+    }
+
+    [Fact]
+    public void Money_screen_loads_the_manual_side_before_any_Service_file_is_imported()
+    {
+        // SD-08: the shop PC has manual Service entries before its first Service import; the check shows them alone.
+        RunSta(() =>
+        {
+            var query = new FakeServiceQuery { Refreshes = [] };
+            var view = new ServiceMoneyView(() => query, NoExport);
+
+            view.ActivateAsync().GetAwaiter().GetResult();
+
+            Assert.Equal(ServiceScreenView.NoDataText, view.AsAtText);
+            Assert.False(view.HasData);
+            Assert.Equal(1, query.BodyCalls);
+            var today = DateOnly.FromDateTime(DateTime.Today);
+            Assert.Equal((today.AddDays(-30), today), query.LastMoneyRange);
+            Assert.Equal(3, view.Rows.Count);
+            Assert.Same(view.Rows, view.Table.ItemsSource);
+            Assert.EndsWith(" No S004 reading is imported yet, so only the manual entries are shown.", view.StatusText, StringComparison.Ordinal);
+            Assert.DoesNotContain(ServiceScreenView.NoDataText, view.StatusText);
+            Assert.Single(view.UnmatchedRows);
+            Assert.Single(view.ChangeRows);
+        });
+    }
+
+    [Fact]
+    public void Money_screen_raises_its_status_for_the_application_status_line()
+    {
+        // SD-10: the shell replaces the previous workspace's text with the screen's own status on every refresh.
+        RunSta(() =>
+        {
+            var raised = new List<string>();
+            var view = new ServiceMoneyView(() => new FakeServiceQuery(), NoExport);
+            view.StatusChanged += (_, text) => raised.Add(text);
+            view.ActivateAsync().GetAwaiter().GetResult();
+            Assert.Equal("Loading Service data…", raised[0]);
+            Assert.Equal(view.StatusText, raised[^1]);
+        });
+    }
+
+    [Fact]
     public void Money_screen_refuses_a_reversed_range_without_querying()
     {
         RunSta(() =>
@@ -518,8 +568,8 @@ public sealed class ServiceScreenViewTests
         "pending" => new ServicePendingBoardView(() => query, export ?? NoExport),
         "history" => new ServiceJobHistoryView(() => query, export ?? NoExport),
         "today" => new ServiceTodayView(() => query, export ?? NoExport),
-        "claims" => new ServicePlaceholderView(ServicePlaceholderView.Claims, () => query, export ?? NoExport, null),
-        "parts" => new ServicePlaceholderView(ServicePlaceholderView.Parts, () => query, export ?? NoExport, null),
+        "claims" => new ServiceClaimsView(() => query, export ?? NoExport),
+        "parts" => new ServicePartsView(() => query, export ?? NoExport),
         _ => new ServiceMoneyView(() => query, export ?? NoExport)
     };
 

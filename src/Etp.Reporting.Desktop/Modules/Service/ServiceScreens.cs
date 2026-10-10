@@ -75,7 +75,7 @@ public static class ServiceScreens
             PendingTask => new ServicePendingBoardView(query, export, openJob: openJob),
             JobHistoryTask => new ServiceJobHistoryView(query, export) { JobNumber = argument?.Trim() ?? "" },
             ClaimsTask => new ServiceClaimsView(query, export, openJob),
-            PartsTask => new ServicePlaceholderView(ServicePlaceholderView.Parts, query, export, navigate),
+            PartsTask => new ServicePartsView(query, export, openJob),
             MoneyTask => new ServiceMoneyView(query, export),
             _ => throw new ArgumentOutOfRangeException(nameof(taskId), taskId, "Not a Service centre task.")
         };
