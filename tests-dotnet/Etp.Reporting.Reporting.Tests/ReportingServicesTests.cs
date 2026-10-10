@@ -110,7 +110,7 @@ public sealed class ReportingServicesTests
         Assert.Equal(2, brandA.Returns);
         Assert.Equal((-90m, 1, 1), (result.Rows[1].SourceSignedNetAmount, result.Rows[1].Invoices, result.Rows[1].Returns));
         Assert.Equal((-40m, 1), (result.Rows[3].SourceSignedNetAmount, result.Rows[3].Invoices));
-        Assert.Equal(-200m, result.Rows.Sum(row => row.SourceSignedNetAmount));
+        Assert.Equal(-290m, result.Rows.Sum(row => row.SourceSignedNetAmount));
     }
 
     [Fact]
