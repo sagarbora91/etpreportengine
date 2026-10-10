@@ -385,6 +385,9 @@ public sealed partial class TaskNavigator(MainWindow window)
         pageSearch?.Close();
         RememberContext(route);
         if (TaskNavigation.Find(route.TaskId) is not { } task) return false;
+        // RA-UI-26 (9 Oct 2026): the footer kept the previous screen's text ("6 saved pack(s) found..." on Investigation).
+        // Each screen starts with its own path; a report or a save then replaces it with its result.
+        window.ApplicationStatus.Text = task.Path;
 
         window.UpdateSection(task);
         window.ShellStoreSelector.IsEnabled = true;

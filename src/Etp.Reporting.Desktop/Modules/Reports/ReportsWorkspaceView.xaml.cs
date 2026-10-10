@@ -123,6 +123,10 @@ public partial class ReportsWorkspaceView : UserControl
         // RA-UI-19 (9 Oct 2026): a missing store choice is a prompt, not a failure: no exception, no diagnostics entry.
         if (ReportTaskScope.RequiresSingleStore(report) && Csv(StoreFilterInput.Text) is not { Count: 1 })
         { ShowPrompt(StoreRequiredPrompt); return; }
+        // RA-UI-17 (9 Oct 2026, diagnostics 20:18:18): a To date before From, or a Management Trend window over 366 days,
+        // reached the repository, which threw ArgumentException, logged as MANAGEMENT_TREND_REPORT_FAILED. A date-picker
+        // slip is a prompt, not a failure.
+        if (DatePrompt(report, ReportFrom.SelectedDate, ReportTo.SelectedDate) is { } datePrompt) { ShowPrompt(datePrompt); return; }
         switch (report)
         {
             case "dsr": await RunDsrAsync(); break;
@@ -306,6 +310,7 @@ public partial class ReportsWorkspaceView : UserControl
     internal const string InvoicesHeader = "Invoices";
     internal const string ReturnsHeader = "Returns";
     internal const string InvoicesNote = "Invoices counts INV documents only, like the Daily Sales Report; Returns counts sales returns (SR) and bill cancellations (BC).";
+    internal const string ReturnsNote = "Rows are returns by store and brand with the source sign kept; Invoices and Returns both count the distinct return documents (SR and BC) of the row.";
 
     private async Task RunSalesReportAsync()
     {
@@ -320,7 +325,8 @@ public partial class ReportsWorkspaceView : UserControl
             var units = result.Rows.Sum(row => row.SourceSignedQuantity);
             ReportGrid.ItemsSource = result.Rows;
             ReportResult.Text = IndianText($"{result.Status}: Sales incl. GST {sales:N2}; units {units:N2}. {result.Message}");
-            SetExport($"{name} Sales", ToReportingStatus(result.Status), result.PolicyVersion, result.Message + " " + InvoicesNote,
+            // RA-SALES-08: the Returns report is keyed by store and brand and its Invoices column counts return documents.
+            SetExport($"{name} Sales", ToReportingStatus(result.Status), result.PolicyVersion, result.Message + " " + (name == "Returns" ? ReturnsNote : InvoicesNote),
                 [new("Group"), new("Units", "#,##0.00"), new("Net Sales", "#,##0.00"), new(InvoicesHeader, "#,##0"), new(ReturnsHeader, "#,##0")],
                 result.Rows.Select(row => (IReadOnlyList<object?>)[row.Key, row.SourceSignedQuantity, row.SourceSignedNetAmount, row.Invoices, row.Returns]).ToArray(),
                 ["Total", units, sales, result.Rows.Sum(row => row.Invoices), result.Rows.Sum(row => row.Returns)]);
@@ -505,6 +511,18 @@ public partial class ReportsWorkspaceView : UserControl
 
     // RA-UI-19 / RA-OPS-02 (9 Oct 2026): prompts name the screen where the value is entered.
     internal const string StoreRequiredPrompt = "Select a store: Choose one store in the header.";
+    internal const string DateOrderPrompt = "Select the dates: the To date cannot be before the From date.";
+    internal const int ManagementTrendMaxDays = 366;
+    internal const string TrendPeriodPrompt = "Select a shorter period: the Management Trend covers at most 366 days.";
+
+    /// <summary>The prompt for a report window the queries would reject, before any query runs; null when the window is usable.</summary>
+    internal static string? DatePrompt(string report, DateTime? from, DateTime? to)
+    {
+        if (from is null || to is null || ReportTaskScope.IsSnapshot(report)) return null;
+        if (to.Value.Date < from.Value.Date) return DateOrderPrompt;
+        if (report == "management-trend" && (to.Value.Date - from.Value.Date).TotalDays > ManagementTrendMaxDays) return TrendPeriodPrompt;
+        return null;
+    }
     internal const string CashBookEntryHint = "Enter opening cash, expenses and deposits with a reason in Today > Cash > Cash and service entries.";
 
     private void ShowPrompt(string message)
@@ -545,6 +563,7 @@ public partial class ReportsWorkspaceView : UserControl
     {
         if (ReportGrid.ItemsSource is null) return;
         var search = ReportSearchInput.Text.Trim();
+        ReportDetailFilter.ConfigureVarianceOption(VarianceOnlyInput, ReportDetailFilter.RowType(ReportGrid.ItemsSource));
         var varianceOnly = VarianceOnlyInput.IsChecked == true;
         var view = CollectionViewSource.GetDefaultView(ReportGrid.ItemsSource);
         // DataView's default view cannot accept predicates. A separate list view
