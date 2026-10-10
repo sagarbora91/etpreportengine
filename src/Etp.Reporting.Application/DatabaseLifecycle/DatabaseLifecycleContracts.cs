@@ -11,7 +11,8 @@ public sealed record DatabaseConnectionHealth(
     DatabaseConnectionStatus Status,
     string Message,
     string? ServerVersion = null,
-    TimeSpan? Elapsed = null);
+    TimeSpan? Elapsed = null,
+    int? SqlErrorNumber = null);
 
 public sealed record BootstrapDatabase(
     string MigrationDirectory);

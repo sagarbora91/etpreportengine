@@ -18,7 +18,11 @@ public sealed record AutomatedWorkbookOutcome(string ReportCode, string? StoreCo
 
 internal enum AutomationSourceRoute { Processed, Duplicate, Failed, Inbound }
 
-public sealed class AutomatedOperationsService(string connectionString, Action<FolderImportFailure>? reportImportFailure = null)
+/// <summary>A report pack the unattended run could not generate (IE-CODE-09), for the diagnostics log.</summary>
+public sealed record AutomatedReportPackFailure(string RunType, DateOnly BusinessDate, int? SqlErrorNumber, Exception Exception);
+
+public sealed class AutomatedOperationsService(string connectionString, Action<FolderImportFailure>? reportImportFailure = null,
+    Action<AutomatedReportPackFailure>? reportPackFailure = null)
 {
     public async Task<AutomatedOperationsSummary> RunOnceAsync(CancellationToken cancellationToken = default)
     {
@@ -196,11 +200,41 @@ public sealed class AutomatedOperationsService(string connectionString, Action<F
             await repository.RecordAutomationRunAsync(runType, null, "COMBINED", date, "Succeeded", "Combined management pack generated for the configured stores.", started, token);
             return true;
         }
-        catch (Exception)
+        catch (Exception exception) when (!(exception is OperationCanceledException && token.IsCancellationRequested))
         {
-            await repository.RecordAutomationRunAsync(runType, null, "COMBINED", date, "Failed", "Report generation failed; review daily exceptions and application diagnostics.", started, token);
+            // IE-CODE-09. The fixed text used to point at diagnostics nobody wrote. The history row now
+            // carries the classified reason (as the import loop's does) and the exception goes to the
+            // diagnostics sink. Recorded with None: a pack that failed late must still leave its row.
+            Report(new(runType, date, SqlImportFailureClassifier.SqlErrorNumber(exception), exception));
+            await repository.RecordAutomationRunAsync(runType, null, "COMBINED", date, "Failed",
+                PackFailureMessage(exception), started, CancellationToken.None);
             return false;
         }
+    }
+
+    /// <summary>The history row's text for a failed pack: what kind of failure, never exception text.</summary>
+    internal static string PackFailureMessage(Exception exception)
+    {
+        var kind = DatabaseConnectionFailure.Classify(exception);
+        var number = SqlImportFailureClassifier.SqlErrorNumber(exception);
+        var reason = DatabaseConnectionFailure.IsConnectionClass(kind) ? DatabaseConnectionFailure.Describe(kind)!
+            : exception switch
+            {
+                UnauthorizedAccessException => "The report output folder could not be written. Check its permissions.",
+                IOException => "The report file could not be written. Check the report output folder has space and the file is not open elsewhere.",
+                _ when number is not null => "The database refused the report query.",
+                _ => $"An unexpected {exception.GetType().Name} occurred."
+            };
+        var sql = number is { } value ? $" (SQL error {value.ToString(System.Globalization.CultureInfo.InvariantCulture)})" : "";
+        return $"Report generation failed: {reason}{sql} Details are in the application diagnostics log.";
+    }
+
+    private void Report(AutomatedReportPackFailure failure)
+    {
+        if (reportPackFailure is null) return;
+        // A failing sink must never stop the run recording what happened.
+        try { reportPackFailure(failure); }
+        catch (Exception sinkFailure) when (sinkFailure is not OutOfMemoryException) { }
     }
 
     private static void MoveCompletedSource(string source, string destinationRoot)
