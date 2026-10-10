@@ -10,7 +10,7 @@ public sealed class PhaseFiveFriendlyErrorAuditTests(SqlDatabaseFixture db) : IC
     [InlineData(51457, "A balanced, unblocked batch and an approval reason are required.")]
     [InlineData(51431, "Enter a rejection reason of at most 1000 characters.")]
     [InlineData(51220, "Finalise the report generation before preparing accounting.")]
-    [InlineData(51461, "The database rejected this change. Review the inputs and day status.")]
+    [InlineData(51461, "ETP's database refused this action (error 51461). Try again; if it repeats, send the support package (Settings > Database > Support package).")]
     public async Task Business_error_text_is_curated_instead_of_returning_raw_SQL(int number, string expected)
     {
         var error = await ThrowAsync(number, "private database detail, source document or Windows path");
