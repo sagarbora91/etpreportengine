@@ -127,6 +127,9 @@ public sealed class ServicePendingBoardViewTests
         Assert.Equal(["JOAW330SYN0109"], Jobs(new(AgeBand: "16-30")));
         Assert.Equal(["JOAW330SYN0104", "JOAW330SYN0107", "JOAW330SYN0111"], Jobs(new(AgeBand: "31-60")));
         Assert.Equal(["JOAW330SYN0102", "JOAW330SYN0108"], Jobs(new(AgeBand: "8-15")));
+        // R-UI-04: the "Over 15 days" choice is what the Service Today card counts (days since booking > 15).
+        Assert.Equal(["JOAW330SYN0104", "JOAW330SYN0106", "JOAW330SYN0107", "JOAW330SYN0109", "JOAW330SYN0111"],
+            Jobs(new(AgeBand: ServicePendingBoardRules.Over15Days)));
         Assert.Equal(["JOAW330SYN0102", "JOAW330SYN0104", "JOAW330SYN0105", "JOAW330SYN0106", "JOAW330SYN0108", "JOAW330SYN0111"],
             Jobs(new(OverdueOnly: true)));
         Assert.Equal(["JOAW330SYN0103", "JOAW330SYN0107"], Jobs(new(Brand: "sample brand b")));
@@ -230,7 +233,7 @@ public sealed class ServicePendingBoardViewTests
             Assert.Null(view.SelectedBrand);
             Assert.Null(view.SelectedGuarantee);
             var ages = Descendants<ComboBox>(view).Single(combo => System.Windows.Automation.AutomationProperties.GetName(combo) == "Age band (days since booking)");
-            Assert.Equal([ServicePendingBoardView.AllAgesLabel, "0-7 days", "8-15 days", "16-30 days", "31-60 days", "60+ days"], ages.Items.Cast<ServiceListChoice>().Select(choice => choice.Label));
+            Assert.Equal([ServicePendingBoardView.AllAgesLabel, "0-7 days", "8-15 days", "16-30 days", "31-60 days", "60+ days", "Over 15 days"], ages.Items.Cast<ServiceListChoice>().Select(choice => choice.Label));
             Assert.Equal(8, Descendants<CheckBox>(view).Count(box => System.Windows.Automation.AutomationProperties.GetName(box).StartsWith("Stage ", StringComparison.Ordinal)));
         });
     }

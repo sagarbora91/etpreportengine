@@ -461,6 +461,12 @@ public sealed class ServicePartsViewTests
             return Task.FromResult<IReadOnlyList<ServiceJobEvent>>([new(jobOrderNumber, "S009", "Pending repair", ServiceJobEventKind.FirstSeen, Snapshot, null)]);
         }
 
+        public Task<ServiceJobDetail?> LoadJobAsync(string jobOrderNumber, CancellationToken cancellationToken = default)
+        {
+            LastJob = jobOrderNumber;
+            return Task.FromResult<ServiceJobDetail?>(null);
+        }
+
         public Task<IReadOnlyList<ServiceMoneyDay>> LoadMoneyCheckAsync(DateOnly from, DateOnly to, CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<ServiceMoneyDay>>([]);
 

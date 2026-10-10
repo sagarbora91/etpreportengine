@@ -71,7 +71,7 @@ public sealed class ServiceFreshnessStripTests
     {
         var refreshes = new List<ServiceRefresh> { Refresh("S004", new(2026, 10, 3)) };
         foreach (var code in new[] { "S014", "S015", "S016", "S017", "S018", "S031", "S032", "S033", "S034", "S035" })
-            refreshes.Add(Refresh(code, code == "S014" ? new(2026, 9, 29) : new(2026, 10, 3)));
+            refreshes.Add(Refresh(code, code == "S015" ? new(2026, 9, 29) : new(2026, 10, 3)));  // S015 is a daily raw family (S014 is monthly, R-SQL-14)
         var chips = ServiceFreshness.Build(refreshes, Today);
         Assert.Equal(9, chips.Count);
         Assert.Equal("Tests: no export yet", ServiceFreshnessStrip.TextFor(chips.Single(chip => chip.Group == "Tests")));
