@@ -114,7 +114,8 @@ public sealed class ServicePartsViewTests
             Assert.Equal("4 invoices · open first, oldest first.", view.StatusText);
             Assert.Equal(["Invoice", "Invoice date", "GRN", "GRN date", "Items", "Shipped qty", "Received qty", "Net amount", "Status", "Days open", "From location"], view.ColumnHeaders);
 
-            var numbers = Assert.NotNull(view.NumbersShown);
+            Assert.NotNull(view.NumbersShown);
+            var numbers = view.NumbersShown!;
             Assert.Equal(2, numbers.OpenInvoices);
             Assert.Equal(5, Descendants<KpiCard>(view).Count());
 
@@ -286,7 +287,8 @@ public sealed class ServicePartsViewTests
             Assert.Equal("No goods in transit lines in the 30 days to 05 Oct 2026.", view.GitStatusText);
             Assert.Equal("No S006 closing stock reading imported yet.", view.ClosingStockText);
             Assert.Equal("", view.LinesStatusText);
-            var numbers = Assert.NotNull(view.NumbersShown);
+            Assert.NotNull(view.NumbersShown);
+            var numbers = view.NumbersShown!;
             Assert.Equal((0, 0m, (int?)null, (string?)null, 0, 0, 0), (numbers.OpenInvoices, numbers.OpenValue, numbers.OldestOpenDays, numbers.OldestOpenInvoice, numbers.ReceivedThisMonth, numbers.JobsWaitingForParts, numbers.GitLinesLast30Days));
             Assert.Equal(["All months"], view.MonthChoices.Select(choice => choice.Label));
         });
