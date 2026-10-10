@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using Etp.Reporting.Desktop.Modules.Reports;
 using Etp.Reporting.Reporting;
 

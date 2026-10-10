@@ -158,7 +158,7 @@ public static class ReportVisualPresenter
     {
         var panel = new StackPanel { Margin = new Thickness(0, 7, 0, 4) };
         panel.Children.Add(new TextBlock { Text = visual.Title, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 5) });
-        if (visual.Type is ReportVisualType.Line or ReportVisualType.Sparkline)
+        if (visual.Type is ReportVisualType.Line)
         {
             panel.Children.Add(BuildLineVisual(visual));
             AddFootnote(visual, panel);
