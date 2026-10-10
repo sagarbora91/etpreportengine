@@ -11,11 +11,12 @@ public sealed class StartupFailureTests
     [InlineData(18456, "login failed")]
     [InlineData(18452, "login failed")]
     [InlineData(229, "permission denied")]
-    [InlineData(4060, "permission denied")]
-    [InlineData(0, "unreachable")]
+    // 1.9.9: 4060/911 are a missing database and -2 a timeout, as in ConnectionHealth.Classify.
+    [InlineData(4060, "database is not available")]
+    [InlineData(911, "database is not available")]
+    [InlineData(2, "unreachable")]
     [InlineData(258, "unreachable")]
     [InlineData(53, "unreachable")]
-    [InlineData(-2, "unreachable")]
     [InlineData(10061, "unreachable")]
     public void Connection_failures_give_distinct_remedial_messages(int number, string expected)
     {
