@@ -959,7 +959,162 @@ public sealed class BootstrapPrerequisiteTests
         finally { Directory.Delete(root, recursive: true); }
     }
 
-    private static readonly string[] FullMedia = ["SQLEXPR_x64_ENU.exe", "msodbcsql.msi", "msodbcsql17.msi", "MsSqlCmdLnUtils.msi", "SqlLocalDB.msi"];
+    [Fact]
+    public async Task Auto_close_is_turned_off_only_when_it_is_on_and_a_failure_is_logged_without_stopping_setup()
+    {
+        // IE-RT-11 (1.9.9): SQL Server Express creates the database with AUTO_CLOSE ON and
+        // nothing cleared it; Workpc's EtpReporting started up 1,112 times in 30 days. Setup
+        // now turns it off after the migration step, on every run, and only when it is on.
+        var script = FindBootstrapScript().Replace("'", "''");
+        var command = $$"""
+            $ErrorActionPreference = 'Stop'
+            . '{{script}}' -ApplicationDirectory 'C:\UnusedBootstrapTest'
+            # The SQL: quoted name, the ALTER only inside the "is on" branch, never waiting on other sessions.
+            $sql = New-EtpAutoCloseOffSql -Database "Etp]Odd'Name"
+            $parts = @("IF DB_ID(N'Etp]Odd''Name') IS NULL SELECT 'MISSING';", "AND is_auto_close_on=1)", 'BEGIN', "ALTER DATABASE [Etp]]Odd'Name] SET AUTO_CLOSE OFF WITH NO_WAIT;", "THEN 'TURNED_OFF' ELSE 'STILL_ON' END;", 'END', "ELSE SELECT 'ALREADY_OFF';")
+            $at = -1
+            foreach ($part in $parts) { $next = $sql.IndexOf($part, $at + 1, [StringComparison]::Ordinal); if ($next -le $at) { throw "Missing or out of order: $part in $sql" }; $at = $next }
+            if (([regex]::Matches($sql, 'ALTER DATABASE')).Count -ne 1 -or $sql -match 'AUTO_CLOSE ON|SINGLE_USER|ROLLBACK') { throw "The SQL changes more than AUTO_CLOSE: $sql" }
+            # Each answer gives one log line; the query passed is the one above.
+            $global:seen = $null
+            $on = Set-EtpDatabaseAutoCloseOff -Database 'EtpReporting' -Invoke { param($Query) $global:seen = $Query; 'TURNED_OFF' }
+            if ($global:seen -cne (New-EtpAutoCloseOffSql -Database 'EtpReporting')) { throw 'A different query was run.' }
+            if ($on -notlike 'AUTO_CLOSE was ON for EtpReporting*setup turned it OFF*') { throw "On: $on" }
+            $off = Set-EtpDatabaseAutoCloseOff -Database 'EtpReporting' -Invoke { param($Query) "ALREADY_OFF`r`n" }
+            if ($off -cne 'AUTO_CLOSE is already OFF for EtpReporting; nothing was changed.') { throw "Off: $off" }
+            $still = Set-EtpDatabaseAutoCloseOff -Database 'EtpReporting' -ServerInstance '.\SQLEXPRESS' -Invoke { param($Query) 'STILL_ON' }
+            if ($still -notlike "WARNING: *answered 'STILL_ON'*ALTER DATABASE ``[EtpReporting``] SET AUTO_CLOSE OFF*") { throw "Still on: $still" }
+            # A failure is a WARNING line with the manual command, never an exception that would fail setup.
+            $failed = Set-EtpDatabaseAutoCloseOff -Database 'EtpReporting' -Invoke { param($Query) throw 'SQL Server preflight query failed with exit code 1.' }
+            if ($failed -notlike 'WARNING: setup could not check or turn off AUTO_CLOSE for EtpReporting (SQL Server preflight query failed with exit code 1.)*sqlcmd -S ".\SQLEXPRESS" -E -Q*') { throw "Failed: $failed" }
+            # Placement: after the migration step has completed and been checked, logged, at the top level.
+            $tokens = $null; $errors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile('{{script}}', [ref]$tokens, [ref]$errors)
+            $top = @($ast.EndBlock.Statements)
+            $completed = @($top | Where-Object { $_.Extent.Text -eq '$migrationPhaseCompleted = $true' })
+            $step = @($top | Where-Object { $_.Extent.Text -match '^Write-SetupLog \(Set-EtpDatabaseAutoCloseOff -Database \$Database ' })
+            if ($completed.Count -ne 1 -or $step.Count -ne 1 -or $step[0].Extent.StartOffset -lt $completed[0].Extent.EndOffset) { throw 'AUTO_CLOSE is not turned off once, after the migration step.' }
+            Write-Output 'AUTO_CLOSE step passed.'
+            """;
+        var result = await RunPowerShellAsync(["-Command", command]);
+        Assert.True(result.ExitCode == 0, result.Output);
+        Assert.Contains("AUTO_CLOSE step passed.", result.Output);
+    }
+
+    [Fact]
+    public async Task Automation_task_is_registered_disabled_until_the_automation_account_can_open_the_database()
+    {
+        // IE-RT-08 (1.9.9): the 1.9.2 setup on Workpc registered the five-minute task before
+        // EtpAutomation was a Store Manager, and SQL Server logged a failed sign-in every five
+        // minutes. The task is now disabled while the account cannot open the database, with
+        // a log line naming the way to enable it; a state that cannot be read keeps it enabled.
+        var script = FindBootstrapScript().Replace("'", "''");
+        var installer = Path.Combine(Path.GetDirectoryName(FindBootstrapScript())!, "install-etp-automation-task.ps1").Replace("'", "''");
+        var command = $$"""
+            $ErrorActionPreference = 'Stop'
+            . '{{script}}' -ApplicationDirectory 'C:\UnusedBootstrapTest'
+            function Plan($State) {
+                $grant = if ($null -eq $State) { $null } else { [pscustomobject]@{ State = $State; Missing = @() } }
+                Get-EtpAutomationTaskPlan -GrantState $grant -AutomationPrincipal 'TESTPC\EtpAutomation' -Database 'EtpReporting'
+            }
+            $waiting = Plan 'NOT_STORE_MANAGER'
+            if ($waiting.Enabled -ne $false) { throw 'The task is enabled for an account that cannot open the database.' }
+            if ($waiting.Line -notlike '*installed but DISABLED, because TESTPC\EtpAutomation cannot open EtpReporting yet*add TESTPC\EtpAutomation as an active Store Manager in Settings > Users, then run ETP setup again, which enables the task*Enable-ScheduledTask -TaskName ''ETP Reporting Automated Operations''') { throw "Waiting: $($waiting.Line)" }
+            foreach ($state in @('READY', 'GRANTS_MISSING')) {
+                $plan = Plan $state
+                if ($plan.Enabled -ne $true -or $plan.Line -notlike '*installed and enabled; TESTPC\EtpAutomation can open EtpReporting.') { throw "${state}: $($plan.Enabled) $($plan.Line)" }
+            }
+            foreach ($state in @('UNKNOWN', $null, 'ready')) {
+                $plan = Plan $state
+                if ($plan.Enabled -ne $true -or $plan.Line -notlike '*installed and enabled. Setup could not tell whether TESTPC\EtpAutomation can open EtpReporting*') { throw "Unreadable state '$state': $($plan.Enabled) $($plan.Line)" }
+            }
+            # The bootstrap: the plan is made after the grants step (which can make the account ready)
+            # and decides the -Disabled switch of the one automation-task install, whose line is logged.
+            $tokens = $null; $errors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile('{{script}}', [ref]$tokens, [ref]$errors)
+            $top = @($ast.EndBlock.Statements)
+            $grants = @($top | Where-Object { $_.Extent.Text -match '^foreach \(\$line in @\(Complete-EtpAutomationGrants ' })
+            $plan = @($top | Where-Object { $_ -is [System.Management.Automation.Language.AssignmentStatementAst] -and $_.Left.Extent.Text -eq '$automationTaskPlan' -and $_.Right.Extent.Text -match '^Get-EtpAutomationTaskPlan -GrantState \$automationGrantState ' })
+            $installs = @($ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.CommandAst] -and $node.InvocationOperator -eq 'Ampersand' -and $node.Extent.Text -match 'install-etp-automation-task\.ps1' }, $true))
+            $logged = @($top | Where-Object { $_.Extent.Text -eq 'Write-SetupLog $automationTaskPlan.Line' })
+            if ($grants.Count -ne 1 -or $plan.Count -ne 1 -or $installs.Count -ne 1 -or $logged.Count -ne 1) { throw "Steps: grants $($grants.Count), plan $($plan.Count), installs $($installs.Count), logged $($logged.Count)" }
+            if ($installs[0].Extent.Text -notmatch '-Disabled:\(-not \$automationTaskPlan\.Enabled\)$') { throw "Install: $($installs[0].Extent.Text)" }
+            if ($plan[0].Extent.StartOffset -lt $grants[0].Extent.EndOffset -or $installs[0].Extent.StartOffset -lt $plan[0].Extent.EndOffset -or $logged[0].Extent.StartOffset -lt $installs[0].Extent.EndOffset) { throw 'Grants, plan, install and log line are out of order.' }
+            # The task script: -Disabled is a switch, off by default; the task is disabled only
+            # with it, after the usual registration and its checks, and the result is verified.
+            $taskAst = [System.Management.Automation.Language.Parser]::ParseFile('{{installer}}', [ref]$tokens, [ref]$errors)
+            if (@($errors).Count -ne 0) { throw 'install-etp-automation-task.ps1 does not parse.' }
+            $switch = @($taskAst.ParamBlock.Parameters | Where-Object { $_.Name.VariablePath.UserPath -eq 'Disabled' })
+            if ($switch.Count -ne 1 -or $switch[0].StaticType -ne [switch] -or $null -ne $switch[0].DefaultValue) { throw 'Disabled is not a plain switch.' }
+            $register = @($taskAst.FindAll({ param($node) $node -is [System.Management.Automation.Language.CommandAst] -and $node.GetCommandName() -eq 'Register-EtpScheduledOperation' }, $true))
+            $disable = @($taskAst.FindAll({ param($node) $node -is [System.Management.Automation.Language.CommandAst] -and $node.GetCommandName() -eq 'Disable-ScheduledTask' }, $true))
+            $branch = @($taskAst.EndBlock.Statements | Where-Object { $_ -is [System.Management.Automation.Language.IfStatementAst] -and $_.Clauses[0].Item1.Extent.Text -eq '$Disabled' })
+            if ($register.Count -ne 1 -or $disable.Count -ne 1 -or $branch.Count -ne 1) { throw 'Expected one registration, one disable, one -Disabled branch.' }
+            if ($disable[0].Extent.StartOffset -lt $branch[0].Clauses[0].Item2.Extent.StartOffset -or $disable[0].Extent.EndOffset -gt $branch[0].Clauses[0].Item2.Extent.EndOffset) { throw 'The task is disabled outside the -Disabled branch.' }
+            if ($disable[0].Extent.StartOffset -lt $register[0].Extent.EndOffset) { throw 'The task is disabled before it is registered.' }
+            if ($branch[0].Clauses[0].Item2.Extent.Text -notmatch "\.State -ne 'Disabled'\) \{ throw ") { throw 'The disabled state is not verified.' }
+            Write-Output 'Automation task plan passed.'
+            """;
+        var result = await RunPowerShellAsync(["-Command", command]);
+        Assert.True(result.ExitCode == 0, result.Output);
+        Assert.Contains("Automation task plan passed.", result.Output);
+    }
+
+    [Fact]
+    public async Task Headless_application_stderr_goes_into_the_setup_log_and_a_failure_names_the_reason()
+    {
+        // IE-CODE-05 (1.9.9): setup started the application hidden with Start-Process, which
+        // keeps no stream, so a refused upgrade left only "failed with exit code 1". A real
+        // child process (cmd.exe) stands in for the application here.
+        var script = FindBootstrapScript().Replace("'", "''");
+        var command = $$"""
+            $ErrorActionPreference = 'Stop'
+            . '{{script}}' -ApplicationDirectory 'C:\UnusedBootstrapTest'
+            $cmd = Join-Path $env:SystemRoot 'System32\cmd.exe'
+            $global:log = [Collections.Generic.List[string]]::new()
+            $logger = { param([string]$Message) $global:log.Add($Message) }
+            # Refused: exit 3 with two reason lines on stderr, and a line on stdout that is not captured.
+            $refused = Invoke-EtpHeadlessApplication -FilePath $cmd -Argument '/c "echo stdout line& echo Database update refused (SQL 51240): the day is finalised. 1>&2& echo Second line 1>&2& exit /b 3"'
+            if ($refused.ExitCode -ne 3) { throw "Exit code: $($refused.ExitCode)" }
+            if ($refused.ErrorText -like '*stdout line*') { throw 'stdout was captured as the reason.' }
+            $failure = $null
+            try { Assert-EtpHeadlessStepSucceeded -Result $refused -Step 'Configured database migration' -Log $logger } catch { $failure = $_.Exception.Message }
+            if (($global:log -join '|') -cne 'The application reported: Database update refused (SQL 51240): the day is finalised.|The application reported: Second line') { throw "Logged: $($global:log -join ' / ')" }
+            if ($failure -cne 'Configured database migration failed with exit code 3. The application reported: Database update refused (SQL 51240): the day is finalised. (Everything it reported is in the lines above.)') { throw "Failure: $failure" }
+            # Silent failure: says so, and where the diagnostics entry is.
+            $global:log.Clear(); $failure = $null
+            $silent = Invoke-EtpHeadlessApplication -FilePath $cmd -Argument '/c exit /b 1'
+            try { Assert-EtpHeadlessStepSucceeded -Result $silent -Step 'Configured database migration' -Log $logger } catch { $failure = $_.Exception.Message }
+            if ($global:log.Count -ne 0 -or $failure -notlike 'Configured database migration failed with exit code 1, and the application reported no reason.*%LOCALAPPDATA%\EtpReporting\Logs*') { throw "Silent: $failure" }
+            # Success with something on stderr: kept in the log, no failure.
+            $global:log.Clear()
+            $warned = Invoke-EtpHeadlessApplication -FilePath $cmd -Argument '/c "echo A note 1>&2& exit /b 0"'
+            Assert-EtpHeadlessStepSucceeded -Result $warned -Step 'Configured database migration' -Log $logger
+            if (($global:log -join '|') -cne 'The application reported: A note') { throw "Success log: $($global:log -join ' / ')" }
+            # Unbounded output is cut, blank lines dropped.
+            $many = (1..45 | ForEach-Object { "line $_" }) -join "`r`n`r`n"
+            $lines = @(ConvertTo-EtpApplicationReportLines -Text $many)
+            if ($lines.Count -ne 41 -or $lines[0] -cne 'The application reported: line 1' -or $lines[39] -cne 'The application reported: line 40' -or $lines[40] -cne 'The application reported 5 more line(s), not logged.') { throw "Cut: $($lines.Count) $($lines[40])" }
+            $long = @(ConvertTo-EtpApplicationReportLines -Text ('x' * 2500))
+            if ($long.Count -ne 1 -or $long[0].Length -ne ('The application reported: '.Length + 2000 + ' (cut)'.Length)) { throw 'A long line was not cut.' }
+            if (@(ConvertTo-EtpApplicationReportLines -Text $null).Count -ne 0 -or @(ConvertTo-EtpApplicationReportLines -Text " `r`n ").Count -ne 0) { throw 'Blank stderr produced lines.' }
+            # The migration step uses it: no hidden Start-Process for the application any more.
+            $tokens = $null; $errors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile('{{script}}', [ref]$tokens, [ref]$errors)
+            $top = @($ast.EndBlock.Statements)
+            $run = @($top | Where-Object { $_.Extent.Text -eq '$migrationRun = Invoke-EtpHeadlessApplication -FilePath $application -Argument ''--initialize-configured-database''' })
+            $check = @($top | Where-Object { $_.Extent.Text -match '^Assert-EtpHeadlessStepSucceeded -Result \$migrationRun -Step ''Configured database migration'' -Log \{ param\(\[string\]\$Message\) Write-SetupLog \$Message \}$' })
+            if ($run.Count -ne 1 -or $check.Count -ne 1 -or $check[0].Extent.StartOffset -lt $run[0].Extent.EndOffset) { throw 'The migration step does not run through the stderr capture.' }
+            $hidden = @($ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.CommandAst] -and $node.GetCommandName() -eq 'Start-Process' -and $node.Extent.Text -match '\$application' }, $true))
+            if ($hidden.Count -ne 0) { throw 'The application is still started with Start-Process.' }
+            Write-Output 'Headless stderr capture passed.'
+            """;
+        var result = await RunPowerShellAsync(["-Command", command]);
+        Assert.True(result.ExitCode == 0, result.Output);
+        Assert.Contains("Headless stderr capture passed.", result.Output);
+    }
+
+    private static readonly string[] FullMedia =["SQLEXPR_x64_ENU.exe", "msodbcsql.msi", "msodbcsql17.msi", "MsSqlCmdLnUtils.msi", "SqlLocalDB.msi"];
 
     private static string NewPayload(string[] names)
     {
