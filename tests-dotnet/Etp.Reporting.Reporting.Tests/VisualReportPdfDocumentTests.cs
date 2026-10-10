@@ -23,7 +23,7 @@ public sealed class VisualReportPdfDocumentTests
                 .Select(c => c % 2 == 0 ? (object?)(r * c * 1000.25m) : $"Text {r}-{c}").ToArray()).ToArray();
             var model = VisualReportComposer.Compose(
                 new("Wide grid report", new(2026, 7, 1), new(2026, 8, 25), "Passed", "test", "Synthetic only", DateTimeOffset.UtcNow, "Stores: WLMHW, HEMW"),
-                new(columns, rows, Enumerable.Range(1, 40).Select(c => c == 1 ? "Total" : c % 2 == 0 ? (object?)15m * c * 1000.25m : "").ToArray()));
+                new(columns, rows, Enumerable.Range(1, 40).Select(c => c == 1 ? "Total" : c % 2 == 0 ? (object?)(15m * c * 1000.25m) : "").ToArray()));
 
             new SimplePdfVisualReportExporter().Export(path, model);
 
@@ -74,11 +74,17 @@ public sealed class VisualReportPdfDocumentTests
                 Assert.Contains("Net Sales", text, StringComparison.Ordinal);
                 Assert.Contains("Detailed Data - section 1 of 1", text, StringComparison.Ordinal);
             }
-            var last = PageText(pdf.Pages[pdf.PageCount - 1]);
+            // Every row is printed, in order from the first page, and the total closes the last page (it may sit there alone).
+            var pages = Enumerable.Range(0, pdf.PageCount).Select(i => PageText(pdf.Pages[i])).ToArray();
+            int PageOf(string item) => Array.FindIndex(pages, page => System.Text.RegularExpressions.Regex.IsMatch(page, $@"\b{item}\b"));
+            var itemPages = Enumerable.Range(1, 400).Select(i => PageOf($"Item {i}")).ToArray();
+            Assert.All(itemPages, page => Assert.True(page >= 0));
+            Assert.Equal(itemPages.Order(), itemPages);
+            Assert.Equal(0, itemPages[0]);
+            var last = pages[^1];
             Assert.Contains("Total", last, StringComparison.Ordinal);
             Assert.Contains("94,63,600.00", last, StringComparison.Ordinal);
-            Assert.Contains("Item 400", last, StringComparison.Ordinal);
-            Assert.Contains("Item 1", PageText(pdf.Pages[0]), StringComparison.Ordinal);
+            Assert.True(itemPages[^1] >= pdf.PageCount - 2, "The last row is on the last page or the one before the total.");
         }
         finally { if (File.Exists(path)) File.Delete(path); }
     }
