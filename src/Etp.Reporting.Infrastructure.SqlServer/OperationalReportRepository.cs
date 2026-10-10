@@ -259,37 +259,41 @@ public sealed partial class OperationalReportRepository(string connectionString)
         return rows;
     }
 
+    // R013 rows are paired with lines by occurrence (EnrichmentOccurrencePairing), so a line has at most one.
+    // Brand (column 5) is the owner's brand row by the DSR rule, "Unmapped: <export brand>" otherwise (1.9.8, RA-SALES-04);
+    // the row is a lookup, never a filter, so an unmapped line stays in the drill-down.
+    internal const string InvoiceLineageSql = $"""
+        SELECT i.transaction_date,i.store_code,i.document_number,l.line_identifier,l.product_code,
+               {BrandRowSql.BrandRowOrUnmappedOfL},l.brand_segment,l.source_transaction_type,
+               l.source_quantity,l.source_gross_amount,cro.source_cro_number,f.original_file_name,s.sheet_name,s.source_row_number
+        FROM dbo.sales_lines l
+        JOIN dbo.sales_invoices i ON i.sales_invoice_id=l.sales_invoice_id
+        JOIN dbo.source_lineage s ON s.source_lineage_id=l.source_lineage_id
+        JOIN dbo.import_files f ON f.import_file_id=s.import_file_id
+        {BrandRowSql.MappedRowOfL}
+        OUTER APPLY
+        (
+          SELECT TOP(1) e.source_cro_number
+          FROM {EnrichmentOccurrencePairing.EffectiveEnrichments} e
+          WHERE e.enrichment_type='R013' AND e.store_code=i.store_code AND e.transaction_date=i.transaction_date
+            AND e.document_number=i.document_number AND e.product_code=l.product_code
+            AND e.effective_match_status='Matched' AND e.effective_sales_line_id=l.sales_line_id
+        ) cro
+        WHERE i.transaction_date BETWEEN @from AND @to
+          AND (@stores IS NULL OR i.store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores)))
+          AND (@segments IS NULL OR l.brand_segment IN(SELECT CONVERT(nvarchar(100),[value]) FROM OPENJSON(@segments)))
+          AND (@types IS NULL OR l.source_transaction_type IN(SELECT CONVERT(nvarchar(80),[value]) FROM OPENJSON(@types)))
+          AND (@items IS NULL OR l.product_code IN(SELECT CONVERT(nvarchar(80),[value]) FROM OPENJSON(@items)))
+        ORDER BY i.transaction_date,i.store_code,i.document_number,l.line_identifier;
+        """;
+
     public async Task<IReadOnlyList<InvoiceSalesLineageRow>> LoadInvoiceLineageAsync(
         ReportingQueryScope scope,
         CancellationToken cancellationToken = default)
     {
         scope.Validate();
-        // R013 rows are paired with lines by occurrence (EnrichmentOccurrencePairing), so a line has at most one.
-        const string sql = $"""
-            SELECT i.transaction_date,i.store_code,i.document_number,l.line_identifier,l.product_code,
-                   COALESCE(l.source_brand_name,l.source_brand_code),l.brand_segment,l.source_transaction_type,
-                   l.source_quantity,l.source_gross_amount,cro.source_cro_number,f.original_file_name,s.sheet_name,s.source_row_number
-            FROM dbo.sales_lines l
-            JOIN dbo.sales_invoices i ON i.sales_invoice_id=l.sales_invoice_id
-            JOIN dbo.source_lineage s ON s.source_lineage_id=l.source_lineage_id
-            JOIN dbo.import_files f ON f.import_file_id=s.import_file_id
-            OUTER APPLY
-            (
-              SELECT TOP(1) e.source_cro_number
-              FROM {EnrichmentOccurrencePairing.EffectiveEnrichments} e
-              WHERE e.enrichment_type='R013' AND e.store_code=i.store_code AND e.transaction_date=i.transaction_date
-                AND e.document_number=i.document_number AND e.product_code=l.product_code
-                AND e.effective_match_status='Matched' AND e.effective_sales_line_id=l.sales_line_id
-            ) cro
-            WHERE i.transaction_date BETWEEN @from AND @to
-              AND (@stores IS NULL OR i.store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores)))
-              AND (@segments IS NULL OR l.brand_segment IN(SELECT CONVERT(nvarchar(100),[value]) FROM OPENJSON(@segments)))
-              AND (@types IS NULL OR l.source_transaction_type IN(SELECT CONVERT(nvarchar(80),[value]) FROM OPENJSON(@types)))
-              AND (@items IS NULL OR l.product_code IN(SELECT CONVERT(nvarchar(80),[value]) FROM OPENJSON(@items)))
-            ORDER BY i.transaction_date,i.store_code,i.document_number,l.line_identifier;
-            """;
         await using var connection = await OpenAsync(cancellationToken);
-        await using var command = ScopeCommand(connection, sql, scope);
+        await using var command = ScopeCommand(connection, InvoiceLineageSql, scope);
         command.Parameters.AddWithValue("@segments", Json(scope.BrandSegments));
         command.Parameters.AddWithValue("@types", Json(scope.TransactionTypes));
         command.Parameters.AddWithValue("@items", Json(scope.ItemCodes));
