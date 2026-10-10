@@ -1557,3 +1557,86 @@ function Invoke-EtpOwnerGrantOptionAsSystem {
     $result.Message = Format-EtpOwnerGrantMessage -Result $result
     return $result
 }
+
+# 1.9.9 (IE-CODE-01, IE-CODE-10). Backup now and Recovery drill now showed only "Check its
+# prerequisites and protected operations log" - no such log existed - and the scheduled
+# backup and drill tasks left nothing but Task Scheduler's "last result 0x1". The scripts now
+# keep a dated failure log beside the backups and tell the application, on lines of their own,
+# what failed and where it was recorded. PowerShell wraps an error record at 120 characters
+# when its output is redirected, so the application reads these lines rather than the record.
+$EtpOperationFailureLogRetentionDays = 180
+
+function ConvertTo-EtpOperationLine {
+    # One line, no control characters, at most 2,000 characters.
+    param([AllowNull()][string]$Text)
+    if ([string]::IsNullOrWhiteSpace($Text)) { return '' }
+    $line = ([regex]::Replace($Text, '[\x00-\x1F\x7F]+', ' ')).Trim()
+    $line = [regex]::Replace($line, ' {2,}', ' ')
+    if ($line.Length -gt 2000) { $line = $line.Substring(0, 2000) }
+    return $line
+}
+
+function Write-EtpOperationFailureLog {
+    # Appends one line to <backup folder>\Logs\<operation>-yyyyMMdd.log and returns that path,
+    # or $null when it could not be written. Best effort: it never throws, so it can never
+    # replace the failure being reported. The log is for an administrator, like setup's: it
+    # keeps what SQL Server reported (Data['EtpSqlDetail']), which the application never shows.
+    param(
+        [Parameter(Mandatory)][ValidateSet('backup','recovery-drill')][string]$Operation,
+        [AllowNull()][string]$BackupDirectory,
+        [AllowNull()]$ErrorRecord,
+        [AllowNull()][string]$Explained,
+        [AllowNull()][string]$Context,
+        [Nullable[datetime]]$Now
+    )
+    try {
+        $timestamp = if ($null -ne $Now) { [datetime]$Now } else { [datetime]::Now }
+        if ([string]::IsNullOrWhiteSpace($BackupDirectory)) { return $null }
+        $root = [IO.Path]::GetFullPath($BackupDirectory)
+        # Only into a backup folder that already exists: setup creates and protects it, and a
+        # folder created here would not be protected.
+        if (-not (Test-Path -LiteralPath $root -PathType Container)) { return $null }
+        $logs = Join-Path $root 'Logs'
+        Assert-EtpNoLinks $logs
+        if (-not (Test-Path -LiteralPath $logs -PathType Container)) { New-Item -ItemType Directory -Path $logs | Out-Null }
+        $path = Join-Path $logs ("$Operation-" + $timestamp.ToString('yyyyMMdd', [Globalization.CultureInfo]::InvariantCulture) + '.log')
+        $exception = if ($null -ne $ErrorRecord -and $null -ne $ErrorRecord.PSObject.Properties['Exception']) { $ErrorRecord.Exception } else { $null }
+        $account = 'unknown'
+        try { $account = [Security.Principal.WindowsIdentity]::GetCurrent().Name } catch { }
+        $text = "$($timestamp.ToString('o', [Globalization.CultureInfo]::InvariantCulture)) FAILED $Operation as $account"
+        if ($Context) { $text += " ($Context)" }
+        $text += ': ' + (ConvertTo-EtpOperationLine (Format-EtpFailureForLog $exception))
+        if ($Explained) { $text += ' | Shown as: ' + (ConvertTo-EtpOperationLine $Explained) }
+        if ($null -ne $exception) { $text += ' | ' + $exception.GetType().FullName }
+        if ($null -ne $ErrorRecord -and $null -ne $ErrorRecord.PSObject.Properties['InvocationInfo'] -and $null -ne $ErrorRecord.InvocationInfo -and $ErrorRecord.InvocationInfo.ScriptName) {
+            $text += " at $([IO.Path]::GetFileName($ErrorRecord.InvocationInfo.ScriptName)):$($ErrorRecord.InvocationInfo.ScriptLineNumber)"
+        }
+        Add-Content -LiteralPath $path -Value $text -Encoding UTF8
+        $cutoff = $timestamp.AddDays(-$EtpOperationFailureLogRetentionDays)
+        foreach ($old in @(Get-ChildItem -LiteralPath $logs -Filter "$Operation-*.log" -File | Where-Object { $_.Name -match '^[a-z-]+-\d{8}\.log$' -and $_.LastWriteTime -lt $cutoff })) {
+            try { Remove-Item -LiteralPath $old.FullName -Force } catch { }
+        }
+        return $path
+    }
+    catch { return $null }
+}
+
+function Write-EtpOperationFailure {
+    # The reason the application shows (ETP_FAILURE) and where the failure was logged
+    # (ETP_LOG). Written straight to the process's error stream, so a script that runs this one
+    # in its own session (setup's pre-migration backup) gets nothing new in its pipeline.
+    param([AllowNull()][string]$Message,[AllowNull()][string]$LogPath)
+    try {
+        [Console]::Error.WriteLine('ETP_FAILURE:' + (ConvertTo-EtpOperationLine $Message))
+        if ($LogPath) { [Console]::Error.WriteLine('ETP_LOG:' + (ConvertTo-EtpOperationLine $LogPath)) }
+    }
+    catch { }
+}
+
+function Write-EtpOperationNotice {
+    # A warning the application adds to its success message (ETP_NOTICE). Write-Warning output
+    # is wrapped at 120 characters when redirected and cannot be read back reliably.
+    param([AllowNull()][string]$Message)
+    Write-Warning $Message
+    try { [Console]::Out.WriteLine('ETP_NOTICE:' + (ConvertTo-EtpOperationLine $Message)) } catch { }
+}
