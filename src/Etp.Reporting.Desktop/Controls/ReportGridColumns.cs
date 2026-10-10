@@ -23,7 +23,7 @@ public static class ReportGridColumns
     {
         [typeof(SalesSummaryRecord)] =
         [
-            new("Key", "Group"), new("SourceSignedQuantity", "Units"), new("SourceSignedNetAmount", "Net Sales", true),
+            new("Key", "Group"), new("SourceSignedQuantity", "Units"), new("SourceSignedNetAmount", Modules.Reports.ReportsWorkspaceView.SalesHeader, true),
             new("Invoices", Modules.Reports.ReportsWorkspaceView.InvoicesHeader), new("Returns", Modules.Reports.ReportsWorkspaceView.ReturnsHeader)
         ],
         [typeof(InvoiceSummaryRecord)] =
@@ -99,7 +99,7 @@ public static class ReportGridColumns
         ],
         [typeof(ManagementTrendRecord)] =
         [
-            new("BusinessDate", "Date"), new("StoreCode", "Store"), new("NetSales", "Net Sales", true), new("Units", "Units"),
+            new("BusinessDate", "Date"), new("StoreCode", "Store"), new("NetSales", Modules.Reports.ReportsWorkspaceView.SalesHeader, true), new("Units", "Units"),
             new("Invoices", Modules.Reports.ReportsWorkspaceView.InvoicesHeader), new("Returns", Modules.Reports.ReportsWorkspaceView.ReturnsHeader),
             new("TenderVariance", "Tender Variance", true), new("TenderSource", "Tender Source"), new("UnmatchedEnrichmentRows", "Unmatched Staff Rows")
         ]

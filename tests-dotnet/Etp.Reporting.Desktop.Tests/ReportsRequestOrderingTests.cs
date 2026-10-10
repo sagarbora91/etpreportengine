@@ -49,7 +49,7 @@ public sealed class ReportsRequestOrderingTests
 
             var data = Assert.Single(previews).ExportData!;
             // Owner decision 13 Q6 (L9): INV-only Invoices plus a separate Returns count replace L5's interim "Documents (incl. returns)".
-            Assert.Equal(["Date", "Store", "Net Sales", "Units", "Invoices", "Returns", "Tender Variance", "Tender Source", "Unmatched Staff Rows"], data.Columns.Select(x => x.Header));
+            Assert.Equal(["Date", "Store", "Sales incl. GST", "Units", "Invoices", "Returns", "Tender Variance", "Tender Source", "Unmatched Staff Rows"], data.Columns.Select(x => x.Header));
             Assert.Equal(1, data.Rows[0][5]);
             Assert.Null(data.Rows[0][6]);
             Assert.Equal(ManagementTrendTenderSource.Missing, data.Rows[0][7]);

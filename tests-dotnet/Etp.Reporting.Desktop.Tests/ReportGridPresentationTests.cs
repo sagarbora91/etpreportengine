@@ -150,8 +150,8 @@ public sealed class ReportGridPresentationTests
         });
     }
 
+    // RA-SALES-09 (1.9.9): sales-store no longer prompts on All stores; it runs for the first active store (PolishUiStatusTests).
     [Theory]
-    [InlineData("sales-store")]
     [InlineData("stock-physical")]
     [InlineData("exceptions")]
     [InlineData("cash")]
