@@ -250,6 +250,9 @@ public static class DesktopFriendlyError
         (51458, null, "Invoice reservations are controlled by the accounting batch status."),
         (51459, null, "Accounting export receipts cannot be changed or deleted."),
         (51460, null, "Set the intended TEST Tally company in Settings and refresh before approving or exporting (D12/D18)."),
+        // 1.10.0 (Tally PR #3): a day goes to Tally either as a day journal or as invoice vouchers, never both.
+        (51571, "This day is already in day-journal batch", "This day is already in a day-journal accounting batch. A day goes to Tally either as a day journal or as invoice vouchers: reject that batch on the accounting screen first if it has not been exported, then prepare the vouchers again."),
+        (51571, null, "This batch holds Tally vouchers, one per invoice. Write it from Settings > Accounting > Tally vouchers; the day-journal export does not take it."),
         (51579, null, "This Tally step does not match its batch or Tally company. Refresh the accounting screen and try again."),
 
         // Backups, recovery drill and operations

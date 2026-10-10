@@ -35,6 +35,16 @@ public sealed class ProductSqlErrorMessageTests
         }
     }
 
+    [Fact]
+    public void Tally_day_journal_or_vouchers_refusal_51571_reads_by_its_two_wordings()
+    {
+        // 1.10.0: Tally PR #3 throws 51571 from the voucher save and from the day-journal export.
+        Assert.StartsWith("This day is already in a day-journal accounting batch.",
+            Describe(51571, "This day is already in day-journal batch 12. A day goes to Tally either as a day journal or as invoice vouchers"), StringComparison.Ordinal);
+        Assert.StartsWith("This batch holds Tally vouchers",
+            Describe(51571, "This batch holds Tally vouchers, one per invoice. They are written by the Tally file step, not as a day journal."), StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData(51020)]
     [InlineData(51021)]
