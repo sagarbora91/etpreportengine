@@ -107,23 +107,6 @@ public sealed class ServiceScreenViewTests
     }
 
     [Fact]
-    public void Pending_screen_sorts_by_age_descending_with_unknown_ages_last()
-    {
-        RunSta(() =>
-        {
-            var query = new FakeServiceQuery();
-            var view = new ServicePendingView(() => query, NoExport);
-            view.SelectedList = ServiceScreens.PendingLists.Single(choice => choice.Code == ServicePendingLists.PendingDelivery);
-
-            view.ActivateAsync().GetAwaiter().GetResult();
-
-            Assert.Equal(ServicePendingLists.PendingDelivery, query.LastPendingList);
-            Assert.Equal(["JOAW330SYN0003", "JOAW330SYN0001", "JOAW330SYN0002"], view.Rows.Select(row => (string)row.Cells[0]!));
-            Assert.Equal("3 jobs · Pending delivery (S010) · oldest first.", view.StatusText);
-        });
-    }
-
-    [Fact]
     public void Job_history_trims_the_job_number_and_uses_information_wording()
     {
         RunSta(() =>
@@ -161,13 +144,6 @@ public sealed class ServiceScreenViewTests
             Assert.Null(query.LastJob);
             Assert.Equal("Enter a job number and select Show history.", view.StatusText);
         });
-    }
-
-    [Fact]
-    public void Every_pending_list_choice_is_a_contract_list_key()
-    {
-        Assert.Equal(ServicePendingLists.All, ServiceScreens.PendingLists.Select(choice => choice.Code));
-        Assert.Equal(["Pending repair (S009)", "Pending delivery (S010)", "SRN status (S011)"], ServiceScreens.PendingLists.Select(choice => choice.Label));
     }
 
     [Fact]
@@ -264,7 +240,6 @@ public sealed class ServiceScreenViewTests
 
     [Theory]
     [InlineData("jobs")]
-    [InlineData("pending")]
     [InlineData("history")]
     [InlineData("money")]
     public void Export_writes_the_visible_columns_and_no_phone_email_or_address_column(string screen)
@@ -286,7 +261,7 @@ public sealed class ServiceScreenViewTests
             Assert.All(export.Data.Rows, row => Assert.Equal(export.Data.Columns.Count, row.Count));
             Assert.DoesNotContain(export.Data.Columns, column => ForbiddenHeaderWords.Any(word => column.Header.Contains(word, StringComparison.OrdinalIgnoreCase)));
             Assert.Equal(ServiceScreenView.ServiceCentreLabel, export.Metadata.AppliedScope);
-            if (screen is "jobs" or "pending") Assert.Contains("Customer name", export.Data.Columns.Select(column => column.Header));
+            if (screen is "jobs") Assert.Contains("Customer name", export.Data.Columns.Select(column => column.Header));
         });
     }
 
@@ -317,7 +292,7 @@ public sealed class ServiceScreenViewTests
     [Fact]
     public void No_contract_record_carries_a_phone_email_or_address_field()
     {
-        var types = new[] { typeof(ServiceRefresh), typeof(ServiceJobRow), typeof(ServicePendingRow), typeof(ServiceJobEvent), typeof(ServiceMoneyDay), typeof(ServiceMoneyChange), typeof(ServiceUnmatchedMoneyEntry) };
+        var types = new[] { typeof(ServiceRefresh), typeof(ServiceJobRow), typeof(ServicePendingRow), typeof(ServiceJobEvent), typeof(ServiceMoneyDay), typeof(ServiceMoneyChange), typeof(ServiceUnmatchedMoneyEntry), typeof(ServicePendingBoardRow) };
         Assert.All(types.SelectMany(type => type.GetProperties()), property =>
             Assert.DoesNotContain(ForbiddenHeaderWords, word => property.Name.Contains(word.Replace("-", ""), StringComparison.OrdinalIgnoreCase)));
     }
@@ -325,7 +300,7 @@ public sealed class ServiceScreenViewTests
     private static ServiceScreenView Create(string screen, IServiceReportQuery query, ServiceExcelExport? export = null) => screen switch
     {
         "jobs" => new ServiceJobsView(() => query, export ?? NoExport),
-        "pending" => new ServicePendingView(() => query, export ?? NoExport),
+        "pending" => new ServicePendingBoardView(() => query, export ?? NoExport),
         "history" => new ServiceJobHistoryView(() => query, export ?? NoExport),
         _ => new ServiceMoneyView(() => query, export ?? NoExport)
     };

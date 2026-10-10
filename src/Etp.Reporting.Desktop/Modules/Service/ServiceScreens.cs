@@ -1,7 +1,6 @@
 extern alias EtpApplication;
 
 using System.Windows.Controls;
-using ServicePendingLists = EtpApplication::Etp.Reporting.Application.Service.ServicePendingLists;
 using ServiceReportQuery = EtpApplication::Etp.Reporting.Application.Service.IServiceReportQuery;
 
 namespace Etp.Reporting.Desktop.Modules.Service;
@@ -34,30 +33,35 @@ public static class ServiceScreens
     ];
 
     /// <summary>
-    /// The pending lists. The code is the contract list key (ServicePendingLists, as
-    /// ServiceInterimFamilies.PendingLists maps S009/S010/S011), which is what
-    /// IServiceReportQuery.LoadPendingAsync takes; the report code stays in the label only.
-    /// </summary>
-    public static IReadOnlyList<ServiceListChoice> PendingLists { get; } =
-    [
-        new(ServicePendingLists.PendingRepair, "Pending repair (S009)"),
-        new(ServicePendingLists.PendingDelivery, "Pending delivery (S010)"),
-        new(ServicePendingLists.SrnStatus, "SRN status (S011)")
-    ];
-
-    /// <summary>
     /// A query factory for a build whose composition root has no Service read model. The screens
     /// then show this message through DesktopFriendlyError instead of failing to open.
     /// </summary>
     public static ServiceReportQuery Unavailable() =>
         throw new InvalidOperationException("The Service read model is not available in this build.");
 
-    public static UserControl Create(string taskId, Func<ServiceReportQuery> query, ServiceExcelExport export)
+    /// <summary>
+    /// Opens another Service task from a screen (drill-down): the Pending board opens Job history with the job's number.
+    /// The shell supplies it (TaskNavigator); a screen built without one shows no drill-down.
+    /// </summary>
+    public delegate void ServiceTaskNavigate(string taskId, string? jobOrderNumber);
+
+    /// <summary>
+    /// After the shell has navigated to <see cref="JobHistoryTask"/>, shows the job the drill-down asked for.
+    /// Kept here so the shell needs no knowledge of the history screen's members.
+    /// </summary>
+    public static void ShowJob(object? view, string jobOrderNumber)
+    {
+        if (view is not ServiceJobHistoryView history || string.IsNullOrWhiteSpace(jobOrderNumber)) return;
+        history.JobNumber = jobOrderNumber;
+        _ = history.ActivateAsync();
+    }
+
+    public static UserControl Create(string taskId, Func<ServiceReportQuery> query, ServiceExcelExport export, ServiceTaskNavigate? navigate = null)
     {
         ServiceScreenView view = taskId switch
         {
             JobsTask => new ServiceJobsView(query, export),
-            PendingTask => new ServicePendingView(query, export),
+            PendingTask => new ServicePendingBoardView(query, export, openJob: navigate is null ? null : job => navigate(JobHistoryTask, job)),
             JobHistoryTask => new ServiceJobHistoryView(query, export),
             MoneyTask => new ServiceMoneyView(query, export),
             _ => throw new ArgumentOutOfRangeException(nameof(taskId), taskId, "Not a Service centre task.")
