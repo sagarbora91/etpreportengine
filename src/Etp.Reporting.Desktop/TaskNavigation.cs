@@ -28,7 +28,7 @@ public sealed record TaskDestination(string Id, string Title, string Module, str
 public static class TaskNavigation
 {
     public static TaskDestination? Find(string? id) => All.FirstOrDefault(x => x.Id == id);
-    public static IReadOnlyList<string> Sections { get; } = ["Today", "Import", "Reports", "Stock", "Settings"];
+    public static IReadOnlyList<string> Sections { get; } = ["Today", "Import", "Reports", "Stock", "Service", "Settings"];
     public static IReadOnlyList<TaskDestination> All { get; } = Build();
     public static IReadOnlyList<TaskDestination> InSection(string section, ShellAccess access) => All.Where(t => t.Rail == section && t.IsAllowed(access)).ToArray();
 
@@ -105,11 +105,16 @@ public static class TaskNavigation
         Add("reports-list", "All reports", "Reports", "All reports", "Sales Reports", "report-list");
         Add("generations", "Report archive", "Reports", "Archive", "Report Archive", "generations", 1);
         Add("favourite-reports", "Favourites", "Reports", "Favourites", "Sales Reports", "favourite-reports", 1);
-        // Service interim (decision 15): four read-only Service centre screens, Viewer and up.
-        Add("service-jobs", "Service jobs by status", "Reports", "Service centre", "Service Centre", "service-jobs", 1);
-        Add("service-pending", "Service pending lists", "Reports", "Service centre", "Service Centre", "service-pending", 1);
-        Add("service-job-history", "Service job history", "Reports", "Service centre", "Service Centre", "service-job-history", 1);
-        Add("service-money", "Service money check", "Reports", "Service centre", "Service Centre", "service-money", 1);
+        // Service rail (1.10.0 Service UI wave, design 3.1; decision 25, Q13): every Service screen is read-only and
+        // Viewer and up. The four interim screens keep their task ids (favourites and the Help topic keep working);
+        // "Jobs" holds the job history and the jobs list; Claims and Parts arrive with their lanes.
+        Add("service-today", "Service today", "Service", "Today", "Service Centre", "service-today", 1);
+        Add("service-pending", "Service pending jobs", "Service", "Pending", "Service Centre", "service-pending", 1);
+        Add("service-job-history", "Service job history", "Service", "Jobs", "Service Centre", "service-job-history", 1);
+        Add("service-jobs", "Service jobs", "Service", "Jobs", "Service Centre", "service-jobs", 1);
+        Add("service-claims", "Service claims", "Service", "Claims", "Service Centre", "service-claims", 1);
+        Add("service-parts", "Service parts and purchases", "Service", "Parts", "Service Centre", "service-parts", 1);
+        Add("service-money", "Service money check", "Service", "Money", "Service Centre", "service-money", 1);
         Add("profile", "Current profile", "Settings", "Help", "Home", "profile", 1);
         Add("register-inward", "Inward", "Stock", "Registers", "Registers", "register", 2);
         Add("register-outward", "Outward", "Stock", "Registers", "Registers", "register", 2);
@@ -132,7 +137,7 @@ public static class TaskNavigation
         }
         foreach (var topic in HelpCentreRegistry.Topics)
             Add("help:" + topic.Id, topic.Title, "Settings", "Help", "Home", "help");
-        var tabOrder = new[] { "All reports", "Sales", "Cash", "Walk-ins", "Close day", "Import", "Problems", "History", "Staff", "Tender & service", "Exceptions", "Investigation", "Management", "Archive", "Favourites", "Closing stock", "Brand stock", "Physical count", "Variance", "Movement", "Slow stock", "Display", "Database", "Users", "Stores & masters", "Integrations", "Automatic import", "Accounting", "Control centre", "Registers", "Help", "Service centre" };
+        var tabOrder = new[] { "All reports", "Sales", "Cash", "Walk-ins", "Close day", "Import", "Problems", "History", "Staff", "Tender & service", "Exceptions", "Investigation", "Management", "Archive", "Favourites", "Closing stock", "Brand stock", "Physical count", "Variance", "Movement", "Slow stock", "Display", "Database", "Users", "Stores & masters", "Integrations", "Automatic import", "Accounting", "Control centre", "Registers", "Help", "Today", "Pending", "Jobs", "Claims", "Parts", "Money" };
         return result.OrderBy(t => Array.IndexOf(Sections.ToArray(), t.Rail)).ThenBy(t => Array.IndexOf(tabOrder, t.Tab)).ThenBy(t => t.ReportCode is null ? 1 : 0).ToArray();
     }
 }

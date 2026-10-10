@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using Etp.Reporting.Reporting;
 using Microsoft.Win32;
+using ServiceFreshnessChip = EtpApplication::Etp.Reporting.Application.Service.ServiceFreshnessChip;
 using ServiceRefresh = EtpApplication::Etp.Reporting.Application.Service.ServiceRefresh;
 using ServiceReportQuery = EtpApplication::Etp.Reporting.Application.Service.IServiceReportQuery;
 
@@ -21,8 +22,9 @@ public sealed record ServiceColumn(string Header, string NumberFormat = "General
 public sealed record ServiceGridRow(object Source, IReadOnlyList<object?> Cells);
 
 /// <summary>
-/// The shared frame of the four read-only Service centre screens (Service interim, decision 15):
-/// a title, "Service Centre AW330", the "Service data as at" line, a filter bar, one grid and Export.
+/// The shared frame of the read-only Service screens (Service interim, decision 15; Service rail, 1.10.0):
+/// a title, "Service Centre AW330", the "Service data as at" line with the freshness strip under it (one chip per
+/// family group, design 3.7), a filter bar, an optional summary panel (cards), one grid and Export.
 /// Every activation re-queries; a slower earlier load never overwrites a newer one (revision counter).
 /// Service has no store picker, so the shell's store selection is ignored.
 /// </summary>
@@ -37,6 +39,7 @@ public abstract class ServiceScreenView : UserControl
     private readonly string diagnosticsSource;
     private readonly string diagnosticsEvent;
     private readonly TextBlock asAt = new() { TextWrapping = TextWrapping.Wrap, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 4, 0, 0) };
+    private readonly WrapPanel freshnessStrip = new() { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 2) };
     private readonly TextBlock status = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 4) };
     private readonly Button exportButton = new() { Content = "Export to Excel", MinHeight = 44, Margin = new Thickness(0, 0, 8, 0), IsEnabled = false };
     private IReadOnlyList<ServiceColumn> columns = [];
@@ -60,9 +63,13 @@ public abstract class ServiceScreenView : UserControl
         heading.Children.Add(new TextBlock { Text = title, FontSize = 18, FontWeight = FontWeights.SemiBold });
         heading.Children.Add(new TextBlock { Text = ServiceCentreLabel + " · read only", TextWrapping = TextWrapping.Wrap });
         heading.Children.Add(asAt);
+        AutomationProperties.SetName(freshnessStrip, "Service data freshness");
+        heading.Children.Add(freshnessStrip);
         heading.Children.Add(new TextBlock { Text = intro, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 4) });
         FilterBar = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 4) };
         heading.Children.Add(FilterBar);
+        Summary = new StackPanel();
+        heading.Children.Add(Summary);
         var actions = new WrapPanel { Orientation = Orientation.Horizontal };
         var refresh = new Button { Content = "Refresh", MinHeight = 44, Margin = new Thickness(0, 0, 8, 0) };
         refresh.Click += async (_, _) => await ActivateAsync();
@@ -90,7 +97,15 @@ public abstract class ServiceScreenView : UserControl
     protected WrapPanel FilterBar { get; }
     /// <summary>Between the status line and the grid: the job history header card (1.10.0).</summary>
     protected StackPanel HeaderPanel { get; }
+    /// <summary>Sits between the filter bar and the actions: the Service Today cards live here.</summary>
+    protected StackPanel Summary { get; }
     protected StackPanel Footer { get; }
+    /// <summary>The refresh log the last activation read (newest first); empty before the first load or without data.</summary>
+    protected IReadOnlyList<ServiceRefresh> Refreshes { get; private set; } = [];
+    /// <summary>The freshness chips of the last activation, in strip order (design 3.7).</summary>
+    public IReadOnlyList<ServiceFreshnessChip> Freshness { get; private set; } = [];
+    /// <summary>The date the freshness colours are measured from (passed to LoadFreshnessAsync as asOf); tests pin it.</summary>
+    public Func<DateOnly> FreshnessToday { get; set; } = () => DateOnly.FromDateTime(DateTime.Today);
     public DataGrid Table { get; } = new() { AutoGenerateColumns = false, IsReadOnly = true, SelectionMode = DataGridSelectionMode.Single };
     public IReadOnlyList<ServiceGridRow> Rows { get; private set; } = [];
     public IReadOnlyList<string> ColumnHeaders => columns.Select(column => column.Header).ToArray();
@@ -126,7 +141,10 @@ public abstract class ServiceScreenView : UserControl
             var refreshes = await source.LoadRefreshesAsync();
             if (current != revision) return;
             HasData = refreshes.Count > 0;
+            Refreshes = refreshes;
             asAt.Text = DescribeRefreshes(refreshes);
+            ShowFreshness(HasData ? await source.LoadFreshnessAsync(FreshnessToday()) : []);
+            if (current != revision) return;
             if (!HasData) { status.Text = NoDataText + ". Import the Service Centre files on Import → Import folder."; ClearExtras(); return; }
             var request = PrepareLoad();
             if (request is not null) { status.Text = request; ClearExtras(); return; }
@@ -152,6 +170,13 @@ public abstract class ServiceScreenView : UserControl
         var latest = refreshes.Max(refresh => refresh.SnapshotDate);
         var imported = refreshes.Max(refresh => AsUtc(refresh.ImportedAtUtc)).ToLocalTime();
         return $"Service data as at {latest:dd MMM yyyy} (refreshed {imported:dd MMM yyyy})";
+    }
+
+    private void ShowFreshness(IReadOnlyList<ServiceFreshnessChip> chips)
+    {
+        Freshness = chips;
+        freshnessStrip.Children.Clear();
+        foreach (var chip in Freshness) freshnessStrip.Children.Add(ServiceFreshnessStrip.CreateChip(chip));
     }
 
     private static DateTime AsUtc(DateTime value) => value.Kind == DateTimeKind.Utc ? value : DateTime.SpecifyKind(value, DateTimeKind.Utc);

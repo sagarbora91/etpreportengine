@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Threading;
+using System.Windows.Automation;
 using System.Windows.Controls;
 using Etp.Reporting.Application.Service;
 using Etp.Reporting.Desktop.Modules.Service;
@@ -53,6 +54,29 @@ public sealed class ServiceScreenViewTests
     }
 
     [Fact]
+    public void Every_screen_shows_the_freshness_strip_under_the_as_at_line()
+    {
+        RunSta(() =>
+        {
+            var query = new FakeServiceQuery();
+            var view = new ServiceJobsView(() => query, NoExport) { FreshnessToday = () => new DateOnly(2026, 10, 9) };
+
+            view.ActivateAsync().GetAwaiter().GetResult();
+
+            Assert.Equal(1, query.FreshnessCalls);
+            Assert.Equal(new DateOnly(2026, 10, 9), query.LastFreshnessAsOf);
+            Assert.Equal(ServiceFreshness.Groups.Select(group => group.Group), view.Freshness.Select(chip => chip.Group));
+            // S009 is at 5 Oct but S010 was never exported, so the Pending lists chip is partial; Money has S004 only.
+            Assert.Equal("Pending lists: some families never exported", ServiceFreshnessStrip.TextFor(view.Freshness.Single(chip => chip.Group == "Pending lists")));
+            Assert.Equal(ServiceFreshnessColour.NoData, view.Freshness.Single(chip => chip.Group == "Jobs").Colour);
+            Assert.Equal("Jobs: no export yet", ServiceFreshnessStrip.TextFor(view.Freshness.Single(chip => chip.Group == "Jobs")));
+            var strip = Descendants<WrapPanel>(view).Single(panel => AutomationProperties.GetName(panel) == "Service data freshness");
+            Assert.Equal(view.Freshness.Count, strip.Children.Count);
+            Assert.Equal(view.Freshness, strip.Children.OfType<Border>().Select(border => (ServiceFreshnessChip)border.Tag));
+        });
+    }
+
+    [Fact]
     public void Jobs_status_line_headlines_the_Booking_TAT_median_and_shows_Quick_Billing_separately()
     {
         RunSta(() =>
@@ -61,6 +85,43 @@ public sealed class ServiceScreenViewTests
             view.ActivateAsync().GetAwaiter().GetResult();
             // Delivered in the window: Booking 12 days (SYN0101, SYN0102), Quick Billing 0 days (SYN0104); RWR and DC rows are not TAT rows.
             Assert.Equal("5 jobs · Closed in the last 30 days. TAT booking to delivered: Booking median 12 days (2 delivered, 0 over 15 days) · Quick Billing median 0 days (1 delivered).", view.StatusText);
+        });
+    }
+
+    [Fact]
+    public void Without_Service_data_the_strip_is_empty_and_freshness_is_not_queried()
+    {
+        RunSta(() =>
+        {
+            var query = new FakeServiceQuery { Refreshes = [] };
+            var view = new ServiceJobsView(() => query, NoExport);
+            view.ActivateAsync().GetAwaiter().GetResult();
+            Assert.Equal(0, query.FreshnessCalls);
+            Assert.Empty(view.Freshness);
+        });
+    }
+
+    [Theory]
+    [InlineData("claims")]
+    [InlineData("parts")]
+    public void A_placeholder_screen_keeps_the_frame_and_points_at_the_interim_lists(string screen)
+    {
+        RunSta(() =>
+        {
+            var opened = new List<ServiceDrillDown>();
+            var definition = screen == "claims" ? ServicePlaceholderView.Claims : ServicePlaceholderView.Parts;
+            var view = new ServicePlaceholderView(definition, () => new FakeServiceQuery(), NoExport, opened.Add);
+
+            view.ActivateAsync().GetAwaiter().GetResult();
+
+            Assert.StartsWith(ServicePlaceholderView.NotYetText, view.StatusText, StringComparison.Ordinal);
+            Assert.Empty(view.Rows);
+            Assert.NotEmpty(view.Freshness);
+            var buttons = Descendants<Button>(view).Where(button => definition.Links.Any(link => link.Label == (string)button.Content)).ToArray();
+            Assert.Equal(definition.Links.Count, buttons.Length);
+            foreach (var button in buttons) button.RaiseEvent(new System.Windows.RoutedEventArgs(Button.ClickEvent));
+            Assert.Equal(definition.Links.Select(link => link.Target), opened);
+            Assert.All(opened, target => Assert.Contains(target.TaskId, ServiceScreens.Tasks));
         });
     }
 
@@ -149,6 +210,9 @@ public sealed class ServiceScreenViewTests
     [InlineData("pending")]
     [InlineData("history")]
     [InlineData("money")]
+    [InlineData("today")]
+    [InlineData("claims")]
+    [InlineData("parts")]
     public void Every_screen_says_no_Service_data_imported_yet_when_nothing_is_imported(string screen)
     {
         RunSta(() =>
@@ -172,6 +236,9 @@ public sealed class ServiceScreenViewTests
     [InlineData("pending")]
     [InlineData("history")]
     [InlineData("money")]
+    [InlineData("today")]
+    [InlineData("claims")]
+    [InlineData("parts")]
     public void A_load_failure_is_described_by_DesktopFriendlyError(string screen)
     {
         RunSta(() =>
@@ -400,6 +467,7 @@ public sealed class ServiceScreenViewTests
     [InlineData("pending")]
     [InlineData("history")]
     [InlineData("money")]
+    [InlineData("today")]
     public void Export_writes_the_visible_columns_and_no_phone_email_or_address_column(string screen)
     {
         RunSta(() =>
@@ -464,7 +532,7 @@ public sealed class ServiceScreenViewTests
     [Fact]
     public void No_contract_record_carries_a_phone_email_or_address_field()
     {
-        var types = new[] { typeof(ServiceRefresh), typeof(ServiceJobRow), typeof(ServicePendingRow), typeof(ServiceJobEvent), typeof(ServiceMoneyDay), typeof(ServiceMoneyChange), typeof(ServiceUnmatchedMoneyEntry), typeof(ServiceJobHeader), typeof(ServiceJobTimelineRow), typeof(ServiceJobDetail) };
+        var types = new[] { typeof(ServiceRefresh), typeof(ServiceJobRow), typeof(ServicePendingRow), typeof(ServiceJobEvent), typeof(ServiceMoneyDay), typeof(ServiceMoneyChange), typeof(ServiceUnmatchedMoneyEntry), typeof(ServiceJobHeader), typeof(ServiceJobTimelineRow), typeof(ServiceJobDetail), typeof(ServiceFreshnessChip), typeof(ServiceToday), typeof(ServicePendingBoardRow), typeof(ServiceClaimLine), typeof(ServicePartsInvoice) };
         Assert.All(types.SelectMany(type => type.GetProperties()), property =>
             Assert.DoesNotContain(ForbiddenHeaderWords, word => property.Name.Contains(word.Replace("-", ""), StringComparison.OrdinalIgnoreCase)));
     }
@@ -474,6 +542,9 @@ public sealed class ServiceScreenViewTests
         "jobs" => new ServiceJobsView(() => query, export ?? NoExport),
         "pending" => new ServicePendingView(() => query, export ?? NoExport),
         "history" => new ServiceJobHistoryView(() => query, export ?? NoExport),
+        "today" => new ServiceTodayView(() => query, export ?? NoExport),
+        "claims" => new ServicePlaceholderView(ServicePlaceholderView.Claims, () => query, export ?? NoExport, null),
+        "parts" => new ServicePlaceholderView(ServicePlaceholderView.Parts, () => query, export ?? NoExport, null),
         _ => new ServiceMoneyView(() => query, export ?? NoExport)
     };
 
@@ -657,6 +728,26 @@ public sealed class ServiceScreenViewTests
                 new(jobOrderNumber, new(2026, 10, 5), "S018", "DELIVERED", new(2026, 10, 2), null, null, null, null, "CONSOLIDATED", 141)
             ];
             return Task.FromResult<ServiceJobDetail?>(new ServiceJobDetail(header, timeline));
+        }
+
+        public int FreshnessCalls { get; private set; }
+        public DateOnly? LastFreshnessAsOf { get; private set; }
+
+        /// <summary>The contract rule (ServiceFreshness.Build) over this fake's refresh log, with S009/S004 as raw exports.</summary>
+        public Task<IReadOnlyList<ServiceFreshnessChip>> LoadFreshnessAsync(DateOnly? asOf = null, CancellationToken cancellationToken = default)
+        {
+            FreshnessCalls++; LastFreshnessAsOf = asOf;
+            return Task.FromResult(ServiceFreshness.Build(Refreshes, asOf ?? new DateOnly(2026, 10, 9),
+                new Dictionary<string, string> { ["S009"] = "RAW", ["S004"] = "RAW" }));
+        }
+
+        public DateOnly? LastTodayDate { get; private set; }
+
+        public Task<ServiceToday> LoadTodayAsync(DateOnly? businessDate = null, CancellationToken cancellationToken = default)
+        {
+            BodyCalls++; LastTodayDate = businessDate;
+            var date = businessDate ?? new DateOnly(2026, 10, 5);
+            return Task.FromResult(new ServiceToday(date, new(2026, 10, 5), 6, 4, 2, 61, 40, 21, 4, 58, 1, 46, 25, 11, 97, 12, 12_500m, 8_000m, 2_500m, 2_000m, true, 12_500m, 9, 7, 41_000m));
         }
     }
 }

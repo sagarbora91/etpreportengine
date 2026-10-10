@@ -444,6 +444,16 @@ public sealed partial class TaskNavigator(MainWindow window)
     public void NavigateServiceJob(string jobOrderNumber) =>
         NavigateSafely(() => window.shell.Navigate(Modules.Service.ServiceScreens.JobHistoryRoute(jobOrderNumber), window.CurrentShellAccess));
 
+    /// <summary>
+    /// Opens another Service screen with a drill-down argument (Service Today cards, placeholder links; design 3.2). The
+    /// argument travels as the route's Argument, exactly as a job number does for job history, so Back returns to the card.
+    /// </summary>
+    public void NavigateService(Modules.Service.ServiceDrillDown target)
+    {
+        if (TaskNavigation.Find(target.TaskId) is not { } task || task.Destination != Modules.Service.ServiceScreens.Destination) return;
+        NavigateSafely(() => window.shell.Navigate(task.RouteWith(target.Argument), window.CurrentShellAccess));
+    }
+
     private UserControl ResolveTaskView(TaskDestination task, string? argument = null)
     {
         // Each layout selects the existing module's controls; no business operation is invoked here.
@@ -452,7 +462,7 @@ public sealed partial class TaskNavigator(MainWindow window)
         var openItems = false;
         var id = task.Id;
         if (task.Destination == Modules.Service.ServiceScreens.Destination)
-            return Modules.Service.ServiceScreens.Create(id, window.serviceReportQuery, window.serviceExcelExport, argument, NavigateServiceJob);
+            return Modules.Service.ServiceScreens.Create(id, window.serviceReportQuery, window.serviceExcelExport, argument, NavigateServiceJob, NavigateService);
         if (id == "import-history")
         {
             var history = window.importHistoryView ?? throw new InvalidOperationException("Import history is not configured.");

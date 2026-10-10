@@ -31,14 +31,15 @@ public sealed partial class PhaseFiveFullWindowCaptureTests(ITestOutputHelper ou
 
     // F-20. Written out by hand, never derived from TaskDestination.IsAllowed, so a
     // destination that disappears (or a role rule that changes) fails the walk instead of
-    // shrinking it. 53 fixed tasks (15 for every role, 15 needing the import role, 23
+    // shrinking it. 56 fixed tasks (18 for every role, 15 needing the import role, 23
     // Owner-only) + 22 reports + 22 Help topics. 89/69/54 when re-audited on 26 Sep 2026;
     // Phase 7 added the Owner's "tally-companies", the 1.9.3 evidence fixes the Owner's
-    // "keep-evidence", 1.9.4 (FIX-15) the Owner's "dashboard-overview", and the Service
+    // "keep-evidence", 1.9.4 (FIX-15) the Owner's "dashboard-overview", the Service
     // interim four Service centre screens and the "service-centre" Help topic for every
-    // role. TaskNavigationTests holds the same lists.
+    // role, and the 1.10.0 Service rail "service-today", "service-claims" and "service-parts"
+    // for every role (Q13). TaskNavigationTests holds the same lists.
     private static readonly IReadOnlyDictionary<string, int> ExpectedDestinationCounts =
-        new Dictionary<string, int> { ["OWNER"] = 97, ["STORE_MANAGER"] = 74, ["VIEWER"] = 59 };
+        new Dictionary<string, int> { ["OWNER"] = 100, ["STORE_MANAGER"] = 77, ["VIEWER"] = 62 };
     private static readonly string[] OwnerOnlyTasks =
     [
         "connection", "health", "backups", "recovery", "support-package", "audit", "users", "profiles",
@@ -105,14 +106,14 @@ public sealed partial class PhaseFiveFullWindowCaptureTests(ITestOutputHelper ou
             var captures = result.Captures;
             if (evidence is not null)
             {
-                Assert.Equal(66, captures.Count);
+                Assert.Equal(72, captures.Count);
                 await File.WriteAllTextAsync(Path.Combine(evidence, "capture-manifest.json"), JsonSerializer.Serialize(new
                 {
                 generatedUtc = DateTimeOffset.UtcNow,
                 fixtureDatabase = database.Name,
                 data = "Synthetic demonstration data only; generated fixture database is dropped on exit.",
                 evidence = "Real shown MainWindow; themed WPF at 96 DPI and exact logical viewport sizes. Application-role rendering, not separate Windows-account or native DPI validation. No export, sharing, scheduler installation or approval decision is invoked by the UI.",
-                checks = "Nonblank opaque pixels, five visible rails, shell content inside viewport, role-gated destinations, successful startup and unchanged real preferences/connection settings.",
+                checks = "Nonblank opaque pixels, six visible rails, shell content inside viewport, role-gated destinations, successful startup and unchanged real preferences/connection settings.",
                 captures
                 }, new JsonSerializerOptions { WriteIndented = true }));
                 output.WriteLine($"Captured {captures.Count} synthetic Phase 5 screens: {evidence}");
@@ -309,7 +310,7 @@ public sealed partial class PhaseFiveFullWindowCaptureTests(ITestOutputHelper ou
         var tasks = new Dictionary<string, string>
         {
             ["report-dsr"] = "Today", [role == "VIEWER" ? "import-history" : "import-files"] = "Import",
-            ["reports-list"] = "Reports", ["report-stock-closing"] = "Stock", ["settings"] = "Settings",
+            ["reports-list"] = "Reports", ["report-stock-closing"] = "Stock", ["service-today"] = "Service", ["settings"] = "Settings",
             ["generations"] = "Archive", ["readiness"] = "Close-day", ["help:getting-started"] = "Help"
         };
         if (role != "VIEWER")
@@ -470,7 +471,7 @@ public sealed partial class PhaseFiveFullWindowCaptureTests(ITestOutputHelper ou
     private static void AssertShellLayout(MainWindow window, FrameworkElement root)
     {
         var rails = window.RailPanel.Children.OfType<Button>().Where(button => button.Tag is string section && TaskNavigation.Sections.Contains(section)).ToArray();
-        Assert.Equal(5, rails.Length);
+        Assert.Equal(6, rails.Length);
         foreach (var rail in rails)
         {
             Assert.True(rail.IsVisible);

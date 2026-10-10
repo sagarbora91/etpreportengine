@@ -41,9 +41,9 @@ public sealed class UiNavigationTests
         Assert.True(TaskNavigation.Find("walk-ins")!.IsAllowed(ShellAccess.StoreManager));
     }
     [Fact]
-    public void Five_sections_have_the_approved_daily_tabs()
+    public void Six_sections_have_the_approved_daily_tabs()
     {
-        Assert.Equal(new[]{"Today","Import","Reports","Stock","Settings"},TaskNavigation.Sections);
+        Assert.Equal(new[]{"Today","Import","Reports","Stock","Service","Settings"},TaskNavigation.Sections);
         Assert.Equal(new[]{"Sales","Cash","Walk-ins","Close day"},TaskNavigation.InSection("Today",ShellAccess.Owner).Select(t=>t.Tab).Distinct());
         Assert.Equal("report-dsr",TaskNavigation.InSection("Today",ShellAccess.Owner)[0].Id);
         Assert.Equal("import-files",TaskNavigation.InSection("Import",ShellAccess.Owner)[0].Id);
