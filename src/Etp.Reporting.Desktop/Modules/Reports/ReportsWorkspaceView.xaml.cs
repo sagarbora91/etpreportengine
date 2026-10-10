@@ -292,7 +292,7 @@ public partial class ReportsWorkspaceView : UserControl
     }
 
     // RA-STOCK-01 (1.9.9): a store read from an earlier snapshot says so: "Snapshot of 29 Sep 2026 (latest on or before
-    // 05 Oct 2026) for HEMW." Stores whose snapshot is on the date itself add nothing.
+    // 05 Oct 2026) for STORE." Stores whose snapshot is on the date itself add nothing.
     internal static string FallbackSnapshotText(IEnumerable<(string StoreCode, DateOnly SnapshotDate)> rows, DateOnly date)
     {
         static string Day(DateOnly value) => value.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture);
