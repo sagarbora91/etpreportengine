@@ -198,7 +198,7 @@ public sealed partial class TaskNavigator(MainWindow window)
             if (!allowClose && BlockWhileBusy()) { e.Cancel = true; return; }
             if (allowClose || (!HasUnsavedDrafts && !RetainedDrafts.Any())) return;
             e.Cancel = true;
-            if (!navigationPending) _ = ConfirmCloseAsync();
+            if (!navigationPending) Observe(ConfirmCloseAsync(), "WINDOW_CLOSE_FAILED", "Closing ETP failed");
         };
     }
 
@@ -278,7 +278,7 @@ public sealed partial class TaskNavigator(MainWindow window)
         {
             var decision = navigate(); window.ApplyNavigationDecision(decision); return decision.IsAllowed;
         }
-        _ = ContinueNavigationAsync(navigate); return false;
+        Observe(ContinueNavigationAsync(navigate), "NAVIGATION_FAILED", "Navigation failed"); return false;
     }
 
     public void ExportCurrentReport(bool pdf)
@@ -421,8 +421,8 @@ public sealed partial class TaskNavigator(MainWindow window)
         window.reportsWorkspaceView.ApplyScope(window.reportsWorkspaceView.DateFrom,appliedDate,HeaderStore);
         if (task.ReportCode is { } code)
         {
-            if (pendingInvestigation is { } reportHit) { pendingInvestigation = null; _ = OpenInvestigationReportAsync(code, reportHit.PrimaryReference); }
-            else _ = window.reportsWorkspaceView.RunReportAsync(code);
+            if (pendingInvestigation is { } reportHit) { pendingInvestigation = null; Observe(OpenInvestigationReportAsync(code, reportHit.PrimaryReference), "INVESTIGATION_REPORT_OPEN_FAILED", "Opening the report failed"); }
+            else window.reportsWorkspaceView.RunReportObserved(code);
             return true;
         }
 

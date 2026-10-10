@@ -12,7 +12,7 @@ public sealed partial class TaskNavigator
             window.reportsWorkspaceView.ApplyScope(report.DateFromPicker.SelectedDate, report.DateToPicker.SelectedDate, report.ScopeSelector.SelectedItem?.ToString());
         if (window.FocusedWorkspaceHost.Content is DailySalesReportWorkspace dsr)
             window.reportsWorkspaceView.ApplyScope(dsr.BusinessDatePicker.SelectedDate, dsr.BusinessDatePicker.SelectedDate, dsr.ScopeSelector.SelectedItem?.ToString());
-        _ = window.reportsWorkspaceView.RunReportAsync(code);
+        window.reportsWorkspaceView.RunReportObserved(code);
     }
     public void SearchCurrentPage()
     {
@@ -31,8 +31,19 @@ public sealed partial class TaskNavigator
             DailySalesReportWorkspace dsr => (dsr.BusinessDatePicker.SelectedDate, dsr.ScopeSelector.SelectedItem?.ToString()),
             _ => (window.ShellBusinessDateSelector.SelectedDate, (window.ShellStoreSelector.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Content?.ToString())
         };
-        if (date is { } selected) _ = GeneratePackAsync(selected, scope ?? StoreScopeCatalog.AllStores);
+        if (date is { } selected) GeneratePackObserved(selected, scope ?? StoreScopeCatalog.AllStores);
     }
+
+    public void GeneratePackObserved(DateTime date, string scope) =>
+        Observe(GeneratePackAsync(date, scope), "REPORT_PACK_GENERATION_FAILED", "Generate pack failed",
+            new(StoreCode: window.StoreScopes.Resolve(scope) ?? DesktopDiagnosticContext.AllStores, BusinessDate: DateOnly.FromDateTime(date)));
+
+    // IE-CODE-11 (1.9.9): navigation with drafts, window close, Generate pack and investigation hits run fire and
+    // forget. Their try blocks have no catch, so a fault (a draft save, a dialog) died unobserved with nothing on
+    // screen. Observed, it reaches the status bar with a reference and the diagnostics log.
+    internal void Observe(Task task, string eventId, string operation, DesktopDiagnosticContext? context = null) =>
+        _ = DesktopDiagnostics.ObserveAsync(task, "Shell.Navigation", eventId, operation,
+            message => window.ApplicationStatus.Text = message, context);
 
     public async Task GeneratePackAsync(DateTime date, string scope)
     {

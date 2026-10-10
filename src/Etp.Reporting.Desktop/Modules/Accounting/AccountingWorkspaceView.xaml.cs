@@ -39,7 +39,7 @@ public sealed partial class AccountingWorkspaceView : UserControl
                     var entries = await session.LoadEntriesAsync(connectionStringProvider(), selected.Id);
                     if (revision == entriesRevision) AccountingEntryGrid.ItemsSource = entries;
                 }
-                catch (Exception exception) { SetStatus(errorDescriber(exception)); }
+                catch (Exception exception) { SetStatus(DesktopDiagnostics.WithReference(errorDescriber(exception), DesktopDiagnostics.Record(exception, "Accounting.Workspace", "ACCOUNTING_ENTRIES_LOAD_FAILED", operation: "Accounting entries load failed"))); }
             }
         };
     }
@@ -76,7 +76,7 @@ public sealed partial class AccountingWorkspaceView : UserControl
                 : $"Destination: {destination.CompanyName} · {destination.EnvironmentLabel}. Journal file only; no Tally read-back.";
             RefreshActionState();
         }
-        catch (Exception ex) { DesktopDiagnostics.Record(ex, "Accounting.Workspace", "ACCOUNTING_REFRESH_FAILED"); SetStatus(errorDescriber(ex)); }
+        catch (Exception ex) { SetStatus(DesktopDiagnostics.WithReference(errorDescriber(ex), DesktopDiagnostics.Record(ex, "Accounting.Workspace", "ACCOUNTING_REFRESH_FAILED"))); }
     }
 
     private async void PreviewAccountingBatch_Click(object sender, RoutedEventArgs e)
@@ -96,7 +96,7 @@ public sealed partial class AccountingWorkspaceView : UserControl
                 ? $"Balanced preview: debit {preview.Batch.DebitTotal:N2}, credit {preview.Batch.CreditTotal:N2}."
                 : $"Preview blocked. Missing approved mappings: {string.Join(", ", preview.Batch.MissingMappings)}.");
         }
-        catch (Exception ex) { DesktopDiagnostics.Record(ex, "Accounting.Workspace", "ACCOUNTING_PREVIEW_FAILED"); SetStatus(errorDescriber(ex)); }
+        catch (Exception ex) { SetStatus(DesktopDiagnostics.WithReference(errorDescriber(ex), DesktopDiagnostics.Record(ex, "Accounting.Workspace", "ACCOUNTING_PREVIEW_FAILED"))); }
     }
 
     private async void SaveAccountingBatch_Click(object sender, RoutedEventArgs e)
@@ -109,7 +109,7 @@ public sealed partial class AccountingWorkspaceView : UserControl
             SetStatus($"Accounting batch {id:N0} saved for Owner review.");
             await RefreshAccountingAsync();
         }
-        catch (Exception ex) { DesktopDiagnostics.Record(ex, "Accounting.Workspace", "ACCOUNTING_BATCH_SAVE_FAILED"); SetStatus(errorDescriber(ex)); }
+        catch (Exception ex) { SetStatus(DesktopDiagnostics.WithReference(errorDescriber(ex), DesktopDiagnostics.Record(ex, "Accounting.Workspace", "ACCOUNTING_BATCH_SAVE_FAILED"))); }
     }
 
     private async void ApproveAccountingBatch_Click(object sender, RoutedEventArgs e)
@@ -125,7 +125,7 @@ public sealed partial class AccountingWorkspaceView : UserControl
             SetStatus($"Accounting batch {row.Id:N0} approved.");
             await RefreshAccountingAsync();
         }
-        catch (Exception ex) { DesktopDiagnostics.Record(ex, "Accounting.Workspace", "ACCOUNTING_BATCH_APPROVAL_FAILED"); SetStatus(errorDescriber(ex)); }
+        catch (Exception ex) { SetStatus(DesktopDiagnostics.WithReference(errorDescriber(ex), DesktopDiagnostics.Record(ex, "Accounting.Workspace", "ACCOUNTING_BATCH_APPROVAL_FAILED"))); }
     }
 
     private async void RejectAccountingBatch_Click(object sender, RoutedEventArgs e)
@@ -141,7 +141,7 @@ public sealed partial class AccountingWorkspaceView : UserControl
             SetStatus($"Accounting batch {row.Id:N0} rejected.");
             await RefreshAccountingAsync();
         }
-        catch (Exception ex) { DesktopDiagnostics.Record(ex, "Accounting.Workspace", "ACCOUNTING_BATCH_REJECTION_FAILED"); SetStatus(errorDescriber(ex)); }
+        catch (Exception ex) { SetStatus(DesktopDiagnostics.WithReference(errorDescriber(ex), DesktopDiagnostics.Record(ex, "Accounting.Workspace", "ACCOUNTING_BATCH_REJECTION_FAILED"))); }
     }
 
     private async void ExportTallyXml_Click(object sender, RoutedEventArgs e)
@@ -163,7 +163,7 @@ public sealed partial class AccountingWorkspaceView : UserControl
             SetStatus($"{receipt.EnvironmentLabel} file written for {receipt.CompanyName}. SHA-256 {receipt.Sha256[..12]}… Tally result has not been checked.");
             await RefreshAccountingAsync();
         }
-        catch (Exception ex) { DesktopDiagnostics.Record(ex, "Accounting.Workspace", "ACCOUNTING_EXPORT_FAILED"); SetStatus(errorDescriber(ex)); }
+        catch (Exception ex) { SetStatus(DesktopDiagnostics.WithReference(errorDescriber(ex), DesktopDiagnostics.Record(ex, "Accounting.Workspace", "ACCOUNTING_EXPORT_FAILED"))); }
     }
 
     private async void ApproveAccountingMapping_Click(object sender, RoutedEventArgs e)
@@ -183,7 +183,7 @@ public sealed partial class AccountingWorkspaceView : UserControl
             AccountingNarrationInput.Text = DefaultNarration;
             SetStatus($"Approved {eventCode} ledger mapping is active from {scope.BusinessDate:dd-MMM-yyyy}.");
         }
-        catch (Exception ex) { DesktopDiagnostics.Record(ex, "Accounting.Workspace", "ACCOUNTING_MAPPING_APPROVAL_FAILED"); SetStatus(errorDescriber(ex)); }
+        catch (Exception ex) { SetStatus(DesktopDiagnostics.WithReference(errorDescriber(ex), DesktopDiagnostics.Record(ex, "Accounting.Workspace", "ACCOUNTING_MAPPING_APPROVAL_FAILED"))); }
     }
 
     private void RequireViewAccess()

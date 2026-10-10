@@ -84,7 +84,7 @@ public sealed partial class SourceInboxWorkspaceView : UserControl
             if (selectedId is not null) DocumentsGrid.SelectedItem = rows.FirstOrDefault(x => x.Id == selectedId);
             SetStatus($"{rows.Count:N0} source document(s). Originals are retained and SHA-256 protected.");
         }
-        catch (Exception ex) { if (revision != refreshRevision) return; DesktopDiagnostics.Record(ex, "SourceInbox.Workspace", "SOURCE_INBOX_REFRESH_FAILED"); SetStatus(errorDescriber(ex)); }
+        catch (Exception ex) { if (revision != refreshRevision) return; SetStatus(DesktopDiagnostics.WithReference(errorDescriber(ex), DesktopDiagnostics.Record(ex, "SourceInbox.Workspace", "SOURCE_INBOX_REFRESH_FAILED"))); }
     }
 
     private void Documents_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
@@ -123,7 +123,7 @@ public sealed partial class SourceInboxWorkspaceView : UserControl
             DocumentsGrid.SelectedItem = DocumentsGrid.Items.OfType<SourceInboxDocument>().FirstOrDefault(row => row.Id == outcome.Document.Id);
             SetStatus(outcomeMessage);
         }
-        catch (Exception ex) { DesktopDiagnostics.Record(ex, "SourceInbox.Workspace", "SOURCE_INTAKE_FAILED"); SetStatus(errorDescriber(ex)); }
+        catch (Exception ex) { SetStatus(DesktopDiagnostics.WithReference(errorDescriber(ex), DesktopDiagnostics.Record(ex, "SourceInbox.Workspace", "SOURCE_INTAKE_FAILED"))); }
     }
 
     private async void Open_Click(object sender, RoutedEventArgs e)
@@ -139,7 +139,7 @@ public sealed partial class SourceInboxWorkspaceView : UserControl
             documentLauncher.Open(document.ManagedFilePath);
             SetStatus("Source integrity passed and the retained original was opened.");
         }
-        catch (Exception ex) { DesktopDiagnostics.Record(ex, "SourceInbox.Workspace", "SOURCE_OPEN_FAILED"); SetStatus(errorDescriber(ex)); }
+        catch (Exception ex) { SetStatus(DesktopDiagnostics.WithReference(errorDescriber(ex), DesktopDiagnostics.Record(ex, "SourceInbox.Workspace", "SOURCE_OPEN_FAILED"))); }
     }
 
     private SourceInboxService Service() => serviceFactory(connectionStringProvider());

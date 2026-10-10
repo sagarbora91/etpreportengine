@@ -63,7 +63,7 @@ public sealed partial class RegistersWorkspaceView : UserControl
             RegisterGrid.ItemsSource = visible;
             SetStatus($"{visible.Length:N0} audited register entry or entries found.");
         }
-        catch (Exception ex) { if (revision != registerRefreshRevision) return; DesktopDiagnostics.Record(ex, "Registers.Workspace", "REGISTER_REFRESH_FAILED"); SetStatus(errorDescriber(ex)); }
+        catch (Exception ex) { if (revision != registerRefreshRevision) return; SetStatus(DesktopDiagnostics.WithReference(errorDescriber(ex), DesktopDiagnostics.Record(ex, "Registers.Workspace", "REGISTER_REFRESH_FAILED"))); }
     }
 
     private async void SaveRegisterEntry_Click(object sender, RoutedEventArgs e) => await SaveDraftAsync();
@@ -105,7 +105,7 @@ public sealed partial class RegistersWorkspaceView : UserControl
             await RefreshRegistersAsync();
             return true;
         }
-        catch (Exception ex) { DesktopDiagnostics.Record(ex, "Registers.Workspace", "REGISTER_SAVE_FAILED"); SetStatus(errorDescriber(ex)); return false; }
+        catch (Exception ex) { SetStatus(DesktopDiagnostics.WithReference(errorDescriber(ex), DesktopDiagnostics.Record(ex, "Registers.Workspace", "REGISTER_SAVE_FAILED"))); return false; }
         finally { savingDraft = false; IsEnabled = enabled; }
     }
 
