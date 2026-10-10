@@ -22,7 +22,7 @@ public sealed class SqlBackedReportingExecutor(
                     "The GST-inclusive amount is missing. Re-import the source export.");
             projected.Add(new(row.TransactionDate, row.StoreCode, row.DocumentNumber, row.LineIdentifier,
                 row.Brand ?? string.Empty, row.BrandSegment ?? string.Empty, row.ProductCode,
-                type, row.SourceQuantity, amount, row.InvoiceYear));
+                type, row.SourceQuantity, amount, row.InvoiceYear, row.BrandRow));
         }
         var result = new SalesReportingService().Summarize(projected, dimension, salesPolicy);
         return unknownRows == 0 ? result : result with { Message = $"Warning: skipped {unknownRows} rows with unknown transaction types. {result.Message}" };

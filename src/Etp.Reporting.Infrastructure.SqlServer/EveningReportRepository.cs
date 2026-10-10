@@ -45,9 +45,7 @@ public sealed partial class OperationalReportRepository
             -- than NULL: an unguarded GetDecimal would fail the whole DSR screen.
             SELECT i.store_code,i.transaction_date,COALESCE(mapped.row_label,'Other / unmapped'),COALESCE(SUM(l.source_gross_amount),0)
             FROM dbo.sales_lines l JOIN dbo.sales_invoices i ON i.sales_invoice_id=l.sales_invoice_id
-            OUTER APPLY (SELECT TOP(1) r.row_label FROM dbo.brand_row_codes b JOIN dbo.brand_rows r ON r.brand_row_id=b.brand_row_id AND r.store_code=b.store_code
-              WHERE b.store_code=i.store_code AND b.source_brand IN(l.source_brand_code,l.source_brand_name,l.brand_segment)
-              ORDER BY CASE WHEN b.source_brand=l.source_brand_code THEN 0 WHEN b.source_brand=l.source_brand_name THEN 1 ELSE 2 END,r.sort_order,r.brand_row_id) mapped
+            {BrandRowSql.MappedRowOfL}
             -- Gift cards are not in VALUE (owner decision 13), so they are not in a brand row or Other / unmapped either;
             -- the DSR shows them on their own GIFT CARD line from the DSR facts.
             WHERE i.transaction_date BETWEEN @start AND @end AND UPPER(l.source_transaction_type) IN('INV','SR','BC')
