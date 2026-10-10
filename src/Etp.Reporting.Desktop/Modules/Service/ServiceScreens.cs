@@ -134,7 +134,7 @@ public static class ServiceScreens
     public static string? StatusViewForStage(string stage) => stage switch
     {
         ServiceStages.Delivered => "S018",
-        ServiceStages.ReturnedWithoutRepair => "S017",
+        ServiceStages.Rwr => "S017",
         ServiceStages.DcIssued => "S014",
         ServiceStages.RaIssued => "S016",
         ServiceStages.ReadyForDelivery => "S031",

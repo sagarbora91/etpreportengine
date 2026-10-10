@@ -6,7 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using Etp.Reporting.Reporting;
 using Microsoft.Win32;
-using ServiceFamilyFreshness = EtpApplication::Etp.Reporting.Application.Service.ServiceFamilyFreshness;
+using ServiceFreshnessChip = EtpApplication::Etp.Reporting.Application.Service.ServiceFreshnessChip;
 using ServiceRefresh = EtpApplication::Etp.Reporting.Application.Service.ServiceRefresh;
 using ServiceReportQuery = EtpApplication::Etp.Reporting.Application.Service.IServiceReportQuery;
 
@@ -100,7 +100,7 @@ public abstract class ServiceScreenView : UserControl
     protected IReadOnlyList<ServiceRefresh> Refreshes { get; private set; } = [];
     /// <summary>The freshness chips of the last activation, in strip order (design 3.7).</summary>
     public IReadOnlyList<ServiceFreshnessChip> Freshness { get; private set; } = [];
-    /// <summary>The date the freshness colours are measured from; tests pin it.</summary>
+    /// <summary>The date the freshness colours are measured from (passed to LoadFreshnessAsync as asOf); tests pin it.</summary>
     public Func<DateOnly> FreshnessToday { get; set; } = () => DateOnly.FromDateTime(DateTime.Today);
     public DataGrid Table { get; } = new() { AutoGenerateColumns = false, IsReadOnly = true, SelectionMode = DataGridSelectionMode.Single };
     public IReadOnlyList<ServiceGridRow> Rows { get; private set; } = [];
@@ -139,7 +139,7 @@ public abstract class ServiceScreenView : UserControl
             HasData = refreshes.Count > 0;
             Refreshes = refreshes;
             asAt.Text = DescribeRefreshes(refreshes);
-            ShowFreshness(HasData ? await source.LoadFreshnessAsync() : []);
+            ShowFreshness(HasData ? await source.LoadFreshnessAsync(FreshnessToday()) : []);
             if (current != revision) return;
             if (!HasData) { status.Text = NoDataText + ". Import the Service Centre files on Import → Import folder."; ClearExtras(); return; }
             var request = PrepareLoad();
@@ -168,9 +168,9 @@ public abstract class ServiceScreenView : UserControl
         return $"Service data as at {latest:dd MMM yyyy} (refreshed {imported:dd MMM yyyy})";
     }
 
-    private void ShowFreshness(IReadOnlyList<ServiceFamilyFreshness> families)
+    private void ShowFreshness(IReadOnlyList<ServiceFreshnessChip> chips)
     {
-        Freshness = families.Count == 0 ? [] : ServiceFreshnessStrip.Build(families, FreshnessToday());
+        Freshness = chips;
         freshnessStrip.Children.Clear();
         foreach (var chip in Freshness) freshnessStrip.Children.Add(ServiceFreshnessStrip.CreateChip(chip));
     }

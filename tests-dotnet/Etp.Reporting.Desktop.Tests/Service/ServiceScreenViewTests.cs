@@ -50,11 +50,12 @@ public sealed class ServiceScreenViewTests
             view.ActivateAsync().GetAwaiter().GetResult();
 
             Assert.Equal(1, query.FreshnessCalls);
-            Assert.Equal(ServiceFreshnessStrip.Groups.Select(group => group.Group), view.Freshness.Select(chip => chip.Group));
-            var pending = view.Freshness.Single(chip => chip.Group == "Pending lists");
-            Assert.Equal("Pending lists: last export 05 Oct 2026 (raw)", pending.Text);
-            Assert.Equal(ServiceFreshnessLevel.Fresh, pending.Level);
-            Assert.Equal(ServiceFreshnessLevel.NoExport, view.Freshness.Single(chip => chip.Group == "Jobs").Level);
+            Assert.Equal(new DateOnly(2026, 10, 9), query.LastFreshnessAsOf);
+            Assert.Equal(ServiceFreshness.Groups.Select(group => group.Group), view.Freshness.Select(chip => chip.Group));
+            // S009 is at 5 Oct but S010 was never exported, so the Pending lists chip is partial; Money has S004 only.
+            Assert.Equal("Pending lists: some families never exported", ServiceFreshnessStrip.TextFor(view.Freshness.Single(chip => chip.Group == "Pending lists")));
+            Assert.Equal(ServiceFreshnessColour.NoData, view.Freshness.Single(chip => chip.Group == "Jobs").Colour);
+            Assert.Equal("Jobs: no export yet", ServiceFreshnessStrip.TextFor(view.Freshness.Single(chip => chip.Group == "Jobs")));
             var strip = Descendants<WrapPanel>(view).Single(panel => AutomationProperties.GetName(panel) == "Service data freshness");
             Assert.Equal(view.Freshness.Count, strip.Children.Count);
             Assert.Equal(view.Freshness, strip.Children.OfType<Border>().Select(border => (ServiceFreshnessChip)border.Tag));
@@ -384,7 +385,7 @@ public sealed class ServiceScreenViewTests
     [Fact]
     public void No_contract_record_carries_a_phone_email_or_address_field()
     {
-        var types = new[] { typeof(ServiceRefresh), typeof(ServiceJobRow), typeof(ServicePendingRow), typeof(ServiceJobEvent), typeof(ServiceMoneyDay), typeof(ServiceMoneyChange), typeof(ServiceUnmatchedMoneyEntry), typeof(ServiceFamilyFreshness), typeof(ServiceTodaySummary) };
+        var types = new[] { typeof(ServiceRefresh), typeof(ServiceJobRow), typeof(ServicePendingRow), typeof(ServiceJobEvent), typeof(ServiceMoneyDay), typeof(ServiceMoneyChange), typeof(ServiceUnmatchedMoneyEntry), typeof(ServiceFreshnessChip), typeof(ServiceToday), typeof(ServicePendingBoardRow), typeof(ServiceJobTimelineRow), typeof(ServiceClaimLine), typeof(ServicePartsInvoice) };
         Assert.All(types.SelectMany(type => type.GetProperties()), property =>
             Assert.DoesNotContain(ForbiddenHeaderWords, word => property.Name.Contains(word.Replace("-", ""), StringComparison.OrdinalIgnoreCase)));
     }
@@ -524,25 +525,24 @@ public sealed class ServiceScreenViewTests
             return Task.FromResult(rows);
         }
 
-        public IReadOnlyList<ServiceFamilyFreshness> Freshness { get; init; } =
-        [
-            new("S009", new(2026, 10, 5), ServiceSourceKinds.Raw, 7, ImportedUtc),
-            new("S004", new(2026, 10, 5), ServiceSourceKinds.Raw, 9, ImportedUtc)
-        ];
         public int FreshnessCalls { get; private set; }
+        public DateOnly? LastFreshnessAsOf { get; private set; }
 
-        public Task<IReadOnlyList<ServiceFamilyFreshness>> LoadFreshnessAsync(CancellationToken cancellationToken = default)
+        /// <summary>The contract rule (ServiceFreshness.Build) over this fake's refresh log, with S009/S004 as raw exports.</summary>
+        public Task<IReadOnlyList<ServiceFreshnessChip>> LoadFreshnessAsync(DateOnly? asOf = null, CancellationToken cancellationToken = default)
         {
-            FreshnessCalls++;
-            return Task.FromResult(Freshness);
+            FreshnessCalls++; LastFreshnessAsOf = asOf;
+            return Task.FromResult(ServiceFreshness.Build(Refreshes, asOf ?? new DateOnly(2026, 10, 9),
+                new Dictionary<string, string> { ["S009"] = "RAW", ["S004"] = "RAW" }));
         }
 
         public DateOnly? LastTodayDate { get; private set; }
 
-        public Task<ServiceTodaySummary> LoadTodayAsync(DateOnly businessDate, CancellationToken cancellationToken = default)
+        public Task<ServiceToday> LoadTodayAsync(DateOnly? businessDate = null, CancellationToken cancellationToken = default)
         {
             BodyCalls++; LastTodayDate = businessDate;
-            return Task.FromResult(new ServiceTodaySummary(businessDate, 6, 4, 2, 61, 40, 21, 4, 58, 1, 3, 46, 25, 11, 97, 12, 12_500m, 12_500m, 9, 7));
+            var date = businessDate ?? new DateOnly(2026, 10, 5);
+            return Task.FromResult(new ServiceToday(date, new(2026, 10, 5), 6, 4, 2, 61, 40, 21, 4, 58, 1, 46, 25, 11, 97, 12, 12_500m, 8_000m, 2_500m, 2_000m, true, 12_500m, 9, 7, 41_000m));
         }
     }
 }

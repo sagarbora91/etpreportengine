@@ -6,7 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using ServiceReportQuery = EtpApplication::Etp.Reporting.Application.Service.IServiceReportQuery;
 using ServiceStages = EtpApplication::Etp.Reporting.Application.Service.ServiceStages;
-using ServiceTodaySummary = EtpApplication::Etp.Reporting.Application.Service.ServiceTodaySummary;
+using ServiceToday = EtpApplication::Etp.Reporting.Application.Service.ServiceToday;
 
 namespace Etp.Reporting.Desktop.Modules.Service;
 
@@ -77,9 +77,10 @@ public sealed class ServiceTodayView : ServiceScreenView, IServiceDrillDownTarge
     protected override async Task<IReadOnlyList<ServiceGridRow>> LoadRowsAsync(ServiceReportQuery source)
     {
         latestSnapshot = Refreshes.Count == 0 ? null : Refreshes.Max(refresh => refresh.SnapshotDate);
-        var date = chosen ?? latestSnapshot ?? DateOnly.FromDateTime(DateTime.Today);
-        businessDate.SelectedDate = date.ToDateTime(TimeOnly.MinValue);
+        // Q15: the latest Service snapshot date, never the calendar day; the query also defaults a null date to it.
+        var date = chosen ?? latestSnapshot;
         var summary = await source.LoadTodayAsync(date);
+        businessDate.SelectedDate = summary.BusinessDate.ToDateTime(TimeOnly.MinValue);
         Cards = BuildCards(summary);
         cards.Children.Clear();
         foreach (var card in Cards) cards.Children.Add(CreateCardButton(card));
@@ -89,28 +90,29 @@ public sealed class ServiceTodayView : ServiceScreenView, IServiceDrillDownTarge
     protected override void ClearExtras() { cards.Children.Clear(); Cards = []; }
 
     /// <summary>The seven cards of design 3.2 from one summary. Pure, so the values and targets are testable without WPF.</summary>
-    public static IReadOnlyList<ServiceTodayCard> BuildCards(ServiceTodaySummary summary)
+    public static IReadOnlyList<ServiceTodayCard> BuildCards(ServiceToday summary)
     {
         var date = summary.BusinessDate.ToString("yyyy-MM-dd");
-        var manual = summary.ManualMoneyToday is { } entered ? $"{ManualEnteredText} ({entered:N0})" : ManualMissingText;
-        var collectionAccent = summary.CollectionToday is null ? "PrimaryText" : summary.ManualMoneyToday is null ? "Critical" : "Success";
+        var manual = summary.ManualEntered ? $"{ManualEnteredText} ({summary.ManualAmount ?? 0:N0})" : ManualMissingText;
+        var collectionAccent = summary.CollectionToday is null ? "PrimaryText" : summary.ManualEntered ? "Success" : "Critical";
         return
         [
-            new(BookedLabel, N(summary.BookedToday), $"Booking {N(summary.BookedTodayBooking)} · Quick Billing {N(summary.BookedTodayQuickBilling)} · this month {N(summary.BookedMonth)} ({N(summary.BookedMonthBooking)} / {N(summary.BookedMonthQuickBilling)})",
+            new(BookedLabel, N(summary.BookedToday), $"Booking {N(summary.BookedTodayBooking)} · Quick Billing {N(summary.BookedTodayQuickBilling)} · this month {N(summary.BookedThisMonth)} ({N(summary.BookedThisMonthBooking)} / {N(summary.BookedThisMonthQuickBilling)})",
                 "Success", new(ServiceScreens.JobsTask, ServiceStages.Booked)),
-            new(DeliveredLabel, N(summary.DeliveredToday), $"RWR {N(summary.RwrToday)} · this month {N(summary.DeliveredMonth)} delivered, {N(summary.RwrMonth)} RWR",
+            new(DeliveredLabel, N(summary.DeliveredToday), $"RWR {N(summary.RwrToday)} · this month {N(summary.DeliveredThisMonth)} delivered",
                 "Success", new(ServiceScreens.JobsTask, ServiceStages.Delivered)),
-            new(OnBenchLabel, N(summary.OnBench), $"indent raised {N(summary.OnBenchIndentRaised)} · EDD passed {N(summary.OnBenchEddPassed)}",
-                summary.OnBenchEddPassed > 0 ? "Warning" : "PrimaryText", new(ServiceScreens.PendingTask, ServiceStages.OnBench)),
-            new(ReadyLabel, N(summary.ReadyForDelivery), $"in transit back {N(summary.InTransitBack)}",
+            new(OnBenchLabel, N(summary.OnBench), $"indent raised {N(summary.IndentRaised)} · EDD passed {N(summary.EddPassed)}",
+                summary.EddPassed > 0 ? "Warning" : "PrimaryText", new(ServiceScreens.PendingTask, ServiceStages.OnBench)),
+            new(ReadyLabel, N(summary.ReadyAtCentre), $"in transit back {N(summary.InTransit)}",
                 "PrimaryText", new(ServiceScreens.PendingTask, ServiceStages.ReadyForDelivery)),
             new(CollectionLabel, summary.CollectionToday is { } collection ? collection.ToString("N0") : "—",
                 summary.CollectionToday is null ? "no S004 collection for the date · " + manual : "S004 cash, card and UPI · " + manual,
                 collectionAccent, new(ServiceScreens.MoneyTask, date)),
-            new(Over15Label, N(summary.OpenOver15Days), "open jobs booked more than 15 days ago", summary.OpenOver15Days > 0 ? "Warning" : "PrimaryText",
+            new(Over15Label, N(summary.JobsOver15Days), "open jobs booked more than 15 days ago", summary.JobsOver15Days > 0 ? "Warning" : "PrimaryText",
                 new(ServiceScreens.PendingTask)),
-            new(ClaimsLabel, N(summary.ClaimsRaisedMonth), "GPRC, Module Bank, WDC and WRA documents raised (not settlement)", "PrimaryText",
-                new(ServiceScreens.ClaimsTask))
+            new(ClaimsLabel, N(summary.ClaimsRaisedThisMonth),
+                (summary.ClaimsValueThisMonth is { } value ? $"{value:N0} net incl. tax · " : "") + "GPRC, Module Bank, WDC and WRA documents raised (not settlement)",
+                "PrimaryText", new(ServiceScreens.ClaimsTask))
         ];
     }
 

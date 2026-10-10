@@ -1,106 +1,83 @@
+using System.Windows.Automation;
+using System.Windows.Controls;
 using Etp.Reporting.Application.Service;
 using Etp.Reporting.Desktop.Modules.Service;
 
 namespace Etp.Reporting.Desktop.Tests.Service;
 
-/// <summary>The freshness strip (design 3.7, decision 25 Q14): grouping, the oldest-of-ten rule, colours and wording. Pure C#.</summary>
+/// <summary>
+/// The freshness strip on the Service frame (design 3.7, decision 25 Q14): the chips come from the contract
+/// (ServiceFreshness.Build, lane sql); this class pins the Desktop side: colours, wording and the chip control.
+/// </summary>
+[Collection(WpfViewCollection.Name)]
 public sealed class ServiceFreshnessStripTests
 {
     private static readonly DateTime ImportedUtc = new(2026, 10, 6, 4, 30, 0, DateTimeKind.Utc);
     private static readonly DateOnly Today = new(2026, 10, 9);
 
-    private static ServiceFamilyFreshness Family(string code, DateOnly date, string kind = ServiceSourceKinds.Raw) => new(code, date, kind, 10, ImportedUtc);
-
-    [Fact]
-    public void The_nine_groups_cover_every_importable_family_once()
-    {
-        var codes = ServiceFreshnessStrip.Groups.SelectMany(group => group.Families).ToArray();
-        Assert.Equal(codes.Length, codes.Distinct().Count());
-        Assert.Equal(["Jobs", "Status views", "Pending lists", "SRN", "Money", "Claims", "Parts", "Tests", "Deftran"], ServiceFreshnessStrip.Groups.Select(group => group.Group));
-        Assert.Equal(["S002", "S003", "S004", "S006", "S007", "S008", "S009", "S010", "S011", "S012", "S013", "S014", "S015", "S016", "S017", "S018",
-            "S019", "S020", "S021", "S022", "S023", "S024", "S025", "S026", "S029", "S030", "S031", "S032", "S033", "S034", "S035", "S036", "S037",
-            "S039", "S040", "S041"].Except(["S019", "S020", "S021", "S022"]).Order(), codes.Order());
-    }
+    private static ServiceRefresh Refresh(string code, DateOnly date) => new(code, date, 10, 100 + date.DayNumber, ImportedUtc);
 
     [Theory]
-    [InlineData(0, ServiceFreshnessLevel.Fresh)]
-    [InlineData(7, ServiceFreshnessLevel.Fresh)]
-    [InlineData(8, ServiceFreshnessLevel.Amber)]
-    [InlineData(14, ServiceFreshnessLevel.Amber)]
-    [InlineData(15, ServiceFreshnessLevel.Red)]
-    [InlineData(60, ServiceFreshnessLevel.Red)]
-    public void Amber_after_7_days_red_after_14(int ageDays, ServiceFreshnessLevel expected)
+    [InlineData(0, ServiceFreshnessColour.Fresh)]
+    [InlineData(7, ServiceFreshnessColour.Fresh)]
+    [InlineData(8, ServiceFreshnessColour.Amber)]
+    [InlineData(14, ServiceFreshnessColour.Amber)]
+    [InlineData(15, ServiceFreshnessColour.Red)]
+    [InlineData(60, ServiceFreshnessColour.Red)]
+    public void Amber_after_7_days_red_after_14(int ageDays, ServiceFreshnessColour expected)
     {
-        Assert.Equal(expected, ServiceFreshnessStrip.LevelFor(ageDays));
-        var chip = ServiceFreshnessStrip.Build([Family("S009", Today.AddDays(-ageDays))], Today).Single(chip => chip.Group == "Pending lists");
-        Assert.Equal(expected, chip.Level);
-        Assert.Equal(ageDays, chip.AgeDays);
+        var chips = ServiceFreshness.Build([Refresh("S009", Today.AddDays(-ageDays)), Refresh("S010", Today.AddDays(-ageDays))], Today,
+            new Dictionary<string, string> { ["S009"] = "RAW", ["S010"] = "RAW" });
+        var chip = chips.Single(chip => chip.Group == "Pending lists");
+        Assert.Equal(expected, chip.Colour);
+        Assert.Equal($"Pending lists: last export {Today.AddDays(-ageDays):dd MMM yyyy} (raw)", ServiceFreshnessStrip.TextFor(chip));
     }
 
     [Fact]
-    public void Status_views_show_the_oldest_of_the_ten_lists_other_groups_the_latest()
+    public void Colours_map_to_the_theme_brushes_and_a_spoken_level()
     {
-        var chips = ServiceFreshnessStrip.Build(
-        [
-            Family("S014", new(2026, 9, 29), ServiceSourceKinds.Consolidated), Family("S018", new(2026, 10, 3)), Family("S032", new(2026, 10, 3)),
-            Family("S002", new(2026, 10, 3)), Family("S036", new(2026, 9, 29), ServiceSourceKinds.Consolidated)
-        ], Today);
+        Assert.Equal(("SurfaceSecondary", "SecondaryText"), ServiceFreshnessStrip.BrushesFor(ServiceFreshnessColour.NoData));
+        Assert.Equal(("SuccessSoft", "Success"), ServiceFreshnessStrip.BrushesFor(ServiceFreshnessColour.Fresh));
+        Assert.Equal(("WarningSoft", "Warning"), ServiceFreshnessStrip.BrushesFor(ServiceFreshnessColour.Amber));
+        Assert.Equal(("CriticalSoft", "Critical"), ServiceFreshnessStrip.BrushesFor(ServiceFreshnessColour.Red));
+        Assert.Equal("older than 14 days", ServiceFreshnessStrip.DescribeColour(ServiceFreshnessColour.Red));
+        Assert.Equal("older than 7 days", ServiceFreshnessStrip.DescribeColour(ServiceFreshnessColour.Amber));
+    }
+
+    [Fact]
+    public void The_chip_control_carries_the_chip_and_names_itself_for_assistive_technology()
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                var chip = new ServiceFreshnessChip("SRN", ["S011", "S012", "S013"], new DateOnly(2026, 9, 24), "CONSOLIDATED", ServiceFreshnessColour.Red, "last export 24 Sep 2026 (consolidated)");
+                var border = ServiceFreshnessStrip.CreateChip(chip);
+                Assert.Same(chip, border.Tag);
+                Assert.Equal("SRN: last export 24 Sep 2026 (consolidated)", ((TextBlock)border.Child).Text);
+                Assert.Equal("SRN: last export 24 Sep 2026 (consolidated), older than 14 days", AutomationProperties.GetName(border));
+            }
+            catch (Exception exception) { failure = exception; }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start(); thread.Join();
+        if (failure is not null) throw failure;
+    }
+
+    [Fact]
+    public void A_group_with_no_reading_prints_no_export_yet_and_the_status_views_follow_the_stalest_list()
+    {
+        var refreshes = new List<ServiceRefresh> { Refresh("S004", new(2026, 10, 3)) };
+        foreach (var code in new[] { "S014", "S015", "S016", "S017", "S018", "S031", "S032", "S033", "S034", "S035" })
+            refreshes.Add(Refresh(code, code == "S014" ? new(2026, 9, 29) : new(2026, 10, 3)));
+        var chips = ServiceFreshness.Build(refreshes, Today);
+        Assert.Equal(9, chips.Count);
+        Assert.Equal("Tests: no export yet", ServiceFreshnessStrip.TextFor(chips.Single(chip => chip.Group == "Tests")));
+        Assert.Equal(ServiceFreshnessColour.NoData, chips.Single(chip => chip.Group == "Tests").Colour);
         var status = chips.Single(chip => chip.Group == "Status views");
-        Assert.Equal(new DateOnly(2026, 9, 29), status.SnapshotDate);
-        Assert.Equal("Status views: last export 29 Sep 2026 (consolidated)", status.Text);
-        Assert.Equal(ServiceFreshnessLevel.Amber, status.Level);
-        var jobs = chips.Single(chip => chip.Group == "Jobs");
-        Assert.Equal(new DateOnly(2026, 10, 3), jobs.SnapshotDate);
-        Assert.Equal("Jobs: last export 03 Oct 2026 (raw)", jobs.Text);
-        Assert.Equal(ServiceFreshnessLevel.Fresh, jobs.Level);
-    }
-
-    [Fact]
-    public void A_group_without_a_reading_says_no_export_yet_in_neutral_colours()
-    {
-        var chips = ServiceFreshnessStrip.Build([Family("S004", new(2026, 10, 3))], Today);
-        var tests = chips.Single(chip => chip.Group == "Tests");
-        Assert.Equal("Tests: no export yet", tests.Text);
-        Assert.Equal(ServiceFreshnessLevel.NoExport, tests.Level);
-        Assert.Null(tests.AgeDays);
-        Assert.Equal(("SurfaceSecondary", "SecondaryText"), ServiceFreshnessStrip.BrushesFor(ServiceFreshnessLevel.NoExport));
-        Assert.Equal(("WarningSoft", "Warning"), ServiceFreshnessStrip.BrushesFor(ServiceFreshnessLevel.Amber));
-        Assert.Equal(("CriticalSoft", "Critical"), ServiceFreshnessStrip.BrushesFor(ServiceFreshnessLevel.Red));
-        Assert.Equal(("SuccessSoft", "Success"), ServiceFreshnessStrip.BrushesFor(ServiceFreshnessLevel.Fresh));
-    }
-
-    [Fact]
-    public void An_unknown_source_kind_prints_no_bracket_so_a_pre_1_10_query_still_reads_well()
-    {
-        var chip = ServiceFreshnessStrip.Build([Family("S003", new(2026, 10, 3), "")], Today).Single(chip => chip.Group == "Money");
-        Assert.Equal("Money: last export 03 Oct 2026", chip.Text);
-        Assert.Equal("", ServiceFreshnessStrip.DescribeSourceKind(null));
-        Assert.Equal("raw", ServiceFreshnessStrip.DescribeSourceKind(" raw "));
-    }
-
-    [Fact]
-    public void The_contract_default_derives_freshness_from_the_refresh_log_latest_reading_per_family()
-    {
-        var query = new RefreshLogOnly();
-        var rows = query.LoadFreshnessAsync().GetAwaiter().GetResult();
-        Assert.Equal(["S004", "S009"], rows.Select(row => row.ReportCode));
-        Assert.Equal(new DateOnly(2026, 10, 5), rows.Single(row => row.ReportCode == "S009").SnapshotDate);
-        Assert.All(rows, row => Assert.Equal("", row.SourceKind));
-    }
-
-    private sealed class RefreshLogOnly : IServiceReportQuery
-    {
-        public Task<IReadOnlyList<ServiceRefresh>> LoadRefreshesAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<ServiceRefresh>>(
-            [
-                new("S009", new(2026, 10, 5), 7, 140, ImportedUtc),
-                new("S009", new(2026, 9, 28), 6, 101, ImportedUtc.AddDays(-7)),
-                new("S004", new(2026, 10, 5), 9, 141, ImportedUtc)
-            ]);
-        public Task<IReadOnlyList<ServiceJobRow>> LoadJobsByStatusAsync(string? statusView, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<IReadOnlyList<ServicePendingRow>> LoadPendingAsync(string list, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<IReadOnlyList<ServiceJobEvent>> LoadJobHistoryAsync(string jobOrderNumber, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<IReadOnlyList<ServiceMoneyDay>> LoadMoneyCheckAsync(DateOnly from, DateOnly to, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<IReadOnlyList<ServiceMoneyChange>> LoadMoneyChangesAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        Assert.Equal(new DateOnly(2026, 9, 29), status.LatestSnapshotDate);
+        Assert.Equal(ServiceFreshnessColour.Amber, status.Colour);
+        Assert.Equal("Status views: last export 29 Sep 2026", ServiceFreshnessStrip.TextFor(status));
     }
 }

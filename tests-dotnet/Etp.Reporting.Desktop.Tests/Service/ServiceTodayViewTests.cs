@@ -18,11 +18,12 @@ public sealed class ServiceTodayViewTests
     private static readonly string[] ForbiddenHeaderWords = ["phone", "mobile", "landline", "e-mail", "email", "address"];
     private static readonly DateTime ImportedUtc = new(2026, 10, 6, 4, 30, 0, DateTimeKind.Utc);
 
-    private static ServiceTodaySummary Summary(DateOnly date) => new(date,
-        BookedToday: 6, BookedTodayBooking: 4, BookedTodayQuickBilling: 2, BookedMonth: 61, BookedMonthBooking: 40, BookedMonthQuickBilling: 21,
-        DeliveredToday: 4, DeliveredMonth: 58, RwrToday: 1, RwrMonth: 3,
-        OnBench: 46, OnBenchIndentRaised: 25, OnBenchEddPassed: 11, InTransitBack: 97, ReadyForDelivery: 12,
-        CollectionToday: 12_500m, ManualMoneyToday: null, OpenOver15Days: 9, ClaimsRaisedMonth: 7);
+    private static ServiceToday Summary(DateOnly date) => new(date, new DateOnly(2026, 10, 5),
+        BookedToday: 6, BookedTodayBooking: 4, BookedTodayQuickBilling: 2, BookedThisMonth: 61, BookedThisMonthBooking: 40, BookedThisMonthQuickBilling: 21,
+        DeliveredToday: 4, DeliveredThisMonth: 58, RwrToday: 1,
+        OnBench: 46, IndentRaised: 25, EddPassed: 11, InTransit: 97, ReadyAtCentre: 12,
+        CollectionToday: 12_500m, CollectionCash: 8_000m, CollectionCard: 2_500m, CollectionUpi: 2_000m, ManualEntered: false, ManualAmount: null,
+        JobsOver15Days: 9, ClaimsRaisedThisMonth: 7, ClaimsValueThisMonth: 41_000m);
 
     [Fact]
     public void The_business_date_defaults_to_the_latest_Service_snapshot_not_today()
@@ -57,7 +58,7 @@ public sealed class ServiceTodayViewTests
             Assert.Equal("Booking 4 · Quick Billing 2 · this month 61 (40 / 21)", booked.Detail);
             var delivered = view.Cards[1];
             Assert.Equal("4", delivered.Value);
-            Assert.Equal("RWR 1 · this month 58 delivered, 3 RWR", delivered.Detail);
+            Assert.Equal("RWR 1 · this month 58 delivered", delivered.Detail);
             var bench = view.Cards[2];
             Assert.Equal("46", bench.Value);
             Assert.Equal("indent raised 25 · EDD passed 11", bench.Detail);
@@ -70,6 +71,7 @@ public sealed class ServiceTodayViewTests
             Assert.Equal("Critical", money.Accent);
             Assert.Equal("9", view.Cards[5].Value);
             Assert.Equal("7", view.Cards[6].Value);
+            Assert.StartsWith("41,000 net incl. tax", view.Cards[6].Detail, StringComparison.Ordinal);
             Assert.Equal(7, view.CardButtons.Count);
             Assert.Equal(7, Descendants<KpiCard>(view).Count());
             Assert.All(view.CardButtons, button => Assert.EndsWith("Open the list.", AutomationProperties.GetName(button), StringComparison.Ordinal));
@@ -147,7 +149,7 @@ public sealed class ServiceTodayViewTests
     [Fact]
     public void Money_entered_shows_the_manual_amount_in_green()
     {
-        var card = ServiceTodayView.BuildCards(Summary(new(2026, 10, 5)) with { ManualMoneyToday = 12_500m })[4];
+        var card = ServiceTodayView.BuildCards(Summary(new(2026, 10, 5)) with { ManualEntered = true, ManualAmount = 12_500m })[4];
         Assert.Equal("S004 cash, card and UPI · " + ServiceTodayView.ManualEnteredText + " (12,500)", card.Detail);
         Assert.Equal("Success", card.Accent);
         Assert.Equal(new ServiceDrillDown(ServiceScreens.MoneyTask, "2026-10-05"), card.Target);
@@ -167,18 +169,6 @@ public sealed class ServiceTodayViewTests
             Assert.Empty(view.Cards);
             Assert.Empty(view.CardButtons);
             Assert.Empty(view.Freshness);
-        });
-    }
-
-    [Fact]
-    public void A_build_without_the_Today_query_says_so_instead_of_showing_zeros()
-    {
-        RunSta(() =>
-        {
-            var view = new ServiceTodayView(() => new RefreshesOnlyQuery(), NoExport);
-            view.ActivateAsync().GetAwaiter().GetResult();
-            Assert.Contains("could not be loaded", view.StatusText);
-            Assert.Empty(view.Cards);
         });
     }
 
@@ -210,23 +200,21 @@ public sealed class ServiceTodayViewTests
     {
         RunSta(() =>
         {
-            var query = new FakeTodayQuery
-            {
-                Freshness =
-                [
-                    new("S002", new(2026, 10, 5), ServiceSourceKinds.Raw, 10, ImportedUtc),
-                    new("S009", new(2026, 10, 1), ServiceSourceKinds.Raw, 10, ImportedUtc),
-                    new("S011", new(2026, 9, 24), ServiceSourceKinds.Consolidated, 10, ImportedUtc)
-                ]
-            };
+            var refreshes = new List<ServiceRefresh>();
+            foreach (var code in new[] { "S002", "S036", "S037" }) refreshes.Add(new(code, new(2026, 10, 5), 10, 1, ImportedUtc));
+            foreach (var code in new[] { "S009", "S010" }) refreshes.Add(new(code, new(2026, 10, 1), 10, 2, ImportedUtc));
+            foreach (var code in new[] { "S011", "S012", "S013" }) refreshes.Add(new(code, new(2026, 9, 24), 10, 3, ImportedUtc));
+            var query = new FakeTodayQuery { Refreshes = refreshes, SourceKinds = new Dictionary<string, string> { ["S002"] = "RAW", ["S009"] = "RAW", ["S011"] = "CONSOLIDATED" } };
             var view = new ServiceTodayView(() => query, NoExport) { FreshnessToday = () => new DateOnly(2026, 10, 9) };
 
             view.ActivateAsync().GetAwaiter().GetResult();
 
-            Assert.Equal(ServiceFreshnessLevel.Fresh, view.Freshness.Single(chip => chip.Group == "Jobs").Level);
-            Assert.Equal(ServiceFreshnessLevel.Amber, view.Freshness.Single(chip => chip.Group == "Pending lists").Level);
-            Assert.Equal(ServiceFreshnessLevel.Red, view.Freshness.Single(chip => chip.Group == "SRN").Level);
-            Assert.Equal("SRN: last export 24 Sep 2026 (consolidated)", view.Freshness.Single(chip => chip.Group == "SRN").Text);
+            Assert.Equal(ServiceFreshnessColour.Fresh, view.Freshness.Single(chip => chip.Group == "Jobs").Colour);
+            Assert.Equal(ServiceFreshnessColour.Amber, view.Freshness.Single(chip => chip.Group == "Pending lists").Colour);
+            Assert.Equal(ServiceFreshnessColour.Red, view.Freshness.Single(chip => chip.Group == "SRN").Colour);
+            Assert.Equal("SRN: last export 24 Sep 2026 (consolidated)", ServiceFreshnessStrip.TextFor(view.Freshness.Single(chip => chip.Group == "SRN")));
+            var strip = Descendants<System.Windows.Controls.WrapPanel>(view).Single(panel => AutomationProperties.GetName(panel) == "Service data freshness");
+            Assert.Equal(9, strip.Children.Count);
         });
     }
 
@@ -300,17 +288,17 @@ public sealed class ServiceTodayViewTests
 
     private sealed class FakeTodayQuery : RefreshesOnlyQuery
     {
-        public Func<DateOnly, ServiceTodaySummary> Summaries { get; init; } = Summary;
-        public IReadOnlyList<ServiceFamilyFreshness> Freshness { get; init; } =
-            [new("S009", new(2026, 10, 5), ServiceSourceKinds.Raw, 7, ImportedUtc), new("S004", new(2026, 10, 5), ServiceSourceKinds.Raw, 9, ImportedUtc)];
+        public Func<DateOnly, ServiceToday> Summaries { get; init; } = Summary;
+        public IReadOnlyDictionary<string, string> SourceKinds { get; init; } = new Dictionary<string, string> { ["S009"] = "RAW", ["S004"] = "RAW" };
         public DateOnly? LastDate { get; private set; }
 
-        public Task<IReadOnlyList<ServiceFamilyFreshness>> LoadFreshnessAsync(CancellationToken cancellationToken = default) => Task.FromResult(Freshness);
+        public Task<IReadOnlyList<ServiceFreshnessChip>> LoadFreshnessAsync(DateOnly? asOf = null, CancellationToken cancellationToken = default) =>
+            Task.FromResult(ServiceFreshness.Build(Refreshes, asOf ?? new DateOnly(2026, 10, 9), SourceKinds));
 
-        public Task<ServiceTodaySummary> LoadTodayAsync(DateOnly businessDate, CancellationToken cancellationToken = default)
+        public Task<ServiceToday> LoadTodayAsync(DateOnly? businessDate = null, CancellationToken cancellationToken = default)
         {
             LastDate = businessDate;
-            return Task.FromResult(Summaries(businessDate));
+            return Task.FromResult(Summaries(businessDate ?? Refreshes.Max(refresh => refresh.SnapshotDate)));
         }
     }
 }
