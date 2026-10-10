@@ -1,5 +1,6 @@
 using Etp.Reporting.Application.Imports;
 using Etp.Reporting.Domain.Imports;
+using Etp.Reporting.Import.Diagnostics;
 using Etp.Reporting.Import.Preflight;
 using Etp.Reporting.Import.Profiles;
 using Etp.Reporting.Import.Workbooks;

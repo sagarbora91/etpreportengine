@@ -21,11 +21,11 @@ public sealed class InvoiceLineageBrandSqlTests
     {
         var sql = OperationalReportRepository.InvoiceLineageSql;
 
-        Assert.Contains("l.product_code,\n               " + BrandRowSql.BrandRowOrUnmappedOfL + ",l.brand_segment,l.source_transaction_type,", sql.ReplaceLineEndings("\n"), StringComparison.Ordinal);
+        Assert.Contains("l.product_code, " + BrandRowSql.BrandRowOrUnmappedOfL + ",l.brand_segment,l.source_transaction_type,", Flat(sql), StringComparison.Ordinal);
         Assert.Contains(BrandRowSql.MappedRowOfL.Trim(), sql, StringComparison.Ordinal);
         Assert.Equal(1, Occurrences(sql, "OUTER APPLY (SELECT TOP(1) r.row_label"));
         // The export's own brand is no longer the column on its own.
-        Assert.DoesNotContain("l.product_code,\n               COALESCE(l.source_brand_name,l.source_brand_code),", sql.ReplaceLineEndings("\n"), StringComparison.Ordinal);
+        Assert.DoesNotContain("l.product_code, COALESCE(l.source_brand_name,l.source_brand_code),", Flat(sql), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -39,6 +39,8 @@ public sealed class InvoiceLineageBrandSqlTests
         Assert.Contains("l.source_quantity,l.source_gross_amount,cro.source_cro_number,f.original_file_name,s.sheet_name,s.source_row_number", sql, StringComparison.Ordinal);
         Assert.Contains("ORDER BY i.transaction_date,i.store_code,i.document_number,l.line_identifier;", sql, StringComparison.Ordinal);
     }
+
+    private static string Flat(string sql) => System.Text.RegularExpressions.Regex.Replace(sql, @"\s+", " ");
 
     private static int Occurrences(string text, string value)
     {
