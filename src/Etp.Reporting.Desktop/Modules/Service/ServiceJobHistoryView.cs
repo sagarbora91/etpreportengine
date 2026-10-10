@@ -117,7 +117,7 @@ public sealed class ServiceJobHistoryView : ServiceScreenView
             + (!closed && job.PendingAt is { Length: > 0 } ? $" · at {job.PendingAt}" : "");
         var days = closed
             ? job.TatDays is { } tat ? $"TAT {tat:N0} day{(tat == 1 ? "" : "s")} (booked to {(job.Stage == ServiceJobStages.Rwr ? "returned" : job.Stage == ServiceJobStages.Delivered ? "delivered" : "closed")})" : "TAT not known"
-            : job.AgeDays is { } age ? $"Open {age:N0} day{(age == 1 ? "" : "s")}" + (job.DaysInStage is { } inStage ? $" · {inStage:N0} in this stage" : "") + (job.IsOverdue ? " · EDD passed" : "") : "Open";
+            : job.AgeDays is { } age ? $"Open {age:N0} day{(age == 1 ? "" : "s")}" + (job.DaysInStage is { } inStage ? $" · {inStage:N0} in this stage" : "") + (job.IsOverdue ? job.Edd is { } edd && edd < job.AsAt ? " · EDD passed" : " · overdue" : "") : "Open";
         var booked = (job.BookingDate is { } date ? date.ToString("dd MMM yyyy") : "not known") + " · " + ServiceJobTypes.Normalise(job.JoType);
         var items = new List<(string, string)>
         {

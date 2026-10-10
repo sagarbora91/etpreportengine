@@ -25,6 +25,12 @@ public sealed record ServicePendingGroup(string Stage, string Label, IReadOnlyLi
 
 public static class ServicePendingBoardRules
 {
+    /// <summary>
+    /// The age choice "over 15 days since booking" (bands 16-30, 31-60 and 60+): what the Service Today card
+    /// "Open over 15 days" counts, so the card opens the same jobs (R-UI-04).
+    /// </summary>
+    public const string Over15Days = "16+";
+
     /// <summary>The eight board groups in stage order: <see cref="ServiceStages.Order"/> without the closed stages (Q8).</summary>
     public static IReadOnlyList<string> BoardStages { get; } = ServiceStages.Order.Where(stage => !ServiceStages.Closed.Contains(stage)).ToArray();
 
@@ -41,15 +47,16 @@ public static class ServicePendingBoardRules
             .ThenBy(row => row.JobOrderNumber, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-    /// <summary>Applies the filters, keeping the order. The age band is the row's (days in stage, <see cref="ServiceAgeing.Band"/>).</summary>
+    /// <summary>Applies the filters, keeping the order. The age band is the row's (days since booking, <see cref="ServiceAgeing.Band"/>, decision 25).</summary>
     public static IReadOnlyList<ServicePendingBoardRow> Apply(IEnumerable<ServicePendingBoardRow> rows, ServicePendingFilter filter) =>
         rows.Where(row =>
                 (filter.Stages is null || filter.Stages.Count == 0 || filter.Stages.Contains(row.Stage, StringComparer.OrdinalIgnoreCase))
-                && (string.IsNullOrEmpty(filter.AgeBand) || string.Equals(row.AgeBand, filter.AgeBand, StringComparison.Ordinal))
+                && (string.IsNullOrEmpty(filter.AgeBand)
+                    || (filter.AgeBand == Over15Days ? row.DaysSinceBooking > 15 : string.Equals(row.AgeBand, filter.AgeBand, StringComparison.Ordinal)))
                 && (!filter.OverdueOnly || row.IsOverdue)
                 && (string.IsNullOrEmpty(filter.Brand) || string.Equals(row.Brand?.Trim(), filter.Brand, StringComparison.OrdinalIgnoreCase))
                 && (string.IsNullOrEmpty(filter.Guarantee) || string.Equals(row.Guarantee?.Trim(), filter.Guarantee, StringComparison.OrdinalIgnoreCase))
-                && (string.IsNullOrEmpty(filter.JoType) || row.IsQuickBilling == ServiceJobTypes.IsQuickBilling(filter.JoType)))
+                && (string.IsNullOrEmpty(filter.JoType) || row.IsQuickBilling == (ServiceJobTypes.Normalise(filter.JoType) == ServiceJobTypes.QuickBilling)))
             .ToArray();
 
     /// <summary>The groups in stage order; a group with no job is left out.</summary>

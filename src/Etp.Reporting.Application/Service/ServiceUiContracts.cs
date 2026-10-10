@@ -300,7 +300,7 @@ public sealed record ServiceFreshnessChip(string Group, IReadOnlyList<string> Re
 
 public partial interface IServiceReportQuery
 {
-    /// <summary>Service Today for <paramref name="businessDate"/>, or for the latest Service snapshot date when null (Q15).</summary>
+    /// <summary>Service Today for <paramref name="businessDate"/>, or, when null, for the latest business date the Service exports hold data for (Q15, R-SQL-01).</summary>
     Task<ServiceToday> LoadTodayAsync(DateOnly? businessDate = null, CancellationToken cancellationToken = default) =>
         Task.FromResult(new ServiceToday(businessDate ?? DateOnly.MinValue, null, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, null, null, null, null, false, null, 0, 0, null));
 

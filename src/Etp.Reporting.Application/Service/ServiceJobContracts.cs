@@ -9,42 +9,24 @@ namespace Etp.Reporting.Application.Service;
 /// <summary>The stage codes of <c>dbo.v_service_job</c> (design 4.2, first rule wins) and their screen labels.</summary>
 public static class ServiceJobStages
 {
-    public const string Booked = "BOOKED";
-    public const string OnBench = "ON_BENCH";
-    public const string IndentRaised = "INDENT_RAISED";
-    public const string SrnOut = "SRN_OUT";
-    public const string ReadyForDelivery = "READY_FOR_DELIVERY";
-    public const string InTransitBack = "IN_TRANSIT_BACK";
-    public const string DcIssued = "DC_ISSUED";
-    public const string RaIssued = "RA_ISSUED";
-    public const string Rwr = "RWR";
-    public const string Delivered = "DELIVERED";
+    // The codes, order, labels and rank are lane sql's ServiceStages (one source; integration 10 Oct 2026).
+    public const string Booked = ServiceStages.Booked;
+    public const string OnBench = ServiceStages.OnBench;
+    public const string IndentRaised = ServiceStages.IndentRaised;
+    public const string SrnOut = ServiceStages.SrnOut;
+    public const string ReadyForDelivery = ServiceStages.ReadyForDelivery;
+    public const string InTransitBack = ServiceStages.InTransitBack;
+    public const string DcIssued = ServiceStages.DcIssued;
+    public const string RaIssued = ServiceStages.RaIssued;
+    public const string Rwr = ServiceStages.Rwr;
+    public const string Delivered = ServiceStages.Delivered;
 
-    /// <summary>Lifecycle order (design 3.3 group order, then the closed stages).</summary>
-    public static IReadOnlyList<string> InOrder { get; } =
-        [Booked, OnBench, IndentRaised, SrnOut, ReadyForDelivery, InTransitBack, DcIssued, RaIssued, Rwr, Delivered];
+    /// <summary>Lifecycle order (design 3.3 group order, then the closed stages) = <see cref="ServiceStages.Order"/>.</summary>
+    public static IReadOnlyList<string> InOrder => ServiceStages.Order;
 
-    public static string Label(string? stage) => stage switch
-    {
-        Booked => "Booked, no status yet",
-        OnBench => "On the bench",
-        IndentRaised => "Indent raised, parts awaited",
-        SrnOut => "SRN out for repair",
-        ReadyForDelivery => "Repaired, awaiting delivery",
-        InTransitBack => "Sent back after repair, in transit",
-        DcIssued => "DC issued",
-        RaIssued => "RA issued",
-        Rwr => "Returned without repair",
-        Delivered => "Delivered",
-        null or "" => "Unknown",
-        _ => stage
-    };
+    public static string Label(string? stage) => string.IsNullOrEmpty(stage) ? "Unknown" : ServiceStages.Label(stage);
 
-    public static int Rank(string? stage)
-    {
-        var index = InOrder.ToList().IndexOf(stage ?? "");
-        return index < 0 ? InOrder.Count : index;
-    }
+    public static int Rank(string? stage) => ServiceStages.Rank(stage ?? "");
 
     /// <summary>
     /// Closed = delivered or returned without repair (Q8); a DC/RA-issued job whose claim document exists is

@@ -66,6 +66,12 @@ public sealed partial class SqlServerServiceReportQuery
         FROM dbo.v_service_parts_transit;
         """;
 
+    internal const string S004LatestSql = """
+        SELECT MAX(business_date)
+        FROM dbo.v_service_s004_daily
+        WHERE business_date <= @to;
+        """;
+
     internal const string S004RangeSql = """
         SELECT business_date,tender,amount
         FROM dbo.v_service_s004_daily
@@ -87,7 +93,16 @@ public sealed partial class SqlServerServiceReportQuery
     {
         var jobs = await ReadJobsAsync(AllJobsSql, _ => { }, cancellationToken);
         var asAt = jobs.Count > 0 ? jobs[0].AsAt : (DateOnly?)null;
-        var date = businessDate ?? asAt ?? DateOnly.FromDateTime(DateTime.Today);
+        DateOnly? latestS004 = null;
+        if (businessDate is null)
+        {
+            var latest = await ReadAsync(S004LatestSql, command =>
+                command.Parameters.Add("@to", System.Data.SqlDbType.Date).Value = (asAt ?? DateOnly.MaxValue).ToDateTime(TimeOnly.MinValue),
+                reader => reader.IsDBNull(0) ? (DateOnly?)null : reader.GetFieldValue<DateOnly>(0), cancellationToken);
+            latestS004 = latest.FirstOrDefault();
+        }
+        // Q15 / R-SQL-01: no date chosen = the latest day the exports hold data for, not the raw pack's export day.
+        var date = businessDate ?? ServiceBoard.LatestDataDate(jobs, latestS004, asAt) ?? DateOnly.FromDateTime(DateTime.Today);
         var month = new DateOnly(date.Year, date.Month, 1);
         void Range(SqlCommand command)
         {
@@ -193,7 +208,7 @@ public sealed partial class SqlServerServiceReportQuery
             Text(reader, 13), Text(reader, 14), Date(reader, 15), Date(reader, 16), Text(reader, 17), Date(reader, 18), Date(reader, 19),
             Date(reader, 20), Text(reader, 21), Date(reader, 22), Text(reader, 23), Date(reader, 24), Text(reader, 25), reader.GetBoolean(26),
             Money(reader, 27), Money(reader, 28), Money(reader, 29), Money(reader, 30), Money(reader, 31), reader.GetInt32(32),
-            Int(33), Int(34), Int(35), daysInStage, ServiceAgeing.OverdueBy(stage, edd, daysInStage, asAt), reader.GetBoolean(38),
+            Int(33), Int(34), Int(35), daysInStage, ServiceAgeing.OverdueBy(stage, edd, daysInStage, asAt, reader.GetBoolean(26)), reader.GetBoolean(38),
             Date(reader, 39), asAt);
     }
 

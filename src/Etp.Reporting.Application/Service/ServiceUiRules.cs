@@ -33,11 +33,13 @@ public static class ServiceAgeing
 
     /// <summary>
     /// Days overdue, or null when not overdue: EDD passed (as-at minus EDD, when positive) where an EDD exists; otherwise days
-    /// in stage over the stage limit. A closed stage (DELIVERED, RWR) is never overdue.
+    /// in stage over the stage limit. A closed stage (DELIVERED, RWR) is never overdue, nor is a DC/RA job closed by its
+    /// claim (Q3, R-SQL-05).
     /// </summary>
-    public static int? OverdueBy(string stage, DateOnly? edd, int? daysInStage, DateOnly asAt)
+    public static int? OverdueBy(string stage, DateOnly? edd, int? daysInStage, DateOnly asAt, bool claimRaised = false)
     {
         if (ServiceStages.Closed.Contains(stage)) return null;
+        if (claimRaised && stage is ServiceStages.DcIssued or ServiceStages.RaIssued) return null;
         if (edd is { } promised)
         {
             var late = asAt.DayNumber - promised.DayNumber;
@@ -59,12 +61,17 @@ public static class ServiceTat
         return sorted.Length % 2 == 1 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2.0;
     }
 
-    /// <summary>Booking jobs and Quick Billing jobs apart (a job without an S002 row is Booking); only closed jobs with a TAT count.</summary>
+    /// <summary>
+    /// Booking jobs and Quick Billing jobs apart (a job without an S002 row is Booking). <c>ClosedJobs</c> counts every closed
+    /// job with a TAT; the Q2 headline (medians, average, over 15 days) is booking to DELIVERED only, so RWR jobs are left
+    /// out of it (R-SQL-06).
+    /// </summary>
     public static ServiceTatSummary Summarise(IEnumerable<ServiceJobSummary> jobs)
     {
         var closed = jobs.Where(job => ServiceStages.Closed.Contains(job.Stage) && job.TatDays is not null).ToArray();
-        var booking = closed.Where(job => !job.IsQuickBilling).ToArray();
-        var quick = closed.Where(job => job.IsQuickBilling).ToArray();
+        var delivered = closed.Where(job => job.Stage == ServiceStages.Delivered).ToArray();
+        var booking = delivered.Where(job => !job.IsQuickBilling).ToArray();
+        var quick = delivered.Where(job => job.IsQuickBilling).ToArray();
         var bookingTat = booking.Select(job => job.TatDays!.Value).ToArray();
         return new ServiceTatSummary(
             closed.Length, booking.Length, quick.Length,
@@ -72,7 +79,7 @@ public static class ServiceTat
             Median(booking.Where(job => job.TatRepairDays is not null).Select(job => job.TatRepairDays!.Value)),
             bookingTat.Length == 0 ? null : bookingTat.Average(),
             Median(quick.Select(job => job.TatDays!.Value)),
-            closed.Count(job => job.TatDays > 15));
+            booking.Count(job => job.TatDays > 15));
     }
 }
 
@@ -91,6 +98,27 @@ public static class ServiceBoard
             .Select(ToBoardRow).ToArray();
         return new ServicePendingBoard(rows, rows.Length, rows.Count(row => row.IsOverdue), rows.Count(row => row.DaysSinceBooking > 30),
             rows.Count(row => row.Stage == ServiceStages.InTransitBack), rows.Count(row => row.Stage == ServiceStages.IndentRaised), asAt);
+    }
+
+    /// <summary>
+    /// The default Service Today date (Q15, R-SQL-01): the latest business date, up to <paramref name="asAt"/>, on which the
+    /// exports hold something Today counts (a booking, a delivery of a delivered job, an RWR of a returned job, or an S004
+    /// collection). A raw pack is named by its export day but holds data to the day before, so the snapshot date itself
+    /// would show zeros. Falls back to <paramref name="asAt"/> when nothing is dated.
+    /// </summary>
+    public static DateOnly? LatestDataDate(IEnumerable<ServiceJobSummary> jobs, DateOnly? latestS004, DateOnly? asAt)
+    {
+        var dates = jobs.SelectMany(job => new[]
+            {
+                job.BookingDate,
+                job.Stage == ServiceStages.Delivered ? job.DeliveryDate : null,
+                job.Stage == ServiceStages.Rwr ? job.RwrDate : null,
+            })
+            .Append(latestS004)
+            .Where(date => date is { } d && (asAt is null || d <= asAt.Value))
+            .Select(date => date!.Value)
+            .ToArray();
+        return dates.Length == 0 ? asAt : dates.Max();
     }
 
     /// <summary>
@@ -137,6 +165,16 @@ public static class ServiceFreshness
 {
     public const int AmberAfterDays = 7, RedAfterDays = 14;
 
+    /// <summary>
+    /// Q14 / R-SQL-14: families with no raw export come only in the monthly consolidated workbook (design 1.x, Q14), so they
+    /// are judged against a monthly cadence: amber after a month plus the 7-day grace, red after a month plus 14 days.
+    /// </summary>
+    public const int MonthlyAmberAfterDays = 31 + AmberAfterDays, MonthlyRedAfterDays = 31 + RedAfterDays;
+
+    /// <summary>The consolidated-only families (design Q14: S011-S014, S016, S019-S021, S023-S026, S030, S033, S035).</summary>
+    public static IReadOnlySet<string> MonthlyFamilies { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        { "S011", "S012", "S013", "S014", "S016", "S019", "S020", "S021", "S023", "S024", "S025", "S026", "S030", "S033", "S035" };
+
     /// <summary>The family groups and their report codes, in strip order.</summary>
     public static IReadOnlyList<(string Group, IReadOnlyList<string> ReportCodes)> Groups { get; } =
     [
@@ -151,11 +189,12 @@ public static class ServiceFreshness
         ("Deftran", ["S029"]),
     ];
 
-    public static ServiceFreshnessColour Colour(DateOnly? latest, DateOnly asOf)
+    public static ServiceFreshnessColour Colour(DateOnly? latest, DateOnly asOf, bool monthly = false)
     {
         if (latest is not { } date) return ServiceFreshnessColour.NoData;
         var age = asOf.DayNumber - date.DayNumber;
-        return age > RedAfterDays ? ServiceFreshnessColour.Red : age > AmberAfterDays ? ServiceFreshnessColour.Amber : ServiceFreshnessColour.Fresh;
+        var (amber, red) = monthly ? (MonthlyAmberAfterDays, MonthlyRedAfterDays) : (AmberAfterDays, RedAfterDays);
+        return age > red ? ServiceFreshnessColour.Red : age > amber ? ServiceFreshnessColour.Amber : ServiceFreshnessColour.Fresh;
     }
 
     /// <summary>
@@ -175,7 +214,9 @@ public static class ServiceFreshness
             var oldest = dates.Any(date => date is null) ? null : dates.Min();
             var oldestCode = oldest is null ? null : codes[Array.IndexOf(dates, oldest)];
             string? kind = oldestCode is not null && sourceKinds is not null && sourceKinds.TryGetValue(oldestCode, out var k) ? k : null;
-            var colour = Colour(oldest, asOf);
+            // Each family is judged by its own cadence (daily raw or monthly consolidated); the chip takes the worst.
+            var colour = oldest is null ? ServiceFreshnessColour.NoData
+                : codes.Select(code => Colour(latestByFamily[code], asOf, MonthlyFamilies.Contains(code))).Max();
             var text = oldest is { } date
                 ? "last export " + date.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture) + (kind is null ? "" : $" ({kind.ToLowerInvariant()})")
                 : dates.All(d => d is null) ? "no export yet" : "some families never exported";

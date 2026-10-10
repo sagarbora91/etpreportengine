@@ -152,8 +152,16 @@ public abstract class ServiceScreenView : UserControl
             HasData = refreshes.Count > 0;
             Refreshes = refreshes;
             asAt.Text = DescribeRefreshes(refreshes);
-            ShowFreshness(HasData ? await source.LoadFreshnessAsync(FreshnessToday()) : []);
+            // R-UI-15: the strip is shown only for the current activation, and a freshness failure leaves it empty
+            // (recorded) instead of failing the whole screen.
+            IReadOnlyList<ServiceFreshnessChip> chips = [];
+            if (HasData)
+            {
+                try { chips = await source.LoadFreshnessAsync(FreshnessToday()); }
+                catch (Exception freshnessFailure) { DesktopDiagnostics.Record(freshnessFailure, diagnosticsSource, diagnosticsEvent + "_FRESHNESS"); }
+            }
             if (current != revision) return;
+            ShowFreshness(chips);
             if (!HasData && !LoadsWithoutReadings) { StatusText = NoDataText + ". Import the Service Centre files on Import → Import folder."; ClearExtras(); return; }
             var request = PrepareLoad();
             if (request is not null) { StatusText = request; ClearExtras(); return; }
@@ -170,6 +178,26 @@ public abstract class ServiceScreenView : UserControl
             StatusText = $"{title} could not be loaded. " + DesktopFriendlyError.Describe(exception);
         }
         finally { if (current == revision) IsLoading = false; }
+    }
+
+    /// <summary>The export rule version of every 1.10.0 Service export (R-UI-20).</summary>
+    public const string ExportRuleVersion = "service-ui-1";
+
+    /// <summary>
+    /// True when a mouse event came from a grid row, not from a column header or the scroll bar (R-UI-08): a double-click
+    /// on a header sorts and must not open the previously selected job.
+    /// </summary>
+    public static bool IsOnRow(object? source)
+    {
+        var node = source as DependencyObject;
+        while (node is not null)
+        {
+            if (node is DataGridRow) return true;
+            if (node is DataGrid or System.Windows.Controls.Primitives.DataGridColumnHeader or System.Windows.Controls.Primitives.ScrollBar) return false;
+            node = node is System.Windows.Media.Visual or System.Windows.Media.Media3D.Visual3D
+                ? System.Windows.Media.VisualTreeHelper.GetParent(node) : LogicalTreeHelper.GetParent(node);
+        }
+        return false;
     }
 
     /// <summary>The "Service data as at" line. The latest reading of any Service family sets the date.</summary>
@@ -213,7 +241,7 @@ public abstract class ServiceScreenView : UserControl
     public virtual async Task ExportToPathAsync(string path)
     {
         var (from, to) = ExportPeriod;
-        var metadata = new ExcelReportMetadata(ExportName, from, to, "Read only", "service-interim-1",
+        var metadata = new ExcelReportMetadata(ExportName, from, to, "Read only", ExportRuleVersion,
             ExportMessage, DateTimeOffset.UtcNow, ServiceCentreLabel);
         await export(path, metadata, BuildExportData());
     }

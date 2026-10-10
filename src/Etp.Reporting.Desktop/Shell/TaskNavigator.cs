@@ -433,7 +433,8 @@ public sealed partial class TaskNavigator(MainWindow window)
         ApplyHiddenScope(view);
         if (view.Parent is ContentControl host) host.Content = null;
         // SD-10 (lane parts): a Service screen's own status replaces the previous workspace's text in the status line.
-        if (view is Modules.Service.ServiceScreenView serviceScreen) serviceScreen.StatusChanged += (_, text) => window.ApplicationStatus.Text = text;
+        if (view is Modules.Service.ServiceScreenView serviceScreen)
+            serviceScreen.StatusChanged += (sender, text) => { if (ReferenceEquals(window.FocusedWorkspaceHost.Content, sender)) window.ApplicationStatus.Text = text; }; // R-UI-14: a screen the user has left stays silent
 
         window.FocusedWorkspaceLayer.Visibility = Visibility.Visible;
         window.FocusedWorkspaceHost.Content = view; window.focusedWorkspaceKind = "task";

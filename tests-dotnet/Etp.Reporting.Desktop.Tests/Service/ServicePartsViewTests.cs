@@ -81,6 +81,15 @@ public sealed class ServicePartsViewTests
     }
 
     [Fact]
+    public void The_GIT_grid_keeps_the_same_30_days_as_the_GIT_card()
+    {
+        // R-UI-12: a line exactly 30 days before the as-of date is outside both (card: date > asOf - 30).
+        var edge = new ServiceGitLine("STMSYN0030", Snapshot.AddDays(-30), "PART-SYN-08", 1, "CCPT", "AW330", 10m, Snapshot);
+        var inside = new ServiceGitLine("STMSYN0029", Snapshot.AddDays(-29), "PART-SYN-09", 1, "CCPT", "AW330", 10m, Snapshot);
+        Assert.Equal(["STMSYN0029"], ServicePartsView.RecentGit([edge, inside], Snapshot).Select(line => line.StmNumber));
+    }
+
+    [Fact]
     public void As_of_is_the_contract_as_at_then_the_latest_reading_then_today()
     {
         var today = new DateOnly(2026, 10, 10);

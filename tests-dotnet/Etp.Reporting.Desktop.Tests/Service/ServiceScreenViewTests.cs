@@ -351,6 +351,29 @@ public sealed class ServiceScreenViewTests
     }
 
     [Fact]
+    public void Jobs_date_choices_list_the_jobs_booked_or_delivered_on_that_date()
+    {
+        // R-UI-04: the Service Today "Booked" and "Delivered" cards open these choices.
+        Assert.Equal(["JOAW330SYN0104"], ServiceJobsView.Filter(FakeServiceQuery.Jobs, "BOOKED_ON:2026-10-04").Select(job => job.JobOrderNumber));
+        Assert.Equal(["JOAW330SYN0101"], ServiceJobsView.Filter(FakeServiceQuery.Jobs, "DELIVERED_ON:2026-10-02").Select(job => job.JobOrderNumber));
+        Assert.Empty(ServiceJobsView.Filter(FakeServiceQuery.Jobs, "DELIVERED_ON:2026-10-01"));
+        Assert.Null(ServiceJobsView.DateChoice("BOOKED_ON:not-a-date"));
+        Assert.Null(ServiceJobsView.DateChoice(ServiceJobsView.AllJobsCode));
+    }
+
+    [Fact]
+    public void A_double_click_opens_a_job_only_from_a_grid_row()
+    {
+        // R-UI-08: a header or scroll-bar double-click (no DataGridRow above the source) must not open the selected job.
+        RunSta(() =>
+        {
+            Assert.False(ServiceScreenView.IsOnRow(null));
+            Assert.False(ServiceScreenView.IsOnRow(new System.Windows.Controls.Primitives.DataGridColumnHeader()));
+            Assert.True(ServiceScreenView.IsOnRow(new DataGridRow()));
+        });
+    }
+
+    [Fact]
     public void Jobs_filter_and_TAT_summary_are_pure_over_the_contract_rows()
     {
         var recent = ServiceJobsView.Filter(FakeServiceQuery.Jobs, ServiceJobsView.RecentClosedCode);

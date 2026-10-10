@@ -64,7 +64,8 @@ public sealed class ServicePendingBoardView : ServiceScreenView
         }
         Summary.Children.Add(stages);
 
-        AddFilter("Age", ageBandFilter, "Age band", [new(null, AllAgesLabel), .. ServiceAgeing.Bands.Select(band => new ServiceListChoice(band, band + " days"))]);
+        AddFilter("Age since booking", ageBandFilter, "Age band (days since booking)", [new(null, AllAgesLabel), .. ServiceAgeing.Bands.Select(band => new ServiceListChoice(band, band + " days")),
+            new(ServicePendingBoardRules.Over15Days, "Over 15 days")]);
         AutomationProperties.SetName(overdueOnlyFilter, "Overdue only");
         overdueOnlyFilter.Checked += async (_, _) => await OnFilterChangedAsync();
         overdueOnlyFilter.Unchecked += async (_, _) => await OnFilterChangedAsync();
@@ -87,7 +88,7 @@ public sealed class ServicePendingBoardView : ServiceScreenView
         ]);
         Table.GroupStyle.Add(GroupStyle.Default);
         Table.SelectionChanged += (_, _) => openJobButton.IsEnabled = openJob is not null && Table.SelectedItem is ServiceGridRow;
-        Table.MouseDoubleClick += (_, _) => OpenSelected();
+        Table.MouseDoubleClick += (_, args) => { if (IsOnRow(args.OriginalSource)) OpenSelected(); };
         Table.KeyDown += (_, args) => { if (args.Key == Key.Enter && OpenSelected()) args.Handled = true; };
     }
 
@@ -201,7 +202,7 @@ public sealed class ServicePendingBoardView : ServiceScreenView
                 $"{group.Rows.Count:N0} job{(group.Rows.Count == 1 ? "" : "s")}", AsAtText,
                 new ExcelReportData(columns, group.Rows.Select(row => ToRow(row).Cells).ToArray())))
             .ToArray();
-        return new ReportPackDocument(ExportName, from, to, "Read only", "service-ui-1", AsAtText, generatedUtc, tables);
+        return new ReportPackDocument(ExportName, from, to, "Read only", ExportRuleVersion, AsAtText, generatedUtc, tables);
     }
 
     public override Task ExportToPathAsync(string path) => packExport(path, BuildExportDocument(DateTimeOffset.UtcNow));
@@ -231,7 +232,12 @@ public sealed class ServicePendingBoardView : ServiceScreenView
 
     private async Task OnFilterChangedAsync()
     {
-        if (populating || !IsLoaded) return;
+        if (populating) return;
+        // A user's pick in the Brand / Guarantee lists is the requested value the next load keeps (R-UI-02): the
+        // reload refills both lists from the board and re-selects the requested value.
+        requestedBrand = SelectedBrand;
+        requestedGuarantee = SelectedGuarantee;
+        if (!IsLoaded) return;
         await ActivateAsync();
     }
 

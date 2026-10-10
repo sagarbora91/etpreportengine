@@ -123,15 +123,17 @@ public sealed class ServicePendingBoardViewTests
         Assert.Equal(11, Jobs(ServicePendingFilter.None).Length);
         Assert.Equal(["JOAW330SYN0102", "JOAW330SYN0103", "JOAW330SYN0114", "JOAW330SYN0104", "JOAW330SYN0105"],
             Jobs(new(Stages: [ServiceStages.OnBench, ServiceStages.IndentRaised])));
-        Assert.Equal(["JOAW330SYN0104", "JOAW330SYN0109", "JOAW330SYN0111"], Jobs(new(AgeBand: "16-30")));
-        Assert.Equal(["JOAW330SYN0102", "JOAW330SYN0108", "JOAW330SYN0107"], Jobs(new(AgeBand: "8-15")));
+        // Age band = days since booking (decision 25, design 4.3).
+        Assert.Equal(["JOAW330SYN0109"], Jobs(new(AgeBand: "16-30")));
+        Assert.Equal(["JOAW330SYN0104", "JOAW330SYN0107", "JOAW330SYN0111"], Jobs(new(AgeBand: "31-60")));
+        Assert.Equal(["JOAW330SYN0102", "JOAW330SYN0108"], Jobs(new(AgeBand: "8-15")));
         Assert.Equal(["JOAW330SYN0102", "JOAW330SYN0104", "JOAW330SYN0105", "JOAW330SYN0106", "JOAW330SYN0108", "JOAW330SYN0111"],
             Jobs(new(OverdueOnly: true)));
         Assert.Equal(["JOAW330SYN0103", "JOAW330SYN0107"], Jobs(new(Brand: "sample brand b")));
         Assert.Equal(["JOAW330SYN0102", "JOAW330SYN0106"], Jobs(new(Guarantee: "Out of guarantee")));
         Assert.Equal(["JOAW330SYN0103", "JOAW330SYN0105"], Jobs(new(JoType: ServiceJobTypes.QuickBilling)));
         Assert.Equal(9, Jobs(new(JoType: ServiceJobTypes.Booking)).Length);
-        Assert.Equal(["JOAW330SYN0104"], Jobs(new(Stages: [ServiceStages.IndentRaised], OverdueOnly: true, AgeBand: "16-30")));
+        Assert.Equal(["JOAW330SYN0104"], Jobs(new(Stages: [ServiceStages.IndentRaised], OverdueOnly: true, AgeBand: "31-60")));
     }
 
     // ----- the screen -----
@@ -156,7 +158,7 @@ public sealed class ServicePendingBoardViewTests
             Assert.Equal(["JOAW330SYN0101", "JOAW330SYN0102", "JOAW330SYN0103", "JOAW330SYN0114", "JOAW330SYN0104", "JOAW330SYN0105",
                 "JOAW330SYN0106", "JOAW330SYN0108", "JOAW330SYN0107", "JOAW330SYN0109", "JOAW330SYN0111"], view.Rows.Select(row => (string)row.Cells[0]!));
             var indent = view.Rows.Single(row => (string)row.Cells[0]! == "JOAW330SYN0104");
-            Assert.Equal(["JOAW330SYN0104", "Indent raised, parts awaited", new DateOnly(2026, 8, 20), 46, 20, new DateOnly(2026, 10, 1), 4, "16-30",
+            Assert.Equal(["JOAW330SYN0104", "Indent raised, parts awaited", new DateOnly(2026, 8, 20), 46, 20, new DateOnly(2026, 10, 1), 4, "31-60",
                 "Sample Brand A", "Model 4", "Watch", "In guarantee", "Retail", "Booking", "AW330", "Crown", new DateOnly(2026, 10, 5)], indent.Cells);
             var srn = view.Rows.Single(row => (string)row.Cells[0]! == "JOAW330SYN0106");
             Assert.Equal(60, srn.Cells[6]);
@@ -227,9 +229,33 @@ public sealed class ServicePendingBoardViewTests
             Assert.Equal([ServicePendingBoardView.AllGuaranteesLabel, "In guarantee", "Out of guarantee"], guarantee.Items.Cast<ServiceListChoice>().Select(choice => choice.Label));
             Assert.Null(view.SelectedBrand);
             Assert.Null(view.SelectedGuarantee);
-            var ages = Descendants<ComboBox>(view).Single(combo => System.Windows.Automation.AutomationProperties.GetName(combo) == "Age band");
+            var ages = Descendants<ComboBox>(view).Single(combo => System.Windows.Automation.AutomationProperties.GetName(combo) == "Age band (days since booking)");
             Assert.Equal([ServicePendingBoardView.AllAgesLabel, "0-7 days", "8-15 days", "16-30 days", "31-60 days", "60+ days"], ages.Items.Cast<ServiceListChoice>().Select(choice => choice.Label));
             Assert.Equal(8, Descendants<CheckBox>(view).Count(box => System.Windows.Automation.AutomationProperties.GetName(box).StartsWith("Stage ", StringComparison.Ordinal)));
+        });
+    }
+
+    [Fact]
+    public void A_brand_and_guarantee_picked_in_the_lists_filter_the_board_and_survive_the_reload()
+    {
+        RunSta(() =>
+        {
+            // R-UI-02: a user picks in the combo (not through the property); the reload must keep and apply that pick.
+            var view = new ServicePendingBoardView(() => new FakeBoardQuery(), NoExport, NoPackExport);
+            view.ActivateAsync().GetAwaiter().GetResult();
+            var brands = Descendants<ComboBox>(view).Single(combo => System.Windows.Automation.AutomationProperties.GetName(combo) == "Brand");
+            brands.SelectedItem = brands.Items.Cast<ServiceListChoice>().Single(choice => choice.Code == "Sample Brand B");
+            view.ActivateAsync().GetAwaiter().GetResult();
+            Assert.Equal(["JOAW330SYN0103", "JOAW330SYN0107"], view.Rows.Select(row => (string)row.Cells[0]!));
+            Assert.Equal("Sample Brand B", view.SelectedBrand);
+
+            var guarantee = Descendants<ComboBox>(view).Single(combo => System.Windows.Automation.AutomationProperties.GetName(combo) == "Guarantee");
+            brands.SelectedIndex = 0;
+            guarantee.SelectedItem = guarantee.Items.Cast<ServiceListChoice>().Single(choice => choice.Code == "Out of guarantee");
+            view.ActivateAsync().GetAwaiter().GetResult();
+            Assert.Equal(["JOAW330SYN0102", "JOAW330SYN0106"], view.Rows.Select(row => (string)row.Cells[0]!));
+            Assert.Null(view.SelectedBrand);
+            Assert.Equal("Out of guarantee", view.SelectedGuarantee);
         });
     }
 
@@ -407,7 +433,7 @@ public sealed class ServicePendingBoardViewTests
         DateOnly? edd = null, string? brand = "Sample Brand A", string? guarantee = "In guarantee", string joType = ServiceJobTypes.Booking,
         string? pendingAt = "AW330", string? spare = null, bool claimRaised = false, string? model = null) =>
         new(job, stage, booking, daysSinceBooking, daysInStage, edd, ServiceAgeing.OverdueBy(stage, edd, daysInStage, AsAt), brand, model ?? "Model " + job[^1],
-            "Watch", guarantee, "Retail", pendingAt, spare, joType, ServiceJobTypes.IsQuickBilling(joType), claimRaised, AsAt);
+            "Watch", guarantee, "Retail", pendingAt, spare, joType, ServiceJobTypes.Normalise(joType) == ServiceJobTypes.QuickBilling, claimRaised, AsAt);
 
     private static IReadOnlyList<ServicePendingBoardRow> SampleRows() =>
     [

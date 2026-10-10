@@ -1,5 +1,6 @@
 extern alias EtpApplication;
 
+using System.Globalization;
 using System.Windows.Controls;
 using ServicePendingBoardRules = EtpApplication::Etp.Reporting.Application.Service.ServicePendingBoardRules;
 using ServiceReportQuery = EtpApplication::Etp.Reporting.Application.Service.IServiceReportQuery;
@@ -86,22 +87,29 @@ public static class ServiceScreens
 
     /// <summary>
     /// Applies a drill-down argument to a screen. A screen that implements <see cref="IServiceDrillDownTarget"/>
-    /// takes the argument itself; the others are set through their public filters: a board stage ticks that stage on
-    /// the Pending board, a stage picks that choice on the Jobs list (BOOKED = all jobs), a job number opens Job
-    /// history and a yyyy-MM-dd date sets the money check range.
+    /// takes the argument itself; the others are set through their public filters: a board stage (or a comma list of them) ticks
+    /// those stages on the Pending board, a stage picks that choice on the Jobs list (BOOKED = all jobs), a job number opens Job
+    /// history, a yyyy-MM-dd date sets the money check range, "16+" picks the board's over-15-days age choice,
+    /// BOOKED_ON:/DELIVERED_ON: dates scope the Jobs list and a yyyy-MM month sets the Claims range (R-UI-04).
     /// </summary>
     public static void ApplyDrillDown(ServiceScreenView view, string argument)
     {
         switch (view)
         {
             case IServiceDrillDownTarget target: target.ApplyDrillDown(argument); break;
-            case ServicePendingBoardView board when ServicePendingBoardRules.BoardStages.Contains(argument):
-                board.SelectedStages = [argument]; break;
+            case ServicePendingBoardView board when argument.Split(',') is var stages && stages.All(ServicePendingBoardRules.BoardStages.Contains):
+                board.SelectedStages = stages; break;
+            case ServicePendingBoardView board when argument == ServicePendingBoardRules.Over15Days:
+                board.SelectedAgeBand = argument; break;
+            case ServiceJobsView jobs when ServiceJobsView.DateChoice(argument) is not null:
+                jobs.ShowDate(argument); break;
             case ServiceJobsView jobs when JobsChoiceForStage(argument) is { } choice:
                 jobs.SelectedChoice = ServiceJobsView.Choices.Single(item => item.Code == choice); break;
             case ServiceJobHistoryView history: history.JobNumber = argument; break;
-            case ServiceMoneyView money when DateOnly.TryParseExact(argument, "yyyy-MM-dd", out var date):
+            case ServiceMoneyView money when DateOnly.TryParseExact(argument, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date):
                 money.From = date; money.To = date; break;
+            case ServiceClaimsView claims when DateOnly.TryParseExact(argument, "yyyy-MM", CultureInfo.InvariantCulture, DateTimeStyles.None, out var month):
+                claims.FromMonth = month; claims.ToMonth = month; break;
         }
     }
 

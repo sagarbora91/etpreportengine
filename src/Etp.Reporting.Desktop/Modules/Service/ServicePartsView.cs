@@ -112,7 +112,8 @@ public sealed class ServicePartsView : ServiceScreenView
         Configure(Waiting, WaitingTitle, [("Job number", null, 150), ("Part required", null, 280), ("Indent date", "dd MMM yyyy", 120),
             ("Days waiting", "N0", 100), ("Brand", null, 120), ("Model", null, 150), ("Pending at", null, 110)]);
         Waiting.SelectionChanged += (_, _) => openHistory.IsEnabled = Waiting.SelectedItem is ServiceGridRow;
-        Waiting.MouseDoubleClick += (_, _) => OpenSelectedJobHistory();
+        Waiting.MouseDoubleClick += (_, args) => { if (IsOnRow(args.OriginalSource)) OpenSelectedJobHistory(); };
+        Waiting.KeyDown += (_, args) => { if (args.Key == Key.Enter && Waiting.SelectedItem is not null) { args.Handled = true; OpenSelectedJobHistory(); } };
         Footer.Children.Add(Waiting);
         var waitingActions = new WrapPanel { Orientation = Orientation.Horizontal };
         openHistory.Click += (_, _) => OpenSelectedJobHistory();
@@ -223,8 +224,9 @@ public sealed class ServicePartsView : ServiceScreenView
     /// <summary>S013 lines dated within the 30 days up to <paramref name="asOf"/>, newest first (a no-op when the query already limited them).</summary>
     public static IReadOnlyList<ServiceGitLine> RecentGit(IReadOnlyList<ServiceGitLine> git, DateOnly asOf)
     {
+        // The same 30 days as the "GIT lines, last 30 days" card (ServicePartsRules.Build: date > asOf - 30), R-UI-12.
         var from = asOf.AddDays(-30);
-        return git.Where(line => line.BusinessDate >= from && line.BusinessDate <= asOf)
+        return git.Where(line => line.BusinessDate > from && line.BusinessDate <= asOf)
             .OrderByDescending(line => line.BusinessDate).ThenBy(line => line.StmNumber, StringComparer.OrdinalIgnoreCase).ToArray();
     }
 
@@ -308,7 +310,7 @@ public sealed class ServicePartsView : ServiceScreenView
     public async Task ExportWaitingToPathAsync(string path)
     {
         var (from, to) = ExportPeriod;
-        var metadata = new ExcelReportMetadata("Service jobs waiting for parts", from, to, "Read only", "service-interim-1",
+        var metadata = new ExcelReportMetadata("Service jobs waiting for parts", from, to, "Read only", ExportRuleVersion,
             AsAtText, DateTimeOffset.UtcNow, ServiceCentreLabel);
         await export(path, metadata, BuildWaitingExportData());
     }

@@ -47,7 +47,9 @@ public sealed class ServiceJobModelSqlTests
                 [14] = ServiceStages.RaIssued, [30] = ServiceStages.RaIssued,
                 [6] = ServiceStages.InTransitBack, [7] = ServiceStages.InTransitBack,
                 [9] = ServiceStages.ReadyForDelivery, [23] = ServiceStages.ReadyForDelivery,
-                [21] = ServiceStages.SrnOut, [25] = ServiceStages.SrnOut,
+                // R-SQL-02/03: S033/S035 say only "reached SRN once"; S011 decides. Job 21's SRN came back (received,
+                // status SAMPLE): ready for delivery at AW330. Job 25's came back with a DC created: DC issued, open, not claimed.
+                [21] = ServiceStages.ReadyForDelivery, [25] = ServiceStages.DcIssued,
                 [3] = ServiceStages.IndentRaised, [13] = ServiceStages.IndentRaised, [26] = ServiceStages.IndentRaised,
                 [27] = ServiceStages.OnBench,
                 [5] = ServiceStages.Booked,
@@ -55,6 +57,16 @@ public sealed class ServiceJobModelSqlTests
             foreach (var (job, stage) in expected)
                 Assert.True(stage == await TextAsync(database, $"SELECT stage FROM dbo.v_service_job WHERE job_order_number=N'{Job(job)}'"),
                     $"{Job(job)} should be {stage}.");
+            // BOOKED is only for a job the job lists alone hold (design 4.2 rule 9): job 5 here, nothing with an S011 row.
+            Assert.Equal(0, await IntAsync(database, """
+                SELECT COUNT(*) FROM dbo.v_service_job j WHERE j.stage='BOOKED'
+                  AND EXISTS(SELECT 1 FROM dbo.etp_landing_s011 s WHERE LTRIM(RTRIM(CONVERT(nvarchar(100),s.joborder_number)))=j.job_order_number)
+                """));
+            // A closed SRN dates its stage by the return: the S011 received date of the fixture rows.
+            Assert.Equal("2026-09-18", await TextAsync(database, $"SELECT CONVERT(char(10),stage_date,23) FROM dbo.v_service_job WHERE job_order_number=N'{Job(21)}'"));
+            Assert.Equal("2026-09-22", await TextAsync(database, $"SELECT CONVERT(char(10),stage_date,23) FROM dbo.v_service_job WHERE job_order_number=N'{Job(25)}'"));
+            Assert.Equal((false, true), await ClaimAndOpenAsync(database, 25));
+            Assert.Equal("AW330", await TextAsync(database, $"SELECT pending_at FROM dbo.v_service_job WHERE job_order_number=N'{Job(21)}'"));
 
             // One row per job; every job of every family is there.
             Assert.Equal(0, await IntAsync(database, "SELECT COUNT(*) FROM (SELECT job_order_number FROM dbo.v_service_job GROUP BY job_order_number HAVING COUNT(*)>1) d"));
@@ -96,7 +108,7 @@ public sealed class ServiceJobModelSqlTests
             Assert.Contains(board.Rows, row => row.JobOrderNumber == Job(27) && row.Stage == ServiceStages.OnBench);
             Assert.Equal(board.Rows.OrderBy(row => ServiceStages.Rank(row.Stage)).Select(row => row.Stage), board.Rows.Select(row => row.Stage));
             var claims = await query.LoadClaimsAsync(null, null);
-            Assert.Equal([Job(11), Job(29), Job(30)], claims.NotYetClaimed.Select(job => job.JobOrderNumber).Order(StringComparer.Ordinal));
+            Assert.Equal([Job(11), Job(25), Job(29), Job(30)], claims.NotYetClaimed.Select(job => job.JobOrderNumber).Order(StringComparer.Ordinal));
             var detail = await query.LoadJobAsync(" " + Job(1) + " ");
             Assert.NotNull(detail);
             Assert.Equal(ServiceStages.Delivered, detail!.Header.Stage);
@@ -104,8 +116,11 @@ public sealed class ServiceJobModelSqlTests
             Assert.Contains(detail.Timeline, row => row.ReportCode == "S018" && row.SnapshotDate == Week2);
             Assert.Null(await query.LoadJobAsync("JOAW330SYN9999"));
             Assert.Equal(await IntAsync(database, "SELECT COUNT(*) FROM dbo.v_service_job"), (await query.LoadJobListAsync()).Count);
+            // R-SQL-01: the default day is the latest day the exports hold data for, and that day has counts.
             var today = await query.LoadTodayAsync();
-            Assert.Equal(Week2, today.BusinessDate);
+            Assert.True(today.BusinessDate <= Week2);
+            Assert.True(today.BookedToday + today.DeliveredToday + today.RwrToday > 0 || today.CollectionToday is not null,
+                $"Service Today for {today.BusinessDate} shows nothing.");
             Assert.Equal(9, (await query.LoadFreshnessAsync(Week2)).Count);
         }
         finally { await database.DisposeAsync(); }
@@ -194,6 +209,9 @@ public sealed class ServiceJobModelSqlTests
                 WHERE LTRIM(RTRIM(CONVERT(nvarchar(100),s.joborder_number)))=N'{Job(21)}'
                 """);
             Assert.Equal([Job(21)], await TextsAsync(database, "SELECT job_order_number FROM dbo.v_service_pending_current WHERE [list]='SRN_STATUS'"));
+            // The open SRN puts the job model's job 21 out for repair, dated by the SRN (R-SQL-02 open case).
+            Assert.Equal(ServiceStages.SrnOut, await TextAsync(database, $"SELECT stage FROM dbo.v_service_job WHERE job_order_number=N'{Job(21)}'"));
+            Assert.Equal("2026-09-18", await TextAsync(database, $"SELECT CONVERT(char(10),stage_date,23) FROM dbo.v_service_job WHERE job_order_number=N'{Job(21)}'"));
             // The amended pending view keeps the 0048 columns first and adds the SD-12 ones.
             Assert.Equal(0, await IntAsync(database, """
                 SELECT COUNT(*) FROM dbo.v_service_pending_current WHERE [list]='PENDING_REPAIR' AND (edd IS NULL OR jo_status IS NULL)
@@ -245,6 +263,7 @@ public sealed class ServiceJobModelSqlTests
 
     // ON_BENCH, BOOKED and READY at AW330 are not in the fixtures: job 27 loses its indent (bench), job 5's S009 rows
     // move to job 28 (job 5 is then only booked in S002), job 9 is pending delivery at AW330. Week2 readings only.
+    // Job 25's S011 SRN (every reading) came back with a DC created (R-SQL-02 closed-with-DC case).
     private static async Task MakeBenchBookedReadyAndOpenCasesAsync(SqlDatabaseFixture database)
     {
         const string LatestS009 = "(SELECT r.import_file_id FROM dbo.v_service_readings r WHERE r.report_code='S009' AND r.is_latest=1)";
@@ -256,6 +275,9 @@ public sealed class ServiceJobModelSqlTests
             WHERE import_file_id={LatestS009} AND LTRIM(RTRIM(CONVERT(nvarchar(100),jonumber)))=N'{Job(5)}';
             UPDATE dbo.etp_landing_s010 SET pendingstore=N'AW330',jostatus=N'Pending_Delivery'
             WHERE import_file_id={LatestS010} AND LTRIM(RTRIM(CONVERT(nvarchar(100),jonumber)))=N'{Job(9)}';
+            UPDATE s SET to_status=N'SRN_Returned_without_Repair_DC_Created'
+            FROM dbo.etp_landing_s011 s JOIN dbo.v_service_readings r ON r.import_file_id=s.import_file_id AND r.report_code='S011'
+            WHERE LTRIM(RTRIM(CONVERT(nvarchar(100),s.joborder_number)))=N'{Job(25)}';
             """);
     }
 

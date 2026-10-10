@@ -35,9 +35,32 @@ public sealed class ServiceTodayViewTests
 
             view.ActivateAsync().GetAwaiter().GetResult();
 
-            Assert.Equal(new DateOnly(2026, 10, 5), query.LastDate);
+            // The screen asks for no date; the query picks the latest day with data (R-SQL-01), here the snapshot date.
+            Assert.Equal(1, query.Calls);
+            Assert.Null(query.LastDate);
             Assert.Equal(new DateOnly(2026, 10, 5), view.BusinessDate);
             Assert.Equal("Counts for 05 Oct 2026. This is the latest Service export.", view.StatusText);
+        });
+    }
+
+    [Fact]
+    public void A_raw_pack_named_by_its_export_day_shows_the_day_before_it_holds_data_for()
+    {
+        RunSta(() =>
+        {
+            // R-SQL-01: the 05 Oct raw pack holds data to 04 Oct; the query answers the default with 04 Oct.
+            var query = new FakeTodayQuery { DefaultDate = new DateOnly(2026, 10, 4) };
+            var view = new ServiceTodayView(() => query, NoExport);
+
+            view.ActivateAsync().GetAwaiter().GetResult();
+
+            Assert.Null(query.LastDate);
+            Assert.Equal(new DateOnly(2026, 10, 4), view.BusinessDate);
+            Assert.Equal("6", view.Cards[0].Value);
+            Assert.Equal("Counts for 04 Oct 2026. This is the latest day the Service exports hold (latest export 05 Oct 2026).", view.StatusText);
+            // Refresh keeps the same day, as the picker shows it.
+            view.ActivateAsync().GetAwaiter().GetResult();
+            Assert.Equal(new DateOnly(2026, 10, 4), view.BusinessDate);
         });
     }
 
@@ -91,13 +114,13 @@ public sealed class ServiceTodayViewTests
 
             Assert.Equal(
             [
-                new(ServiceScreens.JobsTask, ServiceStages.Booked),
-                new(ServiceScreens.JobsTask, ServiceStages.Delivered),
-                new(ServiceScreens.PendingTask, ServiceStages.OnBench),
+                new(ServiceScreens.JobsTask, "BOOKED_ON:2026-10-05"),
+                new(ServiceScreens.JobsTask, "DELIVERED_ON:2026-10-05"),
+                new(ServiceScreens.PendingTask, "ON_BENCH,INDENT_RAISED"),
                 new(ServiceScreens.PendingTask, ServiceStages.ReadyForDelivery),
                 new(ServiceScreens.MoneyTask, "2026-10-05"),
-                new ServiceDrillDown(ServiceScreens.PendingTask),
-                new ServiceDrillDown(ServiceScreens.ClaimsTask)
+                new(ServiceScreens.PendingTask, ServicePendingBoardRules.Over15Days),
+                new(ServiceScreens.ClaimsTask, "2026-10")
             ], opened);
             Assert.All(opened, target => Assert.Contains(target.TaskId, ServiceScreens.Tasks));
         });
@@ -117,13 +140,25 @@ public sealed class ServiceTodayViewTests
             Assert.Equal(ServiceStages.Delivered, jobs.SelectedChoice.Code);
             var all = (ServiceJobsView)ServiceScreens.Create(ServiceScreens.JobsTask, () => query, NoExport, ServiceStages.Booked);
             Assert.Equal(ServiceJobsView.AllJobsCode, all.SelectedChoice.Code);
+            // R-UI-04: each Today card's argument opens the list its number counts.
+            var bookedOn = (ServiceJobsView)ServiceScreens.Create(ServiceScreens.JobsTask, () => query, NoExport, "BOOKED_ON:2026-10-05");
+            Assert.Equal("BOOKED_ON:2026-10-05", bookedOn.SelectedChoice.Code);
+            Assert.Equal("Booked on 05 Oct 2026", bookedOn.SelectedChoice.Label);
+            var deliveredOn = (ServiceJobsView)ServiceScreens.Create(ServiceScreens.JobsTask, () => query, NoExport, "DELIVERED_ON:2026-10-05");
+            Assert.Equal("Delivered on 05 Oct 2026", deliveredOn.SelectedChoice.Label);
+            var bench = (ServicePendingBoardView)ServiceScreens.Create(ServiceScreens.PendingTask, () => query, NoExport, "ON_BENCH,INDENT_RAISED");
+            Assert.Equal([ServiceStages.OnBench, ServiceStages.IndentRaised], bench.SelectedStages);
+            var over15 = (ServicePendingBoardView)ServiceScreens.Create(ServiceScreens.PendingTask, () => query, NoExport, ServicePendingBoardRules.Over15Days);
+            Assert.Equal(ServicePendingBoardRules.Over15Days, over15.SelectedAgeBand);
+            var claims = (ServiceClaimsView)ServiceScreens.Create(ServiceScreens.ClaimsTask, () => query, NoExport, "2026-10");
+            Assert.Equal((new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 1)), (claims.FromMonth, claims.ToMonth));
             var money = (ServiceMoneyView)ServiceScreens.Create(ServiceScreens.MoneyTask, () => query, NoExport, "2026-10-05");
             Assert.Equal((new DateOnly(2026, 10, 5), new DateOnly(2026, 10, 5)), (money.From, money.To));
             var history = (ServiceJobHistoryView)ServiceScreens.Create(ServiceScreens.JobHistoryTask, () => query, NoExport, "JOAW330SYN0007");
             Assert.Equal("JOAW330SYN0007", history.JobNumber);
             var today = (ServiceTodayView)ServiceScreens.Create(ServiceScreens.TodayTask, () => query, NoExport, "2026-10-01");
             Assert.Equal(new DateOnly(2026, 10, 1), today.BusinessDate);
-            foreach (var view in new ServiceScreenView[] { pending, srn, jobs, all, money, history, today }) SpinUntil(() => !view.IsLoading);
+            foreach (var view in new ServiceScreenView[] { pending, srn, jobs, all, bookedOn, deliveredOn, bench, over15, claims, money, history, today }) SpinUntil(() => !view.IsLoading);
             Assert.Equal(new DateOnly(2026, 10, 1), query.LastDate);
         });
     }
@@ -291,14 +326,17 @@ public sealed class ServiceTodayViewTests
         public Func<DateOnly, ServiceToday> Summaries { get; init; } = Summary;
         public IReadOnlyDictionary<string, string> SourceKinds { get; init; } = new Dictionary<string, string> { ["S009"] = "RAW", ["S004"] = "RAW" };
         public DateOnly? LastDate { get; private set; }
+        public int Calls { get; private set; }
+        /// <summary>What the query answers for "no date": the latest snapshot unless a test sets the latest data day.</summary>
+        public DateOnly? DefaultDate { get; init; }
 
         public Task<IReadOnlyList<ServiceFreshnessChip>> LoadFreshnessAsync(DateOnly? asOf = null, CancellationToken cancellationToken = default) =>
             Task.FromResult(ServiceFreshness.Build(Refreshes, asOf ?? new DateOnly(2026, 10, 9), SourceKinds));
 
         public Task<ServiceToday> LoadTodayAsync(DateOnly? businessDate = null, CancellationToken cancellationToken = default)
         {
-            LastDate = businessDate;
-            return Task.FromResult(Summaries(businessDate ?? Refreshes.Max(refresh => refresh.SnapshotDate)));
+            LastDate = businessDate; Calls++;
+            return Task.FromResult(Summaries(businessDate ?? DefaultDate ?? Refreshes.Max(refresh => refresh.SnapshotDate)));
         }
     }
 }

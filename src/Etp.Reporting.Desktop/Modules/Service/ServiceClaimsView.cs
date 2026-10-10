@@ -103,7 +103,7 @@ public sealed class ServiceClaimsView : ServiceScreenView
         show.Click += async (_, _) => await ActivateAsync();
         FilterBar.Children.Add(show);
 
-        Table.MouseDoubleClick += (_, _) => { if (Table.SelectedItem is ServiceGridRow row) DrillDown(row); };
+        Table.MouseDoubleClick += (_, args) => { if (IsOnRow(args.OriginalSource) && Table.SelectedItem is ServiceGridRow row) DrillDown(row); };
         Table.KeyDown += (_, args) => { if (args.Key == Key.Enter && Table.SelectedItem is ServiceGridRow row) { args.Handled = true; DrillDown(row); } };
         Footer.Children.Add(new TextBlock
         {
@@ -123,7 +123,7 @@ public sealed class ServiceClaimsView : ServiceScreenView
     public ServiceListChoice SelectedClaimType
     {
         get => (ServiceListChoice)typeFilter.SelectedItem;
-        set => typeFilter.SelectedItem = ClaimTypes.Single(choice => choice.Code == value.Code);
+        set => typeFilter.SelectedItem = ClaimTypes.FirstOrDefault(choice => choice.Code == value.Code) ?? ClaimTypes[0];
     }
 
     /// <summary>The first month shown, or null for no lower bound. Any day of the month selects the whole month.</summary>
@@ -259,7 +259,7 @@ public sealed class ServiceClaimsView : ServiceScreenView
         if (row.Source is ServiceClaimsSummaryRow summary)
         {
             FromMonth = summary.ClaimMonth; ToMonth = summary.ClaimMonth;
-            SelectedClaimType = ClaimTypes.Single(choice => choice.Code == summary.ClaimType);
+            SelectedClaimType = ClaimTypes.FirstOrDefault(choice => choice.Code == summary.ClaimType) ?? ClaimTypes[0];
             Mode = DetailMode;
             _ = ActivateAsync();
             return;

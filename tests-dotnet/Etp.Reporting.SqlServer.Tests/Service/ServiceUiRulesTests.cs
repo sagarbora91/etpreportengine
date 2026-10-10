@@ -72,6 +72,33 @@ public sealed class ServiceUiRulesTests
         Assert.Null(ServiceAgeing.OverdueBy(ServiceStages.Booked, null, 400, AsAt));
         Assert.Null(ServiceAgeing.OverdueBy(ServiceStages.Delivered, AsAt.AddDays(-30), null, AsAt));
         Assert.Null(ServiceAgeing.OverdueBy(ServiceStages.Rwr, null, 90, AsAt));
+        // R-SQL-05: a DC/RA job closed by its claim (Q3) is not overdue, whatever its EDD; without the claim it is.
+        Assert.Null(ServiceAgeing.OverdueBy(ServiceStages.DcIssued, AsAt.AddDays(-10), 20, AsAt, claimRaised: true));
+        Assert.Null(ServiceAgeing.OverdueBy(ServiceStages.RaIssued, AsAt.AddDays(-10), 20, AsAt, claimRaised: true));
+        Assert.Equal(10, ServiceAgeing.OverdueBy(ServiceStages.DcIssued, AsAt.AddDays(-10), 20, AsAt));
+        Assert.Equal(10, ServiceAgeing.OverdueBy(ServiceStages.OnBench, AsAt.AddDays(-10), 20, AsAt, claimRaised: true));
+    }
+
+    [Fact]
+    public void Today_defaults_to_the_latest_day_the_exports_hold_data_for_not_the_export_day()
+    {
+        // R-SQL-01: the 05 Oct raw pack holds bookings to 04 Oct, a delivery on 03 Oct and S004 to 04 Oct.
+        var jobs = new[]
+        {
+            Job("JOAW330SYN0301", ServiceStages.OnBench, booked: new(2026, 10, 4)),
+            Job("JOAW330SYN0302", ServiceStages.Delivered, booked: new(2026, 9, 20), delivered: new(2026, 10, 3)),
+            // A delivery date on a job that is not delivered does not count (Today counts delivered jobs only).
+            Job("JOAW330SYN0303", ServiceStages.ReadyForDelivery, booked: new(2026, 9, 1), delivered: new(2026, 10, 5)),
+        };
+        Assert.Equal(new DateOnly(2026, 10, 4), ServiceBoard.LatestDataDate(jobs, new DateOnly(2026, 10, 2), AsAt));
+        Assert.Equal(new DateOnly(2026, 10, 4), ServiceBoard.LatestDataDate(jobs, null, AsAt));
+        Assert.Equal(new DateOnly(2026, 10, 5), ServiceBoard.LatestDataDate(jobs, new DateOnly(2026, 10, 5), AsAt));
+        // Nothing after the as-at date counts; nothing dated falls back to the as-at date.
+        Assert.Equal(new DateOnly(2026, 10, 4), ServiceBoard.LatestDataDate(jobs, new DateOnly(2026, 10, 9), AsAt));
+        Assert.Equal(AsAt, ServiceBoard.LatestDataDate([], null, AsAt));
+        // On that day Today has counts.
+        var today = ServiceBoard.Today(new DateOnly(2026, 10, 4), AsAt, jobs, [], [], []);
+        Assert.Equal(1, today.BookedToday);
     }
 
     [Fact]
@@ -91,12 +118,13 @@ public sealed class ServiceUiRulesTests
             Job("JOAW330SYN0207", ServiceStages.OnBench, daysInStage: 50, ageDays: 50),
         };
         var tat = ServiceTat.Summarise(jobs);
-        Assert.Equal((6, 4, 2), (tat.ClosedJobs, tat.BookingJobs, tat.QuickBillingJobs));
-        Assert.Equal(15, tat.BookingMedianDays);
+        // R-SQL-06: the Q2 headline is booking to delivered; the RWR job (TAT 30) counts as closed but not in the headline.
+        Assert.Equal((6, 3, 2), (tat.ClosedJobs, tat.BookingJobs, tat.QuickBillingJobs));
+        Assert.Equal(10, tat.BookingMedianDays);
         Assert.Equal(8, tat.BookingRepairMedianDays);
-        Assert.Equal(15.5, tat.BookingAverageDays);
+        Assert.Equal(32 / 3.0, tat.BookingAverageDays!.Value, 6);
         Assert.Equal(0, tat.QuickBillingMedianDays);
-        Assert.Equal(2, tat.Over15Days);
+        Assert.Equal(1, tat.Over15Days);
     }
 
     [Fact]
@@ -269,6 +297,23 @@ public sealed class ServiceUiRulesTests
         Assert.Equal(ServiceFreshnessColour.Red, chips.Single(chip => chip.Group == "Status views").Colour);
         Assert.Equal(ServiceFreshnessColour.NoData, chips.Single(chip => chip.Group == "Claims").Colour);
         Assert.Equal("no export yet", chips.Single(chip => chip.Group == "Claims").Text);
+    }
+
+    [Fact]
+    public void Consolidated_only_families_are_judged_against_a_monthly_cadence()
+    {
+        // R-SQL-14 / Q14: S011-S013 (SRN) come monthly; 20 days old is fresh for them, a daily raw family at 20 days is red.
+        Assert.Equal(ServiceFreshnessColour.Fresh, ServiceFreshness.Colour(AsAt.AddDays(-38), AsAt, monthly: true));
+        Assert.Equal(ServiceFreshnessColour.Amber, ServiceFreshness.Colour(AsAt.AddDays(-39), AsAt, monthly: true));
+        Assert.Equal(ServiceFreshnessColour.Red, ServiceFreshness.Colour(AsAt.AddDays(-46), AsAt, monthly: true));
+        var imported = new DateTime(2026, 10, 5, 4, 30, 0, DateTimeKind.Utc);
+        ServiceRefresh R(string code, DateOnly date) => new(code, date, 1, 1, imported);
+        var chips = ServiceFreshness.Build([R("S011", AsAt.AddDays(-20)), R("S012", AsAt.AddDays(-20)), R("S013", AsAt.AddDays(-20)),
+            R("S003", AsAt.AddDays(-2)), R("S004", AsAt.AddDays(-20))], AsAt);
+        Assert.Equal(ServiceFreshnessColour.Fresh, chips.Single(chip => chip.Group == "SRN").Colour);
+        Assert.Equal(ServiceFreshnessColour.Red, chips.Single(chip => chip.Group == "Money").Colour);
+        Assert.Contains("S011", ServiceFreshness.MonthlyFamilies);
+        Assert.DoesNotContain("S009", ServiceFreshness.MonthlyFamilies);
     }
 
     [Fact]

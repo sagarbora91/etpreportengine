@@ -1,9 +1,11 @@
 extern alias EtpApplication;
 
+using System.Globalization;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Media;
+using ServicePendingBoardRules = EtpApplication::Etp.Reporting.Application.Service.ServicePendingBoardRules;
 using ServiceReportQuery = EtpApplication::Etp.Reporting.Application.Service.IServiceReportQuery;
 using ServiceStages = EtpApplication::Etp.Reporting.Application.Service.ServiceStages;
 using ServiceToday = EtpApplication::Etp.Reporting.Application.Service.ServiceToday;
@@ -37,6 +39,7 @@ public sealed class ServiceTodayView : ServiceScreenView, IServiceDrillDownTarge
     private readonly Action<ServiceDrillDown>? navigate;
     private DateOnly? chosen;
     private DateOnly? latestSnapshot;
+    private DateOnly? loadedDate;
 
     public ServiceTodayView(Func<ServiceReportQuery> query, ServiceExcelExport export, Action<ServiceDrillDown>? navigate = null)
         : base("Service today",
@@ -71,15 +74,18 @@ public sealed class ServiceTodayView : ServiceScreenView, IServiceDrillDownTarge
     /// <summary>A drill-down argument to this screen is a business date (yyyy-MM-dd).</summary>
     public void ApplyDrillDown(string argument)
     {
-        if (DateOnly.TryParseExact(argument, "yyyy-MM-dd", out var date)) BusinessDate = date;
+        if (DateOnly.TryParseExact(argument, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date)) BusinessDate = date;
     }
 
     protected override async Task<IReadOnlyList<ServiceGridRow>> LoadRowsAsync(ServiceReportQuery source)
     {
         latestSnapshot = Refreshes.Count == 0 ? null : Refreshes.Max(refresh => refresh.SnapshotDate);
-        // Q15: the latest Service snapshot date, never the calendar day; the query also defaults a null date to it.
-        var date = chosen ?? latestSnapshot;
-        var summary = await source.LoadTodayAsync(date);
+        // R-UI-16: a date picked but not yet shown (Refresh instead of Show) is the date to load, so the picker and the cards agree.
+        if (businessDate.SelectedDate is { } picked && DateOnly.FromDateTime(picked) != loadedDate) chosen = DateOnly.FromDateTime(picked);
+        // Q15 / R-SQL-01: without a chosen date the query picks the latest day the exports hold data for (a raw pack is
+        // named by its export day and holds data to the day before), never the calendar day.
+        var summary = await source.LoadTodayAsync(chosen);
+        loadedDate = summary.BusinessDate;
         businessDate.SelectedDate = summary.BusinessDate.ToDateTime(TimeOnly.MinValue);
         Cards = BuildCards(summary);
         cards.Children.Clear();
@@ -92,27 +98,29 @@ public sealed class ServiceTodayView : ServiceScreenView, IServiceDrillDownTarge
     /// <summary>The seven cards of design 3.2 from one summary. Pure, so the values and targets are testable without WPF.</summary>
     public static IReadOnlyList<ServiceTodayCard> BuildCards(ServiceToday summary)
     {
-        var date = summary.BusinessDate.ToString("yyyy-MM-dd");
+        // Route arguments are culture-invariant (R-UI-17). Each card opens the list its number counts (design 3.2, R-UI-04).
+        var date = summary.BusinessDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        var month = summary.BusinessDate.ToString("yyyy-MM", CultureInfo.InvariantCulture);
         var manual = summary.ManualEntered ? $"{ManualEnteredText} ({summary.ManualAmount ?? 0:N0})" : ManualMissingText;
         var collectionAccent = summary.CollectionToday is null ? "PrimaryText" : summary.ManualEntered ? "Success" : "Critical";
         return
         [
             new(BookedLabel, N(summary.BookedToday), $"Booking {N(summary.BookedTodayBooking)} · Quick Billing {N(summary.BookedTodayQuickBilling)} · this month {N(summary.BookedThisMonth)} ({N(summary.BookedThisMonthBooking)} / {N(summary.BookedThisMonthQuickBilling)})",
-                "Success", new(ServiceScreens.JobsTask, ServiceStages.Booked)),
+                "Success", new(ServiceScreens.JobsTask, ServiceJobsView.BookedOnPrefix + date)),
             new(DeliveredLabel, N(summary.DeliveredToday), $"RWR {N(summary.RwrToday)} · this month {N(summary.DeliveredThisMonth)} delivered",
-                "Success", new(ServiceScreens.JobsTask, ServiceStages.Delivered)),
+                "Success", new(ServiceScreens.JobsTask, ServiceJobsView.DeliveredOnPrefix + date)),
             new(OnBenchLabel, N(summary.OnBench), $"indent raised {N(summary.IndentRaised)} · EDD passed {N(summary.EddPassed)}",
-                summary.EddPassed > 0 ? "Warning" : "PrimaryText", new(ServiceScreens.PendingTask, ServiceStages.OnBench)),
+                summary.EddPassed > 0 ? "Warning" : "PrimaryText", new(ServiceScreens.PendingTask, ServiceStages.OnBench + "," + ServiceStages.IndentRaised)),
             new(ReadyLabel, N(summary.ReadyAtCentre), $"in transit back {N(summary.InTransit)}",
                 "PrimaryText", new(ServiceScreens.PendingTask, ServiceStages.ReadyForDelivery)),
             new(CollectionLabel, summary.CollectionToday is { } collection ? collection.ToString("N0") : "—",
                 summary.CollectionToday is null ? "no S004 collection for the date · " + manual : "S004 cash, card and UPI · " + manual,
                 collectionAccent, new(ServiceScreens.MoneyTask, date)),
             new(Over15Label, N(summary.JobsOver15Days), "open jobs booked more than 15 days ago", summary.JobsOver15Days > 0 ? "Warning" : "PrimaryText",
-                new(ServiceScreens.PendingTask)),
+                new(ServiceScreens.PendingTask, ServicePendingBoardRules.Over15Days)),
             new(ClaimsLabel, N(summary.ClaimsRaisedThisMonth),
                 (summary.ClaimsValueThisMonth is { } value ? $"{value:N0} net incl. tax · " : "") + "GPRC, Module Bank, WDC and WRA documents raised (not settlement)",
-                "PrimaryText", new(ServiceScreens.ClaimsTask))
+                "PrimaryText", new(ServiceScreens.ClaimsTask, month))
         ];
     }
 
@@ -140,6 +148,8 @@ public sealed class ServiceTodayView : ServiceScreenView, IServiceDrillDownTarge
         var prefix = quiet ? $"Nothing booked or delivered on {date:dd MMM yyyy}." : $"Counts for {date:dd MMM yyyy}.";
         if (latestSnapshot is null) return prefix;
         if (date == latestSnapshot) return prefix + " This is the latest Service export.";
+        if (chosen is null && date < latestSnapshot)
+            return prefix + $" This is the latest day the Service exports hold (latest export {latestSnapshot:dd MMM yyyy}).";
         return date > latestSnapshot
             ? prefix + $" The latest Service export is {latestSnapshot:dd MMM yyyy}; no file covers this date yet."
             : prefix + $" Latest Service export {latestSnapshot:dd MMM yyyy}.";

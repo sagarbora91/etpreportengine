@@ -1,5 +1,6 @@
 extern alias EtpApplication;
 
+using System.Globalization;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
@@ -25,6 +26,9 @@ public sealed class ServiceJobsView : ServiceScreenView
     public const string RecentClosedCode = "RECENT_CLOSED";
     public const string AllJobsCode = "ALL";
     public const string OpenJobsCode = "OPEN";
+    /// <summary>Date-scoped choices a Service Today card opens (R-UI-04): "BOOKED_ON:yyyy-MM-dd" / "DELIVERED_ON:yyyy-MM-dd".</summary>
+    public const string BookedOnPrefix = "BOOKED_ON:";
+    public const string DeliveredOnPrefix = "DELIVERED_ON:";
 
     /// <summary>The "Show" choices: the default closed-in-30-days view, the show-all switch, open jobs, then each stage.</summary>
     public static IReadOnlyList<ServiceListChoice> Choices { get; } =
@@ -55,7 +59,8 @@ public sealed class ServiceJobsView : ServiceScreenView
         openButton.IsEnabled = false;
         FilterBar.Children.Add(openButton);
         Table.SelectionChanged += (_, _) => openButton.IsEnabled = openJob is not null && Table.SelectedItem is ServiceGridRow;
-        Table.MouseDoubleClick += (_, _) => OpenSelectedJob();
+        Table.MouseDoubleClick += (_, args) => { if (IsOnRow(args.OriginalSource)) OpenSelectedJob(); };
+        Table.KeyDown += (_, args) => { if (args.Key == System.Windows.Input.Key.Enter && Table.SelectedItem is ServiceGridRow) { args.Handled = true; OpenSelectedJob(); } };
         SetColumns(
         [
             new("Job number", Width: 150), new("Stage", Width: 200), new("Job type", Width: 100),
@@ -70,7 +75,32 @@ public sealed class ServiceJobsView : ServiceScreenView
     public ServiceListChoice SelectedChoice
     {
         get => (ServiceListChoice)showFilter.SelectedItem;
-        set => showFilter.SelectedItem = Choices.Single(choice => choice.Code == value.Code);
+        set => showFilter.SelectedItem = ((IReadOnlyList<ServiceListChoice>)showFilter.ItemsSource).FirstOrDefault(choice => choice.Code == value.Code)
+            ?? Choices.Single(choice => choice.Code == value.Code);
+    }
+
+    /// <summary>The date-scoped choice for a "BOOKED_ON:" / "DELIVERED_ON:" code, or null when the code is not one.</summary>
+    public static ServiceListChoice? DateChoice(string code)
+    {
+        if (DateScope(code) is not { } scope) return null;
+        var on = scope.Date.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
+        return new(code, scope.Delivered ? $"Delivered on {on}" : $"Booked on {on}");
+    }
+
+    /// <summary>Shows only the jobs booked (or delivered) on one date: the choice is added above the fixed ones and selected.</summary>
+    public void ShowDate(string code)
+    {
+        var choice = DateChoice(code) ?? throw new ArgumentException("Not a BOOKED_ON: or DELIVERED_ON: choice.", nameof(code));
+        showFilter.ItemsSource = new[] { choice }.Concat(Choices).ToArray();
+        showFilter.SelectedItem = choice;
+    }
+
+    private static (bool Delivered, DateOnly Date)? DateScope(string code)
+    {
+        var delivered = code.StartsWith(DeliveredOnPrefix, StringComparison.Ordinal);
+        if (!delivered && !code.StartsWith(BookedOnPrefix, StringComparison.Ordinal)) return null;
+        var text = code[(delivered ? DeliveredOnPrefix : BookedOnPrefix).Length..];
+        return DateOnly.TryParseExact(text, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date) ? (delivered, date) : null;
     }
 
     /// <summary>The Q8 "show all" switch: true when every job is listed, false for the default closed-in-30-days view.</summary>
@@ -105,7 +135,11 @@ public sealed class ServiceJobsView : ServiceScreenView
     /// </summary>
     public static IReadOnlyList<ServiceJobHeader> Filter(IReadOnlyList<ServiceJobHeader> jobs, string choice)
     {
-        IEnumerable<ServiceJobHeader> selected = choice switch
+        IEnumerable<ServiceJobHeader> selected = DateScope(choice) is { } scope
+            ? scope.Delivered
+                ? jobs.Where(job => job.Stage == ServiceJobStages.Delivered && job.StageDate == scope.Date)
+                : jobs.Where(job => job.BookingDate == scope.Date)
+            : choice switch
         {
             RecentClosedCode => jobs.Where(job => ServiceJobStages.IsClosed(job.Stage, job.ClaimRaised)
                 && job.StageDate is { } closedOn && closedOn >= job.AsAt.AddDays(-RecentClosedDays)),
@@ -153,6 +187,7 @@ public sealed class ServiceJobsView : ServiceScreenView
             if (shown.Count == 0) return base.ExportPeriod;
             var asAt = shown.Max(job => job.AsAt);
             if (SelectedChoice.Code == RecentClosedCode) return (asAt.AddDays(-RecentClosedDays), asAt);
+            if (DateScope(SelectedChoice.Code!) is { } scope) return (scope.Date, scope.Date);
             var from = shown.Min(job => job.BookingDate ?? job.StageDate ?? job.AsAt);
             return (from, asAt);
         }
