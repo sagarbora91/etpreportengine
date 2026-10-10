@@ -170,7 +170,8 @@ public sealed class MaintenanceScriptOutputTests
             var text = File.ReadAllText(log);
             Assert.Contains("FAILED backup as ", text, StringComparison.Ordinal);
             Assert.Contains("(purpose Scheduled, database DisposableDatabase): Choose a SQL Server instance on this computer.", text, StringComparison.Ordinal);
-            Assert.Contains("backup-etp-database.ps1:", text, StringComparison.Ordinal);
+            // Where it was thrown: here the target check in the shared operations script.
+            Assert.Matches(@" at etp-operations-common\.ps1:\d+", text);
             Assert.Contains("ETP_FAILURE:Choose a SQL Server instance on this computer.", run.Error, StringComparison.Ordinal);
             Assert.Contains("ETP_LOG:" + log, run.Error, StringComparison.Ordinal);
 
