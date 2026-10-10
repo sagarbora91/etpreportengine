@@ -202,6 +202,7 @@ public sealed class DesktopCompositionRoot
         window.serviceExcelExport = (path, metadata, data) =>
             reportExportCoordinator.ExportReportExcelAsync(path, metadata, data, null);
         window.serviceReportQuery = () => new SqlServerServiceReportQuery(connectionState.ConnectionString);
+        window.dailyReadinessQuery = () => new SqlServerDailyReadinessQuery(connectionState.ConnectionString);
         dailyWorkflowWorkspaceView.AttachRegisters((store, date, token) =>
             SqlServerDigitalRegisterService.LoadDayAsync(connectionState.ConnectionString, store, date, token));
         return window;

@@ -13,9 +13,7 @@ namespace Etp.Reporting.Desktop;
 /// </summary>
 public partial class MainWindow
 {
-    // INTEGRATION STEP (1.9.9): the composition root wires
-    //   window.dailyReadinessQuery = () => new SqlServerDailyReadinessQuery(connectionState.ConnectionString);
-    // once fix199/import-reminder is merged. Until then the panel stays hidden.
+    // The composition root wires the SQL readiness query; until it is set the panel stays hidden.
     internal Func<DailyReadinessQuery> dailyReadinessQuery = TodayChecklist.Unavailable;
     private TodayChecklistPanel? todayChecklist;
 
