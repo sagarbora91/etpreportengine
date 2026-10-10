@@ -18,6 +18,11 @@ public static class ReportSummaryBuilder
 {
     private const int TopCount = 5;
 
+    /// <summary>RA-SALES-07 (1.9.9): the GST-inclusive sales column of the sales summaries and the Management Trend.</summary>
+    public const string SalesHeader = "Sales incl. GST";
+    /// <summary>The header before 1.9.9; daily-pack tables and archived exports may still carry it.</summary>
+    public const string LegacySalesHeader = "Net Sales";
+
     public static ReportSummary Build(ReportSummaryFamily family, ExcelReportData data)
     {
         ArgumentNullException.ThrowIfNull(data);
@@ -48,7 +53,7 @@ public static class ReportSummaryBuilder
 
     private static ReportSummary? Sales(Table t)
     {
-        if (t.Find("Net Sales") is not { } sales) return null;
+        if (t.Find(SalesHeader, LegacySalesHeader) is not { } sales) return null;
         var total = t.Total(sales);
         var invoices = t.Find("Invoices") is { } inv ? t.Total(inv) : null;
         var kpis = new List<ReportKpi>
@@ -279,7 +284,7 @@ public static class ReportSummaryBuilder
 
     private static ReportSummary? Trend(Table t)
     {
-        if (t.Find("Date") is not { } date || t.Find("Net Sales") is not { } sales) return null;
+        if (t.Find("Date") is not { } date || t.Find(SalesHeader, LegacySalesHeader) is not { } sales) return null;
         var days = t.Rows.Select(r => (Date: t.Date(r, date), Sales: t.Number(r, sales))).Where(x => x.Date is not null)
             .GroupBy(x => x.Date!.Value).Select(g => (Date: g.Key, Sales: g.Sum(x => x.Sales ?? 0))).OrderBy(x => x.Date).ToArray();
         var total = days.Sum(x => x.Sales);
@@ -291,7 +296,7 @@ public static class ReportSummaryBuilder
             new("Days", days.Length, "integer")
         };
         var points = days.TakeLast(31).Select(x => new ReportVisualPoint(x.Date.ToString("dd MMM", CultureInfo.InvariantCulture), x.Sales)).ToArray();
-        var visuals = new List<ReportVisual> { new("Daily sales incl. GST (last 31 days)", ReportVisualType.Line, [new("Net sales", points, VisualReportTheme.Blue)], "currency", "Sales are additive across stores for the same date.") };
+        var visuals = new List<ReportVisual> { new("Daily sales incl. GST (last 31 days)", ReportVisualType.Line, [new("Sales incl. GST", points, VisualReportTheme.Blue)], "currency", "Sales are additive across stores for the same date.") };
         return new(kpis, visuals);
     }
 

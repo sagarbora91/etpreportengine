@@ -88,7 +88,7 @@ public sealed class ReportLabelCorrectionTests
             await view.RunReportAsync(code);
             var export = latest();
             var headers = export.ExportData!.Columns.Select(column => column.Header).ToArray();
-            Assert.Equal(["Group", "Units", "Net Sales", "Invoices", "Returns"], headers);
+            Assert.Equal(["Group", "Units", "Sales incl. GST", "Invoices", "Returns"], headers);
             // RA-SALES-08 (1.9.8): the Returns report holds return lines only, so its note says both columns count return documents.
             if (code == "sales-returns")
                 Assert.Contains(ReportsWorkspaceView.ReturnsNote, export.ExportMetadata!.Message, StringComparison.Ordinal);
@@ -120,7 +120,7 @@ public sealed class ReportLabelCorrectionTests
             ((TextBox)view.FindName("TransactionTypeFilterInput")).Text = "INV";
             await view.RunReportAsync("sales-brand");
             var headers = latest().ExportData!.Columns.Select(column => column.Header).ToArray();
-            Assert.Equal(["Group", "Units", "Net Sales", "Invoices", "Returns"], headers);
+            Assert.Equal(["Group", "Units", "Sales incl. GST", "Invoices", "Returns"], headers);
         });
     }
 
@@ -133,7 +133,7 @@ public sealed class ReportLabelCorrectionTests
             await view.RunReportAsync("management-trend");
             var export = latest();
             var headers = export.ExportData!.Columns.Select(column => column.Header).ToArray();
-            Assert.Equal(["Date", "Store", "Net Sales", "Units", "Invoices", "Returns", "Tender Variance", "Tender Source", "Unmatched Staff Rows"], headers);
+            Assert.Equal(["Date", "Store", "Sales incl. GST", "Units", "Invoices", "Returns", "Tender Variance", "Tender Source", "Unmatched Staff Rows"], headers);
             Assert.Contains("GST-inclusive sales (R025 NETAMOUNT)", export.ExportMetadata!.Message, StringComparison.Ordinal);
             Assert.Contains("bill cancellations (BC)", export.ExportMetadata.Message, StringComparison.Ordinal);
             Assert.DoesNotContain("Documents", export.ExportMetadata.Message, StringComparison.Ordinal);
@@ -190,7 +190,7 @@ public sealed class ReportLabelCorrectionTests
         {
             var view = CreateView(out var latest);
             await view.RunReportAsync("invoice");
-            Assert.StartsWith("1 invoices, 1 returns;", ((TextBlock)view.FindName("ReportResult")).Text, StringComparison.Ordinal);
+            Assert.StartsWith("Passed: 25 Aug 2026, 1 invoices, 1 returns;", ((TextBlock)view.FindName("ReportResult")).Text, StringComparison.Ordinal);
             var grid = (DataGrid)view.FindName("ReportGrid");
             TablePresentation.Configure(grid);
             Assert.Contains("Value incl. GST ₹", grid.Columns.Select(column => (string)column.Header));
@@ -223,7 +223,7 @@ public sealed class ReportLabelCorrectionTests
         Assert.Null(TablePresentation.ReportHeader(typeof(StockMovementRecord), "TotalCost"));
         Assert.Null(TablePresentation.ReportHeader(typeof(StaffPerformanceRecord), "Invoices"));
         Assert.Null(TablePresentation.ReportHeader(typeof(ManagementTrendPoint), "NetSales"));
-        Assert.Equal("Net Sales", TablePresentation.ReportHeader(typeof(SalesSummaryRecord), "SourceSignedNetAmount"));
+        Assert.Equal("Sales incl. GST", TablePresentation.ReportHeader(typeof(SalesSummaryRecord), "SourceSignedNetAmount"));
         Assert.Equal("Invoices", TablePresentation.ReportHeader(typeof(SalesSummaryRecord), "Invoices"));
         Assert.Equal("Returns", TablePresentation.ReportHeader(typeof(ManagementTrendRecord), "Returns"));
         Assert.Equal("Unit MRP", TablePresentation.ReportHeader(typeof(StockInventoryRecord), "UnitCost"));

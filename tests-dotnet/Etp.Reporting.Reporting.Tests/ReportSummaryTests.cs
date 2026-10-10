@@ -243,6 +243,33 @@ public sealed class ReportSummaryTests
         Assert.Equal("01 Sep", line.Series[0].Points[0].Category);
     }
 
+    // RA-SALES-07 (1.9.9): the sales column is "Sales incl. GST"; the summaries read it, and still read "Net Sales"
+    // in daily-pack tables and exports made before 1.9.9.
+    [Fact]
+    public void Sales_and_trend_summaries_read_the_sales_incl_GST_header()
+    {
+        var sales = VisualReportComposer.Compose(Meta("Brand-wise Sales"),
+            new([new("Group"), new("Units", "#,##0.00"), new(ReportSummaryBuilder.SalesHeader, "#,##0.00"), new("Invoices", "#,##0"), new("Returns", "#,##0")],
+                [["Titan", 2m, 300m, 2, 0], ["Helios", 1m, 200m, 1, 0]], ["Total", 3m, 500m, 3, 0]), "sales-brand");
+        Assert.Equal(500m, Kpi(sales, "Sales incl. GST"));
+        Assert.Equal(ReportSummaryFamily.Sales, ProductReportVisualClassificationRegistry.FamilyFor(null, "Brand-wise Sales"));
+
+        var day = new DateOnly(2026, 9, 1);
+        var trend = VisualReportComposer.Compose(Meta("Management Trend"),
+            new([new("Date"), new("Store"), new(ReportSummaryBuilder.SalesHeader, "#,##0.00")], [[day, "EAST", 120m], [day, "WEST", 80m]]), "management-trend");
+        Assert.Equal(200m, Kpi(trend, "Total sales"));
+        Assert.Equal("Sales incl. GST", Assert.Single(trend.Visuals).Series[0].Name);
+    }
+
+    // RA-EXPORT-04 (1.9.9): exports are titled with the catalogue name; every catalogue name finds its report's family.
+    [Fact]
+    public void Every_catalogue_name_finds_the_family_of_its_report_code()
+    {
+        foreach (var entry in ProductReportCatalogue.All)
+            Assert.Equal(ProductReportVisualClassificationRegistry.ForReport(entry.Code).Family,
+                ProductReportVisualClassificationRegistry.FamilyFor(null, entry.Name));
+    }
+
     [Fact]
     public void Pdf_gets_a_summary_page_before_the_rows_only_when_the_summary_is_informative()
     {
