@@ -6,7 +6,8 @@ public static class ReportTaskAliases
     private static readonly IReadOnlyDictionary<string, string[]> aliases = new Dictionary<string, string[]>
     {
         ["cash"] = ["Daily Cash Reconciliation"],
-        ["dsr"] = ["Daily Sales / DSR", "LY / TY Comparison"],
+        // RA-UI-23 (1.9.9): Ctrl+K "evening" found nothing; the Evening DSR lives inside the DSR.
+        ["dsr"] = ["Daily Sales / DSR", "LY / TY Comparison", "Evening DSR", "Evening report"],
         ["exceptions"] = ["Daily Exception Report"],
         ["invoice"] = ["Invoice Summary"],
         ["invoice-lineage"] = ["Invoice Source Drill-down"],

@@ -96,11 +96,20 @@ public static class DesktopFriendlyError
         _ => null
     };
 
+    public const string FileInUseMessage = "The file is open in another program. Close it there and try again.";
+
+    // ERROR_SHARING_VIOLATION (32) and ERROR_LOCK_VIOLATION (33) as HRESULTs.
+    internal static bool IsFileInUse(IOException exception) =>
+        exception.HResult is unchecked((int)0x80070020) or unchecked((int)0x80070021);
+
     public static string Describe(Exception exception) => exception switch
     {
         UnauthorizedAccessException => "Your Windows account does not have permission for this action.",
         FileNotFoundException => "The selected file is no longer available. Select it again.",
-        IOException => "The file could not be read. Close it in other applications and try again.",
+        // RA-EXPORT-16 (1.9.9): a locked file is usually an export target open in Excel (a write),
+        // so the message no longer says "read". Imports share this branch, hence "try again".
+        IOException io when IsFileInUse(io) => FileInUseMessage,
+        IOException => "The file could not be opened or saved. Close it in other applications and try again.",
         SqlException sql when DescribeConnectionFailure(sql.Number) is { } message => message,
         SqlException { Number: 2601 or 2627 } => "This item already exists.",
         SqlException { Number: 51210 } => "This business day is finalised. Reopen it before making changes.",
