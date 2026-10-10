@@ -33,7 +33,7 @@ The Service rail section (`TaskNavigation.Sections`: Today, Import, Reports, Sto
 | Tab | Task id | Title (Ctrl+K) | Since |
 |---|---|---|---|
 | Today | `service-today` | Service today | 1.10.0 |
-| Pending | `service-pending` | Service pending jobs | 1.9.5 (board from 1.10.0) |
+| Pending | `service-pending` | Service pending board | 1.9.5 (board from 1.10.0) |
 | Jobs | `service-job-history` | Service job history | 1.9.5 |
 | Jobs | `service-jobs` | Service jobs | 1.9.5 (was "Service jobs by status") |
 | Claims | `service-claims` | Service claims | 1.10.0 |

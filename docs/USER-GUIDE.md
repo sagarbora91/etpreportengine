@@ -188,7 +188,7 @@ What was claimed from Titan, by month: GPRC cell, Module Bank, WDC (depreciation
 
 **Raised only.** No Service export says whether Titan has settled or paid a claim, so this screen never shows a claim as outstanding or settled. The note under the title says so.
 
-Where the old-format and new-format reports (or GPRC and GPRC CLAIM) both hold the same claim document, it is counted once, from the newer format. The old WDC and WRA reports end, and the new ones start, on 1 Jul 2026; a 1 Jul claim is counted once.
+Where the old-format and new-format reports (or GPRC and GPRC CLAIM) both hold the same claim document, it is counted once, from the newer format. The old WDC and WRA reports end, and the new ones start, on 1 Jul 2026; a 1 Jul claim is counted once. A few old WRA lines repeat a WDC document number; they are counted once, as WDC.
 
 The four numbers:
 
@@ -236,4 +236,4 @@ Before any Service export is imported (on a new PC, for example), the screen sti
 - Importing the same week again changes nothing (Duplicate or Already present). A changed file for a date already imported is refused: use a new date (a new dated folder), or request a restatement as for any changed import (see Registers, investigation and approvals).
 - Service files in the watch folder are imported but never start an automatic report pack.
 - The manual Service cash/card/UPI entries, the Service Sales report, the DSR service card and the cash book stay exactly as they are.
-- Before 1.10.0 the Service screens were under Reports → Service centre. Favourites to them keep working. Ctrl+K finds the tabs as "Service today", "Service pending jobs", "Service job history", "Service jobs", "Service claims", "Service parts and purchases" and "Service money check".
+- Before 1.10.0 the Service screens were under Reports → Service centre. Favourites to them keep working. Ctrl+K finds the tabs as "Service today", "Service pending board", "Service job history", "Service jobs", "Service claims", "Service parts and purchases" and "Service money check".
