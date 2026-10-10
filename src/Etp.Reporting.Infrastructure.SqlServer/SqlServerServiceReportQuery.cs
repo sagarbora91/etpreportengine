@@ -9,7 +9,7 @@ namespace Etp.Reporting.Infrastructure.SqlServer;
 /// by snapshot date (design section 4), so nothing here depends on the import order. No query selects a phone,
 /// e-mail or address column: the views expose none.
 /// </summary>
-public sealed class SqlServerServiceReportQuery(string connectionString) : IServiceReportQuery
+public sealed partial class SqlServerServiceReportQuery(string connectionString) : IServiceReportQuery
 {
     internal const string RefreshesSql = """
         SELECT report_code,snapshot_date,row_count,import_file_id,imported_utc
