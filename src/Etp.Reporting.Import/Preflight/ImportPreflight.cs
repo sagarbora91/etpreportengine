@@ -47,53 +47,74 @@ public sealed class ImportPreflight
         diagnostics.AddRange(contract.Diagnostics);
 
         var candidates = new List<(WorkbookSheet Sheet, ImportProfile Profile)>();
+        // The diagnostics each sheet that matched no profile added (IF-025), so an edited-after-export workbook can
+        // replace them with the one refusal that says what happened.
+        var unmatched = new List<(string Sheet, int Start, int Count)>();
         foreach (var originalSheet in workbook.Sheets.Where(sheet => !IsNonDataSheet(sheet.Name)))
         {
-            var sheet = originalSheet;
-            if (sheet.Rows.Count == 0 && (sheet.Headers.Count == 0 || sheet.Headers.All(string.IsNullOrWhiteSpace)))
+            var start = diagnostics.Count;
+            var candidateCount = candidates.Count;
+            try
             {
-                // Consolidation explicitly records an absent snapshot as an empty Data sheet.
-                // Require both a family identity and the Info empty marker; an arbitrary blank workbook is not a known layout.
-                var info = workbook.Sheets.FirstOrDefault(s => s.Name.Equals("Info", StringComparison.OrdinalIgnoreCase));
-                var named = EtpReportFamilyRegistry.IdentifyName(workbook.FileName);
-                var infoValues = info?.Rows.SelectMany(r => r.Cells).Select(c => c.Value?.ToString() ?? "").ToArray() ?? [];
-                if (named is not null && infoValues.Contains(named.FamilyCode, StringComparer.OrdinalIgnoreCase) &&
-                    infoValues.Any(value => value.StartsWith("EMPTY", StringComparison.OrdinalIgnoreCase)))
-                    sheet = sheet with { Headers = named.Headers, HeaderRowNumber = 1 };
-            }
-            if (BelowTitleRows(sheet, materializedProfiles, workbook.FileName, contract.Contract?.Header.FamilyCode) is { } titled)
-            {
-                sheet = titled;
-                diagnostics.Add(new(HeaderBelowTitleRows, ImportDiagnosticSeverity.Information,
-                    "The header row was found below title rows; the title rows are not imported.", sheet.Name, sheet.HeaderRowNumber));
-            }
-            if (string.IsNullOrWhiteSpace(sheet.Name))
-                diagnostics.Add(Blocker("SHEET_NAME_MISSING", "A worksheet has no name."));
-            if (sheet.HeaderRowNumber < 1 || sheet.Headers.Count == 0 || sheet.Headers.Any(string.IsNullOrWhiteSpace))
-            {
-                diagnostics.Add(Blocker("HEADER_INVALID", "A complete, non-empty header row is required.", sheet.Name));
-                continue;
-            }
+                var sheet = originalSheet;
+                if (sheet.Rows.Count == 0 && (sheet.Headers.Count == 0 || sheet.Headers.All(string.IsNullOrWhiteSpace)))
+                {
+                    // Consolidation explicitly records an absent snapshot as an empty Data sheet.
+                    // Require both a family identity and the Info empty marker; an arbitrary blank workbook is not a known layout.
+                    var info = workbook.Sheets.FirstOrDefault(s => s.Name.Equals("Info", StringComparison.OrdinalIgnoreCase));
+                    var named = EtpReportFamilyRegistry.IdentifyName(workbook.FileName);
+                    var infoValues = info?.Rows.SelectMany(r => r.Cells).Select(c => c.Value?.ToString() ?? "").ToArray() ?? [];
+                    if (named is not null && infoValues.Contains(named.FamilyCode, StringComparer.OrdinalIgnoreCase) &&
+                        infoValues.Any(value => value.StartsWith("EMPTY", StringComparison.OrdinalIgnoreCase)))
+                        sheet = sheet with { Headers = named.Headers, HeaderRowNumber = 1 };
+                }
+                if (BelowTitleRows(sheet, materializedProfiles, workbook.FileName, contract.Contract?.Header.FamilyCode) is { } titled)
+                {
+                    sheet = titled;
+                    diagnostics.Add(new(HeaderBelowTitleRows, ImportDiagnosticSeverity.Information,
+                        "The header row was found below title rows; the title rows are not imported.", sheet.Name, sheet.HeaderRowNumber));
+                }
+                if (string.IsNullOrWhiteSpace(sheet.Name))
+                    diagnostics.Add(Blocker("SHEET_NAME_MISSING", "A worksheet has no name."));
+                if (sheet.HeaderRowNumber < 1 || sheet.Headers.Count == 0 || sheet.Headers.Any(string.IsNullOrWhiteSpace))
+                {
+                    diagnostics.Add(Blocker("HEADER_INVALID", "A complete, non-empty header row is required.", sheet.Name));
+                    continue;
+                }
 
-            var layout = WorkbookLayoutNormalizer.Normalize(sheet);
-            diagnostics.AddRange(layout.Diagnostics);
-            if (layout.Sheet is null) continue;
-            var normalizedSheet = layout.Sheet;
+                var layout = WorkbookLayoutNormalizer.Normalize(sheet);
+                diagnostics.AddRange(layout.Diagnostics);
+                if (layout.Sheet is null) continue;
+                var normalizedSheet = layout.Sheet;
 
-            var normalized = normalizedSheet.Headers.Select(ImportProfile.NormalizeHeader).ToArray();
-            if (normalized.Distinct(StringComparer.OrdinalIgnoreCase).Count() != normalized.Length)
-            {
-                diagnostics.Add(Blocker("HEADER_DUPLICATE", "Duplicate normalized headers are not allowed.", sheet.Name));
-                continue;
+                var normalized = normalizedSheet.Headers.Select(ImportProfile.NormalizeHeader).ToArray();
+                if (normalized.Distinct(StringComparer.OrdinalIgnoreCase).Count() != normalized.Length)
+                {
+                    diagnostics.Add(Blocker("HEADER_DUPLICATE", "Duplicate normalized headers are not allowed.", sheet.Name));
+                    continue;
+                }
+
+                var match = matcher.Match(normalizedSheet.Headers, materializedProfiles, workbook.FileName, sheet.Name,
+                    contract.Contract?.Header.FamilyCode);
+                if (match is not null) candidates.Add((normalizedSheet, match));
+                else AddSchemaDifferenceDiagnostics(normalizedSheet, materializedProfiles, diagnostics);
             }
-
-            var match = matcher.Match(normalizedSheet.Headers, materializedProfiles, workbook.FileName, sheet.Name,
-                contract.Contract?.Header.FamilyCode);
-            if (match is not null) candidates.Add((normalizedSheet, match));
-            else AddSchemaDifferenceDiagnostics(normalizedSheet, materializedProfiles, diagnostics);
+            finally
+            {
+                if (candidates.Count == candidateCount) unmatched.Add((originalSheet.Name, start, diagnostics.Count - start));
+            }
         }
 
-        if (candidates.Count == 0)
+        var edited = EditedAfterExport(candidates, unmatched, diagnostics);
+        if (edited is not null)
+        {
+            // The unmatched sheets' own rows described layouts the file never was (pivots read as REQUIRED_COLUMN_MISSING),
+            // which made the folder import say "Unknown layout"; the one refusal below names the sheets instead.
+            foreach (var (_, start, count) in unmatched.Where(x => x.Count > 0).OrderByDescending(x => x.Start))
+                diagnostics.RemoveRange(start, count);
+            diagnostics.Add(edited);
+        }
+        else if (candidates.Count == 0)
             diagnostics.Add(Blocker("LAYOUT_UNKNOWN", "No import profile exactly matches a worksheet header signature."));
         else if (candidates.Count > 1)
             diagnostics.Add(Blocker("LAYOUT_AMBIGUOUS", "More than one worksheet matches an import profile."));
@@ -101,9 +122,43 @@ public sealed class ImportPreflight
             diagnostics.Add(new("EMPTY_EXPORT", ImportDiagnosticSeverity.Information, "Empty export; no rows to import.", candidates[0].Sheet.Name));
 
         return new(
-            candidates.Count == 1 ? candidates[0].Profile : null,
-            candidates.Count == 1 ? candidates[0].Sheet : null,
+            candidates.Count == 1 && edited is null ? candidates[0].Profile : null,
+            candidates.Count == 1 && edited is null ? candidates[0].Sheet : null,
             diagnostics) { Contract = contract };
+    }
+
+    /// <summary>Blocker code (IF-025): a raw export re-saved in Excel with extra sheets; see <see cref="EditedAfterExport"/>.</summary>
+    public const string EditedAfterExportCode = Etp.Reporting.Application.Imports.ImportCodes.WorkbookEditedAfterExport;
+
+    /// <summary>
+    /// IF-025: an ETP export is one data sheet. A workbook whose data sheets all match one profile (a filtered copy of
+    /// <c>Sheet0</c> beside it) or where one sheet matches and the others are refused (pivot sheets) was edited in Excel
+    /// after export. Which sheet holds the export is not guessed, so the workbook is refused, never imported in part, with
+    /// a message naming the matching and the other sheets instead of LAYOUT_AMBIGUOUS or the pivots' missing columns
+    /// ("Unknown layout"). Sheets that matched different profiles stay LAYOUT_AMBIGUOUS, and an extra sheet that only
+    /// added warnings (a superset header) changes nothing.
+    /// </summary>
+    private static ImportDiagnostic? EditedAfterExport(
+        IReadOnlyList<(WorkbookSheet Sheet, ImportProfile Profile)> candidates,
+        IReadOnlyList<(string Sheet, int Start, int Count)> unmatched,
+        IReadOnlyList<ImportDiagnostic> diagnostics)
+    {
+        if (candidates.Count == 0) return null;
+        if (candidates.Select(x => x.Profile.ReportCode).Distinct(StringComparer.OrdinalIgnoreCase).Count() != 1) return null;
+        var refused = unmatched.Where(x => diagnostics.Skip(x.Start).Take(x.Count).Any(d => d.Severity == ImportDiagnosticSeverity.Blocker))
+            .Select(x => x.Sheet).ToArray();
+        if (candidates.Count == 1 && refused.Length == 0) return null;
+        var code = candidates[0].Profile.ReportCode;
+        var layout = EtpReportFamilyRegistry.Families.FirstOrDefault(family =>
+            family.ReportCode.Equals(code, StringComparison.OrdinalIgnoreCase))?.FamilyCode ?? code;
+        var matching = candidates.Select(x => x.Sheet.Name).ToArray();
+        var others = refused.Length == 0 ? string.Empty
+            : $"; {Sheets(refused)} {(refused.Length == 1 ? "is not an ETP export sheet" : "are not ETP export sheets")}";
+        return Blocker(EditedAfterExportCode,
+            $"This workbook was edited after export: {Sheets(matching)} {(matching.Length == 1 ? "matches" : "match")} the {layout} layout{others}. " +
+            "Re-export it from ETP and import the new file; nothing from this workbook was imported.");
+
+        static string Sheets(IReadOnlyList<string> names) => (names.Count == 1 ? "sheet " : "sheets ") + string.Join(", ", names);
     }
 
     /// <summary>Information code: a raw export's header was found below title rows (<see cref="BelowTitleRows"/>).</summary>

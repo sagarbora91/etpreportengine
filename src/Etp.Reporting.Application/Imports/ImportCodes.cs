@@ -61,6 +61,12 @@ public static class ImportCodes
     /// <inheritdoc cref="ControlWorkbookNotNeeded"/>
     public const string NotAnEtpExport = "NOT_AN_ETP_EXPORT";
 
+    /// <summary>
+    /// IF-025: a raw export re-saved in Excel with extra sheets (a filtered copy of the export sheet, pivots). The workbook
+    /// is refused with the matching sheets named, never imported in part and never reported as "Unknown layout".
+    /// </summary>
+    public const string WorkbookEditedAfterExport = "WORKBOOK_EDITED_AFTER_EXPORT";
+
     /// <summary>A persist procedure reported CONFLICT, or ALREADY_PRESENT for a document decided NEW (spec 9, step 12).</summary>
     public const string ImportConflict = "IMPORT_CONFLICT";
 
