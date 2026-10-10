@@ -173,7 +173,7 @@ No new tables. The finding and difference guards no longer treat an UPDATE that 
 
 ## Service Centre interim — migration 0048
 
-`0048_service_centre_interim.sql` (Service review step S-2, decisions 15 and 16, 3-4 Oct 2026; release 1.9.5). Additive and idempotent, in one transaction; it must apply after 1.9.4's 0046/0047. 0049 is reserved for the Tally cost-centre migration of GitHub PR #3 (renumbered from its 0041, decision 18), and 1.10.0 numbers its own migrations from 0050. The design is `SERVICE-INTERIM-DESIGN.md` (`Reference\Work in progress 2026-10-03\service\`). The script has three sections, each with one owner, in this order:
+`0048_service_centre_interim.sql` (Service review step S-2, decisions 15 and 16, 3-4 Oct 2026; release 1.9.5). Additive and idempotent, in one transaction; it must apply after 1.9.4's 0046/0047. 0049 is reserved for the Tally cost-centre migration of GitHub PR #3 (renumbered from its 0041, decision 18), and 1.10.0 numbers its own migrations from 0050 (below). The design is `SERVICE-INTERIM-DESIGN.md` (`Reference\Work in progress 2026-10-03\service\`). The script has three sections, each with one owner, in this order:
 
 **A_SERVICE_STORE.** `business_units` row `SERVICE` ("Service Centre"); `stores` row `AW330` ("Service Centre AW330") with that business unit and `is_active = 0`, inserted only when missing (an existing AW330 row is never updated). Trigger `trg_stores_service_unit_inactive` (AFTER INSERT, UPDATE on `dbo.stores`) THROWs 51900 when a SERVICE-unit store is made active, and 51904 when a SERVICE-unit store is moved out of the SERVICE business unit (`business_unit_id` changed or set to NULL). Settings > Stores explains both refusals in plain words. AW330 stays inactive because an active store would need an R025 import for the combined Retail date, get its own daily pack and join the DSR and evening store lists. Retail stores keep a NULL business unit. `import_files.store_code` has no foreign key, so Service files need no other store change; there is no `daily_reporting_days` row for AW330, so the landing triggers' day lock never applies to Service (no Service day locking).
 
@@ -220,8 +220,8 @@ Helper views `v_service_families` (read rule, date column, list label and lifecy
 | `v_service_readings` | One row per Service import file: report code, snapshot date, window start, import file, rows, import time, source kind (CONSOLIDATED or RAW) and `is_latest` per family. The refresh log, and the base of the growth check. |
 | `v_service_job_readings` | Job, report code, snapshot date, import file and status date for every job list and for S009/S010. The base of the next three views. |
 | `v_service_job_status_current` | One row per job: the current status (the status list whose winning reading is latest, ties broken by the lifecycle rank), money summed over the line rows (spare value, labour), line count and how many other lists held the job. |
-| `v_service_pending_current` | Pending repair (S009) and pending delivery (S010) from the latest snapshot with age in days, plus SRN status (S011). |
-| `v_service_job_list_events` | History of jobs in lists: FirstSeen, Reappeared, LeftList and StillListed, for S009/S010 and for the job lists. Information only; it writes nothing and creates no review item. |
+| `v_service_pending_current` | Pending repair (S009) and pending delivery (S010) from the latest snapshot with age in days, plus SRN status (S011). Amended by 0050 (below): open SRNs only, plus EDD, status, spare and indent columns. |
+| `v_service_job_list_events` | History of jobs in lists: FirstSeen, Reappeared, LeftList and StillListed, for S009/S010 and for the job lists. Information only; it writes nothing and creates no review item. From 1.10.0 the Job history screen reads `v_service_job_timeline` (0050) instead, because a raw window made every consolidated job look as if it "left" its list (SD-01). |
 | `v_service_s004_daily` | S004 tender amount per business date and tender (CASH, CARD, UPI with BharatPe and PhonePe, CHEQUE, RTGS, ADVANCE), from the winning reading. Columns `business_date, tender, amount, row_count, snapshot_date, import_file_id`. |
 | `v_service_money_changes` | For S003 and S004, each business date whose total differs between the winning reading and the previous covering reading (or the reading it restated), with both snapshots and amounts. |
 | `v_service_gprc_claims` | GPRC claim lines from S023 (consolidated history, up to 5 Aug 2026) and S041 (raw GPRC CLAIM, from 1 Aug 2026), each first chosen by its own date-log rule. S041 wins per claim document: an S023 line is kept only when no winning S041 line has the same document number (an S023 line with no document number only on a date with no S041 line), so the 1-5 Aug overlap is counted once. No customer column. |
@@ -230,3 +230,94 @@ Helper views `v_service_families` (read rule, date column, list label and lifecy
 `SqlServerServiceReportQuery` reads these views for the four Service screens. The money check (decision 16, rules in `ServiceMoneyCheck`) compares S004 CASH, CARD and UPI with the Titan World shop's `SERVICE_CASH`, `SERVICE_CARD` and `SERVICE_UPI` entries by bill date and per tender, and shows the difference (S004 minus manual); nothing is corrected. Entries at any other shop are returned apart, for the "Service entries at other shops (not added)" grid, and never summed. `SERVICE_WDC` is not compared, and no advance is deducted (advances are 0; a non-zero S004 ADVANCE, CHEQUE or RTGS amount is shown without a manual side).
 
 SQL error numbers 51900–51929 are the Service block (`docs/service-centre/SERVICE-INTERIM-NUMBERS.md`); 0048 uses 51900 and 51904 only. Storage: about 35k landing rows per weekly consolidated reading plus small daily raw readings; measure it with `scripts/service-centre/measure-service-growth.sql` (`docs/OPERATIONS.md`).
+
+## Service Centre UI — migration 0050
+
+`0050_service_centre_ui.sql` (Service Centre UI wave, decision 25, 10 Oct 2026; release 1.10.0; lane sql of the 1.10.0 wave). Design: `docs/roadmap/SERVICE-CENTRE-UI-DESIGN-REVIEW-2026-10-10.md`, sections 3, 4 and 6. It follows 0049, which is the Tally cost-centre migration of GitHub PR #3. Until 0049 is on the same branch, `MigrationTests` reports a gap in the numbers; that is expected, as it was for 0048 in 1.9.4. 0048 is never edited: its text is checksummed.
+
+**This section was written from the sql lane's branch (`svcui/sql` at 7d91a57) before the merge. Check it against the merged 0050 at merge time.** The design names the file `0050_service_job_model.sql`; the lane named it `0050_service_centre_ui.sql`.
+
+**What it is.** One section, `D_SERVICE_UI_READ` (owner: lane sql). It runs in the migration runner's single transaction (`SET XACT_ABORT ON`, no BEGIN or COMMIT). Every view is `CREATE OR ALTER` through `EXEC(N'…')`, followed by its grants, so running it again changes nothing. It writes no data and adds no table, procedure, trigger or index.
+
+**Rules every 0050 view keeps:**
+
+- **Columns by name, never `SELECT *`.** No view exposes a phone, e-mail or address column (design 1.8: `mobilenumber`, `email`, `endcustomercontactnumber`, `customermobile`, `customeremail`, `landline_no`, `mobile_no`). The customer name appears only in `v_service_status_view_facts` and `v_service_job` (the Job history header and Jobs list show it, as the 0048 views did); the Pending board and the claim, parts and timeline views carry none.
+- **The 0048 read rules still decide which reading counts:**
+  - job list: per family and job, the latest reading that holds the job;
+  - state snapshot (S006, S009, S010): the latest reading, where a reading with rows beats an empty one on the same date;
+  - date log: per business date, the latest reading whose window covers the date.
+
+  A raw window therefore never hides consolidated history, and the import order never matters.
+- **The job key** is the exported job order number, trimmed (`NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100), <column>))), N'')`), never padded or re-formatted (decision 25 Q1; design 1.3 shows 100 % join rates and no collision between the 15- and 16-character forms).
+
+**Grants.** Each view has `GRANT SELECT` to `etp_viewer`, `etp_store_manager` and `etp_owner`, and `DENY INSERT, UPDATE, DELETE` to `etp_store_manager` and `etp_viewer`, as 0048 section C does.
+
+| View | One row per | What it holds |
+|---|---|---|
+| `v_service_status_view_facts` | line row of the ten status lists (S014-S018, S031-S035), every reading | The lifecycle columns that `v_service_status_view_rows` (0048) does not carry: job date, EDD, brand, model (variant number), product category (cluster id), customer name, guarantee, customer type, indent date and number, SRN issued/returned/received dates and to-store code, repair date, delivery date, RWR date and reason, WDC date and number, WRA date and RA DC number, repair status, spare value, labour charge. It is the base of `v_service_job` and `v_service_job_timeline`. |
+| `v_service_claims` | claim line | Every claim to Titan in one shape. Columns: `claim_type` (GPRC, MB, WDC, WRA), `report_code`, `business_date`, `document_number`, `job_order_number`, `item_id`, `quantity`, `account_number`, `net_amount_inc_tax`, `ucp_value`, `snapshot_date`, `import_file_id`. Sources by type:<br>• GPRC: from `v_service_gprc_claims` (S023 + S041, S041 wins per document).<br>• MB: S024.<br>• WDC: S039 (new header) + S025 (old header).<br>• WRA: S040 + S026.<br>Each family's rows are first chosen by its own date-log rule. The new-header family then wins per document number: an old-header line is kept only when no new-header line has the same document number, and an old-header line without a document number only on a date that has no new-header line. So the 1 Jul 2026 join of S025/S039 and S026/S040 is counted once (decision 25 Q12). No settlement column exists in any export (Q9 = raised only). |
+| `v_service_job` | Service job | The job model (design 4.1-4.4). See the column list below. |
+| `v_service_job_timeline` | (job, reading, family, event date, status, store, document) | Job history: every live reading of every family that holds the job (job lists S002, S036, S037; the ten status lists S014-S018 and S031-S035; S009, S010, S011, S012; S003 revenue; S019 repeat return, S020 replacement, S021 depreciation, S022 empowerment; S029 Deftran; S030 running tests; claims S023-S026 and S039-S041). Columns: `job_order_number`, `snapshot_date`, `source_kind` (CONSOLIDATED/RAW), `report_code`, `list_label` (S036 "Delivery-type jobs", S037 "Repair-type jobs", Q10; others from `v_service_families`), `event_date` (the family's own date: WDC date, indent date, WRA date, RWR date, delivery date, repair date, SRN date, transaction date, test date and so on), `status_text` as exported, `pending_store`, `document_number` (indent, DC, SRN, claim or revenue document), `amount` (summed over the lines), `lines`, `import_file_id`. It replaces `v_service_job_list_events` on the Job history screen (SD-01). The 0048 view stays, unchanged, for the S009/S010 list history. |
+| `v_service_parts` | purchase invoice line (invoice number, item) | S007 (created) full-joined to S008 (received). S008 follows the date-log rule on `grn_date`. S007 rows come from the latest reading that holds the invoice: an open invoice has no GRN date, so the date-log rule cannot choose it. Columns: `invoice_number`, `invoice_date`, `item_id`, `shipped_quantity`, `received_quantity`, `net_amount`, `grn_number`, `grn_date`, `received_date`, `status`, `exported_status`, `from_location`, `days_open`, `snapshot_date`, `as_at`. `status` is `Received` when an S008 line exists or the S007 row has a GRN date, else `Open`. `days_open` counts invoice date to GRN date (received) or to `as_at` (open). No job column exists on either family (design 1.7). |
+| `v_service_parts_transit` | goods-in-transit line (S013) | Date-log rule on `stm_date`. Columns: `stm_number`, `business_date`, `item_id`, `quantity_shipped`, `from_location`, `to_location`, `ucp`, `snapshot_date`, `import_file_id`. No job column. |
+| `v_service_stock_summary` | latest S006 reading | Columns: `snapshot_date`, `items`, `quantity`, `value` (quantity × price), `import_file_id`. Count and value only; no item rows. |
+| `v_service_pending_current` (amended) | list row, as in 0048 | `CREATE OR ALTER` of the 0048 view (SD-02, SD-12, decision 25 Q5).<br>• The 0048 columns keep their names and order: `list`, `report_code`, `list_label`, `job_order_number`, `job_date`, `age_days`, `brand`, `model`, `customer_name`, `pending_store`, `snapshot_date`, `import_file_id`.<br>• New columns follow them: `edd`, `jo_status`, `spare_required`, `indent_date`, `repair_date`, `srn_to_status`.<br>• S009 and S010 are still the latest state snapshot.<br>• S011 keeps the job-list rule but lists **open SRNs only**. An SRN is closed when `srn_received_date` is set, or `repaired_date` is set, or `to_status` contains "Received". On the 9 Oct data this gives 10 open SRNs where 0048 listed 141. |
+
+**`v_service_job` columns:**
+
+- **Identity and booking:**
+  - `job_order_number`;
+  - `booking_date`: the least of S002/S036/S037 `created_date`, status-list `jodate`, S009/S010 `jodate`, S011 `joborder_date` and S029 `srf_date`;
+  - `jo_type`: S002 `jotype_booking_quickbilling` as exported, or `Booking` when the job has no S002 row (Q2);
+  - `exported_status`: S002 `current_status`, which is shown but never used for the stage.
+- **Descriptive** (taken from the status lists, then S009/S010, then the job lists, then S011, then S029): `brand`, `model`, `product_category`, `customer_name`, `guarantee`, `customer_type`. `edd` is S009's EDD, else the status lists'.
+- **Stage:** `stage`, `stage_date` and `pending_at` (where the watch is, by default AW330), set by the rule below.
+- **Lifecycle dates and documents:**
+  - `spare_required` (S009), `indent_date`, `srn_date`, `srn_to_store`;
+  - `repair_date`, `delivery_date`, `rwr_date`, `rwr_reason`;
+  - `wdc_date`, `wdc_number`, `wra_date`, `radc_number`.
+- **`claim_raised`** (bit): a WDC claim document exists for a DC job, or a WRA one for an RA job, in any live claim reading.
+- **Money:**
+  - `spare_value` and `labour_charge`: the line rows of the job's current status list, chosen by latest reading, then lifecycle rank (as `v_service_job_status_current`);
+  - `revenue_labour_charge`, `revenue_spare_charge`, `revenue_net_incl_tax` and `revenue_documents`: the winning S003 lines (date-log rule).
+- **Time:**
+  - `tat_days`: booking to delivered, or booking to RWR, for closed jobs;
+  - `tat_repair_days`: booking to repaired, for delivered jobs;
+  - `age_days`: booking to `as_at`, open stages only;
+  - `days_in_stage`: `stage_date` to `as_at`, open stages only;
+  - `is_overdue`: EDD before `as_at`. The per-stage limits for jobs without an EDD (7/15/30/15/7) are applied in C#, in `ServiceAgeing.OverdueBy`.
+- **`is_open`** (bit): 0 for DELIVERED and RWR, and for a DC/RA job whose claim is raised ("closed by claim", Q3); 1 otherwise.
+- **Readings:** `last_reading_date` is the latest snapshot date of any list that holds the job. `as_at` is the latest snapshot date of any live Service reading.
+
+**The stage rule** (design 4.2, decision 25 Q3 and Q5). The first rule that fires gives the stage:
+
+1. `DELIVERED`: in S018, or S029 status Delivered with a delivered date.
+2. `RWR`: in S017, or S029 RWR.
+3. `DC_ISSUED`: in S014.
+4. `RA_ISSUED`: in S016.
+5. `IN_TRANSIT_BACK`: the latest S010 holds the job at a `pendingstore` other than AW330.
+6. `READY_FOR_DELIVERY`: the latest S010 holds it at AW330, or it is in S031/S034.
+7. When the latest S009 holds the job, S009 decides, because it is fresher than the cumulative status lists:
+   - `jostatus` SRN* gives `SRN_OUT`;
+   - `Indent_Raised`, an `indentid` or an `indentdate` gives `INDENT_RAISED`;
+   - anything else gives `ON_BENCH`.
+8. `SRN_OUT`: an open S011 SRN by the Q5 rule, or the job is in S033/S035.
+9. `INDENT_RAISED`: in S015.
+10. `ON_BENCH`: in S032.
+11. `BOOKED`: anything else (job lists only).
+
+`stage_date` is that stage's own date: delivery, RWR, WDC or WRA date, S010 repair date, PD/REPAIRED repair date, SRN date, indent date, S009 job date, or the booking date.
+
+The design sketch puts S011 before S009. The lane moved the S009 test ahead so that the fresher list wins. Check this order at merge against `ServiceJobModelSqlTests` (one fixture job per stage).
+
+S036 and S037 are job lists whose `created_date` is the booking date (Q10). They give job keys and the booking date only, never a delivery or repair date (SD-04).
+
+**Performance (SD-11).** `v_service_job` is one `UNION ALL` + `GROUP BY` over the landing tables. It states the live-reading filter of `v_service_reading_windows` itself (not superseded, truth version 1, Completed batch, an importable Service family, a snapshot date) and applies the three read rules directly, because a first version that referred to the 0048 reading views a dozen times took minutes. The lane measured about **2.5 s on live** (28k landing rows); the screens' target is about 1 s. The acceptance runbook (`docs/roadmap/SERVICE-UI-1.10.0-ACCEPTANCE.md`) times every screen on a staging copy with three more weekly readings. If a screen stays over about 1 s, the design's next step is migration 0052, `service_job_index`: a table filled by `refresh_service_job_index` after each Service batch, which `v_service_job` then reads. 0050 creates no index or table.
+
+**Not in 0050** (design 4.5):
+
+- 0051 `service_claim_settlements` (only if Q9 had been B; decision 25 chose A, raised only);
+- 0052 `service_job_index` (only if measured slow);
+- the optional `stores.is_service_money_shop` flag (SD-07). `v_service_manual_money` keeps the WLMHW literal; decision 16 is unchanged.
+
+**Read contract.** `SqlServerServiceReportQuery` (partial file `SqlServerServiceReportQuery.Ui.cs`) reads these views for the 1.10.0 `IServiceReportQuery` members: `LoadTodayAsync`, `LoadPendingBoardAsync`, `LoadJobAsync`, `LoadJobListAsync`, `LoadClaimsAsync`, `LoadPartsAsync` and `LoadFreshnessAsync`. The records are in `src/Etp.Reporting.Application/Service/ServiceUiContracts.cs`, and the pure rules (bands, overdue, TAT median, board, Today, freshness) are in `ServiceUiRules.cs`. The freshness strip has no SQL of its own: it groups `v_service_readings` in C#.

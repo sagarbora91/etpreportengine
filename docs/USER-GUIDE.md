@@ -42,11 +42,11 @@ Settings → Stores & masters → Stores is the active store catalogue. Enabled 
 
 Settings → Automatic import combines watch folders, report schedules, recent runs and the installed Windows task's state, last result and next run. Saving Enabled does not install a scheduled task. Run now uses saved settings; unattended operation requires the separately installed Windows task. The obsolete polling-minutes field is removed. XLSX and ZIP imports remain supported; unsupported workbooks are marked Not needed. Received files remains a separate document inbox; it does not extract financial facts from PDF/images.
 
-Help is searchable from Settings → Help and includes screenshots of the five navigation areas. It describes the implemented workflows and role limits.
+Help is searchable from Settings → Help and includes screenshots of the navigation areas (Today, Import, Reports, Stock, Service and Settings; the Service picture arrives with the next screenshot run). It describes the implemented workflows and role limits.
 
-## Service Centre (interim)
+## Service Centre
 
-ETP imports the Service Centre (AW330) exports and shows them on four read-only screens. This is the interim Service import; the full Service import, with review of changes, comes with 1.10.0. Nothing in Retail changes.
+ETP imports the Service Centre (AW330) exports and shows them under **Service** on the left: six read-only tabs, Today, Pending, Jobs, Claims, Parts and Money. Nothing in Retail changes, and nothing on these screens writes to the database. Viewers, Store Managers and the Owner can open every Service tab. There is no store picker: Service is always "Service Centre AW330". No Service screen or export shows a customer phone number, e-mail or address.
 
 ### Weekly refresh (consolidated workbooks)
 
@@ -59,10 +59,12 @@ Expect 35 files Imported (ETP imports 36 Service families; the 36th, GPRC CLAIM,
 - S001 Repair register: it repeats the ten status lists, so it would count every job twice.
 - S005 Tender collection summary: not needed; S004 has the tender detail.
 - S038 SRN report: a retired name for S011.
-- S027 TAT and S028 Technician productivity: not imported yet (they come with 1.10.0).
+- S027 TAT and S028 Technician productivity: not imported. ETP works out the turnaround time from the delivery dates itself, and the Deftran report already names the mechanic for each job (decision 25).
 - The `00_` consolidation control file.
 
 When the folder date differs from the latest date on the "Snapshot History" sheet of S006, S009 or S010, the import shows a warning and still imports. Check the folder name.
+
+Some families come only in the consolidated workbook, never as a raw export: SRN status and history, goods in transit, the DC, RA, SRN and SRNINV status lists, repeat returns, replacement, depreciation, the old-format claim reports and the running tests. Import the consolidated workbook at least once a month, or those parts of the screens go stale; the freshness strip (below) shows which.
 
 ### Daily raw exports
 
@@ -72,16 +74,159 @@ The raw files cover a few days each. The screens combine them with the weekly wo
 
 GPRC CLAIM (`GPRC CLAIM 01.08.2026 TO 07.08.2026.xlsx`) is imported as its own family, S041. The consolidated GPRC report (S023) holds the claims up to 5 Aug 2026 and GPRC CLAIM the claims after; where both hold the same claim document, GPRC CLAIM is used, so no claim is counted twice.
 
-Not imported yet: technician productivity and the tender collection summary (both reported Not needed), and TAT (TATA REPORT, shown as an unknown layout). None of them is shown as Failed. In the automatic-import watch folder an unknown layout counts as a failed source, so a TATA REPORT dropped there goes to the Failed folder; import it by hand or leave it out until 1.10.0.
+Not imported: technician productivity and the tender collection summary (both reported Not needed), and TAT (TATA REPORT, shown as an unknown layout). None of them is shown as Failed. In the automatic-import watch folder an unknown layout counts as a failed source, so a TATA REPORT dropped there goes to the Failed folder; leave it out.
 
-### The four screens (Reports → Service centre)
+### What every Service screen shows
 
-Every screen shows "Service data as at <date> (refreshed <date>)", or "No Service data imported yet". There is no store picker: Service is always "Service Centre AW330". Viewers, Store Managers and the Owner can open them. No screen shows a customer phone number, e-mail or address.
+- **The title, "Service Centre AW330 - read only"**, and the line "Service data as at <date>", where the date is that of the newest Service export imported. If nothing is imported yet, the screen says "No Service data imported yet" (the Money tab still shows the manual entries).
+- **The freshness strip**: one chip per group of exports, with the date of its last export and whether that was the weekly workbook (consolidated) or a raw export, for example "Jobs: last export 03 Oct 2026 (raw)". The groups are Jobs, Status views, Pending lists, SRN, Money, Claims, Parts, Tests and Deftran. A group's date is that of its oldest report, so one stale report is enough to colour the chip.
+  - **No colour**: exported in the last 7 days.
+  - **Amber**: the last export is more than 7 days old.
+  - **Red**: more than 14 days old.
+  - "no export yet" or "some families never exported": that part of the screens has nothing, or only part, to show.
 
-- **Service jobs by status.** One row per job with its current status (one of the ten status lists), job date, EDD, brand, model, customer name, spare value, labour, line count and whether the job is also in other lists. Filter by status; Export.
-- **Service pending lists.** Pending repair, Pending delivery and SRN status, oldest first, with the age in days. Export.
-- **Service job history.** Type a job number. Shows each list the job was in, when it was first seen and when it left ("Left the list on or before <date>"). A job leaving a list is history, not a problem: nothing needs to be approved.
-- **Service money check.** Choose a date range. For each bill date it shows the S004 Cash, Card and UPI amounts beside the manual Service cash, card and UPI entries of the Titan World shop, where all Service money is entered, and the difference (S004 minus manual). Differences are shown, never corrected. Service WDC is not compared, and there are no job advances to deduct; an S004 advance, cheque or RTGS amount that is not zero is still shown, with no manual side. A Service entry made at any other shop (for example Helios) is listed under "Service entries at other shops (not added)" with a note, and is never added in. Below, "Money changed since the previous refresh" lists each day whose total changed between two refreshes, with both amounts.
+  An amber or red chip does not mean the numbers are wrong. They are true as at that export date; import a newer export to bring them up to date.
+- **Refresh** reads the database again. **Export to Excel** writes what the screen shows: the grid's columns, with the period and the as-at line.
+- **A job number in any job grid opens that job's history**: double-click the row, press Enter, or use **Open job history**. **Back** returns to the screen you came from.
+
+### Where a job is: the stages
+
+ETP puts every job in one stage, reading the newest exports together. The job report alone is not enough, because its status column is not updated once a job has been exported. The first stage that applies, in this order, is the job's stage:
+
+1. **Delivered**: in the DELIVERED list (or Deftran says delivered).
+2. **Returned without repair (RWR)**: in the RWR list.
+3. **DC issued** and **RA issued**: a depreciation (DC) or replacement (RA) was issued. Once the WDC or WRA claim for it has been raised, the job counts as **closed by claim**.
+4. **Sent back after repair, in transit**: the latest Pending delivery list holds the job at a place other than AW330 (in transit, PUNS, CSCH).
+5. **Ready for delivery**: the latest Pending delivery list holds it at AW330, or it is in the PD or REPAIRED list.
+6. **SRN out for repair**: the watch went out on an SRN that has not come back. An SRN counts as back when it has a received date or a repaired date, or its status says Received.
+7. **Indent raised, parts awaited**: an indent was raised for a part.
+8. **On the bench**: on the Pending repair list (or the PR list) with no indent.
+9. **Booked, no status yet**: only the job report holds it so far.
+
+When the latest Pending repair list holds a job, that list decides between SRN out, indent raised and on the bench, because it is fresher than the monthly status lists.
+
+On the Pending board the open stages are shown in the order work moves through the centre: Booked, On the bench, Indent raised, SRN out, Ready for delivery, In transit, then DC issued and RA issued that are not yet claimed.
+
+**Open and closed.** A job is open until it is Delivered, Returned without repair, or closed by claim. Open jobs are on the Pending board; closed jobs are on the Jobs list.
+
+**Age, days in stage and age bands.** "Days since booking" counts from the booking date to the as-at date. "Days in stage" counts from the date the job reached its stage (for example the indent date or the SRN date). The age bands used to filter the board are 0-7, 8-15, 16-30, 31-60 and over 60 days since booking.
+
+**Overdue.** A job is overdue when its promised date (EDD) has passed. About half the jobs have no EDD; such a job is overdue when it has been in its stage longer than:
+
+| Stage | Overdue after |
+|---|---|
+| On the bench | 7 days |
+| Indent raised, parts awaited | 15 days |
+| SRN out for repair | 30 days |
+| Sent back after repair, in transit | 15 days |
+| Ready for delivery | 7 days |
+
+"Overdue by" is the number of days past the EDD, or past that limit. Booked and DC/RA jobs have no limit; they are overdue only when an EDD has passed.
+
+**Turnaround time (TAT).** For a delivered job, TAT is the number of days from booking to delivery. **Booking** jobs and **Quick Billing** jobs (battery, strap and other counter work, almost all delivered the same day) are always shown separately, because mixing them would make the workshop look faster than it is. The headline is the Booking median (the middle value: half the jobs took less, half took more), with the number of Booking jobs over 15 days. A job with no job-report row counts as Booking. The job's header also has booking to repaired, which leaves out the days the watch waited for the customer.
+
+### Today
+
+The morning view for one business date. The date defaults to the newest Service export date, not the calendar date, so the screen never shows a row of zeros on a Sunday or before the day's export arrives. The screen names the date it shows, and warns when you pick a date after the newest export. The cards:
+
+- **Booked**: jobs booked on the date, split Booking / Quick Billing, and this month to the date.
+- **Delivered**: jobs delivered on the date and this month, with jobs returned without repair on the date beside it.
+- **On the bench**: open jobs on the bench or waiting for parts, of which indent raised, and of which the EDD has passed.
+- **Ready for delivery**: jobs ready at AW330, with the number in transit back after repair.
+- **Collection**: the S004 cash, card and UPI collected on the date, and whether the manual Service entry for that date was made ("entered" or "not entered").
+- **Open over 15 days**: open jobs booked more than 15 days before the as-at date.
+- **Claims raised this month**: claim documents raised with Titan this month to the date, with their value. Raised only (see Claims).
+
+Select a card to open the matching list: the Pending board on that stage, the Jobs list, the Money check on that date, or Claims. **Export** writes one sheet with each card's name, value and detail.
+
+### Pending
+
+Every open job, grouped by stage in the order above, longest in its stage first within each group. Five numbers at the top count the whole board, whatever the filters: open jobs, overdue, over 30 days since booking, in transit back, and parts awaited (indent raised).
+
+Columns: job number, stage, booked on, days since booking, days in stage, EDD, overdue by (days), age band, brand, model, product, guarantee, customer type, Booking or Quick Billing, pending at (where the watch is), spare required, and the date of the last export that listed the job. The board shows no customer name.
+
+Filters: tick one or more stages (none ticked = all), age band, overdue only, brand, guarantee and Booking/Quick Billing. The exports carry no "reason for pending" (the column is empty in every file), so the board shows the stage, where the watch is and the part required instead. It never invents a reason.
+
+Open a job from the board to see its history. **Export** writes one sheet per stage shown, with the grid's columns; tick one stage to export only that group.
+
+### Jobs: job history and the jobs list
+
+**Job history.** Type a job number (as printed on the job card, `JOAW330` followed by digits), or open it from any job grid. The header shows:
+
+- the job number, booked on, and Booking or Quick Billing;
+- brand, model and product, guarantee, customer type and customer name;
+- the current stage with its date, where the watch is, and whether the DC/RA claim was raised;
+- the TAT for a closed job, or "Open N days · M in this stage" (and "EDD passed") for an open one;
+- the EDD, and the labour and spares billed.
+
+Below, the timeline lists every export that held the job, newest export first:
+
+- the export date and the list (for example "Pending repair" or "DELIVERED") with its report code;
+- the event date from that list (indent date, SRN date, repair date, delivery date, claim date and so on) and the status as exported;
+- where the watch was, and the document number and amount where the list has one;
+- whether the export was the weekly workbook or a raw file.
+
+A job that drops off a list in a later export is simply not on that later export. That is history, not a problem, and nothing needs approving. If no export holds the number, the screen says "No Service family holds job <number>. Check the number."
+
+**Export** writes the timeline. The header values go in the export's message line, and the period runs from the first to the last export shown.
+
+**Jobs list.** One row per job: job number, stage, Booking or Quick Billing, booked on, stage date, TAT (days, closed jobs), days open (open jobs), EDD, brand, model, product, guarantee, customer name, spare value, labour, as at. "Show" chooses the rows:
+
+- **Closed in the last 30 days** (the default): delivered, returned without repair or closed by claim within 30 days of the as-at date, Quick Billing included.
+- **All jobs**: every job ETP has seen.
+- **Open jobs**, or **one stage**.
+
+The line under the grid gives the TAT of the delivered jobs shown, Booking and Quick Billing apart. For example (made-up figures): "TAT booking to delivered: Booking median 9 days (120 delivered, 30 over 15 days) · Quick Billing median 0 days (400 delivered)."
+
+The "Delivery report" and "Repair report" exports are lists of jobs by their booking date. ETP does not use them for delivery or repair dates, and does not offer them as choices.
+
+**Export** writes the rows shown, with the TAT line. The period is the 30 days for the default choice, otherwise the shown jobs' first booking date to the as-at date.
+
+### Claims
+
+What was claimed from Titan, by month: GPRC cell, Module Bank, WDC (depreciation) and WRA (replacement).
+
+**Raised only.** No Service export says whether Titan has settled or paid a claim, so this screen never shows a claim as outstanding or settled. The note under the title says so.
+
+Where the old-format and new-format reports (or GPRC and GPRC CLAIM) both hold the same claim document, it is counted once, from the newer format. The old WDC and WRA reports end, and the new ones start, on 1 Jul 2026; a 1 Jul claim is counted once.
+
+The four numbers:
+
+- claims raised this month (documents and value);
+- DC/RA jobs not yet claimed, with how many WDC and WRA claims are due;
+- the oldest not yet claimed (days, job and stage);
+- the GPRC claim export date against the DC/RA lists' date.
+
+**GPRC gap warning.** When the newest GPRC export is older than the newest DC/RA list, a bold line names both dates and asks for a GPRC CLAIM export up to the DC/RA date. Until then, the GPRC claims after the last GPRC export are missing from the screen (on the 9 Oct data, 6 Aug to 29 Sep 2026).
+
+"Show" has three views, each filtered by claim type and a From/To month range:
+
+- **By month and claim type**: documents, lines, jobs, net amount incl. tax, UCP value; newest month first. Select a month row to see its claim lines.
+- **Claim lines by document**: date, document number, job number, item, quantity, net incl. tax, source report, claim type.
+- **Not yet claimed**: DC and RA jobs with no WDC/WRA claim document yet. Columns: job number, stage, issued on, days since issued, claim type due, DC/RA number, brand, model. Longest waiting first. This list ignores the month range, and it is the number to act on.
+
+Open a job from a claim line or from the not-yet-claimed list to see its history. A few old WRA lines carry no job number; the screen says so. **Export** writes the view on screen ("Service claims by month", "Service claim lines" or "Service claims not yet raised") for the month range.
+
+### Parts
+
+Spare parts invoiced by Titan's warehouse against what was received.
+
+- **Invoices.** Columns: invoice number and date, GRN number and date, items, quantity shipped and received, net amount, Open or Closed, days open, from location. Days open counts to the newest export for an open invoice, and to the GRN date for a received one. Open invoices come first, oldest first. Filters: open only, month, item. Select an invoice to see its lines.
+- **Five numbers**: open invoices (count and value), the oldest open invoice (days), invoices received this month, jobs waiting for parts, and goods-in-transit lines in the last 30 days.
+- **Jobs waiting for parts**: the open jobs with an indent raised. Columns: job number, part required, indent date, days waiting, brand, model, pending at. Longest wait first. Open a job from here to see its history. The exports have no link between a waiting job and a purchase invoice, so the two lists sit side by side and are not matched.
+- **Goods in transit** (last 30 days) and the latest **closing stock** of spares (items, quantity, value).
+
+**Export** writes the invoice grid; **Export jobs waiting to Excel** writes the waiting list.
+
+### Money
+
+The decision-16 money check; its rules have not changed. Choose a date range. Until you pick your own dates, it shows the 30 days up to the newest S004 export.
+
+For each bill date it shows the S004 Cash, Card and UPI amounts beside the manual Service cash, card and UPI entries of the Titan World shop, where all Service money is entered, and the difference (S004 minus manual). Differences are shown, never corrected. Service WDC is not compared, and there are no job advances to deduct; an S004 advance, cheque or RTGS amount that is not zero is still shown, with no manual side.
+
+A Service entry made at any other shop (for example Helios) is listed under "Service entries at other shops (not added)" with a note, and is never added in. Below, "Money changed since the previous refresh" lists each day whose total changed between two refreshes, with both amounts.
+
+Before any Service export is imported (on a new PC, for example), the screen still shows the manual entries and says "No S004 reading is imported yet, so only the manual entries are shown." **Export** writes the comparison grid for the chosen range.
 
 ### Good to know
 
@@ -91,3 +236,4 @@ Every screen shows "Service data as at <date> (refreshed <date>)", or "No Servic
 - Importing the same week again changes nothing (Duplicate or Already present). A changed file for a date already imported is refused: use a new date (a new dated folder), or request a restatement as for any changed import (see Registers, investigation and approvals).
 - Service files in the watch folder are imported but never start an automatic report pack.
 - The manual Service cash/card/UPI entries, the Service Sales report, the DSR service card and the cash book stay exactly as they are.
+- Before 1.10.0 the Service screens were under Reports → Service centre. Favourites to them keep working. Ctrl+K finds the tabs as "Service today", "Service pending jobs", "Service job history", "Service jobs", "Service claims", "Service parts and purchases" and "Service money check".
