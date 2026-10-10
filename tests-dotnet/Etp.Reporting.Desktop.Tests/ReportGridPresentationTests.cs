@@ -187,7 +187,7 @@ public sealed class ReportGridPresentationTests
             Assert.False(((Button)view.FindName("ExportPdfButton")).IsEnabled);
 
             await view.RunReportAsync("stock-closing");
-            Assert.Equal("No data for 25 Aug 2026, Titan World (WLMHW). No closing-stock snapshot for WLMHW on 25 Aug 2026. Slow stock uses 60-day watch and 90-day exception bands.",
+            Assert.Equal("No data for 25 Aug 2026, Titan World (WLMHW). No closing-stock snapshot for WLMHW on or before 25 Aug 2026; import the Closing Stock export. Slow stock uses 60-day watch and 90-day exception bands.",
                 ((TextBlock)view.FindName("ReportResult")).Text);
 
             // No exceptions is the finding itself, not missing data.

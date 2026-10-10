@@ -38,6 +38,29 @@ public sealed class SnapshotSourceSqlTests(SqlDatabaseFixture database) : IClass
     }
 
     [Fact]
+    public async Task Stock_reports_read_the_latest_snapshot_on_or_before_the_date()
+    {
+        // RA-STOCK-01 (1.9.9): Closing / Brand / Slow / Physical Stock fall back to the store's latest earlier snapshot; the
+        // daily pack and exceptions (latestOnOrBefore false) keep the same-day snapshot. June dates: no other test uses them.
+        var store = new SqlServerTransactionalImportStore(database.ConnectionString);
+        await new StockSqlImportOrchestrator(store).PersistAsync(ClosingStock(new(2026, 6, 10), "cccc", ("SNAP-F", 3m)));
+        await new StockSqlImportOrchestrator(store).PersistAsync(ClosingStock(new(2026, 6, 20), "dddd", ("SNAP-F", 1m)));
+        var reports = new OperationalReportRepository(database.ConnectionString);
+        var gap = new DateOnly(2026, 6, 15);
+
+        var fallback = Assert.Single(await reports.LoadStockInventoryAsync(new ReportingQueryScope(gap, gap, ["HEMW"]), latestOnOrBefore: true));
+        Assert.Equal((new DateOnly(2026, 6, 10), "SNAP-F", 3m), (fallback.SnapshotDate, fallback.ProductCode, fallback.Quantity));
+        Assert.Empty(await reports.LoadStockInventoryAsync(new ReportingQueryScope(gap, gap, ["HEMW"])));
+        Assert.Empty(await reports.LoadStockInventoryAsync(new ReportingQueryScope(new(2026, 6, 9), new(2026, 6, 9), ["HEMW"]), latestOnOrBefore: true));
+        var sameDay = Assert.Single(await reports.LoadStockInventoryAsync(new ReportingQueryScope(new(2026, 6, 20), new(2026, 6, 20), ["HEMW"]), latestOnOrBefore: true));
+        Assert.Equal((new DateOnly(2026, 6, 20), 1m), (sameDay.SnapshotDate, sameDay.Quantity));
+
+        var physical = Assert.Single(await reports.LoadBrandPhysicalStockAsync("HEMW", gap, latestSnapshotOnOrBefore: true));
+        Assert.Equal((gap, new DateOnly(2026, 6, 10), 3m, "MANUAL INPUT MISSING"), (physical.BusinessDate, physical.SnapshotDate, physical.SystemQuantity, physical.Status));
+        Assert.Empty(await reports.LoadBrandPhysicalStockAsync("HEMW", gap));
+    }
+
+    [Fact]
     public async Task Repeated_identical_snapshot_rows_both_stored()
     {
         var store = new SqlServerTransactionalImportStore(database.ConnectionString);

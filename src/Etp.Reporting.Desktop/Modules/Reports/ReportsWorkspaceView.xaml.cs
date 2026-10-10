@@ -241,18 +241,18 @@ public partial class ReportsWorkspaceView : UserControl
         {
             var stockScope = ReportScope();
             var rows = await operationalReportQueryFactory(connectionStringProvider()).LoadStockInventoryAsync(stockScope);
-            var sources = SnapshotSourceText(rows.Select(x => (x.StoreCode, x.SnapshotDate, x.SnapshotSource))) + MissingSnapshotText(stockScope.StoreCodes, rows.Select(x => x.StoreCode), stockScope.DateTo);
+            var sources = FallbackSnapshotText(rows.Select(x => (x.StoreCode, x.SnapshotDate)), stockScope.DateTo) + SnapshotSourceText(rows.Select(x => (x.StoreCode, x.SnapshotDate, x.SnapshotSource))) + MissingSnapshotText(stockScope.StoreCodes, rows.Select(x => x.StoreCode), stockScope.DateTo);
             if (mode == "SLOW") rows = rows.Where(x => x.Quantity != 0 && x.MovementStatus != "ACTIVE").ToArray();
             if (mode == "BRAND")
             {
                 var grouped = rows.GroupBy(x => new { x.StoreCode, BrandRow = x.StockGroup, Brand = x.Brand ?? "Unmapped", Group = x.InventoryGroup ?? "Unmapped" }).Select(x => new { x.Key.StoreCode, x.Key.BrandRow, x.Key.Brand, InventoryGroup = x.Key.Group, Quantity = x.Sum(y => y.Quantity), MrpValue = x.Any(y => y.TotalCost is not null) ? (decimal?)x.Sum(y => y.TotalCost ?? 0) : null, Items = x.Select(y => y.ProductCode).Distinct().Count(), SlowItems = x.Count(y => StockAgeing.IsSlow(y.Quantity, y.MovementStatus)) }).OrderBy(x => x.StoreCode).ThenBy(x => x.BrandRow).ThenBy(x => x.InventoryGroup).ThenBy(x => x.Brand).ToArray();
                 var status = grouped.Length == 0 ? ReconciliationStatus.Blocked : ReconciliationStatus.Passed; if (revision != reportRevision) return; ReportGrid.ItemsSource = grouped; ReportResult.Text = IndianText($"{status}: {grouped.Length:N0} store/brand/inventory-group row(s).{sources}");
-                SetExport("Brand Stock", status, RetailReportingPolicy.Version, "Closing stock grouped from the saved ETP snapshot; quantity and MRP are never inferred. " + StockMrpNote + BrandRowNote + sources, [new("Store"),new("Brand row"),new("Brand"),new("Inventory Group"),new("Quantity","#,##0.00"),new(MrpValueHeader,"#,##0.00"),new("Items","#,##0"),new("Slow Items","#,##0")], grouped.Select(x => (IReadOnlyList<object?>)[x.StoreCode,x.BrandRow,x.Brand,x.InventoryGroup,x.Quantity,x.MrpValue,x.Items,x.SlowItems]).ToArray(), ["Total","","","",grouped.Sum(x=>x.Quantity),grouped.Sum(x=>x.MrpValue),grouped.Sum(x=>x.Items),grouped.Sum(x=>x.SlowItems)]);
+                SetExport("Brand Stock", status, RetailReportingPolicy.Version, "Closing stock grouped from each store's latest saved ETP snapshot on or before the selected date; quantity and MRP are never inferred. " + StockMrpNote + BrandRowNote + sources, [new("Store"),new("Brand row"),new("Brand"),new("Inventory Group"),new("Quantity","#,##0.00"),new(MrpValueHeader,"#,##0.00"),new("Items","#,##0"),new("Slow Items","#,##0")], grouped.Select(x => (IReadOnlyList<object?>)[x.StoreCode,x.BrandRow,x.Brand,x.InventoryGroup,x.Quantity,x.MrpValue,x.Items,x.SlowItems]).ToArray(), ["Total","","","",grouped.Sum(x=>x.Quantity),grouped.Sum(x=>x.MrpValue),grouped.Sum(x=>x.Items),grouped.Sum(x=>x.SlowItems)]);
             }
             else
             {
                 var status = rows.Count == 0 ? ReconciliationStatus.Blocked : ReconciliationStatus.Passed; var name = mode == "SLOW" ? "Slow / Exception Stock" : "Closing Stock"; if (revision != reportRevision) return; ReportGrid.ItemsSource = rows; ReportResult.Text = IndianText($"{status}: {rows.Count:N0} item(s).{sources} Slow stock uses 60-day watch and 90-day exception bands.{NewStockText(rows)}");
-                SetExport(name, status, RetailReportingPolicy.Version, "Closing quantities and MRP come from the selected-date ETP stock snapshot. " + StockMrpNote + " Last sale is the latest positive source-signed sale on or before that date." + ReceiptNote + sources, [new("Date"),new("Store"),new("Item"),new("Brand"),new("Inventory Group"),new("Quantity","#,##0.00"),new(UnitMrpHeader,"#,##0.00"),new(MrpValueHeader,"#,##0.00"),new("Last Sale"),new("Days Since Sale","#,##0"),new("Last Receipt"),new("Days Since Receipt","#,##0"),new("Movement Status"),new("Snapshot Source")], rows.Select(x => (IReadOnlyList<object?>)[x.SnapshotDate,x.StoreCode,x.ProductCode,x.Brand,x.InventoryGroup,x.Quantity,x.UnitCost,x.TotalCost,x.LastSaleDate,x.DaysSinceLastSale,x.LastReceiptDate,x.DaysSinceReceipt,x.MovementStatus,x.SnapshotSource]).ToArray(), ["Total","","","","",rows.Sum(x=>x.Quantity),"",rows.Sum(x=>x.TotalCost),"","","","","",""]);
+                SetExport(name, status, RetailReportingPolicy.Version, "Closing quantities and MRP come from each store's latest ETP stock snapshot on or before the selected date (the Date column). " + StockMrpNote + " Last sale is the latest positive source-signed sale on or before that date." + ReceiptNote + sources, [new("Date"),new("Store"),new("Item"),new("Brand"),new("Inventory Group"),new("Quantity","#,##0.00"),new(UnitMrpHeader,"#,##0.00"),new(MrpValueHeader,"#,##0.00"),new("Last Sale"),new("Days Since Sale","#,##0"),new("Last Receipt"),new("Days Since Receipt","#,##0"),new("Movement Status"),new("Snapshot Source")], rows.Select(x => (IReadOnlyList<object?>)[x.SnapshotDate,x.StoreCode,x.ProductCode,x.Brand,x.InventoryGroup,x.Quantity,x.UnitCost,x.TotalCost,x.LastSaleDate,x.DaysSinceLastSale,x.LastReceiptDate,x.DaysSinceReceipt,x.MovementStatus,x.SnapshotSource]).ToArray(), ["Total","","","","",rows.Sum(x=>x.Quantity),"",rows.Sum(x=>x.TotalCost),"","","","","",""]);
             }
             ApplyReportFilter(); await auditRecorder("ReportRun", ToAuditOutcome(rows.Count == 0 ? ReconciliationStatus.Blocked : ReconciliationStatus.Passed), mode == "BRAND" ? "Brand stock" : mode == "SLOW" ? "Slow stock" : "Closing stock");
         }
@@ -280,14 +280,26 @@ public partial class ReportsWorkspaceView : UserControl
         return days.Length == 0 ? "" : " Snapshot source: " + string.Join("; ", days) + ".";
     }
 
-    // Owner answer Q9: a store with no snapshot on the date is named, instead of a bare "Blocked: 0 item(s)".
+    // Owner answer Q9: a store with no snapshot is named, instead of a bare "Blocked: 0 item(s)". RA-STOCK-01 (1.9.9): the
+    // stock reports read the latest snapshot on or before the date, so a store is missing only when it has none that early.
     internal static string MissingSnapshotText(IReadOnlyList<string>? requestedStores, IEnumerable<string> storesWithRows, DateOnly date)
     {
         var present = storesWithRows.ToHashSet(StringComparer.OrdinalIgnoreCase);
         var day = date.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture);
-        if (requestedStores is not { Count: > 0 }) return present.Count == 0 ? $" No closing-stock snapshot for any store on {day}." : "";
+        if (requestedStores is not { Count: > 0 }) return present.Count == 0 ? $" No closing-stock snapshot for any store on or before {day}; import the Closing Stock export." : "";
         var missing = requestedStores.Where(x => !present.Contains(x)).Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase).ToArray();
-        return missing.Length == 0 ? "" : $" No closing-stock snapshot for {string.Join(", ", missing)} on {day}.";
+        return missing.Length == 0 ? "" : $" No closing-stock snapshot for {string.Join(", ", missing)} on or before {day}; import the Closing Stock export.";
+    }
+
+    // RA-STOCK-01 (1.9.9): a store read from an earlier snapshot says so: "Snapshot of 29 Sep 2026 (latest on or before
+    // 05 Oct 2026) for HEMW." Stores whose snapshot is on the date itself add nothing.
+    internal static string FallbackSnapshotText(IEnumerable<(string StoreCode, DateOnly SnapshotDate)> rows, DateOnly date)
+    {
+        static string Day(DateOnly value) => value.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture);
+        var days = rows.Where(x => x.SnapshotDate != date).GroupBy(x => x.SnapshotDate).OrderBy(x => x.Key)
+            .Select(x => $"Snapshot of {Day(x.Key)} (latest on or before {Day(date)}) for {string.Join(", ", x.Select(y => y.StoreCode).Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase))}")
+            .ToArray();
+        return days.Length == 0 ? "" : " " + string.Join("; ", days) + ".";
     }
 
     private async Task RunStockMovementAsync()
@@ -490,8 +502,16 @@ public partial class ReportsWorkspaceView : UserControl
     private async Task RunPhysicalStockAsync()
     {
         var revision = reportRevision;
-        try { var scope=ReportScope(); if(scope.StoreCodes is not {Count:1})throw new InvalidOperationException("Enter exactly one store code for physical stock reporting."); var rows=await operationalReportQueryFactory(connectionStringProvider()).LoadPhysicalStockAsync(scope.StoreCodes[0],scope.DateTo); var status=rows.Any(x=>x.Status=="FAIL")?ReconciliationStatus.Failed:rows.Count==0||rows.Any(x=>x.Status!="PASS")?ReconciliationStatus.Blocked:ReconciliationStatus.Passed; const string message="Physical = Display + Backstock + Defective + Y Location. Difference = Physical − System. Missing counts remain blank."; if (revision != reportRevision) return; ReportGrid.ItemsSource=rows; ReportResult.Text=IndianText($"{status}: {rows.Count:N0} brand(s)."); SetExport("Physical Closing Stock",status,RetailReportingPolicy.Version,message,[new("Store"),new("Date"),new("Brand"),new("Display","#,##0.00"),new("Backstock","#,##0.00"),new("Defective","#,##0.00"),new("Y Location","#,##0.00"),new("Physical","#,##0.00"),new("System","#,##0.00"),new("System Variance","#,##0.00"),new("Remarks"),new("Status")],rows.Select(x=>(IReadOnlyList<object?>)[x.StoreCode,x.BusinessDate,x.InventoryGroupCode,x.DisplayQuantity,x.BackstockQuantity,x.DefectiveQuantity,x.YLocationQuantity,x.ComponentTotal,x.SystemQuantity,x.SystemVariance,x.Remarks,x.Status]).ToArray(),["Total","","",rows.Sum(x=>x.DisplayQuantity),rows.Sum(x=>x.BackstockQuantity),rows.Sum(x=>x.DefectiveQuantity),rows.Sum(x=>x.YLocationQuantity),rows.All(x=>x.ComponentTotal!=null)?rows.Sum(x=>x.ComponentTotal):null,rows.Sum(x=>x.SystemQuantity),rows.Sum(x=>x.SystemVariance),"",status.ToString()]); ApplyReportFilter(); await auditRecorder("ReportRun",status==ReconciliationStatus.Passed?"Succeeded":status.ToString(),"Physical stock report"); }
+        try { var scope=ReportScope(); if(scope.StoreCodes is not {Count:1})throw new InvalidOperationException("Enter exactly one store code for physical stock reporting."); var rows=await operationalReportQueryFactory(connectionStringProvider()).LoadPhysicalStockAsync(scope.StoreCodes[0],scope.DateTo); var status=rows.Any(x=>x.Status=="FAIL")?ReconciliationStatus.Failed:rows.Count==0||rows.Any(x=>x.Status!="PASS")?ReconciliationStatus.Blocked:ReconciliationStatus.Passed; var snapshotText=PhysicalSnapshotText(scope.StoreCodes[0],rows.Select(x=>x.SnapshotDate),scope.DateTo); var message="Physical = Display + Backstock + Defective + Y Location. Difference = Physical − System. Missing counts remain blank."+snapshotText; if (revision != reportRevision) return; ReportGrid.ItemsSource=rows; ReportResult.Text=IndianText($"{status}: {rows.Count:N0} brand(s).")+snapshotText; SetExport("Physical Closing Stock",status,RetailReportingPolicy.Version,message,[new("Store"),new("Date"),new("Brand"),new("Display","#,##0.00"),new("Backstock","#,##0.00"),new("Defective","#,##0.00"),new("Y Location","#,##0.00"),new("Physical","#,##0.00"),new("System","#,##0.00"),new("System Variance","#,##0.00"),new("Remarks"),new("Status")],rows.Select(x=>(IReadOnlyList<object?>)[x.StoreCode,x.BusinessDate,x.InventoryGroupCode,x.DisplayQuantity,x.BackstockQuantity,x.DefectiveQuantity,x.YLocationQuantity,x.ComponentTotal,x.SystemQuantity,x.SystemVariance,x.Remarks,x.Status]).ToArray(),["Total","","",rows.Sum(x=>x.DisplayQuantity),rows.Sum(x=>x.BackstockQuantity),rows.Sum(x=>x.DefectiveQuantity),rows.Sum(x=>x.YLocationQuantity),rows.All(x=>x.ComponentTotal!=null)?rows.Sum(x=>x.ComponentTotal):null,rows.Sum(x=>x.SystemQuantity),rows.Sum(x=>x.SystemVariance),"",status.ToString()]); ApplyReportFilter(); await auditRecorder("ReportRun",status==ReconciliationStatus.Passed?"Succeeded":status.ToString(),"Physical stock report"); }
         catch (Exception ex) { if (revision != reportRevision) return; HandleFailure(ex, "PHYSICAL_STOCK_REPORT_FAILED", "Physical stock report failed"); }
+    }
+
+    // RA-STOCK-01 (1.9.9): Physical Stock's system side comes from the store's latest snapshot on or before the date; the
+    // status and export name that day, or say no snapshot exists that early.
+    internal static string PhysicalSnapshotText(string storeCode, IEnumerable<DateOnly?> snapshotDates, DateOnly date)
+    {
+        var used = snapshotDates.Where(x => x is not null).Select(x => x!.Value).Distinct().ToArray();
+        return used.Length == 0 ? MissingSnapshotText([storeCode], [], date) : FallbackSnapshotText(used.Select(x => (storeCode, x)), date);
     }
 
     private async Task RunDailyExceptionsAsync()

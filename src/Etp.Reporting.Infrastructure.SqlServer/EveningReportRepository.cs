@@ -104,9 +104,15 @@ public sealed partial class OperationalReportRepository
         return result;
     }
 
-    public async Task<IReadOnlyList<PhysicalStockReportRow>> LoadBrandPhysicalStockAsync(string store,DateOnly date,CancellationToken token=default)
+    public Task<IReadOnlyList<PhysicalStockReportRow>> LoadBrandPhysicalStockAsync(string store,DateOnly date,CancellationToken token=default) =>
+        LoadBrandPhysicalStockAsync(store,date,latestSnapshotOnOrBefore:false,token);
+
+    // RA-STOCK-01 (1.9.9): the Physical Stock report reads the system side from the latest snapshot on or before the date
+    // (each row's SnapshotDate says which); the daily pack and daily exceptions keep the same-day snapshot.
+    public async Task<IReadOnlyList<PhysicalStockReportRow>> LoadBrandPhysicalStockAsync(string store,DateOnly date,bool latestSnapshotOnOrBefore,CancellationToken token=default)
     {
-        var system=await LoadStockInventoryAsync(new(date,date,[store]),token);
+        var system=await LoadStockInventoryAsync(new(date,date,[store]),latestSnapshotOnOrBefore,token);
+        DateOnly? snapshotDate=system.Count==0?null:system.Max(x=>x.SnapshotDate);
         var counts=await new OperationalCompletionRepository(connectionString).LoadManualStockCountsAsync(store,date,token);
         var groups=system.GroupBy(StockGrouping.For(system,counts.Select(x=>x.InventoryGroupCode)).Key,StringComparer.OrdinalIgnoreCase).ToDictionary(x=>x.Key,x=>x.Sum(v=>v.Quantity),StringComparer.OrdinalIgnoreCase);
         var map=counts.ToDictionary(x=>x.InventoryGroupCode,StringComparer.OrdinalIgnoreCase);
@@ -115,7 +121,7 @@ public sealed partial class OperationalReportRepository
             map.TryGetValue(brand,out var count); var physical=count is not null && new[]{count.DisplayQuantity,count.BackstockQuantity,count.DefectiveQuantity,count.YLocationQuantity}.All(x=>x is not null)?count.ComponentTotal:null; var quantity=groups.GetValueOrDefault(brand);
             var variance=physical-quantity;
             return new PhysicalStockReportRow(store,date,brand,count?.DisplayQuantity,count?.BackstockQuantity,count?.DefectiveQuantity,count?.YLocationQuantity,
-                physical,physical,null,quantity,variance,count?.Remarks,system.Count==0?"SYSTEM SOURCE MISSING":physical is null?"MANUAL INPUT MISSING":variance==0?"PASS":"FAIL");
+                physical,physical,null,quantity,variance,count?.Remarks,system.Count==0?"SYSTEM SOURCE MISSING":physical is null?"MANUAL INPUT MISSING":variance==0?"PASS":"FAIL",snapshotDate);
         }).ToArray();
     }
 }
