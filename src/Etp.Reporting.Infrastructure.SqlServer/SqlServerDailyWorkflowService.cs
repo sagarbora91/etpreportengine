@@ -113,7 +113,10 @@ public sealed class SqlServerDailyWorkflowService :
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(command);
-        await RequireImportAsync(cancellationToken).ConfigureAwait(false);
+        // D22 (16 Sep 2026, extended to staff targets 10 Oct 2026): targets are Owner-only. Checked here before SQL
+        // because migration 0022 still grants etp_store_manager INSERT/UPDATE on dbo.staff_sales_targets (revoke in 1.10.0).
+        if (!(await loadAccess(cancellationToken).ConfigureAwait(false)).CanAdminister)
+            throw new UnauthorizedAccessException(StaffTargetsNeedOwnerMessage);
         await completion.SaveStaffTargetAsync(
             command.StoreCode,
             command.CroNumber,
@@ -183,6 +186,8 @@ public sealed class SqlServerDailyWorkflowService :
         if (!(await loadAccess(cancellationToken).ConfigureAwait(false)).CanView)
             throw new UnauthorizedAccessException("This Windows account does not have application access.");
     }
+
+    public const string StaffTargetsNeedOwnerMessage = "Only the Owner can change staff targets. Ask the Owner to enter or change this target.";
 
     private async Task RequireImportAsync(CancellationToken cancellationToken)
     {
