@@ -89,8 +89,14 @@ public sealed class ReportLabelCorrectionTests
             var export = latest();
             var headers = export.ExportData!.Columns.Select(column => column.Header).ToArray();
             Assert.Equal(["Group", "Units", "Net Sales", "Invoices", "Returns"], headers);
-            Assert.Contains("Invoices counts INV documents only, like the Daily Sales Report", export.ExportMetadata!.Message, StringComparison.Ordinal);
-            Assert.Contains("Returns counts sales returns (SR) and bill cancellations (BC)", export.ExportMetadata.Message, StringComparison.Ordinal);
+            // RA-SALES-08 (1.9.8): the Returns report holds return lines only, so its note says both columns count return documents.
+            if (code == "sales-returns")
+                Assert.Contains(ReportsWorkspaceView.ReturnsNote, export.ExportMetadata!.Message, StringComparison.Ordinal);
+            else
+            {
+                Assert.Contains("Invoices counts INV documents only, like the Daily Sales Report", export.ExportMetadata!.Message, StringComparison.Ordinal);
+                Assert.Contains("Returns counts sales returns (SR) and bill cancellations (BC)", export.ExportMetadata.Message, StringComparison.Ordinal);
+            }
             Assert.DoesNotContain("Documents", export.ExportMetadata.Message, StringComparison.Ordinal);
             // The counts are the service's own: 2 INV documents and 1 SR document.
             Assert.Equal(2, export.ExportData.Totals![3]);

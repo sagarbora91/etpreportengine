@@ -76,7 +76,11 @@ public sealed class SalesReportingService
                 group.Key,
                 group.Sum(x => x.SourceSignedQuantity),
                 group.Sum(x => x.SourceSignedNetAmount),
-                DistinctDocuments(group.Where(x => x.TransactionType == ReportingTransactionType.Sale)),
+                // RA-SALES-08 (9 Oct 2026): the Returns report keeps return lines only, so "Invoices" counted INV lines that
+                // were never there and always read 0. There it counts the distinct return documents of the group instead.
+                dimension == SalesSummaryDimension.Returns
+                    ? DistinctDocuments(group)
+                    : DistinctDocuments(group.Where(x => x.TransactionType == ReportingTransactionType.Sale)),
                 DistinctDocuments(group.Where(x => x.TransactionType is ReportingTransactionType.Return or ReportingTransactionType.Cancellation))))
             .ToArray();
 
@@ -139,7 +143,9 @@ public sealed class SalesReportingService
         // An unmapped key already carries the cluster, so it is not repeated.
         SalesSummaryDimension.BrandSegment => line.BrandRow is { Length: > 0 } row ? $"{row} / {line.BrandSegment}" : UnmappedKey(line),
         SalesSummaryDimension.Item => line.ItemCode,
-        SalesSummaryDimension.Returns => line.StoreCode,
+        // RA-SALES-08: returns are keyed by store and brand, like the brand-wise sales they reverse, so a return is
+        // traceable to the brand it came from; the source sign is kept (returns stay negative).
+        SalesSummaryDimension.Returns => $"{line.StoreCode} / {(string.IsNullOrWhiteSpace(line.Brand) ? "Unmapped" : line.Brand)}",
         _ => throw new ArgumentOutOfRangeException(nameof(dimension))
     };
 

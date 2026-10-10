@@ -67,6 +67,8 @@ public sealed class ReportingServicesTests
         Assert.Equal(1, row.Returns);
     }
 
+    // RA-SALES-08 (1.9.8): the Returns report keys by store and brand, keeps the source sign, and its Invoices column
+    // counts the distinct return documents of the row instead of the INV lines it never holds (always 0 before).
     [Fact]
     public void Returns_summary_includes_only_classified_returns()
     {
@@ -76,10 +78,39 @@ public sealed class ReportingServicesTests
             SalesSummaryDimension.Returns, SalesPolicy);
 
         var row = Assert.Single(result.Rows);
+        Assert.Equal("S1 / Brand A", row.Key);
         Assert.Equal(-1m, row.SourceSignedQuantity);
         Assert.Equal(-75m, row.SourceSignedNetAmount);
-        Assert.Equal(0, row.Invoices);
+        Assert.Equal(1, row.Invoices);
         Assert.Equal(1, row.Returns);
+    }
+
+    [Fact]
+    public void Returns_summary_is_keyed_by_store_and_brand_and_counts_return_documents()
+    {
+        var lines = new[]
+        {
+            Line("INV-1", "1", ReportingTransactionType.Sale, 3m, 300m),
+            Line("SR-1", "1", ReportingTransactionType.Return, -1m, -75m),
+            Line("SR-1", "2", ReportingTransactionType.Return, -1m, -25m),
+            Line("SR-2", "1", ReportingTransactionType.Return, -1m, -50m),
+            Line("SR-3", "1", ReportingTransactionType.Return, -2m, -90m) with { Brand = "Brand B" },
+            Line("SR-4", "1", ReportingTransactionType.Return, -1m, -40m) with { StoreCode = "S2" },
+            Line("SR-5", "1", ReportingTransactionType.Return, -1m, -10m) with { Brand = " " }
+        };
+
+        var result = new SalesReportingService().Summarize(lines, SalesSummaryDimension.Returns, SalesPolicy);
+
+        Assert.Equal(ReconciliationStatus.Passed, result.Status);
+        Assert.Equal(["S1 / Brand A", "S1 / Brand B", "S1 / Unmapped", "S2 / Brand A"], result.Rows.Select(row => row.Key));
+        var brandA = result.Rows[0];
+        Assert.Equal(-3m, brandA.SourceSignedQuantity);
+        Assert.Equal(-150m, brandA.SourceSignedNetAmount);
+        Assert.Equal(2, brandA.Invoices);
+        Assert.Equal(2, brandA.Returns);
+        Assert.Equal((-90m, 1, 1), (result.Rows[1].SourceSignedNetAmount, result.Rows[1].Invoices, result.Rows[1].Returns));
+        Assert.Equal((-40m, 1), (result.Rows[3].SourceSignedNetAmount, result.Rows[3].Invoices));
+        Assert.Equal(-290m, result.Rows.Sum(row => row.SourceSignedNetAmount));
     }
 
     [Fact]

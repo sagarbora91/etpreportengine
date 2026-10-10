@@ -87,8 +87,9 @@ public static class ReportGridColumns
         [
             new("StoreCode", "Store"), new("BusinessDate", "Date"), new("InventoryGroupCode", "Brand"), new("DisplayQuantity", "Display"),
             new("BackstockQuantity", "Backstock"), new("DefectiveQuantity", "Defective"), new("YLocationQuantity", "Y Location"),
-            new("ComponentTotal", "Physical"), new("CountedPhysicalQuantity", "Counted physical"), new("CompositionVariance", "Composition variance"),
-            new("SystemQuantity", "System"), new("SystemVariance", "System Variance"), new("Remarks", "Remarks"), new("Status", "Status")
+            // RA-STOCK-08 (9 Oct 2026): CountedPhysicalQuantity always equals ComponentTotal and CompositionVariance is
+            // always blank (EveningReportRepository.LoadBrandPhysicalStockAsync); the export leaves both out, so does the screen.
+            new("ComponentTotal", "Physical"), new("SystemQuantity", "System"), new("SystemVariance", "System Variance"), new("Remarks", "Remarks"), new("Status", "Status")
         ],
         [typeof(DailyExceptionRecord)] =
         [
@@ -106,6 +107,22 @@ public static class ReportGridColumns
 
     /// <summary>The export-aligned columns of a report row type, in export order; null for any other type.</summary>
     public static IReadOnlyList<ReportGridColumn>? For(Type? type) => type is not null && Maps.TryGetValue(type, out var columns) ? columns : null;
+
+    /// <summary>
+    /// RA-UI-16 / RA-EXPORT-09 (9 Oct 2026): the column "Variance only" filters on, by row type. A mapped type's variance
+    /// column is the one named Variance, else the one ending in Variance (Management Trend: TenderVariance, Physical Stock:
+    /// SystemVariance); an unmapped type qualifies by a decimal Variance property. Null when the type has no variance
+    /// column, in which case the checkbox is disabled instead of silently emptying the grid.
+    /// </summary>
+    public static string? VarianceProperty(Type? type)
+    {
+        if (type is null) return null;
+        if (For(type) is { } mapped)
+            return (mapped.FirstOrDefault(column => column.Property == "Variance")
+                ?? mapped.FirstOrDefault(column => column.Property.EndsWith("Variance", StringComparison.Ordinal)))?.Property;
+        return type.GetProperty("Variance") is { } property
+            && (Nullable.GetUnderlyingType(property.PropertyType) ?? property.PropertyType) == typeof(decimal) ? "Variance" : null;
+    }
 
     /// <summary>Property names that no screen shows for any row type (navigation ids and the financial-year key).</summary>
     public static bool IsHidden(string property) => property is "TargetTaskId" or "TargetId" or "NavigationHint" or "InvoiceYear";

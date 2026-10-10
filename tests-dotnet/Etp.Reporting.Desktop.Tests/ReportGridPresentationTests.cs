@@ -20,7 +20,8 @@ namespace Etp.Reporting.Desktop.Tests;
 [Collection(WpfViewCollection.Name)]
 public sealed class ReportGridPresentationTests
 {
-    private static readonly string[] ScreenOnlyHeaders = ["Transaction types", "Brand row", "Counted physical", "Composition variance"];
+    // RA-STOCK-08 (1.9.8): "Counted physical" and "Composition variance" are no longer screen-only; they are hidden like the export.
+    private static readonly string[] ScreenOnlyHeaders = ["Transaction types", "Brand row"];
 
     [Theory]
     [InlineData("sales-brand")]
@@ -275,7 +276,7 @@ public sealed class ReportGridPresentationTests
         }
     }
 
-    private static ReportsWorkspaceView CreateView(out Func<ReportPresentationSnapshot> latest, Action<ReportPresentationSnapshot, System.Collections.IEnumerable?, string>? preview = null, bool empty = false)
+    internal static ReportsWorkspaceView CreateView(out Func<ReportPresentationSnapshot> latest, Action<ReportPresentationSnapshot, System.Collections.IEnumerable?, string>? preview = null, bool empty = false)
     {
         ReportPresentationSnapshot? current = null;
         var operational = new OperationalQuery(empty);
@@ -289,7 +290,7 @@ public sealed class ReportGridPresentationTests
         return view;
     }
 
-    private sealed class ControlledQuery(bool empty) : IControlledReportQuery
+    internal sealed class ControlledQuery(bool empty) : IControlledReportQuery
     {
         public Task<SalesSummaryReport> RunSalesSummaryAsync(ReportScope scope, ReportSalesDimension dimension, CancellationToken cancellationToken = default) =>
             Task.FromResult(new SalesSummaryReport(dimension, ReportStatus.Passed, empty ? [] : [new("TITAN", 2m, 236m, 2, 1)], "test", "Aggregated source-signed values without sign transformation."));
@@ -301,19 +302,19 @@ public sealed class ReportGridPresentationTests
             Task.FromResult<IReadOnlyList<StockMovementRecord>>(empty ? [] : [new("WLMHW", "ITEM-1", "SR", -1m, "RETAILBIN")]);
     }
 
-    private sealed class TrendQuery(bool empty) : IManagementTrendQuery
+    internal sealed class TrendQuery(bool empty) : IManagementTrendQuery
     {
         public Task<IReadOnlyList<ManagementTrendRecord>> LoadAsync(ReportScope scope, CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<ManagementTrendRecord>>(empty ? [] : [new(new(2026, 8, 25), "WLMHW", 236m, 2m, 2, 1, 0m, 0)]);
     }
 
-    private sealed class Diagnostic(bool empty) : ITenderVarianceDiagnostic
+    internal sealed class Diagnostic(bool empty) : ITenderVarianceDiagnostic
     {
         public TenderVarianceDiagnosticReport Diagnose(TenderReconciliationReport reconciliation, decimal tolerance) =>
             new(ReportStatus.Failed, empty ? [] : [new("WLMHW", "D1", 118m, 0m, 118m, TenderVarianceCause.MissingTender, "Import the R022.")], empty ? 0 : 1, 118m, "test", "Classified.");
     }
 
-    private sealed class OperationalQuery(bool empty) : IOperationalReportQuery<DailySalesReportDocument>
+    internal sealed class OperationalQuery(bool empty) : IOperationalReportQuery<DailySalesReportDocument>
     {
         public Task<IReadOnlyList<StockInventoryRecord>> LoadStockInventoryAsync(ReportScope scope, CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<StockInventoryRecord>>(empty ? [] : [new(new(2026, 8, 25), "WLMHW", "ITEM-1", "TITAN", "WATCHES", 2m, 1250m, 2500m, new(2026, 3, 1), 177, "EXCEPTION", "R011", null, null, "TITAN")]);
