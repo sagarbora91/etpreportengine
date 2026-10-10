@@ -286,7 +286,10 @@ public sealed class RecoveryDrillRowCountScriptTests
             $tokens = $null; $errors = $null
             $ast = [System.Management.Automation.Language.Parser]::ParseFile('{{path}}', [ref]$tokens, [ref]$errors)
             if (@($errors).Count -ne 0) { throw 'invoke-etp-recovery-drill.ps1 does not parse.' }
-            $top = @($ast.EndBlock.Statements)
+            # 1.9.9: the whole drill sits in one top-level try whose catch logs the failure.
+            $outer = @($ast.EndBlock.Statements | Where-Object { $_ -is [System.Management.Automation.Language.TryStatementAst] })
+            if ($outer.Count -ne 1) { throw 'The drill is not inside one top-level try.' }
+            $top = @($outer[0].Body.Statements)
             function At($pattern) { $found = @($top | Where-Object { $_.Extent.Text -match $pattern }); if ($found.Count -lt 1) { throw "Not found: $pattern" }; return $found[0].Extent.StartOffset }
             $drill = At 'Invoke-EtpOperationsBrokerCall .*-Operation DRILL'
             $reread = At '\$null=Read-EtpVerifiedReceipt -ReceiptPath \$receiptPath'

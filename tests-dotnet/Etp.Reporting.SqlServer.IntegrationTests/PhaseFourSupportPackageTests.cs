@@ -21,15 +21,26 @@ public sealed class PhaseFourSupportPackageTests(SqlDatabaseFixture database) : 
         var output = NewOutputDirectory();
         try
         {
-            var process = await RunSupportScriptAsync(output);
+            // 1.9.9 (IE-CODE-02): the application's diagnostics log of the last 30 days goes in.
+            var diagnostics = Path.Combine(output, "diagnostics-source");
+            Directory.CreateDirectory(diagnostics);
+            var recent = Path.Combine(diagnostics, $"diagnostics-{DateTime.Now:yyyyMM}.jsonl");
+            await File.WriteAllTextAsync(recent, "{\"EventId\":\"BACKUP_RUN_FAILED:LOW_DISK_SPACE\"}\n");
+            var expired = Path.Combine(diagnostics, "diagnostics-202001.jsonl");
+            await File.WriteAllTextAsync(expired, "{}\n");
+            File.SetLastWriteTime(expired, DateTime.Now.AddDays(-31));
+            var process = await RunSupportScriptAsync(output, diagnostics);
+            Directory.Delete(diagnostics, recursive: true);
             Assert.True(process.ExitCode == 0, process.Output);
             Assert.Contains("Aggregate support package created.", process.Output, StringComparison.Ordinal);
             AssertPrivateContentAbsent(process.Output);
             var archivePath = Assert.Single(Directory.GetFiles(output, "*.zip"));
+            Assert.Contains("ETP_SAVED:" + archivePath, process.Output, StringComparison.Ordinal);
             Assert.Empty(Directory.GetDirectories(output));
             using var archive = ZipFile.OpenRead(archivePath);
-            Assert.Equal(new[] { "database-health.txt", "privacy.txt", "scheduled-tasks.txt", "system.txt" },
-                archive.Entries.Select(entry => entry.FullName).Order(StringComparer.Ordinal));
+            // Windows PowerShell 5.1's Compress-Archive writes '\' between folder and file.
+            Assert.Equal(new[] { "database-health.txt", $"diagnostics/{Path.GetFileName(recent)}", "privacy.txt", "scheduled-tasks.txt", "system.txt" },
+                archive.Entries.Select(entry => entry.FullName.Replace('\\', '/')).Order(StringComparer.Ordinal));
             foreach (var entry in archive.Entries)
             {
                 AssertPrivateContentAbsent(entry.FullName);
@@ -111,7 +122,7 @@ public sealed class PhaseFourSupportPackageTests(SqlDatabaseFixture database) : 
         await command.ExecuteNonQueryAsync();
     }
 
-    private async Task<(int ExitCode, string Output)> RunSupportScriptAsync(string output)
+    private async Task<(int ExitCode, string Output)> RunSupportScriptAsync(string output, string? diagnosticsDirectory = null)
     {
         Assert.StartsWith("EtpPhase0Test_", database.Name, StringComparison.Ordinal);
         var server = new SqlConnectionStringBuilder(database.ConnectionString).DataSource;
@@ -126,6 +137,9 @@ public sealed class PhaseFourSupportPackageTests(SqlDatabaseFixture database) : 
         // the desktop production launcher continues to require AllSigned.
         foreach (var argument in new[] { "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", Path.Combine(AppContext.BaseDirectory, "scripts", "new-etp-support-package.ps1"), "-ServerInstance", server, "-Database", database.Name, "-OutputDirectory", output })
             start.ArgumentList.Add(argument);
+        // Never the Owner's own log: an empty folder unless the test supplies one.
+        start.ArgumentList.Add("-DiagnosticsDirectory");
+        start.ArgumentList.Add(diagnosticsDirectory ?? Path.Combine(output, "no-diagnostics"));
         using var process = Process.Start(start)!;
         var stdout = process.StandardOutput.ReadToEndAsync();
         var stderr = process.StandardError.ReadToEndAsync();

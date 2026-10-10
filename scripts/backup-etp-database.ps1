@@ -37,22 +37,27 @@ function Resolve-EtpLatestCertificateCustody {
 
 # Dot-sourcing exposes the pointer resolver without starting a backup.
 if ($MyInvocation.InvocationName -eq '.') { return }
-if (-not $PSBoundParameters.ContainsKey('ServerInstance') -and -not $PSBoundParameters.ContainsKey('Database')) {
-    $configuration = Get-EtpOperationsConfiguration
-    $ServerInstance = $configuration.serverInstance; $Database = $configuration.database
-}
-
-Assert-EtpLocalSqlTarget $ServerInstance $Database
+# 1.9.9 (IE-CODE-01, IE-CODE-10). Everything after this point is inside the try, so every
+# failure - from reading the configuration on - is logged under <backup folder>\Logs and
+# reported to the application on its own line before it is rethrown unchanged.
 $configuredServerInstance = $ServerInstance
-$sqlcmd = Resolve-EtpSqlCmd $SqlCmdPath
-$ServerInstance = Resolve-EtpSqlConnection -SqlCmd $sqlcmd -ServerInstance $ServerInstance
-$directory = [IO.Path]::GetFullPath($BackupDirectory)
-Assert-EtpNoLinks $directory
-if (-not (Test-Path -LiteralPath $directory -PathType Container)) { throw 'Complete protected backup-folder setup first.' }
+$sqlcmd = $null
 # 1.9.3. Run as the automation account before it has the operations module's rights, the
 # backup used to stop with only the masked "The database operation failed". The catch below
 # names the missing right and the command that grants it; any other failure is unchanged.
 try {
+    if (-not $PSBoundParameters.ContainsKey('ServerInstance') -and -not $PSBoundParameters.ContainsKey('Database')) {
+        $configuration = Get-EtpOperationsConfiguration
+        $ServerInstance = $configuration.serverInstance; $Database = $configuration.database
+    }
+
+    Assert-EtpLocalSqlTarget $ServerInstance $Database
+    $configuredServerInstance = $ServerInstance
+    $sqlcmd = Resolve-EtpSqlCmd $SqlCmdPath
+    $ServerInstance = Resolve-EtpSqlConnection -SqlCmd $sqlcmd -ServerInstance $ServerInstance
+    $directory = [IO.Path]::GetFullPath($BackupDirectory)
+    Assert-EtpNoLinks $directory
+    if (-not (Test-Path -LiteralPath $directory -PathType Container)) { throw 'Complete protected backup-folder setup first.' }
     # D9 revised: Express and Web cannot encrypt a backup, so on those editions the backup
     # is taken unencrypted and the receipt records that plainly. Certificate custody is
     # required only where a certificate is actually used to encrypt something.
@@ -87,7 +92,7 @@ try {
         if ($drive.AvailableFreeSpace / 1GB -lt $MinimumFreeSpaceGb) {
             throw "Backup storage is below the required free-space limit. Expired backups were removed first and reclaimed $([math]::Round($reclaimedBytes / 1GB, 2)) GB, which is still not enough. Free space on this drive, or remove backups the retention policy is keeping."
         }
-        Write-Warning "Backup storage was below the required free-space limit; removing expired backups reclaimed $([math]::Round($reclaimedBytes / 1GB, 2)) GB. Review how much this drive has left."
+        Write-EtpOperationNotice "Backup storage was below the required free-space limit; removing expired backups reclaimed $([math]::Round($reclaimedBytes / 1GB, 2)) GB. Review how much this drive has left."
     }
     $backupPath = Join-Path $directory "$Database-$([DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss'))-$([Guid]::NewGuid().ToString('N')).bak"
     $brokerCall = Invoke-EtpOperationsBrokerCall -SqlCmd $sqlcmd -Server $ServerInstance -Database $Database -BackupPath $backupPath -Operation BACKUP
@@ -112,7 +117,7 @@ try {
     }
     # Also not a schema bump, for the same reason as purpose: rowCounts, or rowCountsNotRecorded.
     foreach ($key in @($rowCountRecord.Keys)) { $receipt[$key] = $rowCountRecord[$key] }
-    if ($rowCountRecord.Contains('rowCountsNotRecorded')) { Write-Warning "Row counts were not recorded in this backup's receipt ($($rowCountRecord['rowCountsNotRecorded'])); the recovery drill of this backup will say so." }
+    if ($rowCountRecord.Contains('rowCountsNotRecorded')) { Write-EtpOperationNotice "Row counts were not recorded in this backup's receipt ($($rowCountRecord['rowCountsNotRecorded'])); the recovery drill of this backup will say so." }
     $receiptPath = "$backupPath.receipt.json"
     Write-EtpJsonAtomically -Path $receiptPath -Value $receipt
     $null = Read-EtpVerifiedReceipt -ReceiptPath $receiptPath -BackupDirectory $directory -Database $Database -SkipCertificateCheck
@@ -141,6 +146,8 @@ catch {
         }
         catch { $explained = $null }
     }
+    $logPath = Write-EtpOperationFailureLog -Operation backup -BackupDirectory $BackupDirectory -ErrorRecord $failure -Explained $explained -Context "purpose $Purpose, database $Database"
+    Write-EtpOperationFailure -Message $(if ($explained) { $explained } else { $failure.Exception.Message }) -LogPath $logPath
     if ($explained) { throw $explained }
     throw $failure
 }
