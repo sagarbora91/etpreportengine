@@ -175,20 +175,30 @@ public sealed class ProductSqlErrorMessageTests
 
     // RA-EXPORT-12 / IE-CODE-14.
     [Theory]
-    [InlineData(-2, "Execution Timeout Expired.  The timeout period elapsed prior to completion of the operation or the server is not responding.")]
-    [InlineData(258, "The wait operation timed out.")]
-    public void A_query_that_takes_too_long_says_so_not_unreachable(int number, string sqlText)
+    [InlineData("Execution Timeout Expired.  The timeout period elapsed prior to completion of the operation or the server is not responding.")]
+    [InlineData("Connection Timeout Expired.  The timeout period elapsed while attempting to consume the pre-login handshake acknowledgement.")]
+    public void A_timeout_says_it_took_too_long_not_unreachable(string sqlText)
     {
-        var described = Describe(number, sqlText);
+        var described = Describe(-2, sqlText);
 
         Assert.Equal(DesktopFriendlyError.TookTooLongMessage, described);
         Assert.Contains("took too long", described, StringComparison.Ordinal);
         Assert.DoesNotContain("unreachable", described, StringComparison.OrdinalIgnoreCase);
     }
 
-    [Fact]
-    public void A_connection_that_times_out_while_opening_is_still_unreachable() =>
-        Assert.Contains("unreachable", Describe(-2, "Connection Timeout Expired.  The timeout period elapsed while attempting to consume the pre-login handshake acknowledgement."), StringComparison.Ordinal);
+    // Same numbers, same meaning as ConnectionHealth.Classify (lane startup-connection).
+    [Theory]
+    [InlineData(18456, "login failed")]
+    [InlineData(4060, "database is not available")]
+    [InlineData(911, "database is not available")]
+    [InlineData(229, "permission denied")]
+    [InlineData(297, "permission denied")]
+    [InlineData(916, "permission denied")]
+    [InlineData(2, "unreachable")]
+    [InlineData(53, "unreachable")]
+    [InlineData(258, "unreachable")]
+    public void Connection_failures_agree_with_the_startup_classification(int number, string expected) =>
+        Assert.Contains(expected, Describe(number, "connection detail"), StringComparison.Ordinal);
 
     [Theory]
     [InlineData(1205, "Transaction (Process ID 61) was deadlocked on lock resources with another process and has been chosen as the deadlock victim. Rerun the transaction.")]
@@ -253,6 +263,16 @@ public sealed class ProductSqlErrorMessageTests
         Assert.Equal("Select both report dates.", DesktopFriendlyError.Describe(invalid));
         Assert.Equal("Enter a store code.", DesktopFriendlyError.Describe(argument));
         Assert.Equal("Enter a store.", DesktopFriendlyError.Describe(new InvalidOperationException("Enter a store.")));
+    }
+
+    // A repository or fake can hand back its refusal in a faulted Task; the text is still ETP's.
+    [Fact]
+    public async Task ETP_validation_text_from_a_faulted_task_is_still_shown()
+    {
+        var awaited = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await Task.FromException(new InvalidOperationException("Only this PC's Tally company can be changed.")));
+
+        Assert.Equal("Only this PC's Tally company can be changed.", DesktopFriendlyError.Describe(awaited));
     }
 
     private static void ThrowProductValidation(string message) => throw new InvalidOperationException(message);

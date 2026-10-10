@@ -87,11 +87,15 @@ public static class DesktopFriendlyError
         return Describe(exception, "Owner permission is required.");
     }
 
+    // 1.9.9: the same numbers mean the same thing here as in ConnectionHealth.Classify (lane
+    // startup-connection, IE-CODE-07/08): a missing database is not a permission problem, and
+    // -2 (SqlClient's own timeout) is "took too long", handled before this in DescribeSql.
     internal static string? DescribeConnectionFailure(int number) => number switch
     {
-        18456 or 18452 => "SQL Server login failed. Check your Windows account access.",
-        229 or 230 or 262 or 916 or 4060 => "SQL Server permission denied. Ask the Owner to grant access to this database.",
-        0 or -2 or -1 or 2 or 26 or 40 or 53 or 64 or 233 or 258 or 10060 or 10061 or 11001 =>
+        18456 or 18452 or 18470 or 18486 or 18487 or 18488 => "SQL Server login failed. Check your Windows account access.",
+        4060 or 911 => "The ETP database is not available on this SQL Server. Check the database name in Settings > Database > Connection, or restore the database.",
+        229 or 230 or 262 or 297 or 300 or 916 => "SQL Server permission denied. Ask the Owner to grant access to this database.",
+        -1 or 2 or 26 or 40 or 53 or 64 or 233 or 258 or 1225 or 10053 or 10054 or 10060 or 10061 or 11001 =>
             "SQL Server is unreachable. Check that the SQL Server service is running and the instance name is correct.",
         _ => null
     };
@@ -99,9 +103,8 @@ public static class DesktopFriendlyError
     public const string GenericFailureMessage =
         "The action could not be completed. Technical details are available in the support package.";
 
-    // RA-EXPORT-12 / IE-CODE-14. A command timeout (-2; 258 is the same wait seen one layer
-    // down) is a slow query, not a lost server, so it no longer says "unreachable". A
-    // connection that times out while being opened still does.
+    // RA-EXPORT-12 / IE-CODE-14. A timeout (-2) is a slow answer, not a lost server, so it no
+    // longer says "unreachable".
     public const string TookTooLongMessage =
         "The database took too long to answer, so ETP stopped waiting. Nothing was changed by this step. Try again in a moment; for a report, choose a shorter date range. If it keeps happening, restart the PC and send the support package.";
 
@@ -315,23 +318,31 @@ public static class DesktopFriendlyError
         return WithReference(GenericFailureMessage, referenceId);
     }
 
-    // -2 is SqlClient's own timeout. While a connection is being opened it says "Connection
-    // Timeout Expired"; that is a server that did not answer, which stays "unreachable".
+    // -2 is SqlClient's own timeout, while opening or while running a command: in both the
+    // server did not answer in time (ConnectionHealth classifies it as Timeout, not unreachable).
     private static bool IsCommandTimeout(SqlException sql) =>
-        sql.Errors.Cast<SqlError>().Any(error => error.Number is -2 or 258)
-        && !sql.Message.Contains("Connection Timeout Expired", StringComparison.OrdinalIgnoreCase)
-        && !sql.Message.Contains("pre-login", StringComparison.OrdinalIgnoreCase);
+        sql.Errors.Cast<SqlError>().Any(error => error.Number == -2);
 
     // IE-CODE-13. ETP's own validation throws InvalidOperationException or ArgumentException with
     // a sentence for the user; .NET and SqlClient throw the same types with developer text
     // ("Sequence contains no elements", "Nullable object must have a value"). The method that
-    // threw tells them apart: product text comes from an Etp.* assembly. An exception that was
-    // never thrown (no TargetSite) is product text built by the caller.
+    // threw tells them apart: product text comes from an Etp.* assembly. The await and
+    // exception-dispatch plumbing is skipped, so an exception handed back in a faulted Task (never
+    // thrown where it was made) counts as the code that awaited it. An exception that was never
+    // thrown at all is product text built by the caller.
     internal static bool IsProductMessage(Exception exception)
     {
-        var assembly = exception.TargetSite?.Module.Assembly.GetName().Name;
-        return assembly is null || assembly.StartsWith("Etp.", StringComparison.Ordinal);
+        foreach (var frame in new System.Diagnostics.StackTrace(exception, false).GetFrames())
+        {
+            var type = frame.GetMethod()?.DeclaringType;
+            if (type is null || IsAsyncPlumbing(type.Namespace)) continue;
+            return type.Assembly.GetName().Name?.StartsWith("Etp.", StringComparison.Ordinal) == true;
+        }
+        return true;
     }
+
+    private static bool IsAsyncPlumbing(string? ns) =>
+        ns is "System.Runtime.CompilerServices" or "System.Threading.Tasks" or "System.Runtime.ExceptionServices" or "System.Threading";
 
     private static SqlException? InnerSqlException(Exception exception)
     {
