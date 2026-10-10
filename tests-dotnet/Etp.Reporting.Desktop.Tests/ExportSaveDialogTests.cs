@@ -82,7 +82,7 @@ public sealed class ExportSaveDialogTests : IDisposable
         // The hidden report view is never in a window; with no running Application there is no main window either.
         RunSta(() =>
         {
-            Assert.Null(Application.Current);
+            Assert.Null(System.Windows.Application.Current);
             Assert.Null(ExportSaveDialog.Owner(new Border()));
             Assert.Null(ExportSaveDialog.Owner(null));
         });
