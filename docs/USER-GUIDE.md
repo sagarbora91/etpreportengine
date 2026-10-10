@@ -83,6 +83,7 @@ Not imported: technician productivity and the tender collection summary (both re
   - **No colour**: exported in the last 7 days.
   - **Amber**: the last export is more than 7 days old.
   - **Red**: more than 14 days old.
+  - Reports that come only in the monthly workbook (no raw export yet: SRN status and history, GIT, the DC and RA lists, SRN and SRNINV, repeat returns, replacements, depreciation, the GPRC/MB/WDC/WRA claim reports and test runs) are judged against a month instead: amber after 38 days, red after 45.
   - "no export yet" or "some families never exported": that part of the screens has nothing, or only part, to show.
 
   An amber or red chip does not mean the numbers are wrong. They are true as at that export date; import a newer export to bring them up to date.
@@ -98,10 +99,11 @@ ETP puts every job in one stage, reading the newest exports together. The job re
 3. **DC issued** and **RA issued**: a depreciation (DC) or replacement (RA) was issued. Once the WDC or WRA claim for it has been raised, the job counts as **closed by claim**.
 4. **Sent back after repair, in transit**: the latest Pending delivery list holds the job at a place other than AW330 (in transit, PUNS, CSCH).
 5. **Ready for delivery**: the latest Pending delivery list holds it at AW330, or it is in the PD or REPAIRED list.
-6. **SRN out for repair**: the watch went out on an SRN that has not come back. An SRN counts as back when it has a received date or a repaired date, or its status says Received.
+6. **SRN out for repair**: the watch went out on an SRN that has not come back. An SRN counts as back when it has a received date or a repaired date, or its status says Received. The SRN and SRNINV lists only say a job once went out on an SRN, so they put a job here only when the SRN status report does not hold it.
 7. **Indent raised, parts awaited**: an indent was raised for a part.
 8. **On the bench**: on the Pending repair list (or the PR list) with no indent.
-9. **Booked, no status yet**: only the job report holds it so far.
+9. **Back from SRN**: when nothing above applies and the job's SRN has come back, the job is **DC issued** if the SRN status says a DC was created, otherwise **Ready for delivery**, dated by the day the SRN came back.
+10. **Booked, no status yet**: only the job report holds it so far.
 
 When the latest Pending repair list holds a job, that list decides between SRN out, indent raised and on the bench, because it is fresher than the monthly status lists.
 
@@ -123,11 +125,11 @@ On the Pending board the open stages are shown in the order work moves through t
 
 "Overdue by" is the number of days past the EDD, or past that limit. Booked and DC/RA jobs have no limit; they are overdue only when an EDD has passed.
 
-**Turnaround time (TAT).** For a delivered job, TAT is the number of days from booking to delivery. **Booking** jobs and **Quick Billing** jobs (battery, strap and other counter work, almost all delivered the same day) are always shown separately, because mixing them would make the workshop look faster than it is. The headline is the Booking median (the middle value: half the jobs took less, half took more), with the number of Booking jobs over 15 days. A job with no job-report row counts as Booking. The job's header also has booking to repaired, which leaves out the days the watch waited for the customer.
+**Turnaround time (TAT).** For a delivered job, TAT is the number of days from booking to delivery. Jobs returned without repair are closed but are not in the TAT headline. **Booking** jobs and **Quick Billing** jobs (battery, strap and other counter work, almost all delivered the same day) are always shown separately, because mixing them would make the workshop look faster than it is. The headline is the Booking median (the middle value: half the jobs took less, half took more), with the number of Booking jobs over 15 days. A job with no job-report row counts as Booking. The job's header also has booking to repaired, which leaves out the days the watch waited for the customer.
 
 ### Today
 
-The morning view for one business date. The date defaults to the newest Service export date, not the calendar date, so the screen never shows a row of zeros on a Sunday or before the day's export arrives. The screen names the date it shows, and warns when you pick a date after the newest export. The cards:
+The morning view for one business date. The date defaults to the latest day the Service exports hold data for, not the calendar date. A raw export is named by the day it was taken and holds data up to the day before, so that is usually the day before the newest export. The screen never shows a row of zeros on a Sunday or before the day's export arrives. It names the date it shows, and warns when you pick a date after the newest export. The cards:
 
 - **Booked**: jobs booked on the date, split Booking / Quick Billing, and this month to the date.
 - **Delivered**: jobs delivered on the date and this month, with jobs returned without repair on the date beside it.
@@ -137,7 +139,7 @@ The morning view for one business date. The date defaults to the newest Service 
 - **Open over 15 days**: open jobs booked more than 15 days before the as-at date.
 - **Claims raised this month**: claim documents raised with Titan this month to the date, with their value. Raised only (see Claims).
 
-Select a card to open the matching list: the Pending board on that stage, the Jobs list, the Money check on that date, or Claims. **Export** writes one sheet with each card's name, value and detail.
+Select a card to open the list it counts: Booked and Delivered open the Jobs list for jobs booked or delivered on the date; On the bench opens the Pending board on the bench and indent groups; Ready for delivery opens that group; Collection opens the Money check on the date; Open over 15 days opens the board with the age choice "Over 15 days"; Claims opens Claims for the month. **Export** writes one sheet with each card's name, value and detail.
 
 ### Pending
 
@@ -145,7 +147,7 @@ Every open job, grouped by stage in the order above, longest in its stage first 
 
 Columns: job number, stage, booked on, days since booking, days in stage, EDD, overdue by (days), age band, brand, model, product, guarantee, customer type, Booking or Quick Billing, pending at (where the watch is), spare required, and the date of the last export that listed the job. The board shows no customer name.
 
-Filters: tick one or more stages (none ticked = all), age band, overdue only, brand, guarantee and Booking/Quick Billing. The exports carry no "reason for pending" (the column is empty in every file), so the board shows the stage, where the watch is and the part required instead. It never invents a reason.
+Filters: tick one or more stages (none ticked = all), age since booking (a band, or "Over 15 days"), overdue only, brand, guarantee and Booking/Quick Billing. A DC or RA job whose claim has been raised is never overdue. The exports carry no "reason for pending" (the column is empty in every file), so the board shows the stage, where the watch is and the part required instead. It never invents a reason.
 
 Open a job from the board to see its history. **Export** writes one sheet per stage shown, with the grid's columns; tick one stage to export only that group.
 

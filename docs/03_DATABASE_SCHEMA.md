@@ -285,7 +285,7 @@ SQL error numbers 51900–51929 are the Service block (`docs/service-centre/SERV
   - `tat_repair_days`: booking to repaired, for delivered jobs;
   - `age_days`: booking to `as_at`, open stages only;
   - `days_in_stage`: `stage_date` to `as_at`, open stages only;
-  - `is_overdue`: EDD before `as_at`. The per-stage limits for jobs without an EDD (7/15/30/15/7) are applied in C#, in `ServiceAgeing.OverdueBy`.
+  - `is_overdue`: EDD before `as_at`, never for DELIVERED, RWR or a DC/RA job closed by its claim. The per-stage limits for jobs without an EDD (7/15/30/15/7) are applied in C#, in `ServiceAgeing.OverdueBy`.
 - **`is_open`** (bit): 0 for DELIVERED and RWR, and for a DC/RA job whose claim is raised ("closed by claim", Q3); 1 otherwise.
 - **Readings:** `last_reading_date` is the latest snapshot date of any list that holds the job. `as_at` is the latest snapshot date of any live Service reading.
 
@@ -301,10 +301,11 @@ SQL error numbers 51900–51929 are the Service block (`docs/service-centre/SERV
    - `jostatus` SRN* gives `SRN_OUT`;
    - `Indent_Raised`, an `indentid` or an `indentdate` gives `INDENT_RAISED`;
    - anything else gives `ON_BENCH`.
-8. `SRN_OUT`: an open S011 SRN by the Q5 rule, or the job is in S033/S035.
+8. `SRN_OUT`: an open S011 SRN by the Q5 rule, or the job is in S033/S035 and S011 holds no row for it (S033/S035 only say "reached SRN once"; integration 10 Oct 2026, R-SQL-03).
 9. `INDENT_RAISED`: in S015.
 10. `ON_BENCH`: in S032.
-11. `BOOKED`: anything else (job lists only).
+11. A closed S011 SRN (Q5) is evidence too (R-SQL-02): `DC_ISSUED` when its `to_status` contains DC (for example SRN_Returned_without_Repair_DC_Created), otherwise `READY_FOR_DELIVERY`; the stage date is the SRN's received or repaired date.
+12. `BOOKED`: anything else (job lists only).
 
 `stage_date` is that stage's own date: delivery, RWR, WDC or WRA date, S010 repair date, PD/REPAIRED repair date, SRN date, indent date, S009 job date, or the booking date.
 
