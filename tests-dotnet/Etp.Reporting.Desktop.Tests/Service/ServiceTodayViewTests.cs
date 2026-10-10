@@ -104,15 +104,15 @@ public sealed class ServiceTodayViewTests
     }
 
     [Fact]
-    public void A_drill_down_argument_is_applied_to_the_interim_screens_before_they_load()
+    public void A_drill_down_argument_is_applied_to_the_screens_before_they_load()
     {
         RunSta(() =>
         {
             var query = new FakeTodayQuery();
-            var pending = (ServicePendingView)ServiceScreens.Create(ServiceScreens.PendingTask, () => query, NoExport, ServiceStages.ReadyForDelivery);
-            Assert.Equal(ServicePendingLists.PendingDelivery, pending.SelectedList.Code);
-            var srn = (ServicePendingView)ServiceScreens.Create(ServiceScreens.PendingTask, () => query, NoExport, ServiceStages.SrnOut);
-            Assert.Equal(ServicePendingLists.SrnStatus, srn.SelectedList.Code);
+            var pending = (ServicePendingBoardView)ServiceScreens.Create(ServiceScreens.PendingTask, () => query, NoExport, ServiceStages.ReadyForDelivery);
+            Assert.Equal([ServiceStages.ReadyForDelivery], pending.SelectedStages);
+            var srn = (ServicePendingBoardView)ServiceScreens.Create(ServiceScreens.PendingTask, () => query, NoExport, ServiceStages.SrnOut);
+            Assert.Equal([ServiceStages.SrnOut], srn.SelectedStages);
             var jobs = (ServiceJobsView)ServiceScreens.Create(ServiceScreens.JobsTask, () => query, NoExport, ServiceStages.Delivered);
             Assert.Equal(ServiceStages.Delivered, jobs.SelectedChoice.Code);
             var all = (ServiceJobsView)ServiceScreens.Create(ServiceScreens.JobsTask, () => query, NoExport, ServiceStages.Booked);

@@ -267,23 +267,6 @@ public sealed class ServiceScreenViewTests
     }
 
     [Fact]
-    public void Pending_screen_sorts_by_age_descending_with_unknown_ages_last()
-    {
-        RunSta(() =>
-        {
-            var query = new FakeServiceQuery();
-            var view = new ServicePendingView(() => query, NoExport);
-            view.SelectedList = ServiceScreens.PendingLists.Single(choice => choice.Code == ServicePendingLists.PendingDelivery);
-
-            view.ActivateAsync().GetAwaiter().GetResult();
-
-            Assert.Equal(ServicePendingLists.PendingDelivery, query.LastPendingList);
-            Assert.Equal(["JOAW330SYN0003", "JOAW330SYN0001", "JOAW330SYN0002"], view.Rows.Select(row => (string)row.Cells[0]!));
-            Assert.Equal("3 jobs · Pending delivery (S010) · oldest first.", view.StatusText);
-        });
-    }
-
-    [Fact]
     public void Job_history_shows_the_header_card_and_the_timeline_newest_first()
     {
         RunSta(() =>
@@ -377,13 +360,6 @@ public sealed class ServiceScreenViewTests
     }
 
     [Fact]
-    public void Every_pending_list_choice_is_a_contract_list_key()
-    {
-        Assert.Equal(ServicePendingLists.All, ServiceScreens.PendingLists.Select(choice => choice.Code));
-        Assert.Equal(["Pending repair (S009)", "Pending delivery (S010)", "SRN status (S011)"], ServiceScreens.PendingLists.Select(choice => choice.Label));
-    }
-
-    [Fact]
     public void Timeline_rows_sort_by_snapshot_then_event_date_descending_regardless_of_input_order()
     {
         var rows = new ServiceJobTimelineRow[]
@@ -464,7 +440,6 @@ public sealed class ServiceScreenViewTests
 
     [Theory]
     [InlineData("jobs")]
-    [InlineData("pending")]
     [InlineData("history")]
     [InlineData("money")]
     [InlineData("today")]
@@ -489,7 +464,7 @@ public sealed class ServiceScreenViewTests
             Assert.DoesNotContain(ForbiddenHeaderWords, word => export.Metadata.Message.Contains(word, StringComparison.OrdinalIgnoreCase));
             Assert.Equal(ServiceScreenView.ServiceCentreLabel, export.Metadata.AppliedScope);
             Assert.StartsWith(view.AsAtText, export.Metadata.Message, StringComparison.Ordinal);
-            if (screen is "jobs" or "pending") Assert.Contains("Customer name", export.Data.Columns.Select(column => column.Header));
+            if (screen is "jobs") Assert.Contains("Customer name", export.Data.Columns.Select(column => column.Header));
             // SD-09: the export period is the screen's range, not today; history also carries the header card in the message line.
             if (screen == "history")
             {
@@ -540,7 +515,7 @@ public sealed class ServiceScreenViewTests
     private static ServiceScreenView Create(string screen, IServiceReportQuery query, ServiceExcelExport? export = null) => screen switch
     {
         "jobs" => new ServiceJobsView(() => query, export ?? NoExport),
-        "pending" => new ServicePendingView(() => query, export ?? NoExport),
+        "pending" => new ServicePendingBoardView(() => query, export ?? NoExport),
         "history" => new ServiceJobHistoryView(() => query, export ?? NoExport),
         "today" => new ServiceTodayView(() => query, export ?? NoExport),
         "claims" => new ServicePlaceholderView(ServicePlaceholderView.Claims, () => query, export ?? NoExport, null),

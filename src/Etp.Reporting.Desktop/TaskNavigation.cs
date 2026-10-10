@@ -109,7 +109,7 @@ public static class TaskNavigation
         // Viewer and up. The four interim screens keep their task ids (favourites and the Help topic keep working);
         // "Jobs" holds the job history and the jobs list; Claims and Parts arrive with their lanes.
         Add("service-today", "Service today", "Service", "Today", "Service Centre", "service-today", 1);
-        Add("service-pending", "Service pending jobs", "Service", "Pending", "Service Centre", "service-pending", 1);
+        Add("service-pending", "Service pending board", "Service", "Pending", "Service Centre", "service-pending", 1);
         Add("service-job-history", "Service job history", "Service", "Jobs", "Service Centre", "service-job-history", 1);
         Add("service-jobs", "Service jobs", "Service", "Jobs", "Service Centre", "service-jobs", 1);
         Add("service-claims", "Service claims", "Service", "Claims", "Service Centre", "service-claims", 1);

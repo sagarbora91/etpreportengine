@@ -15,6 +15,9 @@ namespace Etp.Reporting.Desktop.Modules.Service;
 /// <summary>Writes one table to an Excel workbook. Production uses the report exporter (IReportExportCoordinator).</summary>
 public delegate Task ServiceExcelExport(string path, ExcelReportMetadata metadata, ExcelReportData data);
 
+/// <summary>Writes several tables to one Excel workbook, one sheet each (the Pending board: one sheet per stage).</summary>
+public delegate Task ServiceExcelPackExport(string path, ReportPackDocument document);
+
 /// <summary>One column of a Service grid: its header, its Excel number format and its display format.</summary>
 public sealed record ServiceColumn(string Header, string NumberFormat = "General", string? DisplayFormat = null, double Width = 120);
 
@@ -97,7 +100,7 @@ public abstract class ServiceScreenView : UserControl
     protected WrapPanel FilterBar { get; }
     /// <summary>Between the status line and the grid: the job history header card (1.10.0).</summary>
     protected StackPanel HeaderPanel { get; }
-    /// <summary>Sits between the filter bar and the actions: the Service Today cards live here.</summary>
+    /// <summary>Sits between the filter bar and the actions: a screen's numbers (Service Today cards, Pending board KPI cards).</summary>
     protected StackPanel Summary { get; }
     protected StackPanel Footer { get; }
     /// <summary>The refresh log the last activation read (newest first); empty before the first load or without data.</summary>
@@ -199,7 +202,7 @@ public abstract class ServiceScreenView : UserControl
         new(columns.Select(column => new ExcelReportColumn(column.Header, column.NumberFormat)).ToArray(),
             Rows.Select(row => row.Cells).ToArray());
 
-    public async Task ExportToPathAsync(string path)
+    public virtual async Task ExportToPathAsync(string path)
     {
         var (from, to) = ExportPeriod;
         var metadata = new ExcelReportMetadata(ExportName, from, to, "Read only", "service-interim-1",

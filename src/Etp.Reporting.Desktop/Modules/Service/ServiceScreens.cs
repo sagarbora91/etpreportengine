@@ -1,7 +1,7 @@
 extern alias EtpApplication;
 
 using System.Windows.Controls;
-using ServicePendingLists = EtpApplication::Etp.Reporting.Application.Service.ServicePendingLists;
+using ServicePendingBoardRules = EtpApplication::Etp.Reporting.Application.Service.ServicePendingBoardRules;
 using ServiceReportQuery = EtpApplication::Etp.Reporting.Application.Service.IServiceReportQuery;
 using ServiceStages = EtpApplication::Etp.Reporting.Application.Service.ServiceStages;
 
@@ -44,18 +44,6 @@ public static class ServiceScreens
     public static IReadOnlyList<string> Tabs { get; } = ["Today", "Pending", "Jobs", "Claims", "Parts", "Money"];
 
     /// <summary>
-    /// The pending lists. The code is the contract list key (ServicePendingLists, as
-    /// ServiceInterimFamilies.PendingLists maps S009/S010/S011), which is what
-    /// IServiceReportQuery.LoadPendingAsync takes; the report code stays in the label only.
-    /// </summary>
-    public static IReadOnlyList<ServiceListChoice> PendingLists { get; } =
-    [
-        new(ServicePendingLists.PendingRepair, "Pending repair (S009)"),
-        new(ServicePendingLists.PendingDelivery, "Pending delivery (S010)"),
-        new(ServicePendingLists.SrnStatus, "SRN status (S011)")
-    ];
-
-    /// <summary>
     /// A query factory for a build whose composition root has no Service read model. The screens
     /// then show this message through DesktopFriendlyError instead of failing to open.
     /// </summary>
@@ -84,7 +72,7 @@ public static class ServiceScreens
         {
             TodayTask => new ServiceTodayView(query, export, navigate),
             JobsTask => new ServiceJobsView(query, export, openJob),
-            PendingTask => new ServicePendingView(query, export),
+            PendingTask => new ServicePendingBoardView(query, export, openJob: openJob),
             JobHistoryTask => new ServiceJobHistoryView(query, export) { JobNumber = argument?.Trim() ?? "" },
             ClaimsTask => new ServicePlaceholderView(ServicePlaceholderView.Claims, query, export, navigate),
             PartsTask => new ServicePlaceholderView(ServicePlaceholderView.Parts, query, export, navigate),
@@ -98,16 +86,17 @@ public static class ServiceScreens
 
     /// <summary>
     /// Applies a drill-down argument to a screen. A screen that implements <see cref="IServiceDrillDownTarget"/>
-    /// takes the argument itself; the interim screens are set through their public filters, so a stage name opens
-    /// the interim list that holds that stage until the 1.10.0 screens replace them.
+    /// takes the argument itself; the others are set through their public filters: a board stage ticks that stage on
+    /// the Pending board, a stage picks that choice on the Jobs list (BOOKED = all jobs), a job number opens Job
+    /// history and a yyyy-MM-dd date sets the money check range.
     /// </summary>
     public static void ApplyDrillDown(ServiceScreenView view, string argument)
     {
         switch (view)
         {
             case IServiceDrillDownTarget target: target.ApplyDrillDown(argument); break;
-            case ServicePendingView pending when PendingListForStage(argument) is { } list:
-                pending.SelectedList = PendingLists.Single(choice => choice.Code == list); break;
+            case ServicePendingBoardView board when ServicePendingBoardRules.BoardStages.Contains(argument):
+                board.SelectedStages = [argument]; break;
             case ServiceJobsView jobs when JobsChoiceForStage(argument) is { } choice:
                 jobs.SelectedChoice = ServiceJobsView.Choices.Single(item => item.Code == choice); break;
             case ServiceJobHistoryView history: history.JobNumber = argument; break;
@@ -115,15 +104,6 @@ public static class ServiceScreens
                 money.From = date; money.To = date; break;
         }
     }
-
-    /// <summary>The interim pending list that holds a stage (design 4.2 against the S009/S010/S011 lists), or null.</summary>
-    public static string? PendingListForStage(string stage) => stage switch
-    {
-        ServiceStages.OnBench or ServiceStages.IndentRaised => ServicePendingLists.PendingRepair,
-        ServiceStages.ReadyForDelivery or ServiceStages.InTransitBack => ServicePendingLists.PendingDelivery,
-        ServiceStages.SrnOut => ServicePendingLists.SrnStatus,
-        _ => null
-    };
 
     /// <summary>
     /// The Jobs list choice a stage drill-down opens: BOOKED (every job is booked) opens all jobs, any other stage opens

@@ -1,3 +1,4 @@
+using Etp.Reporting.Application.Service;
 using Etp.Reporting.Desktop.Modules.Service;
 
 namespace Etp.Reporting.Desktop.Tests.Service;
@@ -22,7 +23,7 @@ public sealed class ServiceNavigationTests
         Assert.Equal(ServiceScreens.Tabs, service.Select(task => task.Tab).Distinct());
         Assert.Equal(ServiceScreens.Tasks, service.Select(task => task.Id));
         Assert.Equal(["Today", "Pending", "Jobs", "Jobs", "Claims", "Parts", "Money"], service.Select(task => task.Tab));
-        Assert.Equal(["Service today", "Service pending jobs", "Service job history", "Service jobs", "Service claims", "Service parts and purchases", "Service money check"],
+        Assert.Equal(["Service today", "Service pending board", "Service job history", "Service jobs", "Service claims", "Service parts and purchases", "Service money check"],
             service.Select(task => task.Title));
         Assert.Equal("Service → Today → Service today", TaskNavigation.Find(ServiceScreens.TodayTask)!.Path);
     }
@@ -105,19 +106,19 @@ public sealed class ServiceNavigationTests
     }
 
     [Theory]
-    [InlineData("ON_BENCH", "PENDING_REPAIR", "ON_BENCH")]
-    [InlineData("INDENT_RAISED", "PENDING_REPAIR", "INDENT_RAISED")]
-    [InlineData("SRN_OUT", "SRN_STATUS", "SRN_OUT")]
-    [InlineData("READY_FOR_DELIVERY", "PENDING_DELIVERY", "READY_FOR_DELIVERY")]
-    [InlineData("IN_TRANSIT_BACK", "PENDING_DELIVERY", "IN_TRANSIT_BACK")]
-    [InlineData("DELIVERED", null, "DELIVERED")]
-    [InlineData("RWR", null, "RWR")]
-    [InlineData("DC_ISSUED", null, "DC_ISSUED")]
-    [InlineData("RA_ISSUED", null, "RA_ISSUED")]
-    [InlineData("BOOKED", null, "ALL")]
-    public void A_stage_maps_to_the_pending_list_and_the_jobs_choice_that_hold_it(string stage, string? pendingList, string? jobsChoice)
+    [InlineData("ON_BENCH", true, "ON_BENCH")]
+    [InlineData("INDENT_RAISED", true, "INDENT_RAISED")]
+    [InlineData("SRN_OUT", true, "SRN_OUT")]
+    [InlineData("READY_FOR_DELIVERY", true, "READY_FOR_DELIVERY")]
+    [InlineData("IN_TRANSIT_BACK", true, "IN_TRANSIT_BACK")]
+    [InlineData("DELIVERED", false, "DELIVERED")]
+    [InlineData("RWR", false, "RWR")]
+    [InlineData("DC_ISSUED", true, "DC_ISSUED")]
+    [InlineData("RA_ISSUED", true, "RA_ISSUED")]
+    [InlineData("BOOKED", true, "ALL")]
+    public void A_stage_maps_to_a_Pending_board_group_and_the_Jobs_choice_that_hold_it(string stage, bool onBoard, string? jobsChoice)
     {
-        Assert.Equal(pendingList, ServiceScreens.PendingListForStage(stage));
+        Assert.Equal(onBoard, ServicePendingBoardRules.BoardStages.Contains(stage));
         Assert.Equal(jobsChoice, ServiceScreens.JobsChoiceForStage(stage));
     }
 }
