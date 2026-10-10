@@ -4,13 +4,103 @@
 
 ## [1.10.0] - (date after the 1.10.0 gate)
 
-Tally batch creation from GitHub PR #3 (merged as the PR branch tip, including the Tally vouchers and Tally ledgers screens; decisions 18 and 26). Its migration was written as 0041, which the 1.9.3 import engine fixes had already taken; it ships as 0049 (`0049_tally_store_cost_centres.sql`) and no database ever applied it as 0041. The two new screens are Owner only (Settings > Accounting > Tally vouchers, Settings > Integrations > Tally ledgers).
+Service Centre UI (decision 25, 10 Oct 2026; design `docs/roadmap/SERVICE-CENTRE-UI-DESIGN-REVIEW-2026-10-10.md`), Tally batch creation from GitHub PR #3 (decisions 18 and 26), staff targets Owner-only in the database (decision 27), and everything released in 1.9.7, 1.9.8 and 1.9.9. Three migrations: 0049 (Tally store cost centres), 0050 (Service UI views only) and 0051 (staff-target permissions). Retail imports, reports and packs do not change, and neither do the money-check rules of decision 16.
 
-- Tally batch creation: ETP can prepare one store's day as Tally Sales vouchers, one per invoice, from the sales, GST and payment data it already holds and the approved ledger mappings. Each store's vouchers carry its cost centre, set on the Tally companies screen (migration 0049, `0049_tally_store_cost_centres.sql`). An invoice ETP cannot prepare exactly is kept back with a reason. A return or a split payment is left for a later step; a missing ledger or GST row stops the day until it is fixed. Preparing a batch sends nothing to Tally.
-- New Settings screens for the Owner: **Tally vouchers** prepares a store's day as Tally vouchers, shows each invoice as ready, left out or to be fixed, saves the batch and accepts its warnings with a reason; **Tally ledgers** lists the ledger names Tally vouchers use, shows which ones a store still needs, and saves a new version with a reason. A batch of Tally vouchers can be approved only when its warnings are accepted, and the old day-journal export refuses it.
+**Service Centre**
+
+- **New "Service" section on the left rail** (Today, Import, Reports, Stock, Service, Settings).
+  - It has six tabs: Today, Pending, Jobs (job history and the jobs list), Claims, Parts and Money.
+  - The four 1.9.5 Service screens moved here from Reports → Service centre with their task ids, so favourites keep working. "Service jobs by status" is now "Service jobs", and the pending screen is the "Service pending board".
+  - Every Service tab is read-only and open to Viewers and up.
+  - The Help topic "Service Centre" describes the six tabs.
+- **Freshness strip** on every Service screen. It has one chip per export group (Jobs, Status views, Pending lists, SRN, Money, Claims, Parts, Tests, Deftran), showing the date of the group's oldest latest export and whether that export was consolidated or raw. A chip is amber after 7 days and red after 14 (Q14). The 15 families that come only as monthly consolidated exports are judged monthly instead: amber after 38 days and red after 45; each chip takes the worst of its families.
+- **One stage per job.** The stage is worked out from the status lists, the latest Pending repair/delivery lists and the SRN status together, not from the job report's stale status column. The stages are:
+  - Booked;
+  - On the bench;
+  - Indent raised;
+  - SRN out (an SRN is open until it has a received or repaired date, or a "Received" status, Q5);
+  - Ready for delivery;
+  - Sent back after repair, in transit;
+  - DC issued and RA issued (closed once the WDC/WRA claim is raised, Q3);
+  - Returned without repair;
+  - Delivered.
+
+  The key is the exported job order number, trimmed (Q1). A closed SRN is evidence of a stage too: when it came back with "DC created" the job is DC issued, otherwise it is ready for delivery, dated by the SRN's received or repaired date. The SRN-reached lists say SRN out only when the SRN list holds no row for the job. On the 3 Oct live data this moved 26 jobs out of Booked; 23 jobs whose SRN came back "DC created" are now open DC-issued jobs, so they appear on the board and in Claims "not yet claimed". Sagar confirmed on 10 Oct that they stay open DC-issued jobs; no extra stage was added.
+- **Service Today.** Its cards are:
+  - booked (Booking / Quick Billing);
+  - delivered and returned without repair;
+  - on the bench / indent raised / EDD passed;
+  - ready for delivery / in transit;
+  - S004 collection, with whether the manual Service entry was made;
+  - open over 15 days;
+  - claims raised this month.
+
+  The day defaults to the latest business date that has Service data, never a day of zeros (Q15), and the screen says which day it shows. Each card opens the list its number counts: Booked and Delivered open the Jobs list for that day, On the bench opens the board on On the bench and Indent raised, Over 15 days opens the board's "Over 15 days" choice, and Claims opens Claims for the month.
+- **Service pending board** (replaces "Service pending lists").
+  - Open jobs are grouped by stage, longest in stage first, with days since booking, days in stage, EDD and "overdue by".
+  - Overdue means the EDD has passed ("EDD passed"); a job without an EDD is overdue after 7/15/30/15/7 days on the bench / indent / SRN out / in transit / ready (Q4). A DC or RA job closed by its claim is never overdue.
+  - Five numbers: open, overdue, over 30 days, in transit, parts awaited.
+  - Filters: stage, age since booking (0-7, 8-15, 16-30, 31-60, 60+ days, or over 15 days), overdue only, brand, guarantee, Booking/Quick Billing.
+  - Export writes one sheet per stage.
+  - Delivered, returned-without-repair and claimed DC/RA jobs are never on the board (Q3, Q8).
+- **Job history** has a header card (stage, TAT or days open, EDD, labour and spares billed) and a timeline of every export that held the job, newest first.
+  - Any job grid opens it (double-click on a row, Enter or "Open job history"), and Back returns. A double-click on a column header or the scroll bar does nothing.
+  - The misleading "Left the list on or before …" rows that a raw export produced for every consolidated job are gone (SD-01).
+- **Jobs list.**
+  - It shows stage, Booking/Quick Billing, TAT and days open.
+  - The default is "Closed in the last 30 days", with All jobs, Open jobs and one stage as the other choices (Q8).
+  - The TAT line gives the Booking median (booking → delivered, delivered jobs only) and the jobs over 15 days, with Quick Billing shown separately (Q2). Returned-without-repair jobs count as closed but are left out of the median.
+  - The S036/S037 "Delivery/Repair report" choices are dropped: those exports carry the booking date (Q10).
+- **Claims (new).**
+  - GPRC cell, Module Bank, WDC and WRA claims are shown by month and type, with lines per document.
+  - Where an old-format and a new-format report hold the same claim document, it is counted once (Q12); the 1 Jul 2026 join is counted once. Old WRA-log lines of a WDC document count only as WDC (Sagar, 10 Oct).
+  - "Not yet claimed" lists DC/RA jobs with no claim document and how long they have waited.
+  - A GPRC gap warning appears when the GPRC export is older than the DC/RA lists (Q11).
+  - Claims are shown as **raised only**: no export carries settlement (Q9).
+- **Parts (new).**
+  - Purchase invoices created (S007) against received (S008): open first, days open, lines per invoice.
+  - Jobs waiting for parts (indent raised), shown side by side with the invoices; the exports do not link the two.
+  - Goods in transit for the last 30 days (the grid and the card cover the same 30 days) and the latest spares closing stock.
+- **Money check.**
+  - It loads the manual entries even before any Service export is imported (SD-08).
+  - Its default range is the 30 days up to the newest S004 export, and Refresh uses the chosen date.
+  - Its rules are unchanged (Titan-only, Q7).
+- **Errors on Service screens** now end with the 1.9.9 diagnostics reference ("Ref: XXXXXXXXXXXX"): a screen that cannot load, an export that cannot be saved, and the freshness strip, which says "The export dates could not be read." instead of staying silently empty. The Parts "waiting" export uses the same Save dialog and export folder as the other exports.
+- **Fixes:**
+  - The pending SRN list shows open SRNs only (10 instead of 141 on the 9 Oct data, SD-02).
+  - Service exports carry the shown period instead of today, and all use one export rule version, `service-ui-1` (SD-09).
+  - The bottom status line no longer keeps the previous workspace's text on Service screens, and a Service screen writes it only while it is the screen in front (SD-10).
+  - Jobs that only the job report holds now appear, as Booked (SD-05).
+  - Quick Billing jobs are recognised whatever the export's spacing or case; a Brand or Guarantee picked in a filter list is the value used.
+- **Speed.** The job model reads the full job list in about 1 s on the live data (was about 3 s): the per-job count of revenue documents is now worked out without a plan step that repeated the date-log rule millions of times. Same rows and values on live. No index or extra table is needed at today's volume; the acceptance run times it again with three more weekly readings.
+- **Migration 0050** (`0050_service_centre_ui.sql`) adds views only: `v_service_status_view_facts`, `v_service_claims`, `v_service_job`, `v_service_job_timeline`, `v_service_parts`, `v_service_parts_transit`, `v_service_stock_summary`, and an amended `v_service_pending_current` (same columns plus `edd`, `jo_status`, `spare_required`, `indent_date`, `repair_date`, `srn_to_status`).
+  - Grants are as in 0048.
+  - No phone, e-mail or address column appears in any view.
+  - It writes no data; 0048 is unchanged.
+- **Not in 1.10.0:**
+  - S027 TAT and S028 Technician productivity stay Not needed (Q6).
+  - No claim settlement entry (Q9 = raised only).
+  - No materialised job index; it comes only if the acceptance timing shows a screen over about 1 s.
+
+**Tally (GitHub PR #3)**
+
+Merged as the PR branch tip, including the Tally vouchers and Tally ledgers screens. Its migration was written as 0041, which the 1.9.3 import engine fixes had already taken; it ships as 0049 (`0049_tally_store_cost_centres.sql`) and no database ever applied it as 0041.
+
+- Tally batch creation: ETP can prepare one store's day as Tally Sales vouchers, one per invoice, from the sales, GST and payment data it already holds and the approved ledger mappings. Each store's vouchers carry its cost centre, set on the Tally companies screen (migration 0049). An invoice ETP cannot prepare exactly is kept back with a reason. A return or a split payment is left for a later step; a missing ledger or GST row stops the day until it is fixed. Preparing a batch sends nothing to Tally.
+- GST rows are matched to an invoice by the financial year of the invoice date, not by the export's year label, so an invoice whose label differs is no longer blocked or matched to another year's invoice with the same number (all live invoices match either way today).
+- New Settings screens for the Owner only: **Tally vouchers** (Settings > Accounting) prepares a store's day as Tally vouchers, shows each invoice as ready, left out or to be fixed, saves the batch and accepts its warnings with a reason; **Tally ledgers** (Settings > Integrations) lists the ledger names Tally vouchers use, shows which ones a store still needs, and saves a new version with a reason. A batch of Tally vouchers can be approved only when its warnings are accepted, and the old day-journal export refuses it.
 - New `docs/audit/PHASE-7-TALLY-PROBE-CHECK-SHEET.md`: a printable sheet for one visit to the Tally PC with the accountant. It records how the installed Tally behaves using only the TEST company, three hand-keyed vouchers, a hand-exported Day Book and read-only requests.
+- Status: ETP does not send anything to Tally yet: no Tally PC has been tested (plan task 5) and D18 is still open. Batch creation follows the decision sheet's recommendations for D12 to D17; the accountant has not yet signed the sheet or named the ledgers.
 
-Status: ETP does not send anything to Tally yet: no Tally PC has been tested (plan task 5) and D18 is still open. Batch creation follows the decision sheet's recommendations for D12 to D17; the accountant has not yet signed the sheet or named the ledgers.
+**Staff targets Owner-only in the database**
+
+- Migration 0051 (`0051_staff_targets_owner_only.sql`, decision 27): only the Owner can write staff targets. It removes the Store Manager's insert and update rights on staff targets (granted in 0022) and denies insert, update and delete to Store Managers and Viewers; both can still read them. 1.9.9 already blocked this on screen and in the application; now the database refuses it too. The automation account loses the write as well; nothing it runs writes staff targets.
+
+**Other**
+
+- Navigation: 58 fixed tasks (25 Owner-only); the Owner reaches 102 screens, a Store Manager 77 and a Viewer 62.
+- Docs: User Guide "Service Centre" rewritten; `03_DATABASE_SCHEMA.md` has 0049, 0050 and 0051 sections; `SERVICE-INTERIM-NUMBERS.md` lists 0049-0052 and the Service task ids; new acceptance runbook `docs/roadmap/SERVICE-UI-1.10.0-ACCEPTANCE.md`.
+- Tests: unit projects and gate result filled in after the gate.
 
 ## [1.9.9] - 2026-10-10
 
