@@ -183,9 +183,9 @@ internal static class MaintenanceScriptOutput
         var text = string.IsNullOrEmpty(reason)
             ? $"The script stopped (exit code {exitCode}) without giving a reason."
             : Sentence(reason);
+        // Only a log the script says it wrote: pointing at a log that does not exist is what
+        // this replaced.
         if (!string.IsNullOrEmpty(logPath)) text += $" The failure was recorded in {logPath}.";
-        else if (IsBackupOrDrill(scriptName))
-            text += @" If the backup folder exists, the failure was recorded under %ProgramData%\EtpReporting\Backups\Logs.";
         return new(new(false, Truncate(text)), code);
     }
 
@@ -230,10 +230,6 @@ internal static class MaintenanceScriptOutput
         var message = Regex.Replace(builder.ToString(), @"\s+", " ").Trim();
         return message.Length == 0 ? null : message;
     }
-
-    private static bool IsBackupOrDrill(string scriptName) =>
-        scriptName.Equals("backup-etp-database.ps1", StringComparison.OrdinalIgnoreCase) ||
-        scriptName.Equals("invoke-etp-recovery-drill.ps1", StringComparison.OrdinalIgnoreCase);
 
     // Write-Warning output is wrapped when redirected; the scripts repeat any warning worth
     // showing on an ETP_NOTICE line instead.

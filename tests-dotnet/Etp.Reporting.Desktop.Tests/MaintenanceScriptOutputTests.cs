@@ -51,10 +51,10 @@ public sealed class MaintenanceScriptOutputTests
         var outcome = MaintenanceScriptOutput.Interpret(Backup, 1, "", stderr);
 
         Assert.Equal("RECOVERY_KEYS_MISSING", outcome.ReasonCode);
-        Assert.StartsWith(
+        // No ETP_LOG line: no log is mentioned, because none is known to exist.
+        Assert.Equal(
             "This SQL Server edition encrypts backups, and no exported recovery keys were found. In the application, open Settings > Database > Encrypted backup recovery keys and select \"Create and export recovery keys\", then run this again.",
-            outcome.Result.Message, StringComparison.Ordinal);
-        Assert.Contains(@"%ProgramData%\EtpReporting\Backups\Logs", outcome.Result.Message, StringComparison.Ordinal);
+            outcome.Result.Message);
     }
 
     [Fact]
