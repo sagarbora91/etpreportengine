@@ -69,7 +69,6 @@ public static class ReportVisualPresenter
         ArgumentNullException.ThrowIfNull(model);
         var root = new StackPanel();
         root.Children.Add(BuildKpiCards(model, "#FFFFFF", true));
-        if (model.Metadata.ReportName == "Management Trend") root.Children.Add(ManagementTrendChart.Create(model.Detail));
         foreach (var visual in model.Visuals.Take(2)) root.Children.Add(BuildVisual(visual));
         AddControl(model, root, new Thickness(0, 8, 0, 8));
         var grid = new DataGrid
@@ -108,14 +107,14 @@ public static class ReportVisualPresenter
     {
         var cards = new UniformGrid
         {
-            Columns = Math.Clamp(model.Kpis.Count, 1, 4),
+            Columns = Math.Clamp(model.Kpis.Count, 1, 5),
             Margin = bordered ? new Thickness(0, 0, 0, 10) : new Thickness(0, 8, 0, 8)
         };
-        foreach (var kpi in model.Kpis.Take(4))
+        foreach (var kpi in model.Kpis.Take(5))
         {
             var formatted = IndianNumberFormatter.Format(kpi.Value, kpi.Format, kpi.State);
             var content = new StackPanel();
-            content.Children.Add(new TextBlock { Text = kpi.Label, Foreground = Brush("#5D6873") });
+            content.Children.Add(new TextBlock { Text = kpi.Label, Foreground = Brush("#5D6873"), TextWrapping = TextWrapping.Wrap });
             content.Children.Add(new TextBlock
             {
                 Text = formatted,
@@ -159,7 +158,7 @@ public static class ReportVisualPresenter
     {
         var panel = new StackPanel { Margin = new Thickness(0, 7, 0, 4) };
         panel.Children.Add(new TextBlock { Text = visual.Title, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 5) });
-        if (visual.Type is ReportVisualType.Line or ReportVisualType.Sparkline)
+        if (visual.Type is ReportVisualType.Line)
         {
             panel.Children.Add(BuildLineVisual(visual));
             AddFootnote(visual, panel);
