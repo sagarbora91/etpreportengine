@@ -1,6 +1,42 @@
-# Current workflow guide — development candidate
+# ETP Reporting Engine user guide (1.10.0)
 
-This describes the Phase 5 development candidate. See the [Phase 5 report](audit/PHASE-5-REPORT.md) for test evidence and deployment acceptance still required.
+This describes ETP Reporting Engine 1.10.0, including the changes of 1.9.7 to 1.9.9. The [Phase 5 report](audit/PHASE-5-REPORT.md) holds the earlier test evidence.
+
+## Today: what's missing
+
+Today → Sales shows a panel "What's missing for <date>" for the header business date and store. It lists:
+
+- each export not imported yet for the date: R025 sales lines, R022 invoice tenders, R011 closing stock and R030 stock ledger, per shop; with "All stores" in the header, also the Service Centre (AW330) raw pack;
+- each manual input not entered: walk-ins, opening cash, expenses and cash deposit;
+- the month's store target and staff targets, when they are not set.
+
+Each line has a button that opens the screen where the item is fixed: **Import**, **Enter walk-ins**, **Enter cash**, **Set monthly target** or **Set staff targets**. If your role cannot open that screen, the button says so; ask the Owner. The panel hides when nothing is missing.
+
+Close day refuses to finalise only while a section is Blocked: a missing source report, or a missing required input (for example cash without opening cash, expenses or deposit). Variances, and a Service section that was not entered, are listed as warnings in the finalise message. The daily pack names each missing input and where to enter it (Today → Cash → Cash and service entries, Today → Walk-ins).
+
+## Error messages and "Ref:" codes
+
+ETP's messages say in plain words what happened and what to do. An error message ends with "Ref:" and a short code, for example "Ref: 1A2B3C4D5E6F". The code matches one entry in ETP's diagnostics log. Note the code or take a screenshot. If the problem keeps happening, an Owner creates the support package (Settings → Database → Support package; the screen says where the ZIP was saved; it includes the last 30 days of the diagnostics log) and sends it, with the code, to ETP support. The log records where the failure happened, never the message text or customer data.
+
+Some common messages:
+
+- "The database took too long to answer": nothing was changed. Try again in a moment; for a report, choose a shorter date range.
+- "The database was busy with another task": wait a moment and try again.
+- "This screen needs a part of the database that is missing": run the latest ETP setup, then try again.
+- "The file is open in another program": close the file (for example in Excel) and try again.
+
+**Starting ETP and connecting.** When ETP cannot start or reach its database, the message names the cause:
+
+- SQL Server could not be reached: check that the SQL Server service is running and the instance name is correct.
+- SQL Server took too long to answer: it may still be starting; wait a minute and try again.
+- SQL Server refused the Windows login, or permission denied: the Owner adds this Windows account in Settings → Users.
+- The ETP database could not be opened: check the database name, restore the database or run setup, and check the account was added in Settings → Users.
+
+Settings → Test connection reports a refused login and a missing database separately, with the SQL Server error number. Other startup failures say which step failed.
+
+**Backup and recovery.** If Backup now or Recovery drill now fails, the message gives the reason (for example missing recovery keys, low disk space or the automation account's rights). The backup and the drill, including the scheduled tasks, keep a dated failure log in `%ProgramData%\EtpReporting\Backups\Logs`.
+
+**Setup.** Setup turns off the SQL Server Express AUTO_CLOSE setting on the ETP database every time it runs. On a new PC it registers the five-minute automation task switched off until the automation account can open the database; the setup log says how to switch it on (add the account as an active Store Manager in Settings → Users and run setup again). If the database update fails during setup, the setup log gives the reason with the SQL error number.
 
 ## Import and reports
 
@@ -10,13 +46,23 @@ For failures in the current import session, correct the source and open Import �
 
 On supported reports, expand Filters, set query criteria and Apply. The applied scope describes both screen and Excel/PDF output. Clear restores the unfiltered scope. Detail-row search only filters the displayed list.
 
+**Reading a report.** The status line starts with **Passed**, **Blocked** or **Failed**. When something is missing it says what, for which store and date, and where to enter or import it. A report with no rows says "No data for <period>, <stores>" and its export stays off (the DSR excepted). Sales amounts are headed **Sales incl. GST** (GST-inclusive). Brand-wise and Brand-Segment Sales group sales by your brand rows, the same rule as the DSR; a line no brand row claims shows as "Unmapped: <brand>", and the status line names it and points to Settings → Stores & masters → Brands and targets.
+
+**Summary tab.** Most reports have a Summary tab with three to five key figures and one chart, built from the rows already loaded, beside the Detail rows tab. The PDF starts with the same summary page.
+
+**DSR.** When the R025 sales lines export does not cover the business date for a store, the DSR is Blocked and says "R025 not imported for <date>"; FTD and MTD are blank, not zero. Import R025 for that date. The DSR's Service figures count only the shop where Service money is entered (Titan World); for the other shops they are not applicable.
+
+**Stock.** Closing, Brand, Slow / Exception and Physical stock use each store's latest closing-stock snapshot on or before the chosen date, and say "Snapshot of <date> (latest on or before <date>)". They are Blocked, naming the store, only when no earlier snapshot exists. Stock Variance, the daily pack and Enter stock by brand still need the snapshot of the same day; import the Closing Stock export for that date. Stock Variance over several stores gives each store's own result first.
+
+**Exports.** Export to Excel or PDF from the current result. The Save dialog starts in `Documents\ETP Reporting Engine\Exports`, the folder that **Open export folder** opens, and the file is named after the report (for example "Combined Sales Summary"). If the file is open in Excel, close it and export again.
+
 ## Accounting — Owner decisions
 
 Open Settings → Accounting → Prepare → Review → Export. Select the store/date in the header and preview a final report generation. Owner-approved adjustments require an approved ADJUSTMENT ledger mapping; pending adjustments are excluded. Missing mappings or a missing company produce a BLOCKED batch with a reason. A balanced, configured draft can be saved for review.
 
 Select a saved batch and enter a Batch decision reason. Approve selected stores the reason. Reject selected records a rejection reason, actor and time while preserving earlier approval evidence. Blank reasons and non-Owner decisions are refused. Exported and already-rejected batches cannot be rejected.
 
-Configure the company and TEST environment in Settings → Integrations → Email, sharing and Tally. Leave the company blank until it is known. Saving PRODUCTION requires typing the exact company name; production export remains blocked pending the later Tally acceptance gate.
+Each store's Tally cost centre is entered on Settings → Integrations → Tally companies, as STORE=Name. Configure the company and TEST environment in Settings → Integrations → Email, sharing and Tally. Leave the company blank until it is known. Saving PRODUCTION requires typing the exact company name; production export remains blocked pending the later Tally acceptance gate.
 
 Batch statuses are DRAFT, BLOCKED, APPROVED_READY, EXPORTED_AWAITING_IMPORT and REJECTED. Each invoice can belong to only one non-rejected batch. Rejecting an unexported batch frees its invoices for a replacement; exported batches remain reserved. Export history records the exact file path, SHA-256, company, environment, actor and time. XML export is not evidence of import into Tally.
 
@@ -35,6 +81,12 @@ Reports → Archive provides Open, Excel, PDF, ZIP and Share for each saved pack
 WhatsApp opens the desktop handoff and copies the PDF path. Attach the PDF and send it yourself. History records only that the handoff is ready.
 
 Owners manage contacts under Settings → Integrations → Sharing contacts, and SMTP server/sender settings under Email, sharing and Tally. In the Archive's Filters & input tab, each sender can save optional personal SMTP credentials; the Owner can explicitly confirm a test send to the entered recipient. Credentials are protected for the Windows account that saves them; other accounts need their own credentials when authentication is required.
+
+## Targets
+
+Monthly store targets (Settings → Stores & masters → Brands and targets → Monthly targets) and staff targets (Settings → Stores & masters → Staff targets) are Owner-only. A Store Manager can see them but cannot enter or change them; from 1.10.0 the database refuses it too.
+
+**Copy from previous month** (on both screens, Owner only) fills an editable list with last month's targets. Nothing is saved until you press **Save copied targets**. Clear a value to skip that row. A target already saved for the month is replaced only if you confirm.
 
 ## Stores and automatic import
 
@@ -80,7 +132,7 @@ Not imported: technician productivity and the tender collection summary (both re
 
 - **The title, "Service Centre AW330 - read only"**, and the line "Service data as at <date>", where the date is that of the newest Service export imported. If nothing is imported yet, the screen says "No Service data imported yet" (the Money tab still shows the manual entries).
 - **The freshness strip**: one chip per group of exports, with the date of its last export and whether that was the weekly workbook (consolidated) or a raw export, for example "Jobs: last export 03 Oct 2026 (raw)". The groups are Jobs, Status views, Pending lists, SRN, Money, Claims, Parts, Tests and Deftran. A group's date is that of its oldest report, so one stale report is enough to colour the chip.
-  - **No colour**: exported in the last 7 days.
+  - **Green**: exported in the last 7 days.
   - **Amber**: the last export is more than 7 days old.
   - **Red**: more than 14 days old.
   - Reports that come only in the monthly workbook (no raw export yet: SRN status and history, GIT, the DC and RA lists, SRN and SRNINV, repeat returns, replacements, depreciation, the GPRC/MB/WDC/WRA claim reports and test runs) are judged against a month instead: amber after 38 days, red after 45.
