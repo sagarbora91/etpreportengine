@@ -158,24 +158,30 @@ public sealed class EveningReportInteractionTests
         });
     }
 
+    // RA-UI-16 / RA-EXPORT-09 (1.9.8): none of these row types has a variance column, so a ticked "Variance only" no
+    // longer empties the grid; the box is unticked and disabled, and the export rows are untouched either way.
     [Theory]
     [InlineData("dsr")]
     [InlineData("invoice")]
     [InlineData("cash")]
-    public void Initial_report_run_applies_variance_filter_without_mutating_export_rows(string report)
+    public void Initial_report_run_disables_variance_filter_without_mutating_export_rows(string report)
     {
         RunSta(async () =>
         {
             var view = CreateView();
             ReportPresentationSnapshot? snapshot = null;
             view.AttachHost(_ => true, (_, _, _) => Task.CompletedTask, (value, _, _) => snapshot = value, _ => { }, _ => { });
-            ((CheckBox)view.FindName("VarianceOnlyInput")).IsChecked = true;
+            var box = (CheckBox)view.FindName("VarianceOnlyInput");
+            box.IsChecked = true;
             await view.RunReportAsync(report);
             var grid = (DataGrid)view.FindName("ReportGrid");
-            Assert.Empty(grid.Items.Cast<object>());
+            Assert.NotEmpty(grid.Items.Cast<object>());
+            Assert.False(box.IsEnabled);
+            Assert.NotEqual(true, box.IsChecked);
+            Assert.Equal(ReportDetailFilter.NoVarianceHint, box.ToolTip);
             Assert.NotNull(snapshot?.ExportData);
             var exported = snapshot!.ExportData;
-            ((CheckBox)view.FindName("VarianceOnlyInput")).IsChecked = false;
+            box.IsChecked = false;
             Assert.NotEmpty(grid.Items.Cast<object>());
             Assert.Same(exported, snapshot.ExportData);
         });

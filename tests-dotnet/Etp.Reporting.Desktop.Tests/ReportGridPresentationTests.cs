@@ -20,7 +20,8 @@ namespace Etp.Reporting.Desktop.Tests;
 [Collection(WpfViewCollection.Name)]
 public sealed class ReportGridPresentationTests
 {
-    private static readonly string[] ScreenOnlyHeaders = ["Transaction types", "Brand row", "Counted physical", "Composition variance"];
+    // RA-STOCK-08 (1.9.8): "Counted physical" and "Composition variance" are no longer screen-only; they are hidden like the export.
+    private static readonly string[] ScreenOnlyHeaders = ["Transaction types", "Brand row"];
 
     [Theory]
     [InlineData("sales-brand")]
