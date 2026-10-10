@@ -31,21 +31,22 @@ public sealed partial class PhaseFiveFullWindowCaptureTests(ITestOutputHelper ou
 
     // F-20. Written out by hand, never derived from TaskDestination.IsAllowed, so a
     // destination that disappears (or a role rule that changes) fails the walk instead of
-    // shrinking it. 56 fixed tasks (18 for every role, 15 needing the import role, 23
+    // shrinking it. 58 fixed tasks (18 for every role, 15 needing the import role, 25
     // Owner-only) + 22 reports + 22 Help topics. 89/69/54 when re-audited on 26 Sep 2026;
     // Phase 7 added the Owner's "tally-companies", the 1.9.3 evidence fixes the Owner's
     // "keep-evidence", 1.9.4 (FIX-15) the Owner's "dashboard-overview", the Service
     // interim four Service centre screens and the "service-centre" Help topic for every
     // role, and the 1.10.0 Service rail "service-today", "service-claims" and "service-parts"
-    // for every role (Q13). TaskNavigationTests holds the same lists.
+    // for every role (Q13); 1.10.0 Tally PR #3 added the Owner's "tally-ledgers" and
+    // "tally-vouchers". TaskNavigationTests holds the same lists.
     private static readonly IReadOnlyDictionary<string, int> ExpectedDestinationCounts =
-        new Dictionary<string, int> { ["OWNER"] = 100, ["STORE_MANAGER"] = 77, ["VIEWER"] = 62 };
+        new Dictionary<string, int> { ["OWNER"] = 102, ["STORE_MANAGER"] = 77, ["VIEWER"] = 62 };
     private static readonly string[] OwnerOnlyTasks =
     [
         "connection", "health", "backups", "recovery", "support-package", "audit", "users", "profiles",
         "stores", "kpi", "tender-rules", "staff-target", "watch-folder", "sharing", "sharing-contacts",
         "tally-companies", "prepare-batch", "open-items", "data-quality", "approval-centre", "adjustment",
-        "keep-evidence", "dashboard-overview"
+        "keep-evidence", "dashboard-overview", "tally-ledgers", "tally-vouchers"
     ];
     private static readonly string[] ImportRoleTasks =
     [

@@ -231,6 +231,10 @@ Helper views `v_service_families` (read rule, date column, list label and lifecy
 
 SQL error numbers 51900–51929 are the Service block (`docs/service-centre/SERVICE-INTERIM-NUMBERS.md`); 0048 uses 51900 and 51904 only. Storage: about 35k landing rows per weekly consolidated reading plus small daily raw readings; measure it with `scripts/service-centre/measure-service-growth.sql` (`docs/OPERATIONS.md`).
 
+## Phase 7 store cost centres — migration 0049
+
+`tally_profile_stores.cost_centre nvarchar(100) NULL`: D12, one Tally company for the firm with each store as a cost centre. The name must match the cost centre in Tally exactly. When a company holds more than one store, an invoice of a store without a cost centre is blocked (`COST_CENTRE_MISSING`) when its vouchers are prepared.
+
 ## Service Centre UI — migration 0050
 
 `0050_service_centre_ui.sql` (Service Centre UI wave, decision 25, 10 Oct 2026; release 1.10.0; lane sql of the 1.10.0 wave). Design: `docs/roadmap/SERVICE-CENTRE-UI-DESIGN-REVIEW-2026-10-10.md`, sections 3, 4 and 6. It follows 0049, which is the Tally cost-centre migration of GitHub PR #3. Until 0049 is on the same branch, `MigrationTests` reports a gap in the numbers; that is expected, as it was for 0048 in 1.9.4. 0048 is never edited: its text is checksummed.

@@ -118,8 +118,16 @@ public sealed partial class ProductisationRepository
         if (string.IsNullOrWhiteSpace(reason) || reason.Length > 1000) throw new ArgumentException("Enter an accounting approval reason of at most 1000 characters.");
         const string sql = """
             SET XACT_ABORT ON; BEGIN TRANSACTION;
-            IF NOT EXISTS(SELECT 1 FROM dbo.product_settings WITH(UPDLOCK,HOLDLOCK) WHERE product_setting_id=1 AND NULLIF(LTRIM(RTRIM(tally_company_name)),'') IS NOT NULL AND tally_environment_label='TEST')
+            DECLARE @kind varchar(20)=(SELECT batch_kind FROM dbo.accounting_batches WITH(UPDLOCK,HOLDLOCK) WHERE accounting_batch_id=@id);
+            IF ISNULL(@kind,'DAY_JOURNAL')='DAY_JOURNAL' AND NOT EXISTS(SELECT 1 FROM dbo.product_settings WITH(UPDLOCK,HOLDLOCK) WHERE product_setting_id=1 AND NULLIF(LTRIM(RTRIM(tally_company_name)),'') IS NOT NULL AND tally_environment_label='TEST')
               THROW 51460,'Set the intended TEST Tally company in Settings before approving (D12/D18).',1;
+            -- Tally vouchers (Phase 7): the batch's own company must be a test company in use, and every validation
+            -- finding must be cleared: failures fixed, warnings accepted with a reason.
+            IF @kind='SALES_VOUCHERS' AND NOT EXISTS(SELECT 1 FROM dbo.accounting_batches b JOIN dbo.tally_profiles p ON p.tally_profile_id=b.tally_profile_id
+                WHERE b.accounting_batch_id=@id AND p.is_enabled=1 AND p.environment='TEST')
+              THROW 51460,'This batch''s Tally company is switched off or is not a test company.',1;
+            IF EXISTS(SELECT 1 FROM dbo.accounting_validation_findings WHERE accounting_batch_id=@id AND (severity='FAIL' OR waived_by IS NULL))
+              THROW 51221,'Accept every warning with a reason, and fix every failure, before approving.',1;
             UPDATE dbo.accounting_batches SET status='APPROVED_READY',approval_reason=@reason,approved_by=SUSER_SNAME(),approved_utc=SYSUTCDATETIME()
               WHERE accounting_batch_id=@id AND status='DRAFT' AND blocking_reason IS NULL AND debit_total=credit_total
               AND EXISTS(SELECT 1 FROM dbo.accounting_entries WHERE accounting_batch_id=@id);
@@ -154,6 +162,8 @@ public sealed partial class ProductisationRepository
         await using (var check = new SqlCommand("""
             DECLARE @lock int; EXEC @lock=sys.sp_getapplock @Resource='ETP.AccountingReservations',@LockMode='Exclusive',@LockOwner='Transaction',@LockTimeout=15000;
             IF @lock<0 THROW 51451,'Accounting is busy. Try again.',1;
+            IF EXISTS(SELECT 1 FROM dbo.accounting_batches WHERE accounting_batch_id=@id AND batch_kind<>'DAY_JOURNAL')
+              THROW 51571,'This batch holds Tally vouchers, one per invoice. They are written by the Tally file step, not as a day journal.',1;
             IF NOT EXISTS(SELECT 1 FROM dbo.product_settings WITH(UPDLOCK,HOLDLOCK) WHERE product_setting_id=1 AND tally_company_name=@company AND tally_environment_label=@environment AND tally_environment_label='TEST')
               THROW 51460,'Tally destination changed or live export is not enabled. Refresh Settings before exporting.',1;
             IF NOT EXISTS(SELECT 1 FROM dbo.accounting_batches WITH(UPDLOCK,HOLDLOCK) WHERE accounting_batch_id=@id AND status='APPROVED_READY')

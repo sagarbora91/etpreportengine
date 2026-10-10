@@ -9,6 +9,16 @@ public partial class SettingsWorkspaceView
         new Etp.Reporting.Desktop.Modules.Accounting.TallyCompaniesView(() => session.ConnectionString, () => access.CanAdminister,
             connection => new Etp.Reporting.Infrastructure.SqlServer.Tally.SqlServerTallyProfileService(connection));
 
+    public System.Windows.Controls.UserControl CreateTallyVouchersView() =>
+        new Etp.Reporting.Desktop.Modules.Accounting.TallyVouchersView(() => session.ConnectionString, () => access.CanAdminister,
+            connection => new Etp.Reporting.Infrastructure.SqlServer.Tally.SqlServerTallyProfileService(connection),
+            connection => new Etp.Reporting.Infrastructure.SqlServer.Tally.SqlServerTallySalesBatchService(connection));
+
+    public System.Windows.Controls.UserControl CreateTallyLedgersView() =>
+        new Etp.Reporting.Desktop.Modules.Accounting.TallyLedgersView(() => session.ConnectionString, () => access.CanAdminister,
+            connection => new Etp.Reporting.Infrastructure.SqlServer.Tally.SqlServerTallyProfileService(connection),
+            connection => new Etp.Reporting.Infrastructure.SqlServer.Tally.SqlServerTallyLedgerMappingService(connection));
+
     public System.Windows.Controls.UserControl CreateEveningMastersView(Func<bool> canEditBrands) =>
         new EveningMastersView(() => session.ConnectionString, () => access.CanAdminister, canEditBrands);
 

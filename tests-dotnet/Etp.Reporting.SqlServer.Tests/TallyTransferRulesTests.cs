@@ -282,6 +282,16 @@ public sealed class TallyProfileRulesTests
         Assert.Equal("Cash Sales", value.SinglePartyLedger);
     }
 
+    [Fact]
+    public void Cost_centres_are_kept_per_covered_store_and_blank_ones_are_dropped()
+    {
+        var value = TallyProfileRules.Normalise(Valid() with { StoreCostCentres = new Dictionary<string, string> { [" wlmhw "] = " Titan World ", ["HEMW"] = " " } }, "D12");
+        Assert.Equal("Titan World", value.CostCentreFor("WLMHW"));
+        Assert.Null(value.CostCentreFor("HEMW"));
+        var other = Assert.Throws<ArgumentException>(() => TallyProfileRules.Normalise(Valid() with { StoreCostCentres = new Dictionary<string, string> { ["OTHER"] = "Elsewhere" } }, "D12"));
+        Assert.Contains("not one of this company's stores", other.Message, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData("9876543210")]
     [InlineData("SHOP9876543210")]

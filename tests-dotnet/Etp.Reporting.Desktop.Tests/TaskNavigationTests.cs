@@ -14,7 +14,7 @@ public sealed class TaskNavigationTests
         "connection", "health", "backups", "recovery", "support-package", "audit", "users", "profiles",
         "stores", "kpi", "tender-rules", "staff-target", "watch-folder", "sharing", "sharing-contacts",
         "tally-companies", "prepare-batch", "open-items", "data-quality", "approval-centre", "adjustment",
-        "keep-evidence", "dashboard-overview"
+        "keep-evidence", "dashboard-overview", "tally-ledgers", "tally-vouchers"
     ];
     private static readonly string[] ImportRoleTasks =
     [
@@ -23,15 +23,16 @@ public sealed class TaskNavigationTests
         "register-transfer", "register-vendor", "register-courier"
     ];
 
-    // 56 fixed tasks (18 for every role, 15 that need the import role, 23 Owner-only),
+    // 58 fixed tasks (18 for every role, 15 that need the import role, 25 Owner-only),
     // 22 catalogue reports and 22 Help topics. 89/69/54 on 26 Sep; Phase 7 added
     // "tally-companies", the 1.9.3 evidence fixes "keep-evidence" and 1.9.4 (FIX-15)
     // "dashboard-overview" for the Owner; the Service interim (decision 15) added four
     // Service centre screens and the "service-centre" Help topic for every role; the 1.10.0
     // Service rail (design 3.1) added "service-today", "service-claims" and "service-parts"
-    // for every role (Q13) and moved the four interim screens onto it.
+    // for every role (Q13) and moved the four interim screens onto it; 1.10.0 Tally PR #3
+    // added "tally-ledgers" and "tally-vouchers" for the Owner.
     [Theory]
-    [InlineData("OWNER", 100)]
+    [InlineData("OWNER", 102)]
     [InlineData("STORE_MANAGER", 77)]
     [InlineData("VIEWER", 62)]
     public void Each_role_reaches_exactly_its_written_out_destinations(string role, int expectedCount)
@@ -39,7 +40,7 @@ public sealed class TaskNavigationTests
         var access = role switch { "OWNER" => ShellAccess.Owner, "STORE_MANAGER" => ShellAccess.StoreManager, _ => ShellAccess.Viewer };
         Assert.Equal(22, TaskNavigation.All.Count(task => task.ReportCode is not null));
         Assert.Equal(22, TaskNavigation.All.Count(task => task.Id.StartsWith("help:", StringComparison.Ordinal)));
-        Assert.Equal(56, TaskNavigation.All.Count(task => task.ReportCode is null && !task.Id.StartsWith("help:", StringComparison.Ordinal)));
+        Assert.Equal(58, TaskNavigation.All.Count(task => task.ReportCode is null && !task.Id.StartsWith("help:", StringComparison.Ordinal)));
         string[] excluded = role switch { "OWNER" => [], "STORE_MANAGER" => OwnerOnlyTasks, _ => OwnerOnlyTasks.Concat(ImportRoleTasks).ToArray() };
         Assert.All(OwnerOnlyTasks.Concat(ImportRoleTasks), id => Assert.NotNull(TaskNavigation.Find(id)));
         var expected = TaskNavigation.All.Select(task => task.Id).Except(excluded).Order().ToArray();

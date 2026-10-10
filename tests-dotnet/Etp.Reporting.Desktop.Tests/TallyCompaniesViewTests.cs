@@ -24,6 +24,7 @@ public sealed class TallyCompaniesViewTests
 
             view.CompanyInput.Text = "TEST - Renamed";
             view.StoresInput.Text = "WLMHW, HEMW";
+            view.CostCentresInput.Text = "WLMHW=Titan World; HEMW=Helios";
             view.ReasonInput.Text = "Accountant named the test company";
             view.SaveButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
@@ -31,6 +32,8 @@ public sealed class TallyCompaniesViewTests
             Assert.Equal(1, saved.Id);
             Assert.Equal("TEST - Renamed", saved.CompanyName);
             Assert.Equal(new[] { "WLMHW", "HEMW" }, saved.StoreCodes);
+            Assert.Equal("Titan World", saved.CostCentreFor("WLMHW"));
+            Assert.Equal("Helios", saved.CostCentreFor("HEMW"));
             Assert.Equal("FILE", saved.DefaultDeliveryMode);
             // Fields the screen does not show are kept, not reset (posting dates feed RULE-DAT-001).
             Assert.Equal("JSON", saved.PayloadFormat);
@@ -40,6 +43,16 @@ public sealed class TallyCompaniesViewTests
             Assert.Equal("", view.ReasonInput.Text);
             Assert.Equal("Tally company saved. Nothing has been sent to Tally.", view.StatusText.Text);
         });
+    }
+
+    [Theory]
+    [InlineData("WLMHW", "Write each cost centre as STORE=Name")]
+    [InlineData("WLMHW=Titan World; wlmhw=Other", "more than one cost centre")]
+    public void Cost_centres_are_read_as_store_equals_name(string text, string error)
+    {
+        Assert.Equal("Titan World", TallyCompaniesView.ParseCostCentres(" WLMHW = Titan World ;")["wlmhw"]);
+        Assert.Empty(TallyCompaniesView.ParseCostCentres(""));
+        Assert.Contains(error, Assert.Throws<ArgumentException>(() => TallyCompaniesView.ParseCostCentres(text)).Message, StringComparison.Ordinal);
     }
 
     [Fact]

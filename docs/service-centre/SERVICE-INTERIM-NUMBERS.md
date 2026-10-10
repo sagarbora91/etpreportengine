@@ -8,7 +8,7 @@
 |---|---|---|
 | 0046, 0047 | (on `release/1.9.4`) | 1.9.4 |
 | **0048** | `database/migrations/0048_service_centre_interim.sql` | Service interim (proposed 1.9.5) |
-| 0049 | `0049_tally_store_cost_centres.sql` (GitHub PR #3, renumbered from its 0041; decision 18) | 1.10.0 |
+| **0049** | `database/migrations/0049_tally_store_cost_centres.sql` (GitHub PR #3, renumbered from its 0041; decision 18; shipped, merged into 1.10.0 by decision 26) | 1.10.0 |
 | **0050** | `database/migrations/0050_service_centre_ui.sql` (Service UI wave, decision 25, lane sql; the design called it `0050_service_job_model.sql`) | 1.10.0 |
 | 0051 | `0051_service_claim_settlements.sql`: held for an Owner-entered claim settlement table. **Not used in 1.10.0**: decision 25 Q9 = A, claims raised only | later, if the Owner asks |
 | 0052 | `0052_service_job_index.sql`: held for the materialised job index (`service_job_index` + `refresh_service_job_index`). **Only if** the 1.10.0 acceptance timing (`docs/roadmap/SERVICE-UI-1.10.0-ACCEPTANCE.md`) shows a Service screen over about 1 s (SD-11) | 1.10.x, if measured slow |
