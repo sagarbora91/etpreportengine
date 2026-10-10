@@ -190,7 +190,7 @@ public sealed class ServiceTodayViewTests
             Assert.Equal(view.Cards.Select(card => card.Label), export.Data.Rows.Select(row => (string)row[0]!));
             Assert.Equal(view.Cards.Select(card => card.Value), export.Data.Rows.Select(row => (string)row[1]!));
             Assert.DoesNotContain(export.Data.Columns, column => ForbiddenHeaderWords.Any(word => column.Header.Contains(word, StringComparison.OrdinalIgnoreCase)));
-            Assert.Equal((new DateOnly(2026, 10, 5), new DateOnly(2026, 10, 5)), (export.Metadata.PeriodFrom, export.Metadata.PeriodTo));
+            Assert.Equal((new DateOnly(2026, 10, 5), new DateOnly(2026, 10, 5)), (export.Metadata.DateFrom, export.Metadata.DateTo));
             Assert.Equal(ServiceScreenView.ServiceCentreLabel, export.Metadata.AppliedScope);
         });
     }
@@ -286,7 +286,7 @@ public sealed class ServiceTodayViewTests
             Task.FromResult<IReadOnlyList<ServiceMoneyChange>>([]);
     }
 
-    private sealed class FakeTodayQuery : RefreshesOnlyQuery
+    private sealed class FakeTodayQuery : RefreshesOnlyQuery, IServiceReportQuery
     {
         public Func<DateOnly, ServiceToday> Summaries { get; init; } = Summary;
         public IReadOnlyDictionary<string, string> SourceKinds { get; init; } = new Dictionary<string, string> { ["S009"] = "RAW", ["S004"] = "RAW" };
