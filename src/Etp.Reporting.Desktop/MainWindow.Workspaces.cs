@@ -45,6 +45,7 @@ public partial class MainWindow
             RunFocusedReport, reportsWorkspaceView.StoreScope);
         FocusedWorkspaceHost.Content = workspace;
         if (workspace is ReportWorkspaceControl filteredReport) { filteredReport.SetStores(StoreScopes,reportsWorkspaceView.StoreScope); reportsWorkspaceView.AttachQueryFilters(filteredReport); }
+        if (workspace is DailySalesReportWorkspace dsr) AttachTodayChecklist(dsr);
         workspace.Focus();
         return true;
     }
