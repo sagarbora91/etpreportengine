@@ -45,7 +45,7 @@ public static class ServiceStages
         _ => stage,
     };
 
-    public static int Rank(string stage) { var i = Order.IndexOf(stage); return i < 0 ? Order.Count : i; }
+    public static int Rank(string stage) { var i = Array.IndexOf(Order.ToArray(), stage); return i < 0 ? Order.Count : i; }
 }
 
 /// <summary>S002 jotype_booking_quickbilling as the export spells it (Q2): everything that is not Quick Billing is Booking.</summary>
