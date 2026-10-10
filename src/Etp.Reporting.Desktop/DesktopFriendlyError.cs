@@ -100,6 +100,12 @@ public static class DesktopFriendlyError
         _ => null
     };
 
+    public const string FileInUseMessage = "The file is open in another program. Close it there and try again.";
+
+    // ERROR_SHARING_VIOLATION (32) and ERROR_LOCK_VIOLATION (33) as HRESULTs.
+    internal static bool IsFileInUse(IOException exception) =>
+        exception.HResult is unchecked((int)0x80070020) or unchecked((int)0x80070021);
+
     public const string GenericFailureMessage =
         "The action could not be completed. Technical details are available in the support package.";
 
@@ -282,7 +288,10 @@ public static class DesktopFriendlyError
         {
             UnauthorizedAccessException => "Your Windows account does not have permission for this action.",
             FileNotFoundException => "The selected file is no longer available. Select it again.",
-            IOException => "The file could not be read. Close it in other applications and try again.",
+            // RA-EXPORT-16 (1.9.9): a locked file is usually an export target open in Excel (a write),
+            // so the message no longer says "read". Imports share this branch, hence "try again".
+            IOException io when IsFileInUse(io) => FileInUseMessage,
+            IOException => "The file could not be opened or saved. Close it in other applications and try again.",
             SqlException sql => DescribeSql(sql, referenceId),
             ImportSourceException or ImportConflictException => exception.Message,
             // SqlClient's "Timeout expired. The timeout period elapsed prior to obtaining a connection from the pool."
