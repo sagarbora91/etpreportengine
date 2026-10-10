@@ -85,7 +85,27 @@ public sealed class SalesReportingService
             .ToArray();
 
         return new(dimension, ReconciliationStatus.Passed, rows, policy.Version,
-            "Aggregated source-signed values without sign transformation." + UnmappedNote(selected, dimension));
+            CountsNote(selected.ToArray(), dimension, policy) + UnmappedNote(selected, dimension));
+    }
+
+    /// <summary>
+    /// RA-SALES-12 / RA-UI-15 (1.9.9): the status line said "Aggregated source-signed values without sign transformation.",
+    /// policy wording the owner cannot use. It now gives the document counts of the period in plain words and says how
+    /// returns enter the totals. Invoices are distinct INV documents and returns distinct SR / BC documents across the whole
+    /// period (a document split over several rows is counted once here, unlike the per-row columns).
+    /// </summary>
+    public static string CountsNote(IReadOnlyCollection<SalesReportingLine> selected, SalesSummaryDimension dimension, ApprovedSalesReportingPolicy policy)
+    {
+        ArgumentNullException.ThrowIfNull(selected);
+        ArgumentNullException.ThrowIfNull(policy);
+        var returns = DistinctDocuments(selected.Where(x => x.TransactionType is ReportingTransactionType.Return or ReportingTransactionType.Cancellation));
+        if (dimension == SalesSummaryDimension.Returns)
+            return $"{returns:N0} return document(s); return values keep their minus sign.";
+        var invoices = DistinctDocuments(selected.Where(x => x.TransactionType == ReportingTransactionType.Sale));
+        var returnsCounted = policy.IncludedTransactionTypes.Contains(ReportingTransactionType.Return) ||
+            policy.IncludedTransactionTypes.Contains(ReportingTransactionType.Cancellation);
+        return $"{invoices:N0} invoice(s), {returns:N0} return(s)" +
+            (returnsCounted ? "; returns and bill cancellations are already taken off the totals." : ".");
     }
 
     /// <summary>Prefix of a Brand-wise / Brand-Segment row for lines no brand row of the store claims.</summary>
@@ -142,7 +162,9 @@ public sealed class SalesReportingService
         SalesSummaryDimension.Brand => BrandKey(line),
         // An unmapped key already carries the cluster, so it is not repeated.
         SalesSummaryDimension.BrandSegment => line.BrandRow is { Length: > 0 } row ? $"{row} / {line.BrandSegment}" : UnmappedKey(line),
-        SalesSummaryDimension.Item => line.ItemCode,
+        // RA-SALES-10 (1.9.9): keyed by store and item, so the same item code sold in two stores is two traceable rows
+        // instead of one merged row with no store.
+        SalesSummaryDimension.Item => $"{line.StoreCode} / {line.ItemCode}",
         // RA-SALES-08: returns are keyed by store and brand, like the brand-wise sales they reverse, so a return is
         // traceable to the brand it came from; the source sign is kept (returns stay negative).
         SalesSummaryDimension.Returns => $"{line.StoreCode} / {(string.IsNullOrWhiteSpace(line.Brand) ? "Unmapped" : line.Brand)}",
