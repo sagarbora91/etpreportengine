@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-## [1.9.9] - (date after the 1.9.9 gate)
+## [1.9.9] - 2026-10-10
 
 Daily use, error clarity and setup hardening, from the 9 Oct report audit and the 10 Oct internal-errors audit (`Reference\Work in progress 2026-10-10\`). No migration.
 
@@ -26,7 +26,7 @@ Daily use, error clarity and setup hardening, from the 9 Oct report audit and th
 - Enter stock by brand: when there is nothing to count the window now says no closing-stock snapshot exists for the store and date and to import the Closing Stock export; the status line is never blank, and counts are read the same way on every Windows language setting (RA-STOCK-13).
 - Find a screen (Ctrl+K): "evening" and "Evening DSR" now find the Daily Sales / DSR (RA-UI-23).
 - A file that is open in another program (for example an export target open in Excel) now says "The file is open in another program. Close it there and try again." instead of "The file could not be read" (RA-EXPORT-16).
-- Tests: unit projects and gate result filled in after the gate.
+- Gate (10 Oct 2026, elevated, on 241d1e3): Release build 0 warnings 0 errors; 3,861 tests, 0 failed, 3 skipped (Desktop 1,122, Domain 12, Import 1,087, Reporting 160, SQL integration 399, SQL 1,084); pre- and after-checks clean. Installer SHA-256 59F0FA905CE1C4438FDD17597B1B7FFB2E2EA91C655315B5350F4B2E6701318F (`Installers\ETP Reporting Engine 1.9.9\`).
 
 ## [1.9.8] - 2026-10-10
 
