@@ -230,3 +230,7 @@ Helper views `v_service_families` (read rule, date column, list label and lifecy
 `SqlServerServiceReportQuery` reads these views for the four Service screens. The money check (decision 16, rules in `ServiceMoneyCheck`) compares S004 CASH, CARD and UPI with the Titan World shop's `SERVICE_CASH`, `SERVICE_CARD` and `SERVICE_UPI` entries by bill date and per tender, and shows the difference (S004 minus manual); nothing is corrected. Entries at any other shop are returned apart, for the "Service entries at other shops (not added)" grid, and never summed. `SERVICE_WDC` is not compared, and no advance is deducted (advances are 0; a non-zero S004 ADVANCE, CHEQUE or RTGS amount is shown without a manual side).
 
 SQL error numbers 51900–51929 are the Service block (`docs/service-centre/SERVICE-INTERIM-NUMBERS.md`); 0048 uses 51900 and 51904 only. Storage: about 35k landing rows per weekly consolidated reading plus small daily raw readings; measure it with `scripts/service-centre/measure-service-growth.sql` (`docs/OPERATIONS.md`).
+
+## Phase 7 store cost centres — migration 0049
+
+`tally_profile_stores.cost_centre nvarchar(100) NULL`: D12, one Tally company for the firm with each store as a cost centre. The name must match the cost centre in Tally exactly. When a company holds more than one store, an invoice of a store without a cost centre is blocked (`COST_CENTRE_MISSING`) when its vouchers are prepared.

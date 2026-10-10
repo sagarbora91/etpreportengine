@@ -51,14 +51,14 @@ public sealed class TallyFoundationSqlTests(SqlDatabaseFixture database) : IClas
         var first = await database.ExecuteAsync(Profile("BINDA"));
         var second = await database.ExecuteAsync(Profile("BINDB"));
         var live = await database.ExecuteAsync(Profile("BINDLIVE", environment: "PRODUCTION"));
-        await database.ExecuteAsync($"INSERT dbo.tally_profile_stores VALUES({first},'TEST','TBIND')");
-        var duplicate = await Assert.ThrowsAsync<SqlException>(() => database.ExecuteAsync($"INSERT dbo.tally_profile_stores VALUES({second},'TEST','TBIND')"));
+        await database.ExecuteAsync($"INSERT dbo.tally_profile_stores(tally_profile_id,environment,store_code) VALUES({first},'TEST','TBIND')");
+        var duplicate = await Assert.ThrowsAsync<SqlException>(() => database.ExecuteAsync($"INSERT dbo.tally_profile_stores(tally_profile_id,environment,store_code) VALUES({second},'TEST','TBIND')"));
         Assert.Equal(2627, duplicate.Number);
         Assert.Contains("UQ_tally_profile_stores_store", duplicate.Message);
-        var mismatched = await Assert.ThrowsAsync<SqlException>(() => database.ExecuteAsync($"INSERT dbo.tally_profile_stores VALUES({second},'PRODUCTION','TBIND')"));
+        var mismatched = await Assert.ThrowsAsync<SqlException>(() => database.ExecuteAsync($"INSERT dbo.tally_profile_stores(tally_profile_id,environment,store_code) VALUES({second},'PRODUCTION','TBIND')"));
         Assert.Equal(547, mismatched.Number);
         Assert.Contains("FK_tally_profile_stores_profile", mismatched.Message);
-        await database.ExecuteAsync($"INSERT dbo.tally_profile_stores VALUES({live},'PRODUCTION','TBIND')");
+        await database.ExecuteAsync($"INSERT dbo.tally_profile_stores(tally_profile_id,environment,store_code) VALUES({live},'PRODUCTION','TBIND')");
         Assert.Equal(2, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.tally_profile_stores WHERE store_code='TBIND'"));
     }
 

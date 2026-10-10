@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [1.10.0] - (date after the 1.10.0 gate)
+
+Tally batch creation from GitHub PR #3 (merged as the PR branch tip, including the Tally vouchers and Tally ledgers screens; decisions 18 and 26). Its migration was written as 0041, which the 1.9.3 import engine fixes had already taken; it ships as 0049 (`0049_tally_store_cost_centres.sql`) and no database ever applied it as 0041. The two new screens are Owner only (Settings > Accounting > Tally vouchers, Settings > Integrations > Tally ledgers).
+
+- Tally batch creation: ETP can prepare one store's day as Tally Sales vouchers, one per invoice, from the sales, GST and payment data it already holds and the approved ledger mappings. Each store's vouchers carry its cost centre, set on the Tally companies screen (migration 0049, `0049_tally_store_cost_centres.sql`). An invoice ETP cannot prepare exactly is kept back with a reason. A return or a split payment is left for a later step; a missing ledger or GST row stops the day until it is fixed. Preparing a batch sends nothing to Tally.
+- New Settings screens for the Owner: **Tally vouchers** prepares a store's day as Tally vouchers, shows each invoice as ready, left out or to be fixed, saves the batch and accepts its warnings with a reason; **Tally ledgers** lists the ledger names Tally vouchers use, shows which ones a store still needs, and saves a new version with a reason. A batch of Tally vouchers can be approved only when its warnings are accepted, and the old day-journal export refuses it.
+- New `docs/audit/PHASE-7-TALLY-PROBE-CHECK-SHEET.md`: a printable sheet for one visit to the Tally PC with the accountant. It records how the installed Tally behaves using only the TEST company, three hand-keyed vouchers, a hand-exported Day Book and read-only requests.
+
+Status: ETP does not send anything to Tally yet: no Tally PC has been tested (plan task 5) and D18 is still open. Batch creation follows the decision sheet's recommendations for D12 to D17; the accountant has not yet signed the sheet or named the ledgers.
+
 ## [1.9.7] - (date after the 1.9.7 gate)
 
 Setup reliability fix plus the first fixes from the 9 Oct 2026 report audit (`Reference\Work in progress 2026-10-09\REPORT-AUDIT\`, 115 findings RA-*). No migration; the five lane branches `fix197/*` are merged here.

@@ -94,6 +94,24 @@ public sealed class TallyProfileServiceSqlTests(SqlDatabaseFixture database) : I
     }
 
     [Fact]
+    public async Task One_company_for_two_stores_keeps_each_stores_cost_centre()
+    {
+        await database.ExecuteAsync("INSERT dbo.stores(store_code,store_name) VALUES('TPCC1',N'Synthetic store one'),('TPCC2',N'Synthetic store two')");
+        var service = new SqlServerTallyProfileService(database.ConnectionString);
+        var id = await service.SaveAsync(TallyProfile.NewTest("TPCC", "TEST - Firm", new[] { "TPCC1", "TPCC2" }) with
+            { StoreCostCentres = new Dictionary<string, string> { ["TPCC1"] = "Titan World", ["TPCC2"] = "Helios" } }, "D12 cost centres");
+
+        var saved = Assert.Single(await service.LoadAsync(), profile => profile.Id == id);
+        Assert.Equal("Titan World", saved.CostCentreFor("TPCC1"));
+        Assert.Equal("Helios", saved.CostCentreFor("TPCC2"));
+
+        await service.SaveAsync(saved with { StoreCostCentres = new Dictionary<string, string> { ["TPCC1"] = "Titan World" } }, "Helios centre removed");
+        var changed = Assert.Single(await service.LoadAsync(), profile => profile.Id == id);
+        Assert.Null(changed.CostCentreFor("TPCC2"));
+        Assert.Equal(new[] { "TPCC1", "TPCC2" }, changed.StoreCodes);
+    }
+
+    [Fact]
     public async Task A_remote_Tally_address_is_refused_before_the_database_is_touched()
     {
         var service = new SqlServerTallyProfileService(database.ConnectionString);
