@@ -370,6 +370,16 @@ public sealed partial class TaskNavigator(MainWindow window)
         finally { navigationPending = false; }
     }
 
+    private Modules.Service.ServiceDrillDown? pendingServiceDrillDown;
+
+    /// <summary>Opens another Service screen with a drill-down argument (design 3.2 and 3.3).</summary>
+    public void NavigateService(Modules.Service.ServiceDrillDown target)
+    {
+        if (TaskNavigation.Find(target.TaskId) is not { } task || task.Destination != Modules.Service.ServiceScreens.Destination) return;
+        pendingServiceDrillDown = target;
+        NavigateTask(task);
+    }
+
     public void NavigateTask(TaskDestination task)
     {
         if (task.Section == "profile") { window.OpenProfile_Click(window, new RoutedEventArgs()); return; }
@@ -448,7 +458,13 @@ public sealed partial class TaskNavigator(MainWindow window)
         var openItems = false;
         var id = task.Id;
         if (task.Destination == Modules.Service.ServiceScreens.Destination)
-            return Modules.Service.ServiceScreens.Create(id, window.serviceReportQuery, window.serviceExcelExport);
+        {
+            // A drill-down (Service Today card, Pending row) names the next screen and its argument; the argument is
+            // consumed by the screen it was meant for and never leaks into a later plain navigation.
+            var argument = pendingServiceDrillDown?.TaskId == id ? pendingServiceDrillDown.Argument : null;
+            pendingServiceDrillDown = null;
+            return Modules.Service.ServiceScreens.Create(id, window.serviceReportQuery, window.serviceExcelExport, NavigateService, argument);
+        }
         if (id == "import-history")
         {
             var history = window.importHistoryView ?? throw new InvalidOperationException("Import history is not configured.");

@@ -14,6 +14,7 @@
     <Button Content="Import" Tag="Import" Click="Section_Click" Margin="0,3" Padding="4"/>
     <Button Content="Reports" Tag="Reports" Click="Section_Click" Margin="0,3" Padding="4"/>
     <Button Content="Stock" Tag="Stock" Click="Section_Click" Margin="0,3" Padding="4"/>
+    <Button Content="Service" Tag="Service" Click="Section_Click" Margin="0,3" Padding="4"/>
     <Button Content="Settings" Tag="Settings" Click="Section_Click" Margin="0,3" Padding="4"/>
     <Button Content="⌕ Search" Click="OpenGlobalSearch_Click" Margin="0,16,0,0" Padding="4" automation:AutomationProperties.Name="Find a screen"/>
     <Button Content="More details" Click="StatusDetails_Click" Margin="0,4" Padding="4" automation:AutomationProperties.Name="Read full status"/>

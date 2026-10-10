@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Threading;
+using System.Windows.Automation;
 using System.Windows.Controls;
 using Etp.Reporting.Application.Service;
 using Etp.Reporting.Desktop.Modules.Service;
@@ -39,6 +40,65 @@ public sealed class ServiceScreenViewTests
     }
 
     [Fact]
+    public void Every_screen_shows_the_freshness_strip_under_the_as_at_line()
+    {
+        RunSta(() =>
+        {
+            var query = new FakeServiceQuery();
+            var view = new ServiceJobsView(() => query, NoExport) { FreshnessToday = () => new DateOnly(2026, 10, 9) };
+
+            view.ActivateAsync().GetAwaiter().GetResult();
+
+            Assert.Equal(1, query.FreshnessCalls);
+            Assert.Equal(ServiceFreshnessStrip.Groups.Select(group => group.Group), view.Freshness.Select(chip => chip.Group));
+            var pending = view.Freshness.Single(chip => chip.Group == "Pending lists");
+            Assert.Equal("Pending lists: last export 05 Oct 2026 (raw)", pending.Text);
+            Assert.Equal(ServiceFreshnessLevel.Fresh, pending.Level);
+            Assert.Equal(ServiceFreshnessLevel.NoExport, view.Freshness.Single(chip => chip.Group == "Jobs").Level);
+            var strip = Descendants<WrapPanel>(view).Single(panel => AutomationProperties.GetName(panel) == "Service data freshness");
+            Assert.Equal(view.Freshness.Count, strip.Children.Count);
+            Assert.Equal(view.Freshness, strip.Children.OfType<Border>().Select(border => (ServiceFreshnessChip)border.Tag));
+        });
+    }
+
+    [Fact]
+    public void Without_Service_data_the_strip_is_empty_and_freshness_is_not_queried()
+    {
+        RunSta(() =>
+        {
+            var query = new FakeServiceQuery { Refreshes = [] };
+            var view = new ServiceJobsView(() => query, NoExport);
+            view.ActivateAsync().GetAwaiter().GetResult();
+            Assert.Equal(0, query.FreshnessCalls);
+            Assert.Empty(view.Freshness);
+        });
+    }
+
+    [Theory]
+    [InlineData("claims")]
+    [InlineData("parts")]
+    public void A_placeholder_screen_keeps_the_frame_and_points_at_the_interim_lists(string screen)
+    {
+        RunSta(() =>
+        {
+            var opened = new List<ServiceDrillDown>();
+            var definition = screen == "claims" ? ServicePlaceholderView.Claims : ServicePlaceholderView.Parts;
+            var view = new ServicePlaceholderView(definition, () => new FakeServiceQuery(), NoExport, opened.Add);
+
+            view.ActivateAsync().GetAwaiter().GetResult();
+
+            Assert.StartsWith(ServicePlaceholderView.NotYetText, view.StatusText, StringComparison.Ordinal);
+            Assert.Empty(view.Rows);
+            Assert.NotEmpty(view.Freshness);
+            var buttons = Descendants<Button>(view).Where(button => definition.Links.Any(link => link.Label == (string)button.Content)).ToArray();
+            Assert.Equal(definition.Links.Count, buttons.Length);
+            foreach (var button in buttons) button.RaiseEvent(new System.Windows.RoutedEventArgs(Button.ClickEvent));
+            Assert.Equal(definition.Links.Select(link => link.Target), opened);
+            Assert.All(opened, target => Assert.Contains(target.TaskId, ServiceScreens.Tasks));
+        });
+    }
+
+    [Fact]
     public void All_lists_passes_no_status_filter()
     {
         RunSta(() =>
@@ -56,6 +116,9 @@ public sealed class ServiceScreenViewTests
     [InlineData("pending")]
     [InlineData("history")]
     [InlineData("money")]
+    [InlineData("today")]
+    [InlineData("claims")]
+    [InlineData("parts")]
     public void Every_screen_says_no_Service_data_imported_yet_when_nothing_is_imported(string screen)
     {
         RunSta(() =>
@@ -79,6 +142,9 @@ public sealed class ServiceScreenViewTests
     [InlineData("pending")]
     [InlineData("history")]
     [InlineData("money")]
+    [InlineData("today")]
+    [InlineData("claims")]
+    [InlineData("parts")]
     public void A_load_failure_is_described_by_DesktopFriendlyError(string screen)
     {
         RunSta(() =>
@@ -267,6 +333,7 @@ public sealed class ServiceScreenViewTests
     [InlineData("pending")]
     [InlineData("history")]
     [InlineData("money")]
+    [InlineData("today")]
     public void Export_writes_the_visible_columns_and_no_phone_email_or_address_column(string screen)
     {
         RunSta(() =>
@@ -317,7 +384,7 @@ public sealed class ServiceScreenViewTests
     [Fact]
     public void No_contract_record_carries_a_phone_email_or_address_field()
     {
-        var types = new[] { typeof(ServiceRefresh), typeof(ServiceJobRow), typeof(ServicePendingRow), typeof(ServiceJobEvent), typeof(ServiceMoneyDay), typeof(ServiceMoneyChange), typeof(ServiceUnmatchedMoneyEntry) };
+        var types = new[] { typeof(ServiceRefresh), typeof(ServiceJobRow), typeof(ServicePendingRow), typeof(ServiceJobEvent), typeof(ServiceMoneyDay), typeof(ServiceMoneyChange), typeof(ServiceUnmatchedMoneyEntry), typeof(ServiceFamilyFreshness), typeof(ServiceTodaySummary) };
         Assert.All(types.SelectMany(type => type.GetProperties()), property =>
             Assert.DoesNotContain(ForbiddenHeaderWords, word => property.Name.Contains(word.Replace("-", ""), StringComparison.OrdinalIgnoreCase)));
     }
@@ -327,6 +394,9 @@ public sealed class ServiceScreenViewTests
         "jobs" => new ServiceJobsView(() => query, export ?? NoExport),
         "pending" => new ServicePendingView(() => query, export ?? NoExport),
         "history" => new ServiceJobHistoryView(() => query, export ?? NoExport),
+        "today" => new ServiceTodayView(() => query, export ?? NoExport),
+        "claims" => new ServicePlaceholderView(ServicePlaceholderView.Claims, () => query, export ?? NoExport, null),
+        "parts" => new ServicePlaceholderView(ServicePlaceholderView.Parts, () => query, export ?? NoExport, null),
         _ => new ServiceMoneyView(() => query, export ?? NoExport)
     };
 
@@ -452,6 +522,27 @@ public sealed class ServiceScreenViewTests
         {
             IReadOnlyList<ServiceMoneyChange> rows = [new(new(2026, 9, 27), "S004", new(2026, 9, 28), 600m, new(2026, 10, 5), 850m)];
             return Task.FromResult(rows);
+        }
+
+        public IReadOnlyList<ServiceFamilyFreshness> Freshness { get; init; } =
+        [
+            new("S009", new(2026, 10, 5), ServiceSourceKinds.Raw, 7, ImportedUtc),
+            new("S004", new(2026, 10, 5), ServiceSourceKinds.Raw, 9, ImportedUtc)
+        ];
+        public int FreshnessCalls { get; private set; }
+
+        public Task<IReadOnlyList<ServiceFamilyFreshness>> LoadFreshnessAsync(CancellationToken cancellationToken = default)
+        {
+            FreshnessCalls++;
+            return Task.FromResult(Freshness);
+        }
+
+        public DateOnly? LastTodayDate { get; private set; }
+
+        public Task<ServiceTodaySummary> LoadTodayAsync(DateOnly businessDate, CancellationToken cancellationToken = default)
+        {
+            BodyCalls++; LastTodayDate = businessDate;
+            return Task.FromResult(new ServiceTodaySummary(businessDate, 6, 4, 2, 61, 40, 21, 4, 58, 1, 3, 46, 25, 11, 97, 12, 12_500m, 12_500m, 9, 7));
         }
     }
 }
