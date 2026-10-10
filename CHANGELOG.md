@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+## [1.9.8] - (date after the 1.9.8 gate)
+
+Report polish from the 9 Oct 2026 audit, export reliability, two import fixes and the import-register triage. No migration.
+
+- Summary tab and PDF summary: 19 of 22 reports now show 3-5 KPI cards and one chart built from the rows already loaded (sales, stock, staff, tender and diagnostics, cash book, service, exceptions, management trend), instead of a single "Rows: N" card (RA-EXPORT-05). A PDF summary page comes before the detail rows. The unused SVG/visual code and `ManagementTrendChart` were removed.
+- Brand-wise and Brand-Segment Sales are grouped by the owner's brand rows (the same rule as the DSR, shared as `BrandRowSql.MappedRowOfL`) instead of the export's distributor brand; a line no row claims shows as "Unmapped: <brand>" (or "<brand> / <cluster>"), never pooled into one "Other", and the status line names each unmapped brand with its value and points to Settings > Stores & masters > Brands and targets. Totals are unchanged (live Sep 2026: HEMW 7,85,777.00 with 55,590.50 unmapped; WLMHW 10,02,352.00 with 74,832.84 unmapped). The Invoice Source Drill-down Brand column uses the same rule.
+- "Variance only" applies only to reports with a variance column and is disabled with a hint elsewhere (it used to empty 18 reports); Returns rows are keyed by store and brand and count distinct return documents (Invoices was always 0); Physical Stock hides two internal columns; Favourites uses the report-list tiles; the footer status line shows the new screen on navigation; Management Trend checks the date window before querying.
+- Exports: the focused-workspace Excel/PDF export, Ctrl+E/Ctrl+P and the Actions menu observe the export task and report failures on the status line and in diagnostics (`REPORT_EXCEL_EXPORT_FAILED`, `REPORT_PDF_EXPORT_FAILED`) instead of losing them (RA-EXPORT-01). Every report Save dialog is owned by the main window and starts in `Documents\ETP Reporting Engine\Exports`, the folder "Open export folder" opens (RA-EXPORT-02); the same applies to the Archive pack, Service, management summary and daily pack exports.
+- Import (IF-025): a workbook edited in Excel after export (several sheets matching one layout, or one matching sheet plus pivot/extra sheets) is refused with `WORKBOOK_EDITED_AFTER_EXPORT`, naming the sheets and asking for a fresh export, instead of "Unknown layout"; nothing from it is imported.
+- Import (IF-021): four fixture tests prove that the same line in two overlapping exports gives one sales line and the later export wins; no engine change was needed.
+- Import failure register: rows IF-015 to IF-023 (1 Oct 2026, previously only on the unmerged docs branch) are now in the register with the import-engine spec and decision records; a dated "Triage 10 Oct 2026" section records verdicts for every open row (IF-014, 016-020, 022, 023, 027 fixed; IF-024 and IF-026 verified on live; IF-015 superseded) and proposes IF-028 to IF-032 (OPEN, four need the owner's decision). By this release IF-021 and IF-025 are fixed.
+- Tests: about 100 new tests (export path, worksheet writer, PDF pagination, DSR PDF, file names, Save dialog, summaries, brand rows, edited-workbook preflight, overlapping exports); gate result and installer hash filled in after the gate.
+
 ## [1.9.7] - 2026-10-10
 
 Setup reliability fix plus the first fixes from the 9 Oct 2026 report audit (`Reference\Work in progress 2026-10-09\REPORT-AUDIT\`, 115 findings RA-*). No migration; the five lane branches `fix197/*` are merged here.
