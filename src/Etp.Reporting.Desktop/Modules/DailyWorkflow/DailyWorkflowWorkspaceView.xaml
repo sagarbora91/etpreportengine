@@ -86,6 +86,7 @@
                 <Button x:Name="SaveStaffTargetButton" Content="Save target" Click="SaveStaffTarget_Click" Style="{DynamicResource PrimaryButton}" Padding="12,7" Margin="6,0,0,0"
                         automation:AutomationProperties.Name="Save staff target"/>
             </WrapPanel>
+            <StackPanel x:Name="StaffTargetCopyHost" Margin="0,4,0,0"/>
 
             <WrapPanel Margin="0,14,0,0">
                 <Button x:Name="FinaliseDayButton" Content="Finalise day" Click="FinaliseDay_Click" Style="{DynamicResource PrimaryButton}" Padding="16,8" IsEnabled="False"

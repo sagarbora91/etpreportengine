@@ -73,6 +73,7 @@ public partial class DailyWorkflowWorkspaceView : UserControl
         BusinessDateInput.SelectedDate = DateTime.Today.AddDays(-1);
         StaffTargetFromInput.SelectedDate = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
         StaffTargetToInput.SelectedDate = DateTime.Today.AddDays(-1);
+        InitializeStaffTargetCopy();
         RefreshAccessState();
     }
 
@@ -128,6 +129,7 @@ public partial class DailyWorkflowWorkspaceView : UserControl
         SaveManualInputButton.IsEnabled = current.CanImport;
         SaveStockCountButton.IsEnabled = current.CanImport;
         SaveStaffTargetButton.IsEnabled = current.CanImport;
+        RefreshStaffTargetCopyAccess(current);
         FinaliseDayButton.IsEnabled = current.CanImport && stateAllowsFinalise;
         ReopenDayButton.IsEnabled = current.CanAdminister;
         ReopenReasonInput.IsEnabled = current.CanAdminister;
