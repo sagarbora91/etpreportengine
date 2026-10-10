@@ -202,19 +202,6 @@ public sealed class ReportsMiscFixTests
     }
 
     [Fact]
-    public void Management_trend_chart_accepts_an_empty_window()
-    {
-        RunSta(() =>
-        {
-            var columns = new ExcelReportColumn[] { new("Date"), new("Store"), new("Net Sales", "#,##0.00") };
-            var panel = ManagementTrendChart.Create(new ExcelReportData(columns, []));
-            Assert.Empty(panel.Children);
-            var one = ManagementTrendChart.Create(new ExcelReportData(columns, [[new DateOnly(2026, 8, 25), "WLMHW", 236m]]));
-            Assert.Single(one.Children);
-        });
-    }
-
-    [Fact]
     public void Empty_management_trend_window_is_no_data_without_a_diagnostics_error()
     {
         RunSta(async () =>
