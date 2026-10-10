@@ -64,9 +64,12 @@ public partial class DailyWorkflowWorkspaceView
     {
         // InitializeComponent raises scope events (and so this refresh) before the copy controls exist.
         if (copyStaffTargetsButton is null) return;
+        // D22: every staff-target edit is Owner-only, so the row's inputs follow the Save button.
+        foreach (var input in new Control[] { StaffTargetCroInput, StaffTargetFromInput, StaffTargetToInput, StaffTargetValueInput, StaffTargetReasonInput })
+            input.IsEnabled = current.CanAdminister;
         copyStaffTargetsButton.IsEnabled = current.CanAdminister;
         saveCopiedStaffTargetsButton.IsEnabled = current.CanAdminister;
-        var reason = current.CanAdminister ? null : "Owner permission is required to copy targets.";
+        var reason = current.CanAdminister ? null : StaffTargetsNeedOwnerMessage;
         copyStaffTargetsButton.ToolTip = reason;
         saveCopiedStaffTargetsButton.ToolTip = reason;
     }
@@ -77,7 +80,7 @@ public partial class DailyWorkflowWorkspaceView
         var target = TargetCopy.MonthStart(DateOnly.FromDateTime(StaffTargetFromInput.SelectedDate ?? DateTime.Today));
         var previous = TargetCopy.PreviousMonth(target);
         try { RequireOwnerAccess(); }
-        catch (Exception exception) { PublishFailure(exception, "STAFF_TARGET_COPY_FAILED", "Staff targets were not copied", "Owner permission is required."); return; }
+        catch (Exception exception) { PublishFailure(exception, "STAFF_TARGET_COPY_FAILED", "Staff targets were not copied", StaffTargetsNeedOwnerMessage); return; }
         if (pendingStaffTargetCopy.Count > 0 && !ConfirmDiscardStaffTargetCopy(
                 $"Copied staff targets for {TargetCopy.MonthLabel(pendingStaffTargetMonth)} are not saved yet. Replace them with a new copy?"))
             return;
@@ -96,7 +99,7 @@ public partial class DailyWorkflowWorkspaceView
                 ? $"No staff targets are saved for {store} in {TargetCopy.MonthLabel(previous)}. Nothing was copied."
                 : $"Copied {plan.Count} staff target(s) for {store} from {TargetCopy.MonthLabel(previous)} into {TargetCopy.MonthLabel(target)}. Nothing is saved yet: check the values, then press Save copied targets.");
         }
-        catch (Exception exception) { PublishFailure(exception, "STAFF_TARGET_COPY_FAILED", "Staff targets were not copied", "Owner permission is required."); }
+        catch (Exception exception) { PublishFailure(exception, "STAFF_TARGET_COPY_FAILED", "Staff targets were not copied", StaffTargetsNeedOwnerMessage); }
         finally { EndOperation(); }
     }
 
@@ -136,7 +139,7 @@ public partial class DailyWorkflowWorkspaceView
             await RelayDashboardRefreshAsync();
             Publish($"Saved {saved} staff target(s) for {month}.");
         }
-        catch (Exception exception) { PublishFailure(exception, "STAFF_TARGET_COPY_SAVE_FAILED", "Copied staff targets were not all saved", "Owner permission is required."); }
+        catch (Exception exception) { PublishFailure(exception, "STAFF_TARGET_COPY_SAVE_FAILED", "Copied staff targets were not all saved", StaffTargetsNeedOwnerMessage); }
         finally { EndOperation(); }
     }
 

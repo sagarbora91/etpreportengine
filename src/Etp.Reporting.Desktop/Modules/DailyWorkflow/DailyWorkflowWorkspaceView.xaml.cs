@@ -128,7 +128,10 @@ public partial class DailyWorkflowWorkspaceView : UserControl
         RefreshButton.IsEnabled = current.CanView;
         SaveManualInputButton.IsEnabled = current.CanImport;
         SaveStockCountButton.IsEnabled = current.CanImport;
-        SaveStaffTargetButton.IsEnabled = current.CanImport;
+        // D22: staff targets are Owner-only (decision extended 10 Oct 2026), like monthly targets.
+        SaveStaffTargetButton.IsEnabled = current.CanAdminister;
+        SaveStaffTargetButton.ToolTip = current.CanAdminister ? null : StaffTargetsNeedOwnerMessage;
+        ToolTipService.SetShowOnDisabled(SaveStaffTargetButton, true);
         RefreshStaffTargetCopyAccess(current);
         FinaliseDayButton.IsEnabled = current.CanImport && stateAllowsFinalise;
         ReopenDayButton.IsEnabled = current.CanAdminister;
@@ -228,7 +231,7 @@ public partial class DailyWorkflowWorkspaceView : UserControl
         if (!BeginOperation()) return;
         try
         {
-            RequireImportAccess();
+            if (!access().CanAdminister) throw new UnauthorizedAccessException(StaffTargetsNeedOwnerMessage);
             var scope = SelectedScope();
             await commandsFactory(connectionString()).SaveStaffTargetAsync(
                 presentation.CreateStaffTarget(
@@ -240,7 +243,7 @@ public partial class DailyWorkflowWorkspaceView : UserControl
             await RelayDashboardRefreshAsync();
             Publish("Staff/CRO target saved. Target achievement and ranking are available in the staff report.");
         }
-        catch (Exception exception) { PublishFailure(exception, "STAFF_TARGET_SAVE_FAILED", "Staff target was not saved", "Owner or Store Manager permission is required."); }
+        catch (Exception exception) { PublishFailure(exception, "STAFF_TARGET_SAVE_FAILED", "Staff target was not saved", StaffTargetsNeedOwnerMessage); }
         finally { EndOperation(); }
     }
 
@@ -398,6 +401,8 @@ public partial class DailyWorkflowWorkspaceView : UserControl
     {
         if (!access().CanView) throw new UnauthorizedAccessException("This Windows account does not have application access.");
     }
+
+    public const string StaffTargetsNeedOwnerMessage = "Only the Owner can change staff targets.";
 
     public const string PackGenerationNeedsManagerMessage =
         "Owner or Store Manager permission is required to generate a pack. Saved packs are in Reports → Archive.";

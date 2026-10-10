@@ -196,4 +196,32 @@ public sealed class DailyWorkflowServiceTests
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.ReopenAsync(command));
     }
+
+    // D22 extended 10 Oct 2026: staff targets are Owner-only; the service refuses a Store Manager before SQL.
+    [Theory]
+    [InlineData(ApplicationRole.StoreManager)]
+    [InlineData(ApplicationRole.Viewer)]
+    public async Task Non_owner_is_refused_before_a_staff_target_save_reaches_SQL(ApplicationRole role)
+    {
+        var service = new SqlServerDailyWorkflowService(
+            @"Server=.\SQLEXPRESS;Database=EtpReporting;Integrated Security=True;TrustServerCertificate=True",
+            _ => Task.FromResult(new ApplicationAccess("user", "User", role, true)));
+        var command = new SaveDailyStaffTarget("TST01", "101", new(2026, 10, 1), new(2026, 10, 31), 900m, "user", "Monthly target");
+
+        var refused = await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.SaveStaffTargetAsync(command));
+        Assert.Equal(SqlServerDailyWorkflowService.StaffTargetsNeedOwnerMessage, refused.Message);
+    }
+
+    [Fact]
+    public async Task Owner_passes_the_staff_target_access_check()
+    {
+        var service = new SqlServerDailyWorkflowService(
+            @"Server=.\SQLEXPRESS;Database=EtpReporting;Integrated Security=True;TrustServerCertificate=True",
+            _ => Task.FromResult(new ApplicationAccess("owner", "Owner", ApplicationRole.Owner, true)));
+        // An end date before the start fails the repository's own validation, which runs only after the access
+        // check and before any SQL connection, so reaching it proves the Owner was allowed through.
+        var command = new SaveDailyStaffTarget("TST01", "101", new(2026, 10, 31), new(2026, 10, 1), 900m, "owner", "Monthly target");
+
+        await Assert.ThrowsAsync<ArgumentException>(() => service.SaveStaffTargetAsync(command));
+    }
 }

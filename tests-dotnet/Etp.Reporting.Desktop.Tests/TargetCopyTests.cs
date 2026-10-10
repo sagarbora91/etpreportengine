@@ -184,7 +184,44 @@ public sealed class TargetCopyTests
             Assert.False(FindButton(view, "Copy staff targets from previous month").IsEnabled);
             await view.CopyStaffTargetsFromPreviousMonthAsync();
             Assert.Equal(0, query.Calls);
-            Assert.Contains("Owner permission is required", view.StatusText);
+            Assert.Contains(DailyWorkflowWorkspaceView.StaffTargetsNeedOwnerMessage, view.StatusText);
+        });
+    }
+
+    // D22 extended 10 Oct 2026: the single-row staff target editor is Owner-only, like monthly targets.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Single_row_staff_target_save_is_owner_only(bool owner)
+    {
+        RunSta(async () =>
+        {
+            var commands = new RecordingCommands();
+            var view = CreateStaffView(new StaffTargetQuery([]), commands, new(true, true, owner));
+            view.RefreshAccessState();
+            var save = FindButton(view, "Save staff target");
+            Assert.Equal(owner, save.IsEnabled);
+            Assert.Equal(owner ? null : DailyWorkflowWorkspaceView.StaffTargetsNeedOwnerMessage, save.ToolTip);
+            Assert.Equal(owner, Find<TextBox>(view, "Staff CRO number").IsEnabled);
+            Assert.Equal(owner, Find<TextBox>(view, "Staff target sales").IsEnabled);
+            Find<TextBox>(view, "Staff CRO number").Text = "101";
+            Find<DatePicker>(view, "Staff target start date").SelectedDate = new DateTime(2026, 10, 1);
+            Find<DatePicker>(view, "Staff target end date").SelectedDate = new DateTime(2026, 10, 31);
+            Find<TextBox>(view, "Staff target sales").Text = 900m.ToString(CultureInfo.CurrentCulture);
+            Find<TextBox>(view, "Staff target change reason").Text = "Monthly target";
+
+            await view.SaveStaffTargetAsync();
+
+            if (owner)
+            {
+                var row = Assert.Single(commands.Saved);
+                Assert.Equal(("TST01", "101", 900m), (row.StoreCode, row.CroNumber, row.TargetSales));
+            }
+            else
+            {
+                Assert.Empty(commands.Saved);
+                Assert.Contains(DailyWorkflowWorkspaceView.StaffTargetsNeedOwnerMessage, view.StatusText);
+            }
         });
     }
 
