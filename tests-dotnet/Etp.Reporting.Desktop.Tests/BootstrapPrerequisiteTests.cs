@@ -1081,6 +1081,19 @@ public sealed class BootstrapPrerequisiteTests
             try { Assert-EtpHeadlessStepSucceeded -Result $refused -Step 'Configured database migration' -Log $logger } catch { $failure = $_.Exception.Message }
             if (($global:log -join '|') -cne 'The application reported: Database update refused (SQL 51240): the day is finalised.|The application reported: Second line') { throw "Logged: $($global:log -join ' / ')" }
             if ($failure -cne 'Configured database migration failed with exit code 3. The application reported: Database update refused (SQL 51240): the day is finalised. (Everything it reported is in the lines above.)') { throw "Failure: $failure" }
+            # The application's own failure line (199-STDERR-FORMAT.md) is the reason even after runtime noise; every line is logged.
+            $global:log.Clear(); $failure = $null
+            $prefixed = Invoke-EtpHeadlessApplication -FilePath $cmd -Argument '/c "echo Runtime noise 1>&2& echo ETP-STARTUP-FAILED mode=initialize-configured-database kind=LoginRefused sql=18456,4060: SQL Server refused the Windows login. 1>&2& exit /b 1"'
+            try { Assert-EtpHeadlessStepSucceeded -Result $prefixed -Step 'Configured database migration' -Log $logger } catch { $failure = $_.Exception.Message }
+            if (($global:log -join '|') -cne 'The application reported: Runtime noise|The application reported: ETP-STARTUP-FAILED mode=initialize-configured-database kind=LoginRefused sql=18456,4060: SQL Server refused the Windows login.') { throw "Prefixed log: $($global:log -join ' / ')" }
+            if ($failure -cne 'Configured database migration failed with exit code 1 (LoginRefused, SQL error 18456,4060): SQL Server refused the Windows login.') { throw "Prefixed failure: $failure" }
+            $parsed = ConvertFrom-EtpStartupFailureLine 'ETP-STARTUP-FAILED mode=configuration kind=InvalidConfiguration sql=none: Bad: value'
+            if ($parsed.Mode -cne 'configuration' -or $parsed.Kind -cne 'InvalidConfiguration' -or $parsed.Sql -cne 'none' -or $parsed.Reason -cne 'Bad: value') { throw 'The failure line was not parsed.' }
+            foreach ($other in @('', 'ETP-STARTUP-FAILED kind=Other: x', 'note ETP-STARTUP-FAILED mode=a kind=b sql=none: c')) { if ($null -ne (ConvertFrom-EtpStartupFailureLine $other)) { throw "Parsed a non-failure line: $other" } }
+            $global:log.Clear(); $failure = $null
+            $plain = Invoke-EtpHeadlessApplication -FilePath $cmd -Argument '/c "echo ETP-STARTUP-FAILED mode=configuration kind=InvalidConfiguration sql=none: Connection string rejected. 1>&2& exit /b 2"'
+            try { Assert-EtpHeadlessStepSucceeded -Result $plain -Step 'Configured database migration' -Log $logger } catch { $failure = $_.Exception.Message }
+            if ($failure -cne 'Configured database migration failed with exit code 2 (InvalidConfiguration): Connection string rejected.') { throw "No SQL number: $failure" }
             # Silent failure: says so, and where the diagnostics entry is.
             $global:log.Clear(); $failure = $null
             $silent = Invoke-EtpHeadlessApplication -FilePath $cmd -Argument '/c exit /b 1'

@@ -606,6 +606,8 @@ function Invoke-EtpHeadlessApplication {
     $start.UseShellExecute = $false
     $start.CreateNoWindow = $true
     $start.RedirectStandardError = $true
+    # The application writes its stderr line as UTF-8 (199-STDERR-FORMAT.md).
+    $start.StandardErrorEncoding = [Text.Encoding]::UTF8
     $process = [System.Diagnostics.Process]::Start($start)
     try {
         $errorText = $process.StandardError.ReadToEndAsync()
@@ -631,14 +633,36 @@ function ConvertTo-EtpApplicationReportLines {
     return $result.ToArray()
 }
 
+function ConvertFrom-EtpStartupFailureLine {
+    # Pure. The one line a headless mode writes to stderr when it fails (1.9.9, lane
+    # startup-connection, 199-STDERR-FORMAT.md):
+    #   ETP-STARTUP-FAILED mode=<mode> kind=<kind> sql=<numbers|none>: <reason>
+    # Returns Mode, Kind, Sql and Reason, or $null for any other line.
+    param([AllowEmptyString()][AllowNull()][string]$Line)
+    if ([string]::IsNullOrEmpty($Line)) { return $null }
+    $match = [regex]::Match($Line.TrimEnd(), '^ETP-STARTUP-FAILED mode=(?<mode>\S+) kind=(?<kind>\S+) sql=(?<sql>\S+): (?<reason>.*)$')
+    if (-not $match.Success) { return $null }
+    return [pscustomobject]@{ Mode = $match.Groups['mode'].Value; Kind = $match.Groups['kind'].Value; Sql = $match.Groups['sql'].Value; Reason = $match.Groups['reason'].Value }
+}
+
 function Assert-EtpHeadlessStepSucceeded {
-    # Writes whatever the application reported to the setup log (on success too: a warning there
-    # is worth keeping) and throws, naming the reason, when it exited non-zero. The trap then
-    # logs the FAILED line with that reason and setup reports 1603 as before.
+    # Writes everything the application reported to the setup log (on success too: a warning
+    # there is worth keeping) and throws, naming the reason, when it exited non-zero. The reason
+    # is the ETP-STARTUP-FAILED line when there is one (other stderr lines can be runtime noise),
+    # otherwise the first line. The trap then logs the FAILED line with that reason and setup
+    # reports 1603 as before.
     param([Parameter(Mandatory)]$Result,[Parameter(Mandatory)][string]$Step,[Parameter(Mandatory)][scriptblock]$Log)
     $lines = @(ConvertTo-EtpApplicationReportLines -Text $Result.ErrorText)
     foreach ($line in $lines) { & $Log $line }
     if ([int]$Result.ExitCode -eq 0) { return }
+    $failure = $null
+    if (-not [string]::IsNullOrWhiteSpace([string]$Result.ErrorText)) {
+        foreach ($raw in @([string]$Result.ErrorText -split "\r?\n")) { $failure = ConvertFrom-EtpStartupFailureLine $raw; if ($failure) { break } }
+    }
+    if ($failure) {
+        $sql = if ($failure.Sql -ceq 'none') { '' } else { ", SQL error $($failure.Sql)" }
+        throw "$Step failed with exit code $($Result.ExitCode) ($($failure.Kind)$sql): $($failure.Reason)"
+    }
     if ($lines.Count -gt 0) {
         throw "$Step failed with exit code $($Result.ExitCode). $($lines[0]) (Everything it reported is in the lines above.)"
     }
