@@ -164,8 +164,7 @@ public partial class MainWindow
 
     private static void OpenExportFolder()
     {
-        var directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "ETP Reporting Engine", "Exports");
-        Directory.CreateDirectory(directory);
+        var directory = ExportSaveDialog.EnsureExportFolder();
         Process.Start(new ProcessStartInfo("explorer.exe", directory) { UseShellExecute = true });
     }
 }

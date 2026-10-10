@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using Etp.Reporting.Reporting;
 using Microsoft.Win32;
+using Etp.Reporting.Desktop.Modules.Reports;
 
 namespace Etp.Reporting.Desktop.Modules.DailyWorkflow;
 
@@ -522,13 +523,9 @@ public partial class DailyWorkflowWorkspaceView : UserControl
         if (packExportInProgress) return;
         if (currentPack is null || !PackMatchesCurrentScope()) { Publish("Generate the complete daily report pack for the selected store and business date before exporting."); return; }
         var excel = string.Equals(format, "Excel", StringComparison.Ordinal);
-        var dialog = new SaveFileDialog
-        {
-            Filter = excel ? "Excel workbook (*.xlsx)|*.xlsx" : "PDF report (*.pdf)|*.pdf",
-            FileName = $"ETP_Daily_Report_Pack_{currentPack.DateTo:yyyyMMdd}.{(excel ? "xlsx" : "pdf")}",
-            AddExtension = true
-        };
-        if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
+        var dialog = ExportSaveDialog.Create(excel ? ExportSaveDialog.ExcelFilter : ExportSaveDialog.PdfFilter,
+            $"ETP_Daily_Report_Pack_{currentPack.DateTo:yyyyMMdd}.{(excel ? "xlsx" : "pdf")}");
+        if (!ExportSaveDialog.ShowDialog(dialog, this)) return;
         using var progress = new OperationProgress(this,"Saving report pack");
         packExportInProgress = true;
         RefreshAccessState();

@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Controls;
 using Etp.Reporting.Reporting;
 using Microsoft.Win32;
+using Etp.Reporting.Desktop.Modules.Reports;
 using AccessSession = EtpApplication::Etp.Reporting.Application.Access.AccessSession;
 using AccessRole = EtpApplication::Etp.Reporting.Application.Access.AccessRole;
 using ArchivedReportGenerationSummary = EtpApplication::Etp.Reporting.Application.Archive.ArchivedReportGenerationSummary;
@@ -120,8 +121,8 @@ public sealed partial class ArchiveWorkspaceView : UserControl
         {
             RequireViewAccess();
             var document = (await session.OpenAsync(connectionStringProvider(), SelectedArchiveGeneration())).Document;
-            var dialog = new SaveFileDialog { Filter = "Excel workbook (*.xlsx)|*.xlsx", FileName = $"ETP_Archived_Pack_{document.DateTo:yyyyMMdd}.xlsx", AddExtension = true };
-            if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
+            var dialog = ExportSaveDialog.Create(ExportSaveDialog.ExcelFilter, $"ETP_Archived_Pack_{document.DateTo:yyyyMMdd}.xlsx");
+            if (!ExportSaveDialog.ShowDialog(dialog, this)) return;
             exportInProgress = true;
             await exportExcelAsync(dialog.FileName, document);
             SetStatus($"Archived Excel pack saved to {dialog.FileName}");
@@ -139,8 +140,8 @@ public sealed partial class ArchiveWorkspaceView : UserControl
         {
             RequireViewAccess();
             var document = (await session.OpenAsync(connectionStringProvider(), SelectedArchiveGeneration())).Document;
-            var dialog = new SaveFileDialog { Filter = "PDF report (*.pdf)|*.pdf", FileName = $"ETP_Archived_Pack_{document.DateTo:yyyyMMdd}.pdf", AddExtension = true };
-            if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
+            var dialog = ExportSaveDialog.Create(ExportSaveDialog.PdfFilter, $"ETP_Archived_Pack_{document.DateTo:yyyyMMdd}.pdf");
+            if (!ExportSaveDialog.ShowDialog(dialog, this)) return;
             exportInProgress = true;
             await exportPdfAsync(dialog.FileName, document);
             SetStatus($"Archived PDF pack saved to {dialog.FileName}");
@@ -157,8 +158,8 @@ public sealed partial class ArchiveWorkspaceView : UserControl
         {
             RequireViewAccess();
             var generation = SelectedArchiveGeneration();
-            var dialog = new SaveFileDialog { Filter = "ZIP report package (*.zip)|*.zip", FileName = $"ETP_ReportPack_{generation.BusinessDate:yyyy-MM-dd}_Gen{generation.GenerationNumber:D2}.zip", AddExtension = true };
-            if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
+            var dialog = ExportSaveDialog.Create(ExportSaveDialog.ZipFilter, $"ETP_ReportPack_{generation.BusinessDate:yyyy-MM-dd}_Gen{generation.GenerationNumber:D2}.zip");
+            if (!ExportSaveDialog.ShowDialog(dialog, this)) return;
             await session.OpenAsync(connectionStringProvider(), generation);
             var result = await session.CreatePackageAsync(connectionStringProvider(), generation, dialog.FileName, accessProvider().DisplayName);
             SetStatus($"saved ZIP package created. SHA-256 {result.Sha256[..12]}…");
