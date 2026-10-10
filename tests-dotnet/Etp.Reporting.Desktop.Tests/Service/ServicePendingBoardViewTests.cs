@@ -238,9 +238,10 @@ public sealed class ServicePendingBoardViewTests
     {
         RunSta(() =>
         {
-            var opened = new List<(string Task, string? Job)>();
+            // Lane history's recipe: ServiceScreens.Create passes the shell's opener (NavigateServiceJob) as openJob.
+            var opened = new List<string>();
             var view = (ServicePendingBoardView)ServiceScreens.Create(ServiceScreens.PendingTask, () => new FakeBoardQuery(), NoExport,
-                (task, job) => opened.Add((task, job)));
+                null, opened.Add);
             SpinUntil(() => !view.IsLoading);
             Assert.True(view.CanOpenJob);
             Assert.False(view.OpenSelected());
@@ -248,7 +249,7 @@ public sealed class ServicePendingBoardViewTests
 
             view.Table.SelectedItem = view.Rows.Single(row => (string)row.Cells[0]! == "JOAW330SYN0106");
             Assert.True(view.OpenSelected());
-            Assert.Equal([(ServiceScreens.JobHistoryTask, "JOAW330SYN0106")], opened);
+            Assert.Equal(["JOAW330SYN0106"], opened);
             Assert.Contains(Descendants<Button>(view), button => (string)button.Content == ServicePendingBoardView.OpenJobText && button.IsEnabled);
         });
     }
@@ -268,22 +269,6 @@ public sealed class ServicePendingBoardViewTests
     }
 
     [Fact]
-    public void ShowJob_sets_the_job_number_on_the_history_screen_and_ignores_other_views()
-    {
-        RunSta(() =>
-        {
-            var query = new FakeBoardQuery();
-            var history = new ServiceJobHistoryView(() => query, NoExport);
-            ServiceScreens.ShowJob(history, "JOAW330SYN0106");
-            SpinUntil(() => !history.IsLoading && history.SearchedJobNumber.Length > 0);
-            Assert.Equal("JOAW330SYN0106", history.JobNumber);
-            Assert.Equal("JOAW330SYN0106", query.LastJob);
-            ServiceScreens.ShowJob(new TextBlock(), "JOAW330SYN0106");
-            ServiceScreens.ShowJob(null, "JOAW330SYN0106");
-        });
-    }
-
-    [Fact]
     public void Export_writes_one_sheet_per_stage_shown_with_the_grid_columns()
     {
         RunSta(() =>
@@ -294,7 +279,8 @@ public sealed class ServicePendingBoardViewTests
 
             view.ExportToPathAsync("synthetic.xlsx").GetAwaiter().GetResult();
 
-            var document = Assert.NotNull(captured);
+            Assert.NotNull(captured);
+            var document = captured!;
             Assert.Equal("Service pending board", document.Title);
             Assert.Equal((AsAt, AsAt), (document.DateFrom, document.DateTo));
             Assert.Equal(view.AsAtText, document.Message);
@@ -313,7 +299,8 @@ public sealed class ServicePendingBoardViewTests
             view.SelectedStages = [ServiceStages.SrnOut];
             view.ActivateAsync().GetAwaiter().GetResult();
             view.ExportToPathAsync("synthetic.xlsx").GetAwaiter().GetResult();
-            var one = Assert.Single(Assert.NotNull(captured).Tables);
+            Assert.NotNull(captured);
+            var one = Assert.Single(captured!.Tables);
             Assert.Equal("SRN out for repair", one.Name);
             Assert.Equal("JOAW330SYN0106", Assert.Single(one.Data.Rows)[0]);
         });
@@ -498,7 +485,6 @@ public sealed class ServicePendingBoardViewTests
         public IReadOnlyList<ServicePendingBoardRow> Rows { get; init; } = SampleRows();
         public Exception? Failure { get; init; }
         public int BoardCalls { get; private set; }
-        public string? LastJob { get; private set; }
 
         public Task<IReadOnlyList<ServiceRefresh>> LoadRefreshesAsync(CancellationToken cancellationToken = default) =>
             Failure is null ? Task.FromResult(Refreshes) : Task.FromException<IReadOnlyList<ServiceRefresh>>(Failure);
@@ -511,13 +497,7 @@ public sealed class ServicePendingBoardViewTests
             return Task.FromResult(new ServicePendingBoard(Rows, numbers.OpenJobs, numbers.Overdue, numbers.Over30Days, numbers.InTransit, numbers.PartsAwaited, AsAt));
         }
 
-        public Task<IReadOnlyList<ServiceJobEvent>> LoadJobHistoryAsync(string jobOrderNumber, CancellationToken cancellationToken = default)
-        {
-            LastJob = jobOrderNumber;
-            IReadOnlyList<ServiceJobEvent> rows = [new(jobOrderNumber, "S011", "SRN status", ServiceJobEventKind.FirstSeen, new(2026, 10, 5), null)];
-            return Task.FromResult(rows);
-        }
-
+        public Task<IReadOnlyList<ServiceJobEvent>> LoadJobHistoryAsync(string jobOrderNumber, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<ServiceJobRow>> LoadJobsByStatusAsync(string? statusView, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<ServicePendingRow>> LoadPendingAsync(string list, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<ServiceMoneyDay>> LoadMoneyCheckAsync(DateOnly from, DateOnly to, CancellationToken cancellationToken = default) => throw new NotSupportedException();

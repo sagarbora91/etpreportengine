@@ -40,28 +40,16 @@ public static class ServiceScreens
         throw new InvalidOperationException("The Service read model is not available in this build.");
 
     /// <summary>
-    /// Opens another Service task from a screen (drill-down): the Pending board opens Job history with the job's number.
-    /// The shell supplies it (TaskNavigator); a screen built without one shows no drill-down.
+    /// <paramref name="argument"/> is the route argument (the job number for Job history, lane history);
+    /// <paramref name="openJob"/> opens Job history for a job (the shell's NavigateServiceJob) from a grid row.
     /// </summary>
-    public delegate void ServiceTaskNavigate(string taskId, string? jobOrderNumber);
-
-    /// <summary>
-    /// After the shell has navigated to <see cref="JobHistoryTask"/>, shows the job the drill-down asked for.
-    /// Kept here so the shell needs no knowledge of the history screen's members.
-    /// </summary>
-    public static void ShowJob(object? view, string jobOrderNumber)
-    {
-        if (view is not ServiceJobHistoryView history || string.IsNullOrWhiteSpace(jobOrderNumber)) return;
-        history.JobNumber = jobOrderNumber;
-        _ = history.ActivateAsync();
-    }
-
-    public static UserControl Create(string taskId, Func<ServiceReportQuery> query, ServiceExcelExport export, ServiceTaskNavigate? navigate = null)
+    public static UserControl Create(string taskId, Func<ServiceReportQuery> query, ServiceExcelExport export,
+        string? argument = null, Action<string>? openJob = null)
     {
         ServiceScreenView view = taskId switch
         {
             JobsTask => new ServiceJobsView(query, export),
-            PendingTask => new ServicePendingBoardView(query, export, openJob: navigate is null ? null : job => navigate(JobHistoryTask, job)),
+            PendingTask => new ServicePendingBoardView(query, export, openJob: openJob),
             JobHistoryTask => new ServiceJobHistoryView(query, export),
             MoneyTask => new ServiceMoneyView(query, export),
             _ => throw new ArgumentOutOfRangeException(nameof(taskId), taskId, "Not a Service centre task.")

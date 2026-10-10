@@ -376,15 +376,6 @@ public sealed partial class TaskNavigator(MainWindow window)
         NavigateSafely(() => window.shell.Navigate(task.Route, window.CurrentShellAccess));
     }
 
-    /// <summary>Drill-down between Service screens: the Pending board opens Job history with a job number (1.10.0).</summary>
-    private void NavigateServiceTask(string taskId, string? jobOrderNumber)
-    {
-        if (TaskNavigation.Find(taskId) is not { } task) return;
-        NavigateTask(task);
-        if (jobOrderNumber is not null && window.shell.CurrentRoute.TaskId == taskId)
-            Modules.Service.ServiceScreens.ShowJob(window.FocusedWorkspaceHost.Content, jobOrderNumber);
-    }
-
     public void NavigateOverview(string module, string destination, string? category = null) =>
         window.OpenSection(module switch { "Dashboard" => "Today", "Imports" => "Import", "Reports" => "Reports", _ => "Settings" });
     public void RestoreBreadcrumbs() { if (TaskNavigation.Find(window.shell.CurrentRoute.TaskId) is { } task) window.UpdateSection(task); }
@@ -457,7 +448,7 @@ public sealed partial class TaskNavigator(MainWindow window)
         var openItems = false;
         var id = task.Id;
         if (task.Destination == Modules.Service.ServiceScreens.Destination)
-            return Modules.Service.ServiceScreens.Create(id, window.serviceReportQuery, window.serviceExcelExport, NavigateServiceTask);
+            return Modules.Service.ServiceScreens.Create(id, window.serviceReportQuery, window.serviceExcelExport);
         if (id == "import-history")
         {
             var history = window.importHistoryView ?? throw new InvalidOperationException("Import history is not configured.");
