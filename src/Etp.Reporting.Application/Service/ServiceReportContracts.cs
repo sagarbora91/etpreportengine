@@ -95,55 +95,7 @@ public sealed record ServiceMoneyChange(
     DateOnly CurrentSnapshotDate,
     decimal CurrentAmount);
 
-/// <summary>
-/// The stage codes dbo.v_service_job (migration 0050, design review 4.2) gives a job; the first rule that fires wins.
-/// The Pending board (design 3.3, Q3) lists the first eight; DELIVERED and RWR never reach it, and a DC/RA job with a
-/// claim document is "closed by claim" and leaves it too. The board labels and limits are <see cref="ServicePendingStages"/>.
-/// </summary>
-public static class ServiceJobStages
-{
-    public const string Booked = "BOOKED";
-    public const string OnBench = "ON_BENCH";
-    public const string IndentRaised = "INDENT_RAISED";
-    public const string SrnOut = "SRN_OUT";
-    public const string InTransitBack = "IN_TRANSIT_BACK";
-    public const string ReadyForDelivery = "READY_FOR_DELIVERY";
-    public const string DcIssued = "DC_ISSUED";
-    public const string RaIssued = "RA_ISSUED";
-    public const string Delivered = "DELIVERED";
-    public const string Rwr = "RWR";
-}
-
-/// <summary>
-/// One open job of dbo.v_service_job for the Pending board (design review 3.3 and 4.3, 1.10.0 U1 contract).
-/// <c>Stage</c> is a <see cref="ServiceJobStages"/> code; <c>StageDate</c> the date that stage started; <c>JoType</c> is
-/// "Booking" or "Quick Billing" (S002, a job without an S002 row is Booking); <c>AgeDays</c> = booking date to <c>AsAt</c>
-/// (equals S009 pendingnoofdays); <c>DaysInStage</c> = stage date to <c>AsAt</c>; <c>ClaimRaised</c> is true for a DC/RA
-/// job that has a WDC/WRA claim document; <c>LastReadingDate</c> is the latest reading that holds the job; <c>AsAt</c> is
-/// the latest Service snapshot date. Overdue and the age bands are computed in C# (<see cref="ServicePendingBoard"/>),
-/// never here. No customer name, phone, e-mail or address.
-/// </summary>
-public sealed record ServicePendingBoardRow(
-    string JobOrderNumber,
-    string Stage,
-    DateOnly? StageDate,
-    DateOnly? BookingDate,
-    string JoType,
-    DateOnly? Edd,
-    string? Brand,
-    string? Model,
-    string? ProductCategory,
-    string? Guarantee,
-    string? CustomerType,
-    string? PendingAt,
-    string? SpareRequired,
-    bool ClaimRaised,
-    int? AgeDays,
-    int? DaysInStage,
-    DateOnly? LastReadingDate,
-    DateOnly AsAt);
-
-public interface IServiceReportQuery
+public partial interface IServiceReportQuery
 {
     /// <summary>Every Service reading, newest first.</summary>
     Task<IReadOnlyList<ServiceRefresh>> LoadRefreshesAsync(CancellationToken cancellationToken = default);
@@ -155,14 +107,6 @@ public interface IServiceReportQuery
     Task<IReadOnlyList<ServicePendingRow>> LoadPendingAsync(string list, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<ServiceJobEvent>> LoadJobHistoryAsync(string jobOrderNumber, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Every job of dbo.v_service_job whose stage is not DELIVERED or RWR (design review 3.3, Q3), one row per job, any
-    /// order. The board itself (<see cref="ServicePendingBoard"/>) drops claimed DC/RA jobs, groups, bands and sorts.
-    /// The default throws until lane sql's SqlServerServiceReportQuery (1.10.0 U1) overrides it, so the screen says why.
-    /// </summary>
-    Task<IReadOnlyList<ServicePendingBoardRow>> LoadPendingBoardAsync(CancellationToken cancellationToken = default) =>
-        throw new NotSupportedException("The Pending board needs the 1.10.0 Service job model (migration 0050). Install the 1.10.0 update.");
 
     /// <summary>The decision-16 money check (<see cref="ServiceMoneyCheck.Compare"/>) for billing dates in the range.</summary>
     Task<IReadOnlyList<ServiceMoneyDay>> LoadMoneyCheckAsync(DateOnly from, DateOnly to, CancellationToken cancellationToken = default);

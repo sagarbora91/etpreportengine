@@ -13,8 +13,9 @@ namespace Etp.Reporting.Desktop.Modules.Service;
 /// <summary>
 /// Service Pending board (1.10.0, design review 3.3): every open job grouped by stage in stage order, longest in stage
 /// first, with the age band, the overdue rule of Q4 and five numbers. Delivered, returned and claimed DC/RA jobs never
-/// appear (Q3, Q8). The rules are <see cref="ServicePendingBoard"/>; this screen only shows them.
-/// A row opens Job history (double-click, Enter or the button). Export writes one sheet per stage shown.
+/// appear (Q3, Q8). The query gives the rows (IServiceReportQuery.LoadPendingBoardAsync); the screen-side rules are
+/// <see cref="ServicePendingBoardRules"/>. A row opens Job history (double-click, Enter or the button). Export writes
+/// one sheet per stage shown.
 /// </summary>
 public sealed class ServicePendingBoardView : ServiceScreenView
 {
@@ -51,18 +52,19 @@ public sealed class ServicePendingBoardView : ServiceScreenView
 
         var stages = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 4) };
         stages.Children.Add(new TextBlock { Text = "Stages (none ticked = all)", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
-        foreach (var stage in ServicePendingStages.Board)
+        foreach (var stage in ServicePendingBoardRules.BoardStages)
         {
-            var box = new CheckBox { Content = stage.Label, MinHeight = 44, VerticalContentAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) };
-            AutomationProperties.SetName(box, "Stage " + stage.Label);
+            var label = ServiceStages.Label(stage);
+            var box = new CheckBox { Content = label, MinHeight = 44, VerticalContentAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) };
+            AutomationProperties.SetName(box, "Stage " + label);
             box.Checked += async (_, _) => await OnFilterChangedAsync();
             box.Unchecked += async (_, _) => await OnFilterChangedAsync();
-            stageBoxes[stage.Code] = box;
+            stageBoxes[stage] = box;
             stages.Children.Add(box);
         }
         Summary.Children.Add(stages);
 
-        AddFilter("Age", ageBandFilter, "Age band", [new(null, AllAgesLabel), .. ServiceAgeBands.All.Select(band => new ServiceListChoice(band, band + " days"))]);
+        AddFilter("Age", ageBandFilter, "Age band", [new(null, AllAgesLabel), .. ServiceAgeing.Bands.Select(band => new ServiceListChoice(band, band + " days"))]);
         AutomationProperties.SetName(overdueOnlyFilter, "Overdue only");
         overdueOnlyFilter.Checked += async (_, _) => await OnFilterChangedAsync();
         overdueOnlyFilter.Unchecked += async (_, _) => await OnFilterChangedAsync();
@@ -70,7 +72,7 @@ public sealed class ServicePendingBoardView : ServiceScreenView
         AddFilter("Brand", brandFilter, "Brand", [new(null, AllBrandsLabel)]);
         AddFilter("Guarantee", guaranteeFilter, "Guarantee", [new(null, AllGuaranteesLabel)]);
         AddFilter("Job type", joTypeFilter, "Job type",
-            [new(null, AllJobTypesLabel), new(ServicePendingBoard.Booking, ServicePendingBoard.Booking), new(ServicePendingBoard.QuickBilling, ServicePendingBoard.QuickBilling)]);
+            [new(null, AllJobTypesLabel), new(ServiceJobTypes.Booking, ServiceJobTypes.Booking), new(ServiceJobTypes.QuickBilling, ServiceJobTypes.QuickBilling)]);
         openJobButton.Click += (_, _) => OpenSelected();
         openJobButton.Visibility = openJob is null ? Visibility.Collapsed : Visibility.Visible;
         FilterBar.Children.Add(openJobButton);
@@ -90,13 +92,16 @@ public sealed class ServicePendingBoardView : ServiceScreenView
     }
 
     /// <summary>Every job on the board before the filters, in board order.</summary>
-    public IReadOnlyList<ServicePendingBoardEntry> Board { get; private set; } = [];
+    public IReadOnlyList<ServicePendingBoardRow> Board { get; private set; } = [];
 
     /// <summary>The groups of the rows shown (after the filters), in stage order.</summary>
     public IReadOnlyList<ServicePendingGroup> Groups { get; private set; } = [];
 
     /// <summary>The five numbers, over the whole board; null until loaded.</summary>
     public ServicePendingNumbers? Numbers { get; private set; }
+
+    /// <summary>The snapshot date the board was built for (the query's), once loaded.</summary>
+    public DateOnly? AsAt { get; private set; }
 
     public bool CanOpenJob => openJob is not null;
 
@@ -147,21 +152,22 @@ public sealed class ServicePendingBoardView : ServiceScreenView
     /// <summary>Opens Job history for the selected row. False when nothing is selected or the shell gave no navigation.</summary>
     public bool OpenSelected()
     {
-        if (openJob is null || Table.SelectedItem is not ServiceGridRow { Source: ServicePendingBoardEntry entry }) return false;
-        openJob(entry.Row.JobOrderNumber);
+        if (openJob is null || Table.SelectedItem is not ServiceGridRow { Source: ServicePendingBoardRow row }) return false;
+        openJob(row.JobOrderNumber);
         return true;
     }
 
     protected override async Task<IReadOnlyList<ServiceGridRow>> LoadRowsAsync(IServiceReportQuery source)
     {
-        var rows = await source.LoadPendingBoardAsync();
-        Board = ServicePendingBoard.Entries(rows);
-        Numbers = ServicePendingBoard.Numbers(Board);
+        var board = await source.LoadPendingBoardAsync();
+        AsAt = board.AsAt;
+        Board = ServicePendingBoardRules.Rows(board.Rows);
+        Numbers = ServicePendingBoardRules.Numbers(Board);
         ShowNumbers(Numbers);
-        RefillChoices(brandFilter, AllBrandsLabel, Board.Select(entry => entry.Row.Brand), requestedBrand);
-        RefillChoices(guaranteeFilter, AllGuaranteesLabel, Board.Select(entry => entry.Row.Guarantee), requestedGuarantee);
-        var visible = ServicePendingBoard.Apply(Board, Filter);
-        Groups = ServicePendingBoard.Groups(visible);
+        RefillChoices(brandFilter, AllBrandsLabel, Board.Select(row => row.Brand), requestedBrand);
+        RefillChoices(guaranteeFilter, AllGuaranteesLabel, Board.Select(row => row.Guarantee), requestedGuarantee);
+        var visible = ServicePendingBoardRules.Apply(Board, Filter);
+        Groups = ServicePendingBoardRules.Groups(visible);
         return visible.Select(ToRow).ToArray();
     }
 
@@ -175,15 +181,15 @@ public sealed class ServicePendingBoardView : ServiceScreenView
 
     protected override void ClearExtras()
     {
-        Board = []; Groups = []; Numbers = null; cards.Children.Clear(); openJobButton.IsEnabled = false;
+        Board = []; Groups = []; Numbers = null; AsAt = null; cards.Children.Clear(); openJobButton.IsEnabled = false;
     }
 
-    public static ServiceGridRow ToRow(ServicePendingBoardEntry entry) =>
-        new(entry,
+    public static ServiceGridRow ToRow(ServicePendingBoardRow row) =>
+        new(row,
         [
-            entry.Row.JobOrderNumber, entry.Stage.Label, entry.Row.BookingDate, entry.Row.AgeDays, entry.Row.DaysInStage, entry.Row.Edd,
-            entry.OverdueBy, entry.AgeBand, entry.Row.Brand, entry.Row.Model, entry.Row.ProductCategory, entry.Row.Guarantee,
-            entry.Row.CustomerType, entry.Row.JoType, entry.Row.PendingAt, entry.Row.SpareRequired, entry.Row.LastReadingDate
+            row.JobOrderNumber, row.StageLabel, row.BookingDate, row.DaysSinceBooking, row.DaysInStage, row.Edd,
+            row.OverdueBy, row.AgeBand, row.Brand, row.Model, row.ProductCategory, row.Guarantee,
+            row.CustomerType, row.JoType, row.PendingAt, row.SpareRequired, row.LastReadingDate
         ]);
 
     /// <summary>The export: one sheet per stage shown, the board's columns, the as-at line as the control text.</summary>
@@ -191,9 +197,9 @@ public sealed class ServicePendingBoardView : ServiceScreenView
     {
         var columns = BuildExportData().Columns;
         var (from, to) = ExportPeriod;
-        var tables = Groups.Select(group => new ReportPackTable(group.Stage.Label,
-                $"{group.Entries.Count:N0} job{(group.Entries.Count == 1 ? "" : "s")}", AsAtText,
-                new ExcelReportData(columns, group.Entries.Select(entry => ToRow(entry).Cells).ToArray())))
+        var tables = Groups.Select(group => new ReportPackTable(group.Label,
+                $"{group.Rows.Count:N0} job{(group.Rows.Count == 1 ? "" : "s")}", AsAtText,
+                new ExcelReportData(columns, group.Rows.Select(row => ToRow(row).Cells).ToArray())))
             .ToArray();
         return new ReportPackDocument(ExportName, from, to, "Read only", "service-ui-1", AsAtText, generatedUtc, tables);
     }
@@ -267,7 +273,7 @@ public sealed class ServicePendingBoardView : ServiceScreenView
     {
         get
         {
-            var asAt = Board.Count > 0 ? Board[0].Row.AsAt : DateOnly.FromDateTime(DateTime.Today);
+            var asAt = AsAt ?? DateOnly.FromDateTime(DateTime.Today);
             return (asAt, asAt);
         }
     }
