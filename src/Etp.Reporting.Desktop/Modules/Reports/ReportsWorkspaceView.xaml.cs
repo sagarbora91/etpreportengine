@@ -54,6 +54,7 @@ public partial class ReportsWorkspaceView : UserControl
         this.managementTrendQueryFactory = managementTrendQueryFactory ?? throw new ArgumentNullException(nameof(managementTrendQueryFactory));
         this.exportCoordinator = exportCoordinator ?? throw new ArgumentNullException(nameof(exportCoordinator));
         this.tenderVarianceDiagnostic = tenderVarianceDiagnostic ?? throw new ArgumentNullException(nameof(tenderVarianceDiagnostic));
+        saveFileChooser = ShowSaveDialog;
         this.cashBookLoader = cashBookLoader ?? ((connection, store, from, to) =>
             new Etp.Reporting.Infrastructure.SqlServer.OperationalReportRepository(connection).LoadCashBookAsync(store, from, to));
         InitializeComponent();
@@ -154,18 +155,26 @@ public partial class ReportsWorkspaceView : UserControl
         }
     }
 
-    public void ExportExcel() => _ = ExportExcelAsync();
+    // RA-EXPORT-01 (1.9.8): the focused buttons, Ctrl+E / Ctrl+P and the Actions menu fire and forget. The task is
+    // observed, so an exception raised before the staged write (the Save dialog, the file name) reaches the status
+    // line and the diagnostics log instead of dying as an unobserved task. Success is unchanged.
+    public void ExportExcel() => _ = ExportObservedAsync(pdf: false);
+    public void ExportPdf() => _ = ExportObservedAsync(pdf: true);
+
+    internal async Task ExportObservedAsync(bool pdf)
+    {
+        try { if (pdf) await ExportPdfAsync(); else await ExportExcelAsync(); }
+        catch (Exception ex) { HandleFailure(ex, pdf ? "REPORT_PDF_EXPORT_FAILED" : "REPORT_EXCEL_EXPORT_FAILED", (pdf ? "PDF" : "Excel") + " export failed"); }
+    }
 
     public async Task ExportExcelAsync()
     {
         var report = presentation.Current;
         if (!report.CanExportReport || exportInProgress) return;
-        var dialog = new SaveFileDialog { Filter = "Excel workbook (*.xlsx)|*.xlsx", FileName = $"{SafeFileName(report.ExportMetadata!.ReportName)}_{report.ExportMetadata.DateFrom:yyyyMMdd}_{report.ExportMetadata.DateTo:yyyyMMdd}.xlsx", AddExtension = true };
-        if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
-        if (ReferenceEquals(report, presentation.Current)) await ExportReportToPathAsync(dialog.FileName, pdf: false);
+        var path = saveFileChooser(false, ProposedFileName(report.ExportMetadata!, pdf: false));
+        if (path is null) return;
+        if (ReferenceEquals(report, presentation.Current)) await ExportReportToPathAsync(path, pdf: false);
     }
-
-    public void ExportPdf() => _ = ExportPdfAsync();
 
     public async Task ExportPdfAsync()
     {
@@ -173,10 +182,24 @@ public partial class ReportsWorkspaceView : UserControl
         if (!report.CanExportReport || exportInProgress) return;
         if (string.Equals(report.ExportMetadata!.ReportName, "Daily Sales Report", StringComparison.Ordinal) && report.DailySalesReport is null)
         { ReportResult.Text = "The DSR document is not ready. Run Daily Sales / DSR again before exporting."; return; }
-        var dialog = new SaveFileDialog { Filter = "PDF report (*.pdf)|*.pdf", FileName = $"{SafeFileName(report.ExportMetadata.ReportName)}_{report.ExportMetadata.DateFrom:yyyyMMdd}_{report.ExportMetadata.DateTo:yyyyMMdd}.pdf", AddExtension = true };
-        if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
-        if (ReferenceEquals(report, presentation.Current)) await ExportReportToPathAsync(dialog.FileName, pdf: true);
+        var path = saveFileChooser(true, ProposedFileName(report.ExportMetadata, pdf: true));
+        if (path is null) return;
+        if (ReferenceEquals(report, presentation.Current)) await ExportReportToPathAsync(path, pdf: true);
     }
+
+    // The Save dialog, as (pdf, proposed file name) => chosen path or null when dismissed. Tests replace it; the
+    // application keeps the WPF dialog, owned by the view's window when it has one.
+    internal Func<bool, string, string?> saveFileChooser;
+
+    private string? ShowSaveDialog(bool pdf, string fileName)
+    {
+        var dialog = new SaveFileDialog { Filter = pdf ? "PDF report (*.pdf)|*.pdf" : "Excel workbook (*.xlsx)|*.xlsx", FileName = fileName, AddExtension = true };
+        return dialog.ShowDialog(Window.GetWindow(this)) == true ? dialog.FileName : null;
+    }
+
+    /// <summary>The proposed export file name: safe report name, From and To as yyyyMMdd, the format's extension.</summary>
+    internal static string ProposedFileName(ExcelReportMetadata metadata, bool pdf) =>
+        $"{SafeFileName(metadata.ReportName)}_{metadata.DateFrom:yyyyMMdd}_{metadata.DateTo:yyyyMMdd}.{(pdf ? "pdf" : "xlsx")}";
 
     private async void RunCatalogueReport_Click(object sender, RoutedEventArgs e)
     { if (sender is Button { Tag: string report }) await RunReportAsync(report); }
