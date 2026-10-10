@@ -94,6 +94,8 @@ FROM dbo.etp_landing_s035');
 -- old-header line without a document number only on a date that has no new-header line (the 1 Jul 2026 join of
 -- S025/S039 and S026/S040 is therefore counted once). ucp_value is ucpvalue (S023), ucp_value (S041) or
 -- ucpamount / ucp_amount (the others). No settlement state exists in any export (Q9 = A: raised only).
+-- The old WRA log (S026) also holds lines of WDC documents (28 on live, 10 Oct 2026, none with a job number); an S026 line
+-- whose document number is in either WDC log is a WDC claim and is not counted again as WRA (Sagar, 10 Oct 2026).
 EXEC(N'CREATE OR ALTER VIEW dbo.v_service_claims AS
 WITH mb AS (
   SELECT r.import_file_id,w.snapshot_date,r.transdate business_date,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),r.documentnum))),N'''') document_number,
@@ -144,7 +146,9 @@ UNION ALL
 SELECT ''WRA'',''S026'',h.business_date,h.document_number,h.job_order_number,h.item_id,h.quantity,h.account_number,h.net_amount_inc_tax,h.ucp_value,h.snapshot_date,h.import_file_id
 FROM wra_old h
 WHERE NOT EXISTS(SELECT 1 FROM wra_new c WHERE c.document_number=h.document_number)
-  AND (h.document_number IS NOT NULL OR NOT EXISTS(SELECT 1 FROM wra_new c WHERE c.business_date=h.business_date))');
+  AND (h.document_number IS NOT NULL OR NOT EXISTS(SELECT 1 FROM wra_new c WHERE c.business_date=h.business_date))
+  AND NOT EXISTS(SELECT 1 FROM wdc_old c WHERE c.document_number=h.document_number)
+  AND NOT EXISTS(SELECT 1 FROM wdc_new c WHERE c.document_number=h.document_number)');
 
 -- 3. One row per Service job (design 4.1-4.4). The universe of keys is every job column of every family: the JobList
 -- and state-list families, S029 (srfno), S003, S019, S022 and the claim logs. Per job:

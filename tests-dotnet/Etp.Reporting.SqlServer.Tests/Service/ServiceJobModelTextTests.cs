@@ -178,6 +178,18 @@ public sealed partial class ServiceJobModelTextTests
     }
 
     [Fact]
+    public void An_old_WRA_line_that_carries_a_WDC_document_is_counted_only_as_WDC()
+    {
+        // Sagar, 10 Oct 2026: 28 S026 lines on live repeat WDC document numbers; they are WDC claims, not WRA claims.
+        var claims = ViewBlocks(Section(Script())).Single(view => view.Name == "v_service_claims").Body;
+        var wraOld = claims[claims.IndexOf("FROM wra_old h", StringComparison.Ordinal)..];
+        Assert.Contains("AND NOT EXISTS(SELECT 1 FROM wdc_old c WHERE c.document_number=h.document_number)", wraOld, StringComparison.Ordinal);
+        Assert.Contains("AND NOT EXISTS(SELECT 1 FROM wdc_new c WHERE c.document_number=h.document_number)", wraOld, StringComparison.Ordinal);
+        var wdcOld = claims[claims.IndexOf("FROM wdc_old h", StringComparison.Ordinal)..claims.IndexOf("FROM wra_new", StringComparison.Ordinal)];
+        Assert.DoesNotContain("wra_old", wdcOld, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void The_job_view_states_the_0048_live_reading_filter_and_every_stage_of_the_contract()
     {
         var job = ViewBlocks(Section(Script())).Single(view => view.Name == "v_service_job").Body;
