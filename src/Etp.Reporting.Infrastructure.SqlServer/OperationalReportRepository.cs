@@ -593,7 +593,7 @@ public sealed partial class OperationalReportRepository(string connectionString)
         rows.AddRange(workflow.MissingReports.Select(code => new DailyExceptionRow("BLOCKER", "Source", "SOURCE_MISSING", storeCode, businessDate,
             null, null, null, null, null, null, $"Required ETP report {code} has not been imported.", "Import the approved report for this store and business date.")));
         rows.AddRange(workflow.MissingRequiredInputs.Select(code => new DailyExceptionRow("BLOCKER", "Manual input", "MANUAL_INPUT_MISSING", storeCode, businessDate,
-            null, null, null, null, null, null, $"Required operational input {code} is missing.", "Enter a value; enter zero explicitly when zero is the true value.")));
+            null, null, null, null, null, null, ManualInputMissingMessage(code, workflow.ManualInputs), ManualInputMissingAction(code))));
 
         var scope = new ReportingQueryScope(businessDate, businessDate, [storeCode]);
         var executor = new SqlBackedReportingExecutor(new SqlServerReportingQueryRepository(connectionString),
@@ -637,7 +637,7 @@ public sealed partial class OperationalReportRepository(string connectionString)
                 },
                 storeCode, businessDate, null, item.InventoryGroupCode, item.Status == "FAIL" ? item.SystemVariance : item.CompositionVariance,
                 null, null, null, item.Status == "MANUAL INPUT MISSING" ? "No counted physical quantity has been entered for this system-stock group." : "Physical stock evidence does not match its comparison control.",
-                item.Status == "MANUAL INPUT MISSING" ? "Enter the physical count when the operational count is performed; enter zero explicitly when correct." : "Recount or record an approved correction reason; system stock is never overwritten."));
+                item.Status == "MANUAL INPUT MISSING" ? PhysicalCountMissingAction : "Recount or record an approved correction reason; system stock is never overwritten."));
 
         var cash = await LoadCashReconciliationAsync(storeCode, businessDate, cancellationToken);
         if (cash.Status is ReconciliationStatus.Blocked or ReconciliationStatus.Failed)
@@ -650,6 +650,21 @@ public sealed partial class OperationalReportRepository(string connectionString)
                 null, null, null, staff.Message, "Review unmatched and unassigned R013 rows; do not round the variance away."));
         return rows.OrderBy(x => x.Severity).ThenBy(x => x.Area).ThenBy(x => x.DocumentNumber).ThenBy(x => x.SourceRow).ToArray();
     }
+
+    // RA-OPS-02 (1.9.9): exception rows name the field by its display name and the screen where it is entered.
+    internal static string ManualInputMissingMessage(string code, IReadOnlyList<ManualInputValue> inputs)
+    {
+        var name = OperationalInputScreens.DisplayName(code, inputs);
+        return string.Equals(name, code, StringComparison.Ordinal)
+            ? $"Required operational input {code} is missing."
+            : $"Required operational input {name} ({code}) is missing.";
+    }
+
+    internal static string ManualInputMissingAction(string code) =>
+        $"Enter it on {OperationalInputScreens.For(code)}; enter zero explicitly when zero is the true value.";
+
+    internal static readonly string PhysicalCountMissingAction =
+        $"Enter the physical count on {OperationalInputScreens.PhysicalCount} when the count is done; enter zero explicitly when correct.";
 
     private async Task<Dictionary<(string Store, string Document), SourcePointer>> LoadInvoicePointersAsync(
         ReportingQueryScope scope,
