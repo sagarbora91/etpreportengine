@@ -12,6 +12,8 @@ public sealed record TaskDestination(string Id, string Title, string Module, str
     public string Path => $"{Module} → {Category} → {Title}";
     public string Purpose => ReportCode is null ? $"Open {Title.ToLowerInvariant()} in {Module}." : ProductReportCatalogue.All.Single(x => x.Code == ReportCode).Description;
     public WorkspaceRoute Route => new(Destination, ReportCode, Id);
+    /// <summary>The route with a task argument (1.10.0): a blank argument is the plain route.</summary>
+    public WorkspaceRoute RouteWith(string? argument) => string.IsNullOrWhiteSpace(argument) ? Route : Route with { Argument = argument.Trim() };
     // The shell binds this record straight into a ComboBox. A record's generated ToString
     // prints every field, so a screen reader announced the whole object - id, destination,
     // role, route - instead of the task name a sighted user sees through DisplayMemberPath.

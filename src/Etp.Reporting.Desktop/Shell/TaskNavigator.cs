@@ -129,7 +129,7 @@ public sealed partial class TaskNavigator(MainWindow window)
             ApplyHiddenScope(window.accountingWorkspaceView);
             ApplyHiddenScope(window.sourceInboxWorkspaceView);
             ApplyHiddenScope(window.archiveWorkspaceView);
-            if (TaskNavigation.Find(window.shell.CurrentRoute.TaskId) is { } task) DisplayTaskRoute(task.Route);
+            if (TaskNavigation.Find(window.shell.CurrentRoute.TaskId) is not null) DisplayTaskRoute(window.shell.CurrentRoute);
             window.ApplicationStatus.Text = $"Scope updated: {nextDate:dd MMM yyyy}.";
         }
         finally { navigationPending = false; }
@@ -429,9 +429,11 @@ public sealed partial class TaskNavigator(MainWindow window)
         if (task.Id == "profiles") view = new Modules.Settings.ApprovedProfilesView();
         else if (task.Id == "settings") view = new Modules.Settings.GeneralPreferencesView(UiPreferenceStore.Load(), window.SavePreferences, window.CurrentShellAccess);
         else if (task.Destination == "Dashboard") { view = window.dashboardView; window.dashboardView.SelectTask(task.Id); _ = window.RefreshDashboardAsync(); }
-        else view = ResolveTaskView(task);
+        else view = ResolveTaskView(task, route.Argument);
         ApplyHiddenScope(view);
         if (view.Parent is ContentControl host) host.Content = null;
+        // SD-10 (lane parts): a Service screen's own status replaces the previous workspace's text in the status line.
+        if (view is Modules.Service.ServiceScreenView serviceScreen) serviceScreen.StatusChanged += (_, text) => window.ApplicationStatus.Text = text;
 
         window.FocusedWorkspaceLayer.Visibility = Visibility.Visible;
         window.FocusedWorkspaceHost.Content = view; window.focusedWorkspaceKind = "task";
@@ -440,16 +442,11 @@ public sealed partial class TaskNavigator(MainWindow window)
         return true;
     }
 
-    /// <summary>Drill-down between Service screens: a Service grid opens Job history with a job number (1.10.0).</summary>
-    private void NavigateServiceTask(string taskId, string? jobOrderNumber)
-    {
-        if (TaskNavigation.Find(taskId) is not { } task) return;
-        NavigateTask(task);
-        if (jobOrderNumber is not null && window.shell.CurrentRoute.TaskId == taskId)
-            Modules.Service.ServiceScreens.ShowJob(window.FocusedWorkspaceHost.Content, jobOrderNumber);
-    }
+    /// <summary>Opens Service job history for one job (1.10.0 "open from any grid"): a Service grid's row action.</summary>
+    public void NavigateServiceJob(string jobOrderNumber) =>
+        NavigateSafely(() => window.shell.Navigate(Modules.Service.ServiceScreens.JobHistoryRoute(jobOrderNumber), window.CurrentShellAccess));
 
-    private UserControl ResolveTaskView(TaskDestination task)
+    private UserControl ResolveTaskView(TaskDestination task, string? argument = null)
     {
         // Each layout selects the existing module's controls; no business operation is invoked here.
         UserControl view;
@@ -457,13 +454,7 @@ public sealed partial class TaskNavigator(MainWindow window)
         var openItems = false;
         var id = task.Id;
         if (task.Destination == Modules.Service.ServiceScreens.Destination)
-        {
-            // Lane parts (1.10.0): a Service grid can open Job history with its job; the screen's own status line
-            // replaces the previous workspace's text in the application status line (SD-10).
-            var service = Modules.Service.ServiceScreens.Create(id, window.serviceReportQuery, window.serviceExcelExport, NavigateServiceTask);
-            service.StatusChanged += (_, text) => window.ApplicationStatus.Text = text;
-            return service;
-        }
+            return Modules.Service.ServiceScreens.Create(id, window.serviceReportQuery, window.serviceExcelExport, argument, NavigateServiceJob);
         if (id == "import-history")
         {
             var history = window.importHistoryView ?? throw new InvalidOperationException("Import history is not configured.");

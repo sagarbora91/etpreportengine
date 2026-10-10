@@ -190,12 +190,12 @@ public sealed class ServicePartsViewTests
     }
 
     [Fact]
-    public void A_waiting_job_opens_Job_history_by_task_id_with_its_job_number()
+    public void A_waiting_job_opens_Job_history_through_the_shell_opener()
     {
         RunSta(() =>
         {
-            var opened = new List<(string TaskId, string? Job)>();
-            var view = new ServicePartsView(() => new FakePartsQuery(), NoExport, (taskId, job) => opened.Add((taskId, job)));
+            var opened = new List<string>();
+            var view = new ServicePartsView(() => new FakePartsQuery(), NoExport, opened.Add);
             view.ActivateAsync().GetAwaiter().GetResult();
 
             view.OpenSelectedJobHistory();
@@ -203,35 +203,37 @@ public sealed class ServicePartsViewTests
 
             view.Waiting.SelectedItem = view.WaitingRows[1];
             view.OpenSelectedJobHistory();
-            Assert.Equal((ServiceScreens.JobHistoryTask, "JOAW330SYN0301"), Assert.Single(opened));
+            Assert.Equal("JOAW330SYN0301", Assert.Single(opened));
 
             view.OpenJobHistory("JOAW330SYN0302");
-            Assert.Equal(("service-job-history", "JOAW330SYN0302"), opened[^1]);
+            Assert.Equal("JOAW330SYN0302", opened[^1]);
+
+            // Without an opener (a screen built outside the shell) the row action does nothing.
+            var alone = new ServicePartsView(() => new FakePartsQuery(), NoExport);
+            alone.OpenJobHistory("JOAW330SYN0302");
         });
     }
 
     [Fact]
-    public void ServiceScreens_creates_the_Parts_screen_and_ShowJob_fills_Job_history()
+    public void ServiceScreens_creates_the_Parts_screen_with_the_opener_and_the_history_route_carries_the_job()
     {
         RunSta(() =>
         {
             var query = new FakePartsQuery();
-            var parts = ServiceScreens.Create(ServiceScreens.PartsTask, () => query, NoExport);
-            Assert.IsType<ServicePartsView>(parts);
+            var opened = new List<string>();
+            var parts = Assert.IsType<ServicePartsView>(ServiceScreens.Create(ServiceScreens.PartsTask, () => query, NoExport, null, opened.Add));
             SpinUntil(() => !parts.IsLoading);
             Assert.Equal(4, parts.Rows.Count);
+            parts.OpenJobHistory("JOAW330SYN0302");
+            Assert.Equal(["JOAW330SYN0302"], opened);
             Assert.Equal("service-parts", ServiceScreens.PartsTask);
 
-            var history = ServiceScreens.Create(ServiceScreens.JobHistoryTask, () => query, NoExport);
-            var historyView = Assert.IsType<ServiceJobHistoryView>(history);
-            SpinUntil(() => !historyView.IsLoading);
-            ServiceScreens.ShowJob(historyView, "JOAW330SYN0302");
-            SpinUntil(() => !historyView.IsLoading && query.LastJob is not null);
-            Assert.Equal("JOAW330SYN0302", historyView.JobNumber);
+            var route = ServiceScreens.JobHistoryRoute(" JOAW330SYN0302 ");
+            Assert.Equal((ServiceScreens.JobHistoryTask, "JOAW330SYN0302"), (route.TaskId, route.Argument));
+            var history = Assert.IsType<ServiceJobHistoryView>(ServiceScreens.Create(route.TaskId!, () => query, NoExport, route.Argument, _ => { }));
+            SpinUntil(() => !history.IsLoading);
+            Assert.Equal("JOAW330SYN0302", history.JobNumber);
             Assert.Equal("JOAW330SYN0302", query.LastJob);
-
-            ServiceScreens.ShowJob(parts, "JOAW330SYN0302");
-            ServiceScreens.ShowJob(null, "JOAW330SYN0302");
         });
     }
 

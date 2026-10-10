@@ -50,7 +50,7 @@ public sealed class ServicePartsView : ServiceScreenView
     public const string NoLinesText = "Select an invoice to see its lines.";
 
     private readonly ServiceExcelExport export;
-    private readonly ServiceScreens.ServiceTaskNavigate? navigate;
+    private readonly Action<string>? openJob;
     private readonly CheckBox openOnly = new() { Content = "Open only", MinHeight = 44, VerticalContentAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) };
     private readonly ComboBox month = new() { MinWidth = 150, MinHeight = 44, ItemsSource = new List<ServiceMonthChoice> { ServiceMonthChoice.All }, SelectedIndex = 0 };
     private readonly TextBox item = new() { MinWidth = 180, MinHeight = 44, VerticalContentAlignment = VerticalAlignment.Center };
@@ -67,13 +67,13 @@ public sealed class ServicePartsView : ServiceScreenView
     /// <summary>The contract's empty result (what a query without parts data returns).</summary>
     public static ServiceParts EmptyParts { get; } = new([], [], null, [], 0, 0m, null, 0, 0, 0, null);
 
-    public ServicePartsView(Func<ServiceReportQuery> query, ServiceExcelExport export, ServiceScreens.ServiceTaskNavigate? navigate = null)
+    public ServicePartsView(Func<ServiceReportQuery> query, ServiceExcelExport export, Action<string>? openJob = null)
         : base("Service parts and purchases",
             "Purchase invoices created (S007) against received (S008): open until a GRN or received date is exported. Days open count from the invoice date to the Service snapshot while open, and to the received date once closed.",
             "Service.Parts", "SERVICE_PARTS_LOAD_FAILED", query, export)
     {
         this.export = export;
-        this.navigate = navigate;
+        this.openJob = openJob;
         AutomationProperties.SetName(openOnly, "Open invoices only");
         AutomationProperties.SetName(month, "Invoice month");
         AutomationProperties.SetName(item, "Item");
@@ -296,11 +296,8 @@ public sealed class ServicePartsView : ServiceScreenView
         if (Waiting.SelectedItem is ServiceGridRow { Source: ServiceWaitingJob job }) OpenJobHistory(job.JobOrderNumber);
     }
 
-    public void OpenJobHistory(string jobOrderNumber)
-    {
-        if (navigate is null) return;
-        navigate(ServiceScreens.JobHistoryTask, jobOrderNumber);
-    }
+    /// <summary>Opens Job history through the shell's opener (TaskNavigator.NavigateServiceJob); nothing without one.</summary>
+    public void OpenJobHistory(string jobOrderNumber) => openJob?.Invoke(jobOrderNumber);
 
     /// <summary>The jobs-waiting panel as its export writes it (both panels export, design 3.6).</summary>
     public ExcelReportData BuildWaitingExportData() =>
