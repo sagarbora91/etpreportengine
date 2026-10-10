@@ -95,7 +95,9 @@ public sealed record PhysicalStockReportRow(
     decimal SystemQuantity,
     decimal? SystemVariance,
     string? Remarks,
-    string Status);
+    string Status,
+    // RA-STOCK-01 (1.9.9): the snapshot day the system side was read from; null when the store has none.
+    DateOnly? SnapshotDate = null);
 
 public sealed record StockInventoryReportRow(
     DateOnly SnapshotDate,
@@ -176,14 +178,23 @@ public sealed partial class OperationalReportRepository(string connectionString)
     // house-brand items split into the owner's hybrid rows (G SHOCK, CITIZEN, FOSSIL, GUESS, SEIKO, AMAZEFIT, FIT BIT).
     // Owner answer Q8: last_receipt_date is the latest inward ledger movement (StockAgeing.ReceiptTypes) on or before the
     // date, so a recently received item shows as NEW (StockAgeing.Status), aged by its receipt, not "never sold".
+    // RA-STOCK-01 (1.9.9): with @latest=1 each store reads its latest snapshot on or before @date (snapshot_date in the rows
+    // says which day); with @latest=0 only a snapshot on @date counts. Receipt and last sale are aged to the snapshot's day.
     public const string StockInventorySql = $"""
-        WITH receipt AS
+        WITH snap AS
+        (
+          SELECT e.store_code,MAX(e.snapshot_date) snapshot_date
+          FROM dbo.v_stock_snapshots_effective e
+          WHERE e.snapshot_date<=@date AND (@latest=1 OR e.snapshot_date=@date)
+            AND (@stores IS NULL OR e.store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores)))
+          GROUP BY e.store_code
+        ),
+        receipt AS
         (
           SELECT m.store_code,m.product_code,MAX(m.document_date) last_receipt_date
-          FROM dbo.stock_movements m
-          WHERE m.document_date<=@date AND m.transaction_quantity>0
+          FROM dbo.stock_movements m JOIN snap d ON d.store_code=m.store_code
+          WHERE m.document_date<=d.snapshot_date AND m.transaction_quantity>0
             AND m.source_transaction_type IN(N'Purchase Receipt',N'STM Receipt',N'Stock Receipt')
-            AND (@stores IS NULL OR m.store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores)))
           GROUP BY m.store_code,m.product_code
         )
         SELECT s.snapshot_date,s.store_code,s.product_code,
@@ -197,6 +208,7 @@ public sealed partial class OperationalReportRepository(string connectionString)
                r.last_receipt_date,
                br.row_label brand_row
         FROM dbo.v_stock_snapshots_effective s
+        JOIN snap d ON d.store_code=s.store_code AND d.snapshot_date=s.snapshot_date
         LEFT JOIN receipt r ON r.store_code=s.store_code AND r.product_code=s.product_code
         OUTER APPLY
         (
@@ -211,9 +223,7 @@ public sealed partial class OperationalReportRepository(string connectionString)
           WHERE i.store_code=s.store_code AND l.product_code=s.product_code AND i.transaction_date<=s.snapshot_date
                 AND COALESCE(l.source_quantity,0)>0
         ) sale
-        WHERE s.snapshot_date=@date
-          AND (@stores IS NULL OR s.store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores)))
-          AND (@segments IS NULL OR s.cluster IN(SELECT CONVERT(nvarchar(100),[value]) FROM OPENJSON(@segments)))
+        WHERE (@segments IS NULL OR s.cluster IN(SELECT CONVERT(nvarchar(100),[value]) FROM OPENJSON(@segments)))
           AND (@items IS NULL OR s.product_code IN(SELECT CONVERT(nvarchar(80),[value]) FROM OPENJSON(@items)))
           AND NOT {NonMerchandiseSql.StockItemOfS}
         GROUP BY s.snapshot_date,s.store_code,s.product_code,
@@ -565,13 +575,24 @@ public sealed partial class OperationalReportRepository(string connectionString)
         return rows;
     }
 
+    public Task<IReadOnlyList<StockInventoryReportRow>> LoadStockInventoryAsync(
+        ReportingQueryScope scope,
+        CancellationToken cancellationToken = default) => LoadStockInventoryAsync(scope, latestOnOrBefore: false, cancellationToken);
+
+    /// <summary>
+    /// Closing stock per item. With <paramref name="latestOnOrBefore"/> each store reads its latest snapshot on or before
+    /// <see cref="ReportingQueryScope.DateTo"/> (RA-STOCK-01: Closing, Brand, Slow and Physical Stock); otherwise only a
+    /// snapshot on that date (the daily pack, daily exceptions and Brand Stock Entry, which compare it to that day's counts).
+    /// <see cref="StockInventoryReportRow.SnapshotDate"/> is the day read.
+    /// </summary>
     public async Task<IReadOnlyList<StockInventoryReportRow>> LoadStockInventoryAsync(
         ReportingQueryScope scope,
+        bool latestOnOrBefore,
         CancellationToken cancellationToken = default)
     {
         scope.Validate();
         await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(StockInventorySql,connection);
-        command.Parameters.AddWithValue("@date",scope.DateTo);command.Parameters.AddWithValue("@stores",Json(scope.StoreCodes));command.Parameters.AddWithValue("@segments",Json(scope.BrandSegments));command.Parameters.AddWithValue("@items",Json(scope.ItemCodes));
+        command.Parameters.AddWithValue("@date",scope.DateTo);command.Parameters.AddWithValue("@latest",latestOnOrBefore);command.Parameters.AddWithValue("@stores",Json(scope.StoreCodes));command.Parameters.AddWithValue("@segments",Json(scope.BrandSegments));command.Parameters.AddWithValue("@items",Json(scope.ItemCodes));
         await using var reader=await command.ExecuteReaderAsync(cancellationToken);var rows=new List<StockInventoryReportRow>();
         while(await reader.ReadAsync(cancellationToken))
         {

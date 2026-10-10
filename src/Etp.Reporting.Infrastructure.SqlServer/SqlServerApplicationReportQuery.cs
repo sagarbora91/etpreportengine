@@ -62,10 +62,10 @@ public sealed class SqlServerApplicationReportQuery :
         Map(await operational.LoadCashReconciliationAsync(storeCode, businessDate, cancellationToken).ConfigureAwait(false));
 
     public async Task<IReadOnlyList<PhysicalStockRecord>> LoadPhysicalStockAsync(string storeCode, DateOnly businessDate, CancellationToken cancellationToken = default) =>
-        (await operational.LoadBrandPhysicalStockAsync(storeCode, businessDate, cancellationToken).ConfigureAwait(false)).Select(Map).ToArray();
+        (await operational.LoadBrandPhysicalStockAsync(storeCode, businessDate, latestSnapshotOnOrBefore: true, cancellationToken).ConfigureAwait(false)).Select(Map).ToArray();
 
     public async Task<IReadOnlyList<StockInventoryRecord>> LoadStockInventoryAsync(ReportScope scope, CancellationToken cancellationToken = default) =>
-        (await operational.LoadStockInventoryAsync(ToScope(scope), cancellationToken).ConfigureAwait(false)).Select(Map).ToArray();
+        (await operational.LoadStockInventoryAsync(ToScope(scope), latestOnOrBefore: true, cancellationToken).ConfigureAwait(false)).Select(Map).ToArray();
 
     public async Task<IReadOnlyList<DailyExceptionRecord>> LoadDailyExceptionsAsync(string storeCode, DateOnly businessDate, CancellationToken cancellationToken = default) =>
         (await operational.LoadDailyExceptionsAsync(storeCode, businessDate, cancellationToken).ConfigureAwait(false)).Select(Map).ToArray();
@@ -102,7 +102,7 @@ public sealed class SqlServerApplicationReportQuery :
     public static StaffPerformanceReport Map(StaffPerformanceResult source) => new(source.Rows.Select(row => new StaffPerformanceRecord(row.StoreCode, row.CroNumber, row.NetSales, row.LastYearSales, row.GrowthPercent, row.GrowthStatus, row.NetQuantity, row.Discount, row.Transactions, row.Upt, row.Atv, row.ContributionPercent, row.TargetSales, row.TargetAchievementPercent, row.Rank, row.CroName)).ToArray(), source.CanonicalSales, source.AttributedSales, source.Variance, Map(source.Status), source.Message, source.MetricPolicy);
     public static ServiceSalesRecord Map(ServiceSalesRow row) => new(row.Period, row.StoreCode, row.PeriodStart, row.PeriodEnd, row.Cash, row.Card, row.Upi, row.Total, row.LastYearTotal, row.GrowthPercent, row.Availability, row.MissingDays, row.LastYearMissingDays, row.Wdc);
     public static CashReconciliationReport Map(CashReconciliationResult row) => new(row.StoreCode, row.BusinessDate, row.OpeningCash, row.RetailCash, row.ServiceCash, row.Expenses, row.CashDeposit, row.Adjustment, row.CalculatedClosing, row.CountedClosing, row.Variance, Map(row.Status), row.Message);
-    public static PhysicalStockRecord Map(PhysicalStockReportRow row) => new(row.StoreCode, row.BusinessDate, row.InventoryGroupCode, row.DisplayQuantity, row.BackstockQuantity, row.DefectiveQuantity, row.YLocationQuantity, row.ComponentTotal, row.CountedPhysicalQuantity, row.CompositionVariance, row.SystemQuantity, row.SystemVariance, row.Remarks, row.Status);
+    public static PhysicalStockRecord Map(PhysicalStockReportRow row) => new(row.StoreCode, row.BusinessDate, row.InventoryGroupCode, row.DisplayQuantity, row.BackstockQuantity, row.DefectiveQuantity, row.YLocationQuantity, row.ComponentTotal, row.CountedPhysicalQuantity, row.CompositionVariance, row.SystemQuantity, row.SystemVariance, row.Remarks, row.Status, row.SnapshotDate);
     public static StockInventoryRecord Map(StockInventoryReportRow row) => new(row.SnapshotDate, row.StoreCode, row.ProductCode, row.Brand, row.InventoryGroup, row.Quantity, row.UnitCost, row.TotalCost, row.LastSaleDate, row.DaysSinceLastSale, row.MovementStatus, row.SnapshotSource, row.LastReceiptDate, row.DaysSinceReceipt, row.BrandRow);
     public static DailyExceptionRecord Map(DailyExceptionRow row) => new(row.Severity, row.Area, row.Code, row.StoreCode, row.BusinessDate, row.DocumentNumber, row.ItemCode, row.Variance, row.SourceWorkbook, row.SourceSheet, row.SourceRow, row.Message, row.RecommendedAction);
     public static ManagementTrendRecord Map(ManagementTrendRow row) => new(row.BusinessDate, row.StoreCode, row.NetSales, row.Units, row.Invoices, row.Returns, row.TenderVariance, row.UnmatchedEnrichmentRows);

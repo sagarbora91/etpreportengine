@@ -61,8 +61,8 @@ public sealed class StockMovementLocationReportTests
         Assert.Equal("", ReportsWorkspaceView.StockMovementSnapshotNote([new("A", "I", "INV", -1m)], new(2026, 9, 10)));
         Assert.Equal(" No closing-stock snapshot for B on 10 Sep 2026; movements are shown, closing stock cannot be checked.",
             ReportsWorkspaceView.StockMovementSnapshotNote([new("A", "I", "INV", -1m), new("B", "I", "INV", -1m, null, false)], new(2026, 9, 10)));
-        Assert.Equal(" No closing-stock snapshot for B on 10 Sep 2026.", ReportsWorkspaceView.MissingSnapshotText(["A", "B"], ["A"], new(2026, 9, 10)));
-        Assert.Equal(" No closing-stock snapshot for any store on 10 Sep 2026.", ReportsWorkspaceView.MissingSnapshotText(null, [], new(2026, 9, 10)));
+        Assert.Equal(" No closing-stock snapshot for B on or before 10 Sep 2026; import the Closing Stock export.", ReportsWorkspaceView.MissingSnapshotText(["A", "B"], ["A"], new(2026, 9, 10)));
+        Assert.Equal(" No closing-stock snapshot for any store on or before 10 Sep 2026; import the Closing Stock export.", ReportsWorkspaceView.MissingSnapshotText(null, [], new(2026, 9, 10)));
         Assert.Equal("", ReportsWorkspaceView.MissingSnapshotText(null, ["A"], new(2026, 9, 10)));
     }
 
