@@ -21,6 +21,27 @@ public sealed record DailyReportPackResult(
     int GenerationNumber,
     string ContentSha256);
 
+/// <summary>
+/// RA-OPS-02 (1.9.9): where each operational input is entered, so a "missing" message can name the screen. Walk-ins have
+/// their own task; every other manual field is on Cash and service entries; physical counts are on Stock.
+/// </summary>
+internal static class OperationalInputScreens
+{
+    public const string WalkIns = "Today > Walk-ins";
+    public const string CashAndService = "Today > Cash > Cash and service entries";
+    public const string PhysicalCount = "Stock > Physical count";
+
+    public static string For(string fieldCode) =>
+        string.Equals(fieldCode.Trim(), "WALK_INS", StringComparison.OrdinalIgnoreCase) ? WalkIns : CashAndService;
+
+    /// <summary>The field's display name from its definition; the code itself when no definition carries a name.</summary>
+    public static string DisplayName(string fieldCode, IReadOnlyList<ManualInputValue> inputs) =>
+        inputs.FirstOrDefault(x => string.Equals(x.FieldCode, fieldCode, StringComparison.OrdinalIgnoreCase)) is { DisplayName: { } name }
+            && !string.IsNullOrWhiteSpace(name) ? name.Trim() : fieldCode;
+
+    public static string FormatDate(DateOnly date) => date.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture);
+}
+
 public sealed class DailyReportingPackService(string connectionString)
 {
     /// <summary>The pack section for the manual Service cash/card/UPI entries (not required to finalise, RA-OPS-09).</summary>
@@ -127,14 +148,13 @@ public sealed class DailyReportingPackService(string connectionString)
             new("Physical Closing Stock", physicalFailures > 0 ? ReconciliationStatus.Failed : physicalMissing > 0 || physicalStock.Count==0 ? ReconciliationStatus.NotRun : ReconciliationStatus.Passed,
                 physicalStock.Count==0||physicalMissing>0?null:physicalStock.Sum(x => x.ComponentTotal),
                 physicalStock.Where(x => x.SystemVariance is not null).Sum(x => x.SystemVariance),
-                physicalMissing == 0 ? "Physical is the sum of all four entered components; difference is Physical minus System."
-                    : $"{physicalMissing:N0} brand(s) do not yet have a counted physical quantity; this remains visible without changing system stock."),
+                PhysicalStockMessage(storeCode, businessDate, physicalStock.Count, physicalMissing)),
             new("Staff / CRO Performance", !hasR013 ? ReconciliationStatus.Blocked : staff.Status,
                 hasR013 ? staff.AttributedSales : null, hasR013 ? staff.Variance : null,
                 !hasR013 ? "R013 source is missing for this business date." : staff.Message),
             new("Manual Operational Inputs", workflow.MissingRequiredInputs.Count == 0 ? ReconciliationStatus.Passed : ReconciliationStatus.Blocked,
                 workflow.ManualInputs.Count(x => x.IsPresent), workflow.MissingRequiredInputs.Count,
-                workflow.MissingRequiredInputs.Count == 0 ? "Required manual inputs are complete." : $"Missing: {string.Join(", ", workflow.MissingRequiredInputs)}"),
+                ManualInputsMessage(workflow.MissingRequiredInputs, workflow.ManualInputs)),
             new("Exception / Reconciliation Report", exceptions.Any(x => x.Severity is "BLOCKER" or "FAIL") ? ReconciliationStatus.Failed : ReconciliationStatus.Passed,
                 exceptions.Count, exceptions.Count(x => x.Variance is not null),
                 exceptions.Count == 0 ? "No daily exceptions were found." : $"{exceptions.Count:N0} traceable exception(s) remain visible."),
@@ -165,6 +185,30 @@ public sealed class DailyReportingPackService(string connectionString)
         var generation = await new OperationalCompletionRepository(connectionString).SaveReportGenerationAsync(
             storeCode, businessDate, generatedBy, controlJson, ReportPackArchiveCodec.Serialize(document), cancellationToken);
         return new(storeCode, businessDate, status, sections, message, generatedAt, document, generation.GenerationNumber, generation.ContentSha256);
+    }
+
+    /// <summary>
+    /// RA-OPS-12: with no closing-stock snapshot for the day there are no brand rows, so the section must say so instead of
+    /// describing a comparison that never ran. RA-OPS-02: an uncounted brand names the entry screen.
+    /// </summary>
+    internal static string PhysicalStockMessage(string storeCode, DateOnly businessDate, int brandRows, int uncountedBrands) =>
+        brandRows == 0
+            ? $"No closing-stock snapshot for {storeCode} on {OperationalInputScreens.FormatDate(businessDate)}; import the closing stock for that date, then enter the count on {OperationalInputScreens.PhysicalCount}."
+            : uncountedBrands == 0
+                ? "Physical is the sum of all four entered components; difference is Physical minus System."
+                : $"{uncountedBrands:N0} brand(s) do not yet have a counted physical quantity; enter it on {OperationalInputScreens.PhysicalCount}. System stock is not changed.";
+
+    /// <summary>
+    /// RA-TENDER-13 / RA-OPS-02: the pack names missing inputs by their display names ("Opening cash, Expenses"), not their
+    /// field codes, and says on which screen each is entered.
+    /// </summary>
+    internal static string ManualInputsMessage(IReadOnlyList<string> missingCodes, IReadOnlyList<ManualInputValue> inputs)
+    {
+        if (missingCodes.Count == 0) return "Required manual inputs are complete.";
+        var groups = missingCodes
+            .GroupBy(OperationalInputScreens.For, StringComparer.Ordinal)
+            .Select(group => $"{string.Join(", ", group.Select(code => OperationalInputScreens.DisplayName(code, inputs)))} (enter on {group.Key})");
+        return $"Missing: {string.Join("; ", groups)}.";
     }
 
     // Report audit of 3 Oct 2026 (FIX-05/FIX-11, decision D1): these values are source_gross_amount, R025 NETAMOUNT,

@@ -358,15 +358,29 @@ public sealed class Phase2OperationsRepository(string connectionString)
         }).ToArray();
     }
 
+    /// <summary>
+    /// RA-OPS-17 (1.9.9): Management Trend net sales and units follow the DSR VALUE/VOL rule (owner decision 13): only
+    /// INV/SR/BC lines count and gift-card lines add 0. The WHERE clause is unchanged, so a day whose only lines are gift
+    /// cards still has a row (reading 0); invoice and return counts are unchanged.
+    /// </summary>
+    internal static readonly string ManagementTrendSalesLine =
+        $"UPPER(COALESCE(l.source_transaction_type,'')) IN('INV','SR','BC') AND NOT {NonMerchandiseSql.SalesLine("l")}";
+
+    internal static readonly string ManagementTrendSalesSelect = $"""
+        SELECT i.transaction_date,i.store_code,
+                SUM(CASE WHEN {ManagementTrendSalesLine} THEN l.source_gross_amount ELSE 0 END) net_sales,
+                SUM(CASE WHEN {ManagementTrendSalesLine} THEN l.source_quantity ELSE 0 END) units,
+                COUNT(DISTINCT CASE WHEN UPPER(l.source_transaction_type)='INV' THEN i.sales_invoice_id END) invoices,
+                COUNT(DISTINCT CASE WHEN UPPER(l.source_transaction_type) IN('SR','BC') THEN i.sales_invoice_id END) returns
+        """;
+
     public async Task<IReadOnlyList<ManagementTrendRow>> LoadManagementTrendAsync(DateOnly from, DateOnly to, CancellationToken cancellationToken = default)
     {
         if (to < from || to.DayNumber - from.DayNumber > 366) throw new ArgumentException("Select a valid trend period of at most 366 days.");
         var sql = $"""
             WITH sales AS
             (
-              SELECT i.transaction_date,i.store_code,SUM(l.source_gross_amount) net_sales,SUM(l.source_quantity) units,
-                COUNT(DISTINCT CASE WHEN UPPER(l.source_transaction_type)='INV' THEN i.sales_invoice_id END) invoices,
-                COUNT(DISTINCT CASE WHEN UPPER(l.source_transaction_type) IN('SR','BC') THEN i.sales_invoice_id END) returns
+              {ManagementTrendSalesSelect}
               FROM dbo.sales_lines l JOIN dbo.sales_invoices i ON i.sales_invoice_id=l.sales_invoice_id
               JOIN dbo.source_lineage sl ON sl.source_lineage_id=l.source_lineage_id JOIN dbo.import_files f ON f.import_file_id=sl.import_file_id AND f.is_superseded=0
               WHERE i.transaction_date BETWEEN @from AND @to GROUP BY i.transaction_date,i.store_code
