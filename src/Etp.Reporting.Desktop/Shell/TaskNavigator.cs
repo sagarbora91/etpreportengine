@@ -440,14 +440,13 @@ public sealed partial class TaskNavigator(MainWindow window)
         return true;
     }
 
-    private string? pendingServiceJob;
-
-    /// <summary>Opens another Service screen; the job number (if any) reaches the new screen through ResolveTaskView.</summary>
+    /// <summary>Drill-down between Service screens: a Service grid opens Job history with a job number (1.10.0).</summary>
     private void NavigateServiceTask(string taskId, string? jobOrderNumber)
     {
-        if (TaskNavigation.Find(taskId) is not { } target) return;
-        pendingServiceJob = jobOrderNumber;
-        NavigateTask(target);
+        if (TaskNavigation.Find(taskId) is not { } task) return;
+        NavigateTask(task);
+        if (jobOrderNumber is not null && window.shell.CurrentRoute.TaskId == taskId)
+            Modules.Service.ServiceScreens.ShowJob(window.FocusedWorkspaceHost.Content, jobOrderNumber);
     }
 
     private UserControl ResolveTaskView(TaskDestination task)
@@ -461,8 +460,7 @@ public sealed partial class TaskNavigator(MainWindow window)
         {
             // Lane parts (1.10.0): a Service grid can open Job history with its job; the screen's own status line
             // replaces the previous workspace's text in the application status line (SD-10).
-            var service = Modules.Service.ServiceScreens.Create(id, window.serviceReportQuery, window.serviceExcelExport, NavigateServiceTask, pendingServiceJob);
-            pendingServiceJob = null;
+            var service = Modules.Service.ServiceScreens.Create(id, window.serviceReportQuery, window.serviceExcelExport, NavigateServiceTask);
             service.StatusChanged += (_, text) => window.ApplicationStatus.Text = text;
             return service;
         }

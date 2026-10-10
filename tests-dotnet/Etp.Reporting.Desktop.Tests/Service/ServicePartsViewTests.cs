@@ -7,8 +7,8 @@ using Etp.Reporting.Reporting;
 namespace Etp.Reporting.Desktop.Tests.Service;
 
 /// <summary>
-/// The Parts and purchases screen (1.10.0, design 3.6, lane parts) against a fake IServiceReportQuery.
-/// All values are synthetic: invoices PISYN…, GRNs GRNSYN…, jobs JOAW330SYN…, items "Sample part NN".
+/// The Parts and purchases screen (1.10.0, design 3.6, lane parts) against a fake IServiceReportQuery that returns the
+/// lane-sql contract's ServiceParts. All values are synthetic: invoices PISYN…, GRNs GRNSYN…, jobs JOAW330SYN…, items PART-SYN-NN.
 /// </summary>
 [Collection(WpfViewCollection.Name)]
 public sealed class ServicePartsViewTests
@@ -17,22 +17,16 @@ public sealed class ServicePartsViewTests
     private static readonly DateOnly Snapshot = new(2026, 10, 5);
 
     [Fact]
-    public void Open_and_closed_invoices_get_their_status_and_days_open_from_the_rule()
+    public void Open_and_closed_invoices_show_the_status_and_days_open_the_contract_carries()
     {
-        var open = Invoice("PISYN0001", new(2026, 9, 20), snapshot: Snapshot);
-        var closed = Invoice("PISYN0002", new(2026, 9, 1), grn: "GRNSYN0002", grnDate: new(2026, 9, 9), received: new(2026, 9, 10));
-        var grnOnly = Invoice("PISYN0003", new(2026, 9, 1), grn: "GRNSYN0003", grnDate: new(2026, 9, 4));
-        var undated = Invoice("PISYN0004", null);
+        var open = Invoice("PISYN0001", new(2026, 9, 20), daysOpen: 15);
+        var received = Invoice("PISYN0002", new(2026, 9, 1), grn: "GRNSYN0002", grnDate: new(2026, 9, 9), received: new(2026, 9, 10), daysOpen: 9);
 
-        Assert.True(ServicePartsRules.IsOpen(open));
-        Assert.Equal("Open", ServicePartsRules.Status(open));
-        Assert.Equal(15, ServicePartsRules.DaysOpen(open));
-        Assert.False(ServicePartsRules.IsOpen(closed));
-        Assert.Equal("Closed", ServicePartsRules.Status(closed));
-        Assert.Equal(9, ServicePartsRules.DaysOpen(closed));
-        Assert.Equal("Closed", ServicePartsRules.Status(grnOnly));
-        Assert.Equal(3, ServicePartsRules.DaysOpen(grnOnly));
-        Assert.Null(ServicePartsRules.DaysOpen(undated));
+        Assert.True(open.IsOpen);
+        Assert.Equal("Open", ServicePartsView.StatusLabel(open));
+        Assert.False(received.IsOpen);
+        Assert.Equal("Received", received.Status);
+        Assert.Equal("Closed", ServicePartsView.StatusLabel(received));
     }
 
     [Fact]
@@ -54,27 +48,21 @@ public sealed class ServicePartsViewTests
     {
         var invoices = new[]
         {
-            Invoice("PISYN0020", new(2026, 9, 3)),
-            Invoice("PISYN0021", new(2026, 9, 12), received: new(2026, 9, 20)),
-            Invoice("PISYN0022", new(2026, 8, 28)),
+            Invoice("PISYN0020", new(2026, 9, 3), lines: [Line("PART-SYN-A-CROWN", 1, 0, 100m)]),
+            Invoice("PISYN0021", new(2026, 9, 12), received: new(2026, 9, 20), lines: [Line("PART-SYN-B-STRAP", 2, 2, 200m)]),
+            Invoice("PISYN0022", new(2026, 8, 28), lines: [Line("PART-SYN-C-CROWN", 1, 0, 50m)]),
             Invoice("PISYN0023", null)
         };
-        var lines = new ServicePurchaseInvoiceLine[]
-        {
-            new("PISYN0020", "PART-SYN-A", "Sample part A crown", 1, 0, 100m),
-            new("PISYN0021", "PART-SYN-B", "Sample part B strap", 2, 2, 200m),
-            new("PISYN0022", "PART-SYN-C", "Sample part C crown", 1, 0, 50m)
-        };
 
-        Assert.Equal(["PISYN0020", "PISYN0022", "PISYN0023"], ServicePartsView.Filter(invoices, lines, openOnly: true, month: null, itemText: null).Select(invoice => invoice.InvoiceNumber));
-        Assert.Equal(["PISYN0020", "PISYN0021"], ServicePartsView.Filter(invoices, lines, openOnly: false, month: new(2026, 9, 1), itemText: "").Select(invoice => invoice.InvoiceNumber));
-        Assert.Equal(["PISYN0020", "PISYN0022"], ServicePartsView.Filter(invoices, lines, openOnly: false, month: null, itemText: " crown ").Select(invoice => invoice.InvoiceNumber));
-        Assert.Equal(["PISYN0021"], ServicePartsView.Filter(invoices, lines, openOnly: false, month: null, itemText: "part-syn-b").Select(invoice => invoice.InvoiceNumber));
-        Assert.Equal(["PISYN0020"], ServicePartsView.Filter(invoices, lines, openOnly: true, month: new(2026, 9, 1), itemText: "crown").Select(invoice => invoice.InvoiceNumber));
+        Assert.Equal(["PISYN0020", "PISYN0022", "PISYN0023"], ServicePartsView.Filter(invoices, openOnly: true, month: null, itemText: null).Select(invoice => invoice.InvoiceNumber));
+        Assert.Equal(["PISYN0020", "PISYN0021"], ServicePartsView.Filter(invoices, openOnly: false, month: new(2026, 9, 1), itemText: "").Select(invoice => invoice.InvoiceNumber));
+        Assert.Equal(["PISYN0020", "PISYN0022"], ServicePartsView.Filter(invoices, openOnly: false, month: null, itemText: " crown ").Select(invoice => invoice.InvoiceNumber));
+        Assert.Equal(["PISYN0021"], ServicePartsView.Filter(invoices, openOnly: false, month: null, itemText: "part-syn-b").Select(invoice => invoice.InvoiceNumber));
+        Assert.Equal(["PISYN0020"], ServicePartsView.Filter(invoices, openOnly: true, month: new(2026, 9, 1), itemText: "crown").Select(invoice => invoice.InvoiceNumber));
     }
 
     [Fact]
-    public void The_numbers_count_open_invoices_oldest_open_received_this_month_jobs_waiting_and_recent_git()
+    public void The_numbers_take_the_contract_counts_and_name_the_oldest_open_invoice()
     {
         var parts = FakePartsQuery.SampleParts();
         var numbers = ServicePartsView.Summarise(parts, Snapshot);
@@ -87,17 +75,19 @@ public sealed class ServicePartsViewTests
         Assert.Equal(2, numbers.JobsWaitingForParts);
         Assert.Equal(2, numbers.GitLinesLast30Days);
         Assert.Equal(Snapshot, numbers.AsOf);
-        Assert.Equal(["GITSYN0002", "GITSYN0001"], ServicePartsView.RecentGit(parts.GitLines, Snapshot).Select(line => line.DocumentNumber));
+        // A query that leaves OldestOpenDays null still gets it from the invoices.
+        Assert.Equal(49, ServicePartsView.Summarise(parts with { OldestOpenDays = null }, Snapshot).OldestOpenDays);
+        Assert.Equal(["STMSYN0002", "STMSYN0001"], ServicePartsView.RecentGit(parts.Git, Snapshot).Select(line => line.StmNumber));
     }
 
     [Fact]
-    public void As_of_is_the_latest_parts_snapshot_then_the_latest_reading_then_today()
+    public void As_of_is_the_contract_as_at_then_the_latest_reading_then_today()
     {
         var today = new DateOnly(2026, 10, 10);
         IReadOnlyList<ServiceRefresh> refreshes = [new("S009", new(2026, 10, 3), 1, 1, DateTime.UtcNow)];
         Assert.Equal(Snapshot, ServicePartsView.AsOf(FakePartsQuery.SampleParts(), refreshes, today));
-        Assert.Equal(new DateOnly(2026, 10, 3), ServicePartsView.AsOf(ServiceParts.Empty, refreshes, today));
-        Assert.Equal(today, ServicePartsView.AsOf(ServiceParts.Empty, [], today));
+        Assert.Equal(new DateOnly(2026, 10, 3), ServicePartsView.AsOf(ServicePartsView.EmptyParts, refreshes, today));
+        Assert.Equal(today, ServicePartsView.AsOf(ServicePartsView.EmptyParts, [], today));
     }
 
     [Fact]
@@ -128,15 +118,15 @@ public sealed class ServicePartsViewTests
             Assert.Equal(2, numbers.OpenInvoices);
             Assert.Equal(5, Descendants<KpiCard>(view).Count());
 
-            Assert.Equal(["JOAW330SYN0301", "JOAW330SYN0302"], view.WaitingRows.Select(row => (string)row.Cells[0]!));
-            Assert.Equal(21, view.WaitingRows[0].Cells[5]);
+            Assert.Equal(["JOAW330SYN0302", "JOAW330SYN0301"], view.WaitingRows.Select(row => (string)row.Cells[0]!));
+            Assert.Equal(21, view.WaitingRows[0].Cells[3]);
             Assert.Same(view.WaitingRows, view.Waiting.ItemsSource);
             Assert.StartsWith("2 jobs waiting for parts", view.WaitingStatusText, StringComparison.Ordinal);
             Assert.Contains(Descendants<TextBlock>(view), block => block.Text == ServicePartsView.NoLinkText);
             Assert.Contains(Descendants<TextBlock>(view), block => block.Text == ServicePartsView.WaitingTitle);
 
             Assert.Equal(2, view.GitRows.Count);
-            Assert.Equal("GITSYN0002", view.GitRows[0].Cells[1]);
+            Assert.Equal("STMSYN0002", view.GitRows[0].Cells[1]);
             Assert.Equal("2 lines in the 30 days to 05 Oct 2026.", view.GitStatusText);
             Assert.Equal("Latest closing stock (S006) as at 03 Oct 2026: 412 items, quantity 1,180, value 95,400.00.", view.ClosingStockText);
             Assert.Equal(ServicePartsView.NoLinesText, view.LinesStatusText);
@@ -159,7 +149,7 @@ public sealed class ServicePartsViewTests
             Assert.Equal(["PART-SYN-01", "PART-SYN-02"], view.LineRows.Select(row => (string?)row.Cells[0]));
             Assert.Same(view.LineRows, view.Lines.ItemsSource);
             Assert.Equal("Invoice PISYN0101: 2 lines.", view.LinesStatusText);
-            Assert.Equal("PISYN0101", ((ServicePurchaseInvoice)((ServiceGridRow)view.Table.SelectedItem).Source).InvoiceNumber);
+            Assert.Equal("PISYN0101", ((ServicePartsInvoice)((ServiceGridRow)view.Table.SelectedItem).Source).InvoiceNumber);
 
             view.SelectInvoice("PISYN0104");
             Assert.Empty(view.LineRows);
@@ -213,15 +203,15 @@ public sealed class ServicePartsViewTests
 
             view.Waiting.SelectedItem = view.WaitingRows[1];
             view.OpenSelectedJobHistory();
-            Assert.Equal((ServiceScreens.JobHistoryTask, "JOAW330SYN0302"), Assert.Single(opened));
+            Assert.Equal((ServiceScreens.JobHistoryTask, "JOAW330SYN0301"), Assert.Single(opened));
 
-            view.OpenJobHistory("JOAW330SYN0301");
-            Assert.Equal(("service-job-history", "JOAW330SYN0301"), opened[^1]);
+            view.OpenJobHistory("JOAW330SYN0302");
+            Assert.Equal(("service-job-history", "JOAW330SYN0302"), opened[^1]);
         });
     }
 
     [Fact]
-    public void ServiceScreens_creates_the_Parts_screen_and_prefills_Job_history_with_a_navigated_job()
+    public void ServiceScreens_creates_the_Parts_screen_and_ShowJob_fills_Job_history()
     {
         RunSta(() =>
         {
@@ -230,13 +220,18 @@ public sealed class ServicePartsViewTests
             Assert.IsType<ServicePartsView>(parts);
             SpinUntil(() => !parts.IsLoading);
             Assert.Equal(4, parts.Rows.Count);
+            Assert.Equal("service-parts", ServiceScreens.PartsTask);
 
-            var history = ServiceScreens.Create(ServiceScreens.JobHistoryTask, () => query, NoExport, null, "JOAW330SYN0302");
+            var history = ServiceScreens.Create(ServiceScreens.JobHistoryTask, () => query, NoExport);
             var historyView = Assert.IsType<ServiceJobHistoryView>(history);
             SpinUntil(() => !historyView.IsLoading);
+            ServiceScreens.ShowJob(historyView, "JOAW330SYN0302");
+            SpinUntil(() => !historyView.IsLoading && query.LastJob is not null);
             Assert.Equal("JOAW330SYN0302", historyView.JobNumber);
             Assert.Equal("JOAW330SYN0302", query.LastJob);
-            Assert.Equal("service-parts", ServiceScreens.PartsTask);
+
+            ServiceScreens.ShowJob(parts, "JOAW330SYN0302");
+            ServiceScreens.ShowJob(null, "JOAW330SYN0302");
         });
     }
 
@@ -276,11 +271,11 @@ public sealed class ServicePartsViewTests
     }
 
     [Fact]
-    public void Empty_parts_data_says_so_in_every_panel_and_keeps_export_off()
+    public void Empty_parts_data_says_so_in_every_panel()
     {
         RunSta(() =>
         {
-            var view = new ServicePartsView(() => new FakePartsQuery { Parts = ServiceParts.Empty }, NoExport);
+            var view = new ServicePartsView(() => new FakePartsQuery { Parts = ServicePartsView.EmptyParts }, NoExport);
             view.ActivateAsync().GetAwaiter().GetResult();
 
             Assert.Empty(view.Rows);
@@ -312,13 +307,13 @@ public sealed class ServicePartsViewTests
     }
 
     [Fact]
-    public void A_read_model_without_the_parts_query_is_described_not_thrown()
+    public void A_failing_parts_query_is_described_not_thrown()
     {
         RunSta(() =>
         {
-            var view = new ServicePartsView(() => new FakePartsQuery { Failure = new NotSupportedException("The Service parts read model is not available in this build.") }, NoExport);
+            var view = new ServicePartsView(() => new FakePartsQuery { Failure = new InvalidOperationException("The Service parts read model is not available in this build.") }, NoExport);
             view.ActivateAsync().GetAwaiter().GetResult();
-            Assert.StartsWith("Service parts and purchases could not be loaded. ", view.StatusText, StringComparison.Ordinal);
+            Assert.Equal("Service parts and purchases could not be loaded. The Service parts read model is not available in this build.", view.StatusText);
             Assert.False(view.IsLoading);
         });
     }
@@ -340,14 +335,20 @@ public sealed class ServicePartsViewTests
     [Fact]
     public void No_parts_record_carries_a_customer_phone_email_or_address_field()
     {
-        var types = new[] { typeof(ServicePurchaseInvoice), typeof(ServicePurchaseInvoiceLine), typeof(ServiceJobWaitingForParts), typeof(ServiceGitLine), typeof(ServiceClosingStock), typeof(ServicePartsNumbers) };
+        var types = new[] { typeof(ServicePartsInvoice), typeof(ServicePartsLine), typeof(ServiceWaitingJob), typeof(ServiceGitLine), typeof(ServiceStockSummary), typeof(ServiceParts), typeof(ServicePartsNumbers) };
         Assert.All(types.SelectMany(type => type.GetProperties()), property =>
             Assert.DoesNotContain(ForbiddenHeaderWords, word => property.Name.Contains(word.Replace("-", ""), StringComparison.OrdinalIgnoreCase)));
     }
 
-    private static ServicePurchaseInvoice Invoice(string number, DateOnly? date, string? grn = null, DateOnly? grnDate = null, DateOnly? received = null,
-        decimal? net = 100m, DateOnly? snapshot = null) =>
-        new(number, date, grn, grnDate, received, 1, 1, received is null && grnDate is null ? 0 : 1, net, "CCPT", snapshot ?? Snapshot);
+    private static ServicePartsLine Line(string item, decimal shipped, decimal received, decimal net, string? grn = null, DateOnly? grnDate = null) =>
+        new(item, shipped, received, net, grn, grnDate);
+
+    private static ServicePartsInvoice Invoice(string number, DateOnly? date, string? grn = null, DateOnly? grnDate = null, DateOnly? received = null,
+        decimal? net = 100m, int? daysOpen = null, IReadOnlyList<ServicePartsLine>? lines = null)
+    {
+        var open = received is null && grnDate is null;
+        return new(number, date, grn, grnDate, received, lines?.Count ?? 1, 1, open ? 0 : 1, net, open ? "Open" : "Received", daysOpen, "CCPT", Snapshot, lines ?? []);
+    }
 
     private static Task NoExport(string path, ExcelReportMetadata metadata, ExcelReportData data) =>
         throw new InvalidOperationException("This test does not export.");
@@ -405,30 +406,27 @@ public sealed class ServicePartsViewTests
         public int PartsCalls { get; private set; }
         public string? LastJob { get; private set; }
 
-        /// <summary>Two open invoices (one 49 days old), two closed (one received in Oct), two jobs waiting, three GIT lines (one older than 30 days).</summary>
+        /// <summary>Two open invoices (one 49 days old), two received (one in Oct), two jobs waiting, three GIT lines (one older than 30 days), as the query would compute them.</summary>
         public static ServiceParts SampleParts() => new(
             [
-                new("PISYN0101", new(2026, 9, 10), null, null, null, 2, 3, 0, 450m, "CCPT", Snapshot),
-                new("PISYN0102", new(2026, 8, 17), null, null, null, 1, 1, 0, 800m, "CCPT", Snapshot),
-                new("PISYN0103", new(2026, 9, 1), "GRNSYN0103", new(2026, 9, 9), new(2026, 9, 10), 1, 2, 2, 300m, "CCPT", Snapshot),
-                new("PISYN0104", new(2026, 9, 25), "GRNSYN0104", new(2026, 10, 2), new(2026, 10, 2), 1, 1, 1, 120m, "CCPT", Snapshot)
+                new("PISYN0101", new(2026, 9, 10), null, null, null, 2, 3, 0, 450m, "Open", 25, "CCPT", Snapshot,
+                    [Line("PART-SYN-02", 2, 0, 300m), Line("PART-SYN-01", 1, 0, 150m)]),
+                new("PISYN0102", new(2026, 8, 17), null, null, null, 1, 1, 0, 800m, "Open", 49, "CCPT", Snapshot, [Line("PART-SYN-03", 1, 0, 800m)]),
+                new("PISYN0103", new(2026, 9, 1), "GRNSYN0103", new(2026, 9, 9), new(2026, 9, 10), 1, 2, 2, 300m, "Received", 9, "CCPT", Snapshot,
+                    [Line("PART-SYN-04", 2, 2, 300m, "GRNSYN0103", new(2026, 9, 9))]),
+                new("PISYN0104", new(2026, 9, 25), "GRNSYN0104", new(2026, 10, 2), new(2026, 10, 2), 1, 1, 1, 120m, "Received", 7, "CCPT", Snapshot, [])
             ],
             [
-                new("PISYN0101", "PART-SYN-02", "Sample part 02", 2, 0, 300m),
-                new("PISYN0101", "PART-SYN-01", "Sample part 01", 1, 0, 150m),
-                new("PISYN0102", "PART-SYN-03", "Sample part 03", 1, 0, 800m),
-                new("PISYN0103", "PART-SYN-04", "Sample part 04", 2, 2, 300m)
+                new("STMSYN0001", new(2026, 9, 28), "PART-SYN-05", 4, "CCPT", "AW330", 160m, Snapshot),
+                new("STMSYN0002", new(2026, 10, 2), "PART-SYN-06", 1, "CCPT", "AW330", 90m, Snapshot),
+                new("STMSYN0000", new(2026, 8, 20), "PART-SYN-07", 2, "CCPT", "AW330", 100m, Snapshot)
             ],
+            new(new(2026, 10, 3), 412, 1180m, 95400m),
             [
-                new("JOAW330SYN0302", "Sample part 03", "PART-SYN-03", "INDSYN0302", new(2026, 9, 14), 21, "Sample Brand", "Model 2", Snapshot),
-                new("JOAW330SYN0301", "Sample part 01", "PART-SYN-01", null, new(2026, 9, 30), 5, "Sample Brand", "Model 1", Snapshot)
+                new("JOAW330SYN0302", "Sample part 03", new(2026, 9, 14), 21, "Sample Brand", "Model 2", "AW330"),
+                new("JOAW330SYN0301", "Sample part 01", new(2026, 9, 30), 5, "Sample Brand", "Model 1", "AW330")
             ],
-            [
-                new(new(2026, 9, 28), "GITSYN0001", "PART-SYN-05", "Sample part 05", 4, 640m, "CCPT", "AW330", Snapshot),
-                new(new(2026, 10, 2), "GITSYN0002", "PART-SYN-06", "Sample part 06", 1, 90m, "CCPT", "AW330", Snapshot),
-                new(new(2026, 8, 20), "GITSYN0000", "PART-SYN-07", "Sample part 07", 2, 200m, "CCPT", "AW330", Snapshot)
-            ],
-            new(new(2026, 10, 3), 412, 1180m, 95400m));
+            OpenInvoices: 2, OpenValue: 1250m, OldestOpenDays: 49, ReceivedThisMonth: 1, JobsWaiting: 2, GitLinesLast30Days: 2, AsAt: Snapshot);
 
         public Task<IReadOnlyList<ServiceRefresh>> LoadRefreshesAsync(CancellationToken cancellationToken = default) => Task.FromResult(Refreshes);
 

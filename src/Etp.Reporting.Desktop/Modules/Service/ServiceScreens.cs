@@ -11,13 +11,6 @@ public sealed record ServiceListChoice(string? Code, string Label)
     public override string ToString() => Label;
 }
 
-/// <summary>
-/// Opens another Service screen by task id. <paramref name="jobOrderNumber"/> is the job to show when the task is
-/// <see cref="ServiceScreens.JobHistoryTask"/> (drill-down from any grid, design 3.4); null otherwise.
-/// The shell (TaskNavigator) implements it; tests pass a recording fake.
-/// </summary>
-public delegate void ServiceNavigate(string taskId, string? jobOrderNumber);
-
 /// <summary>The Service centre screens: their task ids and the lists the screens offer.</summary>
 public static class ServiceScreens
 {
@@ -62,18 +55,29 @@ public static class ServiceScreens
         throw new InvalidOperationException("The Service read model is not available in this build.");
 
     /// <summary>
-    /// Creates the screen of a Service task and starts its first load. <paramref name="navigate"/> lets a grid open
-    /// another Service screen (jobs waiting for parts -> Job history); <paramref name="jobOrderNumber"/> pre-fills
-    /// Job history when the navigation carried a job, so the history loads at once.
+    /// Opens another Service task from a screen (drill-down): the Parts screen opens Job history with the job's number.
+    /// The shell supplies it (TaskNavigator); a screen built without one shows no drill-down.
     /// </summary>
-    public static ServiceScreenView Create(string taskId, Func<ServiceReportQuery> query, ServiceExcelExport export,
-        ServiceNavigate? navigate = null, string? jobOrderNumber = null)
+    public delegate void ServiceTaskNavigate(string taskId, string? jobOrderNumber);
+
+    /// <summary>
+    /// After the shell has navigated to <see cref="JobHistoryTask"/>, shows the job the drill-down asked for.
+    /// Kept here so the shell needs no knowledge of the history screen's members.
+    /// </summary>
+    public static void ShowJob(object? view, string jobOrderNumber)
+    {
+        if (view is not ServiceJobHistoryView history || string.IsNullOrWhiteSpace(jobOrderNumber)) return;
+        history.JobNumber = jobOrderNumber;
+        _ = history.ActivateAsync();
+    }
+
+    public static ServiceScreenView Create(string taskId, Func<ServiceReportQuery> query, ServiceExcelExport export, ServiceTaskNavigate? navigate = null)
     {
         ServiceScreenView view = taskId switch
         {
             JobsTask => new ServiceJobsView(query, export),
             PendingTask => new ServicePendingView(query, export),
-            JobHistoryTask => new ServiceJobHistoryView(query, export) { JobNumber = jobOrderNumber ?? "" },
+            JobHistoryTask => new ServiceJobHistoryView(query, export),
             MoneyTask => new ServiceMoneyView(query, export),
             PartsTask => new ServicePartsView(query, export, navigate),
             _ => throw new ArgumentOutOfRangeException(nameof(taskId), taskId, "Not a Service centre task.")

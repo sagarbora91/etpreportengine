@@ -7,11 +7,10 @@ using System.Windows.Data;
 using System.Windows.Input;
 using Etp.Reporting.Reporting;
 using ServiceGitLine = EtpApplication::Etp.Reporting.Application.Service.ServiceGitLine;
-using ServiceJobWaitingForParts = EtpApplication::Etp.Reporting.Application.Service.ServiceJobWaitingForParts;
 using ServiceParts = EtpApplication::Etp.Reporting.Application.Service.ServiceParts;
-using ServicePartsRules = EtpApplication::Etp.Reporting.Application.Service.ServicePartsRules;
-using ServicePurchaseInvoice = EtpApplication::Etp.Reporting.Application.Service.ServicePurchaseInvoice;
-using ServicePurchaseInvoiceLine = EtpApplication::Etp.Reporting.Application.Service.ServicePurchaseInvoiceLine;
+using ServicePartsInvoice = EtpApplication::Etp.Reporting.Application.Service.ServicePartsInvoice;
+using ServicePartsLine = EtpApplication::Etp.Reporting.Application.Service.ServicePartsLine;
+using ServiceWaitingJob = EtpApplication::Etp.Reporting.Application.Service.ServiceWaitingJob;
 using ServiceRefresh = EtpApplication::Etp.Reporting.Application.Service.ServiceRefresh;
 using ServiceReportQuery = EtpApplication::Etp.Reporting.Application.Service.IServiceReportQuery;
 
@@ -25,7 +24,7 @@ public sealed record ServiceMonthChoice(DateOnly? Month, string Label)
     public static ServiceMonthChoice For(DateOnly month) => new(new DateOnly(month.Year, month.Month, 1), month.ToString("MMM yyyy"));
 }
 
-/// <summary>The five numbers of the Parts screen (design 3.6), computed by <see cref="ServicePartsView.Summarise(ServiceParts, DateOnly)"/>.</summary>
+/// <summary>The five numbers of the Parts screen (design 3.6) as shown: the contract's counts plus the oldest open invoice's number.</summary>
 public sealed record ServicePartsNumbers(
     int OpenInvoices,
     decimal OpenValue,
@@ -51,7 +50,7 @@ public sealed class ServicePartsView : ServiceScreenView
     public const string NoLinesText = "Select an invoice to see its lines.";
 
     private readonly ServiceExcelExport export;
-    private readonly ServiceNavigate? navigate;
+    private readonly ServiceScreens.ServiceTaskNavigate? navigate;
     private readonly CheckBox openOnly = new() { Content = "Open only", MinHeight = 44, VerticalContentAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) };
     private readonly ComboBox month = new() { MinWidth = 150, MinHeight = 44, ItemsSource = new List<ServiceMonthChoice> { ServiceMonthChoice.All }, SelectedIndex = 0 };
     private readonly TextBox item = new() { MinWidth = 180, MinHeight = 44, VerticalContentAlignment = VerticalAlignment.Center };
@@ -63,10 +62,12 @@ public sealed class ServicePartsView : ServiceScreenView
     private readonly Button openHistory = new() { Content = "Open job history", MinHeight = 44, Margin = new Thickness(0, 4, 8, 4), IsEnabled = false };
     private DateOnly? chosenMonth;
     private bool settingMonths;
-    private ServiceParts parts = ServiceParts.Empty;
-    private IReadOnlyList<ServicePurchaseInvoiceLine> lines = [];
+    private ServiceParts parts = EmptyParts;
 
-    public ServicePartsView(Func<ServiceReportQuery> query, ServiceExcelExport export, ServiceNavigate? navigate = null)
+    /// <summary>The contract's empty result (what a query without parts data returns).</summary>
+    public static ServiceParts EmptyParts { get; } = new([], [], null, [], 0, 0m, null, 0, 0, 0, null);
+
+    public ServicePartsView(Func<ServiceReportQuery> query, ServiceExcelExport export, ServiceScreens.ServiceTaskNavigate? navigate = null)
         : base("Service parts and purchases",
             "Purchase invoices created (S007) against received (S008): open until a GRN or received date is exported. Days open count from the invoice date to the Service snapshot while open, and to the received date once closed.",
             "Service.Parts", "SERVICE_PARTS_LOAD_FAILED", query, export)
@@ -99,18 +100,18 @@ public sealed class ServicePartsView : ServiceScreenView
             new("Items", "#,##0", Width: 70), new("Shipped qty", "#,##0.##", "N0", 100), new("Received qty", "#,##0.##", "N0", 100),
             new("Net amount", "#,##0.00", "N2", 120), new("Status", Width: 80), new("Days open", "#,##0", Width: 90), new("From location", Width: 120)
         ]);
-        Table.SelectionChanged += (_, _) => ShowLines((Table.SelectedItem as ServiceGridRow)?.Source as ServicePurchaseInvoice);
+        Table.SelectionChanged += (_, _) => ShowLines((Table.SelectedItem as ServiceGridRow)?.Source as ServicePartsInvoice);
 
         Footer.Children.Add(new TextBlock { Text = LinesTitle, FontSize = 15, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 10, 0, 0) });
         Footer.Children.Add(linesStatus);
-        Configure(Lines, LinesTitle, [("Item code", null, 140), ("Item", null, 320), ("Shipped qty", "N0", 100), ("Received qty", "N0", 100), ("Net amount", "N2", 120)]);
+        Configure(Lines, LinesTitle, [("Item", null, 200), ("Shipped qty", "N0", 100), ("Received qty", "N0", 100), ("Net amount", "N2", 120), ("GRN", null, 140), ("GRN date", "dd MMM yyyy", 120)]);
         Footer.Children.Add(Lines);
 
         Footer.Children.Add(new TextBlock { Text = WaitingTitle, FontSize = 15, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 10, 0, 0) });
         Footer.Children.Add(new TextBlock { Text = NoLinkText, TextWrapping = TextWrapping.Wrap });
         Footer.Children.Add(waitingStatus);
-        Configure(Waiting, WaitingTitle, [("Job number", null, 150), ("Part required", null, 260), ("Spare code", null, 120), ("Indent", null, 130),
-            ("Indent date", "dd MMM yyyy", 120), ("Days waiting", "N0", 100), ("Brand", null, 120), ("Model", null, 150), ("As at", "dd MMM yyyy", 120)]);
+        Configure(Waiting, WaitingTitle, [("Job number", null, 150), ("Part required", null, 280), ("Indent date", "dd MMM yyyy", 120),
+            ("Days waiting", "N0", 100), ("Brand", null, 120), ("Model", null, 150), ("Pending at", null, 110)]);
         Waiting.SelectionChanged += (_, _) => openHistory.IsEnabled = Waiting.SelectedItem is ServiceGridRow;
         Waiting.MouseDoubleClick += (_, _) => OpenSelectedJobHistory();
         Footer.Children.Add(Waiting);
@@ -123,8 +124,8 @@ public sealed class ServicePartsView : ServiceScreenView
 
         Footer.Children.Add(new TextBlock { Text = GitTitle, FontSize = 15, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 10, 0, 0) });
         Footer.Children.Add(gitStatus);
-        Configure(Git, GitTitle, [("Date", "dd MMM yyyy", 120), ("Document", null, 140), ("Item code", null, 140), ("Item", null, 260),
-            ("Quantity", "N0", 90), ("Value", "N2", 120), ("From", null, 100), ("To", null, 100)]);
+        Configure(Git, GitTitle, [("Date", "dd MMM yyyy", 120), ("STM number", null, 140), ("Item", null, 160),
+            ("Quantity shipped", "N0", 120), ("UCP", "N2", 110), ("From", null, 100), ("To", null, 100)]);
         Footer.Children.Add(Git);
         Footer.Children.Add(closingStock);
     }
@@ -160,86 +161,75 @@ public sealed class ServicePartsView : ServiceScreenView
 
     protected override async Task<IReadOnlyList<ServiceGridRow>> LoadRowsAsync(ServiceReportQuery source)
     {
-        parts = await source.LoadPartsAsync() ?? ServiceParts.Empty;
-        lines = parts.Lines;
+        parts = await source.LoadPartsAsync() ?? EmptyParts;
         OfferMonths(parts.Invoices);
         var asOf = AsOf(parts, Refreshes, DateOnly.FromDateTime(DateTime.Today));
-        var chosen = Filter(parts.Invoices, parts.Lines, OpenOnly, chosenMonth, item.Text);
+        var chosen = Filter(parts.Invoices, OpenOnly, chosenMonth, item.Text);
         ShowNumbers(Summarise(parts, asOf));
-        ShowWaiting(parts.JobsWaitingForParts);
-        ShowGit(parts.GitLines, asOf);
+        ShowWaiting(parts.WaitingJobs);
+        ShowGit(parts.Git, asOf);
         closingStock.Text = DescribeClosingStock(parts);
         ShowLines(null);
         return Sort(chosen).Select(invoice => new ServiceGridRow(invoice,
         [
             invoice.InvoiceNumber, invoice.InvoiceDate, invoice.GrnNumber, invoice.GrnDate, invoice.Items, invoice.ShippedQuantity,
-            invoice.ReceivedQuantity, invoice.NetAmount, ServicePartsRules.Status(invoice), ServicePartsRules.DaysOpen(invoice), invoice.FromLocation
+            invoice.ReceivedQuantity, invoice.NetAmount, StatusLabel(invoice), invoice.DaysOpen, invoice.FromLocation
         ])).ToArray();
     }
 
+    /// <summary>Open / Closed as design 3.6 words it (the view's own status is Open / Received).</summary>
+    public static string StatusLabel(ServicePartsInvoice invoice) => invoice.IsOpen ? "Open" : "Closed";
+
     protected override void ClearExtras()
     {
-        parts = ServiceParts.Empty; lines = [];
+        parts = EmptyParts;
         Numbers.Children.Clear(); NumbersShown = null;
         LineRows = []; Lines.ItemsSource = null; linesStatus.Text = "";
         WaitingRows = []; Waiting.ItemsSource = null; waitingStatus.Text = ""; exportWaiting.IsEnabled = false; openHistory.IsEnabled = false;
         GitRows = []; Git.ItemsSource = null; gitStatus.Text = ""; closingStock.Text = "";
     }
 
-    /// <summary>The date the numbers count from: the latest Parts snapshot, else the latest Service reading, else today (Q15).</summary>
+    /// <summary>The date the panels count from: the contract's as-at, else the latest Service reading, else today (Q15).</summary>
     public static DateOnly AsOf(ServiceParts parts, IReadOnlyList<ServiceRefresh> refreshes, DateOnly today)
     {
-        var dates = parts.Invoices.Select(invoice => invoice.SnapshotDate)
-            .Concat(parts.JobsWaitingForParts.Select(job => job.SnapshotDate))
-            .Concat(parts.GitLines.Select(line => line.SnapshotDate))
-            .Concat(parts.ClosingStock is { } stock ? new[] { stock.SnapshotDate } : Array.Empty<DateOnly>())
-            .ToArray();
-        if (dates.Length > 0) return dates.Max();
+        if (parts.AsAt is { } asAt) return asAt;
         return refreshes.Count > 0 ? refreshes.Max(refresh => refresh.SnapshotDate) : today;
     }
 
-    /// <summary>Open only, invoice month, and an item text matched against the item code or description of any line of the invoice.</summary>
-    public static IReadOnlyList<ServicePurchaseInvoice> Filter(IReadOnlyList<ServicePurchaseInvoice> invoices, IReadOnlyList<ServicePurchaseInvoiceLine> lines,
-        bool openOnly, DateOnly? month, string? itemText)
+    /// <summary>Open only, invoice month, and an item text matched against the item of any line of the invoice.</summary>
+    public static IReadOnlyList<ServicePartsInvoice> Filter(IReadOnlyList<ServicePartsInvoice> invoices, bool openOnly, DateOnly? month, string? itemText)
     {
         var text = (itemText ?? "").Trim();
-        var matching = text.Length == 0 ? null : lines
-            .Where(line => (line.ItemCode ?? "").Contains(text, StringComparison.OrdinalIgnoreCase) || (line.ItemDescription ?? "").Contains(text, StringComparison.OrdinalIgnoreCase))
-            .Select(line => line.InvoiceNumber).ToHashSet(StringComparer.OrdinalIgnoreCase);
         return invoices
-            .Where(invoice => !openOnly || ServicePartsRules.IsOpen(invoice))
+            .Where(invoice => !openOnly || invoice.IsOpen)
             .Where(invoice => month is not { } chosen || invoice.InvoiceDate is { } date && date.Year == chosen.Year && date.Month == chosen.Month)
-            .Where(invoice => matching is null || matching.Contains(invoice.InvoiceNumber))
+            .Where(invoice => text.Length == 0 || invoice.Lines.Any(line => (line.ItemId ?? "").Contains(text, StringComparison.OrdinalIgnoreCase)))
             .ToArray();
     }
 
     /// <summary>Open first, then oldest invoice date first (no date last), then invoice number.</summary>
-    public static IReadOnlyList<ServicePurchaseInvoice> Sort(IEnumerable<ServicePurchaseInvoice> invoices) =>
-        invoices.OrderBy(invoice => ServicePartsRules.IsOpen(invoice) ? 0 : 1)
+    public static IReadOnlyList<ServicePartsInvoice> Sort(IEnumerable<ServicePartsInvoice> invoices) =>
+        invoices.OrderBy(invoice => invoice.IsOpen ? 0 : 1)
             .ThenBy(invoice => invoice.InvoiceDate.HasValue ? 0 : 1).ThenBy(invoice => invoice.InvoiceDate)
             .ThenBy(invoice => invoice.InvoiceNumber, StringComparer.OrdinalIgnoreCase).ToArray();
 
-    /// <summary>The numbers of design 3.6. "This month" and "last 30 days" count back from <paramref name="asOf"/>.</summary>
+    /// <summary>The numbers of design 3.6: the contract's counts (the query computes them over the unfiltered data) plus the oldest open invoice's number.</summary>
     public static ServicePartsNumbers Summarise(ServiceParts parts, DateOnly asOf)
     {
-        var open = parts.Invoices.Where(ServicePartsRules.IsOpen).ToArray();
-        var oldest = open.Where(invoice => ServicePartsRules.DaysOpen(invoice).HasValue).OrderByDescending(invoice => ServicePartsRules.DaysOpen(invoice)).FirstOrDefault();
-        var receivedThisMonth = parts.Invoices.Count(invoice => !ServicePartsRules.IsOpen(invoice)
-            && (invoice.ReceivedDate ?? invoice.GrnDate) is { } received && received.Year == asOf.Year && received.Month == asOf.Month);
-        return new ServicePartsNumbers(open.Length, open.Sum(invoice => invoice.NetAmount ?? 0m),
-            oldest is null ? null : ServicePartsRules.DaysOpen(oldest), oldest?.InvoiceNumber,
-            receivedThisMonth, parts.JobsWaitingForParts.Count, RecentGit(parts.GitLines, asOf).Count, asOf);
+        var oldest = parts.Invoices.Where(invoice => invoice.IsOpen && invoice.DaysOpen.HasValue).OrderByDescending(invoice => invoice.DaysOpen).FirstOrDefault();
+        return new ServicePartsNumbers(parts.OpenInvoices, parts.OpenValue, parts.OldestOpenDays ?? oldest?.DaysOpen, oldest?.InvoiceNumber,
+            parts.ReceivedThisMonth, parts.JobsWaiting, parts.GitLinesLast30Days, asOf);
     }
 
-    /// <summary>S013 lines dated within the 30 days up to <paramref name="asOf"/> (undated lines are left out), newest first.</summary>
+    /// <summary>S013 lines dated within the 30 days up to <paramref name="asOf"/>, newest first (a no-op when the query already limited them).</summary>
     public static IReadOnlyList<ServiceGitLine> RecentGit(IReadOnlyList<ServiceGitLine> git, DateOnly asOf)
     {
         var from = asOf.AddDays(-30);
-        return git.Where(line => line.TransactionDate is { } date && date >= from && date <= asOf)
-            .OrderByDescending(line => line.TransactionDate).ThenBy(line => line.DocumentNumber, StringComparer.OrdinalIgnoreCase).ToArray();
+        return git.Where(line => line.BusinessDate >= from && line.BusinessDate <= asOf)
+            .OrderByDescending(line => line.BusinessDate).ThenBy(line => line.StmNumber, StringComparer.OrdinalIgnoreCase).ToArray();
     }
 
-    public static string DescribeClosingStock(ServiceParts parts) => parts.ClosingStock is { } stock
+    public static string DescribeClosingStock(ServiceParts parts) => parts.Stock is { } stock
         ? $"Latest closing stock (S006) as at {stock.SnapshotDate:dd MMM yyyy}: {stock.Items:N0} items" +
           (stock.Quantity is { } quantity ? $", quantity {quantity:N0}" : "") + (stock.Value is { } value ? $", value {value:N2}" : "") + "."
         : "No S006 closing stock reading imported yet.";
@@ -247,17 +237,16 @@ public sealed class ServicePartsView : ServiceScreenView
     /// <summary>Shows the lines of one invoice below the grid. Selecting a row does it; tests call it by number.</summary>
     public void SelectInvoice(string invoiceNumber)
     {
-        var row = Rows.FirstOrDefault(candidate => string.Equals(((ServicePurchaseInvoice)candidate.Source).InvoiceNumber, invoiceNumber, StringComparison.OrdinalIgnoreCase));
+        var row = Rows.FirstOrDefault(candidate => string.Equals(((ServicePartsInvoice)candidate.Source).InvoiceNumber, invoiceNumber, StringComparison.OrdinalIgnoreCase));
         Table.SelectedItem = row;
-        ShowLines(row?.Source as ServicePurchaseInvoice);
+        ShowLines(row?.Source as ServicePartsInvoice);
     }
 
-    private void ShowLines(ServicePurchaseInvoice? invoice)
+    private void ShowLines(ServicePartsInvoice? invoice)
     {
         if (invoice is null) { LineRows = []; Lines.ItemsSource = null; linesStatus.Text = parts.Invoices.Count == 0 ? "" : NoLinesText; return; }
-        LineRows = lines.Where(line => string.Equals(line.InvoiceNumber, invoice.InvoiceNumber, StringComparison.OrdinalIgnoreCase))
-            .OrderBy(line => line.ItemCode, StringComparer.OrdinalIgnoreCase)
-            .Select(line => new ServiceGridRow(line, [line.ItemCode, line.ItemDescription, line.ShippedQuantity, line.ReceivedQuantity, line.NetAmount])).ToArray();
+        LineRows = invoice.Lines.OrderBy(line => line.ItemId, StringComparer.OrdinalIgnoreCase)
+            .Select(line => new ServiceGridRow(line, [line.ItemId, line.ShippedQuantity, line.ReceivedQuantity, line.NetAmount, line.GrnNumber, line.GrnDate])).ToArray();
         Lines.ItemsSource = LineRows;
         linesStatus.Text = LineRows.Count == 0
             ? $"Invoice {invoice.InvoiceNumber}: no lines in the export."
@@ -276,11 +265,11 @@ public sealed class ServicePartsView : ServiceScreenView
         Numbers.Children.Add(new KpiCard("GIT lines, last 30 days", numbers.GitLinesLast30Days.ToString("N0"), $"to {numbers.AsOf:dd MMM yyyy}", "Information"));
     }
 
-    private void ShowWaiting(IReadOnlyList<ServiceJobWaitingForParts> jobs)
+    private void ShowWaiting(IReadOnlyList<ServiceWaitingJob> jobs)
     {
         WaitingRows = jobs.OrderByDescending(job => job.DaysWaiting.HasValue).ThenByDescending(job => job.DaysWaiting)
             .ThenBy(job => job.JobOrderNumber, StringComparer.OrdinalIgnoreCase)
-            .Select(job => new ServiceGridRow(job, [job.JobOrderNumber, job.SpareRequired, job.SpareCode, job.IndentNumber, job.IndentDate, job.DaysWaiting, job.Brand, job.Model, job.SnapshotDate]))
+            .Select(job => new ServiceGridRow(job, [job.JobOrderNumber, job.SpareRequired, job.IndentDate, job.DaysWaiting, job.Brand, job.Model, job.PendingAt]))
             .ToArray();
         Waiting.ItemsSource = WaitingRows;
         exportWaiting.IsEnabled = WaitingRows.Count > 0;
@@ -293,7 +282,7 @@ public sealed class ServicePartsView : ServiceScreenView
     private void ShowGit(IReadOnlyList<ServiceGitLine> git, DateOnly asOf)
     {
         GitRows = RecentGit(git, asOf)
-            .Select(line => new ServiceGridRow(line, [line.TransactionDate, line.DocumentNumber, line.ItemCode, line.ItemDescription, line.Quantity, line.Value, line.FromLocation, line.ToLocation]))
+            .Select(line => new ServiceGridRow(line, [line.BusinessDate, line.StmNumber, line.ItemId, line.QuantityShipped, line.Ucp, line.FromLocation, line.ToLocation]))
             .ToArray();
         Git.ItemsSource = GitRows;
         gitStatus.Text = GitRows.Count == 0
@@ -304,7 +293,7 @@ public sealed class ServicePartsView : ServiceScreenView
     /// <summary>Opens Job history for the selected waiting job (double-click or the button).</summary>
     public void OpenSelectedJobHistory()
     {
-        if (Waiting.SelectedItem is ServiceGridRow { Source: ServiceJobWaitingForParts job }) OpenJobHistory(job.JobOrderNumber);
+        if (Waiting.SelectedItem is ServiceGridRow { Source: ServiceWaitingJob job }) OpenJobHistory(job.JobOrderNumber);
     }
 
     public void OpenJobHistory(string jobOrderNumber)
@@ -350,7 +339,7 @@ public sealed class ServicePartsView : ServiceScreenView
         }
     }
 
-    private void OfferMonths(IReadOnlyList<ServicePurchaseInvoice> invoices)
+    private void OfferMonths(IReadOnlyList<ServicePartsInvoice> invoices)
     {
         var choices = new List<ServiceMonthChoice> { ServiceMonthChoice.All };
         choices.AddRange(invoices.Where(invoice => invoice.InvoiceDate.HasValue)
@@ -401,7 +390,7 @@ public sealed class ServicePartsView : ServiceScreenView
         get
         {
             var asOf = AsOf(parts, Refreshes, DateOnly.FromDateTime(DateTime.Today));
-            var dated = Rows.Select(row => ((ServicePurchaseInvoice)row.Source).InvoiceDate).Where(date => date.HasValue).Select(date => date!.Value).ToArray();
+            var dated = Rows.Select(row => ((ServicePartsInvoice)row.Source).InvoiceDate).Where(date => date.HasValue).Select(date => date!.Value).ToArray();
             return (dated.Length == 0 ? asOf : dated.Min(), asOf);
         }
     }
