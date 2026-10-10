@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-## [1.9.7] - (date after the 1.9.7 gate)
+## [1.9.7] - 2026-10-10
 
 Setup reliability fix plus the first fixes from the 9 Oct 2026 report audit (`Reference\Work in progress 2026-10-09\REPORT-AUDIT\`, 115 findings RA-*). No migration; the five lane branches `fix197/*` are merged here.
 
@@ -14,7 +14,7 @@ Setup reliability fix plus the first fixes from the 9 Oct 2026 report audit (`Re
 - Report screens: grid headers are the export's headers and order (one mapping per row type in `ReportGridColumns`), with money marked explicitly (no ₹ on stock quantities), enum values as words ("Missing source", "Missing tender"), years without thousands separators and internal key columns hidden; 0-row results read "No data for <window>, <stores>" (not Passed) and exports are disabled without rows (the DSR excepted); "Select a store" is a status line, not an error or a diagnostics entry; a task that sets the end date clamps the start date to it (Today > Cash after choosing a past business date no longer fails with "end date cannot precede the start date"); the Availability text points to Settings > Stores & masters > Brands and targets > Monthly targets, Today > Walk-ins and Today > Cash > Cash and service entries; the Cash Book hint no longer names a "Daily inputs" screen; "Open selected row details" reuses one modeless window with the grid's headers and formatted values; the Slow / Exception Stock Excel file name no longer contains "/".
 - Daily workflow: "Service today" (DSR service card, FTD/MTD/YTD and LY) counts only the shop that enters Service money, read from `v_service_manual_money` (Titan World, decision 16), other shops are not applicable rather than missing. Finalise day is refused only for Blocked sections (missing source reports, missing required inputs including cash reconciliation without opening/expenses/deposit); variances and the not-entered Service section (not required) become named warnings in the finalise message.
 - Audit items confirmed not to be defects (RA-UI-03): the Cash Book's "R022 missing" dashes for HEMW were the never-entered manual inputs; HEMW's tenders show.
-- Tests: Desktop.Tests 768, Reporting.Tests 109, SqlServer.Tests 1018, Import.Tests 1076 (lane runs); gate result and installer hash filled in after the gate.
+- Gate (10 Oct 2026, elevated, on 4b1c85e): Release build 0 warnings 0 errors; 3,402 tests, 0 failed, 3 skipped (Desktop 784, Domain 12, Import 1,076, Reporting 112, SQL integration 397, SQL 1,021); pre- and after-checks clean. The first gate run (03:51) failed two integration tests caused by this release (the DSR read of `v_service_manual_money` on a database below 0048; a test that waited for the Excel button, which now stays disabled on 0 rows); both fixed in 4b1c85e. Installer SHA-256 37A1C1DB3576E9181BC9520552A2646156AD3908CFBC0B30ADD226820CDC86DC (`Installers\ETP Reporting Engine 1.9.7\`).
 
 ## [1.9.6] - 2026-10-07
 
