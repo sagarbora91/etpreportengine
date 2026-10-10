@@ -184,14 +184,11 @@ public partial class ReportsWorkspaceView : UserControl
     }
 
     // The Save dialog, as (pdf, proposed file name) => chosen path or null when dismissed. Tests replace it; the
-    // application keeps the WPF dialog, owned by the view's window when it has one.
+    // application keeps the WPF dialog, owned by the main window and started in the export folder (RA-EXPORT-02).
     internal Func<bool, string, string?> saveFileChooser;
 
-    private string? ShowSaveDialog(bool pdf, string fileName)
-    {
-        var dialog = new SaveFileDialog { Filter = pdf ? "PDF report (*.pdf)|*.pdf" : "Excel workbook (*.xlsx)|*.xlsx", FileName = fileName, AddExtension = true };
-        return dialog.ShowDialog(Window.GetWindow(this)) == true ? dialog.FileName : null;
-    }
+    private string? ShowSaveDialog(bool pdf, string fileName) =>
+        ExportSaveDialog.Show(this, pdf ? ExportSaveDialog.PdfFilter : ExportSaveDialog.ExcelFilter, fileName);
 
     /// <summary>The proposed export file name: safe report name, From and To as yyyyMMdd, the format's extension.</summary>
     internal static string ProposedFileName(ExcelReportMetadata metadata, bool pdf) =>

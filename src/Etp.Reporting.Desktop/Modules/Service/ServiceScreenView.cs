@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using Etp.Reporting.Reporting;
 using Microsoft.Win32;
+using Etp.Reporting.Desktop.Modules.Reports;
 using ServiceRefresh = EtpApplication::Etp.Reporting.Application.Service.ServiceRefresh;
 using ServiceReportQuery = EtpApplication::Etp.Reporting.Application.Service.IServiceReportQuery;
 
@@ -178,13 +179,8 @@ public abstract class ServiceScreenView : UserControl
     private async Task ExportWithDialogAsync()
     {
         if (Rows.Count == 0) return;
-        var dialog = new SaveFileDialog
-        {
-            Filter = "Excel workbook (*.xlsx)|*.xlsx",
-            FileName = $"{ExportName.Replace(' ', '_')}_{DateTime.Today:yyyyMMdd}.xlsx",
-            AddExtension = true
-        };
-        if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
+        var dialog = ExportSaveDialog.Create(ExportSaveDialog.ExcelFilter, $"{ExportName.Replace(' ', '_')}_{DateTime.Today:yyyyMMdd}.xlsx");
+        if (!ExportSaveDialog.ShowDialog(dialog, this)) return;
         try
         {
             await ExportToPathAsync(dialog.FileName);
