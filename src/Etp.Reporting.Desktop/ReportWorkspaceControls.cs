@@ -287,6 +287,7 @@ public sealed class DailySalesReportWorkspace : Grid
     private ReportPreviewScope CurrentScope => new(BusinessDatePicker.SelectedDate, BusinessDatePicker.SelectedDate, ScopeSelector.SelectedItem?.ToString(), "dsr");
     public bool HasCurrentPreview => loadedScope is not null && loadedScope == CurrentScope;
     private readonly ContentControl previewHost;
+    private readonly ContentControl checklistHost = new() { HorizontalContentAlignment = HorizontalAlignment.Stretch, Focusable = false };
     private TextBlock periodText = null!;
     private TextBlock statusText = null!;
     private DailySalesReportDocument? currentDocument;
@@ -298,10 +299,14 @@ public sealed class DailySalesReportWorkspace : Grid
     public DatePicker BusinessDatePicker { get; }
     public ComboBox ScopeSelector { get; }
 
+    /// <summary>The Today "What's missing" panel (1.9.9), set by the shell; null shows nothing.</summary>
+    public UIElement? Checklist { get => checklistHost.Content as UIElement; set => checklistHost.Content = value; }
+
     public DailySalesReportWorkspace()
     {
         Background = DsrUi.Brush("SurfaceSecondary");
         Margin = new Thickness(8, 4, 8, 4);
+        RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         RowDefinitions.Add(new RowDefinition());
@@ -335,7 +340,9 @@ public sealed class DailySalesReportWorkspace : Grid
         };
         previewHost.Margin = new Thickness(0,8,0,0);
         AutomationProperties.SetName(previewHost, "Daily Sales Report preview");
-        Grid.SetRow(previewHost, 2); Children.Add(previewHost);
+        Grid.SetRow(previewHost, 3); Children.Add(previewHost);
+        // 1.9.9 Today checklist: the shell puts the "What's missing" panel here, between the toolbar and the preview.
+        Grid.SetRow(checklistHost, 2); Children.Add(checklistHost);
         UpdatePeriodLabel();
         AutomationProperties.SetName(this, "Daily Sales Report workspace");
         BusinessDatePicker.SelectedDateChanged += (_, _) => InvalidatePreview();
