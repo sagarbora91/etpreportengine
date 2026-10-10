@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-## [1.9.8] - (date after the 1.9.8 gate)
+## [1.9.8] - 2026-10-10
 
 Report polish from the 9 Oct 2026 audit, export reliability, two import fixes and the import-register triage. No migration.
 
@@ -13,7 +13,7 @@ Report polish from the 9 Oct 2026 audit, export reliability, two import fixes an
 - Import (IF-025): a workbook edited in Excel after export (several sheets matching one layout, or one matching sheet plus pivot/extra sheets) is refused with `WORKBOOK_EDITED_AFTER_EXPORT`, naming the sheets and asking for a fresh export, instead of "Unknown layout"; nothing from it is imported.
 - Import (IF-021): four fixture tests prove that the same line in two overlapping exports gives one sales line and the later export wins; no engine change was needed.
 - Import failure register: rows IF-015 to IF-023 (1 Oct 2026, previously only on the unmerged docs branch) are now in the register with the import-engine spec and decision records; a dated "Triage 10 Oct 2026" section records verdicts for every open row (IF-014, 016-020, 022, 023, 027 fixed; IF-024 and IF-026 verified on live; IF-015 superseded) and proposes IF-028 to IF-032 (OPEN, four need the owner's decision). By this release IF-021 and IF-025 are fixed.
-- Tests: about 100 new tests (export path, worksheet writer, PDF pagination, DSR PDF, file names, Save dialog, summaries, brand rows, edited-workbook preflight, overlapping exports); gate result and installer hash filled in after the gate.
+- Tests: about 100 new tests (export path, worksheet writer, PDF pagination, DSR PDF, file names, Save dialog, summaries, brand rows, edited-workbook preflight, overlapping exports); gate (10 Oct 2026, elevated, on 9ad87f3): Release build 0 warnings 0 errors; 3,527 tests, 0 failed, 3 skipped; pre- and after-checks clean. Installer SHA-256 01632119092A08B0C6F85FA8D91037D8EC38406A6F5334FFB67830CB2185A153 (`Installers\ETP Reporting Engine 1.9.8\`).
 
 ## [1.9.7] - 2026-10-10
 
