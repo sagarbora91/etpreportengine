@@ -259,8 +259,8 @@ public sealed class SqlBackedReportingExecutorTests
         var result = await Executor(repository).ExecuteStockReconciliationAsync(new(new(2026, 7, 1), new(2026, 8, 25)));
 
         Assert.Equal(ReconciliationStatus.Blocked, result.Status);
-        Assert.StartsWith("Closing stock missing for 25 Aug 2026 (S1);", result.Message);
-        Assert.DoesNotContain("S2", result.Message.Split(';')[0]);
+        // RA-STOCK-05: each store's own result comes first.
+        Assert.StartsWith("S1: Blocked - no closing-stock snapshot on 25 Aug 2026 (1 item(s) listed); S2: Failed (1 of 2 item(s) differ). Closing stock missing for 25 Aug 2026 (S1);", result.Message);
         Assert.Equal([("S1", "P1", ReconciliationStatus.Blocked), ("S2", "P2", ReconciliationStatus.Passed), ("S2", "P3", ReconciliationStatus.Failed)],
             result.Items.Select(x => (x.StoreCode, x.ItemCode, x.Status)));
         Assert.Equal((decimal?)1m, result.Items.Single(x => x.ItemCode == "P3").Variance);
@@ -296,8 +296,10 @@ public sealed class SqlBackedReportingExecutorTests
         var result = await Executor(repository).ExecuteStockReconciliationAsync(new(new(2026, 7, 1), new(2026, 9, 29)));
 
         Assert.Equal(ReconciliationStatus.Blocked, result.Status);
-        Assert.StartsWith("Ledger covers to 25 Aug 2026 for S1 (sales on 26 Aug 2026 are not in it), before the To date 29 Sep 2026.", result.Message);
-        Assert.DoesNotContain("S2", result.Message);
+        // RA-STOCK-05: S2's own result is stated beside S1's block; the coverage sentence names S1 only.
+        const string stores = "S1: Blocked - ledger ends 25 Aug 2026 (1 item(s) listed); S2: Passed (1 item(s)). ";
+        Assert.StartsWith(stores + "Ledger covers to 25 Aug 2026 for S1 (sales on 26 Aug 2026 are not in it), before the To date 29 Sep 2026.", result.Message);
+        Assert.DoesNotContain("S2", result.Message[stores.Length..]);
         // The items stay listed for review.
         Assert.Equal(2, result.Items.Count);
         Assert.All(result.Items, item => Assert.Equal(ReconciliationStatus.Passed, item.Status));
@@ -332,7 +334,8 @@ public sealed class SqlBackedReportingExecutorTests
         var result = await Executor(repository).ExecuteStockReconciliationAsync(new(new(2026, 9, 1), new(2026, 9, 28)));
 
         Assert.Equal(ReconciliationStatus.Blocked, result.Status);
-        Assert.StartsWith("Ledger covers to 25 Aug 2026 for S1 (sales on 26 Aug 2026 are not in it), before the To date 28 Sep 2026.", result.Message);
+        Assert.StartsWith("S1: Blocked - ledger ends 25 Aug 2026; S2: Blocked - no closing-stock snapshot on 28 Sep 2026 (1 item(s) listed). " +
+            "Ledger covers to 25 Aug 2026 for S1 (sales on 26 Aug 2026 are not in it), before the To date 28 Sep 2026.", result.Message);
         Assert.Contains("Closing stock missing for 28 Sep 2026 (S2)", result.Message);
         Assert.Equal("S2", Assert.Single(result.Items).StoreCode);
     }
@@ -366,6 +369,37 @@ public sealed class SqlBackedReportingExecutorTests
         Assert.Equal(ReconciliationStatus.Passed, result.Status);
         Assert.DoesNotContain("Ledger covers", result.Message);
         Assert.EndsWith("Last ledger movement 24 Aug 2026 for S1; no sales after it to 25 Aug 2026, so those days are taken as days without stock movement.", result.Message);
+    }
+
+    // RA-STOCK-05 (1.9.9): the live case of 29 Sep 2026 - HEMW's items all pass while WLMHW's ledger stops at 25 Aug.
+    // The headline stays Blocked, but HEMW's pass is said, not hidden behind WLMHW's block.
+    [Fact]
+    public async Task Stock_variance_message_starts_with_each_stores_result()
+    {
+        var repository = new FakeRepository
+        {
+            Stock = new([new("HEMW", "P1", 1m, 0m), new("HEMW", "P2", 0m, 1m)],
+                [new("HEMW", "P1", "ISSUE", -1m), new("HEMW", "P2", "RECEIPT", 1m)],
+                [new("HEMW", new DateOnly(2026, 9, 28)), new("WLMHW", new DateOnly(2026, 8, 25), new DateOnly(2026, 8, 26))])
+        };
+
+        var result = await Executor(repository).ExecuteStockReconciliationAsync(new(new(2026, 9, 1), new(2026, 9, 29)));
+
+        Assert.Equal(ReconciliationStatus.Blocked, result.Status);
+        Assert.StartsWith("HEMW: Passed (2 item(s)); WLMHW: Blocked - ledger ends 25 Aug 2026. Ledger covers to 25 Aug 2026 for WLMHW", result.Message);
+        Assert.All(result.Items, item => Assert.Equal(ReconciliationStatus.Passed, item.Status));
+    }
+
+    [Fact]
+    public void Store_results_are_left_out_for_one_store_and_name_failures_and_quiet_stores()
+    {
+        StockControlResult Item(string store, ReconciliationStatus status) => new(store, "P", 0m, 0m, 0m, 0m, 0m, status);
+        var date = new DateOnly(2026, 9, 29);
+
+        Assert.Null(SqlBackedReportingExecutor.StoreResults([Item("S1", ReconciliationStatus.Failed)], [new("S1", date)], [], date));
+        Assert.Equal("S1: Failed (1 of 2 item(s) differ); S2: no stock movement in the period; S3: Blocked - no stock ledger imported.",
+            SqlBackedReportingExecutor.StoreResults([Item("S1", ReconciliationStatus.Failed), Item("S1", ReconciliationStatus.Passed)],
+                [new("S2", new DateOnly(2026, 9, 20)), new("S3", null)], [], date));
     }
 
     private static ReportingQueryScope Scope() => new(new(2026, 7, 1), new(2026, 8, 25), ["S1"]);

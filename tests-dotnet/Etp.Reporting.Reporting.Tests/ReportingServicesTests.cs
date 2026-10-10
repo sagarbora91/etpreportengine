@@ -12,7 +12,7 @@ public sealed class ReportingServicesTests
     [InlineData(SalesSummaryDimension.Store, "S1")]
     [InlineData(SalesSummaryDimension.Brand, "Brand A")]
     [InlineData(SalesSummaryDimension.BrandSegment, "Brand A / Premium")]
-    [InlineData(SalesSummaryDimension.Item, "ITEM-1")]
+    [InlineData(SalesSummaryDimension.Item, "S1 / ITEM-1")]
     public void Sales_summaries_preserve_source_signs(SalesSummaryDimension dimension, string expectedKey)
     {
         var lines = new[]
@@ -303,6 +303,70 @@ public sealed class ReportingServicesTests
     }
 
     // The fixture's lines are mapped to a brand row of the same name as their brand, so the mapped key reads as before.
+    // RA-SALES-10 (1.9.9): Item-wise rows are keyed by store and item, so one item code sold in two stores stays two rows.
+    [Fact]
+    public void Item_summary_keeps_the_same_item_of_two_stores_apart()
+    {
+        var lines = new[]
+        {
+            Line("INV-1", "1", ReportingTransactionType.Sale, 1m, 100m),
+            Line("INV-2", "1", ReportingTransactionType.Sale, 2m, 300m, store: "S2")
+        };
+
+        var rows = new SalesReportingService().Summarize(lines, SalesSummaryDimension.Item, SalesPolicy).Rows;
+
+        Assert.Equal([("S1 / ITEM-1", 100m), ("S2 / ITEM-1", 300m)], rows.Select(x => (x.Key, x.SourceSignedNetAmount)));
+    }
+
+    // RA-SALES-12 / RA-UI-15 (1.9.9): the status message is plain words with the period's document counts, no policy jargon.
+    [Theory]
+    [InlineData(SalesSummaryDimension.Daily)]
+    [InlineData(SalesSummaryDimension.Store)]
+    [InlineData(SalesSummaryDimension.Brand)]
+    [InlineData(SalesSummaryDimension.BrandSegment)]
+    [InlineData(SalesSummaryDimension.Item)]
+    public void Sales_status_message_gives_plain_counts(SalesSummaryDimension dimension)
+    {
+        var lines = new[]
+        {
+            Line("INV-1", "1", ReportingTransactionType.Sale, 1m, 100m),
+            Line("INV-1", "2", ReportingTransactionType.Sale, 1m, 50m, brand: "Brand B", row: "Brand B"),
+            Line("INV-2", "1", ReportingTransactionType.Sale, 1m, 80m),
+            Line("SR-1", "1", ReportingTransactionType.Return, -1m, -100m)
+        };
+
+        var message = new SalesReportingService().Summarize(lines, dimension, SalesPolicy).Message;
+
+        Assert.StartsWith("2 invoice(s), 1 return(s); returns and bill cancellations are already taken off the totals.", message);
+        Assert.DoesNotContain("source-signed", message, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("transformation", message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Returns_status_message_counts_return_documents()
+    {
+        var lines = new[]
+        {
+            Line("INV-1", "1", ReportingTransactionType.Sale, 1m, 100m),
+            Line("SR-1", "1", ReportingTransactionType.Return, -1m, -60m),
+            Line("SR-1", "2", ReportingTransactionType.Return, -1m, -40m),
+            Line("SR-2", "1", ReportingTransactionType.Return, -1m, -10m, store: "S2")
+        };
+
+        var message = new SalesReportingService().Summarize(lines, SalesSummaryDimension.Returns, SalesPolicy).Message;
+
+        Assert.Equal("2 return document(s); return values keep their minus sign.", message);
+    }
+
+    [Fact]
+    public void Sales_status_message_does_not_claim_returns_are_netted_when_the_policy_leaves_them_out()
+    {
+        var salesOnly = new ApprovedSalesReportingPolicy("approved-v1", new HashSet<ReportingTransactionType> { ReportingTransactionType.Sale });
+        var lines = new[] { Line("INV-1", "1", ReportingTransactionType.Sale, 1m, 100m) };
+
+        Assert.Equal("1 invoice(s), 0 return(s).", new SalesReportingService().Summarize(lines, SalesSummaryDimension.Store, salesOnly).Message);
+    }
+
     private static SalesReportingLine Line(string invoice, string line, ReportingTransactionType type,
         decimal quantity, decimal amount, string brand = "Brand A", string segment = "Premium", string? row = "Brand A", string store = "S1") =>
         new(new DateOnly(2026, 7, 1), store, invoice, line, brand, segment, "ITEM-1", type, quantity, amount, BrandRow: row);
