@@ -148,7 +148,7 @@ public partial class SettingsWorkspaceView : UserControl
             if (revision != connectionCheckRevision) return;
             var connected = health.Status == DatabaseConnectionStatus.Healthy;
             if (!connected)
-                DesktopDiagnostics.Record(null, "Settings.Workspace", "DATABASE_HEALTH_CHECK_FAILED",
+                DesktopDiagnostics.Record(null, "Settings.Workspace", StartupFailureText.HealthCheckEventId(health.SqlErrorNumber),
                     DesktopDiagnosticSeverity.Warning);
             ApplyPresentation(session.CompleteHealthCheck(candidate, connected, health.Message, health.ServerVersion));
             ConnectionStringInput.Text = session.ConnectionString;

@@ -27,7 +27,7 @@ public sealed class SqlServerDatabaseLifecycleService : App.IDatabaseLifecycleSe
         CancellationToken cancellationToken = default)
     {
         var health = await gateway.CheckHealthAsync(cancellationToken).ConfigureAwait(false);
-        return new(Map(health.Status), health.Message, health.ServerVersion, health.Elapsed);
+        return new(Map(health.Status), health.Message, health.ServerVersion, health.Elapsed, health.SqlErrorNumber);
     }
 
     public async Task<App.DatabaseBootstrapOutcome> BootstrapAsync(

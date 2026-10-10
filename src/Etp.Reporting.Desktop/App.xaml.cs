@@ -1,4 +1,5 @@
 ﻿using System.Configuration;
+using System.IO;
 using System.Windows;
 using System.Windows.Threading;
 using Etp.Reporting.Desktop.Composition;
@@ -54,7 +55,7 @@ public partial class App : Application
             // dialog and left a process with no window running - still holding the mutex that
             // makes setup refuse to upgrade - until someone killed it. The reason is fixed
             // validation text, never the connection string itself.
-            if (headless) Console.Error.WriteLine(configuration.Message);
+            if (headless) WriteHeadlessFailure(StartupFailureText.HeadlessLine(StartupFailureText.ConfigurationModeToken, configuration));
             else MessageBox.Show("ETP Reporting Engine could not start with the connection it was given. " + configuration.Message,
                 "ETP Reporting Engine", MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(2);
@@ -77,12 +78,25 @@ public partial class App : Application
 
         var outcome = await startup.RunAsync(e.Args);
         if (outcome.Failure is not null && outcome.DiagnosticSource is not null)
+        {
             DesktopDiagnostics.Record(outcome.Failure, outcome.DiagnosticSource, "STARTUP_FAILED", DesktopDiagnosticSeverity.Critical);
+            // IE-CODE-05. The installer and the scheduled task see only the exit code and stderr; the
+            // diagnostics entry above sits in the running account's profile, where setup never looks.
+            WriteHeadlessFailure(StartupFailureText.HeadlessLine(StartupFailureText.ModeToken(outcome.Mode), outcome.Failure));
+        }
         if (outcome.ShouldShutdown)
         {
             Shutdown(outcome.ExitCode!.Value);
             return;
         }
+    }
+
+    // A closed or missing stderr must never turn a reported failure into a crash.
+    private static void WriteHeadlessFailure(string line)
+    {
+        try { Console.Error.WriteLine(line); Console.Error.Flush(); }
+        catch (IOException) { }
+        catch (ObjectDisposedException) { }
     }
 
     // Set before composition so the handler below never blocks an unattended caller.
@@ -94,7 +108,7 @@ public partial class App : Application
         if (headless)
         {
             // A modal dialog cannot be dismissed by an installer or a scheduled task.
-            Console.Error.WriteLine(e.Exception.Message);
+            WriteHeadlessFailure(StartupFailureText.HeadlessLine(StartupFailureText.UnhandledModeToken, e.Exception));
             e.Handled = true;
             Current.Shutdown(2);
             return;
