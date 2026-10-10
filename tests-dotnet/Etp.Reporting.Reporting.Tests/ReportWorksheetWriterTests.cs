@@ -12,7 +12,7 @@ namespace Etp.Reporting.Reporting.Tests;
 public sealed class ReportWorksheetWriterTests
 {
     // The lakh money format the writer registers as numFmt 164 (ReportWorksheetWriter.IndianMoney).
-    private const string IndianMoney = "[>=10000000]##\,##\,##\,##0.00;[>=100000]##\,##\,##0.00;##,##0.00";
+    private const string IndianMoney = "[>=10000000]##\\,##\\,##\\,##0.00;[>=100000]##\\,##\\,##0.00;##,##0.00";
     private static readonly ExcelReportColumn[] Columns =
     [
         new("Store"), new("Units", "#,##0"), new("Net Sales", "#,##0.00"), new("Quantity", "#,##0.00"), new("Growth %", "0.00%"), new("Date"), new("Stamp")
