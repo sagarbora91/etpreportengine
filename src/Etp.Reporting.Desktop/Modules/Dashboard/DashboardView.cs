@@ -9,6 +9,7 @@ using System.Windows.Media;
 using Etp.Reporting.Desktop.Modules.Dashboard;
 using Etp.Reporting.Reporting;
 using Microsoft.Win32;
+using Etp.Reporting.Desktop.Modules.Reports;
 
 namespace Etp.Reporting.Desktop;
 
@@ -240,8 +241,8 @@ public sealed class DashboardView : UserControl
             return;
         }
         if (exportManagementSummaryPdfAsync is null) return;
-        var dialog = new SaveFileDialog { Filter = "PDF report (*.pdf)|*.pdf", FileName = $"ETP_Management_Summary_{DateTime.Today:yyyyMMdd}.pdf", AddExtension = true };
-        if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
+        var dialog = ExportSaveDialog.Create(ExportSaveDialog.PdfFilter, $"ETP_Management_Summary_{DateTime.Today:yyyyMMdd}.pdf");
+        if (!ExportSaveDialog.ShowDialog(dialog, this)) return;
         var today = DateOnly.FromDateTime(DateTime.Today);
         var summary = presentation.BuildManagementSummary(ExportDateFrom?.Invoke() ?? today, ExportDateTo?.Invoke() ?? today, DateTimeOffset.UtcNow);
         exportInProgress = true;

@@ -326,7 +326,7 @@ public sealed class ServicePartsViewTests
         {
             var view = new ServicePartsView(() => new FakePartsQuery { Failure = new InvalidOperationException("The Service parts read model is not available in this build.") }, NoExport);
             view.ActivateAsync().GetAwaiter().GetResult();
-            Assert.Equal("Service parts and purchases could not be loaded. The Service parts read model is not available in this build.", view.StatusText);
+            Assert.Matches("^Service parts and purchases could not be loaded\\. The Service parts read model is not available in this build\\. Ref: [0-9A-Za-z]+$", view.StatusText);
             Assert.False(view.IsLoading);
         });
     }

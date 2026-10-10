@@ -12,13 +12,14 @@ public sealed class SqlServerOperationsAdministrationService : App.IOperationsAd
     private readonly Func<CancellationToken, Task<ApplicationAccess>> loadAccess;
 
     public SqlServerOperationsAdministrationService(string connectionString,
-        Action<FolderImportFailure>? reportImportFailure = null)
+        Action<FolderImportFailure>? reportImportFailure = null,
+        Action<AutomatedReportPackFailure>? reportPackFailure = null)
     {
         var validated = SqlAdapterConnection.RequireWindowsIntegrated(connectionString, nameof(connectionString));
         gateway = new OperationsAdministrationSqlGateway(
             new Phase2OperationsRepository(validated),
             new ProductisationRepository(validated),
-            new AutomatedOperationsService(validated, reportImportFailure));
+            new AutomatedOperationsService(validated, reportImportFailure, reportPackFailure));
         loadAccess = new Phase2OperationsRepository(validated).LoadCurrentAccessAsync;
     }
 

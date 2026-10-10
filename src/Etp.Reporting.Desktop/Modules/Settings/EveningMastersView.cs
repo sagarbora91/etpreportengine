@@ -16,6 +16,15 @@ public sealed class EveningMastersView : UserControl
     private readonly TextBlock targetPermissionNote=new(){Text="Owner permission is required to change monthly targets.",TextWrapping=TextWrapping.Wrap};
     private readonly List<(Button Button,bool OwnerOnly)> accessButtons=[];
     private readonly Func<string> connection;private readonly Func<bool> owner;private readonly Func<bool> canEditBrands;private int rowId;
+    // 1.9.9 targets-copy: "Copy from previous month" fills this grid only; nothing is saved until "Save copied targets".
+    private readonly DataGrid copiedTargets=CopiedTargetGrid.Create("Monthly targets copied from the previous month (not saved)",withCro:false);
+    private readonly TextBlock copiedNote=new(){TextWrapping=TextWrapping.Wrap,Visibility=Visibility.Collapsed};
+    private IReadOnlyList<CopiedTargetRow> pendingCopy=[];private DateOnly pendingMonth;
+    internal Func<Task<IReadOnlyList<MonthlyTargetRow>>> TargetLoader{get;set;}
+    internal Func<MonthlyTargetRow,Task> TargetSaver{get;set;}
+    internal Func<string,TargetOverwriteChoice> ConfirmOverwrite{get;set;}=AskOverwrite;
+    internal Func<string,bool> ConfirmDiscardCopy{get;set;}=message=>MessageBox.Show(message,"Copy from previous month",MessageBoxButton.YesNo,MessageBoxImage.Question)==MessageBoxResult.Yes;
+    internal string StatusText=>status.Text;
     public EveningMastersView(Func<string> connection,Func<bool> owner,Func<bool>? canEditBrands=null)
     {
         System.Windows.Automation.AutomationProperties.SetName(store,"Store");
@@ -24,6 +33,8 @@ public sealed class EveningMastersView : UserControl
         System.Windows.Automation.AutomationProperties.SetName(evidence,"Source brand evidence");
         System.Windows.Automation.AutomationProperties.SetName(month,"Target month");
         this.connection=connection;this.owner=owner;this.canEditBrands=canEditBrands??owner;order.Text="10";
+        TargetLoader=()=>new EveningMasterRepository(this.connection()).LoadTargetsAsync();
+        TargetSaver=row=>new DataTruthMasterRepository(this.connection()).SaveMonthlyTargetAsync(row);
         brands.SelectionChanged+=(_,_)=>{if(brands.SelectedItem is BrandRowDefinition r){rowId=r.Id;store.Text=r.StoreCode;label.Text=r.Label;order.Text=r.Order.ToString();codes.Text=r.SourceCodes;}};
         targets.SelectionChanged+=(_,_)=>{if(targets.SelectedItem is MonthlyTargetRow r){store.Text=r.StoreCode;month.SelectedDate=r.Month.ToDateTime(TimeOnly.MinValue);amount.Text=r.TargetSales.ToString(CultureInfo.CurrentCulture);}};
         var panel=new StackPanel();panel.Children.Add(new TextBlock{Text="Brand rows and monthly targets",FontSize=18,FontWeight=FontWeights.Bold});
@@ -37,18 +48,59 @@ public sealed class EveningMastersView : UserControl
         var targetPanel=new StackPanel();targetPanel.Children.Add(targets);targetPanel.Children.Add(Field("Target month",month));targetPanel.Children.Add(Field("Monthly store target",amount));
         targetPanel.Children.Add(Button("Save monthly target",async()=>{if(month.SelectedDate is null||!decimal.TryParse(amount.Text,out var value))throw new ArgumentException("Choose a month and enter a target.");await new DataTruthMasterRepository(connection()).SaveMonthlyTargetAsync(new(store.Text,DateOnly.FromDateTime(month.SelectedDate.Value),value));await Refresh();},ownerOnly:true));
         targetPanel.Children.Add(targetPermissionNote);
+        var copyActions=new WrapPanel();copyActions.Children.Add(Button("Copy from previous month",CopyPreviousMonthAsync,ownerOnly:true));copyActions.Children.Add(Button("Save copied targets",SaveCopiedTargetsAsync,ownerOnly:true));
+        targetPanel.Children.Add(copyActions);targetPanel.Children.Add(copiedNote);targetPanel.Children.Add(copiedTargets);
         targetPanel.Children.Add(new TextBlock{Text="Day target = monthly target ÷ days in month. MTD balance = monthly target − MTD sales. Required daily sales = balance ÷ remaining days, including today.",TextWrapping=TextWrapping.Wrap,Margin=new(0,12,0,0)});
         tabs.Items.Add(new TabItem{Header="Brand rows",Content=brandPanel});tabs.Items.Add(new TabItem{Header="Monthly targets",Content=targetPanel});panel.Children.Add(tabs);panel.Children.Add(Button("Refresh",Refresh));panel.Children.Add(status);Content=panel;
         RefreshAccessState();
         Loaded+=async(_,_)=>{RefreshAccessState();await Run(Refresh);};
     }
+    private async Task CopyPreviousMonthAsync()
+    {
+        if(month.SelectedDate is null)throw new ArgumentException("Choose the target month to fill.");
+        var target=TargetCopy.MonthStart(DateOnly.FromDateTime(month.SelectedDate.Value));var previous=TargetCopy.PreviousMonth(target);
+        if(pendingCopy.Count>0&&!ConfirmDiscardCopy($"Copied targets for {TargetCopy.MonthLabel(pendingMonth)} are not saved yet. Replace them with a new copy?"))return;
+        var saved=await TargetLoader();targets.ItemsSource=saved;
+        var plan=TargetCopy.Plan(saved.Select(row=>new TargetCopySource(row.StoreCode,null,row.Month,row.TargetSales)),target);
+        if(plan.Count==0){ShowCopy([],target);status.Text=$"No monthly targets are saved for {TargetCopy.MonthLabel(previous)}. Nothing was copied.";return;}
+        ShowCopy(plan,target);
+        status.Text=$"Copied {plan.Count} monthly target(s) from {TargetCopy.MonthLabel(previous)} into {TargetCopy.MonthLabel(target)}. Nothing is saved yet: check the values, then press Save copied targets.";
+    }
+    private async Task SaveCopiedTargetsAsync()
+    {
+        if(pendingCopy.Count==0)throw new ArgumentException("Press Copy from previous month first.");
+        copiedTargets.CommitEdit(DataGridEditingUnit.Row,true);
+        var resolved=TargetCopy.Resolve(pendingCopy);
+        if(resolved.Any(row=>row.ReplacesExisting))
+        {
+            var choice=ConfirmOverwrite(TargetCopy.OverwriteQuestion(resolved,pendingMonth));
+            if(choice==TargetOverwriteChoice.Cancel){status.Text="Nothing was saved. The copied targets are still shown.";return;}
+            resolved=TargetCopy.Apply(resolved,choice);
+        }
+        foreach(var row in resolved)await TargetSaver(new(row.StoreCode,pendingMonth,row.TargetSales));
+        var label=TargetCopy.MonthLabel(pendingMonth);ShowCopy([],pendingMonth);
+        targets.ItemsSource=await TargetLoader();
+        status.Text=resolved.Count==0?$"No monthly target for {label} needed changing. Nothing was saved.":$"Saved {resolved.Count} monthly target(s) for {label}.";
+    }
+    private void ShowCopy(IReadOnlyList<CopiedTargetRow> rows,DateOnly target)
+    {
+        pendingCopy=rows;pendingMonth=target;copiedTargets.ItemsSource=rows;
+        copiedTargets.Visibility=rows.Count>0?Visibility.Visible:Visibility.Collapsed;copiedNote.Visibility=copiedTargets.Visibility;
+        copiedNote.Text=rows.Count>0?$"Copied from {TargetCopy.MonthLabel(TargetCopy.PreviousMonth(target))} for {TargetCopy.MonthLabel(target)} - not saved. Edit a value or clear it to skip that store; a target already saved for {TargetCopy.MonthLabel(target)} is replaced only after you confirm.":"";
+    }
+    private static TargetOverwriteChoice AskOverwrite(string question)=>MessageBox.Show(question,"Replace saved targets?",MessageBoxButton.YesNoCancel,MessageBoxImage.Warning) switch
+    {
+        MessageBoxResult.Yes=>TargetOverwriteChoice.ReplaceExisting,
+        MessageBoxResult.No=>TargetOverwriteChoice.KeepExisting,
+        _=>TargetOverwriteChoice.Cancel,
+    };
     public void RefreshAccessState()
     {
         foreach(var (button,ownerOnly) in accessButtons)button.IsEnabled=ownerOnly?owner():canEditBrands();
         targetPermissionNote.Visibility=owner()?Visibility.Collapsed:Visibility.Visible;
     }
     private async Task Refresh(){var selected=store.Text;store.ItemsSource=(await new StoreCatalogRepository(connection()).LoadAsync()).Where(x=>x.IsActive).Select(x=>x.Code).ToArray();store.SelectedItem=selected; if(store.SelectedIndex<0&&store.Items.Count==1)store.SelectedIndex=0;var r=new EveningMasterRepository(connection());brands.ItemsSource=await r.LoadBrandsAsync();targets.ItemsSource=await r.LoadTargetsAsync();evidence.ItemsSource=await r.LoadSourceBrandsAsync();status.Text="Saved rows are shown above.";}
-    private async Task Run(Func<Task> action,bool ownerOnly=false){try{if(ownerOnly?!owner():!canEditBrands())throw new UnauthorizedAccessException(ownerOnly?"Owner permission is required.":"Owner or Store Manager permission is required.");IsEnabled=false;await action();}catch(Exception ex){status.Text=DesktopFriendlyError.Describe(ex);}finally{IsEnabled=true;RefreshAccessState();}}
+    private async Task Run(Func<Task> action,bool ownerOnly=false){try{if(ownerOnly?!owner():!canEditBrands())throw new UnauthorizedAccessException(ownerOnly?"Owner permission is required.":"Owner or Store Manager permission is required.");IsEnabled=false;await action();}catch(Exception ex){status.Text=DesktopDiagnostics.WithReference(DesktopFriendlyError.Describe(ex),DesktopDiagnostics.Record(ex,"Settings.EveningMasters","EVENING_MASTERS_OPERATION_FAILED",ex is UnauthorizedAccessException?DesktopDiagnosticSeverity.Warning:DesktopDiagnosticSeverity.Error,operation:"Evening masters change failed"));}finally{IsEnabled=true;RefreshAccessState();}}
     private Button Button(string title,Func<Task> action,bool ownerOnly=false){var b=new Button{Content=title,MinHeight=44,Margin=new(4),Padding=new(12,4,12,4)};accessButtons.Add((b,ownerOnly));b.Click+=async(_,_)=>await Run(action,ownerOnly);return b;}
     private static DataGrid Grid()=>new(){AutoGenerateColumns=true,IsReadOnly=true,MaxHeight=210,MinHeight=88,RowHeight=44,Margin=new(0,6,0,6)};
     private static TextBox Input(string name,bool numeric=false){var t=new TextBox{MinHeight=44,MinWidth=140};System.Windows.Automation.AutomationProperties.SetName(t,name);if(numeric)t.InputScope=new InputScope{Names={new InputScopeName(InputScopeNameValue.Number)}};return t;}

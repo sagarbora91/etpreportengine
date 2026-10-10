@@ -139,8 +139,8 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
         }
         catch (Exception exception)
         {
-            DesktopDiagnostics.Record(exception, "Imports.Workspace", "FOLDER_IMPORT_FAILED");
-            ValidationResult.Text = DesktopFriendlyError.Describe(exception);
+            ValidationResult.Text = DesktopDiagnostics.WithReference(DesktopFriendlyError.Describe(exception),
+                DesktopDiagnostics.Record(exception, "Imports.Workspace", "FOLDER_IMPORT_FAILED", operation: "Folder import failed"));
         }
     }
     private static IReadOnlyList<FolderImportFileResult> MergeRetryResults(IReadOnlyList<FolderImportFileResult> previous,

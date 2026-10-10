@@ -341,7 +341,7 @@ public sealed class ServiceClaimsViewTests
             var query = new FakeClaimsQuery { Failure = new UnauthorizedAccessException("raw technical text") };
             var view = new ServiceClaimsView(() => query, NoExport);
             view.ActivateAsync().GetAwaiter().GetResult();
-            Assert.EndsWith("could not be loaded. " + DesktopFriendlyError.Describe(query.Failure), view.StatusText, StringComparison.Ordinal);
+            Assert.Matches("could not be loaded\\. " + System.Text.RegularExpressions.Regex.Escape(DesktopFriendlyError.Describe(query.Failure)) + " Ref: [0-9A-Za-z]+$", view.StatusText);
             Assert.DoesNotContain("raw technical text", view.StatusText);
             Assert.False(view.IsLoading);
         });

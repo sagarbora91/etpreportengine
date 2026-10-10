@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -25,7 +26,7 @@ public sealed class BrandStockEntryWindow : Window
         save.Click+=async(_,_)=>await Run(async()=>
         {
             if(grid.SelectedItem is not BrandStockEntry e)throw new ArgumentException("Select a brand.");
-            var n=new decimal[4];for(var i=0;i<4;i++)if(!decimal.TryParse(values[i].Text,out n[i])||n[i]<0)throw new ArgumentException("Enter all four non-negative counts; use zero when none.");
+            var n=new decimal[4];for(var i=0;i<4;i++)if(!TryParseCount(values[i].Text,out n[i]))throw new ArgumentException("Enter all four non-negative counts; use zero when none.");
             var access=await new Phase2OperationsRepository(connection).LoadCurrentAccessAsync();if(!access.CanImport)throw new UnauthorizedAccessException("Owner or Store Manager permission is required.");
             await new OperationalCompletionRepository(connection).SaveManualStockCountAsync(store,date,e.Brand,n[0],n[1],n[2],n[3],n.Sum(),remarks.Text,Environment.UserName,reason.Text);
             await Load();status.Text="Today's brand count saved.";
@@ -34,8 +35,20 @@ public sealed class BrandStockEntryWindow : Window
     }
     private async Task Load()
     {
-        grid.ItemsSource=await new OperationalReportRepository(connection).LoadBrandStockEntryAsync(store,date);
+        var rows=await new OperationalReportRepository(connection).LoadBrandStockEntryAsync(store,date);
+        grid.ItemsSource=rows;
+        status.Text=DescribeLoaded(rows.Count,store,date);
     }
 
-    private async Task Run(Func<Task> action){try{IsEnabled=false;await action();}catch(Exception e){status.Text=DesktopFriendlyError.Describe(e);}finally{IsEnabled=true;}}
+    private async Task Run(Func<Task> action){try{IsEnabled=false;await action();}catch(Exception e){status.Text=DesktopDiagnostics.WithReference(DesktopFriendlyError.Describe(e),DesktopDiagnostics.Record(e,"Reports.BrandStockEntry","BRAND_STOCK_ENTRY_FAILED",operation:"Brand physical stock entry failed"));}finally{IsEnabled=true;}}
+    // RA-STOCK-13 (1.9.9): an empty grid used to come with a blank status, so the user could not
+    // tell that the system side (the closing-stock snapshot) was missing.
+    internal static string DescribeLoaded(int rows,string store,DateOnly date)=>rows==0
+        ? $"No closing-stock snapshot or saved count for {store} on {date.ToString("dd MMM yyyy",CultureInfo.InvariantCulture)}, so there are no brands to count. Import the Closing Stock export for that day, then open this window again."
+        : $"{rows.ToString(CultureInfo.InvariantCulture)} brand(s) for {store} on {date.ToString("dd MMM yyyy",CultureInfo.InvariantCulture)}. Select a brand to enter today's count.";
+
+    // Counts are typed as plain numbers; parse them the same way on every Windows culture.
+    internal static bool TryParseCount(string? text,out decimal value)=>
+        decimal.TryParse(text?.Trim(),NumberStyles.Number,CultureInfo.InvariantCulture,out value)&&value>=0;
+
 }

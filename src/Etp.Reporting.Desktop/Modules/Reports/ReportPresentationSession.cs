@@ -53,7 +53,7 @@ public sealed class ReportPresentationSession
             ReportCode = reportCode,
             ExportMetadata = metadata,
             ExportData = data,
-            VisualReport = VisualReportComposer.Compose(metadata, data),
+            VisualReport = VisualReportComposer.Compose(metadata, data, reportCode),
             DailySalesReport = dailySalesReport
         };
         return Current;

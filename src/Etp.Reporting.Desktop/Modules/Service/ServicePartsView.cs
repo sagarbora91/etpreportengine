@@ -5,6 +5,7 @@ using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
+using Etp.Reporting.Desktop.Modules.Reports;
 using Etp.Reporting.Reporting;
 using ServiceGitLine = EtpApplication::Etp.Reporting.Application.Service.ServiceGitLine;
 using ServiceParts = EtpApplication::Etp.Reporting.Application.Service.ServiceParts;
@@ -318,13 +319,8 @@ public sealed class ServicePartsView : ServiceScreenView
     private async Task ExportWaitingWithDialogAsync()
     {
         if (WaitingRows.Count == 0) return;
-        var dialog = new Microsoft.Win32.SaveFileDialog
-        {
-            Filter = "Excel workbook (*.xlsx)|*.xlsx",
-            FileName = $"Service_jobs_waiting_for_parts_{DateTime.Today:yyyyMMdd}.xlsx",
-            AddExtension = true
-        };
-        if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
+        var dialog = ExportSaveDialog.Create(ExportSaveDialog.ExcelFilter, $"Service_jobs_waiting_for_parts_{DateTime.Today:yyyyMMdd}.xlsx");
+        if (!ExportSaveDialog.ShowDialog(dialog, this)) return;
         try
         {
             await ExportWaitingToPathAsync(dialog.FileName);
@@ -332,8 +328,7 @@ public sealed class ServicePartsView : ServiceScreenView
         }
         catch (Exception exception)
         {
-            DesktopDiagnostics.Record(exception, "Service.Parts", "SERVICE_EXPORT_FAILED");
-            waitingStatus.Text = "The export could not be saved. " + DesktopFriendlyError.Describe(exception);
+            waitingStatus.Text = FailureText("The export could not be saved. ", exception, "Service.Parts", "SERVICE_EXPORT_FAILED");
         }
     }
 

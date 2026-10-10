@@ -41,6 +41,8 @@ public static class ImportDiagnosticCatalogue
         ["HEADER_DUPLICATE"] = ["Duplicate normalized headers are not allowed."],
         ["LAYOUT_UNKNOWN"] = ["No import profile exactly matches a worksheet header signature."],
         ["LAYOUT_AMBIGUOUS"] = ["More than one worksheet matches an import profile."],
+        // IF-025: the preflight's own message names the sheets; History keeps this template, which holds no sheet name.
+        [ImportCodes.WorkbookEditedAfterExport] = ["This workbook was edited after export. Re-export it from ETP and import the new file; nothing from this workbook was imported."],
         ["EMPTY_EXPORT"] = ["Empty export; no rows to import."],
         ["REQUIRED_COLUMN_MISSING"] = ["A column required by the closest approved layout is missing."],
         ["UNEXPECTED_COLUMN"] = ["A column is not part of the closest approved layout."],

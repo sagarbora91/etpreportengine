@@ -22,7 +22,7 @@ public sealed class SqlBackedReportingExecutor(
                     "The GST-inclusive amount is missing. Re-import the source export.");
             projected.Add(new(row.TransactionDate, row.StoreCode, row.DocumentNumber, row.LineIdentifier,
                 row.Brand ?? string.Empty, row.BrandSegment ?? string.Empty, row.ProductCode,
-                type, row.SourceQuantity, amount, row.InvoiceYear));
+                type, row.SourceQuantity, amount, row.InvoiceYear, row.BrandRow));
         }
         var result = new SalesReportingService().Summarize(projected, dimension, salesPolicy);
         return unknownRows == 0 ? result : result with { Message = $"Warning: skipped {unknownRows} rows with unknown transaction types. {result.Message}" };
@@ -105,13 +105,48 @@ public sealed class SqlBackedReportingExecutor(
         if (data.Positions.Any(x => x.SourceOpeningQuantity is null))
             return new(ReconciliationStatus.Blocked, [], stockRule.Version, Join(coverage, Join(missingNote,
                 "The ledger opening could not be found for every stock key.")));
-        if (missingNote is not null) return WithoutClosing(data, missingClosing, Join(coverage, missingNote));
+        if (missingNote is not null) return ByStore(WithoutClosing(data, missingClosing, Join(coverage, missingNote)), data, missingClosing, scope.DateTo);
         var result = Reconcile(data.Positions, data.Movements);
         // Titan report audit R-13: a ledger that stops before the To date misses the last movements, so every variance is suspect.
         // The items stay listed for review; the result is Blocked and says how far the ledger goes.
-        if (coverage is not null) return result with { Status = ReconciliationStatus.Blocked, Message = Join(coverage, result.Message) };
+        if (coverage is not null) return ByStore(result with { Status = ReconciliationStatus.Blocked, Message = Join(coverage, result.Message) }, data, missingClosing, scope.DateTo);
         var quiet = QuietDaysNote(data.LedgerCoverage, scope.DateTo);
-        return quiet is null ? result : result with { Message = $"{result.Message} {quiet}" };
+        return ByStore(quiet is null ? result : result with { Message = $"{result.Message} {quiet}" }, data, missingClosing, scope.DateTo);
+    }
+
+    /// <summary>
+    /// RA-STOCK-05 (1.9.9): with more than one store, one headline ("Blocked: Ledger covers to 25 Aug 2026 for <store B> ...")
+    /// hid that the other store passed. The message now starts with each store's own result, e.g.
+    /// "<store A>: Passed (84 item(s)); <store B>: Blocked - ledger ends 25 Aug 2026." The overall status and the detail text after
+    /// it are unchanged; with one store the status word already says it, so nothing is added.
+    /// </summary>
+    private static StockReconciliationResult ByStore(StockReconciliationResult result, StockQueryData data, IReadOnlyCollection<string> missingClosing, DateOnly dateTo)
+    {
+        var line = StoreResults(result.Items, data.LedgerCoverage, missingClosing, dateTo);
+        return line is null ? result : result with { Message = $"{line} {result.Message}" };
+    }
+
+    public static string? StoreResults(IReadOnlyList<StockControlResult> items, IReadOnlyList<StockLedgerCoverageRow>? coverage,
+        IReadOnlyCollection<string> missingClosing, DateOnly dateTo)
+    {
+        var comparer = StringComparer.OrdinalIgnoreCase;
+        var stores = items.Select(x => x.StoreCode).Concat((coverage ?? []).Select(x => x.StoreCode)).Concat(missingClosing)
+            .Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(comparer).Order(comparer).ToArray();
+        if (stores.Length < 2) return null;
+        var missing = missingClosing.ToHashSet(comparer);
+        return string.Join("; ", stores.Select(store =>
+        {
+            var storeItems = items.Where(x => comparer.Equals(x.StoreCode, store)).ToArray();
+            var reasons = new List<string>();
+            if ((coverage ?? []).FirstOrDefault(x => comparer.Equals(x.StoreCode, store) && IsShort(x, dateTo)) is { } shortLedger)
+                reasons.Add(shortLedger.LedgerCoversTo is { } covered ? $"ledger ends {Day(covered)}" : "no stock ledger imported");
+            if (missing.Contains(store)) reasons.Add($"no closing-stock snapshot on {Day(dateTo)}");
+            if (reasons.Count > 0)
+                return $"{store}: Blocked - {string.Join(", ", reasons)}" + (storeItems.Length == 0 ? "" : $" ({storeItems.Length:N0} item(s) listed)");
+            if (storeItems.Length == 0) return $"{store}: no stock movement in the period";
+            var failed = storeItems.Count(x => x.Status == ReconciliationStatus.Failed);
+            return failed == 0 ? $"{store}: Passed ({storeItems.Length:N0} item(s))" : $"{store}: Failed ({failed:N0} of {storeItems.Length:N0} item(s) differ)";
+        })) + ".";
     }
 
     private StockReconciliationResult Reconcile(IEnumerable<StockPositionQueryRow> positions, IEnumerable<StockMovementQueryRow> movements) =>

@@ -55,14 +55,16 @@ public sealed class PhaseFiveAliasTests
             var data = new ExcelReportData(
                 [new("Date"), new("Store"), new("Net Sales"), new("Units"), new("Invoices"), new("Tender Variance"), new("Unmatched Staff Rows")],
                 [[first, "EAST", 120m, 2m, 1, 0m, 0], [first, "WEST", 80m, 1m, 1, 0m, 0], [second, "EAST", -30m, -1m, 1, 0m, 0]]);
-            var model = VisualReportComposer.Compose(new("Management Trend", first, second, "Passed", "test", "Synthetic test", DateTimeOffset.UtcNow), data);
+            var model = VisualReportComposer.Compose(new("Management Trend", first, second, "Passed", "test", "Synthetic test", DateTimeOffset.UtcNow), data, "management-trend");
             var preview = ReportVisualPresenter.BuildFocusedPreview(model, null);
-            var chart = Assert.Single(Descendants(preview).OfType<StackPanel>(), panel => panel.Name == "ManagementTrendChartPanel");
-            Assert.Equal(2, chart.Children.Count);
-            var labels = Descendants(chart).OfType<TextBlock>().Select(block => block.Text).ToArray();
-            Assert.Contains(first.ToString("dd MMM"), labels);
-            Assert.Contains(200m.ToString("N2"), labels);
-            Assert.Contains((-30m).ToString("N2"), labels);
+            // 1.9.8 (RA-EXPORT-05): the composer's daily-sales line replaces the bespoke bar list; one dot per day.
+            var line = Assert.Single(Descendants(preview).OfType<System.Windows.Shapes.Polyline>());
+            Assert.Equal(2, line.Points.Count);
+            Assert.Equal(2, Descendants(preview).OfType<System.Windows.Shapes.Ellipse>().Count());
+            var labels = Descendants(preview).OfType<TextBlock>().Select(block => block.Text).ToArray();
+            Assert.Contains("Daily sales incl. GST (last 31 days)", labels);
+            Assert.Contains(IndianNumberFormatter.Format(-30m, "currency"), labels); // latest day sales
+            Assert.Contains(IndianNumberFormatter.Format(85m, "currency"), labels);  // daily average of 200 and -30
             Assert.Same(data, model.Detail); // Charting never replaces the report's source rows.
         });
     }

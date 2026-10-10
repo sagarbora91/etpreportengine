@@ -15,6 +15,9 @@ internal sealed class VisualReportPdfDocument : IDisposable
     private readonly XFont title = new("Segoe UI", 18, XFontStyleEx.Bold);
     private readonly XSolidBrush navy = new(XColor.FromArgb(23, 50, 77));
     private readonly XSolidBrush blue = new(XColor.FromArgb(36, 123, 160));
+    private readonly XSolidBrush grey = new(XColor.FromArgb(93, 104, 115));
+    private readonly XSolidBrush card = new(XColor.FromArgb(243, 246, 248));
+    private readonly XFont kpiFont = new("Segoe UI", 14, XFontStyleEx.Bold);
     private XGraphics graphics = null!;
     private double y;
 
@@ -30,7 +33,7 @@ internal sealed class VisualReportPdfDocument : IDisposable
         if(models.Count==0 || models.Any(x=>x.Detail.Columns.Count==0)) throw new ArgumentException("At least one report with columns is required.");
         DsrPdfFontResolver.EnsureRegistered();
         using var renderer=new VisualReportPdfDocument(models[0]);
-        foreach(var model in models){renderer.model=model;renderer.Details();}
+        foreach(var model in models){renderer.model=model;if(model.HasSummary)renderer.Summary();renderer.Details();}
         renderer.graphics.Dispose();
         for(var i=0;i<renderer.document.PageCount;i++)
         { using var footer=XGraphics.FromPdfPage(renderer.document.Pages[i],XGraphicsPdfPageOptions.Append);footer.DrawString($"Page {i+1} of {renderer.document.PageCount}",renderer.normal,XBrushes.Gray,new XPoint(Margin,Height-20)); }
@@ -48,6 +51,74 @@ internal sealed class VisualReportPdfDocument : IDisposable
         if (!string.IsNullOrWhiteSpace(model.Metadata.AppliedScope))
             foreach (var line in Wrap(model.Metadata.AppliedScope, normal, ContentWidth)) { Line(line, normal, navy, Margin, y); y += 13; }
         foreach(var line in Wrap(string.Join("; ",model.Controls.Select(c=>$"{c.Status}: {c.Message}"))+ $" · Rule {model.Metadata.RuleVersion}",normal,ContentWidth)){Line(line,normal,navy,Margin,y);y+=13;} y+=8;
+    }
+
+    // RA-EXPORT-05 (1.9.8): the KPI cards and the one visual of the report family, on their own page before the rows.
+    private void Summary()
+    {
+        NewPage("Summary");
+        var kpis = model.Kpis.Take(5).ToArray();
+        if (kpis.Length > 0)
+        {
+            const double gap = 8, boxHeight = 54;
+            var boxWidth = (ContentWidth - gap * (kpis.Length - 1)) / kpis.Length;
+            for (var i = 0; i < kpis.Length; i++)
+            {
+                var x = Margin + i * (boxWidth + gap);
+                graphics.DrawRectangle(card, x, y, boxWidth, boxHeight);
+                Line(Wrap(kpis[i].Label, normal, boxWidth - 12).FirstOrDefault() ?? "", normal, grey, x + 6, y + 6);
+                Line(IndianNumberFormatter.Format(kpis[i].Value, kpis[i].Format, kpis[i].State), kpiFont, navy, x + 6, y + 24);
+                if (kpis[i].Context is { Length: > 0 } context) Line(Wrap(context, normal, boxWidth - 12).First(), normal, grey, x + 6, y + 40);
+            }
+            y += boxHeight + 16;
+        }
+        foreach (var visual in model.Visuals.Take(2))
+        {
+            Ensure(40);
+            Line(visual.Title, bold, navy, Margin, y); y += 18;
+            if (visual.Type == ReportVisualType.Line) LineChart(visual); else BarList(visual);
+            if (!string.IsNullOrWhiteSpace(visual.Footnote)) Paragraph(visual.Footnote, normal);
+        }
+    }
+
+    private void BarList(ReportVisual visual)
+    {
+        const double labelWidth = 170, barWidth = 420, rowHeight = 18;
+        var points = visual.Series.FirstOrDefault()?.Points.Where(x => x.Value is not null).Take(10).ToArray() ?? [];
+        if (points.Length == 0) { Paragraph("No values for the selected scope.", normal); return; }
+        var max = Math.Max(1m, points.Select(x => Math.Abs(x.Value ?? 0)).Max());
+        foreach (var point in points)
+        {
+            Ensure(rowHeight);
+            Line(Wrap(point.Category, normal, labelWidth - 8).First(), normal, navy, Margin, y + 3);
+            var width = Math.Max(2d, barWidth * (double)(Math.Abs(point.Value ?? 0) / max));
+            graphics.DrawRectangle(point.Value < 0 ? new XSolidBrush(XColor.FromArgb(201, 76, 76)) : blue, Margin + labelWidth, y + 3, width, 12);
+            Line(IndianNumberFormatter.Format(point.Value, visual.ValueFormat), normal, navy, Margin + labelWidth + barWidth + 10, y + 3);
+            y += rowHeight;
+        }
+        y += 6;
+    }
+
+    private void LineChart(ReportVisual visual)
+    {
+        const double chartWidth = 700, chartHeight = 150, inset = 10;
+        var points = visual.Series.FirstOrDefault()?.Points.Where(x => x.Value is not null).ToArray() ?? [];
+        if (points.Length == 0) { Paragraph("No values for the selected scope.", normal); return; }
+        Ensure(chartHeight + 36);
+        var left = Margin + 90; var top = y;
+        graphics.DrawRectangle(new XPen(XColors.LightGray, .5), card, left, top, chartWidth, chartHeight);
+        var min = points.Min(x => x.Value!.Value); var max = points.Max(x => x.Value!.Value); if (max == min) max = min + 1;
+        var plotted = points.Select((point, i) => new XPoint(
+            left + inset + i * (chartWidth - 2 * inset) / Math.Max(1, points.Length - 1),
+            top + chartHeight - inset - (double)((point.Value!.Value - min) / (max - min)) * (chartHeight - 2 * inset))).ToArray();
+        if (plotted.Length > 1) graphics.DrawLines(new XPen(XColor.FromArgb(36, 123, 160), 2), plotted);
+        foreach (var p in plotted) graphics.DrawEllipse(blue, p.X - 2.5, p.Y - 2.5, 5, 5);
+        Line(IndianNumberFormatter.Format(max, visual.ValueFormat), normal, grey, Margin, top);
+        Line(IndianNumberFormatter.Format(min, visual.ValueFormat), normal, grey, Margin, top + chartHeight - 12);
+        y = top + chartHeight + 4;
+        Line(points[0].Category, normal, grey, left, y);
+        var last = points[^1].Category; Line(last, normal, grey, left + chartWidth - graphics.MeasureString(last, normal).Width, y);
+        y += 20;
     }
 
     private void Details()

@@ -1,11 +1,9 @@
 using System.Globalization;
-using System.Text;
 
 namespace Etp.Reporting.Reporting;
 
-public enum ReportVisualType { Line, Column, Bar, ClusteredBar, StackedBar, Donut, Progress, Comparison, Sparkline }
+public enum ReportVisualType { Line, Bar }
 public enum VisualValueState { Available, Missing, NotApplicable }
-public enum VisualReportTemplate { ExecutiveSummary, Trend, Comparison, Ranking, Composition, Exception, Stock }
 
 public sealed record ReportKpi(string Label, decimal? Value, string Format, VisualValueState State = VisualValueState.Available, string? Context = null);
 public sealed record ReportVisualPoint(string Category, decimal? Value, VisualValueState State = VisualValueState.Available);
@@ -15,7 +13,11 @@ public sealed record ReportControl(string Name, string Status, string Message);
 public sealed record VisualReportMetadata(string ReportId, string ReportName, DateOnly DateFrom, DateOnly DateTo, string RuleVersion, DateTimeOffset GeneratedUtc, string? AppliedScope = null);
 public sealed record VisualReportModel(VisualReportMetadata Metadata, IReadOnlyList<ReportKpi> Kpis,
     IReadOnlyList<ReportVisual> Visuals, ExcelReportData Detail, IReadOnlyList<ReportControl> Controls,
-    IReadOnlyList<string> Footnotes);
+    IReadOnlyList<string> Footnotes)
+{
+    /// <summary>True when the summary is more than the "Rows" fallback card, so the PDF gets a summary page.</summary>
+    public bool HasSummary => Visuals.Count > 0 || Kpis.Count > 1;
+}
 
 public static class VisualReportTheme
 {
@@ -47,31 +49,19 @@ public static class IndianNumberFormatter
 
 public static class VisualReportComposer
 {
-    private static ReportVisualType? FindVisualType(string name)
-    {
-        (string Name, ReportVisualType Type)[] styles =
-        [
-            ("Daily Sales", ReportVisualType.Line), ("Brand", ReportVisualType.Bar),
-            ("Closing Stock", ReportVisualType.StackedBar), ("Staff", ReportVisualType.Bar),
-            ("Tender Reconciliation", ReportVisualType.ClusteredBar),
-            ("Management Trend", ReportVisualType.Line), ("Daily Exceptions", ReportVisualType.Bar)
-        ];
-        foreach (var style in styles)
-            if (name.Contains(style.Name, StringComparison.OrdinalIgnoreCase)) return style.Type;
-        return null;
-    }
-
-    public static bool IsRepresentative(string reportName) => FindVisualType(reportName) is not null;
-
-    public static VisualReportModel Compose(ExcelReportMetadata metadata, ExcelReportData data)
+    /// <summary>
+    /// Builds the summary model for one report result. The family comes from the classification registry by
+    /// <paramref name="reportCode"/> (the workspace knows it) or, for callers that only have the export name (daily
+    /// pack, tabular PDF), by that name; an unknown report or a table without the family's columns gets the "Rows" card.
+    /// </summary>
+    public static VisualReportModel Compose(ExcelReportMetadata metadata, ExcelReportData data, string? reportCode = null)
     {
         ArgumentNullException.ThrowIfNull(metadata); ArgumentNullException.ThrowIfNull(data);
-        // A report's periods and percentages are not additive. Detail owns its totals.
-        var kpis = new List<ReportKpi> { new("Rows", data.Rows.Count, "integer") };
-        var visuals = new List<ReportVisual>();
+        // A report's periods and percentages are not additive. Detail owns its totals; the summary only reads them.
+        var summary = ReportSummaryBuilder.Build(ProductReportVisualClassificationRegistry.FamilyFor(reportCode, metadata.ReportName), data);
         var controls = new[] { new ReportControl("Report control", metadata.Status, metadata.Message) };
-        return new(new(metadata.ReportName, metadata.ReportName, metadata.DateFrom, metadata.DateTo, metadata.RuleVersion, metadata.GeneratedUtc, metadata.AppliedScope),
-            kpis, visuals, data, controls,
+        return new(new(reportCode ?? metadata.ReportName, metadata.ReportName, metadata.DateFrom, metadata.DateTo, metadata.RuleVersion, metadata.GeneratedUtc, metadata.AppliedScope),
+            summary.Kpis, summary.Visuals, data, controls,
             ["All KPIs, visuals and detail rows use the same report result; visuals do not recalculate business values.", "Blank, zero and not-applicable values are displayed differently."]);
     }
 
@@ -91,46 +81,10 @@ public static class VisualReportComposer
         return available.Take(count).Append(new("Other", available.Skip(count).Sum(x => x.Value ?? 0))).ToArray();
     }
 
-    private static string Label(IReadOnlyList<object?> row, int index) => index < row.Count ? Convert.ToString(row[index], CultureInfo.InvariantCulture) ?? "Not available" : "Not available";
-    private static string DisplayFormat(ExcelReportColumn column)
-    {
-        var header = column.Header;
-        if (header.Contains('%') || header.Contains("Contribution", StringComparison.OrdinalIgnoreCase) || header.Contains("Achievement", StringComparison.OrdinalIgnoreCase) || header.Contains("Growth", StringComparison.OrdinalIgnoreCase)) return "percent";
-        if (new[] { "Sales", "Value", "Cost", "Amount", "Tender", "Cash", "Variance", "Revenue" }.Any(x => header.Contains(x, StringComparison.OrdinalIgnoreCase))) return "currency";
-        return column.NumberFormat == "#,##0" ? "integer" : "number";
-    }
-    private static decimal? Number(IReadOnlyList<object?> row, int index) => index < row.Count && TryDecimal(row[index], out var value) ? value : null;
-    private static bool TryDecimal(object? value, out decimal number)
+    internal static bool TryDecimal(object? value, out decimal number)
     {
         if (value is null) { number = 0; return false; }
         try { number = Convert.ToDecimal(value, CultureInfo.InvariantCulture); return true; }
         catch { number = 0; return false; }
     }
-}
-
-public interface IChartRenderer { string RenderSvg(ReportVisual visual, int width = 900, int height = 360); }
-
-public sealed class SvgChartRenderer : IChartRenderer
-{
-    public string RenderSvg(ReportVisual visual, int width = 900, int height = 360)
-    {
-        ArgumentNullException.ThrowIfNull(visual);
-        var points = visual.Series.SelectMany(x => x.Points).Where(x => x.Value is not null).ToArray();
-        var max = Math.Max(1m, points.Select(x => Math.Abs(x.Value ?? 0)).DefaultIfEmpty(1).Max());
-        var b = new StringBuilder($"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{width}\" height=\"{height}\" viewBox=\"0 0 {width} {height}\" role=\"img\"><title>{Xml(visual.Title)}</title><rect width=\"100%\" height=\"100%\" fill=\"white\"/><text x=\"24\" y=\"30\" font-family=\"Segoe UI\" font-size=\"18\" font-weight=\"600\" fill=\"{VisualReportTheme.Navy}\">{Xml(visual.Title)}</text>");
-        var first = visual.Series.FirstOrDefault();
-        if (first is not null)
-        {
-            var chartTop = 55; var chartHeight = height - 95; var slot = Math.Max(1d, (width - 80d) / Math.Max(1, first.Points.Count));
-            for (var i = 0; i < first.Points.Count; i++)
-            {
-                var point = first.Points[i]; var value = point.Value ?? 0; var h = (double)(Math.Abs(value) / max) * (chartHeight - 30); var x = 50 + i * slot; var y = chartTop + chartHeight - h;
-                b.Append($"<rect x=\"{x:F1}\" y=\"{y:F1}\" width=\"{Math.Max(4, slot - 12):F1}\" height=\"{h:F1}\" fill=\"{first.Colour}\"><title>{Xml(point.Category)}: {Xml(IndianNumberFormatter.Format(value, visual.ValueFormat))}</title></rect>");
-                b.Append($"<text x=\"{x:F1}\" y=\"{height - 18}\" font-family=\"Segoe UI\" font-size=\"10\" fill=\"{VisualReportTheme.Navy}\">{Xml(Clip(point.Category, 12))}</text>");
-            }
-        }
-        return b.Append("</svg>").ToString();
-    }
-    private static string Xml(string value) => System.Security.SecurityElement.Escape(value) ?? string.Empty;
-    private static string Clip(string value, int length) => value.Length <= length ? value : value[..(length - 1)] + "…";
 }

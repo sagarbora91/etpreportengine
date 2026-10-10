@@ -79,8 +79,9 @@ public sealed class UserAccessFailureTests
         Assert.Contains(advice, described, StringComparison.Ordinal);
         Assert.EndsWith("Nothing was changed.", described.Split(" A SQL administrator")[0], StringComparison.Ordinal);
         Assert.NotEqual("The database rejected this change. Review the inputs and day status.", described);
-        // Elsewhere these numbers are not about users.
-        Assert.Equal("The database rejected this change. Review the inputs and day status.",
+        // 1.9.9 (IE-CODE-04): only dbo.configure_application_role raises these numbers, so every
+        // route gives the same words instead of the old generic refusal.
+        Assert.Equal(described,
             DesktopFriendlyError.Describe(SqlExceptionFactory.Create(new SqlExceptionFactory.Error(number, message))));
     }
 

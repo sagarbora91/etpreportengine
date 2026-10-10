@@ -85,6 +85,8 @@
                 <StackPanel Width="222" Margin="0,4,6,4"><TextBlock Text="Staff target change reason" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4"/><TextBox x:Name="StaffTargetReasonInput" Width="210" Padding="6" Margin="6,0,0,0" ToolTip="Required change reason" automation:AutomationProperties.Name="Staff target change reason"/></StackPanel>
                 <Button x:Name="SaveStaffTargetButton" Content="Save target" Click="SaveStaffTarget_Click" Style="{DynamicResource PrimaryButton}" Padding="12,7" Margin="6,0,0,0"
                         automation:AutomationProperties.Name="Save staff target"/>
+                <!-- 1.9.9 targets-copy: kept inside this WrapPanel because TaskNavigator selects root children by index. -->
+                <StackPanel x:Name="StaffTargetCopyHost" MinWidth="640" Margin="0,4,0,0"/>
             </WrapPanel>
 
             <WrapPanel Margin="0,14,0,0">

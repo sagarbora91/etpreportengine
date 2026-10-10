@@ -171,14 +171,25 @@ public partial class MainWindow : Window
     {
         ContinueButton.IsEnabled = false;
         WelcomeProgress.Visibility = Visibility.Visible;
+        // IE-CODE-07: the step in progress, so a failure that is not a connection problem names it.
+        var step = "loading the settings";
         try
         {
             settingsWorkspace.Initialize();
+            step = "checking your access";
             await RefreshAccessAsync(propagateFailure: true);
+            step = "testing the connection";
             await settingsWorkspace.CheckConnectionAsync(false);
+            step = "recording the session start";
             await RecordAuditAsync("ApplicationStart", "Succeeded", "Desktop application started");
             await RecordAuditAsync("SessionStart", "Succeeded", "Windows integrated user session started");
-            if (currentAccess.CanView) { await RefreshStoresAsync(); await RefreshDashboardAsync(); }
+            if (currentAccess.CanView)
+            {
+                step = "loading the stores";
+                await RefreshStoresAsync();
+                step = "loading the dashboard";
+                await RefreshDashboardAsync();
+            }
             startupFailed = false;
             ContinueButton.Content = "Continue";
             CompleteWelcomeState();
@@ -188,8 +199,9 @@ public partial class MainWindow : Window
             DesktopDiagnostics.Record(exception, "Startup", "STARTUP_FAILED", DesktopDiagnosticSeverity.Error);
             startupFailed = true;
             WelcomeOverlay.Visibility = Visibility.Visible;
-            WelcomeRoleText.Text = "Connection unavailable";
-            WelcomeMessage.Text = "Cannot reach SQL Server: " + DesktopFriendlyError.Describe(exception);
+            var presentation = StartupFailureText.Welcome(exception, step);
+            WelcomeRoleText.Text = presentation.Title;
+            WelcomeMessage.Text = presentation.Message;
             WelcomeProgress.Visibility = Visibility.Collapsed;
             ContinueButton.Content = "Retry";
             ContinueButton.IsEnabled = true;
@@ -223,12 +235,21 @@ public partial class MainWindow : Window
             UpdateOperationsAdministrationAccess();
             dailyWorkflowWorkspace.RefreshAccessState();
         }
-        catch (Exception ex) when (!propagateFailure && DesktopFriendlyError.IsDatabaseAvailabilityFailure(ex))
+        catch (Exception ex) when (!propagateFailure && ex is not OperationCanceledException)
         {
-            currentAccess = new("unknown", "Access not initialized", AccessRole.None, false);
-            settingsWorkspace.UpdateAccess(new(currentAccess.Role != AccessRole.None, currentAccess.CanAdminister));
-            UpdateOperationsAdministrationAccess();
-            dailyWorkflowWorkspace.RefreshAccessState();
+            // IE-CODE-06. This used to set "No access" silently for any SqlException or
+            // InvalidOperationException, code bugs included. Now it is logged and shown, and only a
+            // connection-class failure (server, login, database, permission) removes access.
+            DesktopDiagnostics.Record(ex, "Shell.Access", "ACCESS_REFRESH_FAILED");
+            var failure = StartupFailureText.AccessRefresh(ex);
+            if (failure.RemoveAccess)
+            {
+                currentAccess = new("unknown", "Access not initialized", AccessRole.None, false);
+                settingsWorkspace.UpdateAccess(new(currentAccess.Role != AccessRole.None, currentAccess.CanAdminister));
+                UpdateOperationsAdministrationAccess();
+                dailyWorkflowWorkspace.RefreshAccessState();
+            }
+            ApplicationStatus.Text = failure.Status;
         }
     }
 

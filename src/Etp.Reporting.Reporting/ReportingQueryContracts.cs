@@ -18,10 +18,15 @@ public sealed record ReportingQueryScope(
     }
 }
 
+/// <summary>
+/// One sales line. <see cref="Brand"/> and <see cref="BrandSegment"/> are the export's BRAND and CLUSTER (for Helios the
+/// distributor and the watch brand); <see cref="BrandRow"/> is the owner's brand row the line maps to by the DSR rule
+/// (code, name or cluster in the store's brand-row master), null when no row claims it (1.9.8, RA-SALES-03/04).
+/// </summary>
 public sealed record SalesQueryRow(
     DateOnly TransactionDate, string StoreCode, string DocumentNumber, string LineIdentifier,
     string ProductCode, string? Brand, string? BrandSegment, string? SourceTransactionType,
-    decimal SourceQuantity, decimal? SourceGrossAmount, decimal? SourceNetAmount, int? InvoiceYear = null);
+    decimal SourceQuantity, decimal? SourceGrossAmount, decimal? SourceNetAmount, int? InvoiceYear = null, string? BrandRow = null);
 public sealed record TenderQueryRow(
     string StoreCode, string DocumentNumber, string TenderType, decimal SourceAmount, int? InvoiceYear = null);
 public sealed record InvoiceControlQueryRow(

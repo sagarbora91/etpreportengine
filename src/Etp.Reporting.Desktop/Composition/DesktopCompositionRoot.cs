@@ -108,7 +108,7 @@ public sealed class DesktopCompositionRoot
         Func<string, OperationalReportQuery> operationalReportQueryFactory = value => new SqlServerApplicationReportQuery(value);
         Func<string, ManagementTrendQuery> managementTrendQueryFactory = value => new SqlServerApplicationReportQuery(value);
         Func<string, AccountingService> accountingServiceFactory = value => new SqlServerAccountingService(value);
-        Func<string, OperationsAdministrationService> operationsAdministrationServiceFactory = value => new SqlServerOperationsAdministrationService(value, ImportFailureDiagnostics.Record);
+        Func<string, OperationsAdministrationService> operationsAdministrationServiceFactory = value => new SqlServerOperationsAdministrationService(value, ImportFailureDiagnostics.Record, ReportPackFailureDiagnostics.Record);
         Func<string, AdministrationService> administrationServiceFactory = value => new SqlServerAdministrationService(value);
         Func<string, ImportPersistenceUseCase> importPersistenceUseCaseFactory = value => new SqlServerImportPersistenceUseCase(value);
         Func<string, DatabaseLifecycleService> databaseLifecycleServiceFactory = value => new SqlServerDatabaseLifecycleService(value);
@@ -202,6 +202,7 @@ public sealed class DesktopCompositionRoot
         window.serviceExcelExport = (path, metadata, data) =>
             reportExportCoordinator.ExportReportExcelAsync(path, metadata, data, null);
         window.serviceReportQuery = () => new SqlServerServiceReportQuery(connectionState.ConnectionString);
+        window.dailyReadinessQuery = () => new SqlServerDailyReadinessQuery(connectionState.ConnectionString);
         dailyWorkflowWorkspaceView.AttachRegisters((store, date, token) =>
             SqlServerDigitalRegisterService.LoadDayAsync(connectionState.ConnectionString, store, date, token));
         return window;
@@ -250,7 +251,7 @@ public sealed class DesktopCompositionRoot
 
     public async Task<int> RunAutomationOnceAsync(CancellationToken cancellationToken = default)
     {
-        var result = await new SqlServerOperationsAdministrationService(LoadAutomationConnectionString(), ImportFailureDiagnostics.Record)
+        var result = await new SqlServerOperationsAdministrationService(LoadAutomationConnectionString(), ImportFailureDiagnostics.Record, ReportPackFailureDiagnostics.Record)
             .RunAutomationOnceAsync(cancellationToken)
             .ConfigureAwait(false);
         return result.SourcesFailed == 0 ? 0 : 1;

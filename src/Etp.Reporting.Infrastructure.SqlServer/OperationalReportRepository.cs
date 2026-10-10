@@ -95,7 +95,9 @@ public sealed record PhysicalStockReportRow(
     decimal SystemQuantity,
     decimal? SystemVariance,
     string? Remarks,
-    string Status);
+    string Status,
+    // RA-STOCK-01 (1.9.9): the snapshot day the system side was read from; null when the store has none.
+    DateOnly? SnapshotDate = null);
 
 public sealed record StockInventoryReportRow(
     DateOnly SnapshotDate,
@@ -176,14 +178,23 @@ public sealed partial class OperationalReportRepository(string connectionString)
     // house-brand items split into the owner's hybrid rows (G SHOCK, CITIZEN, FOSSIL, GUESS, SEIKO, AMAZEFIT, FIT BIT).
     // Owner answer Q8: last_receipt_date is the latest inward ledger movement (StockAgeing.ReceiptTypes) on or before the
     // date, so a recently received item shows as NEW (StockAgeing.Status), aged by its receipt, not "never sold".
+    // RA-STOCK-01 (1.9.9): with @latest=1 each store reads its latest snapshot on or before @date (snapshot_date in the rows
+    // says which day); with @latest=0 only a snapshot on @date counts. Receipt and last sale are aged to the snapshot's day.
     public const string StockInventorySql = $"""
-        WITH receipt AS
+        WITH snap AS
+        (
+          SELECT e.store_code,MAX(e.snapshot_date) snapshot_date
+          FROM dbo.v_stock_snapshots_effective e
+          WHERE e.snapshot_date<=@date AND (@latest=1 OR e.snapshot_date=@date)
+            AND (@stores IS NULL OR e.store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores)))
+          GROUP BY e.store_code
+        ),
+        receipt AS
         (
           SELECT m.store_code,m.product_code,MAX(m.document_date) last_receipt_date
-          FROM dbo.stock_movements m
-          WHERE m.document_date<=@date AND m.transaction_quantity>0
+          FROM dbo.stock_movements m JOIN snap d ON d.store_code=m.store_code
+          WHERE m.document_date<=d.snapshot_date AND m.transaction_quantity>0
             AND m.source_transaction_type IN(N'Purchase Receipt',N'STM Receipt',N'Stock Receipt')
-            AND (@stores IS NULL OR m.store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores)))
           GROUP BY m.store_code,m.product_code
         )
         SELECT s.snapshot_date,s.store_code,s.product_code,
@@ -197,6 +208,7 @@ public sealed partial class OperationalReportRepository(string connectionString)
                r.last_receipt_date,
                br.row_label brand_row
         FROM dbo.v_stock_snapshots_effective s
+        JOIN snap d ON d.store_code=s.store_code AND d.snapshot_date=s.snapshot_date
         LEFT JOIN receipt r ON r.store_code=s.store_code AND r.product_code=s.product_code
         OUTER APPLY
         (
@@ -211,9 +223,7 @@ public sealed partial class OperationalReportRepository(string connectionString)
           WHERE i.store_code=s.store_code AND l.product_code=s.product_code AND i.transaction_date<=s.snapshot_date
                 AND COALESCE(l.source_quantity,0)>0
         ) sale
-        WHERE s.snapshot_date=@date
-          AND (@stores IS NULL OR s.store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores)))
-          AND (@segments IS NULL OR s.cluster IN(SELECT CONVERT(nvarchar(100),[value]) FROM OPENJSON(@segments)))
+        WHERE (@segments IS NULL OR s.cluster IN(SELECT CONVERT(nvarchar(100),[value]) FROM OPENJSON(@segments)))
           AND (@items IS NULL OR s.product_code IN(SELECT CONVERT(nvarchar(80),[value]) FROM OPENJSON(@items)))
           AND NOT {NonMerchandiseSql.StockItemOfS}
         GROUP BY s.snapshot_date,s.store_code,s.product_code,
@@ -259,37 +269,41 @@ public sealed partial class OperationalReportRepository(string connectionString)
         return rows;
     }
 
+    // R013 rows are paired with lines by occurrence (EnrichmentOccurrencePairing), so a line has at most one.
+    // Brand (column 5) is the owner's brand row by the DSR rule, "Unmapped: <export brand>" otherwise (1.9.8, RA-SALES-04);
+    // the row is a lookup, never a filter, so an unmapped line stays in the drill-down.
+    internal const string InvoiceLineageSql = $"""
+        SELECT i.transaction_date,i.store_code,i.document_number,l.line_identifier,l.product_code,
+               {BrandRowSql.BrandRowOrUnmappedOfL},l.brand_segment,l.source_transaction_type,
+               l.source_quantity,l.source_gross_amount,cro.source_cro_number,f.original_file_name,s.sheet_name,s.source_row_number
+        FROM dbo.sales_lines l
+        JOIN dbo.sales_invoices i ON i.sales_invoice_id=l.sales_invoice_id
+        JOIN dbo.source_lineage s ON s.source_lineage_id=l.source_lineage_id
+        JOIN dbo.import_files f ON f.import_file_id=s.import_file_id
+        {BrandRowSql.MappedRowOfL}
+        OUTER APPLY
+        (
+          SELECT TOP(1) e.source_cro_number
+          FROM {EnrichmentOccurrencePairing.EffectiveEnrichments} e
+          WHERE e.enrichment_type='R013' AND e.store_code=i.store_code AND e.transaction_date=i.transaction_date
+            AND e.document_number=i.document_number AND e.product_code=l.product_code
+            AND e.effective_match_status='Matched' AND e.effective_sales_line_id=l.sales_line_id
+        ) cro
+        WHERE i.transaction_date BETWEEN @from AND @to
+          AND (@stores IS NULL OR i.store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores)))
+          AND (@segments IS NULL OR l.brand_segment IN(SELECT CONVERT(nvarchar(100),[value]) FROM OPENJSON(@segments)))
+          AND (@types IS NULL OR l.source_transaction_type IN(SELECT CONVERT(nvarchar(80),[value]) FROM OPENJSON(@types)))
+          AND (@items IS NULL OR l.product_code IN(SELECT CONVERT(nvarchar(80),[value]) FROM OPENJSON(@items)))
+        ORDER BY i.transaction_date,i.store_code,i.document_number,l.line_identifier;
+        """;
+
     public async Task<IReadOnlyList<InvoiceSalesLineageRow>> LoadInvoiceLineageAsync(
         ReportingQueryScope scope,
         CancellationToken cancellationToken = default)
     {
         scope.Validate();
-        // R013 rows are paired with lines by occurrence (EnrichmentOccurrencePairing), so a line has at most one.
-        const string sql = $"""
-            SELECT i.transaction_date,i.store_code,i.document_number,l.line_identifier,l.product_code,
-                   COALESCE(l.source_brand_name,l.source_brand_code),l.brand_segment,l.source_transaction_type,
-                   l.source_quantity,l.source_gross_amount,cro.source_cro_number,f.original_file_name,s.sheet_name,s.source_row_number
-            FROM dbo.sales_lines l
-            JOIN dbo.sales_invoices i ON i.sales_invoice_id=l.sales_invoice_id
-            JOIN dbo.source_lineage s ON s.source_lineage_id=l.source_lineage_id
-            JOIN dbo.import_files f ON f.import_file_id=s.import_file_id
-            OUTER APPLY
-            (
-              SELECT TOP(1) e.source_cro_number
-              FROM {EnrichmentOccurrencePairing.EffectiveEnrichments} e
-              WHERE e.enrichment_type='R013' AND e.store_code=i.store_code AND e.transaction_date=i.transaction_date
-                AND e.document_number=i.document_number AND e.product_code=l.product_code
-                AND e.effective_match_status='Matched' AND e.effective_sales_line_id=l.sales_line_id
-            ) cro
-            WHERE i.transaction_date BETWEEN @from AND @to
-              AND (@stores IS NULL OR i.store_code IN(SELECT CONVERT(varchar(30),[value]) FROM OPENJSON(@stores)))
-              AND (@segments IS NULL OR l.brand_segment IN(SELECT CONVERT(nvarchar(100),[value]) FROM OPENJSON(@segments)))
-              AND (@types IS NULL OR l.source_transaction_type IN(SELECT CONVERT(nvarchar(80),[value]) FROM OPENJSON(@types)))
-              AND (@items IS NULL OR l.product_code IN(SELECT CONVERT(nvarchar(80),[value]) FROM OPENJSON(@items)))
-            ORDER BY i.transaction_date,i.store_code,i.document_number,l.line_identifier;
-            """;
         await using var connection = await OpenAsync(cancellationToken);
-        await using var command = ScopeCommand(connection, sql, scope);
+        await using var command = ScopeCommand(connection, InvoiceLineageSql, scope);
         command.Parameters.AddWithValue("@segments", Json(scope.BrandSegments));
         command.Parameters.AddWithValue("@types", Json(scope.TransactionTypes));
         command.Parameters.AddWithValue("@items", Json(scope.ItemCodes));
@@ -561,13 +575,24 @@ public sealed partial class OperationalReportRepository(string connectionString)
         return rows;
     }
 
+    public Task<IReadOnlyList<StockInventoryReportRow>> LoadStockInventoryAsync(
+        ReportingQueryScope scope,
+        CancellationToken cancellationToken = default) => LoadStockInventoryAsync(scope, latestOnOrBefore: false, cancellationToken);
+
+    /// <summary>
+    /// Closing stock per item. With <paramref name="latestOnOrBefore"/> each store reads its latest snapshot on or before
+    /// <see cref="ReportingQueryScope.DateTo"/> (RA-STOCK-01: Closing, Brand, Slow and Physical Stock); otherwise only a
+    /// snapshot on that date (the daily pack, daily exceptions and Brand Stock Entry, which compare it to that day's counts).
+    /// <see cref="StockInventoryReportRow.SnapshotDate"/> is the day read.
+    /// </summary>
     public async Task<IReadOnlyList<StockInventoryReportRow>> LoadStockInventoryAsync(
         ReportingQueryScope scope,
+        bool latestOnOrBefore,
         CancellationToken cancellationToken = default)
     {
         scope.Validate();
         await using var connection=await OpenAsync(cancellationToken);await using var command=new SqlCommand(StockInventorySql,connection);
-        command.Parameters.AddWithValue("@date",scope.DateTo);command.Parameters.AddWithValue("@stores",Json(scope.StoreCodes));command.Parameters.AddWithValue("@segments",Json(scope.BrandSegments));command.Parameters.AddWithValue("@items",Json(scope.ItemCodes));
+        command.Parameters.AddWithValue("@date",scope.DateTo);command.Parameters.AddWithValue("@latest",latestOnOrBefore);command.Parameters.AddWithValue("@stores",Json(scope.StoreCodes));command.Parameters.AddWithValue("@segments",Json(scope.BrandSegments));command.Parameters.AddWithValue("@items",Json(scope.ItemCodes));
         await using var reader=await command.ExecuteReaderAsync(cancellationToken);var rows=new List<StockInventoryReportRow>();
         while(await reader.ReadAsync(cancellationToken))
         {
@@ -589,7 +614,7 @@ public sealed partial class OperationalReportRepository(string connectionString)
         rows.AddRange(workflow.MissingReports.Select(code => new DailyExceptionRow("BLOCKER", "Source", "SOURCE_MISSING", storeCode, businessDate,
             null, null, null, null, null, null, $"Required ETP report {code} has not been imported.", "Import the approved report for this store and business date.")));
         rows.AddRange(workflow.MissingRequiredInputs.Select(code => new DailyExceptionRow("BLOCKER", "Manual input", "MANUAL_INPUT_MISSING", storeCode, businessDate,
-            null, null, null, null, null, null, $"Required operational input {code} is missing.", "Enter a value; enter zero explicitly when zero is the true value.")));
+            null, null, null, null, null, null, ManualInputMissingMessage(code, workflow.ManualInputs), ManualInputMissingAction(code))));
 
         var scope = new ReportingQueryScope(businessDate, businessDate, [storeCode]);
         var executor = new SqlBackedReportingExecutor(new SqlServerReportingQueryRepository(connectionString),
@@ -633,7 +658,7 @@ public sealed partial class OperationalReportRepository(string connectionString)
                 },
                 storeCode, businessDate, null, item.InventoryGroupCode, item.Status == "FAIL" ? item.SystemVariance : item.CompositionVariance,
                 null, null, null, item.Status == "MANUAL INPUT MISSING" ? "No counted physical quantity has been entered for this system-stock group." : "Physical stock evidence does not match its comparison control.",
-                item.Status == "MANUAL INPUT MISSING" ? "Enter the physical count when the operational count is performed; enter zero explicitly when correct." : "Recount or record an approved correction reason; system stock is never overwritten."));
+                item.Status == "MANUAL INPUT MISSING" ? PhysicalCountMissingAction : "Recount or record an approved correction reason; system stock is never overwritten."));
 
         var cash = await LoadCashReconciliationAsync(storeCode, businessDate, cancellationToken);
         if (cash.Status is ReconciliationStatus.Blocked or ReconciliationStatus.Failed)
@@ -646,6 +671,21 @@ public sealed partial class OperationalReportRepository(string connectionString)
                 null, null, null, staff.Message, "Review unmatched and unassigned R013 rows; do not round the variance away."));
         return rows.OrderBy(x => x.Severity).ThenBy(x => x.Area).ThenBy(x => x.DocumentNumber).ThenBy(x => x.SourceRow).ToArray();
     }
+
+    // RA-OPS-02 (1.9.9): exception rows name the field by its display name and the screen where it is entered.
+    internal static string ManualInputMissingMessage(string code, IReadOnlyList<ManualInputValue> inputs)
+    {
+        var name = OperationalInputScreens.DisplayName(code, inputs);
+        return string.Equals(name, code, StringComparison.Ordinal)
+            ? $"Required operational input {code} is missing."
+            : $"Required operational input {name} ({code}) is missing.";
+    }
+
+    internal static string ManualInputMissingAction(string code) =>
+        $"Enter it on {OperationalInputScreens.For(code)}; enter zero explicitly when zero is the true value.";
+
+    internal static readonly string PhysicalCountMissingAction =
+        $"Enter the physical count on {OperationalInputScreens.PhysicalCount} when the count is done; enter zero explicitly when correct.";
 
     private async Task<Dictionary<(string Store, string Document), SourcePointer>> LoadInvoicePointersAsync(
         ReportingQueryScope scope,
@@ -770,26 +810,35 @@ public sealed partial class OperationalReportRepository(string connectionString)
             FROM dbo.manual_operational_inputs
             WHERE business_date=@date AND field_code='SERVICE_WDC' AND store_code IN(SELECT store_code FROM dbo.stores WHERE is_active=1)
             UNION ALL SELECT store_code,'SALES_TARGET',target_sales FROM dbo.monthly_targets
-            WHERE target_month=DATEFROMPARTS(YEAR(@date),MONTH(@date),1) AND store_code IN(SELECT store_code FROM dbo.stores WHERE is_active=1)
-            UNION ALL SELECT DISTINCT store_code,'SERVICE_MONEY_SHOP',NULL FROM dbo.v_service_manual_money WHERE is_service_money_shop=1;
+            WHERE target_month=DATEFROMPARTS(YEAR(@date),MONTH(@date),1) AND store_code IN(SELECT store_code FROM dbo.stores WHERE is_active=1);
+            """;
+        // Decision 16 / RA-OPS-08: the DSR Service card sums only the shop(s) that enter Service money. The 0048 view decides the
+        // shop (no store code in C#); it lists a shop only once it holds an entry, so with no Titan World entry the set is
+        // empty and the Service total stays "—" whatever another shop keyed. The view is read in its own statement, only when
+        // it exists: a database still below 0048 (an upgrade in progress, the brand-mapping upgrade test) must keep loading the DSR.
+        const string serviceShopSql = """
+            IF OBJECT_ID(N'dbo.v_service_manual_money', N'V') IS NOT NULL
+                EXEC sp_executesql N'SELECT DISTINCT store_code FROM dbo.v_service_manual_money WHERE is_service_money_shop=1';
             """;
         await using var connection = await OpenAsync(token);
-        await using var command = new SqlCommand(sql, connection);
-        command.Parameters.AddWithValue("@date", businessDate);
-        await using var reader = await command.ExecuteReaderAsync(token);
         var targets = new Dictionary<string, decimal?>(StringComparer.OrdinalIgnoreCase);
         var wdc = new List<decimal>();
-        // Decision 16 / RA-OPS-08: the DSR Service card sums only the shop(s) that enter Service money. The view decides the
-        // shop (no store code in C#); it lists a shop only once it holds an entry, so with no Titan World entry the set is
-        // empty and the Service total stays "—" whatever another shop keyed.
-        var serviceMoneyStores = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        while (await reader.ReadAsync(token))
+        await using (var command = new SqlCommand(sql, connection))
         {
-            var field = reader.GetString(1);
-            if (field.Equals("SERVICE_MONEY_SHOP", StringComparison.OrdinalIgnoreCase)) { serviceMoneyStores.Add(reader.GetString(0).Trim()); continue; }
-            if (reader.IsDBNull(2)) continue;
-            if (field.Equals("SALES_TARGET", StringComparison.OrdinalIgnoreCase)) targets[reader.GetString(0)] = reader.GetDecimal(2);
-            else wdc.Add(reader.GetDecimal(2));
+            command.Parameters.AddWithValue("@date", businessDate);
+            await using var reader = await command.ExecuteReaderAsync(token);
+            while (await reader.ReadAsync(token))
+            {
+                if (reader.IsDBNull(2)) continue;
+                if (reader.GetString(1).Equals("SALES_TARGET", StringComparison.OrdinalIgnoreCase)) targets[reader.GetString(0)] = reader.GetDecimal(2);
+                else wdc.Add(reader.GetDecimal(2));
+            }
+        }
+        var serviceMoneyStores = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        await using (var command = new SqlCommand(serviceShopSql, connection))
+        await using (var reader = await command.ExecuteReaderAsync(token))
+        {
+            while (await reader.ReadAsync(token)) serviceMoneyStores.Add(reader.GetString(0).Trim());
         }
         return new(targets, wdc.Count == 0 ? null : wdc.Sum(), serviceMoneyStores);
     }

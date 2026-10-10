@@ -23,7 +23,8 @@ public sealed class SimplePdfReportExporterTests
             var text = Encoding.ASCII.GetString(bytes);
             Assert.StartsWith("%PDF-1.4", text, StringComparison.Ordinal);
             using var document=PdfReader.Open(path,PdfDocumentOpenMode.Import);
-            Assert.Equal(2,document.PageCount);
+            // 1.9.8 (RA-EXPORT-05): "Daily Sales" resolves to the sales family, so a summary page precedes the two row pages.
+            Assert.Equal(3,document.PageCount);
             Assert.All(document.Pages.Cast<PdfSharp.Pdf.PdfPage>(),page=>Assert.True(page.Width.Point>page.Height.Point));
             Assert.EndsWith("%%EOF\n", text, StringComparison.Ordinal);
         }

@@ -45,6 +45,7 @@ public partial class MainWindow
             RunFocusedReport, reportsWorkspaceView.StoreScope);
         FocusedWorkspaceHost.Content = workspace;
         if (workspace is ReportWorkspaceControl filteredReport) { filteredReport.SetStores(StoreScopes,reportsWorkspaceView.StoreScope); reportsWorkspaceView.AttachQueryFilters(filteredReport); }
+        if (workspace is DailySalesReportWorkspace dsr) AttachTodayChecklist(dsr);
         workspace.Focus();
         return true;
     }
@@ -52,7 +53,7 @@ public partial class MainWindow
     private void RunFocusedReport(string reportCode, ReportWorkspaceControl workspace)
     {
         reportsWorkspaceView.ApplyScope(workspace.DateFromPicker.SelectedDate, workspace.DateToPicker.SelectedDate, workspace.ScopeSelector.SelectedItem?.ToString());
-        _ = reportsWorkspaceView.RunReportAsync(reportCode);
+        reportsWorkspaceView.RunReportObserved(reportCode);
     }
 
     private void FocusedReportActionRequested(object? sender, ReportWorkspaceActionRequest request)
@@ -63,7 +64,7 @@ public partial class MainWindow
                 if (sender is ReportWorkspaceControl)
                     reportsWorkspaceView.ApplyScope(request.DateFrom.ToDateTime(TimeOnly.MinValue), request.DateTo.ToDateTime(TimeOnly.MinValue), request.Scope);
                 else ApplyWorkspaceScope(request.DateFrom.ToDateTime(TimeOnly.MinValue), request.DateTo.ToDateTime(TimeOnly.MinValue), request.Scope);
-                _ = reportsWorkspaceView.RunReportAsync(request.ReportCode);
+                reportsWorkspaceView.RunReportObserved(request.ReportCode);
                 break;
             case ReportWorkspaceAction.ExportPdf:
                 taskNavigator!.ExportCurrentReport(true);
@@ -76,7 +77,7 @@ public partial class MainWindow
                 taskNavigator!.ExportCurrentReport(false);
                 break;
             case ReportWorkspaceAction.GenerateReportPack:
-                _ = taskNavigator!.GeneratePackAsync(request.DateTo.ToDateTime(TimeOnly.MinValue), request.Scope);
+                taskNavigator!.GeneratePackObserved(request.DateTo.ToDateTime(TimeOnly.MinValue), request.Scope);
                 break;
             case ReportWorkspaceAction.OpenExportFolder:
                 OpenExportFolder();
@@ -164,8 +165,7 @@ public partial class MainWindow
 
     private static void OpenExportFolder()
     {
-        var directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "ETP Reporting Engine", "Exports");
-        Directory.CreateDirectory(directory);
+        var directory = ExportSaveDialog.EnsureExportFolder();
         Process.Start(new ProcessStartInfo("explorer.exe", directory) { UseShellExecute = true });
     }
 }

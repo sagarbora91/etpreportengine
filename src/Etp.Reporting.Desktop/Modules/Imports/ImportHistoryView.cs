@@ -86,8 +86,8 @@ public sealed class ImportHistoryView : UserControl
         catch (Exception exception)
         {
             if (current != revision) return;
-            DesktopDiagnostics.Record(exception, "Imports.History", "IMPORT_HISTORY_LOAD_FAILED");
-            status.Text = "Saved imports could not be loaded. " + DesktopFriendlyError.Describe(exception);
+            status.Text = DesktopDiagnostics.WithReference("Saved imports could not be loaded. " + DesktopFriendlyError.Describe(exception),
+                DesktopDiagnostics.Record(exception, "Imports.History", "IMPORT_HISTORY_LOAD_FAILED", operation: "Saved imports load failed"));
         }
         finally { if (current == revision) IsLoading = false; }
     }

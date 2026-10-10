@@ -411,7 +411,7 @@ public sealed class ServicePendingBoardViewTests
             var failure = new UnauthorizedAccessException("raw technical text");
             var view = new ServicePendingBoardView(() => new FakeBoardQuery { Failure = failure }, NoExport, NoPackExport);
             view.ActivateAsync().GetAwaiter().GetResult();
-            Assert.Equal("Service pending board could not be loaded. " + DesktopFriendlyError.Describe(failure), view.StatusText);
+            Assert.Matches("^Service pending board could not be loaded\\. " + System.Text.RegularExpressions.Regex.Escape(DesktopFriendlyError.Describe(failure)) + " Ref: [0-9A-Za-z]+$", view.StatusText);
             Assert.DoesNotContain("raw technical text", view.StatusText);
             Assert.Null(view.Numbers);
         });

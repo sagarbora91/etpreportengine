@@ -7,6 +7,7 @@ using System.Windows.Data;
 using Etp.Reporting.Reporting;
 using Microsoft.Win32;
 using ServiceFreshnessChip = EtpApplication::Etp.Reporting.Application.Service.ServiceFreshnessChip;
+using Etp.Reporting.Desktop.Modules.Reports;
 using ServiceRefresh = EtpApplication::Etp.Reporting.Application.Service.ServiceRefresh;
 using ServiceReportQuery = EtpApplication::Etp.Reporting.Application.Service.IServiceReportQuery;
 
@@ -111,6 +112,8 @@ public abstract class ServiceScreenView : UserControl
     protected IReadOnlyList<ServiceRefresh> Refreshes { get; private set; } = [];
     /// <summary>The freshness chips of the last activation, in strip order (design 3.7).</summary>
     public IReadOnlyList<ServiceFreshnessChip> Freshness { get; private set; } = [];
+    /// <summary>The strip's text when the export dates could not be read, with the diagnostics reference (R-UI-18); empty otherwise.</summary>
+    public string FreshnessNote { get; private set; } = "";
     /// <summary>The date the freshness colours are measured from (passed to LoadFreshnessAsync as asOf); tests pin it.</summary>
     public Func<DateOnly> FreshnessToday { get; set; } = () => DateOnly.FromDateTime(DateTime.Today);
     public DataGrid Table { get; } = new() { AutoGenerateColumns = false, IsReadOnly = true, SelectionMode = DataGridSelectionMode.Single };
@@ -155,13 +158,18 @@ public abstract class ServiceScreenView : UserControl
             // R-UI-15: the strip is shown only for the current activation, and a freshness failure leaves it empty
             // (recorded) instead of failing the whole screen.
             IReadOnlyList<ServiceFreshnessChip> chips = [];
+            var freshnessNote = "";
             if (HasData)
             {
                 try { chips = await source.LoadFreshnessAsync(FreshnessToday()); }
-                catch (Exception freshnessFailure) { DesktopDiagnostics.Record(freshnessFailure, diagnosticsSource, diagnosticsEvent + "_FRESHNESS"); }
+                catch (Exception freshnessFailure)
+                {
+                    freshnessNote = DesktopDiagnostics.WithReference("The export dates could not be read.",
+                        DesktopDiagnostics.Record(freshnessFailure, diagnosticsSource, diagnosticsEvent + "_FRESHNESS"));
+                }
             }
             if (current != revision) return;
-            ShowFreshness(chips);
+            ShowFreshness(chips, freshnessNote);
             if (!HasData && !LoadsWithoutReadings) { StatusText = NoDataText + ". Import the Service Centre files on Import → Import folder."; ClearExtras(); return; }
             var request = PrepareLoad();
             if (request is not null) { StatusText = request; ClearExtras(); return; }
@@ -174,8 +182,7 @@ public abstract class ServiceScreenView : UserControl
         catch (Exception exception)
         {
             if (current != revision) return;
-            DesktopDiagnostics.Record(exception, diagnosticsSource, diagnosticsEvent);
-            StatusText = $"{title} could not be loaded. " + DesktopFriendlyError.Describe(exception);
+            StatusText = FailureText($"{title} could not be loaded. ", exception, diagnosticsSource, diagnosticsEvent);
         }
         finally { if (current == revision) IsLoading = false; }
     }
@@ -209,12 +216,26 @@ public abstract class ServiceScreenView : UserControl
         return $"Service data as at {latest:dd MMM yyyy} (refreshed {imported:dd MMM yyyy})";
     }
 
-    private void ShowFreshness(IReadOnlyList<ServiceFreshnessChip> chips)
+    private void ShowFreshness(IReadOnlyList<ServiceFreshnessChip> chips, string note = "")
     {
         Freshness = chips;
+        FreshnessNote = note;
         freshnessStrip.Children.Clear();
         foreach (var chip in Freshness) freshnessStrip.Children.Add(ServiceFreshnessStrip.CreateChip(chip));
+        if (note.Length > 0)
+        {
+            var text = new TextBlock { Text = note, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 8, 2) };
+            text.SetResourceReference(TextBlock.ForegroundProperty, "SecondaryText");
+            freshnessStrip.Children.Add(text);
+        }
     }
+
+    /// <summary>
+    /// R-UI-18 (1.10.0, with the 1.9.9 diagnostics references): records the failure and returns
+    /// "{prefix}{plain reason} Ref: XXXXXXXXXXXX", so a screenshot or a phone call can be matched to the log entry.
+    /// </summary>
+    internal static string FailureText(string prefix, Exception exception, string source, string eventId) =>
+        DesktopDiagnostics.WithReference(prefix + DesktopFriendlyError.Describe(exception), DesktopDiagnostics.Record(exception, source, eventId));
 
     private static DateTime AsUtc(DateTime value) => value.Kind == DateTimeKind.Utc ? value : DateTime.SpecifyKind(value, DateTimeKind.Utc);
 
@@ -249,13 +270,8 @@ public abstract class ServiceScreenView : UserControl
     private async Task ExportWithDialogAsync()
     {
         if (Rows.Count == 0) return;
-        var dialog = new SaveFileDialog
-        {
-            Filter = "Excel workbook (*.xlsx)|*.xlsx",
-            FileName = $"{ExportName.Replace(' ', '_')}_{DateTime.Today:yyyyMMdd}.xlsx",
-            AddExtension = true
-        };
-        if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
+        var dialog = ExportSaveDialog.Create(ExportSaveDialog.ExcelFilter, $"{ExportName.Replace(' ', '_')}_{DateTime.Today:yyyyMMdd}.xlsx");
+        if (!ExportSaveDialog.ShowDialog(dialog, this)) return;
         try
         {
             await ExportToPathAsync(dialog.FileName);
@@ -263,8 +279,7 @@ public abstract class ServiceScreenView : UserControl
         }
         catch (Exception exception)
         {
-            DesktopDiagnostics.Record(exception, diagnosticsSource, "SERVICE_EXPORT_FAILED");
-            StatusText = "The export could not be saved. " + DesktopFriendlyError.Describe(exception);
+            StatusText = FailureText("The export could not be saved. ", exception, diagnosticsSource, "SERVICE_EXPORT_FAILED");
         }
     }
 

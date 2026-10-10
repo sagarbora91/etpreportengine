@@ -224,9 +224,30 @@ public sealed class ServiceScreenViewTests
 
             view.ActivateAsync().GetAwaiter().GetResult();
 
-            Assert.EndsWith("could not be loaded. " + DesktopFriendlyError.Describe(query.Failure), view.StatusText, StringComparison.Ordinal);
+            Assert.Matches("could not be loaded\\. " + System.Text.RegularExpressions.Regex.Escape(DesktopFriendlyError.Describe(query.Failure)) + " Ref: [0-9A-Za-z]+$", view.StatusText);
             Assert.DoesNotContain("raw technical text", view.StatusText);
             Assert.False(view.IsLoading);
+        });
+    }
+
+    [Fact]
+    public void A_freshness_failure_leaves_the_rows_and_shows_a_note_with_its_diagnostics_reference()
+    {
+        // R-UI-18 (1.10.0): the 1.9.9 "Ref:" reference at the freshness failure point; the rows still load (R-UI-15).
+        RunSta(() =>
+        {
+            var query = new FakeServiceQuery { FreshnessFailure = new InvalidOperationException("raw technical text") };
+            var view = new ServiceJobsView(() => query, NoExport) { FreshnessToday = () => new DateOnly(2026, 10, 9) };
+
+            view.ActivateAsync().GetAwaiter().GetResult();
+
+            Assert.Empty(view.Freshness);
+            Assert.Matches("^The export dates could not be read\\. Ref: [0-9A-Za-z]+$", view.FreshnessNote);
+            var strip = Descendants<WrapPanel>(view).Single(panel => AutomationProperties.GetName(panel) == "Service data freshness");
+            Assert.Equal(view.FreshnessNote, Assert.IsType<TextBlock>(Assert.Single(strip.Children)).Text);
+            Assert.DoesNotContain("raw technical text", view.FreshnessNote);
+            Assert.True(view.HasData);
+            Assert.DoesNotContain("could not be loaded", view.StatusText);
         });
     }
 
@@ -648,6 +669,7 @@ public sealed class ServiceScreenViewTests
             new("S004", new(2026, 10, 5), 9, 141, ImportedUtc.AddMinutes(-2))
         ];
         public Exception? Failure { get; init; }
+        public Exception? FreshnessFailure { get; init; }
         public string? LastStatusView { get; private set; }
         public string? LastPendingList { get; private set; }
         public string? LastJob { get; private set; }
@@ -785,6 +807,7 @@ public sealed class ServiceScreenViewTests
         public Task<IReadOnlyList<ServiceFreshnessChip>> LoadFreshnessAsync(DateOnly? asOf = null, CancellationToken cancellationToken = default)
         {
             FreshnessCalls++; LastFreshnessAsOf = asOf;
+            if (FreshnessFailure is not null) return Task.FromException<IReadOnlyList<ServiceFreshnessChip>>(FreshnessFailure);
             return Task.FromResult(ServiceFreshness.Build(Refreshes, asOf ?? new DateOnly(2026, 10, 9),
                 new Dictionary<string, string> { ["S009"] = "RAW", ["S004"] = "RAW" }));
         }

@@ -51,7 +51,7 @@ public sealed class TallyDestinationSettingsView : StackPanel
             company.Text = value.CompanyName ?? ""; environment.SelectedItem = value.EnvironmentLabel;
             confirmation.Clear(); reason.Clear(); saved = Values;
         }
-        catch(Exception exception) { status.Text = DesktopFriendlyError.Describe(exception); }
+        catch(Exception exception) { status.Text = DesktopDiagnostics.WithReference(DesktopFriendlyError.Describe(exception), DesktopDiagnostics.Record(exception, "Settings.TallyDestination", "TALLY_DESTINATION_LOAD_FAILED", operation: "Tally destination load failed")); }
         finally { IsBusy = false; IsEnabled = isOwner() && saved is not null; }
     }
 
@@ -72,7 +72,7 @@ public sealed class TallyDestinationSettingsView : StackPanel
             status.Text = "Tally destination saved. This does not enable live Tally export.";
             return true;
         }
-        catch(Exception exception) { status.Text = DesktopFriendlyError.Describe(exception); return false; }
+        catch(Exception exception) { status.Text = DesktopDiagnostics.WithReference(DesktopFriendlyError.Describe(exception), DesktopDiagnostics.Record(exception, "Settings.TallyDestination", "TALLY_DESTINATION_SAVE_FAILED", operation: "Tally destination save failed")); return false; }
         finally { IsBusy = false; IsEnabled = isOwner(); }
     }
 }

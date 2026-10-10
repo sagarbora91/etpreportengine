@@ -239,7 +239,7 @@ public partial class AdministrationWorkspaceView : UserControl
         }
         catch (Exception ex)
         {
-            DesktopDiagnostics.Record(ex, "OperationsAdministration.Administration", "USER_ACCESS_SAVE_FAILED");
+            DesktopDiagnostics.Record(ex, "OperationsAdministration.Administration", "USER_ACCESS_SAVE_FAILED", UserAccessFailureSeverity(ex), operation: "User access save failed");
             var reason = DesktopFriendlyError.DescribeUserAccessFailure(ex);
             // The check on refresh could not see the refusal coming; keep the screen honest now.
             if (reason == DesktopFriendlyError.UserAccessNeedsElevationMessage) ApplyUserAccessReadiness(true);
@@ -248,6 +248,12 @@ public partial class AdministrationWorkspaceView : UserControl
         }
         finally { EndSave(); }
     }
+
+    // IE-RT-04 (1.9.9): a field left empty or typed in the wrong form (blank identity, name or reason, an identity
+    // that is not DOMAIN\User, no role) is refused by input validation with an ArgumentException. The user sees the
+    // reason; the log keeps it as a Warning so it does not read as a fault among real Errors.
+    internal static DesktopDiagnosticSeverity UserAccessFailureSeverity(Exception exception) =>
+        exception is ArgumentException ? DesktopDiagnosticSeverity.Warning : DesktopDiagnosticSeverity.Error;
 
     private void RequireOwnerAccess()
     {
