@@ -1,8 +1,13 @@
 -- Service Centre UI (1.10.0, decision 25, 10 Oct 2026): the job model over the 0048 Service landing tables and read views.
 -- Design: docs/roadmap/SERVICE-CENTRE-UI-DESIGN-REVIEW-2026-10-10.md (sections 3, 4 and 6); lane sql (U0 + U1).
 --
--- Numbering: 0049 is reserved for the Tally cost-centre migration from PR #3. Until it ships beside this file, the
--- migration contiguity test (MigrationTests) fails on this branch; that is expected, as 0048 noted for 1.9.4.
+-- Numbering: 0049 is the Tally cost-centre migration from PR #3 and 0051 the staff-target permissions (both 1.10.0).
+--
+-- Performance (lane perf, folded in at the final 1.10.0 merge; this file had not run on any real database): in
+-- v_service_job, won_rows ranks each (job, document number) with ROW_NUMBER and won counts rank 1, which is
+-- COUNT(DISTINCT document_number) by definition. COUNT(DISTINCT) beside the other aggregates made a nested-loops join over
+-- a lazy spool (2.3 s of 3.1 s CPU on live, 3,158 jobs); with won_rows the full job list ran in about 1 s, with the same
+-- rows and values (CHECKSUM_AGG over every column). ServiceJobPerformanceTextTests pins this.
 --
 -- The migration runner applies this entire script in one transaction, so it has no BEGIN or COMMIT.
 -- Every statement is idempotent: every view is CREATE OR ALTER through EXEC(N'...'), followed by its grants.
@@ -312,17 +317,21 @@ WITH live AS (
   FROM dated d JOIN live l ON l.import_file_id=d.import_file_id AND l.report_code=d.report_code
   WHERE d.business_date IS NOT NULL
   GROUP BY d.report_code,d.import_file_id,l.snapshot_date
-), won AS (
-  SELECT d.job_order_number,
-    SUM(CASE WHEN d.report_code=''S003'' THEN d.labour_charge END) revenue_labour_charge,SUM(CASE WHEN d.report_code=''S003'' THEN d.spare_charge END) revenue_spare_charge,
-    SUM(CASE WHEN d.report_code=''S003'' THEN d.net_incl_tax END) revenue_net_incl_tax,COUNT(DISTINCT d.document_number) revenue_documents,
-    MIN(d.srf_date) srf_date,MAX(d.repair_date) repair_date,MAX(d.delivered_date) delivered_date,
-    MAX(CASE WHEN d.status=''Delivered'' AND d.delivered_date IS NOT NULL THEN 1 ELSE 0 END) is_delivered,
-    MAX(CASE WHEN d.status IN(''RWR'',''Returned_Without_Repair'') THEN 1 ELSE 0 END) is_rwr,MAX(d.brand) brand
+), won_rows AS (
+  SELECT d.report_code,d.job_order_number,d.labour_charge,d.spare_charge,d.net_incl_tax,d.document_number,d.srf_date,d.repair_date,d.delivered_date,d.status,d.brand,
+    ROW_NUMBER() OVER(PARTITION BY d.job_order_number,d.document_number ORDER BY d.import_file_id) document_rank
   FROM dated d JOIN dated_files f ON f.import_file_id=d.import_file_id AND f.report_code=d.report_code
   WHERE d.job_order_number IS NOT NULL
     AND NOT EXISTS(SELECT 1 FROM dated_files g WHERE g.report_code=d.report_code AND d.business_date BETWEEN g.window_from AND g.window_to
       AND (g.snapshot_date>f.snapshot_date OR (g.snapshot_date=f.snapshot_date AND g.import_file_id>f.import_file_id)))
+), won AS (
+  SELECT d.job_order_number,
+    SUM(CASE WHEN d.report_code=''S003'' THEN d.labour_charge END) revenue_labour_charge,SUM(CASE WHEN d.report_code=''S003'' THEN d.spare_charge END) revenue_spare_charge,
+    SUM(CASE WHEN d.report_code=''S003'' THEN d.net_incl_tax END) revenue_net_incl_tax,SUM(CASE WHEN d.document_number IS NOT NULL AND d.document_rank=1 THEN 1 ELSE 0 END) revenue_documents,
+    MIN(d.srf_date) srf_date,MAX(d.repair_date) repair_date,MAX(d.delivered_date) delivered_date,
+    MAX(CASE WHEN d.status=''Delivered'' AND d.delivered_date IS NOT NULL THEN 1 ELSE 0 END) is_delivered,
+    MAX(CASE WHEN d.status IN(''RWR'',''Returned_Without_Repair'') THEN 1 ELSE 0 END) is_rwr,MAX(d.brand) brand
+  FROM won_rows d
   GROUP BY d.job_order_number
 ), other_rows AS (
   SELECT ''S003'' report_code,import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),joborder_number))),N'''') job_order_number FROM dbo.etp_landing_s003
