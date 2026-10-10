@@ -71,6 +71,8 @@ public abstract class ServiceScreenView : UserControl
         actions.Children.Add(exportButton);
         heading.Children.Add(actions);
         heading.Children.Add(status);
+        HeaderPanel = new StackPanel();
+        heading.Children.Add(HeaderPanel);
         root.Children.Add(heading);
 
         TablePresentation.Configure(Table);
@@ -86,6 +88,8 @@ public abstract class ServiceScreenView : UserControl
     }
 
     protected WrapPanel FilterBar { get; }
+    /// <summary>Between the status line and the grid: the job history header card (1.10.0).</summary>
+    protected StackPanel HeaderPanel { get; }
     protected StackPanel Footer { get; }
     public DataGrid Table { get; } = new() { AutoGenerateColumns = false, IsReadOnly = true, SelectionMode = DataGridSelectionMode.Single };
     public IReadOnlyList<ServiceGridRow> Rows { get; private set; } = [];
@@ -160,7 +164,10 @@ public abstract class ServiceScreenView : UserControl
     protected virtual string EmptyRowsText => "No rows for this choice.";
     protected virtual string Summarise(int count) => $"{count:N0} rows.";
     protected virtual string ExportName => title;
+    /// <summary>The export's period (SD-09: the screen's chosen or shown range, not today).</summary>
     protected virtual (DateOnly From, DateOnly To) ExportPeriod => (DateOnly.FromDateTime(DateTime.Today), DateOnly.FromDateTime(DateTime.Today));
+    /// <summary>The export's message line: the as-at line, plus whatever the screen shows above its grid.</summary>
+    protected virtual string ExportMessage => asAt.Text;
 
     /// <summary>The visible columns and rows, as the export writes them.</summary>
     public ExcelReportData BuildExportData() =>
@@ -171,7 +178,7 @@ public abstract class ServiceScreenView : UserControl
     {
         var (from, to) = ExportPeriod;
         var metadata = new ExcelReportMetadata(ExportName, from, to, "Read only", "service-interim-1",
-            asAt.Text, DateTimeOffset.UtcNow, ServiceCentreLabel);
+            ExportMessage, DateTimeOffset.UtcNow, ServiceCentreLabel);
         await export(path, metadata, BuildExportData());
     }
 
