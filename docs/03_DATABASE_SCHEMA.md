@@ -321,8 +321,12 @@ S036 and S037 are job lists whose `created_date` is the booking date (Q10). They
 
 **Not in 0050** (design 4.5):
 
-- 0051 `service_claim_settlements` (only if Q9 had been B; decision 25 chose A, raised only);
+- `service_claim_settlements` (only if Q9 had been B; decision 25 chose A, raised only). It was planned as 0051; 0051 is now the staff-target permission migration, so it would take the next free number;
 - 0052 `service_job_index` (only if measured slow);
 - the optional `stores.is_service_money_shop` flag (SD-07). `v_service_manual_money` keeps the WLMHW literal; decision 16 is unchanged.
 
 **Read contract.** `SqlServerServiceReportQuery` (partial file `SqlServerServiceReportQuery.Ui.cs`) reads these views for the 1.10.0 `IServiceReportQuery` members: `LoadTodayAsync`, `LoadPendingBoardAsync`, `LoadJobAsync`, `LoadJobListAsync`, `LoadClaimsAsync`, `LoadPartsAsync` and `LoadFreshnessAsync`. The records are in `src/Etp.Reporting.Application/Service/ServiceUiContracts.cs`, and the pure rules (bands, overdue, TAT median, board, Today, freshness) are in `ServiceUiRules.cs`. The freshness strip has no SQL of its own: it groups `v_service_readings` in C#.
+
+## Permissions: staff targets Owner-only — migration 0051
+
+`0051_staff_targets_owner_only.sql` (decision 27, Sagar, 10 Oct 2026, extends D22; release 1.10.0). Only the Owner writes `dbo.staff_sales_targets`. It revokes the 0022 `GRANT INSERT,UPDATE` from `etp_store_manager` and adds `DENY INSERT,UPDATE,DELETE` to `etp_store_manager` and `etp_viewer`, the same shape as `approval_requests` and `controlled_adjustments` in 0022. Both roles keep SELECT through the schema grant. The Owner (`db_owner` + `etp_owner`) is not affected. The trigger `trg_staff_sales_targets_audit_lock` still writes `dbo.staff_sales_target_history` through the dbo ownership chain, so the history table has no grant and needs none. The automation account is a member of `etp_store_manager` but never writes staff targets. The screen and `SqlServerDailyWorkflowService.SaveStaffTargetAsync` have refused non-owners since 1.9.9.
