@@ -157,8 +157,11 @@ public sealed class ReportFilterClosureTests(SqlDatabaseFixture database) : ICla
             decimal RowsTotal() => snapshot!.ExportData!.Rows.Sum(row => Convert.ToDecimal(row[2]));
             void ClickAndWait(string name)
             {
+                // Wait for the run to publish its preview, not for the Excel button: since 1.9.7 a 0-row result (the ITEM2
+                // step) keeps the export buttons disabled on purpose, so the button is no longer a "finished" signal.
+                var before = snapshot;
                 ((Button)view.FindName(name)).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-                PumpUntil(() => ((Button)view.FindName("ExportExcelButton")).IsEnabled);
+                PumpUntil(() => !ReferenceEquals(snapshot, before));
             }
         }
         finally { Directory.Delete(folder, true); }
