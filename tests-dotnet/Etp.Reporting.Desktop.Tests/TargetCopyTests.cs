@@ -117,10 +117,10 @@ public sealed class TargetCopyTests
     }
 
     [Theory]
-    [InlineData(TargetOverwriteChoice.Cancel, new string[0])]
-    [InlineData(TargetOverwriteChoice.KeepExisting, new[] { "TST01=1100" })]
-    [InlineData(TargetOverwriteChoice.ReplaceExisting, new[] { "TST01=1100", "TST02=2000" })]
-    public void Monthly_copy_prefills_without_saving_and_replaces_a_saved_target_only_when_confirmed(TargetOverwriteChoice choice, string[] expected)
+    [InlineData(TargetOverwriteChoice.Cancel, "")]
+    [InlineData(TargetOverwriteChoice.KeepExisting, "TST01=1100")]
+    [InlineData(TargetOverwriteChoice.ReplaceExisting, "TST01=1100,TST02=2000")]
+    public void Monthly_copy_prefills_without_saving_and_replaces_a_saved_target_only_when_confirmed(TargetOverwriteChoice choice, string expected)
     {
         RunSta(() =>
         {
@@ -152,7 +152,7 @@ public sealed class TargetCopyTests
             Click(FindButton(view, "Save copied targets"));
 
             Assert.Single(questions);
-            Assert.Equal(expected, writes.Select(row => $"{row.StoreCode}={row.TargetSales:0}"));
+            Assert.Equal(expected, string.Join(",", writes.Select(row => $"{row.StoreCode}={row.TargetSales:0}")));
             Assert.All(writes, row => Assert.Equal(October, row.Month));
             Assert.Equal(choice == TargetOverwriteChoice.Cancel ? Visibility.Visible : Visibility.Collapsed, grid.Visibility);
             return Task.CompletedTask;
@@ -189,10 +189,10 @@ public sealed class TargetCopyTests
     }
 
     [Theory]
-    [InlineData(TargetOverwriteChoice.Cancel, new string[0])]
-    [InlineData(TargetOverwriteChoice.KeepExisting, new[] { "101=1200" })]
-    [InlineData(TargetOverwriteChoice.ReplaceExisting, new[] { "101=1200", "102=2000" })]
-    public void Staff_target_copy_prefills_without_saving_and_replaces_a_saved_target_only_when_confirmed(TargetOverwriteChoice choice, string[] expected)
+    [InlineData(TargetOverwriteChoice.Cancel, "")]
+    [InlineData(TargetOverwriteChoice.KeepExisting, "101=1200")]
+    [InlineData(TargetOverwriteChoice.ReplaceExisting, "101=1200,102=2000")]
+    public void Staff_target_copy_prefills_without_saving_and_replaces_a_saved_target_only_when_confirmed(TargetOverwriteChoice choice, string expected)
     {
         RunSta(async () =>
         {
@@ -223,7 +223,7 @@ public sealed class TargetCopyTests
 
             await view.SaveCopiedStaffTargetsAsync();
 
-            Assert.Equal(expected, commands.Saved.Select(row => $"{row.CroNumber}={row.TargetSales:0}"));
+            Assert.Equal(expected, string.Join(",", commands.Saved.Select(row => $"{row.CroNumber}={row.TargetSales:0}")));
             Assert.All(commands.Saved, row =>
             {
                 Assert.Equal("TST01", row.StoreCode);
