@@ -27,11 +27,11 @@ public static class ServiceFreshnessStrip
         _ => ("SurfaceSecondary", "SecondaryText")
     };
 
-    /// <summary>What assistive technology hears after the text.</summary>
+    /// <summary>What assistive technology hears after the text. No day counts: monthly-only families use 38/45 days, the rest 7/14.</summary>
     public static string DescribeColour(ServiceFreshnessColour colour) => colour switch
     {
-        ServiceFreshnessColour.Red => "older than 14 days",
-        ServiceFreshnessColour.Amber => "older than 7 days",
+        ServiceFreshnessColour.Red => "out of date",
+        ServiceFreshnessColour.Amber => "getting out of date",
         ServiceFreshnessColour.Fresh => "fresh",
         _ => "no data"
     };

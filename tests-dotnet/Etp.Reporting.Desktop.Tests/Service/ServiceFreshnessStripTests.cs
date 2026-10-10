@@ -41,8 +41,8 @@ public sealed class ServiceFreshnessStripTests
         Assert.Equal(("SuccessSoft", "Success"), ServiceFreshnessStrip.BrushesFor(ServiceFreshnessColour.Fresh));
         Assert.Equal(("WarningSoft", "Warning"), ServiceFreshnessStrip.BrushesFor(ServiceFreshnessColour.Amber));
         Assert.Equal(("CriticalSoft", "Critical"), ServiceFreshnessStrip.BrushesFor(ServiceFreshnessColour.Red));
-        Assert.Equal("older than 14 days", ServiceFreshnessStrip.DescribeColour(ServiceFreshnessColour.Red));
-        Assert.Equal("older than 7 days", ServiceFreshnessStrip.DescribeColour(ServiceFreshnessColour.Amber));
+        Assert.Equal("out of date", ServiceFreshnessStrip.DescribeColour(ServiceFreshnessColour.Red));
+        Assert.Equal("getting out of date", ServiceFreshnessStrip.DescribeColour(ServiceFreshnessColour.Amber));
     }
 
     [Fact]
@@ -57,7 +57,7 @@ public sealed class ServiceFreshnessStripTests
                 var border = ServiceFreshnessStrip.CreateChip(chip);
                 Assert.Same(chip, border.Tag);
                 Assert.Equal("SRN: last export 24 Sep 2026 (consolidated)", ((TextBlock)border.Child).Text);
-                Assert.Equal("SRN: last export 24 Sep 2026 (consolidated), older than 14 days", AutomationProperties.GetName(border));
+                Assert.Equal("SRN: last export 24 Sep 2026 (consolidated), out of date", AutomationProperties.GetName(border));
             }
             catch (Exception exception) { failure = exception; }
         });
