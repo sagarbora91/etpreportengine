@@ -47,7 +47,7 @@ public static class ServiceStages
         _ => stage,
     };
 
-    public static int Rank(string stage) { var i = Array.IndexOf(Order.ToArray(), stage); return i < 0 ? Order.Count : i; }
+    public static int Rank(string stage) { var i = Order.ToList().IndexOf(stage); return i < 0 ? Order.Count : i; }
 }
 
 /// <summary>The claim types of dbo.v_service_claims (design 3.5): GPRC cell, Module Bank, WDC, WRA.</summary>

@@ -177,7 +177,7 @@ public static class ServiceFreshness
             string? kind = oldestCode is not null && sourceKinds is not null && sourceKinds.TryGetValue(oldestCode, out var k) ? k : null;
             var colour = Colour(oldest, asOf);
             var text = oldest is { } date
-                ? $"last export {date:dd MMM yyyy}" + (kind is null ? "" : $" ({kind.ToLowerInvariant()})")
+                ? "last export " + date.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture) + (kind is null ? "" : $" ({kind.ToLowerInvariant()})")
                 : dates.All(d => d is null) ? "no export yet" : "some families never exported";
             chips.Add(new ServiceFreshnessChip(group, codes, oldest, kind, colour, text));
         }
@@ -270,4 +270,19 @@ public static class ServiceJobProjection
         job.Brand, job.Model, job.ProductCategory, job.Guarantee, job.CustomerType, job.CustomerName, job.Edd, job.Stage, job.StageDate,
         job.PendingAt, job.SpareRequired, job.ClaimRaised, job.SpareValue, job.LabourCharge, job.TatDays, job.AgeDays, job.DaysInStage,
         job.OverdueBy is > 0, job.AsAt);
+}
+
+/// <summary>
+/// The Service job key (design 1.3, Q1): the exported job order number, trimmed, never padded or re-formatted. On live every
+/// key is <c>JOAW330</c> plus 8 digits (FY 2024-25 numbering) or 9 digits (FY code plus a 5-digit sequence). A key of another
+/// shape is still a key (it is just listed); this check is for counts and warnings, never for dropping a row.
+/// </summary>
+public static class ServiceJobKey
+{
+    public const string Pattern = "^JOAW330[0-9]{8,9}$";
+
+    public static string? Normalise(string? exported) => string.IsNullOrWhiteSpace(exported) ? null : exported.Trim();
+
+    public static bool IsWellFormed(string? key) =>
+        Normalise(key) is { } k && System.Text.RegularExpressions.Regex.IsMatch(k, Pattern, System.Text.RegularExpressions.RegexOptions.CultureInvariant);
 }
