@@ -61,6 +61,8 @@ public partial class DailyWorkflowWorkspaceView
 
     private void RefreshStaffTargetCopyAccess(DailyWorkflowWorkspaceAccess current)
     {
+        // InitializeComponent raises scope events (and so this refresh) before the copy controls exist.
+        if (copyStaffTargetsButton is null) return;
         copyStaffTargetsButton.IsEnabled = current.CanAdminister;
         saveCopiedStaffTargetsButton.IsEnabled = current.CanAdminister;
         var reason = current.CanAdminister ? null : "Owner permission is required to copy targets.";

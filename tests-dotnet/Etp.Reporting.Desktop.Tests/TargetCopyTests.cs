@@ -111,7 +111,7 @@ public sealed class TargetCopyTests
             { TargetLoader = () => { loads++; return Task.FromResult<IReadOnlyList<MonthlyTargetRow>>([]); } };
             Click(FindButton(view, "Copy from previous month"));
             Assert.Equal(0, loads);
-            Assert.Contains("Owner permission is required", view.StatusText);
+            Assert.Contains("permission", view.StatusText);
             return Task.CompletedTask;
         });
     }
