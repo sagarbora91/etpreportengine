@@ -42,7 +42,8 @@ public partial class DailyWorkflowWorkspaceView
         copyStaffTargetsButton = new Button { Content = "Copy from previous month", Padding = new Thickness(12, 7, 12, 7), Margin = new Thickness(6, 0, 0, 0) };
         System.Windows.Automation.AutomationProperties.SetName(copyStaffTargetsButton, "Copy staff targets from previous month");
         copyStaffTargetsButton.Click += async (_, _) => await CopyStaffTargetsFromPreviousMonthAsync();
-        ((Panel)SaveStaffTargetButton.Parent).Children.Add(copyStaffTargetsButton);
+        var staffTargetRow = (Panel)SaveStaffTargetButton.Parent;
+        staffTargetRow.Children.Insert(staffTargetRow.Children.IndexOf(SaveStaffTargetButton) + 1, copyStaffTargetsButton);
 
         staffTargetCopyNote = new TextBlock { TextWrapping = TextWrapping.Wrap, Visibility = Visibility.Collapsed, Margin = new Thickness(0, 4, 0, 0) };
         staffTargetCopyGrid = CopiedTargetGrid.Create("Staff targets copied from the previous month (not saved)", withCro: true);
