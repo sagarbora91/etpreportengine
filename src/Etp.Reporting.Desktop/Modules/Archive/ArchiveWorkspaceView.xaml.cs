@@ -329,7 +329,7 @@ public sealed partial class ArchiveWorkspaceView : UserControl
     }
     private void HandleFailure(Exception exception, string eventId, string operation)
     {
-        DesktopDiagnostics.Record(exception, "Archive.Workspace", eventId);
-        SetStatus($"{operation}: {errorDescriber(exception)}");
+        var reference = DesktopDiagnostics.Record(exception, "Archive.Workspace", eventId, operation: operation);
+        SetStatus(DesktopDiagnostics.WithReference($"{operation}: {errorDescriber(exception)}", reference));
     }
 }

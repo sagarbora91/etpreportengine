@@ -64,7 +64,7 @@ public sealed partial class TaskNavigator
                     break;
             }
         }
-        catch (Exception ex) { DesktopDiagnostics.Record(ex, "Investigation.Navigation", "RESULT_OPEN_FAILED"); window.ApplicationStatus.Text = DesktopFriendlyError.Describe(ex); }
+        catch (Exception ex) { window.ApplicationStatus.Text = DesktopDiagnostics.WithReference(DesktopFriendlyError.Describe(ex), DesktopDiagnostics.Record(ex, "Investigation.Navigation", "RESULT_OPEN_FAILED")); }
     }
 
     private async Task OpenInvestigationReportAsync(string code, string reference)

@@ -37,5 +37,5 @@ public sealed class BrandStockEntryWindow : Window
         grid.ItemsSource=await new OperationalReportRepository(connection).LoadBrandStockEntryAsync(store,date);
     }
 
-    private async Task Run(Func<Task> action){try{IsEnabled=false;await action();}catch(Exception e){status.Text=DesktopFriendlyError.Describe(e);}finally{IsEnabled=true;}}
+    private async Task Run(Func<Task> action){try{IsEnabled=false;await action();}catch(Exception e){status.Text=DesktopDiagnostics.WithReference(DesktopFriendlyError.Describe(e),DesktopDiagnostics.Record(e,"Reports.BrandStockEntry","BRAND_STOCK_ENTRY_FAILED",operation:"Brand physical stock entry failed"));}finally{IsEnabled=true;}}
 }

@@ -158,6 +158,17 @@ public partial class ReportsWorkspaceView : UserControl
     // RA-EXPORT-01 (1.9.8): the focused buttons, Ctrl+E / Ctrl+P and the Actions menu fire and forget. The task is
     // observed, so an exception raised before the staged write (the Save dialog, the file name) reaches the status
     // line and the diagnostics log instead of dying as an unobserved task. Success is unchanged.
+    // IE-CODE-11 (1.9.9): the focused screen, task navigation and Refresh run reports fire and forget. RunReportAsync
+    // does work before each report's own try (filters, the sales dimension, the focused-workspace request), so the
+    // run is observed: a fault reaches the status line and the log instead of dying as an unobserved task.
+    public void RunReportObserved(string report) => _ = RunReportObservedAsync(report);
+
+    internal async Task RunReportObservedAsync(string report)
+    {
+        try { await RunReportAsync(report); }
+        catch (Exception ex) { HandleFailure(ex, "REPORT_RUN_FAILED", "Report failed", report); }
+    }
+
     public void ExportExcel() => _ = ExportObservedAsync(pdf: false);
     public void ExportPdf() => _ = ExportObservedAsync(pdf: true);
 
@@ -199,7 +210,7 @@ public partial class ReportsWorkspaceView : UserControl
         $"{SafeFileName(metadata.ReportName)}_{metadata.DateFrom:yyyyMMdd}_{metadata.DateTo:yyyyMMdd}.{(pdf ? "pdf" : "xlsx")}";
 
     private async void RunCatalogueReport_Click(object sender, RoutedEventArgs e)
-    { if (sender is Button { Tag: string report }) await RunReportAsync(report); }
+    { if (sender is Button { Tag: string report }) await RunReportObservedAsync(report); }
     private async void ExportExcel_Click(object sender, RoutedEventArgs e) => await ExportExcelAsync();
     private async void ExportPdf_Click(object sender, RoutedEventArgs e) => await ExportPdfAsync();
 
@@ -557,10 +568,18 @@ public partial class ReportsWorkspaceView : UserControl
         ExportExcelButton.IsEnabled = ExportPdfButton.IsEnabled = enabled;
     }
 
-    private string HandleFailure(Exception exception, string eventId, string operation)
+    internal DesktopDiagnosticContext FailureContext(string? reportCode = null) => new(
+        reportCode ?? presentation.Current.ReportCode,
+        DesktopDiagnosticContext.StoreOf(Csv(StoreFilterInput.Text)),
+        ReportTo.SelectedDate is { } to ? DateOnly.FromDateTime(to) : null,
+        ReportFrom.SelectedDate is { } from ? DateOnly.FromDateTime(from) : null);
+
+    // IE-CODE-03 (1.9.9): the entry names the report, store and dates (six sales reports share SALES_REPORT_FAILED,
+    // three stock reports STOCK_REPORT_FAILED), and the user sees the entry's reference.
+    private string HandleFailure(Exception exception, string eventId, string operation, string? reportCode = null)
     {
-        DesktopDiagnostics.Record(exception, "Reports.Workspace", eventId);
-        var message = $"{operation}: {DesktopFriendlyError.Describe(exception)}";
+        var reference = DesktopDiagnostics.Record(exception, "Reports.Workspace", eventId, context: FailureContext(reportCode), operation: operation);
+        var message = DesktopDiagnostics.WithReference($"{operation}: {DesktopFriendlyError.Describe(exception)}", reference);
         ReportResult.Text = message;
         previewUpdater(presentation.Current,ReportGrid.ItemsSource,message);
         return message;

@@ -49,7 +49,7 @@ public partial class ReportsWorkspaceView
         if (CurrentReportCode is not { } code) return Task.CompletedTask;
         if (filterWorkspace is { } workspace)
             ApplyReportPeriod(workspace.DateFromPicker.SelectedDate, workspace.DateToPicker.SelectedDate);
-        return RunReportAsync(code);
+        return RunReportObservedAsync(code);
     }
 
     private string AppliedQueryScope()
