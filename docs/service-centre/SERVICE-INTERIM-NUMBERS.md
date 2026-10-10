@@ -9,7 +9,9 @@
 | 0046, 0047 | (on `release/1.9.4`) | 1.9.4 |
 | **0048** | `database/migrations/0048_service_centre_interim.sql` | Service interim (proposed 1.9.5) |
 | 0049 | `0049_tally_store_cost_centres.sql` (GitHub PR #3, renumbered from its 0041; decision 18) | 1.10.0 |
-| 0050 onwards | | 1.10.0 |
+| 0050 | `0050_service_centre_ui.sql` (Service UI views and grants, lane sql) | 1.10.0 |
+| 0051 | `0051_staff_targets_owner_only.sql`: staff targets Owner-only (decision 27) | 1.10.0 |
+| 0052 onwards | | 1.10.0 |
 
 0048 must ship after 1.9.4's 0046/0047. Until `release/1.9.4` is merged into `feature/service-interim`, `MigrationTests.Shipped_migrations_have_unique_contiguous_four_digit_numbers_from_0001` fails on the Service branches. That is expected; no placeholder 0046/0047 files are added.
 
