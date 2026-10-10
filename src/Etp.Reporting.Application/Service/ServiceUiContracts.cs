@@ -8,6 +8,8 @@ namespace Etp.Reporting.Application.Service;
 // Every new member of the interface has a default so a query or fake written before 1.10.0 still compiles
 // (the decision-16 precedent); SqlServerServiceReportQuery overrides them all.
 // The pure rules (age bands, overdue, TAT median, freshness colours) are ServiceUiRules.cs beside this file.
+// The job model records (ServiceJobStages, ServiceJobTypes, ServiceJobHeader, ServiceJobTimelineRow, ServiceJobDetail) and
+// LoadJobAsync / LoadJobListAsync are lane history's (ServiceJobContracts.cs, ServiceReportContracts.cs), adopted verbatim.
 
 /// <summary>The lifecycle stages of dbo.v_service_job (design 4.2), as the view spells them, in lifecycle order.</summary>
 public static class ServiceStages
@@ -45,19 +47,7 @@ public static class ServiceStages
         _ => stage,
     };
 
-    public static int Rank(string stage) { var i = Order.IndexOf(stage); return i < 0 ? Order.Count : i; }
-}
-
-/// <summary>S002 jotype_booking_quickbilling as the export spells it (Q2): everything that is not Quick Billing is Booking.</summary>
-public static class ServiceJobTypes
-{
-    public const string Booking = "Booking";
-    public const string QuickBilling = "Quick Billing";
-
-    public static bool IsQuickBilling(string? exported) =>
-        exported is not null && exported.Replace(" ", "").Replace("_", "").Equals("QuickBilling", StringComparison.OrdinalIgnoreCase);
-
-    public static string Normalise(string? exported) => IsQuickBilling(exported) ? QuickBilling : Booking;
+    public static int Rank(string stage) { var i = Array.IndexOf(Order.ToArray(), stage); return i < 0 ? Order.Count : i; }
 }
 
 /// <summary>The claim types of dbo.v_service_claims (design 3.5): GPRC cell, Module Bank, WDC, WRA.</summary>
@@ -127,7 +117,8 @@ public sealed record ServiceJobSummary(
     DateOnly AsAt)
 {
     public string StageLabel => ServiceStages.Label(Stage);
-    public string? AgeBand => ServiceAgeing.Band(DaysInStage);
+    /// <summary>Age band of days since booking (design 4.3, decision 25); overdue uses days in stage.</summary>
+    public string? AgeBand => ServiceAgeing.Band(AgeDays);
 }
 
 /// <summary>Service Today (design 3.2) for one business date; counts come from v_service_job, money from the S004/manual views.</summary>
@@ -180,7 +171,8 @@ public sealed record ServicePendingBoardRow(
     DateOnly? LastReadingDate)
 {
     public string StageLabel => ServiceStages.Label(Stage);
-    public string? AgeBand => ServiceAgeing.Band(DaysInStage);
+    /// <summary>Age band of days since booking (design 4.3, decision 25); overdue uses days in stage.</summary>
+    public string? AgeBand => ServiceAgeing.Band(DaysSinceBooking);
     public bool IsOverdue => OverdueBy is > 0;
 }
 
@@ -193,33 +185,6 @@ public sealed record ServicePendingBoard(
     int InTransit,
     int PartsAwaited,
     DateOnly? AsAt);
-
-/// <summary>
-/// One row of dbo.v_service_job_timeline: one reading of one family that holds the job, with the family's own event date,
-/// the status text as exported, the pending store, the document number and the amount where a money column exists.
-/// </summary>
-public sealed record ServiceJobTimelineRow(
-    string JobOrderNumber,
-    DateOnly SnapshotDate,
-    string SourceKind,
-    string ReportCode,
-    string ListLabel,
-    DateOnly? EventDate,
-    string? StatusText,
-    string? PendingStore,
-    string? DocumentNumber,
-    decimal? Amount,
-    int Lines);
-
-/// <summary>Job history (design 3.4): the header card, the timeline newest first and the job's claim lines. <c>Header</c> is null when no family holds the job.</summary>
-public sealed record ServiceJobDetail(
-    string JobOrderNumber,
-    ServiceJobSummary? Header,
-    IReadOnlyList<ServiceJobTimelineRow> Timeline,
-    IReadOnlyList<ServiceClaimLine> Claims);
-
-/// <summary>Jobs list (design 3.4): open jobs plus jobs closed since <c>ClosedSince</c>, with the TAT summary of the closed ones.</summary>
-public sealed record ServiceJobList(IReadOnlyList<ServiceJobSummary> Rows, ServiceTatSummary Tat, DateOnly? ClosedSince, DateOnly? AsAt);
 
 /// <summary>TAT of closed jobs (Q2): Booking and Quick Billing apart; medians of booking to delivered and booking to repaired.</summary>
 public sealed record ServiceTatSummary(
@@ -342,14 +307,6 @@ public partial interface IServiceReportQuery
     /// <summary>Every open job (v_service_job where is_open = 1) in stage order, then days in stage descending.</summary>
     Task<ServicePendingBoard> LoadPendingBoardAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(new ServicePendingBoard([], 0, 0, 0, 0, 0, null));
-
-    /// <summary>One job: header, timeline (newest snapshot first, then event date descending) and claim lines. Any job number, trimmed.</summary>
-    Task<ServiceJobDetail> LoadJobAsync(string jobOrderNumber, CancellationToken cancellationToken = default) =>
-        Task.FromResult(new ServiceJobDetail(jobOrderNumber?.Trim() ?? "", null, [], []));
-
-    /// <summary>Open jobs plus jobs closed on or after <paramref name="closedSince"/> (null: all), with the TAT summary (Q2, Q8).</summary>
-    Task<ServiceJobList> LoadJobListAsync(DateOnly? closedSince, CancellationToken cancellationToken = default) =>
-        Task.FromResult(new ServiceJobList([], ServiceTat.Summarise([]), closedSince, null));
 
     /// <summary>Claims raised with a business date in [<paramref name="from"/>, <paramref name="to"/>] (null bounds are open), plus the not-yet-claimed DC/RA jobs.</summary>
     Task<ServiceClaims> LoadClaimsAsync(DateOnly? from, DateOnly? to, CancellationToken cancellationToken = default) =>

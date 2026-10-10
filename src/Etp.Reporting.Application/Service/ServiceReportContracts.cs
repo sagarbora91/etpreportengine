@@ -120,4 +120,18 @@ public partial interface IServiceReportQuery
         Task.FromResult<IReadOnlyList<ServiceUnmatchedMoneyEntry>>([]);
 
     Task<IReadOnlyList<ServiceMoneyChange>> LoadMoneyChangesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 1.10.0 (design 3.4): one job's header (<c>v_service_job</c>) and timeline (<c>v_service_job_timeline</c>), or null when
+    /// no Service family holds the job. The default throws so a build without migration 0050 says so on the screen
+    /// (DesktopFriendlyError passes an InvalidOperationException message through); lane sql's query overrides it.
+    /// </summary>
+    Task<ServiceJobDetail?> LoadJobAsync(string jobOrderNumber, CancellationToken cancellationToken = default) =>
+        throw new InvalidOperationException(JobModelUnavailable);
+
+    /// <summary>1.10.0 (design 3.4 "Jobs" list): every row of <c>v_service_job</c>; the screen filters by stage and closed date.</summary>
+    Task<IReadOnlyList<ServiceJobHeader>> LoadJobListAsync(CancellationToken cancellationToken = default) =>
+        throw new InvalidOperationException(JobModelUnavailable);
+
+    public const string JobModelUnavailable = "The Service job model (migration 0050) is not available in this build.";
 }

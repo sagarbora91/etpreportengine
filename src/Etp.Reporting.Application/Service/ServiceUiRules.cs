@@ -7,7 +7,7 @@ namespace Etp.Reporting.Application.Service;
 /// <summary>Age bands, per-stage limits and the overdue rule (design 4.3, Q4).</summary>
 public static class ServiceAgeing
 {
-    /// <summary>The bands of the Pending board filter: 0-7, 8-15, 16-30, 31-60, 60+.</summary>
+    /// <summary>The bands of the Pending board filter: 0-7, 8-15, 16-30, 31-60, 60+, counted on days since booking (design 4.3, decision 25).</summary>
     public static IReadOnlyList<string> Bands { get; } = ["0-7", "8-15", "16-30", "31-60", "60+"];
 
     public static string? Band(int? days) => days switch
@@ -183,4 +183,91 @@ public static class ServiceFreshness
         }
         return chips;
     }
+}
+
+/// <summary>The Claims screen composed from v_service_claims lines and v_service_job rows (design 3.5, Q9 = A: raised only).</summary>
+public static class ServiceClaimRules
+{
+    /// <summary>Per month and claim type: distinct documents, lines, distinct jobs, net incl. tax and UCP value; newest month first.</summary>
+    public static IReadOnlyList<ServiceClaimsSummaryRow> Summarise(IEnumerable<ServiceClaimLine> lines) =>
+        lines.GroupBy(line => (line.ClaimMonth, line.ClaimType))
+            .Select(g => new ServiceClaimsSummaryRow(g.Key.ClaimMonth, g.Key.ClaimType,
+                g.Where(l => l.DocumentNumber is not null).Select(l => l.DocumentNumber!).Distinct(StringComparer.Ordinal).Count(),
+                g.Count(),
+                g.Where(l => l.JobOrderNumber is not null).Select(l => l.JobOrderNumber!).Distinct(StringComparer.Ordinal).Count(),
+                g.Sum(l => l.NetAmountInclTax ?? 0m), g.Sum(l => l.UcpValue ?? 0m)))
+            .OrderByDescending(row => row.ClaimMonth).ThenBy(row => Array.IndexOf(ServiceClaimTypes.All.ToArray(), row.ClaimType))
+            .ToArray();
+
+    /// <summary>DC/RA jobs without a WDC/WRA claim document ("not yet claimed"), oldest first; days since the DC/RA date to as-at.</summary>
+    public static IReadOnlyList<ServiceUnclaimedJob> NotYetClaimed(IEnumerable<ServiceJobSummary> jobs) =>
+        jobs.Where(job => job.Stage is ServiceStages.DcIssued or ServiceStages.RaIssued && !job.ClaimRaised)
+            .Select(job => new ServiceUnclaimedJob(job.JobOrderNumber, job.Stage,
+                job.Stage == ServiceStages.DcIssued ? ServiceClaimTypes.Wdc : ServiceClaimTypes.Wra, job.StageDate,
+                job.StageDate is { } date ? job.AsAt.DayNumber - date.DayNumber : null, job.Brand, job.Model,
+                job.Stage == ServiceStages.DcIssued ? job.WdcNumber : job.RadcNumber))
+            .OrderByDescending(job => job.DaysSince ?? -1).ThenBy(job => job.JobOrderNumber, StringComparer.Ordinal).ToArray();
+
+    /// <summary>The GPRC gap warning (design 3.5, Q11): the latest GPRC reading is older than the latest DC/RA status reading.</summary>
+    public static bool GprcGap(DateOnly? latestGprc, DateOnly? latestDcRa) =>
+        latestDcRa is { } dcRa && (latestGprc is null || latestGprc < dcRa);
+}
+
+/// <summary>One row of dbo.v_service_parts (an invoice line).</summary>
+public sealed record ServicePartsRow(
+    string InvoiceNumber, DateOnly? InvoiceDate, string? ItemId, decimal? ShippedQuantity, decimal? ReceivedQuantity, decimal? NetAmount,
+    string? GrnNumber, DateOnly? GrnDate, DateOnly? ReceivedDate, string Status, string? FromLocation, int? DaysOpen, DateOnly SnapshotDate);
+
+/// <summary>The Parts screen composed from v_service_parts lines (design 3.6).</summary>
+public static class ServicePartsRules
+{
+    /// <summary>
+    /// Lines grouped per invoice. An invoice is Open while any line is open; days open is the greatest over its lines.
+    /// Order: open first, then oldest invoice date first.
+    /// </summary>
+    public static IReadOnlyList<ServicePartsInvoice> Invoices(IEnumerable<ServicePartsRow> rows) =>
+        rows.GroupBy(row => row.InvoiceNumber, StringComparer.Ordinal)
+            .Select(g =>
+            {
+                var open = g.Any(row => row.Status == "Open");
+                return new ServicePartsInvoice(g.Key, g.Min(row => row.InvoiceDate), g.Select(row => row.GrnNumber).FirstOrDefault(n => n is not null),
+                    g.Max(row => row.GrnDate), g.Max(row => row.ReceivedDate), g.Count(), Sum(g.Select(row => row.ShippedQuantity)),
+                    Sum(g.Select(row => row.ReceivedQuantity)), Sum(g.Select(row => row.NetAmount)), open ? "Open" : "Received",
+                    g.Max(row => row.DaysOpen), g.Select(row => row.FromLocation).FirstOrDefault(n => n is not null), g.Max(row => row.SnapshotDate),
+                    g.Select(row => new ServicePartsLine(row.ItemId, row.ShippedQuantity, row.ReceivedQuantity, row.NetAmount, row.GrnNumber, row.GrnDate)).ToArray());
+            })
+            .OrderByDescending(invoice => invoice.IsOpen).ThenBy(invoice => invoice.InvoiceDate ?? DateOnly.MaxValue)
+            .ThenBy(invoice => invoice.InvoiceNumber, StringComparer.Ordinal).ToArray();
+
+    public static ServiceParts Build(IEnumerable<ServicePartsRow> rows, IEnumerable<ServiceGitLine> git, ServiceStockSummary? stock,
+        IEnumerable<ServiceJobSummary> jobs, DateOnly? asAt)
+    {
+        var invoices = Invoices(rows);
+        var open = invoices.Where(invoice => invoice.IsOpen).ToArray();
+        var gitLines = git.OrderByDescending(line => line.BusinessDate).ToArray();
+        var waiting = jobs.Where(job => job.IsOpen && job.Stage == ServiceStages.IndentRaised)
+            .Select(job => new ServiceWaitingJob(job.JobOrderNumber, job.SpareRequired, job.IndentDate,
+                job.IndentDate is { } d ? job.AsAt.DayNumber - d.DayNumber : null, job.Brand, job.Model, job.PendingAt))
+            .OrderByDescending(job => job.DaysWaiting ?? -1).ThenBy(job => job.JobOrderNumber, StringComparer.Ordinal).ToArray();
+        var month = asAt is { } at ? new DateOnly(at.Year, at.Month, 1) : (DateOnly?)null;
+        return new ServiceParts(invoices, gitLines, stock, waiting, open.Length, open.Sum(invoice => invoice.NetAmount ?? 0m),
+            open.Length == 0 ? null : open.Max(invoice => invoice.DaysOpen),
+            month is { } m ? invoices.Count(invoice => !invoice.IsOpen && invoice.GrnDate >= m && invoice.GrnDate <= asAt) : 0,
+            waiting.Length, asAt is { } a ? gitLines.Count(line => line.BusinessDate > a.AddDays(-30) && line.BusinessDate <= a) : 0, asAt);
+    }
+
+    private static decimal? Sum(IEnumerable<decimal?> values)
+    {
+        var known = values.Where(value => value is not null).ToArray();
+        return known.Length == 0 ? null : known.Sum();
+    }
+}
+
+/// <summary>Projection of a v_service_job row onto lane history's header record (ServiceJobContracts.cs).</summary>
+public static class ServiceJobProjection
+{
+    public static ServiceJobHeader Header(ServiceJobSummary job) => new(job.JobOrderNumber, job.BookingDate, job.JoType, job.ExportedStatus,
+        job.Brand, job.Model, job.ProductCategory, job.Guarantee, job.CustomerType, job.CustomerName, job.Edd, job.Stage, job.StageDate,
+        job.PendingAt, job.SpareRequired, job.ClaimRaised, job.SpareValue, job.LabourCharge, job.TatDays, job.AgeDays, job.DaysInStage,
+        job.OverdueBy is > 0, job.AsAt);
 }
