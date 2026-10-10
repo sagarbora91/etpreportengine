@@ -9,7 +9,6 @@ using Etp.Reporting.Reporting;
 using ServiceGitLine = EtpApplication::Etp.Reporting.Application.Service.ServiceGitLine;
 using ServiceParts = EtpApplication::Etp.Reporting.Application.Service.ServiceParts;
 using ServicePartsInvoice = EtpApplication::Etp.Reporting.Application.Service.ServicePartsInvoice;
-using ServicePartsLine = EtpApplication::Etp.Reporting.Application.Service.ServicePartsLine;
 using ServiceWaitingJob = EtpApplication::Etp.Reporting.Application.Service.ServiceWaitingJob;
 using ServiceRefresh = EtpApplication::Etp.Reporting.Application.Service.ServiceRefresh;
 using ServiceReportQuery = EtpApplication::Etp.Reporting.Application.Service.IServiceReportQuery;
