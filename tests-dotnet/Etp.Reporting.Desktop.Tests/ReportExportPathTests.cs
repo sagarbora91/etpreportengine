@@ -146,12 +146,7 @@ public sealed class ReportExportPathTests
             var folder = OutputFolder();
             try
             {
-                var failing = new ReportExportCoordinator(
-                    (_, _) => throw new NotSupportedException(), (_, _) => throw new NotSupportedException(),
-                    (_, _, _) => throw new IOException("Synthetic disk failure"), (_, _) => throw new IOException("Synthetic disk failure"),
-                    (_, _, _) => throw new IOException("Synthetic disk failure"), (_, _) => throw new IOException("Synthetic disk failure"),
-                    (_, _) => throw new IOException("Synthetic disk failure"));
-                var view = SyntheticReportView.Create(out _, exporter: failing);
+                var view = SyntheticReportView.Create(out _, exporter: new InlineExporter(fail: true));
                 await view.RunReportAsync("sales-brand");
                 var destination = Path.Combine(folder, pdf ? "existing.pdf" : "existing.xlsx");
                 File.WriteAllText(destination, "original");
@@ -251,7 +246,7 @@ public sealed class ReportExportPathTests
             var folder = OutputFolder();
             try
             {
-                var view = SyntheticReportView.Create(out var latest);
+                var view = SyntheticReportView.Create(out var latest, exporter: new InlineExporter());
                 await view.RunReportAsync(code);
                 var data = latest().ExportData!;
                 var path = Path.Combine(folder, ReportsWorkspaceView.ProposedFileName(latest().ExportMetadata!, pdf: false));
@@ -309,6 +304,28 @@ public sealed class ReportExportPathTests
         private Task WriteAsync(string path) { Calls++; File.WriteAllText(path, "Synthetic export"); return Task.CompletedTask; }
         public Task ExportReportExcelAsync(string path, ExcelReportMetadata metadata, ExcelReportData data, VisualReportModel? visual, CancellationToken token = default) => WriteAsync(path);
         public Task ExportReportPdfAsync(string path, ExcelReportMetadata metadata, ExcelReportData data, VisualReportModel? visual, DailySalesReportDocument? dsr, CancellationToken token = default) => WriteAsync(path);
+        public Task ExportPackExcelAsync(string path, ReportPackDocument document, CancellationToken token = default) => throw new NotSupportedException();
+        public Task ExportPackPdfAsync(string path, ReportPackDocument document, CancellationToken token = default) => throw new NotSupportedException();
+        public Task ExportManagementSummaryPdfAsync(string path, ExcelReportMetadata metadata, ExcelReportData data, CancellationToken token = default) => throw new NotSupportedException();
+    }
+
+    /// <summary>
+    /// The production exporters on the production route, run inline. The real coordinator moves them to a worker
+    /// thread; in the app the dispatcher brings the continuation back to the UI thread, but a test STA thread has no
+    /// dispatcher loop, so the view would be touched from the worker. Faults surface as a faulted task, as in production.
+    /// </summary>
+    private sealed class InlineExporter(bool fail = false) : IReportExportCoordinator
+    {
+        private Task Run(Action export)
+        {
+            if (fail) return Task.FromException(new IOException("Synthetic disk failure"));
+            try { export(); return Task.CompletedTask; }
+            catch (Exception ex) { return Task.FromException(ex); }
+        }
+        public Task ExportReportExcelAsync(string path, ExcelReportMetadata metadata, ExcelReportData data, VisualReportModel? visual, CancellationToken token = default) =>
+            Run(() => { if (ReportExportCoordinator.SelectExcelRoute(visual) == ReportExcelExportRoute.Visual) new OpenXmlVisualReportExporter().Export(path, visual!); else new OpenXmlReportExporter().Export(path, metadata, data); });
+        public Task ExportReportPdfAsync(string path, ExcelReportMetadata metadata, ExcelReportData data, VisualReportModel? visual, DailySalesReportDocument? dsr, CancellationToken token = default) =>
+            Run(() => { if (dsr is not null) new DailySalesReportPdfExporter().Export(path, dsr); else if (visual is not null) new SimplePdfVisualReportExporter().Export(path, visual); else new SimplePdfReportExporter().Export(path, metadata, data); });
         public Task ExportPackExcelAsync(string path, ReportPackDocument document, CancellationToken token = default) => throw new NotSupportedException();
         public Task ExportPackPdfAsync(string path, ReportPackDocument document, CancellationToken token = default) => throw new NotSupportedException();
         public Task ExportManagementSummaryPdfAsync(string path, ExcelReportMetadata metadata, ExcelReportData data, CancellationToken token = default) => throw new NotSupportedException();
