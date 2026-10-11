@@ -49,10 +49,13 @@ internal static class ReportWorksheetWriter
         new Fills(new Fill(new PatternFill{PatternType=PatternValues.None}),new Fill(new PatternFill{PatternType=PatternValues.Gray125})),new Borders(new Border()),new CellStyleFormats(new CellFormat()),
         new CellFormats(new CellFormat(),new CellFormat{FontId=1,ApplyFont=true},new CellFormat{NumberFormatId=164,ApplyNumberFormat=true},new CellFormat{NumberFormatId=165,ApplyNumberFormat=true},new CellFormat{NumberFormatId=166,ApplyNumberFormat=true},new CellFormat{NumberFormatId=167,ApplyNumberFormat=true},new CellFormat(new Alignment { WrapText = true }) { ApplyAlignment = true }),new CellStyles(new CellStyle{Name="Normal",FormatId=0,BuiltinId=0}));
     private static Cell Text(string? text,uint style=0)=>new(){DataType=CellValues.InlineString,InlineString=new InlineString(new Text(text??"")),StyleIndex=style};
+    // RA-EXPORT-14 (1.10.1): a missing number is an empty cell (never the text "—" inside a numeric column, which breaks SUM and sorting);
+    // General (text/date) columns keep "—". Whole numbers always use the count style, whatever the column format.
     private static Cell Value(object? value,string format)=>value switch
     {
+        null when format!="General"=>new Cell{StyleIndex=format.Contains('%')?4u:format=="#,##0"?5u:2u},
         null=>Text("—"),DateOnly d=>Number(d.ToDateTime(TimeOnly.MinValue).ToOADate(),3),DateTime d=>Number(d.ToOADate(),3),
-        decimal or double or float or int or long=>Number(value,format.Contains('%')?4u:format=="#,##0"?5u:2u),_=>Text(Convert.ToString(value,CultureInfo.InvariantCulture))
+        int or long=>Number(value,format.Contains('%')?4u:5u),decimal or double or float=>Number(value,format.Contains('%')?4u:format=="#,##0"?5u:2u),_=>Text(Convert.ToString(value,CultureInfo.InvariantCulture))
     };
     private static Cell Number(object value,uint style)=>new(){DataType=CellValues.Number,CellValue=new CellValue(Convert.ToString(value,CultureInfo.InvariantCulture)!),StyleIndex=style};
     private static Row Row(uint index,IEnumerable<Cell> cells){var r=new Row{RowIndex=index};var i=1;foreach(var c in cells){c.CellReference=Column(i++)+index;r.Append(c);}return r;}
