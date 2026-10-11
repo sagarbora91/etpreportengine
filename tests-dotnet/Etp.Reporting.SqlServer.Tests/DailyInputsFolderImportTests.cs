@@ -25,7 +25,7 @@ public sealed class DailyInputsFolderImportTests
         var persistence = new RecordingPersistence();
         var applier = new FakeApplier(new("Imported", 2, 0, null, "2 daily input(s) saved; 0 unchanged.", []));
         var service = new FolderImportService(persistence,
-            new Reader(_ => Daily(("WALK_INS", 12m), ("OPERATIONAL_REMARK", "Rain in the evening"))), dailyInputs: applier);
+            new Reader(_ => Daily(("WALK_INS", 12m), ("EXPENSES", 250.5m))), dailyInputs: applier);
 
         var summary = await service.RunFilesAsync([DailyName], new("tester"));
 
@@ -44,7 +44,7 @@ public sealed class DailyInputsFolderImportTests
         var (document, user) = Assert.Single(applier.Calls);
         Assert.Equal("tester", user);
         Assert.Equal((DailyInputsKind.Retail, "HEMW", Today), (document.Kind, document.StoreCode, document.BusinessDate));
-        Assert.Equal(new[] { "WALK_INS", "OPERATIONAL_REMARK" }, document.Values.Select(value => value.FieldCode));
+        Assert.Equal(new[] { "WALK_INS", "EXPENSES" }, document.Values.Select(value => value.FieldCode));
     }
 
     [Theory]
