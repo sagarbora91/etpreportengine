@@ -8,6 +8,14 @@ namespace Etp.Reporting.Desktop.Tests;
 [Collection(WpfViewCollection.Name)]
 public sealed class RegisterDraftTests
 {
+    [Theory]
+    [InlineData(0, "COURIER", "", "No courier entries yet.")]
+    [InlineData(0, "COURIER", "AB12", "No courier entries match \"AB12\".")]
+    [InlineData(1, "INWARD_GOODS", null, "1 audited inward goods entry found.")]
+    [InlineData(3, "COURIER", null, "3 audited courier entries found.")]
+    public void Register_status_text_uses_plain_words_for_an_empty_register(int count, string type, string? search, string expected) =>
+        Assert.Equal(expected, RegistersWorkspaceView.RegisterCountText(count, type, search));
+
     [Fact]
     public void Header_scope_does_not_create_a_draft_but_existing_edits_stay_dirty()
     {
