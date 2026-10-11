@@ -1,0 +1,10 @@
+{
+  "role": "TITAN",
+  "sourceFolder": "C:\ETP-Exports",
+  "patterns": ["*.xlsx", "*.csv"],
+  "dailyInputsFolder": "C:\ETP-DailyInputs",
+  "dailyInputsPattern": "ETP-Daily-Inputs*.xlsx",
+  "oneDriveRoot": "",
+  "stableSeconds": 10,
+  "logFolder": "%LOCALAPPDATA%\EtpOneDrive"
+}
