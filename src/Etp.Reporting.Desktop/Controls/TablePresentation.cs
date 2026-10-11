@@ -74,7 +74,7 @@ public static class TablePresentation
             {
                 if (properties.Find(column.Property, false) is not { } property) continue;
                 var (valueType, numeric) = Shape(property);
-                yield return new(property, column.Money ? column.Header + " ₹" : column.Header, numeric, new CellFormat(valueType, numeric, property.Name));
+                yield return new(property, column.Money ? column.Header + " ₹" : column.Header, numeric, new CellFormat(valueType, numeric, column.LocalTime ? property.Name + LocalTimeSuffix : property.Name));
             }
             yield break;
         }
@@ -118,6 +118,8 @@ public static class TablePresentation
         return words[0] + " " + string.Join(" ", words.Skip(1).Select(word => word.ToLowerInvariant()));
     }
 
+    private const string LocalTimeSuffix = "@Local";
+
     private sealed class CellFormat(Type type,bool numeric,string name) : IValueConverter
     {
         public object Convert(object value,Type targetType,object parameter,CultureInfo culture) => value switch
@@ -127,6 +129,8 @@ public static class TablePresentation
             // Growth Status and Availability carry MetricAvailability names ("MissingSource") as text.
             string status when name is "GrowthStatus" or "Availability" => SpacedWords(status),
             Enum member => SpacedWords(member.ToString()),
+            // A mapped *Utc column marked LocalTime shows the local clock time (RA-TENDER-15).
+            DateTime utc when name.EndsWith(LocalTimeSuffix, StringComparison.Ordinal) => DateTime.SpecifyKind(utc, DateTimeKind.Utc).ToLocalTime().ToString("dd MMM yyyy HH:mm",PresentationCulture.Indian),
             DateTime date => date.ToString("dd MMM yyyy",PresentationCulture.Indian),
             DateOnly date => date.ToString("dd MMM yyyy",PresentationCulture.Indian),
             // A year is an identifier: 2027, never "2,027" (RA-UI-18).

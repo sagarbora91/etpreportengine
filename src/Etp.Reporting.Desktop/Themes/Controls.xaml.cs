@@ -41,7 +41,23 @@ public partial class ControlsTheme : ResourceDictionary
     private static void DateFocusLost(object sender, KeyboardFocusChangedEventArgs e)
     {
         if (sender is DatePicker picker)
-            picker.Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, () => FormatDate(picker));
+            picker.Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, () => { CommitTypedDate(picker); FormatDate(picker); });
+    }
+    // RA-UI-28 (1.10.1): a typed date commits when focus leaves the box, not only on Enter.
+    private static void CommitTypedDate(DatePicker picker)
+    {
+        if (picker.Template?.FindName("PART_TextBox", picker) is not DatePickerTextBox editor) return;
+        if (TryParseTypedDate(editor.Text, out var typed) && picker.SelectedDate?.Date != typed && IsInRange(picker, typed)) picker.SelectedDate = typed;
+    }
+    private static bool IsInRange(DatePicker picker, DateTime date) =>
+        !picker.BlackoutDates.Contains(date) && (picker.DisplayDateStart is not { } start || date >= start) && (picker.DisplayDateEnd is not { } end || date <= end);
+    internal static bool TryParseTypedDate(string? text, out DateTime date)
+    {
+        date = default;
+        if (string.IsNullOrWhiteSpace(text)) return false;
+        text = text.Trim();
+        return DateTime.TryParseExact(text, ["dd MMM yyyy", "d MMM yyyy", "dd/MM/yyyy", "d/M/yyyy", "dd-MM-yyyy", "d-M-yyyy", "yyyy-MM-dd"], PresentationCulture.Indian, System.Globalization.DateTimeStyles.None, out date)
+            || DateTime.TryParse(text, PresentationCulture.Indian, System.Globalization.DateTimeStyles.None, out date);
     }
     private static void FormatDate(DatePicker picker)
     {

@@ -1,12 +1,13 @@
 extern alias EtpApplication;
 
+using EtpApplication::Etp.Reporting.Application.Registers;
 using EtpApplication::Etp.Reporting.Application.Reports;
 
 namespace Etp.Reporting.Desktop;
 
 /// <summary>One on-screen column of a report row type: the property, the header the Excel export uses for the same
 /// value, and whether the value is money (₹) rather than a quantity, count or percentage.</summary>
-public sealed record ReportGridColumn(string Property, string Header, bool Money = false);
+public sealed record ReportGridColumn(string Property, string Header, bool Money = false, bool LocalTime = false);
 
 /// <summary>
 /// Report audit of 9 Oct 2026 (RA-EXPORT-06/07/08, RA-SALES-06, RA-UI-14/15/16/18, RA-OPS-16): the detail grid and the
@@ -96,6 +97,14 @@ public static class ReportGridColumns
             new("Severity", "Severity"), new("Area", "Area"), new("Code", "Code"), new("StoreCode", "Store"), new("BusinessDate", "Date"),
             new("DocumentNumber", "Document"), new("ItemCode", "Item"), new("Variance", "Variance"), new("SourceWorkbook", "Workbook"),
             new("SourceSheet", "Sheet"), new("SourceRow", "Source Row"), new("Message", "Message"), new("RecommendedAction", "Recommended Action")
+        ],
+        // RA-TENDER-15 (1.10.1): register entries show readable headers, no internal ids, and the modified time in local time.
+        [typeof(DigitalRegisterEntry)] =
+        [
+            new("StoreCode", "Store"), new("BusinessDate", "Business date"), new("DocumentNumber", "Document"), new("DocumentDate", "Document date"),
+            new("Counterparty", "Counterparty"), new("Quantity", "Quantity"), new("Amount", "Amount", true), new("Reference", "Reference"),
+            new("ReceivedBy", "Received by"), new("VerificationStatus", "Status"), new("Remarks", "Remarks"), new("ModifiedBy", "Modified by"),
+            new("ModifiedUtc", "Modified", LocalTime: true)
         ],
         [typeof(ManagementTrendRecord)] =
         [

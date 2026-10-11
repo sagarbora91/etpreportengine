@@ -25,7 +25,6 @@ public sealed partial class RegistersWorkspaceView : UserControl
         this.connectionStringProvider = connectionStringProvider ?? throw new ArgumentNullException(nameof(connectionStringProvider));
         InitializeComponent();
         RegisterBusinessDateInput.SelectedDate = DateTime.Today;
-        RegisterGrid.AutoGeneratingColumn += RegisterGrid_AutoGeneratingColumn;
     }
 
     public event EventHandler<string>? NotificationRequested;
@@ -67,39 +66,12 @@ public sealed partial class RegistersWorkspaceView : UserControl
         catch (Exception ex) { if (revision != registerRefreshRevision) return; SetStatus(DesktopDiagnostics.WithReference(errorDescriber(ex), DesktopDiagnostics.Record(ex, "Registers.Workspace", "REGISTER_REFRESH_FAILED"))); }
     }
 
-    // RA-TENDER-15 (1.10.1): plain words for an empty register, and the grid shows readable headers with the
-    // modified time in local time instead of the internal ids and the UTC stamp.
+    // RA-TENDER-15 (1.10.1): plain words for an empty register. The grid headers and local modified time come from ReportGridColumns.
     internal static string RegisterCountText(int count, string registerType, string? search)
     {
         var type = (registerType ?? "").Replace('_', ' ').ToLowerInvariant();
         if (count > 0) return $"{count:N0} audited {type} entr{(count == 1 ? "y" : "ies")} found.";
         return string.IsNullOrWhiteSpace(search) ? $"No {type} entries yet." : $"No {type} entries match \"{search.Trim()}\".";
-    }
-
-    private static readonly Dictionary<string, string> RegisterHeaders = new(StringComparer.Ordinal)
-    {
-        ["StoreCode"] = "Store", ["BusinessDate"] = "Business date", ["DocumentNumber"] = "Document", ["DocumentDate"] = "Document date",
-        ["Counterparty"] = "Counterparty", ["Quantity"] = "Quantity", ["Amount"] = "Amount", ["Reference"] = "Reference",
-        ["ReceivedBy"] = "Received by", ["VerificationStatus"] = "Status", ["Remarks"] = "Remarks", ["ModifiedBy"] = "Modified by"
-    };
-
-    private void RegisterGrid_AutoGeneratingColumn(object? sender, DataGridAutoGeneratingColumnEventArgs e)
-    {
-        if (e.PropertyName is "Id" or "RegisterType" or "SourceDocumentId") { e.Cancel = true; return; }
-        if (e.PropertyName == "ModifiedUtc")
-        {
-            e.Column = new DataGridTextColumn { Header = "Modified", IsReadOnly = true, Binding = new System.Windows.Data.Binding(e.PropertyName) { Converter = UtcToLocalConverter.Instance } };
-            return;
-        }
-        if (RegisterHeaders.TryGetValue(e.PropertyName, out var header)) e.Column.Header = header;
-    }
-
-    private sealed class UtcToLocalConverter : System.Windows.Data.IValueConverter
-    {
-        public static readonly UtcToLocalConverter Instance = new();
-        public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
-            value is DateTime utc ? DateTime.SpecifyKind(utc, DateTimeKind.Utc).ToLocalTime().ToString("dd MMM yyyy HH:mm", culture) : "";
-        public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
     }
 
     private async void SaveRegisterEntry_Click(object sender, RoutedEventArgs e) => await SaveDraftAsync();
