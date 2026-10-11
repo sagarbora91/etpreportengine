@@ -13,13 +13,16 @@ namespace Etp.Reporting.Desktop.Modules.HealthCheck;
 /// <item><b>Tokens</b> (ids, codes, versions, dates, store and report codes, method names, machine name): the
 /// <c>SafeFrame</c> character set without spaces, up to 200 characters; a comma-separated list of such tokens
 /// (<c>"INSERT, UPDATE"</c>) is one token.</item>
-/// <item><b>Texts</b> (explanation, fix): only a template of the catalogue (<c>HealthCheckTexts</c>, plus the
-/// writer's own) whose placeholders are filled with tokens. A sentence that matches no template is redacted, so a
-/// probe that formats free text into an explanation is caught, not exported.</item>
+/// <item><b>Texts</b> (explanation, fix): a template of an optional catalogue whose placeholders are filled with
+/// tokens, or a plain sentence: letters, digits, spaces and <c>. , ; : ( ) - + % _ [ ] &lt; &gt; =</c> only, an
+/// apostrophe only inside a word (Owner's), up to 600 characters. The probes (L4-L7) build explanations from fixed
+/// sentences and tokens (<c>HealthCheckTexts.Token</c>), so a plain-sentence rule keeps them readable; it cannot tell
+/// a name from a word, which is why names are kept out at the source (tokens never carry row data) and why every
+/// token field here refuses spaces.</item>
 /// <item><b>Fingerprints</b>: exactly 64 lowercase hex characters. <b>Refs</b>: 12 hex characters.</item>
 /// <item><b>Numbers</b>: an integer part of 10 or more digits (a phone or account number in a metric) is dropped.</item>
 /// </list>
-/// Every kind also refuses a run of 10 or more digits and an invoice-like value (letters then 5 or more digits, as
+/// Every kind also refuses a run of 10 or more digits, a phone number written with separators, and an invoice-like value (letters then 5 or more digits, as
 /// <c>INV001234</c> or <c>HE-0012345</c>); <c>@</c>, <c>\</c>, <c>/</c> and quotes are outside every character set.
 /// </summary>
 public sealed class HealthExportPrivacyGuard
@@ -47,6 +50,13 @@ public sealed class HealthExportPrivacyGuard
     // "SQL18456" (an error number) and "ER-0006" (four digits) stay readable.
     private static readonly Regex InvoiceLike = new(
         @"(?<![A-Za-z0-9])(?!SQL[0-9])[A-Za-z]{1,6}[-_]?[0-9]{5,}", RegexOptions.CultureInvariant, MatchTimeout);
+    // Phone numbers written with separators: 98765-43210, 987 654 3210, 0123-456-789, 22 4567 8901.
+    private static readonly Regex PhoneLike = new(
+        @"(?<![0-9])(?:[0-9]{5}[-. ][0-9]{5}|[0-9]{3}[-. ][0-9]{3}[-. ][0-9]{4}|[0-9]{4}[-. ][0-9]{3}[-. ][0-9]{3}|[0-9]{2}[-. ][0-9]{4}[-. ][0-9]{4})(?![0-9])",
+        RegexOptions.CultureInvariant, MatchTimeout);
+    // A plain sentence: no @, \, /, quotes, backticks or other symbols; an apostrophe only between letters.
+    private static readonly Regex Prose = new(
+        @"^(?:[A-Za-z0-9 .,;:()\-+%_\[\]<>=]|(?<=[A-Za-z])'(?=[A-Za-z]))+$", RegexOptions.CultureInvariant, MatchTimeout);
     private static readonly Regex Placeholder = new(@"\{[A-Za-z0-9_]+\}", RegexOptions.CultureInvariant, MatchTimeout);
 
     private readonly IReadOnlyList<Regex> templates;
@@ -70,10 +80,10 @@ public sealed class HealthExportPrivacyGuard
     /// <summary>A token or a comma-separated list of tokens; null stays null.</summary>
     public string? Token(string? value) => Check(value, IsSafeToken);
 
-    /// <summary>An explanation or fixed instruction: a catalogue template filled with tokens; null stays null.</summary>
+    /// <summary>An explanation or fixed instruction (template or plain sentence); null stays null.</summary>
     public string? Text(string? value) => Check(value, IsSafeText);
 
-    /// <summary>A task id (a token) or a fixed instruction (a template).</summary>
+    /// <summary>A task id (a token) or a fixed instruction (a text).</summary>
     public string? TokenOrText(string? value) => Check(value, candidate => IsSafeToken(candidate) || IsSafeText(candidate));
 
     /// <summary>A register fingerprint: 64 lowercase hex characters.</summary>
@@ -121,6 +131,7 @@ public sealed class HealthExportPrivacyGuard
     public bool IsSafeText(string value)
     {
         if (value.Length is 0 or > MaxTextLength) return false;
+        if (Prose.IsMatch(value) && !LooksLikeCustomerData(value)) return true;
         foreach (var template in templates)
         {
             var match = template.Match(value);
@@ -136,7 +147,8 @@ public sealed class HealthExportPrivacyGuard
     private static bool IsSafePlaceholder(string value) =>
         value.Length > 0 && value.Split(", ").All(item => item.Length <= MaxPlaceholderLength) && IsSafeToken(value);
 
-    private static bool LooksLikeCustomerData(string value) => LongDigitRun.IsMatch(value) || InvoiceLike.IsMatch(value);
+    private static bool LooksLikeCustomerData(string value) =>
+        LongDigitRun.IsMatch(value) || InvoiceLike.IsMatch(value) || PhoneLike.IsMatch(value);
 
     private string? Check(string? value, Func<string, bool> isSafe)
     {

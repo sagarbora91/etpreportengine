@@ -55,14 +55,20 @@ public sealed partial class HealthExportWriter
     public const string RedactionWarningText = "The health export replaced {count} value(s) that were not safe to export.";
     public const string RedactionFinding = "EXPORT_REDACTED";
 
-    private static readonly JsonWriterOptions WriterOptions = new() { Indented = true };
+    // Relaxed escaping keeps "<RunAsync>d__4" and "+05:30" readable for the weekly audit; every string has passed
+    // the guard, so nothing in the file needs HTML escaping.
+    private static readonly JsonWriterOptions WriterOptions = new()
+    {
+        Indented = true,
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+    };
 
     private readonly string directory;
     private readonly IReadOnlyList<string> textTemplates;
     private readonly TimeProvider time;
 
     /// <param name="directory">Normally <see cref="DefaultDirectory"/>.</param>
-    /// <param name="textTemplates">The explanation and fix templates (<c>HealthCheckTexts</c>) the guard accepts.</param>
+    /// <param name="textTemplates">Optional explanation templates the guard accepts besides plain sentences (none today).</param>
     public HealthExportWriter(string directory, IEnumerable<string> textTemplates, TimeProvider? time = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(directory);
