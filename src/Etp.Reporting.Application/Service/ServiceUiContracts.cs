@@ -67,10 +67,12 @@ public static class ServiceClaimTypes
 
 /// <summary>
 /// One row of dbo.v_service_job: one Service job with its stage (design 4.2), dates, money and ageing (4.3). Dates are the
-/// family's own dates; <c>AsAt</c> is the latest Service snapshot date, against which <c>AgeDays</c> and <c>DaysInStage</c>
-/// are counted for open jobs; <c>TatDays</c> (booking to delivered or RWR) and <c>TatRepairDays</c> (booking to repaired)
+/// family's own dates; <c>AsAt</c> is the latest Service snapshot date; <c>AgeDays</c> and <c>DaysInStage</c> of open jobs
+/// are counted to <see cref="AgedTo"/>, the job's own as-at (1.10.1, R-SQL-13); <c>TatDays</c> (booking to delivered or RWR) and <c>TatRepairDays</c> (booking to repaired)
 /// are set for closed jobs only. <c>IsOpen</c> is false for DELIVERED, RWR and a DC/RA job whose claim was raised (Q3).
 /// <c>OverdueBy</c> is the full rule (Q4): EDD passed, else days in stage over the stage limit; null when not overdue.
+/// <c>ClaimDate</c> is the first WDC (DC job) or WRA (RA job) claim date; <c>ClosedDate</c> the delivery / RWR date or,
+/// for a DC/RA job closed by its claim, the claim date (R-UI-07); null while open.
 /// </summary>
 public sealed record ServiceJobSummary(
     string JobOrderNumber,
@@ -114,11 +116,19 @@ public sealed record ServiceJobSummary(
     int? OverdueBy,
     bool IsOpen,
     DateOnly? LastReadingDate,
-    DateOnly AsAt)
+    DateOnly AsAt,
+    DateOnly? ClaimDate = null,
+    DateOnly? ClosedDate = null)
 {
     public string StageLabel => ServiceStages.Label(Stage);
     /// <summary>Age band of days since booking (design 4.3, decision 25); overdue uses days in stage.</summary>
     public string? AgeBand => ServiceAgeing.Band(AgeDays);
+
+    /// <summary>
+    /// The job's own as-at (design 4.3, R-SQL-13): the latest snapshot date of the lists that hold the job, or
+    /// <see cref="AsAt"/> when no list holds it. Ages, days in stage, overdue and "days since" are measured to it.
+    /// </summary>
+    public DateOnly AgedTo => LastReadingDate ?? AsAt;
 }
 
 /// <summary>Service Today (design 3.2) for one business date; counts come from v_service_job, money from the S004/manual views.</summary>
@@ -229,8 +239,17 @@ public sealed record ServiceUnclaimedJob(
     string? DcNumber);
 
 /// <summary>
+/// "Claims raised this month" (R-UI-11 / R-SQL-11), one rule for Today and Claims: the v_service_claims lines dated from
+/// the first day of <c>UpTo</c>'s month to <c>UpTo</c>; <c>Documents</c> counts distinct (claim type, document number),
+/// a line without a document number is not a document but its value counts; <c>Value</c> is net incl. tax.
+/// </summary>
+public sealed record ServiceClaimsMonth(DateOnly Month, DateOnly UpTo, int Documents, int Lines, decimal? Value);
+
+/// <summary>
 /// The Claims screen (raised only, Q9 = A): the summary, every line in the range, the DC/RA jobs not yet claimed and the
-/// GPRC gap warning (the latest GPRC reading is older than the latest DC/RA status reading).
+/// GPRC gap warning: the latest GPRC reading is older than the latest DC/RA status reading, or (R-SQL-08) the GPRC lines
+/// have a business-date hole between the last S023 line and the first S041 window (<c>GprcHoleFrom</c>..<c>GprcHoleTo</c>).
+/// <c>RaisedThisMonth</c> is the as-at month by <see cref="ServiceClaimsMonth"/>'s rule, whatever range is chosen.
 /// </summary>
 public sealed record ServiceClaims(
     IReadOnlyList<ServiceClaimsSummaryRow> Summary,
@@ -239,7 +258,10 @@ public sealed record ServiceClaims(
     bool GprcGapWarning,
     DateOnly? LatestGprcReading,
     DateOnly? LatestDcRaReading,
-    DateOnly? AsAt);
+    DateOnly? AsAt,
+    DateOnly? GprcHoleFrom = null,
+    DateOnly? GprcHoleTo = null,
+    ServiceClaimsMonth? RaisedThisMonth = null);
 
 /// <summary>One line (item) of a purchase invoice, from S007 (created) and S008 (received).</summary>
 public sealed record ServicePartsLine(string? ItemId, decimal? ShippedQuantity, decimal? ReceivedQuantity, decimal? NetAmount, string? GrnNumber, DateOnly? GrnDate);
@@ -294,9 +316,12 @@ public enum ServiceFreshnessColour { NoData, Fresh, Amber, Red }
 
 /// <summary>
 /// One chip of the freshness strip (design 3.7): a family group, its latest snapshot date (the oldest of the group's
-/// families, so a stale family shows), the source kind of that reading and the colour (amber over 7 days, red over 14, Q14).
+/// exported families, so a stale family shows), the source kind of that reading and the colour (amber over 7 days, red
+/// over 14, Q14; monthly for consolidated-only families). R-SQL-14 (b): a family never exported at all does not make the
+/// chip "no data"; it is listed in <c>NeverExported</c> and named at the end of <c>Text</c>.
 /// </summary>
-public sealed record ServiceFreshnessChip(string Group, IReadOnlyList<string> ReportCodes, DateOnly? LatestSnapshotDate, string? SourceKind, ServiceFreshnessColour Colour, string Text);
+public sealed record ServiceFreshnessChip(string Group, IReadOnlyList<string> ReportCodes, DateOnly? LatestSnapshotDate, string? SourceKind, ServiceFreshnessColour Colour, string Text,
+    IReadOnlyList<string>? NeverExported = null);
 
 public partial interface IServiceReportQuery
 {

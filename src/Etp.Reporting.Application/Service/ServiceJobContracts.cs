@@ -50,12 +50,11 @@ public static class ServiceJobTypes
 /// <summary>TAT arithmetic for the Jobs list (design 4.3, Q2): the median over closed jobs, per job type.</summary>
 public static class ServiceJobTat
 {
-    /// <summary>The lower median (the middle value, or the lower of the two middle values); null for no values.</summary>
-    public static int? Median(IEnumerable<int> values)
-    {
-        var sorted = values.OrderBy(value => value).ToArray();
-        return sorted.Length == 0 ? null : sorted[(sorted.Length - 1) / 2];
-    }
+    /// <summary>
+    /// The one TAT median of the Service screens (R-SQL-07 / R-UI-06): <see cref="ServiceTat.Median"/>, the true median
+    /// (the mean of the two middle values for an even count); null for no values. Kept so the Jobs list and Today agree.
+    /// </summary>
+    public static double? Median(IEnumerable<int> values) => ServiceTat.Median(values);
 }
 
 /// <summary>
@@ -63,6 +62,9 @@ public static class ServiceJobTat
 /// exported S002 value (<see cref="ServiceJobTypes.Normalise"/> gives the screen value). <c>TatDays</c> is set for closed
 /// jobs (booking to delivered / RWR date); <c>AgeDays</c> and <c>DaysInStage</c> for open jobs, measured to <c>AsAt</c>
 /// (the latest Service snapshot date). <c>ClaimRaised</c> says a WDC/WRA claim document exists for a DC/RA job.
+/// 1.10.1 (R-SQL-16, R-UI-07): <c>TatRepairDays</c> (booking to repaired, delivered jobs), <c>Open</c> (the view's is_open),
+/// <c>ClosedDate</c> (delivery / RWR date, or the claim date of a DC/RA job closed by its claim) and <c>ClaimDate</c> (the
+/// first WDC/WRA claim of a DC/RA job). They default to null so a header built by hand before 1.10.1 still compiles.
 /// </summary>
 public sealed record ServiceJobHeader(
     string JobOrderNumber,
@@ -87,7 +89,18 @@ public sealed record ServiceJobHeader(
     int? AgeDays,
     int? DaysInStage,
     bool IsOverdue,
-    DateOnly AsAt);
+    DateOnly AsAt,
+    int? TatRepairDays = null,
+    bool? Open = null,
+    DateOnly? ClosedDate = null,
+    DateOnly? ClaimDate = null)
+{
+    /// <summary>
+    /// Open = not delivered, not RWR and not a DC/RA job closed by its claim (Q3); the view's is_open when the row came
+    /// from v_service_job (<c>Open</c>), else the same rule on <c>Stage</c> and <c>ClaimRaised</c> (R-SQL-16).
+    /// </summary>
+    public bool IsOpen => Open ?? !ServiceJobStages.IsClosed(Stage, ClaimRaised);
+}
 
 /// <summary>
 /// One row of <c>dbo.v_service_job_timeline</c>: one reading row of one family for the job. <c>EventDate</c> is the
@@ -95,6 +108,9 @@ public sealed record ServiceJobHeader(
 /// transaction_date, running_test_date); <c>StatusText</c> the status as exported (jostatus, to_status, current_status,
 /// result); <c>DocumentNumber</c> for claims and S003 lines; <c>Amount</c> where the family has a money column;
 /// <c>SourceKind</c> is CONSOLIDATED or RAW.
+/// R-SQL-12: every live reading of a DateLog family is listed, so one claim or revenue line repeats once per overlapping
+/// reading. <c>Amount</c> is for display per row and must never be summed or totalled; money totals come from
+/// v_service_job (revenue_*) and v_service_claims, which apply the DateLog rule. ServiceUiRulesTests guards the screens.
 /// </summary>
 public sealed record ServiceJobTimelineRow(
     string JobOrderNumber,
