@@ -11,6 +11,29 @@ param(
 )
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'etp-operations-common.ps1')
+
+# 1.11.0, decision 36 (Q6). After a passed drill, the live database gets DBCC CHECKDB WITH
+# PHYSICAL_ONLY (seconds on this database), so the health check's DB-03, which only reads the
+# last-good CHECKDB date, sees a fresh date every month and not only after a setup run. It runs
+# only after the drill passed and its result was recorded; the drill itself is unchanged.
+function New-EtpDrillIntegrityCheckSql {
+    param([Parameter(Mandatory)][string]$Database)
+    if ($Database -notmatch '^[A-Za-z0-9_]{1,128}$') { throw 'Choose a valid database name.' }
+    return "SET NOCOUNT ON; DBCC CHECKDB ([$Database]) WITH PHYSICAL_ONLY, NO_INFOMSGS;"
+}
+
+function Get-EtpDrillIntegrityFailureKind {
+    # Pure. 'Permission' when SQL Server refused the check itself (7983 and 2571: no DBCC right;
+    # 916, 229, 262, 300: no access) - the drill still passed and the check is reported as a
+    # notice; anything else, a consistency error above all, is 'Integrity' and fails the drill run.
+    param([AllowNull()][string]$Detail)
+    if ($Detail -match 'SQL Server error (7983|2571|916|229|262|300)\b') { return 'Permission' }
+    return 'Integrity'
+}
+
+# Dot-sourcing exposes the functions above without running a drill.
+if ($MyInvocation.InvocationName -eq '.') { return }
+
 # 1.9.9 (IE-CODE-01, IE-CODE-10). Every failure below is logged under <backup folder>\Logs and
 # reported to the application on its own line, then rethrown unchanged: the monthly drill task
 # used to leave nothing but Task Scheduler's "last result 0x1".
@@ -65,6 +88,22 @@ try {
     }
     if (-not $verdict.Succeeded) { throw $verdict.Message }
     if ($verdict.Status -ceq 'NotRecorded') { Write-EtpOperationNotice $verdict.Message }
+    # Decision 36 (Q6): integrity check of the live database, after the passed drill was recorded.
+    $integrityChecked = $false
+    try {
+        $null = Invoke-EtpSql -SqlCmd $sqlcmd -Server $ServerInstance -Database master -Query (New-EtpDrillIntegrityCheckSql -Database $Database)
+        $integrityChecked = $true
+    }
+    catch {
+        if ((Get-EtpDrillIntegrityFailureKind (Get-EtpExceptionSqlDetail $_.Exception)) -ceq 'Permission') {
+            Write-EtpOperationNotice "The recovery drill passed, but SQL Server did not allow the integrity check of $Database (DBCC CHECKDB WITH PHYSICAL_ONLY) for this account. Run the drill as a SQL Server administrator so the health check sees a current integrity date."
+        }
+        else {
+            $failure = $_
+            throw "The recovery drill passed, but the integrity check of the live database $Database (DBCC CHECKDB WITH PHYSICAL_ONLY) failed. Do not ignore this: run DBCC CHECKDB on $Database as a SQL Server administrator and follow docs\OPERATIONS.md before the next backup is relied on."
+        }
+    }
+    if ($integrityChecked) { Write-Output "Integrity check of $Database (DBCC CHECKDB WITH PHYSICAL_ONLY) passed." }
     Write-Output $verdict.Message
     Write-Output 'Receipt-verified recovery drill completed.'
 }
