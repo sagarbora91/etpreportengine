@@ -114,7 +114,8 @@ public static class HealthCheckId
     public static HealthCheckArea AreaOf(string checkId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(checkId);
-        return checkId[..checkId.IndexOf('-')] switch
+        var dash = checkId.IndexOf('-');
+        return (dash > 0 ? checkId[..dash] : checkId) switch
         {
             "DB" => HealthCheckArea.Database,
             "SEC" => HealthCheckArea.Security,
