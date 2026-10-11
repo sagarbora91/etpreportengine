@@ -7,7 +7,7 @@ Plain-English setup and daily routine for ETP's two-PC plan (decision 30, option
 1. **Shop PC (Titan, Helios or Service)** copies the day's export files and the staff daily-inputs workbook to OneDrive, into `ETP-Inbound\<TITAN, HELIOS or SERVICE>\<date>\`. A small file called `manifest.json` is written last: it lists every file with its size and a fingerprint (SHA-256).
 2. **Workpc** reads those folders from its synced OneDrive, checks every file against the manifest, and puts the good ones into ETP's `Inbound` folder as one zip per shop and day (for example `TITAN-2026-10-11.zip`). ETP's own scheduled import then imports it.
 3. **Bad or doubtful files** are never imported. They are moved to a `Quarantine` folder on Workpc with a short reason beside each.
-4. **Workpc's nightly backup** is encrypted and copied to `OneDrive\ETP-Backups\`. The last 14 are kept.
+4. **Workpc's nightly backup** is encrypted and copied to `OneDrive\ETP-Backups\`. The last 3 are kept (about 0.8 GB at 270 MB each).
 
 ## Folder layout
 
@@ -55,7 +55,7 @@ You need the ETP `scripts\onedrive` folder on the PC (copy it from Workpc or the
 1. Copy `workpc-backup.config.example.json` to `workpc-backup.config.json`. Set `keyFile` to a local path that OneDrive does not sync (the example is under `C:\ProgramData\EtpReporting\Keys`).
 2. Create the key once: `powershell -ExecutionPolicy Bypass -File .\Copy-EtpBackupToOneDrive.ps1 -NewKey`
 3. **Copy the key file to a USB stick and keep it somewhere safe, away from the shop PCs and away from OneDrive, email and chat.** If it is lost, the backups in OneDrive cannot be opened. If it is leaked, anyone with the OneDrive files can read your data. The script refuses to use a key that sits inside OneDrive.
-4. Schedule `Copy-EtpBackupToOneDrive.ps1` to run after the nightly ETP backup has finished (for example 90 minutes later). It only ever copies a backup that ETP has marked verified, re-checks it, encrypts it, copies it, checks the copy, and keeps the newest 14 (`keepLast`).
+4. Schedule `Copy-EtpBackupToOneDrive.ps1` to run after the nightly ETP backup has finished (for example 90 minutes later). It only ever copies a backup that ETP has marked verified, re-checks it, encrypts it, copies it, checks the copy, and keeps the newest 3 (`keepLast`).
 5. To restore from a OneDrive copy: `.\Copy-EtpBackupToOneDrive.ps1 -Decrypt -InputFile <file>.bak.enc -OutputFile <file>.bak` (needs the key file), then use ETP's normal restore procedure on the `.bak`.
 
 ## How to check it worked

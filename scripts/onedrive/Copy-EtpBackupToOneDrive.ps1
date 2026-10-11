@@ -10,7 +10,7 @@
    3. Encrypts it locally (AES-256-CBC + HMAC-SHA256, "encrypt then MAC") with a key from a KEY FILE, to
       <backupFolder>\OneDriveStaging\<name>.bak.enc, then decrypts it again in memory and checks the original SHA-256.
    4. Copies it into OneDrive (as .part, then renames), re-hashes the OneDrive copy and compares.
-   5. Copies the small receipt json beside it, then removes older copies beyond keepLast (default 14).
+   5. Copies the small receipt json beside it, then removes older copies beyond keepLast (default 3).
   The KEY FILE is never copied anywhere and MUST NOT live in OneDrive (the script refuses if it does). Keep a copy of
   the key on a USB stick in a safe place: without the key the OneDrive backups cannot be opened. Nothing here holds a password.
 
@@ -190,7 +190,7 @@ function Copy-EtpBackupToOneDrive {
     $backupFolder = [Environment]::ExpandEnvironmentVariables([string](Get-EtpConfigValue $config 'backupFolder' "$env:ProgramData\EtpReporting\Backups"))
     $database = [string](Get-EtpConfigValue $config 'database' 'EtpReporting')
     $keyFile = [Environment]::ExpandEnvironmentVariables([string](Get-EtpConfigValue $config 'keyFile' ''))
-    $keepLast = [int](Get-EtpConfigValue $config 'keepLast' 14)
+    $keepLast = [int](Get-EtpConfigValue $config 'keepLast' 3)
     if ($keepLast -lt 1) { throw 'keepLast must be at least 1.' }
     if ([string]::IsNullOrWhiteSpace($keyFile)) { throw "Config 'keyFile' is required (a local path outside OneDrive)." }
     $configuredRoot = [string](Get-EtpConfigValue $config 'oneDriveRoot' '')
