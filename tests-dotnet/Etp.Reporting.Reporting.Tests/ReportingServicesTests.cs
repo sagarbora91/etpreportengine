@@ -299,7 +299,24 @@ public sealed class ReportingServicesTests
         var blank = new[] { Line("I1", "1", ReportingTransactionType.Sale, 1m, 100m, brand: "", row: null) };
 
         Assert.Equal("SEIKO", Assert.Single(new SalesReportingService().Summarize(mapped, SalesSummaryDimension.Brand, SalesPolicy).Rows).Key);
-        Assert.Equal(ReconciliationStatus.Blocked, new SalesReportingService().Summarize(blank, SalesSummaryDimension.Brand, SalesPolicy).Status);
+        // RA-SALES-13 (1.10.1): a blank brand with no brand row is grouped as Unassigned and counted, not a block.
+        var result = new SalesReportingService().Summarize(blank, SalesSummaryDimension.Brand, SalesPolicy);
+        Assert.Equal(ReconciliationStatus.Passed, result.Status);
+        Assert.Equal(SalesReportingService.UnassignedKey, Assert.Single(result.Rows).Key);
+        Assert.Contains("1 line(s) have no brand", result.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("Unmapped", result.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Blank_item_code_is_grouped_as_unassigned_but_a_blank_document_still_blocks()
+    {
+        var blankItem = new[] { Line("I1", "1", ReportingTransactionType.Sale, 1m, 100m, item: "") };
+        var blankDocument = new[] { Line("", "1", ReportingTransactionType.Sale, 1m, 100m) };
+
+        var result = new SalesReportingService().Summarize(blankItem, SalesSummaryDimension.Item, SalesPolicy);
+        Assert.Equal(ReconciliationStatus.Passed, result.Status);
+        Assert.EndsWith(" / " + SalesReportingService.UnassignedKey, Assert.Single(result.Rows).Key, StringComparison.Ordinal);
+        Assert.Equal(ReconciliationStatus.Blocked, new SalesReportingService().Summarize(blankDocument, SalesSummaryDimension.Item, SalesPolicy).Status);
     }
 
     // The fixture's lines are mapped to a brand row of the same name as their brand, so the mapped key reads as before.
@@ -368,6 +385,6 @@ public sealed class ReportingServicesTests
     }
 
     private static SalesReportingLine Line(string invoice, string line, ReportingTransactionType type,
-        decimal quantity, decimal amount, string brand = "Brand A", string segment = "Premium", string? row = "Brand A", string store = "S1") =>
-        new(new DateOnly(2026, 7, 1), store, invoice, line, brand, segment, "ITEM-1", type, quantity, amount, BrandRow: row);
+        decimal quantity, decimal amount, string brand = "Brand A", string segment = "Premium", string? row = "Brand A", string store = "S1", string item = "ITEM-1") =>
+        new(new DateOnly(2026, 7, 1), store, invoice, line, brand, segment, item, type, quantity, amount, BrandRow: row);
 }
