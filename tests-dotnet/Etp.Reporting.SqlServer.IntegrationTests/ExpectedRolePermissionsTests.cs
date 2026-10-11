@@ -19,7 +19,7 @@ public sealed class ExpectedRolePermissionsTests
     private const string CatalogSql = """
         SELECT DISTINCT r.name, p.class_desc,
                CASE WHEN p.class = 1 THEN SCHEMA_NAME(o.schema_id) WHEN p.class = 3 THEN SCHEMA_NAME(p.major_id) END,
-               CASE WHEN p.class = 1 THEN o.name END,
+               CASE WHEN p.class = 1 THEN o.name + CASE WHEN p.minor_id <> 0 THEN N'(' + COL_NAME(p.major_id, p.minor_id) + N')' ELSE N'' END END,
                p.permission_name, p.state_desc
         FROM sys.database_permissions AS p
         JOIN sys.database_principals AS r ON r.principal_id = p.grantee_principal_id
