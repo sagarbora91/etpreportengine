@@ -1,0 +1,10 @@
+{
+  "manifest": 1,
+  "fixes": [
+    {"fingerprint": "4daf7da6ed0ade418f86e215610ed0c74c7fbf619a4d8ed78331058b0673a28f", "fixedIn": "1.9.3", "ticket": "IE-RT-03"},
+    {"fingerprint": "83273747abd74ad8c8462f0a123cd7c7d2fcddc2f628a60c2fbbac65c27d2dd8", "fixedIn": "1.9.9", "ticket": "IE-RT-04"},
+    {"fingerprint": "a46f2ccbec1c1b4f6c1f26ba228ec5527cae851e8443662c7bed03a4172658c4", "fixedIn": "1.9.7", "ticket": "IE-RT-05"},
+    {"fingerprint": "cd3febb8f7c1a61dc4608be2bf499ca5543051d87723b22afb669660ae0bef9f", "fixedIn": "1.9.7", "ticket": "IE-RT-06"},
+    {"fingerprint": "80d08467f5bae50fc663719be0bb4d6fe3c7bffd73259c41b269a840184fec05", "fixedIn": "1.9.8", "ticket": "IE-RT-07"}
+  ]
+}
