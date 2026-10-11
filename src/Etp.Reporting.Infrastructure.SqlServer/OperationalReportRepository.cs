@@ -384,7 +384,8 @@ public sealed partial class OperationalReportRepository(string connectionString)
             supplementary.Targets, supplementary.ServiceWdc, DsrMetricPolicy,
             (await new StoreCatalogRepository(connectionString).LoadAsync(cancellationToken)).Where(x=>x.IsActive)
                 .Select(x=>new DsrStoreDefinition(x.Code,x.Name)).ToArray(),
-            supplementary.ServiceMoneyStores);
+            supplementary.ServiceMoneyStores,
+            await LoadFirstImportedSalesDateAsync(cancellationToken));
         return document with { EveningSheets = await LoadEveningSheetsAsync(businessDate, dsr, cancellationToken) };
     }
 
@@ -801,6 +802,13 @@ public sealed partial class OperationalReportRepository(string connectionString)
             result[reader.GetString(0)] = new(NullableDecimal(reader, 1), period.InclusiveDayCount - reader.GetInt32(2));
         }
         return result;
+    }
+
+    private async Task<DateOnly?> LoadFirstImportedSalesDateAsync(CancellationToken token)
+    {
+        await using var connection = await OpenAsync(token);
+        await using var command = new SqlCommand("SELECT MIN(transaction_date) FROM dbo.sales_invoices;", connection);
+        return await command.ExecuteScalarAsync(token) is DateTime first ? DateOnly.FromDateTime(first) : null;
     }
 
     private async Task<DsrSupplementaryFacts> LoadDsrSupplementaryAsync(DateOnly businessDate, CancellationToken token)

@@ -56,6 +56,17 @@ public sealed class DailySalesReportTests
     }
 
     [Fact]
+    public void Missing_ly_mtd_names_the_first_import_when_last_year_starts_before_it()
+    {
+        var document = DailySalesReportBuilder.Build(new DateOnly(2026, 8, 25), SalesFacts(), [],
+            new Dictionary<string, decimal?> { ["WLMHW"] = 1_600_000m, ["HEMW"] = 1_300_000m }, stores: [new("WLMHW","Titan World"),new("HEMW","Helios")],
+            firstImportedSalesDate: new DateOnly(2026, 7, 1));
+
+        Assert.All(document.Stores, store =>
+            Assert.Equal("Last-year period starts before the first import (01 Jul 2026)", Assert.Single(store.Periods, period => period.Period == "MTD").MissingSourceNote));
+    }
+
+    [Fact]
     public void Missing_ly_mtd_is_explicit_and_never_fabricated()
     {
         var document = DailySalesReportBuilder.Build(new DateOnly(2026, 8, 25), SalesFacts(), [],
