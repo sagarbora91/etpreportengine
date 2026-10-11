@@ -12,6 +12,13 @@ using Etp.Reporting.Desktop.Modules.Registers;
 using Etp.Reporting.Desktop.Modules.OperationsAdministration;
 using Etp.Reporting.Desktop.Modules.SourceInbox;
 using Etp.Reporting.Desktop.Modules.DailyWorkflow;
+using Etp.Reporting.Desktop.Modules.HealthCheck;
+// 1.11.0 self-diagnostics: the fingerprint lane (L2) owns Etp.Reporting.Desktop.Diagnostics; the stores (L3),
+// DB/SEC probes (L4) and import/data probes (L6) live in Etp.Reporting.Infrastructure.SqlServer.HealthCheck.
+using Etp.Reporting.Desktop.Diagnostics;
+using Etp.Reporting.Infrastructure.SqlServer.HealthCheck;
+using EtpApplication::Etp.Reporting.Application.ErrorRegister;
+using EtpApplication::Etp.Reporting.Application.HealthCheck;
 using DashboardQuery = EtpApplication::Etp.Reporting.Application.Dashboard.IDashboardQuery;
 using AccessSessionQuery = EtpApplication::Etp.Reporting.Application.Access.IAccessSessionQuery;
 using ReportArchiveQuery = EtpApplication::Etp.Reporting.Application.Archive.IReportArchiveQuery<Etp.Reporting.Reporting.ReportPackDocument>;
@@ -249,11 +256,216 @@ public sealed class DesktopCompositionRoot
         return LocalSqlConnectionPolicy.Validate(builder.ConnectionString);
     }
 
-    public async Task<int> RunAutomationOnceAsync(CancellationToken cancellationToken = default)
+    /// <summary>
+    /// The five-minute task (<c>--automation-once</c>): the watch-folder import step, then the nightly health check
+    /// when it is due (1.11.0, design section 7). The health step runs also when watch-folder import is disabled or
+    /// the import step threw, and never changes the exit code (import sources failed = 1).
+    /// </summary>
+    public Task<int> RunAutomationOnceAsync(CancellationToken cancellationToken = default) =>
+        NightlyHealthSchedule.RunAfterAutomationAsync(RunWatchFolderAutomationAsync, CreateNightlyHealthSchedule().RunIfDueAsync, cancellationToken);
+
+    private async Task<int> RunWatchFolderAutomationAsync(CancellationToken cancellationToken)
     {
         var result = await new SqlServerOperationsAdministrationService(LoadAutomationConnectionString(), ImportFailureDiagnostics.Record, ReportPackFailureDiagnostics.Record)
             .RunAutomationOnceAsync(cancellationToken)
             .ConfigureAwait(false);
         return result.SourcesFailed == 0 ? 0 : 1;
     }
+
+    // ------------------------------------------------------------------ 1.11.0 self-diagnostics (lane L9)
+    // Every probe, both diag stores, the runner and the export writer are built here and nowhere else.
+
+    /// <summary>The stderr prefix of a nightly health run that could not complete (199-STDERR-FORMAT.md style).</summary>
+    internal const string HealthRunFailedPrefix = "ETP-HEALTH-RUN-FAILED";
+
+    /// <summary>The nightly schedule for the automation account's database target. Nothing is read before 02:30.</summary>
+    internal NightlyHealthSchedule CreateNightlyHealthSchedule()
+    {
+        // Lazy: a tick before 02:30 must not even read the protected configuration.
+        var target = new Lazy<string>(LoadAutomationConnectionString);
+        return new NightlyHealthSchedule(
+            async token => (await new SqlServerHealthCheckStore(target.Value).LoadLatestNightlySummaryAsync(token).ConfigureAwait(false))?.BusinessDate,
+            token => NightlyHealthLease.TryAcquireAsync(target.Value, token),
+            token => RunHealthCheckAsync(target.Value, HealthCheckTrigger.Nightly, token),
+            new FileNightlyHealthAttemptStore(FileNightlyHealthAttemptStore.DefaultPath),
+            TimeProvider.System,
+            ReportHealthRunFailure);
+    }
+
+    /// <summary>
+    /// The Owner's "Run health check" (Settings > Database > Health check). Takes the automation lease first, so it
+    /// never overlaps the nightly run or an import run.
+    /// </summary>
+    public async Task<HealthCheckRun> RunManualHealthCheckAsync(string targetConnectionString, CancellationToken cancellationToken = default)
+    {
+        var lease = await NightlyHealthLease.TryAcquireAsync(targetConnectionString, cancellationToken).ConfigureAwait(false)
+            ?? throw new InvalidOperationException("A health check or an automatic import is already running. Try again in a few minutes.");
+        await using (lease.ConfigureAwait(false))
+            return await RunHealthCheckAsync(targetConnectionString, HealthCheckTrigger.Manual, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// One health run (design 5 and 8), called with the automation lease held: applies the fix manifest, runs every
+    /// probe through the runner, writes the privacy-checked export, then records the run with the export's file name.
+    /// The export is written before the run is recorded, so a run whose recording fails still leaves its file.
+    /// </summary>
+    internal async Task<HealthCheckRun> RunHealthCheckAsync(string targetConnectionString, HealthCheckTrigger trigger, CancellationToken cancellationToken)
+    {
+        var startedUtc = DateTimeOffset.UtcNow;
+        var healthStore = new SqlServerHealthCheckStore(targetConnectionString);
+        var registerStore = new SqlServerErrorRegisterStore(targetConnectionString);
+        var appVersion = HealthApplicationVersion();
+
+        // Design 4.4 step 2: the first run of a new version marks the fixes it ships (idempotent; Owner or automation).
+        await BestEffortAsync(() => ErrorFixManifest.ApplyAsync(registerStore, appVersion, cancellationToken), "ERROR_FIX_MANIFEST_FAILED").ConfigureAwait(false);
+
+        // What the runner needs from the database is read best effort: an unreachable database is DB-01's Fail and
+        // Skipped lines, never a run that cannot start.
+        var previousRun = await BestEffortAsync(() => LoadPreviousHealthRunAsync(healthStore, trigger, cancellationToken), "HEALTH_PREVIOUS_RUN_FAILED").ConfigureAwait(false);
+        var known = await BestEffortAsync(() => healthStore.LoadKnownAsync(cancellationToken), "HEALTH_KNOWN_LOAD_FAILED").ConfigureAwait(false) ?? [];
+        var stores = await BestEffortAsync<IReadOnlyList<string>>(async () => await new StoreCatalogRepository(targetConnectionString).ActiveCodesAsync(cancellationToken).ConfigureAwait(false),
+            "HEALTH_STORES_LOAD_FAILED").ConfigureAwait(false) ?? [];
+        var context = new HealthCheckContext(
+            NightlyHealthSchedule.BusinessDateFor(DateTime.Now),
+            trigger,
+            startedUtc,
+            stores,
+            previousRun,
+            HealthCheckBudget.Default,
+            new Dictionary<string, object>(StringComparer.Ordinal));
+
+        // INTEGRATOR (L4): HealthCheckRunner's constructor and RunAsync are assumed here; adjust to L4's signatures.
+        var runner = new HealthCheckRunner(CreateHealthProbes(targetConnectionString, healthStore, registerStore), HealthCheckBudget.Default);
+        IReadOnlyList<HealthCheckResult> results = await runner.RunAsync(context, known, cancellationToken).ConfigureAwait(false);
+
+        var counts = HealthExportWriter.Recount(results);
+        var run = new HealthCheckRun(
+            trigger,
+            context.BusinessDate,
+            startedUtc,
+            DateTimeOffset.UtcNow,
+            appVersion,
+            Environment.MachineName,
+            trigger == HealthCheckTrigger.Nightly ? "Automation" : "Owner",
+            HealthExportWriter.OverallOf(counts),
+            counts,
+            null,
+            results);
+
+        var register = await BestEffortAsync(() => registerStore.LoadRegisterAsync(cancellationToken: cancellationToken), "HEALTH_REGISTER_LOAD_FAILED").ConfigureAwait(false) ?? [];
+        var nightlyRuns = await BestEffortAsync(() => healthStore.LoadRunsAsync(30, HealthCheckTrigger.Nightly, cancellationToken), "HEALTH_RUNS_LOAD_FAILED").ConfigureAwait(false) ?? [];
+        // Occurrence details (sample Refs, contexts) are Owner-only (diag.load_error_entry): manual runs only.
+        IReadOnlyDictionary<int, ErrorRegisterEntryDetail>? details = trigger == HealthCheckTrigger.Manual
+            ? await BestEffortAsync(() => LoadRegisterDetailsAsync(registerStore, register, cancellationToken), "HEALTH_REGISTER_DETAIL_FAILED").ConfigureAwait(false)
+            : null;
+
+        // INTEGRATOR (L4): HealthCheckTexts.Templates is assumed: every explanation and fix template, placeholders as {name}.
+        var writer = new HealthExportWriter(HealthExportWriter.DefaultDirectory, HealthCheckTexts.Templates);
+        var input = new HealthExportInput(run, previousRun, register, details, nightlyRuns, WarningsByEvent: null);
+        run = HealthExportWriter.WithRedactionWarning(run, writer.CountRedactions(input));
+        var export = writer.Write(input with { Run = run });
+        if (export.FailureCode is not null)
+            DesktopDiagnostics.Record(null, "HealthCheck.Export", "HEALTH_EXPORT_FAILED:" + export.FailureCode);
+
+        run = run with { ExportFileName = export.FileName };
+        await healthStore.RecordRunAsync(run, cancellationToken).ConfigureAwait(false);
+        return run;
+    }
+
+    /// <summary>
+    /// The 51 checks (design 5.2). The run order is the runner's (design 5.3); this is only the set.
+    /// INTEGRATOR: class names are section 14's file names; constructors are assumed (connection string first).
+    /// </summary>
+    internal IReadOnlyList<IHealthProbe> CreateHealthProbes(string targetConnectionString, IHealthCheckStore healthStore, IErrorRegisterStore registerStore)
+    {
+        var automationPrincipal = TryLoadAutomationPrincipal();
+        return
+        [
+            new DatabaseProbes(targetConnectionString, MigrationDirectory),                     // L4: DB-01..05
+            new SecurityProbes(healthStore),                                                     // L4: SEC-01..03 (diag.load_role_permissions)
+            new ErrorProbes(registerStore, new ErrorRegisterIngest(registerStore)),              // ERR-01..04 (owner not named in section 14)
+            new OperationsProbes(targetConnectionString),                                        // L7: OPS-01..08
+            new EventLogProbe(automationPrincipal),                                              // L7: OPS-09
+            new DataProbes(targetConnectionString),                                              // L6: DATA-01..05
+            new ImportProbes(targetConnectionString),                                            // L6: IMP-01..03
+            new ReportProbes(new SqlServerApplicationReportQuery(targetConnectionString),       // L5: RPT-01..22
+                new ReportingTenderVarianceDiagnostic())
+        ];
+    }
+
+    private static async Task<HealthCheckPreviousRun?> LoadPreviousHealthRunAsync(IHealthCheckStore store, HealthCheckTrigger trigger, CancellationToken cancellationToken)
+    {
+        var latest = (await store.LoadRunsAsync(1, trigger, cancellationToken).ConfigureAwait(false)).FirstOrDefault();
+        if (latest is null) return null;
+        return new(latest.HealthCheckRunId, latest.StartedUtc, await store.LoadResultsAsync(latest.HealthCheckRunId, cancellationToken).ConfigureAwait(false));
+    }
+
+    private static async Task<IReadOnlyDictionary<int, ErrorRegisterEntryDetail>> LoadRegisterDetailsAsync(
+        IErrorRegisterStore store, IReadOnlyList<ErrorRegisterEntry> register, CancellationToken cancellationToken)
+    {
+        var details = new Dictionary<int, ErrorRegisterEntryDetail>();
+        foreach (var entry in HealthExportWriter.SelectRegister(register, DateTimeOffset.UtcNow).Take(50))
+            if (await store.LoadEntryAsync(entry.ErrorRegisterId, cancellationToken).ConfigureAwait(false) is { } detail)
+                details[entry.ErrorRegisterId] = detail;
+        return details;
+    }
+
+    // A failed read is logged and the run goes on without it; cancellation is not swallowed.
+    private static async Task<T?> BestEffortAsync<T>(Func<Task<T>> read, string eventId)
+    {
+        try { return await read().ConfigureAwait(false); }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception exception)
+        {
+            DesktopDiagnostics.Record(exception, "HealthCheck.Run", eventId, DesktopDiagnosticSeverity.Warning);
+            return default;
+        }
+    }
+
+    private static async Task BestEffortAsync(Func<Task> action, string eventId)
+    {
+        try { await action().ConfigureAwait(false); }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception exception) { DesktopDiagnostics.Record(exception, "HealthCheck.Run", eventId, DesktopDiagnosticSeverity.Warning); }
+    }
+
+    /// <summary>The four-part version recorded with the run, as the diagnostics log records it (for example 1.11.0.0).</summary>
+    internal static string HealthApplicationVersion() =>
+        typeof(DesktopCompositionRoot).Assembly.GetName().Version?.ToString() ?? "0.0.0.0";
+
+    /// <summary>The automation account named in the protected configuration (OPS-09 filters its 18456 events), or null.</summary>
+    internal static string? TryLoadAutomationPrincipal()
+    {
+        try
+        {
+            var path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "EtpReporting", "Operations", "operations.json");
+            if (!File.Exists(path)) return null;
+            using var document = System.Text.Json.JsonDocument.Parse(File.ReadAllText(path));
+            return document.RootElement.TryGetProperty("automationPrincipal", out var value) && value.ValueKind == System.Text.Json.JsonValueKind.String
+                ? value.GetString()
+                : null;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or System.Text.Json.JsonException) { return null; }
+    }
+
+    /// <summary>
+    /// A nightly run that could not complete: one diagnostics entry (<c>HEALTH_RUN_FAILED</c>, ingested into the
+    /// register next time) and one stderr line for whoever reads the task's output. Never throws.
+    /// </summary>
+    internal static void ReportHealthRunFailure(Exception exception)
+    {
+        DesktopDiagnostics.Record(exception, "HealthCheck.Nightly", "HEALTH_RUN_FAILED");
+        try
+        {
+            Console.Error.WriteLine(HealthRunFailedLine(exception));
+            Console.Error.Flush();
+        }
+        catch (IOException) { }
+        catch (ObjectDisposedException) { }
+    }
+
+    /// <summary><c>ETP-HEALTH-RUN-FAILED mode=automation-once kind=&lt;kind&gt; sql=&lt;numbers|none&gt;: &lt;reason&gt;</c>.</summary>
+    internal static string HealthRunFailedLine(Exception exception) =>
+        HealthRunFailedPrefix + StartupFailureText.HeadlessLine(
+            StartupFailureText.ModeToken(DesktopStartupMode.AutomationOnce), exception)[StartupFailureText.HeadlessPrefix.Length..];
 }
