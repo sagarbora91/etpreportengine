@@ -531,7 +531,7 @@ public sealed class ErrorRegisterViewTests
         {
             LoadRegisterCalls++;
             LastReference = reference;
-            if (FailLoad) return Task.FromException<IReadOnlyList<ErrorRegisterEntry>>(new InvalidOperationException("private detail"));
+            if (FailLoad) return Task.FromException<IReadOnlyList<ErrorRegisterEntry>>(new NotSupportedException("private detail"));
             IReadOnlyList<ErrorRegisterEntry> list = Entries
                 .Where(entry => status is null || entry.Status == status)
                 .Where(entry => reference is null || (entry.ErrorRegisterId == 6 && reference == KnownRef))
@@ -548,7 +548,7 @@ public sealed class ErrorRegisterViewTests
 
         public Task SetStatusAsync(int errorRegisterId, ErrorStatus status, string? fixedInVersion, string? ticket, string? reason, CancellationToken cancellationToken = default)
         {
-            if (FailChange) return Task.FromException(new InvalidOperationException("private detail"));
+            if (FailChange) return Task.FromException(new NotSupportedException("private detail"));
             Changes.Add(new Change(errorRegisterId, status, fixedInVersion, ticket, reason));
             Entries = Entries.Select(entry => entry.ErrorRegisterId != errorRegisterId ? entry
                 : entry with { Status = status, FixedInVersion = fixedInVersion ?? entry.FixedInVersion, FixedTicket = ticket ?? entry.FixedTicket, StatusReason = reason ?? entry.StatusReason }).ToArray();

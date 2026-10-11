@@ -10,6 +10,6 @@ public static class HelpTaskRoutes
         "tender-cash-service" => "report-tender", "service-centre" => "service-today", "staff-cro" => "report-staff", "management" => "report-management-trend",
         "exception-centre" => "open-items", "investigation" => "investigation", "digital-registers" => "register-inward",
         "accounting" => "prepare-batch", "operations-support" or "troubleshooting" => "support-package", "administration" => "users",
-        "report-archive" => "generations", "backup-recovery" => "backups", _ => ""
+        "report-archive" => "generations", "backup-recovery" => "backups", "health-check" => "health-check", _ => ""
     });
 }

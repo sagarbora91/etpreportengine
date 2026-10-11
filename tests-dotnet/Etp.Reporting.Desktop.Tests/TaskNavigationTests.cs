@@ -32,16 +32,17 @@ public sealed class TaskNavigationTests
     // Service rail (design 3.1) added "service-today", "service-claims" and "service-parts"
     // for every role (Q13) and moved the four interim screens onto it; 1.10.0 Tally PR #3
     // added "tally-ledgers" and "tally-vouchers" for the Owner.
-    // 1.11.0 self-diagnostics added the Owner-only "health-check" and "error-register" (decision 33).
+    // 1.11.0 self-diagnostics added the Owner-only "health-check" and "error-register" (decision 33) and the
+    // "health-check" Help topic for every role.
     [Theory]
-    [InlineData("OWNER", 104)]
-    [InlineData("STORE_MANAGER", 77)]
-    [InlineData("VIEWER", 62)]
+    [InlineData("OWNER", 105)]
+    [InlineData("STORE_MANAGER", 78)]
+    [InlineData("VIEWER", 63)]
     public void Each_role_reaches_exactly_its_written_out_destinations(string role, int expectedCount)
     {
         var access = role switch { "OWNER" => ShellAccess.Owner, "STORE_MANAGER" => ShellAccess.StoreManager, _ => ShellAccess.Viewer };
         Assert.Equal(22, TaskNavigation.All.Count(task => task.ReportCode is not null));
-        Assert.Equal(22, TaskNavigation.All.Count(task => task.Id.StartsWith("help:", StringComparison.Ordinal)));
+        Assert.Equal(23, TaskNavigation.All.Count(task => task.Id.StartsWith("help:", StringComparison.Ordinal)));
         Assert.Equal(60, TaskNavigation.All.Count(task => task.ReportCode is null && !task.Id.StartsWith("help:", StringComparison.Ordinal)));
         string[] excluded = role switch { "OWNER" => [], "STORE_MANAGER" => OwnerOnlyTasks, _ => OwnerOnlyTasks.Concat(ImportRoleTasks).ToArray() };
         Assert.All(OwnerOnlyTasks.Concat(ImportRoleTasks), id => Assert.NotNull(TaskNavigation.Find(id)));

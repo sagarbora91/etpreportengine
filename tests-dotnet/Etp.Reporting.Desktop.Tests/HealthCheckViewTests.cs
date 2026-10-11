@@ -355,7 +355,7 @@ public sealed class HealthCheckViewTests
             Assert.False(cancelled.IsRunning);
             Assert.True(cancelled.RunEnabled);
 
-            var failed = NewView(store, now: () => Night, runner: (_, _) => throw new InvalidOperationException("private detail"));
+            var failed = NewView(store, now: () => Night, runner: (_, _) => throw new NotSupportedException("private detail"));
             failed.RunAsync().GetAwaiter().GetResult();
             Assert.StartsWith("The health check could not be run.", failed.StatusText, StringComparison.Ordinal);
             Assert.DoesNotContain("private detail", failed.StatusText, StringComparison.Ordinal);
@@ -606,7 +606,7 @@ public sealed class HealthCheckViewTests
         public Task<IReadOnlyList<HealthCheckRunSummary>> LoadRunsAsync(int top = 30, HealthCheckTrigger? trigger = null, CancellationToken cancellationToken = default)
         {
             LoadRunsCalls++;
-            if (FailLoad) return Task.FromException<IReadOnlyList<HealthCheckRunSummary>>(new InvalidOperationException("private detail"));
+            if (FailLoad) return Task.FromException<IReadOnlyList<HealthCheckRunSummary>>(new NotSupportedException("private detail"));
             IReadOnlyList<HealthCheckRunSummary> list = runs.OrderByDescending(run => run.CompletedUtc).Where(run => trigger is null || run.Trigger == trigger).Take(top).ToArray();
             return Task.FromResult(list);
         }
@@ -615,14 +615,14 @@ public sealed class HealthCheckViewTests
             Task.FromResult(results.TryGetValue(healthCheckRunId, out var lines) ? lines : []);
 
         public Task<HealthCheckNightlySummary?> LoadLatestNightlySummaryAsync(CancellationToken cancellationToken = default) =>
-            FailNightly ? Task.FromException<HealthCheckNightlySummary?>(new InvalidOperationException("private detail")) : Task.FromResult(Nightly);
+            FailNightly ? Task.FromException<HealthCheckNightlySummary?>(new NotSupportedException("private detail")) : Task.FromResult(Nightly);
 
         public Task<IReadOnlyList<HealthCheckKnownEntry>> LoadKnownAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<HealthCheckKnownEntry>>([]);
 
         public Task SetKnownAsync(string checkId, string findingCode, DateOnly untilDate, string reason, CancellationToken cancellationToken = default)
         {
-            if (FailKnown) return Task.FromException(new InvalidOperationException("private detail"));
+            if (FailKnown) return Task.FromException(new NotSupportedException("private detail"));
             KnownSet.Add((checkId, findingCode, untilDate, reason));
             return Task.CompletedTask;
         }

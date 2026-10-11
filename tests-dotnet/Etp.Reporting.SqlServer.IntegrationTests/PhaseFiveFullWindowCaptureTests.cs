@@ -38,9 +38,10 @@ public sealed partial class PhaseFiveFullWindowCaptureTests(ITestOutputHelper ou
     // interim four Service centre screens and the "service-centre" Help topic for every
     // role, and the 1.10.0 Service rail "service-today", "service-claims" and "service-parts"
     // for every role (Q13); 1.10.0 Tally PR #3 added the Owner's "tally-ledgers" and
-    // "tally-vouchers". TaskNavigationTests holds the same lists.
+    // "tally-vouchers"; 1.11.0 the Owner's "health-check" and "error-register" and the "health-check"
+    // Help topic for every role. TaskNavigationTests holds the same lists.
     private static readonly IReadOnlyDictionary<string, int> ExpectedDestinationCounts =
-        new Dictionary<string, int> { ["OWNER"] = 104, ["STORE_MANAGER"] = 77, ["VIEWER"] = 62 };
+        new Dictionary<string, int> { ["OWNER"] = 105, ["STORE_MANAGER"] = 78, ["VIEWER"] = 63 };
     private static readonly string[] OwnerOnlyTasks =
     [
         "connection", "health", "backups", "recovery", "support-package", "audit", "users", "profiles",

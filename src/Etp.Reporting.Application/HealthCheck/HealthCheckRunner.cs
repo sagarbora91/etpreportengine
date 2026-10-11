@@ -139,7 +139,9 @@ public sealed class HealthCheckRunner
 
             var areaStart = clock.GetTimestamp();
             var areaCap = budget.AreaCaps.TryGetValue(area, out var cap) ? cap : budget.Total;
-            foreach (var probe in probes.Where(candidate => HealthCheckId.AreaOf(candidate.CheckIds[0]) == area))
+            // The probe answering DB-01 runs first (stable otherwise), so no SQL probe runs before the connection is known.
+            foreach (var probe in probes.Where(candidate => HealthCheckId.AreaOf(candidate.CheckIds[0]) == area)
+                         .OrderBy(candidate => candidate.CheckIds.Contains(HealthCheckId.Db01) ? 0 : 1))
             {
                 var ids = probe.CheckIds.Where(id => catalogue.Contains(id) && !results.ContainsKey(id)).Distinct(StringComparer.Ordinal).ToArray();
                 if (ids.Length == 0) continue;
