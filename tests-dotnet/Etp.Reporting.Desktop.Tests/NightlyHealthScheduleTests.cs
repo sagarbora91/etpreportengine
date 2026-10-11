@@ -204,6 +204,70 @@ public sealed class NightlyHealthScheduleTests
         Assert.Equal("ETP_PHASE2_AUTOMATION", NightlyHealthLease.Resource);
     }
 
+    // ------------------------------------------------------------ recording (L4 watch-point 4)
+
+    [Fact]
+    public async Task A_run_refused_for_its_detail_is_recorded_once_more_without_details()
+    {
+        var store = new RecordingStore { Refusals = 1 };
+        var run = RunWithDetail();
+
+        var id = await Etp.Reporting.Desktop.Composition.DesktopCompositionRoot.RecordHealthRunAsync(store, run, CancellationToken.None);
+
+        Assert.Equal(77, id);
+        Assert.Equal(2, store.Recorded.Count);
+        Assert.NotNull(store.Recorded[0].Results[0].SubResults);
+        Assert.All(store.Recorded[1].Results, result => Assert.Null(result.SubResults));
+        Assert.Equal(run.Counts, store.Recorded[1].Counts);
+    }
+
+    [Fact]
+    public async Task A_second_refusal_or_another_sql_error_is_not_swallowed()
+    {
+        await Assert.ThrowsAnyAsync<Exception>(() =>
+            Etp.Reporting.Desktop.Composition.DesktopCompositionRoot.RecordHealthRunAsync(new RecordingStore { Refusals = 2 }, RunWithDetail(), CancellationToken.None));
+        var other = new RecordingStore { Refusals = 1, Number = 51824 };
+        await Assert.ThrowsAnyAsync<Exception>(() =>
+            Etp.Reporting.Desktop.Composition.DesktopCompositionRoot.RecordHealthRunAsync(other, RunWithDetail(), CancellationToken.None));
+        Assert.Single(other.Recorded);
+    }
+
+    private static Etp.Reporting.Application.HealthCheck.HealthCheckRun RunWithDetail()
+    {
+        Etp.Reporting.Application.HealthCheck.HealthCheckResult[] results =
+        [
+            new("DATA-01", Etp.Reporting.Application.HealthCheck.HealthCheckArea.Data, Etp.Reporting.Application.HealthCheck.HealthOutcome.Warning,
+                "DAY_INCOMPLETE", "Yesterday is not complete.", "import-files", TimeSpan.FromMilliseconds(400),
+                SubResults: [new("HEMW", Etp.Reporting.Application.HealthCheck.HealthOutcome.Warning, "EXPORTS_MISSING")])
+        ];
+        return new(Etp.Reporting.Application.HealthCheck.HealthCheckTrigger.Nightly, new DateOnly(2026, 10, 10),
+            DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch.AddSeconds(40), "1.11.0.0", "WORKPC", "Automation",
+            Etp.Reporting.Application.HealthCheck.HealthOutcome.Warning, new(0, 1, 0, 0, 0), null, results);
+    }
+
+    private sealed class RecordingStore : Etp.Reporting.Application.HealthCheck.IHealthCheckStore
+    {
+        public int Refusals { get; init; }
+        public int Number { get; init; } = 51820;
+        public List<Etp.Reporting.Application.HealthCheck.HealthCheckRun> Recorded { get; } = [];
+
+        public Task<long> RecordRunAsync(Etp.Reporting.Application.HealthCheck.HealthCheckRun run, CancellationToken cancellationToken = default)
+        {
+            Recorded.Add(run);
+            if (Recorded.Count <= Refusals)
+                throw Etp.Reporting.TestSupport.SqlExceptionFactory.Create(new Etp.Reporting.TestSupport.SqlExceptionFactory.Error(Number, "Malformed run JSON."));
+            return Task.FromResult(77L);
+        }
+
+        public Task<IReadOnlyList<Etp.Reporting.Application.HealthCheck.HealthCheckRunSummary>> LoadRunsAsync(int top = 30, Etp.Reporting.Application.HealthCheck.HealthCheckTrigger? trigger = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<Etp.Reporting.Application.HealthCheck.HealthCheckResult>> LoadResultsAsync(long healthCheckRunId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<Etp.Reporting.Application.HealthCheck.HealthCheckNightlySummary?> LoadLatestNightlySummaryAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<Etp.Reporting.Application.HealthCheck.HealthCheckKnownEntry>> LoadKnownAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task SetKnownAsync(string checkId, string findingCode, DateOnly untilDate, string reason, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task ClearKnownAsync(string checkId, string findingCode, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<Etp.Reporting.Application.HealthCheck.RolePermissionSnapshot> LoadRolePermissionsAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
     // ------------------------------------------------------------ plumbing
 
     private static DateTimeOffset Local(int year, int month, int day, int hour, int minute) =>

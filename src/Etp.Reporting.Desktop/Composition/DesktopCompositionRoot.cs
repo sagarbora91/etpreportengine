@@ -373,8 +373,24 @@ public sealed class DesktopCompositionRoot
             DesktopDiagnostics.Record(null, "HealthCheck.Export", "HEALTH_EXPORT_FAILED:" + export.FailureCode);
 
         run = run with { ExportFileName = export.FileName };
-        var runId = await healthStore.RecordRunAsync(run, cancellationToken).ConfigureAwait(false);
+        var runId = await RecordHealthRunAsync(healthStore, run, cancellationToken).ConfigureAwait(false);
         return (run, runId);
+    }
+
+    /// <summary>
+    /// Records the run. <c>diag.record_health_check_run</c> refuses the whole run (51820) for one invalid line; the
+    /// runner normalises codes and texts, but not other lanes' sub-result details, so a refused run is recorded once
+    /// more without any details (L4 note, watch-point 4) rather than losing the night. Any other failure propagates.
+    /// </summary>
+    internal static async Task<long> RecordHealthRunAsync(IHealthCheckStore store, HealthCheckRun run, CancellationToken cancellationToken)
+    {
+        try { return await store.RecordRunAsync(run, cancellationToken).ConfigureAwait(false); }
+        catch (Microsoft.Data.SqlClient.SqlException refused) when (refused.Number == 51820)
+        {
+            DesktopDiagnostics.Record(refused, "HealthCheck.Record", "HEALTH_RUN_RECORD_REFUSED", DesktopDiagnosticSeverity.Warning);
+            var withoutDetail = run with { Results = run.Results.Select(result => result with { SubResults = null }).ToArray() };
+            return await store.RecordRunAsync(withoutDetail, cancellationToken).ConfigureAwait(false);
+        }
     }
 
     /// <summary>
