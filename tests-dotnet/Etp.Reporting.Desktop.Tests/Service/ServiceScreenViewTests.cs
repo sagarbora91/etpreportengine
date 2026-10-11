@@ -340,7 +340,7 @@ public sealed class ServiceScreenViewTests
             var jobs = new ServiceJobsView(() => query, (path, metadata, data) => { captured = (path, metadata, data); return Task.CompletedTask; });
             jobs.ActivateAsync().GetAwaiter().GetResult();
             var column = jobs.ColumnHeaders.ToList().IndexOf("Customer name");
-            var row = jobs.Rows.Single(row => (string)row.Cells[0]! == "JOAW330SYN0101");
+            var row = jobs.Rows.Single(candidate => (string)candidate.Cells[0]! == "JOAW330SYN0101");
             Assert.Equal("Sample Customer 01", row.Cells[column]);
             jobs.ExportToPathAsync("synthetic.xlsx").GetAwaiter().GetResult();
             var export = Assert.NotNull(captured);

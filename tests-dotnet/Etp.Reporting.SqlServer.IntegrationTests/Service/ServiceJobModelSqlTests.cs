@@ -242,8 +242,10 @@ public sealed class ServiceJobModelSqlTests
         finally { await database.DisposeAsync(); }
     }
 
+    // Decision 37 (R-UI-21, 1.11.1): the customer NAME is allowed (v_service_job carries it for the Jobs list and the Job
+    // history header, migration 0056); a phone, e-mail, address or other contact column is still forbidden in every view.
     [Fact]
-    public async Task No_0050_view_has_a_contact_column_and_a_viewer_can_read_every_one_but_not_write()
+    public async Task No_0050_view_has_a_contact_column_only_the_customer_name_and_a_viewer_can_read_every_one_but_not_write()
     {
         var database = new SqlDatabaseFixture();
         try
@@ -256,6 +258,14 @@ public sealed class ServiceJobModelSqlTests
                     OR c.name LIKE '%mail%' OR c.name LIKE '%address%' OR c.name LIKE '%contact%')
                 """);
             Assert.Equal(0, restricted);
+            // The only customer columns are the name and the customer type; v_service_job has the name.
+            var customerColumns = await TextsAsync(database, $"""
+                SELECT DISTINCT c.name FROM sys.columns c JOIN sys.views v ON v.object_id=c.object_id
+                WHERE v.name IN({string.Join(',', UiViews.Select(view => $"'{view}'"))}) AND c.name LIKE '%customer%'
+                ORDER BY c.name
+                """);
+            Assert.Subset(new HashSet<string>(["customer_name", "customer_type"]), customerColumns.ToHashSet());
+            Assert.Equal(1, await IntAsync(database, "SELECT COUNT(*) FROM sys.columns WHERE object_id=OBJECT_ID(N'dbo.v_service_job') AND name=N'customer_name'"));
             Assert.Equal(UiViews.Length, await IntAsync(database, $"SELECT COUNT(*) FROM sys.views WHERE name IN({string.Join(',', UiViews.Select(view => $"'{view}'"))})"));
             await database.ExecuteAsync("CREATE USER service_ui_viewer WITHOUT LOGIN; ALTER ROLE etp_viewer ADD MEMBER service_ui_viewer;");
             foreach (var view in UiViews)
@@ -264,6 +274,83 @@ public sealed class ServiceJobModelSqlTests
                 await Assert.ThrowsAsync<SqlException>(() => database.ExecuteAsync(
                     $"EXECUTE AS USER='service_ui_viewer'; BEGIN TRY DELETE FROM dbo.{view} WHERE 1=0; END TRY BEGIN CATCH REVERT; THROW; END CATCH; REVERT;"));
             }
+        }
+        finally { await database.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task The_customer_name_is_shown_to_owner_and_store_manager_and_is_null_for_a_viewer()
+    {
+        // Decision 37 (R-UI-21): migration 0056 gives the name by role, in v_service_job, for every reader.
+        var database = new SqlDatabaseFixture();
+        try
+        {
+            await database.InitializeAsync();
+            await ImportAsync(database, FixtureFolder("week1"));
+            await ImportAsync(database, FixtureFolder("week2"));
+            await database.ExecuteAsync("""
+                CREATE USER service_name_viewer WITHOUT LOGIN; ALTER ROLE etp_viewer ADD MEMBER service_name_viewer;
+                CREATE USER service_name_manager WITHOUT LOGIN; ALTER ROLE etp_store_manager ADD MEMBER service_name_manager;
+                CREATE USER service_name_owner WITHOUT LOGIN; ALTER ROLE etp_owner ADD MEMBER service_name_owner;
+                """);
+            const string Named = "SELECT COUNT(*) FROM dbo.v_service_job WHERE customer_name IS NOT NULL";
+            var job1 = $"SELECT customer_name FROM dbo.v_service_job WHERE job_order_number=N'{Job(1)}'";
+            static string As(string user, string sql) => $"EXECUTE AS USER='{user}'; {sql}; REVERT;";
+
+            var named = await IntAsync(database, Named);
+            Assert.True(named > 0, "The synthetic weeks carry customer names.");
+            Assert.Equal("Sample Customer 01", await TextAsync(database, job1));
+            Assert.Equal(named, await IntAsync(database, As("service_name_owner", Named)));
+            Assert.Equal(named, await IntAsync(database, As("service_name_manager", Named)));
+            Assert.Equal("Sample Customer 01", await TextAsync(database, As("service_name_manager", job1)));
+            // A Viewer still reads every job, but never a name.
+            Assert.Equal(await IntAsync(database, "SELECT COUNT(*) FROM dbo.v_service_job"),
+                await IntAsync(database, As("service_name_viewer", "SELECT COUNT(*) FROM dbo.v_service_job")));
+            Assert.Equal(0, await IntAsync(database, As("service_name_viewer", Named)));
+            Assert.Null(await database.ExecuteAsync(As("service_name_viewer", job1)) as string);
+        }
+        finally { await database.DisposeAsync(); }
+    }
+
+    [Fact]
+    public async Task The_customer_name_is_the_one_of_the_most_recent_reading_and_a_blank_name_is_skipped()
+    {
+        // Job 3 is in S009 and S015 in both weeks (28 Sep and 05 Oct readings). Synthetic names only: the older readings say
+        // "Zz Synthetic Older" (MAX() would pick it), the 05 Oct S009 says "Aa Synthetic Newer", the 05 Oct S015 is blank.
+        var database = new SqlDatabaseFixture();
+        try
+        {
+            await database.InitializeAsync();
+            await ImportAsync(database, FixtureFolder("week1"));
+            await ImportAsync(database, FixtureFolder("week2"));
+            const string Week2Date = "2026-10-05";
+            Assert.True(await IntAsync(database, $"""
+                SELECT COUNT(*) FROM dbo.etp_landing_s009 s JOIN dbo.v_service_readings r ON r.import_file_id=s.import_file_id AND r.report_code='S009'
+                WHERE LTRIM(RTRIM(CONVERT(nvarchar(100),s.jonumber)))=N'{Job(3)}' AND CONVERT(date,r.snapshot_date)<'{Week2Date}'
+                """) > 0, "Job 3 must have an older S009 reading for this test to tell the rules apart.");
+            await database.ExecuteAsync($"""
+                UPDATE s SET customername=CASE WHEN CONVERT(date,r.snapshot_date)='{Week2Date}' THEN N'Aa Synthetic Newer' ELSE N'Zz Synthetic Older' END
+                FROM dbo.etp_landing_s009 s JOIN dbo.v_service_readings r ON r.import_file_id=s.import_file_id AND r.report_code='S009'
+                WHERE LTRIM(RTRIM(CONVERT(nvarchar(100),s.jonumber)))=N'{Job(3)}';
+                UPDATE s SET customername=CASE WHEN CONVERT(date,r.snapshot_date)='{Week2Date}' THEN N'   ' ELSE N'Zz Synthetic Older' END
+                FROM dbo.etp_landing_s015 s JOIN dbo.v_service_readings r ON r.import_file_id=s.import_file_id AND r.report_code='S015'
+                WHERE LTRIM(RTRIM(CONVERT(nvarchar(100),s.jobordernumber)))=N'{Job(3)}';
+                """);
+            Assert.Equal("Aa Synthetic Newer", await TextAsync(database, $"SELECT customer_name FROM dbo.v_service_job WHERE job_order_number=N'{Job(3)}'"));
+
+            // With no name in any 05 Oct reading, the latest reading that has one (28 Sep) gives it.
+            await database.ExecuteAsync($"""
+                UPDATE s SET customername=NULL
+                FROM dbo.etp_landing_s009 s JOIN dbo.v_service_readings r ON r.import_file_id=s.import_file_id AND r.report_code='S009'
+                WHERE LTRIM(RTRIM(CONVERT(nvarchar(100),s.jonumber)))=N'{Job(3)}' AND CONVERT(date,r.snapshot_date)='{Week2Date}';
+                """);
+            Assert.Equal("Zz Synthetic Older", await TextAsync(database, $"SELECT customer_name FROM dbo.v_service_job WHERE job_order_number=N'{Job(3)}'"));
+
+            // Through the query: the Jobs list and the Job history header read the same name.
+            SqlServerServiceReportQuery.ForgetJobRows();
+            var query = new SqlServerServiceReportQuery(database.ConnectionString);
+            Assert.Equal("Zz Synthetic Older", (await query.LoadJobListAsync()).Single(job => job.JobOrderNumber == Job(3)).CustomerName);
+            Assert.Equal("Zz Synthetic Older", (await query.LoadJobAsync(Job(3)))?.Header.CustomerName);
         }
         finally { await database.DisposeAsync(); }
     }
