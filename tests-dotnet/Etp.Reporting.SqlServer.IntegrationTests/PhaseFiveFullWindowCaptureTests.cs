@@ -40,13 +40,14 @@ public sealed partial class PhaseFiveFullWindowCaptureTests(ITestOutputHelper ou
     // for every role (Q13); 1.10.0 Tally PR #3 added the Owner's "tally-ledgers" and
     // "tally-vouchers". TaskNavigationTests holds the same lists.
     private static readonly IReadOnlyDictionary<string, int> ExpectedDestinationCounts =
-        new Dictionary<string, int> { ["OWNER"] = 102, ["STORE_MANAGER"] = 77, ["VIEWER"] = 62 };
+        new Dictionary<string, int> { ["OWNER"] = 104, ["STORE_MANAGER"] = 77, ["VIEWER"] = 62 };
     private static readonly string[] OwnerOnlyTasks =
     [
         "connection", "health", "backups", "recovery", "support-package", "audit", "users", "profiles",
         "stores", "kpi", "tender-rules", "staff-target", "watch-folder", "sharing", "sharing-contacts",
         "tally-companies", "prepare-batch", "open-items", "data-quality", "approval-centre", "adjustment",
-        "keep-evidence", "dashboard-overview", "tally-ledgers", "tally-vouchers"
+        "keep-evidence", "dashboard-overview", "tally-ledgers", "tally-vouchers",
+        "health-check", "error-register"
     ];
     private static readonly string[] ImportRoleTasks =
     [

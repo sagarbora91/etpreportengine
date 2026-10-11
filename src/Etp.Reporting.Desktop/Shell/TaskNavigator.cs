@@ -469,6 +469,10 @@ public sealed partial class TaskNavigator(MainWindow window)
         var id = task.Id;
         if (task.Destination == Modules.Service.ServiceScreens.Destination)
             return Modules.Service.ServiceScreens.Create(id, window.serviceReportQuery, window.serviceExcelExport, argument, NavigateServiceJob, NavigateService);
+        // 1.11.0 self-diagnostics: the Owner-only Health check and Error register screens (Operations Center, Settings > Database).
+        if (Modules.OperationsAdministration.DiagnosticsScreens.Handles(id))
+            return Modules.OperationsAdministration.DiagnosticsScreens.Create(id, () => window.CurrentShellAccess.CanAdminister,
+                taskId => { if (TaskNavigation.Find(taskId) is { } fix) NavigateTask(fix); });
         if (id == "import-history")
         {
             var history = window.importHistoryView ?? throw new InvalidOperationException("Import history is not configured.");
