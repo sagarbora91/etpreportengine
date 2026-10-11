@@ -160,7 +160,7 @@ public sealed class StockVarianceSqlTests(SqlDatabaseFixture database) : IClassF
         var operational = new OperationalReportRepository(database.ConnectionString);
         var closing = await operational.LoadStockInventoryAsync(new(Aug25, Aug25, [store]));
         var brandEntry = await operational.LoadBrandStockEntryAsync(store, Aug25);
-        var physical = await operational.LoadPhysicalStockAsync(store, Aug25);
+        var physical = await operational.LoadBrandPhysicalStockAsync(store, Aug25);
         var variance = await Executor().ExecuteStockReconciliationAsync(scope);
         var movements = await Repository().LoadStockMovementsAsync(scope);
 
@@ -195,14 +195,12 @@ public sealed class StockVarianceSqlTests(SqlDatabaseFixture database) : IClassF
         var operational = new OperationalReportRepository(database.ConnectionString);
         var closing = await operational.LoadStockInventoryAsync(new(Aug25, Aug25, [store]));
         var brandEntry = await operational.LoadBrandStockEntryAsync(store, Aug25);
-        var physical = await operational.LoadPhysicalStockAsync(store, Aug25);
         var brandPhysical = await operational.LoadBrandPhysicalStockAsync(store, Aug25);
         var variance = await Executor().ExecuteStockReconciliationAsync(scope);
         var movements = await Repository().LoadStockMovementsAsync(scope);
 
         Assert.Equal(["WATCH-1"], closing.Select(x => x.ProductCode));
         Assert.Equal([("BRAND-X", 1m)], brandEntry.Select(x => (x.Brand, x.System)));
-        Assert.Equal([("BRAND-X", 1m)], physical.Select(x => (x.InventoryGroupCode, x.SystemQuantity)));
         Assert.Equal([("BRAND-X", 1m)], brandPhysical.Select(x => (x.InventoryGroupCode, x.SystemQuantity)));
         Assert.Equal(ReconciliationStatus.Passed, variance.Status);
         Assert.Equal(["WATCH-1"], variance.Items.Select(x => x.ItemCode));
