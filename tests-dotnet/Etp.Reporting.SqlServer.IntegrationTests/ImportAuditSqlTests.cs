@@ -178,7 +178,7 @@ public sealed class ImportAuditSqlTests(SqlDatabaseFixture database) : IClassFix
         var stamp = report.GetProperty("database");
         Assert.Equal(database.Name, stamp.GetProperty("name").GetString());
         Assert.False(stamp.GetProperty("emulated0041").GetBoolean());
-        Assert.StartsWith("004", stamp.GetProperty("latestMigration").GetString());
+        Assert.StartsWith("005", stamp.GetProperty("latestMigration").GetString());
     }
 }
 
@@ -202,7 +202,7 @@ public sealed class SeedCommandSqlTests
             await using var connection = new SqlConnection(TestSqlConnections.ForDatabase(name));
             await connection.OpenAsync();
             await using var command = new SqlCommand("SELECT MAX(migration_id) FROM dbo.schema_migrations", connection);
-            Assert.StartsWith("004", (string)(await command.ExecuteScalarAsync())!);
+            Assert.StartsWith("005", (string)(await command.ExecuteScalarAsync())!);
         }
         finally
         {

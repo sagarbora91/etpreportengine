@@ -191,7 +191,14 @@ public sealed class ServiceJobModelSqlTests
             // the new-header family; a plain UNION ALL would count it twice.
             foreach (var (type, oldCode, newCode) in new[] { ("WDC", "S025", "S039"), ("WRA", "S026", "S040") })
             {
-                Assert.Equal(0, await IntAsync(database, $"SELECT COUNT(*) FROM dbo.v_service_claims WHERE claim_type='{type}' AND report_code='{oldCode}'"));
+                // The synthetic old-header fixtures carry a scrubbed document number ("SAMPLE") that the new header never
+                // has, so they legitimately stay in the union; the rule is that no document is read from both headers.
+                var oldRows = await TextsAsync(database, $"""
+                    SELECT CONCAT(o.claim_type,'|',o.report_code,'|',ISNULL(o.document_number,'(null)'),'|',CONVERT(char(10),o.business_date,23))
+                    FROM dbo.v_service_claims o WHERE o.claim_type='{type}' AND o.report_code='{oldCode}'
+                      AND EXISTS(SELECT 1 FROM dbo.v_service_claims n WHERE n.claim_type='{type}' AND n.report_code='{newCode}' AND n.document_number=o.document_number)
+                    """);
+                Assert.True(oldRows.Count == 0, $"{type}: old-header rows duplicate a new-header document: {string.Join("; ", oldRows)}");
                 Assert.Equal(3, await IntAsync(database, $"SELECT COUNT(DISTINCT document_number) FROM dbo.v_service_claims WHERE claim_type='{type}' AND report_code='{newCode}'"));
             }
             Assert.Equal(0, await IntAsync(database, """
