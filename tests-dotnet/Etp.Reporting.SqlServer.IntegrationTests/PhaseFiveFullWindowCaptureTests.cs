@@ -96,6 +96,7 @@ public sealed partial class PhaseFiveFullWindowCaptureTests(ITestOutputHelper ou
         {
             await database.InitializeAsync();
             await SeedAsync(database);
+            await SeedServiceFixtureAsync(database);
             new DesktopSettingsStore(settings).Save(database.ConnectionString);
             var result = await WalkOnStaAsync(database, settings, evidence, help);
             foreach (var (role, count) in result.Destinations)
@@ -107,7 +108,7 @@ public sealed partial class PhaseFiveFullWindowCaptureTests(ITestOutputHelper ou
             var captures = result.Captures;
             if (evidence is not null)
             {
-                Assert.Equal(72, captures.Count);
+                Assert.Equal(72 + (ServiceFixtureWeeks().Length == 0 ? 0 : ServiceExtraTasks.Length * 2), captures.Count);
                 await File.WriteAllTextAsync(Path.Combine(evidence, "capture-manifest.json"), JsonSerializer.Serialize(new
                 {
                 generatedUtc = DateTimeOffset.UtcNow,
@@ -241,6 +242,8 @@ public sealed partial class PhaseFiveFullWindowCaptureTests(ITestOutputHelper ou
                                     captures.Add(new(role, id, width, height, file, colours));
                                     if (help is not null && role == "OWNER" && width == 1366 && TaskNavigation.Sections.Contains(name))
                                         SavePng(bitmap, Path.Combine(help, name + ".png"));
+                                    else if (help is not null && role == "OWNER" && width == 1366 && name.StartsWith("Service-", StringComparison.Ordinal))
+                                        SavePng(bitmap, Path.Combine(Directory.CreateDirectory(Path.Combine(help, "Service")).FullName, name + ".png"));
                                 }
                             }
                             Assert.Equal(expectedIds, walked.Order(StringComparer.Ordinal));
@@ -305,6 +308,33 @@ public sealed partial class PhaseFiveFullWindowCaptureTests(ITestOutputHelper ou
         !window.investigationWorkspaceView.IsBusy && !window.sourceInboxWorkspaceView.IsBusy && !window.importWorkspaceView.IsBusy &&
         !window.settingsWorkspace.IsBusy && window.importHistoryView?.IsLoading != true, failure);
 
+    // Optional (ETP_PHASE5_SERVICE_FIXTURE=week1,week2): imports the synthetic Service Centre fixtures
+    // (tests-dotnet/fixtures/service-interim) into the disposable database so the Service help pictures show data.
+    private static readonly (string Task, string Name)[] ServiceExtraTasks =
+    [
+        ("service-pending", "Service-Pending"), ("service-job-history", "Service-JobHistory"), ("service-jobs", "Service-Jobs"),
+        ("service-claims", "Service-Claims"), ("service-parts", "Service-Parts"), ("service-money", "Service-Money")
+    ];
+
+    private static string[] ServiceFixtureWeeks() =>
+        (Environment.GetEnvironmentVariable("ETP_PHASE5_SERVICE_FIXTURE") ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    private static async Task SeedServiceFixtureAsync(SqlDatabaseFixture database)
+    {
+        var weeks = ServiceFixtureWeeks();
+        if (weeks.Length == 0) return;
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Etp.Reporting.slnx"))) dir = dir.Parent;
+        if (dir is null) throw new InvalidOperationException("Repository root not found for the Service fixtures.");
+        foreach (var week in weeks)
+        {
+            var summary = await new Etp.Reporting.Infrastructure.SqlServer.FolderImportService(
+                new Etp.Reporting.Infrastructure.SqlServer.SqlServerImportPersistenceUseCase(database.ConnectionString))
+                .RunAsync(Path.Combine(dir.FullName, "tests-dotnet", "fixtures", "service-interim", week), new("Synthetic Owner"));
+            if (!summary.Files.Any(file => file.Status == "Imported")) throw new InvalidOperationException($"Service fixture {week} imported nothing.");
+        }
+    }
+
     private static IReadOnlyDictionary<string, string> ScreenshotTasks(string role)
     {
         // Artifact volume is deliberate; coverage is always the complete catalogue above.
@@ -318,6 +348,8 @@ public sealed partial class PhaseFiveFullWindowCaptureTests(ITestOutputHelper ou
         {
             tasks.Add("register-courier", "Courier"); tasks.Add("register-inward", "Inward"); tasks.Add("investigation", "Investigation");
         }
+        if (role == "OWNER" && ServiceFixtureWeeks().Length > 0)
+            foreach (var (task, name) in ServiceExtraTasks) tasks.Add(task, name);
         if (role == "OWNER")
         {
             tasks.Add("prepare-batch", "Accounting"); tasks.Add("watch-folder", "Automatic-import"); tasks.Add("approval-centre", "Approvals");
