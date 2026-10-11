@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-## [1.10.1] - (date after the 1.10.1 gate)
+## [1.10.1] - 2026-10-11
 
 Two-PC plan C+ (decision 30, 11 Oct 2026): Workpc stays the only ETP database; the three shop PCs (Titan cashier, Helios, Service) send their exports and a staff daily-inputs sheet through OneDrive under one shared Microsoft account (decision 34), and Workpc's watch folder imports them. Daily-inputs answers (decision 31), the audit decisions implemented so far (decision 32), Service Centre fixes from the 1.10.0 review, and report fixes. Two migrations: 0052 (Service job view fixes, Service-money shop flag) and 0053 (retire unused Stock manual inputs).
 
@@ -44,7 +44,7 @@ Two-PC plan C+ (decision 30, 11 Oct 2026): Workpc stays the only ETP database; t
 
 - A GitHub Actions check builds the solution and runs the unit tests on every push and pull request to main and release branches (takes effect once pushed).
 - The help-screenshot capture waits for the Service screens to finish loading and hides the "saved pack(s) found" toast before capturing.
-- Tests: unit projects and gate result filled in after the gate.
+- Gate (11 Oct 2026, elevated, on 1ed407d, SQL Server 2025 CU9): Release build 0 warnings 0 errors; 4,284 tests, 0 failed, 3 skipped (Desktop 1,286, Domain 12, Import 1,154, Reporting 159, SQL integration 426, SQL 1,247); pre- and after-checks clean. Installer SHA-256 9FC055769B3D005648388B4644BB85349DE81CCA41F2A6500557C77C2E35FCAF (`Installers\ETP Reporting Engine 1.10.1\`).
 
 ## [1.10.0] - 2026-10-11
 
