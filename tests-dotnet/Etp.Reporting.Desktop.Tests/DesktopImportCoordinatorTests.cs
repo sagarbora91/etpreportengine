@@ -1,6 +1,8 @@
 using Etp.Reporting.Application.Imports;
 using Etp.Reporting.Desktop.Modules.Imports;
 using Etp.Reporting.Import.Batch;
+using Etp.Reporting.Import.DailyInputs;
+using Etp.Reporting.Infrastructure.SqlServer;
 using Etp.Reporting.Import.Preflight;
 using Etp.Reporting.Import.Profiles;
 using Etp.Reporting.Import.Workbooks;
@@ -505,6 +507,168 @@ public sealed class DesktopImportCoordinatorTests
                 "STORE CODE" => "WLMHW", "ITEMNUMBER" => "SYN-ITEM-0001", "CLOSINGBALANCE" => 1m, _ => null
             })).ToArray())])
         ]);
+    }
+
+    // 1.11.0: the single-file and batch routes hand a daily-inputs sheet (D001) to the folder import's own method.
+    private static readonly DateOnly DailyToday = DateOnly.FromDateTime(DateTime.Today);
+    private static readonly string DailyFileName = $"ETP-Daily-Inputs-HEMW-RETAIL-{DailyToday:yyyy-MM-dd}.xlsx";
+
+    private static WorkbookSnapshot DailySheet(params (string Code, object? Value)[] values)
+    {
+        var given = values.ToDictionary(value => value.Code, value => value.Value);
+        static WorkbookRow Line(int number, string code, string label, object? value) =>
+            new(number, [new(code), new(label), new(value), new((string?)null)]);
+        var rows = new List<WorkbookRow>
+        {
+            Line(2, "TEMPLATE", "Template", "ETP-DAILY-INPUTS-1"),
+            Line(3, "KIND", "Sheet type", "RETAIL"),
+            Line(4, "STORE", "Store", "HEMW"),
+            Line(5, "BUSINESS_DATE", "Business date", DailyToday.ToDateTime(TimeOnly.MinValue)),
+            Line(6, "FILLED_BY", "Filled by", null)
+        };
+        string[] fields = ["WALK_INS", "OPENING_CASH", "EXPENSES", "CASH_DEPOSIT", "CASH_ADJUSTMENT", "CLOSING_CASH_COUNTED", "OPERATIONAL_REMARK"];
+        rows.AddRange(fields.Select((field, index) => Line(7 + index, field, field, given.GetValueOrDefault(field))));
+        return new(DailyFileName, 1, new string('d', 64), [new("Daily Inputs", 1, ["Field code", "Input", "Value", "Note"], rows)]);
+    }
+
+    private sealed class FakeDailyApplier(DailyInputsApplyResult result) : IDailyInputsApplier
+    {
+        public List<(DailyInputsDocument Document, string User)> Calls { get; } = [];
+        public Task<DailyInputsApplyResult> ApplyAsync(DailyInputsDocument document, string user, CancellationToken cancellationToken = default)
+        {
+            Calls.Add((document, user));
+            return Task.FromResult(result);
+        }
+    }
+
+    private static DesktopImportCoordinator CreateWithApplier(FakePersistence persistence, IWorkbookReader reader, IDailyInputsApplier applier,
+        List<FolderImportFailure>? failures = null) =>
+        new(_ => persistence, reader, failures is null ? null : failures.Add, applier);
+
+    private static readonly DailyInputsApplyResult DailyImported = new("Imported", 2, 0, null, "2 daily input(s) saved; 0 unchanged.", []);
+    private static readonly DailyInputsApplyResult DailyFinalised = new("Failed", 0, 0, DailyInputsCodes.DayFinalised,
+        "The day is finalised.", [new(null, null, DailyInputsCodes.DayFinalised, "The day is finalised.")]);
+
+    [Fact]
+    public async Task Single_file_validate_recognises_a_daily_inputs_sheet_without_matching()
+    {
+        var persistence = new FakePersistence();
+        await using var coordinator = CreateWithApplier(persistence, new FakeReader(_ => DailySheet(("WALK_INS", 12m), ("EXPENSES", 250.5m))),
+            new FakeDailyApplier(DailyImported));
+
+        var outcome = await coordinator.ValidateAsync(DailyFileName);
+
+        Assert.True(outcome.Accepted);
+        Assert.Equal(("D001", "HEMW", 2), (outcome.ReportCode, outcome.StoreCode, outcome.StagedRows));
+        Assert.Equal((DailyToday, DailyToday), (outcome.PeriodStart, outcome.PeriodEnd));
+        Assert.True(coordinator.HasValidatedImport);
+        coordinator.ClearValidatedImport();
+        Assert.False(coordinator.HasValidatedImport);
+    }
+
+    [Fact]
+    public async Task Single_file_validate_shows_the_parser_errors_of_a_daily_inputs_sheet()
+    {
+        var persistence = new FakePersistence();
+        await using var coordinator = CreateWithApplier(persistence, new FakeReader(_ => DailySheet()), new FakeDailyApplier(DailyImported));
+
+        var outcome = await coordinator.ValidateAsync(DailyFileName);
+
+        Assert.False(outcome.Accepted);
+        Assert.False(coordinator.HasValidatedImport);
+        Assert.Contains(outcome.Diagnostics, diagnostic => diagnostic.Code == DailyInputsCodes.NoValues);
+        Assert.Equal("D001", outcome.ReportCode);
+    }
+
+    [Fact]
+    public async Task Single_file_import_applies_a_daily_inputs_sheet_and_records_one_history_row()
+    {
+        var persistence = new FakePersistence();
+        var applier = new FakeDailyApplier(DailyImported);
+        await using var coordinator = CreateWithApplier(persistence, new FakeReader(_ => DailySheet(("WALK_INS", 12m), ("EXPENSES", 250.5m))), applier);
+        await coordinator.ValidateAsync(DailyFileName);
+
+        var outcome = await coordinator.PersistValidatedAsync("synthetic", new("WLMHW", DailyToday, "manager", false, string.Empty));
+
+        Assert.Equal("D001", outcome.ReportCode);
+        Assert.Equal(2, outcome.Result.PersistedRows);
+        Assert.False(outcome.ExactDuplicate);
+        var (document, user) = Assert.Single(applier.Calls);
+        Assert.Equal(("manager", "HEMW"), (user, document.StoreCode));
+        Assert.Equal(0, persistence.PersistenceCalls);
+        var recorded = Assert.Single(persistence.Recorded);
+        Assert.Equal(("D001", "HEMW", "Imported", 2), (recorded.ReportCode, recorded.StoreCode, recorded.Status, recorded.NewRows));
+    }
+
+    [Fact]
+    public async Task Single_file_import_of_an_unchanged_daily_inputs_sheet_is_a_duplicate_not_a_failure()
+    {
+        var persistence = new FakePersistence();
+        await using var coordinator = CreateWithApplier(persistence, new FakeReader(_ => DailySheet(("WALK_INS", 12m))),
+            new FakeDailyApplier(new("Already present", 0, 1, null, "Nothing was changed.", [])));
+        await coordinator.ValidateAsync(DailyFileName);
+
+        var outcome = await coordinator.PersistValidatedAsync("synthetic", new("WLMHW", DailyToday, "manager", false, string.Empty));
+
+        Assert.True(outcome.ExactDuplicate);
+        Assert.Equal("Already present", Assert.Single(persistence.Recorded).Status);
+    }
+
+    [Fact]
+    public async Task Single_file_import_refused_by_the_applier_throws_records_the_attempt_and_the_register_row()
+    {
+        var persistence = new FakePersistence();
+        var failures = new List<FolderImportFailure>();
+        await using var coordinator = CreateWithApplier(persistence, new FakeReader(_ => DailySheet(("WALK_INS", 12m))),
+            new FakeDailyApplier(DailyFinalised), failures);
+        await coordinator.ValidateAsync(DailyFileName);
+
+        var refusal = await Assert.ThrowsAsync<ImportSourceException>(() =>
+            coordinator.PersistValidatedAsync("synthetic", new("WLMHW", DailyToday, "manager", false, string.Empty)));
+
+        Assert.Equal(DailyInputsCodes.DayFinalised, refusal.Code);
+        var recorded = Assert.Single(persistence.Recorded);
+        Assert.Equal(("D001", "Failed", DailyInputsCodes.DayFinalised), (recorded.ReportCode, recorded.Status, recorded.Failure?.Code));
+        Assert.Single(failures);
+    }
+
+    [Fact]
+    public async Task Batch_imports_a_daily_inputs_sheet_next_to_report_workbooks()
+    {
+        var persistence = new FakePersistence { RowOutcome = new(1, 1, 0, 0) };
+        var applier = new FakeDailyApplier(DailyImported);
+        await using var coordinator = CreateWithApplier(persistence,
+            new FakeReader(path => path == "daily.xlsx" ? DailySheet(("WALK_INS", 12m), ("EXPENSES", 250.5m)) : ValidR025()), applier);
+
+        var summary = await coordinator.RunBatchAsync(["daily.xlsx", "sales.xlsx"], "synthetic", () => false,
+            () => new("WLMHW", new(2026, 8, 25), "manager", false, string.Empty), _ => Task.CompletedTask);
+
+        Assert.Equal(2, summary.Succeeded);
+        Assert.Equal(("D001", 2), (persistence.Recorded[0].ReportCode, persistence.Recorded[0].NewRows));
+        Assert.Equal(2, persistence.Recorded.Count);
+        Assert.Equal(1, persistence.PersistenceCalls);
+        Assert.Single(applier.Calls);
+        Assert.Empty(coordinator.FailedBatchPaths);
+    }
+
+    [Fact]
+    public async Task Batch_refusal_of_a_daily_inputs_sheet_is_one_failed_attempt_with_its_code_and_one_register_row()
+    {
+        var persistence = new FakePersistence();
+        var failures = new List<FolderImportFailure>();
+        var applier = new FakeDailyApplier(DailyFinalised);
+        await using var coordinator = CreateWithApplier(persistence, new FakeReader(_ => DailySheet(("WALK_INS", 12m))), applier, failures);
+
+        var summary = await coordinator.RunBatchAsync(["daily.xlsx"], "synthetic", () => false,
+            () => new("WLMHW", new(2026, 8, 25), "manager", false, string.Empty), _ => Task.CompletedTask);
+
+        var file = Assert.Single(summary.Files);
+        Assert.Equal((BatchImportFileStatus.Failed, DailyInputsCodes.DayFinalised, 1), (file.Status, file.ErrorCode, file.Attempts));
+        var recorded = Assert.Single(persistence.Recorded);
+        Assert.Equal(("D001", "HEMW", "Failed"), (recorded.ReportCode, recorded.StoreCode, recorded.Status));
+        Assert.Single(failures);
+        Assert.Single(applier.Calls);
+        Assert.Single(coordinator.FailedBatchPaths);
     }
 
     private static WorkbookSnapshot InvalidWorkbook() =>
