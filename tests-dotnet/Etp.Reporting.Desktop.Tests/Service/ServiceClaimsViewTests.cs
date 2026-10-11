@@ -76,7 +76,7 @@ public sealed class ServiceClaimsViewTests
             Assert.Equal("3", view.Numbers[1].Value);
             Assert.Equal("WDC due 2 · WRA due 1", view.Numbers[1].Secondary);
             Assert.Equal("34 days", view.Numbers[2].Value);
-            Assert.Equal("JOAW330SYN0201 · DC issued on 01 Sep 2026", view.Numbers[2].Secondary);
+            Assert.Equal("JOAW330SYN0201 · DC issued on 01 Sept 2026", view.Numbers[2].Secondary);
             Assert.Equal("02 Oct 2026", view.Numbers[3].Value);
             Assert.Equal("DC/RA lists to 05 Oct 2026", view.Numbers[3].Secondary);
             Assert.Equal(4, Descendants<KpiCard>(view).Count());
@@ -425,7 +425,7 @@ public sealed class ServiceClaimsViewTests
 
             // R-UI-17: "Oct" not "Okt", "450.00" not "450,00".
             Assert.Equal("450.00 net incl. tax · Oct 2026", view.Numbers[0].Secondary);
-            Assert.Equal("JOAW330SYN0201 · DC issued on 01 Sep 2026", view.Numbers[2].Secondary);
+            Assert.Equal("JOAW330SYN0201 · DC issued on 01 Sept 2026", view.Numbers[2].Secondary);
             Assert.Equal("02 Oct 2026", view.Numbers[3].Value);
             Assert.Contains("is dated 02 Oct 2026", view.GapWarningText);
             Assert.Equal("6 month and claim type rows · All claim types · claims raised only.", view.StatusText);

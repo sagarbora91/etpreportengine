@@ -278,14 +278,14 @@ public sealed class ServiceScreenViewTests
             Assert.Equal(["Job number", "Booked on", "Brand / model / product", "Guarantee", "Customer type", "Customer name", "Current stage", "TAT", "EDD", "Labour / spares (S003)"],
                 view.HeaderItems.Select(item => item.Label));
             Assert.Equal("JOAW330SYN0101", view.HeaderItems[0].Value);
-            Assert.Equal("20 Sep 2026 · Booking", view.HeaderItems[1].Value);
+            Assert.Equal("20 Sept 2026 · Booking", view.HeaderItems[1].Value);
             Assert.Equal("Sample Brand, Model 1, Watch", view.HeaderItems[2].Value);
             Assert.Equal("Under Warranty", view.HeaderItems[3].Value);
             Assert.Equal("B2C", view.HeaderItems[4].Value);
             Assert.Equal("Sample Customer 01", view.HeaderItems[5].Value);
             Assert.Equal("Delivered · 02 Oct 2026", view.HeaderItems[6].Value);
             Assert.Equal("TAT 12 days (booked to delivered)", view.HeaderItems[7].Value);
-            Assert.Equal("30 Sep 2026", view.HeaderItems[8].Value);
+            Assert.Equal("30 Sept 2026", view.HeaderItems[8].Value);
             Assert.Equal("Labour 80.00 · Spares 120.50", view.HeaderItems[9].Value);
             Assert.Contains(Descendants<TextBlock>(view), block => block.Text == "TAT 12 days (booked to delivered)");
 
@@ -307,15 +307,15 @@ public sealed class ServiceScreenViewTests
     public void Job_history_header_describes_an_open_job_with_days_open_and_stage_facts()
     {
         var items = ServiceJobHistoryView.DescribeHeader(FakeServiceQuery.Jobs.Single(job => job.JobOrderNumber == "JOAW330SYN0105"));
-        Assert.Equal("Indent raised, parts awaited · 25 Sep 2026 · at AW330", items.Single(item => item.Label == "Current stage").Value);
+        Assert.Equal("Indent raised, parts awaited · 25 Sept 2026 · at AW330", items.Single(item => item.Label == "Current stage").Value);
         Assert.Equal("Open 20 days · 10 in this stage · EDD passed", items.Single(item => item.Label == "Days open").Value);
         Assert.Equal("Crown", items.Single(item => item.Label == "Spare required").Value);
         Assert.Equal("Labour — · Spares —", items.Single(item => item.Label == "Labour / spares (S003)").Value);
         Assert.DoesNotContain(items, item => item.Label == "TAT");
         var dc = ServiceJobHistoryView.DescribeHeader(FakeServiceQuery.Jobs.Single(job => job.JobOrderNumber == "JOAW330SYN0108"));
-        Assert.Equal("DC issued · 29 Sep 2026 · claim not raised · at AW330", dc.Single(item => item.Label == "Current stage").Value);
+        Assert.Equal("DC issued · 29 Sept 2026 · claim not raised · at AW330", dc.Single(item => item.Label == "Current stage").Value);
         var claimed = ServiceJobHistoryView.DescribeHeader(FakeServiceQuery.Jobs.Single(job => job.JobOrderNumber == "JOAW330SYN0106"));
-        Assert.Equal("DC issued · 15 Sep 2026 · claim raised", claimed.Single(item => item.Label == "Current stage").Value);
+        Assert.Equal("DC issued · 15 Sept 2026 · claim raised", claimed.Single(item => item.Label == "Current stage").Value);
         Assert.Equal("TAT not known", claimed.Single(item => item.Label == "TAT").Value);
     }
 
@@ -459,7 +459,7 @@ public sealed class ServiceScreenViewTests
             Assert.Equal((new DateOnly(2026, 9, 5), new DateOnly(2026, 10, 5)), query.LastMoneyRange);
             Assert.Equal((new DateOnly(2026, 9, 5), new DateOnly(2026, 10, 5)), (view.From, view.To));
             Assert.False(view.RangeChosen);
-            Assert.Equal("3 date and tender rows · 05 Sep 2026 – 05 Oct 2026.", view.StatusText);
+            Assert.Equal("3 date and tender rows · 05 Sept 2026 – 05 Oct 2026.", view.StatusText);
 
             view.To = new(2026, 9, 30);
             Assert.True(view.RangeChosen);

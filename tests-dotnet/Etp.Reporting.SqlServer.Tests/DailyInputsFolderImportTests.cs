@@ -23,7 +23,7 @@ public sealed class DailyInputsFolderImportTests
     public async Task A_daily_inputs_file_is_applied_and_never_reaches_matching_or_the_import_store()
     {
         var persistence = new RecordingPersistence();
-        var applier = new FakeApplier(new("Imported", 2, 0, null, "2 daily input(s) saved; 0 unchanged.", []));
+        var applier = new FakeApplier(new DailyInputsApplyResult("Imported", 2, 0, null, "2 daily input(s) saved; 0 unchanged.", []));
         var service = new FolderImportService(persistence,
             new Reader(_ => Daily(("WALK_INS", 12m), ("EXPENSES", 250.5m))), dailyInputs: applier);
 
@@ -55,7 +55,7 @@ public sealed class DailyInputsFolderImportTests
         var persistence = new RecordingPersistence();
         var failures = new List<FolderImportFailure>();
         var service = new FolderImportService(persistence, new Reader(_ => Daily(("WALK_INS", 12m))), reportFailure: failures.Add,
-            dailyInputs: new FakeApplier(new(outcome, 0, 1, null, "Nothing was changed.", [])));
+            dailyInputs: new FakeApplier(new DailyInputsApplyResult(outcome, 0, 1, null, "Nothing was changed.", [])));
 
         var summary = await service.RunFilesAsync([DailyName], new("tester"));
 
@@ -76,7 +76,7 @@ public sealed class DailyInputsFolderImportTests
         var persistence = new RecordingPersistence();
         var failures = new List<FolderImportFailure>();
         var service = new FolderImportService(persistence, new Reader(_ => Daily(("WALK_INS", 12m))), reportFailure: failures.Add,
-            dailyInputs: new FakeApplier(new("Failed", 0, 0, code, message, [new(null, null, code, message)])));
+            dailyInputs: new FakeApplier(new DailyInputsApplyResult("Failed", 0, 0, code, message, [new(null, null, code, message)])));
 
         var summary = await service.RunFilesAsync([DailyName], new("tester"));
 
@@ -98,7 +98,7 @@ public sealed class DailyInputsFolderImportTests
     {
         var persistence = new RecordingPersistence();
         var failures = new List<FolderImportFailure>();
-        var applier = new FakeApplier(new("Imported", 1, 0, null, "", []));
+        var applier = new FakeApplier(new DailyInputsApplyResult("Imported", 1, 0, null, "", []));
         // Every Value blank: the sheet was saved empty (DAILY_INPUTS_NO_VALUES).
         var service = new FolderImportService(persistence, new Reader(_ => Daily()), reportFailure: failures.Add, dailyInputs: applier);
 
@@ -150,7 +150,7 @@ public sealed class DailyInputsFolderImportTests
     public async Task A_folder_with_a_daily_inputs_file_and_an_R025_export_imports_both()
     {
         var persistence = new RecordingPersistence();
-        var applier = new FakeApplier(new("Imported", 1, 0, null, "1 daily input(s) saved; 0 unchanged.", []));
+        var applier = new FakeApplier(new DailyInputsApplyResult("Imported", 1, 0, null, "1 daily input(s) saved; 0 unchanged.", []));
         var service = new FolderImportService(persistence, new Reader(path =>
             path == DailyName ? Daily(("WALK_INS", 12m)) : Sales(path, "HEMW", 20260825)), dailyInputs: applier);
 

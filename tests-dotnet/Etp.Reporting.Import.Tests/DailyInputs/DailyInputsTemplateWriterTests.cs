@@ -122,7 +122,7 @@ public sealed class DailyInputsTemplateWriterTests
         var fieldRows = DailyInputsTemplate.FieldsFor(DailyInputsKind.Retail).Count;
         Assert.Equal(["C5", "C6", .. Enumerable.Range(7, fieldRows).Select(row => $"C{row}")], unlocked);
 
-        var validations = worksheet.Descendants<DataValidation>().ToDictionary(v => v.SequenceOfReferences!.InnerText);
+        var validations = worksheet.Descendants<DataValidation>().ToDictionary(v => v.SequenceOfReferences!.InnerText ?? "");
         var dateRule = validations["C5"];
         Assert.Equal(DataValidationValues.Date, dateRule.Type!.Value);
         Assert.Equal($"TODAY()-{DailyInputsTemplate.LookbackDays}", dateRule.Formula1!.Text);

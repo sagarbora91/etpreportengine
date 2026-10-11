@@ -151,9 +151,9 @@ public sealed class ReportGridPresentationTests
     }
 
     // RA-SALES-09 (1.9.9): sales-store no longer prompts on All stores; it runs for the first active store (PolishUiStatusTests).
+    // RA-UI-06 (1.10.1): neither does Daily Exceptions (Daily_exceptions_on_all_stores_runs_the_first_active_store).
     [Theory]
     [InlineData("stock-physical")]
-    [InlineData("exceptions")]
     [InlineData("cash")]
     public void Missing_store_is_a_prompt_not_a_failure(string code)
     {
@@ -168,6 +168,22 @@ public sealed class ReportGridPresentationTests
             Assert.False(((Button)view.FindName("ExportExcelButton")).IsEnabled);
             foreach (var log in Directory.GetFiles(DiagnosticsIsolation.LogDirectory, "diagnostics-*.jsonl"))
                 Assert.DoesNotContain("REPORT_STORE_REQUIRED", File.ReadAllText(log), StringComparison.Ordinal);
+        });
+    }
+
+    [Fact]
+    public void Daily_exceptions_on_all_stores_runs_the_first_active_store()
+    {
+        RunSta(async () =>
+        {
+            string? status = null;
+            var view = CreateView(out _, (_, _, text) => status = text);
+            view.ApplyScope(new DateTime(2026, 8, 25), new DateTime(2026, 8, 25), StoreScopeCatalog.AllStores);
+            await view.RunReportAsync("exceptions");
+            var text = ((TextBlock)view.FindName("ReportResult")).Text;
+            Assert.NotEqual(ReportsWorkspaceView.StoreRequiredPrompt, text);
+            Assert.Contains("Daily Exceptions shows one store:", text, StringComparison.Ordinal);
+            Assert.Contains("the first active store, because All stores was selected", text, StringComparison.Ordinal);
         });
     }
 
@@ -187,7 +203,7 @@ public sealed class ReportGridPresentationTests
             Assert.False(((Button)view.FindName("ExportPdfButton")).IsEnabled);
 
             await view.RunReportAsync("stock-closing");
-            Assert.Equal("No data for 25 Aug 2026, Titan World (WLMHW). No closing-stock snapshot for WLMHW on or before 25 Aug 2026; import the Closing Stock export. Slow stock uses 60-day watch and 90-day exception bands.",
+            Assert.Equal("No data for 25 Aug 2026, Titan World (WLMHW). No closing-stock snapshot for WLMHW on or before 25 Aug 2026; import the Closing Stock export. Slow stock uses 60-day watch and 90-day exception bands; it lists SLOW, WATCH and NEVER SOLD items with stock, not NEW or ACTIVE ones.",
                 ((TextBlock)view.FindName("ReportResult")).Text);
 
             // No exceptions is the finding itself, not missing data.

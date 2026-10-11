@@ -97,6 +97,8 @@ public sealed class FolderImportService(
             try
             {
                 var workbook = await reader.ReadAsync(path, cancellationToken).ConfigureAwait(false);
+                // Recognising the daily-inputs template is part of matching: a workbook that cannot be inspected fails at Match.
+                readStage = FailureStage.Match;
                 // A daily-inputs workbook is known by its content (sheet, header, version row), never by its name, and
                 // never reaches matching: it has no profile, staging or landing table (1101-DAILY-INPUTS-DESIGN.md 2).
                 if (DailyInputsTemplate.IsDailyInputsWorkbook(workbook))
@@ -109,7 +111,6 @@ public sealed class FolderImportService(
                     progress?.Report(new(results.Count, paths.Count, daily.FileName, daily.Status, results.ToArray()));
                     continue;
                 }
-                readStage = FailureStage.Match;
                 var inspection = envelopes.Inspect(workbook);
                 ready.Add((path, inspection));
                 if (inspection.AcceptedImport is { } accepted)

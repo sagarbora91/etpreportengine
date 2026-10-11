@@ -110,7 +110,7 @@ foreach (var storeCode in new[] { "WLMHW", "HEMW" })
 }
 var serviceSales = await operationalReports.LoadServiceSalesAsync(testDate, ["WLMHW"]);
 var cashControl = await operationalReports.LoadCashReconciliationAsync("WLMHW", testDate);
-var physicalStock = await operationalReports.LoadPhysicalStockAsync("WLMHW", testDate);
+var physicalStock = await operationalReports.LoadBrandPhysicalStockAsync("WLMHW", testDate);
 var targetCro = staff.Rows.First(x => x.StoreCode == "WLMHW").CroNumber;
 await completion.SaveStaffTargetAsync("WLMHW", targetCro, scope.DateFrom, scope.DateTo, 100_000m, "live-smoke", "validation");
 var staffWithTarget = await operationalReports.LoadStaffPerformanceAsync(scope);

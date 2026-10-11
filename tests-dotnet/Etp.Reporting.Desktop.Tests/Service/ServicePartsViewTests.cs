@@ -141,7 +141,7 @@ public sealed class ServicePartsViewTests
             Assert.Equal("Latest closing stock (S006) as at 03 Oct 2026: 412 items, quantity 1,180, value 95,400.00.", view.ClosingStockText);
             Assert.Equal(ServicePartsView.NoLinesText, view.LinesStatusText);
             Assert.Empty(view.LineRows);
-            Assert.Equal(["All months", "Sep 2026", "Aug 2026"], view.MonthChoices.Select(choice => choice.Label));
+            Assert.Equal(["All months", "Sept 2026", "Aug 2026"], view.MonthChoices.Select(choice => choice.Label));
         });
     }
 
@@ -181,8 +181,8 @@ public sealed class ServicePartsViewTests
             view.OpenOnly = false; view.SelectedMonth = new(2026, 9, 1);
             view.ActivateAsync().GetAwaiter().GetResult();
             Assert.Equal(["PISYN0101", "PISYN0103", "PISYN0104"], view.Rows.Select(row => (string)row.Cells[0]!));
-            Assert.Equal("Sep 2026", view.MonthChoices.First(choice => choice.Month == new DateOnly(2026, 9, 1)).Label);
-            Assert.Equal("3 invoices · open first, oldest first · Sep 2026.", view.StatusText);
+            Assert.Equal("Sept 2026", view.MonthChoices.First(choice => choice.Month == new DateOnly(2026, 9, 1)).Label);
+            Assert.Equal("3 invoices · open first, oldest first · Sept 2026.", view.StatusText);
 
             view.SelectedMonth = null; view.ItemFilter = "part-syn-03";
             view.ActivateAsync().GetAwaiter().GetResult();

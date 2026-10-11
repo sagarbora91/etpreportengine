@@ -95,7 +95,7 @@ public sealed class DailyInputsApplierRulesTests
         var applier = new SqlServerDailyInputsApplier("Server=.;Database=etp_never_opened;Integrated Security=true;TrustServerCertificate=true",
             _ => Task.FromResult(new ApplicationAccess("TEST\\user", "Test", role, active)));
 
-        var result = await applier.ApplyAsync(Document(DailyInputsKind.Retail, new(7, "WALK_INS", DailyInputValueKind.Quantity, 1m, null)), "TEST\\user");
+        var result = await applier.ApplyAsync(Document(DailyInputsKind.Retail, new DailyInputValue(7, "WALK_INS", DailyInputValueKind.Quantity, 1m, null)), "TEST\\user");
 
         Assert.Equal(("Failed", "DAILY_INPUTS_NO_PERMISSION", 0), (result.Outcome, result.FailureCode, result.Changed));
         Assert.Equal("DAILY_INPUTS_NO_PERMISSION", Assert.Single(result.Errors).Code);
