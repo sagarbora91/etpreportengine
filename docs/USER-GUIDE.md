@@ -16,7 +16,7 @@ Close day refuses to finalise only while a section is Blocked: a missing source 
 
 ## Error messages and "Ref:" codes
 
-ETP's messages say in plain words what happened and what to do. An error message ends with "Ref:" and a short code, for example "Ref: 1A2B3C4D5E6F". The code matches one entry in ETP's diagnostics log. Note the code or take a screenshot. If the problem keeps happening, an Owner creates the support package (Settings → Database → Support package; the screen says where the ZIP was saved; it includes the last 30 days of the diagnostics log) and sends it, with the code, to ETP support. The log records where the failure happened, never the message text or customer data.
+ETP's messages say in plain words what happened and what to do. An error message ends with "Ref:" and a short code, for example "Ref: 1A2B3C4D5E6F". The code matches one entry in ETP's diagnostics log. Note the code or take a screenshot. If the problem keeps happening, an Owner creates the support package (Settings → Database → Support package; the screen says where the ZIP was saved; it includes the last 30 days of the diagnostics log) and sends it, with the code, to ETP support. The log records where the failure happened, never the message text or customer data. From 1.11.0 the Owner can type the code into Settings → Database → Error register → Find Ref.
 
 Some common messages:
 
@@ -37,6 +37,36 @@ Settings → Test connection reports a refused login and a missing database sepa
 **Backup and recovery.** If Backup now or Recovery drill now fails, the message gives the reason (for example missing recovery keys, low disk space or the automation account's rights). The backup and the drill, including the scheduled tasks, keep a dated failure log in `%ProgramData%\EtpReporting\Backups\Logs`.
 
 **Setup.** Setup turns off the SQL Server Express AUTO_CLOSE setting on the ETP database every time it runs. On a new PC it registers the five-minute automation task switched off until the automation account can open the database; the setup log says how to switch it on (add the account as an active Store Manager in Settings → Users and run setup again). If the database update fails during setup, the setup log gives the reason with the SQL error number.
+
+## Health check and Error register (Owner)
+
+*New in 1.11.0.* Two screens under Settings → Database, for the Owner. Store Managers and Viewers do not see them; they see one line on the dashboard: "System check: last night OK", "N warnings" or "1 problem - tell the Owner".
+
+**Health check.** Choose **Run health check**. ETP reads the database and the files it needs and changes nothing. It takes about a minute, runs in the background, and has a Cancel button; between 09:00 and 21:00 it asks first. It checks 51 things in seven groups: the database, permissions, the 22 reports, the import layouts, yesterday's data, backups and scheduled tasks, and the error log. The same check runs by itself every night at about 02:30 (and at the next opportunity if the PC was off). Yesterday is the business date it checks.
+
+Each line shows one of:
+
+- **Pass**: works and is up to date.
+- **Warning**: works, but something needs attention soon, for example yesterday's export is not imported yet.
+- **Fail**: something is broken or unsafe now. Fix these first.
+- **Known**: a warning you have accepted for a while (see below).
+- **Skipped**: the check could not run in this place, and the line says why (for example "the nightly run checks this", or "time budget used up").
+
+Every line has a plain explanation and a **Where to fix** button that opens the right screen, or says what to do ("run ETP setup as administrator"). A report that opens but says Blocked because a file is missing is still a Pass: the report works, and the missing file is reported once, on the "Yesterday is complete" line. A line that has not changed since the last run says "unchanged since" with the date. **Compare with** shows what changed against an earlier run.
+
+**Mark as Known.** Select a warning and choose Mark as Known. Enter a reason and an end date, at most 90 days ahead. The line turns grey and stops counting as a warning until the date passes. A Known never hides a Fail. Use it for things you have not started yet, for example daily manual inputs or staff targets.
+
+**Error register.** Every Error or Critical entry in ETP's diagnostics log is grouped into one register entry: how many times, first and last seen, which versions, and a status:
+
+- **New**: first time seen.
+- **Seen**: you have looked at it. Linking a fix ticket sets this.
+- **Expected**: accepted by design; needs a reason.
+- **Fixed in x**: a release that fixes it is installed.
+- **Recurred after fix**: it happened again from the fixed version or later. This always needs attention.
+
+To look up an error someone reports, type the "Ref:" code from the message (for example 1A2B3C4D5E6F) into **Find Ref**. If it is not found, press Refresh: ETP then adds the errors of your own Windows account; an error from another account or PC appears after that account has run ETP. **Copy summary** puts a privacy-safe text block on the clipboard. Mark seen, Mark expected, Link ticket, Mark fixed in version and Merge into (for the same bug listed twice after a code change) are Owner actions. The register keeps no error message text and no customer data.
+
+**What leaves the screen.** Each run also writes a file to `C:\ProgramData\EtpReporting\HealthExports` (Open export folder). It holds only counts, codes, dates and version numbers. The Monday weekly audit reads these files and proposes numbered fix tickets; nothing is fixed without your approval.
 
 ## Import and reports
 
