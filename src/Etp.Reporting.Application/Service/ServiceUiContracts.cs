@@ -4,7 +4,9 @@ namespace Etp.Reporting.Application.Service;
 // (v_service_job, v_service_job_timeline, v_service_claims, v_service_parts and the amended v_service_pending_current).
 // Lane sql owns this file and SqlServerServiceReportQuery; the UI lanes copy it verbatim (same path, same content) and
 // fake IServiceReportQuery against it. Design: docs/roadmap/SERVICE-CENTRE-UI-DESIGN-REVIEW-2026-10-10.md sections 3, 4, 6.
-// Privacy: no phone, e-mail or address anywhere; the customer name only where the Job history header shows it.
+// Privacy: no phone, e-mail or address anywhere. The customer name is shown on the Jobs list (and its Excel export) and the
+// Job history header (decision 37, R-UI-21; 1.11.1). v_service_job (migration 0056) gives the name of the job's most recent
+// reading to Owner and Store Manager and NULL to a Viewer, so CustomerName is null for a Viewer.
 // Every new member of the interface has a default so a query or fake written before 1.10.0 still compiles
 // (the decision-16 precedent); SqlServerServiceReportQuery overrides them all.
 // The pure rules (age bands, overdue, TAT median, freshness colours) are ServiceUiRules.cs beside this file.

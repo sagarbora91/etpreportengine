@@ -4,7 +4,8 @@ namespace Etp.Reporting.Application.Service;
 // over the 0050 views dbo.v_service_job (one row per job, stage per section 4.2) and dbo.v_service_job_timeline
 // (one row per reading row of every family that holds the job). Lane history wrote these records before lane sql
 // committed its contract file (lane brief rule 6); the coordinator reconciles names at merge.
-// Privacy: no phone, e-mail or address field; the customer name only because the Jobs grid shows it (as the interim did).
+// Privacy: no phone, e-mail or address field. The customer name is on the Jobs list, its export and the Job history header
+// (decision 37, R-UI-21); migration 0056 takes it from the job's most recent reading and returns NULL to a Viewer.
 
 /// <summary>The stage codes of <c>dbo.v_service_job</c> (design 4.2, first rule wins) and their screen labels.</summary>
 public static class ServiceJobStages
