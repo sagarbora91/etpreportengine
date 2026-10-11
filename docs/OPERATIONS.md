@@ -222,6 +222,55 @@ SQL `sysadmin` retains the documented emergency path in the role guards and can 
 
 Run signed `invoke-database-maintenance.ps1` as Owner/SQL administrator with the explicit approved local instance and database. It performs integrity checks, updates statistics and copies old audit rows to the archive; originals remain append-only. Its default archive age is 730 days. It does not shrink the database or delete audit history.
 
+## Health check and exports
+
+*New in 1.11.0 (migrations 0054 and 0055, schema `diag`).* ETP checks itself and writes a privacy-checked file for the weekly audit. Design: [SELF-DIAGNOSTICS](design/SELF-DIAGNOSTICS.md); procedure contract: [SELF-DIAGNOSTICS-PROCEDURES](design/SELF-DIAGNOSTICS-PROCEDURES.md).
+
+### What runs, and when
+
+- **Manual:** Owner, Settings → Database → Health check → Run health check. Asks first between 09:00 and 21:00. Refused with "A health check is already running" while the nightly run is active.
+- **Nightly:** inside the existing five-minute automation task (`--automation-once`), after the import step, from 02:30 local time, once per business date (yesterday). If the PC was off at 02:30 the first tick after it is switched on runs it, even in shop hours (about a minute of reads). It runs whether or not watch-folder import is enabled, under the same automation lease, so it never overlaps an import run. The automation account must be an active Store Manager with the `etp_automation` role (see the module install order); without it the nightly run cannot record.
+- **Size:** 51 checks: Database 5, Security 3, Reports 22 (one per catalogue report, run for yesterday), Imports 3, Data 5, Operations 9, Errors 4. Order: Database, Errors, Operations, Security, Data, Imports, Reports. Hard budget 120 seconds; checks not reached are recorded as Skipped (time budget). Expect 30 to 60 seconds.
+- **Read-only:** the check changes no business data. It writes only its own `diag` rows and the export file. It never repairs anything: no ALTER DATABASE, grant, re-import or task change; it names the fix. Report checks call the report queries directly, so no report-run audit row is written.
+- **Exit code:** a health Fail does not make the Task Scheduler task fail. A run that could not complete writes `HEALTH_RUN_FAILED` to the diagnostics log and stderr.
+
+### Outcomes
+
+Pass, Warning, Fail, Known (an accepted Warning, with reason and end date of at most 90 days, set by the Owner; never hides a Fail) and Skipped (could not run in this context; never a Fail). A data gap is reported once, by the check that owns it. A report that completes with a Blocked or Failed status because of data is a Pass; only an exception or a 30 second timeout fails a report check.
+
+### The export files
+
+- Folder: `%ProgramData%\EtpReporting\HealthExports` (Workpc: `C:\ProgramData\EtpReporting\HealthExports`). Setup (elevated) creates it with full control for SYSTEM and Administrators, Modify for the automation account and for each active Owner's Windows account, and nothing for Store Managers or Viewers. The Owner's access lets the weekly audit, which runs as the Owner unelevated, read the files; check 'Protected folder ACLs' (OPS-05) also covers the folder.
+- One file per run: `health-yyyyMMdd-HHmmss-Manual.json` or `-Nightly.json`, written under a temporary name and moved. Schema `etp-health-export/1`: the run (trigger, business date, duration, version, machine, overall, counts), every result (id, area, outcome, finding code, template explanation, where to fix), the change against the previous run, the error register (entries not Fixed, plus entries changed in the last 30 days), warning counts per event code, and the privacy guard result.
+- Content rules: store codes, report codes, error codes, counts, dates, version numbers and fixed method names only. No exception text, account names, file names, folder paths other than the fixed ETP folders, or report rows. The writer checks every string; anything else is replaced by "redacted" and counted, and a redaction raises a Warning on the register-ingest check (a probe leaked something: report it).
+- Retention: files 90 days (the writer deletes only its own `health-*.json`), runs and results in the database 400 days, occurrences 180 days (always the newest 20 per entry), register entries for ever, Known entries until their end date.
+- The support package (`new-etp-support-package.ps1`) adds the newest 14 export files under `health\` when the folder is readable. Nothing leaves the PC by itself; moving files is a manual step.
+
+### Error register
+
+Every ETP process ingests the diagnostics log of its own Windows account: the desktop app once after a successful start, the health check run, and the Error register screen's Refresh. The automation account's log is therefore ingested by the nightly run. Batches are at most 500 entries, oldest first; a cursor file `register-cursor.json` in the account's log folder is only an optimisation (the database ignores duplicates). More than 200 occurrences of one error per day are counted but not stored. An ingest failure is logged as `ERROR_REGISTER_INGEST_FAILED` and shown on the register-ingest check.
+
+Fixes are recognised without anyone typing: a release ships `ErrorFixManifest.json` (fingerprint, version, ticket). The first run of that version applies it, and only when the running version is at least the fixed version. Seen again from that version on: status Recurred after fix, which is a Fail on the Recurred check and always becomes a ticket.
+
+### Permission matrix
+
+The Security checks compare the real grants of the four `etp_*` roles with the expected matrix embedded in the application. Any extra write, execute, alter or control grant is a Fail; a missing expected grant is a Warning. Every migration that changes a grant must regenerate the matrix and name the change in the CHANGELOG, or the gate fails. Since 1.10.0 (migration 0051) a Store Manager has no INSERT or UPDATE on `dbo.staff_sales_targets`.
+
+### Weekly audit and fix tickets
+
+The Monday audit's Part 0 reads the week's export files (read-only), and appends proposed tickets to `E:\ETP\Reference\Weekly audits\FIX-TICKET-REGISTER.md`; it may change only the Status cell of existing rows. Statuses: PROPOSED, APPROVED (Sagar, in chat), WONTFIX, DUPLICATE, IN-LANE, FIXED, VERIFIED, RECURRED. Fixes go through code-only lanes and the gate as usual. Claude never runs ETP, never writes to the database and never edits code as part of this loop.
+
+### Troubleshooting
+
+| Symptom | Action |
+| --- | --- |
+| No nightly file for a date | The automation task did not run or the account cannot record. Check Task Scheduler (last run result), that the automation account is an active Store Manager in Settings → Users, and that `install-etp-sql-operations.ps1` was run with that account. The next tick after 02:30 catches up. |
+| Many lines Skipped | Expected for folder-permission and Windows-log checks on a manual run by an unelevated Owner; the nightly run covers them. "Time budget used up" means the run reached 120 seconds: check for a slow report line. |
+| Folder missing or not readable | Run ETP setup again as administrator; it creates the folder and its permissions. |
+| Security line Fail | An extra grant exists. Do not edit grants by hand; install the release whose migration removes it and run setup. |
+| Register ingest Warning with "redactions" | A check wrote text that failed the privacy guard. Do not share the file; raise it as a defect. |
+| A line stays Warning every night for something accepted | Mark it Known with a reason and an end date. |
+
 ## Troubleshooting
 
 ### Phase 5 upgrade and operating checks
