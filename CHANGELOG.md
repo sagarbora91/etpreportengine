@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-## [1.10.0] - (date after the 1.10.0 gate)
+## [1.10.0] - 2026-10-11
 
 Service Centre UI (decision 25, 10 Oct 2026; design `docs/roadmap/SERVICE-CENTRE-UI-DESIGN-REVIEW-2026-10-10.md`), Tally batch creation from GitHub PR #3 (decisions 18 and 26), staff targets Owner-only in the database (decision 27), and everything released in 1.9.7, 1.9.8 and 1.9.9. Three migrations: 0049 (Tally store cost centres), 0050 (Service UI views only) and 0051 (staff-target permissions). Retail imports, reports and packs do not change, and neither do the money-check rules of decision 16.
 
@@ -100,7 +100,7 @@ Merged as the PR branch tip, including the Tally vouchers and Tally ledgers scre
 
 - Navigation: 58 fixed tasks (25 Owner-only); the Owner reaches 102 screens, a Store Manager 77 and a Viewer 62.
 - Docs: User Guide "Service Centre" rewritten; `03_DATABASE_SCHEMA.md` has 0049, 0050 and 0051 sections; `SERVICE-INTERIM-NUMBERS.md` lists 0049-0052 and the Service task ids; new acceptance runbook `docs/roadmap/SERVICE-UI-1.10.0-ACCEPTANCE.md`.
-- Tests: unit projects and gate result filled in after the gate.
+- Gate (11 Oct 2026, elevated, on 9dd8353, SQL Server 2025 CU9): Release build 0 warnings 0 errors; 4,117 tests, 0 failed, 3 skipped (Desktop 1,265, Domain 12, Import 1,087, Reporting 160, SQL integration 413, SQL 1,180); pre- and after-checks clean. First run on 2abd989 failed 3 integration tests (two latest-migration pins still expected 004x; the WDC/WRA union test assumed the synthetic old-header claims share document numbers) - fixed in the tests only (9dd8353). Installer SHA-256 66854A5D78D9D620B4DEBB85E9E0496334FBA72A84E5E69855C671B9240E52A8 (`Installers\ETP Reporting Engine 1.10.0\`).
 
 ## [1.9.9] - 2026-10-10
 
