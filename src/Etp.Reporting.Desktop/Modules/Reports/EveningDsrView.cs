@@ -28,6 +28,8 @@ public sealed class EveningDsrView : TabControl
                 for(var col=0;col<7;col++)
                 {
                     var text=new TextBlock{Text=all[row][col],FontSize=12,TextWrapping=TextWrapping.Wrap,TextAlignment=col==0?TextAlignment.Left:TextAlignment.Right,Padding=new(5),FontWeight=row==0?FontWeights.Bold:FontWeights.Normal};
+                    // RA-OPS-14 (1.10.1): the per-row availability note (Excel "Availability" column) is a tooltip on the metric cell.
+                    if(row>0&&col==0&&!string.IsNullOrWhiteSpace(sheet.Rows[row-1].Note)){text.ToolTip=sheet.Rows[row-1].Note;System.Windows.Automation.AutomationProperties.SetHelpText(text,sheet.Rows[row-1].Note);text.Text+=" ⓘ";}
                     if(row>0&&col==3&&sheet.Rows[row-1].Growth is decimal growth)text.Foreground=growth<0?Brushes.Firebrick:Brushes.DarkGreen;
                     var cell=new Border{Child=text,Background=row%2==0?Brushes.AliceBlue:Brushes.White,BorderBrush=Brushes.LightGray,BorderThickness=new(0,0,0,1)};Grid.SetRow(cell,row);Grid.SetColumn(cell,col);grid.Children.Add(cell);
                 }

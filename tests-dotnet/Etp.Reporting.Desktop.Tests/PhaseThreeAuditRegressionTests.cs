@@ -163,6 +163,21 @@ public sealed class PhaseThreeAuditRegressionTests
     }
 
     [Fact]
+    public void Dsr_matrix_metric_cell_carries_the_row_availability_note_as_a_tooltip()
+    {
+        Sta(() =>
+        {
+            var document = DailySalesReportBuilder.Build(new(2026, 8, 25), [], [], new Dictionary<string, decimal?>())
+                with { EveningSheets = [new("HEMW", "Helios", 0, 0, 0, 0, [new("WALK-INS", 1, null, null, 1, 1, null, "number", "Available entries; missing days are not zero entries")])] };
+            var view = new EveningDsrView(document);
+            Theme(view);
+            Layout(view, 1000, 600);
+            var cell = Visuals(view).OfType<TextBlock>().Single(text => text.Text.StartsWith("WALK-INS", StringComparison.Ordinal));
+            Assert.Equal("Available entries; missing days are not zero entries", cell.ToolTip);
+        });
+    }
+
+    [Fact]
     public void Store_heading_in_the_dsr_matrix_is_exposed_to_screen_readers()
     {
         Sta(() =>
