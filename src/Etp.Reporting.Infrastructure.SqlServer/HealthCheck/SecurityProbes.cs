@@ -102,7 +102,7 @@ public sealed class ExpectedRolePermissionMatrix
         var tags = previous?.Entries.Where(entry => !entry.MustBeAbsent && entry.Decision is not null)
             .GroupBy(entry => entry.Key).ToDictionary(group => group.Key, group => group.First().Decision)
             ?? new Dictionary<RolePermissionKey, string?>();
-        var entries = actual.Select(RolePermissionKey.From).Distinct().OrderBy(key => key.SortKey, StringComparer.Ordinal)
+        var entries = Sorted(actual.Select(RolePermissionKey.From).Distinct())
             .Select(key => new ExpectedRolePermission(key.Role, key.ClassDesc, key.Schema, key.Object, key.Permission, key.State,
                 tags.TryGetValue(key, out var decision) ? decision : null))
             .Concat(previous?.Absent ?? [])
@@ -113,6 +113,15 @@ public sealed class ExpectedRolePermissionMatrix
         return "{\n  \"format\": 1,\n  \"note\": \"" + Note + "\",\n  \"permissions\": [\n"
             + string.Join(",\n", lines) + "\n  ]\n}\n";
     }
+
+    /// <summary>Field by field, ordinal: the order of the file.</summary>
+    public static IEnumerable<RolePermissionKey> Sorted(IEnumerable<RolePermissionKey> keys) =>
+        keys.OrderBy(key => key.Role, StringComparer.Ordinal)
+            .ThenBy(key => key.ClassDesc, StringComparer.Ordinal)
+            .ThenBy(key => key.Schema ?? "", StringComparer.Ordinal)
+            .ThenBy(key => key.Object ?? "", StringComparer.Ordinal)
+            .ThenBy(key => key.Permission, StringComparer.Ordinal)
+            .ThenBy(key => key.State, StringComparer.Ordinal);
 
     private const string Note =
         "Expected permissions of the four etp roles after every migration (design 5.5). Regenerate with ExpectedRolePermissionsTests (set ETP_REGENERATE_EXPECTED_PERMISSIONS=1); entries with a decision are kept by hand. expect absent = must not exist.";

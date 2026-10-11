@@ -139,7 +139,7 @@ public sealed class HealthCheckRunner
 
             var areaStart = clock.GetTimestamp();
             var areaCap = budget.AreaCaps.TryGetValue(area, out var cap) ? cap : budget.Total;
-            foreach (var probe in probes.Where(probe => HealthCheckId.AreaOf(probe.CheckIds[0]) == area))
+            foreach (var probe in probes.Where(candidate => HealthCheckId.AreaOf(candidate.CheckIds[0]) == area))
             {
                 var ids = probe.CheckIds.Where(id => catalogue.Contains(id) && !results.ContainsKey(id)).Distinct(StringComparer.Ordinal).ToArray();
                 if (ids.Length == 0) continue;
@@ -421,7 +421,7 @@ public sealed class HealthCheckRunner
     }
 
     /// <summary>Fits a line to the columns of <c>diag.health_check_results</c> (design 6.2).</summary>
-    internal static HealthCheckResult Normalise(HealthCheckResult line)
+    public static HealthCheckResult Normalise(HealthCheckResult line)
     {
         var code = string.IsNullOrWhiteSpace(line.FindingCode) ? HealthCheckTexts.Ok : line.FindingCode.Trim();
         if (code.Length > HealthCheckTexts.MaxFindingCodeLength) code = code[..HealthCheckTexts.MaxFindingCodeLength];
@@ -440,7 +440,7 @@ public sealed class HealthCheckRunner
     /// Keeps the serialised sub-results under <see cref="MaxDetailCharacters"/>: Fail first, then Warning, Known, Skipped,
     /// Pass, and one <c>MORE</c> sub-result counting the ones left out.
     /// </summary>
-    internal static IReadOnlyList<HealthCheckSubResult>? FitSubResults(IReadOnlyList<HealthCheckSubResult>? subs)
+    public static IReadOnlyList<HealthCheckSubResult>? FitSubResults(IReadOnlyList<HealthCheckSubResult>? subs)
     {
         if (subs is null || subs.Count == 0) return subs;
         if (JsonSerializer.Serialize(subs, DetailJson).Length <= MaxDetailCharacters) return subs;
