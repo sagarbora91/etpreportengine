@@ -138,6 +138,33 @@ public static class ImportDiagnosticCatalogue
         ["SERVICE_SNAPSHOT_DATE_DIFFERS_FROM_HISTORY"] =
             ["The latest date on the Snapshot History sheet differs from the snapshot date this file is imported under. Check the folder date."],
 
+        // Daily-inputs workbook, family D001 (1.10.1, decision 30). The codes are DailyInputsCodes in the Import project;
+        // the parser and the applier write exactly these texts. DATE_TOO_OLD names DailyInputsTemplate.LookbackDays.
+        ["DAILY_INPUTS_TEMPLATE_VERSION"] = ["This daily-inputs sheet is not a template version ETP knows. Use the current daily-inputs template."],
+        ["DAILY_INPUTS_KIND_INVALID"] = ["The sheet type must be RETAIL or SERVICE. Use the template made for this shop PC."],
+        ["DAILY_INPUTS_STORE_MISSING"] = ["The store code is missing. Use the template made for this shop PC."],
+        ["DAILY_INPUTS_DATE_MISSING"] = ["The business date is missing. Enter the day the figures belong to."],
+        ["DAILY_INPUTS_DATE_INVALID"] = ["The business date cannot be read. Enter it as a date, as dd-mmm-yyyy."],
+        ["DAILY_INPUTS_DATE_IN_FUTURE"] = ["The business date is after today. Enter the day the figures belong to."],
+        ["DAILY_INPUTS_DATE_TOO_OLD"] = ["The business date is more than 31 days ago. The Owner corrects older days on the screen."],
+        ["DAILY_INPUTS_UNKNOWN_FIELD"] = ["A field code on the sheet is not one of the template's fields."],
+        ["DAILY_INPUTS_FIELD_NOT_FOR_SHEET"] = ["A field does not belong on this sheet type."],
+        ["DAILY_INPUTS_DUPLICATE_FIELD"] = ["A field code appears more than once on the sheet."],
+        ["DAILY_INPUTS_VALUE_INVALID"] = ["A value is not a number the field accepts. Counts must be whole numbers."],
+        ["DAILY_INPUTS_VALUE_NEGATIVE"] = ["A value is negative. Only the cash adjustment may be negative."],
+        ["DAILY_INPUTS_TEXT_TOO_LONG"] = ["A text value is longer than the sheet allows."],
+        ["DAILY_INPUTS_NAME_MISMATCH"] =
+            ["The file name's store, sheet type or date differs from the sheet. Check the business date, save the file under the matching name and send it again."],
+        ["DAILY_INPUTS_NAME_UNUSUAL"] = ["The file name does not follow the daily-inputs naming. The sheet was imported under its own store and date."],
+        ["DAILY_INPUTS_NO_VALUES"] = ["The sheet has no values. Fill in the figures, save it and send it again."],
+        ["DAILY_INPUTS_NO_PERMISSION"] = ["The account importing this file may not change manual entries. It must be an active Owner or Store Manager."],
+        ["DAILY_INPUTS_UNKNOWN_STORE"] = ["The store on the sheet is not an active ETP store."],
+        ["DAILY_INPUTS_FIELD_INACTIVE"] = ["A field on the sheet is not an active manual entry."],
+        ["DAILY_INPUTS_FIELD_KIND_MISMATCH"] = ["A field's value type differs from its manual entry definition."],
+        ["DAILY_INPUTS_DAY_FINALISED"] =
+            ["This business day is finalised, so its manual entries cannot change. Reopen the day, then put the file in the watch folder again."],
+        ["DAILY_INPUTS_NOT_AVAILABLE"] = ["Daily-inputs files cannot be applied by this import. Nothing was changed."],
+
         // Consolidation contract (contract section 8).
         [ImportCodes.Contract.Unreadable] = ["The consolidation contract in the Info sheet could not be read."],
         [ImportCodes.Contract.VersionUnsupported] = ["The consolidation contract version is not supported."],
