@@ -372,6 +372,66 @@ public sealed class ServiceClaimsViewTests
         Assert.Equal(["All claim types", "GPRC cell", "Module Bank", "WDC (depreciation)", "WRA (replacement)"], ServiceClaimsView.ClaimTypes.Select(choice => choice.Label));
     }
 
+    [Fact]
+    public void The_Quantity_column_shows_and_exports_with_the_same_format()
+    {
+        RunSta(() =>
+        {
+            var view = new ServiceClaimsView(() => new FakeClaimsQuery(), NoExport) { Mode = ServiceClaimsView.DetailMode };
+            view.ActivateAsync().GetAwaiter().GetResult();
+
+            var index = view.ColumnHeaders.ToList().IndexOf("Quantity");
+            Assert.True(index >= 0);
+            var shown = Assert.IsType<System.Windows.Data.Binding>(((DataGridTextColumn)view.Table.Columns[index]).Binding).StringFormat;
+            var exported = view.BuildExportData().Columns[index].NumberFormat;
+            // R-UI-10: a fractional quantity must not be rounded on screen and kept in Excel.
+            Assert.Equal("#,##0.##", shown);
+            Assert.Equal(shown, exported);
+        });
+    }
+
+    [Fact]
+    public void The_numbers_and_the_GPRC_warning_sit_in_the_shared_summary_panel_after_the_filter_bar()
+    {
+        RunSta(() =>
+        {
+            var view = new ServiceClaimsView(() => new FakeClaimsQuery(), NoExport);
+            view.ActivateAsync().GetAwaiter().GetResult();
+
+            var numbers = Descendants<WrapPanel>(view).Single(panel => System.Windows.Automation.AutomationProperties.GetName(panel) == "Claims numbers");
+            var summary = Assert.IsType<StackPanel>(numbers.Parent);
+            var heading = Assert.IsType<StackPanel>(summary.Parent);
+            var filterBar = Descendants<ComboBox>(view).First(combo => System.Windows.Automation.AutomationProperties.GetName(combo) == "Claims table").Parent;
+            // The same place as Service Today and the Pending board (R-UI cross-lane 4): the filter bar comes first, the cards after it.
+            Assert.True(heading.Children.IndexOf((UIElement)filterBar) >= 0);
+            Assert.True(heading.Children.IndexOf(summary) > heading.Children.IndexOf((UIElement)filterBar));
+            var warning = Descendants<TextBlock>(view).Single(block => System.Windows.Automation.AutomationProperties.GetName(block) == "GPRC gap warning");
+            Assert.Same(summary, warning.Parent);
+            Assert.Contains(summary.Children.OfType<TextBlock>(), block => block.Text == ServiceClaimsView.SettlementNote);
+            // Nothing else was inserted between the intro and the filter bar.
+            Assert.DoesNotContain(heading.Children.Cast<UIElement>().Take(heading.Children.IndexOf((UIElement)filterBar)), child => ReferenceEquals(child, numbers));
+        });
+    }
+
+    [Fact]
+    public void Display_text_uses_the_fixed_display_culture_whatever_the_thread_culture_is()
+    {
+        RunSta(() =>
+        {
+            System.Globalization.CultureInfo.CurrentCulture = new System.Globalization.CultureInfo("de-DE");
+            var view = new ServiceClaimsView(() => new FakeClaimsQuery(), NoExport);
+
+            view.ActivateAsync().GetAwaiter().GetResult();
+
+            // R-UI-17: "Oct" not "Okt", "450.00" not "450,00".
+            Assert.Equal("450.00 net incl. tax · Oct 2026", view.Numbers[0].Secondary);
+            Assert.Equal("JOAW330SYN0201 · DC issued on 01 Sep 2026", view.Numbers[2].Secondary);
+            Assert.Equal("02 Oct 2026", view.Numbers[3].Value);
+            Assert.Contains("is dated 02 Oct 2026", view.GapWarningText);
+            Assert.Equal("6 month and claim type rows · All claim types · claims raised only.", view.StatusText);
+        });
+    }
+
     private static Task NoExport(string path, ExcelReportMetadata metadata, ExcelReportData data) =>
         throw new InvalidOperationException("This test does not export.");
 

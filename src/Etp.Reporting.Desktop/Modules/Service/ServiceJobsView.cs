@@ -40,7 +40,7 @@ public sealed class ServiceJobsView : ServiceScreenView
         }.Concat(ServiceJobStages.InOrder.Select(stage => new ServiceListChoice(stage, ServiceJobStages.Label(stage)))).ToArray();
 
     private readonly ComboBox showFilter = new() { MinWidth = 260, MinHeight = 44, ItemsSource = Choices, SelectedIndex = 0 };
-    private readonly Button openButton = new() { Content = "Job history", MinHeight = 44, Margin = new Thickness(8, 0, 0, 0), IsEnabled = false };
+    private readonly Button openButton = new() { Content = "Open job history", MinHeight = 44, Margin = new Thickness(8, 0, 0, 0), IsEnabled = false };
     private readonly Action<string>? openJob;
     private IReadOnlyList<ServiceJobHeader> shown = [];
 
@@ -83,7 +83,7 @@ public sealed class ServiceJobsView : ServiceScreenView
     public static ServiceListChoice? DateChoice(string code)
     {
         if (DateScope(code) is not { } scope) return null;
-        var on = scope.Date.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
+        var on = ServiceDisplay.Date(scope.Date);
         return new(code, scope.Delivered ? $"Delivered on {on}" : $"Booked on {on}");
     }
 
@@ -162,8 +162,8 @@ public sealed class ServiceJobsView : ServiceScreenView
         var booking = closed.Where(job => ServiceJobTypes.Normalise(job.JoType) == ServiceJobTypes.Booking).Select(job => job.TatDays!.Value).ToArray();
         var quick = closed.Where(job => ServiceJobTypes.Normalise(job.JoType) == ServiceJobTypes.QuickBilling).Select(job => job.TatDays!.Value).ToArray();
         var parts = new List<string>();
-        if (booking.Length > 0) parts.Add($"Booking median {ServiceJobTat.Median(booking):N0} days ({booking.Length:N0} delivered, {booking.Count(days => days > 15):N0} over 15 days)");
-        if (quick.Length > 0) parts.Add($"Quick Billing median {ServiceJobTat.Median(quick):N0} days ({quick.Length:N0} delivered)");
+        if (booking.Length > 0) parts.Add(ServiceDisplay.Text($"Booking median {ServiceJobTat.Median(booking):N0} days ({booking.Length:N0} delivered, {booking.Count(days => days > 15):N0} over 15 days)"));
+        if (quick.Length > 0) parts.Add(ServiceDisplay.Text($"Quick Billing median {ServiceJobTat.Median(quick):N0} days ({quick.Length:N0} delivered)"));
         return "TAT booking to delivered: " + string.Join(" · ", parts) + ".";
     }
 
@@ -174,7 +174,7 @@ public sealed class ServiceJobsView : ServiceScreenView
     protected override string Summarise(int count)
     {
         var tat = DescribeTat(shown);
-        return $"{count:N0} job{(count == 1 ? "" : "s")} · {SelectedChoice.Label}." + (tat.Length == 0 ? "" : " " + tat);
+        return ServiceDisplay.Text($"{count:N0} job{(count == 1 ? "" : "s")} · {SelectedChoice.Label}.") + (tat.Length == 0 ? "" : " " + tat);
     }
 
     protected override string ExportName => "Service jobs";
@@ -199,3 +199,4 @@ public sealed class ServiceJobsView : ServiceScreenView
         get { var tat = DescribeTat(shown); return tat.Length == 0 ? base.ExportMessage : base.ExportMessage + " · " + tat; }
     }
 }
+

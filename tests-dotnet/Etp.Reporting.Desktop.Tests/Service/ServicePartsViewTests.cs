@@ -219,8 +219,15 @@ public sealed class ServicePartsViewTests
             Assert.Equal("JOAW330SYN0302", opened[^1]);
 
             // Without an opener (a screen built outside the shell) the row action does nothing.
+            var openedBefore = opened.ToArray();
             var alone = new ServicePartsView(() => new FakePartsQuery(), NoExport);
-            alone.OpenJobHistory("JOAW330SYN0302");
+            Assert.Null(Record.Exception(() => alone.OpenJobHistory("JOAW330SYN0302")));
+            alone.ActivateAsync().GetAwaiter().GetResult();
+            alone.Waiting.SelectedItem = alone.WaitingRows[0];
+            Assert.Null(Record.Exception(alone.OpenSelectedJobHistory));
+            // R-UI-22: the shell's opener was not called by the view that has none, and the view shows no message about it.
+            Assert.Equal(openedBefore, opened);
+            Assert.DoesNotContain("history", alone.StatusText, StringComparison.OrdinalIgnoreCase);
         });
     }
 
@@ -273,6 +280,10 @@ public sealed class ServicePartsViewTests
             Assert.Equal(view.WaitingRows.Count, waiting.Data.Rows.Count);
             Assert.All(waiting.Data.Rows, row => Assert.Equal(waiting.Data.Columns.Count, row.Count));
             Assert.Equal("Service jobs waiting for parts", waiting.Metadata.ReportName);
+            // R-UI-13: the waiting list's own span (earliest indent date .. as-at), not the invoice grid's.
+            Assert.Equal((new DateOnly(2026, 9, 14), Snapshot), (waiting.Metadata.DateFrom, waiting.Metadata.DateTo));
+            Assert.Equal(view.WaitingExportPeriod, (waiting.Metadata.DateFrom, waiting.Metadata.DateTo));
+            Assert.NotEqual(invoices.Metadata.DateFrom, waiting.Metadata.DateFrom);
             Assert.Equal("#,##0", waiting.Data.Columns.Single(column => column.Header == "Days waiting").NumberFormat);
 
             foreach (var export in captured)

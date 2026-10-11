@@ -429,6 +429,51 @@ public sealed class ServicePendingBoardViewTests
             Assert.DoesNotContain(ForbiddenHeaderWords, word => property.Name.Contains(word.Replace("-", "").Replace(" ", ""), StringComparison.OrdinalIgnoreCase)));
     }
 
+    [Fact]
+    public void A_filter_change_re_filters_the_loaded_board_without_querying_again()
+    {
+        RunSta(() =>
+        {
+            // R-UI-19: nothing the board query returns depends on a filter.
+            var query = new FakeBoardQuery();
+            var view = new ServicePendingBoardView(() => query, NoExport, NoPackExport);
+            Assert.False(view.ApplyFilters());
+            view.ActivateAsync().GetAwaiter().GetResult();
+            Assert.Equal(1, query.BoardCalls);
+            Assert.Equal(11, view.Rows.Count);
+
+            view.SelectedStages = [ServiceStages.OnBench, ServiceStages.IndentRaised];
+            view.OverdueOnly = true;
+            Assert.True(view.ApplyFilters());
+
+            Assert.Equal(1, query.BoardCalls);
+            Assert.Equal(["JOAW330SYN0102", "JOAW330SYN0104", "JOAW330SYN0105"], view.Rows.Select(row => (string)row.Cells[0]!));
+            Assert.Same(view.Rows, view.Table.ItemsSource);
+            Assert.Equal(2, view.Groups.Count);
+            Assert.Equal(view.Groups.Select(group => group.Label), Assert.IsAssignableFrom<IEnumerable<object>>(view.Table.Items.Groups).Cast<CollectionViewGroup>().Select(group => (string)group.Name));
+            Assert.Equal("3 open jobs in 2 stage groups · stage order, longest in stage first.", view.StatusText);
+            Assert.Equal(new ServicePendingNumbers(11, 6, 4, 1, 2), view.Numbers);
+
+            // A selected job that is still shown stays selected.
+            view.Table.SelectedItem = view.Rows.Single(row => (string)row.Cells[0]! == "JOAW330SYN0104");
+            view.SelectedStages = [];
+            view.OverdueOnly = false;
+            Assert.True(view.ApplyFilters());
+            Assert.Equal(11, view.Rows.Count);
+            Assert.Equal("JOAW330SYN0104", Assert.IsType<ServicePendingBoardRow>(Assert.IsType<ServiceGridRow>(view.Table.SelectedItem).Source).JobOrderNumber);
+
+            view.SelectedBrand = "Sample Brand B";
+            Assert.True(view.ApplyFilters());
+            Assert.Equal(["JOAW330SYN0103", "JOAW330SYN0107"], view.Rows.Select(row => (string)row.Cells[0]!));
+            Assert.Equal(1, query.BoardCalls);
+
+            // Refresh still queries.
+            view.ActivateAsync().GetAwaiter().GetResult();
+            Assert.Equal(2, query.BoardCalls);
+            Assert.Equal(["JOAW330SYN0103", "JOAW330SYN0107"], view.Rows.Select(row => (string)row.Cells[0]!));
+        });
+    }
+
     // ----- fixtures -----
 
     /// <summary>A contract row; OverdueBy comes from the contract rule (ServiceAgeing.OverdueBy), as SqlServerServiceReportQuery sets it.</summary>

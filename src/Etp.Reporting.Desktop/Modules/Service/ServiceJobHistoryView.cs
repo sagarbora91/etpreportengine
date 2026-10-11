@@ -112,13 +112,13 @@ public sealed class ServiceJobHistoryView : ServiceScreenView
     public static IReadOnlyList<(string Label, string Value)> DescribeHeader(ServiceJobHeader job)
     {
         var closed = ServiceJobStages.IsClosed(job.Stage, job.ClaimRaised);
-        var stage = ServiceJobStages.Label(job.Stage) + (job.StageDate is { } stageDate ? $" · {stageDate:dd MMM yyyy}" : "")
+        var stage = ServiceJobStages.Label(job.Stage) + (job.StageDate is { } stageDate ? ServiceDisplay.Text($" · {stageDate:dd MMM yyyy}") : "")
             + (job.Stage is ServiceJobStages.DcIssued or ServiceJobStages.RaIssued ? job.ClaimRaised ? " · claim raised" : " · claim not raised" : "")
             + (!closed && job.PendingAt is { Length: > 0 } ? $" · at {job.PendingAt}" : "");
         var days = closed
-            ? job.TatDays is { } tat ? $"TAT {tat:N0} day{(tat == 1 ? "" : "s")} (booked to {(job.Stage == ServiceJobStages.Rwr ? "returned" : job.Stage == ServiceJobStages.Delivered ? "delivered" : "closed")})" : "TAT not known"
-            : job.AgeDays is { } age ? $"Open {age:N0} day{(age == 1 ? "" : "s")}" + (job.DaysInStage is { } inStage ? $" · {inStage:N0} in this stage" : "") + (job.IsOverdue ? job.Edd is { } promised && promised < job.AsAt ? " · EDD passed" : " · overdue" : "") : "Open";
-        var booked = (job.BookingDate is { } date ? date.ToString("dd MMM yyyy") : "not known") + " · " + ServiceJobTypes.Normalise(job.JoType);
+            ? job.TatDays is { } tat ? ServiceDisplay.Text($"TAT {tat:N0} day{(tat == 1 ? "" : "s")} (booked to {(job.Stage == ServiceJobStages.Rwr ? "returned" : job.Stage == ServiceJobStages.Delivered ? "delivered" : "closed")})") : "TAT not known"
+            : job.AgeDays is { } age ? ServiceDisplay.Text($"Open {age:N0} day{(age == 1 ? "" : "s")}") + (job.DaysInStage is { } inStage ? ServiceDisplay.Text($" · {inStage:N0} in this stage") : "") + (job.IsOverdue ? job.Edd is { } promised && promised < job.AsAt ? " · EDD passed" : " · overdue" : "") : "Open";
+        var booked = (job.BookingDate is { } date ? ServiceDisplay.Date(date) : "not known") + " · " + ServiceJobTypes.Normalise(job.JoType);
         var items = new List<(string, string)>
         {
             ("Job number", job.JobOrderNumber),
@@ -129,14 +129,14 @@ public sealed class ServiceJobHistoryView : ServiceScreenView
             ("Customer name", job.CustomerName is { Length: > 0 } ? job.CustomerName : "—"),
             ("Current stage", stage),
             (closed ? "TAT" : "Days open", days),
-            ("EDD", job.Edd is { } edd ? edd.ToString("dd MMM yyyy") : "—"),
+            ("EDD", job.Edd is { } edd ? ServiceDisplay.Date(edd) : "—"),
             ("Labour / spares (S003)", $"Labour {Money(job.LabourCharge)} · Spares {Money(job.SpareValue)}")
         };
         if (!closed && job.SpareRequired is { Length: > 0 }) items.Add(("Spare required", job.SpareRequired));
         return items;
     }
 
-    private static string Money(decimal? value) => value is { } amount ? amount.ToString("N2") : "—";
+    private static string Money(decimal? value) => value is { } amount ? ServiceDisplay.Money(amount) : "—";
 
     /// <summary>Snapshot date desc, then event date desc (unknown event dates last), then report code (design 3.4).</summary>
     public static IReadOnlyList<ServiceGridRow> TimelineRows(IReadOnlyList<ServiceJobTimelineRow> timeline) =>
@@ -165,7 +165,7 @@ public sealed class ServiceJobHistoryView : ServiceScreenView
     protected override string Summarise(int count)
     {
         var families = Rows.Select(row => (string?)row.Cells[2]).Distinct(StringComparer.Ordinal).Count();
-        return $"Job {searched}: {count:N0} reading{(count == 1 ? "" : "s")} across {families:N0} famil{(families == 1 ? "y" : "ies")} · newest first.";
+        return ServiceDisplay.Text($"Job {searched}: {count:N0} reading{(count == 1 ? "" : "s")} across {families:N0} famil{(families == 1 ? "y" : "ies")} · newest first.");
     }
 
     protected override string ExportName => "Service job history";
@@ -186,3 +186,4 @@ public sealed class ServiceJobHistoryView : ServiceScreenView
     protected override string ExportMessage =>
         headerItems.Count == 0 ? base.ExportMessage : base.ExportMessage + " · " + string.Join(" · ", headerItems.Select(item => $"{item.Label}: {item.Value}"));
 }
+

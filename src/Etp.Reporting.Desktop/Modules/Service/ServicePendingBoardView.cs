@@ -167,17 +167,44 @@ public sealed class ServicePendingBoardView : ServiceScreenView
         ShowNumbers(Numbers);
         RefillChoices(brandFilter, AllBrandsLabel, Board.Select(row => row.Brand), requestedBrand);
         RefillChoices(guaranteeFilter, AllGuaranteesLabel, Board.Select(row => row.Guarantee), requestedGuarantee);
+        return FilteredRows();
+    }
+
+    /// <summary>The loaded board through the current filters; sets <see cref="Groups"/>.</summary>
+    private IReadOnlyList<ServiceGridRow> FilteredRows()
+    {
         var visible = ServicePendingBoardRules.Apply(Board, Filter);
         Groups = ServicePendingBoardRules.Groups(visible);
         return visible.Select(ToRow).ToArray();
     }
 
+    /// <summary>
+    /// R-UI-19: re-applies the filters to the board already loaded, without a query (nothing the board asks the database
+    /// depends on a filter). Keeps the selected job selected when it is still shown. False when there is no loaded board
+    /// or a load is running; Refresh and the first load query.
+    /// </summary>
+    public bool ApplyFilters()
+    {
+        if (IsLoading || AsAt is null) return false;
+        var selectedJob = (Table.SelectedItem as ServiceGridRow)?.Source is ServicePendingBoardRow selected ? selected.JobOrderNumber : null;
+        ShowRows(FilteredRows());
+        GroupByStage();
+        if (selectedJob is not null)
+            Table.SelectedItem = Rows.FirstOrDefault(row => ((ServicePendingBoardRow)row.Source).JobOrderNumber == selectedJob);
+        return true;
+    }
+
     protected override Task LoadExtrasAsync(IServiceReportQuery source, Func<bool> isCurrent)
     {
         // The frame has set ItemsSource; group the grid by stage so each group has a header in stage order.
+        GroupByStage();
+        return Task.CompletedTask;
+    }
+
+    private void GroupByStage()
+    {
         Table.Items.GroupDescriptions.Clear();
         Table.Items.GroupDescriptions.Add(new PropertyGroupDescription("Source.StageLabel"));
-        return Task.CompletedTask;
     }
 
     protected override void ClearExtras()
@@ -199,7 +226,7 @@ public sealed class ServicePendingBoardView : ServiceScreenView
         var columns = BuildExportData().Columns;
         var (from, to) = ExportPeriod;
         var tables = Groups.Select(group => new ReportPackTable(group.Label,
-                $"{group.Rows.Count:N0} job{(group.Rows.Count == 1 ? "" : "s")}", AsAtText,
+                ServiceDisplay.Text($"{group.Rows.Count:N0} job{(group.Rows.Count == 1 ? "" : "s")}"), AsAtText,
                 new ExcelReportData(columns, group.Rows.Select(row => ToRow(row).Cells).ToArray())))
             .ToArray();
         return new ReportPackDocument(ExportName, from, to, "Read only", ExportRuleVersion, AsAtText, generatedUtc, tables);
@@ -218,7 +245,7 @@ public sealed class ServicePendingBoardView : ServiceScreenView
     }
 
     private static KpiCard Card(string label, int value, string secondary, string accent) =>
-        new(label, value.ToString("N0"), secondary, accent) { MinWidth = 160 };
+        new(label, ServiceDisplay.Whole(value), secondary, accent) { MinWidth = 160 };
 
     private void AddFilter(string label, ComboBox combo, string automationName, IReadOnlyList<ServiceListChoice> choices)
     {
@@ -238,6 +265,8 @@ public sealed class ServicePendingBoardView : ServiceScreenView
         requestedBrand = SelectedBrand;
         requestedGuarantee = SelectedGuarantee;
         if (!IsLoaded) return;
+        // R-UI-19: the board query does not depend on any filter, so a filter change re-filters the loaded rows.
+        if (ApplyFilters()) return;
         await ActivateAsync();
     }
 
@@ -271,7 +300,7 @@ public sealed class ServicePendingBoardView : ServiceScreenView
         : "No open jobs match these filters.";
 
     protected override string Summarise(int count) =>
-        $"{count:N0} open job{(count == 1 ? "" : "s")} in {Groups.Count:N0} stage group{(Groups.Count == 1 ? "" : "s")} · stage order, longest in stage first.";
+        ServiceDisplay.Text($"{count:N0} open job{(count == 1 ? "" : "s")} in {Groups.Count:N0} stage group{(Groups.Count == 1 ? "" : "s")} · stage order, longest in stage first.");
 
     protected override string ExportName => "Service pending board";
 

@@ -164,6 +164,68 @@ public sealed class ServiceTodayViewTests
     }
 
     [Fact]
+    public void The_Money_card_opens_the_money_check_on_that_day_and_loads_it()
+    {
+        RunSta(() =>
+        {
+            // Item 8: the drill-down is applied before the load, so the query is asked for the card's day and the grid shows it.
+            var query = new FakeTodayQuery();
+            var opened = new List<ServiceDrillDown>();
+            var today = new ServiceTodayView(() => query, NoExport, opened.Add);
+            today.ActivateAsync().GetAwaiter().GetResult();
+            today.CardButtons[4].RaiseEvent(new System.Windows.RoutedEventArgs(Button.ClickEvent));
+            var target = Assert.Single(opened);
+            Assert.Equal(ServiceScreens.MoneyTask, target.TaskId);
+
+            var money = Assert.IsType<ServiceMoneyView>(ServiceScreens.Create(target.TaskId, () => query, NoExport, target.Argument));
+            SpinUntil(() => !money.IsLoading);
+
+            Assert.Equal((new DateOnly(2026, 10, 5), new DateOnly(2026, 10, 5)), (money.From, money.To));
+            Assert.True(money.RangeChosen);
+            Assert.Equal((new DateOnly(2026, 10, 5), new DateOnly(2026, 10, 5)), query.LastMoneyRange);
+            var row = Assert.Single(money.Rows);
+            Assert.Equal([new DateOnly(2026, 10, 5), "Cash", 12_500m, 12_500m, 0m], row.Cells.Take(5));
+            Assert.Equal("1 date and tender rows · 05 Oct 2026 – 05 Oct 2026.", money.StatusText);
+        });
+    }
+
+    [Fact]
+    public void Display_text_uses_the_fixed_display_culture_whatever_the_thread_culture_is()
+    {
+        RunSta(() =>
+        {
+            System.Globalization.CultureInfo.CurrentCulture = new System.Globalization.CultureInfo("de-DE");
+            var view = new ServiceTodayView(() => new FakeTodayQuery(), NoExport);
+
+            view.ActivateAsync().GetAwaiter().GetResult();
+
+            // R-UI-17: "Oct" not "Okt", "12,500" not "12.500".
+            Assert.Equal("Counts for 05 Oct 2026. This is the latest Service export.", view.StatusText);
+            Assert.StartsWith("Service data as at 05 Oct 2026 (refreshed ", view.AsAtText, StringComparison.Ordinal);
+            Assert.Equal("12,500", view.Cards[4].Value);
+            Assert.StartsWith("41,000 net incl. tax", view.Cards[6].Detail, StringComparison.Ordinal);
+        });
+    }
+
+    [Fact]
+    public void Every_screen_that_opens_Job_history_labels_its_button_the_same()
+    {
+        RunSta(() =>
+        {
+            Func<IServiceReportQuery> none = () => throw new NotSupportedException();
+            var screens = new ServiceScreenView[]
+            {
+                new ServiceJobsView(none, NoExport, _ => { }),
+                new ServicePartsView(none, NoExport, _ => { }),
+                new ServicePendingBoardView(none, NoExport, null, _ => { })
+            };
+            foreach (var screen in screens)
+                Assert.Contains(Descendants<Button>(screen), button => button.Content as string == "Open job history");
+            Assert.DoesNotContain(screens.SelectMany(screen => Descendants<Button>(screen)), button => button.Content as string == "Job history");
+        });
+    }
+
+    [Fact]
     public void A_chosen_date_after_the_latest_export_says_no_file_covers_it_yet()
     {
         RunSta(() =>
@@ -328,6 +390,13 @@ public sealed class ServiceTodayViewTests
         public IReadOnlyDictionary<string, string> SourceKinds { get; init; } = new Dictionary<string, string> { ["S009"] = "RAW", ["S004"] = "RAW" };
         public DateOnly? LastDate { get; private set; }
         public int Calls { get; private set; }
+        public (DateOnly From, DateOnly To)? LastMoneyRange { get; private set; }
+
+        public new Task<IReadOnlyList<ServiceMoneyDay>> LoadMoneyCheckAsync(DateOnly from, DateOnly to, CancellationToken cancellationToken = default)
+        {
+            LastMoneyRange = (from, to);
+            return Task.FromResult<IReadOnlyList<ServiceMoneyDay>>([new ServiceMoneyDay(from, "Cash", 12_500m, 12_500m, 0m, ["AW330"])]);
+        }
         /// <summary>What the query answers for "no date": the latest snapshot unless a test sets the latest data day.</summary>
         public DateOnly? DefaultDate { get; init; }
 

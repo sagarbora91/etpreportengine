@@ -101,7 +101,7 @@ public sealed class ServiceTodayView : ServiceScreenView, IServiceDrillDownTarge
         // Route arguments are culture-invariant (R-UI-17). Each card opens the list its number counts (design 3.2, R-UI-04).
         var date = summary.BusinessDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         var month = summary.BusinessDate.ToString("yyyy-MM", CultureInfo.InvariantCulture);
-        var manual = summary.ManualEntered ? $"{ManualEnteredText} ({summary.ManualAmount ?? 0:N0})" : ManualMissingText;
+        var manual = summary.ManualEntered ? ServiceDisplay.Text($"{ManualEnteredText} ({summary.ManualAmount ?? 0:N0})") : ManualMissingText;
         var collectionAccent = summary.CollectionToday is null ? "PrimaryText" : summary.ManualEntered ? "Success" : "Critical";
         return
         [
@@ -113,13 +113,13 @@ public sealed class ServiceTodayView : ServiceScreenView, IServiceDrillDownTarge
                 summary.EddPassed > 0 ? "Warning" : "PrimaryText", new(ServiceScreens.PendingTask, ServiceStages.OnBench + "," + ServiceStages.IndentRaised)),
             new(ReadyLabel, N(summary.ReadyAtCentre), $"in transit back {N(summary.InTransit)}",
                 "PrimaryText", new(ServiceScreens.PendingTask, ServiceStages.ReadyForDelivery)),
-            new(CollectionLabel, summary.CollectionToday is { } collection ? collection.ToString("N0") : "—",
+            new(CollectionLabel, summary.CollectionToday is { } collection ? collection.ToString("N0", ServiceDisplay.Culture) : "—",
                 summary.CollectionToday is null ? "no S004 collection for the date · " + manual : "S004 cash, card and UPI · " + manual,
                 collectionAccent, new(ServiceScreens.MoneyTask, date)),
             new(Over15Label, N(summary.JobsOver15Days), "open jobs booked more than 15 days ago", summary.JobsOver15Days > 0 ? "Warning" : "PrimaryText",
                 new(ServiceScreens.PendingTask, ServicePendingBoardRules.Over15Days)),
             new(ClaimsLabel, N(summary.ClaimsRaisedThisMonth),
-                (summary.ClaimsValueThisMonth is { } value ? $"{value:N0} net incl. tax · " : "") + "GPRC, Module Bank, WDC and WRA documents raised (not settlement)",
+                (summary.ClaimsValueThisMonth is { } value ? ServiceDisplay.Text($"{value:N0} net incl. tax · ") : "") + "GPRC, Module Bank, WDC and WRA documents raised (not settlement)",
                 "PrimaryText", new(ServiceScreens.ClaimsTask, month))
         ];
     }
@@ -137,7 +137,7 @@ public sealed class ServiceTodayView : ServiceScreenView, IServiceDrillDownTarge
         return button;
     }
 
-    private static string N(int value) => value.ToString("N0");
+    private static string N(int value) => ServiceDisplay.Whole(value);
 
     protected override string EmptyRowsText => "No Service Today values.";
 
@@ -145,14 +145,14 @@ public sealed class ServiceTodayView : ServiceScreenView, IServiceDrillDownTarge
     {
         var date = BusinessDate ?? latestSnapshot;
         var quiet = Cards.Count > 0 && Cards.Take(2).All(card => card.Value == "0");
-        var prefix = quiet ? $"Nothing booked or delivered on {date:dd MMM yyyy}." : $"Counts for {date:dd MMM yyyy}.";
+        var prefix = quiet ? ServiceDisplay.Text($"Nothing booked or delivered on {date:dd MMM yyyy}.") : ServiceDisplay.Text($"Counts for {date:dd MMM yyyy}.");
         if (latestSnapshot is null) return prefix;
         if (date == latestSnapshot) return prefix + " This is the latest Service export.";
         if (chosen is null && date < latestSnapshot)
-            return prefix + $" This is the latest day the Service exports hold (latest export {latestSnapshot:dd MMM yyyy}).";
+            return prefix + ServiceDisplay.Text($" This is the latest day the Service exports hold (latest export {latestSnapshot:dd MMM yyyy}).");
         return date > latestSnapshot
-            ? prefix + $" The latest Service export is {latestSnapshot:dd MMM yyyy}; no file covers this date yet."
-            : prefix + $" Latest Service export {latestSnapshot:dd MMM yyyy}.";
+            ? prefix + ServiceDisplay.Text($" The latest Service export is {latestSnapshot:dd MMM yyyy}; no file covers this date yet.")
+            : prefix + ServiceDisplay.Text($" Latest Service export {latestSnapshot:dd MMM yyyy}.");
     }
 
     protected override string ExportName => "Service today";
@@ -161,3 +161,4 @@ public sealed class ServiceTodayView : ServiceScreenView, IServiceDrillDownTarge
         get { var date = BusinessDate ?? latestSnapshot ?? DateOnly.FromDateTime(DateTime.Today); return (date, date); }
     }
 }
+

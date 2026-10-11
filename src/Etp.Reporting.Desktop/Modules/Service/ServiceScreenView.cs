@@ -135,9 +135,21 @@ public abstract class ServiceScreenView : UserControl
             Table.Columns.Add(new DataGridTextColumn
             {
                 Header = value[index].Header,
-                Binding = new Binding($"Cells[{index}]") { StringFormat = value[index].DisplayFormat },
+                Binding = new Binding($"Cells[{index}]") { StringFormat = value[index].DisplayFormat, ConverterCulture = ServiceDisplay.Culture },
                 Width = value[index].Width
             });
+    }
+
+    /// <summary>
+    /// Replaces the shown rows without re-querying (the Pending board re-filters its loaded rows, R-UI-19): the grid, the
+    /// Export button and the status line follow the new rows. Does nothing while a load is running; that load applies the
+    /// screen's current filters itself.
+    /// </summary>
+    protected void ShowRows(IReadOnlyList<ServiceGridRow> rows)
+    {
+        if (IsLoading) return;
+        Rows = rows; Table.ItemsSource = rows; exportButton.IsEnabled = rows.Count > 0;
+        StatusText = rows.Count == 0 ? EmptyRowsText : Summarise(rows.Count);
     }
 
     /// <summary>Re-reads the refresh log and then this screen's rows.</summary>
@@ -213,7 +225,7 @@ public abstract class ServiceScreenView : UserControl
         if (refreshes.Count == 0) return NoDataText;
         var latest = refreshes.Max(refresh => refresh.SnapshotDate);
         var imported = refreshes.Max(refresh => AsUtc(refresh.ImportedAtUtc)).ToLocalTime();
-        return $"Service data as at {latest:dd MMM yyyy} (refreshed {imported:dd MMM yyyy})";
+        return ServiceDisplay.Text($"Service data as at {latest:dd MMM yyyy} (refreshed {imported:dd MMM yyyy})");
     }
 
     private void ShowFreshness(IReadOnlyList<ServiceFreshnessChip> chips, string note = "")
@@ -247,7 +259,7 @@ public abstract class ServiceScreenView : UserControl
     protected virtual Task LoadExtrasAsync(ServiceReportQuery source, Func<bool> isCurrent) => Task.CompletedTask;
     protected virtual void ClearExtras() { }
     protected virtual string EmptyRowsText => "No rows for this choice.";
-    protected virtual string Summarise(int count) => $"{count:N0} rows.";
+    protected virtual string Summarise(int count) => ServiceDisplay.Text($"{count:N0} rows.");
     protected virtual string ExportName => title;
     /// <summary>The export's period (SD-09: the screen's chosen or shown range, not today).</summary>
     protected virtual (DateOnly From, DateOnly To) ExportPeriod => (DateOnly.FromDateTime(DateTime.Today), DateOnly.FromDateTime(DateTime.Today));
@@ -275,7 +287,7 @@ public abstract class ServiceScreenView : UserControl
         try
         {
             await ExportToPathAsync(dialog.FileName);
-            StatusText = $"Exported {Rows.Count:N0} rows to {System.IO.Path.GetFileName(dialog.FileName)}.";
+            StatusText = ServiceDisplay.Text($"Exported {Rows.Count:N0} rows to {System.IO.Path.GetFileName(dialog.FileName)}.");
         }
         catch (Exception exception)
         {
@@ -286,3 +298,4 @@ public abstract class ServiceScreenView : UserControl
     protected static string Joined(IEnumerable<string>? values) =>
         values is null ? "" : string.Join(", ", values.Where(value => !string.IsNullOrWhiteSpace(value)).Distinct(StringComparer.OrdinalIgnoreCase));
 }
+
