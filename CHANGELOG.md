@@ -2,6 +2,58 @@
 
 ## [Unreleased]
 
+## [1.11.0] - (date after the 1.11.0 gate)
+
+Self-diagnostics (design `docs/design/SELF-DIAGNOSTICS.md`): an error register, a 51-line read-only health check that runs by itself every night, a privacy-checked export for the weekly audit, and two Owner screens. Decision 33 (11 Oct 2026): nightly at 02:30 with catch-up, Known per item for up to 90 days, the HealthExports folder, the weekly audit keeps `FIX-TICKET-REGISTER.md`, health screens Owner-only with a one-line tile for everyone else. Decision 36: CHECKDB in the monthly drill, Warnings counted not registered, the five 1.9.x errors seeded as fixed, a Warning becomes a ticket only after 7 nights, a confirmation during shop hours, retention 400/180/90 days, SQL Server RTM is a Warning, and the permission matrix is checked in. Two migrations: 0054 (error register) and 0055 (health check).
+
+**Error register**
+
+- Every Error and Critical diagnostics entry gets a version-1 fingerprint (event, reason code, source, failing method, exception type, SQL number), so repeats of one bug are one register entry; line numbers, stores, dates and Refs are never part of it.
+- The diagnostics log is read into the register from a cursor in batches of 500: once after each start, on every health run and on Refresh. A failed read is logged and retried, never shown as a dialog. Warnings are counted per event code, not registered.
+- A fix manifest shipped with the app marks known fixed errors as "Fixed in" when a new version first runs; the five 1.9.x entries are seeded (ER-0002, a Warning since 1.9.9, is seeded as fixed in 1.9.9). An entry marked fixed that is seen again from that version or later turns Recurred.
+- Settings > Database > Error register (Owner): every logged failure grouped by cause; Find Ref finds the entry for the "Ref:" in an error message; Mark seen, Mark expected, Link ticket, Mark fixed in version, Merge into, and Copy summary (privacy-safe: no stack, no messages).
+
+**Health check**
+
+- 51 checks in a fixed order (Database, Errors, Operations, Security, Data, Imports, Reports) within a 120-second budget. A check that cannot run says Skipped and why; a Known warning (up to 90 days, per item) never hides a failure; a repeated warning shows "unchanged since".
+- Database DB-01..05: connection, migrations complete, integrity (suspect pages, page verify, last CHECKDB), database options (AUTO_CLOSE, state), data size against the Express limit.
+- Security SEC-01..03: the four ETP roles' permissions compared with a checked-in matrix (`ExpectedRolePermissions.json`; a grant change in a migration fails the gate until the matrix is regenerated), role membership, Owner grant option.
+- Reports RPT-01..22: every catalogue report runs for yesterday through the same queries as the Reports screen. A report that says Blocked for missing data is a Pass; an exception or a timeout is a Fail and is logged as HEALTH_REPORT_PROBE_FAILED.
+- Imports IMP-01..03: every export family (and the daily-inputs sheet) is still recognised, using in-memory synthetic samples; unresolved failed imports; the state of the watch folders.
+- Data DATA-01..05: yesterday's missing exports, manual inputs and targets (each kind can be made Known), sales against tender, closing-stock snapshot age, Service Centre freshness, open critical data-quality issues. A gap is reported once, by the check that owns it.
+- Operations OPS-01..09: last verified backup, recovery drill, the three ETP scheduled tasks, free disk space, folder permissions, SQL Server build, unattended runs, backup and drill failure logs, and the Windows event log. Anything the account cannot read is Skipped, never a Fail. A SQL Server RTM build (no cumulative update) is a Warning with the CU runbook as the fix.
+- Errors ERR-01..04: this run's read of the log into the register, new errors since the previous run (a new Critical is a Fail), errors that came back after a fix, and crash-like errors.
+- Nightly: the five-minute automation task runs the full check once a night from 02:30 (or at the first run after the PC is switched on), also when automatic import is off; it never overlaps an import, and a run that cannot complete is logged (HEALTH_RUN_FAILED) and retried at most three times.
+- Settings > Database > Health check (Owner): the latest run, Fails first; Run health check (asks first between 09:00 and 21:00); Compare with an earlier run; Mark selected warning as Known; Open export folder. F1 on either new screen opens the new Help topic.
+- A one-line "System check" tile on the Today screen for every role: last night OK, N warnings, or N problems - tell the Owner.
+- Plain-words messages for the new database refusals (51800-51806, 51820-51824).
+
+**Exports, setup and scripts**
+
+- Each health run writes a privacy-checked JSON file to `C:\ProgramData\EtpReporting\HealthExports` (kept 90 days): check results, changes since the previous run, and the error register by code, count, date and version only; anything that looks like customer data is replaced and counted.
+- Setup creates the HealthExports folder, writable only by the automation account and the active Owners (administrators and SYSTEM keep full control); OPS-05 accepts exactly that.
+- The support package includes the newest 14 health exports.
+- The monthly recovery drill also runs `DBCC CHECKDB ... WITH PHYSICAL_ONLY` on the live database after a passed drill, so DB-03 always has a recent integrity date.
+- ETP scheduled tasks can be read by name (automation, daily backup, monthly recovery drill); the automatic-import task status on the Operations screen is unchanged.
+
+**Database (migrations 0054, 0055)**
+
+- Schema `diag` with the error register (0054) and the health-check store (0055). Data reaches these tables only through procedures; ingest accepts tokens only, and every ETP role can send its own errors. The Owner and the automation account read the register; only the Owner changes it.
+- Retention: error occurrences 180 days (always the newest 20 per entry), health runs 400 days, Known warnings until their date (at most 90 days).
+- Security: new EXECUTE grants on the `diag` procedures (listed in `ExpectedRolePermissions.json`); the new user `diag_catalog_reader` (cannot sign in, VIEW DEFINITION only) backs the role-permission check.
+
+**Imports**
+
+- A daily-inputs sheet chosen as a single file or in a multi-file batch is now recognised and applied exactly like one in the watch folder (same checks, messages, History row and failure-register row). This replaces the 1.10.1 known limitation.
+
+**Help and documentation**
+
+- New Help topic "Health check & Error register"; the User guide and the Operations guide describe the new screens, the export folder and the nightly run. The weekly-audit Part 0 text and the fix-ticket register template are handed to Sagar for approval (outside the repo).
+
+**Build and tests**
+
+- Tests: unit projects and gate result filled in after the gate.
+
 ## [1.10.1] - (date after the 1.10.1 gate)
 
 Two-PC plan C+ (decision 30, 11 Oct 2026): Workpc stays the only ETP database; the three shop PCs (Titan cashier, Helios, Service) send their exports and a staff daily-inputs sheet through OneDrive under one shared Microsoft account (decision 34), and Workpc's watch folder imports them. Daily-inputs answers (decision 31), the audit decisions implemented so far (decision 32), Service Centre fixes from the 1.10.0 review, and report fixes. Two migrations: 0052 (Service job view fixes, Service-money shop flag) and 0053 (retire unused Stock manual inputs).
