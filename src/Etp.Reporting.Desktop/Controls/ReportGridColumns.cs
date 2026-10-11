@@ -78,7 +78,7 @@ public static class ReportGridColumns
         [typeof(StockInventoryRecord)] =
         [
             new("SnapshotDate", "Date"), new("StoreCode", "Store"), new("ProductCode", "Item"), new("Brand", "Brand"), new("BrandRow", "Brand row"),
-            new("InventoryGroup", "Inventory Group"), new("Quantity", "Quantity"), new("UnitCost", Modules.Reports.ReportsWorkspaceView.UnitMrpHeader, true),
+            new("InventoryGroup", "Cluster"), new("Quantity", "Quantity"), new("UnitCost", Modules.Reports.ReportsWorkspaceView.UnitMrpHeader, true),
             new("TotalCost", Modules.Reports.ReportsWorkspaceView.MrpValueHeader, true), new("LastSaleDate", "Last Sale"),
             new("DaysSinceLastSale", "Days Since Sale"), new("LastReceiptDate", "Last Receipt"), new("DaysSinceReceipt", "Days Since Receipt"),
             new("MovementStatus", "Movement Status"), new("SnapshotSource", "Snapshot Source")

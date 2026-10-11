@@ -61,7 +61,7 @@ public sealed class ReportLabelCorrectionTests
             var headers = export.ExportData!.Columns.Select(column => column.Header).ToArray();
             Assert.Contains("MRP value (GST incl.)", headers);
             // Owner answer Q3/Q5: the owner's brand row comes first; with no cluster mapping it is the brand.
-            Assert.Equal(["Store", "Brand row", "Brand", "Inventory Group"], headers.Take(4).ToArray());
+            Assert.Equal(["Store", "Brand row", "Brand", "Cluster"], headers.Take(4).ToArray());
             Assert.Equal(new object?[] { "WLMHW", "TITAN", "TITAN", "WATCHES" }, export.ExportData.Rows.Single().Take(4).ToArray());
             Assert.DoesNotContain(headers, header => header.Contains("Cost", StringComparison.OrdinalIgnoreCase));
             Assert.Contains("UCP × quantity", export.ExportMetadata!.Message, StringComparison.Ordinal);
