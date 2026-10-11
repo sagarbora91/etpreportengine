@@ -41,7 +41,8 @@ public static partial class DailyInputsParser
             return Fail(errors, DailyInputsCodes.TemplateVersion, null);
 
         // Key/value rows above the field rows, found by key so a moved row still reads.
-        WorkbookRow? Keyed(string key) => sheet.Rows.FirstOrDefault(r =>
+        IReadOnlyList<WorkbookRow> sheetRows = sheet.Rows;
+        WorkbookRow? Keyed(string key) => sheetRows.FirstOrDefault(r =>
             string.Equals(DailyInputsTemplate.CellText(r, KeyColumn), key, StringComparison.OrdinalIgnoreCase));
 
         // 1. Template version.
@@ -89,7 +90,7 @@ public static partial class DailyInputsParser
         };
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var values = new List<DailyInputValue>();
-        foreach (var row in sheet.Rows)
+        foreach (var row in sheetRows)
         {
             var code = DailyInputsTemplate.CellText(row, KeyColumn);
             var cell = row.Cells.Count > ValueColumn ? row.Cells[ValueColumn] : null;

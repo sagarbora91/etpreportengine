@@ -44,21 +44,24 @@ public sealed class DailyInputsParserTests
         Assert.NotNull(none.Document); // store and date still known for the failure register
     }
 
-    public static TheoryData<object> DateForms => new()
-    {
-        new DateTime(2026, 10, 5),
-        "2026-10-05",
-        "05-10-2026",
-        "05/10/2026",
-        "05-Oct-2026",
-        " 5-Oct-2026 "
-    };
-
     [Theory]
-    [MemberData(nameof(DateForms))]
-    public void The_business_date_reads_as_a_date_cell_and_each_text_form(object date)
+    [InlineData("2026-10-05")]
+    [InlineData("05-10-2026")]
+    [InlineData("05/10/2026")]
+    [InlineData("05-Oct-2026")]
+    [InlineData(" 5-Oct-2026 ")]
+    public void The_business_date_reads_each_text_form(string date)
     {
         var result = Parse(Sheet(date: date, fileName: "ETP-Daily-Inputs-HEMW-RETAIL-2026-10-05.xlsx", fields: [("WALK_INS", 3m)]));
+
+        Assert.True(result.Succeeded, string.Join(", ", ErrorCodes(result)));
+        Assert.Equal(new DateOnly(2026, 10, 5), result.Document!.BusinessDate);
+    }
+
+    [Fact]
+    public void The_business_date_reads_as_a_date_cell()
+    {
+        var result = Parse(Sheet(date: new DateTime(2026, 10, 5), fields: [("WALK_INS", 3m)]));
 
         Assert.True(result.Succeeded, string.Join(", ", ErrorCodes(result)));
         Assert.Equal(new DateOnly(2026, 10, 5), result.Document!.BusinessDate);
