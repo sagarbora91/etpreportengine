@@ -1,3 +1,4 @@
+using Etp.Reporting.Application.HealthCheck;
 using Etp.Reporting.Application.ErrorRegister;
 using Microsoft.Data.SqlClient;
 

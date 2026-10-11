@@ -21,7 +21,7 @@ public sealed class SyntheticFamilySamplesTests
         Assert.Equal(Families.Count, samples.Count);
         Assert.Equal(Families.Select(f => f.FamilyCode), samples.Select(s => s.Family.FamilyCode));
         Assert.Equal(samples.Count, samples.Select(s => s.Workbook.FileName).Distinct(StringComparer.OrdinalIgnoreCase).Count());
-        Assert.All(samples, s => Assert.Equal(1, s.Workbook.Sheets.Single().Rows.Count));
+        Assert.All(samples, s => Assert.Single(s.Workbook.Sheets.Single().Rows));
     }
 
     [Fact]
