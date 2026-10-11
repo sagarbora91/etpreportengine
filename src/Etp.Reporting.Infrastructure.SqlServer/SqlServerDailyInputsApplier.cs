@@ -1,3 +1,4 @@
+using Etp.Reporting.Application.Imports;
 using Etp.Reporting.Import.DailyInputs;
 using Microsoft.Data.SqlClient;
 
@@ -17,21 +18,21 @@ public sealed class SqlServerDailyInputsApplier : IDailyInputsApplier
     internal const string FamilyCode = "D001";
     internal const int ReasonLength = 500;
 
-    // The DAILY_INPUTS_* codes this side raises; the same values as DailyInputsCodes (inputs-import's contract file).
-    internal const string NoPermission = "DAILY_INPUTS_NO_PERMISSION";
-    internal const string UnknownStore = "DAILY_INPUTS_UNKNOWN_STORE";
-    internal const string FieldInactive = "DAILY_INPUTS_FIELD_INACTIVE";
-    internal const string FieldKindMismatch = "DAILY_INPUTS_FIELD_KIND_MISMATCH";
-    internal const string FieldNotForSheet = "DAILY_INPUTS_FIELD_NOT_FOR_SHEET";
-    internal const string DayFinalised = "DAILY_INPUTS_DAY_FINALISED";
+    // The DAILY_INPUTS_* codes this side raises (DailyInputsCodes, the shared contract). Issue messages are the catalogue's
+    // value-free templates, so History keeps them as written (ImportDiagnosticCatalogue.SafeMessage).
+    internal const string NoPermission = DailyInputsCodes.NoPermission;
+    internal const string UnknownStore = DailyInputsCodes.UnknownStore;
+    internal const string FieldInactive = DailyInputsCodes.FieldInactive;
+    internal const string FieldKindMismatch = DailyInputsCodes.FieldKindMismatch;
+    internal const string FieldNotForSheet = DailyInputsCodes.FieldNotForSheet;
+    internal const string DayFinalised = DailyInputsCodes.DayFinalised;
 
-    internal const string NoPermissionMessage = "Owner or Store Manager permission is required to import daily inputs.";
-    internal const string UnknownStoreMessage = "The store on this daily inputs sheet is not an active ETP store. Use the template for this shop.";
-    internal const string FieldInactiveMessage = "This input is no longer used by ETP. Use the current daily inputs template.";
-    internal const string FieldKindMismatchMessage = "This input's type differs from ETP's definition. Use the current daily inputs template.";
-    internal const string FieldNotForSheetMessage = "This input does not belong on this sheet type. Use the template for this shop.";
-    internal const string DayFinalisedMessage =
-        "This business day is finalised, so its manual entries cannot change. Reopen the day, then put the file in the watch folder again.";
+    internal static string NoPermissionMessage => ImportDiagnosticCatalogue.Template(NoPermission);
+    internal static string UnknownStoreMessage => ImportDiagnosticCatalogue.Template(UnknownStore);
+    internal static string FieldInactiveMessage => ImportDiagnosticCatalogue.Template(FieldInactive);
+    internal static string FieldKindMismatchMessage => ImportDiagnosticCatalogue.Template(FieldKindMismatch);
+    internal static string FieldNotForSheetMessage => ImportDiagnosticCatalogue.Template(FieldNotForSheet);
+    internal static string DayFinalisedMessage => ImportDiagnosticCatalogue.Template(DayFinalised);
     internal const string DuplicateMessage = "This daily inputs file was already imported for this store and date; nothing was changed.";
     internal const string AlreadyPresentMessage = "Every value on this daily inputs sheet is already stored; nothing was changed.";
 

@@ -463,13 +463,12 @@ public sealed class FolderImportService(
         };
     }
 
-    // The folder side's own D001 code; the same value as DailyInputsCodes (the inputs-import contract file).
-    internal const string DailyInputsNotAvailableCode = "DAILY_INPUTS_NOT_AVAILABLE";
-    internal const string DailyInputsNotAvailableMessage =
-        "Daily inputs files are imported only into the ETP database. Put the file in the watch folder of the office PC.";
+    // The folder side's own D001 code (DailyInputsCodes); messages are the catalogue's value-free templates.
+    internal const string DailyInputsNotAvailableCode = DailyInputsCodes.NotAvailable;
+    internal static string DailyInputsNotAvailableMessage => ImportDiagnosticCatalogue.Template(DailyInputsCodes.NotAvailable);
     // A parse that returned no document and no error (not expected): the sheet is treated as an unknown template.
-    private const string DailyInputsNotReadCode = "DAILY_INPUTS_TEMPLATE_VERSION";
-    private const string DailyInputsNotReadMessage = "The daily inputs sheet could not be read. Use the current template.";
+    private const string DailyInputsNotReadCode = DailyInputsCodes.TemplateVersion;
+    private static string DailyInputsNotReadMessage => ImportDiagnosticCatalogue.Template(DailyInputsCodes.TemplateVersion);
 
     private FolderImportFileResult DailyInputsFailed(FolderImportFileResult result, FailureStage stage,
         IReadOnlyList<DailyInputsIssue> errors, string message, string? code = null)
