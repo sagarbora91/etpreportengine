@@ -142,7 +142,7 @@ public sealed class DailyReportingPackService(string connectionString)
                     ? "Service cash, card and UPI are not entered (not required to finalise); missing values are not converted to zero. Enter them on Today > Cash > Cash and service entries."
                     : "Service tender values are controlled operational facts and remain separate from retail sales."),
             new("Tender Reconciliation", tender.Status, tender.TenderTotal, tender.Variance, tender.Message),
-            new("Daily Cash Reconciliation", cash.Status, cash.CalculatedClosing, cash.Variance, cash.Message),
+            new("Daily Cash Reconciliation", CashSectionStatus(cash), cash.CalculatedClosing, cash.Variance, CashSectionMessage(cash)),
             new("System Closing Stock", stock.Status, stock.Items.Count == 0 ? null : stock.Items.Sum(x => x.ReportedClosing),
                 stock.Items.Count == 0 ? null : stock.Items.Sum(x => x.Variance), stock.Message),
             new("Physical Closing Stock", physicalFailures > 0 ? ReconciliationStatus.Failed : physicalMissing > 0 || physicalStock.Count==0 ? ReconciliationStatus.NotRun : ReconciliationStatus.Passed,
@@ -187,6 +187,23 @@ public sealed class DailyReportingPackService(string connectionString)
             storeCode, businessDate, generatedBy, controlJson, ReportPackArchiveCodec.Serialize(document), cancellationToken);
         return new(storeCode, businessDate, status, sections, message, generatedAt, document, generation.GenerationNumber, generation.ContentSha256);
     }
+
+    /// <summary>
+    /// Decision 32: Service cash/card/UPI are not required to finalise. A cash balance that is incomplete only because
+    /// Service cash is not entered (opening, expenses, deposit and the retail cash source are present) is NotRun, not
+    /// Blocked, so it warns instead of refusing. A cash variance stays Failed (a warning with its amount).
+    /// </summary>
+    internal static ReconciliationStatus CashSectionStatus(CashReconciliationResult cash) =>
+        IsMissingOnlyServiceCash(cash) ? ReconciliationStatus.NotRun : cash.Status;
+
+    internal static string CashSectionMessage(CashReconciliationResult cash) =>
+        IsMissingOnlyServiceCash(cash)
+            ? $"Service cash is not entered (not required to finalise); the cash balance is not calculated without it. Enter it on {OperationalInputScreens.For("SERVICE_CASH")}. {cash.Message}"
+            : cash.Message;
+
+    private static bool IsMissingOnlyServiceCash(CashReconciliationResult cash) =>
+        cash.Status == ReconciliationStatus.Blocked && cash.ServiceCash is null
+        && cash.OpeningCash is not null && cash.Expenses is not null && cash.CashDeposit is not null && cash.RetailCash is not null;
 
     /// <summary>
     /// RA-OPS-12: with no closing-stock snapshot for the day there are no brand rows, so the section must say so instead of

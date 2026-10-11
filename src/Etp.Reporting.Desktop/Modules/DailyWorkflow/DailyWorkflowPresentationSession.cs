@@ -170,8 +170,15 @@ public sealed class DailyWorkflowPresentationSession
         const string finalised = "Business day finalised and dashboard readiness refreshed.";
         var warnings = FinaliseWarnings(sections);
         return warnings.Count == 0 ? finalised
-            : $"{finalised} Finalised with {warnings.Count:N0} warning(s): {string.Join("; ", warnings.Select(x => $"{x.Report} ({(x.Status == DailyControlStatus.Failed ? "variance" : "not entered")})"))}.";
+            : $"{finalised} Finalised with {warnings.Count:N0} warning(s): {string.Join("; ", warnings.Select(WarningText))}.";
     }
+
+    /// <summary>Decision 32: a variance warns, with its amount, and never refuses finalisation.</summary>
+    internal static string WarningText(DailyPackSection section) =>
+        section.Status != DailyControlStatus.Failed ? $"{section.Report} (not entered)"
+        : section.Variance is { } amount and not 0m
+            ? string.Create(CultureInfo.InvariantCulture, $"{section.Report} (variance {amount:N2})")
+            : $"{section.Report} (variance)";
 
     public static ReopenDailyWorkflow CreateReopen(
         DailyWorkflowScope scope,
