@@ -1,0 +1,328 @@
+-- Service Centre UI fixes (1.10.1, lane service-sql, 11 Oct 2026): the findings 0050 left open (110-INTEGRATION-DONE.md,
+-- "Left for the next session"; 110-REVIEW-SQL-FINDINGS.md) and RA-OPS-21. 0050 has shipped in 1.10.0 and is checksummed,
+-- so the affected views are restated here in full with CREATE OR ALTER; 0048 and 0050 are never edited.
+--
+-- The migration runner applies this entire script in one transaction, so it has no BEGIN or COMMIT and no GO.
+-- Every statement is idempotent: the stores column is added only when missing, the flag is set only when no store holds it,
+-- and every view is CREATE OR ALTER through EXEC(N'...') followed by its grants. No view exposes a phone, e-mail or address
+-- column, and every view selects columns by name.
+SET XACT_ABORT ON;
+
+-- >>> E_SERVICE_UI_FIXES begin
+-- Owner: lane service-sql.
+
+-- 1. RA-OPS-21: the shop that enters the Service centre's money (decision 16, Q1) is a flag on dbo.stores instead of a
+-- store code written in v_service_manual_money. At most one store holds it (filtered unique index). The seed is the shop
+-- the 0048 view named (seeded by 0011), set only when no store holds the flag yet, so a later change in data is kept.
+IF COL_LENGTH(N'dbo.stores', N'is_service_money_shop') IS NULL
+    ALTER TABLE dbo.stores ADD is_service_money_shop bit NOT NULL CONSTRAINT DF_stores_is_service_money_shop DEFAULT (0);
+EXEC(N'IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N''dbo.stores'') AND name=N''UX_stores_service_money_shop'')
+  CREATE UNIQUE INDEX UX_stores_service_money_shop ON dbo.stores(is_service_money_shop) WHERE is_service_money_shop=1;');
+EXEC(N'IF NOT EXISTS(SELECT 1 FROM dbo.stores WHERE is_service_money_shop=1)
+  UPDATE dbo.stores SET is_service_money_shop=1,modified_by=SUSER_SNAME(),modified_utc=SYSUTCDATETIME(),
+    change_reason=N''Service money shop flag (migration 0052, RA-OPS-21)''
+  WHERE store_code=''WLMHW'';');
+
+-- 2. v_service_manual_money as in 0048 (same source table, codes, columns and order; the daily-inputs path writes
+-- dbo.manual_operational_inputs as before), with is_service_money_shop read from the store's flag.
+EXEC(N'CREATE OR ALTER VIEW dbo.v_service_manual_money AS
+SELECT m.business_date,m.store_code,s.store_name,m.field_code,m.numeric_value amount,
+  CASE m.field_code WHEN ''SERVICE_CASH'' THEN ''CASH'' WHEN ''SERVICE_CARD'' THEN ''CARD'' WHEN ''SERVICE_UPI'' THEN ''UPI'' END tender,
+  CONVERT(bit,COALESCE(s.is_service_money_shop,0)) is_service_money_shop
+FROM dbo.manual_operational_inputs m LEFT JOIN dbo.stores s ON s.store_code=m.store_code
+WHERE m.field_code LIKE ''SERVICE[_]%'' AND m.numeric_value IS NOT NULL');
+
+-- 3. The data revision of the Service job model (R-SQL-15): it changes whenever a Service reading is imported, superseded,
+-- restated or its batch changes state, so the query layer can read v_service_job once per revision and share the rows
+-- across the Today, Pending, Jobs, Claims and Parts tabs. Same live-family list as v_service_job.
+EXEC(N'CREATE OR ALTER VIEW dbo.v_service_job_revision AS
+SELECT COUNT_BIG(*) files,MAX(f.import_file_id) last_import_file_id,
+  CHECKSUM_AGG(CHECKSUM(f.import_file_id,f.is_superseded,f.data_truth_version,b.status,f.period_end,f.business_date)) state
+FROM dbo.import_files f JOIN dbo.import_batches b ON b.import_batch_id=f.import_batch_id
+WHERE f.report_code IN(''S002'',''S003'',''S004'',''S006'',''S007'',''S008'',''S009'',''S010'',''S011'',''S012'',''S013'',''S014'',''S015'',''S016'',''S017'',''S018'',''S019'',''S020'',''S021'',''S022'',''S023'',''S024'',''S025'',''S026'',''S029'',''S030'',''S031'',''S032'',''S033'',''S034'',''S035'',''S036'',''S037'',''S039'',''S040'',''S041'')');
+
+-- 4. v_service_job, restated from 0050 section 3 with these changes (everything else is 0050's text):
+--   R-SQL-03 tail: srn_date (the SRN_OUT stage date and the srn_date column) comes from open S011 SRN rows only;
+--     srn_any_date (every S011 row) is only the last fallback for the date of a closed SRN's DC_ISSUED / READY stage.
+--   R-SQL-04: the latest S009 decides before the SRN check because it is the fresher daily list (S011 is consolidated
+--     monthly). Its jostatus SRN_For_Repair is ON_BENCH, as design 4.2 rule 8 lists it; other SRN_* statuses are SRN_OUT.
+--     Design 4.2 amendment (decision 25 note): rules 7-8 for S009 are evaluated before rule 6.
+--   R-SQL-09: last_reading_date takes S009/S010 only from their latest reading (the state CTE), never from older readings.
+--   R-SQL-10: a DateLog line (S003/S029) without a business date is never counted (as v_service_datelog_readings).
+--   R-SQL-11: claim_raised / is_open read the claim lines through v_service_claims (DateLog winner, new header wins per
+--     document, an S026 line with a WDC document is WDC only), so the job model and the Claims screen count alike.
+--   R-SQL-13: age_days, days_in_stage and the EDD test are measured to the job's own as-at, last_reading_date (the
+--     latest snapshot of the lists that hold it, design 4.3), or to as_at when no list holds it.
+--   R-SQL-16 / R-UI-07: two columns after as_at (0050's ordinals are unchanged): claim_date = the first WDC (DC job) or
+--     WRA (RA job) claim date, and closed_date = the delivery / RWR date, or the claim date of a job closed by its claim.
+-- The timeline (v_service_job_timeline, 0050) lists every live reading of a DateLog family, so one claim or revenue line
+-- can appear once per overlapping reading: its amount is shown per row and must never be summed (R-SQL-12).
+EXEC(N'CREATE OR ALTER VIEW dbo.v_service_job AS
+WITH live AS (
+  SELECT f.import_file_id,f.report_code,COALESCE(f.period_end,f.business_date) snapshot_date
+  FROM dbo.import_files f JOIN dbo.import_batches b ON b.import_batch_id=f.import_batch_id
+  WHERE f.is_superseded=0 AND f.data_truth_version=1 AND b.status=''Completed''
+    AND f.report_code IN(''S002'',''S003'',''S004'',''S006'',''S007'',''S008'',''S009'',''S010'',''S011'',''S012'',''S013'',''S014'',''S015'',''S016'',''S017'',''S018'',''S019'',''S020'',''S021'',''S022'',''S023'',''S024'',''S025'',''S026'',''S029'',''S030'',''S031'',''S032'',''S033'',''S034'',''S035'',''S036'',''S037'',''S039'',''S040'',''S041'')
+    AND COALESCE(f.period_end,f.business_date) IS NOT NULL
+), job_rows AS (
+  SELECT report_code,import_file_id,job_order_number FROM dbo.v_service_status_view_facts
+  UNION ALL SELECT ''S002'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),job_order_no))),N'''') FROM dbo.etp_landing_s002
+  UNION ALL SELECT ''S009'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),jonumber))),N'''') FROM dbo.etp_landing_s009
+  UNION ALL SELECT ''S010'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),jonumber))),N'''') FROM dbo.etp_landing_s010
+  UNION ALL SELECT ''S011'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),joborder_number))),N'''') FROM dbo.etp_landing_s011
+  UNION ALL SELECT ''S012'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),jonumber))),N'''') FROM dbo.etp_landing_s012
+  UNION ALL SELECT ''S020'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),jobordernumber))),N'''') FROM dbo.etp_landing_s020
+  UNION ALL SELECT ''S021'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),jobordernumber))),N'''') FROM dbo.etp_landing_s021
+  UNION ALL SELECT ''S030'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),job_order_number))),N'''') FROM dbo.etp_landing_s030
+  UNION ALL SELECT ''S036'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),job_order_no))),N'''') FROM dbo.etp_landing_s036
+  UNION ALL SELECT ''S037'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),job_order_no))),N'''') FROM dbo.etp_landing_s037
+), held AS (
+  SELECT x.job_order_number,x.report_code,x.import_file_id,x.snapshot_date FROM (
+    SELECT j.job_order_number,j.report_code,j.import_file_id,l.snapshot_date,
+      ROW_NUMBER() OVER(PARTITION BY j.job_order_number,j.report_code ORDER BY l.snapshot_date DESC,j.import_file_id DESC) rn
+    FROM (SELECT DISTINCT report_code,import_file_id,job_order_number FROM job_rows WHERE job_order_number IS NOT NULL) j
+    JOIN live l ON l.import_file_id=j.import_file_id AND l.report_code=j.report_code
+  ) x WHERE x.rn=1
+), state_latest AS (
+  SELECT x.report_code,x.import_file_id,x.snapshot_date FROM (
+    SELECT l.report_code,l.import_file_id,l.snapshot_date,
+      ROW_NUMBER() OVER(PARTITION BY l.report_code ORDER BY l.snapshot_date DESC,
+        CASE WHEN EXISTS(SELECT 1 FROM dbo.etp_landing_s009 s WHERE s.import_file_id=l.import_file_id)
+               OR EXISTS(SELECT 1 FROM dbo.etp_landing_s010 s WHERE s.import_file_id=l.import_file_id) THEN 1 ELSE 0 END DESC,
+        l.import_file_id DESC) rn
+    FROM live l WHERE l.report_code IN(''S009'',''S010'')
+  ) x WHERE x.rn=1
+), facts AS (
+  SELECT f.job_order_number,f.report_code,f.import_file_id,f.job_date,f.edd,f.brand,f.model,f.product_category,f.customer_name,f.guarantee,f.customer_type,
+    f.indent_date,f.srn_issued_date,f.to_store_code,f.repair_date,f.delivery_date,f.rwr_date,f.rwr_reason,f.wdc_date,f.wdc_number,f.wra_date,f.radc_number,
+    f.spare_value,f.labour_charge,h.snapshot_date,fam.lifecycle_rank
+  FROM dbo.v_service_status_view_facts f
+  JOIN held h ON h.job_order_number=f.job_order_number AND h.report_code=f.report_code AND h.import_file_id=f.import_file_id
+  JOIN dbo.v_service_families fam ON fam.report_code=f.report_code
+), sv AS (
+  SELECT f.job_order_number,MIN(f.job_date) job_date,MAX(f.edd) edd,MAX(f.brand) brand,MAX(f.model) model,MAX(f.product_category) product_category,
+    MAX(f.customer_name) customer_name,MAX(f.guarantee) guarantee,MAX(f.customer_type) customer_type,
+    MAX(CASE WHEN f.report_code=''S018'' THEN f.delivery_date END) delivery_date,
+    MAX(CASE WHEN f.report_code=''S018'' THEN f.repair_date END) delivered_repair_date,
+    MAX(CASE WHEN f.report_code=''S017'' THEN f.rwr_date END) rwr_date,
+    MAX(CASE WHEN f.report_code=''S017'' THEN f.rwr_reason END) rwr_reason,
+    MAX(CASE WHEN f.report_code=''S014'' THEN f.wdc_date END) wdc_date,MAX(CASE WHEN f.report_code=''S014'' THEN f.wdc_number END) wdc_number,
+    MAX(CASE WHEN f.report_code=''S016'' THEN f.wra_date END) wra_date,MAX(CASE WHEN f.report_code=''S016'' THEN f.radc_number END) radc_number,
+    MAX(CASE WHEN f.report_code IN(''S031'',''S034'') THEN f.repair_date END) pd_repair_date,
+    MAX(CASE WHEN f.report_code=''S033'' THEN f.srn_issued_date END) srn_issued_date,
+    MAX(CASE WHEN f.report_code IN(''S033'',''S035'') THEN f.to_store_code END) srn_to_store_code,
+    MAX(CASE WHEN f.report_code=''S015'' THEN f.indent_date END) indent_date,
+    MAX(CASE WHEN f.report_code=''S018'' THEN 1 ELSE 0 END) in_delivered,MAX(CASE WHEN f.report_code=''S017'' THEN 1 ELSE 0 END) in_rwr,
+    MAX(CASE WHEN f.report_code=''S014'' THEN 1 ELSE 0 END) in_dc,MAX(CASE WHEN f.report_code=''S016'' THEN 1 ELSE 0 END) in_ra,
+    MAX(CASE WHEN f.report_code IN(''S031'',''S034'') THEN 1 ELSE 0 END) in_pd,MAX(CASE WHEN f.report_code IN(''S033'',''S035'') THEN 1 ELSE 0 END) in_srn,
+    MAX(CASE WHEN f.report_code=''S015'' THEN 1 ELSE 0 END) in_ir,MAX(CASE WHEN f.report_code=''S032'' THEN 1 ELSE 0 END) in_pr,
+    MAX(f.lifecycle_rank) top_rank
+  FROM facts f GROUP BY f.job_order_number
+), view_money AS (
+  SELECT x.job_order_number,x.spare_value,x.labour_charge FROM (
+    SELECT f.job_order_number,SUM(f.spare_value) spare_value,SUM(f.labour_charge) labour_charge,
+      ROW_NUMBER() OVER(PARTITION BY f.job_order_number ORDER BY MAX(f.snapshot_date) DESC,MAX(f.lifecycle_rank) DESC,f.import_file_id DESC) view_rank
+    FROM facts f GROUP BY f.job_order_number,f.report_code,f.import_file_id
+  ) x WHERE x.view_rank=1
+), lists AS (
+  SELECT h.job_order_number,
+    MIN(CASE WHEN x.report_code=''S002'' THEN x.created_date END) s002_created,MIN(CASE WHEN x.report_code<>''S002'' THEN x.created_date END) list_created,
+    MAX(CASE WHEN x.report_code=''S002'' THEN x.jo_type END) jo_type,
+    COALESCE(MAX(CASE WHEN x.report_code=''S002'' THEN x.exported_status END),MAX(x.exported_status)) exported_status,
+    MAX(x.brand) brand,MAX(x.product_category) product_category,MAX(x.guarantee) guarantee,MAX(x.customer_type) customer_type
+  FROM held h JOIN (
+    SELECT ''S002'' report_code,import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),job_order_no))),N'''') job_order_number,created_date,CONVERT(nvarchar(40),jotype_booking_quickbilling) jo_type,
+      CONVERT(nvarchar(60),current_status) exported_status,CONVERT(nvarchar(200),brand) brand,CONVERT(nvarchar(200),clusterid) product_category,
+      CONVERT(nvarchar(60),guarantee) guarantee,CONVERT(nvarchar(60),customer_type) customer_type
+    FROM dbo.etp_landing_s002
+    UNION ALL SELECT ''S036'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),job_order_no))),N''''),created_date,NULL,CONVERT(nvarchar(60),current_status),CONVERT(nvarchar(200),brand),
+      CONVERT(nvarchar(200),clusterid),CONVERT(nvarchar(60),guarantee),CONVERT(nvarchar(60),customer_type)
+    FROM dbo.etp_landing_s036
+    UNION ALL SELECT ''S037'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),job_order_no))),N''''),created_date,NULL,CONVERT(nvarchar(60),current_status),CONVERT(nvarchar(200),brand),
+      CONVERT(nvarchar(200),clusterid),CONVERT(nvarchar(60),guarantee),CONVERT(nvarchar(60),customer_type)
+    FROM dbo.etp_landing_s037
+  ) x ON x.import_file_id=h.import_file_id AND x.report_code=h.report_code AND x.job_order_number=h.job_order_number
+  GROUP BY h.job_order_number
+), state AS (
+  SELECT x.job_order_number,MAX(l.snapshot_date) state_snapshot,
+    MAX(CASE WHEN x.report_code=''S009'' THEN 1 ELSE 0 END) in_s009,MAX(CASE WHEN x.report_code=''S010'' THEN 1 ELSE 0 END) in_s010,
+    MIN(CASE WHEN x.report_code=''S009'' THEN x.job_date END) s009_job_date,MIN(CASE WHEN x.report_code=''S010'' THEN x.job_date END) s010_job_date,
+    MAX(CASE WHEN x.report_code=''S009'' THEN x.edd END) s009_edd,
+    MAX(CASE WHEN x.report_code=''S009'' THEN x.jo_status END) s009_status,
+    MAX(CASE WHEN x.report_code=''S009'' THEN x.pending_store END) s009_store,MAX(CASE WHEN x.report_code=''S010'' THEN x.pending_store END) s010_store,
+    MAX(CASE WHEN x.report_code=''S009'' THEN x.indent_date END) s009_indent_date,MAX(CASE WHEN x.report_code=''S009'' THEN x.indent_id END) s009_indent_id,
+    MAX(CASE WHEN x.report_code=''S010'' THEN x.repair_date END) s010_repair_date,
+    COALESCE(MAX(CASE WHEN x.report_code=''S009'' THEN x.spare_required END),MAX(x.spare_required)) spare_required,
+    MAX(x.brand) brand,MAX(x.model) model,MAX(x.product_category) product_category,MAX(x.customer_name) customer_name
+  FROM state_latest l JOIN (
+    SELECT ''S009'' report_code,import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),jonumber))),N'''') job_order_number,jodate job_date,edd,CONVERT(nvarchar(60),jostatus) jo_status,
+      CONVERT(nvarchar(60),pendingstore) pending_store,indentdate indent_date,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),indentid))),N'''') indent_id,CONVERT(date,NULL) repair_date,
+      NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(200),sparerequired))),N'''') spare_required,CONVERT(nvarchar(200),brand) brand,
+      CONVERT(nvarchar(200),variantnumber) model,CONVERT(nvarchar(200),cluster) product_category,CONVERT(nvarchar(200),customername) customer_name
+    FROM dbo.etp_landing_s009
+    UNION ALL SELECT ''S010'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),jonumber))),N''''),jodate,CONVERT(date,NULL),CONVERT(nvarchar(60),jostatus),CONVERT(nvarchar(60),pendingstore),
+      indentdate,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),indentid))),N''''),repairdate,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(200),sparerequired))),N''''),CONVERT(nvarchar(200),brand),
+      CONVERT(nvarchar(200),variantnumber),CONVERT(nvarchar(200),cluster),CONVERT(nvarchar(200),customername)
+    FROM dbo.etp_landing_s010
+  ) x ON x.import_file_id=l.import_file_id AND x.report_code=l.report_code
+  WHERE x.job_order_number IS NOT NULL
+  GROUP BY x.job_order_number
+), srn AS (
+  SELECT h.job_order_number,MAX(CASE WHEN s.srn_received_date IS NULL AND s.repaired_date IS NULL AND COALESCE(CONVERT(nvarchar(80),s.to_status),N'''') NOT LIKE ''%Received%'' THEN s.srn_date END) srn_date,MAX(s.srn_date) srn_any_date,MIN(s.joborder_date) job_date,MAX(CONVERT(nvarchar(60),s.to_store)) to_store,
+    MAX(CONVERT(nvarchar(200),s.brand)) brand,MAX(CONVERT(nvarchar(200),s.customer_name)) customer_name,
+    MAX(CASE WHEN s.srn_received_date IS NULL AND s.repaired_date IS NULL AND COALESCE(CONVERT(nvarchar(80),s.to_status),N'''') NOT LIKE ''%Received%'' THEN 1 ELSE 0 END) srn_open,
+    MAX(CASE WHEN (s.srn_received_date IS NOT NULL OR s.repaired_date IS NOT NULL OR COALESCE(CONVERT(nvarchar(80),s.to_status),N'''') LIKE ''%Received%'') THEN COALESCE(s.srn_received_date,s.repaired_date) END) srn_back_date,
+    MAX(CASE WHEN (s.srn_received_date IS NOT NULL OR s.repaired_date IS NOT NULL OR COALESCE(CONVERT(nvarchar(80),s.to_status),N'''') LIKE ''%Received%'') AND CONVERT(nvarchar(80),s.to_status) LIKE ''%DC%'' THEN 1 ELSE 0 END) srn_closed_dc
+  FROM held h JOIN dbo.etp_landing_s011 s ON s.import_file_id=h.import_file_id AND NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),s.joborder_number))),N'''')=h.job_order_number
+  WHERE h.report_code=''S011''
+  GROUP BY h.job_order_number
+), dated AS (
+  SELECT ''S003'' report_code,import_file_id,trans_date business_date,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),joborder_number))),N'''') job_order_number,labour_charge,spare_charge,
+    netamount_incl_tax net_incl_tax,CONVERT(nvarchar(100),documentnum) document_number,CONVERT(date,NULL) srf_date,CONVERT(date,NULL) repair_date,
+    CONVERT(date,NULL) delivered_date,CONVERT(nvarchar(60),NULL) status,CONVERT(nvarchar(200),NULL) brand
+  FROM dbo.etp_landing_s003
+  UNION ALL SELECT ''S029'',import_file_id,repair_date,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),srfno))),N''''),NULL,NULL,NULL,NULL,srf_date,repair_date,delivered_date,
+    CONVERT(nvarchar(60),status),CONVERT(nvarchar(200),brand_name)
+  FROM dbo.etp_landing_s029
+), dated_files AS (
+  SELECT d.report_code,d.import_file_id,l.snapshot_date,MIN(d.business_date) window_from,
+    CASE WHEN MAX(d.business_date)>l.snapshot_date THEN MAX(d.business_date) ELSE l.snapshot_date END window_to
+  FROM dated d JOIN live l ON l.import_file_id=d.import_file_id AND l.report_code=d.report_code
+  WHERE d.business_date IS NOT NULL
+  GROUP BY d.report_code,d.import_file_id,l.snapshot_date
+), won_rows AS (
+  SELECT d.report_code,d.job_order_number,d.labour_charge,d.spare_charge,d.net_incl_tax,d.document_number,d.srf_date,d.repair_date,d.delivered_date,d.status,d.brand,
+    ROW_NUMBER() OVER(PARTITION BY d.job_order_number,d.document_number ORDER BY d.import_file_id) document_rank
+  FROM dated d JOIN dated_files f ON f.import_file_id=d.import_file_id AND f.report_code=d.report_code
+  WHERE d.job_order_number IS NOT NULL AND d.business_date IS NOT NULL
+    AND NOT EXISTS(SELECT 1 FROM dated_files g WHERE g.report_code=d.report_code AND d.business_date BETWEEN g.window_from AND g.window_to
+      AND (g.snapshot_date>f.snapshot_date OR (g.snapshot_date=f.snapshot_date AND g.import_file_id>f.import_file_id)))
+), won AS (
+  SELECT d.job_order_number,
+    SUM(CASE WHEN d.report_code=''S003'' THEN d.labour_charge END) revenue_labour_charge,SUM(CASE WHEN d.report_code=''S003'' THEN d.spare_charge END) revenue_spare_charge,
+    SUM(CASE WHEN d.report_code=''S003'' THEN d.net_incl_tax END) revenue_net_incl_tax,SUM(CASE WHEN d.document_number IS NOT NULL AND d.document_rank=1 THEN 1 ELSE 0 END) revenue_documents,
+    MIN(d.srf_date) srf_date,MAX(d.repair_date) repair_date,MAX(d.delivered_date) delivered_date,
+    MAX(CASE WHEN d.status=''Delivered'' AND d.delivered_date IS NOT NULL THEN 1 ELSE 0 END) is_delivered,
+    MAX(CASE WHEN d.status IN(''RWR'',''Returned_Without_Repair'') THEN 1 ELSE 0 END) is_rwr,MAX(d.brand) brand
+  FROM won_rows d
+  GROUP BY d.job_order_number
+), other_rows AS (
+  SELECT ''S003'' report_code,import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),joborder_number))),N'''') job_order_number FROM dbo.etp_landing_s003
+  UNION ALL SELECT ''S029'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),srfno))),N'''') FROM dbo.etp_landing_s029
+  UNION ALL SELECT ''S019'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),jo_number))),N'''') FROM dbo.etp_landing_s019
+  UNION ALL SELECT ''S022'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),joborder_number))),N'''') FROM dbo.etp_landing_s022
+  UNION ALL SELECT ''S023'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),jonumber))),N'''') FROM dbo.etp_landing_s023
+  UNION ALL SELECT ''S024'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),jonumber))),N'''') FROM dbo.etp_landing_s024
+  UNION ALL SELECT ''S025'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),jonumber))),N'''') FROM dbo.etp_landing_s025
+  UNION ALL SELECT ''S026'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),jonumber))),N'''') FROM dbo.etp_landing_s026
+  UNION ALL SELECT ''S039'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),job_order_number))),N'''') FROM dbo.etp_landing_s039
+  UNION ALL SELECT ''S040'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),job_order_number))),N'''') FROM dbo.etp_landing_s040
+  UNION ALL SELECT ''S041'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),job_order_number))),N'''') FROM dbo.etp_landing_s041
+), other_jobs AS (
+  SELECT o.job_order_number
+  FROM other_rows o JOIN live l ON l.import_file_id=o.import_file_id AND l.report_code=o.report_code
+  WHERE o.job_order_number IS NOT NULL
+  GROUP BY o.job_order_number
+), claimed AS (
+  SELECT c.job_order_number,MAX(CASE WHEN c.claim_type=''WDC'' THEN 1 ELSE 0 END) wdc_claimed,MAX(CASE WHEN c.claim_type=''WRA'' THEN 1 ELSE 0 END) wra_claimed,
+    MIN(CASE WHEN c.claim_type=''WDC'' THEN c.business_date END) wdc_claim_date,MIN(CASE WHEN c.claim_type=''WRA'' THEN c.business_date END) wra_claim_date
+  FROM dbo.v_service_claims c
+  WHERE c.claim_type IN(''WDC'',''WRA'') AND c.job_order_number IS NOT NULL
+  GROUP BY c.job_order_number
+), facts_by_job AS (
+  SELECT job_order_number,CONVERT(date,CASE WHEN report_code IN(''S009'',''S010'') THEN NULL ELSE snapshot_date END) last_reading_date,CONVERT(date,NULL) sv_job_date,CONVERT(date,NULL) sv_edd,CONVERT(nvarchar(200),NULL) sv_brand,CONVERT(nvarchar(200),NULL) sv_model,CONVERT(nvarchar(200),NULL) sv_product_category,CONVERT(nvarchar(200),NULL) sv_customer_name,CONVERT(nvarchar(200),NULL) sv_guarantee,CONVERT(nvarchar(200),NULL) sv_customer_type,CONVERT(date,NULL) sv_delivery_date,CONVERT(date,NULL) sv_delivered_repair_date,CONVERT(date,NULL) sv_rwr_date,CONVERT(nvarchar(200),NULL) sv_rwr_reason,CONVERT(date,NULL) sv_wdc_date,CONVERT(nvarchar(200),NULL) sv_wdc_number,CONVERT(date,NULL) sv_wra_date,CONVERT(nvarchar(200),NULL) sv_radc_number,CONVERT(date,NULL) sv_pd_repair_date,CONVERT(date,NULL) sv_srn_issued_date,CONVERT(nvarchar(200),NULL) sv_srn_to_store_code,CONVERT(date,NULL) sv_indent_date,CONVERT(int,NULL) sv_in_delivered,CONVERT(int,NULL) sv_in_rwr,CONVERT(int,NULL) sv_in_dc,CONVERT(int,NULL) sv_in_ra,CONVERT(int,NULL) sv_in_pd,CONVERT(int,NULL) sv_in_srn,CONVERT(int,NULL) sv_in_ir,CONVERT(int,NULL) sv_in_pr,CONVERT(decimal(19,4),NULL) vm_spare_value,CONVERT(decimal(19,4),NULL) vm_labour_charge,CONVERT(date,NULL) ls_s002_created,CONVERT(date,NULL) ls_list_created,CONVERT(nvarchar(200),NULL) ls_jo_type,CONVERT(nvarchar(200),NULL) ls_exported_status,CONVERT(nvarchar(200),NULL) ls_brand,CONVERT(nvarchar(200),NULL) ls_product_category,CONVERT(nvarchar(200),NULL) ls_guarantee,CONVERT(nvarchar(200),NULL) ls_customer_type,CONVERT(int,NULL) st9_in_s009,CONVERT(int,NULL) st9_in_s010,CONVERT(date,NULL) st9_s009_job_date,CONVERT(date,NULL) st9_s010_job_date,CONVERT(date,NULL) st9_s009_edd,CONVERT(nvarchar(200),NULL) st9_s009_status,CONVERT(nvarchar(200),NULL) st9_s009_store,CONVERT(nvarchar(200),NULL) st9_s010_store,CONVERT(date,NULL) st9_s009_indent_date,CONVERT(nvarchar(200),NULL) st9_s009_indent_id,CONVERT(date,NULL) st9_s010_repair_date,CONVERT(nvarchar(200),NULL) st9_spare_required,CONVERT(nvarchar(200),NULL) st9_brand,CONVERT(nvarchar(200),NULL) st9_model,CONVERT(nvarchar(200),NULL) st9_product_category,CONVERT(nvarchar(200),NULL) st9_customer_name,CONVERT(date,NULL) srn_srn_date,CONVERT(date,NULL) srn_job_date,CONVERT(nvarchar(200),NULL) srn_to_store,CONVERT(nvarchar(200),NULL) srn_brand,CONVERT(nvarchar(200),NULL) srn_customer_name,CONVERT(int,NULL) srn_srn_open,CONVERT(date,NULL) srn_srn_back_date,CONVERT(int,NULL) srn_srn_closed_dc,CONVERT(decimal(19,4),NULL) w_revenue_labour_charge,CONVERT(decimal(19,4),NULL) w_revenue_spare_charge,CONVERT(decimal(19,4),NULL) w_revenue_net_incl_tax,CONVERT(int,NULL) w_revenue_documents,CONVERT(date,NULL) w_srf_date,CONVERT(date,NULL) w_repair_date,CONVERT(date,NULL) w_delivered_date,CONVERT(int,NULL) w_is_delivered,CONVERT(int,NULL) w_is_rwr,CONVERT(nvarchar(200),NULL) w_brand,CONVERT(int,NULL) o_wdc_claimed,CONVERT(int,NULL) o_wra_claimed,CONVERT(date,NULL) srn_srn_any_date,CONVERT(date,NULL) o_wdc_claim_date,CONVERT(date,NULL) o_wra_claim_date FROM held
+  UNION ALL
+  SELECT job_order_number,CONVERT(date,NULL),CONVERT(date,job_date),CONVERT(date,edd),CONVERT(nvarchar(200),brand),CONVERT(nvarchar(200),model),CONVERT(nvarchar(200),product_category),CONVERT(nvarchar(200),customer_name),CONVERT(nvarchar(200),guarantee),CONVERT(nvarchar(200),customer_type),CONVERT(date,delivery_date),CONVERT(date,delivered_repair_date),CONVERT(date,rwr_date),CONVERT(nvarchar(200),rwr_reason),CONVERT(date,wdc_date),CONVERT(nvarchar(200),wdc_number),CONVERT(date,wra_date),CONVERT(nvarchar(200),radc_number),CONVERT(date,pd_repair_date),CONVERT(date,srn_issued_date),CONVERT(nvarchar(200),srn_to_store_code),CONVERT(date,indent_date),CONVERT(int,in_delivered),CONVERT(int,in_rwr),CONVERT(int,in_dc),CONVERT(int,in_ra),CONVERT(int,in_pd),CONVERT(int,in_srn),CONVERT(int,in_ir),CONVERT(int,in_pr),CONVERT(decimal(19,4),NULL),CONVERT(decimal(19,4),NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(int,NULL),CONVERT(date,NULL),CONVERT(int,NULL),CONVERT(decimal(19,4),NULL),CONVERT(decimal(19,4),NULL),CONVERT(decimal(19,4),NULL),CONVERT(int,NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(nvarchar(200),NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(date,NULL) FROM sv
+  UNION ALL
+  SELECT job_order_number,CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(decimal(19,4),spare_value),CONVERT(decimal(19,4),labour_charge),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(int,NULL),CONVERT(date,NULL),CONVERT(int,NULL),CONVERT(decimal(19,4),NULL),CONVERT(decimal(19,4),NULL),CONVERT(decimal(19,4),NULL),CONVERT(int,NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(nvarchar(200),NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(date,NULL) FROM view_money
+  UNION ALL
+  SELECT job_order_number,CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(decimal(19,4),NULL),CONVERT(decimal(19,4),NULL),CONVERT(date,s002_created),CONVERT(date,list_created),CONVERT(nvarchar(200),jo_type),CONVERT(nvarchar(200),exported_status),CONVERT(nvarchar(200),brand),CONVERT(nvarchar(200),product_category),CONVERT(nvarchar(200),guarantee),CONVERT(nvarchar(200),customer_type),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(int,NULL),CONVERT(date,NULL),CONVERT(int,NULL),CONVERT(decimal(19,4),NULL),CONVERT(decimal(19,4),NULL),CONVERT(decimal(19,4),NULL),CONVERT(int,NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(nvarchar(200),NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(date,NULL) FROM lists
+  UNION ALL
+  SELECT job_order_number,CONVERT(date,state_snapshot),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(decimal(19,4),NULL),CONVERT(decimal(19,4),NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(int,in_s009),CONVERT(int,in_s010),CONVERT(date,s009_job_date),CONVERT(date,s010_job_date),CONVERT(date,s009_edd),CONVERT(nvarchar(200),s009_status),CONVERT(nvarchar(200),s009_store),CONVERT(nvarchar(200),s010_store),CONVERT(date,s009_indent_date),CONVERT(nvarchar(200),s009_indent_id),CONVERT(date,s010_repair_date),CONVERT(nvarchar(200),spare_required),CONVERT(nvarchar(200),brand),CONVERT(nvarchar(200),model),CONVERT(nvarchar(200),product_category),CONVERT(nvarchar(200),customer_name),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(int,NULL),CONVERT(date,NULL),CONVERT(int,NULL),CONVERT(decimal(19,4),NULL),CONVERT(decimal(19,4),NULL),CONVERT(decimal(19,4),NULL),CONVERT(int,NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(nvarchar(200),NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(date,NULL) FROM state
+  UNION ALL
+  SELECT job_order_number,CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(decimal(19,4),NULL),CONVERT(decimal(19,4),NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,srn_date),CONVERT(date,job_date),CONVERT(nvarchar(200),to_store),CONVERT(nvarchar(200),brand),CONVERT(nvarchar(200),customer_name),CONVERT(int,srn_open),CONVERT(date,srn_back_date),CONVERT(int,srn_closed_dc),CONVERT(decimal(19,4),NULL),CONVERT(decimal(19,4),NULL),CONVERT(decimal(19,4),NULL),CONVERT(int,NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(nvarchar(200),NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(date,srn_any_date),CONVERT(date,NULL),CONVERT(date,NULL) FROM srn
+  UNION ALL
+  SELECT job_order_number,CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(decimal(19,4),NULL),CONVERT(decimal(19,4),NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(int,NULL),CONVERT(date,NULL),CONVERT(int,NULL),CONVERT(decimal(19,4),revenue_labour_charge),CONVERT(decimal(19,4),revenue_spare_charge),CONVERT(decimal(19,4),revenue_net_incl_tax),CONVERT(int,revenue_documents),CONVERT(date,srf_date),CONVERT(date,repair_date),CONVERT(date,delivered_date),CONVERT(int,is_delivered),CONVERT(int,is_rwr),CONVERT(nvarchar(200),brand),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(date,NULL) FROM won
+  UNION ALL
+  SELECT job_order_number,CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(decimal(19,4),NULL),CONVERT(decimal(19,4),NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(int,NULL),CONVERT(date,NULL),CONVERT(int,NULL),CONVERT(decimal(19,4),NULL),CONVERT(decimal(19,4),NULL),CONVERT(decimal(19,4),NULL),CONVERT(int,NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(nvarchar(200),NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(date,NULL) FROM other_jobs
+  UNION ALL
+  SELECT job_order_number,CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(decimal(19,4),NULL),CONVERT(decimal(19,4),NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(nvarchar(200),NULL),CONVERT(int,NULL),CONVERT(date,NULL),CONVERT(int,NULL),CONVERT(decimal(19,4),NULL),CONVERT(decimal(19,4),NULL),CONVERT(decimal(19,4),NULL),CONVERT(int,NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(date,NULL),CONVERT(int,NULL),CONVERT(int,NULL),CONVERT(nvarchar(200),NULL),CONVERT(int,wdc_claimed),CONVERT(int,wra_claimed),CONVERT(date,NULL),CONVERT(date,wdc_claim_date),CONVERT(date,wra_claim_date) FROM claimed
+), agg AS (
+  SELECT u.job_order_number,MAX(u.last_reading_date) last_reading_date,MAX(u.sv_job_date) sv_job_date,MAX(u.sv_edd) sv_edd,MAX(u.sv_brand) sv_brand,MAX(u.sv_model) sv_model,MAX(u.sv_product_category) sv_product_category,MAX(u.sv_customer_name) sv_customer_name,MAX(u.sv_guarantee) sv_guarantee,MAX(u.sv_customer_type) sv_customer_type,MAX(u.sv_delivery_date) sv_delivery_date,MAX(u.sv_delivered_repair_date) sv_delivered_repair_date,MAX(u.sv_rwr_date) sv_rwr_date,MAX(u.sv_rwr_reason) sv_rwr_reason,MAX(u.sv_wdc_date) sv_wdc_date,MAX(u.sv_wdc_number) sv_wdc_number,MAX(u.sv_wra_date) sv_wra_date,MAX(u.sv_radc_number) sv_radc_number,MAX(u.sv_pd_repair_date) sv_pd_repair_date,MAX(u.sv_srn_issued_date) sv_srn_issued_date,MAX(u.sv_srn_to_store_code) sv_srn_to_store_code,MAX(u.sv_indent_date) sv_indent_date,MAX(u.sv_in_delivered) sv_in_delivered,MAX(u.sv_in_rwr) sv_in_rwr,MAX(u.sv_in_dc) sv_in_dc,MAX(u.sv_in_ra) sv_in_ra,MAX(u.sv_in_pd) sv_in_pd,MAX(u.sv_in_srn) sv_in_srn,MAX(u.sv_in_ir) sv_in_ir,MAX(u.sv_in_pr) sv_in_pr,MAX(u.vm_spare_value) vm_spare_value,MAX(u.vm_labour_charge) vm_labour_charge,MAX(u.ls_s002_created) ls_s002_created,MAX(u.ls_list_created) ls_list_created,MAX(u.ls_jo_type) ls_jo_type,MAX(u.ls_exported_status) ls_exported_status,MAX(u.ls_brand) ls_brand,MAX(u.ls_product_category) ls_product_category,MAX(u.ls_guarantee) ls_guarantee,MAX(u.ls_customer_type) ls_customer_type,MAX(u.st9_in_s009) st9_in_s009,MAX(u.st9_in_s010) st9_in_s010,MAX(u.st9_s009_job_date) st9_s009_job_date,MAX(u.st9_s010_job_date) st9_s010_job_date,MAX(u.st9_s009_edd) st9_s009_edd,MAX(u.st9_s009_status) st9_s009_status,MAX(u.st9_s009_store) st9_s009_store,MAX(u.st9_s010_store) st9_s010_store,MAX(u.st9_s009_indent_date) st9_s009_indent_date,MAX(u.st9_s009_indent_id) st9_s009_indent_id,MAX(u.st9_s010_repair_date) st9_s010_repair_date,MAX(u.st9_spare_required) st9_spare_required,MAX(u.st9_brand) st9_brand,MAX(u.st9_model) st9_model,MAX(u.st9_product_category) st9_product_category,MAX(u.st9_customer_name) st9_customer_name,MAX(u.srn_srn_date) srn_srn_date,MAX(u.srn_job_date) srn_job_date,MAX(u.srn_to_store) srn_to_store,MAX(u.srn_brand) srn_brand,MAX(u.srn_customer_name) srn_customer_name,MAX(u.srn_srn_open) srn_srn_open,MAX(u.srn_srn_back_date) srn_srn_back_date,MAX(u.srn_srn_closed_dc) srn_srn_closed_dc,MAX(u.w_revenue_labour_charge) w_revenue_labour_charge,MAX(u.w_revenue_spare_charge) w_revenue_spare_charge,MAX(u.w_revenue_net_incl_tax) w_revenue_net_incl_tax,MAX(u.w_revenue_documents) w_revenue_documents,MAX(u.w_srf_date) w_srf_date,MAX(u.w_repair_date) w_repair_date,MAX(u.w_delivered_date) w_delivered_date,MAX(u.w_is_delivered) w_is_delivered,MAX(u.w_is_rwr) w_is_rwr,MAX(u.w_brand) w_brand,MAX(u.o_wdc_claimed) o_wdc_claimed,MAX(u.o_wra_claimed) o_wra_claimed,MAX(u.srn_srn_any_date) srn_srn_any_date,MAX(u.o_wdc_claim_date) o_wdc_claim_date,MAX(u.o_wra_claim_date) o_wra_claim_date
+  FROM facts_by_job u WHERE u.job_order_number IS NOT NULL GROUP BY u.job_order_number
+), snap AS (
+  SELECT MAX(snapshot_date) as_at FROM live
+)
+SELECT a.job_order_number,bd.booking_date,COALESCE(a.ls_jo_type,N''Booking'') jo_type,a.ls_exported_status exported_status,
+  COALESCE(a.sv_brand,a.st9_brand,a.ls_brand,a.srn_brand,a.w_brand) brand,COALESCE(a.sv_model,a.st9_model) model,
+  COALESCE(a.sv_product_category,a.st9_product_category,a.ls_product_category) product_category,
+  COALESCE(a.sv_customer_name,a.st9_customer_name,a.srn_customer_name) customer_name,
+  COALESCE(a.sv_guarantee,a.ls_guarantee) guarantee,COALESCE(a.sv_customer_type,a.ls_customer_type) customer_type,
+  COALESCE(a.st9_s009_edd,a.sv_edd) edd,sg.stage,sd.stage_date,
+  CASE WHEN sg.stage IN(''DELIVERED'',''RWR'') THEN NULL
+       WHEN sg.stage IN(''IN_TRANSIT_BACK'',''READY_FOR_DELIVERY'') AND a.st9_in_s010=1 THEN COALESCE(a.st9_s010_store,N''AW330'')
+       WHEN sg.stage=''SRN_OUT'' THEN COALESCE(a.srn_to_store,a.st9_s009_store,a.sv_srn_to_store_code,N''AW330'')
+       WHEN a.st9_in_s009=1 THEN COALESCE(a.st9_s009_store,N''AW330'')
+       ELSE N''AW330'' END pending_at,
+  a.st9_spare_required spare_required,COALESCE(a.st9_s009_indent_date,a.sv_indent_date) indent_date,
+  COALESCE(a.srn_srn_date,a.sv_srn_issued_date) srn_date,COALESCE(a.srn_to_store,a.sv_srn_to_store_code) srn_to_store,
+  COALESCE(a.sv_delivered_repair_date,a.w_repair_date,a.sv_pd_repair_date,a.st9_s010_repair_date) repair_date,COALESCE(a.sv_delivery_date,a.w_delivered_date) delivery_date,
+  a.sv_rwr_date rwr_date,a.sv_rwr_reason rwr_reason,a.sv_wdc_date wdc_date,a.sv_wdc_number wdc_number,a.sv_wra_date wra_date,a.sv_radc_number radc_number,
+  CONVERT(bit,CASE WHEN sg.stage=''DC_ISSUED'' THEN COALESCE(a.o_wdc_claimed,0) WHEN sg.stage=''RA_ISSUED'' THEN COALESCE(a.o_wra_claimed,0)
+       WHEN COALESCE(a.o_wdc_claimed,0)=1 OR COALESCE(a.o_wra_claimed,0)=1 THEN 1 ELSE 0 END) claim_raised,
+  a.vm_spare_value spare_value,a.vm_labour_charge labour_charge,a.w_revenue_labour_charge revenue_labour_charge,a.w_revenue_spare_charge revenue_spare_charge,a.w_revenue_net_incl_tax revenue_net_incl_tax,
+  CONVERT(int,COALESCE(a.w_revenue_documents,0)) revenue_documents,
+  CASE WHEN sg.stage=''DELIVERED'' THEN DATEDIFF(day,bd.booking_date,COALESCE(a.sv_delivery_date,a.w_delivered_date))
+       WHEN sg.stage=''RWR'' THEN DATEDIFF(day,bd.booking_date,COALESCE(a.sv_rwr_date,a.w_repair_date)) END tat_days,
+  CASE WHEN sg.stage=''DELIVERED'' THEN DATEDIFF(day,bd.booking_date,COALESCE(a.sv_delivered_repair_date,a.w_repair_date)) END tat_repair_days,
+  CASE WHEN sg.stage NOT IN(''DELIVERED'',''RWR'') THEN DATEDIFF(day,bd.booking_date,COALESCE(a.last_reading_date,snap.as_at)) END age_days,
+  CASE WHEN sg.stage NOT IN(''DELIVERED'',''RWR'') THEN DATEDIFF(day,sd.stage_date,COALESCE(a.last_reading_date,snap.as_at)) END days_in_stage,
+  CONVERT(bit,CASE WHEN sg.stage IN(''DELIVERED'',''RWR'') THEN 0 WHEN sg.stage=''DC_ISSUED'' AND COALESCE(a.o_wdc_claimed,0)=1 THEN 0
+       WHEN sg.stage=''RA_ISSUED'' AND COALESCE(a.o_wra_claimed,0)=1 THEN 0 WHEN COALESCE(a.st9_s009_edd,a.sv_edd)<COALESCE(a.last_reading_date,snap.as_at) THEN 1 ELSE 0 END) is_overdue,
+  CONVERT(bit,CASE WHEN sg.stage IN(''DELIVERED'',''RWR'') THEN 0 WHEN sg.stage=''DC_ISSUED'' AND COALESCE(a.o_wdc_claimed,0)=1 THEN 0
+       WHEN sg.stage=''RA_ISSUED'' AND COALESCE(a.o_wra_claimed,0)=1 THEN 0 ELSE 1 END) is_open,
+  a.last_reading_date,snap.as_at,
+  CASE sg.stage WHEN ''DC_ISSUED'' THEN a.o_wdc_claim_date WHEN ''RA_ISSUED'' THEN a.o_wra_claim_date END claim_date,
+  CASE WHEN sg.stage IN(''DELIVERED'',''RWR'') THEN sd.stage_date WHEN sg.stage=''DC_ISSUED'' AND COALESCE(a.o_wdc_claimed,0)=1 THEN a.o_wdc_claim_date
+       WHEN sg.stage=''RA_ISSUED'' AND COALESCE(a.o_wra_claimed,0)=1 THEN a.o_wra_claim_date END closed_date
+FROM agg a
+CROSS JOIN snap
+CROSS APPLY (SELECT MIN(v.d) booking_date FROM (VALUES(a.ls_s002_created),(a.ls_list_created),(a.sv_job_date),(a.st9_s009_job_date),(a.st9_s010_job_date),(a.srn_job_date),(a.w_srf_date)) v(d)) bd
+CROSS APPLY (SELECT
+  CASE WHEN a.sv_in_delivered=1 OR a.w_is_delivered=1 THEN ''DELIVERED''
+       WHEN a.sv_in_rwr=1 OR a.w_is_rwr=1 THEN ''RWR''
+       WHEN a.sv_in_dc=1 THEN ''DC_ISSUED''
+       WHEN a.sv_in_ra=1 THEN ''RA_ISSUED''
+       WHEN a.st9_in_s010=1 AND COALESCE(a.st9_s010_store,N'''')<>N''AW330'' THEN ''IN_TRANSIT_BACK''
+       WHEN a.st9_in_s010=1 OR a.sv_in_pd=1 THEN ''READY_FOR_DELIVERY''
+       WHEN a.st9_in_s009=1 THEN
+         CASE WHEN a.st9_s009_status LIKE ''SRN%'' AND a.st9_s009_status<>''SRN_For_Repair'' THEN ''SRN_OUT''
+              WHEN a.st9_s009_status=''Indent_Raised'' OR a.st9_s009_indent_id IS NOT NULL OR a.st9_s009_indent_date IS NOT NULL THEN ''INDENT_RAISED''
+              ELSE ''ON_BENCH'' END
+       WHEN a.srn_srn_open=1 OR (a.sv_in_srn=1 AND a.srn_srn_open IS NULL) THEN ''SRN_OUT''
+       WHEN a.sv_in_ir=1 THEN ''INDENT_RAISED''
+       WHEN a.sv_in_pr=1 THEN ''ON_BENCH''
+       WHEN a.srn_srn_open=0 AND a.srn_srn_closed_dc=1 THEN ''DC_ISSUED''
+       WHEN a.srn_srn_open=0 THEN ''READY_FOR_DELIVERY''
+       ELSE ''BOOKED'' END stage) sg
+CROSS APPLY (SELECT
+  CASE sg.stage WHEN ''DELIVERED'' THEN COALESCE(a.sv_delivery_date,a.w_delivered_date)
+       WHEN ''RWR'' THEN COALESCE(a.sv_rwr_date,a.w_repair_date)
+       WHEN ''DC_ISSUED'' THEN COALESCE(a.sv_wdc_date,a.srn_srn_back_date,a.srn_srn_any_date)
+       WHEN ''RA_ISSUED'' THEN a.sv_wra_date
+       WHEN ''IN_TRANSIT_BACK'' THEN COALESCE(a.st9_s010_repair_date,a.st9_s010_job_date)
+       WHEN ''READY_FOR_DELIVERY'' THEN COALESCE(a.st9_s010_repair_date,a.sv_pd_repair_date,a.st9_s010_job_date,a.srn_srn_back_date,a.srn_srn_any_date)
+       WHEN ''SRN_OUT'' THEN COALESCE(a.srn_srn_date,a.sv_srn_issued_date,a.st9_s009_job_date,bd.booking_date)
+       WHEN ''INDENT_RAISED'' THEN COALESCE(a.st9_s009_indent_date,a.sv_indent_date,a.st9_s009_job_date,bd.booking_date)
+       WHEN ''ON_BENCH'' THEN COALESCE(a.st9_s009_job_date,a.sv_job_date,bd.booking_date)
+       ELSE bd.booking_date END stage_date) sd
+');
+
+-- Read access as 0048 section C and 0050 grant it; no role may write through a view.
+GRANT SELECT ON dbo.v_service_manual_money TO etp_viewer,etp_store_manager,etp_owner;
+DENY INSERT,UPDATE,DELETE ON dbo.v_service_manual_money TO etp_store_manager,etp_viewer;
+GRANT SELECT ON dbo.v_service_job_revision TO etp_viewer,etp_store_manager,etp_owner;
+DENY INSERT,UPDATE,DELETE ON dbo.v_service_job_revision TO etp_store_manager,etp_viewer;
+GRANT SELECT ON dbo.v_service_job TO etp_viewer,etp_store_manager,etp_owner;
+DENY INSERT,UPDATE,DELETE ON dbo.v_service_job TO etp_store_manager,etp_viewer;
+-- <<< E_SERVICE_UI_FIXES end
