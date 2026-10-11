@@ -201,6 +201,14 @@ public sealed partial class PhaseFiveFullWindowCaptureTests(ITestOutputHelper ou
                             {
                                 var id = destination.Id;
                                 Assert.True(destination.IsAllowed(window.CurrentShellAccess), $"Expected {role} to access {id}.");
+                                // The Service screens move the header date to the fixture's data day (below); every other screen
+                                // keeps the date the retail seed uses.
+                                if (destination.Destination != Etp.Reporting.Desktop.Modules.Service.ServiceScreens.Destination &&
+                                    window.ShellBusinessDateSelector.SelectedDate != Day.ToDateTime(TimeOnly.MinValue))
+                                {
+                                    window.ShellBusinessDateSelector.SelectedDate = Day.ToDateTime(TimeOnly.MinValue);
+                                    await SettleAsync(window);
+                                }
                                 window.ApplyNavigationDecision(window.shell.Navigate(destination.Route, window.CurrentShellAccess));
                                 await WaitForWorkspaceOperationsAsync(window, () => dispatcherFailure);
                                 // Choose scope after the next destination is active. Changing
@@ -216,6 +224,8 @@ public sealed partial class PhaseFiveFullWindowCaptureTests(ITestOutputHelper ou
                                 await RefreshTaskAsync(window, destination);
                                 await WaitForWorkspaceOperationsAsync(window, () => dispatcherFailure);
                                 await SettleAsync(window);
+                                if (destination.Destination == Etp.Reporting.Desktop.Modules.Service.ServiceScreens.Destination)
+                                    await PrepareServiceCaptureAsync(window, destination.Id, () => dispatcherFailure);
                                 if (window.FocusedWorkspaceHost.Content is ImportProblemsView problems)
                                     await WaitUntilAsync(() => problems.HasLoaded, () => dispatcherFailure);
                                 if (screenshots.ContainsKey(id)) await AssertWorkflowDataAsync(window, id, () => dispatcherFailure);
@@ -300,6 +310,37 @@ public sealed partial class PhaseFiveFullWindowCaptureTests(ITestOutputHelper ou
         else if (task.Id == "approval-centre") await window.investigationWorkspaceView.RefreshApprovalsAsync();
         else if (task.Id is "users" or "kpi" or "health" or "stores") await window.administrationWorkspaceView.RefreshAsync();
         else if (task.Destination == "Operations Center" && task.Id is not ("investigation" or "adjustment")) await window.operationsWorkspaceView.RefreshAsync();
+    }
+
+    // 1.10.1: the Service pictures were once taken while the screen still said "Loading Service data..." with empty grids,
+    // the header showed the retail date and a saved-pack toast from an earlier screen sat bottom right. Wait for the
+    // screen's own load (its IsLoading flag, with the 45 s WaitUntilAsync limit), move the header date to the Service data
+    // day, then fail with a clear message rather than capture an empty screen.
+    private static async Task PrepareServiceCaptureAsync(MainWindow window, string id, Func<Exception?> failure)
+    {
+        async Task<Etp.Reporting.Desktop.Modules.Service.ServiceScreenView> LoadedAsync()
+        {
+            await WaitUntilAsync(() => window.FocusedWorkspaceHost.Content is Etp.Reporting.Desktop.Modules.Service.ServiceScreenView { IsLoading: false }, failure);
+            await SettleAsync(window);
+            return (Etp.Reporting.Desktop.Modules.Service.ServiceScreenView)window.FocusedWorkspaceHost.Content;
+        }
+        var view = await LoadedAsync();
+        var asAt = System.Text.RegularExpressions.Regex.Match(view.AsAtText, @"as at (\d{2} \w{3} \d{4})");
+        if (asAt.Success && DateTime.TryParseExact(asAt.Groups[1].Value, "dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.None, out var dataDay) && window.ShellBusinessDateSelector.SelectedDate != dataDay)
+        {
+            window.ShellBusinessDateSelector.SelectedDate = dataDay;
+            await SettleAsync(window);
+            await WaitForWorkspaceOperationsAsync(window, failure);
+            view = await LoadedAsync();
+        }
+        window.SuccessToast.Visibility = Visibility.Collapsed;
+        await SettleAsync(window);
+        if (view.StatusText.Contains("Loading", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException($"Service capture {id}: the screen still says \"{view.StatusText}\"; refusing to capture an unloaded screen.");
+        // Job history needs a job number and Money may legitimately start empty; the others must show data when a fixture was imported.
+        if (ServiceFixtureWeeks().Length > 0 && id is not ("service-job-history" or "service-money") && view.Rows.Count == 0)
+            throw new InvalidOperationException($"Service capture {id}: no rows after the load although a Service fixture was imported (status: \"{view.StatusText}\").");
     }
 
     private static Task WaitForWorkspaceOperationsAsync(MainWindow window, Func<Exception?> failure) => WaitUntilAsync(() =>
