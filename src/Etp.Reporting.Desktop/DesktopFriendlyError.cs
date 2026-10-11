@@ -271,6 +271,18 @@ public static class DesktopFriendlyError
         (51700, null, "Some invoices carry a year other than the financial year of their date. " + UpgradeStopped),
         (51701, null, "An invoice has more than one revenue control. " + UpgradeStopped),
         (51702, null, "An invoice has the same payment type twice. " + UpgradeStopped),
+        // 1.11.0 self-diagnostics (migrations 0054 error register 51800-51819, 0055 health check 51820-51839).
+        (51800, null, "The error log could not be added to the register because its lines were not in the expected form. Nothing was changed. Press Refresh on the Error register; if it repeats, " + SupportPackage + "."),
+        (51801, null, "The error register is for the Owner. Ask the Owner to open Settings > Database > Error register."),
+        (51802, null, "Enter a reason in plain words. Nothing was changed."),
+        (51803, null, "The text can use letters, digits, spaces and . , ; : ' \" ! ? ( ) - _ / % + only. Nothing was changed."),
+        (51804, null, "The fix list could not be read, so no entry was marked fixed. " + SupportPackage + "."),
+        (51805, null, "That change is not possible for this entry, or the entry has changed or been merged. Press Refresh on the Error register and try again. Nothing was changed."),
+        (51820, null, "The health check result was not in the expected form, so it was not recorded. Run the health check again; if it repeats, " + SupportPackage + "."),
+        (51821, null, "The health check result had more lines than expected, so it was not recorded. Run the health check again; if it repeats, " + SupportPackage + "."),
+        (51822, null, "The health check is for the Owner. Ask the Owner to open Settings > Database > Health check."),
+        (51823, null, "A Known needs a reason in plain words and an end date from today up to 90 days ahead. Nothing was changed."),
+        (51824, null, "That health check run is no longer in the database. Press Refresh on the Health check screen."),
     ];
 
     /// <summary>
