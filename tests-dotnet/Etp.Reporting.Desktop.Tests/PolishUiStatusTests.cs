@@ -57,6 +57,13 @@ public sealed class PolishUiStatusTests
     }
 
     [Fact]
+    public void Auto_store_note_names_the_report_it_applies_to()
+    {
+        Assert.StartsWith("Daily Exceptions shows one store: Titan (WLMHW), the first active store", ReportsWorkspaceView.AutoStoreNote("Titan (WLMHW)", "Daily Exceptions"), StringComparison.Ordinal);
+        Assert.StartsWith("Store Sales Summary shows one store:", ReportsWorkspaceView.AutoStoreNote("Titan (WLMHW)"), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Store_sales_on_all_stores_runs_for_the_first_active_store_and_says_so()
     {
         RunSta(async () =>

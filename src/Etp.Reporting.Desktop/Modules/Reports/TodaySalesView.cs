@@ -76,7 +76,8 @@ public sealed class TodaySalesView : Grid
         root.Children.Add(Heading(sheet.StoreName,18));
         var sales = sheet.Rows.FirstOrDefault(r => r.Metric == "VALUE");
         var comparison = Text($"LY today {Format(sales?.Ly,"currency")} · Growth {Format(sales?.Growth,"percent")}",11);
-        comparison.SetResourceReference(TextBlock.ForegroundProperty, sales?.Growth < 0 ? "Critical" : "Success");
+        // RA-SALES-14 (1.10.1): no growth figure (LY or Growth shown as "—") is neutral, not green.
+        comparison.SetResourceReference(TextBlock.ForegroundProperty, sales?.Growth is not { } growth ? "PrimaryText" : growth < 0 ? "Critical" : "Success");
         root.Children.Add(comparison);
         var table = new Grid();
         table.ColumnDefinitions.Add(new() { Width = new GridLength(1.25,GridUnitType.Star) });

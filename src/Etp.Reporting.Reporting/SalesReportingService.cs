@@ -63,7 +63,7 @@ public sealed class SalesReportingService
         if (lines.Any(x => x.TransactionType == ReportingTransactionType.Unknown))
             return Blocked(dimension, policy.Version, "Unknown transaction types must be classified before reporting.");
         if (lines.Any(x => HasMissingRequiredDimension(x, dimension)))
-            return Blocked(dimension, policy.Version, "Required reporting dimensions are missing.");
+            return Blocked(dimension, policy.Version, "Required reporting dimensions are missing (store, document or line identifier).");
 
         var selected = lines.Where(x => policy.IncludedTransactionTypes.Contains(x.TransactionType));
         if (dimension == SalesSummaryDimension.Returns)
@@ -85,7 +85,7 @@ public sealed class SalesReportingService
             .ToArray();
 
         return new(dimension, ReconciliationStatus.Passed, rows, policy.Version,
-            CountsNote(selected.ToArray(), dimension, policy) + UnmappedNote(selected, dimension));
+            CountsNote(selected.ToArray(), dimension, policy) + UnmappedNote(selected, dimension) + UnassignedNote(selected, dimension));
     }
 
     /// <summary>
@@ -134,7 +134,7 @@ public sealed class SalesReportingService
     private static string UnmappedNote(IEnumerable<SalesReportingLine> selected, SalesSummaryDimension dimension)
     {
         if (dimension is not (SalesSummaryDimension.Brand or SalesSummaryDimension.BrandSegment)) return string.Empty;
-        var unmapped = selected.Where(x => x.BrandRow is not { Length: > 0 })
+        var unmapped = selected.Where(x => x.BrandRow is not { Length: > 0 } && !IsUnassigned(x, dimension))
             .GroupBy(x => (Store: x.StoreCode, Key: UnmappedKey(x)))
             .Select(x => (x.Key.Store, x.Key.Key, Value: x.Sum(l => l.SourceSignedNetAmount)))
             .OrderBy(x => x.Store, StringComparer.OrdinalIgnoreCase).ThenByDescending(x => x.Value).ThenBy(x => x.Key, StringComparer.Ordinal).ToArray();
@@ -149,22 +149,43 @@ public sealed class SalesReportingService
 
     private static bool HasMissingRequiredDimension(SalesReportingLine line, SalesSummaryDimension dimension) =>
         string.IsNullOrWhiteSpace(line.StoreCode) || string.IsNullOrWhiteSpace(line.DocumentNumber) ||
-        string.IsNullOrWhiteSpace(line.LineIdentifier) ||
-        (dimension == SalesSummaryDimension.Brand && string.IsNullOrWhiteSpace(line.Brand) && string.IsNullOrWhiteSpace(line.BrandRow)) ||
-        (dimension == SalesSummaryDimension.BrandSegment &&
-            ((string.IsNullOrWhiteSpace(line.Brand) && string.IsNullOrWhiteSpace(line.BrandRow)) || string.IsNullOrWhiteSpace(line.BrandSegment))) ||
-        (dimension == SalesSummaryDimension.Item && string.IsNullOrWhiteSpace(line.ItemCode));
+        string.IsNullOrWhiteSpace(line.LineIdentifier);
+
+    /// <summary>Key for a line whose brand, segment or item is blank: kept and shown, never a reason to block the report.</summary>
+    public const string UnassignedKey = "Unassigned";
+
+    // RA-SALES-13 (1.10.1): a blank brand / segment / item no longer blocks the whole report; the line is grouped as "Unassigned".
+    private static bool IsUnassigned(SalesReportingLine line, SalesSummaryDimension dimension) => dimension switch
+    {
+        SalesSummaryDimension.Brand => string.IsNullOrWhiteSpace(line.Brand) && string.IsNullOrWhiteSpace(line.BrandRow),
+        SalesSummaryDimension.BrandSegment => (string.IsNullOrWhiteSpace(line.Brand) && string.IsNullOrWhiteSpace(line.BrandRow)) || string.IsNullOrWhiteSpace(line.BrandSegment),
+        SalesSummaryDimension.Item => string.IsNullOrWhiteSpace(line.ItemCode),
+        _ => false
+    };
+
+    private static string UnassignedNote(IEnumerable<SalesReportingLine> selected, SalesSummaryDimension dimension)
+    {
+        var count = selected.Count(x => IsUnassigned(x, dimension));
+        return count == 0 ? string.Empty : $" {count:N0} line(s) have no {DimensionName(dimension)} in the source and are grouped as \"{UnassignedKey}\".";
+    }
+
+    private static string DimensionName(SalesSummaryDimension dimension) => dimension switch
+    {
+        SalesSummaryDimension.Item => "item code",
+        SalesSummaryDimension.BrandSegment => "brand or cluster",
+        _ => "brand"
+    };
 
     private static string DimensionKey(SalesReportingLine line, SalesSummaryDimension dimension) => dimension switch
     {
         SalesSummaryDimension.Daily => line.TransactionDate.ToString("yyyy-MM-dd"),
         SalesSummaryDimension.Store => line.StoreCode,
-        SalesSummaryDimension.Brand => BrandKey(line),
+        SalesSummaryDimension.Brand => IsUnassigned(line, dimension) ? UnassignedKey : BrandKey(line),
         // An unmapped key already carries the cluster, so it is not repeated.
-        SalesSummaryDimension.BrandSegment => line.BrandRow is { Length: > 0 } row ? $"{row} / {line.BrandSegment}" : UnmappedKey(line),
+        SalesSummaryDimension.BrandSegment => IsUnassigned(line, dimension) ? UnassignedKey : line.BrandRow is { Length: > 0 } row ? $"{row} / {line.BrandSegment}" : UnmappedKey(line),
         // RA-SALES-10 (1.9.9): keyed by store and item, so the same item code sold in two stores is two traceable rows
         // instead of one merged row with no store.
-        SalesSummaryDimension.Item => $"{line.StoreCode} / {line.ItemCode}",
+        SalesSummaryDimension.Item => $"{line.StoreCode} / {(IsUnassigned(line, dimension) ? UnassignedKey : line.ItemCode)}",
         // RA-SALES-08: returns are keyed by store and brand, like the brand-wise sales they reverse, so a return is
         // traceable to the brand it came from; the source sign is kept (returns stay negative).
         SalesSummaryDimension.Returns => $"{line.StoreCode} / {(string.IsNullOrWhiteSpace(line.Brand) ? "Unmapped" : line.Brand)}",

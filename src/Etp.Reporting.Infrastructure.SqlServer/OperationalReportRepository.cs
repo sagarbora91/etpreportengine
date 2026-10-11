@@ -384,7 +384,8 @@ public sealed partial class OperationalReportRepository(string connectionString)
             supplementary.Targets, supplementary.ServiceWdc, DsrMetricPolicy,
             (await new StoreCatalogRepository(connectionString).LoadAsync(cancellationToken)).Where(x=>x.IsActive)
                 .Select(x=>new DsrStoreDefinition(x.Code,x.Name)).ToArray(),
-            supplementary.ServiceMoneyStores);
+            supplementary.ServiceMoneyStores,
+            await LoadFirstImportedSalesDateAsync(cancellationToken));
         return document with { EveningSheets = await LoadEveningSheetsAsync(businessDate, dsr, cancellationToken) };
     }
 
@@ -526,54 +527,7 @@ public sealed partial class OperationalReportRepository(string connectionString)
         return new(storeCode,businessDate,day.Opening,day.TenderSourceImported?day.Modes.GetValueOrDefault("Cash"):null,day.ServiceCash,day.Expenses,day.Deposit,day.Adjustment,day.Closing,day.Counted,variance,status,day.OpeningSource+"; "+day.Status);
     }
 
-    public async Task<IReadOnlyList<PhysicalStockReportRow>> LoadPhysicalStockAsync(
-        string storeCode,
-        DateOnly businessDate,
-        CancellationToken cancellationToken = default)
-    {
-        storeCode = string.IsNullOrWhiteSpace(storeCode) ? throw new ArgumentException("A store code is required.", nameof(storeCode)) : storeCode.Trim();
-        // Gift cards are not stock (owner answer Q2), here as in StockInventorySql.
-        const string sql = $"""
-            WITH system_stock AS
-            (
-              SELECT store_code,snapshot_date,
-                     COALESCE(NULLIF(LTRIM(RTRIM(cluster)),''),NULLIF(LTRIM(RTRIM(brand_name)),''),NULLIF(LTRIM(RTRIM(brand_code)),''),product_code) inventory_group_code,
-                     SUM(quantity) system_quantity
-              FROM dbo.v_stock_snapshots_effective s
-              WHERE store_code=@store AND snapshot_date=@date AND NOT {NonMerchandiseSql.StockItemOfS}
-              GROUP BY store_code,snapshot_date,COALESCE(NULLIF(LTRIM(RTRIM(cluster)),''),NULLIF(LTRIM(RTRIM(brand_name)),''),NULLIF(LTRIM(RTRIM(brand_code)),''),product_code)
-            )
-            SELECT COALESCE(m.store_code,s.store_code),COALESCE(m.business_date,s.snapshot_date),COALESCE(m.inventory_group_code,s.inventory_group_code),
-                   m.display_quantity,m.backstock_quantity,m.defective_quantity,m.y_location_quantity,
-                   CASE WHEN m.manual_stock_count_id IS NULL OR (m.display_quantity IS NULL AND m.backstock_quantity IS NULL AND m.defective_quantity IS NULL AND m.y_location_quantity IS NULL)
-                        THEN NULL ELSE COALESCE(m.display_quantity,0)+COALESCE(m.backstock_quantity,0)+COALESCE(m.defective_quantity,0)+COALESCE(m.y_location_quantity,0) END,
-                   m.counted_physical_quantity,
-                   CASE WHEN m.counted_physical_quantity IS NULL OR (m.display_quantity IS NULL AND m.backstock_quantity IS NULL AND m.defective_quantity IS NULL AND m.y_location_quantity IS NULL)
-                        THEN NULL ELSE m.counted_physical_quantity-(COALESCE(m.display_quantity,0)+COALESCE(m.backstock_quantity,0)+COALESCE(m.defective_quantity,0)+COALESCE(m.y_location_quantity,0)) END,
-                   COALESCE(s.system_quantity,0),
-                   CASE WHEN m.counted_physical_quantity IS NULL THEN NULL ELSE m.counted_physical_quantity-COALESCE(s.system_quantity,0) END,
-                   m.remarks
-            FROM dbo.manual_stock_counts m FULL OUTER JOIN system_stock s
-              ON s.store_code=m.store_code AND s.snapshot_date=m.business_date AND s.inventory_group_code=m.inventory_group_code
-            WHERE COALESCE(m.store_code,s.store_code)=@store AND COALESCE(m.business_date,s.snapshot_date)=@date
-            ORDER BY COALESCE(m.inventory_group_code,s.inventory_group_code);
-            """;
-        await using var connection = await OpenAsync(cancellationToken);
-        await using var command = new SqlCommand(sql, connection);
-        command.Parameters.AddWithValue("@store", storeCode); command.Parameters.AddWithValue("@date", businessDate);
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        var rows = new List<PhysicalStockReportRow>();
-        while (await reader.ReadAsync(cancellationToken))
-        {
-            var compositionVariance = NullableDecimal(reader, 9);
-            var systemVariance = NullableDecimal(reader, 11);
-            var status = systemVariance is null ? "MANUAL INPUT MISSING" : systemVariance != 0 ? "FAIL" : compositionVariance is not null && compositionVariance != 0 ? "WARNING" : "PASS";
-            rows.Add(new(reader.GetString(0), reader.GetFieldValue<DateOnly>(1), reader.GetString(2), NullableDecimal(reader, 3), NullableDecimal(reader, 4),
-                NullableDecimal(reader, 5), NullableDecimal(reader, 6), NullableDecimal(reader, 7), NullableDecimal(reader, 8), compositionVariance,
-                reader.GetDecimal(10), systemVariance, reader.IsDBNull(12) ? null : reader.GetString(12), status));
-        }
-        return rows;
-    }
+    // RA-STOCK-14 (1.10.1): the second physical-stock definition (LoadPhysicalStockAsync) is gone; EveningReportRepository.LoadBrandPhysicalStockAsync is the only one.
 
     public Task<IReadOnlyList<StockInventoryReportRow>> LoadStockInventoryAsync(
         ReportingQueryScope scope,
@@ -801,6 +755,13 @@ public sealed partial class OperationalReportRepository(string connectionString)
             result[reader.GetString(0)] = new(NullableDecimal(reader, 1), period.InclusiveDayCount - reader.GetInt32(2));
         }
         return result;
+    }
+
+    private async Task<DateOnly?> LoadFirstImportedSalesDateAsync(CancellationToken token)
+    {
+        await using var connection = await OpenAsync(token);
+        await using var command = new SqlCommand("SELECT MIN(transaction_date) FROM dbo.sales_invoices;", connection);
+        return await command.ExecuteScalarAsync(token) is DateTime first ? DateOnly.FromDateTime(first) : null;
     }
 
     private async Task<DsrSupplementaryFacts> LoadDsrSupplementaryAsync(DateOnly businessDate, CancellationToken token)

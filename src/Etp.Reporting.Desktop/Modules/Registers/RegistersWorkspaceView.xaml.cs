@@ -61,9 +61,17 @@ public sealed partial class RegistersWorkspaceView : UserControl
             if (revision != registerRefreshRevision) return;
             var visible = rows.Where(x => x.RegisterType == registerType).ToArray();
             RegisterGrid.ItemsSource = visible;
-            SetStatus($"{visible.Length:N0} audited register entry or entries found.");
+            SetStatus(RegisterCountText(visible.Length, registerType, RegisterSearchInput.Text));
         }
         catch (Exception ex) { if (revision != registerRefreshRevision) return; SetStatus(DesktopDiagnostics.WithReference(errorDescriber(ex), DesktopDiagnostics.Record(ex, "Registers.Workspace", "REGISTER_REFRESH_FAILED"))); }
+    }
+
+    // RA-TENDER-15 (1.10.1): plain words for an empty register. The grid headers and local modified time come from ReportGridColumns.
+    internal static string RegisterCountText(int count, string registerType, string? search)
+    {
+        var type = (registerType ?? "").Replace('_', ' ').ToLowerInvariant();
+        if (count > 0) return $"{count:N0} audited {type} entr{(count == 1 ? "y" : "ies")} found.";
+        return string.IsNullOrWhiteSpace(search) ? $"No {type} entries yet." : $"No {type} entries match \"{search.Trim()}\".";
     }
 
     private async void SaveRegisterEntry_Click(object sender, RoutedEventArgs e) => await SaveDraftAsync();

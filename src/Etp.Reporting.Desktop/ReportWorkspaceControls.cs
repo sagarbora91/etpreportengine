@@ -71,8 +71,7 @@ public sealed class ReportWorkspaceControl : Grid
     private readonly TextBlock reportTitle;
     private TextBlock statusText = null!;
     private Action updateToolbar = () => { };
-    private bool compactFilters;
-    public void FocusPeriod() { if(compactFilters) new Modules.Reports.ReportScopeDialog(this).ShowDialog(); else (DateFromPicker.IsEnabled ? DateFromPicker : DateToPicker).Focus(); }
+    public void FocusPeriod() => (DateFromPicker.IsEnabled ? DateFromPicker : DateToPicker).Focus();
 
     public event EventHandler<ReportWorkspaceActionRequest>? ActionRequested;
     public event EventHandler<ProductReportEntry>? ReportSelected;
@@ -223,9 +222,6 @@ public sealed class ReportWorkspaceControl : Grid
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         var actions = new WrapPanel();
         actions.Children.Add(DateFromPicker); actions.Children.Add(DateToPicker); actions.Children.Add(ScopeSelector);
-        var filters = new Button { Content = "Period & store", Margin = new Thickness(0,0,8,0), Padding = new Thickness(12,6,12,6) };
-        filters.Click += (_,_) => new Modules.Reports.ReportScopeDialog(this).ShowDialog();
-        AutomationProperties.SetName(filters,"Edit report period and store"); filters.Visibility = Visibility.Collapsed;
         actions.Children.Add(ActionButton("Refresh", ReportWorkspaceAction.Refresh, true));
         var pdf = ActionButton("Export PDF", ReportWorkspaceAction.ExportPdf);
         var excel = ActionButton("Export Excel", ReportWorkspaceAction.ExportExcel);
@@ -234,8 +230,8 @@ public sealed class ReportWorkspaceControl : Grid
         root.Children.Add(actions);
         statusText = DsrUi.Text(definition.Description, 12, colour: "SecondaryText"); statusText.Name = "ReportTaskStatus";
         statusText.TextWrapping = TextWrapping.Wrap; statusText.TextTrimming = TextTrimming.None;
-        var summaries = new StackPanel { Margin = new Thickness(0,6,0,0) }; var scope = DsrUi.Text("",12);
-        summaries.Children.Add(scope); summaries.Children.Add(statusText); Grid.SetRow(summaries,1); root.Children.Add(summaries);
+        var summaries = new StackPanel { Margin = new Thickness(0,6,0,0) };
+        summaries.Children.Add(statusText); Grid.SetRow(summaries,1); root.Children.Add(summaries);
         AutomationProperties.SetName(queryFilters, "Report query filters");
         AutomationProperties.SetName(appliedScope, "Applied report scope");
         Grid.SetRow(queryFilters,2); root.Children.Add(queryFilters);
@@ -243,14 +239,10 @@ public sealed class ReportWorkspaceControl : Grid
         updateToolbar = () =>
         {
             var compact = container.ActualWidth > 0 && container.ActualWidth < 1000;
-            compactFilters = false;
-            DateFromPicker.Visibility = !compactFilters && DateFromPicker.IsEnabled ? Visibility.Visible : Visibility.Collapsed;
+            DateFromPicker.Visibility = DateFromPicker.IsEnabled ? Visibility.Visible : Visibility.Collapsed;
             DateToPicker.Visibility = DateFromPicker.IsEnabled ? Visibility.Visible : Visibility.Collapsed;
             ScopeSelector.Visibility = Visibility.Collapsed;
-            filters.Visibility = scope.Visibility = compactFilters ? Visibility.Visible : Visibility.Collapsed;
-            scope.Text = $"{DateFromPicker.SelectedDate:dd MMM yyyy} – {DateToPicker.SelectedDate:dd MMM yyyy} · {ScopeSelector.SelectedItem} · {statusText.Text}";
-            scope.TextWrapping = TextWrapping.Wrap; scope.TextTrimming = TextTrimming.None;
-            statusText.Visibility = compactFilters ? Visibility.Collapsed : Visibility.Visible;
+            statusText.Visibility = Visibility.Visible;
             pdf.Visibility = excel.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
             actionMenu.Visibility = compact ? Visibility.Visible : Visibility.Collapsed;
             container.Padding = new Thickness(compact ? 8 : 12); container.Margin = new Thickness(0,compact ? 0 : 10,0,0);

@@ -9,9 +9,9 @@ public sealed partial class TaskNavigator
         var code = window.shell.CurrentRoute.FeatureCode;
         if (code is null) return;
         if (window.FocusedWorkspaceHost.Content is ReportWorkspaceControl report)
-            window.reportsWorkspaceView.ApplyScope(report.DateFromPicker.SelectedDate, report.DateToPicker.SelectedDate, report.ScopeSelector.SelectedItem?.ToString());
+            window.ApplyWorkspaceScope(report.DateFromPicker.SelectedDate, report.DateToPicker.SelectedDate, report.ScopeSelector.SelectedItem?.ToString());
         if (window.FocusedWorkspaceHost.Content is DailySalesReportWorkspace dsr)
-            window.reportsWorkspaceView.ApplyScope(dsr.BusinessDatePicker.SelectedDate, dsr.BusinessDatePicker.SelectedDate, dsr.ScopeSelector.SelectedItem?.ToString());
+            window.ApplyWorkspaceScope(dsr.BusinessDatePicker.SelectedDate, dsr.BusinessDatePicker.SelectedDate, dsr.ScopeSelector.SelectedItem?.ToString());
         window.reportsWorkspaceView.RunReportObserved(code);
     }
     public void SearchCurrentPage()

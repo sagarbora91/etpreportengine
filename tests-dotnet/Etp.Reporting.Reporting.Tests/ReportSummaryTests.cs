@@ -80,7 +80,7 @@ public sealed class ReportSummaryTests
     public void Closing_stock_summary_counts_items_units_value_and_top_brands()
     {
         var data = new ExcelReportData(
-            [new("Date"), new("Store"), new("Item"), new("Brand"), new("Inventory Group"), new("Quantity", "#,##0.00"), new("Unit MRP", "#,##0.00"), new("MRP value (GST incl.)", "#,##0.00"), new("Movement Status")],
+            [new("Date"), new("Store"), new("Item"), new("Brand"), new("Cluster"), new("Quantity", "#,##0.00"), new("Unit MRP", "#,##0.00"), new("MRP value (GST incl.)", "#,##0.00"), new("Movement Status")],
             [[new DateOnly(2026, 9, 30), "S1", "I1", "Titan", "Watch", 2m, 100m, 200m, StockAgeing.Active],
              [new DateOnly(2026, 9, 30), "S1", "I2", "Titan", "Watch", 1m, 300m, 300m, StockAgeing.Slow],
              [new DateOnly(2026, 9, 30), "S1", "I3", "Fastrack", "Watch", 4m, 50m, 200m, StockAgeing.Watch]],
@@ -103,7 +103,7 @@ public sealed class ReportSummaryTests
     public void Brand_stock_movement_variance_and_physical_summaries_read_their_own_columns()
     {
         var brand = VisualReportComposer.Compose(Meta("Brand Stock"), new(
-            [new("Store"), new("Brand row"), new("Brand"), new("Inventory Group"), new("Quantity", "#,##0.00"), new("MRP value (GST incl.)", "#,##0.00"), new("Items", "#,##0"), new("Slow Items", "#,##0")],
+            [new("Store"), new("Brand row"), new("Brand"), new("Cluster"), new("Quantity", "#,##0.00"), new("MRP value (GST incl.)", "#,##0.00"), new("Items", "#,##0"), new("Slow Items", "#,##0")],
             [["S1", "TITAN", "Titan", "Watch", 10m, 5000m, 4, 1], ["S1", "SONATA", "Sonata", "Watch", 5m, 1000m, 2, 0]], ["Total", "", "", "", 15m, 6000m, 6, 1]), "stock-brand");
         Assert.Equal(6m, Kpi(brand, "Items"));
         Assert.Equal(1m, Kpi(brand, "Slow items"));

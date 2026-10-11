@@ -52,7 +52,7 @@ public partial class MainWindow
 
     private void RunFocusedReport(string reportCode, ReportWorkspaceControl workspace)
     {
-        reportsWorkspaceView.ApplyScope(workspace.DateFromPicker.SelectedDate, workspace.DateToPicker.SelectedDate, workspace.ScopeSelector.SelectedItem?.ToString());
+        ApplyWorkspaceScope(workspace.DateFromPicker.SelectedDate, workspace.DateToPicker.SelectedDate, workspace.ScopeSelector.SelectedItem?.ToString());
         reportsWorkspaceView.RunReportObserved(reportCode);
     }
 
@@ -61,9 +61,7 @@ public partial class MainWindow
         switch (request.Action)
         {
             case ReportWorkspaceAction.Refresh when request.ReportCode is not null:
-                if (sender is ReportWorkspaceControl)
-                    reportsWorkspaceView.ApplyScope(request.DateFrom.ToDateTime(TimeOnly.MinValue), request.DateTo.ToDateTime(TimeOnly.MinValue), request.Scope);
-                else ApplyWorkspaceScope(request.DateFrom.ToDateTime(TimeOnly.MinValue), request.DateTo.ToDateTime(TimeOnly.MinValue), request.Scope);
+                ApplyWorkspaceScope(request.DateFrom.ToDateTime(TimeOnly.MinValue), request.DateTo.ToDateTime(TimeOnly.MinValue), request.Scope);
                 reportsWorkspaceView.RunReportObserved(request.ReportCode);
                 break;
             case ReportWorkspaceAction.ExportPdf:
@@ -93,7 +91,8 @@ public partial class MainWindow
         }
     }
 
-    private void ApplyWorkspaceScope(DateTime? from, DateTime? to, string? scope)
+    // RA-EXPORT-17 (1.10.1): every focused-report Refresh/Run goes through here so the header date and the report To date cannot diverge.
+    internal void ApplyWorkspaceScope(DateTime? from, DateTime? to, string? scope)
     {
         reportsWorkspaceView.ApplyScope(from, to, scope);
         ShellBusinessDateSelector.SelectedDate = reportsWorkspaceView.DateTo;

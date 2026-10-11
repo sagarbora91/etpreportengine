@@ -153,11 +153,12 @@ public sealed class DailyReportingPackService(string connectionString)
                 hasR013 ? staff.AttributedSales : null, hasR013 ? staff.Variance : null,
                 !hasR013 ? "R013 source is missing for this business date." : staff.Message),
             new("Manual Operational Inputs", workflow.MissingRequiredInputs.Count == 0 ? ReconciliationStatus.Passed : ReconciliationStatus.Blocked,
-                workflow.ManualInputs.Count(x => x.IsPresent), workflow.MissingRequiredInputs.Count,
-                ManualInputsMessage(workflow.MissingRequiredInputs, workflow.ManualInputs)),
+                null, null, // RA-OPS-18 (1.10.1): counts are not money; they stay in the message.
+                $"{workflow.ManualInputs.Count(x => x.IsPresent):N0} input(s) entered, {workflow.MissingRequiredInputs.Count:N0} required missing. "
+                + ManualInputsMessage(workflow.MissingRequiredInputs, workflow.ManualInputs)),
             new("Exception / Reconciliation Report", exceptions.Any(x => x.Severity is "BLOCKER" or "FAIL") ? ReconciliationStatus.Failed : ReconciliationStatus.Passed,
-                exceptions.Count, exceptions.Count(x => x.Variance is not null),
-                exceptions.Count == 0 ? "No daily exceptions were found." : $"{exceptions.Count:N0} traceable exception(s) remain visible."),
+                null, null,
+                exceptions.Count == 0 ? "No daily exceptions were found." : $"{exceptions.Count:N0} traceable exception(s) remain visible; {exceptions.Count(x => x.Variance is not null):N0} carry a variance."),
             new(FinalisationSectionName, workflow.Status == DailyReadinessStatus.Locked ? ReconciliationStatus.Passed : ReconciliationStatus.NotRun,
                 null, null, workflow.StatusMessage)
         };

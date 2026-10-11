@@ -54,7 +54,8 @@ public static class DailySalesReportBuilder
     public static DailySalesReportDocument Build(DateOnly businessDate, IReadOnlyList<DsrPeriodFact> sales,
         IReadOnlyList<DsrServiceFact> service, IReadOnlyDictionary<string, decimal?> monthlyTargets,
         decimal? serviceWdc = null, string metricPolicy = "DSR_INVOICE_DENOMINATOR_SOURCE_EVIDENCE_V1",
-        IReadOnlyList<DsrStoreDefinition>? stores = null, IReadOnlyCollection<string>? serviceMoneyStores = null)
+        IReadOnlyList<DsrStoreDefinition>? stores = null, IReadOnlyCollection<string>? serviceMoneyStores = null,
+        DateOnly? firstImportedSalesDate = null)
     {
         ArgumentNullException.ThrowIfNull(sales); ArgumentNullException.ThrowIfNull(service); ArgumentNullException.ThrowIfNull(monthlyTargets);
         if (serviceMoneyStores is not null)
@@ -62,7 +63,7 @@ public static class DailySalesReportBuilder
         var engine = new ManagementMetricEngine();
         var definitions = stores ?? sales.Where(x=>x.StoreCode!="COMBINED").Select(x=>x.StoreCode).Distinct(StringComparer.OrdinalIgnoreCase).Select(x=>new DsrStoreDefinition(x,x)).ToArray();
         var storePresentation = definitions.Select((store,index)=>new { Key=store.Code, Value=(Name:store.Name,Accent:index%2==0?"#2269E8":"#7137D4") }).ToArray();
-        var storeCards = storePresentation.Select(store => BuildStore(store.Key, store.Value, sales, engine)).ToArray();
+        var storeCards = storePresentation.Select(store => BuildStore(store.Key, store.Value, sales, engine, businessDate, firstImportedSalesDate)).ToArray();
         var combinedFtd = Find(sales, "COMBINED", "FTD");
         var combinedMtd = Find(sales, "COMBINED", "MTD");
         var combinedYtd = Find(sales, "COMBINED", "YTD");
@@ -91,12 +92,18 @@ public static class DailySalesReportBuilder
     }
 
     private static DsrStoreCard BuildStore(string code, (string Name, string Accent) presentation,
-        IReadOnlyList<DsrPeriodFact> rows, ManagementMetricEngine engine)
+        IReadOnlyList<DsrPeriodFact> rows, ManagementMetricEngine engine, DateOnly businessDate = default, DateOnly? firstImportedSalesDate = null)
     {
         var periods = new[] { "FTD", "MTD", "YTD" }.Select(period =>
         {
             var row = Find(rows, code, period);
-            var missing = period == "MTD" && row?.LySales is null ? "LY MTD source required" : null;
+            // RA-SALES-15 (1.10.1): before the first import the last-year month cannot exist; say so with the date.
+            var lyMonthStart = businessDate == default ? (DateOnly?)null : new DateOnly(businessDate.Year - 1, businessDate.Month, 1);
+            var missing = period == "MTD" && row?.LySales is null
+                ? firstImportedSalesDate is { } first && lyMonthStart is { } lyStart && lyStart < first
+                    ? $"Last-year period starts before the first import ({first:dd MMM yyyy})"
+                    : "LY MTD source required"
+                : null;
             return new DsrPeriodComparison(period, row?.TySales, row?.TyUnits, row?.LySales, row?.LyUnits,
                 engine.Growth(row?.TySales, row?.LySales), engine.Growth(row?.TyUnits, row?.LyUnits), missing);
         }).ToArray();

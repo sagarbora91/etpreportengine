@@ -59,6 +59,8 @@ public sealed class PhaseFiveNavigationTests
             Assert.Equal("A,B", ((TextBox)source.FindName("StoreFilterInput")).Text);
             workspace.ScopeSelector.SelectedItem = "Shop C (C)"; run.Invoke(window,["sales-item",workspace]);
             Assert.Equal("C", ((TextBox)source.FindName("StoreFilterInput")).Text);
+            // RA-EXPORT-17 (1.10.1): a focused-report run also moves the header date to the report To date.
+            Assert.Equal(workspace.DateToPicker.SelectedDate, window.ShellBusinessDateSelector.SelectedDate);
             window.importWorkspaceView.DisposeAsync().AsTask().GetAwaiter().GetResult();
         });
     }

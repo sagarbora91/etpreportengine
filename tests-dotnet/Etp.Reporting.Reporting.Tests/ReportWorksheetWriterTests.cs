@@ -6,7 +6,7 @@ namespace Etp.Reporting.Reporting.Tests;
 
 /// <summary>
 /// 1.9.8, lane EXPORT-TESTS (RA-EXPORT-14/19): what every Excel export writes. Headers in row 8, every row below, Indian
-/// lakh formats for money (2 decimals) and counts (none), percent columns, real dates, "—" for blank cells, the applied
+/// lakh formats for money (2 decimals) and counts (none), percent columns, real dates, blank cells for missing numbers ("—" in text/date columns), the applied
 /// scope as a merged row 7, sheet names Excel accepts.
 /// </summary>
 public sealed class ReportWorksheetWriterTests
@@ -53,7 +53,7 @@ public sealed class ReportWorksheetWriterTests
             Assert.Equal("2469135.782", second[2].CellValue!.Text);
             Assert.Equal(IndianMoney, FormatOf(second[2]));
             Assert.Equal(IndianMoney, FormatOf(second[3]));
-            Assert.Equal("—", second[4].InnerText);
+            Assert.Null(second[4].DataType); Assert.Equal("", second[4].InnerText); // RA-EXPORT-14: blank, not "—", in a numeric column
             Assert.Equal(new DateTime(2026, 7, 2).ToOADate().ToString(System.Globalization.CultureInfo.InvariantCulture), second[5].CellValue!.Text);
             Assert.Equal("dd mmm yyyy", FormatOf(second[5]));
             Assert.Equal(CellValues.Number, second[6].DataType!.Value);
@@ -63,14 +63,14 @@ public sealed class ReportWorksheetWriterTests
             Assert.Equal("0.00\"%\"", FormatOf(third[4]));
 
             var blank = byRow[9];
-            Assert.All(blank.Skip(1), cell => Assert.Equal("—", cell.InnerText));
-            Assert.All(blank.Skip(1), cell => Assert.Equal(CellValues.InlineString, cell.DataType!.Value));
+            Assert.All(blank.Skip(1).Take(4), cell => { Assert.Null(cell.DataType); Assert.Equal("", cell.InnerText); });
+            Assert.All(blank.Skip(5), cell => { Assert.Equal("—", cell.InnerText); Assert.Equal(CellValues.InlineString, cell.DataType!.Value); });
 
             var totals = byRow[59];
             Assert.Equal("Total", totals[0].InnerText);
             Assert.Equal("1275", totals[1].CellValue!.Text);
             Assert.Equal(IndianMoney, FormatOf(totals[2]));
-            Assert.Equal("—", totals[4].InnerText);
+            Assert.Equal("", totals[4].InnerText);
             Assert.Empty(worksheet.Descendants<CellFormula>());
         }
         finally { if (File.Exists(path)) File.Delete(path); }
