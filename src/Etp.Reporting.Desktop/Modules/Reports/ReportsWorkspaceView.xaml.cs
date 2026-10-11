@@ -761,7 +761,7 @@ public partial class ReportsWorkspaceView : UserControl
     };
     // Status lines use the app's Indian digit grouping (10,15,259.10), like the grids and tiles, whatever the thread culture.
     internal static string IndianText(FormattableString text) => text.ToString(PresentationCulture.Indian);
-    private static ReconciliationStatus ToReportingStatus(ApplicationReportStatus status) => status switch { ApplicationReportStatus.Passed=>ReconciliationStatus.Passed,ApplicationReportStatus.Failed=>ReconciliationStatus.Failed,ApplicationReportStatus.Blocked=>ReconciliationStatus.Blocked,_=>ReconciliationStatus.NotRun };
+    internal static ReconciliationStatus ToReportingStatus(ApplicationReportStatus status) => status switch { ApplicationReportStatus.Passed=>ReconciliationStatus.Passed,ApplicationReportStatus.Failed=>ReconciliationStatus.Failed,ApplicationReportStatus.Blocked=>ReconciliationStatus.Blocked,_=>ReconciliationStatus.NotRun };
     private static IReadOnlyList<string>? Csv(string value) { var values=value.Split(',',StringSplitOptions.TrimEntries|StringSplitOptions.RemoveEmptyEntries).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();return values.Length==0?null:values; }
     // The proposed export file name for a report name (RA-EXPORT-03): "Slow / Exception Stock" holds a '/', which Windows
     // rejects in a file name, so every invalid character and every space becomes '_'. Excel and PDF exports share it.
