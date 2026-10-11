@@ -1,5 +1,6 @@
 using System.Threading;
 using Etp.Reporting.Application.ErrorRegister;
+using Etp.Reporting.Application.HealthCheck;
 using Etp.Reporting.Desktop.Modules.OperationsAdministration;
 
 namespace Etp.Reporting.Desktop.Tests;

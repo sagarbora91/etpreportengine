@@ -246,8 +246,8 @@ public sealed class ReportProbes : IHealthProbe
             {
                 var probed = await spec.Run(new Call(store, day, state), timeout.Token).ConfigureAwait(false);
                 var seconds = Seconds(time.GetElapsedTime(start));
-                subs.Add(new Sub(store, seconds > SlowLimit.TotalSeconds ? HealthOutcome.Warning : HealthOutcome.Pass,
-                    seconds > SlowLimit.TotalSeconds ? FindingSlow : FindingOk, seconds, probed.Status.ToString(), probed.Rows, null, null));
+                subs.Add(new Sub(store, seconds > (decimal)SlowLimit.TotalSeconds ? HealthOutcome.Warning : HealthOutcome.Pass,
+                    seconds > (decimal)SlowLimit.TotalSeconds ? FindingSlow : FindingOk, seconds, probed.Status.ToString(), probed.Rows, null, null));
             }
             catch (ProbeSkipped skipped)
             {

@@ -9,6 +9,7 @@ using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Data;
 using EtpApplication::Etp.Reporting.Application.ErrorRegister;
+using EtpApplication::Etp.Reporting.Application.HealthCheck;
 using Etp.Reporting.Desktop.Themes;
 
 namespace Etp.Reporting.Desktop.Modules.OperationsAdministration;

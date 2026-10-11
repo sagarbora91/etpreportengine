@@ -334,8 +334,7 @@ public sealed class HealthCheckRunnerTests
     public void Normalise_makes_codes_and_explanations_acceptable_to_the_run_procedure()
     {
         var line = new HealthCheckResult(HealthCheckId.Ops09, HealthCheckArea.Operations, HealthOutcome.Warning, "app hang-1002",
-            "First line
-second	line", "bad task id!", TimeSpan.Zero, null,
+            "First line\r\nsecond\tline", "bad task id!", TimeSpan.Zero, null,
             [new HealthCheckSubResult("K", HealthOutcome.Warning, "event 1002")]);
 
         var fitted = HealthCheckRunner.Normalise(line);
