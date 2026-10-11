@@ -28,6 +28,9 @@ public sealed partial class SqlServerImportPersistenceUseCase : IImportPersisten
     // constructor already stores the policy's own output, so this is the same string, checked where it is used.
     private SqlConnection LocalConnection() => new(LocalSqlConnectionPolicy.Validate(connectionString));
 
+    /// <summary>The validated connection string, for the folder import's daily-inputs applier (family D001).</summary>
+    internal string ConnectionString => connectionString;
+
     public Task RecordAttemptAsync(FolderImportFileResult result, CancellationToken cancellationToken = default) =>
         new SqlServerImportHistoryQuery(connectionString).RecordAttemptAsync(result, cancellationToken);
 

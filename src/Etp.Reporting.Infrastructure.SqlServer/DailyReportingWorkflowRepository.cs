@@ -81,6 +81,30 @@ public sealed class DailyReportingWorkflowRepository(string connectionString)
         if (textValue?.Length > 1000 || reason.Length > 500)
             throw new ArgumentException("The manual value or change reason is too long.");
 
+        await using var connection = await OpenAsync(cancellationToken);
+        await EnsureDayAsync(connection, storeCode, businessDate, cancellationToken);
+        await SaveManualInputCoreAsync(connection, null, storeCode, businessDate, fieldCode,
+            numericValue, textValue, user, reason, cancellationToken);
+    }
+
+    /// <summary>
+    /// The one manual-input write: active-definition check (51022), MERGE into manual_operational_inputs
+    /// (the table trigger writes history and throws 51020 on a LOCKED day) and the ManualInputChanged event.
+    /// Shared by the screen (<see cref="SaveManualInputAsync"/>) and the daily-inputs file applier.
+    /// Callers validate arguments and ensure the reporting day row exists first.
+    /// </summary>
+    internal static async Task SaveManualInputCoreAsync(
+        SqlConnection connection,
+        SqlTransaction? transaction,
+        string storeCode,
+        DateOnly businessDate,
+        string fieldCode,
+        decimal? numericValue,
+        string? textValue,
+        string user,
+        string reason,
+        CancellationToken cancellationToken)
+    {
         const string sql = """
             IF NOT EXISTS(SELECT 1 FROM dbo.manual_input_definitions WHERE field_code=@field AND is_active=1)
                 THROW 51022,'The manual input field is not active.',1;
@@ -93,9 +117,8 @@ public sealed class DailyReportingWorkflowRepository(string connectionString)
             INSERT dbo.daily_reporting_events(store_code,business_date,event_type,performed_by,reason)
             VALUES(@store,@date,'ManualInputChanged',@user,@reason);
             """;
-        await using var connection = await OpenAsync(cancellationToken);
-        await EnsureDayAsync(connection, storeCode, businessDate, cancellationToken);
         await using var command = ScopeCommand(connection, sql, storeCode, businessDate);
+        command.Transaction = transaction;
         command.Parameters.AddWithValue("@field", fieldCode);
         command.Parameters.AddWithValue("@numeric", (object?)numericValue ?? DBNull.Value);
         command.Parameters.AddWithValue("@text", (object?)textValue ?? DBNull.Value);
@@ -156,11 +179,16 @@ public sealed class DailyReportingWorkflowRepository(string connectionString)
         catch { await connection.DisposeAsync(); throw; }
     }
 
-    private static async Task EnsureDayAsync(SqlConnection connection, string storeCode, DateOnly date, CancellationToken token)
+    private static Task EnsureDayAsync(SqlConnection connection, string storeCode, DateOnly date, CancellationToken token) =>
+        EnsureDayCoreAsync(connection, null, storeCode, date, token);
+
+    /// <summary>Creates the OPEN daily_reporting_days row when none exists (shared with the daily-inputs applier).</summary>
+    internal static async Task EnsureDayCoreAsync(SqlConnection connection, SqlTransaction? transaction, string storeCode, DateOnly date, CancellationToken token)
     {
         await using var command = ScopeCommand(connection,
             "IF NOT EXISTS(SELECT 1 FROM dbo.daily_reporting_days WITH(UPDLOCK,HOLDLOCK) WHERE store_code=@store AND business_date=@date) INSERT dbo.daily_reporting_days(store_code,business_date,status) VALUES(@store,@date,'OPEN')",
             storeCode, date);
+        command.Transaction = transaction;
         await command.ExecuteNonQueryAsync(token);
     }
 
