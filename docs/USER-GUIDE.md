@@ -40,7 +40,7 @@ Settings → Test connection reports a refused login and a missing database sepa
 
 ## Health check and Error register (Owner)
 
-*New in 1.11.0.* Two screens under Settings → Database, for the Owner. Store Managers and Viewers do not see them; they see one line on the dashboard: "System check: last night OK", "N warnings" or "1 problem - tell the Owner".
+*New in 1.11.0.* Two screens under Settings → Database, for the Owner. Store Managers and Viewers do not see them; they see one line on the Today screen (above "What's missing"): "System check: last night OK", "N warnings" or "1 problem - tell the Owner".
 
 **Health check.** Choose **Run health check**. ETP reads the database and the files it needs and changes nothing. It takes about a minute, runs in the background, and has a Cancel button; between 09:00 and 21:00 it asks first. It checks 51 things in seven groups: the database, permissions, the 22 reports, the import layouts, yesterday's data, backups and scheduled tasks, and the error log. The same check runs by itself every night at about 02:30 (and at the next opportunity if the PC was off). Yesterday is the business date it checks.
 
@@ -54,7 +54,7 @@ Each line shows one of:
 
 Every line has a plain explanation and a **Where to fix** button that opens the right screen, or says what to do ("run ETP setup as administrator"). A report that opens but says Blocked because a file is missing is still a Pass: the report works, and the missing file is reported once, on the "Yesterday is complete" line. A line that has not changed since the last run says "unchanged since" with the date. **Compare with** shows what changed against an earlier run.
 
-**Mark as Known.** Select a warning and choose Mark as Known. Enter a reason and an end date, at most 90 days ahead. The line turns grey and stops counting as a warning until the date passes. A Known never hides a Fail. Use it for things you have not started yet, for example daily manual inputs or staff targets.
+**Mark as Known.** Select a warning and choose **Mark selected warning as Known**. Enter a reason and an end date, at most 90 days ahead. The line turns grey and stops counting as a warning until the date passes. A Known never hides a Fail. Use it for things you have not started yet, for example daily manual inputs or staff targets.
 
 **Error register.** Every Error or Critical entry in ETP's diagnostics log is grouped into one register entry: how many times, first and last seen, which versions, and a status:
 

@@ -50,8 +50,8 @@ public sealed class HelpCentreView : UserControl
         });
     }
 
-    public void ShowContextHelp(string? destination, string? featureCode = null) =>
-        OpenTopic(ContextHelpRouter.ResolveTopicId(destination, featureCode));
+    public void ShowContextHelp(string? destination, string? featureCode = null, string? taskId = null) =>
+        OpenTopic(ContextHelpRouter.ResolveTopicId(destination, featureCode, taskId));
 
     private UIElement BuildLayout()
     {

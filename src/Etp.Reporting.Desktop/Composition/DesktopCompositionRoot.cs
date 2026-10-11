@@ -213,6 +213,8 @@ public sealed class DesktopCompositionRoot
         window.dailyReadinessQuery = () => new SqlServerDailyReadinessQuery(connectionState.ConnectionString);
         // 1.11.0: Settings > Database > Health check and Error register (Owner only; L8 screens).
         DiagnosticsScreens.Services = CreateDiagnosticsScreenServices(() => connectionState.ConnectionString);
+        // Design 4.3: one ingest after a successful start. The fix manifest is not applied here (Owner/automation only).
+        window.startupErrorIngest = token => IngestOwnLogAsync(connectionState.ConnectionString, token);
         dailyWorkflowWorkspaceView.AttachRegisters((store, date, token) =>
             SqlServerDigitalRegisterService.LoadDayAsync(connectionState.ConnectionString, store, date, token));
         return window;
@@ -337,10 +339,12 @@ public sealed class DesktopCompositionRoot
         // Design 4.4 step 2: the first run of a new version marks the fixes it ships. Never throws (L2).
         await ErrorFixManifest.ApplyAsync(registerStore, appVersion, cancellationToken: cancellationToken).ConfigureAwait(false);
         // Design 4.3: this account's log (nightly: the automation account's, which no one else can read).
-        await BestEffortAsync(() => CreateIngest(registerStore).RunAsync(cancellationToken), "HEALTH_INGEST_FAILED").ConfigureAwait(false);
+        // ERR-01 reports this ingest (null: it threw, which the line shows as a Fail).
+        var ingest = await BestEffortAsync(() => CreateIngest(registerStore).RunAsync(cancellationToken), "HEALTH_INGEST_FAILED").ConfigureAwait(false);
 
         var runner = new HealthCheckRunner(
-            CreateHealthProbes(targetConnectionString, MigrationDirectory, healthStore, automationPrincipal),
+            CreateHealthProbes(targetConnectionString, MigrationDirectory, healthStore, automationPrincipal,
+                new ErrorProbes(token => registerStore.LoadRegisterAsync(cancellationToken: token), () => ingest)),
             new HealthCheckRunnerOptions
             {
                 Store = healthStore,
@@ -395,10 +399,12 @@ public sealed class DesktopCompositionRoot
 
     /// <summary>
     /// The health probes (design 5.2). The run order is the runner's (design 5.3); probes of one area run in this order.
-    /// ERR-01..04 have no probe yet (not assigned in section 14): the runner reports them Skipped (NOT_AVAILABLE).
+    /// ERR-01..04 come from <paramref name="errorProbes"/> (it needs this run's ingest result); without it the runner
+    /// reports them Skipped (NOT_AVAILABLE).
     /// </summary>
     internal static IReadOnlyList<IHealthProbe> CreateHealthProbes(
-        string targetConnectionString, string migrationDirectory, IHealthCheckStore healthStore, string? automationPrincipal) =>
+        string targetConnectionString, string migrationDirectory, IHealthCheckStore healthStore, string? automationPrincipal,
+        ErrorProbes? errorProbes = null) =>
     [
         .. DatabaseProbes.Create(targetConnectionString, migrationDirectory),                                   // L4: DB-01..05
         new SecurityProbes(healthStore, automationPrincipal),                                                   // L4: SEC-01..03
@@ -406,7 +412,8 @@ public sealed class DesktopCompositionRoot
             OperationsProbeSettings.ForThisMachine(automationPrincipal), new DelegateSqlBuildAssessor(AssessSqlBuild)),
         new DataProbes(targetConnectionString),                                                                 // L6: DATA-01..05
         new ImportProbes(targetConnectionString),                                                               // L6: IMP-01..03
-        ReportProbes.ForConnection(targetConnectionString)                                                      // L5: RPT-01..22
+        ReportProbes.ForConnection(targetConnectionString),                                                     // L5: RPT-01..22
+        .. (errorProbes is null ? Array.Empty<IHealthProbe>() : new IHealthProbe[] { errorProbes })                               // ERR-01..04
     ];
 
     /// <summary>OPS-06 (L7) judged by L4's <c>KnownSqlBuilds</c>, the one table of recommended builds.</summary>

@@ -110,7 +110,7 @@ public partial class MainWindow
         helpCentre ??= CreateHelpCentre();
         if (contextual)
         {
-            helpCentre.ShowContextHelp(shell.CurrentRoute.Destination, shell.CurrentRoute.FeatureCode);
+            helpCentre.ShowContextHelp(shell.CurrentRoute.Destination, shell.CurrentRoute.FeatureCode, shell.CurrentRoute.TaskId);
         }
         else helpCentre.OpenTopic(topicId ?? HelpCentreRegistry.HomeTopicId);
         focusedWorkspaceKind = "help";

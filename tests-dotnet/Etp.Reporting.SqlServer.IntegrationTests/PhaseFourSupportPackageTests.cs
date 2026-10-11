@@ -140,6 +140,9 @@ public sealed class PhaseFourSupportPackageTests(SqlDatabaseFixture database) : 
         // Never the Owner's own log: an empty folder unless the test supplies one.
         start.ArgumentList.Add("-DiagnosticsDirectory");
         start.ArgumentList.Add(diagnosticsDirectory ?? Path.Combine(output, "no-diagnostics"));
+        // 1.11.0: never this PC's real health exports (C:\ProgramData\EtpReporting\HealthExports); a folder that does not exist.
+        start.ArgumentList.Add("-HealthExportDirectory");
+        start.ArgumentList.Add(Path.Combine(output, "no-health-exports"));
         using var process = Process.Start(start)!;
         var stdout = process.StandardOutput.ReadToEndAsync();
         var stderr = process.StandardError.ReadToEndAsync();

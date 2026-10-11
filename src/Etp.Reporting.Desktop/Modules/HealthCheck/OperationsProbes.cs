@@ -149,15 +149,21 @@ public interface IProtectedPathChecker
     PathProtectionResult Check(string path);
 }
 
-/// <summary>The application's protected-path rule (<see cref="ProtectedOperationPath"/>), as setup and the operations scripts apply it.</summary>
-public sealed class ProtectedOperationPathChecker : IProtectedPathChecker
+/// <summary>
+/// The application's protected-path rule (<see cref="ProtectedOperationPath"/>), as setup and the operations scripts apply it.
+/// <paramref name="modifiablePath"/> (HealthExports) may also be modified by individual accounts (setup gives the automation
+/// account and the active Owners Modify there, L9), but its permissions may still be changed only by administrators.
+/// </summary>
+public sealed class ProtectedOperationPathChecker(string? modifiablePath = null) : IProtectedPathChecker
 {
     public PathProtectionResult Check(string path)
     {
         try
         {
             if (!Directory.Exists(path) && !File.Exists(path)) return new(PathProtection.Missing, "MISSING");
-            ProtectedOperationPath.Validate(path);
+            var modifiable = modifiablePath is not null
+                && string.Equals(Path.GetFullPath(path).TrimEnd('\\'), Path.GetFullPath(modifiablePath).TrimEnd('\\'),StringComparison.OrdinalIgnoreCase);
+            ProtectedOperationPath.Validate(path, modifiable ? ProtectedOperationPath.IsIndividualAccount : null);
             return new(PathProtection.Protected, "OK");
         }
         catch (InvalidOperationException ex)
@@ -288,7 +294,7 @@ public sealed class OperationsProbes : IHealthProbe
     /// <summary>The real machine's readers for <paramref name="connectionString"/>; the caller supplies the adapter over L4's KnownSqlBuilds.</summary>
     public static OperationsProbes CreateDefault(string connectionString, OperationsProbeSettings settings, ISqlBuildAssessor sqlBuilds) =>
         new(new EtpScheduledTaskSource(), new DatabaseOperationsHealthSource(connectionString), new WindowsOperationsFileSystem(),
-            new ProtectedOperationPathChecker(), new SqlOperationsSource(connectionString), sqlBuilds, new WindowsEventLogSource(), settings);
+            new ProtectedOperationPathChecker(settings.HealthExportsFolder), new SqlOperationsSource(connectionString), sqlBuilds, new WindowsEventLogSource(), settings);
 
     public IReadOnlyList<string> CheckIds { get; } =
     [

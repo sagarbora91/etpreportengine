@@ -191,6 +191,8 @@ public partial class MainWindow : Window
                 await RefreshDashboardAsync();
             }
             startupFailed = false;
+            // 1.11.0 (design 4.3): read this account's diagnostics log into the error register, once, in the background.
+            if (currentAccess.Role != AccessRole.None) StartErrorRegisterIngestOnce();
             ContinueButton.Content = "Continue";
             CompleteWelcomeState();
         }

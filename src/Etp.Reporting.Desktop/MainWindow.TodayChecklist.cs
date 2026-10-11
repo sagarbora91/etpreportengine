@@ -22,7 +22,8 @@ public partial class MainWindow
 
     internal void AttachTodayChecklist(DailySalesReportWorkspace dsr)
     {
-        dsr.Checklist = TodayChecklistPanel;
+        // 1.11.0: the "System check" tile (every role) sits above the panel.
+        dsr.Checklist = TodayStatusPanel(TodayChecklistPanel);
         var date = ShellBusinessDateSelector.SelectedDate ?? TaskNavigator.InitialBusinessDate;
         var store = (ShellStoreSelector.SelectedItem as ComboBoxItem)?.Tag?.ToString();
         _ = TodayChecklistPanel.RefreshAsync(date, store);

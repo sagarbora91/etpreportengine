@@ -20,12 +20,18 @@ internal static class ProtectedOperationPath
 
     internal enum Role { Target, Ancestor, Root }
 
-    public static void Validate(string path)
+    public static void Validate(string path) => Validate(path, null);
+
+    /// <param name="targetModifier">
+    /// 1.11.0 (HealthExports): SIDs that may hold Modify (write, delete) on the target itself, but never change its
+    /// permissions or take ownership. Null: nobody but SYSTEM, Administrators and TrustedInstaller.
+    /// </param>
+    public static void Validate(string path, Func<string, bool>? targetModifier)
     {
         var full = Path.GetFullPath(path);
         var volumeProblem = VolumeProblem(full, DriveTypeOf(full), DosDeviceOf(full));
         if (volumeProblem is not null) throw new InvalidOperationException(volumeProblem);
-        Walk(full, current =>
+        Walk(full, targetModifier, current =>
         {
             var attributes = File.GetAttributes(current);
             if ((attributes & FileAttributes.ReparsePoint) != 0) throw new InvalidOperationException("Linked operation paths cannot be used.");
@@ -35,7 +41,9 @@ internal static class ProtectedOperationPath
 
     // Every level from the full path up to its root. readSecurity is replaceable so tests can
     // describe a whole drive layout without touching real permissions.
-    internal static void Walk(string fullPath, Func<string, FileSystemSecurity> readSecurity)
+    internal static void Walk(string fullPath, Func<string, FileSystemSecurity> readSecurity) => Walk(fullPath, null, readSecurity);
+
+    internal static void Walk(string fullPath, Func<string, bool>? targetModifier, Func<string, FileSystemSecurity> readSecurity)
     {
         var role = Role.Target;
         var holdsTarget = false;
@@ -43,7 +51,7 @@ internal static class ProtectedOperationPath
         {
             var acl = readSecurity(current);
             if (role == Role.Ancestor && string.IsNullOrEmpty(Path.GetDirectoryName(current))) role = Role.Root;
-            Check(current, acl, role, holdsTarget);
+            Check(current, acl, role, holdsTarget, role == Role.Target ? targetModifier : null);
             // The folder directly above a file target is where its DLLs would be planted.
             holdsTarget = role == Role.Target && acl is not DirectorySecurity;
             role = Role.Ancestor;
@@ -61,7 +69,7 @@ internal static class ProtectedOperationPath
     // Deny entries, and application package and capability SIDs (S-1-15-2-*, S-1-15-3-*, which
     // only ever narrow an AppContainer's access), do not count. The owner must be trusted at
     // every level.
-    internal static void Check(string path, FileSystemSecurity acl, Role role, bool holdsTarget = false)
+    internal static void Check(string path, FileSystemSecurity acl, Role role, bool holdsTarget = false, Func<string, bool>? targetModifier = null)
     {
         var owner = acl.GetOwner(typeof(SecurityIdentifier))?.Value ?? "";
         if (!TrustedOwners.Contains(owner))
@@ -80,10 +88,22 @@ internal static class ProtectedOperationPath
             // GENERIC_ALL and MAXIMUM_ALLOWED as everything, GENERIC_WRITE as FILE_GENERIC_WRITE.
             if ((rights & 0x12000000) != 0) rights |= 0x1F01FF;
             if ((rights & 0x40000000) != 0) rights |= WriteRights;
-            if ((rights & danger) != 0)
-                throw new InvalidOperationException($"Operation files must be protected from non-administrator changes. '{path}' gives {sid} access rights 0x{rights & danger:X}.");
+            // A permitted modifier of the target (HealthExports: the automation account and the Owners) may write and
+            // delete there; changing permissions or taking ownership stays refused.
+            var ruleDanger = role == Role.Target && targetModifier is not null && targetModifier(sid)
+                ? danger & (ChangePermissionsRight | TakeOwnershipRight)
+                : danger;
+            if ((rights & ruleDanger) != 0)
+                throw new InvalidOperationException($"Operation files must be protected from non-administrator changes. '{path}' gives {sid} access rights 0x{rights & ruleDanger:X}.");
         }
     }
+
+    /// <summary>
+    /// HealthExports modifiers: setup grants Modify to the automation account and the active Owners, resolved to
+    /// individual account SIDs (S-1-5-21-..., never a well-known group). Groups such as Users, Authenticated Users or
+    /// Everyone are still refused.
+    /// </summary>
+    internal static bool IsIndividualAccount(string sid) => sid.StartsWith("S-1-5-21-", StringComparison.Ordinal);
 
     // The same rule as Get-EtpOperationVolumeProblem in scripts\etp-operations-common.ps1: the
     // Root role relaxes Delete only because a real volume root cannot be renamed. A share, a

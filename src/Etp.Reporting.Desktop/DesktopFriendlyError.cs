@@ -278,6 +278,7 @@ public static class DesktopFriendlyError
         (51803, null, "The text can use letters, digits, spaces and . , ; : ' \" ! ? ( ) - _ / % + only. Nothing was changed."),
         (51804, null, "The fix list could not be read, so no entry was marked fixed. " + SupportPackage + "."),
         (51805, null, "That change is not possible for this entry, or the entry has changed or been merged. Press Refresh on the Error register and try again. Nothing was changed."),
+        (51806, null, "The error register is busy with another change. Wait a moment and try again. Nothing was changed."),
         (51820, null, "The health check result was not in the expected form, so it was not recorded. Run the health check again; if it repeats, " + SupportPackage + "."),
         (51821, null, "The health check result had more lines than expected, so it was not recorded. Run the health check again; if it repeats, " + SupportPackage + "."),
         (51822, null, "The health check is for the Owner. Ask the Owner to open Settings > Database > Health check."),

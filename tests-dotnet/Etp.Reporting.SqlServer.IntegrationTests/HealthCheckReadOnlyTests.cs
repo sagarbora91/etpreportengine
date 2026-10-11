@@ -1,4 +1,7 @@
 using Etp.Reporting.Application.HealthCheck;
+using Etp.Reporting.Desktop.Composition;
+using Etp.Reporting.Desktop.Diagnostics;
+using Etp.Reporting.Desktop.Modules.HealthCheck;
 using Etp.Reporting.Infrastructure.SqlServer.HealthCheck;
 using Microsoft.Data.SqlClient;
 
@@ -22,6 +25,7 @@ public sealed class HealthCheckReadOnlyTests
     public async Task A_full_health_check_changes_no_dbo_table()
     {
         var database = new SqlDatabaseFixture();
+        var emptyLog = Directory.CreateTempSubdirectory("etp-health-ro-").FullName;
         try
         {
             await database.InitializeAsync();
@@ -29,7 +33,12 @@ public sealed class HealthCheckReadOnlyTests
             var before = await SnapshotAsync(database.ConnectionString);
 
             var store = new SqlServerHealthCheckStore(database.ConnectionString);
-            var runner = new HealthCheckRunner(AllProbes(database.ConnectionString, database.MigrationDirectory, store), new HealthCheckRunnerOptions
+            // As the composition root runs it: the ingest (of an empty log here, never the Owner's) before the runner.
+            var registerStore = new SqlServerErrorRegisterStore(database.ConnectionString);
+            var ingest = await new ErrorRegisterIngest(registerStore, "1.11.0.0", emptyLog).RunAsync();
+            var probes = AllProbes(database.ConnectionString, database.MigrationDirectory, store,
+                new ErrorProbes(token => registerStore.LoadRegisterAsync(cancellationToken: token), () => ingest));
+            var runner = new HealthCheckRunner(probes, new HealthCheckRunnerOptions
             {
                 Store = store,
                 AppVersion = "1.11.0.0",
@@ -50,19 +59,19 @@ public sealed class HealthCheckReadOnlyTests
             Assert.Equal(before["operational_audit"].Rows, after["operational_audit"].Rows);
             Assert.Equal(before["automation_runs"].Rows, after["automation_runs"].Rows);
         }
-        finally { await database.DisposeAsync(); }
+        finally
+        {
+            await database.DisposeAsync();
+            try { Directory.Delete(emptyLog, recursive: true); } catch (IOException) { }
+        }
     }
 
     /// <summary>
-    /// Every probe of the health check. Integrator: when the lanes are merged, add the Errors (L2), Operations (L7),
-    /// Imports and Data (L6) and Reports (L5) probes here exactly as the composition root (L9) wires them, so this test
-    /// covers the whole check (design 5.4.3).
+    /// Every probe of the health check, exactly as the composition root wires them (DB, SEC, OPS, DATA, IMP, RPT, ERR),
+    /// so this test covers the whole check (design 5.4.3).
     /// </summary>
-    private static IReadOnlyList<IHealthProbe> AllProbes(string connectionString, string migrationDirectory, IHealthCheckStore store) =>
-    [
-        .. DatabaseProbes.Create(connectionString, migrationDirectory),
-        new SecurityProbes(store, automationPrincipal: null)
-    ];
+    private static IReadOnlyList<IHealthProbe> AllProbes(string connectionString, string migrationDirectory, IHealthCheckStore store, ErrorProbes errors) =>
+        DesktopCompositionRoot.CreateHealthProbes(connectionString, migrationDirectory, store, automationPrincipal: null, errors);
 
     /// <summary>
     /// Synthetic sales for yesterday (store ZZSYN, made-up amounts, the pattern of EveningReportsSqlTests), so the
