@@ -71,7 +71,7 @@ public sealed class ServiceGprcClaimsSqlTests
         try
         {
             await database.InitializeAsync();
-            await ApplyL10BlockAsync(database);
+            // 1.10.1 (RA-OPS-21): the migrated database's view (0052) is tested, not the 0048 L10 block with its literal.
             await database.ExecuteAsync("""
                 INSERT dbo.manual_operational_inputs(store_code,business_date,field_code,numeric_value,entered_by,modified_by,change_reason) VALUES
                 ('WLMHW','20260825','SERVICE_CASH',700,'test','test','Synthetic service money'),
