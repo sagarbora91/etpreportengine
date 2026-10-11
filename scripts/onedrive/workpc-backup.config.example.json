@@ -1,0 +1,7 @@
+{
+  "backupFolder": "C:\ProgramData\EtpReporting\Backups",
+  "database": "EtpReporting",
+  "oneDriveRoot": "",
+  "keyFile": "C:\ProgramData\EtpReporting\Keys\onedrive-backup.key",
+  "keepLast": 3
+}

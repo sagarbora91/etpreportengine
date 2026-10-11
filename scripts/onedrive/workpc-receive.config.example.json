@@ -1,0 +1,8 @@
+{
+  "oneDriveRoot": "",
+  "roles": ["TITAN", "HELIOS", "SERVICE"],
+  "inboundFolder": "C:\ProgramData\EtpReporting\Inbound",
+  "workFolder": "C:\ProgramData\EtpReporting\OneDriveReceive",
+  "lookbackDays": 3,
+  "stableSeconds": 10
+}
