@@ -94,9 +94,9 @@ public sealed class ServiceJobModelSqlTests
             Assert.Equal("AW330", await TextAsync(database, $"SELECT pending_at FROM dbo.v_service_job WHERE job_order_number=N'{Job(9)}'"));
             Assert.NotEqual("AW330", await TextAsync(database, $"SELECT pending_at FROM dbo.v_service_job WHERE job_order_number=N'{Job(6)}'"));
 
-            // Ages: closed jobs have a TAT and no age; open jobs an age to the latest snapshot date and no TAT.
+            // Ages: closed jobs have a TAT and no age; open jobs an age to their own as-at (1.10.1, R-SQL-13) and no TAT.
             Assert.Equal(0, await IntAsync(database, "SELECT COUNT(*) FROM dbo.v_service_job WHERE stage IN('DELIVERED','RWR') AND (tat_days IS NULL OR age_days IS NOT NULL OR tat_days<0)"));
-            Assert.Equal(0, await IntAsync(database, "SELECT COUNT(*) FROM dbo.v_service_job WHERE stage NOT IN('DELIVERED','RWR') AND (tat_days IS NOT NULL OR age_days IS NULL OR age_days<>DATEDIFF(day,booking_date,as_at))"));
+            Assert.Equal(0, await IntAsync(database, "SELECT COUNT(*) FROM dbo.v_service_job WHERE stage NOT IN('DELIVERED','RWR') AND (tat_days IS NOT NULL OR age_days IS NULL OR age_days<>DATEDIFF(day,booking_date,COALESCE(last_reading_date,as_at)))"));
             Assert.Equal(0, await IntAsync(database, $"SELECT COUNT(*) FROM dbo.v_service_job WHERE as_at<>'{Week2:yyyy-MM-dd}'"));
             Assert.Equal(0, await IntAsync(database, "SELECT COUNT(*) FROM dbo.v_service_job WHERE stage_date IS NULL OR booking_date IS NULL"));
 

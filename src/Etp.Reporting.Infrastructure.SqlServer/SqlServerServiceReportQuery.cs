@@ -163,6 +163,9 @@ public sealed partial class SqlServerServiceReportQuery(string connectionString)
         if (!access.CanView) throw new UnauthorizedAccessException("Application access is required.");
     }
 
+    /// <summary>The key of the shared job rows (R-SQL-15): one database, one principal.</summary>
+    private string JobCacheKey => connectionString;
+
     private async Task<SqlConnection> OpenAsync(CancellationToken token)
     {
         var connection = new SqlConnection(LocalSqlConnectionPolicy.Validate(connectionString));

@@ -14,13 +14,14 @@ public sealed class ServiceUiRulesTests
 
     private static ServiceJobSummary Job(string number, string stage, int? daysInStage = null, int? ageDays = null, DateOnly? edd = null,
         bool quick = false, int? tat = null, int? tatRepair = null, bool claimRaised = false, DateOnly? booked = null, DateOnly? delivered = null,
-        DateOnly? rwr = null, DateOnly? stageDate = null, DateOnly? indent = null, string? spare = null)
+        DateOnly? rwr = null, DateOnly? stageDate = null, DateOnly? indent = null, string? spare = null, DateOnly? lastReading = null,
+        DateOnly? claimDate = null, DateOnly? closedDate = null)
     {
         var open = !ServiceStages.Closed.Contains(stage) && !(stage is ServiceStages.DcIssued or ServiceStages.RaIssued && claimRaised);
         return new ServiceJobSummary(number, booked, quick ? ServiceJobTypes.QuickBilling : ServiceJobTypes.Booking, quick, null, "Sample Brand", "Model",
             "Watch", "Sample Customer", "Out_of_Warranty", "B2C", edd, stage, stageDate, "AW330", spare, indent, null, null, null, delivered, rwr, null,
             null, "DCSYN", null, "RASYN", claimRaised, null, null, null, null, null, 0, tat, tatRepair, ageDays, daysInStage,
-            ServiceAgeing.OverdueBy(stage, edd, daysInStage, AsAt), open, AsAt, AsAt);
+            ServiceAgeing.OverdueBy(stage, edd, daysInStage, lastReading ?? AsAt), open, lastReading ?? AsAt, AsAt, claimDate, closedDate);
     }
 
     [Theory]
@@ -344,6 +345,155 @@ public sealed class ServiceUiRulesTests
         var header = ServiceJobProjection.Header(Job("JOAW330SYN0801", ServiceStages.OnBench, daysInStage: 9));
         Assert.True(header.IsOverdue);
         Assert.Equal(("Out_of_Warranty", "B2C", "Sample Customer"), (header.Guarantee, header.CustomerType, header.CustomerName));
+    }
+
+    // ---- 1.10.1 (lane service-sql): the review findings 0050 left open ----
+
+    [Fact]
+    public void There_is_one_TAT_median_and_the_Jobs_headers_summarise_like_the_job_rows()
+    {
+        // R-SQL-07 / R-UI-06: the Jobs list's median is the true median (mean of the two middle values), as Today's.
+        Assert.Equal(6, ServiceJobTat.Median([1, 3, 9, 20]));
+        Assert.Equal(ServiceTat.Median([1, 3, 9, 20]), ServiceJobTat.Median([1, 3, 9, 20]));
+        Assert.Null(ServiceJobTat.Median([]));
+        var jobs = new[]
+        {
+            Job("JOAW330SYN1001", ServiceStages.Delivered, tat: 2, tatRepair: 1),
+            Job("JOAW330SYN1002", ServiceStages.Delivered, tat: 10, tatRepair: 8),
+            Job("JOAW330SYN1003", ServiceStages.Delivered, tat: 21, tatRepair: 12),
+            Job("JOAW330SYN1004", ServiceStages.Delivered, tat: 30, tatRepair: 20),
+            Job("JOAW330SYN1005", ServiceStages.Rwr, tat: 40),
+            Job("JOAW330SYN1006", ServiceStages.Delivered, quick: true, tat: 0, tatRepair: 0),
+            Job("JOAW330SYN1007", ServiceStages.OnBench, daysInStage: 3, ageDays: 3),
+        };
+        var fromRows = ServiceTat.Summarise(jobs);
+        var fromHeaders = ServiceTat.Summarise(jobs.Select(ServiceJobProjection.Header));
+        Assert.Equal(fromRows, fromHeaders);
+        // Q2: "to delivered" and "to repaired" medians of Booking jobs, 4 delivered: (10+21)/2 and (8+12)/2.
+        Assert.Equal((15.5, 10.0), (fromHeaders.BookingMedianDays!.Value, fromHeaders.BookingRepairMedianDays!.Value));
+        Assert.Equal(2, fromHeaders.Over15Days);
+    }
+
+    [Fact]
+    public void The_header_carries_the_repair_TAT_the_open_flag_and_the_closed_and_claim_dates()
+    {
+        // R-SQL-16 / R-UI-07: a DC job closed by a claim raised on 1 Oct, DC issued on 1 Aug.
+        var claimed = Job("JOAW330SYN1101", ServiceStages.DcIssued, stageDate: new(2026, 8, 1), claimRaised: true,
+            claimDate: new(2026, 10, 1), closedDate: new(2026, 10, 1));
+        var header = ServiceJobProjection.Header(claimed);
+        Assert.Equal((false, new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 1)), (header.IsOpen, header.ClosedDate!.Value, header.ClaimDate!.Value));
+        var delivered = ServiceJobProjection.Header(Job("JOAW330SYN1102", ServiceStages.Delivered, tat: 9, tatRepair: 6, closedDate: AsAt));
+        Assert.Equal((6, false, AsAt), (delivered.TatRepairDays!.Value, delivered.IsOpen, delivered.ClosedDate!.Value));
+        Assert.True(ServiceJobProjection.Header(Job("JOAW330SYN1103", ServiceStages.DcIssued)).IsOpen);
+        // A header built by hand before 1.10.1 (no Open) reads the same Q3 rule from its stage and claim flag.
+        var legacy = new ServiceJobHeader("JOAW330SYN1104", AsAt, "Booking", null, null, null, null, null, null, null, null,
+            ServiceStages.RaIssued, AsAt, "AW330", null, true, null, null, null, null, null, false, AsAt);
+        Assert.False(legacy.IsOpen);
+        Assert.True((legacy with { ClaimRaised = false }).IsOpen);
+        Assert.Null(legacy.ClosedDate);
+    }
+
+    [Fact]
+    public void Ages_and_days_since_are_measured_to_the_jobs_own_as_at()
+    {
+        // R-SQL-13: a DC job held only by the 29 Sep consolidated lists while the newest export is 5 Oct.
+        var held = new DateOnly(2026, 9, 29);
+        var dc = Job("JOAW330SYN1201", ServiceStages.DcIssued, stageDate: new(2026, 9, 19), lastReading: held);
+        Assert.Equal(held, dc.AgedTo);
+        Assert.Equal(10, Assert.Single(ServiceClaimRules.NotYetClaimed([dc])).DaysSince);
+        var indent = Job("JOAW330SYN1202", ServiceStages.IndentRaised, indent: new(2026, 9, 24), lastReading: held);
+        Assert.Equal(5, Assert.Single(ServicePartsRules.Build([], [], null, [indent], AsAt).WaitingJobs).DaysWaiting);
+        // EDD 1 Oct: passed at the 5 Oct export day, not at the job's own 29 Sep as-at.
+        var bench = Job("JOAW330SYN1203", ServiceStages.OnBench, edd: new(2026, 10, 1), lastReading: held);
+        Assert.Equal(0, ServiceBoard.Today(AsAt, AsAt, [bench], [], [], []).EddPassed);
+        Assert.Equal(1, ServiceBoard.Today(AsAt, AsAt, [bench with { LastReadingDate = null }], [], [], []).EddPassed);
+    }
+
+    [Fact]
+    public void Claims_raised_this_month_is_one_rule_for_Today_and_Claims()
+    {
+        // R-UI-11 / R-SQL-11: distinct (type, document); a line without a document is not a document but its value counts;
+        // the month runs from its first day to the date asked; other months and later days are out.
+        var day = new DateOnly(2026, 10, 4);
+        var lines = new[]
+        {
+            Claim(ServiceClaimTypes.Wdc, new(2026, 10, 1), "DOCSYN01", "JOAW330SYN1301", 10m),
+            Claim(ServiceClaimTypes.Wdc, new(2026, 10, 2), "DOCSYN01", "JOAW330SYN1302", 5m),
+            Claim(ServiceClaimTypes.Wra, new(2026, 10, 2), "DOCSYN01", "JOAW330SYN1303", 1m, "S040"),
+            Claim(ServiceClaimTypes.Gprc, new(2026, 10, 3), null, null, 7m, "S041"),
+            Claim(ServiceClaimTypes.Gprc, new(2026, 9, 30), "DOCSYN02", null, 99m, "S041"),
+            Claim(ServiceClaimTypes.ModuleBank, new(2026, 10, 5), "DOCSYN03", null, 50m, "S024"),
+        };
+        var month = ServiceClaimRules.RaisedInMonth(lines, day);
+        Assert.Equal((new DateOnly(2026, 10, 1), day, 2, 4, 23m), (month.Month, month.UpTo, month.Documents, month.Lines, month.Value!.Value));
+        var today = ServiceBoard.Today(day, AsAt, [], [], [], lines);
+        Assert.Equal((month.Documents, month.Value), (today.ClaimsRaisedThisMonth, today.ClaimsValueThisMonth));
+        // The Claims summary of the same lines agrees: the sum of its per-type documents.
+        Assert.Equal(month.Documents, ServiceClaimRules.Summarise(lines.Where(line => line.BusinessDate >= month.Month && line.BusinessDate <= day))
+            .Sum(row => row.Documents));
+        Assert.Null(ServiceClaimRules.RaisedInMonth([], day).Value);
+    }
+
+    [Theory]
+    [InlineData("2026-08-05", "2026-10-01", "2026-08-06", "2026-09-30")]
+    [InlineData("2026-08-05", "2026-08-06", null, null)]
+    [InlineData("2026-08-05", "2026-08-01", null, null)]
+    [InlineData(null, "2026-10-01", null, null)]
+    [InlineData("2026-08-05", null, null, null)]
+    public void The_GPRC_business_date_hole_runs_from_the_day_after_the_last_S023_line_to_the_day_before_S041(
+        string? lastS023, string? firstS041, string? from, string? to)
+    {
+        // R-SQL-08: on live S023 ends 5 Aug and S041 starts 1 Oct 2026, so 6 Aug - 30 Sep are in no GPRC export.
+        static DateOnly? D(string? text) => text is null ? null : DateOnly.Parse(text, System.Globalization.CultureInfo.InvariantCulture);
+        var hole = ServiceClaimRules.GprcHole(D(lastS023), D(firstS041));
+        (DateOnly, DateOnly)? expected = from is null ? null : (D(from)!.Value, D(to)!.Value);
+        Assert.Equal(expected, hole);
+    }
+
+    [Fact]
+    public void A_family_never_exported_is_named_on_its_chip_without_hiding_the_others()
+    {
+        // R-SQL-14 (b): S009 exported 3 days ago, S010 never: the chip shows S009's date and colour and names S010.
+        var imported = new DateTime(2026, 10, 5, 4, 30, 0, DateTimeKind.Utc);
+        ServiceRefresh R(string code, DateOnly date) => new(code, date, 1, 1, imported);
+        var chips = ServiceFreshness.Build([R("S009", AsAt.AddDays(-3)), R("S023", AsAt.AddDays(-6)), R("S041", AsAt.AddDays(-4))], AsAt,
+            new Dictionary<string, string> { ["S009"] = "RAW" }, (new DateOnly(2026, 8, 6), new DateOnly(2026, 9, 30)));
+        var pending = chips.Single(chip => chip.Group == "Pending lists");
+        Assert.Equal((AsAt.AddDays(-3), ServiceFreshnessColour.Fresh), (pending.LatestSnapshotDate!.Value, pending.Colour));
+        Assert.Equal("last export 02 Oct 2026 (raw) · never exported: S010", pending.Text);
+        Assert.Equal(["S010"], pending.NeverExported!);
+        // A group with no exported family is still "no export yet".
+        var tests = chips.Single(chip => chip.Group == "Tests");
+        Assert.Equal((ServiceFreshnessColour.NoData, "no export yet"), (tests.Colour, tests.Text));
+        // R-SQL-08: the GPRC hole is named on the Claims chip and makes it at least amber.
+        var claims = chips.Single(chip => chip.Group == "Claims");
+        Assert.Equal(ServiceFreshnessColour.Amber, claims.Colour);
+        Assert.EndsWith(" · no GPRC lines 06 Aug 2026 - 30 Sep 2026", claims.Text, StringComparison.Ordinal);
+        Assert.Contains("never exported: S024, S025, S026, S039, S040", claims.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void No_Service_screen_or_rule_totals_the_timeline_amount()
+    {
+        // R-SQL-12: v_service_job_timeline repeats a DateLog line once per overlapping reading, so its amount is shown per
+        // row and never summed. Any Service source that names the timeline row must not Sum an Amount.
+        var root = RepositoryRoot();
+        var sources = new[] { Path.Combine(root, "src", "Etp.Reporting.Desktop", "Modules", "Service"), Path.Combine(root, "src", "Etp.Reporting.Application", "Service") }
+            .SelectMany(folder => Directory.GetFiles(folder, "*.cs", SearchOption.AllDirectories));
+        foreach (var file in sources)
+        {
+            var text = File.ReadAllText(file);
+            if (!text.Contains("ServiceJobTimelineRow", StringComparison.Ordinal) && !text.Contains(".Timeline", StringComparison.Ordinal)) continue;
+            Assert.DoesNotMatch(new System.Text.RegularExpressions.Regex(@"\.Sum\([^;]*\.Amount\b"), text);
+        }
+    }
+
+    private static string RepositoryRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Etp.Reporting.slnx"))) dir = dir.Parent;
+        Assert.NotNull(dir);
+        return dir.FullName;
     }
 
     private sealed class RefreshOnlyQuery : IServiceReportQuery

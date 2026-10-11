@@ -21,6 +21,9 @@ public sealed partial class ServiceJobModelTextTests
         "v_service_parts_transit", "v_service_stock_summary", "v_service_pending_current",
     ];
 
+    // The views 0052 (1.10.1) adds; the query may read them too.
+    private static readonly string[] Views0052 = ["v_service_job_revision"];
+
     // The 0048 read views 0050 may build on (section C of 0048).
     private static readonly string[] Views0048 =
     [
@@ -136,14 +139,16 @@ public sealed partial class ServiceJobModelTextTests
         foreach (var sql in SqlServerServiceReportQuery.UiStatements)
         {
             foreach (Match used in Regex.Matches(sql, @"\bdbo\.(\w+)"))
-                Assert.True(Views.Contains(used.Groups[1].Value) || Views0048.Contains(used.Groups[1].Value), $"The query reads dbo.{used.Groups[1].Value}.");
+                Assert.True(Views.Contains(used.Groups[1].Value) || Views0048.Contains(used.Groups[1].Value) || Views0052.Contains(used.Groups[1].Value),
+                    $"The query reads dbo.{used.Groups[1].Value}.");
             Assert.DoesNotMatch(new Regex(@"\b(INSERT|UPDATE|DELETE|MERGE|EXEC)\b", RegexOptions.IgnoreCase), sql);
         }
-        // Every column the job reader maps is a column the view selects, in the same order.
+        // Every column the job reader maps is a column the view selects, in the same order: 0052 restates v_service_job
+        // (1.10.1) and ServiceUiFixesMigrationTextTests pins the reader against it; 0050's columns are its prefix.
         var job = ViewBlocks(Section(Script())).Single(view => view.Name == "v_service_job").Body;
         var finalSelect = job[job.LastIndexOf("\nSELECT a.job_order_number", StringComparison.Ordinal)..];
         var position = 0;
-        foreach (var column in SqlServerServiceReportQuery.JobColumns.Split(','))
+        foreach (var column in SqlServerServiceReportQuery.JobColumns.Split(',').TakeWhile(column => column != "claim_date"))
         {
             var found = Regex.Match(finalSelect[position..], $@"(\b{column}|a\.{column}),?\s*\n?");
             Assert.True(found.Success, $"v_service_job does not select {column} after the previous column.");

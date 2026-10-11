@@ -66,7 +66,17 @@ public static class ServiceTat
     /// job with a TAT; the Q2 headline (medians, average, over 15 days) is booking to DELIVERED only, so RWR jobs are left
     /// out of it (R-SQL-06).
     /// </summary>
-    public static ServiceTatSummary Summarise(IEnumerable<ServiceJobSummary> jobs)
+    public static ServiceTatSummary Summarise(IEnumerable<ServiceJobSummary> jobs) =>
+        Summarise(jobs.Select(job => (job.Stage, job.IsQuickBilling, job.TatDays, job.TatRepairDays)));
+
+    /// <summary>
+    /// The same summary over the Jobs list headers (R-SQL-07 / R-UI-06), so the Jobs list shows the Q2 "to delivered" and
+    /// "to repaired" medians by the one median rule. A header's type is <see cref="ServiceJobTypes.Normalise"/> of its JoType.
+    /// </summary>
+    public static ServiceTatSummary Summarise(IEnumerable<ServiceJobHeader> jobs) =>
+        Summarise(jobs.Select(job => (job.Stage, ServiceJobTypes.Normalise(job.JoType) == ServiceJobTypes.QuickBilling, job.TatDays, job.TatRepairDays)));
+
+    private static ServiceTatSummary Summarise(IEnumerable<(string Stage, bool IsQuickBilling, int? TatDays, int? TatRepairDays)> jobs)
     {
         var closed = jobs.Where(job => ServiceStages.Closed.Contains(job.Stage) && job.TatDays is not null).ToArray();
         var delivered = closed.Where(job => job.Stage == ServiceStages.Delivered).ToArray();
@@ -140,7 +150,7 @@ public static class ServiceBoard
         decimal? collection = tenders.Length == 0 ? null : (cash ?? 0) + (card ?? 0) + (upi ?? 0);
         var entered = manual.Where(entry => entry.IsServiceMoneyShop && entry.BusinessDate == businessDate
             && entry.FieldCode is "SERVICE_CASH" or "SERVICE_CARD" or "SERVICE_UPI").ToArray();
-        var monthClaims = claims.Where(line => InMonth(line.BusinessDate)).ToArray();
+        var monthClaims = ServiceClaimRules.RaisedInMonth(claims, businessDate);
         return new ServiceToday(businessDate, asAt,
             bookedToday.Length, bookedToday.Count(job => !job.IsQuickBilling), bookedToday.Count(job => job.IsQuickBilling),
             bookedMonth.Length, bookedMonth.Count(job => !job.IsQuickBilling), bookedMonth.Count(job => job.IsQuickBilling),
@@ -149,14 +159,14 @@ public static class ServiceBoard
             all.Count(job => job.Stage == ServiceStages.Rwr && job.RwrDate == businessDate),
             open.Count(job => job.Stage is ServiceStages.OnBench or ServiceStages.IndentRaised),
             open.Count(job => job.Stage == ServiceStages.IndentRaised),
-            open.Count(job => job.Stage is ServiceStages.OnBench or ServiceStages.IndentRaised && job.Edd is { } edd && asAt is { } at && edd < at),
+            open.Count(job => job.Stage is ServiceStages.OnBench or ServiceStages.IndentRaised && job.Edd is { } edd && edd < job.AgedTo),
             open.Count(job => job.Stage == ServiceStages.InTransitBack),
             open.Count(job => job.Stage == ServiceStages.ReadyForDelivery),
             collection, cash, card, upi,
             entered.Length > 0, entered.Length == 0 ? null : entered.Sum(entry => entry.Amount),
             open.Count(job => job.AgeDays > 15),
-            monthClaims.Select(line => line.DocumentNumber ?? "").Distinct(StringComparer.Ordinal).Count(),
-            monthClaims.Length == 0 ? null : monthClaims.Sum(line => line.NetAmountInclTax ?? 0));
+            monthClaims.Documents,
+            monthClaims.Value);
     }
 }
 
@@ -198,32 +208,47 @@ public static class ServiceFreshness
     }
 
     /// <summary>
-    /// One chip per group. A group's date is the oldest of its families' latest readings (so one stale family colours the
-    /// chip); a family with no reading makes the group "no data". <paramref name="sourceKinds"/> gives the source kind of
-    /// each family's latest reading when the caller has it (v_service_readings); the refresh log alone has none.
+    /// One chip per group. A group's date is the oldest of its exported families' latest readings (so one stale family
+    /// colours the chip). R-SQL-14 (b): a family never exported at all is left out of the date and the colour and named
+    /// in the text ("never exported: S010"), so a shop PC before its first export of one family still sees the others;
+    /// only a group with no exported family is "no data". <paramref name="sourceKinds"/> gives the source kind of each
+    /// family's latest reading when the caller has it (v_service_readings); the refresh log alone has none.
+    /// <paramref name="gprcHole"/> (R-SQL-08) adds the GPRC business-date hole to the Claims chip's text and makes it at
+    /// least amber, because GPRC claims of those days are in no export.
     /// </summary>
     public static IReadOnlyList<ServiceFreshnessChip> Build(IEnumerable<ServiceRefresh> refreshes, DateOnly asOf,
-        IReadOnlyDictionary<string, string>? sourceKinds = null)
+        IReadOnlyDictionary<string, string>? sourceKinds = null, (DateOnly From, DateOnly To)? gprcHole = null)
     {
         var latestByFamily = refreshes.GroupBy(r => r.ReportCode, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.Max(r => r.SnapshotDate), StringComparer.OrdinalIgnoreCase);
         var chips = new List<ServiceFreshnessChip>();
         foreach (var (group, codes) in Groups)
         {
-            var dates = codes.Select(code => latestByFamily.TryGetValue(code, out var date) ? date : (DateOnly?)null).ToArray();
-            var oldest = dates.Any(date => date is null) ? null : dates.Min();
-            var oldestCode = oldest is null ? null : codes[Array.IndexOf(dates, oldest)];
+            var exported = codes.Where(latestByFamily.ContainsKey).ToArray();
+            var never = codes.Where(code => !latestByFamily.ContainsKey(code)).ToArray();
+            DateOnly? oldest = exported.Length == 0 ? null : exported.Min(code => latestByFamily[code]);
+            var oldestCode = oldest is null ? null : exported.First(code => latestByFamily[code] == oldest);
             string? kind = oldestCode is not null && sourceKinds is not null && sourceKinds.TryGetValue(oldestCode, out var k) ? k : null;
-            // Each family is judged by its own cadence (daily raw or monthly consolidated); the chip takes the worst.
+            // Each exported family is judged by its own cadence (daily raw or monthly consolidated); the chip takes the worst.
             var colour = oldest is null ? ServiceFreshnessColour.NoData
-                : codes.Select(code => Colour(latestByFamily[code], asOf, MonthlyFamilies.Contains(code))).Max();
+                : exported.Select(code => Colour(latestByFamily[code], asOf, MonthlyFamilies.Contains(code))).Max();
             var text = oldest is { } date
-                ? "last export " + date.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture) + (kind is null ? "" : $" ({kind.ToLowerInvariant()})")
-                : dates.All(d => d is null) ? "no export yet" : "some families never exported";
-            chips.Add(new ServiceFreshnessChip(group, codes, oldest, kind, colour, text));
+                ? "last export " + Day(date) + (kind is null ? "" : $" ({kind.ToLowerInvariant()})")
+                    + (never.Length == 0 ? "" : " · never exported: " + string.Join(", ", never))
+                : "no export yet";
+            if (group == ClaimsGroup && oldest is not null && gprcHole is { } hole)
+            {
+                text += $" · no GPRC lines {Day(hole.From)} - {Day(hole.To)}";
+                if (colour < ServiceFreshnessColour.Amber) colour = ServiceFreshnessColour.Amber;
+            }
+            chips.Add(new ServiceFreshnessChip(group, codes, oldest, kind, colour, text, never));
         }
         return chips;
     }
+
+    private const string ClaimsGroup = "Claims";
+
+    private static string Day(DateOnly date) => date.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture);
 }
 
 /// <summary>The Claims screen composed from v_service_claims lines and v_service_job rows (design 3.5, Q9 = A: raised only).</summary>
@@ -240,18 +265,43 @@ public static class ServiceClaimRules
             .OrderByDescending(row => row.ClaimMonth).ThenBy(row => Array.IndexOf(ServiceClaimTypes.All.ToArray(), row.ClaimType))
             .ToArray();
 
-    /// <summary>DC/RA jobs without a WDC/WRA claim document ("not yet claimed"), oldest first; days since the DC/RA date to as-at.</summary>
+    /// <summary>DC/RA jobs without a WDC/WRA claim document ("not yet claimed"), oldest first; days since the DC/RA date to the job's own as-at.</summary>
     public static IReadOnlyList<ServiceUnclaimedJob> NotYetClaimed(IEnumerable<ServiceJobSummary> jobs) =>
         jobs.Where(job => job.Stage is ServiceStages.DcIssued or ServiceStages.RaIssued && !job.ClaimRaised)
             .Select(job => new ServiceUnclaimedJob(job.JobOrderNumber, job.Stage,
                 job.Stage == ServiceStages.DcIssued ? ServiceClaimTypes.Wdc : ServiceClaimTypes.Wra, job.StageDate,
-                job.StageDate is { } date ? job.AsAt.DayNumber - date.DayNumber : null, job.Brand, job.Model,
+                job.StageDate is { } date ? job.AgedTo.DayNumber - date.DayNumber : null, job.Brand, job.Model,
                 job.Stage == ServiceStages.DcIssued ? job.WdcNumber : job.RadcNumber))
             .OrderByDescending(job => job.DaysSince ?? -1).ThenBy(job => job.JobOrderNumber, StringComparer.Ordinal).ToArray();
+
+    /// <summary>
+    /// "Claims raised this month" (R-UI-11 / R-SQL-11), the one rule of Today and Claims: lines dated from the first day of
+    /// <paramref name="upTo"/>'s month to <paramref name="upTo"/>; documents are distinct (claim type, document number) as
+    /// in <see cref="Summarise"/> (a line without a document number is not a document, its value still counts); value is
+    /// net incl. tax, null when the month has no line.
+    /// </summary>
+    public static ServiceClaimsMonth RaisedInMonth(IEnumerable<ServiceClaimLine> lines, DateOnly upTo)
+    {
+        var month = new DateOnly(upTo.Year, upTo.Month, 1);
+        var inMonth = lines.Where(line => line.BusinessDate >= month && line.BusinessDate <= upTo).ToArray();
+        return new ServiceClaimsMonth(month, upTo,
+            inMonth.Where(line => line.DocumentNumber is not null).Select(line => (line.ClaimType, line.DocumentNumber!)).Distinct().Count(),
+            inMonth.Length,
+            inMonth.Length == 0 ? null : inMonth.Sum(line => line.NetAmountInclTax ?? 0m));
+    }
 
     /// <summary>The GPRC gap warning (design 3.5, Q11): the latest GPRC reading is older than the latest DC/RA status reading.</summary>
     public static bool GprcGap(DateOnly? latestGprc, DateOnly? latestDcRa) =>
         latestDcRa is { } dcRa && (latestGprc is null || latestGprc < dcRa);
+
+    /// <summary>
+    /// R-SQL-08: the GPRC business-date hole. The old log (S023) ends with its last line's date; the new export (S041)
+    /// covers from its earliest reading window. When the day after the last S023 line is before the S041 window, the days
+    /// between are in no GPRC export (on live: S023 to 5 Aug 2026, S041 from 1 Oct 2026). Null when there is no hole or
+    /// either side is missing (a missing S041 is <see cref="GprcGap"/>'s case).
+    /// </summary>
+    public static (DateOnly From, DateOnly To)? GprcHole(DateOnly? lastS023Line, DateOnly? firstS041Window) =>
+        lastS023Line is { } last && firstS041Window is { } first && last.AddDays(1) < first ? (last.AddDays(1), first.AddDays(-1)) : null;
 }
 
 /// <summary>One row of dbo.v_service_parts (an invoice line).</summary>
@@ -288,7 +338,7 @@ public static class ServicePartsRules
         var gitLines = git.OrderByDescending(line => line.BusinessDate).ToArray();
         var waiting = jobs.Where(job => job.IsOpen && job.Stage == ServiceStages.IndentRaised)
             .Select(job => new ServiceWaitingJob(job.JobOrderNumber, job.SpareRequired, job.IndentDate,
-                job.IndentDate is { } d ? job.AsAt.DayNumber - d.DayNumber : null, job.Brand, job.Model, job.PendingAt))
+                job.IndentDate is { } d ? job.AgedTo.DayNumber - d.DayNumber : null, job.Brand, job.Model, job.PendingAt))
             .OrderByDescending(job => job.DaysWaiting ?? -1).ThenBy(job => job.JobOrderNumber, StringComparer.Ordinal).ToArray();
         var month = asAt is { } at ? new DateOnly(at.Year, at.Month, 1) : (DateOnly?)null;
         return new ServiceParts(invoices, gitLines, stock, waiting, open.Length, open.Sum(invoice => invoice.NetAmount ?? 0m),
@@ -310,7 +360,7 @@ public static class ServiceJobProjection
     public static ServiceJobHeader Header(ServiceJobSummary job) => new(job.JobOrderNumber, job.BookingDate, job.JoType, job.ExportedStatus,
         job.Brand, job.Model, job.ProductCategory, job.Guarantee, job.CustomerType, job.CustomerName, job.Edd, job.Stage, job.StageDate,
         job.PendingAt, job.SpareRequired, job.ClaimRaised, job.SpareValue, job.LabourCharge, job.TatDays, job.AgeDays, job.DaysInStage,
-        job.OverdueBy is > 0, job.AsAt);
+        job.OverdueBy is > 0, job.AsAt, job.TatRepairDays, job.IsOpen, job.ClosedDate, job.ClaimDate);
 }
 
 /// <summary>
