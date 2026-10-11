@@ -49,10 +49,10 @@ public sealed class HealthCheckRunnerOptions
 /// caller (nightly schedule or screen) writes the export, then calls <see cref="IHealthCheckStore.RecordRunAsync"/>.
 /// <para>
 /// DATA-02 and RPT-16 (Step 0 watch-point): the order stays as designed, so the cheap and important areas always run
-/// within the budget. DATA-02 does not wait for RPT-16: the Data probe runs its own tender reconciliation for D-1 and
-/// leaves it in <see cref="HealthCheckContext.Items"/> under <see cref="TenderReconciliationItem"/>; the Reports probe
-/// still runs RPT-16 itself (it must time the report path) and may use the shared result for RPT-18 only if it has
-/// none of its own.
+/// within the budget. DATA-02 does not wait for RPT-16: the Data probe (L6) runs its own tender reconciliation for D-1
+/// and reads DATA-01's gaps from <see cref="HealthCheckContext.Items"/> (<c>"DATA-01.missing"</c>), so DATA-01 must be
+/// answered before DATA-02 (same probe, or the DATA-01 probe registered first: probes of one area run in registration
+/// order). RPT-16 still runs its own report call, because it must time the report path.
 /// </para>
 /// </summary>
 public sealed class HealthCheckRunner
@@ -72,12 +72,6 @@ public sealed class HealthCheckRunner
 
     /// <summary><see cref="HealthCheckContext.Items"/> key, value <c>true</c>: DB-01 failed, do not open a connection.</summary>
     public const string DatabaseUnreachableItem = "runner:database-unreachable";
-
-    /// <summary>
-    /// <see cref="HealthCheckContext.Items"/> key for DATA-02's tender reconciliation of D-1 (written by the Data probe,
-    /// value type chosen by that probe). Documented here so the Reports probe can find it.
-    /// </summary>
-    public const string TenderReconciliationItem = "DATA-02:tender-reconciliation";
 
     /// <summary>Above this many characters of serialised sub-results the runner trims them (detail_json is 2000).</summary>
     internal const int MaxDetailCharacters = 1800;
