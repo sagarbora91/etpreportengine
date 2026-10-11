@@ -107,12 +107,17 @@ public sealed partial class ServiceJobCustomerNameMigrationTextTests
         Assert.Contains("  SELECT report_code,import_file_id,job_order_number,customer_name FROM dbo.v_service_status_view_facts\n", ctes, StringComparison.Ordinal);
         var tables = Regex.Matches(ctes, @"FROM dbo\.etp_landing_(s\d{3})\b").Select(match => match.Groups[1].Value.ToUpperInvariant()).ToList();
         var statusViews = new[] { "S014", "S015", "S016", "S017", "S018", "S031", "S032", "S033", "S034", "S035" };
-        // Every 0048 landing table with a customer name column, read from the 0048 text.
+        // Every 0048 landing table with a customer name column, read from the 0048 text, except the claim families: their
+        // customer_name is the party the claim is raised to (one value for every line on live), not the job's customer.
+        var claimFamilies = new[] { "S039", "S040", "S041" };
         var landing = Read("0048_service_centre_interim.sql");
         var withName = Regex.Matches(landing, @"CREATE TABLE dbo\.\[etp_landing_(?<code>s\d{3})\](?<body>.*?)\n\);", RegexOptions.Singleline)
             .Where(match => Regex.IsMatch(match.Groups["body"].Value, @"\[(customername|customer_name)\]"))
             .Select(match => match.Groups["code"].Value.ToUpperInvariant())
             .ToList();
+        Assert.All(claimFamilies, code => Assert.Contains(code, withName));
+        withName = withName.Except(claimFamilies).ToList();
+        Assert.DoesNotMatch(new Regex(@"etp_landing_s0(39|40|41)\b"), ctes);
         Assert.Equal(withName.Order(StringComparer.Ordinal), tables.Concat(statusViews).Order(StringComparer.Ordinal));
         // Each branch is tagged with its own family code.
         foreach (var code in tables)

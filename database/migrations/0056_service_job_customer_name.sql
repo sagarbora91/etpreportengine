@@ -14,9 +14,11 @@ SET XACT_ABORT ON;
 -- v_service_job, restated from 0052 section 4 with these changes (everything else is 0052's text):
 --   name_rows / names: the customer name of a job is the one of its MOST RECENT reading. Every live reading of every
 --     Service family whose landing table has a customer name column (the ten status views S014-S018 and S031-S035
---     through v_service_status_view_facts, and S009, S010, S011, S012, S020, S021, S029, S039, S040, S041) is a
---     candidate; blank names are skipped; the latest snapshot date wins, then the later import, then the larger name
---     (only to be deterministic). 0050/0052 took MAX() over the status views first, then the latest S009/S010, then S011.
+--     through v_service_status_view_facts, and S009, S010, S011, S012, S020, S021 and S029) is a candidate; blank names
+--     are skipped; the latest snapshot date wins, then the later import, then the larger name (only to be deterministic).
+--     The claim families S039, S040 and S041 are left out: their customer_name is the party the claim is raised to (one
+--     value for every line on live, 11 Oct 2026), not the job's customer. 0050/0052 took MAX() over the status views
+--     first, then the latest S009/S010, then S011.
 --   customer_name is shown by role, in the view, so every reader of v_service_job gets the same rule: members of
 --     etp_owner and etp_store_manager (and db_owner, which is how the Owner's own login and the gate run) see the name;
 --     anyone else, an etp_viewer, reads NULL. IS_MEMBER is evaluated for the caller of each query.
@@ -201,9 +203,6 @@ WITH live AS (
   UNION ALL SELECT ''S020'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),jobordernumber))),N''''),CONVERT(nvarchar(200),customername) FROM dbo.etp_landing_s020
   UNION ALL SELECT ''S021'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),jobordernumber))),N''''),CONVERT(nvarchar(200),customername) FROM dbo.etp_landing_s021
   UNION ALL SELECT ''S029'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),srfno))),N''''),CONVERT(nvarchar(200),customer_name) FROM dbo.etp_landing_s029
-  UNION ALL SELECT ''S039'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),job_order_number))),N''''),CONVERT(nvarchar(200),customer_name) FROM dbo.etp_landing_s039
-  UNION ALL SELECT ''S040'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),job_order_number))),N''''),CONVERT(nvarchar(200),customer_name) FROM dbo.etp_landing_s040
-  UNION ALL SELECT ''S041'',import_file_id,NULLIF(LTRIM(RTRIM(CONVERT(nvarchar(100),job_order_number))),N''''),CONVERT(nvarchar(200),customer_name) FROM dbo.etp_landing_s041
 ), names AS (
   SELECT x.job_order_number,x.customer_name FROM (
     SELECT n.job_order_number,n.customer_name,
