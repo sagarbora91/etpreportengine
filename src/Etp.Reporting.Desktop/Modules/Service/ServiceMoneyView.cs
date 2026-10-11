@@ -65,7 +65,7 @@ public sealed class ServiceMoneyView : ServiceScreenView
             Unmatched.Columns.Add(new DataGridTextColumn
             {
                 Header = unmatchedHeaders[index],
-                Binding = new Binding($"Cells[{index}]") { StringFormat = index == 0 ? "dd MMM yyyy" : index == 3 ? "N2" : null },
+                Binding = new Binding($"Cells[{index}]") { StringFormat = index == 0 ? "dd MMM yyyy" : index == 3 ? "N2" : null, ConverterCulture = ServiceDisplay.Culture },
                 Width = index == 4 ? 320 : 130
             });
         TablePresentation.Configure(Unmatched);
@@ -79,7 +79,7 @@ public sealed class ServiceMoneyView : ServiceScreenView
             Changes.Columns.Add(new DataGridTextColumn
             {
                 Header = changeHeaders[index],
-                Binding = new Binding($"Cells[{index}]") { StringFormat = index is 0 or 2 or 4 ? "dd MMM yyyy" : index == 1 ? null : "N2" },
+                Binding = new Binding($"Cells[{index}]") { StringFormat = index is 0 or 2 or 4 ? "dd MMM yyyy" : index == 1 ? null : "N2", ConverterCulture = ServiceDisplay.Culture },
                 Width = 130
             });
         TablePresentation.Configure(Changes);
@@ -167,7 +167,7 @@ public sealed class ServiceMoneyView : ServiceScreenView
         Changes.ItemsSource = ChangeRows;
         changesStatus.Text = ChangeRows.Count == 0
             ? "No money changed since the previous refresh."
-            : $"{ChangeRows.Count:N0} date{(ChangeRows.Count == 1 ? "" : "s")} changed since the previous refresh.";
+            : ServiceDisplay.Text($"{ChangeRows.Count:N0} date{(ChangeRows.Count == 1 ? "" : "s")} changed since the previous refresh.");
     }
 
     protected override void ClearExtras()
@@ -183,7 +183,7 @@ public sealed class ServiceMoneyView : ServiceScreenView
         Unmatched.ItemsSource = UnmatchedRows;
         unmatchedStatus.Text = UnmatchedRows.Count == 0
             ? "No Service entries at other shops in this range."
-            : $"{UnmatchedRows.Count:N0} Service entr{(UnmatchedRows.Count == 1 ? "y" : "ies")} at other shops. They are shown for checking and are not added to the money check.";
+            : ServiceDisplay.Text($"{UnmatchedRows.Count:N0} Service entr{(UnmatchedRows.Count == 1 ? "y" : "ies")} at other shops. They are shown for checking and are not added to the money check.");
     }
 
     /// <summary>Whose manual Service entries were compared (decision 16, Q1 and Q3).</summary>
@@ -197,7 +197,8 @@ public sealed class ServiceMoneyView : ServiceScreenView
     }
 
     protected override string EmptyRowsText => "No Service money in this date range." + S004Note;
-    protected override string Summarise(int count) => $"{count:N0} date and tender rows · {From:dd MMM yyyy} – {To:dd MMM yyyy}." + S004Note;
+    protected override string Summarise(int count) => ServiceDisplay.Text($"{count:N0} date and tender rows · {From:dd MMM yyyy} – {To:dd MMM yyyy}.") + S004Note;
     protected override string ExportName => "Service money check";
     protected override (DateOnly From, DateOnly To) ExportPeriod => (From, To);
 }
+

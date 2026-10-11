@@ -21,7 +21,7 @@ public sealed record ServiceMonthChoice(DateOnly? Month, string Label)
 {
     public override string ToString() => Label;
     public static ServiceMonthChoice All { get; } = new(null, "All months");
-    public static ServiceMonthChoice For(DateOnly month) => new(new DateOnly(month.Year, month.Month, 1), month.ToString("MMM yyyy"));
+    public static ServiceMonthChoice For(DateOnly month) => new(new DateOnly(month.Year, month.Month, 1), ServiceDisplay.Month(month));
 }
 
 /// <summary>The five numbers of the Parts screen (design 3.6) as shown: the contract's counts plus the oldest open invoice's number.</summary>
@@ -232,8 +232,8 @@ public sealed class ServicePartsView : ServiceScreenView
     }
 
     public static string DescribeClosingStock(ServiceParts parts) => parts.Stock is { } stock
-        ? $"Latest closing stock (S006) as at {stock.SnapshotDate:dd MMM yyyy}: {stock.Items:N0} items" +
-          (stock.Quantity is { } quantity ? $", quantity {quantity:N0}" : "") + (stock.Value is { } value ? $", value {value:N2}" : "") + "."
+        ? ServiceDisplay.Text($"Latest closing stock (S006) as at {stock.SnapshotDate:dd MMM yyyy}: {stock.Items:N0} items") +
+          (stock.Quantity is { } quantity ? ServiceDisplay.Text($", quantity {quantity:N0}") : "") + (stock.Value is { } value ? ServiceDisplay.Text($", value {value:N2}") : "") + "."
         : "No S006 closing stock reading imported yet.";
 
     /// <summary>Shows the lines of one invoice below the grid. Selecting a row does it; tests call it by number.</summary>
@@ -252,19 +252,19 @@ public sealed class ServicePartsView : ServiceScreenView
         Lines.ItemsSource = LineRows;
         linesStatus.Text = LineRows.Count == 0
             ? $"Invoice {invoice.InvoiceNumber}: no lines in the export."
-            : $"Invoice {invoice.InvoiceNumber}: {LineRows.Count:N0} line{(LineRows.Count == 1 ? "" : "s")}.";
+            : ServiceDisplay.Text($"Invoice {invoice.InvoiceNumber}: {LineRows.Count:N0} line{(LineRows.Count == 1 ? "" : "s")}.");
     }
 
     private void ShowNumbers(ServicePartsNumbers numbers)
     {
         NumbersShown = numbers;
         NumbersPanel.Children.Clear();
-        NumbersPanel.Children.Add(new KpiCard("Open invoices", numbers.OpenInvoices.ToString("N0"), $"net {numbers.OpenValue:N2}", numbers.OpenInvoices == 0 ? "Success" : "Warning"));
-        NumbersPanel.Children.Add(new KpiCard("Oldest open", numbers.OldestOpenDays is { } days ? $"{days:N0} days" : "—",
+        NumbersPanel.Children.Add(new KpiCard("Open invoices", ServiceDisplay.Whole(numbers.OpenInvoices), ServiceDisplay.Text($"net {numbers.OpenValue:N2}"), numbers.OpenInvoices == 0 ? "Success" : "Warning"));
+        NumbersPanel.Children.Add(new KpiCard("Oldest open", numbers.OldestOpenDays is { } days ? ServiceDisplay.Text($"{days:N0} days") : "—",
             numbers.OldestOpenInvoice is { } invoice ? $"invoice {invoice}" : "no open invoice", numbers.OldestOpenDays > 30 ? "Critical" : "Information"));
-        NumbersPanel.Children.Add(new KpiCard("Received this month", numbers.ReceivedThisMonth.ToString("N0"), numbers.AsOf.ToString("MMM yyyy"), "Success"));
-        NumbersPanel.Children.Add(new KpiCard("Jobs waiting for parts", numbers.JobsWaitingForParts.ToString("N0"), "latest S009 list", numbers.JobsWaitingForParts == 0 ? "Success" : "Warning"));
-        NumbersPanel.Children.Add(new KpiCard("GIT lines, last 30 days", numbers.GitLinesLast30Days.ToString("N0"), $"to {numbers.AsOf:dd MMM yyyy}", "Information"));
+        NumbersPanel.Children.Add(new KpiCard("Received this month", ServiceDisplay.Whole(numbers.ReceivedThisMonth), ServiceDisplay.Month(numbers.AsOf), "Success"));
+        NumbersPanel.Children.Add(new KpiCard("Jobs waiting for parts", ServiceDisplay.Whole(numbers.JobsWaitingForParts), "latest S009 list", numbers.JobsWaitingForParts == 0 ? "Success" : "Warning"));
+        NumbersPanel.Children.Add(new KpiCard("GIT lines, last 30 days", ServiceDisplay.Whole(numbers.GitLinesLast30Days), ServiceDisplay.Text($"to {numbers.AsOf:dd MMM yyyy}"), "Information"));
     }
 
     private void ShowWaiting(IReadOnlyList<ServiceWaitingJob> jobs)
@@ -278,7 +278,7 @@ public sealed class ServicePartsView : ServiceScreenView
         openHistory.IsEnabled = false;
         waitingStatus.Text = WaitingRows.Count == 0
             ? "No job on the latest Pending repair list is waiting for a part."
-            : $"{WaitingRows.Count:N0} job{(WaitingRows.Count == 1 ? "" : "s")} waiting for parts · longest wait first. Select a job and Open job history.";
+            : ServiceDisplay.Text($"{WaitingRows.Count:N0} job{(WaitingRows.Count == 1 ? "" : "s")} waiting for parts · longest wait first. Select a job and Open job history.");
     }
 
     private void ShowGit(IReadOnlyList<ServiceGitLine> git, DateOnly asOf)
@@ -288,8 +288,8 @@ public sealed class ServicePartsView : ServiceScreenView
             .ToArray();
         Git.ItemsSource = GitRows;
         gitStatus.Text = GitRows.Count == 0
-            ? $"No goods in transit lines in the 30 days to {asOf:dd MMM yyyy}."
-            : $"{GitRows.Count:N0} line{(GitRows.Count == 1 ? "" : "s")} in the 30 days to {asOf:dd MMM yyyy}.";
+            ? ServiceDisplay.Text($"No goods in transit lines in the 30 days to {asOf:dd MMM yyyy}.")
+            : ServiceDisplay.Text($"{GitRows.Count:N0} line{(GitRows.Count == 1 ? "" : "s")} in the 30 days to {asOf:dd MMM yyyy}.");
     }
 
     /// <summary>Opens Job history for the selected waiting job (double-click or the button).</summary>
@@ -308,9 +308,23 @@ public sealed class ServicePartsView : ServiceScreenView
 
     private static string WaitingNumberFormat(string header) => header == "Days waiting" ? "#,##0" : "General";
 
+    /// <summary>
+    /// R-UI-13 (SD-09): the jobs-waiting export spans the earliest indent date of the waiting rows to the as-at date, not the
+    /// invoice grid's span. Rows with no indent date are ignored; with none dated the span is the as-at day.
+    /// </summary>
+    public (DateOnly From, DateOnly To) WaitingExportPeriod
+    {
+        get
+        {
+            var asOf = AsOf(parts, Refreshes, DateOnly.FromDateTime(DateTime.Today));
+            var dated = WaitingRows.Select(row => ((ServiceWaitingJob)row.Source).IndentDate).Where(date => date.HasValue).Select(date => date!.Value).ToArray();
+            return (dated.Length == 0 || dated.Min() > asOf ? asOf : dated.Min(), asOf);
+        }
+    }
+
     public async Task ExportWaitingToPathAsync(string path)
     {
-        var (from, to) = ExportPeriod;
+        var (from, to) = WaitingExportPeriod;
         var metadata = new ExcelReportMetadata("Service jobs waiting for parts", from, to, "Read only", ExportRuleVersion,
             AsAtText, DateTimeOffset.UtcNow, ServiceCentreLabel);
         await export(path, metadata, BuildWaitingExportData());
@@ -324,7 +338,7 @@ public sealed class ServicePartsView : ServiceScreenView
         try
         {
             await ExportWaitingToPathAsync(dialog.FileName);
-            waitingStatus.Text = $"Exported {WaitingRows.Count:N0} jobs to {System.IO.Path.GetFileName(dialog.FileName)}.";
+            waitingStatus.Text = ServiceDisplay.Text($"Exported {WaitingRows.Count:N0} jobs to {System.IO.Path.GetFileName(dialog.FileName)}.");
         }
         catch (Exception exception)
         {
@@ -364,7 +378,7 @@ public sealed class ServicePartsView : ServiceScreenView
             grid.Columns.Add(new DataGridTextColumn
             {
                 Header = header,
-                Binding = new Binding($"Cells[{grid.Columns.Count}]") { StringFormat = format },
+                Binding = new Binding($"Cells[{grid.Columns.Count}]") { StringFormat = format, ConverterCulture = ServiceDisplay.Culture },
                 Width = width
             });
         TablePresentation.Configure(grid);
@@ -375,8 +389,8 @@ public sealed class ServicePartsView : ServiceScreenView
         ? "No purchase invoices (S007/S008) imported yet."
         : "No purchase invoice matches these filters.";
     protected override string Summarise(int count) =>
-        $"{count:N0} invoice{(count == 1 ? "" : "s")} · open first, oldest first" + (OpenOnly ? " · open only" : "") +
-        (chosenMonth is { } chosen ? $" · {chosen:MMM yyyy}" : "") + (string.IsNullOrWhiteSpace(item.Text) ? "" : $" · item \"{item.Text.Trim()}\"") + ".";
+        ServiceDisplay.Text($"{count:N0} invoice{(count == 1 ? "" : "s")} · open first, oldest first") + (OpenOnly ? " · open only" : "") +
+        (chosenMonth is { } chosen ? " · " + ServiceDisplay.Month(chosen) : "") + (string.IsNullOrWhiteSpace(item.Text) ? "" : $" · item \"{item.Text.Trim()}\"") + ".";
     protected override string ExportName => "Service parts and purchases";
     protected override (DateOnly From, DateOnly To) ExportPeriod
     {
@@ -388,3 +402,4 @@ public sealed class ServicePartsView : ServiceScreenView
         }
     }
 }
+

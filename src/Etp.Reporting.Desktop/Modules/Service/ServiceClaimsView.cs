@@ -48,7 +48,7 @@ public sealed class ServiceClaimsView : ServiceScreenView
     private static readonly IReadOnlyList<ServiceColumn> DetailColumns =
     [
         new("Date", DisplayFormat: "dd MMM yyyy"), new("Document number", Width: 150), new("Job number", Width: 150), new("Item", Width: 140),
-        new("Quantity", "#,##0.##", "N0", 90), new("Net incl. tax", "#,##0.00", "N2", 130), new("Source family", Width: 110), new("Claim type", Width: 150)
+        new("Quantity", "#,##0.##", "#,##0.##", 90), new("Net incl. tax", "#,##0.00", "N2", 130), new("Source family", Width: 110), new("Claim type", Width: 150)
     ];
 
     private static readonly IReadOnlyList<ServiceColumn> NotYetClaimedColumns =
@@ -76,15 +76,12 @@ public sealed class ServiceClaimsView : ServiceScreenView
     {
         this.openJob = openJob;
 
-        // The numbers and the GPRC note sit between the intro and the filters, inside the frame's heading.
-        var heading = (Panel)FilterBar.Parent;
-        var at = heading.Children.IndexOf(FilterBar);
-        heading.Children.Insert(at, new TextBlock { Text = SettlementNote, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 4) });
+        // R-UI cross-lane 4: the note, numbers and GPRC warning go in the shared Summary panel (after the filter bar), like the other Service screens.
+        Summary.Children.Add(new TextBlock { Text = SettlementNote, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 4) });
         AutomationProperties.SetName(numbers, "Claims numbers");
-        heading.Children.Insert(at + 1, numbers);
+        Summary.Children.Add(numbers);
         AutomationProperties.SetName(gapWarning, "GPRC gap warning");
-        heading.Children.Insert(at + 2, gapWarning);
-
+        Summary.Children.Add(gapWarning);
         FilterBar.Children.Add(new TextBlock { Text = "Show", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
         AutomationProperties.SetName(modeFilter, "Claims table");
         modeFilter.SelectionChanged += async (_, _) => { if (IsLoaded) await ActivateAsync(); };
@@ -223,21 +220,23 @@ public sealed class ServiceClaimsView : ServiceScreenView
         var ranged = FromMonth is not null || ToMonth is not null;
         var list = new List<ServiceClaimsNumber>
         {
-            new("Claims raised this month", thisMonth.Sum(row => row.Documents).ToString("N0"),
+            new("Claims raised this month", thisMonth.Sum(row => row.Documents).ToString("N0", ServiceDisplay.Culture),
                 month is { } shown
-                    ? $"{thisMonth.Sum(row => row.NetAmountInclTax):N2} net incl. tax · {shown:MMM yyyy}{(ranged ? " · within the months shown" : "")}"
+                    ? ServiceDisplay.Text($"{thisMonth.Sum(row => row.NetAmountInclTax):N2} net incl. tax · {shown:MMM yyyy}{(ranged ? " · within the months shown" : "")}")
                     : "No claim lines imported"),
-            new("DC/RA jobs not yet claimed", loaded.NotYetClaimed.Count.ToString("N0"),
-                $"WDC due {loaded.NotYetClaimed.Count(job => job.ClaimType == ServiceClaimTypes.Wdc):N0} · WRA due {loaded.NotYetClaimed.Count(job => job.ClaimType == ServiceClaimTypes.Wra):N0}"),
-            new("Oldest not yet claimed", oldest is null ? "—" : $"{oldest.DaysSince:N0} days",
-                oldest is null ? "No DC/RA job is waiting for a claim" : $"{oldest.JobOrderNumber} · {ServiceStages.Label(oldest.Stage)} on {oldest.StageDate:dd MMM yyyy}"),
+            new("DC/RA jobs not yet claimed", loaded.NotYetClaimed.Count.ToString("N0", ServiceDisplay.Culture),
+                ServiceDisplay.Text($"WDC due {loaded.NotYetClaimed.Count(job => job.ClaimType == ServiceClaimTypes.Wdc):N0} · WRA due {loaded.NotYetClaimed.Count(job => job.ClaimType == ServiceClaimTypes.Wra):N0}")),
+            new("Oldest not yet claimed", oldest is null ? "—" : ServiceDisplay.Text($"{oldest.DaysSince:N0} days"),
+                oldest is null ? "No DC/RA job is waiting for a claim" : ServiceDisplay.Text($"{oldest.JobOrderNumber} · {ServiceStages.Label(oldest.Stage)} on {oldest.StageDate:dd MMM yyyy}")),
             new("GPRC claim export",
-                loaded.LatestGprcReading is { } gprc ? gprc.ToString("dd MMM yyyy") : "none",
-                loaded.LatestDcRaReading is { } dcRa ? $"DC/RA lists to {dcRa:dd MMM yyyy}" : "No DC/RA list imported")
+                loaded.LatestGprcReading is { } gprc ? ServiceDisplay.Date(gprc) : "none",
+                loaded.LatestDcRaReading is { } dcRa ? ServiceDisplay.Text($"DC/RA lists to {dcRa:dd MMM yyyy}") : "No DC/RA list imported")
         };
+        var gprcState = loaded.LatestGprcReading is { } g ? ServiceDisplay.Text($"dated {g:dd MMM yyyy}") : "missing";
+        var dcRaDate = loaded.LatestDcRaReading is { } latestDcRa ? ServiceDisplay.Date(latestDcRa) : "not known";
         gapWarning.Text = loaded.GprcGapWarning
-            ? $"GPRC cell claims may be incomplete: the latest GPRC CLAIM export (S041) is {(loaded.LatestGprcReading is { } g ? $"dated {g:dd MMM yyyy}" : "missing")} " +
-              $"and the latest DC/RA list (S014/S016) is dated {loaded.LatestDcRaReading:dd MMM yyyy}. Export GPRC CLAIM up to that date and import it; " +
+            ? "GPRC cell claims may be incomplete: the latest GPRC CLAIM export (S041) is " + gprcState + " " +
+              "and the latest DC/RA list (S014/S016) is dated " + dcRaDate + ". Export GPRC CLAIM up to that date and import it; " +
               "until then the GPRC claims of the gap are in no table."
             : "";
         gapWarning.Visibility = loaded.GprcGapWarning ? Visibility.Visible : Visibility.Collapsed;
@@ -296,9 +295,9 @@ public sealed class ServiceClaimsView : ServiceScreenView
 
     protected override string Summarise(int count) => shownMode switch
     {
-        DetailMode => $"{count:N0} claim lines · {SelectedClaimType.Label} · claims raised only.",
-        NotYetClaimedMode => $"{count:N0} DC/RA jobs with no claim document yet · longest waiting first.",
-        _ => $"{count:N0} month and claim type rows · {SelectedClaimType.Label} · claims raised only."
+        DetailMode => ServiceDisplay.Text($"{count:N0} claim lines · {SelectedClaimType.Label} · claims raised only."),
+        NotYetClaimedMode => ServiceDisplay.Text($"{count:N0} DC/RA jobs with no claim document yet · longest waiting first."),
+        _ => ServiceDisplay.Text($"{count:N0} month and claim type rows · {SelectedClaimType.Label} · claims raised only.")
     };
 
     protected override string ExportName => shownMode switch
@@ -321,3 +320,5 @@ public sealed class ServiceClaimsView : ServiceScreenView
         }
     }
 }
+
+
