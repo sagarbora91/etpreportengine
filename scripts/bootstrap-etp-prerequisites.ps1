@@ -669,6 +669,66 @@ function Assert-EtpHeadlessStepSucceeded {
     throw "$Step failed with exit code $($Result.ExitCode), and the application reported no reason. Its diagnostics entry is in %LOCALAPPDATA%\EtpReporting\Logs of the account that ran setup."
 }
 
+# ------------------------------------------------------------------ 1.11.0 health exports
+# Design section 8, decision 33 (Q4). %ProgramData%\EtpReporting\HealthExports holds one JSON
+# export per health check run. SYSTEM and Administrators have full control; the automation
+# account (nightly runs) and every active Owner's Windows account (manual runs, and the weekly
+# audit, which runs as the Owner unelevated) read and write; nobody else - no Store Manager,
+# Viewer, Users or Everyone. Rebuilt on every setup run, so a retired Owner loses access and a
+# new one gets it the next time setup runs. An unelevated Owner reaches it although the
+# EtpReporting folder above it is administrators-only: Windows lets every account traverse.
+
+function Get-EtpHealthExportFolderRules {
+    # Pure. The access rules, as Sid / Rights pairs, in a fixed order. Only user-account SIDs
+    # (S-1-5-21-...) are granted Modify; a well-known group, a service SID or a blank is skipped.
+    param([AllowNull()][string]$AutomationSid,[AllowNull()][AllowEmptyCollection()][string[]]$OwnerSids)
+    $rules = [Collections.Generic.List[object]]::new()
+    $seen = @{}
+    foreach ($sid in @('S-1-5-18','S-1-5-32-544')) { $rules.Add([pscustomobject]@{ Sid = $sid; Rights = 'FullControl' }); $seen[$sid] = $true }
+    foreach ($sid in @(@($AutomationSid) + @($OwnerSids))) {
+        if ([string]::IsNullOrWhiteSpace($sid)) { continue }
+        $value = $sid.Trim()
+        if ($seen.ContainsKey($value) -or $value -notmatch '^S-1-5-21-\d+-\d+-\d+-\d+$') { continue }
+        $seen[$value] = $true
+        $rules.Add([pscustomobject]@{ Sid = $value; Rights = 'Modify' })
+    }
+    return $rules.ToArray()
+}
+
+function Get-EtpActiveOwnerSids {
+    # The SIDs of the given DOMAIN\User names; a name Windows no longer resolves is skipped.
+    param([AllowNull()][AllowEmptyCollection()][string[]]$Identities)
+    $sids = [Collections.Generic.List[string]]::new()
+    foreach ($identity in @($Identities)) {
+        if ([string]::IsNullOrWhiteSpace($identity)) { continue }
+        try { $sids.Add(([Security.Principal.NTAccount]::new($identity.Trim())).Translate([Security.Principal.SecurityIdentifier]).Value) } catch { }
+    }
+    return $sids.ToArray()
+}
+
+function New-EtpActiveOwnersSql {
+    # Read-only, in the ETP database: one active Owner's Windows account per line.
+    return "SET NOCOUNT ON; SELECT windows_identity FROM dbo.application_users WHERE role_code='OWNER' AND is_active=1 ORDER BY windows_identity;"
+}
+
+function Set-EtpHealthExportFolder {
+    # Creates the folder when missing and replaces its access list with $Rules (not inherited).
+    # Files already in it take the new rules by inheritance. Never follows a link.
+    param([Parameter(Mandatory)][string]$Path,[Parameter(Mandatory)][object[]]$Rules)
+    $full = [IO.Path]::GetFullPath($Path)
+    Assert-EtpNoLinks $full
+    if (-not (Test-Path -LiteralPath $full -PathType Container)) { New-Item -ItemType Directory -Path $full | Out-Null }
+    Assert-EtpNoLinks $full
+    $acl = [Security.AccessControl.DirectorySecurity]::new()
+    $acl.SetAccessRuleProtection($true,$false)
+    $acl.SetOwner([Security.Principal.SecurityIdentifier]::new('S-1-5-32-544'))
+    foreach ($rule in $Rules) {
+        $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new($rule.Sid),$rule.Rights,'ContainerInherit,ObjectInherit','None','Allow'))
+    }
+    Set-Acl -LiteralPath $full -AclObject $acl
+    return $full
+}
+
 # Dot-sourcing exposes only the pure preflight functions for behavioral tests.
 if ($MyInvocation.InvocationName -eq '.') { return }
 
@@ -926,6 +986,21 @@ if ($ownerLoginAdministration -ceq 'MISSING') {
 }
 elseif ($ownerLoginAdministration -ceq 'UNKNOWN') {
     Write-SetupLog 'NOTE: setup could not check whether the Owner running it can change users without "Run as administrator" (docs\OPERATIONS.md, Owners and SQL Server logins).'
+}
+
+# 1.11.0 (design section 8, decision 33 Q4): the health check export folder, after the database
+# and its Owners are final. Nothing here stops setup: without the folder the nightly health check
+# still runs and is recorded, and only the export file is missing (the health check says so).
+try {
+    $ownerIdentities = @(& $sqlcmdPath -x -S $ServerInstance -E -b -h -1 -W -d $Database -Q (New-EtpActiveOwnersSql))
+    if ($LASTEXITCODE -ne 0) { throw 'the active Owners could not be read' }
+    $ownerSids = @(Get-EtpActiveOwnerSids -Identities @($ownerIdentities | ForEach-Object { "$_".Trim() } | Where-Object { $_ }))
+    $healthAutomationSid = ([Security.Principal.NTAccount]::new([string]$operationConfiguration.automationPrincipal)).Translate([Security.Principal.SecurityIdentifier]).Value
+    $healthExports = Set-EtpHealthExportFolder -Path (Join-Path $env:ProgramData 'EtpReporting\HealthExports') -Rules (Get-EtpHealthExportFolderRules -AutomationSid $healthAutomationSid -OwnerSids $ownerSids)
+    Write-SetupLog "Health check export folder ready at $healthExports (SYSTEM and Administrators full control; the automation account and $($ownerSids.Count) active Owner account(s) read and write; nobody else)."
+}
+catch {
+    Write-SetupLog "WARNING: setup could not prepare the health check export folder ($($_.Exception.Message)). The nightly health check still runs and is recorded, but writes no export file until setup runs again."
 }
 
 & (Join-Path $scripts 'install-daily-backup-task.ps1')

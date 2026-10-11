@@ -6,7 +6,11 @@ param(
     # ETP_DIAGNOSTICS_DIRECTORY when that is a full path (test runs), else
     # %LOCALAPPDATA%\EtpReporting\Logs of the account creating the package.
     [string]$DiagnosticsDirectory,
-    [ValidateRange(1,180)][int]$DiagnosticsDays = 30
+    [ValidateRange(1,180)][int]$DiagnosticsDays = 30,
+    # 1.11.0 (design section 8). The health check exports: the newest $HealthExportCount
+    # health-*.json files, under health\ in the package, when the folder is readable.
+    [string]$HealthExportDirectory = "$env:ProgramData\EtpReporting\HealthExports",
+    [ValidateRange(1,90)][int]$HealthExportCount = 14
 )
 
 $ErrorActionPreference = "Stop"
@@ -35,6 +39,26 @@ function Copy-EtpSupportDiagnostics {
     $files = @(Get-ChildItem -LiteralPath $source -Filter 'diagnostics-*.jsonl' -File |
         Where-Object { $_.Name -match '^diagnostics-[A-Za-z0-9-]+\.jsonl$' -and $_.LastWriteTime -ge $cutoff -and -not ($_.Attributes -band [IO.FileAttributes]::ReparsePoint) } |
         Sort-Object Name)
+    if ($files.Count -eq 0) { return 0 }
+    New-Item -ItemType Directory -Path $Destination -Force | Out-Null
+    foreach ($file in $files) { Copy-Item -LiteralPath $file.FullName -Destination (Join-Path $Destination $file.Name) }
+    return $files.Count
+}
+
+function Copy-EtpSupportHealthExports {
+    # 1.11.0. Copies the newest $Count health exports (health-yyyyMMdd-HHmmss-Manual|Nightly.json,
+    # written by the application through HealthExportPrivacyGuard: counts, codes, dates and
+    # versions only) and returns how many were copied. Newest by the date and time in the name.
+    # A missing or unreadable folder copies nothing (an unelevated Store Manager cannot read it);
+    # a linked folder or file is never followed; other files in the folder are never copied.
+    param([Parameter(Mandatory)][string]$SourceDirectory,[Parameter(Mandatory)][string]$Destination,[int]$Count = 14)
+    $source = [IO.Path]::GetFullPath($SourceDirectory)
+    if (-not (Test-Path -LiteralPath $source -PathType Container)) { return 0 }
+    Assert-EtpNoLinks $source
+    $files = @(Get-ChildItem -LiteralPath $source -Filter 'health-*.json' -File -ErrorAction Stop |
+        Where-Object { $_.Name -match '^health-\d{8}-\d{6}-(?:Manual|Nightly)(?:-\d)?\.json$' -and -not ($_.Attributes -band [IO.FileAttributes]::ReparsePoint) } |
+        Sort-Object -Property @{ Expression = { $_.Name.Substring(7, 15) } }, Name -Descending |
+        Select-Object -First $Count)
     if ($files.Count -eq 0) { return 0 }
     New-Item -ItemType Directory -Path $Destination -Force | Out-Null
     foreach ($file in $files) { Copy-Item -LiteralPath $file.FullName -Destination (Join-Path $Destination $file.Name) }
@@ -80,13 +104,22 @@ try {
         if (Test-Path -LiteralPath (Join-Path $staging 'diagnostics')) { Remove-Item -LiteralPath (Join-Path $staging 'diagnostics') -Recurse -Force }
         $diagnosticsCount = -1
     }
-    Set-Content -LiteralPath (Join-Path $staging "privacy.txt") -Value "This package contains aggregate health and environment metadata, and the application diagnostics log of the last $DiagnosticsDays days, which records errors by code and type without customer names, phone numbers or business values. Source rows, customer data, invoice identifiers, workbook names and workbook paths are intentionally excluded."
+    $healthCount = 0
+    try { $healthCount = Copy-EtpSupportHealthExports -SourceDirectory $HealthExportDirectory -Destination (Join-Path $staging 'health') -Count $HealthExportCount }
+    catch {
+        # Unreadable for this account (the folder is the Owner's and the automation account's).
+        if (Test-Path -LiteralPath (Join-Path $staging 'health')) { Remove-Item -LiteralPath (Join-Path $staging 'health') -Recurse -Force }
+        $healthCount = -1
+    }
+    Set-Content -LiteralPath (Join-Path $staging "privacy.txt") -Value "This package contains aggregate health and environment metadata, the application diagnostics log of the last $DiagnosticsDays days, which records errors by code and type without customer names, phone numbers or business values, and the newest health check exports, which hold check results and error-register entries by code, count, date and version only. Source rows, customer data, invoice identifiers, workbook names and workbook paths are intentionally excluded."
     Compress-Archive -Path (Join-Path $staging "*") -DestinationPath $archive -CompressionLevel Optimal
     Write-Output 'Aggregate support package created.'
     # 1.9.9 (IE-CODE-02). The application shows where the package was saved; it never said.
     Write-Output ('ETP_SAVED:' + $archive)
     if ($diagnosticsCount -eq 0) { Write-Output "ETP_NOTICE:No application diagnostics log from the last $DiagnosticsDays days was found to include." }
     elseif ($diagnosticsCount -lt 0) { Write-Output 'ETP_NOTICE:The application diagnostics log could not be added to the package.' }
+    if ($healthCount -eq 0) { Write-Output 'ETP_NOTICE:No health check export was found to include.' }
+    elseif ($healthCount -lt 0) { Write-Output 'ETP_NOTICE:The health check exports could not be read by this account and are not in the package.' }
 }
 finally {
     if ([IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($staging)) -ine $resolvedOutput.TrimEnd('\')) { throw 'Support cleanup escaped its output folder.' }
