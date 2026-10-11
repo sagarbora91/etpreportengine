@@ -9,6 +9,9 @@
   <ItemGroup>
     <!-- ImportAudit baseline runs the pre-upgrade check byte for byte (BaselineScriptEmbeddingTests). -->
     <EmbeddedResource Include="..\..\scripts\check-import-upgrade.sql" LogicalName="Etp.Reporting.Infrastructure.SqlServer.Audit.check-import-upgrade.sql" />
+    <!-- SEC-01 compares live role permissions with this matrix (ExpectedRolePermissionsTests regenerates it). -->
+    <None Remove="HealthCheck\ExpectedRolePermissions.json" />
+    <EmbeddedResource Include="HealthCheck\ExpectedRolePermissions.json" LogicalName="Etp.Reporting.Infrastructure.SqlServer.HealthCheck.ExpectedRolePermissions.json" />
   </ItemGroup>
 
   <ItemGroup>

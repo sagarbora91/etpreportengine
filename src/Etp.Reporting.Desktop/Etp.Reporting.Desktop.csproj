@@ -47,6 +47,8 @@
     <Resource Include="Assets\EtpReporting.ico" />
     <Resource Include="HelpScreenshots\*.png" />
     <Content Include="..\..\database\migrations\*.sql" Link="database\migrations\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Remove="Diagnostics\ErrorFixManifest.json" />
+    <Content Include="Diagnostics\ErrorFixManifest.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
