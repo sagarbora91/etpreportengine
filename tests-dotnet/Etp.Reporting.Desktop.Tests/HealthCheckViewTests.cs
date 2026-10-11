@@ -469,6 +469,26 @@ public sealed class HealthCheckViewTests
         });
     }
 
+    [Fact]
+    public void Ending_a_line_that_is_Known_through_its_sub_findings_clears_their_Known_rows_too()
+    {
+        // Review finding 4: DATA-01 DAY_INCOMPLETE was Known through Known rows under its sub codes; clearing only the
+        // line code removed nothing while the screen said "ended".
+        RunSta(() =>
+        {
+            var store = new FakeStore();
+            store.AddRun(1, HealthCheckTrigger.Nightly, Utc(2026, 10, 11, 21), Result(HealthCheckId.Data01, HealthOutcome.Known, code: "DAY_INCOMPLETE",
+                subs: [new("EXPORTS_MISSING", HealthOutcome.Known, "EXPORTS_MISSING"), new("INPUTS_MISSING", HealthOutcome.Known, "INPUTS_MISSING")]));
+            var view = NewView(store, now: () => Night);
+            view.LoadAsync().GetAwaiter().GetResult();
+
+            view.Select(view.Rows.Single(row => row.Check == "DATA-01"));
+            Assert.True(view.EndKnownAsync().GetAwaiter().GetResult());
+
+            Assert.Equal([("DATA-01", "DAY_INCOMPLETE"), ("DATA-01", "EXPORTS_MISSING"), ("DATA-01", "INPUTS_MISSING")], store.KnownCleared);
+        });
+    }
+
     // ---- export folder -------------------------------------------------------------------------------------------
 
     [Fact]

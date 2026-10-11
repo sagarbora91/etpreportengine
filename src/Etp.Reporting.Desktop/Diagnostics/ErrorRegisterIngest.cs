@@ -39,6 +39,8 @@ public sealed class ErrorRegisterIngest
     public const int MaxStackJsonLength = 3000;
     public const string FailureEventId = "ERROR_REGISTER_INGEST_FAILED";
     public const string FailureSource = "Diagnostics.ErrorRegister";
+    /// <summary><c>diag.error_occurrences.operation</c> is nvarchar(120).</summary>
+    public const int MaxOperationLength = 120;
 
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> Gates = new(StringComparer.OrdinalIgnoreCase);
 
@@ -220,8 +222,21 @@ public sealed class ErrorRegisterIngest
             entry.StoreCode,
             businessDate,
             dateFrom,
-            entry.Operation,
+            RegisterOperation(entry.Operation),
             StackOf(entry.Stack));
+    }
+
+    /// <summary>
+    /// The log's operation text ("Run report", "Health check report probe failed": letters, spaces and
+    /// <c>- / ( ) ,</c>, <see cref="DesktopDiagnostics.SafeOperation"/>) as the register stores it: a token for
+    /// <c>diag.is_token(operation,120)</c> and the CHECK on <c>diag.error_occurrences.operation</c>, so "Run report" is
+    /// "Run_report" (1.11.0 review finding 2: sent unchanged, every entry with an operation was rejected and lost).
+    /// Null when nothing is left.
+    /// </summary>
+    internal static string? RegisterOperation(string? operation)
+    {
+        var token = HealthCheckTexts.DetailToken(operation, MaxOperationLength);
+        return token.Length == 0 ? null : token;
     }
 
     /// <summary>The Etp frames only, normalised to <c>Type.Method</c>, repeated neighbours collapsed, at most 16 frames and 3000 characters of JSON.</summary>

@@ -408,7 +408,7 @@ public sealed class DataProbes : IHealthProbe
             // Before 1.10.0 there is no reading log: the newest Service file date stands for all families.
             var colour = ServiceFreshness.Colour(newest, today);
             if (colour is ServiceFreshnessColour.Amber or ServiceFreshnessColour.Red)
-                subs.Add(new HealthCheckSubResult("Service files",
+                subs.Add(new HealthCheckSubResult("service-files",
                     colour == ServiceFreshnessColour.Red ? HealthOutcome.Fail : HealthOutcome.Warning,
                     colour == ServiceFreshnessColour.Red ? "SERVICE_STALE" : "SERVICE_AGEING", today.DayNumber - newest.DayNumber,
                     new Dictionary<string, string> { ["latest"] = newest.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), ["colour"] = colour.ToString() }));

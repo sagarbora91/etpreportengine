@@ -559,7 +559,7 @@ public sealed class OperationsProbes : IHealthProbe
         catch (Exception) { return Skipped(id, "BUILD_UNREADABLE", "The SQL Server version could not be read (database not reachable).", sw); }
         var level = string.IsNullOrWhiteSpace(build.UpdateLevel) ? "RTM" : build.UpdateLevel!.Trim();
         var fields = new Dictionary<string, string> { ["version"] = build.ProductVersion, ["updateLevel"] = level };
-        if (!string.IsNullOrWhiteSpace(build.Edition)) fields["edition"] = build.Edition!.Trim();
+        if (!string.IsNullOrWhiteSpace(build.Edition)) fields["edition"] = HealthCheckTexts.DetailToken(build.Edition);
         var subs = new[] { new HealthCheckSubResult("sql-server", HealthOutcome.Pass, null, null, fields) };
         var label = $"SQL Server {build.ProductVersion} ({level})";
         // Decision 36 (Q15): an RTM build is a Warning, not a Fail; the fix is the CU runbook.

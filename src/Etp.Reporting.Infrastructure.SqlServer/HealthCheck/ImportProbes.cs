@@ -133,7 +133,7 @@ public sealed class ImportProbes : IHealthProbe
             new Dictionary<string, string>
             {
                 ["matched"] = check.MatchedReportCode ?? "none",
-                ["blockers"] = check.Blockers.Count == 0 ? "none" : string.Join(";", check.Blockers)
+                ["blockers"] = check.Blockers.Count == 0 ? "none" : HealthCheckTexts.DetailToken(string.Join(";", check.Blockers))
             })).ToList();
         if (!dailyInputsRecognised)
             subs.Add(new HealthCheckSubResult("D001", HealthOutcome.Fail, "FAMILY_UNMATCHED", null,
@@ -167,7 +167,7 @@ public sealed class ImportProbes : IHealthProbe
         var total = rows.Sum(row => row.Count);
         var subs = rows.GroupBy(row => row.ReportCode, StringComparer.OrdinalIgnoreCase)
             .Select(group => new HealthCheckSubResult(group.Key, HealthOutcome.Warning, "IMPORT_FAILED", group.Sum(row => row.Count),
-                group.ToDictionary(row => row.Outcome, row => row.Count.ToString(CultureInfo.InvariantCulture), StringComparer.Ordinal)))
+                group.ToDictionary(row => HealthCheckTexts.DetailToken(row.Outcome, 60), row => row.Count.ToString(CultureInfo.InvariantCulture), StringComparer.Ordinal)))
             .OrderBy(sub => sub.Key, StringComparer.Ordinal).ToArray();
         var byReport = string.Join(", ", subs.Select(sub => $"{sub.Key} {sub.MetricValue:0}"));
         return ImportDataProbeSupport.Make(HealthCheckId.Imp02, HealthOutcome.Warning, "IMPORT_FAILURES_OPEN",

@@ -50,6 +50,14 @@ Self-diagnostics (design `docs/design/SELF-DIAGNOSTICS.md`): an error register, 
 
 - New Help topic "Health check & Error register"; the User guide and the Operations guide describe the new screens, the export folder and the nightly run. The weekly-audit Part 0 text and the fix-ticket register template are handed to Sagar for approval (outside the repo).
 
+**Fixed after code review** (11 Oct 2026, `111-CODE-REVIEW.md`)
+
+- Health runs were refused by the database every time (SQL error 51820) and saved again without any detail, and every export marked ERR-01 as a Warning. The cause was sub-result details with spaces, brackets or commas, for example the SQL Server edition "Express Edition (64-bit)", "R022,R025" and "Unknown layout". Probes now write such product words as tokens ("Express_Edition_64-bit"). The runner joins lists with "+" and replaces any other free text with "dropped", so the text is never stored or exported. Report names in explanations no longer contain "/", and the event-log keys are now "event:17204".
+- Error-register entries with an operation (every report failure, for example "Run report") were rejected and lost. The operation is now stored as a token ("Run_report").
+- "Mark selected warning as Known" now works on lines whose sub-findings have their own codes (DATA-01, IMP-02, ERR-02). A Fail sub-finding is never covered. "End Known" ends the line's code and the codes of all its Known sub-findings.
+- The time budget now also stops a check that ignores cancellation (a hung Task Scheduler or COM call); the check is reported as Skipped (time budget). OPS-05 no longer accepts a group, or a built-in account with a number below 1000, as a HealthExports modifier. Error-register retention ranks only the entries that have occurrences older than 180 days (new index on `occurred_utc`, migration 0054 amended before any real database ran it).
+- Tests: the SQL role tests no longer return an impersonating connection to the pool, which had killed the next tests at the gate (SQL error 18059).
+
 **Build and tests**
 
 - Tests: unit projects and gate result filled in after the gate.

@@ -216,6 +216,45 @@ public static class HealthCheckTexts
         return token.Length <= maximum ? token : token[..maximum];
     }
 
+    /// <summary>
+    /// A sub-result key, field key or field value (and an error register operation) fit for <c>diag.is_token</c> and
+    /// the export guard's token rule, keeping product wording readable (1.11.0 review findings 1 and 2): list
+    /// separators ("," and ";", with any spaces round them) become <c>+</c>, every other character outside the token
+    /// set becomes <c>_</c>, runs of <c>_</c> collapse and none is left at either end, at most <paramref name="maximum"/>.
+    /// "Express Edition (64-bit)" becomes "Express_Edition_64-bit", "R022,R025" becomes "R022+R025". Probes still put
+    /// only codes, counts and fixed wording into these values; this never makes row data safe.
+    /// </summary>
+    public static string DetailToken(string? value, int maximum = 100)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "";
+        var builder = new System.Text.StringBuilder(value.Length);
+        var text = value.Trim();
+        for (var index = 0; index < text.Length; index++)
+        {
+            var character = text[index];
+            char mapped;
+            if (character is >= 'A' and <= 'Z' or >= 'a' and <= 'z' or >= '0' and <= '9' or '.' or '_' or ':' or '<' or '>' or '+' or '-')
+                mapped = character;
+            else if (character is ',' or ';')
+                mapped = '+';
+            else
+                mapped = '_';
+            if (mapped == '+')
+            {
+                // A list separator swallows the spaces (now "_") round it: "a, b" is "a+b", not "a+_b".
+                while (builder.Length > 0 && builder[^1] == '_') builder.Length--;
+                builder.Append('+');
+                while (index + 1 < text.Length && char.IsWhiteSpace(text[index + 1])) index++;
+                continue;
+            }
+            if (mapped == '_' && builder.Length > 0 && builder[^1] is '_' or '+') continue;
+            builder.Append(mapped);
+        }
+        var token = builder.ToString().Trim('_');
+        if (token.Length > maximum) token = token[..maximum].TrimEnd('_');
+        return token;
+    }
+
     /// <summary>A finding code fit for <c>diag.is_code</c>: upper case, <c>A-Z 0-9 _</c> only, at most 60.</summary>
     public static string SafeCode(string? value)
     {

@@ -325,6 +325,28 @@ public sealed class ReportProbeTests
 
     // ---------------------------------------------------------------------------------------------------------------
 
+    [Fact]
+    public async Task Review_finding_1_report_lines_with_a_per_store_SQL_error_record_and_export_without_redaction()
+    {
+        // RPT-10 is per store: each store's sub-result carries exception "SqlException (SQL 229)", which diag.is_token
+        // refused (51820 for the whole run) and the export guard redacted (ERR-01 a Warning on every run).
+        var sql = SqlExceptionFactory.Create(new SqlExceptionFactory.Error(229, "The SELECT permission was denied on PLANTED"));
+        var fakes = new Fakes { Hook = (name, _, _) => name == nameof(Fakes.LoadPhysicalStockAsync) ? throw sql : Task.CompletedTask };
+
+        var results = (await Create(fakes).Probe.RunAsync(Context(), CancellationToken.None)).Select(HealthCheckRunner.Normalise).ToArray();
+
+        var physical = results.Single(x => x.CheckId == "RPT-10");
+        Assert.Equal(HealthOutcome.Fail, physical.Outcome);
+        Assert.All(physical.SubResults!, sub => Assert.Equal("SqlException_SQL_229", sub.Fields!["exception"]));
+        Assert.DoesNotContain(results, x => x.Explanation.Contains('/'));
+        Assert.Contains(results, x => x.Explanation.StartsWith("Daily Sales (DSR)", StringComparison.Ordinal));
+        var counts = HealthExportWriter.Recount(results);
+        var run = new HealthCheckRun(HealthCheckTrigger.Nightly, Day, DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow, "1.11.0.0",
+            "TESTPC", "Automation", HealthExportWriter.OverallOf(counts), counts, null, results);
+        var writer = new HealthExportWriter(Path.Combine(Path.GetTempPath(), "EtpHealthExportUnused"), []);
+        Assert.Equal(0, writer.CountRedactions(new HealthExportInput(run, null, [])));
+    }
+
     private static (ReportProbes Probe, List<(string ReportCode, string? Store)> Recorded) Create(Fakes fakes, TimeProvider? clock = null)
     {
         var recorded = new List<(string ReportCode, string? Store)>();

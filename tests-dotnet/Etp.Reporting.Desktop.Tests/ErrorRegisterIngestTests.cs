@@ -247,7 +247,7 @@ public sealed class ErrorRegisterIngestTests : IDisposable
         Assert.Equal("ALL", item.StoreCode);
         Assert.Equal(new DateOnly(2026, 10, 9), item.BusinessDate);
         Assert.Equal(new DateOnly(2026, 10, 1), item.DateFrom);
-        Assert.Equal("Run report", item.Operation);
+        Assert.Equal("Run_report", item.Operation); // review finding 2: a register token, as diag.is_token(operation,120) requires
         Assert.Equal(T0.AddMinutes(1), item.TimestampUtc);
     }
 

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Security.AccessControl;
@@ -101,9 +102,42 @@ internal static class ProtectedOperationPath
     /// <summary>
     /// HealthExports modifiers: setup grants Modify to the automation account and the active Owners, resolved to
     /// individual account SIDs (S-1-5-21-..., never a well-known group). Groups such as Users, Authenticated Users or
-    /// Everyone are still refused.
+    /// Everyone are still refused, and so is a machine or domain SID of a group (1.11.0 review finding 6): a built-in
+    /// relative id below 1000 (Domain Users -513, Domain Admins -512, ...) or a SID Windows resolves to a group or alias
+    /// (a local group someone created). A SID Windows cannot resolve (a deleted account) is no one, so it may stay.
     /// </summary>
-    internal static bool IsIndividualAccount(string sid) => sid.StartsWith("S-1-5-21-", StringComparison.Ordinal);
+    internal static bool IsIndividualAccount(string sid) => IsIndividualAccount(sid, AccountUseOf);
+
+    internal static bool IsIndividualAccount(string sid, Func<string, AccountUse?> resolve)
+    {
+        if (!sid.StartsWith("S-1-5-21-", StringComparison.Ordinal)) return false;
+        var rid = sid[(sid.LastIndexOf('-') + 1)..];
+        if (!uint.TryParse(rid, NumberStyles.None, CultureInfo.InvariantCulture, out var relativeId) || relativeId < 1000) return false;
+        return resolve(sid) is not (AccountUse.Group or AccountUse.Alias or AccountUse.WellKnownGroup);
+    }
+
+    /// <summary>SID_NAME_USE values of LookupAccountSid that matter here.</summary>
+    internal enum AccountUse { User = 1, Group = 2, Domain = 3, Alias = 4, WellKnownGroup = 5, DeletedAccount = 6, Invalid = 7, Unknown = 8, Computer = 9, Label = 10 }
+
+    internal static AccountUse? AccountUseOf(string sid)
+    {
+        try
+        {
+            var identifier = new SecurityIdentifier(sid);
+            var binary = new byte[identifier.BinaryLength];
+            identifier.GetBinaryForm(binary, 0);
+            var name = new StringBuilder(256);
+            var domain = new StringBuilder(256);
+            uint nameLength = (uint)name.Capacity, domainLength = (uint)domain.Capacity;
+            return LookupAccountSid(null, binary, name, ref nameLength, domain, ref domainLength, out var use) ? (AccountUse)use : null;
+        }
+        catch (ArgumentException) { return null; }
+    }
+
+    [DllImport("advapi32.dll", EntryPoint = "LookupAccountSidW", CharSet = CharSet.Unicode, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool LookupAccountSid(string? systemName, byte[] sid, StringBuilder name, ref uint nameLength,
+        StringBuilder domainName, ref uint domainNameLength, out int use);
 
     // The same rule as Get-EtpOperationVolumeProblem in scripts\etp-operations-common.ps1: the
     // Root role relaxes Delete only because a real volume root cannot be renamed. A share, a

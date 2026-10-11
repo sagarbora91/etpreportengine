@@ -221,16 +221,26 @@ public sealed class HealthCheckRunner
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, budgetSource.Token);
         var started = clock.GetTimestamp();
         IReadOnlyList<HealthCheckResult> answered;
+        Task<IReadOnlyList<HealthCheckResult>>? running = null;
         try
         {
-            answered = await probe.RunAsync(context, linked.Token).ConfigureAwait(false) ?? [];
+            running = probe.RunAsync(context, linked.Token);
+            // A probe that ignores the token (a hung COM or Win32 call) must not hold the run past its allowance
+            // (1.11.0 review finding 5). The abandoned task is read-only; its later fault is observed below.
+            answered = await running.WaitAsync(allowance, clock, cancellationToken).ConfigureAwait(false) ?? [];
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            Observe(running);
             throw;
         }
         catch (OperationCanceledException) when (budgetSource.IsCancellationRequested)
         {
+            return ids.Select(id => Skipped(id, HealthCheckTexts.TimeBudget, HealthCheckTexts.SkippedTimeBudget(area))).ToArray();
+        }
+        catch (TimeoutException timeout) when (!(running is { IsFaulted: true } && running.Exception!.InnerExceptions.Contains(timeout)))
+        {
+            Observe(running);
             return ids.Select(id => Skipped(id, HealthCheckTexts.TimeBudget, HealthCheckTexts.SkippedTimeBudget(area))).ToArray();
         }
         catch (Exception exception)
@@ -263,6 +273,14 @@ public sealed class HealthCheckRunner
             });
         }
         return lines;
+    }
+
+    /// <summary>Observes the fault of a probe task the runner stopped waiting for, so it is never an unobserved exception.</summary>
+    private static void Observe(Task? task)
+    {
+        if (task is null || task.IsCompletedSuccessfully) return;
+        _ = task.ContinueWith(static abandoned => _ = abandoned.Exception, CancellationToken.None,
+            TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
     }
 
     private sealed record History(
@@ -358,6 +376,21 @@ public sealed class HealthCheckRunner
 
         if (line.Outcome != HealthOutcome.Warning) return knownSubs > 0 ? line with { SubResults = subs } : line;
 
+        // "Mark selected warning as Known" stores the line's own code (1.11.0 review finding 3). When that code is a
+        // summary no sub-result carries (DATA-01 DAY_INCOMPLETE over EXPORTS_MISSING, INPUTS_MISSING, ...; IMP-02
+        // IMPORT_FAILURES_OPEN over IMPORT_FAILED; ERR-02 subs without a code), the line's Known covers its Warning
+        // sub-results, never a Fail one. When a sub-result carries the line's code, Known stays per kind (below).
+        if (subs is { Count: > 0 } && Match(line.FindingCode) is not null
+            && subs.All(sub => sub.Outcome != HealthOutcome.Fail && !string.Equals(sub.FindingCode, line.FindingCode, StringComparison.Ordinal)))
+        {
+            subs = subs.Select(sub =>
+            {
+                if (sub.Outcome != HealthOutcome.Warning) return sub;
+                knownSubs++;
+                return sub with { Outcome = HealthOutcome.Known };
+            }).ToArray();
+        }
+
         IReadOnlyList<HealthCheckSubResult> current = subs ?? [];
         var remaining = current.Where(sub => sub.Outcome is HealthOutcome.Warning or HealthOutcome.Fail).ToArray();
         if (remaining.Length > 0)
@@ -428,7 +461,7 @@ public sealed class HealthCheckRunner
         var explanation = HealthCheckTexts.Clip(HealthCheckTexts.SingleLine(line.Explanation).Trim());
         var fix = line.FixTaskId is { Length: > 0 } task && task.Length <= HealthCheckTexts.MaxFixTaskIdLength
             && HealthCheckTexts.SafeToken(task) == task ? task : null;
-        var subs = line.SubResults?.Select(sub => sub.FindingCode is null ? sub : sub with { FindingCode = HealthCheckTexts.SafeCode(sub.FindingCode) }).ToArray();
+        var subs = line.SubResults?.Select(NormaliseSubResult).ToArray();
         return line with
         {
             FindingCode = HealthCheckTexts.SafeCode(line.FindingCode),
@@ -437,6 +470,58 @@ public sealed class HealthCheckRunner
             Duration = line.Duration < TimeSpan.Zero ? TimeSpan.Zero : line.Duration,
             SubResults = FitSubResults(subs)
         };
+    }
+
+    /// <summary>Sub-result key 100, field key 60, field value 100: the limits of <c>diag.is_safe_detail</c>.</summary>
+    internal const int MaxSubKeyLength = 100;
+    internal const int MaxFieldKeyLength = 60;
+    internal const int MaxFieldValueLength = 100;
+
+    /// <summary>What a sub-result key, field key or field value that is still not a token is replaced with.</summary>
+    public const string DroppedDetail = "dropped";
+
+    /// <summary>
+    /// Fits one sub-result to <c>diag.is_safe_detail</c> (1.11.0 review finding 1), so one odd value can no longer make
+    /// <c>diag.record_health_check_run</c> refuse the whole run (51820) and lose every detail of the night. The finding
+    /// code goes through <see cref="HealthCheckTexts.SafeCode"/>. A key or value that is a list ("R022,R025",
+    /// "R022, R025", "a;b") becomes one token joined with <c>+</c>; a value that is still not a token (spaces, brackets,
+    /// slashes) is NOT laundered into one - it is replaced with <see cref="DroppedDetail"/>, so free text that could
+    /// carry a name never reaches the database or the export. Probes turn their own product wording into tokens at the
+    /// source (<see cref="HealthCheckTexts.DetailToken"/>: OPS-06 edition, IMP-02 outcomes, RPT exception and skip reasons).
+    /// </summary>
+    public static HealthCheckSubResult NormaliseSubResult(HealthCheckSubResult sub)
+    {
+        ArgumentNullException.ThrowIfNull(sub);
+        Dictionary<string, string>? fields = null;
+        if (sub.Fields is { } source)
+        {
+            fields = new Dictionary<string, string>(source.Count, StringComparer.Ordinal);
+            var dropped = 0;
+            foreach (var pair in source)
+            {
+                var fieldKey = DetailValue(pair.Key, MaxFieldKeyLength);
+                if (fieldKey.Length == 0 || fieldKey == DroppedDetail)
+                    fieldKey = DroppedDetail + (++dropped).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                fields.TryAdd(fieldKey, DetailValue(pair.Value, MaxFieldValueLength));
+            }
+        }
+        var key = DetailValue(sub.Key, MaxSubKeyLength);
+        return sub with
+        {
+            Key = key.Length > 0 ? key : DroppedDetail,
+            FindingCode = sub.FindingCode is null ? null : HealthCheckTexts.SafeCode(sub.FindingCode),
+            Fields = fields
+        };
+    }
+
+    /// <summary>A token (lists joined with <c>+</c>, clipped), an empty value, or <see cref="DroppedDetail"/>.</summary>
+    internal static string DetailValue(string? value, int maximum)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "";
+        var joined = System.Text.RegularExpressions.Regex.Replace(value.Trim(), @"\s*[,;]\s*", "+",
+            System.Text.RegularExpressions.RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
+        if (joined.Length == 0 || HealthCheckTexts.SafeToken(joined, int.MaxValue) != joined) return DroppedDetail;
+        return joined.Length <= maximum ? joined : joined[..maximum];
     }
 
     /// <summary>

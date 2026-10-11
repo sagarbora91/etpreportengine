@@ -119,7 +119,7 @@ public sealed class ReportProbes : IHealthProbe
 
     private IReadOnlyList<Spec> BuildSpecs() =>
     [
-        new(HealthCheckId.Rpt01, "dsr", "Daily Sales / DSR", false, async (c, ct) =>
+        new(HealthCheckId.Rpt01, "dsr", "Daily Sales (DSR)", false, async (c, ct) =>
         {
             var rows = await operational.LoadDsrAsync(c.Day, [], ct).ConfigureAwait(false);
             _ = await operational.ComposeDsrDocumentAsync(c.Day, rows, ct).ConfigureAwait(false);
@@ -158,13 +158,13 @@ public sealed class ReportProbes : IHealthProbe
         // RPT-13 and RPT-14 make their own call, so a fault in either path is attributed to its own line.
         new(HealthCheckId.Rpt13, "stock-brand", "Brand Stock", false, async (c, ct) =>
             CountStatus((await operational.LoadStockInventoryAsync(c.Scope(), ct).ConfigureAwait(false)).Count)),
-        new(HealthCheckId.Rpt14, "stock-slow", "Slow / Exception Stock", false, async (c, ct) =>
+        new(HealthCheckId.Rpt14, "stock-slow", "Slow and Exception Stock", false, async (c, ct) =>
         {
             var rows = await operational.LoadStockInventoryAsync(c.Scope(), ct).ConfigureAwait(false);
             // RA-STOCK-06: the screen applies the same rule before it counts.
             return CountStatus(rows.Count(x => StockAgeing.IsSlow(x.Quantity, x.MovementStatus)));
         }),
-        new(HealthCheckId.Rpt15, "staff", "Staff/CRO Performance", false, async (c, ct) =>
+        new(HealthCheckId.Rpt15, "staff", "Staff and CRO Performance", false, async (c, ct) =>
         {
             var report = await operational.LoadStaffPerformanceAsync(c.Scope(), ct).ConfigureAwait(false);
             return new Probed(ReportsWorkspaceView.ToReportingStatus(report.Status), report.Rows.Count);
@@ -339,8 +339,8 @@ public sealed class ReportProbes : IHealthProbe
         {
             var fields = new Dictionary<string, string>(StringComparer.Ordinal) { ["seconds"] = Fixed(x.Seconds) };
             if (x.ReportStatus is not null) { fields["reportStatus"] = x.ReportStatus; fields["rows"] = x.Rows.ToString(CultureInfo.InvariantCulture); }
-            if (x.ExceptionText is not null) fields["exception"] = x.ExceptionText;
-            if (x.SkipReason is not null) fields["skipped"] = x.SkipReason;
+            if (x.ExceptionText is not null) fields["exception"] = HealthCheckTexts.DetailToken(x.ExceptionText);
+            if (x.SkipReason is not null) fields["skipped"] = HealthCheckTexts.DetailToken(x.SkipReason);
             return new HealthCheckSubResult(x.Store ?? spec.Code, x.Outcome, x.Finding, x.Seconds, fields);
         }).ToArray();
     }

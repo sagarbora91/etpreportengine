@@ -181,11 +181,11 @@ public sealed class EventLogProbe(IEventLogSource source, OperationsProbeSetting
         if (findings.EtpCrashes > 0) subs.Add(new("etp-crash", HealthOutcome.Fail, "ETP_CRASH", findings.EtpCrashes, Fields("events", "1000,1026")));
         if (findings.EngineErrorCount > 0)
             foreach (var pair in findings.EngineErrors)
-                subs.Add(new("event-" + pair.Key.ToString(CultureInfo.InvariantCulture), HealthOutcome.Fail, "SQL_ENGINE_ERROR", pair.Value, Fields("eventId", pair.Key.ToString(CultureInfo.InvariantCulture))));
+                subs.Add(new("event:" + pair.Key.ToString(CultureInfo.InvariantCulture), HealthOutcome.Fail, "SQL_ENGINE_ERROR", pair.Value, Fields("eventId", pair.Key.ToString(CultureInfo.InvariantCulture))));
         if (findings.EtpHangs > 0) subs.Add(new("etp-hang", HealthOutcome.Warning, "ETP_HANG", findings.EtpHangs, Fields("events", "1002")));
         if (findings.AutomationLoginFailures > 0) subs.Add(new("automation-login", HealthOutcome.Warning, "AUTOMATION_LOGIN_FAILED", findings.AutomationLoginFailures, Fields("eventId", "18456")));
         foreach (var pair in findings.SqlFileErrors)
-            subs.Add(new("event-" + pair.Key.ToString(CultureInfo.InvariantCulture), HealthOutcome.Warning, "SQL_FILE_ERROR", pair.Value, Fields("eventId", pair.Key.ToString(CultureInfo.InvariantCulture))));
+            subs.Add(new("event:" + pair.Key.ToString(CultureInfo.InvariantCulture), HealthOutcome.Warning, "SQL_FILE_ERROR", pair.Value, Fields("eventId", pair.Key.ToString(CultureInfo.InvariantCulture))));
 
         if (findings.EtpCrashes > 0 || findings.EngineErrorCount > 0)
         {

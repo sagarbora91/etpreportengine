@@ -457,7 +457,13 @@ internal static class DiagSql
     public static async Task<List<List<Dictionary<string, object?>>>> QueryAsync(SqlDatabaseFixture database, string? user, string sql,
         params (string Name, object? Value)[] parameters)
     {
-        await using var connection = new SqlConnection(database.ConnectionString);
+        // EXECUTE AS USER is never reverted when the batch fails (and often not at all), so an impersonating query
+        // gets its own connection that is never pooled: a pooled one handed back still impersonating is killed at
+        // its next reset (SQL error 18059, "the session is in the kill state" in the next test, 1.11.0 gate).
+        var connectionString = user is null
+            ? database.ConnectionString
+            : new SqlConnectionStringBuilder(database.ConnectionString) { Pooling = false }.ConnectionString;
+        await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync();
         var text = user is null ? sql : $"EXECUTE AS USER='{user}'; {sql};";
         await using var command = new SqlCommand(text, connection) { CommandTimeout = 120 };

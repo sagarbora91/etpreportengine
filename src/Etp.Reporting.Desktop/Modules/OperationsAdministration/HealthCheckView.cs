@@ -613,7 +613,10 @@ public sealed class HealthCheckView : UserControl
         if (source is null) { StatusText = NotAvailableText; return false; }
         try
         {
-            await source.ClearKnownAsync(row.Result.CheckId, row.Result.FindingCode);
+            // The line may be Known through its sub-findings (DATA-01 DAY_INCOMPLETE with Known rows under
+            // INPUTS_MISSING, ...): end every Known of this line, not only the line's own code (1.11.0 review finding 4).
+            foreach (var code in KnownCodesOf(row.Result))
+                await source.ClearKnownAsync(row.Result.CheckId, code);
             StatusText = $"The Known of {row.Result.CheckId} was ended. It is a warning again from the next health check.";
             return true;
         }
@@ -623,6 +626,13 @@ public sealed class HealthCheckView : UserControl
             return false;
         }
     }
+
+    /// <summary>The finding codes whose Known rows make <paramref name="line"/> Known: its own, then each Known sub-finding's.</summary>
+    internal static IReadOnlyList<string> KnownCodesOf(HealthCheckResult line) =>
+        new[] { line.FindingCode }
+            .Concat((line.SubResults ?? []).Where(sub => sub.Outcome == HealthOutcome.Known && sub.FindingCode is { Length: > 0 }).Select(sub => sub.FindingCode!))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
 
     /// <summary>The "Where to fix" button: opens the task the line names.</summary>
     public void OpenFix(HealthRow row)

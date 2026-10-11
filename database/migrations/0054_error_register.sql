@@ -205,6 +205,7 @@ EXEC(N'CREATE TABLE diag.error_occurrences
 );');
 EXEC(N'CREATE INDEX IX_error_occurrences_entry ON diag.error_occurrences(error_register_id,occurred_utc DESC)');
 EXEC(N'CREATE INDEX IX_error_occurrences_ref ON diag.error_occurrences(reference)');
+EXEC(N'CREATE INDEX IX_error_occurrences_time ON diag.error_occurrences(occurred_utc) INCLUDE(error_register_id)');
 
 -- diag.ingest_error_occurrences: every ETP process sends its own account's Error and Critical log entries,
 -- at most 500 per call, oldest first. Returns accepted, duplicates, rejected, new_entries, recurred_entries.
@@ -377,10 +378,13 @@ BEGIN
   END;
   CLOSE items; DEALLOCATE items;
 
-  -- Retention (decision 36, Q14): occurrences older than 180 days go, but every entry keeps its newest 20.
+  -- Retention (decision 36, Q14): occurrences older than 180 days go, but every entry keeps its newest 20. Only
+  -- entries that hold an occurrence older than 180 days are ranked (IX_error_occurrences_time finds them), so an
+  -- ingest does not sort the whole table under the register lock (1.11.0 review finding 9).
   WITH ranked AS(
-   SELECT occurred_utc,ROW_NUMBER() OVER(PARTITION BY error_register_id ORDER BY occurred_utc DESC,error_occurrence_id DESC) newest
-   FROM diag.error_occurrences)
+   SELECT o.occurred_utc,ROW_NUMBER() OVER(PARTITION BY o.error_register_id ORDER BY o.occurred_utc DESC,o.error_occurrence_id DESC) newest
+   FROM diag.error_occurrences o
+   WHERE o.error_register_id IN(SELECT x.error_register_id FROM diag.error_occurrences x WHERE x.occurred_utc<DATEADD(day,-180,@now)))
   DELETE FROM ranked WHERE newest>20 AND occurred_utc<DATEADD(day,-180,@now);
 
   COMMIT TRANSACTION;
