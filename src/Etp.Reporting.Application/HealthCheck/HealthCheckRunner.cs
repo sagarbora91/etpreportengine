@@ -423,16 +423,17 @@ public sealed class HealthCheckRunner
     /// <summary>Fits a line to the columns of <c>diag.health_check_results</c> (design 6.2).</summary>
     public static HealthCheckResult Normalise(HealthCheckResult line)
     {
-        var code = string.IsNullOrWhiteSpace(line.FindingCode) ? HealthCheckTexts.Ok : line.FindingCode.Trim();
-        if (code.Length > HealthCheckTexts.MaxFindingCodeLength) code = code[..HealthCheckTexts.MaxFindingCodeLength];
-        var fix = line.FixTaskId is { Length: > HealthCheckTexts.MaxFixTaskIdLength } ? null : line.FixTaskId;
+        var explanation = HealthCheckTexts.Clip(HealthCheckTexts.SingleLine(line.Explanation).Trim());
+        var fix = line.FixTaskId is { Length: > 0 } task && task.Length <= HealthCheckTexts.MaxFixTaskIdLength
+            && HealthCheckTexts.SafeToken(task) == task ? task : null;
+        var subs = line.SubResults?.Select(sub => sub.FindingCode is null ? sub : sub with { FindingCode = HealthCheckTexts.SafeCode(sub.FindingCode) }).ToArray();
         return line with
         {
-            FindingCode = code,
-            Explanation = HealthCheckTexts.Clip(line.Explanation),
+            FindingCode = HealthCheckTexts.SafeCode(line.FindingCode),
+            Explanation = explanation.Length > 0 ? explanation : line.Outcome.ToString(),
             FixTaskId = fix,
             Duration = line.Duration < TimeSpan.Zero ? TimeSpan.Zero : line.Duration,
-            SubResults = FitSubResults(line.SubResults)
+            SubResults = FitSubResults(subs)
         };
     }
 

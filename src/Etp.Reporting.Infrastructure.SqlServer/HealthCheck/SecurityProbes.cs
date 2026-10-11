@@ -262,14 +262,14 @@ public sealed class SecurityProbes : IHealthProbe
     {
         var fields = new Dictionary<string, string>
         {
-            ["role"] = HealthCheckTexts.Token(key.Role),
-            ["object"] = HealthCheckTexts.Token(key.Object is null ? key.Schema ?? key.ClassDesc : (key.Schema ?? "?") + "." + key.Object),
-            ["permission"] = HealthCheckTexts.Token(key.Permission),
-            ["state"] = HealthCheckTexts.Token(key.State)
+            ["role"] = HealthCheckTexts.SafeToken(key.Role),
+            ["object"] = HealthCheckTexts.SafeToken(key.Object is null ? key.Schema ?? key.ClassDesc : (key.Schema ?? "?") + "." + key.Object),
+            ["permission"] = HealthCheckTexts.SafeToken(key.Permission),
+            ["state"] = HealthCheckTexts.SafeToken(key.State)
         };
-        if (decision is not null) fields["decision"] = HealthCheckTexts.Token(decision);
+        if (decision is not null) fields["decision"] = HealthCheckTexts.SafeToken(decision);
         return new HealthCheckSubResult(
-            HealthCheckTexts.Token(key.Role) + ":" + fields["object"] + ":" + fields["permission"], outcome, findingCode, null, fields);
+            HealthCheckTexts.SafeToken(fields["role"] + ":" + fields["object"] + ":" + fields["permission"]), outcome, findingCode, null, fields);
     }
 
     // ---- SEC-02 --------------------------------------------------------------------------------------------
@@ -297,7 +297,7 @@ public sealed class SecurityProbes : IHealthProbe
             var total = group.Sum(row => Math.Max(0, row.MemberCount));
             var serious = string.Equals(role, "etp_owner", StringComparison.OrdinalIgnoreCase) || string.Equals(role, "etp_store_manager", StringComparison.OrdinalIgnoreCase);
             var outcome = wrong == 0 ? HealthOutcome.Pass : serious ? HealthOutcome.Fail : HealthOutcome.Warning;
-            subs.Add(new HealthCheckSubResult(HealthCheckTexts.Token(role), outcome, wrong == 0 ? null : "MEMBER_NOT_APP_USER", total,
+            subs.Add(new HealthCheckSubResult(HealthCheckTexts.SafeToken(role), outcome, wrong == 0 ? null : "MEMBER_NOT_APP_USER", total,
                 new Dictionary<string, string> { ["notActiveUsers"] = HealthCheckTexts.Count(wrong) }));
             if (wrong > 0 && serious) { failCode ??= "MEMBER_NOT_APP_USER"; failText ??= HealthCheckTexts.SecMemberNotUser(role, wrong); }
             else if (wrong > 0) { warnCode ??= "MEMBER_NOT_APP_USER"; warnText ??= HealthCheckTexts.SecMemberNotUser(role, wrong); }
@@ -352,8 +352,14 @@ public sealed class SecurityProbes : IHealthProbe
 
     // ---- SEC-03 --------------------------------------------------------------------------------------------
 
+    /// <summary>
+    /// <paramref name="ownersWithoutGrantOption"/> is -1 when the caller cannot see server permissions (the automation
+    /// account; L1 0055): Skipped, never Fail.
+    /// </summary>
     public static HealthCheckResult EvaluateGrantOption(int ownersWithoutGrantOption) =>
-        ownersWithoutGrantOption > 0
+        ownersWithoutGrantOption < 0
+            ? DatabaseProbes.Line(HealthCheckId.Sec03, HealthOutcome.Skipped, HealthCheckTexts.NotPermitted, HealthCheckTexts.SecGrantOptionNotVisible, null, TimeSpan.Zero)
+            : ownersWithoutGrantOption > 0
             ? DatabaseProbes.Line(HealthCheckId.Sec03, HealthOutcome.Warning, "OWNER_NO_GRANT_OPTION",
                 HealthCheckTexts.SecOwnersWithoutGrantOption(ownersWithoutGrantOption), "users", TimeSpan.Zero, ownersWithoutGrantOption)
             : DatabaseProbes.Line(HealthCheckId.Sec03, HealthOutcome.Pass, HealthCheckTexts.Ok, HealthCheckTexts.SecGrantOptionOk, null, TimeSpan.Zero, 0m);

@@ -255,8 +255,23 @@ public sealed class DatabaseSecurityProbeTests
     public void SEC03_owners_without_the_grant_option_warn()
     {
         Assert.Equal(HealthOutcome.Pass, SecurityProbes.EvaluateGrantOption(0).Outcome);
+        // -1: the caller (the automation account) cannot see server permissions (0055) - Skipped, never Fail.
+        Assert.Equal((HealthOutcome.Skipped, HealthCheckTexts.NotPermitted), Outcome(SecurityProbes.EvaluateGrantOption(-1)));
         var line = SecurityProbes.EvaluateGrantOption(2);
         Assert.Equal((HealthOutcome.Warning, "OWNER_NO_GRANT_OPTION", "users"), (line.Outcome, line.FindingCode, line.FixTaskId));
+    }
+
+    [Fact]
+    public void SEC01_sub_results_are_tokens_the_run_procedure_accepts()
+    {
+        var actual = Exact();
+        actual.Add(P("etp_viewer", "OBJECT_OR_COLUMN", "dbo", "stores", "TAKE OWNERSHIP", "GRANT"));
+
+        var line = SecurityProbes.EvaluatePermissions(actual, SmallMatrix);
+
+        var sub = Assert.Single(line.SubResults!);
+        Assert.Equal("etp_viewer:dbo.stores:TAKE_OWNERSHIP", sub.Key);
+        Assert.All(sub.Fields!.Values, value => Assert.Equal(HealthCheckTexts.SafeToken(value), value));
     }
 
     // ---- The embedded matrix -------------------------------------------------------------------------------

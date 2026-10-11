@@ -331,6 +331,23 @@ public sealed class HealthCheckRunnerTests
     }
 
     [Fact]
+    public void Normalise_makes_codes_and_explanations_acceptable_to_the_run_procedure()
+    {
+        var line = new HealthCheckResult(HealthCheckId.Ops09, HealthCheckArea.Operations, HealthOutcome.Warning, "app hang-1002",
+            "First line
+second	line", "bad task id!", TimeSpan.Zero, null,
+            [new HealthCheckSubResult("K", HealthOutcome.Warning, "event 1002")]);
+
+        var fitted = HealthCheckRunner.Normalise(line);
+
+        Assert.Equal("APP_HANG_1002", fitted.FindingCode);
+        Assert.Equal("First line  second line", fitted.Explanation);
+        Assert.Null(fitted.FixTaskId);
+        Assert.Equal("EVENT_1002", fitted.SubResults![0].FindingCode);
+        Assert.Equal("OK", HealthCheckRunner.Normalise(line with { FindingCode = " " }).FindingCode);
+    }
+
+    [Fact]
     public void Overall_ignores_known_and_skipped()
     {
         Assert.Equal(HealthOutcome.Pass, HealthCheckRunner.Overall(new HealthCheckCounts(10, 0, 0, 5, 36)));

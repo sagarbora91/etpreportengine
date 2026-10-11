@@ -170,6 +170,9 @@ public static class HealthCheckTexts
     public const string SecAutomationNotStoreManager =
         "The automation account is not a member of etp_store_manager; automatic import will fail. Add it in Settings > Users as a Store Manager.";
 
+    public const string SecGrantOptionNotVisible =
+        "Skipped: this account cannot see server permissions; a health check run by the Owner checks this.";
+
     public const string SecGrantOptionOk = "Every active Owner can manage users in Settings > Users.";
 
     public static string SecOwnersWithoutGrantOption(int count) =>
@@ -197,6 +200,39 @@ public static class HealthCheckTexts
         if (string.IsNullOrEmpty(value)) return "";
         var clean = new string(value.Where(character => !char.IsControl(character)).ToArray()).Trim();
         return clean.Length <= 80 ? clean : clean[..80];
+    }
+
+    /// <summary>
+    /// A value fit for <c>diag.is_token</c> (sub-result keys and field values): every character outside
+    /// <c>A-Z a-z 0-9 . _ : &lt; &gt; + -</c> becomes <c>_</c> (for example "TAKE OWNERSHIP"), at most <paramref name="maximum"/>.
+    /// Only for values that are tokens already (role, object, permission names); never to launder free text.
+    /// </summary>
+    public static string SafeToken(string? value, int maximum = 100)
+    {
+        if (string.IsNullOrEmpty(value)) return "";
+        var chars = value.Select(character => (character is >= 'A' and <= 'Z' or >= 'a' and <= 'z' or >= '0' and <= '9'
+            or '.' or '_' or ':' or '<' or '>' or '+' or '-') ? character : '_').ToArray();
+        var token = new string(chars);
+        return token.Length <= maximum ? token : token[..maximum];
+    }
+
+    /// <summary>A finding code fit for <c>diag.is_code</c>: upper case, <c>A-Z 0-9 _</c> only, at most 60.</summary>
+    public static string SafeCode(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return Ok;
+        var chars = value.Trim().ToUpperInvariant().Select(character => (character is >= 'A' and <= 'Z' or >= '0' and <= '9' or '_') ? character : '_').ToArray();
+        var code = new string(chars);
+        return code.Length <= MaxFindingCodeLength ? code : code[..MaxFindingCodeLength];
+    }
+
+    /// <summary>Control characters (line breaks, tabs, U+0080-U+009F, U+2028/9) become spaces: <c>diag.is_safe_text</c>.</summary>
+    private const char LineSeparator = (char)0x2028;
+    private const char ParagraphSeparator = (char)0x2029;
+
+    public static string SingleLine(string? value)
+    {
+        if (string.IsNullOrEmpty(value)) return "";
+        return new string(value.Select(character => char.IsControl(character) || character == LineSeparator || character == ParagraphSeparator ? ' ' : character).ToArray());
     }
 
     /// <summary>Cuts a text to <paramref name="maximum"/> characters (an ellipsis marks the cut).</summary>

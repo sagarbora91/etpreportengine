@@ -213,7 +213,7 @@ public static class DatabaseProbes
                 suspectPages > 0 ? "SUSPECT_PAGES" : null, suspectPages),
             new("PAGE_VERIFY", string.Equals(pageVerify, "CHECKSUM", StringComparison.OrdinalIgnoreCase) ? HealthOutcome.Pass : HealthOutcome.Fail,
                 string.Equals(pageVerify, "CHECKSUM", StringComparison.OrdinalIgnoreCase) ? null : "PAGE_VERIFY_NOT_CHECKSUM",
-                Fields: new Dictionary<string, string> { ["option"] = HealthCheckTexts.Token(pageVerify) }),
+                Fields: new Dictionary<string, string> { ["option"] = HealthCheckTexts.SafeToken(pageVerify) }),
         };
         var stale = lastGood is null || lastGood.Value.AddDays(MaximumCheckDbAgeDays) < today;
         subs.Add(new("LAST_GOOD_CHECKDB", stale ? HealthOutcome.Warning : HealthOutcome.Pass, stale ? "CHECKDB_STALE" : null,
@@ -254,9 +254,9 @@ public static class DatabaseProbes
     {
         var fields = new Dictionary<string, string>
         {
-            ["state"] = HealthCheckTexts.Token(options.State),
-            ["userAccess"] = HealthCheckTexts.Token(options.UserAccess),
-            ["recoveryModel"] = HealthCheckTexts.Token(options.RecoveryModel)
+            ["state"] = HealthCheckTexts.SafeToken(options.State),
+            ["userAccess"] = HealthCheckTexts.SafeToken(options.UserAccess),
+            ["recoveryModel"] = HealthCheckTexts.SafeToken(options.RecoveryModel)
         };
         var online = string.Equals(options.State, "ONLINE", StringComparison.OrdinalIgnoreCase);
         var multiUser = string.Equals(options.UserAccess, "MULTI_USER", StringComparison.OrdinalIgnoreCase);
