@@ -220,10 +220,14 @@ public sealed class ServiceClaimsView : ServiceScreenView
         var ranged = FromMonth is not null || ToMonth is not null;
         var list = new List<ServiceClaimsNumber>
         {
-            new("Claims raised this month", thisMonth.Sum(row => row.Documents).ToString("N0", ServiceDisplay.Culture),
-                month is { } shown
-                    ? ServiceDisplay.Text($"{thisMonth.Sum(row => row.NetAmountInclTax):N2} net incl. tax · {shown:MMM yyyy}{(ranged ? " · within the months shown" : "")}")
-                    : "No claim lines imported"),
+            loaded.RaisedThisMonth is { } raised
+                // R-UI-11: the one "raised this month" rule, the same as Service Today (as-at month, whatever range is chosen).
+                ? new("Claims raised this month", raised.Documents.ToString("N0", ServiceDisplay.Culture),
+                    ServiceDisplay.Text($"{raised.Value ?? 0m:N2} net incl. tax · {raised.Month:MMM yyyy} to {raised.UpTo:dd MMM}"))
+                : new("Claims raised this month", thisMonth.Sum(row => row.Documents).ToString("N0", ServiceDisplay.Culture),
+                    month is { } shown
+                        ? ServiceDisplay.Text($"{thisMonth.Sum(row => row.NetAmountInclTax):N2} net incl. tax · {shown:MMM yyyy}{(ranged ? " · within the months shown" : "")}")
+                        : "No claim lines imported"),
             new("DC/RA jobs not yet claimed", loaded.NotYetClaimed.Count.ToString("N0", ServiceDisplay.Culture),
                 ServiceDisplay.Text($"WDC due {loaded.NotYetClaimed.Count(job => job.ClaimType == ServiceClaimTypes.Wdc):N0} · WRA due {loaded.NotYetClaimed.Count(job => job.ClaimType == ServiceClaimTypes.Wra):N0}")),
             new("Oldest not yet claimed", oldest is null ? "—" : ServiceDisplay.Text($"{oldest.DaysSince:N0} days"),
@@ -234,7 +238,11 @@ public sealed class ServiceClaimsView : ServiceScreenView
         };
         var gprcState = loaded.LatestGprcReading is { } g ? ServiceDisplay.Text($"dated {g:dd MMM yyyy}") : "missing";
         var dcRaDate = loaded.LatestDcRaReading is { } latestDcRa ? ServiceDisplay.Date(latestDcRa) : "not known";
-        gapWarning.Text = loaded.GprcGapWarning
+        gapWarning.Text = !loaded.GprcGapWarning ? ""
+            : loaded.GprcHoleFrom is { } holeFrom
+            // R-SQL-08: a business-date hole between the last S023 line and the first S041 window.
+            ? ServiceDisplay.Text($"No GPRC claim lines {holeFrom:dd MMM yyyy} - {loaded.GprcHoleTo ?? loaded.AsAt ?? holeFrom:dd MMM yyyy}: export GPRC CLAIM for those dates")
+            : loaded.GprcGapWarning
             ? "GPRC cell claims may be incomplete: the latest GPRC CLAIM export (S041) is " + gprcState + " " +
               "and the latest DC/RA list (S014/S016) is dated " + dcRaDate + ". Export GPRC CLAIM up to that date and import it; " +
               "until then the GPRC claims of the gap are in no table."

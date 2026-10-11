@@ -66,8 +66,8 @@ public sealed class ServiceScreenViewTests
             Assert.Equal(1, query.FreshnessCalls);
             Assert.Equal(new DateOnly(2026, 10, 9), query.LastFreshnessAsOf);
             Assert.Equal(ServiceFreshness.Groups.Select(group => group.Group), view.Freshness.Select(chip => chip.Group));
-            // S009 is at 5 Oct but S010 was never exported, so the Pending lists chip is partial; Money has S004 only.
-            Assert.Equal("Pending lists: some families never exported", ServiceFreshnessStrip.TextFor(view.Freshness.Single(chip => chip.Group == "Pending lists")));
+            // S009 is at 5 Oct but S010 was never exported: the chip is dated by S009 and names S010 (R-SQL-14 b); Money has S004 only.
+            Assert.Equal("Pending lists: last export 05 Oct 2026 (raw) · never exported: S010", ServiceFreshnessStrip.TextFor(view.Freshness.Single(chip => chip.Group == "Pending lists")));
             Assert.Equal(ServiceFreshnessColour.NoData, view.Freshness.Single(chip => chip.Group == "Jobs").Colour);
             Assert.Equal("Jobs: no export yet", ServiceFreshnessStrip.TextFor(view.Freshness.Single(chip => chip.Group == "Jobs")));
             var strip = Descendants<WrapPanel>(view).Single(panel => AutomationProperties.GetName(panel) == "Service data freshness");
@@ -403,7 +403,7 @@ public sealed class ServiceScreenViewTests
         Assert.Equal("TAT booking to delivered: Booking median 12 days (2 delivered, 0 over 15 days) · Quick Billing median 0 days (1 delivered).", ServiceJobsView.DescribeTat(recent));
         Assert.Equal(ServiceJobTypes.QuickBilling, ServiceJobTypes.Normalise("Quick_Billing"));
         Assert.Equal(ServiceJobTypes.Booking, ServiceJobTypes.Normalise(null));
-        Assert.Equal(3, ServiceJobTat.Median([1, 3, 9, 20]));
+        Assert.Equal(6, ServiceJobTat.Median([1, 3, 9, 20]));
         Assert.Null(ServiceJobTat.Median([]));
         Assert.True(ServiceJobStages.IsClosed(ServiceJobStages.DcIssued, claimRaised: true));
         Assert.False(ServiceJobStages.IsClosed(ServiceJobStages.DcIssued, claimRaised: false));

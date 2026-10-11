@@ -6,7 +6,7 @@ using System.Windows.Automation;
 using System.Windows.Controls;
 using ServiceJobHeader = EtpApplication::Etp.Reporting.Application.Service.ServiceJobHeader;
 using ServiceJobStages = EtpApplication::Etp.Reporting.Application.Service.ServiceJobStages;
-using ServiceJobTat = EtpApplication::Etp.Reporting.Application.Service.ServiceJobTat;
+using ServiceTat = EtpApplication::Etp.Reporting.Application.Service.ServiceTat;
 using ServiceJobTypes = EtpApplication::Etp.Reporting.Application.Service.ServiceJobTypes;
 using ServiceReportQuery = EtpApplication::Etp.Reporting.Application.Service.IServiceReportQuery;
 
@@ -141,10 +141,10 @@ public sealed class ServiceJobsView : ServiceScreenView
                 : jobs.Where(job => job.BookingDate == scope.Date)
             : choice switch
         {
-            RecentClosedCode => jobs.Where(job => ServiceJobStages.IsClosed(job.Stage, job.ClaimRaised)
-                && job.StageDate is { } closedOn && closedOn >= job.AsAt.AddDays(-RecentClosedDays)),
+            RecentClosedCode => jobs.Where(job => !job.IsOpen
+                && (job.ClosedDate ?? job.StageDate) is { } closedOn && closedOn >= job.AsAt.AddDays(-RecentClosedDays)),
             AllJobsCode => jobs,
-            OpenJobsCode => jobs.Where(job => !ServiceJobStages.IsClosed(job.Stage, job.ClaimRaised)),
+            OpenJobsCode => jobs.Where(job => job.IsOpen),
             _ => jobs.Where(job => job.Stage == choice)
         };
         return selected
@@ -154,16 +154,21 @@ public sealed class ServiceJobsView : ServiceScreenView
             .ToArray();
     }
 
-    /// <summary>Q2: the Booking median (booking to delivered) is the headline; Quick Billing is shown separately, never mixed in.</summary>
+    /// <summary>
+    /// Q2: the Booking median (booking to delivered) is the headline, with the booking-to-repaired median when known;
+    /// Quick Billing is shown separately, never mixed in. One median rule (<see cref="ServiceTat"/>, R-SQL-07 / R-UI-06).
+    /// </summary>
     public static string DescribeTat(IReadOnlyList<ServiceJobHeader> jobs)
     {
-        var closed = jobs.Where(job => job.TatDays.HasValue && job.Stage is ServiceJobStages.Delivered).ToArray();
-        if (closed.Length == 0) return "";
-        var booking = closed.Where(job => ServiceJobTypes.Normalise(job.JoType) == ServiceJobTypes.Booking).Select(job => job.TatDays!.Value).ToArray();
-        var quick = closed.Where(job => ServiceJobTypes.Normalise(job.JoType) == ServiceJobTypes.QuickBilling).Select(job => job.TatDays!.Value).ToArray();
+        var tat = ServiceTat.Summarise(jobs);
+        if (tat.BookingJobs == 0 && tat.QuickBillingJobs == 0) return "";
         var parts = new List<string>();
-        if (booking.Length > 0) parts.Add(ServiceDisplay.Text($"Booking median {ServiceJobTat.Median(booking):N0} days ({booking.Length:N0} delivered, {booking.Count(days => days > 15):N0} over 15 days)"));
-        if (quick.Length > 0) parts.Add(ServiceDisplay.Text($"Quick Billing median {ServiceJobTat.Median(quick):N0} days ({quick.Length:N0} delivered)"));
+        if (tat.BookingMedianDays is { } booking)
+            parts.Add(ServiceDisplay.Text($"Booking median {booking:#,##0.#} days ({tat.BookingJobs:N0} delivered, {tat.Over15Days:N0} over 15 days)"));
+        if (tat.BookingRepairMedianDays is { } repaired)
+            parts.Add(ServiceDisplay.Text($"Booking to repaired median {repaired:#,##0.#} days"));
+        if (tat.QuickBillingMedianDays is { } quick)
+            parts.Add(ServiceDisplay.Text($"Quick Billing median {quick:#,##0.#} days ({tat.QuickBillingJobs:N0} delivered)"));
         return "TAT booking to delivered: " + string.Join(" · ", parts) + ".";
     }
 

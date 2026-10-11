@@ -2,6 +2,50 @@
 
 ## [Unreleased]
 
+## [1.10.1] - (date after the 1.10.1 gate)
+
+Two-PC plan C+ (decision 30, 11 Oct 2026): Workpc stays the only ETP database; the three shop PCs (Titan cashier, Helios, Service) send their exports and a staff daily-inputs sheet through OneDrive under one shared Microsoft account (decision 34), and Workpc's watch folder imports them. Daily-inputs answers (decision 31), the audit decisions implemented so far (decision 32), Service Centre fixes from the 1.10.0 review, and report fixes. Two migrations: 0052 (Service job view fixes, Service-money shop flag) and 0053 (retire unused Stock manual inputs).
+
+**Shop PCs and OneDrive (decisions 30, 34, 35)**
+
+- New OneDrive scripts for the shop PCs: each evening they copy the day's exports and staff daily-inputs sheet to OneDrive with a checksum list, and Workpc checks them and hands the good files to the automatic import (bad files are quarantined, missing shops are reported). A corrected late file goes in as a second zip for the same day.
+- Workpc can copy its verified nightly backup to OneDrive, encrypted with a key kept off OneDrive, keeping the newest 3 (decision 35; about 270 MB each).
+- Staff guide `docs/operations/SHOP-EVENING-ROUTINE.md` for the evening routine on each shop PC, and `docs/operations/ONEDRIVE-DAILY-FILES.md` for the setup. The Service export list and Titan menu names in the guide are still marked for Sagar to confirm.
+- The scripts are not yet installed by setup; the Workpc tasks (receive, backup copy) are set up by hand as the guide says.
+
+**Daily-inputs sheet (decision 31)**
+
+- Shop PCs can now send a "Daily Inputs" Excel sheet (walk-ins, cash figures and remarks; Service Centre takings on its own sheet). ETP reads it from the watch folder and checks the store, date and every value before anything is saved.
+- Ready-made, protected daily-inputs templates for the Titan cashier, Helios and Service Centre PCs. A wrong date, a negative amount or yesterday's file saved under today's name is refused with a plain message in Imports > History.
+- A sheet is saved exactly as if typed on the Today screen: only the changed figures are written, the history names the file, blank cells never erase anything, the same file sent twice is skipped, and a finalised day is refused with "Reopen the day, then put the file in the watch folder again."
+- A refused daily-inputs sheet appears in Imports > History and in the import-failure register with its store and date.
+- Known limitation: the sheet is read only by the folder import (watch folder, Imports > folder import, retry). Picking it in the single-file or multi-file import on the Imports screen shows an unknown layout.
+
+**Audit decisions (decision 32)**
+
+- Manual inputs: the five unused Stock fields (display, backstock, defective, Y-location, physical) no longer appear in entry; old values are kept (migration 0053).
+- Staff report: a single-day run now shows last year's month to date in LY Sales and says so; Growth % is left blank for that run.
+- Finalise day: a cash or sales variance warns with its amount instead of blocking, and Service cash/card/UPI are not required to finalise.
+
+**Service Centre**
+
+- Ages, overdue and "days since" are measured to the date of the latest export that holds the job. Claims are counted one way everywhere ("claims raised this month" is the same on Today and Claims). A job closed by its WDC/WRA claim is dated by that claim, and "Closed in the last 30 days" uses that closed date. An S009 "SRN for repair" job is shown as on the bench.
+- The Jobs list's TAT line uses the true median and adds the booking-to-repaired median.
+- The Claims screen and freshness strip warn about the GPRC claim gap (no GPRC lines 6 Aug - 30 Sep 2026 on the live data). A family that was never exported no longer blanks its freshness chip; the chip names it instead. The Service tabs share one read of the job list per import. The shop that enters Service money is now a store setting (Titan World by default) instead of a fixed code.
+- Service screens show dates and numbers the same way as the rest of ETP, whatever the PC's regional settings are.
+- The pending board filters instantly without re-reading the database and keeps the selected job; the Claims screen layout matches the other Service screens; the job-history button reads "Open job history" everywhere; the Claims quantity shows decimals the same as in Excel; and the Parts "jobs waiting" export is dated from the oldest waiting job.
+
+**Reports**
+
+- Slow stock lists only slow and watch items, Daily Exceptions works on All stores (first active store), and stock reports call the cluster column "Cluster".
+- Missing numbers are blank in Excel, a blank brand or item no longer blocks Sales Summary, DSR rows show their availability note on hover, typed dates in date boxes apply when you leave the box, and the header date follows the focused report's To date.
+
+**Build and tests**
+
+- A GitHub Actions check builds the solution and runs the unit tests on every push and pull request to main and release branches (takes effect once pushed).
+- The help-screenshot capture waits for the Service screens to finish loading and hides the "saved pack(s) found" toast before capturing.
+- Tests: unit projects and gate result filled in after the gate.
+
 ## [1.10.0] - 2026-10-11
 
 Service Centre UI (decision 25, 10 Oct 2026; design `docs/roadmap/SERVICE-CENTRE-UI-DESIGN-REVIEW-2026-10-10.md`), Tally batch creation from GitHub PR #3 (decisions 18 and 26), staff targets Owner-only in the database (decision 27), and everything released in 1.9.7, 1.9.8 and 1.9.9. Three migrations: 0049 (Tally store cost centres), 0050 (Service UI views only) and 0051 (staff-target permissions). Retail imports, reports and packs do not change, and neither do the money-check rules of decision 16.
