@@ -427,7 +427,8 @@ public sealed partial class OperationalReportRepository(string connectionString)
         await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
             while (await reader.ReadAsync(cancellationToken))
                 raw.Add((reader.GetString(0), reader.GetString(1), reader.GetDecimal(2), reader.GetDecimal(3), reader.GetDecimal(4), reader.GetInt32(5), reader.GetString(6)));
-        var lastYearScope = scope with { DateFrom = scope.DateFrom.AddYears(-1), DateTo = scope.DateTo.AddYears(-1) };
+        var lastYearWindow = StaffLastYearWindow.For(scope.DateFrom, scope.DateTo);
+        var lastYearScope = scope with { DateFrom = lastYearWindow.From, DateTo = lastYearWindow.To };
         var lastYear = new Dictionary<(string Store, string Cro), decimal>();
         await using (var command = ScopeCommand(connection, lastYearSql, lastYearScope))
         await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
@@ -458,7 +459,10 @@ public sealed partial class OperationalReportRepository(string connectionString)
                 if (priorSales != x.Sales) { rank++; priorSales = x.Sales; }
                 var key = (x.Store.ToUpperInvariant(), x.Cro.ToUpperInvariant());
                 decimal? ly = lastYear.TryGetValue(key, out var lastYearSales) ? lastYearSales : null;
-                var growth = metricEngine.Growth(x.Sales, ly);
+                // Decision 32: a single-day run compares with last year's month to date, so a day against a month is not a growth rate.
+                var growth = lastYearWindow.IsMonthToDate
+                    ? new CalculatedMetric(null, MetricAvailability.NotApplicable, "Single-day run: LY Sales is last year's month to date.")
+                    : metricEngine.Growth(x.Sales, ly);
                 decimal? target = targetByStaff.TryGetValue(key, out var staffTarget) ? staffTarget : null;
                 var achievement = target is null or 0m ? null : x.Sales / target * 100m;
                 var storeCanonical = canonicalByStore.GetValueOrDefault(x.Store);
@@ -474,9 +478,10 @@ public sealed partial class OperationalReportRepository(string connectionString)
         var variance = canonical - attributed;
         var status = variance == 0 ? ReconciliationStatus.Passed : ReconciliationStatus.Failed;
         return new(rows.OrderBy(x => x.StoreCode).ThenBy(x => x.Rank).ThenBy(x => x.CroNumber).ToArray(), canonical, attributed, variance, status,
-            status == ReconciliationStatus.Passed
+            (status == ReconciliationStatus.Passed
                 ? "R013 attributed sales reconcile to canonical R025 sales."
-                : "Attributed and canonical sales differ; review unmatched/unassigned source rows without rounding away the variance. LY, target achievement and rank remain independently visible.",
+                : "Attributed and canonical sales differ; review unmatched/unassigned source rows without rounding away the variance. LY, target achievement and rank remain independently visible.")
+            + StaffLastYearWindow.Note(lastYearWindow),
             StaffMetricPolicy);
     }
 
