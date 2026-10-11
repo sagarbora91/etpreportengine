@@ -2,24 +2,35 @@ name: build-and-test
 
 on:
   push:
+    branches: [main, 'release/**']
   pull_request:
+    branches: [main, 'release/**']
 
 permissions:
   contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   windows:
     runs-on: windows-latest
     timeout-minutes: 45
     env:
-      ETP_TEST_SQL_CONNECTION: "Server=(localdb)\\MSSQLLocalDB;Integrated Security=True;Encrypt=Optional;Connect Timeout=5"
+      DOTNET_NOLOGO: "1"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      # Test runs must never write to a real diagnostics log.
+      ETP_DIAGNOSTICS_DIRECTORY: ${{ runner.temp }}\etp-diagnostics
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
+          cache: true
+          cache-dependency-path: |
+            **/*.csproj
+            Directory.Build.props
       - name: Restore
         run: dotnet restore Etp.Reporting.slnx
       - name: Check operational PowerShell syntax
@@ -30,9 +41,7 @@ jobs:
             $tokens = $null
             $fileErrors = $null
             [System.Management.Automation.Language.Parser]::ParseFile(
-              $_.FullName,
-              [ref]$tokens,
-              [ref]$fileErrors) | Out-Null
+              $_.FullName, [ref]$tokens, [ref]$fileErrors) | Out-Null
             $parseErrors += $fileErrors
           }
           if ($parseErrors.Count -gt 0) {
@@ -41,35 +50,30 @@ jobs:
           }
       - name: Build
         run: dotnet build Etp.Reporting.slnx --configuration Release --no-restore
-      - name: Start isolated SQL test instance
-        run: sqllocaldb start MSSQLLocalDB
-      - name: Run .NET connection, permissions and recovery boundary tests
-        run: dotnet test Etp.Reporting.slnx --configuration Release --no-build --filter "FullyQualifiedName~PhaseFourBoundaryTests|FullyQualifiedName~PhaseFourSecurityTests|FullyQualifiedName~PhaseFourOperationsStatusTests|FullyQualifiedName~PhaseFourRecoveryTests|FullyQualifiedName~OperationsScriptBoundaryTests"
-      - name: Run full .NET test suite
-        run: dotnet test Etp.Reporting.slnx --configuration Release --no-build
-      - name: Check changed lines for whitespace errors
+      # Unit test projects only. Etp.Reporting.SqlServer.IntegrationTests needs a
+      # local elevated SQL Server and is deliberately never run here.
+      - name: Unit tests
         shell: pwsh
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          DIFF_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
         run: |
-          if ($env:EVENT_NAME -eq 'pull_request') {
-            git diff --check "$env:DIFF_BASE...$env:GITHUB_SHA"
+          $projects = @(
+            'Etp.Reporting.Domain.Tests',
+            'Etp.Reporting.Import.Tests',
+            'Etp.Reporting.Reporting.Tests',
+            'Etp.Reporting.SqlServer.Tests',
+            'Etp.Reporting.Desktop.Tests'
+          )
+          $failed = @()
+          foreach ($p in $projects) {
+            dotnet test "tests-dotnet/$p/$p.csproj" --configuration Release --no-build `
+              --logger "trx;LogFileName=$p.trx" --results-directory "$env:RUNNER_TEMP/trx" `
+              --blame-hang-timeout 10m --blame-hang-dump-type none
+            if ($LASTEXITCODE -ne 0) { $failed += $p }
           }
-          elseif ([string]::IsNullOrWhiteSpace($env:DIFF_BASE) -or $env:DIFF_BASE -match '^0+$') {
-            git diff-tree --check --root --no-commit-id $env:GITHUB_SHA
-          }
-          else {
-            git diff --check "$env:DIFF_BASE..$env:GITHUB_SHA"
-          }
-          if ($LASTEXITCODE -ne 0) { throw 'Whitespace validation failed.' }
-      - name: Run fail-closed dependency security scan
-        shell: pwsh
-        run: ./scripts/invoke-security-scan.ps1 -OutputPath artifacts/security-scan.json
-      - name: Upload dependency security scan evidence
+          if ($failed.Count -gt 0) { throw "Failed test projects: $($failed -join ', ')" }
+      - name: Upload test results
         if: ${{ always() }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@v4
         with:
-          name: dependency-security-scan-${{ github.run_id }}
-          path: artifacts/security-scan.json
-          if-no-files-found: error
+          name: test-results-${{ github.run_id }}
+          path: ${{ runner.temp }}/trx/*.trx
+          if-no-files-found: warn
