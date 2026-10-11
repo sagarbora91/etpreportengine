@@ -91,7 +91,26 @@ public sealed class DailyWorkflowPresentationTests
         Assert.Equal(["Service Sale Report", "Staff / CRO Performance", "Tender Reconciliation"],
             DailyWorkflowPresentationSession.FinaliseWarnings(sections).Select(x => x.Report));
         Assert.Equal(
-            "Business day finalised and dashboard readiness refreshed. Finalised with 3 warning(s): Service Sale Report (not entered); Staff / CRO Performance (variance); Tender Reconciliation (variance).",
+            "Business day finalised and dashboard readiness refreshed. Finalised with 3 warning(s): Service Sale Report (not entered); Staff / CRO Performance (variance 0.01); Tender Reconciliation (variance 5.00).",
+            DailyWorkflowPresentationSession.Finalised(sections));
+    }
+
+    // Decision 32 (11 Oct 2026): a cash or DSR variance warns with its amount and never refuses finalisation.
+    [Fact]
+    public void Cash_and_dsr_variances_warn_with_their_amounts_and_do_not_refuse()
+    {
+        var scope = new DailyWorkflowScope("WLMHW", new DateOnly(2026, 10, 10));
+        var sections = new[]
+        {
+            new DailyPackSection("Daily Sales Report", DailyControlStatus.Failed, 100m, -12.5m, "R022 and R025 differ"),
+            new DailyPackSection("Daily Cash Reconciliation", DailyControlStatus.Failed, 900m, 40m, "Counted cash differs"),
+            new DailyPackSection("Manual Operational Inputs", DailyControlStatus.Passed, 4m, 0m, "Required manual inputs are complete."),
+            new DailyPackSection(DailyReportingPackService.FinalisationSectionName, DailyControlStatus.NotRun, null, null, "Awaiting finalisation.")
+        };
+
+        Assert.False(DailyWorkflowPresentationSession.CreateFinalise(scope, "manager", sections).HasBlockingReconciliationExceptions);
+        Assert.Equal(
+            "Business day finalised and dashboard readiness refreshed. Finalised with 2 warning(s): Daily Sales Report (variance -12.50); Daily Cash Reconciliation (variance 40.00).",
             DailyWorkflowPresentationSession.Finalised(sections));
     }
 

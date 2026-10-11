@@ -666,7 +666,7 @@ public sealed partial class OperationalReportRepository(string connectionString)
                 item.Status == "MANUAL INPUT MISSING" ? PhysicalCountMissingAction : "Recount or record an approved correction reason; system stock is never overwritten."));
 
         var cash = await LoadCashReconciliationAsync(storeCode, businessDate, cancellationToken);
-        if (cash.Status is ReconciliationStatus.Blocked or ReconciliationStatus.Failed)
+        if (DailyReportingPackService.CashSectionStatus(cash) is ReconciliationStatus.Blocked or ReconciliationStatus.Failed) // decision 32: missing Service cash alone is not a blocker
             rows.Add(new(cash.Status == ReconciliationStatus.Blocked ? "BLOCKER" : "FAIL", "Cash", "CASH_RECONCILIATION", storeCode, businessDate,
                 null, null, cash.Variance, null, null, null, cash.Message, "Complete the missing cash evidence or investigate the exact variance."));
 
