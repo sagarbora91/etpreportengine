@@ -314,11 +314,11 @@ public sealed class SecurityProbes : IHealthProbe
             failText = HealthCheckTexts.SecNoActiveOwner;
         }
 
-        if (automationPrincipal is not null)
+        if (automationPrincipal is { } configured)
         {
             var namesVisible = memberships.Any(row => row.MemberName is not null);
             bool InRole(string role) => memberships.Any(row => string.Equals(row.RoleName, role, StringComparison.OrdinalIgnoreCase)
-                && (namesVisible ? SameAccount(row.MemberName, automationPrincipal) : row.MemberCount > 0));
+                && (namesVisible ? SameAccount(row.MemberName, configured) : row.MemberCount > 0));
             if (!InRole("etp_automation"))
             {
                 subs.Add(new HealthCheckSubResult("AUTOMATION_ROLE", HealthOutcome.Warning, "AUTOMATION_NOT_IN_ROLE"));
