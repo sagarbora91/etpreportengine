@@ -1,5 +1,6 @@
 using Etp.Reporting.Application.Imports;
 using Etp.Reporting.Import.Batch;
+using Etp.Reporting.Import.DailyInputs;
 using Etp.Reporting.Import.Preflight;
 using Etp.Reporting.Import.Profiles;
 using Etp.Reporting.Import.Service;
@@ -39,7 +40,8 @@ public sealed class FolderImportService(
     IImportPersistenceUseCase<MatchedImportEnvelope> persistence,
     IWorkbookReader? workbookReader = null,
     IReadOnlyList<string>? knownStores = null,
-    Action<FolderImportFailure>? reportFailure = null) : IFolderImportService
+    Action<FolderImportFailure>? reportFailure = null,
+    IDailyInputsApplier? dailyInputs = null) : IFolderImportService
 {
     // The Not-needed messages of the no-match branch (IF-027); ImportDiagnosticCatalogue holds the same texts.
     internal const string ControlWorkbookMessage = "Consolidation control workbook; report workbooks are imported separately.";
@@ -49,6 +51,9 @@ public sealed class FolderImportService(
     private static readonly SqlImportFailureClassifier Classifier = new();
     private readonly IWorkbookReader reader = workbookReader ?? new SourceFileReader();
     private readonly MatchedImportEnvelopeFactory envelopes = new(knownStores);
+    // The shop PCs' daily-inputs workbooks (family D001, decision 30) are applied through the manual-input write path.
+    private readonly IDailyInputsApplier? dailyInputsApplier = dailyInputs ??
+        (persistence is SqlServerImportPersistenceUseCase sqlPersistence ? new SqlServerDailyInputsApplier(sqlPersistence.ConnectionString) : null);
     private readonly Dictionary<string, (ImportScope Scope, bool Service)> detectedScopes = new(StringComparer.OrdinalIgnoreCase);
     public IReadOnlyList<string> FailedPaths { get; private set; } = [];
 
@@ -92,6 +97,18 @@ public sealed class FolderImportService(
             try
             {
                 var workbook = await reader.ReadAsync(path, cancellationToken).ConfigureAwait(false);
+                // A daily-inputs workbook is known by its content (sheet, header, version row), never by its name, and
+                // never reaches matching: it has no profile, staging or landing table (1101-DAILY-INPUTS-DESIGN.md 2).
+                if (DailyInputsTemplate.IsDailyInputsWorkbook(workbook))
+                {
+                    readStage = FailureStage.Source;
+                    var daily = await ImportDailyInputsAsync(path, workbook, options, cancellationToken).ConfigureAwait(false);
+                    results.Add(daily);
+                    handled.Add(path);
+                    await recording.RecordAsync(daily).ConfigureAwait(false);
+                    progress?.Report(new(results.Count, paths.Count, daily.FileName, daily.Status, results.ToArray()));
+                    continue;
+                }
                 readStage = FailureStage.Match;
                 var inspection = envelopes.Inspect(workbook);
                 ready.Add((path, inspection));
@@ -397,6 +414,91 @@ public sealed class FolderImportService(
             // Diagnostics are best effort; a failing log must not change the import outcome.
         }
     }
+
+    /// <summary>
+    /// One daily-inputs workbook (family D001, 1101-DAILY-INPUTS-DESIGN.md section 3): parsed against today's date, applied
+    /// all-or-nothing when the parser found no error, and returned as the attempt to record. Every Failed result is also a
+    /// row of the import-failure register. An unexpected exception is classified as any import failure is.
+    /// </summary>
+    private async Task<FolderImportFileResult> ImportDailyInputsAsync(string path, WorkbookSnapshot workbook,
+        FolderImportOptions options, CancellationToken cancellationToken)
+    {
+        var parsed = DailyInputsParser.Parse(workbook, DateOnly.FromDateTime(DateTime.Today));
+        var document = parsed.Document;
+        var notes = parsed.Notes.Select(note => AsDailyIssue(ImportIssueSeverity.Information, note)).ToArray();
+        var result = new FolderImportFileResult(Path.GetFileName(path), DailyInputsTemplate.FamilyCode, document?.StoreCode,
+            document?.BusinessDate, document?.BusinessDate, "Importing", RowsProcessed: document?.Values.Count ?? 0, Diagnostics: notes)
+            { SourcePath = path, SourceSha256 = workbook.Sha256, Evidence = EvidenceState.NotAttempted };
+        if (!parsed.Succeeded || document is null)
+        {
+            IReadOnlyList<DailyInputsIssue> errors = parsed.Errors.Count > 0 ? parsed.Errors
+                : [new DailyInputsIssue(null, null, DailyInputsNotReadCode, DailyInputsNotReadMessage)];
+            return DailyInputsFailed(result, FailureStage.Source, errors, string.Join(" ", errors.Select(error => error.Message).Distinct()));
+        }
+        if (dailyInputsApplier is null)
+            return DailyInputsFailed(result, FailureStage.Apply,
+                [new DailyInputsIssue(null, null, DailyInputsNotAvailableCode, DailyInputsNotAvailableMessage)], DailyInputsNotAvailableMessage);
+        DailyInputsApplyResult applied;
+        try
+        {
+            applied = await dailyInputsApplier.ApplyAsync(document, options.ImportedBy, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        {
+            // Nothing committed: the applier writes inside one transaction and rolls it back on any failure.
+            result = FailedAttempt(result, exception, FailureStage.Apply, cancellationToken.IsCancellationRequested);
+            if (result.Status == "Failed") Report(result.FileName, FailureStage.Apply, result.ReportCode, null, exception);
+            return result;
+        }
+        if (applied.Outcome == "Failed")
+        {
+            IReadOnlyList<DailyInputsIssue> errors = applied.Errors.Count > 0 ? applied.Errors
+                : [new DailyInputsIssue(null, null, applied.FailureCode ?? DailyInputsNotReadCode, applied.Message)];
+            return DailyInputsFailed(result, FailureStage.Apply, errors, applied.Message, applied.FailureCode);
+        }
+        return result with
+        {
+            Status = applied.Outcome, NewRows = applied.Changed, AlreadyPresentRows = applied.Unchanged, Message = applied.Message,
+            CommitState = applied.Outcome == "Imported" ? CommitState.Committed : null
+        };
+    }
+
+    // The folder side's own D001 code (DailyInputsCodes); messages are the catalogue's value-free templates.
+    internal const string DailyInputsNotAvailableCode = DailyInputsCodes.NotAvailable;
+    internal static string DailyInputsNotAvailableMessage => ImportDiagnosticCatalogue.Template(DailyInputsCodes.NotAvailable);
+    // A parse that returned no document and no error (not expected): the sheet is treated as an unknown template.
+    private const string DailyInputsNotReadCode = DailyInputsCodes.TemplateVersion;
+    private static string DailyInputsNotReadMessage => ImportDiagnosticCatalogue.Template(DailyInputsCodes.TemplateVersion);
+
+    private FolderImportFileResult DailyInputsFailed(FolderImportFileResult result, FailureStage stage,
+        IReadOnlyList<DailyInputsIssue> errors, string message, string? code = null)
+    {
+        code ??= errors[0].Code;
+        var failed = result with
+        {
+            Status = "Failed", Message = message, NewRows = 0, AlreadyPresentRows = 0,
+            Diagnostics = [.. errors.Select(error => AsDailyIssue(ImportIssueSeverity.Blocker, error)), .. result.Diagnostics ?? []],
+            Failure = new ImportFailure(code, stage, message)
+        };
+        // The import-failure register gets every Failed daily-inputs file, refusals included (unlike Report, which
+        // leaves ImportSourceException refusals to History): staff on a shop PC never see the office PC's screen.
+        if (reportFailure is not null)
+        {
+            try
+            {
+                reportFailure(FolderImportFailure.Create(failed.FileName, stage, failed.ReportCode, failed.StoreCode, failed.PeriodEnd,
+                    new ImportSourceException(code, message)));
+            }
+            catch (Exception sinkFailure) when (sinkFailure is not OperationCanceledException)
+            {
+                // Diagnostics are best effort; a failing log must not change the import outcome.
+            }
+        }
+        return failed;
+    }
+
+    private static ImportIssue AsDailyIssue(ImportIssueSeverity severity, DailyInputsIssue issue) =>
+        new(severity, issue.Code, issue.Message, issue.RowNumber, "Value", DocumentRef: issue.FieldCode);
 
     // A workbook no profile accepted: the first blocker names the failure. Its message comes from the
     // catalogue, because a layout message can quote a header.
