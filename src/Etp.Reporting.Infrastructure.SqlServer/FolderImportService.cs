@@ -104,7 +104,7 @@ public sealed class FolderImportService(
                 if (DailyInputsTemplate.IsDailyInputsWorkbook(workbook))
                 {
                     readStage = FailureStage.Source;
-                    var daily = await ImportDailyInputsAsync(path, workbook, options, cancellationToken).ConfigureAwait(false);
+                    var daily = await ImportDailyInputsAsync(path, workbook, options.ImportedBy, cancellationToken).ConfigureAwait(false);
                     results.Add(daily);
                     handled.Add(path);
                     await recording.RecordAsync(daily).ConfigureAwait(false);
@@ -420,9 +420,11 @@ public sealed class FolderImportService(
     /// One daily-inputs workbook (family D001, 1101-DAILY-INPUTS-DESIGN.md section 3): parsed against today's date, applied
     /// all-or-nothing when the parser found no error, and returned as the attempt to record. Every Failed result is also a
     /// row of the import-failure register. An unexpected exception is classified as any import failure is.
+    /// Public because the Desktop single-file and batch routes call the same method (1.11.0): one implementation.
+    /// The caller records the returned attempt in History.
     /// </summary>
-    private async Task<FolderImportFileResult> ImportDailyInputsAsync(string path, WorkbookSnapshot workbook,
-        FolderImportOptions options, CancellationToken cancellationToken)
+    public async Task<FolderImportFileResult> ImportDailyInputsAsync(string path, WorkbookSnapshot workbook,
+        string importedBy, CancellationToken cancellationToken)
     {
         var parsed = DailyInputsParser.Parse(workbook, DateOnly.FromDateTime(DateTime.Today));
         var document = parsed.Document;
@@ -442,7 +444,7 @@ public sealed class FolderImportService(
         DailyInputsApplyResult applied;
         try
         {
-            applied = await dailyInputsApplier.ApplyAsync(document, options.ImportedBy, cancellationToken).ConfigureAwait(false);
+            applied = await dailyInputsApplier.ApplyAsync(document, importedBy, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
@@ -498,7 +500,7 @@ public sealed class FolderImportService(
         return failed;
     }
 
-    private static ImportIssue AsDailyIssue(ImportIssueSeverity severity, DailyInputsIssue issue) =>
+    public static ImportIssue AsDailyIssue(ImportIssueSeverity severity, DailyInputsIssue issue) =>
         new(severity, issue.Code, issue.Message, issue.RowNumber, "Value", DocumentRef: issue.FieldCode);
 
     // A workbook no profile accepted: the first blocker names the failure. Its message comes from the

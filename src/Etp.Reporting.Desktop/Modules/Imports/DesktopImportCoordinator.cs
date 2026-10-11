@@ -1,6 +1,7 @@
 extern alias EtpApplication;
 
 using Etp.Reporting.Import.Batch;
+using Etp.Reporting.Import.DailyInputs;
 using Etp.Reporting.Import.Diagnostics;
 using Etp.Reporting.Import.Preflight;
 using Etp.Reporting.Import.Workbooks;
@@ -61,12 +62,17 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
     private ValidatedImport? validatedImport;
     private FolderImportService? folderImportService;
     private FolderImportOptions? folderImportOptions;
+    // 1.11.0: a daily-inputs sheet (family D001) picked on the single-file route; it has no envelope, so it is kept apart.
+    private ValidatedDailyInputs? validatedDaily;
+    private readonly IDailyInputsApplier? dailyInputs;
 
     public DesktopImportCoordinator(
         Func<string, ImportPersistenceUseCase> persistenceFactory,
         IWorkbookReader? workbookReader = null,
-        Action<FolderImportFailure>? reportImportFailure = null)
+        Action<FolderImportFailure>? reportImportFailure = null,
+        IDailyInputsApplier? dailyInputs = null)
     {
+        this.dailyInputs = dailyInputs;
         this.persistenceFactory = persistenceFactory ?? throw new ArgumentNullException(nameof(persistenceFactory));
         this.workbookReader = workbookReader ?? new SourceFileReader();
         this.reportImportFailure = reportImportFailure;
@@ -74,7 +80,7 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
         failureClassifier = new SqlImportFailureClassifier();
     }
 
-    public bool HasValidatedImport => validatedImport is not null;
+    public bool HasValidatedImport => validatedImport is not null || validatedDaily is not null;
     public IReadOnlyList<string> FailedBatchPaths { get; private set; } = [];
 
     public async Task<DesktopImportValidationOutcome> ValidateAsync(
@@ -82,7 +88,11 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
         CancellationToken cancellationToken = default)
     {
         validatedImport = null;
+        validatedDaily = null;
         var snapshot = await workbookReader.ReadAsync(workbookPath, cancellationToken).ConfigureAwait(false);
+        // The same recognition and parser the folder import uses (content, never the file name).
+        if (DailyInputsTemplate.IsDailyInputsWorkbook(snapshot))
+            return ValidateDailyInputs(workbookPath, snapshot);
         var inspection = envelopeFactory.Inspect(snapshot);
         validatedImport = inspection.AcceptedImport is null
             ? null
@@ -99,6 +109,50 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
         };
     }
 
+    private DesktopImportValidationOutcome ValidateDailyInputs(string workbookPath, WorkbookSnapshot snapshot)
+    {
+        var parsed = DailyInputsParser.Parse(snapshot, DateOnly.FromDateTime(DateTime.Today));
+        if (parsed.Succeeded) validatedDaily = new(workbookPath, snapshot);
+        var diagnostics = parsed.Errors.Select(issue => DailyDiagnostic(ImportDiagnosticSeverity.Blocker, issue))
+            .Concat(parsed.Notes.Select(issue => DailyDiagnostic(ImportDiagnosticSeverity.Information, issue))).ToArray();
+        return new(parsed.Succeeded, DailyInputsTemplate.FamilyCode, parsed.Document?.Values.Count ?? 0, diagnostics)
+        {
+            StoreCode = parsed.Document?.StoreCode,
+            PeriodStart = parsed.Document?.BusinessDate,
+            PeriodEnd = parsed.Document?.BusinessDate
+        };
+    }
+
+    private static ImportDiagnostic DailyDiagnostic(ImportDiagnosticSeverity severity, DailyInputsIssue issue) =>
+        new(issue.Code, severity, issue.Message, null, issue.RowNumber, "Value") { DocumentRef = issue.FieldCode };
+
+    private FolderImportService NewFolderService(ImportPersistenceUseCase persistence) =>
+        new(persistence, workbookReader, knownStores, reportImportFailure, dailyInputs);
+
+    // The single-file route for a daily-inputs sheet: the folder import's own method applies it, the attempt goes to
+    // History as the folder import records it, and a refusal is thrown (its register row was written by that method).
+    private async Task<DesktopImportPersistenceOutcome> PersistDailyInputsAsync(ValidatedDailyInputs daily,
+        ImportPersistenceUseCase persistence, DesktopImportRunContext context, CancellationToken cancellationToken)
+    {
+        var result = await NewFolderService(persistence)
+            .ImportDailyInputsAsync(daily.WorkbookPath, daily.Snapshot, context.ImportedBy, cancellationToken).ConfigureAwait(false);
+        if (result.Status is "Failed" or "Cancelled")
+        {
+            Exception failure = result.Status == "Cancelled"
+                ? new OperationCanceledException("Import cancelled.", cancellationToken)
+                : new ImportSourceException(result.Failure?.Code ?? DailyInputsCodes.NotAvailable, result.Message);
+            await RecordAfterFailureAsync(persistence, result, failure).ConfigureAwait(false);
+            ExceptionDispatchInfo.Capture(failure).Throw();
+        }
+        if (persistence is ImportAttemptRecorder recorder)
+            await recorder.RecordAttemptAsync(result, CancellationToken.None).ConfigureAwait(false);
+        var duplicate = result.Status is "Duplicate" or "Already present";
+        return new(DailyInputsTemplate.FamilyCode,
+            new ImportPersistenceResult(DailyInputsTemplate.FamilyCode, result.NewRows)
+                { Status = result.Status, AlreadyPresentRows = result.AlreadyPresentRows },
+            false, duplicate);
+    }
+
     // IF-017: the single-file route records its attempt in import_attempts like the folder import, through
     // the same result builders, so History shows it with its code, stage, commit state and evidence.
     public async Task<DesktopImportPersistenceOutcome> PersistValidatedAsync(
@@ -106,6 +160,8 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
         DesktopImportRunContext context,
         CancellationToken cancellationToken = default)
     {
+        if (validatedDaily is { } daily)
+            return await PersistDailyInputsAsync(daily, persistenceFactory(connectionString), context, cancellationToken).ConfigureAwait(false);
         var current = validatedImport ?? throw new InvalidOperationException("Validate an import workbook before persisting it.");
         var envelope = current.Envelope;
         var persistence = persistenceFactory(connectionString);
@@ -212,7 +268,7 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
         }
     }
 
-    public void ClearValidatedImport() => validatedImport = null;
+    public void ClearValidatedImport() { validatedImport = null; validatedDaily = null; }
 
     public async Task<FolderImportSummary> ImportFolderAsync(string sourcePath, string connectionString,
         FolderImportOptions options, IProgress<FolderImportProgress>? progress = null,
@@ -222,7 +278,7 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
         batchCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var paths = await OpenBatchSourceAsync(sourcePath, batchCancellation.Token).ConfigureAwait(false);
         folderImportOptions = options;
-        folderImportService = new FolderImportService(persistenceFactory(connectionString), workbookReader, knownStores, reportImportFailure);
+        folderImportService = new FolderImportService(persistenceFactory(connectionString), workbookReader, knownStores, reportImportFailure, dailyInputs);
         var result = await folderImportService.RunFilesAsync(paths, options, progress, batchCancellation.Token).ConfigureAwait(false);
         FailedBatchPaths = folderImportService.FailedPaths;
         return result;
@@ -354,8 +410,9 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
         {
             if (attempt.Saved is { Status: not "Duplicate" } saved) SqlImportFailureClassifier.MarkCommitted(exception, saved.BatchId);
             // The same attempt the folder import records for this failure (IF-017).
-            var failed = FolderImportService.FailedAttempt(attempt.Result, exception, attempt.Stage, cancellationToken.IsCancellationRequested);
-            if (failed.Status == "Failed" && reportImportFailure is not null && exception is not ImportSourceException)
+            // A daily-inputs refusal arrives with its finished attempt and is already in the failure register.
+            var failed = attempt.DailyResult ?? FolderImportService.FailedAttempt(attempt.Result, exception, attempt.Stage, cancellationToken.IsCancellationRequested);
+            if (attempt.DailyResult is null && failed.Status == "Failed" && reportImportFailure is not null && exception is not ImportSourceException)
             {
                 try
                 {
@@ -389,6 +446,8 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
             new(System.IO.Path.GetFileName(workbookPath), null, null, null, null, "Importing") { SourcePath = workbookPath };
         /// <summary>The finished attempt of a file that did not throw.</summary>
         public FolderImportFileResult? Completed { get; set; }
+        /// <summary>A daily-inputs sheet that was refused or cancelled: the attempt the folder import method returned.</summary>
+        public FolderImportFileResult? DailyResult { get; set; }
     }
 
     private async Task<WorkbookImportOutcome> ProcessWorkbookCoreAsync(
@@ -403,6 +462,8 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
         var snapshot = await workbookReader.ReadAsync(workbookPath, cancellationToken).ConfigureAwait(false);
         attempt.Stage = FailureStage.Match;
         var persistence = persistenceFactory(connectionString);
+        if (DailyInputsTemplate.IsDailyInputsWorkbook(snapshot))
+            return await ProcessDailyInputsAsync(workbookPath, snapshot, persistence, contextFactory().ImportedBy, attempt, cancellationToken).ConfigureAwait(false);
         var accepted = envelopeFactory.RequireAccepted(snapshot);
         var context = contextFactory();
         attempt.Result = Attempt(workbookPath, accepted, context);
@@ -452,6 +513,25 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
             outcome.ExactDuplicate) { Issues = saved.Issues };
     }
 
+    private async Task<WorkbookImportOutcome> ProcessDailyInputsAsync(string workbookPath, WorkbookSnapshot snapshot,
+        ImportPersistenceUseCase persistence, string importedBy, BatchAttempt attempt, CancellationToken cancellationToken)
+    {
+        attempt.Stage = FailureStage.Source;
+        attempt.ReportCode = DailyInputsTemplate.FamilyCode;
+        var result = await NewFolderService(persistence).ImportDailyInputsAsync(workbookPath, snapshot, importedBy, cancellationToken).ConfigureAwait(false);
+        attempt.Result = result;
+        attempt.StoreCode = result.StoreCode;
+        attempt.PeriodEnd = result.PeriodEnd;
+        if (result.Status is "Failed" or "Cancelled")
+        {
+            attempt.DailyResult = result;
+            if (result.Status == "Cancelled") throw new OperationCanceledException("Import cancelled.", cancellationToken);
+            throw new ImportSourceException(result.Failure?.Code ?? DailyInputsCodes.NotAvailable, result.Message);
+        }
+        attempt.Completed = result;
+        return new(result.RowsProcessed, result.NewRows, result.AlreadyPresentRows, 0, result.Status == "Duplicate");
+    }
+
     private static async Task<ImportRestatement?> ResolveRestatementAsync(
         ImportPersistenceUseCase persistence,
         string reportCode,
@@ -474,6 +554,8 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
                 "No current import exists for this report, store and business date. Use a normal import instead.");
         return new(previousImportFileId.Value, context.ImportedBy, context.RestatementReason);
     }
+
+    private sealed record ValidatedDailyInputs(string WorkbookPath, WorkbookSnapshot Snapshot);
 
     private sealed record ValidatedImport(
         string WorkbookPath,
