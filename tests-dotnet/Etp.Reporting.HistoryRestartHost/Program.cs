@@ -33,8 +33,8 @@ internal static class Program
                 await Until(() => ((Button)window.FindName("ContinueButton")).IsEnabled);
                 if (args[3] != "read")
                 {
-                    await using var coordinator = new DesktopImportCoordinator(value => new SqlServerImportPersistenceUseCase(value));
-                    var result = await coordinator.ImportFolderAsync(args[3], args[0], new("History restart fixture"));
+                    await using var coordinator = new DesktopImportCoordinator(() => new SqlServerImportPersistenceUseCase(args[0]));
+                    var result = await coordinator.ImportFolderAsync(args[3], new("History restart fixture"));
                     if (result.Files.Any(file => file.Failed)) throw new InvalidOperationException("Fixture import failed: " + string.Join(";", result.Files.Select(f => f.Message)));
                 }
                 ((DatePicker)window.FindName("ShellBusinessDateSelector")).SelectedDate = new DateTime(2026, 8, 25);

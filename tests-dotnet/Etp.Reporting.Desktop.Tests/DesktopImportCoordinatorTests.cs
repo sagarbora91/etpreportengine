@@ -35,11 +35,11 @@ public sealed class DesktopImportCoordinatorTests
                 if (retry)
                 {
                     persistence.PersistenceFailure = new InvalidOperationException("Synthetic first failure");
-                    Await(coordinator.ImportFolderAsync(path, "synthetic", options));
+                    Await(coordinator.ImportFolderAsync(path, options));
                     Assert.Single(coordinator.FailedBatchPaths);
                     persistence.PersistenceFailure = null;
                 }
-                var view = new ImportWorkspaceView(coordinator, () => "synthetic");
+                var view = new ImportWorkspaceView(coordinator);
                 var reloads = 0;
                 view.AttachHost(() => new(true, false),
                     () => { reloads++; return Task.FromResult(new ImportWorkspaceAccess(false, false)); },
@@ -77,7 +77,7 @@ public sealed class DesktopImportCoordinatorTests
             var coordinator = Create(persistence, new FakeReader(_ => ValidR025()));
             try
             {
-                var view = new ImportWorkspaceView(coordinator, () => "synthetic");
+                var view = new ImportWorkspaceView(coordinator);
                 var reloads = 0;
                 view.AttachHost(() => new(true, false), () => { reloads++; return Task.FromResult(new ImportWorkspaceAccess(true, false)); },
                     (_, _, _) => Task.CompletedTask, () => Task.CompletedTask);
@@ -121,7 +121,7 @@ public sealed class DesktopImportCoordinatorTests
         };
         await using var coordinator = Create(persistence, new FakeReader(_ => ValidR025()));
         await coordinator.ValidateAsync("sales.xlsx");
-        var refusal = await Assert.ThrowsAsync<ImportSourceException>(() => coordinator.PersistValidatedAsync("synthetic",
+        var refusal = await Assert.ThrowsAsync<ImportSourceException>(() => coordinator.PersistValidatedAsync(
             new("WLMHW", new(2026, 8, 25), "manager", true, "Corrected source")));
         Assert.Equal(ImportCodes.RestatementApprovalRequired, refusal.Code);
         Assert.Equal(1, persistence.PrepareCalls);
@@ -154,7 +154,7 @@ public sealed class DesktopImportCoordinatorTests
         string? failedPath = null;
         try
         {
-            var first = await coordinator.ImportFolderAsync(archivePath, "test", new("tester"));
+            var first = await coordinator.ImportFolderAsync(archivePath, new("tester"));
             Assert.Equal(1, first.Imported);
             Assert.Equal(1, first.Failed);
             failedPath = Assert.Single(coordinator.FailedBatchPaths);
@@ -181,8 +181,7 @@ public sealed class DesktopImportCoordinatorTests
         await using var coordinator = Create(persistence, new FakeReader(_ => ValidR025()));
         await coordinator.ValidateAsync("sales.xlsx");
 
-        var result = await coordinator.PersistValidatedAsync(
-            "test", new("WLMHW", new(2026, 8, 25), "tester", false, ""));
+        var result = await coordinator.PersistValidatedAsync(new("WLMHW", new(2026, 8, 25), "tester", false, ""));
 
         Assert.True(result.ExactDuplicate);
         Assert.Equal(0, result.Result.PersistedRows);
@@ -197,8 +196,7 @@ public sealed class DesktopImportCoordinatorTests
         await using var coordinator = Create(persistence, new FakeReader(_ => ValidR025()));
         await coordinator.ValidateAsync("sales.xlsx");
 
-        var error = await Assert.ThrowsAsync<ImportSourceException>(() => coordinator.PersistValidatedAsync(
-            "test", new("WLMHW", new(2026, 8, 25), "tester", true, "Correction")));
+        var error = await Assert.ThrowsAsync<ImportSourceException>(() => coordinator.PersistValidatedAsync(new("WLMHW", new(2026, 8, 25), "tester", true, "Correction")));
 
         Assert.Equal("RESTATEMENT_DUPLICATE_FILE", error.Code);
         Assert.Null(persistence.LastRequest);
@@ -266,7 +264,7 @@ public sealed class DesktopImportCoordinatorTests
         var context = new DesktopImportRunContext(
             "WLMHW", new(2026, 8, 25), "STORE\\Owner", true, "Corrected source");
 
-        var outcome = await coordinator.PersistValidatedAsync("integrated", context);
+        var outcome = await coordinator.PersistValidatedAsync(context);
 
         Assert.True(outcome.RestatementApplied);
         Assert.Same(persistence.PreparedRequest, persistence.LastRequest);
@@ -290,10 +288,10 @@ public sealed class DesktopImportCoordinatorTests
         var context = new DesktopImportRunContext("WLMHW", new(2026, 9, 29), "manager", false, string.Empty);
 
         Assert.True((await coordinator.ValidateAsync("R010_BinWise_Stock.xlsx")).Accepted);
-        var refusal = await Assert.ThrowsAsync<ImportSourceException>(() => coordinator.PersistValidatedAsync("synthetic", context));
+        var refusal = await Assert.ThrowsAsync<ImportSourceException>(() => coordinator.PersistValidatedAsync(context));
         Assert.Equal("SNAPSHOT_DATE_UNKNOWN", refusal.Code);
 
-        var summary = await coordinator.RunBatchAsync(["R010_BinWise_Stock.xlsx"], "synthetic", () => false, () => context, _ => Task.CompletedTask);
+        var summary = await coordinator.RunBatchAsync(["R010_BinWise_Stock.xlsx"], () => false, () => context, _ => Task.CompletedTask);
         var file = Assert.Single(summary.Files);
         Assert.Equal((BatchImportFileStatus.Failed, "SNAPSHOT_DATE_UNKNOWN"), (file.Status, file.ErrorCode));
         Assert.Equal(0, persistence.PersistenceCalls);
@@ -313,7 +311,6 @@ public sealed class DesktopImportCoordinatorTests
 
         var summary = await coordinator.RunBatchAsync(
             ["sales.xlsx"],
-            "integrated",
             () => false,
             () => new("WLMHW", new(2026, 8, 25), "manager", false, string.Empty),
             _ => Task.CompletedTask);
@@ -339,7 +336,6 @@ public sealed class DesktopImportCoordinatorTests
 
         var summary = await coordinator.RunBatchAsync(
             ["sales.xlsx"],
-            "integrated",
             () => true,
             () => new("WLMHW", new(2026, 8, 25), "tester", true, "Correction"),
             _ => Task.CompletedTask);
@@ -357,7 +353,7 @@ public sealed class DesktopImportCoordinatorTests
     {
         var persistence = new FakePersistence { Exists = true };
         await using var coordinator = Create(persistence, new FakeReader(_ => ValidR025()));
-        var summary = await coordinator.RunBatchAsync(["sales.xlsx"], "integrated", () => false,
+        var summary = await coordinator.RunBatchAsync(["sales.xlsx"], () => false,
             () => new("WLMHW", new(2026, 8, 25), "tester", false, ""), _ => Task.CompletedTask);
         Assert.Equal(BatchImportFileStatus.Succeeded, Assert.Single(summary.Files).Status);
         Assert.True(summary.Files[0].ExactDuplicate);
@@ -382,8 +378,8 @@ public sealed class DesktopImportCoordinatorTests
         var context = new DesktopImportRunContext("WLMHW", new(2026, 8, 25), "tester", false, "");
         await coordinator.ValidateAsync("sales.xlsx");
 
-        var single = await coordinator.PersistValidatedAsync("integrated", context);
-        var batch = await coordinator.RunBatchAsync(["sales.xlsx"], "integrated", () => false, () => context,
+        var single = await coordinator.PersistValidatedAsync(context);
+        var batch = await coordinator.RunBatchAsync(["sales.xlsx"], () => false, () => context,
             _ => Task.CompletedTask);
 
         Assert.Equal([repeated], single.Result.Issues);
@@ -401,7 +397,7 @@ public sealed class DesktopImportCoordinatorTests
         var context = new DesktopImportRunContext("WLMHW", new(2026, 8, 25), "tester", false, "");
         await coordinator.ValidateAsync("sales.xlsx");
 
-        await coordinator.PersistValidatedAsync("integrated", context);
+        await coordinator.PersistValidatedAsync(context);
         var saved = Assert.Single(persistence.Recorded);
         Assert.Equal(("sales.xlsx", "R025", "WLMHW", new DateOnly(2026, 8, 25)), (saved.FileName, saved.ReportCode, saved.StoreCode, saved.PeriodEnd!.Value));
         Assert.Equal("empty export", saved.Status);
@@ -410,7 +406,7 @@ public sealed class DesktopImportCoordinatorTests
         Assert.Null(saved.Failure);
 
         persistence.Exists = true;
-        await coordinator.PersistValidatedAsync("integrated", context);
+        await coordinator.PersistValidatedAsync(context);
         var duplicate = persistence.Recorded[1];
         Assert.Equal("Duplicate", duplicate.Status);
         Assert.Null(duplicate.CommitState);
@@ -418,7 +414,7 @@ public sealed class DesktopImportCoordinatorTests
 
         persistence.Exists = false;
         persistence.PersistenceFailure = new InvalidOperationException("Synthetic Customer secret");
-        await Assert.ThrowsAsync<InvalidOperationException>(() => coordinator.PersistValidatedAsync("integrated", context));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => coordinator.PersistValidatedAsync(context));
         var failed = persistence.Recorded[2];
         Assert.Equal("Failed", failed.Status);
         Assert.Equal(("IMPORT_PROCESSING_FAILED", FailureStage.Apply), (failed.Failure!.Code, failed.Failure.Stage));
@@ -435,8 +431,7 @@ public sealed class DesktopImportCoordinatorTests
         var persistence = new FakePersistence { PersistenceFailure = new Etp.Reporting.Infrastructure.SqlServer.ImportCommittedException(batch, new TimeoutException()) };
         await using var coordinator = Create(persistence, new FakeReader(_ => ValidR025()));
         await coordinator.ValidateAsync("sales.xlsx");
-        await Assert.ThrowsAsync<Etp.Reporting.Infrastructure.SqlServer.ImportCommittedException>(() => coordinator.PersistValidatedAsync(
-            "integrated", new("WLMHW", new(2026, 8, 25), "tester", false, "")));
+        await Assert.ThrowsAsync<Etp.Reporting.Infrastructure.SqlServer.ImportCommittedException>(() => coordinator.PersistValidatedAsync(new("WLMHW", new(2026, 8, 25), "tester", false, "")));
         var failed = Assert.Single(persistence.Recorded);
         Assert.Equal(("Failed", CommitState.Committed, batch, FailureStage.Commit),
             (failed.Status, failed.CommitState!.Value, failed.BatchId!.Value, failed.Failure!.Stage));
@@ -449,7 +444,7 @@ public sealed class DesktopImportCoordinatorTests
         await using var coordinator = Create(persistence,
             new FakeReader(path => path == "locked.xlsx" ? throw new IOException("C:\\private\\locked.xlsx") : ValidR025()));
 
-        var summary = await coordinator.RunBatchAsync(["locked.xlsx", "sales.xlsx"], "integrated", () => false,
+        var summary = await coordinator.RunBatchAsync(["locked.xlsx", "sales.xlsx"], () => false,
             () => new("WLMHW", new(2026, 8, 25), "tester", false, ""), _ => Task.CompletedTask);
 
         Assert.Equal(2, summary.Files[0].Attempts);
@@ -472,7 +467,7 @@ public sealed class DesktopImportCoordinatorTests
             return ValidR025();
         }));
 
-        var summary = await coordinator.RunBatchAsync(["sales.xlsx", "second.xlsx"], "integrated", () => false,
+        var summary = await coordinator.RunBatchAsync(["sales.xlsx", "second.xlsx"], () => false,
             () => new("WLMHW", new(2026, 8, 25), "tester", false, ""), _ => Task.CompletedTask, cancellationToken: cancellation.Token);
 
         Assert.Equal(BatchImportFileStatus.Cancelled, summary.Files[1].Status);
@@ -484,7 +479,7 @@ public sealed class DesktopImportCoordinatorTests
         FakePersistence persistence,
         IWorkbookReader reader) =>
         new(
-            _ => persistence,
+            () => persistence,
             reader);
 
     private static readonly byte[] EvidenceBytes = [1, 2, 3];
@@ -543,7 +538,7 @@ public sealed class DesktopImportCoordinatorTests
 
     private static DesktopImportCoordinator CreateWithApplier(FakePersistence persistence, IWorkbookReader reader, IDailyInputsApplier applier,
         List<FolderImportFailure>? failures = null) =>
-        new(_ => persistence, reader, failures is null ? null : failures.Add, applier);
+        new(() => persistence, reader, failures is null ? null : failures.Add, applier);
 
     private static readonly DailyInputsApplyResult DailyImported = new("Imported", 2, 0, null, "2 daily input(s) saved; 0 unchanged.", []);
     private static readonly DailyInputsApplyResult DailyFinalised = new("Failed", 0, 0, DailyInputsCodes.DayFinalised,
@@ -588,7 +583,7 @@ public sealed class DesktopImportCoordinatorTests
         await using var coordinator = CreateWithApplier(persistence, new FakeReader(_ => DailySheet(("WALK_INS", 12m), ("EXPENSES", 250.5m))), applier);
         await coordinator.ValidateAsync(DailyFileName);
 
-        var outcome = await coordinator.PersistValidatedAsync("synthetic", new("WLMHW", DailyToday, "manager", false, string.Empty));
+        var outcome = await coordinator.PersistValidatedAsync(new("WLMHW", DailyToday, "manager", false, string.Empty));
 
         Assert.Equal("D001", outcome.ReportCode);
         Assert.Equal(2, outcome.Result.PersistedRows);
@@ -608,7 +603,7 @@ public sealed class DesktopImportCoordinatorTests
             new FakeDailyApplier(new("Already present", 0, 1, null, "Nothing was changed.", [])));
         await coordinator.ValidateAsync(DailyFileName);
 
-        var outcome = await coordinator.PersistValidatedAsync("synthetic", new("WLMHW", DailyToday, "manager", false, string.Empty));
+        var outcome = await coordinator.PersistValidatedAsync(new("WLMHW", DailyToday, "manager", false, string.Empty));
 
         Assert.True(outcome.ExactDuplicate);
         Assert.Equal("Already present", Assert.Single(persistence.Recorded).Status);
@@ -624,7 +619,7 @@ public sealed class DesktopImportCoordinatorTests
         await coordinator.ValidateAsync(DailyFileName);
 
         var refusal = await Assert.ThrowsAsync<ImportSourceException>(() =>
-            coordinator.PersistValidatedAsync("synthetic", new("WLMHW", DailyToday, "manager", false, string.Empty)));
+            coordinator.PersistValidatedAsync(new("WLMHW", DailyToday, "manager", false, string.Empty)));
 
         Assert.Equal(DailyInputsCodes.DayFinalised, refusal.Code);
         var recorded = Assert.Single(persistence.Recorded);
@@ -640,7 +635,7 @@ public sealed class DesktopImportCoordinatorTests
         await using var coordinator = CreateWithApplier(persistence,
             new FakeReader(path => path == "daily.xlsx" ? DailySheet(("WALK_INS", 12m), ("EXPENSES", 250.5m)) : ValidR025()), applier);
 
-        var summary = await coordinator.RunBatchAsync(["daily.xlsx", "sales.xlsx"], "synthetic", () => false,
+        var summary = await coordinator.RunBatchAsync(["daily.xlsx", "sales.xlsx"], () => false,
             () => new("WLMHW", new(2026, 8, 25), "manager", false, string.Empty), _ => Task.CompletedTask);
 
         Assert.Equal(2, summary.Succeeded);
@@ -659,7 +654,7 @@ public sealed class DesktopImportCoordinatorTests
         var applier = new FakeDailyApplier(DailyFinalised);
         await using var coordinator = CreateWithApplier(persistence, new FakeReader(_ => DailySheet(("WALK_INS", 12m))), applier, failures);
 
-        var summary = await coordinator.RunBatchAsync(["daily.xlsx"], "synthetic", () => false,
+        var summary = await coordinator.RunBatchAsync(["daily.xlsx"], () => false,
             () => new("WLMHW", new(2026, 8, 25), "manager", false, string.Empty), _ => Task.CompletedTask);
 
         var file = Assert.Single(summary.Files);

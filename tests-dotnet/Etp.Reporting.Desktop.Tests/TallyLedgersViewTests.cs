@@ -13,7 +13,7 @@ public sealed class TallyLedgersViewTests
         TallyVouchersViewTests.RunSta(() =>
         {
             var mappings = new FakeMappings();
-            var view = new TallyLedgersView(() => "fixture", () => true, _ => new TallyVouchersViewTests.FakeProfiles(), _ => mappings);
+            var view = new TallyLedgersView(() => true, () => new TallyVouchersViewTests.FakeProfiles(), () => mappings);
             view.RefreshAsync().GetAwaiter().GetResult();
 
             Assert.Equal(new[] { "STOREA", "STOREB" }, (IEnumerable<string>)view.StoreInput.ItemsSource);
@@ -42,7 +42,7 @@ public sealed class TallyLedgersViewTests
         TallyVouchersViewTests.RunSta(() =>
         {
             var mappings = new FakeMappings { Refusal = new ArgumentException("Enter the Tally ledger name exactly as Tally shows it (at most 200 characters).") };
-            var view = new TallyLedgersView(() => "fixture", () => true, _ => new TallyVouchersViewTests.FakeProfiles(), _ => mappings);
+            var view = new TallyLedgersView(() => true, () => new TallyVouchersViewTests.FakeProfiles(), () => mappings);
             view.RefreshAsync().GetAwaiter().GetResult();
             view.EventInput.Text = "TENDER_UPI";
             view.ReasonInput.Text = "Missing ledger";
@@ -58,7 +58,7 @@ public sealed class TallyLedgersViewTests
         TallyVouchersViewTests.RunSta(() =>
         {
             var mappings = new FakeMappings();
-            var view = new TallyLedgersView(() => "fixture", () => false, _ => new TallyVouchersViewTests.FakeProfiles(), _ => mappings);
+            var view = new TallyLedgersView(() => false, () => new TallyVouchersViewTests.FakeProfiles(), () => mappings);
             view.SaveButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Assert.Empty(mappings.Saved);
             Assert.Equal("Owner permission is required.", view.StatusText.Text);

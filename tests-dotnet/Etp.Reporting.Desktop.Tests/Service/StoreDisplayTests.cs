@@ -88,7 +88,7 @@ public sealed class StoreDisplayTests
         RunSta(async () =>
         {
             var service = new StoreAdministrationService();
-            var view = new AdministrationWorkspaceView(new OperationsAdministrationPresentationSession(), () => "connection", _ => service);
+            var view = new AdministrationWorkspaceView(new OperationsAdministrationPresentationSession(), () => service);
             view.UpdateAccess(new(true, true, true));
             await view.RefreshAsync();
 

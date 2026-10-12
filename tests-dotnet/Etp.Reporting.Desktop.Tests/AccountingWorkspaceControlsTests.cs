@@ -17,7 +17,7 @@ public sealed class AccountingWorkspaceControlsTests
         RunSta(()=>
         {
             var service=DispatchProxy.Create<IAccountingService,AccountingProxy>();
-            var view=new AccountingWorkspaceView(new(_=>service),()=>"fixture");
+            var view=new AccountingWorkspaceView(new(()=>service));
             var owner=new AccessSession("fixture","Owner",AccessRole.Owner,true);
             view.AttachHost(()=>owner,error=>error.Message);
             view.SelectTask("prepare-batch");

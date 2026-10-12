@@ -71,8 +71,8 @@ public sealed partial class ExtractedWorkspaceUiSmokeTests
             _ => Proxy<IDatabaseLifecycleService>(), _ => Proxy<IAdministrationService>(), Path.Combine(root, "migrations"));
         settings.Initialize();
         settings.UpdateAccess(new(true, true));
-        var daily = new DailyWorkflowWorkspaceView(new DailyWorkflowPresentationSession(), () => connection,
-            _ => new CaptureDailyQuery(), _ => Proxy<IDailyWorkflowCommands>(), _ => Proxy<IDailyReportPackGenerator<ReportPackDocument>>(),
+        var daily = new DailyWorkflowWorkspaceView(new DailyWorkflowPresentationSession(),
+            () => new CaptureDailyQuery(), () => Proxy<IDailyWorkflowCommands>(), () => Proxy<IDailyReportPackGenerator<ReportPackDocument>>(),
             () => new(true, true, true), (_, _, _) => Task.CompletedTask, (_, _) => Task.CompletedTask, (_, _) => Task.CompletedTask)
         { BusinessDate = new DateTime(2026, 9, 14), StoreCode = "WLMHW" };
         daily.RefreshAsync().GetAwaiter().GetResult();

@@ -73,7 +73,7 @@ public sealed partial class ExtractedWorkspaceUiSmokeTests
         const string connection = DesktopCompositionRoot.DefaultConnectionString;
         var operationsSession = new OperationsAdministrationPresentationSession();
         var importCoordinator = new DesktopImportCoordinator(
-            _ => Proxy<IImportPersistenceUseCase<Etp.Reporting.Import.Preflight.MatchedImportEnvelope>>());
+            () => Proxy<IImportPersistenceUseCase<Etp.Reporting.Import.Preflight.MatchedImportEnvelope>>());
 
         return
         [
@@ -85,36 +85,33 @@ public sealed partial class ExtractedWorkspaceUiSmokeTests
                 _ => Proxy<IAdministrationService>(),
                 Path.Combine(testRoot, "migrations"))),
             new("Daily", new DailyWorkflowWorkspaceView(
-                new DailyWorkflowPresentationSession(), () => connection,
-                _ => Proxy<IDailyWorkflowQuery>(), _ => Proxy<IDailyWorkflowCommands>(),
-                _ => Proxy<IDailyReportPackGenerator<ReportPackDocument>>(),
+                new DailyWorkflowPresentationSession(),
+                () => Proxy<IDailyWorkflowQuery>(), () => Proxy<IDailyWorkflowCommands>(),
+                () => Proxy<IDailyReportPackGenerator<ReportPackDocument>>(),
                 () => new(true, true, true),
                 (_, _, _) => Task.CompletedTask, (_, _) => Task.CompletedTask, (_, _) => Task.CompletedTask)),
             new("Archive", new ArchiveWorkspaceView(
                 new ArchiveDistributionPresentationSession(
-                    _ => Proxy<IReportArchiveQuery<ReportPackDocument>>(),
-                    _ => Proxy<ISharingContactsService>(),
-                    _ => Proxy<IReportDistributionService<ReportPackDocument>>()),
-                () => connection, (_, _) => Task.CompletedTask, (_, _) => Task.CompletedTask, Proxy<IArchiveShareLauncher>())),
+                    () => Proxy<IReportArchiveQuery<ReportPackDocument>>(),
+                    () => Proxy<ISharingContactsService>(),
+                    () => Proxy<IReportDistributionService<ReportPackDocument>>()), (_, _) => Task.CompletedTask, (_, _) => Task.CompletedTask, Proxy<IArchiveShareLauncher>())),
             new("Registers", new RegistersWorkspaceView(
-                new RegistersPresentationSession(_ => Proxy<IDigitalRegisterService>()), () => connection)),
+                new RegistersPresentationSession(() => Proxy<IDigitalRegisterService>()))),
             new("Accounting", new AccountingWorkspaceView(
-                new AccountingPresentationSession(_ => Proxy<IAccountingService>()), () => connection)),
+                new AccountingPresentationSession(() => Proxy<IAccountingService>()))),
             new("Operations", new OperationsWorkspaceView(
-                operationsSession, () => connection, _ => Proxy<IOperationsAdministrationService>(),
+                operationsSession, () => Proxy<IOperationsAdministrationService>(),
                 (_, _) => Task.FromResult(new MaintenanceOperationResult(true, "Complete")))),
-            new("Investigation", new InvestigationApprovalsWorkspaceView(
-                () => connection, _ => Proxy<IOperationsAdministrationService>(), _ => Proxy<IInvestigationQuery>())),
+            new("Investigation", new InvestigationApprovalsWorkspaceView(() => Proxy<IOperationsAdministrationService>(), () => Proxy<IInvestigationQuery>())),
             new("Administration", new AdministrationWorkspaceView(
-                operationsSession, () => connection, _ => Proxy<IAdministrationService>())),
-            new("Import", new ImportWorkspaceView(importCoordinator, () => connection)),
+                operationsSession, () => Proxy<IAdministrationService>())),
+            new("Import", new ImportWorkspaceView(importCoordinator)),
             new("SourceInbox", new SourceInboxWorkspaceView(
-                _ => Proxy<ISourceInboxService>(), () => connection, Proxy<ISourceDocumentLauncher>())),
+                () => Proxy<ISourceInboxService>(), Proxy<ISourceDocumentLauncher>())),
             new("Reports", new ReportsWorkspaceView(
-                () => connection,
-                _ => Proxy<IControlledReportQuery>(),
-                _ => Proxy<IOperationalReportQuery<DailySalesReportDocument>>(),
-                _ => Proxy<IManagementTrendQuery>(),
+                () => Proxy<IControlledReportQuery>(),
+                () => Proxy<IOperationalReportQuery<DailySalesReportDocument>>(),
+                () => Proxy<IManagementTrendQuery>(),
                 new ReportExportCoordinator(),
                 Proxy<ITenderVarianceDiagnostic>())),
             new("Dashboard", new DashboardView()),

@@ -186,7 +186,7 @@ public sealed class RegisterDraftTests
 
     private static RegistersWorkspaceView Create(RegistersStub service)
     {
-        var view = new RegistersWorkspaceView(new RegistersPresentationSession(_ => service), () => "synthetic");
+        var view = new RegistersWorkspaceView(new RegistersPresentationSession(() => service));
         view.AttachHost(() => new AccessSession("TEST\\user", "Synthetic", AccessRole.Owner, true), ex => ex.Message); return view;
     }
     private static TextBox Input(RegistersWorkspaceView view, string name) => (TextBox)view.FindName(name);

@@ -81,7 +81,7 @@ public sealed class ReportFilterClosureTests(SqlDatabaseFixture database) : ICla
             var initialQuery = query.RunSalesSummaryAsync(new(new(2026, 8, 25), new(2026, 8, 25)), Etp.Reporting.Application.Reports.ReportSalesDimension.Brand);
             Await(initialQuery);
             Assert.Equal(all, initialQuery.Result.Rows.Sum(row => row.SourceSignedNetAmount));
-            var view = new ReportsWorkspaceView(() => database.ConnectionString, _ => query, _ => query, _ => query, new ReportExportCoordinator(), new ReportingTenderVarianceDiagnostic());
+            var view = new ReportsWorkspaceView(() => query, () => query, () => query, new ReportExportCoordinator(), new ReportingTenderVarianceDiagnostic());
             var session = new ReportWorkspaceSession();
             ReportWorkspaceControl? workspace = null;
             ReportPresentationSnapshot? snapshot = null;

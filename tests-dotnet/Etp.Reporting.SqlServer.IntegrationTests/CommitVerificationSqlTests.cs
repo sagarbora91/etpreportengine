@@ -121,10 +121,10 @@ public sealed class CommitVerificationSqlTests
             var scope = new MatchedImportEnvelopeFactory().RequireAccepted(await new OpenXmlWorkbookReader().ReadAsync(path)).Scope;
             var batchReported = new List<FolderImportFailure>();
             await using (var desktop = new Etp.Reporting.Desktop.Modules.Imports.DesktopImportCoordinator(
-                _ => new SqlServerImportPersistenceUseCase(database.ConnectionString, null, LostReply(false), unreachable),
+                () => new SqlServerImportPersistenceUseCase(database.ConnectionString, null, LostReply(false), unreachable),
                 reportImportFailure: batchReported.Add))
             {
-                var summary = await desktop.RunBatchAsync([path], database.ConnectionString, () => false,
+                var summary = await desktop.RunBatchAsync([path], () => false,
                     () => new(scope.StoreCode!, scope.PeriodEnd!.Value, "Synthetic Owner", false, ""), _ => Task.CompletedTask);
                 var batchFile = Assert.Single(summary.Files);
                 Assert.Equal(BatchImportFileStatus.Failed, batchFile.Status);

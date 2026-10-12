@@ -233,9 +233,9 @@ public sealed class ReportLabelCorrectionTests
     {
         ReportPresentationSnapshot? current = null;
         var operational = new OperationalQuery();
-        var view = new ReportsWorkspaceView(() => "synthetic", _ => new ControlledQuery(), _ => operational,
-            _ => new TrendQuery(), new ReportExportCoordinator(), new UnusedDiagnostic(),
-            (_, _, _, _) => Task.FromResult<IReadOnlyList<CashBookDay>>([]));
+        var view = new ReportsWorkspaceView(() => new ControlledQuery(), () => operational,
+            () => new TrendQuery(), new ReportExportCoordinator(), new UnusedDiagnostic(),
+            (_, _, _) => Task.FromResult<IReadOnlyList<CashBookDay>>([]));
         view.SetStores(TestStoreCatalog.Create());
         view.ApplyScope(new(2026, 8, 25), new(2026, 8, 25), "Titan World");
         view.AttachHost(_ => true, (_, _, _) => Task.CompletedTask, (snapshot, _, _) => current = snapshot, _ => { }, _ => { });

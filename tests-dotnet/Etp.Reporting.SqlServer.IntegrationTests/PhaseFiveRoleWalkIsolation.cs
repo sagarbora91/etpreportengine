@@ -116,11 +116,11 @@ public sealed partial class PhaseFiveFullWindowCaptureTests
         var thread = new Thread(() =>
         {
             var coordinator = new DesktopImportCoordinator(
-                _ => throw new InvalidOperationException("The WPF lifecycle probe must not import data."));
+                () => throw new InvalidOperationException("The WPF lifecycle probe must not import data."));
             ImportWorkspaceView? view = null;
             try
             {
-                view = new ImportWorkspaceView(coordinator, () => throw new InvalidOperationException("The WPF lifecycle probe must not connect to SQL."));
+                view = new ImportWorkspaceView(coordinator);
                 Assert.IsType<TextBox>(view.FindName("WorkbookPathInput"));
             }
             catch (Exception exception) { failure = exception; }

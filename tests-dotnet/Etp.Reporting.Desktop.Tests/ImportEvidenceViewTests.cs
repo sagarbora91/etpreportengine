@@ -17,16 +17,19 @@ public sealed class ImportEvidenceViewTests
         RunSta(() =>
         {
             var service = new FakeEvidenceService();
-            var view = new ImportEvidenceView(() => "synthetic", () => true, value =>
+            var built = 0;
+            var view = new ImportEvidenceView(() =>
             {
-                Assert.Equal("synthetic", value);
+                built++;
                 return service;
-            }, () => [@"C:\Synthetic\Package", @"C:\Synthetic\Fix"]);
+            }, () => true, () => [@"C:\Synthetic\Package", @"C:\Synthetic\Fix"]);
 
             Assert.True(view.CanKeepEarlierSources);
             Assert.NotNull(FindButton(view, ImportEvidenceView.KeepEarlierSourcesText));
             view.KeepEarlierSourcesAsync().GetAwaiter().GetResult();
 
+            // 1.12 (A1): the view asks its host for the service each time; it never sees a connection string.
+            Assert.True(built > 0);
             Assert.Equal([@"C:\Synthetic\Package", @"C:\Synthetic\Fix"], Assert.Single(service.Runs));
             Assert.Contains("12 files checked; 3 matched an import. 2 source files kept (2.0 MB), 1 already held.", view.StatusText);
             Assert.Contains("Nothing was imported.", view.StatusText);
@@ -42,7 +45,7 @@ public sealed class ImportEvidenceViewTests
         {
             var service = new FakeEvidenceService();
             var owner = false;
-            var view = new ImportEvidenceView(() => "synthetic", () => owner, _ => service, () => null);
+            var view = new ImportEvidenceView(() => service, () => owner, () => null);
 
             Assert.False(view.CanKeepEarlierSources);
             view.KeepEarlierSourcesAsync().GetAwaiter().GetResult();
@@ -91,7 +94,7 @@ public sealed class ImportEvidenceViewTests
         RunSta(() =>
         {
             var service = new FakeEvidenceService { Busy = true };
-            var view = new ImportEvidenceView(() => "synthetic", () => true, _ => service, () => [@"C:\Synthetic\Package"]);
+            var view = new ImportEvidenceView(() => service, () => true, () => [@"C:\Synthetic\Package"]);
 
             view.RefreshAsync().GetAwaiter().GetResult();
             Assert.Equal(ImportEvidenceView.BusySummaryText, view.SizeText);
@@ -109,7 +112,7 @@ public sealed class ImportEvidenceViewTests
         RunSta(() =>
         {
             var service = new FakeEvidenceService { WaitForStop = true };
-            var view = new ImportEvidenceView(() => "synthetic", () => true, _ => service, () => [@"C:\Synthetic\Package"]);
+            var view = new ImportEvidenceView(() => service, () => true, () => [@"C:\Synthetic\Package"]);
             Assert.False(view.CanStop);
             Assert.NotNull(FindButton(view, ImportEvidenceView.StopText));
 
@@ -152,10 +155,9 @@ public sealed class ImportEvidenceViewTests
         RunSta(() =>
         {
             var imports = new Etp.Reporting.Desktop.Modules.Imports.ImportWorkspaceView(
-                new Etp.Reporting.Desktop.Modules.Imports.DesktopImportCoordinator(_ => throw new InvalidOperationException("No import expected.")),
-                () => "synthetic");
+                new Etp.Reporting.Desktop.Modules.Imports.DesktopImportCoordinator(() => throw new InvalidOperationException("No import expected.")));
             var service = new FakeEvidenceService();
-            var owner = new ImportEvidenceView(() => "synthetic", () => true, _ => service, () => [@"C:\Synthetic\Package"]);
+            var owner = new ImportEvidenceView(() => service, () => true, () => [@"C:\Synthetic\Package"]);
             var problems = new Etp.Reporting.Desktop.Modules.Imports.ImportProblemsView(imports,
                 () => Task.FromResult<IReadOnlyList<Etp.Reporting.Desktop.Modules.Imports.ImportProblem>>([]), owner);
 
@@ -168,7 +170,7 @@ public sealed class ImportEvidenceViewTests
             Assert.True(owner.IsExpanded);
             Assert.Contains("Nothing was imported.", owner.StatusText);
 
-            var viewer = new ImportEvidenceView(() => "synthetic", () => false, _ => service, () => [@"C:\Synthetic\Package"]);
+            var viewer = new ImportEvidenceView(() => service, () => false, () => [@"C:\Synthetic\Package"]);
             var hidden = new Etp.Reporting.Desktop.Modules.Imports.ImportProblemsView(imports,
                 () => Task.FromResult<IReadOnlyList<Etp.Reporting.Desktop.Modules.Imports.ImportProblem>>([]), viewer);
             Assert.False(hidden.KeepEarlierSourcesVisible);

@@ -13,7 +13,7 @@ public sealed class TallyCompaniesViewTests
         RunSta(() =>
         {
             var service = new FakeProfiles();
-            var view = new TallyCompaniesView(() => "fixture", () => true, _ => service);
+            var view = new TallyCompaniesView(() => true, () => service);
             view.RefreshAsync().GetAwaiter().GetResult();
 
             var rows = ((IEnumerable<TallyCompaniesView.TallyCompanyRow>)view.CompanyGrid.ItemsSource).ToArray();
@@ -61,7 +61,7 @@ public sealed class TallyCompaniesViewTests
         RunSta(() =>
         {
             var service = new FakeProfiles();
-            var view = new TallyCompaniesView(() => "fixture", () => true, _ => service);
+            var view = new TallyCompaniesView(() => true, () => service);
             Assert.Equal("TEST", view.BooksInput.SelectedItem);
             Assert.Equal("PER_INVOICE", view.GranularityInput.SelectedItem);
             Assert.Equal("SINGLE_LEDGER", view.PartyInput.SelectedItem);
@@ -78,7 +78,7 @@ public sealed class TallyCompaniesViewTests
         RunSta(() =>
         {
             var service = new FakeProfiles();
-            var view = new TallyCompaniesView(() => "fixture", () => false, _ => service);
+            var view = new TallyCompaniesView(() => false, () => service);
             view.ReasonInput.Text = "Attempt";
             view.SaveButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Assert.Empty(service.Saved);
@@ -92,7 +92,7 @@ public sealed class TallyCompaniesViewTests
         RunSta(() =>
         {
             var service = new FakeProfiles { Refusal = new ArgumentException(TallyProfileRules.OnlyThisPc) };
-            var view = new TallyCompaniesView(() => "fixture", () => true, _ => service);
+            var view = new TallyCompaniesView(() => true, () => service);
             view.EndpointInput.Text = "http://192.168.1.20:9000/";
             view.ReasonInput.Text = "Remote attempt";
             view.SaveButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
