@@ -2,7 +2,25 @@
 
 ## [Unreleased]
 
-- Import has a Get blank daily sheet button for the Owner and Store Managers: pick the store and sheet (Titan World retail, Helios retail, Service Centre) and a date, and save the blank daily-inputs workbook through the usual Save dialog, named ETP-Daily-Inputs-STORE-KIND-date.xlsx. A failure shows a plain message with a Ref: code.
+## [1.11.1] - (date after the 1.11.1 gate)
+
+Fixes after 1.11.0: the customer name on the Service Jobs list by role (decision 37, 11 Oct 2026: the name stays on the list; Owner and Store Manager see it, a Viewer sees it blank), the same rule in the older Service views, two review minors in the error register and the nightly health run, and a Get blank daily sheet button on Import. Three migrations: 0056 (Service job customer name), 0057 (older Service views name by role) and 0058 (error register overflow, open-imports signal). No permission change.
+
+**Service Centre (decision 37)**
+
+- Service Jobs list and Job history: the customer name (never a phone, e-mail or address) now comes from the job's most recent Service reading, and only Owner and Store Manager see it; a Viewer sees the column blank (R-UI-21; migration 0056). The claim families S039-S041 are not a name source (their name is the claim party).
+- Service: the older Service read views (`v_service_status_view_rows`, `v_service_job_status_current`, `v_service_status_view_facts`, `v_service_pending_current`) now give the customer name only to Owner and Store Manager, as the Jobs list does; a Viewer reads it blank (migration 0057, no permission change).
+
+**Self-diagnostics (review minors 7 and 8)**
+
+- Error register: when a lost cursor sends a spam day again, the lines past the 200 stored for that day are no longer counted a second time (migration 0058 restates the ingest procedure; 0054 is unchanged).
+- The nightly health run waits for an open import (started in the last 4 hours) and tries again on the next five-minute tick; an older stuck import never blocks it, and the Owner's manual Run health check is not blocked (migration 0058 adds `open_imports` to the operational health procedure).
+
+**Imports**
+
+- Import has a Get blank daily sheet button for the Owner and Store Managers: pick the store and sheet (one retail sheet per active shop, and the Service Centre sheet under the shop that enters Service money) and a date, and save the blank daily-inputs workbook through the usual Save dialog, named ETP-Daily-Inputs-STORE-KIND-date.xlsx, with the business date already filled in. A failure shows a plain message with a Ref: code.
+
+- Tests: unit projects and gate result filled in after the gate.
 
 ## [1.11.0] - (date after the 1.11.0 gate)
 
