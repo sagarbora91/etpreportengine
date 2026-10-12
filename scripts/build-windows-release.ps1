@@ -90,7 +90,12 @@ foreach ($item in Get-ChildItem -LiteralPath $oneDriveSource -File) {
     if ($item.Extension -in '.ps1','.psm1','.psd1') { Copy-Item -LiteralPath $item.FullName -Destination $oneDriveTarget -Force }
     elseif ($item.Name -like '*.example.json') { Copy-Item -LiteralPath $item.FullName -Destination $oneDriveTarget -Force }
 }
-if (-not (Test-Path -LiteralPath (Join-Path $oneDriveTarget 'Receive-ShopDailyFiles.ps1'))) { throw 'scripts\onedrive\Receive-ShopDailyFiles.ps1 did not reach the release folder.' }
+# 1.11.2 integration: L2's final file list; each must reach the release folder.
+foreach ($required in 'OneDriveCommon.ps1','Send-ShopDailyFiles.ps1','Register-ShopDailyTask.ps1','Receive-ShopDailyFiles.ps1',
+                      'Copy-EtpBackupToOneDrive.ps1','Register-WorkpcTasks.ps1','shop-daily-files.config.example.json',
+                      'workpc-receive.config.example.json','workpc-backup.config.example.json') {
+    if (-not (Test-Path -LiteralPath (Join-Path $oneDriveTarget $required))) { throw "scripts\onedrive\$required did not reach the release folder." }
+}
 
 # Dependency 3. Third-party licence notices travel with every release.
 $notices = Join-Path $repoRoot 'THIRD-PARTY-NOTICES.txt'

@@ -5,7 +5,11 @@ $applicationRoot = [IO.Path]::GetFullPath($ApplicationDirectory).TrimEnd([IO.Pat
 $approvedTasks = @(
     "ETP Reporting Daily Backup",
     "ETP Reporting Monthly Recovery Drill",
-    "ETP Reporting Automated Operations"
+    "ETP Reporting Automated Operations",
+    # 1.11.2: the OneDrive tasks, when registered from this installation's scripts\onedrive folder.
+    "ETP Send Shop Daily Files",
+    "ETP Receive Shop Daily Files",
+    "ETP Copy Backup To OneDrive"
 )
 foreach ($taskName in $approvedTasks) {
     $task = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
