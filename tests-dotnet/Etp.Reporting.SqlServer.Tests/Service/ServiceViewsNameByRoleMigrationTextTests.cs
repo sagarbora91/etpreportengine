@@ -111,7 +111,13 @@ public sealed partial class ServiceViewsNameByRoleMigrationTextTests
             Assert.Contains($"\nDENY INSERT,UPDATE,DELETE ON dbo.{view.View} TO etp_store_manager,etp_viewer;\n", source, StringComparison.Ordinal);
         }
         Assert.DoesNotMatch(new Regex(@"\b(DROP|TRUNCATE|DELETE\s+FROM|REVOKE|ALTER\s+ROLE|ALTER\s+TABLE)\b", RegexOptions.IgnoreCase), string.Join("\n", Code(section)));
-        Assert.DoesNotMatch(new Regex(@"\bSELECT\s+(\w+\.)?\*\s+FROM\b", RegexOptions.IgnoreCase), section);
+        // No SELECT * from a table or view. 0050's v_service_pending_current (restated verbatim) does
+        // "SELECT * FROM state_lists UNION ALL SELECT * FROM srn_lists": both are CTEs of the same view, which is allowed.
+        foreach (Match star in new Regex(@"\bSELECT\s+(\w+\.)?\*\s+FROM\s+(?<target>[\w.\[\]]+)", RegexOptions.IgnoreCase).Matches(section))
+        {
+            var target = star.Groups["target"].Value;
+            Assert.Matches(new Regex($@"[\s,]{Regex.Escape(target)}\s+AS\s*\(", RegexOptions.IgnoreCase), section);
+        }
         // v_service_job stays 0056's.
         Assert.DoesNotMatch(new Regex(@"VIEW\s+dbo\.v_service_job\s+AS", RegexOptions.IgnoreCase), section);
     }
