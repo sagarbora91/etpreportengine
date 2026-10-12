@@ -6,6 +6,11 @@ using System.Windows.Controls;
 using System.Windows.Data;
 namespace Etp.Reporting.Desktop;
 
+/// <summary>
+/// FROZEN for new screens (ETP-DESIGN-SYSTEM.md L1, decision 45 #3): this rewrites a finished StackPanel into tabs by
+/// inspecting control names. New 1.12 screens declare a page template with <see cref="PageFrame"/> instead; old views
+/// migrate when a lane touches them. Do not add callers.
+/// </summary>
 public static class TaskBodyLayout
 {
     private static readonly ConditionalWeakTable<UserControl, Dictionary<string, string>> Selected = new();
@@ -60,7 +65,8 @@ public static class TaskBodyLayout
         var labels = inputs.Select(input => AutomationProperties.GetName(input)).ToArray();
         var binding = new MultiBinding { Converter = new ScopeText(labels) };
         foreach (var input in inputs) binding.Bindings.Add(new Binding(input is DatePicker ? "SelectedDate" : input is ComboBox ? "SelectedItem.Content" : "Text") { Source = input });
-        var summary = new TextBlock { FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,0,0,6) };
+        var summary = new TextBlock { TextWrapping = TextWrapping.Wrap, Margin = DesignTokens.Gap(null, null, null, "Space8") };
+        summary.SetResourceReference(FrameworkElement.StyleProperty, "CaptionText");
         summary.SetBinding(TextBlock.TextProperty, binding); AutomationProperties.SetName(summary, "Displayed task context"); return summary;
     }
     private static IEnumerable<DependencyObject> Descendants(DependencyObject root)

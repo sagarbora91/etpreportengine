@@ -4,16 +4,16 @@
     <Color x:Key="SurfaceColor">#FFFFFF</Color>
     <Color x:Key="SurfaceSecondaryColor">#F0F5F5</Color>
     <Color x:Key="PrimaryTextColor">#10252D</Color>
-    <Color x:Key="SecondaryTextColor">#65757A</Color>
+    <Color x:Key="SecondaryTextColor">#56666B</Color>
     <Color x:Key="DividerColor">#D9E3E3</Color>
     <Color x:Key="AccentColor">#008D78</Color>
     <Color x:Key="AccentDarkColor">#006B5C</Color>
     <Color x:Key="AccentSoftColor">#E3F3F0</Color>
-    <Color x:Key="SuccessColor">#087C68</Color>
+    <Color x:Key="SuccessColor">#06705E</Color>
     <Color x:Key="SuccessSoftColor">#E6F4F0</Color>
-    <Color x:Key="WarningColor">#A76500</Color>
+    <Color x:Key="WarningColor">#8F5700</Color>
     <Color x:Key="WarningSoftColor">#FAF1E3</Color>
-    <Color x:Key="CriticalColor">#C33D49</Color>
+    <Color x:Key="CriticalColor">#B3303C</Color>
     <Color x:Key="CriticalSoftColor">#FBECEE</Color>
     <Color x:Key="InformationColor">#315EBA</Color>
     <Color x:Key="InformationSoftColor">#EAF0FB</Color>
@@ -21,6 +21,16 @@
     <Color x:Key="NavigationSelectedColor">#008D78</Color>
     <Color x:Key="NavigationMutedColor">#94B0B8</Color>
     <Color x:Key="DarkSurfaceColor">#082E3A</Color>
+    <!-- 1.12 design system (ETP-DESIGN-SYSTEM.md C6, UIUX-CONTRAST-SCALING.md 2.4): every literal colour the shared
+         controls used now has a token named for what it is for, so high contrast (ThemeBrushes.ApplyContrast) reaches it. -->
+    <Color x:Key="ZebraRowColor">#F0F5F5</Color>
+    <Color x:Key="SelectedRowColor">#D6EDE8</Color>
+    <Color x:Key="PressedFillColor">#D1EAE5</Color>
+    <Color x:Key="NavigationHoverColor">#164651</Color>
+    <Color x:Key="ProgressTrackColor">#DFE8E8</Color>
+    <Color x:Key="DisabledTextColor">#5F6E73</Color>
+    <Color x:Key="DisabledFillColor">#F0F5F5</Color>
+    <Color x:Key="InputBorderColor">#7F8F93</Color>
     <SolidColorBrush x:Key="AppBackground" Color="{StaticResource AppBackgroundColor}"/>
     <SolidColorBrush x:Key="Surface" Color="{StaticResource SurfaceColor}"/>
     <SolidColorBrush x:Key="SurfaceSecondary" Color="{StaticResource SurfaceSecondaryColor}"/>
@@ -43,4 +53,17 @@
     <SolidColorBrush x:Key="NavigationMuted" Color="{StaticResource NavigationMutedColor}"/>
     <SolidColorBrush x:Key="DarkSurface" Color="{StaticResource DarkSurfaceColor}"/>
     <SolidColorBrush x:Key="OnAccent" Color="White"/>
+    <!-- Zebra rows (G5), selected grid row (#56666B on it = 4.88:1) and its text, pressed button, rail hover (N2),
+         progress track, and the explicit disabled pair that replaces opacity fading (CS-05: 4.8:1 on DisabledFill, 5.3:1 on Surface). -->
+    <SolidColorBrush x:Key="ZebraRow" Color="{StaticResource ZebraRowColor}"/>
+    <SolidColorBrush x:Key="SelectedRow" Color="{StaticResource SelectedRowColor}"/>
+    <SolidColorBrush x:Key="OnSelectedRow" Color="{StaticResource PrimaryTextColor}"/>
+    <SolidColorBrush x:Key="PressedFill" Color="{StaticResource PressedFillColor}"/>
+    <SolidColorBrush x:Key="NavigationHover" Color="{StaticResource NavigationHoverColor}"/>
+    <SolidColorBrush x:Key="ProgressTrack" Color="{StaticResource ProgressTrackColor}"/>
+    <SolidColorBrush x:Key="DisabledText" Color="{StaticResource DisabledTextColor}"/>
+    <SolidColorBrush x:Key="DisabledFill" Color="{StaticResource DisabledFillColor}"/>
+    <!-- Edge of a box you type in or tick (TextBox, ComboBox, DatePicker, CheckBox, RadioButton): 3.4:1 on Surface, so the
+         input stays findable (WCAG 1.4.11) now that cards and buttons use the light Divider (C4). Not for containers. -->
+    <SolidColorBrush x:Key="InputBorder" Color="{StaticResource InputBorderColor}"/>
 </ResourceDictionary>
