@@ -280,13 +280,13 @@ public sealed class CrossPhaseStoreManagerImportTests
             Assert.Equal(51424, invalidPromotion.Number);
             Assert.Equal(2, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.sales_lines"));
             Assert.Equal(3, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.import_files"));
-            var copiedKeyAttack = await Assert.ThrowsAsync<SqlException>(() => CopySourceAndPromote(session.ConnectionString, changeValues: true));
+            var copiedKeyAttack = await Assert.ThrowsAsync<SqlException>(() => CopySourceAndPromote(session.ConnectionString, database.ConnectionString, changeValues: true));
             Assert.Equal(51424, copiedKeyAttack.Number);
             var factIds = await database.ExecuteAsync("SELECT STRING_AGG(CONVERT(varchar(20),sales_line_id),',') WITHIN GROUP(ORDER BY sales_line_id) FROM dbo.sales_lines");
             var factValues = await database.ExecuteAsync("SELECT SUM(source_gross_amount) FROM dbo.sales_lines");
             // Stage valid typed source rows, promote and COMMIT without invoking any canonical
             // persistence procedure. Historical facts must survive this direct SQL route.
-            await CopySourceAndPromote(session.ConnectionString, changeValues: false);
+            await CopySourceAndPromote(session.ConnectionString, database.ConnectionString, changeValues: false);
             Assert.Equal(factIds, await database.ExecuteAsync("SELECT STRING_AGG(CONVERT(varchar(20),sales_line_id),',') WITHIN GROUP(ORDER BY sales_line_id) FROM dbo.sales_lines"));
             Assert.Equal(factValues, await database.ExecuteAsync("SELECT SUM(source_gross_amount) FROM dbo.sales_lines"));
             Assert.Equal(2, await database.ExecuteAsync("SELECT COUNT(*) FROM dbo.sales_lines l JOIN dbo.source_lineage s ON s.source_lineage_id=l.source_lineage_id JOIN dbo.import_files f ON f.import_file_id=s.import_file_id WHERE f.is_superseded=0"));
@@ -346,7 +346,13 @@ public sealed class CrossPhaseStoreManagerImportTests
         return await command.ExecuteScalarAsync();
     }
 
-    private static async Task CopySourceAndPromote(string connectionString, bool changeValues)
+    /// <summary>
+    /// The Store Manager copies the current R025 file's rows into a new file and promotes it. 1.11.2 (0059): a Store
+    /// Manager may not read R025's contact columns (customer_phone), so the earlier rows are read on a dbo connection
+    /// (<paramref name="dboConnectionString"/>) outside the session; the append and promote steps, the attack under test,
+    /// still run on the Store Manager's session connection.
+    /// </summary>
+    private static async Task CopySourceAndPromote(string connectionString, string dboConnectionString, bool changeValues)
     {
         var family = EtpReportFamilyRegistry.Resolve("R025");
         var columns = string.Join(',', family.Columns.Select(c => "r.[" + c.CanonicalField + "]"));
@@ -359,8 +365,10 @@ public sealed class CrossPhaseStoreManagerImportTests
             var rows = new List<object[]>();
             await using (var query = new SqlCommand("SELECT import_file_id FROM dbo.import_files WHERE report_code='R025' AND is_superseded=0", connection, transaction))
                 previous = Convert.ToInt64(await query.ExecuteScalarAsync());
-            await using (var query = new SqlCommand($"SELECT l.source_row_number,r.content_key,{columns} FROM dbo.etp_r025 r JOIN dbo.source_lineage l ON l.source_lineage_id=r.source_lineage_id WHERE r.import_file_id=@previous", connection, transaction))
+            await using (var dbo = new SqlConnection(dboConnectionString))
             {
+                await dbo.OpenAsync();
+                await using var query = new SqlCommand($"SELECT l.source_row_number,r.content_key,{columns} FROM dbo.etp_r025 r JOIN dbo.source_lineage l ON l.source_lineage_id=r.source_lineage_id WHERE r.import_file_id=@previous", dbo);
                 query.Parameters.AddWithValue("@previous", previous);
                 await using var reader = await query.ExecuteReaderAsync();
                 while (await reader.ReadAsync())
