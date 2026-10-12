@@ -22,7 +22,7 @@ Fixes after 1.11.0: the customer name on the Service Jobs list by role (decision
 
 - Tests: unit projects and gate result filled in after the gate.
 
-## [1.11.0] - (date after the 1.11.0 gate)
+## [1.11.0] - 2026-10-12
 
 Self-diagnostics (design `docs/design/SELF-DIAGNOSTICS.md`): an error register, a 51-line read-only health check that runs by itself every night, a privacy-checked export for the weekly audit, and two Owner screens. Decision 33 (11 Oct 2026): nightly at 02:30 with catch-up, Known per item for up to 90 days, the HealthExports folder, the weekly audit keeps `FIX-TICKET-REGISTER.md`, health screens Owner-only with a one-line tile for everyone else. Decision 36: CHECKDB in the monthly drill, Warnings counted not registered, the five 1.9.x errors seeded as fixed, a Warning becomes a ticket only after 7 nights, a confirmation during shop hours, retention 400/180/90 days, SQL Server RTM is a Warning, and the permission matrix is checked in. Two migrations: 0054 (error register) and 0055 (health check).
 
@@ -81,7 +81,7 @@ Self-diagnostics (design `docs/design/SELF-DIAGNOSTICS.md`): an error register, 
 
 **Build and tests**
 
-- Tests: unit projects and gate result filled in after the gate.
+- Gate (12 Oct 2026, elevated, on 6e624dc, SQL Server 2025 CU9): Release build 0 warnings 0 errors; 4,714 tests, 0 failed, 3 skipped (Desktop 1,571, Domain 12, Import 1,168, Reporting 159, SQL integration 448, SQL 1,356). Earlier runs: 11 Oct on a4323f7 failed 17 integration tests (impersonating test connections returned to the pool - SQL 18059 - plus review Blocker 1), fixed in 36d797c; 12 Oct on 36d797c failed 2 (LIKE character classes ending in a hyphen made a range and let , / ; = ? @ [ \ ] through the diag token checks), fixed in 6e624dc. Installer SHA-256 29FD02E9EA9AF8C2092F9651B278B814BF3FB0C08D72184227604F5180C23376 (`Installers\ETP Reporting Engine 1.11.0\`).
 
 ## [1.10.1] - 2026-10-11
 
