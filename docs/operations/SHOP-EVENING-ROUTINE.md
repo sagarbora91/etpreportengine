@@ -4,6 +4,14 @@ For the three shop PCs under the two-PC plan (decisions 30 to 34). Written 11 Oc
 
 **The idea.** The shop PCs do not run ETP's database. Each evening a shop PC does two things: it saves the day's reports (exports) from the billing system, and it fills in one small Excel sheet with the day's walk-ins, cash and service money. A small program then copies these to OneDrive. The office PC (Workpc) picks them up the next morning. You do not need to open ETP on the shop PC for this.
 
+**Three PCs, three sheets, three file names.** The word after the store code tells them apart. Service money is counted under Titan World, so the Service sheet carries the code WLMHW too. Check the last word before you save:
+
+| PC | Sheet file name (change the date) | Ends with |
+|---|---|---|
+| Titan cashier | `ETP-Daily-Inputs-WLMHW-RETAIL-<date>.xlsx` | RETAIL (Titan) |
+| Helios | `ETP-Daily-Inputs-HEMW-RETAIL-<date>.xlsx` | RETAIL (Helios) |
+| Service Centre | `ETP-Daily-Inputs-WLMHW-SERVICE-<date>.xlsx` | **SERVICE** |
+
 **Three PCs, three pages:**
 
 | PC | Store | Page |
@@ -52,7 +60,7 @@ If a report has no rows that day, still save it.
    - Cash adjustment: only if needed. This is the only box that may be a minus number.
    - Closing cash counted: the cash you counted at the end.
    - Remark: a short note, no customer details.
-5. **Leave a box empty if you have nothing to say about it.** An empty box means "do not change what is already there". Type 0 if the true figure is zero.
+5. **One rule: type 0 when the figure is zero.** A quiet day with no walk-ins, no expenses or no deposit is a 0, not an empty box. An empty box means "I did not say": ETP keeps whatever was there before and, if nothing was ever entered, the Today checklist keeps showing it as not entered (for example "Walk-ins has not been entered"). Leave a box empty only for something you really do not know yet, and tell Sagar.
 6. Grey boxes are locked on purpose. Do not try to change them.
 7. Click **File, Save As** and save in `C:\ETP-DailyInputs` with exactly this name, using today's date:
    `ETP-Daily-Inputs-WLMHW-RETAIL-2026-10-11.xlsx`
@@ -73,7 +81,7 @@ Look at the OneDrive cloud icon by the clock: no red cross and no spinning arrow
 ### Print and stick: Titan cashier PC checklist
 
 1. Shop closed: take R025, R022, R011 (after closing) and R030 into `C:\ETP-Exports`.
-2. Open the WLMHW-RETAIL sheet, type the date, fill the boxes (leave empty if unknown).
+2. Open the WLMHW-RETAIL sheet, type the date, fill every box (type 0 if the figure is zero).
 3. Save As `ETP-Daily-Inputs-WLMHW-RETAIL-<today yyyy-mm-dd>.xlsx` in `C:\ETP-DailyInputs`.
 4. Close Excel. Leave the PC on and signed in.
 5. Check OneDrive: green ticks in `ETP-Inbound\TITAN\<today>`.
@@ -112,7 +120,7 @@ Same as Page 1. Mistake after saving: fix, save with the same name, tell Sagar. 
 ### Print and stick: Helios PC checklist
 
 1. Shop closed: take R025, R022, R011 (after closing) and R030 into `C:\ETP-Exports`.
-2. Open the HEMW-RETAIL sheet, type the date, fill the boxes (leave empty if unknown).
+2. Open the HEMW-RETAIL sheet, type the date, fill every box (type 0 if the figure is zero).
 3. Save As `ETP-Daily-Inputs-HEMW-RETAIL-<today yyyy-mm-dd>.xlsx` in `C:\ETP-DailyInputs`.
 4. Close Excel. Leave the PC on and signed in.
 5. Check OneDrive: green ticks in `ETP-Inbound\HELIOS\<today>`.
@@ -124,7 +132,7 @@ Same as Page 1. Mistake after saving: fix, save with the same name, tell Sagar. 
 
 ### A. Take these reports every evening
 
-The Service Centre (code AW330) sends its own set of reports. Save them in `C:\ETP-Exports` as .xlsx and keep the system's names. These are the reports ETP reads (from the first full pack, 3 Oct 2026):
+The Service Centre (code AW330) sends its own set of reports. Its money sheet is the SERVICE one (file name above), not the Titan RETAIL one. Save them in `C:\ETP-Exports` as .xlsx and keep the system's names. These are the reports ETP reads (from the first full pack, 3 Oct 2026):
 
 - Job Report
 - Revenue Report
@@ -136,7 +144,7 @@ The Service Centre (code AW330) sends its own set of reports. Save them in `C:\E
 - Empowerment Report
 - SRN Report, GIT Report (Goods in Transit), GPRC Claim
 
-*Sagar to confirm this daily list before it is printed. The exact set the Service Centre takes each day has not been fixed in the project documents.*
+*Still to confirm before printing (open items for Sagar): the exact daily Service export list above, and the Titan menu names for R025, R022, R011 and R030 as staff see them on the screen. Also check the shop PCs' Windows regional setting is India, so Excel reads dates and numbers the Indian way.*
 
 Do not combine or edit the reports. Save them exactly as the system gives them.
 
@@ -149,7 +157,7 @@ Open `ETP-Daily-Inputs-WLMHW-SERVICE`. If you need a blank sheet, get it as in P
 - WCC sales: the WCC sales amount.
 - WDC bills: the number of WDC bills (a whole number).
 
-Leave a box empty if you have nothing for it. Type 0 if the true figure is zero. Save As in `C:\ETP-DailyInputs`:
+Same rule as Page 1: type 0 when the figure is zero (a day without WDC bills is 0). Leave a box empty only if you do not know the figure yet. Save As in `C:\ETP-DailyInputs`:
 `ETP-Daily-Inputs-WLMHW-SERVICE-2026-10-11.xlsx` (change to today's date). Remember the word SERVICE, so it never gets mixed up with the Titan cashier's sheet.
 
 ### C. See that OneDrive has synced
@@ -163,7 +171,7 @@ Same as Page 1. Anything else: **call Sagar**.
 ### Print and stick: Service Centre PC checklist
 
 1. Service closed: take the day's Service reports (including Closing Stock after closing) into `C:\ETP-Exports`.
-2. Open the WLMHW-SERVICE sheet, type the date, fill the boxes (leave empty if unknown).
+2. Open the WLMHW-SERVICE sheet, type the date, fill every box (type 0 if the figure is zero).
 3. Save As `ETP-Daily-Inputs-WLMHW-SERVICE-<today yyyy-mm-dd>.xlsx` in `C:\ETP-DailyInputs`.
 4. Close Excel. Leave the PC on and signed in.
 5. Check OneDrive: green ticks in `ETP-Inbound\SERVICE\<today>`.
@@ -188,4 +196,4 @@ Same as Page 1. Anything else: **call Sagar**.
 - In ETP, the Today checklist still shows what is not imported for the date (R025, R022, R011, R030, the Service pack, and any required manual input). There is no separate "file not received" line on Today in 1.10.1 (decision 31); that belongs to the 1.11.0 self-diagnostics.
 - Import then History shows the D001 attempts, and the import failure register shows any rejected sheet.
 
-**When a shop is missing:** phone the shop. Ask them to check the PC is on, signed in and OneDrive is syncing, and to run the send by hand. Then run Receive again. If a sheet was rejected for a name or date mismatch, ask them to correct the date and Save As again. A missing sheet leaves the Today checklist showing the manual inputs as missing, so the day cannot be finalised until it arrives.
+**When a shop is missing:** phone the shop. Ask them to check the PC is on, signed in and OneDrive is syncing, and to run the send by hand. Then run Receive again. If a sheet was rejected for a name or date mismatch, ask them to correct the date and Save As again. A missing sheet leaves the Today checklist showing the manual inputs as missing, so the day cannot be finalised until it arrives. A sheet that arrived with a box left empty does the same for that box, which is why staff type 0 for a zero figure.
