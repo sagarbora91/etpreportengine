@@ -153,9 +153,9 @@ public sealed class ErrorProbeTests
     [InlineData("error-register")]
     public void F1_on_the_diagnostics_screens_opens_the_health_check_topic(string taskId)
     {
-        Assert.Equal("health-check", ContextHelpRouter.ResolveTopicId("Operations Center", null, taskId));
+        Assert.Equal("health-check", ContextHelpRouter.ResolveTopicId("Operations Centre", null, taskId));
         Assert.NotNull(HelpCentreRegistry.Find("health-check"));
-        Assert.Equal("exception-centre", ContextHelpRouter.ResolveTopicId("Operations Center"));
+        Assert.Equal("exception-centre", ContextHelpRouter.ResolveTopicId("Operations Centre"));
     }
 
     private const string Owner = "S-1-5-21-1000000001-2000000002-3000000003-1001";

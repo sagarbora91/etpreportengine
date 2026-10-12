@@ -134,7 +134,7 @@ public sealed class ReportLabelCorrectionTests
             var export = latest();
             var headers = export.ExportData!.Columns.Select(column => column.Header).ToArray();
             Assert.Equal(["Date", "Store", "Sales incl. GST", "Units", "Invoices", "Returns", "Tender Variance", "Tender Source", "Unmatched Staff Rows"], headers);
-            Assert.Contains("GST-inclusive sales (R025 NETAMOUNT)", export.ExportMetadata!.Message, StringComparison.Ordinal);
+            Assert.Contains("GST-inclusive sales", export.ExportMetadata!.Message, StringComparison.Ordinal);
             Assert.Contains("bill cancellations (BC)", export.ExportMetadata.Message, StringComparison.Ordinal);
             Assert.DoesNotContain("Documents", export.ExportMetadata.Message, StringComparison.Ordinal);
             var row = export.ExportData.Rows.Single();
@@ -211,7 +211,7 @@ public sealed class ReportLabelCorrectionTests
         var report = DailySalesReportBuilder.Build(new(2026, 8, 25), [], [], new Dictionary<string, decimal?>()) with { CombinedFtd = 118m };
         var sales = DailySalesReportWorkspace.DefaultAvailability(report).Single(item => item.Label == "Sales");
         Assert.True(sales.IsAvailable);
-        Assert.Equal("recorded GST-inclusive sales (R025 NETAMOUNT) are available.", sales.Detail);
+        Assert.Equal("recorded GST-inclusive sales are available.", sales.Detail);
         Assert.DoesNotContain("NETVALUE", sales.Detail, StringComparison.Ordinal);
     }
 

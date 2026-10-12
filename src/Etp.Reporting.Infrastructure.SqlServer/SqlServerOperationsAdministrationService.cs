@@ -3,7 +3,7 @@ using App = Etp.Reporting.Application.OperationsAdministration;
 namespace Etp.Reporting.Infrastructure.SqlServer;
 
 /// <summary>
-/// SQL adapter for the Operations Center, including controlled automation,
+/// SQL adapter for the Operations Centre, including controlled automation,
 /// issue workflow, adjustments and Owner approval decisions.
 /// </summary>
 public sealed class SqlServerOperationsAdministrationService : App.IOperationsAdministrationService
@@ -48,7 +48,7 @@ public sealed class SqlServerOperationsAdministrationService : App.IOperationsAd
         await Task.WhenAll(settingsTask, trendTask, qualityTask, schedulesTask, runsTask).ConfigureAwait(false);
 
         var quality = await qualityTask.ConfigureAwait(false);
-        // Viewers can inspect the Operations Center using read-only SQL membership.
+        // Viewers can inspect the Operations Centre using read-only SQL membership.
         // Synchronising computed issues is an operational write reserved for Store Managers and Owners.
         if (access.CanEnterOperations)
             await gateway.SyncIssuesAsync(quality, cancellationToken).ConfigureAwait(false);

@@ -201,7 +201,7 @@ public static class TallySalesVoucherComposer
         var missingTax = invoice.Lines.Select(line => line.ProductCode).Distinct(StringComparer.Ordinal)
             .Where(product => !invoice.TaxRows.Any(row => string.Equals(row.ItemNumber, product, StringComparison.Ordinal))).ToArray();
         if (missingTax.Length > 0)
-            return Blocked("TAX_ROW_MISSING", $"no GST row for item {string.Join(", ", missingTax)}. Import the GST detail report (R018) for this day.");
+            return Blocked("TAX_ROW_MISSING", $"no GST row for item {string.Join(", ", missingTax)}. Import the GST detail report for this day.");
         var components = new List<(string Component, decimal Rate, decimal Amount)>();
         foreach (var row in invoice.TaxRows)
             foreach (var (component, rate, amount) in new[] { ("CGST", row.CgstRate, row.CgstAmount), ("SGST", row.SgstRate, row.SgstAmount), ("IGST", row.IgstRate, row.IgstAmount) })

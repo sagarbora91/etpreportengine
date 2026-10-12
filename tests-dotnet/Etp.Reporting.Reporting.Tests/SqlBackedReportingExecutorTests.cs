@@ -109,7 +109,7 @@ public sealed class SqlBackedReportingExecutorTests
         var result = await Executor(repository).ExecuteTenderReconciliationAsync(Scope());
 
         Assert.Equal(ReconciliationStatus.Blocked, result.Status);
-        Assert.Contains("R022 missing / not imported", result.Message);
+        Assert.Contains("Invoice tenders not imported", result.Message);
         Assert.Contains("S1: 16 Sept 2024, 17 Sept 2024", result.Message);
         Assert.Equal(80m, result.InvoiceTotal);
         Assert.Contains("Compared source-signed invoice and tender values", result.Message);
@@ -130,7 +130,7 @@ public sealed class SqlBackedReportingExecutorTests
         var result = await Executor(repository).ExecuteTenderReconciliationAsync(Scope());
 
         Assert.Equal(ReconciliationStatus.Blocked, result.Status);
-        Assert.StartsWith("R022 missing / not imported for 1 store-day(s)", result.Message);
+        Assert.StartsWith("Invoice tenders not imported for 1 store-day(s)", result.Message);
         Assert.Contains("1 document(s) failed; variance 500.00.", result.Message);
         Assert.Contains("Compared source-signed invoice and tender values", result.Message);
         Assert.Contains("Tender modes: CARD: 1,000.00", result.Message);
@@ -185,7 +185,7 @@ public sealed class SqlBackedReportingExecutorTests
         Assert.Equal(0m, result.TenderTotal);
         Assert.Equal(2, result.Documents.Count);
         Assert.All(result.Documents, x => Assert.Null(x.TenderAmount));
-        Assert.StartsWith("R022 missing / not imported for 2 store-day(s) with sales (S2: 01 Sept 2026, 02 Sept 2026).", result.Message);
+        Assert.StartsWith("Invoice tenders not imported for 2 store-day(s) with sales (S2: 01 Sept 2026, 02 Sept 2026).", result.Message);
         Assert.Contains("S2 2 invoice(s) 800.00", result.Message);
         Assert.DoesNotContain("No invoice or tender evidence", result.Message);
         Assert.DoesNotContain("Tender modes:", result.Message);

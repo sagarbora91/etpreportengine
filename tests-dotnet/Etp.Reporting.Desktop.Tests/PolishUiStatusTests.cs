@@ -115,7 +115,7 @@ public sealed class PolishUiStatusTests
 
         var noTender = new CashBookDay(new(2026, 9, 4), "WLMHW", 100m, "", new Dictionary<string, decimal>(), 5m, 1m, 1m, 5m, 10m, 0m, null, null, 0m, 0m,
             CashBookTables.TenderSourceMissing, TenderSourceImported: false);
-        Assert.StartsWith("Cannot run: 1 of 1 day(s) incomplete - missing R022 tender import.",
+        Assert.StartsWith("Cannot run: 1 of 1 day(s) incomplete - missing invoice tenders import.",
             ReportsWorkspaceView.CashBookStatus(ReconciliationStatus.Blocked, [noTender]), StringComparison.Ordinal);
 
         Assert.StartsWith("OK: 1 of 1 day(s) complete.", ReportsWorkspaceView.CashBookStatus(ReconciliationStatus.Passed, [days[2]]), StringComparison.Ordinal);

@@ -27,7 +27,7 @@ public sealed class HealthCheckViewTests
         {
             var task = TaskNavigation.Find(id);
             Assert.NotNull(task);
-            Assert.Equal("Operations Center", task.Destination);
+            Assert.Equal("Operations Centre", task.Destination);
             Assert.Equal($"Settings → Database → {title}", task.Path);
             Assert.Equal(3, task.MinimumRole);
             Assert.True(task.IsAllowed(ShellAccess.Owner));

@@ -18,7 +18,7 @@ public sealed class ReportCoverageTextTests
             Dsr("MTD", "WLMHW", null, new(2026, 9, 29)), Dsr("YTD", "WLMHW", 8_242_572.10m, new(2026, 9, 29))
         };
 
-        Assert.Equal("R025 not imported for 08 Oct 2026 (HEMW: last 28 Sept 2026; WLMHW: last 29 Sept 2026). Import the sales export (R025) for that date; FTD and MTD are blank, not zero.",
+        Assert.Equal("Sales lines not imported for 08 Oct 2026 (HEMW: last 28 Sept 2026; WLMHW: last 29 Sept 2026). Import the sales lines export for that date; FTD and MTD are blank, not zero.",
             ReportsWorkspaceView.DsrCoverageBlock(rows, new(2026, 10, 8)));
     }
 
@@ -27,7 +27,7 @@ public sealed class ReportCoverageTextTests
     {
         var rows = new[] { Dsr("FTD", "WLMHW", 46_095m, new(2026, 9, 29)), Dsr("FTD", "HEMW", null, null), Dsr("FTD", "COMBINED", null, null) };
 
-        Assert.Equal("R025 not imported for 28 Sept 2026 (HEMW: none imported). Import the sales export (R025) for that date; FTD and MTD are blank, not zero.",
+        Assert.Equal("Sales lines not imported for 28 Sept 2026 (HEMW: none imported). Import the sales lines export for that date; FTD and MTD are blank, not zero.",
             ReportsWorkspaceView.DsrCoverageBlock(rows, new(2026, 9, 28)));
     }
 

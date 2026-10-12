@@ -352,7 +352,7 @@ public partial class ReportsWorkspaceView : UserControl
     private async Task RunManagementTrendReportAsync()
     {
         var revision = reportRevision;
-        try { var rows = await managementTrendQueryFactory(connectionStringProvider()).LoadAsync(ReportScope()); var status = rows.Count == 0 ? ReconciliationStatus.Blocked : ReconciliationStatus.Passed; if (revision != reportRevision) return; ReportGrid.ItemsSource=rows; var missingTender = rows.Count(x => x.TenderVariance is null); ReportResult.Text=IndianText($"{StatusWords.Label(status)}: {rows.Count:N0} daily management trend row(s).") + (missingTender == 0 ? "" : IndianText($" {missingTender:N0} store-day(s) show R022 missing / not imported; their tender variance is blank, not zero.")); SetExport("Management Trend",status,RetailReportingPolicy.Version,"Daily recorded GST-inclusive sales (R025 NETAMOUNT), units, invoice and return counts and unchanged control variances. " + InvoicesNote,[new("Date"),new("Store"),new(SalesHeader,"#,##0.00"),new("Units","#,##0.00"),new(InvoicesHeader,"#,##0"),new(ReturnsHeader,"#,##0"),new("Tender Variance","#,##0.00"),new("Tender Source"),new("Unmatched Staff Rows","#,##0")],rows.Select(x=>(IReadOnlyList<object?>)[x.BusinessDate,x.StoreCode,x.NetSales,x.Units,x.Invoices,x.Returns,x.TenderVariance,x.TenderSource,x.UnmatchedEnrichmentRows]).ToArray(),["Total","",rows.Sum(x=>x.NetSales),rows.Sum(x=>x.Units),rows.Sum(x=>x.Invoices),rows.Sum(x=>x.Returns),missingTender == 0 ? rows.Sum(x=>x.TenderVariance) : null,missingTender == 0 ? "" : $"{missingTender:N0} missing",rows.Sum(x=>x.UnmatchedEnrichmentRows)]); ApplyReportFilter(); await auditRecorder("ReportRun",ToAuditOutcome(status),"Management trend"); }
+        try { var rows = await managementTrendQueryFactory(connectionStringProvider()).LoadAsync(ReportScope()); var status = rows.Count == 0 ? ReconciliationStatus.Blocked : ReconciliationStatus.Passed; if (revision != reportRevision) return; ReportGrid.ItemsSource=rows; var missingTender = rows.Count(x => x.TenderVariance is null); ReportResult.Text=IndianText($"{StatusWords.Label(status)}: {rows.Count:N0} daily management trend row(s).") + (missingTender == 0 ? "" : IndianText($" {missingTender:N0} store-day(s) have no invoice tenders imported; their tender variance is blank, not zero.")); SetExport("Management Trend",status,RetailReportingPolicy.Version,"Daily recorded GST-inclusive sales, units, invoice and return counts and unchanged control variances. " + InvoicesNote,[new("Date"),new("Store"),new(SalesHeader,"#,##0.00"),new("Units","#,##0.00"),new(InvoicesHeader,"#,##0"),new(ReturnsHeader,"#,##0"),new("Tender Variance","#,##0.00"),new("Tender Source"),new("Unmatched Staff Rows","#,##0")],rows.Select(x=>(IReadOnlyList<object?>)[x.BusinessDate,x.StoreCode,x.NetSales,x.Units,x.Invoices,x.Returns,x.TenderVariance,x.TenderSource,x.UnmatchedEnrichmentRows]).ToArray(),["Total","",rows.Sum(x=>x.NetSales),rows.Sum(x=>x.Units),rows.Sum(x=>x.Invoices),rows.Sum(x=>x.Returns),missingTender == 0 ? rows.Sum(x=>x.TenderVariance) : null,missingTender == 0 ? "" : $"{missingTender:N0} missing",rows.Sum(x=>x.UnmatchedEnrichmentRows)]); ApplyReportFilter(); await auditRecorder("ReportRun",ToAuditOutcome(status),"Management trend"); }
         catch (Exception ex) { if (revision != reportRevision) return; HandleFailure(ex, "MANAGEMENT_TREND_REPORT_FAILED", "Management trend failed"); }
     }
 
@@ -456,7 +456,7 @@ public partial class ReportsWorkspaceView : UserControl
     internal static string DsrStatus(ReconciliationStatus status, string? coverageBlock, DateOnly businessDate) =>
         coverageBlock is not null ? $"{ReconciliationStatus.Blocked}: {coverageBlock} {DsrNote}"
         : status == ReconciliationStatus.Passed ? $"{StatusWords.Label(status)}: {DsrNote}"
-        : $"{StatusWords.Label(status)}: No sales found for {DayText(businessDate)}; import the sales export (R025) for that date. {DsrNote}";
+        : $"{StatusWords.Label(status)}: No sales found for {DayText(businessDate)}; import the sales lines export for that date. {DsrNote}";
 
     // RA-SALES-01: a business date no current R025 covers for a store in scope reads "-" for FTD and MTD. That is a
     // Blocked report naming the store and the last imported day, not a Passed one; YTD stays as it is.
@@ -467,7 +467,7 @@ public partial class ReportsWorkspaceView : UserControl
             .OrderBy(x => x.Store, StringComparer.OrdinalIgnoreCase)
             .Select(x => x.SourceCoversTo is { } last ? $"{x.Store}: last {Day(last)}" : $"{x.Store}: none imported").ToArray();
         return missing.Length == 0 ? null
-            : $"R025 not imported for {Day(businessDate)} ({string.Join("; ", missing)}). Import the sales export (R025) for that date; FTD and MTD are blank, not zero.";
+            : $"Sales lines not imported for {Day(businessDate)} ({string.Join("; ", missing)}). Import the sales lines export for that date; FTD and MTD are blank, not zero.";
     }
 
     private async Task RunStaffPerformanceAsync()
@@ -670,8 +670,8 @@ public partial class ReportsWorkspaceView : UserControl
         if (incomplete.Length == 0) return IndianText($"{StatusWords.Label(status)}: {days.Count:N0} of {days.Count:N0} day(s) complete. ") + $"{carry} {CashBookEntryHint}";
         var missing = new List<string>();
         void Need(string label, Func<CashBookDay, bool> isMissing) { if (incomplete.Any(isMissing)) missing.Add(label); }
-        Need("R022 tender import", x => !x.TenderSourceImported);
-        Need("tender mode mapping", x => x.TenderSourceImported && x.Modes.Keys.Any(k => k.StartsWith("Unmapped:", StringComparison.Ordinal)));
+        Need("invoice tenders import", x => !x.TenderSourceImported);
+        Need("payment type matching", x => x.TenderSourceImported && x.Modes.Keys.Any(k => k.StartsWith("Unmapped:", StringComparison.Ordinal)));
         Need("opening cash", x => x.Opening is null);
         Need("service cash", x => x.ServiceCash is null);
         Need("service card", x => x.ServiceCard is null);

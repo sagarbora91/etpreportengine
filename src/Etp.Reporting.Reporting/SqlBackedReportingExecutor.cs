@@ -89,7 +89,7 @@ public sealed class SqlBackedReportingExecutor(
             var listed = string.Join(", ", dates.Take(shown).Select(x => IndianFormat.Date(x)));
             return dates.Length > shown ? $"{store.Key}: {listed} and {dates.Length - shown:N0} more" : $"{store.Key}: {listed}";
         });
-        return $"R022 missing / not imported for {gaps.Count:N0} store-day(s) with sales ({string.Join("; ", stores)}). Import the Revenue Report (R022) for these dates; tenders are not treated as zero.";
+        return $"Invoice tenders not imported for {gaps.Count:N0} store-day(s) with sales ({string.Join("; ", stores)}). Import the invoice tenders export (Revenue Report) for these dates; tenders are not treated as zero.";
     }
 
     public async Task<StockReconciliationResult> ExecuteStockReconciliationAsync(

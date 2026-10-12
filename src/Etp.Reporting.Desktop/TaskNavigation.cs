@@ -117,11 +117,11 @@ public static class TaskNavigation
         Add("settings", "Display", "Settings", "Display", "Home", "settings", 1);
         Add("connection", "Connection", "Settings", "Database", "Settings", "connection", 3);
         Add("health", "Database health", "Settings", "Database", "Admin / Settings", "health", 3);
-        Add("backups", "Backups", "Settings", "Database", "Operations Center", "backups", 3);
-        Add("recovery", "Recovery drill", "Settings", "Database", "Operations Center", "recovery", 3);
-        Add("support-package", "Support package", "Settings", "Database", "Operations Center", "support-package", 3);
-        Add("health-check", "Health check", "Settings", "Database", "Operations Center", "health-check", 3);
-        Add("error-register", "Error register", "Settings", "Database", "Operations Center", "error-register", 3);
+        Add("backups", "Backups", "Settings", "Database", "Operations Centre", "backups", 3);
+        Add("recovery", "Recovery drill", "Settings", "Database", "Operations Centre", "recovery", 3);
+        Add("support-package", "Support package", "Settings", "Database", "Operations Centre", "support-package", 3);
+        Add("health-check", "Health check", "Settings", "Database", "Operations Centre", "health-check", 3);
+        Add("error-register", "Error register", "Settings", "Database", "Operations Centre", "error-register", 3);
         // FIX-15: the dashboard overview (system status, backup, recovery drill, import totals) had no route.
         // Owner-only, like the backup, recovery and audit destinations it summarises.
         Add("dashboard-overview", "Dashboard overview", "Settings", "Database", "Dashboard", "overview", 3);
@@ -133,18 +133,18 @@ public static class TaskNavigation
         Add("kpi", "Calculations", "Settings", "Stores & masters", "Admin / Settings", "kpi", 3);
         Add("tender-rules", "Tender mapping", "Settings", "Stores & masters", "Admin / Settings", "tender-rules", 3);
         Add("staff-target", "Staff targets", "Settings", "Stores & masters", "Manual Entry", "staff-target", 3);
-        Add("watch-folder", "Automatic import", "Settings", "Automatic import", "Operations Center", "watch-folder", 3);
+        Add("watch-folder", "Automatic import", "Settings", "Automatic import", "Operations Centre", "watch-folder", 3);
         Add("sharing", "Email, sharing and Tally", "Settings", "Integrations", "Settings", "sharing", 3);
         Add("sharing-contacts", "Sharing contacts", "Settings", "Integrations", "Report Archive", "sharing-contacts", 3);
         Add("tally-companies", "Tally companies", "Settings", "Integrations", "Settings", "tally-companies", 3);
         Add("tally-ledgers", "Tally ledgers", "Settings", "Integrations", "Settings", "tally-ledgers", 3);
         Add("tally-vouchers", "Tally vouchers", "Settings", "Accounting", "Settings", "tally-vouchers", 3);
         Add("prepare-batch", "Prepare → Review → Export", "Settings", "Accounting", "Accounting", "prepare-batch", 3);
-        Add("open-items", "Open items", "Settings", "Control centre", "Operations Center", "open-items", 3);
-        Add("data-quality", "Data quality", "Settings", "Control centre", "Operations Center", "data-quality", 3);
-        Add("approval-centre", "Approvals", "Settings", "Control centre", "Operations Center", "approval-centre", 3);
-        Add("adjustment", "Adjustment request", "Settings", "Control centre", "Operations Center", "adjustment", 3);
-        Add("investigation", "Investigation", "Reports", "Investigation", "Operations Center", "investigation", 2);
+        Add("open-items", "Open items", "Settings", "Control centre", "Operations Centre", "open-items", 3);
+        Add("data-quality", "Data quality", "Settings", "Control centre", "Operations Centre", "data-quality", 3);
+        Add("approval-centre", "Approvals", "Settings", "Control centre", "Operations Centre", "approval-centre", 3);
+        Add("adjustment", "Adjustment request", "Settings", "Control centre", "Operations Centre", "adjustment", 3);
+        Add("investigation", "Investigation", "Reports", "Investigation", "Operations Centre", "investigation", 2);
         Add("reports-list", "All reports", "Reports", "All reports", "Sales Reports", "report-list");
         Add("generations", "Report archive", "Reports", "Archive", "Report Archive", "generations", 1);
         Add("favourite-reports", "Favourites", "Reports", "Favourites", "Sales Reports", "favourite-reports", 1);

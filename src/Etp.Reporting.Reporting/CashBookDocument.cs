@@ -15,7 +15,7 @@ public sealed record CashBookDay(DateOnly Date, string Store, decimal? Opening, 
 
 public static class CashBookTables
 {
-    public const string TenderSourceMissing = "R022 missing / not imported";
+    public const string TenderSourceMissing = "Invoice tenders not imported";
 
     public static ExcelReportData Create(IReadOnlyList<CashBookDay> days)
     {

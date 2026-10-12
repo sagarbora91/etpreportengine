@@ -311,7 +311,7 @@ public sealed partial class PhaseFiveFullWindowCaptureTests(ITestOutputHelper ou
         else if (task.Id == "prepare-batch") await window.accountingWorkspaceView.RefreshAsync();
         else if (task.Id == "approval-centre") await window.investigationWorkspaceView.RefreshApprovalsAsync();
         else if (task.Id is "users" or "kpi" or "health" or "stores") await window.administrationWorkspaceView.RefreshAsync();
-        else if (task.Destination == "Operations Center" && task.Id is not ("investigation" or "adjustment")) await window.operationsWorkspaceView.RefreshAsync();
+        else if (task.Destination == "Operations Centre" && task.Id is not ("investigation" or "adjustment")) await window.operationsWorkspaceView.RefreshAsync();
     }
 
     // 1.10.1: the Service pictures were once taken while the screen still said "Loading Service data..." with empty grids,

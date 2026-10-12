@@ -153,7 +153,7 @@ public partial class MainWindow
         {
             "Home" or "Dashboard" => "report-dsr", "Manual Entry" => "walk-ins", "Daily Workflow" => "readiness",
             "Import ETP" => "import-files", "Sales Reports" => "report-sales-combined", "Accounting" => "prepare-batch",
-            "Report Archive" => "generations", "Operations Center" => "open-items", "Registers" => "register-inward",
+            "Report Archive" => "generations", "Operations Centre" => "open-items", "Registers" => "register-inward",
             Modules.Service.ServiceScreens.Destination => Modules.Service.ServiceScreens.TodayTask, _ => "settings"
         };
         if (TaskNavigation.Find(id) is not { } task) return false;

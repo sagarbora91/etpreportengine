@@ -59,8 +59,8 @@ public sealed record ManagementTrendRecord(DateOnly BusinessDate, string StoreCo
 
 public static class ManagementTrendTenderSource
 {
-    public const string Missing = "R022 missing / not imported";
-    public const string Imported = "R022 imported";
+    public const string Missing = "Invoice tenders not imported";
+    public const string Imported = "Invoice tenders imported";
 }
 public enum TenderVarianceCause { Matched, MissingTender, PartialTender, ExcessTender, TenderWithoutInvoice }
 public sealed record TenderVarianceDiagnosticRecord(string StoreCode, string DocumentNumber, decimal InvoiceAmount, decimal TenderAmount, decimal Variance, TenderVarianceCause LikelyCause, string RecommendedCheck);
