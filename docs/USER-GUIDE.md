@@ -1,6 +1,6 @@
-# ETP Reporting Engine user guide (1.11.0)
+# ETP Reporting Engine user guide (1.11.1)
 
-This describes ETP Reporting Engine 1.11.0, including the changes of 1.9.7 to 1.10.1. The [Phase 5 report](audit/PHASE-5-REPORT.md) holds the earlier test evidence.
+This describes ETP Reporting Engine 1.11.1, including the changes of 1.9.7 to 1.11.0. Screenshots in Help and in this folder may still show August data and the demo store; the Import, Today and Settings pictures are due to be retaken. The [Phase 5 report](audit/PHASE-5-REPORT.md) holds the earlier test evidence.
 
 ## Today: what's missing
 
@@ -85,6 +85,18 @@ On supported reports, expand Filters, set query criteria and Apply. The applied 
 **Stock.** Closing, Brand, Slow / Exception and Physical stock use each store's latest closing-stock snapshot on or before the chosen date, and say "Snapshot of <date> (latest on or before <date>)". They are Blocked, naming the store, only when no earlier snapshot exists. Stock Variance, the daily pack and Enter stock by brand still need the snapshot of the same day; import the Closing Stock export for that date. Stock Variance over several stores gives each store's own result first.
 
 **Exports.** Export to Excel or PDF from the current result. The Save dialog starts in `Documents\ETP Reporting Engine\Exports`, the folder that **Open export folder** opens, and the file is named after the report (for example "Combined Sales Summary"). If the file is open in Excel, close it and export again.
+
+## Daily inputs sheet and the shop evening routine
+
+Walk-ins, opening cash, expenses, cash deposit, cash adjustment, closing cash counted and the Service money are not in the billing exports. Staff type them in a small Excel sheet, one per store per day, and ETP imports the sheet like any other file.
+
+**Get a blank sheet.** Open **Import** and press **Get blank daily sheet**. Pick the store and the sheet (Titan World retail, Helios retail, or Service Centre), keep the business date (today by default) and press **Choose where to save**. The file is named for the day, for example `ETP-Daily-Inputs-WLMHW-RETAIL-2026-10-11.xlsx`, with the date already filled in. White boxes are for typing; grey boxes are locked. The Service money is counted under Titan World, so the Service Centre's sheet is named WLMHW-SERVICE; the last word tells the sheets apart.
+
+**Fill it.** Type 0 when a figure is zero: an empty box means "not said", and the Today checklist keeps showing that input as missing. Walk-ins and bill counts are whole numbers; only Cash adjustment may be negative. The date must be within the last 31 days and no later than today. Never type customer names or phone numbers, including in the Remark. Save with the date in the file name matching the date in the sheet, or the sheet is refused.
+
+**Import it.** Choose the file in Import (a single file) or let the automatic import pick it up. The sheet is all or nothing: if any value is bad, nothing is written and Import → History → Imports says why in plain words. A corrected sheet changes only the values that differ and keeps the old values in history; importing the same file again is skipped. A day already finalised refuses changes until the Owner reopens it. Today → Sales then shows the figures.
+
+**Shop evening routine.** The three shop PCs do not run ETP. Each evening staff save the day's exports in `C:\ETP-Exports` and the daily sheet in `C:\ETP-DailyInputs`; a scheduled program copies them to OneDrive, and Workpc picks them up the next morning, checks them and imports them. The printable staff pages are in `operations\SHOP-EVENING-ROUTINE.md`, and the setup for the Owner in `operations\ONEDRIVE-DAILY-FILES.md`. If a shop sends nothing, Today keeps listing what is not imported for the date; the missing-shop file is in `OneDriveReceive\Logs` on Workpc.
 
 ## Accounting — Owner decisions
 

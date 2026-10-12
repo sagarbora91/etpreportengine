@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+**Documentation (1.11.2, lane L8)**
+
+- `USER-GUIDE.md` now describes 1.11.1: the daily inputs sheet, the Get blank daily sheet button and the shop evening routine.
+- `SHOP-EVENING-ROUTINE.md`: one rule, type 0 when a figure is zero; a table of the three sheet file names (the Service one ends SERVICE); open items for the Service export list and Titan menu names.
+- `ONEDRIVE-DAILY-FILES.md`: scripts in a protected folder, shop PCs sync only `ETP-Inbound`, key custody, two-step sign-in on the Microsoft account.
+- `OPERATIONS.md`: deployment status refreshed (Workpc, 1.9.6 live, 1.11.1 next); upgrade step to remove old PRE_MIGRATION backups.
+- New: `operations\DR-RUNBOOK-USB.md` (disaster-recovery runbook for the USB stick) and `operations\DPDP-BREACH-AND-COUNTER-NOTICE-DRAFT.md` (breach procedure and counter notice, drafts for the CA, not legal advice).
+- `audit\D14-FONT-DECISION-2026-09-22.md` closed (Segoe UI accepted by default).
+
 ## [1.11.1] - (date after the 1.11.1 gate)
 
 Fixes after 1.11.0: the customer name on the Service Jobs list by role (decision 37, 11 Oct 2026: the name stays on the list; Owner and Store Manager see it, a Viewer sees it blank), the same rule in the older Service views, two review minors in the error register and the nightly health run, and a Get blank daily sheet button on Import. Three migrations: 0056 (Service job customer name), 0057 (older Service views name by role) and 0058 (error register overflow, open-imports signal). No permission change.

@@ -1,7 +1,7 @@
 # D14 — PDF font: accept Windows' Segoe UI, or bundle a font?
 
 - Date: 22 September 2026
-- Status: **waiting for Sagar's decision**
+- Status: **closed 12 Oct 2026 as accepted by default (option A).** No decision against A was ever recorded, and the product still uses Windows' own Segoe UI. Sagar may reverse this by asking for a bundled font. The remaining code point, reporting a missing font clearly instead of a generic error, stays as a small task. (Original status: waiting for Sagar's decision.)
 - Worktree `C:\Codex\Reporting Manger\opus-recovery`, branch `recovery/opus-r1-r4`, HEAD `375e3b2`
 - Origin: audit finding D14 (Medium) in `docs/audit/claude-audit-2026-09/01-reports-engine.md:36`, still open in `docs/audit/WORKING-STATE-2026-09-22.md:62`
 - Line numbers refer to HEAD `375e3b2`.
