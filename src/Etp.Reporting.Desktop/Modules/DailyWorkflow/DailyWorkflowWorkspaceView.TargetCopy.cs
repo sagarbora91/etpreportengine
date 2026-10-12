@@ -88,7 +88,7 @@ public partial class DailyWorkflowWorkspaceView
         try
         {
             var store = SelectedScope().StoreCode;
-            var saved = await queryFactory(connectionString()).LoadStaffTargetsAsync(
+            var saved = await queryFactory().LoadStaffTargetsAsync(
                 new DailyStaffTargetSearch(previous, TargetCopy.MonthEnd(target), [store]));
             var plan = TargetCopy.Plan(
                 saved.Where(row => string.Equals(row.StoreCode, store, StringComparison.OrdinalIgnoreCase))
@@ -122,7 +122,7 @@ public partial class DailyWorkflowWorkspaceView
             var reason = string.IsNullOrWhiteSpace(StaffTargetReasonInput.Text)
                 ? $"Copied from {TargetCopy.MonthLabel(TargetCopy.PreviousMonth(pendingStaffTargetMonth))}"
                 : StaffTargetReasonInput.Text.Trim();
-            var commands = commandsFactory(connectionString());
+            var commands = commandsFactory();
             var saved = 0;
             foreach (var row in resolved)
             {

@@ -30,10 +30,9 @@ public sealed class DailyWorkflowNotificationEventArgs(string message) : EventAr
 public partial class DailyWorkflowWorkspaceView : UserControl
 {
     private readonly DailyWorkflowPresentationSession presentation;
-    private readonly Func<string> connectionString;
-    private readonly Func<string, DailyWorkflowQuery> queryFactory;
-    private readonly Func<string, DailyWorkflowCommands> commandsFactory;
-    private readonly Func<string, DailyReportPackGenerator> packGeneratorFactory;
+    private readonly Func<DailyWorkflowQuery> queryFactory;
+    private readonly Func<DailyWorkflowCommands> commandsFactory;
+    private readonly Func<DailyReportPackGenerator> packGeneratorFactory;
     private Func<DailyWorkflowWorkspaceAccess> access;
     private Func<string, string, string, Task> recordAuditAsync;
     private readonly Func<string, ReportPackDocument, Task> exportPackExcelAsync;
@@ -47,17 +46,15 @@ public partial class DailyWorkflowWorkspaceView : UserControl
 
     public DailyWorkflowWorkspaceView(
         DailyWorkflowPresentationSession presentation,
-        Func<string> connectionString,
-        Func<string, DailyWorkflowQuery> queryFactory,
-        Func<string, DailyWorkflowCommands> commandsFactory,
-        Func<string, DailyReportPackGenerator> packGeneratorFactory,
+        Func<DailyWorkflowQuery> queryFactory,
+        Func<DailyWorkflowCommands> commandsFactory,
+        Func<DailyReportPackGenerator> packGeneratorFactory,
         Func<DailyWorkflowWorkspaceAccess> access,
         Func<string, string, string, Task> recordAuditAsync,
         Func<string, ReportPackDocument, Task> exportPackExcelAsync,
         Func<string, ReportPackDocument, Task> exportPackPdfAsync)
     {
         this.presentation = presentation ?? throw new ArgumentNullException(nameof(presentation));
-        this.connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
         this.queryFactory = queryFactory ?? throw new ArgumentNullException(nameof(queryFactory));
         this.commandsFactory = commandsFactory ?? throw new ArgumentNullException(nameof(commandsFactory));
         this.packGeneratorFactory = packGeneratorFactory ?? throw new ArgumentNullException(nameof(packGeneratorFactory));
@@ -67,7 +64,14 @@ public partial class DailyWorkflowWorkspaceView : UserControl
         this.exportPackPdfAsync = exportPackPdfAsync ?? throw new ArgumentNullException(nameof(exportPackPdfAsync));
         InitializeComponent();
         var brandEntry = new Button { Content = "Enter stock by brand", MinHeight = 44, Margin = new Thickness(6) };
-        brandEntry.Click += (_, _) => { var scope = SelectedScope(); new Reports.BrandStockEntryWindow(this.connectionString(), scope.StoreCode, scope.BusinessDate) { Owner = Window.GetWindow(this) }.ShowDialog(); };
+        brandEntry.Click += (_, _) =>
+        {
+            if (BrandStockEntryWindowFactory is not { } create) return;
+            var scope = SelectedScope();
+            var window = create(scope.StoreCode, scope.BusinessDate);
+            window.Owner = Window.GetWindow(this);
+            window.ShowDialog();
+        };
         ((Panel)SaveStockCountButton.Parent).Children.Add(brandEntry);
         BusinessDateInput.SelectedDate = DateTime.Today.AddDays(-1);
         StaffTargetFromInput.SelectedDate = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
@@ -77,6 +81,9 @@ public partial class DailyWorkflowWorkspaceView : UserControl
     }
 
     public event EventHandler<DailyWorkflowNotificationEventArgs>? NotificationRequested;
+
+    /// <summary>"Enter stock by brand": store and business date to the dialog. Set by the composition root (1.12 A1).</summary>
+    internal Func<string, DateOnly, Window>? BrandStockEntryWindowFactory { get; set; }
 
     public Func<Task>? DashboardRefreshRequestedAsync { get; set; }
 
@@ -155,7 +162,7 @@ public partial class DailyWorkflowWorkspaceView : UserControl
             RequireViewAccess();
             InvalidatePack();
             var scope = SelectedScope();
-            var query = queryFactory(connectionString());
+            var query = queryFactory();
             var stateTask = query.LoadAsync(scope);
             var stockTask = query.LoadStockCountsAsync(scope);
             await Task.WhenAll(stateTask, stockTask);
@@ -189,7 +196,7 @@ public partial class DailyWorkflowWorkspaceView : UserControl
             var command = presentation.CreateManualInput(
                     SelectedScope(), ManualFieldInput.SelectedValue as string, ManualValueInput.Text,
                     Environment.UserName, ManualReasonInput.Text, CultureInfo.CurrentCulture);
-            await commandsFactory(connectionString()).SaveManualInputAsync(command);
+            await commandsFactory().SaveManualInputAsync(command);
             InvalidatePack();
             ManualValueInput.Clear();
             ManualReasonInput.Clear();
@@ -208,7 +215,7 @@ public partial class DailyWorkflowWorkspaceView : UserControl
         try
         {
             RequireImportAccess();
-            await commandsFactory(connectionString()).SaveStockCountAsync(
+            await commandsFactory().SaveStockCountAsync(
                 presentation.CreateStockCount(
                     SelectedScope(), StockGroupInput.Text, StockDisplayInput.Text, StockBackstockInput.Text,
                     StockDefectiveInput.Text, StockYLocationInput.Text, StockPhysicalInput.Text, StockRemarksInput.Text,
@@ -232,7 +239,7 @@ public partial class DailyWorkflowWorkspaceView : UserControl
         {
             if (!access().CanAdminister) throw new UnauthorizedAccessException(StaffTargetsNeedOwnerMessage);
             var scope = SelectedScope();
-            await commandsFactory(connectionString()).SaveStaffTargetAsync(
+            await commandsFactory().SaveStaffTargetAsync(
                 presentation.CreateStaffTarget(
                     scope.StoreCode, StaffTargetCroInput.Text, StaffTargetFromInput.SelectedDate, StaffTargetToInput.SelectedDate,
                     StaffTargetValueInput.Text, Environment.UserName, StaffTargetReasonInput.Text, CultureInfo.CurrentCulture));
@@ -254,9 +261,9 @@ public partial class DailyWorkflowWorkspaceView : UserControl
         {
             RequireImportAccess();
             var scope = SelectedScope();
-            var pack = await packGeneratorFactory(connectionString()).GenerateAsync(scope, Environment.UserName, progress.Token);
+            var pack = await packGeneratorFactory().GenerateAsync(scope, Environment.UserName, progress.Token);
             ShowPack(pack.Document, pack.Sections, new(scope.BusinessDate, scope.StoreCode));
-            await commandsFactory(connectionString()).FinaliseAsync(
+            await commandsFactory().FinaliseAsync(
                 DailyWorkflowPresentationSession.CreateFinalise(scope, Environment.UserName, pack.Sections), progress.Token);
             InvalidatePack();
             await recordAuditAsync("DayFinalised", "Succeeded", "Business day finalised");
@@ -276,7 +283,7 @@ public partial class DailyWorkflowWorkspaceView : UserControl
         {
             RequireOwnerAccess();
             var scope = SelectedScope();
-            await commandsFactory(connectionString()).ReopenAsync(
+            await commandsFactory().ReopenAsync(
                 DailyWorkflowPresentationSession.CreateReopen(
                     scope, Environment.UserName, ReopenReasonInput.Text));
             InvalidatePack();
@@ -298,7 +305,7 @@ public partial class DailyWorkflowWorkspaceView : UserControl
         {
             RequireImportAccess();
             var scope = SelectedScope();
-            var pack = await packGeneratorFactory(connectionString()).GenerateAsync(scope, Environment.UserName, progress.Token);
+            var pack = await packGeneratorFactory().GenerateAsync(scope, Environment.UserName, progress.Token);
             ShowPack(pack.Document, pack.Sections, new(scope.BusinessDate, scope.StoreCode));
             Publish(DailyWorkflowPresentationSession.PackReady(pack.Status, pack.Message, pack.GenerationNumber, pack.ContentSha256));
             await recordAuditAsync("ReportPack", pack.Status == DailyControlStatus.Passed ? "Succeeded" : "Failed", "Daily report pack");
@@ -317,7 +324,7 @@ public partial class DailyWorkflowWorkspaceView : UserControl
             RequireImportAccess();
             if (BusinessDateInput.SelectedDate is null) throw new InvalidOperationException("Select the ETP business date.");
             var date = DateOnly.FromDateTime(BusinessDateInput.SelectedDate.Value);
-            var document = await packGeneratorFactory(connectionString()).GenerateCombinedAsync(date, Environment.UserName, progress.Token);
+            var document = await packGeneratorFactory().GenerateCombinedAsync(date, Environment.UserName, progress.Token);
             ShowPack(document, document.Tables.Select(table => new
                 { Report = table.Name, Status = table.Status, Rows = table.Data.Rows.Count, table.Message }), new(date, null));
             Publish($"{document.OverallStatus}: {document.Message} The export contains {document.Tables.Count:N0} report sections.");

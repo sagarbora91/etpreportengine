@@ -50,7 +50,7 @@ public sealed record DesktopImportPersistenceOutcome(
 
 public sealed class DesktopImportCoordinator : IAsyncDisposable
 {
-    private readonly Func<string, ImportPersistenceUseCase> persistenceFactory;
+    private readonly Func<ImportPersistenceUseCase> persistenceFactory;
     private readonly IWorkbookReader workbookReader;
     private MatchedImportEnvelopeFactory envelopeFactory;
     private IReadOnlyList<string> knownStores = [];
@@ -67,7 +67,7 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
     private readonly IDailyInputsApplier? dailyInputs;
 
     public DesktopImportCoordinator(
-        Func<string, ImportPersistenceUseCase> persistenceFactory,
+        Func<ImportPersistenceUseCase> persistenceFactory,
         IWorkbookReader? workbookReader = null,
         Action<FolderImportFailure>? reportImportFailure = null,
         IDailyInputsApplier? dailyInputs = null)
@@ -156,15 +156,14 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
     // IF-017: the single-file route records its attempt in import_attempts like the folder import, through
     // the same result builders, so History shows it with its code, stage, commit state and evidence.
     public async Task<DesktopImportPersistenceOutcome> PersistValidatedAsync(
-        string connectionString,
         DesktopImportRunContext context,
         CancellationToken cancellationToken = default)
     {
         if (validatedDaily is { } daily)
-            return await PersistDailyInputsAsync(daily, persistenceFactory(connectionString), context, cancellationToken).ConfigureAwait(false);
+            return await PersistDailyInputsAsync(daily, persistenceFactory(), context, cancellationToken).ConfigureAwait(false);
         var current = validatedImport ?? throw new InvalidOperationException("Validate an import workbook before persisting it.");
         var envelope = current.Envelope;
-        var persistence = persistenceFactory(connectionString);
+        var persistence = persistenceFactory();
         var attempt = Attempt(current.WorkbookPath, envelope, context);
         var stage = FailureStage.Scope;
         DesktopImportPersistenceOutcome outcome;
@@ -270,7 +269,7 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
 
     public void ClearValidatedImport() { validatedImport = null; validatedDaily = null; }
 
-    public async Task<FolderImportSummary> ImportFolderAsync(string sourcePath, string connectionString,
+    public async Task<FolderImportSummary> ImportFolderAsync(string sourcePath,
         FolderImportOptions options, IProgress<FolderImportProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
@@ -278,7 +277,7 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
         batchCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var paths = await OpenBatchSourceAsync(sourcePath, batchCancellation.Token).ConfigureAwait(false);
         folderImportOptions = options;
-        folderImportService = new FolderImportService(persistenceFactory(connectionString), workbookReader, knownStores, reportImportFailure, dailyInputs);
+        folderImportService = new FolderImportService(persistenceFactory(), workbookReader, knownStores, reportImportFailure, dailyInputs);
         var result = await folderImportService.RunFilesAsync(paths, options, progress, batchCancellation.Token).ConfigureAwait(false);
         FailedBatchPaths = folderImportService.FailedPaths;
         return result;
@@ -309,7 +308,6 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
 
     public async Task<BatchImportSummary> RunBatchAsync(
         IReadOnlyList<string> workbookPaths,
-        string connectionString,
         Func<bool> restatementEnabled,
         Func<DesktopImportRunContext> contextFactory,
         Func<CancellationToken, Task> recordRestatementAudit,
@@ -324,10 +322,9 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
         batchCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         // Open items sync once for the whole batch, after its last file (review of FIX-10).
         await using var qualitySync = SqlServerImportPersistenceUseCase.DeferDataQualitySync();
-        var recording = new BatchAttemptRecording(persistenceFactory(connectionString) as ImportAttemptRecorder);
+        var recording = new BatchAttemptRecording(persistenceFactory() as ImportAttemptRecorder);
         var processor = new CoordinatorWorkbookImportOutcomeProcessor((path, token) => ProcessWorkbookAsync(
             path,
-            connectionString,
             restatementEnabled,
             contextFactory,
             recordRestatementAudit,
@@ -392,7 +389,6 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
     // described as a failed import (IF-014).
     private async Task<WorkbookImportOutcome> ProcessWorkbookAsync(
         string workbookPath,
-        string connectionString,
         Func<bool> restatementEnabled,
         Func<DesktopImportRunContext> contextFactory,
         Func<CancellationToken, Task> recordRestatementAudit,
@@ -403,7 +399,7 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
         WorkbookImportOutcome outcome;
         try
         {
-            outcome = await ProcessWorkbookCoreAsync(workbookPath, connectionString, restatementEnabled, contextFactory,
+            outcome = await ProcessWorkbookCoreAsync(workbookPath, restatementEnabled, contextFactory,
                 recordRestatementAudit, attempt, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception exception)
@@ -452,7 +448,6 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
 
     private async Task<WorkbookImportOutcome> ProcessWorkbookCoreAsync(
         string workbookPath,
-        string connectionString,
         Func<bool> restatementEnabled,
         Func<DesktopImportRunContext> contextFactory,
         Func<CancellationToken, Task> recordRestatementAudit,
@@ -461,7 +456,7 @@ public sealed class DesktopImportCoordinator : IAsyncDisposable
     {
         var snapshot = await workbookReader.ReadAsync(workbookPath, cancellationToken).ConfigureAwait(false);
         attempt.Stage = FailureStage.Match;
-        var persistence = persistenceFactory(connectionString);
+        var persistence = persistenceFactory();
         if (DailyInputsTemplate.IsDailyInputsWorkbook(snapshot))
             return await ProcessDailyInputsAsync(workbookPath, snapshot, persistence, contextFactory().ImportedBy, attempt, cancellationToken).ConfigureAwait(false);
         var accepted = envelopeFactory.RequireAccepted(snapshot);
