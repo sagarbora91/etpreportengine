@@ -28,17 +28,64 @@ internal sealed class VisualReportPdfDocument : IDisposable
         ExportMany(path,[model]);
     }
 
-    public static void ExportMany(string path,IReadOnlyList<VisualReportModel> models)
+    public static void ExportMany(string path,IReadOnlyList<VisualReportModel> models,ReportPackCover? cover=null)
     {
         if(models.Count==0 || models.Any(x=>x.Detail.Columns.Count==0)) throw new ArgumentException("At least one report with columns is required.");
         DsrPdfFontResolver.EnsureRegistered();
         using var renderer=new VisualReportPdfDocument(models[0]);
+        if(cover is not null)renderer.Cover(cover);
         foreach(var model in models){renderer.model=model;if(model.HasSummary)renderer.Summary();renderer.Details();}
         renderer.graphics.Dispose();
         for(var i=0;i<renderer.document.PageCount;i++)
-        { using var footer=XGraphics.FromPdfPage(renderer.document.Pages[i],XGraphicsPdfPageOptions.Append);footer.DrawString($"Page {i+1} of {renderer.document.PageCount}",renderer.normal,XBrushes.Gray,new XPoint(Margin,Height-20)); }
+        { var page=renderer.document.Pages[i];using var footer=XGraphics.FromPdfPage(page,XGraphicsPdfPageOptions.Append);footer.DrawString($"Page {i+1} of {renderer.document.PageCount}",renderer.normal,XBrushes.Gray,new XPoint(page.Width.Point<Width?CoverMargin:Margin,page.Height.Point-20)); }
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
         renderer.document.Save(path);
+    }
+
+    // Decision 45 #4 (UIUX-OUTPUTS OUT-08): the pack's cover, a portrait page the width of the DSR phone page with 13 pt
+    // text, before the tables. It continues on another portrait page when a combined pack has many checks.
+    internal const double CoverWidth = DailySalesReportPdfExporter.PhonePageWidth, CoverHeight = DailySalesReportPdfExporter.PhonePageMinimumHeight, CoverMargin = 22;
+    private void Cover(ReportPackCover cover)
+    {
+        const double content = CoverWidth - 2 * CoverMargin, bottom = CoverHeight - 40;
+        XFont F(double size, bool isBold = false) => new("Segoe UI", size, isBold ? XFontStyleEx.Bold : XFontStyleEx.Regular);
+        XSolidBrush B(string hex) => new(EveningDsrPdf.Colour(hex));
+        void Page() { graphics?.Dispose(); var page = document.AddPage(); page.Width = XUnit.FromPoint(CoverWidth); page.Height = XUnit.FromPoint(CoverHeight); graphics = XGraphics.FromPdfPage(page); y = CoverMargin; }
+        void Write(string text, XFont font, string colour, double before = 0, double x = CoverMargin, double width = content)
+        {
+            y += before;
+            foreach (var line in Wrap(text, font, width)) { if (y + font.Size * 1.35 > bottom) Page(); Line(line, font, B(colour), x, y); y += font.Size * 1.35; }
+        }
+        Page();
+        Write(cover.Heading, F(10, true), OutputPalette.SecondaryText);
+        Write(cover.Subject, F(18, true), OutputPalette.PrimaryText, 2);
+        Write(cover.Generated, F(10), OutputPalette.SecondaryText);
+        var (verdictText, verdictFill) = OutputText.ToneColours(cover.VerdictTone);
+        var pill = F(13, true); var pillWidth = Math.Min(content, graphics.MeasureString(cover.Verdict, pill).Width + 20);
+        y += 10; graphics.DrawRoundedRectangle(B(verdictFill), CoverMargin, y, pillWidth, 24, 12, 12); Line(cover.Verdict, pill, B(verdictText), CoverMargin + 10, y + 4); y += 30;
+        if (!string.IsNullOrWhiteSpace(cover.Summary)) Write(cover.Summary, F(11), OutputPalette.SecondaryText);
+        foreach (var figure in cover.Figures)
+        {
+            if (y + 40 > bottom) Page();
+            y += 8; graphics.DrawLine(new XPen(EveningDsrPdf.Colour(OutputPalette.Divider), .6), CoverMargin, y, CoverMargin + content, y); y += 4;
+            Line(figure.Label, F(11), B(OutputPalette.SecondaryText), CoverMargin, y);
+            var value = F(15, true); var colour = figure.Tone switch { OutputTone.Success => OutputPalette.Success, OutputTone.Critical => OutputPalette.Critical, OutputTone.Warning => OutputPalette.Warning, _ => OutputPalette.PrimaryText };
+            Line(figure.Value, value, B(colour), CoverMargin + content - graphics.MeasureString(figure.Value, value).Width, y);
+            y += 18; Line(figure.Meaning, F(9), B(OutputPalette.SecondaryText), CoverMargin, y); y += 12;
+        }
+        Write("CHECKS", F(10, true), OutputPalette.SecondaryText, 14);
+        foreach (var check in cover.Checks)
+        {
+            var (text, fill) = OutputText.ToneColours(check.Tone); var chip = F(9, true);
+            if (y + 34 > bottom) Page();
+            y += 6; var chipWidth = graphics.MeasureString(check.StatusWord, chip).Width + 12;
+            graphics.DrawRoundedRectangle(B(fill), CoverMargin, y, chipWidth, 16, 8, 8); Line(check.StatusWord, chip, B(text), CoverMargin + 6, y + 2);
+            var name = F(12, true); var top = y; y += 0;
+            foreach (var line in Wrap(check.Name, name, content - chipWidth - 8)) { Line(line, name, B(OutputPalette.PrimaryText), CoverMargin + chipWidth + 8, y); y += 16; }
+            y = Math.Max(y, top + 18);
+            if (!string.IsNullOrWhiteSpace(check.Message)) Write(check.Message, F(10), OutputPalette.SecondaryText);
+        }
+        Write(cover.Footer, F(9), OutputPalette.SecondaryText, 14);
     }
 
     private void NewPage(string section)

@@ -68,8 +68,16 @@ public sealed class OpenXmlReportPackExporter
     public void Export(string path,ReportPackDocument pack) => ReportWorksheetWriter.Export(path,
         new(pack.Title,pack.DateFrom,pack.DateTo,pack.OverallStatus,pack.RuleVersion,pack.Message,pack.GeneratedUtc),pack.Tables);
 }
+/// <summary>
+/// The pack PDF: a portrait cover page (decision 45 #4, <see cref="ReportPackCoverBuilder"/>) and then every table of the
+/// pack, as before.
+/// </summary>
 public sealed class SimplePdfReportPackExporter
 {
-    public void Export(string path,ReportPackDocument pack) => VisualReportPdfDocument.ExportMany(path,
-        pack.Tables.Select(t=>VisualReportComposer.Compose(new(t.Name,pack.DateFrom,pack.DateTo,t.Status,pack.RuleVersion,t.Message,pack.GeneratedUtc),t.Data)).ToArray());
+    public void Export(string path,ReportPackDocument pack)
+    {
+        ArgumentNullException.ThrowIfNull(pack);
+        var models=pack.Tables.Select(t=>VisualReportComposer.Compose(new(t.Name,pack.DateFrom,pack.DateTo,t.Status,pack.RuleVersion,t.Message,pack.GeneratedUtc),t.Data)).ToArray();
+        VisualReportPdfDocument.ExportMany(path,models,models.Length==0?null:ReportPackCoverBuilder.From(pack));
+    }
 }
