@@ -16,7 +16,9 @@ public sealed partial class SqlServerReportDistributionService
             if (Directory.Exists(candidate) && (File.GetAttributes(candidate) & FileAttributes.ReparsePoint) != 0)
                 throw new InvalidOperationException("The sharing folder cannot use linked folders.");
         Directory.CreateDirectory(folder);
-        var path = Path.Combine(folder, $"ETP_Pack_{generationId}_{document.DateTo:yyyyMMdd}_{Guid.NewGuid():N}.pdf");
+        // Decision 45 #4 (OUT-13): the name the recipient sees on the phone, without a GUID; the generation id keeps it
+        // unique and a second copy gets " (2)" rather than overwriting a file that may be open.
+        var path = ReportPackShareText.UniquePath(folder, ReportPackShareText.SharePdfFileName(document, generationId));
         await Task.Run(() => new SimplePdfReportPackExporter().Export(path, document), cancellationToken).ConfigureAwait(false);
         return path;
     }
@@ -41,12 +43,13 @@ public sealed partial class SqlServerReportDistributionService
         // read now from one held handle that is itself proved to be inside the folder (S-02).
         var attachment = HeldReportAttachment.Read(attachmentPath!, productSettings.ShareFolderPath, productSettings.MaximumAttachmentMb);
         var key = Guid.NewGuid();
+        var (subject, body) = await EmailTextAsync(command.GenerationId, cancellationToken).ConfigureAwait(false);
         await Record("INITIATED", "SMTP submission started. If no final outcome follows, check the mail server before retrying.");
         SmtpTransportResult result;
         try
         {
             result = await emailTransport.SendAsync(settings, new(command.To, command.Cc,
-                $"ETP report pack - generation {command.GenerationId}", "Please find the saved ETP report pack attached.", attachment), cancellationToken).ConfigureAwait(false);
+                subject, body, attachment), cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         { result = new("UNKNOWN", "SMTP outcome could not be confirmed. Check the mail server before retrying."); }
@@ -57,6 +60,23 @@ public sealed partial class SqlServerReportDistributionService
 
         Task Record(string outcome, string message) => gateway.RecordShareAttemptAsync(command.GenerationId, null, "EMAIL", "Configured recipient",
             Path.GetFileName(attachmentPath), outcome, message, CancellationToken.None, key);
+    }
+
+    /// <summary>
+    /// Decision 45 #4 (OUT-15): subject and body name the shop, the day and the verdict, read from the archived pack. When
+    /// the pack cannot be read here the e-mail still goes, with the generation number only.
+    /// </summary>
+    private async Task<(string Subject, string Body)> EmailTextAsync(long generationId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var document = await loadDocument(generationId, cancellationToken).ConfigureAwait(false);
+            return (ReportPackShareText.EmailSubject(document), ReportPackShareText.EmailBody(document, generationId));
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException and not OperationCanceledException)
+        {
+            return ($"ETP daily pack · generation {generationId}", $"The ETP daily reporting pack (generation {generationId}) is the attached PDF.");
+        }
     }
 
     public async Task<App.EmailSendResult> TestEmailAsync(string recipient, CancellationToken cancellationToken = default)

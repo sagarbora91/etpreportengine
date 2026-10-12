@@ -180,7 +180,8 @@ public sealed partial class ArchiveWorkspaceView : UserControl
                 "WHATSAPP", "Configured phone", shareFile, "INITIATED", "Preparing the manual WhatsApp handoff; no delivery is claimed.", attemptKey));
             try
             {
-                var message = $"ETP report pack for {generation.StoreCode}, {generation.BusinessDate:dd-MMM-yyyy}, generation {generation.GenerationNumber}. Please attach the prepared PDF.";
+                // Decision 45 #4 (OUT-13): the message is for the reader (shop, day, verdict, sales); attaching is the sender's step and stays in the status line.
+                var message = ReportPackShareText.WhatsAppMessage((await session.OpenAsync(connectionStringProvider(), generation)).Document, generation.GenerationNumber);
                 shareLauncher.OpenWhatsApp(shareFile, message, SharePhoneInput.Text);
             }
             catch
