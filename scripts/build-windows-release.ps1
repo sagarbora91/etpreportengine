@@ -59,14 +59,43 @@ foreach ($testProject in $testProjects) {
     Assert-NativeSuccess "Release test suite ($([IO.Path]::GetFileNameWithoutExtension($testProject)))"
 }
 dotnet publish $desktopProject -c $Configuration -r $Runtime --self-contained true `
-    -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:Version=$Version -o $output
+    -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=false -p:Version=$Version -o $output
 Assert-NativeSuccess "Self-contained desktop publish"
+
+# S-13. The natives must sit next to the exe in the (administrator-only) installation folder, never be
+# unpacked at run time under the user's %TEMP%, where an unelevated process could plant a DLL that an
+# elevated ETP then loads. Gate: the WPF/runtime natives are on disk beside the exe, and the exe was not
+# published for self-extraction (a self-extracting exe carries them inside and leaves none beside it).
+$nativeNames = @('PresentationNative_cor3.dll','wpfgfx_cor3.dll','vcruntime140_cor3.dll','D3DCompiler_47_cor3.dll','PenImc_cor3.dll')
+$missingNatives = @($nativeNames | Where-Object { -not (Test-Path -LiteralPath (Join-Path $output $_)) })
+if ($missingNatives.Count -gt 0) { throw "Native libraries are not beside the executable (self-extract may be on): $($missingNatives -join ', '). Release refused (audit S-13)." }
+$sqlClientNative = @(Get-ChildItem -LiteralPath $output -Filter 'Microsoft.Data.SqlClient.SNI*.dll' -File -Recurse -ErrorAction SilentlyContinue)
+if ($sqlClientNative.Count -eq 0) { Write-Warning 'No Microsoft.Data.SqlClient.SNI native DLL found beside the executable; confirm SqlClient natives are not being extracted at run time.' }
 
 $packagedScripts = Join-Path $output "scripts"
 New-Item -ItemType Directory -Path $packagedScripts -Force | Out-Null
-foreach ($scriptName in @('bootstrap-etp-prerequisites.ps1','backup-etp-database.ps1','install-daily-backup-task.ps1','install-monthly-recovery-drill-task.ps1','install-etp-automation-task.ps1','remove-etp-scheduled-tasks.ps1','invoke-monthly-recovery-drill-runner.ps1','invoke-etp-recovery-drill.ps1','new-etp-support-package.ps1','etp-operations-common.ps1','invoke-database-maintenance.ps1','initialize-etp-operation-folders.ps1','install-etp-sql-operations.ps1','restore-etp-database.ps1')) {
+foreach ($scriptName in @('bootstrap-etp-prerequisites.ps1','backup-etp-database.ps1','install-daily-backup-task.ps1','install-monthly-recovery-drill-task.ps1','install-etp-automation-task.ps1','remove-etp-scheduled-tasks.ps1','invoke-monthly-recovery-drill-runner.ps1','invoke-etp-recovery-drill.ps1','new-etp-support-package.ps1','etp-operations-common.ps1','invoke-database-maintenance.ps1','initialize-etp-operation-folders.ps1','install-etp-sql-operations.ps1','restore-etp-database.ps1','Test-EtpRestoredPc.ps1')) {
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot $scriptName) -Destination $packagedScripts -Force
 }
+
+# S-05. The OneDrive shop/Workpc scripts ship inside the installer, in {app}\scripts\onedrive (Program Files:
+# Users read-only), so the elevated tasks never run code from a folder an ordinary user can edit. Real
+# configuration files are not shipped (they live in ProgramData\EtpReporting\Operations); the *.example.json
+# templates and the scripts are. tests\ is development-only.
+$oneDriveSource = Join-Path $PSScriptRoot 'onedrive'
+if (-not (Test-Path -LiteralPath $oneDriveSource -PathType Container)) { throw "scripts\onedrive is missing: $oneDriveSource" }
+$oneDriveTarget = Join-Path $packagedScripts 'onedrive'
+New-Item -ItemType Directory -Path $oneDriveTarget -Force | Out-Null
+foreach ($item in Get-ChildItem -LiteralPath $oneDriveSource -File) {
+    if ($item.Extension -in '.ps1','.psm1','.psd1') { Copy-Item -LiteralPath $item.FullName -Destination $oneDriveTarget -Force }
+    elseif ($item.Name -like '*.example.json') { Copy-Item -LiteralPath $item.FullName -Destination $oneDriveTarget -Force }
+}
+if (-not (Test-Path -LiteralPath (Join-Path $oneDriveTarget 'Receive-ShopDailyFiles.ps1'))) { throw 'scripts\onedrive\Receive-ShopDailyFiles.ps1 did not reach the release folder.' }
+
+# Dependency 3. Third-party licence notices travel with every release.
+$notices = Join-Path $repoRoot 'THIRD-PARTY-NOTICES.txt'
+if (-not (Test-Path -LiteralPath $notices)) { throw 'THIRD-PARTY-NOTICES.txt is missing from the repository root.' }
+Copy-Item -LiteralPath $notices -Destination $output -Force
 
 New-Item -ItemType Directory -Path (Join-Path $packagedScripts 'sql') -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'sql\etp-operations-broker.sql') -Destination (Join-Path $packagedScripts 'sql')
@@ -74,7 +103,7 @@ Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'sql\etp-operations-grants.sql')
 
 $executable = Join-Path $output "Etp.Reporting.Desktop.exe"
 if (-not (Test-Path -LiteralPath $executable)) { throw "Published executable was not produced." }
-$signingInputs = @($executable) + @(Get-ChildItem -LiteralPath $packagedScripts -Filter '*.ps1' -File | ForEach-Object FullName)
+$signingInputs = @($executable) + @(Get-ChildItem -LiteralPath $packagedScripts -Filter '*.ps1' -File -Recurse | ForEach-Object FullName)
 if ($signRelease) { & (Join-Path $PSScriptRoot 'sign-etp-artifacts.ps1') -Paths $signingInputs -CertificateThumbprint $CertificateThumbprint -TimestampServer $TimestampServer }
 else { Write-Warning 'Building an UNSIGNED release. The executable and scripts carry no publisher signature.' }
 $hash = Get-FileHash -LiteralPath $executable -Algorithm SHA256
