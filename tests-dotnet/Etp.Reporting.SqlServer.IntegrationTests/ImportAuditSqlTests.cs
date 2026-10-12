@@ -178,7 +178,7 @@ public sealed class ImportAuditSqlTests(SqlDatabaseFixture database) : IClassFix
         var stamp = report.GetProperty("database");
         Assert.Equal(database.Name, stamp.GetProperty("name").GetString());
         Assert.False(stamp.GetProperty("emulated0041").GetBoolean());
-        Assert.StartsWith("005", stamp.GetProperty("latestMigration").GetString());
+        Assert.Equal(LatestMigration.Id, stamp.GetProperty("latestMigration").GetString());
     }
 }
 
@@ -202,7 +202,7 @@ public sealed class SeedCommandSqlTests
             await using var connection = new SqlConnection(TestSqlConnections.ForDatabase(name));
             await connection.OpenAsync();
             await using var command = new SqlCommand("SELECT MAX(migration_id) FROM dbo.schema_migrations", connection);
-            Assert.StartsWith("005", (string)(await command.ExecuteScalarAsync())!);
+            Assert.Equal(LatestMigration.Id, (string)(await command.ExecuteScalarAsync())!);
         }
         finally
         {
@@ -213,4 +213,15 @@ public sealed class SeedCommandSqlTests
             await drop.ExecuteNonQueryAsync();
         }
     }
+}
+
+/// <summary>
+/// The highest migration the build ships (the newest file name in database\migrations, without ".sql"), so a test that
+/// checks "the database is at the latest migration" never needs a hand-edited prefix when a migration is added.
+/// </summary>
+internal static class LatestMigration
+{
+    public static string Id { get; } = Path.GetFileNameWithoutExtension(
+        Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "database", "migrations"), "*.sql")
+            .Select(Path.GetFileName).Max(StringComparer.Ordinal)!);
 }

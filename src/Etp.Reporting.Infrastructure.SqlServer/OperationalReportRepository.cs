@@ -791,13 +791,30 @@ public sealed partial class OperationalReportRepository(string connectionString)
         GROUP BY i.store_code;
         """;
 
+    /// <summary>
+    /// The DSR facts query for a database that may still be below 0060. dbo.v_sales_cancelled_same_day arrives with 0060; on
+    /// an older database (an upgrade in progress, a PC on the new build before ETP setup has migrated the shared database,
+    /// the brand-mapping upgrade test at 0026) the DSR must keep loading, as it does for v_service_manual_money (0048), so
+    /// the view is replaced by an empty set with the same columns: no bill counts as cancelled and INVOICE is the pre-1.11.2
+    /// count. On a database at 0060 or later the query is <see cref="DsrFactsSql"/> unchanged.
+    /// </summary>
+    internal const string NoCancelledBillsSql =
+        "(SELECT CONVERT(varchar(30),NULL) store_code,CONVERT(nvarchar(80),NULL) document_number,CONVERT(date,NULL) transaction_date WHERE 1=0)";
+
+    internal static string DsrFactsSqlFor(bool cancelledViewExists) => cancelledViewExists
+        ? DsrFactsSql
+        : DsrFactsSql.Replace("dbo.v_sales_cancelled_same_day", NoCancelledBillsSql, StringComparison.Ordinal);
+
     private static async Task<Dictionary<string, DsrFacts>> LoadDsrFactsAsync(
         SqlConnection connection,
         BusinessReportingPeriod period,
         IReadOnlyList<string> stores,
         CancellationToken token)
     {
-        await using var command = new SqlCommand(DsrFactsSql, connection);
+        bool cancelledViewExists;
+        await using (var probe = new SqlCommand("SELECT CASE WHEN OBJECT_ID(N'dbo.v_sales_cancelled_same_day', N'V') IS NULL THEN 0 ELSE 1 END", connection))
+            cancelledViewExists = Convert.ToInt32(await probe.ExecuteScalarAsync(token)) == 1;
+        await using var command = new SqlCommand(DsrFactsSqlFor(cancelledViewExists), connection);
         command.Parameters.AddWithValue("@currentFrom", period.Current.Start);
         command.Parameters.AddWithValue("@currentTo", period.Current.End);
         command.Parameters.AddWithValue("@lastFrom", period.LastYear.Start);
