@@ -61,6 +61,7 @@ public static class DailyInputsTemplateWriter
         };
 
         var rowNumber = (uint)FirstFieldRow;
+        uint openingRow = 0, expensesRow = 0, depositRow = 0, adjustmentRow = 0;
         foreach (var field in fields)
         {
             var reference = $"C{rowNumber}";
@@ -71,7 +72,25 @@ public static class DailyInputsTemplateWriter
                 DailyInputValueKind.Money => (StyleInputMoney, "₹"),
                 _ => (StyleInputText, $"text (up to {DailyInputsTemplate.MaxTextLength} characters)")
             };
-            rows.Append(Row(rowNumber, [Text(field.FieldCode, StyleKey), Text(field.Label), Empty(style), Text($"{note}; leave blank to keep unchanged", StyleNote)]));
+            // 1.11.2: amounts and counts start at 0 so a forgotten box is a deliberate zero, not a refusal. Opening and
+            // counted cash stay blank (a 0 there would be a claim), and so does text; blank still means "keep unchanged".
+            var valueCell = PrefillsZero(field) ? Zero(style) : Empty(style);
+            if (field.FieldCode == "OPENING_CASH") openingRow = rowNumber;
+            else if (field.FieldCode == "EXPENSES") expensesRow = rowNumber;
+            else if (field.FieldCode == "CASH_DEPOSIT") depositRow = rowNumber;
+            else if (field.FieldCode == "CASH_ADJUSTMENT") adjustmentRow = rowNumber;
+            var cells = new List<Cell> { Text(field.FieldCode, StyleKey), Text(field.Label), valueCell, Text($"{note}; leave blank to keep unchanged", StyleNote) };
+            if (field.FieldCode == "CLOSING_CASH_COUNTED" && openingRow != 0 && expensesRow != 0 && depositRow != 0 && adjustmentRow != 0)
+            {
+                // Cash check line: column F, outside the A-D table the parser reads. Cash taken today = count - opening
+                // + expenses + deposit - adjustment; staff compare it with the till before saving.
+                var counted = $"C{rowNumber}";
+                var formula = $"IF({counted}=\"\",\"Fill in counted closing cash to see the cash taken today\","
+                    + $"\"Cash check - cash taken today, from your count: \"&TEXT({counted}-N(C{openingRow})+N(C{expensesRow})+N(C{depositRow})-N(C{adjustmentRow}),\"#,##0.00\"))";
+                cells.Add(Empty(StyleDefault));
+                cells.Add(new Cell { CellFormula = new CellFormula(formula), DataType = CellValues.String, StyleIndex = StyleNote });
+            }
+            rows.Append(Row(rowNumber, cells));
             validations.Add(field.ValueKind switch
             {
                 DailyInputValueKind.Quantity => Number(reference, DataValidationValues.Whole, "Enter a whole number, 0 or more."),
@@ -94,7 +113,9 @@ public static class DailyInputsTemplateWriter
                 new Column { Min = 1, Max = 1, Width = 24, CustomWidth = true },
                 new Column { Min = 2, Max = 2, Width = 24, CustomWidth = true },
                 new Column { Min = 3, Max = 3, Width = 22, CustomWidth = true },
-                new Column { Min = 4, Max = 4, Width = 48, CustomWidth = true }),
+                new Column { Min = 4, Max = 4, Width = 48, CustomWidth = true },
+                new Column { Min = 5, Max = 5, Width = 3, CustomWidth = true },
+                new Column { Min = 6, Max = 6, Width = 60, CustomWidth = true }),
             rows,
             new SheetProtection { Sheet = true, Objects = true, Scenarios = true },
             new DataValidations(validations) { Count = (uint)validations.Count });
@@ -151,6 +172,11 @@ public static class DailyInputsTemplateWriter
 
     private static Cell Text(string text, uint style = StyleDefault) =>
         new() { DataType = CellValues.InlineString, InlineString = new InlineString(new Text(text)), StyleIndex = style };
+
+    private static bool PrefillsZero(DailyInputsField field) =>
+        field.ValueKind != DailyInputValueKind.Text && field.FieldCode is not ("OPENING_CASH" or "CLOSING_CASH_COUNTED");
+
+    private static Cell Zero(uint style) => new() { CellValue = new CellValue("0"), StyleIndex = style };
 
     private static Cell Empty(uint style) => new() { StyleIndex = style };
 

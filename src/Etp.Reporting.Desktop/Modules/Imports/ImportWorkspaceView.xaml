@@ -10,6 +10,7 @@
                 <Button Content="Choose workbook or ZIP" Click="BrowseWorkbook_Click" MinHeight="44" Padding="12,8" Margin="0,0,8,8" automation:AutomationProperties.Name="Choose workbook or ZIP"/>
                 <Button x:Name="StartBatchButton" Content="Import selected source" Click="StartBatchImport_Click" MinHeight="44" Padding="12,8" Margin="0,0,8,8" automation:AutomationProperties.Name="Import selected source"/>
                 <Button x:Name="GetBlankSheetButton" Content="Get blank daily sheet" Click="GetBlankSheet_Click" MinHeight="44" Padding="12,8" Margin="0,0,8,8" automation:AutomationProperties.Name="Get blank daily sheet"/>
+                <Button x:Name="OpenBlankSheetFolderButton" Content="Open folder" Click="OpenBlankSheetFolder_Click" Visibility="Collapsed" MinHeight="44" Padding="12,8" Margin="0,0,8,8" automation:AutomationProperties.Name="Open the folder the blank daily sheet was saved in"/>
                 <Button x:Name="CancelBatchButton" Content="Cancel" Click="CancelBatchImport_Click" MinHeight="44" Padding="12,8" IsEnabled="False" Margin="0,0,8,8" automation:AutomationProperties.Name="Cancel folder import"/>
             </WrapPanel>
             <TextBlock Text="Choose either store folder, or a parent containing both. Store and dates are detected from each file." TextWrapping="Wrap" Margin="0,0,0,8"/>

@@ -7,8 +7,8 @@ namespace Etp.Reporting.Desktop.Modules.Imports;
 /// <summary>One sheet the "Get blank daily sheet" button can write: a store and a kind (decision 31: Service money sits under the service-money shop).</summary>
 public sealed record BlankDailySheetOption(string Label, string StoreCode, string StoreLabel, DailyInputsKind Kind);
 
-/// <summary>What the person chose: the sheet and the business date (file name and the sheet's Business date cell C5).</summary>
-public sealed record BlankDailySheetRequest(BlankDailySheetOption Option, DateOnly BusinessDate);
+/// <summary>What the person chose: the sheet and the business date (file name and the sheet's Business date cell C5). <c>AllSheets</c> (1.11.2): save one file for every sheet offered, into one folder.</summary>
+public sealed record BlankDailySheetRequest(BlankDailySheetOption Option, DateOnly BusinessDate, bool AllSheets = false);
 
 /// <summary>
 /// 1.11.1: gives staff the blank daily-inputs workbook (family D001) from the app. It only calls the existing
@@ -33,6 +33,29 @@ public static class BlankDailySheet
             options.Add(new($"Service Centre - service money, counted under {StoreScopeCatalog.Label(money)}", money.Code,
                 $"{money.Name} (Service money)", DailyInputsKind.Service));
         return options;
+    }
+
+    /// <summary>The last sheet chosen in this session, so the dialog opens where the person left it.</summary>
+    internal static (string StoreCode, DailyInputsKind Kind)? LastChoice { get; set; }
+
+    /// <summary>The message shown beside the date box when the date is outside the accepted window.</summary>
+    public static string BadDateMessage(DateOnly today) =>
+        $"That date is not allowed. Choose today or a day up to {DailyInputsTemplate.LookbackDays} days back (earliest {today.AddDays(-DailyInputsTemplate.LookbackDays):dd MMM yyyy}).";
+
+    /// <summary>Saves a blank sheet for every option into <paramref name="folder"/>; returns the paths written.</summary>
+    public static IReadOnlyList<string> SaveAll(string folder, IEnumerable<BlankDailySheetOption> options, DateOnly businessDate)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(folder);
+        ArgumentNullException.ThrowIfNull(options);
+        var written = new List<string>();
+        foreach (var option in options)
+        {
+            var request = new BlankDailySheetRequest(option, businessDate);
+            var path = Path.Combine(folder, SuggestedFileName(request));
+            Save(path, request);
+            written.Add(path);
+        }
+        return written;
     }
 
     /// <summary>The same window the sheet's own date rule accepts: today and up to 31 days back.</summary>

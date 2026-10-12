@@ -41,17 +41,17 @@ public sealed class ImportHistoryView : UserControl
         root.RowDefinitions.Add(new() { Height = GridLength.Auto });
         var heading = new StackPanel();
         heading.Children.Add(new TextBlock { Text = "Imports — saved outcomes", FontSize = 18, FontWeight = FontWeights.SemiBold });
-        heading.Children.Add(new TextBlock { Text = "Imported files and repeat attempts are saved here. Received files is the separate document inbox. Undetected dates use the attempt's UTC date.", TextWrapping = TextWrapping.Wrap });
+        heading.Children.Add(new TextBlock { Text = "Imported files and repeat attempts are saved here. Received files is the separate document inbox. Times are your local time. Undetected dates use the attempt's UTC date.", TextWrapping = TextWrapping.Wrap });
         var refresh = new Button { Content = "Refresh history", MinHeight = 44, HorizontalAlignment = HorizontalAlignment.Left };
         refresh.Click += async (_, _) => { if (scope is not null) await ActivateAsync(scope); };
         heading.Children.Add(refresh); heading.Children.Add(status); root.Children.Add(heading);
         foreach (var (title, path, width) in new[] {
-            ("Recorded (UTC)", "RecordedUtc", 155d), ("File", "Result.FileName", 230d), ("Report", "Result.ReportCode", 80d),
+            ("Recorded", "RecordedUtc", 155d), ("Verdict", "Result", 300d), ("File", "Result.FileName", 230d), ("Report", "Result.ReportCode", 80d),
             ("Store", "Result.StoreCode", 80d), ("Period", "Result.Period", 225d), ("Outcome", "Result.Status", 130d),
             ("Rows", "Result.RowsProcessed", 75d), ("New", "Result.NewRows", 75d), ("Present", "Result.AlreadyPresentRows", 75d), ("Conflicts", "Result.ConflictRows", 75d),
             ("Failure", "Result.Failure.Code", 190d), ("Stage", "Result.Failure.Stage", 80d) })
             rows.Columns.Add(new DataGridTextColumn { Header = title, Binding = new Binding(path) { StringFormat = path == "RecordedUtc" ? "dd MMM yyyy HH:mm" : null,
-                Converter = path == "Result.StoreCode" ? new StoreLabelConverter(this) : null }, Width = width });
+                Converter = path == "Result.StoreCode" ? new StoreLabelConverter(this) : path == "RecordedUtc" ? new LocalTimeConverter() : path == "Result" ? new VerdictConverter() : null }, Width = width });
         TablePresentation.Configure(rows); AutomationProperties.SetName(rows, "Saved import outcomes");
         rows.SelectionChanged += (_, _) => ShowDetails(rows.SelectedItem as HistoryEntry);
         Grid.SetRow(rows, 1); root.Children.Add(rows);
@@ -93,6 +93,33 @@ public sealed class ImportHistoryView : UserControl
     }
 
     public void SelectEntry(HistoryEntry entry) => rows.SelectedItem = entry;
+
+    /// <summary>Saved times are UTC; the grid shows the PC's local time like everything else in ETP.</summary>
+    public static DateTime ToLocal(DateTime recordedUtc) =>
+        recordedUtc.Kind == DateTimeKind.Local ? recordedUtc : DateTime.SpecifyKind(recordedUtc, DateTimeKind.Utc).ToLocalTime();
+
+    /// <summary>One plain line per saved outcome: what happened to the file and what to do about it.</summary>
+    public static string Verdict(EtpApplication::Etp.Reporting.Application.Imports.FolderImportFileResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        if (result.Failed || result.Failure is not null) return "Refused - " + ImportProblems.NextStep(result);
+        if (result.ConflictRows > 0) return $"{result.ConflictRows:N0} rows conflict with data already saved - check Problems";
+        if (ImportHistoryMessages.IsDuplicate(result.Status)) return "Already imported - nothing changed";
+        return result.NewRows > 0 ? $"Imported - {result.NewRows:N0} new rows" : "Imported - no new rows";
+    }
+
+    private sealed class LocalTimeConverter : IValueConverter
+    {
+        public object? Convert(object? value, Type targetType, object? parameter, System.Globalization.CultureInfo culture) => value is DateTime utc ? ToLocal(utc) : value;
+        public object? ConvertBack(object? value, Type targetType, object? parameter, System.Globalization.CultureInfo culture) => Binding.DoNothing;
+    }
+
+    private sealed class VerdictConverter : IValueConverter
+    {
+        public object? Convert(object? value, Type targetType, object? parameter, System.Globalization.CultureInfo culture) =>
+            value is EtpApplication::Etp.Reporting.Application.Imports.FolderImportFileResult result ? Verdict(result) : value;
+        public object? ConvertBack(object? value, Type targetType, object? parameter, System.Globalization.CultureInfo culture) => Binding.DoNothing;
+    }
 
     private sealed class StoreLabelConverter(ImportHistoryView view) : IValueConverter
     {

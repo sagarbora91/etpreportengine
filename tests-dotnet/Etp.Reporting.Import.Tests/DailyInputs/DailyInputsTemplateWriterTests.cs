@@ -97,7 +97,8 @@ public sealed class DailyInputsTemplateWriterTests
         Assert.True(DailyInputsTemplate.IsDailyInputsWorkbook(workbook));
         var result = DailyInputsParser.Parse(workbook, Today);
         Assert.False(result.Succeeded);
-        Assert.Equal([DailyInputsCodes.DateMissing, DailyInputsCodes.NoValues], result.Errors.Select(e => e.Code));
+        // 1.11.2: amounts and counts start at 0, so only the missing date is wrong.
+        Assert.Equal([DailyInputsCodes.DateMissing], result.Errors.Select(e => e.Code));
     }
 
     [Fact]
@@ -156,7 +157,9 @@ public sealed class DailyInputsTemplateWriterTests
             var dateRow = workbook.Sheets.Single().Rows.Single(r => r.Cells[0].Value as string == DailyInputsTemplate.BusinessDateKey);
             Assert.Equal(date.ToDateTime(TimeOnly.MinValue), dateRow.Cells[2].Value);
             var result = DailyInputsParser.Parse(workbook, Today);
-            Assert.Equal([DailyInputsCodes.NoValues], result.Errors.Select(e => e.Code));
+            Assert.True(result.Succeeded, string.Join(", ", result.Errors.Select(e => e.Code)));
+            Assert.All(result.Document!.Values.Where(v => v.NumericValue is not null), v => Assert.Equal(0m, v.NumericValue));
+            Assert.DoesNotContain(result.Document.Values, v => v.FieldCode is "OPENING_CASH" or "CLOSING_CASH_COUNTED");
         }
         finally
         {

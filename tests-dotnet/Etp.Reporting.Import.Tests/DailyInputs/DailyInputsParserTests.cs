@@ -76,6 +76,18 @@ public sealed class DailyInputsParserTests
         Assert.Equal(new DateOnly(2026, 9, 20), result.Document!.BusinessDate);
     }
 
+    [Theory]
+    [InlineData("11-Sept-2026")]
+    [InlineData("11-SEPT-2026")]
+    [InlineData("11-Sep-2026")]
+    public void A_september_date_is_read_with_either_spelling(string typed)
+    {
+        var result = Parse(Sheet(date: typed, fileName: "ETP-Daily-Inputs-HEMW-RETAIL-2026-09-11.xlsx", fields: [("WALK_INS", 3m)]));
+
+        Assert.True(result.Succeeded, string.Join(", ", ErrorCodes(result)));
+        Assert.Equal(new DateOnly(2026, 9, 11), result.Document!.BusinessDate);
+    }
+
     [Fact]
     public void A_future_date_fails()
     {
