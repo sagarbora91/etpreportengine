@@ -45,22 +45,35 @@ public sealed class SqlDatabaseFixture : IAsyncLifetime
     public async Task InitializeAsync()
     {
         if (Interlocked.Exchange(ref counted, 1) == 0) Interlocked.Increment(ref liveFixtures);
-        ConnectionString = TestSqlConnections.ForDatabase(Name);
-        try
+        ConnectionString = TestSqlConnections.ForDatabase(Name, applicationName: SqlFlakeTrace.Enabled ? "ETPIT-" + Name[Prefix.Length..][..8] : null);
+        SqlFlakeTrace.Write("fixture-open " + Name);
+        for (var attempt = 1; ; attempt++)
         {
-            await new SqlServerDatabaseBootstrapper(ConnectionString, new DirectoryMigrationSource(MigrationDirectory)).BootstrapAsync();
-            // On SQL Server 2025 over shared memory (1 October 2026) the first command after
-            // the bootstrap received a pooled connection that was already broken, and failed
-            // with "transport-level error ... The I/O operation has been aborted"; the same
-            // command on a new connection passed. Shared memory cannot detect a dead pooled
-            // session before reuse, so the bootstrap's connections are not handed on.
-            await using (var pooled = new SqlConnection(ConnectionString)) SqlConnection.ClearPool(pooled);
+            try
+            {
+                await new SqlServerDatabaseBootstrapper(ConnectionString, new DirectoryMigrationSource(MigrationDirectory)).BootstrapAsync();
+                // On SQL Server 2025 over shared memory (1 October 2026) the first command after
+                // the bootstrap received a pooled connection that was already broken, and failed
+                // with "transport-level error ... The I/O operation has been aborted"; the same
+                // command on a new connection passed. Shared memory cannot detect a dead pooled
+                // session before reuse, so the bootstrap's connections are not handed on.
+                await using (var pooled = new SqlConnection(ConnectionString)) SqlConnection.ClearPool(pooled);
+                SqlFlakeTrace.Write("fixture-ready " + Name);
+                return;
+            }
+            // The known open-time transport flake (architecture A2): one more try on a clean database, logged.
+            catch (Exception exception) when (attempt == 1 && SqlFlakeRetry.IsOpenTransportError(exception))
+            {
+                SqlFlakeRetry.LogRetry("fixture " + Name);
+                try { await DropAsync(); } catch (Exception) { /* the next attempt creates it again, or fails visibly */ }
+            }
+            catch { await DisposeAsync(); throw; }
         }
-        catch { await DisposeAsync(); throw; }
     }
 
     public async Task<object?> ExecuteAsync(string sql, int timeoutSeconds = 60)
     {
+        SqlFlakeTrace.Write("execute " + Name);
         await using var connection = new SqlConnection(ConnectionString);
         await connection.OpenAsync();
         await using var command = new SqlCommand(sql, connection) { CommandTimeout = timeoutSeconds };

@@ -17,7 +17,8 @@ internal static class TestSqlConnections
         };
         raw.Remove("Initial Catalog");
         raw["Database"] = database;
-        raw["Pooling"] = pooling;
+        // Flake experiment (b): ETP_TEST_SQL_POOLING=false turns pooling off for every integration connection.
+        raw["Pooling"] = pooling && Environment.GetEnvironmentVariable("ETP_TEST_SQL_POOLING") != "false";
         if (applicationName is not null) raw["Application Name"] = applicationName;
         return LocalSqlConnectionPolicy.Validate(raw.ConnectionString);
     }
