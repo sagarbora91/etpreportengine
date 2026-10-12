@@ -44,7 +44,8 @@ public sealed partial class ServiceViewSpeedSqlTests
             // A Restate: the week1 S003 and S004 readings superseded by week2's (the import keeps their landing rows), so the
             // money view compares week2 with the reading it restated instead of the rank-2 covering reading.
             await database.ExecuteAsync("""
-                UPDATE o SET o.is_superseded=1,o.superseded_by_import_file_id=n.import_file_id
+                UPDATE o SET o.is_superseded=1,o.superseded_by_import_file_id=n.import_file_id,
+                  o.superseded_utc=SYSUTCDATETIME(),o.superseded_by=N'speed-test',o.restatement_reason=N'Simulated restate (1.11.4 speed test)'
                 FROM dbo.import_files o
                 JOIN dbo.import_files n ON n.report_code=o.report_code AND n.period_end='2026-10-05' AND n.is_superseded=0
                 WHERE o.report_code IN('S003','S004') AND o.period_end='2026-09-28' AND o.is_superseded=0;
