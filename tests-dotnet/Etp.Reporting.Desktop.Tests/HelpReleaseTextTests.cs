@@ -98,8 +98,11 @@ public sealed class HelpReleaseTextTests
     {
         var text = Overview("service-centre");
         foreach (var label in new[] { ServiceTodayView.BookedLabel, ServiceTodayView.DeliveredLabel, ServiceTodayView.OnBenchLabel, ServiceTodayView.ReadyLabel,
-                     ServiceTodayView.CollectionLabel, ServiceTodayView.Over15Label, ServiceTodayView.ClaimsLabel })
+                     ServiceTodayView.CollectionLabel, ServiceTodayView.CashBookLabel, ServiceTodayView.Over15Label, ServiceTodayView.ClaimsLabel })
             Assert.Contains(label, text, StringComparison.Ordinal);
+        // 1.11.3 (U2 SVC-07/09): eight cards, the cash book entry has its own.
+        Assert.Contains("eight cards", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("seven cards", text, StringComparison.Ordinal);
         Assert.Contains("DC issued when the SRN status says a DC was created", text, StringComparison.Ordinal);
         Assert.Contains("not the calendar date", text, StringComparison.Ordinal);
         Assert.Contains("raised only", text, StringComparison.Ordinal);
