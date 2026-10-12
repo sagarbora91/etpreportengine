@@ -35,7 +35,7 @@ public sealed class ReportProbesSmokeTests(SqlDatabaseFixture db) : IClassFixtur
         var runsBefore = await db.ExecuteAsync("SELECT COUNT_BIG(*) FROM dbo.automation_runs");
         var linesBefore = await db.ExecuteAsync("SELECT COUNT_BIG(*) FROM dbo.sales_lines");
 
-        var probe = ReportProbes.ForConnection(db.ConnectionString);
+        var probe = Etp.Reporting.Desktop.Composition.DesktopCompositionRoot.CreateReportProbes(db.ConnectionString);
         var context = new HealthCheckContext(Day, HealthCheckTrigger.Manual, DateTimeOffset.UtcNow, ["WLMHW"], null,
             HealthCheckBudget.Default, new Dictionary<string, object>());
         var results = await probe.RunAsync(context, CancellationToken.None);
