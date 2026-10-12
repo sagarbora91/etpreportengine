@@ -30,6 +30,8 @@ public sealed record InvoiceTaxRow(
 public sealed record InvoiceSourceTender(string SourceTenderCode, string? Mode, decimal Amount);
 
 /// <summary>Everything task 6 reads for one invoice. It never holds a customer phone, number or address (D3).</summary>
+/// <param name="CancelledSameDay">Decision 41: a bill-cancellation (BC) row of a current R025 file cancels this invoice on its
+/// own date (<c>dbo.v_sales_cancelled_same_day</c>, migration 0060). Such a bill never reaches Tally.</param>
 public sealed record InvoiceAccountingSource(
     long SalesInvoiceId,
     string StoreCode,
@@ -38,7 +40,8 @@ public sealed record InvoiceAccountingSource(
     DateOnly InvoiceDate,
     IReadOnlyList<InvoiceSourceLine> Lines,
     IReadOnlyList<InvoiceTaxRow> TaxRows,
-    IReadOnlyList<InvoiceSourceTender> Tenders);
+    IReadOnlyList<InvoiceSourceTender> Tenders,
+    bool CancelledSameDay = false);
 
 /// <summary>An approved ledger mapping version for one business event on the voucher date.</summary>
 public sealed record TallyLedgerMapping(string BusinessEvent, long MappingId, int Version, string DebitLedger, string CreditLedger);
@@ -98,7 +101,10 @@ public static class TallySalesVoucherComposer
     public const string RoundOffCode = "ROUND_OFF";
 
     /// <summary>Known limits of Slice 7a. Such invoices are left out and do not block the rest of the day.</summary>
-    public static IReadOnlySet<string> ScopeBlocks { get; } = new HashSet<string>(StringComparer.Ordinal) { "NOT_IN_SCOPE_7A", "CESS_NOT_SUPPORTED", "KEY_UNSAFE" };
+    public static IReadOnlySet<string> ScopeBlocks { get; } = new HashSet<string>(StringComparer.Ordinal) { "NOT_IN_SCOPE_7A", "CESS_NOT_SUPPORTED", "KEY_UNSAFE", CancelledSameDayCode };
+
+    /// <summary>Decision 41: the bill was cancelled on its own day, so it is left out like the DSR leaves it out of the count.</summary>
+    public const string CancelledSameDayCode = "CANCELLED_SAME_DAY";
 
     /// <summary>Refund tenders belong to returns (Slice 7b).</summary>
     public static IReadOnlySet<string> RefundTenderCodes { get; } =
@@ -177,6 +183,8 @@ public static class TallySalesVoucherComposer
         PlannedVoucher Blocked(string code, string detail) => Result(TallyVoucherStatus.Blocked, $"{code}: {detail}", Array.Empty<PlannedEntry>());
 
         // Known limits first, so an invoice this slice never sends is not reported as a fault.
+        if (invoice.CancelledSameDay)
+            return Blocked(CancelledSameDayCode, "the bill was cancelled the same day (decision 41), so it is not sent to Tally.");
         if (UnsafeKeyCharacters.IsMatch(invoice.DocumentNumber) || invoice.DocumentNumber.Length is 0 or > 80)
             return Blocked("KEY_UNSAFE", "the invoice number contains ':', '|' or a space and cannot be traced in Tally.");
         if (invoice.Lines.Count == 0)
@@ -262,7 +270,7 @@ public static class TallySalesVoucherComposer
     public static string SourceHash(InvoiceAccountingSource invoice)
     {
         ArgumentNullException.ThrowIfNull(invoice);
-        return Hash(Object(
+        var facts = Object(
             ("store", invoice.StoreCode), ("year", invoice.InvoiceYear.ToString(CultureInfo.InvariantCulture)), ("document", invoice.DocumentNumber),
             ("date", invoice.InvoiceDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)),
             ("lines", invoice.Lines.OrderBy(line => line.LineIdentifier, StringComparer.Ordinal).Select(line => (object?)Object(
@@ -272,7 +280,10 @@ public static class TallySalesVoucherComposer
                 .Select(row => (object?)Object(("item", row.ItemNumber), ("cgstRate", Decimal(row.CgstRate)), ("cgst", Decimal(row.CgstAmount)), ("sgstRate", Decimal(row.SgstRate)),
                     ("sgst", Decimal(row.SgstAmount)), ("igstRate", Decimal(row.IgstRate)), ("igst", Decimal(row.IgstAmount)), ("cess", Decimal(row.CessAmount)))).ToList()),
             ("tenders", invoice.Tenders.OrderBy(tender => tender.SourceTenderCode, StringComparer.Ordinal).ThenBy(tender => Decimal(tender.Amount), StringComparer.Ordinal)
-                .Select(tender => (object?)Object(("code", tender.SourceTenderCode), ("mode", tender.Mode), ("amount", Decimal(tender.Amount)))).ToList())));
+                .Select(tender => (object?)Object(("code", tender.SourceTenderCode), ("mode", tender.Mode), ("amount", Decimal(tender.Amount)))).ToList()));
+        // Added only when set, so the hash of every invoice prepared before decision 41 reached Tally stays the same.
+        if (invoice.CancelledSameDay) facts.Add("cancelledSameDay", "true");
+        return Hash(facts);
     }
 
     /// <summary>SHA-256 of the planned entries, in line order.</summary>
