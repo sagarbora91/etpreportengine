@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-## [1.11.1] - (date after the 1.11.1 gate)
+## [1.11.1] - 2026-10-12
 
 Fixes after 1.11.0: the customer name on the Service Jobs list by role (decision 37, 11 Oct 2026: the name stays on the list; Owner and Store Manager see it, a Viewer sees it blank), the same rule in the older Service views, two review minors in the error register and the nightly health run, and a Get blank daily sheet button on Import. Three migrations: 0056 (Service job customer name), 0057 (older Service views name by role) and 0058 (error register overflow, open-imports signal). No permission change.
 
@@ -20,7 +20,7 @@ Fixes after 1.11.0: the customer name on the Service Jobs list by role (decision
 
 - Import has a Get blank daily sheet button for the Owner and Store Managers: pick the store and sheet (one retail sheet per active shop, and the Service Centre sheet under the shop that enters Service money) and a date, and save the blank daily-inputs workbook through the usual Save dialog, named ETP-Daily-Inputs-STORE-KIND-date.xlsx, with the business date already filled in. A failure shows a plain message with a Ref: code.
 
-- Tests: unit projects and gate result filled in after the gate.
+- Gate (12 Oct 2026, elevated, on e508b68, SQL Server 2025 CU9): Release build 0 warnings 0 errors; 4,754 tests, 0 failed, 3 skipped (Desktop 1,590, Domain 12, Import 1,170, Reporting 159, SQL integration 455, SQL 1,368). First run on 113ef13 failed 1 test (PhaseFourOperationsStatusTests still expected 7 columns from load_database_operational_health; 0058 adds open_imports) - test fixed in e508b68. Installer SHA-256 3728EA1DF10C6BB6E3C65EDFAB38B805E7D5DE381E84FDACFB1CC4A9C452CC47 (`Installers\ETP Reporting Engine 1.11.1\`).
 
 ## [1.11.0] - 2026-10-12
 
