@@ -44,7 +44,8 @@ public sealed class BlankDailySheetDialog : Window
         };
         AutomationProperties.SetName(DateInput, "Business date");
         root.Children.Add(DateInput);
-        DateMessage = new TextBlock { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0), Visibility = Visibility.Collapsed, Foreground = System.Windows.Media.Brushes.Firebrick };
+        DateMessage = new TextBlock { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0), Visibility = Visibility.Collapsed };
+        DateMessage.SetResourceReference(TextBlock.ForegroundProperty, "Critical");
         AutomationProperties.SetLiveSetting(DateMessage, AutomationLiveSetting.Assertive);
         root.Children.Add(DateMessage);
         AllSheetsInput = new CheckBox { Content = "Save all sheets (one file for every shop PC)", Margin = new Thickness(0, 12, 0, 0), MinHeight = 32 };

@@ -6,7 +6,7 @@
     <StackPanel>
         <TextBlock Text="Saved report packs" FontSize="18" FontWeight="SemiBold"/>
         <TextBlock Text="Open, export or share any saved pack. Document integrity is verified before use. Email history records server acceptance; WhatsApp requires you to attach and send the PDF."
-                   Margin="0,6,0,10" Foreground="#5D6873" TextWrapping="Wrap"/>
+                   Margin="0,6,0,10" Foreground="{DynamicResource SecondaryText}" TextWrapping="Wrap"/>
         <WrapPanel>
             <TextBlock Text="Store" VerticalAlignment="Center"/>
             <ComboBox x:Name="ArchiveStoreInput" Width="130" SelectedIndex="0" Margin="6,0,10,0"

@@ -61,7 +61,7 @@ public sealed class ImportEvidenceView : UserControl
         body.Children.Add(new TextBlock
         {
             Text = "Every import keeps its source file inside the database, so the figures can be traced back to the exact file. Files imported before this release can be added from the folders that still hold them.",
-            TextWrapping = TextWrapping.Wrap, Foreground = System.Windows.Media.Brushes.DimGray
+            TextWrapping = TextWrapping.Wrap, Foreground = Etp.Reporting.Desktop.Themes.ThemeBrushes.Get("SecondaryText")
         });
         body.Children.Add(size);
         body.Children.Add(actions);

@@ -25,7 +25,7 @@
             <StackPanel x:Name="ProductSettingsPanel">
                 <TextBlock Text="Product integrations" FontWeight="SemiBold"/>
                 <TextBlock Text="Choose local folders for scanned documents and shared reports."
-                           Foreground="#5D6873" Margin="0,4,0,8" TextWrapping="Wrap"/>
+                           Foreground="{DynamicResource SecondaryText}" Margin="0,4,0,8" TextWrapping="Wrap"/>
                 <TextBlock Text="Document repository"/>
                 <TextBox x:Name="DocumentRepositoryInput" Padding="6" Margin="0,3,0,6"
                          automation:AutomationProperties.Name="Document repository path"/>

@@ -284,7 +284,7 @@ public sealed class DashboardView : UserControl
 
     private static Border Card(UIElement child) => new()
     {
-        Background = Brushes.White,
+        Background = Brush("Surface"),
         BorderBrush = Divider,
         BorderThickness = new Thickness(1),
         CornerRadius = new CornerRadius(14),
