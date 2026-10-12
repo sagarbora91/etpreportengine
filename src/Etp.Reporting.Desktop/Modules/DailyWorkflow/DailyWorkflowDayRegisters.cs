@@ -21,7 +21,7 @@ public partial class DailyWorkflowWorkspaceView
             DayRegistersGrid.ItemsSource = entries;
             DayRegistersStatus.Text = $"{entries.Count:N0} entries; {entries.Count(x => x.VerificationStatus != "VERIFIED"):N0} awaiting verification.";
         }
-        catch (Exception ex) { DesktopDiagnostics.Record(ex, "DailyWorkflow.Registers", "DAY_REGISTERS_FAILED"); DayRegistersStatus.Text = DesktopFriendlyError.Describe(ex); }
+        catch (Exception ex) { var reference = DesktopDiagnostics.Record(ex, "DailyWorkflow.Registers", "DAY_REGISTERS_FAILED"); DayRegistersStatus.Text = DesktopDiagnostics.WithReference(DesktopFriendlyError.Describe(ex), reference); }
     }
     private async void RefreshDayRegisters_Click(object sender, RoutedEventArgs e) => await RefreshDayRegistersAsync();
     private void OpenDayRegister_Click(object sender, RoutedEventArgs e)

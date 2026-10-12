@@ -28,7 +28,7 @@ public sealed class OperationsAdministrationWorkspaceViewTests
 
             await view.RefreshAsync();
             Assert.Equal(0, service.DashboardLoads);
-            Assert.Equal("Operations center could not be refreshed: This Windows account does not have application access.", view.StatusText);
+            Assert.StartsWith("Operations Centre could not be refreshed: This Windows account does not have application access.", view.StatusText, StringComparison.Ordinal);
 
             view.UpdateAccess(new(true, true, true));
             await view.RefreshAsync();
@@ -79,7 +79,7 @@ public sealed class OperationsAdministrationWorkspaceViewTests
             var investigation = new InvestigationApprovalsWorkspaceView(
                 () => "connection", _ => operations, _ => new FakeInvestigationQuery());
             await investigation.RefreshApprovalsAsync();
-            Assert.Equal("Your Windows account does not have permission for this action.", investigation.StatusText);
+            Assert.StartsWith("Your Windows account does not have permission for this action.", investigation.StatusText, StringComparison.Ordinal);
             investigation.UpdateAccess(new(true, false, false));
             await investigation.RefreshApprovalsAsync();
             Assert.Equal(0, investigation.ApprovalRowCount);
@@ -93,7 +93,7 @@ public sealed class OperationsAdministrationWorkspaceViewTests
                 new OperationsAdministrationPresentationSession(), () => "connection", _ => administrationService);
             await administration.RefreshAsync();
             Assert.Equal(0, administrationService.Loads);
-            Assert.Equal("Master administration could not be loaded: Owner permission is required.", administration.StatusText);
+            Assert.StartsWith("Master administration could not be loaded: Owner permission is required.", administration.StatusText, StringComparison.Ordinal);
             administration.UpdateAccess(new(true, true, true));
             await administration.RefreshAsync();
             Assert.Equal(1, administrationService.Loads);
@@ -284,7 +284,7 @@ public sealed class OperationsAdministrationWorkspaceViewTests
             ((TextBox)view.FindName("UserIdentityInput")).Text = @"WORKPC\Clerk";
             Assert.False(await view.SaveUserDraftAsync());
             Assert.Equal(0, service.UserSaves);
-            Assert.Equal($"User access was not saved: {DesktopFriendlyError.UserAccessNeedsElevationMessage}", view.StatusText);
+            Assert.StartsWith($"User access was not saved: {DesktopFriendlyError.UserAccessNeedsElevationMessage}", view.StatusText, StringComparison.Ordinal);
             Assert.Equal(@"WORKPC\Clerk", ((TextBox)view.FindName("UserIdentityInput")).Text);
 
             // Elevated again (or a login that may grant): the warning goes away.
@@ -314,7 +314,7 @@ public sealed class OperationsAdministrationWorkspaceViewTests
             Assert.False(await view.SaveUserDraftAsync());
 
             Assert.Equal(1, service.UserSaves);
-            Assert.Equal($"User access was not saved: {DesktopFriendlyError.UserAccessNeedsElevationMessage}", view.StatusText);
+            Assert.StartsWith($"User access was not saved: {DesktopFriendlyError.UserAccessNeedsElevationMessage}", view.StatusText, StringComparison.Ordinal);
             Assert.False(view.CanSaveUserAccess);
             Assert.Contains("Run as administrator", view.UserAccessGuidanceText, StringComparison.Ordinal);
 
@@ -374,7 +374,7 @@ public sealed class OperationsAdministrationWorkspaceViewTests
             ((TextBox)view.FindName("UserIdentityInput")).Text = @"WORKPC\Clerk";
             Assert.False(await view.SaveUserDraftAsync());
             Assert.Equal(1, service.UserSaves);
-            Assert.Equal($"User access was not saved: {DesktopFriendlyError.UserAccessNeedsElevationMessage}", view.StatusText);
+            Assert.StartsWith($"User access was not saved: {DesktopFriendlyError.UserAccessNeedsElevationMessage}", view.StatusText, StringComparison.Ordinal);
         });
     }
 
@@ -402,7 +402,7 @@ public sealed class OperationsAdministrationWorkspaceViewTests
             Assert.False(await view.SaveUserDraftAsync());
 
             Assert.Equal(1, service.UserSaves);
-            Assert.Equal($"User access was not saved: {DesktopFriendlyError.UserAccessNeedsElevationMessage}", view.StatusText);
+            Assert.StartsWith($"User access was not saved: {DesktopFriendlyError.UserAccessNeedsElevationMessage}", view.StatusText, StringComparison.Ordinal);
             Assert.Equal(@"WORKPC\Clerk", ((TextBox)view.FindName("UserIdentityInput")).Text);
             Assert.True(view.CanSaveUserAccess);
         });

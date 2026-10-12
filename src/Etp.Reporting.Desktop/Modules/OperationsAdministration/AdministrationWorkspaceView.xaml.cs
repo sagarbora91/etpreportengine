@@ -142,7 +142,7 @@ public partial class AdministrationWorkspaceView : UserControl
             ApplyUserAccessReadiness(state.UserAccessChangesNeedElevation);
             await RefreshDatabaseRecoveryAsync(revision);
         }
-        catch (Exception ex) { if (revision != refreshRevision) return; DesktopDiagnostics.Record(ex, "OperationsAdministration.Administration", "ADMINISTRATION_REFRESH_FAILED"); AdministrationStatus.Text = $"Master administration could not be loaded: {DesktopFriendlyError.Describe(ex, "Owner permission is required.")}"; }
+        catch (Exception ex) { if (revision != refreshRevision) return; var reference = DesktopDiagnostics.Record(ex, "OperationsAdministration.Administration", "ADMINISTRATION_REFRESH_FAILED"); AdministrationStatus.Text = DesktopDiagnostics.WithReference($"Master administration could not be loaded: {DesktopFriendlyError.Describe(ex, "Owner permission is required.")}", reference); }
     }
 
     private IAdministrationService Service => serviceFactory(connectionStringProvider());
@@ -181,10 +181,10 @@ public partial class AdministrationWorkspaceView : UserControl
         catch (Exception ex)
         {
             if (revision != refreshRevision) return;
-            DesktopDiagnostics.Record(ex, "OperationsAdministration.Administration", "DATABASE_RECOVERY_LOAD_FAILED");
+            var reference = DesktopDiagnostics.Record(ex, "OperationsAdministration.Administration", "DATABASE_RECOVERY_LOAD_FAILED");
             RecoveryLines = DatabaseRecoveryPresentation.Lines(null, Etp.Reporting.Infrastructure.SqlServer.DatabaseOperationalHealthThresholds.Default, DateTime.UtcNow);
             DatabaseRecoveryGrid.ItemsSource = RecoveryLines;
-            DatabaseRecoveryStatus.Text = "Database and recovery health could not be read. " + DesktopFriendlyError.Describe(ex, "Owner permission is required.");
+            DatabaseRecoveryStatus.Text = DesktopDiagnostics.WithReference("Database and recovery health could not be read. " + DesktopFriendlyError.Describe(ex, "Owner permission is required."), reference);
         }
     }
 
@@ -205,7 +205,7 @@ public partial class AdministrationWorkspaceView : UserControl
             if (StoresChangedAsync is not null) await StoresChangedAsync();
             return true;
         }
-        catch (Exception ex) { DesktopDiagnostics.Record(ex, "OperationsAdministration.Administration", "MASTER_VALUE_SAVE_FAILED"); AdministrationStatus.Text = $"Master value was not saved: {DesktopFriendlyError.Describe(ex, "Owner permission is required.")}"; return false; }
+        catch (Exception ex) { var reference = DesktopDiagnostics.Record(ex, "OperationsAdministration.Administration", "MASTER_VALUE_SAVE_FAILED"); AdministrationStatus.Text = DesktopDiagnostics.WithReference($"Master value was not saved: {DesktopFriendlyError.Describe(ex, "Owner permission is required.")}", reference); return false; }
         finally { EndSave(); }
     }
 
@@ -233,17 +233,17 @@ public partial class AdministrationWorkspaceView : UserControl
             if (AccessChangedAsync is not null)
             {
                 try { await AccessChangedAsync(); }
-                catch (Exception ex) { DesktopDiagnostics.Record(ex, "OperationsAdministration.Administration", "SAVED_ACCESS_REFRESH_FAILED"); AdministrationStatus.Text = "User access was saved. The access display could not be refreshed; reopen ETP to refresh permissions."; }
+                catch (Exception ex) { var reference = DesktopDiagnostics.Record(ex, "OperationsAdministration.Administration", "SAVED_ACCESS_REFRESH_FAILED"); AdministrationStatus.Text = DesktopDiagnostics.WithReference("User access was saved. The access display could not be refreshed; reopen ETP to refresh permissions.", reference); }
             }
             return true;
         }
         catch (Exception ex)
         {
-            DesktopDiagnostics.Record(ex, "OperationsAdministration.Administration", "USER_ACCESS_SAVE_FAILED", UserAccessFailureSeverity(ex), operation: "User access save failed");
+            var reference = DesktopDiagnostics.Record(ex, "OperationsAdministration.Administration", "USER_ACCESS_SAVE_FAILED", UserAccessFailureSeverity(ex), operation: "User access save failed");
             var reason = DesktopFriendlyError.DescribeUserAccessFailure(ex);
             // The check on refresh could not see the refusal coming; keep the screen honest now.
             if (reason == DesktopFriendlyError.UserAccessNeedsElevationMessage) ApplyUserAccessReadiness(true);
-            AdministrationStatus.Text = $"User access was not saved: {reason}";
+            AdministrationStatus.Text = DesktopDiagnostics.WithReference($"User access was not saved: {reason}", reference);
             return false;
         }
         finally { EndSave(); }

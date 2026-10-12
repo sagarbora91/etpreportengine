@@ -87,7 +87,7 @@ public partial class OperationsWorkspaceView : UserControl
             var tasks = await readTaskStatus(CancellationToken.None);
             if (revision == refreshRevision) InstalledAutomationTaskStatus.Text = string.Join(Environment.NewLine, tasks.Select(task => task.Summary));
         }
-        catch (Exception ex) { if (revision != refreshRevision) return; DesktopDiagnostics.Record(ex, "OperationsAdministration.Operations", "OPERATIONS_REFRESH_FAILED"); OperationsStatus.Text = $"Operations center could not be refreshed: {DesktopFriendlyError.Describe(ex, "This Windows account does not have application access.")}"; }
+        catch (Exception ex) { if (revision != refreshRevision) return; var reference = DesktopDiagnostics.Record(ex, "OperationsAdministration.Operations", "OPERATIONS_REFRESH_FAILED"); OperationsStatus.Text = DesktopDiagnostics.WithReference($"Operations Centre could not be refreshed: {DesktopFriendlyError.Describe(ex, "This Windows account does not have application access.")}", reference); }
     }
 
     private IOperationsAdministrationService Service => serviceFactory(connectionStringProvider());
@@ -111,7 +111,7 @@ public partial class OperationsWorkspaceView : UserControl
             await RefreshAsync();
             return true;
         }
-        catch (Exception ex) { DesktopDiagnostics.Record(ex, "OperationsAdministration.Operations", "WATCH_FOLDER_SAVE_FAILED"); OperationsStatus.Text = $"Automation settings were not saved: {DesktopFriendlyError.Describe(ex, "Owner permission is required.")}"; return false; }
+        catch (Exception ex) { var reference = DesktopDiagnostics.Record(ex, "OperationsAdministration.Operations", "WATCH_FOLDER_SAVE_FAILED"); OperationsStatus.Text = DesktopDiagnostics.WithReference($"Automation settings were not saved: {DesktopFriendlyError.Describe(ex, "Owner permission is required.")}", reference); return false; }
         finally { EndOperation(); }
     }
 
@@ -128,7 +128,7 @@ public partial class OperationsWorkspaceView : UserControl
             await RefreshAsync();
             if (DashboardRefreshRequestedAsync is not null) await DashboardRefreshRequestedAsync();
         }
-        catch (Exception ex) { DesktopDiagnostics.Record(ex, "OperationsAdministration.Operations", "AUTOMATION_RUN_FAILED"); OperationsStatus.Text = $"Unattended processing failed: {DesktopFriendlyError.Describe(ex, "Owner or Store Manager permission is required.")}"; }
+        catch (Exception ex) { var reference = DesktopDiagnostics.Record(ex, "OperationsAdministration.Operations", "AUTOMATION_RUN_FAILED"); OperationsStatus.Text = DesktopDiagnostics.WithReference($"Unattended processing failed: {DesktopFriendlyError.Describe(ex, "Owner or Store Manager permission is required.")}", reference); }
         finally { EndOperation(); }
     }
 
@@ -153,7 +153,7 @@ public partial class OperationsWorkspaceView : UserControl
             await RefreshAsync();
             return true;
         }
-        catch (Exception ex) { DesktopDiagnostics.Record(ex, "OperationsAdministration.Operations", "REPORT_SCHEDULE_SAVE_FAILED"); OperationsStatus.Text = $"Schedule was not saved: {DesktopFriendlyError.Describe(ex, "Owner permission is required.")}"; return false; }
+        catch (Exception ex) { var reference = DesktopDiagnostics.Record(ex, "OperationsAdministration.Operations", "REPORT_SCHEDULE_SAVE_FAILED"); OperationsStatus.Text = DesktopDiagnostics.WithReference($"Schedule was not saved: {DesktopFriendlyError.Describe(ex, "Owner permission is required.")}", reference); return false; }
         finally { EndOperation(); }
     }
 
@@ -171,7 +171,7 @@ public partial class OperationsWorkspaceView : UserControl
             await RefreshAsync();
             OperationsStatus.Text = $"Issue marked {status.Replace('_', ' ').ToLowerInvariant()}. Technical control remains {row.TechnicalControlStatus}.";
         }
-        catch (Exception ex) { DesktopDiagnostics.Record(ex, "OperationsAdministration.Operations", "ISSUE_WORKFLOW_UPDATE_FAILED"); OperationsStatus.Text = OperationsAdministrationWorkspaceErrors.Friendly(ex); }
+        catch (Exception ex) { var reference = DesktopDiagnostics.Record(ex, "OperationsAdministration.Operations", "ISSUE_WORKFLOW_UPDATE_FAILED"); OperationsStatus.Text = DesktopDiagnostics.WithReference(OperationsAdministrationWorkspaceErrors.Friendly(ex), reference); }
         finally { EndOperation(); }
     }
 
@@ -211,7 +211,7 @@ public partial class OperationsWorkspaceView : UserControl
             if (auditSupportPackage && AuditRequestedAsync is not null)
                 await AuditRequestedAsync("SupportPackage", result.Succeeded ? "Succeeded" : "Failed", "Privacy-safe support package operation completed");
         }
-        catch (Exception ex) { DesktopDiagnostics.Record(ex, "OperationsAdministration.Maintenance", failureEventId); MaintenanceStatus.Text = failed(ex); }
+        catch (Exception ex) { var reference = DesktopDiagnostics.Record(ex, "OperationsAdministration.Maintenance", failureEventId); MaintenanceStatus.Text = DesktopDiagnostics.WithReference(failed(ex), reference); }
         finally { EndOperation(); }
     }
 
