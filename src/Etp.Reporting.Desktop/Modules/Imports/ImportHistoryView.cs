@@ -40,16 +40,20 @@ public sealed class ImportHistoryView : UserControl
         root.RowDefinitions.Add(new() { Height = new GridLength(1, GridUnitType.Star) });
         root.RowDefinitions.Add(new() { Height = GridLength.Auto });
         var heading = new StackPanel();
-        heading.Children.Add(new TextBlock { Text = "Imports — saved outcomes", FontSize = 18, FontWeight = FontWeights.SemiBold });
-        heading.Children.Add(new TextBlock { Text = "Imported files and repeat attempts are saved here. Received files is the separate document inbox. Times are your local time. Undetected dates use the attempt's UTC date.", TextWrapping = TextWrapping.Wrap });
-        var refresh = new Button { Content = "Refresh history", MinHeight = 44, HorizontalAlignment = HorizontalAlignment.Left };
+        // DS-14/DS-24: the shell header owns the title. The first line is the count (the verdict of the period); the
+        // one caption says what the times are. The longer explanation is a tooltip on the caption.
+        status.SetResourceReference(FrameworkElement.StyleProperty, "BodyText");
+        var caption = new TextBlock { Text = "Times are your local time.", ToolTip = "Imported files and repeat attempts are saved here. Received files is the separate document inbox. Undetected dates use the attempt's UTC date.", Margin = new Thickness(0, 2, 0, 6) };
+        caption.SetResourceReference(FrameworkElement.StyleProperty, "CaptionText");
+        var refresh = new Button { Content = "Refresh", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, 6) };
         refresh.Click += async (_, _) => { if (scope is not null) await ActivateAsync(scope); };
-        heading.Children.Add(refresh); heading.Children.Add(status); root.Children.Add(heading);
+        heading.Children.Add(status); heading.Children.Add(caption); heading.Children.Add(refresh); root.Children.Add(heading);
         foreach (var (title, path, width) in new[] {
-            ("Recorded", "RecordedUtc", 155d), ("Verdict", "Result", 300d), ("File", "Result.FileName", 230d), ("Report", "Result.ReportCode", 80d),
-            ("Store", "Result.StoreCode", 80d), ("Period", "Result.Period", 225d), ("Outcome", "Result.Status", 130d),
-            ("Rows", "Result.RowsProcessed", 75d), ("New", "Result.NewRows", 75d), ("Present", "Result.AlreadyPresentRows", 75d), ("Conflicts", "Result.ConflictRows", 75d),
-            ("Failure", "Result.Failure.Code", 190d), ("Stage", "Result.Failure.Stage", 80d) })
+            // DS-14: reading order is Recorded, Verdict, File, Store, Report, Period, Rows; the codes (Outcome, Failure, Stage) come last.
+            ("Recorded", "RecordedUtc", 155d), ("Verdict", "Result", 360d), ("File", "Result.FileName", 230d),
+            ("Store", "Result.StoreCode", 80d), ("Report", "Result.ReportCode", 80d), ("Period", "Result.Period", 225d),
+            ("Rows", "Result.RowsProcessed", 75d), ("New", "Result.NewRows", 75d), ("Present", "Result.AlreadyPresentRows", 75d), ("Conflicts", "Result.ConflictRows", 90d),
+            ("Outcome", "Result.Status", 130d), ("Failure", "Result.Failure.Code", 190d), ("Stage", "Result.Failure.Stage", 80d) })
             rows.Columns.Add(new DataGridTextColumn { Header = title, Binding = new Binding(path) { StringFormat = path == "RecordedUtc" ? "dd MMM yyyy HH:mm" : null,
                 Converter = path == "Result.StoreCode" ? new StoreLabelConverter(this) : path == "RecordedUtc" ? new LocalTimeConverter() : path == "Result" ? new VerdictConverter() : null }, Width = width });
         TablePresentation.Configure(rows); AutomationProperties.SetName(rows, "Saved import outcomes");
@@ -80,7 +84,7 @@ public sealed class ImportHistoryView : UserControl
             var loaded = await load(value);
             if (current != revision) return;
             Entries = loaded; rows.ItemsSource = loaded;
-            status.Text = $"{loaded.Count:N0} saved outcomes · {value.From:dd MMM yyyy} – {value.To:dd MMM yyyy} · {value.StoreCode ?? "All stores"}";
+            status.Text = CountLine(loaded) + $" · {value.From:dd MMM yyyy} – {value.To:dd MMM yyyy} · {value.StoreCode ?? "All stores"}";
             if (loaded.Count > 0) rows.SelectedIndex = 0;
         }
         catch (Exception exception)
@@ -90,6 +94,16 @@ public sealed class ImportHistoryView : UserControl
                 DesktopDiagnostics.Record(exception, "Imports.History", "IMPORT_HISTORY_LOAD_FAILED", operation: "Saved imports load failed"));
         }
         finally { if (current == revision) IsLoading = false; }
+    }
+
+    /// <summary>DS-14: "6 files: 5 imported, 1 refused" - the status line is the verdict of the period.</summary>
+    public static string CountLine(IReadOnlyList<HistoryEntry> entries)
+    {
+        ArgumentNullException.ThrowIfNull(entries);
+        if (entries.Count == 0) return "No saved imports in this range";
+        var refused = entries.Count(entry => entry.Result.Failed || entry.Result.Failure is not null);
+        var files = entries.Count == 1 ? "1 file" : $"{entries.Count:N0} files";
+        return refused == 0 ? $"{files}: all imported" : $"{files}: {entries.Count - refused:N0} imported, {refused:N0} refused";
     }
 
     public void SelectEntry(HistoryEntry entry) => rows.SelectedItem = entry;

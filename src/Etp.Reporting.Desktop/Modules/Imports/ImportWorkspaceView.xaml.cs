@@ -1,6 +1,8 @@
 extern alias EtpApplication;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
+using Etp.Reporting.Desktop.Themes;
 using Microsoft.Win32;
 using FolderImportOptions = EtpApplication::Etp.Reporting.Application.Imports.FolderImportOptions;
 using FolderImportProgress = EtpApplication::Etp.Reporting.Application.Imports.FolderImportProgress;
@@ -29,8 +31,15 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
         this.connectionStringProvider = connectionStringProvider ?? throw new ArgumentNullException(nameof(connectionStringProvider));
         InitializeComponent();
         CaptureImportControls();
+        BuildResultColumns();
         TablePresentation.Configure(BatchResultsGrid);
+        Loaded += (_, _) => EmptyStateHistoryButton.Visibility = ShowImportHistoryRequested is not null ? Visibility.Visible : Visibility.Collapsed;
     }
+    /// <summary>FR-07: "Show the Daily Sales Report" for the last imported date; the shell navigates, the header date does not move silently.</summary>
+    public event EventHandler<DateOnly>? ShowDailySalesReportRequested;
+    /// <summary>FR-07: "Show Import History".</summary>
+    public event EventHandler? ShowImportHistoryRequested;
+    private DateOnly? lastImportedDate;
     public event EventHandler<string>? NotificationRequested;
     public event EventHandler<string>? ReadinessChanged;
     public event EventHandler<FolderImportProgress>? ProgressChanged;
@@ -109,6 +118,9 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
             var previousResults = latestResults;
             CancelBatchButton.IsEnabled = true;
             if (!retry) latestResults = [];
+            ImportEmptyState.Visibility = Visibility.Collapsed;
+            ResultsPanel.Visibility = Visibility.Visible;
+            HandOffPanel.Visibility = Visibility.Collapsed;
             DetectedScopeText.Text = "Detecting store and date range…";
             BatchResultsGrid.ItemsSource = latestResults;
             DiagnosticsGrid.ItemsSource = null;
@@ -132,6 +144,7 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
             SelectTask(currentTask);
             ShowScope();
             ValidationResult.Text = $"{summary.Imported:N0} imported · {summary.Duplicates:N0} duplicate/already present · {summary.NewRows:N0} new rows · {summary.Conflicts:N0} conflicts · {summary.Failed:N0} failed · {summary.UnknownLayouts:N0} unknown layouts.";
+            ShowHandOffs();
             ReadinessChanged?.Invoke(this, summary.Failed > 0 ? "Review import results" : "Import completed");
             await dashboardRefresher();
             await auditRecorder("ImportBatch", summary.Failed > 0 ? "Failed" : "Succeeded", retry ? "Failed-file retry completed" : "Folder import completed");
@@ -150,6 +163,59 @@ public partial class ImportWorkspaceView : UserControl, IAsyncDisposable
             .ToDictionary(result => result.SourcePath!, StringComparer.OrdinalIgnoreCase);
         return previous.Select(result => result.Failed && result.SourcePath is { } path && updated.TryGetValue(path, out var replacement)
             ? replacement : result).ToArray();
+    }
+    private void ShowHandOffs()
+    {
+        lastImportedDate = latestResults.Where(result => !result.Failed && result.PeriodEnd is not null).Select(result => result.PeriodEnd).Max();
+        ShowDsrButton.Visibility = lastImportedDate is not null && ShowDailySalesReportRequested is not null ? Visibility.Visible : Visibility.Collapsed;
+        if (lastImportedDate is { } date) ShowDsrButton.Content = $"Show the Daily Sales Report for {date:dd MMM yyyy}";
+        ShowHistoryButton.Visibility = ShowImportHistoryRequested is not null ? Visibility.Visible : Visibility.Collapsed;
+        HandOffPanel.Visibility = ShowDsrButton.Visibility == Visibility.Visible || ShowHistoryButton.Visibility == Visibility.Visible ? Visibility.Visible : Visibility.Collapsed;
+    }
+    private void ShowDailySalesReport_Click(object sender, RoutedEventArgs e)
+    {
+        if (lastImportedDate is { } date) ShowDailySalesReportRequested?.Invoke(this, date);
+    }
+    private void ShowImportHistory_Click(object sender, RoutedEventArgs e) => ShowImportHistoryRequested?.Invoke(this, EventArgs.Empty);
+
+    /// <summary>DS-13: Verdict first and widest, Result as a tone chip, counts in one column, Date range last.</summary>
+    private void BuildResultColumns()
+    {
+        var wrap = new Style(typeof(TextBlock));
+        wrap.Setters.Add(new Setter(TextBlock.TextWrappingProperty, TextWrapping.Wrap));
+        var chip = new Style(typeof(TextBlock));
+        chip.Setters.Add(new Setter(TextBlock.PaddingProperty, new Thickness(8, 3, 8, 3)));
+        chip.Setters.Add(new Setter(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Left));
+        chip.Setters.Add(new Setter(TextBlock.FontWeightProperty, FontWeights.SemiBold));
+        chip.Setters.Add(new Setter(TextBlock.BackgroundProperty, ThemeBrushes.Get("SuccessSoft")));
+        chip.Setters.Add(new Setter(TextBlock.ForegroundProperty, ThemeBrushes.Get("Success")));
+        void When(string status, string fill, string ink)
+        {
+            var trigger = new DataTrigger { Binding = new Binding(nameof(FolderImportFileResult.Status)), Value = status };
+            trigger.Setters.Add(new Setter(TextBlock.BackgroundProperty, ThemeBrushes.Get(fill)));
+            trigger.Setters.Add(new Setter(TextBlock.ForegroundProperty, ThemeBrushes.Get(ink)));
+            chip.Triggers.Add(trigger);
+        }
+        When("Failed", "CriticalSoft", "Critical");
+        When("Unknown layout", "WarningSoft", "Warning");
+        When("Duplicate", "SurfaceSecondary", "SecondaryText");
+        When("Duplicate content", "SurfaceSecondary", "SecondaryText");
+        When("Already present", "SurfaceSecondary", "SecondaryText");
+        var columns = BatchResultsGrid.Columns;
+        columns.Add(new DataGridTextColumn { Header = "Verdict", Binding = new Binding(".") { Converter = new ResultTextConverter(ImportHistoryView.Verdict) }, Width = new DataGridLength(1, DataGridLengthUnitType.Star), MinWidth = 320, ElementStyle = wrap });
+        columns.Add(new DataGridTextColumn { Header = "File", Binding = new Binding(nameof(FolderImportFileResult.FileName)), Width = 230 });
+        columns.Add(new DataGridTextColumn { Header = "Result", Binding = new Binding(nameof(FolderImportFileResult.Status)), Width = 130, ElementStyle = chip });
+        columns.Add(new DataGridTextColumn { Header = "Rows: new / present / conflicts", Binding = new Binding(".") { Converter = new ResultTextConverter(RowsText) }, Width = 220, ElementStyle = wrap });
+        columns.Add(new DataGridTextColumn { Header = "Store", Binding = new Binding(nameof(FolderImportFileResult.StoreCode)), Width = 80 });
+        columns.Add(new DataGridTextColumn { Header = "Report", Binding = new Binding(nameof(FolderImportFileResult.ReportCode)), Width = 80 });
+        columns.Add(new DataGridTextColumn { Header = "Date range", Binding = new Binding(nameof(FolderImportFileResult.Period)), Width = 215 });
+    }
+    /// <summary>"1,204 new / 0 present / 0 conflicts".</summary>
+    internal static string RowsText(FolderImportFileResult result) => $"{result.NewRows:N0} new / {result.AlreadyPresentRows:N0} present / {result.ConflictRows:N0} conflicts";
+    private sealed class ResultTextConverter(Func<FolderImportFileResult, string> text) : IValueConverter
+    {
+        public object? Convert(object? value, Type targetType, object? parameter, System.Globalization.CultureInfo culture) => value is FolderImportFileResult result ? text(result) : value;
+        public object? ConvertBack(object? value, Type targetType, object? parameter, System.Globalization.CultureInfo culture) => Binding.DoNothing;
     }
     private void ShowScope()
     {

@@ -6,20 +6,33 @@
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="4">
             <WrapPanel>
-                <Button x:Name="ImportFolderButton" Content="Import today's folder" Click="ImportFolder_Click" Style="{DynamicResource PrimaryButton}" MinHeight="44" Padding="16,8" Margin="0,0,8,8" automation:AutomationProperties.Name="Import today's folder"/>
-                <Button Content="Choose workbook or ZIP" Click="BrowseWorkbook_Click" MinHeight="44" Padding="12,8" Margin="0,0,8,8" automation:AutomationProperties.Name="Choose workbook or ZIP"/>
-                <Button x:Name="StartBatchButton" Content="Import selected source" Click="StartBatchImport_Click" MinHeight="44" Padding="12,8" Margin="0,0,8,8" automation:AutomationProperties.Name="Import selected source"/>
-                <Button x:Name="GetBlankSheetButton" Content="Get blank daily sheet" Click="GetBlankSheet_Click" MinHeight="44" Padding="12,8" Margin="0,0,8,8" automation:AutomationProperties.Name="Get blank daily sheet"/>
-                <Button x:Name="OpenBlankSheetFolderButton" Content="Open folder" Click="OpenBlankSheetFolder_Click" Visibility="Collapsed" MinHeight="44" Padding="12,8" Margin="0,0,8,8" automation:AutomationProperties.Name="Open the folder the blank daily sheet was saved in"/>
-                <Button x:Name="CancelBatchButton" Content="Cancel" Click="CancelBatchImport_Click" MinHeight="44" Padding="12,8" IsEnabled="False" Margin="0,0,8,8" automation:AutomationProperties.Name="Cancel folder import"/>
+                <Button x:Name="ImportFolderButton" Content="Import a folder" Click="ImportFolder_Click" Style="{DynamicResource PrimaryButton}" Margin="0,0,8,8" automation:AutomationProperties.Name="Import a folder"/>
+                <Button Content="Choose workbook or ZIP" Click="BrowseWorkbook_Click" Margin="0,0,8,8" automation:AutomationProperties.Name="Choose workbook or ZIP"/>
+                <Button x:Name="StartBatchButton" Content="Import selected source" Click="StartBatchImport_Click" Margin="0,0,8,8" automation:AutomationProperties.Name="Import selected source"/>
+                <Button x:Name="GetBlankSheetButton" Content="Get blank daily sheet" Click="GetBlankSheet_Click" Margin="0,0,8,8" automation:AutomationProperties.Name="Get blank daily sheet"/>
+                <Button x:Name="OpenBlankSheetFolderButton" Content="Open folder" Click="OpenBlankSheetFolder_Click" Visibility="Collapsed" Margin="0,0,8,8" automation:AutomationProperties.Name="Open the folder the blank daily sheet was saved in"/>
+                <Button x:Name="CancelBatchButton" Content="Cancel" Click="CancelBatchImport_Click" IsEnabled="False" Margin="0,0,8,8" automation:AutomationProperties.Name="Cancel folder import"/>
             </WrapPanel>
-            <TextBlock Text="Choose either store folder, or a parent containing both. Store and dates are detected from each file." TextWrapping="Wrap" Margin="0,0,0,8"/>
-            <TextBlock x:Name="DetectedScopeText" Text="Detected store and date range will appear here." TextWrapping="Wrap" FontWeight="SemiBold" Margin="0,0,0,8" automation:AutomationProperties.Name="Detected import scope"/>
-            <ProgressBar x:Name="ImportProgressBar" Height="10" Minimum="0" Maximum="1" Margin="0,4,0,8" automation:AutomationProperties.Name="Folder import progress"/>
-            <TextBlock x:Name="ValidationResult" Text="Ready to import a folder." TextWrapping="Wrap" Margin="0,0,0,8" automation:AutomationProperties.Name="Folder import status" automation:AutomationProperties.LiveSetting="Polite"/>
+            <!-- DS-12: before any import there is one EmptyState card, not six pieces of empty chrome. The progress bar,
+                 detected scope, grid and detail line appear in ResultsPanel when an import starts. -->
+            <Border x:Name="ImportEmptyState" Style="{DynamicResource InsetCard}" Margin="0,0,0,8" automation:AutomationProperties.Name="No import yet">
+                <StackPanel>
+                    <TextBlock Text="No import has been run in this window yet." Style="{DynamicResource CardTitleText}"/>
+                    <TextBlock Text="Choose the folder that holds the exports, or a ZIP. ETP finds the shop and the date in each file. Imports that ran on their own are listed in History." Style="{DynamicResource BodyText}" Margin="0,4,0,8"/>
+                    <Button x:Name="EmptyStateHistoryButton" Content="Show Import History" Click="ShowImportHistory_Click" HorizontalAlignment="Left" Visibility="Collapsed"
+                            automation:AutomationProperties.Name="Show Import History"/>
+                </StackPanel>
+            </Border>
+            <TextBlock x:Name="ValidationResult" Style="{DynamicResource BodyText}" Margin="0,0,0,8" automation:AutomationProperties.Name="Folder import status" automation:AutomationProperties.LiveSetting="Polite"/>
+            <WrapPanel x:Name="HandOffPanel" Visibility="Collapsed" Margin="0,0,0,8">
+                <Button x:Name="ShowDsrButton" Content="Show the Daily Sales Report" Click="ShowDailySalesReport_Click" Margin="0,0,8,0"
+                        automation:AutomationProperties.Name="Show the Daily Sales Report for the imported date"/>
+                <Button x:Name="ShowHistoryButton" Content="Show Import History" Click="ShowImportHistory_Click"
+                        automation:AutomationProperties.Name="Show Import History"/>
+            </WrapPanel>
             <Expander x:Name="ImportOptionsExpander" Header="Source and restatement options" Margin="0,0,0,8" automation:AutomationProperties.Name="Source and restatement options">
                 <StackPanel>
-            <TextBox x:Name="WorkbookPathInput" IsReadOnly="True" Padding="8" Margin="0,0,0,8" automation:AutomationProperties.Name="Selected import source"/>
+            <TextBox x:Name="WorkbookPathInput" IsReadOnly="True" Margin="0,0,0,8" automation:AutomationProperties.Name="Selected import source"/>
             <CheckBox x:Name="RestatementModeInput" Content="Request restatement approval" Checked="RestatementMode_Changed" Unchecked="RestatementMode_Changed" MinHeight="{DynamicResource ActiveTargetHeight}" automation:AutomationProperties.Name="Request restatement approval"/>
             <TextBlock Text="Overrides can fill a missing store or date. Values already detected in the file must match; a corrected file is required to change them." TextWrapping="Wrap" Margin="0,0,0,8"/>
             <WrapPanel x:Name="OverridePanel" Visibility="Collapsed" Margin="0,0,0,8">
@@ -31,20 +44,12 @@
             </WrapPanel>
                 </StackPanel>
             </Expander>
-            <DataGrid x:Name="BatchResultsGrid" AutoGenerateColumns="False" IsReadOnly="True" MinHeight="160" MaxHeight="300" RowHeight="{DynamicResource ActiveGridRowHeight}" SelectionMode="Single" SelectionChanged="Result_SelectionChanged" HorizontalScrollBarVisibility="Auto" automation:AutomationProperties.Name="Per-file import results">
-                <DataGrid.Columns>
-                    <DataGridTextColumn Header="File" Binding="{Binding FileName}" Width="250"/>
-                    <DataGridTextColumn Header="Result" Binding="{Binding Status}" Width="130"/>
-                    <DataGridTextColumn Header="Rows" Binding="{Binding RowsProcessed, StringFormat=N0}" Width="70"/>
-                    <DataGridTextColumn Header="New" Binding="{Binding NewRows, StringFormat=N0}" Width="70"/>
-                    <DataGridTextColumn Header="Present" Binding="{Binding AlreadyPresentRows, StringFormat=N0}" Width="75"/>
-                    <DataGridTextColumn Header="Conflicts" Binding="{Binding ConflictRows, StringFormat=N0}" Width="75"/>
-                    <DataGridTextColumn Header="Report" Binding="{Binding ReportCode}" Width="70"/>
-                    <DataGridTextColumn Header="Store" Binding="{Binding StoreCode}" Width="75"/>
-                    <DataGridTextColumn Header="Date range" Binding="{Binding Period}" Width="215"/>
-                </DataGrid.Columns>
+            <StackPanel x:Name="ResultsPanel" Visibility="Collapsed">
+            <TextBlock x:Name="DetectedScopeText" Style="{DynamicResource CaptionText}" Margin="0,0,0,8" automation:AutomationProperties.Name="Detected import scope"/>
+            <ProgressBar x:Name="ImportProgressBar" Height="10" Minimum="0" Maximum="1" Margin="0,4,0,8" automation:AutomationProperties.Name="Folder import progress"/>
+            <DataGrid x:Name="BatchResultsGrid" AutoGenerateColumns="False" IsReadOnly="True" MinHeight="160" RowHeight="{DynamicResource ActiveGridRowHeight}" SelectionMode="Single" SelectionChanged="Result_SelectionChanged" HorizontalScrollBarVisibility="Auto" automation:AutomationProperties.Name="Per-file import results">
             </DataGrid>
-            <TextBlock x:Name="FileDetailText" Text="Select a file to see its results and diagnostics." TextWrapping="Wrap" Margin="0,8,0,8" automation:AutomationProperties.Name="Selected file result details"/>
+            <TextBlock x:Name="FileDetailText" Text="Select a file to see its results and diagnostics." Style="{DynamicResource CaptionText}" Margin="0,8,0,8" automation:AutomationProperties.Name="Selected file result details"/>
             <DataGrid x:Name="DiagnosticsGrid" Visibility="Collapsed" AutoGenerateColumns="False" IsReadOnly="True" MinHeight="80" MaxHeight="180" HorizontalScrollBarVisibility="Auto" automation:AutomationProperties.Name="Selected file diagnostics">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Issue" Binding="{Binding Code}" Width="210"/>
@@ -56,6 +61,7 @@
                     </DataGridTextColumn>
                 </DataGrid.Columns>
             </DataGrid>
+            </StackPanel>
         </StackPanel>
     </ScrollViewer>
 </UserControl>
