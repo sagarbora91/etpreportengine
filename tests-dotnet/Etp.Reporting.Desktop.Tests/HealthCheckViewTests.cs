@@ -563,6 +563,46 @@ public sealed class HealthCheckViewTests
         });
     }
 
+    // 1.11.2 (UX audit top 3, top 5, accessibility 1): the tile links to the Health check for the Owner and names the top
+    // finding; "Where to fix" buttons are named by line; a Ref in a status line can be found for Copy Ref.
+    [Fact]
+    public void The_tile_names_the_top_finding_and_opens_the_health_check_only_for_the_owner()
+    {
+        HealthCheckResult Line(string id, HealthOutcome outcome, string text) => new(id, default, outcome, "CODE", text, null, TimeSpan.Zero);
+        var results = new[] { Line("A-01", HealthOutcome.Pass, "fine"), Line("B-02", HealthOutcome.Warning, "Staff targets are not set."), Line("C-03", HealthOutcome.Fail, "The backup is two days old.") };
+        Assert.Equal("The backup is two days old.", HealthSummaryTile.TopFinding(results));
+        Assert.Equal("Staff targets are not set.", HealthSummaryTile.TopFinding(results.Where(x => x.Outcome != HealthOutcome.Fail).ToArray()));
+        Assert.Null(HealthSummaryTile.TopFinding([results[0]]));
+        Assert.True(HealthSummaryTile.TopFinding([Line("D-04", HealthOutcome.Fail, new string('x', 400))])!.Length <= 140);
+        Assert.Equal("System check: 1 problem: The backup is two days old. (click to open the health check)",
+            HealthSummaryTile.OwnerText("System check: 1 problem - tell the Owner", "The backup is two days old."));
+
+        RunSta(() =>
+        {
+            var opened = 0;
+            var owner = new HealthSummaryTile(() => null, null, () => true, () => opened++);
+            var manager = new HealthSummaryTile(() => null, null, () => false, () => opened++);
+            var plain = new HealthSummaryTile(() => null);
+            Assert.True(owner.TryOpen());
+            Assert.False(manager.TryOpen());
+            Assert.False(plain.TryOpen());
+            Assert.Equal(1, opened);
+        });
+    }
+
+    [Fact]
+    public void Each_where_to_fix_button_is_named_by_its_line_and_a_ref_is_found_in_a_status_line()
+    {
+        var result = new HealthCheckResult("BKP-01", default, HealthOutcome.Warning, "OLD", "Old backup.", "backups", TimeSpan.Zero);
+        var row = new HealthRow(result, FixTarget.Resolve("backups"), null);
+        Assert.Equal("Open where to fix for BKP-01: Settings → Database → Backups", row.FixButtonName);
+
+        Assert.True(DesktopDiagnostics.TryFindReference("Save failed. Ref: 1a2b3c4d5e6f", out var reference));
+        Assert.Equal("1A2B3C4D5E6F", reference);
+        Assert.False(DesktopDiagnostics.TryFindReference("Ref: 123", out _));
+        Assert.False(DesktopDiagnostics.TryFindReference(null, out _));
+    }
+
     // ---- helpers -------------------------------------------------------------------------------------------------
 
     private static HealthCheckView NewView(

@@ -30,6 +30,7 @@ public partial class MainWindow
         ShellBusinessDateSelector.SelectedDate = TaskNavigator.InitialBusinessDate;
         taskNavigator = new TaskNavigator(this);
         taskNavigator.InitializeTaskNavigation();
+        InitializeDiagnosticsShell();
         ApplyDensity(uiPreferences.Density, false);
         InitializeFocusedWorkspaces();
         var toastTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };

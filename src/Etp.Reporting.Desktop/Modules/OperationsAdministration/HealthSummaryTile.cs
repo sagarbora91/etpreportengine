@@ -3,6 +3,7 @@ extern alias EtpApplication;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Input;
 using EtpApplication::Etp.Reporting.Application.HealthCheck;
 using Etp.Reporting.Desktop.Themes;
 
@@ -23,12 +24,21 @@ public sealed class HealthSummaryTile : Border
     private readonly Func<DateOnly> today;
     private readonly TextBlock text = new() { TextWrapping = TextWrapping.Wrap, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
     private readonly Border stripe = new() { Width = 5, CornerRadius = new CornerRadius(3), Margin = new Thickness(0, 0, 10, 0) };
+    private readonly Func<bool>? isOwner;
+    private readonly Action? open;
     private int revision;
     private bool failureRecorded;
 
-    public HealthSummaryTile(Func<IHealthCheckStore?> store, Func<DateOnly>? today = null)
+    /// <summary>
+    /// <paramref name="isOwner"/> and <paramref name="open"/> (1.11.2, UX audit top 3): for the Owner the tile also names
+    /// the top finding in words and opens the Health check when clicked or activated with Enter or Space. Without them (or
+    /// for any other role) it is the plain one-line tile.
+    /// </summary>
+    public HealthSummaryTile(Func<IHealthCheckStore?> store, Func<DateOnly>? today = null, Func<bool>? isOwner = null, Action? open = null)
     {
         this.store = store ?? throw new ArgumentNullException(nameof(store));
+        this.isOwner = isOwner;
+        this.open = open;
         this.today = today ?? (() => DateOnly.FromDateTime(DateTime.Today));
         Margin = new Thickness(4);
         Padding = new Thickness(12, 8, 12, 8);
@@ -43,8 +53,41 @@ public sealed class HealthSummaryTile : Border
         Child = row;
         AutomationProperties.SetName(this, "System check");
         AutomationProperties.SetLiveSetting(text, AutomationLiveSetting.Polite);
+        if (open is not null)
+        {
+            MouseLeftButtonUp += (_, _) => TryOpen();
+            KeyDown += (_, e) => { if (e.Key is Key.Enter or Key.Space) { TryOpen(); e.Handled = true; } };
+        }
         Show(HealthOutcome.Skipped, "System check: not checked yet");
     }
+
+    /// <summary>True when the tile is a link: the signed-in role is the Owner and an opener was given.</summary>
+    public bool IsLink => open is not null && isOwner?.Invoke() == true;
+
+    /// <summary>Opens the Health check for the Owner (also what a click does). Returns false when the tile is not a link.</summary>
+    public bool TryOpen()
+    {
+        if (!IsLink) return false;
+        open!();
+        return true;
+    }
+
+    /// <summary>
+    /// The top finding in words for the Owner: the first Fail, else the first Warning, of the latest run. The explanation
+    /// is cut to one line's worth. Null when nothing needs attention.
+    /// </summary>
+    public static string? TopFinding(IReadOnlyList<HealthCheckResult> results)
+    {
+        var top = results.FirstOrDefault(x => x.Outcome == HealthOutcome.Fail) ?? results.FirstOrDefault(x => x.Outcome == HealthOutcome.Warning);
+        if (top is null || string.IsNullOrWhiteSpace(top.Explanation)) return null;
+        var text = top.Explanation.Trim().ReplaceLineEndings(" ");
+        return text.Length <= 140 ? text : text[..137].TrimEnd() + "...";
+    }
+
+    /// <summary>The Owner's line: the counts, then the top finding, then how to open it.</summary>
+    public static string OwnerText(string counts, string? finding) =>
+        finding is null ? counts + " - click to open the health check"
+            : counts.Replace(" - tell the Owner", "", StringComparison.Ordinal) + ": " + finding + " (click to open the health check)";
 
     /// <summary>The tile's one line.</summary>
     public string Text => text.Text;
@@ -84,7 +127,21 @@ public sealed class HealthSummaryTile : Border
             var summary = await source.LoadLatestNightlySummaryAsync();
             if (mine != revision) return;
             var date = today();
-            Show(LevelFor(summary, date), TextFor(summary, date));
+            var level = LevelFor(summary, date);
+            var line = TextFor(summary, date);
+            if (IsLink && level is HealthOutcome.Fail or HealthOutcome.Warning && summary is not null)
+            {
+                string? finding = null;
+                try
+                {
+                    var runs = await source.LoadRunsAsync(1, HealthCheckTrigger.Nightly);
+                    if (runs.Count > 0) finding = TopFinding(await source.LoadResultsAsync(runs[0].HealthCheckRunId));
+                }
+                catch (Exception) { /* the plain counts line still stands; the Health check screen reports its own failures */ }
+                if (mine != revision) return;
+                line = OwnerText(line, finding);
+            }
+            Show(level, line);
         }
         catch (Exception exception)
         {
@@ -110,5 +167,10 @@ public sealed class HealthSummaryTile : Border
             _ => "SecondaryText"
         });
         AutomationProperties.SetHelpText(this, line);
+        var link = IsLink;
+        Focusable = link;
+        Cursor = link ? Cursors.Hand : null;
+        ToolTip = link ? "Open the health check" : null;
+        AutomationProperties.SetName(this, link ? "System check. Opens the health check" : "System check");
     }
 }

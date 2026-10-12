@@ -88,7 +88,50 @@ public sealed class TodayChecklistTests
             Assert.All(buttons, button => Assert.True(button.IsEnabled));
             foreach (var button in buttons) button.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
             Assert.Equal(["import-files", "cash-input"], opened);
-            Assert.Contains(Texts(panel), text => text == "R022 message for AX123.");
+            // 1.11.2: plain words under the shop name, no report code, no store code in the line.
+            Assert.Contains(Texts(panel), text => text == "Invoice tenders - waiting for the shop's file");
+            Assert.DoesNotContain(Texts(panel), text => text.Contains("R022", StringComparison.Ordinal));
+        });
+    }
+
+    [Fact]
+    public void Lines_carry_the_shop_name_and_say_who_can_act()
+    {
+        var result = Result(
+            Item(DailyReadinessItemKind.MissingExport, "R025", DailyReadinessDestination.ImportIntake),
+            Item(DailyReadinessItemKind.MissingManualInput, "WALK_INS", DailyReadinessDestination.TodayWalkIns),
+            Item(DailyReadinessItemKind.MissingMonthlyTarget, "MONTHLY_TARGET", DailyReadinessDestination.SettingsMonthlyTargets));
+
+        var lines = TodayChecklist.Lines(result, ShellAccess.Owner, code => code == "AX123" ? "Shop One" : "");
+
+        Assert.All(lines, line => Assert.Equal("Shop One", line.ShopName));
+        Assert.Equal([TodayChecklistSection.WaitingForShop, TodayChecklistSection.EnterNow, TodayChecklistSection.ThisMonth], lines.Select(x => x.Section));
+        Assert.Contains("waiting for the shop's file", lines[0].PlainMessage);
+        Assert.Contains("You can enter it", lines[1].PlainMessage);
+        Assert.Equal("Monthly sales target for Shop One is not set", lines[2].PlainMessage);
+        // An unknown shop falls back to its code; the original message is kept.
+        Assert.Equal("AX123", TodayChecklist.Lines(result, ShellAccess.Owner)[0].ShopName);
+        Assert.Equal("R025 message for AX123.", lines[0].Message);
+    }
+
+    [Fact]
+    public void Panel_groups_by_shop_then_this_month_and_checks_again_for_the_same_date()
+    {
+        RunSta(() =>
+        {
+            var query = new FakeReadinessQuery(Result(
+                Item(DailyReadinessItemKind.MissingMonthlyTarget, "MONTHLY_TARGET", DailyReadinessDestination.SettingsMonthlyTargets),
+                Item(DailyReadinessItemKind.MissingExport, "R025", DailyReadinessDestination.ImportIntake)));
+            var panel = new TodayChecklistPanel(() => query, _ => { }, () => ShellAccess.Owner, _ => "Shop One");
+
+            panel.RefreshAsync(new DateTime(2026, 10, 9), "").GetAwaiter().GetResult();
+            var texts = Texts(panel).ToList();
+            Assert.True(texts.IndexOf("Shop One") < texts.IndexOf("This month"));
+
+            panel.RefreshLastAsync().GetAwaiter().GetResult();
+            Assert.Equal(2, query.Requests.Count);
+            Assert.Equal(query.Requests[0].BusinessDate, query.Requests[1].BusinessDate);
+            Assert.Equal(query.Requests[0].IncludeServiceCentre, query.Requests[1].IncludeServiceCentre);
         });
     }
 

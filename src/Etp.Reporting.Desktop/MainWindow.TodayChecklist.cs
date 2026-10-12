@@ -18,7 +18,23 @@ public partial class MainWindow
     private TodayChecklistPanel? todayChecklist;
 
     internal TodayChecklistPanel TodayChecklistPanel =>
-        todayChecklist ??= new TodayChecklistPanel(() => dailyReadinessQuery(), OpenChecklistTask, () => CurrentShellAccess);
+        todayChecklist ??= CreateTodayChecklist();
+
+    private TodayChecklistPanel CreateTodayChecklist()
+    {
+        var panel = new TodayChecklistPanel(() => dailyReadinessQuery(), OpenChecklistTask, () => CurrentShellAccess, ShopNameFor);
+        // 1.11.2: a file that arrived while the Owner was in another program leaves the list when he comes back.
+        Activated += (_, _) => { if (panel.IsVisible) _ = panel.RefreshLastAsync(); };
+        return panel;
+    }
+
+    /// <summary>The shop's name from the header store list (its label is the name), or null when the list does not have it.</summary>
+    private string? ShopNameFor(string storeCode)
+    {
+        var item = ShellStoreSelector.Items.OfType<ComboBoxItem>().FirstOrDefault(x => string.Equals(x.Tag?.ToString(), storeCode, StringComparison.OrdinalIgnoreCase));
+        var label = item?.Content?.ToString();
+        return string.IsNullOrWhiteSpace(label) ? null : label;
+    }
 
     internal void AttachTodayChecklist(DailySalesReportWorkspace dsr)
     {

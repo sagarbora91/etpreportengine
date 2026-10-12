@@ -145,6 +145,27 @@ public static class DesktopDiagnostics
         return reference;
     }
 
+    private static readonly System.Text.RegularExpressions.Regex ReferencePattern =
+        new(@"\bRef:\s*([0-9A-Fa-f]{12})\b", System.Text.RegularExpressions.RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
+
+    /// <summary>
+    /// 1.11.2 (UX audit top 5): finds the last "Ref: 1A2B3C4D5E6F" in a status line so the shell can offer Copy Ref and
+    /// Open in Error register instead of the Owner retyping 12 characters by eye.
+    /// </summary>
+    public static bool TryFindReference(string? text, out string reference)
+    {
+        reference = "";
+        if (string.IsNullOrEmpty(text)) return false;
+        try
+        {
+            var matches = ReferencePattern.Matches(text);
+            if (matches.Count == 0) return false;
+            reference = matches[^1].Groups[1].Value.ToUpperInvariant();
+            return true;
+        }
+        catch (System.Text.RegularExpressions.RegexMatchTimeoutException) { return false; }
+    }
+
     /// <summary>The user-facing failure text with the entry's reference appended: "... Ref: 1A2B3C4D5E6F".</summary>
     public static string WithReference(string message, string reference) =>
         $"{message.TrimEnd()} Ref: {reference}";
