@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Import has a Get blank daily sheet button for the Owner and Store Managers: pick the store and sheet (Titan World retail, Helios retail, Service Centre) and a date, and save the blank daily-inputs workbook through the usual Save dialog, named ETP-Daily-Inputs-STORE-KIND-date.xlsx. A failure shows a plain message with a Ref: code.
+
 ## [1.11.0] - (date after the 1.11.0 gate)
 
 Self-diagnostics (design `docs/design/SELF-DIAGNOSTICS.md`): an error register, a 51-line read-only health check that runs by itself every night, a privacy-checked export for the weekly audit, and two Owner screens. Decision 33 (11 Oct 2026): nightly at 02:30 with catch-up, Known per item for up to 90 days, the HealthExports folder, the weekly audit keeps `FIX-TICKET-REGISTER.md`, health screens Owner-only with a one-line tile for everyone else. Decision 36: CHECKDB in the monthly drill, Warnings counted not registered, the five 1.9.x errors seeded as fixed, a Warning becomes a ticket only after 7 nights, a confirmation during shop hours, retention 400/180/90 days, SQL Server RTM is a Warning, and the permission matrix is checked in. Two migrations: 0054 (error register) and 0055 (health check).

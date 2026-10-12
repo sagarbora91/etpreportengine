@@ -41,7 +41,7 @@ If a report has no rows that day, still save it.
 
 ### B. Fill the daily sheet
 
-1. Open the file `ETP-Daily-Inputs-WLMHW-RETAIL` from `C:\ETP-DailyInputs`. If you do not have today's, copy the blank template that Sagar gave you.
+1. **Get the blank sheet.** Open the file `ETP-Daily-Inputs-WLMHW-RETAIL` from `C:\ETP-DailyInputs`. If you do not have a blank one, the Owner or a Store Manager gets it from ETP: open **Import**, press **Get blank daily sheet**, pick the store and sheet (here: Titan World, retail), keep today's date, press **Choose where to save** and save it. It is saved in the Exports folder by default, already named for the day. Copy it to this PC's `C:\ETP-DailyInputs` (for example on a USB stick or through OneDrive).
 2. Type **today's date** in the Business date box (example 11-Oct-2026). Only dates from the last 31 days up to today are accepted.
 3. Type your name in "Filled by" (optional).
 4. Fill the white boxes in the Value column:
@@ -96,7 +96,7 @@ Save in `C:\ETP-Exports` as .xlsx, keeping the system's name.
 
 ### B. Fill the daily sheet
 
-Same steps as Page 1, but open `ETP-Daily-Inputs-HEMW-RETAIL`. The boxes are the same seven: walk-ins, opening cash, expenses, cash deposit, cash adjustment, closing cash counted, remark. The Helios sheet has no service-money boxes. Only the Service Centre PC enters those.
+Same steps as Page 1, but open `ETP-Daily-Inputs-HEMW-RETAIL`. If you need a blank sheet, get it as in Page 1 step 1, choosing Helios, retail. The boxes are the same seven: walk-ins, opening cash, expenses, cash deposit, cash adjustment, closing cash counted, remark. The Helios sheet has no service-money boxes. Only the Service Centre PC enters those.
 
 Save As in `C:\ETP-DailyInputs` with this name:
 `ETP-Daily-Inputs-HEMW-RETAIL-2026-10-11.xlsx` (change to today's date).
@@ -142,7 +142,7 @@ Do not combine or edit the reports. Save them exactly as the system gives them.
 
 ### B. Fill the daily sheet
 
-Open `ETP-Daily-Inputs-WLMHW-SERVICE`. (The Service money is counted under Titan World, so the code in the name is WLMHW. This is correct.) Type the date, then fill the seven boxes:
+Open `ETP-Daily-Inputs-WLMHW-SERVICE`. If you need a blank sheet, get it as in Page 1 step 1, choosing the Service Centre sheet. (The Service money is counted under Titan World, so the code in the name is WLMHW. This is correct.) Type the date, then fill the seven boxes:
 
 - Service cash, Service card, Service UPI, Service WDC: the day's service money, by how it was paid.
 - WCC walk-ins: number of walk-ins to the Service Centre (a whole number).
