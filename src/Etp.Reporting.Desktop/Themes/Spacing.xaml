@@ -1,6 +1,8 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+    <!-- 1.12 spacing and radius (ETP-DESIGN-SYSTEM.md section 4): base unit 4; two radii only, 8 for anything pressed or
+         typed in, 12 for anything that contains (S1). RadiusLarge is reserved. -->
     <sys:Double x:Key="Space4">4</sys:Double><sys:Double x:Key="Space8">8</sys:Double>
     <sys:Double x:Key="Space12">12</sys:Double><sys:Double x:Key="Space16">16</sys:Double>
     <sys:Double x:Key="Space20">20</sys:Double><sys:Double x:Key="Space24">24</sys:Double>
@@ -9,8 +11,13 @@
     <CornerRadius x:Key="RadiusMedium">12</CornerRadius>
     <CornerRadius x:Key="RadiusLarge">20</CornerRadius>
     <Thickness x:Key="PagePadding">24</Thickness>
-    <Thickness x:Key="CardPadding">18</Thickness>
+    <Thickness x:Key="CardPadding">16</Thickness>
+    <Thickness x:Key="InsetPadding">12</Thickness>
     <Thickness x:Key="SectionSpacing">0,16,0,0</Thickness>
+    <!-- Input widths (S5): quantities, codes and dates, reasons and search. A reason box is always InputWide. -->
+    <sys:Double x:Key="InputNarrow">96</sys:Double>
+    <sys:Double x:Key="InputMedium">160</sys:Double>
+    <sys:Double x:Key="InputWide">280</sys:Double>
     <sys:Double x:Key="TouchTargetHeight">44</sys:Double>
     <sys:Double x:Key="CompactTargetHeight">36</sys:Double>
     <sys:Double x:Key="ComfortableGridRowHeight">44</sys:Double>
