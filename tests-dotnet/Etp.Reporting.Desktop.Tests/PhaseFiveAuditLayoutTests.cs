@@ -72,7 +72,7 @@ public sealed class PhaseFiveAuditLayoutTests
         {
             navigator.DisplayTaskRoute(TaskNavigation.Find("watch-folder")!.Route);
             var refresh = Assert.Single(Descendants(window.FocusedWorkspaceHost).OfType<Button>(),
-                button => button.Content?.ToString() == "Refresh operations");
+                button => button.Content?.ToString() == "Refresh");
             Assert.True(refresh.IsEnabled);
         });
     }

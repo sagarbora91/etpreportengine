@@ -11,7 +11,7 @@
             <StackPanel Orientation="Horizontal">
                 <Button x:Name="TestConnectionButton" Content="Test connection" Click="TestConnection_Click" Style="{DynamicResource PrimaryButton}" Padding="18,9"
                         automation:AutomationProperties.Name="Test Windows-integrated database connection"/>
-                <Button x:Name="BootstrapDatabaseButton" Content="Create/update database" Click="BootstrapDatabase_Click"
+                <Button x:Name="BootstrapDatabaseButton" Content="Create or update database" Click="BootstrapDatabase_Click"
                         Padding="18,9" Margin="10,0,0,0"
                         automation:AutomationProperties.Name="Create or update the ETP database"/>
             </StackPanel>

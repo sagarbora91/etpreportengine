@@ -18,7 +18,7 @@
                         automation:AutomationProperties.Name="Archive business date"/>
             <CheckBox x:Name="ArchiveAllDatesInput" Content="All dates" IsChecked="True" Margin="10,5,0,0"
                       automation:AutomationProperties.Name="Search all archive dates"/>
-            <Button Content="Refresh archive" Click="RefreshReportArchive_Click" Style="{DynamicResource PrimaryButton}" Padding="14,7" Margin="10,0,0,0"
+            <Button Content="Refresh" Click="RefreshReportArchive_Click" Style="{DynamicResource PrimaryButton}" Padding="14,7" Margin="10,0,0,0"
                     automation:AutomationProperties.Name="Refresh report archive"/>
         </WrapPanel>
         <DataGrid x:Name="ReportGenerationGrid" AutoGenerateColumns="False" IsReadOnly="True"
@@ -41,7 +41,7 @@
             </DataGrid.Columns>
         </DataGrid>
         <WrapPanel Margin="0,10,0,0">
-            <Button Content="Open selected generation" x:Name="OpenArchivedGenerationButton" Click="OpenArchivedGeneration_Click" Style="{DynamicResource PrimaryButton}" Padding="14,7"/>
+            <Button Content="Open pack" x:Name="OpenArchivedGenerationButton" Click="OpenArchivedGeneration_Click" Style="{DynamicResource PrimaryButton}" Padding="14,7"/>
             <Button Content="Export archived Excel…" x:Name="ExportArchivedExcelButton" Click="ExportArchivedExcel_Click" Padding="14,7" Margin="8,0,0,0"/>
             <Button Content="Export archived PDF…" x:Name="ExportArchivedPdfButton" Click="ExportArchivedPdf_Click" Padding="14,7" Margin="8,0,0,0"/>
             <Button Content="Export ZIP…" x:Name="ExportArchivedZipButton" Click="ExportArchivedZip_Click" Padding="14,7" Margin="8,0,0,0"/>

@@ -87,7 +87,7 @@ public static class ReportVisualPresenter
         var detailBody = new DockPanel();
         detailBody.SizeChanged += (_, _) => grid.Margin = new Thickness(0, detailBody.ActualWidth < 1000 ? 0 : 8, 0, 0);
         var filters = new ReportDetailFilter(grid, rows);
-        var details = new Button { Content = "Open selected row details", HorizontalAlignment = HorizontalAlignment.Left, IsEnabled = false };
+        var details = new Button { Content = "Open row details", HorizontalAlignment = HorizontalAlignment.Left, IsEnabled = false };
         details.Click += (_, _) => OpenDetails(); grid.SelectionChanged += (_, _) => details.IsEnabled = grid.SelectedItem is not null;
         filters.Children.Add(details); DockPanel.SetDock(filters, Dock.Top); detailBody.Children.Add(filters); detailBody.Children.Add(grid);
         return new TabControl { SelectedIndex=1, Items = {

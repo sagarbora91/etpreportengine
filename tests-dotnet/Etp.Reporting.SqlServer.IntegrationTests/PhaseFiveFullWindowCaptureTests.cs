@@ -455,7 +455,7 @@ public sealed partial class PhaseFiveFullWindowCaptureTests(ITestOutputHelper ou
             Require(text.Any(block => block.Text == "Backup, recovery and support"), "F-04: maintenance task has no heading.");
         }
         if (task.Id == "watch-folder")
-            Require(buttons.Any(button => button.Content?.ToString() == "Refresh operations" && button.IsEnabled), "F-05: Automatic import has no usable refresh action.");
+            Require(buttons.Any(button => button.Content?.ToString() == "Refresh" && button.IsEnabled), "F-05: Automatic import has no usable refresh action.");
     }
 
     private static IEnumerable<DependencyObject> Attached(DependencyObject root)
