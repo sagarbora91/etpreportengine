@@ -7,7 +7,7 @@ General rules
 - THROW numbers: **51800-51819** error register, **51820-51839** health check. Each needs a curated row in `DesktopFriendlyError.ProductErrors` (L8).
 - JSON in: `nvarchar(max)`, parsed with `OPENJSON ... WITH (...)`; property names are camelCase exactly as below. Dates `yyyy-MM-dd`; times ISO 8601 UTC `yyyy-MM-ddTHH:mm:ss.fffZ`. Enum values are the C# enum names (`New`, `Warning`, `Nightly`, ...).
 - Result sets out: column names snake_case as below, in this order.
-- Tokens are validated with the `SafeToken` allow-list: `NOT LIKE '%[^A-Za-z0-9._:<>+-]%'` (event codes `NOT LIKE '%[^A-Z0-9_]%'`). Free text (reasons) uses the existing safe-text check.
+- Tokens are validated with the `SafeToken` allow-list: `NOT LIKE '%[^-A-Za-z0-9._:<>+]%'` (hyphen first: with it last, `+-]` in an N'' pattern is the range + to ], 1.11.0 gate 2) (event codes `NOT LIKE '%[^A-Z0-9_]%'`). Free text (reasons) uses the existing safe-text check.
 - Version key (sortable bigint): `major*10^9 + minor*10^6 + build*10^3 + revision` (missing parts = 0).
 - Caller role: `IS_ROLEMEMBER('etp_owner')` -> Owner, else `etp_automation` -> Automation, else `etp_store_manager` -> StoreManager, else `etp_viewer` -> Viewer, else Unknown.
 

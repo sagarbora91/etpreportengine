@@ -13,6 +13,11 @@
 -- Every text that arrives in an ingest batch is checked again here against the SafeToken allow-list
 -- (A-Z a-z 0-9 . _ : < > + -; event and finding codes A-Z 0-9 _ only); an item that fails is skipped and counted
 -- as rejected, so nothing but tokens, numbers, dates and versions reaches these tables from a log.
+-- Every LIKE class here puts the hyphen FIRST ([^-A-Za-z0-9._:<>+]). With it last ([^A-Za-z0-9._:<>+-]) SQL Server
+-- reads "+-]" in an nvarchar (N'') pattern as the range + to ], so , / ; = ? @ [ \ ] passed diag.is_token while the
+-- varchar CHECKs refused them: an item such as Ref "AB@CD" was accepted and then aborted the whole ingest on
+-- CK_error_occurrences_tokens, and a health check field value "C:\Users" was recorded (1.11.0 gate 2, 12 Oct 2026;
+-- amended in place, no real database has run 0054 or 0055).
 --
 -- Retention (decision 36, Q14): register and version rows are kept for ever (one row per bug); occurrences
 -- older than 180 days are deleted by the next ingest, except the newest 20 of each entry. More than 200
@@ -55,8 +60,9 @@ RETURNS bit WITH SCHEMABINDING
 AS
 BEGIN
  -- The SafeToken allow-list: 1 to @max_length characters of A-Z a-z 0-9 . _ : < > + -
+ -- (hyphen first in the class: see the header; the CHECKs on the diag tables use the same class)
  IF @value IS NULL OR LEN(@value)=0 OR DATALENGTH(@value)<>2*LEN(@value) OR LEN(@value)>@max_length RETURN 0;
- IF @value COLLATE Latin1_General_100_BIN2 LIKE N''%[^A-Za-z0-9._:<>+-]%'' RETURN 0;
+ IF @value COLLATE Latin1_General_100_BIN2 LIKE N''%[^-A-Za-z0-9._:<>+]%'' RETURN 0;
  RETURN 1;
 END');
 
@@ -157,10 +163,10 @@ EXEC(N'CREATE TABLE diag.error_register
  CONSTRAINT CK_error_register_severity CHECK(max_severity IN(''Error'',''Critical'')),
  CONSTRAINT CK_error_register_status CHECK(status IN(''New'',''Seen'',''Expected'',''Fixed'',''Recurred'')),
  CONSTRAINT CK_error_register_tokens CHECK(LEN(event_code)>0 AND event_code NOT LIKE ''%[^A-Z0-9_]%''
-   AND LEN(source)>0 AND source NOT LIKE ''%[^A-Za-z0-9._:<>+-]%''
-   AND LEN(exception_type)>0 AND exception_type NOT LIKE ''%[^A-Za-z0-9._:<>+-]%''
-   AND (sub_code IS NULL OR (LEN(sub_code)>0 AND sub_code NOT LIKE ''%[^A-Za-z0-9._:<>+-]%''))
-   AND (site IS NULL OR (LEN(site)>0 AND site NOT LIKE ''%[^A-Za-z0-9._:<>+-]%''))),
+   AND LEN(source)>0 AND source NOT LIKE ''%[^-A-Za-z0-9._:<>+]%''
+   AND LEN(exception_type)>0 AND exception_type NOT LIKE ''%[^-A-Za-z0-9._:<>+]%''
+   AND (sub_code IS NULL OR (LEN(sub_code)>0 AND sub_code NOT LIKE ''%[^-A-Za-z0-9._:<>+]%''))
+   AND (site IS NULL OR (LEN(site)>0 AND site NOT LIKE ''%[^-A-Za-z0-9._:<>+]%''))),
  CONSTRAINT CK_error_register_counts CHECK(occurrence_count>=0 AND first_seen_utc<=last_seen_utc),
  CONSTRAINT CK_error_register_fixed CHECK(status<>''Fixed'' OR (fixed_in_version IS NOT NULL AND fixed_in_version_key IS NOT NULL AND fixed_utc IS NOT NULL)),
  CONSTRAINT CK_error_register_recurred CHECK(status<>''Recurred'' OR (recurred_utc IS NOT NULL AND recurred_version IS NOT NULL AND fixed_in_version_key IS NOT NULL)),
@@ -198,10 +204,10 @@ EXEC(N'CREATE TABLE diag.error_occurrences
  CONSTRAINT UQ_error_occurrences_ref UNIQUE(reference,occurred_utc),
  CONSTRAINT CK_error_occurrences_severity CHECK(severity IN(''Error'',''Critical'')),
  CONSTRAINT CK_error_occurrences_role CHECK(reporter_role IN(''Owner'',''StoreManager'',''Viewer'',''Automation'',''Unknown'')),
- CONSTRAINT CK_error_occurrences_tokens CHECK(reference NOT LIKE ''%[^A-Za-z0-9._:<>+ -]%''
-   AND (report_code IS NULL OR report_code NOT LIKE ''%[^A-Za-z0-9._:<>+-]%'')
-   AND (store_code IS NULL OR store_code NOT LIKE ''%[^A-Za-z0-9._:<>+-]%'')
-   AND (operation IS NULL OR operation NOT LIKE N''%[^A-Za-z0-9._:<>+-]%''))
+ CONSTRAINT CK_error_occurrences_tokens CHECK(reference NOT LIKE ''%[^- A-Za-z0-9._:<>+]%''
+   AND (report_code IS NULL OR report_code NOT LIKE ''%[^-A-Za-z0-9._:<>+]%'')
+   AND (store_code IS NULL OR store_code NOT LIKE ''%[^-A-Za-z0-9._:<>+]%'')
+   AND (operation IS NULL OR operation NOT LIKE N''%[^-A-Za-z0-9._:<>+]%''))
 );');
 EXEC(N'CREATE INDEX IX_error_occurrences_entry ON diag.error_occurrences(error_register_id,occurred_utc DESC)');
 EXEC(N'CREATE INDEX IX_error_occurrences_ref ON diag.error_occurrences(reference)');

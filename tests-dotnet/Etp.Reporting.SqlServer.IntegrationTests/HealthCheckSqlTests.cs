@@ -110,7 +110,7 @@ public sealed class HealthCheckSqlTests(SqlDatabaseFixture database) : IClassFix
             Run("Manual", started, Line("DB-01", "Pass", "OK", explanation: " ")),
             Run("Manual", started, Line("DB-01", "Warning", "X", detail: [Sub("Customer Name", "Warning", null, null, null)])),
             Run("Manual", started, Line("DB-01", "Warning", "X", detail: [Sub("AX123", "Warning", null, null, new() { ["phone"] = "+91 98765 43210" })])),
-            Run("Manual", started, Line("DB-01", "Warning", "X", detail: [Sub("AX123", "Warning", null, null, new() { ["path"] = "C:\\Users" })])),
+            Run("Manual", started, Line("DB-01", "Warning", "X", detail: [Sub("AX123", "Warning", null, null, new() { ["path"] = "C:\\Users" })])), // gate 2: accepted while is_token's class ended "+-]"
             Run("Manual", started, Line("DB-01", "Warning", "X", detail: [new Dictionary<string, object?> { ["key"] = "AX123", ["outcome"] = "Pass", ["message"] = "free text" }])),
             Run("Manual", started, Line("DB-01", "Pass", "OK"), machineName: "Shop PC"),
             Run("Manual", started, Line("DB-01", "Pass", "OK"), appVersion: "latest"),
