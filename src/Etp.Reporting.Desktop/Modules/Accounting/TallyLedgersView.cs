@@ -14,10 +14,9 @@ namespace Etp.Reporting.Desktop.Modules.Accounting;
 /// needs, and approves a new version from a date with a reason. Earlier versions are kept.</summary>
 public sealed class TallyLedgersView : UserControl
 {
-    private readonly Func<string> connectionString;
     private readonly Func<bool> canAdminister;
-    private readonly Func<string, ProfileService> profiles;
-    private readonly Func<string, MappingService> mappings;
+    private readonly Func<ProfileService> profiles;
+    private readonly Func<MappingService> mappings;
     private IReadOnlyList<MappingRow> loaded = [];
     private bool busy;
 
@@ -31,9 +30,8 @@ public sealed class TallyLedgersView : UserControl
     public TextBlock StatusText { get; } = new() { TextWrapping = TextWrapping.Wrap, Margin = new(0, 8, 0, 0) };
     public Button SaveButton { get; }
 
-    public TallyLedgersView(Func<string> connectionString, Func<bool> canAdminister, Func<string, ProfileService> profiles, Func<string, MappingService> mappings)
+    public TallyLedgersView(Func<bool> canAdminister, Func<ProfileService> profiles, Func<MappingService> mappings)
     {
-        this.connectionString = connectionString;
         this.canAdminister = canAdminister;
         this.profiles = profiles;
         this.mappings = mappings;
@@ -77,9 +75,9 @@ public sealed class TallyLedgersView : UserControl
 
     public async Task RefreshAsync()
     {
-        loaded = await mappings(connectionString()).LoadAsync();
+        loaded = await mappings().LoadAsync();
         MappingGrid.ItemsSource = loaded.Select(row => new LedgerRow(row)).ToArray();
-        var stores = (await profiles(connectionString()).LoadAsync()).SelectMany(profile => profile.StoreCodes)
+        var stores = (await profiles().LoadAsync()).SelectMany(profile => profile.StoreCodes)
             .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
         var selected = StoreInput.SelectedItem as string;
         StoreInput.ItemsSource = stores;
@@ -91,7 +89,7 @@ public sealed class TallyLedgersView : UserControl
     public async Task ShowNeededAsync()
     {
         if (StoreInput.SelectedItem is not string store) { NeededText.Text = ""; EventInput.ItemsSource = null; return; }
-        var needed = await mappings(connectionString()).LoadNeededEventsAsync(store);
+        var needed = await mappings().LoadNeededEventsAsync(store);
         EventInput.ItemsSource = needed;
         var today = DateOnly.FromDateTime(DateTime.Today);
         var missing = needed.Where(code => !loaded.Any(row => row.IsActive && row.BusinessEvent == code
@@ -106,7 +104,7 @@ public sealed class TallyLedgersView : UserControl
     {
         if (StoreInput.SelectedItem is not string store) throw new ArgumentException("Choose the store this ledger is for.");
         var from = DateOnly.FromDateTime(FromInput.SelectedDate ?? DateTime.Today);
-        await mappings(connectionString()).SaveAsync(store, EventInput.Text, LedgerInput.Text, from, ReasonInput.Text);
+        await mappings().SaveAsync(store, EventInput.Text, LedgerInput.Text, from, ReasonInput.Text);
         LedgerInput.Clear();
         ReasonInput.Clear();
         await RefreshAsync();

@@ -21,30 +21,28 @@ public sealed record AccountingPresentationSnapshot(
 
 public sealed class AccountingPresentationSession
 {
-    private readonly Func<string, AccountingService> serviceFactory;
+    private readonly Func<AccountingService> serviceFactory;
 
-    public AccountingPresentationSession(Func<string, AccountingService> serviceFactory) =>
+    public AccountingPresentationSession(Func<AccountingService> serviceFactory) =>
         this.serviceFactory = serviceFactory ?? throw new ArgumentNullException(nameof(serviceFactory));
 
     public AccountingPresentationSnapshot Current { get; private set; } = new(null, null, null);
     public void InvalidatePreview() => Current = new(null, null, null);
 
     public async Task<IReadOnlyList<AccountingBatchSummary>> RefreshAsync(
-        string connectionString,
         CancellationToken cancellationToken = default)
     {
         Current = new(null, null, null);
-        return await serviceFactory(connectionString).LoadBatchesAsync(cancellationToken).ConfigureAwait(false);
+        return await serviceFactory().LoadBatchesAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<AccountingPreview> PreviewAsync(
-        string connectionString,
         AccountingScope scope,
         CancellationToken cancellationToken = default)
     {
         try
         {
-            var preview = await serviceFactory(connectionString).PreviewAsync(scope, cancellationToken).ConfigureAwait(false);
+            var preview = await serviceFactory().PreviewAsync(scope, cancellationToken).ConfigureAwait(false);
             Current = new(scope, preview.ReportGenerationId, preview.Batch);
             return preview;
         }
@@ -56,7 +54,6 @@ public sealed class AccountingPresentationSession
     }
 
     public Task<long> SaveCurrentAsync(
-        string connectionString,
         AccountingScope expectedScope,
         CancellationToken cancellationToken = default)
     {
@@ -65,35 +62,32 @@ public sealed class AccountingPresentationSession
             throw new InvalidOperationException("Preview a balanced accounting batch first.");
         if (Current.Scope != expectedScope)
             throw new InvalidOperationException("The accounting scope changed. Preview this store and business date again before saving.");
-        return serviceFactory(connectionString).SaveAsync(
+        return serviceFactory().SaveAsync(
             new SaveAccountingBatch(Current.Scope, Current.ReportGenerationId.Value, Current.Draft), cancellationToken);
     }
 
     public Task ApproveAsync(
-        string connectionString,
         AccountingBatchSummary batch,
         string reason,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(batch);
-        return serviceFactory(connectionString).ApproveAsync(new ApproveAccountingBatch(batch.Id, reason), cancellationToken);
+        return serviceFactory().ApproveAsync(new ApproveAccountingBatch(batch.Id, reason), cancellationToken);
     }
 
-    public Task RejectAsync(string connectionString, AccountingBatchSummary batch, string reason, CancellationToken cancellationToken=default) =>
-        serviceFactory(connectionString).RejectAsync(new EtpApplication::Etp.Reporting.Application.Accounting.RejectAccountingBatch(batch.Id,reason),cancellationToken);
+    public Task RejectAsync(AccountingBatchSummary batch, string reason, CancellationToken cancellationToken=default) =>
+        serviceFactory().RejectAsync(new EtpApplication::Etp.Reporting.Application.Accounting.RejectAccountingBatch(batch.Id,reason),cancellationToken);
 
     public Task ApproveMappingAsync(
-        string connectionString,
         ApproveAccountingMapping command,
         CancellationToken cancellationToken = default) =>
-        serviceFactory(connectionString).ApproveMappingAsync(command, cancellationToken);
+        serviceFactory().ApproveMappingAsync(command, cancellationToken);
 
-    public Task<IReadOnlyList<EtpApplication::Etp.Reporting.Application.Accounting.AccountingEntry>> LoadEntriesAsync(string connectionString, long id) => serviceFactory(connectionString).LoadEntriesAsync(id);
-    public Task<EtpApplication::Etp.Reporting.Application.Accounting.AccountingDestination> LoadDestinationAsync(string connectionString) => serviceFactory(connectionString).LoadDestinationAsync();
-    public Task<IReadOnlyList<AccountingExportReceipt>> LoadExportHistoryAsync(string connectionString) => serviceFactory(connectionString).LoadExportHistoryAsync();
+    public Task<IReadOnlyList<EtpApplication::Etp.Reporting.Application.Accounting.AccountingEntry>> LoadEntriesAsync(long id) => serviceFactory().LoadEntriesAsync(id);
+    public Task<EtpApplication::Etp.Reporting.Application.Accounting.AccountingDestination> LoadDestinationAsync() => serviceFactory().LoadDestinationAsync();
+    public Task<IReadOnlyList<AccountingExportReceipt>> LoadExportHistoryAsync() => serviceFactory().LoadExportHistoryAsync();
 
     public Task<AccountingExportReceipt> ExportAsync(
-        string connectionString,
         AccountingBatchSummary batch,
         string companyName,
         string outputPath,
@@ -102,7 +96,7 @@ public sealed class AccountingPresentationSession
         ArgumentNullException.ThrowIfNull(batch);
         if (!string.Equals(batch.Status, "APPROVED_READY", StringComparison.Ordinal))
             throw new InvalidOperationException("Approve the accounting batch before exporting it.");
-        return serviceFactory(connectionString).ExportAsync(
+        return serviceFactory().ExportAsync(
             new ExportAccountingBatch(batch.Id, companyName, outputPath), cancellationToken);
     }
 }

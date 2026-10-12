@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Globalization;
 using Etp.Reporting.Desktop.Diagnostics;
 using Etp.Reporting.Infrastructure.SqlServer;
+using Etp.Reporting.Infrastructure.SqlServer.HealthCheck;
 using EtpApplication::Etp.Reporting.Application.ErrorRegister;
 using EtpApplication::Etp.Reporting.Application.HealthCheck;
 
@@ -73,7 +74,7 @@ public sealed class ErrorProbes : IHealthProbe
         {
             register = await loadRegister(cancellationToken).ConfigureAwait(false);
         }
-        catch (Microsoft.Data.SqlClient.SqlException exception) when (DatabaseConnectionFailure.Classify(exception) == DatabaseFailureKind.PermissionDenied)
+        catch (Exception exception) when (DesktopProbeFailures.IsPermissionDenied(exception))
         {
             results.AddRange(SkippedRegister(HealthCheckTexts.NotPermitted, HealthCheckTexts.SkippedNotPermitted, clock.Elapsed));
             return results;

@@ -15,14 +15,12 @@ public sealed partial class AccountingWorkspaceView : UserControl
 {
     private readonly AccountingPresentationSession session;
     private int entriesRevision;
-    private readonly Func<string> connectionStringProvider;
     private Func<AccessSession> accessProvider = () => new("unknown", "Unknown user", AccessRole.None, false);
     private Func<Exception, string> errorDescriber = DesktopFriendlyError.Describe;
 
-    public AccountingWorkspaceView(AccountingPresentationSession session, Func<string> connectionStringProvider)
+    public AccountingWorkspaceView(AccountingPresentationSession session)
     {
         this.session = session ?? throw new ArgumentNullException(nameof(session));
-        this.connectionStringProvider = connectionStringProvider ?? throw new ArgumentNullException(nameof(connectionStringProvider));
         InitializeComponent();
         batchReasons = new(AccountingBatchGrid, BatchApprovalReasonInput, row => (row as AccountingBatchSummary)?.Id);
         AccountingDateInput.SelectedDate = DateTime.Today.AddDays(-1);
@@ -36,7 +34,7 @@ public sealed partial class AccountingWorkspaceView : UserControl
             {
                 try
                 {
-                    var entries = await session.LoadEntriesAsync(connectionStringProvider(), selected.Id);
+                    var entries = await session.LoadEntriesAsync(selected.Id);
                     if (revision == entriesRevision) AccountingEntryGrid.ItemsSource = entries;
                 }
                 catch (Exception exception) { SetStatus(DesktopDiagnostics.WithReference(errorDescriber(exception), DesktopDiagnostics.Record(exception, "Accounting.Workspace", "ACCOUNTING_ENTRIES_LOAD_FAILED", operation: "Accounting entries load failed"))); }
@@ -68,9 +66,9 @@ public sealed partial class AccountingWorkspaceView : UserControl
         {
             RequireOwnerAccess();
             AccountingEntryGrid.ItemsSource = null; SaveTaskButton.IsEnabled = false;
-            AccountingBatchGrid.ItemsSource = await session.RefreshAsync(connectionStringProvider());
-            AccountingExportHistoryGrid.ItemsSource = await session.LoadExportHistoryAsync(connectionStringProvider());
-            var destination = await session.LoadDestinationAsync(connectionStringProvider());
+            AccountingBatchGrid.ItemsSource = await session.RefreshAsync();
+            AccountingExportHistoryGrid.ItemsSource = await session.LoadExportHistoryAsync();
+            var destination = await session.LoadDestinationAsync();
             DestinationStatus.Text = string.IsNullOrWhiteSpace(destination.CompanyName)
                 ? "Tally company not decided (D12). Enter the intended TEST company in Settings."
                 : $"Destination: {destination.CompanyName} · {destination.EnvironmentLabel}. Journal file only; no Tally read-back.";
@@ -89,7 +87,7 @@ public sealed partial class AccountingWorkspaceView : UserControl
             AccountingBatchGrid.SelectedItem = null;
             RefreshActionState();
             var scope = CurrentScope();
-            var preview = await session.PreviewAsync(connectionStringProvider(), scope);
+            var preview = await session.PreviewAsync(scope);
             AccountingEntryGrid.ItemsSource = preview.Batch.Entries;
             SaveTaskButton.IsEnabled = accessProvider().CanAdminister;
             SetStatus(preview.Batch.IsBalanced
@@ -105,7 +103,7 @@ public sealed partial class AccountingWorkspaceView : UserControl
         try
         {
             RequireOwnerAccess();
-            var id = await session.SaveCurrentAsync(connectionStringProvider(), CurrentScope());
+            var id = await session.SaveCurrentAsync(CurrentScope());
             SetStatus($"Accounting batch {id:N0} saved for Owner review.");
             await RefreshAccountingAsync();
         }
@@ -120,7 +118,7 @@ public sealed partial class AccountingWorkspaceView : UserControl
             RequireOwnerAccess();
             if (AccountingBatchGrid.SelectedItem is not AccountingBatchSummary row)
                 throw new InvalidOperationException("Select one accounting batch.");
-            await session.ApproveAsync(connectionStringProvider(), row, BatchApprovalReasonInput.Text);
+            await session.ApproveAsync(row, BatchApprovalReasonInput.Text);
             BatchApprovalReasonInput.Clear();
             SetStatus($"Accounting batch {row.Id:N0} approved.");
             await RefreshAccountingAsync();
@@ -136,7 +134,7 @@ public sealed partial class AccountingWorkspaceView : UserControl
             RequireOwnerAccess();
             if (AccountingBatchGrid.SelectedItem is not AccountingBatchSummary row)
                 throw new InvalidOperationException("Select one accounting batch.");
-            await session.RejectAsync(connectionStringProvider(), row, BatchApprovalReasonInput.Text);
+            await session.RejectAsync(row, BatchApprovalReasonInput.Text);
             BatchApprovalReasonInput.Clear();
             SetStatus($"Accounting batch {row.Id:N0} rejected.");
             await RefreshAccountingAsync();
@@ -159,7 +157,7 @@ public sealed partial class AccountingWorkspaceView : UserControl
                 AddExtension = true
             };
             if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
-            var receipt = await session.ExportAsync(connectionStringProvider(), row, "", dialog.FileName);
+            var receipt = await session.ExportAsync(row, "", dialog.FileName);
             SetStatus($"{receipt.EnvironmentLabel} file written for {receipt.CompanyName}. SHA-256 {receipt.Sha256[..12]}… Tally result has not been checked.");
             await RefreshAccountingAsync();
         }
@@ -174,7 +172,7 @@ public sealed partial class AccountingWorkspaceView : UserControl
             RequireOwnerAccess();
             var scope = CurrentScope();
             var eventCode = SelectedContent(AccountingEventInput);
-            await session.ApproveMappingAsync(connectionStringProvider(), new ApproveAccountingMapping(
+            await session.ApproveMappingAsync(new ApproveAccountingMapping(
                 scope, eventCode, DebitLedgerInput.Text, CreditLedgerInput.Text,
                 AccountingNarrationInput.Text, AccountingMappingReasonInput.Text));
             DebitLedgerInput.Clear();

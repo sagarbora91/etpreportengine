@@ -13,8 +13,7 @@ namespace Etp.Reporting.Desktop.Modules.SourceInbox;
 
 public sealed partial class SourceInboxWorkspaceView : UserControl
 {
-    private readonly Func<string, SourceInboxService> serviceFactory;
-    private readonly Func<string> connectionStringProvider;
+    private readonly Func<SourceInboxService> serviceFactory;
     private readonly ISourceDocumentLauncher documentLauncher;
     private Func<AccessSession> accessProvider = () => new("unknown", "Unknown user", AccessRole.None, false);
     private Func<Exception, string> errorDescriber = DesktopFriendlyError.Describe;
@@ -22,12 +21,10 @@ public sealed partial class SourceInboxWorkspaceView : UserControl
     public bool IsBusy => operationGate.IsBusy;
 
     public SourceInboxWorkspaceView(
-        Func<string, SourceInboxService> serviceFactory,
-        Func<string> connectionStringProvider,
+        Func<SourceInboxService> serviceFactory,
         ISourceDocumentLauncher documentLauncher)
     {
         this.serviceFactory = serviceFactory ?? throw new ArgumentNullException(nameof(serviceFactory));
-        this.connectionStringProvider = connectionStringProvider ?? throw new ArgumentNullException(nameof(connectionStringProvider));
         this.documentLauncher = documentLauncher ?? throw new ArgumentNullException(nameof(documentLauncher));
         InitializeComponent();
         DocumentDateInput.SelectedDate = DateTime.Today;
@@ -142,7 +139,7 @@ public sealed partial class SourceInboxWorkspaceView : UserControl
         catch (Exception ex) { SetStatus(DesktopDiagnostics.WithReference(errorDescriber(ex), DesktopDiagnostics.Record(ex, "SourceInbox.Workspace", "SOURCE_OPEN_FAILED"))); }
     }
 
-    private SourceInboxService Service() => serviceFactory(connectionStringProvider());
+    private SourceInboxService Service() => serviceFactory();
 
     private void RequireViewAccess()
     {

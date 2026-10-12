@@ -18,10 +18,9 @@ namespace Etp.Reporting.Desktop.Modules.Accounting;
 /// findings, saves the batch, and accepts warnings with a reason. Nothing here sends anything to Tally.</summary>
 public sealed class TallyVouchersView : UserControl
 {
-    private readonly Func<string> connectionString;
     private readonly Func<bool> canAdminister;
-    private readonly Func<string, ProfileService> profiles;
-    private readonly Func<string, BatchService> batches;
+    private readonly Func<ProfileService> profiles;
+    private readonly Func<BatchService> batches;
     private SalesVoucherPreview? preview;
     private long? savedBatch;
     private bool busy;
@@ -38,9 +37,8 @@ public sealed class TallyVouchersView : UserControl
     public Button SaveButton { get; }
     public Button AcceptButton { get; }
 
-    public TallyVouchersView(Func<string> connectionString, Func<bool> canAdminister, Func<string, ProfileService> profiles, Func<string, BatchService> batches)
+    public TallyVouchersView(Func<bool> canAdminister, Func<ProfileService> profiles, Func<BatchService> batches)
     {
-        this.connectionString = connectionString;
         this.canAdminister = canAdminister;
         this.profiles = profiles;
         this.batches = batches;
@@ -98,7 +96,7 @@ public sealed class TallyVouchersView : UserControl
 
     public async Task LoadCompaniesAsync()
     {
-        var companies = (await profiles(connectionString()).LoadAsync()).Where(profile => profile.IsEnabled && profile.Environment == "TEST" && profile.Id is not null).ToArray();
+        var companies = (await profiles().LoadAsync()).Where(profile => profile.IsEnabled && profile.Environment == "TEST" && profile.Id is not null).ToArray();
         CompanyInput.ItemsSource = companies;
         CompanyInput.SelectedIndex = companies.Length > 0 ? 0 : -1;
         StatusText.Text = companies.Length == 0
@@ -111,7 +109,7 @@ public sealed class TallyVouchersView : UserControl
         if (CompanyInput.SelectedItem is not TallyProfile { Id: { } company }) throw new ArgumentException("Choose a Tally company.");
         if (StoreInput.SelectedItem is not string store) throw new ArgumentException("Choose a store.");
         if (DateInput.SelectedDate is not { } date) throw new ArgumentException("Choose the business day.");
-        var prepared = await batches(connectionString()).PreviewAsync(company, store, DateOnly.FromDateTime(date));
+        var prepared = await batches().PreviewAsync(company, store, DateOnly.FromDateTime(date));
         preview = prepared;
         savedBatch = null;
         VoucherGrid.ItemsSource = prepared.Plan.Vouchers.Select(voucher => new VoucherRow(voucher)).ToArray();
@@ -127,7 +125,7 @@ public sealed class TallyVouchersView : UserControl
     public async Task SaveAsync()
     {
         if (preview is null) throw new InvalidOperationException("Prepare the vouchers first.");
-        var service = batches(connectionString());
+        var service = batches();
         savedBatch = await service.SaveAsync(preview);
         preview = null;
         SaveButton.IsEnabled = false;
@@ -140,7 +138,7 @@ public sealed class TallyVouchersView : UserControl
     {
         if (savedBatch is null || FindingGrid.SelectedItem is not FindingRow { Id: { } id, Severity: "WARN", Accepted: null })
             throw new ArgumentException("Select a warning of the saved batch that has not been accepted yet.");
-        var service = batches(connectionString());
+        var service = batches();
         await service.AcceptWarningAsync(id, ReasonInput.Text);
         ReasonInput.Clear();
         await ShowFindingsAsync(service);

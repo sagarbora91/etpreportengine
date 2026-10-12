@@ -8,27 +8,25 @@ namespace Etp.Reporting.Desktop.Modules.Registers;
 
 public sealed class RegistersPresentationSession
 {
-    private readonly Func<string, DigitalRegisterService> serviceFactory;
+    private readonly Func<DigitalRegisterService> serviceFactory;
 
-    public RegistersPresentationSession(Func<string, DigitalRegisterService> serviceFactory) =>
+    public RegistersPresentationSession(Func<DigitalRegisterService> serviceFactory) =>
         this.serviceFactory = serviceFactory ?? throw new ArgumentNullException(nameof(serviceFactory));
 
     public IReadOnlyList<DigitalRegisterEntry> Entries { get; private set; } = [];
 
     public async Task<IReadOnlyList<DigitalRegisterEntry>> RefreshAsync(
-        string connectionString,
         string? search,
         CancellationToken cancellationToken = default,
         string? registerType = null)
     {
-        Entries = await serviceFactory(connectionString).LoadAsync(search, cancellationToken: cancellationToken, registerType: registerType).ConfigureAwait(false);
+        Entries = await serviceFactory().LoadAsync(search, cancellationToken: cancellationToken, registerType: registerType).ConfigureAwait(false);
         return Entries;
     }
 
     public Task<long> SaveAsync(
-        string connectionString,
         DigitalRegisterEntryDraft entry,
         string reason,
         CancellationToken cancellationToken = default) =>
-        serviceFactory(connectionString).SaveAsync(entry, reason, cancellationToken);
+        serviceFactory().SaveAsync(entry, reason, cancellationToken);
 }

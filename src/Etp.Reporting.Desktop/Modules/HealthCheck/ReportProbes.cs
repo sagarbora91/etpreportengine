@@ -4,7 +4,7 @@ using System.Globalization;
 using Etp.Reporting.Desktop.Modules.Reports;
 using Etp.Reporting.Reporting;
 using EtpApplication::Etp.Reporting.Application.HealthCheck;
-using Microsoft.Data.SqlClient;
+using Etp.Reporting.Infrastructure.SqlServer.HealthCheck;
 
 namespace Etp.Reporting.Desktop.Modules.HealthCheck;
 
@@ -87,15 +87,7 @@ public sealed class ReportProbes : IHealthProbe
         CheckIds = specs.Select(x => x.Id).ToArray();
     }
 
-    /// <summary>The production wiring: the same query class the Reports screen uses, on <paramref name="connectionString"/>.</summary>
-    public static ReportProbes ForConnection(string connectionString, TenderVarianceDiagnostic? tenderDiagnostic = null)
-    {
-        var query = new Etp.Reporting.Infrastructure.SqlServer.SqlServerApplicationReportQuery(connectionString);
-        var cash = new Etp.Reporting.Infrastructure.SqlServer.OperationalReportRepository(connectionString);
-        return new ReportProbes(query, query, query,
-            tenderDiagnostic ?? new Etp.Reporting.Infrastructure.SqlServer.ReportingTenderVarianceDiagnostic(),
-            (store, from, to, token) => cash.LoadCashBookAsync(store, from, to, token));
-    }
+    // The production wiring (the same query class the Reports screen uses) is DesktopCompositionRoot.CreateReportProbes (1.12 A1).
 
     public IReadOnlyList<string> CheckIds { get; }
 
@@ -359,12 +351,10 @@ public sealed class ReportProbes : IHealthProbe
             context: new DesktopDiagnosticContext(reportCode, store ?? DesktopDiagnosticContext.AllStores, day, day),
             operation: "Health check report probe failed");
 
-    private static bool IsSqlTimeout(Exception exception) =>
-        exception is SqlException sql && (sql.Number == -2 || sql.Errors.Cast<SqlError>().Any(x => x.Number == -2));
+    private static bool IsSqlTimeout(Exception exception) => DesktopProbeFailures.IsSqlTimeout(exception);
 
     /// <summary>Exception type name plus the SQL error number when there is one: a token, never the message.</summary>
-    private static string ExceptionToken(Exception exception) =>
-        exception is SqlException sql ? $"{sql.GetType().Name} (SQL {sql.Number})" : exception.GetType().Name;
+    private static string ExceptionToken(Exception exception) => DesktopProbeFailures.ExceptionToken(exception);
 
     private static decimal Seconds(TimeSpan span) => Math.Round((decimal)span.TotalSeconds, 2, MidpointRounding.AwayFromZero);
 

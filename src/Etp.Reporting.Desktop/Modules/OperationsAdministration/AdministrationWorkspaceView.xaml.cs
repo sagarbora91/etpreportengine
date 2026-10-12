@@ -9,19 +9,18 @@ namespace Etp.Reporting.Desktop.Modules.OperationsAdministration;
 public partial class AdministrationWorkspaceView : UserControl
 {
     private readonly OperationsAdministrationPresentationSession session;
-    private readonly Func<string> connectionStringProvider;
-    private readonly Func<string, IAdministrationService> serviceFactory;
+    private readonly Func<IAdministrationService> serviceFactory;
     private OperationsAdministrationWorkspaceAccess access = new(false, false, false);
     private int refreshRevision;
 
     public AdministrationWorkspaceView(
         OperationsAdministrationPresentationSession session,
-        Func<string> connectionStringProvider,
-        Func<string, IAdministrationService> serviceFactory)
+        Func<IAdministrationService> serviceFactory,
+        Func<Task<Etp.Reporting.Infrastructure.SqlServer.DatabaseOperationalHealth>>? healthLoader = null)
     {
         this.session = session ?? throw new ArgumentNullException(nameof(session));
-        this.connectionStringProvider = connectionStringProvider ?? throw new ArgumentNullException(nameof(connectionStringProvider));
         this.serviceFactory = serviceFactory ?? throw new ArgumentNullException(nameof(serviceFactory));
+        HealthLoader = healthLoader;
         InitializeComponent();
         userAccessGuidance = UserAccessGuidance.Text;
         UserActiveInput.Checked += (_, _) => UpdateSaveUserAccessState();
@@ -107,7 +106,7 @@ public partial class AdministrationWorkspaceView : UserControl
     public IReadOnlyList<DatabaseRecoveryLine> RecoveryLines { get; private set; } = [];
     public string RecoveryStatusText => DatabaseRecoveryStatus.Text;
 
-    /// <summary>Overridable so a test can supply health without a live SQL instance.</summary>
+    /// <summary>The Database and recovery read, built by the composition root (1.12 A1); a test supplies its own.</summary>
     internal Func<Task<Etp.Reporting.Infrastructure.SqlServer.DatabaseOperationalHealth>>? HealthLoader { get; set; }
     public int MasterRowCount => ControlledMastersGrid.Items.Count;
     public int UserRowCount => ApplicationUsersGrid.Items.Count;
@@ -145,7 +144,7 @@ public partial class AdministrationWorkspaceView : UserControl
         catch (Exception ex) { if (revision != refreshRevision) return; var reference = DesktopDiagnostics.Record(ex, "OperationsAdministration.Administration", "ADMINISTRATION_REFRESH_FAILED"); AdministrationStatus.Text = DesktopDiagnostics.WithReference($"Master administration could not be loaded: {DesktopFriendlyError.Describe(ex, "Owner permission is required.")}", reference); }
     }
 
-    private IAdministrationService Service => serviceFactory(connectionStringProvider());
+    private IAdministrationService Service => serviceFactory();
     private async void MasterType_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         RetainMasterType();
@@ -161,7 +160,7 @@ public partial class AdministrationWorkspaceView : UserControl
         try
         {
             var loader = HealthLoader
-                ?? (() => new Etp.Reporting.Infrastructure.SqlServer.DatabaseOperationalHealthRepository(connectionStringProvider()).LoadAsync(default));
+                ?? (() => throw new InvalidOperationException("Database and recovery health is not available on this screen."));
             var health = await loader();
             if (revision != refreshRevision) return;
             RecoveryLines = DatabaseRecoveryPresentation.Lines(

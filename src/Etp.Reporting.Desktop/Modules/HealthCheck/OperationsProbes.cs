@@ -5,9 +5,9 @@ using System.Globalization;
 using System.IO;
 using System.Text.RegularExpressions;
 using Etp.Reporting.Infrastructure.SqlServer;
-using Etp.Reporting.Infrastructure.SqlServer.Audit;
+using Etp.Reporting.Infrastructure.SqlServer.Connections;
+using Etp.Reporting.Infrastructure.SqlServer.HealthCheck;
 using EtpApplication::Etp.Reporting.Application.HealthCheck;
-using Microsoft.Data.SqlClient;
 
 namespace Etp.Reporting.Desktop.Modules.HealthCheck;
 
@@ -59,17 +59,7 @@ public sealed class EtpScheduledTaskSource : IEtpScheduledTaskSource
         AutomaticImportTaskReader.ReadEtpTasksAsync(EtpScheduledTaskNames.All, cancellationToken);
 }
 
-/// <summary><c>dbo.load_database_operational_health</c> and the drill result, as the Settings screen reads them (OPS-01, OPS-02, OPS-08).</summary>
-public interface IOperationsHealthSource
-{
-    Task<DatabaseOperationalHealth> LoadAsync(CancellationToken cancellationToken);
-}
-
-public sealed class DatabaseOperationsHealthSource(string connectionString) : IOperationsHealthSource
-{
-    public Task<DatabaseOperationalHealth> LoadAsync(CancellationToken cancellationToken) =>
-        new DatabaseOperationalHealthRepository(connectionString).LoadAsync(cancellationToken);
-}
+// IOperationsHealthSource and DatabaseOperationsHealthSource moved to Infrastructure.SqlServer\HealthCheck\DesktopOperationsSql.cs (1.12 A1).
 
 public enum FileListStatus { Ok, NotFound, Denied }
 
@@ -184,71 +174,8 @@ public sealed class ProtectedOperationPathChecker(string? modifiablePath = null)
     }
 }
 
-public sealed record SqlServerBuildInfo(string ProductVersion, string? UpdateLevel, string? Edition);
-
-public sealed record AutomationRunCount(string RunType, string Outcome, int Count);
-
-/// <summary>Last 24 hours of <c>dbo.automation_runs</c> and the number of enabled schedules whose last run failed in that time.</summary>
-public sealed record AutomationRunsSummary(IReadOnlyList<AutomationRunCount> Counts, int FailedScheduleCount);
-
-/// <summary>The three SQL reads of the operations probes. Each throws on failure; the probe turns that into Skipped.</summary>
-public interface IOperationsSqlSource
-{
-    Task<SqlServerBuildInfo> ReadBuildAsync(CancellationToken cancellationToken);
-    /// <summary>Physical path of the database's data file (<c>sys.database_files</c>); null when none is returned.</summary>
-    Task<string?> ReadDataFilePathAsync(CancellationToken cancellationToken);
-    Task<AutomationRunsSummary> ReadAutomationRunsAsync(CancellationToken cancellationToken);
-}
-
-public sealed class SqlOperationsSource(string connectionString) : IOperationsSqlSource
-{
-    internal const string BuildSql = "SELECT CAST(SERVERPROPERTY('ProductVersion') AS nvarchar(128)), CAST(SERVERPROPERTY('ProductUpdateLevel') AS nvarchar(128)), CAST(SERVERPROPERTY('Edition') AS nvarchar(128));";
-    internal const string DataFileSql = "SELECT TOP (1) physical_name FROM sys.database_files WHERE type = 0 ORDER BY file_id;";
-    internal const string AutomationSql =
-        "SELECT run_type, outcome, COUNT(*) FROM dbo.automation_runs WHERE completed_utc >= DATEADD(hour, -24, SYSUTCDATETIME()) GROUP BY run_type, outcome; " +
-        "SELECT COUNT(*) FROM dbo.report_pack_schedules WHERE is_enabled = 1 AND last_status = 'Failed' AND last_run_utc >= DATEADD(hour, -24, SYSUTCDATETIME());";
-
-    private async Task<SqlConnection> OpenAsync(CancellationToken cancellationToken)
-    {
-        var connection = new SqlConnection(LocalSqlConnectionPolicy.Validate(connectionString));
-        try { await connection.OpenAsync(cancellationToken); return connection; }
-        catch { await connection.DisposeAsync(); throw; }
-    }
-
-    private static SqlCommand Command(SqlConnection connection, string sql)
-    {
-        ReadOnlySqlGuard.Require(sql);
-        return new SqlCommand(sql, connection) { CommandTimeout = 10 };
-    }
-
-    public async Task<SqlServerBuildInfo> ReadBuildAsync(CancellationToken cancellationToken)
-    {
-        await using var connection = await OpenAsync(cancellationToken);
-        await using var command = Command(connection, BuildSql);
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        if (!await reader.ReadAsync(cancellationToken) || reader.IsDBNull(0)) throw new InvalidOperationException("SQL Server returned no version.");
-        return new(reader.GetString(0), reader.IsDBNull(1) ? null : reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetString(2));
-    }
-
-    public async Task<string?> ReadDataFilePathAsync(CancellationToken cancellationToken)
-    {
-        await using var connection = await OpenAsync(cancellationToken);
-        await using var command = Command(connection, DataFileSql);
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        return await reader.ReadAsync(cancellationToken) && !reader.IsDBNull(0) ? reader.GetString(0) : null;
-    }
-
-    public async Task<AutomationRunsSummary> ReadAutomationRunsAsync(CancellationToken cancellationToken)
-    {
-        await using var connection = await OpenAsync(cancellationToken);
-        await using var command = Command(connection, AutomationSql);
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        var counts = new List<AutomationRunCount>();
-        while (await reader.ReadAsync(cancellationToken)) counts.Add(new(reader.GetString(0), reader.GetString(1), reader.GetInt32(2)));
-        var failedSchedules = await reader.NextResultAsync(cancellationToken) && await reader.ReadAsync(cancellationToken) ? reader.GetInt32(0) : 0;
-        return new(counts, failedSchedules);
-    }
-}
+// SqlServerBuildInfo, AutomationRunsSummary, IOperationsSqlSource and SqlOperationsSource moved to
+// Infrastructure.SqlServer\HealthCheck\DesktopOperationsSql.cs (1.12 A1): the Desktop no longer opens SQL here.
 
 public enum SqlBuildVerdict { AtOrAboveRecommended, BelowRecommended, Rtm, UnsupportedMajor }
 
@@ -291,10 +218,10 @@ public sealed class OperationsProbes : IHealthProbe
         eventLog = new EventLogProbe(eventLogSource, settings);
     }
 
-    /// <summary>The real machine's readers for <paramref name="connectionString"/>; the caller supplies the adapter over L4's KnownSqlBuilds.</summary>
-    public static OperationsProbes CreateDefault(string connectionString, OperationsProbeSettings settings, ISqlBuildAssessor sqlBuilds) =>
-        new(new EtpScheduledTaskSource(), new DatabaseOperationsHealthSource(connectionString), new WindowsOperationsFileSystem(),
-            new ProtectedOperationPathChecker(settings.HealthExportsFolder), new SqlOperationsSource(connectionString), sqlBuilds, new WindowsEventLogSource(), settings);
+    /// <summary>The real machine's readers for the database of <paramref name="connections"/>; the caller supplies the adapter over L4's KnownSqlBuilds.</summary>
+    public static OperationsProbes CreateDefault(IEtpConnectionFactory connections, OperationsProbeSettings settings, ISqlBuildAssessor sqlBuilds) =>
+        new(new EtpScheduledTaskSource(), new DatabaseOperationsHealthSource(connections), new WindowsOperationsFileSystem(),
+            new ProtectedOperationPathChecker(settings.HealthExportsFolder), new SqlOperationsSource(connections), sqlBuilds, new WindowsEventLogSource(), settings);
 
     public IReadOnlyList<string> CheckIds { get; } =
     [

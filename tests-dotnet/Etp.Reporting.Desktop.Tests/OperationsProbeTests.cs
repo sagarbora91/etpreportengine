@@ -2,6 +2,7 @@ using Etp.Reporting.Application.HealthCheck;
 using Etp.Reporting.Desktop.Modules.HealthCheck;
 using Etp.Reporting.Infrastructure.SqlServer;
 using Etp.Reporting.Infrastructure.SqlServer.Audit;
+using Etp.Reporting.Infrastructure.SqlServer.HealthCheck;
 
 namespace Etp.Reporting.Desktop.Tests;
 

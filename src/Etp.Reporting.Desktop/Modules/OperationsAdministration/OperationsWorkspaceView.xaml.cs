@@ -12,8 +12,7 @@ namespace Etp.Reporting.Desktop.Modules.OperationsAdministration;
 public partial class OperationsWorkspaceView : UserControl
 {
     private readonly OperationsAdministrationPresentationSession session;
-    private readonly Func<string> connectionStringProvider;
-    private readonly Func<string, IOperationsAdministrationService> serviceFactory;
+    private readonly Func<IOperationsAdministrationService> serviceFactory;
     private readonly Func<string, CancellationToken, Task<MaintenanceOperationResult>> maintenanceRunner;
     private OperationsAdministrationWorkspaceAccess access = new(false, false, false);
     private int refreshRevision;
@@ -30,13 +29,11 @@ public partial class OperationsWorkspaceView : UserControl
 
     public OperationsWorkspaceView(
         OperationsAdministrationPresentationSession session,
-        Func<string> connectionStringProvider,
-        Func<string, IOperationsAdministrationService> serviceFactory,
+        Func<IOperationsAdministrationService> serviceFactory,
         Func<string, CancellationToken, Task<MaintenanceOperationResult>> maintenanceRunner,
         Func<CancellationToken, Task<IReadOnlyList<AutomaticImportTaskStatus>>>? readTaskStatus = null)
     {
         this.session = session ?? throw new ArgumentNullException(nameof(session));
-        this.connectionStringProvider = connectionStringProvider ?? throw new ArgumentNullException(nameof(connectionStringProvider));
         this.serviceFactory = serviceFactory ?? throw new ArgumentNullException(nameof(serviceFactory));
         this.maintenanceRunner = maintenanceRunner ?? throw new ArgumentNullException(nameof(maintenanceRunner));
         this.readTaskStatus = readTaskStatus ?? AutomaticImportTaskReader.ReadAsync;
@@ -90,7 +87,7 @@ public partial class OperationsWorkspaceView : UserControl
         catch (Exception ex) { if (revision != refreshRevision) return; var reference = DesktopDiagnostics.Record(ex, "OperationsAdministration.Operations", "OPERATIONS_REFRESH_FAILED"); OperationsStatus.Text = DesktopDiagnostics.WithReference($"Operations Centre could not be refreshed: {DesktopFriendlyError.Describe(ex, "This Windows account does not have application access.")}", reference); }
     }
 
-    private IOperationsAdministrationService Service => serviceFactory(connectionStringProvider());
+    private IOperationsAdministrationService Service => serviceFactory();
     private async void RefreshOperations_Click(object sender, RoutedEventArgs e) => await RefreshAsync();
 
     private async void SaveAutomationSettings_Click(object sender, RoutedEventArgs e) => await SaveWatchDraftAsync();

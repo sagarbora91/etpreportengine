@@ -13,9 +13,8 @@ namespace Etp.Reporting.Desktop.Modules.Accounting;
 /// Nothing here sends anything to Tally or switches on live books.</summary>
 public sealed class TallyCompaniesView : UserControl
 {
-    private readonly Func<string> connectionString;
     private readonly Func<bool> canAdminister;
-    private readonly Func<string, TallyProfileService> serviceFactory;
+    private readonly Func<TallyProfileService> serviceFactory;
     private IReadOnlyList<TallyProfile> loaded = [];
     // The company being edited, so fields this screen does not show (delivery, format, posting dates,
     // live-books approval) are saved unchanged instead of being reset.
@@ -41,9 +40,8 @@ public sealed class TallyCompaniesView : UserControl
     public TextBlock StatusText { get; } = new() { TextWrapping = TextWrapping.Wrap, Margin = new(0, 8, 0, 0) };
     public Button SaveButton { get; }
 
-    public TallyCompaniesView(Func<string> connectionString, Func<bool> canAdminister, Func<string, TallyProfileService> serviceFactory)
+    public TallyCompaniesView(Func<bool> canAdminister, Func<TallyProfileService> serviceFactory)
     {
-        this.connectionString = connectionString;
         this.canAdminister = canAdminister;
         this.serviceFactory = serviceFactory;
         System.Windows.Automation.AutomationProperties.SetName(CompanyGrid, "Tally companies");
@@ -97,7 +95,7 @@ public sealed class TallyCompaniesView : UserControl
 
     public async Task RefreshAsync()
     {
-        loaded = await serviceFactory(connectionString()).LoadAsync();
+        loaded = await serviceFactory().LoadAsync();
         CompanyGrid.ItemsSource = loaded.Select(profile => new TallyCompanyRow(profile)).ToArray();
         StatusText.Text = loaded.Count == 0
             ? "No Tally company yet. Fill in a test company below and save it with a reason."
@@ -115,7 +113,7 @@ public sealed class TallyCompaniesView : UserControl
             TallyBuildLabel = BuildInput.Text, IsEnabled = EnabledInput.IsChecked == true, StoreCodes = stores,
             StoreCostCentres = ParseCostCentres(CostCentresInput.Text)
         };
-        var id = await serviceFactory(connectionString()).SaveAsync(profile, ReasonInput.Text);
+        var id = await serviceFactory().SaveAsync(profile, ReasonInput.Text);
         ReasonInput.Clear();
         await RefreshAsync();
         var saved = loaded.FirstOrDefault(item => item.Id == id);
