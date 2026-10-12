@@ -12,6 +12,15 @@ namespace Etp.Reporting.Desktop.Modules.Settings;
 
 public sealed record SettingsWorkspaceAccess(bool HasAssignedRole, bool CanAdminister);
 
+/// <summary>
+/// 1.11.2 (AUDIT-2 S-07, lane L5's <c>product_settings.share_pack_customer_names</c>): reads and writes the Owner-only
+/// "Show customer names in shared packs" setting. Default off; the save is audited and refused in SQL (51060) for any
+/// role but the Owner. The composition root wires it to <c>DailyReportingPackService</c>.
+/// </summary>
+public sealed record SharePackCustomerNamesSetting(
+    Func<string, CancellationToken, Task<bool>> LoadAsync,
+    Func<string, bool, string, CancellationToken, Task> SaveAsync);
+
 public enum SettingsWorkspaceOperation
 {
     ConnectionTest,
@@ -54,6 +63,9 @@ public partial class SettingsWorkspaceView : UserControl
         System.Windows.Automation.AutomationProperties.SetName(smtpTlsInput, "Use SMTP TLS");
         var smtpFields = (Panel)SmtpHostInput.Parent;
         smtpFields.Children.Insert(smtpFields.Children.IndexOf(SmtpPortInput) + 1, smtpTlsInput);
+        RegisterName(shareCustomerNamesInput.Name, shareCustomerNamesInput);
+        System.Windows.Automation.AutomationProperties.SetName(shareCustomerNamesInput, "Show customer names in shared packs");
+        smtpFields.Children.Insert(smtpFields.Children.IndexOf(smtpTlsInput) + 1, shareCustomerNamesInput);
         if (accountingServiceFactory is not null)
         {
             tallySettings = new(() => session.ConnectionString, () => access.CanAdminister, accountingServiceFactory);
@@ -67,6 +79,13 @@ public partial class SettingsWorkspaceView : UserControl
     public Func<SettingsWorkspaceOperation, bool, Task>? OperationCompletedAsync { get; set; }
     public Func<bool>? CanChangeDatabase { get; set; }
 
+    /// <summary>The Owner-only "Show customer names in shared packs" setting; null hides the box (tests, no database).</summary>
+    public SharePackCustomerNamesSetting? SharePackCustomerNames
+    {
+        get => sharePackCustomerNames;
+        set { sharePackCustomerNames = value; shareCustomerNamesInput.Visibility = value is null ? Visibility.Collapsed : shareCustomerNamesVisibility; }
+    }
+
     public string ConnectionStringText => ConnectionStringInput.Text;
     public string StatusText => ConnectionResult.Text;
     public bool ProductConfigurationEnabled => ProductSettingsPanel.IsEnabled;
@@ -77,6 +96,16 @@ public partial class SettingsWorkspaceView : UserControl
     private readonly WorkspaceOperationGate databaseOperation = new();
     private string[]? savedProduct;
     private bool savedSmtpUseTls = true;
+    private SharePackCustomerNamesSetting? sharePackCustomerNames;
+    private bool savedShareCustomerNames;
+    private Visibility shareCustomerNamesVisibility = Visibility.Visible;
+    private readonly CheckBox shareCustomerNamesInput = new()
+    {
+        Name = "ShareCustomerNamesInput", Content = "Show customer names in shared packs", IsChecked = false,
+        MinHeight = 44, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0), Visibility = Visibility.Collapsed,
+        ToolTip = "Owner only. Off (the default): the daily pack's Customer column is left blank, so a pack shared outside ETP carries no customer names."
+    };
+    private bool ShareCustomerNamesChanged => sharePackCustomerNames is not null && (shareCustomerNamesInput.IsChecked == true) != savedShareCustomerNames;
     private readonly CheckBox smtpTlsInput = new()
     {
         Name = "SmtpUseTlsInput", Content = "Use SMTP TLS", IsChecked = true,
@@ -85,7 +114,8 @@ public partial class SettingsWorkspaceView : UserControl
     };
     private TextBox[] ProductFields => [DocumentRepositoryInput, ShareFolderInput, SmtpHostInput, SmtpPortInput, SmtpFromInput, MaximumAttachmentInput, ProductSettingsReasonInput];
     private bool HasIntegrationFieldsDraft => savedProduct is not null &&
-        (!ProductFields.Select(input => input.Text).SequenceEqual(savedProduct) || (smtpTlsInput.IsChecked == true) != savedSmtpUseTls);
+        (!ProductFields.Select(input => input.Text).SequenceEqual(savedProduct) || (smtpTlsInput.IsChecked == true) != savedSmtpUseTls
+         || ShareCustomerNamesChanged);
     public bool HasProductDraft => tallySettings?.HasDraft == true || HasIntegrationFieldsDraft;
     public bool IsBusy => tallySettings?.IsBusy == true || productBusy || databaseOperation.IsBusy;
     public void DiscardProductDraft()
@@ -94,12 +124,15 @@ public partial class SettingsWorkspaceView : UserControl
         if (savedProduct is null) return;
         for (var i = 0; i < ProductFields.Length; i++) ProductFields[i].Text = savedProduct[i];
         smtpTlsInput.IsChecked = savedSmtpUseTls;
+        shareCustomerNamesInput.IsChecked = savedShareCustomerNames;
     }
     public void SelectIntegrationTask(string id)
     {
         foreach (var input in new[] { SmtpHostInput, SmtpPortInput, SmtpFromInput, MaximumAttachmentInput })
             input.Visibility = id == "sharing" ? Visibility.Visible : Visibility.Collapsed;
         smtpTlsInput.Visibility = id == "sharing" ? Visibility.Visible : Visibility.Collapsed;
+        shareCustomerNamesVisibility = id == "sharing" ? Visibility.Visible : Visibility.Collapsed;
+        shareCustomerNamesInput.Visibility = sharePackCustomerNames is null ? Visibility.Collapsed : shareCustomerNamesVisibility;
         if (!integrationsLoaded) _ = PrepareForDisplayAsync(true);
     }
 
@@ -200,8 +233,12 @@ public partial class SettingsWorkspaceView : UserControl
             var dashboard = await administrationServiceFactory(session.ConnectionString).LoadAsync("Store");
             ApplyProductSettings(session.ShowProductSettings(dashboard.ProductConfiguration));
             smtpTlsInput.IsChecked = dashboard.ProductConfiguration.SmtpUseTls;
+            // Fails closed: an unreadable setting shows (and is) off.
+            shareCustomerNamesInput.IsChecked = sharePackCustomerNames is not null
+                && await sharePackCustomerNames.LoadAsync(session.ConnectionString, CancellationToken.None);
             integrationsLoaded = true; savedProduct = ProductFields.Select(input => input.Text).ToArray();
             savedSmtpUseTls = smtpTlsInput.IsChecked == true;
+            savedShareCustomerNames = shareCustomerNamesInput.IsChecked == true;
         }
         catch (Exception exception)
         {
@@ -229,9 +266,15 @@ public partial class SettingsWorkspaceView : UserControl
                 SmtpHostInput.Text, SmtpPortInput.Text, SmtpFromInput.Text, MaximumAttachmentInput.Text,
                 ProductSettingsReasonInput.Text) with { SmtpUseTls = smtpTlsInput.IsChecked == true };
             await administrationServiceFactory(session.ConnectionString).SaveProductConfigurationAsync(settings);
+            savedSmtpUseTls = settings.SmtpUseTls;
+            if (ShareCustomerNamesChanged)
+            {
+                var include = shareCustomerNamesInput.IsChecked == true;
+                await sharePackCustomerNames!.SaveAsync(session.ConnectionString, include, ProductSettingsReasonInput.Text, CancellationToken.None);
+                savedShareCustomerNames = include;
+            }
             ProductSettingsReasonInput.Clear();
             savedProduct = ProductFields.Select(input => input.Text).ToArray();
-            savedSmtpUseTls = settings.SmtpUseTls;
             ConnectionResult.Text = "Product integration settings saved and audited.";
             await NotifyCompletedAsync(SettingsWorkspaceOperation.ProductConfigurationSaved, true);
             return true;

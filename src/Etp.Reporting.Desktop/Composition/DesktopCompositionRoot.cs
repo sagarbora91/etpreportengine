@@ -126,6 +126,10 @@ public sealed class DesktopCompositionRoot
             administrationServiceFactory,
             MigrationDirectory,
             accountingServiceFactory);
+        // 1.11.2 (AUDIT-2 S-07): the Owner-only "Show customer names in shared packs" box, default off.
+        settingsWorkspaceView.SharePackCustomerNames = new(
+            (connection, token) => new DailyReportingPackService(connection).LoadSharePackCustomerNamesAsync(token),
+            (connection, include, reason, token) => new DailyReportingPackService(connection).SetSharePackCustomerNamesAsync(include, reason, token));
         TenderVarianceDiagnostic tenderVarianceDiagnostic = new ReportingTenderVarianceDiagnostic();
         var reportsWorkspaceView = new ReportsWorkspaceView(
             () => connectionState.ConnectionString,
