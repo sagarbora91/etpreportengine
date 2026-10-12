@@ -5,9 +5,11 @@
              automation:AutomationProperties.Name="Daily workflow and manual entry workspace">
     <Border Style="{DynamicResource SurfaceCard}">
         <StackPanel>
-            <TextBlock Text="Business-date reporting workflow" FontSize="18" FontWeight="SemiBold"/>
+            <!-- DS-08/DS-24: the shell header owns the title and the verdict band is the first thing the Owner reads.
+                 These two stay in the tree, collapsed, because TaskNavigator picks this panel's children by index. -->
+            <TextBlock Text="Business-date reporting workflow" Style="{DynamicResource SectionTitleText}" Visibility="Collapsed"/>
             <TextBlock Text="ETP transaction/report dates control FTD, MTD and YTD. Import timestamps never change the business date."
-                       Margin="0,6,0,12" Foreground="#5D6873" TextWrapping="Wrap"/>
+                       Style="{DynamicResource CaptionText}" Visibility="Collapsed"/>
             <WrapPanel>
                 <TextBlock Text="Business date" VerticalAlignment="Center" Margin="0,0,6,0"/>
                 <DatePicker x:Name="BusinessDateInput" Width="180" SelectedDateChanged="Scope_Changed"
@@ -17,28 +19,28 @@
                           automation:AutomationProperties.Name="Daily workflow store">
 
                 </ComboBox>
-                <Button x:Name="RefreshButton" Content="Refresh status" Click="Refresh_Click" Padding="14,7" Margin="12,0,0,0"
+                <Button x:Name="RefreshButton" Content="Refresh" Click="Refresh_Click" Margin="12,0,0,0"
                         automation:AutomationProperties.Name="Refresh daily workflow"/>
             </WrapPanel>
 
-            <Border Style="{DynamicResource StatusBanner}" Margin="0,14,0,12">
+            <Border x:Name="VerdictBand" Style="{DynamicResource StatusBanner}" Margin="0,14,0,12">
                 <StackPanel>
-                    <TextBlock x:Name="WorkflowStatus" Text="Select a business date and refresh." FontSize="17" FontWeight="SemiBold"
+                    <TextBlock x:Name="WorkflowStatus" Text="Select a business date and refresh." Style="{DynamicResource MetricText}"
                                automation:AutomationProperties.Name="Daily workflow readiness status"
                                automation:AutomationProperties.LiveSetting="Polite"/>
-                    <TextBlock x:Name="WorkflowMessage" Margin="0,5,0,0" TextWrapping="Wrap"
+                    <TextBlock x:Name="WorkflowMessage" Style="{DynamicResource BodyText}" Margin="0,5,0,0"
                                automation:AutomationProperties.Name="Daily workflow operation status"
                                automation:AutomationProperties.LiveSetting="Polite"/>
-                    <TextBlock x:Name="SourceStatus" Margin="0,8,0,0" TextWrapping="Wrap"
+                    <TextBlock x:Name="SourceStatus" Style="{DynamicResource BodyText}" Margin="0,8,0,0"
                                automation:AutomationProperties.Name="Daily workflow source readiness"/>
-                    <TextBlock x:Name="InputStatus" Margin="0,4,0,0" TextWrapping="Wrap"
+                    <TextBlock x:Name="InputStatus" Style="{DynamicResource BodyText}" Margin="0,4,0,0"
                                automation:AutomationProperties.Name="Daily workflow manual-input readiness"/>
                 </StackPanel>
             </Border>
 
-            <TextBlock x:Name="ManualEntryHeading" Text="Manual Entry" FontSize="18" FontWeight="SemiBold"/>
+            <TextBlock x:Name="ManualEntryHeading" Text="Manual entry" Style="{DynamicResource SectionTitleText}"/>
             <TextBlock Text="Enter values that are not available in ETP reports. Walk-ins feed the combined conversion calculation; zero remains different from missing. Every change requires a reason and remains audited."
-                       Margin="0,4,0,0" Foreground="#5D6873" TextWrapping="Wrap"/>
+                       Style="{DynamicResource CaptionText}" Margin="0,4,0,0"/>
             <DataGrid x:Name="ManualInputsGrid" Margin="0,8,0,10" AutoGenerateColumns="True" IsReadOnly="True" MaxHeight="210"
                       automation:AutomationProperties.Name="Daily manual operational inputs"/>
             <!-- The cash-book figures as labelled fields. They were reachable only through
@@ -48,73 +50,78 @@
             <WrapPanel>
                 <ComboBox x:Name="ManualFieldInput" Width="220" DisplayMemberPath="DisplayName" SelectedValuePath="FieldCode"
                           automation:AutomationProperties.Name="Manual input field"/>
-                <StackPanel Width="162" Margin="0,4,6,4"><TextBlock Text="Manual input value" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4"/><TextBox x:Name="ManualValueInput" Width="150" Padding="6" Margin="8,0,0,0"
+                <StackPanel Width="162" Margin="0,4,6,4"><TextBlock Text="Manual input value" TextWrapping="Wrap" Style="{DynamicResource FieldLabelText}"/><TextBox x:Name="ManualValueInput" Width="150" Padding="6" Margin="8,0,0,0"
                          ToolTip="Value; enter zero when the measured result is zero"
                          automation:AutomationProperties.Name="Manual input value"/></StackPanel>
-                <StackPanel Width="272" Margin="0,4,6,4"><TextBlock Text="Manual input change reason" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4"/><TextBox x:Name="ManualReasonInput" Width="260" Padding="6" Margin="8,0,0,0"
+                <StackPanel Width="272" Margin="0,4,6,4"><TextBlock Text="Manual input change reason" TextWrapping="Wrap" Style="{DynamicResource FieldLabelText}"/><TextBox x:Name="ManualReasonInput" Width="260" Padding="6" Margin="8,0,0,0"
                          ToolTip="Required reason, for example Daily store count"
                          automation:AutomationProperties.Name="Manual input change reason"/></StackPanel>
-                <Button x:Name="SaveManualInputButton" Content="Save input" Click="SaveManualInput_Click" Style="{DynamicResource PrimaryButton}" Padding="14,7" Margin="8,0,0,0"
+                <Button x:Name="SaveManualInputButton" Content="Save input" Click="SaveManualInput_Click" Style="{DynamicResource PrimaryButton}" Margin="8,0,0,0"
                         automation:AutomationProperties.Name="Save manual input"/>
             </WrapPanel>
 
-            <TextBlock Text="Physical stock by inventory group" FontWeight="SemiBold" Margin="0,14,0,0"/>
+            <TextBlock Text="Physical stock by inventory group" Style="{DynamicResource SectionTitleText}" Margin="0,14,0,0"/>
             <TextBlock Text="Enter component counts and the independently counted physical total. The engine shows both composition variance and physical-versus-system variance."
-                       Margin="0,4,0,6" Foreground="#5D6873" TextWrapping="Wrap"/>
+                       Style="{DynamicResource CaptionText}" Margin="0,4,0,6"/>
             <DataGrid x:Name="StockCountsGrid" AutoGenerateColumns="True" IsReadOnly="True" MaxHeight="150"
                       automation:AutomationProperties.Name="Physical stock counts by inventory group"/>
             <WrapPanel Margin="0,8,0,0">
-                <StackPanel Width="142" Margin="0,4,6,4"><TextBlock Text="Inventory group code" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4"/><TextBox x:Name="StockGroupInput" Width="130" Padding="6" ToolTip="Inventory group, CLUSTER, brand or controlled group code" automation:AutomationProperties.Name="Inventory group code"/></StackPanel>
-                <StackPanel Width="90" Margin="0,4,6,4"><TextBlock Text="Display quantity" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4"/><TextBox x:Name="StockDisplayInput" Width="78" Padding="6" Margin="6,0,0,0" ToolTip="Display quantity" automation:AutomationProperties.Name="Display quantity"/></StackPanel>
-                <StackPanel Width="90" Margin="0,4,6,4"><TextBlock Text="Backstock quantity" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4"/><TextBox x:Name="StockBackstockInput" Width="78" Padding="6" Margin="6,0,0,0" ToolTip="Backstock quantity" automation:AutomationProperties.Name="Backstock quantity"/></StackPanel>
-                <StackPanel Width="90" Margin="0,4,6,4"><TextBlock Text="Defective quantity" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4"/><TextBox x:Name="StockDefectiveInput" Width="78" Padding="6" Margin="6,0,0,0" ToolTip="Defective quantity" automation:AutomationProperties.Name="Defective quantity"/></StackPanel>
-                <StackPanel Width="90" Margin="0,4,6,4"><TextBlock Text="Y location quantity" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4"/><TextBox x:Name="StockYLocationInput" Width="78" Padding="6" Margin="6,0,0,0" ToolTip="Y-location quantity" automation:AutomationProperties.Name="Y location quantity"/></StackPanel>
-                <StackPanel Width="102" Margin="0,4,6,4"><TextBlock Text="Counted physical quantity" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4"/><TextBox x:Name="StockPhysicalInput" Width="90" Padding="6" Margin="6,0,0,0" ToolTip="Independently counted physical quantity" automation:AutomationProperties.Name="Counted physical quantity"/></StackPanel>
-                <StackPanel Width="162" Margin="0,4,6,4"><TextBlock Text="Stock remarks" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4"/><TextBox x:Name="StockRemarksInput" Width="150" Padding="6" Margin="6,0,0,0" ToolTip="Stock remarks" automation:AutomationProperties.Name="Stock remarks"/></StackPanel>
-                <StackPanel Width="172" Margin="0,4,6,4"><TextBlock Text="Stock count change reason" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4"/><TextBox x:Name="StockReasonInput" Width="160" Padding="6" Margin="6,0,0,0" ToolTip="Required change reason" automation:AutomationProperties.Name="Stock count change reason"/></StackPanel>
-                <Button x:Name="SaveStockCountButton" Content="Save stock count" Click="SaveStockCount_Click" Style="{DynamicResource PrimaryButton}" Padding="12,7" Margin="6,0,0,0"
+                <StackPanel Width="142" Margin="0,4,6,4"><TextBlock Text="Inventory group code" TextWrapping="Wrap" Style="{DynamicResource FieldLabelText}"/><TextBox x:Name="StockGroupInput" Width="130" Padding="6" ToolTip="Inventory group, CLUSTER, brand or controlled group code" automation:AutomationProperties.Name="Inventory group code"/></StackPanel>
+                <StackPanel Width="90" Margin="0,4,6,4"><TextBlock Text="Display quantity" TextWrapping="Wrap" Style="{DynamicResource FieldLabelText}"/><TextBox x:Name="StockDisplayInput" Width="78" Padding="6" Margin="6,0,0,0" ToolTip="Display quantity" automation:AutomationProperties.Name="Display quantity"/></StackPanel>
+                <StackPanel Width="90" Margin="0,4,6,4"><TextBlock Text="Backstock quantity" TextWrapping="Wrap" Style="{DynamicResource FieldLabelText}"/><TextBox x:Name="StockBackstockInput" Width="78" Padding="6" Margin="6,0,0,0" ToolTip="Backstock quantity" automation:AutomationProperties.Name="Backstock quantity"/></StackPanel>
+                <StackPanel Width="90" Margin="0,4,6,4"><TextBlock Text="Defective quantity" TextWrapping="Wrap" Style="{DynamicResource FieldLabelText}"/><TextBox x:Name="StockDefectiveInput" Width="78" Padding="6" Margin="6,0,0,0" ToolTip="Defective quantity" automation:AutomationProperties.Name="Defective quantity"/></StackPanel>
+                <StackPanel Width="90" Margin="0,4,6,4"><TextBlock Text="Y location quantity" TextWrapping="Wrap" Style="{DynamicResource FieldLabelText}"/><TextBox x:Name="StockYLocationInput" Width="78" Padding="6" Margin="6,0,0,0" ToolTip="Y-location quantity" automation:AutomationProperties.Name="Y location quantity"/></StackPanel>
+                <StackPanel Width="102" Margin="0,4,6,4"><TextBlock Text="Counted physical quantity" TextWrapping="Wrap" Style="{DynamicResource FieldLabelText}"/><TextBox x:Name="StockPhysicalInput" Width="90" Padding="6" Margin="6,0,0,0" ToolTip="Independently counted physical quantity" automation:AutomationProperties.Name="Counted physical quantity"/></StackPanel>
+                <StackPanel Width="162" Margin="0,4,6,4"><TextBlock Text="Stock remarks" TextWrapping="Wrap" Style="{DynamicResource FieldLabelText}"/><TextBox x:Name="StockRemarksInput" Width="150" Padding="6" Margin="6,0,0,0" ToolTip="Stock remarks" automation:AutomationProperties.Name="Stock remarks"/></StackPanel>
+                <StackPanel Width="172" Margin="0,4,6,4"><TextBlock Text="Stock count change reason" TextWrapping="Wrap" Style="{DynamicResource FieldLabelText}"/><TextBox x:Name="StockReasonInput" Width="160" Padding="6" Margin="6,0,0,0" ToolTip="Required change reason" automation:AutomationProperties.Name="Stock count change reason"/></StackPanel>
+                <Button x:Name="SaveStockCountButton" Content="Save stock count" Click="SaveStockCount_Click" Style="{DynamicResource PrimaryButton}" Margin="6,0,0,0"
                         automation:AutomationProperties.Name="Save physical stock count"/>
             </WrapPanel>
 
-            <TextBlock Text="Staff/CRO target" FontWeight="SemiBold" Margin="0,14,0,0"/>
+            <TextBlock Text="Staff/CRO target" Style="{DynamicResource SectionTitleText}" Margin="0,14,0,0"/>
             <WrapPanel Margin="0,6,0,0">
-                <StackPanel Width="132" Margin="0,4,6,4"><TextBlock Text="Staff CRO number" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4"/><TextBox x:Name="StaffTargetCroInput" InputScope="Number" Width="120" Padding="6" ToolTip="CRO number" automation:AutomationProperties.Name="Staff CRO number"/></StackPanel>
+                <StackPanel Width="132" Margin="0,4,6,4"><TextBlock Text="Staff CRO number" TextWrapping="Wrap" Style="{DynamicResource FieldLabelText}"/><TextBox x:Name="StaffTargetCroInput" InputScope="Number" Width="120" Padding="6" ToolTip="CRO number" automation:AutomationProperties.Name="Staff CRO number"/></StackPanel>
                 <DatePicker x:Name="StaffTargetFromInput" Width="180" Margin="6,0,0,0" automation:AutomationProperties.Name="Staff target start date"/>
                 <DatePicker x:Name="StaffTargetToInput" Width="180" Margin="6,0,0,0" automation:AutomationProperties.Name="Staff target end date"/>
-                <StackPanel Width="122" Margin="0,4,6,4"><TextBlock Text="Staff target sales" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4"/><TextBox x:Name="StaffTargetValueInput" Width="110" Padding="6" Margin="6,0,0,0" ToolTip="Target sales" automation:AutomationProperties.Name="Staff target sales"/></StackPanel>
-                <StackPanel Width="222" Margin="0,4,6,4"><TextBlock Text="Staff target change reason" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4"/><TextBox x:Name="StaffTargetReasonInput" Width="210" Padding="6" Margin="6,0,0,0" ToolTip="Required change reason" automation:AutomationProperties.Name="Staff target change reason"/></StackPanel>
-                <Button x:Name="SaveStaffTargetButton" Content="Save target" Click="SaveStaffTarget_Click" Style="{DynamicResource PrimaryButton}" Padding="12,7" Margin="6,0,0,0"
+                <StackPanel Width="122" Margin="0,4,6,4"><TextBlock Text="Staff target sales" TextWrapping="Wrap" Style="{DynamicResource FieldLabelText}"/><TextBox x:Name="StaffTargetValueInput" Width="110" Padding="6" Margin="6,0,0,0" ToolTip="Target sales" automation:AutomationProperties.Name="Staff target sales"/></StackPanel>
+                <StackPanel Width="222" Margin="0,4,6,4"><TextBlock Text="Staff target change reason" TextWrapping="Wrap" Style="{DynamicResource FieldLabelText}"/><TextBox x:Name="StaffTargetReasonInput" Width="210" Padding="6" Margin="6,0,0,0" ToolTip="Required change reason" automation:AutomationProperties.Name="Staff target change reason"/></StackPanel>
+                <Button x:Name="SaveStaffTargetButton" Content="Save target" Click="SaveStaffTarget_Click" Style="{DynamicResource PrimaryButton}" Margin="6,0,0,0"
                         automation:AutomationProperties.Name="Save staff target"/>
                 <!-- 1.9.9 targets-copy: kept inside this WrapPanel because TaskNavigator selects root children by index. -->
                 <StackPanel x:Name="StaffTargetCopyHost" MinWidth="640" Margin="0,4,0,0"/>
             </WrapPanel>
 
             <WrapPanel Margin="0,14,0,0">
-                <Button x:Name="FinaliseDayButton" Content="Finalise day" Click="FinaliseDay_Click" Style="{DynamicResource PrimaryButton}" Padding="16,8" IsEnabled="False"
+                <Button x:Name="FinaliseDayButton" Content="Finalise day" Click="FinaliseDay_Click" Style="{DynamicResource PrimaryButton}" IsEnabled="False"
                         automation:AutomationProperties.Name="Finalise business day"/>
-                <StackPanel Width="292" Margin="0,4,6,4"><TextBlock Text="Reopen reason" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4"/><TextBox x:Name="ReopenReasonInput" Width="280" Padding="6" Margin="12,0,0,0"
-                         ToolTip="Owner reason required to reopen"
-                         automation:AutomationProperties.Name="Reopen reason"/></StackPanel>
-                <Button x:Name="ReopenDayButton" Content="Reopen day" Click="ReopenDay_Click" Style="{DynamicResource DangerButton}" Padding="16,8" Margin="8,0,0,0"
-                        automation:AutomationProperties.Name="Reopen finalised business day"/>
+                <!-- DS-10: Reopen sits in a quiet "More" fold so the undo is not 8 px from the Finalise button. -->
+                <Expander Header="More" Margin="16,0,0,0" VerticalAlignment="Center" automation:AutomationProperties.Name="More daily actions">
+                    <WrapPanel Margin="0,8,0,0">
+                        <StackPanel Margin="0,0,8,0"><TextBlock Text="Reopen reason" Style="{DynamicResource FieldLabelText}"/><TextBox x:Name="ReopenReasonInput" Width="280"
+                                 ToolTip="Owner reason required to reopen"
+                                 automation:AutomationProperties.Name="Reopen reason"/></StackPanel>
+                        <Button x:Name="ReopenDayButton" Content="Reopen day" Click="ReopenDay_Click" Style="{DynamicResource DangerButton}" VerticalAlignment="Bottom"
+                                automation:AutomationProperties.Name="Reopen finalised business day"/>
+                    </WrapPanel>
+                </Expander>
             </WrapPanel>
 
             <WrapPanel Margin="0,14,0,0">
-                <Button x:Name="GenerateStorePackButton" ToolTipService.ShowOnDisabled="True" Content="Generate selected-store pack" Click="GenerateDailyPack_Click" Padding="16,8"
+                <Button x:Name="GenerateStorePackButton" ToolTipService.ShowOnDisabled="True" Content="Generate selected-store pack" Click="GenerateDailyPack_Click"
                         automation:AutomationProperties.Name="Generate selected store daily reporting pack"/>
-                <Button x:Name="GenerateCombinedPackButton" ToolTipService.ShowOnDisabled="True" Content="Generate all stores pack" Click="GenerateCombinedDailyPack_Click" Padding="16,8" Margin="8,0,0,0"
+                <Button x:Name="GenerateCombinedPackButton" ToolTipService.ShowOnDisabled="True" Content="Generate all stores pack" Click="GenerateCombinedDailyPack_Click" Margin="8,0,0,0"
                         automation:AutomationProperties.Name="Generate combined daily reporting pack for all active stores"/>
-                <Button x:Name="ExportPackExcelButton" Content="Export complete pack Excel…" Click="ExportDailyPackExcel_Click" Padding="16,8" Margin="8,0,0,0" IsEnabled="False"
+                <Button x:Name="ExportPackExcelButton" Content="Export complete pack Excel…" Click="ExportDailyPackExcel_Click" Margin="8,0,0,0" IsEnabled="False"
                         automation:AutomationProperties.Name="Export complete report pack Excel"/>
-                <Button x:Name="ExportPackPdfButton" Content="Export complete pack PDF…" Click="ExportDailyPackPdf_Click" Padding="16,8" Margin="8,0,0,0" IsEnabled="False"
+                <Button x:Name="ExportPackPdfButton" Content="Export complete pack PDF…" Click="ExportDailyPackPdf_Click" Margin="8,0,0,0" IsEnabled="False"
                         automation:AutomationProperties.Name="Export complete report pack PDF"/>
             </WrapPanel>
             <DataGrid x:Name="DailyPackGrid" Margin="0,10,0,0" AutoGenerateColumns="True" IsReadOnly="True" MaxHeight="260"
                       automation:AutomationProperties.Name="Daily reporting pack status"/>
             <StackPanel x:Name="DayRegistersPanel" Margin="0,14,0,0">
-                <TextBlock Text="Today's register entries" FontSize="18" FontWeight="SemiBold"/>
+                <TextBlock Text="Today's register entries" Style="{DynamicResource SectionTitleText}"/>
                 <TextBlock x:Name="DayRegistersStatus" TextWrapping="Wrap" Margin="0,4,0,6"/>
-                <WrapPanel><Button Content="Refresh entries" Click="RefreshDayRegisters_Click" Padding="14,7"/><Button Content="Open selected register" Click="OpenDayRegister_Click" Padding="14,7" Margin="8,0,0,0"/></WrapPanel>
+                <WrapPanel><Button Content="Refresh entries" Click="RefreshDayRegisters_Click"/><Button Content="Open selected register" Click="OpenDayRegister_Click" Margin="8,0,0,0"/></WrapPanel>
                 <DataGrid x:Name="DayRegistersGrid" AutoGenerateColumns="True" IsReadOnly="True" SelectionMode="Single" MaxHeight="240" Margin="0,6,0,0" automation:AutomationProperties.Name="Today's register entries"/>
             </StackPanel>
         </StackPanel>

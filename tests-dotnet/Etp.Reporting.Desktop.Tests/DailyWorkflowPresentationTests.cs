@@ -32,6 +32,18 @@ public sealed class DailyWorkflowPresentationTests
         Assert.False(unavailable.CanFinalise);
     }
 
+    [Theory]
+    [InlineData(DailyWorkflowStatus.NotReady, "Blocked")]
+    [InlineData(DailyWorkflowStatus.Partial, "Partly ready")]
+    [InlineData(DailyWorkflowStatus.ReadyWithWarnings, "Ready, with warnings")]
+    [InlineData(DailyWorkflowStatus.Reconciled, "Ready")]
+    [InlineData(DailyWorkflowStatus.Locked, "Finalised")]
+    public void Verdict_uses_plain_words_not_enum_names(DailyWorkflowStatus status, string word)
+    {
+        var state = new DailyWorkflowState("WLMHW", new DateOnly(2026, 8, 25), status, [], [], [], [], false, "m");
+        Assert.Equal(word, new DailyWorkflowPresentationSession().Show(state, []).Status);
+    }
+
     [Fact]
     public void Scope_and_manual_input_validation_preserve_zero_missing_and_walk_in_rules()
     {

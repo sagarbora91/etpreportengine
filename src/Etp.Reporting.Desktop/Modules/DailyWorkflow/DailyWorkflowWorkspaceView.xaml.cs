@@ -3,7 +3,6 @@ extern alias EtpApplication;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media;
 using Etp.Reporting.Reporting;
 using Microsoft.Win32;
 using Etp.Reporting.Desktop.Modules.Reports;
@@ -149,7 +148,7 @@ public partial class DailyWorkflowWorkspaceView : UserControl
 
     public async Task RefreshAsync()
     {
-        if (string.IsNullOrWhiteSpace(StoreCode)) { WorkflowStatus.Text = "Choose a store"; WorkflowStatus.SetResourceReference(TextBlock.ForegroundProperty,"SecondaryText"); Publish("Choose one store in the header."); return; }
+        if (string.IsNullOrWhiteSpace(StoreCode)) { WorkflowStatus.Text = "Choose a store"; ApplyVerdictTone(null); Publish("Choose one store in the header."); return; }
         var revision = ++refreshRevision;
         try
         {
@@ -350,12 +349,7 @@ public partial class DailyWorkflowWorkspaceView : UserControl
     private void Apply(DailyWorkflowPresentationState state)
     {
         WorkflowStatus.Text = state.Status;
-        WorkflowStatus.Foreground = state.Tone switch
-        {
-            DailyWorkflowTone.Healthy => Brushes.SeaGreen,
-            DailyWorkflowTone.Warning => Brushes.DarkOrange,
-            _ => Brushes.Firebrick
-        };
+        ApplyVerdictTone(state.Tone);
         WorkflowMessage.Text = state.Message;
         SourceStatus.Text = state.SourceStatus;
         InputStatus.Text = state.InputStatus;
@@ -368,6 +362,21 @@ public partial class DailyWorkflowWorkspaceView : UserControl
         StockCountsGrid.ItemsSource = state.StockCounts;
         stateAllowsFinalise = state.CanFinalise;
         RefreshAccessState();
+    }
+
+    /// <summary>DS-08: the verdict band takes the tone of the state (soft fill, tone-coloured word) instead of one green box.</summary>
+    private void ApplyVerdictTone(DailyWorkflowTone? tone)
+    {
+        var (fill, edge, word) = tone switch
+        {
+            DailyWorkflowTone.Healthy => ("SuccessSoft", "Success", "Success"),
+            DailyWorkflowTone.Warning => ("WarningSoft", "Warning", "Warning"),
+            DailyWorkflowTone.Critical => ("CriticalSoft", "Critical", "Critical"),
+            _ => ("SurfaceSecondary", "Divider", "SecondaryText")
+        };
+        VerdictBand.SetResourceReference(Border.BackgroundProperty, fill);
+        VerdictBand.SetResourceReference(Border.BorderBrushProperty, edge);
+        WorkflowStatus.SetResourceReference(TextBlock.ForegroundProperty, word);
     }
 
     private void ShowPack(ReportPackDocument document, object rows, DailyPackBinding binding)
@@ -514,6 +523,7 @@ public partial class DailyWorkflowWorkspaceView : UserControl
         if (!IsInitialized) return;
         stateAllowsFinalise = false;
         WorkflowStatus.Text = "Refresh required";
+        ApplyVerdictTone(null);
         WorkflowMessage.Text = "Store or business date changed. Refresh status before reviewing readiness or finalising. Unsaved values are retained; check them for the selected scope before saving.";
         SourceStatus.Text = string.Empty;
         InputStatus.Text = string.Empty;
